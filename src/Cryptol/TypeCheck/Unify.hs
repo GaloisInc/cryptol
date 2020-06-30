@@ -72,10 +72,7 @@ mgu t1 t2
   isNum = k1 == KNum
 
 mgu (TRec fs1) (TRec fs2)
-  | ns1 == ns2 = mguMany ts1 ts2
-  where
-  (ns1,ts1)  = unzip (canonicalFields fs1)
-  (ns2,ts2)  = unzip (canonicalFields fs2)
+  | fieldSet fs1 == fieldSet fs2 = mguMany (recordElements fs1) (recordElements fs2)
 
 mgu t1 t2
   | not (k1 == k2)  = uniError $ UniKindMismatch k1 k2

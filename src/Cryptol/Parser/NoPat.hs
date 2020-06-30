@@ -99,12 +99,12 @@ noPat pat =
          return (pTy r x ty, zipWith getN as [0..] ++ concat dss)
 
     PRecord fs ->
-      do (as,dss) <- unzip `fmap` mapM (noPat . snd . snd) (canonicalFields fs)
+      do let (shape, els) = unzip (canonicalFields fs)
+         (as,dss) <- unzip `fmap` mapM (noPat . snd) els
          x <- newName
          r <- getRange
-         let shape    = map fst (canonicalFields fs)
-             ty       = TRecord (fmap (\(rng,_) -> (rng,TWild)) fs)
-             getN a n = sel a x (RecordSel n (Just shape))
+         let ty           = TRecord (fmap (\(rng,_) -> (rng,TWild)) fs)
+             getN a n     = sel a x (RecordSel n (Just shape))
          return (pTy r x ty, zipWith getN as shape ++ concat dss)
 
     PTyped p t ->
