@@ -27,12 +27,16 @@ module Cryptol.Symbolic.What4
  , satProveOffline
  ) where
 
+import Control.Concurrent.Async
 import Control.Monad.IO.Class
-import Control.Monad (when, foldM)
+import Control.Monad (when, foldM, forM_)
 import qualified Control.Exception as X
 import System.IO (Handle)
 import Data.Time
 import Data.IORef
+import Data.List.NonEmpty (NonEmpty(..))
+import qualified Data.List.NonEmpty as NE
+import System.Exit
 
 import qualified Cryptol.ModuleSystem as M hiding (getPrimMap)
 import qualified Cryptol.ModuleSystem.Env as M
@@ -81,29 +85,34 @@ doW4Eval sym evo m =
     W4Error err -> liftIO (X.throwIO err)
     W4Result p x -> pure (p, x)
 
--- External interface ----------------------------------------------------------
+data AnAdapter = AnAdapter (forall st. SolverAdapter st)
+
+data W4ProverConfig
+  = W4ProverConfig AnAdapter
+  | W4Portfolio (NonEmpty AnAdapter)
+
+
 
 proverConfigs :: [(String, W4ProverConfig)]
 proverConfigs =
-  [ ("w4-cvc4"     , W4ProverConfig cvc4Adapter )
-  , ("w4-yices"    , W4ProverConfig yicesAdapter )
-  , ("w4-z3"       , W4ProverConfig z3Adapter )
-  , ("w4-boolector", W4ProverConfig boolectorAdapter )
-  , ("w4-offline"  , W4ProverConfig z3Adapter )
-{-
-  , ("mathsat"  , SBV.mathSAT  )
-  , ("abc"      , SBV.abc      )
-  , ("any"      , SBV.defaultSMTCfg )
--}
+  [ ("w4-cvc4"     , W4ProverConfig (AnAdapter cvc4Adapter) )
+  , ("w4-yices"    , W4ProverConfig (AnAdapter yicesAdapter) )
+  , ("w4-z3"       , W4ProverConfig (AnAdapter z3Adapter) )
+  , ("w4-boolector", W4ProverConfig (AnAdapter boolectorAdapter) )
+  , ("w4-offline"  , W4ProverConfig (AnAdapter z3Adapter) )
+  , ("w4-any"      , allSolvers)
   ]
 
-data W4ProverConfig =
-  W4ProverConfig
-    (forall st. SolverAdapter st)
-
+allSolvers :: W4ProverConfig
+allSolvers = W4Portfolio
+  $ AnAdapter z3Adapter :|
+  [ AnAdapter cvc4Adapter
+  , AnAdapter boolectorAdapter
+  , AnAdapter yicesAdapter
+  ]
 
 defaultProver :: W4ProverConfig
-defaultProver = W4ProverConfig z3Adapter
+defaultProver = W4ProverConfig (AnAdapter z3Adapter)
 
 proverNames :: [String]
 proverNames = map fst proverConfigs
@@ -111,16 +120,39 @@ proverNames = map fst proverConfigs
 setupProver :: String -> IO (Either String ([String], W4ProverConfig))
 setupProver nm =
   case lookup nm proverConfigs of
-    Just cfg@(W4ProverConfig adpt) ->
-      do sym <- W4.newExprBuilder W4.FloatIEEERepr CryptolState globalNonceGenerator
-         W4.extendConfig (W4.solver_adapter_config_options adpt) (W4.getConfiguration sym)
-         st <- W4.smokeTest sym adpt
+    Just cfg@(W4ProverConfig p) ->
+      do st <- tryAdapter p
          let ws = case st of
                     Nothing -> []
                     Just ex -> [ "Warning: solver interaction failed with " ++ nm, "    " ++ show ex ]
          pure (Right (ws, cfg))
 
+    Just (W4Portfolio ps) ->
+      filterAdapters (NE.toList ps) >>= \case
+         [] -> pure (Left "What4 could not communicate with any provers!")
+         (p:ps') ->
+           let msg = "What4 found the following solvers: " ++ show (adapterNames (p:ps')) in
+           pure (Right ([msg], W4Portfolio (p:|ps')))
+
     Nothing -> pure (Left ("unknown solver name: " ++ nm))
+
+  where
+  adapterNames [] = []
+  adapterNames (AnAdapter adpt : ps) =
+    solver_adapter_name adpt : adapterNames ps
+
+  filterAdapters [] = pure []
+  filterAdapters (p:ps) =
+    tryAdapter p >>= \case
+      Just _err -> filterAdapters ps
+      Nothing   -> (p:) <$> filterAdapters ps
+
+  tryAdapter (AnAdapter adpt) =
+     do sym <- W4.newExprBuilder W4.FloatIEEERepr CryptolState globalNonceGenerator
+        W4.extendConfig (W4.solver_adapter_config_options adpt) (W4.getConfiguration sym)
+        W4.smokeTest sym adpt
+
+
 
 proverError :: String -> M.ModuleCmd (Maybe String, ProverResult)
 proverError msg (_,modEnv) =
@@ -130,9 +162,20 @@ proverError msg (_,modEnv) =
 data CryptolState t = CryptolState
 
 
+
 -- TODO? move this?
 allDeclGroups :: M.ModuleEnv -> [DeclGroup]
 allDeclGroups = concatMap mDecls . M.loadedNonParamModules
+
+setupAdapterOptions :: W4ProverConfig -> W4.ExprBuilder t CryptolState fs -> IO ()
+setupAdapterOptions cfg sym =
+   case cfg of
+     W4ProverConfig p -> setupAnAdapter p
+     W4Portfolio ps -> mapM_ setupAnAdapter ps
+
+  where
+  setupAnAdapter (AnAdapter adpt) =
+    W4.extendConfig (W4.solver_adapter_config_options adpt) (W4.getConfiguration sym)
 
 satProve :: W4ProverConfig -> ProverCommand -> M.ModuleCmd (Maybe String, ProverResult)
 satProve solverCfg ProverCommand {..} =
@@ -144,6 +187,7 @@ satProve solverCfg ProverCommand {..} =
     primMap <- M.getPrimMap
 
     sym <- M.io (W4.newExprBuilder W4.FloatIEEERepr CryptolState globalNonceGenerator)
+    M.io (setupAdapterOptions solverCfg sym)
 
     logData <-
       flip M.withLogger () $ \lg () ->
@@ -195,7 +239,11 @@ satProve solverCfg ProverCommand {..} =
             return result)
 
 satProveOffline :: W4ProverConfig -> ProverCommand -> ((Handle -> IO ()) -> IO ()) -> M.ModuleCmd (Maybe String)
-satProveOffline (W4ProverConfig adpt) ProverCommand {..} outputContinuation =
+
+satProveOffline (W4Portfolio (p:|_)) cmd outputContinuation =
+  satProveOffline (W4ProverConfig p) cmd outputContinuation
+
+satProveOffline (W4ProverConfig (AnAdapter adpt)) ProverCommand {..} outputContinuation =
   protectStack (\msg (_,modEnv) -> return (Right (Just msg, modEnv), [])) $
   \(evo,modEnv) -> do
   M.runModuleM (evo,modEnv) $ do
@@ -203,6 +251,7 @@ satProveOffline (W4ProverConfig adpt) ProverCommand {..} outputContinuation =
     let lPutStrLn = M.withLogger logPutStrLn
 
     sym <- M.io (W4.newExprBuilder W4.FloatIEEERepr CryptolState globalNonceGenerator)
+    M.io (W4.extendConfig (W4.solver_adapter_config_options adpt) (W4.getConfiguration sym))
 
     let ?evalPrim = evalPrim sym
     case predArgTypes pcQueryType pcSchema of
@@ -235,7 +284,6 @@ satProveOffline (W4ProverConfig adpt) ProverCommand {..} outputContinuation =
                 SafetyQuery ->
                   W4.notPred sym safety
 
-              W4.extendConfig (W4.solver_adapter_config_options adpt) (W4.getConfiguration sym)
               outputContinuation (\hdl -> solver_adapter_write_smt2 adpt sym hdl [q])
               return Nothing
 
@@ -259,9 +307,11 @@ multiSATQuery ::
 multiSATQuery sym solverCfg evo primMap logData ts args query (SomeSat n) | n <= 1 =
   singleQuery sym solverCfg evo primMap logData ts args Nothing query
 
-multiSATQuery sym (W4ProverConfig adpt) evo primMap logData ts args query satNum0 =
-  do W4.extendConfig (W4.solver_adapter_config_options adpt) (W4.getConfiguration sym)
-     pres <- W4.solver_adapter_check_sat adpt sym logData [query] $ \res ->
+multiSATQuery _sym (W4Portfolio _) _evo _primMap _logData _ts _args _query _satNum =
+  fail "What4 portfolio solver cannot be used for multi SAT queries"
+
+multiSATQuery sym (W4ProverConfig (AnAdapter adpt)) evo primMap logData ts args query satNum0 =
+  do pres <- W4.solver_adapter_check_sat adpt sym logData [query] $ \res ->
          case res of
            W4.Unknown -> return (Left (ProverError "Solver returned UNKNOWN"))
            W4.Unsat _ -> return (Left (ThmResult (map unFinType ts)))
@@ -316,12 +366,19 @@ singleQuery ::
   W4.Pred sym ->
   IO (Maybe String, ProverResult)
 
---singleQuery _sym _evo _primMap "all" _logData _ts _args _query =
---  do fail "TODO portfolio solver!"
+singleQuery sym (W4Portfolio ps) evo primMap logData ts args msafe query =
+  do as <- mapM async [ singleQuery sym (W4ProverConfig p) evo primMap logData ts args msafe query
+                      | p <- NE.toList ps
+                      ]
+     (winner, result) <- waitAnyCatch as
+     forM_ as (\a ->
+        when (a /= winner) (X.throwTo (asyncThreadId a) ExitSuccess))
+     case result of
+       Left ex -> X.throw ex
+       Right x -> pure x
 
-singleQuery sym (W4ProverConfig adpt) evo primMap logData ts args msafe query =
-  do W4.extendConfig (W4.solver_adapter_config_options adpt) (W4.getConfiguration sym)
-     pres <- W4.solver_adapter_check_sat adpt sym logData [query] $ \res ->
+singleQuery sym (W4ProverConfig (AnAdapter adpt)) evo primMap logData ts args msafe query =
+  do pres <- W4.solver_adapter_check_sat adpt sym logData [query] $ \res ->
          case res of
            W4.Unknown -> return (ProverError "Solver returned UNKNOWN")
            W4.Unsat _ -> return (ThmResult (map unFinType ts))
