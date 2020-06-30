@@ -117,15 +117,15 @@ Symbols
     all : {n, a} (fin n) => (a -> Bit) -> [n]a -> Bit
     and : {n} (fin n) => [n] -> Bit
     any : {n, a} (fin n) => (a -> Bit) -> [n]a -> Bit
-    assert : {a, len} (fin len) => Bit -> String len -> a -> a
+    assert : {a, n} (fin n) => Bit -> String n -> a -> a
     carry : {n} (fin n) => [n] -> [n] -> Bit
     ceiling : {a} (Round a) => a -> Integer
     complement : {a} (Logic a) => a -> a
     curry : {a, b, c} ((a, b) -> c) -> a -> b -> c
     demote : {val, rep} (Literal val rep) => rep
     drop : {front, back, a} (fin front) => [front + back]a -> [back]a
-    elem : {n, a} (fin n, Cmp a) => a -> [n]a -> Bit
-    error : {a, len} (fin len) => String len -> a
+    elem : {n, a} (fin n, Eq a) => a -> [n]a -> Bit
+    error : {a, n} (fin n) => String n -> a
     False : Bit
     floor : {a} (Round a) => a -> Integer
     foldl : {n, a, b} (fin n) => (a -> b -> a) -> a -> [n]b -> a
@@ -186,8 +186,8 @@ Symbols
     tail : {n, a} [1 + n]a -> [n]a
     take : {front, back, a} (fin front) => [front + back]a -> [front]a
     toInteger : {a} (Integral a) => a -> Integer
-    trace : {n, a, b} (fin n) => [n][8] -> a -> b -> b
-    traceVal : {n, a} (fin n) => [n][8] -> a -> a
+    trace : {n, a, b} (fin n) => String n -> a -> b -> b
+    traceVal : {n, a} (fin n) => String n -> a -> a
     transpose : {rows, cols, a} [rows][cols]a -> [cols][rows]a
     trunc : {a} (Round a) => a -> Integer
     uncurry : {a, b, c} (a -> b -> c) -> (a, b) -> c

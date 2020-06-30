@@ -2667,10 +2667,11 @@ automatically, to get the answers:
 \begin{Exercise}\label{ex:recfun:4:1}
 Define a function {\tt elem} with the following signature:\indElem
 \begin{code}
-  elem : {n, t} (fin n, Cmp t) => (t, [n]t) -> Bit
+  elem : {n, t} (fin n, Eq t) => (t, [n]t) -> Bit
 \end{code}
 such that {\tt elem (x, xs)} returns {\tt True} if {\tt x} appears in
-{\tt xs}, and {\tt False} otherwise.
+{\tt xs}, and {\tt False} otherwise.\footnote{Note: this function
+  is already present in the Cryptol prelude.}
 \end{Exercise}
 \begin{Answer}\ansref{ex:recfun:4:1}
 Using a fold, it is easy to write {\tt elem}:
@@ -2922,7 +2923,7 @@ Type classes are a way of describing behaviors shared by multiple
 types.  As an example, consider the type of the function {\tt ==}:
 \begin{Verbatim}
     Cryptol> :t (==)
-    (==) : {a} (Cmp a) => a -> a -> Bit
+    (==) : {a} (Eq a) => a -> a -> Bit
 \end{Verbatim}
 
 This type signature may be read as, ``equality is an operator that
@@ -2930,7 +2931,7 @@ takes two objects of any single type that can be compared and returns
 a Bit.''
 
 Cryptol defines a collection of basic type classes: \texttt{Logic},
-\texttt{Zero}, \texttt{Cmp}, \texttt{SignedCmp}, \texttt{Ring},
+\texttt{Zero}, \texttt{Eq}, \texttt{Cmp}, \texttt{SignedCmp}, \texttt{Ring},
 \texttt{Integral}, \texttt{Field}, \texttt{Round}, and
 \texttt{Literal}. These appear in the type signature of operators and
 functions that require them. If a function you define calls, for
@@ -2952,14 +2953,16 @@ All of the built-in types of Cryptol are instances of class
 \texttt{Zero}.
 
 \item
-The \texttt{Cmp} typeclass includes the binary relation operators
-\texttt{<}, \texttt{>}, \texttt{<=}, \texttt{>=}, \texttt{==}, and
-\texttt{!=}, as well as the binary functions \texttt{min} and
-\texttt{max}. Note that equality and other comparisons are bundled
-into a single typeclass. Function types are not in class \texttt{Cmp}
+The \texttt{Eq} typeclass includes the equality testing operations
+\texttt{==} and \texttt{!=}. Function types are not in class \texttt{Eq}
 and cannot be compared with \texttt{==}, but Cryptol does provide a
 special pointwise comparison operator for functions, \texttt{(===) :
   \{a b\} (Cmp b) => (a -> b) -> (a -> b) -> a -> Bit}.
+
+\item
+The \texttt{Cmp} typeclass includes the binary relation operators
+\texttt{<}, \texttt{>}, \texttt{<=}, \texttt{>=}, as well as the
+binary functions \texttt{min} and \texttt{max}.
 
 \item
 The \texttt{SignedCmp} typeclass includes the binary relation
@@ -2996,9 +2999,9 @@ Currently, only type \texttt{Rational} is a member of this class.
 \item
  The \texttt{Round} typeclass contains types that can be
  rounded to integers.  It includes \texttt{floor}, \texttt{ceiling},
- \texttt{trunc} and \texttt{round} operations, which are all different
- ways of rounding values to integers.
-Currently, only type \texttt{Rational} is a member of this class.
+ \texttt{trunc}, \texttt{roundAway} and \texttt{roundToEven}
+ operations, which are all different ways of rounding values to
+ integers. Currently, only type \texttt{Rational} is a member of this class.
 
 \item
 The \texttt{Literal} typeclass includes numeric literals.
@@ -3008,7 +3011,7 @@ The \texttt{Literal} typeclass includes numeric literals.
   Without including an explicit type declaration, define a function
   that Cryptol infers has the following type:
 \begin{Verbatim}
-  cmpRing : {a,b} (Cmp a, Ring b) => a -> a -> b -> b
+  cmpRing : {a,b} (Eq a, Ring b) => a -> a -> b -> b
 \end{Verbatim}
 \end{Exercise}
 \begin{Answer}\ansref{ex:tvar:1}
@@ -3018,7 +3021,7 @@ This code:
 \end{code}
 yields the inferred type:
 \begin{Verbatim}
-  cmpRing : {a, b} (Cmp a, Ring b) => a -> a -> b -> b
+  cmpRing : {a, b} (Eq a, Ring b) => a -> a -> b -> b
 \end{Verbatim}
 \end{Answer}
 

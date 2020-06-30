@@ -24,8 +24,9 @@
 
   There is also a new `Round` class for types that can sensibly be
   rounded to integers.  This class has the methods `floor`, `ceiling`,
-  `trunc` and `round` for performing different kinds of
-  integer rounding.  Currently `Rational` is the only meber of `Round`.
+  `trunc`, `roundToEven`  and `roundAway` for performing different
+  kinds of integer rounding.  Currently `Rational` is the only member
+  of `Round`.
 
   The type of `(^^)` is modified to be
   `{a, e} (Ring a, Integral e) => a -> e -> a`. This makes it clear
@@ -34,6 +35,10 @@
 
   Finally, the `lg2`, `(/$)` and `(%$)` methods of Arith have
   had their types specialized so operate only on bitvectors.
+
+* Added an `Eq` class, and moved the equality operations
+  from `Cmp` into `Eq`. The `Z` type becomes a member of `Eq`
+  but not `Cmp`.
 
 * Added a base `Rational` type.  It is implemented as a pair of
   integers, quotiented in the usual way.  As such, it reduces to the
@@ -44,6 +49,10 @@
 
 * The `generate` function (and thus `x @ i= e` definitions) has had
   its type specialized so the index type is always `Integer`.
+
+* The new typeclasses are arranged into a class hierarchy, and the
+  typechecker will use that information to infer superclass instances
+  from subclasses.
 
 ## New features
 
@@ -57,10 +66,23 @@
 * More detailed information about the status of various symbols
   in the output of the `:browse` command (issue #688).
 
+* The `:safe` command will attempt to prove that a given Cryptol
+  term is safe; in other words, that it will not encounter a run-time
+  error for all inputs. Run-time errors arise from things like
+  division-by-zero, index-out-of-bounds situations and
+  explicit calls to `error` or `assert`.
+
+* The `:prove` and `:sat` commands now incorporate safety predicates
+  by default. In a `:sat` call, models will only be found that do not
+  cause run-time errors. For `:prove` calls, the safety conditions are
+  added as additional proof goals.  The prior behavior
+  (which ignored safety conditions) can be restored using
+  `:set ignore-safety = on`.
+
 ## Bug fixes
 
-* Closed issues #346, #444, #614, #617, #660, #662, #663, #664, #667, #670,
-  #711
+* Closed issues #346, #444, #614, #617, #636, #660, #662, #663, #664, #667, #670,
+  #702, #711, #712, #716, #723, #725, #731
 
 # 2.8.0 (September 4, 2019)
 

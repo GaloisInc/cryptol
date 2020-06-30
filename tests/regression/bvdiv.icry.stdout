@@ -1,0 +1,27 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+property d1 Using exhaustive testing.
+Testing... Passed 65536 tests.
+Q.E.D.
+property c1 Using exhaustive testing.
+Testing... Passed 65536 tests.
+Q.E.D.
+property m1 Using exhaustive testing.
+Testing... Passed 65536 tests.
+Q.E.D.
+property d2 Using exhaustive testing.
+Testing... Passed 65536 tests.
+Q.E.D.
+property c2 Using exhaustive testing.
+Testing... Passed 65536 tests.
+Q.E.D.
+property m2 Using exhaustive testing.
+Testing... Passed 65536 tests.
+Q.E.D.
+property m3 Using exhaustive testing.
+Testing... Passed 65536 tests.
+Q.E.D.
+property sdiv Using exhaustive testing.
+Testing... Passed 65536 tests.
+Q.E.D.
