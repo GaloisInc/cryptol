@@ -43,6 +43,7 @@ library
   Default-language:
     Haskell2010
   Build-depends:       base              >= 4.8 && < 5,
+                       async             >= 2.2 && < 2.3,
                        base-compat       >= 0.6 && < 0.12,
                        bv-sized          >= 1.0 && < 1.1,
                        bytestring        >= 0.10,
