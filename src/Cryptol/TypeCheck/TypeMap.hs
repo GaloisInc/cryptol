@@ -145,6 +145,9 @@ instance TrieMap TypeMap Type where
     [ (TVar x,           v) | (x,v)   <- toListTM (tvar m) ] ++
     [ (TCon c ts,        v) | (c,m1)  <- toListTM (tcon m)
                             , (ts,v)  <- toListTM m1 ] ++
+
+    -- NB: this step loses 'displayOrder' information.
+    --  It's not clear if we should try to fix this.
     [ (TRec (recordFromFields (zip fs ts)), v)
           | (fs,m1) <- toListTM (trec m)
           , (ts,v)  <- toListTM m1 ]
@@ -160,6 +163,8 @@ instance TrieMap TypeMap Type where
                              (\ts a -> f (TCon c ts) a) l) (tcon m)
        , trec = mapWithKeyTM (\fs l -> mapMaybeWithKeyTM
                              (\ts a -> f (TRec (recordFromFields (zip fs ts))) a) l) (trec m)
+                               -- NB: this step loses 'displayOrder' information.
+                               --  It's not clear if we should try to fix this.
        }
 
 

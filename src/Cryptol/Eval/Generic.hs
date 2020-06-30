@@ -715,9 +715,9 @@ cmpValue sym fb fw fi fz fq ff = cmp
                                [ "Functions are not comparable" ]
         TVTuple tys   -> cmpValues tys (fromVTuple v1) (fromVTuple v2) k
         TVRec fields  -> cmpValues
-                            (map snd (canonicalFields fields))
-                            (map snd (canonicalFields (fromVRecord v1)))
-                            (map snd (canonicalFields (fromVRecord v2)))
+                            (recordElements fields)
+                            (recordElements (fromVRecord v1))
+                            (recordElements (fromVRecord v2))
                             k
         TVAbstract {} -> evalPanic "cmpValue"
                           [ "Abstract type not in `Cmp`" ]

@@ -844,7 +844,7 @@ patternEnv  = go
 
   go PWild            = return mempty
   go (PTuple ps)      = bindVars ps
-  go (PRecord fs)     = bindVars (fmap (snd . snd) (canonicalFields fs))
+  go (PRecord fs)     = bindVars (fmap snd (recordElements fs))
   go (PList ps)       = foldMap go ps
   go (PTyped p ty)    = go p `mappend` typeEnv ty
   go (PSplit a b)     = go a `mappend` go b
@@ -889,7 +889,7 @@ patternEnv  = go
                 n   <- liftSupply (mkParameter (getIdent pn) loc)
                 return (singletonT pn n)
 
-  typeEnv (TRecord fs)      = bindTypes (map (snd.snd) (canonicalFields fs))
+  typeEnv (TRecord fs)      = bindTypes (map snd (recordElements fs))
   typeEnv (TTyApp fs)       = bindTypes (map value fs)
   typeEnv (TTuple ts)       = bindTypes ts
   typeEnv TWild             = return mempty

@@ -732,7 +732,7 @@ instance FVS Type where
         TCon _ ts   -> fvs ts
         TVar x      -> Set.singleton x
         TUser _ _ t -> go t
-        TRec fs     -> fvs (map snd (canonicalFields fs))
+        TRec fs     -> fvs (recordElements fs)
 
 instance FVS a => FVS (Maybe a) where
   fvs Nothing  = Set.empty

@@ -374,7 +374,7 @@ varBlockingPred sym evalFn v =
 
     VarFinSeq _n vs -> computeBlockingPred sym evalFn vs
     VarTuple vs     -> computeBlockingPred sym evalFn vs
-    VarRecord fs    -> computeBlockingPred sym evalFn (map snd (canonicalFields fs))
+    VarRecord fs    -> computeBlockingPred sym evalFn (recordElements fs)
 
 computeModel ::
   Eval.EvalOpts ->

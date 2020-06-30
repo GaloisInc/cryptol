@@ -71,7 +71,7 @@ checkType ty =
     TVar tv -> lookupTVar tv
 
     TRec fs ->
-      do forM_ (canonicalFields fs) $ \(_,t) ->
+      do forM_ fs $ \t ->
            do k <- checkType t
               unless (k == KType) $ reportError $ KindMismatch KType k
          return KType
@@ -296,7 +296,7 @@ checkHas t sel =
           do case mb of
                Nothing -> return ()
                Just fs1 ->
-                 do let ns  = map fst $ canonicalFields fs
+                 do let ns  = Set.toList (fieldSet fs)
                         ns1 = sort fs1
                     unless (ns == ns1) $
                       reportError $ UnexpectedRecordShape ns1 ns
@@ -369,10 +369,8 @@ convertible t1 t2 = go t1 t2
          TRec fs ->
            case other of
              TRec gs ->
-               do let fs1   = canonicalFields fs
-                      gs1   = canonicalFields gs
-                  unless (map fst fs1 == map fst gs1) err
-                  goMany (map snd fs1) (map snd gs1)
+               do unless (fieldSet fs == fieldSet gs) err
+                  goMany (recordElements fs) (recordElements gs)
              _ -> err
 
 

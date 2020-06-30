@@ -78,7 +78,7 @@ namesE expr =
     EComplement e -> namesE e
     EGenerate e   -> namesE e
     ETuple es     -> Set.unions (map namesE es)
-    ERecord fs    -> Set.unions (map (namesE . snd . snd) (canonicalFields fs))
+    ERecord fs    -> Set.unions (map (namesE . snd) (recordElements fs))
     ESel e _      -> namesE e
     EUpd mb fs    -> let e = maybe Set.empty namesE mb
                      in Set.unions (e : map namesUF fs)
@@ -116,7 +116,7 @@ namesP pat =
     PVar x        -> [x]
     PWild         -> []
     PTuple ps     -> namesPs ps
-    PRecord fs    -> namesPs (map (snd . snd) (canonicalFields fs))
+    PRecord fs    -> namesPs (map snd (recordElements fs))
     PList ps      -> namesPs ps
     PTyped p _    -> namesP p
     PSplit p1 p2  -> namesPs [p1,p2]
@@ -194,7 +194,7 @@ tnamesE expr =
     EComplement e   -> tnamesE e
     EGenerate e     -> tnamesE e
     ETuple es       -> Set.unions (map tnamesE es)
-    ERecord fs      -> Set.unions (map (tnamesE . snd . snd) (canonicalFields fs))
+    ERecord fs      -> Set.unions (map (tnamesE . snd) (recordElements fs))
     ESel e _        -> tnamesE e
     EUpd mb fs      -> let e = maybe Set.empty tnamesE mb
                        in Set.unions (e : map tnamesUF fs)
@@ -233,7 +233,7 @@ tnamesP pat =
     PVar _        -> Set.empty
     PWild         -> Set.empty
     PTuple ps     -> Set.unions (map tnamesP ps)
-    PRecord fs    -> Set.unions (map (tnamesP . snd . snd) (canonicalFields fs))
+    PRecord fs    -> Set.unions (map (tnamesP . snd) (recordElements fs))
     PList ps      -> Set.unions (map tnamesP ps)
     PTyped p t    -> Set.union (tnamesP p) (tnamesT t)
     PSplit p1 p2  -> Set.union (tnamesP p1) (tnamesP p2)
@@ -267,7 +267,7 @@ tnamesT ty =
     TNum _        -> Set.empty
     TChar __      -> Set.empty
     TTuple ts     -> Set.unions (map tnamesT ts)
-    TRecord fs    -> Set.unions (map (tnamesT . snd . snd) (canonicalFields fs))
+    TRecord fs    -> Set.unions (map (tnamesT . snd) (recordElements fs))
     TTyApp fs     -> Set.unions (map (tnamesT . value) fs)
     TLocated t _  -> tnamesT t
     TUser x ts    -> Set.insert x (Set.unions (map tnamesT ts))

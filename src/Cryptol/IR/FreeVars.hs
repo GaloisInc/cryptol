@@ -101,7 +101,7 @@ instance FreeVars Expr where
     case expr of
       EList es t        -> freeVars es <> freeVars t
       ETuple es         -> freeVars es
-      ERec fs           -> freeVars (map snd (canonicalFields fs))
+      ERec fs           -> freeVars (recordElements fs)
       ESel e _          -> freeVars e
       ESet e _ v        -> freeVars [e,v]
       EIf e1 e2 e3      -> freeVars [e1,e2,e3]
@@ -138,7 +138,7 @@ instance FreeVars Type where
       TVar tv -> freeVars tv
 
       TUser _ _ t -> freeVars t
-      TRec fs     -> freeVars (map snd (canonicalFields fs))
+      TRec fs     -> freeVars (recordElements fs)
 
 
 instance FreeVars TVar where
