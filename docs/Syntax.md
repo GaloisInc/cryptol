@@ -510,7 +510,8 @@ Type Synonym Declarations
 Modules
 =======
 
-A ***module*** is used to group some related definitions.
+A ***module*** is used to group some related definitions.  Each file may
+contain at most one module.
 
 
     module M where

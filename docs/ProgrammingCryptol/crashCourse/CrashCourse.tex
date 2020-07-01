@@ -3237,10 +3237,11 @@ Doing this well encourages
 code reuse, so it's a generally good thing to do. Cryptol's module
 system is simple and easy to use. Here's a quick overview:
 
-A module's name should be the same as the filename the module is
-defined in. For example, the \verb+utilities+ module should be
-defined in a file called \verb+utilities.cry+. To specify that a file
-defines a module, its first non-commented line should be:
+A module's name should be the same as the filename the module is defined in,
+and each file may contain only a single module. For example, the
+\verb+utilities+ module should be defined in a file called
+\verb+utilities.cry+. To specify that a file defines a module, its first
+non-commented line should be:
 
 \begin{verbatim}
   module utilities where
