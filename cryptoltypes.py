@@ -235,6 +235,10 @@ class Integer(CryptolType):
     def __repr__(self) -> str:
         return f"Integer()"
 
+class Rational(CryptolType):
+    def __repr__(self) -> str:
+        return f"Rational()"
+
 class Z(CryptolType):
     def __init__(self, modulus : CryptolType) -> None:
         self.modulus = modulus
@@ -320,6 +324,8 @@ def to_type(t : Any) -> CryptolType:
         return Record({k : to_type(t['fields'][k]) for k in t['fields']})
     elif t['type'] == 'Integer':
         return Integer()
+    elif t['type'] == 'Rational':
+        return Rational()
     elif t['type'] == 'Z':
         return Z(to_type(t['modulus']))
     else:
