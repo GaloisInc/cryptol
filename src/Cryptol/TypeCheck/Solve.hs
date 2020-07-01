@@ -47,13 +47,12 @@ import           Data.Maybe(listToMaybe)
 
 
 
-quickSolverIO :: Ctxt -> [Goal] -> IO (Either Goal (Subst,[Goal]))
+quickSolverIO :: Ctxt -> [Goal] ->
+                              IO (Either (TCErrorMessage,Goal) (Subst,[Goal]))
 quickSolverIO _ [] = return (Right (emptySubst, []))
 quickSolverIO ctxt gs =
   case quickSolver ctxt gs of
-    Left err ->
-      do msg (text "Contradiction:" <+> pp (goal err))
-         return (Left err)
+    Left err -> return (Left err)
     Right (su,gs') ->
       do msg (vcat (map (pp . goal) gs' ++ [pp su]))
          return (Right (su,gs'))
@@ -74,7 +73,7 @@ quickSolverIO ctxt gs =
 
 quickSolver :: Ctxt   -- ^ Facts we can know
             -> [Goal] -- ^ Need to solve these
-            -> Either Goal (Subst,[Goal])
+            -> Either (TCErrorMessage,Goal) (Subst,[Goal])
             -- ^ Left: contradicting goals,
             --   Right: inferred types, unsolved goals.
 quickSolver ctxt gs0 = go emptySubst [] gs0
@@ -91,7 +90,7 @@ quickSolver ctxt gs0 = go emptySubst [] gs0
 
   go su unsolved (g : gs) =
     case Simplify.simplifyStep ctxt (goal g) of
-      Unsolvable _        -> Left g
+      Unsolvable e        -> Left (e,g)
       Unsolved            -> go su (g : unsolved) gs
       SolvedIf subs       ->
         let cvt x = g { goal = x }
@@ -180,7 +179,7 @@ simplifyAllConstraints =
        [] -> return ()
        _ ->
         case quickSolver mempty gs of
-          Left badG      -> recordError (UnsolvedGoals True [badG])
+          Left (msg,badG)      -> recordError (UnsolvedGoals (Just msg) [badG])
           Right (su,gs1) ->
             do extendSubst su
                addGoals gs1
@@ -249,7 +248,7 @@ proveImplicationIO s f varsInEnv ps asmps0 gs0 =
   do let ctxt = buildSolverCtxt asmps
      res <- quickSolverIO ctxt gs
      case res of
-       Left bad -> return (Left (UnsolvedGoals True [bad]), emptySubst)
+       Left (msg,bad) -> return (Left (UnsolvedGoals (Just msg) [bad]), emptySubst)
        Right (su,[]) -> return (Right [], su)
        Right (su,gs1) ->
          do gs2 <- proveImp s asmps gs1

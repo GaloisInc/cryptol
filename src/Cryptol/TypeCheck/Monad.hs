@@ -150,7 +150,7 @@ runInferM info (IM m) = SMT.withSolver (inpSolverConfig info) $ \solver ->
            (cts,has) -> return $ InferFailed warns
                 $ cleanupErrors
                 [ ( goalRange g
-                  , UnsolvedGoals False [apSubst theSu g]
+                  , UnsolvedGoals Nothing [apSubst theSu g]
                   ) | g <- fromGoals cts ++ map hasGoal has
                 ]
        errs -> return $ InferFailed warns
@@ -389,7 +389,7 @@ simpGoal :: Goal -> InferM [Goal]
 simpGoal g =
   case Simple.simplify mempty (goal g) of
     p | Just e <- tIsError p ->
-        do recordError $ ErrorMsg $ text $ tcErrorMessage e
+        do recordError $ UnsolvedGoals (Just e) [g]
            return []
       | ps <- pSplitAnd p -> return [ g { goal = pr } | pr <- ps ]
 

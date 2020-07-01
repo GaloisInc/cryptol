@@ -84,10 +84,10 @@ data Error    = ErrorMsg Doc
               | RecursiveType Type Type
                 -- ^ Unification results in a recursive type
 
-              | UnsolvedGoals Bool [Goal]
+              | UnsolvedGoals (Maybe TCErrorMessage) [Goal]
                 -- ^ A constraint that we could not solve
-                -- The boolean indicates if we know that this constraint
-                -- is impossible.
+                -- If we have `TCErrorMess` than the goal is impossible
+                -- for the given reason
 
               | UnsolvedDelayedCt DelayedCt
                 -- ^ A constraint (with context) that we could not solve
@@ -259,10 +259,11 @@ instance PP (WithNames Error) where
            mismatchHint t1 t2)
 
       UnsolvedGoals imp gs
-        | imp ->
+        | Just msg <- imp ->
           addTVarsDescsAfter names err $
           nested "Unsolvable constraints:" $
-          bullets (map (ppWithNames names) gs)
+          let reason = ["Reason:" <+> text (tcErrorMessage msg)] in
+          bullets (map (ppWithNames names) gs ++ reason)
 
         | noUni ->
           addTVarsDescsAfter names err $

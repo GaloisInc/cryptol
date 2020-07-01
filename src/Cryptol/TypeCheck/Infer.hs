@@ -597,7 +597,7 @@ checkP desc p tGoal =
   do (x, t) <- inferP desc p
      ps <- unify tGoal (thing t)
      let rng   = fromMaybe emptyRange $ getLoc p
-     let mkErr = recordError . UnsolvedGoals False . (:[])
+     let mkErr = recordError . UnsolvedGoals Nothing . (:[])
                                                    . Goal (CtPattern desc) rng
      mapM_ mkErr ps
      return (Located (srcRange t) x)
