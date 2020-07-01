@@ -42,6 +42,7 @@ module Cryptol.Utils.Ident
   , PrimIdent(..)
   , prelPrim
   , floatPrim
+  , arrayPrim
 
   ) where
 
@@ -175,7 +176,7 @@ modParamIdent (Ident x t) = Ident x (T.append (T.pack "module parameter ") t)
 
 {- | A way to identify primitives: we used to use just 'Ident', but this
 isn't good anymore as now we have primitives in multiple modules.
-This is used as a key when we need to lookup details about a speicif
+This is used as a key when we need to lookup details about a specific
 primitive.  Also, this is intended to mostly be used internally, so
 we don't store the fixity flag of the `Ident` -}
 data PrimIdent = PrimIdent ModName T.Text
@@ -188,6 +189,7 @@ prelPrim = PrimIdent preludeName
 floatPrim :: T.Text -> PrimIdent
 floatPrim = PrimIdent floatName
 
-
+arrayPrim :: T.Text -> PrimIdent
+arrayPrim = PrimIdent arrayName
 
 instance NFData PrimIdent
