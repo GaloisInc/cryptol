@@ -17,7 +17,14 @@ import Cryptol.Utils.Panic(panic)
 
 --------------------------------------------------------------------------------
 
--- | We default constraints of the form @Literal t a@ to @a := Integer@
+-- | We default constraints of the form @Literal t a@.
+--
+--   We examine the context of constraints on the type @a@
+--   to decide how to default.  If @Logic a@ is required,
+--   we cannot do any defaulting.  Otherwise, we default
+--   to either @Integer@ or @Rational@.  In particular, if
+--   we need to satisfy the @Field a@, constraint, we choose
+--   @Rational@ and otherwise we choose @Integer@.
 defaultLiterals :: [TVar] -> [Goal] -> ([TVar], Subst, [Warning])
 defaultLiterals as gs = let (binds,warns) = unzip (mapMaybe tryDefVar as)
                         in (as \\ map fst binds, listSubst binds, warns)
