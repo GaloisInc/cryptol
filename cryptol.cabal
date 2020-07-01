@@ -56,7 +56,7 @@ library
                        gitrev            >= 1.0,
                        GraphSCC          >= 1.0.4,
                        heredoc           >= 0.2,
-                       libBF,
+                       libBF             >= 0.5.1,
                        monad-control     >= 1.0,
                        monadLib          >= 3.7.2,
                        parameterized-utils >= 2.0.2,
