@@ -7,7 +7,6 @@ import Cryptol.TypeCheck.Type hiding
 import Cryptol.TypeCheck.TypePat
 import Cryptol.TypeCheck.Solver.InfNat
 import Control.Monad(msum,guard)
-import Cryptol.TypeCheck.PP(pp)
 
 
 tRebuild' :: Bool -> Type -> Type
@@ -109,7 +108,7 @@ tAdd x y
 tSub :: Type -> Type -> Type
 tSub x y
   | Just t <- tOp TCSub (op2 nSub) [x,y] = t
-  | tIsInf y  = tBadNumber $ TCErrorMessage "Subtraction of `inf`."
+  | tIsInf y  = tError (tf2 TCSub x y) "cannot subtract `inf`."
   | Just 0 <- yNum = x
   | Just k <- yNum
   , TCon (TF TCAdd) [a,b] <- tNoUser x
@@ -166,32 +165,37 @@ tMul x y
 tDiv :: Type -> Type -> Type
 tDiv x y
   | Just t <- tOp TCDiv (op2 nDiv) [x,y] = t
-  | tIsInf x = tBadNumber $ TCErrorMessage "Division of `inf`."
-  | Just 0 <- tIsNum y = tBadNumber $ TCErrorMessage "Division by 0."
+  | tIsInf x = bad "Cannot divide `inf`"
+  | Just 0 <- tIsNum y = bad "Cannot divide by 0"
   | otherwise = tf2 TCDiv x y
+    where bad = tError (tf2 TCDiv x y)
 
 tMod :: Type -> Type -> Type
 tMod x y
   | Just t <- tOp TCMod (op2 nMod) [x,y] = t
-  | tIsInf x = tBadNumber $ TCErrorMessage "Modulus of `inf`."
-  | Just 0 <- tIsNum x = tBadNumber $ TCErrorMessage "Modulus by 0."
+  | tIsInf x = bad "Cannot compute remainder of `inf`"
+  | Just 0 <- tIsNum y = bad "Cannot divide modulo 0"
   | otherwise = tf2 TCMod x y
+    where bad = tError (tf2 TCMod x y)
 
 tCeilDiv :: Type -> Type -> Type
 tCeilDiv x y
   | Just t <- tOp TCCeilDiv (op2 nCeilDiv) [x,y] = t
-  | tIsInf x = tBadNumber $ TCErrorMessage "CeilDiv of `inf`."
-  | tIsInf y = tBadNumber $ TCErrorMessage "CeilDiv by `inf`."
-  | Just 0 <- tIsNum y = tBadNumber $ TCErrorMessage "CeilDiv by 0."
+  | tIsInf x = bad "CeilDiv of `inf`"
+  | tIsInf y = bad "CeilDiv by `inf`"
+  | Just 0 <- tIsNum y = bad "CeilDiv by 0"
   | otherwise = tf2 TCCeilDiv x y
+    where bad = tError (tf2 TCCeilDiv x y)
 
 tCeilMod :: Type -> Type -> Type
 tCeilMod x y
   | Just t <- tOp TCCeilMod (op2 nCeilMod) [x,y] = t
-  | tIsInf x = tBadNumber $ TCErrorMessage "CeilMod of `inf`."
-  | tIsInf y = tBadNumber $ TCErrorMessage "CeilMod by `inf`."
-  | Just 0 <- tIsNum x = tBadNumber $ TCErrorMessage "CeilMod to size 0."
+  | tIsInf x = bad "CeilMod of `inf`"
+  | tIsInf y = bad "CeilMod by `inf`"
+  | Just 0 <- tIsNum x = bad "CeilMod to size 0"
   | otherwise = tf2 TCCeilMod x y
+    where bad = tError (tf2 TCCeilMod x y)
+
 
 tExp :: Type -> Type -> Type
 tExp x y
@@ -302,15 +306,12 @@ op3 f ~[x,y,z] = f x y z
 -- | Common checks: check for error, or simple full evaluation.
 tOp :: TFun -> ([Nat'] -> Maybe Nat') -> [Type] -> Maybe Type
 tOp tf f ts
-  | Just e  <- msum (map tIsError ts) = Just (tBadNumber e)
+  | Just (TCErrorMessage e,t) <- msum (map tIsError ts) = Just (tError t e)
   | Just xs <- mapM tIsNat' ts =
       Just $ case f xs of
-               Nothing -> tBadNumber (err xs)
+               Nothing -> tError (TCon (TF tf) (map tNat' xs)) "invalid type"
                Just n  -> tNat' n
   | otherwise = Nothing
-  where
-  err xs = TCErrorMessage $
-              "Invalid type: " ++ show (pp (TCon (TF tf) (map tNat' xs)))
 
 
 

@@ -70,7 +70,12 @@ IEEE-754 floating point numbers.
 0x4.0p0
 
 [error] at <interactive>:1:1--1:20:
-  5/1 cannot be represented in FloatTests::Small
+  Unsolvable constraints:
+    • FLiteral 5 1 1 Small
+        arising from
+        use of expression fraction
+        at <interactive>:1:1--1:6
+    • Reason: 5/1 cannot be represented in FloatTests::Small
 0x1.3p0
 0x2.0p-4
 0x2.0p-4

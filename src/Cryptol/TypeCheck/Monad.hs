@@ -388,8 +388,8 @@ collectGoals m =
 simpGoal :: Goal -> InferM [Goal]
 simpGoal g =
   case Simple.simplify mempty (goal g) of
-    p | Just e <- tIsError p ->
-        do recordError $ UnsolvedGoals (Just e) [g]
+    p | Just (e,t) <- tIsError p ->
+        do recordError $ UnsolvedGoals (Just e) [g { goal = t }]
            return []
       | ps <- pSplitAnd p -> return [ g { goal = pr } | pr <- ps ]
 

@@ -21,7 +21,7 @@ import Cryptol.TypeCheck.PP
 simplify :: Ctxt -> Prop -> Prop
 simplify ctxt p =
   case simplifyStep ctxt p of
-    Unsolvable e -> p -- pError e
+    Unsolvable (TCErrorMessage e) -> tError p e
     Unsolved     -> dbg msg p
       where msg = text "unsolved:" <+> pp p
     SolvedIf ps -> dbg msg $ pAnd (map (simplify ctxt) ps)

@@ -82,7 +82,7 @@ pBin tf p t1 t2 =
           return $ if p x y
                       then SolvedIf []
                       else Unsolvable $ TCErrorMessage
-                        $ "Unsolvable constraint: " ++
+                        $ "It is not the case that " ++
                               show (pp (TCon (PC tf) [ tNat' x, tNat' y ])))
 
 

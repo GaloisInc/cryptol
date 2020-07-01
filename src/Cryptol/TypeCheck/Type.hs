@@ -343,10 +343,11 @@ isBoundTV (TVBound {})  = True
 isBoundTV _             = False
 
 
-tIsError :: Type -> Maybe TCErrorMessage
+tIsError :: Type -> Maybe (TCErrorMessage,Type)
 tIsError ty = case tNoUser ty of
-                TCon (TError _ x) _ -> Just x
-                _                   -> Nothing
+                TCon (TError _ x) [t] -> Just (x,t)
+                TCon (TError _ _) _   -> panic "tIsError" ["Malformed error"]
+                _                     -> Nothing
 
 tIsNat' :: Type -> Maybe Nat'
 tIsNat' ty =
@@ -575,13 +576,12 @@ tNoUser t = case t of
 --------------------------------------------------------------------------------
 -- Construction of type functions
 
--- | Make a malformed numeric type.
-tBadNumber :: TCErrorMessage -> Type
-tBadNumber = tError KNum
-
--- | Make an error value of the given type.
-tError :: Kind -> TCErrorMessage -> Type
-tError k msg = TCon (TError k msg) []
+-- | Make an error value of the given type to replace
+-- the given malformed type (the argument to the error function)
+tError :: Type -> String -> Type
+tError t s = TCon (TError (k :-> k) msg) [t]
+  where k = kindOf t
+        msg = TCErrorMessage s
 
 tf1 :: TFun -> Type -> Type
 tf1 f x = TCon (TF f) [x]
@@ -700,15 +700,12 @@ pFin :: Type -> Prop
 pFin ty =
   case tNoUser ty of
     TCon (TC (TCNum _)) _ -> pTrue
-    TCon (TC TCInf)     _ -> pError (TCErrorMessage "`inf` is not finite.")
+    TCon (TC TCInf)     _ -> tError ty "`inf` is not finite" -- XXX: should we be doing this here??
     _                     -> TCon (PC PFin) [ty]
 
 pValidFloat :: Type -> Type -> Type
 pValidFloat e p = TCon (PC PValidFloat) [e,p]
 
--- | Make a malformed property.
-pError :: TCErrorMessage -> Prop
-pError msg = TCon (TError KProp msg) []
 
 --------------------------------------------------------------------------------
 
