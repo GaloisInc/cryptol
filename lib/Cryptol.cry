@@ -923,6 +923,17 @@ pmod x y = if y == 0 then 0/0 else last zs
     zs = [0] # [ z ^ (if xi then tail p else 0) | xi <- reverse x | p <- powers | z <- zs ]
 
 
+// Experimental primitives ------------------------------------------------------------
+
+/**
+ * Parallel map.  The given function is applied to each element in the
+ * given finite seqeuence, and the results are computed in parallel.
+ *
+ * This function is experimental.
+ */
+primitive parmap : {a, b, n} (fin n) => (a -> b) -> [n]a -> [n]b
+
+
 // Utility operations -----------------------------------------------------------------
 
 /**

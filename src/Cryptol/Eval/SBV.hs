@@ -39,7 +39,9 @@ import Cryptol.Eval.Type (TValue(..), finNat')
 import Cryptol.Eval.Backend
 import Cryptol.Eval.Generic
 import Cryptol.Eval.Monad
-  ( Eval(..), blackhole, delayFill, EvalError(..), Unsupported(..) )
+  ( Eval(..), blackhole, delayFill, evalSpark
+  , EvalError(..), Unsupported(..)
+  )
 import Cryptol.Eval.Value
 import Cryptol.Eval.Concrete ( integerToChar, ppBV, BV(..) )
 import Cryptol.Testing.Random( randomV )
@@ -155,6 +157,10 @@ instance Backend SBV where
 
   sDelayFill _ m retry = SBVEval $
     do m' <- delayFill (sbvEval m) (sbvEval retry)
+       pure (pure (SBVEval m'))
+
+  sSpark _ m = SBVEval $
+    do m' <- evalSpark (sbvEval m)
        pure (pure (SBVEval m'))
 
   sDeclareHole _ msg = SBVEval $
@@ -490,6 +496,8 @@ primTable  = let sym = SBV in
     -- Misc
 
   , ("fromZ"       , fromZV sym)
+
+  , ("parmap"      , parmapV sym)
 
     -- {at,len} (fin len) => [len][8] -> at
   , ("error"       ,

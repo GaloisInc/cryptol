@@ -30,7 +30,10 @@ import qualified What4.Utils.AbstractDomains as W4
 import Cryptol.Eval.Backend
 import Cryptol.Eval.Concrete.Value( BV(..), ppBV )
 import Cryptol.Eval.Generic
-import Cryptol.Eval.Monad (Eval(..), EvalError(..), Unsupported(..), io, delayFill, blackhole)
+import Cryptol.Eval.Monad
+   ( Eval(..), EvalError(..), Unsupported(..), io
+   , delayFill, blackhole, evalSpark
+   )
 import Cryptol.Eval.Type (TValue(..))
 import Cryptol.Eval.Value
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..), widthInteger)
@@ -106,6 +109,10 @@ instance W4.IsExprBuilder sym => Backend (What4 sym) where
 
   sDelayFill _ m retry = W4Eval $ \sym ->
     do m' <- delayFill (w4Eval m sym) (w4Eval retry sym)
+       pure (total sym (W4Eval (const m')))
+
+  sSpark _ m = W4Eval $ \sym ->
+    do m' <- evalSpark (w4Eval m sym)
        pure (total sym (W4Eval (const m')))
 
   sDeclareHole _ msg = W4Eval $ \sym ->
@@ -815,6 +822,3 @@ fpCvtToInteger sym@(What4 sy) fun r x =
             W4.RTP -> W4.realCeil sy y
             W4.RTN -> W4.realFloor sy y
             W4.RTZ -> undefined -- XXX
-
-
-

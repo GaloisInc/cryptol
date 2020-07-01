@@ -301,6 +301,9 @@ primTable = let sym = Concrete in
                     updatePrim sym updateBack_word updateBack)
 
     -- Misc
+  , ("parmap"     , {-# SCC "Prelude::parmap" #-}
+                    parmapV sym)
+
   , ("fromZ"      , {-# SCC "Prelude::fromZ" #-}
                     fromZV sym)
 
