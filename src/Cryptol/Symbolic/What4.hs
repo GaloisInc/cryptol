@@ -81,7 +81,8 @@ data W4Exception
 
 instance Show W4Exception where
   show (W4Ex e) = X.displayException e
-  show (W4PortfolioFailure exs) = unlines (map f exs)
+  show (W4PortfolioFailure exs) =
+       unlines ("All solveres in the portfolio failed!":map f exs)
     where
     f (Left e) = X.displayException e
     f (Right (Nothing, msg)) = msg
@@ -90,7 +91,24 @@ instance Show W4Exception where
 instance X.Exception W4Exception
 
 rethrowW4Exception :: IO a -> IO a
-rethrowW4Exception m = m `X.catch` (X.throwIO . W4Ex)
+rethrowW4Exception m = X.catchJust f m (X.throwIO . W4Ex)
+  where
+  f e
+    | Just ( _ :: X.AsyncException) <- X.fromException e = Nothing
+    | Just ( _ :: Eval.Unsupported) <- X.fromException e = Nothing
+    | otherwise = Just e
+
+protectStack :: (String -> M.ModuleCmd a)
+             -> M.ModuleCmd a
+             -> M.ModuleCmd a
+protectStack mkErr cmd modEnv =
+  rethrowW4Exception $
+  X.catchJust isOverflow (cmd modEnv) handler
+  where isOverflow X.StackOverflow = Just ()
+        isOverflow _               = Nothing
+        msg = "Symbolic evaluation failed to terminate."
+        handler () = mkErr msg modEnv
+
 
 doEval :: MonadIO m => Eval.EvalOpts -> Eval.Eval a -> m a
 doEval evo m = liftIO $ Eval.runEval evo m
@@ -555,16 +573,3 @@ varToConcreteValue evalFn v =
        do fs' <- traverse (varToConcreteValue evalFn) fs
           pure (Eval.VRecord (fmap pure fs'))
 
-
-
-
-protectStack :: (String -> M.ModuleCmd a)
-             -> M.ModuleCmd a
-             -> M.ModuleCmd a
-protectStack mkErr cmd modEnv =
-  rethrowW4Exception $
-  X.catchJust isOverflow (cmd modEnv) handler
-  where isOverflow X.StackOverflow = Just ()
-        isOverflow _               = Nothing
-        msg = "Symbolic evaluation failed to terminate."
-        handler () = mkErr msg modEnv

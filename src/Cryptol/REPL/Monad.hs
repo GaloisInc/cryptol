@@ -97,6 +97,7 @@ import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.Logger(Logger, logPutStr, funLogger)
 import qualified Cryptol.Parser.AST as P
 import Cryptol.Symbolic (SatNum(..))
+import Cryptol.Symbolic.SBV (SBVPortfolioException)
 import Cryptol.Symbolic.What4 (W4Exception)
 import Cryptol.Eval.Monad(PPFloatFormat(..),PPFloatExp(..))
 import qualified Cryptol.Symbolic.SBV as SBV (proverNames, setupProver, defaultProver, SBVProverConfig)
@@ -303,6 +304,7 @@ data REPLException
   | EvalInParamModule [M.Name]
   | SBVError String
   | SBVException SBVException
+  | SBVPortfolioException SBVPortfolioException
   | W4Exception W4Exception
     deriving (Show,Typeable)
 
@@ -333,6 +335,7 @@ instance PP REPLException where
         $$ nest 2 (vcat (map pp xs))
     SBVError s           -> text "SBV error:" $$ text s
     SBVException e       -> text "SBV exception:" $$ text (show e)
+    SBVPortfolioException e -> text "SBV exception:" $$ text (show e)
     W4Exception e        -> text "What4 exception:" $$ text (show e)
 
 -- | Raise an exception.
