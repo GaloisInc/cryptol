@@ -75,18 +75,22 @@ import           Data.Parameterized.Nonce
 import Prelude ()
 import Prelude.Compat
 
-newtype W4Exception = W4Ex X.SomeException
+data W4Exception
+  = W4Ex X.SomeException
+  | W4PortfolioFailure [ (Either X.SomeException (Maybe String, String)) ]
 
 instance Show W4Exception where
-  show (W4Ex e) = show e
+  show (W4Ex e) = X.displayException e
+  show (W4PortfolioFailure exs) = unlines (map f exs)
+    where
+    f (Left e) = X.displayException e
+    f (Right (Nothing, msg)) = msg
+    f (Right (Just nm, msg)) = nm ++ ": " ++ msg
 
 instance X.Exception W4Exception
 
 rethrowW4Exception :: IO a -> IO a
 rethrowW4Exception m = m `X.catch` (X.throwIO . W4Ex)
-
-
---import Data.Time (NominalDiffTime)
 
 doEval :: MonadIO m => Eval.EvalOpts -> Eval.Eval a -> m a
 doEval evo m = liftIO $ Eval.runEval evo m
@@ -381,12 +385,21 @@ singleQuery sym (W4Portfolio ps) evo primMap logData ts args msafe query =
   do as <- mapM async [ singleQuery sym (W4ProverConfig p) evo primMap logData ts args msafe query
                       | p <- NE.toList ps
                       ]
-     (winner, result) <- waitAnyCatch as
-     forM_ as (\a ->
-        when (a /= winner) (X.throwTo (asyncThreadId a) ExitSuccess))
-     case result of
-       Left ex -> X.throw ex
-       Right x -> pure x
+     waitForResults [] as
+
+ where
+ waitForResults exs [] = X.throwIO (W4PortfolioFailure exs)
+ waitForResults exs as =
+   do (winner, result) <- waitAnyCatch as
+      let others = filter (/= winner) as
+      case result of
+        Left ex ->
+          waitForResults (Left ex:exs) others
+        Right (nm, ProverError err) ->
+          waitForResults (Right (nm,err) : exs) others
+        Right r ->
+          do forM_ others (\a -> X.throwTo (asyncThreadId a) ExitSuccess)
+             return r
 
 singleQuery sym (W4ProverConfig (AnAdapter adpt)) evo primMap logData ts args msafe query =
   do pres <- W4.solver_adapter_check_sat adpt sym logData [query] $ \res ->
