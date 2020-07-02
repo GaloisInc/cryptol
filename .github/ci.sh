@@ -53,9 +53,9 @@ install_cvc4() {
   case "$RUNNER_OS" in
     Linux) file="x86_64-linux-opt" ;;
     Windows) file="win64-opt.exe" ;;
-    macOS) brew tap cvc4/cvc4 && brew install cvc4/cvc4/cvc4 && return ;;
+    macOS) file="macos-opt" ;;
   esac
-  curl -o cvc4$EXT -sL "https://github.com/CVC4/CVC4/releases/download/1.7/cvc4-$version-$file"
+  curl -o cvc4$EXT -sL "https://github.com/CVC4/CVC4/releases/download/$version/cvc4-$version-$file"
   $IS_WIN || chmod +x cvc4$EXT
   mv cvc4$EXT "$BIN/cvc4$EXT"
 }
