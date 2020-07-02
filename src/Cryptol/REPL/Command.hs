@@ -563,6 +563,7 @@ rethrowErrorCall m = REPL (\r -> unREPL m r `X.catches` hs)
     hs =
       [ X.Handler $ \ (X.ErrorCallWithLocation s _) -> X.throwIO (SBVError s)
       , X.Handler $ \ e -> X.throwIO (SBVException e)
+      , X.Handler $ \ e -> X.throwIO (SBVPortfolioException e)
       , X.Handler $ \ e -> X.throwIO (W4Exception e)
       ]
 

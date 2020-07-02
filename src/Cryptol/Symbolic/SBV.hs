@@ -23,15 +23,18 @@ module Cryptol.Symbolic.SBV
  , setupProver
  , satProve
  , satProveOffline
+ , SBVPortfolioException(..)
  ) where
 
 
+import Control.Concurrent.Async
 import Control.Monad.IO.Class
-import Control.Monad (replicateM, when, zipWithM, foldM)
+import Control.Monad (replicateM, when, zipWithM, foldM, forM_)
 import Control.Monad.Writer (WriterT, runWriterT, tell, lift)
-import Data.List (intercalate, genericLength)
+import Data.List (genericLength)
 import Data.Maybe (fromMaybe)
 import qualified Control.Exception as X
+import System.Exit (ExitCode(ExitSuccess))
 
 import LibBF(bfNaN)
 
@@ -39,8 +42,6 @@ import qualified Data.SBV as SBV (sObserve)
 import qualified Data.SBV.Internals as SBV (SBV(..))
 import qualified Data.SBV.Dynamic as SBV
 import           Data.SBV (Timing(SaveTiming))
-import           Data.SBV.Internals (showTDiff)
-import           Data.Time (NominalDiffTime)
 
 import qualified Cryptol.ModuleSystem as M hiding (getPrimMap)
 import qualified Cryptol.ModuleSystem.Env as M
@@ -94,6 +95,19 @@ proverConfigs =
   , ("sbv-offline"  , SBV.defaultSMTCfg )
   , ("sbv-any"      , SBV.defaultSMTCfg )
   ]
+
+newtype SBVPortfolioException
+  = SBVPortfolioException [Either X.SomeException (Maybe String,String)]
+
+instance Show SBVPortfolioException where
+  show (SBVPortfolioException exs) =
+       unlines ("All solvers in the portfolio failed!" : map f exs)
+    where
+    f (Left e) = X.displayException e
+    f (Right (Nothing, msg)) = msg
+    f (Right (Just nm, msg)) = nm ++ ": " ++ msg
+
+instance X.Exception SBVPortfolioException
 
 data SBVProverConfig
   = SBVPortfolio [SBV.SMTConfig]
@@ -150,87 +164,104 @@ proverError msg (_,modEnv) =
   return (Right ((Nothing, ProverError msg), modEnv), [])
 
 
+isFailedResult :: [SBV.SMTResult] -> Maybe String
+isFailedResult [] = Just "Solver returned no results!"
+isFailedResult (r:_) =
+  case r of
+    SBV.Unknown _cfg rsn  -> Just ("Solver returned UNKNOWN " ++ show rsn)
+    SBV.ProofError _ ms _ -> Just (unlines ("Solver error" : ms))
+    _ -> Nothing
+
 runSingleProver ::
   ProverCommand ->
+  (String -> IO ()) ->
+  SBV.SMTConfig ->
+  (SBV.SMTConfig -> SBV.Symbolic SBV.SVal -> IO res) ->
+  (res -> [SBV.SMTResult]) ->
+  SBV.Symbolic SBV.SVal ->
+  IO (Maybe String, [SBV.SMTResult])
+runSingleProver ProverCommand{..} lPutStrLn prover callSolver processResult e = do
+   when pcVerbose $
+     lPutStrLn $ "Trying proof with " ++
+                               show (SBV.name (SBV.solver prover))
+   res <- callSolver prover e
+
+   when pcVerbose $
+     lPutStrLn $ "Got result from " ++
+                               show (SBV.name (SBV.solver prover))
+   return (Just (show (SBV.name (SBV.solver prover))), processResult res)
+
+runMultiProvers ::
+  ProverCommand ->
+  (String -> IO ()) ->
   [SBV.SMTConfig] ->
   (SBV.SMTConfig -> SBV.Symbolic SBV.SVal -> IO res) ->
   (res -> [SBV.SMTResult]) ->
   SBV.Symbolic SBV.SVal ->
-  M.ModuleT IO (Maybe String, [SBV.SMTResult])
-runSingleProver ProverCommand{..} provers callSolver processResult e = do
-  let lPutStrLn = M.withLogger logPutStrLn
+  IO (Maybe String, [SBV.SMTResult])
+runMultiProvers pc lPutStrLn provers callSolver processResult e = do
+  as <- mapM async [ runSingleProver pc lPutStrLn p callSolver processResult e
+                   | p <- provers
+                   ]
+  waitForResults [] as
 
-  case provers of
-    [prover] -> do
-      when pcVerbose $
-        lPutStrLn $ "Trying proof with " ++
-                                  show (SBV.name (SBV.solver prover))
-      res <- M.io (callSolver prover e)
-      when pcVerbose $
-        lPutStrLn $ "Got result from " ++
-                                  show (SBV.name (SBV.solver prover))
-      return (Just (show (SBV.name (SBV.solver prover))), processResult res)
-    _ ->
-      return ( Nothing
-             , [ SBV.ProofError
-                   prover
-                   [":sat with option prover=any requires option satNum=1"]
-                   Nothing
-               | prover <- provers ]
-             )
-
-runMultiProvers ::
-  ProverCommand ->
-  [SBV.SMTConfig] ->
-  ([SBV.SMTConfig] -> SBV.Symbolic SBV.SVal -> IO (SBV.Solver, NominalDiffTime, res)) ->
-  (res -> [SBV.SMTResult]) ->
-  SBV.Symbolic SBV.SVal ->
-  M.ModuleT IO (Maybe String, [SBV.SMTResult])
-runMultiProvers ProverCommand{..} provers callSolvers processResult e = do
-  let lPutStrLn = M.withLogger logPutStrLn
-
-  when pcVerbose $
-    lPutStrLn $ "Trying proof with " ++
-            intercalate ", " (map (show . SBV.name . SBV.solver) provers)
-  (firstProver, timeElapsed, res) <- M.io (callSolvers provers e)
-  when pcVerbose $
-    lPutStrLn $ "Got result from " ++ show firstProver ++
-                                      ", time: " ++ showTDiff timeElapsed
-  return (Just (show firstProver), processResult res)
+ where
+ waitForResults exs [] = X.throw (SBVPortfolioException exs)
+ waitForResults exs as =
+   do (winner, result) <- waitAnyCatch as
+      let others = filter (/= winner) as
+      case result of
+        Left ex ->
+          waitForResults (Left ex:exs) others
+        Right r@(nm, rs)
+          | Just msg <- isFailedResult rs ->
+              waitForResults (Right (nm, msg) : exs) others
+          | otherwise ->
+              do forM_ others (\a -> X.throwTo (asyncThreadId a) ExitSuccess)
+                 return r
 
 -- | Select the appropriate solver or solvers from the given prover command,
 --   and invoke those solvers on the given symbolic value.
-runProver :: SBVProverConfig -> ProverCommand -> SBV.Symbolic SBV.SVal -> M.ModuleT IO (Maybe String, [SBV.SMTResult])
-runProver proverConfig pc@ProverCommand{..} x =
+runProver :: SBVProverConfig -> ProverCommand -> (String -> IO ()) -> SBV.Symbolic SBV.SVal -> IO (Maybe String, [SBV.SMTResult])
+runProver proverConfig pc@ProverCommand{..} lPutStrLn x =
   do let mSatNum = case pcQueryType of
                      SatQuery (SomeSat n) -> Just n
                      SatQuery AllSat -> Nothing
                      ProveQuery -> Nothing
                      SafetyQuery -> Nothing
 
-     let provers =
-           case proverConfig of
-             SBVPortfolio ps -> ps
-             SBVProverConfig p ->
-                [ p{ SBV.transcript = pcSmtFile
-                   , SBV.allSatMaxModelCount = mSatNum
-                   }
-                ]
+     case proverConfig of
+       SBVPortfolio ps -> 
+         let ps' = [ p { SBV.transcript = pcSmtFile
+                       , SBV.timing = SaveTiming pcProverStats
+                       , SBV.verbose = pcVerbose
+                       , SBV.validateModel = pcValidate
+                       }
+                   | p <- ps
+                   ] in
 
-     let provers' = [ p { SBV.timing = SaveTiming pcProverStats
-                        , SBV.verbose = pcVerbose
-                        , SBV.validateModel = pcValidate
-                        }
-                    | p <- provers
-                    ]
+          case pcQueryType of
+            ProveQuery  -> runMultiProvers pc lPutStrLn ps' SBV.proveWith thmSMTResults x
+            SafetyQuery -> runMultiProvers pc lPutStrLn ps' SBV.proveWith thmSMTResults x
+            SatQuery (SomeSat 1) -> runMultiProvers pc lPutStrLn ps' SBV.satWith satSMTResults x
+            _ -> return (Nothing,
+                   [SBV.ProofError p
+                     [":sat with option prover=any requires option satNum=1"]
+                     Nothing
+                   | p <- ps])
 
-
-     case pcQueryType of
-        ProveQuery  -> runMultiProvers pc provers' SBV.proveWithAny thmSMTResults x
-        SafetyQuery -> runMultiProvers pc provers' SBV.proveWithAny thmSMTResults x
-        SatQuery sn -> case sn of
-          SomeSat 1 -> runMultiProvers pc provers' SBV.satWithAny satSMTResults x
-          _         -> runSingleProver pc provers' SBV.allSatWith allSatSMTResults x
+       SBVProverConfig p ->
+         let p' = p { SBV.transcript = pcSmtFile
+                    , SBV.allSatMaxModelCount = mSatNum
+                    , SBV.timing = SaveTiming pcProverStats
+                    , SBV.verbose = pcVerbose
+                    , SBV.validateModel = pcValidate
+                    } in
+          case pcQueryType of
+            ProveQuery  -> runSingleProver pc lPutStrLn p' SBV.proveWith thmSMTResults x
+            SafetyQuery -> runSingleProver pc lPutStrLn p' SBV.proveWith thmSMTResults x
+            SatQuery (SomeSat 1) -> runSingleProver pc lPutStrLn p' SBV.satWith satSMTResults x
+            SatQuery _           -> runSingleProver pc lPutStrLn p' SBV.allSatWith allSatSMTResults x
 
 
 -- | Prepare a symbolic query by symbolically simulating the expression found in
@@ -376,10 +407,12 @@ satProve proverCfg pc@ProverCommand {..} =
 
   M.runModuleM (evo,modEnv) $ do
 
+  let lPutStrLn = logPutStrLn (Eval.evalLogger evo)
+
   M.io (prepareQuery evo modEnv pc) >>= \case
     Left msg -> return (Nothing, ProverError msg)
     Right (ts, q) ->
-      do (firstProver, results) <- runProver proverCfg pc q
+      do (firstProver, results) <- M.io (runProver proverCfg pc lPutStrLn q)
          esatexprs <- processResults evo pc ts results
          return (firstProver, esatexprs)
 
