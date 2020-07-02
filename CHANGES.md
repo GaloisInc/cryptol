@@ -62,6 +62,9 @@
   in addition to the previous method based on `SBV`. The What4
   symbolic simulator is used when selecting solvers with the `w4`
   prefix, such as `w4-z3`, `w4-cvc4`, `w4-yices`, etc.
+  The `SBV` and `What4` libraries make different tradeoffs in how
+  they represent formulae. You may find one works better than another
+  for the same problem, even with the same solver.
 
 * More detailed information about the status of various symbols
   in the output of the `:browse` command (issue #688).
@@ -78,6 +81,11 @@
   added as additional proof goals.  The prior behavior
   (which ignored safety conditions) can be restored using
   `:set ignore-safety = on`.
+
+* Improvements to the `any` prover. It will now shut down external
+  prover processes correctly when one finds a solution. It will also
+  wait for the first _successful_ result to be returned from a prover,
+  instead of failing as soon as one prover fails.
 
 ## Bug fixes
 
