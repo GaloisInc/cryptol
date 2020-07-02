@@ -25,6 +25,7 @@ module Cryptol.Symbolic.What4
  , setupProver
  , satProve
  , satProveOffline
+ , W4Exception(..)
  ) where
 
 import Control.Concurrent.Async
@@ -74,6 +75,17 @@ import           Data.Parameterized.Nonce
 import Prelude ()
 import Prelude.Compat
 
+newtype W4Exception = W4Ex X.SomeException
+
+instance Show W4Exception where
+  show (W4Ex e) = show e
+
+instance X.Exception W4Exception
+
+rethrowW4Exception :: IO a -> IO a
+rethrowW4Exception m = m `X.catch` (X.throwIO . W4Ex)
+
+
 --import Data.Time (NominalDiffTime)
 
 doEval :: MonadIO m => Eval.EvalOpts -> Eval.Eval a -> m a
@@ -90,8 +102,6 @@ data AnAdapter = AnAdapter (forall st. SolverAdapter st)
 data W4ProverConfig
   = W4ProverConfig AnAdapter
   | W4Portfolio (NonEmpty AnAdapter)
-
-
 
 proverConfigs :: [(String, W4ProverConfig)]
 proverConfigs =
@@ -119,6 +129,7 @@ proverNames = map fst proverConfigs
 
 setupProver :: String -> IO (Either String ([String], W4ProverConfig))
 setupProver nm =
+  rethrowW4Exception $
   case lookup nm proverConfigs of
     Just cfg@(W4ProverConfig p) ->
       do st <- tryAdapter p
@@ -538,6 +549,7 @@ protectStack :: (String -> M.ModuleCmd a)
              -> M.ModuleCmd a
              -> M.ModuleCmd a
 protectStack mkErr cmd modEnv =
+  rethrowW4Exception $
   X.catchJust isOverflow (cmd modEnv) handler
   where isOverflow X.StackOverflow = Just ()
         isOverflow _               = Nothing

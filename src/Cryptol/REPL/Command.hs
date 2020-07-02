@@ -558,10 +558,13 @@ showProverStats mprover stat = rPutStrLn msg
         maybe "" (\p -> ", using " ++ show p) mprover ++ ")"
 
 rethrowErrorCall :: REPL a -> REPL a
-rethrowErrorCall m = REPL (\r -> unREPL m r `X.catch` handler `X.catch` handler')
+rethrowErrorCall m = REPL (\r -> unREPL m r `X.catches` hs)
   where
-    handler (X.ErrorCallWithLocation s _) = X.throwIO (SBVError s)
-    handler' e = X.throwIO (SBVException e)
+    hs =
+      [ X.Handler $ \ (X.ErrorCallWithLocation s _) -> X.throwIO (SBVError s)
+      , X.Handler $ \ e -> X.throwIO (SBVException e)
+      , X.Handler $ \ e -> X.throwIO (W4Exception e)
+      ]
 
 -- | Attempts to prove the given term is safe for all inputs
 safeCmd :: String -> REPL ()
