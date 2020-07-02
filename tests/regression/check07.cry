@@ -10,5 +10,5 @@ shiftlbig1' = [ 0x12345678abcd * 2^^i | i <- [ 0 .. 47 ] ]
 
 check7a = shiftls3 == [ 0, 0 ... ] @@ [ 0 .. 0xf ]
 check7b = shiftlbig1 == shiftlbig1'
-check7c = 1 << 1 == 0
+check7c = (1:[1]) << 1 == 0
 check7 = check7a && check7b && check7c

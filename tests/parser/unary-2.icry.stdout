@@ -1,9 +1,7 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Main
-[warning] at unary-2.cry:3:11--3:14:
-  Defaulting type argument 'a' of 'min' to [2]
-[warning] at unary-2.cry:2:11--2:14:
-  Defaulting type argument 'a' of 'min' to [2]
+Showing a specific instance of polymorphic result:
+  * Using '[2]' for type argument 'a' of 'Cryptol::min'
 True
-True
+False

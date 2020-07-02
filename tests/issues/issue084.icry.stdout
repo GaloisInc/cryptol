@@ -2,8 +2,6 @@ Loading module Cryptol
 Showing a specific instance of polymorphic result:
   * Using '5' for type argument 'n' of 'Cryptol::lg2'
 0x03
-[warning] at <interactive>:1:1--1:4:
-  Defaulting type argument 'n' of 'lg2' to 5
 
 [error] at <interactive>:1:1--1:4:
   Type mismatch:

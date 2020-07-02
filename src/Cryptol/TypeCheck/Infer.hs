@@ -26,7 +26,7 @@ where
 import qualified Data.Text as Text
 
 
-import           Cryptol.ModuleSystem.Name (asPrim,lookupPrimDecl,nameLoc)
+import           Cryptol.ModuleSystem.Name (lookupPrimDecl,nameLoc)
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
 import qualified Cryptol.ModuleSystem.Exports as P
@@ -43,7 +43,6 @@ import           Cryptol.TypeCheck.Kind(checkType,checkSchema,checkTySyn,
 import           Cryptol.TypeCheck.Instantiate
 import           Cryptol.TypeCheck.Depends
 import           Cryptol.TypeCheck.Subst (listSubst,apSubst,(@@),isEmptySubst)
-import           Cryptol.TypeCheck.Solver.InfNat(genLog)
 import           Cryptol.Utils.Ident
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.PP
@@ -104,8 +103,8 @@ mkPrim' str =
 
 
 
-desugarLiteral :: Bool -> P.Literal -> InferM (P.Expr Name)
-desugarLiteral fixDec lit =
+desugarLiteral :: P.Literal -> InferM (P.Expr Name)
+desugarLiteral lit =
   do l <- curRange
      numberPrim <- mkPrim "number"
      fracPrim   <- mkPrim "fraction"
@@ -121,13 +120,7 @@ desugarLiteral fixDec lit =
            P.BinLit n    -> [ ("rep", tBits (1 * toInteger n)) ]
            P.OctLit n    -> [ ("rep", tBits (3 * toInteger n)) ]
            P.HexLit n    -> [ ("rep", tBits (4 * toInteger n)) ]
-           P.DecLit
-            | fixDec     -> if num == 0
-                              then [ ("rep", tBits 0)]
-                              else case genLog num 2 of
-                                     Just (x,_) -> [ ("rep", tBits (x + 1)) ]
-                                     _          -> []
-            | otherwise  -> [ ]
+           P.DecLit      -> [ ]
            P.PolyLit _n  -> [ ("rep", P.TSeq P.TWild P.TBit) ]
 
        P.ECFrac fr info ->
@@ -161,7 +154,7 @@ appTys expr ts tGoal =
          checkHasType t tGoal
          return e'
 
-    P.ELit l -> do e <- desugarLiteral False l
+    P.ELit l -> do e <- desugarLiteral l
                    appTys e ts tGoal
 
 
@@ -251,7 +244,7 @@ checkE expr tGoal =
          checkE (P.EApp prim e) tGoal
 
     P.ELit l@(P.ECNum _ P.DecLit) ->
-      do e <- desugarLiteral False l
+      do e <- desugarLiteral l
          -- NOTE: When 'l' is a decimal literal, 'desugarLiteral' does
          -- not generate an instantiation for the 'rep' type argument
          -- of the 'number' primitive. Therefore we explicitly
@@ -263,7 +256,7 @@ checkE expr tGoal =
                            }
          appTys e [arg] tGoal
 
-    P.ELit l -> (`checkE` tGoal) =<< desugarLiteral False l
+    P.ELit l -> (`checkE` tGoal) =<< desugarLiteral l
 
     P.ETuple es ->
       do etys <- expectTuple (length es) tGoal
@@ -334,16 +327,6 @@ checkE expr tGoal =
          return (EComp len a e' mss')
 
     P.EAppT e fs -> appTys e (map uncheckedTypeArg fs) tGoal
-
-    P.EApp fun@(dropLoc -> P.EApp (dropLoc -> P.EVar c) _)
-           arg@(dropLoc -> P.ELit l)
-      | Just n <- asPrim c
-      , n `elem` map prelPrim [ "<<", ">>", "<<<", ">>>" , "@", "!" ] ->
-        do newArg <- do l1 <- desugarLiteral True l
-                        return $ case arg of
-                                   P.ELocated _ pos -> P.ELocated l1 pos
-                                   _ -> l1
-           checkE (P.EApp fun newArg) tGoal
 
     P.EApp e1 e2 ->
       do t1  <- newType (TypeOfArg Nothing) KType
@@ -821,10 +804,11 @@ generalize bs0 gs0 =
      {- See if we might be able to default some of the potentially ambiguous
         variables using the constraints that will be part of the newly
         generalized schema.  -}
-     let (as0,here1,defSu,ws) = defaultAndSimplify maybeAmbig here0
+     let (as0,here1,defSu,ws,errs) = defaultAndSimplify maybeAmbig here0
 
      extendSubst defSu
      mapM_ recordWarning ws
+     mapM_ recordError errs
      let here = map goal here1
 
 

@@ -4,11 +4,11 @@ import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Data.Maybe(mapMaybe)
 import Data.List((\\),nub)
-import Control.Monad(guard)
+import Control.Monad(guard,mzero)
 
 import Cryptol.TypeCheck.Type
-import Cryptol.TypeCheck.SimpType(tMax,tWidth)
-import Cryptol.TypeCheck.Error(Warning(..))
+import Cryptol.TypeCheck.SimpType(tMax)
+import Cryptol.TypeCheck.Error(Warning(..), Error(..))
 import Cryptol.TypeCheck.Subst(Subst,apSubst,listSubst,substBinds,uncheckedSingleSubst)
 import Cryptol.TypeCheck.InferTypes(Goal,goal,Goals(..),goalsFromList)
 import Cryptol.TypeCheck.Solver.SMT(Solver,tryGetModel,shrinkModel)
@@ -17,25 +17,35 @@ import Cryptol.Utils.Panic(panic)
 
 --------------------------------------------------------------------------------
 
--- | We default constraints of the form @Literal t a@ to @a := [width t]@
+-- | We default constraints of the form @Literal t a@.
+--
+--   We examine the context of constraints on the type @a@
+--   to decide how to default.  If @Logic a@ is required,
+--   we cannot do any defaulting.  Otherwise, we default
+--   to either @Integer@ or @Rational@.  In particular, if
+--   we need to satisfy the @Field a@, constraint, we choose
+--   @Rational@ and otherwise we choose @Integer@.
 defaultLiterals :: [TVar] -> [Goal] -> ([TVar], Subst, [Warning])
 defaultLiterals as gs = let (binds,warns) = unzip (mapMaybe tryDefVar as)
                         in (as \\ map fst binds, listSubst binds, warns)
   where
   gSet = goalsFromList gs
+  allProps = saturatedPropSet gSet
   tryDefVar a =
-    do gt <- Map.lookup a (literalGoals gSet)
+    do _gt <- Map.lookup a (literalGoals gSet)
+       defT <- if Set.member (pLogic (TVar a)) allProps then
+                  mzero
+               else if Set.member (pField (TVar a)) allProps then
+                  pure tRational
+               else
+                  pure tInteger
        let d    = tvInfo a
-           defT = tWord (tWidth (goal gt))
            w    = DefaultingTo d defT
        guard (not (Set.member a (fvs defT)))  -- Currently shouldn't happen
                                               -- but future proofing.
        -- XXX: Make sure that `defT` has only variables that `a` is allowed
        -- to depend on
        return ((a,defT),w)
-
-
-
 
 
 --------------------------------------------------------------------------------
@@ -72,7 +82,7 @@ improveByDefaultingWithPure :: [TVar] -> [Goal] ->
     ( [TVar]    -- non-defaulted
     , [Goal]    -- new constraints
     , Subst     -- improvements from defaulting
-    , [Warning] -- warnings about defaulting
+    , [Error]   -- width defaulting errors
     )
 improveByDefaultingWithPure as ps =
   classify (Map.fromList [ (a,([],Set.empty)) | a <- as ]) [] [] ps
@@ -88,7 +98,7 @@ improveByDefaultingWithPure as ps =
         su                 = listSubst defs
         warn (x,t) =
           case x of
-            TVFree _ _ _ d -> DefaultingTo d t
+            TVFree _ _ _ d -> AmbiguousSize d t
             TVBound {} -> panic "Crypto.TypeCheck.Infer"
                  [ "tryDefault attempted to default a quantified variable."
                  ]

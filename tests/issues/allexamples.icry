@@ -1,4 +1,3 @@
-:set warnDefaulting = off
 :cd ../../examples
 :l AE.cry
 :l AES.cry

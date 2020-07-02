@@ -1,3 +1,2 @@
-:set warnDefaulting = off
 :l issue116.cry
 bug116fixed

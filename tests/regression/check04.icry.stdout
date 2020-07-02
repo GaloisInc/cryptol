@@ -1,12 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Main
-[warning] at check04.cry:4:33--4:45:
-  Defaulting type of sequence member to [2]
-[warning] at check04.cry:4:21--4:29:
-  Defaulting type argument 'a' of 'fromTo' to [2]
-[warning] at <interactive>:1:12--1:21:
-  Defaulting type argument 'a' of 'fromTo' to [4]
 Showing a specific instance of polymorphic result:
   * Using 'Integer' for 1st type argument of 'Main::onetwos'
 [1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1]

@@ -1,3 +1,2 @@
-:set warnDefaulting = off
 :l simon.cry2
 testsPass

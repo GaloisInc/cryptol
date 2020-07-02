@@ -114,6 +114,9 @@ data Error    = ErrorMsg Doc
 
               | RepeatedTypeParameter Ident [Range]
 
+              | AmbiguousSize TVarInfo Type
+                -- ^ Could not determine the value of a numeric type variable,
+                --   but we know it must be at least as large as the given type.
                 deriving (Show, Generic, NFData)
 
 instance TVars Warning where
@@ -152,6 +155,7 @@ instance TVars Error where
 
       UndefinedTypeParameter {} -> err
       RepeatedTypeParameter {} -> err
+      AmbiguousSize x t -> AmbiguousSize x (apSubst su t)
 
 
 instance FVS Error where
@@ -176,7 +180,7 @@ instance FVS Error where
       CannotMixPositionalAndNamedTypeParams -> Set.empty
       UndefinedTypeParameter {}             -> Set.empty
       RepeatedTypeParameter {}              -> Set.empty
-
+      AmbiguousSize _ t -> fvs t
 
 
 instance PP Warning where
@@ -315,6 +319,11 @@ instance PP (WithNames Error) where
         addTVarsDescsAfter names err $
         "Multiple definitions for type parameter `" <.> pp x <.> "`:"
           $$ nest 2 (bullets (map pp rs))
+
+      AmbiguousSize x t ->
+        addTVarsDescsAfter names err $
+        "Ambiguous numeric type:" <+> pp (tvarDesc x)
+          $$ "Must be at least:" <+> ppWithNames names t
 
     where
     bullets xs = vcat [ "•" <+> d | d <- xs ]

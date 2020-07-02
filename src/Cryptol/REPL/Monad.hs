@@ -765,7 +765,7 @@ userOptions  = mkOptionMap
     "The maximum number of :sat solutions to display (\"all\" for no limit)."
   , simpleOpt "prover" (EnvString "z3") checkProver $
     "The external SMT solver for ':prove' and ':sat'\n(" ++ proverListString ++ ")."
-  , simpleOpt "warnDefaulting" (EnvBool True) noCheck
+  , simpleOpt "warnDefaulting" (EnvBool False) noCheck
     "Choose whether to display warnings when defaulting."
   , simpleOpt "warnShadowing" (EnvBool True) noCheck
     "Choose whether to display warnings when shadowing symbols."
