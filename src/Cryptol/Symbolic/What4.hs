@@ -210,8 +210,8 @@ setupAdapterOptions cfg sym =
   setupAnAdapter (AnAdapter adpt) =
     W4.extendConfig (W4.solver_adapter_config_options adpt) (W4.getConfiguration sym)
 
-satProve :: W4ProverConfig -> ProverCommand -> M.ModuleCmd (Maybe String, ProverResult)
-satProve solverCfg ProverCommand {..} =
+satProve :: W4ProverConfig -> Bool -> ProverCommand -> M.ModuleCmd (Maybe String, ProverResult)
+satProve solverCfg hashConsing ProverCommand {..} =
   protectStack proverError $ \(evo, modEnv) ->
 
   M.runModuleM (evo,modEnv) $ do
@@ -221,6 +221,7 @@ satProve solverCfg ProverCommand {..} =
 
     sym <- M.io (W4.newExprBuilder W4.FloatIEEERepr CryptolState globalNonceGenerator)
     M.io (setupAdapterOptions solverCfg sym)
+    when hashConsing (M.io (W4.startCaching sym))
 
     logData <-
       flip M.withLogger () $ \lg () ->
@@ -271,12 +272,12 @@ satProve solverCfg ProverCommand {..} =
             writeIORef pcProverStats (diffUTCTime end start)
             return result)
 
-satProveOffline :: W4ProverConfig -> ProverCommand -> ((Handle -> IO ()) -> IO ()) -> M.ModuleCmd (Maybe String)
+satProveOffline :: W4ProverConfig -> Bool -> ProverCommand -> ((Handle -> IO ()) -> IO ()) -> M.ModuleCmd (Maybe String)
 
-satProveOffline (W4Portfolio (p:|_)) cmd outputContinuation =
-  satProveOffline (W4ProverConfig p) cmd outputContinuation
+satProveOffline (W4Portfolio (p:|_)) hashConsing cmd outputContinuation =
+  satProveOffline (W4ProverConfig p) hashConsing cmd outputContinuation
 
-satProveOffline (W4ProverConfig (AnAdapter adpt)) ProverCommand {..} outputContinuation =
+satProveOffline (W4ProverConfig (AnAdapter adpt)) hashConsing ProverCommand {..} outputContinuation =
   protectStack (\msg (_,modEnv) -> return (Right (Just msg, modEnv), [])) $
   \(evo,modEnv) -> do
   M.runModuleM (evo,modEnv) $ do
@@ -285,6 +286,7 @@ satProveOffline (W4ProverConfig (AnAdapter adpt)) ProverCommand {..} outputConti
 
     sym <- M.io (W4.newExprBuilder W4.FloatIEEERepr CryptolState globalNonceGenerator)
     M.io (W4.extendConfig (W4.solver_adapter_config_options adpt) (W4.getConfiguration sym))
+    when hashConsing (M.io (W4.startCaching sym))
 
     let ?evalPrim = evalPrim sym
     case predArgTypes pcQueryType pcSchema of

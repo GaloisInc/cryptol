@@ -803,6 +803,9 @@ userOptions  = mkOptionMap
                EnvBool False -> setIt M.NoCoreLint
                _             -> return ()
 
+  , simpleOpt "hash-consing" (EnvBool True) noCheck
+    "Enable hash-consing in the What4 symbolic backends."
+
   , simpleOpt "prover-stats" (EnvBool True) noCheck
     "Enable prover timing statistics."
 
