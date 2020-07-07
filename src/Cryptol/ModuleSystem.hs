@@ -70,7 +70,7 @@ loadModuleByPath path (evo,env) = runModuleM (evo,resetModuleEnv env) $ do
 
 -- | Load the given parsed module.
 loadModuleByName :: P.ModName -> ModuleCmd (ModulePath,T.Module)
-loadModuleByName n env = runModuleM env $ do
+loadModuleByName n (evo,env) = runModuleM (evo,resetModuleEnv env) $ do
   unloadModule ((n ==) . lmName)
   (path,m') <- Base.loadModuleFrom (FromModule n)
   setFocusedModule (T.mName m')
