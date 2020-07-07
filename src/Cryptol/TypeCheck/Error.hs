@@ -266,8 +266,12 @@ instance PP (WithNames Error) where
         | Just msg <- imp ->
           addTVarsDescsAfter names err $
           nested "Unsolvable constraints:" $
-          let reason = ["Reason:" <+> text (tcErrorMessage msg)] in
-          bullets (map (ppWithNames names) gs ++ reason)
+          let reason = ["Reason:" <+> text (tcErrorMessage msg)]
+              unErr g = case tIsError (goal g) of
+                          Just (_,p) -> g { goal = p }
+                          Nothing    -> g
+          in
+          bullets (map (ppWithNames names) (map unErr gs) ++ reason)
 
         | noUni ->
           addTVarsDescsAfter names err $
