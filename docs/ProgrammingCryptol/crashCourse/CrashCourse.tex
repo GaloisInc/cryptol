@@ -446,12 +446,14 @@ constructs guarantee that enumeration elements are distinct.
   Explore various ways of constructing enumerations in Cryptol, by
   using the following expressions:
 \begin{Verbatim}
-  [1 .. 10]       // increment with step 1
-  [1, 3 .. 10]    // increment with step 2 (= 3-1)
-  [10, 9 .. 1]    // decrement with step 1 (= 10-9)
-  [10, 9 .. 20]   // decrement with step 1 (= 10-9)
-  [10, 7 .. 1]    // decrement with step 3 (= 10-7)
-  [10, 11 .. 1]   // increment with step 1
+  [1 .. 10]            // increment with step 1
+  [1, 3 .. 10]         // increment with step 2 (= 3-1)
+  [10, 9 .. 1]         // decrement with step 1 (= 10-9)
+  [10, 9 .. 20]        // decrement with step 1 (= 10-9)
+  [10, 7 .. 1]         // decrement with step 3 (= 10-7)
+  [10, 11 .. 1]        // increment with step 1
+  [1 .. 10 : [8]]      // increment 8-bit words with step 1
+  [1, 3 .. 10 : [16]]  // increment 16-bit words with step 2 (= 3-1)
 \end{Verbatim}
 \end{Exercise}
 \begin{Answer}\ansref{ex:seq:3}
