@@ -83,8 +83,8 @@ markdown = blanks []
 
   blanks current []     = mk Comment current
   blanks current (l : ls)
-    | isCodeLine l             = mk Comment current ++ code [l] ls
     | Just op <- isOpenFence l = mk Comment (l : current) ++ fenced op [] ls
+    | isCodeLine l             = mk Comment current ++ code [l] ls
     | isBlank l                = blanks  (l : current) ls
     | otherwise                = comment (l : current) ls
 
@@ -110,7 +110,7 @@ markdown = blanks []
     where
     l' = Text.dropWhile isSpace l
 
-  isCloseFence l = "```" `Text.isPrefixOf` l
+  isCloseFence l = "```" `Text.isPrefixOf` Text.dropWhile isSpace l
   isBlank l      = Text.all isSpace l
   isCodeLine l   = "\t" `Text.isPrefixOf` l || "    " `Text.isPrefixOf` l
 
