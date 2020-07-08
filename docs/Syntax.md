@@ -225,6 +225,7 @@ This section provides an overview of the Cryptol's expression syntax.
     if x
       then y
       else z : Bit  // the type annotation is on `z`, not the whole `if`
+    [1..9 : [8]]    // specify that elements in `[1..9]` have type `[8]`
 
 
 **Local Declarations**
