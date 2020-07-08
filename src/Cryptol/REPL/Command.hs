@@ -138,10 +138,11 @@ data Command
 
 -- | Command builder.
 data CommandDescr = CommandDescr
-  { cNames  :: [String]
-  , cArgs   :: [String]
-  , cBody   :: CommandBody
-  , cHelp   :: String
+  { cNames    :: [String]
+  , cArgs     :: [String]
+  , cBody     :: CommandBody
+  , cHelp     :: String
+  , cLongHelp :: String
   }
 
 instance Show CommandDescr where
@@ -189,30 +190,50 @@ nbCommandList :: [CommandDescr]
 nbCommandList  =
   [ CommandDescr [ ":t", ":type" ] ["EXPR"] (ExprArg typeOfCmd)
     "Check the type of an expression."
+    ""
   , CommandDescr [ ":b", ":browse" ] ["[ MODULE ]"] (ModNameArg browseCmd)
     "Display environment for all loaded modules, or for a specific module."
+    ""
   , CommandDescr [ ":?", ":help" ] ["[ TOPIC ]"] (HelpArg helpCmd)
-    "Display a brief description of a function, type, or command."
+    "Display a brief description of a function, type, or command. (e.g. :help :help)"
+    (unlines
+      [ "TOPIC can be any of:"
+      , " * Specific REPL colon-commands (e.g. :help :prove)"
+      , " * Functions (e.g. :help join)"
+      , " * Infix operators (e.g. :help +)"
+      , " * Type constructors (e.g. :help Z)"
+      , " * Type constraints (e.g. :help fin)"
+      , " * :set-able options (e.g. :help :set base)" ])
   , CommandDescr [ ":s", ":set" ] ["[ OPTION [ = VALUE ] ]"] (OptionArg setOptionCmd)
     "Set an environmental option (:set on its own displays current values)."
+    ""
   , CommandDescr [ ":check" ] ["[ EXPR ]"] (ExprArg (void . qcCmd QCRandom))
     "Use random testing to check that the argument always returns true.\n(If no argument, check all properties.)"
+    ""
   , CommandDescr [ ":exhaust" ] ["[ EXPR ]"] (ExprArg (void . qcCmd QCExhaust))
     "Use exhaustive testing to prove that the argument always returns\ntrue. (If no argument, check all properties.)"
+    ""
   , CommandDescr [ ":prove" ] ["[ EXPR ]"] (ExprArg proveCmd)
     "Use an external solver to prove that the argument always returns\ntrue. (If no argument, check all properties.)"
+    ""
   , CommandDescr [ ":sat" ] ["[ EXPR ]"] (ExprArg satCmd)
     "Use a solver to find a satisfying assignment for which the argument\nreturns true. (If no argument, find an assignment for all properties.)"
+    ""
   , CommandDescr [ ":safe" ] ["[ EXPR ]"] (ExprArg safeCmd)
     "Use an external solver to prove that an expression is safe\n(does not encounter run-time errors) for all inputs."
+    ""
   , CommandDescr [ ":debug_specialize" ] ["EXPR"](ExprArg specializeCmd)
     "Do type specialization on a closed expression."
+    ""
   , CommandDescr [ ":eval" ] ["EXPR"] (ExprArg refEvalCmd)
     "Evaluate an expression with the reference evaluator."
+    ""
   , CommandDescr [ ":ast" ] ["EXPR"] (ExprArg astOfCmd)
     "Print out the pre-typechecked AST of a given term."
+    ""
   , CommandDescr [ ":extract-coq" ] [] (NoArg allTerms)
     "Print out the post-typechecked AST of all currently defined terms,\nin a Coq-parseable format."
+    ""
   ]
 
 commandList :: [CommandDescr]
@@ -220,28 +241,38 @@ commandList  =
   nbCommandList ++
   [ CommandDescr [ ":q", ":quit" ] [] (NoArg quitCmd)
     "Exit the REPL."
+    ""
   , CommandDescr [ ":l", ":load" ] ["FILE"] (FilenameArg loadCmd)
     "Load a module by filename."
+    ""
   , CommandDescr [ ":r", ":reload" ] [] (NoArg reloadCmd)
     "Reload the currently loaded module."
+    ""
   , CommandDescr [ ":e", ":edit" ] ["[ FILE ]"] (FilenameArg editCmd)
     "Edit FILE or the currently loaded module."
+    ""
   , CommandDescr [ ":!" ] ["COMMAND"] (ShellArg runShellCmd)
     "Execute a command in the shell."
+    ""
   , CommandDescr [ ":cd" ] ["DIR"] (FilenameArg cdCmd)
     "Set the current working directory."
+    ""
   , CommandDescr [ ":m", ":module" ] ["[ MODULE ]"] (FilenameArg moduleCmd)
     "Load a module by its name."
+    ""
   , CommandDescr [ ":w", ":writeByteArray" ] ["FILE", "EXPR"] (FileExprArg writeFileCmd)
     "Write data of type 'fin n => [n][8]' to a file."
+    ""
   , CommandDescr [ ":readByteArray" ] ["FILE"] (FilenameArg readFileCmd)
     "Read data from a file as type 'fin n => [n][8]', binding\nthe value to variable 'it'."
+    ""
   , CommandDescr [ ":dumptests" ] ["FILE", "EXPR"] (FileExprArg dumpTestsCmd)
     (unlines [ "Dump a tab-separated collection of tests for the given"
              , "expression into a file. The first column in each line is"
              , "the expected output, and the remainder are the inputs. The"
              , "number of tests is determined by the \"tests\" option."
              ])
+    ""
   ]
 
 genHelp :: [CommandDescr] -> [String]
@@ -1445,6 +1476,9 @@ helpCmd cmd
        rPutStrLn ""
        rPutStrLn (cHelp c)
        rPutStrLn ""
+       when (not (null (cLongHelp c))) $ do
+         rPutStrLn (cLongHelp c)
+         rPutStrLn ""
 
   showOptionHelp arg =
     case lookupTrieExact arg userOptions of

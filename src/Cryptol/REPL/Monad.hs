@@ -789,7 +789,11 @@ userOptions  = mkOptionMap
 
   , OptionDescr "tc-debug" (EnvNum 0)
     noCheck
-    "Enable type-checker debugging output." $
+    (unlines
+      [ "Enable type-checker debugging output:"
+      , "  *  0  no debug output"
+      , "  *  1  show type-checker debug info"
+      , "  * >1  show type-checker debug info and interactions with SMT solver"]) $
     \case EnvNum n -> do me <- getModuleEnv
                          let cfg = M.meSolverConfig me
                          setModuleEnv me { M.meSolverConfig = cfg{ T.solverVerbose = n } }
