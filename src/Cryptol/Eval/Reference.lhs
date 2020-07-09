@@ -804,6 +804,16 @@ by corresponding typeclasses
 >                                   diff = y - x)
 >
 >   -- Miscellaneous:
+>   , ("parmap"     , VPoly $ \_a ->
+>                     VPoly $ \_b ->
+>                     VNumPoly $ \n ->
+>                     VFun $ \f ->
+>                     VFun $ \xs ->
+>                       -- Note: the reference implementation simply
+>                       -- executes parmap sequentially
+>                       let xs' = map (fromVFun f) (fromVList xs) in
+>                       VList n xs')
+>
 >   , ("error"      , VPoly $ \a ->
 >                     VNumPoly $ \_ ->
 >                     VFun $ \_s -> cryError (UserError "error") a)

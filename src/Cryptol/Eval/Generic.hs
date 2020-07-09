@@ -1908,7 +1908,38 @@ mergeSeqMap sym c x y =
     iteValue sym c (lookupSeqMap x i) (lookupSeqMap y i)
 
 
+--------------------------------------------------------------------------------
+-- Experimental parallel primitives
 
+parmapV :: Backend sym => sym -> GenValue sym
+parmapV sym =
+  tlam $ \_a ->
+  tlam $ \_b ->
+  ilam $ \_n ->
+  lam $ \f -> pure $
+  lam $ \xs ->
+    do f' <- fromVFun <$> f
+       xs' <- xs
+       case xs' of
+          VWord n w ->
+            do m <- asBitsMap sym <$> w
+               m' <- sparkParMap sym f' n m
+               pure (VWord n (pure (LargeBitsVal n m')))
+          VSeq n m ->
+            VSeq n <$> sparkParMap sym f' n m
+
+          _ -> panic "parmapV" ["expected sequence!"]
+
+
+sparkParMap ::
+  Backend sym =>
+  sym ->
+  (SEval sym (GenValue sym) -> SEval sym (GenValue sym)) ->
+  Integer ->
+  SeqMap sym ->
+  SEval sym (SeqMap sym)
+sparkParMap sym f n m =
+  finiteSeqMap sym <$> mapM (sSpark sym . f) (enumerateSeqMap n m)
 
 --------------------------------------------------------------------------------
 -- Floating Point Operations
@@ -1932,7 +1963,3 @@ fpRndRNA sym = wordLit sym 3 1 {- to nearest, ties to away from 0 -}
 fpRndRTP sym = wordLit sym 3 2 {- to +inf -}
 fpRndRTN sym = wordLit sym 3 3 {- to -inf -}
 fpRndRTZ sym = wordLit sym 3 4 {- to 0    -}
-
-
-
-

@@ -159,6 +159,8 @@ primTable w4sym = let sym = What4 w4sym in
 
     -- Misc
 
+  , ("parmap"      , parmapV sym)
+
   , ("fromZ"       , fromZV sym)
 
     -- {at,len} (fin len) => [len][8] -> at

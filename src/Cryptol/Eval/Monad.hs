@@ -25,6 +25,7 @@ module Cryptol.Eval.Monad
 , delayFill
 , ready
 , blackhole
+, evalSpark
   -- * Error reporting
 , Unsupported(..)
 , EvalError(..)
@@ -33,6 +34,7 @@ module Cryptol.Eval.Monad
 , typeCannotBeDemoted
 ) where
 
+import           Control.Concurrent.Async
 import           Control.DeepSeq
 import           Control.Monad
 import qualified Control.Monad.Fail as Fail
@@ -116,6 +118,19 @@ delayFill (Ready x) _ = Ready (Ready x)
 delayFill (Thunk x) retry = Thunk $ \opts -> do
   r <- newIORef Unforced
   return $ unDelay retry r (x opts)
+
+
+-- | Begin executing the given operation in a separate thread,
+--   returning a thunk which will await the completion of
+--   the computation when forced.
+evalSpark ::
+  Eval a ->
+  Eval (Eval a)
+evalSpark (Ready x) = Ready (Ready x)
+evalSpark (Thunk x) = Thunk $ \opts ->
+  do a <- async (x opts)
+     return (Thunk $ \_ -> wait a)
+
 
 -- | Produce a thunk value which can be filled with its associated computation
 --   after the fact.  A preallocated thunk is returned, along with an operation to

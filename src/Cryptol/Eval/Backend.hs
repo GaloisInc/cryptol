@@ -235,6 +235,11 @@ class MonadIO (SEval sym) => Backend sym where
   --   its own evaluation.
   sDelayFill :: sym -> SEval sym a -> SEval sym a -> SEval sym (SEval sym a)
 
+  -- | Begin evaluating the given computation eagerly in a separate thread
+  --   and return a thunk which will await the completion of the given computation
+  --   when forced.
+  sSpark :: sym -> SEval sym a -> SEval sym (SEval sym a)
+
   -- | Merge the two given computations according to the predicate.
   mergeEval ::
      sym ->

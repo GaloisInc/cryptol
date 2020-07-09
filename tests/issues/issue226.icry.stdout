@@ -160,6 +160,7 @@ Symbols
     negate : {a} (Ring a) => a -> a
     number : {val, rep} (Literal val rep) => rep
     or : {n} (fin n) => [n] -> Bit
+    parmap : {a, b, n} (fin n) => (a -> b) -> [n]a -> [n]b
     pdiv : {u, v} (fin u, fin v) => [u] -> [v] -> [u]
     pmod : {u, v} (fin u, fin v) => [u] -> [1 + v] -> [v]
     pmult :

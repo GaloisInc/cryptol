@@ -161,6 +161,7 @@ instance Backend Concrete where
 
   sDeclareHole _ = blackhole
   sDelayFill _ = delayFill
+  sSpark _ = evalSpark
 
   ppBit _ b | b         = text "True"
             | otherwise = text "False"

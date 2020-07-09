@@ -437,7 +437,7 @@ tlam f = VPoly (return . f)
 nlam :: Backend sym => (Nat' -> GenValue sym) -> GenValue sym
 nlam f = VNumPoly (return . f)
 
--- | A type lambda that expects a funite numeric type.
+-- | A type lambda that expects a finite numeric type.
 ilam :: Backend sym => (Integer -> GenValue sym) -> GenValue sym
 ilam f = nlam (\n -> case n of
                        Nat i -> f i

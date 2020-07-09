@@ -87,6 +87,12 @@
   wait for the first _successful_ result to be returned from a prover,
   instead of failing as soon as one prover fails.
 
+* An experimental `parmap` primitive that applies a function to a
+  sequence of arguments and computes the results in parallel.  This
+  operation should be considered experimental and may significantly
+  change or disappear in the future, and could possibly uncover
+  unknown race conditions in the interpreter.
+
 ## Bug fixes
 
 * Closed issues #346, #444, #614, #617, #636, #660, #662, #663, #664, #667, #670,
