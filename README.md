@@ -45,13 +45,15 @@ to get the latest stable version.
 Cryptol currently uses Microsoft Research's [Z3 SMT
 solver](https://github.com/Z3Prover/z3) by default to solve constraints
 during type checking, and as the default solver for the `:sat` and
-`:prove` commands. You can download Z3 binaries for a variety of
-platforms from their [releases page](https://github.com/Z3Prover/z3/releases).
+`:prove` commands.  Cryptol generally requires the most recent version
+of Z3, which at the time of writing this file is 4.8.8.
 
-Cryptol generally requires the most recent version of Z3, which at the
-time of writing this file is 4.8.8. Note that if you install Cryptol
-using Homebrew, the appropriate version of Z3 will be installed
-automatically.
+You can download Z3 binaries for a variety of platforms from their
+[releases page](https://github.com/Z3Prover/z3/releases). If you
+install Cryptol using Homebrew, the appropriate version of Z3 will be
+installed automatically. If you're using Linux, the package manager for
+your distribution may include Z3, as well, though sometimes the
+available versions are somewhat old.
 
 After installation, make sure that `z3` (or `z3.exe` on Windows)
 is on your PATH.
