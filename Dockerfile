@@ -39,8 +39,8 @@ USER user
 WORKDIR /solvers
 RUN mkdir -p rootfs/usr/local/bin
 
-# Build abc from Galois' fork
-RUN git clone https://github.com/GaloisInc/abc.git
+# Build abc from Github. (Latest version.)
+RUN git clone https://github.com/berkeley-abc/abc.git
 RUN cd abc && make -j$(nproc)
 RUN cp abc/abc rootfs/usr/local/bin
 
@@ -56,15 +56,15 @@ RUN cp yices*/bin/yices-smt2 rootfs/usr/local/bin
 # Install cvc4 1.8
 RUN curl -L https://github.com/CVC4/CVC4/releases/download/1.8/cvc4-1.8-x86_64-linux-opt --output rootfs/usr/local/bin/cvc4
 
-# Install Mathsat 5.6.3
-RUN curl -L https://mathsat.fbk.eu/download.php?file=mathsat-5.6.3-linux-x86_64.tar.gz | tar xz
-RUN cp mathsat-5.6.3-linux-x86_64/bin/mathsat rootfs/usr/local/bin
+# Install Mathsat 5.6.3 - Uncomment if you are in compliance with Mathsat's license.
+# RUN curl -L https://mathsat.fbk.eu/download.php?file=mathsat-5.6.3-linux-x86_64.tar.gz | tar xz
+# RUN cp mathsat-5.6.3-linux-x86_64/bin/mathsat rootfs/usr/local/bin
 
 # Set executable and run tests
 RUN chmod +x rootfs/usr/local/bin/*
 COPY --from=build /cryptol/rootfs /
 ENV PATH=/solvers/rootfs/usr/local/bin:$PATH
-RUN ! $(cryptol -c ":s prover=abc" | tail -n +2 | grep -q .) \
+RUN    ! $(cryptol -c ":s prover=abc" | tail -n +2 | grep -q .) \
     && ! $(cryptol -c ":s prover=mathsat" | tail -n +2 | grep -q .) \
     && ! $(cryptol -c ":s prover=z3" | tail -n +2 | grep -q .) \
     && ! $(cryptol -c ":s prover=cvc4" | tail -n +2 | grep -q .) \
