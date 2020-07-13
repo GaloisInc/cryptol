@@ -86,7 +86,7 @@ IEEE-754 floating point numbers.
 
 Not a number.
 
-NaN
+fpNaN
 0b01111
 0b0111111111111000000000000000000000000000000000000000000000000000
 True
@@ -98,12 +98,12 @@ True
 0.0e0
 6.0e0
 1.5e0
-Inf
--Inf
-NaN
--Inf
-Inf
-NaN
+fpPosInf
+fpNegInf
+fpNaN
+fpNegInf
+fpPosInf
+fpNaN
 4.0e0
 8.0e0
 4.0e0
@@ -129,7 +129,7 @@ NaN
 "-- Proofs---------------------------------------------------------------------"
 Counterexample
 Counterexample
-(\(x : Medium) -> x == x) NaN = False
+(\(x : Medium) -> x == x) fpNaN = False
 Q.E.D.
 Q.E.D.
 Q.E.D.

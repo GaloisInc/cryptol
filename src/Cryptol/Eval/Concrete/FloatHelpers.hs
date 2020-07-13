@@ -1,4 +1,4 @@
-{-# Language BlockArguments #-}
+{-# Language BlockArguments, OverloadedStrings #-}
 module Cryptol.Eval.Concrete.FloatHelpers where
 
 import Data.Ratio
@@ -69,7 +69,15 @@ fpCheckStatus _sym (r,s) =
 
 -- | Pretty print a float
 fpPP :: PPOpts -> BF -> Doc
-fpPP opts bf = text $ bfToString base fmt num
+fpPP opts bf =
+  case bfSign num of
+    Nothing -> "fpNaN"
+    Just s
+      | bfIsFinite num -> text (bfToString base fmt num)
+      | otherwise ->
+        case s of
+          Pos -> "fpPosInf"
+          Neg -> "fpNegInf"
   where
   num = bfValue bf
   precW = bfPrecWidth bf
