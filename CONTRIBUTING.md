@@ -244,6 +244,7 @@ The release process is:
    and add a git tag.
 1. Merge the `release-n.n.n` branch back into `master` for future
    development.
+1. Upload the build archives to the draft release on Github.
 1. Upload the `.sig` files to the draft release on Github.
 1. Publish the release and announce it
 
