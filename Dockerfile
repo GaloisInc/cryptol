@@ -65,11 +65,11 @@ RUN chmod +x rootfs/usr/local/bin/*
 COPY --from=build /cryptol/rootfs /
 ENV PATH=/solvers/rootfs/usr/local/bin:$PATH
 RUN    ! $(cryptol -c ":s prover=abc" | tail -n +2 | grep -q .) \
-    && ! $(cryptol -c ":s prover=mathsat" | tail -n +2 | grep -q .) \
-    && ! $(cryptol -c ":s prover=z3" | tail -n +2 | grep -q .) \
+#    && ! $(cryptol -c ":s prover=mathsat" | tail -n +2 | grep -q .) \
     && ! $(cryptol -c ":s prover=cvc4" | tail -n +2 | grep -q .) \
     && ! $(cryptol -c ":s prover=yices" | tail -n +2 | grep -q .) \
-    && ! $(cryptol -c ":s prover=boolector" | tail -n +2 | grep -q .)
+    && ! $(cryptol -c ":s prover=boolector" | tail -n +2 | grep -q .) \
+    && ! $(cryptol -c ":s prover=z3" | tail -n +2 | grep -q .)
 
 
 FROM debian:stretch-slim
