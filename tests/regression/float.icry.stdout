@@ -80,6 +80,15 @@ IEEE-754 floating point numbers.
 0x1.3p0
 0x2.0p-4
 0x2.0p-4
+0x8.0p0
+
+[error] at <interactive>:1:1--1:2:
+  Unsolvable constraints:
+    • Literal 7 Small
+        arising from
+        use of literal or demoted expression
+        at <interactive>:1:1--1:2
+    • Reason: 7 cannot be represented in FloatTests::Small
 "-- NaN------------------------------------------------------------------------"
 
     fpNaN : {e, p} (ValidFloat e p) => Float e p

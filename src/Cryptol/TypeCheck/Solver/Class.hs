@@ -421,6 +421,21 @@ solveLiteralInst val ty
       -- (fin val) => Literal val Rational
       TCon (TC TCRational) [] -> SolvedIf [ pFin val ]
 
+      -- ValidFloat e p => Literal val (Float e p)   if `val` is representable
+      TCon (TC TCFloat) [e,p]
+        | Just n    <- tIsNum val
+        , Just opts <- knownSupportedFloat e p ->
+          let bf = FP.bfFromInteger n
+          in case FP.bfRoundFloat opts bf of
+               (bf1,FP.Ok) | bf == bf1 -> SolvedIf []
+               _ -> Unsolvable $ TCErrorMessage
+                               $ show n ++ " cannot be " ++
+                                "represented in " ++ show (pp ty)
+
+        | otherwise -> Unsolved
+
+
+
       -- (fin val, fin m, m >= val + 1) => Literal val (Z m)
       TCon (TC TCIntMod) [modulus] ->
         SolvedIf [ pFin val, pFin modulus, modulus >== tAdd val tOne ]
