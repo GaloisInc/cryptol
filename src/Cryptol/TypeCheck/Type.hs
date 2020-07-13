@@ -700,7 +700,8 @@ pFin :: Type -> Prop
 pFin ty =
   case tNoUser ty of
     TCon (TC (TCNum _)) _ -> pTrue
-    TCon (TC TCInf)     _ -> tError ty "`inf` is not finite" -- XXX: should we be doing this here??
+    TCon (TC TCInf)     _ -> tError (TCon (PC PFin) [ty]) "`inf` is not finite"
+      -- XXX: should we be doing this here??
     _                     -> TCon (PC PFin) [ty]
 
 pValidFloat :: Type -> Type -> Type
