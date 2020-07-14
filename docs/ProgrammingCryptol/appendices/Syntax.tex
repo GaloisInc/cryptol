@@ -188,6 +188,51 @@ is inferred from context in which the literal is used. Examples:
                     // a = Integer or [n] where n >= width 10
 \end{verbatim}
 
+Numeric literals may also be written as polynomials by writing a
+polynomial expression in terms of \texttt{x} between an opening
+\texttt{\textless{}\textbar{}} and a closing
+\texttt{\textbar{}\textgreater{}}. Numeric literals in polynomial
+notation result in bit sequences of length one more than the degree of
+the polynomial. Examples:
+
+\begin{verbatim}
+<| x^^6 + x^^4 + x^^2 + x^^1 + 1 |>  // : [7], equal to 0b1010111
+<| x^^4 + x^^3 + x |>                // : [5], equal to 0b11010
+\end{verbatim}
+
+Cryptol also supports fractional literals using binary (prefix
+\texttt{0b}), octal (prefix \texttt{0o}), decimal (no prefix), and
+hexadecimal (prefix \texttt{ox}) digits. A fractional literal must
+contain a \texttt{.} and may optionally have an exponent. The base of
+the exponent for binary, octal, and hexadecimal literals is 2 and the
+exponent is marked using the symbol \texttt{p}. Decimal fractional
+literals use exponent base 10, and the symbol \texttt{e}. Examples:
+
+\begin{verbatim}
+10.2
+10.2e3            // 10.2 * 10^3
+0x30.1            // 3 * 64 + 1/16
+0x30.1p4          // (3 * 64 + 1/16) * 2^4
+\end{verbatim}
+
+All fractional literals are overloaded and may be used with types that
+support fractional numbers (e.g., \texttt{Rational}, and the
+\texttt{Float} family of types).
+
+Some types (e.g.~the \texttt{Float} family) cannot represent all
+fractional literals precisely. Such literals are rejected statically
+when using binary, octal, or hexadecimal notation. When using decimal
+notation, the literal is rounded to the closes represental even number.
+
+All numeric literals may also include \texttt{\_}, which has no effect
+on the literal value but may be used to improve readability. Here are
+some examples:
+
+\begin{verbatim}
+0b_0000_0010
+0x_FFFF_FFEA
+\end{verbatim}
+
 \hypertarget{expressions}{%
 \section{Expressions}\label{expressions}}
 
@@ -233,6 +278,7 @@ f x : Bit       // specify that `f x` has type `Bit`
 if x
   then y
   else z : Bit  // the type annotation is on `z`, not the whole `if`
+[1..9 : [8]]    // specify that elements in `[1..9]` have type `[8]`
 \end{verbatim}
 
 \textbf{Local Declarations}
@@ -579,8 +625,8 @@ type T a b = [a] b
 \hypertarget{modules}{%
 \section{Modules}\label{modules}}
 
-A \textbf{\emph{module}} is used to group some related definitions.
-Each file may contain at most one module.
+A \textbf{\emph{module}} is used to group some related definitions. Each
+file may contain at most one module.
 
 \begin{verbatim}
 module M where

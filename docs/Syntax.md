@@ -184,6 +184,32 @@ the degree of the polynomial.  Examples:
     <| x^^6 + x^^4 + x^^2 + x^^1 + 1 |>  // : [7], equal to 0b1010111
     <| x^^4 + x^^3 + x |>                // : [5], equal to 0b11010
 
+Cryptol also supports fractional literals using binary (prefix `0b`),
+octal (prefix `0o`), decimal (no prefix), and hexadecimal (prefix `ox`) digits.
+A fractional literal must contain a `.` and may optionally have an exponent.
+The base of the exponent for binary, octal, and hexadecimal literals is 2
+and the exponent is marked using the symbol `p`.  Decimal fractional literals
+use exponent base 10, and the symbol `e`.  Examples:
+
+    10.2
+    10.2e3            // 10.2 * 10^3
+    0x30.1            // 3 * 64 + 1/16
+    0x30.1p4          // (3 * 64 + 1/16) * 2^4
+
+All fractional literals are overloaded and may be used with types that support
+fractional numbers (e.g., `Rational`, and the `Float` family of types).
+
+Some types (e.g. the `Float` family) cannot represent all fractional literals
+precisely.  Such literals are rejected statically when using binary, octal,
+or hexadecimal notation.  When using decimal notation, the literal is rounded
+to the closes represental even number.
+
+
+All numeric literals may also include `_`, which has no effect on the
+literal value but may be used to improve readability.  Here are some examples:
+
+    0b_0000_0010
+    0x_FFFF_FFEA
 
 Expressions
 ===========

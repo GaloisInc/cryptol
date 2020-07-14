@@ -38,6 +38,21 @@ Literals
                    , lengthFromThenTo first next last == len) =>
 		   [len]a
 
+Fractional Literals
+-------------------
+
+The predicate `FLiteral m n r a` asserts that the type `a` contains the
+fraction `m/n`.  The flag `r` indicates if we should round (`r >= 1`)
+or report an error if the number can't be represented exactly.
+
+    type FLiteral : # -> # -> # -> * -> Prop
+
+
+Fractional literals are desugared into calles to the primitive `fraction`:
+
+    fraction : { m, n, r, a } FLiteral m n r a => a
+
+
 
 Zero
 ----

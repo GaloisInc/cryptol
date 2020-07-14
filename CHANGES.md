@@ -54,6 +54,21 @@
   typechecker will use that information to infer superclass instances
   from subclasses.
 
+* Added a family of base types, `Float e p`, for working with
+  floating point numbers.  The parameters control the precision of
+  the numbers, with `e` being the number of bits to use in the exponent
+  and `p-1` being the number of bits to use in the mantissa.
+  The `Float` family of types may be used through the usual overloaded
+  functionality in Cryptol, and there is a new buit-in module called
+  `Float`, which contains functionality specific to floating point numbers.
+
+* Add a way to write fractional literals in base 2,8,10, and 16.
+  Fractional literals are overloaded, and may be used for different types
+  (currently `Rational` and the `Float` family).  Fractional literal in base
+  2,8,and 16 must be precise, and will be rejected statically if they cannot be
+  represented exactly.  Fractional literals in base 10 are rounded to the
+  nearest even representable number.
+
 ## New features
 
 * Document the behavior of lifted selectors.

@@ -287,6 +287,61 @@ written \texttt{/.}, and should not be confused with
 and integers.
 
 
+%===============================================================================
+\section{Floating Point Numbers}
+\label{sec:floats}
+
+The family of types \texttt{Float e p}\indTheFloatType represent IEEE 754
+floating point numbers with \texttt{e} bits in the exponent and
+\texttt{p-1} bits in the mantissa.  The family is defined in a built-in
+module called \texttt{Float} so to use it you'd need to either import
+it in you Cryptol specification or use \texttt{:m Float} on the
+Cryptol REPL.
+
+Floating point numbers may be written using either integral or fractioanl
+literals.  In general, literals that cannot be represented exactly are
+rejected with a type error, with the exception of decimal fractional litrals
+which are rounded to the nearest even representable numbers.
+
+Floating point numbers may be manipulated and compared using
+standard Cryptol operators, such as \texttt{+}, \texttt{==}, and \texttt{/.}
+(but {\em not} \texttt{/} which is only for integral types).
+When using the standard Cryptol operators the results that cannot be
+represented exactly are rounded to the nearest even representable number.
+
+The module \texttt{Float} provides additional functionality specific
+to floating point numbers.  In particular, it contains constants for
+writing special floating point values, and arithmetic operations
+that are parameterized on the rounding mode to use during computation
+(e.g., \texttt{fpAdd}).
+
+Of particular importance is the relation \texttt{=.=} for comparing
+floating point numbers semantically, rather that using the IEEE equality,
+which is done by \texttt{==}.  The behavior of the two differs
+mostly on special values, here are some examples:
+\begin{Verbatim}
+Float> fpNaN == (fpNaN : Float64)
+False
+Float> fpNaN =.= (fpNaN : Float64)
+True
+Float> 0 == (-0 : Float64)
+True
+Float> 0 =.= (-0 : Float64)
+False
+\end{Verbatim}
+
+Cryptol supports reasoning about floating point numbers using the
+{\texttt What4} interface to solvers that support IEEE floats.
+These back-ends have names starting with {\texttt w4}, for example,
+a good one to try is \texttt{w4-z3}.
+
+The Cryptol REPL has some settings to control how floating point numbers
+are printed on the REPL.  In particular \texttt{:fp-base} specifies
+in what numeric base to output floating point numbers, while
+\texttt{:fp-format} provides various settings for formatting the
+results.   For more information, see \texttt{:help :set fp-format}.
+
+
 %=====================================================================
 % \section{Tuples: Heterogeneous collections}
 % \label{sec:tuple}
