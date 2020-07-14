@@ -43,7 +43,8 @@ case $COMMAND in
 
     cabal v2-build exe:cryptol
 
-    sed -i "/^$dirty_string/d" src/GitRev.hs
+    sed -i.bak "/^$dirty_string/d" src/GitRev.hs
+    rm -f src/GitRev.hs.bak
     ;;
 
   haddock) echo Building Haddock documentation && cabal v2-haddock ;;

@@ -28,39 +28,20 @@ check the output against an expected output file. We make at least one
 test for each new issue, and keep the accumulated tests in our suite
 as regression tests. The test suite itself is written using the
 `test-framework` library, so it can readily output XML for consumption
-by Jenkins and other CI systems.
-
-## Stackage
-
-On the Jenkins machines, we `cp cabal.GHCNNN.config cabal.config`
-before building in order to build against a Stackage LTS snapshot
-(updated periodically). This is to ensure compatibility with
-downstream dependencies that rely on Stackage for their stability. We
-do not have `cabal.config` in place by default, though, so developers
-can use different versions of the compiler.
+by CI systems.
 
 ## Running tests
 
-To run the test suite, run `make test` from the root of the
+To run the test suite, run `./cry test` from the root of the
 repository. By default, you'll get output on the console for each test
 that fails, either with an explanation for why it failed, or a command
 line you can paste in order to compare the test results against the
 expected output.
 
-The `make test` target invokes the `cryptol-test-runner` executable,
+The `./cry test` command invokes the `cryptol-test-runner` executable,
 which is defined in the `/tests/` directory. It is invoked with the
 location of the `cryptol` executable, an output directory, and
-standard `test-framework` command line arguments. The `test` target in
-the `Makefile` provides a template for how to invoke it if you need to
-use advanced parameters.
-
-## Running benchmarks
-
-To run the benchmark suite, run `make bench` from the root of the
-repository. By default, you'll get Criterion output on the console
-from the benchmarking executable in `/bench`. The easiest way to pass
-custom arguments to this executable is to run the suite subsequently
-with `cabal bench --benchmark-options="..."`.
+standard `test-framework` command line arguments.
 
 ## Creaing a new test
 
@@ -149,11 +130,11 @@ look as expected, and then save those results as the new
 `.icry.stdout`:
 
     # start with a fresh build
-    % make
+    % ./cry build
     ...
     # tests are run from within the directory of the .icry file
     % cd tests/issues
-    % ../../.cabal-sandbox/bin/cryptol -b issue006.icry
+    % ../../bin/cryptol -b issue006.icry
     Loading module Cryptol
     Loading module Cryptol
     Loading module Main
@@ -169,7 +150,7 @@ script. Since the results looked correct, we piped the same command
 into the matching `.icry.stdout` file and removed the `.icry.fails`
 file:
 
-    % ../../.cabal-sandbox/bin/cryptol -b issue006.icry.stdout
+    % ../../bin/cryptol -b issue006.icry.stdout
     % rm issue006.icry.fails
 
 Now the test case `issue006` passes, and will (hopefully!) break if
@@ -182,9 +163,6 @@ The top-level repository directories are:
 - `/bench`: Benchmarking executable and suite
 - `/cryptol`: Haskell sources for the front-end `cryptol` executable
   and read-eval-print loop
-- `/cryptol-server`: Experimental Cryptol JSON-over-ZeroMQ server,
-  currently built to support
-  [pycryptol](http://pycryptol.readthedocs.org/en/latest/)
 - `/docs`: LaTeX and Markdown sources for the Cryptol documentation
 - `/examples`: Cryptol sources implementing several interesting
   algorithms
@@ -217,15 +195,15 @@ for branches and merging. Our version has two notable differences:
 In short:
 
 - Any substantial new features should be developed on a branch
-  prefixed with `feature/`, and then merged into `master` when
+  prefixed with `feature-`, and then merged into `master` when
   completed.
 - When we reach a feature freeze for a release, we create a new branch
-  prefixed with `release/`, for example `release/2.1.0`. When the
+  prefixed with `release-`, for example `release-2.1.0`. When the
   release is made, we merge those changes back into `master` and make
   a snapshot commit on the `release` branch.
 - If a critical bug emerges in already-released software, we create a
   branch off of the relevant `release` branch commit prefixed with
-  `hotfix/2.1.1`. When the hotfix is complete, we merge those changes
+  `hotfix-`. When the hotfix is complete, we merge those changes
   back into `master` and make a snapshot commit on the `release`
   branch.
 
@@ -257,37 +235,20 @@ with a [GPG key](http://www.cryptol.net/files/Galois.asc).
 
 ## Cutting releases
 
-**TODO**: make this relevant to folks outside Galois; right now the
- build farm exists within the Galois network only, and Galois also
- controls the release signing key.
-
 The release process is:
 
-1. Make sure the `release/n.n.n` branch is in a release/ready state,
+1. Make sure the `release-n.n.n` branch is in a release/ready state,
    with successful build artifacts across all platforms on the
-   relevant Jenkins job. **TODO**: get a Jenkins job running per
-   release branch, rather than just `master`.
-1. Merge the `release/n.n.n` branch into the pristine `release` branch
+   relevant GitHub Action.
+1. Merge the `release-n.n.n` branch into the pristine `release` branch
    and add a git tag.
-1. Merge the `release/n.n.n` branch back into `master` for future
-   development, and delete the `release/n.n.n` branch.
-1. Run the `cryptol-release` Jenkins job to create a draft
-   release. Specify the build number with the successful artifacts,
-   the textual version tag (e.g., "2.1.0"), whether it's a prerelease
-   (e.g., an alpha), and keep the `DRAFT` option checked.
-1. On the Github page for the draft release and add a changelog
-   (**TODO**: automate changelogs?).
-1. (**TODO**: this part of the process needs to be better and
-   automated) Download the successfully-built artifacts _from
-   Jenkins_, and in the same directory run the script
-   `/release-infrastructure/sign.sh` from the `cryptol-internal.git`
-   repository. You must have the correct GPG key (D3103D7E) for this
-   to work.
+1. Merge the `release-n.n.n` branch back into `master` for future
+   development.
+1. Upload the build archives to the draft release on Github.
 1. Upload the `.sig` files to the draft release on Github.
-1. Publish the release and announce it (**TODO**: compile mailing lists)
+1. Publish the release and announce it
 
     - <http://www.cryptol.net> (in the `cryptol2-web.git` repo)
     - <cryptol-team@lists.galois.com>
     - <cryptol-users@community.galois.com>
     - @galois on Twitter (for major releases)
-    - TODO: more?
