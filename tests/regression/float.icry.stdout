@@ -32,7 +32,7 @@ Specifies the format to use when showing floating point numbers:
 0x0.6
 0x1.234p4
 0x12.3
-0x12
+0x12.0
 0x1.2p4
 "-- Float Type-----------------------------------------------------------------"
 

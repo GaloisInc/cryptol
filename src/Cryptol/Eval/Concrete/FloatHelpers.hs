@@ -73,7 +73,7 @@ fpPP opts bf =
   case bfSign num of
     Nothing -> "fpNaN"
     Just s
-      | bfIsFinite num -> text (bfToString base fmt num)
+      | bfIsFinite num -> text hacStr
       | otherwise ->
         case s of
           Pos -> "fpPosInf"
@@ -89,12 +89,20 @@ fpPP opts bf =
                   AutoExponent -> f
                   ForceExponent -> f <> forceExp
 
+  str = bfToString base fmt num
   fmt = addPrefix <> showRnd NearEven <>
         case useFPFormat opts of
           FloatFree e -> withExp e $ showFreeMin
                                    $ Just $ fromInteger precW
           FloatFixed n e -> withExp e $ showFixed $ fromIntegral n
           FloatFrac n    -> showFrac $ fromIntegral n
+
+  -- non-base 10 literals are not overloaded so we add an explicit
+  -- .0 if one is not present. 
+  hacStr
+    | base == 10 || elem '.' str = str
+    | otherwise = case break (== 'p') str of
+                    (xs,ys) -> xs ++ ".0" ++ ys
 
 
 
