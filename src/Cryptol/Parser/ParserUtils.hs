@@ -214,6 +214,8 @@ fracLit :: TokenT -> Expr PName
 fracLit tok =
   case tok of
     Frac x base
+      | base == 2   -> ELit $ ECFrac x BinFrac
+      | base == 8   -> ELit $ ECFrac x OctFrac
       | base == 10  -> ELit $ ECFrac x DecFrac
       | base == 16  -> ELit $ ECFrac x HexFrac
     _ -> panic "[Parser] fracLit" [ "Invalid fraction", show tok ]

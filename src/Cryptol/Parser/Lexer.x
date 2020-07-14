@@ -45,11 +45,15 @@ $unitick        = \x7
 @qual_id      = @qual @id
 @qual_op      = @qual @op
 
-@num2         = "0b" (_*[0-1])+
-@num8         = "0o" (_*[0-7])+
-@num10        = [0-9](_*[0-9])*
+@digits2      = (_*[0-1])+
+@digits8      = (_*[0-7])+
 @digits16     = (_*[0-9A-Fa-f])+
+@num2         = "0b" @digits2
+@num8         = "0o" @digits8
+@num10        = [0-9](_*[0-9])*
 @num16        = "0x" @digits16
+@fnum2        = @num2  "." @digits2   ([pP] [\+\-]? @num10)?
+@fnum8        = @num8  "." @digits8   ([pP] [\+\-]? @num10)?
 @fnum10       = @num10 "." @num10     ([eE] [\+\-]? @num10)?
 @fnum16       = @num16 "." @digits16  ([pP] [\+\-]? @num10)?
 
@@ -130,6 +134,8 @@ $white+                   { emit $ White Space }
 @num8                     { emitS (numToken 8  . Text.drop 2) }
 @num10                    { emitS (numToken 10 . Text.drop 0) }
 @num16                    { emitS (numToken 16 . Text.drop 2) }
+@fnum2                    { emitS (fnumToken 2 . Text.drop 2) }
+@fnum8                    { emitS (fnumToken 8 . Text.drop 2) }
 @fnum10                   { emitS (fnumToken 10 . Text.drop 0) }
 @fnum16                   { emitS (fnumToken 16 . Text.drop 2) }
 

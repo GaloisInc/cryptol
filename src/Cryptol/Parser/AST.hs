@@ -285,7 +285,9 @@ data NumInfo  = BinLit Int                      -- ^ n-digit binary literal
                 deriving (Eq, Show, Generic, NFData)
 
 -- | Information about fractional literals.
-data FracInfo = DecFrac
+data FracInfo = BinFrac
+              | OctFrac
+              | DecFrac
               | HexFrac
                 deriving (Eq,Show,Generic,NFData)
 
@@ -644,13 +646,15 @@ ppFracLit :: Rational -> FracInfo -> Doc
 ppFracLit x i
   | toRational dbl == x =
     case i of
+      BinFrac -> frac
+      OctFrac -> frac
       DecFrac -> text (showFloat dbl "")
       HexFrac -> text (showHFloat dbl "")
-  | otherwise =
-    "fraction`" <.> braces
-                      (commaSep (map integer [ numerator x, denominator x ]))
+  | otherwise = frac
   where
   dbl = fromRational x :: Double
+  frac = "fraction`" <.> braces
+                      (commaSep (map integer [ numerator x, denominator x ]))
 
 
 ppNumLit :: Integer -> NumInfo -> Doc

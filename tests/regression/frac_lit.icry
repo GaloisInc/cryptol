@@ -1,0 +1,13 @@
+0b1.1     : Rational
+0o1.1     : Rational
+1.1       : Rational
+0x1.1     : Rational
+0b1.1p3   : Rational
+0o1.1p3   : Rational
+1.1e3     : Rational
+0x1.1p3   : Rational
+0b1.1p-3  : Rational
+0o1.1p-3  : Rational
+1.1e-3    : Rational
+0x1.1p-3  : Rational
+

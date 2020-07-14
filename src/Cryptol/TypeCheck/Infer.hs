@@ -127,6 +127,8 @@ desugarLiteral lit =
          let arg f = P.PosInst (P.TNum (f fr))
              rnd   = P.PosInst (P.TNum (case info of
                                           P.DecFrac -> 0
+                                          P.BinFrac -> 1
+                                          P.OctFrac -> 1
                                           P.HexFrac -> 1))
          in P.EAppT fracPrim [ arg numerator, arg denominator, rnd ]
 
