@@ -179,9 +179,11 @@ ppName Name { .. } =
 
     Declared m _ -> withNameDisp $ \disp ->
       case getNameFormat m nIdent disp of
-        Qualified m' -> pp m' <.> text "::" <.> pp nIdent
-        UnQualified  ->                         pp nIdent
-        NotInScope   -> pp m  <.> text "::" <.> pp nIdent
+        Qualified m' -> ppQual m' <.> pp nIdent
+        UnQualified  ->               pp nIdent
+        NotInScope   -> ppQual m  <.> pp nIdent -- XXX: only when not in scope?
+      where
+      ppQual mo = if mo == exprModName then empty else pp mo <.> text "::"
 
     Parameter -> pp nIdent
 

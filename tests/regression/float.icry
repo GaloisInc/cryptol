@@ -55,6 +55,9 @@ section "Literals"
 0x0.2       : Small      // Subnormal
 fpFromBits 1 : Small     // Subnormal
 
+8            : Small    // OK
+7            : Small    // Doesn't fit
+
 section "NaN"
 :help fpNaN
 fpNaN : Medium

@@ -19,7 +19,7 @@ import qualified Data.Set as Set
 import Cryptol.Parser.Selector
 import Cryptol.Parser.Position(Range,emptyRange)
 import Cryptol.ModuleSystem.Name
-import Cryptol.Utils.Ident (Ident, isInfixIdent)
+import Cryptol.Utils.Ident (Ident, isInfixIdent, exprModName)
 import Cryptol.TypeCheck.TCon
 import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.Solver.InfNat
@@ -700,7 +700,8 @@ pFin :: Type -> Prop
 pFin ty =
   case tNoUser ty of
     TCon (TC (TCNum _)) _ -> pTrue
-    TCon (TC TCInf)     _ -> tError ty "`inf` is not finite" -- XXX: should we be doing this here??
+    TCon (TC TCInf)     _ -> tError (TCon (PC PFin) [ty]) "`inf` is not finite"
+      -- XXX: should we be doing this here??
     _                     -> TCon (PC PFin) [ty]
 
 pValidFloat :: Type -> Type -> Type
@@ -937,7 +938,10 @@ pickTVarName k src uni =
     LenOfSeq               -> mk "n"
     TypeParamInstNamed _ i -> using i
     TypeParamInstPos f n   -> mk (sh f ++ "_" ++ show n)
-    DefinitionOf x         -> using x
+    DefinitionOf x ->
+      case nameInfo x of
+        Declared m SystemName | m == exprModName -> mk "it"
+        _ -> using x
     LenOfCompGen           -> mk "n"
     TypeOfArg mb           -> mk (case mb of
                                     Nothing -> "arg"
