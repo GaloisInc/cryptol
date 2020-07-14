@@ -1,3 +1,5 @@
+module superclass where
+
 zeroRing : {a} (Ring a) => a
 zeroRing = zero
 
@@ -27,3 +29,6 @@ recipRound x = trunc (recip x)
 
 compareRound : {a} (Round a) => a -> a -> Bit
 compareRound x y = x < y
+
+eqCmp : {a} (Cmp a) => a -> a -> Bit
+eqCmp x y = x == y

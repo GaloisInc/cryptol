@@ -1,0 +1,26 @@
+:set prover-stats = off
+:set show-examples = off
+
+:set ignore-safety = off
+
+:prove (\ (x:Integer) -> 0 < x ==> x < 4 ==> [3,2,1]@x == 3-x)
+:prove (\ (x:[8]) -> x < 4 ==> [3,2,1]@x == 3-x)
+
+:prove (\ (x:Integer) y -> (y == 0) || (y*(x/y) + x%y == x))
+:prove (\ (x:[8]) y -> (y == 0) || (y*(x/y) + x%y == x))
+
+:prove (\ (x:Integer) -> [0,0,0]@x == 0 )
+:prove (\ (x:Integer) -> []@x == 0 )
+:prove (\ (x:[8]) -> [0,0,0]@x == 0 )
+
+:set ignore-safety = on
+
+:prove (\ (x:Integer) -> 0 < x ==> x < 4 ==> [3,2,1]@x == 3-x)
+:prove (\ (x:[8]) -> x < 4 ==> [3,2,1]@x == 3-x)
+
+:prove (\ (x:Integer) y -> (y == 0) || (y*(x/y) + x%y == x))
+:prove (\ (x:[8]) y -> (y == 0) || (y*(x/y) + x%y == x))
+
+:prove (\ (x:Integer) -> [0,0,0]@x == 0 )
+:prove (\ (x:Integer) -> []@x == 0 )
+:prove (\ (x:[8]) -> [0,0,0]@x == 0 )
