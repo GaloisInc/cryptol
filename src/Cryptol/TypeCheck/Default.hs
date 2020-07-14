@@ -96,19 +96,20 @@ improveByDefaultingWithPure as ps =
     let -- First, we use the `leqs` to choose some definitions.
         (defs, newOthers)  = select [] [] (fvs others) (Map.toList leqs)
         su                 = listSubst defs
-        warn (x,t) =
+        names              = substBinds su
+        mkErr (x,t) =
           case x of
-            TVFree _ _ _ d -> AmbiguousSize d t
+            TVFree _ _ _ d
+              | Just 0 <- tIsNum t -> AmbiguousSize d Nothing
+              | otherwise -> AmbiguousSize d (Just t)
             TVBound {} -> panic "Crypto.TypeCheck.Infer"
                  [ "tryDefault attempted to default a quantified variable."
                  ]
 
-        names = substBinds su
-
     in ( [ a | a <- as, not (a `Set.member` names) ]
        , newOthers ++ others ++ nub (apSubst su fins)
        , su
-       , map warn defs
+       , map mkErr defs
        )
 
 

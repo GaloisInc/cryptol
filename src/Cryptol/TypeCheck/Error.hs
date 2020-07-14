@@ -114,9 +114,10 @@ data Error    = ErrorMsg Doc
 
               | RepeatedTypeParameter Ident [Range]
 
-              | AmbiguousSize TVarInfo Type
+              | AmbiguousSize TVarInfo (Maybe Type)
                 -- ^ Could not determine the value of a numeric type variable,
-                --   but we know it must be at least as large as the given type.
+                --   but we know it must be at least as large as the given type
+                --   (or unconstrained, if Nothing).
                 deriving (Show, Generic, NFData)
 
 instance TVars Warning where
@@ -325,9 +326,11 @@ instance PP (WithNames Error) where
           $$ nest 2 (bullets (map pp rs))
 
       AmbiguousSize x t ->
-        addTVarsDescsAfter names err $
-        "Ambiguous numeric type:" <+> pp (tvarDesc x)
-          $$ "Must be at least:" <+> ppWithNames names t
+        let sizeMsg =
+               case t of
+                 Just t' -> "Must be at least:" <+> ppWithNames names t'
+                 Nothing -> empty
+         in addTVarsDescsAfter names err ("Ambiguous numeric type:" <+> pp (tvarDesc x) $$ sizeMsg)
 
     where
     bullets xs = vcat [ "•" <+> d | d <- xs ]
