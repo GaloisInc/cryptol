@@ -1,6 +1,24 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module Main
+Loading module superclass
+Symbols
+=======
+
+  Public
+  ------
+
+    compareRound : {a} (Round a) => a -> a -> Bit
+    eqCmp : {a} (Cmp a) => a -> a -> Bit
+    fromIntField : {a} (Field a) => a
+    fromIntIntegral : {a} (Integral a) => a
+    fromIntRound : {a} (Round a) => a
+    recipRound : {a} (Round a) => a -> Integer
+    zeroField : {a} (Field a) => a
+    zeroIntegral : {a} (Integral a) => a
+    zeroLogic : {a} (Logic a) => a
+    zeroRing : {a} (Ring a) => a
+    zeroRound : {a} (Round a) => a
+
 (fromInteger 42 + zero) : {a} (Ring a) => a
 (trunc (recip (fromInteger 5))) : {a} (Round a) => Integer
 (\x -> x < fromInteger (floor (recip x))) : {a} (Round a) =>
@@ -8,3 +26,4 @@ Loading module Main
 (\x -> x == zero /. x) : {a} (Eq a, Field a) => a -> Bit
 (zero == ~zero) : {a} (Eq a, Logic a) => Bit
 (\x -> toInteger (x + zero)) : {a} (Integral a) => a -> Integer
+(\x y -> x < y \/ x == y) : {a} (Cmp a) => a -> a -> Bit
