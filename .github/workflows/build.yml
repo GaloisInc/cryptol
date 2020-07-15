@@ -1,9 +1,7 @@
 name: Cryptol
 on:
   push:
-    branches: [master]
-    # The release upload logic assumes tag == v$(.github/ci.sh ver)
-    tags: ["v**"]
+    branches: [master, "release-**"]
   pull_request:
 
 jobs:
@@ -90,7 +88,7 @@ jobs:
         run: .github/ci.sh test_dist
 
       - if: >-
-          (startsWith(github.ref, 'refs/tags/v')
+          (startsWith(github.head_ref, 'releases-')
             || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'actions/')))
           && matrix.ghc == '8.10.1'
         uses: actions/upload-artifact@v2
@@ -102,7 +100,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [outputs]
     if: >-
-      (startsWith(github.ref, 'refs/tags/v')
+      (startsWith(github.head_ref, 'releases-')
         || (github.event_name == 'pull_request'
             && startsWith(github.head_ref, 'actions/')))
       || contains(needs.outputs.outputs.changed, 'docs/')
@@ -126,7 +124,7 @@ jobs:
   bundle:
     runs-on: ${{ matrix.os }}
     if: >-
-      startsWith(github.ref, 'refs/tags/v')
+      startsWith(github.head_ref, 'releases-')
         || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'actions/'))
     strategy:
       matrix:
@@ -182,7 +180,7 @@ jobs:
   release:
     needs: [outputs]
     if: >-
-      startsWith(github.ref, 'refs/tags/v')
+      startsWith(github.head_ref, 'releases-')
         || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'actions/'))
     runs-on: ubuntu-latest
     steps:
@@ -196,7 +194,7 @@ jobs:
 
   upload-artifacts-to-release:
     if: >-
-      startsWith(github.ref, 'refs/tags/v')
+      startsWith(github.head_ref, 'releases-')
         || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'actions/'))
     needs: [outputs, bundle, release]
     runs-on: ubuntu-latest
@@ -205,8 +203,8 @@ jobs:
       - uses: actions/download-artifact@v2
         with:
           path: artifacts
-      - run: ls -alR
-      - run: |
+      - name: Upload artifacts to release
+        run: |
           assets=()
           find ./artifacts \( -name 'cryptol*.tar.gz*' -o -name '*.msi*' \) -type f -print0 |
             while IFS= read -r -d '' a; do assets+=("-a" "$a"); done
