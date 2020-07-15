@@ -178,13 +178,16 @@ jobs:
           path: "cryptol.msi*"
 
   release:
-    needs: [outputs]
+    needs: [outputs, bundle, release]
     if: >-
       startsWith(github.head_ref, 'releases-')
         || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'actions/'))
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v2
+
       - uses: release-drafter/release-drafter@v5
+        id: release
         with:
           version: v${{ needs.outputs.outputs.cryptol-version }}
           name: v${{ needs.outputs.outputs.cryptol-version }}
@@ -192,24 +195,22 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  upload-artifacts-to-release:
-    if: >-
-      startsWith(github.head_ref, 'releases-')
-        || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'actions/'))
-    needs: [outputs, bundle, release]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
       - uses: actions/download-artifact@v2
         with:
           path: artifacts
       - name: Upload artifacts to release
         run: |
+          # workaround for draft-releaser being hard to test in CI
+          tag="v${VERSION}"
+          body="${body:-$tag}"
+          if ! hub release show "$tag"; then
+            hub release create -d -m "$body" "$tag"
+          fi
           assets=()
           find ./artifacts \( -name 'cryptol*.tar.gz*' -o -name '*.msi*' \) -type f -print0 |
             while IFS= read -r -d '' a; do assets+=("-a" "$a"); done
-          tag="v${VERSION}"
           hub release edit -d "${assets[@]}" -m "" "$tag"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ needs.outputs.outputs.cryptol-version }}
+          body: ${{ steps.release.outputs.body }}
