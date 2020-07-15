@@ -481,6 +481,11 @@ pIsLiteral ty = case tNoUser ty of
                   TCon (PC PLiteral) [t1, t2] -> Just (t1, t2)
                   _                           -> Nothing
 
+pIsFLiteral :: Prop -> Maybe (Type,Type,Type,Type)
+pIsFLiteral ty = case tNoUser ty of
+                   TCon (PC PFLiteral) [t1,t2,t3,t4] -> Just (t1,t2,t3,t4)
+                   _                                 -> Nothing
+
 pIsTrue :: Prop -> Bool
 pIsTrue ty  = case tNoUser ty of
                 TCon (PC PTrue) _ -> True

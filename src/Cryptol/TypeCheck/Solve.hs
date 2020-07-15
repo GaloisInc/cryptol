@@ -142,7 +142,12 @@ defaultReplExpr sol expr sch =
                   , goalRange = emptyRange
                   , goalSource = CtDefaulting } | p <- otherPs ]
 
+  fLitGoals = flitDefaultCandidates gSet
+
   tryDefVar a =
+    do ((_,t),_) <- Map.lookup (TVBound a) fLitGoals
+       pure [(a, t)]
+    <|>
     do let a' = TVBound a
        gt <- Map.lookup a' (literalGoals gSet)
        let ok p = not (Set.member a' (fvs p))

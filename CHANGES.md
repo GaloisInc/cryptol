@@ -59,7 +59,7 @@
   the numbers, with `e` being the number of bits to use in the exponent
   and `p-1` being the number of bits to use in the mantissa.
   The `Float` family of types may be used through the usual overloaded
-  functionality in Cryptol, and there is a new buit-in module called
+  functionality in Cryptol, and there is a new built-in module called
   `Float`, which contains functionality specific to floating point numbers.
 
 * Add a way to write fractional literals in base 2,8,10, and 16.
@@ -68,6 +68,15 @@
   2,8,and 16 must be precise, and will be rejected statically if they cannot be
   represented exactly.  Fractional literals in base 10 are rounded to the
   nearest even representable number.
+
+* Changes to the defaulting algorithm. The new algorithm only applies
+  to constraints arising from literals (i.e., `Literal` and `FLiteral`
+  constraints).  The guiding principle is that we now default these
+  to one of the infinite precision types `Integer` or `Rational`.
+  `Literal` constraints are defaulted to `Integer`, unless the corresponding
+  type also has `Field` constraint, in which case we use `Rational`.
+  Fractional literal constraints are always defaulted to `Rational.
+
 
 ## New features
 

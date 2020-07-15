@@ -1,10 +1,12 @@
 module Cryptol.TypeCheck.Default where
 
 import qualified Data.Set as Set
+import           Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe(mapMaybe)
 import Data.List((\\),nub)
 import Control.Monad(guard,mzero)
+import Control.Applicative((<|>))
 
 import Cryptol.TypeCheck.Type
 import Cryptol.TypeCheck.SimpType(tMax)
@@ -17,21 +19,29 @@ import Cryptol.Utils.Panic(panic)
 
 --------------------------------------------------------------------------------
 
--- | We default constraints of the form @Literal t a@.
+-- | We default constraints of the form @Literal t a@ and @FLiteral m n r a@.
 --
---   We examine the context of constraints on the type @a@
+--   For @Literal t a@ we examine the context of constraints on the type @a@
 --   to decide how to default.  If @Logic a@ is required,
 --   we cannot do any defaulting.  Otherwise, we default
 --   to either @Integer@ or @Rational@.  In particular, if
 --   we need to satisfy the @Field a@, constraint, we choose
 --   @Rational@ and otherwise we choose @Integer@.
+--
+--   For @FLiteral t a@ we always default to @Rational@.
 defaultLiterals :: [TVar] -> [Goal] -> ([TVar], Subst, [Warning])
 defaultLiterals as gs = let (binds,warns) = unzip (mapMaybe tryDefVar as)
                         in (as \\ map fst binds, listSubst binds, warns)
   where
   gSet = goalsFromList gs
   allProps = saturatedPropSet gSet
+  flitCandidates = flitDefaultCandidates gSet
+
   tryDefVar a =
+    -- we do this first because if we have both a Literand and an FLiteral
+    -- constraint we should use Rational
+    Map.lookup a flitCandidates
+    <|>
     do _gt <- Map.lookup a (literalGoals gSet)
        defT <- if Set.member (pLogic (TVar a)) allProps then
                   mzero
@@ -46,6 +56,18 @@ defaultLiterals as gs = let (binds,warns) = unzip (mapMaybe tryDefVar as)
        -- XXX: Make sure that `defT` has only variables that `a` is allowed
        -- to depend on
        return ((a,defT),w)
+
+flitDefaultCandidates :: Goals -> Map TVar ((TVar,Type),Warning)
+flitDefaultCandidates gs =
+  Map.fromList (mapMaybe flitCandidate (Set.toList (goalSet gs)))
+  where
+  flitCandidate g =
+    do (_,_,_,x) <- pIsFLiteral (goal g)
+       a         <- tIsVar x
+       guard (not (Set.member (pLogic (TVar a)) (saturatedPropSet gs)))
+       let defT = tRational
+       let w    = DefaultingTo (tvInfo a) defT
+       pure (a, ((a,defT),w))
 
 
 --------------------------------------------------------------------------------

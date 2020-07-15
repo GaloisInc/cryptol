@@ -1,0 +1,7 @@
+Loading module Cryptol
+Showing a specific instance of polymorphic result:
+  * Using 'Rational' for type argument 'a' of 'Cryptol::fraction'
+(ratio 1 2)
+
+Cannot evaluate polymorphic value.
+Type: {a} (FLiteral 1 1 0 a, Integral a, Literal 2 a) => a
