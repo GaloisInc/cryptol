@@ -189,6 +189,8 @@ jobs:
       - uses: release-drafter/release-drafter@v5
         with:
           version: v${{ needs.outputs.outputs.cryptol-version }}
+          name: v${{ needs.outputs.outputs.cryptol-version }}
+          tag: v${{ needs.outputs.outputs.cryptol-version }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
