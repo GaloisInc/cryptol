@@ -113,7 +113,9 @@ protectStack mkErr cmd modEnv =
 doEval :: MonadIO m => Eval.EvalOpts -> Eval.Eval a -> m a
 doEval evo m = liftIO $ Eval.runEval evo m
 
-doW4Eval :: (W4.IsExprBuilder sym, MonadIO m) => sym -> Eval.EvalOpts -> W4Eval sym a -> m (W4.Pred sym, a)
+doW4Eval ::
+  (W4.IsExprBuilder sym, MonadIO m) =>
+  sym -> Eval.EvalOpts -> W4Eval sym a -> m (W4Context sym, a)
 doW4Eval sym evo m =
   (liftIO $ Eval.runEval evo (w4Eval m sym)) >>= \case
     W4Error err -> liftIO (X.throwIO err)
@@ -239,7 +241,7 @@ satProve solverCfg hashConsing ProverCommand {..} =
          when pcVerbose (lPutStrLn "Simulating...") >> liftIO (
          do args <- mapM (freshVariable sym) ts
 
-            (safety,b) <-
+            (w4Ctxt,b') <-
                doW4Eval sym evo $
                    do env <- Eval.evalDecls (What4 sym) extDgs mempty
                       v <- Eval.evalExpr (What4 sym) env pcExpr
@@ -251,8 +253,11 @@ satProve solverCfg hashConsing ProverCommand {..} =
 
                         _ -> pure (Eval.fromVBit appliedVal)
 
-            -- Ignore the safety condition if the flag is set
-            let safety' = if pcIgnoreSafety then W4.truePred sym else safety
+            b <- W4.andPred sym (w4Defs w4Ctxt) b'
+
+            let safety  = w4Safety w4Ctxt
+                -- Ignore the safety condition if the flag is set
+                safety' = if pcIgnoreSafety then W4.truePred sym else safety
 
             result <- case pcQueryType of
               ProveQuery ->
@@ -296,7 +301,7 @@ satProveOffline (W4ProverConfig (AnAdapter adpt)) hashConsing ProverCommand {..}
             liftIO $ do
               args <- mapM (freshVariable sym) ts
 
-              (safety,b) <-
+              (w4Ctxt,b') <-
                  doW4Eval sym evo $
                      do env <- Eval.evalDecls (What4 sym) extDgs mempty
                         v <- Eval.evalExpr (What4 sym) env pcExpr
@@ -308,8 +313,11 @@ satProveOffline (W4ProverConfig (AnAdapter adpt)) hashConsing ProverCommand {..}
 
                           _ -> pure (Eval.fromVBit appliedVal)
 
+              b <- W4.andPred sym (w4Defs w4Ctxt) b'
+
               -- Ignore the safety condition if the flag is set
-              let safety' = if pcIgnoreSafety then W4.truePred sym else safety
+              let safety  = w4Safety w4Ctxt
+                  safety' = if pcIgnoreSafety then W4.truePred sym else safety
 
               q <- case pcQueryType of
                 ProveQuery ->
