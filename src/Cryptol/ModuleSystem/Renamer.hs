@@ -44,6 +44,7 @@ import           Data.Map.Strict ( Map )
 import qualified Data.Map.Strict as Map
 import qualified Data.Sequence as Seq
 import qualified Data.Semigroup as S
+import           Data.Set (Set)
 import qualified Data.Set as Set
 import           MonadLib hiding (mapM, mapM_)
 
@@ -179,6 +180,42 @@ instance PP RenamerWarning where
     hang (text "[warning] at" <+> pp (nameLoc x))
        4 (text "Unused name:" <+> pp x)
 
+
+data RenamerWarnings = RenamerWarnings
+  { renWarnNameDisp :: !NameDisp
+  , renWarnShadow   :: Map Name (Set Name)
+  , renWarnUnused   :: Set Name
+  }
+
+noRenamerWarnings :: RenamerWarnings
+noRenamerWarnings = RenamerWarnings
+  { renWarnNameDisp = mempty
+  , renWarnShadow   = Map.empty
+  , renWarnUnused   = Set.empty
+  }
+
+addRenamerWarning :: RenamerWarning -> RenamerWarnings -> RenamerWarnings
+addRenamerWarning w ws =
+  case w of
+    SymbolShadowed x xs d ->
+      ws { renWarnNameDisp = renWarnNameDisp ws <> d
+         , renWarnShadow   = Map.insertWith Set.union x (Set.fromList xs)
+                                                        (renWarnShadow ws)
+         }
+    UnusedName x d ->
+      ws { renWarnNameDisp = renWarnNameDisp ws <> d
+         , renWarnUnused   = Set.insert x (renWarnUnused ws)
+         }
+
+listRenamerWarnings :: RenamerWarnings -> [RenamerWarning]
+listRenamerWarnings ws =
+  [ mk (UnusedName x) | x      <- Set.toList (renWarnUnused ws) ] ++
+  [ mk (SymbolShadowed x (Set.toList xs))
+          | (x,xs) <- Map.toList (renWarnShadow ws) ]
+  where
+  mk f = f (renWarnNameDisp ws)
+
+
 -- Renaming Monad --------------------------------------------------------------
 
 data RO = RO
@@ -189,13 +226,15 @@ data RO = RO
   }
 
 data RW = RW
-  { rwWarnings      :: !(Seq.Seq RenamerWarning)
+  { rwWarnings      :: !RenamerWarnings
   , rwErrors        :: !(Seq.Seq RenamerError)
   , rwSupply        :: !Supply
   , rwNameUseCount  :: !(Map Name Int)
     -- ^ How many times did we refer to each name.
     -- Used to generate warnings for unused definitions.
   }
+
+
 
 newtype RenameM a = RenameM
   { unRenameM :: ReaderT RO (StateT RW Lift) a }
@@ -240,11 +279,14 @@ instance FreshM RenameM where
 
 runRenamer :: Supply -> ModName -> NamingEnv -> RenameM a
            -> (Either [RenamerError] (a,Supply),[RenamerWarning])
-runRenamer s ns env m = (res, warnUnused ns env ro rw ++ F.toList (rwWarnings rw))
+runRenamer s ns env m = (res, listRenamerWarnings warns)
   where
+  warns = foldr addRenamerWarning (rwWarnings rw)
+                                  (warnUnused ns env ro rw)
+
   (a,rw) = runM (unRenameM m) ro
                               RW { rwErrors   = Seq.empty
-                                 , rwWarnings = Seq.empty
+                                 , rwWarnings = noRenamerWarnings
                                  , rwSupply   = s
                                  , rwNameUseCount = Map.empty
                                  }
@@ -298,8 +340,7 @@ data EnvCheck = CheckAll     -- ^ Check for overlap and shadowing
               | CheckNone    -- ^ Don't check the environment
                 deriving (Eq,Show)
 
--- | Shadow the current naming environment with some more names. The boolean
--- parameter indicates whether or not to check for shadowing.
+-- | Shadow the current naming environment with some more names.
 shadowNames' :: BindsNames env => EnvCheck -> env -> RenameM a -> RenameM a
 shadowNames' check names m = do
   do env <- liftSupply (namingEnv' names)
@@ -337,7 +378,9 @@ checkEnv disp check l r rw
           if check == CheckAll
              then case Map.lookup k (prj r) of
                     Nothing -> rwWarnings acc
-                    Just os -> rwWarnings acc Seq.|> SymbolShadowed (head ns) os disp
+                    Just os -> addRenamerWarning 
+                                    (SymbolShadowed (head ns) os disp)
+                                    (rwWarnings acc)
 
              else rwWarnings acc
       , rwErrors   = rwErrors acc Seq.>< containsOverlap disp ns
