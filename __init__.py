@@ -199,7 +199,7 @@ class CryptolConnection:
 
     def protocol_state(self) -> Any:
         if self.most_recent_result is None:
-            return []
+            return None
         else:
             return self.most_recent_result.state()
 
