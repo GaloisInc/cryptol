@@ -109,6 +109,14 @@ fpAdd rtz (-2.0) (-3.0)   : Small
 fpAdd rtz (-2.0) (-8.0)   : Small
 
 
+section "Rationals"
+
+:set fp-base=16
+fpFromRational rtz 7.2 : Small
+fpFromRational rtz 7.2 : Medium
+fpFromRational rne 99  : Medium
+
+
 section "Proofs"
 :set prover=w4-z3
 :set show-examples = off
@@ -122,6 +130,7 @@ section "Proofs"
 :prove roundTrip2`{11,53}
 :prove \(x : Medium) -> leqRefl x
 :prove \(x : Medium) y -> eqProp x y
+:prove \(x : Medium) -> roundTripRational x   // Doesn't seem to work
 
 section "Random Testing"
 :check \(x : Medium) -> eqRefl1 x
@@ -131,6 +140,7 @@ section "Random Testing"
 :prove roundTrip2`{11,53}
 :check \(x : Medium) -> leqRefl x
 :check \(x : Medium) y -> eqProp x y
+:check \(x : Medium) -> roundTripRational x
 
 
 

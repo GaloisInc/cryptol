@@ -135,6 +135,10 @@ fpNaN
 8.0e0
 -4.0e0
 -8.0e0
+"-- Rationals------------------------------------------------------------------"
+0x6.0p0
+0x7.3p0
+0x6.3p4
 "-- Proofs---------------------------------------------------------------------"
 Counterexample
 Counterexample
@@ -146,6 +150,7 @@ Q.E.D.
 Q.E.D.
 Q.E.D.
 Q.E.D.
+Solver returned UNKNOWN
 "-- Random Testing-------------------------------------------------------------"
 Using random testing.
 Testing... Passed 100 tests.
@@ -155,6 +160,8 @@ Using random testing.
 Testing... Passed 100 tests.
 Q.E.D.
 Q.E.D.
+Using random testing.
+Testing... Passed 100 tests.
 Using random testing.
 Testing... Passed 100 tests.
 Using random testing.

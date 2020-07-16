@@ -30,11 +30,11 @@ import Cryptol.Testing.Random( randomV )
 import Cryptol.Utils.Ident
 
 
-evalPrim :: W4.IsExprBuilder sym => sym -> PrimIdent -> Maybe (Value sym)
+evalPrim :: W4.IsSymExprBuilder sym => sym -> PrimIdent -> Maybe (Value sym)
 evalPrim sym prim = Map.lookup prim (primTable sym)
 
 -- See also Cryptol.Prims.Eval.primTable
-primTable :: W4.IsExprBuilder sym => sym -> Map.Map PrimIdent (Value sym)
+primTable :: W4.IsSymExprBuilder sym => sym -> Map.Map PrimIdent (Value sym)
 primTable w4sym = let sym = What4 w4sym in
   Map.union (floatPrims sym) $
   Map.fromList $ map (\(n, v) -> (prelPrim n, v))

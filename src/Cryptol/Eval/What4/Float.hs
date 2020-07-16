@@ -16,7 +16,7 @@ import qualified Cryptol.Eval.What4.SFloat as W4
 import Cryptol.Utils.Ident(PrimIdent, floatPrim)
 
 -- | Table of floating point primitives
-floatPrims :: W4.IsExprBuilder sym => What4 sym -> Map PrimIdent (Value sym)
+floatPrims :: W4.IsSymExprBuilder sym => What4 sym -> Map PrimIdent (Value sym)
 floatPrims sym4@(What4 sym) =
   Map.fromList [ (floatPrim i,v) | (i,v) <- nonInfixTable ]
   where
@@ -32,11 +32,25 @@ floatPrims sym4@(What4 sym) =
                             $ WordVal <$> liftIO (W4.fpToBinary sym x)
     , "=.="         ~> ilam \_ -> ilam \_ -> flam \x -> pure $ flam \y ->
                        VBit <$> liftIO (W4.fpEq sym x y)
+    , "fpIsFinite"  ~> ilam \_ -> ilam \_ -> flam \x ->
+                       VBit <$> liftIO do inf <- W4.fpIsInf sym x
+                                          nan <- W4.fpIsNaN sym x
+                                          weird <- W4.orPred sym inf nan
+                                          W4.notPred sym weird
 
     , "fpAdd"       ~> fpBinArithV sym4 fpPlus
     , "fpSub"       ~> fpBinArithV sym4 fpMinus
     , "fpMul"       ~> fpBinArithV sym4 fpMult
     , "fpDiv"       ~> fpBinArithV sym4 fpDiv
+
+    , "fpFromRational" ~>
+       ilam \e -> ilam \p -> wlam sym4 \r -> pure $ lam \x ->
+       do rat <- fromVRational <$> x
+          VFloat <$> fpCvtFromRational sym4 e p r rat
+
+    , "fpToRational" ~>
+       ilam \_e -> ilam \_p -> flam \fp ->
+       VRational <$> fpCvtToRational sym4 fp
     ]
 
 

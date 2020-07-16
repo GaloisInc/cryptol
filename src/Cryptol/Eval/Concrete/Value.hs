@@ -34,6 +34,7 @@ module Cryptol.Eval.Concrete.Value
   , Concrete(..)
   , liftBinIntMod
   , fpBinArith
+  , fpRoundMode
   ) where
 
 import qualified Control.Exception as X
@@ -323,7 +324,7 @@ instance Backend Concrete where
 
   ------------------------------------------------------------------------
   -- Floating Point
-  fpLit                  = FP.fpLit
+  fpLit _sym e p rat     = pure (FP.fpLit e p rat)
   fpEq _sym x y          = pure (FP.bfValue x == FP.bfValue y)
   fpLessThan _sym x y    = pure (FP.bfValue x <  FP.bfValue y)
   fpGreaterThan _sym x y = pure (FP.bfValue x >  FP.bfValue y)
@@ -333,9 +334,12 @@ instance Backend Concrete where
   fpDiv   = fpBinArith FP.bfDiv
   fpNeg _ x = pure x { FP.bfValue = FP.bfNeg (FP.bfValue x) }
   fpFromInteger sym e p r x =
-    do opts <- FP.fpOpts sym e p (bvVal r)
-       v <- FP.fpCheckStatus sym (FP.bfRoundInt opts (FP.bfFromInteger x))
-       pure FP.BF { FP.bfExpWidth = e, FP.bfPrecWidth = p, FP.bfValue = v }
+    do opts <- FP.fpOpts e p <$> fpRoundMode sym r
+       pure FP.BF { FP.bfExpWidth = e
+                  , FP.bfPrecWidth = p
+                  , FP.bfValue = FP.fpCheckStatus $
+                                 FP.bfRoundInt opts (FP.bfFromInteger x)
+                  }
   fpToInteger = fpCvtToInteger
 
 
@@ -357,9 +361,10 @@ fpBinArith ::
   SFloat Concrete ->
   SEval Concrete (SFloat Concrete)
 fpBinArith fun = \sym r x y ->
-  do opts <- FP.fpOpts sym (FP.bfExpWidth x) (FP.bfPrecWidth x) (bvVal r)
-     v <- FP.fpCheckStatus sym (fun opts (FP.bfValue x) (FP.bfValue y))
-     pure x { FP.bfValue = v }
+  do opts <- FP.fpOpts (FP.bfExpWidth x) (FP.bfPrecWidth x)
+                                                  <$> fpRoundMode sym r
+     pure x { FP.bfValue = FP.fpCheckStatus
+                                (fun opts (FP.bfValue x) (FP.bfValue y)) }
 
 fpCvtToInteger ::
   Concrete ->
@@ -367,15 +372,17 @@ fpCvtToInteger ::
   SWord Concrete {- ^ Rounding mode -} ->
   SFloat Concrete ->
   SEval Concrete (SInteger Concrete)
-fpCvtToInteger sym fun (bvVal -> rnd) (FP.bfValue -> flt) =
-  case FP.fpRound rnd of
-    Nothing -> raiseError sym (BadRoundingMode rnd)
-    Just mode ->
-      case FP.fpToI mode flt of
-        Just i -> pure i
-        Nothing -> raiseError sym (BadValue fun)
+fpCvtToInteger sym fun rnd flt =
+  do mode <- fpRoundMode sym rnd
+     case FP.floatToInteger fun mode flt of
+       Right i -> pure i
+       Left err -> raiseError sym err
 
-
+fpRoundMode :: Concrete -> SWord Concrete -> SEval Concrete FP.RoundMode
+fpRoundMode sym w =
+  case FP.fpRound (bvVal w) of
+    Left err -> raiseError sym err
+    Right a  -> pure a
 
 
 

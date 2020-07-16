@@ -16,7 +16,7 @@ module Cryptol.Eval.What4.SFloat
   , fpFresh
   , fpNaN
   , fpPosInf
-  , fpFromRational
+  , fpFromRationalLit
 
     -- * Interchange formats
   , fpFromBinary
@@ -41,6 +41,8 @@ module Cryptol.Eval.What4.SFloat
   , fpRound
   , fpToReal
   , fpFromReal
+  , fpFromRational
+  , fpToRational
   , fpFromInteger
 
     -- * Queries
@@ -172,14 +174,14 @@ fpPosInf sym e p
   | otherwise = unsupported "fpPosInf" e p
 
 -- | A floating point number corresponding to the given rations.
-fpFromRational ::
+fpFromRationalLit ::
   IsExprBuilder sym =>
   sym ->
   Integer {- ^ Exponent width -} ->
   Integer {- ^ Precision width -} ->
   Rational ->
   IO (SFloat sym)
-fpFromRational sym e p r
+fpFromRationalLit sym e p r
   | Just (Some fpp) <- fpRepr e p = SFloat <$> floatLit sym fpp r
   | otherwise = unsupported "fpFromRational" e p
 
@@ -315,6 +317,37 @@ fpFromInteger ::
   IsExprBuilder sym =>
   sym -> Integer -> Integer -> RoundingMode -> SymInteger sym -> IO (SFloat sym)
 fpFromInteger sym e p r x = fpFromReal sym e p r =<< integerToReal sym x
+
+
+fpFromRational ::
+  IsExprBuilder sym =>
+  sym -> Integer -> Integer -> RoundingMode ->
+  SymInteger sym -> SymInteger sym -> IO (SFloat sym)
+fpFromRational sym e p r x y =
+  do num <- integerToReal sym x
+     den <- integerToReal sym y
+     res <- realDiv sym num den
+     fpFromReal sym e p r res
+
+{- | Returns a predicate and two integers, @x@ and @y@.
+If the the predicate holds, then @x / y@ is a rational representing
+the floating point number. Assumes the FP number is not one of the
+special ones that has no real representation. -}
+fpToRational ::
+  IsSymExprBuilder sym =>
+  sym ->
+  SFloat sym ->
+  IO (Pred sym, SymInteger sym, SymInteger sym)
+fpToRational sym fp =
+  do r    <- fpToReal sym fp
+     x    <- freshConstant sym emptySymbol BaseIntegerRepr
+     y    <- freshConstant sym emptySymbol BaseIntegerRepr
+     num  <- integerToReal sym x
+     den  <- integerToReal sym y
+     res  <- realDiv sym num den
+     same <- realEq sym r res
+     pure (same, x, y)
+
 
 
 --------------------------------------------------------------------------------

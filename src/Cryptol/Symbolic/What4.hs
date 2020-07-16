@@ -46,7 +46,7 @@ import qualified Cryptol.ModuleSystem.Monad as M
 
 import qualified Cryptol.Eval as Eval
 import qualified Cryptol.Eval.Concrete as Concrete
-import qualified Cryptol.Eval.Concrete.Float as Concrete
+import qualified Cryptol.Eval.Concrete.FloatHelpers as Concrete
 
 import qualified Cryptol.Eval.Backend as Eval
 import qualified Cryptol.Eval.Value as Eval

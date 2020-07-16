@@ -37,8 +37,8 @@
 > import Cryptol.Eval.Monad (EvalError(..), PPOpts(..))
 > import Cryptol.Eval.Type (TValue(..), isTBit, evalValType, evalNumType, tvSeq)
 > import Cryptol.Eval.Concrete (mkBv, ppBV, lg2)
-> import Cryptol.Eval.Concrete.FloatHelpers(fpPP,fpToI,BF(..),fpRound)
-> import Cryptol.Eval.Concrete.Float(floatFromBits,floatToBits)
+> import Cryptol.Eval.Concrete.FloatHelpers (BF(..))
+> import qualified Cryptol.Eval.Concrete.FloatHelpers as FP
 > import Cryptol.Utils.Ident (Ident,PrimIdent, prelPrim, floatPrim)
 > import Cryptol.Utils.Panic (panic)
 > import Cryptol.Utils.PP
@@ -667,19 +667,19 @@ by corresponding typeclasses
 >
 >   -- Round
 >   , ("floor"      , unary (roundUnary floor
->                                       (fpToInteger "floor" FP.ToNegInf)
+>                               (FP.floatToInteger "floor" FP.ToNegInf)
 >                           ))
 >   , ("ceiling"    , unary (roundUnary ceiling
->                                       (fpToInteger "ceiling" FP.ToPosInf)
+>                               (FP.floatToInteger "ceiling" FP.ToPosInf)
 >                           ))
 >   , ("trunc"      , unary (roundUnary truncate
->                                       (fpToInteger "trunc" FP.ToZero)
+>                               (FP.floatToInteger "trunc" FP.ToZero)
 >                           ))
 >   , ("roundAway",   unary (roundUnary roundAwayRat
->                                       (fpToInteger "roundAway" FP.Away)
+>                               (FP.floatToInteger "roundAway" FP.Away)
 >                           ))
 >   , ("roundToEven", unary (roundUnary round
->                                       (fpToInteger "roundToEven" FP.NearEven)
+>                               (FP.floatToInteger "roundToEven" FP.NearEven)
 >                           ))
 >
 >   -- Comparison
@@ -959,9 +959,9 @@ representable value.
 > fraction top btm _rnd ty =
 >   case ty of
 >     TVRational -> VRational (Right (top % btm))
->     TVFloat e p -> VFloat $ Right $ fpToBF e p  $ fpCheckStatus val
+>     TVFloat e p -> VFloat $ Right $ fpToBF e p  $ FP.fpCheckStatus val
 >       where val  = FP.bfDiv opts (FP.bfFromInteger top) (FP.bfFromInteger btm)
->             opts = fpOpts e p fpImplicitRound
+>             opts = FP.fpOpts e p fpImplicitRound
 >     _ -> evalPanic "fraction" [show ty ++ " cannot represent " ++
 >                                 show top ++ "/" ++ show btm]
 
@@ -1220,11 +1220,11 @@ Round
 -----
 
 > roundUnary :: (Rational -> Integer) ->
->               (Integer -> Integer -> BigFloat -> Either EvalError Integer) ->
+>               (BF -> Either EvalError Integer) ->
 >               TValue -> Value -> Value
 > roundUnary op flop ty v = case ty of
 >   TVRational -> VInteger (op <$> fromVRational v)
->   TVFloat e p -> VInteger (flop e p =<< fromVFloat v)
+>   TVFloat {} -> VInteger (flop =<< fromVFloat' v)
 >   _ -> evalPanic "roundUnary" [show ty ++ " is not a Round type"]
 >
 
@@ -1515,26 +1515,6 @@ we round towards the closest number, with ties resolved to the even one.
 > fpImplicitRound :: FP.RoundMode
 > fpImplicitRound = FP.NearEven
 
-The function `fpOpts` deifnes an object specifying the precision and rounding
-mode to be used during a floating point computation.  We assume that its
-aruments are known to be within the limits imposed by the concrete
-library used to perform the computation.
-
-> fpOpts :: Integer -> Integer -> FP.RoundMode -> FP.BFOpts
-> fpOpts e p r = FP.expBits (fromInteger e)  <>
->                FP.precBits (fromInteger p) <>
->                FP.rnd r
-
-Most floating point computations produce a result and some additional
-information about what happened while computing.  The function
-`fpCheckStatus` examines this status and reports erorrs in unusual situations.
-
-> fpCheckStatus :: (FP.BigFloat, FP.Status) -> FP.BigFloat
-> fpCheckStatus (r,s) =
->   case s of
->     FP.MemError -> panic "fpCheckStatus" [ "Out of memory" ]
->     _           -> r
-
 We annotate floating point values with their precision.  This is only used
 when pretty printing values.
 
@@ -1546,17 +1526,10 @@ The following two functions convert between floaitng point numbers
 and integers.
 
 > fpFromInteger :: Integer -> Integer -> Integer -> BigFloat
-> fpFromInteger e p = fpCheckStatus . FP.bfRoundFloat opts . FP.bfFromInteger
->   where opts = fpOpts e p fpImplicitRound
+> fpFromInteger e p = FP.fpCheckStatus . FP.bfRoundFloat opts . FP.bfFromInteger
+>   where opts = FP.fpOpts e p fpImplicitRound
 
-> fpToInteger ::
->   String -> FP.RoundMode ->
->   Integer -> Integer ->
->   BigFloat -> Either EvalError Integer
-> fpToInteger fun r _ _ f =
->   case fpToI r f of
->     Nothing -> Left (BadValue fun)
->     Just i  -> Right i
+These functions capture the interactions with rationals.
 
 
 This just captures a common pattern for binary floating point primitives.
@@ -1564,7 +1537,7 @@ This just captures a common pattern for binary floating point primitives.
 > fpBin :: (FP.BFOpts -> BigFloat -> BigFloat -> (BigFloat,FP.Status)) ->
 >          FP.RoundMode -> Integer -> Integer ->
 >          BigFloat -> BigFloat -> Either EvalError BigFloat
-> fpBin f r e p x y = Right (fpCheckStatus (f (fpOpts e p r) x y))
+> fpBin f r e p x y = Right (FP.fpCheckStatus (f (FP.fpOpts e p r) x y))
 
 
 Computes the reciprocal of a floating point number via division.
@@ -1572,8 +1545,8 @@ This assumes that 1 can be represented exactly, which should be
 true for all supported precisions.
 
 > fpRecip :: Integer -> Integer -> BigFloat -> Either EvalError BigFloat
-> fpRecip e p x = Right (fpCheckStatus (FP.bfDiv opts (FP.bfFromInteger 1) x))
->   where opts = fpOpts e p fpImplicitRound
+> fpRecip e p x = pure (FP.fpCheckStatus (FP.bfDiv opts (FP.bfFromInteger 1) x))
+>   where opts = FP.fpOpts e p fpImplicitRound
 
 
 > floatPrimTable :: Map PrimIdent Value
@@ -1585,29 +1558,41 @@ true for all supported precisions.
 >                       VFloat $ Right $ fpToBF e p FP.bfPosInf
 >
 >    , "fpFromBits"  ~> vFinPoly \e -> vFinPoly \p -> VFun \bvv ->
->                       VFloat (floatFromBits e p <$> fromVWord bvv)
+>                       VFloat (FP.floatFromBits e p <$> fromVWord bvv)
 >
 >    , "fpToBits"    ~> vFinPoly \e -> vFinPoly \p -> VFun \fpv ->
->                       vWord (e + p) (floatToBits e p <$> fromVFloat fpv)
+>                       vWord (e + p) (FP.floatToBits e p <$> fromVFloat fpv)
 >
 >    , "=.="         ~> vFinPoly \_ -> vFinPoly \_ -> VFun \xv -> VFun \yv ->
 >                       VBit do x <- fromVFloat xv
 >                               y <- fromVFloat yv
 >                               pure (FP.bfCompare x y == EQ)
 >
+>    , "fpIsFinite" ~> vFinPoly \_ -> vFinPoly \_ -> VFun \xv ->
+>                      VBit do x <- fromVFloat xv
+>                              pure (FP.bfIsFinite x)
+>
 >    , "fpAdd"      ~> fpArith FP.bfAdd
 >    , "fpSub"      ~> fpArith FP.bfSub
 >    , "fpMul"      ~> fpArith FP.bfMul
 >    , "fpDiv"      ~> fpArith FP.bfDiv
+>
+>    , "fpToRational" ~>
+>       vFinPoly \_ -> vFinPoly \_ -> VFun \fpv ->
+>       VRational do fp <- fromVFloat' fpv
+>                    FP.floatToRational "fpToRational" fp
+>    , "fpFromRational" ~>
+>      vFinPoly \e -> vFinPoly \p -> VFun \rmv -> VFun \rv ->
+>      VFloat do rm  <- FP.fpRound =<< fromVWord rmv
+>                rat <- fromVRational rv
+>                pure (FP.floatFromRational e p rm rat)
 >    ]
 >   where
 >   (~>) = (,)
 >   fpArith f = vFinPoly \e -> vFinPoly \p ->
 >               VFun \vr -> VFun \xv -> VFun \yv ->
 >               VFloat do r <- fromVWord vr
->                         rnd <- case fpRound r of
->                                  Just r' -> pure r'
->                                  Nothing -> Left (BadRoundingMode r)
+>                         rnd <- FP.fpRound r
 >                         x <- fromVFloat xv
 >                         y <- fromVFloat yv
 >                         fpToBF e p <$> fpBin f rnd e p x y
@@ -1633,7 +1618,7 @@ Pretty Printing
 >     VBit b     -> text (either show show b)
 >     VInteger i -> text (either show show i)
 >     VRational q -> text (either show show q)
->     VFloat fl -> text (either show (show . fpPP opts) fl)
+>     VFloat fl -> text (either show (show . FP.fpPP opts) fl)
 >     VList l vs ->
 >       case l of
 >         Inf -> ppList (map (ppValue opts) (take (useInfLength opts) vs) ++ [text "..."])

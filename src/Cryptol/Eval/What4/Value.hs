@@ -317,7 +317,7 @@ instance W4.IsExprBuilder sym => Backend (What4 sym) where
 
   --------------------------------------------------------------
 
-  fpLit (What4 sym) e p r = liftIO $ FP.fpFromRational sym e p r
+  fpLit (What4 sym) e p r = liftIO $ FP.fpFromRationalLit sym e p r
   fpEq          (What4 sym) x y = liftIO $ FP.fpEqIEEE sym x y
   fpLessThan    (What4 sym) x y = liftIO $ FP.fpLtIEEE sym x y
   fpGreaterThan (What4 sym) x y = liftIO $ FP.fpGtIEEE sym x y
@@ -804,6 +804,7 @@ fpBinArith fun = \sym@(What4 s) r x y ->
   do m <- fpRoundingMode sym r
      liftIO (fun s m x y)
 
+
 fpCvtToInteger ::
   (W4.IsExprBuilder sy, sym ~ What4 sy) =>
   sym -> String -> SWord sym -> SFloat sym -> SEval sym (SInteger sym)
@@ -817,8 +818,32 @@ fpCvtToInteger sym@(What4 sy) fun r x =
      liftIO
        do y <- FP.fpToReal sy x
           case rnd of
-            W4.RNE -> undefined -- XXX
+            W4.RNE -> W4.realRoundEven sy y
             W4.RNA -> W4.realRound sy y
             W4.RTP -> W4.realCeil sy y
             W4.RTN -> W4.realFloor sy y
-            W4.RTZ -> undefined -- XXX
+            W4.RTZ -> W4.realTrunc sy y
+
+
+fpCvtToRational ::
+  (W4.IsSymExprBuilder sy, sym ~ What4 sy) =>
+  sym -> SFloat sym -> SEval sym (SRational sym)
+fpCvtToRational sym@(What4 sy) fp =
+  do grd <- liftIO
+            do bad1 <- FP.fpIsInf sy fp
+               bad2 <- FP.fpIsNaN sy fp
+               W4.notPred sy =<< W4.orPred sy bad1 bad2
+     assertSideCondition sym grd (BadValue "fpToRational")
+     (rel,x,y) <- liftIO (FP.fpToRational sy fp)
+     W4Eval \_ -> pure (W4Result rel ())  -- XXX: Is this OK?
+     ratio sym x y
+
+fpCvtFromRational ::
+  (W4.IsExprBuilder sy, sym ~ What4 sy) =>
+  sym -> Integer -> Integer -> SWord sym ->
+  SRational sym -> SEval sym (SFloat sym)
+fpCvtFromRational sym@(What4 sy) e p r rat =
+  do rnd <- fpRoundingMode sym r
+     liftIO (FP.fpFromRational sy e p rnd (sNum rat) (sDenom rat))
+
+
