@@ -47,14 +47,60 @@ type Value sym = GenValue (What4 sym)
 
 data W4Result sym a
   = W4Error !EvalError
-  | W4Result !(W4.Pred sym) !a -- safety predicate and result
+  | W4Result !(W4Context sym) !a -- safety predicate and result
+
+
+
+--------------------------------------------------------------------------------
+
+-- | A 'W4Context' keeps track of additional predicates we collect
+-- during symbolic evaluation.
+data W4Context sym = W4Context
+  { w4Safety  :: !(W4.Pred sym)
+    -- ^ Safety predicates
+
+  , w4Defs    :: !(W4.Pred sym)
+    -- ^ Predicates defining free variables for relational definitions.
+  }
+
+w4EmptyCtx :: W4.IsExprBuilder sym => sym -> W4Context sym
+w4EmptyCtx sym = W4Context
+                   { w4Safety = W4.backendPred sym True
+                   , w4Defs   = W4.backendPred sym True
+                   }
+
+w4SafetyCtx :: W4.IsExprBuilder sym => sym -> W4.Pred sym -> W4Context sym
+w4SafetyCtx sym p = (w4EmptyCtx sym) { w4Safety = p }
+
+w4DefsCtx :: W4.IsExprBuilder sym => sym -> W4.Pred sym -> W4Context sym
+w4DefsCtx sym p = (w4EmptyCtx sym) { w4Defs = p }
+
+w4Join ::
+  W4.IsExprBuilder sym =>
+  sym -> W4Context sym -> W4Context sym -> IO (W4Context sym)
+w4Join sym c1 c2 =
+  do safety <- W4.andPred sym (w4Safety c1) (w4Safety c2)
+     defs   <- W4.andPred sym (w4Defs c1)   (w4Defs c2)
+     pure W4Context { w4Safety = safety, w4Defs = defs }
+
+w4ITE ::
+  W4.IsExprBuilder sym =>
+  sym -> W4.Pred sym -> W4Context sym -> W4Context sym -> IO (W4Context sym)
+w4ITE sym ifBranch ifThen ifElse =
+  -- NOTE: This duplicates `ifBranch` is it worth naming it?
+  do safety <- W4.itePred sym ifBranch (w4Safety ifThen) (w4Safety ifElse)
+     defs   <- W4.itePred sym ifBranch (w4Defs   ifThen) (w4Defs   ifElse)
+     pure W4Context { w4Safety = safety, w4Defs = defs }
+--------------------------------------------------------------------------------
+
+
 
 instance Functor (W4Result sym) where
   fmap _ (W4Error err) = W4Error err
   fmap f (W4Result p x) = W4Result p (f x)
 
 total :: W4.IsExprBuilder sym => sym -> a -> W4Result sym a
-total sym = W4Result (W4.backendPred sym True)
+total sym = W4Result (w4EmptyCtx sym)
 
 -- TODO? Reorganize this to use PartialT ?
 newtype W4Eval sym a = W4Eval{ w4Eval :: sym -> Eval (W4Result sym a) }
@@ -73,11 +119,20 @@ instance W4.IsExprBuilder sym => Monad (W4Eval sym) where
         w4Eval (f x') sym >>= \case
           W4Error err -> pure (W4Error err)
           W4Result pz z ->
-            do p <- io (W4.andPred sym px pz)
+            do p <- io (w4Join sym px pz)
                pure (W4Result p z)
 
 instance W4.IsExprBuilder sym => MonadIO (W4Eval sym) where
   liftIO m = W4Eval $ \sym -> fmap (total sym) (liftIO m)
+
+-- | Add a definitial equation.
+-- This will always be asserted when we make queries to the solver.
+addDefEqn :: W4.IsExprBuilder sym => W4.Pred sym -> W4Eval sym ()
+addDefEqn p = W4Eval \sym -> pure (W4Result (w4DefsCtx sym p) ())
+
+-- | Add s safety condition.
+addSafety :: W4.IsExprBuilder sym => W4.Pred sym -> W4Eval sym ()
+addSafety p = W4Eval \sym -> pure (W4Result (w4SafetyCtx sym p) ())
 
 assertBVDivisor :: W4.IsExprBuilder sym => sym -> SW.SWord sym -> W4Eval sym ()
 assertBVDivisor sym x =
@@ -100,7 +155,7 @@ instance W4.IsExprBuilder sym => Backend (What4 sym) where
 
   assertSideCondition _ cond err
     | Just False <- W4.asConstantPred cond = W4Eval (\_ -> pure (W4Error err))
-    | otherwise = W4Eval (\_ -> pure (W4Result cond ()))
+    | otherwise = addSafety cond
 
   isReady (What4 sym) m =
     case w4Eval m sym of
@@ -126,17 +181,17 @@ instance W4.IsExprBuilder sym => Backend (What4 sym) where
          (W4Error err, W4Error _) ->
            pure $ W4Error err -- arbitrarily choose left error to report
          (W4Error _, W4Result p y) ->
-           do p' <- io (W4.andPred sym p =<< W4.notPred sym c)
+           do p' <- io (w4Join sym p . w4SafetyCtx sym =<< W4.notPred sym c)
               pure $ W4Result p' y
          (W4Result p x, W4Error _) ->
-           do p' <- io (W4.andPred sym p c)
-              pure $ W4Result p' x
+           do p1 <- io (w4Join sym p (w4SafetyCtx sym c))
+              pure $ W4Result p1 x
          (W4Result px x, W4Result py y) ->
            do zr <- w4Eval (f c x y) sym
               case zr of
                 W4Error err -> pure $ W4Error err
                 W4Result pz z ->
-                  do p'  <- io (W4.andPred sym pz =<< W4.itePred sym c px py)
+                  do p' <- io (w4Join sym pz =<< w4ITE sym c px py)
                      pure $ W4Result p' z
 
   wordAsChar _ bv
@@ -835,7 +890,7 @@ fpCvtToRational sym@(What4 sy) fp =
                W4.notPred sy =<< W4.orPred sy bad1 bad2
      assertSideCondition sym grd (BadValue "fpToRational")
      (rel,x,y) <- liftIO (FP.fpToRational sy fp)
-     W4Eval \_ -> pure (W4Result rel ())  -- XXX: Is this OK?
+     addDefEqn rel
      ratio sym x y
 
 fpCvtFromRational ::
