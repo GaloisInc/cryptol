@@ -6,6 +6,7 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE LambdaCase #-}
@@ -113,11 +114,16 @@ protectStack mkErr cmd modEnv =
 doEval :: MonadIO m => Eval.EvalOpts -> Eval.Eval a -> m a
 doEval evo m = liftIO $ Eval.runEval evo m
 
-doW4Eval :: (W4.IsExprBuilder sym, MonadIO m) => sym -> Eval.EvalOpts -> W4Eval sym a -> m (W4.Pred sym, a)
+-- | Returns definitions, together with the value and it safety predicate.
+doW4Eval ::
+  (W4.IsExprBuilder sym, MonadIO m) =>
+  sym -> Eval.EvalOpts -> W4Eval sym a -> m (W4Defs sym (W4.Pred sym, a))
 doW4Eval sym evo m =
-  (liftIO $ Eval.runEval evo (w4Eval m sym)) >>= \case
-    W4Error err -> liftIO (X.throwIO err)
-    W4Result p x -> pure (p, x)
+  do res <- liftIO $ Eval.runEval evo (w4Eval m sym)
+     case w4Result res of
+       W4Error err  -> liftIO (X.throwIO err)
+       W4Result p x -> pure res { w4Result = (p,x) }
+
 
 data AnAdapter = AnAdapter (forall st. SolverAdapter st)
 
@@ -210,117 +216,155 @@ setupAdapterOptions cfg sym =
   setupAnAdapter (AnAdapter adpt) =
     W4.extendConfig (W4.solver_adapter_config_options adpt) (W4.getConfiguration sym)
 
-satProve :: W4ProverConfig -> Bool -> ProverCommand -> M.ModuleCmd (Maybe String, ProverResult)
-satProve solverCfg hashConsing ProverCommand {..} =
-  protectStack proverError $ \(evo, modEnv) ->
 
-  M.runModuleM (evo,modEnv) $ do
-    let extDgs = allDeclGroups modEnv ++ pcExtraDecls
-    let lPutStrLn = M.withLogger logPutStrLn
-    primMap <- M.getPrimMap
+-- | Simulate and manipulate query into a form suitable to be sent
+-- to a solver.
+prepareQuery ::
+  W4.IsSymExprBuilder sym =>
+  sym ->
+  ProverCommand ->
+  M.ModuleT IO (Either String
+                       ([FinType],[VarShape sym],W4.Pred sym, W4.Pred sym)
+               )
+prepareQuery sym ProverCommand { .. } =
+  case predArgTypes pcQueryType pcSchema of
+    Left msg -> pure (Left msg)
+    Right ts ->
+      do args <- liftIO (mapM (freshVariable sym) ts)
+         res  <- simulate args
+         liftIO
+           do -- add the collected definitions to the goal
+              let (safety,prop') = w4Result res
+              b <- W4.andPred sym (w4Defs res) prop'
 
-    sym <- M.io (W4.newExprBuilder W4.FloatIEEERepr CryptolState globalNonceGenerator)
-    M.io (setupAdapterOptions solverCfg sym)
-    when hashConsing (M.io (W4.startCaching sym))
+              -- Ignore the safety condition if the flag is set
+              let safety' = if pcIgnoreSafety then W4.truePred sym else safety
 
-    logData <-
-      flip M.withLogger () $ \lg () ->
-          pure $ defaultLogData
-            { logCallbackVerbose = \i msg -> when (i > 2) (logPutStrLn lg msg)
-            , logReason = "solver query"
-            }
+              Right <$>
+                case pcQueryType of
+                  ProveQuery ->
+                    do q <- W4.notPred sym =<< W4.andPred sym safety' b
+                       pure (ts,args,safety',q)
 
-    start <- liftIO $ getCurrentTime
+                  SafetyQuery ->
+                    do q <- W4.notPred sym safety
+                       pure (ts,args,safety,q)
 
-    let ?evalPrim = evalPrim sym
-    case predArgTypes pcQueryType pcSchema of
-      Left msg -> return (Nothing, ProverError msg)
-      Right ts ->
-         when pcVerbose (lPutStrLn "Simulating...") >> liftIO (
-         do args <- mapM (freshVariable sym) ts
+                  SatQuery _ ->
+                    do q <- W4.andPred sym safety' b
+                       pure (ts,args,safety',q)
+  where
+  simulate args =
+    do let lPutStrLn = M.withLogger logPutStrLn
+       when pcVerbose (lPutStrLn "Simulating...")
+       evo    <- M.getEvalOpts
+       modEnv <- M.getModuleEnv
+       doW4Eval sym evo
+         do let ?evalPrim = evalPrim sym
+            let extDgs = allDeclGroups modEnv ++ pcExtraDecls
+            env <- Eval.evalDecls (What4 sym) extDgs mempty
+            v   <- Eval.evalExpr  (What4 sym) env    pcExpr
+            appliedVal <-
+              foldM Eval.fromVFun v (map (pure . varToSymValue sym) args)
 
-            (safety,b) <-
-               doW4Eval sym evo $
-                   do env <- Eval.evalDecls (What4 sym) extDgs mempty
-                      v <- Eval.evalExpr (What4 sym) env pcExpr
-                      appliedVal <- foldM Eval.fromVFun v (map (pure . varToSymValue sym) args)
-                      case pcQueryType of
-                        SafetyQuery ->
-                          do Eval.forceValue appliedVal
-                             pure (W4.truePred sym)
-
-                        _ -> pure (Eval.fromVBit appliedVal)
-
-            -- Ignore the safety condition if the flag is set
-            let safety' = if pcIgnoreSafety then W4.truePred sym else safety
-
-            result <- case pcQueryType of
-              ProveQuery ->
-                do q <- W4.notPred sym =<< W4.andPred sym safety' b
-                   singleQuery sym solverCfg evo primMap logData ts args (Just safety') q
-
+            case pcQueryType of
               SafetyQuery ->
-                do q <- W4.notPred sym safety
-                   singleQuery sym solverCfg evo primMap logData ts args (Just safety) q
+                do Eval.forceValue appliedVal
+                   pure (W4.truePred sym)
 
-              SatQuery num ->
-                do q <- W4.andPred sym safety' b
-                   multiSATQuery sym solverCfg evo primMap logData ts args q num
+              _ -> pure (Eval.fromVBit appliedVal)
 
 
-            end <- getCurrentTime
-            writeIORef pcProverStats (diffUTCTime end start)
-            return result)
 
-satProveOffline :: W4ProverConfig -> Bool -> ProverCommand -> ((Handle -> IO ()) -> IO ()) -> M.ModuleCmd (Maybe String)
+
+
+satProve ::
+  W4ProverConfig ->
+  Bool ->
+  ProverCommand ->
+  M.ModuleCmd (Maybe String, ProverResult)
+
+satProve solverCfg hashConsing ProverCommand {..} =
+  protectStack proverError \(evo, modEnv) ->
+  M.runModuleM (evo,modEnv)
+  do sym     <- liftIO makeSym
+     logData <- M.withLogger doLog ()
+     start   <- liftIO getCurrentTime
+     query   <- prepareQuery sym ProverCommand { .. }
+     primMap <- M.getPrimMap
+     liftIO
+       do result <- runProver sym evo logData primMap query
+          end <- getCurrentTime
+          writeIORef pcProverStats (diffUTCTime end start)
+          return result
+  where
+  makeSym =
+    do sym <- W4.newExprBuilder W4.FloatIEEERepr
+                                CryptolState
+                                globalNonceGenerator
+       setupAdapterOptions solverCfg sym
+       when hashConsing (W4.startCaching sym)
+       pure sym
+
+  doLog lg () =
+    pure
+    defaultLogData
+      { logCallbackVerbose = \i msg -> when (i > 2) (logPutStrLn lg msg)
+      , logReason = "solver query"
+      }
+
+  runProver sym evo logData primMap q =
+    case q of
+      Left msg -> pure (Nothing, ProverError msg)
+      Right (ts,args,safety,query) ->
+        case pcQueryType of
+          ProveQuery ->
+            singleQuery sym solverCfg evo primMap logData ts args
+                                                          (Just safety) query
+
+          SafetyQuery ->
+            singleQuery sym solverCfg evo primMap logData ts args
+                                                          (Just safety) query
+
+          SatQuery num ->
+            multiSATQuery sym solverCfg evo primMap logData ts args
+                                                            query num
+
+
+
+satProveOffline ::
+  W4ProverConfig ->
+  Bool ->
+  ProverCommand ->
+  ((Handle -> IO ()) -> IO ()) ->
+  M.ModuleCmd (Maybe String)
 
 satProveOffline (W4Portfolio (p:|_)) hashConsing cmd outputContinuation =
   satProveOffline (W4ProverConfig p) hashConsing cmd outputContinuation
 
 satProveOffline (W4ProverConfig (AnAdapter adpt)) hashConsing ProverCommand {..} outputContinuation =
-  protectStack (\msg (_,modEnv) -> return (Right (Just msg, modEnv), [])) $
-  \(evo,modEnv) -> do
-  M.runModuleM (evo,modEnv) $ do
-    let extDgs = allDeclGroups modEnv ++ pcExtraDecls
-    let lPutStrLn = M.withLogger logPutStrLn
+  protectStack onError \(evo,modEnv) ->
+  M.runModuleM (evo,modEnv)
+   do sym <- liftIO makeSym
+      ok  <- prepareQuery sym ProverCommand { .. }
+      liftIO
+        case ok of
+          Left msg -> return (Just msg)
+          Right (_ts,_args,_safety,query) ->
+            do outputContinuation
+                  (\hdl -> solver_adapter_write_smt2 adpt sym hdl [query])
+               return Nothing
+  where
+  makeSym =
+    do sym <- W4.newExprBuilder W4.FloatIEEERepr CryptolState
+                                                    globalNonceGenerator
+       W4.extendConfig (W4.solver_adapter_config_options adpt)
+                       (W4.getConfiguration sym)
+       when hashConsing  (W4.startCaching sym)
+       pure sym
 
-    sym <- M.io (W4.newExprBuilder W4.FloatIEEERepr CryptolState globalNonceGenerator)
-    M.io (W4.extendConfig (W4.solver_adapter_config_options adpt) (W4.getConfiguration sym))
-    when hashConsing (M.io (W4.startCaching sym))
+  onError msg (_,modEnv) = pure (Right (Just msg, modEnv), [])
 
-    let ?evalPrim = evalPrim sym
-    case predArgTypes pcQueryType pcSchema of
-      Left msg -> return (Just msg)
-      Right ts ->
-         do when pcVerbose $ lPutStrLn "Simulating..."
-            liftIO $ do
-              args <- mapM (freshVariable sym) ts
-
-              (safety,b) <-
-                 doW4Eval sym evo $
-                     do env <- Eval.evalDecls (What4 sym) extDgs mempty
-                        v <- Eval.evalExpr (What4 sym) env pcExpr
-                        appliedVal <- foldM Eval.fromVFun v (map (pure . varToSymValue sym) args)
-                        case pcQueryType of
-                          SafetyQuery ->
-                            do Eval.forceValue appliedVal
-                               pure (W4.truePred sym)
-
-                          _ -> pure (Eval.fromVBit appliedVal)
-
-              -- Ignore the safety condition if the flag is set
-              let safety' = if pcIgnoreSafety then W4.truePred sym else safety
-
-              q <- case pcQueryType of
-                ProveQuery ->
-                  W4.notPred sym =<< W4.andPred sym safety' b
-                SatQuery _ ->
-                  W4.andPred sym safety' b
-                SafetyQuery ->
-                  W4.notPred sym safety
-
-              outputContinuation (\hdl -> solver_adapter_write_smt2 adpt sym hdl [q])
-              return Nothing
 
 decSatNum :: SatNum -> SatNum
 decSatNum (SomeSat n) | n > 0 = SomeSat (n-1)
