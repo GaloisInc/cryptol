@@ -113,15 +113,15 @@ protectStack mkErr cmd modEnv =
 doEval :: MonadIO m => Eval.EvalOpts -> Eval.Eval a -> m a
 doEval evo m = liftIO $ Eval.runEval evo m
 
--- | Returns (definitions, safety, value)
+-- | Returns definitions, together with the value and it safety predicate.
 doW4Eval ::
   (W4.IsExprBuilder sym, MonadIO m) =>
-  sym -> Eval.EvalOpts -> W4Eval sym a -> m (W4.Pred sym, W4.Pred sym, a)
+  sym -> Eval.EvalOpts -> W4Eval sym a -> m (W4Defs sym (W4.Pred sym, a))
 doW4Eval sym evo m =
-  do (defs,res) <- liftIO $ Eval.runEval evo (w4Eval m sym)
-     case res of
+  do res <- liftIO $ Eval.runEval evo (w4Eval m sym)
+     case w4Result res of
        W4Error err  -> liftIO (X.throwIO err)
-       W4Result p x -> pure (defs,p,x)
+       W4Result p x -> pure res { w4Result = (p,x) }
 
 
 data AnAdapter = AnAdapter (forall st. SolverAdapter st)
@@ -244,7 +244,7 @@ satProve solverCfg hashConsing ProverCommand {..} =
          when pcVerbose (lPutStrLn "Simulating...") >> liftIO (
          do args <- mapM (freshVariable sym) ts
 
-            (defs,safety,prop') <-
+            res <-
                doW4Eval sym evo $
                    do env <- Eval.evalDecls (What4 sym) extDgs mempty
                       v <- Eval.evalExpr (What4 sym) env pcExpr
@@ -257,7 +257,8 @@ satProve solverCfg hashConsing ProverCommand {..} =
                         _ -> pure (Eval.fromVBit appliedVal)
 
             -- add the collected definitions to the goal
-            b <- W4.andPred sym defs prop'
+            let (safety,prop') = w4Result res
+            b <- W4.andPred sym (w4Defs res) prop'
 
             let -- Ignore the safety condition if the flag is set
                 safety' = if pcIgnoreSafety then W4.truePred sym else safety
@@ -304,7 +305,7 @@ satProveOffline (W4ProverConfig (AnAdapter adpt)) hashConsing ProverCommand {..}
             liftIO $ do
               args <- mapM (freshVariable sym) ts
 
-              (defs,safety,prop') <-
+              res <-
                  doW4Eval sym evo $
                      do env <- Eval.evalDecls (What4 sym) extDgs mempty
                         v <- Eval.evalExpr (What4 sym) env pcExpr
@@ -317,7 +318,8 @@ satProveOffline (W4ProverConfig (AnAdapter adpt)) hashConsing ProverCommand {..}
                           _ -> pure (Eval.fromVBit appliedVal)
 
               -- Add the definitions to the safety
-              b <- W4.andPred sym defs prop'
+              let (safety,prop') = w4Result res
+              b <- W4.andPred sym (w4Defs res) prop'
 
               -- Ignore the safety condition if the flag is set
               let safety' = if pcIgnoreSafety then W4.truePred sym else safety
