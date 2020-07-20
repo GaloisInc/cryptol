@@ -27,7 +27,7 @@ setup_dist_bins() {
   is_exe "dist/bin" "cryptol" && is_exe "dist/bin" "cryptol-html" && return
   extract_exe "cryptol" "dist/bin"
   extract_exe "cryptol-html" "dist/bin"
-  strip dist/bin/cryptol*
+  strip dist/bin/cryptol* || echo "Strip failed: Ignoring harmless error"
 }
 
 install_z3() {
