@@ -178,7 +178,7 @@ jobs:
           path: "cryptol.msi*"
 
   release:
-    needs: [outputs, bundle, release]
+    needs: [outputs, bundle]
     if: >-
       startsWith(github.head_ref, 'releases-')
         || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'actions/'))
