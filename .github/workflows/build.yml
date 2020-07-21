@@ -66,10 +66,10 @@ jobs:
         name: Cache dist-newstyle
         with:
           path: dist-newstyle
-          key: dist-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('**/cabal.GHC-*') }}-${{ github.sha }}
+          key: dist-newstyle-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('**/cabal.GHC-*') }}-${{ github.sha }}
           restore-keys: |
-            dist-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('**/cabal.GHC-*') }}-
-            dist-${{ runner.os }}-${{ matrix.ghc }}-
+            dist-newstyle-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('**/cabal.GHC-*') }}-
+            dist-newstyle-${{ runner.os }}-${{ matrix.ghc }}-
 
       - shell: bash
         run: .github/ci.sh install_system_deps
