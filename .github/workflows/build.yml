@@ -106,9 +106,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [outputs]
     if: >-
-      (startsWith(github.head_ref, 'release-')
-        || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'actions/')))
-      || contains(needs.outputs.outputs.changed, 'docs/')
+      needs.outputs.outputs.release || contains(needs.outputs.outputs.changed, 'docs/')
     steps:
       - uses: actions/checkout@v2
       - uses: docker://pandoc/latex:latest
@@ -128,9 +126,7 @@ jobs:
 
   bundle:
     runs-on: ${{ matrix.os }}
-    if: >-
-      startsWith(github.head_ref, 'release-')
-        || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'actions/'))
+    if: needs.outputs.outputs.release
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
@@ -138,6 +134,7 @@ jobs:
     needs: [outputs, docs, build]
     env:
       VERSION: ${{ needs.outputs.outputs.cryptol-version }}
+      RELEASE: ${{ needs.outputs.outputs.release }}
     steps:
       - uses: actions/checkout@v2
 
@@ -184,9 +181,7 @@ jobs:
 
   release:
     needs: [outputs, bundle]
-    if: >-
-      startsWith(github.head_ref, 'release-')
-        || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'actions/'))
+    if: needs.outputs.outputs.release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
