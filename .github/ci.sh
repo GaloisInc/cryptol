@@ -90,7 +90,7 @@ build() {
   if [[ "$ghc_ver" =~ 8.8.3|8.10.1 && $IS_WIN ]]; then JOBS=1; else JOBS=2; fi
   cabal v2-configure -j$JOBS --minimize-conflict-set
   for _ in {1..3}; do # retry due to flakiness with windows builds
-    cabal v2-build "$@" cryptol:exe:cryptol cryptol:exe:cryptol-html && break
+    ./cry build "$@" && break
   done
 }
 

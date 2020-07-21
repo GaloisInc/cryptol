@@ -41,9 +41,19 @@ case $COMMAND in
     dirty_string="-- Last build $(date)"
     echo "$dirty_string" >> src/GitRev.hs
 
-    cabal v2-build exe:cryptol
+    if [[ -n "$RELEASE" ]]; then
+      sed -i.bak -e 's/^commitShortHash = .*$/commitShortHash = "UNKNOWN"/' \
+        -e 's/^commitHash = .*$/commitHash = "UNKNOWN"/' \
+        -e 's/^commitBranch = .*$/commitBranch = "UNKNOWN"/' \
+        -e 's/^commitDirty = .*$/commitDirty = False/' \
+        -e '/import qualified GitRev/d' \
+        src/Cryptol/Version.hs
+      rm -f src/Cryptol/Version.hs.bak
+    fi
 
-    sed -i.bak "/^$dirty_string/d" src/GitRev.hs
+    cabal v2-build "$@" exe:cryptol
+
+    sed -i.bak "/^-- Last build/d" src/GitRev.hs
     rm -f src/GitRev.hs.bak
     ;;
 

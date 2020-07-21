@@ -11,10 +11,16 @@ jobs:
       changed: ${{ steps.outputs.outputs.changed-files }}
       cryptol-version: ${{ steps.outputs.outputs.cryptol-version }}
       name: ${{ steps.outputs.outputs.name }}
+      release: ${{ steps.env.outputs.release }}
     steps:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 0
+      - id: env
+        if: |
+          (startsWith(github.head_ref, 'release-')
+            || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'actions/')))
+        run: .github/ci.sh output release 1
       - id: outputs
         run: |
           .github/ci.sh set_files ${{ github.sha }}
@@ -40,6 +46,8 @@ jobs:
           - os: windows-latest
             ghc: 8.8.3
     name: Cryptol - GHC v${{ matrix.ghc }} - ${{ matrix.os }}
+    env:
+      RELEASE: ${{ needs.outputs.outputs.release }}
     steps:
       - uses: actions/checkout@v2
         with:
@@ -88,9 +96,7 @@ jobs:
         run: .github/ci.sh test_dist
 
       - if: >-
-          (startsWith(github.head_ref, 'release-')
-            || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'actions/')))
-          && matrix.ghc == '8.10.1'
+          env.RELEASE && matrix.ghc == '8.10.1'
         uses: actions/upload-artifact@v2
         with:
           path: dist/bin
@@ -101,8 +107,7 @@ jobs:
     needs: [outputs]
     if: >-
       (startsWith(github.head_ref, 'release-')
-        || (github.event_name == 'pull_request'
-            && startsWith(github.head_ref, 'actions/')))
+        || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'actions/')))
       || contains(needs.outputs.outputs.changed, 'docs/')
     steps:
       - uses: actions/checkout@v2
