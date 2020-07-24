@@ -18,6 +18,25 @@ extract_exe() {
   $IS_WIN || chmod +x "$2/$name"
 }
 
+retry() {
+  echo "Attempting with retry:" "$@"
+  local n=1
+  while true; do
+    if "$@"; then
+      break
+    else
+      if [[ $n -lt 3 ]]; then
+        sleep $n # don't retry immediately
+        ((n++))
+        echo "Command failed. Attempt $n/3:"
+      else
+        echo "The command has failed after $n attempts."
+        return 1
+      fi
+    fi
+  done
+}
+
 setup_external_tools() {
   is_exe "$BIN" "test-runner" && return
   cabal v2-install --install-method=copy --installdir="$BIN" test-lib
@@ -89,9 +108,7 @@ build() {
   # Limit jobs on windows due to: https://gitlab.haskell.org/ghc/ghc/issues/17926
   if [[ "$ghc_ver" =~ 8.8.3|8.10.1 && $IS_WIN ]]; then JOBS=1; else JOBS=2; fi
   cabal v2-configure -j$JOBS --minimize-conflict-set
-  for _ in {1..3}; do # retry due to flakiness with windows builds
-    ./cry build "$@" && break
-  done
+  retry ./cry build "$@" # retry due to flakiness with windows builds
 }
 
 install_system_deps() {
