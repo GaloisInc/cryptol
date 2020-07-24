@@ -1,6 +1,3 @@
 packages:
     cryptol.cabal
     tests
-
-optional-packages:
-    dependencies/what4/what4
