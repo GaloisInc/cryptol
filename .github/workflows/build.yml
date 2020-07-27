@@ -18,8 +18,8 @@ jobs:
           fetch-depth: 0
       - id: env
         if: |
-          (startsWith(github.head_ref, 'release-')
-            || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'actions/')))
+          startsWith(github.ref, 'refs/heads/release-')
+            || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'actions/'))
         run: .github/ci.sh output release 1
       - id: outputs
         run: |
