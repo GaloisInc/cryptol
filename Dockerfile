@@ -43,8 +43,7 @@ FROM haskell:8.8 AS build
 
 RUN apt-get update && apt-get install -y libncurses-dev
 COPY --from=solvers /solvers/rootfs /
-RUN useradd -m cryptol \
-    && su -c '/opt/cabal/bin/cabal v2-update' cryptol
+RUN useradd -m cryptol
 COPY --chown=cryptol:cryptol . /cryptol
 USER cryptol
 WORKDIR /cryptol
@@ -54,6 +53,7 @@ ENV LANG=C.UTF-8 \
     LC_ALL=C.UTF-8
 COPY cabal.GHC-8.8.3.config cabal.project.freeze
 RUN mkdir -p rootfs/usr/local/bin
+RUN cabal v2-update
 RUN cabal v2-install --install-method=copy --installdir=rootfs/usr/local/bin exe:cryptol
 RUN cabal v2-install --install-method=copy --installdir=bin test-lib
 RUN ./bin/test-runner --ext=.icry --exe=./rootfs/usr/local/bin/cryptol -F -b tests
