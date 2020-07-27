@@ -19,7 +19,7 @@ import Control.DeepSeq
 import qualified Control.Exception as X
 import qualified Control.Monad.Fail as Fail
 
-import qualified Data.ByteString as B
+import Data.ByteString (ByteString)
 import Data.Either (partitionEithers)
 import Data.Text(Text)
 import qualified Data.Text.Encoding as T (decodeUtf8')
@@ -36,8 +36,12 @@ import Cryptol.Parser.ParserUtils
 import Cryptol.Parser.Unlit (guessPreProc)
 import Cryptol.Utils.PP
 
-removeIncludesModule :: FilePath -> Module PName -> IO (Either [IncludeError] (Module PName))
-removeIncludesModule modPath m = runNoIncM modPath (noIncludeModule m)
+removeIncludesModule ::
+  (FilePath -> IO ByteString) ->
+  FilePath ->
+  Module PName ->
+  IO (Either [IncludeError] (Module PName))
+removeIncludesModule reader modPath m = runNoIncM reader modPath (noIncludeModule m)
 
 data IncludeError
   = IncludeFailed (Located FilePath)
@@ -70,16 +74,18 @@ ppIncludeError ie = case ie of
 newtype NoIncM a = M
   { unM :: ReaderT Env (ExceptionT [IncludeError] IO) a }
 
-data Env = Env { envSeen    :: [Located FilePath]
+data Env = Env { envSeen       :: [Located FilePath]
                  -- ^ Files that have been loaded
-               , envIncPath :: FilePath
+               , envIncPath    :: FilePath
                  -- ^ The path that includes are relative to
+               , envFileReader :: FilePath -> IO ByteString
+                 -- ^ How to load files
                }
 
-runNoIncM :: FilePath -> NoIncM a -> IO (Either [IncludeError] a)
-runNoIncM sourcePath m =
+runNoIncM :: (FilePath -> IO ByteString) -> FilePath -> NoIncM a -> IO (Either [IncludeError] a)
+runNoIncM reader sourcePath m =
   do incPath <- getIncPath sourcePath
-     runM (unM m) Env { envSeen = [], envIncPath = incPath }
+     runM (unM m) Env { envSeen = [], envIncPath = incPath, envFileReader = reader }
 
 tryNoIncM :: NoIncM a -> NoIncM (Either [IncludeError] a)
 tryNoIncM m = M (try (unM m))
@@ -192,8 +198,9 @@ resolveInclude lf = pushPath lf $ do
 -- | Read a file referenced by an include.
 readInclude :: Located FilePath -> NoIncM Text
 readInclude path = do
+  readBytes    <- envFileReader <$> M ask
   file        <- fromIncPath (thing path)
-  sourceBytes <- B.readFile file `failsWith` handler
+  sourceBytes <- readBytes file `failsWith` handler
   sourceText  <- X.evaluate (T.decodeUtf8' sourceBytes) `failsWith` handler
   case sourceText of
     Left encodingErr -> M (raise [IncludeDecodeFailed path encodingErr])

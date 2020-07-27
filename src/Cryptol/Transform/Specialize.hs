@@ -59,13 +59,13 @@ modify f = get >>= (set . f)
 -- type-specialized versions of all functions called (transitively) by
 -- the body of the expression.
 specialize :: Expr -> M.ModuleCmd Expr
-specialize expr (ev,modEnv) = run $ do
+specialize expr (ev, byteReader, modEnv) = run $ do
   let extDgs = allDeclGroups modEnv
   let (tparams, expr') = destETAbs expr
   spec' <- specializeEWhere expr' extDgs
   return (foldr ETAbs spec' tparams)
   where
-  run = M.runModuleT (ev,modEnv) . fmap fst . runSpecT Map.empty
+  run = M.runModuleT (ev, byteReader, modEnv) . fmap fst . runSpecT Map.empty
 
 specializeExpr :: Expr -> SpecM Expr
 specializeExpr expr =

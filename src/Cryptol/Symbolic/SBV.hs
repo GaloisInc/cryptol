@@ -160,7 +160,7 @@ thmSMTResults :: SBV.ThmResult -> [SBV.SMTResult]
 thmSMTResults (SBV.ThmResult r) = [r]
 
 proverError :: String -> M.ModuleCmd (Maybe String, ProverResult)
-proverError msg (_,modEnv) =
+proverError msg (_, _, modEnv) =
   return (Right ((Nothing, ProverError msg), modEnv), [])
 
 
@@ -403,9 +403,9 @@ processResults evo ProverCommand{..} ts results =
 --   of executing the query.
 satProve :: SBVProverConfig -> ProverCommand -> M.ModuleCmd (Maybe String, ProverResult)
 satProve proverCfg pc@ProverCommand {..} =
-  protectStack proverError $ \(evo,modEnv) ->
+  protectStack proverError $ \(evo, byteReader, modEnv) ->
 
-  M.runModuleM (evo,modEnv) $ do
+  M.runModuleM (evo, byteReader, modEnv) $ do
 
   let lPutStrLn = logPutStrLn (Eval.evalLogger evo)
 
@@ -424,8 +424,8 @@ satProve proverCfg pc@ProverCommand {..} =
 --   the SMT input file corresponding to the given prover command.
 satProveOffline :: SBVProverConfig -> ProverCommand -> M.ModuleCmd (Either String String)
 satProveOffline _proverCfg pc@ProverCommand {..} =
-  protectStack (\msg (_,modEnv) -> return (Right (Left msg, modEnv), [])) $
-  \(evOpts,modEnv) -> do
+  protectStack (\msg (_,_,modEnv) -> return (Right (Left msg, modEnv), [])) $
+  \(evOpts, _, modEnv) -> do
     let isSat = case pcQueryType of
           ProveQuery -> False
           SafetyQuery -> False
