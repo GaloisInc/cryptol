@@ -135,6 +135,7 @@ bundle_files() {
   doc=dist/share/doc/cryptol
   mkdir -p $doc
   cp -R examples/ $doc/examples/
+  rm -rf $doc/examples/cryptol-specs
   cp docs/*md docs/*pdf $doc
 
   # Copy the two interesting examples over
