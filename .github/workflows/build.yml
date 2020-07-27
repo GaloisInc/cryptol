@@ -23,6 +23,7 @@ jobs:
           startsWith(github.ref, 'release-')
             || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'actions/'))
         run: .github/ci.sh output release 1
+      - run: echo ${{ github.ref }}
       - id: outputs
         run: |
           .github/ci.sh set_files ${{ github.sha }}
