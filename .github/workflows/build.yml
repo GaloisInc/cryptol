@@ -1,9 +1,7 @@
 name: Cryptol
 on:
   push:
-    branches:
-      - master
-      - release-**
+    branches: [master, "release-**"]
   pull_request:
 
 jobs:
@@ -20,10 +18,9 @@ jobs:
           fetch-depth: 0
       - id: env
         if: |
-          startsWith(github.ref, 'release-')
+          startsWith(github.ref, 'refs/heads/release-')
             || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'actions/'))
         run: .github/ci.sh output release 1
-      - run: echo ${{ github.ref }}
       - id: outputs
         run: |
           .github/ci.sh set_files ${{ github.sha }}
