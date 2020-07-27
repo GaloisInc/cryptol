@@ -179,6 +179,21 @@ jobs:
           name: ${{ needs.outputs.outputs.name }}-${{ runner.os }}-x86_64
           path: "cryptol.msi*"
 
+  docker:
+    runs-on: ubuntu-latest
+    needs: [outputs]
+    if: needs.outputs.outputs.release
+    steps:
+      - name: Publish to Registry
+        uses: docker/build-push-action@v1
+        with:
+          username: ${{ secrets.GITHUBCRYPTOL_USERNAME }}
+          password: ${{ secrets.GITHUBCRYPTOL }}
+          repository: galoisinc/cryptol
+          tags: "latest,${{ needs.outputs.outputs.cryptol-version }}"
+          add_git_labels: true
+          push: ${{ startsWith(github.ref, 'refs/heads/release-') }}
+
   release:
     needs: [outputs, bundle]
     if: needs.outputs.outputs.release
