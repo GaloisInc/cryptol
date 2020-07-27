@@ -184,6 +184,9 @@ jobs:
     needs: [outputs]
     if: needs.outputs.outputs.release
     steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: true
       - name: Publish to Registry
         uses: docker/build-push-action@v1
         with:
