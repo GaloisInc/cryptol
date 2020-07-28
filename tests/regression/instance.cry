@@ -1,0 +1,365 @@
+module instance where
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// This file includes a list of definitions intended to test all the
+// implicit class instance rules hard-wired into the Cryptol type
+// checker.
+
+import Float
+
+////////////////////////////////////////////////////////////////////////////////
+// Zero
+
+/** instance Zero Bit */
+zeroBit : Bit
+zeroBit = zero
+
+/** instance Zero Integer */
+zeroInteger : Integer
+zeroInteger = zero
+
+/** instance Zero Rational */
+zeroRational : Rational
+zeroRational = zero
+
+/** instance (fin n, n >= 1) => Zero (Z n) */
+zeroZ : {n} (fin n, n >= 1) => Z n
+zeroZ = zero
+
+/** instance Zero [n] */
+zeroWord : {n} [n]
+zeroWord = zero
+
+/** instance (Zero a) => Zero [n]a */
+zeroSeq : {n, a} (Zero a) => [n]a
+zeroSeq = zero
+
+/** instance (ValidFloat e p) => Zero (Float e p) */
+zeroFloat : {e, p} (ValidFloat e p) => Float e p
+zeroFloat = zero
+
+/** instance (Zero b) => Zero (a -> b) */
+zeroFun : {a, b} (Zero b) => a -> b
+zeroFun = zero
+
+/** instance Zero () */
+zeroUnit : ()
+zeroUnit = zero
+
+/** instance (Zero a, Zero b, ...) => Zero (a, b, ...) */
+zeroTuple : {a, b} (Zero a, Zero b) => (a, b)
+zeroTuple = zero
+
+/** instance Zero {} */
+zeroEmpty : {}
+zeroEmpty = zero
+
+/** instance (Zero a, Zero b, ...) => Zero { x : a, y : b, ... } */
+zeroRecord : {a, b} (Zero a, Zero b) => {x : a, y : b}
+zeroRecord = zero
+
+////////////////////////////////////////////////////////////////////////////////
+// Logic
+
+/** instance Logic Bit */
+logicBit : Bit -> Bit
+logicBit = complement
+
+/** instance Logic [n] */
+logicWord : {n} [n] -> [n]
+logicWord = complement
+
+/** instance (Logic a) => Logic [n]a */
+logicSeq : {n, a} (Logic a) => [n]a -> [n]a
+logicSeq = complement
+
+/** instance (Logic b) => Logic (a -> b) */
+logicFun : {a, b} (Logic b) => (a -> b) -> (a -> b)
+logicFun = complement
+
+/** instance Logic () */
+logicUnit : () -> ()
+logicUnit = complement
+
+/** instance (Logic a, Logic b, ...) => Logic (a, b, ...) */
+logicTuple : {a, b} (Logic a, Logic b) => (a, b) -> (a, b)
+logicTuple = complement
+
+/** instance Logic {} */
+logicEmpty : {} -> {}
+logicEmpty = complement
+
+/** instance (Logic a, Logic b, ...) => Logic { x : a, y : b, ... } */
+logicRecord : {a, b} (Logic a, Logic b) => {x : a, y : b} -> {x : a, y : b}
+logicRecord = complement
+
+////////////////////////////////////////////////////////////////////////////////
+// Ring
+
+/** instance Ring Integer */
+ringInteger : Integer -> Integer
+ringInteger = negate
+
+/** instance Ring Rational */
+ringRational : Rational -> Rational
+ringRational = negate
+
+/** instance (fin n, n >= 1) => Ring (Z n) */
+ringZ : {n} (fin n, n >= 1) => Z n -> Z n
+ringZ = negate
+
+/** instance (fin n) => Ring [n] */
+ringWord : {n} (fin n) => [n] -> [n]
+ringWord = negate
+
+// NOTE: 'instance Ring a => Ring [n]a' holds for any type 'a'
+// distinct from 'Bit'.
+
+/** instance Ring [n]Integer */
+ringSeqInteger : {n} [n]Integer -> [n]Integer
+ringSeqInteger = negate
+
+/** instance Ring [n]Rational */
+ringSeqRational : {n} [n]Rational -> [n]Rational
+ringSeqRational = negate
+
+/** instance (fin k, k >= 1) => Ring [n](Z k) */
+ringSeqZ : {n, k} (fin k, k >= 1) => [n](Z k) -> [n](Z k)
+ringSeqZ = negate
+
+/** instance (Ring [k]a) => Ring [n][k]a */
+ringSeqSeq : {n, k, a} (Ring ([k]a)) => [n][k]a -> [n][k]a
+ringSeqSeq = negate
+
+/** instance (Ring b) => Ring [n](a -> b) */
+ringSeqFun : {n, a, b} (Ring b) => [n](a -> b) -> [n](a -> b)
+ringSeqFun = negate
+
+/** instance Ring [n]() */
+ringSeqUnit : {n} [n]() -> [n]()
+ringSeqUnit = negate
+
+/** instance (Ring a, Ring b) => Ring [n](a, b) */
+ringSeqTuple : {n, a, b} (Ring a, Ring b) => [n](a, b) -> [n](a, b)
+ringSeqTuple = negate
+
+/** instance Ring [n]{} */
+ringSeqEmpty : {n} [n]{} -> [n]{}
+ringSeqEmpty = negate
+
+/** instance (Ring a, Ring b) => Ring [n]{x : a, y : b} */
+ringSeqRecord : {n, a, b} (Ring a, Ring b) => [n]{x : a, y : b} -> [n]{x : a, y : b}
+ringSeqRecord = negate
+
+/** instance (ValidFloat e p) => Ring (Float e p) */
+ringFloat : {e, p} (ValidFloat e p) => Float e p -> Float e p
+ringFloat = negate
+
+/** instance (Ring b) => Ring (a -> b) */
+ringFun : {a, b} (Ring b) => (a -> b) -> (a -> b)
+ringFun = negate
+
+/** instance Ring () */
+ringUnit : () -> ()
+ringUnit = negate
+
+/** instance (Ring a, Ring b, ...) => Ring (a, b, ...) */
+ringTuple : {a, b} (Ring a, Ring b) => (a, b) -> (a, b)
+ringTuple = negate
+
+/** instance Ring {} */
+ringEmpty : {} -> {}
+ringEmpty = negate
+
+/** instance (Ring a, Ring b, ...) => Ring { x : a, y : b, ... } */
+ringRecord : {a, b} (Ring a, Ring b) => {x : a, y : b} -> {x : a, y : b}
+ringRecord = negate
+
+////////////////////////////////////////////////////////////////////////////////
+// Integral
+
+/** instance Integral Integer */
+integralInteger : Integer -> Integer -> Integer
+integralInteger = (%)
+
+/** instance (fin n) => Integral [n] */
+integralWord : {n} (fin n) => [n] -> [n] -> [n]
+integralWord = (%)
+
+////////////////////////////////////////////////////////////////////////////////
+// Field
+
+/** instance Field Rational */
+fieldRational : Rational -> Rational
+fieldRational = recip
+
+/** instance (ValidFloat e p) => Field (Float e p) */
+fieldFloat : {e, p} (ValidFloat e p) => Float e p -> Float e p
+fieldFloat = recip
+
+////////////////////////////////////////////////////////////////////////////////
+// Round
+
+/** instance Round Rational */
+roundRational : Rational -> Integer
+roundRational = floor
+
+/** instance (ValidFloat e p) => Round (Float e p) */
+roundFloat : {e, p} (ValidFloat e p) => Float e p -> Integer
+roundFloat = floor
+
+////////////////////////////////////////////////////////////////////////////////
+// Eq
+
+/** instance Eq Bit */
+eqBit : Bit -> Bit -> Bit
+eqBit = (==)
+
+/** instance Eq Integer */
+eqInteger : Integer -> Integer -> Bit
+eqInteger = (==)
+
+/** instance Eq Rational */
+eqRational : Rational -> Rational -> Bit
+eqRational = (==)
+
+/** instance (fin n, n >= 1) => Eq (Z n) */
+eqZ : {n} (fin n, n >= 1) => Z n -> Z n -> Bit
+eqZ = (==)
+
+/** instance (fin n) => Eq [n] */
+eqWord : {n} (fin n) => [n] -> [n] -> Bit
+eqWord = (==)
+
+/** instance (fin n, Eq a) => Eq [n]a */
+eqSeq : {n, a} (fin n, Eq a) => [n]a -> [n]a -> Bit
+eqSeq = (==)
+
+/** instance (ValidFloat e p) => Eq (Float e p) */
+eqFloat : {e, p} (ValidFloat e p) => Float e p -> Float e p -> Bit
+eqFloat = (==)
+
+/** instance Eq () */
+eqUnit : () -> () -> Bit
+eqUnit = (==)
+
+/** instance (Eq a, Eq b, ...) => Eq (a, b, ...) */
+eqTuple : {a, b} (Eq a, Eq b) => (a, b) -> (a, b) -> Bit
+eqTuple = (==)
+
+/** instance Eq {} */
+eqEmpty : {} -> {} -> Bit
+eqEmpty = (==)
+
+/** instance (Eq a, Eq b, ...) => Eq { x : a, y : b, ... } */
+eqRecord : {a, b} (Eq a, Eq b) => {x : a, y : b} ->  {x : a, y : b} -> Bit
+eqRecord = (==)
+
+////////////////////////////////////////////////////////////////////////////////
+// Cmp
+
+/** instance Cmp Bit */
+cmpBit : Bit -> Bit -> Bit
+cmpBit = (<)
+
+/** instance Cmp Integer */
+cmpInteger : Integer -> Integer -> Bit
+cmpInteger = (<)
+
+/** instance Cmp Rational */
+cmpRational : Rational -> Rational -> Bit
+cmpRational = (<)
+
+/** instance (fin n) => Cmp [n] */
+cmpWord : {n} (fin n) => [n] -> [n] -> Bit
+cmpWord = (<)
+
+/** instance (fin n, Cmp a) => Cmp [n]a */
+cmpSeq : {n, a} (fin n, Cmp a) => [n]a -> [n]a -> Bit
+cmpSeq = (<)
+
+/** instance (ValidFloat e p) => Cmp (Float e p) */
+cmpFloat : {e, p} (ValidFloat e p) => Float e p -> Float e p -> Bit
+cmpFloat = (<)
+
+/** instance Cmp () */
+cmpUnit : () -> () -> Bit
+cmpUnit = (<)
+
+/** instance (Cmp a, Cmp b, ...) => Cmp (a, b, ...) */
+cmpTuple : {a, b} (Cmp a, Cmp b) => (a, b) -> (a, b) -> Bit
+cmpTuple = (<)
+
+/** instance Cmp {} */
+cmpEmpty : {} -> {} -> Bit
+cmpEmpty = (<)
+
+/** instance (Cmp a, Cmp b, ...) => Cmp { x : a, y : b, ... } */
+cmpRecord : {a, b} (Cmp a, Cmp b) => {x : a, y : b} ->  {x : a, y : b} -> Bit
+cmpRecord = (<)
+
+////////////////////////////////////////////////////////////////////////////////
+// Cmp
+
+/** instance (fin n, n >= 1) => SignedCmp [n] */
+signedCmpWord : {n} (fin n, n >= 1) => [n] -> [n] -> Bit
+signedCmpWord = (<$)
+
+// NOTE: 'instance (fin n, SignedCmp a) => SignedCmp ([n]a)' holds for
+// any type 'a' distinct from 'Bit'.
+
+/** instance (fin n, SignedCmp [k]a) => SignedCmp [n][k]a */
+signedCmpSeqSeq : {n, k, a} (fin n, SignedCmp ([k]a)) => [n][k]a -> [n][k]a -> Bit
+signedCmpSeqSeq = (<$)
+
+/** instance (fin n) => SignedCmp [n]() */
+signedCmpSeqUnit : {n} (fin n) => [n]() -> [n]() -> Bit
+signedCmpSeqUnit = (<$)
+
+/** instance (SignedCmp a, SignedCmp b) => SignedCmp [n](a, b) */
+signedCmpSeqTuple : {n, a, b} (fin n, SignedCmp a, SignedCmp b) => [n](a, b) -> [n](a, b) -> Bit
+signedCmpSeqTuple = (<$)
+
+/** instance SignedCmp [n]{} */
+signedCmpSeqEmpty : {n} (fin n) => [n]{} -> [n]{} -> Bit
+signedCmpSeqEmpty = (<$)
+
+/** instance (SignedCmp a, SignedCmp b) => SignedCmp [n]{x : a, y : b} */
+signedCmpSeqRecord : {n, a, b} (fin n, SignedCmp a, SignedCmp b) => [n]{x : a, y : b} -> [n]{x : a, y : b} -> Bit
+signedCmpSeqRecord = (<$)
+
+/** instance SignedCmp () */
+signedCmpUnit : () -> () -> Bit
+signedCmpUnit = (<$)
+
+/** instance (SignedCmp a, SignedCmp b, ...) => SignedCmp (a, b, ...) */
+signedCmpTuple : {a, b} (SignedCmp a, SignedCmp b) => (a, b) -> (a, b) -> Bit
+signedCmpTuple = (<$)
+
+/** instance SignedCmp {} */
+signedCmpEmpty : {} -> {} -> Bit
+signedCmpEmpty = (<$)
+
+/** instance (SignedCmp a, SignedCmp b, ...) => SignedCmp { x : a, y : b, ... } */
+signedCmpRecord : {a, b} (SignedCmp a, SignedCmp b) => {x : a, y : b} ->  {x : a, y : b} -> Bit
+signedCmpRecord = (<$)
+
+////////////////////////////////////////////////////////////////////////////////
+// Literal
+
+/** instance (fin val) => Literal val Integer */
+literalInteger : {val} (fin val) => Integer
+literalInteger = `val
+
+/** instance (fin val) => Literal val Rational */
+literalRational : {val} (fin val) => Rational
+literalRational = `val
+
+/** instance (fin val, fin n, n >= 1, n > val) => Literal val (Z n) */
+literalZ : {val, n} (fin val, fin n, n >= 1, n > val) => Z n
+literalZ = `val
+
+/** instance (fin val, fin n, n >= width val) => Literal val [n] */
+literalWord : {val, n} (fin val, fin n, n >= width val) => [n]
+literalWord = `val
