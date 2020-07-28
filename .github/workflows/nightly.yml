@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - uses: docker://pandoc/latex:latest
+      - uses: docker://pandoc/latex:2.9.2
         with:
           args: >-
             sh -c
@@ -37,17 +37,23 @@ jobs:
           path: docs
           name: docs
 
-  # docker:
-  #   runs-on: ubuntu-latest
-  #   needs: [outputs]
-  #   steps:
-  #     - name: Publish to Registry
-  #       uses: elgohr/Publish-Docker-Github-Action@master
-  #       with:
-  #         name: galoisinc/cryptol
-  #         username: ${{ secrets.DOCKER_USERNAME }}
-  #         password: ${{ secrets.DOCKER_PASSWORD }}
-  #         tags: "latest,${{ needs.outputs.outputs.cryptol-version }}"
+  docker:
+    runs-on: ubuntu-latest
+    needs: [outputs]
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: true
+      - name: Publish to Registry
+        uses: docker/build-push-action@v1
+        with:
+          username: ${{ secrets.GITHUBCRYPTOL_USERNAME }}
+          password: ${{ secrets.GITHUBCRYPTOL }}
+          repository: galoisinc/cryptol
+          tags: "nightly"
+          add_git_labels: true
+          # push: ${{ github.event_name == 'schedule' }}
+          push: true
 
   build:
     needs: [outputs, docs]
@@ -63,8 +69,6 @@ jobs:
           submodules: true
 
       - uses: actions/setup-haskell@v1
-        with:
-          ghc-version: "8.10"
 
       - uses: actions/download-artifact@v2
         with:
