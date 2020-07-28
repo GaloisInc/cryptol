@@ -204,12 +204,12 @@ solveIntegralInst ty = case tNoUser ty of
       TCon (TC TCBit) [] -> SolvedIf [ pFin n ]
       TVar _ -> Unsolved
       _ -> Unsolvable $ TCErrorMessage $ show
-          $ "Type" <+> quotes (pp ty) <+> "is not an intergral type."
+          $ "Type" <+> quotes (pp ty) <+> "is not an integral type."
 
   TVar _ -> Unsolved
 
   _ -> Unsolvable $ TCErrorMessage $ show
-          $ "Type" <+> quotes (pp ty) <+> "is not an intergral type."
+          $ "Type" <+> quotes (pp ty) <+> "is not an integral type."
 
 
 -- | Solve a Field constraint by instance, if possible.
