@@ -1,0 +1,2 @@
+:m Float
+:t (zero : Float 5 11) <$ zero

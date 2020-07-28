@@ -834,7 +834,16 @@ instance PP (WithNames Newtype) where
 
 
 
-
+-- | The precedence levels used by this pretty-printing instance
+-- correspond with parser non-terminals as follows:
+--
+--   * 0-1: @type@
+--
+--   * 2: @infix_type@
+--
+--   * 3: @app_type@
+--
+--   * 4: @atype@
 instance PP (WithNames Type) where
   ppPrec prec ty0@(WithNames ty nmMap) =
     case ty of
@@ -867,7 +876,7 @@ instance PP (WithNames Type) where
 
           (TCTuple _, fs)     -> parens $ fsep $ punctuate comma $ map (go 0) fs
 
-          (_, _)              -> pp tc <+> fsep (map (go 5) ts)
+          (_, _)              -> optParens (prec > 3) $ pp tc <+> fsep (map (go 4) ts)
 
       TCon (PC pc) ts ->
         case (pc,ts) of
