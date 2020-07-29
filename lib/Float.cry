@@ -27,6 +27,17 @@ type Float256 = Float 19 237
  * Rounding modes (this should be an enumeration type, when we add these)
  *---------------------------------------------------------------------- */
 
+/**
+ * A 'RoundingMode' is used to specify the precise behavior of some
+ * floating point primitives.
+ *
+ * There are five valid 'RoundingMode' values:
+ *  * roundNearestEven
+ *  * roundNearestAway
+ *  * roundPositive
+ *  * roundNegative
+ *  * roundZero
+ */
 type RoundingMode = [3]
 
 /** Round toward nearest, ties go to even. */

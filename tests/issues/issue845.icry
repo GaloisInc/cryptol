@@ -1,0 +1,11 @@
+:l issue845.cry
+fraction`{1,2,0,Rational}
+fraction`{1,0,0,Rational}
+fraction`{inf,2,0,Rational}
+:m Float
+fraction`{1,2,0,Float64}
+fraction`{1,0,0,Float64}
+fraction`{inf,2,0,Float64}
+fraction`{1,10,0,Float 3 2}
+fraction`{1,10,1,Float 3 2}
+

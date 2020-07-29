@@ -112,6 +112,26 @@ solveLogicInst ty = case tNoUser ty of
   -- Logic Bit
   TCon (TC TCBit) [] -> SolvedIf []
 
+  -- Logic Integer fails
+  TCon (TC TCInteger) [] ->
+    Unsolvable $
+    TCErrorMessage "Type 'Integer' does not support logical operations."
+
+  -- Logic (Z n) fails
+  TCon (TC TCIntMod) [_] ->
+    Unsolvable $
+    TCErrorMessage "Type 'Z' does not support logical operations."
+
+  -- Logic Rational fails
+  TCon (TC TCRational) [] ->
+    Unsolvable $
+    TCErrorMessage "Type 'Rational' does not support logical operations."
+
+  -- Logic (Float e p) fails
+  TCon (TC TCFloat) [_, _] ->
+    Unsolvable $
+    TCErrorMessage "Type 'Float' does not support logical operations."
+
   -- Logic a => Logic [n]a
   TCon (TC TCSeq) [_, a] -> SolvedIf [ pLogic a ]
 
@@ -144,7 +164,7 @@ solveRingInst ty = case tNoUser ty of
 
   -- Ring Bit fails
   TCon (TC TCBit) [] ->
-    Unsolvable $ TCErrorMessage "Arithmetic cannot be done on individual bits."
+    Unsolvable $ TCErrorMessage "Type 'Bit' does not support ring operations."
 
   -- Ring Integer
   TCon (TC TCInteger) [] -> SolvedIf []
@@ -193,7 +213,7 @@ solveIntegralInst ty = case tNoUser ty of
 
   -- Integral Bit fails
   TCon (TC TCBit) [] ->
-    Unsolvable $ TCErrorMessage "Arithmetic cannot be done on individual bits."
+    Unsolvable $ TCErrorMessage "Type 'Bit' is not an integral type."
 
   -- Integral Integer
   TCon (TC TCInteger) [] -> SolvedIf []
@@ -204,12 +224,12 @@ solveIntegralInst ty = case tNoUser ty of
       TCon (TC TCBit) [] -> SolvedIf [ pFin n ]
       TVar _ -> Unsolved
       _ -> Unsolvable $ TCErrorMessage $ show
-          $ "Type" <+> quotes (pp ty) <+> "is not an intergral type."
+          $ "Type" <+> quotes (pp ty) <+> "is not an integral type."
 
   TVar _ -> Unsolved
 
   _ -> Unsolvable $ TCErrorMessage $ show
-          $ "Type" <+> quotes (pp ty) <+> "is not an intergral type."
+          $ "Type" <+> quotes (pp ty) <+> "is not an integral type."
 
 
 -- | Solve a Field constraint by instance, if possible.
@@ -219,6 +239,16 @@ solveFieldInst ty = case tNoUser ty of
   -- Field Error -> fails
   TCon (TError _ e) _ -> Unsolvable e
 
+  -- Field Bit fails
+  TCon (TC TCBit) [] ->
+    Unsolvable $
+    TCErrorMessage "Type 'Bit' does not support field operations."
+
+  -- Field Integer fails
+  TCon (TC TCInteger) [] ->
+    Unsolvable $
+    TCErrorMessage "Type 'Integer' does not support field operations."
+
   -- Field Rational
   TCon (TC TCRational) [] -> SolvedIf []
 
@@ -226,8 +256,32 @@ solveFieldInst ty = case tNoUser ty of
   TCon (TC TCFloat) [e,p] -> SolvedIf [ pValidFloat e p ]
 
   -- Field Real
-  -- Field (Z n)
+
+  -- Field (Z n) fails for now (to be added later with a 'prime n' requirement)
+  TCon (TC TCIntMod) [_] ->
+    Unsolvable $
+    TCErrorMessage "Type 'Z' does not support field operations."
 --  TCon (TC TCIntMod) [n] -> SolvedIf [ pFin n, n >== tOne, pPrime n ]
+
+  -- Field ([n]a) fails
+  TCon (TC TCSeq) [_, _] ->
+    Unsolvable $
+    TCErrorMessage "Sequence types do not support field operations."
+
+  -- Field (a -> b) fails
+  TCon (TC TCFun) [_, _] ->
+    Unsolvable $
+    TCErrorMessage "Function types do not support field operations."
+
+  -- Field (a, b, ...) fails
+  TCon (TC (TCTuple _)) _ ->
+    Unsolvable $
+    TCErrorMessage "Tuple types do not support field operations."
+
+  -- Field {x : a, y : b, ...} fails
+  TRec _ ->
+    Unsolvable $
+    TCErrorMessage "Record types do not support field operations."
 
   _ -> Unsolved
 
@@ -239,6 +293,21 @@ solveRoundInst ty = case tNoUser ty of
   -- Round Error -> fails
   TCon (TError _ e) _ -> Unsolvable e
 
+  -- Round Bit fails
+  TCon (TC TCBit) [] ->
+    Unsolvable $
+    TCErrorMessage "Type 'Bit' does not support rounding operations."
+
+  -- Round Integer fails
+  TCon (TC TCInteger) [] ->
+    Unsolvable $
+    TCErrorMessage "Type 'Integer' does not support rounding operations."
+
+  -- Round (Z n) fails
+  TCon (TC TCIntMod) [_] ->
+    Unsolvable $
+    TCErrorMessage "Type 'Z' does not support rounding operations."
+
   -- Round Rational
   TCon (TC TCRational) [] -> SolvedIf []
 
@@ -246,6 +315,26 @@ solveRoundInst ty = case tNoUser ty of
   TCon (TC TCFloat) [e,p] -> SolvedIf [ pValidFloat e p ]
 
   -- Round Real
+
+  -- Round ([n]a) fails
+  TCon (TC TCSeq) [_, _] ->
+    Unsolvable $
+    TCErrorMessage "Sequence types do not support rounding operations."
+
+  -- Round (a -> b) fails
+  TCon (TC TCFun) [_, _] ->
+    Unsolvable $
+    TCErrorMessage "Function types do not support rounding operations."
+
+  -- Round (a, b, ...) fails
+  TCon (TC (TCTuple _)) _ ->
+    Unsolvable $
+    TCErrorMessage "Tuple types do not support rounding operations."
+
+  -- Round {x : a, y : b, ...} fails
+  TRec _ ->
+    Unsolvable $
+    TCErrorMessage "Record types do not support rounding operations."
 
   _ -> Unsolved
 
@@ -281,7 +370,7 @@ solveEqInst ty = case tNoUser ty of
 
   -- Eq (a -> b) fails
   TCon (TC TCFun) [_,_] ->
-    Unsolvable $ TCErrorMessage "Comparisons may not be performed on functions."
+    Unsolvable $ TCErrorMessage "Function types do not support comparisons."
 
   -- (Eq a, Eq b) => Eq { x:a, y:b }
   TRec fs -> SolvedIf [ pEq e | e <- recordElements fs ]
@@ -307,7 +396,7 @@ solveCmpInst ty = case tNoUser ty of
 
   -- Cmp (Z n) fails
   TCon (TC TCIntMod) [_] ->
-    Unsolvable $ TCErrorMessage "Values of Z_n type cannot be compared for order"
+    Unsolvable $ TCErrorMessage "Type 'Z' does not support order comparisons."
 
   -- ValidFloat e p => Cmp (Float e p)
   TCon (TC TCFloat) [e,p] -> SolvedIf [ pValidFloat e p ]
@@ -320,7 +409,7 @@ solveCmpInst ty = case tNoUser ty of
 
   -- Cmp (a -> b) fails
   TCon (TC TCFun) [_,_] ->
-    Unsolvable $ TCErrorMessage "Comparisons may not be performed on functions."
+    Unsolvable $ TCErrorMessage "Function types do not support order comparisons."
 
   -- (Cmp a, Cmp b) => Cmp { x:a, y:b }
   TRec fs -> SolvedIf [ pCmp e | e <- recordElements fs ]
@@ -350,8 +439,30 @@ solveSignedCmpInst ty = case tNoUser ty of
   -- SignedCmp Error -> fails
   TCon (TError _ e) _ -> Unsolvable e
 
-  -- SignedCmp Bit
-  TCon (TC TCBit) [] -> Unsolvable $ TCErrorMessage "Signed comparisons may not be performed on bits"
+  -- SignedCmp Bit fails
+  TCon (TC TCBit) [] ->
+    Unsolvable $
+    TCErrorMessage "Type 'Bit' does not support signed comparisons."
+
+  -- SignedCmp Integer fails
+  TCon (TC TCInteger) [] ->
+    Unsolvable $
+    TCErrorMessage "Type 'Integer' does not support signed comparisons."
+
+  -- SignedCmp (Z n) fails
+  TCon (TC TCIntMod) [_] ->
+    Unsolvable $
+    TCErrorMessage "Type 'Z' does not support signed comparisons."
+
+  -- SignedCmp Rational fails
+  TCon (TC TCRational) [] ->
+    Unsolvable $
+    TCErrorMessage "Type 'Rational' does not support signed comparisons."
+
+  -- SignedCmp (Float e p) fails
+  TCon (TC TCFloat) [_, _] ->
+    Unsolvable $
+    TCErrorMessage "Type 'Float' does not support signed comparisons."
 
   -- SignedCmp for sequences
   TCon (TC TCSeq) [n,a] -> solveSignedCmpSeq n a
@@ -361,7 +472,8 @@ solveSignedCmpInst ty = case tNoUser ty of
 
   -- SignedCmp (a -> b) fails
   TCon (TC TCFun) [_,_] ->
-    Unsolvable $ TCErrorMessage "Signed comparisons may not be performed on functions."
+    Unsolvable $
+    TCErrorMessage "Function types do not support signed comparisons."
 
   -- (SignedCmp a, SignedCmp b) => SignedCmp { x:a, y:b }
   TRec fs -> SolvedIf [ pSignedCmp e | e <- recordElements fs ]
@@ -386,10 +498,14 @@ solveFLiteralInst numT denT rndT ty
 
       TCon (TError _ e) _ -> Unsolvable e
 
-      TCon (TC TCRational) [] -> SolvedIf []
+      TCon (TC TCRational) [] ->
+        SolvedIf [ pFin numT, pFin denT, denT >== tOne ]
 
       TCon (TC TCFloat) [e,p]
-        | Just 0    <- tIsNum rndT -> SolvedIf [ pValidFloat e p ]
+        | Just 0    <- tIsNum rndT ->
+          SolvedIf [ pValidFloat e p
+                   , pFin numT, pFin denT, denT >== tOne ]
+
         | Just _    <- tIsNum rndT
         , Just opts <- knownSupportedFloat e p
         , Just n    <- tIsNum numT

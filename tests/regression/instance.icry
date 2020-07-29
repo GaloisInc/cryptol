@@ -1,0 +1,122 @@
+:l instance.cry
+
+:t zero`{Bit}
+:t zero`{Integer}
+:t zero`{Rational}
+:t zero`{Z _}
+:t zero`{[_]_}
+:t zero`{_ -> _}
+:t zero`{()}
+:t zero`{(_, _)}
+:t zero`{{}}
+:t zero`{{x : _, y : _}}
+:t zero`{Float _ _}
+
+:t complement`{Bit}
+:t complement`{Integer}
+:t complement`{Rational}
+:t complement`{Z _}
+:t complement`{[_]_}
+:t complement`{(_ -> _)}
+:t complement`{()}
+:t complement`{(_, _)}
+:t complement`{{}}
+:t complement`{{x : _, y : _}}
+:t complement`{Float _ _}
+
+:t negate`{Bit}
+:t negate`{Integer}
+:t negate`{Rational}
+:t negate`{Z _}
+:t negate`{[_]}
+:t negate`{[_]_}
+:t negate`{(_ -> _)}
+:t negate`{()}
+:t negate`{(_, _)}
+:t negate`{{}}
+:t negate`{{x : _, y : _}}
+:t negate`{Float _ _}
+
+:t (%)`{Bit}
+:t (%)`{Integer}
+:t (%)`{Rational}
+:t (%)`{Z _}
+:t (%)`{[_]_}
+:t (%)`{(_ -> _)}
+:t (%)`{()}
+:t (%)`{(_, _)}
+:t (%)`{{}}
+:t (%)`{{x : _, y : _}}
+:t (%)`{Float _ _}
+
+:t recip`{Bit}
+:t recip`{Integer}
+:t recip`{Rational}
+:t recip`{Z _}
+:t recip`{[_]_}
+:t recip`{(_ -> _)}
+:t recip`{()}
+:t recip`{(_, _)}
+:t recip`{{}}
+:t recip`{{x : _, y : _}}
+:t recip`{Float _ _}
+
+:t floor`{Bit}
+:t floor`{Integer}
+:t floor`{Rational}
+:t floor`{Z _}
+:t floor`{[_]_}
+:t floor`{(_ -> _)}
+:t floor`{()}
+:t floor`{(_, _)}
+:t floor`{{}}
+:t floor`{{x : _, y : _}}
+:t floor`{Float _ _}
+
+:t (==)`{Bit}
+:t (==)`{Integer}
+:t (==)`{Rational}
+:t (==)`{Z _}
+:t (==)`{[_]_}
+:t (==)`{(_ -> _)}
+:t (==)`{()}
+:t (==)`{(_, _)}
+:t (==)`{{}}
+:t (==)`{{x : _, y : _}}
+:t (==)`{Float _ _}
+
+:t (<)`{Bit}
+:t (<)`{Integer}
+:t (<)`{Rational}
+:t (<)`{Z _}
+:t (<)`{[_]_}
+:t (<)`{(_ -> _)}
+:t (<)`{()}
+:t (<)`{(_, _)}
+:t (<)`{{}}
+:t (<)`{{x : _, y : _}}
+:t (<)`{Float _ _}
+
+:t (<$)`{Bit}
+:t (<$)`{Integer}
+:t (<$)`{Rational}
+:t (<$)`{Z _}
+:t (<$)`{[_]_}
+:t (<$)`{(_ -> _)}
+:t (<$)`{()}
+:t (<$)`{(_, _)}
+:t (<$)`{{}}
+:t (<$)`{{x : _, y : _}}
+:t (<$)`{Float _ _}
+
+:t number`{rep = Bit}
+:t number`{rep = Integer}
+:t number`{rep = Rational}
+:t number`{rep = Z _}
+:t number`{rep = [_]_}
+:t number`{rep = _ -> _}
+:t number`{rep = ()}
+:t number`{rep = (_, _)}
+:t number`{rep = {}}
+:t number`{rep = {x : _, y : _}}
+:t number`{rep = Float _ _}

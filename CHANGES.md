@@ -16,17 +16,17 @@
   class.  `Integral` contains the bitvector types and `Integer`.
 
   The new `Field` class contains types representing mathematical
-  fields (or types that are approximately fields). For now, it is
-  inhabited only by the new `Rational` type, but will eventually
-  contain `Real` and floating-point types. It has the operation
-  `recip` for reciprocal and `(/.)` for field division (not to be
-  confused for `(/)`, which is Euclidean integral division).
+  fields (or types that are approximately fields). It is currently
+  inhabited by the new `Rational` type, and the `Float`
+  family of types.  It will  eventually also contain the
+  `Real` type. It has the operation `recip` for reciprocal
+  and `(/.)` for field division (not to be confused for `(/)`,
+  which is Euclidean integral division).
 
   There is also a new `Round` class for types that can sensibly be
   rounded to integers.  This class has the methods `floor`, `ceiling`,
   `trunc`, `roundToEven`  and `roundAway` for performing different
-  kinds of integer rounding.  Currently `Rational` is the only member
-  of `Round`.
+  kinds of integer rounding.  `Rational` and `Float` inhabit `Round`.
 
   The type of `(^^)` is modified to be
   `{a, e} (Ring a, Integral e) => a -> e -> a`. This makes it clear
@@ -34,7 +34,7 @@
   in any ring.
 
   Finally, the `lg2`, `(/$)` and `(%$)` methods of Arith have
-  had their types specialized so operate only on bitvectors.
+  had their types specialized so they operate only on bitvectors.
 
 * Added an `Eq` class, and moved the equality operations
   from `Cmp` into `Eq`. The `Z` type becomes a member of `Eq`
@@ -233,18 +233,3 @@ pattern and the `-` and `~` operators by creating local definitions
 of functions that they expand to (issue #568).
 
 * Closed issues #498, #547, #551, #562, and #563.
-
-## Solver versions
-
-Cryptol can interact with a variety of external SMT solvers to
-support the `:prove` and `:sat` commands, and requires Z3 for its
-type checker. Many versions of these solvers will work correctly, but
-for Yices and Z3 we recommend the following specific versions.
-
-* Z3 4.7.1
-* Yices 2.6.1
-
-For Yices, this is the latest version at the time of this writing.
-For Z3, it is not, and the latest versions (4.8.x) include changes
-that cause some examples that previously succeeded to time out when
-type checking.
