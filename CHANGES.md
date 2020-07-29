@@ -18,7 +18,7 @@
   The new `Field` class contains types representing mathematical
   fields (or types that are approximately fields). It is currently
   inhabited by the new `Rational` type, and the `Float`
-  family of types.  It will  eventually also contain the 
+  family of types.  It will  eventually also contain the
   `Real` type. It has the operation `recip` for reciprocal
   and `(/.)` for field division (not to be confused for `(/)`,
   which is Euclidean integral division).
