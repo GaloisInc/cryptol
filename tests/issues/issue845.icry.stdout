@@ -1,0 +1,71 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+[warning] at issue845.cry:1:9--1:24:
+  Assuming  n to have a numeric type
+[warning] at issue845.cry:1:9--1:24:
+  Assuming  m to have a numeric type
+
+[error] at issue845.cry:2:1--2:18:
+  Failed to validate user-specified signature.
+    in the definition of 'Main::rfrac', at issue845.cry:2:1--2:6,
+    we need to show that
+      for any type m, n
+      the following constraints hold:
+        • fin n
+            arising from
+            use of expression fraction
+            at issue845.cry:2:9--2:17
+        • fin m
+            arising from
+            use of expression fraction
+            at issue845.cry:2:9--2:17
+        • n >= 1
+            arising from
+            use of expression fraction
+            at issue845.cry:2:9--2:17
+(ratio 1 2)
+
+[error] at <interactive>:1:1--1:9:
+  Unsolvable constraints:
+    • FLiteral 1 0 0 Rational
+        arising from
+        use of expression fraction
+        at <interactive>:1:1--1:9
+    • Reason: Fractions may not have 0 as the denominator.
+
+[error] at <interactive>:1:1--1:9:
+  Unsolvable constraints:
+    • FLiteral inf 2 0 Rational
+        arising from
+        use of expression fraction
+        at <interactive>:1:1--1:9
+    • Reason: Fractions may not use `inf`
+Loading module Cryptol
+Loading module Float
+0x0.8
+
+[error] at <interactive>:1:1--1:9:
+  Unsolvable constraints:
+    • FLiteral 1 0 0 Float64
+        arising from
+        use of expression fraction
+        at <interactive>:1:1--1:9
+    • Reason: Fractions may not have 0 as the denominator.
+
+[error] at <interactive>:1:1--1:9:
+  Unsolvable constraints:
+    • FLiteral inf 2 0 Float64
+        arising from
+        use of expression fraction
+        at <interactive>:1:1--1:9
+    • Reason: Fractions may not use `inf`
+0x0.2
+
+[error] at <interactive>:1:1--1:9:
+  Unsolvable constraints:
+    • FLiteral 1 10 1 (Float 3 2)
+        arising from
+        use of expression fraction
+        at <interactive>:1:1--1:9
+    • Reason: 1/10 cannot be represented in Float 3 2

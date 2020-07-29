@@ -498,10 +498,14 @@ solveFLiteralInst numT denT rndT ty
 
       TCon (TError _ e) _ -> Unsolvable e
 
-      TCon (TC TCRational) [] -> SolvedIf []
+      TCon (TC TCRational) [] ->
+        SolvedIf [ pFin numT, pFin denT, denT >== tOne ]
 
       TCon (TC TCFloat) [e,p]
-        | Just 0    <- tIsNum rndT -> SolvedIf [ pValidFloat e p ]
+        | Just 0    <- tIsNum rndT ->
+          SolvedIf [ pValidFloat e p
+                   , pFin numT, pFin denT, denT >== tOne ]
+
         | Just _    <- tIsNum rndT
         , Just opts <- knownSupportedFloat e p
         , Just n    <- tIsNum numT
