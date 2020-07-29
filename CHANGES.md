@@ -233,18 +233,3 @@ pattern and the `-` and `~` operators by creating local definitions
 of functions that they expand to (issue #568).
 
 * Closed issues #498, #547, #551, #562, and #563.
-
-## Solver versions
-
-Cryptol can interact with a variety of external SMT solvers to
-support the `:prove` and `:sat` commands, and requires Z3 for its
-type checker. Many versions of these solvers will work correctly, but
-for Yices and Z3 we recommend the following specific versions.
-
-* Z3 4.7.1
-* Yices 2.6.1
-
-For Yices, this is the latest version at the time of this writing.
-For Z3, it is not, and the latest versions (4.8.x) include changes
-that cause some examples that previously succeeded to time out when
-type checking.
