@@ -34,7 +34,7 @@
   in any ring.
 
   Finally, the `lg2`, `(/$)` and `(%$)` methods of Arith have
-  had their types specialized so operate only on bitvectors.
+  had their types specialized so they operate only on bitvectors.
 
 * Added an `Eq` class, and moved the equality operations
   from `Cmp` into `Eq`. The `Z` type becomes a member of `Eq`
