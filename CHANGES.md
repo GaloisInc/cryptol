@@ -16,17 +16,17 @@
   class.  `Integral` contains the bitvector types and `Integer`.
 
   The new `Field` class contains types representing mathematical
-  fields (or types that are approximately fields). For now, it is
-  inhabited only by the new `Rational` type, but will eventually
-  contain `Real` and floating-point types. It has the operation
-  `recip` for reciprocal and `(/.)` for field division (not to be
-  confused for `(/)`, which is Euclidean integral division).
+  fields (or types that are approximately fields). It is currently
+  inhabited by the new `Rational` type, and the `Float`
+  family of types.  It will  eventually also contain the 
+  `Real` type. It has the operation `recip` for reciprocal
+  and `(/.)` for field division (not to be confused for `(/)`,
+  which is Euclidean integral division).
 
   There is also a new `Round` class for types that can sensibly be
   rounded to integers.  This class has the methods `floor`, `ceiling`,
   `trunc`, `roundToEven`  and `roundAway` for performing different
-  kinds of integer rounding.  Currently `Rational` is the only member
-  of `Round`.
+  kinds of integer rounding.  `Rational` and `Float` inhabit `Round`.
 
   The type of `(^^)` is modified to be
   `{a, e} (Ring a, Integral e) => a -> e -> a`. This makes it clear
