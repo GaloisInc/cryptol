@@ -18,14 +18,14 @@
   The new `Field` class contains types representing mathematical
   fields (or types that are approximately fields). It is currently
   inhabited by the new `Rational` type, and the `Float`
-  family of types.  It will  eventually also contain the
+  family of types.  It will eventually also contain the
   `Real` type. It has the operation `recip` for reciprocal
   and `(/.)` for field division (not to be confused for `(/)`,
   which is Euclidean integral division).
 
   There is also a new `Round` class for types that can sensibly be
   rounded to integers.  This class has the methods `floor`, `ceiling`,
-  `trunc`, `roundToEven`  and `roundAway` for performing different
+  `trunc`, `roundToEven` and `roundAway` for performing different
   kinds of integer rounding.  `Rational` and `Float` inhabit `Round`.
 
   The type of `(^^)` is modified to be
@@ -33,7 +33,7 @@
   that the semantics are iterated multiplication, which makes sense
   in any ring.
 
-  Finally, the `lg2`, `(/$)` and `(%$)` methods of Arith have
+  Finally, the `lg2`, `(/$)` and `(%$)` methods of `Arith` have
   had their types specialized so they operate only on bitvectors.
 
 * Added an `Eq` class, and moved the equality operations
