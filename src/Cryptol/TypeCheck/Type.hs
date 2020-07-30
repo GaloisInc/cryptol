@@ -393,6 +393,18 @@ tIsIntMod ty = case tNoUser ty of
                  TCon (TC TCIntMod) [n] -> Just n
                  _                      -> Nothing
 
+tIsRational :: Type -> Bool
+tIsRational ty =
+  case tNoUser ty of
+    TCon (TC TCRational) [] -> True
+    _                       -> False
+
+tIsFloat :: Type -> Maybe (Type, Type)
+tIsFloat ty =
+  case tNoUser ty of
+    TCon (TC TCFloat) [e, p] -> Just (e, p)
+    _                        -> Nothing
+
 tIsTuple :: Type -> Maybe [Type]
 tIsTuple ty = case tNoUser ty of
                 TCon (TC (TCTuple _)) ts -> Just ts
