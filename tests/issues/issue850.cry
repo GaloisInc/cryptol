@@ -1,0 +1,14 @@
+type T = [2]Rational
+
+foo: T->T->(T,T)
+foo p q = ([0,1], zipWith (-) p q)
+
+bar: T -> T -> T
+bar p q = s1 where
+  tuples = [(p, p, q, [0,1])] # map (baz q) tuples
+  (p1,p2,s1,s2) = tuples@2
+
+baz m (p1, p2, s1, s2) =
+  if p2@0 == 0 
+  then (p1, p2, s1, s2)
+  else ( (p2, r, s2, zipWith (-) s1 q) where (q,r) = foo p1 p2)

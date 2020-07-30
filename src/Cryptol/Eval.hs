@@ -397,34 +397,47 @@ etaDelay sym msg env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
       k     -> panic "[Eval] etaDelay" ["invalid kind on type abstraction", show k]
 
   go tp x | isReady sym x = x >>= \case
-      VBit _     -> x
-      VInteger _ -> x
-      VWord _ _  -> x
-      VSeq n xs
-        | TVSeq _nt el <- tp
-        -> return $ VSeq n $ IndexSeqMap $ \i -> go el (lookupSeqMap xs i)
+      VBit{}      -> x
+      VInteger{}  -> x
+      VWord{}     -> x
+      VRational{} -> x
+      VFloat{}    -> x
+      VSeq n xs ->
+        case tp of
+          TVSeq _nt el -> return $ VSeq n $ IndexSeqMap $ \i -> go el (lookupSeqMap xs i)
+          _ -> evalPanic "type mismatch during eta-expansion" ["Expected sequence type, but got " ++ show tp]
 
-      VStream xs
-        | TVStream el <- tp
-        -> return $ VStream $ IndexSeqMap $ \i -> go el (lookupSeqMap xs i)
+      VStream xs ->
+        case tp of
+          TVStream el -> return $ VStream $ IndexSeqMap $ \i -> go el (lookupSeqMap xs i)
+          _ -> evalPanic "type mismatch during eta-expansion" ["Expected stream type, but got " ++ show tp]
 
-      VTuple xs
-        | TVTuple ts <- tp
-        -> return $ VTuple (zipWith go ts xs)
+      VTuple xs ->
+        case tp of
+          TVTuple ts | length ts == length xs -> return $ VTuple (zipWith go ts xs)
+          _ -> evalPanic "type mismatch during eta-expansion" ["Expected tuple type with " ++ show (length xs)
+                                   ++ " elements, but got " ++ show tp]
 
-      VRecord fs
-        | TVRec fts <- tp
-        -> do let res = zipRecords (\_ v t -> go t v) fs fts
-              case res of
-                Left (Left f)  -> evalPanic "type mismatch during eta-expansion" ["missing field " ++ show f]
-                Left (Right f) -> evalPanic "type mismatch during eta-expansion" ["unexpected field " ++ show f]
-                Right fs' -> return (VRecord fs')
+      VRecord fs ->
+        case tp of
+          TVRec fts ->
+            do let res = zipRecords (\_ v t -> go t v) fs fts
+               case res of
+                 Left (Left f)  -> evalPanic "type mismatch during eta-expansion" ["missing field " ++ show f]
+                 Left (Right f) -> evalPanic "type mismatch during eta-expansion" ["unexpected field " ++ show f]
+                 Right fs' -> return (VRecord fs')
+          _ -> evalPanic "type mismatch during eta-expansion" ["Expected record type, but got " ++ show tp]
 
-      VFun f
-        | TVFun _t1 t2 <- tp
-        -> return $ VFun $ \a -> go t2 (f a)
+      VFun f ->
+        case tp of
+          TVFun _t1 t2 -> return $ VFun $ \a -> go t2 (f a)
+          _ -> evalPanic "type mismatch during eta-expansion" ["Expected function type but got " ++ show tp]
 
-      _ -> evalPanic "type mismatch during eta-expansion" []
+      VPoly{} ->
+        evalPanic "type mismatch during eta-expansion" ["Encountered polymorphic value"]
+
+      VNumPoly{} ->
+        evalPanic "type mismatch during eta-expansion" ["Encountered numeric polymorphic value"]
 
   go tp v =
     case tp of
