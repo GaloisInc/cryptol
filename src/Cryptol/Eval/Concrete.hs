@@ -24,7 +24,7 @@ module Cryptol.Eval.Concrete
   , toExpr
   ) where
 
-import Control.Monad (join,guard,zipWithM,mzero)
+import Control.Monad (join, guard, zipWithM)
 import Data.Bits (Bits(..))
 import Data.Ratio(numerator,denominator)
 import MonadLib( ChoiceT, findOne, lift )
@@ -55,8 +55,6 @@ import Cryptol.Utils.RecordMap
 
 -- | Given an expected type, returns an expression that evaluates to
 -- this value, if we can determine it.
---
--- XXX: View patterns would probably clean up this definition a lot.
 toExpr :: PrimMap -> AST.Type -> Value -> Eval (Maybe AST.Expr)
 toExpr prims t0 v0 = findOne (go t0 v0)
   where
@@ -65,45 +63,47 @@ toExpr prims t0 v0 = findOne (go t0 v0)
 
 
   go :: AST.Type -> Value -> ChoiceT Eval Expr
-  go ty val = case (tNoUser ty, val) of
-    (TRec tfs, VRecord vfs) -> do
-      -- NB, vfs first argument to keep their display order
-      res <- zipRecordsM (\_lbl v t -> go t =<< lift v) vfs tfs
-      case res of
-        Left _ -> mzero -- different fields
-        Right efs -> pure (ERec efs)
-    (TCon (TC (TCTuple tl)) ts, VTuple tvs) -> do
-      guard (tl == (length tvs))
-      ETuple `fmap` (zipWithM go ts =<< lift (sequence tvs))
-    (TCon (TC TCBit) [], VBit True ) -> return (prim "True")
-    (TCon (TC TCBit) [], VBit False) -> return (prim "False")
-    (TCon (TC TCInteger) [], VInteger i) ->
-      return $ ETApp (ETApp (prim "number") (tNum i)) ty
-    (TCon (TC TCIntMod) [_n], VInteger i) ->
-      return $ ETApp (ETApp (prim "number") (tNum i)) ty
-    (TCon (TC TCRational) [], VRational (SRational n d)) ->
-      do let n' = ETApp (ETApp (prim "number") (tNum n)) (TCon (TC TCInteger) [])
-             d' = ETApp (ETApp (prim "number") (tNum d)) (TCon (TC TCInteger) [])
-         return $ EApp (EApp (prim "ratio") n') d'
-    (TCon (TC TCFloat) [eT,pT], VFloat i) ->
-      pure (floatToExpr prims eT pT (bfValue i))
-
-    (TCon (TC TCSeq) [a,b], VSeq 0 _) -> do
-      guard (a == tZero)
-      return $ EList [] b
-    (TCon (TC TCSeq) [a,b], VSeq n svs) -> do
-      guard (a == tNum n)
-      ses <- mapM (go b) =<< lift (sequence (enumerateSeqMap n svs))
-      return $ EList ses b
-    (TCon (TC TCSeq) [a,(TCon (TC TCBit) [])], VWord _ wval) -> do
-      BV w v <- lift (asWordVal Concrete =<< wval)
-      guard (a == tNum w)
-      return $ ETApp (ETApp (prim "number") (tNum v)) ty
-    (_, VStream _) -> fail "cannot construct infinite expressions"
-    (_, VFun    _) -> fail "cannot convert function values to expressions"
-    (_, VPoly   _) -> fail "cannot convert polymorphic values to expressions"
-    _ -> do doc <- lift (ppValue Concrete defaultPPOpts val)
-            panic "Cryptol.Eval.Concrete.toExpr"
+  go ty val =
+    case val of
+      VRecord vfs ->
+        do tfs <- maybe mismatch pure (tIsRec ty)
+           -- NB, vfs first argument to keep their display order
+           res <- zipRecordsM (\_lbl v t -> go t =<< lift v) vfs tfs
+           case res of
+             Left _ -> mismatch -- different fields
+             Right efs -> pure (ERec efs)
+      VTuple tvs ->
+        do ts <- maybe mismatch pure (tIsTuple ty)
+           guard (length ts == length tvs)
+           ETuple <$> (zipWithM go ts =<< lift (sequence tvs))
+      VBit b ->
+        pure (prim (if b then "True" else "False"))
+      VInteger i ->
+        -- This works uniformly for values of type Integer or Z n
+        pure $ ETApp (ETApp (prim "number") (tNum i)) ty
+      VRational (SRational n d) ->
+        do let n' = ETApp (ETApp (prim "number") (tNum n)) tInteger
+           let d' = ETApp (ETApp (prim "number") (tNum d)) tInteger
+           pure $ EApp (EApp (prim "ratio") n') d'
+      VFloat i ->
+        do (eT, pT) <- maybe mismatch pure (tIsFloat ty)
+           pure (floatToExpr prims eT pT (bfValue i))
+      VSeq n svs ->
+        do (_a, b) <- maybe mismatch pure (tIsSeq ty)
+           ses <- traverse (go b) =<< lift (sequence (enumerateSeqMap n svs))
+           pure $ EList ses b
+      VWord _ wval ->
+        do BV _ v <- lift (asWordVal Concrete =<< wval)
+           pure $ ETApp (ETApp (prim "number") (tNum v)) ty
+      VStream _  -> fail "cannot construct infinite expressions"
+      VFun _     -> fail "cannot convert function values to expressions"
+      VPoly _    -> fail "cannot convert polymorphic values to expressions"
+      VNumPoly _ -> fail "cannot convert polymorphic values to expressions"
+    where
+      mismatch :: forall a. ChoiceT Eval a
+      mismatch =
+        do doc <- lift (ppValue Concrete defaultPPOpts val)
+           panic "Cryptol.Eval.Concrete.toExpr"
              ["type mismatch:"
              , pretty ty
              , render doc
