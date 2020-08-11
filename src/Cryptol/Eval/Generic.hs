@@ -1407,9 +1407,18 @@ assertIndexInBounds ::
   Either (SInteger sym) (WordValue sym) {- ^ Index value -} ->
   SEval sym ()
 
--- Can't index out of bounds for an infinite sequence
-assertIndexInBounds _sym Inf _ =
-  return ()
+-- Bitvectors can't index out of bounds for an infinite sequence
+assertIndexInBounds _sym Inf (Right _) = return ()
+
+-- All nonnegative integers are in bounds for an infinite sequence
+assertIndexInBounds sym Inf (Left idx) =
+  do ppos <- bitComplement sym =<< intLessThan sym idx =<< integerLit sym 0
+     assertSideCondition sym ppos (InvalidIndex (integerAsLit sym idx))
+
+-- If the index is concrete, test it directly
+assertIndexInBounds sym (Nat n) (Left idx)
+  | Just i <- integerAsLit sym idx
+  = unless (0 < i && i < n) (raiseError sym (InvalidIndex (Just i)))
 
 -- Can't index out of bounds for a sequence that is
 -- longer than the expressible index values
@@ -1418,20 +1427,17 @@ assertIndexInBounds sym (Nat n) (Right idx)
   = return ()
 
 -- If the index is concrete, test it directly
-assertIndexInBounds sym (Nat n) (Left idx)
-  | Just i <- integerAsLit sym idx
-  = unless (i < n) (raiseError sym (InvalidIndex (Just i)))
-
--- If the index is concrete, test it directly
 assertIndexInBounds sym (Nat n) (Right (WordVal idx))
   | Just (_w,i) <- wordAsLit sym idx
   = unless (i < n) (raiseError sym (InvalidIndex (Just i)))
 
 -- If the index is an integer, test that it
--- is less than the concrete value of n.
+-- is nonnegative and less than the concrete value of n.
 assertIndexInBounds sym (Nat n) (Left idx) =
   do n' <- integerLit sym n
-     p <- intLessThan sym idx n'
+     ppos <- bitComplement sym =<< intLessThan sym idx =<< integerLit sym 0
+     pn <- intLessThan sym idx n'
+     p <- bitAnd sym ppos pn
      assertSideCondition sym p (InvalidIndex Nothing)
 
 -- If the index is a packed word, test that it
