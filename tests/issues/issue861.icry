@@ -1,0 +1,31 @@
+:l issue861.cry
+
+:set tests=1000
+
+:check atXis0`{4, Char, Integer}
+
+let xs = [0,1,2] : [3]Integer
+
+xs@0
+xs@1
+xs@2
+xs@3
+xs@(-1)
+
+xs!0
+xs!1
+xs!2
+xs!3
+xs!(-1)
+
+update xs 0 5
+update xs 1 5
+update xs 2 5
+update xs 3 5
+update xs (-1) 5
+
+updateEnd xs 0 5
+updateEnd xs 1 5
+updateEnd xs 2 5
+updateEnd xs 3 5
+updateEnd xs (-1) 5

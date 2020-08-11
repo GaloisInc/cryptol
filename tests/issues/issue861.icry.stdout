@@ -1,0 +1,33 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+Using random testing.
+Testing... Passed 1000 tests.
+0
+1
+2
+
+invalid sequence index: 3
+
+invalid sequence index: -1
+2
+1
+0
+
+invalid sequence index: 3
+
+invalid sequence index: -1
+[5, 1, 2]
+[0, 5, 2]
+[0, 1, 5]
+
+invalid sequence index: 3
+
+invalid sequence index: -1
+[0, 1, 5]
+[0, 5, 2]
+[5, 1, 2]
+
+invalid sequence index: 3
+
+invalid sequence index: -1
