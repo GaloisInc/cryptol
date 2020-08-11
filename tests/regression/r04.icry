@@ -1,2 +1,2 @@
 :set ascii=on
-if 1 <= 9 /\ 9 >= 1 /\ 1 < 9 /\ 9 > 1 /\ 1 == 1 then "comparisons good" else "comparisons bad "
+if 1 <= 9 /\ 9 >= 1 /\ 1 < 9 /\ 9 > 1 /\ 1 == 1 then "comparisons good" else "comparisons bad " : [_][8]

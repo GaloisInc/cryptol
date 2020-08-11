@@ -1,6 +1,6 @@
 Loading module Cryptol
 Counterexample
-(\x -> assert x "asdf" "asdf") False ~> ERROR
+(\x -> assert x "asdf" "asdf" : [_][8]) False ~> ERROR
 Counterexample
 (\(x : [4]) -> [0 .. 14] @ x == x) 0xf ~> ERROR
 Counterexample
