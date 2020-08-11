@@ -1,8 +1,3 @@
-:l issue861.cry
-
-:set tests=1000
-
-:check atXis0`{4, Char, Integer}
 
 let xs = [0,1,2] : [3]Integer
 

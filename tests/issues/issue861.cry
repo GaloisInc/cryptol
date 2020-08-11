@@ -1,6 +1,0 @@
-atXis0:
-    {n, a, w}
-    (fin n, Eq a, Zero a, Cmp w, Integral w, Literal n w) =>
-    [n]a -> w -> Bit
-property atXis0 seq i =
-    zero == seq ==> i < `n ==> seq @ i == zero
