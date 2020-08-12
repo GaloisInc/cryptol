@@ -272,21 +272,21 @@ wordValueSize _ (LargeBitsVal n _) = n
 -- | Select an individual bit from a word value
 indexWordValue :: Backend sym => sym -> WordValue sym -> Integer -> SEval sym (SBit sym)
 indexWordValue sym (WordVal w) idx
-   | idx < wordLen sym w = wordBit sym w idx
+   | 0 <= idx && idx < wordLen sym w = wordBit sym w idx
    | otherwise = invalidIndex sym idx
 indexWordValue sym (LargeBitsVal n xs) idx
-   | idx < n   = fromVBit <$> lookupSeqMap xs idx
+   | 0 <= idx && idx < n = fromVBit <$> lookupSeqMap xs idx
    | otherwise = invalidIndex sym idx
 
 -- | Produce a new 'WordValue' from the one given by updating the @i@th bit with the
 --   given bit value.
 updateWordValue :: Backend sym => sym -> WordValue sym -> Integer -> SEval sym (SBit sym) -> SEval sym (WordValue sym)
 updateWordValue sym (WordVal w) idx b 
-   | idx >= wordLen sym w = invalidIndex sym idx
+   | idx < 0 || idx >= wordLen sym w = invalidIndex sym idx
    | isReady sym b = WordVal <$> (wordUpdate sym w idx =<< b)
 
 updateWordValue sym wv idx b
-   | idx < wordValueSize sym wv =
+   | 0 <= idx && idx < wordValueSize sym wv =
         pure $ LargeBitsVal (wordValueSize sym wv) $ updateSeqMap (asBitsMap sym wv) idx (VBit <$> b)
    | otherwise = invalidIndex sym idx
 
