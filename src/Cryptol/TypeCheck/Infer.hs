@@ -133,12 +133,10 @@ desugarLiteral lit =
          in P.EAppT fracPrim [ arg numerator, arg denominator, rnd ]
 
        P.ECChar c ->
-         number [ ("val", P.TNum (toInteger (fromEnum c)))
-                , ("rep", tBits (8 :: Integer)) ]
+         number [ ("val", P.TNum (toInteger (fromEnum c))) ]
 
        P.ECString s ->
-          P.ETyped (P.EList [ P.ELit (P.ECChar c) | c <- s ])
-                   (P.TSeq P.TWild (P.TSeq (P.TNum 8) P.TBit))
+          P.EList [ P.ELit (P.ECChar c) | c <- s ]
 
 
 
