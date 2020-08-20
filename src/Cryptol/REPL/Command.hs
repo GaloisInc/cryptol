@@ -875,7 +875,7 @@ refEvalCmd str = do
   validEvalContext schema
   val <- liftModuleCmd (rethrowEvalError . R.evaluate expr)
   opts <- getPPValOpts
-  rPrint $ R.ppValue opts val
+  rPrint $ R.ppEValue opts val
 
 astOfCmd :: String -> REPL ()
 astOfCmd str = do
