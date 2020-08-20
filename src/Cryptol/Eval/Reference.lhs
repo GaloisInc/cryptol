@@ -86,20 +86,20 @@ are as follows:
 
 We model each (closed) Cryptol value type `t` as a complete partial order (cpo)
 *M*(`t`). The values of *M*(`t`) represent the _values_ present in the
-type `t`; we distingusish these from the _computations_ at type `t`.
-Operatinally, the difference is that computations may raise errors or cause
-nontermination when evaulated; however, values are already evaluated, and will
+type `t`; we distinguish these from the _computations_ at type `t`.
+Operationally, the difference is that computations may raise errors or cause
+nontermination when evaluated; however, values are already evaluated, and will
 not cause errors or nontermination.  Denotationally, we represent this
 difference via a monad (in the style of Moggi) called *E*.  As an
 operation on CPOs, *E* adds a new bottom element representing
-nontermination, and a collection of erroroneus values representing
+nontermination, and a collection of erroneous values representing
 various runtime error conditions.
 
 To each Cryptol expression `e : t` we assign a meaning
 *M*(`e`) in *E*(*M*(`t`)); in particular, recursive Cryptol programs of
 type `t` are modeled as least fixed points in *E*(*M*(`t`)). In other words,
 this is a domain-theoretic denotational semantics.  Note, we do not requre
-CPOs defined via *M*(`t`) to have bottome elements, which is why we must take
+CPOs defined via *M*(`t`) to have bottom elements, which is why we must take
 fixpoints in *E*. We cannot directly represent values without bottom in Haskell,
 so instead we are careful in this document only to write clearly-terminating
 functions, unless they represent computations under *E*.
@@ -110,7 +110,7 @@ Similarly, *M*(`Integer`) is a discrete cpo with values for integers,
 which we model as Haskell's `Integer`.
 
 The value cpos for lists, tuples, and records are cartesian products
-of _computations_.  For example *M*(`(a,b)`) = *E*(*M*(a)) × *E*(*M*(b)).
+of _computations_.  For example *M*(`(a,b)`) = *E*(*M*(`a`)) × *E*(*M*(`b`)).
 The cpo ordering is pointwise.  The trivial types `[0]t`,
 `()` and `{}` denote single-element cpos.  *M*(`a -> b`) is the
 continuous function space *E*(*M*(`a`)) $\to$ *E*(*M*(`b`)).
@@ -528,8 +528,8 @@ To evaluate a primitive, we look up its implementation by name in a table.
 >   | Just i <- asPrim n, Just v <- Map.lookup i primTable = v
 >   | otherwise = evalPanic "evalPrim" ["Unimplemented primitive", show n]
 
-Cryptol primitives fall into several groups, mostly delenieated
-by corresponding typeclasses
+Cryptol primitives fall into several groups, mostly delineated
+by corresponding type classes:
 
 * Literals: `True`, `False`, `number`, `ratio`
 
@@ -1152,8 +1152,8 @@ same sign as `x`. Accordingly, they are implemented with Haskell's
 Field
 -----
 
-Types that represent fields are have, in addition to the ring operations
-a recipricol operator and a field division operator (not to be
+Types that represent fields have, in addition to the ring operations,
+a reciprocal operator and a field division operator (not to be
 confused with integral division).
 
 > fieldUnary :: (Rational -> E Rational) ->
