@@ -575,7 +575,7 @@ by corresponding type classes:
 >   [ "True"       ~> VBit True
 >   , "False"      ~> VBit False
 >   , "number"     ~> vFinPoly $ \val -> pure $
->                     VPoly $ \a -> 
+>                     VPoly $ \a ->
 >                     literal val a
 >   , "fraction"   ~> vFinPoly \top -> pure $
 >                     vFinPoly \bot -> pure $
@@ -663,7 +663,7 @@ by corresponding type classes:
 >                     VFun $ \r ->
 >                       vWord n <$> appOp2 divWrap (fromSignedVWord =<< l) (fromSignedVWord =<< r)
 >   , "%$"         ~> vFinPoly $ \n -> pure $
->                     VFun $ \l -> pure $ 
+>                     VFun $ \l -> pure $
 >                     VFun $ \r ->
 >                       vWord n <$> appOp2 modWrap (fromSignedVWord =<< l) (fromSignedVWord =<< r)
 >   , ">>$"        ~> signedShiftRV
@@ -672,7 +672,7 @@ by corresponding type classes:
 >                       vWord n <$> appOp1 lg2Wrap (fromVWord =<< v)
 >   -- Rational
 >   , "ratio"      ~> VFun $ \l -> pure $
->                     VFun $ \r -> 
+>                     VFun $ \r ->
 >                     VRational <$> (appOp2 ratioOp (fromVInteger <$> l) (fromVInteger <$> r))
 >
 >   -- Z n
@@ -749,9 +749,9 @@ by corresponding type classes:
 >
 >   , "fromThenTo" ~> vFinPoly $ \first -> pure $
 >                     vFinPoly $ \next  -> pure $
->                     vFinPoly $ \_lst  -> pure $ 
+>                     vFinPoly $ \_lst  -> pure $
 >                     VPoly    $ \ty    -> pure $
->                     vFinPoly $ \len   -> 
+>                     vFinPoly $ \len   ->
 >                     let f i = literal i ty
 >                     in pure (VList (Nat len) (map f (genericTake len [first, next ..])))
 >
@@ -1377,7 +1377,7 @@ amount, but as lazy as possible in the list values.
 > rotateV :: (Integer -> [E Value] -> Integer -> [E Value]) -> Value
 > rotateV op =
 >   vFinPoly $ \n -> pure $
->   VPoly $ \ix -> pure $ 
+>   VPoly $ \ix -> pure $
 >   VPoly $ \_a -> pure $
 >   VFun $ \v -> pure $
 >   VFun $ \x ->
@@ -1527,13 +1527,13 @@ true for all supported precisions.
 >
 >    , "fpToBits"    ~> vFinPoly \e -> pure $
 >                       vFinPoly \p -> pure $
->                       VFun \fpv -> 
+>                       VFun \fpv ->
 >                         vWord (e + p) . FP.floatToBits e p . fromVFloat <$> fpv
 >
 >    , "=.="         ~> vFinPoly \_ -> pure $
 >                       vFinPoly \_ -> pure $
 >                       VFun \xv -> pure $
->                       VFun \yv -> 
+>                       VFun \yv ->
 >                        do x <- fromVFloat <$> xv
 >                           y <- fromVFloat <$> yv
 >                           pure (VBit (FP.bfCompare x y == EQ))
