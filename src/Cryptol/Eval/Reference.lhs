@@ -36,7 +36,7 @@
 > import Cryptol.TypeCheck.Solver.InfNat (Nat'(..), nAdd, nMin, nMul)
 > import Cryptol.TypeCheck.AST
 > import Cryptol.Eval.Monad (EvalError(..), PPOpts(..))
-> import Cryptol.Eval.Type (TValue(..), isTBit, evalValType, evalNumType)
+> import Cryptol.Eval.Type (TValue(..), isTBit, evalValType, evalNumType, tvSeq)
 > import Cryptol.Eval.Concrete (mkBv, ppBV, lg2)
 > import Cryptol.Eval.Concrete.FloatHelpers (BF(..))
 > import qualified Cryptol.Eval.Concrete.FloatHelpers as FP
@@ -139,9 +139,9 @@ or fail to terminate.
 
 > instance Applicative E where
 >   pure x = Value x
->   Value f <*> Value x = Value (f x)
 >   Err e   <*> _       = Err e
->   _       <*> Err e   = Err e
+>   Value _ <*> Err e   = Err e
+>   Value f <*> Value x = Value (f x)
 
 > instance Monad E where
 >   m >>= f =
@@ -220,17 +220,6 @@ Operations on Values
 > fromVFun (VFun f) = f
 > fromVFun _        = evalPanic "fromVFun" ["Expected a function"]
 >
-
- -- | Destructor for @VPoly@.
- fromVPoly :: Value -> (TValue -> E Value)
- fromVPoly (VPoly f) = f
- fromVPoly _         = evalPanic "fromVPoly" ["Expected a polymorphic value"]
-
- -- | Destructor for @VNumPoly@.
- fromVNumPoly :: Value -> (Nat' -> E Value)
- fromVNumPoly (VNumPoly f) = f
- fromVNumPoly _            = evalPanic "fromVNumPoly" ["Expected a polymorphic value"]
-
 > -- | Look up a field in a record.
 > lookupRecord :: Ident -> Value -> E Value
 > lookupRecord f v =
@@ -628,7 +617,7 @@ by corresponding type classes:
 >   , "/."         ~> binary (fieldBinary ratDiv
 >                                         (fpBin FP.bfDiv fpImplicitRound)
 >                             )
-
+>
 >   , "recip"      ~> unary (fieldUnary ratRecip fpRecip)
 >
 >   -- Round
@@ -681,52 +670,66 @@ by corresponding type classes:
 >                     VInteger . flip mod n . fromVInteger <$> x
 >
 >   -- Sequences
->   , "#"          ~> VNumPoly $ \front -> pure $
+>   , "#"          ~> vFinPoly $ \front -> pure $
 >                     VNumPoly $ \back  -> pure $
->                     VPoly $ \_elty  -> pure $
+>                     VPoly $ \elty  -> pure $
 >                     VFun $ \l -> pure $
 >                     VFun $ \r ->
->                       do ls <- fromVList <$> l
->                          rs <- fromVList <$> r
->                          pure $ VList (nAdd front back) (ls ++ rs)
+>                       pure $ generateV (nAdd (Nat front) back) $ \i ->
+>                         if i < front then
+>                           do l' <- fromVList <$> l
+>                              indexFront (Nat front) elty l' i
+>                          else
+>                           do r' <- fromVList <$> r
+>                              indexFront back elty r' (i - front)
 >
 >   , "join"       ~> VNumPoly $ \parts -> pure $
->                     VNumPoly $ \each  -> pure $
->                     VPoly $ \_a -> pure $
->                     VFun $ \xss ->
->                       case each of
->                         -- special case when the inner sequences are of length 0
->                         Nat 0 -> pure (VList (Nat 0) [])
->                         _ -> do xss'  <- fromVList <$> xss
->                                 xss'' <- traverse (fmap fromVList) xss'
->                                 pure $ VList (nMul parts each) (concat xss'')
+>                     vFinPoly $ \each  -> pure $
+>                     VPoly $ \a -> pure $
+>                     VFun $ \v ->
+>                       pure $ generateV (nMul parts (Nat each)) $ \i ->
+>                         do let (q,r) = divMod i each
+>                            xss <- fromVList <$> v
+>                            xs  <- fromVList <$> indexFront parts (TVSeq each a) xss q
+>                            indexFront (Nat each) a xs r
 >
 >   , "split"      ~> VNumPoly $ \parts -> pure $
 >                     vFinPoly $ \each  -> pure $
->                     VPoly $ \_a -> pure $
+>                     VPoly $ \a -> pure $
 >                     VFun $ \val ->
->                       do vs <- fromVList <$> val
->                          pure (VList parts (splitV parts each vs))
+>                       pure $ generateV parts $ \i ->
+>                         pure $ generateV (Nat each) $ \j ->
+>                           do vs <- fromVList <$> val
+>                              indexFront (nMul parts (Nat each)) a vs (i * each + j)
 >
 >   , "splitAt"    ~> vFinPoly $ \front -> pure $
 >                     VNumPoly $ \back -> pure $
->                     VPoly $ \_a -> pure $
+>                     VPoly $ \a -> pure $
 >                     VFun $ \v ->
->                     do (xs, ys) <- genericSplitAt front . fromVList <$> v
->                        pure (VTuple [pure (VList (Nat front) xs), pure (VList back ys)])
+>                       let xs = pure $ generateV (Nat front) $ \i ->
+>                                  do vs <- fromVList <$> v
+>                                     indexFront (Nat front) a vs i
+>                           ys = pure $ generateV back $ \i ->
+>                                  do vs <- fromVList <$> v
+>                                     indexFront back a vs (front+i)
+>                        in pure (VTuple [ xs, ys ])
 >
->   , "reverse"    ~> VNumPoly $ \n -> pure $
->                     VPoly $ \_a -> pure $
+>   , "reverse"    ~> vFinPoly $ \n -> pure $
+>                     VPoly $ \a -> pure $
 >                     VFun $ \v ->
->                       VList n . reverse . fromVList <$> v
+>                       pure $ generateV (Nat n) $ \i ->
+>                         do vs <- fromVList <$> v
+>                            indexBack (Nat n) a vs i
 >
 >   , "transpose"  ~> VNumPoly $ \rows -> pure $
 >                     VNumPoly $ \cols -> pure $
->                     VPoly $ \_a -> pure $
->                     VFun $ \xss ->
->                       do xss'  <- fromVList <$> xss
->                          xss'' <- traverse (fmap fromVList) xss'
->                          pure . VList cols . map (pure . VList rows) $ transposeV cols xss''
+>                     VPoly $ \a -> pure $
+>                     VFun $ \val ->
+>                       pure $ generateV cols $ \c ->
+>                         pure $ generateV rows $ \r ->
+>                         do xss <- fromVList <$> val
+>                            xs <- fromVList <$> indexFront rows (tvSeq cols a) xss r
+>                            indexFront cols a xs c
 >
 >   -- Shifting:
 >   , "<<"         ~> shiftV shiftLV
@@ -989,7 +992,7 @@ finite bitvectors or one of the numeric base types.
 On type `[n]`, arithmetic operators are strict in
 all input bits, as indicated by the definition of `fromVWord`. For
 example, `[error "foo", True] * 2` does not evaluate to `[True,
-False]`, but to `[error "foo", error "foo"]`.
+False]`, but to `error "foo"`.
 
 > ringNullary ::
 >    E Integer ->
@@ -1316,33 +1319,12 @@ fields are compared in alphabetical order.
 Sequences
 ---------
 
-> -- | Split a list into 'w' pieces, each of length 'k'.
-> splitV :: Nat' -> Integer -> [E Value] -> [E Value]
-> splitV w k xs =
->   case w of
->     Nat 0 -> []
->     Nat n -> pure (VList (Nat k) ys) : splitV (Nat (n - 1)) k zs
->     Inf   -> pure (VList (Nat k) ys) : splitV Inf k zs
+> generateV :: Nat' -> (Integer -> E Value) -> Value
+> generateV len f = VList len [ f i | i <- idxs ]
 >   where
->     (ys, zs) = genericSplitAt k xs
->
-> -- | Transpose a list of length-'w' lists into 'w' lists.
-> transposeV :: Nat' -> [[a]] -> [[a]]
-> transposeV w xss =
->   case w of
->     Nat 0 -> []
->     Nat n -> heads : transposeV (Nat (n - 1)) tails
->     Inf   -> heads : transposeV Inf tails
->   where
->     (heads, tails) = dest xss
->
->     -- Split a list of non-empty lists into
->     -- a list of heads and a list of tails
->     dest :: [[a]] -> ([a], [[a]])
->     dest [] = ([], [])
->     dest ([] : _) = evalPanic "transposeV" ["Expected non-empty list"]
->     dest ((y : ys) : yss) = (y : zs, ys : zss)
->       where (zs, zss) = dest yss
+>    idxs = case len of
+>             Inf   -> [ 0 .. ]
+>             Nat n -> [ 0 .. n-1 ]
 
 
 Shifting
@@ -1351,49 +1333,61 @@ Shifting
 Shift and rotate operations are strict in all bits of the shift/rotate
 amount, but as lazy as possible in the list values.
 
-> shiftV :: (Nat' -> E Value -> [E Value] -> Integer -> [E Value]) -> Value
+> shiftV :: (Nat' -> TValue -> E Value -> Integer -> Value) -> Value
 > shiftV op =
 >   VNumPoly $ \n -> pure $
 >   VPoly $ \ix -> pure $
 >   VPoly $ \a -> pure $
 >   VFun $ \v -> pure $
 >   VFun $ \x ->
->   do vs <- fromVList <$> v
->      i <- cryToInteger ix x
->      pure $ VList n (op n (pure $ zero a) vs i)
+>   do i <- cryToInteger ix x
+>      pure $ op n a v i
 >
-> shiftLV :: Nat' -> E Value -> [E Value] -> Integer -> [E Value]
-> shiftLV w z vs i =
+> shiftLV :: Nat' -> TValue -> E Value -> Integer -> Value
+> shiftLV w a v amt =
 >   case w of
->     Nat n -> genericDrop (min n i) vs ++ genericReplicate (min n i) z
->     Inf   -> genericDrop i vs
+>     Inf   -> generateV Inf $ \i ->
+>                do vs <- fromVList <$> v
+>                   indexFront Inf a vs (i + amt)
+>     Nat n -> generateV (Nat n) $ \i ->
+>                if i + amt < n then
+>                  do vs <- fromVList <$> v
+>                     indexFront (Nat n) a vs (i + amt)
+>                else
+>                  pure (zero a)
 >
-> shiftRV :: Nat' -> E Value -> [E Value] -> Integer -> [E Value]
-> shiftRV w z vs i =
->   case w of
->     Nat n -> genericReplicate (min n i) z ++ genericTake (n - min n i) vs
->     Inf   -> genericReplicate i z ++ vs
+> shiftRV :: Nat' -> TValue -> E Value -> Integer -> Value
+> shiftRV w a v amt =
+>   generateV w $ \i ->
+>     if i < amt then
+>       pure (zero a)
+>     else
+>       do vs <- fromVList <$> v
+>          indexFront w a vs (i - amt)
 >
-> rotateV :: (Integer -> [E Value] -> Integer -> [E Value]) -> Value
+> rotateV :: (Integer -> TValue -> E Value -> Integer -> E Value) -> Value
 > rotateV op =
 >   vFinPoly $ \n -> pure $
 >   VPoly $ \ix -> pure $
->   VPoly $ \_a -> pure $
+>   VPoly $ \a -> pure $
 >   VFun $ \v -> pure $
 >   VFun $ \x ->
->   do vs <- fromVList <$> v
->      i <- cryToInteger ix x
->      pure $ VList (Nat n) (op n vs i)
+>   do i <- cryToInteger ix x
+>      op n a v i
 >
-> rotateLV :: Integer -> [E Value] -> Integer -> [E Value]
-> rotateLV 0 vs _ = vs
-> rotateLV w vs i = ys ++ xs
->   where (xs, ys) = genericSplitAt (i `mod` w) vs
+> rotateLV :: Integer -> TValue -> E Value -> Integer -> E Value
+> rotateLV 0 _ v _ = v
+> rotateLV w a v amt =
+>   pure $ generateV (Nat w) $ \i ->
+>     do vs <- fromVList <$> v
+>        indexFront (Nat w) a vs ((i + amt) `mod` w)
 >
-> rotateRV :: Integer -> [E Value] -> Integer -> [E Value]
-> rotateRV 0 vs _ = vs
-> rotateRV w vs i = ys ++ xs
->   where (xs, ys) = genericSplitAt ((w - i) `mod` w) vs
+> rotateRV :: Integer -> TValue -> E Value -> Integer -> E Value
+> rotateRV 0 _ v _ = v
+> rotateRV w a v amt =
+>   pure $ generateV (Nat w) $ \i ->
+>     do vs <- fromVList <$> v
+>        indexFront (Nat w) a vs ((i - amt) `mod` w)
 >
 > signedShiftRV :: Value
 > signedShiftRV =
@@ -1401,11 +1395,13 @@ amount, but as lazy as possible in the list values.
 >   VPoly $ \ix -> pure $
 >   VFun $ \v -> pure $
 >   VFun $ \x ->
->   do vs <- fromVList <$> v
->      i <- cryToInteger ix x
->      let z = head vs
->      pure $ VList (Nat n) $
->        genericReplicate (min n i) z ++ genericTake (n - min n i) vs
+>   do amt <- cryToInteger ix x
+>      pure $ generateV (Nat n) $ \i ->
+>        do vs <- fromVList <$> v
+>           if i < amt then
+>             indexFront (Nat n) TVBit vs 0
+>           else
+>             indexFront (Nat n) TVBit vs (i - amt)
 
 Indexing
 --------
@@ -1429,43 +1425,42 @@ length of the list produces a run-time error.
 > indexFront :: Nat' -> TValue -> [E Value] -> Integer -> E Value
 > indexFront w a vs ix =
 >   case w of
->     Nat n | n <= ix -> cryError (InvalidIndex (Just ix)) a
->     _               -> genericIndex vs ix
+>     Nat n | 0 <= ix && ix < n -> genericIndex vs ix
+>     Inf   | 0 <= ix -> genericIndex vs ix
+>     _ -> cryError (InvalidIndex (Just ix)) a
 >
 > indexBack :: Nat' -> TValue -> [E Value] -> Integer -> E Value
 > indexBack w a vs ix =
 >   case w of
->     Nat n | n > ix    -> genericIndex vs (n - ix - 1)
+>     Nat n | 0 <= ix && ix < n -> genericIndex vs (n - ix - 1)
 >           | otherwise -> cryError (InvalidIndex (Just ix)) a
 >     Inf               -> evalPanic "indexBack" ["unexpected infinite sequence"]
 >
-> updatePrim :: (Nat' -> [E Value] -> Integer -> E Value -> [E Value]) -> Value
+> updatePrim :: (Nat' -> Integer -> Integer) -> Value
 > updatePrim op =
 >   VNumPoly $ \len -> pure $
->   VPoly $ \_eltTy -> pure $
+>   VPoly $ \eltTy -> pure $
 >   VPoly $ \ix -> pure $
 >   VFun $ \xs -> pure $
 >   VFun $ \idx -> pure $
 >   VFun $ \val ->
->   do vs <- fromVList <$> xs
->      i <- cryToInteger ix idx
->      if Nat i < len then
->        pure $ VList len (op len vs i val)
+>   do j <- cryToInteger ix idx
+>      if Nat j < len then
+>        pure $ generateV len $ \i ->
+>          if i == op len j then
+>            val
+>          else
+>            do xs' <- fromVList <$> xs
+>               indexFront len eltTy xs' i
 >      else
->        Err (InvalidIndex (Just i))
+>        Err (InvalidIndex (Just j))
 >
-> updateFront :: Nat' -> [E Value] -> Integer -> E Value -> [E Value]
-> updateFront _ vs i x = updateAt vs i x
+> updateFront :: Nat' -> Integer -> Integer
+> updateFront _ j = j
 >
-> updateBack :: Nat' -> [E Value] -> Integer -> E Value -> [E Value]
-> updateBack Inf _vs _i _x = evalPanic "Unexpected infinite sequence in updateEnd" []
-> updateBack (Nat n) vs i x = updateAt vs (n - i - 1) x
->
-> updateAt :: [a] -> Integer -> a -> [a]
-> updateAt []       _ _ = []
-> updateAt (_ : xs) 0 y = y : xs
-> updateAt (x : xs) i y = x : updateAt xs (i - 1) y
-
+> updateBack :: Nat' -> Integer -> Integer
+> updateBack Inf _j = evalPanic "Unexpected infinite sequence in updateEnd" []
+> updateBack (Nat n) j = n - j - 1
 
 Floating Point Numbers
 ----------------------
