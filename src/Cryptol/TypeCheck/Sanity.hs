@@ -159,13 +159,14 @@ exprSchema expr =
       do fs1 <- traverse exprType fs
          return $ tMono $ TRec fs1
 
-    ESet e x v -> do ty  <- exprType e
-                     expe <- checkHas ty x
-                     has <- exprType v
-                     unless (same expe has) $
-                        reportError $
-                          TypeMismatch "ESet" (tMono expe) (tMono has)
-                     return (tMono ty)
+    ESet _ e x v ->
+       do ty  <- exprType e
+          expe <- checkHas ty x
+          has <- exprType v
+          unless (same expe has) $
+             reportError $
+               TypeMismatch "ESet" (tMono expe) (tMono has)
+          return (tMono ty)
 
     ESel e sel -> do ty <- exprType e
                      ty1 <- checkHas ty sel

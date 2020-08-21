@@ -138,9 +138,10 @@ evalExpr sym env expr = case expr of
      e' <- eval e
      evalSel sym e' sel
 
-  ESet e sel v -> {-# SCC "evalExpr->ESet" #-}
+  ESet ty e sel v -> {-# SCC "evalExpr->ESet" #-}
     do e' <- eval e
-       evalSetSel sym e' sel (eval v)
+       let tyv = evalValType (envTypes env) ty
+       evalSetSel sym tyv e' sel (eval v)
 
   EIf c t f -> {-# SCC "evalExpr->EIf" #-} do
      b <- fromVBit <$> eval c
@@ -584,14 +585,15 @@ evalSel sym val sel = case sel of
                               , show vdoc ]
 {-# SPECIALIZE evalSetSel ::
   ConcPrims =>
-  Concrete ->
+  Concrete -> TValue ->
   GenValue Concrete -> Selector -> SEval Concrete (GenValue Concrete) -> SEval Concrete (GenValue Concrete)
   #-}
 evalSetSel :: forall sym.
   EvalPrims sym =>
   sym ->
+  TValue ->
   GenValue sym -> Selector -> SEval sym (GenValue sym) -> SEval sym (GenValue sym)
-evalSetSel sym e sel v =
+evalSetSel sym _tyv e sel v =
   case sel of
     TupleSel n _  -> setTuple n
     RecordSel n _ -> setRecord n

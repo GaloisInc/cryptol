@@ -23,8 +23,7 @@
 > import Data.Bits
 > import Data.Ratio((%))
 > import Data.List
->   (genericDrop, genericIndex, genericLength, genericReplicate, genericSplitAt,
->    genericTake, sortBy)
+>   (genericIndex, genericLength, genericReplicate, genericTake, sortBy)
 > import Data.Ord (comparing)
 > import Data.Map (Map)
 > import qualified Data.Map as Map
@@ -36,7 +35,7 @@
 > import Cryptol.TypeCheck.Solver.InfNat (Nat'(..), nAdd, nMin, nMul)
 > import Cryptol.TypeCheck.AST
 > import Cryptol.Eval.Monad (EvalError(..), PPOpts(..))
-> import Cryptol.Eval.Type (TValue(..), isTBit, evalValType, evalNumType, tvSeq)
+> import Cryptol.Eval.Type (TValue(..), isTBit, evalValType, evalNumType)
 > import Cryptol.Eval.Concrete (mkBv, ppBV, lg2)
 > import Cryptol.Eval.Concrete.FloatHelpers (BF(..))
 > import qualified Cryptol.Eval.Concrete.FloatHelpers as FP
@@ -192,13 +191,12 @@ Operations on Values
 >
 > fromVFloat :: Value -> BigFloat
 > fromVFloat = bfValue . fromVFloat'
-
+>
 > fromVFloat' :: Value -> BF
 > fromVFloat' v =
 >   case v of
 >     VFloat f -> f
 >     _ -> evalPanic "fromVFloat" [ "Expected a floating point value." ]
-
 >
 > -- | Destructor for @VList@.
 > fromVList :: Value -> [E Value]
@@ -286,7 +284,8 @@ assigns values to those variables.
 >     ETuple es     -> pure $ VTuple [ evalExpr env e | e <- es ]
 >     ERec fields   -> pure $ VRecord [ (f, evalExpr env e) | (f, e) <- canonicalFields fields ]
 >     ESel e sel    -> evalSel sel =<< evalExpr env e
->     ESet e sel v  -> evalSet sel (evalExpr env v) =<< evalExpr env e
+>     ESet ty e sel v -> evalSet (evalValType (envTypes env) ty)
+>                                (evalExpr env e) sel (evalExpr env v)
 >
 >     EIf c t f ->
 >       condValue (fromVBit <$> evalExpr env c) (evalExpr env t) (evalExpr env f)
@@ -353,34 +352,33 @@ Apply the the given selector form to the given value.
 
 Update the given value using the given selector and new value.
 
-> evalSet :: Selector -> E Value -> Value -> E Value
-> evalSet sel fval val =
->   case sel of
->     TupleSel n _  -> updTupleAt n
->     RecordSel n _ -> updRecAt n
->     ListSel n _   -> updSeqAt n
+> evalSet :: TValue -> E Value -> Selector -> E Value -> E Value
+> evalSet tyv val sel fval =
+>   case (tyv, sel) of
+>     (TVTuple ts, TupleSel n _) -> updTupleAt ts n
+>     (TVRec fs, RecordSel n _)  -> updRecAt fs n
+>     (TVSeq len _, ListSel n _)   -> updSeqAt len n
+>     (_, _) -> evalPanic "evalSet" ["type/selector mismatch", show tyv, show sel]
 >   where
->     updTupleAt n =
->       case val of
->         VTuple vs | (as,_:bs) <- splitAt n vs ->
->           pure $ VTuple (as ++ fval : bs)
->         _ -> bad "Invalid tuple upldate."
+>     updTupleAt ts n =
+>       pure $ VTuple
+>           [ if i == n then fval else
+>               do vs <- fromVTuple <$> val
+>                  genericIndex vs i
+>           | (i,_t) <- zip [0 ..] ts
+>           ]
 >
->     updRecAt n =
->       case val of
->         VRecord vs | (as, (i,_) : bs) <- break ((n==) . fst) vs ->
->           pure $ VRecord (as ++ (i,fval) : bs)
->         _ -> bad "Invalid record update."
+>     updRecAt fs n =
+>       pure $ VRecord
+>           [ (f, if f == n then fval else lookupRecord f =<< val)
+>           | (f, _t) <- canonicalFields fs
+>           ]
 >
->     updSeqAt n =
->       case val of
->         VList i vs | (as, _ : bs) <- splitAt n vs ->
->           pure $ VList i (as ++ fval : bs)
->         _ -> bad "Invalid sequence update."
->
->     bad msg = evalPanic "evalSet" [msg]
-
-
+>     updSeqAt len n =
+>       pure $ generateV (Nat len) $ \i ->
+>         if i == toInteger n then fval else
+>              do vs <- fromVList <$> val
+>                 indexFront (Nat len) vs i
 
 Conditionals
 ------------
@@ -483,25 +481,11 @@ the new bindings.
 >       bindVar (evalDecl env d) env
 >     Recursive ds ->
 >       let env' = foldr bindVar env bindings
->           bindings = map (evalDeclRecursive env') ds
+>           bindings = map (evalDecl env') ds
 >       in env'
-
-To evaluate a declaration in a non-recursive context, we need only
-evaluate the expression on the right-hand side or look up the
-appropriate primitive.
-
+>
 > evalDecl :: Env -> Decl -> (Name, E Value)
 > evalDecl env d =
->   case dDefinition d of
->     DPrim   -> (dName d, pure (evalPrim (dName d)))
->     DExpr e -> (dName d, evalExpr env e)
-
-To evaluate a declaration in a recursive context, we must perform a
-type-directed copy to build the spine of the value. This ensures that
-the definedness invariant for type `Value` will be maintained.
-
-> evalDeclRecursive :: Env -> Decl -> (Name, E Value)
-> evalDeclRecursive env d =
 >   case dDefinition d of
 >     DPrim   -> (dName d, pure (evalPrim (dName d)))
 >     DExpr e -> (dName d, evalExpr env e)
@@ -672,64 +656,64 @@ by corresponding type classes:
 >   -- Sequences
 >   , "#"          ~> vFinPoly $ \front -> pure $
 >                     VNumPoly $ \back  -> pure $
->                     VPoly $ \elty  -> pure $
+>                     VPoly $ \_elty  -> pure $
 >                     VFun $ \l -> pure $
 >                     VFun $ \r ->
 >                       pure $ generateV (nAdd (Nat front) back) $ \i ->
 >                         if i < front then
 >                           do l' <- fromVList <$> l
->                              indexFront (Nat front) elty l' i
+>                              indexFront (Nat front) l' i
 >                          else
 >                           do r' <- fromVList <$> r
->                              indexFront back elty r' (i - front)
+>                              indexFront back r' (i - front)
 >
 >   , "join"       ~> VNumPoly $ \parts -> pure $
 >                     vFinPoly $ \each  -> pure $
->                     VPoly $ \a -> pure $
+>                     VPoly $ \_a -> pure $
 >                     VFun $ \v ->
 >                       pure $ generateV (nMul parts (Nat each)) $ \i ->
 >                         do let (q,r) = divMod i each
 >                            xss <- fromVList <$> v
->                            xs  <- fromVList <$> indexFront parts (TVSeq each a) xss q
->                            indexFront (Nat each) a xs r
+>                            xs  <- fromVList <$> indexFront parts xss q
+>                            indexFront (Nat each) xs r
 >
 >   , "split"      ~> VNumPoly $ \parts -> pure $
 >                     vFinPoly $ \each  -> pure $
->                     VPoly $ \a -> pure $
+>                     VPoly $ \_a -> pure $
 >                     VFun $ \val ->
 >                       pure $ generateV parts $ \i ->
 >                         pure $ generateV (Nat each) $ \j ->
 >                           do vs <- fromVList <$> val
->                              indexFront (nMul parts (Nat each)) a vs (i * each + j)
+>                              indexFront (nMul parts (Nat each)) vs (i * each + j)
 >
 >   , "splitAt"    ~> vFinPoly $ \front -> pure $
 >                     VNumPoly $ \back -> pure $
->                     VPoly $ \a -> pure $
+>                     VPoly $ \_a -> pure $
 >                     VFun $ \v ->
 >                       let xs = pure $ generateV (Nat front) $ \i ->
 >                                  do vs <- fromVList <$> v
->                                     indexFront (Nat front) a vs i
+>                                     indexFront (nAdd (Nat front) back) vs i
 >                           ys = pure $ generateV back $ \i ->
 >                                  do vs <- fromVList <$> v
->                                     indexFront back a vs (front+i)
+>                                     indexFront (nAdd (Nat front) back) vs (front+i)
 >                        in pure (VTuple [ xs, ys ])
 >
 >   , "reverse"    ~> vFinPoly $ \n -> pure $
->                     VPoly $ \a -> pure $
+>                     VPoly $ \_a -> pure $
 >                     VFun $ \v ->
 >                       pure $ generateV (Nat n) $ \i ->
 >                         do vs <- fromVList <$> v
->                            indexBack (Nat n) a vs i
+>                            indexBack (Nat n) vs i
 >
 >   , "transpose"  ~> VNumPoly $ \rows -> pure $
 >                     VNumPoly $ \cols -> pure $
->                     VPoly $ \a -> pure $
+>                     VPoly $ \_a -> pure $
 >                     VFun $ \val ->
 >                       pure $ generateV cols $ \c ->
 >                         pure $ generateV rows $ \r ->
 >                         do xss <- fromVList <$> val
->                            xs <- fromVList <$> indexFront rows (tvSeq cols a) xss r
->                            indexFront cols a xs c
+>                            xs <- fromVList <$> indexFront rows xss r
+>                            indexFront cols xs c
 >
 >   -- Shifting:
 >   , "<<"         ~> shiftV shiftLV
@@ -785,13 +769,14 @@ by corresponding type classes:
 >                           -- executes parmap sequentially
 >                           pure $ VList n (map f' xs')
 >
->   , "error"      ~> VPoly $ \a -> pure $
+>   , "error"      ~> VPoly $ \_a -> pure $
 >                     VNumPoly $ \_ -> pure $
->                     VFun $ \_s -> cryError (UserError "error") a
->                     -- TODO: obtain error string from argument s
+>                     VFun $ \s ->
+>                       do msg <- evalString s
+>                          cryError (UserError msg)
 >
->   , "random"     ~> VPoly $ \a -> pure $
->                     VFun $ \_seed -> cryError (UserError "random: unimplemented") a
+>   , "random"     ~> VPoly $ \_a -> pure $
+>                     VFun $ \_seed -> cryError (UserError "random: unimplemented")
 >
 >   , "trace"      ~> VNumPoly $ \_n -> pure $
 >                     VPoly $ \_a -> pure $
@@ -799,12 +784,17 @@ by corresponding type classes:
 >                     VFun $ \s -> pure $
 >                     VFun $ \x -> pure $
 >                     VFun $ \y ->
->                        do _ <- s -- evaluate and ignore s
+>                        do _ <- evalString s -- evaluate and ignore s
 >                           _ <- x -- evaluate and ignore x
 >                           y
 >   ]
-
-
+>
+>
+> evalString :: E Value -> E String
+> evalString v =
+>   do cs <- fromVList <$> v
+>      ws <- mapM (fromVWord =<<) cs
+>      pure (map (toEnum . fromInteger) ws)
 >
 > unary :: (TValue -> E Value -> E Value) -> Value
 > unary f = VPoly $ \ty -> pure $
@@ -858,12 +848,13 @@ representation.
 
 > vWord :: Integer -> Integer -> Value
 > vWord w e = VList (Nat w) [ pure (VBit (testBit e (fromInteger i))) | i <- [w-1, w-2 .. 0] ]
+> -- TODO: this is a dangerous `fromInteger` that targets Haskell type Int
 
 Errors
 ------
 
-> cryError :: EvalError -> TValue -> E a
-> cryError e _ = Err e
+> cryError :: EvalError -> E a
+> cryError e = Err e
 
 Zero
 ----
@@ -1141,15 +1132,15 @@ same sign as `x`. Accordingly, they are implemented with Haskell's
 `quot` and `rem` operations.
 
 > divWrap :: Integer -> Integer -> E Integer
-> divWrap _ 0 = Err DivideByZero
+> divWrap _ 0 = cryError DivideByZero
 > divWrap x y = pure (x `quot` y)
 >
 > modWrap :: Integer -> Integer -> E Integer
-> modWrap _ 0 = Err DivideByZero
+> modWrap _ 0 = cryError DivideByZero
 > modWrap x y = pure (x `rem` y)
 >
 > lg2Wrap :: Integer -> E Integer
-> lg2Wrap x = if x < 0 then Err LogNegative else pure (lg2 x)
+> lg2Wrap x = if x < 0 then cryError LogNegative else pure (lg2 x)
 
 
 Field
@@ -1178,11 +1169,11 @@ confused with integral division).
 >   _ -> evalPanic "fieldBinary" [show ty ++ " is not a Field type"]
 >
 > ratDiv :: Rational -> Rational -> E Rational
-> ratDiv _ 0 = Err DivideByZero
+> ratDiv _ 0 = cryError DivideByZero
 > ratDiv x y = pure (x / y)
 >
 > ratRecip :: Rational -> E  Rational
-> ratRecip 0 = Err DivideByZero
+> ratRecip 0 = cryError DivideByZero
 > ratRecip x = pure (recip x)
 
 
@@ -1211,20 +1202,21 @@ Rational
 ----------
 
 > ratioOp :: Integer -> Integer -> E Rational
-> ratioOp _ 0 = Err DivideByZero
+> ratioOp _ 0 = cryError DivideByZero
 > ratioOp x y = pure (fromInteger x / fromInteger y)
 
 
 Comparison
 ----------
 
-Comparison primitives may be applied to any type that contains a
-finite number of bits. All such types are compared using a
-lexicographic ordering on bits, where `False` < `True`. Lists and
+Comparison primitives may be applied to any type that is constructed of
+out of base types and tuples, records and finite sequences.
+All such types are compared using a lexicographic ordering of components.
+On bits, we have `False` < `True`. Sequences and
 tuples are compared left-to-right, and record fields are compared in
 alphabetical order.
 
-Comparisons on type `Bit` are strict in both arguments. Comparisons on
+Comparisons on base types are strict in both arguments. Comparisons on
 larger types have short-circuiting behavior: A comparison involving an
 error/undefined element will only yield an error if all corresponding
 bits to the *left* of that position are equal.
@@ -1274,7 +1266,8 @@ bits to the *left* of that position are equal.
 >     GT -> pure GT
 
 Signed comparisons may be applied to any type made up of non-empty
-bitvectors. All such types are compared using a lexicographic
+bitvectors using finite sequences, tuples and records.
+All such types are compared using a lexicographic
 ordering: Lists and tuples are compared left-to-right, and record
 fields are compared in alphabetical order.
 
@@ -1348,11 +1341,11 @@ amount, but as lazy as possible in the list values.
 >   case w of
 >     Inf   -> generateV Inf $ \i ->
 >                do vs <- fromVList <$> v
->                   indexFront Inf a vs (i + amt)
+>                   indexFront Inf vs (i + amt)
 >     Nat n -> generateV (Nat n) $ \i ->
 >                if i + amt < n then
 >                  do vs <- fromVList <$> v
->                     indexFront (Nat n) a vs (i + amt)
+>                     indexFront (Nat n) vs (i + amt)
 >                else
 >                  pure (zero a)
 >
@@ -1363,31 +1356,31 @@ amount, but as lazy as possible in the list values.
 >       pure (zero a)
 >     else
 >       do vs <- fromVList <$> v
->          indexFront w a vs (i - amt)
+>          indexFront w vs (i - amt)
 >
-> rotateV :: (Integer -> TValue -> E Value -> Integer -> E Value) -> Value
+> rotateV :: (Integer -> E Value -> Integer -> E Value) -> Value
 > rotateV op =
 >   vFinPoly $ \n -> pure $
 >   VPoly $ \ix -> pure $
->   VPoly $ \a -> pure $
+>   VPoly $ \_a -> pure $
 >   VFun $ \v -> pure $
 >   VFun $ \x ->
 >   do i <- cryToInteger ix x
->      op n a v i
+>      op n v i
 >
-> rotateLV :: Integer -> TValue -> E Value -> Integer -> E Value
-> rotateLV 0 _ v _ = v
-> rotateLV w a v amt =
+> rotateLV :: Integer -> E Value -> Integer -> E Value
+> rotateLV 0 v _ = v
+> rotateLV w v amt =
 >   pure $ generateV (Nat w) $ \i ->
 >     do vs <- fromVList <$> v
->        indexFront (Nat w) a vs ((i + amt) `mod` w)
+>        indexFront (Nat w) vs ((i + amt) `mod` w)
 >
-> rotateRV :: Integer -> TValue -> E Value -> Integer -> E Value
-> rotateRV 0 _ v _ = v
-> rotateRV w a v amt =
+> rotateRV :: Integer -> E Value -> Integer -> E Value
+> rotateRV 0 v _ = v
+> rotateRV w v amt =
 >   pure $ generateV (Nat w) $ \i ->
 >     do vs <- fromVList <$> v
->        indexFront (Nat w) a vs ((i - amt) `mod` w)
+>        indexFront (Nat w) vs ((i - amt) `mod` w)
 >
 > signedShiftRV :: Value
 > signedShiftRV =
@@ -1399,47 +1392,47 @@ amount, but as lazy as possible in the list values.
 >      pure $ generateV (Nat n) $ \i ->
 >        do vs <- fromVList <$> v
 >           if i < amt then
->             indexFront (Nat n) TVBit vs 0
+>             indexFront (Nat n) vs 0
 >           else
->             indexFront (Nat n) TVBit vs (i - amt)
+>             indexFront (Nat n) vs (i - amt)
 
 Indexing
 --------
 
-Indexing operations are strict in all index bits, but as lazy as
+Indexing and update operations are strict in all index bits, but as lazy as
 possible in the list values. An index greater than or equal to the
 length of the list produces a run-time error.
 
 > -- | Indexing operations that return one element.
-> indexPrimOne :: (Nat' -> TValue -> [E Value] -> Integer -> E Value) -> Value
+> indexPrimOne :: (Nat' -> [E Value] -> Integer -> E Value) -> Value
 > indexPrimOne op =
 >   VNumPoly $ \n -> pure $
->   VPoly $ \a -> pure $
+>   VPoly $ \_a -> pure $
 >   VPoly $ \ix -> pure $
 >   VFun $ \l -> pure $
 >   VFun $ \r ->
 >   do vs <- fromVList <$> l
 >      i <- cryToInteger ix r
->      op n a vs i
+>      op n vs i
 >
-> indexFront :: Nat' -> TValue -> [E Value] -> Integer -> E Value
-> indexFront w a vs ix =
+> indexFront :: Nat' -> [E Value] -> Integer -> E Value
+> indexFront w vs ix =
 >   case w of
 >     Nat n | 0 <= ix && ix < n -> genericIndex vs ix
 >     Inf   | 0 <= ix -> genericIndex vs ix
->     _ -> cryError (InvalidIndex (Just ix)) a
+>     _ -> cryError (InvalidIndex (Just ix))
 >
-> indexBack :: Nat' -> TValue -> [E Value] -> Integer -> E Value
-> indexBack w a vs ix =
+> indexBack :: Nat' -> [E Value] -> Integer -> E Value
+> indexBack w vs ix =
 >   case w of
 >     Nat n | 0 <= ix && ix < n -> genericIndex vs (n - ix - 1)
->           | otherwise -> cryError (InvalidIndex (Just ix)) a
+>           | otherwise -> cryError (InvalidIndex (Just ix))
 >     Inf               -> evalPanic "indexBack" ["unexpected infinite sequence"]
 >
 > updatePrim :: (Nat' -> Integer -> Integer) -> Value
 > updatePrim op =
 >   VNumPoly $ \len -> pure $
->   VPoly $ \eltTy -> pure $
+>   VPoly $ \_eltTy -> pure $
 >   VPoly $ \ix -> pure $
 >   VFun $ \xs -> pure $
 >   VFun $ \idx -> pure $
@@ -1451,9 +1444,9 @@ length of the list produces a run-time error.
 >            val
 >          else
 >            do xs' <- fromVList <$> xs
->               indexFront len eltTy xs' i
+>               indexFront len xs' i
 >      else
->        Err (InvalidIndex (Just j))
+>        cryError (InvalidIndex (Just j))
 >
 > updateFront :: Nat' -> Integer -> Integer
 > updateFront _ j = j
@@ -1590,7 +1583,7 @@ Pretty Printing
 > ppEValue :: PPOpts -> E Value -> Doc
 > ppEValue _opts (Err e) = text (show e)
 > ppEValue opts (Value v) = ppValue opts v
-
+>
 > ppValue :: PPOpts -> Value -> Doc
 > ppValue opts val =
 >   case val of
