@@ -27,7 +27,7 @@ import System.Random.TF.Gen   (seedTFGen)
 
 import Cryptol.Eval.Backend   (Backend(..), SRational(..))
 import Cryptol.Eval.Concrete.Value
-import Cryptol.Eval.Monad     (ready,runEval,EvalOpts,Eval,EvalError(..))
+import Cryptol.Eval.Monad     (ready,runEval,Eval,EvalError(..))
 import Cryptol.Eval.Type      (TValue(..), tValTy)
 import Cryptol.Eval.Value     (GenValue(..),SeqMap(..), WordValue(..),
                                ppValue, defaultPPOpts, finiteSeqMap)
@@ -51,31 +51,29 @@ type Gen g x = Integer -> g -> (SEval x (GenValue x), g)
     the supplied value, otherwise we'll panic.
  -}
 runOneTest :: RandomGen g
-        => EvalOpts   -- ^ how to evaluate things
-        -> Value   -- ^ Function under test
+        => Value   -- ^ Function under test
         -> [Gen g Concrete] -- ^ Argument generators
         -> Integer -- ^ Size
         -> g
         -> IO (TestResult, g)
-runOneTest evOpts fun argGens sz g0 = do
+runOneTest fun argGens sz g0 = do
   let (args, g1) = foldr mkArg ([], g0) argGens
       mkArg argGen (as, g) = let (a, g') = argGen sz g in (a:as, g')
-  args' <- runEval evOpts (sequence args)
-  result <- evalTest evOpts fun args'
+  args' <- runEval (sequence args)
+  result <- evalTest fun args'
   return (result, g1)
 
 returnOneTest :: RandomGen g
-           => EvalOpts -- ^ How to evaluate things
-           -> Value    -- ^ Function to be used to calculate tests
+           => Value    -- ^ Function to be used to calculate tests
            -> [Gen g Concrete] -- ^ Argument generators
            -> Integer -- ^ Size
            -> g -- ^ Initial random state
            -> IO ([Value], Value, g) -- ^ Arguments, result, and new random state
-returnOneTest evOpts fun argGens sz g0 =
+returnOneTest fun argGens sz g0 =
   do let (args, g1) = foldr mkArg ([], g0) argGens
          mkArg argGen (as, g) = let (a, g') = argGen sz g in (a:as, g')
-     args' <- runEval evOpts (sequence args)
-     result <- runEval evOpts (go fun args')
+     args' <- runEval (sequence args)
+     result <- runEval (go fun args')
      return (args', result, g1)
    where
      go (VFun f) (v : vs) = join (go <$> (f (ready v)) <*> pure vs)
@@ -87,18 +85,17 @@ returnOneTest evOpts fun argGens sz g0 =
 -- | Return a collection of random tests.
 returnTests :: RandomGen g
          => g -- ^ The random generator state
-         -> EvalOpts -- ^ How to evaluate things
          -> [Gen g Concrete] -- ^ Generators for the function arguments
          -> Value -- ^ The function itself
          -> Int -- ^ How many tests?
          -> IO [([Value], Value)] -- ^ A list of pairs of random arguments and computed outputs
-returnTests g evo gens fun num = go gens g 0
+returnTests g gens fun num = go gens g 0
   where
     go args g0 n
       | n >= num = return []
       | otherwise =
         do let sz = toInteger (div (100 * (1 + n)) num)
-           (inputs, output, g1) <- returnOneTest evo fun args sz g0
+           (inputs, output, g1) <- returnOneTest fun args sz g0
            more <- go args g1 (n + 1)
            return ((inputs, output) : more)
 
@@ -330,11 +327,11 @@ isPass _    = False
 -- Note that this function assumes that the values come from a call to
 -- `testableType` (i.e., things are type-correct). We run in the IO
 -- monad in order to catch any @EvalError@s.
-evalTest :: EvalOpts -> Value -> [Value] -> IO TestResult
-evalTest evOpts v0 vs0 = run `X.catch` handle
+evalTest :: Value -> [Value] -> IO TestResult
+evalTest v0 vs0 = run `X.catch` handle
   where
     run = do
-      result <- runEval evOpts (go v0 vs0)
+      result <- runEval (go v0 vs0)
       if result
         then return Pass
         else return (FailFalse vs0)

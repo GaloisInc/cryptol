@@ -17,7 +17,6 @@ module Cryptol.Eval.Monad
   Eval(..)
 , runEval
 , EvalOpts(..)
-, getEvalOpts
 , PPOpts(..)
 , PPFloatFormat(..)
 , PPFloatExp(..)
@@ -91,7 +90,7 @@ data EvalOpts = EvalOpts
 -- | The monad for Cryptol evaluation.
 data Eval a
    = Ready !a
-   | Thunk !(EvalOpts -> IO a)
+   | Thunk !(IO a)
 
 data ThunkState a
   = Void !String             -- ^ This thunk has not yet been initialized
@@ -99,10 +98,6 @@ data ThunkState a
   | UnderEvaluation !ThreadId !(IO a) -- ^ This thunk is currently being evaluated
   | ForcedErr !EvalError
   | Forced !a
-
--- | Access the evaluation options.
-getEvalOpts :: Eval EvalOpts
-getEvalOpts = Thunk pure
 
 {-# INLINE delayFill #-}
 
@@ -115,8 +110,8 @@ delayFill ::
   Eval a {- ^ Backup computation to run if a tight loop is detected -} ->
   Eval (Eval a)
 delayFill (Ready x) _ = Ready (Ready x)
-delayFill (Thunk x) backup = Thunk $ \opts -> do
-  r <- newTVarIO (Unforced (x opts) (runEval opts backup))
+delayFill (Thunk x) backup = Thunk $ do
+  r <- newTVarIO (Unforced x (runEval backup))
   return $ unDelay r
 
 
@@ -127,9 +122,9 @@ evalSpark ::
   Eval a ->
   Eval (Eval a)
 evalSpark (Ready x) = Ready (Ready x)
-evalSpark (Thunk x) = Thunk $ \opts ->
-  do a <- async (x opts)
-     return (Thunk $ \_ -> wait a)
+evalSpark (Thunk x) = Thunk $
+  do a <- async x
+     return (Thunk $ wait a)
 
 
 -- | Produce a thunk value which can be filled with its associated computation
@@ -139,10 +134,10 @@ evalSpark (Thunk x) = Thunk $ \opts ->
 blackhole ::
   String {- ^ A name to associate with this thunk. -} ->
   Eval (Eval a, Eval a -> Eval ())
-blackhole msg = Thunk $ \opts ->
+blackhole msg = Thunk $
   do tv <- newTVarIO (Void msg)
      let set (Ready x) = io $ atomically (writeTVar tv (Forced x))
-         set (Thunk m) = io $ atomically (writeTVar tv (Unforced (m opts) (fail msg)))
+         set (Thunk m) = io $ atomically (writeTVar tv (Unforced m (fail msg)))
      return (unDelay tv, set)
 
 unDelay :: TVar (ThunkState a) -> Eval a
@@ -175,18 +170,18 @@ unDelay tv = io $
            Unforced work _ -> doWork work
 
 -- | Execute the given evaluation action.
-runEval :: EvalOpts -> Eval a -> IO a
-runEval _ (Ready a) = return a
-runEval opts (Thunk x) = x opts
+runEval :: Eval a -> IO a
+runEval (Ready a) = return a
+runEval (Thunk x) = x
 
 {-# INLINE evalBind #-}
 evalBind :: Eval a -> (a -> Eval b) -> Eval b
 evalBind (Ready a) f  = f a
-evalBind (Thunk x) f  = Thunk $ \opts -> x opts >>= runEval opts . f
+evalBind (Thunk x) f  = Thunk $ x >>= runEval . f
 
 instance Functor Eval where
   fmap f (Ready x) = Ready (f x)
-  fmap f (Thunk m) = Thunk $ \opts -> f <$> m opts
+  fmap f (Thunk m) = Thunk (f <$> m)
   {-# INLINE fmap #-}
 
 instance Applicative Eval where
@@ -202,17 +197,17 @@ instance Monad Eval where
   {-# INLINE (>>=) #-}
 
 instance Fail.MonadFail Eval where
-  fail x = Thunk (\_ -> fail x)
+  fail x = Thunk (fail x)
 
 instance MonadIO Eval where
   liftIO = io
 
 instance MonadFix Eval where
-  mfix f = Thunk $ \opts -> mfix (\x -> runEval opts (f x))
+  mfix f = Thunk $ mfix (\x -> runEval (f x))
 
 -- | Lift an 'IO' computation into the 'Eval' monad.
 io :: IO a -> Eval a
-io m = Thunk (\_ -> m)
+io m = Thunk m
 {-# INLINE io #-}
 
 

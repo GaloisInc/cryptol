@@ -13,7 +13,7 @@ module Cryptol.Eval.What4
   , W4Eval
   , w4Eval
   , Value
-  , evalPrim
+  , primTable
   ) where
 
 
@@ -30,10 +30,6 @@ import Cryptol.Eval.What4.Value
 import Cryptol.Eval.What4.Float(floatPrims)
 import Cryptol.Testing.Random( randomV )
 import Cryptol.Utils.Ident
-
-
-evalPrim :: W4.IsSymExprBuilder sym => sym -> PrimIdent -> Maybe (Value sym)
-evalPrim sym prim = Map.lookup prim (primTable sym)
 
 -- See also Cryptol.Prims.Eval.primTable
 primTable :: W4.IsSymExprBuilder sym => sym -> Map.Map PrimIdent (Value sym)
@@ -192,6 +188,3 @@ primTable w4sym = let sym = What4 w4sym in
          _ <- x
          y)
   ]
-
-
-

@@ -37,6 +37,7 @@ import System.IO (Handle)
 import Data.Time
 import Data.IORef
 import Data.List.NonEmpty (NonEmpty(..))
+import qualified Data.Map as Map
 import qualified Data.List.NonEmpty as NE
 import System.Exit
 
@@ -111,15 +112,15 @@ protectStack mkErr cmd modEnv =
         handler () = mkErr msg modEnv
 
 
-doEval :: MonadIO m => Eval.EvalOpts -> Eval.Eval a -> m a
-doEval evo m = liftIO $ Eval.runEval evo m
+doEval :: MonadIO m => Eval.Eval a -> m a
+doEval m = liftIO $ Eval.runEval m
 
 -- | Returns definitions, together with the value and it safety predicate.
 doW4Eval ::
   (W4.IsExprBuilder sym, MonadIO m) =>
-  sym -> Eval.EvalOpts -> W4Eval sym a -> m (W4Defs sym (W4.Pred sym, a))
-doW4Eval sym evo m =
-  do res <- liftIO $ Eval.runEval evo (w4Eval m sym)
+  sym -> W4Eval sym a -> m (W4Defs sym (W4.Pred sym, a))
+doW4Eval sym m =
+  do res <- liftIO $ Eval.runEval (w4Eval m sym)
      case w4Result res of
        W4Error err  -> liftIO (X.throwIO err)
        W4Result p x -> pure res { w4Result = (p,x) }
@@ -257,10 +258,10 @@ prepareQuery sym ProverCommand { .. } =
   simulate args =
     do let lPutStrLn = M.withLogger logPutStrLn
        when pcVerbose (lPutStrLn "Simulating...")
-       evo    <- M.getEvalOpts
        modEnv <- M.getModuleEnv
-       doW4Eval sym evo
-         do let ?evalPrim = evalPrim sym
+       doW4Eval sym
+         do let tbl = primTable sym
+            let ?evalPrim = \i -> Map.lookup i tbl
             let extDgs = allDeclGroups modEnv ++ pcExtraDecls
             env <- Eval.evalDecls (What4 sym) extDgs mempty
             v   <- Eval.evalExpr  (What4 sym) env    pcExpr
@@ -293,7 +294,7 @@ satProve solverCfg hashConsing ProverCommand {..} =
      query   <- prepareQuery sym ProverCommand { .. }
      primMap <- M.getPrimMap
      liftIO
-       do result <- runProver sym evo logData primMap query
+       do result <- runProver sym logData primMap query
           end <- getCurrentTime
           writeIORef pcProverStats (diffUTCTime end start)
           return result
@@ -313,21 +314,21 @@ satProve solverCfg hashConsing ProverCommand {..} =
       , logReason = "solver query"
       }
 
-  runProver sym evo logData primMap q =
+  runProver sym logData primMap q =
     case q of
       Left msg -> pure (Nothing, ProverError msg)
       Right (ts,args,safety,query) ->
         case pcQueryType of
           ProveQuery ->
-            singleQuery sym solverCfg evo primMap logData ts args
+            singleQuery sym solverCfg primMap logData ts args
                                                           (Just safety) query
 
           SafetyQuery ->
-            singleQuery sym solverCfg evo primMap logData ts args
+            singleQuery sym solverCfg primMap logData ts args
                                                           (Just safety) query
 
           SatQuery num ->
-            multiSATQuery sym solverCfg evo primMap logData ts args
+            multiSATQuery sym solverCfg primMap logData ts args
                                                             query num
 
 
@@ -375,7 +376,6 @@ multiSATQuery ::
   sym ~ W4.ExprBuilder t CryptolState fm =>
   sym ->
   W4ProverConfig ->
-  Eval.EvalOpts ->
   PrimMap ->
   W4.LogData ->
   [FinType] ->
@@ -383,19 +383,19 @@ multiSATQuery ::
   W4.Pred sym ->
   SatNum ->
   IO (Maybe String, ProverResult)
-multiSATQuery sym solverCfg evo primMap logData ts args query (SomeSat n) | n <= 1 =
-  singleQuery sym solverCfg evo primMap logData ts args Nothing query
+multiSATQuery sym solverCfg primMap logData ts args query (SomeSat n) | n <= 1 =
+  singleQuery sym solverCfg primMap logData ts args Nothing query
 
-multiSATQuery _sym (W4Portfolio _) _evo _primMap _logData _ts _args _query _satNum =
+multiSATQuery _sym (W4Portfolio _) _primMap _logData _ts _args _query _satNum =
   fail "What4 portfolio solver cannot be used for multi SAT queries"
 
-multiSATQuery sym (W4ProverConfig (AnAdapter adpt)) evo primMap logData ts args query satNum0 =
+multiSATQuery sym (W4ProverConfig (AnAdapter adpt)) primMap logData ts args query satNum0 =
   do pres <- W4.solver_adapter_check_sat adpt sym logData [query] $ \res ->
          case res of
            W4.Unknown -> return (Left (ProverError "Solver returned UNKNOWN"))
            W4.Unsat _ -> return (Left (ThmResult (map unFinType ts)))
            W4.Sat (evalFn,_) ->
-             do model <- computeModel evo primMap evalFn ts args
+             do model <- computeModel primMap evalFn ts args
                 blockingPred <- computeBlockingPred sym evalFn args
                 return (Right (model, blockingPred))
 
@@ -414,7 +414,7 @@ multiSATQuery sym (W4ProverConfig (AnAdapter adpt)) evo primMap logData ts args 
            W4.Unknown -> return []
            W4.Unsat _ -> return []
            W4.Sat (evalFn,_) ->
-             do model <- computeModel evo primMap evalFn ts args
+             do model <- computeModel primMap evalFn ts args
                 return [model]
 
   computeMoreModels qs satNum =
@@ -423,7 +423,7 @@ multiSATQuery sym (W4ProverConfig (AnAdapter adpt)) evo primMap logData ts args 
            W4.Unknown -> return Nothing
            W4.Unsat _ -> return Nothing
            W4.Sat (evalFn,_) ->
-             do model <- computeModel evo primMap evalFn ts args
+             do model <- computeModel primMap evalFn ts args
                 blockingPred <- computeBlockingPred sym evalFn args
                 return (Just (model, blockingPred))
 
@@ -436,7 +436,6 @@ singleQuery ::
   sym ~ W4.ExprBuilder t CryptolState fm =>
   sym ->
   W4ProverConfig ->
-  Eval.EvalOpts ->
   PrimMap ->
   W4.LogData ->
   [FinType] ->
@@ -445,8 +444,8 @@ singleQuery ::
   W4.Pred sym ->
   IO (Maybe String, ProverResult)
 
-singleQuery sym (W4Portfolio ps) evo primMap logData ts args msafe query =
-  do as <- mapM async [ singleQuery sym (W4ProverConfig p) evo primMap logData ts args msafe query
+singleQuery sym (W4Portfolio ps) primMap logData ts args msafe query =
+  do as <- mapM async [ singleQuery sym (W4ProverConfig p) primMap logData ts args msafe query
                       | p <- NE.toList ps
                       ]
      waitForResults [] as
@@ -465,13 +464,13 @@ singleQuery sym (W4Portfolio ps) evo primMap logData ts args msafe query =
           do forM_ others (\a -> X.throwTo (asyncThreadId a) ExitSuccess)
              return r
 
-singleQuery sym (W4ProverConfig (AnAdapter adpt)) evo primMap logData ts args msafe query =
+singleQuery sym (W4ProverConfig (AnAdapter adpt)) primMap logData ts args msafe query =
   do pres <- W4.solver_adapter_check_sat adpt sym logData [query] $ \res ->
          case res of
            W4.Unknown -> return (ProverError "Solver returned UNKNOWN")
            W4.Unsat _ -> return (ThmResult (map unFinType ts))
            W4.Sat (evalFn,_) ->
-             do model <- computeModel evo primMap evalFn ts args
+             do model <- computeModel primMap evalFn ts args
                 case msafe of
                   Just s ->
                     do s' <- W4.groundEval evalFn s
@@ -533,22 +532,21 @@ varBlockingPred sym evalFn v =
     VarRecord fs    -> computeBlockingPred sym evalFn (recordElements fs)
 
 computeModel ::
-  Eval.EvalOpts ->
   PrimMap ->
   W4.GroundEvalFn t ->
   [FinType] ->
   [VarShape (W4.ExprBuilder t CryptolState fm)] ->
   IO [(Type, Expr, Concrete.Value)]
-computeModel _ _ _ [] [] = return []
-computeModel evo primMap evalFn (t:ts) (v:vs) =
+computeModel _ _ [] [] = return []
+computeModel primMap evalFn (t:ts) (v:vs) =
   do v' <- varToConcreteValue evalFn v
      let t' = unFinType t
-     e <- doEval evo (Concrete.toExpr primMap t' v') >>= \case
+     e <- doEval (Concrete.toExpr primMap t' v') >>= \case
              Nothing -> panic "computeModel" ["could not compute counterexample expression"]
              Just e  -> pure e
-     zs <- computeModel evo primMap evalFn ts vs
+     zs <- computeModel primMap evalFn ts vs
      return ((t',e,v'):zs)
-computeModel _ _ _ _ _ = panic "computeModel" ["type/value list mismatch"]
+computeModel _ _ _ _ = panic "computeModel" ["type/value list mismatch"]
 
 
 data VarShape sym
