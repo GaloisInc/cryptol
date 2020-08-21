@@ -9,6 +9,7 @@
 {-# LANGUAGE Safe #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Cryptol.Eval.Monad
@@ -34,13 +35,14 @@ module Cryptol.Eval.Monad
 , typeCannotBeDemoted
 ) where
 
+import           Control.Concurrent
 import           Control.Concurrent.Async
-import           Control.DeepSeq
+import           Control.Concurrent.STM
+
 import           Control.Monad
 import qualified Control.Monad.Fail as Fail
 import           Control.Monad.Fix
 import           Control.Monad.IO.Class
-import           Data.IORef
 import           Data.Typeable (Typeable)
 import qualified Control.Exception as X
 
@@ -92,17 +94,15 @@ data Eval a
    | Thunk !(EvalOpts -> IO a)
 
 data ThunkState a
-  = Unforced        -- ^ This thunk has not yet been forced
-  | BlackHole       -- ^ This thunk is currently being evaluated
-  | Forced !(Either EvalError a)
-    -- ^ This thunk has previously been forced,
-    -- and has the given value, or evaluation resulted in an error.
-
+  = Void !String             -- ^ This thunk has not yet been initialized
+  | Unforced !(IO a) !(IO a) -- ^ This thunk has not yet been forced
+  | UnderEvaluation !ThreadId !(IO a) -- ^ This thunk is currently being evaluated
+  | ForcedErr !EvalError
+  | Forced !a
 
 -- | Access the evaluation options.
 getEvalOpts :: Eval EvalOpts
 getEvalOpts = Thunk pure
-
 
 {-# INLINE delayFill #-}
 
@@ -115,9 +115,9 @@ delayFill ::
   Eval a {- ^ Backup computation to run if a tight loop is detected -} ->
   Eval (Eval a)
 delayFill (Ready x) _ = Ready (Ready x)
-delayFill (Thunk x) retry = Thunk $ \opts -> do
-  r <- newIORef Unforced
-  return $ unDelay retry r (x opts)
+delayFill (Thunk x) backup = Thunk $ \opts -> do
+  r <- newTVarIO (Unforced (x opts) (runEval opts backup))
+  return $ unDelay r
 
 
 -- | Begin executing the given operation in a separate thread,
@@ -139,29 +139,40 @@ evalSpark (Thunk x) = Thunk $ \opts ->
 blackhole ::
   String {- ^ A name to associate with this thunk. -} ->
   Eval (Eval a, Eval a -> Eval ())
-blackhole msg = do
-  r <- io $ newIORef (fail msg)
-  let get = join (io $ readIORef r)
-  let set = io . writeIORef r
-  return (get, set)
+blackhole msg = Thunk $ \opts ->
+  do tv <- newTVarIO (Void msg)
+     let set (Ready x) = io $ atomically (writeTVar tv (Forced x))
+         set (Thunk m) = io $ atomically (writeTVar tv (Unforced (m opts) (fail msg)))
+     return (unDelay tv, set)
 
-unDelay :: Eval a -> IORef (ThunkState a) -> IO a -> Eval a
-unDelay retry r x = do
-  rval <- io $ readIORef r
-  case rval of
-    Forced val -> io (toVal val)
-    BlackHole  ->
-      retry
-    Unforced -> io $ do
-      writeIORef r BlackHole
-      val <- X.try x
-      writeIORef r (Forced val)
-      toVal val
-
-  where
-  toVal mbV = case mbV of
-                Right a -> pure a
-                Left e  -> X.throwIO e
+unDelay :: TVar (ThunkState a) -> Eval a
+unDelay tv = io $
+  readTVarIO tv >>= \case
+    Forced x -> pure x
+    ForcedErr e -> X.throwIO e
+    _ ->
+      do tid <- myThreadId
+         res <- atomically $ do
+                  res <- readTVar tv
+                  case res of
+                    Unforced _ backup -> writeTVar tv (UnderEvaluation tid backup)
+                    UnderEvaluation t _
+                      | tid == t  -> writeTVar tv (UnderEvaluation t (fail "<<loop>>"))
+                      | otherwise -> retry -- wait, if some other thread is evaualting
+                    _ -> return ()
+                  return res
+         let doWork work =
+               X.try work >>= \case
+                 Left ex -> do atomically (writeTVar tv (ForcedErr ex))
+                               X.throwIO ex
+                 Right a -> do atomically (writeTVar tv (Forced a))
+                               return a
+         case res of
+           Void msg -> evalPanic "unDelay" ["Thunk forced before it was initialized", msg]
+           Forced x -> pure x
+           ForcedErr e -> X.throwIO e
+           UnderEvaluation _ backup -> doWork backup -- this thread was already evaluating this thunk
+           Unforced work _ -> doWork work
 
 -- | Execute the given evaluation action.
 runEval :: EvalOpts -> Eval a -> IO a
@@ -195,10 +206,6 @@ instance Fail.MonadFail Eval where
 
 instance MonadIO Eval where
   liftIO = io
-
-instance NFData a => NFData (Eval a) where
-  rnf (Ready a) = rnf a
-  rnf (Thunk _) = ()
 
 instance MonadFix Eval where
   mfix f = Thunk $ \opts -> mfix (\x -> runEval opts (f x))

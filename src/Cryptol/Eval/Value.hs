@@ -205,7 +205,7 @@ memoMap x = do
 
   doEval cache i = do
     v <- lookupSeqMap x i
-    liftIO $ modifyIORef' cache (Map.insert i v)
+    liftIO $ atomicModifyIORef' cache (\m -> (Map.insert i v m, ()))
     return v
 
 -- | Apply the given evaluation function pointwise to the two given
