@@ -8,6 +8,7 @@
 
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE Safe #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -1908,6 +1909,55 @@ mergeSeqMap sym c x y =
   IndexSeqMap $ \i ->
     iteValue sym c (lookupSeqMap x i) (lookupSeqMap y i)
 
+
+
+foldlV :: Backend sym => sym -> GenValue sym
+foldlV sym =
+  ilam $ \_n ->
+  tlam $ \_a ->
+  tlam $ \_b ->
+  lam $ \f -> pure $
+  lam $ \z -> pure $
+  lam $ \v ->
+    v >>= \case
+      VSeq n m    -> go0 f z (enumerateSeqMap n m)
+      VWord _n wv -> go0 f z . map (pure . VBit) =<< (enumerateWordValue sym =<< wv)
+      _ -> panic "Cryptol.Eval.Generic.foldlV" ["Expected finite sequence"]
+  where
+  go0 _f a [] = a
+  go0 f a bs =
+    do f' <- fromVFun <$> f
+       go1 f' a bs
+
+  go1 _f a [] = a
+  go1 f a (b:bs) =
+    do f' <- fromVFun <$> (f a)
+       go1 f (f' b) bs
+
+foldl'V :: Backend sym => sym -> GenValue sym
+foldl'V sym =
+  ilam $ \_n ->
+  tlam $ \_a ->
+  tlam $ \_b ->
+  lam $ \f -> pure $
+  lam $ \z -> pure $
+  lam $ \v ->
+    v >>= \case
+      VSeq n m    -> go0 f z (enumerateSeqMap n m)
+      VWord _n wv -> go0 f z . map (pure . VBit) =<< (enumerateWordValue sym =<< wv)
+      _ -> panic "Cryptol.Eval.Generic.foldlV" ["Expected finite sequence"]
+  where
+  go0 _f a [] = a
+  go0 f a bs =
+    do f' <- fromVFun <$> f
+       a' <- a
+       go1 f' a' bs
+
+  go1 _f a [] = pure a
+  go1 f a (b:bs) =
+    do f' <- fromVFun <$> (f (pure a))
+       a' <- f' b
+       go1 f a' bs
 
 --------------------------------------------------------------------------------
 -- Experimental parallel primitives

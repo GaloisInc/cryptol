@@ -494,6 +494,9 @@ primTable  = let sym = SBV in
 
   , ("fromZ"       , fromZV sym)
 
+  , ("foldl"       , foldlV sym)
+  , ("foldl'"      , foldl'V sym)
+
   , ("parmap"      , parmapV sym)
 
     -- {at,len} (fin len) => [len][8] -> at
