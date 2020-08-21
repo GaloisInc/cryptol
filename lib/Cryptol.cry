@@ -1028,9 +1028,14 @@ map f xs = [f x | x <- xs]
  *
  * foldl (+) 0 [1,2,3] = ((0 + 1) + 2) + 3
  */
-foldl : {n, a, b} (fin n) => (a -> b -> a) -> a -> [n]b -> a
-foldl f acc xs = ys ! 0
-  where ys = [acc] # [f a x | a <- ys | x <- xs]
+primitive foldl : {n, a, b} (fin n) => (a -> b -> a) -> a -> [n]b -> a
+
+/**
+ * Functional left fold, with strict evaluation of the accumulator value.
+ *
+ * foldl' (+) 0 [1,2,3] = ((0 + 1) + 2) + 3
+ */
+primitive foldl' : {n, a, b} (fin n) => (a -> b -> a) -> a -> [n]b -> a
 
 /**
  * Functional right fold.
@@ -1038,8 +1043,18 @@ foldl f acc xs = ys ! 0
  * foldr (-) 0 [1,2,3] = 0 - (1 - (2 - 3))
  */
 foldr : {n, a, b} (fin n) => (a -> b -> b) -> b -> [n]a -> b
-foldr f acc xs = ys ! 0
-  where ys = [acc] # [f x a | a <- ys | x <- reverse xs]
+foldr f acc xs = foldl g acc (reverse xs)
+  where g b a = f a b
+
+/**
+ * Functional right fold, with strict evaluation of the accumulator value.
+ *
+ * foldr' (-) 0 [1,2,3] = 0 - (1 - (2 - 3))
+ */
+foldr' : {n, a, b} (fin n) => (a -> b -> b) -> b -> [n]a -> b
+foldr' f acc xs = foldl' g acc (reverse xs)
+  where g b a = f a b
+
 
 /**
  * Compute the sum of the values in the sequence.

@@ -298,6 +298,13 @@ primTable eOpts = let sym = Concrete in
                     updatePrim sym updateBack_word updateBack)
 
     -- Misc
+  , ("foldl"      , {-# SCC "Prelude::foldl" #-}
+                    foldlV sym)
+
+  , ("foldl'"     , {-# SCC "Prelude::foldl'" #-}
+                    foldl'V sym)
+
+
   , ("parmap"     , {-# SCC "Prelude::parmap" #-}
                     parmapV sym)
 
