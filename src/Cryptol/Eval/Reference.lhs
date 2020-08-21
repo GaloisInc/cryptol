@@ -106,7 +106,8 @@ functions, unless they represent computations under *E*.
 *M*(`Bit`) is a discrete cpo with values for `True`, `False`, which
 we simply represent in Haskell as `Bool`.
 Similarly, *M*(`Integer`) is a discrete cpo with values for integers,
-which we model as Haskell's `Integer`.
+which we model as Haskell's `Integer`.  Likewise with the other
+base types.
 
 The value cpos for lists, tuples, and records are cartesian products
 of _computations_.  For example *M*(`(a,b)`) = *E*(*M*(`a`)) × *E*(*M*(`b`)).
@@ -280,28 +281,39 @@ assigns values to those variables.
 > evalExpr env expr =
 >   case expr of
 >
->     EList es _ty  -> pure $ VList (Nat (genericLength es)) [ evalExpr env e | e <- es ]
->     ETuple es     -> pure $ VTuple [ evalExpr env e | e <- es ]
->     ERec fields   -> pure $ VRecord [ (f, evalExpr env e) | (f, e) <- canonicalFields fields ]
->     ESel e sel    -> evalSel sel =<< evalExpr env e
->     ESet ty e sel v -> evalSet (evalValType (envTypes env) ty)
->                                (evalExpr env e) sel (evalExpr env v)
+>     EList es _ty  ->
+>       pure $ VList (Nat (genericLength es)) [ evalExpr env e | e <- es ]
+>
+>     ETuple es     ->
+>       pure $ VTuple [ evalExpr env e | e <- es ]
+>
+>     ERec fields   ->
+>       pure $ VRecord [ (f, evalExpr env e) | (f, e) <- canonicalFields fields ]
+>
+>     ESel e sel    ->
+>       evalSel sel =<< evalExpr env e
+>
+>     ESet ty e sel v ->
+>       evalSet (evalValType (envTypes env) ty)
+>               (evalExpr env e) sel (evalExpr env v)
 >
 >     EIf c t f ->
 >       condValue (fromVBit <$> evalExpr env c) (evalExpr env t) (evalExpr env f)
 >
->     EComp _n _ty e branches ->
->       evalComp env e branches
+>     EComp _n _ty e branches -> evalComp env e branches
 >
 >     EVar n ->
 >       case Map.lookup n (envVars env) of
 >         Just val -> val
->         Nothing  -> evalPanic "evalExpr" ["var `" ++ show (pp n) ++ "` is not defined" ]
+>         Nothing  ->
+>           evalPanic "evalExpr" ["var `" ++ show (pp n) ++ "` is not defined" ]
 >
 >     ETAbs tv b ->
 >       case tpKind tv of
->         KType -> pure $ VPoly    $ \ty -> evalExpr (bindType (tpVar tv) (Right ty) env) b
->         KNum  -> pure $ VNumPoly $ \n  -> evalExpr (bindType (tpVar tv) (Left n) env) b
+>         KType -> pure $ VPoly $ \ty ->
+>                    evalExpr (bindType (tpVar tv) (Right ty) env) b
+>         KNum  -> pure $ VNumPoly $ \n ->
+>                    evalExpr (bindType (tpVar tv) (Left n) env) b
 >         k     -> evalPanic "evalExpr" ["Invalid kind on type abstraction", show k]
 >
 >     ETApp e ty ->
@@ -357,7 +369,7 @@ Update the given value using the given selector and new value.
 >   case (tyv, sel) of
 >     (TVTuple ts, TupleSel n _) -> updTupleAt ts n
 >     (TVRec fs, RecordSel n _)  -> updRecAt fs n
->     (TVSeq len _, ListSel n _)   -> updSeqAt len n
+>     (TVSeq len _, ListSel n _) -> updSeqAt len n
 >     (_, _) -> evalPanic "evalSet" ["type/selector mismatch", show tyv, show sel]
 >   where
 >     updTupleAt ts n =
@@ -606,20 +618,20 @@ by corresponding type classes:
 >
 >   -- Round
 >   , "floor"      ~> unary (roundUnary floor
->                               (eitherToE . FP.floatToInteger "floor" FP.ToNegInf)
->                           )
+>                      (eitherToE . FP.floatToInteger "floor" FP.ToNegInf))
+>
 >   , "ceiling"    ~> unary (roundUnary ceiling
->                               (eitherToE . FP.floatToInteger "ceiling" FP.ToPosInf)
->                           )
+>                      (eitherToE . FP.floatToInteger "ceiling" FP.ToPosInf))
+>
 >   , "trunc"      ~> unary (roundUnary truncate
->                               (eitherToE . FP.floatToInteger "trunc" FP.ToZero)
->                           )
+>                      (eitherToE . FP.floatToInteger "trunc" FP.ToZero))
+>
 >   , "roundAway"  ~> unary (roundUnary roundAwayRat
->                               (eitherToE . FP.floatToInteger "roundAway" FP.Away)
->                           )
+>                      (eitherToE . FP.floatToInteger "roundAway" FP.Away))
+>
 >   , "roundToEven"~> unary (roundUnary round
->                               (eitherToE . FP.floatToInteger "roundToEven" FP.NearEven)
->                           )
+>                      (eitherToE . FP.floatToInteger "roundToEven" FP.NearEven))
+>
 >
 >   -- Comparison
 >   , "<"          ~> binary (cmpOrder (\o -> o == LT))
@@ -634,11 +646,15 @@ by corresponding type classes:
 >   , "/$"         ~> vFinPoly $ \n -> pure $
 >                     VFun $ \l -> pure $
 >                     VFun $ \r ->
->                       vWord n <$> appOp2 divWrap (fromSignedVWord =<< l) (fromSignedVWord =<< r)
+>                       vWord n <$> appOp2 divWrap
+>                                          (fromSignedVWord =<< l)
+>                                          (fromSignedVWord =<< r)
 >   , "%$"         ~> vFinPoly $ \n -> pure $
 >                     VFun $ \l -> pure $
 >                     VFun $ \r ->
->                       vWord n <$> appOp2 modWrap (fromSignedVWord =<< l) (fromSignedVWord =<< r)
+>                       vWord n <$> appOp2 modWrap
+>                                          (fromSignedVWord =<< l)
+>                                          (fromSignedVWord =<< r)
 >   , ">>$"        ~> signedShiftRV
 >   , "lg2"        ~> vFinPoly $ \n -> pure $
 >                     VFun $ \v ->
@@ -646,7 +662,9 @@ by corresponding type classes:
 >   -- Rational
 >   , "ratio"      ~> VFun $ \l -> pure $
 >                     VFun $ \r ->
->                     VRational <$> (appOp2 ratioOp (fromVInteger <$> l) (fromVInteger <$> r))
+>                     VRational <$> appOp2 ratioOp
+>                                          (fromVInteger <$> l)
+>                                          (fromVInteger <$> r)
 >
 >   -- Z n
 >   , "fromZ"      ~> vFinPoly $ \n -> pure $
@@ -740,7 +758,8 @@ by corresponding type classes:
 >                     VPoly    $ \ty    -> pure $
 >                     vFinPoly $ \len   ->
 >                     let f i = literal i ty
->                     in pure (VList (Nat len) (map f (genericTake len [first, next ..])))
+>                     in pure (VList (Nat len)
+>                               (map f (genericTake len [first, next ..])))
 >
 >   , "infFrom"    ~> VPoly $ \ty -> pure $
 >                     VFun $ \first ->
@@ -839,7 +858,8 @@ error if any of the input bits contain an evaluation error.
 >
 > -- | Convert a list of booleans in signed big-endian format to an integer.
 > signedBitsToInteger :: [Bool] -> Integer
-> signedBitsToInteger [] = evalPanic "signedBitsToInteger" ["Bitvector has zero length"]
+> signedBitsToInteger [] =
+>   evalPanic "signedBitsToInteger" ["Bitvector has zero length"]
 > signedBitsToInteger (b0 : bs) = foldl f (if b0 then -1 else 0) bs
 >   where f x b = if b then 2 * x + 1 else 2 * x
 
@@ -847,8 +867,13 @@ Function `vWord` converts an integer back to the big-endian bitvector
 representation.
 
 > vWord :: Integer -> Integer -> Value
-> vWord w e = VList (Nat w) [ pure (VBit (testBit e (fromInteger i))) | i <- [w-1, w-2 .. 0] ]
-> -- TODO: this is a dangerous `fromInteger` that targets Haskell type Int
+> vWord w e
+>   | w > toInteger (maxBound :: Int) =
+>       evalPanic "vWord" ["Word length too large", show w]
+>   | otherwise =
+>       VList (Nat w) [ mkBit i | i <- [w-1, w-2 .. 0 ] ]
+>  where
+>    mkBit i = pure (VBit (testBit e (fromInteger i)))
 
 Errors
 ------
@@ -877,7 +902,8 @@ For functions, `zero` returns the constant function that returns
 > zero (TVSeq n ety)  = VList (Nat n) (genericReplicate n (pure (zero ety)))
 > zero (TVStream ety) = VList Inf (repeat (pure (zero ety)))
 > zero (TVTuple tys)  = VTuple (map (pure . zero) tys)
-> zero (TVRec fields) = VRecord [ (f, pure (zero fty)) | (f, fty) <- canonicalFields fields ]
+> zero (TVRec fields) = VRecord [ (f, pure (zero fty))
+>                               | (f, fty) <- canonicalFields fields ]
 > zero (TVFun _ bty)  = VFun (\_ -> pure (zero bty))
 > zero (TVAbstract{}) = evalPanic "zero" ["Abstract type not in `Zero`"]
 
@@ -894,7 +920,8 @@ Given a literal integer, construct a value of a type that can represent that lit
 >    go TVRational = pure (VRational (fromInteger i))
 >    go (TVIntMod n)
 >         | i < n = pure (VInteger i)
->         | otherwise = evalPanic "literal" ["Literal out of range for type Z " ++ show n]
+>         | otherwise = evalPanic "literal"
+>                            ["Literal out of range for type Z " ++ show n]
 >    go (TVSeq w a)
 >         | isTBit a = pure (vWord w i)
 >    go ty = evalPanic "literal" [show ty ++ " cannot represent literals"]
@@ -905,6 +932,7 @@ The rounding flag determines the behavior if the literal cannot be represented
 exactly: 0 means report and error, other numbers round to the nearest
 representable value.
 
+> -- TODO: we should probably be using the rounding mode here...
 > fraction :: Integer -> Integer -> Integer -> TValue -> E Value
 > fraction top btm _rnd ty =
 >   case ty of
@@ -920,8 +948,8 @@ Logic
 -----
 
 Bitwise logic primitives are defined by recursion over the type
-structure. On type `Bit`, we use `fmap` and `liftA2` to make these
-operations strict in all arguments. For example, `True || error "foo"`
+structure. On type `Bit`, the operations are strict in all
+arguments.  For example, `True || error "foo"`
 does not evaluate to `True`, but yields a run-time exception. On other
 types, run-time exceptions on input bits only affect the output bits
 at the same positions.
@@ -938,7 +966,8 @@ at the same positions.
 >         TVTuple etys -> VTuple . zipWith go etys . fromVTuple <$> val
 >         TVRec fields ->
 >              do val' <- val
->                 pure $ VRecord [ (f, go fty (lookupRecord f val')) | (f, fty) <- canonicalFields fields ]
+>                 pure $ VRecord [ (f, go fty (lookupRecord f val'))
+>                                | (f, fty) <- canonicalFields fields ]
 >         TVFun _ bty  -> pure $ VFun (\v -> go bty (appFun val v))
 >         TVInteger    -> evalPanic "logicUnary" ["Integer not in class Logic"]
 >         TVIntMod _   -> evalPanic "logicUnary" ["Z not in class Logic"]
@@ -953,16 +982,27 @@ at the same positions.
 >     go :: TValue -> E Value -> E Value -> E Value
 >     go ty l r =
 >       case ty of
->         TVBit        -> VBit <$> (op <$> (fromVBit <$> l) <*> (fromVBit <$> r))
->         TVSeq w ety  -> VList (Nat w) <$> (zipWith (go ety) <$> (fromVList <$> l) <*> (fromVList <$> r))
->         TVStream ety -> VList Inf <$> (zipWith (go ety) <$> (fromVList <$> l) <*> (fromVList <$> r))
->         TVTuple etys -> VTuple <$> (zipWith3 go etys <$> (fromVTuple <$> l) <*> (fromVTuple <$> r))
->         TVRec fields -> do l' <- l
->                            r' <- r
->                            pure $ VRecord
->                                 [ (f, go fty (lookupRecord f l') (lookupRecord f r'))
->                                 | (f, fty) <- canonicalFields fields
->                                 ]
+>         TVBit ->
+>           VBit <$> (op <$> (fromVBit <$> l) <*> (fromVBit <$> r))
+>         TVSeq w ety  ->
+>           VList (Nat w) <$> (zipWith (go ety) <$>
+>                                 (fromVList <$> l) <*>
+>                                 (fromVList <$> r))
+>         TVStream ety ->
+>           VList Inf <$> (zipWith (go ety) <$>
+>                              (fromVList <$> l) <*>
+>                              (fromVList <$> r))
+>         TVTuple etys ->
+>           VTuple <$> (zipWith3 go etys <$>
+>                              (fromVTuple <$> l) <*>
+>                              (fromVTuple <$> r))
+>         TVRec fields ->
+>            do l' <- l
+>               r' <- r
+>               pure $ VRecord
+>                    [ (f, go fty (lookupRecord f l') (lookupRecord f r'))
+>                    | (f, fty) <- canonicalFields fields
+>                    ]
 >         TVFun _ bty  -> pure $ VFun $ \v ->
 >                            do l' <- l
 >                               r' <- r
@@ -1054,7 +1094,8 @@ False]`, but to `error "foo"`.
 >           VTuple . zipWith go tys . fromVTuple <$> val
 >         TVRec fs ->
 >           do val' <- val
->              pure $ VRecord [ (f, go fty (lookupRecord f val')) | (f, fty) <- canonicalFields fs ]
+>              pure $ VRecord [ (f, go fty (lookupRecord f val'))
+>                             | (f, fty) <- canonicalFields fs ]
 >         TVAbstract {} ->
 >           evalPanic "arithUnary" ["Abstract type not in `Ring`"]
 
@@ -1077,22 +1118,32 @@ False]`, but to `error "foo"`.
 >         TVRational ->
 >           VRational <$> appOp2 qop (fromVRational <$> l) (fromVRational <$> r)
 >         TVFloat e p ->
->           VFloat . fpToBF e p <$> appOp2 (flop e p) (fromVFloat <$> l) (fromVFloat <$> r)
+>           VFloat . fpToBF e p <$>
+>             appOp2 (flop e p) (fromVFloat <$> l) (fromVFloat <$> r)
 >         TVArray{} ->
 >           evalPanic "arithBinary" ["Array not in class Ring"]
 >         TVSeq w a
 >           | isTBit a  -> vWord w <$> appOp2 iop (fromVWord =<< l) (fromVWord =<< r)
->           | otherwise -> VList (Nat w) <$> (zipWith (go a) <$> (fromVList <$> l) <*> (fromVList <$> r))
+>           | otherwise ->
+>                VList (Nat w) <$> (zipWith (go a) <$>
+>                                     (fromVList <$> l) <*>
+>                                     (fromVList <$> r))
 >         TVStream a ->
->           VList Inf <$> (zipWith (go a) <$> (fromVList <$> l) <*> (fromVList <$> r))
+>           VList Inf <$> (zipWith (go a) <$>
+>                            (fromVList <$> l) <*>
+>                            (fromVList <$> r))
 >         TVFun _ ety ->
 >           pure $ VFun (\x -> go ety (appFun l x) (appFun r x))
 >         TVTuple tys ->
->           VTuple <$> (zipWith3 go tys <$> (fromVTuple <$> l) <*> (fromVTuple <$> r))
+>           VTuple <$> (zipWith3 go tys <$>
+>                          (fromVTuple <$> l) <*>
+>                          (fromVTuple <$> r))
 >         TVRec fs ->
 >           do l' <- l
 >              r' <- r
->              pure $ VRecord [ (f, go fty (lookupRecord f l') (lookupRecord f r')) | (f, fty) <- canonicalFields fs ]
+>              pure $ VRecord
+>                [ (f, go fty (lookupRecord f l') (lookupRecord f r'))
+>                | (f, fty) <- canonicalFields fs ]
 >         TVAbstract {} ->
 >           evalPanic "arithBinary" ["Abstract type not in class `Ring`"]
 
@@ -1163,9 +1214,10 @@ confused with integral division).
 >    (Integer -> Integer -> BigFloat -> BigFloat -> E BigFloat) ->
 >    TValue -> E Value -> E Value -> E Value
 > fieldBinary qop flop ty l r = case ty of
->   TVRational -> VRational <$> appOp2 qop (fromVRational <$> l) (fromVRational <$> r)
->   TVFloat e p -> VFloat . fpToBF e p <$> appOp2 (flop e p)
->                                                 (fromVFloat <$> l) (fromVFloat <$> r)
+>   TVRational -> VRational <$>
+>                    appOp2 qop (fromVRational <$> l) (fromVRational <$> r)
+>   TVFloat e p -> VFloat . fpToBF e p <$>
+>                       appOp2 (flop e p) (fromVFloat <$> l) (fromVFloat <$> r)
 >   _ -> evalPanic "fieldBinary" [show ty ++ " is not a Field type"]
 >
 > ratDiv :: Rational -> Rational -> E Rational
@@ -1242,13 +1294,15 @@ bits to the *left* of that position are equal.
 >     TVArray{} ->
 >       evalPanic "lexCompare" ["invalid type"]
 >     TVSeq _w ety ->
->       lexList =<< (zipWith (lexCompare ety) <$> (fromVList <$> l) <*> (fromVList <$> r))
+>       lexList =<< (zipWith (lexCompare ety) <$>
+>                      (fromVList <$> l) <*> (fromVList <$> r))
 >     TVStream _ ->
 >       evalPanic "lexCompare" ["invalid type"]
 >     TVFun _ _ ->
 >       evalPanic "lexCompare" ["invalid type"]
 >     TVTuple etys ->
->       lexList =<< (zipWith3 lexCompare etys <$> (fromVTuple <$> l) <*> (fromVTuple <$> r))
+>       lexList =<< (zipWith3 lexCompare etys <$>
+>                         (fromVTuple <$> l) <*> (fromVTuple <$> r))
 >     TVRec fields ->
 >       do let tys = map snd (canonicalFields fields)
 >          ls <- map snd . sortBy (comparing fst) . fromVRecord <$> l
@@ -1291,15 +1345,18 @@ fields are compared in alphabetical order.
 >     TVArray{} ->
 >       evalPanic "lexSignedCompare" ["invalid type"]
 >     TVSeq _w ety
->       | isTBit ety -> compare <$> (fromSignedVWord =<< l) <*> (fromSignedVWord =<< r)
+>       | isTBit ety ->
+>           compare <$> (fromSignedVWord =<< l) <*> (fromSignedVWord =<< r)
 >       | otherwise ->
->           lexList =<< (zipWith (lexSignedCompare ety) <$> (fromVList <$> l) <*> (fromVList <$> r))
+>           lexList =<< (zipWith (lexSignedCompare ety) <$>
+>                            (fromVList <$> l) <*> (fromVList <$> r))
 >     TVStream _ ->
 >       evalPanic "lexSignedCompare" ["invalid type"]
 >     TVFun _ _ ->
 >       evalPanic "lexSignedCompare" ["invalid type"]
 >     TVTuple etys ->
->       lexList =<< (zipWith3 lexSignedCompare etys <$> (fromVTuple <$> l) <*> (fromVTuple <$> r))
+>       lexList =<< (zipWith3 lexSignedCompare etys <$>
+>                        (fromVTuple <$> l) <*> (fromVTuple <$> r))
 >     TVRec fields ->
 >       do let tys    = map snd (canonicalFields fields)
 >          ls <- map snd . sortBy (comparing fst) . fromVRecord <$> l
@@ -1593,7 +1650,8 @@ Pretty Printing
 >     VFloat fl -> text (show (FP.fpPP opts fl))
 >     VList l vs ->
 >       case l of
->         Inf -> ppList (map (ppEValue opts) (take (useInfLength opts) vs) ++ [text "..."])
+>         Inf -> ppList (map (ppEValue opts)
+>                   (take (useInfLength opts) vs) ++ [text "..."])
 >         Nat n ->
 >           -- For lists of defined bits, print the value as a numeral.
 >           case traverse isBit vs of
