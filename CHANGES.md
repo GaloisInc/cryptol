@@ -1,3 +1,15 @@
+# NEXT
+
+## Language changes
+
+* The type of `generate` which is used for `a@i` sequence definitions,
+   is generalized so that the index type can be any `Integral` type
+   large enough to index the entire array being defined.
+
+## Bug Fixes
+
+* Closed issues #848, #850, #851, #859, #861
+
 # 2.9.0
 
 ## Language changes
