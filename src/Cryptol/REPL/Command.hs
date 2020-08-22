@@ -88,6 +88,7 @@ import Cryptol.Symbolic
   )
 import qualified Cryptol.Symbolic.SBV as SBV
 import qualified Cryptol.Symbolic.What4 as W4
+import Cryptol.Version (commitShortHash,commitDirty,version)
 
 import qualified Control.Exception as X
 import Control.Monad hiding (mapM, mapM)
@@ -101,6 +102,7 @@ import Data.Function (on)
 import Data.List (intercalate, nub, sortBy, groupBy,
                                         partition, isPrefixOf,intersperse)
 import Data.Maybe (fromMaybe,mapMaybe,isNothing)
+import Data.Version (showVersion)
 import System.Environment (lookupEnv)
 import System.Exit (ExitCode(ExitSuccess))
 import System.Process (shell,createProcess,waitForProcess)
@@ -193,6 +195,9 @@ nbCommandList  =
     ""
   , CommandDescr [ ":b", ":browse" ] ["[ MODULE ]"] (ModNameArg browseCmd)
     "Display environment for all loaded modules, or for a specific module."
+    ""
+  , CommandDescr [ ":version"] [] (NoArg versionCmd)
+    "Display the version of this Cryptol executable"
     ""
   , CommandDescr [ ":?", ":help" ] ["[ TOPIC ]"] (HelpArg helpCmd)
     "Display a brief description of a function, type, or command. (e.g. :help :help)"
@@ -1068,9 +1073,16 @@ loadHelper how =
        M.InMem {} -> clearEditPath
      setDynEnv mempty
 
+versionCmd :: REPL ()
+versionCmd = rPutStrLn versionText
+  where
+  hashText | commitShortHash == "UNKNOWN" = ""
+           | otherwise = " (" ++ commitShortHash ++
+                                 (if commitDirty then ", modified)" else ")")
+  versionText = "version " ++ showVersion version ++ hashText
+
 quitCmd :: REPL ()
 quitCmd  = stop
-
 
 browseCmd :: String -> REPL ()
 browseCmd input = do
