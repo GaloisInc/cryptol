@@ -874,7 +874,7 @@ updatesEnd xs0 idxs vals = xss!0
  * Declarations of the form 'x @ i = e' are syntactic sugar for
  * 'x = generate (\i -> e)'.
  */
-generate : {n, a} (fin n, n >= 1) => (Integer -> a) -> [n]a
+generate : {n, a, ix} (fin n, n >= 1, Integral ix, Literal (n-1) ix) => (ix -> a) -> [n]a
 generate f = [ f i | i <- [0 .. n-1] ]
 
 
