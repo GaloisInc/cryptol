@@ -88,7 +88,7 @@ import Cryptol.Symbolic
   )
 import qualified Cryptol.Symbolic.SBV as SBV
 import qualified Cryptol.Symbolic.What4 as W4
-import Cryptol.Version (commitShortHash,commitDirty,version)
+import Cryptol.Version (displayVersion)
 
 import qualified Control.Exception as X
 import Control.Monad hiding (mapM, mapM)
@@ -102,7 +102,6 @@ import Data.Function (on)
 import Data.List (intercalate, nub, sortBy, groupBy,
                                         partition, isPrefixOf,intersperse)
 import Data.Maybe (fromMaybe,mapMaybe,isNothing)
-import Data.Version (showVersion)
 import System.Environment (lookupEnv)
 import System.Exit (ExitCode(ExitSuccess))
 import System.Process (shell,createProcess,waitForProcess)
@@ -1074,12 +1073,7 @@ loadHelper how =
      setDynEnv mempty
 
 versionCmd :: REPL ()
-versionCmd = rPutStrLn versionText
-  where
-  hashText | commitShortHash == "UNKNOWN" = ""
-           | otherwise = " (" ++ commitShortHash ++
-                                 (if commitDirty then ", modified)" else ")")
-  versionText = "version " ++ showVersion version ++ hashText
+versionCmd = displayVersion rPutStrLn
 
 quitCmd :: REPL ()
 quitCmd  = stop
