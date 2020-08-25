@@ -68,7 +68,6 @@ module Cryptol.Eval.Value
   , SeqMap (..)
   , lookupSeqMap
   , finiteSeqMap
-  , infiniteSeqMap
   , enumerateSeqMap
   , streamSeqMap
   , reverseSeqMap
@@ -118,34 +117,37 @@ import GHC.Generics (Generic)
 -- | A sequence map represents a mapping from nonnegative integer indices
 --   to values.  These are used to represent both finite and infinite sequences.
 data SeqMap sym
-  = IndexSeqMap  !(Integer -> SEval sym (GenValue sym))
-  | UpdateSeqMap !(Map Integer (SEval sym (GenValue sym)))
-                 !(Integer -> SEval sym (GenValue sym))
+  = GenerateSeqMap !(Integer -> SEval sym (GenValue sym))
+  | UnpackSeqMap !(SWord sym)
+  | UpdateSeqMap !(Map Integer (SEval sym (GenValue sym))) (SEval sym (SeqMap sym))
+  | JoinSeqMap !Integer (SEval sym (SeqMap sym))
+  | ConcatSeqMap !Integer (SEval sym (SeqMap sym)) (SEval sym (SeqMap sym))
+  | DropSeqMap !Integer (SEval sym (SeqMap sym))
 
-lookupSeqMap :: SeqMap sym -> Integer -> SEval sym (GenValue sym)
-lookupSeqMap (IndexSeqMap f) i = f i
-lookupSeqMap (UpdateSeqMap m f) i =
+lookupSeqMap :: Backend sym => sym -> Integer -> SeqMap sym -> SEval sym (GenValue sym)
+lookupSeqMap i (GenerateSeqMap f) = f i
+lookupSeqMap i (UnpackSeqMap w) = VBit <$> wordBit sym w i
+lookupSeqMap (UpdateSeqMap m sm) i =
   case Map.lookup i m of
     Just x  -> x
-    Nothing -> f i
+    Nothing -> lookupSeqMap i =<< sm
+lookupSeqMap i (JoinSeqMap each sm) =
+  do let (q,r) = divMod i each
+     xs <- fromVSeq <$> (lookupSeqMap q =<< sm)
+     lookupSeqMap r xs
+lookupSeqMap i (ConcatSeqMap front xs ys)
+  | i < front = lookupSeqMap i =<< xs
+  | otherwise = lookupSeqMap (i - front) =<< ys
+lookupSeqMap i (DropSeqMap front xs) i =
+  lookupSeqMap (i + front) =<< xs
 
--- | An arbitrarily-chosen number of elements where we switch from a dense
---   sequence representation of bit-level words to 'SeqMap' representation.
-largeBitSize :: Integer
-largeBitSize = 1 `shiftL` 16
 
 -- | Generate a finite sequence map from a list of values
 finiteSeqMap :: Backend sym => sym -> [SEval sym (GenValue sym)] -> SeqMap sym
 finiteSeqMap sym xs =
    UpdateSeqMap
       (Map.fromList (zip [0..] xs))
-      (invalidIndex sym)
-
--- | Generate an infinite sequence map from a stream of values
-infiniteSeqMap :: Backend sym => [SEval sym (GenValue sym)] -> SEval sym (SeqMap sym)
-infiniteSeqMap xs =
-   -- TODO: use an int-trie?
-   memoMap (IndexSeqMap $ \i -> genericIndex xs i)
+      (pure (GenerateSeqMap (invalidIndex sym)))
 
 -- | Create a finite list of length @n@ of the values from @[0..n-1]@ in
 --   the given the sequence emap.
@@ -158,22 +160,18 @@ streamSeqMap m = [ lookupSeqMap m i | i <- [0..] ]
 
 -- | Reverse the order of a finite sequence map
 reverseSeqMap :: Integer     -- ^ Size of the sequence map
-              -> SeqMap sym
-              -> SeqMap sym
-reverseSeqMap n vals = IndexSeqMap $ \i -> lookupSeqMap vals (n - 1 - i)
+              -> SEval sym (SeqMap sym)
+              -> SEval sym (SeqMap sym)
+reverseSeqMap n vals = pure $ IndexSeqMap $ \i -> lookupSeqMap (n - 1 - i) =<< valsl
 
-updateSeqMap :: SeqMap sym -> Integer -> SEval sym (GenValue sym) -> SeqMap sym
+updateSeqMap :: SEval sym (SeqMap sym) -> Integer -> SEval sym (GenValue sym) -> SeqMap sym
 updateSeqMap (UpdateSeqMap m sm) i x = UpdateSeqMap (Map.insert i x m) sm
-updateSeqMap (IndexSeqMap f) i x = UpdateSeqMap (Map.singleton i x) f
+updateSeqMap sm i x = UpdateSeqMap (Map.singleton i x) f
 
 -- | Concatenate the first @n@ values of the first sequence map onto the
 --   beginning of the second sequence map.
 concatSeqMap :: Integer -> SeqMap sym -> SeqMap sym -> SeqMap sym
-concatSeqMap n x y =
-    IndexSeqMap $ \i ->
-       if i < n
-         then lookupSeqMap x i
-         else lookupSeqMap y (i-n)
+concatSeqMap n x y = ConcatSeqMap n x y
 
 -- | Given a number @n@ and a sequence map, return two new sequence maps:
 --   the first containing the values from @[0..n-1]@ and the next containing
@@ -304,10 +302,7 @@ data GenValue sym
   | VInteger !(SInteger sym)                   -- ^ @ Integer @ or @ Z n @
   | VRational !(SRational sym)                 -- ^ @ Rational @
   | VFloat !(SFloat sym)
-  | VSeq !Integer !(SeqMap sym)                -- ^ @ [n]a   @
-                                               --   Invariant: VSeq is never a sequence of bits
-  | VWord !Integer !(SEval sym (WordValue sym))  -- ^ @ [n]Bit @
-  | VStream !(SeqMap sym)                   -- ^ @ [inf]a @
+  | VSeq !Nat' !(SeqMap sym)                   -- ^ @ [n]a   @
   | VFun (SEval sym (GenValue sym) -> SEval sym (GenValue sym)) -- ^ functions
   | VPoly (TValue -> SEval sym (GenValue sym))   -- ^ polymorphic values (kind *)
   | VNumPoly (Nat' -> SEval sym (GenValue sym))  -- ^ polymorphic values (kind #)
@@ -443,11 +438,6 @@ ilam :: Backend sym => (Integer -> GenValue sym) -> GenValue sym
 ilam f = nlam (\n -> case n of
                        Nat i -> f i
                        Inf   -> panic "ilam" [ "Unexpected `inf`" ])
-
--- | Generate a stream.
-toStream :: Backend sym => [GenValue sym] -> SEval sym (GenValue sym)
-toStream vs =
-   VStream <$> infiniteSeqMap (map pure vs)
 
 toFinSeq ::
   Backend sym =>

@@ -9,7 +9,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE Safe #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -30,8 +29,7 @@ import Data.Bits (testBit)
 import Data.Maybe (fromMaybe)
 import Data.Ratio ((%))
 
-import Cryptol.TypeCheck.AST
-import Cryptol.TypeCheck.Solver.InfNat (Nat'(..),nMul,widthInteger)
+import Cryptol.TypeCheck.Solver.InfNat (Nat'(..),nMul,widthInteger, nAdd)
 import Cryptol.Eval.Backend
 import Cryptol.Eval.Concrete.Value (Concrete(..))
 import Cryptol.Eval.Monad
@@ -39,8 +37,6 @@ import Cryptol.Eval.Type
 import Cryptol.Eval.Value
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.RecordMap
-
-
 
 {-# SPECIALIZE mkLit :: Concrete -> TValue -> Integer -> Eval (GenValue Concrete)
   #-}
@@ -775,13 +771,28 @@ valGt sym ty v1 v2 final = cmpValue sym fb fw fi fz fq ff ty v1 v2 (pure final)
   fq x y k   = lexCombine sym (rationalGreaterThan sym x y) (rationalEq sym x y) k
   ff x y k   = lexCombine sym (fpGreaterThan   sym x y) (fpEq   sym x y) k
 
+lazyBitIte :: Backend sym =>
+  sym ->
+  SEval sym (SBit sym) ->
+  SEval sym (SBit sym) ->
+  SEval sym (SBit sym) ->
+  SEval sym (SBit sym)
+lazyBitIte sym c x y =
+  do c' <- c
+     case bitAsLit sym c' of
+       Just True -> x
+       Just False -> y
+       Nothing -> mergeEval sym (iteBit sym) c'  x y
+
 {-# INLINE eqCombine #-}
 eqCombine :: Backend sym =>
   sym ->
   SEval sym (SBit sym) ->
   SEval sym (SBit sym) ->
   SEval sym (SBit sym)
-eqCombine sym eq k = join (bitAnd sym <$> eq <*> k)
+eqCombine sym eq k =
+  -- if eq then k else false
+  lazyBitIte sym eq k (pure (bitLit sym False))
 
 {-# INLINE lexCombine #-}
 lexCombine :: Backend sym =>
@@ -791,9 +802,9 @@ lexCombine :: Backend sym =>
   SEval sym (SBit sym) ->
   SEval sym (SBit sym)
 lexCombine sym cmp eq k =
-  do c <- cmp
-     e <- eq
-     bitOr sym c =<< bitAnd sym e =<< k
+  -- if cmp then true else (if eq then k else false)
+  lazyBitIte sym cmp (pure (bitLit sym True))
+    (lazyBitIte sym eq k (pure (bitLit sym False)))
 
 {-# INLINE eqV #-}
 eqV :: Backend sym => sym -> Binary sym
@@ -994,9 +1005,10 @@ joinV ::
   Nat' ->
   Integer ->
   TValue ->
-  GenValue sym ->
+  SEval sym (GenValue sym) ->
   SEval sym (GenValue sym)
-joinV sym parts each a val = joinSeq sym parts each a =<< fromSeq "joinV" val
+joinV sym parts each a val =
+  joinSeq sym parts each a =<< fromSeq "joinV" =<< val -- TODO lazier!
 
 
 {-# INLINE splitWordVal #-}
@@ -1022,32 +1034,28 @@ splitAtV ::
   Nat' ->
   Nat' ->
   TValue ->
-  GenValue sym ->
+  SEval sym (GenValue sym) ->
   SEval sym (GenValue sym)
 splitAtV sym front back a val =
   case back of
 
     Nat rightWidth | aBit -> do
-          ws <- sDelay sym Nothing (splitWordVal sym leftWidth rightWidth =<< fromWordVal "splitAtV" val)
+          ws <- sDelay sym Nothing (splitWordVal sym leftWidth rightWidth =<< fromWordVal "splitAtV" =<< val)
           return $ VTuple
-                   [ VWord leftWidth  . pure . fst <$> ws
-                   , VWord rightWidth . pure . snd <$> ws
+                   [ pure (VWord leftWidth (fst <$> ws))
+                   , pure (VWord rightWidth (snd <$> ws))
                    ]
 
     Inf | aBit -> do
-       vs <- sDelay sym Nothing (fromSeq "splitAtV" val)
-       ls <- sDelay sym Nothing (fst . splitSeqMap leftWidth <$> vs)
-       rs <- sDelay sym Nothing (snd . splitSeqMap leftWidth <$> vs)
-       return $ VTuple [ return $ VWord leftWidth (LargeBitsVal leftWidth <$> ls)
-                       , VStream <$> rs
+       vs <- sDelay sym Nothing (fromSeq "splitAtV" =<< val)
+       return $ VTuple [ pure $ VWord leftWidth (LargeBitsVal leftWidth <$> vs)
+                       , pure $ VStream (IndexSeqMap $ \i -> flip lookupSeqMap (i+leftWidth) =<< vs)
                        ]
 
     _ -> do
-       vs <- sDelay sym Nothing (fromSeq "splitAtV" val)
-       ls <- sDelay sym Nothing (fst . splitSeqMap leftWidth <$> vs)
-       rs <- sDelay sym Nothing (snd . splitSeqMap leftWidth <$> vs)
-       return $ VTuple [ VSeq leftWidth <$> ls
-                       , mkSeq back a <$> rs
+       vs <- sDelay sym Nothing (fromSeq "splitAtV" =<< val)
+       return $ VTuple [ pure $ VSeq leftWidth (IndexSeqMap $ \i -> flip lookupSeqMap i =<< vs)
+                       , pure $ mkSeq back a (IndexSeqMap $ \i -> flip lookupSeqMap (i+leftWidth) =<< vs)
                        ]
 
   where
@@ -1116,22 +1124,53 @@ ecSplitV sym =
               lookupSeqMap xs (e * i + j)
        _              -> evalPanic "splitV" ["invalid type arguments to split"]
 
+
+{-# INLINE takeV #-}
+
+takeV :: forall sym.
+  Backend sym =>
+  sym ->
+  Nat' ->
+  TValue ->
+  SEval sym (GenValue sym) ->
+  SEval sym (GenValue sym)
+takeV _sym Inf _ xs = xs
+takeV sym (Nat front) TVBit xs =
+  do pure $ VWord front (takeWordValue sym front =<< fromWordVal "takeV" =<< xs)
+takeV sym (Nat front) _a xs =
+  do xs' <- sDelay sym Nothing (fromSeq "takeV" =<< xs)
+     pure $ VSeq front $ IndexSeqMap $
+       \i -> flip lookupSeqMap i =<< xs'
+
+takeWordValue ::
+  Backend sym =>
+  sym ->
+  Integer ->
+  WordValue sym ->
+  SEval sym (WordValue sym)
+takeWordValue sym front (WordVal w) =
+  let back = wordLen sym w - front
+   in WordVal . fst <$> splitWord sym front back w
+takeWordValue _sym front (LargeBitsVal _len xs) =
+  pure (LargeBitsVal front xs)
+
+{-
 {-# INLINE reverseV #-}
 
 reverseV :: forall sym.
   Backend sym =>
   sym ->
-  GenValue sym ->
+  SEval sym (GenValue sym) ->
   SEval sym (GenValue sym)
-reverseV _ (VSeq n xs) =
-  return $ VSeq n $ reverseSeqMap n xs
-reverseV sym (VWord n x) = return (VWord n (revword <$> x))
+reverseV sym xs = go =<< xs -- TODO lazier!
  where
+ go (VSeq n m) = return $ VSeq n $ reverseSeqMap n m
+ go (VWord n x) = return (VWord n (revword <$> x))
+ go _ = evalPanic "reverseV" ["Not a finite sequence"]
+
  revword wv =
    let m = wordValueSize sym wv in
    LargeBitsVal m $ reverseSeqMap m $ asBitsMap sym wv
-reverseV _ _ =
-  evalPanic "reverseV" ["Not a finite sequence"]
 
 {-# INLINE transposeV #-}
 
@@ -1141,13 +1180,13 @@ transposeV ::
   Nat' ->
   Nat' ->
   TValue ->
-  GenValue sym ->
+  SEval sym (GenValue sym) ->
   SEval sym (GenValue sym)
 transposeV sym a b c xs
   | isTBit c, Nat na <- a = -- Fin a => [a][b]Bit -> [b][a]Bit
       return $ bseq $ IndexSeqMap $ \bi ->
         return $ VWord na $ return $ LargeBitsVal na $ IndexSeqMap $ \ai ->
-         do ys <- flip lookupSeqMap (toInteger ai) =<< fromSeq "transposeV" xs
+         do ys <- flip lookupSeqMap (toInteger ai) =<< fromSeq "transposeV" =<< xs
             case ys of
               VStream ys' -> lookupSeqMap ys' bi
               VWord _ wv  -> VBit <$> (flip (indexWordValue sym) bi =<< wv)
@@ -1156,7 +1195,7 @@ transposeV sym a b c xs
   | isTBit c, Inf <- a = -- [inf][b]Bit -> [b][inf]Bit
       return $ bseq $ IndexSeqMap $ \bi ->
         return $ VStream $ IndexSeqMap $ \ai ->
-         do ys <- flip lookupSeqMap ai =<< fromSeq "transposeV" xs
+         do ys <- flip lookupSeqMap ai =<< fromSeq "transposeV" =<< xs
             case ys of
               VStream ys' -> lookupSeqMap ys' bi
               VWord _ wv  -> VBit <$> (flip (indexWordValue sym) bi =<< wv)
@@ -1165,7 +1204,7 @@ transposeV sym a b c xs
   | otherwise = -- [a][b]c -> [b][a]c
       return $ bseq $ IndexSeqMap $ \bi ->
         return $ aseq $ IndexSeqMap $ \ai -> do
-          ys  <- flip lookupSeqMap ai =<< fromSeq "transposeV 1" xs
+          ys  <- flip lookupSeqMap ai =<< fromSeq "transposeV 1" =<< xs
           z   <- flip lookupSeqMap bi =<< fromSeq "transposeV 2" ys
           return z
 
@@ -1178,6 +1217,7 @@ transposeV sym a b c xs
         case a of
           Nat na -> VSeq na
           Inf    -> VStream
+-}
 
 
 {-# INLINE ccatV #-}
@@ -1185,35 +1225,41 @@ transposeV sym a b c xs
 ccatV ::
   Backend sym =>
   sym ->
-  Nat' ->
+  Integer ->
   Nat' ->
   TValue ->
-  (GenValue sym) ->
-  (GenValue sym) ->
+  SEval sym (GenValue sym) ->
+  SEval sym (GenValue sym) ->
   SEval sym (GenValue sym)
 
-ccatV sym _front _back _elty (VWord m l) (VWord n r) =
-  return $ VWord (m+n) (join (joinWordVal sym <$> l <*> r))
+ccatV sym front (Nat back) TVBit l r =
+  do l' <- sDelay sym Nothing (fromWordVal "ccatV left" =<< l)
+     r' <- sDelay sym Nothing (fromWordVal "ccatV right" =<< r)
+     return $ VWord (front+back) $
+       do l'' <- l'
+          r'' <- r'
+          joinWordVal sym l'' r''
 
-ccatV sym _front _back _elty (VWord m l) (VStream r) = do
-  l' <- sDelay sym Nothing l
-  return $ VStream $ IndexSeqMap $ \i ->
-    if i < m then
-      VBit <$> (flip (indexWordValue sym) i =<< l')
-    else
-      lookupSeqMap r (i-m)
+ccatV sym front Inf TVBit l r =
+  do l' <- sDelay sym Nothing (fromWordVal "ccatV left" =<< l)
+     r' <- sDelay sym Nothing (fromSeq "ccatV right" =<< r)
+     return $ VStream $ IndexSeqMap $ \i ->
+       if i < front then
+         VBit <$> (flip (indexWordValue sym) i =<< l')
+       else do
+         rs <- r'
+         lookupSeqMap rs (i-front)
 
 ccatV sym front back elty l r = do
-       l'' <- sDelay sym Nothing (fromSeq "ccatV left" l)
-       r'' <- sDelay sym Nothing (fromSeq "ccatV right" r)
-       let Nat n = front
-       mkSeq (evalTF TCAdd [front,back]) elty <$> return (IndexSeqMap $ \i ->
-        if i < n then do
-         ls <- l''
+       l' <- sDelay sym Nothing (fromSeq "ccatV left" =<< l)
+       r' <- sDelay sym Nothing (fromSeq "ccatV right" =<< r)
+       pure $ mkSeq (nAdd (Nat front) back) elty $ IndexSeqMap $ \i ->
+        if i < front then do
+         ls <- l'
          lookupSeqMap ls i
         else do
-         rs <- r''
-         lookupSeqMap rs (i-n))
+         rs <- r'
+         lookupSeqMap rs (i-front)
 
 {-# INLINE wordValLogicOp #-}
 

@@ -17,7 +17,6 @@ module Cryptol.Eval.What4
   ) where
 
 
-import           Control.Monad (join)
 import qualified Data.Map as Map
 
 import qualified What4.Interface as W4
@@ -103,18 +102,17 @@ primTable w4sym = let sym = What4 w4sym in
 
     -- Sequence manipulations
   , ("#"          , -- {a,b,d} (fin a) => [a] d -> [b] d -> [a + b] d
-     nlam $ \ front ->
+     ilam $ \ front ->
      nlam $ \ back  ->
      tlam $ \ elty  ->
      lam  $ \ l     -> return $
-     lam  $ \ r     -> join (ccatV sym front back elty <$> l <*> r))
+     lam  $ \ r     -> ccatV sym front back elty l r)
 
   , ("join"       ,
      nlam $ \ parts ->
      nlam $ \ (finNat' -> each)  ->
      tlam $ \ a     ->
-     lam  $ \ x     ->
-       joinV sym parts each a =<< x)
+     lam  $ \ x     -> joinV sym parts each a x)
 
   , ("split"       , ecSplitV sym)
 
@@ -122,17 +120,23 @@ primTable w4sym = let sym = What4 w4sym in
      nlam $ \ front ->
      nlam $ \ back  ->
      tlam $ \ a     ->
-     lam  $ \ x     ->
-       splitAtV sym front back a =<< x)
+     lam  $ \ x     -> splitAtV sym front back a x)
 
+  , ("take"       , nlam $ \front ->
+                    nlam $ \_back ->
+                    tlam $ \a ->
+                     lam $ \xs -> takeV sym front a xs)
+{-
   , ("reverse"    , nlam $ \_a ->
                     tlam $ \_b ->
-                     lam $ \xs -> reverseV sym =<< xs)
+                     lam $ \xs -> reverseV sym xs)
+
 
   , ("transpose"  , nlam $ \a ->
                     nlam $ \b ->
                     tlam $ \c ->
-                     lam $ \xs -> transposeV sym a b c =<< xs)
+                     lam $ \xs -> transposeV sym a b c xs)
+-}
 
     -- Shifts and rotates
   , ("<<"          , logicShift sym "<<"  shiftShrink

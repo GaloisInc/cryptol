@@ -25,7 +25,6 @@ module Cryptol.Eval.SBV
   ) where
 
 import qualified Control.Exception as X
-import           Control.Monad (join)
 import           Control.Monad.IO.Class (MonadIO(..))
 import           Data.Bits (bit, complement, shiftL)
 import           Data.List (foldl')
@@ -427,18 +426,17 @@ primTable  = let sym = SBV in
 
     -- Sequence manipulations
   , ("#"          , -- {a,b,d} (fin a) => [a] d -> [b] d -> [a + b] d
-     nlam $ \ front ->
+     ilam $ \ front ->
      nlam $ \ back  ->
      tlam $ \ elty  ->
      lam  $ \ l     -> return $
-     lam  $ \ r     -> join (ccatV sym front back elty <$> l <*> r))
+     lam  $ \ r     -> ccatV sym front back elty l r)
 
   , ("join"       ,
      nlam $ \ parts ->
      nlam $ \ (finNat' -> each)  ->
      tlam $ \ a     ->
-     lam  $ \ x     ->
-       joinV sym parts each a =<< x)
+     lam  $ \ x     -> joinV sym parts each a x)
 
   , ("split"       , ecSplitV sym)
 
@@ -446,17 +444,24 @@ primTable  = let sym = SBV in
      nlam $ \ front ->
      nlam $ \ back  ->
      tlam $ \ a     ->
-     lam  $ \ x     ->
-       splitAtV sym front back a =<< x)
+     lam  $ \ x     -> splitAtV sym front back a x)
 
+
+  , ("take"       , nlam $ \front ->
+                    nlam $ \_back ->
+                    tlam $ \a ->
+                     lam $ \xs -> takeV sym front a xs)
+
+{-
   , ("reverse"    , nlam $ \_a ->
                     tlam $ \_b ->
-                     lam $ \xs -> reverseV sym =<< xs)
+                     lam $ \xs -> reverseV sym xs)
 
   , ("transpose"  , nlam $ \a ->
                     nlam $ \b ->
                     tlam $ \c ->
-                     lam $ \xs -> transposeV sym a b c =<< xs)
+                     lam $ \xs -> transposeV sym a b c xs)
+-}
 
     -- Shifts and rotates
   , ("<<"          , logicShift sym "<<"

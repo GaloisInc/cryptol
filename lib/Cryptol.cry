@@ -716,20 +716,25 @@ primitive split : {parts, each, a} (fin each) => [parts * each]a
 /**
  * Reverses the elements in a sequence.
  */
-primitive reverse : {n, a} (fin n) => [n]a -> [n]a
+reverse : {n, a} (fin n) => [n]a -> [n]a
+reverse xs = [ xs!i | i <- take`{n} [0 ... ] ]
 
 /**
  * Transposes a matrix.
  * Satisfies the property 'transpose m @ i @ j == m @ j @ i'.
  */
-primitive transpose : {rows, cols, a} [rows][cols]a -> [cols][rows]a
-
+transpose : {rows, cols, a} [rows][cols]a -> [cols][rows]a
+transpose xss =
+  [ [ xss@r@c
+    | r <- take`{rows,inf} [0 ...]
+    ]
+  | c <- take`{cols,inf} [0 ...]
+  ]
 
 /**
  * Select the first (left-most) 'front' elements of a sequence.
  */
-take : {front, back, a} (fin front) => [front + back]a -> [front]a
-take (x # _) = x
+primitive take : {front, back, a} [front + back]a -> [front]a
 
 /**
  * Select all the elements after (to the right of) the 'front' elements of a sequence.

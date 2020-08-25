@@ -13,7 +13,6 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE Safe #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -24,7 +23,7 @@ module Cryptol.Eval.Concrete
   , toExpr
   ) where
 
-import Control.Monad (join, guard, zipWithM)
+import Control.Monad (guard, zipWithM)
 import Data.Bits (Bits(..))
 import Data.Ratio(numerator,denominator)
 import MonadLib( ChoiceT, findOne, lift )
@@ -240,19 +239,18 @@ primTable eOpts = let sym = Concrete in
 
     -- Sequence manipulations
   , ("#"          , {-# SCC "Prelude::(#)" #-}
-                    nlam $ \ front ->
+                    ilam $ \ front ->
                     nlam $ \ back  ->
                     tlam $ \ elty  ->
                     lam  $ \ l     -> return $
-                    lam  $ \ r     -> join (ccatV sym front back elty <$> l <*> r))
+                    lam  $ \ r     -> ccatV sym front back elty l r)
 
 
   , ("join"       , {-# SCC "Prelude::join" #-}
                     nlam $ \ parts ->
                     nlam $ \ (finNat' -> each)  ->
                     tlam $ \ a     ->
-                    lam  $ \ x     ->
-                      joinV sym parts each a =<< x)
+                    lam  $ \ x     -> joinV sym parts each a x)
 
   , ("split"      , {-# SCC "Prelude::split" #-}
                     ecSplitV sym)
@@ -261,19 +259,27 @@ primTable eOpts = let sym = Concrete in
                     nlam $ \ front ->
                     nlam $ \ back  ->
                     tlam $ \ a     ->
-                    lam  $ \ x     ->
-                       splitAtV sym front back a =<< x)
+                    lam  $ \ x     -> splitAtV sym front back a x)
 
+  , ("take"       , {-# SCC "Prelude::take" #-}
+                    nlam $ \front ->
+                    nlam $ \_back ->
+                    tlam $ \a ->
+                     lam $ \xs -> takeV sym front a xs)
+
+{-
   , ("reverse"    , {-# SCC "Prelude::reverse" #-}
                     nlam $ \_a ->
                     tlam $ \_b ->
-                     lam $ \xs -> reverseV sym =<< xs)
+                     lam $ \xs -> reverseV sym  xs)
+
 
   , ("transpose"  , {-# SCC "Prelude::transpose" #-}
                     nlam $ \a ->
                     nlam $ \b ->
                     tlam $ \c ->
-                     lam $ \xs -> transposeV sym a b c =<< xs)
+                     lam $ \xs -> transposeV sym a b c xs)
+-}
 
     -- Shifts and rotates
   , ("<<"         , {-# SCC "Prelude::(<<)" #-}

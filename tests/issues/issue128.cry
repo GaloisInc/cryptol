@@ -2,3 +2,8 @@ copy : [inf] -> [inf]
 copy ([b] # x) = if b then [True] # copy x else [False] # copy x
 
 property ok = copy ([True] # zero) @ 0
+
+copy2 : [inf]Integer -> [inf]Integer
+copy2 ([b] # x) = if b != 0 then [1] # copy2 x else [0] # copy2 x
+
+property ok2 = ((copy2 ([1]#zero)) @ 0) != 0
