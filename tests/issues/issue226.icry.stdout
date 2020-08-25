@@ -142,7 +142,9 @@ Symbols
                         Literal last a) =>
         [1 + (last - first)]a
     fromZ : {n} (fin n, n >= 1) => Z n -> Integer
-    generate : {n, a} (fin n, n >= 1) => (Integer -> a) -> [n]a
+    generate :
+      {n, a, ix} (fin n, n >= 1, Integral ix, Literal (n - 1) ix) =>
+        (ix -> a) -> [n]a
     groupBy :
       {each, parts, a} (fin each) => [each * parts]a -> [parts][each]a
     head : {n, a} [1 + n]a -> a

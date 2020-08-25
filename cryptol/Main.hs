@@ -23,12 +23,10 @@ import REPL.Haskeline
 import REPL.Logo
 
 import Cryptol.Utils.PP
-import Cryptol.Version (commitHash, commitBranch, commitDirty)
-import Paths_cryptol (version)
+import Cryptol.Version (displayVersion)
 
 import Control.Monad (when)
 import Data.Maybe (isJust)
-import Data.Version (showVersion)
 import GHC.IO.Encoding (setLocaleEncoding, utf8)
 import System.Console.GetOpt
     (OptDescr(..),ArgOrder(..),ArgDescr(..),getOpt,usageInfo)
@@ -169,16 +167,6 @@ parseArgs args = case getOpt (ReturnInOrder addFile) options args of
   (ps,[],[]) -> runOptParser defaultOptions (mconcat ps)
   (_,_,errs) -> Left errs
 
-displayVersion :: IO ()
-displayVersion = do
-    let ver = showVersion version
-    putStrLn ("Cryptol " ++ ver)
-    putStrLn ("Git commit " ++ commitHash)
-    putStrLn ("    branch " ++ commitBranch ++ dirtyLab)
-      where
-      dirtyLab | commitDirty = " (non-committed files present during build)"
-               | otherwise   = ""
-
 displayHelp :: [String] -> IO ()
 displayHelp errs = do
   prog <- getProgName
@@ -213,7 +201,7 @@ main  = do
 
     Right opts
       | optHelp opts    -> displayHelp []
-      | optVersion opts -> displayVersion
+      | optVersion opts -> displayVersion putStrLn
       | otherwise       -> do
           (opts', mCleanup) <- setupCmdScript opts
           status <- repl (optCryptolrc opts')

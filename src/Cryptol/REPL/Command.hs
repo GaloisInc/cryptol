@@ -88,6 +88,7 @@ import Cryptol.Symbolic
   )
 import qualified Cryptol.Symbolic.SBV as SBV
 import qualified Cryptol.Symbolic.What4 as W4
+import Cryptol.Version (displayVersion)
 
 import qualified Control.Exception as X
 import Control.Monad hiding (mapM, mapM)
@@ -193,6 +194,9 @@ nbCommandList  =
     ""
   , CommandDescr [ ":b", ":browse" ] ["[ MODULE ]"] (ModNameArg browseCmd)
     "Display environment for all loaded modules, or for a specific module."
+    ""
+  , CommandDescr [ ":version"] [] (NoArg versionCmd)
+    "Display the version of this Cryptol executable"
     ""
   , CommandDescr [ ":?", ":help" ] ["[ TOPIC ]"] (HelpArg helpCmd)
     "Display a brief description of a function, type, or command. (e.g. :help :help)"
@@ -1068,9 +1072,11 @@ loadHelper how =
        M.InMem {} -> clearEditPath
      setDynEnv mempty
 
+versionCmd :: REPL ()
+versionCmd = displayVersion rPutStrLn
+
 quitCmd :: REPL ()
 quitCmd  = stop
-
 
 browseCmd :: String -> REPL ()
 browseCmd input = do
