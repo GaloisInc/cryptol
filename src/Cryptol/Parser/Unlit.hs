@@ -78,6 +78,7 @@ markdown = blanks []
   where
   comment current []    = mk Comment current
   comment current (l : ls)
+    | Just op <- isOpenFence l = mk Comment (l : current) ++ fenced op [] ls
     | isBlank l         = blanks (l : current) ls
     | otherwise         = comment (l : current) ls
 
