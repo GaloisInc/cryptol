@@ -16,7 +16,7 @@ module Cryptol.Eval.What4.Value where
 import qualified Control.Exception as X
 import           Control.Monad (foldM,ap,liftM)
 import           Control.Monad.IO.Class
-import           Data.Bits (bit, shiftR, shiftL, testBit)
+import           Data.Bits (bit, shiftL) -- shiftR, testBit)
 import qualified Data.BitVector.Sized as BV
 import           Data.List
 import           Data.Parameterized.NatRepr
@@ -32,7 +32,7 @@ import Cryptol.Eval.Concrete.Value( BV(..), ppBV )
 import Cryptol.Eval.Generic
 import Cryptol.Eval.Monad
    ( Eval(..), EvalError(..), Unsupported(..)
-   , delayFill, blackhole, evalSpark
+   , delayFill, blackhole, evalSpark, maybeReady
    )
 import Cryptol.Eval.Type (TValue(..))
 import Cryptol.Eval.Value
@@ -216,10 +216,16 @@ instance W4.IsExprBuilder sym => Backend (What4 sym) where
     | Just False <- W4.asConstantPred cond = evalError err
     | otherwise = addSafety cond
 
-  isReady (What4 sym) m =
-    case w4Eval m sym of
-      Ready _ -> True
-      _ -> False
+  sMaybeReady (What4 sym) m =
+    w4Thunk $
+      do mr <- maybeReady (w4Eval m sym)
+         case mr of
+           Nothing ->
+              pure (W4Defs (W4.truePred sym) (W4Result (W4.truePred sym) Nothing))
+           Just (W4Defs d (W4Error e)) ->
+              pure (W4Defs d (W4Error e))
+           Just (W4Defs d (W4Result p a)) ->
+              pure (W4Defs d (W4Result p (Just a)))
 
   sDelayFill _ m retry =
     total
@@ -545,16 +551,16 @@ lazyIte f c mx my
 
 indexFront_int ::
   W4.IsExprBuilder sym =>
-  sym ->
+  What4 sym ->
   Nat' ->
   TValue ->
   SeqMap (What4 sym) ->
   TValue ->
   SInteger (What4 sym) ->
   SEval (What4 sym) (Value sym)
-indexFront_int sym mblen _a xs ix idx
+indexFront_int sym@(What4 w4sym) mblen a xs ix idx
   | Just i <- W4.asInteger idx
-  = lookupSeqMap xs i
+  = lookupSeqMap sym i xs
 
   | (lo, Just hi) <- bounds
   = foldr f def [lo .. hi]
@@ -563,11 +569,11 @@ indexFront_int sym mblen _a xs ix idx
   = liftIO (X.throw (UnsupportedSymbolicOp "unbounded integer indexing"))
 
  where
-    def = raiseError (What4 sym) (InvalidIndex Nothing)
+    def = raiseError sym (InvalidIndex Nothing)
 
     f n y =
-       do p <- liftIO (W4.intEq sym idx =<< W4.intLit sym n)
-          iteValue (What4 sym) p (lookupSeqMap xs n) y
+       do p <- liftIO (W4.intEq w4sym idx =<< W4.intLit w4sym n)
+          iteValue sym a p (lookupSeqMap sym n xs) y
 
     bounds =
       (case W4.rangeLowBound (W4.integerBounds idx) of
@@ -592,39 +598,41 @@ indexFront_int sym mblen _a xs ix idx
 
 indexBack_int ::
   W4.IsExprBuilder sym =>
-  sym ->
+  What4 sym ->
   Nat' ->
   TValue ->
   SeqMap (What4 sym) ->
   TValue ->
   SInteger (What4 sym) ->
   SEval (What4 sym) (Value sym)
-indexBack_int sym (Nat n) a xs ix idx = indexFront_int sym (Nat n) a (reverseSeqMap n xs) ix idx
+indexBack_int sym (Nat n) a xs ix idx =
+  do xs' <- reverseSeqMap sym n xs
+     indexFront_int sym (Nat n) a xs' ix idx
 indexBack_int _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["indexBack_int"]
 
 indexFront_word ::
   W4.IsExprBuilder sym =>
-  sym ->
+  What4 sym ->
   Nat' ->
   TValue ->
   SeqMap (What4 sym) ->
   TValue ->
   SWord (What4 sym) ->
   SEval (What4 sym) (Value sym)
-indexFront_word sym mblen _a xs _ix idx
+indexFront_word sym@(What4 w4sym) mblen a xs _ix idx
   | Just i <- SW.bvAsUnsignedInteger idx
-  = lookupSeqMap xs i
+  = lookupSeqMap sym i xs
 
   | otherwise
   = foldr f def idxs
 
  where
     w = SW.bvWidth idx
-    def = raiseError (What4 sym) (InvalidIndex Nothing)
+    def = raiseError sym (InvalidIndex Nothing)
 
     f n y =
-       do p <- liftIO (SW.bvEq sym idx =<< SW.bvLit sym w n)
-          iteValue (What4 sym) p (lookupSeqMap xs n) y
+       do p <- liftIO (SW.bvEq w4sym idx =<< SW.bvLit w4sym w n)
+          iteValue sym a p (lookupSeqMap sym n xs) y
 
     -- maximum possible in-bounds index given the bitwidth
     -- of the index value and the length of the sequence
@@ -643,261 +651,179 @@ indexFront_word sym mblen _a xs _ix idx
 
 indexBack_word ::
   W4.IsExprBuilder sym =>
-  sym ->
+  What4 sym ->
   Nat' ->
   TValue ->
   SeqMap (What4 sym) ->
   TValue ->
   SWord (What4 sym) ->
   SEval (What4 sym) (Value sym)
-indexBack_word sym (Nat n) a xs ix idx = indexFront_word sym (Nat n) a (reverseSeqMap n xs) ix idx
+indexBack_word sym (Nat n) a xs ix idx =
+  do xs' <- reverseSeqMap sym n xs
+     indexFront_word sym (Nat n) a xs' ix idx
 indexBack_word _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["indexBack_word"]
 
 indexFront_bits :: forall sym.
   W4.IsExprBuilder sym =>
-  sym ->
+  What4 sym ->
   Nat' ->
   TValue ->
   SeqMap (What4 sym) ->
   TValue ->
   [SBit (What4 sym)] ->
   SEval (What4 sym) (Value sym)
-indexFront_bits sym mblen _a xs _ix bits0 = go 0 (length bits0) bits0
+indexFront_bits sym mblen a xs _ix bits0 = go 0 (length bits0) bits0
  where
   go :: Integer -> Int -> [W4.Pred sym] -> W4Eval sym (Value sym)
   go i _k []
     -- For indices out of range, fail
     | Nat n <- mblen
     , i >= n
-    = raiseError (What4 sym) (InvalidIndex (Just i))
+    = raiseError sym (InvalidIndex (Just i))
 
     | otherwise
-    = lookupSeqMap xs i
+    = lookupSeqMap sym i xs
 
   go i k (b:bs)
     -- Fail early when all possible indices we could compute from here
     -- are out of bounds
     | Nat n <- mblen
     , (i `shiftL` k) >= n
-    = raiseError (What4 sym) (InvalidIndex Nothing)
+    = raiseError sym (InvalidIndex Nothing)
 
     | otherwise
-    = iteValue (What4 sym) b
+    = iteValue sym a b
          (go ((i `shiftL` 1) + 1) (k-1) bs)
          (go  (i `shiftL` 1)      (k-1) bs)
 
 indexBack_bits ::
   W4.IsExprBuilder sym =>
-  sym ->
+  What4 sym ->
   Nat' ->
   TValue ->
   SeqMap (What4 sym) ->
   TValue ->
   [SBit (What4 sym)] ->
   SEval (What4 sym) (Value sym)
-indexBack_bits sym (Nat n) a xs ix idx = indexFront_bits sym (Nat n) a (reverseSeqMap n xs) ix idx
+indexBack_bits sym (Nat n) a xs ix idx =
+  do xs' <- reverseSeqMap sym n xs
+     indexFront_bits sym (Nat n) a xs' ix idx
 indexBack_bits _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["indexBack_bits"]
 
 
 -- | Compare a symbolic word value with a concrete integer.
 wordValueEqualsInteger :: forall sym.
   W4.IsExprBuilder sym =>
-  sym ->
-  WordValue (What4 sym) ->
+  What4 sym ->
+  SWord (What4 sym) ->
   Integer ->
   W4Eval sym (W4.Pred sym)
-wordValueEqualsInteger sym wv i
-  | wordValueSize (What4 sym) wv < widthInteger i = return (W4.falsePred sym)
-  | otherwise =
-    case wv of
-      WordVal w -> liftIO (SW.bvEq sym w =<< SW.bvLit sym (SW.bvWidth w) i)
-      _ -> liftIO . bitsAre i =<< enumerateWordValueRev (What4 sym) wv -- little-endian
-  where
-    bitsAre :: Integer -> [W4.Pred sym] -> IO (W4.Pred sym)
-    bitsAre n [] = pure (W4.backendPred sym (n == 0))
-    bitsAre n (b : bs) =
-      do pb  <- bitIs (testBit n 0) b
-         pbs <- bitsAre (n `shiftR` 1) bs
-         W4.andPred sym pb pbs
-
-    bitIs :: Bool -> W4.Pred sym -> IO (W4.Pred sym)
-    bitIs b x = if b then pure x else W4.notPred sym x
+wordValueEqualsInteger sym@(What4 w4sym) w i
+  | wordLen sym w < widthInteger i = return (W4.falsePred w4sym)
+  | otherwise = liftIO (SW.bvEq w4sym w =<< SW.bvLit w4sym (SW.bvWidth w) i)
 
 updateFrontSym ::
   W4.IsExprBuilder sym =>
-  sym ->
+  What4 sym ->
   Nat' ->
   TValue ->
-  SeqMap (What4 sym) ->
-  Either (SInteger (What4 sym)) (WordValue (What4 sym)) ->
+  SEval (What4 sym) (SeqMap (What4 sym)) ->
+  Either (SInteger (What4 sym)) (SWord (What4 sym)) ->
   SEval (What4 sym) (Value sym) ->
   SEval (What4 sym) (SeqMap (What4 sym))
-updateFrontSym sym _len _eltTy vs (Left idx) val =
-  case W4.asInteger idx of
-    Just i -> return $ updateSeqMap vs i val
-    Nothing -> return $ IndexSeqMap $ \i ->
-      do b <- intEq (What4 sym) idx =<< integerLit (What4 sym) i
-         iteValue (What4 sym) b val (lookupSeqMap vs i)
+updateFrontSym sym _len eltTy vs (Left idx) val
+  | Just i <- W4.asInteger idx =
+      do vs' <- delaySeqMap sym vs
+         updateSeqMap sym vs' i val
+  | otherwise =
+      do vs' <- delaySeqMap sym vs
+         memoMap sym =<< generateSeqMap sym (\i ->
+           do b <- intEq sym idx =<< integerLit sym i
+              iteValue sym eltTy b val (lookupSeqMap sym i vs'))
 
-updateFrontSym sym _len _eltTy vs (Right wv) val =
-  case wv of
-    WordVal w | Just j <- SW.bvAsUnsignedInteger w ->
-      return $ updateSeqMap vs j val
-    _ ->
-      memoMap $ IndexSeqMap $ \i ->
-      do b <- wordValueEqualsInteger sym wv i
-         iteValue (What4 sym) b val (lookupSeqMap vs i)
+updateFrontSym sym _len eltTy vs (Right w) val
+  | Just j <- SW.bvAsUnsignedInteger w =
+      do vs' <- delaySeqMap sym vs
+         updateSeqMap sym vs' j val
+  | otherwise =
+      do vs' <- delaySeqMap sym vs
+         memoMap sym =<< generateSeqMap sym (\i ->
+           do b <- wordValueEqualsInteger sym w i
+              iteValue sym eltTy b val (lookupSeqMap sym i vs'))
 
 updateBackSym ::
   W4.IsExprBuilder sym =>
-  sym ->
+  What4 sym ->
   Nat' ->
   TValue ->
-  SeqMap (What4 sym) ->
-  Either (SInteger (What4 sym)) (WordValue (What4 sym)) ->
+  SEval (What4 sym) (SeqMap (What4 sym)) ->
+  Either (SInteger (What4 sym)) (SWord (What4 sym)) ->
   SEval (What4 sym) (Value sym) ->
   SEval (What4 sym) (SeqMap (What4 sym))
 updateBackSym _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["updateBackSym"]
 
-updateBackSym sym (Nat n) _eltTy vs (Left idx) val =
-  case W4.asInteger idx of
-    Just i -> return $ updateSeqMap vs (n - 1 - i) val
-    Nothing -> return $ IndexSeqMap $ \i ->
-      do b <- intEq (What4 sym) idx =<< integerLit (What4 sym) (n - 1 - i)
-         iteValue (What4 sym) b val (lookupSeqMap vs i)
+updateBackSym sym (Nat n) eltTy vs (Left idx) val
+  | Just i <- W4.asInteger idx =
+      do vs' <- delaySeqMap sym vs
+         updateSeqMap sym vs' (n - 1 - i) val
 
-updateBackSym sym (Nat n) _eltTy vs (Right wv) val =
-  case wv of
-    WordVal w | Just j <- SW.bvAsUnsignedInteger w ->
-      return $ updateSeqMap vs (n - 1 - j) val
-    _ ->
-      memoMap $ IndexSeqMap $ \i ->
-      do b <- wordValueEqualsInteger sym wv (n - 1 - i)
-         iteValue (What4 sym) b val (lookupSeqMap vs i)
+  | otherwise =
+      do vs' <- delaySeqMap sym vs
+         memoMap sym =<< generateSeqMap sym (\i ->
+           do b <- intEq sym idx =<< integerLit sym (n - 1 - i)
+              iteValue sym eltTy b val (lookupSeqMap sym i vs'))
 
+updateBackSym sym (Nat n) eltTy vs (Right w) val
+  | Just j <- SW.bvAsUnsignedInteger w =
+      do vs' <- delaySeqMap sym vs
+         updateSeqMap sym vs' (n - 1 - j) val
+  | otherwise =
+      do vs' <- delaySeqMap sym vs
+         memoMap sym =<< generateSeqMap sym (\i ->
+           do b <- wordValueEqualsInteger sym w (n - 1 - i)
+              iteValue sym eltTy b val (lookupSeqMap sym i vs'))
 
-updateFrontSym_word ::
-  W4.IsExprBuilder sym =>
-  sym ->
-  Nat' ->
-  TValue ->
-  WordValue (What4 sym) ->
-  Either (SInteger (What4 sym)) (WordValue (What4 sym)) ->
-  SEval (What4 sym) (GenValue (What4 sym)) ->
-  SEval (What4 sym) (WordValue (What4 sym))
-updateFrontSym_word _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["updateFrontSym_word"]
-
-updateFrontSym_word sym (Nat _) eltTy (LargeBitsVal n bv) idx val =
-  LargeBitsVal n <$> updateFrontSym sym (Nat n) eltTy bv idx val
-
-updateFrontSym_word sym (Nat n) eltTy (WordVal bv) (Left idx) val =
-  do idx' <- wordFromInt (What4 sym) n idx
-     updateFrontSym_word sym (Nat n) eltTy (WordVal bv) (Right (WordVal idx')) val
-
-updateFrontSym_word sym (Nat n) eltTy bv (Right wv) val =
-  case wv of
-    WordVal idx
-      | Just j <- SW.bvAsUnsignedInteger idx ->
-          updateWordValue (What4 sym) bv j (fromVBit <$> val)
-
-      | WordVal bw <- bv ->
-        WordVal <$>
-          do b <- fromVBit <$> val
-             let sz = SW.bvWidth bw
-             highbit <- liftIO (SW.bvLit sym sz (bit (fromInteger (sz-1))))
-             msk <- w4bvLshr sym highbit idx
-             liftIO $
-               case W4.asConstantPred b of
-                 Just True  -> SW.bvOr  sym bw msk
-                 Just False -> SW.bvAnd sym bw =<< SW.bvNot sym msk
-                 Nothing ->
-                   do q <- SW.bvFill sym sz b
-                      bw' <- SW.bvAnd sym bw =<< SW.bvNot sym msk
-                      SW.bvXor sym bw' =<< SW.bvAnd sym q msk
-
-    _ -> LargeBitsVal (wordValueSize (What4 sym) wv) <$>
-           updateFrontSym sym (Nat n) eltTy (asBitsMap (What4 sym) bv) (Right wv) val
-
-
-updateBackSym_word ::
-  W4.IsExprBuilder sym =>
-  sym ->
-  Nat' ->
-  TValue ->
-  WordValue (What4 sym) ->
-  Either (SInteger (What4 sym)) (WordValue (What4 sym)) ->
-  SEval (What4 sym) (GenValue (What4 sym)) ->
-  SEval (What4 sym) (WordValue (What4 sym))
-updateBackSym_word _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["updateBackSym_word"]
-
-updateBackSym_word sym (Nat _) eltTy (LargeBitsVal n bv) idx val =
-  LargeBitsVal n <$> updateBackSym sym (Nat n) eltTy bv idx val
-
-updateBackSym_word sym (Nat n) eltTy (WordVal bv) (Left idx) val =
-  do idx' <- wordFromInt (What4 sym) n idx
-     updateBackSym_word sym (Nat n) eltTy (WordVal bv) (Right (WordVal idx')) val
-
-updateBackSym_word sym (Nat n) eltTy bv (Right wv) val =
-  case wv of
-    WordVal idx
-      | Just j <- SW.bvAsUnsignedInteger idx ->
-          updateWordValue (What4 sym) bv (n - 1 - j) (fromVBit <$> val)
-
-      | WordVal bw <- bv ->
-        WordVal <$>
-          do b <- fromVBit <$> val
-             let sz = SW.bvWidth bw
-             lowbit <- liftIO (SW.bvLit sym sz 1)
-             msk <- w4bvShl sym lowbit idx
-             liftIO $
-               case W4.asConstantPred b of
-                 Just True  -> SW.bvOr  sym bw msk
-                 Just False -> SW.bvAnd sym bw =<< SW.bvNot sym msk
-                 Nothing ->
-                   do q <- SW.bvFill sym sz b
-                      bw' <- SW.bvAnd sym bw =<< SW.bvNot sym msk
-                      SW.bvXor sym bw' =<< SW.bvAnd sym q msk
-
-    _ -> LargeBitsVal (wordValueSize (What4 sym) wv) <$>
-           updateBackSym sym (Nat n) eltTy (asBitsMap (What4 sym) bv) (Right wv) val
-
-
-sshrV :: W4.IsExprBuilder sym => sym -> Value sym
+sshrV :: W4.IsExprBuilder sym => What4 sym -> Value sym
 sshrV sym =
-  nlam $ \(Nat n) ->
+  ilam $ \n ->
   tlam $ \ix ->
-  wlam (What4 sym) $ \x -> return $
+  wlam sym $ \x -> return $
   lam $ \y ->
-    y >>= asIndex (What4 sym) ">>$" ix >>= \case
+    y >>= asIndex sym ">>$" ix >>= \case
        Left i ->
-         do pneg <- intLessThan (What4 sym) i =<< integerLit (What4 sym) 0
-            zneg <- do i' <- shiftShrink (What4 sym) (Nat n) ix =<< intNegate (What4 sym) i
-                       amt <- wordFromInt (What4 sym) n i'
+         do pneg <- intLessThan sym i =<< integerLit sym 0
+            zneg <- do i' <- shiftShrink sym (Nat n) ix =<< intNegate sym i
+                       amt <- wordFromInt sym n i'
                        w4bvShl sym x amt
-            zpos <- do i' <- shiftShrink (What4 sym) (Nat n) ix i
-                       amt <- wordFromInt (What4 sym) n i'
+            zpos <- do i' <- shiftShrink sym (Nat n) ix i
+                       amt <- wordFromInt sym n i'
                        w4bvAshr sym x amt
-            return (VWord (SW.bvWidth x) (WordVal <$> iteWord (What4 sym) pneg zneg zpos))
+            z <- iteWord sym pneg zneg zpos
+            VSeq (Nat n) <$> unpackSeqMap sym z
 
-       Right wv ->
-         do amt <- asWordVal (What4 sym) wv
-            return (VWord (SW.bvWidth x) (WordVal <$> w4bvAshr sym x amt))
+       Right amt ->
+         do z <- w4bvAshr sym x amt
+            VSeq (Nat n) <$> unpackSeqMap sym z
 
+w4bvShl  :: W4.IsExprBuilder sym =>
+  What4 sym -> SW.SWord sym -> SW.SWord sym -> W4Eval sym (SW.SWord sym)
+w4bvShl (What4 sym) x y = liftIO $ SW.bvShl sym x y
 
-w4bvShl  :: W4.IsExprBuilder sym => sym -> SW.SWord sym -> SW.SWord sym -> W4Eval sym (SW.SWord sym)
-w4bvShl sym x y = liftIO $ SW.bvShl sym x y
+w4bvLshr  :: W4.IsExprBuilder sym =>
+  What4 sym -> SW.SWord sym -> SW.SWord sym -> W4Eval sym (SW.SWord sym)
+w4bvLshr (What4 sym) x y = liftIO $ SW.bvLshr sym x y
 
-w4bvLshr  :: W4.IsExprBuilder sym => sym -> SW.SWord sym -> SW.SWord sym -> W4Eval sym (SW.SWord sym)
-w4bvLshr sym x y = liftIO $ SW.bvLshr sym x y
+w4bvAshr :: W4.IsExprBuilder sym =>
+  What4 sym -> SW.SWord sym -> SW.SWord sym -> W4Eval sym (SW.SWord sym)
+w4bvAshr (What4 sym) x y = liftIO $ SW.bvAshr sym x y
 
-w4bvAshr :: W4.IsExprBuilder sym => sym -> SW.SWord sym -> SW.SWord sym -> W4Eval sym (SW.SWord sym)
-w4bvAshr sym x y = liftIO $ SW.bvAshr sym x y
+w4bvRol  :: W4.IsExprBuilder sym =>
+  What4 sym -> SW.SWord sym -> SW.SWord sym -> W4Eval sym (SW.SWord sym)
+w4bvRol (What4 sym) x y = liftIO $ SW.bvRol sym x y
 
-w4bvRol  :: W4.IsExprBuilder sym => sym -> SW.SWord sym -> SW.SWord sym -> W4Eval sym (SW.SWord sym)
-w4bvRol sym x y = liftIO $ SW.bvRol sym x y
-
-w4bvRor  :: W4.IsExprBuilder sym => sym -> SW.SWord sym -> SW.SWord sym -> W4Eval sym (SW.SWord sym)
-w4bvRor sym x y = liftIO $ SW.bvRor sym x y
+w4bvRor  :: W4.IsExprBuilder sym =>
+  What4 sym -> SW.SWord sym -> SW.SWord sym -> W4Eval sym (SW.SWord sym)
+w4bvRor (What4 sym) x y = liftIO $ SW.bvRor sym x y
 
 
 

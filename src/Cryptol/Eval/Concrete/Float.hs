@@ -34,7 +34,7 @@ floatPrims sym = Map.fromList [ (floatPrim i,v) | (i,v) <- nonInfixTable ]
                        pure $ VFloat $ floatFromBits e p $ bvVal bv
 
     , "fpToBits"    ~> ilam \e -> ilam \p -> flam \x ->
-                       pure $ word sym (e + p)
+                       word sym (e + p)
                             $ floatToBits e p
                             $ bfValue x
     , "=.="         ~> ilam \_ -> ilam \_ -> flam \x -> pure $ flam \y ->

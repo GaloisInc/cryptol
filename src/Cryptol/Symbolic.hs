@@ -121,7 +121,7 @@ data FinType
     | FTIntMod Integer
     | FTRational
     | FTFloat Integer Integer
-    | FTSeq Int FinType
+    | FTSeq Int FinType  -- TODO! Int -> Integer
     | FTTuple [FinType]
     | FTRecord (RecordMap Ident FinType)
 

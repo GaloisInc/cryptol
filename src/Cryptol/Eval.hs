@@ -37,7 +37,6 @@ module Cryptol.Eval (
 
 import Cryptol.Eval.Backend
 import Cryptol.Eval.Concrete( Concrete(..) )
-import Cryptol.Eval.Generic ( iteValue )
 import Cryptol.Eval.Env
 import Cryptol.Eval.Monad
 import Cryptol.Eval.Type
@@ -114,15 +113,17 @@ evalExpr sym env expr = case expr of
   EList es ty
     -- NB, even if the list cannot be packed, we must use `VWord`
     -- when the element type is `Bit`.
-    | isTBit tyv -> {-# SCC "evalExpr->Elist/bit" #-}
-        return $ VWord len $
-          case tryFromBits sym vs of
-            Just w  -> WordVal <$> w
-            Nothing -> do xs <- mapM (sDelay sym Nothing) vs
-                          return $ LargeBitsVal len $ finiteSeqMap sym xs
+    | isTBit tyv
+    -> {-# SCC "evalExpr->Elist/bit" #-}
+       tryFromBits sym vs >>= \case
+         Just w -> VSeq (Nat (wordLen sym w)) <$> unpackSeqMap sym w
+         Nothing -> do
+            xs <- mapM (sDelay sym Nothing) vs
+            VSeq (Nat len) <$> finiteSeqMap sym xs
+
     | otherwise -> {-# SCC "evalExpr->EList" #-} do
         xs <- mapM (sDelay sym Nothing) vs
-        return $ VSeq len $ finiteSeqMap sym xs
+        VSeq (Nat len) <$> finiteSeqMap sym xs
    where
     tyv = evalValType (envTypes env) ty
     vs  = map eval es
@@ -147,7 +148,8 @@ evalExpr sym env expr = case expr of
 
   EIf c t f -> {-# SCC "evalExpr->EIf" #-} do
      b <- fromVBit <$> eval c
-     iteValue sym b (eval t) (eval f)
+     let tyv = undefined -- TODO!
+     iteValue sym tyv b (eval t) (eval f)
 
   EComp n t h gs -> {-# SCC "evalExpr->EComp" #-} do
       let len  = evalNumType (envTypes env) n
@@ -174,17 +176,15 @@ evalExpr sym env expr = case expr of
     eval e >>= \case
       VPoly f     -> f $! (evalValType (envTypes env) ty)
       VNumPoly f  -> f $! (evalNumType (envTypes env) ty)
-      val     -> do vdoc <- ppV val
-                    panic "[Eval] evalExpr"
-                      ["expected a polymorphic value"
-                      , show vdoc, show (pp e), show (pp ty)
-                      ]
+      _ -> panic "[Eval] evalExpr"
+               ["expected a polymorphic value"
+               , show (pp e), show (pp ty)
+               ]
 
   EApp f v -> {-# SCC "evalExpr->EApp" #-} do
     eval f >>= \case
       VFun f' -> f' (eval v)
-      it      -> do itdoc <- ppV it
-                    panic "[Eval] evalExpr" ["not a function", show itdoc ]
+      _      -> panic "[Eval] evalExpr" ["not a function", show (pp f) ]
 
   EAbs n _ty b -> {-# SCC "evalExpr->EAbs" #-}
     return $ VFun (\v -> do env' <- bindVar sym n v env
@@ -202,8 +202,6 @@ evalExpr sym env expr = case expr of
 
   {-# INLINE eval #-}
   eval = evalExpr sym env
-  ppV = ppValue sym defaultPPOpts
-
 
 -- Newtypes --------------------------------------------------------------------
 
@@ -403,28 +401,22 @@ evalSel sym val sel = case sel of
   tupleSel n v =
     case v of
       VTuple vs       -> vs !! n
-      _               -> do vdoc <- ppValue sym defaultPPOpts v
-                            evalPanic "Cryptol.Eval.evalSel"
-                              [ "Unexpected value in tuple selection"
-                              , show vdoc ]
+      _               -> evalPanic "Cryptol.Eval.evalSel"
+                            [ "Unexpected value in tuple selection" ]
+
 
   recordSel n v =
     case v of
       VRecord {}      -> lookupRecord n v
-      _               -> do vdoc <- ppValue sym defaultPPOpts v
-                            evalPanic "Cryptol.Eval.evalSel"
-                              [ "Unexpected value in record selection"
-                              , show vdoc ]
+      _               ->  evalPanic "Cryptol.Eval.evalSel"
+                            [ "Unexpected value in record selection" ]
 
   listSel n v =
     case v of
-      VSeq _ vs       -> lookupSeqMap vs (toInteger n)
-      VStream vs      -> lookupSeqMap vs (toInteger n)
-      VWord _ wv      -> VBit <$> (flip (indexWordValue sym) (toInteger n) =<< wv)
-      _               -> do vdoc <- ppValue sym defaultPPOpts val
-                            evalPanic "Cryptol.Eval.evalSel"
-                              [ "Unexpected value in list selection"
-                              , show vdoc ]
+      VSeq _ vs       -> lookupSeqMap sym (toInteger n) vs
+      _               -> evalPanic "Cryptol.Eval.evalSel"
+                            [ "Unexpected value in list selection" ]
+
 {-# SPECIALIZE evalSetSel ::
   ConcPrims =>
   Concrete -> TValue ->
@@ -441,11 +433,12 @@ evalSetSel :: forall sym.
   Selector ->
   SEval sym (GenValue sym) ->
   SEval sym (GenValue sym)
-evalSetSel _sym tyv e sel v =
+evalSetSel sym tyv e sel v =
   case (tyv, sel) of
     (TVTuple ts, TupleSel n _)  -> setTuple ts n
-    (TVRec fs, RecordSel n _) -> setRecord fs n
-    (TVSeq len a, ListSel ix _)  -> setList len a (toInteger ix)
+    (TVRec fs, RecordSel n _)   -> setRecord fs n
+    (TVSeq len a, ListSel ix _) -> setList (Nat len) a (toInteger ix)
+    (TVStream a, ListSel ix _)  -> setList Inf a (toInteger ix)
     _ -> bad ("type/selector mismatch")
 
   where
@@ -478,20 +471,9 @@ evalSetSel _sym tyv e sel v =
                               ])
         fs
 
-  setList len a n =
-    error "setList ASDF!"    
-
-  --   case e of
-  --     VSeq i mp  -> pure $ VSeq i  $ updateSeqMap mp n v
-  --     VStream mp -> pure $ VStream $ updateSeqMap mp n v
-  --     VWord i m  -> pure $ VWord i $ do m1 <- m
-  --                                       updateWordValue sym m1 n asBit
-  --     _ -> bad "Sequence update on a non-sequence."
-
-  -- asBit = do res <- v
-  --            case res of
-  --              VBit b -> pure b
-  --              _      -> bad "Expected a bit, but got something else"
+  setList len _a n =
+    do vs <- delaySeqMap sym (fromVSeq <$> e)
+       VSeq len <$> updateSeqMap sym vs n v
 
 -- List Comprehension Environments ---------------------------------------------
 
@@ -573,10 +555,10 @@ evalComp ::
   Expr           {- ^ Head expression of the comprehension -} ->
   [[Match]]      {- ^ List of parallel comprehension branches -} ->
   SEval sym (GenValue sym)
-evalComp sym env len elty body ms =
+evalComp sym env len _elty body ms =
        do lenv <- mconcat <$> mapM (branchEnvs sym (toListEnv env)) ms
-          mkSeq len elty <$> memoMap (IndexSeqMap $ \i -> do
-              evalExpr sym (evalListEnv lenv i) body)
+          VSeq len <$> (memoMap sym =<< generateSeqMap sym (\i ->
+                          evalExpr sym (evalListEnv lenv i) body))
 
 {-# SPECIALIZE branchEnvs ::
   ConcPrims =>
@@ -618,16 +600,12 @@ evalMatch sym lenv m = case m of
       -- Select from a sequence of finite length.  This causes us to 'stutter'
       -- through our previous choices `nLen` times.
       Nat nLen -> do
-        vss <- memoMap $ IndexSeqMap $ \i -> evalExpr sym (evalListEnv lenv i) expr
+        vss <- memoMap sym =<< generateSeqMap sym
+                 (\i -> evalExpr sym (evalListEnv lenv i) expr)
+        vs <- joinSeqMap sym nLen vss
         let stutter xs = \i -> xs (i `div` nLen)
         let lenv' = lenv { leVars = fmap stutter (leVars lenv) }
-        let vs i = do let (q, r) = i `divMod` nLen
-                      lookupSeqMap vss q >>= \case
-                        VWord _ w   -> VBit <$> (flip (indexWordValue sym) r =<< w)
-                        VSeq _ xs'  -> lookupSeqMap xs' r
-                        VStream xs' -> lookupSeqMap xs' r
-                        _           -> evalPanic "evalMatch" ["Not a list value"]
-        return $ bindVarList n vs lenv'
+        return $ bindVarList n (\i -> lookupSeqMap sym i vs) lenv'
 
       -- Select from a sequence of infinite length.  Note that this means we
       -- will never need to backtrack into previous branches.  Thus, we can convert
@@ -639,13 +617,8 @@ evalMatch sym lenv m = case m of
                          , leStatic = allvars
                          }
         let env   = EvalEnv allvars (leTypes lenv)
-        xs <- evalExpr sym env expr
-        let vs i = case xs of
-                     VWord _ w   -> VBit <$> (flip (indexWordValue sym) i =<< w)
-                     VSeq _ xs'  -> lookupSeqMap xs' i
-                     VStream xs' -> lookupSeqMap xs' i
-                     _           -> evalPanic "evalMatch" ["Not a list value"]
-        return $ bindVarList n vs lenv'
+        xs <- memoMap sym . fromVSeq =<< evalExpr sym env expr
+        return $ bindVarList n (\i -> lookupSeqMap sym i xs) lenv'
 
     where
       len  = evalNumType (leTypes lenv) l

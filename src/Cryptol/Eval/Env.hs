@@ -56,8 +56,9 @@ instance Monoid (GenEvalEnv sym) where
 ppEnv :: Backend sym => sym -> PPOpts -> GenEvalEnv sym -> SEval sym Doc
 ppEnv sym opts env = brackets . fsep <$> mapM bind (Map.toList (envVars env))
   where
-   bind (k,v) = do vdoc <- ppValue sym opts =<< v
-                   return (pp k <+> text "->" <+> vdoc)
+   bind (k,v) =
+      do vdoc <- ppValue sym opts =<< v
+         return (pp k <+> text "->" <+> vdoc)
 
 -- | Evaluation environment with no bindings
 emptyEnv :: GenEvalEnv sym

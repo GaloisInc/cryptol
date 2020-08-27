@@ -25,6 +25,8 @@ module Cryptol.Eval.Concrete.Value
   , bvVal
   , ppBV
   , mkBv
+  , packBits
+  , mkWord
   , mask
   , signedBV
   , signedValue
@@ -46,7 +48,7 @@ import qualified Cryptol.Eval.Arch as Arch
 import qualified Cryptol.Eval.Concrete.FloatHelpers as FP
 import Cryptol.Eval.Monad
 import Cryptol.Eval.Value
-import Cryptol.TypeCheck.Solver.InfNat (genLog)
+import Cryptol.TypeCheck.Solver.InfNat (genLog, Nat'(..))
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
 
@@ -80,6 +82,20 @@ bvVal (BV _w x) = x
 -- | Smart constructor for 'BV's that checks for the width limit
 mkBv :: Integer -> Integer -> BV
 mkBv w i = BV w (mask w i)
+
+mkWord :: BV -> Value
+mkWord bv@(BV w _) = VSeq (Nat w) (unpackSeqMap' bv)
+
+-- | Convert a big-endian list of bits into a bitvector
+packBits :: [Bool] -> BV 
+packBits bits = BV (toInteger w) a
+  where
+    w = case length bits of
+          len | toInteger len >= Arch.maxBigIntWidth -> wordTooWide (toInteger len)
+              | otherwise                  -> len
+    a = foldl setb 0 (zip [w - 1, w - 2 .. 0] bits)
+    setb acc (n,b) | b         = setBit acc n
+                   | otherwise = acc
 
 signedBV :: BV -> Integer
 signedBV (BV i x) = signedValue i x
@@ -152,8 +168,7 @@ instance Backend Concrete where
   wordUpdate _ (BV w x) idx True  = pure $! BV w (setBit   x (fromInteger (w - 1 - idx)))
   wordUpdate _ (BV w x) idx False = pure $! BV w (clearBit x (fromInteger (w - 1 - idx)))
 
-  isReady _ (Ready _) = True
-  isReady _ _ = False
+  sMaybeReady _ = maybeReady
 
   mergeEval _sym f c mx my =
     do x <- mx
@@ -194,14 +209,7 @@ instance Backend Concrete where
   wordToInt _ (BV _ x) = pure x
   wordFromInt _ w x = pure $! mkBv w x
 
-  packWord _ bits = pure $! BV (toInteger w) a
-    where
-      w = case length bits of
-            len | toInteger len >= Arch.maxBigIntWidth -> wordTooWide (toInteger len)
-                | otherwise                  -> len
-      a = foldl setb 0 (zip [w - 1, w - 2 .. 0] bits)
-      setb acc (n,b) | b         = setBit acc n
-                     | otherwise = acc
+  packWord _ bits = pure $! packBits bits
 
   unpackWord _ (BV w a) = pure [ testBit a n | n <- [w' - 1, w' - 2 .. 0] ]
     where

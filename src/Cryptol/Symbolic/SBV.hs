@@ -31,7 +31,7 @@ import Control.Concurrent.Async
 import Control.Monad.IO.Class
 import Control.Monad (replicateM, when, zipWithM, foldM, forM_)
 import Control.Monad.Writer (WriterT, runWriterT, tell, lift)
-import Data.List (genericLength)
+--import Data.List (genericLength)
 import Data.Maybe (fromMaybe)
 import qualified Data.Map as Map
 import qualified Control.Exception as X
@@ -48,6 +48,8 @@ import qualified Cryptol.ModuleSystem as M hiding (getPrimMap)
 import qualified Cryptol.ModuleSystem.Env as M
 import qualified Cryptol.ModuleSystem.Base as M
 import qualified Cryptol.ModuleSystem.Monad as M
+
+import           Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
 
 import qualified Cryptol.Eval.Backend as Eval
 import qualified Cryptol.Eval as Eval
@@ -322,7 +324,7 @@ prepareQuery evo modEnv ProverCommand{..} =
                         appliedVal <- foldM Eval.fromVFun v (map pure args)
                         case pcQueryType of
                           SafetyQuery ->
-                            do Eval.forceValue appliedVal
+                            do Eval.forceValue SBV appliedVal
                                pure SBV.svTrue
                           _ -> pure (Eval.fromVBit appliedVal)
 
@@ -474,15 +476,14 @@ parseValue FTRational cvs =
   do (n,cvs')  <- SBV.genParse SBV.KUnbounded cvs
      (d,cvs'') <- SBV.genParse SBV.KUnbounded cvs'
      return (Eval.VRational (Eval.SRational n d), cvs'')
-parseValue (FTSeq 0 FTBit) cvs = (Eval.word Concrete 0 0, cvs)
+parseValue (FTSeq 0 FTBit) cvs = (Concrete.mkWord (Concrete.mkBv 0 0), cvs)
 parseValue (FTSeq n FTBit) cvs =
   case SBV.genParse (SBV.KBounded False n) cvs of
-    Just (x, cvs') -> (Eval.word Concrete (toInteger n) x, cvs')
-    Nothing        -> (Eval.VWord (genericLength vs) (Eval.WordVal <$>
-                         (Eval.packWord Concrete (map Eval.fromVBit vs))), cvs')
+    Just (x, cvs') -> (Concrete.mkWord (Concrete.mkBv (toInteger n) x), cvs')
+    Nothing        -> (Concrete.mkWord (Concrete.packBits (map Eval.fromVBit vs)), cvs')
       where (vs, cvs') = parseValues (replicate n FTBit) cvs
 parseValue (FTSeq n t) cvs =
-                      (Eval.VSeq (toInteger n) $ Eval.finiteSeqMap Concrete (map Eval.ready vs)
+                      (Eval.VSeq (Nat (toInteger n)) $ Eval.finiteSeqMap' Concrete (map Eval.ready vs)
                       , cvs'
                       )
   where (vs, cvs') = parseValues (replicate n t) cvs
@@ -524,10 +525,10 @@ forallFinType ty =
     FTIntMod n    -> do x <- lift forallSInteger_
                         tell [inBoundsIntMod n x]
                         return (Eval.VInteger x)
-    FTSeq 0 FTBit -> return $ Eval.word SBV 0 0
-    FTSeq n FTBit -> Eval.VWord (toInteger n) . return . Eval.WordVal <$> lift (forallBV_ n)
+    FTSeq 0 FTBit -> pure $ Eval.VSeq (Nat 0) (Eval.finiteSeqMap' SBV [])
+    FTSeq n FTBit -> Eval.VSeq (Nat (toInteger n)) . Eval.unpackSeqMap' <$> lift (forallBV_ n)
     FTSeq n t     -> do vs <- replicateM n (forallFinType t)
-                        return $ Eval.VSeq (toInteger n) $ Eval.finiteSeqMap SBV (map pure vs)
+                        return $ Eval.VSeq (Nat (toInteger n)) $ Eval.finiteSeqMap' SBV (map pure vs)
     FTTuple ts    -> Eval.VTuple <$> mapM (fmap pure . forallFinType) ts
     FTRecord fs   -> Eval.VRecord <$> traverse (fmap pure . forallFinType) fs
 
@@ -546,9 +547,9 @@ existsFinType ty =
     FTIntMod n    -> do x <- lift existsSInteger_
                         tell [inBoundsIntMod n x]
                         return (Eval.VInteger x)
-    FTSeq 0 FTBit -> return $ Eval.word SBV 0 0
-    FTSeq n FTBit -> Eval.VWord (toInteger n) . return . Eval.WordVal <$> lift (existsBV_ n)
+    FTSeq 0 FTBit -> pure $ Eval.VSeq (Nat 0) (Eval.finiteSeqMap' SBV [])
+    FTSeq n FTBit -> Eval.VSeq (Nat (toInteger n)) . Eval.unpackSeqMap' <$> lift (existsBV_ n)
     FTSeq n t     -> do vs <- replicateM n (existsFinType t)
-                        return $ Eval.VSeq (toInteger n) $ Eval.finiteSeqMap SBV (map pure vs)
+                        return $ Eval.VSeq (Nat (toInteger n)) $ Eval.finiteSeqMap' SBV (map pure vs)
     FTTuple ts    -> Eval.VTuple <$> mapM (fmap pure . existsFinType) ts
     FTRecord fs   -> Eval.VRecord <$> traverse (fmap pure . existsFinType) fs

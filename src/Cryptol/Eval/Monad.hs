@@ -151,6 +151,19 @@ maybeReady (Thunk tv) = Eval $
 maybeReady (Eval _) = pure Nothing
 
 
+
+
+-- | Test if a value is "ready", which means that
+--   it requires no computation to return.
+maybeReady :: Eval a -> Eval (Maybe a)
+maybeReady (Ready a) = pure (Just a)
+maybeReady (Thunk tv) = Eval $
+  readTVarIO tv >>= \case
+     Forced a -> pure (Just a)
+     _ -> pure Nothing
+maybeReady (Eval _) = pure Nothing
+
+
 {-# INLINE delayFill #-}
 
 -- | Delay the given evaluation computation, returning a thunk

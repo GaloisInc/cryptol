@@ -76,6 +76,7 @@ import qualified Cryptol.TypeCheck.Parseable as T
 import qualified Cryptol.TypeCheck.Subst as T
 import           Cryptol.TypeCheck.Solve(defaultReplExpr)
 import qualified Cryptol.TypeCheck.Solver.SMT as SMT
+import           Cryptol.TypeCheck.Solver.InfNat( Nat'(..) )
 import           Cryptol.TypeCheck.PP (dump,ppWithNames,emptyNameMap)
 import           Cryptol.Utils.PP
 import           Cryptol.Utils.Panic(panic)
@@ -949,9 +950,10 @@ writeFileCmd file str = do
   tIsByte    x = maybe False
                        (\(n,b) -> T.tIsBit b && T.tIsNum n == Just 8)
                        (T.tIsSeq x)
-  serializeValue (E.VSeq n vs) = do
+  serializeValue (E.VSeq (Nat n) vs) = do
     ws <- rEval
-            (mapM (>>= E.fromVWord Concrete "serializeValue") $ E.enumerateSeqMap n vs)
+            (mapM (\v -> E.packSeqMap Concrete n . E.fromVSeq =<< v)
+                  (E.enumerateSeqMap Concrete n vs))
     return $ BS.pack $ map serializeByte ws
   serializeValue _             =
     panic "Cryptol.REPL.Command.writeFileCmd"

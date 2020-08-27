@@ -1,4 +1,4 @@
--- |
+        -- |
 -- Module      :  Cryptol.Testing.Random
 -- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
@@ -20,7 +20,6 @@ import Control.Monad          (join, liftM2)
 import Data.Ratio             ((%))
 import Data.Bits              ( (.&.), shiftR )
 import Data.List              (unfoldr, genericTake, genericIndex, genericReplicate)
-import qualified Data.Sequence as Seq
 
 import System.Random          (RandomGen, split, random, randomR)
 import System.Random.TF.Gen   (seedTFGen)
@@ -29,18 +28,19 @@ import Cryptol.Eval.Backend   (Backend(..), SRational(..))
 import Cryptol.Eval.Concrete.Value
 import Cryptol.Eval.Monad     (ready,runEval,Eval,EvalError(..))
 import Cryptol.Eval.Type      (TValue(..), tValTy)
-import Cryptol.Eval.Value     (GenValue(..),SeqMap(..), WordValue(..),
-                               ppValue, defaultPPOpts, finiteSeqMap)
+import Cryptol.Eval.Value     (GenValue(..), word, generateSeqMap, finiteSeqMap,
+                               finiteSeqMap', unpackSeqMap')
 import Cryptol.Eval.Generic   (zeroV)
 import Cryptol.TypeCheck.AST  (Type(..), TCon(..), TC(..), tNoUser, tIsFun
                               , tIsNum )
 import Cryptol.TypeCheck.SimpType(tRebuild')
+import Cryptol.TypeCheck.Solver.InfNat (Nat'(..))
 
 import Cryptol.Utils.Ident    (Ident)
 import Cryptol.Utils.Panic    (panic)
 import Cryptol.Utils.RecordMap
 
-type Gen g x = Integer -> g -> (SEval x (GenValue x), g)
+type Gen g sym = Integer -> g -> (SEval sym (GenValue sym), g)
 
 
 {- | Apply a testable value to some randomly-generated arguments.
@@ -152,14 +152,14 @@ randomValue sym ty =
 
         (TC TCSeq, [TCon (TC TCInf) [], el])  ->
           do mk <- randomValue sym el
-             return (randomStream mk)
+             return (randomStream sym mk)
 
         (TC TCSeq, [TCon (TC (TCNum n)) [], TCon (TC TCBit) []]) ->
             return (randomWord sym n)
 
         (TC TCSeq, [TCon (TC (TCNum n)) [], el]) ->
           do mk <- randomValue sym el
-             return (randomSequence n mk)
+             return (randomSequence sym n mk)
 
         (TC (TCTuple _), els) ->
           do mks <- mapM (randomValue sym) els
@@ -225,28 +225,29 @@ randomRational sym w g =
 -- it to generate smaller numbers first.
 randomWord :: (Backend sym, RandomGen g) => sym -> Integer -> Gen g sym
 randomWord sym w _sz g =
-   let (val, g1) = randomR (0,2^w-1) g
-   in (return $ VWord w (WordVal <$> wordLit sym w val), g1)
+   let (val, g1) = randomR (0,2^w - 1) g
+    in (word sym w val, g1)
 
 {-# INLINE randomStream #-}
 
 -- | Generate a random infinite stream value.
-randomStream :: (Backend sym, RandomGen g) => Gen g sym -> Gen g sym
-randomStream mkElem sz g =
+randomStream :: (Backend sym, RandomGen g) => sym -> Gen g sym -> Gen g sym
+randomStream sym mkElem sz g =
   let (g1,g2) = split g
-  in (pure $ VStream $ IndexSeqMap $ genericIndex (unfoldr (Just . mkElem sz) g1), g2)
+      xs = (unfoldr (Just . mkElem sz) g1)
+   in (VSeq Inf <$> generateSeqMap sym (genericIndex xs), g2)
 
 {-# INLINE randomSequence #-}
 
 {- | Generate a random sequence.  This should be used for sequences
 other than bits.  For sequences of bits use "randomWord". -}
-randomSequence :: (Backend sym, RandomGen g) => Integer -> Gen g sym -> Gen g sym
-randomSequence w mkElem sz g0 = do
+randomSequence :: (Backend sym, RandomGen g) => sym -> Integer -> Gen g sym -> Gen g sym
+randomSequence sym w mkElem sz g0 =
   let (g1,g2) = split g0
-  let f g = let (x,g') = mkElem sz g
+      f g = let (x,g') = mkElem sz g
              in seq x (Just (x, g'))
-  let xs = Seq.fromList $ genericTake w $ unfoldr f g1
-  seq xs (pure $ VSeq w $ IndexSeqMap $ (Seq.index xs . fromInteger), g2)
+      xs = genericTake w $ unfoldr f g1
+   in (VSeq (Nat w) <$> finiteSeqMap sym xs, g2)
 
 {-# INLINE randomTuple #-}
 
@@ -342,13 +343,16 @@ evalTest v0 vs0 = run `X.catch` handle
     go (VFun _) []       = panic "Not enough arguments while applying function"
                            []
     go (VBit b) []       = return b
-    go v vs              = do vdoc    <- ppValue Concrete defaultPPOpts v
+    go _v _vs            = panic "Type error while running test" [] -- TODO, better?
+{-
+do vdoc    <- ppValue Concrete defaultPPOpts tp v
                               vsdocs  <- mapM (ppValue Concrete defaultPPOpts) vs
-                              panic "Type error while running test" $
+                              
                                [ "Function:"
                                , show vdoc
                                , "Arguments:"
                                ] ++ map show vsdocs
+-}
 
 {- | Given a (function) type, compute all possible inputs for it.
 We also return the types of the arguments and
@@ -425,10 +429,10 @@ typeValues ty =
         TCSeq       ->
           case map tNoUser ts of
             [ TCon (TC (TCNum n)) _, TCon (TC TCBit) [] ] ->
-              [ VWord n (ready (WordVal (BV n x))) | x <- [ 0 .. 2^n - 1 ] ]
+              [ VSeq (Nat n) (unpackSeqMap' (BV n x)) | x <- [ 0 .. 2^n - 1 ] ]
 
             [ TCon (TC (TCNum n)) _, t ] ->
-              [ VSeq n (finiteSeqMap Concrete (map ready xs))
+              [ VSeq (Nat n) (finiteSeqMap' Concrete (map ready xs))
               | xs <- sequence $ genericReplicate n
                                $ typeValues t ]
             _ -> []

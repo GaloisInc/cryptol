@@ -56,6 +56,7 @@ import           Cryptol.Eval.What4
 import qualified Cryptol.Eval.What4.SFloat as W4
 import           Cryptol.Symbolic
 import           Cryptol.TypeCheck.AST
+import           Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
 import           Cryptol.Utils.Ident (Ident)
 import           Cryptol.Utils.Logger(logPutStrLn)
 import           Cryptol.Utils.Panic (panic)
@@ -270,7 +271,7 @@ prepareQuery sym ProverCommand { .. } =
 
             case pcQueryType of
               SafetyQuery ->
-                do Eval.forceValue appliedVal
+                do Eval.forceValue (What4 sym) appliedVal
                    pure (W4.truePred sym)
 
               _ -> pure (Eval.fromVBit appliedVal)
@@ -581,9 +582,9 @@ varToSymValue sym var =
     VarBit b     -> Eval.VBit b
     VarInteger i -> Eval.VInteger i
     VarRational n d -> Eval.VRational (Eval.SRational n d)
-    VarWord w    -> Eval.VWord (SW.bvWidth w) (return (Eval.WordVal w))
+    VarWord w    -> Eval.VSeq (Nat (SW.bvWidth w)) (Eval.unpackSeqMap' w)
     VarFloat f   -> Eval.VFloat f
-    VarFinSeq n vs -> Eval.VSeq (toInteger n) (Eval.finiteSeqMap (What4 sym) (map (pure . varToSymValue sym) vs))
+    VarFinSeq n vs -> Eval.VSeq (Nat (toInteger n)) (Eval.finiteSeqMap' (What4 sym) (map (pure . varToSymValue sym) vs))
     VarTuple vs  -> Eval.VTuple (map (pure . varToSymValue sym) vs)
     VarRecord fs -> Eval.VRecord (fmap (pure . varToSymValue sym) fs)
 
@@ -597,11 +598,11 @@ varToConcreteValue evalFn v =
     VarInteger i -> Eval.VInteger <$> W4.groundEval evalFn i
     VarRational n d ->
        Eval.VRational <$> (Eval.SRational <$> W4.groundEval evalFn n <*> W4.groundEval evalFn d)
-    VarWord SW.ZBV     ->
-       pure (Eval.VWord 0 (pure (Eval.WordVal (Concrete.mkBv 0 0))))
+    VarWord SW.ZBV     -> pure $ Eval.VSeq (Nat 0) (Eval.finiteSeqMap' Concrete.Concrete [])
     VarWord (SW.DBV x) ->
        do let w = W4.intValue (W4.bvWidth x)
-          Eval.VWord w . pure . Eval.WordVal . Concrete.mkBv w . BV.asUnsigned <$> W4.groundEval evalFn x
+          bv <- Concrete.mkBv w . BV.asUnsigned <$> W4.groundEval evalFn x
+          pure $ Eval.VSeq (Nat w) (Eval.unpackSeqMap' bv)
     VarFloat fv@(W4.SFloat f) ->
       do let (e,p) = W4.fpSize fv
          bits <- W4.groundEval evalFn f
@@ -609,7 +610,7 @@ varToConcreteValue evalFn v =
 
     VarFinSeq n vs ->
        do vs' <- mapM (varToConcreteValue evalFn) vs
-          pure (Eval.VSeq (toInteger n) (Eval.finiteSeqMap Concrete.Concrete (map pure vs')))
+          pure (Eval.VSeq (Nat (toInteger n)) (Eval.finiteSeqMap' Concrete.Concrete (map pure vs')))
     VarTuple vs ->
        do vs' <- mapM (varToConcreteValue evalFn) vs
           pure (Eval.VTuple (map pure vs'))

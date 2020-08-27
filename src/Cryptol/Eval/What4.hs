@@ -23,7 +23,6 @@ import qualified What4.Interface as W4
 
 import Cryptol.Eval.Backend
 import Cryptol.Eval.Generic
-import Cryptol.Eval.Type (finNat')
 import Cryptol.Eval.Value
 import Cryptol.Eval.What4.Value
 import Cryptol.Eval.What4.Float(floatPrims)
@@ -83,7 +82,7 @@ primTable w4sym = let sym = What4 w4sym in
   , ("/$"          , sdivV sym)
   , ("%$"          , smodV sym)
   , ("lg2"         , lg2V sym)
-  , (">>$"         , sshrV w4sym)
+  , (">>$"         , sshrV sym)
 
     -- Cmp
   , ("<"           , binary (lessThanV sym))
@@ -110,54 +109,44 @@ primTable w4sym = let sym = What4 w4sym in
 
   , ("join"       ,
      nlam $ \ parts ->
-     nlam $ \ (finNat' -> each)  ->
+     ilam $ \ each  ->
      tlam $ \ a     ->
      lam  $ \ x     -> joinV sym parts each a x)
 
-  , ("split"       , ecSplitV sym)
+  , ("split"      ,
+     nlam $ \ parts ->
+     ilam $ \ each  ->
+     tlam $ \ a     ->
+     lam  $ \ x     -> splitV sym parts each a x)
 
   , ("splitAt"    ,
-     nlam $ \ front ->
+     ilam $ \ front ->
      nlam $ \ back  ->
      tlam $ \ a     ->
      lam  $ \ x     -> splitAtV sym front back a x)
 
-  , ("take"       , nlam $ \front ->
-                    nlam $ \_back ->
-                    tlam $ \a ->
-                     lam $ \xs -> takeV sym front a xs)
-{-
-  , ("reverse"    , nlam $ \_a ->
-                    tlam $ \_b ->
-                     lam $ \xs -> reverseV sym xs)
-
-
-  , ("transpose"  , nlam $ \a ->
-                    nlam $ \b ->
-                    tlam $ \c ->
-                     lam $ \xs -> transposeV sym a b c xs)
--}
+  , ("take"       ,
+     nlam $ \ front ->
+     nlam $ \ _back ->
+     tlam $ \ a     ->
+      lam $ \ xs    -> takeV sym front a xs)
 
     -- Shifts and rotates
   , ("<<"          , logicShift sym "<<"  shiftShrink
-                        (w4bvShl w4sym) (w4bvLshr w4sym)
-                        shiftLeftReindex shiftRightReindex)
+                        leftShiftSeqMap rightShiftSeqMap)
   , (">>"          , logicShift sym ">>"  shiftShrink
-                        (w4bvLshr w4sym) (w4bvShl w4sym)
-                        shiftRightReindex shiftLeftReindex)
+                        rightShiftSeqMap leftShiftSeqMap)
   , ("<<<"         , logicShift sym "<<<" rotateShrink
-                        (w4bvRol w4sym) (w4bvRor w4sym)
-                        rotateLeftReindex rotateRightReindex)
+                        undefined undefined) -- TODO!
   , (">>>"         , logicShift sym ">>>" rotateShrink
-                        (w4bvRor w4sym) (w4bvRol w4sym)
-                        rotateRightReindex rotateLeftReindex)
+                        undefined undefined) -- TODO!
 
     -- Indexing and updates
-  , ("@"           , indexPrim sym (indexFront_int w4sym) (indexFront_bits w4sym) (indexFront_word w4sym))
-  , ("!"           , indexPrim sym (indexBack_int w4sym) (indexBack_bits w4sym) (indexBack_word w4sym))
+  , ("@"           , indexPrim sym (indexFront_int sym) (indexFront_word sym))
+  , ("!"           , indexPrim sym (indexBack_int sym)  (indexBack_word sym))
 
-  , ("update"      , updatePrim sym (updateFrontSym_word w4sym) (updateFrontSym w4sym))
-  , ("updateEnd"   , updatePrim sym (updateBackSym_word w4sym)  (updateBackSym w4sym))
+  , ("update"      , updatePrim sym (updateFrontSym sym))
+  , ("updateEnd"   , updatePrim sym (updateBackSym sym))
 
     -- Misc
 
