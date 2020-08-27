@@ -74,7 +74,12 @@ install_cvc4() {
     Windows) file="win64-opt.exe" ;;
     macOS) file="macos-opt" ;;
   esac
-  curl -o cvc4$EXT -sL "https://github.com/CVC4/CVC4/releases/download/$version/cvc4-$version-$file"
+  # Temporary workaround
+  if [[ "$RUNNER_OS" == "Linux" ]]; then
+    curl -o cvc4$EXT -sL "https://cvc4.cs.stanford.edu/downloads/builds/x86_64-linux-opt/unstable/cvc4-2020-08-18-x86_64-linux-opt"
+  else
+    curl -o cvc4$EXT -sL "https://github.com/CVC4/CVC4/releases/download/$version/cvc4-$version-$file"
+  fi
   $IS_WIN || chmod +x cvc4$EXT
   mv cvc4$EXT "$BIN/cvc4$EXT"
 }
