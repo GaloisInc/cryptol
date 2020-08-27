@@ -82,7 +82,7 @@ jobs:
       - shell: bash
         run: .github/ci.sh install_system_deps
         env:
-          Z3_VERSION: "4.8.7"
+          Z3_VERSION: "4.8.8"
           CVC4_VERSION: "4.1.8"
           YICES_VERSION: "2.6.2"
 
