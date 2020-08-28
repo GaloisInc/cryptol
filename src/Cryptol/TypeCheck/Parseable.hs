@@ -38,7 +38,7 @@ instance ShowParseable Expr where
   showParseable (ESet _ty e s v) = parens (text "ESet" <+>
                                 showParseable e <+> showParseable s
                                                 <+> showParseable v)
-  showParseable (EIf c t f) = parens (text "EIf" <+> showParseable c $$ showParseable t $$ showParseable f)
+  showParseable (EIf _ c t f) = parens (text "EIf" <+> showParseable c $$ showParseable t $$ showParseable f)
   showParseable (EComp _ _ e mss) = parens (text "EComp" $$ showParseable e $$ showParseable mss)
   showParseable (EVar n) = parens (text "EVar" <+> showParseable n)
   showParseable (EApp fe ae) = parens (text "EApp" $$ showParseable fe $$ showParseable ae)

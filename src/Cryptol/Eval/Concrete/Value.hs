@@ -47,6 +47,7 @@ import qualified LibBF as FP
 import qualified Cryptol.Eval.Arch as Arch
 import qualified Cryptol.Eval.Concrete.FloatHelpers as FP
 import Cryptol.Eval.Monad
+import Cryptol.Eval.Type (TValue(..))
 import Cryptol.Eval.Value
 import Cryptol.TypeCheck.Solver.InfNat (genLog, Nat'(..))
 import Cryptol.Utils.Panic (panic)
@@ -84,7 +85,7 @@ mkBv :: Integer -> Integer -> BV
 mkBv w i = BV w (mask w i)
 
 mkWord :: BV -> Value
-mkWord bv@(BV w _) = VSeq (Nat w) (unpackSeqMap' bv)
+mkWord bv@(BV w _) = VSeq (Nat w) TVBit (unpackSeqMap' bv)
 
 -- | Convert a big-endian list of bits into a bitvector
 packBits :: [Bool] -> BV 
@@ -221,7 +222,11 @@ instance Backend Concrete where
   splitWord _ leftW rightW (BV _ x) =
     pure ( BV leftW (x `shiftR` (fromInteger rightW)), mkBv rightW x )
 
-  extractWord _ n i (BV _ x) = pure $! mkBv n (x `shiftR` (fromInteger i))
+  takeWord _ toTake (BV w x) =
+    pure (BV toTake (x `shiftR` (fromInteger (w - toTake))))
+
+  dropWord _ toDrop (BV w x) =
+    pure (mkBv (w - toDrop) x)
 
   wordEq _ (BV i x) (BV j y)
     | i == j = pure $! x == y

@@ -339,8 +339,7 @@ instance TVars Expr where
         EList es t    -> EList (map go es) (apSubst su t)
         ESel e s      -> ESel (go e) s
         EComp len t e mss -> EComp (apSubst su len) (apSubst su t) (go e) (apSubst su mss)
-        EIf e1 e2 e3  -> EIf (go e1) (go e2) (go e3)
-
+        EIf t e1 e2 e3  -> EIf (apSubst su t) (go e1) (go e2) (go e3)
         EWhere e ds   -> EWhere (go e) (apSubst su ds)
 
 instance TVars Match where

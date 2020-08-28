@@ -337,13 +337,25 @@ instance W4.IsExprBuilder sym => Backend (What4 sym) where
 
   splitWord _sym 0 _ bv = pure (SW.ZBV, bv)
   splitWord _sym _ 0 bv = pure (bv, SW.ZBV)
-  splitWord (What4 sym) lw rw bv = liftIO $
+  splitWord (What4 sym) lw rw bv
+    | lw < 0 || rw < 0 || lw + rw /= SW.bvWidth bv = panic "splitWord" [ show lw, show rw, show bv ] 
+    | otherwise = liftIO $
     do l <- SW.bvSliceBE sym 0 lw bv
        r <- SW.bvSliceBE sym lw rw bv
        return (l, r)
 
-  extractWord (What4 sym) bits idx bv =
-    liftIO $ SW.bvSliceBE sym idx bits bv
+  takeWord (What4 sym) toTake bv
+    | toTake == 0 = return SW.ZBV
+    | toTake == SW.bvWidth bv = pure bv
+    | toTake < 0 || toTake > SW.bvWidth bv = panic "takeWord" [ show toTake, show bv ]
+    | otherwise = liftIO $ SW.bvSliceBE sym 0 toTake bv
+
+  dropWord (What4 sym) toDrop bv
+    | toDrop == 0 = pure bv
+    | toDrop == SW.bvWidth bv = return SW.ZBV
+    | toDrop < 0 || toDrop > SW.bvWidth bv = panic "dropWord" [ show toDrop, show bv ]
+    | otherwise = liftIO $ SW.bvSliceBE sym toDrop (SW.bvWidth bv - toDrop) bv
+   
 
   wordEq                (What4 sym) x y = liftIO (SW.bvEq sym x y)
   wordLessThan          (What4 sym) x y = liftIO (SW.bvult sym x y)
@@ -792,18 +804,18 @@ sshrV sym =
     y >>= asIndex sym ">>$" ix >>= \case
        Left i ->
          do pneg <- intLessThan sym i =<< integerLit sym 0
-            zneg <- do i' <- shiftShrink sym (Nat n) ix =<< intNegate sym i
+            zneg <- do i' <- shiftIntShrink sym (Nat n) =<< intNegate sym i
                        amt <- wordFromInt sym n i'
                        w4bvShl sym x amt
-            zpos <- do i' <- shiftShrink sym (Nat n) ix i
+            zpos <- do i' <- shiftIntShrink sym (Nat n) i
                        amt <- wordFromInt sym n i'
                        w4bvAshr sym x amt
             z <- iteWord sym pneg zneg zpos
-            VSeq (Nat n) <$> unpackSeqMap sym z
+            VSeq (Nat n) TVBit <$> unpackSeqMap sym z
 
        Right amt ->
          do z <- w4bvAshr sym x amt
-            VSeq (Nat n) <$> unpackSeqMap sym z
+            VSeq (Nat n) TVBit <$> unpackSeqMap sym z
 
 w4bvShl  :: W4.IsExprBuilder sym =>
   What4 sym -> SW.SWord sym -> SW.SWord sym -> W4Eval sym (SW.SWord sym)

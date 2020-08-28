@@ -35,7 +35,7 @@ fastTypeOf tyenv expr =
     ERec fields   -> tRec (fmap (fastTypeOf tyenv) fields)
     ESel e sel    -> typeSelect (fastTypeOf tyenv e) sel
     ESet ty _ _ _ -> ty
-    EIf _ e _     -> fastTypeOf tyenv e
+    EIf ty _ _ _  -> ty
     EComp len t _ _ -> tSeq len t
     EAbs x t e    -> tFun t (fastTypeOf (Map.insert x (Forall [] [] t) tyenv) e)
     EApp e _      -> case tIsFun (fastTypeOf tyenv e) of

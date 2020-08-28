@@ -13,7 +13,20 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE Trustworthy #-}
 {-# LANGUAGE TypeFamilies #-}
-module Cryptol.Testing.Random where
+module Cryptol.Testing.Random
+  ( dumpableType
+  , runTests
+  , runOneTest
+  , testableType
+  , testableTypeGenerators
+  , returnTests
+  , isPass
+  , evalTest
+  , TestSpec(..)
+  , TestReport(..)
+  , TestResult(..)
+  , randomV
+  ) where
 
 import qualified Control.Exception as X
 import Control.Monad          (join, liftM2)
@@ -27,13 +40,10 @@ import System.Random.TF.Gen   (seedTFGen)
 import Cryptol.Eval.Backend   (Backend(..), SRational(..))
 import Cryptol.Eval.Concrete.Value
 import Cryptol.Eval.Monad     (ready,runEval,Eval,EvalError(..))
-import Cryptol.Eval.Type      (TValue(..), tValTy)
+import Cryptol.Eval.Type      (TValue(..))
 import Cryptol.Eval.Value     (GenValue(..), word, generateSeqMap, finiteSeqMap,
                                finiteSeqMap', unpackSeqMap')
 import Cryptol.Eval.Generic   (zeroV)
-import Cryptol.TypeCheck.AST  (Type(..), TCon(..), TC(..), tNoUser, tIsFun
-                              , tIsNum )
-import Cryptol.TypeCheck.SimpType(tRebuild')
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..))
 
 import Cryptol.Utils.Ident    (Ident)
@@ -102,75 +112,52 @@ returnTests g gens fun num = go gens g 0
 {- | Given a (function) type, compute generators for the function's
 arguments. This is like 'testableTypeGenerators', but allows the result to be
 any finite type instead of just @Bit@. -}
-dumpableType :: forall g. RandomGen g => Type -> Maybe [Gen g Concrete]
+dumpableType :: forall g. RandomGen g => TValue -> Maybe [Gen g Concrete]
 dumpableType ty =
-  case tIsFun ty of
-    Just (t1, t2) ->
+  case ty of
+    TVFun t1 t2 ->
       do g  <- randomValue Concrete t1
          as <- testableTypeGenerators t2
          return (g : as)
-    Nothing ->
+    _ ->
       do (_ :: Gen g Concrete) <- randomValue Concrete ty
          return []
 
 {- | Given a (function) type, compute generators for
 the function's arguments. Currently we do not support polymorphic functions.
 In principle, we could apply these to random types, and test the results. -}
-testableTypeGenerators :: RandomGen g => Type -> Maybe [Gen g Concrete]
+testableTypeGenerators :: RandomGen g => TValue -> Maybe [Gen g Concrete]
 testableTypeGenerators ty =
-  case tNoUser ty of
-    TCon (TC TCFun) [t1,t2] ->
-      do g  <- randomValue Concrete t1
+  case ty of
+    TVFun t1 t2 ->
+      do g <- randomValue Concrete t1
          as <- testableTypeGenerators t2
-         return (g : as)
-    TCon (TC TCBit) [] -> return []
+         return (g:as)
+    TVBit -> return []
     _ -> Nothing
 
-
 {-# SPECIALIZE randomValue ::
-  RandomGen g => Concrete -> Type -> Maybe (Gen g Concrete)
+  RandomGen g => Concrete -> TValue -> Maybe (Gen g Concrete)
   #-}
 
 {- | A generator for values of the given type.  This fails if we are
 given a type that lacks a suitable random value generator. -}
-randomValue :: (Backend sym, RandomGen g) => sym -> Type -> Maybe (Gen g sym)
+randomValue :: (Backend sym, RandomGen g) => sym -> TValue -> Maybe (Gen g sym)
 randomValue sym ty =
   case ty of
-    TCon tc ts  ->
-      case (tc, map (tRebuild' False) ts) of
-        (TC TCBit, [])                        -> Just (randomBit sym)
-
-        (TC TCInteger, [])                    -> Just (randomInteger sym)
-
-        (TC TCRational, [])                   -> Just (randomRational sym)
-
-        (TC TCIntMod, [TCon (TC (TCNum n)) []]) ->
-          do return (randomIntMod sym n)
-
-        (TC TCFloat, [e',p']) | Just e <- tIsNum e', Just p <- tIsNum p' ->
-          return (randomFloat sym e p)
-
-        (TC TCSeq, [TCon (TC TCInf) [], el])  ->
-          do mk <- randomValue sym el
-             return (randomStream sym mk)
-
-        (TC TCSeq, [TCon (TC (TCNum n)) [], TCon (TC TCBit) []]) ->
-            return (randomWord sym n)
-
-        (TC TCSeq, [TCon (TC (TCNum n)) [], el]) ->
-          do mk <- randomValue sym el
-             return (randomSequence sym n mk)
-
-        (TC (TCTuple _), els) ->
-          do mks <- mapM (randomValue sym) els
-             return (randomTuple mks)
-
-        _ -> Nothing
-
-    TVar _      -> Nothing
-    TUser _ _ t -> randomValue sym t
-    TRec fs     -> do gs <- traverse (randomValue sym) fs
-                      return (randomRecord gs)
+    TVBit         -> Just (randomBit sym)
+    TVInteger     -> Just (randomInteger sym)
+    TVRational    -> Just (randomRational sym)
+    TVIntMod n    -> Just (randomIntMod sym n)
+    TVFloat e p   -> Just (randomFloat sym e p)
+    TVSeq n TVBit -> return (randomWord sym n)
+    TVSeq n el    -> randomSequence sym n el <$> randomValue sym el
+    TVStream el   -> randomStream sym el <$> randomValue sym el
+    TVTuple ts    -> randomTuple <$> mapM (randomValue sym) ts
+    TVRec fs      -> randomRecord <$> traverse (randomValue sym) fs
+    TVArray{}     -> Nothing
+    TVFun{}       -> Nothing
+    TVAbstract{}  -> Nothing
 
 {-# INLINE randomBit #-}
 
@@ -231,23 +218,23 @@ randomWord sym w _sz g =
 {-# INLINE randomStream #-}
 
 -- | Generate a random infinite stream value.
-randomStream :: (Backend sym, RandomGen g) => sym -> Gen g sym -> Gen g sym
-randomStream sym mkElem sz g =
+randomStream :: (Backend sym, RandomGen g) => sym -> TValue -> Gen g sym -> Gen g sym
+randomStream sym a mkElem sz g =
   let (g1,g2) = split g
       xs = (unfoldr (Just . mkElem sz) g1)
-   in (VSeq Inf <$> generateSeqMap sym (genericIndex xs), g2)
+   in (VSeq Inf a <$> generateSeqMap sym (genericIndex xs), g2)
 
 {-# INLINE randomSequence #-}
 
 {- | Generate a random sequence.  This should be used for sequences
 other than bits.  For sequences of bits use "randomWord". -}
-randomSequence :: (Backend sym, RandomGen g) => sym -> Integer -> Gen g sym -> Gen g sym
-randomSequence sym w mkElem sz g0 =
+randomSequence :: (Backend sym, RandomGen g) => sym -> Integer -> TValue -> Gen g sym -> Gen g sym
+randomSequence sym w a mkElem sz g0 =
   let (g1,g2) = split g0
       f g = let (x,g') = mkElem sz g
              in seq x (Just (x, g'))
       xs = genericTake w $ unfoldr f g1
-   in (VSeq (Nat w) <$> finiteSeqMap sym xs, g2)
+   in (VSeq (Nat w) a <$> finiteSeqMap sym xs, g2)
 
 {-# INLINE randomTuple #-}
 
@@ -303,7 +290,7 @@ randomFloat sym e p w g =
 -- TODO: do better than returning zero
 randomV :: Backend sym => sym -> TValue -> Integer -> SEval sym (GenValue sym)
 randomV sym ty seed =
-  case randomValue sym (tValTy ty) of
+  case randomValue sym ty of
     Nothing -> zeroV sym ty
     Just gen ->
       -- unpack the seed into four Word64s
@@ -357,95 +344,64 @@ do vdoc    <- ppValue Concrete defaultPPOpts tp v
 {- | Given a (function) type, compute all possible inputs for it.
 We also return the types of the arguments and
 the total number of test (i.e., the length of the outer list. -}
-testableType :: Type -> Maybe (Maybe Integer, [Type], [[Value]])
+testableType :: TValue -> Maybe (Maybe Integer, [TValue], [[Value]])
 testableType ty =
-  case tNoUser ty of
-    TCon (TC TCFun) [t1,t2] ->
+  case ty of
+    TVFun t1 t2 ->
       do let sz = typeSize t1
          (tot,ts,vss) <- testableType t2
          return (liftM2 (*) sz tot, t1:ts, [ v : vs | v <- typeValues t1, vs <- vss ])
-    TCon (TC TCBit) [] -> return (Just 1, [], [[]])
+    TVBit -> return (Just 1, [], [[]])
     _ -> Nothing
 
 {- | Given a fully-evaluated type, try to compute the number of values in it.
 Returns `Nothing` for infinite types, user-defined types, polymorphic types,
 and, currently, function spaces.  Of course, we can easily compute the
 sizes of function spaces, but we can't easily enumerate their inhabitants. -}
-typeSize :: Type -> Maybe Integer
+typeSize :: TValue -> Maybe Integer
 typeSize ty =
   case ty of
-    TVar _      -> Nothing
-    TUser _ _ t -> typeSize t
-    TRec fs     -> product <$> traverse typeSize fs
-    TCon (TC tc) ts ->
-      case (tc, ts) of
-        (TCNum _, _)     -> Nothing
-        (TCInf, _)       -> Nothing
-        (TCBit, _)       -> Just 2
-        (TCInteger, _)   -> Nothing
-        (TCRational, _)  -> Nothing
-        (TCIntMod, [sz]) -> case tNoUser sz of
-                              TCon (TC (TCNum n)) _ -> Just n
-                              _                     -> Nothing
-        (TCIntMod, _)    -> Nothing
-        (TCFloat {}, _)  -> Nothing
-        (TCArray, _)     -> Nothing
-        (TCSeq, [sz,el]) -> case tNoUser sz of
-                              TCon (TC (TCNum n)) _ -> (^ n) <$> typeSize el
-                              _                     -> Nothing
-        (TCSeq, _)       -> Nothing
-        (TCFun, _)       -> Nothing
-        (TCTuple _, els) -> product <$> mapM typeSize els
-        (TCAbstract _, _) -> Nothing
-        (TCNewtype _, _) -> Nothing
-
-    TCon _ _ -> Nothing
-
+    TVBit        -> Just 2
+    TVIntMod n   -> Just n
+    TVInteger    -> Nothing
+    TVRational   -> Nothing
+    TVFloat{}    -> Nothing -- TODO?
+    TVSeq n el   -> (^ n) <$> typeSize el
+    TVStream{}   -> Nothing
+    TVFun{}      -> Nothing
+    TVTuple ts   -> product <$> mapM typeSize ts
+    TVRec fs     -> product <$> traverse typeSize fs
+    TVAbstract{} -> Nothing
+    TVArray{}    -> Nothing
 
 {- | Returns all the values in a type.  Returns an empty list of values,
 for types where 'typeSize' returned 'Nothing'. -}
-typeValues :: Type -> [Value]
+typeValues :: TValue -> [Value]
 typeValues ty =
   case ty of
-    TVar _      -> []
-    TUser _ _ t -> typeValues t
-    TRec fs     -> [ VRecord (fmap ready xs)
-                   | xs <- traverse typeValues fs
-                   ]
-    TCon (TC tc) ts ->
-      case tc of
-        TCNum _     -> []
-        TCInf       -> []
-        TCBit       -> [ VBit False, VBit True ]
-        TCInteger   -> []
-        TCRational  -> []
-        TCIntMod    ->
-          case map tNoUser ts of
-            [ TCon (TC (TCNum n)) _ ] | 0 < n ->
-              [ VInteger x | x <- [ 0 .. n - 1 ] ]
-            _ -> []
-        TCFloat {}  -> []
-        TCArray     -> []
-        TCSeq       ->
-          case map tNoUser ts of
-            [ TCon (TC (TCNum n)) _, TCon (TC TCBit) [] ] ->
-              [ VSeq (Nat n) (unpackSeqMap' (BV n x)) | x <- [ 0 .. 2^n - 1 ] ]
+    TVBit         -> [ VBit False, VBit True ]
+    TVIntMod n    -> VInteger <$> [ 0 .. n-1 ]
+    TVInteger     -> []
+    TVRational    -> []
+    TVFloat{}     -> [] -- TODO?
+    TVSeq n TVBit -> [ VSeq (Nat n) TVBit (unpackSeqMap' (BV n x))
+                     | x <- [ 0 .. 2^n - 1]
+                     ]
+    TVSeq n a     -> [ VSeq (Nat n) a (finiteSeqMap' (map ready xs))
+                     | xs <- sequence (genericReplicate n (typeValues a))
+                     ]
+    TVStream{}    -> []
 
-            [ TCon (TC (TCNum n)) _, t ] ->
-              [ VSeq (Nat n) (finiteSeqMap' Concrete (map ready xs))
-              | xs <- sequence $ genericReplicate n
-                               $ typeValues t ]
-            _ -> []
+    TVTuple ts    -> [ VTuple (fmap ready xs)
+                     | xs <- mapM typeValues ts
+                     ]
+    TVRec fs      -> [ VRecord (fmap ready xs)
+                     | xs <- traverse typeValues fs
+                     ]
 
-
-        TCFun       -> []  -- We don't generate function values.
-        TCTuple _   -> [ VTuple (map ready xs)
-                       | xs <- sequence (map typeValues ts)
-                       ]
-        TCAbstract _ -> []
-        TCNewtype _ -> []
-
-    TCon _ _ -> []
+    TVFun{}       -> []
+    TVAbstract{}  -> []
+    TVArray{}     -> []
 
 --------------------------------------------------------------------------------
 -- Driver function

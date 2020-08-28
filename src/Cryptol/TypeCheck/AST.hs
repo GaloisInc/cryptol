@@ -109,7 +109,7 @@ data Expr   = EList [Expr] Type         -- ^ List value (with type of elements)
             | ESet Type Expr Selector Expr -- ^ Change the value of a field.
                                            --   The included type gives the type of the record being updated
 
-            | EIf Expr Expr Expr        -- ^ If-then-else
+            | EIf Type Expr Expr Expr      -- ^ If-then-else
             | EComp Type Type Expr [[Match]]
                                         -- ^ List comprehensions
                                         --   The types cache the length of the
@@ -214,7 +214,7 @@ instance PP (WithNames Expr) where
 
       ESet _ty e sel v  -> braces (pp e <+> "|" <+> pp sel <+> "=" <+> pp v)
 
-      EIf e1 e2 e3  -> optParens (prec > 0)
+      EIf _ty e1 e2 e3  -> optParens (prec > 0)
                     $ sep [ text "if"   <+> ppW e1
                           , text "then" <+> ppW e2
                           , text "else" <+> ppW e3 ]

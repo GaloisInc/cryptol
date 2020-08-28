@@ -193,13 +193,13 @@ ringBinary sym opw opi opz opq opfp = loop
           do lw <- packSeqMap sym w (fromVSeq l)
              rw <- packSeqMap sym w (fromVSeq r)
              zw <- opw w lw rw
-             VSeq (Nat w) <$> unpackSeqMap sym zw
+             VSeq (Nat w) a <$> unpackSeqMap sym zw
 
       | otherwise ->
-          VSeq (Nat w) <$> zipSeqMap sym (loop' a) (fromVSeq l) (fromVSeq r)
+          VSeq (Nat w) a <$> zipSeqMap sym (loop' a) (fromVSeq l) (fromVSeq r)
 
     TVStream a ->
-       VSeq Inf <$> zipSeqMap sym (loop' a) (fromVSeq l) (fromVSeq r)
+       VSeq Inf a <$> zipSeqMap sym (loop' a) (fromVSeq l) (fromVSeq r)
 
     -- functions
     TVFun _ ety ->
@@ -273,12 +273,12 @@ ringUnary sym opw opi opz opq opfp = loop
       | isTBit a ->
           do wx <- packSeqMap sym w (fromVSeq v)
              wz <- opw w wx
-             VSeq (Nat w) <$> unpackSeqMap sym wz
+             VSeq (Nat w) a <$> unpackSeqMap sym wz
       | otherwise ->
-          VSeq (Nat w) <$> mapSeqMap sym (loop' a) (fromVSeq v)
+          VSeq (Nat w) a <$> mapSeqMap sym (loop' a) (fromVSeq v)
 
     TVStream a ->
-      VSeq Inf <$> mapSeqMap sym (loop' a) (fromVSeq v)
+      VSeq Inf a <$> mapSeqMap sym (loop' a) (fromVSeq v)
 
     -- functions
     TVFun _ ety ->
@@ -338,14 +338,14 @@ ringNullary sym opw opi opz opq opfp = loop
 
         TVSeq w a
           -- words and finite sequences
-          | isTBit a  -> VSeq (Nat w) <$> (unpackSeqMap sym =<< opw w)
+          | isTBit a  -> VSeq (Nat w) a <$> (unpackSeqMap sym =<< opw w)
           | otherwise ->
              do v <- sDelay sym Nothing (loop a)
-                VSeq (Nat w) <$> generateSeqMap sym (const v)
+                VSeq (Nat w) a <$> generateSeqMap sym (const v)
 
         TVStream a ->
              do v <- sDelay sym Nothing (loop a)
-                VSeq Inf <$> generateSeqMap sym (const v)
+                VSeq Inf a <$> generateSeqMap sym (const v)
 
         TVFun _ b ->
              do v <- sDelay sym Nothing (loop b)
@@ -383,7 +383,7 @@ integralBinary sym opw opi ty l r = case ty of
           do lw <- packSeqMap sym w (fromVSeq l)
              rw <- packSeqMap sym w (fromVSeq r)
              zw <- opw w lw rw
-             VSeq (Nat w) <$> unpackSeqMap sym zw
+             VSeq (Nat w) a <$> unpackSeqMap sym zw
 
     _ -> evalPanic "integralBinary" [show ty ++ " not int class `Integral`"]
 
@@ -647,7 +647,7 @@ lg2V :: Backend sym => sym -> GenValue sym
 lg2V sym =
   nlam $ \(finNat' -> w) ->
   wlam sym $ \x ->
-    VSeq (Nat w) <$> (unpackSeqMap sym =<< wordLg2 sym x)
+    VSeq (Nat w) TVBit <$> (unpackSeqMap sym =<< wordLg2 sym x)
 
 {-# SPECIALIZE sdivV :: Concrete -> GenValue Concrete #-}
 sdivV :: Backend sym => sym -> GenValue sym
@@ -655,7 +655,7 @@ sdivV sym =
   nlam $ \(finNat' -> w) ->
   wlam sym $ \x -> return $
   wlam sym $ \y ->
-    VSeq (Nat w) <$> (unpackSeqMap sym =<< wordSignedDiv sym x y)
+    VSeq (Nat w) TVBit <$> (unpackSeqMap sym =<< wordSignedDiv sym x y)
 
 {-# SPECIALIZE smodV :: Concrete -> GenValue Concrete #-}
 smodV :: Backend sym => sym -> GenValue sym
@@ -663,7 +663,7 @@ smodV sym  =
   nlam $ \(finNat' -> w) ->
   wlam sym $ \x -> return $
   wlam sym $ \y ->
-    VSeq (Nat w) <$> (unpackSeqMap sym =<< wordSignedMod sym x y)
+    VSeq (Nat w) TVBit <$> (unpackSeqMap sym =<< wordSignedMod sym x y)
 
 -- Cmp -------------------------------------------------------------------------
 
@@ -883,11 +883,11 @@ zeroV sym ty = case ty of
       | isTBit ety -> word sym w 0
       | otherwise  ->
            do z <- sDelay sym Nothing (zeroV sym ety)
-              VSeq (Nat w) <$> generateSeqMap sym (const z)
+              VSeq (Nat w) ety <$> generateSeqMap sym (const z)
 
   TVStream ety ->
      do z <- sDelay sym Nothing (zeroV sym ety)
-        VSeq Inf <$> generateSeqMap sym (const z)
+        VSeq Inf ety <$> generateSeqMap sym (const z)
 
   -- functions
   TVFun _ bty ->
@@ -919,9 +919,9 @@ joinV ::
   TValue ->
   SEval sym (GenValue sym) ->
   SEval sym (GenValue sym)
-joinV sym parts each _a val =
+joinV sym parts each a val =
   do xs <- delaySeqMap sym (fromVSeq <$> val)
-     VSeq (nMul parts (Nat each)) <$> joinSeqMap sym each xs
+     VSeq (nMul parts (Nat each)) a <$> joinSeqMap sym each xs
 
 splitV ::
   Backend sym =>
@@ -931,10 +931,10 @@ splitV ::
   TValue ->
   SEval sym (GenValue sym) ->
   SEval sym (GenValue sym)
-splitV sym parts each _a val =
+splitV sym parts each a val =
   do xs <- delaySeqMap sym (fromVSeq <$> val)
-     VSeq parts <$> generateSeqMap sym (\p ->
-       VSeq (Nat each) <$> dropSeqMap sym (p * each) xs)
+     VSeq parts (TVSeq each a) <$> generateSeqMap sym (\p ->
+       VSeq (Nat each) a <$> dropSeqMap sym (p * each) xs)
 
 {-# INLINE splitAtV #-}
 splitAtV ::
@@ -945,11 +945,11 @@ splitAtV ::
   TValue ->
   SEval sym (GenValue sym) ->
   SEval sym (GenValue sym)
-splitAtV sym front back _a val =
+splitAtV sym front back a val =
   do xs <- delaySeqMap sym (fromVSeq <$> val)
      pure $ VTuple
-       [ VSeq (Nat front) <$> takeSeqMap sym front xs
-       , VSeq back <$> dropSeqMap sym front xs
+       [ VSeq (Nat front) a <$> takeSeqMap sym front xs
+       , VSeq back a <$> dropSeqMap sym front xs
        ]
 
 {-# INLINE takeV #-}
@@ -960,11 +960,11 @@ takeV :: forall sym.
   TValue ->
   SEval sym (GenValue sym) ->
   SEval sym (GenValue sym)
-takeV sym Inf _a v =
-  VSeq Inf <$> delaySeqMap sym (fromVSeq <$> v)
-takeV sym (Nat n) _a v =
+takeV sym Inf a v =
+  VSeq Inf a <$> delaySeqMap sym (fromVSeq <$> v)
+takeV sym (Nat n) a v =
   do xs <- delaySeqMap sym (fromVSeq <$> v)
-     VSeq (Nat n) <$> takeSeqMap sym n xs
+     VSeq (Nat n) a <$> takeSeqMap sym n xs
 
 {-# INLINE ccatV #-}
 ccatV ::
@@ -977,10 +977,10 @@ ccatV ::
   SEval sym (GenValue sym) ->
   SEval sym (GenValue sym)
 
-ccatV sym front back _t l r =
+ccatV sym front back a l r =
   do l' <- delaySeqMap sym (fromVSeq <$> l)
      r' <- delaySeqMap sym (fromVSeq <$> r)
-     VSeq (nAdd (Nat front) back) <$> concatSeqMap sym front l' r'
+     VSeq (nAdd (Nat front) back) a <$> concatSeqMap sym front l' r'
 
 {-# SPECIALIZE logicBinary ::
   Concrete ->
@@ -1020,18 +1020,18 @@ logicBinary sym opb opw = loop
     TVSeq w aty
          -- words
          | isTBit aty ->
-              VSeq (Nat w) <$>
+              VSeq (Nat w) aty <$>
                 bitwiseWordBinOp sym w
                    (\x y -> join (opb <$> x <*> y)) opw
                    (fromVSeq l) (fromVSeq r)
 
          -- finite sequences
          | otherwise ->
-              VSeq (Nat w) <$>
+              VSeq (Nat w) aty <$>
                 zipSeqMap sym (loop' aty) (fromVSeq l) (fromVSeq r)
 
     TVStream aty ->
-        VSeq Inf <$> zipSeqMap sym (loop' aty) (fromVSeq l) (fromVSeq r)
+        VSeq Inf aty <$> zipSeqMap sym (loop' aty) (fromVSeq l) (fromVSeq r)
 
     TVTuple etys -> do
         ls <- mapM (sDelay sym Nothing) (fromVTuple l)
@@ -1081,18 +1081,18 @@ logicUnary sym opb opw = loop
     TVSeq w ety
          -- words
          | isTBit ety ->
-              VSeq (Nat w) <$>
+              VSeq (Nat w) ety <$>
                 bitwiseWordUnOp sym w
                    (\x -> opb =<< x) opw
                    (fromVSeq val)
 
          -- finite sequences
          | otherwise ->
-              VSeq (Nat w) <$> mapSeqMap sym (loop' ety) (fromVSeq val)
+              VSeq (Nat w) ety <$> mapSeqMap sym (loop' ety) (fromVSeq val)
 
          -- streams
     TVStream ety ->
-         VSeq Inf <$> mapSeqMap sym (loop' ety) (fromVSeq val)
+         VSeq Inf ety <$> mapSeqMap sym (loop' ety) (fromVSeq val)
 
     TVTuple etys ->
       do as <- mapM (sDelay sym Nothing) (fromVTuple val)
@@ -1225,7 +1225,7 @@ updatePrim sym updateSeq =
   lam $ \val -> do
     idx' <- asIndex sym "update" ix =<< idx
     assertIndexInBounds sym len idx'
-    VSeq len <$> updateSeq len eltTy (fromVSeq <$> xs) idx' val
+    VSeq len eltTy <$> updateSeq len eltTy (fromVSeq <$> xs) idx' val
 
 {-# INLINE fromToV #-}
 
@@ -1239,7 +1239,7 @@ fromToV sym =
     case (first, lst) of
       (Nat first', Nat lst') ->
         do let len = 1 + (lst' - first')
-           VSeq (Nat len) <$> generateSeqMap sym (\i -> f (first' + i))
+           VSeq (Nat len) ty <$> generateSeqMap sym (\i -> f (first' + i))
 
       _ -> evalPanic "fromToV" ["invalid arguments"]
 
@@ -1257,7 +1257,7 @@ fromThenToV sym =
     case (first, next, lst, len) of
       (Nat first', Nat next', Nat _lst', Nat len') ->
         do let diff = next' - first'
-           VSeq (Nat len') <$> generateSeqMap sym (\i -> f (first' + i*diff))
+           VSeq (Nat len') ty <$> generateSeqMap sym (\i -> f (first' + i*diff))
       _ -> evalPanic "fromThenToV" ["invalid arguments"]
 
 {-# INLINE infFromV #-}
@@ -1266,7 +1266,7 @@ infFromV sym =
   tlam $ \ ty ->
   lam  $ \ x ->
   do mx <- sDelay sym Nothing x
-     VSeq Inf <$> generateSeqMap sym (\i ->
+     VSeq Inf ty <$> generateSeqMap sym (\i ->
        do x' <- mx
           i' <- integerLit sym i
           addV sym ty x' =<< intV sym i' ty)
@@ -1282,7 +1282,7 @@ infFromThenV sym =
                  y <- next
                  d <- subV sym ty y x
                  pure (x,d))
-     VSeq Inf <$> generateSeqMap sym (\i ->
+     VSeq Inf ty <$> generateSeqMap sym (\i ->
        do (x,d) <- mxd
           i' <- integerLit sym i
           addV sym ty x =<< mulV sym ty d =<< intV sym i' ty)
@@ -1375,14 +1375,16 @@ enumerateIntBits' sym n idx =
 logicShift :: forall sym. Backend sym =>
   sym ->
   String ->
-  (sym -> Nat' -> TValue -> SInteger sym -> SEval sym (SInteger sym))
+  (sym -> Nat' -> SInteger sym -> SEval sym (SInteger sym))
      {- ^ operation for range reduction on integers -} ->
+  (sym -> Nat' -> SWord sym -> SEval sym (SWord sym))
+     {- ^ operation for range reduction on words -} ->
   (sym -> (Integer -> SEval sym (SeqMap sym)) -> Nat' -> SeqMap sym -> Integer -> SEval sym (SeqMap sym))
      {- ^ concrete shifting operation for positive shifts -} ->
   (sym -> (Integer -> SEval sym (SeqMap sym)) -> Nat' -> SeqMap sym -> Integer -> SEval sym (SeqMap sym))
      {- ^ concrete shifting operation for negative shifts -} ->
   GenValue sym
-logicShift sym nm shrinkRange posShift negShift =
+logicShift sym nm shrinkIntRange shrinkWordRange posShift negShift =
   nlam $ \n ->
   tlam $ \ix ->
   tlam $ \a ->
@@ -1400,10 +1402,10 @@ logicShift sym nm shrinkRange posShift negShift =
          Left int_idx ->
            do pneg <- intLessThan sym int_idx =<< integerLit sym 0
               iteValue sym (tvSeq n a) pneg
-                (intShifter sym (negShift sym mkZro n) n a xs' =<< shrinkRange sym n ix =<< intNegate sym int_idx)
-                (intShifter sym (posShift sym mkZro n) n a xs' =<< shrinkRange sym n ix int_idx)
-         Right idx ->
-           wordShifter sym (posShift sym mkZro n) n a xs' idx
+                (intShifter sym (negShift sym mkZro n) n a xs' =<< shrinkIntRange sym n =<< intNegate sym int_idx)
+                (intShifter sym (posShift sym mkZro n) n a xs' =<< shrinkIntRange sym n int_idx)
+         Right idx -> do
+           wordShifter sym (posShift sym mkZro n) n a xs' =<< shrinkWordRange sym n idx
 
 intShifter :: Backend sym =>
    sym ->
@@ -1414,10 +1416,10 @@ intShifter :: Backend sym =>
    SInteger sym ->
    SEval sym (GenValue sym)
 intShifter sym shft n a xs idx
-   | Just i <- integerAsLit sym idx = VSeq n <$> shft xs i
+   | Just i <- integerAsLit sym idx = VSeq n a <$> shft xs i
    | otherwise =
        do idx_bits <- enumerateIntBits sym n idx
-          VSeq n <$> barrelShifter sym n a shft xs idx_bits
+          VSeq n a <$> barrelShifter sym n a shft xs idx_bits
 
 wordShifter :: Backend sym =>
    sym ->
@@ -1428,24 +1430,42 @@ wordShifter :: Backend sym =>
    SWord sym ->
    SEval sym (GenValue sym)
 wordShifter sym shft n a xs idx
-   | Just (_,i) <- wordAsLit sym idx = VSeq n <$> shft xs i
+   | Just (_,i) <- wordAsLit sym idx = VSeq n a <$> shft xs i
    | otherwise =
        do idx_bits <- unpackWord sym idx
-          VSeq n <$> barrelShifter sym n a shft xs idx_bits
+          VSeq n a <$> barrelShifter sym n a shft xs idx_bits
 
-shiftShrink :: Backend sym => sym -> Nat' -> TValue -> SInteger sym -> SEval sym (SInteger sym)
-shiftShrink _sym Inf _ x = return x
-shiftShrink sym (Nat w) _ x =
+shiftIntShrink :: Backend sym => sym -> Nat' -> SInteger sym -> SEval sym (SInteger sym)
+shiftIntShrink _sym Inf x = return x
+shiftIntShrink sym (Nat w) x =
   do w' <- integerLit sym w
      p  <- intLessThan sym w' x
      iteInteger sym p w' x
 
-rotateShrink :: Backend sym => sym -> Nat' -> TValue -> SInteger sym -> SEval sym (SInteger sym)
-rotateShrink _sym Inf _ _ = panic "rotateShrink" ["expected finite sequence in rotate"]
-rotateShrink sym (Nat 0) _ _ = integerLit sym 0
-rotateShrink sym (Nat w) _ x =
+shiftWordShrink :: Backend sym => sym -> Nat' -> SWord sym -> SEval sym (SWord sym)
+shiftWordShrink _sym Inf x = return x
+shiftWordShrink sym (Nat w) x
+  | 2^(wordLen sym x) <= w = return x
+  | otherwise =
+     do w' <- wordLit sym (wordLen sym x) w
+        p  <- wordLessThan sym w' x
+        iteWord sym p w' x
+
+rotateIntShrink :: Backend sym => sym -> Nat' -> SInteger sym -> SEval sym (SInteger sym)
+rotateIntShrink _sym Inf _ = panic "rotateIntShrink" ["expected finite sequence in rotate"]
+rotateIntShrink sym (Nat 0) _ = integerLit sym 0
+rotateIntShrink sym (Nat w) x =
   do w' <- integerLit sym w
      intMod sym x w'
+
+rotateWordShrink :: Backend sym => sym -> Nat' -> SWord sym -> SEval sym (SWord sym)
+rotateWordShrink _sym Inf _ = panic "rotateWordShrink" ["expected finite sequence in rotate"]
+rotateWordShrink sym (Nat 0) x = wordLit sym (wordLen sym x) 0
+rotateWordShrink sym (Nat w) x
+  | 2^(wordLen sym x) <= w = return x
+  | otherwise =
+     do w' <- wordLit sym (wordLen sym x) w
+        wordMod sym x w'
 
 -- Miscellaneous ---------------------------------------------------------------
 
@@ -1469,7 +1489,7 @@ errorV sym _ty msg = cryUserError sym msg
 --   and return the associated character, if it is concrete.
 --   Otherwise, return a '?' character
 valueToChar :: Backend sym => sym -> GenValue sym -> SEval sym Char
-valueToChar sym (VSeq (Nat w) wval) =
+valueToChar sym (VSeq (Nat w) _ wval) =
   do x <- packSeqMap sym w wval
      pure $! fromMaybe '?' (wordAsChar sym x)
 valueToChar _ _ = evalPanic "valueToChar" ["Not an 8-bit bitvector"]
@@ -1477,7 +1497,7 @@ valueToChar _ _ = evalPanic "valueToChar" ["Not an 8-bit bitvector"]
 {-# INLINE valueToString #-}
 
 valueToString :: Backend sym => sym -> GenValue sym -> SEval sym String
-valueToString sym (VSeq (Nat n) vals) =
+valueToString sym (VSeq (Nat n) _ vals) =
    traverse (valueToChar sym =<<) (enumerateSeqMap sym n vals)
 valueToString _ _ = evalPanic "valueToString" ["Not a finite sequence"]
 
@@ -1538,16 +1558,13 @@ foldl'V sym =
 parmapV :: Backend sym => sym -> GenValue sym
 parmapV sym =
   tlam $ \_a ->
-  tlam $ \_b ->
-  ilam $ \_n ->
+  tlam $ \b ->
+  ilam $ \n ->
   lam $ \f -> pure $
   lam $ \xs ->
     do f' <- fromVFun <$> f
-       xs' <- xs
-       case xs' of
-          VSeq (Nat n) m -> VSeq (Nat n) <$> sparkParMap sym f' n m
-          _ -> panic "parmapV" ["expected finite sequence!"]
-
+       xs' <- fromVSeq <$> xs
+       VSeq (Nat n) b <$> sparkParMap sym f' n xs'
 
 sparkParMap ::
   Backend sym =>
@@ -1557,12 +1574,7 @@ sparkParMap ::
   SeqMap sym ->
   SEval sym (SeqMap sym)
 sparkParMap sym f n m =
-  finiteSeqMap sym =<< mapM (sSpark sym . g) (enumerateSeqMap n m)
- where
- g x =
-   do z <- sDelay sym Nothing (f x)
-      forceValue =<< z
-      z
+  finiteSeqMap sym =<< mapM (\x -> sSpark sym (forceValue sym =<< f x)) (enumerateSeqMap sym n m)
 
 --------------------------------------------------------------------------------
 -- Floating Point Operations

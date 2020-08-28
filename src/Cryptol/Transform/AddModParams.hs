@@ -236,7 +236,7 @@ instance Inst Expr where
      ESel e s  -> ESel (inst ps e) s
      ESet ty e s v -> ESet (inst ps ty) (inst ps e) s (inst ps v)
 
-     EIf e1 e2 e3 -> EIf (inst ps e1) (inst ps e2) (inst ps e3)
+     EIf t e1 e2 e3 -> EIf (inst ps t) (inst ps e1) (inst ps e2) (inst ps e3)
      EComp t1 t2 e ms -> EComp (inst ps t1) (inst ps t2)
                                (inst ps e) (inst ps ms)
 

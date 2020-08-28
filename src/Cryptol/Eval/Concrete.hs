@@ -87,7 +87,7 @@ toExpr prims t0 v0 = findOne (go t0 v0)
       VFloat i ->
         do (eT, pT) <- maybe mismatch pure (tIsFloat ty)
            pure (floatToExpr prims eT pT (bfValue i))
-      VSeq (Nat n) svs ->
+      VSeq (Nat n) _ svs ->
         do (_len, b) <- maybe mismatch pure (tIsSeq ty)
            if tIsBit b then
              do BV _ v <- lift (packSeqMap Concrete n svs)
@@ -96,7 +96,7 @@ toExpr prims t0 v0 = findOne (go t0 v0)
              do ses <- traverse (go b) =<< lift (sequence (enumerateSeqMap Concrete n svs))
                 pure $ EList ses b
 
-      VSeq Inf _ -> fail "cannot construct infinite expressions"
+      VSeq Inf _ _ -> fail "cannot construct infinite expressions"
       VFun _     -> fail "cannot convert function values to expressions"
       VPoly _    -> fail "cannot convert polymorphic values to expressions"
       VNumPoly _ -> fail "cannot convert polymorphic values to expressions"
@@ -272,17 +272,17 @@ primTable eOpts = let sym = Concrete in
 
     -- Shifts and rotates
   , ("<<"         , {-# SCC "Prelude::(<<)" #-}
-                    logicShift sym "<<" shiftShrink
+                    logicShift sym "<<" shiftIntShrink shiftWordShrink
                       leftShiftSeqMap rightShiftSeqMap)
   , (">>"         , {-# SCC "Prelude::(>>)" #-}
-                    logicShift sym ">>" shiftShrink
-                      leftShiftSeqMap rightShiftSeqMap)
+                    logicShift sym ">>" shiftIntShrink shiftWordShrink
+                      rightShiftSeqMap leftShiftSeqMap)
   , ("<<<"        , {-# SCC "Prelude::(<<<)" #-}
-                    logicShift sym "<<<" rotateShrink
-                      undefined undefined) -- TODO!
+                    logicShift sym "<<<" rotateIntShrink rotateWordShrink
+                      leftRotateSeqMap rightRotateSeqMap)
   , (">>>"        , {-# SCC "Prelude::(>>>)" #-}
-                    logicShift sym ">>>" rotateShrink
-                      undefined undefined) -- TODO!
+                    logicShift sym ">>>" rotateIntShrink rotateWordShrink
+                      rightRotateSeqMap leftRotateSeqMap)
 
     -- Indexing and updates
   , ("@"          , {-# SCC "Prelude::(@)" #-}

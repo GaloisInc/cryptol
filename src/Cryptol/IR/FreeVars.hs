@@ -104,7 +104,7 @@ instance FreeVars Expr where
       ERec fs           -> freeVars (recordElements fs)
       ESel e _          -> freeVars e
       ESet ty e _ v     -> freeVars ty <> freeVars [e,v]
-      EIf e1 e2 e3      -> freeVars [e1,e2,e3]
+      EIf ty e1 e2 e3   -> freeVars ty <> freeVars [e1,e2,e3]
       EComp t1 t2 e mss -> freeVars [t1,t2] <> rmVals (defs mss) (freeVars e)
                                             <> mconcat (map foldFree mss)
       EVar x            -> mempty { valDeps = Set.singleton x }

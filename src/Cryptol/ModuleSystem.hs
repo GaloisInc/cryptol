@@ -18,8 +18,10 @@ module Cryptol.ModuleSystem (
   , loadModuleByPath
   , loadModuleByName
   , checkExpr
-  , evalExpr
   , checkDecls
+  , evalExprAndType
+  , evalType
+  , evalExpr
   , evalDecls
   , noPat
   , focusedEnv
@@ -33,6 +35,7 @@ module Cryptol.ModuleSystem (
   ) where
 
 import qualified Cryptol.Eval as E
+import           Cryptol.Eval.Type (TValue)
 import qualified Cryptol.Eval.Concrete as Concrete
 import           Cryptol.ModuleSystem.Env
 import           Cryptol.ModuleSystem.Interface
@@ -93,6 +96,16 @@ checkExpr e env = runModuleM env (interactive (Base.checkExpr e))
 -- | Evaluate an expression.
 evalExpr :: T.Expr -> ModuleCmd Concrete.Value
 evalExpr e env = runModuleM env (interactive (Base.evalExpr e))
+
+-- | Evaluate a type
+evalType :: T.Type -> ModuleCmd TValue
+evalType t env = runModuleM env (interactive (Base.evalType t))
+
+evalExprAndType :: T.Expr -> T.Type -> ModuleCmd (Concrete.Value, TValue)
+evalExprAndType e t env = runModuleM env $ interactive $
+  do v  <- Base.evalExpr e
+     tv <- Base.evalType t
+     pure (v,tv)
 
 -- | Typecheck top-level declarations.
 checkDecls :: [P.TopDecl PName] -> ModuleCmd (R.NamingEnv,[T.DeclGroup])

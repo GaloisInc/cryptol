@@ -26,6 +26,7 @@ module Cryptol.Symbolic
    -- * FinType
  , FinType(..)
  , finType
+ , finTypeValue
  , unFinType
  , predArgTypes
  ) where
@@ -143,6 +144,18 @@ finType ty =
     TVRec fields     -> FTRecord <$> traverse finType fields
     TVAbstract {}    -> Nothing
     _                     -> Nothing
+
+finTypeValue :: FinType -> TValue
+finTypeValue fty =
+  case fty of
+    FTBit        -> TVBit
+    FTInteger    -> TVInteger
+    FTIntMod n   -> TVIntMod n
+    FTRational   -> TVRational
+    FTFloat e p  -> TVFloat e p
+    FTSeq n t    -> TVSeq (toInteger n) (finTypeValue t)
+    FTTuple ts   -> TVTuple (map finTypeValue ts)
+    FTRecord fs  -> TVRec (fmap finTypeValue fs)
 
 unFinType :: FinType -> Type
 unFinType fty =

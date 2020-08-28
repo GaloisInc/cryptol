@@ -246,8 +246,11 @@ instance Backend SBV where
     , svExtract (fromInteger rightW - 1) 0 w
     )
 
-  extractWord _ len start w =
-    pure $! svExtract (fromInteger start + fromInteger len - 1) (fromInteger start) w
+  takeWord _ toTake w = pure $ svExtract (intSizeOf w - 1) rightW w
+      where rightW = intSizeOf w - fromInteger toTake
+
+  dropWord _ toDrop w = pure $ svExtract (rightW - 1) 0 w
+      where rightW = intSizeOf w - fromInteger toDrop
 
   wordAnd _ a b = pure $! svAnd a b
   wordOr  _ a b = pure $! svOr a b
@@ -472,29 +475,14 @@ primTable  = let sym = SBV in
 -}
 
     -- Shifts and rotates
-  , ("<<"          , logicShift sym "<<" shiftShrink
+  , ("<<"          , logicShift sym "<<"  shiftIntShrink shiftWordShrink
                         leftShiftSeqMap rightShiftSeqMap)
---                       (\x y -> pure (shl x y))
---                       (\x y -> pure (lshr x y)))
-                       -- shiftLeftReindex shiftRightReindex)
-
-  , (">>"          , logicShift sym ">>" shiftShrink
+  , (">>"          , logicShift sym ">>"  shiftIntShrink shiftWordShrink
                         rightShiftSeqMap leftShiftSeqMap)
---                       (\x y -> pure (lshr x y))
---                       (\x y -> pure (shl x y))
---                       shiftRightReindex shiftLeftReindex)
-
-  , ("<<<"         , logicShift sym "<<<" rotateShrink
-                        undefined undefined) -- TODO!
---                       (\x y -> pure (SBV.svRotateLeft x y))
---                       (\x y -> pure (SBV.svRotateRight x y))
---                       rotateLeftReindex rotateRightReindex)
-
-  , (">>>"         , logicShift sym ">>>" rotateShrink
-                        undefined undefined) -- TODO!
---                       (\x y -> pure (SBV.svRotateRight x y))
---                       (\x y -> pure (SBV.svRotateLeft x y))
---                       rotateRightReindex rotateLeftReindex)
+  , ("<<<"         , logicShift sym "<<<" rotateIntShrink rotateWordShrink
+                        leftRotateSeqMap rightRotateSeqMap)
+  , (">>>"         , logicShift sym ">>>" rotateIntShrink rotateWordShrink
+                        rightRotateSeqMap leftRotateSeqMap)
 
     -- Indexing and updates
   , ("@"           , indexPrim sym indexFront indexFront)
@@ -572,7 +560,7 @@ indexFront mblen a xs _ix idx
   , TVSeq wlen TVBit <- a
   = do ws <- traverse (packSeqMap SBV wlen . fromVSeq =<<) (enumerateSeqMap SBV n xs)
        z <- wordLit SBV wlen 0
-       VSeq (Nat wlen) <$> unpackSeqMap SBV (SBV.svSelect ws z idx)
+       VSeq (Nat wlen) TVBit <$> unpackSeqMap SBV (SBV.svSelect ws z idx)
 
   | otherwise
   = folded
@@ -746,10 +734,10 @@ sshrV =
      Left idx ->
        do let w = toInteger (SBV.intSizeOf x)
           let pneg = svLessThan idx (svInteger KUnbounded 0)
-          zneg <- shl x  . svFromInteger w <$> shiftShrink SBV n ix (SBV.svUNeg idx)
-          zpos <- ashr x . svFromInteger w <$> shiftShrink SBV n ix idx
+          zneg <- shl x  . svFromInteger w <$> shiftIntShrink SBV n (SBV.svUNeg idx)
+          zpos <- ashr x . svFromInteger w <$> shiftIntShrink SBV n idx
           let z = svSymbolicMerge (kindOf x) True pneg zneg zpos
-          VSeq n <$> unpackSeqMap SBV z
+          VSeq n TVBit <$> unpackSeqMap SBV z
 
      Right wv ->
-       VSeq n <$> unpackSeqMap SBV (ashr x wv)
+       VSeq n TVBit <$> unpackSeqMap SBV (ashr x wv)

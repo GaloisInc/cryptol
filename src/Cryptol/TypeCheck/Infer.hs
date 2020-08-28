@@ -340,7 +340,7 @@ checkE expr tGoal =
       do e1'      <- checkE e1 tBit
          e2'      <- checkE e2 tGoal
          e3'      <- checkE e3 tGoal
-         return (EIf e1' e2' e3')
+         return (EIf tGoal e1' e2' e3')
 
     P.EWhere e ds ->
       inferDs ds $ \ds1 -> do e1 <- checkE e tGoal

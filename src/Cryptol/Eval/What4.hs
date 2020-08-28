@@ -132,14 +132,14 @@ primTable w4sym = let sym = What4 w4sym in
       lam $ \ xs    -> takeV sym front a xs)
 
     -- Shifts and rotates
-  , ("<<"          , logicShift sym "<<"  shiftShrink
+  , ("<<"          , logicShift sym "<<"  shiftIntShrink shiftWordShrink
                         leftShiftSeqMap rightShiftSeqMap)
-  , (">>"          , logicShift sym ">>"  shiftShrink
+  , (">>"          , logicShift sym ">>"  shiftIntShrink shiftWordShrink
                         rightShiftSeqMap leftShiftSeqMap)
-  , ("<<<"         , logicShift sym "<<<" rotateShrink
-                        undefined undefined) -- TODO!
-  , (">>>"         , logicShift sym ">>>" rotateShrink
-                        undefined undefined) -- TODO!
+  , ("<<<"         , logicShift sym "<<<" rotateIntShrink rotateWordShrink
+                        leftRotateSeqMap rightRotateSeqMap)
+  , (">>>"         , logicShift sym ">>>" rotateIntShrink rotateWordShrink
+                        rightRotateSeqMap leftRotateSeqMap)
 
     -- Indexing and updates
   , ("@"           , indexPrim sym (indexFront_int sym) (indexFront_word sym))

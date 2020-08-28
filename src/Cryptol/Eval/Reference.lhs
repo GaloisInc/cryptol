@@ -297,7 +297,7 @@ assigns values to those variables.
 >       evalSet (evalValType (envTypes env) ty)
 >               (evalExpr env e) sel (evalExpr env v)
 >
->     EIf c t f ->
+>     EIf _ty c t f ->
 >       condValue (fromVBit <$> evalExpr env c) (evalExpr env t) (evalExpr env f)
 >
 >     EComp _n _ty e branches -> evalComp env e branches

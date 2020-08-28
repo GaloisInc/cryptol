@@ -38,7 +38,6 @@ import Cryptol.Eval.Monad
 import Cryptol.TypeCheck.AST(Name)
 import Cryptol.Utils.PP
 
-
 invalidIndex :: Backend sym => sym -> Integer -> SEval sym a
 invalidIndex sym = raiseError sym . InvalidIndex . Just
 
@@ -384,30 +383,28 @@ class MonadIO (SEval sym) => Backend sym where
     SWord sym ->
     SEval sym (SWord sym)
 
-  -- | Take the most-significant bits, and return
-  --   those bits and the remainder.  The first element
-  --   of the pair is the most significant bits.
-  --   The two integer sizes must sum to the length of the given word value.
+  -- | Take the n most-significant bits, and return
+  --   those bits.
+  takeWord ::
+    sym ->
+    Integer ->
+    SWord sym ->
+    SEval sym (SWord sym)
+
+  -- | Drop the n most significant-bits and return
+  --   the remaining (less significant) bits
+  dropWord ::
+    sym ->
+    Integer ->
+    SWord sym ->
+    SEval sym (SWord sym)
+
   splitWord ::
     sym ->
     Integer {- ^ left width -} ->
     Integer {- ^ right width -} ->
     SWord sym ->
     SEval sym (SWord sym, SWord sym)
-
-  -- | Extract a subsequence of bits from a packed word value.
-  --   The first integer argument is the number of bits in the
-  --   resulting word.  The second integer argument is the
-  --   number of less-significant digits to discard.  Stated another
-  --   way, the operation @extractWord n i w@ is equivalent to
-  --   first shifting @w@ right by @i@ bits, and then truncating to
-  --   @n@ bits.
-  extractWord ::
-    sym ->
-    Integer {- ^ Number of bits to take -} ->
-    Integer {- ^ starting bit -} ->
-    SWord sym ->
-    SEval sym (SWord sym)
 
   -- | Bitwise OR
   wordOr ::
@@ -698,8 +695,3 @@ type FPArith2 sym =
   SFloat sym ->
   SFloat sym ->
   SEval sym (SFloat sym)
-
-
-
-
-

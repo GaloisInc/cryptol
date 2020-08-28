@@ -184,7 +184,7 @@ rewE rews = go
       ERec fs         -> ERec    <$> traverse go fs
       ESel e s        -> ESel    <$> go e  <*> return s
       ESet ty e s v   -> ESet ty <$> go e  <*> return s <*> go v
-      EIf e1 e2 e3    -> EIf     <$> go e1 <*> go e2 <*> go e3
+      EIf t e1 e2 e3  -> EIf t   <$> go e1 <*> go e2 <*> go e3
 
       EComp len t e mss -> EComp len t <$> go e  <*> mapM (mapM (rewM rews)) mss
       EVar _          -> return expr

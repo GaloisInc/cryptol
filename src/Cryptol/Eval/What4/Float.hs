@@ -9,6 +9,7 @@ import qualified What4.Interface as W4
 import Control.Monad.IO.Class
 
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
+import Cryptol.Eval.Type (TValue(..))
 import Cryptol.Eval.Value
 import Cryptol.Eval.Generic
 import Cryptol.Eval.What4.Value
@@ -28,7 +29,7 @@ floatPrims sym4@(What4 sym) =
     , "fpFromBits"  ~> ilam \e -> ilam \p -> wlam sym4 \w ->
                        VFloat <$> liftIO (W4.fpFromBinary sym e p w)
     , "fpToBits"    ~> ilam \e -> ilam \p -> flam \x ->
-                       VSeq (Nat (e+p)) <$> (unpackSeqMap sym4 =<< liftIO (W4.fpToBinary sym x))
+                       VSeq (Nat (e+p)) TVBit <$> (unpackSeqMap sym4 =<< liftIO (W4.fpToBinary sym x))
     , "=.="         ~> ilam \_ -> ilam \_ -> flam \x -> pure $ flam \y ->
                        VBit <$> liftIO (W4.fpEq sym x y)
     , "fpIsFinite"  ~> ilam \_ -> ilam \_ -> flam \x ->

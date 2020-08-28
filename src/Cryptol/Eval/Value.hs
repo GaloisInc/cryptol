@@ -60,6 +60,8 @@ module Cryptol.Eval.Value
   , SeqMap
   , lookupSeqMap
   , enumerateSeqMap
+  , actualizeSeqMap
+  , voidSeqMap
   , delaySeqMap
   , generateSeqMap
   , updateSeqMap
@@ -79,10 +81,12 @@ module Cryptol.Eval.Value
   , bitwiseWordBinOp
   , leftShiftSeqMap
   , rightShiftSeqMap
+  , leftRotateSeqMap
+  , rightRotateSeqMap
 
   , generateSeqMap'
   , finiteSeqMap'
-  , unpackSeqMap'  
+  , unpackSeqMap'
 
   -- * merging values
   , iteValue
@@ -91,6 +95,7 @@ module Cryptol.Eval.Value
 
 import Control.Monad.IO.Class
 --import Data.Bits
+import Data.List (genericTake)
 import Data.IORef
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
@@ -118,6 +123,8 @@ import GHC.Generics (Generic)
 data SeqMap sym
   = GenerateSeqMap !(Integer -> SEval sym (GenValue sym))
 
+  | VoidSeqMap
+      -- ^ Seq map representing out-of-bound indexing
   | UpdateSeqMap !(Map Integer (SEval sym (GenValue sym))) !(SeqMap sym)
 
   | UnpackSeqMap !(SWord sym)
@@ -133,6 +140,25 @@ data SeqMap sym
   | MemoSeqMap !(SeqMapCache sym) !(SeqMap sym)
       -- ^ Memoized sequence
 
+instance Show (SeqMap sym) where
+  showsPrec _ VoidSeqMap = showString "void"
+  showsPrec _ (GenerateSeqMap _) = showString "generate"
+  showsPrec _ (UnpackSeqMap _) = showString "word"
+  showsPrec p (UpdateSeqMap m xs) = showParen (p > 0) $
+    showString "update" . shows (fst <$> Map.toList m) . showsPrec 1 xs
+  showsPrec p (JoinSeqMap each xs) = showParen (p > 0) $
+    showString "join " . shows each . showChar ' ' . showsPrec 1 xs
+  showsPrec p (ConcatSeqMap front xs ys) = showParen (p > 0) $
+    showString "concat " . shows front .
+    showChar ' ' . showsPrec 1 xs .
+    showChar ' ' . showsPrec 1 ys
+  showsPrec p (DropSeqMap toDrop xs) = showParen (p > 0) $
+    showString "drop " . shows toDrop .
+    showChar ' ' . showsPrec 1 xs
+  showsPrec _ (DelaySeqMap _) = showString "delay"
+  showsPrec p (MemoSeqMap _c xs) = showParen (p > 0) $
+    showString "memo " . showsPrec 1 xs
+
 delaySeqMap :: Backend sym =>
   sym -> SEval sym (SeqMap sym) -> SEval sym (SeqMap sym)
 delaySeqMap sym xs =
@@ -141,6 +167,9 @@ delaySeqMap sym xs =
     Nothing -> DelaySeqMap <$> sDelay sym Nothing xs
 
 type SeqMapCache sym = IORef (Map Integer (GenValue sym))
+
+voidSeqMap :: SeqMap sym
+voidSeqMap = VoidSeqMap
 
 evalMemo :: Backend sym => sym -> Integer -> SeqMapCache sym -> SeqMap sym -> SEval sym (GenValue sym)
 evalMemo sym i cache vs =
@@ -152,6 +181,7 @@ evalMemo sym i cache vs =
          pure v
 
 lookupSeqMap :: Backend sym => sym -> Integer -> SeqMap sym -> SEval sym (GenValue sym)
+lookupSeqMap sym i VoidSeqMap = invalidIndex sym i
 lookupSeqMap _   i (GenerateSeqMap f) = f i
 lookupSeqMap sym i (UnpackSeqMap w) = VBit <$> wordBit sym w i
 lookupSeqMap sym i (DelaySeqMap xs) = lookupSeqMap sym i =<< xs
@@ -183,24 +213,22 @@ generateSeqMap' :: Backend sym =>
   (Integer -> SEval sym (GenValue sym)) -> SeqMap sym
 generateSeqMap' f = GenerateSeqMap f
 
-finiteSeqMap' :: Backend sym => sym -> [SEval sym (GenValue sym)] -> SeqMap sym
-finiteSeqMap' sym xs =
-  UpdateSeqMap (Map.fromList (zip [0..] xs)) (GenerateSeqMap (invalidIndex sym))
+finiteSeqMap' :: Backend sym => [SEval sym (GenValue sym)] -> SeqMap sym
+finiteSeqMap' [] = VoidSeqMap
+finiteSeqMap' xs = UpdateSeqMap (Map.fromList (zip [0..] xs)) VoidSeqMap
 
 unpackSeqMap' :: SWord sym -> SeqMap sym
 unpackSeqMap' w = UnpackSeqMap w
 
 -- | Generate a finite sequence map from a list of values
 finiteSeqMap :: Backend sym => sym -> [SEval sym (GenValue sym)] -> SEval sym (SeqMap sym)
-finiteSeqMap sym xs =
-   UpdateSeqMap (Map.fromList (zip [0..] xs)) <$> generateSeqMap sym (invalidIndex sym)
-
+finiteSeqMap _sym xs = pure $ finiteSeqMap' xs
 
 unpackSeqMap :: Backend sym =>
   sym ->
   SWord sym ->
   SEval sym (SeqMap sym)
-unpackSeqMap _ w = pure (UnpackSeqMap w)  
+unpackSeqMap _ w = pure (UnpackSeqMap w)
 
 updateSeqMap :: Backend sym =>
   sym ->
@@ -219,6 +247,7 @@ concatSeqMap :: Backend sym =>
   SeqMap sym ->
   SeqMap sym ->
   SEval sym (SeqMap sym)
+concatSeqMap _sym _front xs VoidSeqMap = pure xs
 concatSeqMap sym _front (UnpackSeqMap wx) (UnpackSeqMap wy) =
   UnpackSeqMap <$> joinWord sym wx wy
 concatSeqMap _sym front xs ys
@@ -230,9 +259,9 @@ joinSeqMap :: Backend sym =>
   Integer ->
   SeqMap sym ->
   SEval sym (SeqMap sym)
-joinSeqMap sym each vs
+joinSeqMap _sym each vs
   | each > 0  = pure (JoinSeqMap each vs)
-  | otherwise = pure (GenerateSeqMap (invalidIndex sym))
+  | otherwise = pure VoidSeqMap
 
 takeSeqMap :: Backend sym =>
   sym ->
@@ -240,6 +269,8 @@ takeSeqMap :: Backend sym =>
   SeqMap sym ->
   SEval sym (SeqMap sym)
 takeSeqMap sym toTake vs = case vs of
+  VoidSeqMap -> pure VoidSeqMap
+
   ConcatSeqMap front xs ys
     | front == toTake -> pure xs
     | front > toTake  -> takeSeqMap sym toTake xs
@@ -247,12 +278,11 @@ takeSeqMap sym toTake vs = case vs of
         do ys' <- delaySeqMap sym (takeSeqMap sym (toTake - front) ys)
            pure (ConcatSeqMap front xs ys')
 
-  UpdateSeqMap m vs' -> 
+  UpdateSeqMap m vs' ->
     do vs'' <- delaySeqMap sym (takeSeqMap sym toTake vs')
        pure (UpdateSeqMap (takeUpdates toTake m) vs'')
 
-  UnpackSeqMap w ->
-    UnpackSeqMap <$> extractWord sym toTake (wordLen sym w - toTake) w
+  UnpackSeqMap w -> UnpackSeqMap <$> takeWord sym toTake w
 
   _ -> pure vs
 
@@ -264,25 +294,24 @@ dropSeqMap :: Backend sym =>
 dropSeqMap sym toDrop vs
   | toDrop <= 0 = pure vs
   | otherwise = case vs of
+
+        VoidSeqMap -> pure VoidSeqMap
+
         ConcatSeqMap front xs ys
            | front == toDrop -> pure ys
            | front < toDrop ->
                dropSeqMap sym (toDrop - front) ys
-           | otherwise ->
-               do xs' <- delaySeqMap sym (dropSeqMap sym front xs)
+           | otherwise -> -- front > toDrop
+               do xs' <- dropSeqMap sym toDrop xs
                   pure (ConcatSeqMap (front - toDrop) xs' ys)
 
         DropSeqMap x vs' -> dropSeqMap sym (toDrop+x) vs'
 
         UpdateSeqMap m vs' ->
-           do vs'' <- delaySeqMap sym (dropSeqMap sym toDrop vs')
+           do vs'' <- dropSeqMap sym toDrop vs'
               pure (UpdateSeqMap (dropUpdates toDrop m) vs'')
 
-        GenerateSeqMap f ->
-           pure (GenerateSeqMap (\i -> f (i + toDrop)))
-
-        UnpackSeqMap w ->
-           UnpackSeqMap <$> extractWord sym (wordLen sym w - toDrop) toDrop w
+        UnpackSeqMap w -> UnpackSeqMap <$> dropWord sym toDrop w
 
         _ -> pure (DropSeqMap toDrop vs)
 
@@ -296,11 +325,35 @@ dropUpdates toDrop m =
     (_, Nothing, m') -> Map.mapKeysMonotonic (\i -> i - toDrop) m'
 
 
+leftRotateSeqMap :: Backend sym =>
+  sym -> (Integer -> SEval sym (SeqMap sym)) -> Nat' -> SeqMap sym -> Integer -> SEval sym (SeqMap sym)
+leftRotateSeqMap _ _ Inf _ _ = panic "leftRotateSeqMap" ["Cannot rotate infinite sequences"]
+leftRotateSeqMap sym _ (Nat n) xs amt
+  | i == 0 = pure xs
+  | otherwise =
+      do hd <- takeSeqMap sym i xs
+         tl <- dropSeqMap sym i xs
+         concatSeqMap sym (n - i) tl hd
+ where
+ i = amt `mod` n
+
+rightRotateSeqMap :: Backend sym =>
+  sym -> (Integer -> SEval sym (SeqMap sym)) -> Nat' -> SeqMap sym -> Integer -> SEval sym (SeqMap sym)
+rightRotateSeqMap _ _ Inf _ _ = panic "rightRotateSeqMap" ["Cannot rotate infinite sequences"]
+rightRotateSeqMap sym _ (Nat n) xs amt
+  | i == 0 = pure xs
+  | otherwise =
+      do hd <- takeSeqMap sym i xs
+         tl <- dropSeqMap sym i xs
+         concatSeqMap sym (n - i) tl hd
+ where
+ i = (n - amt) `mod` n
+
 leftShiftSeqMap :: Backend sym =>
   sym -> (Integer -> SEval sym (SeqMap sym)) -> Nat' -> SeqMap sym -> Integer -> SEval sym (SeqMap sym)
-leftShiftSeqMap _ _ _ xs 0 = pure xs
 leftShiftSeqMap sym _ Inf xs toShift =
   dropSeqMap sym toShift xs
+leftShiftSeqMap _ _ _ xs 0 = pure xs
 leftShiftSeqMap sym mkZro (Nat n) xs toShift
   | toShift < n
   = do xs' <- dropSeqMap sym toShift xs
@@ -310,10 +363,10 @@ leftShiftSeqMap sym mkZro (Nat n) xs toShift
 
 rightShiftSeqMap :: Backend sym =>
   sym -> (Integer -> SEval sym (SeqMap sym)) -> Nat' -> SeqMap sym -> Integer -> SEval sym (SeqMap sym)
-rightShiftSeqMap _ _ _ xs 0 = pure xs
 rightShiftSeqMap sym mkZro Inf xs toShift =
   do zs <- mkZro toShift
      concatSeqMap sym toShift zs xs
+rightShiftSeqMap _ _ _ xs 0 = pure xs
 rightShiftSeqMap sym mkZro (Nat n) xs toShift
   | toShift < n
   = do zs <- mkZro toShift
@@ -342,6 +395,9 @@ getWordSegments ::
   Integer ->
   SeqMap sym ->
   SEval sym [Either (SEval sym (SBit sym)) (SWord sym)]
+getWordSegments sym start _end VoidSeqMap =
+  invalidIndex sym start
+
 getWordSegments _sym start end (GenerateSeqMap f) =
   pure [ Left (fromVBit <$> f i) | i <- [ start .. end ] ]
 
@@ -354,7 +410,7 @@ getWordSegments sym start end (DelaySeqMap xs) =
 getWordSegments sym start end (UnpackSeqMap w)
   | start == 0 && wordLen sym w == end+1 = pure [Right w]
   | otherwise =
-      do w' <- extractWord sym (1 + end - start) start w
+      do w' <- takeWord sym (end - start + 1) =<< dropWord sym start w
          return [Right w']
 
 getWordSegments sym start end (DropSeqMap front xs) =
@@ -381,7 +437,7 @@ getWordSegments sym start end (JoinSeqMap each xss) =
        []  -> evalPanic "getWordSegments" ["invalid join", show start, show end, show each]
        [x] -> getWordSegments sym startr endr x
        (hd:x:xs) ->
-         do h <- getWordSegments sym startr each hd
+         do h <- getWordSegments sym startr (each-1) hd
             tl <- go x xs
             pure (h ++ tl)
 
@@ -391,7 +447,7 @@ getWordSegments sym start end (JoinSeqMap each xss) =
 
   go x [] = getWordSegments sym 0 endr x
   go x (x':xs) =
-     do h <- getWordSegments sym 0 each x
+     do h <- getWordSegments sym 0 (each-1) x
         tl <- go x' xs
         pure (h ++ tl)
 
@@ -402,21 +458,23 @@ packSeqMap sym len v0
    | otherwise = pack 0 (len-1) v0
   where
   --   Invariant start <= end, so at least 1 bit must be taken.
-  pack start end (GenerateSeqMap f) = 
+  pack start _end VoidSeqMap = invalidIndex sym start
+
+  pack start end (GenerateSeqMap f) =
     do bs <- traverse (\i -> fromVBit <$> f i) [ start .. end ]
        packWord sym bs
- 
+
   pack start end (MemoSeqMap cache vs) =
     do bs <- traverse (\i -> fromVBit <$> evalMemo sym i cache vs) [ start .. end ]
        packWord sym bs
 
   pack start end (DelaySeqMap xs) =
     pack start end =<< xs
- 
+
   pack start end (UnpackSeqMap w)
     | start == 0 && wordLen sym w == end+1 = pure w
-    | otherwise = extractWord sym (1 + end - start) start w
- 
+    | otherwise = takeWord sym (end - start + 1) =<< dropWord sym start w
+
   pack start end (UpdateSeqMap upds vs) =
     do ws <- mapM go (computeSegments start end upds)
        case ws of
@@ -424,12 +482,12 @@ packSeqMap sym len v0
          (w:ws') -> foldM (joinWord sym) w ws'
    where
    go (Left (s,e)) = pack s e vs
-   go (Right a)    = do b <- fromVBit <$> a 
+   go (Right a)    = do b <- fromVBit <$> a
                         packWord sym [b]
- 
+
   pack start end (DropSeqMap front xs) =
     pack (start+front) (end+front) xs
- 
+
   pack start end (ConcatSeqMap front xs ys)
     | end <  front   = pack start end xs
     | start >= front = pack (start - front) (end - front) ys
@@ -437,25 +495,25 @@ packSeqMap sym len v0
        do w1 <- pack start (front - 1) xs
           w2 <- pack 0 (end - front) ys
           joinWord sym w1 w2
- 
+
   pack start end (JoinSeqMap each xss) =
     do xss' <- sequence [ fromVSeq <$> lookupSeqMap sym q xss | q <- [ startq .. endq ] ]
        case xss' of
          []   -> evalPanic "packSeqMap" ["invalid join", show start, show end, show each]
          [x] -> pack startr endr x
          (hd:x:xs) ->
-           do h <- pack startr each hd
+           do h <- pack startr (each-1) hd
               go h x xs
-  
+
    where
     (startq, startr) = start `divMod` each
     (endq, endr)     = end   `divMod` each
-  
+
     go h x [] = joinWord sym h =<< pack 0 endr x
     go h x (x':xs) =
-       do h' <- joinWord sym h =<< pack 0 each x
+       do h' <- joinWord sym h =<< pack 0 (each-1) x
           go h' x' xs
-     
+
 
 -- | Reverse the order of a finite sequence map
 reverseSeqMap ::
@@ -522,7 +580,7 @@ zipSegments sym bitop wordop = go 0 []
          z <- concatBts btsn bts =<< wordop wx wy1
          concatSeqMap sym (btsn + wordLen sym wx) z =<< go 0 [] xs (Right wy2 : ys)
 
-    | wordLen sym wx > wordLen sym wy         
+    | wordLen sym wx > wordLen sym wy
     = do (wx1,wx2) <- splitWord sym (wordLen sym wy) (wordLen sym wx - wordLen sym wy) wx
          z <- concatBts btsn bts =<< wordop wx1 wy
          concatSeqMap sym (btsn + wordLen sym wy) z =<< go 0 [] (Right wx2 : xs) ys
@@ -533,23 +591,23 @@ zipSegments sym bitop wordop = go 0 []
 
   go btsn bts (Left bx : xs) (Right wy : ys) =
    do let bz = VBit <$> bitop bx (wordBit sym wy 0)
-      wy' <- extractWord sym (wordLen sym wy - 1) 0 wy
+      wy' <- dropWord sym 1 wy
       go (btsn+1) (bz : bts) xs (Right wy' : ys)
 
   go btsn bts (Right wx : xs) (Left by : ys) =
    do let bz = VBit <$> bitop (wordBit sym wx 0) by
-      wx' <- extractWord sym (wordLen sym wx - 1) 0 wx
+      wx' <- dropWord sym 1 wx
       go (btsn+1) (bz : bts) (Right wx' : xs) ys
 
   go btsn bts (Left bx : xs) (Left by : ys) =
-   do let bz = VBit <$> bitop bx by 
+   do let bz = VBit <$> bitop bx by
       go (btsn+1) (bz : bts) xs ys
 
   go _ bts [] [] = finiteSeqMap sym (reverse bts)
 
   go _ _ _ _ = evalPanic "zipSegments" ["segment mismatch!"]
-  
-mapSegments :: 
+
+mapSegments ::
   Backend sym =>
   sym ->
   (SEval sym (SBit sym) -> SEval sym (SBit sym)) ->
@@ -570,7 +628,7 @@ mapSegments sym bitop wordop = go 0 []
     do w' <- wordop w
        z  <- concatBts btsn bts w'
        concatSeqMap sym (btsn + wordLen sym w) z =<< go 0 [] xs
-  
+
   go btsn bts (Left b : xs) =
     do let bz = VBit <$> bitop b
        go (btsn+1) (bz:bts) xs
@@ -585,7 +643,7 @@ bitwiseWordUnOp ::
   (SWord sym -> SEval sym (SWord sym)) ->
   SeqMap sym -> SEval sym (SeqMap sym)
 bitwiseWordUnOp sym len bitop wordop xs
-  | len <= 0 = generateSeqMap sym (invalidIndex sym)
+  | len <= 0 = pure VoidSeqMap
   | otherwise =
      do xsegs <- getWordSegments sym 0 (len-1) xs
         mapSegments sym bitop wordop xsegs
@@ -598,7 +656,7 @@ bitwiseWordBinOp ::
   (SWord sym -> SWord sym -> SEval sym (SWord sym)) ->
   SeqMap sym -> SeqMap sym -> SEval sym (SeqMap sym)
 bitwiseWordBinOp sym len bitop wordop xs ys
-  | len <= 0 = generateSeqMap sym (invalidIndex sym)
+  | len <= 0 = pure VoidSeqMap
   | otherwise =
      do xsegs <- getWordSegments sym 0 (len-1) xs
         ysegs <- getWordSegments sym 0 (len-1) ys
@@ -613,6 +671,34 @@ mapSeqMap ::
 mapSeqMap sym f x =
   memoMap sym =<< (generateSeqMap sym $ \i -> f (lookupSeqMap sym i x))
 
+actualizeSeqMap :: forall sym. Backend sym => sym -> Integer -> SeqMap sym -> SEval sym (SeqMap sym)
+actualizeSeqMap sym len0 xs0
+  | len0 <= 0 = pure VoidSeqMap
+  | otherwise = actualize 0 len0 xs0
+ where
+ -- Invariant, len > 0
+ actualize :: Integer -> Integer -> SeqMap sym -> SEval sym (SeqMap sym)
+ actualize start _len VoidSeqMap = invalidIndex sym start
+ actualize start len (UnpackSeqMap w)
+    | start == 0 && wordLen sym w == len = pure (UnpackSeqMap w)
+    | otherwise = UnpackSeqMap <$> (takeWord sym len =<< dropWord sym start w)
+ actualize start len (JoinSeqMap each xs) =
+   do xs' <- actualize (start*each) (len*each) xs
+      joinSeqMap sym each xs'
+ actualize start len (ConcatSeqMap front xs ys)
+   | start+len <= front = actualize start len xs
+   | front <= start     = actualize (start - front) len ys
+   | otherwise =
+       do xs' <- actualize start (front-start) xs
+          ys' <- actualize 0 (start+len-front) ys
+          concatSeqMap sym (front-start) xs' ys'
+ actualize start len (DelaySeqMap xs) =
+   actualize start len =<< xs
+ actualize start len (DropSeqMap toDrop xs) =
+   actualize (start+toDrop) len xs
+ actualize start len xs = finiteSeqMap' <$>
+     mapM (\i -> pure <$> (forceValue sym =<< lookupSeqMap sym i xs))
+          (genericTake len [ start .. ])
 
 -- | Generic value type, parameterized by bit and word types.
 --
@@ -627,26 +713,26 @@ data GenValue sym
   | VFloat !(SFloat sym)
   | VRecord !(RecordMap Ident (SEval sym (GenValue sym))) -- ^ @ { .. } @
   | VTuple ![SEval sym (GenValue sym)]              -- ^ @ ( .. ) @
-  | VSeq !Nat' !(SeqMap sym)                   -- ^ @ [n]a @
+  | VSeq !Nat' !TValue !(SeqMap sym)                   -- ^ @ [n]a @
   | VFun (SEval sym (GenValue sym) -> SEval sym (GenValue sym)) -- ^ functions
   | VPoly (TValue -> SEval sym (GenValue sym))   -- ^ polymorphic values (kind *)
   | VNumPoly (Nat' -> SEval sym (GenValue sym))  -- ^ polymorphic values (kind #)
  deriving Generic
 
 -- | Force the evaluation of a value
-forceValue :: Backend sym => sym -> GenValue sym -> SEval sym ()
+forceValue :: Backend sym => sym -> GenValue sym -> SEval sym (GenValue sym)
 forceValue sym v = case v of
-  VBit b      -> seq b (return ())
-  VInteger i  -> seq i (return ())
-  VRational q -> seq q (return ())
-  VFloat f    -> seq f (return ())
-  VRecord fs  -> mapM_ (forceValue sym =<<) fs
-  VTuple xs   -> mapM_ (forceValue sym =<<) xs
-  VSeq (Nat n) xs -> mapM_ (forceValue sym =<<) (enumerateSeqMap sym n xs)
-  VSeq Inf _  -> return ()
-  VFun _      -> return ()
-  VPoly _     -> return ()
-  VNumPoly _  -> return ()
+  VBit b      -> seq b (pure v)
+  VInteger i  -> seq i (pure v)
+  VRational q -> seq q (pure v)
+  VFloat f    -> seq f (pure v)
+  VRecord fs  -> VRecord <$> traverse (pure <$> (forceValue sym =<<)) fs
+  VTuple xs   -> VTuple <$> traverse (pure <$> (forceValue sym =<<)) xs
+  VSeq (Nat n) a xs -> VSeq (Nat n) a <$> actualizeSeqMap sym n xs
+  VSeq Inf _ _  -> pure v
+  VFun _        -> pure v
+  VPoly _       -> pure v
+  VNumPoly _    -> pure v
 
 instance Backend sym => Show (GenValue sym) where
   show v = case v of
@@ -656,8 +742,8 @@ instance Backend sym => Show (GenValue sym) where
     VInteger _ -> "integer"
     VRational _ -> "rational"
     VFloat _   -> "float"
-    VSeq (Nat n) _ -> "seq:" ++ show n
-    VSeq Inf _     -> "stream"
+    VSeq (Nat n) _ xs -> "seq:" ++ show n ++ " " ++ show xs
+    VSeq Inf _ xs     -> "stream " ++ show xs
     VFun _     -> "fun"
     VPoly _    -> "poly"
     VNumPoly _ -> "numpoly"
@@ -691,20 +777,20 @@ ppValue sym opts = loop
           return $ parens (sep (punctuate comma vals'))
 
     -- word printing
---    VSeq _ vals) ->
---      ppWord sym opts <$> packSeqMap sym w vals
+    VSeq (Nat w) TVBit vals ->
+      ppWord sym opts <$> packSeqMap sym w vals
 
     -- string printing
-    --(TVSeq n (TVSeq w TVBit), VSeq _ vals)
---      | asciiMode opts w && w > 0 -> ppString n w vals
+    VSeq (Nat n) (TVSeq w TVBit) vals
+      | asciiMode opts w && w > 0 -> ppString n w vals
 
     -- finite sequence
-    VSeq (Nat n) vals ->
+    VSeq (Nat n) _ vals ->
        do vals' <- traverse (\v -> loop =<< v) $ enumerateSeqMap sym n vals
           return $ brackets $ fsep $ punctuate comma vals'
 
     -- infinite sequence
-    VSeq Inf vals ->
+    VSeq Inf _ vals ->
        do vals' <- traverse (\v -> loop =<< v) $ enumerateSeqMap sym (toInteger (useInfLength opts)) vals
           return $ brackets $ fsep
                 $ punctuate comma
@@ -734,7 +820,7 @@ asciiMode opts width = useAscii opts && (width == 7 || width == 8)
 word :: Backend sym => sym -> Integer -> Integer -> SEval sym (GenValue sym)
 word sym n i
   | n >= Arch.maxBigIntWidth = wordTooWide n
-  | otherwise                = VSeq (Nat n) . UnpackSeqMap <$> wordLit sym n i
+  | otherwise                = VSeq (Nat n) TVBit . UnpackSeqMap <$> wordLit sym n i
 
 lam :: (SEval sym (GenValue sym) -> SEval sym (GenValue sym)) -> GenValue sym
 lam  = VFun
@@ -743,7 +829,7 @@ lam  = VFun
 wlam :: Backend sym => sym -> (SWord sym -> SEval sym (GenValue sym)) -> GenValue sym
 wlam sym f =
   VFun (\arg -> arg >>= \case
-    VSeq (Nat w) v -> f =<< packSeqMap sym w v
+    VSeq (Nat w) _ v -> f =<< packSeqMap sym w v
     _ -> panic "wlam" ["Expected word value"]
   )
 
@@ -790,8 +876,8 @@ fromVRational val = case val of
 -- | Extract a finite sequence value.
 fromVSeq :: GenValue sym -> SeqMap sym
 fromVSeq val = case val of
-  VSeq _ vs -> vs
-  _         -> evalPanic "fromVSeq" ["not a sequence"]
+  VSeq _ _ vs -> vs
+  _           -> evalPanic "fromVSeq" ["not a sequence"]
 
 asIndex :: Backend sym =>
   sym ->
@@ -800,7 +886,7 @@ asIndex :: Backend sym =>
   GenValue sym ->
   SEval sym (Either (SInteger sym) (SWord sym))
 asIndex _sym _msg TVInteger (VInteger i) = pure (Left i)
-asIndex sym  _msg (TVSeq w TVBit) (VSeq _ xs) = Right <$> packSeqMap sym w xs
+asIndex sym  _msg (TVSeq w TVBit) (VSeq _ _ xs) = Right <$> packSeqMap sym w xs
 asIndex _sym msg tv _ = evalPanic "asIndex" ["not an index value", show tv, msg]
 
 -- | If the given list of values are all fully-evaluated thunks
@@ -864,7 +950,7 @@ lookupRecord f val =
 {-# INLINE iteValue #-}
 iteValue :: Backend sym =>
   sym ->
-  TValue -> 
+  TValue ->
   SBit sym ->
   SEval sym (GenValue sym) ->
   SEval sym (GenValue sym) ->
@@ -910,12 +996,12 @@ mergeValue sym tv c v1 v2 =
        | length ts == length vs1 && length vs1 == length vs2  ->
          pure $ VTuple $ zipWith3 (\t -> mergeValue' sym t c) ts vs1 vs2
 
-    (TVSeq n tp, VSeq n1 vs1 , VSeq n2 vs2 )
-       | Nat n == n1 && n1 == n2 -> VSeq n1 <$> mergeSeqMap sym (Nat n) tp c vs1 vs2
+    (TVSeq n tp, VSeq n1 _ vs1 , VSeq n2 _ vs2)
+       | Nat n == n1 && n1 == n2 -> VSeq n1 tp <$> mergeSeqMap sym (Nat n) tp c vs1 vs2
 
-    (TVStream tp, VSeq Inf vs1, VSeq Inf vs2 ) -> VSeq Inf <$> mergeSeqMap sym Inf tp c vs1 vs2
-       
- 
+    (TVStream tp, VSeq Inf _ vs1, VSeq Inf _ vs2 ) -> VSeq Inf tp <$> mergeSeqMap sym Inf tp c vs1 vs2
+
+
     (TVFun _ tp, VFun f1, VFun f2) -> pure $ VFun $ \x -> mergeValue' sym tp c (f1 x) (f2 x)
 
     (tp, _, _) -> panic "Cryptol.Eval.Generic"
@@ -932,8 +1018,9 @@ mergeSeqMap :: Backend sym =>
   SEval sym (SeqMap sym)
 
 -- special case for [n]Bit
-mergeSeqMap sym (Nat n) TVBit c x y = 
-  bitwiseWordBinOp sym n (mergeEval sym (iteBit sym) c) (iteWord sym c) x y
+mergeSeqMap sym (Nat n) TVBit c x y =
+  do xs <- bitwiseWordBinOp sym n (mergeEval sym (iteBit sym) c) (iteWord sym c) x y
+     return xs
 
 mergeSeqMap sym _ tv c x y =
   memoMap sym =<< (generateSeqMap sym $ \i ->

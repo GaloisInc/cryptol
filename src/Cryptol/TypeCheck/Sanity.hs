@@ -172,7 +172,7 @@ exprSchema expr =
                      ty1 <- checkHas ty sel
                      return (tMono ty1)
 
-    EIf e1 e2 e3 ->
+    EIf _ e1 e2 e3 ->
       do ty <- exprType e1
          unless (same tBit ty) $
            reportError $ TypeMismatch "EIf_condition" (tMono tBit) (tMono ty)

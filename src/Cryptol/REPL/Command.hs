@@ -64,6 +64,7 @@ import           Cryptol.Eval.Concrete( Concrete(..) )
 import qualified Cryptol.Eval.Concrete as Concrete
 import qualified Cryptol.Eval.Monad as E
 import qualified Cryptol.Eval.Value as E
+import           Cryptol.Eval.Type (TValue, tValTy)
 import qualified Cryptol.Eval.Reference as R
 import Cryptol.Testing.Random
 import qualified Cryptol.Testing.Random  as TestR
@@ -344,7 +345,7 @@ evalCmd str = do
           else P.ExprInput <$> replParseExpr str
   case ri of
     P.ExprInput expr -> do
-      (val,_ty) <- replEvalExpr expr
+      (val,_tyv,_ty) <- replEvalExpr expr
       ppOpts <- getPPValOpts
       valDoc <- rEvalRethrow (E.ppValue Concrete ppOpts val)
 
@@ -382,12 +383,12 @@ printSatisfyingModel pexpr vs =
 dumpTestsCmd :: FilePath -> String -> REPL ()
 dumpTestsCmd outFile str =
   do expr <- replParseExpr str
-     (val, ty) <- replEvalExpr expr
+     (val, tyv, ty) <- replEvalExpr expr
      ppopts <- getPPValOpts
      testNum <- getKnownUser "tests" :: REPL Int
      g <- io newTFGen
      gens <-
-       case TestR.dumpableType ty of
+       case TestR.dumpableType tyv of
          Nothing -> raise (TypeNotTestable ty)
          Just gens -> return gens
      tests <- io $ TestR.returnTests g gens val testNum
@@ -421,9 +422,9 @@ qcCmd qcMode "" =
 
 qcCmd qcMode str =
   do expr <- replParseExpr str
-     (val,ty) <- replEvalExpr expr
+     (val,tyv,ty) <- replEvalExpr expr
      testNum <- getKnownUser "tests"
-     case testableType ty of
+     case testableType tyv of
        Just (Just sz,tys,vss) | qcMode == QCExhaust || sz <= toInteger testNum -> do
             rPutStrLn "Using exhaustive testing."
             let f _ [] = panic "Cryptol.REPL.Command"
@@ -449,7 +450,7 @@ qcCmd qcMode str =
             return [report]
 
        Just (sz,tys,_) | qcMode == QCRandom ->
-         case TestR.testableTypeGenerators ty of
+         case TestR.testableTypeGenerators tyv of
               Nothing   -> raise (TypeNotTestable ty)
               Just gens -> do
                 rPutStrLn "Using random testing."
@@ -514,7 +515,8 @@ qcCmd qcMode str =
   delTesting  = del (length testingMsg)
   delProgress = del totProgressWidth
 
-  ppFailure tys pexpr failure = do
+  ppFailure tyvs pexpr failure = do
+    let tys = map tValTy tyvs
     delTesting
     opts <- getPPValOpts
     case failure of
@@ -937,7 +939,7 @@ byteStringToInteger bs
 writeFileCmd :: FilePath -> String -> REPL ()
 writeFileCmd file str = do
   expr         <- replParseExpr str
-  (val,ty)     <- replEvalExpr expr
+  (val,_,ty)   <- replEvalExpr expr
   if not (tIsByteSeq ty)
    then rPrint $  "Cannot write expression of types other than [n][8]."
               <+> "Type was: " <+> pp ty
@@ -950,9 +952,9 @@ writeFileCmd file str = do
   tIsByte    x = maybe False
                        (\(n,b) -> T.tIsBit b && T.tIsNum n == Just 8)
                        (T.tIsSeq x)
-  serializeValue (E.VSeq (Nat n) vs) = do
+  serializeValue (E.VSeq (Nat n) _ vs) = do
     ws <- rEval
-            (mapM (\v -> E.packSeqMap Concrete n . E.fromVSeq =<< v)
+            (mapM (\v -> E.packSeqMap Concrete 8 . E.fromVSeq =<< v)
                   (E.enumerateSeqMap Concrete n vs))
     return $ BS.pack $ map serializeByte ws
   serializeValue _             =
@@ -1619,7 +1621,7 @@ replCheckDecls ds = do
 replSpecExpr :: T.Expr -> REPL T.Expr
 replSpecExpr e = liftModuleCmd $ S.specialize e
 
-replEvalExpr :: P.Expr P.PName -> REPL (Concrete.Value, T.Type)
+replEvalExpr :: P.Expr P.PName -> REPL (Concrete.Value, TValue, T.Type)
 replEvalExpr expr =
   do (_,def,sig) <- replCheckExpr expr
      validEvalContext def
@@ -1636,11 +1638,12 @@ replEvalExpr expr =
                let su = T.listParamSubst tys
                return (def1, T.apSubst su (T.sType sig))
 
-     val <- liftModuleCmd (rethrowEvalError . M.evalExpr def1)
+     (val,tyv) <- liftModuleCmd (rethrowEvalError . M.evalExprAndType def1 ty)
+
      whenDebug (rPutStrLn (dump def1))
      -- add "it" to the namespace
      bindItVariable ty def1
-     return (val,ty)
+     return (val,tyv,ty)
   where
   warnDefaults ts =
     case ts of

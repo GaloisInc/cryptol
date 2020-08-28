@@ -49,9 +49,9 @@ import qualified Cryptol.ModuleSystem.Monad as M
 import qualified Cryptol.Eval as Eval
 import qualified Cryptol.Eval.Concrete as Concrete
 import qualified Cryptol.Eval.Concrete.FloatHelpers as Concrete
-
 import qualified Cryptol.Eval.Backend as Eval
 import qualified Cryptol.Eval.Value as Eval
+import qualified Cryptol.Eval.Type as Eval
 import           Cryptol.Eval.What4
 import qualified Cryptol.Eval.What4.SFloat as W4
 import           Cryptol.Symbolic
@@ -271,7 +271,7 @@ prepareQuery sym ProverCommand { .. } =
 
             case pcQueryType of
               SafetyQuery ->
-                do Eval.forceValue (What4 sym) appliedVal
+                do _ <- Eval.forceValue (What4 sym) appliedVal
                    pure (W4.truePred sym)
 
               _ -> pure (Eval.fromVBit appliedVal)
@@ -528,7 +528,7 @@ varBlockingPred sym evalFn v =
            W4.notPred sym =<< W4.floatEq sym f constF
       | otherwise -> panic "varBlockingPred" [ "1 >= 2 ???" ]
 
-    VarFinSeq _n vs -> computeBlockingPred sym evalFn vs
+    VarFinSeq _n _ vs -> computeBlockingPred sym evalFn vs
     VarTuple vs     -> computeBlockingPred sym evalFn vs
     VarRecord fs    -> computeBlockingPred sym evalFn (recordElements fs)
 
@@ -556,7 +556,7 @@ data VarShape sym
   | VarRational (W4.SymInteger sym) (W4.SymInteger sym)
   | VarFloat (W4.SFloat sym)
   | VarWord (SW.SWord sym)
-  | VarFinSeq Int [VarShape sym]
+  | VarFinSeq Int Eval.TValue [VarShape sym]
   | VarTuple [VarShape sym]
   | VarRecord (RecordMap Ident (VarShape sym))
 
@@ -572,7 +572,8 @@ freshVariable sym ty =
     FTIntMod n    -> VarInteger  <$> W4.freshBoundedInt sym W4.emptySymbol (Just 0) (Just (n-1))
     FTFloat e p   -> VarFloat    <$> W4.fpFresh sym e p
     FTSeq n FTBit -> VarWord     <$> SW.freshBV sym W4.emptySymbol (toInteger n)
-    FTSeq n t     -> VarFinSeq n <$> sequence (replicate n (freshVariable sym t))
+    FTSeq n t     -> VarFinSeq n (finTypeValue t) <$>
+                        sequence (replicate n (freshVariable sym t))
     FTTuple ts    -> VarTuple    <$> mapM (freshVariable sym) ts
     FTRecord fs   -> VarRecord   <$> traverse (freshVariable sym) fs
 
@@ -582,9 +583,10 @@ varToSymValue sym var =
     VarBit b     -> Eval.VBit b
     VarInteger i -> Eval.VInteger i
     VarRational n d -> Eval.VRational (Eval.SRational n d)
-    VarWord w    -> Eval.VSeq (Nat (SW.bvWidth w)) (Eval.unpackSeqMap' w)
+    VarWord w    -> Eval.VSeq (Nat (SW.bvWidth w)) Eval.TVBit (Eval.unpackSeqMap' w)
     VarFloat f   -> Eval.VFloat f
-    VarFinSeq n vs -> Eval.VSeq (Nat (toInteger n)) (Eval.finiteSeqMap' (What4 sym) (map (pure . varToSymValue sym) vs))
+    VarFinSeq n a vs -> Eval.VSeq (Nat (toInteger n)) a
+                         (Eval.finiteSeqMap' (map (pure . varToSymValue sym) vs))
     VarTuple vs  -> Eval.VTuple (map (pure . varToSymValue sym) vs)
     VarRecord fs -> Eval.VRecord (fmap (pure . varToSymValue sym) fs)
 
@@ -598,19 +600,19 @@ varToConcreteValue evalFn v =
     VarInteger i -> Eval.VInteger <$> W4.groundEval evalFn i
     VarRational n d ->
        Eval.VRational <$> (Eval.SRational <$> W4.groundEval evalFn n <*> W4.groundEval evalFn d)
-    VarWord SW.ZBV     -> pure $ Eval.VSeq (Nat 0) (Eval.finiteSeqMap' Concrete.Concrete [])
+    VarWord SW.ZBV     -> pure $ Eval.VSeq (Nat 0) Eval.TVBit (Eval.voidSeqMap)
     VarWord (SW.DBV x) ->
        do let w = W4.intValue (W4.bvWidth x)
           bv <- Concrete.mkBv w . BV.asUnsigned <$> W4.groundEval evalFn x
-          pure $ Eval.VSeq (Nat w) (Eval.unpackSeqMap' bv)
+          pure $ Eval.VSeq (Nat w) Eval.TVBit (Eval.unpackSeqMap' bv)
     VarFloat fv@(W4.SFloat f) ->
       do let (e,p) = W4.fpSize fv
          bits <- W4.groundEval evalFn f
          pure $ Eval.VFloat $ Concrete.floatFromBits e p $ BV.asUnsigned bits
 
-    VarFinSeq n vs ->
+    VarFinSeq n a vs ->
        do vs' <- mapM (varToConcreteValue evalFn) vs
-          pure (Eval.VSeq (Nat (toInteger n)) (Eval.finiteSeqMap' Concrete.Concrete (map pure vs')))
+          pure (Eval.VSeq (Nat (toInteger n)) a (Eval.finiteSeqMap' (map pure vs')))
     VarTuple vs ->
        do vs' <- mapM (varToConcreteValue evalFn) vs
           pure (Eval.VTuple (map pure vs'))

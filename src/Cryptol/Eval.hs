@@ -116,14 +116,14 @@ evalExpr sym env expr = case expr of
     | isTBit tyv
     -> {-# SCC "evalExpr->Elist/bit" #-}
        tryFromBits sym vs >>= \case
-         Just w -> VSeq (Nat (wordLen sym w)) <$> unpackSeqMap sym w
+         Just w -> VSeq (Nat (wordLen sym w)) TVBit <$> unpackSeqMap sym w
          Nothing -> do
             xs <- mapM (sDelay sym Nothing) vs
-            VSeq (Nat len) <$> finiteSeqMap sym xs
+            VSeq (Nat len) TVBit <$> finiteSeqMap sym xs
 
     | otherwise -> {-# SCC "evalExpr->EList" #-} do
         xs <- mapM (sDelay sym Nothing) vs
-        VSeq (Nat len) <$> finiteSeqMap sym xs
+        VSeq (Nat len) tyv <$> finiteSeqMap sym xs
    where
     tyv = evalValType (envTypes env) ty
     vs  = map eval es
@@ -146,9 +146,9 @@ evalExpr sym env expr = case expr of
        let tyv = evalValType (envTypes env) ty
        evalSetSel sym tyv e' sel (eval v)
 
-  EIf c t f -> {-# SCC "evalExpr->EIf" #-} do
+  EIf ty c t f -> {-# SCC "evalExpr->EIf" #-} do
      b <- fromVBit <$> eval c
-     let tyv = undefined -- TODO!
+     let tyv = evalValType (envTypes env) ty
      iteValue sym tyv b (eval t) (eval f)
 
   EComp n t h gs -> {-# SCC "evalExpr->EComp" #-} do
@@ -413,7 +413,7 @@ evalSel sym val sel = case sel of
 
   listSel n v =
     case v of
-      VSeq _ vs       -> lookupSeqMap sym (toInteger n) vs
+      VSeq _ _ vs     -> lookupSeqMap sym (toInteger n) vs
       _               -> evalPanic "Cryptol.Eval.evalSel"
                             [ "Unexpected value in list selection" ]
 
@@ -471,9 +471,9 @@ evalSetSel sym tyv e sel v =
                               ])
         fs
 
-  setList len _a n =
+  setList len a n =
     do vs <- delaySeqMap sym (fromVSeq <$> e)
-       VSeq len <$> updateSeqMap sym vs n v
+       VSeq len a <$> updateSeqMap sym vs n v
 
 -- List Comprehension Environments ---------------------------------------------
 
@@ -555,10 +555,11 @@ evalComp ::
   Expr           {- ^ Head expression of the comprehension -} ->
   [[Match]]      {- ^ List of parallel comprehension branches -} ->
   SEval sym (GenValue sym)
-evalComp sym env len _elty body ms =
+evalComp sym env len elty body ms =
        do lenv <- mconcat <$> mapM (branchEnvs sym (toListEnv env)) ms
-          VSeq len <$> (memoMap sym =<< generateSeqMap sym (\i ->
-                          evalExpr sym (evalListEnv lenv i) body))
+          VSeq len elty <$>
+              (memoMap sym =<< generateSeqMap sym (\i ->
+                 evalExpr sym (evalListEnv lenv i) body))
 
 {-# SPECIALIZE branchEnvs ::
   ConcPrims =>

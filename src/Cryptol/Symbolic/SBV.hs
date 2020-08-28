@@ -54,9 +54,9 @@ import           Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
 import qualified Cryptol.Eval.Backend as Eval
 import qualified Cryptol.Eval as Eval
 import qualified Cryptol.Eval.Concrete as Concrete
-import           Cryptol.Eval.Concrete (Concrete(..))
 import qualified Cryptol.Eval.Concrete.FloatHelpers as Concrete
 import qualified Cryptol.Eval.Monad as Eval
+import qualified Cryptol.Eval.Type as Eval
 import qualified Cryptol.Eval.Value as Eval
 import           Cryptol.Eval.SBV
 import           Cryptol.Symbolic
@@ -324,7 +324,7 @@ prepareQuery evo modEnv ProverCommand{..} =
                         appliedVal <- foldM Eval.fromVFun v (map pure args)
                         case pcQueryType of
                           SafetyQuery ->
-                            do Eval.forceValue SBV appliedVal
+                            do _ <- Eval.forceValue SBV appliedVal
                                pure SBV.svTrue
                           _ -> pure (Eval.fromVBit appliedVal)
 
@@ -483,7 +483,8 @@ parseValue (FTSeq n FTBit) cvs =
     Nothing        -> (Concrete.mkWord (Concrete.packBits (map Eval.fromVBit vs)), cvs')
       where (vs, cvs') = parseValues (replicate n FTBit) cvs
 parseValue (FTSeq n t) cvs =
-                      (Eval.VSeq (Nat (toInteger n)) $ Eval.finiteSeqMap' Concrete (map Eval.ready vs)
+                      (Eval.VSeq (Nat (toInteger n)) (finTypeValue t) $
+                          Eval.finiteSeqMap' (map Eval.ready vs)
                       , cvs'
                       )
   where (vs, cvs') = parseValues (replicate n t) cvs
@@ -525,10 +526,11 @@ forallFinType ty =
     FTIntMod n    -> do x <- lift forallSInteger_
                         tell [inBoundsIntMod n x]
                         return (Eval.VInteger x)
-    FTSeq 0 FTBit -> pure $ Eval.VSeq (Nat 0) (Eval.finiteSeqMap' SBV [])
-    FTSeq n FTBit -> Eval.VSeq (Nat (toInteger n)) . Eval.unpackSeqMap' <$> lift (forallBV_ n)
+    FTSeq 0 FTBit -> pure $ Eval.VSeq (Nat 0) Eval.TVBit (Eval.voidSeqMap)
+    FTSeq n FTBit -> Eval.VSeq (Nat (toInteger n)) Eval.TVBit . Eval.unpackSeqMap' <$> lift (forallBV_ n)
     FTSeq n t     -> do vs <- replicateM n (forallFinType t)
-                        return $ Eval.VSeq (Nat (toInteger n)) $ Eval.finiteSeqMap' SBV (map pure vs)
+                        return $ Eval.VSeq (Nat (toInteger n)) (finTypeValue t) $
+                          Eval.finiteSeqMap' (map pure vs)
     FTTuple ts    -> Eval.VTuple <$> mapM (fmap pure . forallFinType) ts
     FTRecord fs   -> Eval.VRecord <$> traverse (fmap pure . forallFinType) fs
 
@@ -547,9 +549,10 @@ existsFinType ty =
     FTIntMod n    -> do x <- lift existsSInteger_
                         tell [inBoundsIntMod n x]
                         return (Eval.VInteger x)
-    FTSeq 0 FTBit -> pure $ Eval.VSeq (Nat 0) (Eval.finiteSeqMap' SBV [])
-    FTSeq n FTBit -> Eval.VSeq (Nat (toInteger n)) . Eval.unpackSeqMap' <$> lift (existsBV_ n)
+    FTSeq 0 FTBit -> pure $ Eval.VSeq (Nat 0) Eval.TVBit Eval.voidSeqMap
+    FTSeq n FTBit -> Eval.VSeq (Nat (toInteger n)) Eval.TVBit . Eval.unpackSeqMap' <$> lift (existsBV_ n)
     FTSeq n t     -> do vs <- replicateM n (existsFinType t)
-                        return $ Eval.VSeq (Nat (toInteger n)) $ Eval.finiteSeqMap' SBV (map pure vs)
+                        return $ Eval.VSeq (Nat (toInteger n)) (finTypeValue t) $
+                          Eval.finiteSeqMap' (map pure vs)
     FTTuple ts    -> Eval.VTuple <$> mapM (fmap pure . existsFinType) ts
     FTRecord fs   -> Eval.VRecord <$> traverse (fmap pure . existsFinType) fs

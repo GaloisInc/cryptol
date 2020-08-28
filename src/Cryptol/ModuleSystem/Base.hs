@@ -26,9 +26,11 @@ import Cryptol.ModuleSystem.Env (lookupModule
                                 , ModContext(..)
                                 , ModulePath(..), modulePathLabel)
 import qualified Cryptol.Eval                 as E
-
+import qualified Cryptol.Eval.Env             as E
 import qualified Cryptol.Eval.Concrete as Concrete
 import           Cryptol.Eval.Concrete (Concrete(..))
+import qualified Cryptol.Eval.Type as T
+
 import qualified Cryptol.ModuleSystem.NamingEnv as R
 import qualified Cryptol.ModuleSystem.Renamer as R
 import qualified Cryptol.Parser               as P
@@ -550,6 +552,15 @@ genInferInput r prims params env = do
 
 
 -- Evaluation ------------------------------------------------------------------
+
+evalType :: T.Type -> ModuleM T.TValue
+evalType t = do
+  env <- getEvalEnv
+  denv <- getDynEnv
+  let e = env <> deEnv denv
+  case T.evalType (E.envTypes e) t of
+    Left _ -> fail ("Expected value type, but got numeric type: " ++ show (T.pp t))
+    Right tv -> pure tv
 
 evalExpr :: T.Expr -> ModuleM Concrete.Value
 evalExpr e = do
