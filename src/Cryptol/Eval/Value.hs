@@ -392,126 +392,132 @@ getWordSegments ::
   Backend sym =>
   sym ->
   Integer ->
-  Integer ->
   SeqMap sym ->
   SEval sym [Either (SEval sym (SBit sym)) (SWord sym)]
-getWordSegments sym start _end VoidSeqMap =
-  invalidIndex sym start
+getWordSegments sym len0 xs0
+  | len0 <= 0 = pure []
+  | otherwise = segs 0 len0 xs0
 
-getWordSegments _sym start end (GenerateSeqMap f) =
-  pure [ Left (fromVBit <$> f i) | i <- [ start .. end ] ]
-
-getWordSegments sym start end (MemoSeqMap cache vs) =
-  pure [ Left (fromVBit <$> evalMemo sym i cache vs) | i <- [ start .. end ] ]
-
-getWordSegments sym start end (DelaySeqMap xs) =
-  getWordSegments sym start end =<< xs
-
-getWordSegments sym start end (UnpackSeqMap w)
-  | start == 0 && wordLen sym w == end+1 = pure [Right w]
-  | otherwise =
-      do w' <- takeWord sym (end - start + 1) =<< dropWord sym start w
-         return [Right w']
-
-getWordSegments sym start end (DropSeqMap front xs) =
-  getWordSegments sym (start+front) (end+front) xs
-
-getWordSegments sym start end (UpdateSeqMap upds vs) =
-  do ws <- mapM go (computeSegments start end upds)
-     pure (concat ws)
- where
- go (Left (s,e)) = getWordSegments sym s e vs
- go (Right a)    = pure [Left (fromVBit <$> a)]
-
-getWordSegments sym start end (ConcatSeqMap front xs ys)
-  | end < front    = getWordSegments sym start end xs
-  | start >= front = getWordSegments sym (start - front) (end - front) ys
-  | otherwise =
-      do w1 <- getWordSegments sym start (front - 1) xs
-         w2 <- getWordSegments sym 0 (end - front) ys
-         pure (w1 ++ w2)
-
-getWordSegments sym start end (JoinSeqMap each xss) =
-  do xss' <- sequence [ fromVSeq <$> lookupSeqMap sym q xss | q <- [ startq .. endq ] ]
-     case xss' of
-       []  -> evalPanic "getWordSegments" ["invalid join", show start, show end, show each]
-       [x] -> getWordSegments sym startr endr x
-       (hd:x:xs) ->
-         do h <- getWordSegments sym startr (each-1) hd
-            tl <- go x xs
-            pure (h ++ tl)
-
- where
-  (startq, startr) = start `divMod` each
-  (endq, endr)     = end   `divMod` each
-
-  go x [] = getWordSegments sym 0 endr x
-  go x (x':xs) =
-     do h <- getWordSegments sym 0 (each-1) x
-        tl <- go x' xs
-        pure (h ++ tl)
-
--- | Pack a sequence map into a word value, taking @len@ bits.
-packSeqMap :: Backend sym => sym -> Integer -> SeqMap sym -> SEval sym (SWord sym)
-packSeqMap sym len v0
-   | len <= 0  = wordLit sym 0 0
-   | otherwise = pack 0 (len-1) v0
   where
-  --   Invariant start <= end, so at least 1 bit must be taken.
-  pack start _end VoidSeqMap = invalidIndex sym start
+  segs start _len VoidSeqMap =
+    invalidIndex sym start
 
-  pack start end (GenerateSeqMap f) =
-    do bs <- traverse (\i -> fromVBit <$> f i) [ start .. end ]
-       packWord sym bs
+  segs start len (GenerateSeqMap f) =
+    pure [ Left (fromVBit <$> f i) | i <- genericTake len [ start .. ] ]
 
-  pack start end (MemoSeqMap cache vs) =
-    do bs <- traverse (\i -> fromVBit <$> evalMemo sym i cache vs) [ start .. end ]
-       packWord sym bs
+  segs start len (MemoSeqMap cache vs) =
+    pure [ Left (fromVBit <$> evalMemo sym i cache vs) | i <- genericTake len [ start .. ] ]
 
-  pack start end (DelaySeqMap xs) =
-    pack start end =<< xs
+  segs start len (DelaySeqMap xs) =
+    segs start len =<< xs
 
-  pack start end (UnpackSeqMap w)
-    | start == 0 && wordLen sym w == end+1 = pure w
-    | otherwise = takeWord sym (end - start + 1) =<< dropWord sym start w
-
-  pack start end (UpdateSeqMap upds vs) =
-    do ws <- mapM go (computeSegments start end upds)
-       case ws of
-         [] -> panic "packSeqMap" ["empty segment list!", show start, show end]
-         (w:ws') -> foldM (joinWord sym) w ws'
-   where
-   go (Left (s,e)) = pack s e vs
-   go (Right a)    = do b <- fromVBit <$> a
-                        packWord sym [b]
-
-  pack start end (DropSeqMap front xs) =
-    pack (start+front) (end+front) xs
-
-  pack start end (ConcatSeqMap front xs ys)
-    | end <  front   = pack start end xs
-    | start >= front = pack (start - front) (end - front) ys
+  segs start len (UnpackSeqMap w)
+    | start == 0 && wordLen sym w == len = pure [Right w]
     | otherwise =
-       do w1 <- pack start (front - 1) xs
-          w2 <- pack 0 (end - front) ys
-          joinWord sym w1 w2
+        do w' <- takeWord sym len =<< dropWord sym start w
+           return [Right w']
 
-  pack start end (JoinSeqMap each xss) =
+  segs start len (DropSeqMap front xs) =
+    segs (start+front) len xs
+
+  segs start len (UpdateSeqMap upds vs) =
+    do ws <- mapM go (computeSegments start (start+len-1) upds)
+       pure (concat ws)
+     where
+     go (Left (s,e)) = segs s (e+1-s) vs
+     go (Right a)    = pure [Left (fromVBit <$> a)]
+
+  segs start len (ConcatSeqMap front xs ys)
+    | start+len <= front = segs start len xs
+    | front <= start     = segs (start - front) len ys
+    | otherwise =
+       do w1 <- segs start (front-start) xs
+          w2 <- segs 0 (start+len-front) ys
+          pure (w1++w2)
+
+  segs start len (JoinSeqMap each xss) =
     do xss' <- sequence [ fromVSeq <$> lookupSeqMap sym q xss | q <- [ startq .. endq ] ]
        case xss' of
-         []   -> evalPanic "packSeqMap" ["invalid join", show start, show end, show each]
-         [x] -> pack startr endr x
+         []  -> evalPanic "getWordSegments" ["invalid join", show start, show len, show each]
+         [x] -> segs startr (endr+1-startr) x
          (hd:x:xs) ->
-           do h <- pack startr (each-1) hd
-              go h x xs
+           do h <- segs startr (each-startr) hd
+              tl <- go x xs
+              pure (h++tl)
 
    where
+    end = start+len-1
     (startq, startr) = start `divMod` each
     (endq, endr)     = end   `divMod` each
 
-    go h x [] = joinWord sym h =<< pack 0 endr x
+    go x [] = segs 0 (endr+1) x
+    go x (x':xs) =
+       do h <- segs 0 each x
+          tl <- go x' xs
+          pure (h++tl)
+
+-- | Pack a sequence map into a word value, taking @len@ bits.
+packSeqMap :: Backend sym => sym -> Integer -> SeqMap sym -> SEval sym (SWord sym)
+packSeqMap sym len0 v0
+   | len0 <= 0 = wordLit sym 0 0
+   | otherwise = pack 0 len0 v0
+  where
+  --   Invariant 0 < len, so at least 1 bit must be taken.
+  pack start _len VoidSeqMap = invalidIndex sym start
+
+  pack start len (GenerateSeqMap f) =
+    do bs <- traverse (\i -> fromVBit <$> f i) (genericTake len [ start .. ])
+       packWord sym bs
+
+  pack start len (MemoSeqMap cache vs) =
+    do bs <- traverse (\i -> fromVBit <$> evalMemo sym i cache vs) (genericTake len [ start .. ])
+       packWord sym bs
+
+  pack start len (DelaySeqMap xs) =
+    pack start len =<< xs
+
+  pack start len (UnpackSeqMap w)
+    | start == 0 && wordLen sym w == len = pure w
+    | otherwise = takeWord sym len =<< dropWord sym start w
+
+  pack start len (UpdateSeqMap upds vs) =
+    do ws <- mapM go (computeSegments start (start+len-1) upds)
+       case ws of
+         [] -> panic "packSeqMap" ["empty segment list!", show start, show len]
+         (w:ws') -> foldM (joinWord sym) w ws'
+   where
+   go (Left (s,e)) = pack s (e+1-s) vs
+   go (Right a)    = do b <- fromVBit <$> a
+                        packWord sym [b]
+
+  pack start len (DropSeqMap front xs) =
+    pack (start+front) len xs
+
+  pack start len (ConcatSeqMap front xs ys)
+    | start+len <= front = pack start len xs
+    | front <= start     = pack (start - front) len ys
+    | otherwise =
+       do w1 <- pack start (front-start) xs
+          w2 <- pack 0 (start+len-front) ys
+          joinWord sym w1 w2
+
+  pack start len (JoinSeqMap each xss) =
+    do xss' <- sequence [ fromVSeq <$> lookupSeqMap sym q xss | q <- [ startq .. endq ] ]
+       case xss' of
+         []   -> evalPanic "packSeqMap" ["invalid join", show start, show end, show each]
+         [x] -> pack startr (endr+1-startr) x
+         (hd:x:xs) ->
+           do h <- pack startr (each-startr) hd
+              go h x xs
+
+   where
+    end = start+len-1
+    (startq, startr) = start `divMod` each
+    (endq, endr)     = end   `divMod` each
+
+    go h x [] = joinWord sym h =<< pack 0 (endr+1) x
     go h x (x':xs) =
-       do h' <- joinWord sym h =<< pack 0 (each-1) x
+       do h' <- joinWord sym h =<< pack 0 each x
           go h' x' xs
 
 
@@ -645,7 +651,7 @@ bitwiseWordUnOp ::
 bitwiseWordUnOp sym len bitop wordop xs
   | len <= 0 = pure VoidSeqMap
   | otherwise =
-     do xsegs <- getWordSegments sym 0 (len-1) xs
+     do xsegs <- getWordSegments sym len xs
         mapSegments sym bitop wordop xsegs
 
 bitwiseWordBinOp ::
@@ -658,8 +664,8 @@ bitwiseWordBinOp ::
 bitwiseWordBinOp sym len bitop wordop xs ys
   | len <= 0 = pure VoidSeqMap
   | otherwise =
-     do xsegs <- getWordSegments sym 0 (len-1) xs
-        ysegs <- getWordSegments sym 0 (len-1) ys
+     do xsegs <- getWordSegments sym len xs
+        ysegs <- getWordSegments sym len ys
         zipSegments sym bitop wordop xsegs ysegs
 
 -- | Apply the given function to each value in the given sequence map
@@ -714,9 +720,9 @@ data GenValue sym
   | VRecord !(RecordMap Ident (SEval sym (GenValue sym))) -- ^ @ { .. } @
   | VTuple ![SEval sym (GenValue sym)]              -- ^ @ ( .. ) @
   | VSeq !Nat' !TValue !(SeqMap sym)                   -- ^ @ [n]a @
-  | VFun (SEval sym (GenValue sym) -> SEval sym (GenValue sym)) -- ^ functions
-  | VPoly (TValue -> SEval sym (GenValue sym))   -- ^ polymorphic values (kind *)
-  | VNumPoly (Nat' -> SEval sym (GenValue sym))  -- ^ polymorphic values (kind #)
+  | VFun !(SEval sym (GenValue sym) -> SEval sym (GenValue sym)) -- ^ functions
+  | VPoly !(TValue -> SEval sym (GenValue sym))   -- ^ polymorphic values (kind *)
+  | VNumPoly !(Nat' -> SEval sym (GenValue sym))  -- ^ polymorphic values (kind #)
  deriving Generic
 
 -- | Force the evaluation of a value
