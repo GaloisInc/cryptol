@@ -317,12 +317,10 @@ fillHole ::
   GenEvalEnv sym ->
   (Name, Schema, SEval sym (GenValue sym), SEval sym (GenValue sym) -> SEval sym ()) ->
   SEval sym ()
-fillHole sym env (nm, _, _, fill) = do
+fillHole _sym env (nm, _, _, fill) = do
   case lookupVar nm env of
     Nothing -> evalPanic "fillHole" ["Recursive definition not completed", show (ppLocName nm)]
-    Just v  -> fill =<< sDelay sym (Just msg) v
- where
- msg = show (ppLocName nm)
+    Just v  -> fill v
 
 
 {-# SPECIALIZE declHole ::
