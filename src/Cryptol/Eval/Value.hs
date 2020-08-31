@@ -540,8 +540,15 @@ splitSeqMap sym n xs = (pure xs, dropSeqMap sym n xs)
 -- | Given a sequence map, return a new sequence map that is memoized using
 --   a finite map memo table.
 memoMap :: Backend sym => sym -> SeqMap sym -> SEval sym (SeqMap sym)
+memoMap _sym vs@VoidSeqMap       = pure vs
 memoMap _sym vs@(MemoSeqMap _ _) = pure vs
-memoMap _sym vs = do
+memoMap _sym vs@(UnpackSeqMap _) = pure vs
+memoMap sym (UpdateSeqMap m xs) = UpdateSeqMap m <$> memoMap sym xs
+memoMap sym (JoinSeqMap each xs) = JoinSeqMap each <$> memoMap sym xs
+memoMap sym (DropSeqMap toDrop xs) = DropSeqMap toDrop <$> memoMap sym xs
+memoMap sym (ConcatSeqMap front xs ys) = ConcatSeqMap front <$> memoMap sym xs <*> memoMap sym ys
+memoMap sym (DelaySeqMap xs) = pure (DelaySeqMap (memoMap sym =<< xs))
+memoMap _sym vs@(GenerateSeqMap _) = do
   cache <- liftIO $ newIORef $ Map.empty
   pure $ MemoSeqMap cache vs
 
