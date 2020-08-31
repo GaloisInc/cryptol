@@ -86,7 +86,7 @@ jobs:
         run: .github/ci.sh test_dist
 
       - if: >-
-          env.RELEASE && matrix.ghc == '8.10.1'
+          env.RELEASE && matrix.ghc == '8.8.4'
         uses: actions/upload-artifact@v2
         with:
           path: dist/bin
@@ -120,7 +120,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        ghc: ["8.10.1"]
+        ghc: ["8.8.4"]
     needs: [outputs, docs, build]
     env:
       VERSION: ${{ needs.outputs.outputs.cryptol-version }}
