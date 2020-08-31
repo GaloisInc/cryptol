@@ -119,18 +119,16 @@ fromZV sym =
 
 type Binary sym = TValue -> GenValue sym -> GenValue sym -> SEval sym (GenValue sym)
 
-{-# SPECIALIZE binary :: Binary Concrete -> GenValue Concrete
+{-# INLINE binary
   #-}
 binary :: Backend sym => Binary sym -> GenValue sym
 binary f = tlam $ \ ty ->
             lam $ \ a  -> return $
-            lam $ \ b  -> do
-               --io $ putStrLn "Entering a binary function"
-               join (f ty <$> a <*> b)
+            lam $ \ b  -> join (f ty <$> a <*> b)
 
 type Unary sym = TValue -> GenValue sym -> SEval sym (GenValue sym)
 
-{-# SPECIALIZE unary :: Unary Concrete -> GenValue Concrete
+{-# INLINE unary
   #-}
 unary :: Backend sym => Unary sym -> GenValue sym
 unary f = tlam $ \ ty ->
@@ -1289,31 +1287,55 @@ infFromThenV sym =
 
 -- Shifting ---------------------------------------------------
 
-barrelShifter :: Backend sym =>
+-- | Barrel shift/rotate algorithm for sequences.
+--   It takes the shift/rotate amount as a big-endian
+--   sequence of bits and constructs a barrel shifting network
+--   by shifting the initial input map concrete amounts corresponding
+--   to the powers of two of the input bits.  For finite-length
+--   sequences, we assume the shift amount has already been
+--   reduced (via claming for shifts or taking modulus for rotates)
+--   so the value is between @0@ and @n@, where @n@ is the length of
+--   the sequence.  As a result, the barrel shift network will have
+--   depth @min(width(n),w)@, where @w@ is the number of bits
+--   in the index.
+barrelShifter :: forall sym. Backend sym =>
   sym ->
-  Nat' ->
-  TValue ->
+  Nat' {- ^ length of the sequence being shifted -} ->
+  TValue {- ^ element type of the sequence -} ->
   (SeqMap sym -> Integer -> SEval sym (SeqMap sym))
-     {- ^ concrete shifting operation -} ->
+     {- ^ concrete shifting/rotation operation -} ->
   SeqMap sym  {- ^ initial value -} ->
   [SBit sym]  {- ^ bits of shift amount, in big-endian order -} ->
   SEval sym (SeqMap sym)
-barrelShifter sym len tv shift_op = go
-  where
-  go x [] = return x
+barrelShifter sym len tv shift_op x0 allbits =
+    case len of
+      Nat sz | wsz < toInteger lenbits -> go x0 wszInt (drop (lenbits - wszInt) allbits)
+          where wsz = widthInteger sz
+                wszInt = (fromInteger wsz) :: Int
 
-  go x (b:bs)
+                --lg2sz = lg2 sz
+                --lg2szInt = (fromInteger lg2sz) :: Int
+
+      _ -> go x0 lenbits allbits
+
+  where
+  lenbits = length allbits
+
+  go :: SeqMap sym -> Int -> [SBit sym] -> SEval sym (SeqMap sym)
+  go x !_ [] = return x
+
+  go x !blen (b:bs)
     | Just True <- bitAsLit sym b
-    = do x_shft <- shift_op x (bit (length bs))
-         go x_shft bs
+    = do x_shft <- shift_op x (bit (blen-1))
+         go x_shft (blen-1) bs
 
     | Just False <- bitAsLit sym b
-    = do go x bs
+    = do go x (blen-1) bs
 
     | otherwise
-    = do x_shft <- shift_op x (bit (length bs))
-         x' <- memoMap sym =<< mergeSeqMap sym len tv b x_shft x
-         go x' bs
+    = do x_shft <- shift_op x (bit (blen-1))
+         x' <- mergeSeqMap sym len tv b x_shft x
+         go x' (blen-1) bs
 
 {-# INLINE shiftLeftReindex #-}
 shiftLeftReindex :: Nat' -> Integer -> Integer -> Maybe Integer
