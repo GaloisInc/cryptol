@@ -1,4 +1,4 @@
-# NEXT
+# 2.9.1
 
 ## Language changes
 
@@ -8,7 +8,9 @@
 
 ## Bug Fixes
 
-* Closed issues #848, #850, #851, #859, #861
+* Closed issues #848, #850, #851, #859, and #861.
+
+* Fixed Windows installer paths.
 
 # 2.9.0
 
