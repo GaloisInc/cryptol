@@ -1,5 +1,5 @@
 Name:                cryptol
-Version:             2.9.0
+Version:             2.9.1
 Synopsis:            Cryptol: The Language of Cryptography
 Description: Cryptol is a domain-specific language for specifying cryptographic algorithms. A Cryptol implementation of an algorithm resembles its mathematical specification more closely than an implementation in a general purpose language. For more, see <http://www.cryptol.net/>.
 License:             BSD3
