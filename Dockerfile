@@ -41,7 +41,7 @@ RUN curl -L  https://cvc4.cs.stanford.edu/downloads/builds/x86_64-linux-opt/unst
 # Set executable and run tests
 RUN chmod +x rootfs/usr/local/bin/*
 
-FROM haskell:8.8 AS build
+FROM haskell:8.8.4 AS build
 
 RUN apt-get update && apt-get install -y libncurses-dev
 COPY --from=solvers /solvers/rootfs /
@@ -53,7 +53,7 @@ ENV PATH=/cryptol/rootfs/usr/local/bin:$PATH
 ARG CRYPTOLPATH="/cryptol/.cryptol"
 ENV LANG=C.UTF-8 \
     LC_ALL=C.UTF-8
-COPY cabal.GHC-8.8.3.config cabal.project.freeze
+COPY cabal.GHC-8.8.4.config cabal.project.freeze
 RUN mkdir -p rootfs/usr/local/bin
 RUN cabal v2-update && \
     cabal v2-build -j cryptol:exe:cryptol && \
