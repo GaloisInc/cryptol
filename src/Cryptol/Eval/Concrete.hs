@@ -323,6 +323,14 @@ primTable eOpts = let sym = Concrete in
   , ("parmap"     , {-# SCC "Prelude::parmap" #-}
                     parmapV sym)
 
+  , ("deepseq"    , {-# SCC "Prelude::deepseq" #-}
+                    tlam $ \_a ->
+                    tlam $ \_b ->
+                     lam $ \x -> pure $
+                     lam $ \y ->
+                      do _ <- forceValue sym =<< x
+                         y)
+
   , ("fromZ"      , {-# SCC "Prelude::fromZ" #-}
                     fromZV sym)
 

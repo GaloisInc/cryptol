@@ -95,11 +95,14 @@ module Cryptol.Eval.Value
 
 import Control.Monad.IO.Class
 --import Data.Bits
+import qualified Data.Foldable as Fold
 import Data.List (genericTake)
 import Data.IORef
-import Data.Map.Strict (Map)
-import qualified Data.Map.Strict as Map
+--import Data.Map.Strict (Map)
+--import qualified Data.Map.Strict as Map
+import qualified Data.IntMap.Strict as IntMap
 import MonadLib
+import qualified Data.Sequence as Seq
 
 import qualified Cryptol.Eval.Arch as Arch
 import Cryptol.Eval.Backend
@@ -125,7 +128,7 @@ data SeqMap sym
 
   | VoidSeqMap
       -- ^ Seq map representing out-of-bound indexing
-  | UpdateSeqMap !(Map Integer (SEval sym (GenValue sym))) !(SeqMap sym)
+  | UpdateSeqMap !(IntMap.IntMap (SEval sym (GenValue sym))) !(SeqMap sym)
 
   | UnpackSeqMap !(SWord sym)
       -- ^ Invariant: word length is at least 1
@@ -138,14 +141,15 @@ data SeqMap sym
   | DelaySeqMap !(SEval sym (SeqMap sym))
       -- ^ Basically a no-op, but makes sequence maps lazier
   | MemoSeqMap !(SeqMapCache sym) !(SeqMap sym)
-      -- ^ Memoized sequence
+--      -- ^ Memoized sequence
+  | FiniteSeqMap !(Seq.Seq (SEval sym (GenValue sym)))
 
 instance Show (SeqMap sym) where
   showsPrec _ VoidSeqMap = showString "void"
   showsPrec _ (GenerateSeqMap _) = showString "generate"
   showsPrec _ (UnpackSeqMap _) = showString "word"
   showsPrec p (UpdateSeqMap m xs) = showParen (p > 0) $
-    showString "update" . shows (fst <$> Map.toList m) . showsPrec 1 xs
+    showString "update" . shows (fst <$> IntMap.toList m) . showsPrec 1 xs
   showsPrec p (JoinSeqMap each xs) = showParen (p > 0) $
     showString "join " . shows each . showChar ' ' . showsPrec 1 xs
   showsPrec p (ConcatSeqMap front xs ys) = showParen (p > 0) $
@@ -158,6 +162,8 @@ instance Show (SeqMap sym) where
   showsPrec _ (DelaySeqMap _) = showString "delay"
   showsPrec p (MemoSeqMap _c xs) = showParen (p > 0) $
     showString "memo " . showsPrec 1 xs
+  showsPrec p (FiniteSeqMap xs) = showParen (p > 0) $
+    showString "finite " . shows (Seq.length xs)
 
 delaySeqMap :: Backend sym =>
   sym -> SEval sym (SeqMap sym) -> SEval sym (SeqMap sym)
@@ -166,18 +172,18 @@ delaySeqMap sym xs =
     Just _  -> xs
     Nothing -> DelaySeqMap <$> sDelay sym Nothing xs
 
-type SeqMapCache sym = IORef (Map Integer (GenValue sym))
+type SeqMapCache sym = IORef (IntMap.IntMap (GenValue sym))
 
 voidSeqMap :: SeqMap sym
 voidSeqMap = VoidSeqMap
 
 evalMemo :: Backend sym => sym -> Integer -> SeqMapCache sym -> SeqMap sym -> SEval sym (GenValue sym)
 evalMemo sym i cache vs =
-  liftIO (Map.lookup i <$> readIORef cache) >>= \case
+  liftIO (IntMap.lookup (fromInteger i) <$> readIORef cache) >>= \case
     Just z -> pure z
     Nothing ->
       do v <- lookupSeqMap sym i vs
-         liftIO $ atomicModifyIORef' cache (\m -> (Map.insert i v m, ()))
+         liftIO $ atomicModifyIORef' cache (\m -> (IntMap.insert (fromInteger i) v m, ()))
          pure v
 
 lookupSeqMap :: Backend sym => sym -> Integer -> SeqMap sym -> SEval sym (GenValue sym)
@@ -186,8 +192,11 @@ lookupSeqMap _   i (GenerateSeqMap f) = f i
 lookupSeqMap sym i (UnpackSeqMap w) = VBit <$> wordBit sym w i
 lookupSeqMap sym i (DelaySeqMap xs) = lookupSeqMap sym i =<< xs
 lookupSeqMap sym i (MemoSeqMap cache vs) = evalMemo sym i cache vs
+lookupSeqMap _sym i (FiniteSeqMap xs)
+  | i <= toInteger (maxBound :: Int) = Seq.index xs (fromInteger i)
+  | otherwise = evalPanic "lookupSeqMap" ["sequence index too large", show i]
 lookupSeqMap sym i (UpdateSeqMap m sm) =
-  case Map.lookup i m of
+  case IntMap.lookup (fromInteger i) m of
     Just x  -> x
     Nothing -> lookupSeqMap sym i sm
 lookupSeqMap sym i (JoinSeqMap each sm) =
@@ -201,6 +210,7 @@ lookupSeqMap sym i (DropSeqMap front xs) =
   lookupSeqMap sym (i + front) xs
 
 enumerateSeqMap :: Backend sym => sym -> Integer -> SeqMap sym -> [SEval sym (GenValue sym)]
+enumerateSeqMap _sym _len (FiniteSeqMap xs) = Fold.toList xs
 enumerateSeqMap sym len sm = [ lookupSeqMap sym i sm | i <- [ 0 .. len-1 ] ]
 
 generateSeqMap :: Backend sym =>
@@ -215,14 +225,14 @@ generateSeqMap' f = GenerateSeqMap f
 
 finiteSeqMap' :: Backend sym => [SEval sym (GenValue sym)] -> SeqMap sym
 finiteSeqMap' [] = VoidSeqMap
-finiteSeqMap' xs = UpdateSeqMap (Map.fromList (zip [0..] xs)) VoidSeqMap
+finiteSeqMap' xs = FiniteSeqMap (Seq.fromList xs) 
 
 unpackSeqMap' :: SWord sym -> SeqMap sym
 unpackSeqMap' w = UnpackSeqMap w
 
 -- | Generate a finite sequence map from a list of values
 finiteSeqMap :: Backend sym => sym -> [SEval sym (GenValue sym)] -> SEval sym (SeqMap sym)
-finiteSeqMap _sym xs = pure $ finiteSeqMap' xs
+finiteSeqMap _sym xs = pure $! finiteSeqMap' xs
 
 unpackSeqMap :: Backend sym =>
   sym ->
@@ -236,8 +246,14 @@ updateSeqMap :: Backend sym =>
   Integer ->
   SEval sym (GenValue sym) ->
   SEval sym (SeqMap sym)
-updateSeqMap _sym (UpdateSeqMap m vs) i x = pure (UpdateSeqMap (Map.insert i x m) vs)
-updateSeqMap _sym vs i x = pure (UpdateSeqMap (Map.singleton i x) vs)
+updateSeqMap _sym (UpdateSeqMap m vs) i x = pure $! (UpdateSeqMap (IntMap.insert (fromInteger i) x m) vs)
+updateSeqMap _sym (FiniteSeqMap xs) i x
+  | i <= toInteger (maxBound :: Int) = pure $! (FiniteSeqMap (Seq.update (fromInteger i) x xs))
+updateSeqMap sym vs@(UnpackSeqMap w) i x =
+  sMaybeReady sym x >>= \case
+    Just (VBit b) -> UnpackSeqMap <$> wordUpdate sym w i b
+    _ -> pure $! (UpdateSeqMap (IntMap.singleton (fromInteger i) x) vs)
+updateSeqMap _sym vs i x = pure $! (UpdateSeqMap (IntMap.singleton (fromInteger i) x) vs)
 
 -- | Concatenate the first @n@ values of the first sequence map onto the
 --   beginning of the second sequence map.
@@ -248,11 +264,13 @@ concatSeqMap :: Backend sym =>
   SeqMap sym ->
   SEval sym (SeqMap sym)
 concatSeqMap _sym _front xs VoidSeqMap = pure xs
+concatSeqMap _ _front (FiniteSeqMap xs) (FiniteSeqMap ys) =
+  pure $! (FiniteSeqMap (xs <> ys))
 concatSeqMap sym _front (UnpackSeqMap wx) (UnpackSeqMap wy) =
   UnpackSeqMap <$> joinWord sym wx wy
 concatSeqMap _sym front xs ys
   | front <= 0 = pure ys
-  | otherwise  = pure (ConcatSeqMap front xs ys)
+  | otherwise  = pure $! (ConcatSeqMap front xs ys)
 
 joinSeqMap :: Backend sym =>
   sym ->
@@ -260,7 +278,7 @@ joinSeqMap :: Backend sym =>
   SeqMap sym ->
   SEval sym (SeqMap sym)
 joinSeqMap _sym each vs
-  | each > 0  = pure (JoinSeqMap each vs)
+  | each > 0  = pure $! (JoinSeqMap each vs)
   | otherwise = pure VoidSeqMap
 
 takeSeqMap :: Backend sym =>
@@ -276,11 +294,17 @@ takeSeqMap sym toTake vs = case vs of
     | front > toTake  -> takeSeqMap sym toTake xs
     | otherwise ->
         do ys' <- delaySeqMap sym (takeSeqMap sym (toTake - front) ys)
-           pure (ConcatSeqMap front xs ys')
+           pure $! (ConcatSeqMap front xs ys')
+
+  FiniteSeqMap xs
+    | toTake <= toInteger (maxBound :: Int) ->
+    pure $! FiniteSeqMap (Seq.take (fromInteger toTake) xs)
+    | otherwise ->
+    panic "takeSeqMap" ["toTake too large", show toTake]
 
   UpdateSeqMap m vs' ->
     do vs'' <- delaySeqMap sym (takeSeqMap sym toTake vs')
-       pure (UpdateSeqMap (takeUpdates toTake m) vs'')
+       pure $! (UpdateSeqMap (takeUpdates toTake m) vs'')
 
   UnpackSeqMap w -> UnpackSeqMap <$> takeWord sym toTake w
 
@@ -303,26 +327,32 @@ dropSeqMap sym toDrop vs
                dropSeqMap sym (toDrop - front) ys
            | otherwise -> -- front > toDrop
                do xs' <- dropSeqMap sym toDrop xs
-                  pure (ConcatSeqMap (front - toDrop) xs' ys)
+                  pure $! (ConcatSeqMap (front - toDrop) xs' ys)
 
         DropSeqMap x vs' -> dropSeqMap sym (toDrop+x) vs'
 
+        FiniteSeqMap xs
+          | toDrop <= toInteger (maxBound :: Int) ->
+          pure $! FiniteSeqMap (Seq.drop (fromInteger toDrop) xs)
+          | otherwise ->
+          panic "dropSeqMap" ["toDrop too large", show toDrop]
+
         UpdateSeqMap m vs' ->
            do vs'' <- dropSeqMap sym toDrop vs'
-              pure (UpdateSeqMap (dropUpdates toDrop m) vs'')
+              pure $! (UpdateSeqMap (dropUpdates toDrop m) vs'')
 
         UnpackSeqMap w -> UnpackSeqMap <$> dropWord sym toDrop w
 
-        _ -> pure (DropSeqMap toDrop vs)
+        _ -> pure $! (DropSeqMap toDrop vs)
 
-takeUpdates :: Integer -> Map Integer a -> Map Integer a
-takeUpdates toTake m = fst (Map.split toTake m)
+takeUpdates :: Integer -> IntMap.IntMap a -> IntMap.IntMap a
+takeUpdates toTake m = fst (IntMap.split (fromInteger toTake) m)
 
-dropUpdates :: Integer -> Map Integer a -> Map Integer a
+dropUpdates :: Integer -> IntMap.IntMap a -> IntMap.IntMap a
 dropUpdates toDrop m =
-  case Map.splitLookup toDrop m of
-    (_, Just a, m')  -> Map.insert 0 a (Map.mapKeysMonotonic (\i -> i - toDrop) m')
-    (_, Nothing, m') -> Map.mapKeysMonotonic (\i -> i - toDrop) m'
+  case IntMap.splitLookup (fromInteger toDrop) m of
+    (_, Just a, m')  -> IntMap.insert 0 a (IntMap.mapKeysMonotonic (\i -> i - fromInteger toDrop) m')
+    (_, Nothing, m') -> IntMap.mapKeysMonotonic (\i -> i - fromInteger toDrop) m'
 
 
 leftRotateSeqMap :: Backend sym =>
@@ -374,16 +404,16 @@ rightShiftSeqMap sym mkZro (Nat n) xs toShift
        concatSeqMap sym toShift zs xs'
   | otherwise = mkZro n
 
-computeSegments :: Integer -> Integer -> Map Integer a -> [Either (Integer, Integer) a]
+computeSegments :: Integer -> Integer -> IntMap.IntMap a -> [Either (Integer, Integer) a]
 computeSegments start0 end0 m =
-  case Map.splitLookup start0 m of
-    (_, Just a, m')  -> Right a : go (start0+1) end0 (Map.toList m')
-    (_, Nothing, m') -> go start0 end0 (Map.toList m')
+  case IntMap.splitLookup (fromInteger start0) m of
+    (_, Just a, m')  -> Right a : go (start0+1) end0 (IntMap.toList m')
+    (_, Nothing, m') -> go start0 end0 (IntMap.toList m')
 
  where
    go start end _ | start > end = []
    go start end [] = [Left (start, end)]
-   go start end ((k,a):ks)
+   go start end ((toInteger -> k,a):ks)
      | start == k = Right a : go (start+1) end ks
      | k > end    = [Left (start, end)]
      | otherwise  = Left (start, k-1) : Right a : go (k+1) end ks
@@ -402,6 +432,7 @@ getWordSegments sym len0 xs0
   segs start _len VoidSeqMap =
     invalidIndex sym start
 
+
   segs start len (GenerateSeqMap f) =
     pure [ Left (fromVBit <$> f i) | i <- genericTake len [ start .. ] ]
 
@@ -419,6 +450,15 @@ getWordSegments sym len0 xs0
 
   segs start len (DropSeqMap front xs) =
     segs (start+front) len xs
+
+  segs start len (FiniteSeqMap xs)
+    | start <= toInteger (maxBound :: Int)
+    , len   <= toInteger (maxBound :: Int) 
+    = pure $! (map (\i ->  Left (fromVBit <$> i)) $ Fold.toList $
+                 Seq.take (fromInteger len) (Seq.drop (fromInteger start) xs))
+
+    | otherwise
+    = evalPanic "getWordSegments" ["indices too large", show start, show len]
 
   segs start len (UpdateSeqMap upds vs) =
     do ws <- mapM go (computeSegments start (start+len-1) upds)
@@ -480,6 +520,17 @@ packSeqMap sym len0 v0
     | start == 0 && wordLen sym w == len = pure w
     | otherwise = takeWord sym len =<< dropWord sym start w
 
+  pack start len (FiniteSeqMap xs)
+    | start <= toInteger (maxBound :: Int)
+    , len   <= toInteger (maxBound :: Int) 
+    = do bs <- traverse (\i -> fromVBit <$> i) $
+                  Fold.toList (Seq.take (fromInteger len) (Seq.drop (fromInteger start) xs))
+         packWord sym bs
+
+    | otherwise
+    = evalPanic "packSeqMap" ["indices too large", show start, show len]
+
+
   pack start len (UpdateSeqMap upds vs) =
     do ws <- mapM go (computeSegments start (start+len-1) upds)
        case ws of
@@ -535,13 +586,14 @@ reverseSeqMap sym n vs = generateSeqMap sym (\i -> lookupSeqMap sym (n - 1 - i) 
 --   the values from @n@ onward.
 splitSeqMap :: Backend sym =>
   sym -> Integer -> SeqMap sym -> (SEval sym (SeqMap sym), SEval sym (SeqMap sym))
-splitSeqMap sym n xs = (pure xs, dropSeqMap sym n xs)
+splitSeqMap sym n xs = (takeSeqMap sym n xs, dropSeqMap sym n xs)
 
 -- | Given a sequence map, return a new sequence map that is memoized using
 --   a finite map memo table.
 memoMap :: Backend sym => sym -> SeqMap sym -> SEval sym (SeqMap sym)
 memoMap _sym vs@VoidSeqMap       = pure vs
 memoMap _sym vs@(MemoSeqMap _ _) = pure vs
+memoMap _sym vs@(FiniteSeqMap _) = pure vs
 memoMap _sym vs@(UnpackSeqMap _) = pure vs
 memoMap sym (UpdateSeqMap m xs) = UpdateSeqMap m <$> memoMap sym xs
 memoMap sym (JoinSeqMap each xs) = JoinSeqMap each <$> memoMap sym xs
@@ -549,7 +601,7 @@ memoMap sym (DropSeqMap toDrop xs) = DropSeqMap toDrop <$> memoMap sym xs
 memoMap sym (ConcatSeqMap front xs ys) = ConcatSeqMap front <$> memoMap sym xs <*> memoMap sym ys
 memoMap sym (DelaySeqMap xs) = pure (DelaySeqMap (memoMap sym =<< xs))
 memoMap _sym vs@(GenerateSeqMap _) = do
-  cache <- liftIO $ newIORef $ Map.empty
+  cache <- liftIO $ newIORef $ IntMap.empty
   pure $ MemoSeqMap cache vs
 
 -- | Apply the given evaluation function pointwise to the two given
@@ -692,6 +744,11 @@ actualizeSeqMap sym len0 xs0
  -- Invariant, len > 0
  actualize :: Integer -> Integer -> SeqMap sym -> SEval sym (SeqMap sym)
  actualize start _len VoidSeqMap = invalidIndex sym start
+ actualize start len (FiniteSeqMap xs)
+    | start <= toInteger (maxBound :: Int)
+    , len   <= toInteger (maxBound :: Int)
+    = do let xs' = Seq.take (fromInteger len) (Seq.drop (fromInteger start) xs)
+         FiniteSeqMap <$> traverse (\x -> pure <$> (forceValue sym =<< x)) xs'
  actualize start len (UnpackSeqMap w)
     | start == 0 && wordLen sym w == len = pure (UnpackSeqMap w)
     | otherwise = UnpackSeqMap <$> (takeWord sym len =<< dropWord sym start w)
@@ -741,6 +798,7 @@ forceValue sym v = case v of
   VFloat f    -> seq f (pure v)
   VRecord fs  -> VRecord <$> traverse (pure <$> (forceValue sym =<<)) fs
   VTuple xs   -> VTuple <$> traverse (pure <$> (forceValue sym =<<)) xs
+  VSeq (Nat n) TVBit xs -> VSeq (Nat n) TVBit . UnpackSeqMap <$> packSeqMap sym n xs
   VSeq (Nat n) a xs -> VSeq (Nat n) a <$> actualizeSeqMap sym n xs
   VSeq Inf _ _  -> pure v
   VFun _        -> pure v
@@ -835,10 +893,12 @@ word sym n i
   | n >= Arch.maxBigIntWidth = wordTooWide n
   | otherwise                = VSeq (Nat n) TVBit . UnpackSeqMap <$> wordLit sym n i
 
+{-# INLINE lam #-}
 lam :: (SEval sym (GenValue sym) -> SEval sym (GenValue sym)) -> GenValue sym
 lam  = VFun
 
 -- | Functions that assume word inputs
+{-# INLINE wlam #-}
 wlam :: Backend sym => sym -> (SWord sym -> SEval sym (GenValue sym)) -> GenValue sym
 wlam sym f =
   VFun (\arg -> arg >>= \case
@@ -847,19 +907,23 @@ wlam sym f =
   )
 
 -- | Functions that assume floating point inputs
+{-# INLINE flam #-}
 flam :: Backend sym =>
         (SFloat sym -> SEval sym (GenValue sym)) -> GenValue sym
 flam f = VFun (\arg -> arg >>= f . fromVFloat)
 
 
 -- | A type lambda that expects a 'Type'.
+{-# INLINE tlam #-}
 tlam :: Backend sym => (TValue -> GenValue sym) -> GenValue sym
 tlam f = VPoly (return . f)
 
+{-# INLINE nlam #-}
 -- | A type lambda that expects a 'Type' of kind #.
 nlam :: Backend sym => (Nat' -> GenValue sym) -> GenValue sym
 nlam f = VNumPoly (return . f)
 
+{-# INLINE ilam #-}
 -- | A type lambda that expects a finite numeric type.
 ilam :: Backend sym => (Integer -> GenValue sym) -> GenValue sym
 ilam f = nlam (\n -> case n of

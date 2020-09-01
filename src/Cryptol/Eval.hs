@@ -115,18 +115,21 @@ evalExpr sym env expr = case expr of
     -- when the element type is `Bit`.
     | isTBit tyv
     -> {-# SCC "evalExpr->Elist/bit" #-}
-       tryFromBits sym vs >>= \case
+       (tryFromBits sym vs >>= \case
          Just w -> VSeq (Nat (wordLen sym w)) TVBit <$> unpackSeqMap sym w
          Nothing -> do
             xs <- mapM (sDelay sym Nothing) vs
-            VSeq (Nat len) TVBit <$> finiteSeqMap sym xs
+            VSeq (Nat len) TVBit <$> finiteSeqMap sym xs)
 
     | otherwise -> {-# SCC "evalExpr->EList" #-} do
         xs <- mapM (sDelay sym Nothing) vs
         VSeq (Nat len) tyv <$> finiteSeqMap sym xs
    where
+    {-# INLINE tyv #-}
     tyv = evalValType (envTypes env) ty
+    {-# INLINE vs #-}
     vs  = map eval es
+    {-# INLINE len #-}
     len = genericLength es
 
   ETuple es -> {-# SCC "evalExpr->ETuple" #-} do

@@ -173,6 +173,13 @@ primTable w4sym = let sym = What4 w4sym in
 
   , ("fromZ"       , fromZV sym)
 
+  , ("deepseq"    , tlam $ \_a ->
+                    tlam $ \_b ->
+                     lam $ \x -> pure $
+                     lam $ \y ->
+                      do _ <- forceValue sym =<< x
+                         y)
+
     -- {at,len} (fin len) => [len][8] -> at
   , ("error"       ,
       tlam $ \a ->

@@ -205,9 +205,8 @@ ringBinary sym opw opi opz opq opfp = loop
 
     -- tuples
     TVTuple tys ->
-      do ls <- mapM (sDelay sym Nothing) (fromVTuple l)
-         rs <- mapM (sDelay sym Nothing) (fromVTuple r)
-         return $ VTuple (zipWith3 loop' tys ls rs)
+      do let zs = zipWith3 loop' tys (fromVTuple l) (fromVTuple r)
+         VTuple <$> traverse (sDelay sym Nothing) zs
 
     -- records
     TVRec fs ->
@@ -284,8 +283,8 @@ ringUnary sym opw opi opz opq opfp = loop
 
     -- tuples
     TVTuple tys ->
-      do as <- mapM (sDelay sym Nothing) (fromVTuple v)
-         return $ VTuple (zipWith loop' tys as)
+      do let zs = zipWith loop' tys (fromVTuple v)
+         VTuple <$> traverse (sDelay sym Nothing) zs
 
     -- records
     TVRec fs ->
@@ -931,8 +930,8 @@ splitV ::
   SEval sym (GenValue sym)
 splitV sym parts each a val =
   do xs <- delaySeqMap sym (fromVSeq <$> val)
-     VSeq parts (TVSeq each a) <$> generateSeqMap sym (\p ->
-       VSeq (Nat each) a <$> dropSeqMap sym (p * each) xs)
+     VSeq parts (TVSeq each a) <$> (memoMap sym =<< generateSeqMap sym (\p ->
+       VSeq (Nat each) a <$> (memoMap sym =<< takeSeqMap sym each =<< dropSeqMap sym (p * each) xs)))
 
 {-# INLINE splitAtV #-}
 splitAtV ::
@@ -1018,10 +1017,17 @@ logicBinary sym opb opw = loop
     TVSeq w aty
          -- words
          | isTBit aty ->
+
+{-
+          do lw <- packSeqMap sym w (fromVSeq l)
+             rw <- packSeqMap sym w (fromVSeq r)
+             zw <- opw lw rw
+             VSeq (Nat w) aty <$> unpackSeqMap sym zw
+-}
               VSeq (Nat w) aty <$>
                 bitwiseWordBinOp sym w
                    (\x y -> join (opb <$> x <*> y)) opw
-                   (fromVSeq l) (fromVSeq r)
+                  (fromVSeq l) (fromVSeq r)
 
          -- finite sequences
          | otherwise ->
@@ -1032,9 +1038,8 @@ logicBinary sym opb opw = loop
         VSeq Inf aty <$> zipSeqMap sym (loop' aty) (fromVSeq l) (fromVSeq r)
 
     TVTuple etys -> do
-        ls <- mapM (sDelay sym Nothing) (fromVTuple l)
-        rs <- mapM (sDelay sym Nothing) (fromVTuple r)
-        return $ VTuple $ zipWith3 loop' etys ls rs
+        let zs = zipWith3 loop' etys (fromVTuple l) (fromVTuple r)
+        VTuple <$> traverse (sDelay sym Nothing) zs
 
     TVFun _ bty ->
         return $ lam $ \ a -> loop' bty (fromVFun l a) (fromVFun r a)
@@ -1079,6 +1084,12 @@ logicUnary sym opb opw = loop
     TVSeq w ety
          -- words
          | isTBit ety ->
+
+{-
+          do wx <- packSeqMap sym w (fromVSeq val)
+             wz <- opw wx
+             VSeq (Nat w) ety <$> unpackSeqMap sym wz
+-}
               VSeq (Nat w) ety <$>
                 bitwiseWordUnOp sym w
                    (\x -> opb =<< x) opw
@@ -1093,8 +1104,7 @@ logicUnary sym opb opw = loop
          VSeq Inf ety <$> mapSeqMap sym (loop' ety) (fromVSeq val)
 
     TVTuple etys ->
-      do as <- mapM (sDelay sym Nothing) (fromVTuple val)
-         return $ VTuple (zipWith loop' etys as)
+      VTuple <$> traverse (sDelay sym Nothing) (zipWith loop' etys (fromVTuple val))
 
     TVFun _ bty ->
       return $ lam $ \ a -> loop' bty (fromVFun val a)

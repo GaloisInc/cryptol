@@ -516,6 +516,13 @@ primTable  = let sym = SBV in
 
   , ("parmap"      , parmapV sym)
 
+  , ("deepseq"    , tlam $ \_a ->
+                    tlam $ \_b ->
+                     lam $ \x -> pure $
+                     lam $ \y ->
+                      do _ <- forceValue sym =<< x
+                         y)
+
     -- {at,len} (fin len) => [len][8] -> at
   , ("error"       ,
       tlam $ \a ->
