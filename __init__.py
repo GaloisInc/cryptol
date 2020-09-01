@@ -6,12 +6,12 @@ import base64
 import os
 import types
 import sys
-from typing import Any, Dict, Iterable, List, Mapping, NoReturn, Optional, Union
+from typing import Any, Dict, Iterable, List, Mapping, NoReturn, Optional, Type, Union
 from mypy_extensions import TypedDict
 
 import argo.interaction
 from argo.interaction import HasProtocolState
-from argo.connection import ServerProcess, ServerConnection
+from argo.connection import DynamicSocketProcess, ServerConnection, ServerProcess, StdIOProcess
 from . import cryptoltypes
 
 
@@ -161,6 +161,19 @@ def connect(command : str, cryptol_path : Optional[str] = None) -> CryptolConnec
     """
     return CryptolConnection(command, cryptol_path)
 
+def connect_stdio(command : str, cryptol_path : Optional[str] = None) -> CryptolConnection:
+    """Start a new connection to a new Cryptol server process.
+
+    :param command: The command to launch the Cryptol server.
+
+    :param cryptol_path: An optional replacement for the contents of
+      the ``CRYPTOLPATH`` environment variable.
+
+    """
+    conn = CryptolStdIOProcess(command, cryptol_path=cryptol_path)
+    return CryptolConnection(conn)
+
+
 class CryptolConnection:
     """Instances of ``CryptolConnection`` represent a particular point of
     time in an interaction with Cryptol. Issuing a command through a
@@ -179,11 +192,15 @@ class CryptolConnection:
     sequential state dependencies between commands.
     """
     most_recent_result : Optional[argo.interaction.Interaction]
+    proc: ServerProcess
 
-    def __init__(self, command_or_connection : Union[str, ServerConnection], cryptol_path : Optional[str] = None) -> None:
+    def __init__(self, command_or_connection : Union[str, ServerConnection, ServerProcess], cryptol_path : Optional[str] = None) -> None:
         self.most_recent_result = None
-        if isinstance(command_or_connection, str):
-            self.proc = CryptolProcess(command_or_connection, cryptol_path=cryptol_path)
+        if isinstance(command_or_connection, ServerProcess):
+            self.proc = command_or_connection
+            self.server_connection = ServerConnection(self.proc)
+        elif isinstance(command_or_connection, str):
+            self.proc = CryptolDynamicSocketProcess(command_or_connection, cryptol_path=cryptol_path)
             self.server_connection = ServerConnection(self.proc)
         else:
             self.server_connection = command_or_connection
@@ -252,21 +269,31 @@ class CryptolConnection:
         self.most_recent_result = CryptolFocusedModule(self)
         return self.most_recent_result
 
-class CryptolProcess(ServerProcess):
-    _environ : Optional[Union[Mapping[bytes, Union[bytes, str]],
-                              Mapping[str, Union[bytes, str]]]]
 
-    def __init__(self, command : str, cryptol_path : Optional[str] = None):
-        self._environ = os.environ.copy()
+
+class CryptolDynamicSocketProcess(DynamicSocketProcess):
+
+    def __init__(self, command: str, *,
+                 persist: bool=False,
+                 cryptol_path: Optional[str]=None):
+
+        environment = os.environ.copy()
         if cryptol_path is not None:
-            self._environ["CRYPTOLPATH"] = str(cryptol_path)
+            environment["CRYPTOLPATH"] = str(cryptol_path)
 
-        super(CryptolProcess, self).__init__(command)
+        super().__init__(command, persist=persist, environment=environment)
 
+class CryptolStdIOProcess(StdIOProcess):
 
-    def get_environment(self) -> Optional[Union[Mapping[bytes, Union[bytes, str]],
-                                                Mapping[str, Union[bytes, str]]]]:
-        return self._environ
+    def __init__(self, command: str, *,
+                 cryptol_path: Optional[str]=None):
+
+        environment = os.environ.copy()
+        if cryptol_path is not None:
+            environment["CRYPTOLPATH"] = str(cryptol_path)
+
+        super().__init__(command, environment=environment)
+
 
 
 class CryptolFunctionHandle:
