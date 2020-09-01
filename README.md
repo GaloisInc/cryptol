@@ -1,5 +1,4 @@
-[![Build
-Status](https://github.com/GaloisInc/cryptol/workflows/Cryptol/badge.svg?branch=master)
+[![Build Status](https://github.com/GaloisInc/cryptol/workflows/Cryptol/badge.svg?branch=master)
 ](https://github.com/GaloisInc/cryptol/actions?query=workflow%3A%22Cryptol+Nightly+Builds%22)
 
 # Cryptol, version 2
