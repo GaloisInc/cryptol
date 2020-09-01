@@ -180,11 +180,7 @@ jobs:
       - name: Build Docker
         uses: docker/build-push-action@v1
         with:
-          username: ${{ secrets.GITHUBCRYPTOL_USERNAME }}
-          password: ${{ secrets.GITHUBCRYPTOL }}
           repository: galoisinc/cryptol
-          tags: "latest,${{ needs.outputs.outputs.cryptol-version }}"
-          add_git_labels: true
           push: false
 
   release:
