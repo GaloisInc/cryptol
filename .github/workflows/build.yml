@@ -172,12 +172,12 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     needs: [outputs]
-    if: needs.outputs.outputs.release
+    if: contains(needs.outputs.outputs.changed, 'Dockerfile')
     steps:
       - uses: actions/checkout@v2
         with:
           submodules: true
-      - name: Publish to Registry
+      - name: Build Docker
         uses: docker/build-push-action@v1
         with:
           username: ${{ secrets.GITHUBCRYPTOL_USERNAME }}
@@ -185,7 +185,7 @@ jobs:
           repository: galoisinc/cryptol
           tags: "latest,${{ needs.outputs.outputs.cryptol-version }}"
           add_git_labels: true
-          push: ${{ startsWith(github.ref, 'refs/heads/release-') }}
+          push: false
 
   release:
     needs: [outputs, bundle]
