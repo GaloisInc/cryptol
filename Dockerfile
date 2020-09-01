@@ -39,7 +39,7 @@ RUN curl -L https://github.com/CVC4/CVC4/releases/download/1.8/cvc4-1.8-x86_64-l
 # Set executable and run tests
 RUN chmod +x rootfs/usr/local/bin/*
 
-FROM haskell:8.8 AS build
+FROM haskell:8.8.3 AS build
 
 RUN apt-get update && apt-get install -y libncurses-dev
 COPY --from=solvers /solvers/rootfs /
