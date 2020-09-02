@@ -18,7 +18,7 @@
 module Cryptol.Eval.SBV
   ( SBV(..), Value
   , SBVEval(..), SBVResult(..)
-  , evalPrim
+  , primTable
   , forallBV_, existsBV_
   , forallSBool_, existsSBool_
   , forallSInteger_, existsSInteger_
@@ -355,9 +355,6 @@ evalPanic cxt = panic ("[Symbolic]" ++ cxt)
 
 
 -- Primitives ------------------------------------------------------------------
-
-evalPrim :: PrimIdent -> Maybe Value
-evalPrim prim = Map.lookup prim primTable
 
 -- See also Cryptol.Eval.Concrete.primTable
 primTable :: Map.Map PrimIdent Value

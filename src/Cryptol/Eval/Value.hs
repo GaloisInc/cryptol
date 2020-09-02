@@ -205,13 +205,13 @@ memoMap x = do
 
   doEval cache i = do
     v <- lookupSeqMap x i
-    liftIO $ modifyIORef' cache (Map.insert i v)
+    liftIO $ atomicModifyIORef' cache (\m -> (Map.insert i v m, ()))
     return v
 
 -- | Apply the given evaluation function pointwise to the two given
 --   sequence maps.
 zipSeqMap ::
-  Backend sym => 
+  Backend sym =>
   (GenValue sym -> GenValue sym -> SEval sym (GenValue sym)) ->
   SeqMap sym ->
   SeqMap sym ->
@@ -221,7 +221,7 @@ zipSeqMap f x y =
 
 -- | Apply the given function to each value in the given sequence map
 mapSeqMap ::
-  Backend sym => 
+  Backend sym =>
   (GenValue sym -> SEval sym (GenValue sym)) ->
   SeqMap sym -> SEval sym (SeqMap sym)
 mapSeqMap f x =
@@ -281,7 +281,7 @@ indexWordValue sym (LargeBitsVal n xs) idx
 -- | Produce a new 'WordValue' from the one given by updating the @i@th bit with the
 --   given bit value.
 updateWordValue :: Backend sym => sym -> WordValue sym -> Integer -> SEval sym (SBit sym) -> SEval sym (WordValue sym)
-updateWordValue sym (WordVal w) idx b 
+updateWordValue sym (WordVal w) idx b
    | idx < 0 || idx >= wordLen sym w = invalidIndex sym idx
    | isReady sym b = WordVal <$> (wordUpdate sym w idx =<< b)
 
@@ -334,6 +334,7 @@ forceValue v = case v of
   VFun _      -> return ()
   VPoly _     -> return ()
   VNumPoly _  -> return ()
+
 
 
 instance Backend sym => Show (GenValue sym) where

@@ -66,6 +66,7 @@ library
                        random            >= 1.0.1,
                        sbv               >= 8.6,
                        simple-smt        >= 0.7.1,
+                       stm               >= 2.4,
                        strict,
                        text              >= 1.1,
                        tf-random         >= 0.5,

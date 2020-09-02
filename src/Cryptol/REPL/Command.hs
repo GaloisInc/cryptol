@@ -382,7 +382,6 @@ dumpTestsCmd :: FilePath -> String -> REPL ()
 dumpTestsCmd outFile str =
   do expr <- replParseExpr str
      (val, ty) <- replEvalExpr expr
-     evo <- getEvalOpts
      ppopts <- getPPValOpts
      testNum <- getKnownUser "tests" :: REPL Int
      g <- io newTFGen
@@ -390,7 +389,7 @@ dumpTestsCmd outFile str =
        case TestR.dumpableType ty of
          Nothing -> raise (TypeNotTestable ty)
          Just gens -> return gens
-     tests <- io $ TestR.returnTests g evo gens val testNum
+     tests <- io $ TestR.returnTests g gens val testNum
      out <- forM tests $
             \(args, x) ->
               do argOut <- mapM (rEval . E.ppValue Concrete ppopts) args
@@ -429,8 +428,7 @@ qcCmd qcMode str =
             let f _ [] = panic "Cryptol.REPL.Command"
                                     ["Exhaustive testing ran out of test cases"]
                 f _ (vs : vss1) = do
-                  evo <- getEvalOpts
-                  result <- io $ evalTest evo val vs
+                  result <- io $ evalTest val vs
                   return (result, vss1)
                 testSpec = TestSpec {
                     testFn = f
@@ -454,10 +452,9 @@ qcCmd qcMode str =
               Nothing   -> raise (TypeNotTestable ty)
               Just gens -> do
                 rPutStrLn "Using random testing."
-                evo <- getEvalOpts
                 let testSpec = TestSpec {
                         testFn = \sz' g ->
-                                      io $ TestR.runOneTest evo val gens sz' g
+                                      io $ TestR.runOneTest val gens sz' g
                       , testProp = str
                       , testTotal = toInteger testNum
                       , testPossible = sz
@@ -963,12 +960,10 @@ writeFileCmd file str = do
 
 
 rEval :: E.Eval a -> REPL a
-rEval m = do ev <- getEvalOpts
-             io (E.runEval ev m)
+rEval m = io (E.runEval m)
 
 rEvalRethrow :: E.Eval a -> REPL a
-rEvalRethrow m = do ev <- getEvalOpts
-                    io $ rethrowEvalError $ E.runEval ev m
+rEvalRethrow m = io $ rethrowEvalError $ E.runEval m
 
 reloadCmd :: REPL ()
 reloadCmd  = do

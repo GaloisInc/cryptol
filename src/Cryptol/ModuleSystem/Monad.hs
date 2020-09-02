@@ -488,8 +488,7 @@ modifyEvalEnv :: (EvalEnv -> E.Eval EvalEnv) -> ModuleM ()
 modifyEvalEnv f = ModuleT $ do
   env <- get
   let evalEnv = meEvalEnv env
-  evOpts <- unModuleT getEvalOpts
-  evalEnv' <- inBase $ E.runEval evOpts (f evalEnv)
+  evalEnv' <- inBase $ E.runEval (f evalEnv)
   set $! env { meEvalEnv = evalEnv' }
 
 getEvalEnv :: ModuleM EvalEnv

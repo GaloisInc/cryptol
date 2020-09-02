@@ -33,6 +33,7 @@ import Control.Monad (replicateM, when, zipWithM, foldM, forM_)
 import Control.Monad.Writer (WriterT, runWriterT, tell, lift)
 import Data.List (genericLength)
 import Data.Maybe (fromMaybe)
+import qualified Data.Map as Map
 import qualified Control.Exception as X
 import System.Exit (ExitCode(ExitSuccess))
 
@@ -64,12 +65,12 @@ import           Cryptol.Utils.RecordMap
 import Prelude ()
 import Prelude.Compat
 
-doEval :: MonadIO m => Eval.EvalOpts -> Eval.Eval a -> m a
-doEval evo m = liftIO $ Eval.runEval evo m
+doEval :: MonadIO m => Eval.Eval a -> m a
+doEval m = liftIO $ Eval.runEval m
 
-doSBVEval :: MonadIO m => Eval.EvalOpts -> SBVEval a -> m (SBV.SVal, a)
-doSBVEval evo m =
-  (liftIO $ Eval.runEval evo (sbvEval m)) >>= \case
+doSBVEval :: MonadIO m => SBVEval a -> m (SBV.SVal, a)
+doSBVEval m =
+  (liftIO $ Eval.runEval (sbvEval m)) >>= \case
     SBVError err -> liftIO (X.throwIO err)
     SBVResult p x -> pure (p, x)
 
@@ -302,7 +303,8 @@ prepareQuery evo modEnv ProverCommand{..} =
            SafetyQuery -> \x y -> SBV.svOr (SBV.svNot x) y
            SatQuery _ -> \x y -> SBV.svAnd x y
 
-     let ?evalPrim = evalPrim
+     let tbl = primTable
+     let ?evalPrim = \i -> Map.lookup i tbl
      case predArgTypes pcQueryType pcSchema of
        Left msg -> return (Left msg)
        Right ts ->
@@ -314,7 +316,7 @@ prepareQuery evo modEnv ProverCommand{..} =
                  -- Run the main symbolic computation.  First we populate the
                  -- evaluation environment, then we compute the value, finally
                  -- we apply it to the symbolic inputs.
-                 (safety,b) <- doSBVEval evo $
+                 (safety,b) <- doSBVEval $
                      do env <- Eval.evalDecls SBV extDgs mempty
                         v <- Eval.evalExpr SBV env pcExpr
                         appliedVal <- foldM Eval.fromVFun v (map pure args)
@@ -341,12 +343,11 @@ prepareQuery evo modEnv ProverCommand{..} =
 -- | Turn the SMT results from SBV into a @ProverResult@ that is ready for the Cryptol REPL.
 --   There may be more than one result if we made a multi-sat query.
 processResults ::
-  Eval.EvalOpts ->
   ProverCommand ->
   [FinType] {- ^ Types of the symbolic inputs -} ->
   [SBV.SMTResult] {- ^ Results from the solver -} ->
   M.ModuleT IO ProverResult
-processResults evo ProverCommand{..} ts results =
+processResults ProverCommand{..} ts results =
  do let isSat = case pcQueryType of
           ProveQuery -> False
           SafetyQuery -> False
@@ -388,7 +389,7 @@ processResults evo ProverCommand{..} ts results =
         (vs, _) = parseValues ts cvs
         sattys = unFinType <$> ts
     satexprs <-
-      doEval evo (zipWithM (Concrete.toExpr prims) sattys vs)
+      doEval (zipWithM (Concrete.toExpr prims) sattys vs)
     case zip3 sattys <$> (sequence satexprs) <*> pure vs of
       Nothing ->
         panic "Cryptol.Symbolic.sat"
@@ -413,7 +414,7 @@ satProve proverCfg pc@ProverCommand {..} =
     Left msg -> return (Nothing, ProverError msg)
     Right (ts, q) ->
       do (firstProver, results) <- M.io (runProver proverCfg pc lPutStrLn q)
-         esatexprs <- processResults evo pc ts results
+         esatexprs <- processResults pc ts results
          return (firstProver, esatexprs)
 
 -- | Execute a symbolic ':prove' or ':sat' command when the prover is

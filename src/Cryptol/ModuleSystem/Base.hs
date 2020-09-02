@@ -202,7 +202,8 @@ doLoadModule isrc path fp pm0 =
      tcm <- optionalInstantiate =<< checkModule isrc path pm
 
      -- extend the eval env, unless a functor.
-     let ?evalPrim = Concrete.evalPrim
+     tbl <- Concrete.primTable <$> getEvalOpts
+     let ?evalPrim = \i -> Map.lookup i tbl
      unless (T.isParametrizedModule tcm) $ modifyEvalEnv (E.moduleEnv Concrete tcm)
      loadedModule path fp tcm
 
@@ -555,8 +556,9 @@ evalExpr e = do
   env <- getEvalEnv
   denv <- getDynEnv
   evopts <- getEvalOpts
-  let ?evalPrim = Concrete.evalPrim
-  io $ E.runEval evopts $ (E.evalExpr Concrete (env <> deEnv denv) e)
+  let tbl = Concrete.primTable evopts
+  let ?evalPrim = \i -> Map.lookup i tbl
+  io $ E.runEval $ (E.evalExpr Concrete (env <> deEnv denv) e)
 
 evalDecls :: [T.DeclGroup] -> ModuleM ()
 evalDecls dgs = do
@@ -564,8 +566,9 @@ evalDecls dgs = do
   denv <- getDynEnv
   evOpts <- getEvalOpts
   let env' = env <> deEnv denv
-  let ?evalPrim = Concrete.evalPrim
-  deEnv' <- io $ E.runEval evOpts $ E.evalDecls Concrete dgs env'
+  let tbl = Concrete.primTable evOpts
+  let ?evalPrim = \i -> Map.lookup i tbl
+  deEnv' <- io $ E.runEval $ E.evalDecls Concrete dgs env'
   let denv' = denv { deDecls = deDecls denv ++ dgs
                    , deEnv = deEnv'
                    }

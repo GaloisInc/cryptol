@@ -20,7 +20,7 @@
 {-# LANGUAGE ViewPatterns #-}
 module Cryptol.Eval.Concrete
   ( module Cryptol.Eval.Concrete.Value
-  , evalPrim
+  , primTable
   , toExpr
   ) where
 
@@ -131,11 +131,8 @@ floatToExpr prims eT pT f =
 
 -- Primitives ------------------------------------------------------------------
 
-evalPrim :: PrimIdent -> Maybe Value
-evalPrim prim = Map.lookup prim primTable
-
-primTable :: Map.Map PrimIdent Value
-primTable = let sym = Concrete in
+primTable :: EvalOpts -> Map.Map PrimIdent Value
+primTable eOpts = let sym = Concrete in
   Map.union (floatPrims sym) $
   Map.fromList $ map (\(n, v) -> (prelPrim n, v))
 
@@ -324,7 +321,7 @@ primTable = let sym = Concrete in
                       lam $ \x -> return $
                       lam $ \y -> do
                          msg <- valueToString sym =<< s
-                         EvalOpts { evalPPOpts, evalLogger } <- getEvalOpts
+                         let EvalOpts { evalPPOpts, evalLogger } = eOpts
                          doc <- ppValue sym evalPPOpts =<< x
                          yv <- y
                          io $ logPrint evalLogger
