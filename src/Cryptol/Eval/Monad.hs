@@ -26,6 +26,7 @@ module Cryptol.Eval.Monad
 , ready
 , blackhole
 , evalSpark
+, maybeReady
   -- * Error reporting
 , Unsupported(..)
 , EvalError(..)
@@ -85,19 +86,70 @@ data EvalOpts = EvalOpts
   , evalPPOpts :: PPOpts    -- ^ How to pretty print things.
   }
 
-
 -- | The monad for Cryptol evaluation.
+--   A computation is either "ready", which means it represents
+--   only trivial computation, or is an "eval" action which must
+--   be computed to get the answer, or it is a "thunk", which
+--   represents a delayed, shared computation.
 data Eval a
    = Ready !a
    | Eval !(IO a)
    | Thunk !(TVar (ThunkState a))
 
+-- | This datastructure tracks the lifecycle of a thunk.
+--
+--   Thunks are used for basically three use cases.  First,
+--   we use thunks to preserve sharing.  Basically every
+--   cryptol expression that is bound to a name, and is not
+--   already obviously a value (and in a few other places as
+--   well) will get turned into a thunk in order to avoid
+--   recomputations.  These thunks will start in the `Unforced`
+--   state, and have a backup computation that just raises
+--   the `LoopError` exception.
+--
+--   Secondly, thunks are used to cut cycles when evaluating
+--   recursive definition groups.  Every named clause in a
+--   recursive definition is thunked so that the value can appear
+--   in its definition.  Such thunks start in the `Void` state,
+--   as they must exist before we have a definition to assign them.
+--   Forcing a thunk in the `Void` state is a programmer error (panic).
+--   Once the body of a definition is ready, we replace the
+--   thunk with the relevant computation, going to the `Unforced` state.
+--
+--   In the third case, we are using thunks to provide an optimistic
+--   shortcut for evaluation.  In these cases we first try to run a
+--   computation that is stricter than the semantics actually allows.
+--   If it succeeds, all is well an we continue.  However, if it tight
+--   loops, we fall back on a lazier (and generally more expensive)
+--   version, which is the "backup" computation referred to above.
 data ThunkState a
-  = Void !String             -- ^ This thunk has not yet been initialized
-  | Unforced !(IO a) !(IO a) -- ^ This thunk has not yet been forced
-  | UnderEvaluation !ThreadId !(IO a) -- ^ This thunk is currently being evaluated
+  = Void !String
+       -- ^ This thunk has not yet been initialized
+  | Unforced !(IO a) !(IO a)
+       -- ^ This thunk has not yet been forced.  We keep track of the "main"
+       --   computation to run and a "backup" computation to run if we
+       --   detect a tight loop when evaluating the first one.
+  | UnderEvaluation !ThreadId !(IO a)
+       -- ^ This thunk is currently being evaluated by the thread with the given
+       --   thread ID.  We track the "backup" computation to run if we detect
+       --   a tight loop evaluating this thunk.  If the thunk is being evaluated
+       --   by some other thread, the current thread will await it's completion.
   | ForcedErr !EvalError
+       -- ^ This thunk has been forced, and it's evaluation results in an exception
   | Forced !a
+       -- ^ This thunk has been forced to the given value
+
+
+-- | Test if a value is "ready", which means that
+--   it requires no computation to return.
+maybeReady :: Eval a -> Eval (Maybe a)
+maybeReady (Ready a) = pure (Just a)
+maybeReady (Thunk tv) = Eval $
+  readTVarIO tv >>= \case
+     Forced a -> pure (Just a)
+     _ -> pure Nothing
+maybeReady (Eval _) = pure Nothing
+
 
 {-# INLINE delayFill #-}
 
@@ -119,8 +171,14 @@ delayFill (Eval x) backup = Eval (Thunk <$> newTVarIO (Unforced x (runEval backu
 evalSpark ::
   Eval a ->
   Eval (Eval a)
+
+-- Ready computations need no additional evaluation.
 evalSpark e@(Ready _) = return e
 
+-- A thunked computation might already have
+-- been forced.  If so, return the result.  Otherwise,
+-- fork a thread to force this computation and return
+-- the thunk.
 evalSpark (Thunk tv)  = Eval $
   readTVarIO tv >>= \case
     Forced x     -> return (Ready x)
@@ -129,14 +187,23 @@ evalSpark (Thunk tv)  = Eval $
        do _ <- forkIO (sparkThunk tv)
           return (Thunk tv)
 
+-- If the computation is nontrivial but not already a thunk,
+-- create a thunk and fork a thread to force it.
 evalSpark (Eval x) = Eval $
   do tv <- newTVarIO (Unforced x (X.throwIO (LoopError "")))
      _ <- forkIO (sparkThunk tv)
      return (Thunk tv)
 
+
+-- | To the work of forcing a thunk. This is the worker computation
+--   that is foked off via @evalSpark@.
 sparkThunk :: TVar (ThunkState a) -> IO ()
 sparkThunk tv =
   do tid <- myThreadId
+     -- Try to claim the thunk.  If it is still in the @Void@ state, wait
+     -- until it is in some other state.  If it is @Unforced@ claim the thunk.
+     -- Otherwise, it is already evaluated or under evaluation by another thread,
+     -- and we have no work to do.
      st <- atomically $
               do st <- readTVar tv
                  case st of
@@ -144,6 +211,8 @@ sparkThunk tv =
                    Unforced _ backup -> writeTVar tv (UnderEvaluation tid backup)
                    _ -> return ()
                  return st
+     -- If we successfully claimed the thunk to work on, run the computation and
+     -- update the thunk state with the result.
      case st of
        Unforced work _ ->
          X.try work >>= \case
@@ -162,31 +231,50 @@ blackhole ::
 blackhole msg = Eval $
   do tv <- newTVarIO (Void msg)
      let set (Ready x)  = io $ atomically (writeTVar tv (Forced x))
-         set m          = io $ atomically (writeTVar tv (Unforced (runEval m) (fail msg)))
+         set m          = io $ atomically (writeTVar tv (Unforced (runEval m) (X.throwIO (LoopError msg))))
      return (Thunk tv, set)
 
+-- | Force a thunk to get the result.
 unDelay :: TVar (ThunkState a) -> IO a
 unDelay tv =
+  -- First, check if the thunk is in an evaluated state,
+  -- and return the value if so.
   readTVarIO tv >>= \case
     Forced x -> pure x
     ForcedErr e -> X.throwIO e
     _ ->
+      -- Otherwise, try to claim the thunk to work on.
       do tid <- myThreadId
          res <- atomically $ do
                   res <- readTVar tv
                   case res of
-                    Unforced _ backup -> writeTVar tv (UnderEvaluation tid backup)
+                    -- In this case, we claim the thunk.  Update the state to indicate
+                    -- that we are working on it.
+                    Unforced nm backup -> writeTVar tv (UnderEvaluation tid backup)
+
+                    -- In this case, the thunk is already being evaluated.  If it is
+                    -- under evaluation by this thread, we have to run the backup computation,
+                    -- and "consume" it by updating the backup computation to one that throws
+                    -- a loop error.  If some other thread is evaluating, reset the
+                    -- transaction to await completion of the thunk.
                     UnderEvaluation t _
-                      | tid == t  -> writeTVar tv (UnderEvaluation t (X.throwIO (LoopError "")))
+                      | tid == t  -> writeTVar tv (UnderEvaluation tid (X.throwIO (LoopError "")))
                       | otherwise -> retry -- wait, if some other thread is evaualting
                     _ -> return ()
+
+                  -- Return the original thunk state so we can decide what work to do
+                  -- after the transaction completes.
                   return res
+
+         -- helper for actually doing the work
          let doWork work =
                X.try work >>= \case
                  Left ex -> do atomically (writeTVar tv (ForcedErr ex))
                                X.throwIO ex
                  Right a -> do atomically (writeTVar tv (Forced a))
                                return a
+
+         -- Now, examine the thunk state and decide what to do.
          case res of
            Void msg -> evalPanic "unDelay" ["Thunk forced before it was initialized", msg]
            Forced x -> pure x
