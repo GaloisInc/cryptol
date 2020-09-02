@@ -158,7 +158,7 @@ mkSelSln s outerT innerT =
       | RecordSel {} <- s -> liftFun t1 t2
 
     _ -> return HasGoalSln { hasDoSelect = \e -> ESel e s
-                           , hasDoSet    = \e v -> ESet e s v }
+                           , hasDoSet    = \e v -> ESet outerT e s v }
 
   where
   -- Has s a t => Has s ([n]a) ([n]t)
@@ -185,7 +185,7 @@ mkSelSln s outerT innerT =
 
          _ -> panic "mkSelSln" [ "Unexpected inner seq type.", show innerT ]
 
-  -- Has s b t => Has s (a -> b)
+  -- Has s b t => Has s (a -> b) (a -> t)
   -- f.s            ~~> \x -> (f x).s
   -- { f | s = g }  ~~> \x -> { f x | s = g x }
   liftFun t1 t2 =

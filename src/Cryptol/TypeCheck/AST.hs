@@ -106,7 +106,8 @@ data Expr   = EList [Expr] Type         -- ^ List value (with type of elements)
             | ETuple [Expr]             -- ^ Tuple value
             | ERec (RecordMap Ident Expr) -- ^ Record value
             | ESel Expr Selector        -- ^ Elimination for tuple/record/list
-            | ESet Expr Selector Expr   -- ^ Change the value of a field.
+            | ESet Type Expr Selector Expr -- ^ Change the value of a field.
+                                           --   The included type gives the type of the record being updated
 
             | EIf Expr Expr Expr        -- ^ If-then-else
             | EComp Type Type Expr [[Match]]
@@ -211,7 +212,7 @@ instance PP (WithNames Expr) where
 
       ESel e sel    -> ppWP 4 e <+> text "." <.> pp sel
 
-      ESet e sel v  -> braces (pp e <+> "|" <+> pp sel <+> "=" <+> pp v)
+      ESet _ty e sel v  -> braces (pp e <+> "|" <+> pp sel <+> "=" <+> pp v)
 
       EIf e1 e2 e3  -> optParens (prec > 0)
                     $ sep [ text "if"   <+> ppW e1
@@ -374,4 +375,3 @@ instance PP (WithNames Module) where
     -- XXX: Print abstarct types/functions
     vcat (map (ppWithNames (addTNames mps nm)) mDecls)
     where mps = map mtpParam (Map.elems mParamTypes)
-
