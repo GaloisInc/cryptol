@@ -1990,7 +1990,12 @@ sparkParMap ::
   SeqMap sym ->
   SEval sym (SeqMap sym)
 sparkParMap sym f n m =
-  finiteSeqMap sym <$> mapM (sSpark sym . f) (enumerateSeqMap n m)
+  finiteSeqMap sym <$> mapM (sSpark sym . g) (enumerateSeqMap n m)
+ where
+ g x =
+   do z <- sDelay sym Nothing (f x)
+      forceValue =<< z
+      z
 
 --------------------------------------------------------------------------------
 -- Floating Point Operations
