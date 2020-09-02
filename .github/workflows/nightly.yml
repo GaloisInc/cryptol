@@ -1,6 +1,6 @@
 name: Cryptol Nightly Builds
 on:
-  push:
+  pull_request:
     branches: ["actions/**"]
   schedule:
     - cron: "0 0 * * *"
@@ -69,6 +69,8 @@ jobs:
           submodules: true
 
       - uses: actions/setup-haskell@v1
+        with:
+          ghc-version: 8.10.2
 
       - uses: actions/download-artifact@v2
         with:
