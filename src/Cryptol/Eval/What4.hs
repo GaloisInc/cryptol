@@ -160,6 +160,22 @@ primTable w4sym = let sym = What4 w4sym in
   , ("foldl"       , foldlV sym)
   , ("foldl'"      , foldl'V sym)
 
+  , ("seq"         ,
+     tlam $ \_a ->
+     tlam $ \_b ->
+      lam $ \x -> pure $
+      lam $ \y ->
+        do _ <- x
+           y)
+
+  , ("deepseq"     ,
+      tlam $ \_a ->
+      tlam $ \_b ->
+       lam $ \x -> pure $
+       lam $ \y ->
+         do _ <- forceValue =<< x
+            y)
+
   , ("parmap"      , parmapV sym)
 
   , ("fromZ"       , fromZV sym)

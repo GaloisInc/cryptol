@@ -122,6 +122,7 @@ Symbols
     ceiling : {a} (Round a) => a -> Integer
     complement : {a} (Logic a) => a -> a
     curry : {a, b, c} ((a, b) -> c) -> a -> b -> c
+    deepseq : {a, b} (Eq a) => a -> b -> b
     demote : {val, rep} (Literal val rep) => rep
     drop : {front, back, a} (fin front) => [front + back]a -> [back]a
     elem : {n, a} (fin n, Eq a) => a -> [n]a -> Bit
@@ -164,22 +165,25 @@ Symbols
     negate : {a} (Ring a) => a -> a
     number : {val, rep} (Literal val rep) => rep
     or : {n} (fin n) => [n] -> Bit
-    parmap : {a, b, n} (fin n) => (a -> b) -> [n]a -> [n]b
+    parmap : {a, b, n} (Eq b, fin n) => (a -> b) -> [n]a -> [n]b
     pdiv : {u, v} (fin u, fin v) => [u] -> [v] -> [u]
     pmod : {u, v} (fin u, fin v) => [u] -> [1 + v] -> [v]
     pmult :
       {u, v} (fin u, fin v) => [1 + u] -> [1 + v] -> [1 + (u + v)]
+    product : {n, a} (fin n, Ring a) => [n]a -> a
     random : {a} [256] -> a
     ratio : Integer -> Integer -> Rational
     recip : {a} (Field a) => a -> a
     repeat : {n, a} a -> [n]a
     reverse : {n, a} (fin n) => [n]a -> [n]a
+    rnf : {a} (Eq a) => a -> a
     roundAway : {a} (Round a) => a -> Integer
     roundToEven : {a} (Round a) => a -> Integer
     sborrow : {n} (fin n, n >= 1) => [n] -> [n] -> Bit
     scanl : {n, b, a} (b -> a -> b) -> b -> [n]a -> [1 + n]b
     scanr : {n, a, b} (fin n) => (a -> b -> b) -> b -> [n]a -> [1 + n]b
     scarry : {n} (fin n, n >= 1) => [n] -> [n] -> Bit
+    seq : {a, b} a -> b -> b
     sext : {m, n} (fin m, m >= n, n >= 1) => [n] -> [m]
     split :
       {parts, each, a} (fin each) => [parts * each]a -> [parts][each]a
