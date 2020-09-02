@@ -52,8 +52,7 @@ jobs:
           repository: galoisinc/cryptol
           tags: "nightly"
           add_git_labels: true
-          # push: ${{ github.event_name == 'schedule' }}
-          push: true
+          push: ${{ github.event_name == 'schedule' }}
 
   build:
     needs: [outputs, docs]
