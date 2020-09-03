@@ -250,7 +250,7 @@ unDelay tv =
                   case res of
                     -- In this case, we claim the thunk.  Update the state to indicate
                     -- that we are working on it.
-                    Unforced nm backup -> writeTVar tv (UnderEvaluation tid backup)
+                    Unforced _ backup -> writeTVar tv (UnderEvaluation tid backup)
 
                     -- In this case, the thunk is already being evaluated.  If it is
                     -- under evaluation by this thread, we have to run the backup computation,
