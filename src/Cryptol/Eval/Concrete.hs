@@ -13,7 +13,6 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE Safe #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -24,9 +23,10 @@ module Cryptol.Eval.Concrete
   , toExpr
   ) where
 
-import Control.Monad (join, guard, zipWithM)
+import Control.Monad (join, guard, zipWithM, foldM)
 import Data.Bits (Bits(..))
 import Data.Ratio(numerator,denominator)
+import Data.Word(Word32, Word64)
 import MonadLib( ChoiceT, findOne, lift )
 import qualified LibBF as FP
 
@@ -41,6 +41,7 @@ import Cryptol.Eval.Generic hiding (logicShift)
 import Cryptol.Eval.Monad
 import Cryptol.Eval.Type
 import Cryptol.Eval.Value
+import qualified Cryptol.SHA as SHA
 import Cryptol.ModuleSystem.Name
 import Cryptol.Testing.Random (randomV)
 import Cryptol.TypeCheck.AST as AST
@@ -341,8 +342,100 @@ primTable eOpts = let sym = Concrete in
                          io $ logPrint evalLogger
                              $ if null msg then doc else text msg <+> doc
                          return yv)
+
+  , ("accelSHA2_224", {-# SCC "Prelude::accelSHA2_224" #-}
+                      ilam $ \n ->
+                       lam $ \xs ->
+                         do blks <- enumerateSeqMap n . fromVSeq <$> xs
+                            (SHA.SHA256S w0 w1 w2 w3 w4 w5 w6 _) <-
+                               foldM (\st blk -> seq st (SHA.processSHA256Block st <$> (toSHA256Block =<< blk)))
+                                     SHA.initialSHA224State blks
+                            let f :: Word32 -> Eval Value
+                                f = pure . VWord 32 . pure . WordVal . BV 32 . toInteger
+                                zs = finiteSeqMap Concrete (map f [w0,w1,w2,w3,w4,w5,w6])
+                            seq zs (pure (VSeq 7 zs)))
+
+  , ("accelSHA2_256", {-# SCC "Prelude::accelSHA2_256" #-}
+                      ilam $ \n ->
+                       lam $ \xs ->
+                         do blks <- enumerateSeqMap n . fromVSeq <$> xs
+                            (SHA.SHA256S w0 w1 w2 w3 w4 w5 w6 w7) <-
+                              foldM (\st blk -> seq st (SHA.processSHA256Block st <$> (toSHA256Block =<< blk)))
+                                    SHA.initialSHA256State blks
+                            let f :: Word32 -> Eval Value
+                                f = pure . VWord 32 . pure . WordVal . BV 32 . toInteger
+                                zs = finiteSeqMap Concrete (map f [w0,w1,w2,w3,w4,w5,w6,w7])
+                            seq zs (pure (VSeq 8 zs)))
+
+  , ("accelSHA2_384", {-# SCC "Prelude::accelSHA2_384" #-}
+                      ilam $ \n ->
+                       lam $ \xs ->
+                         do blks <- enumerateSeqMap n . fromVSeq <$> xs
+                            (SHA.SHA512S w0 w1 w2 w3 w4 w5 _ _) <-
+                              foldM (\st blk -> seq st (SHA.processSHA512Block st <$> (toSHA512Block =<< blk)))
+                                    SHA.initialSHA384State blks
+                            let f :: Word64 -> Eval Value
+                                f = pure . VWord 64 . pure . WordVal . BV 64 . toInteger
+                                zs = finiteSeqMap Concrete (map f [w0,w1,w2,w3,w4,w5])
+                            seq zs (pure (VSeq 6 zs)))
+
+  , ("accelSHA2_512", {-# SCC "Prelude::accelSHA2_512" #-}
+                      ilam $ \n ->
+                       lam $ \xs ->
+                         do blks <- enumerateSeqMap n . fromVSeq <$> xs
+                            (SHA.SHA512S w0 w1 w2 w3 w4 w5 w6 w7) <-
+                              foldM (\st blk -> seq st (SHA.processSHA512Block st <$> (toSHA512Block =<< blk)))
+                                    SHA.initialSHA512State blks
+                            let f :: Word64 -> Eval Value
+                                f = pure . VWord 64 . pure . WordVal . BV 64 . toInteger
+                                zs = finiteSeqMap Concrete (map f [w0,w1,w2,w3,w4,w5,w6,w7])
+                            seq zs (pure (VSeq 8 zs)))
   ]
 
+toSHA256Block :: Value -> Eval SHA.SHA256Block
+toSHA256Block blk =
+  do let ws = fromVSeq blk
+     let toWord i = fromInteger . bvVal <$> (fromVWord Concrete "toSHA256Block" =<< lookupSeqMap ws i)
+     SHA.SHA256Block <$>
+        (toWord 0) <*>
+        (toWord 1) <*>
+        (toWord 2) <*>
+        (toWord 3) <*>
+        (toWord 4) <*>
+        (toWord 5) <*>
+        (toWord 6) <*>
+        (toWord 7) <*>
+        (toWord 8) <*>
+        (toWord 9) <*>
+        (toWord 10) <*>
+        (toWord 11) <*>
+        (toWord 12) <*>
+        (toWord 13) <*>
+        (toWord 14) <*>
+        (toWord 15)
+
+
+toSHA512Block :: Value -> Eval SHA.SHA512Block
+toSHA512Block blk =
+  do let ws = fromVSeq blk
+     let toWord i = fromInteger . bvVal <$> (fromVWord Concrete "toSHA512Block" =<< lookupSeqMap ws i)
+     SHA.SHA512Block <$>
+        (toWord 0) <*>
+        (toWord 1) <*>
+        (toWord 2) <*>
+        (toWord 3) <*>
+        (toWord 4) <*>
+        (toWord 5) <*>
+        (toWord 6) <*>
+        (toWord 7) <*>
+        (toWord 8) <*>
+        (toWord 9) <*>
+        (toWord 10) <*>
+        (toWord 11) <*>
+        (toWord 12) <*>
+        (toWord 13) <*>
+        (toWord 14) <*>
+        (toWord 15)
 
 --------------------------------------------------------------------------------
 

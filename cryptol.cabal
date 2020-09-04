@@ -176,6 +176,8 @@ library
                        Cryptol.Eval.What4.Float,
                        Cryptol.Eval.What4.SFloat,
 
+                       Cryptol.SHA,
+
                        Cryptol.Testing.Random,
 
                        Cryptol.Symbolic,
