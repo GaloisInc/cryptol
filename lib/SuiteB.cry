@@ -1,0 +1,50 @@
+module SuiteB where
+
+/***** SHA2 *****/
+
+type sha2_block_size w = 16 * w
+type sha2_num_blocks w L = (L+1+2*w) /^ sha2_block_size w
+type sha2_padded_size w L = sha2_num_blocks w L * sha2_block_size w
+
+sha2pad : {w, L} (fin w, fin L, w >= 1, 2*w >= width L) => [L] -> [sha2_padded_size w L]
+sha2pad M = M # 0b1 # zero # ((fromInteger `L) : [2*w])
+
+sha2blocks : {w, L} (fin w, fin L, w >= 1, 2*w >= width L) =>
+  [L] -> [sha2_num_blocks w L][16][w]
+sha2blocks msg = [ split x | x <- split (sha2pad`{w} msg) ]
+
+sha224 : {L} (fin L, 64 >= width L) => [L] -> [224]
+sha224 msg = join (accelSHA2_224 (sha2blocks`{32} msg))
+
+sha256 : {L} (fin L, 64 >= width L) => [L] -> [256]
+sha256 msg = join (accelSHA2_256 (sha2blocks`{32} msg))
+
+sha384 : {L} (fin L, 128 >= width L) => [L] -> [384]
+sha384 msg = join (accelSHA2_384 (sha2blocks`{64} msg))
+
+sha512 : {L} (fin L, 128 >= width L) => [L] -> [512]
+sha512 msg = join (accelSHA2_512 (sha2blocks`{64} msg))
+
+/**
+ * Apply the SHA224 hash algorithm to a sequence of SHA256-size blocks,
+ * which are assumed to already be correctly padded.
+ */
+primitive accelSHA2_224 : {n} (fin n) => [n][16][32] -> [7][32]
+
+/**
+ * Apply the SHA256 hash algorithm to a sequence of SHA256-size blocks,
+ * which are assumed to already be correctly padded.
+ */
+primitive accelSHA2_256 : {n} (fin n) => [n][16][32] -> [8][32]
+
+/**
+ * Apply the SHA384 hash algorithm to a sequence of SHA512-size blocks,
+ * which are assumed to already be correctly padded.
+ */
+primitive accelSHA2_384 : {n} (fin n) => [n][16][64] -> [6][64]
+
+/**
+ * Apply the SHA512 hash algorithm to a sequence of SHA512-size blocks,
+ * which are assumed to already be correctly padded.
+ */
+primitive accelSHA2_512 : {n} (fin n) => [n][16][64] -> [8][64]

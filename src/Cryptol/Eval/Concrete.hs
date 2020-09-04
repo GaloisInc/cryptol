@@ -46,7 +46,7 @@ import Cryptol.ModuleSystem.Name
 import Cryptol.Testing.Random (randomV)
 import Cryptol.TypeCheck.AST as AST
 import Cryptol.Utils.Panic (panic)
-import Cryptol.Utils.Ident (PrimIdent,prelPrim,floatPrim)
+import Cryptol.Utils.Ident (PrimIdent,prelPrim,floatPrim,suiteBPrim)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Logger(logPrint)
 import Cryptol.Utils.RecordMap
@@ -135,6 +135,7 @@ floatToExpr prims eT pT f =
 primTable :: EvalOpts -> Map.Map PrimIdent Value
 primTable eOpts = let sym = Concrete in
   Map.union (floatPrims sym) $
+  Map.union suiteBPrims $
   Map.fromList $ map (\(n, v) -> (prelPrim n, v))
 
   [ -- Literals
@@ -343,7 +344,12 @@ primTable eOpts = let sym = Concrete in
                              $ if null msg then doc else text msg <+> doc
                          return yv)
 
-  , ("accelSHA2_224", {-# SCC "Prelude::accelSHA2_224" #-}
+  ]
+
+
+suiteBPrims :: Map.Map PrimIdent Value
+suiteBPrims = Map.fromList $ map (\(n, v) -> (suiteBPrim n, v))
+  [ ("accelSHA2_224", {-# SCC "SuiteB::accelSHA2_224" #-}
                       ilam $ \n ->
                        lam $ \xs ->
                          do blks <- enumerateSeqMap n . fromVSeq <$> xs
@@ -355,7 +361,7 @@ primTable eOpts = let sym = Concrete in
                                 zs = finiteSeqMap Concrete (map f [w0,w1,w2,w3,w4,w5,w6])
                             seq zs (pure (VSeq 7 zs)))
 
-  , ("accelSHA2_256", {-# SCC "Prelude::accelSHA2_256" #-}
+  , ("accelSHA2_256", {-# SCC "SuiteB::accelSHA2_256" #-}
                       ilam $ \n ->
                        lam $ \xs ->
                          do blks <- enumerateSeqMap n . fromVSeq <$> xs
@@ -367,7 +373,7 @@ primTable eOpts = let sym = Concrete in
                                 zs = finiteSeqMap Concrete (map f [w0,w1,w2,w3,w4,w5,w6,w7])
                             seq zs (pure (VSeq 8 zs)))
 
-  , ("accelSHA2_384", {-# SCC "Prelude::accelSHA2_384" #-}
+  , ("accelSHA2_384", {-# SCC "SuiteB::accelSHA2_384" #-}
                       ilam $ \n ->
                        lam $ \xs ->
                          do blks <- enumerateSeqMap n . fromVSeq <$> xs
@@ -379,7 +385,7 @@ primTable eOpts = let sym = Concrete in
                                 zs = finiteSeqMap Concrete (map f [w0,w1,w2,w3,w4,w5])
                             seq zs (pure (VSeq 6 zs)))
 
-  , ("accelSHA2_512", {-# SCC "Prelude::accelSHA2_512" #-}
+  , ("accelSHA2_512", {-# SCC "SuiteB::accelSHA2_512" #-}
                       ilam $ \n ->
                        lam $ \xs ->
                          do blks <- enumerateSeqMap n . fromVSeq <$> xs
@@ -391,6 +397,7 @@ primTable eOpts = let sym = Concrete in
                                 zs = finiteSeqMap Concrete (map f [w0,w1,w2,w3,w4,w5,w6,w7])
                             seq zs (pure (VSeq 8 zs)))
   ]
+
 
 toSHA256Block :: Value -> Eval SHA.SHA256Block
 toSHA256Block blk =

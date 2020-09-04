@@ -1155,31 +1155,3 @@ iterate f x = xs
   where xs = [x] # [ f v | v <- xs ]
 
 
-// -- Accelerated crypto primitives
-
-
-/**
- * Apply the SHA224 hash algorithm to a sequence of SHA256-size blocks,
- * which are assumed to already be correctly padded.
- */
-primitive accelSHA2_224 : {n} (fin n) => [n][16][32] -> [7][32]
-
-/**
- * Apply the SHA256 hash algorithm to a sequence of SHA256-size blocks,
- * which are assumed to already be correctly padded.
- */
-primitive accelSHA2_256 : {n} (fin n) => [n][16][32] -> [8][32]
-
-/**
- * Apply the SHA384 hash algorithm to a sequence of SHA512-size blocks,
- * which are assumed to already be correctly padded.
- */
-primitive accelSHA2_384 : {n} (fin n) => [n][16][64] -> [6][64]
-
-/**
- * Apply the SHA512 hash algorithm to a sequence of SHA512-size blocks,
- * which are assumed to already be correctly padded.
- */
-primitive accelSHA2_512 : {n} (fin n) => [n][16][64] -> [8][64]
-
-
