@@ -946,20 +946,20 @@ fpCvtToInteger sym@(What4 sy _) fun r x =
 fpCvtToRational ::
   (W4.IsSymExprBuilder sy, sym ~ What4 sy) =>
   sym -> SFloat sym -> SEval sym (SRational sym)
-fpCvtToRational sym@(What4 sy _) fp =
+fpCvtToRational sym@(What4 w4sym _) fp =
   do grd <- liftIO
-            do bad1 <- FP.fpIsInf sy fp
-               bad2 <- FP.fpIsNaN sy fp
-               W4.notPred sy =<< W4.orPred sy bad1 bad2
+            do bad1 <- FP.fpIsInf w4sym fp
+               bad2 <- FP.fpIsNaN w4sym fp
+               W4.notPred w4sym =<< W4.orPred w4sym bad1 bad2
      assertSideCondition sym grd (BadValue "fpToRational")
-     (rel,x,y) <- liftIO (FP.fpToRational sy fp)
-     addDefEqn sym rel
+     (rel,x,y) <- liftIO (FP.fpToRational w4sym fp)
+     addDefEqn sym =<< liftIO (W4.impliesPred w4sym grd rel)
      ratio sym x y
 
 fpCvtFromRational ::
   (W4.IsExprBuilder sy, sym ~ What4 sy) =>
   sym -> Integer -> Integer -> SWord sym ->
   SRational sym -> SEval sym (SFloat sym)
-fpCvtFromRational sym@(What4 sy _) e p r rat =
+fpCvtFromRational sym@(What4 w4sym _) e p r rat =
   do rnd <- fpRoundingMode sym r
-     liftIO (FP.fpFromRational sy e p rnd (sNum rat) (sDenom rat))
+     liftIO (FP.fpFromRational w4sym e p rnd (sNum rat) (sDenom rat))
