@@ -55,6 +55,7 @@ Primitive Types
     lengthFromThenTo : # -> # -> # -> #
     max : # -> # -> #
     min : # -> # -> #
+    prime : # -> Prop
     Rational : *
     Ring : * -> Prop
     Round : * -> Prop
