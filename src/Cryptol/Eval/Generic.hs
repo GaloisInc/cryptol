@@ -1545,8 +1545,7 @@ foldlV sym =
   lam $ \z -> pure $
   lam $ \v ->
     v >>= \case
-      VSeq n m    -> go0 f z (enumerateSeqMap n m)
-      VWord _n wv -> go0 f z . map (pure . VBit) =<< (enumerateWordValue sym =<< wv)
+      VSeq (Nat n) _tp m -> go0 f z (enumerateSeqMap sym n m)
       _ -> panic "Cryptol.Eval.Generic.foldlV" ["Expected finite sequence"]
   where
   go0 _f a [] = a
@@ -1568,8 +1567,7 @@ foldl'V sym =
   lam $ \z -> pure $
   lam $ \v ->
     v >>= \case
-      VSeq n m    -> go0 f z (enumerateSeqMap n m)
-      VWord _n wv -> go0 f z . map (pure . VBit) =<< (enumerateWordValue sym =<< wv)
+      VSeq (Nat n) _tp m -> go0 f z (enumerateSeqMap sym n m)
       _ -> panic "Cryptol.Eval.Generic.foldlV" ["Expected finite sequence"]
   where
   go0 _f a [] = a
