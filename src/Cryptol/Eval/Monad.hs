@@ -152,18 +152,6 @@ maybeReady (Eval _) = pure Nothing
 
 
 
-
--- | Test if a value is "ready", which means that
---   it requires no computation to return.
-maybeReady :: Eval a -> Eval (Maybe a)
-maybeReady (Ready a) = pure (Just a)
-maybeReady (Thunk tv) = Eval $
-  readTVarIO tv >>= \case
-     Forced a -> pure (Just a)
-     _ -> pure Nothing
-maybeReady (Eval _) = pure Nothing
-
-
 {-# INLINE delayFill #-}
 
 -- | Delay the given evaluation computation, returning a thunk
@@ -263,7 +251,7 @@ unDelay tv =
                   case res of
                     -- In this case, we claim the thunk.  Update the state to indicate
                     -- that we are working on it.
-                    Unforced nm backup -> writeTVar tv (UnderEvaluation tid backup)
+                    Unforced _ backup -> writeTVar tv (UnderEvaluation tid backup)
 
                     -- In this case, the thunk is already being evaluated.  If it is
                     -- under evaluation by this thread, we have to run the backup computation,
