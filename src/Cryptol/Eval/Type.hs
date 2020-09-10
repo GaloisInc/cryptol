@@ -20,9 +20,8 @@ import Cryptol.Utils.Ident (Ident)
 import Cryptol.Utils.RecordMap
 
 import Data.Maybe(fromMaybe)
-import qualified Data.Map.Strict as Map
+import qualified Data.IntMap.Strict as IntMap
 import GHC.Generics (Generic)
-import GHC.Stack(HasCallStack)
 import Control.DeepSeq
 
 -- | An evaluated type of kind *.
@@ -91,15 +90,15 @@ finNat' n' =
 
 -- Type Evaluation -------------------------------------------------------------
 
-type TypeEnv = Map.Map TVar (Either Nat' TValue)
+type TypeEnv = IntMap.IntMap (Either Nat' TValue)
 
 
 -- | Evaluation for types (kind * or #).
-evalType :: HasCallStack => TypeEnv -> Type -> Either Nat' TValue
+evalType :: TypeEnv -> Type -> Either Nat' TValue
 evalType env ty =
   case ty of
     TVar tv ->
-      case Map.lookup tv env of
+      case IntMap.lookup (tvUnique tv) env of
         Just v -> v
         Nothing -> evalPanic "evalType" ["type variable not bound", show tv]
 
@@ -144,14 +143,14 @@ evalType env ty =
                                   ["Expecting a finite size, but got `inf`"]
 
 -- | Evaluation for value types (kind *).
-evalValType :: HasCallStack => TypeEnv -> Type -> TValue
+evalValType :: TypeEnv -> Type -> TValue
 evalValType env ty =
   case evalType env ty of
     Left _ -> evalPanic "evalValType" ["expected value type, found numeric type"]
     Right t -> t
 
 -- | Evaluation for number types (kind #).
-evalNumType :: HasCallStack => TypeEnv -> Type -> Nat'
+evalNumType :: TypeEnv -> Type -> Nat'
 evalNumType env ty =
   case evalType env ty of
     Left n -> n
@@ -159,7 +158,7 @@ evalNumType env ty =
 
 
 -- | Reduce type functions, raising an exception for undefined values.
-evalTF :: HasCallStack => TFun -> [Nat'] -> Nat'
+evalTF :: TFun -> [Nat'] -> Nat'
 evalTF f vs
   | TCAdd           <- f, [x,y]   <- vs  =      nAdd x y
   | TCSub           <- f, [x,y]   <- vs  = mb $ nSub x y
