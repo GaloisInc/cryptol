@@ -54,6 +54,7 @@ import Cryptol.Utils.RecordMap
 import           Control.Monad
 import           Data.List
 import           Data.Maybe
+import qualified Data.IntMap.Strict as IntMap
 import qualified Data.Map.Strict as Map
 import           Data.Semigroup
 
@@ -275,7 +276,7 @@ evalDeclGroup sym env dg = do
       -- declare a "hole" for each declaration
       -- and extend the evaluation environment
       holes <- mapM (declHole sym) ds
-      let holeEnv = Map.fromList $ [ (nm,h) | (nm,_,h,_) <- holes ]
+      let holeEnv = IntMap.fromList $ [ (nameUnique nm, h) | (nm,_,h,_) <- holes ]
       let env' = env `mappend` emptyEnv{ envVars = holeEnv }
 
       -- evaluate the declaration bodies, building a new evaluation environment
@@ -643,24 +644,24 @@ evalSetSel sym _tyv e sel v =
 -- name is bound to a list of values, one for each element in the list
 -- comprehension.
 data ListEnv sym = ListEnv
-  { leVars   :: !(Map.Map Name (Integer -> SEval sym (GenValue sym)))
+  { leVars   :: !(IntMap.IntMap (Integer -> SEval sym (GenValue sym)))
       -- ^ Bindings whose values vary by position
-  , leStatic :: !(Map.Map Name (SEval sym (GenValue sym)))
+  , leStatic :: !(IntMap.IntMap (SEval sym (GenValue sym)))
       -- ^ Bindings whose values are constant
   , leTypes  :: !TypeEnv
   }
 
 instance Semigroup (ListEnv sym) where
   l <> r = ListEnv
-    { leVars   = Map.union (leVars  l)  (leVars  r)
-    , leStatic = Map.union (leStatic l) (leStatic r)
+    { leVars   = IntMap.union (leVars  l)  (leVars  r)
+    , leStatic = IntMap.union (leStatic l) (leStatic r)
     , leTypes  = Map.union (leTypes l)  (leTypes r)
     }
 
 instance Monoid (ListEnv sym) where
   mempty = ListEnv
-    { leVars   = Map.empty
-    , leStatic = Map.empty
+    { leVars   = IntMap.empty
+    , leStatic = IntMap.empty
     , leTypes  = Map.empty
     }
 
@@ -681,7 +682,7 @@ toListEnv e =
 evalListEnv :: ListEnv sym -> Integer -> GenEvalEnv sym
 evalListEnv (ListEnv vm st tm) i =
     let v = fmap ($i) vm
-     in EvalEnv{ envVars = Map.union v st
+     in EvalEnv{ envVars = IntMap.union v st
                , envTypes = tm
                }
 {-# INLINE evalListEnv #-}
@@ -692,7 +693,7 @@ bindVarList ::
   (Integer -> SEval sym (GenValue sym)) ->
   ListEnv sym ->
   ListEnv sym
-bindVarList n vs lenv = lenv { leVars = Map.insert n vs (leVars lenv) }
+bindVarList n vs lenv = lenv { leVars = IntMap.insert (nameUnique n) vs (leVars lenv) }
 {-# INLINE bindVarList #-}
 
 -- List Comprehensions ---------------------------------------------------------
@@ -778,8 +779,8 @@ evalMatch sym lenv m = case m of
       -- `leVars` elements of the comprehension environment into `leStatic` elements
       -- by selecting out the 0th element.
       Inf -> do
-        let allvars = Map.union (fmap ($0) (leVars lenv)) (leStatic lenv)
-        let lenv' = lenv { leVars   = Map.empty
+        let allvars = IntMap.union (fmap ($0) (leVars lenv)) (leStatic lenv)
+        let lenv' = lenv { leVars   = IntMap.empty
                          , leStatic = allvars
                          }
         let env   = EvalEnv allvars (leTypes lenv)
