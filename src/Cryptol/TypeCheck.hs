@@ -23,6 +23,8 @@ module Cryptol.TypeCheck
   , ppError
   ) where
 
+import           Control.DeepSeq
+
 import           Cryptol.ModuleSystem.Name
                     (liftSupply,mkDeclared,NameSource(..))
 import qualified Cryptol.Parser.AST as P
@@ -48,7 +50,13 @@ import           Cryptol.Utils.PP
 import           Cryptol.Utils.Panic(panic)
 
 tcModule :: P.Module Name -> InferInput -> IO (InferOutput Module)
-tcModule m inp = runInferM inp (inferModule m)
+tcModule m inp =
+  do output <- runInferM inp (inferModule m)
+     -- Evaluate the result (including the module itself and also
+     -- warnings) to normal form to ensure that all uses of 'apSubst'
+     -- are fully evaluated and the (possibly very large) substitution
+     -- itself can be garbage collected.
+     pure $!! output
 
 -- | Check a module instantiation, assuming that the functor has already
 -- been checked.

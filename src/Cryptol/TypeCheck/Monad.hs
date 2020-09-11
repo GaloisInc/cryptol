@@ -105,7 +105,7 @@ data InferOutput a
     -- ^ Type inference was successful.
 
 
-    deriving Show
+    deriving (Show, Generic, NFData)
 
 bumpCounter :: InferM ()
 bumpCounter = do RO { .. } <- IM ask
