@@ -112,7 +112,7 @@ build() {
   cabal v2-update
   cabal v2-configure -j2 --minimize-conflict-set
   retry ./cry build exe:cryptol-html "$@" # retry due to flakiness with windows builds
-  cabal v2-build --allow-newer cryptol-remote-api
+  cabal v2-build cryptol-remote-api
 }
 
 install_system_deps() {
