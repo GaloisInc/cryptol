@@ -52,8 +52,7 @@ jobs:
           repository: galoisinc/cryptol
           tags: "nightly"
           add_git_labels: true
-          # push: ${{ github.event_name == 'schedule' }}
-          push: true
+          push: ${{ github.event_name == 'schedule' }}
 
   build:
     needs: [outputs, docs]
@@ -69,6 +68,20 @@ jobs:
           submodules: true
 
       - uses: actions/setup-haskell@v1
+        with:
+          ghc-version: 8.8.4
+
+      - uses: actions/cache@v2
+        name: Cache cabal store
+        with:
+          path: |
+            ${{ steps.setup-haskell.outputs.cabal-store }}
+            dist-newstyle
+          key: cabal-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('**/cabal.GHC-*') }}-${{ github.sha }}
+          restore-keys: |
+            cabal-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles(format('cabal.GHC-{0}.config', matrix.ghc)) }}-
+            cabal-${{ runner.os }}-${{ matrix.ghc }}-
+            cabal-${{ runner.os }}-
 
       - uses: actions/download-artifact@v2
         with:

@@ -35,6 +35,10 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         ghc: ["8.6.5", "8.8.4", "8.10.2"]
+        exclude:
+          # https://gitlab.haskell.org/ghc/ghc/-/issues/18550
+          - os: windows-latest
+            ghc: 8.10.2
     name: Cryptol - GHC v${{ matrix.ghc }} - ${{ matrix.os }}
     env:
       RELEASE: ${{ needs.outputs.outputs.release }}
@@ -48,26 +52,17 @@ jobs:
         with:
           ghc-version: ${{ matrix.ghc }}
 
-      - uses: actions/cache@v1
+      - uses: actions/cache@v2
         name: Cache cabal store
         with:
-          path: ${{ steps.setup-haskell.outputs.cabal-store }}
-          # https://github.com/actions/cache/issues/109 "Enable always writing cache to support hermetic build systems"
-          # https://github.com/actions/cache/issues/239#issuecomment-606950711 Investigate this workaround if cache starts filling up
-          key: store-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('**/cabal.GHC-*') }}-${{ github.sha }}
+          path: |
+            ${{ steps.setup-haskell.outputs.cabal-store }}
+            dist-newstyle
+          key: cabal-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('**/cabal.GHC-*') }}-${{ github.sha }}
           restore-keys: |
-            store-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('**/cabal.GHC-*') }}-
-            store-${{ runner.os }}-${{ matrix.ghc }}-
-            store-${{ runner.os }}-
-
-      - uses: actions/cache@v1
-        name: Cache dist-newstyle
-        with:
-          path: dist-newstyle
-          key: dist-newstyle-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('**/cabal.GHC-*') }}-${{ github.sha }}
-          restore-keys: |
-            dist-newstyle-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('**/cabal.GHC-*') }}-
-            dist-newstyle-${{ runner.os }}-${{ matrix.ghc }}-
+            cabal-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles(format('cabal.GHC-{0}.config', matrix.ghc)) }}-
+            cabal-${{ runner.os }}-${{ matrix.ghc }}-
+            cabal-${{ runner.os }}-
 
       - shell: bash
         run: .github/ci.sh install_system_deps
@@ -172,20 +167,16 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     needs: [outputs]
-    if: needs.outputs.outputs.release
+    if: contains(needs.outputs.outputs.changed, 'Dockerfile')
     steps:
       - uses: actions/checkout@v2
         with:
           submodules: true
-      - name: Publish to Registry
+      - name: Build Docker
         uses: docker/build-push-action@v1
         with:
-          username: ${{ secrets.GITHUBCRYPTOL_USERNAME }}
-          password: ${{ secrets.GITHUBCRYPTOL }}
           repository: galoisinc/cryptol
-          tags: "latest,${{ needs.outputs.outputs.cryptol-version }}"
-          add_git_labels: true
-          push: ${{ startsWith(github.ref, 'refs/heads/release-') }}
+          push: false
 
   release:
     needs: [outputs, bundle]
