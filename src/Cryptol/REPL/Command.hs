@@ -1463,7 +1463,7 @@ helpCmd cmd
   doShowDocString doc =
     case doc of
       Nothing -> pure ()
-      Just d  -> rPutStrLn ('\n' : d)
+      Just d  -> rPutStrLn ('\n' : T.unpack d)
 
   showCmdHelp c [arg] | ":set" `elem` cNames c = showOptionHelp arg
   showCmdHelp c _args =

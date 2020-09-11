@@ -360,18 +360,18 @@ anonTyApp ~(Just r) ts = TTyApp (map toField ts)
   where noName    = Located { srcRange = r, thing = mkIdent (T.pack "") }
         toField t = Named { name = noName, value = t }
 
-exportDecl :: Maybe (Located String) -> ExportType -> Decl PName -> TopDecl PName
+exportDecl :: Maybe (Located Text) -> ExportType -> Decl PName -> TopDecl PName
 exportDecl mbDoc e d = Decl TopLevel { tlExport = e
                                      , tlDoc    = mbDoc
                                      , tlValue  = d }
 
-exportNewtype :: ExportType -> Maybe (Located String) -> Newtype PName ->
+exportNewtype :: ExportType -> Maybe (Located Text) -> Newtype PName ->
                                                             TopDecl PName
 exportNewtype e d n = TDNewtype TopLevel { tlExport = e
                                          , tlDoc    = d
                                          , tlValue  = n }
 
-mkParFun :: Maybe (Located String) ->
+mkParFun :: Maybe (Located Text) ->
             Located PName ->
             Schema PName ->
             TopDecl PName
@@ -381,7 +381,7 @@ mkParFun mbDoc n s = DParameterFun ParameterFun { pfName = n
                                                 , pfFixity = Nothing
                                                 }
 
-mkParType :: Maybe (Located String) ->
+mkParType :: Maybe (Located Text) ->
              Located PName ->
              Located Kind ->
              ParseM (TopDecl PName)
@@ -515,7 +515,7 @@ mkIf ifThens theElse = foldr addIfThen theElse ifThens
 -- instead of just place it on the binding directly.  A better solution might be
 -- to just have a different constructor for primitives.
 mkPrimDecl ::
-  Maybe (Located String) -> LPName -> Schema PName -> [TopDecl PName]
+  Maybe (Located Text) -> LPName -> Schema PName -> [TopDecl PName]
 mkPrimDecl mbDoc ln sig =
   [ exportDecl mbDoc Public
     $ DBind Bind { bName      = ln
@@ -533,7 +533,7 @@ mkPrimDecl mbDoc ln sig =
   ]
 
 mkPrimTypeDecl ::
-  Maybe (Located String) ->
+  Maybe (Located Text) ->
   Schema PName ->
   Located Kind ->
   ParseM [TopDecl PName]
@@ -601,12 +601,11 @@ mkPrimTypeDecl mbDoc (Forall as qs st ~(Just schema_rng)) finK =
 
 -- | Fix-up the documentation strings by removing the comment delimiters on each
 -- end, and stripping out common prefixes on all the remaining lines.
-mkDoc :: Located Text -> Located String
+mkDoc :: Located Text -> Located Text
 mkDoc ltxt = ltxt { thing = docStr }
   where
 
-  docStr = unlines
-         $ map T.unpack
+  docStr = T.unlines
          $ dropPrefix
          $ trimFront
          $ T.lines
