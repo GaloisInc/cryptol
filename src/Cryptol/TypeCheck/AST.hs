@@ -47,6 +47,7 @@ import Control.DeepSeq
 import           Data.Map    (Map)
 import qualified Data.Map    as Map
 import qualified Data.IntMap as IntMap
+import           Data.Text (Text)
 
 
 -- | A Cryptol module.
@@ -80,7 +81,7 @@ data ModTParam = ModTParam
                       -- This is used when we move parameters from the module
                       -- level to individual declarations
                       -- (type synonyms in particular)
-  , mtpDoc    :: Maybe String
+  , mtpDoc    :: Maybe Text
   } deriving (Show,Generic,NFData)
 
 mtpParam :: ModTParam -> TParam
@@ -97,7 +98,7 @@ mtpParam mtp = TParam { tpUnique = nameUnique (mtpName mtp)
 data ModVParam = ModVParam
   { mvpName   :: Name
   , mvpType   :: Schema
-  , mvpDoc    :: Maybe String
+  , mvpDoc    :: Maybe Text
   , mvpFixity :: Maybe Fixity
   } deriving (Show,Generic,NFData)
 
@@ -168,7 +169,7 @@ data Decl       = Decl { dName        :: !Name
                        , dPragmas     :: [Pragma]
                        , dInfix       :: !Bool
                        , dFixity      :: Maybe Fixity
-                       , dDoc         :: Maybe String
+                       , dDoc         :: Maybe Text
                        } deriving (Generic, NFData, Show)
 
 data DeclDef    = DPrim

@@ -29,6 +29,7 @@ import Cryptol.Utils.RecordMap
 import           MonadLib hiding (mapM)
 import           Data.Maybe(maybeToList)
 import qualified Data.Map as Map
+import           Data.Text (Text)
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
@@ -323,7 +324,7 @@ data AnnotMap = AnnotMap
   , annSigs     :: Map.Map PName [Located (Schema PName)]
   , annValueFs  :: Map.Map PName [Located  Fixity       ]
   , annTypeFs   :: Map.Map PName [Located  Fixity       ]
-  , annDocs     :: Map.Map PName [Located  String       ]
+  , annDocs     :: Map.Map PName [Located  Text         ]
   }
 
 type Annotates a = a -> StateT AnnotMap NoPatM a
@@ -477,7 +478,7 @@ checkFixs f fs@(x:_) = do recordError $ MultipleFixities f $ map srcRange fs
                           return (Just (thing x))
 
 
-checkDocs :: PName -> [Located String] -> NoPatM (Maybe String)
+checkDocs :: PName -> [Located Text] -> NoPatM (Maybe Text)
 checkDocs _ []       = return Nothing
 checkDocs _ [d]      = return (Just (thing d))
 checkDocs f ds@(d:_) = do recordError $ MultipleDocs f (map srcRange ds)
@@ -502,7 +503,7 @@ toFixity (DFixity f ns) = [ (thing n, [Located (srcRange n) f]) | n <- ns ]
 toFixity _              = []
 
 -- | Does this top-level declaration provide a documentation string?
-toDocs :: TopLevel (Decl PName) -> [(PName, [Located String])]
+toDocs :: TopLevel (Decl PName) -> [(PName, [Located Text])]
 toDocs TopLevel { .. }
   | Just txt <- tlDoc = go txt tlValue
   | otherwise = []

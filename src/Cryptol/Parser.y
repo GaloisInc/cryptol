@@ -271,10 +271,10 @@ par_decl                         :: { TopDecl PName }
                                             (mkProp $4) }
 
 
-doc                     :: { Located String }
+doc                     :: { Located Text }
   : DOC                    { mkDoc (fmap tokenText $1) }
 
-mbDoc                   :: { Maybe (Located String) }
+mbDoc                   :: { Maybe (Located Text) }
   : doc                    { Just $1 }
   | {- empty -}            { Nothing }
 

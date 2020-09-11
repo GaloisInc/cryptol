@@ -36,6 +36,7 @@ import qualified Data.Map as Map
 import           Data.List(sortBy,groupBy)
 import           Data.Maybe(fromMaybe)
 import           Data.Function(on)
+import           Data.Text (Text)
 import           Control.Monad(unless,forM,when)
 
 
@@ -66,7 +67,7 @@ checkSchema withWild (P.Forall xs ps t mb) =
 
 -- | Check a module parameter declarations.  Nothing much to check,
 -- we just translate from one syntax to another.
-checkParameterType :: P.ParameterType Name -> Maybe String -> InferM ModTParam
+checkParameterType :: P.ParameterType Name -> Maybe Text -> InferM ModTParam
 checkParameterType a mbDoc =
   do let k = cvtK (P.ptKind a)
          n = thing (P.ptName a)
@@ -75,7 +76,7 @@ checkParameterType a mbDoc =
 
 
 -- | Check a type-synonym declaration.
-checkTySyn :: P.TySyn Name -> Maybe String -> InferM TySyn
+checkTySyn :: P.TySyn Name -> Maybe Text -> InferM TySyn
 checkTySyn (P.TySyn x _ as t) mbD =
   do ((as1,t1),gs) <- collectGoals
                     $ inRange (srcRange x)
@@ -91,7 +92,7 @@ checkTySyn (P.TySyn x _ as t) mbD =
                   }
 
 -- | Check a constraint-synonym declaration.
-checkPropSyn :: P.PropSyn Name -> Maybe String -> InferM TySyn
+checkPropSyn :: P.PropSyn Name -> Maybe Text -> InferM TySyn
 checkPropSyn (P.PropSyn x _ as ps) mbD =
   do ((as1,t1),gs) <- collectGoals
                     $ inRange (srcRange x)
@@ -108,7 +109,7 @@ checkPropSyn (P.PropSyn x _ as ps) mbD =
 
 -- | Check a newtype declaration.
 -- XXX: Do something with constraints.
-checkNewtype :: P.Newtype Name -> Maybe String -> InferM Newtype
+checkNewtype :: P.Newtype Name -> Maybe Text -> InferM Newtype
 checkNewtype (P.Newtype x as fs) mbD =
   do ((as1,fs1),gs) <- collectGoals $
        inRange (srcRange x) $
@@ -128,7 +129,7 @@ checkNewtype (P.Newtype x as fs) mbD =
                     , ntDoc = mbD
                     }
 
-checkPrimType :: P.PrimType Name -> Maybe String -> InferM AbstractType
+checkPrimType :: P.PrimType Name -> Maybe Text -> InferM AbstractType
 checkPrimType p mbD =
   do let (as,cs) = P.primTCts p
      (as',cs') <- withTParams NoWildCards (TPOther . Just) as $

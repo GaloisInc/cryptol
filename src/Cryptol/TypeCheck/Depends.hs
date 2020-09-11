@@ -27,16 +27,17 @@ import           Data.Graph (SCC(..))
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import           Data.Text (Text)
 
 data TyDecl =
-    TS (P.TySyn Name) (Maybe String)          -- ^ Type synonym
-  | NT (P.Newtype Name) (Maybe String)        -- ^ Newtype
-  | AT (P.ParameterType Name) (Maybe String)  -- ^ Parameter type
-  | PS (P.PropSyn Name) (Maybe String)        -- ^ Property synonym
-  | PT (P.PrimType Name) (Maybe String)       -- ^ A primitive/abstract typee
+    TS (P.TySyn Name) (Maybe Text)          -- ^ Type synonym
+  | NT (P.Newtype Name) (Maybe Text)        -- ^ Newtype
+  | AT (P.ParameterType Name) (Maybe Text)  -- ^ Parameter type
+  | PS (P.PropSyn Name) (Maybe Text)        -- ^ Property synonym
+  | PT (P.PrimType Name) (Maybe Text)       -- ^ A primitive/abstract typee
     deriving Show
 
-setDocString :: Maybe String -> TyDecl -> TyDecl
+setDocString :: Maybe Text -> TyDecl -> TyDecl
 setDocString x d =
   case d of
     TS a _ -> TS a x

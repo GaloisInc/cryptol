@@ -1386,11 +1386,7 @@ helpCmd cmd
                                     "requires:" $$ nest 2 (vcat rs)
 
                    doShowFix (T.atFixitiy a)
-
-                   case T.atDoc a of
-                     Nothing -> pure ()
-                     Just d -> do rPutStrLn ""
-                                  rPutStrLn d
+                   doShowDocString (T.atDoc a)
 
     fromTyParam =
       do p <- Map.lookup name (M.ifParamTypes params)
@@ -1408,9 +1404,7 @@ helpCmd cmd
   doShowTyHelp nameEnv decl doc =
     do rPutStrLn ""
        rPrint (runDoc nameEnv (nest 4 decl))
-       case doc of
-         Nothing -> return ()
-         Just d  -> rPutStrLn "" >> rPutStrLn d
+       doShowDocString doc
 
   doShowFix fx =
     case fx of
@@ -1447,9 +1441,7 @@ helpCmd cmd
               doShowFix $ ifDeclFixity `mplus`
                           (guard ifDeclInfix >> return P.defaultFixity)
 
-              case ifDeclDoc of
-                Just str -> rPutStrLn ('\n' : str)
-                Nothing  -> return ()
+              doShowDocString ifDeclDoc
 
     fromNewtype =
       do _ <- Map.lookup name (M.ifNewtypes env)
@@ -1466,10 +1458,12 @@ helpCmd cmd
                                         <+> pp (T.mvpType p)
 
               doShowFix (T.mvpFixity p)
+              doShowDocString (T.mvpDoc p)
 
-              case T.mvpDoc p of
-                Just str -> rPutStrLn ('\n' : str)
-                Nothing  -> return ()
+  doShowDocString doc =
+    case doc of
+      Nothing -> pure ()
+      Just d  -> rPutStrLn ('\n' : T.unpack d)
 
   showCmdHelp c [arg] | ":set" `elem` cNames c = showOptionHelp arg
   showCmdHelp c _args =
