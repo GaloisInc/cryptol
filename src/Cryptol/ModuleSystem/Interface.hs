@@ -32,6 +32,7 @@ import           Cryptol.Parser.Position(Located)
 
 import qualified Data.Map as Map
 import           Data.Semigroup
+import           Data.Text (Text)
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
@@ -100,7 +101,7 @@ data IfaceDecl = IfaceDecl
   , ifDeclPragmas :: [Pragma]       -- ^ Pragmas
   , ifDeclInfix   :: Bool           -- ^ Is this an infix thing
   , ifDeclFixity  :: Maybe Fixity   -- ^ Fixity information
-  , ifDeclDoc     :: Maybe String   -- ^ Documentation
+  , ifDeclDoc     :: Maybe Text     -- ^ Documentation
   } deriving (Show, Generic, NFData)
 
 mkIfaceDecl :: Decl -> IfaceDecl

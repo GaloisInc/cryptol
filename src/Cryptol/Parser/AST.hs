@@ -90,6 +90,7 @@ import           Data.List(intersperse)
 import           Data.Bits(shiftR)
 import           Data.Maybe (catMaybes)
 import           Data.Ratio(numerator,denominator)
+import           Data.Text (Text)
 import           Numeric(showIntAtBase,showFloat,showHFloat)
 
 import GHC.Generics (Generic)
@@ -160,7 +161,7 @@ data Decl name = DSignature [Located name] (Schema name)
 data ParameterType name = ParameterType
   { ptName    :: Located name     -- ^ name of type parameter
   , ptKind    :: Kind             -- ^ kind of parameter
-  , ptDoc     :: Maybe String     -- ^ optional documentation
+  , ptDoc     :: Maybe Text       -- ^ optional documentation
   , ptFixity  :: Maybe Fixity     -- ^ info for infix use
   , ptNumber  :: !Int             -- ^ number of the parameter
   } deriving (Eq,Show,Generic,NFData)
@@ -169,7 +170,7 @@ data ParameterType name = ParameterType
 data ParameterFun name = ParameterFun
   { pfName   :: Located name      -- ^ name of value parameter
   , pfSchema :: Schema name       -- ^ schema for parameter
-  , pfDoc    :: Maybe String      -- ^ optional documentation
+  , pfDoc    :: Maybe Text        -- ^ optional documentation
   , pfFixity :: Maybe Fixity      -- ^ info for infix use
   } deriving (Eq,Show,Generic,NFData)
 
@@ -230,7 +231,7 @@ data Bind name = Bind
   , bFixity    :: Maybe Fixity            -- ^ Optional fixity info
   , bPragmas   :: [Pragma]                -- ^ Optional pragmas
   , bMono      :: Bool                    -- ^ Is this a monomorphic binding
-  , bDoc       :: Maybe String            -- ^ Optional doc string
+  , bDoc       :: Maybe Text              -- ^ Optional doc string
   } deriving (Eq, Generic, NFData, Functor, Show)
 
 type LBindDef = Located (BindDef PName)
@@ -270,7 +271,7 @@ data ExportType = Public
 
 -- | A top-level module declaration.
 data TopLevel a = TopLevel { tlExport :: ExportType
-                           , tlDoc    :: Maybe (Located String)
+                           , tlDoc    :: Maybe (Located Text)
                            , tlValue  :: a
                            }
   deriving (Show, Generic, NFData, Functor, Foldable, Traversable)

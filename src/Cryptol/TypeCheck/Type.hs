@@ -15,6 +15,7 @@ import qualified Data.IntMap as IntMap
 import           Data.Maybe (fromMaybe)
 import           Data.Set (Set)
 import qualified Data.Set as Set
+import           Data.Text (Text)
 
 import Cryptol.Parser.Selector
 import Cryptol.Parser.Position(Range,emptyRange)
@@ -169,7 +170,7 @@ data TySyn  = TySyn { tsName        :: Name       -- ^ Name
                     , tsParams      :: [TParam]   -- ^ Parameters
                     , tsConstraints :: [Prop]     -- ^ Ensure body is OK
                     , tsDef         :: Type       -- ^ Definition
-                    , tsDoc         :: !(Maybe String) -- ^ Documentation
+                    , tsDoc         :: !(Maybe Text) -- ^ Documentation
                     }
               deriving (Show, Generic, NFData)
 
@@ -182,7 +183,7 @@ data Newtype  = Newtype { ntName   :: Name
                         , ntParams :: [TParam]
                         , ntConstraints :: [Prop]
                         , ntFields :: [(Ident,Type)]
-                        , ntDoc :: Maybe String
+                        , ntDoc :: Maybe Text
                         } deriving (Show, Generic, NFData)
 
 
@@ -192,7 +193,7 @@ data AbstractType = AbstractType
   , atKind    :: Kind
   , atCtrs    :: ([TParam], [Prop])
   , atFixitiy :: Maybe Fixity
-  , atDoc     :: Maybe String
+  , atDoc     :: Maybe Text
   } deriving (Show, Generic, NFData)
 
 
