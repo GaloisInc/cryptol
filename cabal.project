@@ -1,3 +1,5 @@
 packages:
     cryptol.cabal
     tests
+    deps/argo/argo
+    deps/argo/cryptol-remote-api
