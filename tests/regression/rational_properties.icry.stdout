@@ -74,8 +74,7 @@ Testing... Passed 100 tests.
 :prove QordEquiv2
 	Q.E.D.
 :prove QordTrans
-	Unknown.
-  Reason: incomplete
+	Solver returned UNKNOWN
 :prove QordIrreflexive
 	Q.E.D.
 :prove QordExclusive
@@ -83,13 +82,11 @@ Testing... Passed 100 tests.
 :prove Qtrichotomy
 	Q.E.D.
 :prove QordCompatible
-	Unknown.
-  Reason: incomplete
+	Q.E.D.
 :prove QordPositive
 	Q.E.D.
 :prove Qdense
-	Unknown.
-  Reason: incomplete
+	Q.E.D.
 :prove intDivDown
 	Q.E.D.
 :prove floorCorrect1
@@ -100,5 +97,4 @@ Testing... Passed 100 tests.
 	Q.E.D.
 :prove ceilingCorrect2
 	Q.E.D.
-Q.E.D.
 Q.E.D.
