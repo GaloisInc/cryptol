@@ -25,7 +25,6 @@ import Cryptol.Utils.PP
 
 
 import qualified Data.IntMap.Strict as IntMap
-import qualified Data.Map.Strict as Map
 import Data.Semigroup
 
 import GHC.Generics (Generic)
@@ -43,13 +42,13 @@ data GenEvalEnv sym = EvalEnv
 instance Semigroup (GenEvalEnv sym) where
   l <> r = EvalEnv
     { envVars     = IntMap.union (envVars l) (envVars r)
-    , envTypes    = Map.union (envTypes l) (envTypes r)
+    , envTypes    = IntMap.union (envTypes l) (envTypes r)
     }
 
 instance Monoid (GenEvalEnv sym) where
   mempty = EvalEnv
     { envVars       = IntMap.empty
-    , envTypes      = Map.empty
+    , envTypes      = IntMap.empty
     }
 
   mappend l r = l <> r
@@ -96,10 +95,10 @@ lookupVar n env = IntMap.lookup (nameUnique n) (envVars env)
 -- | Bind a type variable of kind *.
 {-# INLINE bindType #-}
 bindType :: TVar -> Either Nat' TValue -> GenEvalEnv sym -> GenEvalEnv sym
-bindType p ty env = env { envTypes = Map.insert p ty (envTypes env) }
+bindType p ty env = env { envTypes = IntMap.insert (tvUnique p) ty (envTypes env) }
 
 -- | Lookup a type variable.
 {-# INLINE lookupType #-}
 lookupType :: TVar -> GenEvalEnv sym -> Maybe (Either Nat' TValue)
-lookupType p env = Map.lookup p (envTypes env)
+lookupType p env = IntMap.lookup (tvUnique p) (envTypes env)
 

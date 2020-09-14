@@ -27,6 +27,7 @@
 > import Data.Ord (comparing)
 > import Data.Map (Map)
 > import qualified Data.Map as Map
+> import qualified Data.IntMap as IntMap
 > import qualified Data.Text as T (pack)
 > import LibBF (BigFloat)
 > import qualified LibBF as FP
@@ -35,7 +36,7 @@
 > import Cryptol.TypeCheck.Solver.InfNat (Nat'(..), nAdd, nMin, nMul)
 > import Cryptol.TypeCheck.AST
 > import Cryptol.Eval.Monad (EvalError(..), PPOpts(..))
-> import Cryptol.Eval.Type (TValue(..), isTBit, evalValType, evalNumType)
+> import Cryptol.Eval.Type (TValue(..), isTBit, evalValType, evalNumType, TypeEnv)
 > import Cryptol.Eval.Concrete (mkBv, ppBV, lg2)
 > import Cryptol.Eval.Concrete.FloatHelpers (BF(..))
 > import qualified Cryptol.Eval.Concrete.FloatHelpers as FP
@@ -242,19 +243,19 @@ and type variables that are in scope at any point.
 
 > data Env = Env
 >   { envVars       :: !(Map Name (E Value))
->   , envTypes      :: !(Map TVar (Either Nat' TValue))
+>   , envTypes      :: !TypeEnv
 >   }
 >
 > instance Semigroup Env where
 >   l <> r = Env
 >     { envVars  = Map.union (envVars  l) (envVars  r)
->     , envTypes = Map.union (envTypes l) (envTypes r)
+>     , envTypes = IntMap.union (envTypes l) (envTypes r)
 >     }
 >
 > instance Monoid Env where
 >   mempty = Env
 >     { envVars  = Map.empty
->     , envTypes = Map.empty
+>     , envTypes = IntMap.empty
 >     }
 >   mappend l r = l <> r
 >
@@ -264,7 +265,7 @@ and type variables that are in scope at any point.
 >
 > -- | Bind a type variable of kind # or *.
 > bindType :: TVar -> Either Nat' TValue -> Env -> Env
-> bindType p ty env = env { envTypes = Map.insert p ty (envTypes env) }
+> bindType p ty env = env { envTypes = IntMap.insert (tvUnique p) ty (envTypes env) }
 
 
 Evaluation

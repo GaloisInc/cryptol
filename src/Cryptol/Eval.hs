@@ -655,14 +655,14 @@ instance Semigroup (ListEnv sym) where
   l <> r = ListEnv
     { leVars   = IntMap.union (leVars  l)  (leVars  r)
     , leStatic = IntMap.union (leStatic l) (leStatic r)
-    , leTypes  = Map.union (leTypes l)  (leTypes r)
+    , leTypes  = IntMap.union (leTypes l)  (leTypes r)
     }
 
 instance Monoid (ListEnv sym) where
   mempty = ListEnv
     { leVars   = IntMap.empty
     , leStatic = IntMap.empty
-    , leTypes  = Map.empty
+    , leTypes  = IntMap.empty
     }
 
   mappend l r = l <> r

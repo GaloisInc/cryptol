@@ -125,6 +125,10 @@ tvInfo tv =
     TVFree _ _ _ d -> d
     TVBound tp     -> tpInfo tp
 
+tvUnique :: TVar -> Int
+tvUnique (TVFree u _ _ _) = u
+tvUnique (TVBound TParam { tpUnique = u }) = u
+
 data TVarInfo = TVarInfo { tvarSource :: Range -- ^ Source code that gave rise
                          , tvarDesc   :: TVarSource -- ^ Description
                          }
