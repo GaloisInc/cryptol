@@ -24,3 +24,4 @@ branch = $(gitBranch)
 
 dirty :: Bool
 dirty = $(gitDirty)
+-- Last build Fri Sep 11 16:44:33 PDT 2020
