@@ -304,15 +304,6 @@ primTable eOpts = let sym = Concrete in
   , ("foldl'"     , {-# SCC "Prelude::foldl'" #-}
                     foldl'V sym)
 
-
-  , ("seq"        , {-# SCC "Prelude::seq" #-}
-                    tlam $ \_a ->
-                    tlam $ \_b ->
-                     lam $ \x -> pure $
-                     lam $ \y ->
-                       do _ <- x
-                          y)
-
   , ("deepseq"    , {-# SCC "Prelude::deepseq" #-}
                     tlam $ \_a ->
                     tlam $ \_b ->

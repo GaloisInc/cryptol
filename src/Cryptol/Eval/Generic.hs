@@ -1950,13 +1950,15 @@ foldl'V sym =
   go0 _f a [] = a
   go0 f a bs =
     do f' <- fromVFun <$> f
-       a' <- a
+       a' <- sDelay sym Nothing a
+       forceValue =<< a'
        go1 f' a' bs
 
-  go1 _f a [] = pure a
+  go1 _f a [] = a
   go1 f a (b:bs) =
-    do f' <- fromVFun <$> (f (pure a))
-       a' <- f' b
+    do f' <- fromVFun <$> (f a)
+       a' <- sDelay sym Nothing (f' b)
+       forceValue =<< a'
        go1 f a' bs
 
 --------------------------------------------------------------------------------

@@ -130,9 +130,9 @@ Symbols
     False : Bit
     floor : {a} (Round a) => a -> Integer
     foldl : {n, a, b} (fin n) => (a -> b -> a) -> a -> [n]b -> a
-    foldl' : {n, a, b} (fin n) => (a -> b -> a) -> a -> [n]b -> a
+    foldl' : {n, a, b} (fin n, Eq a) => (a -> b -> a) -> a -> [n]b -> a
     foldr : {n, a, b} (fin n) => (a -> b -> b) -> b -> [n]a -> b
-    foldr' : {n, a, b} (fin n) => (a -> b -> b) -> b -> [n]a -> b
+    foldr' : {n, a, b} (fin n, Eq b) => (a -> b -> b) -> b -> [n]a -> b
     fraction : {m, n, r, a} (FLiteral m n r a) => a
     fromInteger : {a} (Ring a) => Integer -> a
     fromThenTo :
@@ -170,7 +170,7 @@ Symbols
     pmod : {u, v} (fin u, fin v) => [u] -> [1 + v] -> [v]
     pmult :
       {u, v} (fin u, fin v) => [1 + u] -> [1 + v] -> [1 + (u + v)]
-    product : {n, a} (fin n, Ring a) => [n]a -> a
+    product : {n, a} (fin n, Eq a, Ring a) => [n]a -> a
     random : {a} [256] -> a
     ratio : Integer -> Integer -> Rational
     recip : {a} (Field a) => a -> a
@@ -183,14 +183,13 @@ Symbols
     scanl : {n, b, a} (b -> a -> b) -> b -> [n]a -> [1 + n]b
     scanr : {n, a, b} (fin n) => (a -> b -> b) -> b -> [n]a -> [1 + n]b
     scarry : {n} (fin n, n >= 1) => [n] -> [n] -> Bit
-    seq : {a, b} a -> b -> b
     sext : {m, n} (fin m, m >= n, n >= 1) => [n] -> [m]
     split :
       {parts, each, a} (fin each) => [parts * each]a -> [parts][each]a
     splitAt :
       {front, back, a} (fin front) =>
         [front + back]a -> ([front]a, [back]a)
-    sum : {n, a} (fin n, Ring a) => [n]a -> a
+    sum : {n, a} (fin n, Eq a, Ring a) => [n]a -> a
     True : Bit
     tail : {n, a} [1 + n]a -> [n]a
     take : {front, back, a} (fin front) => [front + back]a -> [front]a

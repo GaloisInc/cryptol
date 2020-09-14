@@ -943,16 +943,8 @@ primitive parmap : {a, b, n} (Eq b, fin n) => (a -> b) -> [n]a -> [n]b
 
 /**
  * A strictness-increasing operation.  The first operand
- * is reduced to weak head normal form before returning
- * the second argument.
- */
-primitive seq : {a, b} a -> b -> b
-
-/**
- * A strictness-increasing operation.  The first operand
  * is reduced to normal form before evaluating the second
- * argument.  Unlike seq, this operation will fully evaluate
- * all structural and sequence types down to base types.
+ * argument.
  *
  * The Eq constraint restricts this operation to types
  * where reduction to normal form makes sense.
@@ -1064,11 +1056,12 @@ primitive foldl : {n, a, b} (fin n) => (a -> b -> a) -> a -> [n]b -> a
 
 /**
  * Functional left fold, with strict evaluation of the accumulator value.
- * The accumulator is reduced to weak head normal form at each step.
+ * The accumulator is reduced to normal form at each step.  The Eq constraint
+ * restricts the accumulator to types where reduction to normal form makes sense.
  *
  * foldl' (+) 0 [1,2,3] = ((0 + 1) + 2) + 3
  */
-primitive foldl' : {n, a, b} (fin n) => (a -> b -> a) -> a -> [n]b -> a
+primitive foldl' : {n, a, b} (fin n, Eq a) => (a -> b -> a) -> a -> [n]b -> a
 
 /**
  * Functional right fold.
@@ -1085,21 +1078,21 @@ foldr f acc xs = foldl g acc (reverse xs)
  *
  * foldr' (-) 0 [1,2,3] = 0 - (1 - (2 - 3))
  */
-foldr' : {n, a, b} (fin n) => (a -> b -> b) -> b -> [n]a -> b
+foldr' : {n, a, b} (fin n, Eq b) => (a -> b -> b) -> b -> [n]a -> b
 foldr' f acc xs = foldl' g acc (reverse xs)
   where g b a = f a b
 
 /**
  * Compute the sum of the values in the sequence.
  */
-sum : {n, a} (fin n, Ring a) => [n]a -> a
+sum : {n, a} (fin n, Eq a, Ring a) => [n]a -> a
 sum xs = foldl' (+) (fromInteger 0) xs
 
 
 /**
  * Compute the product of the values in the sequence.
  */
-product : {n, a} (fin n, Ring a) => [n]a -> a
+product : {n, a} (fin n, Eq a, Ring a) => [n]a -> a
 product xs = foldl' (*) (fromInteger 1) xs
 
 
