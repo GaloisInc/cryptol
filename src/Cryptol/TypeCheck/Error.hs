@@ -52,7 +52,7 @@ subsumes _ _ = False
 
 data Warning  = DefaultingKind (P.TParam Name) P.Kind
               | DefaultingWildType P.Kind
-              | DefaultingTo TVarInfo Type
+              | DefaultingTo !TVarInfo Type
                 deriving (Show, Generic, NFData)
 
 -- | Various errors that might happen during type checking/inference
@@ -125,7 +125,7 @@ instance TVars Warning where
     case warn of
       DefaultingKind {}     -> warn
       DefaultingWildType {} -> warn
-      DefaultingTo d ty     -> DefaultingTo d (apSubst su ty)
+      DefaultingTo d ty     -> DefaultingTo d $! (apSubst su ty)
 
 instance FVS Warning where
   fvs warn =
@@ -144,19 +144,19 @@ instance TVars Error where
       TooManyTySynParams {}     -> err
       TooFewTyParams {}         -> err
       RecursiveTypeDecls {}     -> err
-      TypeMismatch t1 t2        -> TypeMismatch (apSubst su t1) (apSubst su t2)
-      RecursiveType t1 t2       -> RecursiveType (apSubst su t1) (apSubst su t2)
-      UnsolvedGoals x gs        -> UnsolvedGoals x (apSubst su gs)
-      UnsolvedDelayedCt g       -> UnsolvedDelayedCt (apSubst su g)
+      TypeMismatch t1 t2        -> TypeMismatch !$ (apSubst su t1) !$ (apSubst su t2)
+      RecursiveType t1 t2       -> RecursiveType !$ (apSubst su t1) !$ (apSubst su t2)
+      UnsolvedGoals x gs        -> UnsolvedGoals x !$ (apSubst su gs)
+      UnsolvedDelayedCt g       -> UnsolvedDelayedCt !$ (apSubst su g)
       UnexpectedTypeWildCard    -> err
-      TypeVariableEscaped t xs  -> TypeVariableEscaped (apSubst su t) xs
-      NotForAll x t             -> NotForAll x (apSubst su t)
+      TypeVariableEscaped t xs  -> TypeVariableEscaped !$ (apSubst su t) .$ xs
+      NotForAll x t             -> NotForAll x !$ (apSubst su t)
       TooManyPositionalTypeParams -> err
       CannotMixPositionalAndNamedTypeParams -> err
 
       UndefinedTypeParameter {} -> err
       RepeatedTypeParameter {} -> err
-      AmbiguousSize x t -> AmbiguousSize x (apSubst su t)
+      AmbiguousSize x t -> AmbiguousSize x !$ (apSubst su t)
 
 
 instance FVS Error where

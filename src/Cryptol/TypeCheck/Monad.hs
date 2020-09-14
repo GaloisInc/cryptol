@@ -6,6 +6,7 @@
 -- Stability   :  provisional
 -- Portability :  portable
 {-# LANGUAGE Safe #-}
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -136,7 +137,7 @@ runInferM info (IM m) = SMT.withSolver (inpSolverConfig info) $ \solver ->
 
      let theSu    = iSubst finalRW
          defSu    = defaultingSubst theSu
-         warns    = [(r,apSubst theSu w) | (r,w) <- iWarnings finalRW ]
+         warns    = fmap' (fmap' (apSubst theSu)) (iWarnings finalRW)
 
      case iErrors finalRW of
        [] ->

@@ -6,6 +6,10 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -30,6 +34,7 @@ module Cryptol.TypeCheck.Subst
   , substBinds
   , applySubstToVar
   , substToList
+  , fmap', (!$), (.$)
   ) where
 
 import           Data.Maybe
@@ -196,7 +201,29 @@ instance PP Subst where
 
 
 
+infixl 0 !$
+infixl 0 .$
 
+-- | Left-associative variant of the strict application operator '$!'.
+(!$) :: (a -> b) -> a -> b
+(!$) = ($!)
+
+-- | Left-associative variant of the application operator '$'.
+(.$) :: (a -> b) -> a -> b
+(.$) = ($)
+
+-- Only used internally to define fmap'.
+data Done a = Done a
+  deriving (Functor, Foldable, Traversable)
+
+instance Applicative Done where
+  pure x = Done x
+  Done f <*> Done x = Done (f x)
+
+-- | Strict variant of 'fmap'.
+fmap' :: Traversable t => (a -> b) -> t a -> t b
+fmap' f xs = case traverse f' xs of Done y -> y
+  where f' x = Done $! f x
 
 -- | Apply a substitution.  Returns `Nothing` if nothing changed.
 apSubstMaybe :: Subst -> Type -> Maybe Type
@@ -209,8 +236,11 @@ apSubstMaybe su ty =
            PC _ -> Just $! Simp.simplify mempty (TCon t ss)
            _    -> Just (TCon t ss)
 
-    TUser f ts t  -> do t1 <- apSubstMaybe su t
-                        return (TUser f (map (apSubst su) ts) t1)
+    TUser f ts t ->
+      do t1 <- apSubstMaybe su t
+         let !ts1 = fmap' (apSubst su) ts
+         Just (TUser f ts1 t1)
+
     TRec fs       -> TRec `fmap` (anyJust (apSubstMaybe su) fs)
     TVar x -> applySubstToVar su x
 
@@ -226,22 +256,30 @@ applySubstToVar su x =
   case lookupSubst x su of
     -- For a defaulting substitution, we must recurse in order to
     -- replace unmapped free vars with default types.
-    Just t  -> Just (if suDefaulting su then apSubst su t else t)
+    Just t
+      | suDefaulting su -> Just $! apSubst su t
+      | otherwise       -> Just t
     Nothing
       | suDefaulting su -> Just $! defaultFreeVar x
       | otherwise       -> Nothing
 
 class TVars t where
-  apSubst :: Subst -> t -> t      -- ^ replaces free vars
+  apSubst :: Subst -> t -> t
+  -- ^ Replaces free variables. To prevent space leaks when used with
+  -- large 'Subst' values, every instance of 'apSubst' should satisfy
+  -- a strictness property: Forcing evaluation of @'apSubst' s x@
+  -- should also force the evaluation of all recursive calls to
+  -- @'apSubst' s@. This ensures that unevaluated thunks will not
+  -- cause 'Subst' values to be retained on the heap.
 
 instance TVars t => TVars (Maybe t) where
-  apSubst s       = fmap (apSubst s)
+  apSubst s = fmap' (apSubst s)
 
 instance TVars t => TVars [t] where
-  apSubst s       = map (apSubst s)
+  apSubst s = fmap' (apSubst s)
 
 instance (TVars s, TVars t) => TVars (s,t) where
-  apSubst s (x,y)       = (apSubst s x, apSubst s y)
+  apSubst s (x, y) = (,) !$ apSubst s x !$ apSubst s y
 
 instance TVars Type where
   apSubst su ty = fromMaybe ty (apSubstMaybe su ty)
@@ -258,11 +296,11 @@ defaultFreeVar (TVFree _ k _ d) =
                   , "Source: " ++ show d
                   , "Kind: " ++ show (pp k) ]
 
-instance (Functor m, TVars a) => TVars (List m a) where
-  apSubst su = fmap (apSubst su)
+instance (Traversable m, TVars a) => TVars (List m a) where
+  apSubst su = fmap' (apSubst su)
 
 instance TVars a => TVars (TypeMap a) where
-  apSubst su = fmap (apSubst su)
+  apSubst su = fmap' (apSubst su)
 
 
 -- | Apply the substitution to the keys of a type map.
@@ -303,19 +341,19 @@ capture, because we rely on the 'Subst' datatype invariant to ensure
 that variable scopes will be properly preserved. -}
 
 instance TVars Schema where
-  apSubst su (Forall xs ps t) = Forall xs (concatMap pSplitAnd (apSubst su ps))
-                                          (apSubst su t)
+  apSubst su (Forall xs ps t) =
+    Forall xs !$ (concatMap pSplitAnd (apSubst su ps)) !$ (apSubst su t)
 
 instance TVars Expr where
   apSubst su = go
     where
     go expr =
       case expr of
-        EApp e1 e2    -> EApp (go e1) (go e2)
-        EAbs x t e1   -> EAbs x (apSubst su t) (go e1)
-        ETAbs a e     -> ETAbs a (go e)
-        ETApp e t     -> ETApp (go e) (apSubst su t)
-        EProofAbs p e -> EProofAbs hmm (go e)
+        EApp e1 e2    -> EApp !$ (go e1) !$ (go e2)
+        EAbs x t e1   -> EAbs x !$ (apSubst su t) !$ (go e1)
+        ETAbs a e     -> ETAbs a !$ (go e)
+        ETApp e t     -> ETApp !$ (go e) !$ (apSubst su t)
+        EProofAbs p e -> EProofAbs !$ hmm !$ (go e)
           where hmm = case pSplitAnd (apSubst su p) of
                         [p1] -> p1
                         res -> panic "apSubst@EProofAbs"
@@ -329,36 +367,39 @@ instance TVars Expr where
                                 , show (pp su)
                                 ]
 
-        EProofApp e   -> EProofApp (go e)
+        EProofApp e   -> EProofApp !$ (go e)
 
         EVar {}       -> expr
 
-        ETuple es     -> ETuple (map go es)
-        ERec fs       -> ERec (fmap go fs)
-        ESet ty e x v -> ESet (apSubst su ty) (go e) x (go v)
-        EList es t    -> EList (map go es) (apSubst su t)
-        ESel e s      -> ESel (go e) s
-        EComp len t e mss -> EComp (apSubst su len) (apSubst su t) (go e) (apSubst su mss)
-        EIf e1 e2 e3  -> EIf (go e1) (go e2) (go e3)
+        ETuple es     -> ETuple !$ (fmap' go es)
+        ERec fs       -> ERec !$ (fmap' go fs)
+        ESet ty e x v -> ESet !$ (apSubst su ty) !$ (go e) .$ x !$ (go v)
+        EList es t    -> EList !$ (fmap' go es) !$ (apSubst su t)
+        ESel e s      -> ESel !$ (go e) .$ s
+        EComp len t e mss -> EComp !$ (apSubst su len) !$ (apSubst su t) !$ (go e) !$ (apSubst su mss)
+        EIf e1 e2 e3  -> EIf !$ (go e1) !$ (go e2) !$ (go e3)
 
-        EWhere e ds   -> EWhere (go e) (apSubst su ds)
+        EWhere e ds   -> EWhere !$ (go e) !$ (apSubst su ds)
 
 instance TVars Match where
-  apSubst su (From x len t e) = From x (apSubst su len) (apSubst su t) (apSubst su e)
-  apSubst su (Let b)      = Let (apSubst su b)
+  apSubst su (From x len t e) = From x !$ (apSubst su len) !$ (apSubst su t) !$ (apSubst su e)
+  apSubst su (Let b)      = Let !$ (apSubst su b)
 
 instance TVars DeclGroup where
-  apSubst su (NonRecursive d) = NonRecursive (apSubst su d)
-  apSubst su (Recursive ds)   = Recursive (apSubst su ds)
+  apSubst su (NonRecursive d) = NonRecursive !$ (apSubst su d)
+  apSubst su (Recursive ds)   = Recursive !$ (apSubst su ds)
 
 instance TVars Decl where
-  apSubst su d          = d { dSignature  = apSubst su (dSignature d)
-                            , dDefinition = apSubst su (dDefinition d)
-                            }
+  apSubst su d =
+    let !sig' = id $! apSubst su (dSignature d)
+        !def' = apSubst su (dDefinition d)
+    in d { dSignature = sig', dDefinition = def' }
 
 instance TVars DeclDef where
-  apSubst su (DExpr e) = DExpr (apSubst su e)
+  apSubst su (DExpr e) = DExpr !$ (apSubst su e)
   apSubst _  DPrim     = DPrim
 
 instance TVars Module where
-  apSubst su m = m { mDecls = apSubst su (mDecls m) }
+  apSubst su m =
+    let !decls' = apSubst su (mDecls m)
+    in m { mDecls = decls' }
