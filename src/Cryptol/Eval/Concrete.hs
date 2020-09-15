@@ -398,7 +398,7 @@ suiteBPrims = Map.fromList $ map (\(n, v) -> (suiteBPrim n, v))
                                 zs = finiteSeqMap Concrete (map f [w0,w1,w2,w3,w4,w5,w6,w7])
                             seq zs (pure (VSeq 8 zs)))
 
-  , ("AESKeyInfExpand", {-# SCC "SuiteB::AESKeyInfExpand" #-}
+  , ("AESKeyExpand", {-# SCC "SuiteB::AESKeyExpand" #-}
       ilam $ \k ->
        lam $ \seed ->
          do ss <- fromVSeq <$> seed
@@ -408,7 +408,8 @@ suiteBPrims = Map.fromList $ map (\(n, v) -> (suiteBPrim n, v))
                 fromWord = pure . VWord 32 . pure . WordVal . BV 32 . toInteger
             kws <- mapM toWord [0 .. k-1]
             let ws = AES.keyExpansionWords k kws
-            VStream <$> infiniteSeqMap (map fromWord ws))
+            let len = 4*(k+7)
+            pure (VSeq len (finiteSeqMap Concrete (map fromWord ws))))
 
   , ("AESInvMixColumns", {-# SCC "SuiteB::AESInvMixColumns" #-}
       lam $ \st ->

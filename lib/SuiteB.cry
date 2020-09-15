@@ -141,15 +141,15 @@ aesDecryptBlock schedule cyphertext = rnf (join final)
         ]
 
 private
-    aesExpandEncryptSchedule : {k} (fin k, k >= 4) => [k * 32] -> AESEncryptKeySchedule k
+    aesExpandEncryptSchedule : {k} (fin k, k >= 4, 8 >= k) => [k * 32] -> AESEncryptKeySchedule k
     aesExpandEncryptSchedule key = rnf
          { aesEncInitialKey = ks @  0
          , aesEncRoundKeys  = ks @@ [ 1 .. k+5 ]
          , aesEncFinalKey   = ks @  `(k+6)
          }
       where
-      ks : [inf]AESRoundKey
-      ks = groupBy`{4} (AESKeyInfExpand`{k} (split key))
+      ks : [k+7]AESRoundKey
+      ks = groupBy`{4} (AESKeyExpand`{k} (split key))
 
     aesEncToDecSchedule : {k} (fin k) => AESEncryptKeySchedule k -> AESDecryptKeySchedule k
     aesEncToDecSchedule enc = rnf
@@ -158,10 +158,10 @@ private
        , aesDecFinalKey   = enc.aesEncInitialKey
        }
 
-    aesExpandDecryptSchedule : {k} (fin k, k >= 4) => [k * 32] -> AESDecryptKeySchedule k
+    aesExpandDecryptSchedule : {k} (fin k, k >= 4, 8 >= k) => [k * 32] -> AESDecryptKeySchedule k
     aesExpandDecryptSchedule key = aesEncToDecSchedule (aesExpandEncryptSchedule key)
 
-    aesExpandSchedules : {k} (fin k, k >= 4) => [k * 32] -> (AESEncryptKeySchedule k, AESDecryptKeySchedule k)
+    aesExpandSchedules : {k} (fin k, k >= 4, 8 >= k) => [k * 32] -> (AESEncryptKeySchedule k, AESDecryptKeySchedule k)
     aesExpandSchedules key = (encS, aesEncToDecSchedule encS)
       where encS = aesExpandEncryptSchedule key
 
@@ -170,7 +170,7 @@ private
     primitive AESDecRound      : [4][32] -> [4][32]
     primitive AESDecFinalRound : [4][32] -> [4][32]
     primitive AESInvMixColumns : [4][32] -> [4][32]
-    primitive AESKeyInfExpand  : {k} (fin k, k >= 4) => [k][32] -> [inf][32]
+    primitive AESKeyExpand     : {k} (fin k, k >= 4, 8 >= k) => [k][32] -> [4*(k+7)][32]
 
 
 /***** SHA2 *****/

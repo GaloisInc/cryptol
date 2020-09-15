@@ -24,7 +24,7 @@ module Cryptol.AES
   ) where
 
 import Data.Bits
-import Data.List (transpose, genericDrop)
+import Data.List (transpose, genericDrop, genericTake)
 import Data.Word (Word8, Word32)
 
 -- | An element of the Galois Field 2^8, which are essentially polynomials with
@@ -282,7 +282,7 @@ invMixColumns state = map fromBytes $ transpose $ mmult (map toBytes state)
                                        ]]
 
 keyExpansionWords :: Integer -> Key -> [Word32]
-keyExpansionWords nk key = keys
+keyExpansionWords nk key = genericTake (4*(nk+7)) keys
    where keys :: [Word32]
          keys = key ++ [nextWord i prev old | i <- [nk ..] | prev <- genericDrop (nk-1) keys | old <- keys]
 
@@ -298,8 +298,10 @@ keyExpansionWords nk key = keys
 
 
 -- | Definition of round-constants, as specified in Section 5.2 of the AES standard.
+--   We only need up to the 11th value for AES-128, and fewer than that for AES-192
+--   and AES-256.
 roundConstants :: [GF28]
-roundConstants = [0,1,2,4,8,16,32,64,128,27,54,108,216,171,77,154,47,94,188,99]
+roundConstants = [0,1,2,4,8,16,32,64,128,27,54]
 
 -----------------------------------------------------------------------------
 -- ** The S-box transformation
