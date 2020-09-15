@@ -136,9 +136,9 @@ aesDecryptBlock schedule cyphertext = rnf (join final)
 
   rds = [ split cyphertext ^ schedule.aesDecInitialKey ] #
         [ AESDecRound r ^ rdk
-	| rdk <- schedule.aesDecRoundKeys
-	| r   <- rds
-	]
+        | rdk <- schedule.aesDecRoundKeys
+        | r   <- rds
+        ]
 
 private
     aesExpandEncryptSchedule : {k} (fin k, k >= 4) => [k * 32] -> AESEncryptKeySchedule k
