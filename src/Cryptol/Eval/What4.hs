@@ -157,6 +157,17 @@ primTable w4sym = let sym = What4 w4sym in
 
     -- Misc
 
+  , ("foldl"       , foldlV sym)
+  , ("foldl'"      , foldl'V sym)
+
+  , ("deepseq"     ,
+      tlam $ \_a ->
+      tlam $ \_b ->
+       lam $ \x -> pure $
+       lam $ \y ->
+         do _ <- forceValue =<< x
+            y)
+
   , ("parmap"      , parmapV sym)
 
   , ("fromZ"       , fromZV sym)

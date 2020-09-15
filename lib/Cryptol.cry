@@ -928,13 +928,37 @@ pmod x y = if y == 0 then 0/0 else last zs
 /**
  * Parallel map.  The given function is applied to each element in the
  * given finite seqeuence, and the results are computed in parallel.
+ * The values in the resulting sequence are reduced to normal form,
+ * as is done with the deepseq operation.
+ *
+ * The Eq constraint restricts this operation to types
+ * where reduction to normal form makes sense.
  *
  * This function is experimental.
  */
-primitive parmap : {a, b, n} (fin n) => (a -> b) -> [n]a -> [n]b
+primitive parmap : {a, b, n} (Eq b, fin n) => (a -> b) -> [n]a -> [n]b
 
 
 // Utility operations -----------------------------------------------------------------
+
+/**
+ * A strictness-increasing operation.  The first operand
+ * is reduced to normal form before evaluating the second
+ * argument.
+ *
+ * The Eq constraint restricts this operation to types
+ * where reduction to normal form makes sense.
+ */
+primitive deepseq : {a, b} Eq a => a -> b -> b
+
+/**
+ * Reduce to normal form.
+ *
+ * The Eq constraint restricts this operation to types
+ * where reduction to normal form makes sense.
+ */
+rnf : {a} Eq a => a -> a
+rnf x = deepseq x x
 
 /**
  * Raise a run-time error with the given message.
@@ -1009,13 +1033,13 @@ or xs = zero != xs
  * Conjunction after applying a predicate to all elements.
  */
 all : {n, a} (fin n) => (a -> Bit) -> [n]a -> Bit
-all f xs = and (map f xs)
+all f xs = foldl' (/\) True (map f xs)
 
 /**
  * Disjunction after applying a predicate to all elements.
  */
 any : {n, a} (fin n) => (a -> Bit) -> [n]a -> Bit
-any f xs = or (map f xs)
+any f xs = foldl' (\/) False (map f xs)
 
 /**
  * Map a function over a sequence.
@@ -1028,9 +1052,16 @@ map f xs = [f x | x <- xs]
  *
  * foldl (+) 0 [1,2,3] = ((0 + 1) + 2) + 3
  */
-foldl : {n, a, b} (fin n) => (a -> b -> a) -> a -> [n]b -> a
-foldl f acc xs = ys ! 0
-  where ys = [acc] # [f a x | a <- ys | x <- xs]
+primitive foldl : {n, a, b} (fin n) => (a -> b -> a) -> a -> [n]b -> a
+
+/**
+ * Functional left fold, with strict evaluation of the accumulator value.
+ * The accumulator is reduced to normal form at each step.  The Eq constraint
+ * restricts the accumulator to types where reduction to normal form makes sense.
+ *
+ * foldl' (+) 0 [1,2,3] = ((0 + 1) + 2) + 3
+ */
+primitive foldl' : {n, a, b} (fin n, Eq a) => (a -> b -> a) -> a -> [n]b -> a
 
 /**
  * Functional right fold.
@@ -1038,14 +1069,32 @@ foldl f acc xs = ys ! 0
  * foldr (-) 0 [1,2,3] = 0 - (1 - (2 - 3))
  */
 foldr : {n, a, b} (fin n) => (a -> b -> b) -> b -> [n]a -> b
-foldr f acc xs = ys ! 0
-  where ys = [acc] # [f x a | a <- ys | x <- reverse xs]
+foldr f acc xs = foldl g acc (reverse xs)
+  where g b a = f a b
+
+/**
+ * Functional right fold, with strict evaluation of the accumulator value.
+ * The accumulator is reduced to weak head normal form at each step.
+ *
+ * foldr' (-) 0 [1,2,3] = 0 - (1 - (2 - 3))
+ */
+foldr' : {n, a, b} (fin n, Eq b) => (a -> b -> b) -> b -> [n]a -> b
+foldr' f acc xs = foldl' g acc (reverse xs)
+  where g b a = f a b
 
 /**
  * Compute the sum of the values in the sequence.
  */
-sum : {n, a} (fin n, Ring a) => [n]a -> a
-sum xs = foldl (+) (fromInteger 0) xs
+sum : {n, a} (fin n, Eq a, Ring a) => [n]a -> a
+sum xs = foldl' (+) (fromInteger 0) xs
+
+
+/**
+ * Compute the product of the values in the sequence.
+ */
+product : {n, a} (fin n, Eq a, Ring a) => [n]a -> a
+product xs = foldl' (*) (fromInteger 1) xs
+
 
 /**
  * Scan left is like a foldl that also emits the intermediate values.

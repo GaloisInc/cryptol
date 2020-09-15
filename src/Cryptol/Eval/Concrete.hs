@@ -298,6 +298,20 @@ primTable eOpts = let sym = Concrete in
                     updatePrim sym updateBack_word updateBack)
 
     -- Misc
+  , ("foldl"      , {-# SCC "Prelude::foldl" #-}
+                    foldlV sym)
+
+  , ("foldl'"     , {-# SCC "Prelude::foldl'" #-}
+                    foldl'V sym)
+
+  , ("deepseq"    , {-# SCC "Prelude::deepseq" #-}
+                    tlam $ \_a ->
+                    tlam $ \_b ->
+                     lam $ \x -> pure $
+                     lam $ \y ->
+                       do _ <- forceValue =<< x
+                          y)
+
   , ("parmap"     , {-# SCC "Prelude::parmap" #-}
                     parmapV sym)
 

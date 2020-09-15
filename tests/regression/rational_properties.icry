@@ -2,10 +2,8 @@
 
 :check
 
-:set prover=cvc4
+:set prover=w4-cvc4
 :prove
 
-:set prover=z3
-
-:prove Qdense
+:set prover=w4-z3
 :prove QordTrans

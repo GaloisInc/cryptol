@@ -494,6 +494,17 @@ primTable  = let sym = SBV in
 
   , ("fromZ"       , fromZV sym)
 
+  , ("foldl"       , foldlV sym)
+  , ("foldl'"      , foldl'V sym)
+
+  , ("deepseq"     ,
+      tlam $ \_a ->
+      tlam $ \_b ->
+       lam $ \x -> pure $
+       lam $ \y ->
+         do _ <- forceValue =<< x
+            y)
+
   , ("parmap"      , parmapV sym)
 
     -- {at,len} (fin len) => [len][8] -> at
