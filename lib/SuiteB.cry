@@ -2,55 +2,118 @@ module SuiteB where
 
 /***** AES ******/
 
+/**
+ * Key schedule parameter setting for AES-128
+ */
 type AES128 = 4
+
+/**
+ * Key schedule parameter setting for AES-192
+ */
 type AES192 = 6
+
+/**
+ * Key schedule parameter setting for AES-256
+ */
 type AES256 = 8
 
+/**
+ * Element of an AES key schedule for use in a particular round
+ */
 type AESRoundKey = [4][32]
 
+/**
+ * Expanded encryption key schedule for AES
+ */
 type AESEncryptKeySchedule k =
   { aesEncInitialKey : AESRoundKey
   , aesEncRoundKeys  : [k+5]AESRoundKey
   , aesEncFinalKey   : AESRoundKey
   }
 
+/**
+ * Expanded decryption key schedule for AES
+ */
 type AESDecryptKeySchedule k =
   { aesDecInitialKey : AESRoundKey
   , aesDecRoundKeys  : [k+5]AESRoundKey
   , aesDecFinalKey   : AESRoundKey
   }
 
-
+/**
+ * Encryption key expansion for AES-128.
+ *   See FIPS 197, section 5.2.
+ */
 aes128EncryptSchedule : [128] -> AESEncryptKeySchedule AES128
 aes128EncryptSchedule = aesExpandEncryptSchedule
 
+/**
+ * Decryption key expansion for AES-128, for use in the "equivalent inverse cypher".
+ *   See FIPS 197, sections 5.2 and 5.3.5.
+ */
 aes128DecryptSchedule : [128] -> AESDecryptKeySchedule AES128
 aes128DecryptSchedule = aesExpandDecryptSchedule
 
+/**
+ * Encryption and decryption key schedules for AES-128.
+ * If you will need both schedules, it is slightly more efficient
+ * to call this function than to compute the two schedules separately.
+ *   See FIPS 197, sections 5.2 and 5.3.5.
+ */
 aes128Schedules : [128] -> (AESEncryptKeySchedule AES128, AESDecryptKeySchedule AES128)
 aes128Schedules = aesExpandSchedules
 
-
+/**
+ * Encryption key expansion for AES-192.
+ *   See FIPS 197, section 5.2.
+ */
 aes192EncryptSchedule : [192] -> AESEncryptKeySchedule AES192
 aes192EncryptSchedule = aesExpandEncryptSchedule
 
+/**
+ * Decryption key expansion for AES-192, for use in the "equivalent inverse cypher".
+ *   See FIPS 197, sections 5.2 and 5.3.5.
+ */
 aes192DecryptSchedule : [192] -> AESDecryptKeySchedule AES192
 aes192DecryptSchedule = aesExpandDecryptSchedule
 
+/**
+ * Encryption and decryption key schedules for AES-192.
+ * If you will need both schedules, it is slightly more efficient
+ * to call this function than to compute the two schedules separately.
+ *   See FIPS 197, sections 5.2 and 5.3.5.
+ */
 aes192Schedules : [192] -> (AESEncryptKeySchedule AES192, AESDecryptKeySchedule AES192)
 aes192Schedules = aesExpandSchedules
 
 
+/**
+ * Encryption key expansion for AES-256.
+ *   See FIPS 197, section 5.2
+ */
 aes256EncryptSchedule : [256] -> AESEncryptKeySchedule AES256
 aes256EncryptSchedule = aesExpandEncryptSchedule
 
+/**
+ * Decryption key expansion for AES-256, for use in the "equivalent inverse cypher".
+ *   See FIPS 197, sections 5.2 and 5.3.5.
+ */
 aes256DecryptSchedule : [256] -> AESDecryptKeySchedule AES256
 aes256DecryptSchedule = aesExpandDecryptSchedule
 
+/**
+ * Encryption and decryption key schedules for AES-256.
+ * If you will need both schedules, it is slightly more efficient
+ * to call this function than to compute the two schedules separately.
+ *   See FIPS 197, sections 5.2 and 5.3.5.
+ */
 aes256Schedules : [256] -> (AESEncryptKeySchedule AES256, AESDecryptKeySchedule AES256)
 aes256Schedules = aesExpandSchedules
 
-
+/**
+ * AES block encryption algorithm.
+ *   See FIPS 197, section 5.1.
+ */
 aesEncryptBlock : {k} (fin k) => AESEncryptKeySchedule k -> [128] -> [128]
 aesEncryptBlock schedule plaintext = rnf (join final)
   where
@@ -62,6 +125,10 @@ aesEncryptBlock schedule plaintext = rnf (join final)
         | r   <- rds
         ]
 
+/**
+ * AES block decryption algorithm, via the "equivalent inverse cypher".
+ *   See FIPS 197, section 5.3.5.
+ */
 aesDecryptBlock : {k} (fin k) => AESDecryptKeySchedule k -> [128] -> [128]
 aesDecryptBlock schedule cyphertext = rnf (join final)
   where
@@ -73,50 +140,62 @@ aesDecryptBlock schedule cyphertext = rnf (join final)
 	| r   <- rds
 	]
 
-
 private
-  aesExpandEncryptSchedule : {k} (fin k, k >= 4) => [k * 32] -> AESEncryptKeySchedule k
-  aesExpandEncryptSchedule key = rnf
-       { aesEncInitialKey = ks @  0
-       , aesEncRoundKeys  = ks @@ [ 1 .. k+5 ]
-       , aesEncFinalKey   = ks @  `(k+6)
+    aesExpandEncryptSchedule : {k} (fin k, k >= 4) => [k * 32] -> AESEncryptKeySchedule k
+    aesExpandEncryptSchedule key = rnf
+         { aesEncInitialKey = ks @  0
+         , aesEncRoundKeys  = ks @@ [ 1 .. k+5 ]
+         , aesEncFinalKey   = ks @  `(k+6)
+         }
+      where
+      ks : [inf]AESRoundKey
+      ks = groupBy`{4} (AESKeyInfExpand`{k} (split key))
+
+    aesEncToDecSchedule : {k} (fin k) => AESEncryptKeySchedule k -> AESDecryptKeySchedule k
+    aesEncToDecSchedule enc = rnf
+       { aesDecInitialKey = enc.aesEncFinalKey
+       , aesDecRoundKeys  = map AESInvMixColumns (reverse (enc.aesEncRoundKeys))
+       , aesDecFinalKey   = enc.aesEncInitialKey
        }
-    where
-    ks : [inf]AESRoundKey
-    ks = groupBy`{4} (AESKeyInfExpand`{k} (split key))
-  
-  aesEncToDecSchedule : {k} (fin k) => AESEncryptKeySchedule k -> AESDecryptKeySchedule k
-  aesEncToDecSchedule enc = rnf
-     { aesDecInitialKey = enc.aesEncFinalKey
-     , aesDecRoundKeys  = map AESInvMixColumns (reverse (enc.aesEncRoundKeys))
-     , aesDecFinalKey   = enc.aesEncInitialKey
-     }
 
-  aesExpandDecryptSchedule : {k} (fin k, k >= 4) => [k * 32] -> AESDecryptKeySchedule k
-  aesExpandDecryptSchedule key = aesEncToDecSchedule (aesExpandEncryptSchedule key)
+    aesExpandDecryptSchedule : {k} (fin k, k >= 4) => [k * 32] -> AESDecryptKeySchedule k
+    aesExpandDecryptSchedule key = aesEncToDecSchedule (aesExpandEncryptSchedule key)
 
-  aesExpandSchedules : {k} (fin k, k >= 4) => [k * 32] -> (AESEncryptKeySchedule k, AESDecryptKeySchedule k)
-  aesExpandSchedules key = (encS, aesEncToDecSchedule encS)
-    where encS = aesExpandEncryptSchedule key
-  
-  primitive AESEncRound      : [4][32] -> [4][32]
-  primitive AESEncFinalRound : [4][32] -> [4][32]
-  primitive AESDecRound      : [4][32] -> [4][32]
-  primitive AESDecFinalRound : [4][32] -> [4][32]
-  primitive AESInvMixColumns : [4][32] -> [4][32]
-  primitive AESKeyInfExpand  : {k} (fin k, k >= 4) => [k][32] -> [inf][32]
+    aesExpandSchedules : {k} (fin k, k >= 4) => [k * 32] -> (AESEncryptKeySchedule k, AESDecryptKeySchedule k)
+    aesExpandSchedules key = (encS, aesEncToDecSchedule encS)
+      where encS = aesExpandEncryptSchedule key
+
+    primitive AESEncRound      : [4][32] -> [4][32]
+    primitive AESEncFinalRound : [4][32] -> [4][32]
+    primitive AESDecRound      : [4][32] -> [4][32]
+    primitive AESDecFinalRound : [4][32] -> [4][32]
+    primitive AESInvMixColumns : [4][32] -> [4][32]
+    primitive AESKeyInfExpand  : {k} (fin k, k >= 4) => [k][32] -> [inf][32]
+
 
 /***** SHA2 *****/
 
+/**
+ * The SHA-224 secure hash algorithm.  See FIPS 180-4, section 6.3.
+ */
 sha224 : {L} (fin L) => [L] -> [224]
 sha224 msg = join (processSHA2_224 (sha2blocks`{32} msg))
 
+/**
+ * The SHA-256 secure hash algorithm.  See FIPS 180-4, section 6.2.2.
+ */
 sha256 : {L} (fin L) => [L] -> [256]
 sha256 msg = join (processSHA2_256 (sha2blocks`{32} msg))
 
+/**
+ * The SHA-384 secure hash algorithm.  See FIPS 180-4, section 6.5.
+ */
 sha384 : {L} (fin L) => [L] -> [384]
 sha384 msg = join (processSHA2_384 (sha2blocks`{64} msg))
 
+/**
+ * The SHA-512 secure hash algorithm.  See FIPS 180-4, section 6.4.
+ */
 sha512 : {L} (fin L) => [L] -> [512]
 sha512 msg = join (processSHA2_512 (sha2blocks`{64} msg))
 
