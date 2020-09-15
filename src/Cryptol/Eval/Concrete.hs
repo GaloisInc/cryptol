@@ -42,6 +42,7 @@ import Cryptol.Eval.Monad
 import Cryptol.Eval.Type
 import Cryptol.Eval.Value
 import qualified Cryptol.SHA as SHA
+import qualified Cryptol.AES as AES
 import Cryptol.ModuleSystem.Name
 import Cryptol.Testing.Random (randomV)
 import Cryptol.TypeCheck.AST as AST
@@ -396,6 +397,73 @@ suiteBPrims = Map.fromList $ map (\(n, v) -> (suiteBPrim n, v))
                                 f = pure . VWord 64 . pure . WordVal . BV 64 . toInteger
                                 zs = finiteSeqMap Concrete (map f [w0,w1,w2,w3,w4,w5,w6,w7])
                             seq zs (pure (VSeq 8 zs)))
+
+  , ("AESKeyInfExpand", {-# SCC "SuiteB::AESKeyInfExpand" #-}
+      ilam $ \k ->
+       lam $ \seed ->
+         do ss <- fromVSeq <$> seed
+            let toWord :: Integer -> Eval Word32
+                toWord i = fromInteger. bvVal <$> (fromVWord Concrete "AESInfKeyExpand" =<< lookupSeqMap ss i)
+            let fromWord :: Word32 -> Eval Value
+                fromWord = pure . VWord 32 . pure . WordVal . BV 32 . toInteger
+            kws <- mapM toWord [0 .. k-1]
+            let ws = AES.keyExpansionWords k kws
+            VStream <$> infiniteSeqMap (map fromWord ws))
+
+  , ("AESInvMixColumns", {-# SCC "SuiteB::AESInvMixColumns" #-}
+      lam $ \st ->
+         do ss <- fromVSeq <$> st
+            let toWord :: Integer -> Eval Word32
+                toWord i = fromInteger. bvVal <$> (fromVWord Concrete "AESInvMixColumns" =<< lookupSeqMap ss i)
+            let fromWord :: Word32 -> Eval Value
+                fromWord = pure . VWord 32 . pure . WordVal . BV 32 . toInteger
+            ws <- mapM toWord [0,1,2,3]
+            let ws' = AES.invMixColumns ws
+            pure . VSeq 4 . finiteSeqMap Concrete . map fromWord $ ws')
+
+  , ("AESEncRound", {-# SCC "SuiteB::AESEncRound" #-}
+      lam $ \st ->
+         do ss <- fromVSeq <$> st
+            let toWord :: Integer -> Eval Word32
+                toWord i = fromInteger. bvVal <$> (fromVWord Concrete "AESEncRound" =<< lookupSeqMap ss i)
+            let fromWord :: Word32 -> Eval Value
+                fromWord = pure . VWord 32 . pure . WordVal . BV 32 . toInteger
+            ws <- mapM toWord [0,1,2,3]
+            let ws' = AES.aesRound False ws [0,0,0,0]
+            pure . VSeq 4 . finiteSeqMap Concrete . map fromWord $ ws')
+
+  , ("AESEncFinalRound", {-# SCC "SuiteB::AESEncFinalRound" #-}
+      lam $ \st ->
+         do ss <- fromVSeq <$> st
+            let toWord :: Integer -> Eval Word32
+                toWord i = fromInteger. bvVal <$> (fromVWord Concrete "AESEncFinalRound" =<< lookupSeqMap ss i)
+            let fromWord :: Word32 -> Eval Value
+                fromWord = pure . VWord 32 . pure . WordVal . BV 32 . toInteger
+            ws <- mapM toWord [0,1,2,3]
+            let ws' = AES.aesRound True ws [0,0,0,0]
+            pure . VSeq 4 . finiteSeqMap Concrete . map fromWord $ ws')
+
+  , ("AESDecRound", {-# SCC "SuiteB::AESDecRound" #-}
+      lam $ \st ->
+         do ss <- fromVSeq <$> st
+            let toWord :: Integer -> Eval Word32
+                toWord i = fromInteger. bvVal <$> (fromVWord Concrete "AESDecRound" =<< lookupSeqMap ss i)
+            let fromWord :: Word32 -> Eval Value
+                fromWord = pure . VWord 32 . pure . WordVal . BV 32 . toInteger
+            ws <- mapM toWord [0,1,2,3]
+            let ws' = AES.aesInvRound False ws [0,0,0,0]
+            pure . VSeq 4 . finiteSeqMap Concrete . map fromWord $ ws')
+
+  , ("AESDecFinalRound", {-# SCC "SuiteB::AESDecFinalRound" #-}
+      lam $ \st ->
+         do ss <- fromVSeq <$> st
+            let toWord :: Integer -> Eval Word32
+                toWord i = fromInteger. bvVal <$> (fromVWord Concrete "AESDecFinalRound" =<< lookupSeqMap ss i)
+            let fromWord :: Word32 -> Eval Value
+                fromWord = pure . VWord 32 . pure . WordVal . BV 32 . toInteger
+            ws <- mapM toWord [0,1,2,3]
+            let ws' = AES.aesInvRound True ws [0,0,0,0]
+            pure . VSeq 4 . finiteSeqMap Concrete . map fromWord $ ws')
   ]
 
 

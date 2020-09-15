@@ -1,5 +1,79 @@
 module SuiteB where
 
+/***** AES ******/
+
+type AES128 = 4
+type AES192 = 6
+type AES256 = 8
+
+type AESRoundKey = [4][32]
+
+type AESEncryptKeySchedule k =
+  { aesEncInitialKey : AESRoundKey
+  , aesEncRoundKeys  : [k+5]AESRoundKey
+  , aesEncFinalKey   : AESRoundKey
+  }
+
+type AESDecryptKeySchedule k =
+  { aesDecInitialKey : AESRoundKey
+  , aesDecRoundKeys  : [k+5]AESRoundKey
+  , aesDecFinalKey   : AESRoundKey
+  }
+
+aesEncryptBlock : {k} (fin k) => AESEncryptKeySchedule k -> [128] -> [128]
+aesEncryptBlock schedule plaintext = join final
+  where
+  final = (AESEncFinalRound (rds!0)) ^ schedule.aesEncFinalKey
+
+  rds = [ schedule.aesEncInitialKey ^ split plaintext ] #
+        [ AESEncRound r ^ rdk
+        | rdk <- schedule.aesEncRoundKeys
+        | r   <- rds
+        ]
+
+aesDecryptBlock : {k} (fin k) => AESDecryptKeySchedule k -> [128] -> [128]
+aesDecryptBlock schedule cyphertext = join final
+  where
+  final = (AESDecFinalRound (rds!0)) ^ schedule.aesDecFinalKey
+
+  rds = [ split cyphertext ^ schedule.aesDecInitialKey ] #
+        [ AESDecRound r ^ rdk
+	| rdk <- schedule.aesDecRoundKeys
+	| r   <- rds
+	]
+
+aesExpandSchedules : {k} (fin k) => [k * 32] -> (AESEncryptKeySchedule k, AESDecryptKeySchedule k)
+aesExpandSchedules key = (encS, aesEncToDecSchedule encS)
+  where encS = aesExpandEncryptSchedule key
+
+aesExpandEncryptSchedule : {k} (fin k) => [k * 32] -> AESEncryptKeySchedule k
+aesExpandEncryptSchedule key = rnf
+     { aesEncInitialKey = ks @  0
+     , aesEncRoundKeys  = ks @@ [ 1 .. k+5 ]
+     , aesEncFinalKey   = ks @  `(k+6)
+     }
+  where
+  ks : [inf]AESRoundKey
+  ks = groupBy`{4} (AESKeyInfExpand`{k} (split key))
+
+aesExpandDecryptSchedule : {k} (fin k) => [k * 32] -> AESDecryptKeySchedule k
+aesExpandDecryptSchedule key = aesEncToDecSchedule (aesExpandEncryptSchedule key)
+
+private
+  aesEncToDecSchedule : {k} (fin k) => AESEncryptKeySchedule k -> AESDecryptKeySchedule k
+  aesEncToDecSchedule enc = rnf
+     { aesDecInitialKey = enc.aesEncFinalKey
+     , aesDecRoundKeys  = map AESInvMixColumns (reverse (enc.aesEncRoundKeys))
+     , aesDecFinalKey   = enc.aesEncInitialKey
+     }
+
+  primitive AESEncRound      : [4][32] -> [4][32]
+  primitive AESEncFinalRound : [4][32] -> [4][32]
+  primitive AESDecRound      : [4][32] -> [4][32]
+  primitive AESDecFinalRound : [4][32] -> [4][32]
+  primitive AESInvMixColumns : [4][32] -> [4][32]
+  primitive AESKeyInfExpand : {k} (fin k) => [k][32] -> [inf][32]
+
 /***** SHA2 *****/
 
 sha224 : {L} (fin L) => [L] -> [224]
