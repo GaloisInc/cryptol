@@ -350,7 +350,7 @@ primTable eOpts = let sym = Concrete in
 
 suiteBPrims :: Map.Map PrimIdent Value
 suiteBPrims = Map.fromList $ map (\(n, v) -> (suiteBPrim n, v))
-  [ ("accelSHA2_224", {-# SCC "SuiteB::accelSHA2_224" #-}
+  [ ("processSHA2_224", {-# SCC "SuiteB::processSHA2_224" #-}
                       ilam $ \n ->
                        lam $ \xs ->
                          do blks <- enumerateSeqMap n . fromVSeq <$> xs
@@ -362,7 +362,7 @@ suiteBPrims = Map.fromList $ map (\(n, v) -> (suiteBPrim n, v))
                                 zs = finiteSeqMap Concrete (map f [w0,w1,w2,w3,w4,w5,w6])
                             seq zs (pure (VSeq 7 zs)))
 
-  , ("accelSHA2_256", {-# SCC "SuiteB::accelSHA2_256" #-}
+  , ("processSHA2_256", {-# SCC "SuiteB::processSHA2_256" #-}
                       ilam $ \n ->
                        lam $ \xs ->
                          do blks <- enumerateSeqMap n . fromVSeq <$> xs
@@ -374,7 +374,7 @@ suiteBPrims = Map.fromList $ map (\(n, v) -> (suiteBPrim n, v))
                                 zs = finiteSeqMap Concrete (map f [w0,w1,w2,w3,w4,w5,w6,w7])
                             seq zs (pure (VSeq 8 zs)))
 
-  , ("accelSHA2_384", {-# SCC "SuiteB::accelSHA2_384" #-}
+  , ("processSHA2_384", {-# SCC "SuiteB::processSHA2_384" #-}
                       ilam $ \n ->
                        lam $ \xs ->
                          do blks <- enumerateSeqMap n . fromVSeq <$> xs
@@ -386,7 +386,7 @@ suiteBPrims = Map.fromList $ map (\(n, v) -> (suiteBPrim n, v))
                                 zs = finiteSeqMap Concrete (map f [w0,w1,w2,w3,w4,w5])
                             seq zs (pure (VSeq 6 zs)))
 
-  , ("accelSHA2_512", {-# SCC "SuiteB::accelSHA2_512" #-}
+  , ("processSHA2_512", {-# SCC "SuiteB::processSHA2_512" #-}
                       ilam $ \n ->
                        lam $ \xs ->
                          do blks <- enumerateSeqMap n . fromVSeq <$> xs
@@ -429,7 +429,7 @@ suiteBPrims = Map.fromList $ map (\(n, v) -> (suiteBPrim n, v))
             let fromWord :: Word32 -> Eval Value
                 fromWord = pure . VWord 32 . pure . WordVal . BV 32 . toInteger
             ws <- mapM toWord [0,1,2,3]
-            let ws' = AES.aesRound False ws [0,0,0,0]
+            let ws' = AES.aesRound ws
             pure . VSeq 4 . finiteSeqMap Concrete . map fromWord $ ws')
 
   , ("AESEncFinalRound", {-# SCC "SuiteB::AESEncFinalRound" #-}
@@ -440,7 +440,7 @@ suiteBPrims = Map.fromList $ map (\(n, v) -> (suiteBPrim n, v))
             let fromWord :: Word32 -> Eval Value
                 fromWord = pure . VWord 32 . pure . WordVal . BV 32 . toInteger
             ws <- mapM toWord [0,1,2,3]
-            let ws' = AES.aesRound True ws [0,0,0,0]
+            let ws' = AES.aesFinalRound ws
             pure . VSeq 4 . finiteSeqMap Concrete . map fromWord $ ws')
 
   , ("AESDecRound", {-# SCC "SuiteB::AESDecRound" #-}
@@ -451,7 +451,7 @@ suiteBPrims = Map.fromList $ map (\(n, v) -> (suiteBPrim n, v))
             let fromWord :: Word32 -> Eval Value
                 fromWord = pure . VWord 32 . pure . WordVal . BV 32 . toInteger
             ws <- mapM toWord [0,1,2,3]
-            let ws' = AES.aesInvRound False ws [0,0,0,0]
+            let ws' = AES.aesInvRound ws
             pure . VSeq 4 . finiteSeqMap Concrete . map fromWord $ ws')
 
   , ("AESDecFinalRound", {-# SCC "SuiteB::AESDecFinalRound" #-}
@@ -462,7 +462,7 @@ suiteBPrims = Map.fromList $ map (\(n, v) -> (suiteBPrim n, v))
             let fromWord :: Word32 -> Eval Value
                 fromWord = pure . VWord 32 . pure . WordVal . BV 32 . toInteger
             ws <- mapM toWord [0,1,2,3]
-            let ws' = AES.aesInvRound True ws [0,0,0,0]
+            let ws' = AES.aesInvFinalRound ws
             pure . VSeq 4 . finiteSeqMap Concrete . map fromWord $ ws')
   ]
 
