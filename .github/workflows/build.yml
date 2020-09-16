@@ -58,11 +58,9 @@ jobs:
           path: |
             ${{ steps.setup-haskell.outputs.cabal-store }}
             dist-newstyle
-          key: cabal-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('**/cabal.GHC-*') }}-${{ github.sha }}
+          key: cabal-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles(format('cabal.GHC-{0}.config', matrix.ghc)) }}-${{ github.sha }}
           restore-keys: |
             cabal-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles(format('cabal.GHC-{0}.config', matrix.ghc)) }}-
-            cabal-${{ runner.os }}-${{ matrix.ghc }}-
-            cabal-${{ runner.os }}-
 
       - shell: bash
         run: .github/ci.sh install_system_deps
