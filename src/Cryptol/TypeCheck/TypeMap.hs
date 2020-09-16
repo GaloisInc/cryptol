@@ -10,6 +10,8 @@
 {-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies #-}
 {-# LANGUAGE UndecidableInstances, FlexibleInstances #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveTraversable #-}
 module Cryptol.TypeCheck.TypeMap
   ( TypeMap(..), TypesMap, TrieMap(..)
   , insertTM, insertWithTM
@@ -64,7 +66,7 @@ mapMaybeTM f = mapMaybeWithKeyTM (\_ -> f)
 
 data List m a  = L { nil  :: Maybe a
                    , cons :: m (List m a)
-                   } deriving (Functor)
+                   } deriving (Functor, Foldable, Traversable)
 
 instance TrieMap m a => TrieMap (List m) [a] where
   emptyTM = L { nil = Nothing, cons = emptyTM }
@@ -116,7 +118,7 @@ type TypesMap = List TypeMap
 data TypeMap a = TM { tvar :: Map TVar a
                     , tcon :: Map TCon    (List TypeMap a)
                     , trec :: Map [Ident] (List TypeMap a)
-                    } deriving (Functor)
+                    } deriving (Functor, Foldable, Traversable)
 
 instance TrieMap TypeMap Type where
   emptyTM = TM { tvar = emptyTM, tcon = emptyTM, trec = emptyTM }

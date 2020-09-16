@@ -129,8 +129,8 @@ tvUnique :: TVar -> Int
 tvUnique (TVFree u _ _ _) = u
 tvUnique (TVBound TParam { tpUnique = u }) = u
 
-data TVarInfo = TVarInfo { tvarSource :: Range -- ^ Source code that gave rise
-                         , tvarDesc   :: TVarSource -- ^ Description
+data TVarInfo = TVarInfo { tvarSource :: !Range -- ^ Source code that gave rise
+                         , tvarDesc   :: !TVarSource -- ^ Description
                          }
               deriving (Show, Generic, NFData)
 
