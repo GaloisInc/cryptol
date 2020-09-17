@@ -1,0 +1,3193 @@
+import SuiteB
+
+
+// ***********************************************************************
+// ** Additional pseudorandom sample test vectors, using the ECB MCT test
+// ** https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Algorithm-Validation-Program/documents/aes/aesmct.zip
+// **
+// ** See AESAVS Section 6.4.1 for a description of the test algorithm
+// ***********************************************************************
+
+type AESTestVector n =
+  { key        : [n]
+  , plaintext  : [128]
+  , ciphertext : [128]
+  }
+
+
+mct_ecb_encrypt_128 : [128] -> [128] -> [100](AESTestVector 128)
+mct_ecb_encrypt_128 initialKey initialPt = vs
+  where
+  vs@i = { key = keys@i, plaintext=pts@(i*1000), ciphertext=cts@(i*1000 + 999) }
+
+  pts : [100*1000][128]
+  pts = [initialPt] # take cts
+
+  cts : [100*1000][128]
+  cts@i = aesEncryptBlock (schedules@(i/1000)) (pts@i)
+
+  keys : [100][128]
+  keys = [initialKey] # [ k ^ (xs!0)
+                        | xs <- take`{99} (groupBy`{1000} cts)
+                        | k <- keys
+                        ]
+
+  schedules : [100](AESEncryptKeySchedule AES128)
+  schedules = map aes128EncryptSchedule keys
+
+
+mct_ecb_decrypt_128 : [128] -> [128] -> [100](AESTestVector 128)
+mct_ecb_decrypt_128 initialKey initialCt = vs
+  where
+  vs@i = { key = keys@i, ciphertext=cts@(i*1000), plaintext=pts@(i*1000 + 999) }
+
+  cts : [100*1000][128]
+  cts = [initialCt] # take pts
+
+  pts : [100*1000][128]
+  pts@i = aesDecryptBlock (schedules@(i/1000)) (cts@i)
+
+  keys : [100][128]
+  keys = [initialKey] # [ k ^ (xs!0)
+                        | xs <- take`{99} (groupBy`{1000} pts)
+                        | k <- keys
+                        ]
+
+  schedules : [100](AESDecryptKeySchedule AES128)
+  schedules = map aes128DecryptSchedule keys
+
+property aes128_MCT_vectors_encrypt_correct =
+  aes128_MCT_encrypt_test_vectors ==
+  mct_ecb_encrypt_128 0x139a35422f1d61de3c91787fe0507afd 0xb9145a768b7dc489a096b546f43b231f
+
+property aes128_MCT_vectors_decrypt_correct =
+  aes128_MCT_decrypt_test_vectors ==
+  mct_ecb_decrypt_128 0x0c60e7bf20ada9baa9e1ddf0d1540726 0xb08a29b11a500ea3aca42c36675b9785
+
+aes128_MCT_encrypt_test_vectors : [100](AESTestVector 128)
+aes128_MCT_encrypt_test_vectors =
+ [{ key = 0x139a35422f1d61de3c91787fe0507afd
+  , plaintext = 0xb9145a768b7dc489a096b546f43b231f
+  , ciphertext = 0xd7c3ffac9031238650901e157364c386
+  },
+
+  { key = 0xc459caeebf2c42586c01666a9334b97b
+  , plaintext = 0xd7c3ffac9031238650901e157364c386
+  , ciphertext = 0xbc3637da2daf8fcf7c68bb28c143a0a4
+  },
+
+  { key = 0x786ffd349283cd971069dd42527719df
+  , plaintext = 0xbc3637da2daf8fcf7c68bb28c143a0a4
+  , ciphertext = 0x9c88a8db798f48df1ac4936afa959eac
+  },
+
+  { key = 0xe4e755efeb0c85480aad4e28a8e28773
+  , plaintext = 0x9c88a8db798f48df1ac4936afa959eac
+  , ciphertext = 0xb87aaa1c76a775d94c2ddf82abe5c66e
+  },
+
+  { key = 0x5c9dfff39dabf091468091aa0307411d
+  , plaintext = 0xb87aaa1c76a775d94c2ddf82abe5c66e
+  , ciphertext = 0x79ee212734f14d1bf5a59d46e8c2fa34
+  },
+
+  { key = 0x2573ded4a95abd8ab3250cecebc5bb29
+  , plaintext = 0x79ee212734f14d1bf5a59d46e8c2fa34
+  , ciphertext = 0x09df49135aeb8e373a19fa457ab280a0
+  },
+
+  { key = 0x2cac97c7f3b133bd893cf6a991773b89
+  , plaintext = 0x09df49135aeb8e373a19fa457ab280a0
+  , ciphertext = 0xc52263efa6379209d17e87ac250615cb
+  },
+
+  { key = 0xe98ef4285586a1b458427105b4712e42
+  , plaintext = 0xc52263efa6379209d17e87ac250615cb
+  , ciphertext = 0x336bed017e10a247ee92989862431163
+  },
+
+  { key = 0xdae519292b9603f3b6d0e99dd6323f21
+  , plaintext = 0x336bed017e10a247ee92989862431163
+  , ciphertext = 0xb13310581ffe5b10aaefdeb8992aec18
+  },
+
+  { key = 0x6bd60971346858e31c3f37254f18d339
+  , plaintext = 0xb13310581ffe5b10aaefdeb8992aec18
+  , ciphertext = 0xb0eaede3f3eebfef88822a6ede1950b1
+  },
+
+  { key = 0xdb3ce492c786e70c94bd1d4b91018388
+  , plaintext = 0xb0eaede3f3eebfef88822a6ede1950b1
+  , ciphertext = 0x37891fc253b00de13155d5517e1b7890
+  },
+
+  { key = 0xecb5fb509436eaeda5e8c81aef1afb18
+  , plaintext = 0x37891fc253b00de13155d5517e1b7890
+  , ciphertext = 0x8f574c85fa44af2d43c95ee5f627fc9d
+  },
+
+  { key = 0x63e2b7d56e7245c0e62196ff193d0785
+  , plaintext = 0x8f574c85fa44af2d43c95ee5f627fc9d
+  , ciphertext = 0x6c0af6709225f328a0225b2280efa3e3
+  },
+
+  { key = 0x0fe841a5fc57b6e84603cddd99d2a466
+  , plaintext = 0x6c0af6709225f328a0225b2280efa3e3
+  , ciphertext = 0xe2dc36073fe192e712373a8702e8adce
+  },
+
+  { key = 0xed3477a2c3b6240f5434f75a9b3a09a8
+  , plaintext = 0xe2dc36073fe192e712373a8702e8adce
+  , ciphertext = 0x1e91d1e1f82f1d320186210a792f7ba1
+  },
+
+  { key = 0xf3a5a6433b99393d55b2d650e2157209
+  , plaintext = 0x1e91d1e1f82f1d320186210a792f7ba1
+  , ciphertext = 0x228eac74166da261d7fa83f43d9ddd2f
+  },
+
+  { key = 0xd12b0a372df49b5c824855a4df88af26
+  , plaintext = 0x228eac74166da261d7fa83f43d9ddd2f
+  , ciphertext = 0x25d0de6a894361a1b83d5fa2fd607f26
+  },
+
+  { key = 0xf4fbd45da4b7fafd3a750a0622e8d000
+  , plaintext = 0x25d0de6a894361a1b83d5fa2fd607f26
+  , ciphertext = 0x36095dc3e659ec50ca7f6f8207d20031
+  },
+
+  { key = 0xc2f2899e42ee16adf00a6584253ad031
+  , plaintext = 0x36095dc3e659ec50ca7f6f8207d20031
+  , ciphertext = 0x8dbfe965078468875d86145164c4ab4f
+  },
+
+  { key = 0x4f4d60fb456a7e2aad8c71d541fe7b7e
+  , plaintext = 0x8dbfe965078468875d86145164c4ab4f
+  , ciphertext = 0x4032bb8137d4b9eb93644359a995bb4e
+  },
+
+  { key = 0x0f7fdb7a72bec7c13ee8328ce86bc030
+  , plaintext = 0x4032bb8137d4b9eb93644359a995bb4e
+  , ciphertext = 0x85308aa92c625a25bd5f4a40375c6baa
+  },
+
+  { key = 0x8a4f51d35edc9de483b778ccdf37ab9a
+  , plaintext = 0x85308aa92c625a25bd5f4a40375c6baa
+  , ciphertext = 0x73283fc59e04e80a867e478d97a3f388
+  },
+
+  { key = 0xf9676e16c0d875ee05c93f4148945812
+  , plaintext = 0x73283fc59e04e80a867e478d97a3f388
+  , ciphertext = 0x418c1fe377e4ef9832f20286b167f916
+  },
+
+  { key = 0xb8eb71f5b73c9a76373b3dc7f9f3a104
+  , plaintext = 0x418c1fe377e4ef9832f20286b167f916
+  , ciphertext = 0x60ad1341525e67cffdd68ff671253c77
+  },
+
+  { key = 0xd84662b4e562fdb9caedb23188d69d73
+  , plaintext = 0x60ad1341525e67cffdd68ff671253c77
+  , ciphertext = 0x4edf6e01a76de6153d17713a49d5b028
+  },
+
+  { key = 0x96990cb5420f1bacf7fac30bc1032d5b
+  , plaintext = 0x4edf6e01a76de6153d17713a49d5b028
+  , ciphertext = 0x2c85ebf9e3d80596f78712df56ac77cd
+  },
+
+  { key = 0xba1ce74ca1d71e3a007dd1d497af5a96
+  , plaintext = 0x2c85ebf9e3d80596f78712df56ac77cd
+  , ciphertext = 0x8fc8ef9ab7462712977e87c741795ece
+  },
+
+  { key = 0x35d408d61691392897035613d6d60458
+  , plaintext = 0x8fc8ef9ab7462712977e87c741795ece
+  , ciphertext = 0x37e9ac800cfb19133b4e9b0c418ca098
+  },
+
+  { key = 0x023da4561a6a203bac4dcd1f975aa4c0
+  , plaintext = 0x37e9ac800cfb19133b4e9b0c418ca098
+  , ciphertext = 0xcb7cd7619caa605e45f95f5b31a85495
+  },
+
+  { key = 0xc941733786c04065e9b49244a6f2f055
+  , plaintext = 0xcb7cd7619caa605e45f95f5b31a85495
+  , ciphertext = 0x6e265e5fd030847b8841bf6652996392
+  },
+
+  { key = 0xa7672d6856f0c41e61f52d22f46b93c7
+  , plaintext = 0x6e265e5fd030847b8841bf6652996392
+  , ciphertext = 0x5c9a7d2ce1c86f0b3425b3b6aae108e0
+  },
+
+  { key = 0xfbfd5044b738ab1555d09e945e8a9b27
+  , plaintext = 0x5c9a7d2ce1c86f0b3425b3b6aae108e0
+  , ciphertext = 0xc911dee5ff318a7e799f92daadcb3d9a
+  },
+
+  { key = 0x32ec8ea14809216b2c4f0c4ef341a6bd
+  , plaintext = 0xc911dee5ff318a7e799f92daadcb3d9a
+  , ciphertext = 0x7a3afdf10410f1c47c7d928d4a8d432a
+  },
+
+  { key = 0x48d673504c19d0af50329ec3b9cce597
+  , plaintext = 0x7a3afdf10410f1c47c7d928d4a8d432a
+  , ciphertext = 0xc681b7b6d3ec9dc91012e3b7427c67ad
+  },
+
+  { key = 0x8e57c4e69ff54d6640207d74fbb0823a
+  , plaintext = 0xc681b7b6d3ec9dc91012e3b7427c67ad
+  , ciphertext = 0xcd3f84bbe958536d502065eb37ae10b4
+  },
+
+  { key = 0x4368405d76ad1e0b1000189fcc1e928e
+  , plaintext = 0xcd3f84bbe958536d502065eb37ae10b4
+  , ciphertext = 0x879db797e686b9116c25c07f4ae67593
+  },
+
+  { key = 0xc4f5f7ca902ba71a7c25d8e086f8e71d
+  , plaintext = 0x879db797e686b9116c25c07f4ae67593
+  , ciphertext = 0x5959ebd7a1167713429eda69538c536b
+  },
+
+  { key = 0x9dac1c1d313dd0093ebb0289d574b476
+  , plaintext = 0x5959ebd7a1167713429eda69538c536b
+  , ciphertext = 0xf57101d7fa19f97a31d60b276312717c
+  },
+
+  { key = 0x68dd1dcacb2429730f6d09aeb666c50a
+  , plaintext = 0xf57101d7fa19f97a31d60b276312717c
+  , ciphertext = 0x6dfbbc2b147568c55adbfdc3c706edb0
+  },
+
+  { key = 0x0526a1e1df5141b655b6f46d716028ba
+  , plaintext = 0x6dfbbc2b147568c55adbfdc3c706edb0
+  , ciphertext = 0x9c4ea9002306d75e7b0f03e2a72b7a1d
+  },
+
+  { key = 0x996808e1fc5796e82eb9f78fd64b52a7
+  , plaintext = 0x9c4ea9002306d75e7b0f03e2a72b7a1d
+  , ciphertext = 0xcb9975336cc05f0114f26bde4cc84f8d
+  },
+
+  { key = 0x52f17dd29097c9e93a4b9c519a831d2a
+  , plaintext = 0xcb9975336cc05f0114f26bde4cc84f8d
+  , ciphertext = 0x902c4250cff110d792938e8dcd534cf0
+  },
+
+  { key = 0xc2dd3f825f66d93ea8d812dc57d051da
+  , plaintext = 0x902c4250cff110d792938e8dcd534cf0
+  , ciphertext = 0x140242f195ef2ef7f6ee23574c071311
+  },
+
+  { key = 0xd6df7d73ca89f7c95e36318b1bd742cb
+  , plaintext = 0x140242f195ef2ef7f6ee23574c071311
+  , ciphertext = 0x3c6d4ffafde866f1e994480c47d20a04
+  },
+
+  { key = 0xeab2328937619138b7a279875c0548cf
+  , plaintext = 0x3c6d4ffafde866f1e994480c47d20a04
+  , ciphertext = 0x1ca04a21addc38ef8bfc8989d3d6b33b
+  },
+
+  { key = 0xf61278a89abda9d73c5ef00e8fd3fbf4
+  , plaintext = 0x1ca04a21addc38ef8bfc8989d3d6b33b
+  , ciphertext = 0xbb8875ee3c3c8c0987b1c20f999028e9
+  },
+
+  { key = 0x4d9a0d46a68125debbef32011643d31d
+  , plaintext = 0xbb8875ee3c3c8c0987b1c20f999028e9
+  , ciphertext = 0x9d33724d80a76f2033a37a851403ef28
+  },
+
+  { key = 0xd0a97f0b26264afe884c488402403c35
+  , plaintext = 0x9d33724d80a76f2033a37a851403ef28
+  , ciphertext = 0x4c92fe152d16da8ea59b9f29c75f20ff
+  },
+
+  { key = 0x9c3b811e0b3090702dd7d7adc51f1cca
+  , plaintext = 0x4c92fe152d16da8ea59b9f29c75f20ff
+  , ciphertext = 0x659c76f73032b0192b281034b6a99a3f
+  },
+
+  { key = 0xf9a7f7e93b02206906ffc79973b686f5
+  , plaintext = 0x659c76f73032b0192b281034b6a99a3f
+  , ciphertext = 0x5d296637697ccad84fc77936a31c2655
+  },
+
+  { key = 0xa48e91de527eeab14938beafd0aaa0a0
+  , plaintext = 0x5d296637697ccad84fc77936a31c2655
+  , ciphertext = 0xa72a596a030d5541bc4d0fc739491d5b
+  },
+
+  { key = 0x03a4c8b45173bff0f575b168e9e3bdfb
+  , plaintext = 0xa72a596a030d5541bc4d0fc739491d5b
+  , ciphertext = 0x5f5ec53c91225717fcba470688dfa364
+  },
+
+  { key = 0x5cfa0d88c051e8e709cff66e613c1e9f
+  , plaintext = 0x5f5ec53c91225717fcba470688dfa364
+  , ciphertext = 0x5719cb14eba820c0d51109a0c7a4154f
+  },
+
+  { key = 0x0be3c69c2bf9c827dcdeffcea6980bd0
+  , plaintext = 0x5719cb14eba820c0d51109a0c7a4154f
+  , ciphertext = 0x3abd186712a9def73b6312b5300f02af
+  },
+
+  { key = 0x315edefb395016d0e7bded7b9697097f
+  , plaintext = 0x3abd186712a9def73b6312b5300f02af
+  , ciphertext = 0xb1e90c8c0d4c9651a6de7f52a63ac456
+  },
+
+  { key = 0x80b7d277341c80814163922930adcd29
+  , plaintext = 0xb1e90c8c0d4c9651a6de7f52a63ac456
+  , ciphertext = 0x5d26e33aae1441554034c77bde451679
+  },
+
+  { key = 0xdd91314d9a08c1d401575552eee8db50
+  , plaintext = 0x5d26e33aae1441554034c77bde451679
+  , ciphertext = 0x93e44cdce14803544a53bc5b520c156f
+  },
+
+  { key = 0x4e757d917b40c2804b04e909bce4ce3f
+  , plaintext = 0x93e44cdce14803544a53bc5b520c156f
+  , ciphertext = 0x8ee3b6fd953b441043f69f3747e4cf63
+  },
+
+  { key = 0xc096cb6cee7b869008f2763efb00015c
+  , plaintext = 0x8ee3b6fd953b441043f69f3747e4cf63
+  , ciphertext = 0xcb2f545970200630e5145f817a013807
+  },
+
+  { key = 0x0bb99f359e5b80a0ede629bf8101395b
+  , plaintext = 0xcb2f545970200630e5145f817a013807
+  , ciphertext = 0x50047276451ce19cb14d8d2ef0b3851b
+  },
+
+  { key = 0x5bbded43db47613c5caba49171b2bc40
+  , plaintext = 0x50047276451ce19cb14d8d2ef0b3851b
+  , ciphertext = 0xd243791dde33c2a4333ef4dcbcadbd3a
+  },
+
+  { key = 0x89fe945e0574a3986f95504dcd1f017a
+  , plaintext = 0xd243791dde33c2a4333ef4dcbcadbd3a
+  , ciphertext = 0x343181860092a5e33c2e1c441a9f6804
+  },
+
+  { key = 0xbdcf15d805e6067b53bb4c09d780697e
+  , plaintext = 0x343181860092a5e33c2e1c441a9f6804
+  , ciphertext = 0x4e7cdd553d732909e25a13a521e04078
+  },
+
+  { key = 0xf3b3c88d38952f72b1e15facf6602906
+  , plaintext = 0x4e7cdd553d732909e25a13a521e04078
+  , ciphertext = 0x9c16f3fda49bb6a2b6d76a6696bd768f
+  },
+
+  { key = 0x6fa53b709c0e99d0073635ca60dd5f89
+  , plaintext = 0x9c16f3fda49bb6a2b6d76a6696bd768f
+  , ciphertext = 0x9eb63f9099123591a4ca7aa0fff55a49
+  },
+
+  { key = 0xf11304e0051cac41a3fc4f6a9f2805c0
+  , plaintext = 0x9eb63f9099123591a4ca7aa0fff55a49
+  , ciphertext = 0xaa6a9e40aad692550b7c87b92b205af0
+  },
+
+  { key = 0x5b799aa0afca3e14a880c8d3b4085f30
+  , plaintext = 0xaa6a9e40aad692550b7c87b92b205af0
+  , ciphertext = 0xae92c267f38b9b4623df36523bb739b6
+  },
+
+  { key = 0xf5eb58c75c41a5528b5ffe818fbf6686
+  , plaintext = 0xae92c267f38b9b4623df36523bb739b6
+  , ciphertext = 0x39c0de843767dfa2d563c0632405d595
+  },
+
+  { key = 0xcc2b86436b267af05e3c3ee2abbab313
+  , plaintext = 0x39c0de843767dfa2d563c0632405d595
+  , ciphertext = 0x80a9445be75373b07476608feb1f1c7b
+  },
+
+  { key = 0x4c82c2188c7509402a4a5e6d40a5af68
+  , plaintext = 0x80a9445be75373b07476608feb1f1c7b
+  , ciphertext = 0x5306f5a77e42d9f4cee8f134ba1448c6
+  },
+
+  { key = 0x1f8437bff237d0b4e4a2af59fab1e7ae
+  , plaintext = 0x5306f5a77e42d9f4cee8f134ba1448c6
+  , ciphertext = 0x8db0c3fba7dc797cd175d97503759260
+  },
+
+  { key = 0x9234f44455eba9c835d7762cf9c475ce
+  , plaintext = 0x8db0c3fba7dc797cd175d97503759260
+  , ciphertext = 0x04fcb0c77ae0c98d2afb178ab2c2b02d
+  },
+
+  { key = 0x96c844832f0b60451f2c61a64b06c5e3
+  , plaintext = 0x04fcb0c77ae0c98d2afb178ab2c2b02d
+  , ciphertext = 0x1a156581b3557078971cc6877a3d9339
+  },
+
+  { key = 0x8cdd21029c5e103d8830a721313b56da
+  , plaintext = 0x1a156581b3557078971cc6877a3d9339
+  , ciphertext = 0xe47087289290fa2b6734eeaab2fc815d
+  },
+
+  { key = 0x68ada62a0eceea16ef04498b83c7d787
+  , plaintext = 0xe47087289290fa2b6734eeaab2fc815d
+  , ciphertext = 0x00ce641525020d35244e2227287b2a20
+  },
+
+  { key = 0x6863c23f2bcce723cb4a6bacabbcfda7
+  , plaintext = 0x00ce641525020d35244e2227287b2a20
+  , ciphertext = 0xecf623cef1e420d0994070c078592c97
+  },
+
+  { key = 0x8495e1f1da28c7f3520a1b6cd3e5d130
+  , plaintext = 0xecf623cef1e420d0994070c078592c97
+  , ciphertext = 0x256c8f28df4a286fb05514fcfa8cbcaf
+  },
+
+  { key = 0xa1f96ed90562ef9ce25f0f9029696d9f
+  , plaintext = 0x256c8f28df4a286fb05514fcfa8cbcaf
+  , ciphertext = 0xfd4aed4b5a2b8edefe3cc2aef6ecd298
+  },
+
+  { key = 0x5cb383925f4961421c63cd3edf85bf07
+  , plaintext = 0xfd4aed4b5a2b8edefe3cc2aef6ecd298
+  , ciphertext = 0xdfe0e571f77f0b46c52f003e774918ac
+  },
+
+  { key = 0x835366e3a8366a04d94ccd00a8cca7ab
+  , plaintext = 0xdfe0e571f77f0b46c52f003e774918ac
+  , ciphertext = 0xe421fbeb4c23745b97578162f89e68fc
+  },
+
+  { key = 0x67729d08e4151e5f4e1b4c625052cf57
+  , plaintext = 0xe421fbeb4c23745b97578162f89e68fc
+  , ciphertext = 0xc38c0bbde031d1a79438f79ff7cc68a5
+  },
+
+  { key = 0xa4fe96b50424cff8da23bbfda79ea7f2
+  , plaintext = 0xc38c0bbde031d1a79438f79ff7cc68a5
+  , ciphertext = 0x86113133968aa3052709875bf033d804
+  },
+
+  { key = 0x22efa78692ae6cfdfd2a3ca657ad7ff6
+  , plaintext = 0x86113133968aa3052709875bf033d804
+  , ciphertext = 0xfd706bef1bf30c8d1e95543b75629e02
+  },
+
+  { key = 0xdf9fcc69895d6070e3bf689d22cfe1f4
+  , plaintext = 0xfd706bef1bf30c8d1e95543b75629e02
+  , ciphertext = 0x9a5bbb6125152f1352b10e1c1a172aa6
+  },
+
+  { key = 0x45c47708ac484f63b10e668138d8cb52
+  , plaintext = 0x9a5bbb6125152f1352b10e1c1a172aa6
+  , ciphertext = 0x3ee69736488c51fa72784aa263618f45
+  },
+
+  { key = 0x7b22e03ee4c41e99c3762c235bb94417
+  , plaintext = 0x3ee69736488c51fa72784aa263618f45
+  , ciphertext = 0xfc66daa246ebcc320c7c89b599014633
+  },
+
+  { key = 0x87443a9ca22fd2abcf0aa596c2b80224
+  , plaintext = 0xfc66daa246ebcc320c7c89b599014633
+  , ciphertext = 0x35645885ed205d67e5caeff26646c38c
+  },
+
+  { key = 0xb22062194f0f8fcc2ac04a64a4fec1a8
+  , plaintext = 0x35645885ed205d67e5caeff26646c38c
+  , ciphertext = 0xdaeaa866aa4eacdb752caccb2c0ae6c1
+  },
+
+  { key = 0x68caca7fe54123175fece6af88f42769
+  , plaintext = 0xdaeaa866aa4eacdb752caccb2c0ae6c1
+  , ciphertext = 0x29e88b1ae615fcd06b09e767459d6089
+  },
+
+  { key = 0x412241650354dfc734e501c8cd6947e0
+  , plaintext = 0x29e88b1ae615fcd06b09e767459d6089
+  , ciphertext = 0x63470bff052e7f5c7a735cc2e6eb61ac
+  },
+
+  { key = 0x22654a9a067aa09b4e965d0a2b82264c
+  , plaintext = 0x63470bff052e7f5c7a735cc2e6eb61ac
+  , ciphertext = 0xf4fa6a3549cd2b33af9cac134d7b1402
+  },
+
+  { key = 0xd69f20af4fb78ba8e10af11966f9324e
+  , plaintext = 0xf4fa6a3549cd2b33af9cac134d7b1402
+  , ciphertext = 0x5b22a82ccbae9b9c75f797e74e6da53d
+  },
+
+  { key = 0x8dbd88838419103494fd66fe28949773
+  , plaintext = 0x5b22a82ccbae9b9c75f797e74e6da53d
+  , ciphertext = 0x87b51692f8f28743bd8dc843276f351a
+  },
+
+  { key = 0x0a089e117ceb97772970aebd0ffba269
+  , plaintext = 0x87b51692f8f28743bd8dc843276f351a
+  , ciphertext = 0x150fb2180704a7623a1fab8bf17fba18
+  },
+
+  { key = 0x1f072c097bef3015136f0536fe841871
+  , plaintext = 0x150fb2180704a7623a1fab8bf17fba18
+  , ciphertext = 0x8088874e7f3f09a98fd3f0a59f2a0b4b
+  },
+
+  { key = 0x9f8fab4704d039bc9cbcf59361ae133a
+  , plaintext = 0x8088874e7f3f09a98fd3f0a59f2a0b4b
+  , ciphertext = 0x08e02c091057d81c05d917ea5c07cdd0
+  },
+
+  { key = 0x976f874e1487e1a09965e2793da9deea
+  , plaintext = 0x08e02c091057d81c05d917ea5c07cdd0
+  , ciphertext = 0xb9636b3e2752694c3685872fd0a9a0ea
+  },
+
+  { key = 0x2e0cec7033d588ecafe06556ed007e00
+  , plaintext = 0xb9636b3e2752694c3685872fd0a9a0ea
+  , ciphertext = 0x2610dae2b64d74a8cbb4f43fa2d0a603
+  },
+
+  { key = 0x081c36928598fc44645491694fd0d803
+  , plaintext = 0x2610dae2b64d74a8cbb4f43fa2d0a603
+  , ciphertext = 0x9cc994eda697fb5545eaa502b2a30fd3
+  },
+
+  { key = 0x94d5a27f230f071121be346bfd73d7d0
+  , plaintext = 0x9cc994eda697fb5545eaa502b2a30fd3
+  , ciphertext = 0xfb2649694783b551eacd9d5db6126d47
+  }]
+
+
+aes128_MCT_decrypt_test_vectors : [100](AESTestVector 128)
+aes128_MCT_decrypt_test_vectors =
+ [{ key = 0x0c60e7bf20ada9baa9e1ddf0d1540726
+  , ciphertext = 0xb08a29b11a500ea3aca42c36675b9785
+  , plaintext = 0xb613b87085fed1bb87f07a574e6d2879
+  },
+
+  { key = 0xba735fcfa55378012e11a7a79f392f5f
+  , ciphertext = 0xb613b87085fed1bb87f07a574e6d2879
+  , plaintext = 0x5541d7bf6d25c55c0c2296acba756e9e
+  },
+
+  { key = 0xef328870c876bd5d2233310b254c41c1
+  , ciphertext = 0x5541d7bf6d25c55c0c2296acba756e9e
+  , plaintext = 0x4c138198d55d0d87d43cdb92fb0b5fc0
+  },
+
+  { key = 0xa32109e81d2bb0daf60fea99de471e01
+  , ciphertext = 0x4c138198d55d0d87d43cdb92fb0b5fc0
+  , plaintext = 0x257c07bdcba57aff1643de90b63c0a88
+  },
+
+  { key = 0x865d0e55d68eca25e04c3409687b1489
+  , ciphertext = 0x257c07bdcba57aff1643de90b63c0a88
+  , plaintext = 0x8039be4e65d218d3e640f88309d01c6f
+  },
+
+  { key = 0x0664b01bb35cd2f6060ccc8a61ab08e6
+  , ciphertext = 0x8039be4e65d218d3e640f88309d01c6f
+  , plaintext = 0x0115dcd390855bf5ce32e946a6d5ad38
+  },
+
+  { key = 0x07716cc823d98903c83e25ccc77ea5de
+  , ciphertext = 0x0115dcd390855bf5ce32e946a6d5ad38
+  , plaintext = 0x71741ccb723348c7f3f9e4a397977bdb
+  },
+
+  { key = 0x7605700351eac1c43bc7c16f50e9de05
+  , ciphertext = 0x71741ccb723348c7f3f9e4a397977bdb
+  , plaintext = 0x668c9f3dc9e154bd16d61364a99f635d
+  },
+
+  { key = 0x1089ef3e980b95792d11d20bf976bd58
+  , ciphertext = 0x668c9f3dc9e154bd16d61364a99f635d
+  , plaintext = 0x124b19b2501a540066ddf7943417cba3
+  },
+
+  { key = 0x02c2f68cc811c1794bcc259fcd6176fb
+  , ciphertext = 0x124b19b2501a540066ddf7943417cba3
+  , plaintext = 0x23e7c95f7ed9017af339c234b7a8fcc4
+  },
+
+  { key = 0x21253fd3b6c8c003b8f5e7ab7ac98a3f
+  , ciphertext = 0x23e7c95f7ed9017af339c234b7a8fcc4
+  , plaintext = 0x7b0e1e1afe46c1e50785efb939f8ade3
+  },
+
+  { key = 0x5a2b21c9488e01e6bf700812433127dc
+  , ciphertext = 0x7b0e1e1afe46c1e50785efb939f8ade3
+  , plaintext = 0xc166aeebf5182c96d1f3c92cece9d714
+  },
+
+  { key = 0x9b4d8f22bd962d706e83c13eafd8f0c8
+  , ciphertext = 0xc166aeebf5182c96d1f3c92cece9d714
+  , plaintext = 0x71968762dc1b41bebd9ee8b2396b87be
+  },
+
+  { key = 0xeadb0840618d6cced31d298c96b37776
+  , ciphertext = 0x71968762dc1b41bebd9ee8b2396b87be
+  , plaintext = 0x77b0aa88222a785282352bb861ea0cd2
+  },
+
+  { key = 0x9d6ba2c843a7149c51280234f7597ba4
+  , ciphertext = 0x77b0aa88222a785282352bb861ea0cd2
+  , plaintext = 0xe65c461cba6957fe5b5ee5014c899e65
+  },
+
+  { key = 0x7b37e4d4f9ce43620a76e735bbd0e5c1
+  , ciphertext = 0xe65c461cba6957fe5b5ee5014c899e65
+  , plaintext = 0xa799870cee001551f3494bdf3c27bd94
+  },
+
+  { key = 0xdcae63d817ce5633f93facea87f75855
+  , ciphertext = 0xa799870cee001551f3494bdf3c27bd94
+  , plaintext = 0xf54697576153f97d9fb1a4d164a8538e
+  },
+
+  { key = 0x29e8f48f769daf4e668e083be35f0bdb
+  , ciphertext = 0xf54697576153f97d9fb1a4d164a8538e
+  , plaintext = 0xf3f1f964b98b3498898c3032e44a308c
+  },
+
+  { key = 0xda190debcf169bd6ef02380907153b57
+  , ciphertext = 0xf3f1f964b98b3498898c3032e44a308c
+  , plaintext = 0x40ccc3a26141900280a3a7b62d4ed8b6
+  },
+
+  { key = 0x9ad5ce49ae570bd46fa19fbf2a5be3e1
+  , ciphertext = 0x40ccc3a26141900280a3a7b62d4ed8b6
+  , plaintext = 0x7fcf64bd75808be6199f3fac0881d4d4
+  },
+
+  { key = 0xe51aaaf4dbd78032763ea01322da3735
+  , ciphertext = 0x7fcf64bd75808be6199f3fac0881d4d4
+  , plaintext = 0x11ca970c169315ff0b54ecdb00ba4547
+  },
+
+  { key = 0xf4d03df8cd4495cd7d6a4cc822607272
+  , ciphertext = 0x11ca970c169315ff0b54ecdb00ba4547
+  , plaintext = 0xbc02615754b58eb975c26190a3583d28
+  },
+
+  { key = 0x48d25caf99f11b7408a82d5881384f5a
+  , ciphertext = 0xbc02615754b58eb975c26190a3583d28
+  , plaintext = 0x5b12925c7f72aaafbae6834a6e9d5af9
+  },
+
+  { key = 0x13c0cef3e683b1dbb24eae12efa515a3
+  , ciphertext = 0x5b12925c7f72aaafbae6834a6e9d5af9
+  , plaintext = 0x7950ffe2537235bfaa38101c2a9e6d42
+  },
+
+  { key = 0x6a903111b5f184641876be0ec53b78e1
+  , ciphertext = 0x7950ffe2537235bfaa38101c2a9e6d42
+  , plaintext = 0xcdf5c997d8ddcc1de7cc47ecc47d0819
+  },
+
+  { key = 0xa765f8866d2c4879ffbaf9e2014670f8
+  , ciphertext = 0xcdf5c997d8ddcc1de7cc47ecc47d0819
+  , plaintext = 0x8f4d77bccc4858016b28c2e8f84dd9a3
+  },
+
+  { key = 0x28288f3aa164107894923b0af90ba95b
+  , ciphertext = 0x8f4d77bccc4858016b28c2e8f84dd9a3
+  , plaintext = 0x561d95847869cccc81df7df65d70808d
+  },
+
+  { key = 0x7e351abed90ddcb4154d46fca47b29d6
+  , ciphertext = 0x561d95847869cccc81df7df65d70808d
+  , plaintext = 0x17b9e6f86ec1cff22cc6f8e14072bb0f
+  },
+
+  { key = 0x698cfc46b7cc1346398bbe1de40992d9
+  , ciphertext = 0x17b9e6f86ec1cff22cc6f8e14072bb0f
+  , plaintext = 0x8f959f24fae93418c2262ec73c6c8e1d
+  },
+
+  { key = 0xe61963624d25275efbad90dad8651cc4
+  , ciphertext = 0x8f959f24fae93418c2262ec73c6c8e1d
+  , plaintext = 0x2876f3a90b7a60168869d9de1e455836
+  },
+
+  { key = 0xce6f90cb465f474873c44904c62044f2
+  , ciphertext = 0x2876f3a90b7a60168869d9de1e455836
+  , plaintext = 0x5c609c0acdf2e389f19b3e0657706c9c
+  },
+
+  { key = 0x920f0cc18bada4c1825f77029150286e
+  , ciphertext = 0x5c609c0acdf2e389f19b3e0657706c9c
+  , plaintext = 0x88f537f67481490d20b713ff48b079e5
+  },
+
+  { key = 0x1afa3b37ff2cedcca2e864fdd9e0518b
+  , ciphertext = 0x88f537f67481490d20b713ff48b079e5
+  , plaintext = 0x0b1878fc9406b6c5f2c0085e8c9e0dd9
+  },
+
+  { key = 0x11e243cb6b2a5b0950286ca3557e5c52
+  , ciphertext = 0x0b1878fc9406b6c5f2c0085e8c9e0dd9
+  , plaintext = 0x594b9df3bad040afa14e63298945068d
+  },
+
+  { key = 0x48a9de38d1fa1ba6f1660f8adc3b5adf
+  , ciphertext = 0x594b9df3bad040afa14e63298945068d
+  , plaintext = 0xfcf5ffafacc372e641b1520fe76d16c7
+  },
+
+  { key = 0xb45c21977d396940b0d75d853b564c18
+  , ciphertext = 0xfcf5ffafacc372e641b1520fe76d16c7
+  , plaintext = 0x67319b7ab394937244b93977ba06c1ee
+  },
+
+  { key = 0xd36dbaedceadfa32f46e64f281508df6
+  , ciphertext = 0x67319b7ab394937244b93977ba06c1ee
+  , plaintext = 0xd956a31188a667eea44c93582d6aed6f
+  },
+
+  { key = 0x0a3b19fc460b9ddc5022f7aaac3a6099
+  , ciphertext = 0xd956a31188a667eea44c93582d6aed6f
+  , plaintext = 0x04f18289308787f3d936dd2a45c49e22
+  },
+
+  { key = 0x0eca9b75768c1a2f89142a80e9fefebb
+  , ciphertext = 0x04f18289308787f3d936dd2a45c49e22
+  , plaintext = 0xc925df60f455b0e27852efcf9fddc3d0
+  },
+
+  { key = 0xc7ef441582d9aacdf146c54f76233d6b
+  , ciphertext = 0xc925df60f455b0e27852efcf9fddc3d0
+  , plaintext = 0x14c3bcf83483de973d975dbf249c505e
+  },
+
+  { key = 0xd32cf8edb65a745accd198f052bf6d35
+  , ciphertext = 0x14c3bcf83483de973d975dbf249c505e
+  , plaintext = 0xa5f3f4afd0d01b9f4999d27e6386e925
+  },
+
+  { key = 0x76df0c42668a6fc585484a8e31398410
+  , ciphertext = 0xa5f3f4afd0d01b9f4999d27e6386e925
+  , plaintext = 0xd94451374478c1bdb4b94eb6908a205e
+  },
+
+  { key = 0xaf9b5d7522f2ae7831f10438a1b3a44e
+  , ciphertext = 0xd94451374478c1bdb4b94eb6908a205e
+  , plaintext = 0x9f3c6ed40a32c89d4ee8d4b87c8298c7
+  },
+
+  { key = 0x30a733a128c066e57f19d080dd313c89
+  , ciphertext = 0x9f3c6ed40a32c89d4ee8d4b87c8298c7
+  , plaintext = 0x54aa57cf75650cf6b7ccbd7202469bf7
+  },
+
+  { key = 0x640d646e5da56a13c8d56df2df77a77e
+  , ciphertext = 0x54aa57cf75650cf6b7ccbd7202469bf7
+  , plaintext = 0x11bc0be20465848934c0fd7d7ced8bd1
+  },
+
+  { key = 0x75b16f8c59c0ee9afc15908fa39a2caf
+  , ciphertext = 0x11bc0be20465848934c0fd7d7ced8bd1
+  , plaintext = 0x69d48f1ca39977f1c05f8cabd5f7e4ac
+  },
+
+  { key = 0x1c65e090fa59996b3c4a1c24766dc803
+  , ciphertext = 0x69d48f1ca39977f1c05f8cabd5f7e4ac
+  , plaintext = 0x2e447e6121162382c182b3efb27b2d5a
+  },
+
+  { key = 0x32219ef1db4fbae9fdc8afcbc416e559
+  , ciphertext = 0x2e447e6121162382c182b3efb27b2d5a
+  , plaintext = 0x3d99d0dff0891c38bec01551b4040e55
+  },
+
+  { key = 0x0fb84e2e2bc6a6d14308ba9a7012eb0c
+  , ciphertext = 0x3d99d0dff0891c38bec01551b4040e55
+  , plaintext = 0x92294ba363ed5b750c066cb6708620ee
+  },
+
+  { key = 0x9d91058d482bfda44f0ed62c0094cbe2
+  , ciphertext = 0x92294ba363ed5b750c066cb6708620ee
+  , plaintext = 0xcb674decffaae472d3d0710935b02aae
+  },
+
+  { key = 0x56f64861b78119d69cdea7253524e14c
+  , ciphertext = 0xcb674decffaae472d3d0710935b02aae
+  , plaintext = 0x47cd6a4b2f9b3d610d2bd3fe39feec91
+  },
+
+  { key = 0x113b222a981a24b791f574db0cda0ddd
+  , ciphertext = 0x47cd6a4b2f9b3d610d2bd3fe39feec91
+  , plaintext = 0x65b0b926a5b5b67f6895af42441f106b
+  },
+
+  { key = 0x748b9b0c3daf92c8f960db9948c51db6
+  , ciphertext = 0x65b0b926a5b5b67f6895af42441f106b
+  , plaintext = 0x3642fd59024efb3dc4e5bb268dd9de04
+  },
+
+  { key = 0x42c966553fe169f53d8560bfc51cc3b2
+  , ciphertext = 0x3642fd59024efb3dc4e5bb268dd9de04
+  , plaintext = 0x4e5d32a0e40dd9b830af0c2904518906
+  },
+
+  { key = 0x0c9454f5dbecb04d0d2a6c96c14d4ab4
+  , ciphertext = 0x4e5d32a0e40dd9b830af0c2904518906
+  , plaintext = 0x40a7ff6a6d0ea135245d5b24a0004466
+  },
+
+  { key = 0x4c33ab9fb6e21178297737b2614d0ed2
+  , ciphertext = 0x40a7ff6a6d0ea135245d5b24a0004466
+  , plaintext = 0xb18e6d37f5292acd1eaeee742930952a
+  },
+
+  { key = 0xfdbdc6a843cb3bb537d9d9c6487d9bf8
+  , ciphertext = 0xb18e6d37f5292acd1eaeee742930952a
+  , plaintext = 0x42df9c23bfbc90b787c5cb0dc08e80dc
+  },
+
+  { key = 0xbf625a8bfc77ab02b01c12cb88f31b24
+  , ciphertext = 0x42df9c23bfbc90b787c5cb0dc08e80dc
+  , plaintext = 0x589af99abbba45318106d2c1ca7b82b0
+  },
+
+  { key = 0xe7f8a31147cdee33311ac00a42889994
+  , ciphertext = 0x589af99abbba45318106d2c1ca7b82b0
+  , plaintext = 0x96f54a5bacec995c0263226cd443f2c6
+  },
+
+  { key = 0x710de94aeb21776f3379e26696cb6b52
+  , ciphertext = 0x96f54a5bacec995c0263226cd443f2c6
+  , plaintext = 0x84e07ce717c747cb924e42cdf6ec6524
+  },
+
+  { key = 0xf5ed95adfce630a4a137a0ab60270e76
+  , ciphertext = 0x84e07ce717c747cb924e42cdf6ec6524
+  , plaintext = 0x5140a66d02867ddfa8bb014f75d53b83
+  },
+
+  { key = 0xa4ad33c0fe604d7b098ca1e415f235f5
+  , ciphertext = 0x5140a66d02867ddfa8bb014f75d53b83
+  , plaintext = 0xa1570dc8605d7d68f0a2416aa2c3536a
+  },
+
+  { key = 0x05fa3e089e3d3013f92ee08eb731669f
+  , ciphertext = 0xa1570dc8605d7d68f0a2416aa2c3536a
+  , plaintext = 0x96ab8bd9091a703a6e6d1a2190f0b5c9
+  },
+
+  { key = 0x9351b5d1972740299743faaf27c1d356
+  , ciphertext = 0x96ab8bd9091a703a6e6d1a2190f0b5c9
+  , plaintext = 0x8418c2cec9d7cc3825152790f120488f
+  },
+
+  { key = 0x1749771f5ef08c11b256dd3fd6e19bd9
+  , ciphertext = 0x8418c2cec9d7cc3825152790f120488f
+  , plaintext = 0x7973673755c8201ec52bdec30a86191f
+  },
+
+  { key = 0x6e3a10280b38ac0f777d03fcdc6782c6
+  , ciphertext = 0x7973673755c8201ec52bdec30a86191f
+  , plaintext = 0x2a92ba991755f3c6ad1ef58681ac3a12
+  },
+
+  { key = 0x44a8aab11c6d5fc9da63f67a5dcbb8d4
+  , ciphertext = 0x2a92ba991755f3c6ad1ef58681ac3a12
+  , plaintext = 0xe3daa0cfe79594311762ca0d39985da2
+  },
+
+  { key = 0xa7720a7efbf8cbf8cd013c776453e576
+  , ciphertext = 0xe3daa0cfe79594311762ca0d39985da2
+  , plaintext = 0x5c2ea8b0b4bd7b50b48abd7df8e716f2
+  },
+
+  { key = 0xfb5ca2ce4f45b0a8798b810a9cb4f384
+  , ciphertext = 0x5c2ea8b0b4bd7b50b48abd7df8e716f2
+  , plaintext = 0xf15e39a11ed397378b6de3d62bde10c2
+  },
+
+  { key = 0x0a029b6f5196279ff2e662dcb76ae346
+  , ciphertext = 0xf15e39a11ed397378b6de3d62bde10c2
+  , plaintext = 0xd16879ee2fe2c07703e7eba3e093e911
+  },
+
+  { key = 0xdb6ae2817e74e7e8f101897f57f90a57
+  , ciphertext = 0xd16879ee2fe2c07703e7eba3e093e911
+  , plaintext = 0x57aac9d12da681f1ef4fc3d07269e159
+  },
+
+  { key = 0x8cc02b5053d266191e4e4aaf2590eb0e
+  , ciphertext = 0x57aac9d12da681f1ef4fc3d07269e159
+  , plaintext = 0xf6472d8a7d288db2262d826ff2f806ee
+  },
+
+  { key = 0x7a8706da2efaebab3863c8c0d768ede0
+  , ciphertext = 0xf6472d8a7d288db2262d826ff2f806ee
+  , plaintext = 0xd3ec20ae3257192d51f2ce4e73f87e53
+  },
+
+  { key = 0xa96b26741cadf2866991068ea49093b3
+  , ciphertext = 0xd3ec20ae3257192d51f2ce4e73f87e53
+  , plaintext = 0xd99891b245282641fb9e91681fce7ee1
+  },
+
+  { key = 0x70f3b7c65985d4c7920f97e6bb5eed52
+  , ciphertext = 0xd99891b245282641fb9e91681fce7ee1
+  , plaintext = 0x8f2fa0031baacb388ed7da3e7fd62828
+  },
+
+  { key = 0xffdc17c5422f1fff1cd84dd8c488c57a
+  , ciphertext = 0x8f2fa0031baacb388ed7da3e7fd62828
+  , plaintext = 0x80bed13ad5aebb0783629b03af2f6897
+  },
+
+  { key = 0x7f62c6ff9781a4f89fbad6db6ba7aded
+  , ciphertext = 0x80bed13ad5aebb0783629b03af2f6897
+  , plaintext = 0xfac43dfa16d393580f130b8a955339a6
+  },
+
+  { key = 0x85a6fb05815237a090a9dd51fef4944b
+  , ciphertext = 0xfac43dfa16d393580f130b8a955339a6
+  , plaintext = 0x60aa3f3683346b09466f1c4c11b376f5
+  },
+
+  { key = 0xe50cc43302665ca9d6c6c11def47e2be
+  , ciphertext = 0x60aa3f3683346b09466f1c4c11b376f5
+  , plaintext = 0xe93ac158da113797bce2472240c4d7bb
+  },
+
+  { key = 0x0c36056bd8776b3e6a24863faf833505
+  , ciphertext = 0xe93ac158da113797bce2472240c4d7bb
+  , plaintext = 0xe96e8432e2eea1de7e0cceadfe5e1623
+  },
+
+  { key = 0xe55881593a99cae01428489251dd2326
+  , ciphertext = 0xe96e8432e2eea1de7e0cceadfe5e1623
+  , plaintext = 0xd99630cb34f06a3a02e9803a029980a2
+  },
+
+  { key = 0x3cceb1920e69a0da16c1c8a85344a384
+  , ciphertext = 0xd99630cb34f06a3a02e9803a029980a2
+  , plaintext = 0xe5a14b334430768edf5dd7863ee30678
+  },
+
+  { key = 0xd96ffaa14a59d654c99c1f2e6da7a5fc
+  , ciphertext = 0xe5a14b334430768edf5dd7863ee30678
+  , plaintext = 0x49dab0bc5fb8c387ea9c557d3a35e659
+  },
+
+  { key = 0x90b54a1d15e115d323004a53579243a5
+  , ciphertext = 0x49dab0bc5fb8c387ea9c557d3a35e659
+  , plaintext = 0x6867e956763a7377a15a4248ab91c829
+  },
+
+  { key = 0xf8d2a34b63db66a4825a081bfc038b8c
+  , ciphertext = 0x6867e956763a7377a15a4248ab91c829
+  , plaintext = 0x4f536383ba4e258dd3ab764027a66e39
+  },
+
+  { key = 0xb781c0c8d995432951f17e5bdba5e5b5
+  , ciphertext = 0x4f536383ba4e258dd3ab764027a66e39
+  , plaintext = 0xe9b6abc089286834eb9421e71fe98517
+  },
+
+  { key = 0x5e376b0850bd2b1dba655fbcc44c60a2
+  , ciphertext = 0xe9b6abc089286834eb9421e71fe98517
+  , plaintext = 0x256121dead70e6675ad631dd0527fb1a
+  },
+
+  { key = 0x7b564ad6fdcdcd7ae0b36e61c16b9bb8
+  , ciphertext = 0x256121dead70e6675ad631dd0527fb1a
+  , plaintext = 0x6bdbcc94ec6497445e4024acb601741b
+  },
+
+  { key = 0x108d864211a95a3ebef34acd776aefa3
+  , ciphertext = 0x6bdbcc94ec6497445e4024acb601741b
+  , plaintext = 0x44e86f9d48c6699554a3538eb6f55479
+  },
+
+  { key = 0x5465e9df596f33abea501943c19fbbda
+  , ciphertext = 0x44e86f9d48c6699554a3538eb6f55479
+  , plaintext = 0xc7c622fee00a180f3131a57a82acf7a9
+  },
+
+  { key = 0x93a3cb21b9652ba4db61bc3943334c73
+  , ciphertext = 0xc7c622fee00a180f3131a57a82acf7a9
+  , plaintext = 0xe096b0406e6e8abb6ced353f1be40693
+  },
+
+  { key = 0x73357b61d70ba11fb78c890658d74ae0
+  , ciphertext = 0xe096b0406e6e8abb6ced353f1be40693
+  , plaintext = 0x73326251dbd89c23b37caee2ee6d2d9e
+  },
+
+  { key = 0x000719300cd33d3c04f027e4b6ba677e
+  , ciphertext = 0x73326251dbd89c23b37caee2ee6d2d9e
+  , plaintext = 0x7b2c687d460054af03709645056407c6
+  },
+
+  { key = 0x7b2b714d4ad369930780b1a1b3de60b8
+  , ciphertext = 0x7b2c687d460054af03709645056407c6
+  , plaintext = 0x8bb9f381438145a96714e238a8864e0b
+  },
+
+  { key = 0xf09282cc09522c3a609453991b582eb3
+  , ciphertext = 0x8bb9f381438145a96714e238a8864e0b
+  , plaintext = 0xd59509d08bcfc30e20344b1c4c53f726
+  },
+
+  { key = 0x25078b1c829def3440a01885570bd995
+  , ciphertext = 0xd59509d08bcfc30e20344b1c4c53f726
+  , plaintext = 0x02e6077d01a352637899d6ce626782ac
+  },
+
+  { key = 0x27e18c61833ebd573839ce4b356c5b39
+  , ciphertext = 0x02e6077d01a352637899d6ce626782ac
+  , plaintext = 0xed01d9601145c11662986b0827e403ec
+  },
+
+  { key = 0xcae05501927b7c415aa1a543128858d5
+  , ciphertext = 0xed01d9601145c11662986b0827e403ec
+  , plaintext = 0x7d5b1ca06884b5a55e9035fe7d77d4a7
+  },
+
+  { key = 0xb7bb49a1faffc9e4043190bd6fff8c72
+  , ciphertext = 0x7d5b1ca06884b5a55e9035fe7d77d4a7
+  , plaintext = 0x1a23d371b97e1056e8bc9545c56cab9e
+  },
+
+  { key = 0xad989ad04381d9b2ec8d05f8aa9327ec
+  , ciphertext = 0x1a23d371b97e1056e8bc9545c56cab9e
+  , plaintext = 0xd1d2bfdc58ffcad2341b095bce55221e
+  }]
+
+
+mct_ecb_encrypt_192 : [192] -> [128] -> [100](AESTestVector 192)
+mct_ecb_encrypt_192 initialKey initialPt = vs
+  where
+  vs@i = { key = keys@i, plaintext=pts@(i*1000), ciphertext=cts@(i*1000 + 999) }
+
+  pts : [100*1000][128]
+  pts = [initialPt] # take cts
+
+  cts : [100*1000][128]
+  cts@i = aesEncryptBlock (schedules@(i/1000)) (pts@i)
+
+  keys : [100][192]
+  keys = [initialKey] # [ k ^ ((drop`{64} (xs!1)) # xs!0)
+                        | xs <- take`{99} (groupBy`{1000} cts)
+                        | k <- keys
+                        ]
+
+  schedules : [100](AESEncryptKeySchedule AES192)
+  schedules = map aes192EncryptSchedule keys
+
+mct_ecb_decrypt_192 : [192] -> [128] -> [100](AESTestVector 192)
+mct_ecb_decrypt_192 initialKey initialCt = vs
+  where
+  vs@i = { key = keys@i, ciphertext=cts@(i*1000), plaintext=pts@(i*1000 + 999) }
+
+  cts : [100*1000][128]
+  cts = [initialCt] # take pts
+
+  pts : [100*1000][128]
+  pts@i = aesDecryptBlock (schedules@(i/1000)) (cts@i)
+
+  keys : [100][192]
+  keys = [initialKey] # [ k ^ ((drop`{64} (xs!1)) # xs!0)
+                        | xs <- take`{99} (groupBy`{1000} pts)
+                        | k <- keys
+                        ]
+
+  schedules : [100](AESDecryptKeySchedule AES192)
+  schedules = map aes192DecryptSchedule keys
+
+mct_ecb_encrypt_256 : [256] -> [128] -> [100](AESTestVector 256)
+mct_ecb_encrypt_256 initialKey initialPt = vs
+  where
+  vs@i = { key = keys@i, plaintext=pts@(i*1000), ciphertext=cts@(i*1000 + 999) }
+
+  pts : [100*1000][128]
+  pts = [initialPt] # take cts
+
+  cts : [100*1000][128]
+  cts@i = aesEncryptBlock (schedules@(i/1000)) (pts@i)
+
+  keys : [100][256]
+  keys = [initialKey] # [ k ^ (xs!1 # xs!0)
+                        | xs <- take`{99} (groupBy`{1000} cts)
+                        | k <- keys
+                        ]
+
+  schedules : [100](AESEncryptKeySchedule AES256)
+  schedules = map aes256EncryptSchedule keys
+
+mct_ecb_decrypt_256 : [256] -> [128] -> [100](AESTestVector 256)
+mct_ecb_decrypt_256 initialKey initialCt = vs
+  where
+  vs@i = { key = keys@i, ciphertext=cts@(i*1000), plaintext=pts@(i*1000 + 999) }
+
+  cts : [100*1000][128]
+  cts = [initialCt] # take pts
+
+  pts : [100*1000][128]
+  pts@i = aesDecryptBlock (schedules@(i/1000)) (cts@i)
+
+  keys : [100][256]
+  keys = [initialKey] # [ k ^ (xs!1 # xs!0)
+                        | xs <- take`{99} (groupBy`{1000} pts)
+                        | k <- keys
+                        ]
+
+  schedules : [100](AESDecryptKeySchedule AES256)
+  schedules = map aes256DecryptSchedule keys
+
+
+
+property aes192_MCT_vectors_encrypt_correct =
+ aes192_MCT_encrypt_test_vectors ==
+ mct_ecb_encrypt_192
+   0xb9a63e09e1dfc42e93a90d9bad739e5967aef672eedd5da9 
+   0x85a1f7a58167b389cddc8a9ff175ee26
+
+property aes192_MCT_vectors_decrypt_correct =
+ aes192_MCT_decrypt_test_vectors ==
+ mct_ecb_decrypt_192
+   0x4b97585701c03fbebdfa8555024f589f1482c58a00fdd9fd
+   0xd0bd0e02ded155e4516be83f42d347a4
+
+aes192_MCT_encrypt_test_vectors : [100](AESTestVector 192)
+aes192_MCT_encrypt_test_vectors =
+ // Vectors from ECBMCT192.rsp
+ [{ key = 0xb9a63e09e1dfc42e93a90d9bad739e5967aef672eedd5da9
+  , plaintext = 0x85a1f7a58167b389cddc8a9ff175ee26
+  , ciphertext = 0xee83d85279e022d2048031abeefbc4a4
+  },
+
+  { key = 0x3aaa458160ee54c97d2ad5c9d493bc8b632ec7d90026990d
+  , plaintext = 0xee83d85279e022d2048031abeefbc4a4
+  , ciphertext = 0xa8f99517b4bd14a16c26bae901417498
+  },
+
+  { key = 0x1d17d1bcc74a8584d5d340de602ea82a0f087d300167ed95
+  , plaintext = 0xa8f99517b4bd14a16c26bae901417498
+  , ciphertext = 0x80286e71937334fd6e90c706abbaf0ff
+  },
+
+  { key = 0xc0025cd0eb1f23c055fb2eaff35d9cd76198ba36aadd1d6a
+  , plaintext = 0x80286e71937334fd6e90c706abbaf0ff
+  , ciphertext = 0xc8b8c153bcb231e9424d65f37bff75b8
+  },
+
+  { key = 0xafb45c1097553d589d43effc4fefad3e23d5dfc5d12268d2
+  , plaintext = 0xc8b8c153bcb231e9424d65f37bff75b8
+  , ciphertext = 0x8108fbfde1cff0d94b88b1073114c657
+  },
+
+  { key = 0x8b81e2418f676a5b1c4b1401ae205de7685d6ec2e036ae85
+  , plaintext = 0x8108fbfde1cff0d94b88b1073114c657
+  , ciphertext = 0x79af44f2490efc90d217af55dd10fd2e
+  },
+
+  { key = 0x43463bbf9528c3bc65e450f3e72ea177ba4ac1973d2653ab
+  , plaintext = 0x79af44f2490efc90d217af55dd10fd2e
+  , ciphertext = 0xd0c2da3860c367e1fd68cf04bb6b41cd
+  },
+
+  { key = 0x0e3efca8ca3fd45bb5268acb87edc69647220e93864d1266
+  , plaintext = 0xd0c2da3860c367e1fd68cf04bb6b41cd
+  , ciphertext = 0xe5d39a5d7ca8c4f4aafd3d851c40c016
+  },
+
+  { key = 0x2908445968d0a18f50f51096fb450262eddf33169a0dd270
+  , plaintext = 0xe5d39a5d7ca8c4f4aafd3d851c40c016
+  , ciphertext = 0x98657051b23c69741b2ab506f818fd3f
+  },
+
+  { key = 0x00feb8bffd6b4bcbc89060c749796b16f6f5861062152f4f
+  , plaintext = 0x98657051b23c69741b2ab506f818fd3f
+  , ciphertext = 0xc9b6e95fb54b540adc1faa8cece00286
+  },
+
+  { key = 0xbe96e16fffe0a2db01268998fc323f1c2aea2c9c8ef52dc9
+  , plaintext = 0xc9b6e95fb54b540adc1faa8cece00286
+  , ciphertext = 0x5cf9f61a3dd3a2f76d571384c831ae88
+  },
+
+  { key = 0x41baf817490bf49c5ddf7f82c1e19deb47bd3f1846c48341
+  , plaintext = 0x5cf9f61a3dd3a2f76d571384c831ae88
+  , ciphertext = 0xdc6e6c13679958963b8648457eb8a415
+  },
+
+  { key = 0xa4afa1ac957b31fe81b11391a678c57d7c3b775d387c2754
+  , plaintext = 0xdc6e6c13679958963b8648457eb8a415
+  , ciphertext = 0x033f2b7189ec7f2ef0c496a83f5c5051
+  },
+
+  { key = 0x6a5b44860a26a4ff828e38e02f94ba538cffe1f507207705
+  , plaintext = 0x033f2b7189ec7f2ef0c496a83f5c5051
+  , ciphertext = 0x032727204d9b169679eff2ffe5f71efb
+  },
+
+  { key = 0xc80d5ebc48693fdc81a91fc0620facc5f510130ae2d769fe
+  , plaintext = 0x032727204d9b169679eff2ffe5f71efb
+  , ciphertext = 0xd19884aaae710c5861fff7251ea143c8
+  },
+
+  { key = 0xb9d36290d5324a8350319b6acc7ea09d94efe42ffc762a36
+  , plaintext = 0xd19884aaae710c5861fff7251ea143c8
+  , ciphertext = 0x3097d32245163fcf4c578e5a7dd2349a
+  },
+
+  { key = 0x3d00403bc3a0ff5b60a6484889689f52d8b86a7581a41eac
+  , plaintext = 0x3097d32245163fcf4c578e5a7dd2349a
+  , ciphertext = 0x39b6615b1e047b9469b3cfd7251987c9
+  },
+
+  { key = 0xbb85f657f0d5241659102913976ce4c6b10ba5a2a4bd9965
+  , plaintext = 0x39b6615b1e047b9469b3cfd7251987c9
+  , ciphertext = 0x868194c44a68d8b48e0ed4dbacded128
+  },
+
+  { key = 0x7db3635bf7d52f66df91bdd7dd043c723f0571790863484d
+  , plaintext = 0x868194c44a68d8b48e0ed4dbacded128
+  , ciphertext = 0xd324fd7db1cfaa86511280dafa5340e6
+  },
+
+  { key = 0x1449e32d51b3680f0cb540aa6ccb96f46e17f1a3f23008ab
+  , plaintext = 0xd324fd7db1cfaa86511280dafa5340e6
+  , ciphertext = 0x409aa25dcb51d8831a2f5627746c2bc9
+  },
+
+  { key = 0x63d4b33e24bf3f7c4c2fe2f7a79a4e777438a784865c2362
+  , plaintext = 0x409aa25dcb51d8831a2f5627746c2bc9
+  , ciphertext = 0xbfa0348398b9bc4e07eb1739c589b225
+  },
+
+  { key = 0x03f21169aad21af3f38fd6743f23f23973d3b0bd43d59147
+  , plaintext = 0xbfa0348398b9bc4e07eb1739c589b225
+  , ciphertext = 0x13582b4881e6b7f6398f41b57d617201
+  },
+
+  { key = 0x541879f8770ad35de0d7fd3cbec545cf4a5cf1083eb4e346
+  , plaintext = 0x13582b4881e6b7f6398f41b57d617201
+  , ciphertext = 0xd9d58082c3a976852a350ba551862362
+  },
+
+  { key = 0xd0c6100d7f8fdd8739027dbe7d6c334a6069faad6f32c024
+  , plaintext = 0xd9d58082c3a976852a350ba551862362
+  , ciphertext = 0x3cafa17506a92359c23600404ad61513
+  },
+
+  { key = 0x05345651ac0d23b305addccb7bc51013a25ffaed25e4d537
+  , plaintext = 0x3cafa17506a92359c23600404ad61513
+  , ciphertext = 0xa4a3041803fe9bf7d355b34d21293ecf
+  },
+
+  { key = 0x4ce9e1102ccba488a10ed8d3783b8be4710a49a004cdebf8
+  , plaintext = 0xa4a3041803fe9bf7d355b34d21293ecf
+  , ciphertext = 0xcfa674aba22c17036da437832c635b30
+  },
+
+  { key = 0x08fed0e9350ac7386ea8ac78da179ce71cae7e2328aeb0c8
+  , plaintext = 0xcfa674aba22c17036da437832c635b30
+  , ciphertext = 0xf4de164a6ca93e96dfc91426d636e481
+  },
+
+  { key = 0xcc5643ba704f961c9a76ba32b6bea271c3676a05fe985449
+  , plaintext = 0xf4de164a6ca93e96dfc91426d636e481
+  , ciphertext = 0x1deb553ac91ec346201154dbbdac9b14
+  },
+
+  { key = 0xd413a379439b2caf879def087fa06137e3763ede4334cf5d
+  , plaintext = 0x1deb553ac91ec346201154dbbdac9b14
+  , ciphertext = 0x52372415208849a222acf6f27e145f75
+  },
+
+  { key = 0x575a3e57736fe96dd5aacb1d5f282895c1dac82c3d209028
+  , plaintext = 0x52372415208849a222acf6f27e145f75
+  , ciphertext = 0x710f708e402325c6763ca461f6f855e0
+  },
+
+  { key = 0x7d593f399f198b9da4a5bb931f0b0d53b7e66c4dcbd8c5c8
+  , plaintext = 0x710f708e402325c6763ca461f6f855e0
+  , ciphertext = 0x8fae56699e3af53b86d484be2463b602
+  },
+
+  { key = 0x401e3d459d7254a82b0bedfa8131f8683132e8f3efbb73ca
+  , plaintext = 0x8fae56699e3af53b86d484be2463b602
+  , ciphertext = 0xaa44678efb43326727d5204edc942fe2
+  },
+
+  { key = 0x996d36de694dc3cb814f8a747a72ca0f16e7c8bd332f5c28
+  , plaintext = 0xaa44678efb43326727d5204edc942fe2
+  , ciphertext = 0xfb04caba312e387528a355d39db15db6
+  },
+
+  { key = 0xbba2ddbf7cc063957a4b40ce4b5cf27a3e449d6eae9e019e
+  , plaintext = 0xfb04caba312e387528a355d39db15db6
+  , ciphertext = 0x5d8156335210cc39885ab652d8ccfd33
+  },
+
+  { key = 0x5fdbf5f7b3b389c727ca16fd194c3e43b61e2b3c7652fcad
+  , plaintext = 0x5d8156335210cc39885ab652d8ccfd33
+  , ciphertext = 0x8b8d3455188ad9615a2c3a34c4bfb8df
+  },
+
+  { key = 0xfa876ec64e22b16bac4722a801c6e722ec321108b2ed4472
+  , plaintext = 0x8b8d3455188ad9615a2c3a34c4bfb8df
+  , ciphertext = 0x1c5bab7b91032ffac3a8e4d41a3a5338
+  },
+
+  { key = 0xceeda64221ae37d3b01c89d390c5c8d82f9af5dca8d7174a
+  , plaintext = 0x1c5bab7b91032ffac3a8e4d41a3a5338
+  , ciphertext = 0xad98def9c24e9d0de0e6a9541c86c34c
+  },
+
+  { key = 0xb2b6b9074795f6501d84572a528b55d5cf7c5c88b451d406
+  , plaintext = 0xad98def9c24e9d0de0e6a9541c86c34c
+  , ciphertext = 0xee54a410d2e410e721bf9b12f9a8bb04
+  },
+
+  { key = 0x42e6927395e5d3dbf3d0f33a806f4532eec3c79a4df96f02
+  , plaintext = 0xee54a410d2e410e721bf9b12f9a8bb04
+  , ciphertext = 0x7b894a4e5514249029af1118576093cc
+  },
+
+  { key = 0x07373c871002daaf8859b974d57b61a2c76cd6821a99fcce
+  , plaintext = 0x7b894a4e5514249029af1118576093cc
+  , ciphertext = 0xf555d93e38137c9b931b4583de367ff2
+  },
+
+  { key = 0x8eebc322f66630687d0c604aed681d3954779301c4af833c
+  , plaintext = 0xf555d93e38137c9b931b4583de367ff2
+  , ciphertext = 0xf5adbb37c99646913d1670ccd8203c04
+  },
+
+  { key = 0x56d70f07f90e11ab88a1db7d24fe5ba86961e3cd1c8fbf38
+  , plaintext = 0xf5adbb37c99646913d1670ccd8203c04
+  , ciphertext = 0x122f214900ffcfd59652c1af64b10c71
+  },
+
+  { key = 0xcf4ec9b7f52cd2d99a8efa342401947dff332262783eb349
+  , plaintext = 0x122f214900ffcfd59652c1af64b10c71
+  , ciphertext = 0xbe1b5d5ac7b61b73c479d7b1fc65ea35
+  },
+
+  { key = 0x8ca5b0fe1053b3982495a76ee3b78f0e3b4af5d3845b597c
+  , plaintext = 0xbe1b5d5ac7b61b73c479d7b1fc65ea35
+  , ciphertext = 0xf9868b44c1ce21b040b8fff3716b011a
+  },
+
+  { key = 0x34f2ce0dbb3fa2d2dd132c2a2279aebe7bf20a20f5305866
+  , plaintext = 0xf9868b44c1ce21b040b8fff3716b011a
+  , ciphertext = 0x9cac4efb170dc8ded3fc6a309fd7aca7
+  },
+
+  { key = 0x603bbb7bf54b365d41bf62d135746660a80e60106ae7f4c1
+  , plaintext = 0x9cac4efb170dc8ded3fc6a309fd7aca7
+  , ciphertext = 0xe52a42e78048c6dda63f98fc6c5f47f9
+  },
+
+  { key = 0xa146ac000cb1f14ba4952036b53ca0bd0e31f8ec06b8b338
+  , plaintext = 0xe52a42e78048c6dda63f98fc6c5f47f9
+  , ciphertext = 0x826af473c60d61bd746a8d8bda3b410c
+  },
+
+  { key = 0x979e0246f75d08e226ffd4457331c1007a5b7567dc83f234
+  , plaintext = 0x826af473c60d61bd746a8d8bda3b410c
+  , ciphertext = 0x9fa4ebdccace9033a56e3a5aace74dba
+  },
+
+  { key = 0x3c34cf05821c9d17b95b3f99b9ff5133df354f3d7064bf8e
+  , plaintext = 0x9fa4ebdccace9033a56e3a5aace74dba
+  , ciphertext = 0xe0ac5dee9d6247d50b379589c2415444
+  },
+
+  { key = 0x3e42ac26f6c0977a59f76277249d16e6d402dab4b225ebca
+  , plaintext = 0xe0ac5dee9d6247d50b379589c2415444
+  , ciphertext = 0x462562da72ea6b5c371530c716879dcd
+  },
+
+  { key = 0xed7edff15890f7841fd200ad56777dbae317ea73a4a27607
+  , plaintext = 0x462562da72ea6b5c371530c716879dcd
+  , ciphertext = 0x78a040009e18ef207253ef992e7e2c91
+  },
+
+  { key = 0x4140882041912162677240adc86f929a914405ea8adc5a96
+  , plaintext = 0x78a040009e18ef207253ef992e7e2c91
+  , ciphertext = 0xf8c7a79f10c92ec49e1ec59b08498d64
+  },
+
+  { key = 0x2cbc00f60f66695a9fb5e732d8a6bc5e0f5ac0718295d7f2
+  , plaintext = 0xf8c7a79f10c92ec49e1ec59b08498d64
+  , ciphertext = 0x2f9a5f2cfd515a6878ecd923c36b1b4e
+  },
+
+  { key = 0xce9854aa7b6e184ab02fb81e25f7e63677b6195241feccbc
+  , plaintext = 0x2f9a5f2cfd515a6878ecd923c36b1b4e
+  , ciphertext = 0xf7d3b3758ecf5359ab523beaa17a0306
+  },
+
+  { key = 0x93163ae28f22570b47fc0b6bab38b56fdce422b8e084cfba
+  , plaintext = 0xf7d3b3758ecf5359ab523beaa17a0306
+  , ciphertext = 0x6c9dd076750bd1d2c0b8f203ca14ee1e
+  },
+
+  { key = 0xca2a7882db1cb3b52b61db1dde3364bd1c5cd0bb2a9021a4
+  , plaintext = 0x6c9dd076750bd1d2c0b8f203ca14ee1e
+  , ciphertext = 0x289cf1ab3b9eac26cdd02df244412d4e
+  },
+
+  { key = 0x90dc3a02ba5b5f2b03fd2ab6e5adc89bd18cfd496ed10cea
+  , plaintext = 0x289cf1ab3b9eac26cdd02df244412d4e
+  , ciphertext = 0x8ee4ca3c6c9cc5f27ddb79ae7cfcc47e
+  },
+
+  { key = 0x11b26d4f3eb77d218d19e08a89310d69ac5784e7122dc894
+  , plaintext = 0x8ee4ca3c6c9cc5f27ddb79ae7cfcc47e
+  , ciphertext = 0x6cbf94fcdcadfd9a39d4c4f702d7b101
+  },
+
+  { key = 0x7159cd8684c28039e1a67476559cf0f39583401010fa7995
+  , plaintext = 0x6cbf94fcdcadfd9a39d4c4f702d7b101
+  , ciphertext = 0x5047270db233f75e84c734b5cb56f765
+  },
+
+  { key = 0x76bbdc75f530ec0ab1e1537be7af07ad114474a5dbac8ef0
+  , plaintext = 0x5047270db233f75e84c734b5cb56f765
+  , ciphertext = 0xb82602cd22e7821be62e5ff67cb193c6
+  },
+
+  { key = 0x306a4720867eca7009c751b6c54885b6f76a2b53a71d1d36
+  , plaintext = 0xb82602cd22e7821be62e5ff67cb193c6
+  , ciphertext = 0x5a241fbcb4a0f769c37408abe658da25
+  },
+
+  { key = 0x306323bbf53bd84f53e34e0a71e872df341e23f84145c713
+  , plaintext = 0x5a241fbcb4a0f769c37408abe658da25
+  , ciphertext = 0x9a63d956a9c719465e30cdc160991042
+  },
+
+  { key = 0x897b6f11ecb97862c980975cd82f6b996a2eee3921dcd751
+  , plaintext = 0x9a63d956a9c719465e30cdc160991042
+  , ciphertext = 0x2a733f407d8080470c5f22a6cf8358cd
+  },
+
+  { key = 0x14fa0e9978672ad5e3f3a81ca5afebde6671cc9fee5f8f9c
+  , plaintext = 0x2a733f407d8080470c5f22a6cf8358cd
+  , ciphertext = 0x24db9f77f61060accf6d41e7639c1ec6
+  },
+
+  { key = 0xc1125a27a85e3826c728376b53bf8b72a91c8d788dc3915a
+  , plaintext = 0x24db9f77f61060accf6d41e7639c1ec6
+  , ciphertext = 0xa89eccce6ee8c9d4d34cf5ba8b29cba7
+  },
+
+  { key = 0x1ce385ac9c70d4e26fb6fba53d5742a67a5078c206ea5afd
+  , plaintext = 0xa89eccce6ee8c9d4d34cf5ba8b29cba7
+  , ciphertext = 0xe4ef08e86141940ef87d6b385d19108c
+  },
+
+  { key = 0x9a3967a8ff01d35f8b59f34d5c16d6a8822d13fa5bf34a71
+  , plaintext = 0xe4ef08e86141940ef87d6b385d19108c
+  , ciphertext = 0x1039c441007d6805551a87e820c63dca
+  },
+
+  { key = 0x7d0af1cd0d641f209b60370c5c6bbeadd73794127b3577bb
+  , plaintext = 0x1039c441007d6805551a87e820c63dca
+  , ciphertext = 0x2584b55b214a94ee9894b104178a6dd5
+  },
+
+  { key = 0x3f78d295449908e6bee482577d212a434fa325166cbf1a6e
+  , plaintext = 0x2584b55b214a94ee9894b104178a6dd5
+  , ciphertext = 0x9d32bd6357551091ca659f7bd4509fc2
+  },
+
+  { key = 0x9cd28f265a13556123d63f342a743ad285c6ba6db8ef85ac
+  , plaintext = 0x9d32bd6357551091ca659f7bd4509fc2
+  , ciphertext = 0x9ac46eb8e253bb37304394ff0042d306
+  },
+
+  { key = 0x34caf580014164d4b912518cc82781e5b5852e92b8ad56aa
+  , plaintext = 0x9ac46eb8e253bb37304394ff0042d306
+  , ciphertext = 0x3b899f1f2d93e3890418763fdd35943a
+  },
+
+  { key = 0x7c19a50fa9360041829bce93e5b4626cb19d58ad6598c290
+  , plaintext = 0x3b899f1f2d93e3890418763fdd35943a
+  , ciphertext = 0xea89d4537784f253eae2d6cebdd63a4c
+  },
+
+  { key = 0x2109b2880479bb4f68121ac09230903f5b7f8e63d84ef8dc
+  , plaintext = 0xea89d4537784f253eae2d6cebdd63a4c
+  , ciphertext = 0x80711a42f6687a62590a8a0d165b2fb8
+  },
+
+  { key = 0x83fe682b1fcdb57be86300826458ea5d0275046ece15d764
+  , plaintext = 0x80711a42f6687a62590a8a0d165b2fb8
+  , ciphertext = 0xb2174ffab755e3e0c666cecb075256ec
+  },
+
+  { key = 0x63434f6c69c041735a744f78d30d09bdc413caa5c9478188
+  , plaintext = 0xb2174ffab755e3e0c666cecb075256ec
+  , ciphertext = 0x57120386bd566d31807a6fe7b0e78041
+  },
+
+  { key = 0xdfa4b3f99eda96420d664cfe6e5b648c4469a54279a001c9
+  , plaintext = 0x57120386bd566d31807a6fe7b0e78041
+  , ciphertext = 0x3b128fcdb7bb4252b5e5e00df5629508
+  },
+
+  { key = 0x24fa37bb6d70bd943674c333d9e026def18c454f8cc294c1
+  , plaintext = 0x3b128fcdb7bb4252b5e5e00df5629508
+  , ciphertext = 0x4826cf69d83c7f475230679b61ca8e0a
+  },
+
+  { key = 0x246a7408f739d1d37e520c5a01dc5999a3bc22d4ed081acb
+  , plaintext = 0x4826cf69d83c7f475230679b61ca8e0a
+  , ciphertext = 0x25a23c7fb798a50f5929e90e743da11c
+  },
+
+  { key = 0x9f1827be83518dbc5bf03025b644fc96fa95cbda9935bbd7
+  , plaintext = 0x25a23c7fb798a50f5929e90e743da11c
+  , ciphertext = 0x7639e9f902d65feb6bc5cbc44b5e12ed
+  },
+
+  { key = 0xfda6b0d164b7fd982dc9d9dcb492a37d9150001ed26ba93a
+  , plaintext = 0x7639e9f902d65feb6bc5cbc44b5e12ed
+  , ciphertext = 0x85a71ee457e94fc85cb9ac461fff1c4f
+  },
+
+  { key = 0x0755b86a470bb93aa86ec738e37becb5cde9ac58cd94b575
+  , plaintext = 0x85a71ee457e94fc85cb9ac461fff1c4f
+  , ciphertext = 0xc9ef84a268877ecef88bb554ea63c336
+  },
+
+  { key = 0x8f13f2d9085091816181439a8bfc927b3562190c27f77643
+  , plaintext = 0xc9ef84a268877ecef88bb554ea63c336
+  , ciphertext = 0x260dd6bf1366c029b5fd64e72853d2d7
+  },
+
+  { key = 0xfdd71c524c374345478c9525989a5252809f7deb0fa4a494
+  , plaintext = 0x260dd6bf1366c029b5fd64e72853d2d7
+  , ciphertext = 0x39cc3e224738efaaf45fab525fc13127
+  },
+
+  { key = 0x8bd43e3f448778ea7e40ab07dfa2bdf874c0d6b9506595b3
+  , plaintext = 0x39cc3e224738efaaf45fab525fc13127
+  , ciphertext = 0x4d5ac8506c0a13b1c2092731c6fe5fbc
+  },
+
+  { key = 0x69b7449dc811b19c331a6357b3a8ae49b6c9f188969bca0f
+  , plaintext = 0x4d5ac8506c0a13b1c2092731c6fe5fbc
+  , ciphertext = 0xede69bd80f879d57640c77bc1312f064
+  },
+
+  { key = 0x40e1692d44e3b441defcf88fbc2f331ed2c5863485893a6b
+  , plaintext = 0xede69bd80f879d57640c77bc1312f064
+  , ciphertext = 0x31dc854d8552e6684904bc6502682434
+  },
+
+  { key = 0xc1de7d9285751138ef207dc2397dd5769bc13a5187e11e5f
+  , plaintext = 0x31dc854d8552e6684904bc6502682434
+  , ciphertext = 0xc7bdc57aaa445e489655154b25d3906d
+  },
+
+  { key = 0xd8689fdcc9b77227289db8b893398b3e0d942f1aa2328e32
+  , plaintext = 0xc7bdc57aaa445e489655154b25d3906d
+  , ciphertext = 0xc4b498470a24113b6b182674c0366131
+  },
+
+  { key = 0x8293a998633a405dec2920ff991d9a05668c096e6204ef03
+  , plaintext = 0xc4b498470a24113b6b182674c0366131
+  , ciphertext = 0x7575104da6d5b4e0fb21d682f93d0d24
+  },
+
+  { key = 0xe71e9c0918c908ae995c30b23fc82ee59daddfec9b39e227
+  , plaintext = 0x7575104da6d5b4e0fb21d682f93d0d24
+  , ciphertext = 0xc5acdc318353c4ef3f6f45bf4a84c659
+  },
+
+  { key = 0xa5f19f392eb2afd15cf0ec83bc9bea0aa2c29a53d1bd247e
+  , plaintext = 0xc5acdc318353c4ef3f6f45bf4a84c659
+  , ciphertext = 0xaf6a60f60fc085656e305a4c050cc9c3
+  },
+
+  { key = 0x180b05bff13a1ad3f39a8c75b35b6f6fccf2c01fd4b1edbd
+  , plaintext = 0xaf6a60f60fc085656e305a4c050cc9c3
+  , ciphertext = 0x9d5f30e488c3243ad20767b39ec9ee4e
+  },
+
+  { key = 0x1fb7ff20cab8a5186ec5bc913b984b551ef5a7ac4a7803f3
+  , plaintext = 0x9d5f30e488c3243ad20767b39ec9ee4e
+  , ciphertext = 0x5c3a1d144e5efe7cede88e21dcbc2777
+  },
+
+  { key = 0x3e999761c9d15f3932ffa18575c6b529f31d298d96c42484
+  , plaintext = 0x5c3a1d144e5efe7cede88e21dcbc2777
+  , ciphertext = 0x4f163c25a6d545ccffc54511b2a5605d
+  },
+
+  { key = 0x8bc1e531e9d3f84f7de99da0d313f0e50cd86c9c246144d9
+  , plaintext = 0x4f163c25a6d545ccffc54511b2a5605d
+  , ciphertext = 0x3eed65dab0bd7ae8c8b115fa185e310a
+  },
+
+  { key = 0x4efaae2e7ecadcd24304f87a63ae8a0dc46979663c3f75d3
+  , plaintext = 0x3eed65dab0bd7ae8c8b115fa185e310a
+  , ciphertext = 0xfefce0da5af3885d022636f19adab9b8
+  },
+
+  { key = 0x44e1224d08476e9cbdf818a0395d0250c64f4f97a6e5cc6b
+  , plaintext = 0xfefce0da5af3885d022636f19adab9b8
+  , ciphertext = 0x3a0c3d806aff32fde868343b0b58c77a
+  },
+
+  { key = 0xef93ffb9eb0b9f1787f4252053a230ad2e277bacadbd0b11
+  , plaintext = 0x3a0c3d806aff32fde868343b0b58c77a
+  , ciphertext = 0x6610ee19970ee606083968e523af2370
+  },
+
+  { key = 0xfc7c2c3d27519036e1e4cb39c4acd6ab261e13498e122861
+  , plaintext = 0x6610ee19970ee606083968e523af2370
+  , ciphertext = 0x2f714ddbd4adf8327dc93c723aebfffa
+  },
+
+  { key = 0xf2f8a8247724e289ce9586e210012e995bd72f3bb4f9d79b
+  , plaintext = 0x2f714ddbd4adf8327dc93c723aebfffa
+  , ciphertext = 0x5d1196da8f184975e240949a25104554
+  }]
+
+
+aes192_MCT_decrypt_test_vectors : [100](AESTestVector 192)
+aes192_MCT_decrypt_test_vectors =
+ [{ key = 0x4b97585701c03fbebdfa8555024f589f1482c58a00fdd9fd
+  , ciphertext = 0xd0bd0e02ded155e4516be83f42d347a4
+  , plaintext = 0xc7b6581ccc88f7fc26d15d2731e7251b
+  },
+
+  { key = 0x3c98c80336e0f13f7a4cdd49cec7af63325398ad311afce6
+  , ciphertext = 0xc7b6581ccc88f7fc26d15d2731e7251b
+  , plaintext = 0x01aa957b12c596511484ed7705766c67
+  },
+
+  { key = 0x825349971b370dc47be64832dc02393226d775da346c9081
+  , ciphertext = 0x01aa957b12c596511484ed7705766c67
+  , plaintext = 0xf98c15d93f5daef6047c2760c5df5540
+  },
+
+  { key = 0xebb9611cf25685c3826a5debe35f97c422ab52baf1b3c5c1
+  , ciphertext = 0xf98c15d93f5daef6047c2760c5df5540
+  , plaintext = 0x5c86395c6b3ed7d30d5e3ce3331fb3ed
+  },
+
+  { key = 0xd8d6d591e30f4e77deec64b7886140172ff56e59c2ac762c
+  , ciphertext = 0x5c86395c6b3ed7d30d5e3ce3331fb3ed
+  , plaintext = 0x8e8cb768b31e65d054e9db8d19862084
+  },
+
+  { key = 0x775a6f9a0e4733e45060d3df3b7f25c77b1cb5d4db2a56a8
+  , ciphertext = 0x8e8cb768b31e65d054e9db8d19862084
+  , plaintext = 0x96cab38070ea8e37c3d437a091e9e74c
+  },
+
+  { key = 0x511e536ea113429bc6aa605f4b95abf0b8c882744ac3b1e4
+  , ciphertext = 0x96cab38070ea8e37c3d437a091e9e74c
+  , plaintext = 0xf8356cfe486b2375c2e2e4138b285ce7
+  },
+
+  { key = 0xc3f94c74f86b59723e9f0ca103fe88857a2a6667c1ebed03
+  , ciphertext = 0xf8356cfe486b2375c2e2e4138b285ce7
+  , plaintext = 0x6a15770b29960c063395a70dc3cf7575
+  },
+
+  { key = 0xa220f197ee7db5a2548a7baa2a68848349bfc16a02249876
+  , ciphertext = 0x6a15770b29960c063395a70dc3cf7575
+  , plaintext = 0xd16463745da38ef8997e20e102fb8573
+  },
+
+  { key = 0x187bc771e567fb1285ee18de77cb0a7bd0c1e18b00df1d05
+  , ciphertext = 0xd16463745da38ef8997e20e102fb8573
+  , plaintext = 0x98ea16875a9e3006de150e93be9585b8
+  },
+
+  { key = 0x432ab1057033bb041d040e592d553a7d0ed4ef18be4a98bd
+  , ciphertext = 0x98ea16875a9e3006de150e93be9585b8
+  , plaintext = 0x9d4c05cb0c5cb543515cfd05a4b90004
+  },
+
+  { key = 0x64a7f543e2e2a60780480b9221098f3e5f88121d1af398b9
+  , ciphertext = 0x9d4c05cb0c5cb543515cfd05a4b90004
+  , plaintext = 0x93c4638f0f76b0a42481c030314ca594
+  },
+
+  { key = 0x755c48e6e44a956f138c681d2e7f3f9a7b09d22d2bbf3d2d
+  , ciphertext = 0x93c4638f0f76b0a42481c030314ca594
+  , plaintext = 0x8ad1d144144c8530218c0edf3119aa82
+  },
+
+  { key = 0x4ff1466b9e9939af995db9593a33baaa5a85dcf21aa697af
+  , ciphertext = 0x8ad1d144144c8530218c0edf3119aa82
+  , plaintext = 0xa46e11cca3b2f98e9f7360d33d236189
+  },
+
+  { key = 0xb2e265f13266035a3d33a89599814324c5f6bc212785f626
+  , ciphertext = 0xa46e11cca3b2f98e9f7360d33d236189
+  , plaintext = 0x9ece35fb84957574fd353cfac1608943
+  },
+
+  { key = 0x102d9afa0e70b1daa3fd9d6e1d14365038c380dbe6e57f65
+  , ciphertext = 0x9ece35fb84957574fd353cfac1608943
+  , plaintext = 0x225ce2f6987392afd1921c5eecd6ba17
+  },
+
+  { key = 0xc772081227697cc081a17f988567a4ffe9519c850a33c572
+  , ciphertext = 0x225ce2f6987392afd1921c5eecd6ba17
+  , plaintext = 0x85fd494bfd5127cff96088e0b130ef04
+  },
+
+  { key = 0xc306028aea2e8f1c045c36d37836833010311465bb032a76
+  , ciphertext = 0x85fd494bfd5127cff96088e0b130ef04
+  , plaintext = 0x1e693009be7a868db9e6a495c2e238f3
+  },
+
+  { key = 0x7a646ea7ab6a11101a3506dac64c05bda9d7b0f079e11285
+  , ciphertext = 0x1e693009be7a868db9e6a495c2e238f3
+  , plaintext = 0x49f55237f9a66050b7e04e66a0b4bf24
+  },
+
+  { key = 0xddbe30e84a14077953c054ed3fea65ed1e37fe96d955ada1
+  , ciphertext = 0x49f55237f9a66050b7e04e66a0b4bf24
+  , plaintext = 0xb966ec6748bd876046be2be11abff82a
+  },
+
+  { key = 0x55e1472be2e1739aeaa6b88a7757e28d5889d577c3ea558b
+  , ciphertext = 0xb966ec6748bd876046be2be11abff82a
+  , plaintext = 0x0f6a78ac23e6ea2d9f4232e8568cea97
+  },
+
+  { key = 0x38750e9c7a729e09e5ccc02654b108a0c7cbe79f9566bf1c
+  , ciphertext = 0x0f6a78ac23e6ea2d9f4232e8568cea97
+  , plaintext = 0xc80bfbe58fb9b00cd4858fd769e3cd1d
+  },
+
+  { key = 0xe45ace33a0f7494c2dc73bc3db08b8ac134e6848fc857201
+  , ciphertext = 0xc80bfbe58fb9b00cd4858fd769e3cd1d
+  , plaintext = 0x918e28b7a7ad8a370d2f260f9f7a5fec
+  },
+
+  { key = 0xd2a3b2ca9419501abc4913747ca5329b1e614e4763ff2ded
+  , ciphertext = 0x918e28b7a7ad8a370d2f260f9f7a5fec
+  , plaintext = 0x59d1732fc2452e53eeda0790b80a244a
+  },
+
+  { key = 0x9dae1b9eaa53bdfce598605bbee01cc8f0bb49d7dbf509a7
+  , ciphertext = 0x59d1732fc2452e53eeda0790b80a244a
+  , plaintext = 0xe74d820249410cd1a39287dc536ed5fc
+  },
+
+  { key = 0xe74268a3d42edb8702d5e259f7a110195329ce0b889bdc5b
+  , ciphertext = 0xe74d820249410cd1a39287dc536ed5fc
+  , plaintext = 0x27ca67828485be98a6cd22d724af53b9
+  },
+
+  { key = 0x0d793e8f7e0ea82d251f85db7324ae81f5e4ecdcac348fe2
+  , ciphertext = 0x27ca67828485be98a6cd22d724af53b9
+  , plaintext = 0x4927ab19552102414e39126b8a91c675
+  },
+
+  { key = 0xc99788fd8dc7a7246c382ec22605acc0bbddfeb726a54997
+  , ciphertext = 0x4927ab19552102414e39126b8a91c675
+  , plaintext = 0x99ea6ccf100d06243b45998d68c9b6bc
+  },
+
+  { key = 0x733425872bb717edf5d2420d3608aae48098673a4e6cff2b
+  , ciphertext = 0x99ea6ccf100d06243b45998d68c9b6bc
+  , plaintext = 0xf029e59925e67de178b5cb9fd187f2c6
+  },
+
+  { key = 0xfc02106517299a1e05fba79413eed705f82daca59feb0ded
+  , ciphertext = 0xf029e59925e67de178b5cb9fd187f2c6
+  , plaintext = 0x5f9da95aa424d5a65f1ff3d99769522d
+  },
+
+  { key = 0x9b0efe0e5f4f4e395a660eceb7ca02a3a7325f7c08825fc0
+  , ciphertext = 0x5f9da95aa424d5a65f1ff3d99769522d
+  , plaintext = 0xa20f232bb355370df27f55bb53469b40
+  },
+
+  { key = 0x502b270205133d51f8692de5049f35ae554d0ac75bc4c480
+  , ciphertext = 0xa20f232bb355370df27f55bb53469b40
+  , plaintext = 0x32e5d13e44b2e67952d8ef98af19a4d3
+  },
+
+  { key = 0xd1cac8a82a2e3ab3ca8cfcdb402dd3d70795e55ff4dd6053
+  , ciphertext = 0x32e5d13e44b2e67952d8ef98af19a4d3
+  , plaintext = 0x688ab3ed2b373467bc547be2bf519846
+  },
+
+  { key = 0x7e4af6629efd55dfa2064f366b1ae7b0bbc19ebd4b8cf815
+  , ciphertext = 0x688ab3ed2b373467bc547be2bf519846
+  , plaintext = 0x1a88d45de26cab118e86fe7089d818d0
+  },
+
+  { key = 0x216cd4ed3d38e68cb88e9b6b89764ca1354760cdc254e0c5
+  , ciphertext = 0x1a88d45de26cab118e86fe7089d818d0
+  , plaintext = 0x8d154a7ebc0e6fd2d6d7686d9b9492ad
+  },
+
+  { key = 0xedf6f3e4f323dc91359bd11535782373e39008a059c07268
+  , ciphertext = 0x8d154a7ebc0e6fd2d6d7686d9b9492ad
+  , plaintext = 0xbe46ead5f431ee2c6d1795f852558ed7
+  },
+
+  { key = 0x94afb2de656daf688bdd3bc0c149cd5f8e879d580b95fcbf
+  , ciphertext = 0xbe46ead5f431ee2c6d1795f852558ed7
+  , plaintext = 0x9f1ecd9839abd6abbecba89a71405c76
+  },
+
+  { key = 0x70bea40807c903c714c3f658f8e21bf4304c35c27ad5a0c9
+  , ciphertext = 0x9f1ecd9839abd6abbecba89a71405c76
+  , plaintext = 0xf5f335142d71d35a4723bbece7a39c43
+  },
+
+  { key = 0xb32369cb5a1611d7e130c34cd593c8ae776f8e2e9d763c8a
+  , ciphertext = 0xf5f335142d71d35a4723bbece7a39c43
+  , plaintext = 0x55ace2aa461af10d10436e529a2d8d85
+  },
+
+  { key = 0xf6412cbd1f98e445b49c21e6938939a3672ce07c075bb10f
+  , ciphertext = 0x55ace2aa461af10d10436e529a2d8d85
+  , plaintext = 0xf6670a6576aa2d20b63482aab26f7c82
+  },
+
+  { key = 0xea7cf55a9e0fcb0d42fb2b83e5231483d11862d6b534cd8d
+  , ciphertext = 0xf6670a6576aa2d20b63482aab26f7c82
+  , plaintext = 0x93e81b9866979a0adc573d380065f18e
+  },
+
+  { key = 0x1a5d1de4468ed5e5d113301b83b48e890d4f5feeb5513c03
+  , ciphertext = 0x93e81b9866979a0adc573d380065f18e
+  , plaintext = 0x324024007edad9a3e4b435b212bfec88
+  },
+
+  { key = 0x8ed3c18837593af6e353141bfd6e572ae9fb6a5ca7eed08b
+  , ciphertext = 0x324024007edad9a3e4b435b212bfec88
+  , plaintext = 0x5eb5e71f06992c1998ae0cf03dbc9dce
+  },
+
+  { key = 0xe5d6d1566d3c9a17bde6f304fbf77b33715566ac9a524d45
+  , ciphertext = 0x5eb5e71f06992c1998ae0cf03dbc9dce
+  , plaintext = 0xa83fe8f226ad5ee5b358fac03a092882
+  },
+
+  { key = 0xd5ec4f5df302bfa515d91bf6dd5a25d6c20d9c6ca05b65c7
+  , ciphertext = 0xa83fe8f226ad5ee5b358fac03a092882
+  , plaintext = 0x72360b4fcd1293a36ed0bb44213da8b9
+  },
+
+  { key = 0x50257306e757d76567ef10b91048b675acdd27288166cd7e
+  , ciphertext = 0x72360b4fcd1293a36ed0bb44213da8b9
+  , plaintext = 0x982119600a3e73dff33583558134bcf0
+  },
+
+  { key = 0x64b394f798415fbcffce09d91a76c5aa5fe8a47d0052718e
+  , ciphertext = 0x982119600a3e73dff33583558134bcf0
+  , plaintext = 0x0c33669b84d714959785b37d586bb355
+  },
+
+  { key = 0xcbaf8d92f18efe87f3fd6f429ea1d13fc86d17005839c2db
+  , ciphertext = 0x0c33669b84d714959785b37d586bb355
+  , plaintext = 0x9fc2fd51bbefd70fe7ce0c13af3d2ace
+  },
+
+  { key = 0x80bb745fb5b9cb616c3f9213254e06302fa31b13f704e815
+  , ciphertext = 0x9fc2fd51bbefd70fe7ce0c13af3d2ace
+  , plaintext = 0xaf4a4566e556a7f2dd3477a53c094498
+  },
+
+  { key = 0xb5d94340d5852f04c375d775c018a1c2f2976cb6cb0dac8d
+  , ciphertext = 0xaf4a4566e556a7f2dd3477a53c094498
+  , plaintext = 0x8107ca3fc833fee74501f2a42f088401
+  },
+
+  { key = 0x23341a3b649010c942721d4a082b5f25b7969e12e405288c
+  , ciphertext = 0x8107ca3fc833fee74501f2a42f088401
+  , plaintext = 0x714341183a67b95abcf9bc992d1aa290
+  },
+
+  { key = 0x955075d16664498333315c52324ce67f0b6f228bc91f8a1c
+  , ciphertext = 0x714341183a67b95abcf9bc992d1aa290
+  , plaintext = 0x564289f3ac30d6e27dde4308ee5637ab
+  },
+
+  { key = 0x9e5493cf59a7d0e76573d5a19e7c309d76b161832749bdb7
+  , ciphertext = 0x564289f3ac30d6e27dde4308ee5637ab
+  , plaintext = 0x805424be37b7f0b5498ab5bf8904f468
+  },
+
+  { key = 0x0e8dd0538bcfa448e527f11fa9cbc0283f3bd43cae4d49df
+  , ciphertext = 0x805424be37b7f0b5498ab5bf8904f468
+  , plaintext = 0x793554c1cc565f00f9f2122bd06672aa
+  },
+
+  { key = 0xf253723471590c249c12a5de659d9f28c6c9c6177e2b3b75
+  , ciphertext = 0x793554c1cc565f00f9f2122bd06672aa
+  , plaintext = 0xb89feee17d71a452b46e4683cfddc0ba
+  },
+
+  { key = 0x14781c9f73227825248d4b3f18ec3b7a72a78094b1f6fbcf
+  , ciphertext = 0xb89feee17d71a452b46e4683cfddc0ba
+  , plaintext = 0x737c418d35812556f6d26ebf91028ad7
+  },
+
+  { key = 0xc4706d6414a3594657f10ab22d6d1e2c8475ee2b20f47118
+  , ciphertext = 0x737c418d35812556f6d26ebf91028ad7
+  , plaintext = 0xc2e352ec712b84fa74f98254740d0847
+  },
+
+  { key = 0x74fabaf96545e7199512585e5c469ad6f08c6c7f54f9795f
+  , ciphertext = 0xc2e352ec712b84fa74f98254740d0847
+  , plaintext = 0xe09f8d7cc0e4d7f4efb65e10529592e5
+  },
+
+  { key = 0xdbfa75aad7f1ad19758dd5229ca24d221f3a326f066cebba
+  , ciphertext = 0xe09f8d7cc0e4d7f4efb65e10529592e5
+  , plaintext = 0x8a8911579e11d858bd4e336b8125fa6f
+  },
+
+  { key = 0xad8ea306bb3eb77bff04c47502b3957aa2740104874911d5
+  , ciphertext = 0x8a8911579e11d858bd4e336b8125fa6f
+  , plaintext = 0x3b1f396eae6ae53926e9607fb4b6e1d6
+  },
+
+  { key = 0x2b204520b1389d5bc41bfd1bacd97043849d617b33fff003
+  , ciphertext = 0x3b1f396eae6ae53926e9607fb4b6e1d6
+  , plaintext = 0x6d06fe256d84ab0112119425d70d5aa6
+  },
+
+  { key = 0x86d761e020a46b76a91d033ec15ddb42968cf55ee4f2aaa5
+  , ciphertext = 0x6d06fe256d84ab0112119425d70d5aa6
+  , plaintext = 0x537dd3000fdff67107362da65c95f101
+  },
+
+  { key = 0xbee0861f51136bd0fa60d03ece822d3391bad8f8b8675ba4
+  , ciphertext = 0x537dd3000fdff67107362da65c95f101
+  , plaintext = 0x2843b7b7107b1390be393137e3e266c9
+  },
+
+  { key = 0x8706a8a8fab02e3dd2236789def93ea32f83e9cf5b853d6d
+  , ciphertext = 0x2843b7b7107b1390be393137e3e266c9
+  , plaintext = 0xd5fae73a8940ec3c1bebe8a5e4fa0423
+  },
+
+  { key = 0x43ab0c1509505c7407d980b357b9d29f3468016abf7f394e
+  , ciphertext = 0xd5fae73a8940ec3c1bebe8a5e4fa0423
+  , plaintext = 0x63a9a8c99a6a8984dc6975772dd0beac
+  },
+
+  { key = 0xfb0dbb8cab3b89b16470287acdd35b1be801741d92af87e2
+  , ciphertext = 0x63a9a8c99a6a8984dc6975772dd0beac
+  , plaintext = 0x4c7b28c69c39c7eea1359ba2c167266a
+  },
+
+  { key = 0x1abc6031a84a5908280b00bc51ea9cf54934efbf53c8a188
+  , ciphertext = 0x4c7b28c69c39c7eea1359ba2c167266a
+  , plaintext = 0x076024c11bf696874d791813887685e7
+  },
+
+  { key = 0x746718f146cad3d92f6b247d4a1c0a72044df7acdbbe246f
+  , ciphertext = 0x076024c11bf696874d791813887685e7
+  , plaintext = 0xb413f148dc94e0525ad4800fb53dfc64
+  },
+
+  { key = 0x65a422dccc0f07779b78d5359688ea205e9977a36e83d80b
+  , ciphertext = 0xb413f148dc94e0525ad4800fb53dfc64
+  , plaintext = 0xbd94776297b168e862d3afd0669a2668
+  },
+
+  { key = 0x6d9fc6a3839c401426eca257013982c83c4ad8730819fe63
+  , ciphertext = 0xbd94776297b168e862d3afd0669a2668
+  , plaintext = 0xa383eb812e9d2ad7d04ef05beebc663c
+  },
+
+  { key = 0x31e8ba40171be0cc856f49d62fa4a81fec042828e6a5985f
+  , ciphertext = 0xa383eb812e9d2ad7d04ef05beebc663c
+  , plaintext = 0x125833c5a964733d24ca84ae573e537e
+  },
+
+  { key = 0xa1bd656677244e3597377a1386c0db22c8ceac86b19bcb21
+  , ciphertext = 0x125833c5a964733d24ca84ae573e537e
+  , plaintext = 0xd6597fe3687c9dc2f6087ad48bb2ab18
+  },
+
+  { key = 0x9467df27c2b90ca7416e05f0eebc46e03ec6d6523a296039
+  , ciphertext = 0xd6597fe3687c9dc2f6087ad48bb2ab18
+  , plaintext = 0xfd6abdb2793f849bedea160e34ab1a9d
+  },
+
+  { key = 0x1ee8f6b4187a87f0bc04b8429783c27bd32cc05c0e827aa4
+  , ciphertext = 0xfd6abdb2793f849bedea160e34ab1a9d
+  , plaintext = 0xfd2ccba255e74b16864ac2ff80894ebb
+  },
+
+  { key = 0x3f23c25c52d6454c412873e0c264896d556602a38e0b341f
+  , ciphertext = 0xfd2ccba255e74b16864ac2ff80894ebb
+  , plaintext = 0x4571abacb8faa74007702258220b3e19
+  },
+
+  { key = 0x4eedfc725f3901b80459d84c7a9e2e2d521620fbac000a06
+  , ciphertext = 0x4571abacb8faa74007702258220b3e19
+  , plaintext = 0x941b069f7545d16d24e69a309794a259
+  },
+
+  { key = 0xad8b4cd042b874d09042ded30fdbff4076f0bacb3b94a85f
+  , ciphertext = 0x941b069f7545d16d24e69a309794a259
+  , plaintext = 0x515ab9b50447ea30e5ab92ddd1498d69
+  },
+
+  { key = 0xc085e9fde0a60664c11867660b9c1570935b2816eadd2536
+  , ciphertext = 0x515ab9b50447ea30e5ab92ddd1498d69
+  , plaintext = 0x872c0d54b1382c095b1a475fee114cd5
+  },
+
+  { key = 0x4790a2b2ee108fbb46346a32baa43979c8416f4904cc69e3
+  , ciphertext = 0x872c0d54b1382c095b1a475fee114cd5
+  , plaintext = 0x6aa4b9e4559d2c1de4f59dafbaf0909e
+  },
+
+  { key = 0x56880340e6eaf2472c90d3d6ef3915642cb4f2e6be3cf97d
+  , ciphertext = 0x6aa4b9e4559d2c1de4f59dafbaf0909e
+  , plaintext = 0xc4ce24dd760b44799d00ce4c5ffdb8c5
+  },
+
+  { key = 0xd321a216923e2c1de85ef70b9932511db1b43caae1c141b8
+  , ciphertext = 0xc4ce24dd760b44799d00ce4c5ffdb8c5
+  , plaintext = 0xd73e44ee7f75c2fb6696aaba64af9925
+  },
+
+  { key = 0xa80125606ef3f3953f60b3e5e64793e6d7229610856ed89d
+  , ciphertext = 0xd73e44ee7f75c2fb6696aaba64af9925
+  , plaintext = 0x1add98acb3a31733b3e0a32da14a71cf
+  },
+
+  { key = 0xfd54730799c76e1e25bd2b4955e484d564c2353d2424a952
+  , ciphertext = 0x1add98acb3a31733b3e0a32da14a71cf
+  , plaintext = 0x6d2201f6268f7c126e4d57375f5ac97b
+  },
+
+  { key = 0xb07e344619df38e5489f2abf736bf8c70a8f620a7b7e6029
+  , ciphertext = 0x6d2201f6268f7c126e4d57375f5ac97b
+  , plaintext = 0x349daafd5a9676a0bf5e015319a5083b
+  },
+
+  { key = 0xf66e7702379bbeac7c02804229fd8e67b5d1635962db6812
+  , ciphertext = 0x349daafd5a9676a0bf5e015319a5083b
+  , plaintext = 0xfd6cd698388a46f696da48543a327e10
+  },
+
+  { key = 0x1aab1a249cb5fa91816e56da1177c891230b2b0d58e91602
+  , ciphertext = 0xfd6cd698388a46f696da48543a327e10
+  , plaintext = 0xbaa9b8a3f9ffa86241bb5abe04b7eea5
+  },
+
+  { key = 0xdd881f3432073d253bc7ee79e88860f362b071b35c5ef8a7
+  , ciphertext = 0xbaa9b8a3f9ffa86241bb5abe04b7eea5
+  , plaintext = 0x19ad5a0619f1b5eed38fb5fbbbbe1247
+  },
+
+  { key = 0xd4088261dda8dfc1226ab47ff179d51db13fc448e7e0eae0
+  , ciphertext = 0x19ad5a0619f1b5eed38fb5fbbbbe1247
+  , plaintext = 0x832e01274c6a59b148dc6de3e6ccc037
+  },
+
+  { key = 0x0ff97f22bdef4005a144b558bd138cacf9e3a9ab012c2ad7
+  , ciphertext = 0x832e01274c6a59b148dc6de3e6ccc037
+  , plaintext = 0x9853ba4a0880449a6344fd0dabfc9e74
+  },
+
+  { key = 0xa2f2351138f53ed639170f12b593c8369aa754a6aad0b4a3
+  , ciphertext = 0x9853ba4a0880449a6344fd0dabfc9e74
+  , plaintext = 0x89ebc090e07d36670f48a32074c9ca18
+  },
+
+  { key = 0xb7c564161c5e5061b0fccf8255eefe5195eff786de197ebb
+  , ciphertext = 0x89ebc090e07d36670f48a32074c9ca18
+  , plaintext = 0x5695154c14aeb5d09a516ca802d7fb21
+  },
+
+  { key = 0x95aa68a5ba0d346be669dace41404b810fbe9b2edcce859a
+  , ciphertext = 0x5695154c14aeb5d09a516ca802d7fb21
+  , plaintext = 0xf49c9100c165c22f16661c23bf46520e
+  },
+
+  { key = 0x028f06458b3a50ce12f54bce802589ae19d8870d6388d794
+  , ciphertext = 0xf49c9100c165c22f16661c23bf46520e
+  , plaintext = 0x1aec4f3ade3b41dd3d5448dc7e577e67
+  },
+
+  { key = 0xe0b75db3cfb1e3f6081904f45e1ec873248ccfd11ddfa9f3
+  , ciphertext = 0x1aec4f3ade3b41dd3d5448dc7e577e67
+  , plaintext = 0x5c75fbcaa893326641aa343f40f6ee31
+  },
+
+  { key = 0xe51161c0ee3bf4fe546cff3ef68dfa156526fbee5d2947c2
+  , ciphertext = 0x5c75fbcaa893326641aa343f40f6ee31
+  , plaintext = 0xa2c953d404212d5da4e98f31d8cc0a5b
+  },
+
+  { key = 0x1f13dd6e77477337f6a5aceaf2acd748c1cf74df85e54d99
+  , ciphertext = 0xa2c953d404212d5da4e98f31d8cc0a5b
+  , plaintext = 0x17ea5bd0c139ce391240ff701085b060
+  },
+
+  { key = 0x547e1d3ba5988327e14ff73a33951971d38f8baf9560fdf9
+  , ciphertext = 0x17ea5bd0c139ce391240ff701085b060
+  , plaintext = 0x98d87acaeb843ccf7b6e92a1889ff129
+  },
+
+  { key = 0xd140d82958fb4d8979978df0d81125bea8e1190e1dff0cd0
+  , ciphertext = 0x98d87acaeb843ccf7b6e92a1889ff129
+  , plaintext = 0x0c2132942034442ea6eb14d23ccdf868
+  },
+
+  { key = 0xf311ab46bba28f9a75b6bf64f82561900e0a0ddc2132f4b8
+  , ciphertext = 0x0c2132942034442ea6eb14d23ccdf868
+  , plaintext = 0x91341b217d521168251ad3778171e5ba
+  },
+
+  { key = 0x0abea37884946aa1e482a445857770f82b10deaba0431102
+  , ciphertext = 0x91341b217d521168251ad3778171e5ba
+  , plaintext = 0xb63ef1b79507a62eba3dafcec54a6328
+  }]
+
+
+property aes256_MCT_vectors_encrypt_correct =
+  aes256_MCT_encrypt_test_vectors ==
+  mct_ecb_encrypt_256
+    0xf9e8389f5b80712e3886cc1fa2d28a3b8c9cd88a2d4a54c6aa86ce0fef944be0
+    0xb379777f9050e2a818f2940cbbd9aba4
+
+
+property aes256_MCT_vectors_decrypt_correct =
+  aes256_MCT_decrypt_test_vectors ==
+  mct_ecb_decrypt_256
+    0x2b09ba39b834062b9e93f48373b8dd018dedf1e5ba1b8af831ebbacbc92a2643
+    0x89649bd0115f30bd878567610223a59d
+
+
+aes256_MCT_encrypt_test_vectors : [100](AESTestVector 256)
+aes256_MCT_encrypt_test_vectors =
+ // Vectors from ECBMCT256.rsp
+ [{ key = 0xf9e8389f5b80712e3886cc1fa2d28a3b8c9cd88a2d4a54c6aa86ce0fef944be0
+  , plaintext = 0xb379777f9050e2a818f2940cbbd9aba4
+  , ciphertext = 0x6893ebaf0a1fccc704326529fdfb60db
+  },
+
+  { key = 0xdb9ea5a2284fa17fb63e13bf891c8e42e40f332527559801aeb4ab26126f2b3b
+  , plaintext = 0x6893ebaf0a1fccc704326529fdfb60db
+  , ciphertext = 0xf3c78a5e85e5439bf26d5818718157d6
+  },
+
+  { key = 0x7099ed88e82744228a5303ae2ef6c0d017c8b97ba2b0db9a5cd9f33e63ee7ced
+  , plaintext = 0xf3c78a5e85e5439bf26d5818718157d6
+  , ciphertext = 0x2326b958b00b3050697eedb08cc20504
+  },
+
+  { key = 0x5e9e65ea96e78dd4fb78ea1184f6ebde34ee002312bbebca35a71e8eef2c79e9
+  , plaintext = 0x2326b958b00b3050697eedb08cc20504
+  , ciphertext = 0xec4332d5e3cebd3e0f5fc51452f4560d
+  },
+
+  { key = 0x33acf1cafc822646dc869e905bd26f9ad8ad32f6f17556f43af8db9abdd82fe4
+  , plaintext = 0xec4332d5e3cebd3e0f5fc51452f4560d
+  , ciphertext = 0x5da58b5ef2076340d555f861c3449a77
+  },
+
+  { key = 0xeb0ae85c1b44d5db4729d268f49be2a08508b9a8037235b4efad23fb7e9cb593
+  , plaintext = 0x5da58b5ef2076340d555f861c3449a77
+  , ciphertext = 0x307d50c18a0b6a08402ff131d72cb7ec
+  },
+
+  { key = 0xfac93b561a9b6a0e809d71ecdb980afab575e96989795fbcaf82d2caa9b0027f
+  , plaintext = 0x307d50c18a0b6a08402ff131d72cb7ec
+  , ciphertext = 0x92c34165a2963e77e05e2d6fc2d931d5
+  },
+
+  { key = 0xa0559e41d58af36174a67246df87541b27b6a80c2bef61cb4fdcffa56b6933aa
+  , plaintext = 0x92c34165a2963e77e05e2d6fc2d931d5
+  , ciphertext = 0xcb33d519a1fdb1d5fbb185c47870c1ed
+  },
+
+  { key = 0xe48824d6c2251d3a27f38fb543c31fc1ec857d158a12d01eb46d7a611319f247
+  , plaintext = 0xcb33d519a1fdb1d5fbb185c47870c1ed
+  , ciphertext = 0x78fb452f384c8f870e572890588f3728
+  },
+
+  { key = 0x7a33440ad7c69d583355c745e5c88c47947e383ab25e5f99ba3a52f14b96c56f
+  , plaintext = 0x78fb452f384c8f870e572890588f3728
+  , ciphertext = 0x12375e02a8bbc84b00feaab54a66db43
+  },
+
+  { key = 0x0e6877c7fdc234efb9afcd96b4ebdb83864966381ae597d2bac4f84401f01e2c
+  , plaintext = 0x12375e02a8bbc84b00feaab54a66db43
+  , ciphertext = 0xeab1606610b55c857f2b4bf1cf3feba0
+  },
+
+  { key = 0xec91d3550c79ab4914a26987725ab1396cf8065e0a50cb57c5efb3b5cecff58c
+  , plaintext = 0xeab1606610b55c857f2b4bf1cf3feba0
+  , ciphertext = 0x6c73381147de97961cc26ad26602a45a
+  },
+
+  { key = 0x83caed5a49579b3a55a71e5ece5966e5008b3e4f4d8e5cc1d92dd967a8cd51d6
+  , plaintext = 0x6c73381147de97961cc26ad26602a45a
+  , ciphertext = 0xe76c08fd29bf015352003c636fee5ff9
+  },
+
+  { key = 0x91b9b50908968361dcd8f4ba236fa199e7e736b264315d928b2de504c7230e2f
+  , plaintext = 0xe76c08fd29bf015352003c636fee5ff9
+  , ciphertext = 0x6f26b8191a2b059dcdeb3dbabc437c29
+  },
+
+  { key = 0x94fc46213c870f7965b88773afe93b1388c18eab7e1a580f46c6d8be7b607206
+  , plaintext = 0x6f26b8191a2b059dcdeb3dbabc437c29
+  , ciphertext = 0xe91e2fcef14dd4251caec97c45223fef
+  },
+
+  { key = 0xb0deff009aff61f65763b0b9fdd39a9061dfa1658f578c2a5a6811c23e424de9
+  , plaintext = 0xe91e2fcef14dd4251caec97c45223fef
+  , ciphertext = 0x98fb2122912360f07916e4802c0ea1e5
+  },
+
+  { key = 0x968f3c88d27f1be8decb00c4d464d369f92480471e74ecda237ef542124cec0c
+  , plaintext = 0x98fb2122912360f07916e4802c0ea1e5
+  , ciphertext = 0xb4a15c59976b39da50da8ed393f27a62
+  },
+
+  { key = 0x35fe06a60309581565a97232140668464d85dc1e891fd50073a47b9181be966e
+  , plaintext = 0xb4a15c59976b39da50da8ed393f27a62
+  , ciphertext = 0xd8b57d7a72ef92409c51d40bb8c4cbc5
+  },
+
+  { key = 0x4739043d7750bcf4a6f269a3d54083ca9530a164fbf04740eff5af9a397a5dab
+  , plaintext = 0xd8b57d7a72ef92409c51d40bb8c4cbc5
+  , ciphertext = 0x548cc893e80caf5a601c2381517f8c5b
+  },
+
+  { key = 0x4b065b5195f2ddf6f5d0aed72ff7a1e3c1bc69f713fce81a8fe98c1b6805d1f0
+  , plaintext = 0x548cc893e80caf5a601c2381517f8c5b
+  , ciphertext = 0x1c2238c560d678d40b48cc8034add0c4
+  },
+
+  { key = 0x1a949129e14c5963d997c86a6352ea53dd9e5132732a90ce84a1409b5ca80134
+  , plaintext = 0x1c2238c560d678d40b48cc8034add0c4
+  , ciphertext = 0x2771ff806e061df8ad4aa877717bf309
+  },
+
+  { key = 0x91cd3e48f4b42c432bed9848583e6dc7faefaeb21d2c8d3629ebe8ec2dd3f23d
+  , plaintext = 0x2771ff806e061df8ad4aa877717bf309
+  , ciphertext = 0x065593fa1fcdb481bb27f334505543f5
+  },
+
+  { key = 0x42d6f7b585a0a0d356c59be3d07d4d41fcba3d4802e139b792cc1bd87d86b1c8
+  , plaintext = 0x065593fa1fcdb481bb27f334505543f5
+  , ciphertext = 0xd3f309c0039b15d14eb8b739a94b94fa
+  },
+
+  { key = 0x72900f0ecbf90fa058805deb430815072f493488017a2c66dc74ace1d4cd2532
+  , plaintext = 0xd3f309c0039b15d14eb8b739a94b94fa
+  , ciphertext = 0x4e441a3fb277d6fbe0ed7c6e080d9a9f
+  },
+
+  { key = 0x12ef8789b91a8e35fd0ac79457a906f0610d2eb7b30dfa9d3c99d08fdcc0bfad
+  , plaintext = 0x4e441a3fb277d6fbe0ed7c6e080d9a9f
+  , ciphertext = 0xcb9241bc964cbc9823531f68e3a03b7c
+  },
+
+  { key = 0x2cbe5980ad54c5dbf2ee3db1e9875733aa9f6f0b254146051fcacfe73f6084d1
+  , plaintext = 0xcb9241bc964cbc9823531f68e3a03b7c
+  , ciphertext = 0x70b17c3e869aca6076617a2cf75e9f4a
+  },
+
+  { key = 0xdc4da3812736a2a603bcc6390763c5c5da2e1335a3db8c6569abb5cbc83e1b9b
+  , plaintext = 0x70b17c3e869aca6076617a2cf75e9f4a
+  , ciphertext = 0xf4b8a6ed6d6d72aff59484314f210bb9
+  },
+
+  { key = 0x2e4e21a6eb77bb39a1cb5cd20cc5fd3b2e96b5d8ceb6feca9c3f31fa871f1022
+  , plaintext = 0xf4b8a6ed6d6d72aff59484314f210bb9
+  , ciphertext = 0xf56a4597beaeafc0c14ee73988bcbee8
+  },
+
+  { key = 0x54d5c037e61fd09e5cf57fd34c5e0192dbfcf04f7018510a5d71d6c30fa3aeca
+  , plaintext = 0xf56a4597beaeafc0c14ee73988bcbee8
+  , ciphertext = 0x04333079d5352236e1c79213f3f38dbe
+  },
+
+  { key = 0x3a5da203e03fa399caeb1fac63679b56dfcfc036a52d733cbcb644d0fc502374
+  , plaintext = 0x04333079d5352236e1c79213f3f38dbe
+  , ciphertext = 0x22c97ecdf4af830f94b11951f41e4d29
+  },
+
+  { key = 0x5c84147d6ab2051b56b0993a7cbfa306fd06befb5182f03328075d81084e6e5d
+  , plaintext = 0x22c97ecdf4af830f94b11951f41e4d29
+  , ciphertext = 0xdef46a3b39c8048431d2491d97daa6ea
+  },
+
+  { key = 0x7af77aa155a33f658283ebc3e9eb708923f2d4c0684af4b719d5149c9f94c8b7
+  , plaintext = 0xdef46a3b39c8048431d2491d97daa6ea
+  , ciphertext = 0x4c6367ad8a2190366c3d730fe5eeb6ee
+  },
+
+  { key = 0xedabba9dc9d87357bb91da6931c743e16f91b36de26b648175e867937a7a7e59
+  , plaintext = 0x4c6367ad8a2190366c3d730fe5eeb6ee
+  , ciphertext = 0x90bd09b4eb0f7d8397c0026cefea8fb3
+  },
+
+  { key = 0xab7ef1b4a1e43771de88e158ad26a419ff2cbad909641902e22865ff9590f1ea
+  , plaintext = 0x90bd09b4eb0f7d8397c0026cefea8fb3
+  , ciphertext = 0x25aefcfa6ec98fae81b93afad7761711
+  },
+
+  { key = 0x6b0145c6cbeaae320be86c2909c8d643da82462367ad96ac63915f0542e6e6fb
+  , plaintext = 0x25aefcfa6ec98fae81b93afad7761711
+  , ciphertext = 0x607b26f4eb3585e3e886e75c0f3a01cf
+  },
+
+  { key = 0xb46d28c20a614b6d986e92795258631cbaf960d78c98134f8b17b8594ddce734
+  , plaintext = 0x607b26f4eb3585e3e886e75c0f3a01cf
+  , ciphertext = 0xfe35fe16a3290042c28c021ee9ede73f
+  },
+
+  { key = 0x93c5c8403410764717e547e3d07b0ec344cc9ec12fb1130d499bba47a431000b
+  , plaintext = 0xfe35fe16a3290042c28c021ee9ede73f
+  , ciphertext = 0x0141871c357a00ad37ae65597830cac8
+  },
+
+  { key = 0xcf85ea60e0c94e611fedba48e19e9693458d19dd1acb13a07e35df1edc01cac3
+  , plaintext = 0x0141871c357a00ad37ae65597830cac8
+  , ciphertext = 0xdf8bc7782ae10eb2c1bdfdc8887e4907
+  },
+
+  { key = 0xd40735932ea269aeb51fa3caf0c176d89a06dea5302a1d12bf8822d6547f83c4
+  , plaintext = 0xdf8bc7782ae10eb2c1bdfdc8887e4907
+  , ciphertext = 0x1ac65c65b6cd8ab751f1d908ebd962ab
+  },
+
+  { key = 0x9a7120341819fe54fc8a750d17ecf20f80c082c086e797a5ee79fbdebfa6e16f
+  , plaintext = 0x1ac65c65b6cd8ab751f1d908ebd962ab
+  , ciphertext = 0x9f10b53fb6adf7189e277d04e351aa9d
+  },
+
+  { key = 0x8c19642c172cdb804059f751b3f25cff1fd037ff304a60bd705e86da5cf74bf2
+  , plaintext = 0x9f10b53fb6adf7189e277d04e351aa9d
+  , ciphertext = 0xc94ecc943ddc8d1eeafadd173cf73fdc
+  },
+
+  { key = 0xe1cc9575e51d6a8240e6f3cd8958e1a6d69efb6b0d96eda39aa45bcd6000742e
+  , plaintext = 0xc94ecc943ddc8d1eeafadd173cf73fdc
+  , ciphertext = 0x5dd513d74b72f9d46b06b4b96a94c3bd
+  },
+
+  { key = 0xce41ff2d70b2169fad6a5f9ead4471e88b4be8bc46e41477f1a2ef740a94b793
+  , plaintext = 0x5dd513d74b72f9d46b06b4b96a94c3bd
+  , ciphertext = 0x1594a31cc22cdbaf2011a9a317538608
+  },
+
+  { key = 0x7b467b87180772677903a043bc63c3ef9edf4ba084c8cfd8d1b346d71dc7319b
+  , plaintext = 0x1594a31cc22cdbaf2011a9a317538608
+  , ciphertext = 0x4d5e8d6fa3e2ea343b5afb77124529aa
+  },
+
+  { key = 0xca068b3afc717d1f6e8dc7e4eca0f56fd381c6cf272a25eceae9bda00f821831
+  , plaintext = 0x4d5e8d6fa3e2ea343b5afb77124529aa
+  , ciphertext = 0x1bbf651cf61c295c96e73a210483d7a1
+  },
+
+  { key = 0xd04d80998a971ec52d5390fa7eaf78eac83ea3d3d1360cb07c0e87810b01cf90
+  , plaintext = 0x1bbf651cf61c295c96e73a210483d7a1
+  , ciphertext = 0x84b42f75c3b62bbf21707ba66cca399f
+  },
+
+  { key = 0x2cfb1c71e8cac872e6a6dc90b0195acf4c8a8ca61280270f5d7efc2767cbf60f
+  , plaintext = 0x84b42f75c3b62bbf21707ba66cca399f
+  , ciphertext = 0xa0c514e1e6a9c659f605eff4cf4951a0
+  },
+
+  { key = 0x405bc450a19e6dae76847b8eac858c8bec4f9847f429e156ab7b13d3a882a7af
+  , plaintext = 0xa0c514e1e6a9c659f605eff4cf4951a0
+  , ciphertext = 0x1dcc38307c6b3c31e25f868b279b3711
+  },
+
+  { key = 0x35755fe97d9aeb1e67c1f4ca5a40ce1ff183a0778842dd67492495588f1990be
+  , plaintext = 0x1dcc38307c6b3c31e25f868b279b3711
+  , ciphertext = 0xcdd744574664be7b221d7a2921b4f0b2
+  },
+
+  { key = 0x7e9d8b4bbd2aad70d229247d5880a0cb3c54e420ce26631c6b39ef71aead600c
+  , plaintext = 0xcdd744574664be7b221d7a2921b4f0b2
+  , ciphertext = 0xe602ef85184ad4a86ed339e9403f541c
+  },
+
+  { key = 0x73be0bb5b74a8f6324f8a5f0acbf5faada560ba5d66cb7b405ead698ee923410
+  , plaintext = 0xe602ef85184ad4a86ed339e9403f541c
+  , ciphertext = 0x7c227f03e605ff14c42fb9f8e8786e84
+  },
+
+  { key = 0xc82e22faeca51a38045f2a3a04a0e6e2a67474a6306948a0c1c56f6006ea5a94
+  , plaintext = 0x7c227f03e605ff14c42fb9f8e8786e84
+  , ciphertext = 0x94c0466b27aa4d361b19c250329c14a0
+  },
+
+  { key = 0x7c1dd42bdff414e3733b846cbb00c43432b432cd17c30596dadcad3034764e34
+  , plaintext = 0x94c0466b27aa4d361b19c250329c14a0
+  , ciphertext = 0xfd6b281c93c1fd8e9b83b69ecf722f3b
+  },
+
+  { key = 0xaa7ec003efbca86fe5ad028d0571cf3acfdf1ad18402f818415f1baefb04610f
+  , plaintext = 0xfd6b281c93c1fd8e9b83b69ecf722f3b
+  , ciphertext = 0xa75b28be92dc53de9d44714918e3c541
+  },
+
+  { key = 0x14ba26bafb6c8410104d70ec23876db56884326f16deabc6dc1b6ae7e3e7a44e
+  , plaintext = 0xa75b28be92dc53de9d44714918e3c541
+  , ciphertext = 0x48693025ba68f3fa3515e7112b6e32aa
+  },
+
+  { key = 0x33b40738b39ebe39118938c6461ebd7820ed024aacb6583ce90e8df6c88996e4
+  , plaintext = 0x48693025ba68f3fa3515e7112b6e32aa
+  , ciphertext = 0x6bfa37cc5ed6e5d4ddf40b1301957f73
+  },
+
+  { key = 0x0d16eab1b56e2a468bf1ba1035129d574b173586f260bde834fa86e5c91ce997
+  , plaintext = 0x6bfa37cc5ed6e5d4ddf40b1301957f73
+  , ciphertext = 0xca18b89c3225877e02e21042af9836a8
+  },
+
+  { key = 0x44b55514a5b4a5a4294f3cf8e75ff73c810f8d1ac0453a96361896a76684df3f
+  , plaintext = 0xca18b89c3225877e02e21042af9836a8
+  , ciphertext = 0xc3ebc08368be58f8f514cfbd5f98ed52
+  },
+
+  { key = 0x265f1a7a53151bc51526fe476e8c63ad42e44d99a8fb626ec30c591a391c326d
+  , plaintext = 0xc3ebc08368be58f8f514cfbd5f98ed52
+  , ciphertext = 0x788552397ddf2d5841dbc0e73dd11150
+  },
+
+  { key = 0x23fa4630937015585ac065e6a7bd93023a611fa0d5244f3682d799fd04cd233d
+  , plaintext = 0x788552397ddf2d5841dbc0e73dd11150
+  , ciphertext = 0xe9d728bc19b50809bc1245552091d0b2
+  },
+
+  { key = 0x9dd3a2408e5694fced28964c7f442e6ed3b6371ccc91473f3ec5dca8245cf38f
+  , plaintext = 0xe9d728bc19b50809bc1245552091d0b2
+  , ciphertext = 0xce08d78b58179b7957eeab6f74ddb10f
+  },
+
+  { key = 0x055d53ef574a63f77c0b3a88e7e7cdb01dbee0979486dc46692b77c750814280
+  , plaintext = 0xce08d78b58179b7957eeab6f74ddb10f
+  , ciphertext = 0x33ce33e80fcc262e9e862f5ac50c14df
+  },
+
+  { key = 0xc1a90cdef5d5daaf7b182d6b409940e62e70d37f9b4afa68f7ad589d958d565f
+  , plaintext = 0x33ce33e80fcc262e9e862f5ac50c14df
+  , ciphertext = 0x5c4d21e6045f11f9f91a8cef130304e0
+  },
+
+  { key = 0x6a257a4f65bdd7d882ff45ffbb9541e5723df2999f15eb910eb7d472868e52bf
+  , plaintext = 0x5c4d21e6045f11f9f91a8cef130304e0
+  , ciphertext = 0x4f50679c2dbfa63b5e55d031afacd44b
+  },
+
+  { key = 0x5843bf4d6afc64273d328e1baf7821b03d6d9505b2aa4daa50e20443292286f4
+  , plaintext = 0x4f50679c2dbfa63b5e55d031afacd44b
+  , ciphertext = 0x29f64e79de48f3d3d5dff92aa0b1783b
+  },
+
+  { key = 0x8915060a33758a300c053d365c304d4e149bdb7c6ce2be79853dfd698993fecf
+  , plaintext = 0x29f64e79de48f3d3d5dff92aa0b1783b
+  , ciphertext = 0x8c5bf92515a92449846593a3bdbe521b
+  },
+
+  { key = 0xbe2b2a41b3491511c181508b66ec96f798c02259794b9a3001586eca342dacd4
+  , plaintext = 0x8c5bf92515a92449846593a3bdbe521b
+  , ciphertext = 0x5511fef7a2238277aaa9e25f1d097c19
+  },
+
+  { key = 0x4d6f38935317ffa0cb29bdfa8a43cd19cdd1dcaedb681847abf18c952924d0cd
+  , plaintext = 0x5511fef7a2238277aaa9e25f1d097c19
+  , ciphertext = 0x2ecd75c6a5eace1c541e12db150a2143
+  },
+
+  { key = 0x1549ea3d167152c85223b0a603d1fa61e31ca9687e82d65bffef9e4e3c2ef18e
+  , plaintext = 0x2ecd75c6a5eace1c541e12db150a2143
+  , ciphertext = 0x6a4cfcb9e8dae9610df99509daac7be0
+  },
+
+  { key = 0xba593f6731f70edab83f5cdf02527436895055d196583f3af2160b47e6828a6e
+  , plaintext = 0x6a4cfcb9e8dae9610df99509daac7be0
+  , ciphertext = 0x185772deff51807147ac5350249b3e1a
+  },
+
+  { key = 0x7126a05712f987f1c9249bf9a7c17b4f9107270f6909bf4bb5ba5817c219b474
+  , plaintext = 0x185772deff51807147ac5350249b3e1a
+  , ciphertext = 0xbfb1ce7df706bc972e1b8306d44aa135
+  },
+
+  { key = 0x3d0fa3983ebc8a3f64c4135d7cd3195e2eb6e9729e0f03dc9ba1db1116531541
+  , plaintext = 0xbfb1ce7df706bc972e1b8306d44aa135
+  , ciphertext = 0xf21df1e99a781dba4a68ff3491848f99
+  },
+
+  { key = 0x88c88ec4d63eb481cd8d6e8e8d2e2715dcab189b04771e66d1c9242587d79ad8
+  , plaintext = 0xf21df1e99a781dba4a68ff3491848f99
+  , ciphertext = 0xe4e8c9e4963a44f5cf27767e4e42fa61
+  },
+
+  { key = 0x989b9545625a4025f7725d63847213883843d17f924d5a931eee525bc99560b9
+  , plaintext = 0xe4e8c9e4963a44f5cf27767e4e42fa61
+  , ciphertext = 0x27475121d0e3367d0e0c2d9fb39cfe95
+  },
+
+  { key = 0xf49b61f190f982aa866d5c8f2e5749781f04805e42ae6cee10e27fc47a099e2c
+  , plaintext = 0x27475121d0e3367d0e0c2d9fb39cfe95
+  , ciphertext = 0xc2990626cb34c5d7fafe0430650ed907
+  },
+
+  { key = 0x101537d5f633ad8dc7e8cc058ce7fe20dd9d8678899aa939ea1c7bf41f07472b
+  , plaintext = 0xc2990626cb34c5d7fafe0430650ed907
+  , ciphertext = 0x1c5d0cca2845b66c371c1760f81e024a
+  },
+
+  { key = 0x1f6acaa66674733d28dfec92c43c7e76c1c08ab2a1df1f55dd006c94e7194561
+  , plaintext = 0x1c5d0cca2845b66c371c1760f81e024a
+  , ciphertext = 0x6f5a53addd93c9a136401a804a710419
+  },
+
+  { key = 0xb55bdefe370646699012062df748b6aaae9ad91f7c4cd6f4eb407614ad684178
+  , plaintext = 0x6f5a53addd93c9a136401a804a710419
+  , ciphertext = 0x8e0c070be7109ead0e8cc0aa0bf95e61
+  },
+
+  { key = 0xde09c34a85d56a2748559c309f04eb722096de149b5c4859e5ccb6bea6911f19
+  , plaintext = 0x8e0c070be7109ead0e8cc0aa0bf95e61
+  , ciphertext = 0xdb53b5306561db899a635a56c56e7239
+  },
+
+  { key = 0x2650ecd133a5df3825072a4df2d95d15fbc56b24fe3d93d07fafece863ff6d20
+  , plaintext = 0xdb53b5306561db899a635a56c56e7239
+  , ciphertext = 0x72e5ac05990d3f5508295f95f8973313
+  },
+
+  { key = 0xa8599f0edd6446b4bb9371e380bf33488920c7216730ac857786b37d9b685e33
+  , plaintext = 0x72e5ac05990d3f5508295f95f8973313
+  , ciphertext = 0x86a8332f16f997bc02af5271c64e7e0f
+  },
+
+  { key = 0x672e7b0d497458e260084662c566394e0f88f40e71c93b397529e10c5d26203c
+  , plaintext = 0x86a8332f16f997bc02af5271c64e7e0f
+  , ciphertext = 0x8e53858ce7ad0d25410f886eeeca1e0e
+  },
+
+  { key = 0x73ea41a50cdd5a98644e6f8d974af21381db71829664361c34266962b3ec3e32
+  , plaintext = 0x8e53858ce7ad0d25410f886eeeca1e0e
+  , ciphertext = 0xc6a1d493d607d2cef6aef29ee878c434
+  },
+
+  { key = 0x14969b3ff78ccdd66c53b8027a79563e477aa5114063e4d2c2889bfc5b94fa06
+  , plaintext = 0xc6a1d493d607d2cef6aef29ee878c434
+  , ciphertext = 0xa4973e0cfaf8d6ac6758615fc81e06df
+  },
+
+  { key = 0xd09e2741b9480c2166c9c1832654763de3ed9b1dba9b327ea5d0faa3938afcd9
+  , plaintext = 0xa4973e0cfaf8d6ac6758615fc81e06df
+  , ciphertext = 0x67e3243d8bc81887517708a29a5d9ae5
+  },
+
+  { key = 0x22c65ead303a0395cc9c065ada930ddd840ebf2031532af9f4a7f20109d7663c
+  , plaintext = 0x67e3243d8bc81887517708a29a5d9ae5
+  , ciphertext = 0xde2f35df51644cf5d79984be6c17c14c
+  },
+
+  { key = 0x8679ef0357516245ec489386419646bc5a218aff6037660c233e76bf65c0a770
+  , plaintext = 0xde2f35df51644cf5d79984be6c17c14c
+  , ciphertext = 0x9eaedabb3bd046ec27a2bdafabdbc861
+  },
+
+  { key = 0x6043902c115f107639e7c92ba4952301c48f50445be720e0049ccb10ce1b6f11
+  , plaintext = 0x9eaedabb3bd046ec27a2bdafabdbc861
+  , ciphertext = 0x0cde7e6c1aecbbe996865bf30b178de7
+  },
+
+  { key = 0xaca443a9e31033ea73b1eeda6e7d6ca1c8512e28410b9b09921a90e3c50ce2f6
+  , plaintext = 0x0cde7e6c1aecbbe996865bf30b178de7
+  , ciphertext = 0xba25bf5be1e4c099b9e45eedd7369cb5
+  },
+
+  { key = 0x60362e2b0bf998c875c087c370c4ca4772749173a0ef5b902bfece0e123a7e43
+  , plaintext = 0xba25bf5be1e4c099b9e45eedd7369cb5
+  , ciphertext = 0x805be62789549ce6af74966467f41135
+  },
+
+  { key = 0x6d7f0f7584162a1fa4dd6764548f355af22f775429bbc776848a586a75ce6f76
+  , plaintext = 0x805be62789549ce6af74966467f41135
+  , ciphertext = 0xab6001c6c4c56e8ca393c5fd173505ba
+  },
+
+  { key = 0xd8ecc39ac1d00c53216f6e64e826a7a9594f7692ed7ea9fa27199d9762fb6acc
+  , plaintext = 0xab6001c6c4c56e8ca393c5fd173505ba
+  , ciphertext = 0x3ba3673f4f495dd1541d47c22b7921c5
+  },
+
+  { key = 0x493108f91caedf714652149a2b2030fe62ec11ada237f42b7304da5549824b09
+  , plaintext = 0x3ba3673f4f495dd1541d47c22b7921c5
+  , ciphertext = 0xb24fe17cdc5c8cfa4260c38691b57bfa
+  },
+
+  { key = 0x446af6dd5f58755aeaa0a1226d8c584fd0a3f0d17e6b78d1316419d3d83730f3
+  , plaintext = 0xb24fe17cdc5c8cfa4260c38691b57bfa
+  , ciphertext = 0x86d999a63b96f6c9d9aaf3be6202977b
+  },
+
+  { key = 0x65f92d4e1723d5e58aeb350c79df28de567a697745fd8e18e8ceea6dba35a788
+  , plaintext = 0x86d999a63b96f6c9d9aaf3be6202977b
+  , ciphertext = 0xc4712aa733f9737f91e4ed61609e02f1
+  },
+
+  { key = 0x915cee6af4ea95623f7122acda5e9040920b43d07604fd67792a070cdaaba579
+  , plaintext = 0xc4712aa733f9737f91e4ed61609e02f1
+  , ciphertext = 0x0e8c1a77b280f4c753682768fd6f3b23
+  },
+
+  { key = 0x8e9bb2887fe60d42db4d827f00ba68ff9c8759a7c48409a02a42206427c49e5a
+  , plaintext = 0x0e8c1a77b280f4c753682768fd6f3b23
+  , ciphertext = 0xdccb684d47c480cc1317dcaa451234c0
+  },
+
+  { key = 0xcbf85a6645469e5df882fe840776b6aa404c31ea8340896c3955fcce62d6aa9a
+  , plaintext = 0xdccb684d47c480cc1317dcaa451234c0
+  , ciphertext = 0x9a2c4f07489c14265e33ac031d02b3d8
+  },
+
+  { key = 0x3ea3c33d7439ab3c478c01907f13cda7da607eedcbdc9d4a676650cd7fd41942
+  , plaintext = 0x9a2c4f07489c14265e33ac031d02b3d8
+  , ciphertext = 0x5c8e622ddbd32ee79c17572e8b3ee61c
+  },
+
+  { key = 0x312c5b43263c1af8d1e35c0f24d1004386ee1cc0100fb3adfb7107e3f4eaff5e
+  , plaintext = 0x5c8e622ddbd32ee79c17572e8b3ee61c
+  , ciphertext = 0xc5d2cb3d5b7ff0e23e308967ee074825
+  }]
+
+
+aes256_MCT_decrypt_test_vectors : [100](AESTestVector 256)
+aes256_MCT_decrypt_test_vectors =
+ // Vectors from ECBMCT256.rsp
+ [{ key = 0x2b09ba39b834062b9e93f48373b8dd018dedf1e5ba1b8af831ebbacbc92a2643
+  , ciphertext = 0x89649bd0115f30bd878567610223a59d
+  , plaintext = 0x1f9b9b213f1884fa98b62dd6639fd33b
+  },
+
+  { key = 0x58ac71619fdc3ac73a17f285319e1cd492766ac485030e02a95d971daab5f578
+  , ciphertext = 0x1f9b9b213f1884fa98b62dd6639fd33b
+  , plaintext = 0xaecd334ef8fb0c51b6896ae065d8be28
+  },
+
+  { key = 0xf6e3cca2cd628c10625c62cf08b385743cbb598a7df802531fd4fdfdcf6d4b50
+  , ciphertext = 0xaecd334ef8fb0c51b6896ae065d8be28
+  , plaintext = 0xf1938dd245c055e9c380336ff8450d9d
+  },
+
+  { key = 0xa9ae3bd7d454f19d69289875ff009d16cd28d458383857badc54ce92372846cd
+  , ciphertext = 0xf1938dd245c055e9c380336ff8450d9d
+  , plaintext = 0x42d5c4a13b748800ebfe0f67781dcff1
+  },
+
+  { key = 0xe3bc6232865f0476149be7162ef8fc4b8ffd10f9034cdfba37aac1f54f35893c
+  , ciphertext = 0x42d5c4a13b748800ebfe0f67781dcff1
+  , plaintext = 0x469968a00226f0aae7acfda02b2ce0ae
+  },
+
+  { key = 0x451fbfba7f09b625540822fac8c8e30bc9647859016a2f10d0063c5564196992
+  , ciphertext = 0x469968a00226f0aae7acfda02b2ce0ae
+  , plaintext = 0xeab144d6f80ccfd2fae95d16784718ac
+  },
+
+  { key = 0xf53e21e46a0ec97c980d49d6f4b81ec423d53c8ff966e0c22aef61431c5e713e
+  , ciphertext = 0xeab144d6f80ccfd2fae95d16784718ac
+  , plaintext = 0xe04b91c3f084d733d3d0c1c7c152695a
+  },
+
+  { key = 0x5fb3a2cbdbe6971fcd345961bdcba5f6c39ead4c09e237f1f93fa084dd0c1864
+  , ciphertext = 0xe04b91c3f084d733d3d0c1c7c152695a
+  , plaintext = 0xe47db9b8c7fcc9459fa0a7fc84047b5b
+  },
+
+  { key = 0x6b145436c5ae0dcb2477f94f5bdb037927e314f4ce1efeb4669f07785908633f
+  , ciphertext = 0xe47db9b8c7fcc9459fa0a7fc84047b5b
+  , plaintext = 0xf617d26b55da999d65b2d236358b2e60
+  },
+
+  { key = 0x126752da3d7f9a0ffc1a46ccaa8a3925d1f4c69f9bc46729032dd54e6c834d5f
+  , ciphertext = 0xf617d26b55da999d65b2d236358b2e60
+  , plaintext = 0x066ffea799ad5f09d03cb868deb1591e
+  },
+
+  { key = 0xaa3daafbcd647f0a9eaa027146ab7aded79b383802693820d3116d26b2321441
+  , ciphertext = 0x066ffea799ad5f09d03cb868deb1591e
+  , plaintext = 0x6d28dbb55fb10c1c3226609997a4fb38
+  },
+
+  { key = 0xfed7b5c1f84d3dc185222da3fffac7a1bab3e38d5dd8343ce1370dbf2596ef79
+  , ciphertext = 0x6d28dbb55fb10c1c3226609997a4fb38
+  , plaintext = 0x9dd78987562c9c099d67ccc927fcec13
+  },
+
+  { key = 0xc36db4af0bee11dad6ea59679cfb988c27646a0a0bf4a8357c50c176026a036a
+  , ciphertext = 0x9dd78987562c9c099d67ccc927fcec13
+  , plaintext = 0xb5cc780ec75b8d8c5128c4d26fa520ea
+  },
+
+  { key = 0x7b5aebe66f96867504ee9efd2bd56bda92a81204ccaf25b92d7805a46dcf2380
+  , ciphertext = 0xb5cc780ec75b8d8c5128c4d26fa520ea
+  , plaintext = 0xc715bd2f23b98c66bf56e5680c6037f7
+  },
+
+  { key = 0x81a73bfcacc994f47aeec0d655e0485055bdaf2bef16a9df922ee0cc61af1477
+  , ciphertext = 0xc715bd2f23b98c66bf56e5680c6037f7
+  , plaintext = 0xe00984f9d93551e95ae85cfe4a829b82
+  },
+
+  { key = 0x2678e4ccda2eb6ad7f0e2843020da2d8b5b42bd23623f836c8c6bc322b2d8ff5
+  , ciphertext = 0xe00984f9d93551e95ae85cfe4a829b82
+  , plaintext = 0xbfa487fcb2331afe3ad82e59064b4aae
+  },
+
+  { key = 0x03565af5c267a62e0d2500ead06bc7d90a10ac2e8410e2c8f21e926b2d66c55b
+  , ciphertext = 0xbfa487fcb2331afe3ad82e59064b4aae
+  , plaintext = 0x4c278ca418fd1c5718883da0ba4a066f
+  },
+
+  { key = 0xec719a4ed851c36f806fbc78183026cc4637208a9cedfe9fea96afcb972cc334
+  , ciphertext = 0x4c278ca418fd1c5718883da0ba4a066f
+  , plaintext = 0xceed1c8b96d84951cadf809d3ea1b397
+  },
+
+  { key = 0xf138ad912201beecd15ebe2049f980e588da3c010a35b7ce20492f56a98d70a3
+  , ciphertext = 0xceed1c8b96d84951cadf809d3ea1b397
+  , plaintext = 0xf88aed84bca42a06647d6504a5c48379
+  },
+
+  { key = 0x8da22644e1267212742200dbf6b0ba947050d185b6919dc844344a520c49f3da
+  , ciphertext = 0xf88aed84bca42a06647d6504a5c48379
+  , plaintext = 0xc451b75375d0fec1cc1825eefbcc1372
+  },
+
+  { key = 0x5104213aabaccafe44129632f67cf2dab40166d6c3416309882c6fbcf785e0a8
+  , ciphertext = 0xc451b75375d0fec1cc1825eefbcc1372
+  , plaintext = 0x9a54dfd56bff41ea17bcf08d3761e95b
+  },
+
+  { key = 0x4c7c62be3f5a9d09934940284565e9c92e55b903a8be22e39f909f31c0e409f3
+  , ciphertext = 0x9a54dfd56bff41ea17bcf08d3761e95b
+  , plaintext = 0x76e074c587f112f3ffd17b390fa8cffc
+  },
+
+  { key = 0x9871765871b1dae363fca3961224414a58b5cdc62f4f30106041e408cf4cc60f
+  , ciphertext = 0x76e074c587f112f3ffd17b390fa8cffc
+  , plaintext = 0x5b14fd4c40a127733c20cd84648ec287
+  },
+
+  { key = 0x58e044758e5e4f300eb08f8b6ccd967203a1308a6fee17635c61298cabc20488
+  , ciphertext = 0x5b14fd4c40a127733c20cd84648ec287
+  , plaintext = 0x01c234e2392f42831b1172352f322286
+  },
+
+  { key = 0xffbb7104e110fdfe689f68ffa48b79590263046856c155e047705bb984f0260e
+  , ciphertext = 0x01c234e2392f42831b1172352f322286
+  , plaintext = 0xab142165cb093648938660fd800d8896
+  },
+
+  { key = 0x91aefec30a79b2524b19a611c0c4952da977250d9dc863a8d4f63b4404fdae98
+  , ciphertext = 0xab142165cb093648938660fd800d8896
+  , plaintext = 0x5c28ad9b5721edadc30e09b4541fd724
+  },
+
+  { key = 0x00d0f69c36671a9efeb7b8637e22af38f55f8896cae98e0517f832f050e279bc
+  , ciphertext = 0x5c28ad9b5721edadc30e09b4541fd724
+  , plaintext = 0x5a9ad24fe456f4f766e839a8101373c3
+  },
+
+  { key = 0xb22571c62ee4e0b4ebd7d776703c1345afc55ad92ebf7af271100b5840f10a7f
+  , ciphertext = 0x5a9ad24fe456f4f766e839a8101373c3
+  , plaintext = 0xa30e9a7730628b560c71967bdb35efce
+  },
+
+  { key = 0x1431d01006510179dd13e2a83e1b8b7b0ccbc0ae1eddf1a47d619d239bc4e5b1
+  , ciphertext = 0xa30e9a7730628b560c71967bdb35efce
+  , plaintext = 0x7118cc8a057df7ea9b7fb096decf05d9
+  },
+
+  { key = 0x06104531e2d000fff0cc8336b62e9bb87dd30c241ba0064ee61e2db5450be068
+  , ciphertext = 0x7118cc8a057df7ea9b7fb096decf05d9
+  , plaintext = 0xc550ff93a36fbb8e9a505682e07fb981
+  },
+
+  { key = 0x8e5ebd5c9bf858f3379bfb88c7c75319b883f3b7b8cfbdc07c4e7b37a57459e9
+  , ciphertext = 0xc550ff93a36fbb8e9a505682e07fb981
+  , plaintext = 0x1375e7b4164adc861bbb77c50aba445c
+  },
+
+  { key = 0xccc9445c3aab1c03ec8027593d370664abf61403ae85614667f50cf2afce1db5
+  , ciphertext = 0x1375e7b4164adc861bbb77c50aba445c
+  , plaintext = 0x5bc8b411c0fae92bad54b4e5c3a8826e
+  },
+
+  { key = 0xb804994228d618a9b7a3e0c3d8d2d373f03ea0126e7f886dcaa1b8176c669fdb
+  , ciphertext = 0x5bc8b411c0fae92bad54b4e5c3a8826e
+  , plaintext = 0x36c9de7c01298ff06c5e3ecf12507cd6
+  },
+
+  { key = 0x8a784f32cdd7e2ed19e85faf04de2015c6f77e6e6f56079da6ff86d87e36e30d
+  , ciphertext = 0x36c9de7c01298ff06c5e3ecf12507cd6
+  , plaintext = 0x35d814c0f6c07ae72bbe7cd1751d7527
+  },
+
+  { key = 0x71e3cc0f60a2eafd83c3a455eefc4c9cf32f6aae99967d7a8d41fa090b2b962a
+  , ciphertext = 0x35d814c0f6c07ae72bbe7cd1751d7527
+  , plaintext = 0x73c39ce5ea1b5eab18c9c15221e258d1
+  },
+
+  { key = 0x71bef3d2beffa17d37c6c3b28ef2928280ecf64b738d23d195883b5b2ac9cefb
+  , ciphertext = 0x73c39ce5ea1b5eab18c9c15221e258d1
+  , plaintext = 0xac67508a8bcab69f96ead29121718cd7
+  },
+
+  { key = 0x9aa1ffa9e175f03a6bcc71fc2aea3a522c8ba6c1f847954e0362e9ca0bb8422c
+  , ciphertext = 0xac67508a8bcab69f96ead29121718cd7
+  , plaintext = 0x49d2cac2ca39a3b66302e5f3650e71d7
+  },
+
+  { key = 0x4e480b73ab5c659538354b2474c9367b65596c03327e36f860600c396eb633fb
+  , ciphertext = 0x49d2cac2ca39a3b66302e5f3650e71d7
+  , plaintext = 0xe54638674ea0b3e837772a2866723753
+  },
+
+  { key = 0xaeecd55c38bef76367a21469d08721d2801f54647cde85105717261108c404a8
+  , ciphertext = 0xe54638674ea0b3e837772a2866723753
+  , plaintext = 0x074d933018e9e0558b416e39548994ff
+  },
+
+  { key = 0xe36c6a30f734a679ab7af2f9ff767cfe8752c75464376545dc5648285c4d9057
+  , ciphertext = 0x074d933018e9e0558b416e39548994ff
+  , plaintext = 0x04825a9ba20646acadb2cbdbd23530c0
+  },
+
+  { key = 0x124806708fc5fc73a1e50c61e5a76b8783d09dcfc63123e971e483f38e78a097
+  , ciphertext = 0x04825a9ba20646acadb2cbdbd23530c0
+  , plaintext = 0x25b98d2837580f9f3da8f2593f7b1d72
+  },
+
+  { key = 0x560afb5529a8b433738348a296408cada66910e7f1692c764c4c71aab103bde5
+  , ciphertext = 0x25b98d2837580f9f3da8f2593f7b1d72
+  , plaintext = 0x048b220c70d875cad6901e40f45c5b03
+  },
+
+  { key = 0x8b7c61dd007d9d0d1937cfc69b63c114a2e232eb81b159bc9adc6fea455fe6e6
+  , ciphertext = 0x048b220c70d875cad6901e40f45c5b03
+  , plaintext = 0x34e2a33412c0e682b29b26d5409d015f
+  },
+
+  { key = 0x30560ca0a31d8145228d34fbf8415683960091df9371bf3e2847493f05c2e7b9
+  , ciphertext = 0x34e2a33412c0e682b29b26d5409d015f
+  , plaintext = 0x942c057914f3b88fa0a40bb41d02b051
+  },
+
+  { key = 0x20c7e6e45c08ba0756c379b6cd4d6886022c94a6878207b188e3428b18c057e8
+  , ciphertext = 0x942c057914f3b88fa0a40bb41d02b051
+  , plaintext = 0x6f4e5c40e4135abfdf294b4d8c9304b3
+  },
+
+  { key = 0x2a6c928bf8c2b32ce82ed0be1bc954b96d62c8e663915d0e57ca09c69453535b
+  , ciphertext = 0x6f4e5c40e4135abfdf294b4d8c9304b3
+  , plaintext = 0xcac032ddc2b27443d70d0f2dfb1a1d87
+  },
+
+  { key = 0x74994d46526b2e9d5470a0a687f726f2a7a2fa3ba123294d80c706eb6f494edc
+  , ciphertext = 0xcac032ddc2b27443d70d0f2dfb1a1d87
+  , plaintext = 0x6aec33b2c1ae39237b13e86555722d1a
+  },
+
+  { key = 0x5aaec28d079eef5f1c42df377c7e80accd4ec989608d106efbd4ee8e3a3b63c6
+  , ciphertext = 0x6aec33b2c1ae39237b13e86555722d1a
+  , plaintext = 0x2df34173bbff331488b23687c755f617
+  },
+
+  { key = 0x9bfa3c08b8f8b8758f0a1f4b0ef86be4e0bd88fadb72237a7366d809fd6e95d1
+  , ciphertext = 0x2df34173bbff331488b23687c755f617
+  , plaintext = 0x07649dd5c1c7b38810cbecbad9c037ed
+  },
+
+  { key = 0x188e3a027b75fede978c76e70a853f95e7d9152f1ab590f263ad34b324aea23c
+  , ciphertext = 0x07649dd5c1c7b38810cbecbad9c037ed
+  , plaintext = 0xef3d9092321649d9bbb88f6448e3847b
+  },
+
+  { key = 0xaae2c6363be3dbb71c21f3a2d9f123f108e485bd28a3d92bd815bbd76c4d2647
+  , ciphertext = 0xef3d9092321649d9bbb88f6448e3847b
+  , plaintext = 0x1e5058b3e986d4aad80a11f909af1cca
+  },
+
+  { key = 0x85a51c6d62ba97564ac955a5409c362916b4dd0ec1250d81001faa2e65e23a8d
+  , ciphertext = 0x1e5058b3e986d4aad80a11f909af1cca
+  , plaintext = 0x9bf81052596b786b50b3f3506c009169
+  },
+
+  { key = 0x0d09600f108a86cfd58f3c211a40c38d8d4ccd5c984e75ea50ac597e09e2abe4
+  , ciphertext = 0x9bf81052596b786b50b3f3506c009169
+  , plaintext = 0x81bdaf86cf4255e5826294a51d2f9992
+  },
+
+  { key = 0x14ab478866e1d160311aa8820df354fb0cf162da570c200fd2cecddb14cd3276
+  , ciphertext = 0x81bdaf86cf4255e5826294a51d2f9992
+  , plaintext = 0x1fdc5fee9eb640ff547a98d9e1601b52
+  },
+
+  { key = 0x39f18405f0b1da647f99479e87d4d153132d3d34c9ba60f086b45502f5ad2924
+  , ciphertext = 0x1fdc5fee9eb640ff547a98d9e1601b52
+  , plaintext = 0x936609876cd6eebf31db5a6af7839844
+  },
+
+  { key = 0x85a900bc1563b16e01481e45d1125734804b34b3a56c8e4fb76f0f68022eb160
+  , ciphertext = 0x936609876cd6eebf31db5a6af7839844
+  , plaintext = 0x9ea8b6942287f470e9866a48f4dc661a
+  },
+
+  { key = 0xc43d677fc0a1becbb0214221b866f0be1ee3822787eb7a3f5ee96520f6f2d77a
+  , ciphertext = 0x9ea8b6942287f470e9866a48f4dc661a
+  , plaintext = 0x1dfc2cf82bfaa2732eb525916ef9ef13
+  },
+
+  { key = 0x584f10659c2d3c41f6a1926de4595eb2031faedfac11d84c705c40b1980b3869
+  , ciphertext = 0x1dfc2cf82bfaa2732eb525916ef9ef13
+  , plaintext = 0xa5d8d1d60281a152b9b76142e3e5a512
+  },
+
+  { key = 0x8eba336927e18b13eb3858a89709768ba6c77f09ae90791ec9eb21f37bee9d7b
+  , ciphertext = 0xa5d8d1d60281a152b9b76142e3e5a512
+  , plaintext = 0x8ac0278f2ab100a5964173d76934d732
+  },
+
+  { key = 0x13f1558dcae09062bfdccdd0037e5c432c075886842179bb5faa522412da4a49
+  , ciphertext = 0x8ac0278f2ab100a5964173d76934d732
+  , plaintext = 0x30233b70c4d6fd31b23cc77bc73559ea
+  },
+
+  { key = 0xd736669842aa88f43f1de421d38f391f1c2463f640f7848aed96955fd5ef13a3
+  , ciphertext = 0x30233b70c4d6fd31b23cc77bc73559ea
+  , plaintext = 0x766630dfd41e4146a827f55cba745b6a
+  },
+
+  { key = 0x0ca8353df90e73606588a11675bd37a76a42532994e9c5cc45b160036f9b48c9
+  , ciphertext = 0x766630dfd41e4146a827f55cba745b6a
+  , plaintext = 0x177f22d98f009c214a44b08cf40b790d
+  },
+
+  { key = 0x136ec3a1a65ee7bb0fd09af7364b66607d3d71f01be959ed0ff5d08f9b9031c4
+  , ciphertext = 0x177f22d98f009c214a44b08cf40b790d
+  , plaintext = 0xe9c916a21dec9662bdd91a0f865f8b47
+  },
+
+  { key = 0xba5c2bd413daca7866de11c11db2926694f467520605cf8fb22cca801dcfba83
+  , ciphertext = 0xe9c916a21dec9662bdd91a0f865f8b47
+  , plaintext = 0x92b3ab3e28f6c606508706e0c3d76d28
+  },
+
+  { key = 0x0fab4768fa7f104a3579f534508182920647cc6c2ef30989e2abcc60de18d7ab
+  , ciphertext = 0x92b3ab3e28f6c606508706e0c3d76d28
+  , plaintext = 0x3652053dcba591f101944fb1a5eb2b99
+  },
+
+  { key = 0xe766aa23c075deaa6fae68384f5b205e3015c951e5569878e33f83d17bf3fc32
+  , ciphertext = 0x3652053dcba591f101944fb1a5eb2b99
+  , plaintext = 0x242260d2387c6f1a415834b34e300a7e
+  },
+
+  { key = 0x9f1941442336bfffa1d6b27dce7845971437a983dd2af762a267b76235c3f64c
+  , ciphertext = 0x242260d2387c6f1a415834b34e300a7e
+  , plaintext = 0xa2a58ed050231b0d15f8cd99f5e171fb
+  },
+
+  { key = 0x429a3cdc98124fafe33156a66b4e8c2ab69227538d09ec6fb79f7afbc02287b7
+  , ciphertext = 0xa2a58ed050231b0d15f8cd99f5e171fb
+  , plaintext = 0xec6631b17e5c97193fd9651b64feffe7
+  },
+
+  { key = 0x92764a89e0de63823b9d9a5a001868035af416e2f3557b7688461fe0a4dc7850
+  , ciphertext = 0xec6631b17e5c97193fd9651b64feffe7
+  , plaintext = 0x1eef8afa419a9341085a2d611185e42c
+  },
+
+  { key = 0x0c0bf13d79d1297e137e6f5995cb0a2c441b9c18b2cfe837801c3281b5599c7c
+  , ciphertext = 0x1eef8afa419a9341085a2d611185e42c
+  , plaintext = 0xd4eb4e591cf856b816e2207264e426e4
+  },
+
+  { key = 0xde31f995867bb45813d369349cb7434290f0d241ae37be8f96fe12f3d1bdba98
+  , ciphertext = 0xd4eb4e591cf856b816e2207264e426e4
+  , plaintext = 0x401e14b126348e1aedd13662a19c23fb
+  },
+
+  { key = 0x3b1a02b5600444db09118e99765fa61dd0eec6f0880330957b2f249170219963
+  , ciphertext = 0x401e14b126348e1aedd13662a19c23fb
+  , plaintext = 0x38bfea7e1eece741eb6a9601605129dd
+  },
+
+  { key = 0x1fbcf4ffb36f76b88323f745b3152947e8512c8e96efd7d49045b2901070b0be
+  , ciphertext = 0x38bfea7e1eece741eb6a9601605129dd
+  , plaintext = 0x71cd66b3b3553b6aa632c338a307e11a
+  },
+
+  { key = 0xb963bfe1c513f0dba7e24b5cfa1535a3999c4a3d25baecbe367771a8b37751a4
+  , ciphertext = 0x71cd66b3b3553b6aa632c338a307e11a
+  , plaintext = 0x34c2972d43e59eb0c44b7b69a540e7de
+  },
+
+  { key = 0x23458e2a4332ce00e7967a438cd86448ad5edd10665f720ef23c0ac11637b67a
+  , ciphertext = 0x34c2972d43e59eb0c44b7b69a540e7de
+  , plaintext = 0x8988b878d0c6a84b6262351e033fb1b7
+  },
+
+  { key = 0xe552b8a0f474a8da502e749e3f0639b124d66568b699da45905e3fdf150807cd
+  , ciphertext = 0x8988b878d0c6a84b6262351e033fb1b7
+  , plaintext = 0x010e24d01c37edca127484c8d8137772
+  },
+
+  { key = 0x65a0645dd971bdb3b0d3a079ef96f3a925d841b8aaae378f822abb17cd1b70bf
+  , ciphertext = 0x010e24d01c37edca127484c8d8137772
+  , plaintext = 0x6c7b2e83630a8c8b6219839297d7c647
+  },
+
+  { key = 0x9867d55ae9f56a03c435f4b25f2eee2c49a36f3bc9a4bb04e03338855accb6f8
+  , ciphertext = 0x6c7b2e83630a8c8b6219839297d7c647
+  , plaintext = 0xccba81435ecf162f70d30b3163cb3858
+  },
+
+  { key = 0xe4a3addb683bbe85ed84b3ce044bcc538519ee78976bad2b90e033b439078ea0
+  , ciphertext = 0xccba81435ecf162f70d30b3163cb3858
+  , plaintext = 0xa0575bc9b8931f34cd6072e2015e7331
+  },
+
+  { key = 0x6f543088bf24577d55a685e3637d85e8254eb5b12ff8b21f5d8041563859fd91
+  , ciphertext = 0xa0575bc9b8931f34cd6072e2015e7331
+  , plaintext = 0xa44046a87574e6d3e6c6446fb3c324bc
+  },
+
+  { key = 0x5fff671ca24c3b241ddb92761f02dfe3810ef3195a8c54ccbb4605398b9ad92d
+  , ciphertext = 0xa44046a87574e6d3e6c6446fb3c324bc
+  , plaintext = 0xef6abb8ae007b730be45aa85e39f362d
+  },
+
+  { key = 0xdb897d48a317f66412a8c52111c3f3b06e644893ba8be3fc0503afbc6805ef00
+  , ciphertext = 0xef6abb8ae007b730be45aa85e39f362d
+  , plaintext = 0xe5bd2edfb7e563f6cd86da757c4c370f
+  },
+
+  { key = 0x78aec1da8e8e79007af12c05d800a18d8bd9664c0d6e800ac88575c91449d80f
+  , ciphertext = 0xe5bd2edfb7e563f6cd86da757c4c370f
+  , plaintext = 0x33caa267a64fb3cac210271bb8f25369
+  },
+
+  { key = 0x2c3e5387a51addb0b7789ef0289109b3b813c42bab2133c00a9552d2acbb8b66
+  , ciphertext = 0x33caa267a64fb3cac210271bb8f25369
+  , plaintext = 0x27bb26990ca5e12d387bd659cb7e7860
+  },
+
+  { key = 0x85685fe6996d514e5928d7196f41b5d29fa8e2b2a784d2ed32ee848b67c5f306
+  , ciphertext = 0x27bb26990ca5e12d387bd659cb7e7860
+  , plaintext = 0xd866ace71916e00c1559bba4149380a0
+  },
+
+  { key = 0x82abcc9a00bae55087cf5d87413f095547ce4e55be9232e127b73f2f735673a6
+  , ciphertext = 0xd866ace71916e00c1559bba4149380a0
+  , plaintext = 0x8a4d6a0af8488a82a0c31332db3e36de
+  },
+
+  { key = 0x81d983ce59413e84d7af4558d2e3941ccd83245f46dab86387742c1da8684578
+  , ciphertext = 0x8a4d6a0af8488a82a0c31332db3e36de
+  , plaintext = 0x05f6ff378b837cd375cddfae79ec2a9d
+  },
+
+  { key = 0xbbe6d0d13a6b146bb23db6885ba66487c875db68cd59c4b0f2b9f3b3d1846fe5
+  , ciphertext = 0x05f6ff378b837cd375cddfae79ec2a9d
+  , plaintext = 0xb706bdb4019d604cc35faa07197c318d
+  },
+
+  { key = 0x8092df6673b2b77783f2ba73c22e8d3c7f7366dcccc4a4fc31e659b4c8f85e68
+  , ciphertext = 0xb706bdb4019d604cc35faa07197c318d
+  , plaintext = 0xb26354bc77d3ce16909ca505d2381e4c
+  },
+
+  { key = 0x3118fc57b93677af8e14c1b5961b76f3cd103260bb176aeaa17afcb11ac04024
+  , ciphertext = 0xb26354bc77d3ce16909ca505d2381e4c
+  , plaintext = 0x1515ef6a25cf3943eadadc36a029194a
+  },
+
+  { key = 0xc4bde4a0c5f80329be6dd515f5bf6dabd805dd0a9ed853a94ba02087bae9596e
+  , ciphertext = 0x1515ef6a25cf3943eadadc36a029194a
+  , plaintext = 0x7b4ad946dfb59c80b1dc5cedb2fa87a0
+  },
+
+  { key = 0x80b47f9126b0b1f5ab408bb9ea5f349aa34f044c416dcf29fa7c7c6a0813dece
+  , ciphertext = 0x7b4ad946dfb59c80b1dc5cedb2fa87a0
+  , plaintext = 0xfa10a53e14cde5ef1e9a8a5692847aa5
+  },
+
+  { key = 0x86a43939c8cd243f7ff2a9658524373b595fa17255a02ac6e4e6f63c9a97a46b
+  , ciphertext = 0xfa10a53e14cde5ef1e9a8a5692847aa5
+  , plaintext = 0x4c9bed07308abcd0b09265b5efbe301c
+  },
+
+  { key = 0x74a8f02a15285153e0ae160fbddcf6bf15c44c75652a96165474938975299477
+  , ciphertext = 0x4c9bed07308abcd0b09265b5efbe301c
+  , plaintext = 0x75b7496c42809a3a592acbd8e069269e
+  },
+
+  { key = 0x293b40a2f70cc2c4262554663fb6f0986073051927aa0c2c0d5e58519540b2e9
+  , ciphertext = 0x75b7496c42809a3a592acbd8e069269e
+  , plaintext = 0x2dbc01185af7e084d90578468b6b10ef
+  },
+
+  { key = 0xb04d4f4eb708eef86c5b6b8e08a665084dcf04017d5deca8d45b20171e2ba206
+  , ciphertext = 0x2dbc01185af7e084d90578468b6b10ef
+  , plaintext = 0xc95b3a9f689c9dce4995c24f72dd5162
+  },
+
+  { key = 0x7cb9f7211815e0cb48b71286f84f80a184943e9e15c171669dcee2586cf6f364
+  , ciphertext = 0xc95b3a9f689c9dce4995c24f72dd5162
+  , plaintext = 0x616e55c3bf113e2c18cae3c61b7eb7d1
+  },
+
+  { key = 0xb3cdb46cf92aa0b96e87212bc650d5e5e5fa6b5daad04f4a8504019e778844b5
+  , ciphertext = 0x616e55c3bf113e2c18cae3c61b7eb7d1
+  , plaintext = 0x87e8b80767ebbdbad75cb94f4cb54f3b
+  },
+
+  { key = 0x512c2a3821eb53af613141c71e1076656212d35acd3bf2f05258b8d13b3d0b8e
+  , ciphertext = 0x87e8b80767ebbdbad75cb94f4cb54f3b
+  , plaintext = 0xc83e20e18f2b1457788954b49fd84307
+  },
+
+  { key = 0x9977c985745bc33954a2ce898bc8febdaa2cf3bb4210e6a72ad1ec65a4e54889
+  , ciphertext = 0xc83e20e18f2b1457788954b49fd84307
+  , plaintext = 0xe3d3868f578caf34e36445bf14cefc68
+  }]
