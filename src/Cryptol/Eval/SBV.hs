@@ -11,6 +11,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeSynonymInstances #-}
@@ -23,6 +24,7 @@ module Cryptol.Eval.SBV
   , freshSBool_
   , freshBV_
   , freshSInteger_
+  , addDefEqn
   ) where
 
 import qualified Control.Exception as X
@@ -52,7 +54,11 @@ import Cryptol.Utils.Ident
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
 
-data SBV = SBV (MVar (SBV.State))
+data SBV =
+  SBV
+  { sbvStateVar     :: MVar (SBV.State)
+  , sbvDefRelations :: MVar SVal
+  }
 
 -- Utility operations -------------------------------------------------------------
 
@@ -70,16 +76,17 @@ literalSWord :: Int -> Integer -> SWord SBV
 literalSWord w i = svInteger (KBounded False w) i
 
 freshBV_ :: SBV -> Int -> IO (SWord SBV)
-freshBV_ (SBV stateVar) w =
+freshBV_ (SBV stateVar _) w =
   withMVar stateVar (svMkSymVar Nothing (KBounded False w) Nothing)
 
 freshSBool_ :: SBV -> IO (SBit SBV)
-freshSBool_ (SBV stateVar) =
+freshSBool_ (SBV stateVar _) =
   withMVar stateVar (svMkSymVar Nothing KBool Nothing)
 
-freshSInteger_ :: SBV -> IO (SBit SBV)
-freshSInteger_ (SBV stateVar) =
+freshSInteger_ :: SBV -> IO (SInteger SBV)
+freshSInteger_ (SBV stateVar _) =
   withMVar stateVar (svMkSymVar Nothing KUnbounded Nothing)
+
 
 -- Values ----------------------------------------------------------------------
 
@@ -132,6 +139,9 @@ instance Monad SBVEval where
 instance MonadIO SBVEval where
   liftIO m = SBVEval $ fmap pure (liftIO m)
 
+
+addDefEqn :: SBV -> SVal -> IO ()
+addDefEqn (SBV _ relsVar) b = modifyMVar_ relsVar (pure . svAnd b)
 
 -- Symbolic Big-endian Words -------------------------------------------------------
 
