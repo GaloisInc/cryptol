@@ -28,6 +28,7 @@ module Cryptol.Symbolic.SBV
 
 
 import Control.Concurrent.Async
+import Control.Concurrent.MVar
 import Control.Monad.IO.Class
 import Control.Monad (replicateM, when, zipWithM, foldM, forM_)
 import Control.Monad.Writer (WriterT, runWriterT, tell, lift)
@@ -39,7 +40,7 @@ import System.Exit (ExitCode(ExitSuccess))
 
 import LibBF(bfNaN)
 
-import qualified Data.SBV as SBV (sObserve)
+import qualified Data.SBV as SBV (sObserve, symbolicEnv)
 import qualified Data.SBV.Internals as SBV (SBV(..))
 import qualified Data.SBV.Dynamic as SBV
 import           Data.SBV (Timing(SaveTiming))
@@ -61,6 +62,8 @@ import           Cryptol.Symbolic
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.Logger(logPutStrLn)
 import           Cryptol.Utils.RecordMap
+
+
 
 import Prelude ()
 import Prelude.Compat
@@ -286,13 +289,6 @@ prepareQuery ::
 prepareQuery evo modEnv ProverCommand{..} =
   do let extDgs = M.allDeclGroups modEnv ++ pcExtraDecls
 
-     -- The `tyFn` creates variables that are treated as 'forall'
-     -- or 'exists' bound, depending on the sort of query we are doing.
-     let tyFn = case pcQueryType of
-           SatQuery _ -> existsFinType
-           ProveQuery -> forallFinType
-           SafetyQuery -> forallFinType
-
      -- The `addAsm` function is used to combine assumptions that
      -- arise from the types of symbolic variables (e.g. Z n values
      -- are assumed to be integers in the range `0 <= x < n`) with
@@ -303,22 +299,25 @@ prepareQuery evo modEnv ProverCommand{..} =
            SafetyQuery -> \x y -> SBV.svOr (SBV.svNot x) y
            SatQuery _ -> \x y -> SBV.svAnd x y
 
-     let tbl = primTable
-     let ?evalPrim = \i -> Map.lookup i tbl
      case predArgTypes pcQueryType pcSchema of
        Left msg -> return (Left msg)
        Right ts ->
          do when pcVerbose $ logPutStrLn (Eval.evalLogger evo) "Simulating..."
             pure $ Right $ (ts,
-              do -- Compute the symbolic inputs, and any domain constraints needed
+              do sbvState <- SBV.symbolicEnv
+                 stateMVar <- liftIO (newMVar sbvState)
+                 let sym = SBV stateMVar
+                 let tbl = primTable sym
+                 let ?evalPrim = \i -> Map.lookup i tbl
+                 -- Compute the symbolic inputs, and any domain constraints needed
                  -- according to their types.
-                 (args, asms) <- runWriterT (mapM tyFn ts)
+                 (args, asms) <- liftIO (runWriterT (mapM (freshFinType sym) ts))
                  -- Run the main symbolic computation.  First we populate the
                  -- evaluation environment, then we compute the value, finally
                  -- we apply it to the symbolic inputs.
                  (safety,b) <- doSBVEval $
-                     do env <- Eval.evalDecls SBV extDgs mempty
-                        v <- Eval.evalExpr SBV env pcExpr
+                     do env <- Eval.evalDecls sym extDgs mempty
+                        v <- Eval.evalExpr sym env pcExpr
                         appliedVal <- foldM Eval.fromVFun v (map pure args)
                         case pcQueryType of
                           SafetyQuery ->
@@ -509,46 +508,24 @@ inBoundsIntMod n x =
       n' = SBV.svInteger SBV.KUnbounded n
    in SBV.svAnd (SBV.svLessEq z x) (SBV.svLessThan x n')
 
-forallFinType :: FinType -> WriterT [Eval.SBit SBV] SBV.Symbolic Value
-forallFinType ty =
+freshFinType :: SBV -> FinType -> WriterT [Eval.SBit SBV] IO Value
+freshFinType sym ty =
   case ty of
-    FTBit         -> Eval.VBit <$> lift forallSBool_
-    FTInteger     -> Eval.VInteger <$> lift forallSInteger_
+    FTBit         -> Eval.VBit <$> lift (freshSBool_ sym)
+    FTInteger     -> Eval.VInteger <$> lift (freshSInteger_ sym)
     FTRational    ->
-      do n <- lift forallSInteger_
-         d <- lift forallSInteger_
+      do n <- lift (freshSInteger_ sym)
+         d <- lift (freshSInteger_ sym)
          let z = SBV.svInteger SBV.KUnbounded 0
          tell [SBV.svLessThan z d]
          return (Eval.VRational (Eval.SRational n d))
     FTFloat {}    -> pure (Eval.VFloat ()) -- XXX: NOT IMPLEMENTED
-    FTIntMod n    -> do x <- lift forallSInteger_
+    FTIntMod n    -> do x <- lift (freshSInteger_ sym)
                         tell [inBoundsIntMod n x]
                         return (Eval.VInteger x)
-    FTSeq 0 FTBit -> return $ Eval.word SBV 0 0
-    FTSeq n FTBit -> Eval.VWord (toInteger n) . return . Eval.WordVal <$> lift (forallBV_ n)
-    FTSeq n t     -> do vs <- replicateM n (forallFinType t)
-                        return $ Eval.VSeq (toInteger n) $ Eval.finiteSeqMap SBV (map pure vs)
-    FTTuple ts    -> Eval.VTuple <$> mapM (fmap pure . forallFinType) ts
-    FTRecord fs   -> Eval.VRecord <$> traverse (fmap pure . forallFinType) fs
-
-existsFinType :: FinType -> WriterT [Eval.SBit SBV] SBV.Symbolic Value
-existsFinType ty =
-  case ty of
-    FTBit         -> Eval.VBit <$> lift existsSBool_
-    FTInteger     -> Eval.VInteger <$> lift existsSInteger_
-    FTRational    ->
-      do n <- lift existsSInteger_
-         d <- lift existsSInteger_
-         let z = SBV.svInteger SBV.KUnbounded 0
-         tell [SBV.svLessThan z d]
-         return (Eval.VRational (Eval.SRational n d))
-    FTFloat {}    -> pure $ Eval.VFloat () -- XXX: NOT IMPLEMENTED
-    FTIntMod n    -> do x <- lift existsSInteger_
-                        tell [inBoundsIntMod n x]
-                        return (Eval.VInteger x)
-    FTSeq 0 FTBit -> return $ Eval.word SBV 0 0
-    FTSeq n FTBit -> Eval.VWord (toInteger n) . return . Eval.WordVal <$> lift (existsBV_ n)
-    FTSeq n t     -> do vs <- replicateM n (existsFinType t)
-                        return $ Eval.VSeq (toInteger n) $ Eval.finiteSeqMap SBV (map pure vs)
-    FTTuple ts    -> Eval.VTuple <$> mapM (fmap pure . existsFinType) ts
-    FTRecord fs   -> Eval.VRecord <$> traverse (fmap pure . existsFinType) fs
+    FTSeq 0 FTBit -> pure (Eval.word sym 0 0)
+    FTSeq n FTBit -> Eval.VWord (toInteger n) . return . Eval.WordVal <$> lift (freshBV_ sym n)
+    FTSeq n t     -> do vs <- replicateM n (freshFinType sym t)
+                        return $ Eval.VSeq (toInteger n) $ Eval.finiteSeqMap sym (map pure vs)
+    FTTuple ts    -> Eval.VTuple <$> mapM (fmap pure . freshFinType sym) ts
+    FTRecord fs   -> Eval.VRecord <$> traverse (fmap pure . freshFinType sym) fs
