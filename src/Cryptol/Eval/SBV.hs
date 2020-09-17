@@ -32,6 +32,7 @@ import           Control.Concurrent.MVar
 import           Control.Monad (join)
 import           Control.Monad.IO.Class (MonadIO(..))
 import           Data.Bits (bit, complement, shiftL)
+import           Data.Euclidean (gcdExt)
 import           Data.List (foldl')
 import qualified Data.Map as Map
 import qualified Data.Text as T
@@ -323,6 +324,7 @@ instance Backend SBV where
   znMinus sym m a b = sModSub sym m a b
   znMult  sym m a b = sModMult sym m a b
   znNegate sym m a  = sModNegate sym m a
+  znRecip = sModRecip
 
   ppFloat _ _ _           = text "[?]"
   fpExactLit _ _          = unsupported "fpExactLit"
@@ -815,6 +817,45 @@ sModMult sym modulus x y =
   case (SBV.svAsInteger x, SBV.svAsInteger y) of
     (Just i, Just j) -> integerLit sym ((i * j) `mod` modulus)
     _                -> pure $ SBV.svTimes x y
+
+-- Create a fresh constant and assert that it is the
+-- multiplicitive inverse of x; return the constant.
+-- Such an inverse must exist under the precondition
+-- that the modulus is prime and the input is nonzero.
+sModRecip ::
+  SBV ->
+  Integer {- ^ modulus: must be prime -} ->
+  SInteger SBV ->
+  SEval SBV (SInteger SBV)
+sModRecip _sym 0 _ = panic "sModRecip" ["0 modulus not allowed"]
+sModRecip sym m x
+  -- If the input is concrete, evaluate the answer
+  | Just xi <- svAsInteger x
+  = let (g,s) = gcdExt xi m
+     in if | abs g == m -> raiseError sym DivideByZero
+           | abs g == 1 -> pure (svInteger KUnbounded (s `mod` m))
+           | otherwise ->
+             evalPanic "sModRecip"
+                [ "illegal modulus: " ++ show m
+                , "  gcd("++show xi++", " ++ show m++") = " ++ show g
+                ]
+
+  -- If the input is symbolic, create a new symbolic constant
+  -- and assert that it is the desired multiplicitive inverse.
+  -- Such an inverse will exist under the precondition that
+  -- the modulus is prime, and as long as the input is nonzero.
+  | otherwise
+  = do divZero <- svDivisible sym m x
+       assertSideCondition sym (svNot divZero) DivideByZero
+
+       z <- liftIO (freshSInteger_ sym)
+       let xz = svTimes x z
+       rel <- znEq sym m xz (svInteger KUnbounded 1)
+       let range = svAnd (svLessThan (svInteger KUnbounded 0) z)
+                         (svLessThan z (svInteger KUnbounded m))
+       liftIO (addDefEqn sym (svAnd range (svOr divZero rel)))
+
+       return z
 
 -- | Ceiling (log_2 x)
 sLg2 :: SWord SBV -> SEval SBV (SWord SBV)
