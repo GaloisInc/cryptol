@@ -2,6 +2,8 @@
 
 BIN=bin
 
+QUICKTESTS="tests/issues tests/modsys tests/mono-binds tests/parser tests/regression tests/renamer"
+
 function setup_external_tools() {
   [[ -x "$BIN/test-runner" || -x "$BIN/test-runner.exe" ]] && return
   cabal v2-install --install-method=copy --installdir="$BIN" test-lib
@@ -58,6 +60,15 @@ case $COMMAND in
     ;;
 
   haddock) echo Building Haddock documentation && cabal v2-haddock ;;
+
+  quick-test)
+    echo Running quick tests
+    setup_external_tools
+    $BIN/test-runner --ext=.icry \
+      --exe=cabal \
+      -F v2-run -F -v0 -F exe:cryptol -F -- -F -b \
+      $QUICKTESTS
+    ;;
 
   test)
     echo Running tests
