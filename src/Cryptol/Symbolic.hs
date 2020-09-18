@@ -28,18 +28,33 @@ module Cryptol.Symbolic
  , finType
  , unFinType
  , predArgTypes
+   -- * VarShape
+ , VarShape(..)
+ , varShapeToValue
+ , freshVar
+ , computeModel
+ , FreshVarFns(..)
+ , modelPred
+ , varModelPred
  ) where
 
 
+import Control.Monad (foldM)
 import Data.IORef(IORef)
+import Data.List (genericReplicate)
 
 
+import           Cryptol.Eval.Backend
 import qualified Cryptol.Eval.Concrete as Concrete
+import           Cryptol.Eval.Value
 import           Cryptol.TypeCheck.AST
 import           Cryptol.Eval.Type (TValue(..), evalType)
+import           Cryptol.Eval.Monad (runEval)
 import           Cryptol.Utils.Ident (Ident)
 import           Cryptol.Utils.RecordMap
+import           Cryptol.Utils.Panic
 import           Cryptol.Utils.PP
+
 
 import Prelude ()
 import Prelude.Compat
@@ -155,3 +170,110 @@ unFinType fty =
     FTSeq l ety  -> tSeq (tNum l) (unFinType ety)
     FTTuple ftys -> tTuple (unFinType <$> ftys)
     FTRecord fs  -> tRec (unFinType <$> fs)
+
+
+data VarShape sym
+  = VarBit (SBit sym)
+  | VarInteger (SInteger sym)
+  | VarRational (SInteger sym) (SInteger sym)
+  | VarFloat (SFloat sym)
+  | VarWord (SWord sym)
+  | VarFinSeq Integer [VarShape sym]
+  | VarTuple [VarShape sym]
+  | VarRecord (RecordMap Ident (VarShape sym))
+
+
+varShapeToValue :: Backend sym => sym -> VarShape sym -> GenValue sym
+varShapeToValue sym var =
+  case var of
+    VarBit b     -> VBit b
+    VarInteger i -> VInteger i
+    VarRational n d -> VRational (SRational n d)
+    VarWord w    -> VWord (wordLen sym w) (return (WordVal w))
+    VarFloat f   -> VFloat f
+    VarFinSeq n vs -> VSeq n (finiteSeqMap sym (map (pure . varShapeToValue sym) vs))
+    VarTuple vs  -> VTuple (map (pure . varShapeToValue sym) vs)
+    VarRecord fs -> VRecord (fmap (pure . varShapeToValue sym) fs)
+
+data FreshVarFns sym =
+  FreshVarFns
+  { freshBitVar     :: IO (SBit sym)
+  , freshWordVar    :: Integer -> IO (SWord sym)
+  , freshIntegerVar :: Maybe Integer -> Maybe Integer -> IO (SInteger sym)
+  , freshFloatVar   :: Integer -> Integer -> IO (SFloat sym)
+  }
+
+freshVar :: Backend sym => FreshVarFns sym -> FinType -> IO (VarShape sym)
+freshVar fns tp = case tp of
+    FTBit         -> VarBit      <$> freshBitVar fns
+    FTInteger     -> VarInteger  <$> freshIntegerVar fns Nothing Nothing
+    FTRational    -> VarRational
+                        <$> freshIntegerVar fns Nothing Nothing
+                        <*> freshIntegerVar fns (Just 1) Nothing
+    FTIntMod 0    -> panic "freshVariable" ["0 modulus not allowed"]
+    FTIntMod m    -> VarInteger  <$> freshIntegerVar fns (Just 0) (Just (m-1))
+    FTFloat e p   -> VarFloat    <$> freshFloatVar fns e p
+    FTSeq n FTBit -> VarWord     <$> freshWordVar fns (toInteger n)
+    FTSeq n t     -> VarFinSeq (toInteger n) <$> sequence (genericReplicate n (freshVar fns t))
+    FTTuple ts    -> VarTuple    <$> mapM (freshVar fns) ts
+    FTRecord fs   -> VarRecord   <$> traverse (freshVar fns) fs
+
+
+
+
+computeModel ::
+  PrimMap ->
+  [FinType] ->
+  [VarShape Concrete.Concrete] ->
+  IO [(Type, Expr, Concrete.Value)]
+computeModel _ [] [] = return []
+computeModel primMap (t:ts) (v:vs) =
+  do let v' = varShapeToValue Concrete.Concrete v
+     let t' = unFinType t
+     e <- runEval (Concrete.toExpr primMap t' v') >>= \case
+             Nothing -> panic "computeModel" ["could not compute counterexample expression"]
+             Just e  -> pure e
+     zs <- computeModel primMap ts vs
+     return ((t',e,v'):zs)
+computeModel _ _ _ = panic "computeModel" ["type/value list mismatch"]
+
+
+
+modelPred  ::
+  Backend sym =>
+  sym ->
+  [VarShape sym] ->
+  [VarShape Concrete.Concrete] ->
+  SEval sym (SBit sym)
+modelPred sym vs xs =
+  do ps <- mapM (varModelPred sym) (zip vs xs)
+     foldM (bitAnd sym) (bitLit sym True) ps
+
+varModelPred ::
+  Backend sym =>
+  sym ->
+  (VarShape sym, VarShape Concrete.Concrete) ->
+  SEval sym (SBit sym)
+varModelPred sym vx =
+  case vx of
+    (VarBit b, VarBit blit) ->
+      bitEq sym b (bitLit sym blit)
+
+    (VarInteger i, VarInteger ilit) ->
+      intEq sym i =<< integerLit sym ilit
+
+    (VarRational n d, VarRational nlit dlit) ->
+      do n' <- integerLit sym nlit
+         d' <- integerLit sym dlit
+         rationalEq sym (SRational n d) (SRational n' d')
+
+    (VarWord w, VarWord (Concrete.BV len wlit)) ->
+      wordEq sym w =<< wordLit sym len wlit
+
+    (VarFloat f, VarFloat flit) ->
+      fpLogicalEq sym f =<< fpExactLit sym flit
+
+    (VarFinSeq _n vs, VarFinSeq _ xs) -> modelPred sym vs xs
+    (VarTuple vs, VarTuple xs) -> modelPred sym vs xs
+    (VarRecord vs, VarRecord xs) -> modelPred sym (recordElements vs) (recordElements xs)
+    _ -> panic "varModelPred" ["variable shape mismatch!"]

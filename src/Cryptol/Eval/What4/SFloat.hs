@@ -11,6 +11,7 @@ module Cryptol.Eval.What4.SFloat
     SFloat(..)
   , fpReprOf
   , fpSize
+  , fpRepr
 
     -- * Constants
   , fpFresh

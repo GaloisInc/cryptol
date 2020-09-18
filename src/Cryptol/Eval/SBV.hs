@@ -325,7 +325,9 @@ instance Backend SBV where
   znNegate sym m a  = sModNegate sym m a
 
   ppFloat _ _ _           = text "[?]"
+  fpExactLit _ _          = unsupported "fpExactLit"
   fpLit _ _ _ _           = unsupported "fpLit"
+  fpLogicalEq _ _ _       = unsupported "fpLogicalEq"
   fpEq _ _ _              = unsupported "fpEq"
   fpLessThan _ _ _        = unsupported "fpLessThan"
   fpGreaterThan _ _ _     = unsupported "fpGreaterThan"

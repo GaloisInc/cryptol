@@ -29,6 +29,7 @@ import qualified What4.Utils.AbstractDomains as W4
 
 import Cryptol.Eval.Backend
 import Cryptol.Eval.Concrete.Value( BV(..), ppBV )
+import Cryptol.Eval.Concrete.FloatHelpers
 import Cryptol.Eval.Generic
 import Cryptol.Eval.Monad
    ( Eval(..), EvalError(..), Unsupported(..)
@@ -444,9 +445,14 @@ instance W4.IsExprBuilder sym => Backend (What4 sym) where
   --------------------------------------------------------------
 
   fpLit (What4 sym) e p r = liftIO $ FP.fpFromRationalLit sym e p r
+
+  fpExactLit (What4 sym) BF{ bfExpWidth = e, bfPrecWidth = p, bfValue = bf } =
+    liftIO (FP.fpFromBinary sym e p =<< SW.bvLit sym (e+p) (floatToBits e p bf))
+
   fpEq          (What4 sym) x y = liftIO $ FP.fpEqIEEE sym x y
   fpLessThan    (What4 sym) x y = liftIO $ FP.fpLtIEEE sym x y
   fpGreaterThan (What4 sym) x y = liftIO $ FP.fpGtIEEE sym x y
+  fpLogicalEq   (What4 sym) x y = liftIO $ FP.fpEq sym x y
 
   fpPlus  = fpBinArith FP.fpAdd
   fpMinus = fpBinArith FP.fpSub
@@ -971,5 +977,3 @@ fpCvtFromRational ::
 fpCvtFromRational sym@(What4 sy) e p r rat =
   do rnd <- fpRoundingMode sym r
      liftIO (FP.fpFromRational sy e p rnd (sNum rat) (sDenom rat))
-
-
