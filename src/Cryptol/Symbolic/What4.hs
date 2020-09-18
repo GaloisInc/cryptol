@@ -195,11 +195,6 @@ proverError msg (_, _, modEnv) =
 data CryptolState t = CryptolState
 
 
-
--- TODO? move this?
-allDeclGroups :: M.ModuleEnv -> [DeclGroup]
-allDeclGroups = concatMap mDecls . M.loadedNonParamModules
-
 setupAdapterOptions :: W4ProverConfig -> W4.ExprBuilder t CryptolState fs -> IO ()
 setupAdapterOptions cfg sym =
    case cfg of
@@ -264,7 +259,7 @@ prepareQuery sym ProverCommand { .. } =
        doW4Eval sym
          do let tbl = primTable sym
             let ?evalPrim = \i -> Map.lookup i tbl
-            let extDgs = allDeclGroups modEnv ++ pcExtraDecls
+            let extDgs = M.allDeclGroups modEnv ++ pcExtraDecls
             env <- Eval.evalDecls (What4 sym) extDgs mempty
             v   <- Eval.evalExpr  (What4 sym) env    pcExpr
             appliedVal <-
