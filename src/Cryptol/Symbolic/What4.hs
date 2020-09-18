@@ -498,7 +498,7 @@ computeModel' ::
   [VarShape (What4 (W4.ExprBuilder t CryptolState fm))] ->
   IO [(Type, Expr, Concrete.Value)]
 computeModel' prims evalFn ftys vs =
-  computeModel prims ftys =<< mapM (varShapeToConcrete evalFn) vs
+  computeModel prims ftys <$> mapM (varShapeToConcrete evalFn) vs
 
 varShapeToConcrete ::
   W4.GroundEvalFn t ->
