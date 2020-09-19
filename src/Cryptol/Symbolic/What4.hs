@@ -30,6 +30,7 @@ module Cryptol.Symbolic.What4
  ) where
 
 import Control.Concurrent.Async
+import Control.Concurrent.MVar
 import Control.Monad.IO.Class
 import Control.Monad (when, foldM, forM_)
 import qualified Control.Exception as X
@@ -111,12 +112,12 @@ protectStack mkErr cmd modEnv =
 -- | Returns definitions, together with the value and it safety predicate.
 doW4Eval ::
   (W4.IsExprBuilder sym, MonadIO m) =>
-  sym -> W4Eval sym a -> m (W4Defs sym (W4.Pred sym, a))
+  sym -> W4Eval sym a -> m (W4.Pred sym, a)
 doW4Eval sym m =
   do res <- liftIO $ Eval.runEval (w4Eval m sym)
-     case w4Result res of
+     case res of
        W4Error err  -> liftIO (X.throwIO err)
-       W4Result p x -> pure res { w4Result = (p,x) }
+       W4Result p x -> pure (p,x)
 
 
 data AnAdapter = AnAdapter (forall st. SolverAdapter st)
@@ -219,7 +220,7 @@ what4FreshFns sym =
 -- to a solver.
 prepareQuery ::
   W4.IsSymExprBuilder sym =>
-  sym ->
+  What4 sym ->
   ProverCommand ->
   M.ModuleT IO (Either String
                        ([FinType],[VarShape (What4 sym)],W4.Pred sym, W4.Pred sym)
@@ -228,47 +229,48 @@ prepareQuery sym ProverCommand { .. } =
   case predArgTypes pcQueryType pcSchema of
     Left msg -> pure (Left msg)
     Right ts ->
-      do args <- liftIO (mapM (freshVar (what4FreshFns sym)) ts)
-         res  <- simulate args
+      do args <- liftIO (mapM (freshVar (what4FreshFns (w4 sym))) ts)
+         (safety,b) <- simulate args
          liftIO
-           do -- add the collected definitions to the goal
-              let (safety,prop') = w4Result res
-              b <- W4.andPred sym (w4Defs res) prop'
+           do -- Ignore the safety condition if the flag is set
+              let safety' = if pcIgnoreSafety then W4.truePred (w4 sym) else safety
 
-              -- Ignore the safety condition if the flag is set
-              let safety' = if pcIgnoreSafety then W4.truePred sym else safety
+              defs <- readMVar (w4defs sym)
 
               Right <$>
                 case pcQueryType of
                   ProveQuery ->
-                    do q <- W4.notPred sym =<< W4.andPred sym safety' b
-                       pure (ts,args,safety',q)
+                    do q <- W4.notPred (w4 sym) =<< W4.andPred (w4 sym) safety' b
+                       q' <- W4.andPred (w4 sym) defs q
+                       pure (ts,args,safety',q')
 
                   SafetyQuery ->
-                    do q <- W4.notPred sym safety
-                       pure (ts,args,safety,q)
+                    do q <- W4.notPred (w4 sym) safety
+                       q' <- W4.andPred (w4 sym) defs q
+                       pure (ts,args,safety,q')
 
                   SatQuery _ ->
-                    do q <- W4.andPred sym safety' b
-                       pure (ts,args,safety',q)
+                    do q <- W4.andPred (w4 sym) safety' b
+                       q' <- W4.andPred (w4 sym) defs q
+                       pure (ts,args,safety',q')
   where
   simulate args =
     do let lPutStrLn = M.withLogger logPutStrLn
        when pcVerbose (lPutStrLn "Simulating...")
        modEnv <- M.getModuleEnv
-       doW4Eval sym
+       doW4Eval (w4 sym)
          do let tbl = primTable sym
             let ?evalPrim = \i -> Map.lookup i tbl
             let extDgs = M.allDeclGroups modEnv ++ pcExtraDecls
-            env <- Eval.evalDecls (What4 sym) extDgs mempty
-            v   <- Eval.evalExpr  (What4 sym) env    pcExpr
+            env <- Eval.evalDecls sym extDgs mempty
+            v   <- Eval.evalExpr  sym env    pcExpr
             appliedVal <-
-              foldM Eval.fromVFun v (map (pure . varShapeToValue (What4 sym)) args)
+              foldM Eval.fromVFun v (map (pure . varShapeToValue sym) args)
 
             case pcQueryType of
               SafetyQuery ->
                 do Eval.forceValue appliedVal
-                   pure (W4.truePred sym)
+                   pure (W4.truePred (w4 sym))
 
               _ -> pure (Eval.fromVBit appliedVal)
 
@@ -282,7 +284,9 @@ satProve ::
 satProve solverCfg hashConsing ProverCommand {..} =
   protectStack proverError \(evo, byteReader, modEnv) ->
   M.runModuleM (evo, byteReader, modEnv)
-  do sym     <- liftIO makeSym
+  do w4sym   <- liftIO makeSym
+     defVar  <- liftIO (newMVar (W4.truePred w4sym))
+     let sym = What4 w4sym defVar
      logData <- M.withLogger doLog ()
      start   <- liftIO getCurrentTime
      query   <- prepareQuery sym ProverCommand { .. }
@@ -294,12 +298,12 @@ satProve solverCfg hashConsing ProverCommand {..} =
           return result
   where
   makeSym =
-    do sym <- W4.newExprBuilder W4.FloatIEEERepr
-                                CryptolState
-                                globalNonceGenerator
-       setupAdapterOptions solverCfg sym
-       when hashConsing (W4.startCaching sym)
-       pure sym
+    do w4sym <- W4.newExprBuilder W4.FloatIEEERepr
+                                  CryptolState
+                                  globalNonceGenerator
+       setupAdapterOptions solverCfg w4sym
+       when hashConsing (W4.startCaching w4sym)
+       pure w4sym
 
   doLog lg () =
     pure
@@ -340,14 +344,16 @@ satProveOffline (W4Portfolio (p:|_)) hashConsing cmd outputContinuation =
 satProveOffline (W4ProverConfig (AnAdapter adpt)) hashConsing ProverCommand {..} outputContinuation =
   protectStack onError \(evo,byteReader,modEnv) ->
   M.runModuleM (evo,byteReader,modEnv)
-   do sym <- liftIO makeSym
+   do w4sym <- liftIO makeSym
+      defVar  <- liftIO (newMVar (W4.truePred w4sym))
+      let sym = What4 w4sym defVar
       ok  <- prepareQuery sym ProverCommand { .. }
       liftIO
         case ok of
           Left msg -> return (Just msg)
           Right (_ts,_args,_safety,query) ->
             do outputContinuation
-                  (\hdl -> solver_adapter_write_smt2 adpt sym hdl [query])
+                  (\hdl -> solver_adapter_write_smt2 adpt w4sym hdl [query])
                return Nothing
   where
   makeSym =
@@ -368,7 +374,7 @@ decSatNum n = n
 
 multiSATQuery ::
   sym ~ W4.ExprBuilder t CryptolState fm =>
-  sym ->
+  What4 sym ->
   W4ProverConfig ->
   PrimMap ->
   W4.LogData ->
@@ -384,7 +390,7 @@ multiSATQuery _sym (W4Portfolio _) _primMap _logData _ts _args _query _satNum =
   fail "What4 portfolio solver cannot be used for multi SAT queries"
 
 multiSATQuery sym (W4ProverConfig (AnAdapter adpt)) primMap logData ts args query satNum0 =
-  do pres <- W4.solver_adapter_check_sat adpt sym logData [query] $ \res ->
+  do pres <- W4.solver_adapter_check_sat adpt (w4 sym) logData [query] $ \res ->
          case res of
            W4.Unknown -> return (Left (ProverError "Solver returned UNKNOWN"))
            W4.Unsat _ -> return (Left (ThmResult (map unFinType ts)))
@@ -403,7 +409,7 @@ multiSATQuery sym (W4ProverConfig (AnAdapter adpt)) primMap logData ts args quer
 
   computeMoreModels _qs (SomeSat n) | n <= 0 = return [] -- should never happen...
   computeMoreModels qs (SomeSat n) | n <= 1 = -- final model
-    W4.solver_adapter_check_sat adpt sym logData qs $ \res ->
+    W4.solver_adapter_check_sat adpt (w4 sym) logData qs $ \res ->
          case res of
            W4.Unknown -> return []
            W4.Unsat _ -> return []
@@ -412,7 +418,7 @@ multiSATQuery sym (W4ProverConfig (AnAdapter adpt)) primMap logData ts args quer
                 return [model]
 
   computeMoreModels qs satNum =
-    do pres <- W4.solver_adapter_check_sat adpt sym logData qs $ \res ->
+    do pres <- W4.solver_adapter_check_sat adpt (w4 sym) logData qs $ \res ->
          case res of
            W4.Unknown -> return Nothing
            W4.Unsat _ -> return Nothing
@@ -428,7 +434,7 @@ multiSATQuery sym (W4ProverConfig (AnAdapter adpt)) primMap logData ts args quer
 
 singleQuery ::
   sym ~ W4.ExprBuilder t CryptolState fm =>
-  sym ->
+  What4 sym ->
   W4ProverConfig ->
   PrimMap ->
   W4.LogData ->
@@ -459,7 +465,7 @@ singleQuery sym (W4Portfolio ps) primMap logData ts args msafe query =
              return r
 
 singleQuery sym (W4ProverConfig (AnAdapter adpt)) primMap logData ts args msafe query =
-  do pres <- W4.solver_adapter_check_sat adpt sym logData [query] $ \res ->
+  do pres <- W4.solver_adapter_check_sat adpt (w4 sym) logData [query] $ \res ->
          case res of
            W4.Unknown -> return (ProverError "Solver returned UNKNOWN")
            W4.Unsat _ -> return (ThmResult (map unFinType ts))
@@ -477,14 +483,14 @@ singleQuery sym (W4ProverConfig (AnAdapter adpt)) primMap logData ts args msafe 
 
 computeBlockingPred ::
   sym ~ W4.ExprBuilder t CryptolState fm =>
-  sym ->
+  What4 sym ->
   W4.GroundEvalFn t ->
   [VarShape (What4 sym)] ->
   IO (W4.Pred sym)
 computeBlockingPred sym evalFn vs =
   do xs <- mapM (varShapeToConcrete evalFn) vs
-     res <- doW4Eval sym (modelPred (What4 sym) vs xs)
-     W4.notPred sym (snd (w4Result res))
+     res <- doW4Eval (w4 sym) (modelPred sym vs xs)
+     W4.notPred (w4 sym) (snd res)
 
 computeModel' ::
   PrimMap ->

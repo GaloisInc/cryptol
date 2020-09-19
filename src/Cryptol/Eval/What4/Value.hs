@@ -14,6 +14,7 @@ module Cryptol.Eval.What4.Value where
 
 
 import qualified Control.Exception as X
+import           Control.Concurrent.MVar
 import           Control.Monad (foldM,ap,liftM)
 import           Control.Monad.IO.Class
 import           Data.Bits (bit, shiftR, shiftL, testBit)
@@ -42,7 +43,11 @@ import Cryptol.Utils.Panic
 import Cryptol.Utils.PP
 
 
-data What4 sym = What4 sym
+data What4 sym =
+  What4
+  { w4  :: sym
+  , w4defs :: MVar (W4.Pred sym)
+  }
 
 type Value sym = GenValue (What4 sym)
 
@@ -55,13 +60,7 @@ newtype W4Eval sym a = W4Eval { evalPartial :: W4Conn sym (W4Result sym a) }
 {- | This layer has the symbolic back-end, and can keep track of definitional
 predicates used when working with uninterpreted constants defined
 via a property. -}
-newtype W4Conn sym a = W4Conn { evalConn :: sym -> Eval (W4Defs sym a) }
-
--- | Keep track of a value and a context defining uninterpeted vairables.
-data W4Defs sym a = W4Defs
-  { w4Defs    :: !(W4.Pred sym)
-  , w4Result  :: !a
-  }
+newtype W4Conn sym a = W4Conn { evalConn :: sym -> Eval a }
 
 -- | The symbolic value we computed.
 data W4Result sym a
@@ -76,27 +75,21 @@ data W4Result sym a
 --------------------------------------------------------------------------------
 -- Moving between the layers
 
-w4Eval :: W4Eval sym a -> sym -> Eval (W4Defs sym (W4Result sym a))
+w4Eval :: W4Eval sym a -> sym -> Eval (W4Result sym a)
 w4Eval (W4Eval (W4Conn m)) = m
 
-w4Thunk :: Eval (W4Defs sym (W4Result sym a)) -> W4Eval sym a
+w4Thunk :: Eval (W4Result sym a) -> W4Eval sym a
 w4Thunk m = W4Eval (W4Conn \_ -> m)
 
 -- | A value with no context.
 doEval :: W4.IsExprBuilder sym => Eval a -> W4Conn sym a
-doEval m = W4Conn \sym ->
-  do a <- m
-     pure W4Defs { w4Defs   = W4.backendPred sym True
-                 , w4Result = a
-                 }
+doEval m = W4Conn \_sym -> m
 
 -- | A total value.
 total :: W4.IsExprBuilder sym => W4Conn sym a -> W4Eval sym a
 total m = W4Eval
   do sym <- getSym
      W4Result (W4.backendPred sym True) <$> m
-
-
 
 --------------------------------------------------------------------------------
 -- Operations in WConn
@@ -111,21 +104,18 @@ instance W4.IsExprBuilder sym => Applicative (W4Conn sym) where
 instance W4.IsExprBuilder sym => Monad (W4Conn sym) where
   m1 >>= f = W4Conn \sym ->
     do res1 <- evalConn m1 sym
-       res2 <- evalConn (f (w4Result res1)) sym
-       defs <- liftIO (W4.andPred sym (w4Defs res1) (w4Defs res2))
-       pure res2 { w4Defs = defs }
+       evalConn (f res1) sym
 
 instance W4.IsExprBuilder sym => MonadIO (W4Conn sym) where
   liftIO = doEval . liftIO
 
 -- | Access the symbolic back-end
 getSym :: W4.IsExprBuilder sym => W4Conn sym sym
-getSym = W4Conn \sym -> pure W4Defs { w4Defs = W4.backendPred sym True
-                                    , w4Result = sym }
+getSym = W4Conn \sym -> pure sym
 
 -- | Record a definition.
-addDef :: W4.Pred sym -> W4Conn sym ()
-addDef p = W4Conn \_ -> pure W4Defs { w4Defs = p, w4Result = () }
+--addDef :: W4.Pred sym -> W4Conn sym ()
+--addDef p = W4Conn \_ -> pure W4Defs { w4Defs = p, w4Result = () }
 
 -- | Compute conjunction.
 w4And :: W4.IsExprBuilder sym =>
@@ -178,8 +168,8 @@ instance W4.IsExprBuilder sym => MonadIO (W4Eval sym) where
 
 -- | Add a definitional equation.
 -- This will always be asserted when we make queries to the solver.
-addDefEqn :: W4.IsExprBuilder sym => W4.Pred sym -> W4Eval sym ()
-addDefEqn p = total (addDef p)
+addDefEqn :: W4.IsExprBuilder sym => What4 sym -> W4.Pred sym -> W4Eval sym ()
+addDefEqn (What4 w4sym defVar) p = liftIO (modifyMVar_ defVar (W4.andPred w4sym p))
 
 -- | Add s safety condition.
 addSafety :: W4.IsExprBuilder sym => W4.Pred sym -> W4Eval sym ()
@@ -191,18 +181,16 @@ evalError err = W4Eval (pure (W4Error err))
 --------------------------------------------------------------------------------
 
 
-assertBVDivisor :: W4.IsExprBuilder sym => sym -> SW.SWord sym -> W4Eval sym ()
+assertBVDivisor :: W4.IsExprBuilder sym => What4 sym -> SW.SWord sym -> W4Eval sym ()
 assertBVDivisor sym x =
-  do p <- liftIO (SW.bvIsNonzero sym x)
-     assertSideCondition (What4 sym) p DivideByZero
+  do p <- liftIO (SW.bvIsNonzero (w4 sym) x)
+     assertSideCondition sym p DivideByZero
 
 assertIntDivisor ::
-  W4.IsExprBuilder sym => sym -> W4.SymInteger sym -> W4Eval sym ()
+  W4.IsExprBuilder sym => What4 sym -> W4.SymInteger sym -> W4Eval sym ()
 assertIntDivisor sym x =
-  do p <- liftIO (W4.notPred sym =<< W4.intEq sym x =<< W4.intLit sym 0)
-     assertSideCondition (What4 sym) p DivideByZero
-
-
+  do p <- liftIO (W4.notPred (w4 sym) =<< W4.intEq (w4 sym) x =<< W4.intLit (w4 sym) 0)
+     assertSideCondition sym p DivideByZero
 
 instance W4.IsExprBuilder sym => Backend (What4 sym) where
   type SBit (What4 sym)     = W4.Pred sym
@@ -217,7 +205,7 @@ instance W4.IsExprBuilder sym => Backend (What4 sym) where
     | Just False <- W4.asConstantPred cond = evalError err
     | otherwise = addSafety cond
 
-  isReady (What4 sym) m =
+  isReady (What4 sym _) m =
     case w4Eval m sym of
       Ready _ -> True
       _ -> False
@@ -272,10 +260,10 @@ instance W4.IsExprBuilder sym => Backend (What4 sym) where
 
   wordLen _ bv = SW.bvWidth bv
 
-  bitLit (What4 sym) b = W4.backendPred sym b
+  bitLit (What4 sym _) b = W4.backendPred sym b
   bitAsLit _ v = W4.asConstantPred v
 
-  wordLit (What4 sym) intw i
+  wordLit (What4 sym _) intw i
     | Just (Some w) <- someNat intw
     = case isPosNat w of
         Nothing -> pure $ SW.ZBV
@@ -286,7 +274,7 @@ instance W4.IsExprBuilder sym => Backend (What4 sym) where
     | Just x <- SW.bvAsUnsignedInteger v = Just (SW.bvWidth v, x)
     | otherwise = Nothing
 
-  integerLit (What4 sym) i = liftIO (W4.intLit sym i)
+  integerLit (What4 sym _) i = liftIO (W4.intLit sym i)
 
   integerAsLit _ v = W4.asInteger v
 
@@ -307,122 +295,122 @@ instance W4.IsExprBuilder sym => Backend (What4 sym) where
   ppFloat _ _opts _ = text "[?]"
 
 
-  iteBit (What4 sym) c x y = liftIO (W4.itePred sym c x y)
-  iteWord (What4 sym) c x y = liftIO (SW.bvIte sym c x y)
-  iteInteger (What4 sym) c x y = liftIO (W4.intIte sym c x y)
+  iteBit (What4 sym _) c x y = liftIO (W4.itePred sym c x y)
+  iteWord (What4 sym _) c x y = liftIO (SW.bvIte sym c x y)
+  iteInteger (What4 sym _) c x y = liftIO (W4.intIte sym c x y)
 
-  bitEq  (What4 sym) x y = liftIO (W4.eqPred sym x y)
-  bitAnd (What4 sym) x y = liftIO (W4.andPred sym x y)
-  bitOr  (What4 sym) x y = liftIO (W4.orPred sym x y)
-  bitXor (What4 sym) x y = liftIO (W4.xorPred sym x y)
-  bitComplement (What4 sym) x = liftIO (W4.notPred sym x)
+  bitEq  (What4 sym _) x y = liftIO (W4.eqPred sym x y)
+  bitAnd (What4 sym _) x y = liftIO (W4.andPred sym x y)
+  bitOr  (What4 sym _) x y = liftIO (W4.orPred sym x y)
+  bitXor (What4 sym _) x y = liftIO (W4.xorPred sym x y)
+  bitComplement (What4 sym _) x = liftIO (W4.notPred sym x)
 
-  wordBit (What4 sym) bv idx = liftIO (SW.bvAtBE sym bv idx)
-  wordUpdate (What4 sym) bv idx b = liftIO (SW.bvSetBE sym bv idx b)
+  wordBit (What4 sym _) bv idx = liftIO (SW.bvAtBE sym bv idx)
+  wordUpdate (What4 sym _) bv idx b = liftIO (SW.bvSetBE sym bv idx b)
 
   packWord sym bs =
     do z <- wordLit sym (genericLength bs) 0
        let f w (idx,b) = wordUpdate sym w idx b
        foldM f z (zip [0..] bs)
 
-  unpackWord (What4 sym) bv = liftIO $
+  unpackWord (What4 sym _) bv = liftIO $
     mapM (SW.bvAtBE sym bv) [0 .. SW.bvWidth bv-1]
 
-  joinWord (What4 sym) x y = liftIO $ SW.bvJoin sym x y
+  joinWord (What4 sym _) x y = liftIO $ SW.bvJoin sym x y
 
   splitWord _sym 0 _ bv = pure (SW.ZBV, bv)
   splitWord _sym _ 0 bv = pure (bv, SW.ZBV)
-  splitWord (What4 sym) lw rw bv = liftIO $
+  splitWord (What4 sym _) lw rw bv = liftIO $
     do l <- SW.bvSliceBE sym 0 lw bv
        r <- SW.bvSliceBE sym lw rw bv
        return (l, r)
 
-  extractWord (What4 sym) bits idx bv =
+  extractWord (What4 sym _) bits idx bv =
     liftIO $ SW.bvSliceBE sym idx bits bv
 
-  wordEq                (What4 sym) x y = liftIO (SW.bvEq sym x y)
-  wordLessThan          (What4 sym) x y = liftIO (SW.bvult sym x y)
-  wordGreaterThan       (What4 sym) x y = liftIO (SW.bvugt sym x y)
-  wordSignedLessThan    (What4 sym) x y = liftIO (SW.bvslt sym x y)
+  wordEq                (What4 sym _) x y = liftIO (SW.bvEq sym x y)
+  wordLessThan          (What4 sym _) x y = liftIO (SW.bvult sym x y)
+  wordGreaterThan       (What4 sym _) x y = liftIO (SW.bvugt sym x y)
+  wordSignedLessThan    (What4 sym _) x y = liftIO (SW.bvslt sym x y)
 
-  wordOr  (What4 sym) x y = liftIO (SW.bvOr sym x y)
-  wordAnd (What4 sym) x y = liftIO (SW.bvAnd sym x y)
-  wordXor (What4 sym) x y = liftIO (SW.bvXor sym x y)
-  wordComplement (What4 sym) x = liftIO (SW.bvNot sym x)
+  wordOr  (What4 sym _) x y = liftIO (SW.bvOr sym x y)
+  wordAnd (What4 sym _) x y = liftIO (SW.bvAnd sym x y)
+  wordXor (What4 sym _) x y = liftIO (SW.bvXor sym x y)
+  wordComplement (What4 sym _) x = liftIO (SW.bvNot sym x)
 
-  wordPlus  (What4 sym) x y = liftIO (SW.bvAdd sym x y)
-  wordMinus (What4 sym) x y = liftIO (SW.bvSub sym x y)
-  wordMult  (What4 sym) x y = liftIO (SW.bvMul sym x y)
-  wordNegate (What4 sym) x  = liftIO (SW.bvNeg sym x)
-  wordLg2 (What4 sym) x     = sLg2 sym x
-
-  wordDiv (What4 sym) x y =
+  wordPlus  (What4 sym _) x y = liftIO (SW.bvAdd sym x y)
+  wordMinus (What4 sym _) x y = liftIO (SW.bvSub sym x y)
+  wordMult  (What4 sym _) x y = liftIO (SW.bvMul sym x y)
+  wordNegate (What4 sym _) x  = liftIO (SW.bvNeg sym x)
+  wordLg2 (What4 sym _) x     = sLg2 sym x
+ 
+  wordDiv sym x y =
      do assertBVDivisor sym y
-        liftIO (SW.bvUDiv sym x y)
-  wordMod (What4 sym) x y =
+        liftIO (SW.bvUDiv (w4 sym) x y)
+  wordMod sym x y =
      do assertBVDivisor sym y
-        liftIO (SW.bvURem sym x y)
-  wordSignedDiv (What4 sym) x y =
+        liftIO (SW.bvURem (w4 sym) x y)
+  wordSignedDiv sym x y =
      do assertBVDivisor sym y
-        liftIO (SW.bvSDiv sym x y)
-  wordSignedMod (What4 sym) x y =
+        liftIO (SW.bvSDiv (w4 sym) x y)
+  wordSignedMod sym x y =
      do assertBVDivisor sym y
-        liftIO (SW.bvSRem sym x y)
+        liftIO (SW.bvSRem (w4 sym) x y)
 
-  wordToInt (What4 sym) x = liftIO (SW.bvToInteger sym x)
-  wordFromInt (What4 sym) width i = liftIO (SW.integerToBV sym i width)
+  wordToInt (What4 sym _) x = liftIO (SW.bvToInteger sym x)
+  wordFromInt (What4 sym _) width i = liftIO (SW.integerToBV sym i width)
 
-  intPlus (What4 sym) x y  = liftIO $ W4.intAdd sym x y
-  intMinus (What4 sym) x y = liftIO $ W4.intSub sym x y
-  intMult (What4 sym) x y  = liftIO $ W4.intMul sym x y
-  intNegate (What4 sym) x  = liftIO $ W4.intNeg sym x
+  intPlus (What4 sym _) x y  = liftIO $ W4.intAdd sym x y
+  intMinus (What4 sym _) x y = liftIO $ W4.intSub sym x y
+  intMult (What4 sym _) x y  = liftIO $ W4.intMul sym x y
+  intNegate (What4 sym _) x  = liftIO $ W4.intNeg sym x
 
   -- NB: What4's division operation provides SMTLib's euclidean division,
   -- which doesn't match the round-to-neg-infinity semantics of Cryptol,
   -- so we have to do some work to get the desired semantics.
-  intDiv (What4 sym) x y =
+  intDiv sym@(What4 w4sym _) x y =
     do assertIntDivisor sym y
        liftIO $ do
-         neg <- liftIO (W4.intLt sym y =<< W4.intLit sym 0)
+         neg <- liftIO (W4.intLt w4sym y =<< W4.intLit w4sym 0)
          case W4.asConstantPred neg of
-           Just False -> W4.intDiv sym x y
+           Just False -> W4.intDiv w4sym x y
            Just True  ->
-              do xneg <- W4.intNeg sym x
-                 yneg <- W4.intNeg sym y
-                 W4.intDiv sym xneg yneg
+              do xneg <- W4.intNeg w4sym x
+                 yneg <- W4.intNeg w4sym y
+                 W4.intDiv w4sym xneg yneg
            Nothing ->
-              do xneg <- W4.intNeg sym x
-                 yneg <- W4.intNeg sym y
-                 zneg <- W4.intDiv sym xneg yneg
-                 z    <- W4.intDiv sym x y
-                 W4.intIte sym neg zneg z
+              do xneg <- W4.intNeg w4sym x
+                 yneg <- W4.intNeg w4sym y
+                 zneg <- W4.intDiv w4sym xneg yneg
+                 z    <- W4.intDiv w4sym x y
+                 W4.intIte w4sym neg zneg z
 
   -- NB: What4's division operation provides SMTLib's euclidean division,
   -- which doesn't match the round-to-neg-infinity semantics of Cryptol,
   -- so we have to do some work to get the desired semantics.
-  intMod (What4 sym) x y =
+  intMod sym@(What4 w4sym _) x y =
     do assertIntDivisor sym y
        liftIO $ do
-         neg <- liftIO (W4.intLt sym y =<< W4.intLit sym 0)
+         neg <- liftIO (W4.intLt w4sym y =<< W4.intLit w4sym 0)
          case W4.asConstantPred neg of
-           Just False -> W4.intMod sym x y
+           Just False -> W4.intMod w4sym x y
            Just True  ->
-              do xneg <- W4.intNeg sym x
-                 yneg <- W4.intNeg sym y
-                 W4.intNeg sym =<< W4.intMod sym xneg yneg
+              do xneg <- W4.intNeg w4sym x
+                 yneg <- W4.intNeg w4sym y
+                 W4.intNeg w4sym =<< W4.intMod w4sym xneg yneg
            Nothing ->
-              do xneg <- W4.intNeg sym x
-                 yneg <- W4.intNeg sym y
-                 z    <- W4.intMod sym x y
-                 zneg <- W4.intNeg sym =<< W4.intMod sym xneg yneg
-                 W4.intIte sym neg zneg z
+              do xneg <- W4.intNeg w4sym x
+                 yneg <- W4.intNeg w4sym y
+                 z    <- W4.intMod w4sym x y
+                 zneg <- W4.intNeg w4sym =<< W4.intMod w4sym xneg yneg
+                 W4.intIte w4sym neg zneg z
 
-  intEq (What4 sym) x y = liftIO $ W4.intEq sym x y
-  intLessThan (What4 sym) x y = liftIO $ W4.intLt sym x y
-  intGreaterThan (What4 sym) x y = liftIO $ W4.intLt sym y x
+  intEq (What4 sym _) x y = liftIO $ W4.intEq sym x y
+  intLessThan (What4 sym _) x y = liftIO $ W4.intLt sym x y
+  intGreaterThan (What4 sym _) x y = liftIO $ W4.intLt sym y x
 
   -- NB, we don't do reduction here on symbolic values
-  intToZn (What4 sym) m x
+  intToZn (What4 sym _) m x
     | Just xi <- W4.asInteger x
     = liftIO $ W4.intLit sym (xi `mod` m)
 
@@ -430,40 +418,40 @@ instance W4.IsExprBuilder sym => Backend (What4 sym) where
     = pure x
 
   znToInt _ 0 _ = evalPanic "znToInt" ["0 modulus not allowed"]
-  znToInt (What4 sym) m x = liftIO (W4.intMod sym x =<< W4.intLit sym m)
+  znToInt (What4 sym _) m x = liftIO (W4.intMod sym x =<< W4.intLit sym m)
 
   znEq _ 0 _ _ = evalPanic "znEq" ["0 modulus not allowed"]
-  znEq (What4 sym) m x y = liftIO $
+  znEq (What4 sym _) m x y = liftIO $
      do diff <- W4.intSub sym x y
         W4.intDivisible sym diff (fromInteger m)
 
-  znPlus   (What4 sym) m x y = liftIO $ sModAdd sym m x y
-  znMinus  (What4 sym) m x y = liftIO $ sModSub sym m x y
-  znMult   (What4 sym) m x y = liftIO $ sModMult sym m x y
-  znNegate (What4 sym) m x   = liftIO $ sModNegate sym m x
+  znPlus   (What4 sym _) m x y = liftIO $ sModAdd sym m x y
+  znMinus  (What4 sym _) m x y = liftIO $ sModSub sym m x y
+  znMult   (What4 sym _) m x y = liftIO $ sModMult sym m x y
+  znNegate (What4 sym _) m x   = liftIO $ sModNegate sym m x
 
   --------------------------------------------------------------
 
-  fpLit (What4 sym) e p r = liftIO $ FP.fpFromRationalLit sym e p r
+  fpLit (What4 sym _) e p r = liftIO $ FP.fpFromRationalLit sym e p r
 
-  fpExactLit (What4 sym) BF{ bfExpWidth = e, bfPrecWidth = p, bfValue = bf } =
+  fpExactLit (What4 sym _) BF{ bfExpWidth = e, bfPrecWidth = p, bfValue = bf } =
     liftIO (FP.fpFromBinary sym e p =<< SW.bvLit sym (e+p) (floatToBits e p bf))
 
-  fpEq          (What4 sym) x y = liftIO $ FP.fpEqIEEE sym x y
-  fpLessThan    (What4 sym) x y = liftIO $ FP.fpLtIEEE sym x y
-  fpGreaterThan (What4 sym) x y = liftIO $ FP.fpGtIEEE sym x y
-  fpLogicalEq   (What4 sym) x y = liftIO $ FP.fpEq sym x y
+  fpEq          (What4 sym _) x y = liftIO $ FP.fpEqIEEE sym x y
+  fpLessThan    (What4 sym _) x y = liftIO $ FP.fpLtIEEE sym x y
+  fpGreaterThan (What4 sym _) x y = liftIO $ FP.fpGtIEEE sym x y
+  fpLogicalEq   (What4 sym _) x y = liftIO $ FP.fpEq sym x y
 
   fpPlus  = fpBinArith FP.fpAdd
   fpMinus = fpBinArith FP.fpSub
   fpMult  = fpBinArith FP.fpMul
   fpDiv   = fpBinArith FP.fpDiv
 
-  fpNeg (What4 sym) x = liftIO $ FP.fpNeg sym x
+  fpNeg (What4 sym _) x = liftIO $ FP.fpNeg sym x
 
-  fpFromInteger sym@(What4 sy) e p r x =
+  fpFromInteger sym@(What4 w4sym _) e p r x =
     do rm <- fpRoundingMode sym r
-       liftIO $ FP.fpFromInteger sy e p rm x
+       liftIO $ FP.fpFromInteger w4sym e p rm x
 
   fpToInteger = fpCvtToInteger
 
@@ -551,14 +539,14 @@ lazyIte f c mx my
 
 indexFront_int ::
   W4.IsExprBuilder sym =>
-  sym ->
+  What4 sym ->
   Nat' ->
   TValue ->
   SeqMap (What4 sym) ->
   TValue ->
   SInteger (What4 sym) ->
   SEval (What4 sym) (Value sym)
-indexFront_int sym mblen _a xs ix idx
+indexFront_int sym@(What4 w4sym _) mblen _a xs ix idx
   | Just i <- W4.asInteger idx
   = lookupSeqMap xs i
 
@@ -569,11 +557,11 @@ indexFront_int sym mblen _a xs ix idx
   = liftIO (X.throw (UnsupportedSymbolicOp "unbounded integer indexing"))
 
  where
-    def = raiseError (What4 sym) (InvalidIndex Nothing)
+    def = raiseError sym (InvalidIndex Nothing)
 
     f n y =
-       do p <- liftIO (W4.intEq sym idx =<< W4.intLit sym n)
-          iteValue (What4 sym) p (lookupSeqMap xs n) y
+       do p <- liftIO (W4.intEq w4sym idx =<< W4.intLit w4sym n)
+          iteValue sym p (lookupSeqMap xs n) y
 
     bounds =
       (case W4.rangeLowBound (W4.integerBounds idx) of
@@ -598,7 +586,7 @@ indexFront_int sym mblen _a xs ix idx
 
 indexBack_int ::
   W4.IsExprBuilder sym =>
-  sym ->
+  What4 sym ->
   Nat' ->
   TValue ->
   SeqMap (What4 sym) ->
@@ -610,14 +598,14 @@ indexBack_int _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["indexBack_i
 
 indexFront_word ::
   W4.IsExprBuilder sym =>
-  sym ->
+  What4 sym ->
   Nat' ->
   TValue ->
   SeqMap (What4 sym) ->
   TValue ->
   SWord (What4 sym) ->
   SEval (What4 sym) (Value sym)
-indexFront_word sym mblen _a xs _ix idx
+indexFront_word sym@(What4 w4sym _) mblen _a xs _ix idx
   | Just i <- SW.bvAsUnsignedInteger idx
   = lookupSeqMap xs i
 
@@ -626,11 +614,11 @@ indexFront_word sym mblen _a xs _ix idx
 
  where
     w = SW.bvWidth idx
-    def = raiseError (What4 sym) (InvalidIndex Nothing)
+    def = raiseError sym (InvalidIndex Nothing)
 
     f n y =
-       do p <- liftIO (SW.bvEq sym idx =<< SW.bvLit sym w n)
-          iteValue (What4 sym) p (lookupSeqMap xs n) y
+       do p <- liftIO (SW.bvEq w4sym idx =<< SW.bvLit w4sym w n)
+          iteValue sym p (lookupSeqMap xs n) y
 
     -- maximum possible in-bounds index given the bitwidth
     -- of the index value and the length of the sequence
@@ -649,7 +637,7 @@ indexFront_word sym mblen _a xs _ix idx
 
 indexBack_word ::
   W4.IsExprBuilder sym =>
-  sym ->
+  What4 sym ->
   Nat' ->
   TValue ->
   SeqMap (What4 sym) ->
@@ -661,7 +649,7 @@ indexBack_word _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["indexBack_
 
 indexFront_bits :: forall sym.
   W4.IsExprBuilder sym =>
-  sym ->
+  What4 sym ->
   Nat' ->
   TValue ->
   SeqMap (What4 sym) ->
@@ -675,7 +663,7 @@ indexFront_bits sym mblen _a xs _ix bits0 = go 0 (length bits0) bits0
     -- For indices out of range, fail
     | Nat n <- mblen
     , i >= n
-    = raiseError (What4 sym) (InvalidIndex (Just i))
+    = raiseError sym (InvalidIndex (Just i))
 
     | otherwise
     = lookupSeqMap xs i
@@ -685,16 +673,16 @@ indexFront_bits sym mblen _a xs _ix bits0 = go 0 (length bits0) bits0
     -- are out of bounds
     | Nat n <- mblen
     , (i `shiftL` k) >= n
-    = raiseError (What4 sym) (InvalidIndex Nothing)
+    = raiseError sym (InvalidIndex Nothing)
 
     | otherwise
-    = iteValue (What4 sym) b
+    = iteValue sym b
          (go ((i `shiftL` 1) + 1) (k-1) bs)
          (go  (i `shiftL` 1)      (k-1) bs)
 
 indexBack_bits ::
   W4.IsExprBuilder sym =>
-  sym ->
+  What4 sym ->
   Nat' ->
   TValue ->
   SeqMap (What4 sym) ->
@@ -708,30 +696,30 @@ indexBack_bits _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["indexBack_
 -- | Compare a symbolic word value with a concrete integer.
 wordValueEqualsInteger :: forall sym.
   W4.IsExprBuilder sym =>
-  sym ->
+  What4 sym ->
   WordValue (What4 sym) ->
   Integer ->
   W4Eval sym (W4.Pred sym)
-wordValueEqualsInteger sym wv i
-  | wordValueSize (What4 sym) wv < widthInteger i = return (W4.falsePred sym)
+wordValueEqualsInteger sym@(What4 w4sym _) wv i
+  | wordValueSize sym wv < widthInteger i = return (W4.falsePred w4sym)
   | otherwise =
     case wv of
-      WordVal w -> liftIO (SW.bvEq sym w =<< SW.bvLit sym (SW.bvWidth w) i)
-      _ -> liftIO . bitsAre i =<< enumerateWordValueRev (What4 sym) wv -- little-endian
+      WordVal w -> liftIO (SW.bvEq w4sym w =<< SW.bvLit w4sym (SW.bvWidth w) i)
+      _ -> liftIO . bitsAre i =<< enumerateWordValueRev sym wv -- little-endian
   where
     bitsAre :: Integer -> [W4.Pred sym] -> IO (W4.Pred sym)
-    bitsAre n [] = pure (W4.backendPred sym (n == 0))
+    bitsAre n [] = pure (W4.backendPred w4sym (n == 0))
     bitsAre n (b : bs) =
       do pb  <- bitIs (testBit n 0) b
          pbs <- bitsAre (n `shiftR` 1) bs
-         W4.andPred sym pb pbs
+         W4.andPred w4sym pb pbs
 
     bitIs :: Bool -> W4.Pred sym -> IO (W4.Pred sym)
-    bitIs b x = if b then pure x else W4.notPred sym x
+    bitIs b x = if b then pure x else W4.notPred w4sym x
 
 updateFrontSym ::
   W4.IsExprBuilder sym =>
-  sym ->
+  What4 sym ->
   Nat' ->
   TValue ->
   SeqMap (What4 sym) ->
@@ -742,8 +730,8 @@ updateFrontSym sym _len _eltTy vs (Left idx) val =
   case W4.asInteger idx of
     Just i -> return $ updateSeqMap vs i val
     Nothing -> return $ IndexSeqMap $ \i ->
-      do b <- intEq (What4 sym) idx =<< integerLit (What4 sym) i
-         iteValue (What4 sym) b val (lookupSeqMap vs i)
+      do b <- intEq sym idx =<< integerLit sym i
+         iteValue sym b val (lookupSeqMap vs i)
 
 updateFrontSym sym _len _eltTy vs (Right wv) val =
   case wv of
@@ -752,11 +740,11 @@ updateFrontSym sym _len _eltTy vs (Right wv) val =
     _ ->
       memoMap $ IndexSeqMap $ \i ->
       do b <- wordValueEqualsInteger sym wv i
-         iteValue (What4 sym) b val (lookupSeqMap vs i)
+         iteValue sym b val (lookupSeqMap vs i)
 
 updateBackSym ::
   W4.IsExprBuilder sym =>
-  sym ->
+  What4 sym ->
   Nat' ->
   TValue ->
   SeqMap (What4 sym) ->
@@ -769,8 +757,8 @@ updateBackSym sym (Nat n) _eltTy vs (Left idx) val =
   case W4.asInteger idx of
     Just i -> return $ updateSeqMap vs (n - 1 - i) val
     Nothing -> return $ IndexSeqMap $ \i ->
-      do b <- intEq (What4 sym) idx =<< integerLit (What4 sym) (n - 1 - i)
-         iteValue (What4 sym) b val (lookupSeqMap vs i)
+      do b <- intEq sym idx =<< integerLit sym (n - 1 - i)
+         iteValue sym b val (lookupSeqMap vs i)
 
 updateBackSym sym (Nat n) _eltTy vs (Right wv) val =
   case wv of
@@ -779,12 +767,12 @@ updateBackSym sym (Nat n) _eltTy vs (Right wv) val =
     _ ->
       memoMap $ IndexSeqMap $ \i ->
       do b <- wordValueEqualsInteger sym wv (n - 1 - i)
-         iteValue (What4 sym) b val (lookupSeqMap vs i)
+         iteValue sym b val (lookupSeqMap vs i)
 
 
 updateFrontSym_word ::
   W4.IsExprBuilder sym =>
-  sym ->
+  What4 sym ->
   Nat' ->
   TValue ->
   WordValue (What4 sym) ->
@@ -797,37 +785,37 @@ updateFrontSym_word sym (Nat _) eltTy (LargeBitsVal n bv) idx val =
   LargeBitsVal n <$> updateFrontSym sym (Nat n) eltTy bv idx val
 
 updateFrontSym_word sym (Nat n) eltTy (WordVal bv) (Left idx) val =
-  do idx' <- wordFromInt (What4 sym) n idx
+  do idx' <- wordFromInt sym n idx
      updateFrontSym_word sym (Nat n) eltTy (WordVal bv) (Right (WordVal idx')) val
 
-updateFrontSym_word sym (Nat n) eltTy bv (Right wv) val =
+updateFrontSym_word sym@(What4 w4sym _) (Nat n) eltTy bv (Right wv) val =
   case wv of
     WordVal idx
       | Just j <- SW.bvAsUnsignedInteger idx ->
-          updateWordValue (What4 sym) bv j (fromVBit <$> val)
+          updateWordValue sym bv j (fromVBit <$> val)
 
       | WordVal bw <- bv ->
         WordVal <$>
           do b <- fromVBit <$> val
              let sz = SW.bvWidth bw
-             highbit <- liftIO (SW.bvLit sym sz (bit (fromInteger (sz-1))))
-             msk <- w4bvLshr sym highbit idx
+             highbit <- liftIO (SW.bvLit w4sym sz (bit (fromInteger (sz-1))))
+             msk <- w4bvLshr w4sym highbit idx
              liftIO $
                case W4.asConstantPred b of
-                 Just True  -> SW.bvOr  sym bw msk
-                 Just False -> SW.bvAnd sym bw =<< SW.bvNot sym msk
+                 Just True  -> SW.bvOr  w4sym bw msk
+                 Just False -> SW.bvAnd w4sym bw =<< SW.bvNot w4sym msk
                  Nothing ->
-                   do q <- SW.bvFill sym sz b
-                      bw' <- SW.bvAnd sym bw =<< SW.bvNot sym msk
-                      SW.bvXor sym bw' =<< SW.bvAnd sym q msk
+                   do q <- SW.bvFill w4sym sz b
+                      bw' <- SW.bvAnd w4sym bw =<< SW.bvNot w4sym msk
+                      SW.bvXor w4sym bw' =<< SW.bvAnd w4sym q msk
 
-    _ -> LargeBitsVal (wordValueSize (What4 sym) wv) <$>
-           updateFrontSym sym (Nat n) eltTy (asBitsMap (What4 sym) bv) (Right wv) val
+    _ -> LargeBitsVal (wordValueSize sym wv) <$>
+           updateFrontSym sym (Nat n) eltTy (asBitsMap sym bv) (Right wv) val
 
 
 updateBackSym_word ::
   W4.IsExprBuilder sym =>
-  sym ->
+  What4 sym ->
   Nat' ->
   TValue ->
   WordValue (What4 sym) ->
@@ -840,54 +828,54 @@ updateBackSym_word sym (Nat _) eltTy (LargeBitsVal n bv) idx val =
   LargeBitsVal n <$> updateBackSym sym (Nat n) eltTy bv idx val
 
 updateBackSym_word sym (Nat n) eltTy (WordVal bv) (Left idx) val =
-  do idx' <- wordFromInt (What4 sym) n idx
+  do idx' <- wordFromInt sym n idx
      updateBackSym_word sym (Nat n) eltTy (WordVal bv) (Right (WordVal idx')) val
 
-updateBackSym_word sym (Nat n) eltTy bv (Right wv) val =
+updateBackSym_word sym@(What4 w4sym _) (Nat n) eltTy bv (Right wv) val =
   case wv of
     WordVal idx
       | Just j <- SW.bvAsUnsignedInteger idx ->
-          updateWordValue (What4 sym) bv (n - 1 - j) (fromVBit <$> val)
+          updateWordValue sym bv (n - 1 - j) (fromVBit <$> val)
 
       | WordVal bw <- bv ->
         WordVal <$>
           do b <- fromVBit <$> val
              let sz = SW.bvWidth bw
-             lowbit <- liftIO (SW.bvLit sym sz 1)
-             msk <- w4bvShl sym lowbit idx
+             lowbit <- liftIO (SW.bvLit w4sym sz 1)
+             msk <- w4bvShl w4sym lowbit idx
              liftIO $
                case W4.asConstantPred b of
-                 Just True  -> SW.bvOr  sym bw msk
-                 Just False -> SW.bvAnd sym bw =<< SW.bvNot sym msk
+                 Just True  -> SW.bvOr  w4sym bw msk
+                 Just False -> SW.bvAnd w4sym bw =<< SW.bvNot w4sym msk
                  Nothing ->
-                   do q <- SW.bvFill sym sz b
-                      bw' <- SW.bvAnd sym bw =<< SW.bvNot sym msk
-                      SW.bvXor sym bw' =<< SW.bvAnd sym q msk
+                   do q <- SW.bvFill w4sym sz b
+                      bw' <- SW.bvAnd w4sym bw =<< SW.bvNot w4sym msk
+                      SW.bvXor w4sym bw' =<< SW.bvAnd w4sym q msk
 
-    _ -> LargeBitsVal (wordValueSize (What4 sym) wv) <$>
-           updateBackSym sym (Nat n) eltTy (asBitsMap (What4 sym) bv) (Right wv) val
+    _ -> LargeBitsVal (wordValueSize sym wv) <$>
+           updateBackSym sym (Nat n) eltTy (asBitsMap sym bv) (Right wv) val
 
 
-sshrV :: W4.IsExprBuilder sym => sym -> Value sym
+sshrV :: W4.IsExprBuilder sym => What4 sym -> Value sym
 sshrV sym =
   nlam $ \(Nat n) ->
   tlam $ \ix ->
-  wlam (What4 sym) $ \x -> return $
+  wlam sym $ \x -> return $
   lam $ \y ->
-    y >>= asIndex (What4 sym) ">>$" ix >>= \case
+    y >>= asIndex sym ">>$" ix >>= \case
        Left i ->
-         do pneg <- intLessThan (What4 sym) i =<< integerLit (What4 sym) 0
-            zneg <- do i' <- shiftShrink (What4 sym) (Nat n) ix =<< intNegate (What4 sym) i
-                       amt <- wordFromInt (What4 sym) n i'
-                       w4bvShl sym x amt
-            zpos <- do i' <- shiftShrink (What4 sym) (Nat n) ix i
-                       amt <- wordFromInt (What4 sym) n i'
-                       w4bvAshr sym x amt
-            return (VWord (SW.bvWidth x) (WordVal <$> iteWord (What4 sym) pneg zneg zpos))
+         do pneg <- intLessThan sym i =<< integerLit sym 0
+            zneg <- do i' <- shiftShrink sym (Nat n) ix =<< intNegate sym i
+                       amt <- wordFromInt sym n i'
+                       w4bvShl (w4 sym) x amt
+            zpos <- do i' <- shiftShrink sym (Nat n) ix i
+                       amt <- wordFromInt sym n i'
+                       w4bvAshr (w4 sym) x amt
+            return (VWord (SW.bvWidth x) (WordVal <$> iteWord sym pneg zneg zpos))
 
        Right wv ->
-         do amt <- asWordVal (What4 sym) wv
-            return (VWord (SW.bvWidth x) (WordVal <$> w4bvAshr sym x amt))
+         do amt <- asWordVal sym wv
+            return (VWord (SW.bvWidth x) (WordVal <$> w4bvAshr (w4 sym) x amt))
 
 
 w4bvShl  :: W4.IsExprBuilder sym => sym -> SW.SWord sym -> SW.SWord sym -> W4Eval sym (SW.SWord sym)
@@ -910,7 +898,7 @@ w4bvRor sym x y = liftIO $ SW.bvRor sym x y
 fpRoundingMode ::
   W4.IsExprBuilder sym =>
   What4 sym -> SWord (What4 sym) -> SEval (What4 sym) W4.RoundingMode
-fpRoundingMode sym@(What4 sy) v =
+fpRoundingMode sym v =
   case wordAsLit sym v of
     Just (_w,i) ->
       case i of
@@ -919,9 +907,7 @@ fpRoundingMode sym@(What4 sy) v =
         2 -> pure W4.RTP
         3 -> pure W4.RTN
         4 -> pure W4.RTZ
-        x -> do let err = BadRoundingMode x
-                assertSideCondition sym (W4.falsePred sy) err
-                raiseError sym err
+        x -> raiseError sym (BadRoundingMode x)
     _ -> liftIO $ X.throwIO $ UnsupportedSymbolicOp "rounding mode"
 
 fpBinArith ::
@@ -932,7 +918,7 @@ fpBinArith ::
   SFloat (What4 sym) ->
   SFloat (What4 sym) ->
   SEval (What4 sym) (SFloat (What4 sym))
-fpBinArith fun = \sym@(What4 s) r x y ->
+fpBinArith fun = \sym@(What4 s _) r x y ->
   do m <- fpRoundingMode sym r
      liftIO (fun s m x y)
 
@@ -940,7 +926,7 @@ fpBinArith fun = \sym@(What4 s) r x y ->
 fpCvtToInteger ::
   (W4.IsExprBuilder sy, sym ~ What4 sy) =>
   sym -> String -> SWord sym -> SFloat sym -> SEval sym (SInteger sym)
-fpCvtToInteger sym@(What4 sy) fun r x =
+fpCvtToInteger sym@(What4 sy _) fun r x =
   do grd <- liftIO
               do bad1 <- FP.fpIsInf sy x
                  bad2 <- FP.fpIsNaN sy x
@@ -960,20 +946,20 @@ fpCvtToInteger sym@(What4 sy) fun r x =
 fpCvtToRational ::
   (W4.IsSymExprBuilder sy, sym ~ What4 sy) =>
   sym -> SFloat sym -> SEval sym (SRational sym)
-fpCvtToRational sym@(What4 sy) fp =
+fpCvtToRational sym@(What4 sy _) fp =
   do grd <- liftIO
             do bad1 <- FP.fpIsInf sy fp
                bad2 <- FP.fpIsNaN sy fp
                W4.notPred sy =<< W4.orPred sy bad1 bad2
      assertSideCondition sym grd (BadValue "fpToRational")
      (rel,x,y) <- liftIO (FP.fpToRational sy fp)
-     addDefEqn rel
+     addDefEqn sym rel
      ratio sym x y
 
 fpCvtFromRational ::
   (W4.IsExprBuilder sy, sym ~ What4 sy) =>
   sym -> Integer -> Integer -> SWord sym ->
   SRational sym -> SEval sym (SFloat sym)
-fpCvtFromRational sym@(What4 sy) e p r rat =
+fpCvtFromRational sym@(What4 sy _) e p r rat =
   do rnd <- fpRoundingMode sym r
      liftIO (FP.fpFromRational sy e p rnd (sNum rat) (sDenom rat))

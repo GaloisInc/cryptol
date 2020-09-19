@@ -17,40 +17,40 @@ import Cryptol.Utils.Ident(PrimIdent, floatPrim)
 
 -- | Table of floating point primitives
 floatPrims :: W4.IsSymExprBuilder sym => What4 sym -> Map PrimIdent (Value sym)
-floatPrims sym4@(What4 sym) =
+floatPrims sym@(What4 w4sym _) =
   Map.fromList [ (floatPrim i,v) | (i,v) <- nonInfixTable ]
   where
   (~>) = (,)
 
   nonInfixTable =
-    [ "fpNaN"       ~> fpConst (W4.fpNaN sym)
-    , "fpPosInf"    ~> fpConst (W4.fpPosInf sym)
-    , "fpFromBits"  ~> ilam \e -> ilam \p -> wlam sym4 \w ->
-                       VFloat <$> liftIO (W4.fpFromBinary sym e p w)
+    [ "fpNaN"       ~> fpConst (W4.fpNaN w4sym)
+    , "fpPosInf"    ~> fpConst (W4.fpPosInf w4sym)
+    , "fpFromBits"  ~> ilam \e -> ilam \p -> wlam sym \w ->
+                       VFloat <$> liftIO (W4.fpFromBinary w4sym e p w)
     , "fpToBits"    ~> ilam \e -> ilam \p -> flam \x ->
                        pure $ VWord (e+p)
-                            $ WordVal <$> liftIO (W4.fpToBinary sym x)
+                            $ WordVal <$> liftIO (W4.fpToBinary w4sym x)
     , "=.="         ~> ilam \_ -> ilam \_ -> flam \x -> pure $ flam \y ->
-                       VBit <$> liftIO (W4.fpEq sym x y)
+                       VBit <$> liftIO (W4.fpEq w4sym x y)
     , "fpIsFinite"  ~> ilam \_ -> ilam \_ -> flam \x ->
-                       VBit <$> liftIO do inf <- W4.fpIsInf sym x
-                                          nan <- W4.fpIsNaN sym x
-                                          weird <- W4.orPred sym inf nan
-                                          W4.notPred sym weird
+                       VBit <$> liftIO do inf <- W4.fpIsInf w4sym x
+                                          nan <- W4.fpIsNaN w4sym x
+                                          weird <- W4.orPred w4sym inf nan
+                                          W4.notPred w4sym weird
 
-    , "fpAdd"       ~> fpBinArithV sym4 fpPlus
-    , "fpSub"       ~> fpBinArithV sym4 fpMinus
-    , "fpMul"       ~> fpBinArithV sym4 fpMult
-    , "fpDiv"       ~> fpBinArithV sym4 fpDiv
+    , "fpAdd"       ~> fpBinArithV sym fpPlus
+    , "fpSub"       ~> fpBinArithV sym fpMinus
+    , "fpMul"       ~> fpBinArithV sym fpMult
+    , "fpDiv"       ~> fpBinArithV sym fpDiv
 
     , "fpFromRational" ~>
-       ilam \e -> ilam \p -> wlam sym4 \r -> pure $ lam \x ->
+       ilam \e -> ilam \p -> wlam sym \r -> pure $ lam \x ->
        do rat <- fromVRational <$> x
-          VFloat <$> fpCvtFromRational sym4 e p r rat
+          VFloat <$> fpCvtFromRational sym e p r rat
 
     , "fpToRational" ~>
        ilam \_e -> ilam \_p -> flam \fp ->
-       VRational <$> fpCvtToRational sym4 fp
+       VRational <$> fpCvtToRational sym fp
     ]
 
 
