@@ -218,7 +218,12 @@ runMultiProvers pc lPutStrLn provers callSolver processResult e = do
 
 -- | Select the appropriate solver or solvers from the given prover command,
 --   and invoke those solvers on the given symbolic value.
-runProver :: SBVProverConfig -> ProverCommand -> (String -> IO ()) -> SBV.Symbolic SBV.SVal -> IO (Maybe String, [SBV.SMTResult])
+runProver ::
+  SBVProverConfig ->
+  ProverCommand ->
+  (String -> IO ()) ->
+  SBV.Symbolic SBV.SVal ->
+  IO (Maybe String, [SBV.SMTResult])
 runProver proverConfig pc@ProverCommand{..} lPutStrLn x =
   do let mSatNum = case pcQueryType of
                      SatQuery (SomeSat n) -> Just n
@@ -304,7 +309,7 @@ prepareQuery evo modEnv ProverCommand{..} =
                  let ?evalPrim = \i -> Map.lookup i tbl
                  -- Compute the symbolic inputs, and any domain constraints needed
                  -- according to their types.
-                 args <- map (varShapeToValue sym) <$>
+                 args <- map (pure . varShapeToValue sym) <$>
                      liftIO (mapM (freshVar (sbvFreshFns sym)) ts)
                  -- Run the main symbolic computation.  First we populate the
                  -- evaluation environment, then we compute the value, finally
@@ -312,7 +317,7 @@ prepareQuery evo modEnv ProverCommand{..} =
                  (safety,b) <- doSBVEval $
                      do env <- Eval.evalDecls sym extDgs mempty
                         v <- Eval.evalExpr sym env pcExpr
-                        appliedVal <- foldM Eval.fromVFun v (map pure args)
+                        appliedVal <- foldM Eval.fromVFun v args
                         case pcQueryType of
                           SafetyQuery ->
                             do Eval.forceValue appliedVal
@@ -487,7 +492,6 @@ parseValue (FTFloat e p) cvs =
    , cvs
    )
    -- XXX: NOT IMPLEMENTED
-
 
 
 freshBoundedInt :: SBV -> Maybe Integer -> Maybe Integer -> IO SBV.SVal
