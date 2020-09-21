@@ -395,8 +395,9 @@ multiSATQuery sym (W4ProverConfig (AnAdapter adpt)) primMap logData ts args quer
            W4.Unknown -> return (Left (ProverError "Solver returned UNKNOWN"))
            W4.Unsat _ -> return (Left (ThmResult (map unFinType ts)))
            W4.Sat (evalFn,_) ->
-             do model <- computeModel' primMap evalFn ts args
-                blockingPred <- computeBlockingPred sym evalFn args
+             do xs <- mapM (varShapeToConcrete evalFn) args
+                let model = computeModel primMap ts xs
+                blockingPred <- computeBlockingPred sym args xs
                 return (Right (model, blockingPred))
 
      case pres of
@@ -414,7 +415,8 @@ multiSATQuery sym (W4ProverConfig (AnAdapter adpt)) primMap logData ts args quer
            W4.Unknown -> return []
            W4.Unsat _ -> return []
            W4.Sat (evalFn,_) ->
-             do model <- computeModel' primMap evalFn ts args
+             do xs <- mapM (varShapeToConcrete evalFn) args
+                let model = computeModel primMap ts xs
                 return [model]
 
   computeMoreModels qs satNum =
@@ -423,8 +425,9 @@ multiSATQuery sym (W4ProverConfig (AnAdapter adpt)) primMap logData ts args quer
            W4.Unknown -> return Nothing
            W4.Unsat _ -> return Nothing
            W4.Sat (evalFn,_) ->
-             do model <- computeModel' primMap evalFn ts args
-                blockingPred <- computeBlockingPred sym evalFn args
+             do xs <- mapM (varShapeToConcrete evalFn) args
+                let model = computeModel primMap ts xs
+                blockingPred <- computeBlockingPred sym args xs
                 return (Just (model, blockingPred))
 
        case pres of
@@ -470,7 +473,8 @@ singleQuery sym (W4ProverConfig (AnAdapter adpt)) primMap logData ts args msafe 
            W4.Unknown -> return (ProverError "Solver returned UNKNOWN")
            W4.Unsat _ -> return (ThmResult (map unFinType ts))
            W4.Sat (evalFn,_) ->
-             do model <- computeModel' primMap evalFn ts args
+             do xs <- mapM (varShapeToConcrete evalFn) args
+                let model = computeModel primMap ts xs
                 case msafe of
                   Just s ->
                     do s' <- W4.groundEval evalFn s
@@ -484,22 +488,12 @@ singleQuery sym (W4ProverConfig (AnAdapter adpt)) primMap logData ts args msafe 
 computeBlockingPred ::
   sym ~ W4.ExprBuilder t CryptolState fm =>
   What4 sym ->
-  W4.GroundEvalFn t ->
   [VarShape (What4 sym)] ->
+  [VarShape Concrete.Concrete] ->
   IO (W4.Pred sym)
-computeBlockingPred sym evalFn vs =
-  do xs <- mapM (varShapeToConcrete evalFn) vs
-     res <- doW4Eval (w4 sym) (modelPred sym vs xs)
+computeBlockingPred sym vs xs =
+  do res <- doW4Eval (w4 sym) (modelPred sym vs xs)
      W4.notPred (w4 sym) (snd res)
-
-computeModel' ::
-  PrimMap ->
-  W4.GroundEvalFn t ->
-  [FinType] ->
-  [VarShape (What4 (W4.ExprBuilder t CryptolState fm))] ->
-  IO [(Type, Expr, Concrete.Value)]
-computeModel' prims evalFn ftys vs =
-  computeModel prims ftys <$> mapM (varShapeToConcrete evalFn) vs
 
 varShapeToConcrete ::
   W4.GroundEvalFn t ->
