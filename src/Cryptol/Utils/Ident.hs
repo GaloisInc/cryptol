@@ -17,6 +17,7 @@ module Cryptol.Utils.Ident
   , packModName
   , preludeName
   , floatName
+  , suiteBName
   , arrayName
   , interactiveName
   , noModuleName
@@ -38,12 +39,12 @@ module Cryptol.Utils.Ident
   , identText
   , modParamIdent
 
-    -- * Identifiers for primitived
+    -- * Identifiers for primitives
   , PrimIdent(..)
   , prelPrim
   , floatPrim
   , arrayPrim
-
+  , suiteBPrim
   ) where
 
 import           Control.DeepSeq (NFData)
@@ -113,6 +114,9 @@ floatName = packModName ["Float"]
 
 arrayName :: ModName
 arrayName  = packModName ["Array"]
+
+suiteBName :: ModName
+suiteBName = packModName ["SuiteB"]
 
 interactiveName :: ModName
 interactiveName  = packModName ["<interactive>"]
@@ -188,6 +192,9 @@ prelPrim = PrimIdent preludeName
 
 floatPrim :: T.Text -> PrimIdent
 floatPrim = PrimIdent floatName
+
+suiteBPrim :: T.Text -> PrimIdent
+suiteBPrim = PrimIdent suiteBName
 
 arrayPrim :: T.Text -> PrimIdent
 arrayPrim = PrimIdent arrayName
