@@ -43,11 +43,12 @@ import Cryptol.Eval.Type
 import Cryptol.Eval.Value
 import qualified Cryptol.SHA as SHA
 import qualified Cryptol.AES as AES
+import qualified Cryptol.PrimeEC as PrimeEC
 import Cryptol.ModuleSystem.Name
 import Cryptol.Testing.Random (randomV)
 import Cryptol.TypeCheck.AST as AST
 import Cryptol.Utils.Panic (panic)
-import Cryptol.Utils.Ident (PrimIdent,prelPrim,floatPrim,suiteBPrim)
+import Cryptol.Utils.Ident (PrimIdent,prelPrim,floatPrim,suiteBPrim,primeECPrim)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Logger(logPrint)
 import Cryptol.Utils.RecordMap
@@ -137,6 +138,7 @@ primTable :: EvalOpts -> Map.Map PrimIdent Value
 primTable eOpts = let sym = Concrete in
   Map.union (floatPrims sym) $
   Map.union suiteBPrims $
+  Map.union primeECPrims $
   Map.fromList $ map (\(n, v) -> (prelPrim n, v))
 
   [ -- Literals
@@ -346,6 +348,60 @@ primTable eOpts = let sym = Concrete in
                          return yv)
 
   ]
+
+
+primeECPrims :: Map.Map PrimIdent Value
+primeECPrims = Map.fromList $ map (\(n,v) -> (primeECPrim n, v))
+  [ ("ec_double", {-# SCC "PrimeEC::ec_double" #-}
+       ilam $ \p ->
+        lam $ \s ->
+          do s' <- toProjectivePoint =<< s
+             let r = PrimeEC.ec_double (PrimeEC.PrimeModulus p) s'
+             fromProjectivePoint $! r)
+
+  , ("ec_add", {-# SCC "PrimeEC::ec_add" #-}
+       ilam $ \p ->
+        lam $ \s -> pure $
+        lam $ \t ->
+          do s' <- toProjectivePoint =<< s
+             t' <- toProjectivePoint =<< t
+             let r = PrimeEC.ec_add (PrimeEC.PrimeModulus p) s' t'
+             fromProjectivePoint $! r)
+
+  , ("ec_mult", {-# SCC "PrimeEC::ec_mult" #-}
+       ilam $ \p ->
+        lam $ \d -> pure $
+        lam $ \s ->
+          do d' <- fromVInteger <$> d
+             s' <- toProjectivePoint =<< s
+             let r = PrimeEC.ec_mult (PrimeEC.PrimeModulus p) d' s'
+             fromProjectivePoint $! r)
+
+  , ("ec_twin_mult", {-# SCC "PrimeEC::ec_twin_mult" #-}
+       ilam $ \p ->
+        lam $ \d0 -> pure $
+        lam $ \s  -> pure $
+        lam $ \d1 -> pure $
+        lam $ \t  ->
+          do d0' <- fromVInteger <$> d0
+             s'  <- toProjectivePoint =<< s
+             d1' <- fromVInteger <$> d1
+             t'  <- toProjectivePoint =<< t
+             let r = PrimeEC.ec_twin_mult (PrimeEC.PrimeModulus p) d0' s' d1' t'
+             fromProjectivePoint $! r)
+  ]
+
+toProjectivePoint :: Value -> Eval PrimeEC.ProjectivePoint
+toProjectivePoint v = PrimeEC.ProjectivePoint <$> f "x" <*> f "y" <*> f "z"
+  where
+   f nm = fromVInteger <$> lookupRecord nm v
+
+fromProjectivePoint :: PrimeEC.ProjectivePoint -> Eval Value
+fromProjectivePoint (PrimeEC.ProjectivePoint x y z) =
+   pure . VRecord . recordFromFields $ [("x", f x), ("y", f y), ("z", f z)]
+  where
+   f i = pure (VInteger i)
+
 
 
 suiteBPrims :: Map.Map PrimIdent Value
