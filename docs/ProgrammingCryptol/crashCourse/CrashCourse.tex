@@ -2255,12 +2255,12 @@ What is the signature of the function telling us?
 Here is the type Cryptol infers:
 \begin{verbatim}
    Cryptol> :t twoPlusXY
-   twoPlusXY : {a} (a >= 2, fin a) => ([a],[a]) -> [a]
+   twoPlusXY : {a} (Ring a, Literal 2 a) => (a, a) -> a
 \end{verbatim}
-That is, our function will actually work over arbitrary (finite) sized
-words, as long as they are at least 2 bits wide. The 2-bit requirement
-comes from the constant 2, which requires at least 2 bits to
-represent.
+That is, our function will actually work over an arbitrary ring, as
+long as it is large enough to represent the literal 2. The
+\texttt{Ring} and \texttt{Literal} type constraints are discussed
+further in \autoref{sec:type-classes}.
 \end{Answer}
 
 \todo[inline]{The Cmp class has not been introduced yet. At least, add a forward reference to the ``Type classes'' section.}
