@@ -410,7 +410,7 @@ checkRecUpd mb fs tGoal =
              do let src = selSrc s
                 ft <- newType src KType
                 v1 <- checkE v (WithSource (tFun ft ft) src)
-                -- XXX: ^ may used a different src?
+                -- XXX: ^ may be used a different src?
                 d  <- newHasGoal s (twsType tGoal) ft
                 tmp <- newParamName (packIdent "rf")
                 let e' = EVar tmp
@@ -470,7 +470,6 @@ expectTuple n tGoal@(WithSource ty src) =
 
     TVar _ ->
       do tys <- genTys
-         -- XXX: use src
          newGoals CtExactType =<< unify tGoal (tTuple tys)
          return tys
 
@@ -558,7 +557,7 @@ checkHasType inferredType tGoal =
   do ps <- unify tGoal inferredType
      case ps of
        [] -> return ()
-       _  -> newGoals CtExactType ps -- XXX: use `src` somehow
+       _  -> newGoals CtExactType ps
 
 
 checkFun ::
