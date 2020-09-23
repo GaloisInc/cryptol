@@ -48,9 +48,6 @@ module Cryptol.REPL.Monad (
   , shouldContinue
   , unlessBatch
   , asBatch
-  , disableLet
-  , enableLet
-  , getLetEnabled
   , validEvalContext
   , updateREPLTitle
   , setUpdateREPLTitle
@@ -158,9 +155,6 @@ data RW = RW
   , eLogger      :: Logger
     -- ^ Use this to send messages to the user
 
-  , eLetEnabled  :: Bool
-    -- ^ Should we allow `let` on the command line
-
   , eUpdateTitle :: REPL ()
     -- ^ Execute this every time we load a module.
     -- This is used to change the title of terminal when loading a module.
@@ -180,7 +174,6 @@ defaultRW isBatch l = do
     , eModuleEnv   = env
     , eUserEnv     = mkUserEnv userOptions
     , eLogger      = l
-    , eLetEnabled  = True
     , eUpdateTitle = return ()
     , eProverConfig = Left SBV.defaultProver
     }
@@ -443,16 +436,6 @@ asBatch body = do
   a <- body
   modifyRW_ $ (\ rw -> rw { eIsBatch = wasBatch })
   return a
-
-disableLet :: REPL ()
-disableLet  = modifyRW_ (\ rw -> rw { eLetEnabled = False })
-
-enableLet :: REPL ()
-enableLet  = modifyRW_ (\ rw -> rw { eLetEnabled = True })
-
--- | Are let-bindings enabled in this REPL?
-getLetEnabled :: REPL Bool
-getLetEnabled = fmap eLetEnabled getRW
 
 -- | Is evaluation enabled.  If the currently focused module is
 -- parameterized, then we cannot evalute.
