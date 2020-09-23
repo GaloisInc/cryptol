@@ -3346,8 +3346,8 @@ import Hash::SHA3
 
 hmac : {keySize, msgSize} (fin keySize, fin msgSize) => [keySize] -> [msgSize] -> [512]
 hmac k m = sha3 (ko # sha3 (ki # m))
- where ko    = zipWith (^) kFull (join (repeat 0x5c))
-       ki    = zipWith (^) kFull (join (repeat 0x36))
+ where ko    = kFull ^ join (repeat 0x5c)
+       ki    = kFull ^ join (repeat 0x36)
        kFull = if `keySize == blocksize
                  then take (k#zero)
                  else sha3 k
