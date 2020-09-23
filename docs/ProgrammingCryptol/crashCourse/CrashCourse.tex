@@ -2408,15 +2408,14 @@ for an arbitrary function {\tt f}? Is this reasonable?
 \end{code}
 Note how we apply {\tt f} to each element in the sequence and check
 that the result consists of all {\tt True}s, by using a complemented
-{\tt zero}.\indZero\indAll If we pass {\tt any} an empty sequence,
-then we will always get {\tt False}:
+{\tt zero}.\indZero\indAll If we pass {\tt all} an empty
+sequence, then we will always get {\tt True}:
 \begin{Verbatim}
-  Cryptol> any eqTen [] where eqTen x = x == 10
-  False
+  Cryptol> all eqTen [] where eqTen x = x == 10
+  True
 \end{Verbatim}
-This is intuitively the correct behavior as well. The predicate is
-satisfied by {\em none} of the elements in the sequence, but {\tt any}
-requires at least one.
+This is the correct response since an empty sequence contains no
+element that fails to satisfy the predicate.
 \end{Answer}
 
 \begin{Exercise}\label{ex:zero:2}
@@ -2433,15 +2432,16 @@ the value of {\tt any f []}? Is this reasonable?
   any f xs = [ f x | x <- xs ] != zero
 \end{code}
 This time all we need to make sure is that the result is not {\tt
-  zero}, i.e., at least one of elements yielded {\tt
-  True}.\indZero\indTrue\indAny If we pass {\tt all} an empty
-sequence, then we will always get {\tt False}:
+  zero}, i.e., at least one of the elements yielded {\tt
+  True}.\indZero\indTrue\indAny If we pass {\tt any} an empty sequence,
+then we will always get {\tt False}:
 \begin{Verbatim}
   Cryptol> any eqTen [] where eqTen x = x == 10
   False
 \end{Verbatim}
-Again, this is the correct response since there are no elements in an
-empty sequence that can satisfy the predicate.
+This is intuitively the correct behavior as well. The predicate is
+satisfied by {\em none} of the elements in the sequence, but {\tt any}
+requires at least one.
 \end{Answer}
 
 %=====================================================================
