@@ -1,0 +1,4 @@
+type Int n = Integer
+
+foo : {n} (fin n) => [n] -> Int n
+foo x = `n
