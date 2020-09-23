@@ -359,6 +359,9 @@ evalCmd str = do
       -- explicitly make this a top-level declaration, so that it will
       -- be generalized if mono-binds is enabled
       replEvalDecl decl
+    P.EmptyInput ->
+      -- comment or empty input does nothing
+      pure ()
 
 printCounterexample :: CounterExampleType -> P.Expr P.PName -> [Concrete.Value] -> REPL ()
 printCounterexample cexTy pexpr vs =

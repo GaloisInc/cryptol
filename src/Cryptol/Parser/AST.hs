@@ -258,10 +258,11 @@ data PrimType name = PrimType { primTName :: Located name
                               , primTFixity :: Maybe Fixity
                               } deriving (Show,Generic,NFData)
 
--- | Input at the REPL, which can either be an expression or a @let@
--- statement.
+-- | Input at the REPL, which can be an expression, a @let@
+-- statement, or empty (possibly a comment).
 data ReplInput name = ExprInput (Expr name)
                     | LetInput (Decl name)
+                    | EmptyInput
                       deriving (Eq, Show)
 
 -- | Export information for a declaration.
