@@ -10,7 +10,6 @@
 module Cryptol.Utils.Misc where
 
 import MonadLib
-import Data.Maybe(fromMaybe)
 
 import Prelude ()
 import Prelude.Compat
@@ -32,4 +31,6 @@ anyJust2 :: (a -> Maybe a) -> (b -> Maybe b) -> (a,b) -> Maybe (a,b)
 anyJust2 f g (a,b) =
   case (f a, g b) of
     (Nothing, Nothing) -> Nothing
-    (x,y)              -> Just (fromMaybe a x, fromMaybe b y)
+    (Just x , Nothing) -> Just (x, b)
+    (Nothing, Just y ) -> Just (a, y)
+    (Just x , Just y ) -> Just (x, y)

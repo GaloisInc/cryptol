@@ -50,7 +50,7 @@ import Cryptol.TypeCheck.TypeMap
 import qualified Cryptol.TypeCheck.SimpType as Simp
 import qualified Cryptol.TypeCheck.SimpleSolver as Simp
 import Cryptol.Utils.Panic(panic)
-import Cryptol.Utils.Misc(anyJust)
+import Cryptol.Utils.Misc (anyJust, anyJust2)
 
 -- | A 'Subst' value represents a substitution that maps each 'TVar'
 -- to a 'Type'.
@@ -237,8 +237,7 @@ apSubstMaybe su ty =
            _    -> Just (TCon t ss)
 
     TUser f ts t ->
-      do t1 <- apSubstMaybe su t
-         let !ts1 = fmap' (apSubst su) ts
+      do (ts1, t1) <- anyJust2 (anyJust (apSubstMaybe su)) (apSubstMaybe su) (ts, t)
          Just (TUser f ts1 t1)
 
     TRec fs       -> TRec `fmap` (anyJust (apSubstMaybe su) fs)
