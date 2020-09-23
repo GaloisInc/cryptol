@@ -176,9 +176,17 @@ data ConstraintSource
   | CtDefaulting          -- ^ Just defaulting on the command line
   | CtPartialTypeFun Name -- ^ Use of a partial type function.
   | CtImprovement
-  | CtPattern Doc         -- ^ Constraints arising from type-checking patterns
+  | CtPattern TVarSource    -- ^ Constraints arising from type-checking patterns
   | CtModuleInstance ModName -- ^ Instantiating a parametrized module
     deriving (Show, Generic, NFData)
+
+selSrc :: Selector -> TVarSource
+selSrc l = case l of
+             RecordSel la _ -> TypeOfRecordField la
+             TupleSel n _   -> TypeOfTupleField n
+             ListSel _ _    -> TypeOfSeqElement
+
+
 
 
 
@@ -300,7 +308,7 @@ instance PP ConstraintSource where
       CtDefaulting    -> "defaulting"
       CtPartialTypeFun f -> "use of partial type function" <+> pp f
       CtImprovement   -> "examination of collected goals"
-      CtPattern desc  -> "checking a pattern:" <+> desc
+      CtPattern ad    -> "checking a pattern:" <+> pp ad
       CtModuleInstance n -> "module instantiation" <+> pp n
 
 ppUse :: Expr -> Doc

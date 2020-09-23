@@ -49,7 +49,6 @@ import           MonadLib hiding (mapM)
 import           Data.IORef
 
 
-
 import GHC.Generics (Generic)
 import Control.DeepSeq
 
@@ -495,8 +494,8 @@ newType src k = TVar `fmap` newTVar src k
 
 
 -- | Record that the two types should be syntactically equal.
-unify :: Type -> Type -> InferM [Prop]
-unify t1 t2 =
+unify :: TypeWithSource -> Type -> InferM [Prop]
+unify (WithSource t1 src) t2 =
   do t1' <- applySubst t1
      t2' <- applySubst t2
      let ((su1, ps), errs) = runResult (mgu t1' t2')
@@ -504,12 +503,12 @@ unify t1 t2 =
      let toError :: UnificationError -> Error
          toError err =
            case err of
-             UniTypeLenMismatch _ _ -> TypeMismatch t1' t2'
-             UniTypeMismatch s1 s2  -> TypeMismatch s1 s2
-             UniKindMismatch k1 k2  -> KindMismatch k1 k2
-             UniRecursive x t       -> RecursiveType (TVar x) t
-             UniNonPolyDepends x vs -> TypeVariableEscaped (TVar x) vs
-             UniNonPoly x t         -> NotForAll x t
+             UniTypeLenMismatch _ _ -> TypeMismatch src t1' t2'
+             UniTypeMismatch s1 s2  -> TypeMismatch src s1 s2
+             UniKindMismatch k1 k2  -> KindMismatch (Just src) k1 k2
+             UniRecursive x t       -> RecursiveType src (TVar x) t
+             UniNonPolyDepends x vs -> TypeVariableEscaped src (TVar x) vs
+             UniNonPoly x t         -> NotForAll src x t
      case errs of
        [] -> return ps
        _  -> do mapM_ (recordError . toError) errs

@@ -86,7 +86,7 @@ checkTyParams func inst =
   checkTySynDef tp ts =
     do let k1 = kindOf tp
            k2 = kindOf ts
-       unless (k1 == k2) (recordError (KindMismatch k1 k2))
+       unless (k1 == k2) (recordError (KindMismatch Nothing k1 k2))
 
        let nm  = tsName ts
            src = CtPartialTypeFun nm
@@ -104,7 +104,7 @@ checkTyParams func inst =
   checkNewTyDef tp nt =
     do let k1 = kindOf tp
            k2 = kindOf nt
-       unless (k1 == k2) (recordError (KindMismatch k1 k2))
+       unless (k1 == k2) (recordError (KindMismatch Nothing k1 k2))
 
        let nm = ntName nt
            src = CtPartialTypeFun nm
@@ -116,7 +116,7 @@ checkTyParams func inst =
   checkTP tp tp1 =
     do let k1 = kindOf tp
            k2 = kindOf tp1
-       unless (k1 == k2) (recordError (KindMismatch k1 k2))
+       unless (k1 == k2) (recordError (KindMismatch Nothing k1 k2))
 
        return (tp, TVar (TVBound tp1))
 

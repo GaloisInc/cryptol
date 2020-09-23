@@ -55,7 +55,7 @@ checkTyParam src k mb =
   case mb of
     Checked t
       | k == k'   -> pure t
-      | otherwise -> do recordError (KindMismatch k k')
+      | otherwise -> do recordError (KindMismatch (Just src) k k')
                         newType src k
         where k' = kindOf t
     Unchecked t -> checkType t (Just k)
@@ -203,5 +203,7 @@ doInst su' e ps t =
   checkInst :: (TParam, Type) -> InferM [Prop]
   checkInst (tp, ty)
     | Set.notMember tp bounds = return []
-    | otherwise               = unify (TVar (tpVar tp)) ty
+    | otherwise = let a   = tpVar tp
+                      src = tvarDesc (tvInfo a)
+                  in unify (WithSource (TVar a) src) ty
 

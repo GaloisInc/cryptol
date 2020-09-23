@@ -50,7 +50,8 @@ improveSelector sel outerT =
   where
   cvt _ Nothing   = return False
   cvt f (Just a)  = do ty <- f a
-                       newGoals CtExactType =<< unify ty outerT
+                       ps <- unify (WithSource outerT (selSrc sel)) ty
+                       newGoals CtExactType ps
                        newT <- applySubst outerT
                        return (newT /= outerT)
 
@@ -125,7 +126,7 @@ tryHasGoal has
        case mbInnerT of
          Nothing -> return (imped, False)
          Just innerT ->
-           do newGoals CtExactType =<< unify innerT ft
+           do newGoals CtExactType =<< unify (WithSource innerT (selSrc sel)) ft
               oT <- applySubst outerT
               iT <- applySubst innerT
               sln <- mkSelSln sel oT iT

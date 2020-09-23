@@ -7,3 +7,4 @@ Showing a specific instance of polymorphic result:
   Type mismatch:
     Expected type: Integer
     Inferred type: [5]
+    When checking function call

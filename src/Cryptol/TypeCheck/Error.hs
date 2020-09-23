@@ -7,7 +7,7 @@ import qualified Data.IntMap as IntMap
 import qualified Data.Set as Set
 import Control.DeepSeq(NFData)
 import GHC.Generics(Generic)
-import Data.List((\\),sortBy,groupBy,minimumBy)
+import Data.List((\\),sortBy,groupBy)
 import Data.Function(on)
 
 import qualified Cryptol.Parser.AST as P
@@ -27,11 +27,15 @@ cleanupErrors = dropErrorsFromSameLoc
   where
 
   -- pick shortest error from each location.
-  dropErrorsFromSameLoc = map chooseBestError
+  dropErrorsFromSameLoc = concatMap chooseBestError
                         . groupBy ((==)    `on` fst)
 
-  addErrorSize (r,e) = (length (show (pp e)), (r,e))
-  chooseBestError    = snd . minimumBy (compare `on` fst) . map addErrorSize
+  addErrorRating (r,e) = (errorImportance e, (r,e))
+  chooseBestError    = map snd
+                     . head
+                     . groupBy ((==) `on` fst)
+                     . sortBy (flip compare `on` fst)
+                     . map addErrorRating
 
 
   cmpR r  = ( source r    -- Frist by file
@@ -47,7 +51,7 @@ cleanupErrors = dropErrorsFromSameLoc
 
 -- | Should the first error suppress the next one.
 subsumes :: Error -> Error -> Bool
-subsumes (NotForAll x _) (NotForAll y _) = x == y
+subsumes (NotForAll _ x _) (NotForAll _ y _) = x == y
 subsumes _ _ = False
 
 data Warning  = DefaultingKind (P.TParam Name) P.Kind
@@ -59,7 +63,7 @@ data Warning  = DefaultingKind (P.TParam Name) P.Kind
 data Error    = ErrorMsg Doc
                 -- ^ Just say this
 
-              | KindMismatch Kind Kind
+              | KindMismatch (Maybe TVarSource) Kind Kind
                 -- ^ Expected kind, inferred kind
 
               | TooManyTypeParams Int Kind
@@ -78,10 +82,10 @@ data Error    = ErrorMsg Doc
               | RecursiveTypeDecls [Name]
                 -- ^ The type synonym declarations are recursive
 
-              | TypeMismatch Type Type
+              | TypeMismatch TVarSource Type Type
                 -- ^ Expected type, inferred type
 
-              | RecursiveType Type Type
+              | RecursiveType TVarSource Type Type
                 -- ^ Unification results in a recursive type
 
               | UnsolvedGoals (Maybe TCErrorMessage) [Goal]
@@ -96,11 +100,11 @@ data Error    = ErrorMsg Doc
                 -- ^ Type wild cards are not allowed in this context
                 -- (e.g., definitions of type synonyms).
 
-              | TypeVariableEscaped Type [TParam]
+              | TypeVariableEscaped TVarSource Type [TParam]
                 -- ^ Unification variable depends on quantified variables
                 -- that are not in scope.
 
-              | NotForAll TVar Type
+              | NotForAll TVarSource TVar Type
                 -- ^ Quantified type variables (of kind *) need to
                 -- match the given type, so it does not work for all types.
 
@@ -119,6 +123,45 @@ data Error    = ErrorMsg Doc
                 --   but we know it must be at least as large as the given type
                 --   (or unconstrained, if Nothing).
                 deriving (Show, Generic, NFData)
+
+-- | When we have multiple errors on the same location, we show only the
+-- ones with the has highest rating accorign to this function
+errorImportance :: Error -> Int
+errorImportance err =
+  case err of
+    KindMismatch {}                                  -> 10
+    TyVarWithParams {}                               -> 9
+    TypeMismatch {}                                  -> 8
+    RecursiveType {}                                 -> 7
+    NotForAll {}                                     -> 6
+    TypeVariableEscaped {}                           -> 5
+
+
+    CannotMixPositionalAndNamedTypeParams {}         -> 8
+    TooManyTypeParams {}                             -> 8
+    TooFewTyParams {}                                -> 8
+    TooManyPositionalTypeParams {}                   -> 8
+    UndefinedTypeParameter {}                        -> 8
+    RepeatedTypeParameter {}                         -> 8
+
+    TooManyTySynParams {}                            -> 8
+    UnexpectedTypeWildCard {}                        -> 8
+
+    RecursiveTypeDecls {}                            -> 9
+
+    UnsolvedGoals _ g
+      | any tHasErrors (map goal g)                  -> 0
+      | otherwise                                    -> 4
+
+    UnsolvedDelayedCt dt
+      | any tHasErrors (map goal (dctGoals dt))      -> 0
+      | otherwise                                    -> 3
+
+    AmbiguousSize {}                                 -> 2
+
+    ErrorMsg {}                                      -> 1
+
+
 
 instance TVars Warning where
   apSubst su warn =
@@ -144,13 +187,14 @@ instance TVars Error where
       TooManyTySynParams {}     -> err
       TooFewTyParams {}         -> err
       RecursiveTypeDecls {}     -> err
-      TypeMismatch t1 t2        -> TypeMismatch !$ (apSubst su t1) !$ (apSubst su t2)
-      RecursiveType t1 t2       -> RecursiveType !$ (apSubst su t1) !$ (apSubst su t2)
+      TypeMismatch src t1 t2    -> TypeMismatch src !$ (apSubst su t1) !$ (apSubst su t2)
+      RecursiveType src t1 t2   -> RecursiveType src !$ (apSubst su t1) !$ (apSubst su t2)
       UnsolvedGoals x gs        -> UnsolvedGoals x !$ (apSubst su gs)
       UnsolvedDelayedCt g       -> UnsolvedDelayedCt !$ (apSubst su g)
       UnexpectedTypeWildCard    -> err
-      TypeVariableEscaped t xs  -> TypeVariableEscaped !$ (apSubst su t) .$ xs
-      NotForAll x t             -> NotForAll x !$ (apSubst su t)
+      TypeVariableEscaped src t xs ->
+                                 TypeVariableEscaped src !$ (apSubst su t) .$ xs
+      NotForAll src x t         -> NotForAll src x !$ (apSubst su t)
       TooManyPositionalTypeParams -> err
       CannotMixPositionalAndNamedTypeParams -> err
 
@@ -169,14 +213,14 @@ instance FVS Error where
       TooManyTySynParams {}     -> Set.empty
       TooFewTyParams {}         -> Set.empty
       RecursiveTypeDecls {}     -> Set.empty
-      TypeMismatch t1 t2        -> fvs (t1,t2)
-      RecursiveType t1 t2       -> fvs (t1,t2)
+      TypeMismatch _ t1 t2      -> fvs (t1,t2)
+      RecursiveType _ t1 t2     -> fvs (t1,t2)
       UnsolvedGoals _ gs        -> fvs gs
       UnsolvedDelayedCt g       -> fvs g
       UnexpectedTypeWildCard    -> Set.empty
-      TypeVariableEscaped t xs  -> fvs t `Set.union`
+      TypeVariableEscaped _ t xs-> fvs t `Set.union`
                                             Set.fromList (map TVBound xs)
-      NotForAll x t             -> Set.insert x (fvs t)
+      NotForAll _ x t             -> Set.insert x (fvs t)
       TooManyPositionalTypeParams -> Set.empty
       CannotMixPositionalAndNamedTypeParams -> Set.empty
       UndefinedTypeParameter {}             -> Set.empty
@@ -212,22 +256,26 @@ instance PP (WithNames Error) where
         addTVarsDescsAfter names err
         msg
 
-      RecursiveType t1 t2 ->
+      RecursiveType src t1 t2 ->
         addTVarsDescsAfter names err $
-        nested "Matching would result in an infinite type."
-          ("The type: " <+> ppWithNames names t1 $$
-           "occurs in:" <+> ppWithNames names t2)
+        nested "Matching would result in an infinite type." $
+          vcat [ "The type: " <+> ppWithNames names t1
+               , "occurs in:" <+> ppWithNames names t2
+               , "When checking" <+> pp src
+               ]
 
       UnexpectedTypeWildCard ->
         addTVarsDescsAfter names err $
         nested "Wild card types are not allowed in this context"
           "(e.g., they cannot be used in type synonyms)."
 
-      KindMismatch k1 k2 ->
+      KindMismatch mbsrc k1 k2 ->
         addTVarsDescsAfter names err $
-        nested "Incorrect type form."
-          ("Expected:" <+> cppKind k1 $$
-           "Inferred:" <+> cppKind k2)
+        nested "Incorrect type form." $
+         vcat [ "Expected:" <+> cppKind k1
+              , "Inferred:" <+> cppKind k2
+              , maybe empty (\src -> "When checking" <+> pp src) mbsrc
+              ]
 
       TooManyTypeParams extra k ->
         addTVarsDescsAfter names err $
@@ -256,12 +304,14 @@ instance PP (WithNames Error) where
         nested "Recursive type declarations:"
                (fsep $ punctuate comma $ map nm ts)
 
-      TypeMismatch t1 t2 ->
+      TypeMismatch src t1 t2 ->
         addTVarsDescsAfter names err $
-        nested "Type mismatch:"
-          ("Expected type:" <+> ppWithNames names t1 $$
-           "Inferred type:" <+> ppWithNames names t2 $$
-           mismatchHint t1 t2)
+        nested "Type mismatch:" $
+        vcat [ "Expected type:" <+> ppWithNames names t1
+             , "Inferred type:" <+> ppWithNames names t2
+             , mismatchHint t1 t2
+             , "When checking" <+> pp src
+             ]
 
       UnsolvedGoals imp gs
         | Just msg <- imp ->
@@ -294,18 +344,22 @@ instance PP (WithNames Error) where
           nested "while validating user-specified signature" $
           ppWithNames names g
 
-      TypeVariableEscaped t xs ->
+      TypeVariableEscaped src t xs ->
         addTVarsDescsAfter names err $
         nested ("The type" <+> ppWithNames names t <+>
-                                        "is not sufficiently polymorphic.")
-               ("It cannot depend on quantified variables:" <+>
-                sep (punctuate comma (map (ppWithNames names) xs)))
+                                        "is not sufficiently polymorphic.") $
+          vcat [ "It cannot depend on quantified variables:" <+>
+                          sep (punctuate comma (map (ppWithNames names) xs))
+               , "When checking" <+> pp src
+               ]
 
-      NotForAll x t ->
+      NotForAll src x t ->
         addTVarsDescsAfter names err $
-        nested "Inferred type is not sufficiently polymorphic."
-          ("Quantified variable:" <+> ppWithNames names x $$
-           "cannot match type:"   <+> ppWithNames names t)
+        nested "Inferred type is not sufficiently polymorphic." $
+          vcat [ "Quantified variable:" <+> ppWithNames names x
+               , "cannot match type:"   <+> ppWithNames names t
+               , "When checking" <+> pp src
+               ]
 
       TooManyPositionalTypeParams ->
         addTVarsDescsAfter names err $
