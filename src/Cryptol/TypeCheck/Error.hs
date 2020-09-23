@@ -2,7 +2,6 @@
 {-# Language OverloadedStrings #-}
 module Cryptol.TypeCheck.Error where
 
-
 import qualified Data.IntMap as IntMap
 import qualified Data.Set as Set
 import Control.DeepSeq(NFData)
@@ -23,7 +22,7 @@ import Cryptol.Utils.RecordMap
 cleanupErrors :: [(Range,Error)] -> [(Range,Error)]
 cleanupErrors = dropErrorsFromSameLoc
               . sortBy (compare `on` (cmpR . fst))    -- order errors
-              . dropSumbsumed
+              . dropSumbsumed []
   where
 
   -- pick shortest error from each location.
@@ -43,15 +42,20 @@ cleanupErrors = dropErrorsFromSameLoc
             , to r        -- Finally end position
             )
 
-  dropSumbsumed xs =
+  dropSumbsumed survived xs =
     case xs of
-      (r,e) : rest -> (r,e) :
-                        dropSumbsumed (filter (not .subsumes e . snd) rest)
-      [] -> []
+      err : rest ->
+         let keep e = not (subsumes err e)
+         in dropSumbsumed (err : filter keep survived) (filter keep rest)
+      [] -> survived
 
 -- | Should the first error suppress the next one.
-subsumes :: Error -> Error -> Bool
-subsumes (NotForAll _ x _) (NotForAll _ y _) = x == y
+subsumes :: (Range,Error) -> (Range,Error) -> Bool
+subsumes (_,NotForAll _ x _) (_,NotForAll _ y _) = x == y
+subsumes (r1,KindMismatch {}) (r2,err) =
+  case err of
+    KindMismatch {} -> r1 == r2
+    _               -> True
 subsumes _ _ = False
 
 data Warning  = DefaultingKind (P.TParam Name) P.Kind
@@ -274,6 +278,7 @@ instance PP (WithNames Error) where
         nested "Incorrect type form." $
          vcat [ "Expected:" <+> cppKind k1
               , "Inferred:" <+> cppKind k2
+              , kindMismatchHint k1 k2
               , maybe empty (\src -> "When checking" <+> pp src) mbsrc
               ]
 
@@ -395,6 +400,11 @@ instance PP (WithNames Error) where
     pl n x     = text (show n) <+> text x <.> text "s"
 
     nm x       = text "`" <.> pp x <.> text "`"
+
+    kindMismatchHint k1 k2 =
+      case (k1,k2) of
+        (KType,KProp) -> "Possibly due to a missing `=>`"
+        _ -> empty
 
     mismatchHint (TRec fs1) (TRec fs2) =
       hint "Missing" missing $$ hint "Unexpected" extra
