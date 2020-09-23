@@ -337,10 +337,7 @@ getEvalOpts =
 
 evalCmd :: String -> REPL ()
 evalCmd str = do
-  letEnabled <- getLetEnabled
-  ri <- if letEnabled
-          then replParseInput str
-          else P.ExprInput <$> replParseExpr str
+  ri <- replParseInput str
   case ri of
     P.ExprInput expr -> do
       (val,_ty) <- replEvalExpr expr
