@@ -176,11 +176,11 @@ data ConstraintSource
   | CtDefaulting          -- ^ Just defaulting on the command line
   | CtPartialTypeFun Name -- ^ Use of a partial type function.
   | CtImprovement
-  | CtPattern TVarSource    -- ^ Constraints arising from type-checking patterns
+  | CtPattern TypeSource  -- ^ Constraints arising from type-checking patterns
   | CtModuleInstance ModName -- ^ Instantiating a parametrized module
     deriving (Show, Generic, NFData)
 
-selSrc :: Selector -> TVarSource
+selSrc :: Selector -> TypeSource
 selSrc l = case l of
              RecordSel la _ -> TypeOfRecordField la
              TupleSel n _   -> TypeOfTupleField n

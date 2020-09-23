@@ -63,7 +63,7 @@ data Warning  = DefaultingKind (P.TParam Name) P.Kind
 data Error    = ErrorMsg Doc
                 -- ^ Just say this
 
-              | KindMismatch (Maybe TVarSource) Kind Kind
+              | KindMismatch (Maybe TypeSource) Kind Kind
                 -- ^ Expected kind, inferred kind
 
               | TooManyTypeParams Int Kind
@@ -82,10 +82,10 @@ data Error    = ErrorMsg Doc
               | RecursiveTypeDecls [Name]
                 -- ^ The type synonym declarations are recursive
 
-              | TypeMismatch TVarSource Type Type
+              | TypeMismatch TypeSource Type Type
                 -- ^ Expected type, inferred type
 
-              | RecursiveType TVarSource Type Type
+              | RecursiveType TypeSource Type Type
                 -- ^ Unification results in a recursive type
 
               | UnsolvedGoals (Maybe TCErrorMessage) [Goal]
@@ -100,11 +100,11 @@ data Error    = ErrorMsg Doc
                 -- ^ Type wild cards are not allowed in this context
                 -- (e.g., definitions of type synonyms).
 
-              | TypeVariableEscaped TVarSource Type [TParam]
+              | TypeVariableEscaped TypeSource Type [TParam]
                 -- ^ Unification variable depends on quantified variables
                 -- that are not in scope.
 
-              | NotForAll TVarSource TVar Type
+              | NotForAll TypeSource TVar Type
                 -- ^ Quantified type variables (of kind *) need to
                 -- match the given type, so it does not work for all types.
 

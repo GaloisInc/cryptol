@@ -130,12 +130,13 @@ tvUnique (TVFree u _ _ _) = u
 tvUnique (TVBound TParam { tpUnique = u }) = u
 
 data TVarInfo = TVarInfo { tvarSource :: !Range -- ^ Source code that gave rise
-                         , tvarDesc   :: !TVarSource -- ^ Description
+                         , tvarDesc   :: !TypeSource -- ^ Description
                          }
               deriving (Show, Generic, NFData)
 
 
-data TVarSource = TVFromModParam Name     -- ^ Name of module parameter
+-- | Explains how this type came to be, for better error messages.
+data TypeSource = TVFromModParam Name     -- ^ Name of module parameter
                 | TVFromSignature Name    -- ^ A variable in a signature
                 | TypeWildCard
                 | TypeOfRecordField Ident
@@ -165,7 +166,7 @@ noArgDescr :: ArgDescr
 noArgDescr = ArgDescr { argDescrFun = Nothing, argDescrNumber = Nothing }
 
 -- | Get the names of something that is related to the tvar.
-tvSourceName :: TVarSource -> Maybe Name
+tvSourceName :: TypeSource -> Maybe Name
 tvSourceName tvs =
   case tvs of
     TVFromModParam x -> Just x
@@ -180,7 +181,7 @@ tvSourceName tvs =
 -- | A type annotated with information on how it came about.
 data TypeWithSource = WithSource
   { twsType   :: Type
-  , twsSource :: TVarSource
+  , twsSource :: TypeSource
   }
 
 
@@ -992,7 +993,7 @@ instance PP (WithNames TVar) where
   ppPrec _ (WithNames (TVFree x k _ d) _) =
     char '?' <.> pickTVarName k (tvarDesc d) x
 
-pickTVarName :: Kind -> TVarSource -> Int -> Doc
+pickTVarName :: Kind -> TypeSource -> Int -> Doc
 pickTVarName k src uni =
   text $
   case src of
@@ -1048,7 +1049,7 @@ instance PP ArgDescr where
 
 
 
-instance PP TVarSource where
+instance PP TypeSource where
   ppPrec _ tvsrc =
     case tvsrc of
       TVFromModParam m    -> "module parameter" <+> pp m

@@ -50,7 +50,7 @@ data MaybeCheckedType = Checked Type | Unchecked (P.Type Name)
 
 
 
-checkTyParam :: TVarSource -> Kind -> MaybeCheckedType -> InferM Type
+checkTyParam :: TypeSource -> Kind -> MaybeCheckedType -> InferM Type
 checkTyParam src k mb =
   case mb of
     Checked t

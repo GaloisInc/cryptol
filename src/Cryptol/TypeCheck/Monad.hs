@@ -453,12 +453,12 @@ newGoalName = newName $ \s -> let x = seedGoal s
                               in (x, s { seedGoal = x + 1})
 
 -- | Generate a new free type variable.
-newTVar :: TVarSource -> Kind -> InferM TVar
+newTVar :: TypeSource -> Kind -> InferM TVar
 newTVar src k = newTVar' src Set.empty k
 
 -- | Generate a new free type variable that depends on these additional
 -- type parameters.
-newTVar' :: TVarSource -> Set TParam -> Kind -> InferM TVar
+newTVar' :: TypeSource -> Set TParam -> Kind -> InferM TVar
 newTVar' src extraBound k =
   do r <- curRange
      bound <- getBoundInScope
@@ -485,7 +485,7 @@ newTParam nm flav k = newName $ \s ->
 
 
 -- | Generate an unknown type.  The doc is a note about what is this type about.
-newType :: TVarSource -> Kind -> InferM Type
+newType :: TypeSource -> Kind -> InferM Type
 newType src k = TVar `fmap` newTVar src k
 
 
@@ -891,7 +891,7 @@ kIO m = KM $ lift $ lift $ io m
 -- NOTE:  We do not simplify these, because we end up with bottom.
 -- See `Kind.hs`
 -- XXX: Perhaps we can avoid the recursion?
-kNewType :: TVarSource -> Kind -> KindM Type
+kNewType :: TypeSource -> Kind -> KindM Type
 kNewType src k =
   do tps <- KM $ do vs <- asks lazyTParams
                     return $ Set.fromList (Map.elems vs)
