@@ -76,7 +76,7 @@ IEEE-754 floating point numbers.
         arising from
         use of expression fraction
         at <interactive>:1:1--1:6
-    • Reason: 5/1 cannot be represented in FloatTests::Small
+    • Reason: 5/1 cannot be represented in Float 3 2
 0x1.3p0
 0x2.0p-4
 0x2.0p-4
@@ -88,7 +88,7 @@ IEEE-754 floating point numbers.
         arising from
         use of literal or demoted expression
         at <interactive>:1:1--1:2
-    • Reason: 7 cannot be represented in FloatTests::Small
+    • Reason: 7 cannot be represented in Float 3 2
 "-- NaN------------------------------------------------------------------------"
 
     fpNaN : {e, p} (ValidFloat e p) => Float e p
