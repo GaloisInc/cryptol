@@ -1,0 +1,7 @@
+Loading module Cryptol
+
+[error] at <interactive>:1:11--1:16:
+  Type mismatch:
+    Expected type: 3
+    Inferred type: 2
+    When checking length of sequence
