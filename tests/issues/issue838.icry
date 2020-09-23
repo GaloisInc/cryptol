@@ -1,0 +1,7 @@
+// comment
+/* comment */
+/* multi-  \
+ * line    \
+ * block   \
+ * comment \
+ */
