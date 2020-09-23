@@ -1,0 +1,8 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Float
+Loading module issue485a
+Loading module issue485b
+foo : [3]
+bar : [8] -> [8]
+baz : [8] -> [8] -> [8]
