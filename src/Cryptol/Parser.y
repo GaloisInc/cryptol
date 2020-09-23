@@ -371,6 +371,7 @@ decls_layout            :: { [Decl PName] }
 repl                    :: { ReplInput PName }
   : expr                   { ExprInput $1 }
   | let_decl               { LetInput $1 }
+  | {- empty -}            { EmptyInput }
 
 
 --------------------------------------------------------------------------------
