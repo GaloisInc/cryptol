@@ -16,7 +16,8 @@ Available commands:
   run                          Run Cryptol
   build                        Build Cryptol
   haddock                      Generate Haddock documentation
-  test                         Run some tests
+  test                         Run some tests (may take a while)
+  quick-test                   Like "test" but run fewer tests by default
   exe-path                     Print the location of the local executable
 EOM
 }
