@@ -245,10 +245,10 @@ Just like with fixed-width bitvector values, arithmetic in
 when values get too large.
 \begin{Exercise}\label{ex:int:2}
   Compare the results of evaluating \texttt{ (5 : Z 7) + (6 : Z 7) }
-  with \texttt{ toInteger (5 : Z 7) + toInteger (6 : Z 7) }.
+  with \texttt{ fromZ (5 : Z 7) + fromZ (6 : Z 7) }.
   What is the result of \texttt{ -3 : Z 7 }?
   Were the results what you expected?
-\end{Exercise}  
+\end{Exercise}
 \begin{Answer}\ansref{ex:int:2}
 Here are Cryptol's responses:
 \begin{Verbatim}
@@ -1598,7 +1598,7 @@ starting the count at 0 as usual.) We can observe this much more
 simply, by using a smaller bit size for the constant {\tt 1}:
 \begin{Verbatim}
   Cryptol> [(1:[2])...]
-  [1, 2, 3, 0, 1 ...
+  [1, 2, 3, 0, 1 ...]
   Cryptol> take`{20} [(1:[2])...]
   [1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0]
 \end{Verbatim}
@@ -2255,12 +2255,12 @@ What is the signature of the function telling us?
 Here is the type Cryptol infers:
 \begin{verbatim}
    Cryptol> :t twoPlusXY
-   twoPlusXY : {a} (a >= 2, fin a) => ([a],[a]) -> [a]
+   twoPlusXY : {a} (Ring a, Literal 2 a) => (a, a) -> a
 \end{verbatim}
-That is, our function will actually work over arbitrary (finite) sized
-words, as long as they are at least 2 bits wide. The 2-bit requirement
-comes from the constant 2, which requires at least 2 bits to
-represent.
+That is, our function will actually work over an arbitrary ring, as
+long as it is large enough to represent the literal 2. The
+\texttt{Ring} and \texttt{Literal} type constraints are discussed
+further in \autoref{sec:type-classes}.
 \end{Answer}
 
 \todo[inline]{The Cmp class has not been introduced yet. At least, add a forward reference to the ``Type classes'' section.}
@@ -2408,15 +2408,14 @@ for an arbitrary function {\tt f}? Is this reasonable?
 \end{code}
 Note how we apply {\tt f} to each element in the sequence and check
 that the result consists of all {\tt True}s, by using a complemented
-{\tt zero}.\indZero\indAll If we pass {\tt any} an empty sequence,
-then we will always get {\tt False}:
+{\tt zero}.\indZero\indAll If we pass {\tt all} an empty
+sequence, then we will always get {\tt True}:
 \begin{Verbatim}
-  Cryptol> any eqTen [] where eqTen x = x == 10
-  False
+  Cryptol> all eqTen [] where eqTen x = x == 10
+  True
 \end{Verbatim}
-This is intuitively the correct behavior as well. The predicate is
-satisfied by {\em none} of the elements in the sequence, but {\tt any}
-requires at least one.
+This is the correct response since an empty sequence contains no
+element that fails to satisfy the predicate.
 \end{Answer}
 
 \begin{Exercise}\label{ex:zero:2}
@@ -2433,15 +2432,16 @@ the value of {\tt any f []}? Is this reasonable?
   any f xs = [ f x | x <- xs ] != zero
 \end{code}
 This time all we need to make sure is that the result is not {\tt
-  zero}, i.e., at least one of elements yielded {\tt
-  True}.\indZero\indTrue\indAny If we pass {\tt all} an empty
-sequence, then we will always get {\tt False}:
+  zero}, i.e., at least one of the elements yielded {\tt
+  True}.\indZero\indTrue\indAny If we pass {\tt any} an empty sequence,
+then we will always get {\tt False}:
 \begin{Verbatim}
   Cryptol> any eqTen [] where eqTen x = x == 10
   False
 \end{Verbatim}
-Again, this is the correct response since there are no elements in an
-empty sequence that can satisfy the predicate.
+This is intuitively the correct behavior as well. The predicate is
+satisfied by {\em none} of the elements in the sequence, but {\tt any}
+requires at least one.
 \end{Answer}
 
 %=====================================================================
@@ -3346,8 +3346,8 @@ import Hash::SHA3
 
 hmac : {keySize, msgSize} (fin keySize, fin msgSize) => [keySize] -> [msgSize] -> [512]
 hmac k m = sha3 (ko # sha3 (ki # m))
- where ko    = zipWith (^) kFull (join (repeat 0x5c))
-       ki    = zipWith (^) kFull (join (repeat 0x36))
+ where ko    = kFull ^ join (repeat 0x5c)
+       ki    = kFull ^ join (repeat 0x36)
        kFull = if `keySize == blocksize
                  then take (k#zero)
                  else sha3 k
