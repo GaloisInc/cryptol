@@ -1,0 +1,16 @@
+module issue485a where
+
+import Float
+
+private type A = [8] -> [8]
+
+private type ByteFun t = [8] -> t
+
+foo : RoundingMode
+foo = 0
+
+bar : A
+bar x = x
+
+baz : ByteFun (ByteFun [8])
+baz = (+)

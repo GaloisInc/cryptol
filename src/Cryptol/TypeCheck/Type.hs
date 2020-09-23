@@ -871,8 +871,16 @@ instance PP (WithNames Type) where
       _ | Just tinf <- isTInfix ty0 -> optParens (prec > 2)
                                      $ ppInfix 2 isTInfix tinf
 
-      TUser c [] _ -> pp c
-      TUser c ts _ -> optParens (prec > 3) $ pp c <+> fsep (map (go 4) ts)
+      TUser c ts t ->
+        withNameDisp $ \disp ->
+        case nameInfo c of
+          Declared m _
+            | NotInScope <- getNameFormat m (nameIdent c) disp ->
+              go prec t -- unfold type synonym if not in scope
+          _ ->
+            case ts of
+              [] -> pp c
+              _ -> optParens (prec > 3) $ pp c <+> fsep (map (go 4) ts)
 
       TCon (TC tc) ts ->
         case (tc,ts) of
