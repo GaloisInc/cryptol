@@ -245,10 +245,10 @@ Just like with fixed-width bitvector values, arithmetic in
 when values get too large.
 \begin{Exercise}\label{ex:int:2}
   Compare the results of evaluating \texttt{ (5 : Z 7) + (6 : Z 7) }
-  with \texttt{ toInteger (5 : Z 7) + toInteger (6 : Z 7) }.
+  with \texttt{ fromZ (5 : Z 7) + fromZ (6 : Z 7) }.
   What is the result of \texttt{ -3 : Z 7 }?
   Were the results what you expected?
-\end{Exercise}  
+\end{Exercise}
 \begin{Answer}\ansref{ex:int:2}
 Here are Cryptol's responses:
 \begin{Verbatim}
