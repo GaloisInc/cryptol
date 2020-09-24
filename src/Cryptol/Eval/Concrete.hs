@@ -356,7 +356,7 @@ primeECPrims = Map.fromList $ map (\(n,v) -> (primeECPrim n, v))
        ilam $ \p ->
         lam $ \s ->
           do s' <- toProjectivePoint =<< s
-             let r = PrimeEC.ec_double (PrimeEC.PrimeModulus p) s'
+             let r = PrimeEC.ec_double (PrimeEC.primeModulus p) s'
              fromProjectivePoint $! r)
 
   , ("ec_add", {-# SCC "PrimeEC::ec_add" #-}
@@ -365,7 +365,7 @@ primeECPrims = Map.fromList $ map (\(n,v) -> (primeECPrim n, v))
         lam $ \t ->
           do s' <- toProjectivePoint =<< s
              t' <- toProjectivePoint =<< t
-             let r = PrimeEC.ec_add (PrimeEC.PrimeModulus p) s' t'
+             let r = PrimeEC.ec_add (PrimeEC.primeModulus p) s' t'
              fromProjectivePoint $! r)
 
   , ("ec_mult", {-# SCC "PrimeEC::ec_mult" #-}
@@ -374,7 +374,7 @@ primeECPrims = Map.fromList $ map (\(n,v) -> (primeECPrim n, v))
         lam $ \s ->
           do d' <- fromVInteger <$> d
              s' <- toProjectivePoint =<< s
-             let r = PrimeEC.ec_mult (PrimeEC.PrimeModulus p) d' s'
+             let r = PrimeEC.ec_mult (PrimeEC.primeModulus p) d' s'
              fromProjectivePoint $! r)
 
   , ("ec_twin_mult", {-# SCC "PrimeEC::ec_twin_mult" #-}
@@ -387,7 +387,7 @@ primeECPrims = Map.fromList $ map (\(n,v) -> (primeECPrim n, v))
              s'  <- toProjectivePoint =<< s
              d1' <- fromVInteger <$> d1
              t'  <- toProjectivePoint =<< t
-             let r = PrimeEC.ec_twin_mult (PrimeEC.PrimeModulus p) d0' s' d1' t'
+             let r = PrimeEC.ec_twin_mult (PrimeEC.primeModulus p) d0' s' d1' t'
              fromProjectivePoint $! r)
   ]
 

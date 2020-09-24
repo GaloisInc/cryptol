@@ -9,10 +9,11 @@
 -----------------------------------------------------------------------------
 
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE TypeOperators #-}
 
 module Cryptol.PrimeEC
-  ( PrimeModulus(..)
-  , AffinePoint(..)
+  ( PrimeModulus
+  , primeModulus
   , ProjectivePoint(..)
 
   , ec_double
@@ -22,22 +23,13 @@ module Cryptol.PrimeEC
   ) where
 
 
+import qualified GHC.Integer.GMP.Internals as Integer
+
+
 import Data.Bits
-import Data.Euclidean (gcdExt)
 import Data.List (foldl')
 
 import Cryptol.TypeCheck.Solver.InfNat (widthInteger)
-
-
-newtype PrimeModulus = PrimeModulus { primeMod :: Integer }
- deriving (Show, Eq)
-
-data AffinePoint =
-  AffinePoint
-  { ax :: !Integer
-  , ay :: !Integer
-  }
- deriving (Show, Eq)
 
 data ProjectivePoint =
   ProjectivePoint
@@ -47,33 +39,109 @@ data ProjectivePoint =
   }
  deriving (Show, Eq)
 
+newtype PrimeModulus = PrimeModulus { primeMod :: Integer }
+  deriving (Show, Eq)
+
+{-# INLINE primeModulus #-}
+primeModulus :: Integer -> PrimeModulus
+primeModulus = PrimeModulus
+
+-- Barrett reduction replaces a division by the modulus with
+-- two multiplications and some shifting, masking, and additions
+-- (and some fairly negligable pre-processing). For the size of
+-- moduli we are working with for ECC, this does not appear to be
+-- a performance win.  Even for largest NIST curve (P-521) Barrett
+-- reduction is about 20% slower than naive modular reduction.
+-- Smaller curves are worse WRT the baseline.
+
+-- {-# INLINE primeModulus #-}
+-- primeModulus :: Integer -> PrimeModulus
+-- primeModulus = untrie modulusParameters
+
+-- data PrimeModulus = PrimeModulus
+--   { primeMod :: !Integer
+--   , barrettInverse :: !Integer
+--   , barrettK       :: !Int
+--   , barrettMask    :: !Integer
+--   }
+--  deriving (Show, Eq)
+
+-- {-# NOINLINE modulusParameters #-}
+-- modulusParameters :: Integer :->: PrimeModulus
+-- modulusParameters = trie computeModulusParameters
+
+-- computeModulusParameters :: Integer -> PrimeModulus
+-- computeModulusParameters p = PrimeModulus p inv k mask
+--   where
+--   k = fromInteger w
+
+--   b :: Integer
+--   b = 2 ^ (64::Int)
+
+--   -- w is the number of 64-bit words required to express p
+--   w = (widthInteger p + 63) `div` 64
+
+--   mask = b^(k+1) - 1
+
+--   -- inv = floor ( b^(2*k) / p )
+--   inv = b^(2*k) `div` p
+
+-- barrettReduction :: PrimeModulus -> Integer -> Integer
+-- barrettReduction p x = go r3
+--   where
+--     m    = primeMod p
+--     k    = barrettK p
+--     inv  = barrettInverse p
+--     mask = barrettMask p
+
+--     -- q1 <- floor (x / b^(k-1))
+--     q1 = x `shiftR` (64 * (k-1))
+
+--     -- q2 <- q1 * floor ( b^(2*k) / m )
+--     q2 = q1 * inv
+
+--     -- q3 <- floor (q2 / b^(k+1))
+--     q3 = q2 `shiftR` (64 * (k+1))
+
+--     -- r1 <- x mod b^(k+1)
+--     r1 = x .&. mask
+
+--     -- r2 <- (q3 * m) mod b^(k+1)
+--     r2 = (q3 * m) .&. mask
+
+--     -- r3 <- r1 - r2
+--     r3 = r1 - r2
+
+--     -- up to 2 multiples of m must be removed
+--     go z = if z > m then go (z - m) else z
+
 
 mod_add :: PrimeModulus -> Integer -> Integer -> Integer
-mod_add (PrimeModulus p) !x !y = if r >= p then r - p else r
+mod_add p !x !y = if r >= primeMod p then r - primeMod p else r
   where r = x+y
 
 mod_half :: PrimeModulus -> Integer -> Integer
-mod_half (PrimeModulus p) x = if r == 0 then q else (x+p) `div` 2
+mod_half p x = if testBit x 0 then qodd else qeven
   where
-  (q,r) = divMod x 2
+  qodd  = (x+primeMod p) `shiftR` 1
+  qeven = x `shiftR` 1
 
 mod_mul :: PrimeModulus -> Integer -> Integer -> Integer
-mod_mul (PrimeModulus p) !x !y = (x*y) `mod` p
+mod_mul p !x !y = (x*y) `mod` primeMod p
 
 mod_sub :: PrimeModulus -> Integer -> Integer -> Integer
-mod_sub (PrimeModulus p) !x !y = mod_add (PrimeModulus p) x (p - y)
+mod_sub p !x !y = mod_add p x (primeMod p - y)
 
 mod_square :: PrimeModulus -> Integer -> Integer
-mod_square p x = mod_mul p x x
+mod_square p !x = Integer.sqrInteger x `mod` primeMod p
 
 mul2 :: PrimeModulus -> Integer -> Integer
-mul2 p x = mod_add p x x
+mul2 p !x = if r >= primeMod p then r - primeMod p else r
+ where
+ r = x `shiftL` 1
 
 mul3 :: PrimeModulus -> Integer -> Integer
-mul3 (PrimeModulus p) x = if rmp >= p then rmp - p else if r >= p then rmp else r
-  where
-    r   = 3*x
-    rmp = r - p
+mul3 p x = mod_add p x (mul2 p x)
 
 mul4 :: PrimeModulus -> Integer -> Integer
 mul4 p x = mul2 p (mul2 p x)
@@ -111,21 +179,17 @@ ec_full_add :: PrimeModulus -> ProjectivePoint -> ProjectivePoint -> ProjectiveP
 ec_full_add p s t
   | pz s == 0 = t
   | pz t == 0 = s
-  | r == ProjectivePoint 0 0 0 = ec_double p s
-  | otherwise = r
-
- where r = ec_add p s t
+  | otherwise = ec_add p s t
 
 ec_full_sub :: PrimeModulus -> ProjectivePoint -> ProjectivePoint -> ProjectivePoint
 ec_full_sub p s t = ec_full_add p s u
   where u = t{ py = negate (py t) }
 
-
 ec_add :: PrimeModulus -> ProjectivePoint -> ProjectivePoint -> ProjectivePoint
-ec_add p (ProjectivePoint sx sy sz) (ProjectivePoint tx ty tz) =
+ec_add p s@(ProjectivePoint sx sy sz) (ProjectivePoint tx ty tz) =
     if r13 == 0 then
       if r14 == 0 then
-        ProjectivePoint 0 0 0
+        ec_double p s
       else
         ProjectivePoint 1 1 0
     else
@@ -164,14 +228,18 @@ ec_add p (ProjectivePoint sx sy sz) (ProjectivePoint tx ty tz) =
 
 
 ec_normalize :: PrimeModulus -> ProjectivePoint -> ProjectivePoint
-ec_normalize (PrimeModulus p) s@(ProjectivePoint x y z)
+ec_normalize p s@(ProjectivePoint x y z)
   | z == 1 = s
-  | otherwise = ProjectivePoint (x*l2) (y*l3) 1
+  | otherwise = ProjectivePoint x' y' 1
  where
-  (_g,w) = gcdExt z p
-  l = w `mod` p
+  m = primeMod p
+
+  l = Integer.recipModInteger z m
   l2 = l*l
   l3 = l*l2
+
+  x' = (x*l2) `mod` m
+  y' = (y*l3) `mod` m
 
 ec_mult :: PrimeModulus -> Integer -> ProjectivePoint -> ProjectivePoint
 ec_mult p d s

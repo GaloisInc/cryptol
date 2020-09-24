@@ -40,6 +40,7 @@ import qualified Control.Exception as X
 import Data.Bits
 import Numeric (showIntAtBase)
 import qualified LibBF as FP
+import qualified GHC.Integer.GMP.Internals as Integer
 
 import qualified GHC.Integer.GMP.Internals as Integer
 
