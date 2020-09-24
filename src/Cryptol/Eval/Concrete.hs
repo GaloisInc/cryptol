@@ -394,13 +394,13 @@ primeECPrims = Map.fromList $ map (\(n,v) -> (primeECPrim n, v))
 toProjectivePoint :: Value -> Eval PrimeEC.ProjectivePoint
 toProjectivePoint v = PrimeEC.ProjectivePoint <$> f "x" <*> f "y" <*> f "z"
   where
-   f nm = fromVInteger <$> lookupRecord nm v
+   f nm = PrimeEC.integerToBigNat . fromVInteger <$> lookupRecord nm v
 
 fromProjectivePoint :: PrimeEC.ProjectivePoint -> Eval Value
 fromProjectivePoint (PrimeEC.ProjectivePoint x y z) =
    pure . VRecord . recordFromFields $ [("x", f x), ("y", f y), ("z", f z)]
   where
-   f i = pure (VInteger i)
+   f i = pure (VInteger (PrimeEC.bigNatToInteger i))
 
 
 

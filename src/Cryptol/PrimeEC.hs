@@ -9,12 +9,15 @@
 -----------------------------------------------------------------------------
 
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE MagicHash #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Cryptol.PrimeEC
   ( PrimeModulus
   , primeModulus
   , ProjectivePoint(..)
+  , integerToBigNat
+  , Integer.bigNatToInteger
 
   , ec_double
   , ec_add
@@ -23,8 +26,9 @@ module Cryptol.PrimeEC
   ) where
 
 
+import           GHC.Integer.GMP.Internals (BigNat)
 import qualified GHC.Integer.GMP.Internals as Integer
-
+import qualified GHC.Prim as Prim
 
 import Data.Bits
 import Data.List (foldl')
@@ -33,18 +37,24 @@ import Cryptol.TypeCheck.Solver.InfNat (widthInteger)
 
 data ProjectivePoint =
   ProjectivePoint
-  { px :: !Integer
-  , py :: !Integer
-  , pz :: !Integer
+  { px :: !BigNat
+  , py :: !BigNat
+  , pz :: !BigNat
   }
- deriving (Show, Eq)
 
-newtype PrimeModulus = PrimeModulus { primeMod :: Integer }
-  deriving (Show, Eq)
+zro :: ProjectivePoint
+zro = ProjectivePoint Integer.oneBigNat Integer.oneBigNat Integer.zeroBigNat
+
+integerToBigNat :: Integer -> BigNat
+integerToBigNat (Integer.S# i)  = Integer.wordToBigNat (Prim.int2Word# i)
+integerToBigNat (Integer.Jp# b) = b
+integerToBigNat (Integer.Jn# b) = b
+
+newtype PrimeModulus = PrimeModulus { primeMod :: BigNat }
 
 {-# INLINE primeModulus #-}
 primeModulus :: Integer -> PrimeModulus
-primeModulus = PrimeModulus
+primeModulus = PrimeModulus . integerToBigNat
 
 -- Barrett reduction replaces a division by the modulus with
 -- two multiplications and some shifting, masking, and additions
@@ -115,46 +125,50 @@ primeModulus = PrimeModulus
 --     -- up to 2 multiples of m must be removed
 --     go z = if z > m then go (z - m) else z
 
+mod_add :: PrimeModulus -> BigNat -> BigNat -> BigNat
+mod_add p !x !y =
+    case Integer.isNullBigNat# rmp of
+      0# -> rmp
+      _  -> r
+  where r = Integer.plusBigNat x y
+        rmp = Integer.minusBigNat r (primeMod p)
 
-mod_add :: PrimeModulus -> Integer -> Integer -> Integer
-mod_add p !x !y = if r >= primeMod p then r - primeMod p else r
-  where r = x+y
-
-mod_half :: PrimeModulus -> Integer -> Integer
-mod_half p x = if testBit x 0 then qodd else qeven
+mod_half :: PrimeModulus -> BigNat -> BigNat
+mod_half p x = if Integer.testBitBigNat x 0# then qodd else qeven
   where
-  qodd  = (x+primeMod p) `shiftR` 1
-  qeven = x `shiftR` 1
+  qodd  = (Integer.plusBigNat x (primeMod p)) `Integer.shiftRBigNat` 1#
+  qeven = x `Integer.shiftRBigNat` 1#
 
-mod_mul :: PrimeModulus -> Integer -> Integer -> Integer
-mod_mul p !x !y = (x*y) `mod` primeMod p
+mod_mul :: PrimeModulus -> BigNat -> BigNat -> BigNat
+mod_mul p !x !y = (Integer.timesBigNat x y) `Integer.remBigNat` (primeMod p)
 
-mod_sub :: PrimeModulus -> Integer -> Integer -> Integer
-mod_sub p !x !y = mod_add p x (primeMod p - y)
+mod_sub :: PrimeModulus -> BigNat -> BigNat -> BigNat
+mod_sub p !x !y = mod_add p x (Integer.minusBigNat (primeMod p) y)
 
-mod_square :: PrimeModulus -> Integer -> Integer
-mod_square p !x = Integer.sqrInteger x `mod` primeMod p
+mod_square :: PrimeModulus -> BigNat -> BigNat
+mod_square p !x = Integer.sqrBigNat x `Integer.remBigNat` primeMod p
 
-mul2 :: PrimeModulus -> Integer -> Integer
-mul2 p !x = if r >= primeMod p then r - primeMod p else r
+mul2 :: PrimeModulus -> BigNat -> BigNat
+mul2 p !x =
+    case Integer.isNullBigNat# rmp of
+      0# -> rmp
+      _  -> r
  where
- r = x `shiftL` 1
+   r = x `Integer.shiftLBigNat` 1#
+   rmp = Integer.minusBigNat r (primeMod p)
 
-mul3 :: PrimeModulus -> Integer -> Integer
+mul3 :: PrimeModulus -> BigNat -> BigNat
 mul3 p x = mod_add p x (mul2 p x)
 
-mul4 :: PrimeModulus -> Integer -> Integer
+mul4 :: PrimeModulus -> BigNat -> BigNat
 mul4 p x = mul2 p (mul2 p x)
 
-mul8 :: PrimeModulus -> Integer -> Integer
+mul8 :: PrimeModulus -> BigNat -> BigNat
 mul8 p x = mul2 p (mul4 p x)
 
 ec_double :: PrimeModulus -> ProjectivePoint -> ProjectivePoint
 ec_double p (ProjectivePoint sx sy sz) =
-     if sz == 0 then
-       ProjectivePoint 1 1 0
-     else
-       ProjectivePoint r18 r23 r13
+    if Integer.isZeroBigNat sz then zro else ProjectivePoint r18 r23 r13
 
   where
   r7  = mod_square p sz                   {-  7: t4 <- (t3)^2  -}
@@ -175,32 +189,37 @@ ec_double p (ProjectivePoint sx sy sz) =
   r22 = mod_mul    p r11 r21              {- 22: t5 <- t4 * t5 -}
   r23 = mod_sub    p r22 r20              {- 23: t2 <- t5 - t2 -}
 
+{-# INLINE ec_full_add #-}
 ec_full_add :: PrimeModulus -> ProjectivePoint -> ProjectivePoint -> ProjectivePoint
 ec_full_add p s t
-  | pz s == 0 = t
-  | pz t == 0 = s
+  | Integer.isZeroBigNat (pz s) = t
+  | Integer.isZeroBigNat (pz t) = s
   | otherwise = ec_add p s t
 
+{-# INLINE ec_full_sub #-}
 ec_full_sub :: PrimeModulus -> ProjectivePoint -> ProjectivePoint -> ProjectivePoint
 ec_full_sub p s t = ec_full_add p s u
-  where u = t{ py = negate (py t) }
+  where u = t{ py = Integer.minusBigNat (primeMod p) (py t) }
 
 ec_add :: PrimeModulus -> ProjectivePoint -> ProjectivePoint -> ProjectivePoint
-ec_add p s@(ProjectivePoint sx sy sz) (ProjectivePoint tx ty tz) =
-    if r13 == 0 then
-      if r14 == 0 then
+ec_add p s@(ProjectivePoint sx sy sz)
+           (ProjectivePoint tx ty tz) =
+    if Integer.isZeroBigNat r13 then
+      if Integer.isZeroBigNat r14 then
         ec_double p s
       else
-        ProjectivePoint 1 1 0
+        zro
     else
       ProjectivePoint r32 r37 r27
 
   where
+  tNormalized = Integer.eqBigNat tz Integer.oneBigNat
+
   tz2 = mod_square p tz
   tz3 = mod_mul p tz tz2
 
-  r5  = if tz == 1 then sx else mod_mul p sx tz2
-  r7  = if tz == 1 then sy else mod_mul p sy tz3
+  r5  = if tNormalized then sx else mod_mul p sx tz2
+  r7  = if tNormalized then sy else mod_mul p sy tz3
 
   r9  = mod_square p sz                  {-  9: t7 <- (t3)^2 -}
   r10 = mod_mul    p tx r9               {- 10: t4 <- t4 * t7 -}
@@ -212,7 +231,7 @@ ec_add p s@(ProjectivePoint sx sy sz) (ProjectivePoint tx ty tz) =
   r22 = mod_sub    p (mul2 p r5) r13     {- 22: t1 <- 2*t1 - t4 -}
   r23 = mod_sub    p (mul2 p r7) r14     {- 23: t2 <- 2*t2 - t5 -}
 
-  r25 = if tz == 1 then sz else mod_mul p sz tz
+  r25 = if tNormalized then sz else mod_mul p sz tz
 
   r27 = mod_mul    p r25 r13             {- 27: t3 <- t3 * t4 -}
   r28 = mod_square p r13                 {- 28: t7 <- (t4)^2 -}
@@ -229,27 +248,26 @@ ec_add p s@(ProjectivePoint sx sy sz) (ProjectivePoint tx ty tz) =
 
 ec_normalize :: PrimeModulus -> ProjectivePoint -> ProjectivePoint
 ec_normalize p s@(ProjectivePoint x y z)
-  | z == 1 = s
-  | otherwise = ProjectivePoint x' y' 1
+  | Integer.eqBigNat z Integer.oneBigNat = s
+  | otherwise = ProjectivePoint x' y' Integer.oneBigNat
  where
   m = primeMod p
 
-  l = Integer.recipModInteger z m
-  l2 = l*l
-  l3 = l*l2
+  l  = Integer.recipModBigNat z m
+  l2 = Integer.sqrBigNat l
+  l3 = Integer.timesBigNat l l2
 
-  x' = (x*l2) `mod` m
-  y' = (y*l3) `mod` m
+  x' = (Integer.timesBigNat x l2) `Integer.remBigNat` m
+  y' = (Integer.timesBigNat y l3) `Integer.remBigNat` m
 
 ec_mult :: PrimeModulus -> Integer -> ProjectivePoint -> ProjectivePoint
 ec_mult p d s
   | d == 0    = zro
   | d == 1    = s
-  | pz s == 0 = zro
+  | Integer.isZeroBigNat (pz s) = zro
   | otherwise = foldl' step zro (reverse [ 1 .. highbit ])
 
  where
-   zro = ProjectivePoint 1 1 0
    s' = ec_normalize p s
    h  = 3*d
 
