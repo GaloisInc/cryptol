@@ -1,0 +1,3 @@
+f : {a} [a]                  // Unsolved delayed constraint
+f = 2
+

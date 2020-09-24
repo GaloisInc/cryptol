@@ -1,0 +1,4 @@
+f x = ()                      // TypeVariableEscaped
+  where
+  g : {b} b
+  g = x
