@@ -11,6 +11,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Cryptol.PrimeEC
   ( PrimeModulus
@@ -28,12 +29,13 @@ module Cryptol.PrimeEC
 
 import           GHC.Integer.GMP.Internals (BigNat)
 import qualified GHC.Integer.GMP.Internals as Integer
-import qualified GHC.Prim as Prim
+import GHC.Prim
 
 import Data.Bits
 import Data.List (foldl')
 
 import Cryptol.TypeCheck.Solver.InfNat (widthInteger)
+import Cryptol.Utils.Panic
 
 data ProjectivePoint =
   ProjectivePoint
@@ -46,7 +48,7 @@ zro :: ProjectivePoint
 zro = ProjectivePoint Integer.oneBigNat Integer.oneBigNat Integer.zeroBigNat
 
 integerToBigNat :: Integer -> BigNat
-integerToBigNat (Integer.S# i)  = Integer.wordToBigNat (Prim.int2Word# i)
+integerToBigNat (Integer.S# i)  = Integer.wordToBigNat (int2Word# i)
 integerToBigNat (Integer.Jp# b) = b
 integerToBigNat (Integer.Jn# b) = b
 
@@ -158,13 +160,13 @@ mul2 p !x =
    rmp = Integer.minusBigNat r (primeMod p)
 
 mul3 :: PrimeModulus -> BigNat -> BigNat
-mul3 p x = mod_add p x (mul2 p x)
+mul3 p x = mod_add p x $! mul2 p x
 
 mul4 :: PrimeModulus -> BigNat -> BigNat
-mul4 p x = mul2 p (mul2 p x)
+mul4 p x = mul2 p $! mul2 p x
 
 mul8 :: PrimeModulus -> BigNat -> BigNat
-mul8 p x = mul2 p (mul4 p x)
+mul8 p x = mul2 p $! mul4 p x
 
 ec_double :: PrimeModulus -> ProjectivePoint -> ProjectivePoint
 ec_double p (ProjectivePoint sx sy sz) =
@@ -283,17 +285,13 @@ ec_mult p d s
     where
       r2 = ec_double p r
 
-ec_twin_mult :: PrimeModulus ->
-  Integer -> ProjectivePoint ->
-  Integer -> ProjectivePoint ->
-  ProjectivePoint
-ec_twin_mult p d0 s d1 t = ec_full_add p (ec_mult p d0 s) (ec_mult p d1 t) -- TODO fix this
-{-
 
-  go m init_c0 init_c1 zro
-
+{-# INLINE normalizeForTwinMult #-}
+normalizeForTwinMult ::
+  PrimeModulus -> ProjectivePoint -> ProjectivePoint ->
+  (ProjectivePoint, ProjectivePoint, ProjectivePoint, ProjectivePoint)
+normalizeForTwinMult p s t = (s',t',spt',smt')
  where
-  zro = ProjectivePoint 1 1 0
 
   s' = ec_normalize p s
   t' = ec_normalize p t
@@ -304,65 +302,103 @@ ec_twin_mult p d0 s d1 t = ec_full_add p (ec_mult p d0 s) (ec_mult p d1 t) -- TO
   smt  = ec_full_sub p s' t'
   smt' = ec_normalize p smt
 
-  m0 = widthInteger d0 + 1
-  m1 = widthInteger d1 + 1
-  m | max m0 m1 <= toInteger (maxBound :: Int) = fromInteger (max m0 m1)
-    | otherwise = error "ec_twin_mult: Integer width too large"
 
-  init_c0 = C False False (tst d0 (m-1)) (tst d0 (m-2)) (tst d0 (m-3)) (tst d0 (m-4))
-  init_c1 = C False False (tst d1 (m-1)) (tst d1 (m-2)) (tst d1 (m-3)) (tst d1 (m-4))
+ec_twin_mult :: PrimeModulus ->
+  Integer -> ProjectivePoint ->
+  Integer -> ProjectivePoint ->
+ ProjectivePoint
+ec_twin_mult p (integerToBigNat -> d0) s (integerToBigNat -> d1) t =
+   case m of
+     0# -> panic "ec_twin_mult" ["modulus too large", show (Integer.bigNatToInteger (primeMod p))]
+     _  -> go m init_c0 init_c1 zro
+
+ where
+  (s',t',spt',smt') = normalizeForTwinMult p s t
+
+  m = case max 4 (widthInteger (Integer.bigNatToInteger (primeMod p))) of
+        Integer.S# mint -> mint
+        _ -> 0# -- if `m` doesn't fit into an Int, should be impossible
+
+  init_c0 = C False False (tst d0 (m -# 1#)) (tst d0 (m -# 2#)) (tst d0 (m -# 3#)) (tst d0 (m -# 4#))
+  init_c1 = C False False (tst d1 (m -# 1#)) (tst d1 (m -# 2#)) (tst d1 (m -# 3#)) (tst d1 (m -# 4#))
 
   tst x i
-    | i >= 0    = testBit x i
+    | tagToEnum# (i >=# 0#) = Integer.testBitBigNat x i
     | otherwise = False
 
-  f i
-    | 18 <= i && i < 22 = 9
-    | 14 <= i && i < 18 = 10
-    | 22 <= i && i < 24 = 11
-    |  4 <= i && i < 12 = 14
-    | otherwise         = 12
+  f i =
+    if tagToEnum# (i <# 18#) then
+      if tagToEnum# (i <# 12#) then
+        if tagToEnum# (i <# 4#) then
+          12#
+        else
+          14#
+      else
+        if tagToEnum# (i <# 14#) then
+          12#
+        else
+          10#
+    else
+      if tagToEnum# (i <# 22#) then
+        9#
+      else
+        if tagToEnum# (i <# 24#) then
+          11#
+        else
+          12#
 
-  go 0  _  _ r = r
-  go k c0 c1 r = go (k-1) c0' c1' r'
+  go !k !c0 !c1 !r = if tagToEnum# (k <# 0#) then r else go (k -# 1#) c0' c1' r'
     where
       h0  = cStateToH c0
       h1  = cStateToH c1
-      u0  = if h0 < f h1 then 0 else (if cHead c0 then -1 else 1)
-      u1  = if h1 < f h0 then 0 else (if cHead c1 then -1 else 1)
-      c0' = cStateUpdate u0 c0 (tst d0 (k-5))
-      c1' = cStateUpdate u1 c1 (tst d1 (k-5))
+      u0  = if tagToEnum# (h0 <# f h1) then 0# else (if cHead c0 then -1# else 1#)
+      u1  = if tagToEnum# (h1 <# f h0) then 0# else (if cHead c1 then -1# else 1#)
+      c0' = cStateUpdate u0 c0 (tst d0 (k -# 5#))
+      c1' = cStateUpdate u1 c1 (tst d1 (k -# 5#))
 
       r2 = ec_double p r
 
-      r' | u0 == -1 && u1 == -1 = ec_full_sub p r2 spt'
-         | u0 == -1 && u1 ==  0 = ec_full_sub p r2 s'
-         | u0 == -1 && u1 ==  1 = ec_full_sub p r2 smt'
-         | u0 ==  0 && u1 == -1 = ec_full_sub p r2 t'
-         | u0 ==  0 && u1 ==  1 = ec_full_add p r2 t'
-         | u0 ==  1 && u1 == -1 = ec_full_add p r2 smt'
-         | u0 ==  1 && u1 ==  0 = ec_full_add p r2 s'
-         | u0 ==  1 && u1 ==  1 = ec_full_add p r2 spt'
-         | otherwise = r2
+      r' =
+        case u0 of
+          -1# ->
+            case u1 of
+              -1# -> ec_full_sub p r2 spt'
+              1#  -> ec_full_sub p r2 smt'
+              _   -> ec_full_sub p r2 s'
+          1#  ->
+            case u1 of
+              -1# -> ec_full_add p r2 smt'
+              1#  -> ec_full_add p r2 spt'
+              _   -> ec_full_add p r2 s'
+          _   ->
+            case u1 of
+              -1# -> ec_full_sub p r2 t'
+              1#  -> ec_full_add p r2 t'
+              _   -> r2
 
 data CState = C !Bool !Bool !Bool !Bool !Bool !Bool
 
+{-# INLINE cHead #-}
 cHead :: CState -> Bool
 cHead (C c0 _ _ _ _ _) = c0
 
-cStateToH :: CState -> Int
+{-# INLINE cStateToH #-}
+cStateToH :: CState -> Int#
 cStateToH c@(C c0 _ _ _ _ _) =
-  if c0 then 31 - cStateToInt c else cStateToInt c
+  if c0 then 31# -# cStateToInt c else cStateToInt c
 
-cStateToInt :: CState -> Int
+{-# INLINE cStateToInt #-}
+cStateToInt :: CState -> Int#
 cStateToInt (C _ c1 c2 c3 c4 c5) =
-  if c1 then 16 else 0 +
-  if c2 then  8 else 0 +
-  if c3 then  4 else 0 +
-  if c4 then  2 else 0 +
-  if c5 then  1 else 0
+  (dataToTag# c1 `uncheckedIShiftL#` 4#) +#
+  (dataToTag# c2 `uncheckedIShiftL#` 3#) +#
+  (dataToTag# c3 `uncheckedIShiftL#` 2#) +#
+  (dataToTag# c4 `uncheckedIShiftL#` 1#) +#
+  (dataToTag# c5)
 
-cStateUpdate :: Int -> CState -> Bool -> CState
+{-# INLINE cStateUpdate #-}
+cStateUpdate :: Int# -> CState -> Bool -> CState
 cStateUpdate u (C _ c1 c2 c3 c4 c5) e =
-  C ((u/=0) `xor` c1) c2 c3 c4 c5 e
--}
+  case u of
+    0# -> C c1 c2 c3 c4 c5 e
+    _  -> C (complement c1) c2 c3 c4 c5 e
