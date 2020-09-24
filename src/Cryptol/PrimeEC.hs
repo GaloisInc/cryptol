@@ -29,10 +29,8 @@ module Cryptol.PrimeEC
 
 import           GHC.Integer.GMP.Internals (BigNat)
 import qualified GHC.Integer.GMP.Internals as Integer
-import GHC.Prim
-
-import Data.Bits
-import Data.List (foldl')
+import           GHC.Prim
+import           Data.Bits
 
 import Cryptol.TypeCheck.Solver.InfNat (widthInteger)
 import Cryptol.Utils.Panic
@@ -267,40 +265,86 @@ ec_mult p d s
   | d == 0    = zro
   | d == 1    = s
   | Integer.isZeroBigNat (pz s) = zro
-  | otherwise = foldl' step zro (reverse [ 1 .. highbit ])
+  | otherwise =
+      case m of
+        0# -> panic "ec_twin_mult" ["modulus too large", show (Integer.bigNatToInteger (primeMod p))]
+        _  -> go m zro
 
  where
    s' = ec_normalize p s
    h  = 3*d
 
-   highbit
-     | w <= toInteger (maxBound :: Int) = fromInteger w
-     | otherwise = error "ec_mult: Integer width too large"
-    where w = widthInteger h
+   d' = integerToBigNat d
+   h' = integerToBigNat h
 
-   step r i
-     | testBit h i && not (testBit d i) = ec_full_add p r2 s'
-     | not (testBit h i) && testBit d i = ec_full_sub p r2 s'
-     | otherwise = r2
+   m = case widthInteger h of
+         Integer.S# mint -> mint
+         _ -> 0#
+
+   go i r
+     | tagToEnum# (i ==# 0#) = r
+     | otherwise = go (i -# 1#) r'
+
     where
-      r2 = ec_double p r
+      h_i = Integer.testBitBigNat h' i
+      d_i = Integer.testBitBigNat d' i
 
+      r' = if h_i then
+             if d_i then r2 else ec_full_add p r2 s'
+           else
+             if d_i then ec_full_sub p r2 s' else r2
+
+      r2 = ec_double p r
 
 {-# INLINE normalizeForTwinMult #-}
 normalizeForTwinMult ::
   PrimeModulus -> ProjectivePoint -> ProjectivePoint ->
   (ProjectivePoint, ProjectivePoint, ProjectivePoint, ProjectivePoint)
 normalizeForTwinMult p s t = (s',t',spt',smt')
- where
+  where
+  spt = ec_full_add p s t
+  smt = ec_full_sub p s t
 
-  s' = ec_normalize p s
-  t' = ec_normalize p t
+  m = primeMod p
 
-  spt  = ec_full_add p s' t'
-  spt' = ec_normalize p spt
+  a = pz s
+  b = pz t
+  c = pz spt
+  d = pz smt
 
-  smt  = ec_full_sub p s' t'
-  smt' = ec_normalize p smt
+  ab  = mod_mul p a b
+  cd  = mod_mul p c d
+  abc = mod_mul p ab c
+  abd = mod_mul p ab d
+  acd = mod_mul p a cd
+  bcd = mod_mul p b cd
+
+  abcd = mod_mul p a bcd
+
+  e = Integer.recipModBigNat abcd m
+
+  a_inv = mod_mul p e bcd
+  b_inv = mod_mul p e acd
+  c_inv = mod_mul p e abd
+  d_inv = mod_mul p e abc
+
+  a_inv2 = mod_square p a_inv
+  a_inv3 = mod_mul p a_inv a_inv2
+
+  b_inv2 = mod_square p b_inv
+  b_inv3 = mod_mul p b_inv b_inv2
+
+  c_inv2 = mod_square p c_inv
+  c_inv3 = mod_mul p c_inv c_inv2
+
+  d_inv2 = mod_square p d_inv
+  d_inv3 = mod_mul p d_inv d_inv2
+
+  s'   = ProjectivePoint (mod_mul p (px s) a_inv2) (mod_mul p (py s) a_inv3) Integer.oneBigNat
+  t'   = ProjectivePoint (mod_mul p (px t) b_inv2) (mod_mul p (py t) b_inv3) Integer.oneBigNat
+
+  spt' = ProjectivePoint (mod_mul p (px spt) c_inv2) (mod_mul p (py spt) c_inv3) Integer.oneBigNat
+  smt' = ProjectivePoint (mod_mul p (px smt) d_inv2) (mod_mul p (py smt) d_inv3) Integer.oneBigNat
 
 
 ec_twin_mult :: PrimeModulus ->
