@@ -316,6 +316,7 @@ ppUse expr =
   case expr of
     EVar (isPrelPrim -> Just prim)
       | prim == "number"       -> "literal or demoted expression"
+      | prim == "fraction"     -> "fractional literal"
       | prim == "infFrom"      -> "infinite enumeration"
       | prim == "infFromThen"  -> "infinite enumeration (with step)"
       | prim == "fromTo"       -> "finite enumeration"
