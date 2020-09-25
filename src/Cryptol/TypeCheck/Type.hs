@@ -130,12 +130,13 @@ tvUnique (TVFree u _ _ _) = u
 tvUnique (TVBound TParam { tpUnique = u }) = u
 
 data TVarInfo = TVarInfo { tvarSource :: !Range -- ^ Source code that gave rise
-                         , tvarDesc   :: !TVarSource -- ^ Description
+                         , tvarDesc   :: !TypeSource -- ^ Description
                          }
               deriving (Show, Generic, NFData)
 
 
-data TVarSource = TVFromModParam Name     -- ^ Name of module parameter
+-- | Explains how this type came to be, for better error messages.
+data TypeSource = TVFromModParam Name     -- ^ Name of module parameter
                 | TVFromSignature Name    -- ^ A variable in a signature
                 | TypeWildCard
                 | TypeOfRecordField Ident
@@ -146,13 +147,26 @@ data TVarSource = TVFromModParam Name     -- ^ Name of module parameter
                 | TypeParamInstPos   {-Fun-}Name {-Pos (from 1)-}Int
                 | DefinitionOf Name
                 | LenOfCompGen
-                | TypeOfArg (Maybe Int)
+                | TypeOfArg ArgDescr
                 | TypeOfRes
+                | FunApp
+                | TypeOfIfCondExpr
+                | TypeFromUserAnnotation
+                | GeneratorOfListComp
                 | TypeErrorPlaceHolder
                   deriving (Show, Generic, NFData)
 
+data ArgDescr = ArgDescr
+  { argDescrFun    :: Maybe Name
+  , argDescrNumber :: Maybe Int
+  }
+  deriving (Show,Generic,NFData)
+
+noArgDescr :: ArgDescr
+noArgDescr = ArgDescr { argDescrFun = Nothing, argDescrNumber = Nothing }
+
 -- | Get the names of something that is related to the tvar.
-tvSourceName :: TVarSource -> Maybe Name
+tvSourceName :: TypeSource -> Maybe Name
 tvSourceName tvs =
   case tvs of
     TVFromModParam x -> Just x
@@ -160,7 +174,16 @@ tvSourceName tvs =
     TypeParamInstNamed x _ -> Just x
     TypeParamInstPos x _ -> Just x
     DefinitionOf x -> Just x
+    TypeOfArg x -> argDescrFun x
     _ -> Nothing
+
+
+-- | A type annotated with information on how it came about.
+data TypeWithSource = WithSource
+  { twsType   :: Type
+  , twsSource :: TypeSource
+  }
+
 
 -- | The type is supposed to be of kind 'KProp'.
 type Prop   = Type
@@ -353,6 +376,14 @@ tIsError ty = case tNoUser ty of
                 TCon (TError _ x) [t] -> Just (x,t)
                 TCon (TError _ _) _   -> panic "tIsError" ["Malformed error"]
                 _                     -> Nothing
+
+tHasErrors :: Type -> Bool
+tHasErrors ty =
+  case tNoUser ty of
+    TCon (TError _ _) _ -> True
+    TCon _ ts           -> any tHasErrors ts
+    TRec mp             -> any tHasErrors mp
+    _                   -> False
 
 tIsNat' :: Type -> Maybe Nat'
 tIsNat' ty =
@@ -962,7 +993,7 @@ instance PP (WithNames TVar) where
   ppPrec _ (WithNames (TVFree x k _ d) _) =
     char '?' <.> pickTVarName k (tvarDesc d) x
 
-pickTVarName :: Kind -> TVarSource -> Int -> Doc
+pickTVarName :: Kind -> TypeSource -> Int -> Doc
 pickTVarName k src uni =
   text $
   case src of
@@ -982,10 +1013,14 @@ pickTVarName k src uni =
         Declared m SystemName | m == exprModName -> mk "it"
         _ -> using x
     LenOfCompGen           -> mk "n"
-    TypeOfArg mb           -> mk (case mb of
+    GeneratorOfListComp    -> "seq"
+    TypeOfIfCondExpr       -> "b"
+    TypeOfArg ad           -> mk (case argDescrNumber ad of
                                     Nothing -> "arg"
                                     Just n  -> "arg_" ++ show n)
     TypeOfRes              -> "res"
+    FunApp                 -> "fun"
+    TypeFromUserAnnotation -> "user"
     TypeErrorPlaceHolder   -> "err"
   where
   sh a      = show (pp a)
@@ -1004,7 +1039,17 @@ instance PP TVarInfo where
     loc = if rng == emptyRange then empty else "at" <+> pp rng
     rng = tvarSource tvinfo
 
-instance PP TVarSource where
+instance PP ArgDescr where
+  ppPrec _ ad = which <+> "argument" <+> ofFun
+        where
+        which = maybe "function" ordinal (argDescrNumber ad)
+        ofFun = case argDescrFun ad of
+                  Nothing -> empty
+                  Just f  -> "of" <+> pp f
+
+
+
+instance PP TypeSource where
   ppPrec _ tvsrc =
     case tvsrc of
       TVFromModParam m    -> "module parameter" <+> pp m
@@ -1020,9 +1065,10 @@ instance PP TVarSource where
                                                       quotes (pp f)
       DefinitionOf x      -> "the type of" <+> quotes (pp x)
       LenOfCompGen        -> "length of comprehension generator"
-      TypeOfArg mb ->
-        case mb of
-          Nothing -> "type of function argument"
-          Just n -> "type of" <+> ordinal n <+> "function argument"
+      TypeOfArg ad        -> "type of" <+> pp ad
       TypeOfRes             -> "type of function result"
+      TypeOfIfCondExpr      -> "type of `if` condition"
+      TypeFromUserAnnotation -> "user annotation"
+      GeneratorOfListComp    -> "generator in a list comprehension"
+      FunApp                -> "function call"
       TypeErrorPlaceHolder  -> "type error place-holder"

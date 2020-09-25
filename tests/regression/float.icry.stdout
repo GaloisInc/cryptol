@@ -74,7 +74,7 @@ IEEE-754 floating point numbers.
   Unsolvable constraints:
     • FLiteral 5 1 1 Small
         arising from
-        use of expression fraction
+        use of fractional literal
         at <interactive>:1:1--1:6
     • Reason: 5/1 cannot be represented in Float 3 2
 0x1.3p0

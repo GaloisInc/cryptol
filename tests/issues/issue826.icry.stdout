@@ -1,0 +1,14 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+
+[error] at issue826.cry:3:6--3:11:
+  Incorrect type form.
+    Expected: a value type
+    Inferred: a constraint
+    Possibly due to a missing `=>`
+[error] at issue826.cry:3:13--3:19:
+  Incorrect type form.
+    Expected: a value type
+    Inferred: a constraint
+    Possibly due to a missing `=>`

@@ -45,7 +45,6 @@ import           Cryptol.TypeCheck.Depends
 import           Cryptol.TypeCheck.Subst (listSubst,apSubst,(@@),isEmptySubst)
 import           Cryptol.Utils.Ident
 import           Cryptol.Utils.Panic(panic)
-import           Cryptol.Utils.PP
 import           Cryptol.Utils.RecordMap
 
 import qualified Data.Map as Map
@@ -143,7 +142,7 @@ desugarLiteral lit =
 
 
 -- | Infer the type of an expression with an explicit instantiation.
-appTys :: P.Expr Name -> [TypeArg] -> Type -> InferM Expr
+appTys :: P.Expr Name -> [TypeArg] -> TypeWithSource -> InferM Expr
 appTys expr ts tGoal =
   case expr of
     P.EVar x ->
@@ -221,7 +220,7 @@ checkTypeOfKind ty k = checkType ty (Just k)
 
 -- | Infer the type of an expression, and translate it to a fully elaborated
 -- core term.
-checkE :: P.Expr Name -> Type -> InferM Expr
+checkE :: P.Expr Name -> TypeWithSource -> InferM Expr
 checkE expr tGoal =
   case expr of
     P.EVar x ->
@@ -254,7 +253,7 @@ checkE expr tGoal =
          -- generating an unnecessary unification variable.
          loc <- curRange
          let arg = TypeArg { tyArgName = Just (Located loc (packIdent "rep"))
-                           , tyArgType = Checked tGoal
+                           , tyArgType = Checked (twsType tGoal)
                            }
          appTys e [arg] tGoal
 
@@ -262,31 +261,35 @@ checkE expr tGoal =
 
     P.ETuple es ->
       do etys <- expectTuple (length es) tGoal
-         es'  <- zipWithM checkE es etys
+         let mkTGoal n t = WithSource t (TypeOfTupleField n)
+         es'  <- zipWithM checkE es (zipWith mkTGoal [1..] etys)
          return (ETuple es')
 
     P.ERecord fs ->
       do es  <- expectRec fs tGoal
-         es' <- traverse (uncurry checkE) es
+         let checkField f (e,t) = checkE e (WithSource t (TypeOfRecordField f))
+         es' <- traverseRecordMap checkField es
          return (ERec es')
 
     P.EUpd x fs -> checkRecUpd x fs tGoal
 
     P.ESel e l ->
-      do t <- newType (selSrc l) KType
-         e' <- checkE e t
-         f <- newHasGoal l t tGoal
+      do let src = selSrc l
+         t <- newType src KType
+         e' <- checkE e (WithSource t src)
+         f <- newHasGoal l t (twsType tGoal)
          return (hasDoSelect f e')
 
     P.EList [] ->
       do (len,a) <- expectSeq tGoal
-         expectFin 0 len
+         expectFin 0 (WithSource len LenOfSeq)
          return (EList [] a)
 
     P.EList es ->
       do (len,a) <- expectSeq tGoal
-         expectFin (length es) len
-         es' <- mapM (`checkE` a) es
+         expectFin (length es) (WithSource len LenOfSeq)
+         let checkElem e = checkE e (WithSource a TypeOfSeqElement)
+         es' <- mapM checkElem es
          return (EList es' a)
 
     P.EFromTo t1 mbt2 t3 mety ->
@@ -322,22 +325,25 @@ checkE expr tGoal =
       do (mss', dss, ts) <- unzip3 `fmap` zipWithM inferCArm [ 1 .. ] mss
          (len,a) <- expectSeq tGoal
 
-         newGoals CtComprehension =<< unify len =<< smallest ts
+         inferred <- smallest ts
+         ctrs <- unify (WithSource len LenOfSeq) inferred
+         newGoals CtComprehension ctrs
 
          ds     <- combineMaps dss
-         e'     <- withMonoTypes ds (checkE e a)
+         e'     <- withMonoTypes ds (checkE e (WithSource a TypeOfSeqElement))
          return (EComp len a e' mss')
 
     P.EAppT e fs -> appTys e (map uncheckedTypeArg fs) tGoal
 
     P.EApp e1 e2 ->
-      do t1  <- newType (TypeOfArg Nothing) KType
-         e1' <- checkE e1 (tFun t1 tGoal)
-         e2' <- checkE e2 t1
+      do let argSrc = TypeOfArg noArgDescr
+         t1  <- newType argSrc  KType
+         e1' <- checkE e1 (WithSource (tFun t1 (twsType tGoal)) FunApp)
+         e2' <- checkE e2 (WithSource t1 argSrc)
          return (EApp e1' e2')
 
     P.EIf e1 e2 e3 ->
-      do e1'      <- checkE e1 tBit
+      do e1'      <- checkE e1 (WithSource tBit TypeOfIfCondExpr)
          e2'      <- checkE e2 tGoal
          e3'      <- checkE e3 tGoal
          return (EIf e1' e2' e3')
@@ -348,7 +354,7 @@ checkE expr tGoal =
 
     P.ETyped e t ->
       do tSig <- checkTypeOfKind t KType
-         e'   <- checkE e tSig
+         e' <- checkE e (WithSource tSig TypeFromUserAnnotation)
          checkHasType tSig tGoal
          return e'
 
@@ -360,7 +366,7 @@ checkE expr tGoal =
                    P.Named { name = Located l (packIdent "val")
                            , value = t }]) tGoal
 
-    P.EFun ps e -> checkFun (text "anonymous function") ps e tGoal
+    P.EFun ps e -> checkFun Nothing ps e tGoal
 
     P.ELocated e r  -> inRange r (checkE e tGoal)
 
@@ -373,13 +379,8 @@ checkE expr tGoal =
     P.EParens e -> checkE e tGoal
 
 
-selSrc :: P.Selector -> TVarSource
-selSrc l = case l of
-             RecordSel la _ -> TypeOfRecordField la
-             TupleSel n _   -> TypeOfTupleField n
-             ListSel _ _    -> TypeOfSeqElement
-
-checkRecUpd :: Maybe (P.Expr Name) -> [ P.UpdField Name ] -> Type -> InferM Expr
+checkRecUpd ::
+  Maybe (P.Expr Name) -> [ P.UpdField Name ] -> TypeWithSource -> InferM Expr
 checkRecUpd mb fs tGoal =
   case mb of
 
@@ -400,21 +401,24 @@ checkRecUpd mb fs tGoal =
       [l] ->
         case how of
           P.UpdSet ->
-            do ft <- newType (selSrc s) KType
-               v1 <- checkE v ft
-               d  <- newHasGoal s tGoal ft
+            do let src = selSrc s
+               ft <- newType src KType
+               v1 <- checkE v (WithSource ft src)
+               d  <- newHasGoal s (twsType tGoal) ft
                pure (hasDoSet d e v1)
           P.UpdFun ->
-             do ft <- newType (selSrc s) KType
-                v1 <- checkE v (tFun ft ft)
-                d  <- newHasGoal s tGoal ft
+             do let src = selSrc s
+                ft <- newType src KType
+                v1 <- checkE v (WithSource (tFun ft ft) src)
+                -- XXX: ^ may be used a different src?
+                d  <- newHasGoal s (twsType tGoal) ft
                 tmp <- newParamName (packIdent "rf")
                 let e' = EVar tmp
                 pure $ hasDoSet d e' (EApp v1 (hasDoSelect d e'))
                        `EWhere`
                        [  NonRecursive
                           Decl { dName        = tmp
-                               , dSignature   = tMono tGoal
+                               , dSignature   = tMono (twsType tGoal)
                                , dDefinition  = DExpr e
                                , dPragmas     = []
                                , dInfix       = False
@@ -428,24 +432,24 @@ checkRecUpd mb fs tGoal =
                                      ]
 
 
-expectSeq :: Type -> InferM (Type,Type)
-expectSeq ty =
+expectSeq :: TypeWithSource -> InferM (Type,Type)
+expectSeq tGoal@(WithSource ty src) =
   case ty of
 
     TUser _ _ ty' ->
-         expectSeq ty'
+         expectSeq (WithSource ty' src)
 
     TCon (TC TCSeq) [a,b] ->
          return (a,b)
 
     TVar _ ->
       do tys@(a,b) <- genTys
-         newGoals CtExactType =<< unify ty (tSeq a b)
+         newGoals CtExactType =<< unify tGoal (tSeq a b)
          return tys
 
     _ ->
       do tys@(a,b) <- genTys
-         recordError (TypeMismatch ty (tSeq a b))
+         recordError (TypeMismatch src ty (tSeq a b))
          return tys
   where
   genTys =
@@ -454,36 +458,39 @@ expectSeq ty =
        return (a,b)
 
 
-expectTuple :: Int -> Type -> InferM [Type]
-expectTuple n ty =
+expectTuple :: Int -> TypeWithSource -> InferM [Type]
+expectTuple n tGoal@(WithSource ty src) =
   case ty of
 
     TUser _ _ ty' ->
-         expectTuple n ty'
+         expectTuple n (WithSource ty' src)
 
     TCon (TC (TCTuple n')) tys | n == n' ->
          return tys
 
     TVar _ ->
       do tys <- genTys
-         newGoals CtExactType =<< unify ty (tTuple tys)
+         newGoals CtExactType =<< unify tGoal (tTuple tys)
          return tys
 
     _ ->
       do tys <- genTys
-         recordError (TypeMismatch ty (tTuple tys))
+         recordError (TypeMismatch src ty (tTuple tys))
          return tys
 
   where
   genTys =forM [ 0 .. n - 1 ] $ \ i -> newType (TypeOfTupleField i) KType
 
 
-expectRec :: RecordMap Ident (Range, a) -> Type -> InferM (RecordMap Ident (a, Type))
-expectRec fs ty =
+expectRec ::
+  RecordMap Ident (Range, a) ->
+  TypeWithSource ->
+  InferM (RecordMap Ident (a, Type))
+expectRec fs tGoal@(WithSource ty src) =
   case ty of
 
     TUser _ _ ty' ->
-         expectRec fs ty'
+         expectRec fs (WithSource ty' src)
 
     TRec ls
       | Right r <- zipRecords (\_ (_rng,v) t -> (v,t)) fs ls -> pure r
@@ -496,27 +503,26 @@ expectRec fs ty =
                   fs
          let tys = fmap snd res
          case ty of
-           TVar TVFree{} -> do ps <- unify ty (TRec tys)
+           TVar TVFree{} -> do ps <- unify tGoal (TRec tys)
                                newGoals CtExactType ps
-           _ -> recordError (TypeMismatch ty (TRec tys))
+           _ -> recordError (TypeMismatch src ty (TRec tys))
          return res
 
 
-expectFin :: Int -> Type -> InferM ()
-expectFin n ty =
+expectFin :: Int -> TypeWithSource -> InferM ()
+expectFin n tGoal@(WithSource ty src) =
   case ty of
 
     TUser _ _ ty' ->
-         expectFin n ty'
+         expectFin n (WithSource ty' src)
 
     TCon (TC (TCNum n')) [] | toInteger n == n' ->
          return ()
 
-    _ ->
-      do newGoals CtExactType =<< unify ty (tNum n)
+    _ -> newGoals CtExactType =<< unify tGoal (tNum n)
 
-expectFun :: Int -> Type -> InferM ([Type],Type)
-expectFun  = go []
+expectFun :: Maybe Name -> Int -> TypeWithSource -> InferM ([Type],Type)
+expectFun mbN n (WithSource ty0 src)  = go [] n ty0
   where
 
   go tys arity ty
@@ -533,37 +539,38 @@ expectFun  = go []
           do args <- genArgs arity
              res  <- newType TypeOfRes KType
              case ty of
-               TVar TVFree{} -> do ps <- unify ty (foldr tFun res args)
-                                   newGoals CtExactType  ps
-               _             -> recordError (TypeMismatch ty (foldr tFun res args))
+               TVar TVFree{} ->
+                  do ps <- unify (WithSource ty src) (foldr tFun res args)
+                     newGoals CtExactType  ps
+               _ -> recordError (TypeMismatch src ty (foldr tFun res args))
              return (reverse tys ++ args, res)
 
     | otherwise =
       return (reverse tys, ty)
 
   genArgs arity = forM [ 1 .. arity ] $
-                    \ ix -> newType (TypeOfArg (Just ix)) KType
+                    \ ix -> newType (TypeOfArg (ArgDescr mbN (Just ix))) KType
 
 
-checkHasType :: Type -> Type -> InferM ()
-checkHasType inferredType givenType =
-  do ps <- unify givenType inferredType
+checkHasType :: Type -> TypeWithSource -> InferM ()
+checkHasType inferredType tGoal =
+  do ps <- unify tGoal inferredType
      case ps of
        [] -> return ()
        _  -> newGoals CtExactType ps
 
 
-checkFun :: Doc -> [P.Pattern Name] -> P.Expr Name -> Type -> InferM Expr
+checkFun ::
+  Maybe Name -> [P.Pattern Name] -> P.Expr Name -> TypeWithSource -> InferM Expr
 checkFun _    [] e tGoal = checkE e tGoal
-checkFun desc ps e tGoal =
+checkFun fun ps e tGoal =
   inNewScope $
-  do let descs = [ text "type of" <+> ordinal n <+> text "argument"
-                     <+> text "of" <+> desc | n <- [ 1 :: Int .. ] ]
+  do let descs = [ TypeOfArg (ArgDescr fun (Just n)) | n <- [ 1 :: Int .. ] ]
 
-     (tys,tRes) <- expectFun (length ps) tGoal
-     largs      <- sequence (zipWith3 checkP descs ps tys)
+     (tys,tRes) <- expectFun fun (length ps) tGoal
+     largs      <- sequence (zipWith checkP ps (zipWith WithSource tys descs))
      let ds = Map.fromList [ (thing x, x { thing = t }) | (x,t) <- zip largs tys ]
-     e1         <- withMonoTypes ds (checkE e tRes)
+     e1         <- withMonoTypes ds (checkE e (WithSource tRes TypeOfRes))
 
      let args = [ (thing x, t) | (x,t) <- zip largs tys ]
      return (foldr (\(x,t) b -> EAbs x t b) e1 args)
@@ -577,20 +584,20 @@ smallest ts   = do a <- newType LenOfSeq KNum
                    newGoals CtComprehension [ a =#= foldr1 tMin ts ]
                    return a
 
-checkP :: Doc -> P.Pattern Name -> Type -> InferM (Located Name)
-checkP desc p tGoal =
-  do (x, t) <- inferP desc p
+checkP :: P.Pattern Name -> TypeWithSource -> InferM (Located Name)
+checkP p tGoal@(WithSource _ src) =
+  do (x, t) <- inferP p
      ps <- unify tGoal (thing t)
-     let rng   = fromMaybe emptyRange $ getLoc p
+     let rng   = fromMaybe emptyRange (getLoc p)
      let mkErr = recordError . UnsolvedGoals Nothing . (:[])
-                                                   . Goal (CtPattern desc) rng
+                                                   . Goal (CtPattern src) rng
      mapM_ mkErr ps
      return (Located (srcRange t) x)
 
 {-| Infer the type of a pattern.  Assumes that the pattern will be just
 a variable. -}
-inferP :: Doc -> P.Pattern Name -> InferM (Name, Located Type)
-inferP desc pat =
+inferP :: P.Pattern Name -> InferM (Name, Located Type)
+inferP pat =
   case pat of
 
     P.PVar x0 ->
@@ -599,7 +606,7 @@ inferP desc pat =
 
     P.PTyped p t ->
       do tSig <- checkTypeOfKind t KType
-         ln   <- checkP desc p tSig
+         ln   <- checkP p (WithSource tSig TypeFromUserAnnotation)
          return (thing ln, ln { thing = tSig })
 
     _ -> tcPanic "inferP" [ "Unexpected pattern:", show pat ]
@@ -609,9 +616,9 @@ inferP desc pat =
 -- | Infer the type of one match in a list comprehension.
 inferMatch :: P.Match Name -> InferM (Match, Name, Located Type, Type)
 inferMatch (P.Match p e) =
-  do (x,t) <- inferP (text "a value bound by a generator in a comprehension") p
+  do (x,t) <- inferP p
      n     <- newType LenOfCompGen KNum
-     e'    <- checkE e (tSeq n (thing t))
+     e'    <- checkE e (WithSource (tSeq n (thing t)) GeneratorOfListComp)
      return (From x n (thing t) e', x, t, n)
 
 inferMatch (P.MatchLet b)
@@ -857,7 +864,9 @@ checkMonoB b t =
     P.DPrim -> panic "checkMonoB" ["Primitive with no signature?"]
 
     P.DExpr e ->
-      do e1 <- checkFun (pp (thing (P.bName b))) (P.bParams b) e t
+      do let nm = thing (P.bName b)
+         let tGoal = WithSource t (DefinitionOf nm)
+         e1 <- checkFun (Just nm) (P.bParams b) e tGoal
          let f = thing (P.bName b)
          return Decl { dName = f
                      , dSignature = Forall [] [] t
@@ -887,7 +896,9 @@ checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
   inRangeMb (getLoc b) $
   withTParams as $
   do (e1,cs0) <- collectGoals $
-                do e1 <- checkFun (pp (thing (P.bName b))) (P.bParams b) e0 t0
+                do let nm = thing (P.bName b)
+                       tGoal = WithSource t0 (DefinitionOf nm)
+                   e1 <- checkFun (Just nm) (P.bParams b) e0 tGoal
                    addGoals validSchema
                    () <- simplifyAllConstraints  -- XXX: using `asmps` also?
                    return e1

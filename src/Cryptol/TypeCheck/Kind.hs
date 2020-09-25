@@ -303,7 +303,7 @@ checkTUser x ts k =
     do let ty = tpVar (mtpParam a)
        (ts1,k1) <- appTy ts (kindOf ty)
        case k of
-         Just ks | ks /= k1 -> kRecordError $ KindMismatch ks k1
+         Just ks | ks /= k1 -> kRecordError $ KindMismatch Nothing ks k1
          _ -> return ()
 
        unless (null ts1) $
@@ -406,7 +406,7 @@ checkKind :: Type         -- ^ Kind-checked type
           -> Kind         -- ^ Inferred kind
           -> KindM Type   -- ^ A type consistent with expectations.
 checkKind _ (Just k1) k2
-  | k1 /= k2    = do kRecordError (KindMismatch k1 k2)
+  | k1 /= k2    = do kRecordError (KindMismatch Nothing k1 k2)
                      kNewType TypeErrorPlaceHolder k1
 checkKind t _ _ = return t
 

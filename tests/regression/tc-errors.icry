@@ -1,0 +1,20 @@
+take `{Integer}              // kind mismatch
+take `{a = Z 1 2}            // Too amny type params
+[ 1@i | i <- [1,2,3] ]       // AmbiguousNumericType
+\x -> x x                    // Recusive type
+take `{inf}                  // Unsolvalbe constraint
+take {1,2,Integer,4}         // TooManyPositionalTypeParams
+take `{1}`{a=Integer}        // CannotMixPositionalAndNamed
+True : Integer               // TypeMismatch
+:l tc-errors-1.cry
+:l tc-errors-2.cry
+:l tc-errors-3.cry
+:l tc-errors-4.cry
+:l tc-errors-5.cry
+:l tc-errors-6.cry
+
+// Can these happen?
+// XXX: TooManyTySynParams
+// XXX: TooFewTyParams
+// XXX: UndefinedTypeParameter (renamer?)
+// XXX: RepeatedTypeParameters (renamer?)

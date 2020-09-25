@@ -37,18 +37,18 @@ import           Cryptol.Utils.Patterns(matchMaybe)
 
 import           Control.Applicative ((<|>))
 import           Control.Monad(mzero)
+import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Set ( Set )
 import qualified Data.Set as Set
 import           Data.List(partition)
-import           Data.Maybe(listToMaybe)
+import           Data.Maybe(listToMaybe,fromMaybe)
 
 
 
 
 
-quickSolverIO :: Ctxt -> [Goal] ->
-                              IO (Either (TCErrorMessage,Goal) (Subst,[Goal]))
+quickSolverIO :: Ctxt -> [Goal] -> IO (Either Error (Subst,[Goal]))
 quickSolverIO _ [] = return (Right (emptySubst, []))
 quickSolverIO ctxt gs =
   case quickSolver ctxt gs of
@@ -73,7 +73,7 @@ quickSolverIO ctxt gs =
 
 quickSolver :: Ctxt   -- ^ Facts we can know
             -> [Goal] -- ^ Need to solve these
-            -> Either (TCErrorMessage,Goal) (Subst,[Goal])
+            -> Either Error (Subst,[Goal])
             -- ^ Left: contradicting goals,
             --   Right: inferred types, unsolved goals.
 quickSolver ctxt gs0 = go emptySubst [] gs0
@@ -81,27 +81,68 @@ quickSolver ctxt gs0 = go emptySubst [] gs0
   go su [] [] = Right (su,[])
 
   go su unsolved [] =
-    case matchMaybe (findImprovement unsolved) of
-      Nothing            -> Right (su,unsolved)
-      Just (newSu, subs) -> go (newSu @@ su) [] (subs ++ apSubst newSu unsolved)
+    case matchMaybe (findImprovement noIncompatible unsolved) of
+      Nothing -> Right (su,unsolved)
+      Just imp ->
+        case imp of
+          Right (newSu, subs) ->
+            go (newSu @@ su) [] (subs ++ apSubst newSu unsolved)
+          Left err -> Left err
 
   go su unsolved (g : gs)
     | Set.member (goal g) (saturatedAsmps ctxt) = go su unsolved gs
 
   go su unsolved (g : gs) =
     case Simplify.simplifyStep ctxt (goal g) of
-      Unsolvable e        -> Left (e,g)
+      Unsolvable e        -> Left (UnsolvedGoals (Just e) [g])
       Unsolved            -> go su (g : unsolved) gs
       SolvedIf subs       ->
         let cvt x = g { goal = x }
         in go su unsolved (map cvt subs ++ gs)
 
   -- Probably better to find more than one.
-  findImprovement []       = mzero
-  findImprovement (g : gs) =
+  findImprovement inc [] =
+    do let bad = Map.intersectionWith (,) (integralTVars inc) (fracTVars inc)
+       case Map.minView bad of
+         Just ((g1,g2),_) ->
+            pure $ Left $
+              UnsolvedGoals (Just (TCErrorMessage "Mutually exclusive goals"))
+                             [g1,g2]
+         Nothing -> mzero
+
+  findImprovement inc (g : gs) =
     do (su,ps) <- improveProp False ctxt (goal g)
-       return (su, [ g { goal = p } | p <- ps ])
-    <|> findImprovement gs
+       return (Right (su, [ g { goal = p } | p <- ps ]))
+    <|>
+    findImprovement (addIncompatible g inc) gs
+
+
+--------------------------------------------------------------------------------
+-- Look for type variable with incompatible constraints
+
+data Incompatible = Incompatible
+  { integralTVars :: Map TVar Goal    -- ^ Integral a
+  , fracTVars     :: Map TVar Goal    -- ^ Field a or FLiteral 
+  }
+
+noIncompatible :: Incompatible
+noIncompatible = Incompatible
+  { integralTVars = Map.empty
+  , fracTVars     = Map.empty
+  }
+
+addIncompatible :: Goal -> Incompatible -> Incompatible
+addIncompatible g i =
+  fromMaybe i $
+  do tv <- tIsVar =<< pIsIntegral (goal g)
+     pure i { integralTVars = Map.insert tv g (integralTVars i) }
+  <|>
+  do tv <- tIsVar =<< pIsField (goal g)
+     pure i { fracTVars = Map.insert tv g (fracTVars i) }
+  <|>
+  do (_,_,_,t) <- pIsFLiteral (goal g)
+     tv        <- tIsVar t
+     pure i { fracTVars = Map.insert tv g (fracTVars i) }
 
 
 
@@ -145,14 +186,14 @@ defaultReplExpr sol expr sch =
   fLitGoals = flitDefaultCandidates gSet
 
   tryDefVar a =
-    do ((_,t),_) <- Map.lookup (TVBound a) fLitGoals
-       pure [(a, t)]
-    <|>
-    do let a' = TVBound a
-       gt <- Map.lookup a' (literalGoals gSet)
-       let ok p = not (Set.member a' (fvs p))
-       return [ (a,t) | t <- [ tInteger, tBit, tWord (tWidth (goal gt)) ]
-                      , ok t ]
+    case Map.lookup (TVBound a) fLitGoals of
+      Just m -> m >>= \((_,t),_) -> pure [(a,t)]
+      Nothing ->
+        do let a' = TVBound a
+           gt <- Map.lookup a' (literalGoals gSet)
+           let ok p = not (Set.member a' (fvs p))
+           return [ (a,t) | t <- [ tInteger, tBit, tWord (tWidth (goal gt)) ]
+                          , ok t ]
 
 
   appExpr tys = foldl (\e1 _ -> EProofApp e1)
@@ -185,7 +226,7 @@ simplifyAllConstraints =
        [] -> return ()
        _ ->
         case quickSolver mempty gs of
-          Left (msg,badG)      -> recordError (UnsolvedGoals (Just msg) [badG])
+          Left err -> recordError err
           Right (su,gs1) ->
             do extendSubst su
                addGoals gs1
@@ -255,7 +296,7 @@ proveImplicationIO s f varsInEnv ps asmps0 gs0 =
   do let ctxt = buildSolverCtxt asmps
      res <- quickSolverIO ctxt gs
      case res of
-       Left (msg,bad) -> return (Left [UnsolvedGoals (Just msg) [bad]], emptySubst)
+       Left erro -> return (Left [erro], emptySubst)
        Right (su,[]) -> return (Right [], su)
        Right (su,gs1) ->
          do gs2 <- proveImp s asmps gs1

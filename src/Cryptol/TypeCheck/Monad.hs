@@ -49,7 +49,6 @@ import           MonadLib hiding (mapM)
 import           Data.IORef
 
 
-
 import GHC.Generics (Generic)
 import Control.DeepSeq
 
@@ -454,12 +453,12 @@ newGoalName = newName $ \s -> let x = seedGoal s
                               in (x, s { seedGoal = x + 1})
 
 -- | Generate a new free type variable.
-newTVar :: TVarSource -> Kind -> InferM TVar
+newTVar :: TypeSource -> Kind -> InferM TVar
 newTVar src k = newTVar' src Set.empty k
 
 -- | Generate a new free type variable that depends on these additional
 -- type parameters.
-newTVar' :: TVarSource -> Set TParam -> Kind -> InferM TVar
+newTVar' :: TypeSource -> Set TParam -> Kind -> InferM TVar
 newTVar' src extraBound k =
   do r <- curRange
      bound <- getBoundInScope
@@ -486,7 +485,7 @@ newTParam nm flav k = newName $ \s ->
 
 
 -- | Generate an unknown type.  The doc is a note about what is this type about.
-newType :: TVarSource -> Kind -> InferM Type
+newType :: TypeSource -> Kind -> InferM Type
 newType src k = TVar `fmap` newTVar src k
 
 
@@ -495,8 +494,8 @@ newType src k = TVar `fmap` newTVar src k
 
 
 -- | Record that the two types should be syntactically equal.
-unify :: Type -> Type -> InferM [Prop]
-unify t1 t2 =
+unify :: TypeWithSource -> Type -> InferM [Prop]
+unify (WithSource t1 src) t2 =
   do t1' <- applySubst t1
      t2' <- applySubst t2
      let ((su1, ps), errs) = runResult (mgu t1' t2')
@@ -504,12 +503,12 @@ unify t1 t2 =
      let toError :: UnificationError -> Error
          toError err =
            case err of
-             UniTypeLenMismatch _ _ -> TypeMismatch t1' t2'
-             UniTypeMismatch s1 s2  -> TypeMismatch s1 s2
-             UniKindMismatch k1 k2  -> KindMismatch k1 k2
-             UniRecursive x t       -> RecursiveType (TVar x) t
-             UniNonPolyDepends x vs -> TypeVariableEscaped (TVar x) vs
-             UniNonPoly x t         -> NotForAll x t
+             UniTypeLenMismatch _ _ -> TypeMismatch src t1' t2'
+             UniTypeMismatch s1 s2  -> TypeMismatch src s1 s2
+             UniKindMismatch k1 k2  -> KindMismatch (Just src) k1 k2
+             UniRecursive x t       -> RecursiveType src (TVar x) t
+             UniNonPolyDepends x vs -> TypeVariableEscaped src (TVar x) vs
+             UniNonPoly x t         -> NotForAll src x t
      case errs of
        [] -> return ps
        _  -> do mapM_ (recordError . toError) errs
@@ -892,7 +891,7 @@ kIO m = KM $ lift $ lift $ io m
 -- NOTE:  We do not simplify these, because we end up with bottom.
 -- See `Kind.hs`
 -- XXX: Perhaps we can avoid the recursion?
-kNewType :: TVarSource -> Kind -> KindM Type
+kNewType :: TypeSource -> Kind -> KindM Type
 kNewType src k =
   do tps <- KM $ do vs <- asks lazyTParams
                     return $ Set.fromList (Map.elems vs)

@@ -10,8 +10,8 @@ Showing a specific instance of polymorphic result:
   * Using 'Integer' for the type of '<interactive>::y'
 {x = 1, y = 2}
 Showing a specific instance of polymorphic result:
-  * Using 'Integer' for the type of '<interactive>::x'
+  * Using 'Integer' for type of 0th tuple field
 1
 Showing a specific instance of polymorphic result:
-  * Using 'Integer' for the type of '<interactive>::x'
+  * Using 'Integer' for type of field 'x'
 10

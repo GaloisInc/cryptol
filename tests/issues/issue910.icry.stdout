@@ -1,0 +1,29 @@
+Loading module Cryptol
+
+[error] at <interactive>:1:1--1:21:
+  Unsolvable constraints:
+    • Integral ?a`972
+        arising from
+        use of expression (@)
+        at <interactive>:1:8--1:21
+    • Field ?a`972
+        arising from
+        use of expression (/.)
+        at <interactive>:1:14--1:20
+    • Reason: Mutually exclusive goals
+  where
+  ?a`972 is type argument 'a' of '(/.)' at <interactive>:1:14--1:20
+
+[error] at <interactive>:1:1--1:16:
+  Unsolvable constraints:
+    • Integral ?a`970
+        arising from
+        use of expression (@)
+        at <interactive>:1:8--1:16
+    • FLiteral 6 5 0 ?a`970
+        arising from
+        use of fractional literal
+        at <interactive>:1:13--1:16
+    • Reason: Mutually exclusive goals
+  where
+  ?a`970 is type argument 'a' of 'fraction' at <interactive>:1:13--1:16
