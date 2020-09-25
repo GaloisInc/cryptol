@@ -46,7 +46,6 @@ setup_dist_bins() {
   is_exe "dist/bin" "cryptol" && is_exe "dist/bin" "cryptol-html" && return
   extract_exe "cryptol" "dist/bin"
   extract_exe "cryptol-html" "dist/bin"
-  extract_exe "cryptol-remote-api" "dist/bin"
   strip dist/bin/cryptol* || echo "Strip failed: Ignoring harmless error"
 }
 
@@ -113,7 +112,6 @@ build() {
   cabal v2-update
   cabal v2-configure -j2 --minimize-conflict-set
   retry ./cry build exe:cryptol-html "$@" # retry due to flakiness with windows builds
-  cabal v2-build cryptol-remote-api
 }
 
 install_system_deps() {
