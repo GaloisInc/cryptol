@@ -1,0 +1,4 @@
+Loading module Cryptol
+
+Parse error at <interactive>:1:13--1:17
+  malformed selector: .0x1

@@ -10,6 +10,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE BlockArguments #-}
 module Cryptol.Parser.LexerUtils where
 
 import Cryptol.Parser.Position
@@ -17,10 +18,13 @@ import Cryptol.Parser.Unlit(PreProc(None))
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic
 
-import           Data.Char(toLower,generalCategory,isAscii,ord,isSpace)
+import           Control.Monad(guard)
+import           Data.Char(toLower,generalCategory,isAscii,ord,isSpace,
+                                                            isAlphaNum,isAlpha)
 import qualified Data.Char as Char
 import           Data.Text(Text)
 import qualified Data.Text as T
+import qualified Data.Text.Read as T
 import           Data.Word(Word8)
 
 import GHC.Generics (Generic)
@@ -47,7 +51,7 @@ defaultConfig  = Config
 
 
 type Action = Config -> Position -> Text -> LexS
-           -> (Maybe (Located Token), LexS)
+           -> ([Located Token], LexS)
 
 data LexS   = Normal
             | InComment Bool Position ![Position] [Text]
@@ -56,7 +60,7 @@ data LexS   = Normal
 
 
 startComment :: Bool -> Action
-startComment isDoc _ p txt s = (Nothing, InComment d p stack chunks)
+startComment isDoc _ p txt s = ([], InComment d p stack chunks)
   where (d,stack,chunks) = case s of
                            Normal                -> (isDoc, [], [txt])
                            InComment doc q qs cs -> (doc, q : qs, txt : cs)
@@ -65,8 +69,8 @@ startComment isDoc _ p txt s = (Nothing, InComment d p stack chunks)
 endComment :: Action
 endComment cfg p txt s =
   case s of
-    InComment d f [] cs     -> (Just (mkToken d f cs), Normal)
-    InComment d _ (q:qs) cs -> (Nothing, InComment d q qs (txt : cs))
+    InComment d f [] cs     -> ([mkToken d f cs], Normal)
+    InComment d _ (q:qs) cs -> ([], InComment d q qs (txt : cs))
     _                     -> panic "[Lexer] endComment" ["outside comment"]
   where
   mkToken isDoc f cs =
@@ -77,7 +81,7 @@ endComment cfg p txt s =
     in Located { srcRange = r, thing = Token (White tok) str }
 
 addToComment :: Action
-addToComment _ _ txt s = (Nothing, InComment doc p stack (txt : chunks))
+addToComment _ _ txt s = ([], InComment doc p stack (txt : chunks))
   where
   (doc, p, stack, chunks) =
      case s of
@@ -87,7 +91,7 @@ addToComment _ _ txt s = (Nothing, InComment doc p stack (txt : chunks))
 startEndComment :: Action
 startEndComment cfg p txt s =
   case s of
-    Normal -> (Just tok, Normal)
+    Normal -> ([tok], Normal)
       where tok = Located
                     { srcRange = Range { from   = p
                                        , to     = moves p txt
@@ -95,15 +99,15 @@ startEndComment cfg p txt s =
                                        }
                     , thing = Token (White BlockComment) txt
                     }
-    InComment d p1 ps cs -> (Nothing, InComment d p1 ps (txt : cs))
+    InComment d p1 ps cs -> ([], InComment d p1 ps (txt : cs))
     _ -> panic "[Lexer] startEndComment" ["in string or char?"]
 
 startString :: Action
-startString _ p txt _ = (Nothing,InString p txt)
+startString _ p txt _ = ([],InString p txt)
 
 endString :: Action
 endString cfg pe txt s = case s of
-  InString ps str -> (Just (mkToken ps str), Normal)
+  InString ps str -> ([mkToken ps str], Normal)
   _               -> panic "[Lexer] endString" ["outside string"]
   where
   parseStr s1 = case reads s1 of
@@ -126,17 +130,17 @@ endString cfg pe txt s = case s of
 
 addToString :: Action
 addToString _ _ txt s = case s of
-  InString p str -> (Nothing,InString p (str `T.append` txt))
+  InString p str -> ([],InString p (str `T.append` txt))
   _              -> panic "[Lexer] addToString" ["outside string"]
 
 
 startChar :: Action
-startChar _ p txt _   = (Nothing,InChar p txt)
+startChar _ p txt _   = ([],InChar p txt)
 
 endChar :: Action
 endChar cfg pe txt s =
   case s of
-    InChar ps str -> (Just (mkToken ps str), Normal)
+    InChar ps str -> ([mkToken ps str], Normal)
     _             -> panic "[Lexer] endString" ["outside character"]
 
   where
@@ -161,37 +165,39 @@ endChar cfg pe txt s =
 
 addToChar :: Action
 addToChar _ _ txt s = case s of
-  InChar p str -> (Nothing,InChar p (str `T.append` txt))
+  InChar p str -> ([],InChar p (str `T.append` txt))
   _              -> panic "[Lexer] addToChar" ["outside character"]
 
 
 mkIdent :: Action
-mkIdent cfg p s z = (Just Located { srcRange = r, thing = Token t s }, z)
+mkIdent cfg p s z = ([Located { srcRange = r, thing = Token t s }], z)
   where
   r = Range { from = p, to = moves p s, source = cfgSource cfg }
   t = Ident [] s
 
 mkQualIdent :: Action
-mkQualIdent cfg p s z = (Just Located { srcRange = r, thing = Token t s}, z)
+mkQualIdent cfg p s z = ([Located { srcRange = r, thing = Token t s}], z)
   where
   r = Range { from = p, to = moves p s, source = cfgSource cfg }
   t = Ident ns i
   (ns,i) = splitQual s
 
 mkQualOp :: Action
-mkQualOp cfg p s z = (Just Located { srcRange = r, thing = Token t s}, z)
+mkQualOp cfg p s z = ([Located { srcRange = r, thing = Token t s}], z)
   where
   r = Range { from = p, to = moves p s, source = cfgSource cfg }
   t = Op (Other ns i)
   (ns,i) = splitQual s
 
 emit :: TokenT -> Action
-emit t cfg p s z  = (Just Located { srcRange = r, thing = Token t s }, z)
+emit t cfg p s z  = ([Located { srcRange = r, thing = Token t s }], z)
   where r = Range { from = p, to = moves p s, source = cfgSource cfg }
-
 
 emitS :: (Text -> TokenT) -> Action
 emitS t cfg p s z  = emit (t s) cfg p s z
+
+emitFancy :: (FilePath -> Position -> Text -> [Located Token]) -> Action
+emitFancy f = \cfg p s z -> (f (cfgSource cfg) p s, z)
 
 
 -- | Split out the prefix and name part of an identifier/operator.
@@ -213,50 +219,118 @@ splitQual t =
 
 
 --------------------------------------------------------------------------------
-numToken :: Int {- ^ base -} -> Text -> TokenT
-numToken rad ds = Num (toVal ds') rad (T.length ds')
+numToken :: Text -> TokenT
+numToken ds = case toVal of
+                Just v  -> Num v rad (T.length ds')
+                Nothing -> Err MalformedLiteral
   where
-  ds' = T.filter (/= '_') ds
-  toVal = T.foldl' (\x c -> toInteger rad * x + fromDigit c) 0
+  rad
+    | "0b" `T.isPrefixOf` ds = 2
+    | "0o" `T.isPrefixOf` ds = 8
+    | "0x" `T.isPrefixOf` ds = 16
+    | otherwise              = 10
 
-fromDigit :: Char -> Integer
-fromDigit x'
-  | 'a' <= x && x <= 'z'  = toInteger (10 + fromEnum x - fromEnum 'a')
-  | otherwise             = toInteger (fromEnum x - fromEnum '0')
-  where x                 = toLower x'
+  ds1   = if rad == 10 then ds else T.drop 2 ds
 
+  ds'   = T.filter (/= '_') ds1
+  toVal = T.foldl' step (Just 0) ds'
+  irad  = toInteger rad
+  step mb x = do soFar <- mb
+                 d     <- fromDigit irad x
+                 pure $! (irad * soFar + d)
 
--- XXX: For now we just keep the number as a rational.
--- It might be better to keep the exponent representation,
--- to avoid making huge numbers, and using up all the memory though...
-fnumToken :: Int -> Text -> TokenT
-fnumToken rad ds = Frac ((wholenNum + fracNum) * (eBase ^^ expNum)) rad
+fromDigit :: Integer -> Char -> Maybe Integer
+fromDigit r x' =
+  do d <- v
+     guard (d < r)
+     pure d
   where
+  x = toLower x'
+  v | '0' <= x && x <= '9' = Just $ toInteger $      fromEnum x - fromEnum '0'
+    | 'a' <= x && x <= 'z' = Just $ toInteger $ 10 + fromEnum x - fromEnum 'a'
+    | otherwise            = Nothing
+
+
+-- | Interpret something either as a fractional token,
+-- a number followed by a selector, or an error.
+fnumTokens :: FilePath -> Position -> Text -> [Located Token]
+fnumTokens file pos ds =
+  case wholeNum of
+    Nothing -> [ tokFrom pos ds (Err MalformedLiteral) ]
+    Just i
+      | Just f <- fracNum, Just e <- expNum ->
+        [ tokFrom pos ds (Frac ((fromInteger i + f) * (eBase ^^ e)) rad) ]
+      | otherwise ->
+        [ tokFrom pos        whole (Num i rad (T.length whole))
+        , tokFrom afterWhole rest  (selectorToken rest)
+        ]
+
+  where
+  tokFrom tpos txt t =
+    Located { srcRange =
+                 Range { from = tpos, to = moves tpos txt, source = file }
+            , thing = Token { tokenText = txt, tokenType = t }
+            }
+
+  afterWhole = moves pos whole
+
+  rad
+    | "0b" `T.isPrefixOf` ds = 2
+    | "0o" `T.isPrefixOf` ds = 8
+    | "0x" `T.isPrefixOf` ds = 16
+    | otherwise              = 10
+
   radI           = fromIntegral rad :: Integer
   radR           = fromIntegral rad :: Rational
 
-  (whole,rest)   = T.break (== '.') ds
+  (whole,rest)   = T.break (== '.') (if rad == 10 then ds else T.drop 2 ds)
   digits         = T.filter (/= '_')
   expSym e       = if rad == 10 then toLower e == 'e' else toLower e == 'p'
   (frac,mbExp)   = T.break expSym (T.drop 1 rest)
 
+  wholeStep mb c = do soFar <- mb
+                      d     <- fromDigit radI c
+                      pure $! (radI * soFar + d)
 
-  wholenNum      = fromInteger
-                 $ T.foldl' (\x c -> radI * x + fromDigit c) 0
-                 $ digits whole
+  wholeNum       = T.foldl' wholeStep (Just 0) (digits whole)
 
-  fracNum        = T.foldl' (\x c -> (x + fromInteger (fromDigit c)) / radR) 0
-                 $ T.reverse $ digits frac
+  fracStep mb c  = do soFar <- mb
+                      d     <- fromInteger <$> fromDigit radI c
+                      pure $! ((soFar + d) / radR)
+
+  fracNum        = do let fds = T.reverse (digits frac)
+                      guard (T.length fds > 0)
+                      T.foldl' fracStep (Just 0) fds
 
   expNum         = case T.uncons mbExp of
-                     Nothing -> 0 :: Integer
+                     Nothing -> Just (0 :: Integer)
                      Just (_,es) ->
                        case T.uncons es of
-                         Just ('+', more) -> read $ T.unpack more
-                         _                -> read $ T.unpack es
+                         Just ('+', more) -> readDecimal more
+                         Just ('-', more) -> negate <$> readDecimal more
+                         _                -> readDecimal es
 
   eBase          = if rad == 10 then 10 else 2 :: Rational
 
+
+-- assumes we start with a dot
+selectorToken :: Text -> TokenT
+selectorToken txt
+  | Just n <- readDecimal body, n >= 0 = Selector (TupleSelectorTok n)
+  | Just (x,xs) <- T.uncons body
+  , ok isAlpha x
+  , T.all (ok isAlphaNum) xs = Selector (RecordSelectorTok body)
+  | otherwise = Err MalformedSelector
+
+  where
+  body = T.drop 1 txt
+  ok p x = p x || x == '_'
+
+
+readDecimal :: Integral a => Text -> Maybe a
+readDecimal txt = case T.decimal txt of
+                    Right (a,more) | T.null more -> Just a
+                    _ -> Nothing
 
 
 -------------------------------------------------------------------------------
@@ -462,6 +536,11 @@ data TokenErr = UnterminatedComment
               | InvalidString
               | InvalidChar
               | LexicalError
+              | MalformedLiteral
+              | MalformedSelector
+                deriving (Eq, Show, Generic, NFData)
+
+data SelectorType = RecordSelectorTok Text | TupleSelectorTok Int
                 deriving (Eq, Show, Generic, NFData)
 
 data TokenT   = Num !Integer !Int !Int   -- ^ value, base, number of digits
@@ -469,6 +548,7 @@ data TokenT   = Num !Integer !Int !Int   -- ^ value, base, number of digits
               | ChrLit  !Char         -- ^ character literal
               | Ident ![T.Text] !T.Text -- ^ (qualified) identifier
               | StrLit !String         -- ^ string literal
+              | Selector !SelectorType  -- ^ .hello or .123
               | KW    !TokenKW         -- ^ keyword
               | Op    !TokenOp         -- ^ operator
               | Sym   !TokenSym        -- ^ symbol

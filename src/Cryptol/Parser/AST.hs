@@ -279,18 +279,18 @@ data TopLevel a = TopLevel { tlExport :: ExportType
 
 
 -- | Infromation about the representation of a numeric constant.
-data NumInfo  = BinLit Int                      -- ^ n-digit binary literal
-              | OctLit Int                      -- ^ n-digit octal  literal
-              | DecLit                          -- ^ overloaded decimal literal
-              | HexLit Int                      -- ^ n-digit hex literal
+data NumInfo  = BinLit Text Int                 -- ^ n-digit binary literal
+              | OctLit Text Int                 -- ^ n-digit octal  literal
+              | DecLit Text                     -- ^ overloaded decimal literal
+              | HexLit Text Int                 -- ^ n-digit hex literal
               | PolyLit Int                     -- ^ polynomial literal
                 deriving (Eq, Show, Generic, NFData)
 
 -- | Information about fractional literals.
-data FracInfo = BinFrac
-              | OctFrac
-              | DecFrac
-              | HexFrac
+data FracInfo = BinFrac Text
+              | OctFrac Text
+              | DecFrac Text
+              | HexFrac Text
                 deriving (Eq,Show,Generic,NFData)
 
 -- | Literals.
@@ -648,10 +648,10 @@ ppFracLit :: Rational -> FracInfo -> Doc
 ppFracLit x i
   | toRational dbl == x =
     case i of
-      BinFrac -> frac
-      OctFrac -> frac
-      DecFrac -> text (showFloat dbl "")
-      HexFrac -> text (showHFloat dbl "")
+      BinFrac _ -> frac
+      OctFrac _ -> frac
+      DecFrac _ -> text (showFloat dbl "")
+      HexFrac _ -> text (showHFloat dbl "")
   | otherwise = frac
   where
   dbl = fromRational x :: Double
@@ -662,11 +662,11 @@ ppFracLit x i
 ppNumLit :: Integer -> NumInfo -> Doc
 ppNumLit n info =
   case info of
-    DecLit    -> integer n
-    BinLit w  -> pad 2  "0b" w
-    OctLit w  -> pad 8  "0o" w
-    HexLit w  -> pad 16 "0x" w
-    PolyLit w -> text "<|" <+> poly w <+> text "|>"
+    DecLit _   -> integer n
+    BinLit _ w -> pad 2  "0b" w
+    OctLit _ w -> pad 8  "0o" w
+    HexLit _ w -> pad 16 "0x" w
+    PolyLit w  -> text "<|" <+> poly w <+> text "|>"
   where
   pad base pref w =
     let txt = showIntAtBase base ("0123456789abcdef" !!) n ""

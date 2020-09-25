@@ -22,6 +22,7 @@ import qualified Control.Monad.Fail as Fail
 import           Data.Text(Text)
 import qualified Data.Text as T
 import qualified Data.Map as Map
+import Text.Read(readMaybe)
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
@@ -32,6 +33,7 @@ import Prelude.Compat
 
 import Cryptol.Parser.AST
 import Cryptol.Parser.Lexer
+import Cryptol.Parser.LexerUtils(SelectorType(..))
 import Cryptol.Parser.Position
 import Cryptol.Parser.Utils (translateExprToNumT,widthIdent)
 import Cryptol.Utils.Ident(packModName)
@@ -67,11 +69,15 @@ lexerP k = P $ \cfg p s ->
            UnterminatedComment -> "unterminated comment"
            UnterminatedString  -> "unterminated string"
            UnterminatedChar    -> "unterminated character"
-           InvalidString       -> "invalid string literal:" ++
+           InvalidString       -> "invalid string literal: " ++
                                     T.unpack (tokenText it)
-           InvalidChar         -> "invalid character literal:" ++
+           InvalidChar         -> "invalid character literal: " ++
                                     T.unpack (tokenText it)
-           LexicalError        -> "unrecognized character:" ++
+           LexicalError        -> "unrecognized character: " ++
+                                    T.unpack (tokenText it)
+           MalformedLiteral    -> "malformed literal: " ++
+                                    T.unpack (tokenText it)
+           MalformedSelector   -> "malformed selector: " ++
                                     T.unpack (tokenText it)
       where it = thing t
 
@@ -201,23 +207,23 @@ getStr l = case thing l of
              Token (StrLit x) _ -> x
              _ -> panic "[Parser] getStr" ["not a string:", show l]
 
-numLit :: TokenT -> Expr PName
-numLit (Num x base digs)
-  | base == 2   = ELit $ ECNum x (BinLit digs)
-  | base == 8   = ELit $ ECNum x (OctLit digs)
-  | base == 10  = ELit $ ECNum x DecLit
-  | base == 16  = ELit $ ECNum x (HexLit digs)
+numLit :: Token -> Expr PName
+numLit Token { tokenText = txt, tokenType = Num x base digs }
+  | base == 2   = ELit $ ECNum x (BinLit txt digs)
+  | base == 8   = ELit $ ECNum x (OctLit txt digs)
+  | base == 10  = ELit $ ECNum x (DecLit txt)
+  | base == 16  = ELit $ ECNum x (HexLit txt digs)
 
 numLit x = panic "[Parser] numLit" ["invalid numeric literal", show x]
 
-fracLit :: TokenT -> Expr PName
+fracLit :: Token -> Expr PName
 fracLit tok =
-  case tok of
+  case tokenType tok of
     Frac x base
-      | base == 2   -> ELit $ ECFrac x BinFrac
-      | base == 8   -> ELit $ ECFrac x OctFrac
-      | base == 10  -> ELit $ ECFrac x DecFrac
-      | base == 16  -> ELit $ ECFrac x HexFrac
+      | base == 2   -> ELit $ ECFrac x $ BinFrac $ tokenText tok
+      | base == 8   -> ELit $ ECFrac x $ OctFrac $ tokenText tok
+      | base == 10  -> ELit $ ECFrac x $ DecFrac $ tokenText tok
+      | base == 16  -> ELit $ ECFrac x $ HexFrac $ tokenText tok
     _ -> panic "[Parser] fracLit" [ "Invalid fraction", show tok ]
 
 
@@ -233,14 +239,6 @@ mkFixity assoc tok qns =
      unless (l >= 1 && l <= 100)
           (errorMessage (srcRange tok) "Fixity levels must be between 1 and 100")
      return (DFixity (Fixity assoc (fromInteger l)) qns)
-
-mkTupleSel :: Range -> Integer -> ParseM (Located Selector)
-mkTupleSel pos n
-  | n < 0 = errorMessage pos
-             (show n ++ " is not a valid tuple selector (they start from 0).")
-  | toInteger asInt /= n  = errorMessage pos "Tuple selector is too large."
-  | otherwise             = return $ Located pos $ TupleSel asInt Nothing
-  where asInt = fromInteger n
 
 fromStrLit :: Located Token -> ParseM (Located String)
 fromStrLit loc = case tokenType (thing loc) of
@@ -712,8 +710,8 @@ ufToNamed (UpdField h ls e) =
     _ -> errorMessage (srcRange (head ls))
             "Invalid record field.  Perhaps you meant to update a record?"
 
-selExprToSels :: Expr PName -> ParseM [Located Selector]
-selExprToSels e0 = reverse <$> go noLoc e0
+exprToFieldPath :: Expr PName -> ParseM [Located Selector]
+exprToFieldPath e0 = reverse <$> go noLoc e0
   where
   noLoc = panic "selExprToSels" ["Missing location?"]
   go loc expr =
@@ -725,10 +723,35 @@ selExprToSels e0 = reverse <$> go noLoc e0
            pure (Located { thing = s, srcRange = rng } : ls)
       EVar (UnQual l) ->
         pure [ Located { thing = RecordSel l Nothing, srcRange = loc } ]
-      ELit (ECNum n _) ->
-        do ts <- mkTupleSel loc n
-           pure [ ts ]
+
+      ELit (ECNum n (DecLit {})) ->
+        pure [ Located { thing = TupleSel (fromInteger n) Nothing
+                       , srcRange = loc } ]
+
+      ELit (ECFrac _ (DecFrac txt))
+        | (as,bs') <- T.break (== '.') txt
+        , Just a <- readMaybe (T.unpack as)
+        , Just (_,bs) <- T.uncons bs'
+        , Just b <- readMaybe (T.unpack bs)
+        , let fromP = from loc
+        , let midP  = fromP { col = col fromP + T.length as + 1 } ->
+          -- these are backward because we reverse above
+          pure [ Located { thing    = TupleSel b Nothing
+                         , srcRange = loc { from = midP }
+                         }
+               , Located { thing    = TupleSel a Nothing
+                         , srcRange = loc { to = midP }
+                         }
+               ]
+
       _ -> errorMessage loc "Invalid label in record update."
 
 
+mkSelector :: Token -> Selector
+mkSelector tok =
+  case tokenType tok of
+    Selector (TupleSelectorTok n) -> TupleSel n Nothing
+    Selector (RecordSelectorTok t) -> RecordSel (mkIdent t) Nothing
+    _ -> panic "mkSelector"
+          [ "Unexpected selector token", show tok ]
 

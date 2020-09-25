@@ -45,17 +45,10 @@ $unitick        = \x7
 @qual_id      = @qual @id
 @qual_op      = @qual @op
 
-@digits2      = (_*[0-1])+
-@digits8      = (_*[0-7])+
-@digits16     = (_*[0-9A-Fa-f])+
-@num2         = "0b" @digits2
-@num8         = "0o" @digits8
-@num10        = [0-9](_*[0-9])*
-@num16        = "0x" @digits16
-@fnum2        = @num2  "." @digits2   ([pP] [\+\-]? @num10)?
-@fnum8        = @num8  "." @digits8   ([pP] [\+\-]? @num10)?
-@fnum10       = @num10 "." @num10     ([eE] [\+\-]? @num10)?
-@fnum16       = @num16 "." @digits16  ([pP] [\+\-]? @num10)?
+@num          = [0-9] @id_next*
+@fnum         = [0-9] @id_next* "." (@id_next | [pPeE][\+\-])+
+
+@selector     = "." @id_next+
 
 @strPart      = [^\\\"]+
 @chrPart      = [^\\\']+
@@ -130,19 +123,12 @@ $white+                   { emit $ White Space }
 
 "Prop"                    { emit $ KW KW_Prop }
 
-@num2                     { emitS (numToken 2  . Text.drop 2) }
-@num8                     { emitS (numToken 8  . Text.drop 2) }
-@num10                    { emitS (numToken 10 . Text.drop 0) }
-@num16                    { emitS (numToken 16 . Text.drop 2) }
-@fnum2                    { emitS (fnumToken 2 . Text.drop 2) }
-@fnum8                    { emitS (fnumToken 8 . Text.drop 2) }
-@fnum10                   { emitS (fnumToken 10 . Text.drop 0) }
-@fnum16                   { emitS (fnumToken 16 . Text.drop 2) }
-
-
+@num                      { emitS numToken }
+@fnum                     { emitFancy fnumTokens }
 
 "_"                       { emit $ Sym Underscore }
 @id                       { mkIdent }
+@selector                 { emitS selectorToken }
 
 "\"                       { emit $ Sym Lambda }
 "->"                      { emit $ Sym ArrR }
@@ -152,7 +138,6 @@ $white+                   { emit $ White Space }
 "="                       { emit $ Sym EqDef }
 ","                       { emit $ Sym Comma }
 ";"                       { emit $ Sym Semi }
-"."                       { emit $ Sym Dot }
 ":"                       { emit $ Sym Colon }
 "`"                       { emit $ Sym BackTick }
 ".."                      { emit $ Sym DotDot }
@@ -261,9 +246,7 @@ primLexer cfg cs = run inp Normal
         let txt         = Text.take l (input i)
             (mtok,s')   = act cfg (alexPos i) txt s
             (rest,pos)  = run i' $! s'
-        in case mtok of
-             Nothing  -> (rest, pos)
-             Just t   -> (t : rest, pos)
+        in (mtok ++ rest, pos)
 
 -- vim: ft=haskell
 }

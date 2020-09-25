@@ -116,19 +116,19 @@ desugarLiteral lit =
 
        P.ECNum num info ->
          number $ [ ("val", P.TNum num) ] ++ case info of
-           P.BinLit n    -> [ ("rep", tBits (1 * toInteger n)) ]
-           P.OctLit n    -> [ ("rep", tBits (3 * toInteger n)) ]
-           P.HexLit n    -> [ ("rep", tBits (4 * toInteger n)) ]
-           P.DecLit      -> [ ]
+           P.BinLit _ n  -> [ ("rep", tBits (1 * toInteger n)) ]
+           P.OctLit _ n  -> [ ("rep", tBits (3 * toInteger n)) ]
+           P.HexLit _ n  -> [ ("rep", tBits (4 * toInteger n)) ]
+           P.DecLit _    -> [ ]
            P.PolyLit _n  -> [ ("rep", P.TSeq P.TWild P.TBit) ]
 
        P.ECFrac fr info ->
          let arg f = P.PosInst (P.TNum (f fr))
              rnd   = P.PosInst (P.TNum (case info of
-                                          P.DecFrac -> 0
-                                          P.BinFrac -> 1
-                                          P.OctFrac -> 1
-                                          P.HexFrac -> 1))
+                                          P.DecFrac _ -> 0
+                                          P.BinFrac _ -> 1
+                                          P.OctFrac _ -> 1
+                                          P.HexFrac _ -> 1))
          in P.EAppT fracPrim [ arg numerator, arg denominator, rnd ]
 
        P.ECChar c ->
@@ -244,7 +244,7 @@ checkE expr tGoal =
       do prim <- mkPrim "generate"
          checkE (P.EApp prim e) tGoal
 
-    P.ELit l@(P.ECNum _ P.DecLit) ->
+    P.ELit l@(P.ECNum _ (P.DecLit _)) ->
       do e <- desugarLiteral l
          -- NOTE: When 'l' is a decimal literal, 'desugarLiteral' does
          -- not generate an instantiation for the 'rep' type argument

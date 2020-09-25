@@ -59,6 +59,8 @@ import Paths_cryptol
   IDENT       { $$@(Located _ (Token (Ident [] _) _))}
   QIDENT      { $$@(Located _ (Token  Ident{}     _))}
 
+  SELECTOR    { $$@(Located _ (Token  (Selector _) _))}
+
   'include'   { Located $$ (Token (KW KW_include)   _)}
   'import'    { Located $$ (Token (KW KW_import)    _)}
   'as'        { Located $$ (Token (KW KW_as)        _)}
@@ -95,7 +97,7 @@ import Paths_cryptol
   ')'         { Located $$ (Token (Sym ParenR  ) _)}
   ','         { Located $$ (Token (Sym Comma   ) _)}
   ';'         { Located $$ (Token (Sym Semi    ) _)}
-  '.'         { Located $$ (Token (Sym Dot     ) _)}
+  -- '.'         { Located $$ (Token (Sym Dot     ) _)}
   '{'         { Located $$ (Token (Sym CurlyL  ) _)}
   '}'         { Located $$ (Token (Sym CurlyR  ) _)}
   '<|'        { Located $$ (Token (Sym TriL    ) _)}
@@ -355,6 +357,10 @@ apats_indices           :: { ([Pattern PName], [Pattern PName]) }
   : apats indices          { ($1, $2) }
   | '@' indices1           { ([], $2) }
 
+opt_apats_indices       :: { ([Pattern PName], [Pattern PName]) }
+  : {- empty -}            { ([],[]) }
+  | apats_indices          { $1 }
+
 decls                   :: { [Decl PName] }
   : decl ';'               { [$1] }
   | decls decl ';'         { $2 : $1 }
@@ -484,8 +490,8 @@ aexpr                          :: { Expr PName }
 no_sel_aexpr                   :: { Expr PName                             }
   : qname                         { at $1 $ EVar (thing $1)                }
 
-  | NUM                           { at $1 $ numLit (tokenType (thing $1))  }
-  | FRAC                          { at $1 $ fracLit (tokenType (thing $1)) }
+  | NUM                           { at $1 $ numLit (thing $1)              }
+  | FRAC                          { at $1 $ fracLit (thing $1)             }
   | STRLIT                        { at $1 $ ELit $ ECString $ getStr $1    }
   | CHARLIT                       { at $1 $ ELit $ ECChar $ getChr $1      }
   | '_'                           { at $1 $ EVar $ mkUnqual $ mkIdent "_" }
@@ -507,9 +513,11 @@ no_sel_aexpr                   :: { Expr PName                             }
   | '<|' poly_terms '|>'          {% mkPoly (rComb $1 $3) $2 }
 
 sel_expr                       :: { Expr PName }
-  : no_sel_aexpr '.' selector     { at ($1,$3) $ ESel $1 (thing $3)        }
-  | sel_expr '.' selector         { at ($1,$3) $ ESel $1 (thing $3)        }
+  : no_sel_aexpr selector         { at ($1,$2) $ ESel $1 (thing $2)   }
+  | sel_expr     selector         { at ($1,$2) $ ESel $1 (thing $2)   }
 
+selector                       :: { Located Selector }
+  : SELECTOR                      { mkSelector `fmap` $1 }
 
 poly_terms                     :: { [(Bool, Integer)] }
   : poly_term                     { [$1] }
@@ -520,11 +528,6 @@ poly_term                      :: { (Bool, Integer) }
   | 'x'                           {% polyTerm $1 1 1 }
   | 'x' '^^' NUM                  {% polyTerm (rComb $1 (srcRange $3))
                                                             1 (getNum $3) }
-
-selector                       :: { Located Selector }
-  : ident                         { fmap (`RecordSel` Nothing) $1 }
-  | NUM                           {% mkTupleSel (srcRange $1) (getNum $1) }
-
 tuple_exprs                    :: { [Expr PName] }
   : expr ',' expr                 { [ $3, $1] }
   | tuple_exprs ',' expr          { $3 : $1   }
@@ -535,24 +538,21 @@ rec_expr :: { Either (Expr PName) [Named (Expr PName)] }
   | '_'   '|' field_exprs         {  Left (EUpd Nothing   (reverse $3)) }
   | field_exprs                   {% Right `fmap` mapM ufToNamed $1 }
 
-field_expr             :: { UpdField PName }
-  : selector field_how expr     { UpdField $2 [$1] $3 }
-  | sels field_how expr         { UpdField $2 $1 $3 }
-  | sels apats_indices field_how expr
-                                { UpdField $3 $1 (mkIndexedExpr $2 $4) }
-  | selector apats_indices field_how expr
-                                { UpdField $3 [$1] (mkIndexedExpr $2 $4) }
-
-field_how :: { UpdHow }
-  : '='                          { UpdSet }
-  | '->'                         { UpdFun }
-
-sels :: { [ Located Selector ] }
-  : sel_expr                      {% selExprToSels $1 }
-
 field_exprs                    :: { [UpdField PName] }
   : field_expr                    { [$1]    }
   | field_exprs ',' field_expr    { $3 : $1 }
+
+field_expr                     :: { UpdField PName }
+  : field_path opt_apats_indices
+                field_how expr    { UpdField $3 $1 (mkIndexedExpr $2 $4) }
+
+field_path                     :: { [Located Selector] }
+  : aexpr                         {% exprToFieldPath $1 }
+
+field_how                      :: { UpdHow }
+  : '='                           { UpdSet }
+  | '->'                          { UpdFun }
+
 
 list_expr                      :: { Expr PName }
   : expr '|' list_alts            { EComp $1 (reverse $3)    }

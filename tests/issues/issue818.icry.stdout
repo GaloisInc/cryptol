@@ -1,0 +1,10 @@
+Loading module Cryptol
+
+Parse error at <interactive>:1:5--1:10
+  malformed literal: 0b012
+
+Parse error at <interactive>:1:5--1:7
+  malformed literal: 2z
+
+Parse error at <interactive>:1:5--1:7
+  malformed literal: 2z
