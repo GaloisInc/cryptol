@@ -60,6 +60,14 @@ ec_is_nonsingular b = (fromInteger 4) * a^^3 + (fromInteger 27) * b^^2 != 0
   where a = -3 : Z p
 
 /**
+ * Returns true if the given point is the identity "point at infinity."
+ * This is true whenever the 'z' coordinate is 0, but one of the 'x' or
+ * 'y' coordinates is nonzero.
+ */
+ec_is_identity : {p} (prime p, p > 3) => ProjectivePoint p -> Bit
+ec_is_identity S = S.z == 0 /\ ~(S.x == 0 /\ S.y == 0)
+
+/**
  * Compute a projective representative for the given affine point.
  */
 ec_projectify : {p} (prime p, p > 3) => AffinePoint p -> ProjectivePoint p
