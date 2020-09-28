@@ -21,7 +21,7 @@ module Cryptol.PrimeEC
   , Integer.bigNatToInteger
 
   , ec_double
-  , ec_add
+  , ec_add_nonzero
   , ec_mult
   , ec_twin_mult
   ) where
@@ -134,7 +134,7 @@ mod_add p !x !y =
         rmp = Integer.minusBigNat r (primeMod p)
 
 mod_half :: PrimeModulus -> BigNat -> BigNat
-mod_half p x = if Integer.testBitBigNat x 0# then qodd else qeven
+mod_half p !x = if Integer.testBitBigNat x 0# then qodd else qeven
   where
   qodd  = (Integer.plusBigNat x (primeMod p)) `Integer.shiftRBigNat` 1#
   qeven = x `Integer.shiftRBigNat` 1#
@@ -189,21 +189,20 @@ ec_double p (ProjectivePoint sx sy sz) =
   r22 = mod_mul    p r11 r21              {- 22: t5 <- t4 * t5 -}
   r23 = mod_sub    p r22 r20              {- 23: t2 <- t5 - t2 -}
 
-{-# INLINE ec_full_add #-}
-ec_full_add :: PrimeModulus -> ProjectivePoint -> ProjectivePoint -> ProjectivePoint
-ec_full_add p s t
+{-# INLINE ec_add #-}
+ec_add :: PrimeModulus -> ProjectivePoint -> ProjectivePoint -> ProjectivePoint
+ec_add p s t
   | Integer.isZeroBigNat (pz s) = t
   | Integer.isZeroBigNat (pz t) = s
-  | otherwise = ec_add p s t
+  | otherwise = ec_add_nonzero p s t
 
-{-# INLINE ec_full_sub #-}
-ec_full_sub :: PrimeModulus -> ProjectivePoint -> ProjectivePoint -> ProjectivePoint
-ec_full_sub p s t = ec_full_add p s u
+{-# INLINE ec_sub #-}
+ec_sub :: PrimeModulus -> ProjectivePoint -> ProjectivePoint -> ProjectivePoint
+ec_sub p s t = ec_add p s u
   where u = t{ py = Integer.minusBigNat (primeMod p) (py t) }
 
-ec_add :: PrimeModulus -> ProjectivePoint -> ProjectivePoint -> ProjectivePoint
-ec_add p s@(ProjectivePoint sx sy sz)
-           (ProjectivePoint tx ty tz) =
+ec_add_nonzero :: PrimeModulus -> ProjectivePoint -> ProjectivePoint -> ProjectivePoint
+ec_add_nonzero p s@(ProjectivePoint sx sy sz) (ProjectivePoint tx ty tz) =
     if Integer.isZeroBigNat r13 then
       if Integer.isZeroBigNat r14 then
         ec_double p s
@@ -260,6 +259,7 @@ ec_normalize p s@(ProjectivePoint x y z)
   x' = (Integer.timesBigNat x l2) `Integer.remBigNat` m
   y' = (Integer.timesBigNat y l3) `Integer.remBigNat` m
 
+
 ec_mult :: PrimeModulus -> Integer -> ProjectivePoint -> ProjectivePoint
 ec_mult p d s
   | d == 0    = zro
@@ -281,7 +281,7 @@ ec_mult p d s
          Integer.S# mint -> mint
          _ -> 0#
 
-   go i r
+   go i !r
      | tagToEnum# (i ==# 0#) = r
      | otherwise = go (i -# 1#) r'
 
@@ -290,9 +290,9 @@ ec_mult p d s
       d_i = Integer.testBitBigNat d' i
 
       r' = if h_i then
-             if d_i then r2 else ec_full_add p r2 s'
+             if d_i then r2 else ec_add p r2 s'
            else
-             if d_i then ec_full_sub p r2 s' else r2
+             if d_i then ec_sub p r2 s' else r2
 
       r2 = ec_double p r
 
@@ -302,8 +302,8 @@ normalizeForTwinMult ::
   (ProjectivePoint, ProjectivePoint, ProjectivePoint, ProjectivePoint)
 normalizeForTwinMult p s t = (s',t',spt',smt')
   where
-  spt = ec_full_add p s t
-  smt = ec_full_sub p s t
+  spt = ec_add p s t
+  smt = ec_sub p s t
 
   m = primeMod p
 
@@ -350,7 +350,7 @@ normalizeForTwinMult p s t = (s',t',spt',smt')
 ec_twin_mult :: PrimeModulus ->
   Integer -> ProjectivePoint ->
   Integer -> ProjectivePoint ->
- ProjectivePoint
+  ProjectivePoint
 ec_twin_mult p (integerToBigNat -> d0) s (integerToBigNat -> d1) t =
    case m of
      0# -> panic "ec_twin_mult" ["modulus too large", show (Integer.bigNatToInteger (primeMod p))]
@@ -406,18 +406,18 @@ ec_twin_mult p (integerToBigNat -> d0) s (integerToBigNat -> d1) t =
         case u0 of
           -1# ->
             case u1 of
-              -1# -> ec_full_sub p r2 spt'
-              1#  -> ec_full_sub p r2 smt'
-              _   -> ec_full_sub p r2 s'
+              -1# -> ec_sub p r2 spt'
+              1#  -> ec_sub p r2 smt'
+              _   -> ec_sub p r2 s'
           1#  ->
             case u1 of
-              -1# -> ec_full_add p r2 smt'
-              1#  -> ec_full_add p r2 spt'
-              _   -> ec_full_add p r2 s'
+              -1# -> ec_add p r2 smt'
+              1#  -> ec_add p r2 spt'
+              _   -> ec_add p r2 s'
           _   ->
             case u1 of
-              -1# -> ec_full_sub p r2 t'
-              1#  -> ec_full_add p r2 t'
+              -1# -> ec_sub p r2 t'
+              1#  -> ec_add p r2 t'
               _   -> r2
 
 data CState = C !Bool !Bool !Bool !Bool !Bool !Bool

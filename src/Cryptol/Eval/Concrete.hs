@@ -359,13 +359,13 @@ primeECPrims = Map.fromList $ map (\(n,v) -> (primeECPrim n, v))
              let r = PrimeEC.ec_double (PrimeEC.primeModulus p) s'
              fromProjectivePoint $! r)
 
-  , ("ec_add", {-# SCC "PrimeEC::ec_add" #-}
+  , ("ec_add_nonzero", {-# SCC "PrimeEC::ec_add_nonzero" #-}
        ilam $ \p ->
         lam $ \s -> pure $
         lam $ \t ->
           do s' <- toProjectivePoint =<< s
              t' <- toProjectivePoint =<< t
-             let r = PrimeEC.ec_add (PrimeEC.primeModulus p) s' t'
+             let r = PrimeEC.ec_add_nonzero (PrimeEC.primeModulus p) s' t'
              fromProjectivePoint $! r)
 
   , ("ec_mult", {-# SCC "PrimeEC::ec_mult" #-}

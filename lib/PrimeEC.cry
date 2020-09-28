@@ -1,50 +1,145 @@
 module PrimeEC where
 
+/**
+ * The type of points of an elliptic curve in affine coordinates.
+ * The coefficients are taken from the prime field 'Z p' with 'p > 3'.
+ * This is intended to represent all the "normal" points
+ * on the curve, which satisfy 'x^^3 == y^^2 - 3x + b', 
+ * for some curve parameter 'b'.  This type cannot represent
+ * the special projective "point at infinity".
+ */
+type AffinePoint p =
+  { x : Z p
+  , y : Z p
+  }
+
+/**
+ * The type of points of an elliptic curve with in (homogeneous)
+ * projective coordinates.  The coefficients are taken from the
+ * prime field 'Z p' with 'p > 3'. These points should be understood as
+ * representatives of equivalence classes of points, where two representatives
+ * 'S' and 'T' are equivalent iff one is a scalar multiple of the other. That
+ * is, 'S' and 'T' are equivalent iff there exists some 'k' where
+ * 'S.x == k*T.x /\ S.y == k*T.y /\ S.z == k*T.z'.  Finally, the
+ * vector with all coordinates equal to 0 is excluded and does not
+ * represent any point.
+ *
+ * Note that all the affine points are easily embedded into projective
+ * coordinates by simply setting the `z` coordinate to 1, and the "point at
+ * infinity" is represented by any point with 'z == 0'.  Further, for any
+ * projective point with 'z != 0', we can compute the corresponding affine
+ * point by simply multiplying the x and y coordinates by the inverse of z.
+ */
 type ProjectivePoint p =
   { x : Z p
   , y : Z p
   , z : Z p
   }
 
-type AffinePoint p =
-  { x : Z p
-  , y : Z p
-  }
-
+/**
+ * 'ec_is_point_affine b S' checks that the supposed affine elliptic curve
+ * point 'S' fact lies on the curve defined by the curve parameter 'b'.  Here,
+ * and throughout this module, we assume the curve parameter 'a' is equal to
+ * '-3'.  Precisely, this function checks the following condition:
+ *
+ *     S.y^^2 == S.x^^3 - 3*S.x + b
+ */
 ec_is_point_affine : {p} (prime p, p > 3) => Z p -> AffinePoint p -> Bit
-ec_is_point_affine b S = S.y ^^ 2 == S.x ^^ 3 - (3*S.x) + b
+ec_is_point_affine b S = S.y^^2 == S.x^^3 - (3*S.x) + b
 
+
+/**
+ * 'ec_is_nonsingular' checks that the given curve parameter 'b' gives rise to
+ * a non-singular elliptic curve, appropriate for use in ECC.
+ *
+ * Precisely, this checks that '4*a^^3 + 27*b^^2 != 0 mod p'.  Here, and
+ * throughout this module, we assume 'a = -3'.
+ */
+ec_is_nonsingular : {p} (prime p, p > 3) => Z p -> Bit
+ec_is_nonsingular b = (fromInteger 4) * a^^3 + (fromInteger 27) * b^^2 != 0
+  where a = -3 : Z p
+
+/**
+ * Compute a projective representative for the given affine point.
+ */
 ec_projectify : {p} (prime p, p > 3) => AffinePoint p -> ProjectivePoint p
 ec_projectify R = { x = R.x, y = R.y, z = 1 }
 
+/**
+ * Compute the affine point corresponding to the given projective point.
+ * This results in an error if the 'z' component of the given point is 0,
+ * in which case there is no corresponding affine point.
+ */
 ec_affinify : {p} (prime p, p > 3) => ProjectivePoint p -> AffinePoint p
-ec_affinify S = if S.z == 0 then error "Cannot affinify the point at infinity" else R
+ec_affinify S =
+ if S.z == 0 then error "Cannot affinify the point at infinity" else R
     where
       R = {x = lambda^^2 * S.x, y = lambda^^3 * S.y }
       lambda = recip S.z
 
+/**
+ * Coerce an integer modulo 'p' to a bitvector. This will reduce the value
+ * modulo '2^^a' if necessary.
+ */
 ZtoBV : {p, a} (fin p, p >= 1, fin a) => Z p -> [a]
-ZtoBV x = (fromInteger (fromZ x))
+ZtoBV x = fromInteger (fromZ x)
 
+/**
+ * Coerce a bitvector value to an integer modulo 'p'.  This will
+ * reduce the value modulo 'p' if necessary.
+ */
 BVtoZ : {p, a} (fin p, p >= 1, fin a) => [a] -> Z p
-BVtoZ x = (fromInteger (toInteger x))
+BVtoZ x = fromInteger (toInteger x)
 
-primitive ec_double : {p} (prime p, p > 3) => ProjectivePoint p -> ProjectivePoint p
+/**
+ * Given a projective point 'S', compute '2S = S+S'.
+ */
+primitive ec_double : {p} (prime p, p > 3) =>
+  ProjectivePoint p -> ProjectivePoint p
 
-primitive ec_add : {p} (prime p, p > 3) => ProjectivePoint p -> ProjectivePoint p -> ProjectivePoint p
+/**
+ * Given two projective points 'S' and 'T' where neither is the identity,
+ * compute 'S+T'. If the points are not know to be distinct from the point
+ * at infinity, use 'ec_add' instead.
+ */
+primitive ec_add_nonzero : {p} (prime p, p > 3) =>
+  ProjectivePoint p -> ProjectivePoint p -> ProjectivePoint p
 
-ec_full_add : {p} (prime p, p > 3) => ProjectivePoint p -> ProjectivePoint p -> ProjectivePoint p
-ec_full_add S T =
+/**
+ * Given a projective point 'S', compute it's negation, '-S'
+ */
+ec_negate : {p} (prime p, p > 3) => ProjectivePoint p -> ProjectivePoint p
+ec_negate S = { x = S.x, y = -S.y, z = S.z }
+
+/**
+ * Given two projective points 'S' and 'T' compute 'S+T'.
+ */
+ec_add : {p} (prime p, p > 3) =>
+  ProjectivePoint p -> ProjectivePoint p -> ProjectivePoint p
+ec_add S T =
   if S.z == 0 then T
    | T.z == 0 then S
-   | R == { x = 0, y = 0, z = 0 } then ec_double S
    else R
- where R = ec_add S T
+ where R = ec_add_nonzero S T
 
-ec_full_sub : {p} (prime p, p > 3) => ProjectivePoint p -> ProjectivePoint p -> ProjectivePoint p
-ec_full_sub S T = ec_full_add S U
+/**
+ * Given two projective points 'S' and 'T' compute 'S-T'.
+ */
+ec_sub : {p} (prime p, p > 3) =>
+  ProjectivePoint p -> ProjectivePoint p -> ProjectivePoint p
+ec_sub S T = ec_add S U
  where U = { x = T.x, y = -T.y, z = T.z }
 
-primitive ec_mult : {p} (prime p, p > 3) => Z p -> ProjectivePoint p -> ProjectivePoint p
+/**
+ * Given a scalar value 'k' and a projective point 'S', compute the
+ * scalar multiplication 'kS'.
+ */
+primitive ec_mult : {p} (prime p, p > 3) =>
+  Z p -> ProjectivePoint p -> ProjectivePoint p
 
-primitive ec_twin_mult : {p} (prime p, p > 3) => Z p -> ProjectivePoint p -> Z p -> ProjectivePoint p -> ProjectivePoint p
+/**
+ * Given a scalar value 'j' and a projective point 'S', and another scalar
+ * value 'k' and point 'T', compute the "twin" scalar multiplication 'jS + kT'.
+ */
+primitive ec_twin_mult : {p} (prime p, p > 3) =>
+  Z p -> ProjectivePoint p -> Z p -> ProjectivePoint p -> ProjectivePoint p
