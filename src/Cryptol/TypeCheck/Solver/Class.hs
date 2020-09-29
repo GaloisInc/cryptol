@@ -531,6 +531,9 @@ solveLiteralInst val ty
       -- Literal n Error -> fails
       TCon (TError _ e) _ -> Unsolvable e
 
+      -- (1 >= val) => Literal val Bit
+      TCon (TC TCBit) [] -> SolvedIf [ tOne >== val ]
+
       -- (fin val) => Literal val Integer
       TCon (TC TCInteger) [] -> SolvedIf [ pFin val ]
 

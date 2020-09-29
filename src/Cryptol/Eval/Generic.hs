@@ -49,6 +49,7 @@ import Cryptol.Utils.RecordMap
 mkLit :: Backend sym => sym -> TValue -> Integer -> SEval sym (GenValue sym)
 mkLit sym ty i =
   case ty of
+    TVBit                        -> pure $ VBit (bitLit sym (i > 0))
     TVInteger                    -> VInteger <$> integerLit sym i
     TVIntMod m
       | m == 0                   -> evalPanic "mkLit" ["0 modulus not allowed"]
