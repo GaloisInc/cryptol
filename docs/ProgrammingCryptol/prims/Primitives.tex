@@ -90,10 +90,13 @@ primsPlaceHolder=1;
     zip      : {n, a, b} [n]a -> [n]b -> [n](a, b)
     zipWith  : {n, a, b, c} (a -> b -> c) -> [n]a -> [n]b -> [n]c
     foldl    : {n, a, b} (fin n) => (a -> b -> a) -> a -> [n]b -> a
+    foldl' : {n, a, b} (fin n, Eq a) => (a -> b -> a) -> a -> [n]b -> a
     foldr    : {n, a, b} (fin n) => (a -> b -> b) -> b -> [n]a -> b
+    foldr' : {n, a, b} (fin n, Eq b) => (a -> b -> b) -> b -> [n]a -> b
     scanl    : {n, b, a} (b -> a -> b) -> b -> [n]a -> [1 + n]b
     scanr    : {n, a, b} (fin n) => (a -> b -> b) -> b -> [n]a -> [1 + n]b
-    sum      : {n, a} (fin n, Arith a) => [n]a -> a
+    sum : {n, a} (fin n, Eq a, Ring a) => [n]a -> a
+    product : {n, a} (fin n, Eq a, Ring a) => [n]a -> a
     and, or  : {n} (fin n) => [n] -> Bit
     all, any : {n, a} (fin n) => (a -> Bit) -> [n]a -> Bit
     curry    : {a, b, c} ((a, b) -> c) -> a -> b -> c
@@ -102,6 +105,8 @@ primsPlaceHolder=1;
 \end{Verbatim}
 \paragraph*{Miscellaneous}
 \begin{Verbatim}
+    deepseq : {a, b} Eq a => a -> b -> b
+    rnf : {a} Eq a => a -> a
     length : {n, a, b} (fin n, Literal n b) => [n]a -> b
     zero    : {a} (Zero a) => a
 \end{Verbatim}

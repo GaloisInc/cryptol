@@ -237,6 +237,7 @@ is 17. The final result is also due to wraparound: \texttt{- 0x5}
 evaluates to \texttt{0xb} or 11, which is $-5 + 16$.
 \end{Answer}
 
+\paragraph*{Bounded integers}
 In addition to the unbounded \texttt{Integer} type, there are also a
 collection of bounded integer types: \texttt{Z n} for each finite
 positive \texttt{n}.  \texttt{Z n} represents the ring of integers modulo \texttt{n}.
@@ -258,6 +259,44 @@ Here are Cryptol's responses:
 \end{Verbatim}
 \end{Answer}
 
+\paragraph*{Prime moduli}
+It is a consequence of Fermat's little theorem that when \texttt{p} is
+a prime number, every nonzero value of \texttt{Z p} has a
+multiplicitive inverse.  In other words, for every \texttt{x : Z p}
+where \texttt{x != 0} there is some other value
+\texttt{y : Z p} where \texttt{x*y == 1}.  We can use this fact to
+implement the \texttt{Field} operations for \texttt{Z p}.
+The type \texttt{Z p} is also known as the
+``prime field of characteristic \texttt{p}'' when \texttt{p} is prime.
+
+\begin{Exercise}\label{ex:int:3}
+What are the results of evalauting the following expressions?
+\begin{Verbatim}
+  recip 5 : Z 7
+  1 /. 3 : Z 7
+  (recip 5) * 5 : Z 7
+  recip 0 : Z 7
+  recip (3+4) : Z 7
+  (recip 5) * 5 : Z 8
+\end{Verbatim}
+\end{Exercise}
+\begin{Answer}\ansref{ex:int:3}
+Here are Cryptol's responses:
+\begin{Verbatim}
+  3
+  5
+  1
+  division by 0
+  division by 0
+  Unsolvable constraints:
+    * prime 8
+        arising from
+        use of expression (/.)
+        at <interactive>:1:2--1:8
+    * Reason: 8 is not a prime number
+\end{Verbatim}
+\end{Answer}
+
 %=====================================================================
 \section{Rationals}
 \label{sec:rational}
@@ -269,7 +308,8 @@ the \texttt{ratio} function, which accepts the numerator and denominator
 as integer values, or you can create a rational value from an
 integer using the \texttt{fromInteger} function.  Rational values can
 also be created directly from literals the same way as for
-\texttt{Integer}.
+\texttt{Integer}, or from fractional literals, which can be written
+in decimal, hex and binary forms, as well as using scientific notation.
 
 For example, all of the following expression create the same
 value representing one half:
@@ -279,6 +319,11 @@ value representing one half:
   (1 /. 2) : Rational
   (recip 2) : Rational
   (fromInteger (-1) /. fromInteger (-2)) : Rational
+  0.5 : Rational
+  0x0.8 : Rational
+  0b0.1 : Rational
+  50.0e-2 : Rational
+  0x8.0p-4 : Rational
 \end{Verbatim}
 
 Note, the division operation on \texttt{Rational} is
@@ -298,10 +343,10 @@ module called \texttt{Float} so to use it you'd need to either import
 it in you Cryptol specification or use \texttt{:m Float} on the
 Cryptol REPL.
 
-Floating point numbers may be written using either integral or fractioanl
+Floating point numbers may be written using either integral or fractional
 literals.  In general, literals that cannot be represented exactly are
 rejected with a type error, with the exception of decimal fractional litrals
-which are rounded to the nearest even representable numbers.
+which are rounded to the nearest even representable number.
 
 Floating point numbers may be manipulated and compared using
 standard Cryptol operators, such as \texttt{+}, \texttt{==}, and \texttt{/.}

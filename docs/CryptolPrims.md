@@ -36,7 +36,7 @@ Literals
                    , Literal first a, Literal next a, Literal last a
                    , first != next
                    , lengthFromThenTo first next last == len) =>
-		   [len]a
+                  [len]a
 
 Fractional Literals
 -------------------
@@ -143,6 +143,7 @@ Arithmetic
     instance                     Ring Integer
     instance (fin n, n>=1)    => Ring (Z n)
     instance                     Ring Rational
+    instance (ValidFloat e p) => Ring (Float e p)
 
 Note that because there is no instance for `Ring Bit`
 the top two instances do not actually overlap.
@@ -151,8 +152,11 @@ the top two instances do not actually overlap.
     instance (fin n)       => Integral ([n]Bit)
 
     instance Field Rational
+    instance (prime p) => Field (Z p)
+    instance (ValidFloat e p) => Field (Float e p)
 
     instance Round Rational
+    instance (ValidFloat e p) => Round (Float e p)
 
 
 Equality Comparisons
@@ -169,8 +173,8 @@ Equality Comparisons
     instance (Eq a, fin n) => Eq [n]a
     instance (Eq a, Eq b)  => Eq (a, b)
     instance (Eq a, Eq b)  => Eq { x : a, y : b }
-    instance 	       	      Eq Integer
-    instance 		      Eq Rational
+    instance                  Eq Integer
+    instance                  Eq Rational
     instance (fin n, n>=1) => Eq (Z n)
     // No instance for functions.
 
@@ -311,16 +315,16 @@ Random Values
 Errors and Assertions
 ---------------------
 
-     undefined : {a} a
-     error     : {a,n} (fin n) => String n -> a
-     assert    : {a,n} (fin n) => Bit -> String n -> a -> a
+    undefined : {a} a
+    error     : {a,n} (fin n) => String n -> a
+    assert    : {a,n} (fin n) => Bit -> String n -> a -> a
 
 
 Debugging
 ---------
 
-     trace     : {n, a, b} (fin n) => String n -> a -> b -> b
-     traceVal  : {n, a} (fin n) => String n -> a -> a
+    trace     : {n, a, b} (fin n) => String n -> a -> b -> b
+    traceVal  : {n, a} (fin n) => String n -> a -> a
 
 
 Utility operations
@@ -332,12 +336,18 @@ Utility operations
     any   : {n, a} (fin n) => (a -> Bit) -> [n]a -> Bit
     elem  : {n, a} (fin n, Eq a) => a -> [n]a -> Bit
 
-    map   : {n, a, b} (a -> b) -> [n]a -> [n]b
-    foldl : {n, a, b} (fin n) => (a -> b -> a) -> a -> [n]b -> a
-    foldr : {n, a, b} (fin n) => (a -> b -> b) -> b -> [n]a -> b
-    scanl : {n, b, a}  (b -> a -> b) -> b -> [n]a -> [n+1]b
-    scanr : {n, a, b} (fin n) => (a -> b -> b) -> b -> [n]a -> [n+1]b
-    sum   : {n, a} (fin n, Ring a) => [n]a -> a
+    deepseq : {a, b} Eq a => a -> b -> b
+    rnf : {a} Eq a => a -> a
+
+    map     : {n, a, b} (a -> b) -> [n]a -> [n]b
+    foldl   : {n, a, b} (fin n) => (a -> b -> a) -> a -> [n]b -> a
+    foldl'  : {n, a, b} (fin n, Eq a) => (a -> b -> a) -> a -> [n]b -> a
+    foldr   : {n, a, b} (fin n) => (a -> b -> b) -> b -> [n]a -> b
+    foldl'  : {n, a, b} (fin n, Eq a) => (a -> b -> a) -> a -> [n]b -> a
+    scanl   : {n, b, a}  (b -> a -> b) -> b -> [n]a -> [n+1]b
+    scanr   : {n, a, b} (fin n) => (a -> b -> b) -> b -> [n]a -> [n+1]b
+    sum     : {n, a} (fin n, Eq a, Ring a) => [n]a -> a
+    product : {n, a} (fin n, Eq a, Ring a) => [n]a -> a
 
     iterate : {a} (a -> a) -> a -> [inf]a
     repeat  : {n, a} a -> [n]a

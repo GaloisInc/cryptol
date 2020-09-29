@@ -44,6 +44,9 @@ primitive type Integer : *
  * of the equivalance class. In other words, 'fromZ' computes
  * the (unique) integer value 'i'  where '0 <= i < n' and
  * 'i' is in the given equivalance class.
+ *
+ * If the modulus 'n' is prime, 'Z n' also
+ * supports computing inverses and forms a field.
  */
 primitive type {n : #} (fin n, n >= 1) => Z n : *
 
