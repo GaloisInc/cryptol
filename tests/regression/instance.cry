@@ -348,6 +348,10 @@ signedCmpRecord = (<$)
 ////////////////////////////////////////////////////////////////////////////////
 // Literal
 
+/** instance (1 >= val) => Literal val Bit */
+literalBit : {val} (1 >= val) => Bit
+literalBit = `val
+
 /** instance (fin val) => Literal val Integer */
 literalInteger : {val} (fin val) => Integer
 literalInteger = `val
