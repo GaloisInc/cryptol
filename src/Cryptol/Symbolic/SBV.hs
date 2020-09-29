@@ -28,10 +28,9 @@ module Cryptol.Symbolic.SBV
 
 
 import Control.Concurrent.Async
+import Control.Concurrent.MVar
 import Control.Monad.IO.Class
-import Control.Monad (replicateM, when, zipWithM, foldM, forM_)
-import Control.Monad.Writer (WriterT, runWriterT, tell, lift)
-import Data.List (genericLength)
+import Control.Monad (when, foldM, forM_)
 import Data.Maybe (fromMaybe)
 import qualified Data.Map as Map
 import qualified Control.Exception as X
@@ -39,7 +38,7 @@ import System.Exit (ExitCode(ExitSuccess))
 
 import LibBF(bfNaN)
 
-import qualified Data.SBV as SBV (sObserve)
+import qualified Data.SBV as SBV (sObserve, symbolicEnv)
 import qualified Data.SBV.Internals as SBV (SBV(..))
 import qualified Data.SBV.Dynamic as SBV
 import           Data.SBV (Timing(SaveTiming))
@@ -49,12 +48,9 @@ import qualified Cryptol.ModuleSystem.Env as M
 import qualified Cryptol.ModuleSystem.Base as M
 import qualified Cryptol.ModuleSystem.Monad as M
 
-import qualified Cryptol.Eval.Backend as Eval
 import qualified Cryptol.Eval as Eval
 import qualified Cryptol.Eval.Concrete as Concrete
-import           Cryptol.Eval.Concrete (Concrete(..))
 import qualified Cryptol.Eval.Concrete.FloatHelpers as Concrete
-import qualified Cryptol.Eval.Monad as Eval
 import qualified Cryptol.Eval.Value as Eval
 import           Cryptol.Eval.SBV
 import           Cryptol.Symbolic
@@ -62,11 +58,10 @@ import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.Logger(logPutStrLn)
 import           Cryptol.Utils.RecordMap
 
+
+
 import Prelude ()
 import Prelude.Compat
-
-doEval :: MonadIO m => Eval.Eval a -> m a
-doEval m = liftIO $ Eval.runEval m
 
 doSBVEval :: MonadIO m => SBVEval a -> m (SBV.SVal, a)
 doSBVEval m =
@@ -223,7 +218,12 @@ runMultiProvers pc lPutStrLn provers callSolver processResult e = do
 
 -- | Select the appropriate solver or solvers from the given prover command,
 --   and invoke those solvers on the given symbolic value.
-runProver :: SBVProverConfig -> ProverCommand -> (String -> IO ()) -> SBV.Symbolic SBV.SVal -> IO (Maybe String, [SBV.SMTResult])
+runProver ::
+  SBVProverConfig ->
+  ProverCommand ->
+  (String -> IO ()) ->
+  SBV.Symbolic SBV.SVal ->
+  IO (Maybe String, [SBV.SMTResult])
 runProver proverConfig pc@ProverCommand{..} lPutStrLn x =
   do let mSatNum = case pcQueryType of
                      SatQuery (SomeSat n) -> Just n
@@ -232,7 +232,7 @@ runProver proverConfig pc@ProverCommand{..} lPutStrLn x =
                      SafetyQuery -> Nothing
 
      case proverConfig of
-       SBVPortfolio ps -> 
+       SBVPortfolio ps ->
          let ps' = [ p { SBV.transcript = pcSmtFile
                        , SBV.timing = SaveTiming pcProverStats
                        , SBV.verbose = pcVerbose
@@ -286,13 +286,6 @@ prepareQuery ::
 prepareQuery evo modEnv ProverCommand{..} =
   do let extDgs = M.allDeclGroups modEnv ++ pcExtraDecls
 
-     -- The `tyFn` creates variables that are treated as 'forall'
-     -- or 'exists' bound, depending on the sort of query we are doing.
-     let tyFn = case pcQueryType of
-           SatQuery _ -> existsFinType
-           ProveQuery -> forallFinType
-           SafetyQuery -> forallFinType
-
      -- The `addAsm` function is used to combine assumptions that
      -- arise from the types of symbolic variables (e.g. Z n values
      -- are assumed to be integers in the range `0 <= x < n`) with
@@ -303,23 +296,28 @@ prepareQuery evo modEnv ProverCommand{..} =
            SafetyQuery -> \x y -> SBV.svOr (SBV.svNot x) y
            SatQuery _ -> \x y -> SBV.svAnd x y
 
-     let tbl = primTable
-     let ?evalPrim = \i -> Map.lookup i tbl
      case predArgTypes pcQueryType pcSchema of
        Left msg -> return (Left msg)
        Right ts ->
          do when pcVerbose $ logPutStrLn (Eval.evalLogger evo) "Simulating..."
             pure $ Right $ (ts,
-              do -- Compute the symbolic inputs, and any domain constraints needed
+              do sbvState <- SBV.symbolicEnv
+                 stateMVar <- liftIO (newMVar sbvState)
+                 defRelsVar <- liftIO (newMVar SBV.svTrue)
+                 let sym = SBV stateMVar defRelsVar
+                 let tbl = primTable sym
+                 let ?evalPrim = \i -> Map.lookup i tbl
+                 -- Compute the symbolic inputs, and any domain constraints needed
                  -- according to their types.
-                 (args, asms) <- runWriterT (mapM tyFn ts)
+                 args <- map (pure . varShapeToValue sym) <$>
+                     liftIO (mapM (freshVar (sbvFreshFns sym)) ts)
                  -- Run the main symbolic computation.  First we populate the
                  -- evaluation environment, then we compute the value, finally
                  -- we apply it to the symbolic inputs.
                  (safety,b) <- doSBVEval $
-                     do env <- Eval.evalDecls SBV extDgs mempty
-                        v <- Eval.evalExpr SBV env pcExpr
-                        appliedVal <- foldM Eval.fromVFun v (map pure args)
+                     do env <- Eval.evalDecls sym extDgs mempty
+                        v <- Eval.evalExpr sym env pcExpr
+                        appliedVal <- foldM Eval.fromVFun v args
                         case pcQueryType of
                           SafetyQuery ->
                             do Eval.forceValue appliedVal
@@ -337,7 +335,10 @@ prepareQuery evo modEnv ProverCommand{..} =
                  -- avaliable in the resulting model.
                  SBV.sObserve "safety" (SBV.SBV safety' :: SBV.SBV Bool)
 
-                 return (foldr addAsm (SBV.svAnd safety' b) asms))
+                 -- read any definitional relations that were asserted
+                 defRels <- liftIO (readMVar defRelsVar)
+
+                 return (addAsm defRels (SBV.svAnd safety' b)))
 
 
 -- | Turn the SMT results from SBV into a @ProverResult@ that is ready for the Cryptol REPL.
@@ -386,15 +387,9 @@ processResults ProverCommand{..} ts results =
     -- to always be the first value in the model assignment list.
     let Right (_, (safetyCV : cvs)) = SBV.getModelAssignment result
         safety = SBV.cvToBool safetyCV
-        (vs, _) = parseValues ts cvs
-        sattys = unFinType <$> ts
-    satexprs <-
-      doEval (zipWithM (Concrete.toExpr prims) sattys vs)
-    case zip3 sattys <$> (sequence satexprs) <*> pure vs of
-      Nothing ->
-        panic "Cryptol.Symbolic.sat"
-          [ "unable to make assignment into expression" ]
-      Just tevs -> return $ (safety, tevs)
+        (vs, []) = parseValues ts cvs
+        mdl = computeModel prims ts vs
+    return (safety, mdl)
 
 
 -- | Execute a symbolic ':prove' or ':sat' command.
@@ -452,7 +447,7 @@ protectStack mkErr cmd modEnv =
 -- | Given concrete values from the solver and a collection of finite types,
 --   reconstruct Cryptol concrete values, and return any unused solver
 --   values.
-parseValues :: [FinType] -> [SBV.CV] -> ([Concrete.Value], [SBV.CV])
+parseValues :: [FinType] -> [SBV.CV] -> ([VarShape Concrete.Concrete], [SBV.CV])
 parseValues [] cvs = ([], cvs)
 parseValues (t : ts) cvs = (v : vs, cvs'')
   where (v, cvs') = parseValue t cvs
@@ -461,94 +456,60 @@ parseValues (t : ts) cvs = (v : vs, cvs'')
 -- | Parse a single value of a finite type by consuming some number of
 --   solver values.  The parsed Cryptol values is returned along with
 --   any solver values not consumed.
-parseValue :: FinType -> [SBV.CV] -> (Concrete.Value, [SBV.CV])
+parseValue :: FinType -> [SBV.CV] -> (VarShape Concrete.Concrete, [SBV.CV])
 parseValue FTBit [] = panic "Cryptol.Symbolic.parseValue" [ "empty FTBit" ]
-parseValue FTBit (cv : cvs) = (Eval.VBit (SBV.cvToBool cv), cvs)
+parseValue FTBit (cv : cvs) = (VarBit (SBV.cvToBool cv), cvs)
 parseValue FTInteger cvs =
   case SBV.genParse SBV.KUnbounded cvs of
-    Just (x, cvs') -> (Eval.VInteger x, cvs')
+    Just (x, cvs') -> (VarInteger x, cvs')
     Nothing        -> panic "Cryptol.Symbolic.parseValue" [ "no integer" ]
 parseValue (FTIntMod _) cvs = parseValue FTInteger cvs
 parseValue FTRational cvs =
   fromMaybe (panic "Cryptol.Symbolic.parseValue" ["no rational"]) $
   do (n,cvs')  <- SBV.genParse SBV.KUnbounded cvs
      (d,cvs'') <- SBV.genParse SBV.KUnbounded cvs'
-     return (Eval.VRational (Eval.SRational n d), cvs'')
-parseValue (FTSeq 0 FTBit) cvs = (Eval.word Concrete 0 0, cvs)
+     return (VarRational n d, cvs'')
+parseValue (FTSeq 0 FTBit) cvs = (VarWord (Concrete.mkBv 0 0), cvs)
 parseValue (FTSeq n FTBit) cvs =
   case SBV.genParse (SBV.KBounded False n) cvs of
-    Just (x, cvs') -> (Eval.word Concrete (toInteger n) x, cvs')
-    Nothing        -> (Eval.VWord (genericLength vs) (Eval.WordVal <$>
-                         (Eval.packWord Concrete (map Eval.fromVBit vs))), cvs')
-      where (vs, cvs') = parseValues (replicate n FTBit) cvs
-parseValue (FTSeq n t) cvs =
-                      (Eval.VSeq (toInteger n) $ Eval.finiteSeqMap Concrete (map Eval.ready vs)
-                      , cvs'
-                      )
+    Just (x, cvs') -> (VarWord (Concrete.mkBv (toInteger n) x), cvs')
+    Nothing -> panic "Cryptol.Symbolic.parseValue" ["no bitvector"]
+parseValue (FTSeq n t) cvs = (VarFinSeq (toInteger n) vs, cvs')
   where (vs, cvs') = parseValues (replicate n t) cvs
-parseValue (FTTuple ts) cvs = (Eval.VTuple (map Eval.ready vs), cvs')
+parseValue (FTTuple ts) cvs = (VarTuple vs, cvs')
   where (vs, cvs') = parseValues ts cvs
-parseValue (FTRecord r) cvs = (Eval.VRecord r', cvs')
+parseValue (FTRecord r) cvs = (VarRecord r', cvs')
   where (ns, ts)   = unzip $ canonicalFields r
         (vs, cvs') = parseValues ts cvs
-        fs         = zip ns (map Eval.ready vs)
+        fs         = zip ns vs
         r'         = recordFromFieldsWithDisplay (displayOrder r) fs
 
 parseValue (FTFloat e p) cvs =
-   (Eval.VFloat Concrete.BF { Concrete.bfValue = bfNaN
-                            , Concrete.bfExpWidth = e
-                            , Concrete.bfPrecWidth = p
-                            }
+   (VarFloat Concrete.BF { Concrete.bfValue = bfNaN
+                         , Concrete.bfExpWidth = e
+                         , Concrete.bfPrecWidth = p
+                         }
    , cvs
    )
    -- XXX: NOT IMPLEMENTED
 
-inBoundsIntMod :: Integer -> Eval.SInteger SBV -> Eval.SBit SBV
-inBoundsIntMod n x =
-  let z  = SBV.svInteger SBV.KUnbounded 0
-      n' = SBV.svInteger SBV.KUnbounded n
-   in SBV.svAnd (SBV.svLessEq z x) (SBV.svLessThan x n')
 
-forallFinType :: FinType -> WriterT [Eval.SBit SBV] SBV.Symbolic Value
-forallFinType ty =
-  case ty of
-    FTBit         -> Eval.VBit <$> lift forallSBool_
-    FTInteger     -> Eval.VInteger <$> lift forallSInteger_
-    FTRational    ->
-      do n <- lift forallSInteger_
-         d <- lift forallSInteger_
-         let z = SBV.svInteger SBV.KUnbounded 0
-         tell [SBV.svLessThan z d]
-         return (Eval.VRational (Eval.SRational n d))
-    FTFloat {}    -> pure (Eval.VFloat ()) -- XXX: NOT IMPLEMENTED
-    FTIntMod n    -> do x <- lift forallSInteger_
-                        tell [inBoundsIntMod n x]
-                        return (Eval.VInteger x)
-    FTSeq 0 FTBit -> return $ Eval.word SBV 0 0
-    FTSeq n FTBit -> Eval.VWord (toInteger n) . return . Eval.WordVal <$> lift (forallBV_ n)
-    FTSeq n t     -> do vs <- replicateM n (forallFinType t)
-                        return $ Eval.VSeq (toInteger n) $ Eval.finiteSeqMap SBV (map pure vs)
-    FTTuple ts    -> Eval.VTuple <$> mapM (fmap pure . forallFinType) ts
-    FTRecord fs   -> Eval.VRecord <$> traverse (fmap pure . forallFinType) fs
+freshBoundedInt :: SBV -> Maybe Integer -> Maybe Integer -> IO SBV.SVal
+freshBoundedInt sym lo hi =
+  do x <- freshSInteger_ sym
+     case lo of
+       Just l  -> addDefEqn sym (SBV.svLessEq (SBV.svInteger SBV.KUnbounded l) x)
+       Nothing -> pure ()
+     case hi of
+       Just h  -> addDefEqn sym (SBV.svLessEq x (SBV.svInteger SBV.KUnbounded h))
+       Nothing -> pure ()
+     return x
 
-existsFinType :: FinType -> WriterT [Eval.SBit SBV] SBV.Symbolic Value
-existsFinType ty =
-  case ty of
-    FTBit         -> Eval.VBit <$> lift existsSBool_
-    FTInteger     -> Eval.VInteger <$> lift existsSInteger_
-    FTRational    ->
-      do n <- lift existsSInteger_
-         d <- lift existsSInteger_
-         let z = SBV.svInteger SBV.KUnbounded 0
-         tell [SBV.svLessThan z d]
-         return (Eval.VRational (Eval.SRational n d))
-    FTFloat {}    -> pure $ Eval.VFloat () -- XXX: NOT IMPLEMENTED
-    FTIntMod n    -> do x <- lift existsSInteger_
-                        tell [inBoundsIntMod n x]
-                        return (Eval.VInteger x)
-    FTSeq 0 FTBit -> return $ Eval.word SBV 0 0
-    FTSeq n FTBit -> Eval.VWord (toInteger n) . return . Eval.WordVal <$> lift (existsBV_ n)
-    FTSeq n t     -> do vs <- replicateM n (existsFinType t)
-                        return $ Eval.VSeq (toInteger n) $ Eval.finiteSeqMap SBV (map pure vs)
-    FTTuple ts    -> Eval.VTuple <$> mapM (fmap pure . existsFinType) ts
-    FTRecord fs   -> Eval.VRecord <$> traverse (fmap pure . existsFinType) fs
+sbvFreshFns :: SBV -> FreshVarFns SBV
+sbvFreshFns sym =
+  FreshVarFns
+  { freshBitVar     = freshSBool_ sym
+  , freshWordVar    = freshBV_ sym . fromInteger
+  , freshIntegerVar = freshBoundedInt sym
+  , freshFloatVar   = \_ _ -> return () -- TODO
+  }

@@ -9,7 +9,6 @@
 module Cryptol.Eval.What4
   ( What4(..)
   , W4Result(..)
-  , W4Defs(..)
   , W4Eval
   , w4Eval
   , Value
@@ -32,8 +31,8 @@ import Cryptol.Testing.Random( randomV )
 import Cryptol.Utils.Ident
 
 -- See also Cryptol.Prims.Eval.primTable
-primTable :: W4.IsSymExprBuilder sym => sym -> Map.Map PrimIdent (Value sym)
-primTable w4sym = let sym = What4 w4sym in
+primTable :: W4.IsSymExprBuilder sym => What4 sym -> Map.Map PrimIdent (Value sym)
+primTable sym@(What4 w4sym _) =
   Map.union (floatPrims sym) $
   Map.fromList $ map (\(n, v) -> (prelPrim n, v))
 
@@ -84,7 +83,7 @@ primTable w4sym = let sym = What4 w4sym in
   , ("/$"          , sdivV sym)
   , ("%$"          , smodV sym)
   , ("lg2"         , lg2V sym)
-  , (">>$"         , sshrV w4sym)
+  , (">>$"         , sshrV sym)
 
     -- Cmp
   , ("<"           , binary (lessThanV sym))
@@ -149,11 +148,11 @@ primTable w4sym = let sym = What4 w4sym in
                         rotateRightReindex rotateLeftReindex)
 
     -- Indexing and updates
-  , ("@"           , indexPrim sym (indexFront_int w4sym) (indexFront_bits w4sym) (indexFront_word w4sym))
-  , ("!"           , indexPrim sym (indexBack_int w4sym) (indexBack_bits w4sym) (indexBack_word w4sym))
+  , ("@"           , indexPrim sym (indexFront_int sym) (indexFront_bits sym) (indexFront_word sym))
+  , ("!"           , indexPrim sym (indexBack_int sym) (indexBack_bits sym) (indexBack_word sym))
 
-  , ("update"      , updatePrim sym (updateFrontSym_word w4sym) (updateFrontSym w4sym))
-  , ("updateEnd"   , updatePrim sym (updateBackSym_word w4sym)  (updateBackSym w4sym))
+  , ("update"      , updatePrim sym (updateFrontSym_word sym) (updateFrontSym sym))
+  , ("updateEnd"   , updatePrim sym (updateBackSym_word sym)  (updateBackSym sym))
 
     -- Misc
 

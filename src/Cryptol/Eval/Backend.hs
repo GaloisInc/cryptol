@@ -34,6 +34,8 @@ import Control.Monad.IO.Class
 import Data.Kind (Type)
 import Data.Ratio ( (%), numerator, denominator )
 
+import Cryptol.Eval.Concrete.FloatHelpers (BF)
+
 import Cryptol.Eval.Monad
 import Cryptol.TypeCheck.AST(Name)
 import Cryptol.Utils.PP
@@ -316,11 +318,14 @@ class MonadIO (SEval sym) => Backend sym where
     Rational {- ^ The rational -} ->
     SEval sym (SFloat sym)
 
+  -- | Construct a floating point value from the given bit-precise
+  --   floating-point representation.
+  fpExactLit :: sym -> BF -> SEval sym (SFloat sym)
+
   -- ==== If/then/else operations ====
   iteBit :: sym -> SBit sym -> SBit sym -> SBit sym -> SEval sym (SBit sym)
   iteWord :: sym -> SBit sym -> SWord sym -> SWord sym -> SEval sym (SWord sym)
   iteInteger :: sym -> SBit sym -> SInteger sym -> SInteger sym -> SEval sym (SInteger sym)
-
 
   -- ==== Bit operations ====
   bitEq  :: sym -> SBit sym -> SBit sym -> SEval sym (SBit sym)
@@ -675,6 +680,8 @@ class MonadIO (SEval sym) => Backend sym where
   fpLessThan    :: sym -> SFloat sym -> SFloat sym -> SEval sym (SBit sym)
   fpGreaterThan :: sym -> SFloat sym -> SFloat sym -> SEval sym (SBit sym)
 
+  fpLogicalEq   :: sym -> SFloat sym -> SFloat sym -> SEval sym (SBit sym)
+
   fpPlus, fpMinus, fpMult, fpDiv :: FPArith2 sym
   fpNeg :: sym -> SFloat sym -> SEval sym (SFloat sym)
 
@@ -698,8 +705,3 @@ type FPArith2 sym =
   SFloat sym ->
   SFloat sym ->
   SEval sym (SFloat sym)
-
-
-
-
-

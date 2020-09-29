@@ -325,7 +325,9 @@ instance Backend Concrete where
   ------------------------------------------------------------------------
   -- Floating Point
   fpLit _sym e p rat     = pure (FP.fpLit e p rat)
+  fpExactLit _sym bf     = pure bf
   fpEq _sym x y          = pure (FP.bfValue x == FP.bfValue y)
+  fpLogicalEq _sym x y   = pure (FP.bfCompare (FP.bfValue x) (FP.bfValue y) == EQ)
   fpLessThan _sym x y    = pure (FP.bfValue x <  FP.bfValue y)
   fpGreaterThan _sym x y = pure (FP.bfValue x >  FP.bfValue y)
   fpPlus  = fpBinArith FP.bfAdd

@@ -30,6 +30,7 @@ module Cryptol.Symbolic.What4
  ) where
 
 import Control.Concurrent.Async
+import Control.Concurrent.MVar
 import Control.Monad.IO.Class
 import Control.Monad (when, foldM, forM_)
 import qualified Control.Exception as X
@@ -50,16 +51,12 @@ import qualified Cryptol.Eval as Eval
 import qualified Cryptol.Eval.Concrete as Concrete
 import qualified Cryptol.Eval.Concrete.FloatHelpers as Concrete
 
-import qualified Cryptol.Eval.Backend as Eval
 import qualified Cryptol.Eval.Value as Eval
 import           Cryptol.Eval.What4
 import qualified Cryptol.Eval.What4.SFloat as W4
 import           Cryptol.Symbolic
 import           Cryptol.TypeCheck.AST
-import           Cryptol.Utils.Ident (Ident)
 import           Cryptol.Utils.Logger(logPutStrLn)
-import           Cryptol.Utils.Panic (panic)
-import           Cryptol.Utils.RecordMap
 
 import qualified What4.Config as W4
 import qualified What4.Interface as W4
@@ -112,18 +109,15 @@ protectStack mkErr cmd modEnv =
         handler () = mkErr msg modEnv
 
 
-doEval :: MonadIO m => Eval.Eval a -> m a
-doEval m = liftIO $ Eval.runEval m
-
 -- | Returns definitions, together with the value and it safety predicate.
 doW4Eval ::
   (W4.IsExprBuilder sym, MonadIO m) =>
-  sym -> W4Eval sym a -> m (W4Defs sym (W4.Pred sym, a))
+  sym -> W4Eval sym a -> m (W4.Pred sym, a)
 doW4Eval sym m =
   do res <- liftIO $ Eval.runEval (w4Eval m sym)
-     case w4Result res of
+     case res of
        W4Error err  -> liftIO (X.throwIO err)
-       W4Result p x -> pure res { w4Result = (p,x) }
+       W4Result p x -> pure (p,x)
 
 
 data AnAdapter = AnAdapter (forall st. SolverAdapter st)
@@ -202,11 +196,6 @@ proverError msg (_, _, modEnv) =
 data CryptolState t = CryptolState
 
 
-
--- TODO? move this?
-allDeclGroups :: M.ModuleEnv -> [DeclGroup]
-allDeclGroups = concatMap mDecls . M.loadedNonParamModules
-
 setupAdapterOptions :: W4ProverConfig -> W4.ExprBuilder t CryptolState fs -> IO ()
 setupAdapterOptions cfg sym =
    case cfg of
@@ -218,65 +207,72 @@ setupAdapterOptions cfg sym =
     W4.extendConfig (W4.solver_adapter_config_options adpt) (W4.getConfiguration sym)
 
 
+what4FreshFns :: W4.IsSymExprBuilder sym => sym -> FreshVarFns (What4 sym)
+what4FreshFns sym =
+  FreshVarFns
+  { freshBitVar     = W4.freshConstant sym W4.emptySymbol W4.BaseBoolRepr
+  , freshWordVar    = SW.freshBV sym W4.emptySymbol
+  , freshIntegerVar = W4.freshBoundedInt sym W4.emptySymbol
+  , freshFloatVar   = W4.fpFresh sym
+  }
+
 -- | Simulate and manipulate query into a form suitable to be sent
 -- to a solver.
 prepareQuery ::
   W4.IsSymExprBuilder sym =>
-  sym ->
+  What4 sym ->
   ProverCommand ->
   M.ModuleT IO (Either String
-                       ([FinType],[VarShape sym],W4.Pred sym, W4.Pred sym)
+                       ([FinType],[VarShape (What4 sym)],W4.Pred sym, W4.Pred sym)
                )
 prepareQuery sym ProverCommand { .. } =
   case predArgTypes pcQueryType pcSchema of
     Left msg -> pure (Left msg)
     Right ts ->
-      do args <- liftIO (mapM (freshVariable sym) ts)
-         res  <- simulate args
+      do args <- liftIO (mapM (freshVar (what4FreshFns (w4 sym))) ts)
+         (safety,b) <- simulate args
          liftIO
-           do -- add the collected definitions to the goal
-              let (safety,prop') = w4Result res
-              b <- W4.andPred sym (w4Defs res) prop'
+           do -- Ignore the safety condition if the flag is set
+              let safety' = if pcIgnoreSafety then W4.truePred (w4 sym) else safety
 
-              -- Ignore the safety condition if the flag is set
-              let safety' = if pcIgnoreSafety then W4.truePred sym else safety
+              defs <- readMVar (w4defs sym)
 
               Right <$>
                 case pcQueryType of
                   ProveQuery ->
-                    do q <- W4.notPred sym =<< W4.andPred sym safety' b
-                       pure (ts,args,safety',q)
+                    do q <- W4.notPred (w4 sym) =<< W4.andPred (w4 sym) safety' b
+                       q' <- W4.andPred (w4 sym) defs q
+                       pure (ts,args,safety',q')
 
                   SafetyQuery ->
-                    do q <- W4.notPred sym safety
-                       pure (ts,args,safety,q)
+                    do q <- W4.notPred (w4 sym) safety
+                       q' <- W4.andPred (w4 sym) defs q
+                       pure (ts,args,safety,q')
 
                   SatQuery _ ->
-                    do q <- W4.andPred sym safety' b
-                       pure (ts,args,safety',q)
+                    do q <- W4.andPred (w4 sym) safety' b
+                       q' <- W4.andPred (w4 sym) defs q
+                       pure (ts,args,safety',q')
   where
   simulate args =
     do let lPutStrLn = M.withLogger logPutStrLn
        when pcVerbose (lPutStrLn "Simulating...")
        modEnv <- M.getModuleEnv
-       doW4Eval sym
+       doW4Eval (w4 sym)
          do let tbl = primTable sym
             let ?evalPrim = \i -> Map.lookup i tbl
-            let extDgs = allDeclGroups modEnv ++ pcExtraDecls
-            env <- Eval.evalDecls (What4 sym) extDgs mempty
-            v   <- Eval.evalExpr  (What4 sym) env    pcExpr
+            let extDgs = M.allDeclGroups modEnv ++ pcExtraDecls
+            env <- Eval.evalDecls sym extDgs mempty
+            v   <- Eval.evalExpr  sym env    pcExpr
             appliedVal <-
-              foldM Eval.fromVFun v (map (pure . varToSymValue sym) args)
+              foldM Eval.fromVFun v (map (pure . varShapeToValue sym) args)
 
             case pcQueryType of
               SafetyQuery ->
                 do Eval.forceValue appliedVal
-                   pure (W4.truePred sym)
+                   pure (W4.truePred (w4 sym))
 
               _ -> pure (Eval.fromVBit appliedVal)
-
-
-
 
 
 satProve ::
@@ -288,7 +284,9 @@ satProve ::
 satProve solverCfg hashConsing ProverCommand {..} =
   protectStack proverError \(evo, byteReader, modEnv) ->
   M.runModuleM (evo, byteReader, modEnv)
-  do sym     <- liftIO makeSym
+  do w4sym   <- liftIO makeSym
+     defVar  <- liftIO (newMVar (W4.truePred w4sym))
+     let sym = What4 w4sym defVar
      logData <- M.withLogger doLog ()
      start   <- liftIO getCurrentTime
      query   <- prepareQuery sym ProverCommand { .. }
@@ -300,12 +298,12 @@ satProve solverCfg hashConsing ProverCommand {..} =
           return result
   where
   makeSym =
-    do sym <- W4.newExprBuilder W4.FloatIEEERepr
-                                CryptolState
-                                globalNonceGenerator
-       setupAdapterOptions solverCfg sym
-       when hashConsing (W4.startCaching sym)
-       pure sym
+    do w4sym <- W4.newExprBuilder W4.FloatIEEERepr
+                                  CryptolState
+                                  globalNonceGenerator
+       setupAdapterOptions solverCfg w4sym
+       when hashConsing (W4.startCaching w4sym)
+       pure w4sym
 
   doLog lg () =
     pure
@@ -346,14 +344,16 @@ satProveOffline (W4Portfolio (p:|_)) hashConsing cmd outputContinuation =
 satProveOffline (W4ProverConfig (AnAdapter adpt)) hashConsing ProverCommand {..} outputContinuation =
   protectStack onError \(evo,byteReader,modEnv) ->
   M.runModuleM (evo,byteReader,modEnv)
-   do sym <- liftIO makeSym
+   do w4sym <- liftIO makeSym
+      defVar  <- liftIO (newMVar (W4.truePred w4sym))
+      let sym = What4 w4sym defVar
       ok  <- prepareQuery sym ProverCommand { .. }
       liftIO
         case ok of
           Left msg -> return (Just msg)
           Right (_ts,_args,_safety,query) ->
             do outputContinuation
-                  (\hdl -> solver_adapter_write_smt2 adpt sym hdl [query])
+                  (\hdl -> solver_adapter_write_smt2 adpt w4sym hdl [query])
                return Nothing
   where
   makeSym =
@@ -374,12 +374,12 @@ decSatNum n = n
 
 multiSATQuery ::
   sym ~ W4.ExprBuilder t CryptolState fm =>
-  sym ->
+  What4 sym ->
   W4ProverConfig ->
   PrimMap ->
   W4.LogData ->
   [FinType] ->
-  [VarShape sym] ->
+  [VarShape (What4 sym)] ->
   W4.Pred sym ->
   SatNum ->
   IO (Maybe String, ProverResult)
@@ -390,13 +390,14 @@ multiSATQuery _sym (W4Portfolio _) _primMap _logData _ts _args _query _satNum =
   fail "What4 portfolio solver cannot be used for multi SAT queries"
 
 multiSATQuery sym (W4ProverConfig (AnAdapter adpt)) primMap logData ts args query satNum0 =
-  do pres <- W4.solver_adapter_check_sat adpt sym logData [query] $ \res ->
+  do pres <- W4.solver_adapter_check_sat adpt (w4 sym) logData [query] $ \res ->
          case res of
            W4.Unknown -> return (Left (ProverError "Solver returned UNKNOWN"))
            W4.Unsat _ -> return (Left (ThmResult (map unFinType ts)))
            W4.Sat (evalFn,_) ->
-             do model <- computeModel primMap evalFn ts args
-                blockingPred <- computeBlockingPred sym evalFn args
+             do xs <- mapM (varShapeToConcrete evalFn) args
+                let model = computeModel primMap ts xs
+                blockingPred <- computeBlockingPred sym args xs
                 return (Right (model, blockingPred))
 
      case pres of
@@ -409,22 +410,24 @@ multiSATQuery sym (W4ProverConfig (AnAdapter adpt)) primMap logData ts args quer
 
   computeMoreModels _qs (SomeSat n) | n <= 0 = return [] -- should never happen...
   computeMoreModels qs (SomeSat n) | n <= 1 = -- final model
-    W4.solver_adapter_check_sat adpt sym logData qs $ \res ->
+    W4.solver_adapter_check_sat adpt (w4 sym) logData qs $ \res ->
          case res of
            W4.Unknown -> return []
            W4.Unsat _ -> return []
            W4.Sat (evalFn,_) ->
-             do model <- computeModel primMap evalFn ts args
+             do xs <- mapM (varShapeToConcrete evalFn) args
+                let model = computeModel primMap ts xs
                 return [model]
 
   computeMoreModels qs satNum =
-    do pres <- W4.solver_adapter_check_sat adpt sym logData qs $ \res ->
+    do pres <- W4.solver_adapter_check_sat adpt (w4 sym) logData qs $ \res ->
          case res of
            W4.Unknown -> return Nothing
            W4.Unsat _ -> return Nothing
            W4.Sat (evalFn,_) ->
-             do model <- computeModel primMap evalFn ts args
-                blockingPred <- computeBlockingPred sym evalFn args
+             do xs <- mapM (varShapeToConcrete evalFn) args
+                let model = computeModel primMap ts xs
+                blockingPred <- computeBlockingPred sym args xs
                 return (Just (model, blockingPred))
 
        case pres of
@@ -434,12 +437,12 @@ multiSATQuery sym (W4ProverConfig (AnAdapter adpt)) primMap logData ts args quer
 
 singleQuery ::
   sym ~ W4.ExprBuilder t CryptolState fm =>
-  sym ->
+  What4 sym ->
   W4ProverConfig ->
   PrimMap ->
   W4.LogData ->
   [FinType] ->
-  [VarShape sym] ->
+  [VarShape (What4 sym)] ->
   Maybe (W4.Pred sym) {- ^ optional safety predicate.  Nothing = SAT query -} ->
   W4.Pred sym ->
   IO (Maybe String, ProverResult)
@@ -465,12 +468,13 @@ singleQuery sym (W4Portfolio ps) primMap logData ts args msafe query =
              return r
 
 singleQuery sym (W4ProverConfig (AnAdapter adpt)) primMap logData ts args msafe query =
-  do pres <- W4.solver_adapter_check_sat adpt sym logData [query] $ \res ->
+  do pres <- W4.solver_adapter_check_sat adpt (w4 sym) logData [query] $ \res ->
          case res of
            W4.Unknown -> return (ProverError "Solver returned UNKNOWN")
            W4.Unsat _ -> return (ThmResult (map unFinType ts))
            W4.Sat (evalFn,_) ->
-             do model <- computeModel primMap evalFn ts args
+             do xs <- mapM (varShapeToConcrete evalFn) args
+                let model = computeModel primMap ts xs
                 case msafe of
                   Just s ->
                     do s' <- W4.groundEval evalFn s
@@ -483,137 +487,33 @@ singleQuery sym (W4ProverConfig (AnAdapter adpt)) primMap logData ts args msafe 
 
 computeBlockingPred ::
   sym ~ W4.ExprBuilder t CryptolState fm =>
-  sym ->
-  W4.GroundEvalFn t ->
-  [VarShape sym] ->
+  What4 sym ->
+  [VarShape (What4 sym)] ->
+  [VarShape Concrete.Concrete] ->
   IO (W4.Pred sym)
-computeBlockingPred sym evalFn vs =
-  do ps <- mapM (varBlockingPred sym evalFn) vs
-     foldM (W4.orPred sym) (W4.falsePred sym) ps
+computeBlockingPred sym vs xs =
+  do res <- doW4Eval (w4 sym) (modelPred sym vs xs)
+     W4.notPred (w4 sym) (snd res)
 
-varBlockingPred ::
-  sym ~ W4.ExprBuilder t CryptolState fm =>
-  sym ->
+varShapeToConcrete ::
   W4.GroundEvalFn t ->
-  VarShape sym ->
-  IO (W4.Pred sym)
-varBlockingPred sym evalFn v =
+  VarShape (What4 (W4.ExprBuilder t CryptolState fm)) ->
+  IO (VarShape Concrete.Concrete)
+varShapeToConcrete evalFn v =
   case v of
-    VarBit b ->
-      do blit <- W4.groundEval evalFn b
-         W4.notPred sym =<< W4.eqPred sym b (W4.backendPred sym blit)
-    VarInteger i ->
-      do ilit <- W4.groundEval evalFn i
-         W4.notPred sym =<< W4.intEq sym i =<< W4.intLit sym ilit
-    VarRational n d ->
-      do n' <- W4.intLit sym =<< W4.groundEval evalFn n
-         d' <- W4.intLit sym =<< W4.groundEval evalFn d
-         x <- W4.intMul sym n d'
-         y <- W4.intMul sym n' d
-         W4.notPred sym =<< W4.intEq sym x y
-    VarWord SW.ZBV -> return (W4.falsePred sym)
-    VarWord (SW.DBV w) ->
-      do wlit <- W4.groundEval evalFn w
-         W4.notPred sym =<< W4.bvEq sym w =<< W4.bvLit sym (W4.bvWidth w) wlit
-
-    VarFloat (W4.SFloat f)
-      | fr@(W4.FloatingPointPrecisionRepr e p) <- sym `W4.fpReprOf` f
-      , let wid = W4.addNat e p
-      , Just W4.LeqProof <- W4.isPosNat wid ->
-        do bits <- W4.groundEval evalFn f
-           bv   <- W4.bvLit sym wid bits
-           constF <- W4.floatFromBinary sym fr bv
-           -- NOTE: we are using logical equality here
-           W4.notPred sym =<< W4.floatEq sym f constF
-      | otherwise -> panic "varBlockingPred" [ "1 >= 2 ???" ]
-
-    VarFinSeq _n vs -> computeBlockingPred sym evalFn vs
-    VarTuple vs     -> computeBlockingPred sym evalFn vs
-    VarRecord fs    -> computeBlockingPred sym evalFn (recordElements fs)
-
-computeModel ::
-  PrimMap ->
-  W4.GroundEvalFn t ->
-  [FinType] ->
-  [VarShape (W4.ExprBuilder t CryptolState fm)] ->
-  IO [(Type, Expr, Concrete.Value)]
-computeModel _ _ [] [] = return []
-computeModel primMap evalFn (t:ts) (v:vs) =
-  do v' <- varToConcreteValue evalFn v
-     let t' = unFinType t
-     e <- doEval (Concrete.toExpr primMap t' v') >>= \case
-             Nothing -> panic "computeModel" ["could not compute counterexample expression"]
-             Just e  -> pure e
-     zs <- computeModel primMap evalFn ts vs
-     return ((t',e,v'):zs)
-computeModel _ _ _ _ = panic "computeModel" ["type/value list mismatch"]
-
-
-data VarShape sym
-  = VarBit (W4.Pred sym)
-  | VarInteger (W4.SymInteger sym)
-  | VarRational (W4.SymInteger sym) (W4.SymInteger sym)
-  | VarFloat (W4.SFloat sym)
-  | VarWord (SW.SWord sym)
-  | VarFinSeq Int [VarShape sym]
-  | VarTuple [VarShape sym]
-  | VarRecord (RecordMap Ident (VarShape sym))
-
-freshVariable :: W4.IsSymExprBuilder sym => sym -> FinType -> IO (VarShape sym)
-freshVariable sym ty =
-  case ty of
-    FTBit         -> VarBit      <$> W4.freshConstant sym W4.emptySymbol W4.BaseBoolRepr
-    FTInteger     -> VarInteger  <$> W4.freshConstant sym W4.emptySymbol W4.BaseIntegerRepr
-    FTRational    -> VarRational
-                        <$> W4.freshConstant sym W4.emptySymbol W4.BaseIntegerRepr
-                        <*> W4.freshBoundedInt sym W4.emptySymbol (Just 1) Nothing
-    FTIntMod 0    -> panic "freshVariable" ["0 modulus not allowed"]
-    FTIntMod n    -> VarInteger  <$> W4.freshBoundedInt sym W4.emptySymbol (Just 0) (Just (n-1))
-    FTFloat e p   -> VarFloat    <$> W4.fpFresh sym e p
-    FTSeq n FTBit -> VarWord     <$> SW.freshBV sym W4.emptySymbol (toInteger n)
-    FTSeq n t     -> VarFinSeq n <$> sequence (replicate n (freshVariable sym t))
-    FTTuple ts    -> VarTuple    <$> mapM (freshVariable sym) ts
-    FTRecord fs   -> VarRecord   <$> traverse (freshVariable sym) fs
-
-varToSymValue :: W4.IsExprBuilder sym => sym -> VarShape sym -> Value sym
-varToSymValue sym var =
-  case var of
-    VarBit b     -> Eval.VBit b
-    VarInteger i -> Eval.VInteger i
-    VarRational n d -> Eval.VRational (Eval.SRational n d)
-    VarWord w    -> Eval.VWord (SW.bvWidth w) (return (Eval.WordVal w))
-    VarFloat f   -> Eval.VFloat f
-    VarFinSeq n vs -> Eval.VSeq (toInteger n) (Eval.finiteSeqMap (What4 sym) (map (pure . varToSymValue sym) vs))
-    VarTuple vs  -> Eval.VTuple (map (pure . varToSymValue sym) vs)
-    VarRecord fs -> Eval.VRecord (fmap (pure . varToSymValue sym) fs)
-
-varToConcreteValue ::
-  W4.GroundEvalFn t ->
-  VarShape (W4.ExprBuilder t CryptolState fm) ->
-  IO Concrete.Value
-varToConcreteValue evalFn v =
-  case v of
-    VarBit b     -> Eval.VBit <$> W4.groundEval evalFn b
-    VarInteger i -> Eval.VInteger <$> W4.groundEval evalFn i
-    VarRational n d ->
-       Eval.VRational <$> (Eval.SRational <$> W4.groundEval evalFn n <*> W4.groundEval evalFn d)
-    VarWord SW.ZBV     ->
-       pure (Eval.VWord 0 (pure (Eval.WordVal (Concrete.mkBv 0 0))))
+    VarBit b -> VarBit <$> W4.groundEval evalFn b
+    VarInteger i -> VarInteger <$> W4.groundEval evalFn i
+    VarRational n d -> VarRational <$> W4.groundEval evalFn n <*> W4.groundEval evalFn d
+    VarWord SW.ZBV -> pure (VarWord (Concrete.mkBv 0 0))
     VarWord (SW.DBV x) ->
-       do let w = W4.intValue (W4.bvWidth x)
-          Eval.VWord w . pure . Eval.WordVal . Concrete.mkBv w . BV.asUnsigned <$> W4.groundEval evalFn x
+      let w = W4.intValue (W4.bvWidth x)
+       in VarWord . Concrete.mkBv w . BV.asUnsigned <$> W4.groundEval evalFn x
     VarFloat fv@(W4.SFloat f) ->
       do let (e,p) = W4.fpSize fv
-         bits <- W4.groundEval evalFn f
-         pure $ Eval.VFloat $ Concrete.floatFromBits e p $ BV.asUnsigned bits
-
+         VarFloat . Concrete.floatFromBits e p . BV.asUnsigned <$> W4.groundEval evalFn f
     VarFinSeq n vs ->
-       do vs' <- mapM (varToConcreteValue evalFn) vs
-          pure (Eval.VSeq (toInteger n) (Eval.finiteSeqMap Concrete.Concrete (map pure vs')))
+      VarFinSeq n <$> mapM (varShapeToConcrete evalFn) vs
     VarTuple vs ->
-       do vs' <- mapM (varToConcreteValue evalFn) vs
-          pure (Eval.VTuple (map pure vs'))
+      VarTuple <$> mapM (varShapeToConcrete evalFn) vs
     VarRecord fs ->
-       do fs' <- traverse (varToConcreteValue evalFn) fs
-          pure (Eval.VRecord (fmap pure fs'))
-
+      VarRecord <$> traverse (varShapeToConcrete evalFn) fs
