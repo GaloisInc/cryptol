@@ -1,0 +1,13 @@
+Loading module Cryptol
+True
+False
+0x5b
+number`{rep = Bit} : {n} (1 >= n) => Bit
+
+[error] at <interactive>:1:1--1:2:
+  Unsolvable constraints:
+    • 1 >= 2
+        arising from
+        use of literal or demoted expression
+        at <interactive>:1:1--1:2
+    • Reason: It is not the case that 1 >= 2
