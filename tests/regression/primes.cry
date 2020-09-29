@@ -1,0 +1,38 @@
+
+z1prime : {n} (prime n) => Z n
+z1prime = 1
+
+z1_2 = z1prime`{2}
+z1_3 = z1prime`{3}
+z1_17 = z1prime`{17}
+z1_2_17m1 = z1prime`{2^^17 - 1}
+
+
+type p192 = 6277101735386680763835789423207666416083908700390324961279
+type p224 = 26959946667150639794667015087019630673557916260026308143510066298881
+type p256 = 115792089210356248762697446949407573530086143415290314195533631308867097853951
+type p384 = 39402006196394479212279040100143613805079739270465446667948293404245721771496870329047266088258938001861606973112319
+type p521 = 6864797660130609714981900799081393217269435300143305409394463459185543183397656052122559640661454554977296311391480858037121987999716643812574028291115057151
+
+recip_correct : {p} (prime p) => Z p -> Bool
+recip_correct x = x == 0 \/ x * recip x == 1
+
+property recip_correct_17   = recip_correct`{17}
+property recip_correct_1021 = recip_correct`{1021}
+property recip_correct_p192 = recip_correct`{p192}
+property recip_correct_p224 = recip_correct`{p224}
+property recip_correct_p256 = recip_correct`{p256}
+property recip_correct_p384 = recip_correct`{p384}
+property recip_correct_p521 = recip_correct`{p521}
+
+moddiv_eq : {p} (prime p, p >= 3) => Z p -> Z p -> Bool
+moddiv_eq x y = y == 0 \/ (x /. y) * y == x
+
+property moddiv_eq17   = moddiv_eq`{17}
+property moddiv_eq1021 = moddiv_eq`{1021}
+
+property moddiv_eq_p192 = moddiv_eq`{p192}
+property moddiv_eq_p224 = moddiv_eq`{p224}
+property moddiv_eq_p256 = moddiv_eq`{p256}
+property moddiv_eq_p384 = moddiv_eq`{p384}
+property moddiv_eq_p521 = moddiv_eq`{p521}

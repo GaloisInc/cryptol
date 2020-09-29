@@ -1,0 +1,21 @@
+:l primes.cry
+:check
+
+z1_2
+z1_3
+z1_17
+z1_2_17m1
+
+z1prime`{8}
+z1prime`{p192*p521}
+
+:set prover=w4-z3
+:prove recip_correct_17
+:prove recip_correct_1021
+:prove recip_correct_p192
+:prove recip_correct_p224
+:prove recip_correct_p256
+:prove recip_correct_p384
+:prove recip_correct_p521
+
+:prove moddiv_eq17
