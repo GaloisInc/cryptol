@@ -1,3 +1,6 @@
 [submodule "examples/cryptol-specs"]
 	path = examples/cryptol-specs
 	url = https://github.com/GaloisInc/cryptol-specs.git
+[submodule "deps/argo"]
+	path = deps/argo
+	url = https://github.com/galoisinc/argo
