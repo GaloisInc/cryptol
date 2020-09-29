@@ -1,7 +1,6 @@
-{-# LANGUAGE PatternGuards, MultiWayIf, TypeOperators #-}
+{-# LANGUAGE PatternGuards, MagicHash, MultiWayIf, TypeOperators #-}
 module Cryptol.TypeCheck.Solver.Numeric
-  ( cryIsEqual, cryIsNotEqual, cryIsGeq, cryIsPrime
-  , primeTable, certifiedPrimeTable
+  ( cryIsEqual, cryIsNotEqual, cryIsGeq, cryIsPrime, primeTable
   ) where
 
 import           Control.Applicative(Alternative(..))
@@ -10,7 +9,8 @@ import qualified Control.Monad.Fail as Fail
 import           Data.List (sortBy)
 import           Data.MemoTrie
 
-import qualified Math.NumberTheory.Primes.Testing as Prime
+import qualified GHC.Integer.GMP.Internals as Integer
+
 
 import Cryptol.Utils.Patterns
 import Cryptol.TypeCheck.PP
@@ -76,14 +76,14 @@ cryIsGeq i t1 t2 =
   -- XXX: max t 10 >= 2 --> True
   -- XXX: max t 2 >= 10 --> a >= 10
 
-
 {-# NOINLINE primeTable #-}
 primeTable :: Integer :->: Bool
-primeTable = trie Prime.isPrime
-
-{-# NOINLINE certifiedPrimeTable #-}
-certifiedPrimeTable :: Integer :->: Bool
-certifiedPrimeTable = trie Prime.isCertifiedPrime
+primeTable = trie isPrime
+  where
+    isPrime i =
+      case Integer.testPrimeInteger i 25# of
+        0# -> False
+        _  -> True
 
 cryIsPrime :: Ctxt -> Type -> Solved
 cryIsPrime _varInfo ty =

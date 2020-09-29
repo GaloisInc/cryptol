@@ -20,11 +20,11 @@ import           Control.Monad (foldM,ap,liftM)
 import           Control.Monad.IO.Class
 import           Data.Bits (bit, shiftR, shiftL, testBit)
 import qualified Data.BitVector.Sized as BV
-import           Data.Euclidean (gcdExt)
 import           Data.List
 import           Data.Parameterized.NatRepr
 import           Data.Parameterized.Some
 
+import qualified GHC.Integer.GMP.Internals as Integer
 
 import qualified What4.Interface as W4
 import qualified What4.SWord as SW
@@ -983,14 +983,8 @@ sModRecip _sym 0 _ = panic "sModRecip" ["0 modulus not allowed"]
 sModRecip sym@(What4 w4sym _) m x
   -- If the input is concrete, evaluate the answer
   | Just xi <- W4.asInteger x
-  = let (g,s) = gcdExt xi m
-     in if | abs g == m -> raiseError sym DivideByZero
-           | abs g == 1 -> liftIO (W4.intLit w4sym (s `mod` m))
-           | otherwise ->
-             evalPanic "sModRecip"
-                [ "illegal modulus: " ++ show m
-                , "  gcd("++show xi++", " ++ show m++") = " ++ show g
-                ]
+  = let r = Integer.recipModInteger xi m
+     in if r == 0 then raiseError sym DivideByZero else integerLit sym r
 
   -- If the input is symbolic, create a new symbolic constant
   -- and assert that it is the desired multiplicitive inverse.

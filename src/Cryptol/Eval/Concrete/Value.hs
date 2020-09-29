@@ -38,9 +38,10 @@ module Cryptol.Eval.Concrete.Value
 
 import qualified Control.Exception as X
 import Data.Bits
-import Data.Euclidean (gcdExt)
 import Numeric (showIntAtBase)
 import qualified LibBF as FP
+
+import qualified GHC.Integer.GMP.Internals as Integer
 
 import qualified Cryptol.Eval.Arch as Arch
 import qualified Cryptol.Eval.Concrete.FloatHelpers as FP
@@ -317,16 +318,13 @@ instance Backend Concrete where
   znEq _ _m x y = pure $! x == y
 
   -- NB: under the precondition that `m` is prime,
-  -- the following panic condition should never happen
+  -- the only values for which no inverse exists are
+  -- congruent to 0 modulo m.
   znRecip sym m x
-    | x == 0 = raiseError sym DivideByZero
-    | g == 1 = pure (s `mod` m)
-    | otherwise = evalPanic "znRecip"
-                   ["illegal modulus: " ++ show m
-                   ,"  gcd("++show m++", " ++ show x++") = " ++ show g
-                   ]
+    | r == 0    = raiseError sym DivideByZero
+    | otherwise = pure r
    where
-   (g,s) = gcdExt x m
+     r = Integer.recipModInteger x m
 
   znPlus  _ = liftBinIntMod (+)
   znMinus _ = liftBinIntMod (-)
