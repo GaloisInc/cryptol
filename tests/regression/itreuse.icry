@@ -1,0 +1,2 @@
+traceVal "doing some work" (42 : Integer)
+it
