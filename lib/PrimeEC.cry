@@ -14,7 +14,7 @@ type AffinePoint p =
   }
 
 /**
- * The type of points of an elliptic curve with in (homogeneous)
+ * The type of points of an elliptic curve in (homogeneous)
  * projective coordinates.  The coefficients are taken from the
  * prime field 'Z p' with 'p > 3'. These points should be understood as
  * representatives of equivalence classes of points, where two representatives
@@ -38,7 +38,7 @@ type ProjectivePoint p =
 
 /**
  * 'ec_is_point_affine b S' checks that the supposed affine elliptic curve
- * point 'S' fact lies on the curve defined by the curve parameter 'b'.  Here,
+ * point 'S' in fact lies on the curve defined by the curve parameter 'b'.  Here,
  * and throughout this module, we assume the curve parameter 'a' is equal to
  * '-3'.  Precisely, this function checks the following condition:
  *
@@ -107,14 +107,14 @@ primitive ec_double : {p} (prime p, p > 3) =>
 
 /**
  * Given two projective points 'S' and 'T' where neither is the identity,
- * compute 'S+T'. If the points are not know to be distinct from the point
+ * compute 'S+T'. If the points are not known to be distinct from the point
  * at infinity, use 'ec_add' instead.
  */
 primitive ec_add_nonzero : {p} (prime p, p > 3) =>
   ProjectivePoint p -> ProjectivePoint p -> ProjectivePoint p
 
 /**
- * Given a projective point 'S', compute it's negation, '-S'
+ * Given a projective point 'S', compute its negation, '-S'
  */
 ec_negate : {p} (prime p, p > 3) => ProjectivePoint p -> ProjectivePoint p
 ec_negate S = { x = S.x, y = -S.y, z = S.z }
