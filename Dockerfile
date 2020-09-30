@@ -61,10 +61,10 @@ RUN cabal v2-update && \
     cabal v2-install --install-method=copy --overwrite-policy=always --installdir=bin test-lib
 RUN ./bin/test-runner --ext=.icry --exe=./rootfs/usr/local/bin/cryptol -F -b tests
 ENV PATH=/usr/local/bin:/cryptol/rootfs/usr/local/bin:$PATH
-RUN    ! $(cryptol -c ":s prover=abc" | tail -n +2 | grep -q .) \
+RUN    ! $(cryptol -c ":s prover=yices" | tail -n +2 | grep -q .) \
     #    && ! $(cryptol -c ":s prover=mathsat" | tail -n +2 | grep -q .) \
     && ! $(cryptol -c ":s prover=cvc4" | tail -n +2 | grep -q .) \
-    && ! $(cryptol -c ":s prover=yices" | tail -n +2 | grep -q .) \
+    # && ! $(cryptol -c ":s prover=abc" | tail -n +2 | grep -q .) \
     && ! $(cryptol -c ":s prover=boolector" | tail -n +2 | grep -q .) \
     && ! $(cryptol -c ":s prover=z3" | tail -n +2 | grep -q .)
 RUN mkdir -p rootfs/"${CRYPTOLPATH}" \
