@@ -262,7 +262,7 @@ Here are Cryptol's responses:
 \paragraph*{Prime moduli}
 It is a consequence of Fermat's little theorem that when \texttt{p} is
 a prime number, every nonzero value of \texttt{Z p} has a
-multiplicitive inverse.  In other words, for every \texttt{x : Z p}
+multiplicative inverse.  In other words, for every \texttt{x : Z p}
 where \texttt{x != 0} there is some other value
 \texttt{y : Z p} where \texttt{x*y == 1}.  We can use this fact to
 implement the \texttt{Field} operations for \texttt{Z p}.
@@ -270,7 +270,7 @@ The type \texttt{Z p} is also known as the
 ``prime field of characteristic \texttt{p}'' when \texttt{p} is prime.
 
 \begin{Exercise}\label{ex:int:3}
-What are the results of evalauting the following expressions?
+What are the results of evaluating the following expressions?
 \begin{Verbatim}
   recip 5 : Z 7
   1 /. 3 : Z 7
@@ -345,7 +345,7 @@ Cryptol REPL.
 
 Floating point numbers may be written using either integral or fractional
 literals.  In general, literals that cannot be represented exactly are
-rejected with a type error, with the exception of decimal fractional litrals
+rejected with a type error, with the exception of decimal fractional literals
 which are rounded to the nearest even representable number.
 
 Floating point numbers may be manipulated and compared using
