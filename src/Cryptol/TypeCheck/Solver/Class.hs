@@ -257,11 +257,8 @@ solveFieldInst ty = case tNoUser ty of
 
   -- Field Real
 
-  -- Field (Z n) fails for now (to be added later with a 'prime n' requirement)
-  TCon (TC TCIntMod) [_] ->
-    Unsolvable $
-    TCErrorMessage "Type 'Z' does not support field operations."
---  TCon (TC TCIntMod) [n] -> SolvedIf [ pFin n, n >== tOne, pPrime n ]
+  -- Field (Z n)
+  TCon (TC TCIntMod) [n] -> SolvedIf [ pPrime n ]
 
   -- Field ([n]a) fails
   TCon (TC TCSeq) [_, _] ->
@@ -570,5 +567,3 @@ solveLiteralInst val ty
 
       _ -> Unsolvable $ TCErrorMessage $ show
          $ "Type" <+> quotes (pp ty) <+> "does not support integer literals."
-
-

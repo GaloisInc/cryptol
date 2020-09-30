@@ -31,6 +31,7 @@
 > import qualified Data.Text as T (pack)
 > import LibBF (BigFloat)
 > import qualified LibBF as FP
+> import qualified GHC.Integer.GMP.Internals as Integer
 >
 > import Cryptol.ModuleSystem.Name (asPrim)
 > import Cryptol.TypeCheck.Solver.InfNat (Nat'(..), nAdd, nMin, nMul)
@@ -611,11 +612,11 @@ by corresponding type classes:
 >                       ringExp aty a =<< cryToInteger ety e
 >
 >   -- Field
->   , "/."         ~> binary (fieldBinary ratDiv
+>   , "/."         ~> binary (fieldBinary ratDiv zDiv
 >                                         (fpBin FP.bfDiv fpImplicitRound)
 >                             )
 >
->   , "recip"      ~> unary (fieldUnary ratRecip fpRecip)
+>   , "recip"      ~> unary (fieldUnary ratRecip zRecip fpRecip)
 >
 >   -- Round
 >   , "floor"      ~> unary (roundUnary floor
@@ -1203,20 +1204,25 @@ a reciprocal operator and a field division operator (not to be
 confused with integral division).
 
 > fieldUnary :: (Rational -> E Rational) ->
+>               (Integer -> Integer -> E Integer) ->
 >               (Integer -> Integer -> BigFloat -> E BigFloat) ->
 >               TValue -> E Value -> E Value
-> fieldUnary qop flop ty v = case ty of
+> fieldUnary qop zop flop ty v = case ty of
 >   TVRational  -> VRational <$> appOp1 qop (fromVRational <$> v)
+>   TVIntMod m  -> VInteger <$> appOp1 (zop m) (fromVInteger <$> v)
 >   TVFloat e p -> VFloat . fpToBF e p <$> appOp1 (flop e p) (fromVFloat <$> v)
 >   _ -> evalPanic "fieldUnary" [show ty ++ " is not a Field type"]
 >
 > fieldBinary ::
 >    (Rational -> Rational -> E Rational) ->
+>    (Integer -> Integer -> Integer -> E Integer) ->
 >    (Integer -> Integer -> BigFloat -> BigFloat -> E BigFloat) ->
 >    TValue -> E Value -> E Value -> E Value
-> fieldBinary qop flop ty l r = case ty of
->   TVRational -> VRational <$>
+> fieldBinary qop zop flop ty l r = case ty of
+>   TVRational  -> VRational <$>
 >                    appOp2 qop (fromVRational <$> l) (fromVRational <$> r)
+>   TVIntMod m  -> VInteger <$>
+>                    appOp2 (zop m) (fromVInteger <$> l) (fromVInteger <$> r)
 >   TVFloat e p -> VFloat . fpToBF e p <$>
 >                       appOp2 (flop e p) (fromVFloat <$> l) (fromVFloat <$> r)
 >   _ -> evalPanic "fieldBinary" [show ty ++ " is not a Field type"]
@@ -1228,7 +1234,14 @@ confused with integral division).
 > ratRecip :: Rational -> E  Rational
 > ratRecip 0 = cryError DivideByZero
 > ratRecip x = pure (recip x)
-
+>
+> zRecip :: Integer -> Integer -> E Integer
+> zRecip m x = if r == 0 then cryError DivideByZero else pure r
+>    where r = Integer.recipModInteger x m
+>
+> zDiv :: Integer -> Integer -> Integer -> E Integer
+> zDiv m x y = f <$> zRecip m y
+>   where f yinv = (x * yinv) `mod` m
 
 Round
 -----

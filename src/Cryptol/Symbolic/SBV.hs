@@ -340,7 +340,6 @@ prepareQuery evo modEnv ProverCommand{..} =
 
                  return (addAsm defRels (SBV.svAnd safety' b)))
 
-
 -- | Turn the SMT results from SBV into a @ProverResult@ that is ready for the Cryptol REPL.
 --   There may be more than one result if we made a multi-sat query.
 processResults ::

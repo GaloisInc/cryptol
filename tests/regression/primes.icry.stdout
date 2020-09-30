@@ -1,0 +1,73 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+property recip_correct_17 Using exhaustive testing.
+Testing... Passed 17 tests.
+Q.E.D.
+property recip_correct_1021 Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 9.33% (95 of 1021 values)
+property recip_correct_p192 Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^192 values)
+property recip_correct_p224 Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^224 values)
+property recip_correct_p256 Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^256 values)
+property recip_correct_p384 Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^384 values)
+property recip_correct_p521 Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^521 values)
+property moddiv_eq17 Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 29.29% (85 of 289 values)
+property moddiv_eq1021 Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.01% (100 of 1042441 values)
+property moddiv_eq_p192 Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^384 values)
+property moddiv_eq_p224 Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^448 values)
+property moddiv_eq_p256 Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^512 values)
+property moddiv_eq_p384 Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^768 values)
+property moddiv_eq_p521 Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^1042 values)
+1
+1
+1
+1
+
+[error] at <interactive>:1:1--1:8:
+  Unsolvable constraints:
+    • prime 8
+        arising from
+        use of expression z1prime
+        at <interactive>:1:1--1:8
+    • Reason: 8 is not a prime number
+
+[error] at <interactive>:1:1--1:8:
+  Unsolvable constraints:
+    • prime 43091033305484275771318189120554014028061750499173210735564075069516863836988716943216254409932734872431737796205873180054667648466751626159946491190398490019830895369540999907009814461968819338016648922197947056129
+        arising from
+        use of expression z1prime
+        at <interactive>:1:1--1:8
+    • Reason: 43091033305484275771318189120554014028061750499173210735564075069516863836988716943216254409932734872431737796205873180054667648466751626159946491190398490019830895369540999907009814461968819338016648922197947056129 is not a prime number
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.

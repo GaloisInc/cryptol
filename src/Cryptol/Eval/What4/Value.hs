@@ -7,6 +7,7 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -22,6 +23,8 @@ import qualified Data.BitVector.Sized as BV
 import           Data.List
 import           Data.Parameterized.NatRepr
 import           Data.Parameterized.Some
+
+import qualified GHC.Integer.GMP.Internals as Integer
 
 import qualified What4.Interface as W4
 import qualified What4.SWord as SW
@@ -82,11 +85,11 @@ w4Thunk :: Eval (W4Result sym a) -> W4Eval sym a
 w4Thunk m = W4Eval (W4Conn \_ -> m)
 
 -- | A value with no context.
-doEval :: W4.IsExprBuilder sym => Eval a -> W4Conn sym a
+doEval :: W4.IsSymExprBuilder sym => Eval a -> W4Conn sym a
 doEval m = W4Conn \_sym -> m
 
 -- | A total value.
-total :: W4.IsExprBuilder sym => W4Conn sym a -> W4Eval sym a
+total :: W4.IsSymExprBuilder sym => W4Conn sym a -> W4Eval sym a
 total m = W4Eval
   do sym <- getSym
      W4Result (W4.backendPred sym True) <$> m
@@ -94,23 +97,23 @@ total m = W4Eval
 --------------------------------------------------------------------------------
 -- Operations in WConn
 
-instance W4.IsExprBuilder sym => Functor (W4Conn sym) where
+instance W4.IsSymExprBuilder sym => Functor (W4Conn sym) where
   fmap = liftM
 
-instance W4.IsExprBuilder sym => Applicative (W4Conn sym) where
+instance W4.IsSymExprBuilder sym => Applicative (W4Conn sym) where
   pure   = doEval . pure
   (<*>)  = ap
 
-instance W4.IsExprBuilder sym => Monad (W4Conn sym) where
+instance W4.IsSymExprBuilder sym => Monad (W4Conn sym) where
   m1 >>= f = W4Conn \sym ->
     do res1 <- evalConn m1 sym
        evalConn (f res1) sym
 
-instance W4.IsExprBuilder sym => MonadIO (W4Conn sym) where
+instance W4.IsSymExprBuilder sym => MonadIO (W4Conn sym) where
   liftIO = doEval . liftIO
 
 -- | Access the symbolic back-end
-getSym :: W4.IsExprBuilder sym => W4Conn sym sym
+getSym :: W4Conn sym sym
 getSym = W4Conn \sym -> pure sym
 
 -- | Record a definition.
@@ -118,20 +121,20 @@ getSym = W4Conn \sym -> pure sym
 --addDef p = W4Conn \_ -> pure W4Defs { w4Defs = p, w4Result = () }
 
 -- | Compute conjunction.
-w4And :: W4.IsExprBuilder sym =>
+w4And :: W4.IsSymExprBuilder sym =>
          W4.Pred sym -> W4.Pred sym -> W4Conn sym (W4.Pred sym)
 w4And p q =
   do sym <- getSym
      liftIO (W4.andPred sym p q)
 
 -- | Compute negation.
-w4Not :: W4.IsExprBuilder sym => W4.Pred sym -> W4Conn sym (W4.Pred sym)
+w4Not :: W4.IsSymExprBuilder sym => W4.Pred sym -> W4Conn sym (W4.Pred sym)
 w4Not p =
   do sym <- getSym
      liftIO (W4.notPred sym p)
 
 -- | Compute if-then-else.
-w4ITE :: W4.IsExprBuilder sym =>
+w4ITE :: W4.IsSymExprBuilder sym =>
          W4.Pred sym -> W4.Pred sym -> W4.Pred sym -> W4Conn sym (W4.Pred sym)
 w4ITE ifP ifThen ifElse =
   do sym <- getSym
@@ -142,14 +145,14 @@ w4ITE ifP ifThen ifElse =
 --------------------------------------------------------------------------------
 -- Operations in W4Eval
 
-instance W4.IsExprBuilder sym => Functor (W4Eval sym) where
+instance W4.IsSymExprBuilder sym => Functor (W4Eval sym) where
   fmap = liftM
 
-instance W4.IsExprBuilder sym => Applicative (W4Eval sym) where
+instance W4.IsSymExprBuilder sym => Applicative (W4Eval sym) where
   pure  = total . pure
   (<*>) = ap
 
-instance W4.IsExprBuilder sym => Monad (W4Eval sym) where
+instance W4.IsSymExprBuilder sym => Monad (W4Eval sym) where
   m1 >>= f = W4Eval
     do res1 <- evalPartial m1
        case res1 of
@@ -162,37 +165,38 @@ instance W4.IsExprBuilder sym => Monad (W4Eval sym) where
                      pure (W4Result pz y)
                 W4Error _ -> pure res2
 
-instance W4.IsExprBuilder sym => MonadIO (W4Eval sym) where
+instance W4.IsSymExprBuilder sym => MonadIO (W4Eval sym) where
   liftIO = total . liftIO
 
 
 -- | Add a definitional equation.
 -- This will always be asserted when we make queries to the solver.
-addDefEqn :: W4.IsExprBuilder sym => What4 sym -> W4.Pred sym -> W4Eval sym ()
+addDefEqn :: W4.IsSymExprBuilder sym => What4 sym -> W4.Pred sym -> W4Eval sym ()
 addDefEqn (What4 w4sym defVar) p = liftIO (modifyMVar_ defVar (W4.andPred w4sym p))
 
 -- | Add s safety condition.
-addSafety :: W4.IsExprBuilder sym => W4.Pred sym -> W4Eval sym ()
+addSafety :: W4.IsSymExprBuilder sym => W4.Pred sym -> W4Eval sym ()
 addSafety p = W4Eval (pure (W4Result p ()))
 
 -- | A fully undefined symbolic value
-evalError :: W4.IsExprBuilder sym => EvalError -> W4Eval sym a
+evalError :: W4.IsSymExprBuilder sym => EvalError -> W4Eval sym a
 evalError err = W4Eval (pure (W4Error err))
+
 --------------------------------------------------------------------------------
 
 
-assertBVDivisor :: W4.IsExprBuilder sym => What4 sym -> SW.SWord sym -> W4Eval sym ()
+assertBVDivisor :: W4.IsSymExprBuilder sym => What4 sym -> SW.SWord sym -> W4Eval sym ()
 assertBVDivisor sym x =
   do p <- liftIO (SW.bvIsNonzero (w4 sym) x)
      assertSideCondition sym p DivideByZero
 
 assertIntDivisor ::
-  W4.IsExprBuilder sym => What4 sym -> W4.SymInteger sym -> W4Eval sym ()
+  W4.IsSymExprBuilder sym => What4 sym -> W4.SymInteger sym -> W4Eval sym ()
 assertIntDivisor sym x =
   do p <- liftIO (W4.notPred (w4 sym) =<< W4.intEq (w4 sym) x =<< W4.intLit (w4 sym) 0)
      assertSideCondition sym p DivideByZero
 
-instance W4.IsExprBuilder sym => Backend (What4 sym) where
+instance W4.IsSymExprBuilder sym => Backend (What4 sym) where
   type SBit (What4 sym)     = W4.Pred sym
   type SWord (What4 sym)    = SW.SWord sym
   type SInteger (What4 sym) = W4.SymInteger sym
@@ -429,6 +433,7 @@ instance W4.IsExprBuilder sym => Backend (What4 sym) where
   znMinus  (What4 sym _) m x y = liftIO $ sModSub sym m x y
   znMult   (What4 sym _) m x y = liftIO $ sModMult sym m x y
   znNegate (What4 sym _) m x   = liftIO $ sModNegate sym m x
+  znRecip = sModRecip
 
   --------------------------------------------------------------
 
@@ -455,7 +460,7 @@ instance W4.IsExprBuilder sym => Backend (What4 sym) where
 
   fpToInteger = fpCvtToInteger
 
-sModAdd :: W4.IsExprBuilder sym =>
+sModAdd :: W4.IsSymExprBuilder sym =>
   sym -> Integer -> W4.SymInteger sym -> W4.SymInteger sym -> IO (W4.SymInteger sym)
 sModAdd _sym 0 _ _ = evalPanic "sModAdd" ["0 modulus not allowed"]
 sModAdd sym m x y
@@ -466,7 +471,7 @@ sModAdd sym m x y
   | otherwise
   = W4.intAdd sym x y
 
-sModSub :: W4.IsExprBuilder sym =>
+sModSub :: W4.IsSymExprBuilder sym =>
   sym -> Integer -> W4.SymInteger sym -> W4.SymInteger sym -> IO (W4.SymInteger sym)
 sModSub _sym 0 _ _ = evalPanic "sModSub" ["0 modulus not allowed"]
 sModSub sym m x y
@@ -478,7 +483,7 @@ sModSub sym m x y
   = W4.intSub sym x y
 
 
-sModMult :: W4.IsExprBuilder sym =>
+sModMult :: W4.IsSymExprBuilder sym =>
   sym -> Integer -> W4.SymInteger sym -> W4.SymInteger sym -> IO (W4.SymInteger sym)
 sModMult _sym 0 _ _ = evalPanic "sModMult" ["0 modulus not allowed"]
 sModMult sym m x y
@@ -489,7 +494,7 @@ sModMult sym m x y
   | otherwise
   = W4.intMul sym x y
 
-sModNegate :: W4.IsExprBuilder sym =>
+sModNegate :: W4.IsSymExprBuilder sym =>
   sym -> Integer -> W4.SymInteger sym -> IO (W4.SymInteger sym)
 sModNegate _sym 0 _ = evalPanic "sModMult" ["0 modulus not allowed"]
 sModNegate sym m x
@@ -502,7 +507,7 @@ sModNegate sym m x
 
 -- | Try successive powers of 2 to find the first that dominates the input.
 --   We could perhaps reduce to using CLZ instead...
-sLg2 :: W4.IsExprBuilder sym => sym -> SW.SWord sym -> SEval (What4 sym) (SW.SWord sym)
+sLg2 :: W4.IsSymExprBuilder sym => sym -> SW.SWord sym -> SEval (What4 sym) (SW.SWord sym)
 sLg2 sym x = liftIO $ go 0
   where
   w = SW.bvWidth x
@@ -538,7 +543,7 @@ lazyIte f c mx my
          f c x y
 
 indexFront_int ::
-  W4.IsExprBuilder sym =>
+  W4.IsSymExprBuilder sym =>
   What4 sym ->
   Nat' ->
   TValue ->
@@ -585,7 +590,7 @@ indexFront_int sym@(What4 w4sym _) mblen _a xs ix idx
         _                    -> Nothing
 
 indexBack_int ::
-  W4.IsExprBuilder sym =>
+  W4.IsSymExprBuilder sym =>
   What4 sym ->
   Nat' ->
   TValue ->
@@ -597,7 +602,7 @@ indexBack_int sym (Nat n) a xs ix idx = indexFront_int sym (Nat n) a (reverseSeq
 indexBack_int _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["indexBack_int"]
 
 indexFront_word ::
-  W4.IsExprBuilder sym =>
+  W4.IsSymExprBuilder sym =>
   What4 sym ->
   Nat' ->
   TValue ->
@@ -636,7 +641,7 @@ indexFront_word sym@(What4 w4sym _) mblen _a xs _ix idx
         _ -> [0 .. maxIdx]
 
 indexBack_word ::
-  W4.IsExprBuilder sym =>
+  W4.IsSymExprBuilder sym =>
   What4 sym ->
   Nat' ->
   TValue ->
@@ -648,7 +653,7 @@ indexBack_word sym (Nat n) a xs ix idx = indexFront_word sym (Nat n) a (reverseS
 indexBack_word _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["indexBack_word"]
 
 indexFront_bits :: forall sym.
-  W4.IsExprBuilder sym =>
+  W4.IsSymExprBuilder sym =>
   What4 sym ->
   Nat' ->
   TValue ->
@@ -681,7 +686,7 @@ indexFront_bits sym mblen _a xs _ix bits0 = go 0 (length bits0) bits0
          (go  (i `shiftL` 1)      (k-1) bs)
 
 indexBack_bits ::
-  W4.IsExprBuilder sym =>
+  W4.IsSymExprBuilder sym =>
   What4 sym ->
   Nat' ->
   TValue ->
@@ -695,7 +700,7 @@ indexBack_bits _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["indexBack_
 
 -- | Compare a symbolic word value with a concrete integer.
 wordValueEqualsInteger :: forall sym.
-  W4.IsExprBuilder sym =>
+  W4.IsSymExprBuilder sym =>
   What4 sym ->
   WordValue (What4 sym) ->
   Integer ->
@@ -718,7 +723,7 @@ wordValueEqualsInteger sym@(What4 w4sym _) wv i
     bitIs b x = if b then pure x else W4.notPred w4sym x
 
 updateFrontSym ::
-  W4.IsExprBuilder sym =>
+  W4.IsSymExprBuilder sym =>
   What4 sym ->
   Nat' ->
   TValue ->
@@ -743,7 +748,7 @@ updateFrontSym sym _len _eltTy vs (Right wv) val =
          iteValue sym b val (lookupSeqMap vs i)
 
 updateBackSym ::
-  W4.IsExprBuilder sym =>
+  W4.IsSymExprBuilder sym =>
   What4 sym ->
   Nat' ->
   TValue ->
@@ -771,7 +776,7 @@ updateBackSym sym (Nat n) _eltTy vs (Right wv) val =
 
 
 updateFrontSym_word ::
-  W4.IsExprBuilder sym =>
+  W4.IsSymExprBuilder sym =>
   What4 sym ->
   Nat' ->
   TValue ->
@@ -814,7 +819,7 @@ updateFrontSym_word sym@(What4 w4sym _) (Nat n) eltTy bv (Right wv) val =
 
 
 updateBackSym_word ::
-  W4.IsExprBuilder sym =>
+  W4.IsSymExprBuilder sym =>
   What4 sym ->
   Nat' ->
   TValue ->
@@ -856,7 +861,7 @@ updateBackSym_word sym@(What4 w4sym _) (Nat n) eltTy bv (Right wv) val =
            updateBackSym sym (Nat n) eltTy (asBitsMap sym bv) (Right wv) val
 
 
-sshrV :: W4.IsExprBuilder sym => What4 sym -> Value sym
+sshrV :: W4.IsSymExprBuilder sym => What4 sym -> Value sym
 sshrV sym =
   nlam $ \(Nat n) ->
   tlam $ \ix ->
@@ -878,25 +883,25 @@ sshrV sym =
             return (VWord (SW.bvWidth x) (WordVal <$> w4bvAshr (w4 sym) x amt))
 
 
-w4bvShl  :: W4.IsExprBuilder sym => sym -> SW.SWord sym -> SW.SWord sym -> W4Eval sym (SW.SWord sym)
+w4bvShl  :: W4.IsSymExprBuilder sym => sym -> SW.SWord sym -> SW.SWord sym -> W4Eval sym (SW.SWord sym)
 w4bvShl sym x y = liftIO $ SW.bvShl sym x y
 
-w4bvLshr  :: W4.IsExprBuilder sym => sym -> SW.SWord sym -> SW.SWord sym -> W4Eval sym (SW.SWord sym)
+w4bvLshr  :: W4.IsSymExprBuilder sym => sym -> SW.SWord sym -> SW.SWord sym -> W4Eval sym (SW.SWord sym)
 w4bvLshr sym x y = liftIO $ SW.bvLshr sym x y
 
-w4bvAshr :: W4.IsExprBuilder sym => sym -> SW.SWord sym -> SW.SWord sym -> W4Eval sym (SW.SWord sym)
+w4bvAshr :: W4.IsSymExprBuilder sym => sym -> SW.SWord sym -> SW.SWord sym -> W4Eval sym (SW.SWord sym)
 w4bvAshr sym x y = liftIO $ SW.bvAshr sym x y
 
-w4bvRol  :: W4.IsExprBuilder sym => sym -> SW.SWord sym -> SW.SWord sym -> W4Eval sym (SW.SWord sym)
+w4bvRol  :: W4.IsSymExprBuilder sym => sym -> SW.SWord sym -> SW.SWord sym -> W4Eval sym (SW.SWord sym)
 w4bvRol sym x y = liftIO $ SW.bvRol sym x y
 
-w4bvRor  :: W4.IsExprBuilder sym => sym -> SW.SWord sym -> SW.SWord sym -> W4Eval sym (SW.SWord sym)
+w4bvRor  :: W4.IsSymExprBuilder sym => sym -> SW.SWord sym -> SW.SWord sym -> W4Eval sym (SW.SWord sym)
 w4bvRor sym x y = liftIO $ SW.bvRor sym x y
 
 
 
 fpRoundingMode ::
-  W4.IsExprBuilder sym =>
+  W4.IsSymExprBuilder sym =>
   What4 sym -> SWord (What4 sym) -> SEval (What4 sym) W4.RoundingMode
 fpRoundingMode sym v =
   case wordAsLit sym v of
@@ -911,7 +916,7 @@ fpRoundingMode sym v =
     _ -> liftIO $ X.throwIO $ UnsupportedSymbolicOp "rounding mode"
 
 fpBinArith ::
-  W4.IsExprBuilder sym =>
+  W4.IsSymExprBuilder sym =>
   FP.SFloatBinArith sym ->
   What4 sym ->
   SWord (What4 sym) ->
@@ -924,7 +929,7 @@ fpBinArith fun = \sym@(What4 s _) r x y ->
 
 
 fpCvtToInteger ::
-  (W4.IsExprBuilder sy, sym ~ What4 sy) =>
+  (W4.IsSymExprBuilder sy, sym ~ What4 sy) =>
   sym -> String -> SWord sym -> SFloat sym -> SEval sym (SInteger sym)
 fpCvtToInteger sym@(What4 sy _) fun r x =
   do grd <- liftIO
@@ -957,9 +962,42 @@ fpCvtToRational sym@(What4 w4sym _) fp =
      ratio sym x y
 
 fpCvtFromRational ::
-  (W4.IsExprBuilder sy, sym ~ What4 sy) =>
+  (W4.IsSymExprBuilder sy, sym ~ What4 sy) =>
   sym -> Integer -> Integer -> SWord sym ->
   SRational sym -> SEval sym (SFloat sym)
 fpCvtFromRational sym@(What4 w4sym _) e p r rat =
   do rnd <- fpRoundingMode sym r
      liftIO (FP.fpFromRational w4sym e p rnd (sNum rat) (sDenom rat))
+
+-- Create a fresh constant and assert that it is the
+-- multiplicitive inverse of x; return the constant.
+-- Such an inverse must exist under the precondition
+-- that the modulus is prime and the input is nonzero.
+sModRecip ::
+  W4.IsSymExprBuilder sym =>
+  What4 sym ->
+  Integer ->
+  W4.SymInteger sym ->
+  W4Eval sym (W4.SymInteger sym)
+sModRecip _sym 0 _ = panic "sModRecip" ["0 modulus not allowed"]
+sModRecip sym@(What4 w4sym _) m x
+  -- If the input is concrete, evaluate the answer
+  | Just xi <- W4.asInteger x
+  = let r = Integer.recipModInteger xi m
+     in if r == 0 then raiseError sym DivideByZero else integerLit sym r
+
+  -- If the input is symbolic, create a new symbolic constant
+  -- and assert that it is the desired multiplicitive inverse.
+  -- Such an inverse will exist under the precondition that
+  -- the modulus is prime, and as long as the input is nonzero.
+  | otherwise
+  = do divZero <- liftIO (W4.intDivisible w4sym x (fromInteger m))
+       ok <- liftIO (W4.notPred w4sym divZero)
+       assertSideCondition sym ok DivideByZero
+
+       z <- liftIO (W4.freshBoundedInt w4sym W4.emptySymbol (Just 1) (Just (m-1)))
+       xz <- liftIO (W4.intMul w4sym x z)
+       rel <- znEq sym m xz =<< liftIO (W4.intLit w4sym 1)
+       addDefEqn sym =<< liftIO (W4.orPred w4sym divZero rel)
+
+       return z
