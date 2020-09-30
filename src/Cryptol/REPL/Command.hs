@@ -629,7 +629,7 @@ safeCmd str = do
             ~(EnvBool yes) <- getUser "show-examples"
             when yes $ printCounterexample cexType pexpr vs
 
-            bindItVariable t e
+            void $ bindItVariable t e
 
           AllSatResult _ -> do
             panic "REPL.Command" ["Unexpected AllSAtResult for ':safe' call"]
@@ -675,7 +675,7 @@ cmdProveSat isSat str = do
           ThmResult ts        -> do
             rPutStrLn (if isSat then "Unsatisfiable" else "Q.E.D.")
             (t, e) <- mkSolverResult cexStr (not isSat) (Left ts)
-            bindItVariable t e
+            void $ bindItVariable t e
 
           CounterExample cexType tevs -> do
             rPutStrLn "Counterexample"
@@ -688,7 +688,7 @@ cmdProveSat isSat str = do
             ~(EnvBool yes) <- getUser "show-examples"
             when yes $ printCounterexample cexType pexpr vs
 
-            bindItVariable t e
+            void $ bindItVariable t e
 
           AllSatResult tevss -> do
             rPutStrLn "Satisfiable"
@@ -714,7 +714,7 @@ cmdProveSat isSat str = do
             when yes $ forM_ vss (printSatisfyingModel pexpr)
 
             case (ty, exprs) of
-              (t, [e]) -> bindItVariable t e
+              (t, [e]) -> void $ bindItVariable t e
               (t, es ) -> bindItVariables t es
 
         seeStats <- getUserShowProverStats
@@ -912,7 +912,7 @@ readFileCmd fp = do
          let t = T.tWord (T.tNum (toInteger len * 8))
          let x = T.EProofApp (T.ETApp (T.ETApp number (T.tNum val)) t)
          let expr = T.EApp f x
-         bindItVariable (T.tString len) expr
+         void $ bindItVariable (T.tString len) expr
 
 -- | Convert a 'ByteString' (big-endian) of length @n@ to an 'Integer'
 -- with @8*n@ bits. This function uses a balanced binary fold to
@@ -1628,10 +1628,12 @@ replEvalExpr expr =
                let su = T.listParamSubst tys
                return (def1, T.apSubst su (T.sType sig))
 
-     val <- liftModuleCmd (rethrowEvalError . M.evalExpr def1)
+     -- add "it" to the namespace via a new declaration
+     itVar <- bindItVariable ty def1
+
+     -- evaluate the it variable
+     val <- liftModuleCmd (rethrowEvalError . M.evalExpr (T.EVar itVar))
      whenDebug (rPutStrLn (dump def1))
-     -- add "it" to the namespace
-     bindItVariable ty def1
      return (val,ty)
   where
   warnDefaults ts =
@@ -1658,8 +1660,9 @@ replReadFile fp handler =
     either handler (return . Just) x
 
 -- | Creates a fresh binding of "it" to the expression given, and adds
--- it to the current dynamic environment
-bindItVariable :: T.Type -> T.Expr -> REPL ()
+-- it to the current dynamic environment.  The fresh name generated
+-- is returned.
+bindItVariable :: T.Type -> T.Expr -> REPL T.Name
 bindItVariable ty expr = do
   freshIt <- freshName itIdent M.UserName
   let schema = T.Forall { T.sVars  = []
@@ -1679,6 +1682,7 @@ bindItVariable ty expr = do
   let nenv' = M.singletonE (P.UnQual itIdent) freshIt
                            `M.shadowing` M.deNames denv
   setDynEnv $ denv { M.deNames = nenv' }
+  return freshIt
 
 
 -- | Extend the dynamic environment with a fresh binding for "it",
@@ -1690,16 +1694,14 @@ bindItVariableVal ty val =
      mb      <- rEval (Concrete.toExpr prims ty val)
      case mb of
        Nothing   -> return ()
-       Just expr -> bindItVariable ty expr
-
-
+       Just expr -> void $ bindItVariable ty expr
 
 
 -- | Creates a fresh binding of "it" to a finite sequence of
 -- expressions of the same type, and adds that sequence to the current
 -- dynamic environment
 bindItVariables :: T.Type -> [T.Expr] -> REPL ()
-bindItVariables ty exprs = bindItVariable seqTy seqExpr
+bindItVariables ty exprs = void $ bindItVariable seqTy seqExpr
   where
     len = length exprs
     seqTy = T.tSeq (T.tNum len) ty
