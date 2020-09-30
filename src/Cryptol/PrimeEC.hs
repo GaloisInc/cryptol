@@ -6,8 +6,17 @@
 -- Maintainer: rdockins@galois.com
 -- Stability : experimental
 --
+-- This module provides fast primitives for elliptic curve cryptography
+-- defined on @Z p@ for prime @p > 3@.  These are exposed in cryptol
+-- by importing the built-in module "PrimeEC".  The primary primitives
+-- exposed here are the doubling and addition primitives in the ECC group
+-- as well as scalar multiplication and the "twin" multiplication primitive,
+-- which simultaneously computes the addition of two scalar multiplies.
+--
+-- This module makes heavy use of some GHC internals regarding the
+-- representation of the Integer type, and the underlying GMP primitives
+-- in order to speed up the basic modular arithmetic operations.
 -----------------------------------------------------------------------------
-
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE TypeOperators #-}
@@ -35,6 +44,8 @@ import           Data.Bits
 import Cryptol.TypeCheck.Solver.InfNat (widthInteger)
 import Cryptol.Utils.Panic
 
+-- | Points in the projective plane represented in
+--   homogenous coordinates.
 data ProjectivePoint =
   ProjectivePoint
   { px :: !BigNat
@@ -42,23 +53,34 @@ data ProjectivePoint =
   , pz :: !BigNat
   }
 
+-- | The projective "point at infinity", which represents the zero element
+--   of the ECC group.
 zro :: ProjectivePoint
 zro = ProjectivePoint Integer.oneBigNat Integer.oneBigNat Integer.zeroBigNat
 
+-- | Coerce an integer value to a @BigNat@.  This operation only really makes
+--   sense for nonnegative values, but this condition is not checked.
 integerToBigNat :: Integer -> BigNat
 integerToBigNat (Integer.S# i)  = Integer.wordToBigNat (int2Word# i)
 integerToBigNat (Integer.Jp# b) = b
 integerToBigNat (Integer.Jn# b) = b
 
+-- | Simple newtype wrapping the @BigNat@ value of the
+--   modulus of the underlying field Z p.  This modulus
+--   is required to be prime.
 newtype PrimeModulus = PrimeModulus { primeMod :: BigNat }
 
-{-# INLINE primeModulus #-}
+
+-- | Inject an integer value into the @PrimeModulus@ type.
+--   This modulus is required to be prime.
 primeModulus :: Integer -> PrimeModulus
 primeModulus = PrimeModulus . integerToBigNat
+{-# INLINE primeModulus #-}
+
 
 -- Barrett reduction replaces a division by the modulus with
 -- two multiplications and some shifting, masking, and additions
--- (and some fairly negligable pre-processing). For the size of
+-- (and some fairly negligible pre-processing). For the size of
 -- moduli we are working with for ECC, this does not appear to be
 -- a performance win.  Even for largest NIST curve (P-521) Barrett
 -- reduction is about 20% slower than naive modular reduction.
@@ -125,6 +147,9 @@ primeModulus = PrimeModulus . integerToBigNat
 --     -- up to 2 multiples of m must be removed
 --     go z = if z > m then go (z - m) else z
 
+-- | Modular addition of two values.  The inputs are
+--   required to be in reduced form, and will output
+--   a value in reduced form.
 mod_add :: PrimeModulus -> BigNat -> BigNat -> BigNat
 mod_add p !x !y =
     case Integer.isNullBigNat# rmp of
@@ -133,21 +158,36 @@ mod_add p !x !y =
   where r = Integer.plusBigNat x y
         rmp = Integer.minusBigNat r (primeMod p)
 
+-- | Compute the "half" value of a modular integer.  For a given input @x@
+--   this is a value @y@ such that @y+y == x@.  Such values must exist
+--   in @Z p@ when @p > 2@.  The input @x@ is required to be in reduced form,
+--   and will output a value in reduced form.
 mod_half :: PrimeModulus -> BigNat -> BigNat
 mod_half p !x = if Integer.testBitBigNat x 0# then qodd else qeven
   where
   qodd  = (Integer.plusBigNat x (primeMod p)) `Integer.shiftRBigNat` 1#
   qeven = x `Integer.shiftRBigNat` 1#
 
+-- | Compute the modular multiplication of two input values.  Currently, this
+--   uses naive modular reduction, and does not require the inputs to be in
+--   reduced form.  The output is in reduced form.
 mod_mul :: PrimeModulus -> BigNat -> BigNat -> BigNat
 mod_mul p !x !y = (Integer.timesBigNat x y) `Integer.remBigNat` (primeMod p)
 
+-- | Compute the modular difference of two input values.  The inputs are
+--   required to be in reduced form, and will output a value in reduced form.
 mod_sub :: PrimeModulus -> BigNat -> BigNat -> BigNat
 mod_sub p !x !y = mod_add p x (Integer.minusBigNat (primeMod p) y)
 
+-- | Compute the modular square of an input value @x@; that is, @x*x@.
+--   The input is not required to be in reduced form, and the output
+--   will be in reduced form.
 mod_square :: PrimeModulus -> BigNat -> BigNat
 mod_square p !x = Integer.sqrBigNat x `Integer.remBigNat` primeMod p
 
+-- | Compute the modular scalar multiplication @2x = x+x@.
+--   The input is required to be in reduced form and the output
+--   will be in reduced form.
 mul2 :: PrimeModulus -> BigNat -> BigNat
 mul2 p !x =
     case Integer.isNullBigNat# rmp of
@@ -157,15 +197,32 @@ mul2 p !x =
    r = x `Integer.shiftLBigNat` 1#
    rmp = Integer.minusBigNat r (primeMod p)
 
+-- | Compute the modular scalar multiplication @3x = x+x+x@.
+--   The input is required to be in reduced form and the output
+--   will be in reduced form.
 mul3 :: PrimeModulus -> BigNat -> BigNat
 mul3 p x = mod_add p x $! mul2 p x
 
+-- | Compute the modular scalar multiplication @4x = x+x+x+x@.
+--   The input is required to be in reduced form and the output
+--   will be in reduced form.
 mul4 :: PrimeModulus -> BigNat -> BigNat
 mul4 p x = mul2 p $! mul2 p x
 
+-- | Compute the modular scalar multiplication @8x = x+x+x+x+x+x+x+x@.
+--   The input is required to be in reduced form and the output
+--   will be in reduced form.
 mul8 :: PrimeModulus -> BigNat -> BigNat
 mul8 p x = mul2 p $! mul4 p x
 
+-- | Compute the elliptic curve group doubling operation.
+--   In other words, if @S@ is a projective point on a curve,
+--   this operation computes @S+S@ in the ECC group.
+--
+--   In geometric terms, this operation computes a tangent line
+--   to the curve at @S@ and finds the (unique) intersection point of this
+--   line with the curve, @R@; then returns the point @R'@, which is @R@
+--   reflected across the x axis.
 ec_double :: PrimeModulus -> ProjectivePoint -> ProjectivePoint
 ec_double p (ProjectivePoint sx sy sz) =
     if Integer.isZeroBigNat sz then zro else ProjectivePoint r18 r23 r13
@@ -189,18 +246,33 @@ ec_double p (ProjectivePoint sx sy sz) =
   r22 = mod_mul    p r11 r21              {- 22: t5 <- t4 * t5 -}
   r23 = mod_sub    p r22 r20              {- 23: t2 <- t5 - t2 -}
 
-{-# INLINE ec_add #-}
+-- | Compute the elliptic curve group addition operation, including the special
+--   case for adding points which might be the identity.
 ec_add :: PrimeModulus -> ProjectivePoint -> ProjectivePoint -> ProjectivePoint
 ec_add p s t
   | Integer.isZeroBigNat (pz s) = t
   | Integer.isZeroBigNat (pz t) = s
   | otherwise = ec_add_nonzero p s t
+{-# INLINE ec_add #-}
 
-{-# INLINE ec_sub #-}
+
+-- | Compute the elliptic curve group subtraction operation, including the special
+--   cases for subtracting points which might be the identity.
 ec_sub :: PrimeModulus -> ProjectivePoint -> ProjectivePoint -> ProjectivePoint
 ec_sub p s t = ec_add p s u
   where u = t{ py = Integer.minusBigNat (primeMod p) (py t) }
+{-# INLINE ec_sub #-}
 
+-- | Compute the elliptic curve group addition operation
+--   for values known not to be the identity.
+--   In other words, if @S@ and @T@ are projective points on a curve,
+--   with nonzero @z@ coordinate this operation computes @S+T@ in the ECC group.
+--
+--   In geometric terms, this operation computes a line that passes through
+--   @S@ and @T@, and finds the (unique) other point @R@ where the line intersects
+--   the curve; then returns the point @R'@, which is @R@ reflected across the x axis.
+--   In the special case where @S == T@, we instead call the @ec_double@ operation,
+--   which instead computes a tangent line to @S@ .
 ec_add_nonzero :: PrimeModulus -> ProjectivePoint -> ProjectivePoint -> ProjectivePoint
 ec_add_nonzero p s@(ProjectivePoint sx sy sz) (ProjectivePoint tx ty tz) =
     if Integer.isZeroBigNat r13 then
@@ -245,6 +317,10 @@ ec_add_nonzero p s@(ProjectivePoint sx sy sz) (ProjectivePoint tx ty tz) =
   r37 = mod_half   p r36                 {- 37: t2 <- t2/2 -}
 
 
+-- | Given a nonidentity projective point, normalize it so that
+--   its z component is 1.  This helps to avoid some modular
+--   multiplies in @ec_add@, and may be a win if the point will
+--   be added many times.
 ec_normalize :: PrimeModulus -> ProjectivePoint -> ProjectivePoint
 ec_normalize p s@(ProjectivePoint x y z)
   | Integer.eqBigNat z Integer.oneBigNat = s
@@ -260,6 +336,9 @@ ec_normalize p s@(ProjectivePoint x y z)
   y' = (Integer.timesBigNat y l3) `Integer.remBigNat` m
 
 
+-- | Given an integer @k@ and a projective point @S@, compute
+--   the scalar multiplication @kS@, which is @S@ added to itself
+--   @k@ times.
 ec_mult :: PrimeModulus -> Integer -> ProjectivePoint -> ProjectivePoint
 ec_mult p d s
   | d == 0    = zro
@@ -267,7 +346,7 @@ ec_mult p d s
   | Integer.isZeroBigNat (pz s) = zro
   | otherwise =
       case m of
-        0# -> panic "ec_twin_mult" ["modulus too large", show (Integer.bigNatToInteger (primeMod p))]
+        0# -> panic "ec_mult" ["modulus too large", show (Integer.bigNatToInteger (primeMod p))]
         _  -> go m zro
 
  where
@@ -297,6 +376,11 @@ ec_mult p d s
       r2 = ec_double p r
 
 {-# INLINE normalizeForTwinMult #-}
+
+-- | Compute the sum and difference of the given points,
+--   and normalize all four values.  This can be done jointly
+--   in a more efficent way than computing the necessary
+--   field inverses separately.
 normalizeForTwinMult ::
   PrimeModulus -> ProjectivePoint -> ProjectivePoint ->
   (ProjectivePoint, ProjectivePoint, ProjectivePoint, ProjectivePoint)
@@ -347,6 +431,12 @@ normalizeForTwinMult p s t = (s',t',spt',smt')
   smt' = ProjectivePoint (mod_mul p (px smt) d_inv2) (mod_mul p (py smt) d_inv3) Integer.oneBigNat
 
 
+-- | Given an integer @j@ and a projective point @S@, together with
+--   another integer @k@ and point @T@ compute the "twin" scalar
+--   the scalar multiplication @jS + kT@.  This computation can be done
+--   essentially the same number of modular arithmetic operations
+--   as a single scalar multiplication by doing some additional bookeeping
+--   and setup.
 ec_twin_mult :: PrimeModulus ->
   Integer -> ProjectivePoint ->
   Integer -> ProjectivePoint ->
