@@ -327,7 +327,7 @@ fillHole sym env (nm, sch, _, fill) = do
 
 -- | 'Value' types are non-polymorphic types recursive constructed from
 --   bits, finite sequences, tuples and records.  Types of this form can
---   be implemented rather more efficently than general types because we can
+--   be implemented rather more efficiently than general types because we can
 --   rely on the 'delayFill' operation to build a thunk that falls back on performing
 --   eta-expansion rather than doing it eagerly.
 isValueType :: GenEvalEnv sym -> Schema -> Bool

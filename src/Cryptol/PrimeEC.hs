@@ -379,7 +379,7 @@ ec_mult p d s
 
 -- | Compute the sum and difference of the given points,
 --   and normalize all four values.  This can be done jointly
---   in a more efficent way than computing the necessary
+--   in a more efficient way than computing the necessary
 --   field inverses separately.
 normalizeForTwinMult ::
   PrimeModulus -> ProjectivePoint -> ProjectivePoint ->

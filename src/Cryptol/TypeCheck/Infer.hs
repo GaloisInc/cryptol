@@ -652,7 +652,7 @@ inferCArm armNum (m : ms) =
 -- | @inferBinds isTopLevel isRec binds@ performs inference for a
 -- strongly-connected component of 'P.Bind's.
 -- If any of the members of the recursive group are already marked
--- as monomorphic, then we don't do generalzation.
+-- as monomorphic, then we don't do generalization.
 -- If @isTopLevel@ is true,
 -- any bindings without type signatures will be generalized. If it is
 -- false, and the mono-binds flag is enabled, no bindings without type

@@ -11,7 +11,7 @@ function setup_external_tools() {
 
 function show_usage() {
   cat << EOM
-Usage: $0 COMMAND COMANND_OPTIONS
+Usage: $0 COMMAND COMMAND_OPTIONS
 Available commands:
   run                          Run Cryptol
   build                        Build Cryptol

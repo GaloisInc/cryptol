@@ -22,7 +22,7 @@ import Cryptol.Utils.RecordMap
 cleanupErrors :: [(Range,Error)] -> [(Range,Error)]
 cleanupErrors = dropErrorsFromSameLoc
               . sortBy (compare `on` (cmpR . fst))    -- order errors
-              . dropSumbsumed []
+              . dropSubsumed []
   where
 
   -- pick shortest error from each location.
@@ -37,16 +37,16 @@ cleanupErrors = dropErrorsFromSameLoc
                      . map addErrorRating
 
 
-  cmpR r  = ( source r    -- Frist by file
+  cmpR r  = ( source r    -- First by file
             , from r      -- Then starting position
             , to r        -- Finally end position
             )
 
-  dropSumbsumed survived xs =
+  dropSubsumed survived xs =
     case xs of
       err : rest ->
          let keep e = not (subsumes err e)
-         in dropSumbsumed (err : filter keep survived) (filter keep rest)
+         in dropSubsumed (err : filter keep survived) (filter keep rest)
       [] -> survived
 
 -- | Should the first error suppress the next one.
@@ -129,7 +129,7 @@ data Error    = ErrorMsg Doc
                 deriving (Show, Generic, NFData)
 
 -- | When we have multiple errors on the same location, we show only the
--- ones with the has highest rating accorign to this function
+-- ones with the has highest rating according to this function.
 errorImportance :: Error -> Int
 errorImportance err =
   case err of
