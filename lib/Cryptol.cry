@@ -928,6 +928,10 @@ pmod x y = if y == 0 then 0/0 else last zs
     zs = [0] # [ z ^ (if xi then tail p else 0) | xi <- reverse x | p <- powers | z <- zs ]
 
 
+primitive fast_pmult : {u, v} (fin u, fin v) => [1 + u] -> [1 + v] -> [1 + u + v]
+primitive fast_pmod : {u, v} (fin u, fin v) => [u] -> [1 + v] -> [v]
+primitive fast_pdiv : {u, v} (fin u, fin v) => [u] -> [v] -> [u]
+
 // Experimental primitives ------------------------------------------------------------
 
 /**
@@ -1158,5 +1162,3 @@ curry f = \a b -> f (a, b)
 iterate : {a} (a -> a) -> a -> [inf]a
 iterate f x = xs
   where xs = [x] # [ f v | v <- xs ]
-
-

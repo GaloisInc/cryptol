@@ -31,6 +31,7 @@ import Data.Ratio((%),numerator,denominator)
 import Data.Word(Word32, Word64)
 import MonadLib( ChoiceT, findOne, lift )
 import qualified LibBF as FP
+import qualified Cryptol.F2 as F2
 
 import qualified Data.Map.Strict as Map
 import Data.Map(Map)
@@ -352,6 +353,30 @@ primTable eOpts = let sym = Concrete in
                              $ if null msg then doc else text msg <+> doc
                          return yv)
 
+   , ("fast_pmult",
+        ilam $ \u ->
+        ilam $ \v ->
+          wlam Concrete $ \(BV _ x) -> return $
+          wlam Concrete $ \(BV _ y) ->
+            let z = if u <= v then
+                      F2.pmult (fromInteger (u+1)) x y
+                    else
+                      F2.pmult (fromInteger (v+1)) y x
+             in return . VWord (1+u+v) . pure . WordVal . mkBv (1+u+v) $! z)
+
+   , ("fast_pmod",
+        ilam $ \_u ->
+        ilam $ \v ->
+        wlam Concrete $ \(BV w x) -> return $
+        wlam Concrete $ \(BV _ m) ->
+          return . VWord v . pure . WordVal . mkBv v $! F2.pmod (fromInteger w) x m)
+
+  , ("fast_pdiv",
+        ilam $ \_u ->
+        ilam $ \_v ->
+        wlam Concrete $ \(BV w x) -> return $
+        wlam Concrete $ \(BV _ m) ->
+          return . VWord w . pure . WordVal . mkBv w $! F2.pdiv (fromInteger w) x m)
   ]
 
 
