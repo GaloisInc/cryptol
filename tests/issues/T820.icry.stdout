@@ -5,14 +5,14 @@ Showing a specific instance of polymorphic result:
 
 [error] at <interactive>:1:1--1:8:
   Unsolvable constraints:
-    • Integral ?a`970
+    • Integral ?a`776
         arising from
         use of expression (/)
         at <interactive>:1:1--1:8
-    • FLiteral 1 1 0 ?a`970
+    • FLiteral 1 1 0 ?a`776
         arising from
         use of fractional literal
         at <interactive>:1:1--1:8
     • Reason: Mutually exclusive goals
   where
-  ?a`970 is type argument 'a' of 'fraction' at <interactive>:1:1--1:8
+  ?a`776 is type argument 'a' of 'fraction' at <interactive>:1:1--1:8
