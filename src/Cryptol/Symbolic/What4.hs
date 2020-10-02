@@ -29,6 +29,7 @@ module Cryptol.Symbolic.What4
  , W4Exception(..)
  ) where
 
+import Control.Applicative
 import Control.Concurrent.Async
 import Control.Concurrent.MVar
 import Control.Monad.IO.Class
@@ -46,6 +47,7 @@ import qualified Cryptol.ModuleSystem as M hiding (getPrimMap)
 import qualified Cryptol.ModuleSystem.Env as M
 import qualified Cryptol.ModuleSystem.Base as M
 import qualified Cryptol.ModuleSystem.Monad as M
+import qualified Cryptol.ModuleSystem.Name as M
 
 import qualified Cryptol.Backend.FloatHelpers as FH
 import           Cryptol.Backend.What4
@@ -58,6 +60,7 @@ import           Cryptol.Eval.What4
 import           Cryptol.Symbolic
 import           Cryptol.TypeCheck.AST
 import           Cryptol.Utils.Logger(logPutStrLn)
+import           Cryptol.Utils.Ident (preludeReferenceName, prelPrim, identText)
 
 import qualified What4.Config as W4
 import qualified What4.Interface as W4
@@ -258,12 +261,22 @@ prepareQuery sym ProverCommand { .. } =
   simulate args =
     do let lPutStrLn = M.withLogger logPutStrLn
        when pcVerbose (lPutStrLn "Simulating...")
+
+       ds <- do (_mp, m) <- M.loadModuleFrom (M.FromModule preludeReferenceName)
+                let decls = mDecls m
+                let nms = fst <$> Map.toList (M.ifDecls (M.ifPublic (M.genIface m)))
+                let ds = Map.fromList [ (prelPrim (identText (M.nameIdent nm)), EWhere (EVar nm) decls) | nm <- nms ]
+                pure ds
+
+       let tbl = primTable sym
+       let ?evalPrim = \i -> (Right <$> Map.lookup i tbl) <|>
+                             (Left <$> Map.lookup i ds)
+
        modEnv <- M.getModuleEnv
+       let extDgs = M.allDeclGroups modEnv ++ pcExtraDecls
+
        doW4Eval (w4 sym)
-         do let tbl = primTable sym
-            let ?evalPrim = \i -> Map.lookup i tbl
-            let extDgs = M.allDeclGroups modEnv ++ pcExtraDecls
-            env <- Eval.evalDecls sym extDgs mempty
+         do env <- Eval.evalDecls sym extDgs mempty
             v   <- Eval.evalExpr  sym env    pcExpr
             appliedVal <-
               foldM Eval.fromVFun v (map (pure . varShapeToValue sym) args)

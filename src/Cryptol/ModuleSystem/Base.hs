@@ -42,15 +42,15 @@ import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck.PP as T
 import qualified Cryptol.TypeCheck.Sanity as TcSanity
 import Cryptol.Transform.AddModParams (addModParams)
-import Cryptol.Utils.Ident (preludeName, floatName, arrayName, suiteBName, primeECName
-                           , interactiveName, modNameChunks, notParamInstModName
-                           , isParamInstModName )
+import Cryptol.Utils.Ident ( preludeName, floatName, arrayName, suiteBName, primeECName
+                           , preludeReferenceName, interactiveName, modNameChunks
+                           , notParamInstModName, isParamInstModName )
 import Cryptol.Utils.PP (pretty)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.Logger(logPutStrLn, logPrint)
 
 import Cryptol.Prelude ( preludeContents, floatContents, arrayContents
-                       , suiteBContents, primeECContents )
+                       , suiteBContents, primeECContents, preludeReferenceContents )
 import Cryptol.Transform.MonoValues (rewModule)
 
 import qualified Control.Exception as X
@@ -203,7 +203,7 @@ doLoadModule isrc path fp pm0 =
 
      -- extend the eval env, unless a functor.
      tbl <- Concrete.primTable <$> getEvalOpts
-     let ?evalPrim = \i -> Map.lookup i tbl
+     let ?evalPrim = \i -> Right <$> Map.lookup i tbl
      unless (T.isParametrizedModule tcm) $ modifyEvalEnv (E.moduleEnv Concrete tcm)
      loadedModule path fp tcm
 
@@ -264,6 +264,7 @@ findModule n = do
         | m == arrayName   -> pure (InMem "Array" arrayContents)
         | m == suiteBName  -> pure (InMem "SuiteB" suiteBContents)
         | m == primeECName -> pure (InMem "PrimeEC" primeECContents)
+        | m == preludeReferenceName -> pure (InMem "Cryptol::Reference" preludeReferenceContents)
       _ -> moduleNotFound n =<< getSearchPath
 
   -- generate all possible search paths
@@ -559,7 +560,7 @@ evalExpr e = do
   denv <- getDynEnv
   evopts <- getEvalOpts
   let tbl = Concrete.primTable evopts
-  let ?evalPrim = \i -> Map.lookup i tbl
+  let ?evalPrim = \i -> Right <$> Map.lookup i tbl
   io $ E.runEval $ (E.evalExpr Concrete (env <> deEnv denv) e)
 
 evalDecls :: [T.DeclGroup] -> ModuleM ()
@@ -569,7 +570,7 @@ evalDecls dgs = do
   evOpts <- getEvalOpts
   let env' = env <> deEnv denv
   let tbl = Concrete.primTable evOpts
-  let ?evalPrim = \i -> Map.lookup i tbl
+  let ?evalPrim = \i -> Right <$> Map.lookup i tbl
   deEnv' <- io $ E.runEval $ E.evalDecls Concrete dgs env'
   let denv' = denv { deDecls = deDecls denv ++ dgs
                    , deEnv = deEnv'

@@ -63,10 +63,9 @@ import Prelude.Compat
 type EvalEnv = GenEvalEnv Concrete
 
 type EvalPrims sym =
-  ( Backend sym, ?evalPrim :: PrimIdent -> Maybe (GenValue sym) )
+  ( Backend sym, ?evalPrim :: PrimIdent -> Maybe (Either Expr (GenValue sym)) )
 
-type ConcPrims =
-  ?evalPrim :: PrimIdent -> Maybe (GenValue Concrete)
+type ConcPrims = ?evalPrim :: PrimIdent -> Maybe (Either Expr (GenValue Concrete))
 
 -- Expression Evaluation -------------------------------------------------------
 
@@ -158,7 +157,7 @@ evalExpr sym env expr = case expr of
       Nothing  -> do
         envdoc <- ppEnv sym defaultPPOpts env
         panic "[Eval] evalExpr"
-                     ["var `" ++ show (pp n) ++ "` is not defined"
+                     ["var `" ++ show (pp n) ++ "` (" ++ show (nameUnique n) ++ ") is not defined"
                      , show envdoc
                      ]
 
@@ -526,8 +525,9 @@ evalDecl sym renv env d =
   case dDefinition d of
     DPrim ->
       case ?evalPrim =<< asPrim (dName d) of
-        Just v  -> pure (bindVarDirect (dName d) v env)
-        Nothing -> bindVar sym (dName d) (cryNoPrimError sym (dName d)) env
+        Just (Right v) -> pure (bindVarDirect (dName d) v env)
+        Just (Left ex) -> bindVar sym (dName d) (evalExpr sym renv ex) env
+        Nothing        -> bindVar sym (dName d) (cryNoPrimError sym (dName d)) env
 
     DExpr e -> bindVar sym (dName d) (evalExpr sym renv e) env
 

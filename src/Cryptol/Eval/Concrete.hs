@@ -145,6 +145,7 @@ primTable eOpts = let sym = Concrete in
   Map.union (floatPrims sym) $
   Map.union suiteBPrims $
   Map.union primeECPrims $
+
   Map.fromList $ map (\(n, v) -> (prelPrim n, v))
 
   [ -- Literals
@@ -353,7 +354,7 @@ primTable eOpts = let sym = Concrete in
                              $ if null msg then doc else text msg <+> doc
                          return yv)
 
-   , ("fast_pmult",
+   , ("pmult",
         ilam $ \u ->
         ilam $ \v ->
           wlam Concrete $ \(BV _ x) -> return $
@@ -364,14 +365,14 @@ primTable eOpts = let sym = Concrete in
                       F2.pmult (fromInteger (v+1)) y x
              in return . VWord (1+u+v) . pure . WordVal . mkBv (1+u+v) $! z)
 
-   , ("fast_pmod",
+   , ("pmod",
         ilam $ \_u ->
         ilam $ \v ->
         wlam Concrete $ \(BV w x) -> return $
         wlam Concrete $ \(BV _ m) ->
           return . VWord v . pure . WordVal . mkBv v $! F2.pmod (fromInteger w) x m)
 
-  , ("fast_pdiv",
+  , ("pdiv",
         ilam $ \_u ->
         ilam $ \_v ->
         wlam Concrete $ \(BV w x) -> return $

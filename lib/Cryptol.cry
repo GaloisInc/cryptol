@@ -888,49 +888,17 @@ generate f = [ f i | i <- [0 .. n-1] ]
 /**
  * Performs multiplication of polynomials over GF(2).
  */
-pmult : {u, v} (fin u, fin v) => [1 + u] -> [1 + v] -> [1 + u + v]
-pmult x y = last zs
-  where
-    zs = [0] # [ (z << 1) ^ (if yi then 0 # x else 0) | yi <- y | z <- zs ]
+primitive pmult : {u, v} (fin u, fin v) => [1 + u] -> [1 + v] -> [1 + u + v]
 
 /**
  * Performs division of polynomials over GF(2).
  */
-pdiv : {u, v} (fin u, fin v) => [u] -> [v] -> [u]
-pdiv x y = [ z ! degree | z <- zs ]
-  where
-    degree : [width v]
-    degree = last (ds : [1 + v]_)
-      where ds = [0/0] # [if yi then i else d | yi <- reverse y | i <- [0..v] | d <- ds ]
-
-    reduce : [v] -> [v]
-    reduce u = if u ! degree then u ^ y else u
-
-    zs : [u][v]
-    zs = [ tail (reduce z # [xi]) | z <- [0] # zs | xi <- x ]
+primitive pdiv : {u, v} (fin u, fin v) => [u] -> [v] -> [u]
 
 /**
  * Performs modulus of polynomials over GF(2).
  */
-pmod : {u, v} (fin u, fin v) => [u] -> [1 + v] -> [v]
-pmod x y = if y == 0 then 0/0 else last zs
-  where
-    degree : [width v]
-    degree = last (ds : [2 + v]_)
-      where ds = [0/0] # [if yi then i else d | yi <- reverse y | i <- [0..v] | d <- ds ]
-
-    reduce : [1 + v] -> [1 + v]
-    reduce u = if u ! degree then u ^ y else u
-
-    powers : [inf][1 + v]
-    powers = [reduce 1] # [ reduce (p << 1) | p <- powers ]
-
-    zs = [0] # [ z ^ (if xi then tail p else 0) | xi <- reverse x | p <- powers | z <- zs ]
-
-
-primitive fast_pmult : {u, v} (fin u, fin v) => [1 + u] -> [1 + v] -> [1 + u + v]
-primitive fast_pmod : {u, v} (fin u, fin v) => [u] -> [1 + v] -> [v]
-primitive fast_pdiv : {u, v} (fin u, fin v) => [u] -> [v] -> [u]
+primitive pmod : {u, v} (fin u, fin v) => [u] -> [1 + v] -> [v]
 
 // Experimental primitives ------------------------------------------------------------
 

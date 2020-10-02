@@ -27,6 +27,7 @@ module Cryptol.Symbolic.SBV
  ) where
 
 
+import Control.Applicative
 import Control.Concurrent.Async
 import Control.Concurrent.MVar
 import Control.Monad.IO.Class
@@ -47,6 +48,7 @@ import qualified Cryptol.ModuleSystem as M hiding (getPrimMap)
 import qualified Cryptol.ModuleSystem.Env as M
 import qualified Cryptol.ModuleSystem.Base as M
 import qualified Cryptol.ModuleSystem.Monad as M
+import qualified Cryptol.ModuleSystem.Name as M
 
 import           Cryptol.Backend.SBV
 import qualified Cryptol.Backend.FloatHelpers as FH
@@ -56,10 +58,11 @@ import qualified Cryptol.Eval.Concrete as Concrete
 import qualified Cryptol.Eval.Value as Eval
 import           Cryptol.Eval.SBV
 import           Cryptol.Symbolic
+import           Cryptol.TypeCheck.AST
+import           Cryptol.Utils.Ident (preludeReferenceName, prelPrim, identText)
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.Logger(logPutStrLn)
 import           Cryptol.Utils.RecordMap
-
 
 
 import Prelude ()
@@ -282,11 +285,17 @@ runProver proverConfig pc@ProverCommand{..} lPutStrLn x =
 --   the main goal via a conjunction.
 prepareQuery ::
   Eval.EvalOpts ->
-  M.ModuleEnv ->
   ProverCommand ->
-  IO (Either String ([FinType], SBV.Symbolic SBV.SVal))
-prepareQuery evo modEnv ProverCommand{..} =
-  do let extDgs = M.allDeclGroups modEnv ++ pcExtraDecls
+  M.ModuleT IO (Either String ([FinType], SBV.Symbolic SBV.SVal))
+prepareQuery evo ProverCommand{..} =
+  do ds <- do (_mp, m) <- M.loadModuleFrom (M.FromModule preludeReferenceName)
+              let decls = mDecls m
+              let nms = fst <$> Map.toList (M.ifDecls (M.ifPublic (M.genIface m)))
+              let ds = Map.fromList [ (prelPrim (identText (M.nameIdent nm)), EWhere (EVar nm) decls) | nm <- nms ]
+              pure ds
+
+     modEnv <- M.getModuleEnv
+     let extDgs = M.allDeclGroups modEnv ++ pcExtraDecls
 
      -- The `addAsm` function is used to combine assumptions that
      -- arise from the types of symbolic variables (e.g. Z n values
@@ -300,7 +309,7 @@ prepareQuery evo modEnv ProverCommand{..} =
 
      case predArgTypes pcQueryType pcSchema of
        Left msg -> return (Left msg)
-       Right ts ->
+       Right ts -> M.io $
          do when pcVerbose $ logPutStrLn (Eval.evalLogger evo) "Simulating..."
             pure $ Right $ (ts,
               do sbvState <- SBV.symbolicEnv
@@ -308,7 +317,8 @@ prepareQuery evo modEnv ProverCommand{..} =
                  defRelsVar <- liftIO (newMVar SBV.svTrue)
                  let sym = SBV stateMVar defRelsVar
                  let tbl = primTable sym
-                 let ?evalPrim = \i -> Map.lookup i tbl
+                 let ?evalPrim = \i -> (Right <$> Map.lookup i tbl) <|>
+                                       (Left <$> Map.lookup i ds)
                  -- Compute the symbolic inputs, and any domain constraints needed
                  -- according to their types.
                  args <- map (pure . varShapeToValue sym) <$>
@@ -406,7 +416,7 @@ satProve proverCfg pc@ProverCommand {..} =
 
   let lPutStrLn = logPutStrLn (Eval.evalLogger evo)
 
-  M.io (prepareQuery evo modEnv pc) >>= \case
+  prepareQuery evo pc >>= \case
     Left msg -> return (Nothing, ProverError msg)
     Right (ts, q) ->
       do (firstProver, results) <- M.io (runProver proverCfg pc lPutStrLn q)
@@ -422,18 +432,15 @@ satProve proverCfg pc@ProverCommand {..} =
 satProveOffline :: SBVProverConfig -> ProverCommand -> M.ModuleCmd (Either String String)
 satProveOffline _proverCfg pc@ProverCommand {..} =
   protectStack (\msg (_,_,modEnv) -> return (Right (Left msg, modEnv), [])) $
-  \(evOpts, _, modEnv) -> do
-    let isSat = case pcQueryType of
-          ProveQuery -> False
-          SafetyQuery -> False
-          SatQuery _ -> True
+  \(evo, byteReader, modEnv) -> M.runModuleM (evo,byteReader,modEnv) $
+     do let isSat = case pcQueryType of
+              ProveQuery -> False
+              SafetyQuery -> False
+              SatQuery _ -> True
 
-    prepareQuery evOpts modEnv pc >>= \case
-      Left msg -> return (Right (Left msg, modEnv), [])
-      Right (_ts, q) ->
-        do smtlib <- SBV.generateSMTBenchmark isSat q
-           return (Right (Right smtlib, modEnv), [])
-
+        prepareQuery evo pc >>= \case
+          Left msg -> return (Left msg)
+          Right (_ts, q) -> Right <$> M.io (SBV.generateSMTBenchmark isSat q)
 
 protectStack :: (String -> M.ModuleCmd a)
              -> M.ModuleCmd a
