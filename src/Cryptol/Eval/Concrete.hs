@@ -370,14 +370,16 @@ primTable eOpts = let sym = Concrete in
         ilam $ \v ->
         wlam Concrete $ \(BV w x) -> return $
         wlam Concrete $ \(BV _ m) ->
-          return . VWord v . pure . WordVal . mkBv v $! F2.pmod (fromInteger w) x m)
+          do assertSideCondition sym (m /= 0) DivideByZero
+             return . VWord v . pure . WordVal . mkBv v $! F2.pmod (fromInteger w) x m)
 
   , ("pdiv",
         ilam $ \_u ->
         ilam $ \_v ->
         wlam Concrete $ \(BV w x) -> return $
         wlam Concrete $ \(BV _ m) ->
-          return . VWord w . pure . WordVal . mkBv w $! F2.pdiv (fromInteger w) x m)
+          do assertSideCondition sym (m /= 0) DivideByZero
+             return . VWord w . pure . WordVal . mkBv w $! F2.pdiv (fromInteger w) x m)
   ]
 
 
