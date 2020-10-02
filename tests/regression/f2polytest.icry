@@ -1,0 +1,6 @@
+:l f2polytest.cry
+:set tests=2000
+
+:check
+
+:prove

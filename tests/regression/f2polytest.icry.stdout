@@ -1,0 +1,94 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Cryptol::Reference
+Loading module Main
+property mult3_9 Using random testing.
+Testing... Passed 2000 tests.
+Expected test coverage: 11.49% (1883 of 16384 values)
+property mult9_3 Using random testing.
+Testing... Passed 2000 tests.
+Expected test coverage: 11.49% (1883 of 16384 values)
+property mult8_8 Using random testing.
+Testing... Passed 2000 tests.
+Expected test coverage: 0.76% (1992 of 262144 values)
+property mult28_11 Using random testing.
+Testing... Passed 2000 tests.
+Expected test coverage: 0.00% (2000 of 2^^41 values)
+property mult32_32 Using random testing.
+Testing... Passed 2000 tests.
+Expected test coverage: 0.00% (2000 of 2^^66 values)
+property mult64_64 Using random testing.
+Testing... Passed 2000 tests.
+Expected test coverage: 0.00% (2000 of 2^^130 values)
+property div3_9 Using random testing.
+Testing... Passed 2000 tests.
+Expected test coverage: 38.64% (1583 of 4096 values)
+property div9_3 Using random testing.
+Testing... Passed 2000 tests.
+Expected test coverage: 38.64% (1583 of 4096 values)
+property div8_8 Using random testing.
+Testing... Passed 2000 tests.
+Expected test coverage: 3.01% (1970 of 65536 values)
+property div28_11 Using random testing.
+Testing... Passed 2000 tests.
+Expected test coverage: 0.00% (2000 of 2^^39 values)
+property div32_32 Using random testing.
+Testing... Passed 2000 tests.
+Expected test coverage: 0.00% (2000 of 2^^64 values)
+property div64_64 Using random testing.
+Testing... Passed 2000 tests.
+Expected test coverage: 0.00% (2000 of 2^^128 values)
+property mod3_9 Using random testing.
+Testing... Passed 2000 tests.
+Expected test coverage: 21.66% (1775 of 8192 values)
+property mod9_3 Using random testing.
+Testing... Passed 2000 tests.
+Expected test coverage: 21.66% (1775 of 8192 values)
+property mod8_8 Using random testing.
+Testing... Passed 2000 tests.
+Expected test coverage: 1.51% (1985 of 131072 values)
+property mod28_11 Using random testing.
+Testing... Passed 2000 tests.
+Expected test coverage: 0.00% (2000 of 2^^40 values)
+property mod32_32 Using random testing.
+Testing... Passed 2000 tests.
+Expected test coverage: 0.00% (2000 of 2^^65 values)
+property mod64_64 Using random testing.
+Testing... Passed 2000 tests.
+Expected test coverage: 0.00% (2000 of 2^^129 values)
+:prove mult3_9
+	Q.E.D.
+:prove mult9_3
+	Q.E.D.
+:prove mult8_8
+	Q.E.D.
+:prove mult28_11
+	Q.E.D.
+:prove mult32_32
+	Q.E.D.
+:prove mult64_64
+	Q.E.D.
+:prove div3_9
+	Q.E.D.
+:prove div9_3
+	Q.E.D.
+:prove div8_8
+	Q.E.D.
+:prove div28_11
+	Q.E.D.
+:prove div32_32
+	Q.E.D.
+:prove div64_64
+	Q.E.D.
+:prove mod3_9
+	Q.E.D.
+:prove mod9_3
+	Q.E.D.
+:prove mod8_8
+	Q.E.D.
+:prove mod28_11
+	Q.E.D.
+:prove mod32_32
+	Q.E.D.
+:prove mod64_64
+	Q.E.D.
