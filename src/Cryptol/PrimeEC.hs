@@ -379,7 +379,7 @@ ec_mult p d s
 
 -- | Compute the sum and difference of the given points,
 --   and normalize all four values.  This can be done jointly
---   in a more efficent way than computing the necessary
+--   in a more efficient way than computing the necessary
 --   field inverses separately.
 normalizeForTwinMult ::
   PrimeModulus -> ProjectivePoint -> ProjectivePoint ->
@@ -435,7 +435,7 @@ normalizeForTwinMult p s t = (s',t',spt',smt')
 --   another integer @k@ and point @T@ compute the "twin" scalar
 --   the scalar multiplication @jS + kT@.  This computation can be done
 --   essentially the same number of modular arithmetic operations
---   as a single scalar multiplication by doing some additional bookeeping
+--   as a single scalar multiplication by doing some additional bookkeeping
 --   and setup.
 ec_twin_mult :: PrimeModulus ->
   Integer -> ProjectivePoint ->

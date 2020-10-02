@@ -112,8 +112,8 @@ data Type   = TCon !TCon ![Type]
 
 -- | Type variables.
 data TVar   = TVFree !Int Kind (Set TParam) TVarInfo
-              -- ^ Unique, kind, ids of bound type variables that are in scope
-              -- The last field gives us some infor for nicer warnings/errors.
+              -- ^ Unique, kind, ids of bound type variables that are in scope.
+              -- The last field gives us some info for nicer warnings/errors.
 
 
             | TVBound {-# UNPACK #-} !TParam

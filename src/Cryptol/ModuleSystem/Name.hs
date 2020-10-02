@@ -172,7 +172,7 @@ cmpNameDisplay disp l r =
 
 -- | Figure out how the name should be displayed, by referencing the display
 -- function in the environment. NOTE: this function doesn't take into account
--- the need for parenthesis.
+-- the need for parentheses.
 ppName :: Name -> Doc
 ppName Name { .. } =
   case nInfo of
