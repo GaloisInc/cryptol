@@ -288,7 +288,7 @@ prepareQuery ::
   ProverCommand ->
   M.ModuleT IO (Either String ([FinType], SBV.Symbolic SBV.SVal))
 prepareQuery evo ProverCommand{..} =
-  do ds <- do (_mp, m) <- M.loadModuleFrom (M.FromModule preludeReferenceName)
+  do ds <- do (_mp, m) <- M.loadModuleFrom True (M.FromModule preludeReferenceName)
               let decls = mDecls m
               let nms = fst <$> Map.toList (M.ifDecls (M.ifPublic (M.genIface m)))
               let ds = Map.fromList [ (prelPrim (identText (M.nameIdent nm)), EWhere (EVar nm) decls) | nm <- nms ]

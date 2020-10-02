@@ -164,7 +164,7 @@ loadModuleByPath path = withPrependedSearchPath [ takeDirectory path ] $ do
 
   case lookupModule n env of
     -- loadModule will calculate the canonical path again
-    Nothing -> doLoadModule (FromModule n) (InFile foundPath) fp pm
+    Nothing -> doLoadModule False (FromModule n) (InFile foundPath) fp pm
     Just lm
      | path' == loaded -> return (lmModule lm)
      | otherwise       -> duplicateModuleName n path' loaded
@@ -172,8 +172,8 @@ loadModuleByPath path = withPrependedSearchPath [ takeDirectory path ] $ do
 
 
 -- | Load a module, unless it was previously loaded.
-loadModuleFrom :: ImportSource -> ModuleM (ModulePath,T.Module)
-loadModuleFrom isrc =
+loadModuleFrom :: Bool {- ^ quiet mode -} -> ImportSource -> ModuleM (ModulePath,T.Module)
+loadModuleFrom quiet isrc =
   do let n = importedModule isrc
      mb <- getLoadedMaybe n
      case mb of
@@ -182,22 +182,23 @@ loadModuleFrom isrc =
          do path <- findModule n
             errorInFile path $
               do (fp, pm) <- parseModule path
-                 m        <- doLoadModule isrc path fp pm
+                 m        <- doLoadModule quiet isrc path fp pm
                  return (path,m)
 
 -- | Load dependencies, typecheck, and add to the eval environment.
 doLoadModule ::
+  Bool {- ^ quiet mode: true suppresses the "loading module" message -} ->
   ImportSource ->
   ModulePath ->
   Fingerprint ->
   P.Module PName ->
   ModuleM T.Module
-doLoadModule isrc path fp pm0 =
+doLoadModule quiet isrc path fp pm0 =
   loading isrc $
   do let pm = addPrelude pm0
      loadDeps pm
 
-     withLogger logPutStrLn
+     unless quiet $ withLogger logPutStrLn
        ("Loading module " ++ pretty (P.thing (P.mName pm)))
      tcm <- optionalInstantiate =<< checkModule isrc path pm
 
@@ -314,9 +315,9 @@ loadDeps m =
   do mapM_ loadI (P.mImports m)
      mapM_ loadF (P.mInstance m)
   where
-  loadI i = do (_,m1)  <- loadModuleFrom (FromImport i)
+  loadI i = do (_,m1)  <- loadModuleFrom False (FromImport i)
                when (T.isParametrizedModule m1) $ importParamModule $ T.mName m1
-  loadF f = do _ <- loadModuleFrom (FromModuleInstance f)
+  loadF f = do _ <- loadModuleFrom False (FromModuleInstance f)
                return ()
 
 
