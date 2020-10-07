@@ -134,6 +134,7 @@ test_dist() {
     sed -i 's!/!\\!g' tests/modsys/T14.icry.stdout
   fi
   $BIN/test-runner --ext=.icry -F -b --exe=dist/bin/cryptol tests
+  cabal v2-test cryptol-remote-api
 }
 
 bundle_files() {
