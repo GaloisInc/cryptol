@@ -50,22 +50,6 @@ setup_dist_bins() {
   strip dist/bin/cryptol* || echo "Strip failed: Ignoring harmless error"
 }
 
-install_venv() {
-  case "$RUNNER_OS" in
-    Linux)
-      apt-get install python3-virtualenv
-    ;;
-    macOS)
-      brew install python3
-      pip3 install venv
-    ;;
-    Windows)
-      choco install python
-      pip3 install venv
-    ;;
-  esac
-}
-
 install_z3() {
   is_exe "$BIN" "z3" && return
 
@@ -136,7 +120,6 @@ install_system_deps() {
   install_z3 &
   install_cvc4 &
   install_yices &
-  install_venv &
   wait
   export PATH=$PWD/$BIN:$PATH
   echo "::add-path::$PWD/$BIN"
