@@ -52,7 +52,10 @@ jobs:
           python-version: '3.x'
 
       - shell: bash
-        run: pip3 install virtualenv
+        run: python3 -m venv virtenv
+
+      - shell: bash
+        run: . virtenv/bin/activate
 
       - uses: actions/setup-haskell@v1
         id: setup-haskell
