@@ -42,17 +42,6 @@ setup_external_tools() {
   cabal v2-install --install-method=copy --installdir="$BIN" test-lib
 }
 
-setup_venv() {
-  if $IS_WIN ; then
-    python -m venv virtenv
-    source virtenv/Scripts/activate
-    python -m pip install --upgrade pip
-  else
-    python3 -m venv virtenv
-    . virtenv/bin/activate
-  fi
-}
-
 setup_dist_bins() {
   is_exe "dist/bin" "cryptol" && is_exe "dist/bin" "cryptol-html" && return
   extract_exe "cryptol" "dist/bin"
@@ -140,7 +129,6 @@ install_system_deps() {
 test_dist() {
   setup_dist_bins
   setup_external_tools
-  setup_venv
   if $IS_WIN; then
     echo "Warning: janky hacky workaround to #764"
     sed -i 's!/!\\!g' tests/modsys/T14.icry.stdout
