@@ -43,9 +43,13 @@ setup_external_tools() {
 }
 
 setup_venv() {
-  $IS_WIN && PYTHON=python || PYTHON=python3
-  $PYTHON -m venv virtenv
-  . virtenv/bin/activate
+  if $IS_WIN ; then
+    python -m venv virtenv
+    source venv/Scripts/activate
+  else
+    python3 -m venv virtenv
+    . virtenv/bin/activate
+  fi
 }
 
 setup_dist_bins() {
