@@ -51,9 +51,6 @@ jobs:
         with:
           python-version: '3.x'
 
-      - shell: bash
-        run: .github/ci.sh setup_venv
-
       - uses: actions/setup-haskell@v1
         id: setup-haskell
         with:

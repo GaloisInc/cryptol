@@ -140,6 +140,7 @@ install_system_deps() {
 test_dist() {
   setup_dist_bins
   setup_external_tools
+  setup_venv
   if $IS_WIN; then
     echo "Warning: janky hacky workaround to #764"
     sed -i 's!/!\\!g' tests/modsys/T14.icry.stdout
