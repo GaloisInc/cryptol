@@ -82,6 +82,11 @@ jobs:
       - shell: bash
         run: .github/ci.sh test_dist
 
+      # TODO: get Python client to work on Windows
+      - shell: bash
+        run: .github/ci.sh test_rpc
+        if: runner.os != 'Windows'
+
       - if: >-
           env.RELEASE && matrix.ghc == '8.8.4'
         uses: actions/upload-artifact@v2
