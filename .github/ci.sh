@@ -46,6 +46,7 @@ setup_venv() {
   if $IS_WIN ; then
     python -m venv virtenv
     source virtenv/Scripts/activate
+    python -m pip install --upgrade pip
   else
     python3 -m venv virtenv
     . virtenv/bin/activate
