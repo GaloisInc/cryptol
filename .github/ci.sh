@@ -45,7 +45,7 @@ setup_external_tools() {
 setup_venv() {
   if $IS_WIN ; then
     python -m venv virtenv
-    source venv/Scripts/activate
+    source virtenv/Scripts/activate
   else
     python3 -m venv virtenv
     . virtenv/bin/activate
