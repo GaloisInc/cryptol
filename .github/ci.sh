@@ -42,6 +42,12 @@ setup_external_tools() {
   cabal v2-install --install-method=copy --installdir="$BIN" test-lib
 }
 
+setup_venv() {
+  $IS_WIN && PYTHON=python || PYTHON=python3
+  $PYTHON -m venv virtenv
+  . virtenv/bin/activate
+}
+
 setup_dist_bins() {
   is_exe "dist/bin" "cryptol" && is_exe "dist/bin" "cryptol-html" && return
   extract_exe "cryptol" "dist/bin"

@@ -52,10 +52,7 @@ jobs:
           python-version: '3.x'
 
       - shell: bash
-        run: python3 -m venv virtenv
-
-      - shell: bash
-        run: . virtenv/bin/activate
+        run: .github/ci.sh setup_venv
 
       - uses: actions/setup-haskell@v1
         id: setup-haskell
