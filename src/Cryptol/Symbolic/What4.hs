@@ -48,6 +48,7 @@ import qualified Cryptol.ModuleSystem.Base as M
 import qualified Cryptol.ModuleSystem.Monad as M
 
 import qualified Cryptol.Backend.FloatHelpers as FH
+import           Cryptol.Backend.What4
 import qualified Cryptol.Backend.What4.SFloat as W4
 
 import qualified Cryptol.Eval as Eval
