@@ -98,11 +98,11 @@ import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import MonadLib
 
-import qualified Cryptol.Eval.Arch as Arch
+import Cryptol.Backend
+import qualified Cryptol.Backend.Arch as Arch
 import Cryptol.Backend.Monad ( PPOpts(..), evalPanic, wordTooWide, defaultPPOpts, asciiMode )
 import Cryptol.Eval.Type
 
-import Cryptol.Backend
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
 import Cryptol.Utils.Ident (Ident)
 import Cryptol.Utils.Panic(panic)

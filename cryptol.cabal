@@ -161,6 +161,7 @@ library
                        Cryptol.IR.FreeVars,
 
                        Cryptol.Backend,
+                       Cryptol.Backend.Arch,
                        Cryptol.Backend.Concrete,
                        Cryptol.Backend.FloatHelpers,
                        Cryptol.Backend.Monad,
@@ -169,7 +170,6 @@ library
                        Cryptol.Backend.What4.SFloat,
 
                        Cryptol.Eval,
-                       Cryptol.Eval.Arch,
                        Cryptol.Eval.Concrete,
                        Cryptol.Eval.Env,
                        Cryptol.Eval.Generic,

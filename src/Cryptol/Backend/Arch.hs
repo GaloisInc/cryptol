@@ -8,7 +8,7 @@
 --
 -- Architecture-specific parts of the concrete evaluator go here.
 {-# LANGUAGE CPP #-}
-module Cryptol.Eval.Arch where
+module Cryptol.Backend.Arch where
 
 -- | This is the widest word we can have before gmp will fail to
 -- allocate and bring down the whole program. According to

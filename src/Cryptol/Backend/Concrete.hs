@@ -41,7 +41,7 @@ import Numeric (showIntAtBase)
 import qualified LibBF as FP
 import qualified GHC.Integer.GMP.Internals as Integer
 
-import qualified Cryptol.Eval.Arch as Arch
+import qualified Cryptol.Backend.Arch as Arch
 import qualified Cryptol.Backend.FloatHelpers as FP
 import Cryptol.Backend
 import Cryptol.Backend.Monad
