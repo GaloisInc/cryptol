@@ -36,11 +36,11 @@
 > import Cryptol.ModuleSystem.Name (asPrim)
 > import Cryptol.TypeCheck.Solver.InfNat (Nat'(..), nAdd, nMin, nMul)
 > import Cryptol.TypeCheck.AST
-> import Cryptol.Eval.Monad (EvalError(..), PPOpts(..))
+> import Cryptol.Backend.FloatHelpers (BF(..))
+> import qualified Cryptol.Backend.FloatHelpers as FP
+> import Cryptol.Backend.Monad (EvalError(..), PPOpts(..))
 > import Cryptol.Eval.Type (TValue(..), isTBit, evalValType, evalNumType, TypeEnv)
 > import Cryptol.Eval.Concrete (mkBv, ppBV, lg2)
-> import Cryptol.Eval.Concrete.FloatHelpers (BF(..))
-> import qualified Cryptol.Eval.Concrete.FloatHelpers as FP
 > import Cryptol.Utils.Ident (Ident,PrimIdent, prelPrim, floatPrim)
 > import Cryptol.Utils.Panic (panic)
 > import Cryptol.Utils.PP

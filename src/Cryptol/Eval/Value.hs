@@ -99,10 +99,10 @@ import qualified Data.Map.Strict as Map
 import MonadLib
 
 import qualified Cryptol.Eval.Arch as Arch
-import Cryptol.Eval.Backend
-import Cryptol.Eval.Monad
+import Cryptol.Backend.Monad ( PPOpts(..), evalPanic, wordTooWide, defaultPPOpts, asciiMode )
 import Cryptol.Eval.Type
 
+import Cryptol.Backend
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
 import Cryptol.Utils.Ident (Ident)
 import Cryptol.Utils.Panic(panic)
@@ -402,9 +402,6 @@ ppValue x opts = loop
                 _ -> return $ brackets (fsep (punctuate comma $ map (ppWord x opts) vs))
       _ -> do ws' <- traverse loop ws
               return $ brackets (fsep (punctuate comma ws'))
-
-asciiMode :: PPOpts -> Integer -> Bool
-asciiMode opts width = useAscii opts && (width == 7 || width == 8)
 
 
 -- Value Constructors ----------------------------------------------------------

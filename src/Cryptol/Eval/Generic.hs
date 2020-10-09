@@ -31,9 +31,10 @@ import Data.Ratio ((%))
 
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..),nMul,widthInteger)
-import Cryptol.Eval.Backend
-import Cryptol.Eval.Concrete.Value (Concrete(..))
-import Cryptol.Eval.Monad
+import Cryptol.Backend
+import Cryptol.Backend.Concrete (Concrete(..))
+import Cryptol.Backend.Monad ( Eval, evalPanic, EvalError(..), Unsupported(..) )
+
 import Cryptol.Eval.Type
 import Cryptol.Eval.Value
 import Cryptol.Utils.Panic (panic)

@@ -9,6 +9,7 @@
 -- This module generates random values for Cryptol types.
 
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE Trustworthy #-}
@@ -25,9 +26,10 @@ import qualified Data.Sequence as Seq
 import System.Random          (RandomGen, split, random, randomR)
 import System.Random.TF.Gen   (seedTFGen)
 
-import Cryptol.Eval.Backend   (Backend(..), SRational(..))
-import Cryptol.Eval.Concrete.Value
-import Cryptol.Eval.Monad     (ready,runEval,Eval,EvalError(..))
+import Cryptol.Backend        (Backend(..), SRational(..))
+import Cryptol.Backend.Monad  (runEval,Eval,EvalError(..))
+import Cryptol.Backend.Concrete
+
 import Cryptol.Eval.Type      (TValue(..), tValTy)
 import Cryptol.Eval.Value     (GenValue(..),SeqMap(..), WordValue(..),
                                ppValue, defaultPPOpts, finiteSeqMap)
@@ -42,6 +44,8 @@ import Cryptol.Utils.RecordMap
 
 type Gen g x = Integer -> g -> (SEval x (GenValue x), g)
 
+
+type Value = GenValue Concrete
 
 {- | Apply a testable value to some randomly-generated arguments.
      Returns @Nothing@ if the function returned @True@, or
@@ -76,7 +80,7 @@ returnOneTest fun argGens sz g0 =
      result <- runEval (go fun args')
      return (args', result, g1)
    where
-     go (VFun f) (v : vs) = join (go <$> (f (ready v)) <*> pure vs)
+     go (VFun f) (v : vs) = join (go <$> (f (pure v)) <*> pure vs)
      go (VFun _) [] = panic "Cryptol.Testing.Random" ["Not enough arguments to function while generating tests"]
      go _ (_ : _) = panic "Cryptol.Testing.Random" ["Too many arguments to function while generating tests"]
      go v [] = return v
@@ -338,7 +342,7 @@ evalTest v0 vs0 = run `X.catch` handle
     handle e = return (FailError e vs0)
 
     go :: Value -> [Value] -> Eval Bool
-    go (VFun f) (v : vs) = join (go <$> (f (ready v)) <*> return vs)
+    go (VFun f) (v : vs) = join (go <$> (f (pure v)) <*> return vs)
     go (VFun _) []       = panic "Not enough arguments while applying function"
                            []
     go (VBit b) []       = return b
@@ -405,7 +409,7 @@ typeValues ty =
   case ty of
     TVar _      -> []
     TUser _ _ t -> typeValues t
-    TRec fs     -> [ VRecord (fmap ready xs)
+    TRec fs     -> [ VRecord (fmap pure xs)
                    | xs <- traverse typeValues fs
                    ]
     TCon (TC tc) ts ->
@@ -425,17 +429,17 @@ typeValues ty =
         TCSeq       ->
           case map tNoUser ts of
             [ TCon (TC (TCNum n)) _, TCon (TC TCBit) [] ] ->
-              [ VWord n (ready (WordVal (BV n x))) | x <- [ 0 .. 2^n - 1 ] ]
+              [ VWord n (pure (WordVal (BV n x))) | x <- [ 0 .. 2^n - 1 ] ]
 
             [ TCon (TC (TCNum n)) _, t ] ->
-              [ VSeq n (finiteSeqMap Concrete (map ready xs))
+              [ VSeq n (finiteSeqMap Concrete (map pure xs))
               | xs <- sequence $ genericReplicate n
                                $ typeValues t ]
             _ -> []
 
 
         TCFun       -> []  -- We don't generate function values.
-        TCTuple _   -> [ VTuple (map ready xs)
+        TCTuple _   -> [ VTuple (map pure xs)
                        | xs <- sequence (map typeValues ts)
                        ]
         TCAbstract _ -> []

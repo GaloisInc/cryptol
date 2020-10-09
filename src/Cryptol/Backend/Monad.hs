@@ -12,12 +12,13 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Cryptol.Eval.Monad
+module Cryptol.Backend.Monad
 ( -- * Evaluation monad
   Eval(..)
 , runEval
 , EvalOpts(..)
 , PPOpts(..)
+, asciiMode
 , PPFloatFormat(..)
 , PPFloatExp(..)
 , defaultPPOpts
@@ -63,6 +64,9 @@ data PPOpts = PPOpts
   , useFPBase    :: Int
   , useFPFormat  :: PPFloatFormat
   }
+
+asciiMode :: PPOpts -> Integer -> Bool
+asciiMode opts width = useAscii opts && (width == 7 || width == 8)
 
 data PPFloatFormat =
     FloatFixed Int PPFloatExp -- ^ Use this many significant digis

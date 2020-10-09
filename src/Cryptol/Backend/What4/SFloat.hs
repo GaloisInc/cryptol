@@ -6,7 +6,7 @@
 {-# Language TypeOperators #-}
 -- | Working with floats of dynamic sizes.
 -- This should probably be moved to What4 one day.
-module Cryptol.Eval.What4.SFloat
+module Cryptol.Backend.What4.SFloat
   ( -- * Interface
     SFloat(..)
   , fpReprOf

@@ -1,6 +1,6 @@
 {-# Language FlexibleContexts #-}
 {-# Language TypeFamilies #-}
-module Cryptol.Eval.Backend
+module Cryptol.Backend
   ( Backend(..)
   , sDelay
   , invalidIndex
@@ -34,9 +34,8 @@ import Control.Monad.IO.Class
 import Data.Kind (Type)
 import Data.Ratio ( (%), numerator, denominator )
 
-import Cryptol.Eval.Concrete.FloatHelpers (BF)
-
-import Cryptol.Eval.Monad
+import Cryptol.Backend.FloatHelpers (BF)
+import Cryptol.Backend.Monad ( PPOpts(..), EvalError(..) )
 import Cryptol.TypeCheck.AST(Name)
 import Cryptol.Utils.PP
 

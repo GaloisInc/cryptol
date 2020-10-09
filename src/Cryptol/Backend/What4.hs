@@ -1,5 +1,5 @@
 -- |
--- Module      :  Cryptol.Eval.What4
+-- Module      :  Cryptol.Backend.What4
 -- Copyright   :  (c) 2020 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
@@ -11,7 +11,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
-module Cryptol.Eval.What4.Value where
+module Cryptol.Backend.What4 where
 
 
 import qualified Control.Exception as X
@@ -28,17 +28,18 @@ import qualified GHC.Integer.GMP.Internals as Integer
 
 import qualified What4.Interface as W4
 import qualified What4.SWord as SW
-import qualified Cryptol.Eval.What4.SFloat as FP
+import qualified Cryptol.Backend.What4.SFloat as FP
 import qualified What4.Utils.AbstractDomains as W4
 
-import Cryptol.Eval.Backend
-import Cryptol.Eval.Concrete.Value( BV(..), ppBV )
-import Cryptol.Eval.Concrete.FloatHelpers
-import Cryptol.Eval.Generic
-import Cryptol.Eval.Monad
+import Cryptol.Backend
+import Cryptol.Backend.Concrete( BV(..), ppBV )
+import Cryptol.Backend.FloatHelpers
+import Cryptol.Backend.Monad
    ( Eval(..), EvalError(..), Unsupported(..)
    , delayFill, blackhole, evalSpark
    )
+
+import Cryptol.Eval.Generic
 import Cryptol.Eval.Type (TValue(..))
 import Cryptol.Eval.Value
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..), widthInteger)
@@ -525,8 +526,7 @@ sLg2 sym x = liftIO $ go 0
 -- Errors ----------------------------------------------------------------------
 
 evalPanic :: String -> [String] -> a
-evalPanic cxt = panic ("[What4 Symbolic]" ++ cxt)
-
+evalPanic cxt = panic ("[What4] " ++ cxt)
 
 lazyIte ::
   (W4.IsExpr p, Monad m) =>

@@ -1,6 +1,6 @@
 {-# Language BlockArguments, OverloadedStrings #-}
 {-# Language BangPatterns #-}
-module Cryptol.Eval.Concrete.FloatHelpers where
+module Cryptol.Backend.FloatHelpers where
 
 import Data.Ratio(numerator,denominator)
 import Data.Int(Int64)
@@ -9,7 +9,7 @@ import LibBF
 
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
-import Cryptol.Eval.Monad( EvalError(..)
+import Cryptol.Backend.Monad( EvalError(..)
                          , PPOpts(..), PPFloatFormat(..), PPFloatExp(..)
                          )
 
@@ -246,7 +246,3 @@ floatToBits e p bf =  (isNeg      `shiftL` (e' + p'))
             Inf -> (eMask,0)
 
   msb !n j = if j == 0 then n else msb (n+1) (j `shiftR` 1)
-
-
-
-

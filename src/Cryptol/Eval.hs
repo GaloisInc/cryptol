@@ -34,11 +34,11 @@ module Cryptol.Eval (
   , forceValue
   ) where
 
-import Cryptol.Eval.Backend
-import Cryptol.Eval.Concrete( Concrete(..) )
+import Cryptol.Backend
+import Cryptol.Backend.Concrete( Concrete(..) )
+import Cryptol.Backend.Monad
 import Cryptol.Eval.Generic ( iteValue )
 import Cryptol.Eval.Env
-import Cryptol.Eval.Monad
 import Cryptol.Eval.Type
 import Cryptol.Eval.Value
 import Cryptol.ModuleSystem.Name
