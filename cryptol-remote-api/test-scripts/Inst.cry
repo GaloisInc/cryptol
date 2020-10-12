@@ -1,0 +1,4 @@
+module Inst =
+  Param where
+    type w = 8
+

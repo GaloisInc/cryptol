@@ -47,6 +47,10 @@ jobs:
         with:
           submodules: true
 
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.x'
+
       - uses: actions/setup-haskell@v1
         id: setup-haskell
         with:
@@ -77,6 +81,11 @@ jobs:
 
       - shell: bash
         run: .github/ci.sh test_dist
+
+      # TODO: get Python client to work on Windows
+      - shell: bash
+        run: .github/ci.sh test_rpc
+        if: runner.os != 'Windows'
 
       - if: >-
           env.RELEASE && matrix.ghc == '8.8.4'

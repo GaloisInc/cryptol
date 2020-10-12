@@ -1,0 +1,17 @@
+module Foo where
+
+id : {a} a -> a
+id x = x
+
+x : [8]
+x = 255
+
+add : {a} (fin a) => [a] -> [a] -> [a]
+add = (+)
+
+foo : {foo : [32], bar : [32]} 
+foo = {foo = 23, bar = 99}
+
+getFoo : {foo : [32], bar : [32]}  -> [32]
+getFoo x = x.foo
+

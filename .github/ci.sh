@@ -77,7 +77,7 @@ install_cvc4() {
   esac
   # Temporary workaround
   if [[ "$RUNNER_OS" == "Linux" ]]; then
-    curl -o cvc4$EXT -sL "https://cvc4.cs.stanford.edu/downloads/builds/x86_64-linux-opt/unstable/cvc4-2020-09-30-x86_64-linux-opt"
+    curl -o cvc4$EXT -sL "https://cvc4.cs.stanford.edu/downloads/builds/x86_64-linux-opt/unstable/cvc4-2020-10-12-x86_64-linux-opt"
   else
     curl -o cvc4$EXT -sL "https://github.com/CVC4/CVC4/releases/download/$version/cvc4-$version-$file"
   fi
@@ -134,6 +134,10 @@ test_dist() {
     sed -i 's!/!\\!g' tests/modsys/T14.icry.stdout
   fi
   $BIN/test-runner --ext=.icry -F -b --exe=dist/bin/cryptol tests
+}
+
+test_rpc() {
+  cabal v2-test cryptol-remote-api
 }
 
 bundle_files() {
