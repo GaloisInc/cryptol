@@ -130,18 +130,18 @@ the numeric types used to specify the sizes of sequences.
 
 Operator     Meaning
 --------     -------------------------
-  `+`        Size addition
-  `-`        Size subtraction
-  `*`        Size multiplication
-  `/`        Size division
-  `/^`       Size ceiling division (`/` rounded up)
-  `%`        Size modulus
-  `%^`       Size ceiling modulus (`%` rounded up)
-  `^^`       Size exponentiation
-  `lg2`      Size logarithm (base 2)
-  `width`    Size width (`lg2` rounded up)
-  `max`      Size maximum
-  `min`      Size minimum
+  `+`        Addition
+  `-`        Subtraction
+  `*`        Multiplication
+  `/`        Division
+  `/^`       Ceiling division (`/` rounded up)
+  `%`        Modulus
+  `%^`       Ceiling modulus (`%` rounded up)
+  `^^`       Exponentiation
+  `lg2`      Logarithm (base 2)
+  `width`    Width (`lg2` rounded up)
+  `max`      Maximum
+  `min`      Minimum
 
 Table: Type-level operators
 
