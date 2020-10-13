@@ -48,9 +48,10 @@ import Data.Ratio
 import qualified LibBF as FP
 
 
-import           Cryptol.Eval.Backend
+import           Cryptol.Backend
+import           Cryptol.Backend.FloatHelpers(bfValue)
+
 import qualified Cryptol.Eval.Concrete as Concrete
-import           Cryptol.Eval.Concrete.FloatHelpers(bfValue)
 import           Cryptol.Eval.Value
 import           Cryptol.TypeCheck.AST
 import           Cryptol.Eval.Type (TValue(..), evalType)

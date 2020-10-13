@@ -12,12 +12,13 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Cryptol.Eval.Monad
+module Cryptol.Backend.Monad
 ( -- * Evaluation monad
   Eval(..)
 , runEval
 , EvalOpts(..)
 , PPOpts(..)
+, asciiMode
 , PPFloatFormat(..)
 , PPFloatExp(..)
 , defaultPPOpts
@@ -63,6 +64,9 @@ data PPOpts = PPOpts
   , useFPBase    :: Int
   , useFPFormat  :: PPFloatFormat
   }
+
+asciiMode :: PPOpts -> Integer -> Bool
+asciiMode opts width = useAscii opts && (width == 7 || width == 8)
 
 data PPFloatFormat =
     FloatFixed Int PPFloatExp -- ^ Use this many significant digis
@@ -133,9 +137,9 @@ data ThunkState a
        -- ^ This thunk is currently being evaluated by the thread with the given
        --   thread ID.  We track the "backup" computation to run if we detect
        --   a tight loop evaluating this thunk.  If the thunk is being evaluated
-       --   by some other thread, the current thread will await it's completion.
+       --   by some other thread, the current thread will await its completion.
   | ForcedErr !EvalError
-       -- ^ This thunk has been forced, and it's evaluation results in an exception
+       -- ^ This thunk has been forced, and its evaluation results in an exception
   | Forced !a
        -- ^ This thunk has been forced to the given value
 

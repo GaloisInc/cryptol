@@ -60,9 +60,9 @@ import qualified Cryptol.ModuleSystem.Renamer as M (RenamerWarning(SymbolShadowe
 import qualified Cryptol.Utils.Ident as M
 import qualified Cryptol.ModuleSystem.Env as M
 
+import qualified Cryptol.Backend.Monad as E
 import           Cryptol.Eval.Concrete( Concrete(..) )
 import qualified Cryptol.Eval.Concrete as Concrete
-import qualified Cryptol.Eval.Monad as E
 import qualified Cryptol.Eval.Value as E
 import qualified Cryptol.Eval.Reference as R
 import Cryptol.Testing.Random

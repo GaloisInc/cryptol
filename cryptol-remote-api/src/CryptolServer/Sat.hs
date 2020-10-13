@@ -14,7 +14,7 @@ import Data.Scientific (floatingOrInteger)
 import Data.Text (Text)
 import qualified Data.Text as T
 
-import Cryptol.Eval.Concrete.Value (Value)
+import Cryptol.Eval.Concrete (Value)
 import Cryptol.ModuleSystem (checkExpr, getPrimMap)
 import Cryptol.ModuleSystem.Env (DynamicEnv(..), meDynEnv, meSolverConfig)
 import Cryptol.Symbolic (ProverCommand(..), ProverResult(..), QueryType(..), SatNum(..))
@@ -65,6 +65,7 @@ sat (ProveSatParams (Prover name) jsonExpr num) =
             case res of
               ProverError msg -> raise (proverError msg)
               EmptyResult -> error "got empty result for online prover!"
+              CounterExample{} -> error "Unexpected counter-example for SAT query"
               ThmResult _ts -> pure Unsatisfiable
               AllSatResult results ->
                 Satisfied <$> traverse satResult results

@@ -7,6 +7,7 @@
 -- Portability :  portable
 
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -18,27 +19,30 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
 module Cryptol.Eval.Concrete
-  ( module Cryptol.Eval.Concrete.Value
+  ( module Cryptol.Backend.Concrete
+  , Value
   , primTable
   , toExpr
   ) where
 
 import Control.Monad (join, guard, zipWithM, foldM)
 import Data.Bits (Bits(..))
-import Data.Ratio(numerator,denominator)
+import Data.Ratio((%),numerator,denominator)
 import Data.Word(Word32, Word64)
 import MonadLib( ChoiceT, findOne, lift )
 import qualified LibBF as FP
 
 import qualified Data.Map.Strict as Map
+import Data.Map(Map)
 
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..))
-import Cryptol.Eval.Backend
-import Cryptol.Eval.Concrete.Float(floatPrims)
-import Cryptol.Eval.Concrete.FloatHelpers(bfValue)
-import Cryptol.Eval.Concrete.Value
+
+import Cryptol.Backend
+import Cryptol.Backend.Concrete
+import Cryptol.Backend.FloatHelpers
+import Cryptol.Backend.Monad
+
 import Cryptol.Eval.Generic hiding (logicShift)
-import Cryptol.Eval.Monad
 import Cryptol.Eval.Type
 import Cryptol.Eval.Value
 import qualified Cryptol.SHA as SHA
@@ -53,6 +57,7 @@ import Cryptol.Utils.PP
 import Cryptol.Utils.Logger(logPrint)
 import Cryptol.Utils.RecordMap
 
+type Value = GenValue Concrete
 
 -- Value to Expression conversion ----------------------------------------------
 
@@ -134,7 +139,7 @@ floatToExpr prims eT pT f =
 
 -- Primitives ------------------------------------------------------------------
 
-primTable :: EvalOpts -> Map.Map PrimIdent Value
+primTable :: EvalOpts -> Map PrimIdent Value
 primTable eOpts = let sym = Concrete in
   Map.union (floatPrims sym) $
   Map.union suiteBPrims $
@@ -763,3 +768,55 @@ updateBack_word (Nat n) _eltTy bs (Left idx) val = do
 updateBack_word (Nat n) _eltTy bs (Right w) val = do
   idx <- bvVal <$> asWordVal Concrete w
   updateWordValue Concrete bs (n - idx - 1) (fromVBit <$> val)
+
+
+floatPrims :: Concrete -> Map PrimIdent Value
+floatPrims sym = Map.fromList [ (floatPrim i,v) | (i,v) <- nonInfixTable ]
+  where
+  (~>) = (,)
+  nonInfixTable =
+    [ "fpNaN"       ~> ilam \e -> ilam \p ->
+                        VFloat BF { bfValue = FP.bfNaN
+                                  , bfExpWidth = e, bfPrecWidth = p }
+
+    , "fpPosInf"    ~> ilam \e -> ilam \p ->
+                       VFloat BF { bfValue = FP.bfPosInf
+                                 , bfExpWidth = e, bfPrecWidth = p }
+
+    , "fpFromBits"  ~> ilam \e -> ilam \p -> wlam sym \bv ->
+                       pure $ VFloat $ floatFromBits e p $ bvVal bv
+
+    , "fpToBits"    ~> ilam \e -> ilam \p -> flam \x ->
+                       pure $ word sym (e + p)
+                            $ floatToBits e p
+                            $ bfValue x
+    , "=.="         ~> ilam \_ -> ilam \_ -> flam \x -> pure $ flam \y ->
+                       pure $ VBit
+                            $ bitLit sym
+                            $ FP.bfCompare (bfValue x) (bfValue y) == EQ
+
+    , "fpIsFinite"  ~> ilam \_ -> ilam \_ -> flam \x ->
+                       pure $ VBit $ bitLit sym $ FP.bfIsFinite $ bfValue x
+
+      -- From Backend class
+    , "fpAdd"      ~> fpBinArithV sym fpPlus
+    , "fpSub"      ~> fpBinArithV sym fpMinus
+    , "fpMul"      ~> fpBinArithV sym fpMult
+    , "fpDiv"      ~> fpBinArithV sym fpDiv
+
+    , "fpFromRational" ~>
+      ilam \e -> ilam \p -> wlam sym \r -> pure $ lam \x ->
+        do rat <- fromVRational <$> x
+           VFloat <$> do mode <- fpRoundMode sym r
+                         pure $ floatFromRational e p mode
+                              $ sNum rat % sDenom rat
+    , "fpToRational" ~>
+      ilam \_e -> ilam \_p -> flam \fp ->
+      case floatToRational "fpToRational" fp of
+        Left err -> raiseError sym err
+        Right r  -> pure $
+                      VRational
+                        SRational { sNum = numerator r, sDenom = denominator r }
+    ]
+
+

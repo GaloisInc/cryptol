@@ -47,13 +47,14 @@ import qualified Cryptol.ModuleSystem.Env as M
 import qualified Cryptol.ModuleSystem.Base as M
 import qualified Cryptol.ModuleSystem.Monad as M
 
+import qualified Cryptol.Backend.FloatHelpers as FH
+import           Cryptol.Backend.What4
+import qualified Cryptol.Backend.What4.SFloat as W4
+
 import qualified Cryptol.Eval as Eval
 import qualified Cryptol.Eval.Concrete as Concrete
-import qualified Cryptol.Eval.Concrete.FloatHelpers as Concrete
-
 import qualified Cryptol.Eval.Value as Eval
 import           Cryptol.Eval.What4
-import qualified Cryptol.Eval.What4.SFloat as W4
 import           Cryptol.Symbolic
 import           Cryptol.TypeCheck.AST
 import           Cryptol.Utils.Logger(logPutStrLn)
@@ -510,7 +511,7 @@ varShapeToConcrete evalFn v =
        in VarWord . Concrete.mkBv w . BV.asUnsigned <$> W4.groundEval evalFn x
     VarFloat fv@(W4.SFloat f) ->
       do let (e,p) = W4.fpSize fv
-         VarFloat . Concrete.floatFromBits e p . BV.asUnsigned <$> W4.groundEval evalFn f
+         VarFloat . FH.floatFromBits e p . BV.asUnsigned <$> W4.groundEval evalFn f
     VarFinSeq n vs ->
       VarFinSeq n <$> mapM (varShapeToConcrete evalFn) vs
     VarTuple vs ->

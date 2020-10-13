@@ -11,7 +11,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Cryptol.Eval.Type where
 
-import Cryptol.Eval.Monad
+import Cryptol.Backend.Monad (evalPanic, typeCannotBeDemoted)
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.PP(pp)
 import Cryptol.TypeCheck.Solver.InfNat

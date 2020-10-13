@@ -1,5 +1,5 @@
--- |fpToInteger r e p f
--- Module      :  Cryptol.Eval.Concrete.Value
+-- |
+-- Module      :  Cryptol.Backend.Concrete
 -- Copyright   :  (c) 2013-2020 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
@@ -17,7 +17,7 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
-module Cryptol.Eval.Concrete.Value
+module Cryptol.Backend.Concrete
   ( BV(..)
   , binBV
   , unaryBV
@@ -29,7 +29,6 @@ module Cryptol.Eval.Concrete.Value
   , signedValue
   , integerToChar
   , lg2
-  , Value
   , Concrete(..)
   , liftBinIntMod
   , fpBinArith
@@ -42,17 +41,15 @@ import Numeric (showIntAtBase)
 import qualified LibBF as FP
 import qualified GHC.Integer.GMP.Internals as Integer
 
-import qualified Cryptol.Eval.Arch as Arch
-import qualified Cryptol.Eval.Concrete.FloatHelpers as FP
-import Cryptol.Eval.Monad
-import Cryptol.Eval.Value
+import qualified Cryptol.Backend.Arch as Arch
+import qualified Cryptol.Backend.FloatHelpers as FP
+import Cryptol.Backend
+import Cryptol.Backend.Monad
 import Cryptol.TypeCheck.Solver.InfNat (genLog)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
 
 data Concrete = Concrete deriving Show
-
-type Value = GenValue Concrete
 
 -- | Concrete bitvector values: width, value
 -- Invariant: The value must be within the range 0 .. 2^width-1

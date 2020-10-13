@@ -5,7 +5,7 @@ module CryptolServer (module CryptolServer) where
 import Control.Lens
 import Control.Monad.IO.Class
 
-import Cryptol.Eval.Monad (EvalOpts(..), PPOpts(..), PPFloatFormat(..), PPFloatExp(..))
+import Cryptol.Backend.Monad (EvalOpts(..), PPOpts(..), PPFloatFormat(..), PPFloatExp(..))
 import Cryptol.ModuleSystem (ModuleCmd, ModuleEnv)
 import Cryptol.ModuleSystem.Env
   (getLoadedModules, lmFilePath, lmFingerprint, meLoadedModules,

@@ -14,7 +14,8 @@ module Cryptol.ModuleSystem.Monad where
 
 import           Cryptol.Eval (EvalEnv,EvalOpts(..))
 
-import qualified Cryptol.Eval.Monad           as E
+import qualified Cryptol.Backend.Monad           as E
+
 import           Cryptol.ModuleSystem.Env
 import           Cryptol.ModuleSystem.Fingerprint
 import           Cryptol.ModuleSystem.Interface

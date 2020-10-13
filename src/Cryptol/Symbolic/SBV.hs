@@ -48,9 +48,11 @@ import qualified Cryptol.ModuleSystem.Env as M
 import qualified Cryptol.ModuleSystem.Base as M
 import qualified Cryptol.ModuleSystem.Monad as M
 
+import           Cryptol.Backend.SBV
+import qualified Cryptol.Backend.FloatHelpers as FH
+
 import qualified Cryptol.Eval as Eval
 import qualified Cryptol.Eval.Concrete as Concrete
-import qualified Cryptol.Eval.Concrete.FloatHelpers as Concrete
 import qualified Cryptol.Eval.Value as Eval
 import           Cryptol.Eval.SBV
 import           Cryptol.Symbolic
@@ -484,10 +486,10 @@ parseValue (FTRecord r) cvs = (VarRecord r', cvs')
         r'         = recordFromFieldsWithDisplay (displayOrder r) fs
 
 parseValue (FTFloat e p) cvs =
-   (VarFloat Concrete.BF { Concrete.bfValue = bfNaN
-                         , Concrete.bfExpWidth = e
-                         , Concrete.bfPrecWidth = p
-                         }
+   (VarFloat FH.BF { FH.bfValue = bfNaN
+                   , FH.bfExpWidth = e
+                   , FH.bfPrecWidth = p
+                   }
    , cvs
    )
    -- XXX: NOT IMPLEMENTED

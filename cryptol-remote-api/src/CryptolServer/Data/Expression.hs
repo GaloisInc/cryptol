@@ -26,17 +26,17 @@ import qualified Data.Vector as V
 import Data.Text.Encoding (encodeUtf8)
 import Numeric (showHex)
 
+import Cryptol.Backend.Monad
+import Cryptol.Backend.Concrete hiding (Concrete)
+import qualified Cryptol.Backend.Concrete as C
+
 import Cryptol.Eval (evalSel)
-import Cryptol.Eval.Monad
-import Cryptol.Eval.Concrete (primTable)
-import Cryptol.Eval.Concrete.Value hiding (Concrete)
-import qualified Cryptol.Eval.Concrete.Value as C
+import Cryptol.Eval.Concrete (primTable, Value)
 import Cryptol.Eval.Value (GenValue(..), asWordVal, enumerateSeqMap)
 import Cryptol.Parser
 import Cryptol.Parser.AST (Bind(..), BindDef(..), Decl(..), Expr(..), Type(..), PName(..), Literal(..), NumInfo(..))
 import Cryptol.Parser.Position (Located(..), emptyRange)
 import Cryptol.Parser.Selector
--- import Cryptol.Prims.Syntax
 import Cryptol.TypeCheck.AST (PrimMap)
 import Cryptol.TypeCheck.SimpType (tRebuild)
 import qualified Cryptol.TypeCheck.Type as TC
