@@ -202,7 +202,7 @@ fractional numbers (e.g., `Rational`, and the `Float` family of types).
 Some types (e.g. the `Float` family) cannot represent all fractional literals
 precisely.  Such literals are rejected statically when using binary, octal,
 or hexadecimal notation.  When using decimal notation, the literal is rounded
-to the closes represental even number.
+to the closest representable even number.
 
 
 All numeric literals may also include `_`, which has no effect on the
@@ -655,7 +655,7 @@ Another way to avoid name collisions is by using a
 
     g = P::f
     // `f` was imported from `M`
-    // but when used it needs to be prefixed by the qualified `P`
+    // but when used it needs to be prefixed by the qualifier `P`
 
 Qualified imports make it possible to work with definitions
 that happen to have the same name but are defined in different modules.
@@ -666,7 +666,7 @@ Qualified imports may be combined with import lists or hiding clauses:
     import X as Y hiding (f)  // introduces everything but `f` from X
                               // using the prefix `X`
 
-It is also possible the use the same qualifier prefix for imports
+It is also possible to use the same qualifier prefix for imports
 from different modules.  For example:
 
     import A as B
@@ -697,7 +697,7 @@ It is good practice to place such declarations in ***private blocks***:
       helper2 : [8]
       helper2 = 3
 
-The keyword `private` introduce a new layout scope, and all declarations
+The keyword `private` introduces a new layout scope, and all declarations
 in the block are considered to be private to the module.  A single module
 may contain multiple private blocks.  For example, the following module
 is equivalent to the previous one:
@@ -777,7 +777,7 @@ after the `where` keyword) is to define the parameters for `M`.
 Parameterized Instantiations
 ============================
 
-It is possible for a module instantiations to be itself parameterized.
+It is possible for a module instantiation to be itself parameterized.
 This could be useful if we need to define some of a module's parameters
 but not others.
 
