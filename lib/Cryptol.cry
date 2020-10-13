@@ -117,7 +117,8 @@ primitive type (^^) : # -> # -> #
 primitive type width : # -> #
 
 /**
- * Define the base 2 logarithm function in terms of width
+ * The ceiling of the base-2 logarithm of a numeric type.
+ * We define 'lg2 n = width (n - 1)' for nonzero n, and 'lg2 0 = 0'.
  */
 type lg2 n = width (max n 1 - 1)
 
@@ -662,10 +663,8 @@ sext x = newbits # x
 primitive (>>$) : {n, ix} (fin n, n >= 1, Integral ix) => [n] -> ix -> [n]
 
 /**
- * Log base two.
- *
- * For words, computes the ceiling of log, base 2, of a number.
- *  We set 'lg2 0 = 0'
+ * The ceiling of the base-2 logarithm of an unsigned bitvector.
+ * We set 'lg2 0 = 0'.
  */
 primitive lg2 : {n} (fin n) => [n] -> [n]
 
