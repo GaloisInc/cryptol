@@ -138,8 +138,8 @@ Operator     Meaning
   `%`        Modulus
   `%^`       Ceiling modulus (`%` rounded up)
   `^^`       Exponentiation
-  `lg2`      Logarithm (base 2)
-  `width`    Width (`lg2` rounded up)
+  `lg2`      Ceiling logarithm (base 2)
+  `width`    Bit width (equal to `lg2(n+1)`)
   `max`      Maximum
   `min`      Minimum
 
