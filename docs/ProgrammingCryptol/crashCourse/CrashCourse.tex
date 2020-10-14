@@ -1527,8 +1527,8 @@ operation?
 
   In the last expression, the number \texttt{25} fits in 5 bits, so
   the modulus is $2^5 = 32$. The unary minus yields \texttt{7}, hence
-  the result is \texttt{3}. Note that \texttt{lg2} is the \emph{floor
-    log base 2} function.\indLg\indEq\indNeq
+  the result is \texttt{3}. Note that \texttt{lg2} is the
+  \emph{ceiling log base 2} function.\indLg\indEq\indNeq
 \end{Answer}
 
 \begin{Exercise}\label{ex:arith:5:1}
@@ -1564,7 +1564,7 @@ whenever $y \neq 0$.
 \begin{Answer}\ansref{ex:arith:5}
   The bit-width in this case is 3 (to accommodate for the number 5),
   and hence arithmetic is done modulo $2^3 = 8$. Thus, {\tt -2}
-  evaluates to {\tt 6}, leading to the result {\tt min 5, (-2) == 5}.
+  evaluates to {\tt 6}, leading to the result {\tt min 5 (-2) == 5}.
   The parentheses are necessary because unary negation is handled in
   Cryptol's parser, not in its lexer, because whitespace is ignored.
   If this were not the case, reflect upon how you would differentiate
