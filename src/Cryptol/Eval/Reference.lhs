@@ -13,6 +13,7 @@
 >
 > module Cryptol.Eval.Reference
 >   ( Value(..)
+>   , E(..)
 >   , evaluate
 >   , evalExpr
 >   , evalDeclGroup
