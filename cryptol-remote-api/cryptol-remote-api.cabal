@@ -75,6 +75,8 @@ test-suite test-cryptol-remote-api
   hs-source-dirs:      test
   main-is:             Test.hs
   other-modules:       Paths_cryptol_remote_api
+  ghc-options:
+    -Wno-orphans
   build-depends:
     argo-python,
     cryptol-remote-api,

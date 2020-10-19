@@ -1,23 +1,18 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-module Main where
+module Main (main) where
 
 import Data.Aeson as JSON (fromJSON, toJSON, Result(..))
 
-import Data.ByteString.Lazy (ByteString)
 import qualified Data.HashMap.Strict as HM
 import Data.List.NonEmpty(NonEmpty(..))
 
-import Test.QuickCheck.Instances.ByteString
-import Test.QuickCheck.Instances.Scientific
-import Test.QuickCheck.Instances.Text
+import Test.QuickCheck.Instances.Text()
 import Test.Tasty
 import Test.Tasty.HUnit.ScriptExit
 import Test.Tasty.QuickCheck
 
 import CryptolServer.Call
-
-import Debug.Trace
 
 import Argo.PythonBindings
 import Paths_cryptol_remote_api
@@ -79,5 +74,5 @@ callMsgProps =
       \(spec :: Expression) ->
         case fromJSON (toJSON spec) of
           JSON.Success v -> spec == v
-          JSON.Error err -> False
+          JSON.Error _ -> False
     ]
