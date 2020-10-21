@@ -96,7 +96,11 @@ You'll also need [Z3](#getting-z3) installed when running Cryptol.
 
 ## Building Cryptol
 
-From the Cryptol source directory, run:
+After a fresh checkout of cryptol, be sure to initialize its git submodules:
+
+    git submodule update --init
+
+Then, from the Cryptol source directory, run:
 
     ./cry build
 
