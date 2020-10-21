@@ -318,13 +318,14 @@ selectorToken :: Text -> TokenT
 selectorToken txt
   | Just n <- readDecimal body, n >= 0 = Selector (TupleSelectorTok n)
   | Just (x,xs) <- T.uncons body
-  , ok isAlpha x
-  , T.all (ok isAlphaNum) xs = Selector (RecordSelectorTok body)
+  , id_first x
+  , T.all id_next xs = Selector (RecordSelectorTok body)
   | otherwise = Err MalformedSelector
 
   where
   body = T.drop 1 txt
-  ok p x = p x || x == '_'
+  id_first x = isAlpha x || x == '_'
+  id_next  x = isAlphaNum x || x == '_' || x == '\''
 
 
 readDecimal :: Integral a => Text -> Maybe a
