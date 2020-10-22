@@ -128,7 +128,7 @@ class CryptolType:
     def convert(self, val : Any) -> Any:
         if isinstance(val, bool):
             return val
-        elif val == ():
+        elif isinstance(val, tuple) and val == ():
             return {'expression': 'unit'}
         elif isinstance(val, tuple):
             return {'expression': 'tuple',
@@ -150,10 +150,12 @@ class CryptolType:
                     'width': 8 * len(val),
                     'data': base64.b64encode(val).decode('ascii')}
         elif isinstance(val, BitVector.BitVector):
+            copy = val.deep_copy()
+            copy.pad_from_left(copy.length() % 4)
             return {'expression': 'bits',
                     'encoding': 'base64',
-                    'width': val.length(),
-                    'data': val.pad_from_left(val.length() % 4).get_bitvector_in_hex()}
+                    'width': val.length(), # N.B. original length, not padded
+                    'data': copy.get_bitvector_in_hex()}
         else:
             raise TypeError("Unsupported value: " + str(val))
 
