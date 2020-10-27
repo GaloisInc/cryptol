@@ -15,6 +15,7 @@
 
 module Cryptol.Prelude
   ( preludeContents
+  , preludeReferenceContents
   , floatContents
   , arrayContents
   , suiteBContents
@@ -29,6 +30,9 @@ import Text.Heredoc (there)
 
 preludeContents :: ByteString
 preludeContents = B.pack [there|lib/Cryptol.cry|]
+
+preludeReferenceContents :: ByteString
+preludeReferenceContents = B.pack [there|lib/Cryptol/Reference.cry|]
 
 floatContents :: ByteString
 floatContents = B.pack [there|lib/Float.cry|]

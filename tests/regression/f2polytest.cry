@@ -1,0 +1,33 @@
+import Cryptol::Reference as Ref
+
+pmult_equiv : {u, v} (fin u, fin v) => [1+u] -> [1+v] -> Bit
+pmult_equiv x y = pmult x y == Ref::pmult x y
+
+pdiv_equiv : {u, v} (fin u, fin v) => [u] -> [v] -> Bit
+pdiv_equiv x y = y == 0 \/ pdiv x y == Ref::pdiv x y
+
+pmod_equiv : {u, v} (fin u, fin v) => [u] -> [1+v] -> Bit
+pmod_equiv x y = y == 0 \/ pmod x y == Ref::pmod x y
+
+// an arbitrary collection of test sizes
+
+property mult3_9   = pmult_equiv`{3,9}
+property mult9_3   = pmult_equiv`{9,3}
+property mult8_8   = pmult_equiv`{8,8}
+property mult28_11 = pmult_equiv`{28,11}
+property mult32_32 = pmult_equiv`{32,32}
+property mult64_64 = pmult_equiv`{64,64}
+
+property div3_9   = pdiv_equiv`{3,9}
+property div9_3   = pdiv_equiv`{9,3}
+property div8_8   = pdiv_equiv`{8,8}
+property div28_11 = pdiv_equiv`{28,11}
+property div32_32 = pdiv_equiv`{32,32}
+property div64_64 = pdiv_equiv`{64,64}
+
+property mod3_9   = pmod_equiv`{3,9}
+property mod9_3   = pmod_equiv`{9,3}
+property mod8_8   = pmod_equiv`{8,8}
+property mod28_11 = pmod_equiv`{28,11}
+property mod32_32 = pmod_equiv`{32,32}
+property mod64_64 = pmod_equiv`{64,64}

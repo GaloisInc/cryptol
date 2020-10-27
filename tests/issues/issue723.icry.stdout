@@ -10,9 +10,9 @@ Loading module Main
       assuming
         • fin k
       the following constraints hold:
-        • k == n`961
+        • k == n`767
             arising from
             matching types
             at issue723.cry:7:17--7:19
   where
-  n`961 is signature variable 'n' at issue723.cry:1:6--1:7
+  n`767 is signature variable 'n' at issue723.cry:1:6--1:7

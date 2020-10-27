@@ -132,7 +132,7 @@ lookupSeqMap (UpdateSeqMap m f) i =
 -- | An arbitrarily-chosen number of elements where we switch from a dense
 --   sequence representation of bit-level words to 'SeqMap' representation.
 largeBitSize :: Integer
-largeBitSize = 1 `shiftL` 16
+largeBitSize = 1 `shiftL` 48
 
 -- | Generate a finite sequence map from a list of values
 finiteSeqMap :: Backend sym => sym -> [SEval sym (GenValue sym)] -> SeqMap sym
