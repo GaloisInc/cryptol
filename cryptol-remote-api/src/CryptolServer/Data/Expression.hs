@@ -350,9 +350,11 @@ readBack prims ty val =
       | len == TC.tZero ->
         return Unit
       | contents == TC.TCon (TC.TC TC.TCBit) []
-      , VWord _ wv <- val ->
+      , VWord width wv <- val ->
         do BV w v <- wv >>= asWordVal C.Concrete
-           return $ Num Hex (T.pack $ showHex v "") w
+           let hexStr = T.pack $ showHex v ""
+           let paddedLen = fromIntegral ((width `quot` 4) + (if width `rem` 4 == 0 then 0 else 1))
+           return $ Num Hex (T.justifyRight paddedLen '0' hexStr) w
       | TC.TCon (TC.TC (TC.TCNum k)) [] <- len
       , VSeq _l (enumerateSeqMap k -> vs) <- val ->
         Sequence <$> mapM (>>= readBack prims contents) vs
