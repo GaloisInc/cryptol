@@ -3,6 +3,7 @@ import os
 from cryptol import CryptolConnection, CryptolContext, cry
 import cryptol
 import cryptol.cryptoltypes
+from BitVector import *
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
@@ -24,3 +25,10 @@ assert c.call('add', bytes.fromhex('ff'), bytes.fromhex('03')).result() == bytes
 cryptol.add_cryptol_module('Foo', c)
 from Foo import *
 assert add(b'\2', 2) == b'\4'
+
+bv0 = BitVector( intVal = 0, size = 8 )
+bv1 = BitVector( intVal = 1, size = 8 )
+bv2 = BitVector( intVal = 2, size = 8 )
+bv3 = BitVector( intVal = 2, size = 8 )
+
+assert add(bv1, bv2) == add(bv0, bv3)
