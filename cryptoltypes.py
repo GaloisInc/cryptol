@@ -283,6 +283,103 @@ class Times(CryptolType):
         return f"Times({self.left!r}, {self.right!r})"
 
 
+class Div(CryptolType):
+    def __init__(self, left : CryptolType, right : CryptolType) -> None:
+        self.left = left
+        self.right = right
+
+    def __str__(self) -> str:
+        return f"({self.left} / {self.right})"
+
+    def __repr__(self) -> str:
+        return f"Div({self.left!r}, {self.right!r})"
+
+class CeilDiv(CryptolType):
+    def __init__(self, left : CryptolType, right : CryptolType) -> None:
+        self.left = left
+        self.right = right
+
+    def __str__(self) -> str:
+        return f"({self.left} /^ {self.right})"
+
+    def __repr__(self) -> str:
+        return f"CeilDiv({self.left!r}, {self.right!r})"
+
+class Mod(CryptolType):
+    def __init__(self, left : CryptolType, right : CryptolType) -> None:
+        self.left = left
+        self.right = right
+
+    def __str__(self) -> str:
+        return f"({self.left} % {self.right})"
+
+    def __repr__(self) -> str:
+        return f"Mod({self.left!r}, {self.right!r})"
+
+class CeilMod(CryptolType):
+    def __init__(self, left : CryptolType, right : CryptolType) -> None:
+        self.left = left
+        self.right = right
+
+    def __str__(self) -> str:
+        return f"({self.left} %^ {self.right})"
+
+    def __repr__(self) -> str:
+        return f"CeilMod({self.left!r}, {self.right!r})"
+
+class Expt(CryptolType):
+    def __init__(self, left : CryptolType, right : CryptolType) -> None:
+        self.left = left
+        self.right = right
+
+    def __str__(self) -> str:
+        return f"({self.left} ^^ {self.right})"
+
+    def __repr__(self) -> str:
+        return f"Expt({self.left!r}, {self.right!r})"
+
+class Log2(CryptolType):
+    def __init__(self, operand : CryptolType) -> None:
+        self.right = operand
+
+    def __str__(self) -> str:
+        return f"(lg2 {self.operand})"
+
+    def __repr__(self) -> str:
+        return f"Log2({self.operand!r})"
+
+class Width(CryptolType):
+    def __init__(self, operand : CryptolType) -> None:
+        self.right = operand
+
+    def __str__(self) -> str:
+        return f"(width {self.operand})"
+
+    def __repr__(self) -> str:
+        return f"Width({self.operand!r})"
+
+class Max(CryptolType):
+    def __init__(self, left : CryptolType, right : CryptolType) -> None:
+        self.left = left
+        self.right = right
+
+    def __str__(self) -> str:
+        return f"(max {self.left} {self.right})"
+
+    def __repr__(self) -> str:
+        return f"Max({self.left!r}, {self.right!r})"
+
+class Min(CryptolType):
+    def __init__(self, left : CryptolType, right : CryptolType) -> None:
+        self.left = left
+        self.right = right
+
+    def __str__(self) -> str:
+        return f"(min {self.left} {self.right})"
+
+    def __repr__(self) -> str:
+        return f"Min({self.left!r}, {self.right!r})"
+
 class Tuple(CryptolType):
     types : Iterable[CryptolType]
 
@@ -320,6 +417,24 @@ def to_type(t : Any) -> CryptolType:
         return Minus(*map(to_type, t['arguments']))
     elif t['type'] == '*':
         return Times(*map(to_type, t['arguments']))
+    elif t['type'] == '/':
+        return Div(*map(to_type, t['arguments']))
+    elif t['type'] == '/^':
+        return CeilDiv(*map(to_type, t['arguments']))
+    elif t['type'] == '%':
+        return Mod(*map(to_type, t['arguments']))
+    elif t['type'] == '%^':
+        return CeilMod(*map(to_type, t['arguments']))
+    elif t['type'] == '^^':
+        return Expt(*map(to_type, t['arguments']))
+    elif t['type'] == 'lg2':
+        return Log2(*map(to_type, t['arguments']))
+    elif t['type'] == 'width':
+        return Width(*map(to_type, t['arguments']))
+    elif t['type'] == 'max':
+        return Max(*map(to_type, t['arguments']))
+    elif t['type'] == 'min':
+        return Min(*map(to_type, t['arguments']))
     elif t['type'] == 'tuple':
         return Tuple(*map(to_type, t['contents']))
     elif t['type'] == 'record':
