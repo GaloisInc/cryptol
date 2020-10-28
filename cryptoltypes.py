@@ -155,7 +155,7 @@ class CryptolType:
             return {'expression': 'bits',
                     'encoding': 'base64',
                     'width': val.length(), # N.B. original length, not padded
-                    'data': copy.get_bitvector_in_hex()}
+                    'data': base64.b64encode(bytes(int(val))).decode('ascii')}
         else:
             raise TypeError("Unsupported value: " + str(val))
 
@@ -197,6 +197,8 @@ class Bitvector(CryptolType):
                     'encoding': 'base64',
                     'width': eval_numeric(self.width, 8 * len(val)),
                     'data': base64.b64encode(val).decode('ascii')}
+        elif isinstance(val, BitVector.BitVector):
+            return CryptolType.convert(self, val)
         else:
             raise ValueError(f"Not supported as bitvector: {val!r}")
 
