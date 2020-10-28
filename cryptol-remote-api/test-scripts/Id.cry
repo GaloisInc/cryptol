@@ -1,0 +1,4 @@
+module Id where
+
+id : {n} (fin n) => [n] -> [n]
+id a = a
