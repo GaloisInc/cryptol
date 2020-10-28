@@ -10,3 +10,13 @@ h x = x
 
 m : {a} (fin a, a > 42) => Z a
 m = 42
+
+
+two : [15]
+two = 2
+
+three : [16]
+three = 3
+
+four : [17]
+four = 4
