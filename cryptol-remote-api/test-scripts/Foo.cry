@@ -1,5 +1,7 @@
 module Foo where
 
+import Id as Id
+
 id : {a} a -> a
 id x = x
 

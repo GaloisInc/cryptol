@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module CryptolServer.EvalExpr (evalExpression, EvalExprParams(..)) where
+module CryptolServer.EvalExpr (evalExpression, evalExpression', EvalExprParams(..)) where
 
 import Control.Lens hiding ((.=))
 import Control.Monad.IO.Class
@@ -8,10 +8,11 @@ import Data.Aeson as JSON
 
 import Cryptol.ModuleSystem (checkExpr, evalExpr, getPrimMap)
 import Cryptol.ModuleSystem.Env (meSolverConfig)
-import Cryptol.TypeCheck.AST (sType)
 import Cryptol.TypeCheck.Solve (defaultReplExpr)
 import Cryptol.TypeCheck.Subst (apSubst, listParamSubst)
 import Cryptol.TypeCheck.Type (Schema(..))
+import qualified Cryptol.Parser.AST as P
+import Cryptol.Parser.Name (PName)
 import qualified Cryptol.TypeCheck.Solver.SMT as SMT
 import Cryptol.Utils.PP (pretty)
 
@@ -24,10 +25,14 @@ import CryptolServer.Exceptions
 evalExpression :: EvalExprParams -> Method ServerState JSON.Value
 evalExpression (EvalExprParams jsonExpr) =
   do e <- getExpr jsonExpr
-     (_expr, ty, schema) <- runModuleCmd (checkExpr e)
-      -- TODO: see Cryptol REPL for how to check whether we
-      -- can actually evaluate things, which we can't do in
-      -- a parameterized module
+     evalExpression' e
+
+evalExpression' :: P.Expr PName -> Method ServerState JSON.Value
+evalExpression' e =
+  do (_expr, ty, schema) <- runModuleCmd (checkExpr e)
+     -- TODO: see Cryptol REPL for how to check whether we
+     -- can actually evaluate things, which we can't do in
+     -- a parameterized module
      me <- view moduleEnv <$> getState
      let cfg = meSolverConfig me
      perhapsDef <- liftIO $ SMT.withSolver cfg (\s -> defaultReplExpr s ty schema)
