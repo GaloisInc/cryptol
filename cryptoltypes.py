@@ -150,12 +150,10 @@ class CryptolType:
                     'width': 8 * len(val),
                     'data': base64.b64encode(val).decode('ascii')}
         elif isinstance(val, BitVector.BitVector):
-            copy = val.deep_copy()
-            copy.pad_from_left(copy.length() % 4)
             return {'expression': 'bits',
                     'encoding': 'base64',
                     'width': val.length(), # N.B. original length, not padded
-                    'data': base64.b64encode(bytes(int(val))).decode('ascii')}
+                    'data': base64.b64encode(bytes([int(val)])).decode('ascii')}
         else:
             raise TypeError("Unsupported value: " + str(val))
 
