@@ -26,9 +26,6 @@ cryptol.add_cryptol_module('Foo', c)
 from Foo import *
 assert add(b'\2', 2) == b'\4'
 
-bv0 = BitVector( intVal = 0, size = 8 )
-bv1 = BitVector( intVal = 1, size = 8 )
-bv2 = BitVector( intVal = 2, size = 8 )
-bv3 = BitVector( intVal = 2, size = 8 )
-
-assert add(bv1, bv2) == add(bv0, bv3)
+assert add(BitVector( intVal = 0, size = 8 ), BitVector( intVal = 1, size = 8 )) == bytes.fromhex('01')
+assert add(BitVector( intVal = 1, size = 8 ), BitVector( intVal = 2, size = 8 )) == bytes.fromhex('03')
+assert add(BitVector( intVal = 255, size = 8 ), BitVector( intVal = 1, size = 8 )) == bytes.fromhex('00')
