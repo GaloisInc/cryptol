@@ -2,6 +2,7 @@ from __future__ import annotations
 from collections import OrderedDict
 from abc import ABCMeta, abstractmethod
 import base64
+from math import ceil
 import BitVector #type: ignore
 
 from typing import Any, Dict, Iterable, List, NoReturn, Optional, TypeVar, Union
@@ -150,10 +151,12 @@ class CryptolType:
                     'width': 8 * len(val),
                     'data': base64.b64encode(val).decode('ascii')}
         elif isinstance(val, BitVector.BitVector):
+            n = int(val)
+            byte_width = ceil(n.bit_length()/8)
             return {'expression': 'bits',
                     'encoding': 'base64',
                     'width': val.length(), # N.B. original length, not padded
-                    'data': base64.b64encode(bytes([int(val)])).decode('ascii')}
+                    'data': base64.b64encode(n.to_bytes(byte_width,'big')).decode('ascii')}
         else:
             raise TypeError("Unsupported value: " + str(val))
 
