@@ -111,7 +111,7 @@ dumpableType ty =
   case tIsFun ty of
     Just (t1, t2) ->
       do g  <- randomValue Concrete t1
-         as <- testableTypeGenerators t2
+         as <- dumpableType t2
          return (g : as)
     Nothing ->
       do (_ :: Gen g Concrete) <- randomValue Concrete ty
