@@ -30,3 +30,4 @@ cryptol-2.*
 # ignore test suite output
 /bin
 /output
+/tests/regression/*.out
