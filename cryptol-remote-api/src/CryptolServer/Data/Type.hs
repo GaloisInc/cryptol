@@ -1,23 +1,38 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE TupleSections #-}
+{-# OPTIONS_GHC -Wno-missing-deriving-strategies #-}
 module CryptolServer.Data.Type
   ( JSONSchema(..)
   , JSONType(..)
+  , JSONPType(..)
   ) where
 
 import qualified Data.Aeson as JSON
-import Data.Aeson ((.=))
+import Data.Aeson ((.=), (.:), (.!=), (.:?))
+import Data.Aeson.Types (Parser, typeMismatch)
+import Data.Functor ((<&>))
+import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as T
 
+import qualified Cryptol.Parser.AST as C
+import Cryptol.Parser.Position (emptyRange)
 import Cryptol.Parser.Selector (ppSelector)
+import Cryptol.Utils.RecordMap (recordFromFields)
 import Cryptol.TypeCheck.PP (NameMap, emptyNameMap, ppWithNames)
 import Cryptol.TypeCheck.Type (Kind(..), PC(..), TC(..), TCon(..), TFun(..), TParam(..), Type(..), Schema(..), addTNames, kindOf)
+import Cryptol.Utils.Ident (mkIdent)
 import Cryptol.Utils.PP (pp)
 import Cryptol.Utils.RecordMap (canonicalFields)
 
 
 newtype JSONSchema = JSONSchema Schema
 
+newtype JSONPType = JSONPType { unJSONPType :: C.Type C.PName }
+
 data JSONType = JSONType NameMap Type
+  deriving (Eq, Show)
 
 newtype JSONKind = JSONKind Kind
 
@@ -204,3 +219,76 @@ instance JSON.ToJSON JSONType where
                       | (f, t') <- canonicalFields fields
                       ]
         ]
+
+
+instance JSON.FromJSON JSONPType where
+  parseJSON val = JSONPType <$> getType val
+
+    where
+      getType :: JSON.Value -> Parser (C.Type C.PName)
+      getType (JSON.Object o) =
+            case HM.lookup "type" o of
+              Just t -> asType t o
+              Nothing ->
+                case HM.lookup "prop" o of
+                  Just p -> asProp p o
+                  Nothing -> fail "Expected type or prop key"
+      getType other = typeMismatch "object" other
+
+      asType "record" = \o -> C.TRecord <$> ((o .: "fields") >>= getFields)
+        where
+          getFields obj = recordFromFields <$> traverse (\(k, v) -> (mkIdent k,) . (emptyRange,) <$> getType v) (HM.toList obj)
+      asType "variable" = \o -> C.TUser <$> (name <$> o .: "name") <*> (map unJSONPType <$> (o .:? "arguments" .!= []))
+      asType "number" = \o -> C.TNum <$> (o .: "value")
+      asType "inf" = const $ pure $ C.TUser (name "inf") []
+      asType "Bit" = const $ pure $ C.TBit
+      asType "Integer" = const $ pure $ C.TUser (name "Integer") []
+      asType "Z" = \o -> typeField o "modulus" <&> \m -> C.TUser (name "Z") [m]
+      asType "bitvector" = \o -> typeField o "width" <&> \w -> C.TSeq w C.TBit
+      asType "sequence" = binTC C.TSeq "length" "contents"
+      asType "function" = binTC C.TFun "domain" "range"
+      asType "unit" = const $ pure $ C.TTuple []
+      asType "tuple" = \o -> C.TTuple <$> typeListField o "contents"
+      asType "Rational" = const $ pure $ C.TUser (name "Rational") []
+      asType "+" = tyFun "+"
+      asType "-" = tyFun "-"
+      asType "*" = tyFun "*"
+      asType "/" = tyFun "/"
+      asType "%" = tyFun "%"
+      asType "^^" = tyFun "^^"
+      asType "width" = tyFun "width"
+      asType "min" = tyFun "min"
+      asType "max" = tyFun "max"
+      asType "/^" = tyFun "/^"
+      asType "%^" = tyFun "%^"
+      asType "lengthFromThenTo" = tyFun "lengthFromThenTo"
+      asType other = const $ fail $ "Didn't understand type tag " <> show other
+
+      typeField o fname = (o .: fname) >>= getType
+      typeListField o fname = (o .: fname) >>= traverse getType
+
+      name = C.UnQual . mkIdent
+
+      asProp "==" = binPropF "==" "left" "right"
+      asProp "!=" = binPropF "!=" "left" "right"
+      asProp ">=" = binPropF ">=" "left" "right"
+      asProp "fin" = unaryPropF "fin" "subject"
+      asProp "Ring" = unaryPropF "Ring" "subject"
+      asProp "Field" = unaryPropF "Field" "subject"
+      asProp "Round" = unaryPropF "Round" "subject"
+      asProp "Integral" = unaryPropF "Integral" "subject"
+      asProp "Cmp" = unaryPropF "Cmp" "subject"
+      asProp "SignedCmp" = unaryPropF "SignedCmp" "subject"
+      asProp "Literal" = binPropF "Literal" "size" "subject"
+      asProp "Zero" = unaryPropF "Zero" "subject"
+      asProp "Logic" = unaryPropF "Logic" "subject"
+      asProp "True" = const $ pure $ C.TUser (name "True") []
+      asProp "And" = binPropF "And" "left" "right"
+      asProp other = const $ fail $ "Didn't understand proposition " ++ show other
+
+      binProp prop a b = C.TUser (name prop) [a, b]
+      binPropF prop f1 f2 o = binProp prop <$> typeField o f1 <*> typeField o f2
+      unaryProp prop a = C.TUser (name prop) [a]
+      unaryPropF prop f o = unaryProp prop <$> typeField o f
+      binTC tc f1 f2 o = tc <$> typeField o f1 <*> typeField o f2
+      tyFun tf o = C.TUser (name tf) <$> typeListField o "arguments"

@@ -160,6 +160,37 @@ def low_level_api_test(c):
     assert('value' in reply_12['result']['answer'])
     assert(reply_12['result']['answer']['value'] == {'data': '00004', 'width': 17, 'expression': 'bits', 'encoding': 'hex'})
 
+    def test_instantiation(t, expected=None):
+        if expected is None: expected = t
+        id_t = c.send_message("check type", {"state": state_1, "expression": {"expression": "instantiate", "generic": "id", "arguments": {"a": t}}})
+        reply_t = c.wait_for_reply_to(id_t)
+        assert('result' in reply_t)
+        assert('answer' in reply_t['result'])
+        assert('type schema' in reply_t['result']['answer'])
+        assert(reply_t['result']['answer']['type schema']['type']['domain'] == expected)
+
+    # These test both the type instantiation form and the serialization/deserialization of the types involved
+    test_instantiation({"type": "Integer"})
+    test_instantiation({"type": "record",
+                        "fields": {'a': {'type': 'Integer'},
+                                   'b': {'type': 'sequence', 'length': {'type': 'inf'}, 'contents': {'type': 'unit'}}}})
+    test_instantiation({'type': 'sequence',
+                        'length': {'type': 'number', 'value': 42},
+                        'contents': {'type': 'Rational'}})
+    test_instantiation({'type': 'bitvector',
+                        'width': {'type': 'number', 'value': 432}})
+    test_instantiation({'type': 'variable',
+                        'name': 'Word8'},
+                       {'type': 'bitvector',
+                        'width': {'type': 'number', 'value': 8}})
+    test_instantiation({'type': 'variable',
+                        'name': 'Twenty',
+                        'arguments': [{'type': 'Z', 'modulus': {'type': 'number', 'value': 5}}]},
+                       { 'type': 'sequence',
+                         'length': {'value': 20, 'type': 'number'},
+                         'contents': {'type': 'Z', 'modulus': {'value': 5, 'type': 'number'}}})
+
+
 # Test with both sockets and stdio
 
 c1 = argo.ServerConnection(
