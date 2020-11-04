@@ -20,3 +20,9 @@ three = 3
 
 four : [17]
 four = 4
+
+id : {a} a -> a
+id x = x
+
+type Word8 = [8]
+type Twenty a = [20]a

@@ -1,4 +1,5 @@
-{-# OPTIONS_GHC -fno-warn-type-defaults #-}
+{-# OPTIONS_GHC -fno-warn-type-defaults -Wno-missing-deriving-strategies #-}
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -17,6 +18,7 @@ import qualified Data.ByteString.Base64 as Base64
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
 import Data.List.NonEmpty (NonEmpty(..))
+import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Scientific as Sc
 import Data.Text (Text, pack)
@@ -34,7 +36,7 @@ import Cryptol.Eval (evalSel)
 import Cryptol.Eval.Concrete (primTable, Value)
 import Cryptol.Eval.Value (GenValue(..), asWordVal, enumerateSeqMap)
 import Cryptol.Parser
-import Cryptol.Parser.AST (Bind(..), BindDef(..), Decl(..), Expr(..), Type(..), PName(..), Literal(..), NumInfo(..))
+import Cryptol.Parser.AST (Bind(..), BindDef(..), Decl(..), Expr(..), Named(Named), TypeInst(NamedInst), Type(..), PName(..), Literal(..), NumInfo(..), Type)
 import Cryptol.Parser.Position (Located(..), emptyRange)
 import Cryptol.Parser.Selector
 import Cryptol.TypeCheck.AST (PrimMap)
@@ -47,6 +49,7 @@ import Cryptol.Utils.RecordMap (recordFromFields, canonicalFields)
 import Argo
 import CryptolServer
 import CryptolServer.Exceptions
+import CryptolServer.Data.Type
 
 data Encoding = Base64 | Hex
   deriving (Eq, Show, Ord)
@@ -64,7 +67,7 @@ data LetBinding =
   { argDefName :: !Text
   , argDefVal  :: !Expression
   }
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Show)
 
 instance JSON.FromJSON LetBinding where
   parseJSON =
@@ -89,10 +92,14 @@ data Expression =
   | Concrete !Text
   | Let ![LetBinding] !Expression
   | Application !Expression !(NonEmpty Expression)
-  deriving (Eq, Ord, Show)
+  | TypeApplication !Expression !TypeArguments
+  deriving (Eq, Show)
+
+newtype TypeArguments = TypeArguments (Map Ident JSONPType)
+  deriving (Eq, Show) via Map Ident (Type PName)
 
 data ExpressionTag =
-    TagNum | TagRecord | TagSequence | TagTuple | TagUnit | TagLet | TagApp | TagIntMod
+    TagNum | TagRecord | TagSequence | TagTuple | TagUnit | TagLet | TagApp | TagTypeApp | TagIntMod
 
 instance JSON.FromJSON ExpressionTag where
   parseJSON =
@@ -105,6 +112,7 @@ instance JSON.FromJSON ExpressionTag where
       "tuple"          -> pure TagTuple
       "let"            -> pure TagLet
       "call"           -> pure TagApp
+      "instantiate"    -> pure TagTypeApp
       "integer modulo" -> pure TagIntMod
       _                -> empty
 
@@ -116,7 +124,16 @@ instance JSON.ToJSON ExpressionTag where
   toJSON TagUnit     = "unit"
   toJSON TagLet      = "let"
   toJSON TagApp      = "call"
+  toJSON TagTypeApp  = "instantiate"
   toJSON TagIntMod   = "integer modulo"
+
+instance JSON.FromJSON TypeArguments where
+  parseJSON =
+    withObject "type arguments" $ \o ->
+      TypeArguments . Map.fromList <$>
+        traverse elt (HM.toList o)
+    where
+      elt (name, ty) = (mkIdent name,) <$> parseJSON ty
 
 instance JSON.FromJSON Expression where
   parseJSON v = bool v <|> integer v <|> concrete v <|> obj v
@@ -159,6 +176,8 @@ instance JSON.FromJSON Expression where
                   Let <$> o .: "binders" <*> o .: "body"
                 TagApp ->
                   Application <$> o .: "function" <*> o .: "arguments"
+                TagTypeApp ->
+                  TypeApplication <$> o .: "generic" <*> o .: "arguments"
                 TagIntMod ->
                   IntegerModulo <$> o .: "integer" <*> o .: "modulus"
 
@@ -206,6 +225,13 @@ instance JSON.ToJSON Expression where
            , "function" .= fun
            , "arguments" .= args
            ]
+  toJSON (TypeApplication gen _args) =
+    -- It would be dead code to do anything here, as type
+    -- instantiations are not values. This code is called only as part
+    -- of translating values (e.g. from "evaluate expression"). So we
+    -- just fall through, rather than writing complicated code to
+    -- serialize Type PName that never gets called and just bitrots.
+    toJSON gen
 
 
 decode :: Encoding -> Text -> Method s Integer
@@ -302,6 +328,10 @@ getExpr (Application fun (arg :| [])) =
   EApp <$> getExpr fun <*> getExpr arg
 getExpr (Application fun (arg1 :| (arg : args))) =
   getExpr (Application (Application fun (arg1 :| [])) (arg :| args))
+getExpr (TypeApplication gen (TypeArguments args)) =
+  EAppT <$> getExpr gen <*> pure (map inst (Map.toList args))
+  where
+    inst (n, t) = NamedInst (Named (Located emptyRange n) (unJSONPType t))
 
 -- TODO add tests that this is big-endian
 -- | Interpret a ByteString as an Integer
