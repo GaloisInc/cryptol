@@ -19,12 +19,10 @@ module Cryptol.Testing.Random where
 import qualified Control.Exception as X
 import Control.Monad          (join, liftM2)
 import Data.Ratio             ((%))
-import Data.Bits              ( (.&.), shiftR )
 import Data.List              (unfoldr, genericTake, genericIndex, genericReplicate)
 import qualified Data.Sequence as Seq
 
 import System.Random          (RandomGen, split, random, randomR)
-import System.Random.TF.Gen   (seedTFGen)
 
 import Cryptol.Backend        (Backend(..), SRational(..))
 import Cryptol.Backend.Monad  (runEval,Eval,EvalError(..))
@@ -33,7 +31,6 @@ import Cryptol.Backend.Concrete
 import Cryptol.Eval.Type      (TValue(..))
 import Cryptol.Eval.Value     (GenValue(..),SeqMap(..), WordValue(..),
                                ppValue, defaultPPOpts, finiteSeqMap)
-import Cryptol.Eval.Generic   (zeroV)
 import Cryptol.Utils.Ident    (Ident)
 import Cryptol.Utils.Panic    (panic)
 import Cryptol.Utils.RecordMap
@@ -273,26 +270,6 @@ randomFloat sym e p w g =
 
 
 
-
--- Random Values ---------------------------------------------------------------
-
-{-# SPECIALIZE randomV ::
-  Concrete -> TValue -> Integer -> SEval Concrete (GenValue Concrete)
-  #-}
-
--- | Produce a random value with the given seed. If we do not support
--- making values of the given type, return zero of that type.
--- TODO: do better than returning zero
-randomV :: Backend sym => sym -> TValue -> Integer -> SEval sym (GenValue sym)
-randomV sym ty seed =
-  case randomValue sym ty of
-    Nothing -> zeroV sym ty
-    Just gen ->
-      -- unpack the seed into four Word64s
-      let mask64 = 0xFFFFFFFFFFFFFFFF
-          unpack s = fromInteger (s .&. mask64) : unpack (s `shiftR` 64)
-          [a, b, c, d] = take 4 (unpack seed)
-      in fst $ gen 100 $ seedTFGen (a, b, c, d)
 
 
 -- | A test result is either a pass, a failure due to evaluating to

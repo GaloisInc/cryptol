@@ -24,8 +24,10 @@ module Cryptol.Eval.Generic where
 import qualified Control.Exception as X
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad (join, unless)
+import System.Random.TF.Gen (seedTFGen)
 
-import Data.Bits (testBit)
+import Data.Bits (testBit, (.&.), shiftR)
+
 import Data.Maybe (fromMaybe)
 import Data.Ratio ((%))
 
@@ -34,6 +36,7 @@ import Cryptol.TypeCheck.Solver.InfNat (Nat'(..),nMul,widthInteger)
 import Cryptol.Backend
 import Cryptol.Backend.Concrete (Concrete(..))
 import Cryptol.Backend.Monad ( Eval, evalPanic, EvalError(..), Unsupported(..) )
+import Cryptol.Testing.Random( randomValue )
 
 import Cryptol.Eval.Type
 import Cryptol.Eval.Value
@@ -1967,6 +1970,26 @@ foldl'V sym =
        a' <- sDelay sym Nothing (f' b)
        forceValue =<< a'
        go1 f a' bs
+
+
+-- Random Values ---------------------------------------------------------------
+
+{-# SPECIALIZE randomV ::
+  Concrete -> TValue -> Integer -> SEval Concrete (GenValue Concrete)
+  #-}
+-- | Produce a random value with the given seed. If we do not support
+-- making values of the given type, return zero of that type.
+-- TODO: do better than returning zero
+randomV :: Backend sym => sym -> TValue -> Integer -> SEval sym (GenValue sym)
+randomV sym ty seed =
+  case randomValue sym ty of
+    Nothing -> zeroV sym ty
+    Just gen ->
+      -- unpack the seed into four Word64s
+      let mask64 = 0xFFFFFFFFFFFFFFFF
+          unpack s = fromInteger (s .&. mask64) : unpack (s `shiftR` 64)
+          [a, b, c, d] = take 4 (unpack seed)
+      in fst $ gen 100 $ seedTFGen (a, b, c, d)
 
 --------------------------------------------------------------------------------
 -- Experimental parallel primitives
