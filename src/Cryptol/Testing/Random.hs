@@ -14,10 +14,23 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE Trustworthy #-}
 {-# LANGUAGE TypeFamilies #-}
-module Cryptol.Testing.Random where
+module Cryptol.Testing.Random
+( Gen
+, randomValue
+, dumpableType
+, testableType
+, testableTypeGenerators
+, TestReport(..)
+, TestResult(..)
+, isPass
+, returnTests
+, exhaustiveTests
+, randomTests
+) where
 
 import qualified Control.Exception as X
 import Control.Monad          (join, liftM2)
+import Control.Monad.IO.Class (MonadIO(..))
 import Data.Ratio             ((%))
 import Data.List              (unfoldr, genericTake, genericIndex, genericReplicate)
 import qualified Data.Sequence as Seq
@@ -374,17 +387,6 @@ typeValues ty =
 --------------------------------------------------------------------------------
 -- Driver function
 
-data TestSpec m s = TestSpec {
-    testFn :: Integer -> s -> m (TestResult, s)
-  , testProp :: String -- ^ The property as entered by the user
-  , testTotal :: Integer
-  , testPossible :: Maybe Integer -- ^ Nothing indicates infinity
-  , testRptProgress :: Integer -> Integer -> m ()
-  , testClrProgress :: m ()
-  , testRptFailure :: TestResult -> m ()
-  , testRptSuccess :: m ()
-  }
-
 data TestReport = TestReport {
     reportResult :: TestResult
   , reportProp :: String -- ^ The property as entered by the user
@@ -392,19 +394,40 @@ data TestReport = TestReport {
   , reportTestsPossible :: Maybe Integer
   }
 
-runTests :: Monad m => TestSpec m s -> s -> m TestReport
-runTests TestSpec {..} st0 = go 0 st0
+exhaustiveTests :: MonadIO m =>
+  (Integer -> m ()) {- ^ progress callback -} ->
+  (m ()) {- ^ clear callback -} ->
+  Value {- ^ function under test -} ->
+  [[Value]] {- ^ exhaustive set of test values -} ->
+  m (TestResult, Integer)
+exhaustiveTests ppProgress delProgress val = go 0 
   where
-  go testNum _ | testNum >= testTotal = do
-    testRptSuccess
-    return $ TestReport Pass testProp testNum testPossible
-  go testNum st =
-   do testRptProgress testNum testTotal
-      res <- testFn (div (100 * (1 + testNum)) testTotal) st
-      testClrProgress
-      case res of
-        (Pass, st') -> do -- delProgress -- unnecessary?
-          go (testNum + 1) st'
-        (failure, _st') -> do
-          testRptFailure failure
-          return $ TestReport failure testProp testNum testPossible
+  go !testNum [] = return (Pass, testNum)
+  go !testNum (vs:vss) =
+    do ppProgress testNum
+       res <- liftIO (evalTest val vs)
+       delProgress
+       case res of
+         Pass -> go (testNum+1) vss
+         failure -> return (failure, testNum)
+
+randomTests :: (MonadIO m, RandomGen g) =>
+  (Integer -> m ()) {- ^ progress callback -} ->
+  (m ()) {- ^ clear callback -} ->
+  Integer {- ^ Maximum number of tests to run -} ->
+  Value {- ^ function under test -} ->
+  [Gen g Concrete] {- ^ input value generators -} ->
+  g {- ^ Inital random generator -} ->
+  m (TestResult, Integer)
+randomTests ppProgress delProgress maxTests val gens = go 0
+  where
+  go !testNum g
+    | testNum >= maxTests = return (Pass, testNum)
+    | otherwise =
+      do ppProgress testNum
+         let sz' = div (100 * (1 + testNum)) maxTests
+         (res, g') <- liftIO (runOneTest val gens sz' g)
+         delProgress
+         case res of
+           Pass -> go (testNum+1) g'
+           failure -> return (failure, testNum)

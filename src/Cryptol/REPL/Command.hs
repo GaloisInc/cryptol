@@ -431,26 +431,10 @@ qcCmd qcMode str =
      case testableType tyv of
        Just (Just sz,tys,vss) | qcMode == QCExhaust || sz <= toInteger testNum -> do
             rPutStrLn "Using exhaustive testing."
-            let f _ [] = panic "Cryptol.REPL.Command"
-                                    ["Exhaustive testing ran out of test cases"]
-                f _ (vs : vss1) = do
-                  result <- io $ evalTest val vs
-                  return (result, vss1)
-                testSpec = TestSpec {
-                    testFn = f
-                  , testProp = str
-                  , testTotal = sz
-                  , testPossible = Just sz
-                  , testRptProgress = ppProgress
-                  , testClrProgress = delProgress
-                  , testRptFailure = ppFailure (map E.tValTy tys) expr
-                  , testRptSuccess = do
-                      delTesting
-                      prtLn $ "Passed " ++ show sz ++ " tests."
-                      rPutStrLn "Q.E.D."
-                  }
             prt testingMsg
-            report <- runTests testSpec vss
+            (res,num) <- exhaustiveTests (\n -> ppProgress n sz) delProgress val vss
+            let report = TestReport res str num (Just sz)
+            ppReport (map E.tValTy tys) expr True report
             return [report]
 
        Just (sz,tys,_) | qcMode == QCRandom ->
@@ -458,26 +442,15 @@ qcCmd qcMode str =
               Nothing   -> raise (TypeNotTestable ty)
               Just gens -> do
                 rPutStrLn "Using random testing."
-                let testSpec = TestSpec {
-                        testFn = \sz' g ->
-                                      io $ TestR.runOneTest val gens sz' g
-                      , testProp = str
-                      , testTotal = toInteger testNum
-                      , testPossible = sz
-                      , testRptProgress = ppProgress
-                      , testClrProgress = delProgress
-                      , testRptFailure = ppFailure (map E.tValTy tys) expr
-                      , testRptSuccess = do
-                          delTesting
-                          prtLn $ "Passed " ++ show testNum ++ " tests."
-                      }
                 prt testingMsg
                 g <- io newTFGen
-                report <- runTests testSpec g
-                when (isPass (reportResult report)) $
-                  case sz of
-                    Nothing -> return ()
-                    Just n -> rPutStrLn $ coverageString testNum n
+                let maxTests = toInteger testNum
+                (res,num) <- randomTests (\n -> ppProgress n maxTests) delProgress maxTests val gens g
+                let report = TestReport res str num sz
+                ppReport (map E.tValTy tys) expr False report
+                case sz of
+                  Just n | isPass res -> rPutStrLn $ coverageString testNum n
+                  _ -> return ()
                 return [report]
        _ -> raise (TypeNotTestable ty)
 
@@ -518,6 +491,13 @@ qcCmd qcMode str =
               $ prt (replicate n '\BS' ++ replicate n ' ' ++ replicate n '\BS')
   delTesting  = del (length testingMsg)
   delProgress = del totProgressWidth
+
+  ppReport _tys _expr isExhaustive (TestReport Pass _str testNum _testPossible) =
+    do delTesting
+       prtLn $ "Passed " ++ show testNum ++ " tests."
+       when isExhaustive (rPutStrLn "Q.E.D.")
+  ppReport tys expr _ (TestReport failure _str _testNum _testPossible) =
+    ppFailure tys expr failure
 
   ppFailure tys pexpr failure = do
     delTesting
