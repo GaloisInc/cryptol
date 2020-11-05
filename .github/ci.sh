@@ -122,7 +122,7 @@ install_system_deps() {
   install_yices &
   wait
   export PATH=$PWD/$BIN:$PATH
-  echo "::add-path::$PWD/$BIN"
+  echo "$PWD/$BIN" >> "$GITHUB_PATH"
   is_exe "$BIN" z3 && is_exe "$BIN" cvc4 && is_exe "$BIN" yices
 }
 
