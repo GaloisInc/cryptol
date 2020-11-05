@@ -1,3 +1,4 @@
+:set show-examples=off
 :l trac289.cry
 :prove applesOranges
 :prove av1
