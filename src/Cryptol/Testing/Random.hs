@@ -30,14 +30,10 @@ import Cryptol.Backend        (Backend(..), SRational(..))
 import Cryptol.Backend.Monad  (runEval,Eval,EvalError(..))
 import Cryptol.Backend.Concrete
 
-import Cryptol.Eval.Type      (TValue(..), tValTy)
+import Cryptol.Eval.Type      (TValue(..))
 import Cryptol.Eval.Value     (GenValue(..),SeqMap(..), WordValue(..),
                                ppValue, defaultPPOpts, finiteSeqMap)
 import Cryptol.Eval.Generic   (zeroV)
-import Cryptol.TypeCheck.AST  (Type(..), TCon(..), TC(..), tNoUser, tIsFun
-                              , tIsNum )
-import Cryptol.TypeCheck.SimpType(tRebuild')
-
 import Cryptol.Utils.Ident    (Ident)
 import Cryptol.Utils.Panic    (panic)
 import Cryptol.Utils.RecordMap
@@ -106,75 +102,58 @@ returnTests g gens fun num = go gens g 0
 {- | Given a (function) type, compute generators for the function's
 arguments. This is like 'testableTypeGenerators', but allows the result to be
 any finite type instead of just @Bit@. -}
-dumpableType :: forall g. RandomGen g => Type -> Maybe [Gen g Concrete]
+dumpableType :: forall g. RandomGen g => TValue -> Maybe [Gen g Concrete]
+dumpableType (TVFun t1 t2) =
+   do g  <- randomValue Concrete t1
+      as <- dumpableType t2
+      return (g : as)
 dumpableType ty =
-  case tIsFun ty of
-    Just (t1, t2) ->
-      do g  <- randomValue Concrete t1
-         as <- dumpableType t2
-         return (g : as)
-    Nothing ->
-      do (_ :: Gen g Concrete) <- randomValue Concrete ty
-         return []
+   do (_ :: Gen g Concrete) <- randomValue Concrete ty
+      return []
 
 {- | Given a (function) type, compute generators for
 the function's arguments. Currently we do not support polymorphic functions.
 In principle, we could apply these to random types, and test the results. -}
-testableTypeGenerators :: RandomGen g => Type -> Maybe [Gen g Concrete]
-testableTypeGenerators ty =
-  case tNoUser ty of
-    TCon (TC TCFun) [t1,t2] ->
-      do g  <- randomValue Concrete t1
-         as <- testableTypeGenerators t2
-         return (g : as)
-    TCon (TC TCBit) [] -> return []
-    _ -> Nothing
+testableTypeGenerators :: RandomGen g => TValue -> Maybe [Gen g Concrete]
+testableTypeGenerators (TVFun t1 t2) =
+   do g  <- randomValue Concrete t1
+      as <- testableTypeGenerators t2
+      return (g : as)
+testableTypeGenerators TVBit = return []
+testableTypeGenerators _ = Nothing
 
 
 {-# SPECIALIZE randomValue ::
-  RandomGen g => Concrete -> Type -> Maybe (Gen g Concrete)
+  RandomGen g => Concrete -> TValue -> Maybe (Gen g Concrete)
   #-}
 
 {- | A generator for values of the given type.  This fails if we are
 given a type that lacks a suitable random value generator. -}
-randomValue :: (Backend sym, RandomGen g) => sym -> Type -> Maybe (Gen g sym)
+randomValue :: (Backend sym, RandomGen g) => sym -> TValue -> Maybe (Gen g sym)
 randomValue sym ty =
   case ty of
-    TCon tc ts  ->
-      case (tc, map (tRebuild' False) ts) of
-        (TC TCBit, [])                        -> Just (randomBit sym)
+    TVBit         -> Just (randomBit sym)
+    TVInteger     -> Just (randomInteger sym)
+    TVRational    -> Just (randomRational sym)
+    TVIntMod m    -> Just (randomIntMod sym m)
+    TVFloat e p   -> Just (randomFloat sym e p)
+    TVArray{}     -> Nothing
+    TVSeq n TVBit -> Just (randomWord sym n)
+    TVSeq n el ->
+         do mk <- randomValue sym el
+            return (randomSequence n mk)
+    TVStream el  ->
+         do mk <- randomValue sym el
+            return (randomStream mk)
+    TVTuple els ->
+         do mks <- mapM (randomValue sym) els
+            return (randomTuple mks)
+    TVRec fs ->
+         do gs <- traverse (randomValue sym) fs
+            return (randomRecord gs)
 
-        (TC TCInteger, [])                    -> Just (randomInteger sym)
-
-        (TC TCRational, [])                   -> Just (randomRational sym)
-
-        (TC TCIntMod, [TCon (TC (TCNum n)) []]) ->
-          do return (randomIntMod sym n)
-
-        (TC TCFloat, [e',p']) | Just e <- tIsNum e', Just p <- tIsNum p' ->
-          return (randomFloat sym e p)
-
-        (TC TCSeq, [TCon (TC TCInf) [], el])  ->
-          do mk <- randomValue sym el
-             return (randomStream mk)
-
-        (TC TCSeq, [TCon (TC (TCNum n)) [], TCon (TC TCBit) []]) ->
-            return (randomWord sym n)
-
-        (TC TCSeq, [TCon (TC (TCNum n)) [], el]) ->
-          do mk <- randomValue sym el
-             return (randomSequence n mk)
-
-        (TC (TCTuple _), els) ->
-          do mks <- mapM (randomValue sym) els
-             return (randomTuple mks)
-
-        _ -> Nothing
-
-    TVar _      -> Nothing
-    TUser _ _ t -> randomValue sym t
-    TRec fs     -> do gs <- traverse (randomValue sym) fs
-                      return (randomRecord gs)
+    TVFun{} -> Nothing
+    TVAbstract{} -> Nothing
 
 {-# INLINE randomBit #-}
 
@@ -306,7 +285,7 @@ randomFloat sym e p w g =
 -- TODO: do better than returning zero
 randomV :: Backend sym => sym -> TValue -> Integer -> SEval sym (GenValue sym)
 randomV sym ty seed =
-  case randomValue sym (tValTy ty) of
+  case randomValue sym ty of
     Nothing -> zeroV sym ty
     Just gen ->
       -- unpack the seed into four Word64s
@@ -357,95 +336,63 @@ evalTest v0 vs0 = run `X.catch` handle
 {- | Given a (function) type, compute all possible inputs for it.
 We also return the types of the arguments and
 the total number of test (i.e., the length of the outer list. -}
-testableType :: Type -> Maybe (Maybe Integer, [Type], [[Value]])
-testableType ty =
-  case tNoUser ty of
-    TCon (TC TCFun) [t1,t2] ->
-      do let sz = typeSize t1
-         (tot,ts,vss) <- testableType t2
-         return (liftM2 (*) sz tot, t1:ts, [ v : vs | v <- typeValues t1, vs <- vss ])
-    TCon (TC TCBit) [] -> return (Just 1, [], [[]])
-    _ -> Nothing
+testableType :: TValue -> Maybe (Maybe Integer, [TValue], [[Value]])
+testableType (TVFun t1 t2) =
+   do let sz = typeSize t1
+      (tot,ts,vss) <- testableType t2
+      return (liftM2 (*) sz tot, t1:ts, [ v : vs | v <- typeValues t1, vs <- vss ])
+testableType TVBit = return (Just 1, [], [[]])
+testableType _ = Nothing
 
 {- | Given a fully-evaluated type, try to compute the number of values in it.
 Returns `Nothing` for infinite types, user-defined types, polymorphic types,
 and, currently, function spaces.  Of course, we can easily compute the
 sizes of function spaces, but we can't easily enumerate their inhabitants. -}
-typeSize :: Type -> Maybe Integer
-typeSize ty =
-  case ty of
-    TVar _      -> Nothing
-    TUser _ _ t -> typeSize t
-    TRec fs     -> product <$> traverse typeSize fs
-    TCon (TC tc) ts ->
-      case (tc, ts) of
-        (TCNum _, _)     -> Nothing
-        (TCInf, _)       -> Nothing
-        (TCBit, _)       -> Just 2
-        (TCInteger, _)   -> Nothing
-        (TCRational, _)  -> Nothing
-        (TCIntMod, [sz]) -> case tNoUser sz of
-                              TCon (TC (TCNum n)) _ -> Just n
-                              _                     -> Nothing
-        (TCIntMod, _)    -> Nothing
-        (TCFloat {}, _)  -> Nothing
-        (TCArray, _)     -> Nothing
-        (TCSeq, [sz,el]) -> case tNoUser sz of
-                              TCon (TC (TCNum n)) _ -> (^ n) <$> typeSize el
-                              _                     -> Nothing
-        (TCSeq, _)       -> Nothing
-        (TCFun, _)       -> Nothing
-        (TCTuple _, els) -> product <$> mapM typeSize els
-        (TCAbstract _, _) -> Nothing
-        (TCNewtype _, _) -> Nothing
-
-    TCon _ _ -> Nothing
-
+typeSize :: TValue -> Maybe Integer
+typeSize ty = case ty of
+  TVBit -> Just 2
+  TVInteger -> Nothing
+  TVRational -> Nothing
+  TVIntMod n -> Just n
+  TVFloat{} -> Nothing -- TODO?
+  TVArray{} -> Nothing
+  TVStream{} -> Nothing
+  TVSeq n el -> (^ n) <$> typeSize el
+  TVTuple els -> product <$> mapM typeSize els
+  TVRec fs -> product <$> traverse typeSize fs
+  TVFun{} -> Nothing
+  TVAbstract{} -> Nothing
 
 {- | Returns all the values in a type.  Returns an empty list of values,
 for types where 'typeSize' returned 'Nothing'. -}
-typeValues :: Type -> [Value]
+typeValues :: TValue -> [Value]
 typeValues ty =
   case ty of
-    TVar _      -> []
-    TUser _ _ t -> typeValues t
-    TRec fs     -> [ VRecord (fmap pure xs)
-                   | xs <- traverse typeValues fs
-                   ]
-    TCon (TC tc) ts ->
-      case tc of
-        TCNum _     -> []
-        TCInf       -> []
-        TCBit       -> [ VBit False, VBit True ]
-        TCInteger   -> []
-        TCRational  -> []
-        TCIntMod    ->
-          case map tNoUser ts of
-            [ TCon (TC (TCNum n)) _ ] | 0 < n ->
-              [ VInteger x | x <- [ 0 .. n - 1 ] ]
-            _ -> []
-        TCFloat {}  -> []
-        TCArray     -> []
-        TCSeq       ->
-          case map tNoUser ts of
-            [ TCon (TC (TCNum n)) _, TCon (TC TCBit) [] ] ->
-              [ VWord n (pure (WordVal (BV n x))) | x <- [ 0 .. 2^n - 1 ] ]
-
-            [ TCon (TC (TCNum n)) _, t ] ->
-              [ VSeq n (finiteSeqMap Concrete (map pure xs))
-              | xs <- sequence $ genericReplicate n
-                               $ typeValues t ]
-            _ -> []
-
-
-        TCFun       -> []  -- We don't generate function values.
-        TCTuple _   -> [ VTuple (map pure xs)
-                       | xs <- sequence (map typeValues ts)
-                       ]
-        TCAbstract _ -> []
-        TCNewtype _ -> []
-
-    TCon _ _ -> []
+    TVBit      -> [ VBit False, VBit True ]
+    TVInteger  -> []
+    TVRational -> []
+    TVIntMod n -> [ VInteger x | x <- [ 0 .. (n-1) ] ]
+    TVFloat{}  -> [] -- TODO?
+    TVArray{}  -> []
+    TVStream{} -> []
+    TVSeq n TVBit ->
+      [ VWord n (pure (WordVal (BV n x)))
+      | x <- [ 0 .. 2^n - 1 ]
+      ]
+    TVSeq n el ->
+      [ VSeq n (finiteSeqMap Concrete (map pure xs))
+      | xs <- sequence (genericReplicate n (typeValues el))
+      ]
+    TVTuple ts ->
+      [ VTuple (map pure xs)
+      | xs <- sequence (map typeValues ts)
+      ]
+    TVRec fs ->
+      [ VRecord (fmap pure xs)
+      | xs <- traverse typeValues fs
+      ]
+    TVFun{} -> []
+    TVAbstract{} -> []
 
 --------------------------------------------------------------------------------
 -- Driver function

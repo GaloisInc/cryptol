@@ -63,6 +63,8 @@ import qualified Cryptol.ModuleSystem.Env as M
 import qualified Cryptol.Backend.Monad as E
 import           Cryptol.Eval.Concrete( Concrete(..) )
 import qualified Cryptol.Eval.Concrete as Concrete
+import qualified Cryptol.Eval.Env as E
+import qualified Cryptol.Eval.Type as E
 import qualified Cryptol.Eval.Value as E
 import qualified Cryptol.Eval.Reference as R
 import Cryptol.Testing.Random
@@ -385,8 +387,10 @@ dumpTestsCmd outFile str =
      ppopts <- getPPValOpts
      testNum <- getKnownUser "tests" :: REPL Int
      g <- io newTFGen
+     tenv <- E.envTypes . M.deEnv <$> getDynEnv
+     let tyv = E.evalValType tenv ty
      gens <-
-       case TestR.dumpableType ty of
+       case TestR.dumpableType tyv of
          Nothing -> raise (TypeNotTestable ty)
          Just gens -> return gens
      tests <- io $ TestR.returnTests g gens val testNum
@@ -422,7 +426,9 @@ qcCmd qcMode str =
   do expr <- replParseExpr str
      (val,ty) <- replEvalExpr expr
      testNum <- getKnownUser "tests"
-     case testableType ty of
+     tenv <- E.envTypes . M.deEnv <$> getDynEnv
+     let tyv = E.evalValType tenv ty
+     case testableType tyv of
        Just (Just sz,tys,vss) | qcMode == QCExhaust || sz <= toInteger testNum -> do
             rPutStrLn "Using exhaustive testing."
             let f _ [] = panic "Cryptol.REPL.Command"
@@ -437,7 +443,7 @@ qcCmd qcMode str =
                   , testPossible = Just sz
                   , testRptProgress = ppProgress
                   , testClrProgress = delProgress
-                  , testRptFailure = ppFailure tys expr
+                  , testRptFailure = ppFailure (map E.tValTy tys) expr
                   , testRptSuccess = do
                       delTesting
                       prtLn $ "Passed " ++ show sz ++ " tests."
@@ -448,7 +454,7 @@ qcCmd qcMode str =
             return [report]
 
        Just (sz,tys,_) | qcMode == QCRandom ->
-         case TestR.testableTypeGenerators ty of
+         case TestR.testableTypeGenerators tyv of
               Nothing   -> raise (TypeNotTestable ty)
               Just gens -> do
                 rPutStrLn "Using random testing."
@@ -460,7 +466,7 @@ qcCmd qcMode str =
                       , testPossible = sz
                       , testRptProgress = ppProgress
                       , testClrProgress = delProgress
-                      , testRptFailure = ppFailure tys expr
+                      , testRptFailure = ppFailure (map E.tValTy tys) expr
                       , testRptSuccess = do
                           delTesting
                           prtLn $ "Passed " ++ show testNum ++ " tests."
