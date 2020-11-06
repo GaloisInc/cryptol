@@ -19,7 +19,6 @@ module Cryptol.Testing.Random
 , randomValue
 , dumpableType
 , testableType
-, testableTypeGenerators
 , TestReport(..)
 , TestResult(..)
 , isPass
@@ -110,8 +109,7 @@ returnTests g gens fun num = go gens g 0
            return ((inputs, output) : more)
 
 {- | Given a (function) type, compute generators for the function's
-arguments. This is like 'testableTypeGenerators', but allows the result to be
-any finite type instead of just @Bit@. -}
+arguments. -}
 dumpableType :: forall g. RandomGen g => TValue -> Maybe [Gen g Concrete]
 dumpableType (TVFun t1 t2) =
    do g  <- randomValue Concrete t1
@@ -120,17 +118,6 @@ dumpableType (TVFun t1 t2) =
 dumpableType ty =
    do (_ :: Gen g Concrete) <- randomValue Concrete ty
       return []
-
-{- | Given a (function) type, compute generators for
-the function's arguments. Currently we do not support polymorphic functions.
-In principle, we could apply these to random types, and test the results. -}
-testableTypeGenerators :: RandomGen g => TValue -> Maybe [Gen g Concrete]
-testableTypeGenerators (TVFun t1 t2) =
-   do g  <- randomValue Concrete t1
-      as <- testableTypeGenerators t2
-      return (g : as)
-testableTypeGenerators TVBit = return []
-testableTypeGenerators _ = Nothing
 
 
 {-# SPECIALIZE randomValue ::
@@ -147,7 +134,6 @@ randomValue sym ty =
     TVRational    -> Just (randomRational sym)
     TVIntMod m    -> Just (randomIntMod sym m)
     TVFloat e p   -> Just (randomFloat sym e p)
-    TVArray{}     -> Nothing
     TVSeq n TVBit -> Just (randomWord sym n)
     TVSeq n el ->
          do mk <- randomValue sym el
@@ -162,6 +148,7 @@ randomValue sym ty =
          do gs <- traverse (randomValue sym) fs
             return (randomRecord gs)
 
+    TVArray{} -> Nothing
     TVFun{} -> Nothing
     TVAbstract{} -> Nothing
 
@@ -323,15 +310,32 @@ evalTest v0 vs0 = run `X.catch` handle
                                , "Arguments:"
                                ] ++ map show vsdocs
 
-{- | Given a (function) type, compute all possible inputs for it.
-We also return the types of the arguments and
-the total number of test (i.e., the length of the outer list. -}
-testableType :: TValue -> Maybe (Maybe Integer, [TValue], [[Value]])
+{- | Given a (function) type, compute data necessary for
+     random or exhaustive testing.
+
+     The first returned component is a count of the number of
+     possible input test vectors, if the input types are finite.
+     The second component is a list of all the types of the function
+     inputs.  The third component is a list of all input test vectors
+     for exhaustive testing.  This will be empty unless the
+     input types are finite.  The final argument is a list of generators
+     for the inputs of the function.
+
+     This function will return @Nothing@ if the input type does not
+     eventually return @Bit@, or if we cannot compute a generator
+     for one of the inputs.
+-}
+testableType :: RandomGen g =>
+  TValue ->
+  Maybe (Maybe Integer, [TValue], [[Value]], [Gen g Concrete])
 testableType (TVFun t1 t2) =
    do let sz = typeSize t1
-      (tot,ts,vss) <- testableType t2
-      return (liftM2 (*) sz tot, t1:ts, [ v : vs | v <- typeValues t1, vs <- vss ])
-testableType TVBit = return (Just 1, [], [[]])
+      g <- randomValue Concrete t1
+      (tot,ts,vss,gs) <- testableType t2
+      let tot' = liftM2 (*) sz tot
+      let vss' = [ v : vs | v <- typeValues t1, vs <- vss ]
+      return (tot', t1:ts, vss', g:gs)
+testableType TVBit = return (Just 1, [], [[]], [])
 testableType _ = Nothing
 
 {- | Given a fully-evaluated type, try to compute the number of values in it.
@@ -396,30 +400,27 @@ data TestReport = TestReport {
 
 exhaustiveTests :: MonadIO m =>
   (Integer -> m ()) {- ^ progress callback -} ->
-  (m ()) {- ^ clear callback -} ->
   Value {- ^ function under test -} ->
   [[Value]] {- ^ exhaustive set of test values -} ->
   m (TestResult, Integer)
-exhaustiveTests ppProgress delProgress val = go 0 
+exhaustiveTests ppProgress val = go 0
   where
   go !testNum [] = return (Pass, testNum)
   go !testNum (vs:vss) =
     do ppProgress testNum
        res <- liftIO (evalTest val vs)
-       delProgress
        case res of
          Pass -> go (testNum+1) vss
          failure -> return (failure, testNum)
 
 randomTests :: (MonadIO m, RandomGen g) =>
   (Integer -> m ()) {- ^ progress callback -} ->
-  (m ()) {- ^ clear callback -} ->
   Integer {- ^ Maximum number of tests to run -} ->
   Value {- ^ function under test -} ->
   [Gen g Concrete] {- ^ input value generators -} ->
   g {- ^ Inital random generator -} ->
   m (TestResult, Integer)
-randomTests ppProgress delProgress maxTests val gens = go 0
+randomTests ppProgress maxTests val gens = go 0
   where
   go !testNum g
     | testNum >= maxTests = return (Pass, testNum)
@@ -427,7 +428,6 @@ randomTests ppProgress delProgress maxTests val gens = go 0
       do ppProgress testNum
          let sz' = div (100 * (1 + testNum)) maxTests
          (res, g') <- liftIO (runOneTest val gens sz' g)
-         delProgress
          case res of
            Pass -> go (testNum+1) g'
            failure -> return (failure, testNum)
