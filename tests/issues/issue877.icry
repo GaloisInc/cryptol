@@ -1,0 +1,21 @@
+[]
+
+let xs = [1,2,3] : [_]Integer
+
+xs @@ []
+xs @@ (map trunc [])
+xs @@ (map (\x -> [x]) [])
+
+:l issue877.cry
+
+:t a
+a
+
+:t b
+b
+
+:t c
+c
+
+:t d
+d
