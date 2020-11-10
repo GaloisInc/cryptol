@@ -1,0 +1,8 @@
+a = []
+
+xs : [_] Integer
+xs = [1,2,3]
+
+b = xs @@ []
+c = xs @@ (map trunc [])
+d = xs @@ (map (\x -> [x]) [])

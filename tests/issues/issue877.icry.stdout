@@ -1,0 +1,31 @@
+Loading module Cryptol
+Showing a specific instance of polymorphic result:
+  * Using 'Integer' for type of sequence member
+[]
+Showing a specific instance of polymorphic result:
+  * Using 'Integer' for type of sequence member
+[]
+Showing a specific instance of polymorphic result:
+  * Using 'Rational' for type of sequence member
+[]
+Showing a specific instance of polymorphic result:
+  * Using 'Bit' for type of sequence member
+[]
+Loading module Cryptol
+Loading module Main
+a : {a} [0]a
+Showing a specific instance of polymorphic result:
+  * Using 'Integer' for type of sequence member
+[]
+b : {a} (Integral a) => [0]Integer
+Showing a specific instance of polymorphic result:
+  * Using 'Integer' for type of sequence member
+[]
+c : {a} (Round a) => [0]Integer
+Showing a specific instance of polymorphic result:
+  * Using 'Rational' for type of sequence member
+[]
+d : {a} (Integral ([1]a)) => [0]Integer
+Showing a specific instance of polymorphic result:
+  * Using 'Bit' for type of sequence member
+[]
