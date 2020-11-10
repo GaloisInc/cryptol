@@ -138,6 +138,28 @@ def low_level_api_test(c):
             "integer": 42,
             "modulus": 60})
 
+
+    id_10 = c.send_message("evaluate expression", {"state": state_1, "expression": "two"})
+    reply_10 = c.wait_for_reply_to(id_10)
+    assert('result' in reply_10)
+    assert('answer' in reply_10['result'])
+    assert('value' in reply_10['result']['answer'])
+    assert(reply_10['result']['answer']['value'] == {'data': '0002', 'width': 15, 'expression': 'bits', 'encoding': 'hex'})
+
+    id_11 = c.send_message("evaluate expression", {"state": state_1, "expression": "three"})
+    reply_11 = c.wait_for_reply_to(id_11)
+    assert('result' in reply_11)
+    assert('answer' in reply_11['result'])
+    assert('value' in reply_11['result']['answer'])
+    assert(reply_11['result']['answer']['value'] == {'data': '0003', 'width': 16, 'expression': 'bits', 'encoding': 'hex'})
+
+    id_12 = c.send_message("evaluate expression", {"state": state_1, "expression": "four"})
+    reply_12 = c.wait_for_reply_to(id_12)
+    assert('result' in reply_12)
+    assert('answer' in reply_12['result'])
+    assert('value' in reply_12['result']['answer'])
+    assert(reply_12['result']['answer']['value'] == {'data': '00004', 'width': 17, 'expression': 'bits', 'encoding': 'hex'})
+
 # Test with both sockets and stdio
 
 c1 = argo.ServerConnection(

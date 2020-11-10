@@ -16,6 +16,7 @@ module Cryptol.Utils.Ident
   , modNameChunks
   , packModName
   , preludeName
+  , preludeReferenceName
   , floatName
   , suiteBName
   , arrayName
@@ -110,6 +111,9 @@ modInstPref = "`"
 
 preludeName :: ModName
 preludeName  = packModName ["Cryptol"]
+
+preludeReferenceName :: ModName
+preludeReferenceName = packModName ["Cryptol","Reference"]
 
 floatName :: ModName
 floatName = packModName ["Float"]

@@ -1,0 +1,46 @@
+module Cryptol::Reference where
+
+/**
+ * Performs multiplication of polynomials over GF(2).
+ * Reference implementation.
+ */
+pmult : {u, v} (fin u, fin v) => [1 + u] -> [1 + v] -> [1 + u + v]
+pmult x y = last zs
+  where
+    zs = [0] # [ (z << 1) ^ (if yi then 0 # x else 0) | yi <- y | z <- zs ]
+
+/**
+ * Performs division of polynomials over GF(2).
+ * Reference implementation.
+ */
+pdiv : {u, v} (fin u, fin v) => [u] -> [v] -> [u]
+pdiv x y = [ z ! degree | z <- zs ]
+  where
+    degree : [width v]
+    degree = last (ds : [1 + v]_)
+      where ds = [0/0] # [if yi then i else d | yi <- reverse y | i <- [0..v] | d <- ds ]
+
+    reduce : [v] -> [v]
+    reduce u = if u ! degree then u ^ y else u
+
+    zs : [u][v]
+    zs = [ tail (reduce z # [xi]) | z <- [0] # zs | xi <- x ]
+
+/**
+ * Performs modulus of polynomials over GF(2).
+ * Reference implementation.
+ */
+pmod : {u, v} (fin u, fin v) => [u] -> [1 + v] -> [v]
+pmod x y = if y == 0 then 0/0 else last zs
+  where
+    degree : [width v]
+    degree = last (ds : [2 + v]_)
+      where ds = [0/0] # [if yi then i else d | yi <- reverse y | i <- [0..v] | d <- ds ]
+
+    reduce : [1 + v] -> [1 + v]
+    reduce u = if u ! degree then u ^ y else u
+
+    powers : [inf][1 + v]
+    powers = [reduce 1] # [ reduce (p << 1) | p <- powers ]
+
+    zs = [0] # [ z ^ (if xi then tail p else 0) | xi <- reverse x | p <- powers | z <- zs ]

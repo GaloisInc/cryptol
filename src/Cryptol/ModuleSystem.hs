@@ -75,7 +75,7 @@ loadModuleByName :: P.ModName -> ModuleCmd (ModulePath,T.Module)
 loadModuleByName n (evo, byteReader, env) =
   runModuleM (evo, byteReader, resetModuleEnv env) $ do
     unloadModule ((n ==) . lmName)
-    (path,m') <- Base.loadModuleFrom (FromModule n)
+    (path,m') <- Base.loadModuleFrom False (FromModule n)
     setFocusedModule (T.mName m')
     return (path,m')
 
