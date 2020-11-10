@@ -25,6 +25,9 @@ source-repository head
 source-repository this
   type:     git
   location: https://github.com/GaloisInc/cryptol.git
+  -- add a tag on release branches
+  -- tag:
+
 
 flag static
   default: False
@@ -79,7 +82,7 @@ library
                        panic             >= 0.3,
                        what4             >= 1.0 && < 1.1
 
-  Build-tools:         alex, happy
+  Build-tool-depends:  alex:alex, happy:happy
   hs-source-dirs:      src
 
   Exposed-modules:     Cryptol.Parser,
@@ -214,10 +217,13 @@ executable cryptol
     Haskell2010
   Main-is:             Main.hs
   hs-source-dirs:      cryptol
+  Autogen-modules:     Paths_cryptol
+
   Other-modules:       OptParser,
                        REPL.Haskeline,
                        REPL.Logo,
                        Paths_cryptol
+
   build-depends:       ansi-terminal
                      , base
                      , base-compat
