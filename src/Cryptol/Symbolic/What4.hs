@@ -300,7 +300,8 @@ satProve solverCfg hashConsing ProverCommand {..} =
   M.runModuleM (evo, byteReader, modEnv)
   do w4sym   <- liftIO makeSym
      defVar  <- liftIO (newMVar (W4.truePred w4sym))
-     let sym = What4 w4sym defVar
+     funVar  <- liftIO (newMVar mempty)
+     let sym = What4 w4sym defVar funVar
      logData <- M.withLogger doLog ()
      start   <- liftIO getCurrentTime
      query   <- prepareQuery sym ProverCommand { .. }
@@ -360,7 +361,8 @@ satProveOffline (W4ProverConfig (AnAdapter adpt)) hashConsing ProverCommand {..}
   M.runModuleM (evo,byteReader,modEnv)
    do w4sym <- liftIO makeSym
       defVar  <- liftIO (newMVar (W4.truePred w4sym))
-      let sym = What4 w4sym defVar
+      funVar  <- liftIO (newMVar mempty)
+      let sym = What4 w4sym defVar funVar
       ok  <- prepareQuery sym ProverCommand { .. }
       liftIO
         case ok of

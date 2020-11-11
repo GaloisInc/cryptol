@@ -5,9 +5,14 @@
 -- Maintainer  :  cryptol@galois.com
 
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Cryptol.Eval.What4
@@ -17,11 +22,17 @@ module Cryptol.Eval.What4
   ) where
 
 import qualified Control.Exception as X
+import           Control.Concurrent.MVar
 import           Control.Monad (join)
 import           Control.Monad.IO.Class
 import           Data.Bits
 import qualified Data.Map as Map
 import           Data.Map (Map)
+import           Data.Text (Text)
+import qualified Data.Text as Text
+import           Data.Parameterized.Context
+import           Data.Parameterized.Some
+import           Data.Parameterized.TraversableFC
 
 import qualified What4.Interface as W4
 import qualified What4.SWord as SW
@@ -38,14 +49,16 @@ import Cryptol.Eval.Value
 
 import Cryptol.TypeCheck.Solver.InfNat( Nat'(..), widthInteger )
 import Cryptol.Utils.Ident
-
+import Cryptol.Utils.Panic
 
 type Value sym = GenValue (What4 sym)
 
 -- See also Cryptol.Prims.Eval.primTable
 primTable :: W4.IsSymExprBuilder sym => What4 sym -> Map.Map PrimIdent (Value sym)
-primTable sym@(What4 w4sym _) =
+primTable sym@(What4 w4sym _ _) =
   Map.union (floatPrims sym) $
+  Map.union (suiteBPrims sym) $
+
   Map.fromList $ map (\(n, v) -> (prelPrim n, v))
 
   [ -- Literals
@@ -211,6 +224,117 @@ primTable sym@(What4 w4sym _) =
          y)
   ]
 
+suiteBPrims :: W4.IsSymExprBuilder sym => What4 sym -> Map.Map PrimIdent (Value sym)
+suiteBPrims sym = Map.fromList $ [ (suiteBPrim n, v) | (n,v) <- prims ]
+ where
+ (~>) = (,)
+
+ prims =
+  [ "AESEncRound" ~>
+       lam \st -> applyAESStateFunc sym "AESEncRound" =<< st
+  , "AESEncFinalRound" ~>
+       lam \st -> applyAESStateFunc sym "AESEncFinalRound" =<< st
+  , "AESDecRound" ~>
+       lam \st -> applyAESStateFunc sym "AESDecRound" =<< st
+  , "AESDecFinalRound" ~>
+       lam \st -> applyAESStateFunc sym "AESDecFinalRound" =<< st
+  , "AESInvMixColumns" ~>
+       lam \st -> applyAESStateFunc sym "AESInvMixColumns" =<< st
+
+    -- {k} (fin k, k >= 4, 8 >= k) => [k][32] -> [4*(k+7)][32]
+  , "AESKeyExpand" ~>
+       ilam \k ->
+        lam \st ->
+          do ss <- fromVSeq <$> st
+             -- pack the arguments into a k-tuple of 32-bit values
+             Some ws <- generateSomeM (fromInteger k) (\i -> Some <$> toWord32 sym "AESKeyExpand" ss (toInteger i))
+             -- get the types of the arguments
+             let args = fmapFC W4.exprType ws
+             -- compute the return type which is a tuple of @4*(k+7)@ 32-bit values
+             Some ret <- pure $ generateSome (4*(fromInteger k + 7)) (\_ -> Some (W4.BaseBVRepr (W4.knownNat @32)))
+             -- retrieve the relevant uninterpreted function and apply it to the arguments
+             fn <- liftIO $ getUninterpFn sym ("AESKeyExpand" <> Text.pack (show k)) args (W4.BaseStructRepr ret)
+             z  <- liftIO $ W4.applySymFn (w4 sym) fn ws
+             -- compute a sequence that projects the relevant fields from the outout tuple
+             pure $ VSeq (4*(k+7)) $ IndexSeqMap $ \i ->
+               case intIndex (fromInteger i) (size ret) of
+                 Just (Some idx) | Just W4.Refl <- W4.testEquality (ret!idx) (W4.BaseBVRepr (W4.knownNat @32)) ->
+                   fromWord32 =<< liftIO (W4.structField (w4 sym) z idx)
+                 _ -> invalidIndex sym i
+  ]
+
+
+-- | Retrieve the named uninterpreted function, with the given argument types and
+--   return type, from a cache.  Create a fresh function if it has not previously
+--   been requested.  A particular named function is required to be used with
+--   consistent types every time it is requested; otherwise this function will panic.
+getUninterpFn :: W4.IsSymExprBuilder sym =>
+  What4 sym ->
+  Text {- ^ Function name -} ->
+  Assignment W4.BaseTypeRepr args {- ^ function argument types -} ->
+  W4.BaseTypeRepr ret {- ^ function return type -} ->
+  IO (W4.SymFn sym args ret)
+getUninterpFn sym funNm args ret =
+  modifyMVar (w4funs sym) $ \m ->
+    case Map.lookup funNm m of
+      Nothing ->
+        do fn <- W4.freshTotalUninterpFn (w4 sym) (W4.safeSymbol (Text.unpack funNm)) args ret
+           let m' = Map.insert funNm (SomeSymFn fn) m
+           return (m', fn)
+
+      Just (SomeSymFn fn)
+        | Just W4.Refl <- W4.testEquality args (W4.fnArgTypes fn)
+        , Just W4.Refl <- W4.testEquality ret (W4.fnReturnType fn)
+        -> return (m, fn)
+
+        | otherwise -> panic "getUninterpFn"
+                           [ "Function" ++ show funNm ++ "used at incompatible types"
+                           , "Created with types:"
+                           , show (W4.fnArgTypes fn) ++ " -> " ++ show (W4.fnReturnType fn)
+                           , "Requested at types:"
+                           , show args ++ " -> " ++ show ret
+                           ]
+
+toWord32 :: W4.IsSymExprBuilder sym =>
+  What4 sym -> String -> SeqMap (What4 sym) -> Integer -> SEval (What4 sym) (W4.SymBV sym 32)
+toWord32 sym nm ss i =
+  do x <- fromVWord sym nm =<< lookupSeqMap ss i
+     case x of
+       SW.DBV x' | Just W4.Refl <- W4.testEquality (W4.bvWidth x') (W4.knownNat @32) -> pure x'
+       _ -> panic nm ["Unexpected word size", show (SW.bvWidth x)]
+
+fromWord32 :: W4.IsSymExprBuilder sym => W4.SymBV sym 32 -> SEval (What4 sym) (Value sym)
+fromWord32 = pure . VWord 32 . pure . WordVal . SW.DBV
+
+
+-- | Apply the named uninterpreted function to a sequence of @[4][32]@ values,
+--   and return a sequence of @[4][32]@ values.  This shape of function is used
+--   for most of the SuiteB AES primitives.
+applyAESStateFunc :: forall sym. W4.IsSymExprBuilder sym =>
+  What4 sym -> Text -> Value sym -> SEval (What4 sym) (Value sym)
+applyAESStateFunc sym funNm x =
+  do let ss = fromVSeq x
+     w0 <- toWord32 sym nm ss 0
+     w1 <- toWord32 sym nm ss 1
+     w2 <- toWord32 sym nm ss 2
+     w3 <- toWord32 sym nm ss 3
+     fn <- liftIO $ getUninterpFn sym funNm argCtx (W4.BaseStructRepr argCtx)
+     z  <- liftIO $ W4.applySymFn (w4 sym) fn (Empty :> w0 :> w1 :> w2 :> w3)
+     pure $ VSeq 4 $ IndexSeqMap \i ->
+       if | i == 0 -> fromWord32 =<< liftIO (W4.structField (w4 sym) z (natIndex @0))
+          | i == 1 -> fromWord32 =<< liftIO (W4.structField (w4 sym) z (natIndex @1))
+          | i == 2 -> fromWord32 =<< liftIO (W4.structField (w4 sym) z (natIndex @2))
+          | i == 3 -> fromWord32 =<< liftIO (W4.structField (w4 sym) z (natIndex @3))
+          | otherwise -> invalidIndex sym i
+
+ where
+   nm = Text.unpack funNm
+
+   argCtx :: Assignment W4.BaseTypeRepr
+                 (EmptyCtx ::> W4.BaseBVType 32 ::> W4.BaseBVType 32 ::> W4.BaseBVType 32 ::> W4.BaseBVType 32)
+   argCtx = W4.knownRepr
+
+
 sshrV :: W4.IsSymExprBuilder sym => What4 sym -> Value sym
 sshrV sym =
   nlam $ \(Nat n) ->
@@ -241,7 +365,7 @@ indexFront_int ::
   TValue ->
   SInteger (What4 sym) ->
   SEval (What4 sym) (Value sym)
-indexFront_int sym@(What4 w4sym _) mblen _a xs ix idx
+indexFront_int sym@(What4 w4sym _ _) mblen _a xs ix idx
   | Just i <- W4.asInteger idx
   = lookupSeqMap xs i
 
@@ -300,7 +424,7 @@ indexFront_word ::
   TValue ->
   SWord (What4 sym) ->
   SEval (What4 sym) (Value sym)
-indexFront_word sym@(What4 w4sym _) mblen _a xs _ix idx
+indexFront_word sym@(What4 w4sym _ _) mblen _a xs _ix idx
   | Just i <- SW.bvAsUnsignedInteger idx
   = lookupSeqMap xs i
 
@@ -395,7 +519,7 @@ wordValueEqualsInteger :: forall sym.
   WordValue (What4 sym) ->
   Integer ->
   W4Eval sym (W4.Pred sym)
-wordValueEqualsInteger sym@(What4 w4sym _) wv i
+wordValueEqualsInteger sym@(What4 w4sym _ _) wv i
   | wordValueSize sym wv < widthInteger i = return (W4.falsePred w4sym)
   | otherwise =
     case wv of
@@ -483,7 +607,7 @@ updateFrontSym_word sym (Nat n) eltTy (WordVal bv) (Left idx) val =
   do idx' <- wordFromInt sym n idx
      updateFrontSym_word sym (Nat n) eltTy (WordVal bv) (Right (WordVal idx')) val
 
-updateFrontSym_word sym@(What4 w4sym _) (Nat n) eltTy bv (Right wv) val =
+updateFrontSym_word sym@(What4 w4sym _ _) (Nat n) eltTy bv (Right wv) val =
   case wv of
     WordVal idx
       | Just j <- SW.bvAsUnsignedInteger idx ->
@@ -526,7 +650,7 @@ updateBackSym_word sym (Nat n) eltTy (WordVal bv) (Left idx) val =
   do idx' <- wordFromInt sym n idx
      updateBackSym_word sym (Nat n) eltTy (WordVal bv) (Right (WordVal idx')) val
 
-updateBackSym_word sym@(What4 w4sym _) (Nat n) eltTy bv (Right wv) val =
+updateBackSym_word sym@(What4 w4sym _ _) (Nat n) eltTy bv (Right wv) val =
   case wv of
     WordVal idx
       | Just j <- SW.bvAsUnsignedInteger idx ->
@@ -555,7 +679,7 @@ updateBackSym_word sym@(What4 w4sym _) (Nat n) eltTy bv (Right wv) val =
 
 -- | Table of floating point primitives
 floatPrims :: W4.IsSymExprBuilder sym => What4 sym -> Map PrimIdent (Value sym)
-floatPrims sym@(What4 w4sym _) =
+floatPrims sym@(What4 w4sym _ _) =
   Map.fromList [ (floatPrim i,v) | (i,v) <- nonInfixTable ]
   where
   (~>) = (,)

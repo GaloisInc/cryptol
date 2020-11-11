@@ -6,6 +6,7 @@
 
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -21,6 +22,8 @@ import           Control.Monad.IO.Class
 import           Data.Bits (bit)
 import qualified Data.BitVector.Sized as BV
 import           Data.List
+import           Data.Map (Map)
+import           Data.Text (Text)
 import           Data.Parameterized.NatRepr
 import           Data.Parameterized.Some
 
@@ -46,8 +49,13 @@ data What4 sym =
   What4
   { w4  :: sym
   , w4defs :: MVar (W4.Pred sym)
+  , w4funs :: MVar (What4FunCache sym)
   }
 
+type What4FunCache sym = Map Text (SomeSymFn sym)
+
+data SomeSymFn sym =
+  forall args ret. SomeSymFn (W4.SymFn sym args ret)
 
 {- | This is the monad used for symbolic evaluation. It adds to
 aspects to 'Eval'---'WConn' keeps track of the backend and collects
@@ -167,7 +175,7 @@ instance W4.IsSymExprBuilder sym => MonadIO (W4Eval sym) where
 -- | Add a definitional equation.
 -- This will always be asserted when we make queries to the solver.
 addDefEqn :: W4.IsSymExprBuilder sym => What4 sym -> W4.Pred sym -> W4Eval sym ()
-addDefEqn (What4 w4sym defVar) p = liftIO (modifyMVar_ defVar (W4.andPred w4sym p))
+addDefEqn (What4 w4sym defVar _) p = liftIO (modifyMVar_ defVar (W4.andPred w4sym p))
 
 -- | Add s safety condition.
 addSafety :: W4.IsSymExprBuilder sym => W4.Pred sym -> W4Eval sym ()
@@ -575,7 +583,7 @@ fpBinArith ::
   SFloat (What4 sym) ->
   SFloat (What4 sym) ->
   SEval (What4 sym) (SFloat (What4 sym))
-fpBinArith fun = \sym@(What4 s _) r x y ->
+fpBinArith fun = \sym@(What4 s _ _) r x y ->
   do m <- fpRoundingMode sym r
      liftIO (fun s m x y)
 
