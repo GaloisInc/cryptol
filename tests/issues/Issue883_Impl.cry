@@ -1,0 +1,3 @@
+module Issue883_Impl = Issue883_Sig where
+
+type w = 32
