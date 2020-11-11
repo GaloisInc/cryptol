@@ -23,7 +23,7 @@ module Cryptol.Eval.What4
 
 import qualified Control.Exception as X
 import           Control.Concurrent.MVar
-import           Control.Monad (join)
+import           Control.Monad (join,foldM)
 import           Control.Monad.IO.Class
 import           Data.Bits
 import qualified Data.Map as Map
@@ -33,6 +33,7 @@ import qualified Data.Text as Text
 import           Data.Parameterized.Context
 import           Data.Parameterized.Some
 import           Data.Parameterized.TraversableFC
+import qualified Data.BitVector.Sized as BV
 
 import qualified What4.Interface as W4
 import qualified What4.SWord as SW
@@ -46,6 +47,8 @@ import qualified Cryptol.Backend.What4.SFloat as W4
 import Cryptol.Eval.Generic
 import Cryptol.Eval.Type (finNat', TValue(..))
 import Cryptol.Eval.Value
+
+import qualified Cryptol.SHA as SHA
 
 import Cryptol.TypeCheck.Solver.InfNat( Nat'(..), widthInteger )
 import Cryptol.Utils.Ident
@@ -261,7 +264,186 @@ suiteBPrims sym = Map.fromList $ [ (suiteBPrim n, v) | (n,v) <- prims ]
                  Just (Some idx) | Just W4.Refl <- W4.testEquality (ret!idx) (W4.BaseBVRepr (W4.knownNat @32)) ->
                    fromWord32 =<< liftIO (W4.structField (w4 sym) z idx)
                  _ -> invalidIndex sym i
+
+    -- {n} (fin n) => [n][16][32] -> [7][32]
+  , "processSHA2_224" ~>
+    ilam \n ->
+     lam \xs ->
+       do blks <- enumerateSeqMap n . fromVSeq <$> xs
+          initSt <- liftIO (mkSHA256InitialState sym SHA.initialSHA224State)
+          finalSt <- foldM (\st blk -> processSHA256Block sym st =<< blk) initSt blks
+          pure $ VSeq 7 $ IndexSeqMap \i ->
+            case intIndex (fromInteger i) (knownSize :: Size SHA256State) of
+              Just (Some idx) ->
+                do z <- liftIO $ W4.structField (w4 sym) finalSt idx
+                   case W4.testEquality (W4.exprType z) (W4.BaseBVRepr (W4.knownNat @32)) of
+                     Just W4.Refl -> fromWord32 z
+                     Nothing -> invalidIndex sym i
+              Nothing -> invalidIndex sym i
+
+    -- {n} (fin n) => [n][16][32] -> [8][32]
+  , "processSHA2_256" ~>
+    ilam \n ->
+     lam \xs ->
+       do blks <- enumerateSeqMap n . fromVSeq <$> xs
+          initSt <- liftIO (mkSHA256InitialState sym SHA.initialSHA256State)
+          finalSt <- foldM (\st blk -> processSHA256Block sym st =<< blk) initSt blks
+          pure $ VSeq 8 $ IndexSeqMap \i ->
+            case intIndex (fromInteger i) (knownSize :: Size SHA256State) of
+              Just (Some idx) ->
+                do z <- liftIO $ W4.structField (w4 sym) finalSt idx
+                   case W4.testEquality (W4.exprType z) (W4.BaseBVRepr (W4.knownNat @32)) of
+                     Just W4.Refl -> fromWord32 z
+                     Nothing -> invalidIndex sym i
+              Nothing -> invalidIndex sym i
+
+    -- {n} (fin n) => [n][16][64] -> [6][64]
+  , "processSHA2_384" ~>
+    ilam \n ->
+     lam \xs ->
+       do blks <- enumerateSeqMap n . fromVSeq <$> xs
+          initSt <- liftIO (mkSHA512InitialState sym SHA.initialSHA384State)
+          finalSt <- foldM (\st blk -> processSHA512Block sym st =<< blk) initSt blks
+          pure $ VSeq 6 $ IndexSeqMap \i ->
+            case intIndex (fromInteger i) (knownSize :: Size SHA512State) of
+              Just (Some idx) ->
+                do z <- liftIO $ W4.structField (w4 sym) finalSt idx
+                   case W4.testEquality (W4.exprType z) (W4.BaseBVRepr (W4.knownNat @64)) of
+                     Just W4.Refl -> fromWord64 z
+                     Nothing -> invalidIndex sym i
+              Nothing -> invalidIndex sym i
+
+    -- {n} (fin n) => [n][16][64] -> [8][64]
+  , "processSHA2_512" ~>
+    ilam \n ->
+     lam \xs ->
+       do blks <- enumerateSeqMap n . fromVSeq <$> xs
+          initSt <- liftIO (mkSHA512InitialState sym SHA.initialSHA512State)
+          finalSt <- foldM (\st blk -> processSHA512Block sym st =<< blk) initSt blks
+          pure $ VSeq 8 $ IndexSeqMap \i ->
+            case intIndex (fromInteger i) (knownSize :: Size SHA512State) of
+              Just (Some idx) ->
+                do z <- liftIO $ W4.structField (w4 sym) finalSt idx
+                   case W4.testEquality (W4.exprType z) (W4.BaseBVRepr (W4.knownNat @64)) of
+                     Just W4.Refl -> fromWord64 z
+                     Nothing -> invalidIndex sym i
+              Nothing -> invalidIndex sym i
   ]
+
+
+type SHA256State =
+  EmptyCtx ::>
+    W4.BaseBVType 32 ::> W4.BaseBVType 32 ::> W4.BaseBVType 32 ::> W4.BaseBVType 32 ::>
+    W4.BaseBVType 32 ::> W4.BaseBVType 32 ::> W4.BaseBVType 32 ::> W4.BaseBVType 32
+
+type SHA512State =
+  EmptyCtx ::>
+    W4.BaseBVType 64 ::> W4.BaseBVType 64 ::> W4.BaseBVType 64 ::> W4.BaseBVType 64 ::>
+    W4.BaseBVType 64 ::> W4.BaseBVType 64 ::> W4.BaseBVType 64 ::> W4.BaseBVType 64
+
+
+mkSHA256InitialState :: W4.IsSymExprBuilder sym =>
+  What4 sym ->
+  SHA.SHA256State ->
+  IO (W4.SymExpr sym (W4.BaseStructType SHA256State))
+mkSHA256InitialState sym (SHA.SHA256S s0 s1 s2 s3 s4 s5 s6 s7) =
+  do z0 <- lit s0
+     z1 <- lit s1
+     z2 <- lit s2
+     z3 <- lit s3
+     z4 <- lit s4
+     z5 <- lit s5
+     z6 <- lit s6
+     z7 <- lit s7
+     W4.mkStruct (w4 sym) (Empty :> z0 :> z1 :> z2 :> z3 :> z4 :> z5 :> z6 :> z7)
+ where lit w = W4.bvLit (w4 sym) (W4.knownNat @32) (BV.word32 w)
+
+mkSHA512InitialState :: W4.IsSymExprBuilder sym =>
+  What4 sym ->
+  SHA.SHA512State ->
+  IO (W4.SymExpr sym (W4.BaseStructType SHA512State))
+mkSHA512InitialState sym (SHA.SHA512S s0 s1 s2 s3 s4 s5 s6 s7) =
+  do z0 <- lit s0
+     z1 <- lit s1
+     z2 <- lit s2
+     z3 <- lit s3
+     z4 <- lit s4
+     z5 <- lit s5
+     z6 <- lit s6
+     z7 <- lit s7
+     W4.mkStruct (w4 sym) (Empty :> z0 :> z1 :> z2 :> z3 :> z4 :> z5 :> z6 :> z7)
+ where lit w = W4.bvLit (w4 sym) (W4.knownNat @64) (BV.word64 w)
+
+processSHA256Block :: W4.IsSymExprBuilder sym =>
+  What4 sym ->
+  W4.SymExpr sym (W4.BaseStructType SHA256State) ->
+  Value sym ->
+  SEval (What4 sym) (W4.SymExpr sym (W4.BaseStructType SHA256State))
+processSHA256Block sym st blk =
+  do let ss = fromVSeq blk
+     b0  <- toWord32 sym "processSHA256Block" ss 0
+     b1  <- toWord32 sym "processSHA256Block" ss 1
+     b2  <- toWord32 sym "processSHA256Block" ss 2
+     b3  <- toWord32 sym "processSHA256Block" ss 3
+     b4  <- toWord32 sym "processSHA256Block" ss 4
+     b5  <- toWord32 sym "processSHA256Block" ss 5
+     b6  <- toWord32 sym "processSHA256Block" ss 6
+     b7  <- toWord32 sym "processSHA256Block" ss 7
+     b8  <- toWord32 sym "processSHA256Block" ss 8
+     b9  <- toWord32 sym "processSHA256Block" ss 9
+     b10 <- toWord32 sym "processSHA256Block" ss 10
+     b11 <- toWord32 sym "processSHA256Block" ss 11
+     b12 <- toWord32 sym "processSHA256Block" ss 12
+     b13 <- toWord32 sym "processSHA256Block" ss 13
+     b14 <- toWord32 sym "processSHA256Block" ss 14
+     b15 <- toWord32 sym "processSHA256Block" ss 15
+     let args = Empty :> st  :>
+                  b0  :> b1  :> b2  :> b3 :>
+                  b4  :> b5  :> b6  :> b7 :>
+                  b8  :> b9  :> b10 :> b11 :>
+                  b12 :> b13 :> b14 :> b15
+     let ret = W4.exprType st
+     fn <- liftIO $ getUninterpFn sym "processSHA256Block" (fmapFC W4.exprType args) ret
+     liftIO $ W4.applySymFn (w4 sym) fn args
+
+
+processSHA512Block :: W4.IsSymExprBuilder sym =>
+  What4 sym ->
+  W4.SymExpr sym (W4.BaseStructType SHA512State) ->
+  Value sym ->
+  SEval (What4 sym) (W4.SymExpr sym (W4.BaseStructType SHA512State))
+processSHA512Block sym st blk =
+  do let ss = fromVSeq blk
+     b0  <- toWord64 sym "processSHA512Block" ss 0
+     b1  <- toWord64 sym "processSHA512Block" ss 1
+     b2  <- toWord64 sym "processSHA512Block" ss 2
+     b3  <- toWord64 sym "processSHA512Block" ss 3
+     b4  <- toWord64 sym "processSHA512Block" ss 4
+     b5  <- toWord64 sym "processSHA512Block" ss 5
+     b6  <- toWord64 sym "processSHA512Block" ss 6
+     b7  <- toWord64 sym "processSHA512Block" ss 7
+     b8  <- toWord64 sym "processSHA512Block" ss 8
+     b9  <- toWord64 sym "processSHA512Block" ss 9
+     b10 <- toWord64 sym "processSHA512Block" ss 10
+     b11 <- toWord64 sym "processSHA512Block" ss 11
+     b12 <- toWord64 sym "processSHA512Block" ss 12
+     b13 <- toWord64 sym "processSHA512Block" ss 13
+     b14 <- toWord64 sym "processSHA512Block" ss 14
+     b15 <- toWord64 sym "processSHA512Block" ss 15
+     let args = Empty :> st  :>
+                  b0  :> b1  :> b2  :> b3 :>
+                  b4  :> b5  :> b6  :> b7 :>
+                  b8  :> b9  :> b10 :> b11 :>
+                  b12 :> b13 :> b14 :> b15
+     let ret = W4.exprType st
+     liftIO $ putStrLn $ show $ W4.printSymExpr b0
+     liftIO $ putStrLn $ show $ W4.printSymExpr b15
+
+     liftIO $ putStrLn $ unwords $ map show $ toListFC W4.printSymExpr args
+
+     fn <- liftIO $ getUninterpFn sym "processSHA512Block" (fmapFC W4.exprType args) ret
+     liftIO $ W4.applySymFn (w4 sym) fn args
+
 
 
 -- | Retrieve the named uninterpreted function, with the given argument types and
@@ -305,6 +487,19 @@ toWord32 sym nm ss i =
 
 fromWord32 :: W4.IsSymExprBuilder sym => W4.SymBV sym 32 -> SEval (What4 sym) (Value sym)
 fromWord32 = pure . VWord 32 . pure . WordVal . SW.DBV
+
+
+toWord64 :: W4.IsSymExprBuilder sym =>
+  What4 sym -> String -> SeqMap (What4 sym) -> Integer -> SEval (What4 sym) (W4.SymBV sym 64)
+toWord64 sym nm ss i =
+  do x <- fromVWord sym nm =<< lookupSeqMap ss i
+     case x of
+       SW.DBV x' | Just W4.Refl <- W4.testEquality (W4.bvWidth x') (W4.knownNat @64) -> pure x'
+       _ -> panic nm ["Unexpected word size", show (SW.bvWidth x)]
+
+fromWord64 :: W4.IsSymExprBuilder sym => W4.SymBV sym 64 -> SEval (What4 sym) (Value sym)
+fromWord64 = pure . VWord 64 . pure . WordVal . SW.DBV
+
 
 
 -- | Apply the named uninterpreted function to a sequence of @[4][32]@ values,
