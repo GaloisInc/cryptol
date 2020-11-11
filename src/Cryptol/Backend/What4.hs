@@ -325,7 +325,7 @@ instance W4.IsSymExprBuilder sym => Backend (What4 sym) where
        return (l, r)
 
   extractWord (What4 sym _) bits idx bv =
-    liftIO $ SW.bvSliceBE sym idx bits bv
+    liftIO $ SW.bvSliceLE sym idx bits bv
 
   wordEq                (What4 sym _) x y = liftIO (SW.bvEq sym x y)
   wordLessThan          (What4 sym _) x y = liftIO (SW.bvult sym x y)
