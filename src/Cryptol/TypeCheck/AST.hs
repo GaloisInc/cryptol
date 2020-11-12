@@ -25,7 +25,6 @@ module Cryptol.TypeCheck.AST
   , Pragma(..)
   , Fixity(..)
   , PrimMap(..)
-  , TCErrorMessage(..)
   , module Cryptol.TypeCheck.Type
   ) where
 

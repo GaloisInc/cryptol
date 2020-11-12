@@ -94,7 +94,7 @@ quickSolver ctxt gs0 = go emptySubst [] gs0
 
   go su unsolved (g : gs) =
     case Simplify.simplifyStep ctxt (goal g) of
-      Unsolvable e        -> Left (UnsolvedGoals (Just e) [g])
+      Unsolvable          -> Left (UnsolvableGoals [g])
       Unsolved            -> go su (g : unsolved) gs
       SolvedIf subs       ->
         let cvt x = g { goal = x }
@@ -104,10 +104,7 @@ quickSolver ctxt gs0 = go emptySubst [] gs0
   findImprovement inc [] =
     do let bad = Map.intersectionWith (,) (integralTVars inc) (fracTVars inc)
        case Map.minView bad of
-         Just ((g1,g2),_) ->
-            pure $ Left $
-              UnsolvedGoals (Just (TCErrorMessage "Mutually exclusive goals"))
-                             [g1,g2]
+         Just ((g1,g2),_) -> pure $ Left $ UnsolvableGoals [g1,g2]
          Nothing -> mzero
 
   findImprovement inc (g : gs) =

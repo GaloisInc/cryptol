@@ -1,5 +1,6 @@
 {-# Language FlexibleInstances, DeriveGeneric, DeriveAnyClass #-}
 {-# Language OverloadedStrings #-}
+{-# Language Safe #-}
 module Cryptol.TypeCheck.Error where
 
 import qualified Data.IntMap as IntMap
@@ -92,10 +93,13 @@ data Error    = ErrorMsg Doc
               | RecursiveType TypeSource Type Type
                 -- ^ Unification results in a recursive type
 
-              | UnsolvedGoals (Maybe TCErrorMessage) [Goal]
-                -- ^ A constraint that we could not solve
-                -- If we have `TCErrorMess` than the goal is impossible
-                -- for the given reason
+              | UnsolvedGoals [Goal]
+                -- ^ A constraint that we could not solve, usually because
+                -- there are some left-over variables that we could not infer.
+
+              | UnsolvableGoals [Goal]
+                -- ^ A constraint that we could not solve and we know
+                -- it is impossible to do it.
 
               | UnsolvedDelayedCt DelayedCt
                 -- ^ A constraint (with context) that we could not solve
@@ -153,7 +157,11 @@ errorImportance err =
 
     RecursiveTypeDecls {}                            -> 9
 
-    UnsolvedGoals _ g
+    UnsolvableGoals g
+      | any tHasErrors (map goal g)                  -> 0
+      | otherwise                                    -> 4
+
+    UnsolvedGoals g
       | any tHasErrors (map goal g)                  -> 0
       | otherwise                                    -> 4
 
@@ -193,7 +201,8 @@ instance TVars Error where
       RecursiveTypeDecls {}     -> err
       TypeMismatch src t1 t2    -> TypeMismatch src !$ (apSubst su t1) !$ (apSubst su t2)
       RecursiveType src t1 t2   -> RecursiveType src !$ (apSubst su t1) !$ (apSubst su t2)
-      UnsolvedGoals x gs        -> UnsolvedGoals x !$ (apSubst su gs)
+      UnsolvedGoals gs          -> UnsolvedGoals !$ apSubst su gs
+      UnsolvableGoals gs        -> UnsolvableGoals !$ apSubst su gs
       UnsolvedDelayedCt g       -> UnsolvedDelayedCt !$ (apSubst su g)
       UnexpectedTypeWildCard    -> err
       TypeVariableEscaped src t xs ->
@@ -219,7 +228,8 @@ instance FVS Error where
       RecursiveTypeDecls {}     -> Set.empty
       TypeMismatch _ t1 t2      -> fvs (t1,t2)
       RecursiveType _ t1 t2     -> fvs (t1,t2)
-      UnsolvedGoals _ gs        -> fvs gs
+      UnsolvedGoals gs          -> fvs gs
+      UnsolvableGoals gs        -> fvs gs
       UnsolvedDelayedCt g       -> fvs g
       UnexpectedTypeWildCard    -> Set.empty
       TypeVariableEscaped _ t xs-> fvs t `Set.union`
@@ -318,17 +328,16 @@ instance PP (WithNames Error) where
              , "When checking" <+> pp src
              ]
 
-      UnsolvedGoals imp gs
-        | Just msg <- imp ->
+      UnsolvableGoals gs ->
           addTVarsDescsAfter names err $
           nested "Unsolvable constraints:" $
-          let reason = ["Reason:" <+> text (tcErrorMessage msg)]
-              unErr g = case tIsError (goal g) of
-                          Just (_,p) -> g { goal = p }
-                          Nothing    -> g
+          let unErr g = case tIsError (goal g) of
+                          Just p  -> g { goal = p }
+                          Nothing -> g
           in
-          bullets (map (ppWithNames names) (map unErr gs) ++ reason)
+          bullets (map (ppWithNames names) (map unErr gs))
 
+      UnsolvedGoals gs
         | noUni ->
           addTVarsDescsAfter names err $
           nested "Unsolved constraints:" $
