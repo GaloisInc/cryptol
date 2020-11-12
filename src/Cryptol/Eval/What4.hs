@@ -524,11 +524,6 @@ processSHA512Block sym st blk =
                   b8  :> b9  :> b10 :> b11 :>
                   b12 :> b13 :> b14 :> b15
      let ret = W4.exprType st
-     liftIO $ putStrLn $ show $ W4.printSymExpr b0
-     liftIO $ putStrLn $ show $ W4.printSymExpr b15
-
-     liftIO $ putStrLn $ unwords $ map show $ toListFC W4.printSymExpr args
-
      fn <- liftIO $ getUninterpFn sym "processSHA512Block" (fmapFC W4.exprType args) ret
      liftIO $ W4.applySymFn (w4 sym) fn args
 
