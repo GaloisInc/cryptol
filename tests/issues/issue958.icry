@@ -1,0 +1,5 @@
+:set prover=sbv-z3
+:prove (\x y -> split (x#y) == [x :[64] ,y])
+
+:set prover=w4-z3
+:prove (\x y -> split (x#y) == [x :[64] ,y])
