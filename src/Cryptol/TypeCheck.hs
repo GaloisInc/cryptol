@@ -58,12 +58,11 @@ tcModuleInst :: Module                  {- ^ functor -} ->
                 IO (InferOutput Module) {- ^ new version of instance -}
 tcModuleInst func m inp = runInferM inp
                         $ do x <- inferModule m
-                             y <- checkModuleInstance func x
                              flip (foldr withParamType) (mParamTypes x) $
                                withParameterConstraints (mParamConstraints x) $
-                               proveModuleTopLevel
-
-                             return y
+                               do y <- checkModuleInstance func x
+                                  proveModuleTopLevel
+                                  pure y
 
 tcExpr :: P.Expr Name -> InferInput -> IO (InferOutput (Expr,Schema))
 tcExpr e0 inp = runInferM inp

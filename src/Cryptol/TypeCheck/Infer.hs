@@ -902,7 +902,9 @@ checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
                    addGoals validSchema
                    () <- simplifyAllConstraints  -- XXX: using `asmps` also?
                    return e1
-     cs <- applySubstGoals cs0
+
+     asmps1 <- applySubstPreds asmps0
+     cs     <- applySubstGoals cs0
 
      let findKeep vs keep todo =
           let stays (_,cvs)    = not $ Set.null $ Set.intersection vs cvs
@@ -912,12 +914,14 @@ checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
                [] -> (keep,map fst todo)
                _  -> findKeep (Set.unions (vs:newVars)) (stayPs ++ keep) perhaps
 
-     let (stay,leave) = findKeep (Set.fromList (map tpVar as)) []
+     let -- if a goal mentions any of these variables, we'll commit to
+         -- solving it now.
+         stickyVars = Set.fromList (map tpVar as) `Set.union` fvs asmps1
+         (stay,leave) = findKeep stickyVars []
                             [ (c, fvs c) | c <- cs ]
 
      addGoals leave
 
-     asmps1 <- applySubstPreds asmps0
 
      su <- proveImplication (Just (thing (P.bName b))) as asmps1 stay
      extendSubst su

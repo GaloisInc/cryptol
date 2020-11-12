@@ -1,0 +1,6 @@
+module Issue883 where
+
+import Issue883_Impl
+
+zeros : [4][8]
+zeros = getZeros
