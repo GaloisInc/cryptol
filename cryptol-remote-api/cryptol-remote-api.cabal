@@ -64,6 +64,8 @@ executable cryptol-remote-api
   import:              deps, warnings
   main-is:             Main.hs
   hs-source-dirs:      cryptol-remote-api
+  ghc-options:
+    -threaded
 
   build-depends:
     cryptol-remote-api,
