@@ -38,8 +38,13 @@ import qualified Control.Exception as X
 import System.IO (Handle)
 import Data.Time
 import Data.IORef
+import Data.List (intercalate)
 import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.Map as Map
+import           Data.Set (Set)
+import qualified Data.Set as Set
+import           Data.Text (Text)
+import qualified Data.Text as Text
 import qualified Data.List.NonEmpty as NE
 import System.Exit
 
@@ -59,7 +64,7 @@ import qualified Cryptol.Eval.Value as Eval
 import           Cryptol.Eval.What4
 import           Cryptol.Symbolic
 import           Cryptol.TypeCheck.AST
-import           Cryptol.Utils.Logger(logPutStrLn)
+import           Cryptol.Utils.Logger(logPutStrLn,logPutStr,Logger)
 import           Cryptol.Utils.Ident (preludeReferenceName, prelPrim, identText)
 
 import qualified What4.Config as W4
@@ -301,11 +306,13 @@ satProve solverCfg hashConsing ProverCommand {..} =
   do w4sym   <- liftIO makeSym
      defVar  <- liftIO (newMVar (W4.truePred w4sym))
      funVar  <- liftIO (newMVar mempty)
-     let sym = What4 w4sym defVar funVar
+     uninterpWarnVar <- liftIO (newMVar mempty)
+     let sym = What4 w4sym defVar funVar uninterpWarnVar
      logData <- M.withLogger doLog ()
      start   <- liftIO getCurrentTime
      query   <- prepareQuery sym ProverCommand { .. }
      primMap <- M.getPrimMap
+     M.withLogger printUninterpWarn =<< liftIO (readMVar uninterpWarnVar)
      liftIO
        do result <- runProver sym logData primMap query
           end <- getCurrentTime
@@ -344,7 +351,14 @@ satProve solverCfg hashConsing ProverCommand {..} =
             multiSATQuery sym solverCfg primMap logData ts args
                                                             query num
 
-
+printUninterpWarn :: Logger -> Set Text -> IO ()
+printUninterpWarn lg uninterpWarns =
+  case Set.toList uninterpWarns of
+    []  -> pure ()
+    [x] -> logPutStrLn lg ("[Warning] Uninterpreted functions used to represent " ++ Text.unpack x ++ " operations.")
+    xs  -> logPutStr lg $ unlines
+             [ "[Warning] Uninterpreted functions used to represent the following operations:"
+             , "  " ++ intercalate ", " (map Text.unpack xs) ]
 
 satProveOffline ::
   W4ProverConfig ->
@@ -362,8 +376,10 @@ satProveOffline (W4ProverConfig (AnAdapter adpt)) hashConsing ProverCommand {..}
    do w4sym <- liftIO makeSym
       defVar  <- liftIO (newMVar (W4.truePred w4sym))
       funVar  <- liftIO (newMVar mempty)
-      let sym = What4 w4sym defVar funVar
+      uninterpWarnVar <- liftIO (newMVar mempty)
+      let sym = What4 w4sym defVar funVar uninterpWarnVar
       ok  <- prepareQuery sym ProverCommand { .. }
+      M.withLogger printUninterpWarn =<< liftIO (readMVar uninterpWarnVar)
       liftIO
         case ok of
           Left msg -> return (Just msg)

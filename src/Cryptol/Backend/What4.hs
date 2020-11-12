@@ -23,6 +23,7 @@ import           Data.Bits (bit)
 import qualified Data.BitVector.Sized as BV
 import           Data.List
 import           Data.Map (Map)
+import           Data.Set (Set)
 import           Data.Text (Text)
 import           Data.Parameterized.NatRepr
 import           Data.Parameterized.Some
@@ -50,6 +51,7 @@ data What4 sym =
   { w4  :: sym
   , w4defs :: MVar (W4.Pred sym)
   , w4funs :: MVar (What4FunCache sym)
+  , w4uninterpWarns :: MVar (Set Text)
   }
 
 type What4FunCache sym = Map Text (SomeSymFn sym)
@@ -175,7 +177,8 @@ instance W4.IsSymExprBuilder sym => MonadIO (W4Eval sym) where
 -- | Add a definitional equation.
 -- This will always be asserted when we make queries to the solver.
 addDefEqn :: W4.IsSymExprBuilder sym => What4 sym -> W4.Pred sym -> W4Eval sym ()
-addDefEqn (What4 w4sym defVar _) p = liftIO (modifyMVar_ defVar (W4.andPred w4sym p))
+addDefEqn sym p =
+  liftIO (modifyMVar_ (w4defs sym) (W4.andPred (w4 sym) p))
 
 -- | Add s safety condition.
 addSafety :: W4.IsSymExprBuilder sym => W4.Pred sym -> W4Eval sym ()
@@ -583,9 +586,9 @@ fpBinArith ::
   SFloat (What4 sym) ->
   SFloat (What4 sym) ->
   SEval (What4 sym) (SFloat (What4 sym))
-fpBinArith fun = \sym@(What4 s _ _) r x y ->
+fpBinArith fun = \sym r x y ->
   do m <- fpRoundingMode sym r
-     liftIO (fun s m x y)
+     liftIO (fun (w4 sym) m x y)
 
 
 fpCvtToInteger ::

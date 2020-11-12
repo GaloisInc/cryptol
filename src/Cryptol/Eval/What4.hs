@@ -28,6 +28,7 @@ import           Control.Monad.IO.Class
 import           Data.Bits
 import qualified Data.Map as Map
 import           Data.Map (Map)
+import qualified Data.Set as Set
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Data.Parameterized.Context
@@ -60,7 +61,8 @@ type Value sym = GenValue (What4 sym)
 
 -- See also Cryptol.Prims.Eval.primTable
 primTable :: W4.IsSymExprBuilder sym => What4 sym -> Map.Map PrimIdent (Value sym)
-primTable sym@(What4 w4sym _ _) =
+primTable sym =
+  let w4sym = w4 sym in
   Map.union (floatPrims sym) $
   Map.union (suiteBPrims sym) $
   Map.union (primeECPrims sym) $
@@ -242,6 +244,7 @@ primeECPrims sym = Map.fromList $ [ (primeECPrim n, v) | (n,v) <- prims ]
        lam \s ->
          do p' <- integerLit sym p
             s' <- toProjectivePoint sym =<< s
+            addUninterpWarning sym "Prime ECC"
             fn <- liftIO $ getUninterpFn sym "ec_double"
                               (Empty :> W4.BaseIntegerRepr :> projectivePointRepr) projectivePointRepr
             z  <- liftIO $ W4.applySymFn (w4 sym) fn (Empty :> p' :> s')
@@ -255,6 +258,7 @@ primeECPrims sym = Map.fromList $ [ (primeECPrim n, v) | (n,v) <- prims ]
          do p' <- integerLit sym p
             s' <- toProjectivePoint sym =<< s
             t' <- toProjectivePoint sym =<< t
+            addUninterpWarning sym "Prime ECC"
             fn <- liftIO $ getUninterpFn sym "ec_add_nonzero"
                               (Empty :> W4.BaseIntegerRepr :> projectivePointRepr :> projectivePointRepr) projectivePointRepr
             z  <- liftIO $ W4.applySymFn (w4 sym) fn (Empty :> p' :> s' :> t')
@@ -268,6 +272,7 @@ primeECPrims sym = Map.fromList $ [ (primeECPrim n, v) | (n,v) <- prims ]
          do p' <- integerLit sym p
             k' <- fromVInteger <$> k
             s' <- toProjectivePoint sym =<< s
+            addUninterpWarning sym "Prime ECC"
             fn <- liftIO $ getUninterpFn sym "ec_mult"
                               (Empty :> W4.BaseIntegerRepr :> W4.BaseIntegerRepr :> projectivePointRepr) projectivePointRepr
             z  <- liftIO $ W4.applySymFn (w4 sym) fn (Empty :> p' :> k' :> s')
@@ -285,6 +290,7 @@ primeECPrims sym = Map.fromList $ [ (primeECPrim n, v) | (n,v) <- prims ]
             s' <- toProjectivePoint sym =<< s
             k' <- fromVInteger <$> k
             t' <- toProjectivePoint sym =<< t
+            addUninterpWarning sym "Prime ECC"
             fn <- liftIO $ getUninterpFn sym "ec_twin_mult"
                               (Empty :> W4.BaseIntegerRepr :> W4.BaseIntegerRepr :> projectivePointRepr :>
                                                               W4.BaseIntegerRepr :> projectivePointRepr)
@@ -322,15 +328,25 @@ suiteBPrims sym = Map.fromList $ [ (suiteBPrim n, v) | (n,v) <- prims ]
 
  prims =
   [ "AESEncRound" ~>
-       lam \st -> applyAESStateFunc sym "AESEncRound" =<< st
+       lam \st ->
+         do addUninterpWarning sym "AES encryption"
+            applyAESStateFunc sym "AESEncRound" =<< st
   , "AESEncFinalRound" ~>
-       lam \st -> applyAESStateFunc sym "AESEncFinalRound" =<< st
+       lam \st ->
+         do addUninterpWarning sym "AES encryption"
+            applyAESStateFunc sym "AESEncFinalRound" =<< st
   , "AESDecRound" ~>
-       lam \st -> applyAESStateFunc sym "AESDecRound" =<< st
+       lam \st ->
+         do addUninterpWarning sym "AES decryption"
+            applyAESStateFunc sym "AESDecRound" =<< st
   , "AESDecFinalRound" ~>
-       lam \st -> applyAESStateFunc sym "AESDecFinalRound" =<< st
+       lam \st ->
+         do addUninterpWarning sym "AES decryption"
+            applyAESStateFunc sym "AESDecFinalRound" =<< st
   , "AESInvMixColumns" ~>
-       lam \st -> applyAESStateFunc sym "AESInvMixColumns" =<< st
+       lam \st ->
+         do addUninterpWarning sym "AES key expansion"
+            applyAESStateFunc sym "AESInvMixColumns" =<< st
 
     -- {k} (fin k, k >= 4, 8 >= k) => [k][32] -> [4*(k+7)][32]
   , "AESKeyExpand" ~>
@@ -344,6 +360,7 @@ suiteBPrims sym = Map.fromList $ [ (suiteBPrim n, v) | (n,v) <- prims ]
              -- compute the return type which is a tuple of @4*(k+7)@ 32-bit values
              Some ret <- pure $ generateSome (4*(fromInteger k + 7)) (\_ -> Some (W4.BaseBVRepr (W4.knownNat @32)))
              -- retrieve the relevant uninterpreted function and apply it to the arguments
+             addUninterpWarning sym "AES key expansion"
              fn <- liftIO $ getUninterpFn sym ("AESKeyExpand" <> Text.pack (show k)) args (W4.BaseStructRepr ret)
              z  <- liftIO $ W4.applySymFn (w4 sym) fn ws
              -- compute a sequence that projects the relevant fields from the outout tuple
@@ -358,6 +375,7 @@ suiteBPrims sym = Map.fromList $ [ (suiteBPrim n, v) | (n,v) <- prims ]
     ilam \n ->
      lam \xs ->
        do blks <- enumerateSeqMap n . fromVSeq <$> xs
+          addUninterpWarning sym "SHA-224"
           initSt <- liftIO (mkSHA256InitialState sym SHA.initialSHA224State)
           finalSt <- foldM (\st blk -> processSHA256Block sym st =<< blk) initSt blks
           pure $ VSeq 7 $ IndexSeqMap \i ->
@@ -374,6 +392,7 @@ suiteBPrims sym = Map.fromList $ [ (suiteBPrim n, v) | (n,v) <- prims ]
     ilam \n ->
      lam \xs ->
        do blks <- enumerateSeqMap n . fromVSeq <$> xs
+          addUninterpWarning sym "SHA-256"
           initSt <- liftIO (mkSHA256InitialState sym SHA.initialSHA256State)
           finalSt <- foldM (\st blk -> processSHA256Block sym st =<< blk) initSt blks
           pure $ VSeq 8 $ IndexSeqMap \i ->
@@ -390,6 +409,7 @@ suiteBPrims sym = Map.fromList $ [ (suiteBPrim n, v) | (n,v) <- prims ]
     ilam \n ->
      lam \xs ->
        do blks <- enumerateSeqMap n . fromVSeq <$> xs
+          addUninterpWarning sym "SHA-384"
           initSt <- liftIO (mkSHA512InitialState sym SHA.initialSHA384State)
           finalSt <- foldM (\st blk -> processSHA512Block sym st =<< blk) initSt blks
           pure $ VSeq 6 $ IndexSeqMap \i ->
@@ -406,6 +426,7 @@ suiteBPrims sym = Map.fromList $ [ (suiteBPrim n, v) | (n,v) <- prims ]
     ilam \n ->
      lam \xs ->
        do blks <- enumerateSeqMap n . fromVSeq <$> xs
+          addUninterpWarning sym "SHA-512"
           initSt <- liftIO (mkSHA512InitialState sym SHA.initialSHA512State)
           finalSt <- foldM (\st blk -> processSHA512Block sym st =<< blk) initSt blks
           pure $ VSeq 8 $ IndexSeqMap \i ->
@@ -528,6 +549,8 @@ processSHA512Block sym st blk =
      liftIO $ W4.applySymFn (w4 sym) fn args
 
 
+addUninterpWarning :: MonadIO m => What4 sym -> Text -> m ()
+addUninterpWarning sym nm = liftIO (modifyMVar_ (w4uninterpWarns sym) (pure . Set.insert nm))
 
 -- | Retrieve the named uninterpreted function, with the given argument types and
 --   return type, from a cache.  Create a fresh function if it has not previously
@@ -643,7 +666,7 @@ indexFront_int ::
   TValue ->
   SInteger (What4 sym) ->
   SEval (What4 sym) (Value sym)
-indexFront_int sym@(What4 w4sym _ _) mblen _a xs ix idx
+indexFront_int sym mblen _a xs ix idx
   | Just i <- W4.asInteger idx
   = lookupSeqMap xs i
 
@@ -654,6 +677,8 @@ indexFront_int sym@(What4 w4sym _ _) mblen _a xs ix idx
   = liftIO (X.throw (UnsupportedSymbolicOp "unbounded integer indexing"))
 
  where
+    w4sym = w4 sym
+
     def = raiseError sym (InvalidIndex Nothing)
 
     f n y =
@@ -702,7 +727,7 @@ indexFront_word ::
   TValue ->
   SWord (What4 sym) ->
   SEval (What4 sym) (Value sym)
-indexFront_word sym@(What4 w4sym _ _) mblen _a xs _ix idx
+indexFront_word sym mblen _a xs _ix idx
   | Just i <- SW.bvAsUnsignedInteger idx
   = lookupSeqMap xs i
 
@@ -710,6 +735,8 @@ indexFront_word sym@(What4 w4sym _ _) mblen _a xs _ix idx
   = foldr f def idxs
 
  where
+    w4sym = w4 sym
+
     w = SW.bvWidth idx
     def = raiseError sym (InvalidIndex Nothing)
 
@@ -797,13 +824,15 @@ wordValueEqualsInteger :: forall sym.
   WordValue (What4 sym) ->
   Integer ->
   W4Eval sym (W4.Pred sym)
-wordValueEqualsInteger sym@(What4 w4sym _ _) wv i
+wordValueEqualsInteger sym wv i
   | wordValueSize sym wv < widthInteger i = return (W4.falsePred w4sym)
   | otherwise =
     case wv of
       WordVal w -> liftIO (SW.bvEq w4sym w =<< SW.bvLit w4sym (SW.bvWidth w) i)
       _ -> liftIO . bitsAre i =<< enumerateWordValueRev sym wv -- little-endian
   where
+    w4sym = w4 sym
+
     bitsAre :: Integer -> [W4.Pred sym] -> IO (W4.Pred sym)
     bitsAre n [] = pure (W4.backendPred w4sym (n == 0))
     bitsAre n (b : bs) =
@@ -885,7 +914,7 @@ updateFrontSym_word sym (Nat n) eltTy (WordVal bv) (Left idx) val =
   do idx' <- wordFromInt sym n idx
      updateFrontSym_word sym (Nat n) eltTy (WordVal bv) (Right (WordVal idx')) val
 
-updateFrontSym_word sym@(What4 w4sym _ _) (Nat n) eltTy bv (Right wv) val =
+updateFrontSym_word sym (Nat n) eltTy bv (Right wv) val =
   case wv of
     WordVal idx
       | Just j <- SW.bvAsUnsignedInteger idx ->
@@ -895,16 +924,16 @@ updateFrontSym_word sym@(What4 w4sym _ _) (Nat n) eltTy bv (Right wv) val =
         WordVal <$>
           do b <- fromVBit <$> val
              let sz = SW.bvWidth bw
-             highbit <- liftIO (SW.bvLit w4sym sz (bit (fromInteger (sz-1))))
-             msk <- w4bvLshr w4sym highbit idx
+             highbit <- liftIO (SW.bvLit (w4 sym) sz (bit (fromInteger (sz-1))))
+             msk <- w4bvLshr (w4 sym) highbit idx
              liftIO $
                case W4.asConstantPred b of
-                 Just True  -> SW.bvOr  w4sym bw msk
-                 Just False -> SW.bvAnd w4sym bw =<< SW.bvNot w4sym msk
+                 Just True  -> SW.bvOr  (w4 sym) bw msk
+                 Just False -> SW.bvAnd (w4 sym) bw =<< SW.bvNot (w4 sym) msk
                  Nothing ->
-                   do q <- SW.bvFill w4sym sz b
-                      bw' <- SW.bvAnd w4sym bw =<< SW.bvNot w4sym msk
-                      SW.bvXor w4sym bw' =<< SW.bvAnd w4sym q msk
+                   do q <- SW.bvFill (w4 sym) sz b
+                      bw' <- SW.bvAnd (w4 sym) bw =<< SW.bvNot (w4 sym) msk
+                      SW.bvXor (w4 sym) bw' =<< SW.bvAnd (w4 sym) q msk
 
     _ -> LargeBitsVal (wordValueSize sym wv) <$>
            updateFrontSym sym (Nat n) eltTy (asBitsMap sym bv) (Right wv) val
@@ -928,7 +957,7 @@ updateBackSym_word sym (Nat n) eltTy (WordVal bv) (Left idx) val =
   do idx' <- wordFromInt sym n idx
      updateBackSym_word sym (Nat n) eltTy (WordVal bv) (Right (WordVal idx')) val
 
-updateBackSym_word sym@(What4 w4sym _ _) (Nat n) eltTy bv (Right wv) val =
+updateBackSym_word sym (Nat n) eltTy bv (Right wv) val =
   case wv of
     WordVal idx
       | Just j <- SW.bvAsUnsignedInteger idx ->
@@ -938,16 +967,16 @@ updateBackSym_word sym@(What4 w4sym _ _) (Nat n) eltTy bv (Right wv) val =
         WordVal <$>
           do b <- fromVBit <$> val
              let sz = SW.bvWidth bw
-             lowbit <- liftIO (SW.bvLit w4sym sz 1)
-             msk <- w4bvShl w4sym lowbit idx
+             lowbit <- liftIO (SW.bvLit (w4 sym) sz 1)
+             msk <- w4bvShl (w4 sym) lowbit idx
              liftIO $
                case W4.asConstantPred b of
-                 Just True  -> SW.bvOr  w4sym bw msk
-                 Just False -> SW.bvAnd w4sym bw =<< SW.bvNot w4sym msk
+                 Just True  -> SW.bvOr  (w4 sym) bw msk
+                 Just False -> SW.bvAnd (w4 sym) bw =<< SW.bvNot (w4 sym) msk
                  Nothing ->
-                   do q <- SW.bvFill w4sym sz b
-                      bw' <- SW.bvAnd w4sym bw =<< SW.bvNot w4sym msk
-                      SW.bvXor w4sym bw' =<< SW.bvAnd w4sym q msk
+                   do q <- SW.bvFill (w4 sym) sz b
+                      bw' <- SW.bvAnd (w4 sym) bw =<< SW.bvNot (w4 sym) msk
+                      SW.bvXor (w4 sym) bw' =<< SW.bvAnd (w4 sym) q msk
 
     _ -> LargeBitsVal (wordValueSize sym wv) <$>
            updateBackSym sym (Nat n) eltTy (asBitsMap sym bv) (Right wv) val
@@ -957,9 +986,10 @@ updateBackSym_word sym@(What4 w4sym _ _) (Nat n) eltTy bv (Right wv) val =
 
 -- | Table of floating point primitives
 floatPrims :: W4.IsSymExprBuilder sym => What4 sym -> Map PrimIdent (Value sym)
-floatPrims sym@(What4 w4sym _ _) =
+floatPrims sym =
   Map.fromList [ (floatPrim i,v) | (i,v) <- nonInfixTable ]
   where
+  w4sym = w4 sym
   (~>) = (,)
 
   nonInfixTable =
