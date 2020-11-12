@@ -51,8 +51,10 @@ import Cryptol.Eval.Value
 import qualified Cryptol.SHA as SHA
 
 import Cryptol.TypeCheck.Solver.InfNat( Nat'(..), widthInteger )
+
 import Cryptol.Utils.Ident
 import Cryptol.Utils.Panic
+import Cryptol.Utils.RecordMap
 
 type Value sym = GenValue (What4 sym)
 
@@ -61,6 +63,7 @@ primTable :: W4.IsSymExprBuilder sym => What4 sym -> Map.Map PrimIdent (Value sy
 primTable sym@(What4 w4sym _ _) =
   Map.union (floatPrims sym) $
   Map.union (suiteBPrims sym) $
+  Map.union (primeECPrims sym) $
 
   Map.fromList $ map (\(n, v) -> (prelPrim n, v))
 
@@ -226,6 +229,91 @@ primTable sym@(What4 w4sym _ _) =
          _ <- x
          y)
   ]
+
+primeECPrims :: W4.IsSymExprBuilder sym => What4 sym -> Map.Map PrimIdent (Value sym)
+primeECPrims sym = Map.fromList $ [ (primeECPrim n, v) | (n,v) <- prims ]
+ where
+ (~>) = (,)
+
+ prims =
+  [ -- {p} (prime p, p > 3) => ProjectivePoint p -> ProjectivePoint p
+    "ec_double" ~>
+      ilam \p ->
+       lam \s ->
+         do p' <- integerLit sym p
+            s' <- toProjectivePoint sym =<< s
+            fn <- liftIO $ getUninterpFn sym "ec_double"
+                              (Empty :> W4.BaseIntegerRepr :> projectivePointRepr) projectivePointRepr
+            z  <- liftIO $ W4.applySymFn (w4 sym) fn (Empty :> p' :> s')
+            fromProjectivePoint sym z
+
+    -- {p} (prime p, p > 3) => ProjectivePoint p -> ProjectivePoint p -> ProjectivePoint p
+  , "ec_add_nonzero" ~>
+      ilam \p ->
+       lam \s -> pure $
+       lam \t ->
+         do p' <- integerLit sym p
+            s' <- toProjectivePoint sym =<< s
+            t' <- toProjectivePoint sym =<< t
+            fn <- liftIO $ getUninterpFn sym "ec_add_nonzero"
+                              (Empty :> W4.BaseIntegerRepr :> projectivePointRepr :> projectivePointRepr) projectivePointRepr
+            z  <- liftIO $ W4.applySymFn (w4 sym) fn (Empty :> p' :> s' :> t')
+            fromProjectivePoint sym z
+
+    -- {p} (prime p, p > 3) => Z p -> ProjectivePoint p -> ProjectivePoint p
+  , "ec_mult" ~>
+      ilam \p ->
+       lam \k -> pure $
+       lam \s ->
+         do p' <- integerLit sym p
+            k' <- fromVInteger <$> k
+            s' <- toProjectivePoint sym =<< s
+            fn <- liftIO $ getUninterpFn sym "ec_mult"
+                              (Empty :> W4.BaseIntegerRepr :> W4.BaseIntegerRepr :> projectivePointRepr) projectivePointRepr
+            z  <- liftIO $ W4.applySymFn (w4 sym) fn (Empty :> p' :> k' :> s')
+            fromProjectivePoint sym z
+
+    -- {p} (prime p, p > 3) => Z p -> ProjectivePoint p -> Z p -> ProjectivePoint p -> ProjectivePoint p
+  , "ec_twin_mult" ~>
+      ilam \p ->
+       lam \j -> pure $
+       lam \s -> pure $
+       lam \k -> pure $
+       lam \t ->
+         do p' <- integerLit sym p
+            j' <- fromVInteger <$> j
+            s' <- toProjectivePoint sym =<< s
+            k' <- fromVInteger <$> k
+            t' <- toProjectivePoint sym =<< t
+            fn <- liftIO $ getUninterpFn sym "ec_twin_mult"
+                              (Empty :> W4.BaseIntegerRepr :> W4.BaseIntegerRepr :> projectivePointRepr :>
+                                                              W4.BaseIntegerRepr :> projectivePointRepr)
+                              projectivePointRepr
+            z  <- liftIO $ W4.applySymFn (w4 sym) fn (Empty :> p' :> j' :> s' :> k' :> t')
+            fromProjectivePoint sym z
+  ]
+
+
+type ProjectivePoint = W4.BaseStructType (EmptyCtx ::> W4.BaseIntegerType ::> W4.BaseIntegerType ::> W4.BaseIntegerType)
+
+projectivePointRepr :: W4.BaseTypeRepr ProjectivePoint
+projectivePointRepr = W4.knownRepr
+
+toProjectivePoint :: W4.IsSymExprBuilder sym =>
+  What4 sym -> Value sym -> SEval (What4 sym) (W4.SymExpr sym ProjectivePoint)
+toProjectivePoint sym v =
+  do x <- fromVInteger <$> lookupRecord "x" v
+     y <- fromVInteger <$> lookupRecord "y" v
+     z <- fromVInteger <$> lookupRecord "z" v
+     liftIO $ W4.mkStruct (w4 sym) (Empty :> x :> y :> z)
+
+fromProjectivePoint :: W4.IsSymExprBuilder sym =>
+  What4 sym -> W4.SymExpr sym ProjectivePoint -> SEval (What4 sym) (Value sym)
+fromProjectivePoint sym p = liftIO $
+  do x <- VInteger <$> W4.structField (w4 sym) p (natIndex @0)
+     y <- VInteger <$> W4.structField (w4 sym) p (natIndex @1)
+     z <- VInteger <$> W4.structField (w4 sym) p (natIndex @2)
+     pure $ VRecord $ recordFromFields [ (packIdent "x",pure x), (packIdent "y",pure y),(packIdent "z",pure z) ]
 
 suiteBPrims :: W4.IsSymExprBuilder sym => What4 sym -> Map.Map PrimIdent (Value sym)
 suiteBPrims sym = Map.fromList $ [ (suiteBPrim n, v) | (n,v) <- prims ]
