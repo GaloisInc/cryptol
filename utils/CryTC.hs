@@ -36,7 +36,7 @@ main =
                      print (pp prog)
                InferFailed ws errs ->
                   do mapM_ (print . TC.ppWarning IMap.empty) ws
-                     mapM_ (print . TC.ppError IMap.empty) errs
+                     print (TC.ppErrors errs)
            (_,errs) -> hPrint stderr $ vcat $ map pp errs
 
   where

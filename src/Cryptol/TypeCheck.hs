@@ -19,8 +19,10 @@ module Cryptol.TypeCheck
   , nameSeeds
   , Error(..)
   , Warning(..)
-  , ppWarning
-  , ppError
+  -- , ppWarning
+  -- , ppError
+  , ppWarnings
+  , ppErrors
   ) where
 
 import           Cryptol.ModuleSystem.Name
@@ -121,4 +123,8 @@ ppWarning (r,w) = text "[warning] at" <+> pp r <.> colon $$ nest 2 (pp w)
 ppError :: (Range,Error) -> Doc
 ppError (r,w) = text "[error] at" <+> pp r <.> colon $$ nest 2 (pp w)
 
+ppWarnings :: [(Range,Warning)] -> Doc
+ppWarnings = vcat . map ppWarning
 
+ppErrors :: [(Range,Error)] -> Doc
+ppErrors = vcat . map ppError

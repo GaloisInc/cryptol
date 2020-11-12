@@ -176,7 +176,7 @@ instance PP ModuleError where
 
     NoIncludeErrors _src errs -> vcat (map NoInc.ppIncludeError errs)
 
-    TypeCheckingFailed _src errs -> vcat (map T.ppError errs)
+    TypeCheckingFailed _src errs -> T.ppErrors errs
 
     ModuleNameMismatch expected found ->
       hang (text "[error]" <+> pp (P.srcRange found) <.> char ':')
@@ -279,7 +279,7 @@ data ModuleWarning
 
 instance PP ModuleWarning where
   ppPrec _ w = case w of
-    TypeCheckWarnings ws -> vcat (map T.ppWarning ws)
+    TypeCheckWarnings ws -> T.ppWarnings ws
     RenamerWarnings ws   -> vcat (map pp ws)
 
 warn :: [ModuleWarning] -> ModuleM ()
