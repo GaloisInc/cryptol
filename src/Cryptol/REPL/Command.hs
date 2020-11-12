@@ -778,7 +778,8 @@ onlineProveSat proverName qtype str mfile = do
        Left sbvCfg -> liftModuleCmd $ SBV.satProve sbvCfg cmd
        Right w4Cfg ->
          do ~(EnvBool hashConsing) <- getUser "hash-consing"
-            liftModuleCmd $ W4.satProve w4Cfg hashConsing cmd
+            ~(EnvBool warnUninterp) <- getUser "warnUninterp"
+            liftModuleCmd $ W4.satProve w4Cfg hashConsing warnUninterp cmd
 
   stas <- io (readIORef timing)
   return (firstProver,res,stas)
@@ -832,7 +833,8 @@ offlineProveSat proverName qtype str mfile = do
 
     Right w4Cfg ->
       do ~(EnvBool hashConsing) <- getUser "hash-consing"
-         result <- liftModuleCmd $ W4.satProveOffline w4Cfg hashConsing cmd $ \f ->
+         ~(EnvBool warnUninterp) <- getUser "warnUninterp"
+         result <- liftModuleCmd $ W4.satProveOffline w4Cfg hashConsing warnUninterp cmd $ \f ->
                      do displayMsg
                         case mfile of
                           Just path ->

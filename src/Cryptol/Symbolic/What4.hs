@@ -296,11 +296,12 @@ prepareQuery sym ProverCommand { .. } =
 
 satProve ::
   W4ProverConfig ->
-  Bool ->
+  Bool {- ^ hash consing -} ->
+  Bool {- ^ warn on uninterpreted functions -} ->
   ProverCommand ->
   M.ModuleCmd (Maybe String, ProverResult)
 
-satProve solverCfg hashConsing ProverCommand {..} =
+satProve solverCfg hashConsing warnUninterp ProverCommand {..} =
   protectStack proverError \(evo, byteReader, modEnv) ->
   M.runModuleM (evo, byteReader, modEnv)
   do w4sym   <- liftIO makeSym
@@ -312,7 +313,8 @@ satProve solverCfg hashConsing ProverCommand {..} =
      start   <- liftIO getCurrentTime
      query   <- prepareQuery sym ProverCommand { .. }
      primMap <- M.getPrimMap
-     M.withLogger printUninterpWarn =<< liftIO (readMVar uninterpWarnVar)
+     when warnUninterp
+       (M.withLogger printUninterpWarn =<< liftIO (readMVar uninterpWarnVar))
      liftIO
        do result <- runProver sym logData primMap query
           end <- getCurrentTime
@@ -362,15 +364,16 @@ printUninterpWarn lg uninterpWarns =
 
 satProveOffline ::
   W4ProverConfig ->
-  Bool ->
+  Bool {- ^ hash consing -} ->
+  Bool {- ^ warn on uninterpreted functions -} ->
   ProverCommand ->
   ((Handle -> IO ()) -> IO ()) ->
   M.ModuleCmd (Maybe String)
 
-satProveOffline (W4Portfolio (p:|_)) hashConsing cmd outputContinuation =
-  satProveOffline (W4ProverConfig p) hashConsing cmd outputContinuation
+satProveOffline (W4Portfolio (p:|_)) hashConsing warnUninterp cmd outputContinuation =
+  satProveOffline (W4ProverConfig p) hashConsing warnUninterp cmd outputContinuation
 
-satProveOffline (W4ProverConfig (AnAdapter adpt)) hashConsing ProverCommand {..} outputContinuation =
+satProveOffline (W4ProverConfig (AnAdapter adpt)) hashConsing warnUninterp ProverCommand {..} outputContinuation =
   protectStack onError \(evo,byteReader,modEnv) ->
   M.runModuleM (evo,byteReader,modEnv)
    do w4sym <- liftIO makeSym
@@ -379,7 +382,8 @@ satProveOffline (W4ProverConfig (AnAdapter adpt)) hashConsing ProverCommand {..}
       uninterpWarnVar <- liftIO (newMVar mempty)
       let sym = What4 w4sym defVar funVar uninterpWarnVar
       ok  <- prepareQuery sym ProverCommand { .. }
-      M.withLogger printUninterpWarn =<< liftIO (readMVar uninterpWarnVar)
+      when warnUninterp
+        (M.withLogger printUninterpWarn =<< liftIO (readMVar uninterpWarnVar))
       liftIO
         case ok of
           Left msg -> return (Just msg)
