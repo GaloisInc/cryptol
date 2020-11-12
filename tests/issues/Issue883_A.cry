@@ -1,0 +1,13 @@
+module Issue883_A where
+parameter
+    type c : #
+    type constraint ( fin c, c >= 1, 64 >= width (c-1) )
+
+dumbHash : {n} (fin n, 64 >= width n) => [n] -> [128]
+dumbHash msg = zero
+
+asdf : {n} (64 >= width (n+192), 64 >= width (128 * c), fin n) => [n] -> [128]
+asdf msg = dumbHash (join (drop`{1} ys))
+ where
+   ys : [c+1][128]
+   ys = zero
