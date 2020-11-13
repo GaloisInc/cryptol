@@ -164,11 +164,11 @@ def low_level_api_test(c):
 
 c1 = argo.ServerConnection(
        cryptol.CryptolDynamicSocketProcess(
-           "cabal v2-exec cryptol-remote-api  --verbose=0",
+           "cabal v2-exec cryptol-remote-api --verbose=0 -- socket",
            cryptol_path=cryptol_path))
 c2 = argo.ServerConnection(
        cryptol.CryptolStdIOProcess(
-           "cabal v2-exec cryptol-remote-api  --verbose=0 -- --stdio",
+           "cabal v2-exec cryptol-remote-api --verbose=0 -- stdio",
            cryptol_path=cryptol_path))
 
 low_level_api_test(c1)
@@ -178,7 +178,7 @@ env = os.environ.copy()
 env['CRYPTOLPATH'] = cryptol_path
 
 p = subprocess.Popen(
-    ["cabal", "v2-exec", "cryptol-remote-api", "--verbose=0", "--", "--port", "50005"],
+    ["cabal", "v2-exec", "cryptol-remote-api", "--verbose=0", "--", "socket", "--port", "50005"],
     stdout=subprocess.DEVNULL,
     stdin=subprocess.DEVNULL,
     stderr=subprocess.DEVNULL,
