@@ -13,7 +13,6 @@ import Cryptol.TypeCheck.Monad
 import Cryptol.TypeCheck.Infer
 import Cryptol.TypeCheck.Subst
 import Cryptol.TypeCheck.Error
-import Cryptol.Utils.PP
 import Cryptol.Utils.Panic
 
 
@@ -61,9 +60,11 @@ checkTyParams func inst =
   tParams      = Map.fromList [ (tpId x, x) | x0 <- Map.elems (mParamTypes inst)
                                             , let x = mtpParam x0 ]
 
-  tpId x       = case tpName x of
-                   Just n  -> nameIdent n
+  tpName' x    = case tpName x of
+                   Just n -> n
                    Nothing -> panic "inferModuleInstance.tpId" ["Missing name"]
+
+  tpId         = nameIdent . tpName'
 
   -- Find a definition for a given type parameter
   checkTParamDefined tp0 =
@@ -78,8 +79,9 @@ checkTyParams func inst =
                case Map.lookup x tParams of
                  Just tp1 -> checkTP tp tp1
                  Nothing ->
-                   do recordError $ ErrorMsg $
-                        text "Missing definition for type parameter:" <+> pp x
+                   do let x' = Located { thing = x,
+                                         srcRange = nameLoc (tpName' tp) }
+                      recordError (MissingModTParam x')
                       return (tp, TVar (TVBound tp)) -- hm, maybe just stop!
 
   -- Check that a type parameter defined as a type synonym is OK
@@ -148,9 +150,9 @@ checkValParams func tMap inst =
     case Map.lookup (nameIdent x) valMap of
       Just (n,sD) -> do e <- makeValParamDef n sD (apSubst su sP)
                         return (x,e)
-      Nothing -> do recordError $ ErrorMsg
-                                $ text "Mising definition for value parameter"
-                                    <+> pp x
+      Nothing -> do recordError (MissingModVParam
+                                 Located { thing = nameIdent x
+                                         , srcRange = nameLoc x })
                     return (x, panic "checkValParams" ["Should not use this"])
 
 

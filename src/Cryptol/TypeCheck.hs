@@ -19,10 +19,12 @@ module Cryptol.TypeCheck
   , nameSeeds
   , Error(..)
   , Warning(..)
-  -- , ppWarning
-  -- , ppError
-  , ppWarnings
-  , ppErrors
+  , ppWarning
+  , ppError
+  , WithNames(..)
+  , NameMap
+  , ppNamedWarning
+  , ppNamedError
   ) where
 
 import           Cryptol.ModuleSystem.Name
@@ -45,6 +47,7 @@ import           Cryptol.TypeCheck.InferTypes(VarType(..), SolverConfig(..))
 import           Cryptol.TypeCheck.Solve(proveModuleTopLevel)
 import           Cryptol.TypeCheck.CheckModuleInstance(checkModuleInstance)
 import           Cryptol.TypeCheck.Monad(withParamType,withParameterConstraints)
+import           Cryptol.TypeCheck.PP(WithNames(..),NameMap)
 import           Cryptol.Utils.Ident (exprModName,packIdent)
 import           Cryptol.Utils.PP
 import           Cryptol.Utils.Panic(panic)
@@ -123,8 +126,13 @@ ppWarning (r,w) = text "[warning] at" <+> pp r <.> colon $$ nest 2 (pp w)
 ppError :: (Range,Error) -> Doc
 ppError (r,w) = text "[error] at" <+> pp r <.> colon $$ nest 2 (pp w)
 
-ppWarnings :: [(Range,Warning)] -> Doc
-ppWarnings = vcat . map ppWarning
 
-ppErrors :: [(Range,Error)] -> Doc
-ppErrors = vcat . map ppError
+ppNamedWarning :: NameMap -> (Range,Warning) -> Doc
+ppNamedWarning nm (r,w) =
+  text "[warning] at" <+> pp r <.> colon $$ nest 2 (pp (WithNames w nm))
+
+ppNamedError :: NameMap -> (Range,Error) -> Doc
+ppNamedError nm (r,e) =
+  text "[error] at" <+> pp r <.> colon $$ nest 2 (pp (WithNames e nm))
+
+

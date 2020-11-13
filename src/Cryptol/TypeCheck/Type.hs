@@ -999,17 +999,23 @@ instance PP (WithNames Type) where
 
 instance PP (WithNames TVar) where
 
-  ppPrec _ (WithNames (TVBound x) mp) =
-    case IntMap.lookup (tpUnique x) mp of
-      Just a  -> text a
-      Nothing ->
-        case tpFlav x of
-          TPModParam n     -> ppPrefixName n
-          TPOther (Just n) -> pp n <.> "`" <.> int (tpUnique x)
-          _  -> pickTVarName (tpKind x) (tvarDesc (tpInfo x)) (tpUnique x)
+  ppPrec _ (WithNames tv mp) =
+    case tv of
+      TVBound {} -> nmTxt
+      TVFree {} -> "?" <.> nmTxt
+    where
+    nmTxt
+      | Just a <- IntMap.lookup (tvUnique tv) mp = text a
+      | otherwise =
+          case tv of
+            TVBound x ->
+              case tpFlav x of
+                TPModParam n     -> ppPrefixName n
+                TPOther (Just n) -> pp n <.> "`" <.> int (tpUnique x)
+                _  -> pickTVarName (tpKind x) (tvarDesc (tpInfo x)) (tpUnique x)
 
-  ppPrec _ (WithNames (TVFree x k _ d) _) =
-    char '?' <.> pickTVarName k (tvarDesc d) x
+            TVFree x k _ d -> pickTVarName k (tvarDesc d) x
+
 
 pickTVarName :: Kind -> TypeSource -> Int -> Doc
 pickTVarName k src uni =

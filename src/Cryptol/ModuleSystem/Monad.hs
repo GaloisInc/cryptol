@@ -96,7 +96,7 @@ data ModuleError
     -- ^ Problems during the NoPat phase
   | NoIncludeErrors ImportSource [NoInc.IncludeError]
     -- ^ Problems during the NoInclude phase
-  | TypeCheckingFailed ImportSource [(Range,T.Error)]
+  | TypeCheckingFailed ImportSource T.NameMap [(Range,T.Error)]
     -- ^ Problems during type checking
   | OtherFailure String
     -- ^ Problems after type checking, eg. specialization
@@ -128,7 +128,7 @@ instance NFData ModuleError where
     RenamerErrors src errs               -> src `deepseq` errs `deepseq` ()
     NoPatErrors src errs                 -> src `deepseq` errs `deepseq` ()
     NoIncludeErrors src errs             -> src `deepseq` errs `deepseq` ()
-    TypeCheckingFailed src errs          -> src `deepseq` errs `deepseq` ()
+    TypeCheckingFailed nm src errs       -> nm `deepseq` src `deepseq` errs `deepseq` ()
     ModuleNameMismatch expected found    ->
       expected `deepseq` found `deepseq` ()
     DuplicateModuleName name path1 path2 ->
@@ -176,7 +176,7 @@ instance PP ModuleError where
 
     NoIncludeErrors _src errs -> vcat (map NoInc.ppIncludeError errs)
 
-    TypeCheckingFailed _src errs -> T.ppErrors errs
+    TypeCheckingFailed _src nm errs -> vcat (map (T.ppNamedError nm) errs)
 
     ModuleNameMismatch expected found ->
       hang (text "[error]" <+> pp (P.srcRange found) <.> char ':')
@@ -239,10 +239,10 @@ noIncludeErrors errs = do
   src <- getImportSource
   ModuleT (raise (NoIncludeErrors src errs))
 
-typeCheckingFailed :: [(Range,T.Error)] -> ModuleM a
-typeCheckingFailed errs = do
+typeCheckingFailed :: T.NameMap -> [(Range,T.Error)] -> ModuleM a
+typeCheckingFailed nameMap errs = do
   src <- getImportSource
-  ModuleT (raise (TypeCheckingFailed src errs))
+  ModuleT (raise (TypeCheckingFailed src nameMap errs))
 
 moduleNameMismatch :: P.ModName -> Located P.ModName -> ModuleM a
 moduleNameMismatch expected found =
@@ -273,22 +273,22 @@ errorInFile file (ModuleT m) = ModuleT (m `handle` h)
 -- Warnings --------------------------------------------------------------------
 
 data ModuleWarning
-  = TypeCheckWarnings [(Range,T.Warning)]
+  = TypeCheckWarnings T.NameMap [(Range,T.Warning)]
   | RenamerWarnings [RenamerWarning]
     deriving (Show, Generic, NFData)
 
 instance PP ModuleWarning where
   ppPrec _ w = case w of
-    TypeCheckWarnings ws -> T.ppWarnings ws
+    TypeCheckWarnings nm ws -> vcat (map (T.ppNamedWarning nm) ws)
     RenamerWarnings ws   -> vcat (map pp ws)
 
 warn :: [ModuleWarning] -> ModuleM ()
 warn  = ModuleT . put
 
-typeCheckWarnings :: [(Range,T.Warning)] -> ModuleM ()
-typeCheckWarnings ws
+typeCheckWarnings :: T.NameMap -> [(Range,T.Warning)] -> ModuleM ()
+typeCheckWarnings nameMap ws
   | null ws   = return ()
-  | otherwise = warn [TypeCheckWarnings ws]
+  | otherwise = warn [TypeCheckWarnings nameMap ws]
 
 renamerWarnings :: [RenamerWarning] -> ModuleM ()
 renamerWarnings ws

@@ -7,7 +7,7 @@ import qualified Data.IntMap as IntMap
 import qualified Data.Set as Set
 import Control.DeepSeq(NFData)
 import GHC.Generics(Generic)
-import Data.List((\\),sortBy,groupBy)
+import Data.List((\\),sortBy,groupBy,partition)
 import Data.Function(on)
 
 import qualified Cryptol.Parser.AST as P
@@ -65,10 +65,7 @@ data Warning  = DefaultingKind (P.TParam Name) P.Kind
                 deriving (Show, Generic, NFData)
 
 -- | Various errors that might happen during type checking/inference
-data Error    = ErrorMsg Doc
-                -- ^ Just say this
-
-              | KindMismatch (Maybe TypeSource) Kind Kind
+data Error    = KindMismatch (Maybe TypeSource) Kind Kind
                 -- ^ Expected kind, inferred kind
 
               | TooManyTypeParams Int Kind
@@ -130,6 +127,11 @@ data Error    = ErrorMsg Doc
                 -- ^ Could not determine the value of a numeric type variable,
                 --   but we know it must be at least as large as the given type
                 --   (or unconstrained, if Nothing).
+
+              | UndefinedExistVar Name
+              | TypeShadowing String Name String
+              | MissingModTParam (Located Ident)
+              | MissingModVParam (Located Ident)
                 deriving (Show, Generic, NFData)
 
 -- | When we have multiple errors on the same location, we show only the
@@ -143,6 +145,11 @@ errorImportance err =
     RecursiveType {}                                 -> 7
     NotForAll {}                                     -> 6
     TypeVariableEscaped {}                           -> 5
+
+    UndefinedExistVar {}                             -> 10
+    TypeShadowing {}                                 -> 2
+    MissingModTParam {}                              -> 10
+    MissingModVParam {}                              -> 10
 
 
     CannotMixPositionalAndNamedTypeParams {}         -> 8
@@ -171,8 +178,6 @@ errorImportance err =
 
     AmbiguousSize {}                                 -> 2
 
-    ErrorMsg {}                                      -> 1
-
 
 
 instance TVars Warning where
@@ -192,7 +197,6 @@ instance FVS Warning where
 instance TVars Error where
   apSubst su err =
     case err of
-      ErrorMsg _                -> err
       KindMismatch {}           -> err
       TooManyTypeParams {}      -> err
       TyVarWithParams           -> err
@@ -216,10 +220,15 @@ instance TVars Error where
       AmbiguousSize x t -> AmbiguousSize x !$ (apSubst su t)
 
 
+      UndefinedExistVar {} -> err
+      TypeShadowing {}     -> err
+      MissingModTParam {}  -> err
+      MissingModVParam {}  -> err
+
+
 instance FVS Error where
   fvs err =
     case err of
-      ErrorMsg {}               -> Set.empty
       KindMismatch {}           -> Set.empty
       TooManyTypeParams {}      -> Set.empty
       TyVarWithParams           -> Set.empty
@@ -241,6 +250,10 @@ instance FVS Error where
       RepeatedTypeParameter {}              -> Set.empty
       AmbiguousSize _ t -> fvs t
 
+      UndefinedExistVar {} -> Set.empty
+      TypeShadowing {}     -> Set.empty
+      MissingModTParam {}  -> Set.empty
+      MissingModVParam {}  -> Set.empty
 
 instance PP Warning where
   ppPrec = ppWithNamesPrec IntMap.empty
@@ -266,9 +279,6 @@ instance PP (WithNames Warning) where
 instance PP (WithNames Error) where
   ppPrec _ (WithNames err names) =
     case err of
-      ErrorMsg msg ->
-        addTVarsDescsAfter names err
-        msg
 
       RecursiveType src t1 t2 ->
         addTVarsDescsAfter names err $
@@ -400,6 +410,18 @@ instance PP (WithNames Error) where
                  Nothing -> empty
          in addTVarsDescsAfter names err ("Ambiguous numeric type:" <+> pp (tvarDesc x) $$ sizeMsg)
 
+      UndefinedExistVar x -> "Undefined type" <+> quotes (pp x)
+      TypeShadowing this new that ->
+        "Type" <+> text this <+> quotes (pp new) <+>
+        "shadowing an existing" <+> text that <+> "with the same name."
+      MissingModTParam x ->
+        "Missing definition for type parameter" <+> quotes (pp (thing x))
+      MissingModVParam x ->
+        "Missing definition for value parameter" <+> quotes (pp (thing x))
+
+
+
+
     where
     bullets xs = vcat [ "•" <+> d | d <- xs ]
 
@@ -426,3 +448,31 @@ instance PP (WithNames Error) where
     mismatchHint _ _ = mempty
 
     noUni = Set.null (Set.filter isFreeTV (fvs err))
+
+
+
+computeFreeVarNames :: [(Range,Warning)] -> [(Range,Error)] -> NameMap
+computeFreeVarNames warns errs =
+  mkMap numRoots numVaras `IntMap.union` mkMap otherRoots otherVars
+  where
+  mkName x v = (tvUnique x, v)
+  mkMap roots vs = IntMap.fromList (zipWith mkName vs (variants roots))
+
+  (numVaras,otherVars) = partition ((== KNum) . kindOf)
+                       $ Set.toList
+                       $ Set.filter isFreeTV
+                       $ fvs (map snd warns, map snd errs)
+
+  otherRoots = [ "a", "b", "c", "d" ]
+  numRoots   = [ "m", "n", "u", "v" ]
+
+  useUnicode = True
+
+  suff n
+    | n < 10 && useUnicode = [toEnum (0x2080 + n)]
+    | otherwise = show n
+
+  variant n x = if n == 0 then x else x ++ suff n
+
+  variants roots = [ variant n r | n <- [ 0 .. ], r <- roots ]
+
