@@ -74,4 +74,4 @@ COPY --from=solvers /solvers/rootfs /
 USER cryptol
 ENV LANG=C.UTF-8 \
     LC_ALL=C.UTF-8
-ENTRYPOINT ["/usr/local/bin/cryptol-remote-api", "--host", "0.0.0.0"]
+ENTRYPOINT ["/usr/local/bin/cryptol-remote-api", "http", "--host", "0.0.0.0", "/"]
