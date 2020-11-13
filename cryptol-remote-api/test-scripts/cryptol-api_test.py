@@ -8,7 +8,7 @@ from BitVector import *
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
-c = cryptol.connect("cabal new-exec --verbose=0 cryptol-remote-api")
+c = cryptol.connect("cabal new-exec --verbose=0 cryptol-remote-api -- socket")
 
 c.change_directory(dir_path)
 
