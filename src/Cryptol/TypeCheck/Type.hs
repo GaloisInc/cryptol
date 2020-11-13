@@ -909,7 +909,9 @@ instance PP (WithNames Newtype) where
 --
 --   * 3: @app_type@
 --
---   * 4: @atype@
+--   * 4: @dimensions atype@
+--
+--   * 5: @atype@
 instance PP (WithNames Type) where
   ppPrec prec ty0@(WithNames ty nmMap) =
     case ty of
@@ -929,7 +931,7 @@ instance PP (WithNames Type) where
           _ ->
             case ts of
               [] -> pp c
-              _ -> optParens (prec > 3) $ pp c <+> fsep (map (go 4) ts)
+              _ -> optParens (prec > 3) $ pp c <+> fsep (map (go 5) ts)
 
       TCon (TC tc) ts ->
         case (tc,ts) of
@@ -939,43 +941,43 @@ instance PP (WithNames Type) where
           (TCInteger, [])     -> text "Integer"
           (TCRational, [])    -> text "Rational"
 
-          (TCIntMod, [n])     -> optParens (prec > 3) $ text "Z" <+> go 4 n
+          (TCIntMod, [n])     -> optParens (prec > 3) $ text "Z" <+> go 5 n
 
           (TCSeq,   [t1,TCon (TC TCBit) []]) -> brackets (go 0 t1)
-          (TCSeq,   [t1,t2])  -> optParens (prec > 3)
-                              $ brackets (go 0 t1) <.> go 3 t2
+          (TCSeq,   [t1,t2])  -> optParens (prec > 4)
+                              $ brackets (go 0 t1) <.> go 4 t2
 
           (TCFun,   [t1,t2])  -> optParens (prec > 1)
                               $ go 2 t1 <+> text "->" <+> go 1 t2
 
           (TCTuple _, fs)     -> parens $ fsep $ punctuate comma $ map (go 0) fs
 
-          (_, _)              -> optParens (prec > 3) $ pp tc <+> fsep (map (go 4) ts)
+          (_, _)              -> optParens (prec > 3) $ pp tc <+> fsep (map (go 5) ts)
 
       TCon (PC pc) ts ->
         case (pc,ts) of
           (PEqual, [t1,t2])   -> go 0 t1 <+> text "==" <+> go 0 t2
           (PNeq ,  [t1,t2])   -> go 0 t1 <+> text "!=" <+> go 0 t2
           (PGeq,  [t1,t2])    -> go 0 t1 <+> text ">=" <+> go 0 t2
-          (PFin,  [t1])       -> optParens (prec > 3) $ text "fin" <+> (go 4 t1)
-          (PPrime,  [t1])     -> optParens (prec > 3) $ text "prime" <+> (go 4 t1)
+          (PFin,  [t1])       -> optParens (prec > 3) $ text "fin" <+> (go 5 t1)
+          (PPrime,  [t1])     -> optParens (prec > 3) $ text "prime" <+> (go 5 t1)
           (PHas x, [t1,t2])   -> ppSelector x <+> text "of"
                                <+> go 0 t1 <+> text "is" <+> go 0 t2
           (PAnd, [t1,t2])     -> parens (commaSep (map (go 0) (t1 : pSplitAnd t2)))
 
-          (PRing, [t1])       -> pp pc <+> go 4 t1
-          (PField, [t1])      -> pp pc <+> go 4 t1
-          (PIntegral, [t1])   -> pp pc <+> go 4 t1
-          (PRound, [t1])      -> pp pc <+> go 4 t1
+          (PRing, [t1])       -> pp pc <+> go 5 t1
+          (PField, [t1])      -> pp pc <+> go 5 t1
+          (PIntegral, [t1])   -> pp pc <+> go 5 t1
+          (PRound, [t1])      -> pp pc <+> go 5 t1
 
-          (PCmp, [t1])        -> pp pc <+> go 4 t1
-          (PSignedCmp, [t1])  -> pp pc <+> go 4 t1
-          (PLiteral, [t1,t2]) -> pp pc <+> go 4 t1 <+> go 4 t2
+          (PCmp, [t1])        -> pp pc <+> go 5 t1
+          (PSignedCmp, [t1])  -> pp pc <+> go 5 t1
+          (PLiteral, [t1,t2]) -> pp pc <+> go 5 t1 <+> go 5 t2
 
-          (_, _)              -> optParens (prec > 3) $ pp pc <+> fsep (map (go 4) ts)
+          (_, _)              -> optParens (prec > 3) $ pp pc <+> fsep (map (go 5) ts)
 
       TCon f ts -> optParens (prec > 3)
-                $ pp f <+> fsep (map (go 4) ts)
+                $ pp f <+> fsep (map (go 5) ts)
 
     where
     go p t = ppWithNamesPrec nmMap p t
