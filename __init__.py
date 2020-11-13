@@ -13,7 +13,7 @@ import argo.interaction
 from argo.interaction import HasProtocolState
 from argo.connection import DynamicSocketProcess, ServerConnection, ServerProcess, StdIOProcess
 from . import cryptoltypes
-
+from cryptol.bitvector import BV
 
 
 __all__ = ['cryptoltypes']
@@ -42,6 +42,7 @@ def fail_with(x : Exception) -> NoReturn:
 
 
 def from_cryptol_arg(val : Any) -> Any:
+    """Return the canonical Python value for a Cryptol JSON value."""
     if isinstance(val, bool):
         return val
     elif isinstance(val, int):
@@ -58,13 +59,18 @@ def from_cryptol_arg(val : Any) -> Any:
             return [from_cryptol_arg(v) for v in val['data']]
         elif tag == 'bits':
             enc = val['encoding']
+            size = val['width']
             if enc == 'base64':
-                data = base64.b64decode(val['data'].encode('ascii'))
+                n = int.from_bytes(
+                        base64.b64decode(val['data'].encode('ascii')),
+                        byteorder='big')
             elif enc == 'hex':
-                data = bytes.fromhex(extend_hex(val['data']))
+                n = int.from_bytes(
+                    bytes.fromhex(extend_hex(val['data'])),
+                    byteorder='big')
             else:
                 raise ValueError("Unknown encoding " + str(enc))
-            return data
+            return BV(size, n)
         else:
             raise ValueError("Unknown expression tag " + tag)
     else:

@@ -4,6 +4,7 @@ from abc import ABCMeta, abstractmethod
 import base64
 from math import ceil
 import BitVector #type: ignore
+from cryptol.bitvector import BV
 
 from typing import Any, Dict, Iterable, List, NoReturn, Optional, TypeVar, Union
 
@@ -157,6 +158,11 @@ class CryptolType:
                     'encoding': 'base64',
                     'width': val.length(), # N.B. original length, not padded
                     'data': base64.b64encode(n.to_bytes(byte_width,'big')).decode('ascii')}
+        elif isinstance(val, BV):
+            return {'expression': 'bits',
+                    'encoding': 'hex',
+                    'width': val.size(), # N.B. original length, not padded
+                    'data': val.hex()[2:]}
         else:
             raise TypeError("Unsupported value: " + str(val))
 
@@ -199,6 +205,8 @@ class Bitvector(CryptolType):
                     'width': eval_numeric(self.width, 8 * len(val)),
                     'data': base64.b64encode(val).decode('ascii')}
         elif isinstance(val, BitVector.BitVector):
+            return CryptolType.convert(self, val)
+        elif isinstance(val, BV):
             return CryptolType.convert(self, val)
         else:
             raise ValueError(f"Not supported as bitvector: {val!r}")
@@ -343,7 +351,7 @@ class Expt(CryptolType):
 
 class Log2(CryptolType):
     def __init__(self, operand : CryptolType) -> None:
-        self.right = operand
+        self.operand = operand
 
     def __str__(self) -> str:
         return f"(lg2 {self.operand})"
@@ -353,7 +361,7 @@ class Log2(CryptolType):
 
 class Width(CryptolType):
     def __init__(self, operand : CryptolType) -> None:
-        self.right = operand
+        self.operand = operand
 
     def __str__(self) -> str:
         return f"(width {self.operand})"
