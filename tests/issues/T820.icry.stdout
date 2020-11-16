@@ -4,15 +4,13 @@ Showing a specific instance of polymorphic result:
 (ratio 1 2)
 
 [error] at <interactive>:1:1--1:8:
-  Unsolvable constraints:
-    • Integral ?a`776
-        arising from
-        use of expression (/)
-        at <interactive>:1:1--1:8
-    • FLiteral 1 1 0 ?a`776
-        arising from
-        use of fractional literal
-        at <interactive>:1:1--1:8
-    • Reason: Mutually exclusive goals
+  • `?a` is not an integral type.
+      arising from
+      use of expression (/)
+      at <interactive>:1:1--1:8
+  • `1/1` is not a valid literal of type `?a`
+      arising from
+      use of fractional literal
+      at <interactive>:1:1--1:8
   where
-  ?a`776 is type argument 'a' of 'fraction' at <interactive>:1:1--1:8
+  ?a is type argument 'a' of 'fraction' at <interactive>:1:1--1:8

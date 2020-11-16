@@ -16,30 +16,24 @@ zero`{Float _ _} : {n, m} (ValidFloat n m) => Float n m
 complement`{Bit} : Bit -> Bit
 
 [error] at <interactive>:1:1--1:11:
-  Unsolvable constraints:
-    • Logic Integer
-        arising from
-        use of expression complement
-        at <interactive>:1:1--1:11
-    • Reason: Type 'Integer' does not support logical operations.
+  • Type `Integer` does not support logical operations.
+      arising from
+      use of expression complement
+      at <interactive>:1:1--1:11
 
 [error] at <interactive>:1:1--1:11:
-  Unsolvable constraints:
-    • Logic Rational
-        arising from
-        use of expression complement
-        at <interactive>:1:1--1:11
-    • Reason: Type 'Rational' does not support logical operations.
+  • Type `Rational` does not support logical operations.
+      arising from
+      use of expression complement
+      at <interactive>:1:1--1:11
 
 [error] at <interactive>:1:1--1:11:
-  Unsolvable constraints:
-    • Logic (Z ?n`1011)
-        arising from
-        use of expression complement
-        at <interactive>:1:1--1:11
-    • Reason: Type 'Z' does not support logical operations.
+  • Type `Z ?m` does not support logical operations.
+      arising from
+      use of expression complement
+      at <interactive>:1:1--1:11
   where
-  ?n`1011 is type wildcard (_) at <interactive>:1:15--1:16
+  ?m is type wildcard (_) at <interactive>:1:15--1:16
 complement`{[_]_} : {n, a} (Logic a) => [n]a -> [n]a
 complement`{(_ -> _)} : {a, b} (Logic b) => (a -> b) -> a -> b
 complement`{()} : () -> ()
@@ -49,23 +43,19 @@ complement`{{x : _, y : _}} : {a, b} (Logic b, Logic a) =>
                                 {x : a, y : b} -> {x : a, y : b}
 
 [error] at <interactive>:1:1--1:11:
-  Unsolvable constraints:
-    • Logic (Float ?n`1025 ?n`1026)
-        arising from
-        use of expression complement
-        at <interactive>:1:1--1:11
-    • Reason: Type 'Float' does not support logical operations.
+  • Type `Float ?m ?n` does not support logical operations.
+      arising from
+      use of expression complement
+      at <interactive>:1:1--1:11
   where
-  ?n`1025 is type wildcard (_) at <interactive>:1:19--1:20
-  ?n`1026 is type wildcard (_) at <interactive>:1:21--1:22
+  ?m is type wildcard (_) at <interactive>:1:19--1:20
+  ?n is type wildcard (_) at <interactive>:1:21--1:22
 
 [error] at <interactive>:1:1--1:7:
-  Unsolvable constraints:
-    • Ring Bit
-        arising from
-        use of expression negate
-        at <interactive>:1:1--1:7
-    • Reason: Type 'Bit' does not support ring operations.
+  • Type `Bit` does not support ring operations.
+      arising from
+      use of expression negate
+      at <interactive>:1:1--1:7
 negate`{Integer} : Integer -> Integer
 negate`{Rational} : Rational -> Rational
 negate`{Z _} : {n} (n >= 1, fin n) => Z n -> Z n
@@ -81,259 +71,207 @@ negate`{Float _ _} : {n, m} (ValidFloat n m) =>
                        Float n m -> Float n m
 
 [error] at <interactive>:1:1--1:4:
-  Unsolvable constraints:
-    • Integral Bit
-        arising from
-        use of expression (%)
-        at <interactive>:1:1--1:4
-    • Reason: Type 'Bit' is not an integral type.
+  • `Bit` is not an integral type.
+      arising from
+      use of expression (%)
+      at <interactive>:1:1--1:4
 (%)`{Integer} : Integer -> Integer -> Integer
 
 [error] at <interactive>:1:1--1:4:
-  Unsolvable constraints:
-    • Integral Rational
-        arising from
-        use of expression (%)
-        at <interactive>:1:1--1:4
-    • Reason: Type 'Rational' is not an integral type.
+  • `Rational` is not an integral type.
+      arising from
+      use of expression (%)
+      at <interactive>:1:1--1:4
 
 [error] at <interactive>:1:1--1:4:
-  Unsolvable constraints:
-    • Integral (Z ?n`1049)
-        arising from
-        use of expression (%)
-        at <interactive>:1:1--1:4
-    • Reason: Type 'Z ?n`1049' is not an integral type.
+  • `Z ?m` is not an integral type.
+      arising from
+      use of expression (%)
+      at <interactive>:1:1--1:4
   where
-  ?n`1049 is type wildcard (_) at <interactive>:1:8--1:9
+  ?m is type wildcard (_) at <interactive>:1:8--1:9
 (%)`{[_]_} : {n, a} (Integral ([n]a)) => [n]a -> [n]a -> [n]a
 
 [error] at <interactive>:1:1--1:4:
-  Unsolvable constraints:
-    • Integral (?a`1052 -> ?a`1053)
-        arising from
-        use of expression (%)
-        at <interactive>:1:1--1:4
-    • Reason: Type '?a`1052 -> ?a`1053' is not an integral type.
+  • `?a -> ?b` is not an integral type.
+      arising from
+      use of expression (%)
+      at <interactive>:1:1--1:4
   where
-  ?a`1052 is type wildcard (_) at <interactive>:1:7--1:8
-  ?a`1053 is type wildcard (_) at <interactive>:1:12--1:13
+  ?a is type wildcard (_) at <interactive>:1:7--1:8
+  ?b is type wildcard (_) at <interactive>:1:12--1:13
 
 [error] at <interactive>:1:1--1:4:
-  Unsolvable constraints:
-    • Integral ()
-        arising from
-        use of expression (%)
-        at <interactive>:1:1--1:4
-    • Reason: Type '()' is not an integral type.
+  • `()` is not an integral type.
+      arising from
+      use of expression (%)
+      at <interactive>:1:1--1:4
 
 [error] at <interactive>:1:1--1:4:
-  Unsolvable constraints:
-    • Integral (?a`1052, ?a`1053)
-        arising from
-        use of expression (%)
-        at <interactive>:1:1--1:4
-    • Reason: Type '(?a`1052, ?a`1053)' is not an integral type.
+  • `(?a, ?b)` is not an integral type.
+      arising from
+      use of expression (%)
+      at <interactive>:1:1--1:4
   where
-  ?a`1052 is type wildcard (_) at <interactive>:1:7--1:8
-  ?a`1053 is type wildcard (_) at <interactive>:1:10--1:11
+  ?a is type wildcard (_) at <interactive>:1:7--1:8
+  ?b is type wildcard (_) at <interactive>:1:10--1:11
 
 [error] at <interactive>:1:1--1:4:
-  Unsolvable constraints:
-    • Integral {}
-        arising from
-        use of expression (%)
-        at <interactive>:1:1--1:4
-    • Reason: Type '{}' is not an integral type.
+  • `{}` is not an integral type.
+      arising from
+      use of expression (%)
+      at <interactive>:1:1--1:4
 
 [error] at <interactive>:1:1--1:4:
-  Unsolvable constraints:
-    • Integral {x : ?a`1052, y : ?a`1053}
-        arising from
-        use of expression (%)
-        at <interactive>:1:1--1:4
-    • Reason: Type '{x : ?a`1052, y : ?a`1053}' is not an integral type.
+  • `{x : ?a, y : ?b}` is not an integral type.
+      arising from
+      use of expression (%)
+      at <interactive>:1:1--1:4
   where
-  ?a`1052 is type wildcard (_) at <interactive>:1:11--1:12
-  ?a`1053 is type wildcard (_) at <interactive>:1:18--1:19
+  ?a is type wildcard (_) at <interactive>:1:11--1:12
+  ?b is type wildcard (_) at <interactive>:1:18--1:19
 
 [error] at <interactive>:1:1--1:4:
-  Unsolvable constraints:
-    • Integral (Float ?n`1052 ?n`1053)
-        arising from
-        use of expression (%)
-        at <interactive>:1:1--1:4
-    • Reason: Type 'Float ?n`1052 ?n`1053' is not an integral type.
+  • `Float ?m ?n` is not an integral type.
+      arising from
+      use of expression (%)
+      at <interactive>:1:1--1:4
   where
-  ?n`1052 is type wildcard (_) at <interactive>:1:12--1:13
-  ?n`1053 is type wildcard (_) at <interactive>:1:14--1:15
+  ?m is type wildcard (_) at <interactive>:1:12--1:13
+  ?n is type wildcard (_) at <interactive>:1:14--1:15
 
 [error] at <interactive>:1:1--1:6:
-  Unsolvable constraints:
-    • Field Bit
-        arising from
-        use of expression recip
-        at <interactive>:1:1--1:6
-    • Reason: Type 'Bit' does not support field operations.
+  • Type `Bit` does not support field operations.
+      arising from
+      use of expression recip
+      at <interactive>:1:1--1:6
 
 [error] at <interactive>:1:1--1:6:
-  Unsolvable constraints:
-    • Field Integer
-        arising from
-        use of expression recip
-        at <interactive>:1:1--1:6
-    • Reason: Type 'Integer' does not support field operations.
+  • Type `Integer` does not support field operations.
+      arising from
+      use of expression recip
+      at <interactive>:1:1--1:6
 recip`{Rational} : Rational -> Rational
 recip`{Z _} : {n} (prime n, n >= 1) => Z n -> Z n
 
 [error] at <interactive>:1:1--1:6:
-  Unsolvable constraints:
-    • Field ([?n`1055]?a`1056)
-        arising from
-        use of expression recip
-        at <interactive>:1:1--1:6
-    • Reason: Sequence types do not support field operations.
+  • Type `[?m]?a` does not support field operations.
+      arising from
+      use of expression recip
+      at <interactive>:1:1--1:6
   where
-  ?n`1055 is type wildcard (_) at <interactive>:1:9--1:10
-  ?a`1056 is type wildcard (_) at <interactive>:1:11--1:12
+  ?m is type wildcard (_) at <interactive>:1:9--1:10
+  ?a is type wildcard (_) at <interactive>:1:11--1:12
 
 [error] at <interactive>:1:1--1:6:
-  Unsolvable constraints:
-    • Field (?a`1055 -> ?a`1056)
-        arising from
-        use of expression recip
-        at <interactive>:1:1--1:6
-    • Reason: Function types do not support field operations.
+  • Type `?a -> ?b` does not support field operations.
+      arising from
+      use of expression recip
+      at <interactive>:1:1--1:6
   where
-  ?a`1055 is type wildcard (_) at <interactive>:1:9--1:10
-  ?a`1056 is type wildcard (_) at <interactive>:1:14--1:15
+  ?a is type wildcard (_) at <interactive>:1:9--1:10
+  ?b is type wildcard (_) at <interactive>:1:14--1:15
 
 [error] at <interactive>:1:1--1:6:
-  Unsolvable constraints:
-    • Field ()
-        arising from
-        use of expression recip
-        at <interactive>:1:1--1:6
-    • Reason: Tuple types do not support field operations.
+  • Type `()` does not support field operations.
+      arising from
+      use of expression recip
+      at <interactive>:1:1--1:6
 
 [error] at <interactive>:1:1--1:6:
-  Unsolvable constraints:
-    • Field (?a`1055, ?a`1056)
-        arising from
-        use of expression recip
-        at <interactive>:1:1--1:6
-    • Reason: Tuple types do not support field operations.
+  • Type `(?a, ?b)` does not support field operations.
+      arising from
+      use of expression recip
+      at <interactive>:1:1--1:6
   where
-  ?a`1055 is type wildcard (_) at <interactive>:1:9--1:10
-  ?a`1056 is type wildcard (_) at <interactive>:1:12--1:13
+  ?a is type wildcard (_) at <interactive>:1:9--1:10
+  ?b is type wildcard (_) at <interactive>:1:12--1:13
 
 [error] at <interactive>:1:1--1:6:
-  Unsolvable constraints:
-    • Field {}
-        arising from
-        use of expression recip
-        at <interactive>:1:1--1:6
-    • Reason: Record types do not support field operations.
+  • Type `{}` does not support field operations.
+      arising from
+      use of expression recip
+      at <interactive>:1:1--1:6
 
 [error] at <interactive>:1:1--1:6:
-  Unsolvable constraints:
-    • Field {x : ?a`1055, y : ?a`1056}
-        arising from
-        use of expression recip
-        at <interactive>:1:1--1:6
-    • Reason: Record types do not support field operations.
+  • Type `{x : ?a, y : ?b}` does not support field operations.
+      arising from
+      use of expression recip
+      at <interactive>:1:1--1:6
   where
-  ?a`1055 is type wildcard (_) at <interactive>:1:13--1:14
-  ?a`1056 is type wildcard (_) at <interactive>:1:20--1:21
+  ?a is type wildcard (_) at <interactive>:1:13--1:14
+  ?b is type wildcard (_) at <interactive>:1:20--1:21
 recip`{Float _ _} : {n, m} (ValidFloat n m) =>
                       Float n m -> Float n m
 
 [error] at <interactive>:1:1--1:6:
-  Unsolvable constraints:
-    • Round Bit
-        arising from
-        use of expression floor
-        at <interactive>:1:1--1:6
-    • Reason: Type 'Bit' does not support rounding operations.
+  • Type `Bit` does not support rounding operations.
+      arising from
+      use of expression floor
+      at <interactive>:1:1--1:6
 
 [error] at <interactive>:1:1--1:6:
-  Unsolvable constraints:
-    • Round Integer
-        arising from
-        use of expression floor
-        at <interactive>:1:1--1:6
-    • Reason: Type 'Integer' does not support rounding operations.
+  • Type `Integer` does not support rounding operations.
+      arising from
+      use of expression floor
+      at <interactive>:1:1--1:6
 floor`{Rational} : Rational -> Integer
 
 [error] at <interactive>:1:1--1:6:
-  Unsolvable constraints:
-    • Round (Z ?n`1059)
-        arising from
-        use of expression floor
-        at <interactive>:1:1--1:6
-    • Reason: Type 'Z' does not support rounding operations.
+  • Type `Z ?m` does not support rounding operations.
+      arising from
+      use of expression floor
+      at <interactive>:1:1--1:6
   where
-  ?n`1059 is type wildcard (_) at <interactive>:1:10--1:11
+  ?m is type wildcard (_) at <interactive>:1:10--1:11
 
 [error] at <interactive>:1:1--1:6:
-  Unsolvable constraints:
-    • Round ([?n`1059]?a`1060)
-        arising from
-        use of expression floor
-        at <interactive>:1:1--1:6
-    • Reason: Sequence types do not support rounding operations.
+  • Type `[?m]?a` does not support rounding operations.
+      arising from
+      use of expression floor
+      at <interactive>:1:1--1:6
   where
-  ?n`1059 is type wildcard (_) at <interactive>:1:9--1:10
-  ?a`1060 is type wildcard (_) at <interactive>:1:11--1:12
+  ?m is type wildcard (_) at <interactive>:1:9--1:10
+  ?a is type wildcard (_) at <interactive>:1:11--1:12
 
 [error] at <interactive>:1:1--1:6:
-  Unsolvable constraints:
-    • Round (?a`1059 -> ?a`1060)
-        arising from
-        use of expression floor
-        at <interactive>:1:1--1:6
-    • Reason: Function types do not support rounding operations.
+  • Type `?a -> ?b` does not support rounding operations.
+      arising from
+      use of expression floor
+      at <interactive>:1:1--1:6
   where
-  ?a`1059 is type wildcard (_) at <interactive>:1:9--1:10
-  ?a`1060 is type wildcard (_) at <interactive>:1:14--1:15
+  ?a is type wildcard (_) at <interactive>:1:9--1:10
+  ?b is type wildcard (_) at <interactive>:1:14--1:15
 
 [error] at <interactive>:1:1--1:6:
-  Unsolvable constraints:
-    • Round ()
-        arising from
-        use of expression floor
-        at <interactive>:1:1--1:6
-    • Reason: Tuple types do not support rounding operations.
+  • Type `()` does not support rounding operations.
+      arising from
+      use of expression floor
+      at <interactive>:1:1--1:6
 
 [error] at <interactive>:1:1--1:6:
-  Unsolvable constraints:
-    • Round (?a`1059, ?a`1060)
-        arising from
-        use of expression floor
-        at <interactive>:1:1--1:6
-    • Reason: Tuple types do not support rounding operations.
+  • Type `(?a, ?b)` does not support rounding operations.
+      arising from
+      use of expression floor
+      at <interactive>:1:1--1:6
   where
-  ?a`1059 is type wildcard (_) at <interactive>:1:9--1:10
-  ?a`1060 is type wildcard (_) at <interactive>:1:12--1:13
+  ?a is type wildcard (_) at <interactive>:1:9--1:10
+  ?b is type wildcard (_) at <interactive>:1:12--1:13
 
 [error] at <interactive>:1:1--1:6:
-  Unsolvable constraints:
-    • Round {}
-        arising from
-        use of expression floor
-        at <interactive>:1:1--1:6
-    • Reason: Record types do not support rounding operations.
+  • Type `{}` does not support rounding operations.
+      arising from
+      use of expression floor
+      at <interactive>:1:1--1:6
 
 [error] at <interactive>:1:1--1:6:
-  Unsolvable constraints:
-    • Round {x : ?a`1059, y : ?a`1060}
-        arising from
-        use of expression floor
-        at <interactive>:1:1--1:6
-    • Reason: Record types do not support rounding operations.
+  • Type `{x : ?a, y : ?b}` does not support rounding operations.
+      arising from
+      use of expression floor
+      at <interactive>:1:1--1:6
   where
-  ?a`1059 is type wildcard (_) at <interactive>:1:13--1:14
-  ?a`1060 is type wildcard (_) at <interactive>:1:20--1:21
+  ?a is type wildcard (_) at <interactive>:1:13--1:14
+  ?b is type wildcard (_) at <interactive>:1:20--1:21
 floor`{Float _ _} : {n, m} (ValidFloat n m) => Float n m -> Integer
 (==)`{Bit} : Bit -> Bit -> Bit
 (==)`{Integer} : Integer -> Integer -> Bit
@@ -342,15 +280,13 @@ floor`{Float _ _} : {n, m} (ValidFloat n m) => Float n m -> Integer
 (==)`{[_]_} : {n, a} (Eq a, fin n) => [n]a -> [n]a -> Bit
 
 [error] at <interactive>:1:1--1:5:
-  Unsolvable constraints:
-    • Eq (?a`1070 -> ?a`1071)
-        arising from
-        use of expression (==)
-        at <interactive>:1:1--1:5
-    • Reason: Function types do not support comparisons.
+  • Type `?a -> ?b` does not support equality.
+      arising from
+      use of expression (==)
+      at <interactive>:1:1--1:5
   where
-  ?a`1070 is type wildcard (_) at <interactive>:1:8--1:9
-  ?a`1071 is type wildcard (_) at <interactive>:1:13--1:14
+  ?a is type wildcard (_) at <interactive>:1:8--1:9
+  ?b is type wildcard (_) at <interactive>:1:13--1:14
 (==)`{()} : () -> () -> Bit
 (==)`{(_, _)} : {a, b} (Eq b, Eq a) => (a, b) -> (a, b) -> Bit
 (==)`{{}} : {} -> {} -> Bit
@@ -363,26 +299,22 @@ floor`{Float _ _} : {n, m} (ValidFloat n m) => Float n m -> Integer
 (<)`{Rational} : Rational -> Rational -> Bit
 
 [error] at <interactive>:1:1--1:4:
-  Unsolvable constraints:
-    • Cmp (Z ?n`1084)
-        arising from
-        use of expression (<)
-        at <interactive>:1:1--1:4
-    • Reason: Type 'Z' does not support order comparisons.
+  • Type `Z ?m` does not support comparisons.
+      arising from
+      use of expression (<)
+      at <interactive>:1:1--1:4
   where
-  ?n`1084 is type wildcard (_) at <interactive>:1:8--1:9
+  ?m is type wildcard (_) at <interactive>:1:8--1:9
 (<)`{[_]_} : {n, a} (Cmp a, fin n) => [n]a -> [n]a -> Bit
 
 [error] at <interactive>:1:1--1:4:
-  Unsolvable constraints:
-    • Cmp (?a`1087 -> ?a`1088)
-        arising from
-        use of expression (<)
-        at <interactive>:1:1--1:4
-    • Reason: Function types do not support order comparisons.
+  • Type `?a -> ?b` does not support comparisons.
+      arising from
+      use of expression (<)
+      at <interactive>:1:1--1:4
   where
-  ?a`1087 is type wildcard (_) at <interactive>:1:7--1:8
-  ?a`1088 is type wildcard (_) at <interactive>:1:12--1:13
+  ?a is type wildcard (_) at <interactive>:1:7--1:8
+  ?b is type wildcard (_) at <interactive>:1:12--1:13
 (<)`{()} : () -> () -> Bit
 (<)`{(_, _)} : {a, b} (Cmp b, Cmp a) => (a, b) -> (a, b) -> Bit
 (<)`{{}} : {} -> {} -> Bit
@@ -392,50 +324,40 @@ floor`{Float _ _} : {n, m} (ValidFloat n m) => Float n m -> Integer
                     Float n m -> Float n m -> Bit
 
 [error] at <interactive>:1:1--1:5:
-  Unsolvable constraints:
-    • SignedCmp Bit
-        arising from
-        use of expression (<$)
-        at <interactive>:1:1--1:5
-    • Reason: Type 'Bit' does not support signed comparisons.
+  • Type `Bit` does not support signed comparisons.
+      arising from
+      use of expression (<$)
+      at <interactive>:1:1--1:5
 
 [error] at <interactive>:1:1--1:5:
-  Unsolvable constraints:
-    • SignedCmp Integer
-        arising from
-        use of expression (<$)
-        at <interactive>:1:1--1:5
-    • Reason: Type 'Integer' does not support signed comparisons.
+  • Type `Integer` does not support signed comparisons.
+      arising from
+      use of expression (<$)
+      at <interactive>:1:1--1:5
 
 [error] at <interactive>:1:1--1:5:
-  Unsolvable constraints:
-    • SignedCmp Rational
-        arising from
-        use of expression (<$)
-        at <interactive>:1:1--1:5
-    • Reason: Type 'Rational' does not support signed comparisons.
+  • Type `Rational` does not support signed comparisons.
+      arising from
+      use of expression (<$)
+      at <interactive>:1:1--1:5
 
 [error] at <interactive>:1:1--1:5:
-  Unsolvable constraints:
-    • SignedCmp (Z ?n`1098)
-        arising from
-        use of expression (<$)
-        at <interactive>:1:1--1:5
-    • Reason: Type 'Z' does not support signed comparisons.
+  • Type `Z ?m` does not support signed comparisons.
+      arising from
+      use of expression (<$)
+      at <interactive>:1:1--1:5
   where
-  ?n`1098 is type wildcard (_) at <interactive>:1:9--1:10
+  ?m is type wildcard (_) at <interactive>:1:9--1:10
 (<$)`{[_]_} : {n, a} (SignedCmp ([n]a)) => [n]a -> [n]a -> Bit
 
 [error] at <interactive>:1:1--1:5:
-  Unsolvable constraints:
-    • SignedCmp (?a`1101 -> ?a`1102)
-        arising from
-        use of expression (<$)
-        at <interactive>:1:1--1:5
-    • Reason: Function types do not support signed comparisons.
+  • Type `?a -> ?b` does not support signed comparisons.
+      arising from
+      use of expression (<$)
+      at <interactive>:1:1--1:5
   where
-  ?a`1101 is type wildcard (_) at <interactive>:1:8--1:9
-  ?a`1102 is type wildcard (_) at <interactive>:1:13--1:14
+  ?a is type wildcard (_) at <interactive>:1:8--1:9
+  ?b is type wildcard (_) at <interactive>:1:13--1:14
 (<$)`{()} : () -> () -> Bit
 (<$)`{(_, _)} : {a, b} (SignedCmp b, SignedCmp a) =>
                   (a, b) -> (a, b) -> Bit
@@ -444,15 +366,13 @@ floor`{Float _ _} : {n, m} (ValidFloat n m) => Float n m -> Integer
                           {x : a, y : b} -> {x : a, y : b} -> Bit
 
 [error] at <interactive>:1:1--1:5:
-  Unsolvable constraints:
-    • SignedCmp (Float ?n`1109 ?n`1110)
-        arising from
-        use of expression (<$)
-        at <interactive>:1:1--1:5
-    • Reason: Type 'Float' does not support signed comparisons.
+  • Type `Float ?m ?n` does not support signed comparisons.
+      arising from
+      use of expression (<$)
+      at <interactive>:1:1--1:5
   where
-  ?n`1109 is type wildcard (_) at <interactive>:1:13--1:14
-  ?n`1110 is type wildcard (_) at <interactive>:1:15--1:16
+  ?m is type wildcard (_) at <interactive>:1:13--1:14
+  ?n is type wildcard (_) at <interactive>:1:15--1:16
 number`{rep = Bit} : {n} (1 >= n) => Bit
 
 [error] at <interactive>:1:1--1:7:
@@ -465,61 +385,50 @@ number`{rep = Z _} : {n, m} (m >= 1 + n, m >= 1, fin m, fin n) =>
 number`{rep = [_]_} : {n, m} (m >= width n, fin m, fin n) => [m]
 
 [error] at <interactive>:1:1--1:7:
-  Unsolvable constraints:
-    • Literal ?val`1118 (?a`1119 -> ?a`1120)
-        arising from
-        use of literal or demoted expression
-        at <interactive>:1:1--1:7
-    • Reason: Type '?a`1119 -> ?a`1120' does not support integer literals.
+  • `?m` is not a valid literal of type `?a -> ?b`
+      arising from
+      use of literal or demoted expression
+      at <interactive>:1:1--1:7
   where
-  ?val`1118 is type argument 'val' of 'number' at <interactive>:1:1--1:7
-  ?a`1119 is type wildcard (_) at <interactive>:1:15--1:16
-  ?a`1120 is type wildcard (_) at <interactive>:1:20--1:21
+  ?m is type argument 'val' of 'number' at <interactive>:1:1--1:7
+  ?a is type wildcard (_) at <interactive>:1:15--1:16
+  ?b is type wildcard (_) at <interactive>:1:20--1:21
 
 [error] at <interactive>:1:1--1:7:
-  Unsolvable constraints:
-    • Literal ?val`1118 ()
-        arising from
-        use of literal or demoted expression
-        at <interactive>:1:1--1:7
-    • Reason: Type '()' does not support integer literals.
+  • `?m` is not a valid literal of type `()`
+      arising from
+      use of literal or demoted expression
+      at <interactive>:1:1--1:7
   where
-  ?val`1118 is type argument 'val' of 'number' at <interactive>:1:1--1:7
+  ?m is type argument 'val' of 'number' at <interactive>:1:1--1:7
 
 [error] at <interactive>:1:1--1:7:
-  Unsolvable constraints:
-    • Literal ?val`1118 (?a`1119, ?a`1120)
-        arising from
-        use of literal or demoted expression
-        at <interactive>:1:1--1:7
-    • Reason: Type '(?a`1119, ?a`1120)' does not support integer literals.
+  • `?m` is not a valid literal of type `(?a, ?b)`
+      arising from
+      use of literal or demoted expression
+      at <interactive>:1:1--1:7
   where
-  ?val`1118 is type argument 'val' of 'number' at <interactive>:1:1--1:7
-  ?a`1119 is type wildcard (_) at <interactive>:1:16--1:17
-  ?a`1120 is type wildcard (_) at <interactive>:1:19--1:20
+  ?m is type argument 'val' of 'number' at <interactive>:1:1--1:7
+  ?a is type wildcard (_) at <interactive>:1:16--1:17
+  ?b is type wildcard (_) at <interactive>:1:19--1:20
 
 [error] at <interactive>:1:1--1:7:
-  Unsolvable constraints:
-    • Literal ?val`1118 {}
-        arising from
-        use of literal or demoted expression
-        at <interactive>:1:1--1:7
-    • Reason: Type '{}' does not support integer literals.
+  • `?m` is not a valid literal of type `{}`
+      arising from
+      use of literal or demoted expression
+      at <interactive>:1:1--1:7
   where
-  ?val`1118 is type argument 'val' of 'number' at <interactive>:1:1--1:7
+  ?m is type argument 'val' of 'number' at <interactive>:1:1--1:7
 
 [error] at <interactive>:1:1--1:7:
-  Unsolvable constraints:
-    • Literal ?val`1118 {x : ?a`1119, y : ?a`1120}
-        arising from
-        use of literal or demoted expression
-        at <interactive>:1:1--1:7
-    • Reason: Type '{x : ?a`1119,
-       y : ?a`1120}' does not support integer literals.
+  • `?m` is not a valid literal of type `{x : ?a, y : ?b}`
+      arising from
+      use of literal or demoted expression
+      at <interactive>:1:1--1:7
   where
-  ?val`1118 is type argument 'val' of 'number' at <interactive>:1:1--1:7
-  ?a`1119 is type wildcard (_) at <interactive>:1:20--1:21
-  ?a`1120 is type wildcard (_) at <interactive>:1:27--1:28
+  ?m is type argument 'val' of 'number' at <interactive>:1:1--1:7
+  ?a is type wildcard (_) at <interactive>:1:20--1:21
+  ?b is type wildcard (_) at <interactive>:1:27--1:28
 number`{rep = Float _ _} : {n, m, i} (ValidFloat m i,
                                       Literal n (Float m i)) =>
                              Float m i

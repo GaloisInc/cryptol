@@ -338,14 +338,7 @@ instance PP (WithNames Error) where
              , "When checking" <+> pp src
              ]
 
-      UnsolvableGoals gs ->
-          addTVarsDescsAfter names err $
-          nested "Unsolvable constraints:" $
-          let unErr g = case tIsError (goal g) of
-                          Just p  -> g { goal = p }
-                          Nothing -> g
-          in
-          bullets (map (ppWithNames names) (map unErr gs))
+      UnsolvableGoals gs -> explainUnsolvable names gs
 
       UnsolvedGoals gs
         | noUni ->
@@ -448,6 +441,99 @@ instance PP (WithNames Error) where
     mismatchHint _ _ = mempty
 
     noUni = Set.null (Set.filter isFreeTV (fvs err))
+
+
+
+explainUnsolvable :: NameMap -> [Goal] -> Doc
+explainUnsolvable names gs =
+  addTVarsDescsAfter names gs (bullets (map explain gs))
+
+  where
+  bullets xs = vcat [ "•" <+> d | d <- xs ]
+
+
+
+  explain g =
+    let useCtr = "Unsolvable constraint:" $$
+                  nest 2 (ppWithNames names g)
+
+    in
+    case tNoUser (goal g) of
+      TCon (PC pc) ts ->
+        let tys = [ backticks (ppWithNames names t) | t <- ts ]
+            doc1 : _ = tys
+            custom msg = msg $$
+                         nest 2 (text "arising from" $$
+                                 pp (goalSource g)   $$
+                                 text "at" <+> pp (goalRange g))
+        in
+        case pc of
+          PEqual      -> useCtr
+          PNeq        -> useCtr
+          PGeq        -> useCtr
+          PFin        -> useCtr
+          PPrime      -> useCtr
+
+          PHas sel ->
+            custom ("Type" <+> doc1 <+> "does not have field" <+> f 
+                    <+> "of type" <+> (tys !! 1))
+            where f = case sel of
+                        P.TupleSel n _ -> int n
+                        P.RecordSel fl _ -> backticks (pp fl)
+                        P.ListSel n _ -> int n
+
+          PZero  ->
+            custom ("Type" <+> doc1 <+> "does not have `zero`")
+
+          PLogic ->
+            custom ("Type" <+> doc1 <+> "does not support logical operations.")
+
+          PRing ->
+            custom ("Type" <+> doc1 <+> "does not support ring operations.")
+
+          PIntegral ->
+            custom (doc1 <+> "is not an integral type.")
+
+          PField ->
+            custom ("Type" <+> doc1 <+> "does not support field operations.")
+
+          PRound ->
+            custom ("Type" <+> doc1 <+> "does not support rounding operations.")
+
+          PEq ->
+            custom ("Type" <+> doc1 <+> "does not support equality.")
+
+          PCmp        ->
+            custom ("Type" <+> doc1 <+> "does not support comparisons.")
+
+          PSignedCmp  ->
+            custom ("Type" <+> doc1 <+> "does not support signed comparisons.")
+
+          PLiteral ->
+            let doc2 = tys !! 1
+            in custom (doc1 <+> "is not a valid literal of type" <+> doc2)
+
+          PFLiteral ->
+            case ts of
+              ~[m,n,_r,_a] ->
+                 let frac = backticks (ppWithNamesPrec names 4 m <> "/" <>
+                                       ppWithNamesPrec names 4 n)
+                     ty   = tys !! 3
+                 in custom (frac <+> "is not a valid literal of type" <+> ty)
+
+          PValidFloat ->
+            case ts of
+              ~[e,p] ->
+                custom ("Unsupported floating point parameters:" $$
+                     nest 2 ("exponent =" <+> ppWithNames names e $$
+                             "precision =" <+> ppWithNames names p))
+
+
+          PAnd        -> useCtr
+          PTrue       -> useCtr
+
+      _ -> useCtr
+
 
 
 

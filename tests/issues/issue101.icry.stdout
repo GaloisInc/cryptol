@@ -1,9 +1,8 @@
 Loading module Cryptol
 
 [error] at <interactive>:1:1--1:11:
-  Unsolvable constraints:
-    • 0 >= 1
+  • Unsolvable constraint:
+      0 >= 1
         arising from
         use of partial type function (-)
         at <interactive>:1:1--1:11
-    • Reason: It is not the case that 0 >= 1
