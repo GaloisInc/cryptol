@@ -63,6 +63,8 @@ import qualified Cryptol.ModuleSystem.Env as M
 import qualified Cryptol.Backend.Monad as E
 import           Cryptol.Eval.Concrete( Concrete(..) )
 import qualified Cryptol.Eval.Concrete as Concrete
+import qualified Cryptol.Eval.Env as E
+import qualified Cryptol.Eval.Type as E
 import qualified Cryptol.Eval.Value as E
 import qualified Cryptol.Eval.Reference as R
 import Cryptol.Testing.Random
@@ -92,6 +94,7 @@ import Cryptol.Version (displayVersion)
 
 import qualified Control.Exception as X
 import Control.Monad hiding (mapM, mapM)
+import qualified Control.Monad.Catch as Ex
 import Control.Monad.IO.Class(liftIO)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
@@ -119,7 +122,7 @@ import System.IO
 import System.Random.TF(newTFGen)
 import Numeric (showFFloat)
 import qualified Data.Text as T
-import Data.IORef(newIORef,readIORef)
+import Data.IORef(newIORef,readIORef,writeIORef)
 
 import GHC.Float (log1p, expm1)
 
@@ -385,8 +388,10 @@ dumpTestsCmd outFile str =
      ppopts <- getPPValOpts
      testNum <- getKnownUser "tests" :: REPL Int
      g <- io newTFGen
+     tenv <- E.envTypes . M.deEnv <$> getDynEnv
+     let tyv = E.evalValType tenv ty
      gens <-
-       case TestR.dumpableType ty of
+       case TestR.dumpableType tyv of
          Nothing -> raise (TypeNotTestable ty)
          Just gens -> return gens
      tests <- io $ TestR.returnTests g gens val testNum
@@ -421,74 +426,81 @@ qcCmd qcMode "" =
 qcCmd qcMode str =
   do expr <- replParseExpr str
      (val,ty) <- replEvalExpr expr
-     testNum <- getKnownUser "tests"
-     case testableType ty of
-       Just (Just sz,tys,vss) | qcMode == QCExhaust || sz <= toInteger testNum -> do
+     testNum <- (toInteger :: Int -> Integer) <$> getKnownUser "tests"
+     tenv <- E.envTypes . M.deEnv <$> getDynEnv
+     let tyv = E.evalValType tenv ty
+     percentRef <- io $ newIORef Nothing
+     testsRef <- io $ newIORef 0
+     case testableType tyv of
+       Just (Just sz,tys,vss,_gens) | qcMode == QCExhaust || sz <= testNum -> do
             rPutStrLn "Using exhaustive testing."
-            let f _ [] = panic "Cryptol.REPL.Command"
-                                    ["Exhaustive testing ran out of test cases"]
-                f _ (vs : vss1) = do
-                  result <- io $ evalTest val vs
-                  return (result, vss1)
-                testSpec = TestSpec {
-                    testFn = f
-                  , testProp = str
-                  , testTotal = sz
-                  , testPossible = Just sz
-                  , testRptProgress = ppProgress
-                  , testClrProgress = delProgress
-                  , testRptFailure = ppFailure tys expr
-                  , testRptSuccess = do
-                      delTesting
-                      prtLn $ "Passed " ++ show sz ++ " tests."
-                      rPutStrLn "Q.E.D."
-                  }
             prt testingMsg
-            report <- runTests testSpec vss
+            (res,num) <-
+                  Ex.catch (exhaustiveTests (\n -> ppProgress percentRef testsRef n sz)
+                                            val vss)
+                         (\ex -> do rPutStrLn "\nTest interrupted..."
+                                    num <- io $ readIORef testsRef
+                                    let report = TestReport Pass str num (Just sz)
+                                    ppReport (map E.tValTy tys) expr False report
+                                    rPutStrLn $ interruptedExhaust num sz
+                                    Ex.throwM (ex :: Ex.SomeException))
+            let report = TestReport res str num (Just sz)
+            delProgress
+            delTesting
+            ppReport (map E.tValTy tys) expr True report
             return [report]
 
-       Just (sz,tys,_) | qcMode == QCRandom ->
-         case TestR.testableTypeGenerators ty of
-              Nothing   -> raise (TypeNotTestable ty)
-              Just gens -> do
-                rPutStrLn "Using random testing."
-                let testSpec = TestSpec {
-                        testFn = \sz' g ->
-                                      io $ TestR.runOneTest val gens sz' g
-                      , testProp = str
-                      , testTotal = toInteger testNum
-                      , testPossible = sz
-                      , testRptProgress = ppProgress
-                      , testClrProgress = delProgress
-                      , testRptFailure = ppFailure tys expr
-                      , testRptSuccess = do
-                          delTesting
-                          prtLn $ "Passed " ++ show testNum ++ " tests."
-                      }
-                prt testingMsg
-                g <- io newTFGen
-                report <- runTests testSpec g
-                when (isPass (reportResult report)) $
-                  case sz of
-                    Nothing -> return ()
-                    Just n -> rPutStrLn $ coverageString testNum n
-                return [report]
+       Just (sz,tys,_,gens) | qcMode == QCRandom -> do
+            rPutStrLn "Using random testing."
+            prt testingMsg
+            g <- io newTFGen
+            (res,num) <-
+                  Ex.catch (randomTests (\n -> ppProgress percentRef testsRef n testNum)
+                                        testNum val gens g)
+                         (\ex -> do rPutStrLn "\nTest interrupted..."
+                                    num <- io $ readIORef testsRef
+                                    let report = TestReport Pass str num sz
+                                    ppReport (map E.tValTy tys) expr False report
+                                    case sz of
+                                      Just n -> rPutStrLn $ coverageString num n
+                                      _ -> return ()
+                                    Ex.throwM (ex :: Ex.SomeException))
+            let report = TestReport res str num sz
+            delProgress
+            delTesting
+            ppReport (map E.tValTy tys) expr False report
+            case sz of
+              Just n | isPass res -> rPutStrLn $ coverageString testNum n
+              _ -> return ()
+            return [report]
        _ -> raise (TypeNotTestable ty)
 
   where
   testingMsg = "Testing... "
 
+  interruptedExhaust testNum sz =
+     let percent = (100.0 :: Double) * (fromInteger testNum) / fromInteger sz
+         showValNum
+            | sz > 2 ^ (20::Integer) =
+              "2^^" ++ show (lg2 sz)
+            | otherwise = show sz
+      in "Test coverage: "
+            ++ showFFloat (Just 2) percent "% ("
+            ++ show testNum ++ " of "
+            ++ showValNum
+            ++ " values)"
+
   coverageString testNum sz =
-                  let (percent, expectedUnique) = expectedCoverage testNum sz
-                      showValNum
-                        | sz > 2 ^ (20::Integer) =
-                          "2^^" ++ show (lg2 sz)
-                        | otherwise = show sz
-                  in "Expected test coverage: "
-                    ++ showFFloat (Just 2) percent "% ("
-                    ++ showFFloat (Just 0) expectedUnique " of "
-                    ++ showValNum
-                    ++ " values)"
+     let (percent, expectedUnique) = expectedCoverage testNum sz
+         showValNum
+           | sz > 2 ^ (20::Integer) =
+             "2^^" ++ show (lg2 sz)
+           | otherwise = show sz
+     in "Expected test coverage: "
+       ++ showFFloat (Just 2) percent "% ("
+       ++ showFFloat (Just 0) expectedUnique " of "
+       ++ showValNum
+       ++ " values)"
 
 
   totProgressWidth = 4    -- 100%
@@ -502,19 +514,35 @@ qcCmd qcMode str =
   prt msg   = rPutStr msg >> io (hFlush stdout)
   prtLn msg = rPutStrLn msg >> io (hFlush stdout)
 
-  ppProgress this tot = unlessBatch $
-    let percent = show (div (100 * this) tot) ++ "%"
-        width   = length percent
-        pad     = replicate (totProgressWidth - width) ' '
-    in prt (pad ++ percent)
+  ppProgress percentRef testsRef this tot =
+    do io $ writeIORef testsRef this
+       let percent = show (div (100 * this) tot) ++ "%"
+           width   = length percent
+           pad     = replicate (totProgressWidth - width) ' '
+       unlessBatch $
+         do oldPercent <- io $ readIORef percentRef
+            case oldPercent of
+              Nothing ->
+                do io $ writeIORef percentRef (Just percent)
+                   prt (pad ++ percent)
+              Just p | p /= percent ->
+                do io $ writeIORef percentRef (Just percent)
+                   delProgress
+                   prt (pad ++ percent)
+              _ -> return ()
 
   del n       = unlessBatch
               $ prt (replicate n '\BS' ++ replicate n ' ' ++ replicate n '\BS')
   delTesting  = del (length testingMsg)
   delProgress = del totProgressWidth
 
+  ppReport _tys _expr isExhaustive (TestReport Pass _str testNum _testPossible) =
+    do prtLn $ "Passed " ++ show testNum ++ " tests."
+       when isExhaustive (rPutStrLn "Q.E.D.")
+  ppReport tys expr _ (TestReport failure _str _testNum _testPossible) =
+    ppFailure tys expr failure
+
   ppFailure tys pexpr failure = do
-    delTesting
     opts <- getPPValOpts
     case failure of
       FailFalse vs -> do
@@ -558,7 +586,7 @@ qcCmd qcMode str =
 -- situations, we expect the naive approximation @k/n@ to be very
 -- close to accurate and the expected number of unique values is
 -- essentially equal to the number of tests.
-expectedCoverage :: Int -> Integer -> (Double, Double)
+expectedCoverage :: Integer -> Integer -> (Double, Double)
 expectedCoverage testNum sz =
     -- If the Double computation has enough precision, use the
     --  "with replacement" formula.

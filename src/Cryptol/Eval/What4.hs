@@ -37,7 +37,6 @@ import Cryptol.Eval.Type (finNat', TValue(..))
 import Cryptol.Eval.Value
 
 import Cryptol.TypeCheck.Solver.InfNat( Nat'(..), widthInteger )
-import Cryptol.Testing.Random( randomV )
 import Cryptol.Utils.Ident
 
 
