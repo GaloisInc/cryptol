@@ -451,9 +451,18 @@ instance PP (WithNames Error) where
 
 
 
+-- | This picks the names to use when showing errors and warnings.
 computeFreeVarNames :: [(Range,Warning)] -> [(Range,Error)] -> NameMap
 computeFreeVarNames warns errs =
   mkMap numRoots numVaras `IntMap.union` mkMap otherRoots otherVars
+
+  {- XXX: Currently we pick the names based on the unique of the variable:
+     smaller uniques get an earlier name (e.g., 100 might get `a` and 200 `b`)
+     This may still lead to changes in the names if the uniques got reordred
+     for some reason.  A more stable approach might be to order the variables
+     on their location in the error/warning, but that's quite a bit more code
+     so for now we just go with the simple approximation. -}
+
   where
   mkName x v = (tvUnique x, v)
   mkMap roots vs = IntMap.fromList (zipWith mkName vs (variants roots))
