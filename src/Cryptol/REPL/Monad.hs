@@ -752,6 +752,8 @@ userOptions  = mkOptionMap
     "Choose whether to display warnings when defaulting."
   , simpleOpt "warnShadowing" (EnvBool True) noCheck
     "Choose whether to display warnings when shadowing symbols."
+  , simpleOpt "warnUninterp" (EnvBool True) noCheck
+    "Choose whether to issue a warning when uninterpreted functions are used to implement primitives in the symbolic simulator."
   , simpleOpt "smtfile" (EnvString "-") noCheck
     "The file to use for SMT-Lib scripts (for debugging or offline proving).\nUse \"-\" for stdout."
   , OptionDescr "mono-binds" (EnvBool True) noCheck

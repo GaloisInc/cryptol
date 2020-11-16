@@ -68,6 +68,15 @@ ec_is_identity : {p} (prime p, p > 3) => ProjectivePoint p -> Bit
 ec_is_identity S = S.z == 0 /\ ~(S.x == 0 /\ S.y == 0)
 
 /**
+ * Test two projective points for equality, up to the equivalence relation
+ * on projective points.
+ */
+ec_equal : {p} (prime p, p > 3) => ProjectivePoint p -> ProjectivePoint p -> Bit
+ec_equal S T =
+  (S.z == 0 /\ T.z == 0) \/
+  (S.z != 0 /\ T.z != 0 /\ ec_affinify S == ec_affinify T)
+
+/**
  * Compute a projective representative for the given affine point.
  */
 ec_projectify : {p} (prime p, p > 3) => AffinePoint p -> ProjectivePoint p
