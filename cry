@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -e
+
 BIN=bin
 
 QUICKTESTS="tests/issues tests/modsys tests/mono-binds tests/parser tests/regression tests/renamer"
