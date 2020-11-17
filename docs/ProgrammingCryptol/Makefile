@@ -25,7 +25,6 @@ MAKEINDEX = makeindex
 # TODO: Ensure that TEXINPUTS is set correctly to make \includes and \usepackages more robust?
 
 all: pdf
-	cp ${TMP}/Cryptol.pdf ..
 
 test:
 	cd aes ; make test
