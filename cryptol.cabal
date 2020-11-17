@@ -249,9 +249,17 @@ executable cryptol-html
 executable check-exercises
   Default-language:
     Haskell2010
-  main-is: CheckExercises.hs
-  hs-source-dirs: docs
-  build-depends: base, text, HaTeX, optparse-applicative
+  Main-is:             CheckExercises.hs
+  hs-source-dirs:      cryptol
+  build-depends:       ansi-terminal
+                     , base
+                     , containers
+                     , directory
+                     , filepath
+                     , mtl
+                     , optparse-applicative
+                     , process
+                     , text
   GHC-options: -Wall
 
 -- Note: the Cryptol server needs to be updated to some new APIs.
