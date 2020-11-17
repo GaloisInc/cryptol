@@ -145,7 +145,7 @@ bundle_files() {
   mkdir -p $doc
   cp -R examples/ $doc/examples/
   rm -rf $doc/examples/cryptol-specs
-  cp docs/*md docs/*pdf $doc
+  cp docs/*pdf $doc
 
   # Copy the two interesting examples over
   cp docs/ProgrammingCryptol/{aes/AES,enigma/Enigma}.cry $doc/examples/
