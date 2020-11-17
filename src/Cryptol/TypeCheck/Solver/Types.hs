@@ -1,3 +1,4 @@
+{-# Language OverloadedStrings, DeriveGeneric, DeriveAnyClass #-}
 module Cryptol.TypeCheck.Solver.Types where
 
 import Data.Map(Map)
@@ -22,8 +23,9 @@ instance Monoid Ctxt where
 
 data Solved = SolvedIf [Prop]           -- ^ Solved, assuming the sub-goals.
             | Unsolved                  -- ^ We could not solve the goal.
-            | Unsolvable TCErrorMessage -- ^ The goal can never be solved.
+            | Unsolvable                -- ^ The goal can never be solved.
               deriving (Show)
+
 
 
 elseTry :: Solved -> Solved -> Solved
@@ -48,4 +50,5 @@ instance PP Solved where
     case res of
       SolvedIf ps  -> text "solved" $$ nest 2 (vcat (map pp ps))
       Unsolved     -> text "unsolved"
-      Unsolvable e -> text "unsolvable" <.> colon <+> text (tcErrorMessage e)
+      Unsolvable   -> text "unsolvable"
+

@@ -18,9 +18,7 @@ Loading module Cryptol
 Loading module test04
 
 [error] at test04.cry:1:1--5:14:
-  Unsolvable constraints:
-    • Literal 10 ()
-        arising from
-        use of literal or demoted expression
-        at test04.cry:3:19--3:21
-    • Reason: Type '()' does not support integer literals.
+  • `10` is not a valid literal of type `()`
+      arising from
+      use of literal or demoted expression
+      at test04.cry:3:19--3:21

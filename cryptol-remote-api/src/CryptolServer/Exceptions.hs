@@ -84,7 +84,7 @@ cryptolError modErr warns =
         (20720, [ ("source", jsonPretty src)
                 , ("errors", jsonList (map jsonShow errs))
                 ])
-      TypeCheckingFailed src errs ->
+      TypeCheckingFailed src _nameMap errs ->
         -- TODO: structured error here
         (20730, [ ("source", jsonPretty src)
                 , ("errors", jsonList (map jsonShow errs))
@@ -119,7 +119,7 @@ cryptolError modErr warns =
       -- TODO: structured error here
       jsonList . concatMap
         (\w -> case w of
-                TypeCheckWarnings tcwarns ->
+                TypeCheckWarnings _nameMap tcwarns ->
                   map (jsonPretty . snd) tcwarns
                 RenamerWarnings rnwarns ->
                   map jsonPretty rnwarns)

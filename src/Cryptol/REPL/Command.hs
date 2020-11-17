@@ -1584,10 +1584,10 @@ moduleCmdResult (res,ws0) = do
       isDefaultWarn _ = False
 
       filterDefaults w | warnDefaulting = Just w
-      filterDefaults (M.TypeCheckWarnings xs) =
+      filterDefaults (M.TypeCheckWarnings nameMap xs) =
         case filter (not . isDefaultWarn . snd) xs of
           [] -> Nothing
-          ys -> Just (M.TypeCheckWarnings ys)
+          ys -> Just (M.TypeCheckWarnings nameMap ys)
       filterDefaults w = Just w
 
       isShadowWarn (M.SymbolShadowed {}) = True

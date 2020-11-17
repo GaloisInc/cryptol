@@ -50,7 +50,7 @@ instance JSON.ToJSON JSONKind where
 instance JSON.ToJSON JSONType where
   toJSON (JSONType ns t) = convert t
     where
-      convert (TCon (TError _ _) _) =
+      convert (TCon (TError {}) _) =
         -- TODO: figure out what to do in this situation
         error "JSON conversion of errors is not yet supported"
       convert (TCon (TC tc) args) =

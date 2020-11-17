@@ -27,11 +27,13 @@ import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Subst
 import           Cryptol.TypeCheck.Unify(mgu, runResult, UnificationError(..))
 import           Cryptol.TypeCheck.InferTypes
-import           Cryptol.TypeCheck.Error(Warning(..),Error(..),cleanupErrors)
-import           Cryptol.TypeCheck.PP (brackets, commaSep)
+import           Cryptol.TypeCheck.Error( Warning(..),Error(..)
+                                        , cleanupErrors, computeFreeVarNames
+                                        )
 import qualified Cryptol.TypeCheck.SimpleSolver as Simple
 import qualified Cryptol.TypeCheck.Solver.SMT as SMT
-import           Cryptol.Utils.PP(pp, (<+>), text, quotes)
+import           Cryptol.TypeCheck.PP(NameMap)
+import           Cryptol.Utils.PP(pp, (<+>), text,commaSep,brackets)
 import           Cryptol.Utils.Ident(Ident)
 import           Cryptol.Utils.Panic(panic)
 
@@ -98,10 +100,10 @@ nameSeeds = NameSeeds { seedTVar = 10, seedGoal = 0 }
 
 -- | The results of type inference.
 data InferOutput a
-  = InferFailed [(Range,Warning)] [(Range,Error)]
+  = InferFailed NameMap [(Range,Warning)] [(Range,Error)]
     -- ^ We found some errors
 
-  | InferOK [(Range,Warning)] NameSeeds Supply a
+  | InferOK NameMap [(Range,Warning)] NameSeeds Supply a
     -- ^ Type inference was successful.
 
 
@@ -142,21 +144,26 @@ runInferM info (IM m) = SMT.withSolver (inpSolverConfig info) $ \solver ->
        [] ->
          case (iCts finalRW, iHasCts finalRW) of
            (cts,[])
-             | nullGoals cts
-                   -> return $ InferOK warns
+             | nullGoals cts -> inferOk warns
                                   (iNameSeeds finalRW)
                                   (iSupply finalRW)
                                   (apSubst defSu result)
-           (cts,has) -> return $ InferFailed warns
-                $ cleanupErrors
+           (cts,has) ->
+              inferFailed warns
                 [ ( goalRange g
-                  , UnsolvedGoals Nothing [apSubst theSu g]
+                  , UnsolvedGoals [apSubst theSu g]
                   ) | g <- fromGoals cts ++ map hasGoal has
                 ]
-       errs -> return $ InferFailed warns
-                      $ cleanupErrors [(r,apSubst theSu e) | (r,e) <- errs]
+
+       errs -> inferFailed warns [(r,apSubst theSu e) | (r,e) <- errs]
 
   where
+  inferOk ws a b c  = pure (InferOK (computeFreeVarNames ws []) ws a b c)
+  inferFailed ws es =
+    let es1 = cleanupErrors es
+    in pure (InferFailed (computeFreeVarNames ws es1) ws es1)
+
+
   mkExternal x = (IsExternal, x)
   rw = RW { iErrors     = []
           , iWarnings   = []
@@ -390,8 +397,8 @@ collectGoals m =
 simpGoal :: Goal -> InferM [Goal]
 simpGoal g =
   case Simple.simplify mempty (goal g) of
-    p | Just (e,t) <- tIsError p ->
-        do recordError $ UnsolvedGoals (Just e) [g { goal = t }]
+    p | Just t <- tIsError p ->
+        do recordError $ UnsolvableGoals [g { goal = t }]
            return []
       | ps <- pSplitAnd p -> return [ g { goal = pr } | pr <- ps ]
 
@@ -636,9 +643,7 @@ existVar x k =
        Nothing ->
          case scopes of
            [] ->
-              do recordError $ ErrorMsg
-                             $ text "Undefined type" <+> quotes (pp x)
-                                    <+> text (show x)
+              do recordError (UndefinedExistVar x)
                  newType TypeErrorPlaceHolder k
 
            sc : more ->
@@ -709,10 +714,7 @@ checkTShadowing this new =
      case shadowed of
        Nothing -> return ()
        Just that ->
-          recordError $ ErrorMsg $
-             text "Type" <+> text this <+> quotes (pp new) <+>
-             text "shadows an existing" <+>
-             text that <+> text "with the same name."
+          recordError (TypeShadowing this new that)
 
 
 

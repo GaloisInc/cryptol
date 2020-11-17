@@ -8,7 +8,7 @@
 --
 -- Solving class constraints.
 
-{-# LANGUAGE PatternGuards, OverloadedStrings #-}
+{-# LANGUAGE PatternGuards #-}
 module Cryptol.TypeCheck.Solver.Class
   ( solveZeroInst
   , solveLogicInst
@@ -29,7 +29,6 @@ import qualified LibBF as FP
 import Cryptol.TypeCheck.Type
 import Cryptol.TypeCheck.SimpType (tAdd,tWidth)
 import Cryptol.TypeCheck.Solver.Types
-import Cryptol.TypeCheck.PP
 import Cryptol.Utils.RecordMap
 
 {- | This places constraints on the floating point numbers that
@@ -69,7 +68,7 @@ solveZeroInst :: Type -> Solved
 solveZeroInst ty = case tNoUser ty of
 
   -- Zero Error -> fails
-  TCon (TError _ e) _ -> Unsolvable e
+  TCon (TError {}) _ -> Unsolvable
 
   -- Zero Bit
   TCon (TC TCBit) [] -> SolvedIf []
@@ -107,30 +106,22 @@ solveLogicInst :: Type -> Solved
 solveLogicInst ty = case tNoUser ty of
 
   -- Logic Error -> fails
-  TCon (TError _ e) _ -> Unsolvable e
+  TCon (TError {}) _ -> Unsolvable
 
   -- Logic Bit
   TCon (TC TCBit) [] -> SolvedIf []
 
   -- Logic Integer fails
-  TCon (TC TCInteger) [] ->
-    Unsolvable $
-    TCErrorMessage "Type 'Integer' does not support logical operations."
+  TCon (TC TCInteger) [] -> Unsolvable
 
   -- Logic (Z n) fails
-  TCon (TC TCIntMod) [_] ->
-    Unsolvable $
-    TCErrorMessage "Type 'Z' does not support logical operations."
+  TCon (TC TCIntMod) [_] -> Unsolvable
 
   -- Logic Rational fails
-  TCon (TC TCRational) [] ->
-    Unsolvable $
-    TCErrorMessage "Type 'Rational' does not support logical operations."
+  TCon (TC TCRational) [] -> Unsolvable
 
   -- Logic (Float e p) fails
-  TCon (TC TCFloat) [_, _] ->
-    Unsolvable $
-    TCErrorMessage "Type 'Float' does not support logical operations."
+  TCon (TC TCFloat) [_, _] -> Unsolvable
 
   -- Logic a => Logic [n]a
   TCon (TC TCSeq) [_, a] -> SolvedIf [ pLogic a ]
@@ -146,12 +137,13 @@ solveLogicInst ty = case tNoUser ty of
 
   _ -> Unsolved
 
+
 -- | Solve a Ring constraint by instance, if possible.
 solveRingInst :: Type -> Solved
 solveRingInst ty = case tNoUser ty of
 
   -- Ring Error -> fails
-  TCon (TError _ e) _ -> Unsolvable e
+  TCon (TError {}) _ -> Unsolvable
 
   -- Ring [n]e
   TCon (TC TCSeq) [n, e] -> solveRingSeq n e
@@ -163,8 +155,7 @@ solveRingInst ty = case tNoUser ty of
   TCon (TC (TCTuple _)) es -> SolvedIf [ pRing e | e <- es ]
 
   -- Ring Bit fails
-  TCon (TC TCBit) [] ->
-    Unsolvable $ TCErrorMessage "Type 'Bit' does not support ring operations."
+  TCon (TC TCBit) [] -> Unsolvable
 
   -- Ring Integer
   TCon (TC TCInteger) [] -> SolvedIf []
@@ -209,11 +200,10 @@ solveIntegralInst :: Type -> Solved
 solveIntegralInst ty = case tNoUser ty of
 
   -- Integral Error -> fails
-  TCon (TError _ e) _ -> Unsolvable e
+  TCon (TError {}) _ -> Unsolvable
 
   -- Integral Bit fails
-  TCon (TC TCBit) [] ->
-    Unsolvable $ TCErrorMessage "Type 'Bit' is not an integral type."
+  TCon (TC TCBit) [] -> Unsolvable
 
   -- Integral Integer
   TCon (TC TCInteger) [] -> SolvedIf []
@@ -223,13 +213,11 @@ solveIntegralInst ty = case tNoUser ty of
     case tNoUser elTy of
       TCon (TC TCBit) [] -> SolvedIf [ pFin n ]
       TVar _ -> Unsolved
-      _ -> Unsolvable $ TCErrorMessage $ show
-          $ "Type" <+> quotes (pp ty) <+> "is not an integral type."
+      _ -> Unsolvable
 
   TVar _ -> Unsolved
 
-  _ -> Unsolvable $ TCErrorMessage $ show
-          $ "Type" <+> quotes (pp ty) <+> "is not an integral type."
+  _ -> Unsolvable
 
 
 -- | Solve a Field constraint by instance, if possible.
@@ -237,17 +225,13 @@ solveFieldInst :: Type -> Solved
 solveFieldInst ty = case tNoUser ty of
 
   -- Field Error -> fails
-  TCon (TError _ e) _ -> Unsolvable e
+  TCon (TError {}) _ -> Unsolvable
 
   -- Field Bit fails
-  TCon (TC TCBit) [] ->
-    Unsolvable $
-    TCErrorMessage "Type 'Bit' does not support field operations."
+  TCon (TC TCBit) [] -> Unsolvable
 
   -- Field Integer fails
-  TCon (TC TCInteger) [] ->
-    Unsolvable $
-    TCErrorMessage "Type 'Integer' does not support field operations."
+  TCon (TC TCInteger) [] -> Unsolvable
 
   -- Field Rational
   TCon (TC TCRational) [] -> SolvedIf []
@@ -261,24 +245,16 @@ solveFieldInst ty = case tNoUser ty of
   TCon (TC TCIntMod) [n] -> SolvedIf [ pPrime n ]
 
   -- Field ([n]a) fails
-  TCon (TC TCSeq) [_, _] ->
-    Unsolvable $
-    TCErrorMessage "Sequence types do not support field operations."
+  TCon (TC TCSeq) [_, _] -> Unsolvable
 
   -- Field (a -> b) fails
-  TCon (TC TCFun) [_, _] ->
-    Unsolvable $
-    TCErrorMessage "Function types do not support field operations."
+  TCon (TC TCFun) [_, _] -> Unsolvable
 
   -- Field (a, b, ...) fails
-  TCon (TC (TCTuple _)) _ ->
-    Unsolvable $
-    TCErrorMessage "Tuple types do not support field operations."
+  TCon (TC (TCTuple _)) _ -> Unsolvable
 
   -- Field {x : a, y : b, ...} fails
-  TRec _ ->
-    Unsolvable $
-    TCErrorMessage "Record types do not support field operations."
+  TRec _ -> Unsolvable
 
   _ -> Unsolved
 
@@ -288,22 +264,16 @@ solveRoundInst :: Type -> Solved
 solveRoundInst ty = case tNoUser ty of
 
   -- Round Error -> fails
-  TCon (TError _ e) _ -> Unsolvable e
+  TCon (TError {}) _ -> Unsolvable
 
   -- Round Bit fails
-  TCon (TC TCBit) [] ->
-    Unsolvable $
-    TCErrorMessage "Type 'Bit' does not support rounding operations."
+  TCon (TC TCBit) [] -> Unsolvable
 
   -- Round Integer fails
-  TCon (TC TCInteger) [] ->
-    Unsolvable $
-    TCErrorMessage "Type 'Integer' does not support rounding operations."
+  TCon (TC TCInteger) [] -> Unsolvable
 
   -- Round (Z n) fails
-  TCon (TC TCIntMod) [_] ->
-    Unsolvable $
-    TCErrorMessage "Type 'Z' does not support rounding operations."
+  TCon (TC TCIntMod) [_] -> Unsolvable
 
   -- Round Rational
   TCon (TC TCRational) [] -> SolvedIf []
@@ -314,24 +284,16 @@ solveRoundInst ty = case tNoUser ty of
   -- Round Real
 
   -- Round ([n]a) fails
-  TCon (TC TCSeq) [_, _] ->
-    Unsolvable $
-    TCErrorMessage "Sequence types do not support rounding operations."
+  TCon (TC TCSeq) [_, _] -> Unsolvable
 
   -- Round (a -> b) fails
-  TCon (TC TCFun) [_, _] ->
-    Unsolvable $
-    TCErrorMessage "Function types do not support rounding operations."
+  TCon (TC TCFun) [_, _] -> Unsolvable
 
   -- Round (a, b, ...) fails
-  TCon (TC (TCTuple _)) _ ->
-    Unsolvable $
-    TCErrorMessage "Tuple types do not support rounding operations."
+  TCon (TC (TCTuple _)) _ -> Unsolvable
 
   -- Round {x : a, y : b, ...} fails
-  TRec _ ->
-    Unsolvable $
-    TCErrorMessage "Record types do not support rounding operations."
+  TRec _ -> Unsolvable
 
   _ -> Unsolved
 
@@ -342,7 +304,7 @@ solveEqInst :: Type -> Solved
 solveEqInst ty = case tNoUser ty of
 
   -- Eq Error -> fails
-  TCon (TError _ e) _ -> Unsolvable e
+  TCon (TError {}) _ -> Unsolvable
 
   -- eq Bit
   TCon (TC TCBit) [] -> SolvedIf []
@@ -366,8 +328,7 @@ solveEqInst ty = case tNoUser ty of
   TCon (TC (TCTuple _)) es -> SolvedIf (map pEq es)
 
   -- Eq (a -> b) fails
-  TCon (TC TCFun) [_,_] ->
-    Unsolvable $ TCErrorMessage "Function types do not support comparisons."
+  TCon (TC TCFun) [_,_] -> Unsolvable
 
   -- (Eq a, Eq b) => Eq { x:a, y:b }
   TRec fs -> SolvedIf [ pEq e | e <- recordElements fs ]
@@ -380,7 +341,7 @@ solveCmpInst :: Type -> Solved
 solveCmpInst ty = case tNoUser ty of
 
   -- Cmp Error -> fails
-  TCon (TError _ e) _ -> Unsolvable e
+  TCon (TError {}) _ -> Unsolvable
 
   -- Cmp Bit
   TCon (TC TCBit) [] -> SolvedIf []
@@ -392,8 +353,7 @@ solveCmpInst ty = case tNoUser ty of
   TCon (TC TCRational) [] -> SolvedIf []
 
   -- Cmp (Z n) fails
-  TCon (TC TCIntMod) [_] ->
-    Unsolvable $ TCErrorMessage "Type 'Z' does not support order comparisons."
+  TCon (TC TCIntMod) [_] -> Unsolvable
 
   -- ValidFloat e p => Cmp (Float e p)
   TCon (TC TCFloat) [e,p] -> SolvedIf [ pValidFloat e p ]
@@ -405,8 +365,7 @@ solveCmpInst ty = case tNoUser ty of
   TCon (TC (TCTuple _)) es -> SolvedIf (map pCmp es)
 
   -- Cmp (a -> b) fails
-  TCon (TC TCFun) [_,_] ->
-    Unsolvable $ TCErrorMessage "Function types do not support order comparisons."
+  TCon (TC TCFun) [_,_] -> Unsolvable
 
   -- (Cmp a, Cmp b) => Cmp { x:a, y:b }
   TRec fs -> SolvedIf [ pCmp e | e <- recordElements fs ]
@@ -434,32 +393,22 @@ solveSignedCmpInst :: Type -> Solved
 solveSignedCmpInst ty = case tNoUser ty of
 
   -- SignedCmp Error -> fails
-  TCon (TError _ e) _ -> Unsolvable e
+  TCon (TError {}) _ -> Unsolvable
 
   -- SignedCmp Bit fails
-  TCon (TC TCBit) [] ->
-    Unsolvable $
-    TCErrorMessage "Type 'Bit' does not support signed comparisons."
+  TCon (TC TCBit) [] -> Unsolvable
 
   -- SignedCmp Integer fails
-  TCon (TC TCInteger) [] ->
-    Unsolvable $
-    TCErrorMessage "Type 'Integer' does not support signed comparisons."
+  TCon (TC TCInteger) [] -> Unsolvable
 
   -- SignedCmp (Z n) fails
-  TCon (TC TCIntMod) [_] ->
-    Unsolvable $
-    TCErrorMessage "Type 'Z' does not support signed comparisons."
+  TCon (TC TCIntMod) [_] -> Unsolvable
 
   -- SignedCmp Rational fails
-  TCon (TC TCRational) [] ->
-    Unsolvable $
-    TCErrorMessage "Type 'Rational' does not support signed comparisons."
+  TCon (TC TCRational) [] -> Unsolvable
 
   -- SignedCmp (Float e p) fails
-  TCon (TC TCFloat) [_, _] ->
-    Unsolvable $
-    TCErrorMessage "Type 'Float' does not support signed comparisons."
+  TCon (TC TCFloat) [_, _] -> Unsolvable
 
   -- SignedCmp for sequences
   TCon (TC TCSeq) [n,a] -> solveSignedCmpSeq n a
@@ -468,9 +417,7 @@ solveSignedCmpInst ty = case tNoUser ty of
   TCon (TC (TCTuple _)) es -> SolvedIf (map pSignedCmp es)
 
   -- SignedCmp (a -> b) fails
-  TCon (TC TCFun) [_,_] ->
-    Unsolvable $
-    TCErrorMessage "Function types do not support signed comparisons."
+  TCon (TC TCFun) [_,_] -> Unsolvable
 
   -- (SignedCmp a, SignedCmp b) => SignedCmp { x:a, y:b }
   TRec fs -> SolvedIf [ pSignedCmp e | e <- recordElements fs ]
@@ -481,19 +428,16 @@ solveSignedCmpInst ty = case tNoUser ty of
 -- | Solving fractional literal constraints.
 solveFLiteralInst :: Type -> Type -> Type -> Type -> Solved
 solveFLiteralInst numT denT rndT ty
-  | TCon (TError _ e) _ <- tNoUser numT = Unsolvable e
-  | TCon (TError _ e) _ <- tNoUser denT = Unsolvable e
-  | tIsInf numT || tIsInf denT || tIsInf rndT =
-    Unsolvable $ TCErrorMessage $ "Fractions may not use `inf`"
-  | Just 0 <- tIsNum denT =
-    Unsolvable $ TCErrorMessage
-               $ "Fractions may not have 0 as the denominator."
+  | TCon (TError {}) _ <- tNoUser numT = Unsolvable
+  | TCon (TError {}) _ <- tNoUser denT = Unsolvable
+  | tIsInf numT || tIsInf denT || tIsInf rndT = Unsolvable
+  | Just 0 <- tIsNum denT = Unsolvable
 
   | otherwise =
     case tNoUser ty of
       TVar {} -> Unsolved
 
-      TCon (TError _ e) _ -> Unsolvable e
+      TCon (TError {}) _ -> Unsolvable
 
       TCon (TC TCRational) [] ->
         SolvedIf [ pFin numT, pFin denT, denT >== tOne ]
@@ -509,24 +453,21 @@ solveFLiteralInst numT denT rndT ty
         , Just d    <- tIsNum denT
          -> case FP.bfDiv opts (FP.bfFromInteger n) (FP.bfFromInteger d) of
               (_, FP.Ok) -> SolvedIf []
-              _ -> Unsolvable $ TCErrorMessage
-                              $ show n ++ "/" ++ show d ++ " cannot be " ++
-                                "represented in " ++ show (pp ty)
+              _ -> Unsolvable
 
         | otherwise -> Unsolved
 
-      _ -> Unsolvable $ TCErrorMessage $ show
-         $ "Type" <+> quotes (pp ty) <+> "does not support fractional literals."
+      _ -> Unsolvable
 
 -- | Solve Literal constraints.
 solveLiteralInst :: Type -> Type -> Solved
 solveLiteralInst val ty
-  | TCon (TError _ e) _ <- tNoUser val = Unsolvable e
+  | TCon (TError {}) _ <- tNoUser val = Unsolvable
   | otherwise =
     case tNoUser ty of
 
       -- Literal n Error -> fails
-      TCon (TError _ e) _ -> Unsolvable e
+      TCon (TError {}) _ -> Unsolvable
 
       -- (1 >= val) => Literal val Bit
       TCon (TC TCBit) [] -> SolvedIf [ tOne >== val ]
@@ -544,9 +485,7 @@ solveLiteralInst val ty
           let bf = FP.bfFromInteger n
           in case FP.bfRoundFloat opts bf of
                (bf1,FP.Ok) | bf == bf1 -> SolvedIf []
-               _ -> Unsolvable $ TCErrorMessage
-                               $ show n ++ " cannot be " ++
-                                "represented in " ++ show (pp ty)
+               _ -> Unsolvable
 
         | otherwise -> Unsolved
 
@@ -565,5 +504,6 @@ solveLiteralInst val ty
 
       TVar _ -> Unsolved
 
-      _ -> Unsolvable $ TCErrorMessage $ show
-         $ "Type" <+> quotes (pp ty) <+> "does not support integer literals."
+      _ -> Unsolvable
+
+

@@ -132,8 +132,8 @@ evalType env ty =
         _ -> evalPanic "evalType" ["not a value type", show ty]
     TCon (TF f) ts      -> Left $ evalTF f (map num ts)
     TCon (PC p) _       -> evalPanic "evalType" ["invalid predicate symbol", show p]
-    TCon (TError _ x) _ -> evalPanic "evalType"
-                                ["Lingering typer error", show (pp x)]
+    TCon (TError _) ts -> evalPanic "evalType"
+                             $ "Lingering invalid type" : map (show . pp) ts
   where
     val = evalValType env
     num = evalNumType env

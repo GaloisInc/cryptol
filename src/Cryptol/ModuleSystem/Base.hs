@@ -505,10 +505,10 @@ typecheck act i params env = do
 
   case out of
 
-    T.InferOK warns seeds supply' o ->
+    T.InferOK nameMap warns seeds supply' o ->
       do setNameSeeds seeds
          setSupply supply'
-         typeCheckWarnings warns
+         typeCheckWarnings nameMap warns
          menv <- getModuleEnv
          case meCoreLint menv of
            NoCoreLint -> return ()
@@ -519,9 +519,9 @@ typecheck act i params env = do
                            Left err -> panic "Core lint failed:" [show err]
          return o
 
-    T.InferFailed warns errs ->
-      do typeCheckWarnings warns
-         typeCheckingFailed errs
+    T.InferFailed nameMap warns errs ->
+      do typeCheckWarnings nameMap warns
+         typeCheckingFailed nameMap errs
 
 -- | Generate input for the typechecker.
 genInferInput :: Range -> PrimMap ->

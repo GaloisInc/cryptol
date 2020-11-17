@@ -589,7 +589,7 @@ checkP p tGoal@(WithSource _ src) =
   do (x, t) <- inferP p
      ps <- unify tGoal (thing t)
      let rng   = fromMaybe emptyRange (getLoc p)
-     let mkErr = recordError . UnsolvedGoals Nothing . (:[])
+     let mkErr = recordError . UnsolvedGoals . (:[])
                                                    . Goal (CtPattern src) rng
      mapM_ mkErr ps
      return (Located (srcRange t) x)
