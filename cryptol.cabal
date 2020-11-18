@@ -207,8 +207,6 @@ library
   if impl(ghc >= 8.0.1)
      ghc-options: -Wno-redundant-constraints
 
-  ghc-prof-options: -O2 -fprof-auto-top
-
   if flag(relocatable)
       cpp-options: -DRELOCATABLE
 
@@ -238,8 +236,6 @@ executable cryptol
   GHC-options:         -Wall -threaded -rtsopts "-with-rtsopts=-N1 -A64m" -O2
   if impl(ghc >= 8.0.1)
      ghc-options: -Wno-redundant-constraints
-
-  ghc-prof-options: -O2 -fprof-auto-top
 
   if os(linux) && flag(static)
       ld-options:      -static -pthread
