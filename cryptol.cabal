@@ -37,11 +37,6 @@ flag relocatable
   default: True
   description: Don't use the Cabal-provided data directory for looking up Cryptol libraries. This is useful when the data directory can't be known ahead of time, like for a relocatable distribution.
 
--- Note: the Cryptol server needs to be updated to some new APIs.
---flag server
---  default: False
---  description: Build with the ZeroMQ/JSON cryptol-server executable
-
 library
   Default-language:
     Haskell2010
@@ -207,8 +202,6 @@ library
   if impl(ghc >= 8.0.1)
      ghc-options: -Wno-redundant-constraints
 
-  ghc-prof-options: -O2 -fprof-auto-top
-
   if flag(relocatable)
       cpp-options: -DRELOCATABLE
 
@@ -239,8 +232,6 @@ executable cryptol
   if impl(ghc >= 8.0.1)
      ghc-options: -Wno-redundant-constraints
 
-  ghc-prof-options: -O2 -fprof-auto-top
-
   if os(linux) && flag(static)
       ld-options:      -static -pthread
 
@@ -251,37 +242,6 @@ executable cryptol-html
   hs-source-dirs: utils
   build-depends: base, text, cryptol, blaze-html
   GHC-options: -Wall
-
--- Note: the Cryptol server needs to be updated to some new APIs.
---executable cryptol-server
---  main-is:             Main.hs
---  hs-source-dirs:      cryptol-server
---  other-modules:       Cryptol.Aeson
---  default-language:    Haskell2010
---  default-extensions:  OverloadedStrings
---  GHC-options:         -Wall -threaded -rtsopts "-with-rtsopts=-N1 -A64m"
---  if impl(ghc >= 8.0.1)
---     ghc-options: -Wno-redundant-constraints
---  if os(linux) && flag(static)
---      ld-options:      -static -pthread
---  if flag(server)
---     build-depends: aeson >= 0.10
---                  , aeson-pretty >= 0.7
---                  , base
---                  , base-compat
---                  , bytestring >= 0.10
---                  , containers
---                  , cryptol
---                  , filepath
---                  , monad-control
---                  , optparse-applicative >= 0.12
---                  , text
---                  , transformers
---                  , unix
---                  , unordered-containers >= 0.2
---                  , zeromq4-haskell >= 0.6
---  else
---      buildable: False
 
 benchmark cryptol-bench
   type:                exitcode-stdio-1.0
