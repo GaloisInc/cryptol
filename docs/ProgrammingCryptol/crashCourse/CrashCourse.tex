@@ -48,18 +48,20 @@ write the types of all expressions; they will be automatically inferred by the
 type-inference engine.  Of course, in certain contexts the user might
 choose to supply a type explicitly.  The notation is simple: we simply
 put the expression, followed by {\tt :} and the type. For instance,
-\begin{Verbatim}
+\begin{replinVerb}
    12 : [8]
-\end{Verbatim}
+\end{replinVerb}
 means the value {\tt 12} has type {\tt [8]}, i.e., it is an 8-bit
 word. We can also supply partial types. For example,
-\begin{Verbatim}
+\begin{replinVerb}
    12 : [_]
-\end{Verbatim}
+\end{replinVerb}
+\restartrepl
 means that \texttt{12} has a word type with an unspecified number of
 bits. Cryptol will infer the unspecified part of the type in this
 case. We shall see many other examples of typed expressions in the
 following discussion.
+
 
 %=====================================================================
 \sectionWithAnswers{Bits: Booleans}{sec:bits}
@@ -77,7 +79,7 @@ that act on bit values.
 \begin{Exercise}\label{ex:dataBit}
   Type in the following expressions at the Cryptol prompt, and observe
   the output:
-\begin{REPL}
+\begin{replinVerb}
   True
   false
   False : Bit
@@ -86,14 +88,14 @@ that act on bit values.
   (True && False) ^ True
   ~False
   ~(False || True)
-\end{REPL}
+\end{replinVerb}
 Remember that Cryptol is case sensitive, and hence {\tt false} is
 different from {\tt False}.\indCaseSensitive
 \end{Exercise}
 \begin{Answer}\ansref{ex:dataBit}
 Here is the response from Cryptol, in order:
 \begin{small}
-\begin{REPL}
+\begin{reploutVerb}
   True
   [error] at <interactive>:1:1--1:6 Value not in scope: false
   False
@@ -102,7 +104,7 @@ Here is the response from Cryptol, in order:
   True
   True
   False
-\end{REPL}
+\end{reploutVerb}
 \end{small}
 \end{Answer}
 
@@ -133,12 +135,13 @@ example. To do so, use the command:\indSettingBase
 The supported values for this setting are 2 (binary), 8 (octal), 10
 (decimal), and 16 (hexadecimal).  Conversely, we can \emph{write}
 numbers in these bases in Cryptol programs too:
-\begin{Verbatim}
+\begin{replinVerb}
   0b11111011110    // binary
   0o3736           // octal
   2014             // decimal
   0x7de            // hexadecimal
-\end{Verbatim}
+\end{replinVerb}
+\restartrepl
 
 Decimal numbers pose a problem in a bit-precise language like Cryptol.
 Numbers represented in a base that is a power of two unambiguously
@@ -177,22 +180,21 @@ override this by giving an explicit type signature.\indSignature
 \begin{Exercise}\label{ex:decimalType}
   Try writing some decimal numbers at different types, like
   \texttt{12:[4]} and \texttt{50:[8]}. How does Cryptol respond if
-  you write \repl{19:[4]} and why? What is the largest decimal
+  you write \replin{19:[4]} and why? What is the largest decimal
   number you can write at type \texttt{[8]}? What is the smallest
   allowable bit size for \texttt{32}? What is the smallest allowable
   bit size for \texttt{0}?
 \end{Exercise}
 \begin{Answer}\ansref{ex:decimalType}
   Upon writing \texttt{19:[4]}, Cryptol prints the error:
-  \begin{REPL}
+  \begin{reploutVerb}
     [error] at <interactive>:1:1--1:3:
-      Unsolvable constraints:
-        • 4 >= 5
+      • Unsolvable constraint:
+          4 >= 5
             arising from
             use of literal or demoted expression
             at <interactive>:1:1--1:3
-        • Reason: It is not the case that 4 >= 5
-  \end{REPL}
+  \end{reploutVerb}
   because \texttt{19} requires at least 5 bits to represent.
   \texttt{255:[8]} is the largest value of type \texttt{[8]}.
   \texttt{[6]} is the smallest type for \texttt{32}. \texttt{[0]} is
@@ -204,11 +206,13 @@ override this by giving an explicit type signature.\indSignature
     base=10}, and other base values. Also try writing numbers directly
   in different bases at the command line, such as {\tt 0o1237}.  Feel
   free to try other bases. What is the hexadecimal version of the
-  octal number \repl{0o7756677263570015}? What is the decimal version?
-  \hiderepl{:set base=10}\hiderepl{0o7756677263570015}\hiderepl{:set base=16}
+  octal number \replin{0o7756677263570015}? What is the decimal version?
+  \hidereplin{:set base=10}
+  \hidereplin{0o7756677263570015}
+  \hidereplin{:set base=16}
 \end{Exercise}
 \begin{Answer}\ansref{ex:setBase}
-\repl{0xfeedfacef00d} in hexadecimal, \repl{280298068570125} in decimal.
+\replout{0xfeedfacef00d} in hexadecimal, \replout{280298068570125} in decimal.
 \end{Answer}
 
 \note{We will revisit the notion of words in \autoref{sec:words2},
@@ -229,17 +233,17 @@ the result: For example, \texttt{-12} and \texttt{- toInteger 0xc}
 represent the integer $-12$.
 
 \begin{Exercise}\label{ex:int:1}
-  Compare the results of evaluating the expressions \repl{0x8 + 0x9}
-  and \repl{toInteger 0x8 + toInteger 0x9}. Also try evaluating
-  \repl{toInteger (- 0x5)}. Can you explain the results?
+  Compare the results of evaluating the expressions \replin{0x8 + 0x9}
+  and \replin{toInteger 0x8 + toInteger 0x9}. Also try evaluating
+  \replin{toInteger (- 0x5)}. Can you explain the results?
 \end{Exercise}
 \begin{Answer}\ansref{ex:int:1}
 Here are Cryptol's responses:
-\begin{REPL}
+\begin{reploutVerb}
   0x1
   17
   11
-\end{REPL}
+\end{reploutVerb}
 \texttt{0x8 + 0x9} evaluates to \texttt{0x1} because addition on 4-bit
 words wraps around when the sum is 16 or more and it overflows. On the
 other hand, \texttt{Integer} addition never overflows, so the answer
@@ -255,18 +259,18 @@ Just like with fixed-width bitvector values, arithmetic in
 \texttt{Z n} will ``wrap around'' (i.e., be reduced modulo \texttt{n})
 when values get too large.
 \begin{Exercise}\label{ex:int:2}
-  Compare the results of evaluating \repl{ (5 : Z 7) + (6 : Z 7) }
-  with \repl{ fromZ (5 : Z 7) + fromZ (6 : Z 7) }.
-  What is the result of \repl{ -3 : Z 7 }?
+  Compare the results of evaluating \replin{ (5 : Z 7) + (6 : Z 7) }
+  with \replin{ fromZ (5 : Z 7) + fromZ (6 : Z 7) }.
+  What is the result of \replin{ -3 : Z 7 }?
   Were the results what you expected?
 \end{Exercise}
 \begin{Answer}\ansref{ex:int:2}
 Here are Cryptol's responses:
-\begin{REPL}
+\begin{reploutVerb}
   4
   11
   4
-\end{REPL}
+\end{reploutVerb}
 \end{Answer}
 
 \paragraph*{Prime moduli}
@@ -281,31 +285,30 @@ The type \texttt{Z p} is also known as the
 
 \begin{Exercise}\label{ex:int:3}
 What are the results of evaluating the following expressions?
-\begin{REPL}
+\begin{replinVerb}
   recip 5 : Z 7
   1 /. 3 : Z 7
   (recip 5) * 5 : Z 7
   recip 0 : Z 7
   recip (3+4) : Z 7
   (recip 5) * 5 : Z 8
-\end{REPL}
+\end{replinVerb}
 \end{Exercise}
 \begin{Answer}\ansref{ex:int:3}
 Here are Cryptol's responses:
-\begin{REPL}
+\begin{reploutVerb}
   3
   5
   1
   division by 0
   division by 0
   [error] at <interactive>:1:1--1:20:
-  Unsolvable constraints:
-    • prime 8
-        arising from
-        use of expression recip
-        at <interactive>:1:2--1:7
-    • Reason: 8 is not a prime number
-\end{REPL}
+  • Unsolvable constraint:
+      prime 8
+      arising from
+      use of expression recip
+      at <interactive>:1:2--1:7
+\end{reploutVerb}
 \end{Answer}
 
 %=====================================================================
@@ -324,7 +327,7 @@ in decimal, hex and binary forms, as well as using scientific notation.
 
 For example, all of the following expression create the same
 value representing one half:
-\begin{Verbatim}
+\begin{replinVerb}
   ratio 1 2
   ratio 2 4
   (1 /. 2) : Rational
@@ -335,7 +338,8 @@ value representing one half:
   0b0.1 : Rational
   50.0e-2 : Rational
   0x8.0p-4 : Rational
-\end{Verbatim}
+\end{replinVerb}
+\restartrepl
 
 Note, the division operation on \texttt{Rational} is
 written \texttt{/.}, and should not be confused with
@@ -352,7 +356,7 @@ floating point numbers with \texttt{e} bits in the exponent and
 \texttt{p-1} bits in the mantissa.  The family is defined in a built-in
 module called \texttt{Float} so to use it you'd need to either import
 it in you Cryptol specification or use \texttt{:m Float} on the
-Cryptol REPL.
+Cryptol Verbatim.
 
 Floating point numbers may be written using either integral or fractional
 literals.  In general, literals that cannot be represented exactly are
@@ -391,8 +395,8 @@ Cryptol supports reasoning about floating point numbers using the
 These back-ends have names starting with {\texttt w4}, for example,
 a good one to try is \texttt{w4-z3}.
 
-The Cryptol REPL has some settings to control how floating point numbers
-are printed on the REPL.  In particular \texttt{:fp-base} specifies
+The Cryptol Verbatim has some settings to control how floating point numbers
+are printed on the Verbatim.  In particular \texttt{:fp-base} specifies
 in what numeric base to output floating point numbers, while
 \texttt{:fp-format} provides various settings for formatting the
 results.   For more information, see \texttt{:help :set fp-format}.
@@ -421,19 +425,19 @@ of type \texttt{()}.
 
 \begin{Exercise}\label{ex:tup:1}
 Try out the following tuples:
-\begin{REPL}
+\begin{Verbatim}
   (1, 2+4) : (Integer, Integer)
   (True, False, True ^ False)
   ((1, 2), False, (3-1, (4, True))) : ((Integer, Integer), _, (Integer, (Integer, _)))
-\end{REPL}
+\end{Verbatim}
 \end{Exercise}
 \begin{Answer}\ansref{ex:tup:1}
 Here are Cryptol's responses:
-\begin{REPL}
+\begin{Verbatim}
   (1, 6)
   (True, False, True)
   ((1, 2), False, (2, (4, True)))
-\end{REPL}
+\end{Verbatim}
 \end{Answer}
 
 \todo[inline]{Reflect upon these computed expressions.  What is the
@@ -449,11 +453,11 @@ empty tuple, as it has no components to project.
 
 \begin{Exercise}\label{ex:tup:2}
 Try out the following examples:
-\begin{REPL}
+\begin{Verbatim}
   (1, 2+4).0 : Integer
   (1, 2+4).1 : Integer
   ((1, 2), False, (3-1, (4, True))).2.1 : (Integer, Bit)
-\end{REPL}
+\end{Verbatim}
 Write a nested projection to extract the value \texttt{True} from the
 expression:
 \begin{Verbatim}
@@ -462,11 +466,11 @@ expression:
 \end{Exercise}
 \begin{Answer}\ansref{ex:tup:2}
 Here are Cryptol's responses:
-\begin{REPL}
+\begin{Verbatim}
   1
   6
   (4, True)
-\end{REPL}
+\end{Verbatim}
 The required expression would be:
 \begin{Verbatim}
   ((1, 2), (2, 6, (True, 4)), False).1.2.0
@@ -513,14 +517,14 @@ $3\times3$ matrix.
 \begin{Exercise}\label{ex:seq:2}
   Type in the following expressions to Cryptol and observe the
   type errors:
-\begin{REPL}
+\begin{Verbatim}
   [True, [True]]
   [[1, 2, 3], [4, 5]]
-\end{REPL}
+\end{Verbatim}
 \end{Exercise}
 \begin{Answer}\ansref{ex:seq:2}
 In each case we get a type error:
-\begin{REPL}
+\begin{Verbatim}
   [error] at <interactive>:1:8--1:14:
     Type mismatch:
       Expected type: Bit
@@ -531,7 +535,7 @@ In each case we get a type error:
       Expected type: 3
       Inferred type: 2
       When checking length of sequence
-\end{REPL}
+\end{Verbatim}
 In the first case, we are trying to put a bit (\texttt{True}) and a
 singleton sequence containing a bit (\texttt{[True]}) in the same
 sequence, which have different types. In the second case, we are
@@ -553,7 +557,7 @@ constructs guarantee that enumeration elements are distinct.
 \begin{Exercise}\label{ex:seq:3}
   Explore various ways of constructing enumerations in Cryptol, by
   using the following expressions:
-\begin{REPL}
+\begin{Verbatim}
   [1 .. 10 : Integer]            // increment with step 1
   [1, 3 .. 10 : Integer]         // increment with step 2 (= 3-1)
   [10, 9 .. 1 : Integer]         // decrement with step 1 (= 10-9)
@@ -562,11 +566,11 @@ constructs guarantee that enumeration elements are distinct.
   [10, 11 .. 1 : Integer]        // increment with step 1
   [1 .. 10 : [8]]                // increment 8-bit words with step 1
   [1, 3 .. 10 : [16]]            // increment 16-bit words with step 2 (= 3-1)
-\end{REPL}
+\end{Verbatim}
 \end{Exercise}
 \begin{Answer}\ansref{ex:seq:3}
 Here are the responses from Cryptol:
-\begin{REPL}
+\begin{Verbatim}
   [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
   [1, 3, 5, 7, 9]
   [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
@@ -575,7 +579,7 @@ Here are the responses from Cryptol:
   []
   [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a]
   [0x0001, 0x0003, 0x0005, 0x0007, 0x0009]
-\end{REPL}
+\end{Verbatim}
 Note how \texttt{[10, 11 ..\ 1]} and \texttt{[10, 9 ..\ 20]} give us empty
 sequences, since the upper bound is smaller than the lower bound in
 the former, and larger in the latter.
@@ -603,22 +607,22 @@ can certainly be defined using Cryptol comprehensions.
   \emph{cartesian comprehension}. We can have one or more components
   in a cartesian comprehension. Experiment with the following
   expressions:\indComp\indCartesian
-\begin{REPL}
+\begin{Verbatim}
    [ (x, y) | x <- [1 .. 3 : Integer], y <- [4, 5 : Integer] ]
    [ x + y  | x <- [1 .. 3 : Integer], y <- [] ]
    [ (x + y, z) | x <- [1, 2 : Integer], y <- [1 : Integer], z <- [3, 4 : Integer] ]
-\end{REPL}
+\end{Verbatim}
 What is the number of elements in the resulting sequence, with respect
 to the sizes of components?
 
 \end{Exercise}
 \begin{Answer}\ansref{ex:seq:4}
 Here are the responses from Cryptol:
-\begin{REPL}
+\begin{Verbatim}
   [(1, 4), (1, 5), (2, 4), (2, 5), (3, 4), (3, 5)]
   []
   [(2, 3), (2, 4), (3, 3), (3, 4)]
-\end{REPL}
+\end{Verbatim}
 The size of the result will be the sizes of the components
 multiplied. For instance, in the first example, the generator
 \texttt{x <- [1 ..\ 3]} assigns 3 values to \texttt{x}, and the generator
@@ -631,21 +635,21 @@ $2\times 3 = 6$ elements.
     comprehension}. We can have any number of parallel branches. The
   contents of each branch will be \emph{zipped} to obtain the results.
   Experiment with the following expressions:
-\begin{REPL}
+\begin{Verbatim}
    [ (x, y) | x <- [1 .. 3 : Integer] | y <- [4 : Integer, 5 : Integer] ]
    [ x + y  | x <- [1 .. 3 : Integer] | y <- [] ]
    [ (x + y, z)  | x <- [1, 2 : Integer] | y <- [1 : Integer] | z <- [3, 4 : Integer] ]
-\end{REPL}
+\end{Verbatim}
 What is the number of elements in the resulting sequence, with respect
 to the sizes of the parallel branches?
 \end{Exercise}
 \begin{Answer}\ansref{ex:seq:5}
 Here are the responses from Cryptol:
-\begin{REPL}
+\begin{Verbatim}
   [(1, 4), (2, 5)]
   []
   [(2, 3)]
-\end{REPL}
+\end{Verbatim}
 In this case, the size of the result will be the minimum of the
 component sizes. For the first example, the generator
 \texttt{x <- [1 ..\ 3]} assigns 3 values to \texttt{x}, and the generator
@@ -688,15 +692,14 @@ generator). The pattern looks like this:
 \begin{Answer}\ansref{ex:seq:6}
   Here is one way of writing such an expression, laid out in multiple
   lines to show the structure:
-\begin{Verbatim}
-  [ [ (i, j) | j <- [1 .. 3] ]
-     | i <- [1 .. 3]
-  ]
+\begin{replinVerb}
+  [ [ (i, j) | j <- [1 .. 3:Integer] ] | i <- [1 .. 3:Integer] ]
+\end{replinVerb}
   produces:
-  [[(1, 1), (1, 2), (1, 3)],
-   [(2, 1), (2, 2), (2, 3)],
+\begin{reploutVerb}
+  [[(1, 1), (1, 2), (1, 3)], [(2, 1), (2, 2), (2, 3)],
    [(3, 1), (3, 2), (3, 3)]]
-\end{Verbatim}
+\end{reploutVerb}
 The outer comprehension is a comprehension (and hence is nested). In
 particular the expression is:
 \begin{Verbatim}
@@ -728,9 +731,8 @@ them very useful for permuting sequences).
 \todo[inline]{Cite other languages that express permutations like this?}
 
 \begin{Exercise}\label{ex:seq:7}
-\hiderepl{:set warnDefaulting=off}
 Try out the following Cryptol expressions:
-\begin{REPL}
+\begin{Verbatim}
   [] # [1, 2:Integer]
   [1, 2:Integer] # []
   [1 .. 5] # [3, 6, 8:Integer]
@@ -746,11 +748,11 @@ Try out the following Cryptol expressions:
   [0 .. 9:Integer] !! [3, 6]
   [0 .. 9:Integer] !! [0 .. 9]
   [0 .. 9:Integer] ! 12
-\end{REPL}
+\end{Verbatim}
 \end{Exercise}
 \begin{Answer}\ansref{ex:seq:7}
 Here are Cryptol's responses:
-\begin{REPL}
+\begin{Verbatim}
   [1, 2]
   [1, 2]
   [1, 2, 3, 4, 5, 3, 6, 8]
@@ -766,7 +768,7 @@ Here are Cryptol's responses:
   [6, 3]
   [9, 8, 7, 6, 5, 4, 3, 2, 1, 0]
   invalid sequence index: 12
-\end{REPL}
+\end{Verbatim}
 \end{Answer}
 
 \begin{Exercise}\label{ex:seq:8}
@@ -801,14 +803,14 @@ infinite sequence: it will lazily construct the sequence and make its
 elements available as demanded by the program.
 
 \begin{Exercise}\label{ex:seq:9}
-Try the following infinite enumerations:\hiderepl{:set base=10}
-\begin{REPL}
+Try the following infinite enumerations:\hidereplin{:set base=10}
+\begin{Verbatim}
   [1:[32] ...]
   [1:[32], 3 ...]
   [1:[32] ...] @ 2000
   [1:[32], 3 ...] @@ [300, 500, 700]
   [100:[32], 102 ...]
-\end{REPL}
+\end{Verbatim}
 \end{Exercise}
 \begin{Answer}\ansref{ex:seq:9}
   When you type in an infinite sequence, Cryptol will only print the
@@ -817,13 +819,13 @@ Try the following infinite enumerations:\hiderepl{:set base=10}
     by setting the {\tt infLength} variable, like so: {\tt Cryptol>
       :set infLength=10} will show the first 10 elements of infinite
     sequences} Here are the responses:
-\begin{REPL}
+\begin{Verbatim}
   [1, 2, 3, 4, 5, ...]
   [1, 3, 5, 7, 9, ...]
   2001
   [601, 1001, 1401]
   [100, 102, 104, 106, 108, ...]
-\end{REPL}
+\end{Verbatim}
 \end{Answer}
 \note{We are explicitly telling Cryptol to use 32-bit words
   as the elements. The reason for doing so will become clear when we
@@ -860,7 +862,7 @@ with the basic operations.
 
 \begin{Exercise}\label{ex:seq:11}
 Try the following expressions:\indTake\indDrop\indSplit\indGroup\indJoin\indTranspose
-\begin{REPL}
+\begin{Verbatim}
   take`{3} [1 .. 12]
   drop`{3} [1 .. 12]
   split`{3} [1 .. 12]
@@ -869,7 +871,7 @@ Try the following expressions:\indTake\indDrop\indSplit\indGroup\indJoin\indTran
   join [[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]]
   transpose [[1, 2, 3, 4], [5, 6, 7, 8]]
   transpose [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
-\end{REPL}
+\end{Verbatim}
 And for fun, think about what these should produce:
 \begin{Verbatim}
   join [1,1]

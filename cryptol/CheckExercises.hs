@@ -8,6 +8,7 @@ module Main(main) where
 import Control.Monad.State
 import Options.Applicative
 import Data.Char (isSpace)
+import Data.Foldable (traverse_)
 import Data.List (isInfixOf, stripPrefix)
 import Data.Maybe (catMaybes, fromMaybe)
 import qualified Data.Sequence as Seq
@@ -26,7 +27,9 @@ data Opts = Opts { latexFile :: FilePath
 
 optsParser :: Parser Opts
 optsParser = Opts
-  <$> strArgument (  help "path to latex file" )
+  <$> strArgument (  help "path to latex file"
+                  <> metavar "PATH"
+                  )
   <*> ( optional $ strOption
         (  long "exe"
         <> short 'e'
@@ -44,17 +47,10 @@ trim :: String -> String
 trim = f . f
    where f = reverse . dropWhile isSpace
 
-data PMode = SearchingMode
-           | ExerciseMode Natural (Seq.Seq Line)
-           -- ^ Line of exercise, lines so far
-           | ExerciseREPLMode Natural (Seq.Seq Line)
-           -- ^ Line of exercise, lines so far
-           | ExerciseDoneMode Natural (Seq.Seq Line)
-           -- ^ Line of exercise, exercise lines
-           | AnswerMode Natural (Seq.Seq Line) Natural (Seq.Seq Line)
-           -- ^ Line of exercise, exercise lines, line of answer, answer lines so far
-           | AnswerREPLMode Natural (Seq.Seq Line) Natural (Seq.Seq Line)
-           -- ^ Line of exercise, exercise lines, line of answer, answer lines so far
+data PMode = AwaitingReplinMode
+           | ReplinMode
+           | AwaitingReploutMode
+           | ReploutMode
   deriving (Eq, Show)
 
 data Line = Line { lineNum :: Natural
@@ -62,42 +58,94 @@ data Line = Line { lineNum :: Natural
                  }
   deriving (Eq, Show)
 
-data Exercise = Exercise { exerciseLineNum :: Natural
-                         , exerciseLines :: Seq.Seq Line
-                         , answerLineNum :: Natural
-                         , answerLines :: Seq.Seq Line
+-- | REPL input and expected output, with line number annotations.
+data ReplData = ReplData { rdReplin  :: Seq.Seq Line
+                         , rdReplout :: Seq.Seq Line
                          }
   deriving (Eq, Show)
 
-data PState = PState { pMode        :: PMode
-                     , pExercises   :: Seq.Seq Exercise
-                     , pCurrentLine :: Natural
+-- | State for the state monad
+data PState = PState { pMode              :: PMode
+                     , pCompletedReplData :: Seq.Seq ReplData
+                     , pReplin            :: Seq.Seq Line
+                     , pReplout           :: Seq.Seq Line
+                     , pCurrentLine       :: Natural
                      }
   deriving (Eq, Show)
 
 initPState :: PState
-initPState = PState SearchingMode Seq.Empty 1
+initPState = PState AwaitingReplinMode Seq.empty Seq.empty Seq.empty 1
 
 type P = StateT PState IO
 
-first :: (a -> a') -> (a, b) -> (a', b)
-first f (a, b) = (f a, b)
+addReplData :: P ()
+addReplData = do
+  replin <- gets pReplin
+  replout <- gets pReplout
+  completedReplData <- gets pCompletedReplData
+  let completedReplData' = completedReplData Seq.|> ReplData replin replout
+  when (not (Seq.null replin && Seq.null replout)) $
+    modify' $ \st -> st { pCompletedReplData = completedReplData'
+                        , pReplin = Seq.empty
+                        , pReplout = Seq.empty
+                        }
 
--- | Like 'stripInfix' from the `extra` package, but the caller supplies a list
--- of lists that could be interpreted as infix separators. The first one
--- supplied that matches is used.
-stripInfixOneOf :: Eq a => [[a]] -> [a] -> Maybe ([a], [a])
+addReplin :: String -> P ()
+addReplin s = do
+  ln <- gets pCurrentLine
+  replin <- gets pReplin
+  modify' $ \st -> st { pReplin = replin Seq.|> Line ln s }
+
+addReplout :: String -> P ()
+addReplout s = do
+  ln <- gets pCurrentLine
+  replout <- gets pReplout
+  modify' $ \st -> st { pReplout = replout Seq.|> Line ln s }
+
+first3  :: (a -> a') -> (a, b, c) -> (a', b, c)
+first3 f (a, b, c) = (f a, b, c)
+
+-- | Like 'stripPrefix', but takes a list of prefixes rather than a single
+-- prefix. Returns the first prefix that matches the start of the list along
+-- with the remainder of the list.
+stripPrefixOneOf :: Eq a => [[a]] -> [a] -> Maybe ([a], [a])
+stripPrefixOneOf [] _ = Nothing
+stripPrefixOneOf (p:ps) as = case stripPrefix p as of
+  Nothing -> stripPrefixOneOf ps as
+  Just as' -> Just (p, as')
+
+-- | Like 'stripInfix', but takes a list of infixes. Returns the infix that
+-- matches at the earliest index.
+stripInfixOneOf :: Eq a => [[a]] -> [a] -> Maybe ([a], [a], [a])
 stripInfixOneOf needles haystack
-  | suffixes <- catMaybes (flip stripPrefix haystack <$> needles)
-  , (rest : _) <- suffixes = Just ([], rest)
+  | Just (needle, suffix) <- stripPrefixOneOf needles haystack
+  = Just ([], needle, suffix)
 stripInfixOneOf _ [] = Nothing
-stripInfixOneOf needles (x:xs) = first (x:) <$> stripInfixOneOf needles xs
+stripInfixOneOf needles (x:xs) = first3 (x:) <$> stripInfixOneOf needles xs
 
-inlineRepls :: String -> [String]
-inlineRepls s
-  | Just (_, s1) <- stripInfixOneOf ["\\repl{","\\hiderepl{"] s
-  , (s2, s3) <- break (=='}') s1 = s2 : inlineRepls s3
-  | otherwise = []
+-- inlineRepls :: String -> [String]
+-- inlineRepls s
+--   | Just (_, s1) <- stripInfixOneOf ["\\replin{","\\hidereplin{"] s
+--   , (s2, s3) <- break (=='}') s1 = s2 : inlineRepls s3
+--   | otherwise = []
+
+data InlineRepl = InlineReplin | InlineReplout
+
+-- | Extracts the first inline repl command returns the type of command, its
+-- contents, and the remainder of the string.
+inlineRepl :: String -> Maybe (InlineRepl, String, String)
+inlineRepl s
+  | Just (_, ir, s1) <- stripInfixOneOf [ "\\replin{"
+                                        , "\\hidereplin{"
+                                        , "\\replout{"
+                                        , "\\hidereplout{"] s
+  , (s2, s3) <- break (=='}') s1 = case ir of
+      "\\replin{" -> Just (InlineReplin, s2, s3)
+      "\\hidereplin{" -> Just (InlineReplin, s2, s3)
+      "\\replout{" -> Just (InlineReplout, s2, s3)
+      "\\hidereplout{" -> Just (InlineReplout, s2, s3)
+      _ -> error "PANIC: CheckExercises.inlineRepl"
+  | otherwise = Nothing
 
 processLine :: String -> P ()
 processLine (trim -> s) = do
@@ -108,47 +156,68 @@ processLine (trim -> s) = do
   m <- gets pMode
   ln <- gets pCurrentLine
   case m of
-    SearchingMode
-      | "\\begin{Exercise}" `isInfixOf` s' ->
-        modify' $ \st -> st { pMode = ExerciseMode ln Seq.empty}
+    AwaitingReplinMode
+      | "\\begin{replinVerb}" `isInfixOf` s' -> do
+          -- Switching from awaiting to ingesting repl input.
+          modify' $ \st -> st { pMode = ReplinMode }
+      | "\\begin{reploutVerb}" `isInfixOf` s' ->
+          -- Switching from awaiting repl input to ingesting repl output.
+          modify' $ \st -> st { pMode = ReploutMode }
+      | "\\restartrepl" `isInfixOf` s' ->
+          -- Commit the input with no accompanying output, indicating it should
+          -- be checked for errors but that the result can be discarded.
+          addReplData
+      | Just (InlineReplin, cmd, rst) <- inlineRepl s -> do
+          -- Ingest an inline replin command.
+          addReplin cmd
+          processLine rst
+      | Just (InlineReplout, cmd, rst) <- inlineRepl s -> do
+          -- Ingest an inline replout command, switching to replout mode.
+          modify' $ \st -> st { pMode = AwaitingReploutMode }
+          addReplout cmd
+          processLine rst
       | otherwise -> return ()
-    ExerciseMode eln elines
-      | "\\end{Exercise}" `isInfixOf` s' ->
-        modify $ \st -> st { pMode = ExerciseDoneMode eln elines}
-      | "\\begin{REPL}" `isInfixOf` s' ->
-        modify' $ \st -> st { pMode = ExerciseREPLMode eln elines}
+    ReplinMode
+      | "\\end{replinVerb}" `isInfixOf` s' ->
+          -- Switching from ingesting repl input to awaiting repl input.
+          modify' $ \st -> st { pMode = AwaitingReplinMode }
       | otherwise -> do
-          let rs = Line ln <$> Seq.fromList (inlineRepls s)
-              elines' = elines Seq.>< rs
-          modify' $ \st -> st { pMode = ExerciseMode eln elines' }
-    ExerciseREPLMode eln elines
-      | "\\end{REPL}" `isInfixOf` s' ->
-        modify' $ \st -> st { pMode = ExerciseMode eln elines }
-      | otherwise ->
-        modify' $ \st -> st { pMode = ExerciseREPLMode eln (elines Seq.|> Line ln s) }
-    ExerciseDoneMode eln elines
-      | "\\begin{Exercise}" `isInfixOf` s' ->
-        modify' $ \st -> st { pMode = ExerciseMode ln Seq.empty }
-      | "\\begin{Answer}" `isInfixOf` s' ->
-        modify' $ \st -> st { pMode = AnswerMode eln elines ln Seq.Empty }
+          -- Ingest the current line, and stay in ReplinMode.
+          replin <- gets pReplin
+          let replin' = replin Seq.|> Line ln s
+          modify' $ \st -> st { pReplin = replin' }
+    AwaitingReploutMode
+      | "\\begin{reploutVerb}" `isInfixOf` s' -> do
+          -- Switching from awaiting to ingesting repl output.
+          modify' $ \st -> st { pMode = ReploutMode }
+      | "\\begin{replinVerb}" `isInfixOf` s' -> do
+          -- Switching from awaiting repl output to ingesting repl input. This
+          -- indicates we have finished building the current repl data, so
+          -- commit it by appending it to the end of the list of completed repl
+          -- data and start a fresh one.
+          addReplData
+          modify' $ \st -> st { pMode = ReplinMode }
+      | Just (InlineReplin, cmd, rst) <- inlineRepl s -> do
+          -- Ingest an inline replin command, switching to replin mode and
+          -- committing the current repl data.
+          addReplData
+          modify' $ \st -> st { pMode = AwaitingReplinMode }
+          addReplin cmd
+          processLine rst
+      | Just (InlineReplout, cmd, rst) <- inlineRepl s -> do
+          -- Ingest an replout command.
+          addReplout cmd
+          processLine rst
       | otherwise -> return ()
-    AnswerMode eln elines aln alines
-      | "\\end{Answer}" `isInfixOf` s' -> do
-          let exercise = Exercise eln elines aln alines
-          modify $ \st -> st { pExercises = pExercises st Seq.|> exercise
-                             , pMode = SearchingMode }
-      | "\\begin{REPL}" `isInfixOf` s' ->
-        modify' $ \st -> st { pMode = AnswerREPLMode eln elines aln alines}
+    ReploutMode
+      | "\\end{reploutVerb}" `isInfixOf` s' -> do
+          -- Switching from ingesting repl output to awaiting repl output.
+          modify' $ \st -> st { pMode = AwaitingReploutMode }
       | otherwise -> do
-          let rs = Line ln <$> Seq.fromList (inlineRepls s)
-              alines' = alines Seq.>< rs
-          modify' $ \st -> st { pMode = AnswerMode eln elines aln alines' }
-    AnswerREPLMode eln elines aln alines
-      | "\\end{REPL}" `isInfixOf` s' ->
-        modify' $ \st -> st { pMode = AnswerMode eln elines aln alines }
-      | otherwise ->
-        modify' $ \st ->
-          st { pMode = AnswerREPLMode eln elines aln (alines Seq.|> Line ln s) }
+          -- Ingest the current line, and stay in ReploutMode.
+          replout <- gets pReplout
+          let replout' = replout Seq.|> Line ln s
+          modify' $ \st -> st { pReplout = replout' }
 
   modify' $ \st -> st { pCurrentLine = pCurrentLine st + 1 }
 
@@ -156,63 +225,77 @@ main :: IO ()
 main = do
   opts <- execParser p
   allLines <- lines <$> readFile (latexFile opts)
-  PState {..} <- flip execStateT initPState $ forM allLines processLine
-  let exercises = filter (not . null . exerciseLines) (toList pExercises)
+  PState {..} <- flip execStateT initPState $ do
+    -- Process every line
+    traverse_ processLine allLines
+    -- Insert the final ReplData upon completion
+    addReplData
+  let allReplData = toList pCompletedReplData
       dir = fromMaybe "." (tempDir opts)
 
-  forM_ exercises $ \ex -> do
-    let exText = unlines $ fmap lineText $ toList $ exerciseLines ex
-        exFileNameTemplate = "ex-" ++ show (exerciseLineNum ex) ++ "-in.icry"
-        ansText = unlines $ fmap lineText $ toList $ answerLines ex
-        ansFileNameTemplate = "ex-" ++ show (answerLineNum ex) ++ "-out-expected.icry"
-        outFileNameTemplate = "ex-" ++ show (answerLineNum ex) ++ "-out.icry"
-    exFile <- writeTempFile dir exFileNameTemplate exText
-    ansFile <- writeTempFile dir ansFileNameTemplate ansText
-    outFile <- emptyTempFile dir outFileNameTemplate
+  forM_ allReplData $ \rd -> do
+    let inText = unlines $ fmap lineText $ toList $ rdReplin rd
+        inFileNameTemplate = "in.icry"
+    inFile <- writeTempFile dir inFileNameTemplate inText
 
     let exe = fromMaybe "./cry run" (cryptolExe opts)
-        cmd = (P.shell (exe ++ " -b " ++ exFile))
+        cryCmd = (P.shell (exe ++ " -b " ++ inFile))
 
-    cmdOut <- P.readCreateProcess cmd ""
+    cryOut <- P.readCreateProcess cryCmd ""
 
-    let outText = unlines $ filter (not . null) $ trim <$> (tail $ lines cmdOut)
+    -- remove temporary input file
+    removeFile inFile
 
-    writeFile outFile outText
+    if Seq.null (rdReplout rd)
+      then do Line lnInrepl _ Seq.:<| _ <- return $ rdReplin rd
+              when ("error" `isInfixOf` cryOut) $ do
+                putStrLn $ "REPL error (replin starting at line " ++ show lnInrepl ++ ")."
+                putStr cryOut
+                exitFailure
+      else do let outExpectedText = unlines $ fmap lineText $ toList $ rdReplout rd
+                  outExpectedFileNameTemplate = "out-expected.icry"
+                  outFileNameTemplate = "out.icry"
+              outExpectedFile <- writeTempFile dir outExpectedFileNameTemplate outExpectedText
+              outFile <- emptyTempFile dir outFileNameTemplate
 
-    let diffCmd = (P.shell ("diff " ++ ansFile ++ " " ++ outFile))
+              let outText = unlines $ filter (not . null) $ trim <$> (tail $ lines cryOut)
 
-    (diffEC, diffOut, _) <- P.readCreateProcessWithExitCode diffCmd ""
-    case diffEC of
-      ExitSuccess -> do
-        -- Remove temporary files
-        removeFile exFile
-        removeFile ansFile
-        removeFile outFile
-      ExitFailure _ -> do
-        putStrLn $ "Exercise mismatch:"
-        putStrLn $ "  Exercise line: " ++ show (exerciseLineNum ex)
-        putStrLn $ "  Answer line: " ++ show (answerLineNum ex)
-        putStrLn $ "Diff output:"
-        putStr diffOut
+              writeFile outFile outText
 
-        let ansFileName = dir ++ "/" ++ ansFileNameTemplate
-            outFileName = dir ++ "/" ++ outFileNameTemplate
+              let diffCmd = (P.shell ("diff " ++ outExpectedFile ++ " " ++ outFile))
 
-        putStrLn ""
-        putStrLn $ "Expected output written to: " ++ ansFileName
-        putStrLn $ "Actual output written to: " ++ outFileName
+              (diffEC, diffOut, _) <- P.readCreateProcessWithExitCode diffCmd ""
+              case diffEC of
+                ExitSuccess -> do
+                  -- Remove temporary output files
+                  removeFile outExpectedFile
+                  removeFile outFile
+                ExitFailure _ -> do
+                  Line lnInrepl _ Seq.:<| _ <- return $ rdReplin rd
 
-        -- Write to log files
-        writeFile ansFileName ansText
-        writeFile outFileName outText
+                  putStrLn $ "REPL output mismatch (replin starting at line " ++ show lnInrepl ++ ")."
+                  putStrLn $ "Diff output:"
+                  putStr diffOut
 
-        -- Remove temporary files and exit
-        removeFile exFile
-        removeFile ansFile
-        removeFile outFile
-        exitFailure
+                  let outExpectedFileName = dir ++ "/" ++ outExpectedFileNameTemplate
+                      outFileName = dir ++ "/" ++ outFileNameTemplate
 
-  putStrLn $ "Successfully checked " ++ show (length exercises) ++ " exercises."
+                  putStrLn ""
+                  putStrLn $ "Expected output written to: " ++ outExpectedFileName
+                  putStrLn $ "Actual output written to: " ++ outFileName
+
+                  -- Write to log files
+                  writeFile outExpectedFileName outExpectedText
+                  writeFile outFileName outText
+
+                  -- Remove temporary output files and exit
+                  removeFile outExpectedFile
+                  removeFile outFile
+                  exitFailure
+
+  putStrLn $ "Successfully checked " ++ show (length allReplData) ++ " repl examples."
+
+  return ()
 
   where p = info (optsParser <**> helper)
             ( fullDesc
