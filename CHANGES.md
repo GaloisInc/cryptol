@@ -1,3 +1,59 @@
+# 2.10.0
+
+## Language changes
+
+* Cryptol now supports primality checking at the type level. The
+  type-level predicate `prime` is true when its parameter passes the
+  Miller-Rabin probabilistic primality test implemented in the GMP
+  library.
+
+* The `Z p` type is now a `Field` when `p` is prime, allowing additional
+  operations on `Z p` values.
+
+* The literals `0` and `1` can now be used at type `Bit`, as
+  alternatives for `False` and `True`, respectively.
+
+## New features
+
+* The interpreter now includes a number of primitive functions that
+  allow faster execution of a number of common cryptographic functions,
+  including the core operations of AES and SHA-2, operations on GF(2)
+  polynomials (the existing `pmod`, `pdiv`, and `pmult` functions), and
+  some operations on prime field elliptic curves. These functions are
+  useful for implementing higher-level algorithms, such as many
+  post-quantum schemes, with more acceptable performance than possible
+  when running a top-to-bottom Cryptol implementation in the
+  interpreter.
+
+  For a full list of the new primitives, see the new Cryptol
+  [`SuiteB`](https://github.com/GaloisInc/cryptol/blob/master/lib/SuiteB.cry)
+  and
+  [`PrimeEC`](https://github.com/GaloisInc/cryptol/blob/master/lib/PrimeEC.cry)
+  modules.
+
+* The REPL now allows lines containing only comments, making it easier
+  to copy and paste examples.
+
+* The interpreter has generally improved performance overall.
+
+* Cryptol releases and nightly builds now include an RPC server
+  alongside the REPL. This provides an alternative interface to the same
+  interpreter and proof engine available from the REPL, but is
+  better-suited to programmatic use. Details on the protocol used by the
+  server are available
+  [here](https://github.com/GaloisInc/argo/blob/master/docs/Protocol.rst).
+  A Python client for this protocol is available
+  [here](https://github.com/GaloisInc/argo/tree/master/python).
+
+* Windows builds are now distributed as both `.tar.gz` and `.msi` files.
+
+## Bug Fixes
+
+* Closed issues #98, #485, #713, #744, #746, #787, #796, #803, #818,
+  #826, #838, #856, #873, #875, #876, #877, #879, #880, #881, #883,
+  #886, #887, #888, #892, #894, #901, #910, #913, #924, #926, #931,
+  #933, #937, #939, #946, #948, #953, #956, #958, and #969.
+
 # 2.9.1
 
 ## Language changes
