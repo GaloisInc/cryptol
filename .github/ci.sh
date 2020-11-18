@@ -122,7 +122,7 @@ install_system_deps() {
   install_yices &
   wait
   export PATH=$PWD/$BIN:$PATH
-  echo "::add-path::$PWD/$BIN"
+  echo "$PWD/$BIN" >> "$GITHUB_PATH"
   is_exe "$BIN" z3 && is_exe "$BIN" cvc4 && is_exe "$BIN" yices
 }
 
@@ -145,7 +145,7 @@ bundle_files() {
   mkdir -p $doc
   cp -R examples/ $doc/examples/
   rm -rf $doc/examples/cryptol-specs
-  cp docs/*md docs/*pdf $doc
+  cp docs/*pdf $doc
 
   # Copy the two interesting examples over
   cp docs/ProgrammingCryptol/{aes/AES,enigma/Enigma}.cry $doc/examples/

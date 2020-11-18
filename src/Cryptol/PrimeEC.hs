@@ -263,6 +263,11 @@ ec_sub p s t = ec_add p s u
   where u = t{ py = Integer.minusBigNat (primeMod p) (py t) }
 {-# INLINE ec_sub #-}
 
+
+ec_negate :: PrimeModulus -> ProjectivePoint -> ProjectivePoint
+ec_negate p s = s{ py = Integer.minusBigNat (primeMod p) (py s) }
+{-# INLINE ec_negate #-}
+
 -- | Compute the elliptic curve group addition operation
 --   for values known not to be the identity.
 --   In other words, if @S@ and @T@ are projective points on a curve,
@@ -381,10 +386,41 @@ ec_mult p d s
 --   and normalize all four values.  This can be done jointly
 --   in a more efficient way than computing the necessary
 --   field inverses separately.
+--   When given points S and T, the returned tuple contains
+--   normalized representations for (S, T, S+T, S-T).
+--
+--   Note there are some special cases that must be handled separately.
 normalizeForTwinMult ::
   PrimeModulus -> ProjectivePoint -> ProjectivePoint ->
   (ProjectivePoint, ProjectivePoint, ProjectivePoint, ProjectivePoint)
-normalizeForTwinMult p s t = (s',t',spt',smt')
+normalizeForTwinMult p s t
+     -- S == 0 && T == 0
+   | Integer.isZeroBigNat a && Integer.isZeroBigNat b =
+        (zro, zro, zro, zro)
+
+     -- S == 0 && T != 0
+   | Integer.isZeroBigNat a =
+        let tnorm = ec_normalize p t
+         in (zro, tnorm, tnorm, ec_negate p tnorm)
+
+     -- T == 0 && S != 0
+   | Integer.isZeroBigNat b =
+        let snorm = ec_normalize p s
+         in (snorm, zro, snorm, snorm)
+
+     -- S+T == 0, both != 0
+   | Integer.isZeroBigNat c =
+        let snorm = ec_normalize p s
+         in (snorm, ec_negate p snorm, zro, ec_double p snorm)
+
+     -- S-T == 0, both != 0
+   | Integer.isZeroBigNat d =
+        let snorm = ec_normalize p s
+         in (snorm, snorm, ec_double p snorm, zro)
+
+     -- S, T, S+T and S-T all != 0
+   | otherwise = (s',t',spt',smt')
+
   where
   spt = ec_add p s t
   smt = ec_sub p s t

@@ -1,52 +1,46 @@
 Loading module Cryptol
 
 [error] at <interactive>:1:1--1:18:
-  Unsolvable constraints:
-    • fin inf
+  • Unsolvable constraint:
+      fin inf
         arising from
         use of partial type function (/^)
         at <interactive>:1:1--1:18
-    • Reason: Expected a finite type, but found `inf`.
 
 [error] at <interactive>:1:1--1:18:
-  Unsolvable constraints:
-    • fin inf
+  • Unsolvable constraint:
+      fin inf
         arising from
         use of partial type function (/^)
         at <interactive>:1:1--1:18
-    • Reason: Expected a finite type, but found `inf`.
 
 [error] at <interactive>:1:1--1:16:
-  Unsolvable constraints:
-    • 0 >= 1
+  • Unsolvable constraint:
+      0 >= 1
         arising from
         use of partial type function (/^)
         at <interactive>:1:1--1:16
-    • Reason: It is not the case that 0 >= 1
 
 [error] at <interactive>:1:1--1:18:
-  Unsolvable constraints:
-    • fin inf
+  • Unsolvable constraint:
+      fin inf
         arising from
         use of partial type function (%^)
         at <interactive>:1:1--1:18
-    • Reason: Expected a finite type, but found `inf`.
 
 [error] at <interactive>:1:1--1:18:
-  Unsolvable constraints:
-    • fin inf
+  • Unsolvable constraint:
+      fin inf
         arising from
         use of partial type function (%^)
         at <interactive>:1:1--1:18
-    • Reason: Expected a finite type, but found `inf`.
 
 [error] at <interactive>:1:1--1:16:
-  Unsolvable constraints:
-    • 0 >= 1
+  • Unsolvable constraint:
+      0 >= 1
         arising from
         use of partial type function (%^)
         at <interactive>:1:1--1:16
-    • Reason: It is not the case that 0 >= 1
 Loading module Cryptol
 Loading module Main
 

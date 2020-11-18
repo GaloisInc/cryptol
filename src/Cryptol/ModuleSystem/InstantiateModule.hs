@@ -14,6 +14,7 @@ import Cryptol.Parser.Position(Located(..))
 import Cryptol.ModuleSystem.Name
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Subst(listParamSubst, apSubst)
+import Cryptol.TypeCheck.SimpType(tRebuild)
 import Cryptol.Utils.Ident(ModName,modParamIdent)
 
 {-
@@ -232,6 +233,7 @@ instance Inst Schema where
 
 instance Inst Type where
   inst env ty =
+    tRebuild $
     case ty of
       TCon tc ts    -> TCon (inst env tc) (inst env ts)
       TVar tv       ->

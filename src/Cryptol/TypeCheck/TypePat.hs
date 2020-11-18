@@ -182,10 +182,10 @@ aLogic :: Pat Prop Type
 aLogic = tp PLogic ar1
 
 --------------------------------------------------------------------------------
-anError :: Kind -> Pat Type TCErrorMessage
+anError :: Kind -> Pat Type ()
 anError k = \a -> case tNoUser a of
-                    TCon (TError k1 err) _ | k == k1 -> return err
-                    _                     -> mzero
+                    TCon (TError (_ :-> k1) ) _ | k == k1 -> return ()
+                    _                                     -> mzero
 
 
 

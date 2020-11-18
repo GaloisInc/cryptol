@@ -3,9 +3,7 @@ Loading module Cryptol
 Loading module Float
 
 [error] at <interactive>:1:1--1:28:
-  Unsolvable constraints:
-    • SignedCmp (Float 5 11)
-        arising from
-        use of expression (<$)
-        at <interactive>:1:1--1:28
-    • Reason: Type 'Float' does not support signed comparisons.
+  • Type `Float 5 11` does not support signed comparisons.
+      arising from
+      use of expression (<$)
+      at <interactive>:1:1--1:28

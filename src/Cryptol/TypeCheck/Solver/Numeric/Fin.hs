@@ -35,8 +35,7 @@ cryIsFinType ctxt ty =
 
     TCon (TC tc) []
       | TCNum _ <- tc -> SolvedIf []
-      | TCInf   <- tc ->
-        Unsolvable $ TCErrorMessage "Expected a finite type, but found `inf`."
+      | TCInf   <- tc -> Unsolvable
 
     TCon (TF f) ts ->
       case (f,ts) of

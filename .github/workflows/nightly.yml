@@ -38,7 +38,7 @@ jobs:
           path: docs
           name: docs
 
-  docker:
+  docker-cryptol:
     runs-on: ubuntu-latest
     needs: [outputs]
     steps:
@@ -54,6 +54,24 @@ jobs:
           tags: "nightly"
           add_git_labels: true
           push: ${{ github.event_name == 'schedule' }}
+
+  docker-cryptol-remote-api:
+    runs-on: ubuntu-latest
+    needs: [outputs]
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: true
+      - name: Publish to Registry
+        uses: docker/build-push-action@v1
+        with:
+          username: ${{ secrets.GITHUBCRYPTOL_USERNAME }}
+          password: ${{ secrets.GITHUBCRYPTOL }}
+          repository: galoisinc/cryptol-remote-api
+          tags: "nightly"
+          add_git_labels: true
+          push: ${{ github.event_name == 'schedule' }}
+          dockerfile: .github/Dockerfile-remote-api
 
   build:
     needs: [outputs, docs]

@@ -1,4 +1,4 @@
-{-# Language DeriveGeneric, DeriveAnyClass #-}
+{-# Language OverloadedStrings, DeriveGeneric, DeriveAnyClass, Safe #-}
 module Cryptol.TypeCheck.TCon where
 
 import qualified Data.Map as Map
@@ -123,7 +123,7 @@ instance HasKind TCon where
   kindOf (TC tc)      = kindOf tc
   kindOf (PC pc)      = kindOf pc
   kindOf (TF tf)      = kindOf tf
-  kindOf (TError k _) = k
+  kindOf (TError k)   = k
 
 instance HasKind UserTC where
   kindOf (UserTC _ k) = k
@@ -190,7 +190,7 @@ instance HasKind TFun where
 
 
 -- | Type constants.
-data TCon   = TC TC | PC PC | TF TFun | TError Kind TCErrorMessage
+data TCon   = TC TC | PC PC | TF TFun | TError Kind
               deriving (Show, Eq, Ord, Generic, NFData)
 
 
@@ -253,10 +253,6 @@ instance Ord UserTC where
 
 
 
-data TCErrorMessage = TCErrorMessage
-  { tcErrorMessage :: !String
-    -- XXX: Add location?
-  } deriving (Show, Eq, Ord, Generic, NFData)
 
 
 -- | Built-in type functions.
@@ -298,11 +294,8 @@ instance PP TCon where
   ppPrec _ (TC tc)        = pp tc
   ppPrec _ (PC tc)        = pp tc
   ppPrec _ (TF tc)        = pp tc
-  ppPrec _ (TError _ msg) = pp msg
+  ppPrec _ (TError _)     = "Error"
 
-
-instance PP TCErrorMessage where
-  ppPrec _ tc = parens (text "error:" <+> text (tcErrorMessage tc))
 
 instance PP PC where
   ppPrec _ x =

@@ -375,16 +375,16 @@ isBoundTV (TVBound {})  = True
 isBoundTV _             = False
 
 
-tIsError :: Type -> Maybe (TCErrorMessage,Type)
+tIsError :: Type -> Maybe Type
 tIsError ty = case tNoUser ty of
-                TCon (TError _ x) [t] -> Just (x,t)
-                TCon (TError _ _) _   -> panic "tIsError" ["Malformed error"]
-                _                     -> Nothing
+                TCon (TError _) [t] -> Just t
+                TCon (TError _) _   -> panic "tIsError" ["Malformed error"]
+                _                   -> Nothing
 
 tHasErrors :: Type -> Bool
 tHasErrors ty =
   case tNoUser ty of
-    TCon (TError _ _) _ -> True
+    TCon (TError _) _   -> True
     TCon _ ts           -> any tHasErrors ts
     TRec mp             -> any tHasErrors mp
     _                   -> False
@@ -640,10 +640,9 @@ tNoUser t = case t of
 
 -- | Make an error value of the given type to replace
 -- the given malformed type (the argument to the error function)
-tError :: Type -> String -> Type
-tError t s = TCon (TError (k :-> k) msg) [t]
+tError :: Type -> Type
+tError t = TCon (TError (k :-> k)) [t]
   where k = kindOf t
-        msg = TCErrorMessage s
 
 tf1 :: TFun -> Type -> Type
 tf1 f x = TCon (TF f) [x]
@@ -762,9 +761,10 @@ pFin :: Type -> Prop
 pFin ty =
   case tNoUser ty of
     TCon (TC (TCNum _)) _ -> pTrue
-    TCon (TC TCInf)     _ -> tError (TCon (PC PFin) [ty]) "`inf` is not finite"
-      -- XXX: should we be doing this here??
-    _                     -> TCon (PC PFin) [ty]
+    TCon (TC TCInf)     _ -> tError prop -- XXX: should we be doing this here??
+    _                     -> prop
+  where
+  prop = TCon (PC PFin) [ty]
 
 pValidFloat :: Type -> Type -> Type
 pValidFloat e p = TCon (PC PValidFloat) [e,p]
@@ -772,12 +772,11 @@ pValidFloat e p = TCon (PC PValidFloat) [e,p]
 pPrime :: Type -> Prop
 pPrime ty =
   case tNoUser ty of
-    TCon (TC TCInf) _ -> pError (TCErrorMessage "`inf` is not prime.")
-    _ -> TCon (PC PPrime) [ty]
+    TCon (TC TCInf) _ -> tError prop
+    _ -> prop
+  where
+  prop = TCon (PC PPrime) [ty]
 
--- | Make a malformed property.
-pError :: TCErrorMessage -> Prop
-pError msg = TCon (TError KProp msg) []
 
 --------------------------------------------------------------------------------
 
@@ -909,7 +908,9 @@ instance PP (WithNames Newtype) where
 --
 --   * 3: @app_type@
 --
---   * 4: @atype@
+--   * 4: @dimensions atype@
+--
+--   * 5: @atype@
 instance PP (WithNames Type) where
   ppPrec prec ty0@(WithNames ty nmMap) =
     case ty of
@@ -929,7 +930,7 @@ instance PP (WithNames Type) where
           _ ->
             case ts of
               [] -> pp c
-              _ -> optParens (prec > 3) $ pp c <+> fsep (map (go 4) ts)
+              _ -> optParens (prec > 3) $ pp c <+> fsep (map (go 5) ts)
 
       TCon (TC tc) ts ->
         case (tc,ts) of
@@ -939,43 +940,43 @@ instance PP (WithNames Type) where
           (TCInteger, [])     -> text "Integer"
           (TCRational, [])    -> text "Rational"
 
-          (TCIntMod, [n])     -> optParens (prec > 3) $ text "Z" <+> go 4 n
+          (TCIntMod, [n])     -> optParens (prec > 3) $ text "Z" <+> go 5 n
 
           (TCSeq,   [t1,TCon (TC TCBit) []]) -> brackets (go 0 t1)
-          (TCSeq,   [t1,t2])  -> optParens (prec > 3)
-                              $ brackets (go 0 t1) <.> go 3 t2
+          (TCSeq,   [t1,t2])  -> optParens (prec > 4)
+                              $ brackets (go 0 t1) <.> go 4 t2
 
           (TCFun,   [t1,t2])  -> optParens (prec > 1)
                               $ go 2 t1 <+> text "->" <+> go 1 t2
 
           (TCTuple _, fs)     -> parens $ fsep $ punctuate comma $ map (go 0) fs
 
-          (_, _)              -> optParens (prec > 3) $ pp tc <+> fsep (map (go 4) ts)
+          (_, _)              -> optParens (prec > 3) $ pp tc <+> fsep (map (go 5) ts)
 
       TCon (PC pc) ts ->
         case (pc,ts) of
           (PEqual, [t1,t2])   -> go 0 t1 <+> text "==" <+> go 0 t2
           (PNeq ,  [t1,t2])   -> go 0 t1 <+> text "!=" <+> go 0 t2
           (PGeq,  [t1,t2])    -> go 0 t1 <+> text ">=" <+> go 0 t2
-          (PFin,  [t1])       -> optParens (prec > 3) $ text "fin" <+> (go 4 t1)
-          (PPrime,  [t1])     -> optParens (prec > 3) $ text "prime" <+> (go 4 t1)
+          (PFin,  [t1])       -> optParens (prec > 3) $ text "fin" <+> (go 5 t1)
+          (PPrime,  [t1])     -> optParens (prec > 3) $ text "prime" <+> (go 5 t1)
           (PHas x, [t1,t2])   -> ppSelector x <+> text "of"
                                <+> go 0 t1 <+> text "is" <+> go 0 t2
           (PAnd, [t1,t2])     -> parens (commaSep (map (go 0) (t1 : pSplitAnd t2)))
 
-          (PRing, [t1])       -> pp pc <+> go 4 t1
-          (PField, [t1])      -> pp pc <+> go 4 t1
-          (PIntegral, [t1])   -> pp pc <+> go 4 t1
-          (PRound, [t1])      -> pp pc <+> go 4 t1
+          (PRing, [t1])       -> pp pc <+> go 5 t1
+          (PField, [t1])      -> pp pc <+> go 5 t1
+          (PIntegral, [t1])   -> pp pc <+> go 5 t1
+          (PRound, [t1])      -> pp pc <+> go 5 t1
 
-          (PCmp, [t1])        -> pp pc <+> go 4 t1
-          (PSignedCmp, [t1])  -> pp pc <+> go 4 t1
-          (PLiteral, [t1,t2]) -> pp pc <+> go 4 t1 <+> go 4 t2
+          (PCmp, [t1])        -> pp pc <+> go 5 t1
+          (PSignedCmp, [t1])  -> pp pc <+> go 5 t1
+          (PLiteral, [t1,t2]) -> pp pc <+> go 5 t1 <+> go 5 t2
 
-          (_, _)              -> optParens (prec > 3) $ pp pc <+> fsep (map (go 4) ts)
+          (_, _)              -> optParens (prec > 3) $ pp pc <+> fsep (map (go 5) ts)
 
       TCon f ts -> optParens (prec > 3)
-                $ pp f <+> fsep (map (go 4) ts)
+                $ pp f <+> fsep (map (go 5) ts)
 
     where
     go p t = ppWithNamesPrec nmMap p t
@@ -1000,17 +1001,23 @@ instance PP (WithNames Type) where
 
 instance PP (WithNames TVar) where
 
-  ppPrec _ (WithNames (TVBound x) mp) =
-    case IntMap.lookup (tpUnique x) mp of
-      Just a  -> text a
-      Nothing ->
-        case tpFlav x of
-          TPModParam n     -> ppPrefixName n
-          TPOther (Just n) -> pp n <.> "`" <.> int (tpUnique x)
-          _  -> pickTVarName (tpKind x) (tvarDesc (tpInfo x)) (tpUnique x)
+  ppPrec _ (WithNames tv mp) =
+    case tv of
+      TVBound {} -> nmTxt
+      TVFree {} -> "?" <.> nmTxt
+    where
+    nmTxt
+      | Just a <- IntMap.lookup (tvUnique tv) mp = text a
+      | otherwise =
+          case tv of
+            TVBound x ->
+              case tpFlav x of
+                TPModParam n     -> ppPrefixName n
+                TPOther (Just n) -> pp n <.> "`" <.> int (tpUnique x)
+                _  -> pickTVarName (tpKind x) (tvarDesc (tpInfo x)) (tpUnique x)
 
-  ppPrec _ (WithNames (TVFree x k _ d) _) =
-    char '?' <.> pickTVarName k (tvarDesc d) x
+            TVFree x k _ d -> pickTVarName k (tvarDesc d) x
+
 
 pickTVarName :: Kind -> TypeSource -> Int -> Doc
 pickTVarName k src uni =

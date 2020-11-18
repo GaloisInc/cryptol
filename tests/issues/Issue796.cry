@@ -1,0 +1,19 @@
+module Issue796 = Issue796_Sig where
+
+parameter
+  type _k: #
+
+type Key = [8 * _k]
+type Block = [64]
+type RoundKey = [64]
+
+aux : RoundKey -> Block -> Block
+aux RK P = zero
+
+// key_schedule : Key -> RoundKey
+key_schedule K = zero
+  where
+    _ = [ groupBy`{4} K ]
+
+// encrypt_block : Key -> Block -> Block
+encrypt_block key pt = aux (key_schedule key) pt

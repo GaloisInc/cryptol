@@ -1,0 +1,8 @@
+module Issue883_Sig where
+
+parameter
+  type w : #
+  type constraint (fin w)
+
+getZeros : [w/8][8]
+getZeros = split`{each=8} zero

@@ -94,7 +94,7 @@ quickSolver ctxt gs0 = go emptySubst [] gs0
 
   go su unsolved (g : gs) =
     case Simplify.simplifyStep ctxt (goal g) of
-      Unsolvable e        -> Left (UnsolvedGoals (Just e) [g])
+      Unsolvable          -> Left (UnsolvableGoals [g])
       Unsolved            -> go su (g : unsolved) gs
       SolvedIf subs       ->
         let cvt x = g { goal = x }
@@ -104,10 +104,7 @@ quickSolver ctxt gs0 = go emptySubst [] gs0
   findImprovement inc [] =
     do let bad = Map.intersectionWith (,) (integralTVars inc) (fracTVars inc)
        case Map.minView bad of
-         Just ((g1,g2),_) ->
-            pure $ Left $
-              UnsolvedGoals (Just (TCErrorMessage "Mutually exclusive goals"))
-                             [g1,g2]
+         Just ((g1,g2),_) -> pure $ Left $ UnsolvableGoals [g1,g2]
          Nothing -> mzero
 
   findImprovement inc (g : gs) =
@@ -159,7 +156,7 @@ defaultReplExpr sol expr sch =
      case mb of
        Nothing -> return Nothing
        Just numBinds -> return $
-         do optss <- mapM tryDefVar otherVs
+         do let optss = map tryDefVar otherVs
             su    <- listToMaybe
                        [ binds | nonSu <- sequence optss
                                , let binds = nonSu ++ numBinds
@@ -185,16 +182,22 @@ defaultReplExpr sol expr sch =
 
   fLitGoals = flitDefaultCandidates gSet
 
-  tryDefVar a =
-    case Map.lookup (TVBound a) fLitGoals of
-      Just m -> m >>= \((_,t),_) -> pure [(a,t)]
-      Nothing ->
-        do let a' = TVBound a
-           gt <- Map.lookup a' (literalGoals gSet)
-           let ok p = not (Set.member a' (fvs p))
-           return [ (a,t) | t <- [ tInteger, tBit, tWord (tWidth (goal gt)) ]
-                          , ok t ]
+  tryDefVar :: TParam -> [(TParam, Type)]
+  tryDefVar a
+    -- REPL defaulting for floating-point literals
+    | Just m <- Map.lookup (TVBound a) fLitGoals
+    = case m of
+        Just ((_,t),_) -> [(a,t)]
+        Nothing        -> []
 
+    -- REPL defaulting for integer literals
+    | Just gt <- Map.lookup (TVBound a) (literalGoals gSet)
+    = let ok p = not (Set.member (TVBound a) (fvs p)) in
+      [ (a,t) | t <- [ tInteger, tWord (tWidth (goal gt)) ]
+              , ok t ]
+
+    -- REPL defaulting for variables unconstrained by a literal constraint
+    | otherwise = [ (a,t) | t <- [tInteger, tRational, tBit] ]
 
   appExpr tys = foldl (\e1 _ -> EProofApp e1)
                       (foldl ETApp expr tys)

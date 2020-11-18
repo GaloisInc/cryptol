@@ -1,0 +1,3 @@
+:set tests=100
+:l dumptests.cry
+:dumptests add32.out add32

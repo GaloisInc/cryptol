@@ -1,0 +1,19 @@
+import PrimeEC
+
+zro : ProjectivePoint 7
+zro = { x = 1, y = 1, z = 0 }
+
+property twin_mult_zro j k =
+  ec_equal`{7} (ec_twin_mult j zro k zro) zro
+
+property twin_mult_zro1 j k S =
+  ec_equal`{7} (ec_twin_mult j zro k S) (ec_mult k S)
+
+property twin_mult_zro2 j k S =
+  ec_equal`{7} (ec_twin_mult j S k zro) (ec_mult j S)
+
+property twin_mult_same j k S =
+  ec_equal`{7} (ec_twin_mult j S k S) (ec_add (ec_mult j S) (ec_mult k S))
+
+property twin_mult_neg j k S =
+  ec_equal`{7} (ec_twin_mult j S k (ec_negate S)) (ec_sub (ec_mult j S) (ec_mult k S))

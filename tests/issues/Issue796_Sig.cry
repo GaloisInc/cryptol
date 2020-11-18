@@ -1,0 +1,7 @@
+module Issue796_Sig where
+
+parameter
+  type Key: *
+  type Block: *
+
+  encrypt_block: Key -> Block -> Block

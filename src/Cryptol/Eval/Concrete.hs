@@ -50,7 +50,6 @@ import qualified Cryptol.SHA as SHA
 import qualified Cryptol.AES as AES
 import qualified Cryptol.PrimeEC as PrimeEC
 import Cryptol.ModuleSystem.Name
-import Cryptol.Testing.Random (randomV)
 import Cryptol.TypeCheck.AST as AST
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.Ident (PrimIdent,prelPrim,floatPrim,suiteBPrim,primeECPrim)

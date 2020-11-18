@@ -1,12 +1,13 @@
 {-# Language FlexibleInstances, DeriveGeneric, DeriveAnyClass #-}
 {-# Language OverloadedStrings #-}
+{-# Language Safe #-}
 module Cryptol.TypeCheck.Error where
 
 import qualified Data.IntMap as IntMap
 import qualified Data.Set as Set
 import Control.DeepSeq(NFData)
 import GHC.Generics(Generic)
-import Data.List((\\),sortBy,groupBy)
+import Data.List((\\),sortBy,groupBy,partition)
 import Data.Function(on)
 
 import qualified Cryptol.Parser.AST as P
@@ -64,10 +65,7 @@ data Warning  = DefaultingKind (P.TParam Name) P.Kind
                 deriving (Show, Generic, NFData)
 
 -- | Various errors that might happen during type checking/inference
-data Error    = ErrorMsg Doc
-                -- ^ Just say this
-
-              | KindMismatch (Maybe TypeSource) Kind Kind
+data Error    = KindMismatch (Maybe TypeSource) Kind Kind
                 -- ^ Expected kind, inferred kind
 
               | TooManyTypeParams Int Kind
@@ -92,10 +90,13 @@ data Error    = ErrorMsg Doc
               | RecursiveType TypeSource Type Type
                 -- ^ Unification results in a recursive type
 
-              | UnsolvedGoals (Maybe TCErrorMessage) [Goal]
-                -- ^ A constraint that we could not solve
-                -- If we have `TCErrorMess` than the goal is impossible
-                -- for the given reason
+              | UnsolvedGoals [Goal]
+                -- ^ A constraint that we could not solve, usually because
+                -- there are some left-over variables that we could not infer.
+
+              | UnsolvableGoals [Goal]
+                -- ^ A constraint that we could not solve and we know
+                -- it is impossible to do it.
 
               | UnsolvedDelayedCt DelayedCt
                 -- ^ A constraint (with context) that we could not solve
@@ -126,6 +127,11 @@ data Error    = ErrorMsg Doc
                 -- ^ Could not determine the value of a numeric type variable,
                 --   but we know it must be at least as large as the given type
                 --   (or unconstrained, if Nothing).
+
+              | UndefinedExistVar Name
+              | TypeShadowing String Name String
+              | MissingModTParam (Located Ident)
+              | MissingModVParam (Located Ident)
                 deriving (Show, Generic, NFData)
 
 -- | When we have multiple errors on the same location, we show only the
@@ -140,6 +146,11 @@ errorImportance err =
     NotForAll {}                                     -> 6
     TypeVariableEscaped {}                           -> 5
 
+    UndefinedExistVar {}                             -> 10
+    TypeShadowing {}                                 -> 2
+    MissingModTParam {}                              -> 10
+    MissingModVParam {}                              -> 10
+
 
     CannotMixPositionalAndNamedTypeParams {}         -> 8
     TooManyTypeParams {}                             -> 8
@@ -153,7 +164,11 @@ errorImportance err =
 
     RecursiveTypeDecls {}                            -> 9
 
-    UnsolvedGoals _ g
+    UnsolvableGoals g
+      | any tHasErrors (map goal g)                  -> 0
+      | otherwise                                    -> 4
+
+    UnsolvedGoals g
       | any tHasErrors (map goal g)                  -> 0
       | otherwise                                    -> 4
 
@@ -162,8 +177,6 @@ errorImportance err =
       | otherwise                                    -> 3
 
     AmbiguousSize {}                                 -> 2
-
-    ErrorMsg {}                                      -> 1
 
 
 
@@ -184,7 +197,6 @@ instance FVS Warning where
 instance TVars Error where
   apSubst su err =
     case err of
-      ErrorMsg _                -> err
       KindMismatch {}           -> err
       TooManyTypeParams {}      -> err
       TyVarWithParams           -> err
@@ -193,7 +205,8 @@ instance TVars Error where
       RecursiveTypeDecls {}     -> err
       TypeMismatch src t1 t2    -> TypeMismatch src !$ (apSubst su t1) !$ (apSubst su t2)
       RecursiveType src t1 t2   -> RecursiveType src !$ (apSubst su t1) !$ (apSubst su t2)
-      UnsolvedGoals x gs        -> UnsolvedGoals x !$ (apSubst su gs)
+      UnsolvedGoals gs          -> UnsolvedGoals !$ apSubst su gs
+      UnsolvableGoals gs        -> UnsolvableGoals !$ apSubst su gs
       UnsolvedDelayedCt g       -> UnsolvedDelayedCt !$ (apSubst su g)
       UnexpectedTypeWildCard    -> err
       TypeVariableEscaped src t xs ->
@@ -207,10 +220,15 @@ instance TVars Error where
       AmbiguousSize x t -> AmbiguousSize x !$ (apSubst su t)
 
 
+      UndefinedExistVar {} -> err
+      TypeShadowing {}     -> err
+      MissingModTParam {}  -> err
+      MissingModVParam {}  -> err
+
+
 instance FVS Error where
   fvs err =
     case err of
-      ErrorMsg {}               -> Set.empty
       KindMismatch {}           -> Set.empty
       TooManyTypeParams {}      -> Set.empty
       TyVarWithParams           -> Set.empty
@@ -219,7 +237,8 @@ instance FVS Error where
       RecursiveTypeDecls {}     -> Set.empty
       TypeMismatch _ t1 t2      -> fvs (t1,t2)
       RecursiveType _ t1 t2     -> fvs (t1,t2)
-      UnsolvedGoals _ gs        -> fvs gs
+      UnsolvedGoals gs          -> fvs gs
+      UnsolvableGoals gs        -> fvs gs
       UnsolvedDelayedCt g       -> fvs g
       UnexpectedTypeWildCard    -> Set.empty
       TypeVariableEscaped _ t xs-> fvs t `Set.union`
@@ -231,6 +250,10 @@ instance FVS Error where
       RepeatedTypeParameter {}              -> Set.empty
       AmbiguousSize _ t -> fvs t
 
+      UndefinedExistVar {} -> Set.empty
+      TypeShadowing {}     -> Set.empty
+      MissingModTParam {}  -> Set.empty
+      MissingModVParam {}  -> Set.empty
 
 instance PP Warning where
   ppPrec = ppWithNamesPrec IntMap.empty
@@ -256,9 +279,6 @@ instance PP (WithNames Warning) where
 instance PP (WithNames Error) where
   ppPrec _ (WithNames err names) =
     case err of
-      ErrorMsg msg ->
-        addTVarsDescsAfter names err
-        msg
 
       RecursiveType src t1 t2 ->
         addTVarsDescsAfter names err $
@@ -318,17 +338,9 @@ instance PP (WithNames Error) where
              , "When checking" <+> pp src
              ]
 
-      UnsolvedGoals imp gs
-        | Just msg <- imp ->
-          addTVarsDescsAfter names err $
-          nested "Unsolvable constraints:" $
-          let reason = ["Reason:" <+> text (tcErrorMessage msg)]
-              unErr g = case tIsError (goal g) of
-                          Just (_,p) -> g { goal = p }
-                          Nothing    -> g
-          in
-          bullets (map (ppWithNames names) (map unErr gs) ++ reason)
+      UnsolvableGoals gs -> explainUnsolvable names gs
 
+      UnsolvedGoals gs
         | noUni ->
           addTVarsDescsAfter names err $
           nested "Unsolved constraints:" $
@@ -391,6 +403,18 @@ instance PP (WithNames Error) where
                  Nothing -> empty
          in addTVarsDescsAfter names err ("Ambiguous numeric type:" <+> pp (tvarDesc x) $$ sizeMsg)
 
+      UndefinedExistVar x -> "Undefined type" <+> quotes (pp x)
+      TypeShadowing this new that ->
+        "Type" <+> text this <+> quotes (pp new) <+>
+        "shadowing an existing" <+> text that <+> "with the same name."
+      MissingModTParam x ->
+        "Missing definition for type parameter" <+> quotes (pp (thing x))
+      MissingModVParam x ->
+        "Missing definition for value parameter" <+> quotes (pp (thing x))
+
+
+
+
     where
     bullets xs = vcat [ "•" <+> d | d <- xs ]
 
@@ -417,3 +441,133 @@ instance PP (WithNames Error) where
     mismatchHint _ _ = mempty
 
     noUni = Set.null (Set.filter isFreeTV (fvs err))
+
+
+
+explainUnsolvable :: NameMap -> [Goal] -> Doc
+explainUnsolvable names gs =
+  addTVarsDescsAfter names gs (bullets (map explain gs))
+
+  where
+  bullets xs = vcat [ "•" <+> d | d <- xs ]
+
+
+
+  explain g =
+    let useCtr = "Unsolvable constraint:" $$
+                  nest 2 (ppWithNames names g)
+
+    in
+    case tNoUser (goal g) of
+      TCon (PC pc) ts ->
+        let tys = [ backticks (ppWithNames names t) | t <- ts ]
+            doc1 : _ = tys
+            custom msg = msg $$
+                         nest 2 (text "arising from" $$
+                                 pp (goalSource g)   $$
+                                 text "at" <+> pp (goalRange g))
+        in
+        case pc of
+          PEqual      -> useCtr
+          PNeq        -> useCtr
+          PGeq        -> useCtr
+          PFin        -> useCtr
+          PPrime      -> useCtr
+
+          PHas sel ->
+            custom ("Type" <+> doc1 <+> "does not have field" <+> f 
+                    <+> "of type" <+> (tys !! 1))
+            where f = case sel of
+                        P.TupleSel n _ -> int n
+                        P.RecordSel fl _ -> backticks (pp fl)
+                        P.ListSel n _ -> int n
+
+          PZero  ->
+            custom ("Type" <+> doc1 <+> "does not have `zero`")
+
+          PLogic ->
+            custom ("Type" <+> doc1 <+> "does not support logical operations.")
+
+          PRing ->
+            custom ("Type" <+> doc1 <+> "does not support ring operations.")
+
+          PIntegral ->
+            custom (doc1 <+> "is not an integral type.")
+
+          PField ->
+            custom ("Type" <+> doc1 <+> "does not support field operations.")
+
+          PRound ->
+            custom ("Type" <+> doc1 <+> "does not support rounding operations.")
+
+          PEq ->
+            custom ("Type" <+> doc1 <+> "does not support equality.")
+
+          PCmp        ->
+            custom ("Type" <+> doc1 <+> "does not support comparisons.")
+
+          PSignedCmp  ->
+            custom ("Type" <+> doc1 <+> "does not support signed comparisons.")
+
+          PLiteral ->
+            let doc2 = tys !! 1
+            in custom (doc1 <+> "is not a valid literal of type" <+> doc2)
+
+          PFLiteral ->
+            case ts of
+              ~[m,n,_r,_a] ->
+                 let frac = backticks (ppWithNamesPrec names 4 m <> "/" <>
+                                       ppWithNamesPrec names 4 n)
+                     ty   = tys !! 3
+                 in custom (frac <+> "is not a valid literal of type" <+> ty)
+
+          PValidFloat ->
+            case ts of
+              ~[e,p] ->
+                custom ("Unsupported floating point parameters:" $$
+                     nest 2 ("exponent =" <+> ppWithNames names e $$
+                             "precision =" <+> ppWithNames names p))
+
+
+          PAnd        -> useCtr
+          PTrue       -> useCtr
+
+      _ -> useCtr
+
+
+
+
+-- | This picks the names to use when showing errors and warnings.
+computeFreeVarNames :: [(Range,Warning)] -> [(Range,Error)] -> NameMap
+computeFreeVarNames warns errs =
+  mkMap numRoots numVaras `IntMap.union` mkMap otherRoots otherVars
+
+  {- XXX: Currently we pick the names based on the unique of the variable:
+     smaller uniques get an earlier name (e.g., 100 might get `a` and 200 `b`)
+     This may still lead to changes in the names if the uniques got reordred
+     for some reason.  A more stable approach might be to order the variables
+     on their location in the error/warning, but that's quite a bit more code
+     so for now we just go with the simple approximation. -}
+
+  where
+  mkName x v = (tvUnique x, v)
+  mkMap roots vs = IntMap.fromList (zipWith mkName vs (variants roots))
+
+  (numVaras,otherVars) = partition ((== KNum) . kindOf)
+                       $ Set.toList
+                       $ Set.filter isFreeTV
+                       $ fvs (map snd warns, map snd errs)
+
+  otherRoots = [ "a", "b", "c", "d" ]
+  numRoots   = [ "m", "n", "u", "v" ]
+
+  useUnicode = True
+
+  suff n
+    | n < 10 && useUnicode = [toEnum (0x2080 + n)]
+    | otherwise = show n
+
+  variant n x = if n == 0 then x else x ++ suff n
+
+  variants roots = [ variant n r | n <- [ 0 .. ], r <- roots ]
+

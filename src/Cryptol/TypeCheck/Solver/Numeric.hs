@@ -13,7 +13,6 @@ import qualified GHC.Integer.GMP.Internals as Integer
 
 
 import Cryptol.Utils.Patterns
-import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.Type hiding (tMul)
 import Cryptol.TypeCheck.TypePat
 import Cryptol.TypeCheck.Solver.Types
@@ -34,7 +33,7 @@ import Cryptol.TypeCheck.SimpType as Simp
 cryIsEqual :: Ctxt -> Type -> Type -> Solved
 cryIsEqual ctxt t1 t2 =
   matchDefault Unsolved $
-        (pBin PEqual (==) t1 t2)
+        (pBin (==) t1 t2)
     <|> (aNat' t1 >>= tryEqK ctxt t2)
     <|> (aNat' t2 >>= tryEqK ctxt t1)
     <|> (aTVar t1 >>= tryEqVar t2)
@@ -53,13 +52,13 @@ cryIsEqual ctxt t1 t2 =
 
 -- | Try to solve @t1 /= t2@
 cryIsNotEqual :: Ctxt -> Type -> Type -> Solved
-cryIsNotEqual _i t1 t2 = matchDefault Unsolved (pBin PNeq (/=) t1 t2)
+cryIsNotEqual _i t1 t2 = matchDefault Unsolved (pBin (/=) t1 t2)
 
 -- | Try to solve @t1 >= t2@
 cryIsGeq :: Ctxt -> Type -> Type -> Solved
 cryIsGeq i t1 t2 =
   matchDefault Unsolved $
-        (pBin PGeq (>=) t1 t2)
+        (pBin (>=) t1 t2)
     <|> (aNat' t1 >>= tryGeqKThan i t2)
     <|> (aNat' t2 >>= tryGeqThanK i t1)
     <|> (aTVar t2 >>= tryGeqThanVar i t1)
@@ -94,26 +93,23 @@ cryIsPrime _varInfo ty =
           if untrie primeTable n then
             SolvedIf []
           else
-            Unsolvable $ TCErrorMessage (show n ++ " is not a prime number")
+            Unsolvable
 
-      | TCInf <- tc ->
-        Unsolvable $ TCErrorMessage "`inf` is not a prime number"
+      | TCInf <- tc -> Unsolvable
 
     _ -> Unsolved
 
 
 -- | Try to solve something by evaluation.
-pBin :: PC -> (Nat' -> Nat' -> Bool) -> Type -> Type -> Match Solved
-pBin tf p t1 t2 =
-      Unsolvable <$> anError KNum t1
-  <|> Unsolvable <$> anError KNum t2
-  <|> (do x <- aNat' t1
-          y <- aNat' t2
-          return $ if p x y
-                      then SolvedIf []
-                      else Unsolvable $ TCErrorMessage
-                        $ "It is not the case that " ++
-                              show (pp (TCon (PC tf) [ tNat' x, tNat' y ])))
+pBin :: (Nat' -> Nat' -> Bool) -> Type -> Type -> Match Solved
+pBin p t1 t2
+  | Just _ <- tIsError t1 = pure Unsolvable
+  | Just _ <- tIsError t2 = pure Unsolvable
+  | otherwise = do x <- aNat' t1
+                   y <- aNat' t2
+                   return $ if p x y
+                              then SolvedIf []
+                              else Unsolvable
 
 
 --------------------------------------------------------------------------------
@@ -181,8 +177,7 @@ tryMinIsGeq t1 t2 =
      k2    <- aNat t2
      return $ if k1 >= k2
                then SolvedIf [ b >== t2 ]
-               else Unsolvable $ TCErrorMessage $
-                      show k1 ++ " can't be greater than " ++ show k2
+               else Unsolvable
 
 --------------------------------------------------------------------------------
 
@@ -327,9 +322,6 @@ tryEqK ctxt ty lk =
        case nSub lk rk of
          -- NOTE: (Inf - Inf) shouldn't be possible
          Nothing -> Unsolvable
-                      $ TCErrorMessage
-                      $ "Adding " ++ showNat' rk ++ " will always exceed "
-                                  ++ showNat' lk
 
          Just r -> SolvedIf [ b =#= tNat' r ]
   <|>
@@ -352,9 +344,7 @@ tryEqK ctxt ty lk =
          (Nat 0, Inf) -> SolvedIf [ b =#= tZero ]
 
          -- Inf * t = K ~~~> ERR      (K /= 0)
-         (Nat k, Inf) -> Unsolvable
-                       $ TCErrorMessage
-                       $ show k ++ " != inf * anything"
+         (Nat _k, Inf) -> Unsolvable
 
          (Nat lk', Nat rk')
            -- 0 * t = K2 ~~> K2 = 0
@@ -363,10 +353,7 @@ tryEqK ctxt ty lk =
 
            -- K1 * t = K2 ~~> t = K2/K1
            | (q,0) <- divMod lk' rk' -> SolvedIf [ b =#= tNum q ]
-           | otherwise ->
-               Unsolvable
-             $ TCErrorMessage
-             $ showNat' lk ++ " != " ++ showNat' rk ++ " * anything"
+           | otherwise -> Unsolvable
 
   <|>
   -- K1 == K2 ^^ t    ~~> t = logBase K2 K1
@@ -374,8 +361,7 @@ tryEqK ctxt ty lk =
      return $ case lk of
                 Inf | rk > 1 -> SolvedIf [ b =#= tInf ]
                 Nat n | Just (a,True) <- genLog n rk -> SolvedIf [ b =#= tNum a]
-                _ -> Unsolvable $ TCErrorMessage
-                       $ show rk ++ " ^^ anything != " ++ showNat' lk
+                _ -> Unsolvable
 
   -- XXX: Min, Max, etx
   -- 2  = min (10,y)  --> y = 2
@@ -501,6 +487,3 @@ matchLinear = go (0, [])
 
 
 
-showNat' :: Nat' -> String
-showNat' Inf = "inf"
-showNat' (Nat n) = show n

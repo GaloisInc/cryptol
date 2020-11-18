@@ -25,7 +25,6 @@ module Cryptol.TypeCheck.AST
   , Pragma(..)
   , Fixity(..)
   , PrimMap(..)
-  , TCErrorMessage(..)
   , module Cryptol.TypeCheck.Type
   ) where
 
@@ -252,7 +251,7 @@ instance PP (WithNames Expr) where
                     $ ppWP 3 e <+> text "<>"
 
       ETApp e t     -> optParens (prec > 3)
-                    $ ppWP 3 e <+> ppWP 4 t
+                    $ ppWP 3 e <+> ppWP 5 t
 
       EWhere e ds   -> optParens (prec > 0)
                      ( ppW e $$ text "where"
