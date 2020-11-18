@@ -36,6 +36,8 @@
 
 * The interpreter has generally improved performance overall.
 
+* Several error messages are more comprehensible and less verbose.
+
 * Cryptol releases and nightly builds now include an RPC server
   alongside the REPL. This provides an alternative interface to the same
   interpreter and proof engine available from the REPL, but is
