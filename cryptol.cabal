@@ -255,10 +255,12 @@ executable check-exercises
                      , base
                      , containers
                      , directory
+                     , extra
                      , filepath
                      , mtl
                      , optparse-applicative
                      , process
+                     , temporary
                      , text
   GHC-options: -Wall
 
