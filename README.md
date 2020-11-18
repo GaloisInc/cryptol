@@ -46,7 +46,9 @@ Cryptol currently uses Microsoft Research's [Z3 SMT
 solver](https://github.com/Z3Prover/z3) by default to solve constraints
 during type checking, and as the default solver for the `:sat` and
 `:prove` commands.  Cryptol generally requires the most recent version
-of Z3, which at the time of writing this file is 4.8.8.
+of Z3, but you can see the specific version tested in CI by looking for
+the `Z3_VERSION` setting in [this
+file](https://github.com/GaloisInc/cryptol/blob/master/.github/workflows/build.yml).
 
 You can download Z3 binaries for a variety of platforms from their
 [releases page](https://github.com/Z3Prover/z3/releases). If you
@@ -81,8 +83,8 @@ Windows. We regularly build and test it in the following environments:
 ## Prerequisites
 
 Cryptol is regularly built and tested with the three most recent
-versions of GHC, which at the time of this writing are 8.6.5, 8.8.3, and
-8.10.1. The easiest way to install an approporiate version of GHC is
+versions of GHC, which at the time of this writing are 8.6.5, 8.8.4, and
+8.10.2. The easiest way to install an approporiate version of GHC is
 with [ghcup](https://www.haskell.org/ghcup/).
 
 Some supporting non-Haskell libraries are required to build
