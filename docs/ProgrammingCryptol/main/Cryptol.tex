@@ -65,6 +65,13 @@
 \usepackage[disable]{todonotes}
 \allsectionsfont{\sffamily}
 
+%% Commands for checking REPL
+\DefineVerbatimEnvironment
+    {REPL}{Verbatim}
+    {}
+\newcommand{\repl}[1]{\texttt{#1}}{}
+\newcommand{\hiderepl}[1]{}
+
 % \newcommand{\todo}[1]{\begin{center}\framebox{\begin{minipage}{0.8\textwidth}{{\bf TODO:} #1}\end{minipage}}\end{center}}
 \newcommand{\lamex}{\ensuremath{\lambda}-expression\indLamExp}
 \newcommand{\lamexs}{\ensuremath{\lambda}-expressions\indLamExp}
