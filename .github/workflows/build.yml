@@ -160,7 +160,6 @@ jobs:
         run: .github/ci.sh zip_dist
 
       - uses: actions/upload-artifact@v2
-        if: runner.os != 'Windows'
         with:
           name: ${{ needs.outputs.outputs.name }}-${{ runner.os }}-x86_64
           path: "${{ needs.outputs.outputs.name }}-${{ runner.os }}-x86_64.tar.gz*"
