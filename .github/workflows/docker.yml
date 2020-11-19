@@ -32,6 +32,8 @@ jobs:
       - name: Publish to Registry
         uses: docker/build-push-action@v1
         with:
+          username: ${{ secrets.GITHUBCRYPTOL_USERNAME }}
+          password: ${{ secrets.GITHUBCRYPTOL }}
           repository: galoisinc/cryptol-remote-api
           tags: "latest,${{ steps.outputs.outputs.cryptol-version }}"
           add_git_labels: true
