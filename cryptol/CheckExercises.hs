@@ -298,26 +298,34 @@ main = do
 
     let exe = fromMaybe "./cry run" (cryptolExe opts)
 
-    -- remove temporary input file
-    removeFile inFile
-
     if Seq.null (rdReplout rd)
       then do let cryCmd = (P.shell (exe ++ " -b " ++ inFile ++ " -e"))
               (cryEC, cryOut, _) <- P.readCreateProcessWithExitCode cryCmd ""
+
+              -- remove temporary input file
+              removeFile inFile
+
               Line lnReplinStart _ Seq.:<| _ <- return $ rdReplin rd
               _ Seq.:|> Line lnReplinEnd _ <- return $ rdReplin rd
               case cryEC of
-                ExitFailure -> do
+                ExitFailure _ -> do
                   putStrLn $ "REPL error (replin lines " ++
                     show lnReplinStart ++ "-" ++ show lnReplinEnd ++ ")."
                   putStr cryOut
                   exitFailure
                 ExitSuccess -> return ()
-      else do let outExpectedText = unlines $ fmap (trim . lineText) $ toList $ rdReplout rd
+      else do let outExpectedText = unlines $ filter (not . null) $
+                    fmap (trim . lineText) $ toList $ rdReplout rd
                   outExpectedFileNameTemplate = "out-expected.icry"
                   outFileNameTemplate = "out.icry"
+                  cryCmd = (P.shell (exe ++ " -b " ++ inFile))
               outExpectedFile <- writeTempFile dir outExpectedFileNameTemplate outExpectedText
               outFile <- emptyTempFile dir outFileNameTemplate
+
+              (_, cryOut, _) <- P.readCreateProcessWithExitCode cryCmd ""
+
+              -- remove temporary input file
+              removeFile inFile
 
               let outText = unlines $ filter (not . null) $ trim <$> (tail $ lines cryOut)
 
