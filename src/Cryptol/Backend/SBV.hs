@@ -76,9 +76,9 @@ literalSWord w i = svInteger (KBounded False w) i
 
 svMkSymVar_ :: Maybe Quantifier -> Kind -> Maybe String -> SBV.State -> IO SVal
 #if MIN_VERSION_sbv(8,8,0)
-svMkSymVar_ a b c = svMkSymVar (SBV.NonQueryVar a) b c
+svMkSymVar_ = svMkSymVar . SBV.NonQueryVar
 #else
-svMkSymVar_ a b c = svMkSymVar a b c
+svMkSymVar_ = svMkSymVar
 #endif
 
 freshBV_ :: SBV -> Int -> IO (SWord SBV)
