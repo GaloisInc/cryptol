@@ -243,6 +243,23 @@ executable cryptol-html
   build-depends: base, text, cryptol, blaze-html
   GHC-options: -Wall
 
+executable check-exercises
+  Default-language:
+    Haskell2010
+  Main-is:             CheckExercises.hs
+  hs-source-dirs:      cryptol
+  build-depends:       ansi-terminal
+                     , base
+                     , containers
+                     , directory
+                     , extra
+                     , filepath
+                     , mtl
+                     , optparse-applicative
+                     , process
+                     , temporary
+                     , text
+  GHC-options: -Wall
 benchmark cryptol-bench
   type:                exitcode-stdio-1.0
   main-is:             Main.hs
