@@ -6,6 +6,7 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -73,17 +74,24 @@ unpackSBV x = [ svTestBit x i | i <- reverse [0 .. intSizeOf x - 1] ]
 literalSWord :: Int -> Integer -> SWord SBV
 literalSWord w i = svInteger (KBounded False w) i
 
+svMkSymVar_ :: Maybe Quantifier -> Kind -> Maybe String -> SBV.State -> IO SVal
+#if MIN_VERSION_sbv(8,8,0)
+svMkSymVar_ a b c = svMkSymVar (SBV.NonQueryVar a) b c
+#else
+svMkSymVar_ a b c = svMkSymVar a b c
+#endif
+
 freshBV_ :: SBV -> Int -> IO (SWord SBV)
 freshBV_ (SBV stateVar _) w =
-  withMVar stateVar (svMkSymVar Nothing (KBounded False w) Nothing)
+  withMVar stateVar (svMkSymVar_ Nothing (KBounded False w) Nothing)
 
 freshSBool_ :: SBV -> IO (SBit SBV)
 freshSBool_ (SBV stateVar _) =
-  withMVar stateVar (svMkSymVar Nothing KBool Nothing)
+  withMVar stateVar (svMkSymVar_ Nothing KBool Nothing)
 
 freshSInteger_ :: SBV -> IO (SInteger SBV)
 freshSInteger_ (SBV stateVar _) =
-  withMVar stateVar (svMkSymVar Nothing KUnbounded Nothing)
+  withMVar stateVar (svMkSymVar_ Nothing KUnbounded Nothing)
 
 
 -- SBV Evaluation monad -------------------------------------------------------
