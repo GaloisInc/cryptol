@@ -183,6 +183,7 @@ instance Inst Expr where
                     Just y -> EVar y
                     _      -> expr
 
+        ELocated r e              -> ELocated r (inst env e)
         EList xs t                -> EList (inst env xs) (inst env t)
         ETuple es                 -> ETuple (inst env es)
         ERec xs                   -> ERec (fmap go xs)

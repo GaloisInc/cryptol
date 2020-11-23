@@ -31,6 +31,7 @@ class ShowParseable t where
   showParseable :: t -> Doc
 
 instance ShowParseable Expr where
+  showParseable (ELocated _ e) = showParseable e -- TODO? emit range information
   showParseable (EList es _) = parens (text "EList" <+> showParseable es)
   showParseable (ETuple es) = parens (text "ETuple" <+> showParseable es)
   showParseable (ERec ides) = parens (text "ERec" <+> showParseable (canonicalFields ides))

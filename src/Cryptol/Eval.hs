@@ -106,6 +106,8 @@ evalExpr ::
   SEval sym (GenValue sym)
 evalExpr sym env expr = case expr of
 
+  ELocated _ t -> evalExpr sym env t -- TODO, track source locations
+
   -- Try to detect when the user has directly written a finite sequence of
   -- literal bit values and pack these into a word.
   EList es ty

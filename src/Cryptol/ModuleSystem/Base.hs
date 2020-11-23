@@ -453,7 +453,7 @@ checkSingleModule how isrc path m = do
 
 data TCLinter o = TCLinter
   { lintCheck ::
-      o -> T.InferInput -> Either TcSanity.Error [TcSanity.ProofObligation]
+      o -> T.InferInput -> Either (Range, TcSanity.Error) [TcSanity.ProofObligation]
   , lintModule :: Maybe P.ModName
   }
 
@@ -465,7 +465,9 @@ exprLinter = TCLinter
         Left err     -> Left err
         Right (s1,os)
           | TcSanity.same s s1  -> Right os
-          | otherwise -> Left (TcSanity.TypeMismatch "exprLinter" s s1)
+          | otherwise -> Left ( fromMaybe emptyRange (getLoc e')
+                              , TcSanity.TypeMismatch "exprLinter" s s1
+                              )
   , lintModule = Nothing
   }
 

@@ -284,6 +284,8 @@ assigns values to those variables.
 > evalExpr env expr =
 >   case expr of
 >
+>     ELocated _ e -> evalExpr env e
+>
 >     EList es _ty  ->
 >       pure $ VList (Nat (genericLength es)) [ evalExpr env e | e <- es ]
 >

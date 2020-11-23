@@ -70,6 +70,7 @@ specialize expr (ev, byteReader, modEnv) = run $ do
 specializeExpr :: Expr -> SpecM Expr
 specializeExpr expr =
   case expr of
+    ELocated r e  -> ELocated r <$> specializeExpr e
     EList es t    -> EList <$> traverse specializeExpr es <*> pure t
     ETuple es     -> ETuple <$> traverse specializeExpr es
     ERec fs       -> ERec <$> traverse specializeExpr fs

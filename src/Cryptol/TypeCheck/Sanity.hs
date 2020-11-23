@@ -15,7 +15,7 @@ module Cryptol.TypeCheck.Sanity
   ) where
 
 
-import Cryptol.Parser.Position(thing)
+import Cryptol.Parser.Position(thing,Range,emptyRange)
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Subst (apSubst, singleTParamSubst)
 import Cryptol.TypeCheck.Monad(InferInput(..))
@@ -31,15 +31,15 @@ import           Data.Map ( Map )
 import qualified Data.Map as Map
 
 
-tcExpr :: InferInput -> Expr -> Either Error (Schema, [ ProofObligation ])
+tcExpr :: InferInput -> Expr -> Either (Range, Error) (Schema, [ ProofObligation ])
 tcExpr env e = runTcM env (exprSchema e)
 
-tcDecls :: InferInput -> [DeclGroup] -> Either Error [ ProofObligation ]
+tcDecls :: InferInput -> [DeclGroup] -> Either (Range, Error) [ ProofObligation ]
 tcDecls env ds0 = case runTcM env (checkDecls ds0) of
                     Left err     -> Left err
                     Right (_,ps) -> Right ps
 
-tcModule :: InferInput -> Module -> Either Error [ ProofObligation ]
+tcModule :: InferInput -> Module -> Either (Range, Error) [ ProofObligation ]
 tcModule env m = case runTcM env check of
                    Left err -> Left err
                    Right (_,ps) -> Right ps
@@ -142,6 +142,8 @@ exprType expr =
 exprSchema :: Expr -> TcM Schema
 exprSchema expr =
   case expr of
+
+    ELocated rng t -> withRange rng (exprSchema t)
 
     EList es t ->
       do checkTypeIs KType t
@@ -444,6 +446,7 @@ checkArm (m : ms) =
 data RO = RO
   { roTVars   :: Map Int TParam
   , roAsmps   :: [Prop]
+  , roRange   :: Range
   , roVars    :: Map Name Schema
   }
 
@@ -453,7 +456,7 @@ data RW = RW
   { woProofObligations :: [ProofObligation]
   }
 
-newtype TcM a = TcM (ReaderT RO (ExceptionT Error (StateT RW Id)) a)
+newtype TcM a = TcM (ReaderT RO (ExceptionT (Range, Error) (StateT RW Id)) a)
 
 instance Functor TcM where
   fmap = liftM
@@ -468,7 +471,7 @@ instance Monad TcM where
                         let TcM m1 = f a
                         m1)
 
-runTcM :: InferInput -> TcM a -> Either Error (a, [ProofObligation])
+runTcM :: InferInput -> TcM a -> Either (Range, Error) (a, [ProofObligation])
 runTcM env (TcM m) =
   case runM m ro rw of
     (Left err, _) -> Left err
@@ -478,6 +481,7 @@ runTcM env (TcM m) =
                                       | tp <- Map.elems (inpParamTypes env)
                                       , let x = mtpParam tp ]
           , roAsmps = map thing (inpParamConstraints env)
+          , roRange = emptyRange
           , roVars  = Map.union
                         (fmap mvpType (inpParamFuns env))
                         (inpVars env)
@@ -511,12 +515,19 @@ data Error =
     deriving Show
 
 reportError :: Error -> TcM a
-reportError e = TcM (raise e)
+reportError e = TcM $
+  do ro <- ask
+     raise (roRange ro, e)
 
 withTVar :: TParam -> TcM a -> TcM a
 withTVar a (TcM m) = TcM $
   do ro <- ask
      local ro { roTVars = Map.insert (tpUnique a) a (roTVars ro) } m
+
+withRange :: Range -> TcM a -> TcM a
+withRange rng (TcM m) = TcM $
+  do ro <- ask
+     local ro { roRange = rng } m
 
 withAsmp :: Prop -> TcM a -> TcM a
 withAsmp p (TcM m) = TcM $
