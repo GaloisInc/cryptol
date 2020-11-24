@@ -3,13 +3,16 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to Cryptol Remote API's documentation!
-==============================================
+Cryptol Remote API
+==================
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
    :caption: Contents:
 
+   Protocol Overview <Protocol>
+   Cryptol Evaluation <Cryptol>
+   Errors
 
 
 Indices and tables
