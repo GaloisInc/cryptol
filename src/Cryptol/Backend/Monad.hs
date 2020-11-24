@@ -351,7 +351,7 @@ data EvalError
   | NoPrim Name                   -- ^ Primitive with no implementation
   | BadRoundingMode Integer       -- ^ Invalid rounding mode
   | BadValue String               -- ^ Value outside the domain of a partial function.
-    deriving (Typeable,Show)
+    deriving Typeable
 
 instance PP EvalError where
   ppPrec _ e = case e of
@@ -368,6 +368,9 @@ instance PP EvalError where
     BadRoundingMode r -> "invalid rounding mode" <+> integer r
     BadValue x -> "invalid input for" <+> backticks (text x)
     NoPrim x -> text "unimplemented primitive:" <+> pp x
+
+instance Show EvalError where
+  show = show . pp
 
 instance X.Exception EvalError
 
