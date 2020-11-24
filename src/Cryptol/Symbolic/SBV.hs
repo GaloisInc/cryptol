@@ -58,6 +58,7 @@ import qualified Cryptol.Eval as Eval
 import qualified Cryptol.Eval.Concrete as Concrete
 import qualified Cryptol.Eval.Value as Eval
 import           Cryptol.Eval.SBV
+import           Cryptol.Parser.Position (emptyRange)
 import           Cryptol.Symbolic
 import           Cryptol.TypeCheck.AST
 import           Cryptol.Utils.Ident (preludeReferenceName, prelPrim, identText)
@@ -328,6 +329,8 @@ prepareQuery evo ProverCommand{..} =
                  let tbl = primTable sym
                  let ?evalPrim = \i -> (Right <$> Map.lookup i tbl) <|>
                                        (Left <$> Map.lookup i ds)
+                 let ?range = emptyRange
+
                  -- Compute the symbolic inputs, and any domain constraints needed
                  -- according to their types.
                  args <- map (pure . varShapeToValue sym) <$>

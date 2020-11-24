@@ -18,6 +18,7 @@ import Cryptol.Backend
 
 import Cryptol.Backend.Monad( PPOpts )
 
+import Cryptol.Eval.Prims
 import Cryptol.Eval.Type
 import Cryptol.Eval.Value
 import Cryptol.ModuleSystem.Name
@@ -37,7 +38,7 @@ import Prelude.Compat
 -- Evaluation Environment ------------------------------------------------------
 
 data GenEvalEnv sym = EvalEnv
-  { envVars       :: !(IntMap.IntMap (SEval sym (GenValue sym)))
+  { envVars       :: !(IntMap.IntMap (Either (Prim sym) (SEval sym (GenValue sym))))
   , envTypes      :: !TypeEnv
   } deriving Generic
 
@@ -58,8 +59,11 @@ instance Monoid (GenEvalEnv sym) where
 ppEnv :: Backend sym => sym -> PPOpts -> GenEvalEnv sym -> SEval sym Doc
 ppEnv sym opts env = brackets . fsep <$> mapM bind (IntMap.toList (envVars env))
   where
-   bind (k,v) = do vdoc <- ppValue sym opts =<< v
-                   return (int k <+> text "->" <+> vdoc)
+   bind (k,Left _) =
+      do return (int k <+> text "<<prim>>")
+   bind (k,Right v) =
+      do vdoc <- ppValue sym opts =<< v
+         return (int k <+> text "->" <+> vdoc)
 
 -- | Evaluation environment with no bindings
 emptyEnv :: GenEvalEnv sym
@@ -75,23 +79,23 @@ bindVar ::
   SEval sym (GenEvalEnv sym)
 bindVar sym n val env = do
   let nm = show $ ppLocName n
-  val' <- sDelay sym (Just nm) val
-  return $ env{ envVars = IntMap.insert (nameUnique n) val' (envVars env) }
+  val' <- sDelay sym (nameLoc n) (Just nm) val
+  return $ env{ envVars = IntMap.insert (nameUnique n) (Right val') (envVars env) }
 
 -- | Bind a variable to a value in the evaluation environment, without
 --   creating a thunk.
 bindVarDirect ::
   Backend sym =>
   Name ->
-  GenValue sym ->
+  Prim sym ->
   GenEvalEnv sym ->
   GenEvalEnv sym
 bindVarDirect n val env = do
-  env{ envVars = IntMap.insert (nameUnique n) (pure val) (envVars env) }
+  env{ envVars = IntMap.insert (nameUnique n) (Left val) (envVars env) }
 
 -- | Lookup a variable in the environment.
 {-# INLINE lookupVar #-}
-lookupVar :: Name -> GenEvalEnv sym -> Maybe (SEval sym (GenValue sym))
+lookupVar :: Name -> GenEvalEnv sym -> Maybe (Either (Prim sym) (SEval sym (GenValue sym)))
 lookupVar n env = IntMap.lookup (nameUnique n) (envVars env)
 
 -- | Bind a type variable of kind *.

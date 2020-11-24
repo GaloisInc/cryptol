@@ -30,6 +30,7 @@ module Cryptol.Eval (
   , evalSel
   , evalSetSel
   , EvalError(..)
+  , EvalErrorEx(..)
   , Unsupported(..)
   , forceValue
   ) where
@@ -43,6 +44,7 @@ import Cryptol.Eval.Prims
 import Cryptol.Eval.Type
 import Cryptol.Eval.Value
 import Cryptol.ModuleSystem.Name
+import Cryptol.Parser.Position
 import Cryptol.Parser.Selector(ppSelector)
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
@@ -89,7 +91,7 @@ moduleEnv ::
 moduleEnv sym m env = evalDecls sym (mDecls m) =<< evalNewtypes sym (mNewtypes m) env
 
 {-# SPECIALIZE evalExpr ::
-  ConcPrims =>
+  (?range :: Range, ConcPrims) =>
   Concrete ->
   GenEvalEnv Concrete ->
   Expr ->
@@ -100,14 +102,16 @@ moduleEnv sym m env = evalDecls sym (mDecls m) =<< evalNewtypes sym (mNewtypes m
 --   by the `EvalPrims` class, which defines the behavior of bits and words, in
 --   addition to providing implementations for all the primitives.
 evalExpr ::
-  EvalPrims sym =>
+  (?range :: Range, EvalPrims sym) =>
   sym ->
   GenEvalEnv sym  {- ^ Evaluation environment -} ->
   Expr          {- ^ Expression to evaluate -} ->
   SEval sym (GenValue sym)
 evalExpr sym env expr = case expr of
 
-  ELocated _ t -> evalExpr sym env t -- TODO, track source locations
+  ELocated r e ->
+    let ?range = r in
+    evalExpr sym env e
 
   -- Try to detect when the user has directly written a finite sequence of
   -- literal bit values and pack these into a word.
@@ -118,22 +122,22 @@ evalExpr sym env expr = case expr of
         return $ VWord len $
           case tryFromBits sym vs of
             Just w  -> WordVal <$> w
-            Nothing -> do xs <- mapM (sDelay sym Nothing) vs
-                          return $ LargeBitsVal len $ finiteSeqMap sym xs
+            Nothing -> do xs <- mapM (sDelay sym ?range Nothing) vs
+                          return $ LargeBitsVal len $ finiteSeqMap xs
     | otherwise -> {-# SCC "evalExpr->EList" #-} do
-        xs <- mapM (sDelay sym Nothing) vs
-        return $ VSeq len $ finiteSeqMap sym xs
+        xs <- mapM (sDelay sym ?range Nothing) vs
+        return $ VSeq len $ finiteSeqMap xs
    where
     tyv = evalValType (envTypes env) ty
     vs  = map eval es
     len = genericLength es
 
   ETuple es -> {-# SCC "evalExpr->ETuple" #-} do
-     xs <- mapM (sDelay sym Nothing . eval) es
+     xs <- mapM (sDelay sym ?range Nothing . eval) es
      return $ VTuple xs
 
   ERec fields -> {-# SCC "evalExpr->ERec" #-} do
-     xs <- traverse (sDelay sym Nothing . eval) fields
+     xs <- traverse (sDelay sym ?range Nothing . eval) fields
      return $ VRecord xs
 
   ESel e sel -> {-# SCC "evalExpr->ESel" #-} do
@@ -156,7 +160,8 @@ evalExpr sym env expr = case expr of
 
   EVar n -> {-# SCC "evalExpr->EVar" #-} do
     case lookupVar n env of
-      Just val -> val
+      Just (Left p)    -> evalPrim sym n p
+      Just (Right val) -> val
       Nothing  -> do
         envdoc <- ppEnv sym defaultPPOpts env
         panic "[Eval] evalExpr"
@@ -277,7 +282,7 @@ evalDeclGroup sym env dg = do
       -- declare a "hole" for each declaration
       -- and extend the evaluation environment
       holes <- mapM (declHole sym) ds
-      let holeEnv = IntMap.fromList $ [ (nameUnique nm, h) | (nm,_,h,_) <- holes ]
+      let holeEnv = IntMap.fromList $ [ (nameUnique nm, Right h) | (nm,_,h,_) <- holes ]
       let env' = env `mappend` emptyEnv{ envVars = holeEnv }
 
       -- evaluate the declaration bodies, building a new evaluation environment
@@ -321,11 +326,11 @@ fillHole ::
   SEval sym ()
 fillHole sym env (nm, sch, _, fill) = do
   case lookupVar nm env of
-    Nothing -> evalPanic "fillHole" ["Recursive definition not completed", show (ppLocName nm)]
-    Just v
-     | isValueType env sch -> fill =<< sDelayFill sym v (etaDelay sym (show (ppLocName nm)) env sch v)
-     | otherwise           -> fill (etaDelay sym (show (ppLocName nm)) env sch v)
+    Just (Right v)
+     | isValueType env sch -> fill =<< sDelayFill sym v (etaDelay sym (nameLoc nm) (show (ppLocName nm)) env sch v)
+     | otherwise           -> fill (etaDelay sym (nameLoc nm) (show (ppLocName nm)) env sch v)
 
+    _ -> evalPanic "fillHole" ["Recursive definition not completed", show (ppLocName nm)]
 
 -- | 'Value' types are non-polymorphic types recursive constructed from
 --   bits, finite sequences, tuples and records.  Types of this form can
@@ -347,6 +352,7 @@ isValueType _ _ = False
 
 {-# SPECIALIZE etaWord  ::
   Concrete ->
+  Range ->
   Integer ->
   SEval Concrete (GenValue Concrete) ->
   SEval Concrete (WordValue Concrete)
@@ -356,17 +362,19 @@ isValueType _ _ = False
 etaWord  ::
   Backend sym =>
   sym ->
+  Range ->
   Integer ->
   SEval sym (GenValue sym) ->
   SEval sym (WordValue sym)
-etaWord sym n val = do
-  w <- sDelay sym Nothing (fromWordVal "during eta-expansion" =<< val)
+etaWord sym rng n val = do
+  w <- sDelay sym rng Nothing (fromWordVal "during eta-expansion" =<< val)
   xs <- memoMap $ IndexSeqMap $ \i ->
-          do w' <- w; VBit <$> indexWordValue sym w' i
+          do w' <- w; VBit <$> indexWordValue sym rng w' i
   pure $ LargeBitsVal n xs
 
 {-# SPECIALIZE etaDelay ::
   Concrete ->
+  Range ->
   String ->
   GenEvalEnv Concrete ->
   Schema ->
@@ -383,12 +391,13 @@ etaWord sym n val = do
 etaDelay ::
   Backend sym =>
   sym ->
+  Range ->
   String ->
   GenEvalEnv sym ->
   Schema ->
   SEval sym (GenValue sym) ->
   SEval sym (GenValue sym)
-etaDelay sym msg env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
+etaDelay sym rng msg env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
   where
   goTpVars env []     val = go (evalValType (envTypes env) tp0) val
   goTpVars env (v:vs) val =
@@ -452,26 +461,26 @@ etaDelay sym msg env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
       TVArray{} -> v
 
       TVSeq n TVBit ->
-          do w <- sDelayFill sym (fromWordVal "during eta-expansion" =<< v) (etaWord sym n v)
+          do w <- sDelayFill sym (fromWordVal "during eta-expansion" =<< v) (etaWord sym rng n v)
              return $ VWord n w
 
       TVSeq n el ->
-          do x' <- sDelay sym (Just msg) (fromSeq "during eta-expansion" =<< v)
+          do x' <- sDelay sym rng (Just msg) (fromSeq "during eta-expansion" =<< v)
              return $ VSeq n $ IndexSeqMap $ \i -> do
                go el (flip lookupSeqMap i =<< x')
 
       TVStream el ->
-          do x' <- sDelay sym (Just msg) (fromSeq "during eta-expansion" =<< v)
+          do x' <- sDelay sym rng (Just msg) (fromSeq "during eta-expansion" =<< v)
              return $ VStream $ IndexSeqMap $ \i ->
                go el (flip lookupSeqMap i =<< x')
 
       TVFun _t1 t2 ->
-          do v' <- sDelay sym (Just msg) (fromVFun <$> v)
+          do v' <- sDelay sym rng (Just msg) (fromVFun <$> v)
              return $ VFun $ \a -> go t2 ( ($a) =<< v' )
 
       TVTuple ts ->
           do let n = length ts
-             v' <- sDelay sym (Just msg) (fromVTuple <$> v)
+             v' <- sDelay sym rng (Just msg) (fromVTuple <$> v)
              return $ VTuple $
                 [ go t =<< (flip genericIndex i <$> v')
                 | i <- [0..(n-1)]
@@ -479,7 +488,7 @@ etaDelay sym msg env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
                 ]
 
       TVRec fs ->
-          do v' <- sDelay sym (Just msg) (fromVRecord <$> v)
+          do v' <- sDelay sym rng (Just msg) (fromVRecord <$> v)
              let err f = evalPanic "expected record value with field" [show f]
              let eta f t = go t =<< (fromMaybe (err f) . lookupField f <$> v')
              return $ VRecord (mapWithFieldName eta fs)
@@ -502,7 +511,7 @@ declHole sym d =
     DPrim   -> evalPanic "Unexpected primitive declaration in recursive group"
                          [show (ppLocName nm)]
     DExpr _ -> do
-      (hole, fill) <- sDeclareHole sym msg
+      (hole, fill) <- sDeclareHole sym msg (nameLoc nm)
       return (nm, sch, hole, fill)
   where
   nm = dName d
@@ -525,10 +534,11 @@ evalDecl ::
   Decl            {- ^ The declaration to evaluate -} ->
   SEval sym (GenEvalEnv sym)
 evalDecl sym renv env d =
+  let ?range = nameLoc (dName d) in
   case dDefinition d of
     DPrim ->
       case ?evalPrim =<< asPrim (dName d) of
-        Just (Right p) -> bindVar sym (dName d) (evalPrim sym (dName d) p) env
+        Just (Right p) -> pure $ bindVarDirect (dName d) p env
         Just (Left ex) -> bindVar sym (dName d) (evalExpr sym renv ex) env
         Nothing        -> bindVar sym (dName d) (cryNoPrimError sym (dName d)) env
 
@@ -538,7 +548,7 @@ evalDecl sym renv env d =
 -- Selectors -------------------------------------------------------------------
 
 {-# SPECIALIZE evalSel ::
-  ConcPrims =>
+  (?range :: Range, ConcPrims) =>
   Concrete ->
   GenValue Concrete ->
   Selector ->
@@ -549,7 +559,7 @@ evalDecl sym renv env d =
 --   tuple and record selections pointwise down into other value constructs
 --   (e.g., streams and functions).
 evalSel ::
-  EvalPrims sym =>
+  (?range :: Range, EvalPrims sym) =>
   sym ->
   GenValue sym ->
   Selector ->
@@ -581,18 +591,18 @@ evalSel sym val sel = case sel of
     case v of
       VSeq _ vs       -> lookupSeqMap vs (toInteger n)
       VStream vs      -> lookupSeqMap vs (toInteger n)
-      VWord _ wv      -> VBit <$> (flip (indexWordValue sym) (toInteger n) =<< wv)
+      VWord _ wv      -> VBit <$> (flip (indexWordValue sym ?range) (toInteger n) =<< wv)
       _               -> do vdoc <- ppValue sym defaultPPOpts val
                             evalPanic "Cryptol.Eval.evalSel"
                               [ "Unexpected value in list selection"
                               , show vdoc ]
 {-# SPECIALIZE evalSetSel ::
-  ConcPrims =>
+  (?range :: Range, ConcPrims) =>
   Concrete -> TValue ->
   GenValue Concrete -> Selector -> SEval Concrete (GenValue Concrete) -> SEval Concrete (GenValue Concrete)
   #-}
 evalSetSel :: forall sym.
-  EvalPrims sym =>
+  (?range :: Range, EvalPrims sym) =>
   sym ->
   TValue ->
   GenValue sym -> Selector -> SEval sym (GenValue sym) -> SEval sym (GenValue sym)
@@ -632,7 +642,7 @@ evalSetSel sym _tyv e sel v =
       VSeq i mp  -> pure $ VSeq i  $ updateSeqMap mp n v
       VStream mp -> pure $ VStream $ updateSeqMap mp n v
       VWord i m  -> pure $ VWord i $ do m1 <- m
-                                        updateWordValue sym m1 n asBit
+                                        updateWordValue sym ?range m1 n asBit
       _ -> bad "Sequence update on a non-sequence."
 
   asBit = do res <- v
@@ -648,7 +658,7 @@ evalSetSel sym _tyv e sel v =
 data ListEnv sym = ListEnv
   { leVars   :: !(IntMap.IntMap (Integer -> SEval sym (GenValue sym)))
       -- ^ Bindings whose values vary by position
-  , leStatic :: !(IntMap.IntMap (SEval sym (GenValue sym)))
+  , leStatic :: !(IntMap.IntMap (Either (Prim sym) (SEval sym (GenValue sym))))
       -- ^ Bindings whose values are constant
   , leTypes  :: !TypeEnv
   }
@@ -683,7 +693,7 @@ toListEnv e =
 --   locations.
 evalListEnv :: ListEnv sym -> Integer -> GenEvalEnv sym
 evalListEnv (ListEnv vm st tm) i =
-    let v = fmap ($i) vm
+    let v = fmap (Right . ($i)) vm
      in EvalEnv{ envVars = IntMap.union v st
                , envTypes = tm
                }
@@ -701,7 +711,7 @@ bindVarList n vs lenv = lenv { leVars = IntMap.insert (nameUnique n) vs (leVars 
 -- List Comprehensions ---------------------------------------------------------
 
 {-# SPECIALIZE evalComp ::
-  ConcPrims =>
+  (?range :: Range, ConcPrims) =>
   Concrete ->
   GenEvalEnv Concrete ->
   Nat'           ->
@@ -712,7 +722,7 @@ bindVarList n vs lenv = lenv { leVars = IntMap.insert (nameUnique n) vs (leVars 
   #-}
 -- | Evaluate a comprehension.
 evalComp ::
-  EvalPrims sym =>
+  (?range :: Range, EvalPrims sym) =>
   sym ->
   GenEvalEnv sym {- ^ Starting evaluation environment -} ->
   Nat'           {- ^ Length of the comprehension -} ->
@@ -726,7 +736,7 @@ evalComp sym env len elty body ms =
               evalExpr sym (evalListEnv lenv i) body)
 
 {-# SPECIALIZE branchEnvs ::
-  ConcPrims =>
+  (?range :: Range, ConcPrims) =>
   Concrete ->
   ListEnv Concrete ->
   [Match] ->
@@ -735,7 +745,7 @@ evalComp sym env len elty body ms =
 -- | Turn a list of matches into the final environments for each iteration of
 -- the branch.
 branchEnvs ::
-  EvalPrims sym =>
+  (?range :: Range, EvalPrims sym) =>
   sym ->
   ListEnv sym ->
   [Match] ->
@@ -743,7 +753,7 @@ branchEnvs ::
 branchEnvs sym env matches = foldM (evalMatch sym) env matches
 
 {-# SPECIALIZE evalMatch ::
-  ConcPrims =>
+  (?range :: Range, ConcPrims) =>
   Concrete ->
   ListEnv Concrete ->
   Match ->
@@ -752,7 +762,7 @@ branchEnvs sym env matches = foldM (evalMatch sym) env matches
 
 -- | Turn a match into the list of environments it represents.
 evalMatch ::
-  EvalPrims sym =>
+  (?range :: Range, EvalPrims sym) =>
   sym ->
   ListEnv sym ->
   Match ->
@@ -770,7 +780,7 @@ evalMatch sym lenv m = case m of
         let lenv' = lenv { leVars = fmap stutter (leVars lenv) }
         let vs i = do let (q, r) = i `divMod` nLen
                       lookupSeqMap vss q >>= \case
-                        VWord _ w   -> VBit <$> (flip (indexWordValue sym) r =<< w)
+                        VWord _ w   -> VBit <$> (flip (indexWordValue sym ?range) r =<< w)
                         VSeq _ xs'  -> lookupSeqMap xs' r
                         VStream xs' -> lookupSeqMap xs' r
                         _           -> evalPanic "evalMatch" ["Not a list value"]
@@ -781,14 +791,14 @@ evalMatch sym lenv m = case m of
       -- `leVars` elements of the comprehension environment into `leStatic` elements
       -- by selecting out the 0th element.
       Inf -> do
-        let allvars = IntMap.union (fmap ($0) (leVars lenv)) (leStatic lenv)
+        let allvars = IntMap.union (fmap (Right . ($0)) (leVars lenv)) (leStatic lenv)
         let lenv' = lenv { leVars   = IntMap.empty
                          , leStatic = allvars
                          }
         let env   = EvalEnv allvars (leTypes lenv)
         xs <- evalExpr sym env expr
         let vs i = case xs of
-                     VWord _ w   -> VBit <$> (flip (indexWordValue sym) i =<< w)
+                     VWord _ w   -> VBit <$> (flip (indexWordValue sym ?range) i =<< w)
                      VSeq _ xs'  -> lookupSeqMap xs' i
                      VStream xs' -> lookupSeqMap xs' i
                      _           -> evalPanic "evalMatch" ["Not a list value"]

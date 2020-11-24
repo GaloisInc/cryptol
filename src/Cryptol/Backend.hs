@@ -35,29 +35,30 @@ import Data.Kind (Type)
 import Data.Ratio ( (%), numerator, denominator )
 
 import Cryptol.Backend.FloatHelpers (BF)
-import Cryptol.Backend.Monad ( PPOpts(..), EvalError(..) )
-import Cryptol.TypeCheck.AST(Name)
+import Cryptol.Backend.Monad ( PPOpts(..), EvalError(..), EvalErrorEx(..) )
+import Cryptol.ModuleSystem.Name(Name,nameLoc)
+import Cryptol.Parser.Position
 import Cryptol.Utils.PP
 
 
-invalidIndex :: Backend sym => sym -> Integer -> SEval sym a
-invalidIndex sym = raiseError sym . InvalidIndex . Just
+invalidIndex :: Backend sym => sym -> Range -> Integer -> SEval sym a
+invalidIndex sym rng = raiseError sym . EvalErrorEx rng . InvalidIndex . Just
 
-cryUserError :: Backend sym => sym -> String -> SEval sym a
-cryUserError sym = raiseError sym . UserError
+cryUserError :: Backend sym => sym -> Range -> String -> SEval sym a
+cryUserError sym rng = raiseError sym . EvalErrorEx rng . UserError
 
 cryNoPrimError :: Backend sym => sym -> Name -> SEval sym a
-cryNoPrimError sym = raiseError sym . NoPrim
+cryNoPrimError sym nm = raiseError sym (EvalErrorEx (nameLoc nm) (NoPrim nm))
 
 
 {-# INLINE sDelay #-}
 -- | Delay the given evaluation computation, returning a thunk
 --   which will run the computation when forced.  Raise a loop
 --   error if the resulting thunk is forced during its own evaluation.
-sDelay :: Backend sym => sym -> Maybe String -> SEval sym a -> SEval sym (SEval sym a)
-sDelay sym msg m =
+sDelay :: Backend sym => sym -> Range -> Maybe String -> SEval sym a -> SEval sym (SEval sym a)
+sDelay sym rng msg m =
   let msg'  = maybe "" ("while evaluating "++) msg
-      retry = raiseError sym (LoopError msg')
+      retry = raiseError sym (EvalErrorEx rng (LoopError msg'))
    in sDelayFill sym m retry
 
 
@@ -72,21 +73,21 @@ data SRational sym =
 intToRational :: Backend sym => sym -> SInteger sym -> SEval sym (SRational sym)
 intToRational sym x = SRational x <$> (integerLit sym 1)
 
-ratio :: Backend sym => sym -> SInteger sym -> SInteger sym -> SEval sym (SRational sym)
-ratio sym n d =
+ratio :: Backend sym => sym -> Range -> SInteger sym -> SInteger sym -> SEval sym (SRational sym)
+ratio sym rng n d =
   do pz  <- bitComplement sym =<< intEq sym d =<< integerLit sym 0
-     assertSideCondition sym pz DivideByZero
+     assertSideCondition sym pz (EvalErrorEx rng DivideByZero)
      pure (SRational n d)
 
-rationalRecip :: Backend sym => sym -> SRational sym -> SEval sym (SRational sym)
-rationalRecip sym (SRational a b) = ratio sym b a
+rationalRecip :: Backend sym => sym -> Range -> SRational sym -> SEval sym (SRational sym)
+rationalRecip sym rng (SRational a b) = ratio sym rng b a
 
-rationalDivide :: Backend sym => sym -> SRational sym -> SRational sym -> SEval sym (SRational sym)
-rationalDivide sym x y = rationalMul sym x =<< rationalRecip sym y
+rationalDivide :: Backend sym => sym -> Range -> SRational sym -> SRational sym -> SEval sym (SRational sym)
+rationalDivide sym rng x y = rationalMul sym x =<< rationalRecip sym rng y
 
 rationalFloor :: Backend sym => sym -> SRational sym -> SEval sym (SInteger sym)
  -- NB, relies on integer division being round-to-negative-inf division
-rationalFloor sym (SRational n d) = intDiv sym n d
+rationalFloor sym (SRational n d) = intDiv sym emptyRange n d
 
 rationalCeiling :: Backend sym => sym -> SRational sym -> SEval sym (SInteger sym)
 rationalCeiling sym r = intNegate sym =<< rationalFloor sym =<< rationalNegate sym r
@@ -120,7 +121,7 @@ rationalRoundToEven sym r =
 
  where
  isEven x =
-   do parity <- intMod sym x =<< integerLit sym 2
+   do parity <- intMod sym emptyRange x =<< integerLit sym 2
       intEq sym parity =<< integerLit sym 0
 
  ite x t e =
@@ -228,7 +229,7 @@ class MonadIO (SEval sym) => Backend sym where
   --   after the fact.  A preallocated thunk is returned, along with an operation to
   --   fill the thunk with the associated computation.
   --   This is used to implement recursive declaration groups.
-  sDeclareHole :: sym -> String -> SEval sym (SEval sym a, SEval sym a -> SEval sym ())
+  sDeclareHole :: sym -> String -> Range -> SEval sym (SEval sym a, SEval sym a -> SEval sym ())
 
   -- | Delay the given evaluation computation, returning a thunk
   --   which will run the computation when forced.  Run the 'retry'
@@ -239,7 +240,7 @@ class MonadIO (SEval sym) => Backend sym where
   -- | Begin evaluating the given computation eagerly in a separate thread
   --   and return a thunk which will await the completion of the given computation
   --   when forced.
-  sSpark :: sym -> SEval sym a -> SEval sym (SEval sym a)
+  sSpark :: sym -> Range -> SEval sym a -> SEval sym (SEval sym a)
 
   -- | Merge the two given computations according to the predicate.
   mergeEval ::
@@ -252,10 +253,10 @@ class MonadIO (SEval sym) => Backend sym where
 
   -- | Assert that a condition must hold, and indicate what sort of
   --   error is indicated if the condition fails.
-  assertSideCondition :: sym -> SBit sym -> EvalError -> SEval sym ()
+  assertSideCondition :: sym -> SBit sym -> EvalErrorEx -> SEval sym ()
 
   -- | Indiciate that an error condition exists
-  raiseError :: sym -> EvalError -> SEval sym a
+  raiseError :: sym -> EvalErrorEx -> SEval sym a
 
 
   -- ==== Pretty printing  ====
@@ -335,6 +336,9 @@ class MonadIO (SEval sym) => Backend sym where
 
 
   -- ==== Word operations ====
+
+  -- TODO, add error handling to wordBit and wordUpdate
+
 
   -- | Extract the numbered bit from the word.
   --
@@ -472,6 +476,7 @@ class MonadIO (SEval sym) => Backend sym where
   --   call with a second argument concretely equal to 0.
   wordDiv ::
     sym ->
+    Range ->
     SWord sym ->
     SWord sym ->
     SEval sym (SWord sym)
@@ -481,6 +486,7 @@ class MonadIO (SEval sym) => Backend sym where
   --   call with a second argument concretely equal to 0.
   wordMod ::
     sym ->
+    Range ->
     SWord sym ->
     SWord sym ->
     SEval sym (SWord sym)
@@ -490,6 +496,7 @@ class MonadIO (SEval sym) => Backend sym where
   --   call with a second argument concretely equal to 0.
   wordSignedDiv ::
     sym ->
+    Range ->
     SWord sym ->
     SWord sym ->
     SEval sym (SWord sym)
@@ -499,6 +506,7 @@ class MonadIO (SEval sym) => Backend sym where
   --   call with a second argument concretely equal to 0.
   wordSignedMod ::
     sym ->
+    Range ->
     SWord sym ->
     SWord sym ->
     SEval sym (SWord sym)
@@ -583,6 +591,7 @@ class MonadIO (SEval sym) => Backend sym where
   --   Same semantics as Haskell's @div@ operation.
   intDiv ::
     sym ->
+    Range ->
     SInteger sym ->
     SInteger sym ->
     SEval sym (SInteger sym)
@@ -592,6 +601,7 @@ class MonadIO (SEval sym) => Backend sym where
   --   Same semantics as Haskell's @mod@ operation.
   intMod ::
     sym ->
+    Range ->
     SInteger sym ->
     SInteger sym ->
     SEval sym (SInteger sym)
@@ -678,6 +688,7 @@ class MonadIO (SEval sym) => Backend sym where
   --   PRECONDITION: the modulus is a prime
   znRecip ::
     sym ->
+    Range ->
     Integer {- ^ modulus -} ->
     SInteger sym ->
     SEval sym (SInteger sym)
@@ -695,11 +706,13 @@ class MonadIO (SEval sym) => Backend sym where
   fpToInteger ::
     sym ->
     String {- ^ Name of the function for error reporting -} ->
+    Range ->
     SWord sym {-^ Rounding mode -} ->
     SFloat sym -> SEval sym (SInteger sym)
 
   fpFromInteger ::
     sym ->
+    Range ->
     Integer         {- exp width -} ->
     Integer         {- prec width -} ->
     SWord sym       {- ^ rounding mode -} ->
@@ -708,6 +721,7 @@ class MonadIO (SEval sym) => Backend sym where
 
 type FPArith2 sym =
   sym ->
+  Range ->
   SWord sym ->
   SFloat sym ->
   SFloat sym ->

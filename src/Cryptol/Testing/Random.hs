@@ -37,7 +37,7 @@ import qualified Data.Sequence as Seq
 import System.Random          (RandomGen, split, random, randomR)
 
 import Cryptol.Backend        (Backend(..), SRational(..))
-import Cryptol.Backend.Monad  (runEval,Eval,EvalError(..))
+import Cryptol.Backend.Monad  (runEval,Eval,EvalErrorEx(..))
 import Cryptol.Backend.Concrete
 
 import Cryptol.Eval.Type      (TValue(..))
@@ -226,7 +226,8 @@ randomSequence w mkElem sz g0 = do
   let f g = let (x,g') = mkElem sz g
              in seq x (Just (x, g'))
   let xs = Seq.fromList $ genericTake w $ unfoldr f g1
-  seq xs (pure $ VSeq w $ IndexSeqMap $ (Seq.index xs . fromInteger), g2)
+  let v  = VSeq w $ IndexSeqMap $ \i -> Seq.index xs (fromInteger i)
+  seq xs (pure v, g2)
 
 {-# INLINE randomTuple #-}
 
@@ -277,7 +278,7 @@ randomFloat sym e p w g =
 data TestResult
   = Pass
   | FailFalse [Value]
-  | FailError EvalError [Value]
+  | FailError EvalErrorEx [Value]
 
 isPass :: TestResult -> Bool
 isPass Pass = True
@@ -374,7 +375,7 @@ typeValues ty =
       | x <- [ 0 .. 2^n - 1 ]
       ]
     TVSeq n el ->
-      [ VSeq n (finiteSeqMap Concrete (map pure xs))
+      [ VSeq n (finiteSeqMap (map pure xs))
       | xs <- sequence (genericReplicate n (typeValues el))
       ]
     TVTuple ts ->

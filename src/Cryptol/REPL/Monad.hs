@@ -76,7 +76,7 @@ module Cryptol.REPL.Monad (
 
 import Cryptol.REPL.Trie
 
-import Cryptol.Eval (EvalError, Unsupported)
+import Cryptol.Eval (EvalErrorEx, Unsupported)
 import qualified Cryptol.ModuleSystem as M
 import qualified Cryptol.ModuleSystem.Env as M
 import qualified Cryptol.ModuleSystem.Name as M
@@ -289,7 +289,7 @@ data REPLException
   | DirectoryNotFound FilePath
   | NoPatError [Error]
   | NoIncludeError [IncludeError]
-  | EvalError EvalError
+  | EvalError EvalErrorEx
   | Unsupported Unsupported
   | ModuleSystemError NameDisp M.ModuleError
   | EvalPolyError T.Schema
@@ -350,7 +350,7 @@ rethrowEvalError m = run `X.catch` rethrow `X.catch` rethrowUnsupported
     a <- m
     return $! a
 
-  rethrow :: EvalError -> IO a
+  rethrow :: EvalErrorEx -> IO a
   rethrow exn = X.throwIO (EvalError exn)
 
   rethrowUnsupported :: Unsupported -> IO a

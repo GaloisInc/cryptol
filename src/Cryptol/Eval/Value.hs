@@ -103,6 +103,7 @@ import qualified Cryptol.Backend.Arch as Arch
 import Cryptol.Backend.Monad ( PPOpts(..), evalPanic, wordTooWide, defaultPPOpts, asciiMode )
 import Cryptol.Eval.Type
 
+import Cryptol.Parser.Position (Range)
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
 import Cryptol.Utils.Ident (Ident)
 import Cryptol.Utils.Panic(panic)
@@ -135,11 +136,11 @@ largeBitSize :: Integer
 largeBitSize = 1 `shiftL` 48
 
 -- | Generate a finite sequence map from a list of values
-finiteSeqMap :: Backend sym => sym -> [SEval sym (GenValue sym)] -> SeqMap sym
-finiteSeqMap sym xs =
+finiteSeqMap :: [SEval sym (GenValue sym)] -> SeqMap sym
+finiteSeqMap xs =
    UpdateSeqMap
       (Map.fromList (zip [0..] xs))
-      (invalidIndex sym)
+      (\i -> panic "finiteSeqMap" ["Out of bounds access of finite seq map", "length: " ++ show (length xs), show i])
 
 -- | Generate an infinite sequence map from a stream of values
 infiniteSeqMap :: Backend sym => [SEval sym (GenValue sym)] -> SEval sym (SeqMap sym)
@@ -150,7 +151,7 @@ infiniteSeqMap xs =
 -- | Create a finite list of length @n@ of the values from @[0..n-1]@ in
 --   the given the sequence emap.
 enumerateSeqMap :: (Integral n) => n -> SeqMap sym -> [SEval sym (GenValue sym)]
-enumerateSeqMap n m = [ lookupSeqMap m i | i <- [0 .. (toInteger n)-1] ]
+enumerateSeqMap n m = [ lookupSeqMap m  i | i <- [0 .. (toInteger n)-1] ]
 
 -- | Create an infinite stream of all the values in a sequence map
 streamSeqMap :: SeqMap sym -> [SEval sym (GenValue sym)]
@@ -270,25 +271,26 @@ wordValueSize sym (WordVal w)  = wordLen sym w
 wordValueSize _ (LargeBitsVal n _) = n
 
 -- | Select an individual bit from a word value
-indexWordValue :: Backend sym => sym -> WordValue sym -> Integer -> SEval sym (SBit sym)
-indexWordValue sym (WordVal w) idx
+indexWordValue :: Backend sym => sym -> Range -> WordValue sym -> Integer -> SEval sym (SBit sym)
+indexWordValue sym rng (WordVal w) idx
    | 0 <= idx && idx < wordLen sym w = wordBit sym w idx
-   | otherwise = invalidIndex sym idx
-indexWordValue sym (LargeBitsVal n xs) idx
+   | otherwise = invalidIndex sym rng idx
+indexWordValue sym rng (LargeBitsVal n xs) idx
    | 0 <= idx && idx < n = fromVBit <$> lookupSeqMap xs idx
-   | otherwise = invalidIndex sym idx
+   | otherwise = invalidIndex sym rng idx
 
 -- | Produce a new 'WordValue' from the one given by updating the @i@th bit with the
 --   given bit value.
-updateWordValue :: Backend sym => sym -> WordValue sym -> Integer -> SEval sym (SBit sym) -> SEval sym (WordValue sym)
-updateWordValue sym (WordVal w) idx b
-   | idx < 0 || idx >= wordLen sym w = invalidIndex sym idx
+updateWordValue :: Backend sym =>
+  sym -> Range -> WordValue sym -> Integer -> SEval sym (SBit sym) -> SEval sym (WordValue sym)
+updateWordValue sym rng (WordVal w) idx b
+   | idx < 0 || idx >= wordLen sym w = invalidIndex sym rng idx
    | isReady sym b = WordVal <$> (wordUpdate sym w idx =<< b)
 
-updateWordValue sym wv idx b
+updateWordValue sym rng wv idx b
    | 0 <= idx && idx < wordValueSize sym wv =
         pure $ LargeBitsVal (wordValueSize sym wv) $ updateSeqMap (asBitsMap sym wv) idx (VBit <$> b)
-   | otherwise = invalidIndex sym idx
+   | otherwise = invalidIndex sym rng idx
 
 
 -- | Generic value type, parameterized by bit and word types.
@@ -451,7 +453,7 @@ toFinSeq ::
   sym -> Integer -> TValue -> [GenValue sym] -> GenValue sym
 toFinSeq sym len elty vs
    | isTBit elty = VWord len (WordVal <$> packWord sym (map fromVBit vs))
-   | otherwise   = VSeq len $ finiteSeqMap sym (map pure vs)
+   | otherwise   = VSeq len $ finiteSeqMap (map pure vs)
 
 -- | Construct either a finite sequence, or a stream.  In the finite case,
 -- record whether or not the elements were bits, to aid pretty-printing.

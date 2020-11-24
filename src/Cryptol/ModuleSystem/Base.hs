@@ -564,6 +564,7 @@ evalExpr e = do
   evopts <- getEvalOpts
   let tbl = Concrete.primTable evopts
   let ?evalPrim = \i -> Right <$> Map.lookup i tbl
+  let ?range = emptyRange
   io $ E.runEval $ (E.evalExpr Concrete (env <> deEnv denv) e)
 
 evalDecls :: [T.DeclGroup] -> ModuleM ()

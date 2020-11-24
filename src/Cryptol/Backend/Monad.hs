@@ -31,9 +31,10 @@ module Cryptol.Backend.Monad
   -- * Error reporting
 , Unsupported(..)
 , EvalError(..)
+, EvalErrorEx(..)
 , evalPanic
 , wordTooWide
-, typeCannotBeDemoted
+, WordTooWide(..)
 ) where
 
 import           Control.Concurrent
@@ -47,10 +48,11 @@ import           Data.Typeable (Typeable)
 import qualified Control.Exception as X
 
 
+import Cryptol.Parser.Position
 import Cryptol.Utils.Panic
 import Cryptol.Utils.PP
 import Cryptol.Utils.Logger(Logger)
-import Cryptol.TypeCheck.AST(Type,Name)
+import Cryptol.TypeCheck.AST(Name)
 
 -- | A computation that returns an already-evaluated value.
 ready :: a -> Eval a
@@ -138,7 +140,7 @@ data ThunkState a
        --   thread ID.  We track the "backup" computation to run if we detect
        --   a tight loop evaluating this thunk.  If the thunk is being evaluated
        --   by some other thread, the current thread will await its completion.
-  | ForcedErr !EvalError
+  | ForcedErr !EvalErrorEx
        -- ^ This thunk has been forced, and its evaluation results in an exception
   | Forced !a
        -- ^ This thunk has been forced to the given value
@@ -173,17 +175,18 @@ delayFill (Eval x) backup = Eval (Thunk <$> newTVarIO (Unforced x (runEval backu
 --   returning a thunk which will await the completion of
 --   the computation when forced.
 evalSpark ::
+  Range ->
   Eval a ->
   Eval (Eval a)
 
 -- Ready computations need no additional evaluation.
-evalSpark e@(Ready _) = return e
+evalSpark _ e@(Ready _) = return e
 
 -- A thunked computation might already have
 -- been forced.  If so, return the result.  Otherwise,
 -- fork a thread to force this computation and return
 -- the thunk.
-evalSpark (Thunk tv)  = Eval $
+evalSpark _ (Thunk tv)  = Eval $
   readTVarIO tv >>= \case
     Forced x     -> return (Ready x)
     ForcedErr ex -> return (Eval (X.throwIO ex))
@@ -193,8 +196,8 @@ evalSpark (Thunk tv)  = Eval $
 
 -- If the computation is nontrivial but not already a thunk,
 -- create a thunk and fork a thread to force it.
-evalSpark (Eval x) = Eval $
-  do tv <- newTVarIO (Unforced x (X.throwIO (LoopError "")))
+evalSpark rng (Eval x) = Eval $
+  do tv <- newTVarIO (Unforced x (X.throwIO (EvalErrorEx rng (LoopError ""))))
      _ <- forkIO (sparkThunk tv)
      return (Thunk tv)
 
@@ -231,11 +234,13 @@ sparkThunk tv =
 --   This is used to implement recursive declaration groups.
 blackhole ::
   String {- ^ A name to associate with this thunk. -} ->
+  Range ->
   Eval (Eval a, Eval a -> Eval ())
-blackhole msg = Eval $
+blackhole msg rng = Eval $
   do tv <- newTVarIO (Void msg)
+     let ex = EvalErrorEx rng (LoopError msg)
      let set (Ready x)  = io $ atomically (writeTVar tv (Forced x))
-         set m          = io $ atomically (writeTVar tv (Unforced (runEval m) (X.throwIO (LoopError msg))))
+         set m          = io $ atomically (writeTVar tv (Unforced (runEval m) (X.throwIO ex)))
      return (Thunk tv, set)
 
 -- | Force a thunk to get the result.
@@ -262,7 +267,7 @@ unDelay tv =
                     -- a loop error.  If some other thread is evaluating, reset the
                     -- transaction to await completion of the thunk.
                     UnderEvaluation t _
-                      | tid == t  -> writeTVar tv (UnderEvaluation tid (X.throwIO (LoopError "")))
+                      | tid == t  -> writeTVar tv (UnderEvaluation tid (X.throwIO (EvalErrorEx emptyRange (LoopError "")))) -- TODO? better range info
                       | otherwise -> retry -- wait, if some other thread is evaualting
                     _ -> return ()
 
@@ -341,11 +346,9 @@ evalPanic cxt = panic ("[Eval] " ++ cxt)
 -- | Data type describing errors that can occur during evaluation.
 data EvalError
   = InvalidIndex (Maybe Integer)  -- ^ Out-of-bounds index
-  | TypeCannotBeDemoted Type      -- ^ Non-numeric type passed to @number@ function
   | DivideByZero                  -- ^ Division or modulus by 0
   | NegativeExponent              -- ^ Exponentiation by negative integer
   | LogNegative                   -- ^ Logarithm of a negative integer
-  | WordTooWide Integer           -- ^ Bitvector too large
   | UserError String              -- ^ Call to the Cryptol @error@ primitive
   | LoopError String              -- ^ Detectable nontermination
   | NoPrim Name                   -- ^ Primitive with no implementation
@@ -357,12 +360,10 @@ instance PP EvalError where
   ppPrec _ e = case e of
     InvalidIndex (Just i) -> text "invalid sequence index:" <+> integer i
     InvalidIndex Nothing  -> text "invalid sequence index"
-    TypeCannotBeDemoted t -> text "type cannot be demoted:" <+> pp t
+--    TypeCannotBeDemoted t -> text "type cannot be demoted:" <+> pp t
     DivideByZero -> text "division by 0"
     NegativeExponent -> text "negative exponent"
     LogNegative -> text "logarithm of negative"
-    WordTooWide w ->
-      text "word too wide for memory:" <+> integer w <+> text "bits"
     UserError x -> text "Run-time error:" <+> text x
     LoopError x -> text "<<loop>>" <+> text x
     BadRoundingMode r -> "invalid rounding mode" <+> integer r
@@ -372,8 +373,19 @@ instance PP EvalError where
 instance Show EvalError where
   show = show . pp
 
-instance X.Exception EvalError
+data EvalErrorEx =
+  EvalErrorEx Range EvalError
+ deriving Typeable
 
+instance PP EvalErrorEx where
+  ppPrec _ (EvalErrorEx rng ex)
+    | rng == emptyRange = pp ex
+    | otherwise = vcat [ pp ex, text "at" <+> pp rng ]
+
+instance Show EvalErrorEx where
+  show = show . pp  
+
+instance X.Exception EvalErrorEx
 
 data Unsupported
   = UnsupportedSymbolicOp String  -- ^ Operation cannot be supported in the symbolic simulator
@@ -387,11 +399,23 @@ instance X.Exception Unsupported
 
 
 -- | For things like @`(inf)@ or @`(0-1)@.
-typeCannotBeDemoted :: Type -> a
-typeCannotBeDemoted t = X.throw (TypeCannotBeDemoted t)
+--typeCannotBeDemoted :: Type -> a
+--typeCannotBeDemoted t = X.throw (TypeCannotBeDemoted t)
 
 -- | For when we know that a word is too wide and will exceed gmp's
 -- limits (though words approaching this size will probably cause the
 -- system to crash anyway due to lack of memory).
 wordTooWide :: Integer -> a
 wordTooWide w = X.throw (WordTooWide w)
+
+data WordTooWide = WordTooWide Integer -- ^ Bitvector too large
+ deriving Typeable
+
+instance PP WordTooWide where
+  ppPrec _ (WordTooWide w) =
+      text "word too wide for memory:" <+> integer w <+> text "bits"
+
+instance Show WordTooWide where
+  show = show . pp
+
+instance X.Exception WordTooWide

@@ -47,9 +47,10 @@ import Cryptol.Backend
 import Cryptol.Backend.Concrete ( integerToChar, ppBV, BV(..) )
 import Cryptol.Backend.Monad
   ( Eval(..), blackhole, delayFill, evalSpark
-  , EvalError(..), Unsupported(..)
+  , EvalError(..), EvalErrorEx(..), Unsupported(..)
   )
 
+import Cryptol.Parser.Position (Range)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
 
@@ -97,7 +98,7 @@ freshSInteger_ (SBV stateVar _) =
 -- SBV Evaluation monad -------------------------------------------------------
 
 data SBVResult a
-  = SBVError !EvalError
+  = SBVError !EvalErrorEx
   | SBVResult !SVal !a -- safety predicate and result
 
 instance Functor SBVResult where
@@ -167,12 +168,12 @@ instance Backend SBV where
     do m' <- delayFill (sbvEval m) (sbvEval retry)
        pure (pure (SBVEval m'))
 
-  sSpark _ m = SBVEval $
-    do m' <- evalSpark (sbvEval m)
+  sSpark _ rng m = SBVEval $
+    do m' <- evalSpark rng (sbvEval m)
        pure (pure (SBVEval m'))
 
-  sDeclareHole _ msg = SBVEval $
-    do (hole, fill) <- blackhole msg
+  sDeclareHole _ msg rng = SBVEval $
+    do (hole, fill) <- blackhole msg rng
        pure (pure (SBVEval hole, \m -> SBVEval (fmap pure $ fill (sbvEval m))))
 
   mergeEval _sym f c mx my = SBVEval $
@@ -265,24 +266,24 @@ instance Backend SBV where
   wordMult  _ a b = pure $! svTimes a b
   wordNegate _ a  = pure $! svUNeg a
 
-  wordDiv sym a b =
+  wordDiv sym rng a b =
     do let z = literalSWord (intSizeOf b) 0
-       assertSideCondition sym (svNot (svEqual b z)) DivideByZero
+       assertSideCondition sym (svNot (svEqual b z)) (EvalErrorEx rng DivideByZero)
        pure $! svQuot a b
 
-  wordMod sym a b =
+  wordMod sym rng a b =
     do let z = literalSWord (intSizeOf b) 0
-       assertSideCondition sym (svNot (svEqual b z)) DivideByZero
+       assertSideCondition sym (svNot (svEqual b z)) (EvalErrorEx rng DivideByZero)
        pure $! svRem a b
 
-  wordSignedDiv sym a b =
+  wordSignedDiv sym rng a b =
     do let z = literalSWord (intSizeOf b) 0
-       assertSideCondition sym (svNot (svEqual b z)) DivideByZero
+       assertSideCondition sym (svNot (svEqual b z)) (EvalErrorEx rng DivideByZero)
        pure $! signedQuot a b
 
-  wordSignedMod sym a b =
+  wordSignedMod sym rng a b =
     do let z = literalSWord (intSizeOf b) 0
-       assertSideCondition sym (svNot (svEqual b z)) DivideByZero
+       assertSideCondition sym (svNot (svEqual b z)) (EvalErrorEx rng DivideByZero)
        pure $! signedRem a b
 
   wordLg2 _ a = sLg2 a
@@ -299,14 +300,14 @@ instance Backend SBV where
   intMult  _ a b = pure $! svTimes a b
   intNegate _ a  = pure $! SBV.svUNeg a
 
-  intDiv sym a b =
+  intDiv sym rng a b =
     do let z = svInteger KUnbounded 0
-       assertSideCondition sym (svNot (svEqual b z)) DivideByZero
+       assertSideCondition sym (svNot (svEqual b z)) (EvalErrorEx rng DivideByZero)
        let p = svLessThan z b
        pure $! svSymbolicMerge KUnbounded True p (svQuot a b) (svQuot (svUNeg a) (svUNeg b))
-  intMod sym a b =
+  intMod sym rng a b =
     do let z = svInteger KUnbounded 0
-       assertSideCondition sym (svNot (svEqual b z)) DivideByZero
+       assertSideCondition sym (svNot (svEqual b z)) (EvalErrorEx rng DivideByZero)
        let p = svLessThan z b
        pure $! svSymbolicMerge KUnbounded True p (svRem a b) (svUNeg (svRem (svUNeg a) (svUNeg b)))
 
@@ -327,20 +328,20 @@ instance Backend SBV where
   znNegate sym m a  = sModNegate sym m a
   znRecip = sModRecip
 
-  ppFloat _ _ _           = text "[?]"
-  fpExactLit _ _          = unsupported "fpExactLit"
-  fpLit _ _ _ _           = unsupported "fpLit"
-  fpLogicalEq _ _ _       = unsupported "fpLogicalEq"
-  fpEq _ _ _              = unsupported "fpEq"
-  fpLessThan _ _ _        = unsupported "fpLessThan"
-  fpGreaterThan _ _ _     = unsupported "fpGreaterThan"
-  fpPlus _ _ _ _          = unsupported "fpPlus"
-  fpMinus _ _ _ _         = unsupported "fpMinus"
-  fpMult _  _ _ _         = unsupported "fpMult"
-  fpDiv _ _ _ _           = unsupported "fpDiv"
-  fpNeg _ _               = unsupported "fpNeg"
-  fpFromInteger _ _ _ _ _ = unsupported "fpFromInteger"
-  fpToInteger _ _ _ _     = unsupported "fpToInteger"
+  ppFloat _ _ _             = text "[?]"
+  fpExactLit _ _            = unsupported "fpExactLit"
+  fpLit _ _ _ _             = unsupported "fpLit"
+  fpLogicalEq _ _ _         = unsupported "fpLogicalEq"
+  fpEq _ _ _                = unsupported "fpEq"
+  fpLessThan _ _ _          = unsupported "fpLessThan"
+  fpGreaterThan _ _ _       = unsupported "fpGreaterThan"
+  fpPlus _ _ _ _ _          = unsupported "fpPlus"
+  fpMinus _ _ _ _ _         = unsupported "fpMinus"
+  fpMult _ _ _ _ _          = unsupported "fpMult"
+  fpDiv _ _ _ _ _           = unsupported "fpDiv"
+  fpNeg _ _                 = unsupported "fpNeg"
+  fpFromInteger _ _ _ _ _ _ = unsupported "fpFromInteger"
+  fpToInteger _ _ _ _ _     = unsupported "fpToInteger"
 
 unsupported :: String -> SEval SBV a
 unsupported x = liftIO (X.throw (UnsupportedSymbolicOp x))
@@ -399,15 +400,16 @@ sModMult sym modulus x y =
 -- that the modulus is prime and the input is nonzero.
 sModRecip ::
   SBV ->
+  Range ->
   Integer {- ^ modulus: must be prime -} ->
   SInteger SBV ->
   SEval SBV (SInteger SBV)
-sModRecip _sym 0 _ = panic "sModRecip" ["0 modulus not allowed"]
-sModRecip sym m x
+sModRecip _sym _ 0 _ = panic "sModRecip" ["0 modulus not allowed"]
+sModRecip sym rng m x
   -- If the input is concrete, evaluate the answer
   | Just xi <- svAsInteger x
   = let r = Integer.recipModInteger xi m
-     in if r == 0 then raiseError sym DivideByZero else integerLit sym r
+     in if r == 0 then raiseError sym (EvalErrorEx rng DivideByZero) else integerLit sym r
 
   -- If the input is symbolic, create a new symbolic constant
   -- and assert that it is the desired multiplicitive inverse.
@@ -415,7 +417,7 @@ sModRecip sym m x
   -- the modulus is prime, and as long as the input is nonzero.
   | otherwise
   = do divZero <- svDivisible sym m x
-       assertSideCondition sym (svNot divZero) DivideByZero
+       assertSideCondition sym (svNot divZero) (EvalErrorEx rng DivideByZero)
 
        z <- liftIO (freshSInteger_ sym)
        let xz = svTimes x z

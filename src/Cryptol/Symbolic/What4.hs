@@ -62,6 +62,7 @@ import qualified Cryptol.Eval as Eval
 import qualified Cryptol.Eval.Concrete as Concrete
 import qualified Cryptol.Eval.Value as Eval
 import           Cryptol.Eval.What4
+import           Cryptol.Parser.Position (emptyRange)
 import           Cryptol.Symbolic
 import           Cryptol.TypeCheck.AST
 import           Cryptol.Utils.Logger(logPutStrLn,logPutStr,Logger)
@@ -276,6 +277,7 @@ prepareQuery sym ProverCommand { .. } =
        let tbl = primTable sym
        let ?evalPrim = \i -> (Right <$> Map.lookup i tbl) <|>
                              (Left <$> Map.lookup i ds)
+       let ?range = emptyRange
 
        modEnv <- M.getModuleEnv
        let extDgs = M.allDeclGroups modEnv ++ pcExtraDecls

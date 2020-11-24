@@ -318,6 +318,7 @@ readBack :: PrimMap -> TC.Type -> Value -> Eval Expression
 readBack prims ty val =
   let tbl = primTable theEvalOpts in
   let ?evalPrim = \i -> Right <$> Map.lookup i tbl in
+  let ?range = emptyRange in -- TODO?
   case TC.tNoUser ty of
     TC.TRec tfs ->
       Record . HM.fromList <$>

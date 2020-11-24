@@ -33,6 +33,11 @@ data Range      = Range { from   :: !Position
                         , source :: FilePath }
                   deriving (Eq, Ord, Show, Generic, NFData)
 
+type CallStack = [ (Text, Range) ]
+
+emptyCallStack :: CallStack
+emptyCallStack = []
+
 -- | An empty range.
 --
 -- Caution: using this on the LHS of a use of rComb will cause the empty source
