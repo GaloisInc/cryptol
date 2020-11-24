@@ -39,6 +39,7 @@ import Cryptol.Backend.Concrete( Concrete(..) )
 import Cryptol.Backend.Monad
 import Cryptol.Eval.Generic ( iteValue )
 import Cryptol.Eval.Env
+import Cryptol.Eval.Prims
 import Cryptol.Eval.Type
 import Cryptol.Eval.Value
 import Cryptol.ModuleSystem.Name
@@ -63,9 +64,9 @@ import Prelude.Compat
 type EvalEnv = GenEvalEnv Concrete
 
 type EvalPrims sym =
-  ( Backend sym, ?evalPrim :: PrimIdent -> Maybe (Either Expr (GenValue sym)) )
+  ( Backend sym, ?evalPrim :: PrimIdent -> Maybe (Either Expr (Prim sym)) )
 
-type ConcPrims = ?evalPrim :: PrimIdent -> Maybe (Either Expr (GenValue Concrete))
+type ConcPrims = ?evalPrim :: PrimIdent -> Maybe (Either Expr (Prim Concrete))
 
 -- Expression Evaluation -------------------------------------------------------
 
@@ -527,7 +528,7 @@ evalDecl sym renv env d =
   case dDefinition d of
     DPrim ->
       case ?evalPrim =<< asPrim (dName d) of
-        Just (Right v) -> pure (bindVarDirect (dName d) v env)
+        Just (Right p) -> bindVar sym (dName d) (evalPrim sym (dName d) p) env
         Just (Left ex) -> bindVar sym (dName d) (evalExpr sym renv ex) env
         Nothing        -> bindVar sym (dName d) (cryNoPrimError sym (dName d)) env
 

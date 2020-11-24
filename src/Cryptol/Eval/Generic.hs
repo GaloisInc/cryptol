@@ -11,6 +11,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE Rank2Types #-}
@@ -27,8 +28,9 @@ import Control.Monad (join, unless)
 import System.Random.TF.Gen (seedTFGen)
 
 import Data.Bits (testBit, (.&.), shiftR)
-
 import Data.Maybe (fromMaybe)
+import qualified Data.Map.Strict as Map
+import Data.Map(Map)
 import Data.Ratio ((%))
 
 import Cryptol.TypeCheck.AST
@@ -38,8 +40,10 @@ import Cryptol.Backend.Concrete (Concrete(..))
 import Cryptol.Backend.Monad ( Eval, evalPanic, EvalError(..), Unsupported(..) )
 import Cryptol.Testing.Random( randomValue )
 
+import Cryptol.Eval.Prims
 import Cryptol.Eval.Type
 import Cryptol.Eval.Value
+import Cryptol.Utils.Ident (PrimIdent, prelPrim)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.RecordMap
 
@@ -63,14 +67,15 @@ mkLit sym ty i =
     _                            -> evalPanic "Cryptol.Eval.Prim.evalConst"
                                     [ "Invalid type for number" ]
 
-{-# SPECIALIZE ecNumberV :: Concrete -> GenValue Concrete
+{-# SPECIALIZE ecNumberV :: Concrete -> Prim Concrete
   #-}
 
 -- | Make a numeric constant.
-ecNumberV :: Backend sym => sym -> GenValue sym
+ecNumberV :: Backend sym => sym -> Prim sym
 ecNumberV sym =
-  nlam $ \valT ->
-  VPoly $ \ty ->
+  PNumPoly \valT ->
+  PTyPoly \ty ->
+  PPrim
   case valT of
     Nat v -> mkLit sym ty v
     _ -> evalPanic "Cryptol.Eval.Prim.evalConst"
@@ -80,32 +85,38 @@ ecNumberV sym =
              ]
 
 
-
 {-# SPECIALIZE intV :: Concrete -> Integer -> TValue -> Eval (GenValue Concrete)
   #-}
 intV :: Backend sym => sym -> SInteger sym -> TValue -> SEval sym (GenValue sym)
-intV sym i = ringNullary sym (\w -> wordFromInt sym w i) (pure i) (\m -> intToZn sym m i) (intToRational sym i)
-            (\e p -> fpRndMode sym >>= \r -> fpFromInteger sym e p r i)
+intV sym i =
+  ringNullary sym
+    (\w -> wordFromInt sym w i)
+    (pure i)
+    (\m -> intToZn sym m i)
+    (intToRational sym i)
+    (\e p -> fpRndMode sym >>= \r -> fpFromInteger sym e p r i)
 
-{-# SPECIALIZE ratioV :: Concrete -> GenValue Concrete #-}
-ratioV :: Backend sym => sym -> GenValue sym
+{-# SPECIALIZE ratioV :: Concrete -> Prim Concrete #-}
+ratioV :: Backend sym => sym -> Prim sym
 ratioV sym =
-  lam $ \x -> return $
-  lam $ \y ->
+  PFun \x ->
+  PFun \y ->
+  PPrim
     do x' <- fromVInteger <$> x
        y' <- fromVInteger <$> y
        VRational <$> ratio sym x' y'
 
-{-# SPECIALIZE ecFractionV :: Concrete -> GenValue Concrete
+{-# SPECIALIZE ecFractionV :: Concrete -> Prim Concrete
   #-}
-ecFractionV :: Backend sym => sym -> GenValue sym
+ecFractionV :: Backend sym => sym -> Prim sym
 ecFractionV sym =
-  ilam  \n ->
-  ilam  \d ->
-  ilam  \_r ->
-  VPoly \ty ->
+  PFinPoly \n  ->
+  PFinPoly \d  ->
+  PFinPoly \_r ->
+  PTyPoly  \ty ->
+  PPrim
     case ty of
-      TVFloat e p -> VFloat    <$> fpLit sym e p (n % d)
+      TVFloat e p -> VFloat <$> fpLit sym e p (n % d)
       TVRational ->
         do x <- integerLit sym n
            y <- integerLit sym d
@@ -116,34 +127,35 @@ ecFractionV sym =
 
 
 
-{-# SPECIALIZE fromZV :: Concrete -> GenValue Concrete #-}
-fromZV :: Backend sym => sym -> GenValue sym
+{-# SPECIALIZE fromZV :: Concrete -> Prim Concrete #-}
+fromZV :: Backend sym => sym -> Prim sym
 fromZV sym =
-  nlam $ \(finNat' -> n) ->
-  lam $ \v -> VInteger <$> (znToInt sym n . fromVInteger =<< v)
+  PFinPoly \n ->
+  PFun     \v ->
+  PPrim
+    (VInteger <$> (znToInt sym n . fromVInteger =<< v))
 
 -- Operation Lifting -----------------------------------------------------------
 
 
 type Binary sym = TValue -> GenValue sym -> GenValue sym -> SEval sym (GenValue sym)
 
-{-# SPECIALIZE binary :: Binary Concrete -> GenValue Concrete
+{-# SPECIALIZE binary :: Binary Concrete -> Prim Concrete
   #-}
-binary :: Backend sym => Binary sym -> GenValue sym
-binary f = tlam $ \ ty ->
-            lam $ \ a  -> return $
-            lam $ \ b  -> do
-               --io $ putStrLn "Entering a binary function"
-               join (f ty <$> a <*> b)
+binary :: Backend sym => Binary sym -> Prim sym
+binary f = PTyPoly \ty ->
+           PFun    \a  ->
+           PFun    \b  ->
+           PPrim $ join (f ty <$> a <*> b)
 
 type Unary sym = TValue -> GenValue sym -> SEval sym (GenValue sym)
 
-{-# SPECIALIZE unary :: Unary Concrete -> GenValue Concrete
+{-# SPECIALIZE unary :: Unary Concrete -> Prim Concrete
   #-}
-unary :: Backend sym => Unary sym -> GenValue sym
-unary f = tlam $ \ ty ->
-           lam $ \ a  -> f ty =<< a
-
+unary :: Backend sym => Unary sym -> Prim sym
+unary f = PTyPoly \ty ->
+          PFun    \a  ->
+          PPrim (f ty =<< a)
 
 type BinWord sym = Integer -> SWord sym -> SWord sym -> SEval sym (SWord sym)
 
@@ -398,15 +410,16 @@ integralBinary sym opw opi ty l r = case ty of
 ---------------------------------------------------------------------------
 -- Ring
 
-{-# SPECIALIZE fromIntegerV :: Concrete -> GenValue Concrete
+{-# SPECIALIZE fromIntegerV :: Concrete -> Prim Concrete
   #-}
 -- | Convert an unbounded integer to a value in Ring
-fromIntegerV :: Backend sym => sym -> GenValue sym
+fromIntegerV :: Backend sym => sym -> Prim sym
 fromIntegerV sym =
-  tlam $ \ a ->
-  lam  $ \ v ->
-  do i <- fromVInteger <$> v
-     intV sym i a
+  PTyPoly \ a ->
+  PFun    \ v ->
+  PPrim
+    do i <- fromVInteger <$> v
+       intV sym i a
 
 {-# INLINE addV #-}
 addV :: Backend sym => sym -> Binary sym
@@ -458,13 +471,14 @@ divV sym = integralBinary sym opw opi
     opw _w x y = wordDiv sym x y
     opi x y = intDiv sym x y
 
-{-# SPECIALIZE expV :: Concrete -> GenValue Concrete #-}
-expV :: Backend sym => sym -> GenValue sym
+{-# SPECIALIZE expV :: Concrete -> Prim Concrete #-}
+expV :: Backend sym => sym -> Prim sym
 expV sym =
-  tlam $ \aty ->
-  tlam $ \ety ->
-   lam $ \am -> return $
-   lam $ \em ->
+  PTyPoly \aty ->
+  PTyPoly \ety ->
+  PFun    \am ->
+  PFun    \em ->
+  PPrim
      do a <- am
         e <- em
         case ety of
@@ -522,12 +536,13 @@ modV sym = integralBinary sym opw opi
     opw _w x y = wordMod sym x y
     opi x y = intMod sym x y
 
-{-# SPECIALIZE toIntegerV :: Concrete -> GenValue Concrete #-}
+{-# SPECIALIZE toIntegerV :: Concrete -> Prim Concrete #-}
 -- | Convert a word to a non-negative integer.
-toIntegerV :: Backend sym => sym -> GenValue sym
+toIntegerV :: Backend sym => sym -> Prim sym
 toIntegerV sym =
-  tlam $ \a ->
-  lam $ \v ->
+  PTyPoly \a ->
+  PFun    \v ->
+  PPrim
     case a of
       TVSeq _w el | isTBit el ->
         VInteger <$> (wordToInt sym =<< (fromVWord sym "toInteger" =<< v))
@@ -537,11 +552,12 @@ toIntegerV sym =
 -----------------------------------------------------------------------------
 -- Field
 
-{-# SPECIALIZE recipV :: Concrete -> GenValue Concrete #-}
-recipV :: Backend sym => sym -> GenValue sym
+{-# SPECIALIZE recipV :: Concrete -> Prim Concrete #-}
+recipV :: Backend sym => sym -> Prim sym
 recipV sym =
-  tlam $ \a ->
-  lam $ \x ->
+  PTyPoly \a ->
+  PFun    \x ->
+  PPrim
     case a of
       TVRational -> VRational <$> (rationalRecip sym . fromVRational =<< x)
       TVFloat e p ->
@@ -552,12 +568,13 @@ recipV sym =
       TVIntMod m -> VInteger <$> (znRecip sym m . fromVInteger =<< x)
       _ -> evalPanic "recip"  [show a ++ "is not a Field"]
 
-{-# SPECIALIZE fieldDivideV :: Concrete -> GenValue Concrete #-}
-fieldDivideV :: Backend sym => sym -> GenValue sym
+{-# SPECIALIZE fieldDivideV :: Concrete -> Prim Concrete #-}
+fieldDivideV :: Backend sym => sym -> Prim sym
 fieldDivideV sym =
-  tlam $ \a ->
-  lam $ \x -> return $
-  lam $ \y ->
+  PTyPoly \a ->
+  PFun    \x ->
+  PFun    \y ->
+  PPrim
     case a of
       TVRational ->
         do x' <- fromVRational <$> x
@@ -656,27 +673,27 @@ complementV sym = logicUnary sym (bitComplement sym) (wordComplement sym)
 -- Bitvector signed div and modulus
 
 {-# INLINE lg2V #-}
-lg2V :: Backend sym => sym -> GenValue sym
+lg2V :: Backend sym => sym -> Prim sym
 lg2V sym =
-  nlam $ \(finNat' -> w) ->
-  wlam sym $ \x -> return $
-  VWord w (WordVal <$> wordLg2 sym x)
+  PFinPoly \w ->
+  PWordFun \x ->
+  PVal (VWord w (WordVal <$> wordLg2 sym x))
 
-{-# SPECIALIZE sdivV :: Concrete -> GenValue Concrete #-}
-sdivV :: Backend sym => sym -> GenValue sym
+{-# SPECIALIZE sdivV :: Concrete -> Prim Concrete #-}
+sdivV :: Backend sym => sym -> Prim sym
 sdivV sym =
-  nlam $ \(finNat' -> w) ->
-  wlam sym $ \x -> return $
-  wlam sym $ \y -> return $
-  VWord w (WordVal <$> wordSignedDiv sym x y)
+  PFinPoly \w ->
+  PWordFun \x ->
+  PWordFun \y ->
+  PVal (VWord w (WordVal <$> wordSignedDiv sym x y))
 
-{-# SPECIALIZE smodV :: Concrete -> GenValue Concrete #-}
-smodV :: Backend sym => sym -> GenValue sym
+{-# SPECIALIZE smodV :: Concrete -> Prim Concrete #-}
+smodV :: Backend sym => sym -> Prim sym
 smodV sym  =
-  nlam $ \(finNat' -> w) ->
-  wlam sym $ \x -> return $
-  wlam sym $ \y -> return $
-  VWord w (WordVal <$> wordSignedMod sym x y)
+  PFinPoly \w ->
+  PWordFun \x ->
+  PWordFun \y ->
+  PVal (VWord w (WordVal <$> wordSignedMod sym x y))
 
 -- Cmp -------------------------------------------------------------------------
 
@@ -1093,12 +1110,13 @@ extractWordVal _ len start (LargeBitsVal n xs) =
 {-# INLINE ecSplitV #-}
 
 -- | Split implementation.
-ecSplitV :: Backend sym => sym -> GenValue sym
+ecSplitV :: Backend sym => sym -> Prim sym
 ecSplitV sym =
-  nlam $ \ parts ->
-  nlam $ \ each  ->
-  tlam $ \ a     ->
-  lam  $ \ val ->
+  PNumPoly \parts ->
+  PNumPoly \each ->
+  PTyPoly  \a ->
+  PFun     \val ->
+  PPrim
     case (parts, each) of
        (Nat p, Nat e) | isTBit a -> do
           ~(VWord _ val') <- val
@@ -1471,14 +1489,15 @@ indexPrim ::
   (Nat' -> TValue -> SeqMap sym -> TValue -> SInteger sym -> SEval sym (GenValue sym)) ->
   (Nat' -> TValue -> SeqMap sym -> TValue -> [SBit sym] -> SEval sym (GenValue sym)) ->
   (Nat' -> TValue -> SeqMap sym -> TValue -> SWord sym -> SEval sym (GenValue sym)) ->
-  GenValue sym
+  Prim sym
 indexPrim sym int_op bits_op word_op =
-  nlam $ \ len  ->
-  tlam $ \ eltTy ->
-  tlam $ \ ix ->
-   lam $ \ xs  -> return $
-   lam $ \ idx  -> do
-      vs <- xs >>= \case
+  PNumPoly \len ->
+  PTyPoly  \eltTy ->
+  PTyPoly  \ix ->
+  PFun     \xs ->
+  PFun     \idx ->
+  PPrim
+   do vs <- xs >>= \case
                VWord _ w  -> w >>= \w' -> return $ IndexSeqMap (\i -> VBit <$> indexWordValue sym w' i)
                VSeq _ vs  -> return vs
                VStream vs -> return vs
@@ -1497,31 +1516,33 @@ updatePrim ::
   sym ->
   (Nat' -> TValue -> WordValue sym -> Either (SInteger sym) (WordValue sym) -> SEval sym (GenValue sym) -> SEval sym (WordValue sym)) ->
   (Nat' -> TValue -> SeqMap sym    -> Either (SInteger sym) (WordValue sym) -> SEval sym (GenValue sym) -> SEval sym (SeqMap sym)) ->
-  GenValue sym
+  Prim sym
 updatePrim sym updateWord updateSeq =
-  nlam $ \len ->
-  tlam $ \eltTy ->
-  tlam $ \ix ->
-  lam $ \xs  -> return $
-  lam $ \idx -> return $
-  lam $ \val -> do
-    idx' <- asIndex sym "update" ix =<< idx
-    assertIndexInBounds sym len idx'
-    xs >>= \case
-      VWord l w  -> do w' <- sDelay sym Nothing w
-                       return $ VWord l (w' >>= \w'' -> updateWord len eltTy w'' idx' val)
-      VSeq l vs  -> VSeq l  <$> updateSeq len eltTy vs idx' val
-      VStream vs -> VStream <$> updateSeq len eltTy vs idx' val
-      _ -> evalPanic "Expected sequence value" ["updatePrim"]
+  PNumPoly \len ->
+  PTyPoly  \eltTy ->
+  PTyPoly  \ix ->
+  PFun     \xs ->
+  PFun     \idx ->
+  PFun     \val ->
+  PPrim
+   do idx' <- asIndex sym "update" ix =<< idx
+      assertIndexInBounds sym len idx'
+      xs >>= \case
+        VWord l w  -> do w' <- sDelay sym Nothing w
+                         return $ VWord l (w' >>= \w'' -> updateWord len eltTy w'' idx' val)
+        VSeq l vs  -> VSeq l  <$> updateSeq len eltTy vs idx' val
+        VStream vs -> VStream <$> updateSeq len eltTy vs idx' val
+        _ -> evalPanic "Expected sequence value" ["updatePrim"]
 
 {-# INLINE fromToV #-}
 
 -- @[ 0 .. 10 ]@
-fromToV :: Backend sym => sym -> GenValue sym
+fromToV :: Backend sym => sym -> Prim sym
 fromToV sym =
-  nlam $ \ first ->
-  nlam $ \ lst   ->
-  tlam $ \ ty    ->
+  PNumPoly \first ->
+  PNumPoly \lst ->
+  PTyPoly  \ty ->
+  PVal
     let !f = mkLit sym ty in
     case (first, lst) of
       (Nat first', Nat lst') ->
@@ -1532,13 +1553,14 @@ fromToV sym =
 {-# INLINE fromThenToV #-}
 
 -- @[ 0, 1 .. 10 ]@
-fromThenToV :: Backend sym => sym -> GenValue sym
+fromThenToV :: Backend sym => sym -> Prim sym
 fromThenToV sym =
-  nlam $ \ first ->
-  nlam $ \ next  ->
-  nlam $ \ lst   ->
-  tlam $ \ ty    ->
-  nlam $ \ len   ->
+  PNumPoly \first ->
+  PNumPoly \next  ->
+  PNumPoly \lst   ->
+  PTyPoly  \ty    ->
+  PNumPoly \len   ->
+  PVal
     let !f = mkLit sym ty in
     case (first, next, lst, len) of
       (Nat first', Nat next', Nat _lst', Nat len') ->
@@ -1547,31 +1569,33 @@ fromThenToV sym =
       _ -> evalPanic "fromThenToV" ["invalid arguments"]
 
 {-# INLINE infFromV #-}
-infFromV :: Backend sym => sym -> GenValue sym
+infFromV :: Backend sym => sym -> Prim sym
 infFromV sym =
-  tlam $ \ ty ->
-  lam  $ \ x ->
-  do mx <- sDelay sym Nothing x
-     return $ VStream $ IndexSeqMap $ \i ->
-       do x' <- mx
-          i' <- integerLit sym i
-          addV sym ty x' =<< intV sym i' ty
+  PTyPoly \ty ->
+  PFun    \x ->
+  PPrim
+    do mx <- sDelay sym Nothing x
+       return $ VStream $ IndexSeqMap $ \i ->
+         do x' <- mx
+            i' <- integerLit sym i
+            addV sym ty x' =<< intV sym i' ty
 
 {-# INLINE infFromThenV #-}
-infFromThenV :: Backend sym => sym -> GenValue sym
+infFromThenV :: Backend sym => sym -> Prim sym
 infFromThenV sym =
-  tlam $ \ ty ->
-  lam $ \ first -> return $
-  lam $ \ next ->
-  do mxd <- sDelay sym Nothing
-             (do x <- first
-                 y <- next
-                 d <- subV sym ty y x
-                 pure (x,d))
-     return $ VStream $ IndexSeqMap $ \i -> do
-       (x,d) <- mxd
-       i' <- integerLit sym i
-       addV sym ty x =<< mulV sym ty d =<< intV sym i' ty
+  PTyPoly \ty ->
+  PFun    \first ->
+  PFun    \next ->
+  PPrim
+    do mxd <- sDelay sym Nothing
+               (do x <- first
+                   y <- next
+                   d <- subV sym ty y x
+                   pure (x,d))
+       return $ VStream $ IndexSeqMap $ \i -> do
+         (x,d) <- mxd
+         i' <- integerLit sym i
+         addV sym ty x =<< mulV sym ty d =<< intV sym i' ty
 
 -- Shifting ---------------------------------------------------
 
@@ -1670,13 +1694,14 @@ logicShift :: Backend sym =>
      {- ^ reindexing operation for positive indices (sequence size, starting index, shift amount -} ->
   (Nat' -> Integer -> Integer -> Maybe Integer)
      {- ^ reindexing operation for negative indices (sequence size, starting index, shift amount -} ->
-  GenValue sym
+  Prim sym
 logicShift sym nm shrinkRange wopPos wopNeg reindexPos reindexNeg =
-  nlam $ \m ->
-  tlam $ \ix ->
-  tlam $ \a ->
-  VFun $ \xs -> return $
-  VFun $ \y ->
+  PNumPoly \m ->
+  PTyPoly  \ix ->
+  PTyPoly  \a ->
+  PFun     \xs ->
+  PFun     \y ->
+  PPrim
     do xs' <- xs
        y' <- asIndex sym "shift" ix =<< y
        case y' of
@@ -1921,15 +1946,16 @@ mergeSeqMap sym c x y =
 
 
 
-foldlV :: Backend sym => sym -> GenValue sym
+foldlV :: Backend sym => sym -> Prim sym
 foldlV sym =
-  ilam $ \_n ->
-  tlam $ \_a ->
-  tlam $ \_b ->
-  lam $ \f -> pure $
-  lam $ \z -> pure $
-  lam $ \v ->
-    v >>= \case
+  PNumPoly \_n ->
+  PTyPoly  \_a ->
+  PTyPoly  \_b ->
+  PFun     \f ->
+  PFun     \z ->
+  PStrictFun \v ->
+  PPrim
+    case v of
       VSeq n m    -> go0 f z (enumerateSeqMap n m)
       VWord _n wv -> go0 f z . map (pure . VBit) =<< (enumerateWordValue sym =<< wv)
       _ -> panic "Cryptol.Eval.Generic.foldlV" ["Expected finite sequence"]
@@ -1944,15 +1970,16 @@ foldlV sym =
     do f' <- fromVFun <$> (f a)
        go1 f (f' b) bs
 
-foldl'V :: Backend sym => sym -> GenValue sym
+foldl'V :: Backend sym => sym -> Prim sym
 foldl'V sym =
-  ilam $ \_n ->
-  tlam $ \_a ->
-  tlam $ \_b ->
-  lam $ \f -> pure $
-  lam $ \z -> pure $
-  lam $ \v ->
-    v >>= \case
+  PNumPoly \_n ->
+  PTyPoly  \_a ->
+  PTyPoly  \_b ->
+  PFun     \f ->
+  PFun     \z ->
+  PStrictFun \v ->
+  PPrim
+    case v of
       VSeq n m    -> go0 f z (enumerateSeqMap n m)
       VWord _n wv -> go0 f z . map (pure . VBit) =<< (enumerateWordValue sym =<< wv)
       _ -> panic "Cryptol.Eval.Generic.foldlV" ["Expected finite sequence"]
@@ -1994,13 +2021,14 @@ randomV sym ty seed =
 --------------------------------------------------------------------------------
 -- Experimental parallel primitives
 
-parmapV :: Backend sym => sym -> GenValue sym
+parmapV :: Backend sym => sym -> Prim sym
 parmapV sym =
-  tlam $ \_a ->
-  tlam $ \_b ->
-  ilam $ \_n ->
-  lam $ \f -> pure $
-  lam $ \xs ->
+  PTyPoly \_a ->
+  PTyPoly \_b ->
+  PFinPoly \_n ->
+  PFun \f ->
+  PFun \xs ->
+  PPrim
     do f' <- fromVFun <$> f
        xs' <- xs
        case xs' of
@@ -2033,14 +2061,14 @@ sparkParMap sym f n m =
 -- Floating Point Operations
 
 -- | Make a Cryptol value for a binary arithmetic function.
-fpBinArithV :: Backend sym => sym -> FPArith2 sym -> GenValue sym
+fpBinArithV :: Backend sym => sym -> FPArith2 sym -> Prim sym
 fpBinArithV sym fun =
-  ilam \_ ->
-  ilam \_ ->
-  wlam sym \r ->
-  pure $ flam \x ->
-  pure $ flam \y ->
-  VFloat <$> fun sym r x y
+  PFinPoly  \_e ->
+  PFinPoly  \_p ->
+  PWordFun  \r ->
+  PFloatFun \x ->
+  PFloatFun \y ->
+  PPrim (VFloat <$> fun sym r x y)
 
 -- | Rounding mode used in FP operations that do not specify it explicitly.
 fpRndMode, fpRndRNE, fpRndRNA, fpRndRTP, fpRndRTN, fpRndRTZ ::
@@ -2051,3 +2079,188 @@ fpRndRNA sym = wordLit sym 3 1 {- to nearest, ties to away from 0 -}
 fpRndRTP sym = wordLit sym 3 2 {- to +inf -}
 fpRndRTN sym = wordLit sym 3 3 {- to -inf -}
 fpRndRTZ sym = wordLit sym 3 4 {- to 0    -}
+
+
+
+{-# SPECIALIZE genericPrimTable :: Concrete -> Map PrimIdent (Prim Concrete) #-}
+
+genericPrimTable :: Backend sym => sym -> Map PrimIdent (Prim sym)
+genericPrimTable sym =
+  Map.fromList $ map (\(n, v) -> (prelPrim n, v))
+
+  [ -- Literals
+    ("True"       , PVal $ VBit (bitLit sym True))
+  , ("False"      , PVal $ VBit (bitLit sym False))
+  , ("number"     , {-# SCC "Prelude::number" #-}
+                    ecNumberV sym)
+  , ("ratio"      , {-# SCC "Prelude::ratio" #-}
+                    ratioV sym)
+  , ("fraction"   , ecFractionV sym)
+
+    -- Zero
+  , ("zero"       , {-# SCC "Prelude::zero" #-}
+                    PTyPoly (PPrim . zeroV sym))
+
+    -- Logic
+  , ("&&"         , {-# SCC "Prelude::(&&)" #-}
+                    binary (andV sym))
+  , ("||"         , {-# SCC "Prelude::(||)" #-}
+                    binary (orV sym))
+  , ("^"          , {-# SCC "Prelude::(^)" #-}
+                    binary (xorV sym))
+  , ("complement" , {-# SCC "Prelude::complement" #-}
+                    unary  (complementV sym))
+
+    -- Ring
+  , ("fromInteger", {-# SCC "Prelude::fromInteger" #-}
+                    fromIntegerV sym)
+  , ("+"          , {-# SCC "Prelude::(+)" #-}
+                    binary (addV sym))
+  , ("-"          , {-# SCC "Prelude::(-)" #-}
+                    binary (subV sym))
+  , ("*"          , {-# SCC "Prelude::(*)" #-}
+                    binary (mulV sym))
+  , ("negate"     , {-# SCC "Prelude::negate" #-}
+                    unary (negateV sym))
+
+    -- Integral
+  , ("toInteger"  , {-# SCC "Prelude::toInteger" #-}
+                    toIntegerV sym)
+  , ("/"          , {-# SCC "Prelude::(/)" #-}
+                    binary (divV sym))
+  , ("%"          , {-# SCC "Prelude::(%)" #-}
+                    binary (modV sym))
+  , ("^^"         , {-# SCC "Prelude::(^^)" #-}
+                    expV sym)
+  , ("infFrom"    , {-# SCC "Prelude::infFrom" #-}
+                    infFromV sym)
+  , ("infFromThen", {-# SCC "Prelude::infFromThen" #-}
+                    infFromThenV sym)
+
+    -- Field
+  , ("recip"      , {-# SCC "Prelude::recip" #-}
+                    recipV sym)
+  , ("/."         , {-# SCC "Prelude::(/.)" #-}
+                    fieldDivideV sym)
+
+    -- Round
+  , ("floor"      , {-# SCC "Prelude::floor" #-}
+                    unary (floorV sym))
+  , ("ceiling"    , {-# SCC "Prelude::ceiling" #-}
+                    unary (ceilingV sym))
+  , ("trunc"      , {-# SCC "Prelude::trunc" #-}
+                    unary (truncV sym))
+  , ("roundAway"  , {-# SCC "Prelude::roundAway" #-}
+                    unary (roundAwayV sym))
+  , ("roundToEven", {-# SCC "Prelude::roundToEven" #-}
+                    unary (roundToEvenV sym))
+
+    -- Bitvector specific operations
+  , ("/$"         , {-# SCC "Prelude::(/$)" #-}
+                    sdivV sym)
+  , ("%$"         , {-# SCC "Prelude::(%$)" #-}
+                    smodV sym)
+  , ("lg2"        , {-# SCC "Prelude::lg2" #-}
+                    lg2V sym)
+
+    -- Cmp
+  , ("<"          , {-# SCC "Prelude::(<)" #-}
+                    binary (lessThanV sym))
+  , (">"          , {-# SCC "Prelude::(>)" #-}
+                    binary (greaterThanV sym))
+  , ("<="         , {-# SCC "Prelude::(<=)" #-}
+                    binary (lessThanEqV sym))
+  , (">="         , {-# SCC "Prelude::(>=)" #-}
+                    binary (greaterThanEqV sym))
+  , ("=="         , {-# SCC "Prelude::(==)" #-}
+                    binary (eqV sym))
+  , ("!="         , {-# SCC "Prelude::(!=)" #-}
+                    binary (distinctV sym))
+
+    -- SignedCmp
+  , ("<$"         , {-# SCC "Prelude::(<$)" #-}
+                    binary (signedLessThanV sym))
+
+    -- Finite enumerations
+  , ("fromTo"     , {-# SCC "Prelude::fromTo" #-}
+                    fromToV sym)
+  , ("fromThenTo" , {-# SCC "Prelude::fromThenTo" #-}
+                    fromThenToV sym)
+
+    -- Sequence manipulations
+  , ("#"          , {-# SCC "Prelude::(#)" #-}
+                    PFinPoly \front ->
+                    PNumPoly \back  ->
+                    PTyPoly  \elty  ->
+                    PFun \l ->
+                    PFun \r ->
+                    PPrim (join (ccatV sym (Nat front) back elty <$> l <*> r)))
+
+  , ("join"       , {-# SCC "Prelude::join" #-}
+                    PNumPoly \parts ->
+                    PFinPoly \each  ->
+                    PTyPoly  \a     ->
+                    PStrictFun \x   ->
+                    PPrim $ joinV sym parts each a x)
+
+  , ("split"      , {-# SCC "Prelude::split" #-}
+                    ecSplitV sym)
+
+  , ("splitAt"    , {-# SCC "Prelude::splitAt" #-}
+                    PNumPoly \front ->
+                    PNumPoly \back  ->
+                    PTyPoly  \a     ->
+                    PStrictFun \x   ->
+                    PPrim $ splitAtV sym front back a x)
+
+  , ("reverse"    , {-# SCC "Prelude::reverse" #-}
+                    PFinPoly \_a ->
+                    PTyPoly  \_b ->
+                    PStrictFun \xs ->
+                    PPrim $ reverseV sym xs)
+
+  , ("transpose"  , {-# SCC "Prelude::transpose" #-}
+                    PNumPoly \a ->
+                    PNumPoly \b ->
+                    PTyPoly  \c ->
+                    PStrictFun \xs ->
+                    PPrim $ transposeV sym a b c xs)
+
+    -- Misc
+
+    -- {at,len} (fin len) => [len][8] -> at
+  , ("error"      , {-# SCC "Prelude::error" #-}
+                     PTyPoly  \a ->
+                     PFinPoly \_ ->
+                     PStrictFun \s ->
+                     PPrim (errorV sym a =<< valueToString sym s))
+
+  , ("random"      , {-# SCC "Prelude::random" #-}
+                     PTyPoly  \a ->
+                     PWordFun \x ->
+                     PPrim
+                       case wordAsLit sym x of
+                         Just (_,i)  -> randomV sym a i
+                         Nothing -> liftIO (X.throw (UnsupportedSymbolicOp "random")))
+
+  , ("foldl"      , {-# SCC "Prelude::foldl" #-}
+                    foldlV sym)
+
+  , ("foldl'"     , {-# SCC "Prelude::foldl'" #-}
+                    foldl'V sym)
+
+  , ("deepseq"    , {-# SCC "Prelude::deepseq" #-}
+                    PTyPoly \_a ->
+                    PTyPoly \_b ->
+                    PFun \x ->
+                    PFun \y ->
+                    PPrim do _ <- forceValue =<< x
+                             y)
+
+  , ("parmap"     , {-# SCC "Prelude::parmap" #-}
+                    parmapV sym)
+
+  , ("fromZ"      , {-# SCC "Prelude::fromZ" #-}
+                    fromZV sym)
+
+  ]
