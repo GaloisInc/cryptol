@@ -26,36 +26,36 @@ Loading module Main
             at issue845.cry:2:9--2:17
 (ratio 1 2)
 
-[error] at <interactive>:1:1--1:9:
+[error] at issue845.icry:3:1--3:9:
   • `1/0` is not a valid literal of type `Rational`
       arising from
       use of fractional literal
-      at <interactive>:1:1--1:9
+      at issue845.icry:3:1--3:9
 
-[error] at <interactive>:1:1--1:9:
+[error] at issue845.icry:4:1--4:9:
   • `inf/2` is not a valid literal of type `Rational`
       arising from
       use of fractional literal
-      at <interactive>:1:1--1:9
+      at issue845.icry:4:1--4:9
 Loading module Cryptol
 Loading module Float
 0x0.8
 
-[error] at <interactive>:1:1--1:9:
+[error] at issue845.icry:7:1--7:9:
   • `1/0` is not a valid literal of type `Float64`
       arising from
       use of fractional literal
-      at <interactive>:1:1--1:9
+      at issue845.icry:7:1--7:9
 
-[error] at <interactive>:1:1--1:9:
+[error] at issue845.icry:8:1--8:9:
   • `inf/2` is not a valid literal of type `Float64`
       arising from
       use of fractional literal
-      at <interactive>:1:1--1:9
+      at issue845.icry:8:1--8:9
 0x0.2
 
-[error] at <interactive>:1:1--1:9:
+[error] at issue845.icry:10:1--10:9:
   • `1/10` is not a valid literal of type `Float 3 2`
       arising from
       use of fractional literal
-      at <interactive>:1:1--1:9
+      at issue845.icry:10:1--10:9

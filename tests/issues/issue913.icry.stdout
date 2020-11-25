@@ -4,9 +4,9 @@ False
 0x5b
 number`{rep = Bit} : {n} (1 >= n) => Bit
 
-[error] at <interactive>:1:1--1:2:
+[error] at issue913.icry:5:1--5:2:
   • Unsolvable constraint:
       1 >= 2
         arising from
         use of literal or demoted expression
-        at <interactive>:1:1--1:2
+        at issue913.icry:5:1--5:2

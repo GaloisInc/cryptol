@@ -25,4 +25,4 @@ Q.E.D.
 	Q.E.D.
 :prove moderately_bogus_property
 	
-Run-time error: cannot evaluate 'random' with symbolic inputs
+operation can not be supported on symbolic values: random

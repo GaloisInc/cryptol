@@ -1,25 +1,25 @@
 Loading module Cryptol
 
-[error] at <interactive>:1:1--1:21:
+[error] at issue910.icry:1:1--1:21:
   • `?a` is not an integral type.
       arising from
       use of expression (@)
-      at <interactive>:1:8--1:21
+      at issue910.icry:1:8--1:21
   • Type `?a` does not support field operations.
       arising from
       use of expression (/.)
-      at <interactive>:1:14--1:20
+      at issue910.icry:1:14--1:20
   where
-  ?a is type argument 'a' of '(/.)' at <interactive>:1:14--1:20
+  ?a is type argument 'a' of '(/.)' at issue910.icry:1:14--1:20
 
-[error] at <interactive>:1:1--1:16:
+[error] at issue910.icry:2:1--2:16:
   • `?a` is not an integral type.
       arising from
       use of expression (@)
-      at <interactive>:1:8--1:16
+      at issue910.icry:2:8--2:16
   • `6/5` is not a valid literal of type `?a`
       arising from
       use of fractional literal
-      at <interactive>:1:13--1:16
+      at issue910.icry:2:13--2:16
   where
-  ?a is type argument 'a' of 'fraction' at <interactive>:1:13--1:16
+  ?a is type argument 'a' of 'fraction' at issue910.icry:2:13--2:16

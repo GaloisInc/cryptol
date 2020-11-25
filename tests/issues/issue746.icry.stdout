@@ -1,6 +1,6 @@
 Loading module Cryptol
 
-[error] at <interactive>:1:11--1:16:
+[error] at issue746.icry:1:11--1:16:
   Type mismatch:
     Expected type: 3
     Inferred type: 2

@@ -1,10 +1,16 @@
 Loading module Cryptol
 Counterexample
 (\x -> assert x "asdf" "asdf") False ~> ERROR
+Run-time error: asdf
+at Cryptol:959:41--959:46
 Counterexample
 (\(x : [4]) -> [0 .. 14] @ x == x) 0xf ~> ERROR
+invalid sequence index: 15
+at safety.icry:4:20--4:34
 Counterexample
 (\y -> (10 : Integer) / y) 0 ~> ERROR
+division by 0
+at safety.icry:5:14--5:30
 Safe
 Safe
 Safe

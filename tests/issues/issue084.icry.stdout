@@ -3,7 +3,7 @@ Showing a specific instance of polymorphic result:
   * Using '5' for type argument 'n' of 'Cryptol::lg2'
 0x03
 
-[error] at <interactive>:1:1--1:4:
+[error] at issue084.icry:2:1--2:4:
   Type mismatch:
     Expected type: Integer
     Inferred type: [5]
