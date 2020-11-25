@@ -32,6 +32,7 @@ module Cryptol.Eval (
   , EvalError(..)
   , EvalErrorEx(..)
   , Unsupported(..)
+  , WordTooWide(..)
   , forceValue
   ) where
 

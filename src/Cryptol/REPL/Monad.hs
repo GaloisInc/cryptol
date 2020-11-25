@@ -76,7 +76,7 @@ module Cryptol.REPL.Monad (
 
 import Cryptol.REPL.Trie
 
-import Cryptol.Eval (EvalErrorEx, Unsupported)
+import Cryptol.Eval (EvalErrorEx, Unsupported, WordTooWide)
 import qualified Cryptol.ModuleSystem as M
 import qualified Cryptol.ModuleSystem.Env as M
 import qualified Cryptol.ModuleSystem.Name as M
@@ -290,6 +290,7 @@ data REPLException
   | NoPatError [Error]
   | NoIncludeError [IncludeError]
   | EvalError EvalErrorEx
+  | TooWide WordTooWide
   | Unsupported Unsupported
   | ModuleSystemError NameDisp M.ModuleError
   | EvalPolyError T.Schema
@@ -319,6 +320,7 @@ instance PP REPLException where
     ModuleSystemError ns me -> fixNameDisp ns (pp me)
     EvalError e          -> pp e
     Unsupported e        -> pp e
+    TooWide e            -> pp e
     EvalPolyError s      -> text "Cannot evaluate polymorphic value."
                          $$ text "Type:" <+> pp s
     TypeNotTestable t    -> text "The expression is not of a testable type."
@@ -344,7 +346,10 @@ finally m1 m2 = REPL (\ref -> unREPL m1 ref `X.finally` unREPL m2 ref)
 
 
 rethrowEvalError :: IO a -> IO a
-rethrowEvalError m = run `X.catch` rethrow `X.catch` rethrowUnsupported
+rethrowEvalError m =
+    run `X.catch` rethrow
+        `X.catch` rethrowTooWide
+        `X.catch` rethrowUnsupported
   where
   run = do
     a <- m
@@ -352,6 +357,9 @@ rethrowEvalError m = run `X.catch` rethrow `X.catch` rethrowUnsupported
 
   rethrow :: EvalErrorEx -> IO a
   rethrow exn = X.throwIO (EvalError exn)
+
+  rethrowTooWide :: WordTooWide -> IO a
+  rethrowTooWide exn = X.throwIO (TooWide exn)
 
   rethrowUnsupported :: Unsupported -> IO a
   rethrowUnsupported exn = X.throwIO (Unsupported exn)
