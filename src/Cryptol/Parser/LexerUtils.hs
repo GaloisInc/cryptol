@@ -32,6 +32,7 @@ import Control.DeepSeq
 
 data Config = Config
   { cfgSource      :: !FilePath     -- ^ File that we are working on
+  , cfgStart       :: !Position     -- ^ Starting position for the parser
   , cfgLayout      :: !Layout       -- ^ Settings for layout processing
   , cfgPreProc     :: PreProc       -- ^ Preprocessor settings
   , cfgAutoInclude :: [FilePath]    -- ^ Implicit includes
@@ -43,6 +44,7 @@ data Config = Config
 defaultConfig :: Config
 defaultConfig  = Config
   { cfgSource      = ""
+  , cfgStart       = start
   , cfgLayout      = Layout
   , cfgPreProc     = None
   , cfgAutoInclude = []

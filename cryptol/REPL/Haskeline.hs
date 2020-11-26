@@ -48,38 +48,38 @@ import           Prelude.Compat
 crySession :: Maybe FilePath -> Bool -> REPL CommandExitCode
 crySession mbBatch stopOnError =
   do settings <- io (setHistoryFile (replSettings isBatch))
-     let act = runInputTBehavior behavior settings (withInterrupt loop)
+     let act = runInputTBehavior behavior settings (withInterrupt (loop 1))
      if isBatch then asBatch act else act
   where
   (isBatch,behavior) = case mbBatch of
     Nothing   -> (False,defaultBehavior)
     Just path -> (True,useFile path)
 
-  loop :: InputT REPL CommandExitCode
-  loop =
+  loop :: Int -> InputT REPL CommandExitCode
+  loop lineNum =
     do ln <- getInputLines =<< MTL.lift getPrompt
        case ln of
          NoMoreLines -> return CommandOk
          Interrupted
            | isBatch && stopOnError -> return CommandError
-           | otherwise -> loop
-         NextLine line
-           | all isSpace line -> loop
-           | otherwise        -> doCommand line
+           | otherwise -> loop lineNum
+         NextLine ls
+           | all (all isSpace) ls -> loop (lineNum + length ls)
+           | otherwise            -> doCommand lineNum ls
 
-  doCommand txt =
-    case parseCommand findCommandExact txt of
-      Nothing | isBatch && stopOnError  -> return CommandError
-              | otherwise -> loop -- say somtething?
+  doCommand lineNum txt =
+    case parseCommand findCommandExact (unlines txt) of
+      Nothing | isBatch && stopOnError -> return CommandError
+              | otherwise -> loop (lineNum + length txt)  -- say somtething?
       Just cmd -> join $ MTL.lift $
-        do status <- handleInterrupt (handleCtrlC CommandError) (runCommand cmd)
+        do status <- handleInterrupt (handleCtrlC CommandError) (runCommand lineNum mbBatch cmd)
            case status of
              CommandError | isBatch && stopOnError -> return (return status)
              _ -> do goOn <- shouldContinue
-                     return (if goOn then loop else return status)
+                     return (if goOn then loop (lineNum + length txt) else return status)
 
 
-data NextLine = NextLine String | NoMoreLines | Interrupted
+data NextLine = NextLine [String] | NoMoreLines | Interrupted
 
 getInputLines :: String -> InputT REPL NextLine
 getInputLines = handleInterrupt (MTL.lift (handleCtrlC Interrupted)) . loop []
@@ -91,7 +91,7 @@ getInputLines = handleInterrupt (MTL.lift (handleCtrlC Interrupted)) . loop []
          Nothing -> return NoMoreLines
          Just l
            | not (null l) && last l == '\\' -> loop (init l : ls) newPropmpt
-           | otherwise -> return $ NextLine $ unlines $ reverse $ l : ls
+           | otherwise -> return $ NextLine $ reverse $ l : ls
 
 loadCryRC :: Cryptolrc -> REPL CommandExitCode
 loadCryRC cryrc =
@@ -201,7 +201,7 @@ canDisplayColor = io (hSupportsANSI stdout)
 cryptolCommand :: CompletionFunc REPL
 cryptolCommand cursor@(l,r)
   | ":" `isPrefixOf` l'
-  , Just (cmd,rest) <- splitCommand l' = case nub (findCommand cmd) of
+  , Just (_,cmd,rest) <- splitCommand l' = case nub (findCommand cmd) of
 
       [c] | null rest && not (any isSpace l') -> do
             return (l, cmdComp cmd c)
