@@ -394,7 +394,8 @@ newtype Prop n = CType (Type n)
 
 
 instance AddLoc (Expr n) where
-  addLoc = ELocated
+  addLoc (ELocated x _) r = addLoc x r
+  addLoc x              r = ELocated x r
 
   dropLoc (ELocated e _) = dropLoc e
   dropLoc e              = e
