@@ -661,6 +661,7 @@ safeCmd str pos fnm = do
 
             ~(EnvBool yes) <- getUser "show-examples"
             when yes $ printCounterexample cexType pexpr vs
+            when yes $ printSafetyViolation pexpr vs
 
             void $ bindItVariable t e
 
@@ -721,6 +722,12 @@ cmdProveSat isSat str pos fnm = do
             ~(EnvBool yes) <- getUser "show-examples"
             when yes $ printCounterexample cexType pexpr vs
 
+            -- if there's a safety violation, evalute the counterexample to
+            -- find and print the actual concrete error
+            case cexType of
+              SafetyViolation -> when yes $ printSafetyViolation pexpr vs
+              _ -> return ()
+
             void $ bindItVariable t e
 
           AllSatResult tevss -> do
@@ -751,6 +758,16 @@ cmdProveSat isSat str pos fnm = do
 
         seeStats <- getUserShowProverStats
         when seeStats (showProverStats firstProver stats)
+
+printSafetyViolation :: P.Expr P.PName -> [E.GenValue Concrete] -> REPL ()
+printSafetyViolation pexpr vs =
+    catch
+      (do (fn,_) <- replEvalExpr pexpr
+          rEval (E.forceValue =<< foldM (\f v -> E.fromVFun f (pure v)) fn vs))
+      (\case
+          EvalError eex -> rPutStrLn (show (pp eex))
+          ex -> raise ex)
+
 
 onlineProveSat :: String
                -> QueryType
