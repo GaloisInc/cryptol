@@ -6,6 +6,7 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE LambdaCase #-}
@@ -124,7 +125,11 @@ proverNames = map fst proverConfigs
 setupProver :: String -> IO (Either String ([String], SBVProverConfig))
 setupProver nm
   | nm `elem` ["any","sbv-any"] =
+#if MIN_VERSION_sbv(8,9,0)
+    do ps <- SBV.getAvailableSolvers
+#else
     do ps <- SBV.sbvAvailableSolvers
+#endif
        case ps of
          [] -> pure (Left "SBV could not find any provers")
          _ ->  let msg = "SBV found the following solvers: " ++ show (map (SBV.name . SBV.solver) ps) in
@@ -155,7 +160,11 @@ satSMTResults :: SBV.SatResult -> [SBV.SMTResult]
 satSMTResults (SBV.SatResult r) = [r]
 
 allSatSMTResults :: SBV.AllSatResult -> [SBV.SMTResult]
+#if MIN_VERSION_sbv(8,8,0)
+allSatSMTResults (SBV.AllSatResult {allSatResults = rs}) = rs
+#else
 allSatSMTResults (SBV.AllSatResult (_, _, _, rs)) = rs
+#endif
 
 thmSMTResults :: SBV.ThmResult -> [SBV.SMTResult]
 thmSMTResults (SBV.ThmResult r) = [r]
@@ -389,7 +398,11 @@ processResults ProverCommand{..} ts results =
 
        -- otherwise something is wrong
        _ -> return $ ProverError (rshow results)
+#if MIN_VERSION_sbv(8,8,0)
+              where rshow | isSat = show . (SBV.AllSatResult False False False False)
+#else
               where rshow | isSat = show .  SBV.AllSatResult . (False,False,False,)
+#endif
                           | otherwise = show . SBV.ThmResult . head
 
   where
