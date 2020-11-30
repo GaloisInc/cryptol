@@ -69,7 +69,7 @@ executable cryptol-remote-api
 
   build-depends:
     cryptol-remote-api,
-    sbv < 8.8
+    sbv < 8.10
 
 test-suite test-cryptol-remote-api
   import:              deps, warnings
