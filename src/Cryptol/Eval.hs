@@ -328,7 +328,10 @@ fillHole ::
 fillHole sym env (nm, sch, _, fill) = do
   case lookupVar nm env of
     Just (Right v)
-     | isValueType env sch -> fill =<< sDelayFill sym v (etaDelay sym (nameLoc nm) (show (ppLocName nm)) env sch v)
+     | isValueType env sch -> fill =<< sDelayFill sym v
+                                         (Just (etaDelay sym (nameLoc nm) (show (ppLocName nm)) env sch v))
+                                         (show (ppLocName nm))
+                                         (nameLoc nm)
      | otherwise           -> fill (etaDelay sym (nameLoc nm) (show (ppLocName nm)) env sch v)
 
     _ -> evalPanic "fillHole" ["Recursive definition not completed", show (ppLocName nm)]
@@ -462,7 +465,7 @@ etaDelay sym rng msg env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
       TVArray{} -> v
 
       TVSeq n TVBit ->
-          do w <- sDelayFill sym (fromWordVal "during eta-expansion" =<< v) (etaWord sym rng n v)
+          do w <- sDelayFill sym (fromWordVal "during eta-expansion" =<< v) (Just (etaWord sym rng n v)) msg rng
              return $ VWord n w
 
       TVSeq n el ->
@@ -517,7 +520,7 @@ declHole sym d =
   where
   nm = dName d
   sch = dSignature d
-  msg = unwords ["<<loop>> while evaluating", show (pp nm)]
+  msg = unwords ["while evaluating", show (pp nm)]
 
 
 -- | Evaluate a declaration, extending the evaluation environment.

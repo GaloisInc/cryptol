@@ -164,8 +164,8 @@ instance Backend SBV where
   isReady _ (SBVEval (Ready _)) = True
   isReady _ _ = False
 
-  sDelayFill _ m retry = SBVEval $
-    do m' <- delayFill (sbvEval m) (sbvEval retry)
+  sDelayFill _ m retry msg rng = SBVEval $
+    do m' <- delayFill (sbvEval m) (sbvEval <$> retry) msg rng
        pure (pure (SBVEval m'))
 
   sSpark _ rng m = SBVEval $

@@ -58,9 +58,7 @@ cryNoPrimError sym nm = raiseError sym (EvalErrorEx (nameLoc nm) (NoPrim nm))
 sDelay :: Backend sym => sym -> Range -> Maybe String -> SEval sym a -> SEval sym (SEval sym a)
 sDelay sym rng msg m =
   let msg'  = maybe "" ("while evaluating "++) msg
-      retry = raiseError sym (EvalErrorEx rng (LoopError msg'))
-   in sDelayFill sym m retry
-
+   in sDelayFill sym m Nothing msg' rng
 
 -- | Representation of rational numbers.
 --     Invariant: denominator is not 0
@@ -235,7 +233,7 @@ class MonadIO (SEval sym) => Backend sym where
   --   which will run the computation when forced.  Run the 'retry'
   --   computation instead if the resulting thunk is forced during
   --   its own evaluation.
-  sDelayFill :: sym -> SEval sym a -> SEval sym a -> SEval sym (SEval sym a)
+  sDelayFill :: sym -> SEval sym a -> Maybe (SEval sym a) -> String -> Range -> SEval sym (SEval sym a)
 
   -- | Begin evaluating the given computation eagerly in a separate thread
   --   and return a thunk which will await the completion of the given computation

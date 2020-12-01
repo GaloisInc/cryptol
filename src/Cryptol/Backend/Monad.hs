@@ -131,15 +131,19 @@ data Eval a
 data ThunkState a
   = Void !String
        -- ^ This thunk has not yet been initialized
-  | Unforced !(IO a) !(IO a)
+  | Unforced !(IO a) !(Maybe (IO a)) String Range
        -- ^ This thunk has not yet been forced.  We keep track of the "main"
        --   computation to run and a "backup" computation to run if we
        --   detect a tight loop when evaluating the first one.
-  | UnderEvaluation !ThreadId !(IO a)
+       --   The final two arguments are used to throw a loop exception
+       --   if the backup computation also causes a tight loop.
+  | UnderEvaluation !ThreadId !(Maybe (IO a)) String Range
        -- ^ This thunk is currently being evaluated by the thread with the given
        --   thread ID.  We track the "backup" computation to run if we detect
        --   a tight loop evaluating this thunk.  If the thunk is being evaluated
        --   by some other thread, the current thread will await its completion.
+       --   The final two arguments are used to throw a loop exception
+       --   if the backup computation also causes a tight loop.
   | ForcedErr !EvalErrorEx
        -- ^ This thunk has been forced, and its evaluation results in an exception
   | Forced !a
@@ -165,11 +169,14 @@ maybeReady (Eval _) = pure Nothing
 --   its own evaluation.
 delayFill ::
   Eval a {- ^ Computation to delay -} ->
-  Eval a {- ^ Backup computation to run if a tight loop is detected -} ->
+  Maybe (Eval a) {- ^ Optional backup computation to run if a tight loop is detected -} ->
+  String {- ^ message for the <<loop>> exceprion if a tight loop is detecrted -} ->
+  Range {- ^ location information for the <<loop>> exceprion if a tight loop is detecrted -} ->
   Eval (Eval a)
-delayFill e@(Ready _) _  = return e
-delayFill e@(Thunk _) _  = return e
-delayFill (Eval x) backup = Eval (Thunk <$> newTVarIO (Unforced x (runEval backup)))
+delayFill e@(Ready _) _ _ _ = return e
+delayFill e@(Thunk _) _ _ _ = return e
+delayFill (Eval x) backup msg rng =
+  Eval (Thunk <$> newTVarIO (Unforced x (runEval <$> backup) msg rng))
 
 -- | Begin executing the given operation in a separate thread,
 --   returning a thunk which will await the completion of
@@ -197,7 +204,7 @@ evalSpark _ (Thunk tv)  = Eval $
 -- If the computation is nontrivial but not already a thunk,
 -- create a thunk and fork a thread to force it.
 evalSpark rng (Eval x) = Eval $
-  do tv <- newTVarIO (Unforced x (X.throwIO (EvalErrorEx rng (LoopError ""))))
+  do tv <- newTVarIO (Unforced x Nothing "" rng)
      _ <- forkIO (sparkThunk tv)
      return (Thunk tv)
 
@@ -215,13 +222,13 @@ sparkThunk tv =
               do st <- readTVar tv
                  case st of
                    Void _ -> retry
-                   Unforced _ backup -> writeTVar tv (UnderEvaluation tid backup)
+                   Unforced _ backup msg rng -> writeTVar tv (UnderEvaluation tid backup msg rng)
                    _ -> return ()
                  return st
      -- If we successfully claimed the thunk to work on, run the computation and
      -- update the thunk state with the result.
      case st of
-       Unforced work _ ->
+       Unforced work _ _ _ ->
          X.try work >>= \case
            Left err -> atomically (writeTVar tv (ForcedErr err))
            Right a  -> atomically (writeTVar tv (Forced a))
@@ -238,9 +245,8 @@ blackhole ::
   Eval (Eval a, Eval a -> Eval ())
 blackhole msg rng = Eval $
   do tv <- newTVarIO (Void msg)
-     let ex = EvalErrorEx rng (LoopError msg)
      let set (Ready x)  = io $ atomically (writeTVar tv (Forced x))
-         set m          = io $ atomically (writeTVar tv (Unforced (runEval m) (X.throwIO ex)))
+         set m          = io $ atomically (writeTVar tv (Unforced (runEval m) Nothing msg rng))
      return (Thunk tv, set)
 
 -- | Force a thunk to get the result.
@@ -259,15 +265,18 @@ unDelay tv =
                   case res of
                     -- In this case, we claim the thunk.  Update the state to indicate
                     -- that we are working on it.
-                    Unforced _ backup -> writeTVar tv (UnderEvaluation tid backup)
+                    Unforced _ backup msg rng -> writeTVar tv (UnderEvaluation tid backup msg rng)
 
                     -- In this case, the thunk is already being evaluated.  If it is
                     -- under evaluation by this thread, we have to run the backup computation,
                     -- and "consume" it by updating the backup computation to one that throws
                     -- a loop error.  If some other thread is evaluating, reset the
                     -- transaction to await completion of the thunk.
-                    UnderEvaluation t _
-                      | tid == t  -> writeTVar tv (UnderEvaluation tid (X.throwIO (EvalErrorEx emptyRange (LoopError "")))) -- TODO? better range info
+                    UnderEvaluation t backup msg rng
+                      | tid == t  ->
+                          case backup of
+                            Just _  -> writeTVar tv (UnderEvaluation tid Nothing msg rng)
+                            Nothing -> writeTVar tv (ForcedErr (EvalErrorEx rng (LoopError msg)))
                       | otherwise -> retry -- wait, if some other thread is evaualting
                     _ -> return ()
 
@@ -288,8 +297,10 @@ unDelay tv =
            Void msg -> evalPanic "unDelay" ["Thunk forced before it was initialized", msg]
            Forced x -> pure x
            ForcedErr e -> X.throwIO e
-           UnderEvaluation _ backup -> doWork backup -- this thread was already evaluating this thunk
-           Unforced work _ -> doWork work
+           -- this thread was already evaluating this thunk
+           UnderEvaluation _ (Just backup) _ _ -> doWork backup
+           UnderEvaluation _ Nothing msg rng -> X.throwIO (EvalErrorEx rng (LoopError msg))
+           Unforced work _ _ _ -> doWork work
 
 -- | Execute the given evaluation action.
 runEval :: Eval a -> IO a

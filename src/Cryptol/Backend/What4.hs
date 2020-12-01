@@ -221,10 +221,10 @@ instance W4.IsSymExprBuilder sym => Backend (What4 sym) where
       Ready _ -> True
       _ -> False
 
-  sDelayFill _ m retry =
+  sDelayFill _ m retry msg rng =
     total
     do sym <- getSym
-       doEval (w4Thunk <$> delayFill (w4Eval m sym) (w4Eval retry sym))
+       doEval (w4Thunk <$> delayFill (w4Eval m sym) (w4Eval <$> retry <*> pure sym) msg rng)
 
   sSpark _ rng m =
     total
