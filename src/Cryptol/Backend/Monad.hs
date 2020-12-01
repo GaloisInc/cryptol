@@ -360,7 +360,6 @@ instance PP EvalError where
   ppPrec _ e = case e of
     InvalidIndex (Just i) -> text "invalid sequence index:" <+> integer i
     InvalidIndex Nothing  -> text "invalid sequence index"
---    TypeCannotBeDemoted t -> text "type cannot be demoted:" <+> pp t
     DivideByZero -> text "division by 0"
     NegativeExponent -> text "negative exponent"
     LogNegative -> text "logarithm of negative"
@@ -396,11 +395,6 @@ instance PP Unsupported where
     UnsupportedSymbolicOp nm -> text "operation can not be supported on symbolic values:" <+> text nm
 
 instance X.Exception Unsupported
-
-
--- | For things like @`(inf)@ or @`(0-1)@.
---typeCannotBeDemoted :: Type -> a
---typeCannotBeDemoted t = X.throw (TypeCannotBeDemoted t)
 
 -- | For when we know that a word is too wide and will exceed gmp's
 -- limits (though words approaching this size will probably cause the
