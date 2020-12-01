@@ -79,7 +79,7 @@ bindVar ::
   SEval sym (GenEvalEnv sym)
 bindVar sym n val env = do
   let nm = show $ ppLocName n
-  val' <- sDelay sym (nameLoc n) (Just nm) val
+  val' <- sDelayFill sym val Nothing nm (nameLoc n)
   return $ env{ envVars = IntMap.insert (nameUnique n) (Right val') (envVars env) }
 
 -- | Bind a variable to a value in the evaluation environment, without

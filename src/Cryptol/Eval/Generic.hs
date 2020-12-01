@@ -234,15 +234,15 @@ ringBinary sym opw opi opz opq opfp rng = loop
 
     -- tuples
     TVTuple tys ->
-      do ls <- mapM (sDelay sym rng Nothing) (fromVTuple l)
-         rs <- mapM (sDelay sym rng Nothing) (fromVTuple r)
+      do ls <- mapM (sDelay sym rng) (fromVTuple l)
+         rs <- mapM (sDelay sym rng) (fromVTuple r)
          return $ VTuple (zipWith3 loop' tys ls rs)
 
     -- records
     TVRec fs ->
       do VRecord <$>
             traverseRecordMap
-              (\f fty -> sDelay sym rng Nothing (loop' fty (lookupRecord f l) (lookupRecord f r)))
+              (\f fty -> sDelay sym rng (loop' fty (lookupRecord f l) (lookupRecord f r)))
               fs
 
     TVAbstract {} ->
@@ -311,14 +311,14 @@ ringUnary sym opw opi opz opq opfp rng = loop
 
     -- tuples
     TVTuple tys ->
-      do as <- mapM (sDelay sym rng Nothing) (fromVTuple v)
+      do as <- mapM (sDelay sym rng) (fromVTuple v)
          return $ VTuple (zipWith loop' tys as)
 
     -- records
     TVRec fs ->
       VRecord <$>
         traverseRecordMap
-          (\f fty -> sDelay sym rng Nothing (loop' fty (lookupRecord f v)))
+          (\f fty -> sDelay sym rng (loop' fty (lookupRecord f v)))
           fs
 
     TVAbstract {} -> evalPanic "ringUnary" ["Abstract type not in `Ring`"]
@@ -367,23 +367,23 @@ ringNullary sym rng opw opi opz opq opfp = loop
           -- words and finite sequences
           | isTBit a -> pure $ VWord w $ (WordVal <$> opw w)
           | otherwise ->
-             do v <- sDelay sym rng Nothing (loop a)
+             do v <- sDelay sym rng (loop a)
                 pure $ VSeq w $ IndexSeqMap \_i -> v
 
         TVStream a ->
-             do v <- sDelay sym rng Nothing (loop a)
+             do v <- sDelay sym rng (loop a)
                 pure $ VStream $ IndexSeqMap \_i -> v
 
         TVFun _ b ->
-             do v <- sDelay sym rng Nothing (loop b)
+             do v <- sDelay sym rng (loop b)
                 pure $ lam $ const $ v
 
         TVTuple tys ->
-             do xs <- mapM (sDelay sym rng Nothing . loop) tys
+             do xs <- mapM (sDelay sym rng . loop) tys
                 pure $ VTuple xs
 
         TVRec fs ->
-             do xs <- traverse (sDelay sym rng Nothing . loop) fs
+             do xs <- traverse (sDelay sym rng . loop) fs
                 pure $ VRecord xs
 
         TVAbstract {} ->
@@ -911,26 +911,26 @@ zeroV sym rng ty = case ty of
   TVSeq w ety
       | isTBit ety -> pure $ word sym w 0
       | otherwise  ->
-           do z <- sDelay sym rng Nothing (zeroV sym rng ety)
+           do z <- sDelay sym rng (zeroV sym rng ety)
               pure $ VSeq w (IndexSeqMap \_i -> z)
 
   TVStream ety ->
-     do z <- sDelay sym rng Nothing (zeroV sym rng ety)
+     do z <- sDelay sym rng (zeroV sym rng ety)
         pure $ VStream (IndexSeqMap \_i -> z)
 
   -- functions
   TVFun _ bty ->
-     do z <- sDelay sym rng Nothing (zeroV sym rng bty)
+     do z <- sDelay sym rng (zeroV sym rng bty)
         pure $ lam (const z)
 
   -- tuples
   TVTuple tys ->
-      do xs <- mapM (sDelay sym rng Nothing . zeroV sym rng) tys
+      do xs <- mapM (sDelay sym rng . zeroV sym rng) tys
          pure $ VTuple xs
 
   -- records
   TVRec fields ->
-      do xs <- traverse (sDelay sym rng Nothing . zeroV sym rng) fields
+      do xs <- traverse (sDelay sym rng . zeroV sym rng) fields
          pure $ VRecord xs
 
   TVAbstract {} -> evalPanic "zeroV" [ "Abstract type not in `Zero`" ]
@@ -970,7 +970,7 @@ joinWords sym rng nParts nEach xs =
  where
  loop :: SEval sym (WordValue sym) -> [SEval sym (GenValue sym)] -> SEval sym (GenValue sym)
  loop !wv [] =
-    VWord (nParts * nEach) <$> sDelay sym rng Nothing wv
+    VWord (nParts * nEach) <$> sDelay sym rng wv
  loop !wv (w : ws) =
     w >>= \case
       VWord _ w' ->
@@ -1076,24 +1076,24 @@ splitAtV sym rng front back a val =
   case back of
 
     Nat rightWidth | aBit -> do
-          ws <- sDelay sym rng Nothing (splitWordVal sym leftWidth rightWidth =<< fromWordVal "splitAtV" val)
+          ws <- sDelay sym rng (splitWordVal sym leftWidth rightWidth =<< fromWordVal "splitAtV" val)
           return $ VTuple
                    [ VWord leftWidth  . pure . fst <$> ws
                    , VWord rightWidth . pure . snd <$> ws
                    ]
 
     Inf | aBit -> do
-       vs <- sDelay sym rng Nothing (fromSeq "splitAtV" val)
-       ls <- sDelay sym rng Nothing (fst . splitSeqMap leftWidth <$> vs)
-       rs <- sDelay sym rng Nothing (snd . splitSeqMap leftWidth <$> vs)
+       vs <- sDelay sym rng (fromSeq "splitAtV" val)
+       ls <- sDelay sym rng (fst . splitSeqMap leftWidth <$> vs)
+       rs <- sDelay sym rng (snd . splitSeqMap leftWidth <$> vs)
        return $ VTuple [ return $ VWord leftWidth (LargeBitsVal leftWidth <$> ls)
                        , VStream <$> rs
                        ]
 
     _ -> do
-       vs <- sDelay sym rng Nothing (fromSeq "splitAtV" val)
-       ls <- sDelay sym rng Nothing (fst . splitSeqMap leftWidth <$> vs)
-       rs <- sDelay sym rng Nothing (snd . splitSeqMap leftWidth <$> vs)
+       vs <- sDelay sym rng (fromSeq "splitAtV" val)
+       ls <- sDelay sym rng (fst . splitSeqMap leftWidth <$> vs)
+       rs <- sDelay sym rng (snd . splitSeqMap leftWidth <$> vs)
        return $ VTuple [ VSeq leftWidth <$> ls
                        , mkSeq back a <$> rs
                        ]
@@ -1145,7 +1145,7 @@ ecSplitV sym =
           return $ VSeq p $ IndexSeqMap $ \i ->
             pure $ VWord e (extractWordVal sym e ((p-i-1)*e) =<< val')
        (Inf, Nat e) | isTBit a -> do
-          val' <- sDelay sym rng Nothing (fromSeq "ecSplitV" =<< val)
+          val' <- sDelay sym rng (fromSeq "ecSplitV" =<< val)
           return $ VStream $ IndexSeqMap $ \i ->
             return $ VWord e $ return $ LargeBitsVal e $ IndexSeqMap $ \j ->
               let idx = i*e + toInteger j
@@ -1153,13 +1153,13 @@ ecSplitV sym =
                       xs <- val'
                       lookupSeqMap xs idx
        (Nat p, Nat e) -> do
-          val' <- sDelay sym rng Nothing (fromSeq "ecSplitV" =<< val)
+          val' <- sDelay sym rng (fromSeq "ecSplitV" =<< val)
           return $ VSeq p $ IndexSeqMap $ \i ->
             return $ VSeq e $ IndexSeqMap $ \j -> do
               xs <- val'
               lookupSeqMap xs (e * i + j)
        (Inf  , Nat e) -> do
-          val' <- sDelay sym rng Nothing (fromSeq "ecSplitV" =<< val)
+          val' <- sDelay sym rng (fromSeq "ecSplitV" =<< val)
           return $ VStream $ IndexSeqMap $ \i ->
             return $ VSeq e $ IndexSeqMap $ \j -> do
               xs <- val'
@@ -1251,7 +1251,7 @@ ccatV sym _rng _front _back _elty (VWord m l) (VWord n r) =
   return $ VWord (m+n) (join (joinWordVal sym <$> l <*> r))
 
 ccatV sym rng _front _back _elty (VWord m l) (VStream r) = do
-  l' <- sDelay sym rng Nothing l
+  l' <- sDelay sym rng l
   return $ VStream $ IndexSeqMap $ \i ->
     if i < m then
       VBit <$> (flip (indexWordValue sym rng) i =<< l')
@@ -1259,8 +1259,8 @@ ccatV sym rng _front _back _elty (VWord m l) (VStream r) = do
       lookupSeqMap r (i-m)
 
 ccatV sym rng front back elty l r = do
-       l'' <- sDelay sym rng Nothing (fromSeq "ccatV left" l)
-       r'' <- sDelay sym rng Nothing (fromSeq "ccatV right" r)
+       l'' <- sDelay sym rng (fromSeq "ccatV left" l)
+       r'' <- sDelay sym rng (fromSeq "ccatV right" r)
        let Nat n = front
        mkSeq (evalTF TCAdd [front,back]) elty <$> return (IndexSeqMap $ \i ->
         if i < n then do
@@ -1326,7 +1326,7 @@ logicBinary sym opb opw rng = loop
     TVSeq w aty
          -- words
          | isTBit aty
-              -> do v <- sDelay sym rng Nothing $ join
+              -> do v <- sDelay sym rng $ join
                             (wordValLogicOp sym opb opw <$>
                                     fromWordVal "logicBinary l" l <*>
                                     fromWordVal "logicBinary r" r)
@@ -1344,8 +1344,8 @@ logicBinary sym opb opw rng = loop
                           (fromSeq "logicBinary right" r)))
 
     TVTuple etys -> do
-        ls <- mapM (sDelay sym rng Nothing) (fromVTuple l)
-        rs <- mapM (sDelay sym rng Nothing) (fromVTuple r)
+        ls <- mapM (sDelay sym rng) (fromVTuple l)
+        rs <- mapM (sDelay sym rng) (fromVTuple r)
         return $ VTuple $ zipWith3 loop' etys ls rs
 
     TVFun _ bty ->
@@ -1354,7 +1354,7 @@ logicBinary sym opb opw rng = loop
     TVRec fields ->
       VRecord <$>
         traverseRecordMap
-          (\f fty -> sDelay sym rng Nothing (loop' fty (lookupRecord f l) (lookupRecord f r)))
+          (\f fty -> sDelay sym rng (loop' fty (lookupRecord f l) (lookupRecord f r)))
           fields
 
     TVAbstract {} -> evalPanic "logicBinary"
@@ -1402,7 +1402,7 @@ logicUnary sym opb opw rng = loop
     TVSeq w ety
          -- words
          | isTBit ety
-              -> do v <- sDelay sym rng Nothing (wordValUnaryOp opb opw =<< fromWordVal "logicUnary" val)
+              -> do v <- sDelay sym rng (wordValUnaryOp opb opw =<< fromWordVal "logicUnary" val)
                     return $ VWord w v
 
          -- finite sequences
@@ -1414,7 +1414,7 @@ logicUnary sym opb opw rng = loop
          VStream <$> (mapSeqMap (loop ety) =<< fromSeq "logicUnary" val)
 
     TVTuple etys ->
-      do as <- mapM (sDelay sym rng Nothing) (fromVTuple val)
+      do as <- mapM (sDelay sym rng) (fromVTuple val)
          return $ VTuple (zipWith loop' etys as)
 
     TVFun _ bty ->
@@ -1423,7 +1423,7 @@ logicUnary sym opb opw rng = loop
     TVRec fields ->
       VRecord <$>
         traverseRecordMap
-          (\f fty -> sDelay sym rng Nothing (loop' fty (lookupRecord f val)))
+          (\f fty -> sDelay sym rng (loop' fty (lookupRecord f val)))
           fields
 
     TVAbstract {} -> evalPanic "logicUnary" [ "Abstract type not in `Logic`" ]
@@ -1558,7 +1558,7 @@ updatePrim sym updateWord updateSeq =
    do idx' <- asIndex sym "update" ix =<< idx
       assertIndexInBounds sym rng len idx'
       xs >>= \case
-        VWord l w  -> do w' <- sDelay sym rng Nothing w
+        VWord l w  -> do w' <- sDelay sym rng w
                          return $ VWord l (w' >>= \w'' -> updateWord rng len eltTy w'' idx' val)
         VSeq l vs  -> VSeq l  <$> updateSeq rng len eltTy vs idx' val
         VStream vs -> VStream <$> updateSeq rng len eltTy vs idx' val
@@ -1605,7 +1605,7 @@ infFromV sym =
   PFun    \x ->
   PRange  \rng ->
   PPrim
-    do mx <- sDelay sym rng Nothing x
+    do mx <- sDelay sym rng x
        return $ VStream $ IndexSeqMap $ \i ->
          do x' <- mx
             i' <- integerLit sym i
@@ -1619,7 +1619,7 @@ infFromThenV sym =
   PFun    \next ->
   PRange  \rng ->
   PPrim
-    do mxd <- sDelay sym rng Nothing
+    do mxd <- sDelay sym rng
                (do x <- first
                    y <- next
                    d <- subV sym rng ty y x
@@ -2028,14 +2028,14 @@ foldl'V sym =
   go0 _rng _f a [] = a
   go0 rng f a bs =
     do f' <- fromVFun <$> f
-       a' <- sDelay sym rng Nothing a
+       a' <- sDelay sym rng a
        forceValue =<< a'
        go1 rng f' a' bs
 
   go1 _rng _f a [] = a
   go1 rng f a (b:bs) =
     do f' <- fromVFun <$> (f a)
-       a' <- sDelay sym rng Nothing (f' b)
+       a' <- sDelay sym rng (f' b)
        forceValue =<< a'
        go1 rng f a' bs
 
@@ -2096,7 +2096,7 @@ sparkParMap sym rng f n m =
   finiteSeqMap <$> mapM (sSpark sym rng . g) (enumerateSeqMap n m)
  where
  g x =
-   do z <- sDelay sym rng Nothing (f x)
+   do z <- sDelay sym rng (f x)
       forceValue =<< z
       z
 

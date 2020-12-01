@@ -123,10 +123,10 @@ evalExpr sym env expr = case expr of
         return $ VWord len $
           case tryFromBits sym vs of
             Just w  -> WordVal <$> w
-            Nothing -> do xs <- mapM (sDelay sym ?range Nothing) vs
+            Nothing -> do xs <- mapM (sDelay sym ?range) vs
                           return $ LargeBitsVal len $ finiteSeqMap xs
     | otherwise -> {-# SCC "evalExpr->EList" #-} do
-        xs <- mapM (sDelay sym ?range Nothing) vs
+        xs <- mapM (sDelay sym ?range) vs
         return $ VSeq len $ finiteSeqMap xs
    where
     tyv = evalValType (envTypes env) ty
@@ -134,11 +134,11 @@ evalExpr sym env expr = case expr of
     len = genericLength es
 
   ETuple es -> {-# SCC "evalExpr->ETuple" #-} do
-     xs <- mapM (sDelay sym ?range Nothing . eval) es
+     xs <- mapM (sDelay sym ?range . eval) es
      return $ VTuple xs
 
   ERec fields -> {-# SCC "evalExpr->ERec" #-} do
-     xs <- traverse (sDelay sym ?range Nothing . eval) fields
+     xs <- traverse (sDelay sym ?range . eval) fields
      return $ VRecord xs
 
   ESel e sel -> {-# SCC "evalExpr->ESel" #-} do
@@ -329,10 +329,10 @@ fillHole sym env (nm, sch, _, fill) = do
   case lookupVar nm env of
     Just (Right v)
      | isValueType env sch -> fill =<< sDelayFill sym v
-                                         (Just (etaDelay sym (nameLoc nm) (show (ppLocName nm)) env sch v))
+                                         (Just (etaDelay sym (nameLoc nm) env sch v))
                                          (show (ppLocName nm))
                                          (nameLoc nm)
-     | otherwise           -> fill (etaDelay sym (nameLoc nm) (show (ppLocName nm)) env sch v)
+     | otherwise           -> fill (etaDelay sym (nameLoc nm) env sch v)
 
     _ -> evalPanic "fillHole" ["Recursive definition not completed", show (ppLocName nm)]
 
@@ -371,7 +371,7 @@ etaWord  ::
   SEval sym (GenValue sym) ->
   SEval sym (WordValue sym)
 etaWord sym rng n val = do
-  w <- sDelay sym rng Nothing (fromWordVal "during eta-expansion" =<< val)
+  w <- sDelay sym rng (fromWordVal "during eta-expansion" =<< val)
   xs <- memoMap $ IndexSeqMap $ \i ->
           do w' <- w; VBit <$> indexWordValue sym rng w' i
   pure $ LargeBitsVal n xs
@@ -379,7 +379,6 @@ etaWord sym rng n val = do
 {-# SPECIALIZE etaDelay ::
   Concrete ->
   Range ->
-  String ->
   GenEvalEnv Concrete ->
   Schema ->
   SEval Concrete (GenValue Concrete) ->
@@ -396,12 +395,11 @@ etaDelay ::
   Backend sym =>
   sym ->
   Range ->
-  String ->
   GenEvalEnv sym ->
   Schema ->
   SEval sym (GenValue sym) ->
   SEval sym (GenValue sym)
-etaDelay sym rng msg env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
+etaDelay sym rng env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
   where
   goTpVars env []     val = go (evalValType (envTypes env) tp0) val
   goTpVars env (v:vs) val =
@@ -465,26 +463,26 @@ etaDelay sym rng msg env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
       TVArray{} -> v
 
       TVSeq n TVBit ->
-          do w <- sDelayFill sym (fromWordVal "during eta-expansion" =<< v) (Just (etaWord sym rng n v)) msg rng
+          do w <- sDelayFill sym (fromWordVal "during eta-expansion" =<< v) (Just (etaWord sym rng n v)) "" rng
              return $ VWord n w
 
       TVSeq n el ->
-          do x' <- sDelay sym rng (Just msg) (fromSeq "during eta-expansion" =<< v)
+          do x' <- sDelay sym rng (fromSeq "during eta-expansion" =<< v)
              return $ VSeq n $ IndexSeqMap $ \i -> do
                go el (flip lookupSeqMap i =<< x')
 
       TVStream el ->
-          do x' <- sDelay sym rng (Just msg) (fromSeq "during eta-expansion" =<< v)
+          do x' <- sDelay sym rng (fromSeq "during eta-expansion" =<< v)
              return $ VStream $ IndexSeqMap $ \i ->
                go el (flip lookupSeqMap i =<< x')
 
       TVFun _t1 t2 ->
-          do v' <- sDelay sym rng (Just msg) (fromVFun <$> v)
+          do v' <- sDelay sym rng (fromVFun <$> v)
              return $ VFun $ \a -> go t2 ( ($a) =<< v' )
 
       TVTuple ts ->
           do let n = length ts
-             v' <- sDelay sym rng (Just msg) (fromVTuple <$> v)
+             v' <- sDelay sym rng (fromVTuple <$> v)
              return $ VTuple $
                 [ go t =<< (flip genericIndex i <$> v')
                 | i <- [0..(n-1)]
@@ -492,7 +490,7 @@ etaDelay sym rng msg env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
                 ]
 
       TVRec fs ->
-          do v' <- sDelay sym rng (Just msg) (fromVRecord <$> v)
+          do v' <- sDelay sym rng (fromVRecord <$> v)
              let err f = evalPanic "expected record value with field" [show f]
              let eta f t = go t =<< (fromMaybe (err f) . lookupField f <$> v')
              return $ VRecord (mapWithFieldName eta fs)

@@ -55,10 +55,8 @@ cryNoPrimError sym nm = raiseError sym (EvalErrorEx (nameLoc nm) (NoPrim nm))
 -- | Delay the given evaluation computation, returning a thunk
 --   which will run the computation when forced.  Raise a loop
 --   error if the resulting thunk is forced during its own evaluation.
-sDelay :: Backend sym => sym -> Range -> Maybe String -> SEval sym a -> SEval sym (SEval sym a)
-sDelay sym rng msg m =
-  let msg'  = maybe "" ("while evaluating "++) msg
-   in sDelayFill sym m Nothing msg' rng
+sDelay :: Backend sym => sym -> Range -> SEval sym a -> SEval sym (SEval sym a)
+sDelay sym rng m = sDelayFill sym m Nothing "" rng
 
 -- | Representation of rational numbers.
 --     Invariant: denominator is not 0
