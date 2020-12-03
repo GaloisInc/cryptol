@@ -39,7 +39,7 @@
 > import Cryptol.TypeCheck.AST
 > import Cryptol.Backend.FloatHelpers (BF(..))
 > import qualified Cryptol.Backend.FloatHelpers as FP
-> import Cryptol.Backend.Monad (EvalError(..), PPOpts(..))
+> import Cryptol.Backend.Monad (EvalError(..))
 > import Cryptol.Eval.Type (TValue(..), isTBit, evalValType, evalNumType, TypeEnv)
 > import Cryptol.Eval.Concrete (mkBv, ppBV, lg2)
 > import Cryptol.Utils.Ident (Ident,PrimIdent, prelPrim, floatPrim)

@@ -94,6 +94,7 @@ import Control.Monad.IO.Class
 import Data.Bits
 import Data.IORef
 import Data.Map.Strict (Map)
+import Data.Ratio
 import qualified Data.Map.Strict as Map
 import MonadLib
 import Numeric (showIntAtBase)
@@ -101,9 +102,8 @@ import Numeric (showIntAtBase)
 import Cryptol.Backend
 import qualified Cryptol.Backend.Arch as Arch
 import Cryptol.Backend.Monad
-  ( PPOpts(..), evalPanic, wordTooWide, defaultPPOpts, asciiMode
-  , CallStack, combineCallStacks
-  )
+  ( evalPanic, wordTooWide, CallStack, combineCallStacks )
+import Cryptol.Backend.FloatHelpers (fpPP)
 import Cryptol.Eval.Type
 
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
@@ -378,10 +378,10 @@ ppValue x opts = loop
       ppField (f,r) = pp f <+> char '=' <+> r
     VTuple vals        -> do vals' <- traverse (>>=loop) vals
                              return $ parens (sep (punctuate comma vals'))
-    VBit b             -> return $ ppBit x b
-    VInteger i         -> return $ ppInteger x opts i
-    VRational q        -> return $ ppRational x opts q
-    VFloat i           -> return $ ppFloat x opts i
+    VBit b             -> ppSBit x b
+    VInteger i         -> ppSInteger x i
+    VRational q        -> ppSRational x q
+    VFloat i           -> ppSFloat x opts i
     VSeq sz vals       -> ppWordSeq sz vals
     VWord _ wv         -> ppWordVal =<< wv
     VStream vals       -> do vals' <- traverse (>>=loop) $ enumerateSeqMap (useInfLength opts) vals
@@ -406,11 +406,41 @@ ppValue x opts = loop
         -> do vs <- traverse (fromVWord x "ppWordSeq") ws
               case traverse (wordAsChar x) vs of
                 Just str -> return $ text (show str)
-                _ -> return $ brackets (fsep (punctuate comma $ map (ppWord x opts) vs))
+                _ -> do vs' <- mapM (ppSWord x opts) vs
+                        return $ brackets (fsep (punctuate comma vs'))
       _ -> do ws' <- traverse loop ws
               return $ brackets (fsep (punctuate comma ws'))
 
+ppSBit :: Backend sym => sym -> SBit sym -> SEval sym Doc
+ppSBit sym b =
+  case bitAsLit sym b of
+    Just True  -> pure (text "True")
+    Just False -> pure (text "False")
+    Nothing    -> pure (text "?")
 
+ppSInteger :: Backend sym => sym -> SInteger sym -> SEval sym Doc
+ppSInteger sym x =
+  case integerAsLit sym x of
+    Just i  -> pure (integer i)
+    Nothing -> pure (text "[?]")
+
+ppSFloat :: Backend sym => sym -> PPOpts -> SFloat sym -> SEval sym Doc
+ppSFloat sym opts x =
+  case fpAsLit sym x of
+    Just fp -> pure (fpPP opts fp)
+    Nothing -> pure (text "[?]")
+
+ppSRational :: Backend sym => sym -> SRational sym -> SEval sym Doc
+ppSRational sym (SRational n d)
+  | Just ni <- integerAsLit sym n
+  , Just di <- integerAsLit sym d
+  = let q = ni % di in
+      pure (text "(ratio" <+> integer (numerator q) <+> (integer (denominator q) <> text ")"))
+
+  | otherwise
+  = do n' <- ppSInteger sym n
+       d' <- ppSInteger sym d
+       pure (text "(ratio" <+> n' <+> (d' <> text ")"))
 
 ppSWord :: Backend sym => sym -> PPOpts -> SWord sym -> SEval sym Doc
 ppSWord sym opts bv

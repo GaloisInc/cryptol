@@ -17,11 +17,6 @@ module Cryptol.Backend.Monad
   Eval(..)
 , runEval
 , EvalOpts(..)
-, PPOpts(..)
-, asciiMode
-, PPFloatFormat(..)
-, PPFloatExp(..)
-, defaultPPOpts
 , io
 , delayFill
 , ready
@@ -66,34 +61,6 @@ import Cryptol.TypeCheck.AST(Name)
 -- | A computation that returns an already-evaluated value.
 ready :: a -> Eval a
 ready a = Ready a
-
--- | How to pretty print things when evaluating
-data PPOpts = PPOpts
-  { useAscii     :: Bool
-  , useBase      :: Int
-  , useInfLength :: Int
-  , useFPBase    :: Int
-  , useFPFormat  :: PPFloatFormat
-  }
-
-asciiMode :: PPOpts -> Integer -> Bool
-asciiMode opts width = useAscii opts && (width == 7 || width == 8)
-
-data PPFloatFormat =
-    FloatFixed Int PPFloatExp -- ^ Use this many significant digits
-  | FloatFrac Int             -- ^ Show this many digits after floating point
-  | FloatFree PPFloatExp      -- ^ Use the correct number of digits
-
-data PPFloatExp = ForceExponent -- ^ Always show an exponent
-                | AutoExponent  -- ^ Only show exponent when needed
-
-
-defaultPPOpts :: PPOpts
-defaultPPOpts = PPOpts { useAscii = False, useBase = 10, useInfLength = 5
-                       , useFPBase = 16
-                       , useFPFormat = FloatFree AutoExponent
-                       }
-
 
 -- | Some options for evaluation
 data EvalOpts = EvalOpts

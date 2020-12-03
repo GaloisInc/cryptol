@@ -99,7 +99,7 @@ import qualified Cryptol.Parser.AST as P
 import Cryptol.Symbolic (SatNum(..))
 import Cryptol.Symbolic.SBV (SBVPortfolioException)
 import Cryptol.Symbolic.What4 (W4Exception)
-import Cryptol.Backend.Monad(PPFloatFormat(..),PPFloatExp(..),PPOpts(..),EvalOpts(..))
+import Cryptol.Backend.Monad(EvalOpts(..))
 import qualified Cryptol.Symbolic.SBV as SBV (proverNames, setupProver, defaultProver, SBVProverConfig)
 import qualified Cryptol.Symbolic.What4 as W4 (proverNames, setupProver, W4ProverConfig)
 
