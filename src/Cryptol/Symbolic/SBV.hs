@@ -72,7 +72,7 @@ import Prelude.Compat
 
 doSBVEval :: MonadIO m => SBVEval a -> m (SBV.SVal, a)
 doSBVEval m =
-  (liftIO $ Eval.runEval (sbvEval m)) >>= \case
+  (liftIO $ Eval.runEval mempty (sbvEval m)) >>= \case
     SBVError err -> liftIO (X.throwIO err)
     SBVResult p x -> pure (p, x)
 
@@ -341,7 +341,7 @@ prepareQuery evo ProverCommand{..} =
                  (safety,b) <- doSBVEval $
                      do env <- Eval.evalDecls sym extDgs mempty
                         v <- Eval.evalExpr sym env pcExpr
-                        appliedVal <- foldM Eval.fromVFun v args
+                        appliedVal <- foldM (Eval.fromVFun sym) v args
                         case pcQueryType of
                           SafetyQuery ->
                             do Eval.forceValue appliedVal

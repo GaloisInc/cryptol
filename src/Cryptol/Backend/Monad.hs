@@ -28,6 +28,14 @@ module Cryptol.Backend.Monad
 , blackhole
 , evalSpark
 , maybeReady
+  -- * Call stacks
+, CallStack
+, getCallStack
+, withCallStack
+, modifyCallStack
+, combineCallStacks
+, pushCallFrame
+, displayCallStack
   -- * Error reporting
 , Unsupported(..)
 , EvalError(..)
@@ -44,6 +52,9 @@ import           Control.Monad
 import qualified Control.Monad.Fail as Fail
 import           Control.Monad.Fix
 import           Control.Monad.IO.Class
+import           Data.Foldable (toList)
+import           Data.Sequence (Seq)
+import qualified Data.Sequence as Seq
 import           Data.Typeable (Typeable)
 import qualified Control.Exception as X
 
@@ -92,6 +103,34 @@ data EvalOpts = EvalOpts
   , evalPPOpts :: PPOpts    -- ^ How to pretty print things.
   }
 
+
+-- | The type of dynamic call stacks for the interpreter.
+--   New frames are pushed onto the right side of the sequence.
+type CallStack = Seq (Name, Range)
+
+displayCallStack :: CallStack -> Doc
+displayCallStack = vcat . map f . toList . Seq.reverse
+  where
+  f (nm,rng) = pp nm <+> text "called at" <+> pp rng
+
+combineCallStacks ::
+  CallStack {- ^ call stack of the application context -} ->
+  CallStack {- ^ call stack of the function being applied -} ->
+  CallStack
+combineCallStacks appstk fnstk = appstk <> dropCommonPrefix appstk fnstk
+  where
+  dropCommonPrefix _  Seq.Empty = Seq.Empty
+  dropCommonPrefix Seq.Empty fs = fs
+  dropCommonPrefix (a Seq.:<| as) xs@(f Seq.:<| fs)
+    | a == f    = dropCommonPrefix as fs
+    | otherwise = xs
+
+pushCallFrame :: Name -> Range -> CallStack -> CallStack
+pushCallFrame nm rng stk@( _ Seq.:|> (nm',rng'))
+  | nm == nm', rng == rng' = stk
+pushCallFrame nm rng stk = stk Seq.:|> (nm,rng)
+
+
 -- | The monad for Cryptol evaluation.
 --   A computation is either "ready", which means it represents
 --   only trivial computation, or is an "eval" action which must
@@ -99,7 +138,7 @@ data EvalOpts = EvalOpts
 --   represents a delayed, shared computation.
 data Eval a
    = Ready !a
-   | Eval !(IO a)
+   | Eval !(CallStack -> IO a)
    | Thunk !(TVar (ThunkState a))
 
 -- | This datastructure tracks the lifecycle of a thunk.
@@ -131,13 +170,13 @@ data Eval a
 data ThunkState a
   = Void !String
        -- ^ This thunk has not yet been initialized
-  | Unforced !(IO a) !(Maybe (IO a)) String Range
+  | Unforced !(IO a) !(Maybe (IO a)) String Range CallStack
        -- ^ This thunk has not yet been forced.  We keep track of the "main"
        --   computation to run and a "backup" computation to run if we
        --   detect a tight loop when evaluating the first one.
        --   The final two arguments are used to throw a loop exception
        --   if the backup computation also causes a tight loop.
-  | UnderEvaluation !ThreadId !(Maybe (IO a)) String Range
+  | UnderEvaluation !ThreadId !(Maybe (IO a)) String Range CallStack
        -- ^ This thunk is currently being evaluated by the thread with the given
        --   thread ID.  We track the "backup" computation to run if we detect
        --   a tight loop evaluating this thunk.  If the thunk is being evaluated
@@ -154,7 +193,7 @@ data ThunkState a
 --   it requires no computation to return.
 maybeReady :: Eval a -> Eval (Maybe a)
 maybeReady (Ready a) = pure (Just a)
-maybeReady (Thunk tv) = Eval $
+maybeReady (Thunk tv) = Eval $ \_ ->
   readTVarIO tv >>= \case
      Forced a -> pure (Just a)
      _ -> pure Nothing
@@ -176,7 +215,7 @@ delayFill ::
 delayFill e@(Ready _) _ _ _ = return e
 delayFill e@(Thunk _) _ _ _ = return e
 delayFill (Eval x) backup msg rng =
-  Eval (Thunk <$> newTVarIO (Unforced x (runEval <$> backup) msg rng))
+  Eval (\stk -> Thunk <$> newTVarIO (Unforced (x stk) (runEval stk <$> backup) msg rng stk))
 
 -- | Begin executing the given operation in a separate thread,
 --   returning a thunk which will await the completion of
@@ -193,18 +232,18 @@ evalSpark _ e@(Ready _) = return e
 -- been forced.  If so, return the result.  Otherwise,
 -- fork a thread to force this computation and return
 -- the thunk.
-evalSpark _ (Thunk tv)  = Eval $
+evalSpark _ (Thunk tv)  = Eval $ \_stk ->
   readTVarIO tv >>= \case
     Forced x     -> return (Ready x)
-    ForcedErr ex -> return (Eval (X.throwIO ex))
+    ForcedErr ex -> return (Eval $ \_ -> (X.throwIO ex))
     _ ->
        do _ <- forkIO (sparkThunk tv)
           return (Thunk tv)
 
 -- If the computation is nontrivial but not already a thunk,
 -- create a thunk and fork a thread to force it.
-evalSpark rng (Eval x) = Eval $
-  do tv <- newTVarIO (Unforced x Nothing "" rng)
+evalSpark rng (Eval x) = Eval $ \stk ->
+  do tv <- newTVarIO (Unforced (x stk) Nothing "" rng stk)
      _ <- forkIO (sparkThunk tv)
      return (Thunk tv)
 
@@ -222,13 +261,13 @@ sparkThunk tv =
               do st <- readTVar tv
                  case st of
                    Void _ -> retry
-                   Unforced _ backup msg rng -> writeTVar tv (UnderEvaluation tid backup msg rng)
+                   Unforced _ backup msg rng stk -> writeTVar tv (UnderEvaluation tid backup msg rng stk)
                    _ -> return ()
                  return st
      -- If we successfully claimed the thunk to work on, run the computation and
      -- update the thunk state with the result.
      case st of
-       Unforced work _ _ _ ->
+       Unforced work _ _ _ _ ->
          X.try work >>= \case
            Left err -> atomically (writeTVar tv (ForcedErr err))
            Right a  -> atomically (writeTVar tv (Forced a))
@@ -243,10 +282,10 @@ blackhole ::
   String {- ^ A name to associate with this thunk. -} ->
   Range ->
   Eval (Eval a, Eval a -> Eval ())
-blackhole msg rng = Eval $
+blackhole msg rng = Eval $ \stk ->
   do tv <- newTVarIO (Void msg)
      let set (Ready x)  = io $ atomically (writeTVar tv (Forced x))
-         set m          = io $ atomically (writeTVar tv (Unforced (runEval m) Nothing msg rng))
+         set m          = io $ atomically (writeTVar tv (Unforced (runEval stk m) Nothing msg rng stk))
      return (Thunk tv, set)
 
 -- | Force a thunk to get the result.
@@ -265,18 +304,18 @@ unDelay tv =
                   case res of
                     -- In this case, we claim the thunk.  Update the state to indicate
                     -- that we are working on it.
-                    Unforced _ backup msg rng -> writeTVar tv (UnderEvaluation tid backup msg rng)
+                    Unforced _ backup msg rng stk -> writeTVar tv (UnderEvaluation tid backup msg rng stk)
 
                     -- In this case, the thunk is already being evaluated.  If it is
                     -- under evaluation by this thread, we have to run the backup computation,
                     -- and "consume" it by updating the backup computation to one that throws
                     -- a loop error.  If some other thread is evaluating, reset the
                     -- transaction to await completion of the thunk.
-                    UnderEvaluation t backup msg rng
+                    UnderEvaluation t backup msg rng stk
                       | tid == t  ->
                           case backup of
-                            Just _  -> writeTVar tv (UnderEvaluation tid Nothing msg rng)
-                            Nothing -> writeTVar tv (ForcedErr (EvalErrorEx rng (LoopError msg)))
+                            Just _  -> writeTVar tv (UnderEvaluation tid Nothing msg rng stk)
+                            Nothing -> writeTVar tv (ForcedErr (EvalErrorEx rng stk (LoopError msg)))
                       | otherwise -> retry -- wait, if some other thread is evaualting
                     _ -> return ()
 
@@ -298,26 +337,42 @@ unDelay tv =
            Forced x -> pure x
            ForcedErr e -> X.throwIO e
            -- this thread was already evaluating this thunk
-           UnderEvaluation _ (Just backup) _ _ -> doWork backup
-           UnderEvaluation _ Nothing msg rng -> X.throwIO (EvalErrorEx rng (LoopError msg))
-           Unforced work _ _ _ -> doWork work
+           UnderEvaluation _ (Just backup) _ _ _ -> doWork backup
+           UnderEvaluation _ Nothing msg rng stk -> X.throwIO (EvalErrorEx rng stk (LoopError msg))
+           Unforced work _ _ _ _ -> doWork work
+
+-- | Get the current call stack
+getCallStack :: Eval CallStack
+getCallStack = Eval (\stk -> pure stk)
+
+-- | Execute the action with the given call stack
+withCallStack :: CallStack -> Eval a -> Eval a
+withCallStack stk m = Eval (\_ -> runEval stk m)
+
+-- | Run the given action with a modify call stack
+modifyCallStack :: (CallStack -> CallStack) -> Eval a -> Eval a
+modifyCallStack f m =
+  Eval $ \stk ->
+    do let stk' = f stk
+       -- putStrLn $ unwords ["Pushing call stack", show (displayCallStack stk')]
+       runEval stk' m
 
 -- | Execute the given evaluation action.
-runEval :: Eval a -> IO a
-runEval (Ready a)  = return a
-runEval (Eval x)   = x
-runEval (Thunk tv) = unDelay tv
+runEval :: CallStack -> Eval a -> IO a
+runEval _    (Ready a) = return a
+runEval stk (Eval x)   = x stk
+runEval _   (Thunk tv) = unDelay tv
 
 {-# INLINE evalBind #-}
 evalBind :: Eval a -> (a -> Eval b) -> Eval b
 evalBind (Ready a) f  = f a
-evalBind (Eval x) f   = Eval (x >>= runEval . f)
-evalBind (Thunk x) f  = Eval (unDelay x >>= runEval . f)
+evalBind (Eval x)  f  = Eval (\stk -> x stk >>= runEval stk . f)
+evalBind (Thunk x) f  = Eval (\stk -> unDelay x >>= runEval stk . f)
 
 instance Functor Eval where
   fmap f (Ready x)   = Ready (f x)
-  fmap f (Eval m)    = Eval (f <$> m)
-  fmap f (Thunk tv)  = Eval (f <$> unDelay tv)
+  fmap f (Eval m)    = Eval (\stk -> f <$> m stk)
+  fmap f (Thunk tv)  = Eval (\_   -> f <$> unDelay tv)
   {-# INLINE fmap #-}
 
 instance Applicative Eval where
@@ -333,17 +388,17 @@ instance Monad Eval where
   {-# INLINE (>>=) #-}
 
 instance Fail.MonadFail Eval where
-  fail x = Eval (fail x)
+  fail x = Eval (\_stk -> fail x)
 
 instance MonadIO Eval where
   liftIO = io
 
 instance MonadFix Eval where
-  mfix f = Eval $ mfix (\x -> runEval (f x))
+  mfix f = Eval $ \stk -> mfix (\x -> runEval stk (f x))
 
 -- | Lift an 'IO' computation into the 'Eval' monad.
 io :: IO a -> Eval a
-io m = Eval m
+io m = Eval (\_stk -> m)
 {-# INLINE io #-}
 
 
@@ -384,16 +439,20 @@ instance Show EvalError where
   show = show . pp
 
 data EvalErrorEx =
-  EvalErrorEx Range EvalError
+  EvalErrorEx Range CallStack EvalError
  deriving Typeable
 
 instance PP EvalErrorEx where
-  ppPrec _ (EvalErrorEx rng ex)
-    | rng == emptyRange = pp ex
-    | otherwise = vcat [ pp ex, text "at" <+> pp rng ]
+  ppPrec _ (EvalErrorEx rng stk ex)
+    | rng == emptyRange = vcat ([ pp ex ] ++ callStk)
+    | otherwise = vcat ([ pp ex, text "at" <+> pp rng] ++ callStk)
+
+   where
+    callStk | Seq.null stk = []
+            | otherwise = [ text "-- Backtrace --", displayCallStack stk ]
 
 instance Show EvalErrorEx where
-  show = show . pp  
+  show = show . pp
 
 instance X.Exception EvalErrorEx
 

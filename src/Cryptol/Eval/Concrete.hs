@@ -106,9 +106,9 @@ toExpr prims t0 v0 = findOne (go t0 v0)
         do BV _ v <- lift (asWordVal Concrete =<< wval)
            pure $ ETApp (ETApp (prim "number") (tNum v)) ty
       VStream _  -> fail "cannot construct infinite expressions"
-      VFun _     -> fail "cannot convert function values to expressions"
-      VPoly _    -> fail "cannot convert polymorphic values to expressions"
-      VNumPoly _ -> fail "cannot convert polymorphic values to expressions"
+      VFun{}     -> fail "cannot convert function values to expressions"
+      VPoly{}    -> fail "cannot convert polymorphic values to expressions"
+      VNumPoly{} -> fail "cannot convert polymorphic values to expressions"
     where
       mismatch :: forall a. ChoiceT Eval a
       mismatch =
@@ -186,10 +186,9 @@ primTable eOpts = let sym = Concrete in
                       do msg <- valueToString sym =<< s
                          let EvalOpts { evalPPOpts, evalLogger } = eOpts
                          doc <- ppValue sym evalPPOpts =<< x
-                         yv <- y
                          io $ logPrint evalLogger
                              $ if null msg then doc else text msg <+> doc
-                         return yv)
+                         y)
 
    , ("pmult",
         PFinPoly \u ->
@@ -210,7 +209,7 @@ primTable eOpts = let sym = Concrete in
         PWordFun \(BV _ m) ->
         PRange   \rng ->
         PPrim
-          do assertSideCondition sym (m /= 0) (EvalErrorEx rng DivideByZero)
+          do assertSideCondition sym (m /= 0) rng DivideByZero
              return . VWord v . pure . WordVal . mkBv v $! F2.pmod (fromInteger w) x m)
 
   , ("pdiv",
@@ -220,7 +219,7 @@ primTable eOpts = let sym = Concrete in
         PWordFun \(BV _ m) ->
         PRange   \rng ->
         PPrim
-          do assertSideCondition sym (m /= 0) (EvalErrorEx rng DivideByZero)
+          do assertSideCondition sym (m /= 0) rng DivideByZero
              return . VWord w . pure . WordVal . mkBv w $! F2.pdiv (fromInteger w) x m)
   ]
 
@@ -708,7 +707,7 @@ floatPrims sym = Map.fromList [ (floatPrim i,v) | (i,v) <- nonInfixTable ]
       PRange \rng ->
       PPrim
       case floatToRational "fpToRational" fp of
-        Left err -> raiseError sym (EvalErrorEx rng err)
+        Left err -> raiseError sym rng err
         Right r  -> pure $
                       VRational
                         SRational { sNum = numerator r, sDenom = denominator r }

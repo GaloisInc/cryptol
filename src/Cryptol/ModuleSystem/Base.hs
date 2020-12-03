@@ -565,7 +565,7 @@ evalExpr e = do
   let tbl = Concrete.primTable evopts
   let ?evalPrim = \i -> Right <$> Map.lookup i tbl
   let ?range = emptyRange
-  io $ E.runEval $ (E.evalExpr Concrete (env <> deEnv denv) e)
+  io $ E.runEval mempty (E.evalExpr Concrete (env <> deEnv denv) e)
 
 evalDecls :: [T.DeclGroup] -> ModuleM ()
 evalDecls dgs = do
@@ -575,7 +575,7 @@ evalDecls dgs = do
   let env' = env <> deEnv denv
   let tbl = Concrete.primTable evOpts
   let ?evalPrim = \i -> Right <$> Map.lookup i tbl
-  deEnv' <- io $ E.runEval $ E.evalDecls Concrete dgs env'
+  deEnv' <- io $ E.runEval mempty (E.evalDecls Concrete dgs env')
   let denv' = denv { deDecls = deDecls denv ++ dgs
                    , deEnv = deEnv'
                    }

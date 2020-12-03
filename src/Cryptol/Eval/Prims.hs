@@ -24,14 +24,14 @@ data Prim sym
 
 evalPrim :: (?range :: Range, Backend sym) => sym -> Name -> Prim sym -> SEval sym (GenValue sym)
 evalPrim sym nm p = case p of
-  PFun f      -> pure (lam (evalPrim sym nm . f))
-  PStrict f   -> pure (lam (\x -> evalPrim sym nm . f =<< x))
-  PWordFun f  -> pure (lam (\x -> evalPrim sym nm . f =<< (fromVWord sym (show nm) =<< x)))
-  PFloatFun f -> pure (flam (evalPrim sym nm . f))
-  PTyPoly f   -> pure (VPoly (evalPrim sym nm . f))
-  PNumPoly f  -> pure (VNumPoly (evalPrim sym nm . f))
-  PFinPoly f  -> pure (VNumPoly (\case Inf -> panic "PFin" ["Unexpected `inf`", show nm];
-                                        Nat n -> evalPrim sym nm (f n)))
+  PFun f      -> lam sym (evalPrim sym nm . f)
+  PStrict f   -> lam sym (\x -> evalPrim sym nm . f =<< x)
+  PWordFun f  -> lam sym (\x -> evalPrim sym nm . f =<< (fromVWord sym (show nm) =<< x))
+  PFloatFun f -> flam sym (evalPrim sym nm . f)
+  PTyPoly f   -> tlam sym (evalPrim sym nm . f)
+  PNumPoly f  -> nlam sym (evalPrim sym nm . f)
+  PFinPoly f  -> nlam sym (\case Inf -> panic "PFin" ["Unexpected `inf`", show nm];
+                                 Nat n -> evalPrim sym nm (f n))
   PRange f    -> evalPrim sym nm (f ?range)
   PPrim m     -> m
   PVal v      -> pure v

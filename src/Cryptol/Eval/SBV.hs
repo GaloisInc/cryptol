@@ -30,7 +30,7 @@ import qualified Data.Text as T
 import Data.SBV.Dynamic as SBV
 
 import Cryptol.Backend
-import Cryptol.Backend.Monad ( EvalError(..), EvalErrorEx(..), Unsupported(..) )
+import Cryptol.Backend.Monad ( EvalError(..), Unsupported(..) )
 import Cryptol.Backend.SBV
 
 import Cryptol.Eval.Type (TValue(..))
@@ -171,7 +171,7 @@ indexFront_bits sym rng mblen _a xs _ix bits0 = go 0 (length bits0) bits0
     -- For indices out of range, fail
     | Nat n <- mblen
     , i >= n
-    = raiseError sym (EvalErrorEx rng (InvalidIndex (Just i)))
+    = raiseError sym rng (InvalidIndex (Just i))
 
     | otherwise
     = lookupSeqMap xs i
@@ -181,7 +181,7 @@ indexFront_bits sym rng mblen _a xs _ix bits0 = go 0 (length bits0) bits0
     -- are out of bounds
     | Nat n <- mblen
     , (i `shiftL` k) >= n
-    = raiseError sym (EvalErrorEx rng (InvalidIndex Nothing))
+    = raiseError sym rng (InvalidIndex Nothing)
 
     | otherwise
     = iteValue sym b

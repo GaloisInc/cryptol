@@ -137,10 +137,12 @@ instance Backend Concrete where
   type SFloat Concrete = FP.BF
   type SEval Concrete = Eval
 
-  raiseError _ err = io (X.throwIO err)
+  raiseError _ rng err =
+    do stk <- getCallStack
+       io (X.throwIO (EvalErrorEx rng stk err))
 
-  assertSideCondition _ True _ = return ()
-  assertSideCondition _ False err = io (X.throwIO err)
+  assertSideCondition _ True _ _ = return ()
+  assertSideCondition sym False rng err = raiseError sym rng err
 
   wordLen _ (BV w _) = w
   wordAsChar _ (BV _ x) = Just $! integerToChar x
@@ -161,6 +163,8 @@ instance Backend Concrete where
   sDeclareHole _ rng = blackhole rng
   sDelayFill _ = delayFill
   sSpark _ = evalSpark
+  sModifyCallStack _ f m = modifyCallStack f m
+  sGetCallStack _ = getCallStack
 
   ppBit _ b | b         = text "True"
             | otherwise = text "False"
@@ -260,21 +264,21 @@ instance Backend Concrete where
   wordDiv sym rng (BV i x) (BV j y)
     | i == 0 && j == 0 = pure $! mkBv 0 0
     | i == j =
-        do assertSideCondition sym (y /= 0) (EvalErrorEx rng DivideByZero)
+        do assertSideCondition sym (y /= 0) rng DivideByZero
            pure $! mkBv i (x `div` y)
     | otherwise = panic "Attempt to divide words of different sizes: wordDiv" [show i, show j]
 
   wordMod sym rng (BV i x) (BV j y)
     | i == 0 && j == 0 = pure $! mkBv 0 0
     | i == j =
-        do assertSideCondition sym (y /= 0) (EvalErrorEx rng DivideByZero)
+        do assertSideCondition sym (y /= 0) rng DivideByZero
            pure $! mkBv i (x `mod` y)
     | otherwise = panic "Attempt to mod words of different sizes: wordMod" [show i, show j]
 
   wordSignedDiv sym rng (BV i x) (BV j y)
     | i == 0 && j == 0 = pure $! mkBv 0 0
     | i == j =
-        do assertSideCondition sym (y /= 0) (EvalErrorEx rng DivideByZero)
+        do assertSideCondition sym (y /= 0) rng DivideByZero
            let sx = signedValue i x
                sy = signedValue i y
            pure $! mkBv i (sx `quot` sy)
@@ -283,7 +287,7 @@ instance Backend Concrete where
   wordSignedMod sym rng (BV i x) (BV j y)
     | i == 0 && j == 0 = pure $! mkBv 0 0
     | i == j =
-        do assertSideCondition sym (y /= 0) (EvalErrorEx rng DivideByZero)
+        do assertSideCondition sym (y /= 0) rng DivideByZero
            let sx = signedValue i x
                sy = signedValue i y
            pure $! mkBv i (sx `rem` sy)
@@ -300,10 +304,10 @@ instance Backend Concrete where
   intNegate _ x  = pure $! negate x
   intMult  _ x y = pure $! x * y
   intDiv sym rng x y =
-    do assertSideCondition sym (y /= 0) (EvalErrorEx rng DivideByZero)
+    do assertSideCondition sym (y /= 0) rng DivideByZero
        pure $! x `div` y
   intMod sym rng x y =
-    do assertSideCondition sym (y /= 0) (EvalErrorEx rng DivideByZero)
+    do assertSideCondition sym (y /= 0) rng DivideByZero
        pure $! x `mod` y
 
   intToZn _ 0 _ = evalPanic "intToZn" ["0 modulus not allowed"]
@@ -318,7 +322,7 @@ instance Backend Concrete where
   -- the only values for which no inverse exists are
   -- congruent to 0 modulo m.
   znRecip sym rng m x
-    | r == 0    = raiseError sym (EvalErrorEx rng DivideByZero)
+    | r == 0    = raiseError sym rng DivideByZero
     | otherwise = pure r
    where
      r = Integer.recipModInteger x m
@@ -387,15 +391,12 @@ fpCvtToInteger sym fun rng rnd flt =
   do mode <- fpRoundMode sym rng rnd
      case FP.floatToInteger fun mode flt of
        Right i -> pure i
-       Left err -> raiseError sym (EvalErrorEx rng err)
+       Left err -> raiseError sym rng err
 
 fpRoundMode :: Concrete -> Range -> SWord Concrete -> SEval Concrete FP.RoundMode
 fpRoundMode sym rng w =
   case FP.fpRound (bvVal w) of
-    Left err -> raiseError sym (EvalErrorEx rng err)
+    Left err -> raiseError sym rng err
     Right a  -> pure a
-
-
-
 
 

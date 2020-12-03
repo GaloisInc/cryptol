@@ -48,6 +48,7 @@ import Cryptol.Backend.Concrete ( integerToChar, ppBV, BV(..) )
 import Cryptol.Backend.Monad
   ( Eval(..), blackhole, delayFill, evalSpark
   , EvalError(..), EvalErrorEx(..), Unsupported(..)
+  , modifyCallStack, getCallStack
   )
 
 import Cryptol.Parser.Position (Range)
@@ -155,10 +156,12 @@ instance Backend SBV where
   type SFloat SBV = ()        -- XXX: not implemented
   type SEval SBV = SBVEval
 
-  raiseError _ err = SBVEval (pure (SBVError err))
+  raiseError _ rng err = SBVEval $
+    do stk <- getCallStack
+       pure (SBVError (EvalErrorEx rng stk err))
 
-  assertSideCondition _ cond err
-    | Just False <- svAsBool cond = SBVEval (pure (SBVError err))
+  assertSideCondition sym cond rng err
+    | Just False <- svAsBool cond = raiseError sym rng err
     | otherwise = SBVEval (pure (SBVResult cond ()))
 
   isReady _ (SBVEval (Ready _)) = True
@@ -175,6 +178,11 @@ instance Backend SBV where
   sDeclareHole _ msg rng = SBVEval $
     do (hole, fill) <- blackhole msg rng
        pure (pure (SBVEval hole, \m -> SBVEval (fmap pure $ fill (sbvEval m))))
+
+  sModifyCallStack _ f (SBVEval m) = SBVEval $
+    modifyCallStack f m
+
+  sGetCallStack _ = SBVEval (pure <$> getCallStack)
 
   mergeEval _sym f c mx my = SBVEval $
     do rx <- sbvEval mx
@@ -268,22 +276,22 @@ instance Backend SBV where
 
   wordDiv sym rng a b =
     do let z = literalSWord (intSizeOf b) 0
-       assertSideCondition sym (svNot (svEqual b z)) (EvalErrorEx rng DivideByZero)
+       assertSideCondition sym (svNot (svEqual b z)) rng DivideByZero
        pure $! svQuot a b
 
   wordMod sym rng a b =
     do let z = literalSWord (intSizeOf b) 0
-       assertSideCondition sym (svNot (svEqual b z)) (EvalErrorEx rng DivideByZero)
+       assertSideCondition sym (svNot (svEqual b z)) rng DivideByZero
        pure $! svRem a b
 
   wordSignedDiv sym rng a b =
     do let z = literalSWord (intSizeOf b) 0
-       assertSideCondition sym (svNot (svEqual b z)) (EvalErrorEx rng DivideByZero)
+       assertSideCondition sym (svNot (svEqual b z)) rng DivideByZero
        pure $! signedQuot a b
 
   wordSignedMod sym rng a b =
     do let z = literalSWord (intSizeOf b) 0
-       assertSideCondition sym (svNot (svEqual b z)) (EvalErrorEx rng DivideByZero)
+       assertSideCondition sym (svNot (svEqual b z)) rng DivideByZero
        pure $! signedRem a b
 
   wordLg2 _ a = sLg2 a
@@ -302,12 +310,12 @@ instance Backend SBV where
 
   intDiv sym rng a b =
     do let z = svInteger KUnbounded 0
-       assertSideCondition sym (svNot (svEqual b z)) (EvalErrorEx rng DivideByZero)
+       assertSideCondition sym (svNot (svEqual b z)) rng DivideByZero
        let p = svLessThan z b
        pure $! svSymbolicMerge KUnbounded True p (svQuot a b) (svQuot (svUNeg a) (svUNeg b))
   intMod sym rng a b =
     do let z = svInteger KUnbounded 0
-       assertSideCondition sym (svNot (svEqual b z)) (EvalErrorEx rng DivideByZero)
+       assertSideCondition sym (svNot (svEqual b z)) rng DivideByZero
        let p = svLessThan z b
        pure $! svSymbolicMerge KUnbounded True p (svRem a b) (svUNeg (svRem (svUNeg a) (svUNeg b)))
 
@@ -409,7 +417,7 @@ sModRecip sym rng m x
   -- If the input is concrete, evaluate the answer
   | Just xi <- svAsInteger x
   = let r = Integer.recipModInteger xi m
-     in if r == 0 then raiseError sym (EvalErrorEx rng DivideByZero) else integerLit sym r
+     in if r == 0 then raiseError sym rng DivideByZero else integerLit sym r
 
   -- If the input is symbolic, create a new symbolic constant
   -- and assert that it is the desired multiplicitive inverse.
@@ -417,7 +425,7 @@ sModRecip sym rng m x
   -- the modulus is prime, and as long as the input is nonzero.
   | otherwise
   = do divZero <- svDivisible sym m x
-       assertSideCondition sym (svNot divZero) (EvalErrorEx rng DivideByZero)
+       assertSideCondition sym (svNot divZero) rng DivideByZero
 
        z <- liftIO (freshSInteger_ sym)
        let xz = svTimes x z

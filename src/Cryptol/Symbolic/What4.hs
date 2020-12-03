@@ -124,7 +124,7 @@ doW4Eval ::
   (W4.IsExprBuilder sym, MonadIO m) =>
   sym -> W4Eval sym a -> m (W4.Pred sym, a)
 doW4Eval sym m =
-  do res <- liftIO $ Eval.runEval (w4Eval m sym)
+  do res <- liftIO $ Eval.runEval mempty (w4Eval m sym)
      case res of
        W4Error err  -> liftIO (X.throwIO err)
        W4Result p x -> pure (p,x)
@@ -286,7 +286,7 @@ prepareQuery sym ProverCommand { .. } =
          do env <- Eval.evalDecls sym extDgs mempty
             v   <- Eval.evalExpr  sym env    pcExpr
             appliedVal <-
-              foldM Eval.fromVFun v (map (pure . varShapeToValue sym) args)
+              foldM (Eval.fromVFun sym) v (map (pure . varShapeToValue sym) args)
 
             case pcQueryType of
               SafetyQuery ->

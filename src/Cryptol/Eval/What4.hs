@@ -41,7 +41,7 @@ import qualified What4.SWord as SW
 import qualified What4.Utils.AbstractDomains as W4
 
 import Cryptol.Backend
-import Cryptol.Backend.Monad ( EvalError(..), EvalErrorEx(..), Unsupported(..) )
+import Cryptol.Backend.Monad ( EvalError(..), Unsupported(..) )
 import Cryptol.Backend.What4
 import qualified Cryptol.Backend.What4.SFloat as W4
 
@@ -576,7 +576,7 @@ indexFront_int sym rng mblen _a xs ix idx
  where
     w4sym = w4 sym
 
-    def = raiseError sym (EvalErrorEx rng (InvalidIndex Nothing))
+    def = raiseError sym rng (InvalidIndex Nothing)
 
     f n y =
        do p <- liftIO (W4.intEq w4sym idx =<< W4.intLit w4sym n)
@@ -637,7 +637,7 @@ indexFront_word sym rng mblen _a xs _ix idx
     w4sym = w4 sym
 
     w = SW.bvWidth idx
-    def = raiseError sym (EvalErrorEx rng (InvalidIndex Nothing))
+    def = raiseError sym rng (InvalidIndex Nothing)
 
     f n y =
        do p <- liftIO (SW.bvEq w4sym idx =<< SW.bvLit w4sym w n)
@@ -688,7 +688,7 @@ indexFront_bits sym rng mblen _a xs _ix bits0 = go 0 (length bits0) bits0
     -- For indices out of range, fail
     | Nat n <- mblen
     , i >= n
-    = raiseError sym (EvalErrorEx rng (InvalidIndex (Just i)))
+    = raiseError sym rng (InvalidIndex (Just i))
 
     | otherwise
     = lookupSeqMap xs i
@@ -698,7 +698,7 @@ indexFront_bits sym rng mblen _a xs _ix bits0 = go 0 (length bits0) bits0
     -- are out of bounds
     | Nat n <- mblen
     , (i `shiftL` k) >= n
-    = raiseError sym (EvalErrorEx rng (InvalidIndex Nothing))
+    = raiseError sym rng (InvalidIndex Nothing)
 
     | otherwise
     = iteValue sym b

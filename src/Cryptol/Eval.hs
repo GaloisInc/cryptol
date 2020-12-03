@@ -161,8 +161,11 @@ evalExpr sym env expr = case expr of
 
   EVar n -> {-# SCC "evalExpr->EVar" #-} do
     case lookupVar n env of
-      Just (Left p)    -> evalPrim sym n p
-      Just (Right val) -> val
+      Just (Left p)    -> sPushFrame sym n ?range (cacheCallStack sym =<< evalPrim sym n p)
+      Just (Right val) ->
+        case nameInfo n of
+          Declared{} -> sPushFrame sym n ?range (cacheCallStack sym =<< val)
+          Parameter  -> cacheCallStack sym =<< val
       Nothing  -> do
         envdoc <- ppEnv sym defaultPPOpts env
         panic "[Eval] evalExpr"
@@ -172,14 +175,14 @@ evalExpr sym env expr = case expr of
 
   ETAbs tv b -> {-# SCC "evalExpr->ETAbs" #-}
     case tpKind tv of
-      KType -> return $ VPoly    $ \ty -> evalExpr sym (bindType (tpVar tv) (Right ty) env) b
-      KNum  -> return $ VNumPoly $ \n  -> evalExpr sym (bindType (tpVar tv) (Left n) env) b
+      KType -> tlam sym $ \ty -> evalExpr sym (bindType (tpVar tv) (Right ty) env) b
+      KNum  -> nlam sym $ \n  -> evalExpr sym (bindType (tpVar tv) (Left n) env) b
       k     -> panic "[Eval] evalExpr" ["invalid kind on type abstraction", show k]
 
   ETApp e ty -> {-# SCC "evalExpr->ETApp" #-} do
     eval e >>= \case
-      VPoly f     -> f $! (evalValType (envTypes env) ty)
-      VNumPoly f  -> f $! (evalNumType (envTypes env) ty)
+      f@VPoly{}    -> fromVPoly sym f    $! (evalValType (envTypes env) ty)
+      f@VNumPoly{} -> fromVNumPoly sym f $! (evalNumType (envTypes env) ty)
       val     -> do vdoc <- ppV val
                     panic "[Eval] evalExpr"
                       ["expected a polymorphic value"
@@ -188,13 +191,13 @@ evalExpr sym env expr = case expr of
 
   EApp f v -> {-# SCC "evalExpr->EApp" #-} do
     eval f >>= \case
-      VFun f' -> f' (eval v)
-      it      -> do itdoc <- ppV it
-                    panic "[Eval] evalExpr" ["not a function", show itdoc ]
+      f'@VFun {} -> fromVFun sym f' (eval v)
+      it         -> do itdoc <- ppV it
+                       panic "[Eval] evalExpr" ["not a function", show itdoc ]
 
   EAbs n _ty b -> {-# SCC "evalExpr->EAbs" #-}
-    return $ VFun (\v -> do env' <- bindVar sym n v env
-                            evalExpr sym env' b)
+    lam sym (\v -> do env' <- bindVar sym n v env
+                      evalExpr sym env' b)
 
   -- XXX these will likely change once there is an evidence value
   EProofAbs _ e -> eval e
@@ -210,6 +213,23 @@ evalExpr sym env expr = case expr of
   eval = evalExpr sym env
   ppV = ppValue sym defaultPPOpts
 
+
+cacheCallStack ::
+  Backend sym =>
+  sym ->
+  GenValue sym ->
+  SEval sym (GenValue sym)
+cacheCallStack sym v = case v of
+  VFun fnstk f ->
+    do stk <- sGetCallStack sym
+       pure (VFun (combineCallStacks stk fnstk) f)
+  VPoly fnstk f ->
+    do stk <- sGetCallStack sym
+       pure (VPoly (combineCallStacks stk fnstk) f)
+  VNumPoly fnstk f ->
+    do stk <- sGetCallStack sym
+       pure (VNumPoly (combineCallStacks stk fnstk) f)
+  _ -> pure v
 
 -- Newtypes --------------------------------------------------------------------
 
@@ -236,10 +256,10 @@ evalNewtype ::
   Newtype ->
   GenEvalEnv sym ->
   SEval sym (GenEvalEnv sym)
-evalNewtype sym nt = bindVar sym (ntName nt) (return (foldr tabs con (ntParams nt)))
+evalNewtype _sym nt = pure . bindVarDirect (ntName nt) (foldr tabs con (ntParams nt))
   where
-  tabs _tp body = tlam (\ _ -> body)
-  con           = VFun id
+  tabs _tp body = PTyPoly (\ _ -> body)
+  con           = PFun PPrim
 {-# INLINE evalNewtype #-}
 
 
@@ -404,10 +424,10 @@ etaDelay sym rng env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
   goTpVars env []     val = go (evalValType (envTypes env) tp0) val
   goTpVars env (v:vs) val =
     case tpKind v of
-      KType -> return $ VPoly $ \t ->
-                  goTpVars (bindType (tpVar v) (Right t) env) vs ( ($t) . fromVPoly =<< val )
-      KNum  -> return $ VNumPoly $ \n ->
-                  goTpVars (bindType (tpVar v) (Left n) env) vs ( ($n) . fromVNumPoly =<< val )
+      KType -> tlam sym $ \t ->
+                  goTpVars (bindType (tpVar v) (Right t) env) vs ( ($t) . fromVPoly sym =<< val )
+      KNum  -> nlam sym $ \n ->
+                  goTpVars (bindType (tpVar v) (Left n) env) vs ( ($n) . fromVNumPoly sym =<< val )
       k     -> panic "[Eval] etaDelay" ["invalid kind on type abstraction", show k]
 
   go tp x | isReady sym x = x >>= \case
@@ -442,9 +462,9 @@ etaDelay sym rng env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
                  Right fs' -> return (VRecord fs')
           _ -> evalPanic "type mismatch during eta-expansion" ["Expected record type, but got " ++ show tp]
 
-      VFun f ->
+      f@VFun{} ->
         case tp of
-          TVFun _t1 t2 -> return $ VFun $ \a -> go t2 (f a)
+          TVFun _t1 t2 -> lam sym $ \a -> go t2 (fromVFun sym f a)
           _ -> evalPanic "type mismatch during eta-expansion" ["Expected function type but got " ++ show tp]
 
       VPoly{} ->
@@ -477,8 +497,8 @@ etaDelay sym rng env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
                go el (flip lookupSeqMap i =<< x')
 
       TVFun _t1 t2 ->
-          do v' <- sDelay sym rng (fromVFun <$> v)
-             return $ VFun $ \a -> go t2 ( ($a) =<< v' )
+          do v' <- sDelay sym rng (fromVFun sym <$> v)
+             lam sym $ \a -> go t2 ( ($a) =<< v' )
 
       TVTuple ts ->
           do let n = length ts

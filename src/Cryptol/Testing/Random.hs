@@ -28,7 +28,7 @@ module Cryptol.Testing.Random
 ) where
 
 import qualified Control.Exception as X
-import Control.Monad          (join, liftM2)
+import Control.Monad          (liftM2)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Ratio             ((%))
 import Data.List              (unfoldr, genericTake, genericIndex, genericReplicate)
@@ -42,7 +42,7 @@ import Cryptol.Backend.Concrete
 
 import Cryptol.Eval.Type      (TValue(..))
 import Cryptol.Eval.Value     (GenValue(..),SeqMap(..), WordValue(..),
-                               ppValue, defaultPPOpts, finiteSeqMap)
+                               ppValue, defaultPPOpts, finiteSeqMap, fromVFun)
 import Cryptol.Utils.Ident    (Ident)
 import Cryptol.Utils.Panic    (panic)
 import Cryptol.Utils.RecordMap
@@ -68,7 +68,7 @@ runOneTest :: RandomGen g
 runOneTest fun argGens sz g0 = do
   let (args, g1) = foldr mkArg ([], g0) argGens
       mkArg argGen (as, g) = let (a, g') = argGen sz g in (a:as, g')
-  args' <- runEval (sequence args)
+  args' <- runEval mempty (sequence args)
   result <- evalTest fun args'
   return (result, g1)
 
@@ -81,12 +81,14 @@ returnOneTest :: RandomGen g
 returnOneTest fun argGens sz g0 =
   do let (args, g1) = foldr mkArg ([], g0) argGens
          mkArg argGen (as, g) = let (a, g') = argGen sz g in (a:as, g')
-     args' <- runEval (sequence args)
-     result <- runEval (go fun args')
+     args' <- runEval mempty (sequence args)
+     result <- runEval mempty (go fun args')
      return (args', result, g1)
    where
-     go (VFun f) (v : vs) = join (go <$> (f (pure v)) <*> pure vs)
-     go (VFun _) [] = panic "Cryptol.Testing.Random" ["Not enough arguments to function while generating tests"]
+     go f@VFun{} (v : vs) =
+       do f' <- fromVFun Concrete f (pure v)
+          go f' vs
+     go VFun{} [] = panic "Cryptol.Testing.Random" ["Not enough arguments to function while generating tests"]
      go _ (_ : _) = panic "Cryptol.Testing.Random" ["Too many arguments to function while generating tests"]
      go v [] = return v
 
@@ -292,15 +294,16 @@ evalTest :: Value -> [Value] -> IO TestResult
 evalTest v0 vs0 = run `X.catch` handle
   where
     run = do
-      result <- runEval (go v0 vs0)
+      result <- runEval mempty (go v0 vs0)
       if result
         then return Pass
         else return (FailFalse vs0)
     handle e = return (FailError e vs0)
 
     go :: Value -> [Value] -> Eval Bool
-    go (VFun f) (v : vs) = join (go <$> (f (pure v)) <*> return vs)
-    go (VFun _) []       = panic "Not enough arguments while applying function"
+    go f@VFun{} (v : vs) = do f' <- fromVFun Concrete f (pure v)
+                              go f' vs
+    go VFun{}   []       = panic "Not enough arguments while applying function"
                            []
     go (VBit b) []       = return b
     go v vs              = do vdoc    <- ppValue Concrete defaultPPOpts v

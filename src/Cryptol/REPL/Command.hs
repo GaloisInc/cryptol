@@ -763,7 +763,7 @@ printSafetyViolation :: P.Expr P.PName -> [E.GenValue Concrete] -> REPL ()
 printSafetyViolation pexpr vs =
     catch
       (do (fn,_) <- replEvalExpr pexpr
-          rEval (E.forceValue =<< foldM (\f v -> E.fromVFun f (pure v)) fn vs))
+          rEval (E.forceValue =<< foldM (\f v -> E.fromVFun Concrete f (pure v)) fn vs))
       (\case
           EvalError eex -> rPutStrLn (show (pp eex))
           ex -> raise ex)
@@ -1010,10 +1010,10 @@ writeFileCmd file str pos fnm = do
 
 
 rEval :: E.Eval a -> REPL a
-rEval m = io (E.runEval m)
+rEval m = io (E.runEval mempty m)
 
 rEvalRethrow :: E.Eval a -> REPL a
-rEvalRethrow m = io $ rethrowEvalError $ E.runEval m
+rEvalRethrow m = io $ rethrowEvalError $ E.runEval mempty m
 
 reloadCmd :: REPL ()
 reloadCmd  = do

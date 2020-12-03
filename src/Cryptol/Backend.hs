@@ -35,21 +35,21 @@ import Data.Kind (Type)
 import Data.Ratio ( (%), numerator, denominator )
 
 import Cryptol.Backend.FloatHelpers (BF)
-import Cryptol.Backend.Monad ( PPOpts(..), EvalError(..), EvalErrorEx(..) )
+import Cryptol.Backend.Monad
+  ( PPOpts(..), EvalError(..), CallStack, pushCallFrame )
 import Cryptol.ModuleSystem.Name(Name,nameLoc)
 import Cryptol.Parser.Position
 import Cryptol.Utils.PP
 
 
 invalidIndex :: Backend sym => sym -> Range -> Integer -> SEval sym a
-invalidIndex sym rng = raiseError sym . EvalErrorEx rng . InvalidIndex . Just
+invalidIndex sym rng i = raiseError sym rng (InvalidIndex (Just i))
 
 cryUserError :: Backend sym => sym -> Range -> String -> SEval sym a
-cryUserError sym rng = raiseError sym . EvalErrorEx rng . UserError
+cryUserError sym rng msg = raiseError sym rng (UserError msg)
 
 cryNoPrimError :: Backend sym => sym -> Name -> SEval sym a
-cryNoPrimError sym nm = raiseError sym (EvalErrorEx (nameLoc nm) (NoPrim nm))
-
+cryNoPrimError sym nm = raiseError sym (nameLoc nm) (NoPrim nm)
 
 {-# INLINE sDelay #-}
 -- | Delay the given evaluation computation, returning a thunk
@@ -72,7 +72,7 @@ intToRational sym x = SRational x <$> (integerLit sym 1)
 ratio :: Backend sym => sym -> Range -> SInteger sym -> SInteger sym -> SEval sym (SRational sym)
 ratio sym rng n d =
   do pz  <- bitComplement sym =<< intEq sym d =<< integerLit sym 0
-     assertSideCondition sym pz (EvalErrorEx rng DivideByZero)
+     assertSideCondition sym pz rng DivideByZero
      pure (SRational n d)
 
 rationalRecip :: Backend sym => sym -> Range -> SRational sym -> SEval sym (SRational sym)
@@ -238,6 +238,13 @@ class MonadIO (SEval sym) => Backend sym where
   --   when forced.
   sSpark :: sym -> Range -> SEval sym a -> SEval sym (SEval sym a)
 
+  sPushFrame :: sym -> Name -> Range -> SEval sym a -> SEval sym a
+  sPushFrame sym nm rng m = sModifyCallStack sym (pushCallFrame nm rng) m
+
+  sModifyCallStack :: sym -> (CallStack -> CallStack) -> SEval sym a -> SEval sym a
+
+  sGetCallStack :: sym -> SEval sym CallStack
+
   -- | Merge the two given computations according to the predicate.
   mergeEval ::
      sym ->
@@ -249,11 +256,10 @@ class MonadIO (SEval sym) => Backend sym where
 
   -- | Assert that a condition must hold, and indicate what sort of
   --   error is indicated if the condition fails.
-  assertSideCondition :: sym -> SBit sym -> EvalErrorEx -> SEval sym ()
+  assertSideCondition :: sym -> SBit sym -> Range -> EvalError -> SEval sym ()
 
   -- | Indiciate that an error condition exists
-  raiseError :: sym -> EvalErrorEx -> SEval sym a
-
+  raiseError :: sym -> Range -> EvalError -> SEval sym a
 
   -- ==== Pretty printing  ====
   -- | Pretty-print an individual bit

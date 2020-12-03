@@ -37,7 +37,7 @@ import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..),nMul,widthInteger)
 import Cryptol.Backend
 import Cryptol.Backend.Concrete (Concrete(..))
-import Cryptol.Backend.Monad ( Eval, evalPanic, EvalError(..), EvalErrorEx(..), Unsupported(..) )
+import Cryptol.Backend.Monad ( Eval, evalPanic, EvalError(..), Unsupported(..) )
 import Cryptol.Parser.Position (Range,emptyRange)
 import Cryptol.Testing.Random( randomValue )
 
@@ -230,7 +230,7 @@ ringBinary sym opw opi opz opq opfp rng = loop
 
     -- functions
     TVFun _ ety ->
-      return $ lam $ \ x -> loop' ety (fromVFun l x) (fromVFun r x)
+      lam sym $ \ x -> loop' ety (fromVFun sym l x) (fromVFun sym r x)
 
     -- tuples
     TVTuple tys ->
@@ -307,7 +307,7 @@ ringUnary sym opw opi opz opq opfp rng = loop
 
     -- functions
     TVFun _ ety ->
-      return $ lam $ \ y -> loop' ety (fromVFun v y)
+      lam sym $ \ y -> loop' ety (fromVFun sym v y)
 
     -- tuples
     TVTuple tys ->
@@ -376,7 +376,7 @@ ringNullary sym rng opw opi opz opq opfp = loop
 
         TVFun _ b ->
              do v <- sDelay sym rng (loop b)
-                pure $ lam $ const $ v
+                lam sym (const v)
 
         TVTuple tys ->
              do xs <- mapM (sDelay sym rng . loop) tys
@@ -503,7 +503,7 @@ expV sym =
                     do ebits <- enumerateIntBits' sym n ei
                        computeExponent sym rng aty a ebits
 
-                | otherwise -> raiseError sym (EvalErrorEx rng NegativeExponent)
+                | otherwise -> raiseError sym rng NegativeExponent
 
               Nothing -> liftIO (X.throw (UnsupportedSymbolicOp "integer exponentiation"))
 
@@ -921,7 +921,7 @@ zeroV sym rng ty = case ty of
   -- functions
   TVFun _ bty ->
      do z <- sDelay sym rng (zeroV sym rng bty)
-        pure $ lam (const z)
+        lam sym (const z)
 
   -- tuples
   TVTuple tys ->
@@ -1349,7 +1349,7 @@ logicBinary sym opb opw rng = loop
         return $ VTuple $ zipWith3 loop' etys ls rs
 
     TVFun _ bty ->
-        return $ lam $ \ a -> loop' bty (fromVFun l a) (fromVFun r a)
+        lam sym $ \ a -> loop' bty (fromVFun sym l a) (fromVFun sym r a)
 
     TVRec fields ->
       VRecord <$>
@@ -1418,7 +1418,7 @@ logicUnary sym opb opw rng = loop
          return $ VTuple (zipWith loop' etys as)
 
     TVFun _ bty ->
-      return $ lam $ \ a -> loop' bty (fromVFun val a)
+      lam sym $ \ a -> loop' bty (fromVFun sym val a)
 
     TVRec fields ->
       VRecord <$>
@@ -1467,7 +1467,7 @@ assertIndexInBounds ::
 -- All nonnegative integers are in bounds for an infinite sequence
 assertIndexInBounds sym rng Inf (Left idx) =
   do ppos <- bitComplement sym =<< intLessThan sym idx =<< integerLit sym 0
-     assertSideCondition sym ppos (EvalErrorEx rng (InvalidIndex (integerAsLit sym idx)))
+     assertSideCondition sym ppos rng (InvalidIndex (integerAsLit sym idx))
 
 -- If the index is an integer, test that it
 -- is nonnegative and less than the concrete value of n.
@@ -1476,7 +1476,7 @@ assertIndexInBounds sym rng (Nat n) (Left idx) =
      ppos <- bitComplement sym =<< intLessThan sym idx =<< integerLit sym 0
      pn <- intLessThan sym idx n'
      p <- bitAnd sym ppos pn
-     assertSideCondition sym p (EvalErrorEx rng (InvalidIndex (integerAsLit sym idx)))
+     assertSideCondition sym p rng (InvalidIndex (integerAsLit sym idx))
 
 -- Bitvectors can't index out of bounds for an infinite sequence
 assertIndexInBounds _sym _rng Inf (Right _) = return ()
@@ -1490,7 +1490,7 @@ assertIndexInBounds sym _rng (Nat n) (Right idx)
 -- If the index is concrete, test it directly
 assertIndexInBounds sym rng (Nat n) (Right (WordVal idx))
   | Just (_w,i) <- wordAsLit sym idx
-  = unless (i < n) (raiseError sym (EvalErrorEx rng (InvalidIndex (Just i))))
+  = unless (i < n) (raiseError sym rng (InvalidIndex (Just i)))
 
 -- If the index is a packed word, test that it
 -- is less than the concrete value of n, which
@@ -1498,14 +1498,14 @@ assertIndexInBounds sym rng (Nat n) (Right (WordVal idx))
 assertIndexInBounds sym rng (Nat n) (Right (WordVal idx)) =
   do n' <- wordLit sym (wordLen sym idx) n
      p <- wordLessThan sym idx n'
-     assertSideCondition sym p (EvalErrorEx rng (InvalidIndex Nothing))
+     assertSideCondition sym p rng (InvalidIndex Nothing)
 
 -- If the index is an unpacked word, force all the bits
 -- and compute the unsigned less-than test directly.
 assertIndexInBounds sym rng (Nat n) (Right (LargeBitsVal w bits)) =
   do bitsList <- traverse (fromVBit <$>) (enumerateSeqMap w bits)
      p <- bitsValueLessThan sym w bitsList n
-     assertSideCondition sym p (EvalErrorEx rng (InvalidIndex Nothing))
+     assertSideCondition sym p rng (InvalidIndex Nothing)
 
 
 -- | Indexing operations.
@@ -1872,7 +1872,7 @@ errorV sym rng ty msg =
 
     -- functions
     TVFun _ bty ->
-      return $ lam (\ _ -> errorV sym rng bty msg)
+      lam sym (\ _ -> errorV sym rng bty msg)
 
     -- tuples
     TVTuple tys ->
@@ -1968,8 +1968,8 @@ mergeValue sym c v1 v2 =
     (VWord n1 w1 , VWord n2 w2 ) | n1 == n2 -> pure $ VWord n1 $ mergeWord' sym c w1 w2
     (VSeq n1 vs1 , VSeq n2 vs2 ) | n1 == n2 -> VSeq n1 <$> memoMap (mergeSeqMap sym c vs1 vs2)
     (VStream vs1 , VStream vs2 ) -> VStream <$> memoMap (mergeSeqMap sym c vs1 vs2)
-    (VFun f1     , VFun f2     ) -> pure $ VFun $ \x -> mergeValue' sym c (f1 x) (f2 x)
-    (VPoly f1    , VPoly f2    ) -> pure $ VPoly $ \x -> mergeValue' sym c (f1 x) (f2 x)
+    (f1@VFun{}   , f2@VFun{}   ) -> lam sym $ \x -> mergeValue' sym c (fromVFun sym f1 x) (fromVFun sym f2 x)
+    (f1@VPoly{}  , f2@VPoly{}  ) -> tlam sym $ \x -> mergeValue' sym c (fromVPoly sym f1 x) (fromVPoly sym f2 x)
     (_           , _           ) -> panic "Cryptol.Eval.Generic"
                                   [ "mergeValue: incompatible values" ]
 
@@ -2002,12 +2002,12 @@ foldlV sym =
   where
   go0 _f a [] = a
   go0 f a bs =
-    do f' <- fromVFun <$> f
+    do f' <- fromVFun sym <$> f
        go1 f' a bs
 
   go1 _f a [] = a
   go1 f a (b:bs) =
-    do f' <- fromVFun <$> (f a)
+    do f' <- fromVFun sym <$> (f a)
        go1 f (f' b) bs
 
 foldl'V :: Backend sym => sym -> Prim sym
@@ -2027,14 +2027,14 @@ foldl'V sym =
   where
   go0 _rng _f a [] = a
   go0 rng f a bs =
-    do f' <- fromVFun <$> f
+    do f' <- fromVFun sym <$> f
        a' <- sDelay sym rng a
        forceValue =<< a'
        go1 rng f' a' bs
 
   go1 _rng _f a [] = a
   go1 rng f a (b:bs) =
-    do f' <- fromVFun <$> (f a)
+    do f' <- fromVFun sym <$> (f a)
        a' <- sDelay sym rng (f' b)
        forceValue =<< a'
        go1 rng f a' bs
@@ -2071,7 +2071,7 @@ parmapV sym =
   PFun \xs ->
   PRange \rng ->
   PPrim
-    do f' <- fromVFun <$> f
+    do f' <- fromVFun sym <$> f
        xs' <- xs
        case xs' of
           VWord n w ->

@@ -33,7 +33,6 @@ module Cryptol.Eval.Value
     -- ** Value introduction operations
   , word
   , lam
-  , wlam
   , flam
   , tlam
   , nlam
@@ -100,7 +99,10 @@ import MonadLib
 
 import Cryptol.Backend
 import qualified Cryptol.Backend.Arch as Arch
-import Cryptol.Backend.Monad ( PPOpts(..), evalPanic, wordTooWide, defaultPPOpts, asciiMode )
+import Cryptol.Backend.Monad
+  ( PPOpts(..), evalPanic, wordTooWide, defaultPPOpts, asciiMode
+  , CallStack, combineCallStacks
+  )
 import Cryptol.Eval.Type
 
 import Cryptol.Parser.Position (Range)
@@ -310,9 +312,9 @@ data GenValue sym
                                                --   Invariant: VSeq is never a sequence of bits
   | VWord !Integer !(SEval sym (WordValue sym))  -- ^ @ [n]Bit @
   | VStream !(SeqMap sym)                   -- ^ @ [inf]a @
-  | VFun (SEval sym (GenValue sym) -> SEval sym (GenValue sym)) -- ^ functions
-  | VPoly (TValue -> SEval sym (GenValue sym))   -- ^ polymorphic values (kind *)
-  | VNumPoly (Nat' -> SEval sym (GenValue sym))  -- ^ polymorphic values (kind #)
+  | VFun  CallStack (SEval sym (GenValue sym) -> SEval sym (GenValue sym)) -- ^ functions
+  | VPoly CallStack (TValue -> SEval sym (GenValue sym))   -- ^ polymorphic values (kind *)
+  | VNumPoly CallStack (Nat' -> SEval sym (GenValue sym))  -- ^ polymorphic values (kind #)
  deriving Generic
 
 
@@ -333,9 +335,9 @@ forceValue v = case v of
   VFloat f    -> seq f (return ())
   VWord _ wv  -> forceWordValue =<< wv
   VStream _   -> return ()
-  VFun _      -> return ()
-  VPoly _     -> return ()
-  VNumPoly _  -> return ()
+  VFun{}      -> return ()
+  VPoly{}     -> return ()
+  VNumPoly{}  -> return ()
 
 
 
@@ -350,9 +352,9 @@ instance Backend sym => Show (GenValue sym) where
     VSeq n _   -> "seq:" ++ show n
     VWord n _  -> "word:"  ++ show n
     VStream _  -> "stream"
-    VFun _     -> "fun"
-    VPoly _    -> "poly"
-    VNumPoly _ -> "numpoly"
+    VFun{}     -> "fun"
+    VPoly{}    -> "poly"
+    VNumPoly{} -> "numpoly"
 
 
 -- Pretty Printing -------------------------------------------------------------
@@ -384,9 +386,9 @@ ppValue x opts = loop
                                    $ punctuate comma
                                    ( vals' ++ [text "..."]
                                    )
-    VFun _             -> return $ text "<function>"
-    VPoly _            -> return $ text "<polymorphic value>"
-    VNumPoly _         -> return $ text "<polymorphic value>"
+    VFun{}             -> return $ text "<function>"
+    VPoly{}            -> return $ text "<polymorphic value>"
+    VNumPoly{}         -> return $ text "<polymorphic value>"
 
   ppWordVal :: WordValue sym -> SEval sym Doc
   ppWordVal w = ppWord x opts <$> asWordVal x w
@@ -415,33 +417,28 @@ word sym n i
   | otherwise                = VWord n (WordVal <$> wordLit sym n i)
 
 
-lam :: (SEval sym (GenValue sym) -> SEval sym (GenValue sym)) -> GenValue sym
-lam  = VFun
-
--- | Functions that assume word inputs
-wlam :: Backend sym => sym -> (SWord sym -> SEval sym (GenValue sym)) -> GenValue sym
-wlam sym f = VFun (\arg -> arg >>= fromVWord sym "wlam" >>= f)
+lam :: Backend sym => sym -> (SEval sym (GenValue sym) -> SEval sym (GenValue sym)) -> SEval sym (GenValue sym)
+lam sym f = VFun <$> sGetCallStack sym <*> pure f
 
 -- | Functions that assume floating point inputs
-flam :: Backend sym =>
-        (SFloat sym -> SEval sym (GenValue sym)) -> GenValue sym
-flam f = VFun (\arg -> arg >>= f . fromVFloat)
-
-
+flam :: Backend sym => sym ->
+        (SFloat sym -> SEval sym (GenValue sym)) -> SEval sym (GenValue sym)
+flam sym f = VFun <$> sGetCallStack sym <*> pure (\arg -> arg >>= f . fromVFloat)
 
 -- | A type lambda that expects a 'Type'.
-tlam :: Backend sym => (TValue -> GenValue sym) -> GenValue sym
-tlam f = VPoly (return . f)
+tlam :: Backend sym => sym -> (TValue -> SEval sym (GenValue sym)) -> SEval sym (GenValue sym)
+tlam sym f = VPoly <$> sGetCallStack sym <*> pure f
 
 -- | A type lambda that expects a 'Type' of kind #.
-nlam :: Backend sym => (Nat' -> GenValue sym) -> GenValue sym
-nlam f = VNumPoly (return . f)
+nlam :: Backend sym => sym -> (Nat' -> SEval sym (GenValue sym)) -> SEval sym (GenValue sym)
+nlam sym f = VNumPoly <$> sGetCallStack sym <*> pure f
 
 -- | A type lambda that expects a finite numeric type.
-ilam :: Backend sym => (Integer -> GenValue sym) -> GenValue sym
-ilam f = nlam (\n -> case n of
-                       Nat i -> f i
-                       Inf   -> panic "ilam" [ "Unexpected `inf`" ])
+ilam :: Backend sym => sym -> (Integer -> SEval sym (GenValue sym)) -> SEval sym (GenValue sym)
+ilam sym f =
+   nlam sym (\n -> case n of
+                     Nat i -> f i
+                     Inf   -> panic "ilam" [ "Unexpected `inf`" ])
 
 -- | Generate a stream.
 toStream :: Backend sym => [GenValue sym] -> SEval sym (GenValue sym)
@@ -539,22 +536,25 @@ tryFromBits sym = go id
   go _ (_ : _) = Nothing
 
 -- | Extract a function from a value.
-fromVFun :: GenValue sym -> (SEval sym (GenValue sym) -> SEval sym (GenValue sym))
-fromVFun val = case val of
-  VFun f -> f
-  _      -> evalPanic "fromVFun" ["not a function"]
+fromVFun :: Backend sym => sym -> GenValue sym -> (SEval sym (GenValue sym) -> SEval sym (GenValue sym))
+fromVFun sym val = case val of
+  VFun fnstk f ->
+    \x -> sModifyCallStack sym (\stk -> combineCallStacks stk fnstk) (f x)
+  _ -> evalPanic "fromVFun" ["not a function"]
 
 -- | Extract a polymorphic function from a value.
-fromVPoly :: GenValue sym -> (TValue -> SEval sym (GenValue sym))
-fromVPoly val = case val of
-  VPoly f -> f
-  _       -> evalPanic "fromVPoly" ["not a polymorphic value"]
+fromVPoly :: Backend sym => sym -> GenValue sym -> (TValue -> SEval sym (GenValue sym))
+fromVPoly sym val = case val of
+  VPoly fnstk f ->
+    \x -> sModifyCallStack sym (\stk -> combineCallStacks stk fnstk) (f x)
+  _ -> evalPanic "fromVPoly" ["not a polymorphic value"]
 
 -- | Extract a polymorphic function from a value.
-fromVNumPoly :: GenValue sym -> (Nat' -> SEval sym (GenValue sym))
-fromVNumPoly val = case val of
-  VNumPoly f -> f
-  _          -> evalPanic "fromVNumPoly" ["not a polymorphic value"]
+fromVNumPoly :: Backend sym => sym -> GenValue sym -> (Nat' -> SEval sym (GenValue sym))
+fromVNumPoly sym val = case val of
+  VNumPoly fnstk f ->
+    \x -> sModifyCallStack sym (\stk -> combineCallStacks stk fnstk) (f x)
+  _  -> evalPanic "fromVNumPoly" ["not a polymorphic value"]
 
 -- | Extract a tuple from a value.
 fromVTuple :: GenValue sym -> [SEval sym (GenValue sym)]

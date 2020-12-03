@@ -370,7 +370,7 @@ readBack prims ty val =
 
 
 observe :: Eval a -> Method ServerState a
-observe e = liftIO (runEval e)
+observe e = liftIO (runEval mempty e)
 
 mkEApp :: Expr PName -> [Expr PName] -> Expr PName
 mkEApp f args = foldl EApp f args
