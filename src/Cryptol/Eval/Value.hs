@@ -96,6 +96,7 @@ import Data.IORef
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import MonadLib
+import Numeric (showIntAtBase)
 
 import Cryptol.Backend
 import qualified Cryptol.Backend.Arch as Arch
@@ -393,7 +394,7 @@ ppValue x opts = loop
     VNumPoly{}         -> return $ text "<polymorphic value>"
 
   ppWordVal :: WordValue sym -> SEval sym Doc
-  ppWordVal w = ppWord x opts <$> asWordVal x w
+  ppWordVal w = ppSWord x opts =<< asWordVal x w
 
   ppWordSeq :: Integer -> SeqMap sym -> SEval sym Doc
   ppWordSeq sz vals = do
@@ -409,6 +410,67 @@ ppValue x opts = loop
       _ -> do ws' <- traverse loop ws
               return $ brackets (fsep (punctuate comma ws'))
 
+
+
+ppSWord :: Backend sym => sym -> PPOpts -> SWord sym -> SEval sym Doc
+ppSWord sym opts bv
+  | asciiMode opts width =
+      case wordAsLit sym bv of
+        Just (_,i) -> pure (text (show (toEnum (fromInteger i) :: Char)))
+        Nothing    -> pure (text "?")
+
+  | otherwise =
+      case wordAsLit sym bv of
+        Just (_,i) ->
+          let val = value i in
+          pure (prefix (length val) <.> text val)
+        Nothing
+          | base == 2  -> sliceDigits 1 "0b"
+          | base == 8  -> sliceDigits 3 "0o"
+          | base == 16 -> sliceDigits 4 "0x"
+          | otherwise  -> pure (text "[?]")
+
+  where
+  width = wordLen sym bv
+
+  base = if useBase opts > 36 then 10 else useBase opts
+
+  padding bitsPerDigit len = text (replicate padLen '0')
+    where
+    padLen | m > 0     = d + 1
+           | otherwise = d
+
+    (d,m) = (fromInteger width - (len * bitsPerDigit))
+                   `divMod` bitsPerDigit
+
+  prefix len = case base of
+    2  -> text "0b" <.> padding 1 len
+    8  -> text "0o" <.> padding 3 len
+    10 -> empty
+    16 -> text "0x" <.> padding 4 len
+    _  -> text "0"  <.> char '<' <.> int base <.> char '>'
+
+  value i = showIntAtBase (toInteger base) (digits !!) i ""
+  digits  = "0123456789abcdefghijklmnopqrstuvwxyz"
+
+  toDigit w =
+    case wordAsLit sym w of
+      Just (_,i) | i <= 36 -> digits !! fromInteger i
+      _ -> '?'
+
+  sliceDigits bits pfx =
+    do ws <- goDigits bits [] bv
+       let ds = map toDigit ws
+       pure (text pfx <.> text ds)
+
+  goDigits bits ds w
+    | wordLen sym w > bits =
+        do (hi,lo) <- splitWord sym (wordLen sym w - bits) bits w
+           goDigits bits (lo:ds) hi
+
+    | wordLen sym w > 0 = pure (w:ds)
+
+    | otherwise          = pure ds
 
 -- Value Constructors ----------------------------------------------------------
 
