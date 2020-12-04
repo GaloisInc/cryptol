@@ -4,7 +4,8 @@
 This is the JSON-RPC server for Cryptol. It is primarily intended for
 using an executable Cryptol specification as part of a prototype or a
 system in which performance is less important. It supports loading and
-type checking Cryptol modules, 
+type checking Cryptol modules along with some basic REPL-like interaction
+(e.g., evaluating Cryptol expressions).
 
 This server is based on the `argo <https://github.com/GaloisInc/argo>`_
 library, and uses its conventions regarding application state, message
@@ -28,7 +29,7 @@ The protocol description and documentation are available in the
 Obtaining the Python bindings
 -----------------------------
 
-The Python bindings for ``crytpol-remote-api`` are presently part of
+The Python bindings for ``cryptol-remote-api`` are presently part of
 the ``argo`` repository. Please see its README for installation
 instructions.
 
@@ -151,8 +152,8 @@ To use the stdio version:
 
 1. ``M-x proto-test-start``
 
-2. At the prompt for ``Command:``, run the server with ``cabal v2-exec -v0
-   saw-remote-api`` or ``cabal v2-exec -v0 cryptol-remote-api``.
+2. At the prompt for ``Command:``, run the server with
+   ``cabal v2-exec -v0 cryptol-remote-api -- stdio``.
 
 If this leaves a confusing error message in Emacs, the output was
 probably corrupted by ``cabal-install`` stating that nothing needs
@@ -162,7 +163,7 @@ up-to-date, and try again.
 
 To use the socket version:
 
-1. At a shell, run ``cabal v2-exec cryptol-remote-api -- --port 10006``
+1. At a shell, run ``cabal v2-exec cryptol-remote-api -- socket --port 10006``
    (or pick your favorite port instead of 10006)
 
 2. In Emacs, ``M-x proto-test-start-socket``. When prompted, enter
