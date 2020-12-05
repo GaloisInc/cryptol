@@ -72,6 +72,22 @@ jobs:
           add_git_labels: true
           push: ${{ github.event_name == 'schedule' }}
           dockerfile: .github/Dockerfile-remote-api
+      - name: Build test-cryptol-remote-api
+        uses: docker/build-push-action@v2
+        with:
+          tags: test-cryptol-remote-api
+          push: false
+          file: .github/test-cryptol-remote-api.Dockerfile
+      - name: Test cryptol-remote-api helm chart
+        run: |
+          set -x
+          kind create cluster --wait 10m
+          kind load docker-image galoisinc/cryptol-remote-api:nightly
+          kind load docker-image test-cryptol-remote-api:latest
+          helm install --wait cra-http ./helm/cryptol-remote-api --set server.connType=http --set image.tag=nightly
+          helm install --wait cra-socket ./helm/cryptol-remote-api --set server.connType=socket --set image.tag=nightly
+          kubectl run --rm --attach test-http --image=test-cryptol-remote-api --image-pull-policy=Never --restart=Never -- http cra-http-cryptol-remote-api 8080
+          kubectl run --rm --attach test-socket --image=test-cryptol-remote-api --image-pull-policy=Never --restart=Never -- socket cra-socket-cryptol-remote-api 8080
 
   build:
     needs: [outputs, docs]

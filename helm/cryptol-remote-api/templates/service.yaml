@@ -8,8 +8,6 @@ spec:
   type: {{ .Values.service.type }}
   ports:
     - port: {{ .Values.service.port }}
-      targetPort: http
-      protocol: TCP
-      name: http
+      targetPort: 8080
   selector:
     {{- include "cryptol-remote-api.selectorLabels" . | nindent 4 }}

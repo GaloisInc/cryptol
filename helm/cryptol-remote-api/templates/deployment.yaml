@@ -5,6 +5,8 @@ metadata:
   labels:
     {{- include "cryptol-remote-api.labels" . | nindent 4 }}
 spec:
+  strategy:
+    type: Recreate
 {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
 {{- end }}
@@ -32,19 +34,21 @@ spec:
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          {{- if contains "http" .Values.server.connType }}
+          args: ['http', '--host', '0.0.0.0', '--port', '8080', '/']
+          {{- else if contains "socket" .Values.server.connType }}
+          args: ['socket', '--host', '0.0.0.0', '--port', '8080']
+          {{- end }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
-            - name: http
-              containerPort: 80
+            - containerPort: 8080
               protocol: TCP
           livenessProbe:
-            httpGet:
-              path: /
-              port: http
+            tcpSocket:
+              port: 8080
           readinessProbe:
-            httpGet:
-              path: /
-              port: http
+            tcpSocket:
+              port: 8080
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       {{- with .Values.nodeSelector }}
