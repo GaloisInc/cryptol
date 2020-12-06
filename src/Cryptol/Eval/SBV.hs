@@ -30,7 +30,7 @@ import qualified Data.Text as T
 import Data.SBV.Dynamic as SBV
 
 import Cryptol.Backend
-import Cryptol.Backend.Monad ( EvalError(..), Unsupported(..), EvalOpts )
+import Cryptol.Backend.Monad ( EvalError(..), Unsupported(..) )
 import Cryptol.Backend.SBV
 
 import Cryptol.Eval.Type (TValue(..))

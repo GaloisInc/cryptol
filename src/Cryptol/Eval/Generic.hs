@@ -37,7 +37,7 @@ import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..),nMul,widthInteger)
 import Cryptol.Backend
 import Cryptol.Backend.Concrete (Concrete(..))
-import Cryptol.Backend.Monad ( Eval, evalPanic, EvalError(..), Unsupported(..), EvalOpts(..) )
+import Cryptol.Backend.Monad( Eval, evalPanic, EvalError(..), Unsupported(..) )
 import Cryptol.Testing.Random( randomValue )
 
 import Cryptol.Eval.Prims

@@ -16,7 +16,6 @@ module Cryptol.Backend.Monad
 ( -- * Evaluation monad
   Eval(..)
 , runEval
-, EvalOpts(..)
 , io
 , delayFill
 , ready
@@ -55,18 +54,11 @@ import qualified Control.Exception as X
 import Cryptol.Parser.Position
 import Cryptol.Utils.Panic
 import Cryptol.Utils.PP
-import Cryptol.Utils.Logger(Logger)
 import Cryptol.TypeCheck.AST(Name)
 
 -- | A computation that returns an already-evaluated value.
 ready :: a -> Eval a
 ready a = Ready a
-
--- | Some options for evaluation
-data EvalOpts = EvalOpts
-  { evalLogger :: Logger    -- ^ Where to print stuff (e.g., for @trace@)
-  , evalPPOpts :: PPOpts    -- ^ How to pretty print things.
-  }
 
 
 -- | The type of dynamic call stacks for the interpreter.

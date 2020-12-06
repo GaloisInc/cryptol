@@ -30,6 +30,8 @@ module Cryptol.Eval.Value
   , forceValue
   , Backend(..)
   , asciiMode
+
+  , EvalOpts(..)
     -- ** Value introduction operations
   , word
   , lam
@@ -108,6 +110,7 @@ import Cryptol.Eval.Type
 
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
 import Cryptol.Utils.Ident (Ident)
+import Cryptol.Utils.Logger(Logger)
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.PP
 import Cryptol.Utils.RecordMap
@@ -115,6 +118,12 @@ import Cryptol.Utils.RecordMap
 import Data.List(genericIndex)
 
 import GHC.Generics (Generic)
+
+-- | Some options for evalutaion
+data EvalOpts = EvalOpts
+  { evalLogger :: Logger    -- ^ Where to print stuff (e.g., for @trace@)
+  , evalPPOpts :: PPOpts    -- ^ How to pretty print things.
+  }
 
 -- Values ----------------------------------------------------------------------
 
