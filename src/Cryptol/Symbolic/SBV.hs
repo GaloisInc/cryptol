@@ -425,7 +425,7 @@ processResults ProverCommand{..} ts results =
 --   solver that completes the given query (if any) along with the result
 --   of executing the query.
 satProve :: SBVProverConfig -> ProverCommand -> M.ModuleCmd (Maybe String, ProverResult)
-satProve proverCfg pc@ProverCommand {..} =
+satProve proverCfg pc =
   protectStack proverError $ \(evo, byteReader, modEnv) ->
 
   M.runModuleM (evo, byteReader, modEnv) $ do
