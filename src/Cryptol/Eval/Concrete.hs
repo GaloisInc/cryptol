@@ -50,7 +50,6 @@ import Cryptol.Eval.Value
 import qualified Cryptol.SHA as SHA
 import qualified Cryptol.AES as AES
 import qualified Cryptol.PrimeEC as PrimeEC
-import Cryptol.Parser.Position (Range)
 import Cryptol.ModuleSystem.Name
 import Cryptol.TypeCheck.AST as AST
 import Cryptol.Utils.Panic (panic)
@@ -207,9 +206,8 @@ primTable eOpts = let sym = Concrete in
         PFinPoly \v ->
         PWordFun \(BV w x) ->
         PWordFun \(BV _ m) ->
-        PRange   \rng ->
         PPrim
-          do assertSideCondition sym (m /= 0) rng DivideByZero
+          do assertSideCondition sym (m /= 0) DivideByZero
              return . VWord v . pure . WordVal . mkBv v $! F2.pmod (fromInteger w) x m)
 
   , ("pdiv",
@@ -217,9 +215,8 @@ primTable eOpts = let sym = Concrete in
         PFinPoly \_v ->
         PWordFun \(BV w x) ->
         PWordFun \(BV _ m) ->
-        PRange   \rng ->
         PPrim
-          do assertSideCondition sym (m /= 0) rng DivideByZero
+          do assertSideCondition sym (m /= 0) DivideByZero
              return . VWord w . pure . WordVal . mkBv w $! F2.pdiv (fromInteger w) x m)
   ]
 
@@ -474,7 +471,7 @@ sshrV =
 logicShift :: (Integer -> Integer -> Integer -> Integer)
               -- ^ The function may assume its arguments are masked.
               -- It is responsible for masking its result if needed.
-           -> (Range -> Nat' -> TValue -> SeqMap Concrete -> Integer -> SeqMap Concrete)
+           -> (Nat' -> TValue -> SeqMap Concrete -> Integer -> SeqMap Concrete)
            -> Prim Concrete
 logicShift opW opS =
   PNumPoly \a ->
@@ -482,7 +479,6 @@ logicShift opW opS =
   PTyPoly  \c ->
   PFun     \l ->
   PFun     \r ->
-  PRange   \rng ->
   PPrim
      do i <- r >>= \case
           VInteger i -> pure i
@@ -491,9 +487,9 @@ logicShift opW opS =
         l >>= \case
           VWord w wv -> return $ VWord w $ wv >>= \case
                           WordVal (BV _ x) -> return $ WordVal (BV w (opW w x i))
-                          LargeBitsVal n xs -> return $ LargeBitsVal n $ opS rng (Nat n) c xs i
+                          LargeBitsVal n xs -> return $ LargeBitsVal n $ opS (Nat n) c xs i
 
-          _ -> mkSeq a c <$> (opS rng a c <$> (fromSeq "logicShift" =<< l) <*> return i)
+          _ -> mkSeq a c <$> (opS a c <$> (fromSeq "logicShift" =<< l) <*> return i)
 
 -- Left shift for words.
 shiftLW :: Integer -> Integer -> Integer -> Integer
@@ -522,31 +518,31 @@ signedShiftRW w ival by
      else
        shiftR (signedValue w ival) (fromInteger by')
 
-shiftLS :: Range -> Nat' -> TValue -> SeqMap Concrete -> Integer -> SeqMap Concrete
-shiftLS rng w ety vs by
-  | by < 0 = shiftRS rng w ety vs (negate by)
+shiftLS :: Nat' -> TValue -> SeqMap Concrete -> Integer -> SeqMap Concrete
+shiftLS w ety vs by
+  | by < 0 = shiftRS w ety vs (negate by)
 
-shiftLS rng w ety vs by = IndexSeqMap $ \i ->
+shiftLS w ety vs by = IndexSeqMap $ \i ->
   case w of
     Nat len
       | i+by < len -> lookupSeqMap vs (i+by)
-      | i    < len -> zeroV Concrete rng ety
+      | i    < len -> zeroV Concrete ety
       | otherwise  -> evalPanic "shiftLS" ["Index out of bounds"]
     Inf            -> lookupSeqMap vs (i+by)
 
-shiftRS :: Range -> Nat' -> TValue -> SeqMap Concrete -> Integer -> SeqMap Concrete
-shiftRS rng w ety vs by
-  | by < 0 = shiftLS rng w ety vs (negate by)
+shiftRS :: Nat' -> TValue -> SeqMap Concrete -> Integer -> SeqMap Concrete
+shiftRS w ety vs by
+  | by < 0 = shiftLS w ety vs (negate by)
 
-shiftRS rng w ety vs by = IndexSeqMap $ \i ->
+shiftRS w ety vs by = IndexSeqMap $ \i ->
   case w of
     Nat len
       | i >= by   -> lookupSeqMap vs (i-by)
-      | i < len   -> zeroV Concrete rng ety
+      | i < len   -> zeroV Concrete ety
       | otherwise -> evalPanic "shiftLS" ["Index out of bounds"]
     Inf
       | i >= by   -> lookupSeqMap vs (i-by)
-      | otherwise -> zeroV Concrete rng ety
+      | otherwise -> zeroV Concrete ety
 
 
 -- XXX integer doesn't implement rotateL, as there's no bit bound
@@ -555,8 +551,8 @@ rotateLW 0 i _  = i
 rotateLW w i by = mask w $ (i `shiftL` b) .|. (i `shiftR` (fromInteger w - b))
   where b = fromInteger (by `mod` w)
 
-rotateLS :: Range -> Nat' -> TValue -> SeqMap Concrete -> Integer -> SeqMap Concrete
-rotateLS _ w _ vs by = IndexSeqMap $ \i ->
+rotateLS :: Nat' -> TValue -> SeqMap Concrete -> Integer -> SeqMap Concrete
+rotateLS w _ vs by = IndexSeqMap $ \i ->
   case w of
     Nat len -> lookupSeqMap vs ((by + i) `mod` len)
     _ -> panic "Cryptol.Eval.Prim.rotateLS" [ "unexpected infinite sequence" ]
@@ -567,8 +563,8 @@ rotateRW 0 i _  = i
 rotateRW w i by = mask w $ (i `shiftR` b) .|. (i `shiftL` (fromInteger w - b))
   where b = fromInteger (by `mod` w)
 
-rotateRS :: Range -> Nat' -> TValue -> SeqMap Concrete -> Integer -> SeqMap Concrete
-rotateRS _ w _ vs by = IndexSeqMap $ \i ->
+rotateRS :: Nat' -> TValue -> SeqMap Concrete -> Integer -> SeqMap Concrete
+rotateRS w _ vs by = IndexSeqMap $ \i ->
   case w of
     Nat len -> lookupSeqMap vs ((len - by + i) `mod` len)
     _ -> panic "Cryptol.Eval.Prim.rotateRS" [ "unexpected infinite sequence" ]
@@ -576,88 +572,84 @@ rotateRS _ w _ vs by = IndexSeqMap $ \i ->
 
 -- Sequence Primitives ---------------------------------------------------------
 
-indexFront :: Range -> Nat' -> TValue -> SeqMap Concrete -> TValue -> BV -> Eval Value
-indexFront _rng _mblen _a vs _ix (bvVal -> ix) = lookupSeqMap vs ix
+indexFront :: Nat' -> TValue -> SeqMap Concrete -> TValue -> BV -> Eval Value
+indexFront _mblen _a vs _ix (bvVal -> ix) = lookupSeqMap vs ix
 
-indexFront_bits :: Range -> Nat' -> TValue -> SeqMap Concrete -> TValue -> [Bool] -> Eval Value
-indexFront_bits rng mblen a vs ix bs = indexFront rng mblen a vs ix =<< packWord Concrete bs
+indexFront_bits :: Nat' -> TValue -> SeqMap Concrete -> TValue -> [Bool] -> Eval Value
+indexFront_bits mblen a vs ix bs = indexFront mblen a vs ix =<< packWord Concrete bs
 
-indexFront_int :: Range -> Nat' -> TValue -> SeqMap Concrete -> TValue -> Integer -> Eval Value
-indexFront_int _rng _mblen _a vs _ix idx = lookupSeqMap vs idx
+indexFront_int :: Nat' -> TValue -> SeqMap Concrete -> TValue -> Integer -> Eval Value
+indexFront_int _mblen _a vs _ix idx = lookupSeqMap vs idx
 
-indexBack :: Range -> Nat' -> TValue -> SeqMap Concrete -> TValue -> BV -> Eval Value
-indexBack rng mblen a vs ix (bvVal -> idx) = indexBack_int rng mblen a vs ix idx
+indexBack :: Nat' -> TValue -> SeqMap Concrete -> TValue -> BV -> Eval Value
+indexBack mblen a vs ix (bvVal -> idx) = indexBack_int mblen a vs ix idx
 
-indexBack_bits :: Range -> Nat' -> TValue -> SeqMap Concrete -> TValue -> [Bool] -> Eval Value
-indexBack_bits rng mblen a vs ix bs = indexBack rng mblen a vs ix =<< packWord Concrete bs
+indexBack_bits :: Nat' -> TValue -> SeqMap Concrete -> TValue -> [Bool] -> Eval Value
+indexBack_bits mblen a vs ix bs = indexBack mblen a vs ix =<< packWord Concrete bs
 
-indexBack_int :: Range -> Nat' -> TValue -> SeqMap Concrete -> TValue -> Integer -> Eval Value
-indexBack_int _rng mblen _a vs _ix idx =
+indexBack_int :: Nat' -> TValue -> SeqMap Concrete -> TValue -> Integer -> Eval Value
+indexBack_int mblen _a vs _ix idx =
   case mblen of
     Nat len -> lookupSeqMap vs (len - idx - 1)
     Inf     -> evalPanic "indexBack" ["unexpected infinite sequence"]
 
 updateFront ::
-  Range ->
   Nat'               {- ^ length of the sequence -} ->
   TValue             {- ^ type of values in the sequence -} ->
   SeqMap Concrete    {- ^ sequence to update -} ->
   Either Integer (WordValue Concrete) {- ^ index -} ->
   Eval Value         {- ^ new value at index -} ->
   Eval (SeqMap Concrete)
-updateFront _rng _len _eltTy vs (Left idx) val = do
+updateFront _len _eltTy vs (Left idx) val = do
   return $ updateSeqMap vs idx val
 
-updateFront _rng _len _eltTy vs (Right w) val = do
+updateFront _len _eltTy vs (Right w) val = do
   idx <- bvVal <$> asWordVal Concrete w
   return $ updateSeqMap vs idx val
 
 updateFront_word ::
-  Range ->
   Nat'               {- ^ length of the sequence -} ->
   TValue             {- ^ type of values in the sequence -} ->
   WordValue Concrete {- ^ bit sequence to update -} ->
   Either Integer (WordValue Concrete) {- ^ index -} ->
   Eval Value         {- ^ new value at index -} ->
   Eval (WordValue Concrete)
-updateFront_word rng _len _eltTy bs (Left idx) val = do
-  updateWordValue Concrete rng bs idx (fromVBit <$> val)
+updateFront_word _len _eltTy bs (Left idx) val = do
+  updateWordValue Concrete bs idx (fromVBit <$> val)
 
-updateFront_word rng _len _eltTy bs (Right w) val = do
+updateFront_word _len _eltTy bs (Right w) val = do
   idx <- bvVal <$> asWordVal Concrete w
-  updateWordValue Concrete rng bs idx (fromVBit <$> val)
+  updateWordValue Concrete bs idx (fromVBit <$> val)
 
 updateBack ::
-  Range ->
   Nat'               {- ^ length of the sequence -} ->
   TValue             {- ^ type of values in the sequence -} ->
   SeqMap Concrete    {- ^ sequence to update -} ->
   Either Integer (WordValue Concrete) {- ^ index -} ->
   Eval Value         {- ^ new value at index -} ->
   Eval (SeqMap Concrete)
-updateBack _ Inf _eltTy _vs _w _val =
+updateBack Inf _eltTy _vs _w _val =
   evalPanic "Unexpected infinite sequence in updateEnd" []
-updateBack _ (Nat n) _eltTy vs (Left idx) val = do
+updateBack (Nat n) _eltTy vs (Left idx) val = do
   return $ updateSeqMap vs (n - idx - 1) val
-updateBack _ (Nat n) _eltTy vs (Right w) val = do
+updateBack (Nat n) _eltTy vs (Right w) val = do
   idx <- bvVal <$> asWordVal Concrete w
   return $ updateSeqMap vs (n - idx - 1) val
 
 updateBack_word ::
-  Range ->
   Nat'               {- ^ length of the sequence -} ->
   TValue             {- ^ type of values in the sequence -} ->
   WordValue Concrete {- ^ bit sequence to update -} ->
   Either Integer (WordValue Concrete) {- ^ index -} ->
   Eval Value         {- ^ new value at index -} ->
   Eval (WordValue Concrete)
-updateBack_word _ Inf _eltTy _bs _w _val =
+updateBack_word Inf _eltTy _bs _w _val =
   evalPanic "Unexpected infinite sequence in updateEnd" []
-updateBack_word rng (Nat n) _eltTy bs (Left idx) val = do
-  updateWordValue Concrete rng bs (n - idx - 1) (fromVBit <$> val)
-updateBack_word rng (Nat n) _eltTy bs (Right w) val = do
+updateBack_word (Nat n) _eltTy bs (Left idx) val = do
+  updateWordValue Concrete bs (n - idx - 1) (fromVBit <$> val)
+updateBack_word (Nat n) _eltTy bs (Right w) val = do
   idx <- bvVal <$> asWordVal Concrete w
-  updateWordValue Concrete rng bs (n - idx - 1) (fromVBit <$> val)
+  updateWordValue Concrete bs (n - idx - 1) (fromVBit <$> val)
 
 
 floatPrims :: Concrete -> Map PrimIdent (Prim Concrete)
@@ -696,18 +688,16 @@ floatPrims sym = Map.fromList [ (floatPrim i,v) | (i,v) <- nonInfixTable ]
 
     , "fpFromRational" ~>
       PFinPoly \e -> PFinPoly \p -> PWordFun \r -> PFun \x ->
-      PRange \rng ->
       PPrim
         do rat <- fromVRational <$> x
-           VFloat <$> do mode <- fpRoundMode sym rng r
+           VFloat <$> do mode <- fpRoundMode sym r
                          pure $ floatFromRational e p mode
                               $ sNum rat % sDenom rat
     , "fpToRational" ~>
       PFinPoly \_e -> PFinPoly \_p -> PFloatFun \fp ->
-      PRange \rng ->
       PPrim
       case floatToRational "fpToRational" fp of
-        Left err -> raiseError sym rng err
+        Left err -> raiseError sym err
         Right r  -> pure $
                       VRational
                         SRational { sNum = numerator r, sDenom = denominator r }

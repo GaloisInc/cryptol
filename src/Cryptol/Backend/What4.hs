@@ -43,7 +43,6 @@ import Cryptol.Backend.Monad
    , Unsupported(..), delayFill, blackhole, evalSpark
    , modifyCallStack, getCallStack
    )
-import Cryptol.Parser.Position
 import Cryptol.Utils.Panic
 import Cryptol.Utils.PP
 
@@ -187,24 +186,24 @@ addSafety :: W4.IsSymExprBuilder sym => W4.Pred sym -> W4Eval sym ()
 addSafety p = W4Eval (pure (W4Result p ()))
 
 -- | A fully undefined symbolic value
-evalError :: W4.IsSymExprBuilder sym => Range -> EvalError -> W4Eval sym a
-evalError rng err = W4Eval $ W4Conn $ \_sym ->
+evalError :: W4.IsSymExprBuilder sym => EvalError -> W4Eval sym a
+evalError err = W4Eval $ W4Conn $ \_sym ->
   do stk <- getCallStack
-     pure (W4Error (EvalErrorEx rng stk err))
+     pure (W4Error (EvalErrorEx stk err))
 
 --------------------------------------------------------------------------------
 
 
-assertBVDivisor :: W4.IsSymExprBuilder sym => What4 sym -> Range -> SW.SWord sym -> W4Eval sym ()
-assertBVDivisor sym rng x =
+assertBVDivisor :: W4.IsSymExprBuilder sym => What4 sym -> SW.SWord sym -> W4Eval sym ()
+assertBVDivisor sym x =
   do p <- liftIO (SW.bvIsNonzero (w4 sym) x)
-     assertSideCondition sym p rng DivideByZero
+     assertSideCondition sym p DivideByZero
 
 assertIntDivisor ::
-  W4.IsSymExprBuilder sym => What4 sym -> Range -> W4.SymInteger sym -> W4Eval sym ()
-assertIntDivisor sym rng x =
+  W4.IsSymExprBuilder sym => What4 sym -> W4.SymInteger sym -> W4Eval sym ()
+assertIntDivisor sym x =
   do p <- liftIO (W4.notPred (w4 sym) =<< W4.intEq (w4 sym) x =<< W4.intLit (w4 sym) 0)
-     assertSideCondition sym p rng DivideByZero
+     assertSideCondition sym p DivideByZero
 
 instance W4.IsSymExprBuilder sym => Backend (What4 sym) where
   type SBit (What4 sym)     = W4.Pred sym
@@ -215,8 +214,8 @@ instance W4.IsSymExprBuilder sym => Backend (What4 sym) where
 
   raiseError _ = evalError
 
-  assertSideCondition _ cond rng err
-    | Just False <- W4.asConstantPred cond = evalError rng err
+  assertSideCondition _ cond err
+    | Just False <- W4.asConstantPred cond = evalError err
     | otherwise = addSafety cond
 
   isReady sym m =
@@ -224,24 +223,24 @@ instance W4.IsSymExprBuilder sym => Backend (What4 sym) where
       Ready _ -> True
       _ -> False
 
-  sDelayFill _ m retry msg rng =
+  sDelayFill _ m retry msg =
     total
     do sym <- getSym
-       doEval (w4Thunk <$> delayFill (w4Eval m sym) (w4Eval <$> retry <*> pure sym) msg rng)
+       doEval (w4Thunk <$> delayFill (w4Eval m sym) (w4Eval <$> retry <*> pure sym) msg)
 
-  sSpark _ rng m =
+  sSpark _ m =
     total
     do sym   <- getSym
-       doEval (w4Thunk <$> evalSpark rng (w4Eval m sym))
+       doEval (w4Thunk <$> evalSpark (w4Eval m sym))
 
   sModifyCallStack _ f (W4Eval (W4Conn m)) =
     W4Eval (W4Conn \sym -> modifyCallStack f (m sym))
 
   sGetCallStack _ = total (doEval getCallStack)
 
-  sDeclareHole _ msg rng =
+  sDeclareHole _ msg =
     total
-    do (hole, fill) <- doEval (blackhole msg rng)
+    do (hole, fill) <- doEval (blackhole msg)
        pure ( w4Thunk hole
             , \m -> total
                     do sym <- getSym
@@ -361,17 +360,17 @@ instance W4.IsSymExprBuilder sym => Backend (What4 sym) where
   wordNegate sym x   = liftIO (SW.bvNeg (w4 sym) x)
   wordLg2    sym x   = sLg2 (w4 sym) x
  
-  wordDiv sym rng x y =
-     do assertBVDivisor sym rng y
+  wordDiv sym x y =
+     do assertBVDivisor sym y
         liftIO (SW.bvUDiv (w4 sym) x y)
-  wordMod sym rng x y =
-     do assertBVDivisor sym rng y
+  wordMod sym x y =
+     do assertBVDivisor sym y
         liftIO (SW.bvURem (w4 sym) x y)
-  wordSignedDiv sym rng x y =
-     do assertBVDivisor sym rng y
+  wordSignedDiv sym x y =
+     do assertBVDivisor sym y
         liftIO (SW.bvSDiv (w4 sym) x y)
-  wordSignedMod sym rng x y =
-     do assertBVDivisor sym rng y
+  wordSignedMod sym x y =
+     do assertBVDivisor sym y
         liftIO (SW.bvSRem (w4 sym) x y)
 
   wordToInt sym x = liftIO (SW.bvToInteger (w4 sym) x)
@@ -385,8 +384,8 @@ instance W4.IsSymExprBuilder sym => Backend (What4 sym) where
   -- NB: What4's division operation provides SMTLib's euclidean division,
   -- which doesn't match the round-to-neg-infinity semantics of Cryptol,
   -- so we have to do some work to get the desired semantics.
-  intDiv sym rng x y =
-    do assertIntDivisor sym rng y
+  intDiv sym x y =
+    do assertIntDivisor sym y
        liftIO $ do
          neg <- liftIO (W4.intLt (w4 sym) y =<< W4.intLit (w4 sym) 0)
          case W4.asConstantPred neg of
@@ -405,8 +404,8 @@ instance W4.IsSymExprBuilder sym => Backend (What4 sym) where
   -- NB: What4's division operation provides SMTLib's euclidean division,
   -- which doesn't match the round-to-neg-infinity semantics of Cryptol,
   -- so we have to do some work to get the desired semantics.
-  intMod sym rng x y =
-    do assertIntDivisor sym rng y
+  intMod sym x y =
+    do assertIntDivisor sym y
        liftIO $ do
          neg <- liftIO (W4.intLt (w4 sym) y =<< W4.intLit (w4 sym) 0)
          case W4.asConstantPred neg of
@@ -467,8 +466,8 @@ instance W4.IsSymExprBuilder sym => Backend (What4 sym) where
 
   fpNeg sym x = liftIO $ FP.fpNeg (w4 sym) x
 
-  fpFromInteger sym rng e p r x =
-    do rm <- fpRoundingMode sym rng r
+  fpFromInteger sym e p r x =
+    do rm <- fpRoundingMode sym r
        liftIO $ FP.fpFromInteger (w4 sym) e p rm x
 
   fpToInteger = fpCvtToInteger
@@ -573,8 +572,8 @@ w4bvRor sym x y = liftIO $ SW.bvRor sym x y
 
 fpRoundingMode ::
   W4.IsSymExprBuilder sym =>
-  What4 sym -> Range -> SWord (What4 sym) -> SEval (What4 sym) W4.RoundingMode
-fpRoundingMode sym rng v =
+  What4 sym -> SWord (What4 sym) -> SEval (What4 sym) W4.RoundingMode
+fpRoundingMode sym v =
   case wordAsLit sym v of
     Just (_w,i) ->
       case i of
@@ -583,33 +582,32 @@ fpRoundingMode sym rng v =
         2 -> pure W4.RTP
         3 -> pure W4.RTN
         4 -> pure W4.RTZ
-        x -> raiseError sym rng (BadRoundingMode x)
+        x -> raiseError sym (BadRoundingMode x)
     _ -> liftIO $ X.throwIO $ UnsupportedSymbolicOp "rounding mode"
 
 fpBinArith ::
   W4.IsSymExprBuilder sym =>
   FP.SFloatBinArith sym ->
   What4 sym ->
-  Range ->
   SWord (What4 sym) ->
   SFloat (What4 sym) ->
   SFloat (What4 sym) ->
   SEval (What4 sym) (SFloat (What4 sym))
-fpBinArith fun = \sym rng r x y ->
-  do m <- fpRoundingMode sym rng r
+fpBinArith fun = \sym r x y ->
+  do m <- fpRoundingMode sym r
      liftIO (fun (w4 sym) m x y)
 
 
 fpCvtToInteger ::
   (W4.IsSymExprBuilder sy, sym ~ What4 sy) =>
-  sym -> String -> Range -> SWord sym -> SFloat sym -> SEval sym (SInteger sym)
-fpCvtToInteger sym fun rng r x =
+  sym -> String -> SWord sym -> SFloat sym -> SEval sym (SInteger sym)
+fpCvtToInteger sym fun r x =
   do grd <- liftIO
               do bad1 <- FP.fpIsInf (w4 sym) x
                  bad2 <- FP.fpIsNaN (w4 sym) x
                  W4.notPred (w4 sym) =<< W4.orPred (w4 sym) bad1 bad2
-     assertSideCondition sym grd rng (BadValue fun)
-     rnd  <- fpRoundingMode sym rng r
+     assertSideCondition sym grd (BadValue fun)
+     rnd  <- fpRoundingMode sym r
      liftIO
        do y <- FP.fpToReal (w4 sym) x
           case rnd of
@@ -622,23 +620,23 @@ fpCvtToInteger sym fun rng r x =
 
 fpCvtToRational ::
   (W4.IsSymExprBuilder sy, sym ~ What4 sy) =>
-  sym -> Range -> SFloat sym -> SEval sym (SRational sym)
-fpCvtToRational sym rng fp =
+  sym -> SFloat sym -> SEval sym (SRational sym)
+fpCvtToRational sym fp =
   do grd <- liftIO
             do bad1 <- FP.fpIsInf (w4 sym) fp
                bad2 <- FP.fpIsNaN (w4 sym) fp
                W4.notPred (w4 sym) =<< W4.orPred (w4 sym) bad1 bad2
-     assertSideCondition sym grd rng (BadValue "fpToRational")
+     assertSideCondition sym grd (BadValue "fpToRational")
      (rel,x,y) <- liftIO (FP.fpToRational (w4 sym) fp)
      addDefEqn sym =<< liftIO (W4.impliesPred (w4 sym) grd rel)
-     ratio sym rng x y
+     ratio sym x y
 
 fpCvtFromRational ::
   (W4.IsSymExprBuilder sy, sym ~ What4 sy) =>
-  sym -> Range -> Integer -> Integer -> SWord sym ->
+  sym -> Integer -> Integer -> SWord sym ->
   SRational sym -> SEval sym (SFloat sym)
-fpCvtFromRational sym rng e p r rat =
-  do rnd <- fpRoundingMode sym rng r
+fpCvtFromRational sym e p r rat =
+  do rnd <- fpRoundingMode sym r
      liftIO (FP.fpFromRational (w4 sym) e p rnd (sNum rat) (sDenom rat))
 
 -- Create a fresh constant and assert that it is the
@@ -648,16 +646,15 @@ fpCvtFromRational sym rng e p r rat =
 sModRecip ::
   W4.IsSymExprBuilder sym =>
   What4 sym ->
-  Range ->
   Integer ->
   W4.SymInteger sym ->
   W4Eval sym (W4.SymInteger sym)
-sModRecip _sym _ 0 _ = panic "sModRecip" ["0 modulus not allowed"]
-sModRecip sym rng m x
+sModRecip _sym 0 _ = panic "sModRecip" ["0 modulus not allowed"]
+sModRecip sym m x
   -- If the input is concrete, evaluate the answer
   | Just xi <- W4.asInteger x
   = let r = Integer.recipModInteger xi m
-     in if r == 0 then raiseError sym rng DivideByZero else integerLit sym r
+     in if r == 0 then raiseError sym DivideByZero else integerLit sym r
 
   -- If the input is symbolic, create a new symbolic constant
   -- and assert that it is the desired multiplicitive inverse.
@@ -666,7 +663,7 @@ sModRecip sym rng m x
   | otherwise
   = do divZero <- liftIO (W4.intDivisible (w4 sym) x (fromInteger m))
        ok <- liftIO (W4.notPred (w4 sym) divZero)
-       assertSideCondition sym ok rng DivideByZero
+       assertSideCondition sym ok DivideByZero
 
        z <- liftIO (W4.freshBoundedInt (w4 sym) W4.emptySymbol (Just 1) (Just (m-1)))
        xz <- liftIO (W4.intMul (w4 sym) x z)

@@ -123,10 +123,10 @@ evalExpr sym env expr = case expr of
         return $ VWord len $
           case tryFromBits sym vs of
             Just w  -> WordVal <$> w
-            Nothing -> do xs <- mapM (sDelay sym ?range) vs
+            Nothing -> do xs <- mapM (sDelay sym) vs
                           return $ LargeBitsVal len $ finiteSeqMap xs
     | otherwise -> {-# SCC "evalExpr->EList" #-} do
-        xs <- mapM (sDelay sym ?range) vs
+        xs <- mapM (sDelay sym) vs
         return $ VSeq len $ finiteSeqMap xs
    where
     tyv = evalValType (envTypes env) ty
@@ -134,11 +134,11 @@ evalExpr sym env expr = case expr of
     len = genericLength es
 
   ETuple es -> {-# SCC "evalExpr->ETuple" #-} do
-     xs <- mapM (sDelay sym ?range . eval) es
+     xs <- mapM (sDelay sym . eval) es
      return $ VTuple xs
 
   ERec fields -> {-# SCC "evalExpr->ERec" #-} do
-     xs <- traverse (sDelay sym ?range . eval) fields
+     xs <- traverse (sDelay sym . eval) fields
      return $ VRecord xs
 
   ESel e sel -> {-# SCC "evalExpr->ESel" #-} do
@@ -349,10 +349,10 @@ fillHole sym env (nm, sch, _, fill) = do
   case lookupVar nm env of
     Just (Right v)
      | isValueType env sch -> fill =<< sDelayFill sym v
-                                         (Just (etaDelay sym (nameLoc nm) env sch v))
+                                         (Just (etaDelay sym env sch v))
                                          (show (ppLocName nm))
-                                         (nameLoc nm)
-     | otherwise           -> fill (etaDelay sym (nameLoc nm) env sch v)
+
+     | otherwise           -> fill (etaDelay sym env sch v)
 
     _ -> evalPanic "fillHole" ["Recursive definition not completed", show (ppLocName nm)]
 
@@ -376,7 +376,6 @@ isValueType _ _ = False
 
 {-# SPECIALIZE etaWord  ::
   Concrete ->
-  Range ->
   Integer ->
   SEval Concrete (GenValue Concrete) ->
   SEval Concrete (WordValue Concrete)
@@ -386,19 +385,17 @@ isValueType _ _ = False
 etaWord  ::
   Backend sym =>
   sym ->
-  Range ->
   Integer ->
   SEval sym (GenValue sym) ->
   SEval sym (WordValue sym)
-etaWord sym rng n val = do
-  w <- sDelay sym rng (fromWordVal "during eta-expansion" =<< val)
+etaWord sym n val = do
+  w <- sDelay sym (fromWordVal "during eta-expansion" =<< val)
   xs <- memoMap $ IndexSeqMap $ \i ->
-          do w' <- w; VBit <$> indexWordValue sym rng w' i
+          do w' <- w; VBit <$> indexWordValue sym w' i
   pure $ LargeBitsVal n xs
 
 {-# SPECIALIZE etaDelay ::
   Concrete ->
-  Range ->
   GenEvalEnv Concrete ->
   Schema ->
   SEval Concrete (GenValue Concrete) ->
@@ -414,12 +411,11 @@ etaWord sym rng n val = do
 etaDelay ::
   Backend sym =>
   sym ->
-  Range ->
   GenEvalEnv sym ->
   Schema ->
   SEval sym (GenValue sym) ->
   SEval sym (GenValue sym)
-etaDelay sym rng env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
+etaDelay sym env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
   where
   goTpVars env []     val = go (evalValType (envTypes env) tp0) val
   goTpVars env (v:vs) val =
@@ -483,26 +479,26 @@ etaDelay sym rng env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
       TVArray{} -> v
 
       TVSeq n TVBit ->
-          do w <- sDelayFill sym (fromWordVal "during eta-expansion" =<< v) (Just (etaWord sym rng n v)) "" rng
+          do w <- sDelayFill sym (fromWordVal "during eta-expansion" =<< v) (Just (etaWord sym n v)) ""
              return $ VWord n w
 
       TVSeq n el ->
-          do x' <- sDelay sym rng (fromSeq "during eta-expansion" =<< v)
+          do x' <- sDelay sym (fromSeq "during eta-expansion" =<< v)
              return $ VSeq n $ IndexSeqMap $ \i -> do
                go el (flip lookupSeqMap i =<< x')
 
       TVStream el ->
-          do x' <- sDelay sym rng (fromSeq "during eta-expansion" =<< v)
+          do x' <- sDelay sym (fromSeq "during eta-expansion" =<< v)
              return $ VStream $ IndexSeqMap $ \i ->
                go el (flip lookupSeqMap i =<< x')
 
       TVFun _t1 t2 ->
-          do v' <- sDelay sym rng (fromVFun sym <$> v)
+          do v' <- sDelay sym (fromVFun sym <$> v)
              lam sym $ \a -> go t2 ( ($a) =<< v' )
 
       TVTuple ts ->
           do let n = length ts
-             v' <- sDelay sym rng (fromVTuple <$> v)
+             v' <- sDelay sym (fromVTuple <$> v)
              return $ VTuple $
                 [ go t =<< (flip genericIndex i <$> v')
                 | i <- [0..(n-1)]
@@ -510,7 +506,7 @@ etaDelay sym rng env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
                 ]
 
       TVRec fs ->
-          do v' <- sDelay sym rng (fromVRecord <$> v)
+          do v' <- sDelay sym (fromVRecord <$> v)
              let err f = evalPanic "expected record value with field" [show f]
              let eta f t = go t =<< (fromMaybe (err f) . lookupField f <$> v')
              return $ VRecord (mapWithFieldName eta fs)
@@ -533,7 +529,7 @@ declHole sym d =
     DPrim   -> evalPanic "Unexpected primitive declaration in recursive group"
                          [show (ppLocName nm)]
     DExpr _ -> do
-      (hole, fill) <- sDeclareHole sym msg (nameLoc nm)
+      (hole, fill) <- sDeclareHole sym msg
       return (nm, sch, hole, fill)
   where
   nm = dName d
@@ -613,7 +609,7 @@ evalSel sym val sel = case sel of
     case v of
       VSeq _ vs       -> lookupSeqMap vs (toInteger n)
       VStream vs      -> lookupSeqMap vs (toInteger n)
-      VWord _ wv      -> VBit <$> (flip (indexWordValue sym ?range) (toInteger n) =<< wv)
+      VWord _ wv      -> VBit <$> (flip (indexWordValue sym) (toInteger n) =<< wv)
       _               -> do vdoc <- ppValue sym defaultPPOpts val
                             evalPanic "Cryptol.Eval.evalSel"
                               [ "Unexpected value in list selection"
@@ -664,7 +660,7 @@ evalSetSel sym _tyv e sel v =
       VSeq i mp  -> pure $ VSeq i  $ updateSeqMap mp n v
       VStream mp -> pure $ VStream $ updateSeqMap mp n v
       VWord i m  -> pure $ VWord i $ do m1 <- m
-                                        updateWordValue sym ?range m1 n asBit
+                                        updateWordValue sym m1 n asBit
       _ -> bad "Sequence update on a non-sequence."
 
   asBit = do res <- v
@@ -802,7 +798,7 @@ evalMatch sym lenv m = case m of
         let lenv' = lenv { leVars = fmap stutter (leVars lenv) }
         let vs i = do let (q, r) = i `divMod` nLen
                       lookupSeqMap vss q >>= \case
-                        VWord _ w   -> VBit <$> (flip (indexWordValue sym ?range) r =<< w)
+                        VWord _ w   -> VBit <$> (flip (indexWordValue sym) r =<< w)
                         VSeq _ xs'  -> lookupSeqMap xs' r
                         VStream xs' -> lookupSeqMap xs' r
                         _           -> evalPanic "evalMatch" ["Not a list value"]
@@ -820,7 +816,7 @@ evalMatch sym lenv m = case m of
         let env   = EvalEnv allvars (leTypes lenv)
         xs <- evalExpr sym env expr
         let vs i = case xs of
-                     VWord _ w   -> VBit <$> (flip (indexWordValue sym ?range) i =<< w)
+                     VWord _ w   -> VBit <$> (flip (indexWordValue sym) i =<< w)
                      VSeq _ xs'  -> lookupSeqMap xs' i
                      VStream xs' -> lookupSeqMap xs' i
                      _           -> evalPanic "evalMatch" ["Not a list value"]

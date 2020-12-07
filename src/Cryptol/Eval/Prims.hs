@@ -6,7 +6,6 @@ import Cryptol.Backend
 import Cryptol.Eval.Type
 import Cryptol.Eval.Value
 import Cryptol.ModuleSystem.Name
-import Cryptol.Parser.Position
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
 import Cryptol.Utils.Panic
 
@@ -18,11 +17,10 @@ data Prim sym
   | PTyPoly (TValue -> Prim sym)
   | PNumPoly (Nat' -> Prim sym)
   | PFinPoly (Integer -> Prim sym)
-  | PRange (Range -> Prim sym)
   | PPrim (SEval sym (GenValue sym))
   | PVal (GenValue sym)
 
-evalPrim :: (?range :: Range, Backend sym) => sym -> Name -> Prim sym -> SEval sym (GenValue sym)
+evalPrim :: Backend sym => sym -> Name -> Prim sym -> SEval sym (GenValue sym)
 evalPrim sym nm p = case p of
   PFun f      -> lam sym (evalPrim sym nm . f)
   PStrict f   -> lam sym (\x -> evalPrim sym nm . f =<< x)
@@ -32,6 +30,5 @@ evalPrim sym nm p = case p of
   PNumPoly f  -> nlam sym (evalPrim sym nm . f)
   PFinPoly f  -> nlam sym (\case Inf -> panic "PFin" ["Unexpected `inf`", show nm];
                                  Nat n -> evalPrim sym nm (f n))
-  PRange f    -> evalPrim sym nm (f ?range)
   PPrim m     -> m
   PVal v      -> pure v

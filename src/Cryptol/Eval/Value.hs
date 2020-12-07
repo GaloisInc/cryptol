@@ -105,7 +105,6 @@ import Cryptol.Backend.Monad
   )
 import Cryptol.Eval.Type
 
-import Cryptol.Parser.Position (Range)
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
 import Cryptol.Utils.Ident (Ident)
 import Cryptol.Utils.Panic(panic)
@@ -273,26 +272,26 @@ wordValueSize sym (WordVal w)  = wordLen sym w
 wordValueSize _ (LargeBitsVal n _) = n
 
 -- | Select an individual bit from a word value
-indexWordValue :: Backend sym => sym -> Range -> WordValue sym -> Integer -> SEval sym (SBit sym)
-indexWordValue sym rng (WordVal w) idx
+indexWordValue :: Backend sym => sym -> WordValue sym -> Integer -> SEval sym (SBit sym)
+indexWordValue sym (WordVal w) idx
    | 0 <= idx && idx < wordLen sym w = wordBit sym w idx
-   | otherwise = invalidIndex sym rng idx
-indexWordValue sym rng (LargeBitsVal n xs) idx
+   | otherwise = invalidIndex sym idx
+indexWordValue sym (LargeBitsVal n xs) idx
    | 0 <= idx && idx < n = fromVBit <$> lookupSeqMap xs idx
-   | otherwise = invalidIndex sym rng idx
+   | otherwise = invalidIndex sym idx
 
 -- | Produce a new 'WordValue' from the one given by updating the @i@th bit with the
 --   given bit value.
 updateWordValue :: Backend sym =>
-  sym -> Range -> WordValue sym -> Integer -> SEval sym (SBit sym) -> SEval sym (WordValue sym)
-updateWordValue sym rng (WordVal w) idx b
-   | idx < 0 || idx >= wordLen sym w = invalidIndex sym rng idx
+  sym -> WordValue sym -> Integer -> SEval sym (SBit sym) -> SEval sym (WordValue sym)
+updateWordValue sym (WordVal w) idx b
+   | idx < 0 || idx >= wordLen sym w = invalidIndex sym idx
    | isReady sym b = WordVal <$> (wordUpdate sym w idx =<< b)
 
-updateWordValue sym rng wv idx b
+updateWordValue sym wv idx b
    | 0 <= idx && idx < wordValueSize sym wv =
         pure $ LargeBitsVal (wordValueSize sym wv) $ updateSeqMap (asBitsMap sym wv) idx (VBit <$> b)
-   | otherwise = invalidIndex sym rng idx
+   | otherwise = invalidIndex sym idx
 
 
 -- | Generic value type, parameterized by bit and word types.

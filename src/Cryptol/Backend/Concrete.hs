@@ -45,7 +45,6 @@ import qualified Cryptol.Backend.Arch as Arch
 import qualified Cryptol.Backend.FloatHelpers as FP
 import Cryptol.Backend
 import Cryptol.Backend.Monad
-import Cryptol.Parser.Position
 import Cryptol.TypeCheck.Solver.InfNat (genLog)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
@@ -137,12 +136,12 @@ instance Backend Concrete where
   type SFloat Concrete = FP.BF
   type SEval Concrete = Eval
 
-  raiseError _ rng err =
+  raiseError _ err =
     do stk <- getCallStack
-       io (X.throwIO (EvalErrorEx rng stk err))
+       io (X.throwIO (EvalErrorEx stk err))
 
-  assertSideCondition _ True _ _ = return ()
-  assertSideCondition sym False rng err = raiseError sym rng err
+  assertSideCondition _ True _ = return ()
+  assertSideCondition sym False err = raiseError sym err
 
   wordLen _ (BV w _) = w
   wordAsChar _ (BV _ x) = Just $! integerToChar x
@@ -261,33 +260,33 @@ instance Backend Concrete where
     | i == j = pure $! mkBv i (x*y)
     | otherwise = panic "Attempt to multiply words of different sizes: wordMult" [show i, show j]
 
-  wordDiv sym rng (BV i x) (BV j y)
+  wordDiv sym (BV i x) (BV j y)
     | i == 0 && j == 0 = pure $! mkBv 0 0
     | i == j =
-        do assertSideCondition sym (y /= 0) rng DivideByZero
+        do assertSideCondition sym (y /= 0) DivideByZero
            pure $! mkBv i (x `div` y)
     | otherwise = panic "Attempt to divide words of different sizes: wordDiv" [show i, show j]
 
-  wordMod sym rng (BV i x) (BV j y)
+  wordMod sym (BV i x) (BV j y)
     | i == 0 && j == 0 = pure $! mkBv 0 0
     | i == j =
-        do assertSideCondition sym (y /= 0) rng DivideByZero
+        do assertSideCondition sym (y /= 0) DivideByZero
            pure $! mkBv i (x `mod` y)
     | otherwise = panic "Attempt to mod words of different sizes: wordMod" [show i, show j]
 
-  wordSignedDiv sym rng (BV i x) (BV j y)
+  wordSignedDiv sym (BV i x) (BV j y)
     | i == 0 && j == 0 = pure $! mkBv 0 0
     | i == j =
-        do assertSideCondition sym (y /= 0) rng DivideByZero
+        do assertSideCondition sym (y /= 0) DivideByZero
            let sx = signedValue i x
                sy = signedValue i y
            pure $! mkBv i (sx `quot` sy)
     | otherwise = panic "Attempt to divide words of different sizes: wordSignedDiv" [show i, show j]
 
-  wordSignedMod sym rng (BV i x) (BV j y)
+  wordSignedMod sym (BV i x) (BV j y)
     | i == 0 && j == 0 = pure $! mkBv 0 0
     | i == j =
-        do assertSideCondition sym (y /= 0) rng DivideByZero
+        do assertSideCondition sym (y /= 0) DivideByZero
            let sx = signedValue i x
                sy = signedValue i y
            pure $! mkBv i (sx `rem` sy)
@@ -303,11 +302,11 @@ instance Backend Concrete where
   intMinus _ x y = pure $! x - y
   intNegate _ x  = pure $! negate x
   intMult  _ x y = pure $! x * y
-  intDiv sym rng x y =
-    do assertSideCondition sym (y /= 0) rng DivideByZero
+  intDiv sym x y =
+    do assertSideCondition sym (y /= 0) DivideByZero
        pure $! x `div` y
-  intMod sym rng x y =
-    do assertSideCondition sym (y /= 0) rng DivideByZero
+  intMod sym x y =
+    do assertSideCondition sym (y /= 0) DivideByZero
        pure $! x `mod` y
 
   intToZn _ 0 _ = evalPanic "intToZn" ["0 modulus not allowed"]
@@ -321,8 +320,8 @@ instance Backend Concrete where
   -- NB: under the precondition that `m` is prime,
   -- the only values for which no inverse exists are
   -- congruent to 0 modulo m.
-  znRecip sym rng m x
-    | r == 0    = raiseError sym rng DivideByZero
+  znRecip sym m x
+    | r == 0    = raiseError sym DivideByZero
     | otherwise = pure r
    where
      r = Integer.recipModInteger x m
@@ -346,8 +345,8 @@ instance Backend Concrete where
   fpMult  = fpBinArith FP.bfMul
   fpDiv   = fpBinArith FP.bfDiv
   fpNeg _ x = pure x { FP.bfValue = FP.bfNeg (FP.bfValue x) }
-  fpFromInteger sym rng e p r x =
-    do opts <- FP.fpOpts e p <$> fpRoundMode sym rng r
+  fpFromInteger sym e p r x =
+    do opts <- FP.fpOpts e p <$> fpRoundMode sym r
        pure FP.BF { FP.bfExpWidth = e
                   , FP.bfPrecWidth = p
                   , FP.bfValue = FP.fpCheckStatus $
@@ -369,34 +368,32 @@ liftBinIntMod op m x y
 fpBinArith ::
   (FP.BFOpts -> FP.BigFloat -> FP.BigFloat -> (FP.BigFloat, FP.Status)) ->
   Concrete ->
-  Range ->
   SWord Concrete  {- ^ Rouding mode -} ->
   SFloat Concrete ->
   SFloat Concrete ->
   SEval Concrete (SFloat Concrete)
-fpBinArith fun = \sym rng r x y ->
+fpBinArith fun = \sym r x y ->
   do opts <- FP.fpOpts (FP.bfExpWidth x) (FP.bfPrecWidth x)
-                                                  <$> fpRoundMode sym rng r
+                                                  <$> fpRoundMode sym r
      pure x { FP.bfValue = FP.fpCheckStatus
                                 (fun opts (FP.bfValue x) (FP.bfValue y)) }
 
 fpCvtToInteger ::
   Concrete ->
   String ->
-  Range ->
   SWord Concrete {- ^ Rounding mode -} ->
   SFloat Concrete ->
   SEval Concrete (SInteger Concrete)
-fpCvtToInteger sym fun rng rnd flt =
-  do mode <- fpRoundMode sym rng rnd
+fpCvtToInteger sym fun rnd flt =
+  do mode <- fpRoundMode sym rnd
      case FP.floatToInteger fun mode flt of
        Right i -> pure i
-       Left err -> raiseError sym rng err
+       Left err -> raiseError sym err
 
-fpRoundMode :: Concrete -> Range -> SWord Concrete -> SEval Concrete FP.RoundMode
-fpRoundMode sym rng w =
+fpRoundMode :: Concrete -> SWord Concrete -> SEval Concrete FP.RoundMode
+fpRoundMode sym w =
   case FP.fpRound (bvVal w) of
-    Left err -> raiseError sym rng err
+    Left err -> raiseError sym err
     Right a  -> pure a
 
 
