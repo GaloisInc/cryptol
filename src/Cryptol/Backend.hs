@@ -238,11 +238,14 @@ class MonadIO (SEval sym) => Backend sym where
   --   when forced.
   sSpark :: sym -> SEval sym a -> SEval sym (SEval sym a)
 
+  -- | Push a call frame on to the current call stack while evaluating the given action
   sPushFrame :: sym -> Name -> Range -> SEval sym a -> SEval sym a
   sPushFrame sym nm rng m = sModifyCallStack sym (pushCallFrame nm rng) m
 
+  -- | Apply the given function to the current call stack while evaluating the given action
   sModifyCallStack :: sym -> (CallStack -> CallStack) -> SEval sym a -> SEval sym a
 
+  -- | Retrieve the current evaluation call stack
   sGetCallStack :: sym -> SEval sym CallStack
 
   -- | Merge the two given computations according to the predicate.
@@ -338,9 +341,6 @@ class MonadIO (SEval sym) => Backend sym where
 
 
   -- ==== Word operations ====
-
-  -- TODO, add error handling to wordBit and wordUpdate
-
 
   -- | Extract the numbered bit from the word.
   --
@@ -680,7 +680,7 @@ class MonadIO (SEval sym) => Backend sym where
     SInteger sym ->
     SEval sym (SBit sym)
 
-  -- | Multiplicitive inverse in (Z n).
+  -- | Multiplicative inverse in (Z n).
   --   PRECONDITION: the modulus is a prime
   znRecip ::
     sym ->

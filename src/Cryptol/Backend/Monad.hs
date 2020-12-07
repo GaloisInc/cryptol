@@ -49,7 +49,6 @@ import           Control.Concurrent
 import           Control.Concurrent.STM
 
 import           Control.Monad
-import qualified Control.Monad.Fail as Fail
 import           Control.Monad.Fix
 import           Control.Monad.IO.Class
 import           Data.Foldable (toList)
@@ -82,7 +81,7 @@ asciiMode :: PPOpts -> Integer -> Bool
 asciiMode opts width = useAscii opts && (width == 7 || width == 8)
 
 data PPFloatFormat =
-    FloatFixed Int PPFloatExp -- ^ Use this many significant digis
+    FloatFixed Int PPFloatExp -- ^ Use this many significant digits
   | FloatFrac Int             -- ^ Show this many digits after floating point
   | FloatFree PPFloatExp      -- ^ Use the correct number of digits
 
@@ -97,7 +96,7 @@ defaultPPOpts = PPOpts { useAscii = False, useBase = 10, useInfLength = 5
                        }
 
 
--- | Some options for evalutaion
+-- | Some options for evaluation
 data EvalOpts = EvalOpts
   { evalLogger :: Logger    -- ^ Where to print stuff (e.g., for @trace@)
   , evalPPOpts :: PPOpts    -- ^ How to pretty print things.
@@ -108,6 +107,8 @@ data EvalOpts = EvalOpts
 --   New frames are pushed onto the right side of the sequence.
 type CallStack = Seq (Name, Range)
 
+-- | Pretty print a call stack with each call frame on a separate
+--   line, with most recent call frames at the top.
 displayCallStack :: CallStack -> Doc
 displayCallStack = vcat . map f . toList . Seq.reverse
   where
@@ -115,6 +116,20 @@ displayCallStack = vcat . map f . toList . Seq.reverse
     | rng == emptyRange = pp nm
     | otherwise = pp nm <+> text "called at" <+> pp rng
 
+
+-- | Combine the call stack of a function value with the call
+--   stack of the current calling context.  This algorithm is
+--   the same one GHC uses to compute profiling calling contexts.
+--
+--   The algorithm is as follows.
+--
+--        ccs ++> ccsfn  =  ccs ++ dropCommonPrefix ccs ccsfn
+--
+--      where
+--
+--        dropCommonPrefix A B
+--           -- returns the suffix of B after removing any prefix common
+--           -- to both A and B.
 combineCallStacks ::
   CallStack {- ^ call stack of the application context -} ->
   CallStack {- ^ call stack of the function being applied -} ->
@@ -127,6 +142,7 @@ combineCallStacks appstk fnstk = appstk <> dropCommonPrefix appstk fnstk
     | a == f    = dropCommonPrefix as fs
     | otherwise = xs
 
+-- | Add a call frame to the top of a call stack
 pushCallFrame :: Name -> Range -> CallStack -> CallStack
 pushCallFrame nm rng stk@( _ Seq.:|> (nm',rng'))
   | nm == nm', rng == rng' = stk
@@ -150,7 +166,7 @@ data Eval a
 --   cryptol expression that is bound to a name, and is not
 --   already obviously a value (and in a few other places as
 --   well) will get turned into a thunk in order to avoid
---   recomputations.  These thunks will start in the `Unforced`
+--   recomputation.  These thunks will start in the `Unforced`
 --   state, and have a backup computation that just raises
 --   the `LoopError` exception.
 --
@@ -172,15 +188,15 @@ data Eval a
 data ThunkState a
   = Void !String
        -- ^ This thunk has not yet been initialized
-  | Unforced !(IO a) !(Maybe (IO a)) String CallStack
+  | Unforced !(IO a) !(Maybe (IO a)) !String !CallStack
        -- ^ This thunk has not yet been forced.  We keep track of the "main"
-       --   computation to run and a "backup" computation to run if we
+       --   computation to run and an optional "backup" computation to run if we
        --   detect a tight loop when evaluating the first one.
        --   The final two arguments are used to throw a loop exception
        --   if the backup computation also causes a tight loop.
-  | UnderEvaluation !ThreadId !(Maybe (IO a)) String CallStack
+  | UnderEvaluation !ThreadId !(Maybe (IO a)) !String !CallStack
        -- ^ This thunk is currently being evaluated by the thread with the given
-       --   thread ID.  We track the "backup" computation to run if we detect
+       --   thread ID.  We track an optional "backup" computation to run if we detect
        --   a tight loop evaluating this thunk.  If the thunk is being evaluated
        --   by some other thread, the current thread will await its completion.
        --   The final two arguments are used to throw a loop exception
@@ -211,7 +227,7 @@ maybeReady (Eval _) = pure Nothing
 delayFill ::
   Eval a {- ^ Computation to delay -} ->
   Maybe (Eval a) {- ^ Optional backup computation to run if a tight loop is detected -} ->
-  String {- ^ message for the <<loop>> exceprion if a tight loop is detecrted -} ->
+  String {- ^ message for the <<loop>> exception if a tight loop is detected -} ->
   Eval (Eval a)
 delayFill e@(Ready _) _ _ = return e
 delayFill e@(Thunk _) _ _ = return e
@@ -249,7 +265,7 @@ evalSpark (Eval x) = Eval $ \stk ->
 
 
 -- | To the work of forcing a thunk. This is the worker computation
---   that is foked off via @evalSpark@.
+--   that is forked off via @evalSpark@.
 sparkThunk :: TVar (ThunkState a) -> IO ()
 sparkThunk tv =
   do tid <- myThreadId
@@ -315,7 +331,7 @@ unDelay tv =
                           case backup of
                             Just _  -> writeTVar tv (UnderEvaluation tid Nothing msg stk)
                             Nothing -> writeTVar tv (ForcedErr (EvalErrorEx stk (LoopError msg)))
-                      | otherwise -> retry -- wait, if some other thread is evaualting
+                      | otherwise -> retry -- wait, if some other thread is evaluating
                     _ -> return ()
 
                   -- Return the original thunk state so we can decide what work to do
@@ -358,7 +374,7 @@ modifyCallStack f m =
 
 -- | Execute the given evaluation action.
 runEval :: CallStack -> Eval a -> IO a
-runEval _    (Ready a) = return a
+runEval _   (Ready a)  = return a
 runEval stk (Eval x)   = x stk
 runEval _   (Thunk tv) = unDelay tv
 
@@ -385,9 +401,6 @@ instance Monad Eval where
   (>>=)  = evalBind
   {-# INLINE return #-}
   {-# INLINE (>>=) #-}
-
-instance Fail.MonadFail Eval where
-  fail x = Eval (\_stk -> fail x)
 
 instance MonadIO Eval where
   liftIO = io

@@ -419,6 +419,7 @@ word sym n i
   | otherwise                = VWord n (WordVal <$> wordLit sym n i)
 
 
+-- | Construct a function value
 lam :: Backend sym => sym -> (SEval sym (GenValue sym) -> SEval sym (GenValue sym)) -> SEval sym (GenValue sym)
 lam sym f = VFun <$> sGetCallStack sym <*> pure f
 

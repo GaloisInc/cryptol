@@ -25,7 +25,7 @@ module Cryptol.Eval.Concrete
   , toExpr
   ) where
 
-import Control.Monad (guard, zipWithM, foldM)
+import Control.Monad (guard, zipWithM, foldM, mzero)
 import Data.Bits (Bits(..))
 import Data.Ratio((%),numerator,denominator)
 import Data.Word(Word32, Word64)
@@ -104,10 +104,10 @@ toExpr prims t0 v0 = findOne (go t0 v0)
       VWord _ wval ->
         do BV _ v <- lift (asWordVal Concrete =<< wval)
            pure $ ETApp (ETApp (prim "number") (tNum v)) ty
-      VStream _  -> fail "cannot construct infinite expressions"
-      VFun{}     -> fail "cannot convert function values to expressions"
-      VPoly{}    -> fail "cannot convert polymorphic values to expressions"
-      VNumPoly{} -> fail "cannot convert polymorphic values to expressions"
+      VStream _  -> mzero
+      VFun{}     -> mzero
+      VPoly{}    -> mzero
+      VNumPoly{} -> mzero
     where
       mismatch :: forall a. ChoiceT Eval a
       mismatch =
