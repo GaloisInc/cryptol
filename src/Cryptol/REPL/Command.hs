@@ -74,7 +74,7 @@ import qualified Cryptol.Testing.Random  as TestR
 import Cryptol.Parser
     (parseExprWith,parseReplWith,ParseError(),Config(..),defaultConfig
     ,parseModName,parseHelpName)
-import           Cryptol.Parser.Position (Position(..))
+import           Cryptol.Parser.Position (Position(..),Range,emptyRange,HasLoc(..))
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck.Error as T
 import qualified Cryptol.TypeCheck.Parseable as T
@@ -639,6 +639,7 @@ safeCmd str pos fnm = do
   fileName   <- getKnownUser "smtfile"
   let mfile = if fileName == "-" then Nothing else Just fileName
   pexpr <- replParseExpr str pos fnm
+  let rng = fromMaybe emptyRange (getLoc pexpr)
 
   if proverName `elem` ["offline","sbv-offline","w4-offline"] then
     offlineProveSat proverName SafetyQuery pexpr mfile
@@ -657,7 +658,7 @@ safeCmd str pos fnm = do
             let tes = map ( \(t,e,_) -> (t,e)) tevs
                 vs  = map ( \(_,_,v) -> v)     tevs
 
-            (t,e) <- mkSolverResult "counterexample" False (Right tes)
+            (t,e) <- mkSolverResult "counterexample" rng False (Right tes)
 
             ~(EnvBool yes) <- getUser "show-examples"
             when yes $ printCounterexample cexType pexpr vs
@@ -696,6 +697,7 @@ cmdProveSat isSat str pos fnm = do
   fileName   <- getKnownUser "smtfile"
   let mfile = if fileName == "-" then Nothing else Just fileName
   pexpr <- replParseExpr str pos fnm
+  let rng = fromMaybe emptyRange (getLoc pexpr)
 
   if proverName `elem` ["offline","sbv-offline","w4-offline"] then
      offlineProveSat proverName qtype pexpr mfile
@@ -709,7 +711,7 @@ cmdProveSat isSat str pos fnm = do
 
           ThmResult ts        -> do
             rPutStrLn (if isSat then "Unsatisfiable" else "Q.E.D.")
-            (t, e) <- mkSolverResult cexStr (not isSat) (Left ts)
+            (t, e) <- mkSolverResult cexStr rng (not isSat) (Left ts)
             void $ bindItVariable t e
 
           CounterExample cexType tevs -> do
@@ -717,7 +719,7 @@ cmdProveSat isSat str pos fnm = do
             let tes = map ( \(t,e,_) -> (t,e)) tevs
                 vs  = map ( \(_,_,v) -> v)     tevs
 
-            (t,e) <- mkSolverResult cexStr isSat (Right tes)
+            (t,e) <- mkSolverResult cexStr rng isSat (Right tes)
 
             ~(EnvBool yes) <- getUser "show-examples"
             when yes $ printCounterexample cexType pexpr vs
@@ -734,7 +736,7 @@ cmdProveSat isSat str pos fnm = do
             rPutStrLn "Satisfiable"
             let tess = map (map $ \(t,e,_) -> (t,e)) tevss
                 vss  = map (map $ \(_,_,v) -> v)     tevss
-            resultRecs <- mapM (mkSolverResult cexStr isSat . Right) tess
+            resultRecs <- mapM (mkSolverResult cexStr rng isSat . Right) tess
             let collectTes tes = (t, es)
                   where
                     (ts, es) = unzip tes
@@ -875,13 +877,15 @@ rIdent  = M.packIdent "result"
 
 -- | Make a type/expression pair that is suitable for binding to @it@
 -- after running @:sat@ or @:prove@
-mkSolverResult :: String
-               -> Bool
-               -> Either [T.Type] [(T.Type, T.Expr)]
-               -> REPL (T.Type, T.Expr)
-mkSolverResult thing result earg =
+mkSolverResult ::
+  String ->
+  Range ->
+  Bool ->
+  Either [T.Type] [(T.Type, T.Expr)] ->
+  REPL (T.Type, T.Expr)
+mkSolverResult thing rng result earg =
   do prims <- getPrimMap
-     let addError t = (t, T.eError prims t ("no " ++ thing ++ " available"))
+     let addError t = (t, T.ELocated rng (T.eError prims t ("no " ++ thing ++ " available")))
 
          argF = case earg of
                   Left ts   -> mkArgs (map addError ts)
@@ -1680,6 +1684,7 @@ replEvalExpr expr =
   do (_,def,sig) <- replCheckExpr expr
      validEvalContext def
      validEvalContext sig
+
      me <- getModuleEnv
      let cfg = M.meSolverConfig me
      mbDef <- io $ SMT.withSolver cfg (\s -> defaultReplExpr s def sig)
@@ -1692,12 +1697,13 @@ replEvalExpr expr =
                let su = T.listParamSubst tys
                return (def1, T.apSubst su (T.sType sig))
 
+     whenDebug (rPutStrLn (dump def1))
+
      -- add "it" to the namespace via a new declaration
      itVar <- bindItVariable ty def1
 
      -- evaluate the it variable
      val <- liftModuleCmd (rethrowEvalError . M.evalExpr (T.EVar itVar))
-     whenDebug (rPutStrLn (dump def1))
      return (val,ty)
   where
   warnDefaults ts =
