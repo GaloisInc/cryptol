@@ -4,12 +4,10 @@ Loading module Cryptol
 2
 
 invalid sequence index: 3
-at issue861.icry:7:1--7:5
 -- Backtrace --
 (Cryptol::@) called at issue861.icry:7:1--7:5
 
 invalid sequence index: -1
-at issue861.icry:8:1--8:8
 -- Backtrace --
 (Cryptol::@) called at issue861.icry:8:1--8:8
 2
@@ -17,12 +15,10 @@ at issue861.icry:8:1--8:8
 0
 
 invalid sequence index: 3
-at issue861.icry:13:1--13:5
 -- Backtrace --
 (Cryptol::!) called at issue861.icry:13:1--13:5
 
 invalid sequence index: -1
-at issue861.icry:14:1--14:8
 -- Backtrace --
 (Cryptol::!) called at issue861.icry:14:1--14:8
 [5, 1, 2]
@@ -30,12 +26,10 @@ at issue861.icry:14:1--14:8
 [0, 1, 5]
 
 invalid sequence index: 3
-at issue861.icry:19:1--19:7
 -- Backtrace --
 Cryptol::update called at issue861.icry:19:1--19:7
 
 invalid sequence index: -1
-at issue861.icry:20:1--20:7
 -- Backtrace --
 Cryptol::update called at issue861.icry:20:1--20:7
 [0, 1, 5]
@@ -43,11 +37,9 @@ Cryptol::update called at issue861.icry:20:1--20:7
 [5, 1, 2]
 
 invalid sequence index: 3
-at issue861.icry:25:1--25:10
 -- Backtrace --
 Cryptol::updateEnd called at issue861.icry:25:1--25:10
 
 invalid sequence index: -1
-at issue861.icry:26:1--26:10
 -- Backtrace --
 Cryptol::updateEnd called at issue861.icry:26:1--26:10

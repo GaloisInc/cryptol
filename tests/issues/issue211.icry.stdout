@@ -4,7 +4,6 @@ Loading module Cryptol
 0x0
 
 Run-time error: boom
-at issue211.icry:4:28--4:33
 -- Backtrace --
 Cryptol::error called at issue211.icry:4:28--4:33
 Cryptol::splitAt called at issue211.icry:4:2--4:9
