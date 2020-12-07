@@ -111,7 +111,9 @@ type CallStack = Seq (Name, Range)
 displayCallStack :: CallStack -> Doc
 displayCallStack = vcat . map f . toList . Seq.reverse
   where
-  f (nm,rng) = pp nm <+> text "called at" <+> pp rng
+  f (nm,rng)
+    | rng == emptyRange = pp nm
+    | otherwise = pp nm <+> text "called at" <+> pp rng
 
 combineCallStacks ::
   CallStack {- ^ call stack of the application context -} ->
