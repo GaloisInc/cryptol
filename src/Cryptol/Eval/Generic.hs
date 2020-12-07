@@ -1825,39 +1825,37 @@ errorV :: forall sym.
   TValue ->
   String ->
   SEval sym (GenValue sym)
-errorV sym ty msg =
-  let err = cryUserError sym msg in
-  case ty of
-    -- bits
-    TVBit -> err
-    TVInteger -> err
-    TVIntMod _ -> err
-    TVRational -> err
-    TVArray{} -> err
-    TVFloat {} -> err
+errorV sym ty0 msg =
+     do stk <- sGetCallStack sym
+        loop stk ty0
+  where
+  err stk = sModifyCallStack sym (\_ -> stk) (cryUserError sym msg)
 
-    -- sequences
-    TVSeq w ety
-       | isTBit ety -> return $ VWord w $ return $ LargeBitsVal w $ IndexSeqMap $ \_ -> err
-       | otherwise  -> return $ VSeq w (IndexSeqMap $ \_ -> errorV sym ety msg)
+  loop stk = \case
+       TVBit -> err stk
+       TVInteger -> err stk
+       TVIntMod _ -> err stk
+       TVRational -> err stk
+       TVArray{} -> err stk
+       TVFloat {} -> err stk
 
-    TVStream ety ->
-      return $ VStream (IndexSeqMap $ \_ -> errorV sym ety msg)
+       -- sequences
+       TVSeq w ety
+          | isTBit ety -> return $ VWord w $ return $ LargeBitsVal w $ IndexSeqMap $ \_ -> err stk
+          | otherwise  -> return $ VSeq w $ IndexSeqMap $ \_ -> loop stk ety
 
-    -- functions
-    TVFun _ bty ->
-      lam sym (\ _ -> errorV sym bty msg)
+       TVStream ety -> return $ VStream $ IndexSeqMap $ \_ -> loop stk ety
 
-    -- tuples
-    TVTuple tys ->
-      return $ VTuple (map (\t -> errorV sym t msg) tys)
+       -- functions
+       TVFun _ bty -> lam sym (\ _ -> loop stk bty)
 
-    -- records
-    TVRec fields ->
-      return $ VRecord $ fmap (\t -> errorV sym t msg) $ fields
+       -- tuples
+       TVTuple tys -> return $ VTuple (map (\t -> loop stk t) tys)
 
-    TVAbstract {} -> err
+       -- records
+       TVRec fields -> return $ VRecord $ fmap (\t -> loop stk t) $ fields
 
+       TVAbstract {} -> err stk
 
 
 {-# INLINE valueToChar #-}
