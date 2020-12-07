@@ -214,6 +214,9 @@ evalExpr sym env expr = case expr of
   ppV = ppValue sym defaultPPOpts
 
 
+-- | Capure the current call stack from the evaluation monad and
+--   annotate function values.  When arguments are later applied
+--   to the function, the call stacks will be combined together.
 cacheCallStack ::
   Backend sym =>
   sym ->
@@ -229,6 +232,8 @@ cacheCallStack sym v = case v of
   VNumPoly fnstk f ->
     do stk <- sGetCallStack sym
        pure (VNumPoly (combineCallStacks stk fnstk) f)
+
+  -- non-function types don't get annotated
   _ -> pure v
 
 -- Newtypes --------------------------------------------------------------------
@@ -390,7 +395,7 @@ etaWord  ::
   SEval sym (WordValue sym)
 etaWord sym n val = do
   w <- sDelay sym (fromWordVal "during eta-expansion" =<< val)
-  xs <- memoMap $ IndexSeqMap $ \i ->
+  xs <- memoMap sym $ IndexSeqMap $ \i ->
           do w' <- w; VBit <$> indexWordValue sym w' i
   pure $ LargeBitsVal n xs
 
@@ -417,7 +422,9 @@ etaDelay ::
   SEval sym (GenValue sym)
 etaDelay sym env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
   where
-  goTpVars env []     val = go (evalValType (envTypes env) tp0) val
+  goTpVars env []     val =
+     do stk <- sGetCallStack sym
+        go stk (evalValType (envTypes env) tp0) val
   goTpVars env (v:vs) val =
     case tpKind v of
       KType -> tlam sym $ \t ->
@@ -426,7 +433,7 @@ etaDelay sym env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
                   goTpVars (bindType (tpVar v) (Left n) env) vs ( ($n) . fromVNumPoly sym =<< val )
       k     -> panic "[Eval] etaDelay" ["invalid kind on type abstraction", show k]
 
-  go tp x | isReady sym x = x >>= \case
+  go stk tp x | isReady sym x = x >>= \case
       VBit{}      -> x
       VInteger{}  -> x
       VWord{}     -> x
@@ -434,24 +441,24 @@ etaDelay sym env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
       VFloat{}    -> x
       VSeq n xs ->
         case tp of
-          TVSeq _nt el -> return $ VSeq n $ IndexSeqMap $ \i -> go el (lookupSeqMap xs i)
+          TVSeq _nt el -> return $ VSeq n $ IndexSeqMap $ \i -> go stk el (lookupSeqMap xs i)
           _ -> evalPanic "type mismatch during eta-expansion" ["Expected sequence type, but got " ++ show tp]
 
       VStream xs ->
         case tp of
-          TVStream el -> return $ VStream $ IndexSeqMap $ \i -> go el (lookupSeqMap xs i)
+          TVStream el -> return $ VStream $ IndexSeqMap $ \i -> go stk el (lookupSeqMap xs i)
           _ -> evalPanic "type mismatch during eta-expansion" ["Expected stream type, but got " ++ show tp]
 
       VTuple xs ->
         case tp of
-          TVTuple ts | length ts == length xs -> return $ VTuple (zipWith go ts xs)
+          TVTuple ts | length ts == length xs -> return $ VTuple (zipWith (go stk) ts xs)
           _ -> evalPanic "type mismatch during eta-expansion" ["Expected tuple type with " ++ show (length xs)
                                    ++ " elements, but got " ++ show tp]
 
       VRecord fs ->
         case tp of
           TVRec fts ->
-            do let res = zipRecords (\_ v t -> go t v) fs fts
+            do let res = zipRecords (\_ v t -> go stk t v) fs fts
                case res of
                  Left (Left f)  -> evalPanic "type mismatch during eta-expansion" ["missing field " ++ show f]
                  Left (Right f) -> evalPanic "type mismatch during eta-expansion" ["unexpected field " ++ show f]
@@ -460,7 +467,7 @@ etaDelay sym env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
 
       f@VFun{} ->
         case tp of
-          TVFun _t1 t2 -> lam sym $ \a -> go t2 (fromVFun sym f a)
+          TVFun _t1 t2 -> lam sym $ \a -> go stk t2 (fromVFun sym f a)
           _ -> evalPanic "type mismatch during eta-expansion" ["Expected function type but got " ++ show tp]
 
       VPoly{} ->
@@ -469,7 +476,7 @@ etaDelay sym env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
       VNumPoly{} ->
         evalPanic "type mismatch during eta-expansion" ["Encountered numeric polymorphic value"]
 
-  go tp v =
+  go stk tp v = sModifyCallStack sym (\_ -> stk) $
     case tp of
       TVBit -> v
       TVInteger -> v
@@ -485,22 +492,22 @@ etaDelay sym env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
       TVSeq n el ->
           do x' <- sDelay sym (fromSeq "during eta-expansion" =<< v)
              return $ VSeq n $ IndexSeqMap $ \i -> do
-               go el (flip lookupSeqMap i =<< x')
+               go stk el (flip lookupSeqMap i =<< x')
 
       TVStream el ->
           do x' <- sDelay sym (fromSeq "during eta-expansion" =<< v)
              return $ VStream $ IndexSeqMap $ \i ->
-               go el (flip lookupSeqMap i =<< x')
+               go stk el (flip lookupSeqMap i =<< x')
 
       TVFun _t1 t2 ->
           do v' <- sDelay sym (fromVFun sym <$> v)
-             lam sym $ \a -> go t2 ( ($a) =<< v' )
+             lam sym $ \a -> go stk t2 ( ($a) =<< v' )
 
       TVTuple ts ->
           do let n = length ts
              v' <- sDelay sym (fromVTuple <$> v)
              return $ VTuple $
-                [ go t =<< (flip genericIndex i <$> v')
+                [ go stk t =<< (flip genericIndex i <$> v')
                 | i <- [0..(n-1)]
                 | t <- ts
                 ]
@@ -508,7 +515,7 @@ etaDelay sym env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
       TVRec fs ->
           do v' <- sDelay sym (fromVRecord <$> v)
              let err f = evalPanic "expected record value with field" [show f]
-             let eta f t = go t =<< (fromMaybe (err f) . lookupField f <$> v')
+             let eta f t = go stk t =<< (fromMaybe (err f) . lookupField f <$> v')
              return $ VRecord (mapWithFieldName eta fs)
 
       TVAbstract {} -> v
@@ -750,7 +757,7 @@ evalComp ::
   SEval sym (GenValue sym)
 evalComp sym env len elty body ms =
        do lenv <- mconcat <$> mapM (branchEnvs sym (toListEnv env)) ms
-          mkSeq len elty <$> memoMap (IndexSeqMap $ \i -> do
+          mkSeq len elty <$> memoMap sym (IndexSeqMap $ \i -> do
               evalExpr sym (evalListEnv lenv i) body)
 
 {-# SPECIALIZE branchEnvs ::
@@ -793,7 +800,7 @@ evalMatch sym lenv m = case m of
       -- Select from a sequence of finite length.  This causes us to 'stutter'
       -- through our previous choices `nLen` times.
       Nat nLen -> do
-        vss <- memoMap $ IndexSeqMap $ \i -> evalExpr sym (evalListEnv lenv i) expr
+        vss <- memoMap sym $ IndexSeqMap $ \i -> evalExpr sym (evalListEnv lenv i) expr
         let stutter xs = \i -> xs (i `div` nLen)
         let lenv' = lenv { leVars = fmap stutter (leVars lenv) }
         let vs i = do let (q, r) = i `divMod` nLen

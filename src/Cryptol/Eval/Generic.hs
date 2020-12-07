@@ -217,13 +217,13 @@ ringBinary sym opw opi opz opq opfp = loop
                   rw <- fromVWord sym "ringRight" r
                   stk <- sGetCallStack sym
                   return $ VWord w (WordVal <$> (sModifyCallStack sym (\_ -> stk) (opw w lw rw)))
-      | otherwise -> VSeq w <$> (join (zipSeqMap (loop a) <$>
+      | otherwise -> VSeq w <$> (join (zipSeqMap sym (loop a) <$>
                                       (fromSeq "ringBinary left" l) <*>
                                       (fromSeq "ringBinary right" r)))
 
     TVStream a ->
       -- streams
-      VStream <$> (join (zipSeqMap (loop a) <$>
+      VStream <$> (join (zipSeqMap sym (loop a) <$>
                              (fromSeq "ringBinary left" l) <*>
                              (fromSeq "ringBinary right" r)))
 
@@ -300,10 +300,10 @@ ringUnary sym opw opi opz opq opfp = loop
               wx <- fromVWord sym "ringUnary" v
               stk <- sGetCallStack sym
               return $ VWord w (WordVal <$> sModifyCallStack sym (\_ -> stk) (opw w wx))
-      | otherwise -> VSeq w <$> (mapSeqMap (loop a) =<< fromSeq "ringUnary" v)
+      | otherwise -> VSeq w <$> (mapSeqMap sym (loop a) =<< fromSeq "ringUnary" v)
 
     TVStream a ->
-      VStream <$> (mapSeqMap (loop a) =<< fromSeq "ringUnary" v)
+      VStream <$> (mapSeqMap sym (loop a) =<< fromSeq "ringUnary" v)
 
     -- functions
     TVFun _ ety ->
@@ -1267,7 +1267,7 @@ wordValLogicOp ::
 wordValLogicOp _sym _ wop (WordVal w1) (WordVal w2) = WordVal <$> wop w1 w2
 
 wordValLogicOp sym bop _ w1 w2 = LargeBitsVal (wordValueSize sym w1) <$> zs
-     where zs = memoMap $ IndexSeqMap $ \i -> join (op <$> (lookupSeqMap xs i) <*> (lookupSeqMap ys i))
+     where zs = memoMap sym $ IndexSeqMap $ \i -> join (op <$> (lookupSeqMap xs i) <*> (lookupSeqMap ys i))
            xs = asBitsMap sym w1
            ys = asBitsMap sym w2
            op x y = VBit <$> (bop (fromVBit x) (fromVBit y))
@@ -1318,12 +1318,12 @@ logicBinary sym opb opw = loop
 
          -- finite sequences
          | otherwise -> VSeq w <$>
-                           (join (zipSeqMap (loop aty) <$>
+                           (join (zipSeqMap sym (loop aty) <$>
                                     (fromSeq "logicBinary left" l)
                                     <*> (fromSeq "logicBinary right" r)))
 
     TVStream aty ->
-        VStream <$> (join (zipSeqMap (loop aty) <$>
+        VStream <$> (join (zipSeqMap sym (loop aty) <$>
                           (fromSeq "logicBinary left" l) <*>
                           (fromSeq "logicBinary right" r)))
 
@@ -1347,12 +1347,13 @@ logicBinary sym opb opw = loop
 {-# INLINE wordValUnaryOp #-}
 wordValUnaryOp ::
   Backend sym =>
+  sym ->
   (SBit sym -> SEval sym (SBit sym)) ->
   (SWord sym -> SEval sym (SWord sym)) ->
   WordValue sym ->
   SEval sym (WordValue sym)
-wordValUnaryOp _ wop (WordVal w)  = WordVal <$> (wop w)
-wordValUnaryOp bop _ (LargeBitsVal n xs) = LargeBitsVal n <$> mapSeqMap f xs
+wordValUnaryOp _ _ wop (WordVal w)  = WordVal <$> (wop w)
+wordValUnaryOp sym bop _ (LargeBitsVal n xs) = LargeBitsVal n <$> mapSeqMap sym f xs
   where f x = VBit <$> (bop (fromVBit x))
 
 {-# SPECIALIZE logicUnary ::
@@ -1386,16 +1387,16 @@ logicUnary sym opb opw = loop
     TVSeq w ety
          -- words
          | isTBit ety
-              -> do v <- sDelay sym (wordValUnaryOp opb opw =<< fromWordVal "logicUnary" val)
+              -> do v <- sDelay sym (wordValUnaryOp sym opb opw =<< fromWordVal "logicUnary" val)
                     return $ VWord w v
 
          -- finite sequences
          | otherwise
-              -> VSeq w <$> (mapSeqMap (loop ety) =<< fromSeq "logicUnary" val)
+              -> VSeq w <$> (mapSeqMap sym (loop ety) =<< fromSeq "logicUnary" val)
 
          -- streams
     TVStream ety ->
-         VStream <$> (mapSeqMap (loop ety) =<< fromSeq "logicUnary" val)
+         VStream <$> (mapSeqMap sym (loop ety) =<< fromSeq "logicUnary" val)
 
     TVTuple etys ->
       do as <- mapM (sDelay sym) (fromVTuple val)
@@ -1631,7 +1632,7 @@ barrelShifter sym shift_op = go
 
     | otherwise
     = do x_shft <- shift_op x (2 ^ length bs)
-         x' <- memoMap (mergeSeqMap sym b x_shft x)
+         x' <- memoMap sym (mergeSeqMap sym b x_shft x)
          go x' bs
 
 {-# INLINE shiftLeftReindex #-}
@@ -1737,7 +1738,7 @@ intShifter :: Backend sym =>
    SEval sym (GenValue sym)
 intShifter sym nm wop reindex m ix a xs idx =
    do let shiftOp vs shft =
-              memoMap $ IndexSeqMap $ \i ->
+              memoMap sym $ IndexSeqMap $ \i ->
                 case reindex m i shft of
                   Nothing -> zeroV sym a
                   Just i' -> lookupSeqMap vs i'
@@ -1773,7 +1774,7 @@ wordShifter :: Backend sym =>
    SEval sym (GenValue sym)
 wordShifter sym nm wop reindex m a xs idx =
   let shiftOp vs shft =
-          memoMap $ IndexSeqMap $ \i ->
+          memoMap sym $ IndexSeqMap $ \i ->
             case reindex m i shft of
               Nothing -> zeroV sym a
               Just i' -> lookupSeqMap vs i'
@@ -1899,7 +1900,7 @@ mergeWord :: Backend sym =>
 mergeWord sym c (WordVal w1) (WordVal w2) =
   WordVal <$> iteWord sym c w1 w2
 mergeWord sym c w1 w2 =
-  LargeBitsVal (wordValueSize sym w1) <$> memoMap (mergeSeqMap sym c (asBitsMap sym w1) (asBitsMap sym w2))
+  LargeBitsVal (wordValueSize sym w1) <$> memoMap sym (mergeSeqMap sym c (asBitsMap sym w1) (asBitsMap sym w2))
 
 {-# INLINE mergeWord' #-}
 mergeWord' :: Backend sym =>
@@ -1938,8 +1939,8 @@ mergeValue sym c v1 v2 =
     (VInteger i1 , VInteger i2 ) -> VInteger <$> iteInteger sym c i1 i2
     (VRational q1, VRational q2) -> VRational <$> iteRational sym c q1 q2
     (VWord n1 w1 , VWord n2 w2 ) | n1 == n2 -> pure $ VWord n1 $ mergeWord' sym c w1 w2
-    (VSeq n1 vs1 , VSeq n2 vs2 ) | n1 == n2 -> VSeq n1 <$> memoMap (mergeSeqMap sym c vs1 vs2)
-    (VStream vs1 , VStream vs2 ) -> VStream <$> memoMap (mergeSeqMap sym c vs1 vs2)
+    (VSeq n1 vs1 , VSeq n2 vs2 ) | n1 == n2 -> VSeq n1 <$> memoMap sym (mergeSeqMap sym c vs1 vs2)
+    (VStream vs1 , VStream vs2 ) -> VStream <$> memoMap sym (mergeSeqMap sym c vs1 vs2)
     (f1@VFun{}   , f2@VFun{}   ) -> lam sym $ \x -> mergeValue' sym c (fromVFun sym f1 x) (fromVFun sym f2 x)
     (f1@VPoly{}  , f2@VPoly{}  ) -> tlam sym $ \x -> mergeValue' sym c (fromVPoly sym f1 x) (fromVPoly sym f2 x)
     (_           , _           ) -> panic "Cryptol.Eval.Generic"

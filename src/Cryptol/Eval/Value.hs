@@ -144,10 +144,10 @@ finiteSeqMap xs =
       (\i -> panic "finiteSeqMap" ["Out of bounds access of finite seq map", "length: " ++ show (length xs), show i])
 
 -- | Generate an infinite sequence map from a stream of values
-infiniteSeqMap :: Backend sym => [SEval sym (GenValue sym)] -> SEval sym (SeqMap sym)
-infiniteSeqMap xs =
+infiniteSeqMap :: Backend sym => sym -> [SEval sym (GenValue sym)] -> SEval sym (SeqMap sym)
+infiniteSeqMap sym xs =
    -- TODO: use an int-trie?
-   memoMap (IndexSeqMap $ \i -> genericIndex xs i)
+   memoMap sym (IndexSeqMap $ \i -> genericIndex xs i)
 
 -- | Create a finite list of length @n@ of the values from @[0..n-1]@ in
 --   the given the sequence emap.
@@ -193,17 +193,18 @@ dropSeqMap n xs = IndexSeqMap $ \i -> lookupSeqMap xs (i+n)
 
 -- | Given a sequence map, return a new sequence map that is memoized using
 --   a finite map memo table.
-memoMap :: (MonadIO m, Backend sym) => SeqMap sym -> m (SeqMap sym)
-memoMap x = do
+memoMap :: Backend sym => sym -> SeqMap sym -> SEval sym (SeqMap sym)
+memoMap sym x = do
+  stk <- sGetCallStack sym
   cache <- liftIO $ newIORef $ Map.empty
-  return $ IndexSeqMap (memo cache)
+  return $ IndexSeqMap (memo cache stk)
 
   where
-  memo cache i = do
+  memo cache stk i = do
     mz <- liftIO (Map.lookup i <$> readIORef cache)
     case mz of
       Just z  -> return z
-      Nothing -> doEval cache i
+      Nothing -> sModifyCallStack sym (\_ -> stk) (doEval cache i)
 
   doEval cache i = do
     v <- lookupSeqMap x i
@@ -214,20 +215,22 @@ memoMap x = do
 --   sequence maps.
 zipSeqMap ::
   Backend sym =>
+  sym ->
   (GenValue sym -> GenValue sym -> SEval sym (GenValue sym)) ->
   SeqMap sym ->
   SeqMap sym ->
   SEval sym (SeqMap sym)
-zipSeqMap f x y =
-  memoMap (IndexSeqMap $ \i -> join (f <$> lookupSeqMap x i <*> lookupSeqMap y i))
+zipSeqMap sym f x y =
+  memoMap sym (IndexSeqMap $ \i -> join (f <$> lookupSeqMap x i <*> lookupSeqMap y i))
 
 -- | Apply the given function to each value in the given sequence map
 mapSeqMap ::
   Backend sym =>
+  sym ->
   (GenValue sym -> SEval sym (GenValue sym)) ->
   SeqMap sym -> SEval sym (SeqMap sym)
-mapSeqMap f x =
-  memoMap (IndexSeqMap $ \i -> f =<< lookupSeqMap x i)
+mapSeqMap sym f x =
+  memoMap sym (IndexSeqMap $ \i -> f =<< lookupSeqMap x i)
 
 -- | For efficiency reasons, we handle finite sequences of bits as special cases
 --   in the evaluator.  In cases where we know it is safe to do so, we prefer to
@@ -440,9 +443,9 @@ ilam sym f =
                      Inf   -> panic "ilam" [ "Unexpected `inf`" ])
 
 -- | Generate a stream.
-toStream :: Backend sym => [GenValue sym] -> SEval sym (GenValue sym)
-toStream vs =
-   VStream <$> infiniteSeqMap (map pure vs)
+toStream :: Backend sym => sym -> [GenValue sym] -> SEval sym (GenValue sym)
+toStream sym vs =
+   VStream <$> infiniteSeqMap sym (map pure vs)
 
 toFinSeq ::
   Backend sym =>
@@ -458,7 +461,7 @@ toSeq ::
   sym -> Nat' -> TValue -> [GenValue sym] -> SEval sym (GenValue sym)
 toSeq sym len elty vals = case len of
   Nat n -> return $ toFinSeq sym n elty vals
-  Inf   -> toStream vals
+  Inf   -> toStream sym vals
 
 
 -- | Construct either a finite sequence, or a stream.  In the finite case,

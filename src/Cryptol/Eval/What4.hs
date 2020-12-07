@@ -759,7 +759,7 @@ updateFrontSym sym _len _eltTy vs (Right wv) val =
     WordVal w | Just j <- SW.bvAsUnsignedInteger w ->
       return $ updateSeqMap vs j val
     _ ->
-      memoMap $ IndexSeqMap $ \i ->
+      memoMap sym $ IndexSeqMap $ \i ->
       do b <- wordValueEqualsInteger sym wv i
          iteValue sym b val (lookupSeqMap vs i)
 
@@ -786,7 +786,7 @@ updateBackSym sym (Nat n) _eltTy vs (Right wv) val =
     WordVal w | Just j <- SW.bvAsUnsignedInteger w ->
       return $ updateSeqMap vs (n - 1 - j) val
     _ ->
-      memoMap $ IndexSeqMap $ \i ->
+      memoMap sym $ IndexSeqMap $ \i ->
       do b <- wordValueEqualsInteger sym wv (n - 1 - i)
          iteValue sym b val (lookupSeqMap vs i)
 
