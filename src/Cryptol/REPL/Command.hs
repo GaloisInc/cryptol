@@ -1612,7 +1612,13 @@ liftModuleCmd cmd =
   do evo <- getEvalOpts
      env <- getModuleEnv
      callStacks <- getCallStacks
-     moduleCmdResult =<< io (cmd (callStacks, evo, BS.readFile, env))
+     let minp = M.ModuleInput
+                { minpCallStacks = callStacks
+                , minpEvalOpts   = evo
+                , minpByteReader = BS.readFile
+                , minpModuleEnv  = env
+                }
+     moduleCmdResult =<< io (cmd minp)
 
 moduleCmdResult :: M.ModuleRes a -> REPL a
 moduleCmdResult (res,ws0) = do

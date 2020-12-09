@@ -199,8 +199,8 @@ setupProver nm =
 
 
 proverError :: String -> M.ModuleCmd (Maybe String, ProverResult)
-proverError msg (_, _, _, modEnv) =
-  return (Right ((Nothing, ProverError msg), modEnv), [])
+proverError msg minp =
+  return (Right ((Nothing, ProverError msg), M.minpModuleEnv minp), [])
 
 
 data CryptolState t = CryptolState
@@ -404,7 +404,7 @@ satProveOffline (W4ProverConfig (AnAdapter adpt)) hashConsing warnUninterp Prove
        when hashConsing  (W4.startCaching sym)
        pure sym
 
-  onError msg (_,_,_,modEnv) = pure (Right (Just msg, modEnv), [])
+  onError msg minp = pure (Right (Just msg, M.minpModuleEnv minp), [])
 
 
 decSatNum :: SatNum -> SatNum

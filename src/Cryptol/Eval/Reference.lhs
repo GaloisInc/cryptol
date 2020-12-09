@@ -1692,7 +1692,8 @@ This module implements the core functionality of the `:eval
 running the reference evaluator on an expression.
 
 > evaluate :: Expr -> M.ModuleCmd (E Value)
-> evaluate expr (_, _, _, modEnv) = return (Right (evalExpr env expr, modEnv), [])
+> evaluate expr minp = return (Right (evalExpr env expr, modEnv), [])
 >   where
+>     modEnv = M.minpModuleEnv minp
 >     extDgs = concatMap mDecls (M.loadedModules modEnv)
 >     env = foldl evalDeclGroup mempty extDgs

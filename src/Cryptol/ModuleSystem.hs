@@ -14,6 +14,7 @@ module Cryptol.ModuleSystem (
   , DynamicEnv(..)
   , ModuleError(..), ModuleWarning(..)
   , ModuleCmd, ModuleRes
+  , ModuleInput(..)
   , findModule
   , loadModuleByPath
   , loadModuleByName
@@ -32,7 +33,6 @@ module Cryptol.ModuleSystem (
   , IfaceTySyn, IfaceDecl(..)
   ) where
 
-import qualified Cryptol.Eval as E
 import qualified Cryptol.Eval.Concrete as Concrete
 import           Cryptol.ModuleSystem.Env
 import           Cryptol.ModuleSystem.Interface
@@ -46,11 +46,9 @@ import           Cryptol.Parser.NoPat (RemovePatterns)
 import qualified Cryptol.TypeCheck.AST     as T
 import qualified Cryptol.Utils.Ident as M
 
-import Data.ByteString (ByteString)
-
 -- Public Interface ------------------------------------------------------------
 
-type ModuleCmd a = (Bool, E.EvalOpts, FilePath -> IO ByteString, ModuleEnv) -> IO (ModuleRes a)
+type ModuleCmd a = ModuleInput IO -> IO (ModuleRes a)
 
 type ModuleRes a = (Either ModuleError (a,ModuleEnv), [ModuleWarning])
 
@@ -63,8 +61,8 @@ findModule n env = runModuleM env (Base.findModule n)
 
 -- | Load the module contained in the given file.
 loadModuleByPath :: FilePath -> ModuleCmd (ModulePath,T.Module)
-loadModuleByPath path (callStacks, evo, byteReader, env) =
-  runModuleM (callStacks, evo, byteReader, resetModuleEnv env) $ do
+loadModuleByPath path minp =
+  runModuleM minp{ minpModuleEnv = resetModuleEnv (minpModuleEnv minp) } $ do
     unloadModule ((InFile path ==) . lmFilePath)
     m <- Base.loadModuleByPath path
     setFocusedModule (T.mName m)
@@ -72,8 +70,8 @@ loadModuleByPath path (callStacks, evo, byteReader, env) =
 
 -- | Load the given parsed module.
 loadModuleByName :: P.ModName -> ModuleCmd (ModulePath,T.Module)
-loadModuleByName n (callStacks, evo, byteReader, env) =
-  runModuleM (callStacks, evo, byteReader, resetModuleEnv env) $ do
+loadModuleByName n minp =
+  runModuleM minp{ minpModuleEnv = resetModuleEnv (minpModuleEnv minp) } $ do
     unloadModule ((n ==) . lmName)
     (path,m') <- Base.loadModuleFrom False (FromModule n)
     setFocusedModule (T.mName m')

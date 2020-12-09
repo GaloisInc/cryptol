@@ -305,9 +305,13 @@ data RO m =
      , roFileReader :: FilePath -> m ByteString
      }
 
-emptyRO :: Bool -> EvalOpts -> (FilePath -> m ByteString) -> RO m
-emptyRO callStacks ev fileReader =
-  RO { roLoading = [], roEvalOpts = ev, roCallStacks = callStacks, roFileReader = fileReader }
+emptyRO :: ModuleInput m -> RO m
+emptyRO minp =
+  RO { roLoading = []
+     , roEvalOpts   = minpEvalOpts minp
+     , roCallStacks = minpCallStacks minp
+     , roFileReader = minpByteReader minp
+     }
 
 newtype ModuleT m a = ModuleT
   { unModuleT :: ReaderT (RO m)
@@ -352,21 +356,33 @@ instance Monad m => FreshM (ModuleT m) where
 instance MonadIO m => MonadIO (ModuleT m) where
   liftIO m = lift $ liftIO m
 
-runModuleT :: Monad m
-           => (Bool, EvalOpts, FilePath -> m ByteString, ModuleEnv)
-           -> ModuleT m a
-           -> m (Either ModuleError (a, ModuleEnv), [ModuleWarning])
-runModuleT (callStacks, ev, byteReader, env) m =
+
+data ModuleInput m =
+  ModuleInput
+  { minpCallStacks :: Bool
+  , minpEvalOpts   :: EvalOpts
+  , minpByteReader :: FilePath -> m ByteString
+  , minpModuleEnv  :: ModuleEnv
+  }
+
+runModuleT ::
+  Monad m =>
+  ModuleInput m ->
+  ModuleT m a ->
+  m (Either ModuleError (a, ModuleEnv), [ModuleWarning])
+runModuleT minp m =
     runWriterT
   $ runExceptionT
-  $ runStateT env
-  $ runReaderT (emptyRO callStacks ev byteReader)
+  $ runStateT (minpModuleEnv minp)
+  $ runReaderT (emptyRO minp)
   $ unModuleT m
 
 type ModuleM = ModuleT IO
 
-runModuleM :: (Bool, EvalOpts, FilePath -> IO ByteString, ModuleEnv) -> ModuleM a
-           -> IO (Either ModuleError (a,ModuleEnv),[ModuleWarning])
+runModuleM ::
+  ModuleInput IO ->
+  ModuleM a ->
+  IO (Either ModuleError (a,ModuleEnv),[ModuleWarning])
 runModuleM = runModuleT
 
 
@@ -551,4 +567,3 @@ getSolverConfig  = ModuleT $ do
 withLogger :: (Logger -> a -> IO b) -> a -> ModuleM b
 withLogger f a = do l <- getEvalOpts
                     io (f (evalLogger l) a)
-
