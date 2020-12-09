@@ -1,6 +1,6 @@
 -- |
--- Module      :  Cryptol.Eval.Monad
--- Copyright   :  (c) 2013-2016 Galois, Inc.
+-- Module      :  Cryptol.Backend.Monad
+-- Copyright   :  (c) 2013-2020 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
