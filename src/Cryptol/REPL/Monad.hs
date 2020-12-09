@@ -38,6 +38,8 @@ module Cryptol.REPL.Monad (
   , getCallStacks
   , uniqify, freshName
   , whenDebug
+  , getEvalOptsAction
+  , getPPValOpts
   , getExprNames
   , getTypeNames
   , getPropertyNames
@@ -97,7 +99,7 @@ import qualified Cryptol.Parser.AST as P
 import Cryptol.Symbolic (SatNum(..))
 import Cryptol.Symbolic.SBV (SBVPortfolioException)
 import Cryptol.Symbolic.What4 (W4Exception)
-import Cryptol.Backend.Monad(PPFloatFormat(..),PPFloatExp(..))
+import Cryptol.Backend.Monad(PPFloatFormat(..),PPFloatExp(..),PPOpts(..),EvalOpts(..))
 import qualified Cryptol.Symbolic.SBV as SBV (proverNames, setupProver, defaultProver, SBVProverConfig)
 import qualified Cryptol.Symbolic.What4 as W4 (proverNames, setupProver, W4ProverConfig)
 
@@ -390,6 +392,33 @@ getPrompt  = mkPrompt `fmap` getRW
 
 getCallStacks :: REPL Bool
 getCallStacks = eCallStacks <$> getRW
+
+-- Get the setting we should use for displaying values.
+getPPValOpts :: REPL PPOpts
+getPPValOpts =
+  do base      <- getKnownUser "base"
+     ascii     <- getKnownUser "ascii"
+     infLength <- getKnownUser "infLength"
+
+     fpBase    <- getKnownUser "fp-base"
+     fpFmtTxt  <- getKnownUser "fp-format"
+     let fpFmt = case parsePPFloatFormat fpFmtTxt of
+                   Just f  -> f
+                   Nothing -> panic "getPPOpts"
+                                      [ "Failed to parse fp-format" ]
+
+     return PPOpts { useBase      = base
+                   , useAscii     = ascii
+                   , useInfLength = infLength
+                   , useFPBase    = fpBase
+                   , useFPFormat  = fpFmt
+                   }
+
+getEvalOptsAction :: REPL (IO EvalOpts)
+getEvalOptsAction = REPL $ \rwRef -> pure $
+  do ppOpts <- unREPL getPPValOpts rwRef
+     l      <- unREPL getLogger rwRef
+     return EvalOpts { evalPPOpts = ppOpts, evalLogger = l }
 
 clearLoadedMod :: REPL ()
 clearLoadedMod = do modifyRW_ (\rw -> rw { eLoadedMod = upd <$> eLoadedMod rw })

@@ -140,8 +140,8 @@ floatToExpr prims eT pT f =
 
 -- Primitives ------------------------------------------------------------------
 
-primTable :: EvalOpts -> Map PrimIdent (Prim Concrete)
-primTable eOpts = let sym = Concrete in
+primTable :: IO EvalOpts -> Map PrimIdent (Prim Concrete)
+primTable getEOpts = let sym = Concrete in
   Map.union (genericPrimTable sym) $
   Map.union (floatPrims sym) $
   Map.union suiteBPrims $
@@ -183,7 +183,7 @@ primTable eOpts = let sym = Concrete in
                      PFun     \y ->
                      PPrim
                       do msg <- valueToString sym =<< s
-                         let EvalOpts { evalPPOpts, evalLogger } = eOpts
+                         EvalOpts { evalPPOpts, evalLogger } <- io getEOpts
                          doc <- ppValue sym evalPPOpts =<< x
                          io $ logPrint evalLogger
                              $ if null msg then doc else text msg <+> doc

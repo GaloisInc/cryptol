@@ -431,7 +431,7 @@ satProve :: SBVProverConfig -> ProverCommand -> M.ModuleCmd (Maybe String, Prove
 satProve proverCfg pc =
   protectStack proverError $ \minp ->
   M.runModuleM minp $ do
-  let evo = M.minpEvalOpts minp
+  evo <- liftIO (M.minpEvalOpts minp)
 
   let lPutStrLn = logPutStrLn (Eval.evalLogger evo)
 
@@ -456,7 +456,7 @@ satProveOffline _proverCfg pc@ProverCommand {..} =
               ProveQuery -> False
               SafetyQuery -> False
               SatQuery _ -> True
-        let evo = M.minpEvalOpts minp
+        evo <- liftIO (M.minpEvalOpts minp)
 
         prepareQuery evo pc >>= \case
           Left msg -> return (Left msg)
