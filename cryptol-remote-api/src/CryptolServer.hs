@@ -10,7 +10,7 @@ import Control.Monad.IO.Class
 import Control.Monad.Reader (ReaderT(ReaderT))
 import qualified Data.Aeson as JSON
 
-import Cryptol.Eval (EvalOpts)
+import Cryptol.Eval (EvalOpts(..))
 import Cryptol.ModuleSystem (ModuleCmd, ModuleEnv, ModuleInput(..))
 import Cryptol.ModuleSystem.Env
   (getLoadedModules, lmFilePath, lmFingerprint, meLoadedModules,

@@ -5,7 +5,7 @@ import Control.Monad.IO.Class
 import Data.Aeson as JSON
 
 
-import Cryptol.ModuleSystem (checkExpr, evalExpr, getPrimMap)
+import Cryptol.ModuleSystem (checkExpr, evalExpr)
 import Cryptol.ModuleSystem.Env (meSolverConfig)
 import Cryptol.TypeCheck.Solve (defaultReplExpr)
 import Cryptol.TypeCheck.Subst (apSubst, listParamSubst)

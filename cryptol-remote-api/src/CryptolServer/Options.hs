@@ -6,9 +6,10 @@ module CryptolServer.Options (Options(..), WithOptions(..)) where
 import Data.Aeson hiding (Options)
 import qualified Data.HashMap.Strict as HM
 
-import Cryptol.Backend.Monad (EvalOpts(..), PPOpts(..), PPFloatFormat(..), PPFloatExp(..))
+import Cryptol.Eval(EvalOpts(..))
 import Cryptol.REPL.Monad (parsePPFloatFormat)
 import Cryptol.Utils.Logger (quietLogger)
+import Cryptol.Utils.PP (PPOpts(..), PPFloatFormat(..), PPFloatExp(..))
 
 data Options = Options { optCallStacks :: Bool, optEvalOpts :: EvalOpts }
 
