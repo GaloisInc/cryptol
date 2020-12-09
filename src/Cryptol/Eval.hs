@@ -480,7 +480,7 @@ etaDelay sym env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
       VNumPoly{} ->
         evalPanic "type mismatch during eta-expansion" ["Encountered numeric polymorphic value"]
 
-  go stk tp v = sModifyCallStack sym (\_ -> stk) $
+  go stk tp v = sWithCallStack sym stk $
     case tp of
       TVBit -> v
       TVInteger -> v

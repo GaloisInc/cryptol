@@ -216,7 +216,7 @@ ringBinary sym opw opi opz opq opfp = loop
                   lw <- fromVWord sym "ringLeft" l
                   rw <- fromVWord sym "ringRight" r
                   stk <- sGetCallStack sym
-                  return $ VWord w (WordVal <$> (sModifyCallStack sym (\_ -> stk) (opw w lw rw)))
+                  return $ VWord w (WordVal <$> (sWithCallStack sym stk (opw w lw rw)))
       | otherwise -> VSeq w <$> (join (zipSeqMap sym (loop a) <$>
                                       (fromSeq "ringBinary left" l) <*>
                                       (fromSeq "ringBinary right" r)))
@@ -299,7 +299,7 @@ ringUnary sym opw opi opz opq opfp = loop
       | isTBit a -> do
               wx <- fromVWord sym "ringUnary" v
               stk <- sGetCallStack sym
-              return $ VWord w (WordVal <$> sModifyCallStack sym (\_ -> stk) (opw w wx))
+              return $ VWord w (WordVal <$> sWithCallStack sym stk (opw w wx))
       | otherwise -> VSeq w <$> (mapSeqMap sym (loop a) =<< fromSeq "ringUnary" v)
 
     TVStream a ->
@@ -365,7 +365,7 @@ ringNullary sym opw opi opz opq opfp = loop
           -- words and finite sequences
           | isTBit a ->
              do stk <- sGetCallStack sym
-                pure $ VWord w $ (WordVal <$> sModifyCallStack sym (\_ -> stk) (opw w))
+                pure $ VWord w $ (WordVal <$> sWithCallStack sym stk (opw w))
           | otherwise ->
              do v <- sDelay sym (loop a)
                 pure $ VSeq w $ IndexSeqMap \_i -> v
@@ -410,7 +410,7 @@ integralBinary sym opw opi ty l r = case ty of
           do wl <- fromVWord sym "integralBinary left" l
              wr <- fromVWord sym "integralBinary right" r
              stk <- sGetCallStack sym
-             return $ VWord w (WordVal <$> sModifyCallStack sym (\_ -> stk) (opw w wl wr))
+             return $ VWord w (WordVal <$> sWithCallStack sym stk (opw w wl wr))
 
     _ -> evalPanic "integralBinary" [show ty ++ " not int class `Integral`"]
 
@@ -1830,7 +1830,7 @@ errorV sym ty0 msg =
      do stk <- sGetCallStack sym
         loop stk ty0
   where
-  err stk = sModifyCallStack sym (\_ -> stk) (cryUserError sym msg)
+  err stk = sWithCallStack sym stk (cryUserError sym msg)
 
   loop stk = \case
        TVBit -> err stk

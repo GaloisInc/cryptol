@@ -242,6 +242,10 @@ class MonadIO (SEval sym) => Backend sym where
   sPushFrame :: sym -> Name -> Range -> SEval sym a -> SEval sym a
   sPushFrame sym nm rng m = sModifyCallStack sym (pushCallFrame nm rng) m
 
+  -- | Use the given call stack while evaluating the given action
+  sWithCallStack :: sym -> CallStack -> SEval sym a -> SEval sym a
+  sWithCallStack sym stk m = sModifyCallStack sym (\_ -> stk) m
+
   -- | Apply the given function to the current call stack while evaluating the given action
   sModifyCallStack :: sym -> (CallStack -> CallStack) -> SEval sym a -> SEval sym a
 

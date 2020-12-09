@@ -159,7 +159,7 @@ instance Backend Concrete where
        y <- my
        f c x y
 
-  sDeclareHole _ rng = blackhole rng
+  sDeclareHole _ = blackhole
   sDelayFill _ = delayFill
   sSpark _ = evalSpark
   sModifyCallStack _ f m = modifyCallStack f m

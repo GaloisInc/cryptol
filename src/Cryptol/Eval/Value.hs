@@ -204,7 +204,7 @@ memoMap sym x = do
     mz <- liftIO (Map.lookup i <$> readIORef cache)
     case mz of
       Just z  -> return z
-      Nothing -> sModifyCallStack sym (\_ -> stk) (doEval cache i)
+      Nothing -> sWithCallStack sym stk (doEval cache i)
 
   doEval cache i = do
     v <- lookupSeqMap x i
