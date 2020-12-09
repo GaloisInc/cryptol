@@ -39,7 +39,7 @@ main = customMain initMod initMod initMod description buildApp
       do paths <- getSearchPaths
          initSt <- setSearchPath paths <$> initialState
          let menv = view moduleEnv initSt
-         let minp = ModuleInput False evOpts reader menv
+         let minp = ModuleInput False (pure evOpts) reader menv
          let die =
                \err ->
                  do hPutStrLn stderr $ "Failed to load " ++ either ("file " ++) (("module " ++) . show) file ++ ":\n" ++ show err

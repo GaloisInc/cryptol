@@ -1,7 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 module CryptolServer.EvalExpr (evalExpression, evalExpression', EvalExprParams(..)) where
 
-import Control.Lens hiding ((.=))
 import Control.Monad.IO.Class
 import Data.Aeson as JSON
 
@@ -42,10 +41,8 @@ evalExpression' e =
          do -- TODO: warnDefaults here
             let su = listParamSubst tys
             let theType = apSubst su (sType schema)
-            evOpts <- getEvalOpts
             res <- runModuleCmd (evalExpr checked)
-            prims <- runModuleCmd getPrimMap
-            val <- observe $ readBack evOpts prims theType res
+            val <- observe $ readBack theType res
             return (JSON.object [ "value" .= val
                                 , "type string" .= pretty theType
                                 , "type" .= JSONSchema (Forall [] [] theType)

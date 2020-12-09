@@ -33,13 +33,12 @@ import Cryptol.Backend.Concrete hiding (Concrete)
 import qualified Cryptol.Backend.Concrete as C
 
 import Cryptol.Eval (evalSel)
-import Cryptol.Eval.Concrete (primTable, Value)
+import Cryptol.Eval.Concrete (Value)
 import Cryptol.Eval.Value (GenValue(..), asWordVal, enumerateSeqMap)
 import Cryptol.Parser
 import Cryptol.Parser.AST (Bind(..), BindDef(..), Decl(..), Expr(..), Named(Named), TypeInst(NamedInst), Type(..), PName(..), Literal(..), NumInfo(..), Type)
 import Cryptol.Parser.Position (Located(..), emptyRange)
 import Cryptol.Parser.Selector
-import Cryptol.TypeCheck.AST (PrimMap)
 import Cryptol.TypeCheck.SimpType (tRebuild)
 import qualified Cryptol.TypeCheck.Type as TC
 import Cryptol.Utils.Ident
@@ -343,17 +342,13 @@ typeNum (tRebuild -> (TC.TCon (TC.TC (TC.TCNum n)) [])) =
   pure $ fromIntegral n
 typeNum _ = empty
 
-readBack :: EvalOpts -> PrimMap -> TC.Type -> Value -> Eval Expression
-readBack evOpts prims ty val =
-  let tbl = primTable evOpts in
-  let ?evalPrim = \i -> Right <$> Map.lookup i tbl in
-  let ?range = emptyRange in -- TODO?
-  let ?callStacks = False in -- TODO?
+readBack :: TC.Type -> Value -> Eval Expression
+readBack ty val =
   case TC.tNoUser ty of
     TC.TRec tfs ->
       Record . HM.fromList <$>
         sequence [ do fv <- evalSel C.Concrete val (RecordSel f Nothing)
-                      fa <- readBack evOpts prims t fv
+                      fa <- readBack t fv
                       return (identText f, fa)
                  | (f, t) <- canonicalFields tfs
                  ]
@@ -361,7 +356,7 @@ readBack evOpts prims ty val =
       pure Unit
     TC.TCon (TC.TC (TC.TCTuple _)) ts ->
       Tuple <$> sequence [ do v <- evalSel C.Concrete val (TupleSel n Nothing)
-                              a <- readBack evOpts prims t v
+                              a <- readBack t v
                               return a
                          | (n, t) <- zip [0..] ts
                          ]
@@ -388,7 +383,7 @@ readBack evOpts prims ty val =
            return $ Num Hex (T.justifyRight paddedLen '0' hexStr) w
       | TC.TCon (TC.TC (TC.TCNum k)) [] <- len
       , VSeq _l (enumerateSeqMap k -> vs) <- val ->
-        Sequence <$> mapM (>>= readBack evOpts prims contents) vs
+        Sequence <$> mapM (>>= readBack contents) vs
     other -> liftIO $ throwIO (invalidType other)
   where
     mismatchPanic =

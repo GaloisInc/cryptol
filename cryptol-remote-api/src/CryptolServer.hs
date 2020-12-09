@@ -61,7 +61,7 @@ runModuleCmd cmd =
        reader <- CryptolMethod $ const Argo.getFileReader
        let minp = ModuleInput
                   { minpCallStacks = callStacks
-                  , minpEvalOpts   = evOpts
+                  , minpEvalOpts   = pure evOpts
                   , minpByteReader = reader
                   , minpModuleEnv  = view moduleEnv s
                   }
