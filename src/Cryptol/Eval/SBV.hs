@@ -6,6 +6,7 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -21,7 +22,6 @@ module Cryptol.Eval.SBV
   ) where
 
 import qualified Control.Exception as X
-import           Control.Monad (join)
 import           Control.Monad.IO.Class (MonadIO(..))
 import           Data.Bits (bit, shiftL)
 import qualified Data.Map as Map
@@ -33,8 +33,9 @@ import Cryptol.Backend
 import Cryptol.Backend.Monad ( EvalError(..), Unsupported(..) )
 import Cryptol.Backend.SBV
 
-import Cryptol.Eval.Type (TValue(..), finNat')
+import Cryptol.Eval.Type (TValue(..))
 import Cryptol.Eval.Generic
+import Cryptol.Eval.Prims
 import Cryptol.Eval.Value
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..), widthInteger)
 import Cryptol.Utils.Ident
@@ -46,106 +47,12 @@ type Value = GenValue SBV
 -- Primitives ------------------------------------------------------------------
 
 -- See also Cryptol.Eval.Concrete.primTable
-primTable :: SBV -> Map.Map PrimIdent Value
-primTable sym =
+primTable :: SBV -> Map.Map PrimIdent (Prim SBV)
+primTable sym = 
+  Map.union (genericPrimTable sym) $
   Map.fromList $ map (\(n, v) -> (prelPrim (T.pack n), v))
 
-  [ -- Literals
-    ("True"        , VBit (bitLit sym True))
-  , ("False"       , VBit (bitLit sym False))
-  , ("number"      , ecNumberV sym) -- Converts a numeric type into its corresponding value.
-                                    -- { val, rep } (Literal val rep) => rep
-  , ("fraction"     , ecFractionV sym)
-  , ("ratio"       , ratioV sym)
-
-    -- Zero
-  , ("zero"        , VPoly (zeroV sym))
-
-    -- Logic
-  , ("&&"          , binary (andV sym))
-  , ("||"          , binary (orV sym))
-  , ("^"           , binary (xorV sym))
-  , ("complement"  , unary  (complementV sym))
-
-    -- Ring
-  , ("fromInteger" , fromIntegerV sym)
-  , ("+"           , binary (addV sym))
-  , ("-"           , binary (subV sym))
-  , ("negate"      , unary (negateV sym))
-  , ("*"           , binary (mulV sym))
-
-    -- Integral
-  , ("toInteger"   , toIntegerV sym)
-  , ("/"           , binary (divV sym))
-  , ("%"           , binary (modV sym))
-  , ("^^"          , expV sym)
-  , ("infFrom"     , infFromV sym)
-  , ("infFromThen" , infFromThenV sym)
-
-    -- Field
-  , ("recip"       , recipV sym)
-  , ("/."          , fieldDivideV sym)
-
-    -- Round
-  , ("floor"       , unary (floorV sym))
-  , ("ceiling"     , unary (ceilingV sym))
-  , ("trunc"       , unary (truncV sym))
-  , ("roundAway"   , unary (roundAwayV sym))
-  , ("roundToEven" , unary (roundToEvenV sym))
-
-    -- Word operations
-  , ("/$"          , sdivV sym)
-  , ("%$"          , smodV sym)
-  , ("lg2"         , lg2V sym)
-  , (">>$"         , sshrV sym)
-
-    -- Cmp
-  , ("<"           , binary (lessThanV sym))
-  , (">"           , binary (greaterThanV sym))
-  , ("<="          , binary (lessThanEqV sym))
-  , (">="          , binary (greaterThanEqV sym))
-  , ("=="          , binary (eqV sym))
-  , ("!="          , binary (distinctV sym))
-
-    -- SignedCmp
-  , ("<$"          , binary (signedLessThanV sym))
-
-    -- Finite enumerations
-  , ("fromTo"      , fromToV sym)
-  , ("fromThenTo"  , fromThenToV sym)
-
-    -- Sequence manipulations
-  , ("#"          , -- {a,b,d} (fin a) => [a] d -> [b] d -> [a + b] d
-     nlam $ \ front ->
-     nlam $ \ back  ->
-     tlam $ \ elty  ->
-     lam  $ \ l     -> return $
-     lam  $ \ r     -> join (ccatV sym front back elty <$> l <*> r))
-
-  , ("join"       ,
-     nlam $ \ parts ->
-     nlam $ \ (finNat' -> each)  ->
-     tlam $ \ a     ->
-     lam  $ \ x     ->
-       joinV sym parts each a =<< x)
-
-  , ("split"       , ecSplitV sym)
-
-  , ("splitAt"    ,
-     nlam $ \ front ->
-     nlam $ \ back  ->
-     tlam $ \ a     ->
-     lam  $ \ x     ->
-       splitAtV sym front back a =<< x)
-
-  , ("reverse"    , nlam $ \_a ->
-                    tlam $ \_b ->
-                     lam $ \xs -> reverseV sym =<< xs)
-
-  , ("transpose"  , nlam $ \a ->
-                    nlam $ \b ->
-                    tlam $ \c ->
-                     lam $ \xs -> transposeV sym a b c =<< xs)
+  [ (">>$"         , sshrV sym)
 
     -- Shifts and rotates
   , ("<<"          , logicShift sym "<<"
@@ -179,51 +86,21 @@ primTable sym =
   , ("update"      , updatePrim sym (updateFrontSym_word sym) (updateFrontSym sym))
   , ("updateEnd"   , updatePrim sym (updateBackSym_word sym) (updateBackSym sym))
 
-    -- Misc
-
-  , ("fromZ"       , fromZV sym)
-
-  , ("foldl"       , foldlV sym)
-  , ("foldl'"      , foldl'V sym)
-
-  , ("deepseq"     ,
-      tlam $ \_a ->
-      tlam $ \_b ->
-       lam $ \x -> pure $
-       lam $ \y ->
-         do _ <- forceValue =<< x
-            y)
-
-  , ("parmap"      , parmapV sym)
-
-    -- {at,len} (fin len) => [len][8] -> at
-  , ("error"       ,
-      tlam $ \a ->
-      nlam $ \_ ->
-      VFun $ \s -> errorV sym a =<< (valueToString sym =<< s))
-
-  , ("random"      ,
-      tlam $ \a ->
-      wlam sym $ \x ->
-         case integerAsLit sym x of
-           Just i  -> randomV sym a i
-           Nothing -> cryUserError sym "cannot evaluate 'random' with symbolic inputs")
-
      -- The trace function simply forces its first two
      -- values before returing the third in the symbolic
      -- evaluator.
   , ("trace",
-      nlam $ \_n ->
-      tlam $ \_a ->
-      tlam $ \_b ->
-       lam $ \s -> return $
-       lam $ \x -> return $
-       lam $ \y -> do
-         _ <- s
-         _ <- x
-         y)
+      PNumPoly \_n ->
+      PTyPoly  \_a ->
+      PTyPoly  \_b ->
+      PFun     \s ->
+      PFun     \x ->
+      PFun     \y ->
+      PPrim
+       do _ <- s
+          _ <- x
+          y)
   ]
-
 
 indexFront ::
   SBV ->
@@ -468,13 +345,14 @@ asWordList = go id
        go f (WordVal x :vs) = go (f . (x:)) vs
        go _f (LargeBitsVal _ _ : _) = Nothing
 
-sshrV :: SBV -> Value
+sshrV :: SBV -> Prim SBV
 sshrV sym =
-  nlam $ \n ->
-  tlam $ \ix ->
-  wlam sym $ \x -> return $
-  lam $ \y ->
-   y >>= asIndex sym ">>$" ix >>= \case
+  PNumPoly \n ->
+  PTyPoly  \ix ->
+  PWordFun \x ->
+  PStrict  \y ->
+  PPrim $
+   asIndex sym ">>$" ix y >>= \case
      Left idx ->
        do let w = toInteger (SBV.intSizeOf x)
           let pneg = svLessThan idx (svInteger KUnbounded 0)

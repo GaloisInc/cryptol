@@ -202,7 +202,7 @@ lexer cfg cs = ( case cfgLayout cfg of
 primLexer :: Config -> Text -> ([Located Token], Position)
 primLexer cfg cs = run inp Normal
   where
-  inp = Inp { alexPos           = start
+  inp = Inp { alexPos           = cfgStart cfg
             , alexInputPrevChar = '\n'
             , input             = unLit (cfgPreProc cfg) cs }
 

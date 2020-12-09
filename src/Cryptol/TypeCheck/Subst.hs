@@ -348,6 +348,7 @@ instance TVars Expr where
     where
     go expr =
       case expr of
+        ELocated r e  -> ELocated r !$ (go e)
         EApp e1 e2    -> EApp !$ (go e1) !$ (go e2)
         EAbs x t e1   -> EAbs x !$ (apSubst su t) !$ (go e1)
         ETAbs a e     -> ETAbs a !$ (go e)

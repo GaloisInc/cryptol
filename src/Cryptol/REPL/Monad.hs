@@ -35,6 +35,7 @@ module Cryptol.REPL.Monad (
   , getFocusedEnv
   , getModuleEnv, setModuleEnv
   , getDynEnv, setDynEnv
+  , getCallStacks
   , uniqify, freshName
   , whenDebug
   , getExprNames
@@ -76,7 +77,7 @@ module Cryptol.REPL.Monad (
 
 import Cryptol.REPL.Trie
 
-import Cryptol.Eval (EvalError, Unsupported)
+import Cryptol.Eval (EvalErrorEx, Unsupported, WordTooWide)
 import qualified Cryptol.ModuleSystem as M
 import qualified Cryptol.ModuleSystem.Env as M
 import qualified Cryptol.ModuleSystem.Name as M
@@ -155,6 +156,8 @@ data RW = RW
   , eLogger      :: Logger
     -- ^ Use this to send messages to the user
 
+  , eCallStacks :: Bool
+
   , eUpdateTitle :: REPL ()
     -- ^ Execute this every time we load a module.
     -- This is used to change the title of terminal when loading a module.
@@ -163,8 +166,8 @@ data RW = RW
   }
 
 -- | Initial, empty environment.
-defaultRW :: Bool -> Logger -> IO RW
-defaultRW isBatch l = do
+defaultRW :: Bool -> Bool ->Logger -> IO RW
+defaultRW isBatch callStacks l = do
   env <- M.initialModuleEnv
   return RW
     { eLoadedMod   = Nothing
@@ -174,6 +177,7 @@ defaultRW isBatch l = do
     , eModuleEnv   = env
     , eUserEnv     = mkUserEnv userOptions
     , eLogger      = l
+    , eCallStacks  = callStacks
     , eUpdateTitle = return ()
     , eProverConfig = Left SBV.defaultProver
     }
@@ -220,9 +224,9 @@ mkPrompt rw
 newtype REPL a = REPL { unREPL :: IORef RW -> IO a }
 
 -- | Run a REPL action with a fresh environment.
-runREPL :: Bool -> Logger -> REPL a -> IO a
-runREPL isBatch l m = do
-  ref <- newIORef =<< defaultRW isBatch l
+runREPL :: Bool -> Bool -> Logger -> REPL a -> IO a
+runREPL isBatch callStacks l m = do
+  ref <- newIORef =<< defaultRW isBatch callStacks l
   unREPL m ref
 
 instance Functor REPL where
@@ -289,7 +293,8 @@ data REPLException
   | DirectoryNotFound FilePath
   | NoPatError [Error]
   | NoIncludeError [IncludeError]
-  | EvalError EvalError
+  | EvalError EvalErrorEx
+  | TooWide WordTooWide
   | Unsupported Unsupported
   | ModuleSystemError NameDisp M.ModuleError
   | EvalPolyError T.Schema
@@ -319,6 +324,7 @@ instance PP REPLException where
     ModuleSystemError ns me -> fixNameDisp ns (pp me)
     EvalError e          -> pp e
     Unsupported e        -> pp e
+    TooWide e            -> pp e
     EvalPolyError s      -> text "Cannot evaluate polymorphic value."
                          $$ text "Type:" <+> pp s
     TypeNotTestable t    -> text "The expression is not of a testable type."
@@ -344,14 +350,20 @@ finally m1 m2 = REPL (\ref -> unREPL m1 ref `X.finally` unREPL m2 ref)
 
 
 rethrowEvalError :: IO a -> IO a
-rethrowEvalError m = run `X.catch` rethrow `X.catch` rethrowUnsupported
+rethrowEvalError m =
+    run `X.catch` rethrow
+        `X.catch` rethrowTooWide
+        `X.catch` rethrowUnsupported
   where
   run = do
     a <- m
     return $! a
 
-  rethrow :: EvalError -> IO a
+  rethrow :: EvalErrorEx -> IO a
   rethrow exn = X.throwIO (EvalError exn)
+
+  rethrowTooWide :: WordTooWide -> IO a
+  rethrowTooWide exn = X.throwIO (TooWide exn)
 
   rethrowUnsupported :: Unsupported -> IO a
   rethrowUnsupported exn = X.throwIO (Unsupported exn)
@@ -375,6 +387,9 @@ modifyRW_ f = REPL (\ ref -> modifyIORef ref f)
 -- | Construct the prompt for the current environment.
 getPrompt :: REPL String
 getPrompt  = mkPrompt `fmap` getRW
+
+getCallStacks :: REPL Bool
+getCallStacks = eCallStacks <$> getRW
 
 clearLoadedMod :: REPL ()
 clearLoadedMod = do modifyRW_ (\rw -> rw { eLoadedMod = upd <$> eLoadedMod rw })

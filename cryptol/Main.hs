@@ -48,6 +48,7 @@ data Options = Options
   , optVersion         :: Bool
   , optHelp            :: Bool
   , optBatch           :: Maybe FilePath
+  , optCallStacks      :: Bool
   , optCommands        :: [String]
   , optColorMode       :: ColorMode
   , optCryptolrc       :: Cryptolrc
@@ -62,6 +63,7 @@ defaultOptions  = Options
   , optVersion         = False
   , optHelp            = False
   , optBatch           = Nothing
+  , optCallStacks      = True
   , optCommands        = []
   , optColorMode       = AutoColor
   , optCryptolrc       = CryrcDefault
@@ -94,6 +96,9 @@ options  =
 
   , Option "h" ["help"] (NoArg setHelp)
     "display this message"
+
+  , Option "" ["no-call-stacks"] (NoArg setNoCallStacks)
+    "Disable tracking of call stack information, which reduces interpreter overhead"
 
   , Option "" ["no-unicode-logo"] (NoArg setNoUnicodeLogo)
     "Don't use unicode characters in the REPL logo"
@@ -148,6 +153,10 @@ setHelp  = modify $ \ opts -> opts { optHelp = True }
 -- | Disable .cryptolrc files entirely
 setCryrcDisabled :: OptParser Options
 setCryrcDisabled  = modify $ \ opts -> opts { optCryptolrc = CryrcDisabled }
+
+-- | Disable call stack tracking
+setNoCallStacks :: OptParser Options
+setNoCallStacks = modify $ \opts -> opts { optCallStacks = False }
 
 -- | Add another file to read as a @.cryptolrc@ file, unless @.cryptolrc@
 -- files have been disabled
@@ -206,6 +215,7 @@ main  = do
           (opts', mCleanup) <- setupCmdScript opts
           status <- repl (optCryptolrc opts')
                          (optBatch opts')
+                         (optCallStacks opts')
                          (optStopOnError opts')
                          (setupREPL opts')
           case mCleanup of

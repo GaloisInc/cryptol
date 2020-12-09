@@ -1,10 +1,10 @@
 Loading module Cryptol
 
-Parse error at <interactive>:1:22--1:23
+Parse error at repeatFields.icry:1:22--1:23
   Record has repeated field: a
 
-Parse error at <interactive>:1:22--1:23
+Parse error at repeatFields.icry:3:22--3:23
   Record has repeated field: b
 
-Parse error at <interactive>:1:16--1:17
+Parse error at repeatFields.icry:5:16--5:17
   Record has repeated field: c

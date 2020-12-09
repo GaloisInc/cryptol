@@ -1,7 +1,13 @@
 Loading module Cryptol
 
 division by 0
+-- Backtrace --
+(Cryptol::/) called at issue413.icry:1:1--1:10
 
 division by 0
+-- Backtrace --
+Cryptol::pdiv called at issue413.icry:2:1--2:5
 
 division by 0
+-- Backtrace --
+Cryptol::pmod called at issue413.icry:3:1--3:5

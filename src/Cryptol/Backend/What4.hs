@@ -39,8 +39,9 @@ import Cryptol.Backend
 import Cryptol.Backend.Concrete( BV(..), ppBV )
 import Cryptol.Backend.FloatHelpers
 import Cryptol.Backend.Monad
-   ( Eval(..), EvalError(..), Unsupported(..)
-   , delayFill, blackhole, evalSpark
+   ( Eval(..), EvalError(..), EvalErrorEx(..)
+   , Unsupported(..), delayFill, blackhole, evalSpark
+   , modifyCallStack, getCallStack
    )
 import Cryptol.Utils.Panic
 import Cryptol.Utils.PP
@@ -72,7 +73,7 @@ newtype W4Conn sym a = W4Conn { evalConn :: sym -> Eval a }
 
 -- | The symbolic value we computed.
 data W4Result sym a
-  = W4Error !EvalError
+  = W4Error !EvalErrorEx
     -- ^ A malformed value
 
   | W4Result !(W4.Pred sym) !a
@@ -186,7 +187,9 @@ addSafety p = W4Eval (pure (W4Result p ()))
 
 -- | A fully undefined symbolic value
 evalError :: W4.IsSymExprBuilder sym => EvalError -> W4Eval sym a
-evalError err = W4Eval (pure (W4Error err))
+evalError err = W4Eval $ W4Conn $ \_sym ->
+  do stk <- getCallStack
+     pure (W4Error (EvalErrorEx stk err))
 
 --------------------------------------------------------------------------------
 
@@ -220,16 +223,20 @@ instance W4.IsSymExprBuilder sym => Backend (What4 sym) where
       Ready _ -> True
       _ -> False
 
-  sDelayFill _ m retry =
+  sDelayFill _ m retry msg =
     total
     do sym <- getSym
-       doEval (w4Thunk <$> delayFill (w4Eval m sym) (w4Eval retry sym))
+       doEval (w4Thunk <$> delayFill (w4Eval m sym) (w4Eval <$> retry <*> pure sym) msg)
 
   sSpark _ m =
     total
     do sym   <- getSym
        doEval (w4Thunk <$> evalSpark (w4Eval m sym))
 
+  sModifyCallStack _ f (W4Eval (W4Conn m)) =
+    W4Eval (W4Conn \sym -> modifyCallStack f (m sym))
+
+  sGetCallStack _ = total (doEval getCallStack)
 
   sDeclareHole _ msg =
     total

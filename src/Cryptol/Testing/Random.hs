@@ -28,7 +28,7 @@ module Cryptol.Testing.Random
 ) where
 
 import qualified Control.Exception as X
-import Control.Monad          (join, liftM2)
+import Control.Monad          (liftM2)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Ratio             ((%))
 import Data.List              (unfoldr, genericTake, genericIndex, genericReplicate)
@@ -37,12 +37,12 @@ import qualified Data.Sequence as Seq
 import System.Random          (RandomGen, split, random, randomR)
 
 import Cryptol.Backend        (Backend(..), SRational(..))
-import Cryptol.Backend.Monad  (runEval,Eval,EvalError(..))
+import Cryptol.Backend.Monad  (runEval,Eval,EvalErrorEx(..))
 import Cryptol.Backend.Concrete
 
 import Cryptol.Eval.Type      (TValue(..))
 import Cryptol.Eval.Value     (GenValue(..),SeqMap(..), WordValue(..),
-                               ppValue, defaultPPOpts, finiteSeqMap)
+                               ppValue, defaultPPOpts, finiteSeqMap, fromVFun)
 import Cryptol.Utils.Ident    (Ident)
 import Cryptol.Utils.Panic    (panic)
 import Cryptol.Utils.RecordMap
@@ -68,7 +68,7 @@ runOneTest :: RandomGen g
 runOneTest fun argGens sz g0 = do
   let (args, g1) = foldr mkArg ([], g0) argGens
       mkArg argGen (as, g) = let (a, g') = argGen sz g in (a:as, g')
-  args' <- runEval (sequence args)
+  args' <- runEval mempty (sequence args)
   result <- evalTest fun args'
   return (result, g1)
 
@@ -81,12 +81,14 @@ returnOneTest :: RandomGen g
 returnOneTest fun argGens sz g0 =
   do let (args, g1) = foldr mkArg ([], g0) argGens
          mkArg argGen (as, g) = let (a, g') = argGen sz g in (a:as, g')
-     args' <- runEval (sequence args)
-     result <- runEval (go fun args')
+     args' <- runEval mempty (sequence args)
+     result <- runEval mempty (go fun args')
      return (args', result, g1)
    where
-     go (VFun f) (v : vs) = join (go <$> (f (pure v)) <*> pure vs)
-     go (VFun _) [] = panic "Cryptol.Testing.Random" ["Not enough arguments to function while generating tests"]
+     go f@VFun{} (v : vs) =
+       do f' <- fromVFun Concrete f (pure v)
+          go f' vs
+     go VFun{} [] = panic "Cryptol.Testing.Random" ["Not enough arguments to function while generating tests"]
      go _ (_ : _) = panic "Cryptol.Testing.Random" ["Too many arguments to function while generating tests"]
      go v [] = return v
 
@@ -226,7 +228,8 @@ randomSequence w mkElem sz g0 = do
   let f g = let (x,g') = mkElem sz g
              in seq x (Just (x, g'))
   let xs = Seq.fromList $ genericTake w $ unfoldr f g1
-  seq xs (pure $ VSeq w $ IndexSeqMap $ (Seq.index xs . fromInteger), g2)
+  let v  = VSeq w $ IndexSeqMap $ \i -> Seq.index xs (fromInteger i)
+  seq xs (pure v, g2)
 
 {-# INLINE randomTuple #-}
 
@@ -277,7 +280,7 @@ randomFloat sym e p w g =
 data TestResult
   = Pass
   | FailFalse [Value]
-  | FailError EvalError [Value]
+  | FailError EvalErrorEx [Value]
 
 isPass :: TestResult -> Bool
 isPass Pass = True
@@ -291,15 +294,16 @@ evalTest :: Value -> [Value] -> IO TestResult
 evalTest v0 vs0 = run `X.catch` handle
   where
     run = do
-      result <- runEval (go v0 vs0)
+      result <- runEval mempty (go v0 vs0)
       if result
         then return Pass
         else return (FailFalse vs0)
     handle e = return (FailError e vs0)
 
     go :: Value -> [Value] -> Eval Bool
-    go (VFun f) (v : vs) = join (go <$> (f (pure v)) <*> return vs)
-    go (VFun _) []       = panic "Not enough arguments while applying function"
+    go f@VFun{} (v : vs) = do f' <- fromVFun Concrete f (pure v)
+                              go f' vs
+    go VFun{}   []       = panic "Not enough arguments while applying function"
                            []
     go (VBit b) []       = return b
     go v vs              = do vdoc    <- ppValue Concrete defaultPPOpts v
@@ -374,7 +378,7 @@ typeValues ty =
       | x <- [ 0 .. 2^n - 1 ]
       ]
     TVSeq n el ->
-      [ VSeq n (finiteSeqMap Concrete (map pure xs))
+      [ VSeq n (finiteSeqMap (map pure xs))
       | xs <- sequence (genericReplicate n (typeValues el))
       ]
     TVTuple ts ->

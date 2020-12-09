@@ -47,7 +47,8 @@ import Cryptol.Backend
 import Cryptol.Backend.Concrete ( integerToChar, ppBV, BV(..) )
 import Cryptol.Backend.Monad
   ( Eval(..), blackhole, delayFill, evalSpark
-  , EvalError(..), Unsupported(..)
+  , EvalError(..), EvalErrorEx(..), Unsupported(..)
+  , modifyCallStack, getCallStack
   )
 
 import Cryptol.Utils.Panic (panic)
@@ -97,7 +98,7 @@ freshSInteger_ (SBV stateVar _) =
 -- SBV Evaluation monad -------------------------------------------------------
 
 data SBVResult a
-  = SBVError !EvalError
+  = SBVError !EvalErrorEx
   | SBVResult !SVal !a -- safety predicate and result
 
 instance Functor SBVResult where
@@ -154,17 +155,19 @@ instance Backend SBV where
   type SFloat SBV = ()        -- XXX: not implemented
   type SEval SBV = SBVEval
 
-  raiseError _ err = SBVEval (pure (SBVError err))
+  raiseError _ err = SBVEval $
+    do stk <- getCallStack
+       pure (SBVError (EvalErrorEx stk err))
 
-  assertSideCondition _ cond err
-    | Just False <- svAsBool cond = SBVEval (pure (SBVError err))
+  assertSideCondition sym cond err
+    | Just False <- svAsBool cond = raiseError sym err
     | otherwise = SBVEval (pure (SBVResult cond ()))
 
   isReady _ (SBVEval (Ready _)) = True
   isReady _ _ = False
 
-  sDelayFill _ m retry = SBVEval $
-    do m' <- delayFill (sbvEval m) (sbvEval retry)
+  sDelayFill _ m retry msg = SBVEval $
+    do m' <- delayFill (sbvEval m) (sbvEval <$> retry) msg
        pure (pure (SBVEval m'))
 
   sSpark _ m = SBVEval $
@@ -174,6 +177,11 @@ instance Backend SBV where
   sDeclareHole _ msg = SBVEval $
     do (hole, fill) <- blackhole msg
        pure (pure (SBVEval hole, \m -> SBVEval (fmap pure $ fill (sbvEval m))))
+
+  sModifyCallStack _ f (SBVEval m) = SBVEval $
+    modifyCallStack f m
+
+  sGetCallStack _ = SBVEval (pure <$> getCallStack)
 
   mergeEval _sym f c mx my = SBVEval $
     do rx <- sbvEval mx
@@ -327,20 +335,20 @@ instance Backend SBV where
   znNegate sym m a  = sModNegate sym m a
   znRecip = sModRecip
 
-  ppFloat _ _ _           = text "[?]"
-  fpExactLit _ _          = unsupported "fpExactLit"
-  fpLit _ _ _ _           = unsupported "fpLit"
-  fpLogicalEq _ _ _       = unsupported "fpLogicalEq"
-  fpEq _ _ _              = unsupported "fpEq"
-  fpLessThan _ _ _        = unsupported "fpLessThan"
-  fpGreaterThan _ _ _     = unsupported "fpGreaterThan"
-  fpPlus _ _ _ _          = unsupported "fpPlus"
-  fpMinus _ _ _ _         = unsupported "fpMinus"
-  fpMult _  _ _ _         = unsupported "fpMult"
-  fpDiv _ _ _ _           = unsupported "fpDiv"
-  fpNeg _ _               = unsupported "fpNeg"
-  fpFromInteger _ _ _ _ _ = unsupported "fpFromInteger"
-  fpToInteger _ _ _ _     = unsupported "fpToInteger"
+  ppFloat _ _ _             = text "[?]"
+  fpExactLit _ _            = unsupported "fpExactLit"
+  fpLit _ _ _ _             = unsupported "fpLit"
+  fpLogicalEq _ _ _         = unsupported "fpLogicalEq"
+  fpEq _ _ _                = unsupported "fpEq"
+  fpLessThan _ _ _          = unsupported "fpLessThan"
+  fpGreaterThan _ _ _       = unsupported "fpGreaterThan"
+  fpPlus _ _ _ _            = unsupported "fpPlus"
+  fpMinus _ _ _ _           = unsupported "fpMinus"
+  fpMult _ _ _ _            = unsupported "fpMult"
+  fpDiv _ _ _ _             = unsupported "fpDiv"
+  fpNeg _ _                 = unsupported "fpNeg"
+  fpFromInteger _ _ _ _ _   = unsupported "fpFromInteger"
+  fpToInteger _ _ _ _       = unsupported "fpToInteger"
 
 unsupported :: String -> SEval SBV a
 unsupported x = liftIO (X.throw (UnsupportedSymbolicOp x))

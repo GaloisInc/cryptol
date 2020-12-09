@@ -58,6 +58,7 @@ import qualified Cryptol.Eval as Eval
 import qualified Cryptol.Eval.Concrete as Concrete
 import qualified Cryptol.Eval.Value as Eval
 import           Cryptol.Eval.SBV
+import           Cryptol.Parser.Position (emptyRange)
 import           Cryptol.Symbolic
 import           Cryptol.TypeCheck.AST
 import           Cryptol.Utils.Ident (preludeReferenceName, prelPrim, identText)
@@ -71,7 +72,7 @@ import Prelude.Compat
 
 doSBVEval :: MonadIO m => SBVEval a -> m (SBV.SVal, a)
 doSBVEval m =
-  (liftIO $ Eval.runEval (sbvEval m)) >>= \case
+  (liftIO $ Eval.runEval mempty (sbvEval m)) >>= \case
     SBVError err -> liftIO (X.throwIO err)
     SBVResult p x -> pure (p, x)
 
@@ -170,8 +171,8 @@ thmSMTResults :: SBV.ThmResult -> [SBV.SMTResult]
 thmSMTResults (SBV.ThmResult r) = [r]
 
 proverError :: String -> M.ModuleCmd (Maybe String, ProverResult)
-proverError msg (_, _, modEnv) =
-  return (Right ((Nothing, ProverError msg), modEnv), [])
+proverError msg minp =
+  return (Right ((Nothing, ProverError msg), M.minpModuleEnv minp), [])
 
 
 isFailedResult :: [SBV.SMTResult] -> Maybe String
@@ -306,6 +307,9 @@ prepareQuery evo ProverCommand{..} =
      modEnv <- M.getModuleEnv
      let extDgs = M.allDeclGroups modEnv ++ pcExtraDecls
 
+     callStacks <- M.getCallStacks
+     let ?callStacks = callStacks
+
      -- The `addAsm` function is used to combine assumptions that
      -- arise from the types of symbolic variables (e.g. Z n values
      -- are assumed to be integers in the range `0 <= x < n`) with
@@ -328,6 +332,8 @@ prepareQuery evo ProverCommand{..} =
                  let tbl = primTable sym
                  let ?evalPrim = \i -> (Right <$> Map.lookup i tbl) <|>
                                        (Left <$> Map.lookup i ds)
+                 let ?range = emptyRange
+
                  -- Compute the symbolic inputs, and any domain constraints needed
                  -- according to their types.
                  args <- map (pure . varShapeToValue sym) <$>
@@ -338,7 +344,7 @@ prepareQuery evo ProverCommand{..} =
                  (safety,b) <- doSBVEval $
                      do env <- Eval.evalDecls sym extDgs mempty
                         v <- Eval.evalExpr sym env pcExpr
-                        appliedVal <- foldM Eval.fromVFun v args
+                        appliedVal <- foldM (Eval.fromVFun sym) v args
                         case pcQueryType of
                           SafetyQuery ->
                             do Eval.forceValue appliedVal
@@ -422,10 +428,10 @@ processResults ProverCommand{..} ts results =
 --   solver that completes the given query (if any) along with the result
 --   of executing the query.
 satProve :: SBVProverConfig -> ProverCommand -> M.ModuleCmd (Maybe String, ProverResult)
-satProve proverCfg pc@ProverCommand {..} =
-  protectStack proverError $ \(evo, byteReader, modEnv) ->
-
-  M.runModuleM (evo, byteReader, modEnv) $ do
+satProve proverCfg pc =
+  protectStack proverError $ \minp ->
+  M.runModuleM minp $ do
+  let evo = M.minpEvalOpts minp
 
   let lPutStrLn = logPutStrLn (Eval.evalLogger evo)
 
@@ -444,12 +450,13 @@ satProve proverCfg pc@ProverCommand {..} =
 --   the SMT input file corresponding to the given prover command.
 satProveOffline :: SBVProverConfig -> ProverCommand -> M.ModuleCmd (Either String String)
 satProveOffline _proverCfg pc@ProverCommand {..} =
-  protectStack (\msg (_,_,modEnv) -> return (Right (Left msg, modEnv), [])) $
-  \(evo, byteReader, modEnv) -> M.runModuleM (evo,byteReader,modEnv) $
+  protectStack (\msg minp -> return (Right (Left msg, M.minpModuleEnv minp), [])) $
+  \minp -> M.runModuleM minp $
      do let isSat = case pcQueryType of
               ProveQuery -> False
               SafetyQuery -> False
               SatQuery _ -> True
+        let evo = M.minpEvalOpts minp
 
         prepareQuery evo pc >>= \case
           Left msg -> return (Left msg)

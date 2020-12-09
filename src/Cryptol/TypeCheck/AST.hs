@@ -28,7 +28,7 @@ module Cryptol.TypeCheck.AST
   , module Cryptol.TypeCheck.Type
   ) where
 
-import Cryptol.Parser.Position(Located)
+import Cryptol.Parser.Position(Located,Range,HasLoc(..))
 import Cryptol.ModuleSystem.Name
 import Cryptol.ModuleSystem.Exports(ExportSpec(..)
                                    , isExportedBind, isExportedType)
@@ -124,6 +124,8 @@ data Expr   = EList [Expr] Type         -- ^ List value (with type of elements)
             | EAbs Name Type Expr       -- ^ Function value
 
 
+            | ELocated Range Expr       -- ^ Source location information
+
             {- | Proof abstraction.  Because we don't keep proofs around
                  we don't need to name the assumption, but we still need to
                  record the assumption.  The assumption is the 'Type' term,
@@ -200,6 +202,8 @@ eChar prims c = ETApp (ETApp (ePrim prims (prelPrim "number")) (tNum v)) (tWord 
 instance PP (WithNames Expr) where
   ppPrec prec (WithNames expr nm) =
     case expr of
+      ELocated _ t  -> ppWP prec t
+
       EList [] t    -> optParens (prec > 0)
                     $ text "[]" <+> colon <+> ppWP prec t
 
@@ -319,7 +323,9 @@ splitExprInst e = (e2, reverse ts, length ps)
   (ts,e2) = splitWhile splitTApp e1
 
 
-
+instance HasLoc Expr where
+  getLoc (ELocated r _) = Just r
+  getLoc _ = Nothing
 
 instance PP Expr where
   ppPrec n t = ppWithNamesPrec IntMap.empty n t

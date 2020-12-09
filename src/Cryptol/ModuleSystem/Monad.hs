@@ -301,12 +301,17 @@ renamerWarnings ws
 data RO m =
   RO { roLoading    :: [ImportSource]
      , roEvalOpts   :: EvalOpts
+     , roCallStacks :: Bool
      , roFileReader :: FilePath -> m ByteString
      }
 
-emptyRO :: EvalOpts -> (FilePath -> m ByteString) -> RO m
-emptyRO ev fileReader =
-  RO { roLoading = [], roEvalOpts = ev, roFileReader = fileReader }
+emptyRO :: ModuleInput m -> RO m
+emptyRO minp =
+  RO { roLoading = []
+     , roEvalOpts   = minpEvalOpts minp
+     , roCallStacks = minpCallStacks minp
+     , roFileReader = minpByteReader minp
+     }
 
 newtype ModuleT m a = ModuleT
   { unModuleT :: ReaderT (RO m)
@@ -351,21 +356,33 @@ instance Monad m => FreshM (ModuleT m) where
 instance MonadIO m => MonadIO (ModuleT m) where
   liftIO m = lift $ liftIO m
 
-runModuleT :: Monad m
-           => (EvalOpts, FilePath -> m ByteString, ModuleEnv)
-           -> ModuleT m a
-           -> m (Either ModuleError (a, ModuleEnv), [ModuleWarning])
-runModuleT (ev, byteReader, env) m =
+
+data ModuleInput m =
+  ModuleInput
+  { minpCallStacks :: Bool
+  , minpEvalOpts   :: EvalOpts
+  , minpByteReader :: FilePath -> m ByteString
+  , minpModuleEnv  :: ModuleEnv
+  }
+
+runModuleT ::
+  Monad m =>
+  ModuleInput m ->
+  ModuleT m a ->
+  m (Either ModuleError (a, ModuleEnv), [ModuleWarning])
+runModuleT minp m =
     runWriterT
   $ runExceptionT
-  $ runStateT env
-  $ runReaderT (emptyRO ev byteReader)
+  $ runStateT (minpModuleEnv minp)
+  $ runReaderT (emptyRO minp)
   $ unModuleT m
 
 type ModuleM = ModuleT IO
 
-runModuleM :: (EvalOpts, FilePath -> IO ByteString, ModuleEnv) -> ModuleM a
-           -> IO (Either ModuleError (a,ModuleEnv),[ModuleWarning])
+runModuleM ::
+  ModuleInput IO ->
+  ModuleM a ->
+  IO (Either ModuleError (a,ModuleEnv),[ModuleWarning])
 runModuleM = runModuleT
 
 
@@ -376,6 +393,9 @@ getByteReader :: Monad m => ModuleT m (FilePath -> m ByteString)
 getByteReader = ModuleT $ do
   RO { roFileReader = readFileBytes } <- ask
   return readFileBytes
+
+getCallStacks :: Monad m => ModuleT m Bool
+getCallStacks = ModuleT (roCallStacks <$> ask)
 
 readBytes :: Monad m => FilePath -> ModuleT m ByteString
 readBytes fn = do
@@ -489,7 +509,7 @@ modifyEvalEnv :: (EvalEnv -> E.Eval EvalEnv) -> ModuleM ()
 modifyEvalEnv f = ModuleT $ do
   env <- get
   let evalEnv = meEvalEnv env
-  evalEnv' <- inBase $ E.runEval (f evalEnv)
+  evalEnv' <- inBase $ E.runEval mempty (f evalEnv)
   set $! env { meEvalEnv = evalEnv' }
 
 getEvalEnv :: ModuleM EvalEnv
@@ -547,4 +567,3 @@ getSolverConfig  = ModuleT $ do
 withLogger :: (Logger -> a -> IO b) -> a -> ModuleM b
 withLogger f a = do l <- getEvalOpts
                     io (f (evalLogger l) a)
-

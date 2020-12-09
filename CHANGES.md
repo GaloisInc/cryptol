@@ -1,3 +1,14 @@
+# NEXT
+
+## New features
+
+* By default, the interpreter will now track source locations of
+  expressions being evaluated, and retain call stack information.
+  This information is incorporated into error messages arising from
+  runtime errors. This additional bookkeeping incurs significant
+  runtime overhead, but may be disabled using the `--no-call-stacks`
+  command-line option.
+
 # 2.10.0
 
 ## Language changes

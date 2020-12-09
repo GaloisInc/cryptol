@@ -33,7 +33,6 @@ module Cryptol.Eval.Value
     -- ** Value introduction operations
   , word
   , lam
-  , wlam
   , flam
   , tlam
   , nlam
@@ -100,7 +99,10 @@ import MonadLib
 
 import Cryptol.Backend
 import qualified Cryptol.Backend.Arch as Arch
-import Cryptol.Backend.Monad ( PPOpts(..), evalPanic, wordTooWide, defaultPPOpts, asciiMode )
+import Cryptol.Backend.Monad
+  ( PPOpts(..), evalPanic, wordTooWide, defaultPPOpts, asciiMode
+  , CallStack, combineCallStacks
+  )
 import Cryptol.Eval.Type
 
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
@@ -135,22 +137,22 @@ largeBitSize :: Integer
 largeBitSize = 1 `shiftL` 48
 
 -- | Generate a finite sequence map from a list of values
-finiteSeqMap :: Backend sym => sym -> [SEval sym (GenValue sym)] -> SeqMap sym
-finiteSeqMap sym xs =
+finiteSeqMap :: [SEval sym (GenValue sym)] -> SeqMap sym
+finiteSeqMap xs =
    UpdateSeqMap
       (Map.fromList (zip [0..] xs))
-      (invalidIndex sym)
+      (\i -> panic "finiteSeqMap" ["Out of bounds access of finite seq map", "length: " ++ show (length xs), show i])
 
 -- | Generate an infinite sequence map from a stream of values
-infiniteSeqMap :: Backend sym => [SEval sym (GenValue sym)] -> SEval sym (SeqMap sym)
-infiniteSeqMap xs =
+infiniteSeqMap :: Backend sym => sym -> [SEval sym (GenValue sym)] -> SEval sym (SeqMap sym)
+infiniteSeqMap sym xs =
    -- TODO: use an int-trie?
-   memoMap (IndexSeqMap $ \i -> genericIndex xs i)
+   memoMap sym (IndexSeqMap $ \i -> genericIndex xs i)
 
 -- | Create a finite list of length @n@ of the values from @[0..n-1]@ in
 --   the given the sequence emap.
 enumerateSeqMap :: (Integral n) => n -> SeqMap sym -> [SEval sym (GenValue sym)]
-enumerateSeqMap n m = [ lookupSeqMap m i | i <- [0 .. (toInteger n)-1] ]
+enumerateSeqMap n m = [ lookupSeqMap m  i | i <- [0 .. (toInteger n)-1] ]
 
 -- | Create an infinite stream of all the values in a sequence map
 streamSeqMap :: SeqMap sym -> [SEval sym (GenValue sym)]
@@ -191,17 +193,18 @@ dropSeqMap n xs = IndexSeqMap $ \i -> lookupSeqMap xs (i+n)
 
 -- | Given a sequence map, return a new sequence map that is memoized using
 --   a finite map memo table.
-memoMap :: (MonadIO m, Backend sym) => SeqMap sym -> m (SeqMap sym)
-memoMap x = do
+memoMap :: Backend sym => sym -> SeqMap sym -> SEval sym (SeqMap sym)
+memoMap sym x = do
+  stk <- sGetCallStack sym
   cache <- liftIO $ newIORef $ Map.empty
-  return $ IndexSeqMap (memo cache)
+  return $ IndexSeqMap (memo cache stk)
 
   where
-  memo cache i = do
+  memo cache stk i = do
     mz <- liftIO (Map.lookup i <$> readIORef cache)
     case mz of
       Just z  -> return z
-      Nothing -> doEval cache i
+      Nothing -> sWithCallStack sym stk (doEval cache i)
 
   doEval cache i = do
     v <- lookupSeqMap x i
@@ -212,20 +215,22 @@ memoMap x = do
 --   sequence maps.
 zipSeqMap ::
   Backend sym =>
+  sym ->
   (GenValue sym -> GenValue sym -> SEval sym (GenValue sym)) ->
   SeqMap sym ->
   SeqMap sym ->
   SEval sym (SeqMap sym)
-zipSeqMap f x y =
-  memoMap (IndexSeqMap $ \i -> join (f <$> lookupSeqMap x i <*> lookupSeqMap y i))
+zipSeqMap sym f x y =
+  memoMap sym (IndexSeqMap $ \i -> join (f <$> lookupSeqMap x i <*> lookupSeqMap y i))
 
 -- | Apply the given function to each value in the given sequence map
 mapSeqMap ::
   Backend sym =>
+  sym ->
   (GenValue sym -> SEval sym (GenValue sym)) ->
   SeqMap sym -> SEval sym (SeqMap sym)
-mapSeqMap f x =
-  memoMap (IndexSeqMap $ \i -> f =<< lookupSeqMap x i)
+mapSeqMap sym f x =
+  memoMap sym (IndexSeqMap $ \i -> f =<< lookupSeqMap x i)
 
 -- | For efficiency reasons, we handle finite sequences of bits as special cases
 --   in the evaluator.  In cases where we know it is safe to do so, we prefer to
@@ -280,7 +285,8 @@ indexWordValue sym (LargeBitsVal n xs) idx
 
 -- | Produce a new 'WordValue' from the one given by updating the @i@th bit with the
 --   given bit value.
-updateWordValue :: Backend sym => sym -> WordValue sym -> Integer -> SEval sym (SBit sym) -> SEval sym (WordValue sym)
+updateWordValue :: Backend sym =>
+  sym -> WordValue sym -> Integer -> SEval sym (SBit sym) -> SEval sym (WordValue sym)
 updateWordValue sym (WordVal w) idx b
    | idx < 0 || idx >= wordLen sym w = invalidIndex sym idx
    | isReady sym b = WordVal <$> (wordUpdate sym w idx =<< b)
@@ -308,9 +314,9 @@ data GenValue sym
                                                --   Invariant: VSeq is never a sequence of bits
   | VWord !Integer !(SEval sym (WordValue sym))  -- ^ @ [n]Bit @
   | VStream !(SeqMap sym)                   -- ^ @ [inf]a @
-  | VFun (SEval sym (GenValue sym) -> SEval sym (GenValue sym)) -- ^ functions
-  | VPoly (TValue -> SEval sym (GenValue sym))   -- ^ polymorphic values (kind *)
-  | VNumPoly (Nat' -> SEval sym (GenValue sym))  -- ^ polymorphic values (kind #)
+  | VFun  CallStack (SEval sym (GenValue sym) -> SEval sym (GenValue sym)) -- ^ functions
+  | VPoly CallStack (TValue -> SEval sym (GenValue sym))   -- ^ polymorphic values (kind *)
+  | VNumPoly CallStack (Nat' -> SEval sym (GenValue sym))  -- ^ polymorphic values (kind #)
  deriving Generic
 
 
@@ -331,9 +337,9 @@ forceValue v = case v of
   VFloat f    -> seq f (return ())
   VWord _ wv  -> forceWordValue =<< wv
   VStream _   -> return ()
-  VFun _      -> return ()
-  VPoly _     -> return ()
-  VNumPoly _  -> return ()
+  VFun{}      -> return ()
+  VPoly{}     -> return ()
+  VNumPoly{}  -> return ()
 
 
 
@@ -348,9 +354,9 @@ instance Backend sym => Show (GenValue sym) where
     VSeq n _   -> "seq:" ++ show n
     VWord n _  -> "word:"  ++ show n
     VStream _  -> "stream"
-    VFun _     -> "fun"
-    VPoly _    -> "poly"
-    VNumPoly _ -> "numpoly"
+    VFun{}     -> "fun"
+    VPoly{}    -> "poly"
+    VNumPoly{} -> "numpoly"
 
 
 -- Pretty Printing -------------------------------------------------------------
@@ -382,9 +388,9 @@ ppValue x opts = loop
                                    $ punctuate comma
                                    ( vals' ++ [text "..."]
                                    )
-    VFun _             -> return $ text "<function>"
-    VPoly _            -> return $ text "<polymorphic value>"
-    VNumPoly _         -> return $ text "<polymorphic value>"
+    VFun{}             -> return $ text "<function>"
+    VPoly{}            -> return $ text "<polymorphic value>"
+    VNumPoly{}         -> return $ text "<polymorphic value>"
 
   ppWordVal :: WordValue sym -> SEval sym Doc
   ppWordVal w = ppWord x opts <$> asWordVal x w
@@ -413,45 +419,41 @@ word sym n i
   | otherwise                = VWord n (WordVal <$> wordLit sym n i)
 
 
-lam :: (SEval sym (GenValue sym) -> SEval sym (GenValue sym)) -> GenValue sym
-lam  = VFun
-
--- | Functions that assume word inputs
-wlam :: Backend sym => sym -> (SWord sym -> SEval sym (GenValue sym)) -> GenValue sym
-wlam sym f = VFun (\arg -> arg >>= fromVWord sym "wlam" >>= f)
+-- | Construct a function value
+lam :: Backend sym => sym -> (SEval sym (GenValue sym) -> SEval sym (GenValue sym)) -> SEval sym (GenValue sym)
+lam sym f = VFun <$> sGetCallStack sym <*> pure f
 
 -- | Functions that assume floating point inputs
-flam :: Backend sym =>
-        (SFloat sym -> SEval sym (GenValue sym)) -> GenValue sym
-flam f = VFun (\arg -> arg >>= f . fromVFloat)
-
-
+flam :: Backend sym => sym ->
+        (SFloat sym -> SEval sym (GenValue sym)) -> SEval sym (GenValue sym)
+flam sym f = VFun <$> sGetCallStack sym <*> pure (\arg -> arg >>= f . fromVFloat)
 
 -- | A type lambda that expects a 'Type'.
-tlam :: Backend sym => (TValue -> GenValue sym) -> GenValue sym
-tlam f = VPoly (return . f)
+tlam :: Backend sym => sym -> (TValue -> SEval sym (GenValue sym)) -> SEval sym (GenValue sym)
+tlam sym f = VPoly <$> sGetCallStack sym <*> pure f
 
 -- | A type lambda that expects a 'Type' of kind #.
-nlam :: Backend sym => (Nat' -> GenValue sym) -> GenValue sym
-nlam f = VNumPoly (return . f)
+nlam :: Backend sym => sym -> (Nat' -> SEval sym (GenValue sym)) -> SEval sym (GenValue sym)
+nlam sym f = VNumPoly <$> sGetCallStack sym <*> pure f
 
 -- | A type lambda that expects a finite numeric type.
-ilam :: Backend sym => (Integer -> GenValue sym) -> GenValue sym
-ilam f = nlam (\n -> case n of
-                       Nat i -> f i
-                       Inf   -> panic "ilam" [ "Unexpected `inf`" ])
+ilam :: Backend sym => sym -> (Integer -> SEval sym (GenValue sym)) -> SEval sym (GenValue sym)
+ilam sym f =
+   nlam sym (\n -> case n of
+                     Nat i -> f i
+                     Inf   -> panic "ilam" [ "Unexpected `inf`" ])
 
 -- | Generate a stream.
-toStream :: Backend sym => [GenValue sym] -> SEval sym (GenValue sym)
-toStream vs =
-   VStream <$> infiniteSeqMap (map pure vs)
+toStream :: Backend sym => sym -> [GenValue sym] -> SEval sym (GenValue sym)
+toStream sym vs =
+   VStream <$> infiniteSeqMap sym (map pure vs)
 
 toFinSeq ::
   Backend sym =>
   sym -> Integer -> TValue -> [GenValue sym] -> GenValue sym
 toFinSeq sym len elty vs
    | isTBit elty = VWord len (WordVal <$> packWord sym (map fromVBit vs))
-   | otherwise   = VSeq len $ finiteSeqMap sym (map pure vs)
+   | otherwise   = VSeq len $ finiteSeqMap (map pure vs)
 
 -- | Construct either a finite sequence, or a stream.  In the finite case,
 -- record whether or not the elements were bits, to aid pretty-printing.
@@ -460,7 +462,7 @@ toSeq ::
   sym -> Nat' -> TValue -> [GenValue sym] -> SEval sym (GenValue sym)
 toSeq sym len elty vals = case len of
   Nat n -> return $ toFinSeq sym n elty vals
-  Inf   -> toStream vals
+  Inf   -> toStream sym vals
 
 
 -- | Construct either a finite sequence, or a stream.  In the finite case,
@@ -537,22 +539,25 @@ tryFromBits sym = go id
   go _ (_ : _) = Nothing
 
 -- | Extract a function from a value.
-fromVFun :: GenValue sym -> (SEval sym (GenValue sym) -> SEval sym (GenValue sym))
-fromVFun val = case val of
-  VFun f -> f
-  _      -> evalPanic "fromVFun" ["not a function"]
+fromVFun :: Backend sym => sym -> GenValue sym -> (SEval sym (GenValue sym) -> SEval sym (GenValue sym))
+fromVFun sym val = case val of
+  VFun fnstk f ->
+    \x -> sModifyCallStack sym (\stk -> combineCallStacks stk fnstk) (f x)
+  _ -> evalPanic "fromVFun" ["not a function"]
 
 -- | Extract a polymorphic function from a value.
-fromVPoly :: GenValue sym -> (TValue -> SEval sym (GenValue sym))
-fromVPoly val = case val of
-  VPoly f -> f
-  _       -> evalPanic "fromVPoly" ["not a polymorphic value"]
+fromVPoly :: Backend sym => sym -> GenValue sym -> (TValue -> SEval sym (GenValue sym))
+fromVPoly sym val = case val of
+  VPoly fnstk f ->
+    \x -> sModifyCallStack sym (\stk -> combineCallStacks stk fnstk) (f x)
+  _ -> evalPanic "fromVPoly" ["not a polymorphic value"]
 
 -- | Extract a polymorphic function from a value.
-fromVNumPoly :: GenValue sym -> (Nat' -> SEval sym (GenValue sym))
-fromVNumPoly val = case val of
-  VNumPoly f -> f
-  _          -> evalPanic "fromVNumPoly" ["not a polymorphic value"]
+fromVNumPoly :: Backend sym => sym -> GenValue sym -> (Nat' -> SEval sym (GenValue sym))
+fromVNumPoly sym val = case val of
+  VNumPoly fnstk f ->
+    \x -> sModifyCallStack sym (\stk -> combineCallStacks stk fnstk) (f x)
+  _  -> evalPanic "fromVNumPoly" ["not a polymorphic value"]
 
 -- | Extract a tuple from a value.
 fromVTuple :: GenValue sym -> [SEval sym (GenValue sym)]

@@ -3,6 +3,8 @@ Q.E.D.
 it : {result : Bit, arg1 : [4]}
 
 Run-time error: no counterexample available
+-- Backtrace --
+Cryptol::error called at issue066.icry:2:8--2:9
 True
 Counterexample
 f 0xc = False
@@ -18,6 +20,8 @@ Unsatisfiable
 it : {result : Bit, arg1 : [4]}
 
 Run-time error: no satisfying assignment available
+-- Backtrace --
+Cryptol::error called at issue066.icry:16:6--16:7
 Counterexample
 g {x = 0xffffffff, y = 0x00000000} = False
 it : {result : Bit, arg1 : {x : [32], y : [32]}}

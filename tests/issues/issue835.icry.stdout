@@ -2,8 +2,8 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module Float
 
-[error] at <interactive>:1:1--1:28:
+[error] at issue835.icry:2:4--2:31:
   • Type `Float 5 11` does not support signed comparisons.
       arising from
       use of expression (<$)
-      at <interactive>:1:1--1:28
+      at issue835.icry:2:4--2:31

@@ -62,6 +62,7 @@ import qualified Cryptol.Eval as Eval
 import qualified Cryptol.Eval.Concrete as Concrete
 import qualified Cryptol.Eval.Value as Eval
 import           Cryptol.Eval.What4
+import           Cryptol.Parser.Position (emptyRange)
 import           Cryptol.Symbolic
 import           Cryptol.TypeCheck.AST
 import           Cryptol.Utils.Logger(logPutStrLn,logPutStr,Logger)
@@ -123,7 +124,7 @@ doW4Eval ::
   (W4.IsExprBuilder sym, MonadIO m) =>
   sym -> W4Eval sym a -> m (W4.Pred sym, a)
 doW4Eval sym m =
-  do res <- liftIO $ Eval.runEval (w4Eval m sym)
+  do res <- liftIO $ Eval.runEval mempty (w4Eval m sym)
      case res of
        W4Error err  -> liftIO (X.throwIO err)
        W4Result p x -> pure (p,x)
@@ -198,8 +199,8 @@ setupProver nm =
 
 
 proverError :: String -> M.ModuleCmd (Maybe String, ProverResult)
-proverError msg (_, _, modEnv) =
-  return (Right ((Nothing, ProverError msg), modEnv), [])
+proverError msg minp =
+  return (Right ((Nothing, ProverError msg), M.minpModuleEnv minp), [])
 
 
 data CryptolState t = CryptolState
@@ -276,6 +277,9 @@ prepareQuery sym ProverCommand { .. } =
        let tbl = primTable sym
        let ?evalPrim = \i -> (Right <$> Map.lookup i tbl) <|>
                              (Left <$> Map.lookup i ds)
+       let ?range = emptyRange
+       callStacks <- M.getCallStacks
+       let ?callStacks = callStacks
 
        modEnv <- M.getModuleEnv
        let extDgs = M.allDeclGroups modEnv ++ pcExtraDecls
@@ -284,7 +288,7 @@ prepareQuery sym ProverCommand { .. } =
          do env <- Eval.evalDecls sym extDgs mempty
             v   <- Eval.evalExpr  sym env    pcExpr
             appliedVal <-
-              foldM Eval.fromVFun v (map (pure . varShapeToValue sym) args)
+              foldM (Eval.fromVFun sym) v (map (pure . varShapeToValue sym) args)
 
             case pcQueryType of
               SafetyQuery ->
@@ -302,8 +306,8 @@ satProve ::
   M.ModuleCmd (Maybe String, ProverResult)
 
 satProve solverCfg hashConsing warnUninterp ProverCommand {..} =
-  protectStack proverError \(evo, byteReader, modEnv) ->
-  M.runModuleM (evo, byteReader, modEnv)
+  protectStack proverError \modIn ->
+  M.runModuleM modIn
   do w4sym   <- liftIO makeSym
      defVar  <- liftIO (newMVar (W4.truePred w4sym))
      funVar  <- liftIO (newMVar mempty)
@@ -374,8 +378,8 @@ satProveOffline (W4Portfolio (p:|_)) hashConsing warnUninterp cmd outputContinua
   satProveOffline (W4ProverConfig p) hashConsing warnUninterp cmd outputContinuation
 
 satProveOffline (W4ProverConfig (AnAdapter adpt)) hashConsing warnUninterp ProverCommand {..} outputContinuation =
-  protectStack onError \(evo,byteReader,modEnv) ->
-  M.runModuleM (evo,byteReader,modEnv)
+  protectStack onError \modIn ->
+  M.runModuleM modIn
    do w4sym <- liftIO makeSym
       defVar  <- liftIO (newMVar (W4.truePred w4sym))
       funVar  <- liftIO (newMVar mempty)
@@ -400,7 +404,7 @@ satProveOffline (W4ProverConfig (AnAdapter adpt)) hashConsing warnUninterp Prove
        when hashConsing  (W4.startCaching sym)
        pure sym
 
-  onError msg (_,_,modEnv) = pure (Right (Just msg, modEnv), [])
+  onError msg minp = pure (Right (Just msg, M.minpModuleEnv minp), [])
 
 
 decSatNum :: SatNum -> SatNum
