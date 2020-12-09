@@ -171,7 +171,7 @@ thmSMTResults :: SBV.ThmResult -> [SBV.SMTResult]
 thmSMTResults (SBV.ThmResult r) = [r]
 
 proverError :: String -> M.ModuleCmd (Maybe String, ProverResult)
-proverError msg (_, _, modEnv) =
+proverError msg (_, _, _, modEnv) =
   return (Right ((Nothing, ProverError msg), modEnv), [])
 
 
@@ -307,6 +307,9 @@ prepareQuery evo ProverCommand{..} =
      modEnv <- M.getModuleEnv
      let extDgs = M.allDeclGroups modEnv ++ pcExtraDecls
 
+     callStacks <- M.getCallStacks
+     let ?callStacks = callStacks
+
      -- The `addAsm` function is used to combine assumptions that
      -- arise from the types of symbolic variables (e.g. Z n values
      -- are assumed to be integers in the range `0 <= x < n`) with
@@ -426,9 +429,9 @@ processResults ProverCommand{..} ts results =
 --   of executing the query.
 satProve :: SBVProverConfig -> ProverCommand -> M.ModuleCmd (Maybe String, ProverResult)
 satProve proverCfg pc =
-  protectStack proverError $ \(evo, byteReader, modEnv) ->
+  protectStack proverError $ \(callStacks, evo, byteReader, modEnv) ->
 
-  M.runModuleM (evo, byteReader, modEnv) $ do
+  M.runModuleM (callStacks, evo, byteReader, modEnv) $ do
 
   let lPutStrLn = logPutStrLn (Eval.evalLogger evo)
 
@@ -447,8 +450,8 @@ satProve proverCfg pc =
 --   the SMT input file corresponding to the given prover command.
 satProveOffline :: SBVProverConfig -> ProverCommand -> M.ModuleCmd (Either String String)
 satProveOffline _proverCfg pc@ProverCommand {..} =
-  protectStack (\msg (_,_,modEnv) -> return (Right (Left msg, modEnv), [])) $
-  \(evo, byteReader, modEnv) -> M.runModuleM (evo,byteReader,modEnv) $
+  protectStack (\msg (_,_,_,modEnv) -> return (Right (Left msg, modEnv), [])) $
+  \(callStacks, evo, byteReader, modEnv) -> M.runModuleM (callStacks,evo,byteReader,modEnv) $
      do let isSat = case pcQueryType of
               ProveQuery -> False
               SafetyQuery -> False

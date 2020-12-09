@@ -169,7 +169,9 @@ appTys expr ts tGoal =
          -- XXX: Is there a scoping issue here?  I think not, but check.
 
     P.ELocated e r ->
-      inRange r (ELocated r <$> appTys e ts tGoal)
+      do e' <- inRange r (appTys e ts tGoal)
+         cs <- getCallStacks
+         pure $! if cs then ELocated r e' else e'
 
     P.ENeg        {} -> mono
     P.EComplement {} -> mono
@@ -368,7 +370,10 @@ checkE expr tGoal =
 
     P.EFun ps e -> checkFun Nothing ps e tGoal
 
-    P.ELocated e r  -> inRange r (ELocated r <$> checkE e tGoal)
+    P.ELocated e r  ->
+      do e' <- inRange r (checkE e tGoal)
+         cs <- getCallStacks
+         pure $! if cs then ELocated r e' else e'
 
     P.ESplit e ->
       do prim <- mkPrim "splitAt"

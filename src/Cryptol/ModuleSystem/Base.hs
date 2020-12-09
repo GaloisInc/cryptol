@@ -205,6 +205,8 @@ doLoadModule quiet isrc path fp pm0 =
      -- extend the eval env, unless a functor.
      tbl <- Concrete.primTable <$> getEvalOpts
      let ?evalPrim = \i -> Right <$> Map.lookup i tbl
+     callStacks <- getCallStacks
+     let ?callStacks = callStacks
      unless (T.isParametrizedModule tcm) $ modifyEvalEnv (E.moduleEnv Concrete tcm)
      loadedModule path fp tcm
 
@@ -534,6 +536,7 @@ genInferInput r prims params env = do
   cfg <- getSolverConfig
   supply <- getSupply
   searchPath <- getSearchPath
+  callStacks <- getCallStacks
 
   -- TODO: include the environment needed by the module
   return T.InferInput
@@ -544,6 +547,7 @@ genInferInput r prims params env = do
     , T.inpAbstractTypes = ifAbstractTypes env
     , T.inpNameSeeds = seeds
     , T.inpMonoBinds = monoBinds
+    , T.inpCallStacks = callStacks
     , T.inpSolverConfig = cfg
     , T.inpSearchPath = searchPath
     , T.inpSupply    = supply
@@ -565,6 +569,8 @@ evalExpr e = do
   let tbl = Concrete.primTable evopts
   let ?evalPrim = \i -> Right <$> Map.lookup i tbl
   let ?range = emptyRange
+  callStacks <- getCallStacks
+  let ?callStacks = callStacks
   io $ E.runEval mempty (E.evalExpr Concrete (env <> deEnv denv) e)
 
 evalDecls :: [T.DeclGroup] -> ModuleM ()
@@ -575,6 +581,8 @@ evalDecls dgs = do
   let env' = env <> deEnv denv
   let tbl = Concrete.primTable evOpts
   let ?evalPrim = \i -> Right <$> Map.lookup i tbl
+  callStacks <- getCallStacks
+  let ?callStacks = callStacks
   deEnv' <- io $ E.runEval mempty (E.evalDecls Concrete dgs env')
   let denv' = denv { deDecls = deDecls denv ++ dgs
                    , deEnv = deEnv'

@@ -35,6 +35,7 @@ module Cryptol.REPL.Monad (
   , getFocusedEnv
   , getModuleEnv, setModuleEnv
   , getDynEnv, setDynEnv
+  , getCallStacks
   , uniqify, freshName
   , whenDebug
   , getExprNames
@@ -155,6 +156,8 @@ data RW = RW
   , eLogger      :: Logger
     -- ^ Use this to send messages to the user
 
+  , eCallStacks :: Bool
+
   , eUpdateTitle :: REPL ()
     -- ^ Execute this every time we load a module.
     -- This is used to change the title of terminal when loading a module.
@@ -163,8 +166,8 @@ data RW = RW
   }
 
 -- | Initial, empty environment.
-defaultRW :: Bool -> Logger -> IO RW
-defaultRW isBatch l = do
+defaultRW :: Bool -> Bool ->Logger -> IO RW
+defaultRW isBatch callStacks l = do
   env <- M.initialModuleEnv
   return RW
     { eLoadedMod   = Nothing
@@ -174,6 +177,7 @@ defaultRW isBatch l = do
     , eModuleEnv   = env
     , eUserEnv     = mkUserEnv userOptions
     , eLogger      = l
+    , eCallStacks  = callStacks
     , eUpdateTitle = return ()
     , eProverConfig = Left SBV.defaultProver
     }
@@ -220,9 +224,9 @@ mkPrompt rw
 newtype REPL a = REPL { unREPL :: IORef RW -> IO a }
 
 -- | Run a REPL action with a fresh environment.
-runREPL :: Bool -> Logger -> REPL a -> IO a
-runREPL isBatch l m = do
-  ref <- newIORef =<< defaultRW isBatch l
+runREPL :: Bool -> Bool -> Logger -> REPL a -> IO a
+runREPL isBatch callStacks l m = do
+  ref <- newIORef =<< defaultRW isBatch callStacks l
   unREPL m ref
 
 instance Functor REPL where
@@ -383,6 +387,9 @@ modifyRW_ f = REPL (\ ref -> modifyIORef ref f)
 -- | Construct the prompt for the current environment.
 getPrompt :: REPL String
 getPrompt  = mkPrompt `fmap` getRW
+
+getCallStacks :: REPL Bool
+getCallStacks = eCallStacks <$> getRW
 
 clearLoadedMod :: REPL ()
 clearLoadedMod = do modifyRW_ (\rw -> rw { eLoadedMod = upd <$> eLoadedMod rw })

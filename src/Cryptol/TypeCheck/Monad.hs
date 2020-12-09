@@ -74,6 +74,8 @@ data InferInput = InferInput
   , inpMonoBinds :: Bool              -- ^ Should local bindings without
                                       --   signatures be monomorphized?
 
+  , inpCallStacks :: Bool             -- ^ Are we tracking call stacks?
+
   , inpSolverConfig :: SolverConfig   -- ^ Options for the constraint solver
   , inpSearchPath :: [FilePath]
     -- ^ Where to look for Cryptol theory file.
@@ -128,6 +130,7 @@ runInferM info (IM m) = SMT.withSolver (inpSolverConfig info) $ \solver ->
 
                          , iSolvedHasLazy = iSolvedHas finalRW     -- RECURSION
                          , iMonoBinds     = inpMonoBinds info
+                         , iCallStacks    = inpCallStacks info
                          , iSolver        = solver
                          , iPrimNames     = inpPrimNames info
                          , iSolveCounter  = counter
@@ -231,6 +234,10 @@ data RO = RO
     -- ^ When this flag is set to true, bindings that lack signatures
     -- in where-blocks will never be generalized. Bindings with type
     -- signatures, and all bindings at top level are unaffected.
+
+  , iCallStacks :: Bool
+    -- ^ When this flag is true, retain source location information
+    --   in typechecked terms
 
   , iSolver :: SMT.Solver
 
@@ -692,6 +699,9 @@ getBoundInScope =
 getMonoBinds :: InferM Bool
 getMonoBinds  = IM (asks iMonoBinds)
 
+getCallStacks :: InferM Bool
+getCallStacks = IM (asks iCallStacks)
+
 {- | We disallow shadowing between type synonyms and type variables
 because it is confusing.  As a bonus, in the implementation we don't
 need to worry about where we lookup things (i.e., in the variable or
@@ -942,5 +952,3 @@ kNewGoals c ps = KM $ sets_ $ \s -> s { kCtrs = (c,ps) : kCtrs s }
 
 kInInferM :: InferM a -> KindM a
 kInInferM m = KM $ lift $ lift m
-
-

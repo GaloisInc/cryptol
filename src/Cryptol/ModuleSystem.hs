@@ -50,7 +50,7 @@ import Data.ByteString (ByteString)
 
 -- Public Interface ------------------------------------------------------------
 
-type ModuleCmd a = (E.EvalOpts, FilePath -> IO ByteString, ModuleEnv) -> IO (ModuleRes a)
+type ModuleCmd a = (Bool, E.EvalOpts, FilePath -> IO ByteString, ModuleEnv) -> IO (ModuleRes a)
 
 type ModuleRes a = (Either ModuleError (a,ModuleEnv), [ModuleWarning])
 
@@ -63,8 +63,8 @@ findModule n env = runModuleM env (Base.findModule n)
 
 -- | Load the module contained in the given file.
 loadModuleByPath :: FilePath -> ModuleCmd (ModulePath,T.Module)
-loadModuleByPath path (evo, byteReader, env) =
-  runModuleM (evo, byteReader, resetModuleEnv env) $ do
+loadModuleByPath path (callStacks, evo, byteReader, env) =
+  runModuleM (callStacks, evo, byteReader, resetModuleEnv env) $ do
     unloadModule ((InFile path ==) . lmFilePath)
     m <- Base.loadModuleByPath path
     setFocusedModule (T.mName m)
@@ -72,8 +72,8 @@ loadModuleByPath path (evo, byteReader, env) =
 
 -- | Load the given parsed module.
 loadModuleByName :: P.ModName -> ModuleCmd (ModulePath,T.Module)
-loadModuleByName n (evo, byteReader, env) =
-  runModuleM (evo, byteReader, resetModuleEnv env) $ do
+loadModuleByName n (callStacks, evo, byteReader, env) =
+  runModuleM (callStacks, evo, byteReader, resetModuleEnv env) $ do
     unloadModule ((n ==) . lmName)
     (path,m') <- Base.loadModuleFrom False (FromModule n)
     setFocusedModule (T.mName m')

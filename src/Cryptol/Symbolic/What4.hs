@@ -199,7 +199,7 @@ setupProver nm =
 
 
 proverError :: String -> M.ModuleCmd (Maybe String, ProverResult)
-proverError msg (_, _, modEnv) =
+proverError msg (_, _, _, modEnv) =
   return (Right ((Nothing, ProverError msg), modEnv), [])
 
 
@@ -278,6 +278,8 @@ prepareQuery sym ProverCommand { .. } =
        let ?evalPrim = \i -> (Right <$> Map.lookup i tbl) <|>
                              (Left <$> Map.lookup i ds)
        let ?range = emptyRange
+       callStacks <- M.getCallStacks
+       let ?callStacks = callStacks
 
        modEnv <- M.getModuleEnv
        let extDgs = M.allDeclGroups modEnv ++ pcExtraDecls
@@ -304,8 +306,8 @@ satProve ::
   M.ModuleCmd (Maybe String, ProverResult)
 
 satProve solverCfg hashConsing warnUninterp ProverCommand {..} =
-  protectStack proverError \(evo, byteReader, modEnv) ->
-  M.runModuleM (evo, byteReader, modEnv)
+  protectStack proverError \modIn ->
+  M.runModuleM modIn
   do w4sym   <- liftIO makeSym
      defVar  <- liftIO (newMVar (W4.truePred w4sym))
      funVar  <- liftIO (newMVar mempty)
@@ -376,8 +378,8 @@ satProveOffline (W4Portfolio (p:|_)) hashConsing warnUninterp cmd outputContinua
   satProveOffline (W4ProverConfig p) hashConsing warnUninterp cmd outputContinuation
 
 satProveOffline (W4ProverConfig (AnAdapter adpt)) hashConsing warnUninterp ProverCommand {..} outputContinuation =
-  protectStack onError \(evo,byteReader,modEnv) ->
-  M.runModuleM (evo,byteReader,modEnv)
+  protectStack onError \modIn ->
+  M.runModuleM modIn
    do w4sym <- liftIO makeSym
       defVar  <- liftIO (newMVar (W4.truePred w4sym))
       funVar  <- liftIO (newMVar mempty)
@@ -402,7 +404,7 @@ satProveOffline (W4ProverConfig (AnAdapter adpt)) hashConsing warnUninterp Prove
        when hashConsing  (W4.startCaching sym)
        pure sym
 
-  onError msg (_,_,modEnv) = pure (Right (Just msg, modEnv), [])
+  onError msg (_,_,_,modEnv) = pure (Right (Just msg, modEnv), [])
 
 
 decSatNum :: SatNum -> SatNum

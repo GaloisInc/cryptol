@@ -116,9 +116,9 @@ loadCryRC cryrc =
                            _         -> return status
 
 -- | Haskeline-specific repl implementation.
-repl :: Cryptolrc -> Maybe FilePath -> Bool -> REPL () -> IO CommandExitCode
-repl cryrc mbBatch stopOnError begin =
-  runREPL (isJust mbBatch) stdoutLogger $
+repl :: Cryptolrc -> Maybe FilePath -> Bool -> Bool -> REPL () -> IO CommandExitCode
+repl cryrc mbBatch callStacks stopOnError begin =
+  runREPL (isJust mbBatch) callStacks stdoutLogger $
   do status <- loadCryRC cryrc
      case status of
        CommandOk -> begin >> crySession mbBatch stopOnError

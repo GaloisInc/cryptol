@@ -67,9 +67,9 @@ import Prelude.Compat
 type EvalEnv = GenEvalEnv Concrete
 
 type EvalPrims sym =
-  ( Backend sym, ?evalPrim :: PrimIdent -> Maybe (Either Expr (Prim sym)) )
+  ( Backend sym, ?callStacks :: Bool, ?evalPrim :: PrimIdent -> Maybe (Either Expr (Prim sym)) )
 
-type ConcPrims = ?evalPrim :: PrimIdent -> Maybe (Either Expr (Prim Concrete))
+type ConcPrims = (?callStacks :: Bool, ?evalPrim :: PrimIdent -> Maybe (Either Expr (Prim Concrete)))
 
 -- Expression Evaluation -------------------------------------------------------
 
@@ -161,11 +161,15 @@ evalExpr sym env expr = case expr of
 
   EVar n -> {-# SCC "evalExpr->EVar" #-} do
     case lookupVar n env of
-      Just (Left p)    -> sPushFrame sym n ?range (cacheCallStack sym =<< evalPrim sym n p)
-      Just (Right val) ->
-        case nameInfo n of
-          Declared{} -> sPushFrame sym n ?range (cacheCallStack sym =<< val)
-          Parameter  -> cacheCallStack sym =<< val
+      Just (Left p)
+        | ?callStacks -> sPushFrame sym n ?range (cacheCallStack sym =<< evalPrim sym n p)
+        | otherwise   -> evalPrim sym n p
+      Just (Right val)
+        | ?callStacks ->
+            case nameInfo n of
+              Declared{} -> sPushFrame sym n ?range (cacheCallStack sym =<< val)
+              Parameter  -> cacheCallStack sym =<< val
+        | otherwise -> val
       Nothing  -> do
         envdoc <- ppEnv sym defaultPPOpts env
         panic "[Eval] evalExpr"

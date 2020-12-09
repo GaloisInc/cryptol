@@ -1611,7 +1611,8 @@ liftModuleCmd :: M.ModuleCmd a -> REPL a
 liftModuleCmd cmd =
   do evo <- getEvalOpts
      env <- getModuleEnv
-     moduleCmdResult =<< io (cmd (evo, BS.readFile, env))
+     callStacks <- getCallStacks
+     moduleCmdResult =<< io (cmd (callStacks, evo, BS.readFile, env))
 
 moduleCmdResult :: M.ModuleRes a -> REPL a
 moduleCmdResult (res,ws0) = do
