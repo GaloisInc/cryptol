@@ -11,4 +11,4 @@ invalid sequence index: 1
 -- Backtrace --
 (Cryptol::@) called at issue103.icry:2:11--2:21
 <interactive>::f called at issue103.icry:3:9--3:10
-<interactive>::it
+<interactive>::it called at issue103.icry:3:8--3:23

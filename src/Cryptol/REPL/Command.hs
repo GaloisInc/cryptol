@@ -74,7 +74,7 @@ import qualified Cryptol.Testing.Random  as TestR
 import Cryptol.Parser
     (parseExprWith,parseReplWith,ParseError(),Config(..),defaultConfig
     ,parseModName,parseHelpName)
-import           Cryptol.Parser.Position (Position(..),Range,emptyRange,HasLoc(..))
+import           Cryptol.Parser.Position (Position(..),Range(..),HasLoc(..))
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck.Error as T
 import qualified Cryptol.TypeCheck.Parseable as T
@@ -639,7 +639,7 @@ safeCmd str pos fnm = do
   fileName   <- getKnownUser "smtfile"
   let mfile = if fileName == "-" then Nothing else Just fileName
   pexpr <- replParseExpr str pos fnm
-  let rng = fromMaybe emptyRange (getLoc pexpr)
+  let rng = fromMaybe (mkInteractiveRange pos fnm) (getLoc pexpr)
 
   if proverName `elem` ["offline","sbv-offline","w4-offline"] then
     offlineProveSat proverName SafetyQuery pexpr mfile
@@ -697,7 +697,7 @@ cmdProveSat isSat str pos fnm = do
   fileName   <- getKnownUser "smtfile"
   let mfile = if fileName == "-" then Nothing else Just fileName
   pexpr <- replParseExpr str pos fnm
-  let rng = fromMaybe emptyRange (getLoc pexpr)
+  let rng = fromMaybe (mkInteractiveRange pos fnm) (getLoc pexpr)
 
   if proverName `elem` ["offline","sbv-offline","w4-offline"] then
      offlineProveSat proverName qtype pexpr mfile
@@ -1601,6 +1601,14 @@ replParseExpr str (l,c) fnm = replParse (parseExprWith cfg. T.pack) str
                      , cfgStart  = Position l c
                      }
 
+mkInteractiveRange :: (Int,Int) -> Maybe FilePath -> Range
+mkInteractiveRange (l,c) mb = Range p p src
+  where
+  p = Position l c
+  src = case mb of
+          Nothing -> "<interactive>"
+          Just b  -> b
+
 interactiveConfig :: Config
 interactiveConfig = defaultConfig { cfgSource = "<interactive>" }
 
@@ -1709,8 +1717,12 @@ replEvalExpr expr =
      -- add "it" to the namespace via a new declaration
      itVar <- bindItVariable ty def1
 
+     let itExpr = case getLoc def of
+                    Nothing  -> T.EVar itVar
+                    Just rng -> T.ELocated rng (T.EVar itVar)
+
      -- evaluate the it variable
-     val <- liftModuleCmd (rethrowEvalError . M.evalExpr (T.EVar itVar))
+     val <- liftModuleCmd (rethrowEvalError . M.evalExpr itExpr)
      return (val,ty)
   where
   warnDefaults ts =

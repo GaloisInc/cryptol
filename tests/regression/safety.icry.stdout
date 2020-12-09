@@ -5,20 +5,20 @@ Run-time error: asdf
 -- Backtrace --
 Cryptol::error called at Cryptol:959:41--959:46
 Cryptol::assert called at safety.icry:3:14--3:20
-<interactive>::it
+<interactive>::it called at safety.icry:3:7--3:37
 Counterexample
 (\(x : [4]) -> [0 .. 14] @ x == x) 0xf ~> ERROR
 invalid sequence index: 15
 -- Backtrace --
 (Cryptol::@) called at safety.icry:4:20--4:34
 (Cryptol::==) called at safety.icry:4:20--4:34
-<interactive>::it
+<interactive>::it called at safety.icry:4:7--4:35
 Counterexample
 (\y -> (10 : Integer) / y) 0 ~> ERROR
 division by 0
 -- Backtrace --
 (Cryptol::/) called at safety.icry:5:14--5:30
-<interactive>::it
+<interactive>::it called at safety.icry:5:7--5:31
 Safe
 Safe
 Safe
