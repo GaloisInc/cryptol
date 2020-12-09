@@ -41,7 +41,7 @@ import qualified What4.SWord as SW
 import qualified What4.Utils.AbstractDomains as W4
 
 import Cryptol.Backend
-import Cryptol.Backend.Monad ( EvalError(..), Unsupported(..) )
+import Cryptol.Backend.Monad ( EvalError(..), Unsupported(..), EvalOpts )
 import Cryptol.Backend.What4
 import qualified Cryptol.Backend.What4.SFloat as W4
 
@@ -61,13 +61,13 @@ import Cryptol.Utils.RecordMap
 type Value sym = GenValue (What4 sym)
 
 -- See also Cryptol.Prims.Eval.primTable
-primTable :: W4.IsSymExprBuilder sym => What4 sym -> Map.Map PrimIdent (Prim (What4 sym))
-primTable sym =
+primTable :: W4.IsSymExprBuilder sym => What4 sym -> IO EvalOpts -> Map.Map PrimIdent (Prim (What4 sym))
+primTable sym getEOpts =
   let w4sym = w4 sym in
   Map.union (floatPrims sym) $
   Map.union (suiteBPrims sym) $
   Map.union (primeECPrims sym) $
-  Map.union (genericPrimTable sym) $
+  Map.union (genericPrimTable sym getEOpts) $
 
   Map.fromList $ map (\(n, v) -> (prelPrim n, v))
 
@@ -94,22 +94,6 @@ primTable sym =
   , ("update"      , updatePrim sym (updateFrontSym_word sym) (updateFrontSym sym))
   , ("updateEnd"   , updatePrim sym (updateBackSym_word sym)  (updateBackSym sym))
 
-    -- Misc
-
-     -- The trace function simply forces its first two
-     -- values before returing the third in the symbolic
-     -- evaluator.
-  , ("trace",
-      PNumPoly \_n ->
-      PTyPoly  \_a ->
-      PTyPoly  \_b ->
-      PFun     \s ->
-      PFun     \x ->
-      PFun     \y ->
-      PPrim
-       do _ <- s
-          _ <- x
-          y)
   ]
 
 primeECPrims :: W4.IsSymExprBuilder sym => What4 sym -> Map.Map PrimIdent (Prim (What4 sym))

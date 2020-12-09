@@ -37,16 +37,17 @@ import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..),nMul,widthInteger)
 import Cryptol.Backend
 import Cryptol.Backend.Concrete (Concrete(..))
-import Cryptol.Backend.Monad ( Eval, evalPanic, EvalError(..), Unsupported(..) )
+import Cryptol.Backend.Monad ( Eval, evalPanic, EvalError(..), Unsupported(..), EvalOpts(..) )
 import Cryptol.Testing.Random( randomValue )
 
 import Cryptol.Eval.Prims
 import Cryptol.Eval.Type
 import Cryptol.Eval.Value
 import Cryptol.Utils.Ident (PrimIdent, prelPrim)
+import Cryptol.Utils.Logger(logPrint)
 import Cryptol.Utils.Panic (panic)
+import Cryptol.Utils.PP
 import Cryptol.Utils.RecordMap
-
 
 
 {-# SPECIALIZE mkLit :: Concrete -> TValue -> Integer -> Eval (GenValue Concrete)
@@ -2095,10 +2096,10 @@ fpRndRTZ sym = wordLit sym 3 4 {- to 0    -}
 
 
 
-{-# SPECIALIZE genericPrimTable :: Concrete -> Map PrimIdent (Prim Concrete) #-}
+{-# SPECIALIZE genericPrimTable :: Concrete -> IO EvalOpts -> Map PrimIdent (Prim Concrete) #-}
 
-genericPrimTable :: Backend sym => sym -> Map PrimIdent (Prim sym)
-genericPrimTable sym =
+genericPrimTable :: Backend sym => sym -> IO EvalOpts -> Map PrimIdent (Prim sym)
+genericPrimTable sym getEOpts =
   Map.fromList $ map (\(n, v) -> (prelPrim n, v))
 
   [ -- Literals
@@ -2248,6 +2249,21 @@ genericPrimTable sym =
                      PFinPoly \_ ->
                      PStrict  \s ->
                      PPrim (errorV sym a =<< valueToString sym s))
+
+  , ("trace"       , {-# SCC "Prelude::trace" #-}
+                     PNumPoly \_n ->
+                     PTyPoly  \_a ->
+                     PTyPoly  \_b ->
+                     PFun     \s ->
+                     PFun     \x ->
+                     PFun     \y ->
+                     PPrim
+                      do msg <- valueToString sym =<< s
+                         EvalOpts { evalPPOpts, evalLogger } <- liftIO getEOpts
+                         doc <- ppValue sym evalPPOpts =<< x
+                         liftIO $ logPrint evalLogger
+                             $ if null msg then doc else text msg <+> doc
+                         y)
 
   , ("random"      , {-# SCC "Prelude::random" #-}
                      PTyPoly  \a ->

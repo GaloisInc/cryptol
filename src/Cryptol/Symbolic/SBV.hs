@@ -310,6 +310,8 @@ prepareQuery evo ProverCommand{..} =
      callStacks <- M.getCallStacks
      let ?callStacks = callStacks
 
+     getEOpts <- M.getEvalOptsAction
+
      -- The `addAsm` function is used to combine assumptions that
      -- arise from the types of symbolic variables (e.g. Z n values
      -- are assumed to be integers in the range `0 <= x < n`) with
@@ -329,7 +331,7 @@ prepareQuery evo ProverCommand{..} =
                  stateMVar <- liftIO (newMVar sbvState)
                  defRelsVar <- liftIO (newMVar SBV.svTrue)
                  let sym = SBV stateMVar defRelsVar
-                 let tbl = primTable sym
+                 let tbl = primTable sym getEOpts
                  let ?evalPrim = \i -> (Right <$> Map.lookup i tbl) <|>
                                        (Left <$> Map.lookup i ds)
                  let ?range = emptyRange

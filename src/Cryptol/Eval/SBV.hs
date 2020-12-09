@@ -30,7 +30,7 @@ import qualified Data.Text as T
 import Data.SBV.Dynamic as SBV
 
 import Cryptol.Backend
-import Cryptol.Backend.Monad ( EvalError(..), Unsupported(..) )
+import Cryptol.Backend.Monad ( EvalError(..), Unsupported(..), EvalOpts )
 import Cryptol.Backend.SBV
 
 import Cryptol.Eval.Type (TValue(..))
@@ -47,9 +47,9 @@ type Value = GenValue SBV
 -- Primitives ------------------------------------------------------------------
 
 -- See also Cryptol.Eval.Concrete.primTable
-primTable :: SBV -> Map.Map PrimIdent (Prim SBV)
-primTable sym = 
-  Map.union (genericPrimTable sym) $
+primTable :: SBV -> IO EvalOpts -> Map.Map PrimIdent (Prim SBV)
+primTable sym getEOpts =
+  Map.union (genericPrimTable sym getEOpts) $
   Map.fromList $ map (\(n, v) -> (prelPrim (T.pack n), v))
 
   [ (">>$"         , sshrV sym)
@@ -86,20 +86,6 @@ primTable sym =
   , ("update"      , updatePrim sym (updateFrontSym_word sym) (updateFrontSym sym))
   , ("updateEnd"   , updatePrim sym (updateBackSym_word sym) (updateBackSym sym))
 
-     -- The trace function simply forces its first two
-     -- values before returing the third in the symbolic
-     -- evaluator.
-  , ("trace",
-      PNumPoly \_n ->
-      PTyPoly  \_a ->
-      PTyPoly  \_b ->
-      PFun     \s ->
-      PFun     \x ->
-      PFun     \y ->
-      PPrim
-       do _ <- s
-          _ <- x
-          y)
   ]
 
 indexFront ::
