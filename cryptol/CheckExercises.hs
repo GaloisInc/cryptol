@@ -299,7 +299,7 @@ main = do
     let exe = fromMaybe "./cry run" (cryptolExe opts)
 
     if Seq.null (rdReplout rd)
-      then do let cryCmd = (P.shell (exe ++ " -b " ++ inFile ++ " -e"))
+      then do let cryCmd = (P.shell (exe ++ " --interactive-batch " ++ inFile ++ " -e"))
               (cryEC, cryOut, _) <- P.readCreateProcessWithExitCode cryCmd ""
 
 
@@ -318,7 +318,7 @@ main = do
                     fmap (trim . lineText) $ toList $ rdReplout rd
                   outExpectedFileNameTemplate = "out-expected.icry"
                   outFileNameTemplate = "out.icry"
-                  cryCmd = (P.shell (exe ++ " -b " ++ inFile))
+                  cryCmd = (P.shell (exe ++ " --interactive-batch " ++ inFile))
               outExpectedFile <- writeTempFile dir outExpectedFileNameTemplate outExpectedText
               outFile <- emptyTempFile dir outFileNameTemplate
 
