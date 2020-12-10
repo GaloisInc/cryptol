@@ -11,6 +11,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE Rank2Types #-}
@@ -27,8 +28,9 @@ import Control.Monad (join, unless)
 import System.Random.TF.Gen (seedTFGen)
 
 import Data.Bits (testBit, (.&.), shiftR)
-
 import Data.Maybe (fromMaybe)
+import qualified Data.Map.Strict as Map
+import Data.Map(Map)
 import Data.Ratio ((%))
 
 import Cryptol.TypeCheck.AST
@@ -38,8 +40,10 @@ import Cryptol.Backend.Concrete (Concrete(..))
 import Cryptol.Backend.Monad ( Eval, evalPanic, EvalError(..), Unsupported(..) )
 import Cryptol.Testing.Random( randomValue )
 
+import Cryptol.Eval.Prims
 import Cryptol.Eval.Type
 import Cryptol.Eval.Value
+import Cryptol.Utils.Ident (PrimIdent, prelPrim)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.RecordMap
 
@@ -63,14 +67,15 @@ mkLit sym ty i =
     _                            -> evalPanic "Cryptol.Eval.Prim.evalConst"
                                     [ "Invalid type for number" ]
 
-{-# SPECIALIZE ecNumberV :: Concrete -> GenValue Concrete
+{-# SPECIALIZE ecNumberV :: Concrete -> Prim Concrete
   #-}
 
 -- | Make a numeric constant.
-ecNumberV :: Backend sym => sym -> GenValue sym
+ecNumberV :: Backend sym => sym -> Prim sym
 ecNumberV sym =
-  nlam $ \valT ->
-  VPoly $ \ty ->
+  PNumPoly \valT ->
+  PTyPoly \ty ->
+  PPrim
   case valT of
     Nat v -> mkLit sym ty v
     _ -> evalPanic "Cryptol.Eval.Prim.evalConst"
@@ -80,32 +85,38 @@ ecNumberV sym =
              ]
 
 
-
 {-# SPECIALIZE intV :: Concrete -> Integer -> TValue -> Eval (GenValue Concrete)
   #-}
 intV :: Backend sym => sym -> SInteger sym -> TValue -> SEval sym (GenValue sym)
-intV sym i = ringNullary sym (\w -> wordFromInt sym w i) (pure i) (\m -> intToZn sym m i) (intToRational sym i)
-            (\e p -> fpRndMode sym >>= \r -> fpFromInteger sym e p r i)
+intV sym i =
+  ringNullary sym
+    (\w -> wordFromInt sym w i)
+    (pure i)
+    (\m -> intToZn sym m i)
+    (intToRational sym i)
+    (\e p -> fpRndMode sym >>= \r -> fpFromInteger sym e p r i)
 
-{-# SPECIALIZE ratioV :: Concrete -> GenValue Concrete #-}
-ratioV :: Backend sym => sym -> GenValue sym
+{-# SPECIALIZE ratioV :: Concrete -> Prim Concrete #-}
+ratioV :: Backend sym => sym -> Prim sym
 ratioV sym =
-  lam $ \x -> return $
-  lam $ \y ->
+  PFun   \x ->
+  PFun   \y ->
+  PPrim
     do x' <- fromVInteger <$> x
        y' <- fromVInteger <$> y
        VRational <$> ratio sym x' y'
 
-{-# SPECIALIZE ecFractionV :: Concrete -> GenValue Concrete
+{-# SPECIALIZE ecFractionV :: Concrete -> Prim Concrete
   #-}
-ecFractionV :: Backend sym => sym -> GenValue sym
+ecFractionV :: Backend sym => sym -> Prim sym
 ecFractionV sym =
-  ilam  \n ->
-  ilam  \d ->
-  ilam  \_r ->
-  VPoly \ty ->
+  PFinPoly \n  ->
+  PFinPoly \d  ->
+  PFinPoly \_r ->
+  PTyPoly  \ty ->
+  PPrim
     case ty of
-      TVFloat e p -> VFloat    <$> fpLit sym e p (n % d)
+      TVFloat e p -> VFloat <$> fpLit sym e p (n % d)
       TVRational ->
         do x <- integerLit sym n
            y <- integerLit sym d
@@ -116,34 +127,38 @@ ecFractionV sym =
 
 
 
-{-# SPECIALIZE fromZV :: Concrete -> GenValue Concrete #-}
-fromZV :: Backend sym => sym -> GenValue sym
+{-# SPECIALIZE fromZV :: Concrete -> Prim Concrete #-}
+fromZV :: Backend sym => sym -> Prim sym
 fromZV sym =
-  nlam $ \(finNat' -> n) ->
-  lam $ \v -> VInteger <$> (znToInt sym n . fromVInteger =<< v)
+  PFinPoly \n ->
+  PFun     \v ->
+  PPrim
+    (VInteger <$> (znToInt sym n . fromVInteger =<< v))
 
 -- Operation Lifting -----------------------------------------------------------
 
 
 type Binary sym = TValue -> GenValue sym -> GenValue sym -> SEval sym (GenValue sym)
 
-{-# SPECIALIZE binary :: Binary Concrete -> GenValue Concrete
+{-# SPECIALIZE binary :: Binary Concrete -> Prim Concrete
   #-}
-binary :: Backend sym => Binary sym -> GenValue sym
-binary f = tlam $ \ ty ->
-            lam $ \ a  -> return $
-            lam $ \ b  -> do
-               --io $ putStrLn "Entering a binary function"
-               join (f ty <$> a <*> b)
+binary :: Backend sym => Binary sym -> Prim sym
+binary f = PTyPoly \ty ->
+           PFun    \a  ->
+           PFun    \b  ->
+           PPrim $
+             do x <- a
+                y <- b
+                f ty x y
 
 type Unary sym = TValue -> GenValue sym -> SEval sym (GenValue sym)
 
-{-# SPECIALIZE unary :: Unary Concrete -> GenValue Concrete
+{-# SPECIALIZE unary :: Unary Concrete -> Prim Concrete
   #-}
-unary :: Backend sym => Unary sym -> GenValue sym
-unary f = tlam $ \ ty ->
-           lam $ \ a  -> f ty =<< a
-
+unary :: Backend sym => Unary sym -> Prim sym
+unary f = PTyPoly \ty ->
+          PFun    \a  ->
+          PPrim (f ty =<< a)
 
 type BinWord sym = Integer -> SWord sym -> SWord sym -> SEval sym (SWord sym)
 
@@ -200,32 +215,33 @@ ringBinary sym opw opi opz opq opfp = loop
       | isTBit a -> do
                   lw <- fromVWord sym "ringLeft" l
                   rw <- fromVWord sym "ringRight" r
-                  return $ VWord w (WordVal <$> opw w lw rw)
-      | otherwise -> VSeq w <$> (join (zipSeqMap (loop a) <$>
+                  stk <- sGetCallStack sym
+                  return $ VWord w (WordVal <$> (sWithCallStack sym stk (opw w lw rw)))
+      | otherwise -> VSeq w <$> (join (zipSeqMap sym (loop a) <$>
                                       (fromSeq "ringBinary left" l) <*>
                                       (fromSeq "ringBinary right" r)))
 
     TVStream a ->
       -- streams
-      VStream <$> (join (zipSeqMap (loop a) <$>
+      VStream <$> (join (zipSeqMap sym (loop a) <$>
                              (fromSeq "ringBinary left" l) <*>
                              (fromSeq "ringBinary right" r)))
 
     -- functions
     TVFun _ ety ->
-      return $ lam $ \ x -> loop' ety (fromVFun l x) (fromVFun r x)
+      lam sym $ \ x -> loop' ety (fromVFun sym l x) (fromVFun sym r x)
 
     -- tuples
     TVTuple tys ->
-      do ls <- mapM (sDelay sym Nothing) (fromVTuple l)
-         rs <- mapM (sDelay sym Nothing) (fromVTuple r)
+      do ls <- mapM (sDelay sym) (fromVTuple l)
+         rs <- mapM (sDelay sym) (fromVTuple r)
          return $ VTuple (zipWith3 loop' tys ls rs)
 
     -- records
     TVRec fs ->
       do VRecord <$>
             traverseRecordMap
-              (\f fty -> sDelay sym Nothing (loop' fty (lookupRecord f l) (lookupRecord f r)))
+              (\f fty -> sDelay sym (loop' fty (lookupRecord f l) (lookupRecord f r)))
               fs
 
     TVAbstract {} ->
@@ -282,26 +298,27 @@ ringUnary sym opw opi opz opq opfp = loop
       -- words and finite sequences
       | isTBit a -> do
               wx <- fromVWord sym "ringUnary" v
-              return $ VWord w (WordVal <$> opw w wx)
-      | otherwise -> VSeq w <$> (mapSeqMap (loop a) =<< fromSeq "ringUnary" v)
+              stk <- sGetCallStack sym
+              return $ VWord w (WordVal <$> sWithCallStack sym stk (opw w wx))
+      | otherwise -> VSeq w <$> (mapSeqMap sym (loop a) =<< fromSeq "ringUnary" v)
 
     TVStream a ->
-      VStream <$> (mapSeqMap (loop a) =<< fromSeq "ringUnary" v)
+      VStream <$> (mapSeqMap sym (loop a) =<< fromSeq "ringUnary" v)
 
     -- functions
     TVFun _ ety ->
-      return $ lam $ \ y -> loop' ety (fromVFun v y)
+      lam sym $ \ y -> loop' ety (fromVFun sym v y)
 
     -- tuples
     TVTuple tys ->
-      do as <- mapM (sDelay sym Nothing) (fromVTuple v)
+      do as <- mapM (sDelay sym) (fromVTuple v)
          return $ VTuple (zipWith loop' tys as)
 
     -- records
     TVRec fs ->
       VRecord <$>
         traverseRecordMap
-          (\f fty -> sDelay sym Nothing (loop' fty (lookupRecord f v)))
+          (\f fty -> sDelay sym (loop' fty (lookupRecord f v)))
           fs
 
     TVAbstract {} -> evalPanic "ringUnary" ["Abstract type not in `Ring`"]
@@ -346,25 +363,27 @@ ringNullary sym opw opi opz opq opfp = loop
 
         TVSeq w a
           -- words and finite sequences
-          | isTBit a -> pure $ VWord w $ (WordVal <$> opw w)
+          | isTBit a ->
+             do stk <- sGetCallStack sym
+                pure $ VWord w $ (WordVal <$> sWithCallStack sym stk (opw w))
           | otherwise ->
-             do v <- sDelay sym Nothing (loop a)
-                pure $ VSeq w $ IndexSeqMap $ const v
+             do v <- sDelay sym (loop a)
+                pure $ VSeq w $ IndexSeqMap \_i -> v
 
         TVStream a ->
-             do v <- sDelay sym Nothing (loop a)
-                pure $ VStream $ IndexSeqMap $ const v
+             do v <- sDelay sym (loop a)
+                pure $ VStream $ IndexSeqMap \_i -> v
 
         TVFun _ b ->
-             do v <- sDelay sym Nothing (loop b)
-                pure $ lam $ const $ v
+             do v <- sDelay sym (loop b)
+                lam sym (const v)
 
         TVTuple tys ->
-             do xs <- mapM (sDelay sym Nothing . loop) tys
+             do xs <- mapM (sDelay sym . loop) tys
                 pure $ VTuple xs
 
         TVRec fs ->
-             do xs <- traverse (sDelay sym Nothing . loop) fs
+             do xs <- traverse (sDelay sym . loop) fs
                 pure $ VRecord xs
 
         TVAbstract {} ->
@@ -390,7 +409,8 @@ integralBinary sym opw opi ty l r = case ty of
       | isTBit a ->
           do wl <- fromVWord sym "integralBinary left" l
              wr <- fromVWord sym "integralBinary right" r
-             return $ VWord w (WordVal <$> opw w wl wr)
+             stk <- sGetCallStack sym
+             return $ VWord w (WordVal <$> sWithCallStack sym stk (opw w wl wr))
 
     _ -> evalPanic "integralBinary" [show ty ++ " not int class `Integral`"]
 
@@ -398,15 +418,16 @@ integralBinary sym opw opi ty l r = case ty of
 ---------------------------------------------------------------------------
 -- Ring
 
-{-# SPECIALIZE fromIntegerV :: Concrete -> GenValue Concrete
+{-# SPECIALIZE fromIntegerV :: Concrete -> Prim Concrete
   #-}
 -- | Convert an unbounded integer to a value in Ring
-fromIntegerV :: Backend sym => sym -> GenValue sym
+fromIntegerV :: Backend sym => sym -> Prim sym
 fromIntegerV sym =
-  tlam $ \ a ->
-  lam  $ \ v ->
-  do i <- fromVInteger <$> v
-     intV sym i a
+  PTyPoly \a ->
+  PFun    \v ->
+  PPrim
+    do i <- fromVInteger <$> v
+       intV sym i a
 
 {-# INLINE addV #-}
 addV :: Backend sym => sym -> Binary sym
@@ -458,13 +479,14 @@ divV sym = integralBinary sym opw opi
     opw _w x y = wordDiv sym x y
     opi x y = intDiv sym x y
 
-{-# SPECIALIZE expV :: Concrete -> GenValue Concrete #-}
-expV :: Backend sym => sym -> GenValue sym
+{-# SPECIALIZE expV :: Concrete -> Prim Concrete #-}
+expV :: Backend sym => sym -> Prim sym
 expV sym =
-  tlam $ \aty ->
-  tlam $ \ety ->
-   lam $ \am -> return $
-   lam $ \em ->
+  PTyPoly \aty ->
+  PTyPoly \ety ->
+  PFun    \am ->
+  PFun    \em ->
+  PPrim
      do a <- am
         e <- em
         case ety of
@@ -522,12 +544,13 @@ modV sym = integralBinary sym opw opi
     opw _w x y = wordMod sym x y
     opi x y = intMod sym x y
 
-{-# SPECIALIZE toIntegerV :: Concrete -> GenValue Concrete #-}
+{-# SPECIALIZE toIntegerV :: Concrete -> Prim Concrete #-}
 -- | Convert a word to a non-negative integer.
-toIntegerV :: Backend sym => sym -> GenValue sym
+toIntegerV :: Backend sym => sym -> Prim sym
 toIntegerV sym =
-  tlam $ \a ->
-  lam $ \v ->
+  PTyPoly \a ->
+  PFun    \v ->
+  PPrim
     case a of
       TVSeq _w el | isTBit el ->
         VInteger <$> (wordToInt sym =<< (fromVWord sym "toInteger" =<< v))
@@ -537,11 +560,12 @@ toIntegerV sym =
 -----------------------------------------------------------------------------
 -- Field
 
-{-# SPECIALIZE recipV :: Concrete -> GenValue Concrete #-}
-recipV :: Backend sym => sym -> GenValue sym
+{-# SPECIALIZE recipV :: Concrete -> Prim Concrete #-}
+recipV :: Backend sym => sym -> Prim sym
 recipV sym =
-  tlam $ \a ->
-  lam $ \x ->
+  PTyPoly \a ->
+  PFun    \x ->
+  PPrim
     case a of
       TVRational -> VRational <$> (rationalRecip sym . fromVRational =<< x)
       TVFloat e p ->
@@ -552,12 +576,13 @@ recipV sym =
       TVIntMod m -> VInteger <$> (znRecip sym m . fromVInteger =<< x)
       _ -> evalPanic "recip"  [show a ++ "is not a Field"]
 
-{-# SPECIALIZE fieldDivideV :: Concrete -> GenValue Concrete #-}
-fieldDivideV :: Backend sym => sym -> GenValue sym
+{-# SPECIALIZE fieldDivideV :: Concrete -> Prim Concrete #-}
+fieldDivideV :: Backend sym => sym -> Prim sym
 fieldDivideV sym =
-  tlam $ \a ->
-  lam $ \x -> return $
-  lam $ \y ->
+  PTyPoly \a ->
+  PFun    \x ->
+  PFun    \y ->
+  PPrim
     case a of
       TVRational ->
         do x' <- fromVRational <$> x
@@ -656,27 +681,27 @@ complementV sym = logicUnary sym (bitComplement sym) (wordComplement sym)
 -- Bitvector signed div and modulus
 
 {-# INLINE lg2V #-}
-lg2V :: Backend sym => sym -> GenValue sym
+lg2V :: Backend sym => sym -> Prim sym
 lg2V sym =
-  nlam $ \(finNat' -> w) ->
-  wlam sym $ \x -> return $
-  VWord w (WordVal <$> wordLg2 sym x)
+  PFinPoly \w ->
+  PWordFun \x ->
+  PVal (VWord w (WordVal <$> wordLg2 sym x))
 
-{-# SPECIALIZE sdivV :: Concrete -> GenValue Concrete #-}
-sdivV :: Backend sym => sym -> GenValue sym
+{-# SPECIALIZE sdivV :: Concrete -> Prim Concrete #-}
+sdivV :: Backend sym => sym -> Prim sym
 sdivV sym =
-  nlam $ \(finNat' -> w) ->
-  wlam sym $ \x -> return $
-  wlam sym $ \y -> return $
-  VWord w (WordVal <$> wordSignedDiv sym x y)
+  PFinPoly \w ->
+  PWordFun \x ->
+  PWordFun \y ->
+  PVal (VWord w (WordVal <$> wordSignedDiv sym x y))
 
-{-# SPECIALIZE smodV :: Concrete -> GenValue Concrete #-}
-smodV :: Backend sym => sym -> GenValue sym
+{-# SPECIALIZE smodV :: Concrete -> Prim Concrete #-}
+smodV :: Backend sym => sym -> Prim sym
 smodV sym  =
-  nlam $ \(finNat' -> w) ->
-  wlam sym $ \x -> return $
-  wlam sym $ \y -> return $
-  VWord w (WordVal <$> wordSignedMod sym x y)
+  PFinPoly \w ->
+  PWordFun \x ->
+  PWordFun \y ->
+  PVal (VWord w (WordVal <$> wordSignedMod sym x y))
 
 -- Cmp -------------------------------------------------------------------------
 
@@ -879,26 +904,26 @@ zeroV sym ty = case ty of
   TVSeq w ety
       | isTBit ety -> pure $ word sym w 0
       | otherwise  ->
-           do z <- sDelay sym Nothing (zeroV sym ety)
-              pure $ VSeq w (IndexSeqMap $ const z)
+           do z <- sDelay sym (zeroV sym ety)
+              pure $ VSeq w (IndexSeqMap \_i -> z)
 
   TVStream ety ->
-     do z <- sDelay sym Nothing (zeroV sym ety)
-        pure $ VStream (IndexSeqMap $ const z)
+     do z <- sDelay sym (zeroV sym ety)
+        pure $ VStream (IndexSeqMap \_i -> z)
 
   -- functions
   TVFun _ bty ->
-     do z <- sDelay sym Nothing (zeroV sym bty)
-        pure $ lam (const z)
+     do z <- sDelay sym (zeroV sym bty)
+        lam sym (const z)
 
   -- tuples
   TVTuple tys ->
-      do xs <- mapM (sDelay sym Nothing . zeroV sym) tys
+      do xs <- mapM (sDelay sym . zeroV sym) tys
          pure $ VTuple xs
 
   -- records
   TVRec fields ->
-      do xs <- traverse (sDelay sym Nothing . zeroV sym) fields
+      do xs <- traverse (sDelay sym . zeroV sym) fields
          pure $ VRecord xs
 
   TVAbstract {} -> evalPanic "zeroV" [ "Abstract type not in `Zero`" ]
@@ -936,7 +961,7 @@ joinWords sym nParts nEach xs =
  where
  loop :: SEval sym (WordValue sym) -> [SEval sym (GenValue sym)] -> SEval sym (GenValue sym)
  loop !wv [] =
-    VWord (nParts * nEach) <$> sDelay sym Nothing wv
+    VWord (nParts * nEach) <$> sDelay sym wv
  loop !wv (w : ws) =
     w >>= \case
       VWord _ w' ->
@@ -1038,24 +1063,24 @@ splitAtV sym front back a val =
   case back of
 
     Nat rightWidth | aBit -> do
-          ws <- sDelay sym Nothing (splitWordVal sym leftWidth rightWidth =<< fromWordVal "splitAtV" val)
+          ws <- sDelay sym (splitWordVal sym leftWidth rightWidth =<< fromWordVal "splitAtV" val)
           return $ VTuple
                    [ VWord leftWidth  . pure . fst <$> ws
                    , VWord rightWidth . pure . snd <$> ws
                    ]
 
     Inf | aBit -> do
-       vs <- sDelay sym Nothing (fromSeq "splitAtV" val)
-       ls <- sDelay sym Nothing (fst . splitSeqMap leftWidth <$> vs)
-       rs <- sDelay sym Nothing (snd . splitSeqMap leftWidth <$> vs)
+       vs <- sDelay sym (fromSeq "splitAtV" val)
+       ls <- sDelay sym (fst . splitSeqMap leftWidth <$> vs)
+       rs <- sDelay sym (snd . splitSeqMap leftWidth <$> vs)
        return $ VTuple [ return $ VWord leftWidth (LargeBitsVal leftWidth <$> ls)
                        , VStream <$> rs
                        ]
 
     _ -> do
-       vs <- sDelay sym Nothing (fromSeq "splitAtV" val)
-       ls <- sDelay sym Nothing (fst . splitSeqMap leftWidth <$> vs)
-       rs <- sDelay sym Nothing (snd . splitSeqMap leftWidth <$> vs)
+       vs <- sDelay sym (fromSeq "splitAtV" val)
+       ls <- sDelay sym (fst . splitSeqMap leftWidth <$> vs)
+       rs <- sDelay sym (snd . splitSeqMap leftWidth <$> vs)
        return $ VTuple [ VSeq leftWidth <$> ls
                        , mkSeq back a <$> rs
                        ]
@@ -1093,19 +1118,20 @@ extractWordVal _ len start (LargeBitsVal n xs) =
 {-# INLINE ecSplitV #-}
 
 -- | Split implementation.
-ecSplitV :: Backend sym => sym -> GenValue sym
+ecSplitV :: Backend sym => sym -> Prim sym
 ecSplitV sym =
-  nlam $ \ parts ->
-  nlam $ \ each  ->
-  tlam $ \ a     ->
-  lam  $ \ val ->
+  PNumPoly \parts ->
+  PNumPoly \each ->
+  PTyPoly  \a ->
+  PFun     \val ->
+  PPrim
     case (parts, each) of
        (Nat p, Nat e) | isTBit a -> do
           ~(VWord _ val') <- val
           return $ VSeq p $ IndexSeqMap $ \i ->
             pure $ VWord e (extractWordVal sym e ((p-i-1)*e) =<< val')
        (Inf, Nat e) | isTBit a -> do
-          val' <- sDelay sym Nothing (fromSeq "ecSplitV" =<< val)
+          val' <- sDelay sym (fromSeq "ecSplitV" =<< val)
           return $ VStream $ IndexSeqMap $ \i ->
             return $ VWord e $ return $ LargeBitsVal e $ IndexSeqMap $ \j ->
               let idx = i*e + toInteger j
@@ -1113,13 +1139,13 @@ ecSplitV sym =
                       xs <- val'
                       lookupSeqMap xs idx
        (Nat p, Nat e) -> do
-          val' <- sDelay sym Nothing (fromSeq "ecSplitV" =<< val)
+          val' <- sDelay sym (fromSeq "ecSplitV" =<< val)
           return $ VSeq p $ IndexSeqMap $ \i ->
             return $ VSeq e $ IndexSeqMap $ \j -> do
               xs <- val'
               lookupSeqMap xs (e * i + j)
        (Inf  , Nat e) -> do
-          val' <- sDelay sym Nothing (fromSeq "ecSplitV" =<< val)
+          val' <- sDelay sym (fromSeq "ecSplitV" =<< val)
           return $ VStream $ IndexSeqMap $ \i ->
             return $ VSeq e $ IndexSeqMap $ \j -> do
               xs <- val'
@@ -1157,7 +1183,8 @@ transposeV sym a b c xs
   | isTBit c, Nat na <- a = -- Fin a => [a][b]Bit -> [b][a]Bit
       return $ bseq $ IndexSeqMap $ \bi ->
         return $ VWord na $ return $ LargeBitsVal na $ IndexSeqMap $ \ai ->
-         do ys <- flip lookupSeqMap (toInteger ai) =<< fromSeq "transposeV" xs
+         do xs' <- fromSeq "transposeV" xs
+            ys <- lookupSeqMap xs' ai
             case ys of
               VStream ys' -> lookupSeqMap ys' bi
               VWord _ wv  -> VBit <$> (flip (indexWordValue sym) bi =<< wv)
@@ -1166,7 +1193,8 @@ transposeV sym a b c xs
   | isTBit c, Inf <- a = -- [inf][b]Bit -> [b][inf]Bit
       return $ bseq $ IndexSeqMap $ \bi ->
         return $ VStream $ IndexSeqMap $ \ai ->
-         do ys <- flip lookupSeqMap ai =<< fromSeq "transposeV" xs
+         do xs' <- fromSeq "transposeV" xs
+            ys  <- lookupSeqMap xs' ai
             case ys of
               VStream ys' -> lookupSeqMap ys' bi
               VWord _ wv  -> VBit <$> (flip (indexWordValue sym) bi =<< wv)
@@ -1175,8 +1203,9 @@ transposeV sym a b c xs
   | otherwise = -- [a][b]c -> [b][a]c
       return $ bseq $ IndexSeqMap $ \bi ->
         return $ aseq $ IndexSeqMap $ \ai -> do
-          ys  <- flip lookupSeqMap ai =<< fromSeq "transposeV 1" xs
-          z   <- flip lookupSeqMap bi =<< fromSeq "transposeV 2" ys
+          xs' <- fromSeq "transposeV 1" xs
+          ys  <- fromSeq "transposeV 2" =<< lookupSeqMap xs' ai
+          z   <- lookupSeqMap ys bi
           return z
 
  where
@@ -1206,7 +1235,7 @@ ccatV sym _front _back _elty (VWord m l) (VWord n r) =
   return $ VWord (m+n) (join (joinWordVal sym <$> l <*> r))
 
 ccatV sym _front _back _elty (VWord m l) (VStream r) = do
-  l' <- sDelay sym Nothing l
+  l' <- sDelay sym l
   return $ VStream $ IndexSeqMap $ \i ->
     if i < m then
       VBit <$> (flip (indexWordValue sym) i =<< l')
@@ -1214,8 +1243,8 @@ ccatV sym _front _back _elty (VWord m l) (VStream r) = do
       lookupSeqMap r (i-m)
 
 ccatV sym front back elty l r = do
-       l'' <- sDelay sym Nothing (fromSeq "ccatV left" l)
-       r'' <- sDelay sym Nothing (fromSeq "ccatV right" r)
+       l'' <- sDelay sym (fromSeq "ccatV left" l)
+       r'' <- sDelay sym (fromSeq "ccatV right" r)
        let Nat n = front
        mkSeq (evalTF TCAdd [front,back]) elty <$> return (IndexSeqMap $ \i ->
         if i < n then do
@@ -1238,7 +1267,7 @@ wordValLogicOp ::
 wordValLogicOp _sym _ wop (WordVal w1) (WordVal w2) = WordVal <$> wop w1 w2
 
 wordValLogicOp sym bop _ w1 w2 = LargeBitsVal (wordValueSize sym w1) <$> zs
-     where zs = memoMap $ IndexSeqMap $ \i -> join (op <$> (lookupSeqMap xs i) <*> (lookupSeqMap ys i))
+     where zs = memoMap sym $ IndexSeqMap $ \i -> join (op <$> (lookupSeqMap xs i) <*> (lookupSeqMap ys i))
            xs = asBitsMap sym w1
            ys = asBitsMap sym w2
            op x y = VBit <$> (bop (fromVBit x) (fromVBit y))
@@ -1281,7 +1310,7 @@ logicBinary sym opb opw = loop
     TVSeq w aty
          -- words
          | isTBit aty
-              -> do v <- sDelay sym Nothing $ join
+              -> do v <- sDelay sym $ join
                             (wordValLogicOp sym opb opw <$>
                                     fromWordVal "logicBinary l" l <*>
                                     fromWordVal "logicBinary r" r)
@@ -1289,27 +1318,27 @@ logicBinary sym opb opw = loop
 
          -- finite sequences
          | otherwise -> VSeq w <$>
-                           (join (zipSeqMap (loop aty) <$>
+                           (join (zipSeqMap sym (loop aty) <$>
                                     (fromSeq "logicBinary left" l)
                                     <*> (fromSeq "logicBinary right" r)))
 
     TVStream aty ->
-        VStream <$> (join (zipSeqMap (loop aty) <$>
+        VStream <$> (join (zipSeqMap sym (loop aty) <$>
                           (fromSeq "logicBinary left" l) <*>
                           (fromSeq "logicBinary right" r)))
 
     TVTuple etys -> do
-        ls <- mapM (sDelay sym Nothing) (fromVTuple l)
-        rs <- mapM (sDelay sym Nothing) (fromVTuple r)
+        ls <- mapM (sDelay sym) (fromVTuple l)
+        rs <- mapM (sDelay sym) (fromVTuple r)
         return $ VTuple $ zipWith3 loop' etys ls rs
 
     TVFun _ bty ->
-        return $ lam $ \ a -> loop' bty (fromVFun l a) (fromVFun r a)
+        lam sym $ \ a -> loop' bty (fromVFun sym l a) (fromVFun sym r a)
 
     TVRec fields ->
       VRecord <$>
         traverseRecordMap
-          (\f fty -> sDelay sym Nothing (loop' fty (lookupRecord f l) (lookupRecord f r)))
+          (\f fty -> sDelay sym (loop' fty (lookupRecord f l) (lookupRecord f r)))
           fields
 
     TVAbstract {} -> evalPanic "logicBinary"
@@ -1318,12 +1347,13 @@ logicBinary sym opb opw = loop
 {-# INLINE wordValUnaryOp #-}
 wordValUnaryOp ::
   Backend sym =>
+  sym ->
   (SBit sym -> SEval sym (SBit sym)) ->
   (SWord sym -> SEval sym (SWord sym)) ->
   WordValue sym ->
   SEval sym (WordValue sym)
-wordValUnaryOp _ wop (WordVal w)  = WordVal <$> (wop w)
-wordValUnaryOp bop _ (LargeBitsVal n xs) = LargeBitsVal n <$> mapSeqMap f xs
+wordValUnaryOp _ _ wop (WordVal w)  = WordVal <$> (wop w)
+wordValUnaryOp sym bop _ (LargeBitsVal n xs) = LargeBitsVal n <$> mapSeqMap sym f xs
   where f x = VBit <$> (bop (fromVBit x))
 
 {-# SPECIALIZE logicUnary ::
@@ -1357,28 +1387,28 @@ logicUnary sym opb opw = loop
     TVSeq w ety
          -- words
          | isTBit ety
-              -> do v <- sDelay sym Nothing (wordValUnaryOp opb opw =<< fromWordVal "logicUnary" val)
+              -> do v <- sDelay sym (wordValUnaryOp sym opb opw =<< fromWordVal "logicUnary" val)
                     return $ VWord w v
 
          -- finite sequences
          | otherwise
-              -> VSeq w <$> (mapSeqMap (loop ety) =<< fromSeq "logicUnary" val)
+              -> VSeq w <$> (mapSeqMap sym (loop ety) =<< fromSeq "logicUnary" val)
 
          -- streams
     TVStream ety ->
-         VStream <$> (mapSeqMap (loop ety) =<< fromSeq "logicUnary" val)
+         VStream <$> (mapSeqMap sym (loop ety) =<< fromSeq "logicUnary" val)
 
     TVTuple etys ->
-      do as <- mapM (sDelay sym Nothing) (fromVTuple val)
+      do as <- mapM (sDelay sym) (fromVTuple val)
          return $ VTuple (zipWith loop' etys as)
 
     TVFun _ bty ->
-      return $ lam $ \ a -> loop' bty (fromVFun val a)
+      lam sym $ \ a -> loop' bty (fromVFun sym val a)
 
     TVRec fields ->
       VRecord <$>
         traverseRecordMap
-          (\f fty -> sDelay sym Nothing (loop' fty (lookupRecord f val)))
+          (\f fty -> sDelay sym (loop' fty (lookupRecord f val)))
           fields
 
     TVAbstract {} -> evalPanic "logicUnary" [ "Abstract type not in `Logic`" ]
@@ -1471,14 +1501,15 @@ indexPrim ::
   (Nat' -> TValue -> SeqMap sym -> TValue -> SInteger sym -> SEval sym (GenValue sym)) ->
   (Nat' -> TValue -> SeqMap sym -> TValue -> [SBit sym] -> SEval sym (GenValue sym)) ->
   (Nat' -> TValue -> SeqMap sym -> TValue -> SWord sym -> SEval sym (GenValue sym)) ->
-  GenValue sym
+  Prim sym
 indexPrim sym int_op bits_op word_op =
-  nlam $ \ len  ->
-  tlam $ \ eltTy ->
-  tlam $ \ ix ->
-   lam $ \ xs  -> return $
-   lam $ \ idx  -> do
-      vs <- xs >>= \case
+  PNumPoly \len ->
+  PTyPoly  \eltTy ->
+  PTyPoly  \ix ->
+  PFun     \xs ->
+  PFun     \idx ->
+  PPrim
+   do vs <- xs >>= \case
                VWord _ w  -> w >>= \w' -> return $ IndexSeqMap (\i -> VBit <$> indexWordValue sym w' i)
                VSeq _ vs  -> return vs
                VStream vs -> return vs
@@ -1486,7 +1517,7 @@ indexPrim sym int_op bits_op word_op =
       idx' <- asIndex sym "index" ix =<< idx
       assertIndexInBounds sym len idx'
       case idx' of
-        Left i                    -> int_op len eltTy vs ix i
+        Left i                    -> int_op  len eltTy vs ix i
         Right (WordVal w')        -> word_op len eltTy vs ix w'
         Right (LargeBitsVal m bs) -> bits_op len eltTy vs ix =<< traverse (fromVBit <$>) (enumerateSeqMap m bs)
 
@@ -1497,31 +1528,33 @@ updatePrim ::
   sym ->
   (Nat' -> TValue -> WordValue sym -> Either (SInteger sym) (WordValue sym) -> SEval sym (GenValue sym) -> SEval sym (WordValue sym)) ->
   (Nat' -> TValue -> SeqMap sym    -> Either (SInteger sym) (WordValue sym) -> SEval sym (GenValue sym) -> SEval sym (SeqMap sym)) ->
-  GenValue sym
+  Prim sym
 updatePrim sym updateWord updateSeq =
-  nlam $ \len ->
-  tlam $ \eltTy ->
-  tlam $ \ix ->
-  lam $ \xs  -> return $
-  lam $ \idx -> return $
-  lam $ \val -> do
-    idx' <- asIndex sym "update" ix =<< idx
-    assertIndexInBounds sym len idx'
-    xs >>= \case
-      VWord l w  -> do w' <- sDelay sym Nothing w
-                       return $ VWord l (w' >>= \w'' -> updateWord len eltTy w'' idx' val)
-      VSeq l vs  -> VSeq l  <$> updateSeq len eltTy vs idx' val
-      VStream vs -> VStream <$> updateSeq len eltTy vs idx' val
-      _ -> evalPanic "Expected sequence value" ["updatePrim"]
+  PNumPoly \len ->
+  PTyPoly  \eltTy ->
+  PTyPoly  \ix ->
+  PFun     \xs ->
+  PFun     \idx ->
+  PFun     \val ->
+  PPrim
+   do idx' <- asIndex sym "update" ix =<< idx
+      assertIndexInBounds sym len idx'
+      xs >>= \case
+        VWord l w  -> do w' <- sDelay sym w
+                         return $ VWord l (w' >>= \w'' -> updateWord len eltTy w'' idx' val)
+        VSeq l vs  -> VSeq l  <$> updateSeq len eltTy vs idx' val
+        VStream vs -> VStream <$> updateSeq len eltTy vs idx' val
+        _ -> evalPanic "Expected sequence value" ["updatePrim"]
 
 {-# INLINE fromToV #-}
 
 -- @[ 0 .. 10 ]@
-fromToV :: Backend sym => sym -> GenValue sym
+fromToV :: Backend sym => sym -> Prim sym
 fromToV sym =
-  nlam $ \ first ->
-  nlam $ \ lst   ->
-  tlam $ \ ty    ->
+  PNumPoly \first ->
+  PNumPoly \lst ->
+  PTyPoly  \ty ->
+  PVal
     let !f = mkLit sym ty in
     case (first, lst) of
       (Nat first', Nat lst') ->
@@ -1532,13 +1565,14 @@ fromToV sym =
 {-# INLINE fromThenToV #-}
 
 -- @[ 0, 1 .. 10 ]@
-fromThenToV :: Backend sym => sym -> GenValue sym
+fromThenToV :: Backend sym => sym -> Prim sym
 fromThenToV sym =
-  nlam $ \ first ->
-  nlam $ \ next  ->
-  nlam $ \ lst   ->
-  tlam $ \ ty    ->
-  nlam $ \ len   ->
+  PNumPoly \first ->
+  PNumPoly \next  ->
+  PNumPoly \lst   ->
+  PTyPoly  \ty    ->
+  PNumPoly \len   ->
+  PVal
     let !f = mkLit sym ty in
     case (first, next, lst, len) of
       (Nat first', Nat next', Nat _lst', Nat len') ->
@@ -1547,31 +1581,33 @@ fromThenToV sym =
       _ -> evalPanic "fromThenToV" ["invalid arguments"]
 
 {-# INLINE infFromV #-}
-infFromV :: Backend sym => sym -> GenValue sym
+infFromV :: Backend sym => sym -> Prim sym
 infFromV sym =
-  tlam $ \ ty ->
-  lam  $ \ x ->
-  do mx <- sDelay sym Nothing x
-     return $ VStream $ IndexSeqMap $ \i ->
-       do x' <- mx
-          i' <- integerLit sym i
-          addV sym ty x' =<< intV sym i' ty
+  PTyPoly \ty ->
+  PFun    \x ->
+  PPrim
+    do mx <- sDelay sym x
+       return $ VStream $ IndexSeqMap $ \i ->
+         do x' <- mx
+            i' <- integerLit sym i
+            addV sym ty x' =<< intV sym i' ty
 
 {-# INLINE infFromThenV #-}
-infFromThenV :: Backend sym => sym -> GenValue sym
+infFromThenV :: Backend sym => sym -> Prim sym
 infFromThenV sym =
-  tlam $ \ ty ->
-  lam $ \ first -> return $
-  lam $ \ next ->
-  do mxd <- sDelay sym Nothing
-             (do x <- first
-                 y <- next
-                 d <- subV sym ty y x
-                 pure (x,d))
-     return $ VStream $ IndexSeqMap $ \i -> do
-       (x,d) <- mxd
-       i' <- integerLit sym i
-       addV sym ty x =<< mulV sym ty d =<< intV sym i' ty
+  PTyPoly \ty ->
+  PFun    \first ->
+  PFun    \next ->
+  PPrim
+    do mxd <- sDelay sym
+               (do x <- first
+                   y <- next
+                   d <- subV sym ty y x
+                   pure (x,d))
+       return $ VStream $ IndexSeqMap $ \i -> do
+         (x,d) <- mxd
+         i' <- integerLit sym i
+         addV sym ty x =<< mulV sym ty d =<< intV sym i' ty
 
 -- Shifting ---------------------------------------------------
 
@@ -1596,7 +1632,7 @@ barrelShifter sym shift_op = go
 
     | otherwise
     = do x_shft <- shift_op x (2 ^ length bs)
-         x' <- memoMap (mergeSeqMap sym b x_shft x)
+         x' <- memoMap sym (mergeSeqMap sym b x_shft x)
          go x' bs
 
 {-# INLINE shiftLeftReindex #-}
@@ -1670,13 +1706,14 @@ logicShift :: Backend sym =>
      {- ^ reindexing operation for positive indices (sequence size, starting index, shift amount -} ->
   (Nat' -> Integer -> Integer -> Maybe Integer)
      {- ^ reindexing operation for negative indices (sequence size, starting index, shift amount -} ->
-  GenValue sym
+  Prim sym
 logicShift sym nm shrinkRange wopPos wopNeg reindexPos reindexNeg =
-  nlam $ \m ->
-  tlam $ \ix ->
-  tlam $ \a ->
-  VFun $ \xs -> return $
-  VFun $ \y ->
+  PNumPoly \m ->
+  PTyPoly  \ix ->
+  PTyPoly  \a ->
+  PFun     \xs ->
+  PFun     \y ->
+  PPrim
     do xs' <- xs
        y' <- asIndex sym "shift" ix =<< y
        case y' of
@@ -1701,7 +1738,7 @@ intShifter :: Backend sym =>
    SEval sym (GenValue sym)
 intShifter sym nm wop reindex m ix a xs idx =
    do let shiftOp vs shft =
-              memoMap $ IndexSeqMap $ \i ->
+              memoMap sym $ IndexSeqMap $ \i ->
                 case reindex m i shft of
                   Nothing -> zeroV sym a
                   Just i' -> lookupSeqMap vs i'
@@ -1737,7 +1774,7 @@ wordShifter :: Backend sym =>
    SEval sym (GenValue sym)
 wordShifter sym nm wop reindex m a xs idx =
   let shiftOp vs shft =
-          memoMap $ IndexSeqMap $ \i ->
+          memoMap sym $ IndexSeqMap $ \i ->
             case reindex m i shft of
               Nothing -> zeroV sym a
               Just i' -> lookupSeqMap vs i'
@@ -1789,36 +1826,37 @@ errorV :: forall sym.
   TValue ->
   String ->
   SEval sym (GenValue sym)
-errorV sym ty msg = case ty of
-  -- bits
-  TVBit -> cryUserError sym msg
-  TVInteger -> cryUserError sym msg
-  TVIntMod _ -> cryUserError sym msg
-  TVRational -> cryUserError sym msg
-  TVArray{} -> cryUserError sym msg
-  TVFloat {} -> cryUserError sym msg
+errorV sym ty0 msg =
+     do stk <- sGetCallStack sym
+        loop stk ty0
+  where
+  err stk = sWithCallStack sym stk (cryUserError sym msg)
 
-  -- sequences
-  TVSeq w ety
-     | isTBit ety -> return $ VWord w $ return $ LargeBitsVal w $ IndexSeqMap $ \_ -> cryUserError sym msg
-     | otherwise  -> return $ VSeq w (IndexSeqMap $ \_ -> errorV sym ety msg)
+  loop stk = \case
+       TVBit -> err stk
+       TVInteger -> err stk
+       TVIntMod _ -> err stk
+       TVRational -> err stk
+       TVArray{} -> err stk
+       TVFloat {} -> err stk
 
-  TVStream ety ->
-    return $ VStream (IndexSeqMap $ \_ -> errorV sym ety msg)
+       -- sequences
+       TVSeq w ety
+          | isTBit ety -> return $ VWord w $ return $ LargeBitsVal w $ IndexSeqMap $ \_ -> err stk
+          | otherwise  -> return $ VSeq w $ IndexSeqMap $ \_ -> loop stk ety
 
-  -- functions
-  TVFun _ bty ->
-    return $ lam (\ _ -> errorV sym bty msg)
+       TVStream ety -> return $ VStream $ IndexSeqMap $ \_ -> loop stk ety
 
-  -- tuples
-  TVTuple tys ->
-    return $ VTuple (map (\t -> errorV sym t msg) tys)
+       -- functions
+       TVFun _ bty -> lam sym (\ _ -> loop stk bty)
 
-  -- records
-  TVRec fields ->
-    return $ VRecord $ fmap (\t -> errorV sym t msg) $ fields
+       -- tuples
+       TVTuple tys -> return $ VTuple (map (\t -> loop stk t) tys)
 
-  TVAbstract {} -> cryUserError sym msg
+       -- records
+       TVRec fields -> return $ VRecord $ fmap (\t -> loop stk t) $ fields
+
+       TVAbstract {} -> err stk
 
 
 {-# INLINE valueToChar #-}
@@ -1862,7 +1900,7 @@ mergeWord :: Backend sym =>
 mergeWord sym c (WordVal w1) (WordVal w2) =
   WordVal <$> iteWord sym c w1 w2
 mergeWord sym c w1 w2 =
-  LargeBitsVal (wordValueSize sym w1) <$> memoMap (mergeSeqMap sym c (asBitsMap sym w1) (asBitsMap sym w2))
+  LargeBitsVal (wordValueSize sym w1) <$> memoMap sym (mergeSeqMap sym c (asBitsMap sym w1) (asBitsMap sym w2))
 
 {-# INLINE mergeWord' #-}
 mergeWord' :: Backend sym =>
@@ -1901,10 +1939,10 @@ mergeValue sym c v1 v2 =
     (VInteger i1 , VInteger i2 ) -> VInteger <$> iteInteger sym c i1 i2
     (VRational q1, VRational q2) -> VRational <$> iteRational sym c q1 q2
     (VWord n1 w1 , VWord n2 w2 ) | n1 == n2 -> pure $ VWord n1 $ mergeWord' sym c w1 w2
-    (VSeq n1 vs1 , VSeq n2 vs2 ) | n1 == n2 -> VSeq n1 <$> memoMap (mergeSeqMap sym c vs1 vs2)
-    (VStream vs1 , VStream vs2 ) -> VStream <$> memoMap (mergeSeqMap sym c vs1 vs2)
-    (VFun f1     , VFun f2     ) -> pure $ VFun $ \x -> mergeValue' sym c (f1 x) (f2 x)
-    (VPoly f1    , VPoly f2    ) -> pure $ VPoly $ \x -> mergeValue' sym c (f1 x) (f2 x)
+    (VSeq n1 vs1 , VSeq n2 vs2 ) | n1 == n2 -> VSeq n1 <$> memoMap sym (mergeSeqMap sym c vs1 vs2)
+    (VStream vs1 , VStream vs2 ) -> VStream <$> memoMap sym (mergeSeqMap sym c vs1 vs2)
+    (f1@VFun{}   , f2@VFun{}   ) -> lam sym $ \x -> mergeValue' sym c (fromVFun sym f1 x) (fromVFun sym f2 x)
+    (f1@VPoly{}  , f2@VPoly{}  ) -> tlam sym $ \x -> mergeValue' sym c (fromVPoly sym f1 x) (fromVPoly sym f2 x)
     (_           , _           ) -> panic "Cryptol.Eval.Generic"
                                   [ "mergeValue: incompatible values" ]
 
@@ -1921,53 +1959,55 @@ mergeSeqMap sym c x y =
 
 
 
-foldlV :: Backend sym => sym -> GenValue sym
+foldlV :: Backend sym => sym -> Prim sym
 foldlV sym =
-  ilam $ \_n ->
-  tlam $ \_a ->
-  tlam $ \_b ->
-  lam $ \f -> pure $
-  lam $ \z -> pure $
-  lam $ \v ->
-    v >>= \case
+  PNumPoly \_n ->
+  PTyPoly  \_a ->
+  PTyPoly  \_b ->
+  PFun     \f ->
+  PFun     \z ->
+  PStrict  \v ->
+  PPrim
+    case v of
       VSeq n m    -> go0 f z (enumerateSeqMap n m)
       VWord _n wv -> go0 f z . map (pure . VBit) =<< (enumerateWordValue sym =<< wv)
       _ -> panic "Cryptol.Eval.Generic.foldlV" ["Expected finite sequence"]
   where
   go0 _f a [] = a
   go0 f a bs =
-    do f' <- fromVFun <$> f
+    do f' <- fromVFun sym <$> f
        go1 f' a bs
 
   go1 _f a [] = a
   go1 f a (b:bs) =
-    do f' <- fromVFun <$> (f a)
+    do f' <- fromVFun sym <$> (f a)
        go1 f (f' b) bs
 
-foldl'V :: Backend sym => sym -> GenValue sym
+foldl'V :: Backend sym => sym -> Prim sym
 foldl'V sym =
-  ilam $ \_n ->
-  tlam $ \_a ->
-  tlam $ \_b ->
-  lam $ \f -> pure $
-  lam $ \z -> pure $
-  lam $ \v ->
-    v >>= \case
+  PNumPoly \_n ->
+  PTyPoly  \_a ->
+  PTyPoly  \_b ->
+  PFun     \f ->
+  PFun     \z ->
+  PStrict  \v ->
+  PPrim
+    case v of
       VSeq n m    -> go0 f z (enumerateSeqMap n m)
       VWord _n wv -> go0 f z . map (pure . VBit) =<< (enumerateWordValue sym =<< wv)
       _ -> panic "Cryptol.Eval.Generic.foldlV" ["Expected finite sequence"]
   where
   go0 _f a [] = a
   go0 f a bs =
-    do f' <- fromVFun <$> f
-       a' <- sDelay sym Nothing a
+    do f' <- fromVFun sym <$> f
+       a' <- sDelay sym a
        forceValue =<< a'
        go1 f' a' bs
 
   go1 _f a [] = a
   go1 f a (b:bs) =
-    do f' <- fromVFun <$> (f a)
-       a' <- sDelay sym Nothing (f' b)
+    do f' <- fromVFun sym <$> (f a)
+       a' <- sDelay sym (f' b)
        forceValue =<< a'
        go1 f a' bs
 
@@ -1994,14 +2034,15 @@ randomV sym ty seed =
 --------------------------------------------------------------------------------
 -- Experimental parallel primitives
 
-parmapV :: Backend sym => sym -> GenValue sym
+parmapV :: Backend sym => sym -> Prim sym
 parmapV sym =
-  tlam $ \_a ->
-  tlam $ \_b ->
-  ilam $ \_n ->
-  lam $ \f -> pure $
-  lam $ \xs ->
-    do f' <- fromVFun <$> f
+  PTyPoly \_a ->
+  PTyPoly \_b ->
+  PFinPoly \_n ->
+  PFun \f ->
+  PFun \xs ->
+  PPrim
+    do f' <- fromVFun sym <$> f
        xs' <- xs
        case xs' of
           VWord n w ->
@@ -2022,10 +2063,10 @@ sparkParMap ::
   SeqMap sym ->
   SEval sym (SeqMap sym)
 sparkParMap sym f n m =
-  finiteSeqMap sym <$> mapM (sSpark sym . g) (enumerateSeqMap n m)
+  finiteSeqMap <$> mapM (sSpark sym . g) (enumerateSeqMap n m)
  where
  g x =
-   do z <- sDelay sym Nothing (f x)
+   do z <- sDelay sym (f x)
       forceValue =<< z
       z
 
@@ -2033,14 +2074,14 @@ sparkParMap sym f n m =
 -- Floating Point Operations
 
 -- | Make a Cryptol value for a binary arithmetic function.
-fpBinArithV :: Backend sym => sym -> FPArith2 sym -> GenValue sym
+fpBinArithV :: Backend sym => sym -> FPArith2 sym -> Prim sym
 fpBinArithV sym fun =
-  ilam \_ ->
-  ilam \_ ->
-  wlam sym \r ->
-  pure $ flam \x ->
-  pure $ flam \y ->
-  VFloat <$> fun sym r x y
+  PFinPoly  \_e ->
+  PFinPoly  \_p ->
+  PWordFun  \r ->
+  PFloatFun \x ->
+  PFloatFun \y ->
+  PPrim (VFloat <$> fun sym r x y)
 
 -- | Rounding mode used in FP operations that do not specify it explicitly.
 fpRndMode, fpRndRNE, fpRndRNA, fpRndRTP, fpRndRTN, fpRndRTZ ::
@@ -2051,3 +2092,189 @@ fpRndRNA sym = wordLit sym 3 1 {- to nearest, ties to away from 0 -}
 fpRndRTP sym = wordLit sym 3 2 {- to +inf -}
 fpRndRTN sym = wordLit sym 3 3 {- to -inf -}
 fpRndRTZ sym = wordLit sym 3 4 {- to 0    -}
+
+
+
+{-# SPECIALIZE genericPrimTable :: Concrete -> Map PrimIdent (Prim Concrete) #-}
+
+genericPrimTable :: Backend sym => sym -> Map PrimIdent (Prim sym)
+genericPrimTable sym =
+  Map.fromList $ map (\(n, v) -> (prelPrim n, v))
+
+  [ -- Literals
+    ("True"       , PVal $ VBit (bitLit sym True))
+  , ("False"      , PVal $ VBit (bitLit sym False))
+  , ("number"     , {-# SCC "Prelude::number" #-}
+                    ecNumberV sym)
+  , ("ratio"      , {-# SCC "Prelude::ratio" #-}
+                    ratioV sym)
+  , ("fraction"   , ecFractionV sym)
+
+    -- Zero
+  , ("zero"       , {-# SCC "Prelude::zero" #-}
+                    PTyPoly \ty ->
+                    PPrim (zeroV sym ty))
+
+    -- Logic
+  , ("&&"         , {-# SCC "Prelude::(&&)" #-}
+                    binary (andV sym))
+  , ("||"         , {-# SCC "Prelude::(||)" #-}
+                    binary (orV sym))
+  , ("^"          , {-# SCC "Prelude::(^)" #-}
+                    binary (xorV sym))
+  , ("complement" , {-# SCC "Prelude::complement" #-}
+                    unary  (complementV sym))
+
+    -- Ring
+  , ("fromInteger", {-# SCC "Prelude::fromInteger" #-}
+                    fromIntegerV sym)
+  , ("+"          , {-# SCC "Prelude::(+)" #-}
+                    binary (addV sym))
+  , ("-"          , {-# SCC "Prelude::(-)" #-}
+                    binary (subV sym))
+  , ("*"          , {-# SCC "Prelude::(*)" #-}
+                    binary (mulV sym))
+  , ("negate"     , {-# SCC "Prelude::negate" #-}
+                    unary (negateV sym))
+
+    -- Integral
+  , ("toInteger"  , {-# SCC "Prelude::toInteger" #-}
+                    toIntegerV sym)
+  , ("/"          , {-# SCC "Prelude::(/)" #-}
+                    binary (divV sym))
+  , ("%"          , {-# SCC "Prelude::(%)" #-}
+                    binary (modV sym))
+  , ("^^"         , {-# SCC "Prelude::(^^)" #-}
+                    expV sym)
+  , ("infFrom"    , {-# SCC "Prelude::infFrom" #-}
+                    infFromV sym)
+  , ("infFromThen", {-# SCC "Prelude::infFromThen" #-}
+                    infFromThenV sym)
+
+    -- Field
+  , ("recip"      , {-# SCC "Prelude::recip" #-}
+                    recipV sym)
+  , ("/."         , {-# SCC "Prelude::(/.)" #-}
+                    fieldDivideV sym)
+
+    -- Round
+  , ("floor"      , {-# SCC "Prelude::floor" #-}
+                    unary (floorV sym))
+  , ("ceiling"    , {-# SCC "Prelude::ceiling" #-}
+                    unary (ceilingV sym))
+  , ("trunc"      , {-# SCC "Prelude::trunc" #-}
+                    unary (truncV sym))
+  , ("roundAway"  , {-# SCC "Prelude::roundAway" #-}
+                    unary (roundAwayV sym))
+  , ("roundToEven", {-# SCC "Prelude::roundToEven" #-}
+                    unary (roundToEvenV sym))
+
+    -- Bitvector specific operations
+  , ("/$"         , {-# SCC "Prelude::(/$)" #-}
+                    sdivV sym)
+  , ("%$"         , {-# SCC "Prelude::(%$)" #-}
+                    smodV sym)
+  , ("lg2"        , {-# SCC "Prelude::lg2" #-}
+                    lg2V sym)
+
+    -- Cmp
+  , ("<"          , {-# SCC "Prelude::(<)" #-}
+                    binary (lessThanV sym))
+  , (">"          , {-# SCC "Prelude::(>)" #-}
+                    binary (greaterThanV sym))
+  , ("<="         , {-# SCC "Prelude::(<=)" #-}
+                    binary (lessThanEqV sym))
+  , (">="         , {-# SCC "Prelude::(>=)" #-}
+                    binary (greaterThanEqV sym))
+  , ("=="         , {-# SCC "Prelude::(==)" #-}
+                    binary (eqV sym))
+  , ("!="         , {-# SCC "Prelude::(!=)" #-}
+                    binary (distinctV sym))
+
+    -- SignedCmp
+  , ("<$"         , {-# SCC "Prelude::(<$)" #-}
+                    binary (signedLessThanV sym))
+
+    -- Finite enumerations
+  , ("fromTo"     , {-# SCC "Prelude::fromTo" #-}
+                    fromToV sym)
+  , ("fromThenTo" , {-# SCC "Prelude::fromThenTo" #-}
+                    fromThenToV sym)
+
+    -- Sequence manipulations
+  , ("#"          , {-# SCC "Prelude::(#)" #-}
+                    PFinPoly \front ->
+                    PNumPoly \back  ->
+                    PTyPoly  \elty  ->
+                    PFun \l ->
+                    PFun \r ->
+                    PPrim (join (ccatV sym (Nat front) back elty <$> l <*> r)))
+
+  , ("join"       , {-# SCC "Prelude::join" #-}
+                    PNumPoly \parts ->
+                    PFinPoly \each  ->
+                    PTyPoly  \a     ->
+                    PStrict  \x   ->
+                    PPrim $ joinV sym parts each a x)
+
+  , ("split"      , {-# SCC "Prelude::split" #-}
+                    ecSplitV sym)
+
+  , ("splitAt"    , {-# SCC "Prelude::splitAt" #-}
+                    PNumPoly \front ->
+                    PNumPoly \back  ->
+                    PTyPoly  \a     ->
+                    PStrict  \x   ->
+                    PPrim $ splitAtV sym front back a x)
+
+  , ("reverse"    , {-# SCC "Prelude::reverse" #-}
+                    PFinPoly \_a ->
+                    PTyPoly  \_b ->
+                    PStrict  \xs ->
+                    PPrim $ reverseV sym xs)
+
+  , ("transpose"  , {-# SCC "Prelude::transpose" #-}
+                    PNumPoly \a ->
+                    PNumPoly \b ->
+                    PTyPoly  \c ->
+                    PStrict  \xs ->
+                    PPrim $ transposeV sym a b c xs)
+
+    -- Misc
+
+    -- {at,len} (fin len) => [len][8] -> at
+  , ("error"      , {-# SCC "Prelude::error" #-}
+                     PTyPoly  \a ->
+                     PFinPoly \_ ->
+                     PStrict  \s ->
+                     PPrim (errorV sym a =<< valueToString sym s))
+
+  , ("random"      , {-# SCC "Prelude::random" #-}
+                     PTyPoly  \a ->
+                     PWordFun \x ->
+                     PPrim
+                       case wordAsLit sym x of
+                         Just (_,i)  -> randomV sym a i
+                         Nothing -> liftIO (X.throw (UnsupportedSymbolicOp "random")))
+
+  , ("foldl"      , {-# SCC "Prelude::foldl" #-}
+                    foldlV sym)
+
+  , ("foldl'"     , {-# SCC "Prelude::foldl'" #-}
+                    foldl'V sym)
+
+  , ("deepseq"    , {-# SCC "Prelude::deepseq" #-}
+                    PTyPoly \_a ->
+                    PTyPoly \_b ->
+                    PFun \x ->
+                    PFun \y ->
+                    PPrim do _ <- forceValue =<< x
+                             y)
+
+  , ("parmap"     , {-# SCC "Prelude::parmap" #-}
+                    parmapV sym)
+
+  , ("fromZ"      , {-# SCC "Prelude::fromZ" #-}
+                    fromZV sym)
+
+  ]

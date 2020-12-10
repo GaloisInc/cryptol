@@ -78,7 +78,9 @@ tcExpr e0 inp = runInferM inp
   where
   go loc expr =
     case expr of
-      P.ELocated e loc' -> go loc' e
+      P.ELocated e loc' ->
+        do (te, sch) <- go loc' e
+           pure $! if inpCallStacks inp then (ELocated loc' te, sch) else (te,sch)
       P.EVar x  ->
         do res <- lookupVar x
            case res of

@@ -230,6 +230,7 @@ instance Inst Expr where
         in ESel (EVar paramModRecParam) (RecordSel (nameIdent x) (Just sh))
       | otherwise -> EVar x
 
+     ELocated r t -> ELocated r (inst ps t)
      EList es t -> EList (inst ps es) (inst ps t)
      ETuple es -> ETuple (inst ps es)
      ERec fs   -> ERec (fmap (inst ps) fs)

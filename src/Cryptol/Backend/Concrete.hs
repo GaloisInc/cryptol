@@ -136,10 +136,12 @@ instance Backend Concrete where
   type SFloat Concrete = FP.BF
   type SEval Concrete = Eval
 
-  raiseError _ err = io (X.throwIO err)
+  raiseError _ err =
+    do stk <- getCallStack
+       io (X.throwIO (EvalErrorEx stk err))
 
   assertSideCondition _ True _ = return ()
-  assertSideCondition _ False err = io (X.throwIO err)
+  assertSideCondition sym False err = raiseError sym err
 
   wordLen _ (BV w _) = w
   wordAsChar _ (BV _ x) = Just $! integerToChar x
@@ -160,6 +162,8 @@ instance Backend Concrete where
   sDeclareHole _ = blackhole
   sDelayFill _ = delayFill
   sSpark _ = evalSpark
+  sModifyCallStack _ f m = modifyCallStack f m
+  sGetCallStack _ = getCallStack
 
   ppBit _ b | b         = text "True"
             | otherwise = text "False"
@@ -391,8 +395,5 @@ fpRoundMode sym w =
   case FP.fpRound (bvVal w) of
     Left err -> raiseError sym err
     Right a  -> pure a
-
-
-
 
 

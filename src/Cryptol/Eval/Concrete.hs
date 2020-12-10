@@ -25,7 +25,7 @@ module Cryptol.Eval.Concrete
   , toExpr
   ) where
 
-import Control.Monad (join, guard, zipWithM, foldM)
+import Control.Monad (guard, zipWithM, foldM, mzero)
 import Data.Bits (Bits(..))
 import Data.Ratio((%),numerator,denominator)
 import Data.Word(Word32, Word64)
@@ -44,6 +44,7 @@ import Cryptol.Backend.FloatHelpers
 import Cryptol.Backend.Monad
 
 import Cryptol.Eval.Generic hiding (logicShift)
+import Cryptol.Eval.Prims
 import Cryptol.Eval.Type
 import Cryptol.Eval.Value
 import qualified Cryptol.SHA as SHA
@@ -103,10 +104,10 @@ toExpr prims t0 v0 = findOne (go t0 v0)
       VWord _ wval ->
         do BV _ v <- lift (asWordVal Concrete =<< wval)
            pure $ ETApp (ETApp (prim "number") (tNum v)) ty
-      VStream _  -> fail "cannot construct infinite expressions"
-      VFun _     -> fail "cannot convert function values to expressions"
-      VPoly _    -> fail "cannot convert polymorphic values to expressions"
-      VNumPoly _ -> fail "cannot convert polymorphic values to expressions"
+      VStream _  -> mzero
+      VFun{}     -> mzero
+      VPoly{}    -> mzero
+      VNumPoly{} -> mzero
     where
       mismatch :: forall a. ChoiceT Eval a
       mismatch =
@@ -139,152 +140,17 @@ floatToExpr prims eT pT f =
 
 -- Primitives ------------------------------------------------------------------
 
-primTable :: EvalOpts -> Map PrimIdent Value
+primTable :: EvalOpts -> Map PrimIdent (Prim Concrete)
 primTable eOpts = let sym = Concrete in
+  Map.union (genericPrimTable sym) $
   Map.union (floatPrims sym) $
   Map.union suiteBPrims $
   Map.union primeECPrims $
 
   Map.fromList $ map (\(n, v) -> (prelPrim n, v))
 
-  [ -- Literals
-    ("True"       , VBit (bitLit sym True))
-  , ("False"      , VBit (bitLit sym False))
-  , ("number"     , {-# SCC "Prelude::number" #-}
-                    ecNumberV sym)
-  , ("ratio"      , {-# SCC "Prelude::ratio" #-}
-                    ratioV sym)
-  , ("fraction"   , ecFractionV sym)
-
-
-    -- Zero
-  , ("zero"       , {-# SCC "Prelude::zero" #-}
-                    VPoly (zeroV sym))
-
-    -- Logic
-  , ("&&"         , {-# SCC "Prelude::(&&)" #-}
-                    binary (andV sym))
-  , ("||"         , {-# SCC "Prelude::(||)" #-}
-                    binary (orV sym))
-  , ("^"          , {-# SCC "Prelude::(^)" #-}
-                    binary (xorV sym))
-  , ("complement" , {-# SCC "Prelude::complement" #-}
-                    unary  (complementV sym))
-
-    -- Ring
-  , ("fromInteger", {-# SCC "Prelude::fromInteger" #-}
-                    fromIntegerV sym)
-  , ("+"          , {-# SCC "Prelude::(+)" #-}
-                    binary (addV sym))
-  , ("-"          , {-# SCC "Prelude::(-)" #-}
-                    binary (subV sym))
-  , ("*"          , {-# SCC "Prelude::(*)" #-}
-                    binary (mulV sym))
-  , ("negate"     , {-# SCC "Prelude::negate" #-}
-                    unary (negateV sym))
-
-    -- Integral
-  , ("toInteger"  , {-# SCC "Prelude::toInteger" #-}
-                    toIntegerV sym)
-  , ("/"          , {-# SCC "Prelude::(/)" #-}
-                    binary (divV sym))
-  , ("%"          , {-# SCC "Prelude::(%)" #-}
-                    binary (modV sym))
-  , ("^^"         , {-# SCC "Prelude::(^^)" #-}
-                    expV sym)
-  , ("infFrom"    , {-# SCC "Prelude::infFrom" #-}
-                    infFromV sym)
-  , ("infFromThen", {-# SCC "Prelude::infFromThen" #-}
-                    infFromThenV sym)
-
-    -- Field
-  , ("recip"      , {-# SCC "Prelude::recip" #-}
-                    recipV sym)
-  , ("/."         , {-# SCC "Prelude::(/.)" #-}
-                    fieldDivideV sym)
-
-    -- Round
-  , ("floor"      , {-# SCC "Prelude::floor" #-}
-                    unary (floorV sym))
-  , ("ceiling"    , {-# SCC "Prelude::ceiling" #-}
-                    unary (ceilingV sym))
-  , ("trunc"      , {-# SCC "Prelude::trunc" #-}
-                    unary (truncV sym))
-  , ("roundAway"  , {-# SCC "Prelude::roundAway" #-}
-                    unary (roundAwayV sym))
-  , ("roundToEven", {-# SCC "Prelude::roundToEven" #-}
-                    unary (roundToEvenV sym))
-
-    -- Bitvector specific operations
-  , ("/$"         , {-# SCC "Prelude::(/$)" #-}
-                    sdivV sym)
-  , ("%$"         , {-# SCC "Prelude::(%$)" #-}
-                    smodV sym)
-  , ("lg2"        , {-# SCC "Prelude::lg2" #-}
-                    lg2V sym)
-  , (">>$"        , {-# SCC "Prelude::(>>$)" #-}
+  [ (">>$"        , {-# SCC "Prelude::(>>$)" #-}
                     sshrV)
-
-    -- Cmp
-  , ("<"          , {-# SCC "Prelude::(<)" #-}
-                    binary (lessThanV sym))
-  , (">"          , {-# SCC "Prelude::(>)" #-}
-                    binary (greaterThanV sym))
-  , ("<="         , {-# SCC "Prelude::(<=)" #-}
-                    binary (lessThanEqV sym))
-  , (">="         , {-# SCC "Prelude::(>=)" #-}
-                    binary (greaterThanEqV sym))
-  , ("=="         , {-# SCC "Prelude::(==)" #-}
-                    binary (eqV sym))
-  , ("!="         , {-# SCC "Prelude::(!=)" #-}
-                    binary (distinctV sym))
-
-    -- SignedCmp
-  , ("<$"         , {-# SCC "Prelude::(<$)" #-}
-                    binary (signedLessThanV sym))
-
-    -- Finite enumerations
-  , ("fromTo"     , {-# SCC "Prelude::fromTo" #-}
-                    fromToV sym)
-  , ("fromThenTo" , {-# SCC "Prelude::fromThenTo" #-}
-                    fromThenToV sym)
-
-    -- Sequence manipulations
-  , ("#"          , {-# SCC "Prelude::(#)" #-}
-                    nlam $ \ front ->
-                    nlam $ \ back  ->
-                    tlam $ \ elty  ->
-                    lam  $ \ l     -> return $
-                    lam  $ \ r     -> join (ccatV sym front back elty <$> l <*> r))
-
-
-  , ("join"       , {-# SCC "Prelude::join" #-}
-                    nlam $ \ parts ->
-                    nlam $ \ (finNat' -> each)  ->
-                    tlam $ \ a     ->
-                    lam  $ \ x     ->
-                      joinV sym parts each a =<< x)
-
-  , ("split"      , {-# SCC "Prelude::split" #-}
-                    ecSplitV sym)
-
-  , ("splitAt"    , {-# SCC "Prelude::splitAt" #-}
-                    nlam $ \ front ->
-                    nlam $ \ back  ->
-                    tlam $ \ a     ->
-                    lam  $ \ x     ->
-                       splitAtV sym front back a =<< x)
-
-  , ("reverse"    , {-# SCC "Prelude::reverse" #-}
-                    nlam $ \_a ->
-                    tlam $ \_b ->
-                     lam $ \xs -> reverseV sym =<< xs)
-
-  , ("transpose"  , {-# SCC "Prelude::transpose" #-}
-                    nlam $ \a ->
-                    nlam $ \b ->
-                    tlam $ \c ->
-                     lam $ \xs -> transposeV sym a b c =<< xs)
 
     -- Shifts and rotates
   , ("<<"         , {-# SCC "Prelude::(<<)" #-}
@@ -308,56 +174,27 @@ primTable eOpts = let sym = Concrete in
   , ("updateEnd"  , {-# SCC "Prelude::updateEnd" #-}
                     updatePrim sym updateBack_word updateBack)
 
-    -- Misc
-  , ("foldl"      , {-# SCC "Prelude::foldl" #-}
-                    foldlV sym)
-
-  , ("foldl'"     , {-# SCC "Prelude::foldl'" #-}
-                    foldl'V sym)
-
-  , ("deepseq"    , {-# SCC "Prelude::deepseq" #-}
-                    tlam $ \_a ->
-                    tlam $ \_b ->
-                     lam $ \x -> pure $
-                     lam $ \y ->
-                       do _ <- forceValue =<< x
-                          y)
-
-  , ("parmap"     , {-# SCC "Prelude::parmap" #-}
-                    parmapV sym)
-
-  , ("fromZ"      , {-# SCC "Prelude::fromZ" #-}
-                    fromZV sym)
-
-  , ("error"      , {-# SCC "Prelude::error" #-}
-                      tlam $ \a ->
-                      nlam $ \_ ->
-                       lam $ \s -> errorV sym a =<< (valueToString sym =<< s))
-
-  , ("random"      , {-# SCC "Prelude::random" #-}
-                     tlam $ \a ->
-                     wlam sym $ \(bvVal -> x) -> randomV sym a x)
-
   , ("trace"       , {-# SCC "Prelude::trace" #-}
-                     nlam $ \_n ->
-                     tlam $ \_a ->
-                     tlam $ \_b ->
-                      lam $ \s -> return $
-                      lam $ \x -> return $
-                      lam $ \y -> do
-                         msg <- valueToString sym =<< s
+                     PNumPoly \_n ->
+                     PTyPoly  \_a ->
+                     PTyPoly  \_b ->
+                     PFun     \s ->
+                     PFun     \x ->
+                     PFun     \y ->
+                     PPrim
+                      do msg <- valueToString sym =<< s
                          let EvalOpts { evalPPOpts, evalLogger } = eOpts
                          doc <- ppValue sym evalPPOpts =<< x
-                         yv <- y
                          io $ logPrint evalLogger
                              $ if null msg then doc else text msg <+> doc
-                         return yv)
+                         y)
 
    , ("pmult",
-        ilam $ \u ->
-        ilam $ \v ->
-          wlam Concrete $ \(BV _ x) -> return $
-          wlam Concrete $ \(BV _ y) ->
+        PFinPoly \u ->
+        PFinPoly \v ->
+        PWordFun \(BV _ x) ->
+        PWordFun \(BV _ y) ->
+        PPrim
             let z = if u <= v then
                       F2.pmult (fromInteger (u+1)) x y
                     else
@@ -365,56 +202,62 @@ primTable eOpts = let sym = Concrete in
              in return . VWord (1+u+v) . pure . WordVal . mkBv (1+u+v) $! z)
 
    , ("pmod",
-        ilam $ \_u ->
-        ilam $ \v ->
-        wlam Concrete $ \(BV w x) -> return $
-        wlam Concrete $ \(BV _ m) ->
+        PFinPoly \_u ->
+        PFinPoly \v ->
+        PWordFun \(BV w x) ->
+        PWordFun \(BV _ m) ->
+        PPrim
           do assertSideCondition sym (m /= 0) DivideByZero
              return . VWord v . pure . WordVal . mkBv v $! F2.pmod (fromInteger w) x m)
 
   , ("pdiv",
-        ilam $ \_u ->
-        ilam $ \_v ->
-        wlam Concrete $ \(BV w x) -> return $
-        wlam Concrete $ \(BV _ m) ->
+        PFinPoly \_u ->
+        PFinPoly \_v ->
+        PWordFun \(BV w x) ->
+        PWordFun \(BV _ m) ->
+        PPrim
           do assertSideCondition sym (m /= 0) DivideByZero
              return . VWord w . pure . WordVal . mkBv w $! F2.pdiv (fromInteger w) x m)
   ]
 
 
-primeECPrims :: Map.Map PrimIdent Value
+primeECPrims :: Map.Map PrimIdent (Prim Concrete)
 primeECPrims = Map.fromList $ map (\(n,v) -> (primeECPrim n, v))
   [ ("ec_double", {-# SCC "PrimeEC::ec_double" #-}
-       ilam $ \p ->
-        lam $ \s ->
+       PFinPoly \p ->
+       PFun     \s ->
+       PPrim
           do s' <- toProjectivePoint =<< s
              let r = PrimeEC.ec_double (PrimeEC.primeModulus p) s'
              fromProjectivePoint $! r)
 
   , ("ec_add_nonzero", {-# SCC "PrimeEC::ec_add_nonzero" #-}
-       ilam $ \p ->
-        lam $ \s -> pure $
-        lam $ \t ->
+       PFinPoly \p ->
+       PFun     \s ->
+       PFun     \t ->
+       PPrim 
           do s' <- toProjectivePoint =<< s
              t' <- toProjectivePoint =<< t
              let r = PrimeEC.ec_add_nonzero (PrimeEC.primeModulus p) s' t'
              fromProjectivePoint $! r)
 
   , ("ec_mult", {-# SCC "PrimeEC::ec_mult" #-}
-       ilam $ \p ->
-        lam $ \d -> pure $
-        lam $ \s ->
+       PFinPoly \p ->
+       PFun     \d ->
+       PFun     \s ->
+       PPrim
           do d' <- fromVInteger <$> d
              s' <- toProjectivePoint =<< s
              let r = PrimeEC.ec_mult (PrimeEC.primeModulus p) d' s'
              fromProjectivePoint $! r)
 
   , ("ec_twin_mult", {-# SCC "PrimeEC::ec_twin_mult" #-}
-       ilam $ \p ->
-        lam $ \d0 -> pure $
-        lam $ \s  -> pure $
-        lam $ \d1 -> pure $
-        lam $ \t  ->
+       PFinPoly \p  ->
+       PFun     \d0 ->
+       PFun     \s  ->
+       PFun     \d1 ->
+       PFun     \t  ->
+       PPrim
           do d0' <- fromVInteger <$> d0
              s'  <- toProjectivePoint =<< s
              d1' <- fromVInteger <$> d1
@@ -436,59 +279,64 @@ fromProjectivePoint (PrimeEC.ProjectivePoint x y z) =
 
 
 
-suiteBPrims :: Map.Map PrimIdent Value
+suiteBPrims :: Map.Map PrimIdent (Prim Concrete)
 suiteBPrims = Map.fromList $ map (\(n, v) -> (suiteBPrim n, v))
   [ ("processSHA2_224", {-# SCC "SuiteB::processSHA2_224" #-}
-                      ilam $ \n ->
-                       lam $ \xs ->
-                         do blks <- enumerateSeqMap n . fromVSeq <$> xs
-                            (SHA.SHA256S w0 w1 w2 w3 w4 w5 w6 _) <-
-                               foldM (\st blk -> seq st (SHA.processSHA256Block st <$> (toSHA256Block =<< blk)))
-                                     SHA.initialSHA224State blks
-                            let f :: Word32 -> Eval Value
-                                f = pure . VWord 32 . pure . WordVal . BV 32 . toInteger
-                                zs = finiteSeqMap Concrete (map f [w0,w1,w2,w3,w4,w5,w6])
-                            seq zs (pure (VSeq 7 zs)))
+     PFinPoly \n ->
+     PFun     \xs ->
+     PPrim
+        do blks <- enumerateSeqMap n . fromVSeq <$> xs
+           (SHA.SHA256S w0 w1 w2 w3 w4 w5 w6 _) <-
+              foldM (\st blk -> seq st (SHA.processSHA256Block st <$> (toSHA256Block =<< blk)))
+                    SHA.initialSHA224State blks
+           let f :: Word32 -> Eval Value
+               f = pure . VWord 32 . pure . WordVal . BV 32 . toInteger
+               zs = finiteSeqMap (map f [w0,w1,w2,w3,w4,w5,w6])
+           seq zs (pure (VSeq 7 zs)))
 
   , ("processSHA2_256", {-# SCC "SuiteB::processSHA2_256" #-}
-                      ilam $ \n ->
-                       lam $ \xs ->
-                         do blks <- enumerateSeqMap n . fromVSeq <$> xs
-                            (SHA.SHA256S w0 w1 w2 w3 w4 w5 w6 w7) <-
-                              foldM (\st blk -> seq st (SHA.processSHA256Block st <$> (toSHA256Block =<< blk)))
-                                    SHA.initialSHA256State blks
-                            let f :: Word32 -> Eval Value
-                                f = pure . VWord 32 . pure . WordVal . BV 32 . toInteger
-                                zs = finiteSeqMap Concrete (map f [w0,w1,w2,w3,w4,w5,w6,w7])
-                            seq zs (pure (VSeq 8 zs)))
+     PFinPoly \n ->
+     PFun     \xs ->
+     PPrim
+        do blks <- enumerateSeqMap n . fromVSeq <$> xs
+           (SHA.SHA256S w0 w1 w2 w3 w4 w5 w6 w7) <-
+             foldM (\st blk -> seq st (SHA.processSHA256Block st <$> (toSHA256Block =<< blk)))
+                   SHA.initialSHA256State blks
+           let f :: Word32 -> Eval Value
+               f = pure . VWord 32 . pure . WordVal . BV 32 . toInteger
+               zs = finiteSeqMap (map f [w0,w1,w2,w3,w4,w5,w6,w7])
+           seq zs (pure (VSeq 8 zs)))
 
   , ("processSHA2_384", {-# SCC "SuiteB::processSHA2_384" #-}
-                      ilam $ \n ->
-                       lam $ \xs ->
-                         do blks <- enumerateSeqMap n . fromVSeq <$> xs
-                            (SHA.SHA512S w0 w1 w2 w3 w4 w5 _ _) <-
-                              foldM (\st blk -> seq st (SHA.processSHA512Block st <$> (toSHA512Block =<< blk)))
-                                    SHA.initialSHA384State blks
-                            let f :: Word64 -> Eval Value
-                                f = pure . VWord 64 . pure . WordVal . BV 64 . toInteger
-                                zs = finiteSeqMap Concrete (map f [w0,w1,w2,w3,w4,w5])
-                            seq zs (pure (VSeq 6 zs)))
+     PFinPoly \n ->
+     PFun     \xs ->
+     PPrim
+        do blks <- enumerateSeqMap n . fromVSeq <$> xs
+           (SHA.SHA512S w0 w1 w2 w3 w4 w5 _ _) <-
+             foldM (\st blk -> seq st (SHA.processSHA512Block st <$> (toSHA512Block =<< blk)))
+                   SHA.initialSHA384State blks
+           let f :: Word64 -> Eval Value
+               f = pure . VWord 64 . pure . WordVal . BV 64 . toInteger
+               zs = finiteSeqMap (map f [w0,w1,w2,w3,w4,w5])
+           seq zs (pure (VSeq 6 zs)))
 
   , ("processSHA2_512", {-# SCC "SuiteB::processSHA2_512" #-}
-                      ilam $ \n ->
-                       lam $ \xs ->
-                         do blks <- enumerateSeqMap n . fromVSeq <$> xs
-                            (SHA.SHA512S w0 w1 w2 w3 w4 w5 w6 w7) <-
-                              foldM (\st blk -> seq st (SHA.processSHA512Block st <$> (toSHA512Block =<< blk)))
-                                    SHA.initialSHA512State blks
-                            let f :: Word64 -> Eval Value
-                                f = pure . VWord 64 . pure . WordVal . BV 64 . toInteger
-                                zs = finiteSeqMap Concrete (map f [w0,w1,w2,w3,w4,w5,w6,w7])
-                            seq zs (pure (VSeq 8 zs)))
+     PFinPoly \n ->
+     PFun     \xs ->
+     PPrim
+        do blks <- enumerateSeqMap n . fromVSeq <$> xs
+           (SHA.SHA512S w0 w1 w2 w3 w4 w5 w6 w7) <-
+             foldM (\st blk -> seq st (SHA.processSHA512Block st <$> (toSHA512Block =<< blk)))
+                   SHA.initialSHA512State blks
+           let f :: Word64 -> Eval Value
+               f = pure . VWord 64 . pure . WordVal . BV 64 . toInteger
+               zs = finiteSeqMap (map f [w0,w1,w2,w3,w4,w5,w6,w7])
+           seq zs (pure (VSeq 8 zs)))
 
   , ("AESKeyExpand", {-# SCC "SuiteB::AESKeyExpand" #-}
-      ilam $ \k ->
-       lam $ \seed ->
+      PFinPoly \k ->
+      PFun     \seed ->
+      PPrim
          do ss <- fromVSeq <$> seed
             let toWord :: Integer -> Eval Word32
                 toWord i = fromInteger. bvVal <$> (fromVWord Concrete "AESInfKeyExpand" =<< lookupSeqMap ss i)
@@ -497,10 +345,11 @@ suiteBPrims = Map.fromList $ map (\(n, v) -> (suiteBPrim n, v))
             kws <- mapM toWord [0 .. k-1]
             let ws = AES.keyExpansionWords k kws
             let len = 4*(k+7)
-            pure (VSeq len (finiteSeqMap Concrete (map fromWord ws))))
+            pure (VSeq len (finiteSeqMap (map fromWord ws))))
 
   , ("AESInvMixColumns", {-# SCC "SuiteB::AESInvMixColumns" #-}
-      lam $ \st ->
+      PFun \st ->
+      PPrim
          do ss <- fromVSeq <$> st
             let toWord :: Integer -> Eval Word32
                 toWord i = fromInteger. bvVal <$> (fromVWord Concrete "AESInvMixColumns" =<< lookupSeqMap ss i)
@@ -508,10 +357,11 @@ suiteBPrims = Map.fromList $ map (\(n, v) -> (suiteBPrim n, v))
                 fromWord = pure . VWord 32 . pure . WordVal . BV 32 . toInteger
             ws <- mapM toWord [0,1,2,3]
             let ws' = AES.invMixColumns ws
-            pure . VSeq 4 . finiteSeqMap Concrete . map fromWord $ ws')
+            pure . VSeq 4 . finiteSeqMap . map fromWord $ ws')
 
   , ("AESEncRound", {-# SCC "SuiteB::AESEncRound" #-}
-      lam $ \st ->
+      PFun \st ->
+      PPrim
          do ss <- fromVSeq <$> st
             let toWord :: Integer -> Eval Word32
                 toWord i = fromInteger. bvVal <$> (fromVWord Concrete "AESEncRound" =<< lookupSeqMap ss i)
@@ -519,10 +369,11 @@ suiteBPrims = Map.fromList $ map (\(n, v) -> (suiteBPrim n, v))
                 fromWord = pure . VWord 32 . pure . WordVal . BV 32 . toInteger
             ws <- mapM toWord [0,1,2,3]
             let ws' = AES.aesRound ws
-            pure . VSeq 4 . finiteSeqMap Concrete . map fromWord $ ws')
+            pure . VSeq 4 . finiteSeqMap . map fromWord $ ws')
 
   , ("AESEncFinalRound", {-# SCC "SuiteB::AESEncFinalRound" #-}
-      lam $ \st ->
+     PFun \st ->
+     PPrim
          do ss <- fromVSeq <$> st
             let toWord :: Integer -> Eval Word32
                 toWord i = fromInteger. bvVal <$> (fromVWord Concrete "AESEncFinalRound" =<< lookupSeqMap ss i)
@@ -530,10 +381,11 @@ suiteBPrims = Map.fromList $ map (\(n, v) -> (suiteBPrim n, v))
                 fromWord = pure . VWord 32 . pure . WordVal . BV 32 . toInteger
             ws <- mapM toWord [0,1,2,3]
             let ws' = AES.aesFinalRound ws
-            pure . VSeq 4 . finiteSeqMap Concrete . map fromWord $ ws')
+            pure . VSeq 4 . finiteSeqMap . map fromWord $ ws')
 
   , ("AESDecRound", {-# SCC "SuiteB::AESDecRound" #-}
-      lam $ \st ->
+      PFun \st ->
+      PPrim
          do ss <- fromVSeq <$> st
             let toWord :: Integer -> Eval Word32
                 toWord i = fromInteger. bvVal <$> (fromVWord Concrete "AESDecRound" =<< lookupSeqMap ss i)
@@ -541,10 +393,11 @@ suiteBPrims = Map.fromList $ map (\(n, v) -> (suiteBPrim n, v))
                 fromWord = pure . VWord 32 . pure . WordVal . BV 32 . toInteger
             ws <- mapM toWord [0,1,2,3]
             let ws' = AES.aesInvRound ws
-            pure . VSeq 4 . finiteSeqMap Concrete . map fromWord $ ws')
+            pure . VSeq 4 . finiteSeqMap . map fromWord $ ws')
 
   , ("AESDecFinalRound", {-# SCC "SuiteB::AESDecFinalRound" #-}
-      lam $ \st ->
+     PFun \st ->
+     PPrim
          do ss <- fromVSeq <$> st
             let toWord :: Integer -> Eval Word32
                 toWord i = fromInteger. bvVal <$> (fromVWord Concrete "AESDecFinalRound" =<< lookupSeqMap ss i)
@@ -552,7 +405,7 @@ suiteBPrims = Map.fromList $ map (\(n, v) -> (suiteBPrim n, v))
                 fromWord = pure . VWord 32 . pure . WordVal . BV 32 . toInteger
             ws <- mapM toWord [0,1,2,3]
             let ws' = AES.aesInvFinalRound ws
-            pure . VSeq 4 . finiteSeqMap Concrete . map fromWord $ ws')
+            pure . VSeq 4 . finiteSeqMap . map fromWord $ ws')
   ]
 
 
@@ -603,12 +456,13 @@ toSHA512Block blk =
 
 --------------------------------------------------------------------------------
 
-sshrV :: Value
+sshrV :: Prim Concrete
 sshrV =
-  nlam $ \_n ->
-  tlam $ \ix ->
-  wlam Concrete $ \(BV w x) -> return $
-  lam $ \y ->
+  PNumPoly \_n ->
+  PTyPoly  \ix ->
+  PWordFun \(BV w x) ->
+  PFun     \y ->
+  PPrim
    do idx <- y >>= asIndex Concrete ">>$" ix >>= \case
                  Left idx -> pure idx
                  Right wv -> bvVal <$> asWordVal Concrete wv
@@ -618,14 +472,15 @@ logicShift :: (Integer -> Integer -> Integer -> Integer)
               -- ^ The function may assume its arguments are masked.
               -- It is responsible for masking its result if needed.
            -> (Nat' -> TValue -> SeqMap Concrete -> Integer -> SeqMap Concrete)
-           -> Value
-logicShift opW opS
-  = nlam $ \ a ->
-    tlam $ \ _ix ->
-    tlam $ \ c ->
-     lam  $ \ l -> return $
-     lam  $ \ r -> do
-        i <- r >>= \case
+           -> Prim Concrete
+logicShift opW opS =
+  PNumPoly \a ->
+  PTyPoly  \_ix ->
+  PTyPoly  \c ->
+  PFun     \l ->
+  PFun     \r ->
+  PPrim
+     do i <- r >>= \case
           VInteger i -> pure i
           VWord _ wval -> bvVal <$> (asWordVal Concrete =<< wval)
           _ -> evalPanic "logicShift" ["not an index"]
@@ -797,33 +652,33 @@ updateBack_word (Nat n) _eltTy bs (Right w) val = do
   updateWordValue Concrete bs (n - idx - 1) (fromVBit <$> val)
 
 
-floatPrims :: Concrete -> Map PrimIdent Value
+floatPrims :: Concrete -> Map PrimIdent (Prim Concrete)
 floatPrims sym = Map.fromList [ (floatPrim i,v) | (i,v) <- nonInfixTable ]
   where
   (~>) = (,)
   nonInfixTable =
-    [ "fpNaN"       ~> ilam \e -> ilam \p ->
+    [ "fpNaN"       ~> PFinPoly \e -> PFinPoly \p -> PVal $
                         VFloat BF { bfValue = FP.bfNaN
                                   , bfExpWidth = e, bfPrecWidth = p }
 
-    , "fpPosInf"    ~> ilam \e -> ilam \p ->
+    , "fpPosInf"    ~> PFinPoly \e -> PFinPoly \p -> PVal $
                        VFloat BF { bfValue = FP.bfPosInf
                                  , bfExpWidth = e, bfPrecWidth = p }
 
-    , "fpFromBits"  ~> ilam \e -> ilam \p -> wlam sym \bv ->
-                       pure $ VFloat $ floatFromBits e p $ bvVal bv
+    , "fpFromBits"  ~> PFinPoly \e -> PFinPoly \p -> PWordFun \bv -> PVal $
+                       VFloat $ floatFromBits e p $ bvVal bv
 
-    , "fpToBits"    ~> ilam \e -> ilam \p -> flam \x ->
-                       pure $ word sym (e + p)
+    , "fpToBits"    ~> PFinPoly \e -> PFinPoly \p -> PFloatFun \x -> PVal
+                            $ word sym (e + p)
                             $ floatToBits e p
                             $ bfValue x
-    , "=.="         ~> ilam \_ -> ilam \_ -> flam \x -> pure $ flam \y ->
-                       pure $ VBit
+    , "=.="         ~> PFinPoly \_ -> PFinPoly \_ -> PFloatFun \x -> PFloatFun \y -> PVal
+                            $ VBit
                             $ bitLit sym
                             $ FP.bfCompare (bfValue x) (bfValue y) == EQ
 
-    , "fpIsFinite"  ~> ilam \_ -> ilam \_ -> flam \x ->
-                       pure $ VBit $ bitLit sym $ FP.bfIsFinite $ bfValue x
+    , "fpIsFinite"  ~> PFinPoly \_ -> PFinPoly \_ -> PFloatFun \x -> PVal
+                        $ VBit $ bitLit sym $ FP.bfIsFinite $ bfValue x
 
       -- From Backend class
     , "fpAdd"      ~> fpBinArithV sym fpPlus
@@ -832,18 +687,18 @@ floatPrims sym = Map.fromList [ (floatPrim i,v) | (i,v) <- nonInfixTable ]
     , "fpDiv"      ~> fpBinArithV sym fpDiv
 
     , "fpFromRational" ~>
-      ilam \e -> ilam \p -> wlam sym \r -> pure $ lam \x ->
+      PFinPoly \e -> PFinPoly \p -> PWordFun \r -> PFun \x ->
+      PPrim
         do rat <- fromVRational <$> x
            VFloat <$> do mode <- fpRoundMode sym r
                          pure $ floatFromRational e p mode
                               $ sNum rat % sDenom rat
     , "fpToRational" ~>
-      ilam \_e -> ilam \_p -> flam \fp ->
+      PFinPoly \_e -> PFinPoly \_p -> PFloatFun \fp ->
+      PPrim
       case floatToRational "fpToRational" fp of
         Left err -> raiseError sym err
         Right r  -> pure $
                       VRational
                         SRational { sNum = numerator r, sDenom = denominator r }
     ]
-
-

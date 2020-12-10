@@ -424,7 +424,7 @@ expr                          :: { Expr PName }
 
 -- | An expression without a `where` clause
 exprNoWhere                    :: { Expr PName }
-  : simpleExpr qop longRHS        { at ($1,$3) (binOp $1 $2 $3) }
+  : simpleExpr qop longRHS        { binOp $1 $2 $3 }
   | longRHS                       { $1 }
   | typedExpr                     { $1 }
 
@@ -441,7 +441,7 @@ typedExpr                      :: { Expr PName }
 
 -- A possibly infix expression (no where, no long application, no type annot)
 simpleExpr                     :: { Expr PName }
-  : simpleExpr qop simpleRHS      { at ($1,$3) (binOp $1 $2 $3) }
+  : simpleExpr qop simpleRHS      { binOp $1 $2 $3 }
   | simpleRHS                     { $1 }
 
 -- An expression without an obvious end marker

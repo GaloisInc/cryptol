@@ -35,31 +35,28 @@ import Data.Kind (Type)
 import Data.Ratio ( (%), numerator, denominator )
 
 import Cryptol.Backend.FloatHelpers (BF)
-import Cryptol.Backend.Monad ( PPOpts(..), EvalError(..) )
-import Cryptol.TypeCheck.AST(Name)
+import Cryptol.Backend.Monad
+  ( PPOpts(..), EvalError(..), CallStack, pushCallFrame )
+import Cryptol.ModuleSystem.Name(Name)
+import Cryptol.Parser.Position
 import Cryptol.Utils.PP
 
 
 invalidIndex :: Backend sym => sym -> Integer -> SEval sym a
-invalidIndex sym = raiseError sym . InvalidIndex . Just
+invalidIndex sym i = raiseError sym (InvalidIndex (Just i))
 
 cryUserError :: Backend sym => sym -> String -> SEval sym a
-cryUserError sym = raiseError sym . UserError
+cryUserError sym msg = raiseError sym (UserError msg)
 
 cryNoPrimError :: Backend sym => sym -> Name -> SEval sym a
-cryNoPrimError sym = raiseError sym . NoPrim
-
+cryNoPrimError sym nm = raiseError sym (NoPrim nm)
 
 {-# INLINE sDelay #-}
 -- | Delay the given evaluation computation, returning a thunk
 --   which will run the computation when forced.  Raise a loop
 --   error if the resulting thunk is forced during its own evaluation.
-sDelay :: Backend sym => sym -> Maybe String -> SEval sym a -> SEval sym (SEval sym a)
-sDelay sym msg m =
-  let msg'  = maybe "" ("while evaluating "++) msg
-      retry = raiseError sym (LoopError msg')
-   in sDelayFill sym m retry
-
+sDelay :: Backend sym => sym -> SEval sym a -> SEval sym (SEval sym a)
+sDelay sym m = sDelayFill sym m Nothing ""
 
 -- | Representation of rational numbers.
 --     Invariant: denominator is not 0
@@ -234,12 +231,26 @@ class MonadIO (SEval sym) => Backend sym where
   --   which will run the computation when forced.  Run the 'retry'
   --   computation instead if the resulting thunk is forced during
   --   its own evaluation.
-  sDelayFill :: sym -> SEval sym a -> SEval sym a -> SEval sym (SEval sym a)
+  sDelayFill :: sym -> SEval sym a -> Maybe (SEval sym a) -> String -> SEval sym (SEval sym a)
 
   -- | Begin evaluating the given computation eagerly in a separate thread
   --   and return a thunk which will await the completion of the given computation
   --   when forced.
   sSpark :: sym -> SEval sym a -> SEval sym (SEval sym a)
+
+  -- | Push a call frame on to the current call stack while evaluating the given action
+  sPushFrame :: sym -> Name -> Range -> SEval sym a -> SEval sym a
+  sPushFrame sym nm rng m = sModifyCallStack sym (pushCallFrame nm rng) m
+
+  -- | Use the given call stack while evaluating the given action
+  sWithCallStack :: sym -> CallStack -> SEval sym a -> SEval sym a
+  sWithCallStack sym stk m = sModifyCallStack sym (\_ -> stk) m
+
+  -- | Apply the given function to the current call stack while evaluating the given action
+  sModifyCallStack :: sym -> (CallStack -> CallStack) -> SEval sym a -> SEval sym a
+
+  -- | Retrieve the current evaluation call stack
+  sGetCallStack :: sym -> SEval sym CallStack
 
   -- | Merge the two given computations according to the predicate.
   mergeEval ::
@@ -256,7 +267,6 @@ class MonadIO (SEval sym) => Backend sym where
 
   -- | Indiciate that an error condition exists
   raiseError :: sym -> EvalError -> SEval sym a
-
 
   -- ==== Pretty printing  ====
   -- | Pretty-print an individual bit
@@ -674,7 +684,7 @@ class MonadIO (SEval sym) => Backend sym where
     SInteger sym ->
     SEval sym (SBit sym)
 
-  -- | Multiplicitive inverse in (Z n).
+  -- | Multiplicative inverse in (Z n).
   --   PRECONDITION: the modulus is a prime
   znRecip ::
     sym ->

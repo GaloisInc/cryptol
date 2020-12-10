@@ -1,4 +1,4 @@
 Loading module Cryptol
 
-[error] at <interactive>:1:2--1:7:
+[error] at issue322.icry:1:5--1:10:
   Named and positional type applications may not be mixed.

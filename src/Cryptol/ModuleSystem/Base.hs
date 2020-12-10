@@ -205,6 +205,8 @@ doLoadModule quiet isrc path fp pm0 =
      -- extend the eval env, unless a functor.
      tbl <- Concrete.primTable <$> getEvalOpts
      let ?evalPrim = \i -> Right <$> Map.lookup i tbl
+     callStacks <- getCallStacks
+     let ?callStacks = callStacks
      unless (T.isParametrizedModule tcm) $ modifyEvalEnv (E.moduleEnv Concrete tcm)
      loadedModule path fp tcm
 
@@ -453,7 +455,7 @@ checkSingleModule how isrc path m = do
 
 data TCLinter o = TCLinter
   { lintCheck ::
-      o -> T.InferInput -> Either TcSanity.Error [TcSanity.ProofObligation]
+      o -> T.InferInput -> Either (Range, TcSanity.Error) [TcSanity.ProofObligation]
   , lintModule :: Maybe P.ModName
   }
 
@@ -465,7 +467,9 @@ exprLinter = TCLinter
         Left err     -> Left err
         Right (s1,os)
           | TcSanity.same s s1  -> Right os
-          | otherwise -> Left (TcSanity.TypeMismatch "exprLinter" s s1)
+          | otherwise -> Left ( fromMaybe emptyRange (getLoc e')
+                              , TcSanity.TypeMismatch "exprLinter" s s1
+                              )
   , lintModule = Nothing
   }
 
@@ -532,6 +536,7 @@ genInferInput r prims params env = do
   cfg <- getSolverConfig
   supply <- getSupply
   searchPath <- getSearchPath
+  callStacks <- getCallStacks
 
   -- TODO: include the environment needed by the module
   return T.InferInput
@@ -542,6 +547,7 @@ genInferInput r prims params env = do
     , T.inpAbstractTypes = ifAbstractTypes env
     , T.inpNameSeeds = seeds
     , T.inpMonoBinds = monoBinds
+    , T.inpCallStacks = callStacks
     , T.inpSolverConfig = cfg
     , T.inpSearchPath = searchPath
     , T.inpSupply    = supply
@@ -562,7 +568,10 @@ evalExpr e = do
   evopts <- getEvalOpts
   let tbl = Concrete.primTable evopts
   let ?evalPrim = \i -> Right <$> Map.lookup i tbl
-  io $ E.runEval $ (E.evalExpr Concrete (env <> deEnv denv) e)
+  let ?range = emptyRange
+  callStacks <- getCallStacks
+  let ?callStacks = callStacks
+  io $ E.runEval mempty (E.evalExpr Concrete (env <> deEnv denv) e)
 
 evalDecls :: [T.DeclGroup] -> ModuleM ()
 evalDecls dgs = do
@@ -572,7 +581,9 @@ evalDecls dgs = do
   let env' = env <> deEnv denv
   let tbl = Concrete.primTable evOpts
   let ?evalPrim = \i -> Right <$> Map.lookup i tbl
-  deEnv' <- io $ E.runEval $ E.evalDecls Concrete dgs env'
+  callStacks <- getCallStacks
+  let ?callStacks = callStacks
+  deEnv' <- io $ E.runEval mempty (E.evalDecls Concrete dgs env')
   let denv' = denv { deDecls = deDecls denv ++ dgs
                    , deEnv = deEnv'
                    }

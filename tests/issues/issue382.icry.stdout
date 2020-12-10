@@ -1,67 +1,67 @@
 Loading module Cryptol
 
-[error] at <interactive>:1:1--1:5:
+[error] at issue382.icry:1:1--1:5:
   Type mismatch:
     Expected type: Bit
     Inferred type: [2]
     When checking user annotation
 
-[error] at <interactive>:1:1--1:20:
+[error] at issue382.icry:2:1--2:20:
   Type mismatch:
     Expected type: (Bit, Bit)
     Inferred type: (Bit, Bit, Bit)
     When checking user annotation
 
-[error] at <interactive>:1:1--1:8:
+[error] at issue382.icry:3:1--3:8:
   Type mismatch:
     Expected type: 4
     Inferred type: 5
     When checking user annotation
 
-[error] at <interactive>:1:1--1:14:
+[error] at issue382.icry:4:1--4:14:
   Type mismatch:
     Expected type: Bit
     Inferred type: (Bit, Bit)
     When checking user annotation
 
-[error] at <interactive>:1:1--1:11:
+[error] at issue382.icry:5:1--5:11:
   Type mismatch:
     Expected type: {a : Bit, b : Bit}
     Inferred type: {a : Bit}
     Missing field b
     When checking user annotation
 
-[error] at <interactive>:1:1--1:5:
+[error] at issue382.icry:6:1--6:5:
   Type mismatch:
     Expected type: [2]
     Inferred type: Bit
     When checking user annotation
 
-[error] at <interactive>:1:1--1:3:
+[error] at issue382.icry:7:1--7:3:
   Type mismatch:
     Expected type: inf
     Inferred type: 0
     When checking length of sequence
 
-[error] at <interactive>:1:9--1:11:
+[error] at issue382.icry:8:9--8:11:
   Type mismatch:
     Expected type: [3]
     Inferred type: {}
     When checking type of function argument
 
-[error] at <interactive>:1:9--1:22:
+[error] at issue382.icry:9:9--9:22:
   Type mismatch:
     Expected type: [3]
     Inferred type: (Bit, Bit)
     When checking type of function argument
 
-[error] at <interactive>:1:2--1:15:
+[error] at issue382.icry:10:2--10:15:
   Type mismatch:
     Expected type: [2]
     Inferred type: Bit -> Bit
     When checking user annotation
 
-[error] at <interactive>:1:1--1:5:
+[error] at issue382.icry:11:1--11:5:
   Type mismatch:
     Expected type: Bit -> Bit
     Inferred type: Bit

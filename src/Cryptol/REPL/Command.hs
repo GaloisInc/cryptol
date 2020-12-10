@@ -6,6 +6,8 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiWayIf #-}
@@ -72,6 +74,7 @@ import qualified Cryptol.Testing.Random  as TestR
 import Cryptol.Parser
     (parseExprWith,parseReplWith,ParseError(),Config(..),defaultConfig
     ,parseModName,parseHelpName)
+import           Cryptol.Parser.Position (Position(..),Range(..),HasLoc(..))
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck.Error as T
 import qualified Cryptol.TypeCheck.Parseable as T
@@ -135,7 +138,7 @@ import qualified Data.SBV.Internals as SBV (showTDiff)
 
 -- | Commands.
 data Command
-  = Command (REPL ())         -- ^ Successfully parsed command
+  = Command (Int -> Maybe FilePath -> REPL ())         -- ^ Successfully parsed command
   | Ambiguous String [String] -- ^ Ambiguous command, list of conflicting
                               --   commands
   | Unknown String            -- ^ The unknown command
@@ -159,8 +162,8 @@ instance Ord CommandDescr where
   compare = compare `on` cNames
 
 data CommandBody
-  = ExprArg     (String   -> REPL ())
-  | FileExprArg (FilePath -> String -> REPL ())
+  = ExprArg     (String   -> (Int,Int) -> Maybe FilePath -> REPL ())
+  | FileExprArg (FilePath -> String -> (Int,Int) -> Maybe FilePath -> REPL ())
   | DeclsArg    (String   -> REPL ())
   | ExprTypeArg (String   -> REPL ())
   | ModNameArg  (String   -> REPL ())
@@ -214,10 +217,10 @@ nbCommandList  =
   , CommandDescr [ ":s", ":set" ] ["[ OPTION [ = VALUE ] ]"] (OptionArg setOptionCmd)
     "Set an environmental option (:set on its own displays current values)."
     ""
-  , CommandDescr [ ":check" ] ["[ EXPR ]"] (ExprArg (void . qcCmd QCRandom))
+  , CommandDescr [ ":check" ] ["[ EXPR ]"] (ExprArg (qcCmd QCRandom))
     "Use random testing to check that the argument always returns true.\n(If no argument, check all properties.)"
     ""
-  , CommandDescr [ ":exhaust" ] ["[ EXPR ]"] (ExprArg (void . qcCmd QCExhaust))
+  , CommandDescr [ ":exhaust" ] ["[ EXPR ]"] (ExprArg (qcCmd QCExhaust))
     "Use exhaustive testing to prove that the argument always returns\ntrue. (If no argument, check all properties.)"
     ""
   , CommandDescr [ ":prove" ] ["[ EXPR ]"] (ExprArg proveCmd)
@@ -295,10 +298,10 @@ genHelp cs = map cmdHelp cs
 -- Command Evaluation ----------------------------------------------------------
 
 -- | Run a command.
-runCommand :: Command -> REPL CommandExitCode
-runCommand c = case c of
+runCommand :: Int -> Maybe FilePath -> Command -> REPL CommandExitCode
+runCommand lineNum mbBatch c = case c of
 
-  Command cmd -> (cmd >> return CommandOk) `Cryptol.REPL.Monad.catch` handler
+  Command cmd -> (cmd lineNum mbBatch >> return CommandOk) `Cryptol.REPL.Monad.catch` handler
     where
     handler re = rPutStrLn "" >> rPrint (pp re) >> return CommandError
 
@@ -338,9 +341,9 @@ getEvalOpts =
      l      <- getLogger
      return E.EvalOpts { E.evalPPOpts = ppOpts, E.evalLogger = l }
 
-evalCmd :: String -> REPL ()
-evalCmd str = do
-  ri <- replParseInput str
+evalCmd :: String -> Int -> Maybe FilePath -> REPL ()
+evalCmd str lineNum mbBatch = do
+  ri <- replParseInput str lineNum mbBatch
   case ri of
     P.ExprInput expr -> do
       (val,_ty) <- replEvalExpr expr
@@ -381,9 +384,9 @@ printSatisfyingModel pexpr vs =
      rPrint $ hang doc 2 (sep docs) <+> text ("= True")
 
 
-dumpTestsCmd :: FilePath -> String -> REPL ()
-dumpTestsCmd outFile str =
-  do expr <- replParseExpr str
+dumpTestsCmd :: FilePath -> String -> (Int,Int) -> Maybe FilePath -> REPL ()
+dumpTestsCmd outFile str pos fnm =
+  do expr <- replParseExpr str pos fnm
      (val, ty) <- replEvalExpr expr
      ppopts <- getPPValOpts
      testNum <- getKnownUser "tests" :: REPL Int
@@ -412,19 +415,21 @@ data QCMode = QCRandom | QCExhaust deriving (Eq, Show)
 -- | Randomly test a property, or exhaustively check it if the number
 -- of values in the type under test is smaller than the @tests@
 -- environment variable, or we specify exhaustive testing.
-qcCmd :: QCMode -> String -> REPL [TestReport]
-qcCmd qcMode "" =
+qcCmd :: QCMode -> String -> (Int,Int) -> Maybe FilePath -> REPL ()
+qcCmd qcMode "" pos fnm =
   do (xs,disp) <- getPropertyNames
      let nameStr x = show (fixNameDisp disp (pp x))
      if null xs
-        then rPutStrLn "There are no properties in scope." *> return []
-        else concat <$> (forM xs $ \x ->
+        then rPutStrLn "There are no properties in scope."
+        else forM_ xs $ \x ->
+               -- TOOD, this is pretty bogus.  Should find a way to do
+               --  this directly from the 'Name' instead of parsing it again.
                do let str = nameStr x
                   rPutStr $ "property " ++ str ++ " "
-                  qcCmd qcMode str)
+                  qcCmd qcMode str pos fnm
 
-qcCmd qcMode str =
-  do expr <- replParseExpr str
+qcCmd qcMode str pos fnm =
+  do expr <- replParseExpr str pos fnm
      (val,ty) <- replEvalExpr expr
      testNum <- (toInteger :: Int -> Integer) <$> getKnownUser "tests"
      tenv <- E.envTypes . M.deEnv <$> getDynEnv
@@ -448,7 +453,7 @@ qcCmd qcMode str =
             delProgress
             delTesting
             ppReport (map E.tValTy tys) expr True report
-            return [report]
+            --return [report]
 
        Just (sz,tys,_,gens) | qcMode == QCRandom -> do
             rPutStrLn "Using random testing."
@@ -472,7 +477,7 @@ qcCmd qcMode str =
             case sz of
               Just n | isPass res -> rPutStrLn $ coverageString testNum n
               _ -> return ()
-            return [report]
+            --return [report]
        _ -> raise (TypeNotTestable ty)
 
   where
@@ -606,7 +611,7 @@ expectedCoverage testNum sz =
 
    proportion = negate (expm1 (numD * log1p (negate (recip szD))))
 
-satCmd, proveCmd :: String -> REPL ()
+satCmd, proveCmd :: String -> (Int,Int) -> Maybe FilePath -> REPL ()
 satCmd = cmdProveSat True
 proveCmd = cmdProveSat False
 
@@ -628,16 +633,18 @@ rethrowErrorCall m = REPL (\r -> unREPL m r `X.catches` hs)
       ]
 
 -- | Attempts to prove the given term is safe for all inputs
-safeCmd :: String -> REPL ()
-safeCmd str = do
+safeCmd :: String -> (Int,Int) -> Maybe FilePath -> REPL ()
+safeCmd str pos fnm = do
   proverName <- getKnownUser "prover"
   fileName   <- getKnownUser "smtfile"
   let mfile = if fileName == "-" then Nothing else Just fileName
+  pexpr <- replParseExpr str pos fnm
+  let rng = fromMaybe (mkInteractiveRange pos fnm) (getLoc pexpr)
 
   if proverName `elem` ["offline","sbv-offline","w4-offline"] then
-    offlineProveSat proverName SafetyQuery str mfile
+    offlineProveSat proverName SafetyQuery pexpr mfile
   else
-     do (firstProver,result,stats) <- rethrowErrorCall (onlineProveSat proverName SafetyQuery str mfile)
+     do (firstProver,result,stats) <- rethrowErrorCall (onlineProveSat proverName SafetyQuery pexpr mfile)
         case result of
           EmptyResult         ->
             panic "REPL.Command" [ "got EmptyResult for online prover query" ]
@@ -651,11 +658,11 @@ safeCmd str = do
             let tes = map ( \(t,e,_) -> (t,e)) tevs
                 vs  = map ( \(_,_,v) -> v)     tevs
 
-            (t,e) <- mkSolverResult "counterexample" False (Right tes)
-            pexpr <- replParseExpr str
+            (t,e) <- mkSolverResult "counterexample" rng False (Right tes)
 
             ~(EnvBool yes) <- getUser "show-examples"
             when yes $ printCounterexample cexType pexpr vs
+            when yes $ printSafetyViolation pexpr vs
 
             void $ bindItVariable t e
 
@@ -670,8 +677,8 @@ safeCmd str = do
 -- console, and binds the @it@ variable to a record whose form depends
 -- on the expression given. See ticket #66 for a discussion of this
 -- design.
-cmdProveSat :: Bool -> String -> REPL ()
-cmdProveSat isSat "" =
+cmdProveSat :: Bool -> String -> (Int,Int) -> Maybe FilePath -> REPL ()
+cmdProveSat isSat "" pos fnm =
   do (xs,disp) <- getPropertyNames
      let nameStr x = show (fixNameDisp disp (pp x))
      if null xs
@@ -681,19 +688,21 @@ cmdProveSat isSat "" =
                   if isSat
                      then rPutStr $ ":sat "   ++ str ++ "\n\t"
                      else rPutStr $ ":prove " ++ str ++ "\n\t"
-                  cmdProveSat isSat str
-cmdProveSat isSat str = do
+                  cmdProveSat isSat str pos fnm
+cmdProveSat isSat str pos fnm = do
   let cexStr | isSat = "satisfying assignment"
              | otherwise = "counterexample"
   qtype <- if isSat then SatQuery <$> getUserSatNum else pure ProveQuery
   proverName <- getKnownUser "prover"
   fileName   <- getKnownUser "smtfile"
   let mfile = if fileName == "-" then Nothing else Just fileName
+  pexpr <- replParseExpr str pos fnm
+  let rng = fromMaybe (mkInteractiveRange pos fnm) (getLoc pexpr)
 
   if proverName `elem` ["offline","sbv-offline","w4-offline"] then
-     offlineProveSat proverName qtype str mfile
+     offlineProveSat proverName qtype pexpr mfile
   else
-     do (firstProver,result,stats) <- rethrowErrorCall (onlineProveSat proverName qtype str mfile)
+     do (firstProver,result,stats) <- rethrowErrorCall (onlineProveSat proverName qtype pexpr mfile)
         case result of
           EmptyResult         ->
             panic "REPL.Command" [ "got EmptyResult for online prover query" ]
@@ -702,7 +711,7 @@ cmdProveSat isSat str = do
 
           ThmResult ts        -> do
             rPutStrLn (if isSat then "Unsatisfiable" else "Q.E.D.")
-            (t, e) <- mkSolverResult cexStr (not isSat) (Left ts)
+            (t, e) <- mkSolverResult cexStr rng (not isSat) (Left ts)
             void $ bindItVariable t e
 
           CounterExample cexType tevs -> do
@@ -710,11 +719,16 @@ cmdProveSat isSat str = do
             let tes = map ( \(t,e,_) -> (t,e)) tevs
                 vs  = map ( \(_,_,v) -> v)     tevs
 
-            (t,e) <- mkSolverResult cexStr isSat (Right tes)
-            pexpr <- replParseExpr str
+            (t,e) <- mkSolverResult cexStr rng isSat (Right tes)
 
             ~(EnvBool yes) <- getUser "show-examples"
             when yes $ printCounterexample cexType pexpr vs
+
+            -- if there's a safety violation, evalute the counterexample to
+            -- find and print the actual concrete error
+            case cexType of
+              SafetyViolation -> when yes $ printSafetyViolation pexpr vs
+              _ -> return ()
 
             void $ bindItVariable t e
 
@@ -722,7 +736,7 @@ cmdProveSat isSat str = do
             rPutStrLn "Satisfiable"
             let tess = map (map $ \(t,e,_) -> (t,e)) tevss
                 vss  = map (map $ \(_,_,v) -> v)     tevss
-            resultRecs <- mapM (mkSolverResult cexStr isSat . Right) tess
+            resultRecs <- mapM (mkSolverResult cexStr rng isSat . Right) tess
             let collectTes tes = (t, es)
                   where
                     (ts, es) = unzip tes
@@ -736,7 +750,6 @@ cmdProveSat isSat str = do
                             [ "no satisfying assignments after mkSolverResult" ]
                     [(t, e)] -> (t, [e])
                     _        -> collectTes resultRecs
-            pexpr <- replParseExpr str
 
             ~(EnvBool yes) <- getUser "show-examples"
             when yes $ forM_ vss (printSatisfyingModel pexpr)
@@ -748,14 +761,24 @@ cmdProveSat isSat str = do
         seeStats <- getUserShowProverStats
         when seeStats (showProverStats firstProver stats)
 
+printSafetyViolation :: P.Expr P.PName -> [E.GenValue Concrete] -> REPL ()
+printSafetyViolation pexpr vs =
+    catch
+      (do (fn,_) <- replEvalExpr pexpr
+          rEval (E.forceValue =<< foldM (\f v -> E.fromVFun Concrete f (pure v)) fn vs))
+      (\case
+          EvalError eex -> rPutStrLn (show (pp eex))
+          ex -> raise ex)
+
+
 onlineProveSat :: String
                -> QueryType
-               -> String -> Maybe FilePath
+               -> P.Expr P.PName
+               -> Maybe FilePath
                -> REPL (Maybe String,ProverResult,ProverStats)
-onlineProveSat proverName qtype str mfile = do
+onlineProveSat proverName qtype parseExpr mfile = do
   verbose <- getKnownUser "debug"
   modelValidate <- getUserProverValidate
-  parseExpr <- replParseExpr str
   (_, expr, schema) <- replCheckExpr parseExpr
   validEvalContext expr
   validEvalContext schema
@@ -784,11 +807,10 @@ onlineProveSat proverName qtype str mfile = do
   stas <- io (readIORef timing)
   return (firstProver,res,stas)
 
-offlineProveSat :: String -> QueryType -> String -> Maybe FilePath -> REPL ()
-offlineProveSat proverName qtype str mfile = do
+offlineProveSat :: String -> QueryType -> P.Expr P.PName -> Maybe FilePath -> REPL ()
+offlineProveSat proverName qtype parseExpr mfile = do
   verbose <- getKnownUser "debug"
   modelValidate <- getUserProverValidate
-  parseExpr <- replParseExpr str
   (_, expr, schema) <- replCheckExpr parseExpr
   decls <- fmap M.deDecls getDynEnv
   timing <- io (newIORef 0)
@@ -855,13 +877,15 @@ rIdent  = M.packIdent "result"
 
 -- | Make a type/expression pair that is suitable for binding to @it@
 -- after running @:sat@ or @:prove@
-mkSolverResult :: String
-               -> Bool
-               -> Either [T.Type] [(T.Type, T.Expr)]
-               -> REPL (T.Type, T.Expr)
-mkSolverResult thing result earg =
+mkSolverResult ::
+  String ->
+  Range ->
+  Bool ->
+  Either [T.Type] [(T.Type, T.Expr)] ->
+  REPL (T.Type, T.Expr)
+mkSolverResult thing rng result earg =
   do prims <- getPrimMap
-     let addError t = (t, T.eError prims t ("no " ++ thing ++ " available"))
+     let addError t = (t, T.ELocated rng (T.eError prims t ("no " ++ thing ++ " available")))
 
          argF = case earg of
                   Left ts   -> mkArgs (map addError ts)
@@ -882,9 +906,9 @@ mkSolverResult thing result earg =
       let argName = M.packIdent ("arg" ++ show n)
        in ((argName,t),(argName,e))
 
-specializeCmd :: String -> REPL ()
-specializeCmd str = do
-  parseExpr <- replParseExpr str
+specializeCmd :: String -> (Int,Int) -> Maybe FilePath -> REPL ()
+specializeCmd str pos fnm = do
+  parseExpr <- replParseExpr str pos fnm
   (_, expr, schema) <- replCheckExpr parseExpr
   spexpr <- replSpecExpr expr
   rPutStrLn  "Expression type:"
@@ -894,9 +918,9 @@ specializeCmd str = do
   rPutStrLn  "Specialized expression:"
   rPutStrLn $ dump spexpr
 
-refEvalCmd :: String -> REPL ()
-refEvalCmd str = do
-  parseExpr <- replParseExpr str
+refEvalCmd :: String -> (Int,Int) -> Maybe FilePath -> REPL ()
+refEvalCmd str pos fnm = do
+  parseExpr <- replParseExpr str pos fnm
   (_, expr, schema) <- replCheckExpr parseExpr
   validEvalContext expr
   validEvalContext schema
@@ -904,9 +928,9 @@ refEvalCmd str = do
   opts <- getPPValOpts
   rPrint $ R.ppEValue opts val
 
-astOfCmd :: String -> REPL ()
-astOfCmd str = do
- expr <- replParseExpr str
+astOfCmd :: String -> (Int,Int) -> Maybe FilePath -> REPL ()
+astOfCmd str pos fnm = do
+ expr <- replParseExpr str pos fnm
  (re,_,_) <- replCheckExpr (P.noPos expr)
  rPrint (fmap M.nameUnique re)
 
@@ -915,10 +939,10 @@ allTerms = do
   me <- getModuleEnv
   rPrint $ T.showParseable $ concatMap T.mDecls $ M.loadedModules me
 
-typeOfCmd :: String -> REPL ()
-typeOfCmd str = do
+typeOfCmd :: String -> (Int,Int) -> Maybe FilePath -> REPL ()
+typeOfCmd str pos fnm = do
 
-  expr         <- replParseExpr str
+  expr         <- replParseExpr str pos fnm
   (_re,def,sig) <- replCheckExpr expr
 
   -- XXX need more warnings from the module system
@@ -963,9 +987,9 @@ byteStringToInteger bs
     x1 = byteStringToInteger bs1
     x2 = byteStringToInteger bs2
 
-writeFileCmd :: FilePath -> String -> REPL ()
-writeFileCmd file str = do
-  expr         <- replParseExpr str
+writeFileCmd :: FilePath -> String -> (Int,Int) -> Maybe FilePath -> REPL ()
+writeFileCmd file str pos fnm = do
+  expr         <- replParseExpr str pos fnm
   (val,ty)     <- replEvalExpr expr
   if not (tIsByteSeq ty)
    then rPrint $  "Cannot write expression of types other than [n][8]."
@@ -990,10 +1014,10 @@ writeFileCmd file str = do
 
 
 rEval :: E.Eval a -> REPL a
-rEval m = io (E.runEval m)
+rEval m = io (E.runEval mempty m)
 
 rEvalRethrow :: E.Eval a -> REPL a
-rEvalRethrow m = io $ rethrowEvalError $ E.runEval m
+rEvalRethrow m = io $ rethrowEvalError $ E.runEval mempty m
 
 reloadCmd :: REPL ()
 reloadCmd  = do
@@ -1348,9 +1372,9 @@ helpCmd cmd
   | null cmd  = mapM_ rPutStrLn (genHelp commandList)
   | cmd0 : args <- words cmd, ":" `isPrefixOf` cmd0 =
     case findCommandExact cmd0 of
-      []  -> void $ runCommand (Unknown cmd0)
+      []  -> void $ runCommand 1 Nothing (Unknown cmd0)
       [c] -> showCmdHelp c args
-      cs  -> void $ runCommand (Ambiguous cmd0 (concatMap cNames cs))
+      cs  -> void $ runCommand 1 Nothing (Ambiguous cmd0 (concatMap cNames cs))
   | otherwise =
     case parseHelpName cmd of
       Just qname ->
@@ -1557,11 +1581,33 @@ replParse parse str = case parse str of
   Right a -> return a
   Left e  -> raise (ParseError e)
 
-replParseInput :: String -> REPL (P.ReplInput P.PName)
-replParseInput = replParse (parseReplWith interactiveConfig . T.pack)
+replParseInput :: String -> Int -> Maybe FilePath -> REPL (P.ReplInput P.PName)
+replParseInput str lineNum fnm = replParse (parseReplWith cfg . T.pack) str
+  where
+  cfg = case fnm of
+          Nothing -> interactiveConfig{ cfgStart = Position lineNum 1 }
+          Just f  -> defaultConfig
+                     { cfgSource = f
+                     , cfgStart  = Position lineNum 1
+                     }
 
-replParseExpr :: String -> REPL (P.Expr P.PName)
-replParseExpr = replParse (parseExprWith interactiveConfig . T.pack)
+replParseExpr :: String -> (Int,Int) -> Maybe FilePath -> REPL (P.Expr P.PName)
+replParseExpr str (l,c) fnm = replParse (parseExprWith cfg. T.pack) str
+  where
+  cfg = case fnm of
+          Nothing -> interactiveConfig{ cfgStart = Position l c }
+          Just f  -> defaultConfig
+                     { cfgSource = f
+                     , cfgStart  = Position l c
+                     }
+
+mkInteractiveRange :: (Int,Int) -> Maybe FilePath -> Range
+mkInteractiveRange (l,c) mb = Range p p src
+  where
+  p = Position l c
+  src = case mb of
+          Nothing -> "<interactive>"
+          Just b  -> b
 
 interactiveConfig :: Config
 interactiveConfig = defaultConfig { cfgSource = "<interactive>" }
@@ -1573,7 +1619,14 @@ liftModuleCmd :: M.ModuleCmd a -> REPL a
 liftModuleCmd cmd =
   do evo <- getEvalOpts
      env <- getModuleEnv
-     moduleCmdResult =<< io (cmd (evo, BS.readFile, env))
+     callStacks <- getCallStacks
+     let minp = M.ModuleInput
+                { minpCallStacks = callStacks
+                , minpEvalOpts   = evo
+                , minpByteReader = BS.readFile
+                , minpModuleEnv  = env
+                }
+     moduleCmdResult =<< io (cmd minp)
 
 moduleCmdResult :: M.ModuleRes a -> REPL a
 moduleCmdResult (res,ws0) = do
@@ -1646,6 +1699,7 @@ replEvalExpr expr =
   do (_,def,sig) <- replCheckExpr expr
      validEvalContext def
      validEvalContext sig
+
      me <- getModuleEnv
      let cfg = M.meSolverConfig me
      mbDef <- io $ SMT.withSolver cfg (\s -> defaultReplExpr s def sig)
@@ -1658,12 +1712,17 @@ replEvalExpr expr =
                let su = T.listParamSubst tys
                return (def1, T.apSubst su (T.sType sig))
 
+     whenDebug (rPutStrLn (dump def1))
+
      -- add "it" to the namespace via a new declaration
      itVar <- bindItVariable ty def1
 
+     let itExpr = case getLoc def of
+                    Nothing  -> T.EVar itVar
+                    Just rng -> T.ELocated rng (T.EVar itVar)
+
      -- evaluate the it variable
-     val <- liftModuleCmd (rethrowEvalError . M.evalExpr (T.EVar itVar))
-     whenDebug (rPutStrLn (dump def1))
+     val <- liftModuleCmd (rethrowEvalError . M.evalExpr itExpr)
      return (val,ty)
   where
   warnDefaults ts =
@@ -1770,19 +1829,26 @@ trim :: String -> String
 trim = sanitizeEnd . sanitize
 
 -- | Split at the first word boundary.
-splitCommand :: String -> Maybe (String,String)
-splitCommand txt =
-  case sanitize txt of
-    ':' : more
+splitCommand :: String -> Maybe (Int,String,String)
+splitCommand = go 0
+  where
+   go !len (c  : more)
+      | isSpace c = go (len+1) more
+
+   go !len (':': more)
       | (as,bs) <- span (\x -> isPunctuation x || isSymbol x) more
-      , not (null as) -> Just (':' : as, sanitize bs)
+      , (ws,cs) <- span isSpace bs
+      , not (null as) = Just (len+1+length as+length ws, ':' : as, cs)
 
       | (as,bs) <- break isSpace more
-      , not (null as) -> Just (':' : as, sanitize bs)
+      , (ws,cs) <- span isSpace bs
+      , not (null as) = Just (len+1+length as+length ws, ':' : as, cs)
 
-      | otherwise -> Nothing
+      | otherwise = Nothing
 
-    expr -> guard (not (null expr)) >> return (expr,[])
+   go !len expr
+      | null expr = Nothing
+      | otherwise = Just (len+length expr, expr, [])
 
 -- | Uncons a list.
 uncons :: [a] -> Maybe (a,[a])
@@ -1807,23 +1873,24 @@ findNbCommand False str = lookupTrie      str nbCommands
 -- | Parse a line as a command.
 parseCommand :: (String -> [CommandDescr]) -> String -> Maybe Command
 parseCommand findCmd line = do
-  (cmd,args) <- splitCommand line
+  (cmdLen,cmd,args) <- splitCommand line
   let args' = sanitizeEnd args
   case findCmd cmd of
     [c] -> case cBody c of
-      ExprArg     body -> Just (Command (body args'))
-      DeclsArg    body -> Just (Command (body args'))
-      ExprTypeArg body -> Just (Command (body args'))
-      ModNameArg  body -> Just (Command (body args'))
-      FilenameArg body -> Just (Command (body =<< expandHome args'))
-      OptionArg   body -> Just (Command (body args'))
-      ShellArg    body -> Just (Command (body args'))
-      HelpArg     body -> Just (Command (body args'))
-      NoArg       body -> Just (Command  body)
+      ExprArg     body -> Just (Command \l fp -> (body args' (l,cmdLen+1) fp))
+      DeclsArg    body -> Just (Command \_ _ -> (body args'))
+      ExprTypeArg body -> Just (Command \_ _ -> (body args'))
+      ModNameArg  body -> Just (Command \_ _ -> (body args'))
+      FilenameArg body -> Just (Command \_ _ -> (body =<< expandHome args'))
+      OptionArg   body -> Just (Command \_ _ -> (body args'))
+      ShellArg    body -> Just (Command \_ _ -> (body args'))
+      HelpArg     body -> Just (Command \_ _ -> (body args'))
+      NoArg       body -> Just (Command \_ _ -> body)
       FileExprArg body ->
-        case extractFilePath args' of
-           Just (fp,expr) -> Just (Command (expandHome fp >>= flip body expr))
-           Nothing        -> Nothing
+           do (fpLen,fp,expr) <- extractFilePath args'
+              Just (Command \l fp' -> do let col = cmdLen + fpLen + 1
+                                         hm <- expandHome fp
+                                         body hm expr (l,col) fp')
     [] -> case uncons cmd of
       Just (':',_) -> Just (Unknown cmd)
       Just _       -> Just (Command (evalCmd line))
@@ -1839,9 +1906,10 @@ parseCommand findCmd line = do
       _ -> return path
 
   extractFilePath ipt =
-    let quoted q = (\(a,b) -> (a, drop 1 b)) . break (== q)
+    let quoted q = (\(a,b) -> (length a + 2, a, drop 1 b)) . break (== q)
     in case ipt of
         ""        -> Nothing
         '\'':rest -> Just $ quoted '\'' rest
         '"':rest  -> Just $ quoted '"' rest
-        _         -> Just $ break isSpace ipt
+        _         -> let (a,b) = break isSpace ipt in
+                     if null a then Nothing else Just (length a, a, b)

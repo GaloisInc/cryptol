@@ -171,6 +171,7 @@ library
                        Cryptol.Eval.Concrete,
                        Cryptol.Eval.Env,
                        Cryptol.Eval.Generic,
+                       Cryptol.Eval.Prims,
                        Cryptol.Eval.Reference,
                        Cryptol.Eval.SBV,
                        Cryptol.Eval.Type,

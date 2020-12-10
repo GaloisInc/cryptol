@@ -1,4 +1,4 @@
 Loading module Cryptol
 
-Parse error at <interactive>:1:1--1:28
+Parse error at issue712.icry:1:4--1:31
   Polynomial literal too large: 18446744073709551617

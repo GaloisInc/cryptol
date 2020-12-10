@@ -11,7 +11,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Cryptol.Eval.Type where
 
-import Cryptol.Backend.Monad (evalPanic, typeCannotBeDemoted)
+import Cryptol.Backend.Monad (evalPanic)
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.PP(pp)
 import Cryptol.TypeCheck.Solver.InfNat
@@ -175,5 +175,5 @@ evalTF f vs
   | otherwise  = evalPanic "evalTF"
                         ["Unexpected type function:", show ty]
 
-  where mb = fromMaybe (typeCannotBeDemoted ty)
+  where mb = fromMaybe (evalPanic "evalTF" ["type cannot be demoted", show (pp ty)])
         ty = TCon (TF f) (map tNat' vs)

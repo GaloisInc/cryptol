@@ -99,6 +99,7 @@ instance FreeVars DeclDef where
 instance FreeVars Expr where
   freeVars expr =
     case expr of
+      ELocated _r t     -> freeVars t
       EList es t        -> freeVars es <> freeVars t
       ETuple es         -> freeVars es
       ERec fs           -> freeVars (recordElements fs)

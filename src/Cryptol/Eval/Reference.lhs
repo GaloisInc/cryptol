@@ -284,6 +284,8 @@ assigns values to those variables.
 > evalExpr env expr =
 >   case expr of
 >
+>     ELocated _ e -> evalExpr env e
+>
 >     EList es _ty  ->
 >       pure $ VList (Nat (genericLength es)) [ evalExpr env e | e <- es ]
 >
@@ -1690,7 +1692,8 @@ This module implements the core functionality of the `:eval
 running the reference evaluator on an expression.
 
 > evaluate :: Expr -> M.ModuleCmd (E Value)
-> evaluate expr (_, _, modEnv) = return (Right (evalExpr env expr, modEnv), [])
+> evaluate expr minp = return (Right (evalExpr env expr, modEnv), [])
 >   where
+>     modEnv = M.minpModuleEnv minp
 >     extDgs = concatMap mDecls (M.loadedModules modEnv)
 >     env = foldl evalDeclGroup mempty extDgs

@@ -348,6 +348,8 @@ readBack :: PrimMap -> TC.Type -> Value -> Eval Expression
 readBack prims ty val =
   let tbl = primTable theEvalOpts in
   let ?evalPrim = \i -> Right <$> Map.lookup i tbl in
+  let ?range = emptyRange in -- TODO?
+  let ?callStacks = False in -- TODO?
   case TC.tNoUser ty of
     TC.TRec tfs ->
       Record . HM.fromList <$>
@@ -399,7 +401,7 @@ readBack prims ty val =
 
 
 observe :: Eval a -> Method ServerState a
-observe e = liftIO (runEval e)
+observe e = liftIO (runEval mempty e)
 
 mkEApp :: Expr PName -> [Expr PName] -> Expr PName
 mkEApp f args = foldl EApp f args

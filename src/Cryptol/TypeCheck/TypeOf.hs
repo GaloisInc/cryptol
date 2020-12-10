@@ -30,6 +30,7 @@ fastTypeOf :: Map Name Schema -> Expr -> Type
 fastTypeOf tyenv expr =
   case expr of
     -- Monomorphic fragment
+    ELocated _ t  -> fastTypeOf tyenv t
     EList es t    -> tSeq (tNum (length es)) t
     ETuple es     -> tTuple (map (fastTypeOf tyenv) es)
     ERec fields   -> tRec (fmap (fastTypeOf tyenv) fields)
@@ -59,6 +60,8 @@ fastTypeOf tyenv expr =
 fastSchemaOf :: Map Name Schema -> Expr -> Schema
 fastSchemaOf tyenv expr =
   case expr of
+    ELocated _ e -> fastSchemaOf tyenv e
+
     -- Polymorphic fragment
     EVar x         -> case Map.lookup x tyenv of
                          Just ty -> ty

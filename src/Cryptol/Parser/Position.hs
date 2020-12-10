@@ -124,4 +124,3 @@ combLoc f l1 l2 = Located { srcRange = rComb (srcRange l1) (srcRange l2)
                           , thing    = f (thing l1) (thing l2)
                           }
 
-

@@ -6,7 +6,7 @@ import Control.Lens
 import Control.Monad.IO.Class
 
 import Cryptol.Backend.Monad (EvalOpts(..), PPOpts(..), PPFloatFormat(..), PPFloatExp(..))
-import Cryptol.ModuleSystem (ModuleCmd, ModuleEnv)
+import Cryptol.ModuleSystem (ModuleCmd, ModuleEnv, ModuleInput(..))
 import Cryptol.ModuleSystem.Env
   (getLoadedModules, lmFilePath, lmFingerprint, meLoadedModules,
    initialModuleEnv, meSearchPath, ModulePath(..))
@@ -21,7 +21,13 @@ runModuleCmd :: ModuleCmd a -> Method ServerState a
 runModuleCmd cmd =
     do s <- getState
        reader <- getFileReader
-       out <- liftIO $ cmd (theEvalOpts, reader, view moduleEnv s)
+       let minp = ModuleInput
+                  { minpCallStacks = True -- TODO, where should we get this option from?
+                  , minpEvalOpts   = theEvalOpts
+                  , minpByteReader = reader
+                  , minpModuleEnv  = view moduleEnv s
+                  }
+       out <- liftIO $ cmd minp
        case out of
          (Left x, warns) ->
            raise (cryptolError x warns)
