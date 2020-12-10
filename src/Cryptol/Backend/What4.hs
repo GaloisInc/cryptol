@@ -205,12 +205,20 @@ assertIntDivisor sym x =
   do p <- liftIO (W4.notPred (w4 sym) =<< W4.intEq (w4 sym) x =<< W4.intLit (w4 sym) 0)
      assertSideCondition sym p DivideByZero
 
+assertRealDivisor ::
+  W4.IsSymExprBuilder sym => What4 sym -> W4.SymReal sym -> W4Eval sym ()
+assertRealDivisor sym x =
+  do p <- liftIO (W4.notPred (w4 sym) =<< W4.realEq (w4 sym) x =<< W4.realLit (w4 sym) 0)
+     assertSideCondition sym p DivideByZero
+
 instance W4.IsSymExprBuilder sym => Backend (What4 sym) where
   type SBit (What4 sym)     = W4.Pred sym
   type SWord (What4 sym)    = SW.SWord sym
   type SInteger (What4 sym) = W4.SymInteger sym
+  type SReal (What4 sym)    = W4.SymReal sym
   type SFloat (What4 sym)   = FP.SFloat sym
   type SEval (What4 sym)    = W4Eval sym
+
 
   raiseError _ = evalError
 
@@ -314,6 +322,7 @@ instance W4.IsSymExprBuilder sym => Backend (What4 sym) where
   iteBit sym c x y = liftIO (W4.itePred (w4 sym) c x y)
   iteWord sym c x y = liftIO (SW.bvIte (w4 sym) c x y)
   iteInteger sym c x y = liftIO (W4.intIte (w4 sym) c x y)
+  iteReal sym c x y = liftIO (W4.realIte (w4 sym) c x y)
 
   bitEq  sym x y = liftIO (W4.eqPred (w4 sym) x y)
   bitAnd sym x y = liftIO (W4.andPred (w4 sym) x y)
@@ -424,6 +433,30 @@ instance W4.IsSymExprBuilder sym => Backend (What4 sym) where
   intEq sym x y = liftIO $ W4.intEq (w4 sym) x y
   intLessThan sym x y = liftIO $ W4.intLt (w4 sym) x y
   intGreaterThan sym x y = liftIO $ W4.intLt (w4 sym) y x
+
+  realAsLit _ x     = W4.asRational x
+  realLit sym x     = liftIO (W4.realLit (w4 sym) x)
+  intToReal sym x   = liftIO (W4.integerToReal (w4 sym) x)
+  realPlus sym x y  = liftIO (W4.realAdd (w4 sym) x y)
+  realNegate sym x  = liftIO (W4.realNeg (w4 sym) x)
+  realMinus sym x y = liftIO (W4.realSub (w4 sym) x y)
+  realMult sym x y  = liftIO (W4.realMul (w4 sym) x y)
+  realRecip sym x   =
+    do one <- liftIO (W4.realLit (w4 sym) 1)
+       realDiv sym one x
+  realDiv sym x y =
+    do assertRealDivisor sym y
+       liftIO (W4.realDiv (w4 sym) x y)
+
+  realEq sym x y          = liftIO (W4.realEq (w4 sym) x y)
+  realLessThan sym x y    = liftIO (W4.realLt (w4 sym) x y)
+  realGreaterThan sym x y = liftIO (W4.realGt (w4 sym) x y)
+
+  realFloor sym x       = liftIO (W4.realFloor (w4 sym) x)
+  realCeiling sym x     = liftIO (W4.realCeil (w4 sym) x)
+  realTrunc sym x       = liftIO (W4.realTrunc (w4 sym) x)
+  realRoundAway sym x   = liftIO (W4.realRound (w4 sym) x)
+  realRoundToEven sym x = liftIO (W4.realRoundEven (w4 sym) x)
 
   -- NB, we don't do reduction here on symbolic values
   intToZn sym m x

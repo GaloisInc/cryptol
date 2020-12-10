@@ -62,6 +62,7 @@ builtInType nm =
     , "Bit"               ~> TC TCBit
     , "Integer"           ~> TC TCInteger
     , "Rational"          ~> TC TCRational
+    , "Real"              ~> TC TCReal
     , "Z"                 ~> TC TCIntMod
 
       -- Predicate contstructors
@@ -136,6 +137,7 @@ instance HasKind TC where
       TCBit     -> KType
       TCInteger -> KType
       TCRational -> KType
+      TCReal    -> KType
       TCFloat   -> KNum :-> KNum :-> KType
       TCIntMod  -> KNum :-> KType
       TCArray   -> KType :-> KType :-> KType
@@ -232,6 +234,7 @@ data TC     = TCNum Integer            -- ^ Numbers
             | TCFloat                  -- ^ Float
             | TCIntMod                 -- ^ @Z _@
             | TCRational               -- ^ @Rational@
+            | TCReal                   -- ^ @Real@
             | TCArray                  -- ^ @Array _ _@
             | TCSeq                    -- ^ @[_] _@
             | TCFun                    -- ^ @_ -> _@
@@ -330,6 +333,7 @@ instance PP TC where
       TCInteger -> text "Integer"
       TCIntMod  -> text "Z"
       TCRational -> text "Rational"
+      TCReal    -> text "Real"
       TCArray   -> text "Array"
       TCFloat   -> text "Float"
       TCSeq     -> text "[]"

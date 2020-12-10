@@ -439,6 +439,12 @@ tIsRational ty =
     TCon (TC TCRational) [] -> True
     _                       -> False
 
+tIsReal :: Type -> Bool
+tIsReal ty =
+  case tNoUser ty of
+    TCon (TC TCReal) [] -> True
+    _                   -> False
+
 tIsFloat :: Type -> Maybe (Type, Type)
 tIsFloat ty =
   case tNoUser ty of
@@ -592,6 +598,9 @@ tInteger  = TCon (TC TCInteger) []
 
 tRational :: Type
 tRational  = TCon (TC TCRational) []
+
+tReal :: Type
+tReal = TCon (TC TCReal) []
 
 tFloat   :: Type -> Type -> Type
 tFloat e p = TCon (TC TCFloat) [ e, p ]
@@ -939,6 +948,7 @@ instance PP (WithNames Type) where
           (TCBit,   [])       -> text "Bit"
           (TCInteger, [])     -> text "Integer"
           (TCRational, [])    -> text "Rational"
+          (TCReal, [])        -> text "Real"
 
           (TCIntMod, [n])     -> optParens (prec > 3) $ text "Z" <+> go 5 n
 

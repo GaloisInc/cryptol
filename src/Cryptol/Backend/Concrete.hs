@@ -134,7 +134,9 @@ instance Backend Concrete where
   type SWord Concrete = BV
   type SInteger Concrete = Integer
   type SFloat Concrete = FP.BF
+  type SReal Concrete = Rational
   type SEval Concrete = Eval
+
 
   raiseError _ err =
     do stk <- getCallStack
@@ -186,6 +188,7 @@ instance Backend Concrete where
   iteBit _ b x y  = pure $! if b then x else y
   iteWord _ b x y = pure $! if b then x else y
   iteInteger _ b x y = pure $! if b then x else y
+  iteReal _ b x y = pure $! if b then x else y
 
   wordLit _ w i = pure $! mkBv w i
   wordAsLit _ (BV w i) = Just (w,i)
@@ -308,6 +311,32 @@ instance Backend Concrete where
   intMod sym x y =
     do assertSideCondition sym (y /= 0) DivideByZero
        pure $! x `mod` y
+
+  realAsLit _ x = Just x
+  realLit _ x   = pure x
+  intToReal _ x = pure $! (fromInteger x :: Rational)
+  realPlus _ x y  = pure $! x + y
+  realNegate _ x  = pure $! negate x
+  realMinus _ x y = pure $! x - y
+  realMult _ x y  = pure $! x * y
+  realRecip sym x =
+    do assertSideCondition sym (x /= 0) DivideByZero
+       pure $! recip x
+  realDiv sym x y =
+    do assertSideCondition sym (y /= 0) DivideByZero
+       pure $! x / y
+
+  realEq _ x y          = pure $! x == y
+  realLessThan _ x y    = pure $! x < y
+  realGreaterThan _ x y = pure $! x > y
+
+  realFloor _ x       = pure $! floor x
+  realCeiling _ x     = pure $! ceiling x
+  realTrunc _ x       = pure $! truncate x
+  realRoundToEven _ x = pure $! round x
+  realRoundAway _ x
+    | x >= 0    = pure $! floor (x + 0.5)
+    | otherwise = pure $! ceiling (x - 0.5)
 
   intToZn _ 0 _ = evalPanic "intToZn" ["0 modulus not allowed"]
   intToZn _ m x = pure $! x `mod` m

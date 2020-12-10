@@ -45,6 +45,7 @@ module Cryptol.Eval.Value
   , fromVBit
   , fromVInteger
   , fromVRational
+  , fromVReal
   , fromVFloat
   , fromVSeq
   , fromSeq
@@ -95,6 +96,7 @@ import Data.Bits
 import Data.IORef
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
+import Data.Ratio
 import MonadLib
 
 import Cryptol.Backend
@@ -309,6 +311,7 @@ data GenValue sym
   | VBit !(SBit sym)                           -- ^ @ Bit    @
   | VInteger !(SInteger sym)                   -- ^ @ Integer @ or @ Z n @
   | VRational !(SRational sym)                 -- ^ @ Rational @
+  | VReal !(SReal sym)                         -- ^ @ Real @
   | VFloat !(SFloat sym)
   | VSeq !Integer !(SeqMap sym)                -- ^ @ [n]a   @
                                                --   Invariant: VSeq is never a sequence of bits
@@ -334,6 +337,7 @@ forceValue v = case v of
   VBit b      -> seq b (return ())
   VInteger i  -> seq i (return ())
   VRational q -> seq q (return ())
+  VReal r     -> seq r (return ())
   VFloat f    -> seq f (return ())
   VWord _ wv  -> forceWordValue =<< wv
   VStream _   -> return ()
@@ -350,6 +354,7 @@ instance Backend sym => Show (GenValue sym) where
     VBit _     -> "bit"
     VInteger _ -> "integer"
     VRational _ -> "rational"
+    VReal _    -> "real"
     VFloat _   -> "float"
     VSeq n _   -> "seq:" ++ show n
     VWord n _  -> "word:"  ++ show n
@@ -380,6 +385,14 @@ ppValue x opts = loop
     VBit b             -> return $ ppBit x b
     VInteger i         -> return $ ppInteger x opts i
     VRational q        -> return $ ppRational x opts q
+    VReal r
+      | Just q <- realAsLit x r ->
+          do n <- integerLit x (numerator q)
+             d <- integerLit x (denominator q)
+             let ppq = ppRational x opts (SRational n d)
+             pure (parens (text "fromRational" <+> ppq)) 
+      | otherwise -> return $ text "[?]"
+
     VFloat i           -> return $ ppFloat x opts i
     VSeq sz vals       -> ppWordSeq sz vals
     VWord _ wv         -> ppWordVal =<< wv
@@ -494,6 +507,11 @@ fromVRational :: GenValue sym -> SRational sym
 fromVRational val = case val of
   VRational q -> q
   _      -> evalPanic "fromVRational" ["not a Rational"]
+
+fromVReal :: GenValue sym -> SReal sym
+fromVReal val = case val of
+  VReal r -> r
+  _       -> evalPanic "fromVReal" ["not a Real"]
 
 -- | Extract a finite sequence value.
 fromVSeq :: GenValue sym -> SeqMap sym

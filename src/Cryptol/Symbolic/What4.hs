@@ -223,6 +223,7 @@ what4FreshFns sym =
   { freshBitVar     = W4.freshConstant sym W4.emptySymbol W4.BaseBoolRepr
   , freshWordVar    = SW.freshBV sym W4.emptySymbol
   , freshIntegerVar = W4.freshBoundedInt sym W4.emptySymbol
+  , freshRealVar    = W4.freshConstant sym W4.emptySymbol W4.BaseRealRepr
   , freshFloatVar   = W4.fpFresh sym
   }
 
@@ -544,6 +545,7 @@ varShapeToConcrete evalFn v =
     VarBit b -> VarBit <$> W4.groundEval evalFn b
     VarInteger i -> VarInteger <$> W4.groundEval evalFn i
     VarRational n d -> VarRational <$> W4.groundEval evalFn n <*> W4.groundEval evalFn d
+    VarReal r -> VarReal <$> W4.groundEval evalFn r
     VarWord SW.ZBV -> pure (VarWord (Concrete.mkBv 0 0))
     VarWord (SW.DBV x) ->
       let w = W4.intValue (W4.bvWidth x)

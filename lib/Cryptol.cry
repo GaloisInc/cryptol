@@ -52,7 +52,8 @@ primitive type {n : #} (fin n, n >= 1) => Z n : *
 
 /**
  * 'Rational' is the type of rational numbers.
- * Rational numbers form a Field (and thus a Ring).
+ * Rational numbers form a Field (and thus a Ring),
+ * and rational numbers also inhabit the Round class.
  *
  * The 'ratio' operation may be used to directly create
  * rational values from as a ratio of integers, or
@@ -60,6 +61,23 @@ primitive type {n : #} (fin n, n >= 1) => Z n : *
  * can be used.
  */
 primitive type Rational : *
+
+/**
+ * 'Real' is the type of real numbers.
+ * Real numbers form a Field (and thus a Ring),
+ * and real numbers also inhabit the Round class.
+ *
+ * For computation purposes, 'Real' is very similar
+ * to 'Rational'.  However, the logical theory of real
+ * numbers admits algebraic numbers in addition to
+ * rationals.  Counterintuitively, solvers may have a
+ * simpler time solving problems involving the real numbers
+ * than similar problems involving the integers or the
+ * rationals because there are dedicated algorithms that
+ * can be applied to real closed fields.
+ */
+primitive type Real : *
+
 
 type Bool = Bit
 type Word n = [n]
@@ -678,6 +696,14 @@ primitive lg2 : {n} (fin n) => [n] -> [n]
  * 'ratio x y = (fromInteger x /. fromInteger y) : Rational'
  */
 primitive ratio : Integer -> Integer -> Rational
+
+
+// Real specific operations --------------------------------------------------
+
+/**
+ * Compute the real number corresponding to the given rational.
+ */
+primitive fromRational : Rational -> Real
 
 
 // Zn specific operations ----------------------------------------------------

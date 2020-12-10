@@ -94,6 +94,9 @@ toExpr prims t0 v0 = findOne (go t0 v0)
         do let n' = ETApp (ETApp (prim "number") (tNum n)) tInteger
            let d' = ETApp (ETApp (prim "number") (tNum d)) tInteger
            pure $ EApp (EApp (prim "ratio") n') d'
+      VReal r ->
+        do q <- go tRational (VRational (SRational (numerator r) (denominator r)))
+           pure $ EApp (prim "fromRational") q
       VFloat i ->
         do (eT, pT) <- maybe mismatch pure (tIsFloat ty)
            pure (floatToExpr prims eT pT (bfValue i))
@@ -117,6 +120,7 @@ toExpr prims t0 v0 = findOne (go t0 v0)
              , pretty ty
              , render doc
              ]
+
 
 floatToExpr :: PrimMap -> AST.Type -> AST.Type -> FP.BigFloat -> AST.Expr
 floatToExpr prims eT pT f =

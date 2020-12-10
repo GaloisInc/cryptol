@@ -79,10 +79,11 @@ solveZeroInst ty = case tNoUser ty of
   -- Zero (Z n)
   TCon (TC TCIntMod) [n] -> SolvedIf [ pFin n, n >== tOne ]
 
-  -- Zero Real
-
   -- Zero Rational
   TCon (TC TCRational) [] -> SolvedIf []
+
+  -- Zero Real
+  TCon (TC TCReal) [] -> SolvedIf []
 
   -- ValidVloat e p => Zero (Float e p)
   TCon (TC TCFloat) [e,p] -> SolvedIf [ pValidFloat e p ]
@@ -119,6 +120,9 @@ solveLogicInst ty = case tNoUser ty of
 
   -- Logic Rational fails
   TCon (TC TCRational) [] -> Unsolvable
+
+  -- Logic Real fails
+  TCon (TC TCReal) [] -> Unsolvable
 
   -- Logic (Float e p) fails
   TCon (TC TCFloat) [_, _] -> Unsolvable
@@ -165,6 +169,9 @@ solveRingInst ty = case tNoUser ty of
 
   -- Ring Rational
   TCon (TC TCRational) [] -> SolvedIf []
+
+  -- Ring Real
+  TCon (TC TCReal) [] -> SolvedIf []
 
   -- ValidFloat e p => Ring (Float e p)
   TCon (TC TCFloat) [e,p] -> SolvedIf [ pValidFloat e p ]
@@ -236,6 +243,9 @@ solveFieldInst ty = case tNoUser ty of
   -- Field Rational
   TCon (TC TCRational) [] -> SolvedIf []
 
+  -- Field Real
+  TCon (TC TCReal) [] -> SolvedIf []
+
   -- ValidFloat e p => Field (Float e p)
   TCon (TC TCFloat) [e,p] -> SolvedIf [ pValidFloat e p ]
 
@@ -278,6 +288,9 @@ solveRoundInst ty = case tNoUser ty of
   -- Round Rational
   TCon (TC TCRational) [] -> SolvedIf []
 
+  -- Round Real
+  TCon (TC TCReal) [] -> SolvedIf []
+
   -- ValidFloat e p => Round (Float e p)
   TCon (TC TCFloat) [e,p] -> SolvedIf [ pValidFloat e p ]
 
@@ -315,6 +328,9 @@ solveEqInst ty = case tNoUser ty of
   -- Eq Rational
   TCon (TC TCRational) [] -> SolvedIf []
 
+  -- Eq Real
+  TCon (TC TCReal) [] -> SolvedIf []
+
   -- ValidFloat e p => Eq (Float e p)
   TCon (TC TCFloat) [e,p] -> SolvedIf [ pValidFloat e p ]
 
@@ -351,6 +367,9 @@ solveCmpInst ty = case tNoUser ty of
 
   -- Cmp Rational
   TCon (TC TCRational) [] -> SolvedIf []
+
+  -- Cmp Real
+  TCon (TC TCReal) [] -> SolvedIf []
 
   -- Cmp (Z n) fails
   TCon (TC TCIntMod) [_] -> Unsolvable
@@ -407,6 +426,9 @@ solveSignedCmpInst ty = case tNoUser ty of
   -- SignedCmp Rational fails
   TCon (TC TCRational) [] -> Unsolvable
 
+  -- SignedCmp Real fails
+  TCon (TC TCReal) [] -> Unsolvable
+
   -- SignedCmp (Float e p) fails
   TCon (TC TCFloat) [_, _] -> Unsolvable
 
@@ -440,6 +462,9 @@ solveFLiteralInst numT denT rndT ty
       TCon (TError {}) _ -> Unsolvable
 
       TCon (TC TCRational) [] ->
+        SolvedIf [ pFin numT, pFin denT, denT >== tOne ]
+
+      TCon (TC TCReal) [] ->
         SolvedIf [ pFin numT, pFin denT, denT >== tOne ]
 
       TCon (TC TCFloat) [e,p]
@@ -477,6 +502,9 @@ solveLiteralInst val ty
 
       -- (fin val) => Literal val Rational
       TCon (TC TCRational) [] -> SolvedIf [ pFin val ]
+
+      -- (fin val) => Literal val Real
+      TCon (TC TCReal) [] -> SolvedIf [ pFin val ]
 
       -- ValidFloat e p => Literal val (Float e p)   if `val` is representable
       TCon (TC TCFloat) [e,p]
