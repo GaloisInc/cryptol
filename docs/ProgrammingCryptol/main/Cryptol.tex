@@ -24,6 +24,7 @@
 \usepackage[xetex,bookmarks=true,pagebackref=true,linktocpage=false]{hyperref}
 \usepackage[style=list]{utils/glossary}
 \usepackage{adjustbox}
+\usepackage{xparse}
 
 %% choose output pagesize. Here are two options:
 %%  Half of a US Letter sheet, (or A5 paper)
@@ -72,11 +73,13 @@
 \DefineVerbatimEnvironment
     {reploutVerb}{Verbatim}
     {}
+\CustomVerbatimCommand{\replin}{Verb}{}
+\CustomVerbatimCommand{\replout}{Verb}{}
+\NewDocumentCommand{\hidereplin}{r||}{}
+\NewDocumentCommand{\hidereplout}{r||}{}
 \newcommand{\restartrepl}[0]{}{}
-\newcommand{\replin}[1]{\texttt{#1}}{}
-\newcommand{\replout}[1]{\texttt{#1}}{}
-\newcommand{\hidereplin}[1]{}
-\newcommand{\hidereplout}[1]{}
+%% \newcommand{\hidereplin}[1]{}
+%% \newcommand{\hidereplout}[1]{}
 
 % \newcommand{\todo}[1]{\begin{center}\framebox{\begin{minipage}{0.8\textwidth}{{\bf TODO:} #1}\end{minipage}}\end{center}}
 \newcommand{\lamex}{\ensuremath{\lambda}-expression\indLamExp}

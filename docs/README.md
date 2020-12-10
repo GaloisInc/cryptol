@@ -14,14 +14,14 @@ following commands:
   However, it has the added effect of adding every line of the block
   to a list of commands to be issued to the cryptol REPL.
   
-* `\replin{...}`
+* `\replin|...|`
 
   Inline equivalent of `replinVerb` environment. Markup equivalent of
-  `\texttt{...}`.
+  `\Verb|...|`.
 
-* `\hidereplin{..}`
+* `\hidereplin|..|`
 
-  Like `\replin{...}`, but is not rendered at all by LaTeX. This is
+  Like `\replin|...|`, but is not rendered at all by LaTeX. This is
   for issuing "hidden" input to the REPL that will affect the output
   (like `:set base=10`, for example), but which we don't want to
   include in the PDF.
@@ -36,14 +36,14 @@ following commands:
   previous input/output pair to issue to the repl. See CrashCourse.tex
   for examples.
   
-* \replout{...}`
+* \replout|...|`
 
   Inline equivalent of `reploutVerb` environment. Markup equivalent of
-  `\texttt{...}`.
+  `\Verb|...|`.
 
-* `\hidereplout{..}`
+* `\hidereplout|..|`
 
-  Like `\replout{...}`, but is not rendered at all by LaTeX. This is
+  Like `\replout|...|`, but is not rendered at all by LaTeX. This is
   for recording "hidden" output from the REPL that we don't want to
   include in the PDF.
   

@@ -156,15 +156,15 @@ data InlineRepl = InlineReplin | InlineReplout
 -- contents, and the remainder of the string.
 inlineRepl :: String -> Maybe (InlineRepl, String, String)
 inlineRepl s
-  | Just (_, ir, s1) <- stripInfixOneOf [ "\\replin{"
-                                        , "\\hidereplin{"
-                                        , "\\replout{"
-                                        , "\\hidereplout{"] s
-  , (s2, s3) <- break (=='}') s1 = case ir of
-      "\\replin{" -> Just (InlineReplin, s2, s3)
-      "\\hidereplin{" -> Just (InlineReplin, s2, s3)
-      "\\replout{" -> Just (InlineReplout, s2, s3)
-      "\\hidereplout{" -> Just (InlineReplout, s2, s3)
+  | Just (_, ir, s1) <- stripInfixOneOf [ "\\replin|"
+                                        , "\\replout|"
+                                        , "\\hidereplin|"
+                                        , "\\hidereplout|"] s
+  , (s2, s3) <- break (=='|') s1 = case ir of
+      "\\replin|" -> Just (InlineReplin, s2, s3)
+      "\\replout|" -> Just (InlineReplout, s2, s3)
+      "\\hidereplin|" -> Just (InlineReplin, s2, s3)
+      "\\hidereplout|" -> Just (InlineReplout, s2, s3)
       _ -> error "PANIC: CheckExercises.inlineRepl"
   | otherwise = Nothing
 
@@ -302,8 +302,6 @@ main = do
       then do let cryCmd = (P.shell (exe ++ " -b " ++ inFile ++ " -e"))
               (cryEC, cryOut, _) <- P.readCreateProcessWithExitCode cryCmd ""
 
-              -- remove temporary input file
-              removeFile inFile
 
               Line lnReplinStart _ Seq.:<| _ <- return $ rdReplin rd
               _ Seq.:|> Line lnReplinEnd _ <- return $ rdReplin rd
@@ -313,7 +311,9 @@ main = do
                     show lnReplinStart ++ "-" ++ show lnReplinEnd ++ ")."
                   putStr cryOut
                   exitFailure
-                ExitSuccess -> return ()
+                ExitSuccess -> do
+                  -- remove temporary input file
+                  removeFile inFile
       else do let outExpectedText = unlines $ filter (not . null) $
                     fmap (trim . lineText) $ toList $ rdReplout rd
                   outExpectedFileNameTemplate = "out-expected.icry"

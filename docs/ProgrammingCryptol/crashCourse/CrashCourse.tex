@@ -180,7 +180,7 @@ override this by giving an explicit type signature.\indSignature
 \begin{Exercise}\label{ex:decimalType}
   Try writing some decimal numbers at different types, like
   \texttt{12:[4]} and \texttt{50:[8]}. How does Cryptol respond if
-  you write \replin{19:[4]} and why? What is the largest decimal
+  you write \replin|19:[4]| and why? What is the largest decimal
   number you can write at type \texttt{[8]}? What is the smallest
   allowable bit size for \texttt{32}? What is the smallest allowable
   bit size for \texttt{0}?
@@ -206,13 +206,13 @@ override this by giving an explicit type signature.\indSignature
     base=10}, and other base values. Also try writing numbers directly
   in different bases at the command line, such as {\tt 0o1237}.  Feel
   free to try other bases. What is the hexadecimal version of the
-  octal number \replin{0o7756677263570015}? What is the decimal version?
-  \hidereplin{:set base=10}
-  \hidereplin{0o7756677263570015}
-  \hidereplin{:set base=16}
+  octal number \replin|0o7756677263570015|? What is the decimal version?
+  \hidereplin|:set base=10|
+  \hidereplin|0o7756677263570015|
+  \hidereplin|:set base=16|
 \end{Exercise}
 \begin{Answer}\ansref{ex:setBase}
-\replout{0xfeedfacef00d} in hexadecimal, \replout{280298068570125} in decimal.
+\replout|0xfeedfacef00d| in hexadecimal, \replout|280298068570125| in decimal.
 \end{Answer}
 
 \note{We will revisit the notion of words in \autoref{sec:words2},
@@ -233,9 +233,9 @@ the result: For example, \texttt{-12} and \texttt{- toInteger 0xc}
 represent the integer $-12$.
 
 \begin{Exercise}\label{ex:int:1}
-  Compare the results of evaluating the expressions \replin{0x8 + 0x9}
-  and \replin{toInteger 0x8 + toInteger 0x9}. Also try evaluating
-  \replin{toInteger (- 0x5)}. Can you explain the results?
+  Compare the results of evaluating the expressions \replin|0x8 + 0x9|
+  and \replin|toInteger 0x8 + toInteger 0x9|. Also try evaluating
+  \replin|toInteger (- 0x5)|. Can you explain the results?
 \end{Exercise}
 \begin{Answer}\ansref{ex:int:1}
 Here are Cryptol's responses:
@@ -259,9 +259,9 @@ Just like with fixed-width bitvector values, arithmetic in
 \texttt{Z n} will ``wrap around'' (i.e., be reduced modulo \texttt{n})
 when values get too large.
 \begin{Exercise}\label{ex:int:2}
-  Compare the results of evaluating \replin{ (5 : Z 7) + (6 : Z 7) }
-  with \replin{ fromZ (5 : Z 7) + fromZ (6 : Z 7) }.
-  What is the result of \replin{ -3 : Z 7 }?
+  Compare the results of evaluating \replin| (5 : Z 7) + (6 : Z 7) |
+  with \replin| fromZ (5 : Z 7) + fromZ (6 : Z 7) |.
+  What is the result of \replin| -3 : Z 7 |?
   Were the results what you expected?
 \end{Exercise}
 \begin{Answer}\ansref{ex:int:2}
@@ -355,7 +355,7 @@ The family of types \texttt{Float e p}\indTheFloatType represent IEEE 754
 floating point numbers with \texttt{e} bits in the exponent and
 \texttt{p-1} bits in the mantissa.  The family is defined in a built-in
 module called \texttt{Float} so to use it you'd need to either import
-it in you Cryptol specification or use \texttt{:m Float} on the
+it in your Cryptol specification or use \texttt{:m Float} on the
 Cryptol REPL.
 
 Floating point numbers may be written using either integral or fractional
@@ -389,6 +389,7 @@ True
 Float> 0 =.= (-0 : Float64)
 False
 \end{Verbatim}
+\restartrepl
 
 Cryptol supports reasoning about floating point numbers using the
 {\texttt What4} interface to solvers that support IEEE floats.
@@ -807,7 +808,7 @@ infinite sequence: it will lazily construct the sequence and make its
 elements available as demanded by the program.
 
 \begin{Exercise}\label{ex:seq:9}
-Try the following infinite enumerations:\hidereplin{:set base=10}
+Try the following infinite enumerations:\hidereplin|:set base=10|
 \begin{replinVerb}
   [1:[32] ...]
   [1:[32], 3 ...]
@@ -1068,22 +1069,22 @@ Cryptol supports both versions with left/right
 variants.\indShiftLeft\indShiftRight\indRotLeft\indRotRight
 \begin{Exercise}\label{ex:seq:14}
 Experiment with the following expressions:
-\begin{Verbatim}
-   [1, 2, 3, 4, 5] >> 2
-   [1, 2, 3, 4, 5] >> 10
-   [1, 2, 3, 4, 5] << 2
-   [1, 2, 3, 4, 5] << 10
-   [1, 2, 3, 4, 5] >>> 2
-   [1, 2, 3, 4, 5] >>> 10
-   [1, 2, 3, 4, 5] <<< 2
-   [1, 2, 3, 4, 5] <<< 10
-\end{Verbatim}
+\begin{replinVerb}
+   [1, 2, 3, 4, 5 : Integer] >> 2
+   [1, 2, 3, 4, 5 : Integer] >> 10
+   [1, 2, 3, 4, 5 : Integer] << 2
+   [1, 2, 3, 4, 5 : Integer] << 10
+   [1, 2, 3, 4, 5 : Integer] >>> 2
+   [1, 2, 3, 4, 5 : Integer] >>> 10
+   [1, 2, 3, 4, 5 : Integer] <<< 2
+   [1, 2, 3, 4, 5 : Integer] <<< 10
+\end{replinVerb}
 \noindent Notice that shifting/rotating always returns a sequence
 precisely the same size as the original.
 \end{Exercise}
 \begin{Answer}\ansref{ex:seq:14}
 Here are Cryptol's responses:
-\begin{Verbatim}
+\begin{reploutVerb}
   [0, 0, 1, 2, 3]
   [0, 0, 0, 0, 0]
   [3, 4, 5, 0, 0]
@@ -1092,7 +1093,7 @@ Here are Cryptol's responses:
   [1, 2, 3, 4, 5]
   [3, 4, 5, 1, 2]
   [1, 2, 3, 4, 5]
-\end{Verbatim}
+\end{reploutVerb}
 \todo[inline]{Reflections on this exercise?}
 \end{Answer}
 \begin{Exercise}\label{ex:seq:15}
@@ -1133,32 +1134,32 @@ $$1\times2^5 + 0\times2^4 + 1\times2^3 + 0\times2^2 + 1\times2^1 + 0\times2^0 = 
 \end{Answer}
 
 \begin{Exercise}\label{ex:words:1}
-  Try out the following words: \lhint{It might help to use {\tt :set
-      base=2} to see the bit patterns.}\indSettingBase
-\begin{Verbatim}
+  Try out the following words: \lhint{It might help to use \replin|:set base=2|
+    to see the bit patterns.}\indSettingBase
+\begin{replinVerb}
   12:[4]
-  12 # [False]
-  [False, False] # 12
-  [True, False] # 12
-  12 # [False, True]
+  12 # [False] : [5]
+  [False, False] # 12 : [6]
+  [True, False] # 12: [6]
+  12 # [False, True] : [6]
   32:[6]
-  12 # 32
+  (12:[4]) # (32:[6])
   [True, False, True, False, True, False] == 42
-\end{Verbatim}
+\end{replinVerb}
 \end{Exercise}
 \begin{Answer}\ansref{ex:words:1}
   After issuing {\tt :set base=2}, here are Cryptol's
   responses:\indSettingBase
-\begin{Verbatim}
+\begin{reploutVerb}
   0b1100
   0b11000
-  0b1100
+  0b001100
   0b101100
   0b110001
   0b100000
   0b1100100000
   True
-\end{Verbatim}
+\end{reploutVerb}
 \end{Answer}
 
 \begin{Exercise}\label{ex:words:4}
@@ -1166,13 +1167,13 @@ Since words are sequences, the sequence functions from
 \exerciseref{ex:seq:11} apply to words as well.
 Try out the following examples and explain the outputs you
 observe:\indTake\indDrop\indSplit\indGroup
-\begin{Verbatim}
+\begin{replinVerb}
   take`{3} 0xFF
   take`{3} (12:[6])
   drop`{3} (12:[6])
   split`{3} (12:[6])
   groupBy`{3} (12:[6])
-\end{Verbatim}
+\end{replinVerb}
 \end{Exercise}
 \noindent Recall that the notation {\tt 12:[6]} means the constant 12
 with the type precisely 6 bits wide.
@@ -1180,18 +1181,13 @@ with the type precisely 6 bits wide.
   Remember that Cryptol is big-endian\indEndianness and hence {\tt
     12:[6]} is precisely {\tt [False, False, True, True, False,
     False]}.  Here are Cryptol's responses:\indTake
-\begin{Verbatim}
-  Cryptol> take`{3} 0xFF
-  7
-  Cryptol> take`{3} (12:[6])
-  1
-  Cryptol> drop`{3} (12:[6])
-  4
-  Cryptol> split`{3} (12:[6])
-  [0, 3, 0]
-  Cryptol> groupBy`{3} (12:[6])
-  [1, 4]
-\end{Verbatim}
+\begin{reploutVerb}
+  0x7
+  0x1
+  0x4
+  [0x0, 0x3, 0x0]
+  [0x1, 0x4]
+\end{reploutVerb}
 For instance, the expression {\tt take`\{3\} (12:[6])} evaluates as follows:
 \begin{Verbatim}
   take`{3} (12:[6])
@@ -1251,17 +1247,17 @@ numbers.\footnote{This is a significant change from Cryptol version 1,
 
 \begin{Exercise}\label{ex:words:6}
 Try the following examples of shifting/rotating words:
-\begin{Verbatim}
+\begin{replinVerb}
   (12:[8]) >> 2
   (12:[8]) << 2
-\end{Verbatim}
+\end{replinVerb}
 \end{Exercise}
 \begin{Answer}\ansref{ex:words:6}
 Here are Cryptol's responses:
-\begin{Verbatim}
-  3
-  48
-\end{Verbatim}
+\begin{reploutVerb}
+  0x03
+  0x30
+\end{reploutVerb}
 \todo[inline]{Reflect upon these responses.}
 \end{Answer}
 
@@ -1337,7 +1333,9 @@ have equal values.
 
 \begin{Exercise}\label{ex:record:1}
 Type in the following expressions and observe the output:
-\begin{Verbatim}
+\hidereplin|:set ascii=on|
+\hidereplin|:set base=10|
+\begin{replinVerb}
   {xCoord = 12:[32], yCoord = 21:[32]}
   {xCoord = 12:[32], yCoord = 21:[32]}.yCoord
   {name = "Cryptol", address = "Galois"}
@@ -1346,30 +1344,22 @@ Type in the following expressions and observe the output:
   {name = "test", coords = {xCoord = 3:[32], \
                             yCoord = 5:[32]}}.coords.yCoord
   {x=True, y=False} == {y=False, x=True}
-\end{Verbatim}
+\end{replinVerb}
 \noindent You might find the command {\tt :set
   ascii=on}\indSettingASCII useful in viewing the output.
 \end{Exercise}
 \begin{Answer}\ansref{ex:record:1}
 Here are Cryptol's responses:
 \begin{small}
-\begin{Verbatim}
-  Cryptol> {xCoord = 12:[32], yCoord = 21:[32]}
+\begin{reploutVerb}
   {xCoord = 12, yCoord = 21}
-  Cryptol> {xCoord = 12:[32], yCoord = 21:[32]}.yCoord
   21
-  Cryptol> {name = "Cryptol", address = "Galois"}
   {name = "Cryptol", address = "Galois"}
-  Cryptol> {name = "Cryptol", address = "Galois"}.address
   "Galois"
-  Cryptol> {name = "test", coords = {xCoord = 3:[32], yCoord = 5:[32]}}
   {name = "test", coords = {xCoord = 3, yCoord = 5}}
-  Cryptol> {name = "test", coords = {xCoord = 3:[32], \
-                                   yCoord = 5:[32]}}.coords.yCoord
   5
-  Cryptol> {x=True, y=False} == {y=False, x=True}
   True
-\end{Verbatim}
+\end{reploutVerb}
 \end{small}
 \end{Answer}
 
@@ -1425,19 +1415,18 @@ consist of all {\tt True}\indTrue bits:
   We said that {\tt zero} inhabits all types in Cryptol. This also
   includes functions. What do you think the appropriate {\tt zero}
   value for a function would be?  Try out the following examples:
-\begin{Verbatim}
+\hidereplin|:set base=10|
+\begin{replinVerb}
    (zero : ([8] -> [3])) 5
    (zero : Bit -> {xCoord : [12], yCoord : [5]}) True
-\end{Verbatim}
+\end{replinVerb}
 \end{Exercise}
 \begin{Answer}\ansref{ex:zero:0}
 Here are Cryptol's responses:\indZero
-\begin{Verbatim}
-  Cryptol> (zero : ([8] -> [3])) 5
+\begin{reploutVerb}
   0
-  Cryptol> (zero : Bit -> {xCoord : [12], yCoord : [5]}) True
-  {xCoord=0, yCoord=0}
-\end{Verbatim}
+  {xCoord = 0, yCoord = 0}
+\end{reploutVerb}
 The {\tt zero} function returns {\tt 0}, ignoring its argument.
 \end{Answer}
 
@@ -1462,34 +1451,39 @@ Cryptol, it requires some care if overflow has to be treated
 explicitly.\indOverflow\indUnderflow\indPlus\indMinus\indTimes\indDiv\indMod\indLg\indMin\indMax\indExponentiate
 
 \begin{Exercise}\label{ex:arith:1}
-What is the value of \texttt{1 + 1 :~[\textunderscore]}? Surprised?
+What is the value of \replin|1 + 1 : [_]|? Surprised?
 \end{Exercise}
 \begin{Answer}\ansref{ex:arith:1}
   Since {\tt 1} requires only 1 bit to represent, the result also has
   1 bit. In other words, the arithmetic is done modulo $2^1 =
   2$. Therefore, {\tt 1+1 = 0}.
 \end{Answer}
+\hidereplout|Showing a specific instance of polymorphic result:|
+\hidereplout|* Using '1' for type wildcard (_)|
+\hidereplout|0x0|
 
 \begin{Exercise}\label{ex:arith:2}
-What is the value of \texttt{1 + 1 :~[8]}? Why?
+What is the value of \replin|1 + 1 : [8]|? Why?
 \end{Exercise}
 \begin{Answer}\ansref{ex:arith:2}
-  Now we have 8 bits to work with, so the result is {\tt 2}. Since we
+  Now we have 8 bits to work with, so the result is \replout|0x02|. Since we
   have 8 bits to work with, overflow will not happen until we get a
   sum that is at least 256.
 \end{Answer}
 
 \begin{Exercise}\label{ex:arith:3}
-What is the value of \texttt{3 - 5 :~[\textunderscore]}? How about \texttt{3 - 5 :~[8]}?
+What is the value of \replin|3 - 5 : [_]|? How about \replin|3 - 5 : [8]|?
 \end{Exercise}
 \begin{Answer}\ansref{ex:arith:3}
+  \hidereplout|Showing a specific instance of polymorphic result:|
+  \hidereplout|* Using '3' for type wildcard (_)|
   Recall from \autoref{sec:words} that there are no negative
   numbers in Cryptol. The values \texttt{3} and \texttt{5} can be
   represented in 3 bits, so Cryptol uses 3 bits to represent the
   result, so the arithmetic is done modulo $2^3=8$. Hence, the result
-  is \texttt{6}.  In the second expression, we have 8 bits to work with,
+  is \replout|0x6|.  In the second expression, we have 8 bits to work with,
   so the modulus is $2^8 = 256$; so the subtraction results in
-  \texttt{254} (or \texttt{0xfe}).
+  \replout|0xfe| (or \Verb|254|).
 \end{Answer}
 
 \note{Cryptol supports subtraction both as a binary operator, and as a
@@ -1500,18 +1494,25 @@ What is the value of \texttt{3 - 5 :~[\textunderscore]}? How about \texttt{3 - 5
 
 \begin{Exercise}\label{ex:arith:4}
 Try out the following expressions:\indEq\indNeq
-\begin{Verbatim}
-  2 / 0
-  2 % 0
-  3 + (if 3 == 2+1 then 12 else 2/0)
-  3 + (if 3 != 2+1 then 12 else 2/0)
+\begin{replinVerb}
+  (2:Integer) / 0
+  (2:Integer) % 0
+  (3:Integer) + (if 3 == 2+1 then 12 else 2/0)
+  (3:Integer) + (if 3 != 2+1 then 12 else 2/0)
   lg2 (-25) : [_]
-\end{Verbatim}
+\end{replinVerb}
 In the last expression, remember that unary minus will\indUnaryMinus
 be done in a modular fashion. What is the modulus used for this
 operation?
 \end{Exercise}
 \begin{Answer}\ansref{ex:arith:4}
+  \hidereplout|division by 0|
+  \hidereplout|division by 0|
+  \hidereplout|15|
+  \hidereplout|division by 0|
+  \hidereplout|Showing a specific instance of polymorphic result:|
+  \hidereplout|* Using '5' for type argument 'n' of 'Cryptol::lg2'|
+  \hidereplout|0x03|
   The first, second, and fourth examples give a ``division by 0''
   error message. In the third example, the division by zero occurs
   only in an unreachable branch, so the result is not an error.
@@ -1524,22 +1525,22 @@ operation?
 
 \begin{Exercise}\label{ex:arith:5:1}
 Integral division truncates down. Try out the following expressions:\indDiv\indMod
-\begin{Verbatim}
-  (6 / 3, 6 % 3)
-  (7 / 3, 7 % 3)
-  (8 / 3, 8 % 3)
-  (9 / 3, 9 % 3)
-\end{Verbatim}
+\begin{replinVerb}
+  (6 / 3:Integer, 6 % 3:Integer)
+  (7 / 3:Integer, 7 % 3:Integer)
+  (8 / 3:Integer, 8 % 3:Integer)
+  (9 / 3:Integer, 9 % 3:Integer)
+\end{replinVerb}
 What is the relationship between {\tt /} and {\tt \%}?
 \end{Exercise}
 \begin{Answer}\ansref{ex:arith:5:1}
 Here are Cryptol's answers:\indDiv\indMod
-\begin{Verbatim}
+\begin{reploutVerb}
   (2, 0)
   (2, 1)
   (2, 2)
   (3, 0)
-\end{Verbatim}
+\end{reploutVerb}
 The following equation holds regarding {\tt /} and {\tt \%}:
 $$
   x = (x / y) * y + (x \% y)
@@ -1548,11 +1549,14 @@ whenever $y \neq 0$.
 \end{Answer}
 
 \begin{Exercise}\label{ex:arith:5}
-  What is the value of \texttt{min (5:[\textunderscore]) (-2)}? Why?
-  Why are the parentheses around \texttt{-2}
+  What is the value of \replin|min (5:[_]) (-2)|? Why?
+  Why are the parentheses around \Verb|-2|
   necessary?\indMin\indModular\indUnaryMinus
 \end{Exercise}
 \begin{Answer}\ansref{ex:arith:5}
+  \hidereplout|Showing a specific instance of polymorphic result:|
+  \hidereplout|  * Using '3' for type wildcard (_)|
+  \hidereplout|0x5|
   The bit-width in this case is 3 (to accommodate for the number 5),
   and hence arithmetic is done modulo $2^3 = 8$. Thus, {\tt -2}
   evaluates to {\tt 6}, leading to the result {\tt min 5 (-2) == 5}.
@@ -1563,11 +1567,12 @@ whenever $y \neq 0$.
 \end{Answer}
 
 \begin{Exercise}\label{ex:arith:6}
-How about {\tt max 5 (-2:[8])}? Why?\indMin\indModular\indUnaryMinus
+\hidereplin|:set base=10|
+How about \replin|max 5 (-2:[8])|? Why?\indMin\indModular\indUnaryMinus
 \end{Exercise}
 \begin{Answer}\ansref{ex:arith:6}
   This time we are telling Cryptol to use precisely 8 bits, so {\tt
-    -2} is equivalent to {\tt 254}. Therefore the result is {\tt 254}.
+    -2} is equivalent to {\tt 254}. Therefore the result is \replout|254|.
 \end{Answer}
 
 \begin{Exercise}\label{ex:arith:7}
@@ -1600,32 +1605,31 @@ with their usual meanings.\indEq\indNeq\indGt\indGte\indLt\indLte
 
 \begin{Exercise}\label{ex:arith:8}
 Try out the following expressions:
-\begin{Verbatim}
+\begin{replinVerb}
   ((2 >= 3) || (3 < 6)) && (4 == 5)
   if 3 >= 2 then True else 1 < 12
-\end{Verbatim}
+\end{replinVerb}
 \end{Exercise}
 \begin{Answer}\ansref{ex:arith:8}
 Here are Cryptol's responses:
-\begin{Verbatim}
-Cryptol> ((2 >= 3) || (3 < 6)) && (4 == 5)
+\begin{reploutVerb}
 False
-Cryptol> if 3 >= 2 then True else 1 < 12
 True
-\end{Verbatim}
+\end{reploutVerb}
 \end{Answer}
 
 \paragraph*{Enumerations, revisited} In
 \exerciseref{ex:seq:9}, we wrote the infinite
 enumeration{\indEnum\indInfSeq}starting at {\tt 1} using an explicit
 type as follows:
-\begin{Verbatim}
+\hidereplin|:set base=10|
+\begin{replinVerb}
   [(1:[32]) ...]
-\end{Verbatim}
+\end{replinVerb}
 As expected, Cryptol evaluates this expression to:
-\begin{Verbatim}
+\begin{reploutVerb}
   [1, 2, 3, 4, 5, ...]
-\end{Verbatim}
+\end{reploutVerb}
 However, while the output suggests that the numbers are increasing all
 the time, that is just an illusion! Since the elements of this
 sequence are 32-bit words, eventually they will wrap over, and go back
@@ -1665,17 +1669,22 @@ and type inference will assign the smallest bit-size possible to
 represent {\tt k}.
 
 \begin{Exercise}\label{ex:arith:9}
+  \hidereplin|:set base=10|
   Remember from \exerciseref{ex:decimalType} that the word \texttt{0}
   requires 0 bits to represent. Based on this, what is the value of
-  the enumeration \texttt{[0:[\textunderscore], 1...]}? How about
-  \texttt{[0:[\textunderscore]...]}? Surprised?
+  the enumeration \replin|[0:[_], 1...]|? How about
+  \replin|[0:[_]...]|? Surprised?
 \end{Exercise}
 \begin{Answer}\ansref{ex:arith:9}
 Here are Cryptol's responses:\indModular\indEnum\indInfSeq
-\begin{Verbatim}
+\begin{reploutVerb}
+  Showing a specific instance of polymorphic result:
+    * Using '1' for type wildcard (_)
   [0, 1, 0, 1, 0, ...]
+  Showing a specific instance of polymorphic result:
+    * Using '0' for type wildcard (_)
   [0, 0, 0, 0, 0, ...]
-\end{Verbatim}
+\end{reploutVerb}
 The first example gets an element type of \texttt{[1]}, because of the
 explicit use of the numeral \texttt{1}, while the second example's
 element type is \texttt{[0]}. This is one case where \texttt{[k...]}
@@ -1683,15 +1692,15 @@ is subtly different from \texttt{[k, k+1...]}.
 \end{Answer}
 
 \begin{Exercise}\label{ex:arith:10}
-  What is the value of \texttt{[1 ..\ 10]}? Explain in terms of the above
+  What is the value of \replin|[1:Integer .. 10]|? Explain in terms of the above
   discussion on modular arithmetic.\indModular
 \end{Exercise}
 \begin{Answer}\ansref{ex:arith:10}
-  The expression \texttt{[1 ..\ 10]} is equivalent to \texttt{[1, (1+1) ..\ 10]},
-  and Cryptol knows that \texttt{10} requires at least 4 bits
+  The expression \Verb|[1 .. 10]| is equivalent to \Verb|[1, (1+1) ..\ 10]|,
+  and Cryptol knows that \Verb|10| requires at least 4 bits
   to represent and uses the minimum implied by all the available
-  information. Hence we get: \texttt{[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]}.
-  You can use the \texttt{:t} command to see the type Cryptol infers for
+  information. Hence we get: \replout|[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]|.
+  You can use the \Verb|:t| command to see the type Cryptol infers for
   this expression explicitly:
 \begin{Verbatim}
     Cryptol> :t [1 .. 10]
