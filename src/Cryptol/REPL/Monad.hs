@@ -556,12 +556,12 @@ getTypeNames  =
      return (map (show . pp) (Map.keys (M.neTypes fNames)))
 
 -- | Return a list of property names, sorted by position in the file.
-getPropertyNames :: REPL ([M.Name],NameDisp)
+getPropertyNames :: REPL ([(M.Name,M.IfaceDecl)],NameDisp)
 getPropertyNames =
   do fe <- getFocusedEnv
      let xs = M.ifDecls (M.mctxDecls fe)
-         ps = sortBy (comparing (from . M.nameLoc))
-              [ x | (x,d) <- Map.toList xs,
+         ps = sortBy (comparing (from . M.nameLoc . fst))
+              [ (x,d) | (x,d) <- Map.toList xs,
                     T.PragmaProperty `elem` M.ifDeclPragmas d ]
 
      return (ps, M.mctxNameDisp fe)
