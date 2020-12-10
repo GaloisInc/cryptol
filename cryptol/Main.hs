@@ -26,7 +26,6 @@ import Cryptol.Utils.PP
 import Cryptol.Version (displayVersion)
 
 import Control.Monad (when)
-import Data.Maybe (isJust)
 import GHC.IO.Encoding (setLocaleEncoding, utf8)
 import System.Console.GetOpt
     (OptDescr(..),ArgOrder(..),ArgDescr(..),getOpt,usageInfo)
@@ -47,7 +46,7 @@ data Options = Options
   { optLoad            :: [FilePath]
   , optVersion         :: Bool
   , optHelp            :: Bool
-  , optBatch           :: Maybe FilePath
+  , optBatch           :: ReplMode
   , optCallStacks      :: Bool
   , optCommands        :: [String]
   , optColorMode       :: ColorMode
@@ -62,7 +61,7 @@ defaultOptions  = Options
   { optLoad            = []
   , optVersion         = False
   , optHelp            = False
-  , optBatch           = Nothing
+  , optBatch           = InteractiveRepl
   , optCallStacks      = True
   , optCommands        = []
   , optColorMode       = AutoColor
@@ -76,6 +75,9 @@ options :: [OptDescr (OptParser Options)]
 options  =
   [ Option "b" ["batch"] (ReqArg setBatchScript "FILE")
     "run the script provided and exit"
+
+  , Option "" ["interactive-batch"] (ReqArg setInteractiveBatchScript "FILE")
+    "run the script provided and exit, but behave as if running an interactive session"
 
   , Option "e" ["stop-on-error"] (NoArg setStopOnError)
     "stop script execution as soon as an error occurs."
@@ -129,7 +131,11 @@ setStopOnError = modify $ \opts -> opts { optStopOnError = True }
 
 -- | Set a batch script to be run.
 setBatchScript :: String -> OptParser Options
-setBatchScript path = modify $ \ opts -> opts { optBatch = Just path }
+setBatchScript path = modify $ \ opts -> opts { optBatch = Batch path }
+
+-- | Set an interactive batch script
+setInteractiveBatchScript :: String -> OptParser Options
+setInteractiveBatchScript path = modify $ \ opts -> opts { optBatch = InteractiveBatch path }
 
 -- | Set the color mode of the terminal output.
 setColorMode :: String -> OptParser Options
@@ -235,9 +241,9 @@ setupCmdScript opts =
       (path, h) <- openTempFile tmpdir "cmds.icry"
       hPutStr h (unlines cmds)
       hClose h
-      when (isJust (optBatch opts)) $
+      when (optBatch opts /= InteractiveRepl) $
         putStrLn "[warning] --command argument specified; ignoring batch file"
-      return (opts { optBatch = Just path }, Just path)
+      return (opts { optBatch = InteractiveBatch path }, Just path)
 
 setupREPL :: Options -> REPL ()
 setupREPL opts = do
@@ -271,9 +277,10 @@ setupREPL opts = do
   setUpdateREPLTitle (shouldSetREPLTitle >>= \b -> when b setREPLTitle)
   updateREPLTitle
   case optBatch opts of
-    Nothing -> return ()
     -- add the directory containing the batch file to the module search path
-    Just file -> prependSearchPath [ takeDirectory file ]
+    Batch file -> prependSearchPath [ takeDirectory file ]
+    _ -> return ()
+
   case optLoad opts of
     []  -> loadPrelude `REPL.catch` \x -> io $ print $ pp x
     [l] -> loadCmd l `REPL.catch` \x -> do
