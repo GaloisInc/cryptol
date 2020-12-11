@@ -97,7 +97,7 @@ Here is the response from Cryptol, in order:
 \begin{small}
 \begin{reploutVerb}
   True
-  [error] at <interactive>:1:1--1:6 Value not in scope: false
+  [error] at <interactive>:2:1--2:6 Value not in scope: false
   False
   0x4
   True
@@ -301,13 +301,17 @@ Here are Cryptol's responses:
   5
   1
   division by 0
+  -- Backtrace --
+  Cryptol::recip called at <interactive>:4:1--4:6
   division by 0
-  [error] at <interactive>:1:1--1:20:
+  -- Backtrace --
+  Cryptol::recip called at <interactive>:5:1--5:6
+  [error] at <interactive>:6:1--6:20:
   • Unsolvable constraint:
       prime 8
       arising from
       use of expression recip
-      at <interactive>:1:2--1:7
+      at <interactive>:6:2--6:7
 \end{reploutVerb}
 \end{Answer}
 
@@ -532,7 +536,7 @@ In each case we get a type error:
       Expected type: Bit
       Inferred type: [1]
       When checking type of sequence member
-  [error] at <interactive>:1:13--1:19:
+  [error] at <interactive>:2:13--2:19:
     Type mismatch:
       Expected type: 3
       Inferred type: 2
@@ -763,15 +767,22 @@ Here are Cryptol's responses:
   0
   5
   invalid sequence index: 10
+  -- Backtrace --
+  (Cryptol::@) called at <interactive>:6:1--6:22
   [3, 4]
   []
   invalid sequence index: 12
+   -- Backtrace --
+  (Cryptol::@) called at Cryptol:806:14--806:20
+  (Cryptol::@@) called at <interactive>:9:1--9:28
   [9, 8, 7, 6, 5, 4, 3, 2, 1, 0]
   9
   6
   [6, 3]
   [9, 8, 7, 6, 5, 4, 3, 2, 1, 0]
   invalid sequence index: 12
+  -- Backtrace --
+  (Cryptol::!) called at <interactive>:15:1--15:22
 \end{reploutVerb}
 \end{Answer}
 
@@ -1507,9 +1518,16 @@ operation?
 \end{Exercise}
 \begin{Answer}\ansref{ex:arith:4}
   \hidereplout|division by 0|
+  \hidereplout|-- Backtrace --|
+  \hidereplout|(Cryptol::/) called at <interactive>:1:1--1:16|
   \hidereplout|division by 0|
+  \hidereplout|-- Backtrace --|
+  \hidereplout|(Cryptol::%) called at <interactive>:2:1--2:16|
   \hidereplout|15|
   \hidereplout|division by 0|
+  \hidereplout|-- Backtrace --|
+  \hidereplout|(Cryptol::/) called at <interactive>:4:41--4:44|
+  \hidereplout|(Cryptol::+) called at <interactive>:4:1--4:45|
   \hidereplout|Showing a specific instance of polymorphic result:|
   \hidereplout|* Using '5' for type argument 'n' of 'Cryptol::lg2'|
   \hidereplout|0x03|

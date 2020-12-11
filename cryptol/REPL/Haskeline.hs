@@ -29,7 +29,6 @@ import           Control.Monad.Trans.Control
 import           Data.Char (isAlphaNum, isSpace)
 import           Data.Function (on)
 import           Data.List (isPrefixOf,nub,sortBy,sort)
-import           Data.Maybe(isJust)
 import qualified Data.Set as Set
 import qualified Data.Text as T (unpack)
 import           System.Console.ANSI (setTitle, hSupportsANSI)
@@ -44,16 +43,25 @@ import           Prelude ()
 import           Prelude.Compat
 
 
+data ReplMode
+  = InteractiveRepl -- ^ Interactive terminal session
+  | Batch FilePath  -- ^ Execute from a batch file
+  | InteractiveBatch FilePath
+     -- ^ Execute from a batch file, but behave as though
+     --   lines are entered in an interactive session.
+ deriving (Show, Eq)
+
 -- | One REPL invocation, either from a file or from the terminal.
-crySession :: Maybe FilePath -> Bool -> REPL CommandExitCode
-crySession mbBatch stopOnError =
+crySession :: ReplMode -> Bool -> REPL CommandExitCode
+crySession replMode stopOnError =
   do settings <- io (setHistoryFile (replSettings isBatch))
      let act = runInputTBehavior behavior settings (withInterrupt (loop 1))
      if isBatch then asBatch act else act
   where
-  (isBatch,behavior) = case mbBatch of
-    Nothing   -> (False,defaultBehavior)
-    Just path -> (True,useFile path)
+  (isBatch,behavior) = case replMode of
+    InteractiveRepl       -> (False, defaultBehavior)
+    Batch path            -> (True,  useFile path)
+    InteractiveBatch path -> (False, useFile path)
 
   loop :: Int -> InputT REPL CommandExitCode
   loop lineNum =
@@ -67,12 +75,18 @@ crySession mbBatch stopOnError =
            | all (all isSpace) ls -> loop (lineNum + length ls)
            | otherwise            -> doCommand lineNum ls
 
+  run lineNum cmd =
+    case replMode of
+      InteractiveRepl    -> runCommand lineNum Nothing cmd
+      InteractiveBatch _ -> runCommand lineNum Nothing cmd
+      Batch path         -> runCommand lineNum (Just path) cmd
+
   doCommand lineNum txt =
     case parseCommand findCommandExact (unlines txt) of
       Nothing | isBatch && stopOnError -> return CommandError
               | otherwise -> loop (lineNum + length txt)  -- say somtething?
       Just cmd -> join $ MTL.lift $
-        do status <- handleInterrupt (handleCtrlC CommandError) (runCommand lineNum mbBatch cmd)
+        do status <- handleInterrupt (handleCtrlC CommandError) (run lineNum cmd)
            case status of
              CommandError | isBatch && stopOnError -> return (return status)
              _ -> do goOn <- shouldContinue
@@ -106,25 +120,32 @@ loadCryRC cryrc =
        let file = dir </> ".cryptolrc"
        present <- io (doesFileExist file)
        if present
-         then crySession (Just file) True
+         then crySession (Batch file) True
          else check others
 
   loadMany []       = return CommandOk
-  loadMany (f : fs) = do status <- crySession (Just f) True
+  loadMany (f : fs) = do status <- crySession (Batch f) True
                          case status of
                            CommandOk -> loadMany fs
                            _         -> return status
 
 -- | Haskeline-specific repl implementation.
-repl :: Cryptolrc -> Maybe FilePath -> Bool -> Bool -> REPL () -> IO CommandExitCode
-repl cryrc mbBatch callStacks stopOnError begin =
-  runREPL (isJust mbBatch) callStacks stdoutLogger $
-  do status <- loadCryRC cryrc
-     case status of
-       CommandOk -> begin >> crySession mbBatch stopOnError
-       _         -> return status
+repl :: Cryptolrc -> ReplMode -> Bool -> Bool -> REPL () -> IO CommandExitCode
+repl cryrc replMode callStacks stopOnError begin =
+  runREPL isBatch callStacks stdoutLogger replAction
 
+ where
+  -- this flag is used to suppress the logo and prompts
+  isBatch = case replMode of
+              InteractiveRepl -> False
+              Batch _ -> True
+              InteractiveBatch _ -> True
 
+  replAction =
+    do status <- loadCryRC cryrc
+       case status of
+         CommandOk -> begin >> crySession replMode stopOnError
+         _         -> return status
 
 -- | Try to set the history file.
 setHistoryFile :: Settings REPL -> IO (Settings REPL)
