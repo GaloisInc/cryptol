@@ -331,7 +331,7 @@ main = do
 
               writeFile outFile outText
 
-              let diffCmd = (P.shell ("diff " ++ outExpectedFile ++ " " ++ outFile))
+              let diffCmd = (P.shell ("diff -u " ++ outExpectedFile ++ " " ++ outFile))
 
               (diffEC, diffOut, _) <- P.readCreateProcessWithExitCode diffCmd ""
               case diffEC of
@@ -345,7 +345,7 @@ main = do
                   Line lnReploutStart _ Seq.:<| _ <- return $ rdReplout rd
                   _ Seq.:|> Line lnReploutEnd _ <- return $ rdReplout rd
 
-                  putStrLn $ "REPL output mismatch."
+                  putStrLn $ "REPL output mismatch in " ++ latexFile opts
                   putStrLn $ "  (replin lines " ++
                     show lnReplinStart ++ "-" ++ show lnReplinEnd ++
                     ", replout lines " ++ show lnReploutStart ++ "-" ++
@@ -369,7 +369,7 @@ main = do
                   removeFile outFile
                   exitFailure
 
-  putStrLn $ "Successfully checked " ++ show (length allReplData) ++ " repl examples."
+  putStrLn $ "Successfully checked " ++ show (length allReplData) ++ " repl examples in " ++ latexFile opts
 
   return ()
 
