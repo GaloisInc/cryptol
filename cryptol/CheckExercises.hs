@@ -217,11 +217,11 @@ processLine s = do
           -- be checked for errors but that the result can be discarded.
           addReplData
           nextLine
-      | Just (InlineReplin, cmd, rst) <- inlineRepl s_nocomment -> do
+      | Just (InlineReplin, cmd, rst) <- inlineRepl s -> do
           -- Ingest an inline replin command.
           addReplin cmd
           processLine rst
-      | Just (InlineReplout, cmd, rst) <- inlineRepl s_nocomment -> do
+      | Just (InlineReplout, cmd, rst) <- inlineRepl s -> do
           -- Ingest an inline replout command, switching to replout mode.
           modify' $ \st -> st { pMode = AwaitingReploutMode }
           addReplout cmd
@@ -253,14 +253,14 @@ processLine s = do
           addReplData
           modify' $ \st -> st { pMode = ReplinMode }
           nextLine
-      | Just (InlineReplin, cmd, rst) <- inlineRepl s_nocomment -> do
+      | Just (InlineReplin, cmd, rst) <- inlineRepl s -> do
           -- Ingest an inline replin command, switching to replin mode and
           -- committing the current repl data.
           addReplData
           modify' $ \st -> st { pMode = AwaitingReplinMode }
           addReplin cmd
           processLine rst
-      | Just (InlineReplout, cmd, rst) <- inlineRepl s_nocomment -> do
+      | Just (InlineReplout, cmd, rst) <- inlineRepl s -> do
           -- Ingest an replout command.
           addReplout cmd
           processLine rst
@@ -349,7 +349,7 @@ main = do
                   putStrLn $ "  (replin lines " ++
                     show lnReplinStart ++ "-" ++ show lnReplinEnd ++
                     ", replout lines " ++ show lnReploutStart ++ "-" ++
-                    show lnReploutEnd
+                    show lnReploutEnd ++ ")."
                   putStrLn $ "Diff output:"
                   putStr diffOut
 

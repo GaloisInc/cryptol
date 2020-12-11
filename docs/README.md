@@ -54,3 +54,10 @@ following commands:
   `\replout` command. When we don't record any expected output, the
   actual REPL output is not checked, but is instead simply issued to
   the REPL to ensure no errors are raised.
+
+Other notes:
+
+* I tried to do reasonable things with % comments, but I can't guarantee it will
+  work as expected in all cases (particularly with the inline commands). It's
+  probably best to avoid using LaTeX comments that are on the same line as any
+  of the above commands.
