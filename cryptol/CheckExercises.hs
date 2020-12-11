@@ -7,9 +7,9 @@ module Main(main) where
 
 import Control.Monad.State
 import Options.Applicative
-import Data.Char (isSpace)
+import Data.Char (isSpace, isAlpha)
 import Data.Foldable (traverse_)
-import Data.List (isInfixOf, stripPrefix)
+import Data.List (isInfixOf, isPrefixOf, stripPrefix)
 import Data.Maybe (fromMaybe)
 import qualified Data.Sequence as Seq
 import Numeric.Natural
@@ -55,47 +55,38 @@ trim = f . f
 -- LaTeX processing state monad
 --
 -- We process the text-by-line. The behavior of the state monad on a line is
--- governed by the mode it is currently in. The overall idea is to read in
--- "replin" and "replout" sections of the file in alternation, grouping each
--- replin/replout pair into discrete ReplData elements which will be validated
--- against the Cryptol REPL. The current mode dictates how to interpret each
--- line, and which mode to transition to next.
+-- governed by the mode it is currently in. The current mode dictates how to
+-- interpret each line, and which mode to transition to next.
 --
--- There are four modes: AwaitingReplinMode, ReplinMode, AwaitingReploutMode,
--- and ReploutMode. Below we describe the behavior of each mode.
+-- There are four modes: AwaitingReplMode, ReplinMode, ReploutMode, and
+-- ReplPromptMode. Below we describe the behavior of each mode.
 --
--- AwaitingReplinMode: When in this mode, we are anticipating "replin" lines;
--- that is, lines that will be issued as input to the repl. When we see a
--- \begin{replinVerb}, we transition to ReplinMode. When we see a
--- \begin{reploutVerb}, we transition to ReploutMode. When we see an inline
--- \replin{..} command, we add the content to the list of replin lines without
--- changing modes. When we see an inline \replout{..} command, we switch to
--- AwaitingReploutMode and add the content to the list of replout lines.
+-- AwaitingReplMode: When in this mode, we are anticipating "replin" or
+-- "replout" lines; that is, lines that will be issued as input to the repl or
+-- expected as output from the repl.. When we see a \begin{replinVerb}, we
+-- transition to ReplinMode. When we see a \begin{reploutVerb}, we transition to
+-- ReploutMode. When we see a \begin{replPromptVerb}, we transition to
+-- ReplPromptMode. When we see an inline \replin{..} command, we add the content
+-- to the list of replin lines without changing modes. When we see an inline
+-- \replout{..} command, we add the content to the list of replout lines without
+-- changing modes.
 --
 -- ReplinMode: When in this mode, we are inside of a "\begin{replinVerb}"
 -- section. When we see a \end{replinVerb} line, we transition to
--- AwaitingReplinMode (since there could be more replin lines following some
--- explanatory text). Otherwise, we simply add the entire line to the list of
+-- AwaitingReplMode. Otherwise, we simply add the entire line to the list of
 -- replin lines.
 --
--- AwaitingReploutMode: When in this mode, we are anticipating "replout" lines;
--- that is, lines that should be compared to the output of the repl once the
--- already-processed replin lines have been issued to the REPL. When we see a
--- \begin{reploutVerb}, we transition to ReploutMode. When we see a
--- \begin{replinVerb}, we have come to the end of this particular ReplData
--- segment, so we package up the replin and replout lines into a ReplData, add
--- that new object to the growing list of ReplData objects to be validated, and
--- transition to ReplinMode to start reading in lines for the next ReplData.
--- When we see a \replout{..} command, we add the content to the list of replout
--- lines without changing modes. When we see an inline \replin{..} command, we
--- treat it like a \begin{replinVerb}, except we also add the contents as the
--- first line of replin, and we transition to AwaitingReplinMode rather than
--- ReplinMode.
+-- ReploutMode: Like ReplinMode, except we add each line to the expected output.
+--
+-- ReplPromptMode: A combination of ReplinMode and ReploutMode. Each line is
+-- either added to input or expected output. If the line starts with a prompt
+-- like "Cryptol>" or "Float>", it is added to expected input. Otherwise it is
+-- added to expected output.
 
-data PMode = AwaitingReplinMode
+data PMode = AwaitingReplMode
            | ReplinMode
-           | AwaitingReploutMode
            | ReploutMode
+           | ReplPromptMode
   deriving (Eq, Show)
 
 data Line = Line { lineNum :: Natural
@@ -124,7 +115,7 @@ data PState = PState { pMode              :: PMode
   deriving (Eq, Show)
 
 initPState :: PState
-initPState = PState AwaitingReplinMode Seq.empty Seq.empty Seq.empty 1
+initPState = PState AwaitingReplMode Seq.empty Seq.empty Seq.empty 1
 
 -- | P monad for reading in lines
 type P = State PState
@@ -195,6 +186,11 @@ addReplout s = do
 nextLine :: P ()
 nextLine = modify' $ \st -> st { pCurrentLine = pCurrentLine st + 1 }
 
+stripPrompt :: String -> Maybe String
+stripPrompt s = case span isAlpha s of
+  (_:_, '>':s') -> Just s'
+  _ -> Nothing
+
 -- | The main function for our monad. Input is a single line.
 processLine :: String -> P ()
 processLine s = do
@@ -203,34 +199,33 @@ processLine s = do
   m <- gets pMode
   ln <- gets pCurrentLine
   case m of
-    AwaitingReplinMode
+    AwaitingReplMode
       | "\\begin{replinVerb}" `isInfixOf` s_nowhitespace -> do
-          -- Switching from awaiting to ingesting repl input.
           modify' $ \st -> st { pMode = ReplinMode }
           nextLine
       | "\\begin{reploutVerb}" `isInfixOf` s_nowhitespace -> do
-          -- Switching from awaiting repl input to ingesting repl output.
           modify' $ \st -> st { pMode = ReploutMode }
           nextLine
+      | "\\begin{replPrompt}" `isInfixOf` s_nowhitespace -> do
+          modify' $ \st -> st { pMode = ReplPromptMode }
+          nextLine
       | "\\restartrepl" `isInfixOf` s_nowhitespace -> do
-          -- Commit the input with no accompanying output, indicating it should
-          -- be checked for errors but that the result can be discarded.
+          -- This is a command that acts as the barrier between discrete
+          -- input/output pairs. When we see it, we commit the current pair,
+          -- begin a brand new pair, and advance to the next line.
           addReplData
           nextLine
       | Just (InlineReplin, cmd, rst) <- inlineRepl s -> do
-          -- Ingest an inline replin command.
           addReplin cmd
           processLine rst
       | Just (InlineReplout, cmd, rst) <- inlineRepl s -> do
-          -- Ingest an inline replout command, switching to replout mode.
-          modify' $ \st -> st { pMode = AwaitingReploutMode }
           addReplout cmd
           processLine rst
       | otherwise -> nextLine
     ReplinMode
       | "\\end{replinVerb}" `isInfixOf` s_nowhitespace -> do
           -- Switching from ingesting repl input to awaiting repl input.
-          modify' $ \st -> st { pMode = AwaitingReplinMode }
+          modify' $ \st -> st { pMode = AwaitingReplMode }
           nextLine
       | otherwise -> do
           -- Ingest the current line, and stay in ReplinMode.
@@ -240,35 +235,10 @@ processLine s = do
                                                 -- mode.
           modify' $ \st -> st { pReplin = replin' }
           nextLine
-    AwaitingReploutMode
-      | "\\begin{reploutVerb}" `isInfixOf` s_nowhitespace -> do
-          -- Switching from awaiting to ingesting repl output.
-          modify' $ \st -> st { pMode = ReploutMode }
-          nextLine
-      | "\\begin{replinVerb}" `isInfixOf` s_nowhitespace -> do
-          -- Switching from awaiting repl output to ingesting repl input. This
-          -- indicates we have finished building the current repl data, so
-          -- commit it by appending it to the end of the list of completed repl
-          -- data and start a fresh one.
-          addReplData
-          modify' $ \st -> st { pMode = ReplinMode }
-          nextLine
-      | Just (InlineReplin, cmd, rst) <- inlineRepl s -> do
-          -- Ingest an inline replin command, switching to replin mode and
-          -- committing the current repl data.
-          addReplData
-          modify' $ \st -> st { pMode = AwaitingReplinMode }
-          addReplin cmd
-          processLine rst
-      | Just (InlineReplout, cmd, rst) <- inlineRepl s -> do
-          -- Ingest an replout command.
-          addReplout cmd
-          processLine rst
-      | otherwise -> nextLine
     ReploutMode
       | "\\end{reploutVerb}" `isInfixOf` s_nowhitespace -> do
           -- Switching from ingesting repl output to awaiting repl output.
-          modify' $ \st -> st { pMode = AwaitingReploutMode }
+          modify' $ \st -> st { pMode = AwaitingReplMode }
           nextLine
       | otherwise -> do
           -- Ingest the current line, and stay in ReploutMode.
@@ -277,6 +247,27 @@ processLine s = do
                                                   -- isn't a comment in verbatim
                                                   -- mode.
           modify' $ \st -> st { pReplout = replout' }
+          nextLine
+    ReplPromptMode
+      | "\\end{replPrompt}" `isInfixOf` s_nowhitespace -> do
+          -- Switching from ingesting repl input/output to awaiting repl
+          -- input.
+          modify' $ \st -> st { pMode = AwaitingReplMode }
+          nextLine
+      | Just input <- stripPrompt (trim s) -> do
+          replin <- gets pReplin
+          let input' = trim input
+              replin' = replin Seq.|> Line ln input' -- use the full input since
+                                                     -- % isn't a comment in
+                                                     -- verbatim mode.
+          modify $ \st -> st { pReplin = replin' }
+          nextLine
+      | otherwise -> do
+          replout <- gets pReplout
+          let replout' = replout Seq.|> Line ln s -- use the full input since %
+                                                  -- isn't a comment in verbatim
+                                                  -- mode.
+          modify $ \st -> st { pReplout = replout' }
           nextLine
 
 main :: IO ()
@@ -327,7 +318,7 @@ main = do
               -- remove temporary input file
               removeFile inFile
 
-              let outText = unlines $ filter (not . null) $ trim <$> (tail $ lines cryOut)
+              let outText = unlines $ filter (not . null) $ trim <$> (dropWhile ("Loading module" `isPrefixOf`) $ lines cryOut)
 
               writeFile outFile outText
 

@@ -30,16 +30,19 @@ following commands:
 
   This is the markup equivalent of the `Verbatim` environment.
   However, it has the added effect of adding every line of the block
-  to the expected output of the preceding `\replin` commands. If we add
-  a `replinVerb` environment or inline `\replin` command after a
-  `reploutVerb` environment, it has the effect of "completing" the
-  previous input/output pair to issue to the repl. See CrashCourse.tex
-  for examples.
+  to the expected output of the preceding `\replin` commands. 
   
 * \replout|...|`
 
   Inline equivalent of `reploutVerb` environment. Markup equivalent of
   `\Verb|...|`.
+
+* `\begin{replPrompt}` and `\end{replPrompt}`
+
+  This is the markup equivalent of the `Verbatim` environment. However, it has
+  the added effect of adding every line of the block either to input or expected
+  output. If the line starts with the `Cryptol` prompt, it is added to input;
+  otherwise, it is added to output.
 
 * `\hidereplout|..|`
 
@@ -49,11 +52,14 @@ following commands:
   
 * `\restartrepl`
 
-  This has the effect of terminating the previous input/output REPL
-  pair without having to include a `reploutVerb` environment or
-  `\replout` command. When we don't record any expected output, the
-  actual REPL output is not checked, but is instead simply issued to
-  the REPL to ensure no errors are raised.
+  This has the effect of terminating the current input/output REPL pair. If
+  there is input but no output, then instead of checking the output, the tool
+  checks that the input does not raise an error.
+  
+  This command is used to divide the REPL input/output pairs into distinct
+  "blocks" that get submitted to the REPL independently. Therefore, this command
+  should be called every time we are defining a new REPL pair; in particular, it
+  should come before every exercise that uses REPL commands.
 
 Other notes:
 
@@ -61,3 +67,5 @@ Other notes:
   work as expected in all cases (particularly with the inline commands). It's
   probably best to avoid using LaTeX comments that are on the same line as any
   of the above commands.
+
+* Lines starting with "Loading module" are silently ignored from the output.

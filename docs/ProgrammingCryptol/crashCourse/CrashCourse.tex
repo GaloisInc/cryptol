@@ -56,7 +56,6 @@ word. We can also supply partial types. For example,
 \begin{replinVerb}
    12 : [_]
 \end{replinVerb}
-\restartrepl
 means that \texttt{12} has a word type with an unspecified number of
 bits. Cryptol will infer the unspecified part of the type in this
 case. We shall see many other examples of typed expressions in the
@@ -79,6 +78,7 @@ that act on bit values.
 \begin{Exercise}\label{ex:dataBit}
   Type in the following expressions at the Cryptol prompt, and observe
   the output:
+\restartrepl
 \begin{replinVerb}
   True
   false
@@ -129,6 +129,7 @@ words is written \texttt{[n]}; e.g. \texttt{[8]} is the 8-bit word type.
 By default, Cryptol prints words in base 16. You might find it useful
 to set the output base to be 10 while working on the following
 example. To do so, use the command:\indSettingBase
+\restartrepl
 \begin{replinVerb}
   :set base=10
 \end{replinVerb}
@@ -177,6 +178,7 @@ override this by giving an explicit type signature.\indSignature
 %% keep track of how many bits they need, so the current behavior was
 %% deemed a good compromise.
 
+\restartrepl
 \begin{Exercise}\label{ex:decimalType}
   Try writing some decimal numbers at different types, like
   \texttt{12:[4]} and \texttt{50:[8]}. How does Cryptol respond if
@@ -201,6 +203,7 @@ override this by giving an explicit type signature.\indSignature
   the smallest type for \texttt{0}.
 \end{Answer}
 
+\restartrepl
 \begin{Exercise}\label{ex:setBase}
   Experiment with different output bases by issuing {\tt :set
     base=10}, and other base values. Also try writing numbers directly
@@ -232,6 +235,7 @@ represents the integer 255. To write a negative integer, simply negate
 the result: For example, \texttt{-12} and \texttt{- toInteger 0xc}
 represent the integer $-12$.
 
+\restartrepl
 \begin{Exercise}\label{ex:int:1}
   Compare the results of evaluating the expressions \replin|0x8 + 0x9|
   and \replin|toInteger 0x8 + toInteger 0x9|. Also try evaluating
@@ -258,6 +262,7 @@ positive \texttt{n}.  \texttt{Z n} represents the ring of integers modulo \textt
 Just like with fixed-width bitvector values, arithmetic in
 \texttt{Z n} will ``wrap around'' (i.e., be reduced modulo \texttt{n})
 when values get too large.
+\restartrepl
 \begin{Exercise}\label{ex:int:2}
   Compare the results of evaluating \replin| (5 : Z 7) + (6 : Z 7) |
   with \replin| fromZ (5 : Z 7) + fromZ (6 : Z 7) |.
@@ -283,6 +288,7 @@ implement the \texttt{Field} operations for \texttt{Z p}.
 The type \texttt{Z p} is also known as the
 ``prime field of characteristic \texttt{p}'' when \texttt{p} is prime.
 
+\restartrepl
 \begin{Exercise}\label{ex:int:3}
 What are the results of evaluating the following expressions?
 \begin{replinVerb}
@@ -331,6 +337,7 @@ in decimal, hex and binary forms, as well as using scientific notation.
 
 For example, all of the following expression create the same
 value representing one half:
+\restartrepl
 \begin{replinVerb}
   ratio 1 2
   ratio 2 4
@@ -383,7 +390,9 @@ Of particular importance is the relation \texttt{=.=} for comparing
 floating point numbers semantically, rather that using the IEEE equality,
 which is done by \texttt{==}.  The behavior of the two differs
 mostly on special values, here are some examples:
-\begin{Verbatim}
+\restartrepl
+\hidereplin|:m Float|
+\begin{replPrompt}
 Float> fpNaN == (fpNaN : Float64)
 False
 Float> fpNaN =.= (fpNaN : Float64)
@@ -392,7 +401,7 @@ Float> 0 == (-0 : Float64)
 True
 Float> 0 =.= (-0 : Float64)
 False
-\end{Verbatim}
+\end{replPrompt}
 \restartrepl
 
 Cryptol supports reasoning about floating point numbers using the
@@ -430,6 +439,7 @@ of type \texttt{()}.
 
 \begin{Exercise}\label{ex:tup:1}
 Try out the following tuples:
+\restartrepl
 \begin{replinVerb}
   (1, 2+4) : (Integer, Integer)
   (True, False, True ^ False)
@@ -458,6 +468,7 @@ empty tuple, as it has no components to project.
 
 \begin{Exercise}\label{ex:tup:2}
 Try out the following examples:
+\restartrepl
 \begin{replinVerb}
   (1, 2+4).0 : Integer
   (1, 2+4).1 : Integer
@@ -506,6 +517,7 @@ comma-separated elements.\indTheSequenceType
 
 \begin{Exercise}\label{ex:seq:1}
 Try out the following sequences:
+\restartrepl
 \begin{replinVerb}
   [1, 2]
   [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
@@ -523,6 +535,7 @@ $3\times3$ matrix.
 \begin{Exercise}\label{ex:seq:2}
   Type in the following expressions to Cryptol and observe the
   type errors:
+\restartrepl
 \begin{replinVerb}
   [True, [True]]
   [[1, 2, 3], [4, 5]]
@@ -563,6 +576,7 @@ constructs guarantee that enumeration elements are distinct.
 \begin{Exercise}\label{ex:seq:3}
   Explore various ways of constructing enumerations in Cryptol, by
   using the following expressions:
+\restartrepl
 \begin{replinVerb}
   [1 .. 10 : Integer]            // increment with step 1
   [1, 3 .. 10 : Integer]         // increment with step 2 (= 3-1)
@@ -604,6 +618,7 @@ comprehensions are not generalized numeric comprehensions (like
 summation, product, maximum, or minimum), though such comprehensions
 can certainly be defined using Cryptol comprehensions.
 
+\restartrepl
 \begin{Exercise}\label{ex:seq:4}
   The components of a Cryptol sequence comprehension are an expression
   of one or more variables (which defines each element of the
@@ -636,6 +651,7 @@ multiplied. For instance, in the first example, the generator
 $2\times 3 = 6$ elements.
 \end{Answer}
 
+\restartrepl
 \begin{Exercise}\label{ex:seq:5}\indParallel\indComp
   A comprehension with multiple branches is called a \emph{parallel
     comprehension}. We can have any number of parallel branches. The
@@ -738,6 +754,7 @@ them very useful for permuting sequences).
 
 \todo[inline]{Cite other languages that express permutations like this?}
 
+\restartrepl
 \begin{Exercise}\label{ex:seq:7}
 Try out the following Cryptol expressions:
 \begin{replinVerb}
@@ -786,6 +803,7 @@ Here are Cryptol's responses:
 \end{reploutVerb}
 \end{Answer}
 
+\restartrepl
 \begin{Exercise}\label{ex:seq:8}
   The permutation operators ({\tt @@} and {\tt !!}) can be defined
   using sequence comprehensions.  Write an expression that selects the
@@ -801,7 +819,6 @@ Using a comprehension, we can express the same idea using:
 \begin{replinVerb}
   [ [0 .. 10] @ i | i <- [0, 2 .. 10] ]
 \end{replinVerb}
-\restartrepl
 Strictly speaking, permutation operations are indeed redundant.
 However, they lead to more concise and easier-to-read expressions.
 \end{Answer}
@@ -818,6 +835,7 @@ elements are accessed \emph{on demand}. This implies that Cryptol will
 infinite sequence: it will lazily construct the sequence and make its
 elements available as demanded by the program.
 
+\restartrepl
 \begin{Exercise}\label{ex:seq:9}
 Try the following infinite enumerations:\hidereplin|:set base=10|
 \begin{replinVerb}
@@ -846,18 +864,24 @@ Try the following infinite enumerations:\hidereplin|:set base=10|
 \note{We are explicitly telling Cryptol to use 32-bit words
   as the elements. The reason for doing so will become clear when we
   study arithmetic shortly.}
+
+\restartrepl
 \begin{Exercise}\label{ex:seq:10}
   What happens if you use the reverse index operator ({\tt !}) on an
   infinite sequence? Why?
 \end{Exercise}
 \begin{Answer}\ansref{ex:seq:10}
 Here is a simple test case:
-\begin{Verbatim}
+\begin{replPrompt}
   Cryptol> [1:[32] ...] ! 3
 
   [error] at <interactive>:1:1--1:17:
-    Expected a finite type, but found `inf`.
-\end{Verbatim}
+    • Unsolvable constraint:
+        fin inf
+          arising from
+          use of expression (!)
+          at <interactive>:1:1--1:17
+\end{replPrompt}
 The error message is telling us that we \emph{cannot} apply the reverse
 index operator ({\tt !}) on an infinite sequence (\texttt{inf}).  This
 is a natural consequence of the fact that one can never reach the end
@@ -876,6 +900,7 @@ built-in functions for manipulating them in various ways.  It is
 worthwhile to try the following exercises to gain basic familiarity
 with the basic operations.
 
+\restartrepl
 \begin{Exercise}\label{ex:seq:11}
 Try the following expressions:\indTake\indDrop\indSplit\indGroup\indJoin\indTranspose
 \begin{replinVerb}
@@ -977,24 +1002,28 @@ parts. An explicit result type is often used with {\tt split}, since
 the number of parts and the number of elements in each part are not
 given as arguments, but are determined by the type of the argument
 sequence and the result context.
-\begin{Verbatim}
+\restartrepl
+\hidereplin|:set base=10|
+\begin{replPrompt}
   Cryptol> split [1..12] : [1][12][8]
   [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]]
   Cryptol> split [1..12] : [2][6][8]
   [[1, 2, 3, 4, 5, 6], [7, 8, 9, 10, 11, 12]]
   Cryptol> split [1..12] : [3][4][8]
   [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]]
-\end{Verbatim}
+\end{replPrompt}
 Here is what happens if we do {\em not} give an explicit signature on
 the result:\indSignature
-\begin{Verbatim}
+\restartrepl
+\hidereplin|:set base=10|
+\begin{replPrompt}
   Cryptol> split [1..12]
   Cannot evaluate polymorphic value.
   Type: {n, m, a} (n * m == 12, Literal 12 a, fin m) => [n][m]a
   Cryptol> :t split [1..12]
   split [1 .. 12] : {n, m, a} (n * m == 12, Literal 12 a, fin m) =>
                       [n][m]a
-\end{Verbatim}
+\end{replPrompt}
 %% cryptol 1 said: : {a b c} (fin c,c >= 4,a*b == 12) => [a][b][c]
 
 A complex type signature like this one first defines a set of type
@@ -1012,6 +1041,7 @@ very powerful function. The flexibility afforded by \texttt{split}
 comes in very handy in Cryptol. We shall see one example of its usage
 later in \autoref{sec:scytale}.
 
+\restartrepl
 \begin{Exercise}\label{ex:split:0}
   With a sequence of length 12, as in the above example, there are
   precisely 6 ways of splitting it: 1 $\times$ 12, 2 $\times$ 6, 3
@@ -1020,30 +1050,33 @@ later in \autoref{sec:scytale}.
   corresponding to the latter three.\indSplit
 \end{Exercise}
 \begin{Answer}\ansref{ex:split:0}
-Here they are:\indSplit
-\begin{Verbatim}
+  Here they are:\indSplit
+\hidereplin|:set base=10|
+\begin{replPrompt}
   Cryptol> split [1..12] : [4][3][8]
   [[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]]
   Cryptol> split [1..12] : [6][2][8]
   [[1, 2], [3, 4], [5, 6], [7, 8], [9, 10], [11, 12]]
   Cryptol> split [1..12] : [12][1][8]
   [[1], [2], [3], [4], [5], [6], [7], [8], [9], [10], [11], [12]]
-\end{Verbatim}
+\end{replPrompt}
 \end{Answer}
 
+\restartrepl
 \begin{Exercise}\label{ex:split:1}
   What happens when you type
   \texttt{split [1 ..\ 12] :\ [5][2][8]}?\indSplit
 \end{Exercise}
 \begin{Answer}\ansref{ex:split:1}
 Cryptol will issue a type error:\indSplit
-\begin{Verbatim}
+\begin{replPrompt}
   Cryptol> split [1..12] : [5][2][8]
   [error] at <interactive>:1:7--1:14:
     Type mismatch:
       Expected type: 10
       Inferred type: 12
-\end{Verbatim}
+      When checking type of function argument
+\end{replPrompt}
 Cryptol is telling us that we have requested 10 elements in the final
 result (5 $\times$ 2), but the input has 12.
 \end{Answer}
@@ -1078,6 +1111,7 @@ lines.)\indLineCont \todo[inline]{You don't need nested
 Common operations on sequences include shifting and rotating them.
 Cryptol supports both versions with left/right
 variants.\indShiftLeft\indShiftRight\indRotLeft\indRotRight
+\restartrepl
 \begin{Exercise}\label{ex:seq:14}
 Experiment with the following expressions:
 \begin{replinVerb}
@@ -1144,6 +1178,7 @@ abbreviation for \texttt{[6]Bit}.
 $$1\times2^5 + 0\times2^4 + 1\times2^3 + 0\times2^2 + 1\times2^1 + 0\times2^0 = 32 + 0 + 8 + 0 + 2 + 0 = 42$$
 \end{Answer}
 
+\restartrepl
 \begin{Exercise}\label{ex:words:1}
   Try out the following words: \lhint{It might help to use \replin|:set base=2|
     to see the bit patterns.}\indSettingBase
@@ -1173,6 +1208,7 @@ $$1\times2^5 + 0\times2^4 + 1\times2^3 + 0\times2^2 + 1\times2^1 + 0\times2^0 = 
 \end{reploutVerb}
 \end{Answer}
 
+\restartrepl
 \begin{Exercise}\label{ex:words:4}
 Since words are sequences, the sequence functions from
 \exerciseref{ex:seq:11} apply to words as well.
@@ -1256,6 +1292,7 @@ numbers.\footnote{This is a significant change from Cryptol version 1,
   matches the traditional
   interpretation.}\indRotLeft\indRotRight\indShiftLeft\indShiftRight
 
+\restartrepl
 \begin{Exercise}\label{ex:words:6}
 Try the following examples of shifting/rotating words:
 \begin{replinVerb}
@@ -1342,6 +1379,7 @@ equal if they have the same number of fields, if their field names are
 identical, if identically named fields are of comparable types and
 have equal values.
 
+\restartrepl
 \begin{Exercise}\label{ex:record:1}
 Type in the following expressions and observe the output:
 \hidereplin|:set ascii=on|
@@ -1422,6 +1460,7 @@ consist of all {\tt True}\indTrue bits:
   {xCoord=4095, yCoord=31}
 \end{Verbatim}
 
+\restartrepl
 \begin{Exercise}\label{ex:zero:0}
   We said that {\tt zero} inhabits all types in Cryptol. This also
   includes functions. What do you think the appropriate {\tt zero}
@@ -1461,6 +1500,7 @@ resulting word size.  While this is very handy for most applications of
 Cryptol, it requires some care if overflow has to be treated
 explicitly.\indOverflow\indUnderflow\indPlus\indMinus\indTimes\indDiv\indMod\indLg\indMin\indMax\indExponentiate
 
+\restartrepl
 \begin{Exercise}\label{ex:arith:1}
 What is the value of \replin|1 + 1 : [_]|? Surprised?
 \end{Exercise}
@@ -1473,6 +1513,7 @@ What is the value of \replin|1 + 1 : [_]|? Surprised?
 \hidereplout|* Using '1' for type wildcard (_)|
 \hidereplout|0x0|
 
+\restartrepl
 \begin{Exercise}\label{ex:arith:2}
 What is the value of \replin|1 + 1 : [8]|? Why?
 \end{Exercise}
@@ -1482,6 +1523,7 @@ What is the value of \replin|1 + 1 : [8]|? Why?
   sum that is at least 256.
 \end{Answer}
 
+\restartrepl
 \begin{Exercise}\label{ex:arith:3}
 What is the value of \replin|3 - 5 : [_]|? How about \replin|3 - 5 : [8]|?
 \end{Exercise}
@@ -1503,6 +1545,7 @@ What is the value of \replin|3 - 5 : [_]|? How about \replin|3 - 5 : [8]|?
   For instance, \texttt{-5} precisely means \texttt{0-5}, and is subject to the
   usual modular arithmetic rules.}\indModular\indMinus
 
+\restartrepl
 \begin{Exercise}\label{ex:arith:4}
 Try out the following expressions:\indEq\indNeq
 \begin{replinVerb}
@@ -1541,6 +1584,7 @@ operation?
   \emph{ceiling log base 2} function.\indLg\indEq\indNeq
 \end{Answer}
 
+\restartrepl
 \begin{Exercise}\label{ex:arith:5:1}
 Integral division truncates down. Try out the following expressions:\indDiv\indMod
 \begin{replinVerb}
@@ -1566,6 +1610,7 @@ $$
 whenever $y \neq 0$.
 \end{Answer}
 
+\restartrepl
 \begin{Exercise}\label{ex:arith:5}
   What is the value of \replin|min (5:[_]) (-2)|? Why?
   Why are the parentheses around \Verb|-2|
@@ -1584,6 +1629,7 @@ whenever $y \neq 0$.
   the expressions \texttt{min 5 - 2} and \texttt{min 5 -2}.
 \end{Answer}
 
+\restartrepl
 \begin{Exercise}\label{ex:arith:6}
 \hidereplin|:set base=10|
 How about \replin|max 5 (-2:[8])|? Why?\indMin\indModular\indUnaryMinus
@@ -1593,6 +1639,7 @@ How about \replin|max 5 (-2:[8])|? Why?\indMin\indModular\indUnaryMinus
     -2} is equivalent to {\tt 254}. Therefore the result is \replout|254|.
 \end{Answer}
 
+\restartrepl
 \begin{Exercise}\label{ex:arith:7}
   Write an expression that computes the sum of two sequences
   \texttt{[1..\ 10]} and \texttt{[10, 9 ..\ 1]}.\indPlus
@@ -1621,6 +1668,7 @@ upon Cryptol's automatic lifting.\indArithLift
 operators {\tt ==}, {\tt !=}, {\tt >}, {\tt >=}, {\tt <}, {\tt <=},
 with their usual meanings.\indEq\indNeq\indGt\indGte\indLt\indLte
 
+\restartrepl
 \begin{Exercise}\label{ex:arith:8}
 Try out the following expressions:
 \begin{replinVerb}
@@ -1640,6 +1688,7 @@ True
 \exerciseref{ex:seq:9}, we wrote the infinite
 enumeration{\indEnum\indInfSeq}starting at {\tt 1} using an explicit
 type as follows:
+\restartrepl
 \hidereplin|:set base=10|
 \begin{replinVerb}
   [(1:[32]) ...]
@@ -1686,6 +1735,7 @@ will be treated as if the user has written:
 and type inference will assign the smallest bit-size possible to
 represent {\tt k}.
 
+\restartrepl
 \begin{Exercise}\label{ex:arith:9}
   \hidereplin|:set base=10|
   Remember from \exerciseref{ex:decimalType} that the word \texttt{0}
@@ -1709,6 +1759,7 @@ element type is \texttt{[0]}. This is one case where \texttt{[k...]}
 is subtly different from \texttt{[k, k+1...]}.
 \end{Answer}
 
+\restartrepl
 \begin{Exercise}\label{ex:arith:10}
   What is the value of \replin|[1:Integer .. 10]|? Explain in terms of the above
   discussion on modular arithmetic.\indModular
