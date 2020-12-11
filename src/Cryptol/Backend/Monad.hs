@@ -49,7 +49,6 @@ import           Control.Concurrent
 import           Control.Concurrent.STM
 
 import           Control.Monad
-import           Control.Monad.Fix
 import           Control.Monad.IO.Class
 import           Data.Foldable (toList)
 import           Data.Sequence (Seq)
@@ -404,9 +403,6 @@ instance Monad Eval where
 
 instance MonadIO Eval where
   liftIO = io
-
-instance MonadFix Eval where
-  mfix f = Eval $ \stk -> mfix (\x -> runEval stk (f x))
 
 -- | Lift an 'IO' computation into the 'Eval' monad.
 io :: IO a -> Eval a

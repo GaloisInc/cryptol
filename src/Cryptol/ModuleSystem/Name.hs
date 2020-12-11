@@ -57,7 +57,6 @@ import           Cryptol.Utils.PP
 
 
 import           Control.DeepSeq
-import           Control.Monad.Fix (MonadFix(mfix))
 import qualified Data.Map as Map
 import qualified Data.Monoid as M
 import           Data.Ord (comparing)
@@ -294,9 +293,6 @@ instance BaseM m n => BaseM (SupplyT m) n where
 instance RunM m (a,Supply) r => RunM (SupplyT m) a (Supply -> r) where
   runM (SupplyT m) s = runM m s
   {-# INLINE runM #-}
-
-instance MonadFix m => MonadFix (SupplyT m) where
-  mfix f = SupplyT (mfix (unSupply . f))
 
 -- | Retrieve the next unique from the supply.
 nextUniqueM :: FreshM m => m Int
