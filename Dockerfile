@@ -32,7 +32,7 @@ RUN curl -L https://yices.csl.sri.com/releases/2.6.2/yices-2.6.2-x86_64-pc-linux
 # Install CVC4 1.8
 # The latest CVC4 1.8 and the release version has a minor discrepency between it, causing sbv to fail
 # https://github.com/CVC4/CVC4/releases/download/1.8/cvc4-1.8-x86_64-linux-opt
-RUN curl -L https://cvc4.cs.stanford.edu/downloads/builds/x86_64-linux-opt/unstable/cvc4-2020-10-26-x86_64-linux-opt --output rootfs/usr/local/bin/cvc4
+RUN curl -L https://cvc4.cs.stanford.edu/downloads/builds/x86_64-linux-opt/unstable/cvc4-2020-12-11-x86_64-linux-opt --output rootfs/usr/local/bin/cvc4
 
 # Install MathSAT 5.6.3 - Uncomment if you are in compliance with MathSAT's license.
 # RUN curl -L https://mathsat.fbk.eu/download.php?file=mathsat-5.6.3-linux-x86_64.tar.gz | tar xz
