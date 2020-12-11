@@ -80,6 +80,10 @@ jobs:
         run: .github/ci.sh build
 
       - shell: bash
+        run: .github/ci.sh check_docs
+        if: runner.os != 'Windows'
+
+      - shell: bash
         run: .github/ci.sh test_dist
 
       # TODO: get Python client to work on Windows

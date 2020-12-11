@@ -136,6 +136,11 @@ test_dist() {
   $BIN/test-runner --ext=.icry -F -b --exe=dist/bin/cryptol tests
 }
 
+check_docs() {
+  ./cry build exe:check-exercises
+  find ./docs/ProgrammingCryptol -name '*.tex' -print0 | xargs -0 -n1 cabal v2-exec check-exercises
+}
+
 test_rpc() {
   cabal v2-test cryptol-remote-api
 }
