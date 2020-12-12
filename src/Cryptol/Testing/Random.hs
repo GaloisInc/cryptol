@@ -148,7 +148,9 @@ randomValue sym ty =
     TVRec fs ->
          do gs <- traverse (randomValue sym) fs
             return (randomRecord gs)
-
+    TVNewtype _ _ fs ->
+         do gs <- traverse (randomValue sym) fs
+            return (randomRecord gs)
     TVArray{} -> Nothing
     TVFun{} -> Nothing
     TVAbstract{} -> Nothing
@@ -359,6 +361,7 @@ typeSize ty = case ty of
   TVRec fs -> product <$> traverse typeSize fs
   TVFun{} -> Nothing
   TVAbstract{} -> Nothing
+  TVNewtype _ _ tbody -> typeSize (TVRec tbody)
 
 {- | Returns all the values in a type.  Returns an empty list of values,
 for types where 'typeSize' returned 'Nothing'. -}
@@ -390,6 +393,7 @@ typeValues ty =
       ]
     TVFun{} -> []
     TVAbstract{} -> []
+    TVNewtype _ _ tbody -> typeValues (TVRec tbody)
 
 --------------------------------------------------------------------------------
 -- Driver function

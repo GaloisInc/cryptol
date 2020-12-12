@@ -54,7 +54,8 @@ import           Cryptol.Backend.FloatHelpers(bfValue)
 import qualified Cryptol.Eval.Concrete as Concrete
 import           Cryptol.Eval.Value
 import           Cryptol.TypeCheck.AST
-import           Cryptol.Eval.Type (TValue(..), evalType)
+import           Cryptol.TypeCheck.Solver.InfNat
+import           Cryptol.Eval.Type (TValue(..), evalType,NewtypeEnv,tValTy)
 import           Cryptol.Utils.Ident (Ident,prelPrim,floatPrim)
 import           Cryptol.Utils.RecordMap
 import           Cryptol.Utils.Panic
@@ -115,10 +116,10 @@ data ProverResult = AllSatResult [SatResult] -- LAZY
 
 
 
-predArgTypes :: QueryType -> Schema -> Either String [FinType]
-predArgTypes qtype schema@(Forall ts ps ty)
+predArgTypes :: NewtypeEnv -> QueryType -> Schema -> Either String [FinType]
+predArgTypes ntEnv qtype schema@(Forall ts ps ty)
   | null ts && null ps =
-      case go <$> (evalType mempty ty) of
+      case go <$> (evalType ntEnv mempty ty) of
         Right (Just fts) -> Right fts
         _ | SafetyQuery <- qtype -> Left $ "Expected finite result type:\n" ++ show (pp schema)
           | otherwise -> Left $ "Not a valid predicate type:\n" ++ show (pp schema)
@@ -144,6 +145,7 @@ data FinType
     | FTSeq Int FinType
     | FTTuple [FinType]
     | FTRecord (RecordMap Ident FinType)
+    | FTNewtype UserTC [Either Nat' TValue] (RecordMap Ident FinType)
 
 numType :: Integer -> Maybe Int
 numType n
@@ -153,29 +155,36 @@ numType n
 finType :: TValue -> Maybe FinType
 finType ty =
   case ty of
-    TVBit            -> Just FTBit
-    TVInteger        -> Just FTInteger
-    TVIntMod n       -> Just (FTIntMod n)
-    TVRational       -> Just FTRational
-    TVFloat e p      -> Just (FTFloat e p)
-    TVSeq n t        -> FTSeq <$> numType n <*> finType t
-    TVTuple ts       -> FTTuple <$> traverse finType ts
-    TVRec fields     -> FTRecord <$> traverse finType fields
-    TVAbstract {}    -> Nothing
-    _                     -> Nothing
+    TVBit               -> Just FTBit
+    TVInteger           -> Just FTInteger
+    TVIntMod n          -> Just (FTIntMod n)
+    TVRational          -> Just FTRational
+    TVFloat e p         -> Just (FTFloat e p)
+    TVSeq n t           -> FTSeq <$> numType n <*> finType t
+    TVTuple ts          -> FTTuple <$> traverse finType ts
+    TVRec fields        -> FTRecord <$> traverse finType fields
+    TVNewtype u ts body -> FTNewtype u ts <$> traverse finType body
+    TVAbstract {}       -> Nothing
+    TVArray{}           -> Nothing
+    TVStream{}          -> Nothing
+    TVFun{}             -> Nothing
 
 unFinType :: FinType -> Type
 unFinType fty =
   case fty of
-    FTBit        -> tBit
-    FTInteger    -> tInteger
-    FTIntMod n   -> tIntMod (tNum n)
-    FTRational   -> tRational
-    FTFloat e p  -> tFloat (tNum e) (tNum p)
-    FTSeq l ety  -> tSeq (tNum l) (unFinType ety)
-    FTTuple ftys -> tTuple (unFinType <$> ftys)
-    FTRecord fs  -> tRec (unFinType <$> fs)
-
+    FTBit             -> tBit
+    FTInteger         -> tInteger
+    FTIntMod n        -> tIntMod (tNum n)
+    FTRational        -> tRational
+    FTFloat e p       -> tFloat (tNum e) (tNum p)
+    FTSeq l ety       -> tSeq (tNum l) (unFinType ety)
+    FTTuple ftys      -> tTuple (unFinType <$> ftys)
+    FTRecord fs       -> tRec (unFinType <$> fs)
+    FTNewtype u ts _  -> tNewtype u (map unArg ts)
+ where
+  unArg (Left Inf)     = tInf
+  unArg (Left (Nat n)) = tNum n
+  unArg (Right t)      = tValTy t
 
 data VarShape sym
   = VarBit (SBit sym)
@@ -237,6 +246,7 @@ freshVar fns tp = case tp of
     FTSeq n t     -> VarFinSeq (toInteger n) <$> sequence (genericReplicate n (freshVar fns t))
     FTTuple ts    -> VarTuple    <$> mapM (freshVar fns) ts
     FTRecord fs   -> VarRecord   <$> traverse (freshVar fns) fs
+    FTNewtype _ _ fs -> VarRecord <$> traverse (freshVar fns) fs
 
 computeModel ::
   PrimMap ->
@@ -303,6 +313,12 @@ varToExpr prims = go
   go :: FinType -> VarShape Concrete.Concrete -> Expr
   go ty val =
     case (ty,val) of
+      (FTNewtype (UserTC nm _) _ tfs, VarRecord vfs) ->
+        let res = zipRecords (\_lbl v t -> go t v) vfs tfs
+         in case res of
+              Left _ -> mismatch -- different fields
+              Right efs -> EApp (EVar nm) (ERec efs)
+
       (FTRecord tfs, VarRecord vfs) ->
         let res = zipRecords (\_lbl v t -> go t v) vfs tfs
          in case res of

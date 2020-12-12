@@ -155,7 +155,7 @@ instance FreeVars TCon where
 
 instance FreeVars Newtype where
   freeVars nt = foldr rmTParam base (ntParams nt)
-    where base = freeVars (ntConstraints nt) <> freeVars (map snd (ntFields nt))
+    where base = freeVars (ntConstraints nt) <> freeVars (recordElements (ntFields nt))
 
 
 --------------------------------------------------------------------------------

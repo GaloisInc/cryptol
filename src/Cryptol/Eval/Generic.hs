@@ -248,6 +248,9 @@ ringBinary sym opw opi opz opq opfp = loop
     TVAbstract {} ->
       evalPanic "ringBinary" ["Abstract type not in `Ring`"]
 
+    TVNewtype {} ->
+      evalPanic "ringBinary" ["Newtype not in `Ring`"]
+
 type UnaryWord sym = Integer -> SWord sym -> SEval sym (SWord sym)
 
 
@@ -324,6 +327,9 @@ ringUnary sym opw opi opz opq opfp = loop
 
     TVAbstract {} -> evalPanic "ringUnary" ["Abstract type not in `Ring`"]
 
+    TVNewtype {} -> evalPanic "ringUnary" ["Newtype not in `Ring`"]
+
+
 {-# SPECIALIZE ringNullary ::
   Concrete ->
   (Integer -> SEval Concrete (SWord Concrete)) ->
@@ -389,6 +395,9 @@ ringNullary sym opw opi opz opq opfp = loop
 
         TVAbstract {} ->
           evalPanic "ringNullary" ["Abstract type not in `Ring`"]
+
+        TVNewtype {} ->
+          evalPanic "ringNullary" ["Newtype not in `Ring`"]
 
 {-# SPECIALIZE integralBinary :: Concrete -> BinWord Concrete ->
       (SInteger Concrete -> SInteger Concrete -> SEval Concrete (SInteger Concrete)) ->
@@ -759,6 +768,9 @@ cmpValue sym fb fw fi fz fq ff = cmp
         TVAbstract {} -> evalPanic "cmpValue"
                           [ "Abstract type not in `Cmp`" ]
 
+        TVNewtype {} -> evalPanic "cmpValue"
+                          [ "Newtype not in `Cmp`" ]
+
     cmpValues (t : ts) (x1 : xs1) (x2 : xs2) k =
       do x1' <- x1
          x2' <- x2
@@ -928,6 +940,8 @@ zeroV sym ty = case ty of
          pure $ VRecord xs
 
   TVAbstract {} -> evalPanic "zeroV" [ "Abstract type not in `Zero`" ]
+
+  TVNewtype {} -> evalPanic "zeroV" [ "Newtype not in `Zero`" ]
 
 --  | otherwise = evalPanic "zeroV" ["invalid type for zero"]
 
@@ -1345,6 +1359,9 @@ logicBinary sym opb opw = loop
     TVAbstract {} -> evalPanic "logicBinary"
                         [ "Abstract type not in `Logic`" ]
 
+    TVNewtype {} -> evalPanic "logicBinary"
+                        [ "Newtype not in `Logic`" ]
+
 {-# INLINE wordValUnaryOp #-}
 wordValUnaryOp ::
   Backend sym =>
@@ -1414,6 +1431,7 @@ logicUnary sym opb opw = loop
 
     TVAbstract {} -> evalPanic "logicUnary" [ "Abstract type not in `Logic`" ]
 
+    TVNewtype {} -> evalPanic "logicUnary" [ "Newtype not in `Logic`" ]
 
 {-# SPECIALIZE bitsValueLessThan ::
   Concrete ->
@@ -1858,7 +1876,7 @@ errorV sym ty0 msg =
        TVRec fields -> return $ VRecord $ fmap (\t -> loop stk t) $ fields
 
        TVAbstract {} -> err stk
-
+       TVNewtype {} -> err stk
 
 {-# INLINE valueToChar #-}
 

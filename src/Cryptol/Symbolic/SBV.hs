@@ -56,6 +56,7 @@ import qualified Cryptol.Backend.FloatHelpers as FH
 
 import qualified Cryptol.Eval as Eval
 import qualified Cryptol.Eval.Concrete as Concrete
+import qualified Cryptol.Eval.Type as Eval
 import qualified Cryptol.Eval.Value as Eval
 import           Cryptol.Eval.SBV
 import           Cryptol.Parser.Position (emptyRange)
@@ -312,6 +313,9 @@ prepareQuery evo ProverCommand{..} =
 
      getEOpts <- M.getEvalOptsAction
 
+     nts <- M.getNewtypes
+     let ?ntEnv = Eval.NewtypeEnv nts
+
      -- The `addAsm` function is used to combine assumptions that
      -- arise from the types of symbolic variables (e.g. Z n values
      -- are assumed to be integers in the range `0 <= x < n`) with
@@ -322,7 +326,7 @@ prepareQuery evo ProverCommand{..} =
            SafetyQuery -> \x y -> SBV.svOr (SBV.svNot x) y
            SatQuery _ -> \x y -> SBV.svAnd x y
 
-     case predArgTypes pcQueryType pcSchema of
+     case predArgTypes ?ntEnv pcQueryType pcSchema of
        Left msg -> return (Left msg)
        Right ts -> M.io $
          do when pcVerbose $ logPutStrLn (Eval.evalLogger evo) "Simulating..."
@@ -513,6 +517,8 @@ parseValue (FTRecord r) cvs = (VarRecord r', cvs')
         (vs, cvs') = parseValues ts cvs
         fs         = zip ns vs
         r'         = recordFromFieldsWithDisplay (displayOrder r) fs
+
+parseValue (FTNewtype _ _ r) cvs = parseValue (FTRecord r) cvs
 
 parseValue (FTFloat e p) cvs =
    (VarFloat FH.BF { FH.bfValue = bfNaN

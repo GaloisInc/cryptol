@@ -74,7 +74,7 @@ solveSelector sel outerT =
              case mb of
                Nothing -> return Nothing
                Just nt ->
-                 case lookup l (ntFields nt) of
+                 case lookupField l (ntFields nt) of
                    Nothing -> return Nothing
                    Just t  ->
                      do let su = listParamSubst (zip (ntParams nt) ts)

@@ -312,7 +312,7 @@ instance Inst TySyn where
 
 instance Inst Newtype where
   inst ps nt = nt { ntConstraints = inst ps (ntConstraints nt)
-                  , ntFields = [ (f, inst ps t) | (f,t) <- ntFields nt ]
+                  , ntFields = fmap (inst ps) (ntFields nt)
                   }
 
 

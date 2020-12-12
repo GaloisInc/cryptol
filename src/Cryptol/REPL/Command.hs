@@ -364,7 +364,8 @@ dumpTestsCmd outFile str pos fnm =
      testNum <- getKnownUser "tests" :: REPL Int
      g <- io newTFGen
      tenv <- E.envTypes . M.deEnv <$> getDynEnv
-     let tyv = E.evalValType tenv ty
+     ntEnv <- E.NewtypeEnv . M.loadedNewtypes <$> getModuleEnv
+     let tyv = E.evalValType ntEnv tenv ty
      gens <-
        case TestR.dumpableType tyv of
          Nothing -> raise (TypeNotTestable ty)
@@ -427,8 +428,9 @@ qcExpr ::
 qcExpr qcMode exprDoc texpr schema =
   do (val,ty) <- replEvalCheckedExpr texpr schema
      testNum <- (toInteger :: Int -> Integer) <$> getKnownUser "tests"
+     ntEnv <- E.NewtypeEnv . M.loadedNewtypes <$> getModuleEnv
      tenv <- E.envTypes . M.deEnv <$> getDynEnv
-     let tyv = E.evalValType tenv ty
+     let tyv = E.evalValType ntEnv tenv ty
      percentRef <- io $ newIORef Nothing
      testsRef <- io $ newIORef 0
      case testableType tyv of

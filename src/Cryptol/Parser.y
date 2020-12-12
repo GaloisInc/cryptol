@@ -37,6 +37,7 @@ import Cryptol.Parser.LexerUtils hiding (mkIdent)
 import Cryptol.Parser.ParserUtils
 import Cryptol.Parser.Unlit(PreProc(..), guessPreProc)
 import Cryptol.Utils.Ident(paramInstModName)
+import Cryptol.Utils.RecordMap(RecordMap)
 
 import Paths_cryptol
 }
@@ -325,13 +326,13 @@ let_decl                :: { Decl PName }
 
 newtype                 :: { Newtype PName }
   : 'newtype' qname '=' newtype_body
-                           { Newtype { nName = $2, nParams = [], nBody = $4 } }
+                           { Newtype $2 [] (thing $4) }
   | 'newtype' qname tysyn_params '=' newtype_body
-                           { Newtype { nName = $2, nParams = $3, nBody = $5 } }
+                           { Newtype $2 $3 (thing $5) }
 
-newtype_body            :: { [Named (Type PName)] }
-  : '{' '}'                { [] }
-  | '{' field_types '}'    { $2 }
+newtype_body            :: { Located (RecordMap Ident (Range, Type PName)) }
+  : '{' '}'                {% mkRecord (rComb $1 $2) (Located emptyRange) [] }
+  | '{' field_types '}'    {% mkRecord (rComb $1 $3) (Located emptyRange) $2 }
 
 vars_comma                 :: { [ LPName ]  }
   : var                       { [ $1]      }

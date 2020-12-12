@@ -282,7 +282,7 @@ instance Inst Newtype where
   inst env nt = Newtype { ntName = instTyName env x
                         , ntParams = ntParams nt
                         , ntConstraints = inst env (ntConstraints nt)
-                        , ntFields = [ (f,inst env t) | (f,t) <- ntFields nt ]
+                        , ntFields = fmap (inst env) (ntFields nt)
                         , ntDoc = ntDoc nt
                         }
     where x = ntName nt

@@ -60,6 +60,7 @@ import qualified Cryptol.Backend.What4.SFloat as W4
 
 import qualified Cryptol.Eval as Eval
 import qualified Cryptol.Eval.Concrete as Concrete
+import qualified Cryptol.Eval.Type as Eval
 import qualified Cryptol.Eval.Value as Eval
 import           Cryptol.Eval.What4
 import           Cryptol.Parser.Position (emptyRange)
@@ -235,12 +236,14 @@ prepareQuery ::
   M.ModuleT IO (Either String
                        ([FinType],[VarShape (What4 sym)],W4.Pred sym, W4.Pred sym)
                )
-prepareQuery sym ProverCommand { .. } =
-  case predArgTypes pcQueryType pcSchema of
+prepareQuery sym ProverCommand { .. } = do
+  nts <- M.getNewtypes
+  let ntEnv = Eval.NewtypeEnv nts
+  case predArgTypes ntEnv pcQueryType pcSchema of
     Left msg -> pure (Left msg)
     Right ts ->
       do args <- liftIO (mapM (freshVar (what4FreshFns (w4 sym))) ts)
-         (safety,b) <- simulate args
+         (safety,b) <- simulate ntEnv args
          liftIO
            do -- Ignore the safety condition if the flag is set
               let safety' = if pcIgnoreSafety then W4.truePred (w4 sym) else safety
@@ -264,7 +267,7 @@ prepareQuery sym ProverCommand { .. } =
                        q' <- W4.andPred (w4 sym) defs q
                        pure (ts,args,safety',q')
   where
-  simulate args =
+  simulate ntEnv args =
     do let lPutStrLn = M.withLogger logPutStrLn
        when pcVerbose (lPutStrLn "Simulating...")
 
@@ -281,6 +284,7 @@ prepareQuery sym ProverCommand { .. } =
        let ?range = emptyRange
        callStacks <- M.getCallStacks
        let ?callStacks = callStacks
+       let ?ntEnv = ntEnv
 
        modEnv <- M.getModuleEnv
        let extDgs = M.allDeclGroups modEnv ++ pcExtraDecls

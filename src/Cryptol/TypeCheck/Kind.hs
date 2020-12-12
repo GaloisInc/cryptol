@@ -20,7 +20,6 @@ module Cryptol.TypeCheck.Kind
   ) where
 
 import qualified Cryptol.Parser.AST as P
-import           Cryptol.Parser.AST (Named(..))
 import           Cryptol.Parser.Position
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Error
@@ -37,7 +36,7 @@ import           Data.List(sortBy,groupBy)
 import           Data.Maybe(fromMaybe)
 import           Data.Function(on)
 import           Data.Text (Text)
-import           Control.Monad(unless,forM,when)
+import           Control.Monad(unless,when)
 
 
 
@@ -114,11 +113,8 @@ checkNewtype (P.Newtype x as fs) mbD =
   do ((as1,fs1),gs) <- collectGoals $
        inRange (srcRange x) $
        do r <- withTParams NoWildCards newtypeParam as $
-               forM fs $ \field ->
-                 let n = name field
-                 in kInRange (srcRange n) $
-                    do t1 <- doCheckType (value field) (Just KType)
-                       return (thing n, t1)
+               flip traverseRecordMap fs $ \_n (rng,f) ->
+                 kInRange rng $ doCheckType f (Just KType)
           simplifyAllConstraints
           return r
 

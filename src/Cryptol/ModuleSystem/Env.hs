@@ -177,6 +177,12 @@ loadedModules = map lmModule . getLoadedModules . meLoadedModules
 loadedNonParamModules :: ModuleEnv -> [T.Module]
 loadedNonParamModules = map lmModule . lmLoadedModules . meLoadedModules
 
+loadedNewtypes :: ModuleEnv -> Map Name IfaceNewtype
+loadedNewtypes menv = Map.unions
+   [ ifNewtypes (ifPublic i) <> ifNewtypes (ifPrivate i)
+   | i <- map lmInterface (getLoadedModules (meLoadedModules menv))
+   ]
+
 -- | Are any parameterized modules loaded?
 hasParamModules :: ModuleEnv -> Bool
 hasParamModules = not . null . lmLoadedParamModules . meLoadedModules

@@ -26,7 +26,7 @@ import Cryptol.ModuleSystem.Env (lookupModule
                                 , ModContext(..)
                                 , ModulePath(..), modulePathLabel)
 import qualified Cryptol.Eval                 as E
-
+import qualified Cryptol.Eval.Type            as E
 import qualified Cryptol.Eval.Concrete as Concrete
 import           Cryptol.Eval.Concrete (Concrete(..))
 import qualified Cryptol.ModuleSystem.NamingEnv as R
@@ -207,6 +207,8 @@ doLoadModule quiet isrc path fp pm0 =
      let ?evalPrim = \i -> Right <$> Map.lookup i tbl
      callStacks <- getCallStacks
      let ?callStacks = callStacks
+     nts <- getNewtypes
+     let ?ntEnv = E.NewtypeEnv nts
      unless (T.isParametrizedModule tcm) $ modifyEvalEnv (E.moduleEnv Concrete tcm)
      loadedModule path fp tcm
 
@@ -571,6 +573,9 @@ evalExpr e = do
   let ?range = emptyRange
   callStacks <- getCallStacks
   let ?callStacks = callStacks
+  nts <- getNewtypes
+  let ?ntEnv = E.NewtypeEnv nts
+
   io $ E.runEval mempty (E.evalExpr Concrete (env <> deEnv denv) e)
 
 evalDecls :: [T.DeclGroup] -> ModuleM ()
@@ -583,6 +588,9 @@ evalDecls dgs = do
   let ?evalPrim = \i -> Right <$> Map.lookup i tbl
   callStacks <- getCallStacks
   let ?callStacks = callStacks
+  nts <- getNewtypes
+  let ?ntEnv = E.NewtypeEnv nts
+
   deEnv' <- io $ E.runEval mempty (E.evalDecls Concrete dgs env')
   let denv' = denv { deDecls = deDecls denv ++ dgs
                    , deEnv = deEnv'

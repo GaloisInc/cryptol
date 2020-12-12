@@ -67,9 +67,10 @@ import Prelude.Compat
 type EvalEnv = GenEvalEnv Concrete
 
 type EvalPrims sym =
-  ( Backend sym, ?callStacks :: Bool, ?evalPrim :: PrimIdent -> Maybe (Either Expr (Prim sym)) )
+  ( Backend sym, ?ntEnv :: NewtypeEnv, ?callStacks :: Bool, ?evalPrim :: PrimIdent -> Maybe (Either Expr (Prim sym)) )
 
-type ConcPrims = (?callStacks :: Bool, ?evalPrim :: PrimIdent -> Maybe (Either Expr (Prim Concrete)))
+type ConcPrims =
+  (?callStacks :: Bool, ?ntEnv :: NewtypeEnv, ?evalPrim :: PrimIdent -> Maybe (Either Expr (Prim Concrete)))
 
 -- Expression Evaluation -------------------------------------------------------
 
@@ -89,7 +90,7 @@ moduleEnv ::
   Module         {- ^ Module containing declarations to evaluate -} ->
   GenEvalEnv sym {- ^ Environment to extend -} ->
   SEval sym (GenEvalEnv sym)
-moduleEnv sym m env = evalDecls sym (mDecls m) =<< evalNewtypes sym (mNewtypes m) env
+moduleEnv sym m env = evalDecls sym (mDecls m) =<< evalNewtypeDecls sym (mNewtypes m) env
 
 {-# SPECIALIZE evalExpr ::
   (?range :: Range, ConcPrims) =>
@@ -129,7 +130,7 @@ evalExpr sym env expr = case expr of
         xs <- mapM (sDelay sym) vs
         return $ VSeq len $ finiteSeqMap xs
    where
-    tyv = evalValType (envTypes env) ty
+    tyv = evalValType ?ntEnv (envTypes env) ty
     vs  = map eval es
     len = genericLength es
 
@@ -147,7 +148,7 @@ evalExpr sym env expr = case expr of
 
   ESet ty e sel v -> {-# SCC "evalExpr->ESet" #-}
     do e' <- eval e
-       let tyv = evalValType (envTypes env) ty
+       let tyv = evalValType ?ntEnv (envTypes env) ty
        evalSetSel sym tyv e' sel (eval v)
 
   EIf c t f -> {-# SCC "evalExpr->EIf" #-} do
@@ -155,8 +156,8 @@ evalExpr sym env expr = case expr of
      iteValue sym b (eval t) (eval f)
 
   EComp n t h gs -> {-# SCC "evalExpr->EComp" #-} do
-      let len  = evalNumType (envTypes env) n
-      let elty = evalValType (envTypes env) t
+      let len  = evalNumType ?ntEnv (envTypes env) n
+      let elty = evalValType ?ntEnv (envTypes env) t
       evalComp sym env len elty h gs
 
   EVar n -> {-# SCC "evalExpr->EVar" #-} do
@@ -185,8 +186,8 @@ evalExpr sym env expr = case expr of
 
   ETApp e ty -> {-# SCC "evalExpr->ETApp" #-} do
     eval e >>= \case
-      f@VPoly{}    -> fromVPoly sym f    $! (evalValType (envTypes env) ty)
-      f@VNumPoly{} -> fromVNumPoly sym f $! (evalNumType (envTypes env) ty)
+      f@VPoly{}    -> fromVPoly sym f    $! (evalValType ?ntEnv (envTypes env) ty)
+      f@VNumPoly{} -> fromVNumPoly sym f $! (evalNumType ?ntEnv (envTypes env) ty)
       val     -> do vdoc <- ppV val
                     panic "[Eval] evalExpr"
                       ["expected a polymorphic value"
@@ -242,7 +243,7 @@ cacheCallStack sym v = case v of
 
 -- Newtypes --------------------------------------------------------------------
 
-{-# SPECIALIZE evalNewtypes ::
+{-# SPECIALIZE evalNewtypeDecls ::
   ConcPrims =>
   Concrete ->
   Map.Map Name Newtype ->
@@ -250,26 +251,26 @@ cacheCallStack sym v = case v of
   SEval Concrete (GenEvalEnv Concrete)
   #-}
 
-evalNewtypes ::
+evalNewtypeDecls ::
   EvalPrims sym =>
   sym ->
   Map.Map Name Newtype ->
   GenEvalEnv sym ->
   SEval sym (GenEvalEnv sym)
-evalNewtypes sym nts env = foldM (flip (evalNewtype sym)) env $ Map.elems nts
+evalNewtypeDecls sym nts env = foldM (flip (evalNewtypeDecl sym)) env $ Map.elems nts
 
 -- | Introduce the constructor function for a newtype.
-evalNewtype ::
+evalNewtypeDecl ::
   EvalPrims sym =>
   sym ->
   Newtype ->
   GenEvalEnv sym ->
   SEval sym (GenEvalEnv sym)
-evalNewtype _sym nt = pure . bindVarDirect (ntName nt) (foldr tabs con (ntParams nt))
+evalNewtypeDecl _sym nt = pure . bindVarDirect (ntName nt) (foldr tabs con (ntParams nt))
   where
   tabs _tp body = PTyPoly (\ _ -> body)
   con           = PFun PPrim
-{-# INLINE evalNewtype #-}
+{-# INLINE evalNewtypeDecl #-}
 
 
 -- Declarations ----------------------------------------------------------------
@@ -331,6 +332,7 @@ evalDeclGroup sym env dg = do
 
 
 {-# SPECIALIZE fillHole ::
+  (?ntEnv :: NewtypeEnv) =>
   Concrete ->
   GenEvalEnv Concrete ->
   (Name, Schema, SEval Concrete (GenValue Concrete), SEval Concrete (GenValue Concrete) -> SEval Concrete ()) ->
@@ -349,7 +351,7 @@ evalDeclGroup sym env dg = do
 --   operation and only fall back on full eta expansion if the thunk is double-forced.
 
 fillHole ::
-  Backend sym =>
+  (?ntEnv :: NewtypeEnv, Backend sym) =>
   sym ->
   GenEvalEnv sym ->
   (Name, Schema, SEval sym (GenValue sym), SEval sym (GenValue sym) -> SEval sym ()) ->
@@ -357,11 +359,12 @@ fillHole ::
 fillHole sym env (nm, sch, _, fill) = do
   case lookupVar nm env of
     Just (Right v)
-     | isValueType env sch -> fill =<< sDelayFill sym v
-                                         (Just (etaDelay sym env sch v))
-                                         (show (ppLocName nm))
+     | isValueType ?ntEnv env sch ->
+               fill =<< sDelayFill sym v
+                          (Just (etaDelay sym env sch v))
+                          (show (ppLocName nm))
 
-     | otherwise           -> fill (etaDelay sym env sch v)
+     | otherwise -> fill (etaDelay sym env sch v)
 
     _ -> evalPanic "fillHole" ["Recursive definition not completed", show (ppLocName nm)]
 
@@ -370,9 +373,9 @@ fillHole sym env (nm, sch, _, fill) = do
 --   be implemented rather more efficiently than general types because we can
 --   rely on the 'delayFill' operation to build a thunk that falls back on performing
 --   eta-expansion rather than doing it eagerly.
-isValueType :: GenEvalEnv sym -> Schema -> Bool
-isValueType env Forall{ sVars = [], sProps = [], sType = t0 }
-   = go (evalValType (envTypes env) t0)
+isValueType :: NewtypeEnv -> GenEvalEnv sym -> Schema -> Bool
+isValueType ntEnv env Forall{ sVars = [], sProps = [], sType = t0 }
+   = go (evalValType ntEnv (envTypes env) t0)
  where
   go TVBit = True
   go (TVSeq _ x)  = go x
@@ -380,7 +383,7 @@ isValueType env Forall{ sVars = [], sProps = [], sType = t0 }
   go (TVRec xs)   = and (fmap go xs)
   go _            = False
 
-isValueType _ _ = False
+isValueType _ _ _ = False
 
 
 {-# SPECIALIZE etaWord  ::
@@ -404,6 +407,7 @@ etaWord sym n val = do
   pure $ LargeBitsVal n xs
 
 {-# SPECIALIZE etaDelay ::
+  (?ntEnv :: NewtypeEnv) =>
   Concrete ->
   GenEvalEnv Concrete ->
   Schema ->
@@ -418,7 +422,7 @@ etaWord sym n val = do
 --   expressions that should be expected to produce well-defined values in the
 --   denotational semantics will fail to terminate instead.
 etaDelay ::
-  Backend sym =>
+  (?ntEnv :: NewtypeEnv, Backend sym) =>
   sym ->
   GenEvalEnv sym ->
   Schema ->
@@ -428,7 +432,7 @@ etaDelay sym env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
   where
   goTpVars env []     val =
      do stk <- sGetCallStack sym
-        go stk (evalValType (envTypes env) tp0) val
+        go stk (evalValType ?ntEnv (envTypes env) tp0) val
   goTpVars env (v:vs) val =
     case tpKind v of
       KType -> tlam sym $ \t ->
@@ -461,6 +465,12 @@ etaDelay sym env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
 
       VRecord fs ->
         case tp of
+          TVNewtype _ _ fts ->
+            do let res = zipRecords (\_ v t -> go stk t v) fs fts
+               case res of
+                 Left (Left f)  -> evalPanic "type mismatch during eta-expansion" ["missing field " ++ show f]
+                 Left (Right f) -> evalPanic "type mismatch during eta-expansion" ["unexpected field " ++ show f]
+                 Right fs' -> return (VRecord fs')
           TVRec fts ->
             do let res = zipRecords (\_ v t -> go stk t v) fs fts
                case res of
@@ -524,6 +534,7 @@ etaDelay sym env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
 
       TVAbstract {} -> v
 
+      TVNewtype _ _ body -> go stk (TVRec body) v
 
 {-# SPECIALIZE declHole ::
   Concrete ->
@@ -694,14 +705,14 @@ instance Semigroup (ListEnv sym) where
   l <> r = ListEnv
     { leVars   = IntMap.union (leVars  l)  (leVars  r)
     , leStatic = IntMap.union (leStatic l) (leStatic r)
-    , leTypes  = IntMap.union (leTypes l)  (leTypes r)
+    , leTypes  = leTypes l <> leTypes r
     }
 
 instance Monoid (ListEnv sym) where
   mempty = ListEnv
     { leVars   = IntMap.empty
     , leStatic = IntMap.empty
-    , leTypes  = IntMap.empty
+    , leTypes  = mempty
     }
 
   mappend l r = l <> r
@@ -832,7 +843,7 @@ evalMatch sym lenv m = case m of
         return $ bindVarList n vs lenv'
 
     where
-      len  = evalNumType (leTypes lenv) l
+      len  = evalNumType ?ntEnv (leTypes lenv) l
 
   -- XXX we don't currently evaluate these as though they could be recursive, as
   -- they are typechecked that way; the read environment to evalExpr is the same

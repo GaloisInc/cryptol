@@ -209,7 +209,7 @@ data TySyn  = TySyn { tsName        :: Name       -- ^ Name
 data Newtype  = Newtype { ntName   :: Name
                         , ntParams :: [TParam]
                         , ntConstraints :: [Prop]
-                        , ntFields :: [(Ident,Type)]
+                        , ntFields :: RecordMap Ident Type
                         , ntDoc :: Maybe Text
                         } deriving (Show, Generic, NFData)
 
@@ -332,7 +332,7 @@ superclassSet _ = mempty
 newtypeConType :: Newtype -> Schema
 newtypeConType nt =
   Forall as (ntConstraints nt)
-    $ TRec (recordFromFields (ntFields nt)) `tFun` TCon (newtypeTyCon nt) (map (TVar . tpVar) as)
+    $ TRec (ntFields nt) `tFun` TCon (newtypeTyCon nt) (map (TVar . tpVar) as)
   where
   as = ntParams nt
 
@@ -583,6 +583,9 @@ tNat' n'  = case n' of
 
 tAbstract :: UserTC -> [Type] -> Type
 tAbstract u ts = TCon (TC (TCAbstract u)) ts
+
+tNewtype :: UserTC -> [Type] -> Type
+tNewtype u ts = TCon (TC (TCNewtype u)) ts
 
 tBit     :: Type
 tBit      = TCon (TC TCBit) []
