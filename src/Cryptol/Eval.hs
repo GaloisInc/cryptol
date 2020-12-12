@@ -443,6 +443,7 @@ etaDelay sym env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
       VWord{}     -> x
       VRational{} -> x
       VFloat{}    -> x
+      VReal{}     -> x
       VSeq n xs ->
         case tp of
           TVSeq _nt el -> return $ VSeq n $ IndexSeqMap $ \i -> go stk el (lookupSeqMap xs i)
@@ -484,6 +485,7 @@ etaDelay sym env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
     case tp of
       TVBit -> v
       TVInteger -> v
+      TVReal -> v
       TVFloat {} -> v
       TVIntMod _ -> v
       TVRational -> v

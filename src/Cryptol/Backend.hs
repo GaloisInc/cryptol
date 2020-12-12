@@ -213,6 +213,7 @@ class MonadIO (SEval sym) => Backend sym where
   type SWord sym :: Type
   type SInteger sym :: Type
   type SFloat sym :: Type
+  type SReal sym :: Type
   type SEval sym :: Type -> Type
 
   -- ==== Evaluation monad operations ====
@@ -281,7 +282,6 @@ class MonadIO (SEval sym) => Backend sym where
   -- | Pretty-print a floating-point value
   ppFloat :: sym -> PPOpts -> SFloat sym -> Doc
 
-
   -- ==== Identifying literal values ====
 
   -- | Determine if this symbolic bit is a boolean literal
@@ -301,6 +301,9 @@ class MonadIO (SEval sym) => Backend sym where
   -- | Determine if this symbolic integer is a literal
   integerAsLit :: sym -> SInteger sym -> Maybe Integer
 
+  -- | Determine if this symbolic real is a literal
+  realAsLit :: sym -> SReal sym -> Maybe Rational
+
   -- ==== Creating literal values ====
 
   -- | Construct a literal bit value from a boolean.
@@ -319,6 +322,12 @@ class MonadIO (SEval sym) => Backend sym where
     Integer {- ^ Value -} ->
     SEval sym (SInteger sym)
 
+  -- | Construct a literal real value from the given rational
+  realLit ::
+    sym ->
+    Rational ->
+    SEval sym (SReal sym)
+
   -- | Construct a floating point value from the given rational.
   fpLit ::
     sym ->
@@ -335,6 +344,7 @@ class MonadIO (SEval sym) => Backend sym where
   iteBit :: sym -> SBit sym -> SBit sym -> SBit sym -> SEval sym (SBit sym)
   iteWord :: sym -> SBit sym -> SWord sym -> SWord sym -> SEval sym (SWord sym)
   iteInteger :: sym -> SBit sym -> SInteger sym -> SInteger sym -> SEval sym (SInteger sym)
+  iteReal :: sym -> SBit sym -> SReal sym -> SReal sym -> SEval sym (SReal sym)
 
   -- ==== Bit operations ====
   bitEq  :: sym -> SBit sym -> SBit sym -> SEval sym (SBit sym)
@@ -627,6 +637,89 @@ class MonadIO (SEval sym) => Backend sym where
     SInteger sym ->
     SEval sym (SBit sym)
 
+  -- ==== Real operations =====
+
+  intToReal ::
+    sym ->
+    SInteger sym ->
+    SEval sym (SReal sym)
+
+  realPlus ::
+    sym ->
+    SReal sym ->
+    SReal sym ->
+    SEval sym (SReal sym)
+
+  realNegate ::
+    sym ->
+    SReal sym ->
+    SEval sym (SReal sym)
+
+  realMinus ::
+    sym ->
+    SReal sym ->
+    SReal sym ->
+    SEval sym (SReal sym)
+
+  realMult ::
+    sym ->
+    SReal sym ->
+    SReal sym ->
+    SEval sym (SReal sym)
+
+  realRecip ::
+    sym ->
+    SReal sym ->
+    SEval sym (SReal sym)
+
+  realDiv ::
+    sym ->
+    SReal sym ->
+    SReal sym ->
+    SEval sym (SReal sym)
+
+  realEq ::
+    sym ->
+    SReal sym ->
+    SReal sym ->
+    SEval sym (SBit sym)
+
+  realLessThan ::
+    sym ->
+    SReal sym ->
+    SReal sym ->
+    SEval sym (SBit sym)
+
+  realGreaterThan ::
+    sym ->
+    SReal sym ->
+    SReal sym ->
+    SEval sym (SBit sym)
+
+  realFloor ::
+    sym ->
+    SReal sym ->
+    SEval sym (SInteger sym)
+
+  realCeiling ::
+    sym ->
+    SReal sym ->
+    SEval sym (SInteger sym)
+
+  realTrunc ::
+    sym ->
+    SReal sym ->
+    SEval sym (SInteger sym)
+
+  realRoundAway ::
+    sym ->
+    SReal sym ->
+    SEval sym (SInteger sym)
+
+  realRoundToEven ::
+    sym ->
+    SReal sym ->
+    SEval sym (SInteger sym)
 
   -- ==== Operations on Z_n ====
 

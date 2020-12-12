@@ -492,6 +492,10 @@ parseValue FTInteger cvs =
     Just (x, cvs') -> (VarInteger x, cvs')
     Nothing        -> panic "Cryptol.Symbolic.parseValue" [ "no integer" ]
 parseValue (FTIntMod _) cvs = parseValue FTInteger cvs
+parseValue FTReal cvs =
+  case cvs of
+    (SBV.CV SBV.KReal cv : cvs') -> error "parseValue SBV Real!"
+    _ -> panic "Cryptol.Symbolic.parseValue" [ "no real" ]
 parseValue FTRational cvs =
   fromMaybe (panic "Cryptol.Symbolic.parseValue" ["no rational"]) $
   do (n,cvs')  <- SBV.genParse SBV.KUnbounded cvs
@@ -539,5 +543,6 @@ sbvFreshFns sym =
   { freshBitVar     = freshSBool_ sym
   , freshWordVar    = freshBV_ sym . fromInteger
   , freshIntegerVar = freshBoundedInt sym
+  , freshRealVar    = freshSReal_ sym
   , freshFloatVar   = \_ _ -> return () -- TODO
   }

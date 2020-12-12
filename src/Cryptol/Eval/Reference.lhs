@@ -78,6 +78,7 @@ are as follows:
 | `Integer`         | integers          | `TVInteger`                 |
 | `Z n`             | integers modulo n | `TVIntMod n`                |
 | `Rational`        | rationals         | `TVRational`                |
+| `Real`            | real numbers      | `TVReal`
 | `Float e p`       | floating point    | `TVFloat`                   |
 | `Array`           | arrays            | `TVArray`                   |
 | `[n]a`            | finite lists      | `TVSeq n a`                 |
@@ -167,6 +168,7 @@ terms by providing an evaluator to an appropriate `Value` type.
 >   = VBit !Bool                 -- ^ @ Bit    @ booleans
 >   | VInteger !Integer          -- ^ @ Integer @  or @Z n@ integers
 >   | VRational !Rational        -- ^ @ Rational @ rationals
+>   | VReal !Rational            -- ^ @ Real @ real numbers
 >   | VFloat !BF                 -- ^ Floating point numbers
 >   | VList Nat' [E Value]       -- ^ @ [n]a   @ finite or infinite lists
 >   | VTuple [E Value]           -- ^ @ ( .. ) @ tuples
@@ -192,6 +194,11 @@ Operations on Values
 > fromVRational :: Value -> Rational
 > fromVRational (VRational i) = i
 > fromVRational _             = evalPanic "fromVRational" ["Expected a rational"]
+>
+> -- | Destructor for @VReal@.
+> fromVReal :: Value -> Rational
+> fromVReal (VReal i) = i
+> fromVReal _         = evalPanic "fromVReal" ["Expected a real"]
 >
 > fromVFloat :: Value -> BigFloat
 > fromVFloat = bfValue . fromVFloat'
@@ -902,6 +909,7 @@ For functions, `zero` returns the constant function that returns
 > zero TVInteger      = VInteger 0
 > zero TVIntMod{}     = VInteger 0
 > zero TVRational     = VRational 0
+> zero TVReal         = VReal 0
 > zero (TVFloat e p)  = VFloat (fpToBF e p FP.bfPosZero)
 > zero TVArray{}      = evalPanic "zero" ["Array type not in `Zero`"]
 > zero (TVSeq n ety)  = VList (Nat n) (genericReplicate n (pure (zero ety)))
@@ -978,6 +986,7 @@ at the same positions.
 >         TVIntMod _   -> evalPanic "logicUnary" ["Z not in class Logic"]
 >         TVArray{}    -> evalPanic "logicUnary" ["Array not in class Logic"]
 >         TVRational   -> evalPanic "logicUnary" ["Rational not in class Logic"]
+>         TVReal       -> evalPanic "logicUnary" ["Real not in class Logic"]
 >         TVFloat{}    -> evalPanic "logicUnary" ["Float not in class Logic"]
 >         TVAbstract{} -> evalPanic "logicUnary" ["Abstract type not in `Logic`"]
 
@@ -1016,6 +1025,7 @@ at the same positions.
 >         TVIntMod _   -> evalPanic "logicBinary" ["Z not in class Logic"]
 >         TVArray{}    -> evalPanic "logicBinary" ["Array not in class Logic"]
 >         TVRational   -> evalPanic "logicBinary" ["Rational not in class Logic"]
+>         TVReal       -> evalPanic "logicBinary" ["Real not in class Logic"]
 >         TVFloat{}    -> evalPanic "logicBinary" ["Float not in class Logic"]
 >         TVAbstract{} -> evalPanic "logicBinary" ["Abstract type not in `Logic`"]
 
@@ -1048,6 +1058,8 @@ False]`, but to `error "foo"`.
 >           VInteger . flip mod n <$> i
 >         TVRational ->
 >           VRational <$> q
+>         TVReal ->
+>           VReal <$> q
 >         TVFloat e p ->
 >           VFloat . fpToBF e p <$> fl e p
 >         TVArray{} ->
@@ -1086,6 +1098,8 @@ False]`, but to `error "foo"`.
 >           VInteger <$> appOp1 (\i -> flip mod n <$> iop i) (fromVInteger <$> val)
 >         TVRational ->
 >           VRational <$> appOp1 qop (fromVRational <$> val)
+>         TVReal ->
+>           VReal <$> appOp1 qop (fromVReal <$> val)
 >         TVFloat e p ->
 >           VFloat . fpToBF e p <$> appOp1 (flop e p) (fromVFloat <$> val)
 >         TVSeq w a
@@ -1122,6 +1136,8 @@ False]`, but to `error "foo"`.
 >           VInteger <$> appOp2 (\i j -> flip mod n <$> iop i j) (fromVInteger <$> l) (fromVInteger <$> r)
 >         TVRational ->
 >           VRational <$> appOp2 qop (fromVRational <$> l) (fromVRational <$> r)
+>         TVReal ->
+>           VReal <$> appOp2 qop (fromVReal <$> l) (fromVReal <$> r)
 >         TVFloat e p ->
 >           VFloat . fpToBF e p <$>
 >             appOp2 (flop e p) (fromVFloat <$> l) (fromVFloat <$> r)
@@ -1212,6 +1228,7 @@ confused with integral division).
 >               TValue -> E Value -> E Value
 > fieldUnary qop zop flop ty v = case ty of
 >   TVRational  -> VRational <$> appOp1 qop (fromVRational <$> v)
+>   TVReal      -> VReal <$> appOp1 qop (fromVReal <$> v)
 >   TVIntMod m  -> VInteger <$> appOp1 (zop m) (fromVInteger <$> v)
 >   TVFloat e p -> VFloat . fpToBF e p <$> appOp1 (flop e p) (fromVFloat <$> v)
 >   _ -> evalPanic "fieldUnary" [show ty ++ " is not a Field type"]
@@ -1224,6 +1241,8 @@ confused with integral division).
 > fieldBinary qop zop flop ty l r = case ty of
 >   TVRational  -> VRational <$>
 >                    appOp2 qop (fromVRational <$> l) (fromVRational <$> r)
+>   TVReal      -> VReal <$>
+>                    appOp2 qop (fromVReal <$> l) (fromVReal <$> r)
 >   TVIntMod m  -> VInteger <$>
 >                    appOp2 (zop m) (fromVInteger <$> l) (fromVInteger <$> r)
 >   TVFloat e p -> VFloat . fpToBF e p <$>
@@ -1254,6 +1273,7 @@ Round
 >               TValue -> E Value -> E Value
 > roundUnary op flop ty v = case ty of
 >   TVRational -> VInteger . op . fromVRational <$> v
+>   TVReal     -> VInteger . op . fromVReal <$> v
 >   TVFloat {} -> VInteger <$> (flop . fromVFloat' =<< v)
 >   _ -> evalPanic "roundUnary" [show ty ++ " is not a Round type"]
 >
@@ -1306,6 +1326,8 @@ bits to the *left* of that position are equal.
 >       compare <$> (fromVInteger <$> l) <*> (fromVInteger <$> r)
 >     TVRational ->
 >       compare <$> (fromVRational <$> l) <*> (fromVRational <$> r)
+>     TVReal ->
+>       compare <$> (fromVReal <$> l) <*> (fromVReal <$> r)
 >     TVFloat{} ->
 >       compare <$> (fromVFloat <$> l) <*> (fromVFloat <$> r)
 >     TVArray{} ->
@@ -1356,6 +1378,8 @@ fields are compared in alphabetical order.
 >     TVIntMod _ ->
 >       evalPanic "lexSignedCompare" ["invalid type"]
 >     TVRational ->
+>       evalPanic "lexSignedCompare" ["invalid type"]
+>     TVReal ->
 >       evalPanic "lexSignedCompare" ["invalid type"]
 >     TVFloat{} ->
 >       evalPanic "lexSignedCompare" ["invalid type"]
@@ -1664,6 +1688,7 @@ Pretty Printing
 >     VBit b     -> text (show b)
 >     VInteger i -> text (show i)
 >     VRational q -> text (show q)
+>     VReal q -> text (show q)
 >     VFloat fl -> text (show (FP.fpPP opts fl))
 >     VList l vs ->
 >       case l of

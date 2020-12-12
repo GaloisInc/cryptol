@@ -23,6 +23,7 @@ module Cryptol.Backend.SBV
   , freshSBool_
   , freshBV_
   , freshSInteger_
+  , freshSReal_
   , addDefEqn
   , ashr
   , lshr
@@ -37,6 +38,7 @@ import           Control.Concurrent.MVar
 import           Control.Monad.IO.Class (MonadIO(..))
 import           Data.Bits (bit, complement)
 import           Data.List (foldl')
+import           Data.Ratio
 
 import qualified GHC.Integer.GMP.Internals as Integer
 
@@ -94,6 +96,9 @@ freshSInteger_ :: SBV -> IO (SInteger SBV)
 freshSInteger_ (SBV stateVar _) =
   withMVar stateVar (svMkSymVar_ Nothing KUnbounded Nothing)
 
+freshSReal_ :: SBV -> IO (SReal SBV)
+freshSReal_ (SBV stateVar _) =
+  withMVar stateVar (svMkSymVar_ Nothing KReal Nothing)
 
 -- SBV Evaluation monad -------------------------------------------------------
 
@@ -153,6 +158,7 @@ instance Backend SBV where
   type SWord SBV = SVal
   type SInteger SBV = SVal
   type SFloat SBV = ()        -- XXX: not implemented
+  type SReal SBV = SVal
   type SEval SBV = SBVEval
 
   raiseError _ err = SBVEval $
@@ -216,6 +222,7 @@ instance Backend SBV where
   iteBit _ b x y = pure $! svSymbolicMerge KBool True b x y
   iteWord _ b x y = pure $! svSymbolicMerge (kindOf x) True b x y
   iteInteger _ b x y = pure $! svSymbolicMerge KUnbounded True b x y
+  iteReal _ b x y = pure $! svSymbolicMerge KReal True b x y
 
   bitAsLit _ b = svAsBool b
   wordAsLit _ w =
@@ -317,6 +324,32 @@ instance Backend SBV where
        assertSideCondition sym (svNot (svEqual b z)) DivideByZero
        let p = svLessThan z b
        pure $! svSymbolicMerge KUnbounded True p (svRem a b) (svUNeg (svRem (svUNeg a) (svUNeg b)))
+
+  realLit _ q = pure $! svReal q
+  realAsLit _ x =
+    do n <- svNumerator x
+       d <- svDenominator x
+       pure (n % d)
+  intToReal _ i   = pure $! svFromIntegral KReal i
+  realPlus _ x y  = pure $! svPlus x y
+  realNegate _ x  = pure $! SBV.svUNeg x
+  realMinus _ x y = pure $! svMinus x y
+  realMult _ x y  = pure $! svTimes x y
+  realRecip sym x = realDiv sym (svReal 1) x
+  realDiv sym x y =
+    do let z = svReal 0
+       assertSideCondition sym (svNot (svEqual y z)) DivideByZero
+       pure $! svDivide x y
+
+  realEq _ x y          = pure $! svEqual x y
+  realLessThan _ x y    = pure $! svLessThan x y
+  realGreaterThan _ x y = pure $! svGreaterThan x y
+
+  realFloor _ _       = unsupported "real floor"
+  realCeiling _ _     = unsupported "real ceiling"
+  realTrunc _ _       = unsupported "real trunc"
+  realRoundAway _ _   = unsupported "real roundAway"
+  realRoundToEven _ _ = unsupported "real roundToEven"
 
   -- NB, we don't do reduction here
   intToZn _ _m a = pure a

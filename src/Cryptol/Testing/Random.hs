@@ -134,6 +134,7 @@ randomValue sym ty =
     TVBit         -> Just (randomBit sym)
     TVInteger     -> Just (randomInteger sym)
     TVRational    -> Just (randomRational sym)
+    TVReal        -> Just (randomReal sym)
     TVIntMod m    -> Just (randomIntMod sym m)
     TVFloat e p   -> Just (randomFloat sym e p)
     TVSeq n TVBit -> Just (randomWord sym n)
@@ -199,6 +200,9 @@ randomRational sym w g =
           d' <- integerLit sym d
           pure (VRational (SRational n' d'))
        , g3)
+
+randomReal :: (Backend sym, RandomGen g) => sym -> Gen g sym
+randomReal = error "TODO randomReal"
 
 {-# INLINE randomWord #-}
 
@@ -351,6 +355,7 @@ typeSize ty = case ty of
   TVBit -> Just 2
   TVInteger -> Nothing
   TVRational -> Nothing
+  TVReal -> Nothing
   TVIntMod n -> Just n
   TVFloat{} -> Nothing -- TODO?
   TVArray{} -> Nothing
@@ -369,6 +374,7 @@ typeValues ty =
     TVBit      -> [ VBit False, VBit True ]
     TVInteger  -> []
     TVRational -> []
+    TVReal     -> []
     TVIntMod n -> [ VInteger x | x <- [ 0 .. (n-1) ] ]
     TVFloat{}  -> [] -- TODO?
     TVArray{}  -> []

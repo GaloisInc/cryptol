@@ -140,6 +140,7 @@ data FinType
     | FTInteger
     | FTIntMod Integer
     | FTRational
+    | FTReal
     | FTFloat Integer Integer
     | FTSeq Int FinType
     | FTTuple [FinType]
@@ -157,6 +158,7 @@ finType ty =
     TVInteger        -> Just FTInteger
     TVIntMod n       -> Just (FTIntMod n)
     TVRational       -> Just FTRational
+    TVReal           -> Just FTReal
     TVFloat e p      -> Just (FTFloat e p)
     TVSeq n t        -> FTSeq <$> numType n <*> finType t
     TVTuple ts       -> FTTuple <$> traverse finType ts
@@ -171,6 +173,7 @@ unFinType fty =
     FTInteger    -> tInteger
     FTIntMod n   -> tIntMod (tNum n)
     FTRational   -> tRational
+    FTReal       -> tReal
     FTFloat e p  -> tFloat (tNum e) (tNum p)
     FTSeq l ety  -> tSeq (tNum l) (unFinType ety)
     FTTuple ftys -> tTuple (unFinType <$> ftys)
@@ -181,6 +184,7 @@ data VarShape sym
   = VarBit (SBit sym)
   | VarInteger (SInteger sym)
   | VarRational (SInteger sym) (SInteger sym)
+  | VarReal (SReal sym)
   | VarFloat (SFloat sym)
   | VarWord (SWord sym)
   | VarFinSeq Integer [VarShape sym]
@@ -193,6 +197,7 @@ ppVarShape sym (VarInteger i) = ppInteger sym defaultPPOpts i
 ppVarShape sym (VarFloat f) = ppFloat sym defaultPPOpts f
 ppVarShape sym (VarRational n d) =
   text "(ratio" <+> ppInteger sym defaultPPOpts n <+> ppInteger sym defaultPPOpts d <+> text ")"
+ppVarShape _sym (VarReal _) = text "<<real>>"
 ppVarShape sym (VarWord w) = ppWord sym defaultPPOpts w
 ppVarShape sym (VarFinSeq _ xs) =
   brackets (fsep (punctuate comma (map (ppVarShape sym) xs)))
@@ -210,6 +215,7 @@ varShapeToValue sym var =
     VarBit b     -> VBit b
     VarInteger i -> VInteger i
     VarRational n d -> VRational (SRational n d)
+    VarReal r    -> VReal r
     VarWord w    -> VWord (wordLen sym w) (return (WordVal w))
     VarFloat f   -> VFloat f
     VarFinSeq n vs -> VSeq n (finiteSeqMap (map (pure . varShapeToValue sym) vs))
@@ -221,6 +227,7 @@ data FreshVarFns sym =
   { freshBitVar     :: IO (SBit sym)
   , freshWordVar    :: Integer -> IO (SWord sym)
   , freshIntegerVar :: Maybe Integer -> Maybe Integer -> IO (SInteger sym)
+  , freshRealVar    :: IO (SReal sym)
   , freshFloatVar   :: Integer -> Integer -> IO (SFloat sym)
   }
 
@@ -231,6 +238,7 @@ freshVar fns tp = case tp of
     FTRational    -> VarRational
                         <$> freshIntegerVar fns Nothing Nothing
                         <*> freshIntegerVar fns (Just 1) Nothing
+    FTReal        -> VarReal <$> freshRealVar fns
     FTIntMod 0    -> panic "freshVariable" ["0 modulus not allowed"]
     FTIntMod m    -> VarInteger  <$> freshIntegerVar fns (Just 0) (Just (m-1))
     FTFloat e p   -> VarFloat    <$> freshFloatVar fns e p
@@ -283,6 +291,9 @@ varModelPred sym vx =
          d' <- integerLit sym dlit
          rationalEq sym (SRational n d) (SRational n' d')
 
+    (VarReal r, VarReal rlit) ->
+      realEq sym r =<< realLit sym rlit
+
     (VarWord w, VarWord (Concrete.BV len wlit)) ->
       wordEq sym w =<< wordLit sym len wlit
 
@@ -327,6 +338,13 @@ varToExpr prims = go
         let n' = ETApp (ETApp (prim "number") (tNum n)) tInteger
             d' = ETApp (ETApp (prim "number") (tNum d)) tInteger
          in EApp (EApp (prim "ratio") n') d'
+
+      (FTReal, VarReal r) ->
+        EProofApp $ ePrim prims (prelPrim "fraction")
+                          `ETApp` tNum (numerator r)
+                          `ETApp` tNum (denominator r)
+                          `ETApp` tNum (0 :: Int)
+                          `ETApp` tReal
 
       (FTFloat e p, VarFloat f) ->
         floatToExpr prims e p (bfValue f)
