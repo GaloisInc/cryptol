@@ -61,3 +61,10 @@ Other notes:
   work as expected in all cases (particularly with the inline commands). It's
   probably best to avoid using LaTeX comments that are on the same line as any
   of the above commands.
+
+* Lines starting with "Loading module" are silently ignored from the output.
+
+* It would be nice to support writing code to a file, then loading that file
+  into the REPL. We don't support this, but it will probably be necessary for
+  handling some of the more involved examples (for instance, those that define
+  functions).

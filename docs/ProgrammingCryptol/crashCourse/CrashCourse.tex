@@ -141,7 +141,7 @@ numbers in these bases in Cryptol programs too:
   2014             // decimal
   0x7de            // hexadecimal
 \end{replinVerb}
-\restartrepl
+Throughout this book we present examples in base 10 for readability.
 
 Decimal numbers pose a problem in a bit-precise language like Cryptol.
 Numbers represented in a base that is a power of two unambiguously
@@ -187,14 +187,14 @@ override this by giving an explicit type signature.\indSignature
 \end{Exercise}
 \begin{Answer}\ansref{ex:decimalType}
   Upon writing \texttt{19:[4]}, Cryptol prints the error:
-  \begin{reploutVerb}
-    [error] at <interactive>:1:1--1:3:
-      • Unsolvable constraint:
-          4 >= 5
-            arising from
-            use of literal or demoted expression
-            at <interactive>:1:1--1:3
-  \end{reploutVerb}
+\begin{reploutVerb}
+  [error] at <interactive>:1:1--1:3:
+    • Unsolvable constraint:
+        4 >= 5
+          arising from
+          use of literal or demoted expression
+          at <interactive>:1:1--1:3
+\end{reploutVerb}
   because \texttt{19} requires at least 5 bits to represent.
   \texttt{255:[8]} is the largest value of type \texttt{[8]}.
   \texttt{[6]} is the smallest type for \texttt{32}. \texttt{[0]} is
@@ -698,16 +698,16 @@ generator). The pattern looks like this:
 \begin{Answer}\ansref{ex:seq:6}
   Here is one way of writing such an expression, laid out in multiple
   lines to show the structure:
-\begin{Verbatim}
-  [ [ (i, j) | j <- [1 .. 3:Integer] ]
+\restartrepl
+\begin{replinVerb}
+  [ [ (i, j) | j <- [1 .. 3:Integer] ] \
              | i <- [1 .. 3:Integer] ]
-\end{Verbatim}
+\end{replinVerb}
   produces:
-\begin{Verbatim}
-  [ [(1, 1), (1, 2), (1, 3)],
-    [(2, 1), (2, 2), (2, 3)],
-    [(3, 1), (3, 2), (3, 3)] ]
-\end{Verbatim}
+\begin{reploutVerb}
+  [[(1, 1), (1, 2), (1, 3)], [(2, 1), (2, 2), (2, 3)],
+   [(3, 1), (3, 2), (3, 3)]]
+\end{reploutVerb}
 The outer comprehension is a comprehension (and hence is nested). In
 particular the expression is:
 \begin{Verbatim}
@@ -1058,11 +1058,12 @@ result (5 $\times$ 2), but the input has 12.
   We can split\indSplit 120 elements first into 3 $\times$ 40, splitting each
   of the the elements ({\tt level1} below) into 4 $\times$ 10. A nested
   comprehension fits the bill:\indComp
-\begin{Verbatim}
+\restartrepl
+\begin{replinVerb}
   [ split level1 : [4][10][8]
   | level1 <- split ([1 .. 120] : [120][8]) : [3][40][8]
   ]
-\end{Verbatim}
+\end{replinVerb}
 (Note again that you can enter the above in the command line all in
 one line, or by putting the line continuation character
 \texttt{\textbackslash} at the end of the first two
@@ -1216,7 +1217,9 @@ remaining expressions.
 \begin{Answer}\ansref{ex:words:5}
   Because of the leading zeros in {\tt 12:[12]}, they all produce
   different results:\indTake\indDrop\indSplit\indGroup
-\begin{Verbatim}
+\restartrepl
+\hidereplin|:set base=10|
+\begin{replPrompt}
   Cryptol> take`{3} (12:[12])
   0
   Cryptol> drop`{3} (12:[12])
@@ -1225,7 +1228,7 @@ remaining expressions.
   [0, 0, 12]
   Cryptol> groupBy`{3} (12:[12])
   [0, 0, 1, 4]
-\end{Verbatim}
+\end{replPrompt}
 We will show the evaluation steps for {\tt groupBy} here, and urge the
 reader to do the same for {\tt split}:
 \begin{Verbatim}
@@ -1293,7 +1296,8 @@ programs, which simply correspond to their ASCII
 equivalents. Similarly, strings are merely sequences of characters,
 i.e., sequences of words.\indTheStringType\indTheCharType The
 following examples illustrate:
-\begin{Verbatim}
+\restartrepl
+\begin{replPrompt}
   Cryptol> :set base=10
   Cryptol> :set ascii=off
   Cryptol> 'A'
@@ -1305,12 +1309,19 @@ following examples illustrate:
   "ABC"
   Cryptol> :set ascii=off
   Cryptol> ['A' .. 'Z']
-  [65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79,
-       80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90]
+  Showing a specific instance of polymorphic result:
+    * Using 'Integer' for type argument 'a' of 'Cryptol::fromTo'
+  [65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80,
+   81, 82, 83, 84, 85, 86, 87, 88, 89, 90]
   Cryptol> :set ascii=on
   Cryptol> ['A' .. 'Z']
+  Showing a specific instance of polymorphic result:
+    * Using 'Integer' for type argument 'a' of 'Cryptol::fromTo'
+  [65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80,
+   81, 82, 83, 84, 85, 86, 87, 88, 89, 90]
+  Cryptol> ['A' .. 'Z'] : [_][8]
   "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-\end{Verbatim}
+\end{replPrompt}
 \note{This is the reason why we have to use the {\tt :set ascii=on}
   command to print ASCII strings.  Otherwise, Cryptol will not have
   enough information to tell numbers from
@@ -1318,10 +1329,11 @@ following examples illustrate:
 
 \noindent Since characters are simply 8-bit words, you can do word
 operations on them; including arithmetic:
-\begin{Verbatim}
+\begin{replPrompt}
+  Cryptol> :set ascii=off
   Cryptol> 'C' - 'A'
   2
-\end{Verbatim}
+\end{replPrompt}
 
 %=====================================================================
 % \section{Records: Named collections}
@@ -1383,7 +1395,9 @@ Before proceeding further, we have to take a detour and talk briefly
 about one of the most useful values in Cryptol: {\tt zero}.\indZero
 The value {\tt zero} inhabits every type in Cryptol.
 The following examples should illustrate the idea:
-\begin{Verbatim}
+\restartrepl
+\hidereplin|:set base=10|
+\begin{replPrompt}
   Cryptol> zero : Bit
   False
   Cryptol> zero : [8]
@@ -1401,13 +1415,13 @@ The following examples should illustrate the idea:
   Cryptol> zero : [3](Bit, [4])
   [(False, 0), (False, 0), (False, 0)]
   Cryptol> zero : {xCoord : [12], yCoord : [5]}
-  {xCoord=0, yCoord=0}
-\end{Verbatim}
+  {xCoord = 0, yCoord = 0}
+\end{replPrompt}
 
 \noindent On the other extreme, the value {\tt zero} combined with the
 complement operator {\tt \Verb|~|}\indComplement gives us values that
 consist of all {\tt True}\indTrue bits:
-\begin{Verbatim}
+\begin{replPrompt}
   Cryptol> ~zero : Bit
   True
   Cryptol> ~zero : [8]
@@ -1419,8 +1433,8 @@ consist of all {\tt True}\indTrue bits:
   Cryptol> ~zero : [3](Bit, [4])
   [(True, 15), (True, 15), (True, 15)]
   Cryptol> ~zero : {xCoord : [12], yCoord : [5]}
-  {xCoord=4095, yCoord=31}
-\end{Verbatim}
+  {xCoord = 4095, yCoord = 31}
+\end{replPrompt}
 
 \begin{Exercise}\label{ex:zero:0}
   We said that {\tt zero} inhabits all types in Cryptol. This also
@@ -1600,11 +1614,11 @@ How about \replin|max 5 (-2:[8])|? Why?\indMin\indModular\indUnaryMinus
 \begin{Answer}\ansref{ex:arith:7}
   The idiomatic Cryptol way of summing two sequences is to use a
   comprehension:\indComp
-\begin{Verbatim}
-     [ i+j | i <- [1 .. 10]
-           | j <- [10, 9 .. 1]
+\begin{replinVerb}
+     [ i+j | i <- [1 .. 10] \
+           | j <- [10, 9 .. 1] \
      ]
-\end{Verbatim}
+\end{replinVerb}
 However, you will notice that the following will work as well:
 \begin{Verbatim}
      [1 .. 10] + [10, 9 .. 1]
@@ -1654,12 +1668,12 @@ sequence are 32-bit words, eventually they will wrap over, and go back
 to 0. (In fact, this will happen precisely at the element $2^{32}-1$,
 starting the count at 0 as usual.) We can observe this much more
 simply, by using a smaller bit size for the constant {\tt 1}:
-\begin{Verbatim}
+\begin{replPrompt}
   Cryptol> [(1:[2])...]
-  [1, 2, 3, 0, 1 ...]
+  [1, 2, 3, 0, 1, ...]
   Cryptol> take`{20} [(1:[2])...]
   [1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0]
-\end{Verbatim}
+\end{replPrompt}
 We still get an infinite sequence, but the numbers will repeat
 themselves eventually. Note that this is a direct consequence of
 Cryptol's modular arithmetic.\indModular
@@ -1668,10 +1682,12 @@ Cryptol's modular arithmetic.\indModular
 
 There is one more case to look at. What happens if we completely leave
 out the bit-width?
-\begin{Verbatim}
+\begin{replPrompt}
   Cryptol> [1:[_] ...]
+  Showing a specific instance of polymorphic result:
+    * Using '1' for type wildcard (_)
   [1, 0, 1, 0, 1, ...]
-\end{Verbatim}
+\end{replPrompt}
 In this case, Cryptol figured out that the number {\tt 1} requires
 precisely 1 bit, and hence the arithmetic is done modulo $2^1 = 2$,
 giving us the sequence $1,0,1,0,\ldots$ In particular, an
@@ -1709,21 +1725,28 @@ element type is \texttt{[0]}. This is one case where \texttt{[k...]}
 is subtly different from \texttt{[k, k+1...]}.
 \end{Answer}
 
+\restartrepl
+\hidereplin|:set base=10|
 \begin{Exercise}\label{ex:arith:10}
-  What is the value of \replin|[1:Integer .. 10]|? Explain in terms of the above
+  What is the value of \replin|[1:[_] .. 10]|? Explain in terms of the above
   discussion on modular arithmetic.\indModular
 \end{Exercise}
 \begin{Answer}\ansref{ex:arith:10}
-  The expression \Verb|[1 .. 10]| is equivalent to \Verb|[1, (1+1) ..\ 10]|,
-  and Cryptol knows that \Verb|10| requires at least 4 bits
-  to represent and uses the minimum implied by all the available
-  information. Hence we get: \replout|[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]|.
-  You can use the \Verb|:t| command to see the type Cryptol infers for
-  this expression explicitly:
-\begin{Verbatim}
-    Cryptol> :t [1 .. 10]
-    {a} (a >= 4, fin a) => [10][a]
-\end{Verbatim}
+  The expression \Verb|[1:[_] .. 10]| is equivalent to
+  \Verb|[1, (1+1) ..\ 10:[_]]|, and Cryptol knows that \Verb|10|
+  requires at least 4 bits to represent and uses the minimum implied
+  by all the available information. Hence we get:
+\begin{reploutVerb}
+  Showing a specific instance of polymorphic result:
+    * Using '4' for type wildcard (_)
+  [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+\end{reploutVerb}
+  You can use the \Verb|:t|
+  command to see the type Cryptol infers for this expression explicitly:
+\begin{replPrompt}
+    Cryptol> :t [1:[_] .. 10]
+    [1 .. 10 : [_]] : {n} (n >= 4, n >= 1, fin n) => [10][n]
+\end{replPrompt}
 Cryptol tells us that the sequence has precisely $10$ elements, and each
 element is at least $4$ bits wide.
 \todo[inline]{Reflect upon this ``at least'' a bit more.}
@@ -1856,14 +1879,18 @@ type system.
 \paragraph{The tale of {\ttfamily{\textbf tail}}}\indTail
 Cryptol's built in function {\tt tail} allows us to drop the first
 element from a sequence, returning the remainder:
-\begin{Verbatim}
+\restartrepl
+\hidereplin|:set base=10|
+\begin{replPrompt}
   Cryptol> tail [1 .. 5]
+  Showing a specific instance of polymorphic result:
+    * Using 'Integer' for type argument 'a' of 'Cryptol::fromTo'
   [2, 3, 4, 5]
   Cryptol> tail [(False, (1:[8])), (True, 12), (False, 3)]
   [(True, 12), (False, 3)]
   Cryptol> tail [ (1:[16])... ]
   [2, 3, 4, 5, 6, ...]
-\end{Verbatim}
+\end{replPrompt}
 What exactly is the type of {\tt tail}? If we look at the first
 example, one can deduce that {\tt tail} must have the type:
 \begin{Verbatim}
@@ -1901,10 +1928,11 @@ polymorphism, as would be advocated by languages such as Haskell or
 ML~\cite{ML,Has98}.\indPolymorphism\indOverloading
 
 Here is the type of {\tt tail} in Cryptol:
-\begin{Verbatim}
+\restartrepl
+\begin{replPrompt}
   Cryptol> :t tail
   tail : {n, a} [1 + n]a -> [n]a
-\end{Verbatim}
+\end{replPrompt}
 This is quite a different type from what we have seen so far. In
 particular, it is a polymorphic type, one that can work over multiple
 concrete instantiations of it. Here's how we read this type in
@@ -1946,16 +1974,18 @@ sequences. The crucial point is that an instantiation must be found
 that satisfies the required match.  It is informative to see what
 happens if we apply {\tt tail} to an argument where an appropriate
 instantiation can not be found:
-\begin{Verbatim}
+\restartrepl
+\begin{replPrompt}
   Cryptol> tail True
   [error] at <interactive>:1:6--1:10:
     Type mismatch:
-      Expected type: [1 + ?n`859]?a`860
+      Expected type: [1 + ?m]?a
       Inferred type: Bit
+      When checking type of function argument
     where
-    ?n`859 is type argument 'n' of 'tail' at <interactive>:1:1--1:5
-    ?a`860 is type argument 'a' of 'tail' at <interactive>:1:1--1:5
-\end{Verbatim}
+    ?m is type argument 'n' of 'tail' at <interactive>:1:1--1:5
+    ?a is type argument 'a' of 'tail' at <interactive>:1:1--1:5
+\end{replPrompt}
 Cryptol is telling us that it cannot match the types \texttt{Bit} and
 the sequence \texttt{[1+n]a}, causing a type error statically at
 compile time. (The funny notation of \texttt{?n`859} and
@@ -1994,13 +2024,15 @@ simply take: \texttt{parts = 3}, \texttt{each = 3}, and \texttt{a = [4]}. In
 the second, we can take \texttt{parts=3}, \texttt{each=4}, and
 \texttt{a=[4]}. The third expression does not type-check. Cryptol
 tells us:
-\begin{Verbatim}
+\restartrepl
+\begin{replinVerb}
   Cryptol> split`{3} [1..10] : [3][2][8]
   [error] at <interactive>:1:11--1:18:
     Type mismatch:
       Expected type: 6
       Inferred type: 10
-\end{Verbatim}
+      When checking type of function argument
+\end{replinVerb}
 In this case, we are telling Cryptol that \texttt{parts = 3},
 \texttt{each = 2}, and \texttt{a = [8]} by providing the explicit type
 signature.\indSignature Using this information, Cryptol must ensure
@@ -2024,10 +2056,11 @@ tool in structuring programs. Cryptol takes the idea of polymorphism
 on sizes one step further by allowing predicates on
 sizes.\indPredicates To illustrate the notion, consider the type of
 the Cryptol primitive {\tt take}\indTake:
-\begin{Verbatim}
+\restartrepl
+\begin{replPrompt}
   Cryptol> :t take
   take : {front, back, a} (fin front) => [front + back]a -> [front]a
-\end{Verbatim}
+\end{replPrompt}
 
 The type of {\tt take} says that it is parameterized over {\tt front}
 and {\tt back}, {\tt front} must be a finite value,\indFin it takes a
@@ -2035,11 +2068,18 @@ sequence {\tt front + back} long, and returns a sequence {\tt front} long.
 
 The impact of this predicate shows up when we try to take more than
 what is available:
-\begin{Verbatim}
+\restartrepl
+\begin{replPrompt}
   Cryptol> take`{10} [1..5]
   [error] at <interactive>:1:11--1:17:
-    Adding 10 will always exceed 5
-\end{Verbatim}
+    • Unsolvable constraint:
+        10 + ?m == 5
+          arising from
+          matching types
+          at <interactive>:1:11--1:17
+    where
+    ?m is type argument 'back' of 'take' at <interactive>:1:1--1:5
+\end{replPrompt}
 Cryptol is telling us that it is unable to satisfy this instantiation
 (since {\tt front} is 10 and the sequence has 5
 elements).\indTake\indPredicates
@@ -2062,14 +2102,14 @@ programs later on.
 \begin{Answer}\ansref{ex:preds:1}\indPredicates
   Here is one way of writing this predicate, following the fact that
   $128 = 2 * 64$, $192 = 3 * 64$, and $256 = 4 * 64$:
-\begin{verbatim}
+\begin{Verbatim}
   {k} (2 <= k, k <= 4) => [k*64]
-\end{verbatim}
+\end{Verbatim}
 \todo[inline]{FIXME: The following example type signature is rejected by Cryptol, as subtraction is undefined when it underflows.}
 Here is another way, more direct but somewhat less satisfying:
-\begin{verbatim}
+\begin{Verbatim}
   {k} ((k - 128) * (k - 192) * (k - 256) == 0) => [k]
-\end{verbatim}
+\end{Verbatim}
 Note that Cryptol's type constraints do not include {\em or} predicates,
 hence we cannot just list the possibilities in a list.
 \end{Answer}
@@ -2224,9 +2264,7 @@ Do you expect the last call to type-check?
 \begin{Answer}\ansref{ex:fn:0}
 Here are some example uses of {\tt increment}:
 \begin{Verbatim}
-  Cryptol> increment 3
   4
-  Cryptol> increment 255
   0
   Cryptol> increment 912
     [error] at <interactive>:1:1--1:14:
@@ -2251,11 +2289,12 @@ interpreter also supports simple definitions with \texttt{let}. Unlike
 file-based definitions, \texttt{let}-definitions are not persistent:
 They exist only until the same name is redefined or the interpreter
 exits with \texttt{:q}.
-\begin{code}
+\restartrepl
+\begin{replPrompt}
   Cryptol> let r = {a = True, b = False}
   Cryptol> r.a
   True
-\end{code}
+\end{replPrompt}
 Simple functions can be defined in the interpreter with \texttt{let},
 with some restrictions: They must be entered on a single line, and
 they cannot have a separate type signature. If we want a function to
@@ -2264,22 +2303,24 @@ annotations to variables or other parts of the body of the definition.
 \begin{Exercise}\label{ex:fn:0b}
   Enter the following definition into the Cryptol interpreter and check
   its type with \texttt{:t}.
-\begin{code}
+\restartrepl
+\begin{replinVerb}
   let increment x = x+1
-\end{code}
+\end{replinVerb}
 Modify the \texttt{let}-definition of \texttt{increment} so that it
 will have type \texttt{[8] -> [8]}.
 \end{Exercise}
 \begin{Answer}\ansref{ex:fn:0b}
 Any of the following definitions will have the desired type:
-\begin{Verbatim}
+\restartrepl
+\begin{replPrompt}
   Cryptol> let increment (x : [8]) = x + 1
   Cryptol> let increment x = (x : [8]) + 1
   Cryptol> let increment x = x + (1 : [8])
   Cryptol> let increment x = x + 1 : [8]
   Cryptol> :t increment
   increment : [8] -> [8]
-\end{Verbatim}
+\end{replPrompt}
 \end{Answer}
 
 %~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
