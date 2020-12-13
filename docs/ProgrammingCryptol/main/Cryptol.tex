@@ -73,13 +73,14 @@
 \DefineVerbatimEnvironment
     {reploutVerb}{Verbatim}
     {}
+\DefineVerbatimEnvironment
+    {replPrompt}{Verbatim}
+    {}
 \CustomVerbatimCommand{\replin}{Verb}{}
 \CustomVerbatimCommand{\replout}{Verb}{}
 \NewDocumentCommand{\hidereplin}{r||}{}
 \NewDocumentCommand{\hidereplout}{r||}{}
 \newcommand{\restartrepl}[0]{}{}
-%% \newcommand{\hidereplin}[1]{}
-%% \newcommand{\hidereplout}[1]{}
 
 % \newcommand{\todo}[1]{\begin{center}\framebox{\begin{minipage}{0.8\textwidth}{{\bf TODO:} #1}\end{minipage}}\end{center}}
 \newcommand{\lamex}{\ensuremath{\lambda}-expression\indLamExp}
