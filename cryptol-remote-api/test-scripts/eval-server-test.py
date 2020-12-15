@@ -23,7 +23,10 @@ p = subprocess.Popen(
     env=env)
 time.sleep(5)
 assert(p is not None)
-assert(p.poll() is None)
+poll_result = p.poll()
+if poll_result is not None:
+    print(poll_result)
+assert(poll_result is None)
 
 c = argo.ServerConnection(argo.HttpProcess('http://localhost:50005/'))
 
