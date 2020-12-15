@@ -71,6 +71,19 @@ executable cryptol-remote-api
     cryptol-remote-api,
     sbv < 8.10
 
+executable cryptol-eval-server
+  import:              deps, warnings
+  main-is:             Main.hs
+  hs-source-dirs:      cryptol-eval-server
+  ghc-options:
+    -threaded
+
+  build-depends:
+    cryptol-remote-api,
+    optparse-applicative,
+    sbv < 8.10
+
+
 test-suite test-cryptol-remote-api
   import:              deps, warnings
   type:                exitcode-stdio-1.0
