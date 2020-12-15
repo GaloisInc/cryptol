@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+import signal
 import subprocess
 import time
 
@@ -15,7 +16,7 @@ env = os.environ.copy()
 env['CRYPTOLPATH'] = cryptol_path
 
 p = subprocess.Popen(
-    ["cabal", "v2-exec", "cryptol-eval-server", "--verbose=0", "--", "http", "/", "--port", "50005", str(cryptol_path.joinpath("M.cry"))],
+    ["cabal", "v2-exec", "cryptol-eval-server", "--verbose=0", "--", "http", "/", "--port", "50005", "--module", "M"],
     stdout=subprocess.DEVNULL,
     stdin=subprocess.DEVNULL,
     stderr=subprocess.DEVNULL,

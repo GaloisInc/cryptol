@@ -16,7 +16,7 @@ import Cryptol.Eval (EvalOpts(..), defaultPPOpts)
 import Cryptol.ModuleSystem (ModuleInput(..), loadModuleByPath, loadModuleByName)
 import Cryptol.ModuleSystem.Monad (runModuleM, setFocusedModule)
 import Cryptol.TypeCheck.AST (mName)
-import Cryptol.Utils.Ident (preludeName)
+import Cryptol.Utils.Ident (ModName, modNameToText, textToModName, preludeName)
 import Cryptol.Utils.Logger (quietLogger)
 
 import Argo
@@ -42,10 +42,10 @@ main = customMain initMod initMod initMod description buildApp
          let minp = ModuleInput False evOpts reader menv
          let die =
                \err ->
-                 do hPutStrLn stderr $ "Failed to load " ++ maybe "Cryptol prelude" ("file " ++) file ++ ":\n" ++ show err
+                 do hPutStrLn stderr $ "Failed to load " ++ either ("file " ++) (("module " ++) . show) file ++ ":\n" ++ show err
                     exitFailure
          menv' <-
-           do (res, _warnings) <- maybe (loadModuleByName preludeName) loadModuleByPath file minp
+           do (res, _warnings) <- either loadModuleByPath loadModuleByName file minp
               -- NB Warnings suppressed when running server
               case res of
                 Left err -> die err
@@ -70,15 +70,22 @@ getSearchPaths =
   maybe [] splitSearchPath <$> lookupEnv "CRYPTOLPATH"
 
 newtype StartingFile =
-  StartingFile (Maybe FilePath)
+  StartingFile (Either FilePath ModName)
 
 initMod :: Parser StartingFile
-initMod = StartingFile <$> filename
+initMod = StartingFile <$> (Left <$> filename <|> Right . textToModName <$> modulename)
   where
     filename =
-      optional $ argument str $
+      strOption $
+      long "file" <>
       metavar "FILENAME" <>
       help "Cryptol file to load on startup"
+    modulename =
+      strOption $
+      long "module" <>
+      metavar "MODULE" <>
+      help "Cryptol module to load on startup" <>
+      value (modNameToText preludeName)
 
 cryptolEvalMethods :: [(Text, MethodType, JSON.Value -> Method ServerState JSON.Value)]
 cryptolEvalMethods =
