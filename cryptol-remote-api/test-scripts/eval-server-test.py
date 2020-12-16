@@ -17,9 +17,9 @@ env['CRYPTOLPATH'] = cryptol_path
 
 p = subprocess.Popen(
     ["cabal", "v2-exec", "cryptol-eval-server", "--verbose=0", "--", "http", "/", "--port", "50005", "--module", "M"],
-    stdout=subprocess.DEVNULL,
+    stdout=subprocess.PIPE,
     stdin=subprocess.DEVNULL,
-    stderr=subprocess.DEVNULL,
+    stderr=subprocess.PIPE,
     start_new_session=True,
     env=env)
 time.sleep(5)
@@ -27,6 +27,8 @@ assert(p is not None)
 poll_result = p.poll()
 if poll_result is not None:
     print(poll_result)
+    print(p.stdout.read())
+    print(p.stderr.read())
 assert(poll_result is None)
 
 c = argo.ServerConnection(argo.HttpProcess('http://localhost:50005/'))
