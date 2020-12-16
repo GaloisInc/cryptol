@@ -160,6 +160,23 @@ def low_level_api_test(c):
     assert('value' in reply_12['result']['answer'])
     assert(reply_12['result']['answer']['value'] == {'data': '00004', 'width': 17, 'expression': 'bits', 'encoding': 'hex'})
 
+    # Test empty options
+    def test_options(options):
+        id_opt = c.send_message("evaluate expression", {"state": state_1, "expression": "four", "options": options})
+        reply_opt = c.wait_for_reply_to(id_opt)
+        assert('result' in reply_opt)
+        assert('answer' in reply_opt['result'])
+        assert('value' in reply_opt['result']['answer'])
+        assert(reply_opt['result']['answer']['value'] == {'data': '00004', 'width': 17, 'expression': 'bits', 'encoding': 'hex'})
+
+    test_options(dict())
+    test_options({"call stacks": True})
+    test_options({"call stacks": False})
+    test_options({"call stacks": False, "output": dict()})
+    test_options({"call stacks": False, "output": {"ASCII": True}})
+    test_options({"call stacks": False, "output": {"base": 16}})
+    test_options({"call stacks": False, "output": {"prefix of infinite lengths": 3}})
+
     def test_instantiation(t, expected=None):
         if expected is None: expected = t
         id_t = c.send_message("check type", {"state": state_1, "expression": {"expression": "instantiate", "generic": "id", "arguments": {"a": t}}})

@@ -1,29 +1,67 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 module CryptolServer (module CryptolServer) where
 
 import Control.Lens
 import Control.Monad.IO.Class
+import Control.Monad.Reader (ReaderT(ReaderT))
+import qualified Data.Aeson as JSON
 
-import Cryptol.Backend.Monad (EvalOpts(..), PPOpts(..), PPFloatFormat(..), PPFloatExp(..))
+import Cryptol.Eval (EvalOpts)
 import Cryptol.ModuleSystem (ModuleCmd, ModuleEnv, ModuleInput(..))
 import Cryptol.ModuleSystem.Env
   (getLoadedModules, lmFilePath, lmFingerprint, meLoadedModules,
    initialModuleEnv, meSearchPath, ModulePath(..))
 import Cryptol.ModuleSystem.Fingerprint
 import Cryptol.Parser.AST (ModName)
-import Cryptol.Utils.Logger (quietLogger)
 
-import Argo
+import qualified Argo
 import CryptolServer.Exceptions
+import CryptolServer.Options
 
-runModuleCmd :: ModuleCmd a -> Method ServerState a
+newtype CryptolMethod a = CryptolMethod { runCryptolMethod :: Options -> Argo.Method ServerState a }
+  deriving (Functor, Applicative, Monad, MonadIO) via ReaderT Options (Argo.Method ServerState)
+
+method ::
+  forall params result.
+  (JSON.FromJSON params, JSON.ToJSON result) =>
+  (params -> CryptolMethod result) ->
+  (JSON.Value -> Argo.Method ServerState JSON.Value)
+method f p =
+  case JSON.fromJSON p of
+    JSON.Error msg -> Argo.raise $ Argo.invalidParams msg p
+    JSON.Success (WithOptions opts params) ->
+      JSON.toJSON <$> runCryptolMethod (f params) opts
+
+
+getOptions :: CryptolMethod Options
+getOptions = CryptolMethod pure
+
+getEvalOpts :: CryptolMethod EvalOpts
+getEvalOpts = optEvalOpts <$> getOptions
+
+raise :: Argo.JSONRPCException -> CryptolMethod a
+raise = CryptolMethod . const . Argo.raise
+
+getModuleEnv :: CryptolMethod ModuleEnv
+getModuleEnv =
+  CryptolMethod $ const $ view moduleEnv <$> Argo.getState
+
+setModuleEnv :: ModuleEnv -> CryptolMethod ()
+setModuleEnv me =
+  CryptolMethod $ const $ Argo.getState >>= \s -> Argo.setState (set moduleEnv me s)
+
+runModuleCmd :: ModuleCmd a -> CryptolMethod a
 runModuleCmd cmd =
-    do s <- getState
-       reader <- getFileReader
+    do Options callStacks evOpts <- getOptions
+       s <- CryptolMethod $ const Argo.getState
+       reader <- CryptolMethod $ const Argo.getFileReader
        let minp = ModuleInput
-                  { minpCallStacks = True -- TODO, where should we get this option from?
-                  , minpEvalOpts   = theEvalOpts
+                  { minpCallStacks = callStacks
+                  , minpEvalOpts   = evOpts
                   , minpByteReader = reader
                   , minpModuleEnv  = view moduleEnv s
                   }
@@ -34,7 +72,7 @@ runModuleCmd cmd =
          (Right (x, newEnv), _warns) ->
            -- TODO: What to do about warnings when a command completes
            -- successfully?
-           do setState (set moduleEnv newEnv s)
+           do setModuleEnv newEnv
               return x
 
 data LoadedModule = LoadedModule
@@ -67,8 +105,6 @@ setSearchPath :: [FilePath] -> ServerState -> ServerState
 setSearchPath paths =
   over moduleEnv $ \me -> me { meSearchPath = paths ++ meSearchPath me }
 
-theEvalOpts :: EvalOpts
-theEvalOpts = EvalOpts quietLogger (PPOpts False 10 25 10 (FloatFree AutoExponent))
 
 -- | Check that all of the modules loaded in the Cryptol environment
 -- currently have fingerprints that match those when they were loaded.

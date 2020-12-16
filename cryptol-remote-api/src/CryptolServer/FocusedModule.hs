@@ -1,20 +1,17 @@
 {-# LANGUAGE OverloadedStrings #-}
 module CryptolServer.FocusedModule (focusedModule, FocusedModParams(..)) where
 
-import Control.Lens hiding ((.=))
 import Data.Aeson as JSON
-
 
 import Cryptol.ModuleSystem (meFocusedModule, meLoadedModules)
 import Cryptol.ModuleSystem.Env (isLoadedParamMod)
 import Cryptol.Utils.PP
 
-import Argo
 import CryptolServer
 
-focusedModule :: FocusedModParams -> Method ServerState JSON.Value
+focusedModule :: FocusedModParams -> CryptolMethod JSON.Value
 focusedModule _ =
-  do me <- view moduleEnv <$> getState
+  do me <- getModuleEnv
      case meFocusedModule me of
        Nothing ->
          return $ JSON.object [ "module" .= JSON.Null ]
