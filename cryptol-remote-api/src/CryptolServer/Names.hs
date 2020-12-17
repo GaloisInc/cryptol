@@ -3,7 +3,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 module CryptolServer.Names (visibleNames) where
 
-import Control.Lens hiding ((.=))
 import qualified Data.Aeson as JSON
 import Data.Aeson ((.=))
 import qualified Data.Map as Map
@@ -18,15 +17,13 @@ import Cryptol.ModuleSystem.NamingEnv (NamingEnv(..), lookupValNames, shadowing)
 import Cryptol.TypeCheck.Type (Schema(..))
 import Cryptol.Utils.PP (pp)
 
-import Argo
-
 import CryptolServer
 import CryptolServer.Data.Type
 
 
-visibleNames :: JSON.Value -> Method ServerState [NameInfo]
+visibleNames :: JSON.Value -> CryptolMethod [NameInfo]
 visibleNames _ =
-  do me <- view moduleEnv <$> getState
+  do me <- getModuleEnv
      let DEnv { deNames = dyNames } = meDynEnv me
      let ModContext { mctxDecls = fDecls, mctxNames = fNames} = focusedEnv me
      let inScope = Map.keys (neExprs $ dyNames `shadowing` fNames)

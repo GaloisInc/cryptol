@@ -8,7 +8,7 @@ import Data.Text (Text)
 import System.Environment (lookupEnv)
 import System.FilePath (splitSearchPath)
 
-import Argo
+import Argo (MethodType(..), Method, mkApp)
 import Argo.DefaultMain
 
 
