@@ -7,9 +7,9 @@ import System.Directory
 
 import CryptolServer
 import CryptolServer.Exceptions
-import Argo
 
-cd :: ChangeDirectoryParams -> Method ServerState ()
+
+cd :: ChangeDirectoryParams -> CryptolMethod ()
 cd (ChangeDirectoryParams newDir) =
   do exists <- liftIO $ doesDirectoryExist newDir
      if exists

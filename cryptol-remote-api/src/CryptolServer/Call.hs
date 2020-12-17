@@ -15,13 +15,11 @@ module CryptolServer.Call
 import Data.Aeson as JSON hiding (Encoding, Value, decode)
 import qualified Data.Aeson as JSON
 
-import Argo
-
 import CryptolServer
 import CryptolServer.Data.Expression
 import CryptolServer.EvalExpr (evalExpression')
 
-call :: CallParams -> Method ServerState JSON.Value
+call :: CallParams -> CryptolMethod JSON.Value
 call (CallParams rawFun rawArgs) =
   do fun <- getExpr rawFun
      args <- traverse getExpr rawArgs

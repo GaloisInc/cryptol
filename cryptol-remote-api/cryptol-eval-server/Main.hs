@@ -19,7 +19,7 @@ import Cryptol.TypeCheck.AST (mName)
 import Cryptol.Utils.Ident (ModName, modNameToText, textToModName, preludeName)
 import Cryptol.Utils.Logger (quietLogger)
 
-import Argo
+import Argo (MethodType(..), Method, mkApp)
 import Argo.DefaultMain
 
 
