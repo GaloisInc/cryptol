@@ -1,0 +1,12 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Issue639_M
+Loading module Issue639_C
+property Issue639_M::p Using exhaustive testing.
+Testing... Issue639_M::p False = False
+:prove Issue639_M::p
+	Counterexample
+Issue639_M::p False = False
+:sat Issue639_M::p
+	Satisfiable
+Issue639_M::p True = True

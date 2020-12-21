@@ -1,0 +1,2 @@
+module Issue639_C where
+  import Issue639_M (f)
