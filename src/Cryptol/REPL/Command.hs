@@ -36,7 +36,8 @@ module Cryptol.REPL.Command (
   , replCheckExpr
 
     -- Check, SAT, and prove
-  , qcCmd, QCMode(..)
+  , TestReport(..)
+  , qcExpr, qcCmd, QCMode(..)
   , satCmd
   , proveCmd
   , onlineProveSat
