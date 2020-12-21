@@ -314,33 +314,6 @@ runCommand lineNum mbBatch c = case c of
     return CommandError
 
 
--- Get the setting we should use for displaying values.
-getPPValOpts :: REPL E.PPOpts
-getPPValOpts =
-  do base      <- getKnownUser "base"
-     ascii     <- getKnownUser "ascii"
-     infLength <- getKnownUser "infLength"
-
-     fpBase    <- getKnownUser "fp-base"
-     fpFmtTxt  <- getKnownUser "fp-format"
-     let fpFmt = case parsePPFloatFormat fpFmtTxt of
-                   Just f  -> f
-                   Nothing -> panic "getPPValOpts"
-                                      [ "Failed to parse fp-format" ]
-
-     return E.PPOpts { E.useBase      = base
-                     , E.useAscii     = ascii
-                     , E.useInfLength = infLength
-                     , E.useFPBase    = fpBase
-                     , E.useFPFormat  = fpFmt
-                     }
-
-getEvalOpts :: REPL E.EvalOpts
-getEvalOpts =
-  do ppOpts <- getPPValOpts
-     l      <- getLogger
-     return E.EvalOpts { E.evalPPOpts = ppOpts, E.evalLogger = l }
-
 evalCmd :: String -> Int -> Maybe FilePath -> REPL ()
 evalCmd str lineNum mbBatch = do
   ri <- replParseInput str lineNum mbBatch
@@ -1617,7 +1590,7 @@ getPrimMap  = liftModuleCmd M.getPrimMap
 
 liftModuleCmd :: M.ModuleCmd a -> REPL a
 liftModuleCmd cmd =
-  do evo <- getEvalOpts
+  do evo <- getEvalOptsAction
      env <- getModuleEnv
      callStacks <- getCallStacks
      let minp = M.ModuleInput

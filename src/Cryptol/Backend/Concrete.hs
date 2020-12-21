@@ -165,15 +165,6 @@ instance Backend Concrete where
   sModifyCallStack _ f m = modifyCallStack f m
   sGetCallStack _ = getCallStack
 
-  ppBit _ b | b         = text "True"
-            | otherwise = text "False"
-
-  ppWord _ = ppBV
-
-  ppInteger _ _opts i = integer i
-
-  ppFloat _ = FP.fpPP
-
   bitLit _ b = b
   bitAsLit _ b = Just b
 
@@ -335,6 +326,7 @@ instance Backend Concrete where
   ------------------------------------------------------------------------
   -- Floating Point
   fpLit _sym e p rat     = pure (FP.fpLit e p rat)
+  fpAsLit _ f            = Just f
   fpExactLit _sym bf     = pure bf
   fpEq _sym x y          = pure (FP.bfValue x == FP.bfValue y)
   fpLogicalEq _sym x y   = pure (FP.bfCompare (FP.bfValue x) (FP.bfValue y) == EQ)
@@ -395,5 +387,3 @@ fpRoundMode sym w =
   case FP.fpRound (bvVal w) of
     Left err -> raiseError sym err
     Right a  -> pure a
-
-

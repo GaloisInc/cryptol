@@ -577,7 +577,6 @@ evalDecl sym renv env d =
 -- Selectors -------------------------------------------------------------------
 
 {-# SPECIALIZE evalSel ::
-  (?range :: Range, ConcPrims) =>
   Concrete ->
   GenValue Concrete ->
   Selector ->
@@ -588,7 +587,7 @@ evalDecl sym renv env d =
 --   tuple and record selections pointwise down into other value constructs
 --   (e.g., streams and functions).
 evalSel ::
-  (?range :: Range, EvalPrims sym) =>
+  Backend sym =>
   sym ->
   GenValue sym ->
   Selector ->
@@ -626,12 +625,11 @@ evalSel sym val sel = case sel of
                               [ "Unexpected value in list selection"
                               , show vdoc ]
 {-# SPECIALIZE evalSetSel ::
-  (?range :: Range, ConcPrims) =>
   Concrete -> TValue ->
   GenValue Concrete -> Selector -> SEval Concrete (GenValue Concrete) -> SEval Concrete (GenValue Concrete)
   #-}
 evalSetSel :: forall sym.
-  (?range :: Range, EvalPrims sym) =>
+  Backend sym =>
   sym ->
   TValue ->
   GenValue sym -> Selector -> SEval sym (GenValue sym) -> SEval sym (GenValue sym)

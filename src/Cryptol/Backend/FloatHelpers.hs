@@ -9,9 +9,7 @@ import LibBF
 
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
-import Cryptol.Backend.Monad( EvalError(..)
-                         , PPOpts(..), PPFloatFormat(..), PPFloatExp(..)
-                         )
+import Cryptol.Backend.Monad( EvalError(..) )
 
 
 data BF = BF

@@ -16,8 +16,6 @@ module Cryptol.Eval.Env where
 
 import Cryptol.Backend
 
-import Cryptol.Backend.Monad( PPOpts )
-
 import Cryptol.Eval.Prims
 import Cryptol.Eval.Type
 import Cryptol.Eval.Value
@@ -25,7 +23,6 @@ import Cryptol.ModuleSystem.Name
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat
 import Cryptol.Utils.PP
-
 
 import qualified Data.IntMap.Strict as IntMap
 import Data.Semigroup

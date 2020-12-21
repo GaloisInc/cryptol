@@ -36,7 +36,6 @@ import qualified What4.SWord as SW
 import qualified Cryptol.Backend.What4.SFloat as FP
 
 import Cryptol.Backend
-import Cryptol.Backend.Concrete( BV(..), ppBV )
 import Cryptol.Backend.FloatHelpers
 import Cryptol.Backend.Monad
    ( Eval(..), EvalError(..), EvalErrorEx(..)
@@ -44,7 +43,6 @@ import Cryptol.Backend.Monad
    , modifyCallStack, getCallStack
    )
 import Cryptol.Utils.Panic
-import Cryptol.Utils.PP
 
 
 data What4 sym =
@@ -295,22 +293,6 @@ instance W4.IsSymExprBuilder sym => Backend (What4 sym) where
 
   integerAsLit _ v = W4.asInteger v
 
-  ppBit _ v
-    | Just b <- W4.asConstantPred v = text $! if b then "True" else "False"
-    | otherwise                     = text "?"
-
-  ppWord _ opts v
-    | Just x <- SW.bvAsUnsignedInteger v
-    = ppBV opts (BV (SW.bvWidth v) x)
-
-    | otherwise = text "[?]"
-
-  ppInteger _ _opts v
-    | Just x <- W4.asInteger v = integer x
-    | otherwise = text "[?]"
-
-  ppFloat _ _opts _ = text "[?]"
-
   iteBit sym c x y = liftIO (W4.itePred (w4 sym) c x y)
   iteWord sym c x y = liftIO (SW.bvIte (w4 sym) c x y)
   iteInteger sym c x y = liftIO (W4.intIte (w4 sym) c x y)
@@ -450,6 +432,7 @@ instance W4.IsSymExprBuilder sym => Backend (What4 sym) where
   --------------------------------------------------------------
 
   fpLit sym e p r = liftIO $ FP.fpFromRationalLit (w4 sym) e p r
+  fpAsLit _ _ = Nothing -- TODO
 
   fpExactLit sym BF{ bfExpWidth = e, bfPrecWidth = p, bfValue = bf } =
     liftIO (FP.fpFromBinary (w4 sym) e p =<< SW.bvLit (w4 sym) (e+p) (floatToBits e p bf))

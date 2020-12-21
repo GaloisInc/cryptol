@@ -5,7 +5,6 @@
 module CryptolServer.Sat (sat, ProveSatParams(..)) where
 
 import Control.Applicative
-import Control.Lens hiding ((.=))
 import Control.Monad.IO.Class
 import Data.Aeson ((.=), (.:), FromJSON, ToJSON)
 import qualified Data.Aeson as JSON
@@ -15,7 +14,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 
 import Cryptol.Eval.Concrete (Value)
-import Cryptol.ModuleSystem (checkExpr, getPrimMap)
+import Cryptol.ModuleSystem (checkExpr)
 import Cryptol.ModuleSystem.Env (DynamicEnv(..), meDynEnv, meSolverConfig)
 import Cryptol.Symbolic (ProverCommand(..), ProverResult(..), QueryType(..), SatNum(..))
 import Cryptol.Symbolic.SBV (proverNames, satProve, setupProver)
@@ -73,9 +72,7 @@ sat (ProveSatParams (Prover name) jsonExpr num) =
     satResult es = traverse result es
 
     result (t, _, v) =
-      do evalOpts <- getEvalOpts
-         prims <- runModuleCmd getPrimMap
-         e <- observe $ readBack evalOpts prims t v
+      do e <- observe $ readBack t v
          return (JSONType mempty t, e)
 
 data SatResult = Unsatisfiable | Satisfied [[(JSONType, Expression)]]

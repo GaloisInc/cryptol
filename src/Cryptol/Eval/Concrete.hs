@@ -55,7 +55,6 @@ import Cryptol.TypeCheck.AST as AST
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.Ident (PrimIdent,prelPrim,floatPrim,suiteBPrim,primeECPrim)
 import Cryptol.Utils.PP
-import Cryptol.Utils.Logger(logPrint)
 import Cryptol.Utils.RecordMap
 
 type Value = GenValue Concrete
@@ -140,9 +139,9 @@ floatToExpr prims eT pT f =
 
 -- Primitives ------------------------------------------------------------------
 
-primTable :: EvalOpts -> Map PrimIdent (Prim Concrete)
-primTable eOpts = let sym = Concrete in
-  Map.union (genericPrimTable sym) $
+primTable :: IO EvalOpts -> Map PrimIdent (Prim Concrete)
+primTable getEOpts = let sym = Concrete in
+  Map.union (genericPrimTable sym getEOpts) $
   Map.union (floatPrims sym) $
   Map.union suiteBPrims $
   Map.union primeECPrims $
@@ -173,21 +172,6 @@ primTable eOpts = let sym = Concrete in
 
   , ("updateEnd"  , {-# SCC "Prelude::updateEnd" #-}
                     updatePrim sym updateBack_word updateBack)
-
-  , ("trace"       , {-# SCC "Prelude::trace" #-}
-                     PNumPoly \_n ->
-                     PTyPoly  \_a ->
-                     PTyPoly  \_b ->
-                     PFun     \s ->
-                     PFun     \x ->
-                     PFun     \y ->
-                     PPrim
-                      do msg <- valueToString sym =<< s
-                         let EvalOpts { evalPPOpts, evalLogger } = eOpts
-                         doc <- ppValue sym evalPPOpts =<< x
-                         io $ logPrint evalLogger
-                             $ if null msg then doc else text msg <+> doc
-                         y)
 
    , ("pmult",
         PFinPoly \u ->

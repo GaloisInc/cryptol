@@ -300,7 +300,7 @@ renamerWarnings ws
 
 data RO m =
   RO { roLoading    :: [ImportSource]
-     , roEvalOpts   :: EvalOpts
+     , roEvalOpts   :: m EvalOpts
      , roCallStacks :: Bool
      , roFileReader :: FilePath -> m ByteString
      }
@@ -360,7 +360,7 @@ instance MonadIO m => MonadIO (ModuleT m) where
 data ModuleInput m =
   ModuleInput
   { minpCallStacks :: Bool
-  , minpEvalOpts   :: EvalOpts
+  , minpEvalOpts   :: m EvalOpts
   , minpByteReader :: FilePath -> m ByteString
   , minpModuleEnv  :: ModuleEnv
   }
@@ -515,8 +515,13 @@ modifyEvalEnv f = ModuleT $ do
 getEvalEnv :: ModuleM EvalEnv
 getEvalEnv  = ModuleT (meEvalEnv `fmap` get)
 
+getEvalOptsAction :: ModuleM (IO EvalOpts)
+getEvalOptsAction = ModuleT (roEvalOpts `fmap` ask)
+
 getEvalOpts :: ModuleM EvalOpts
-getEvalOpts = ModuleT (roEvalOpts `fmap` ask)
+getEvalOpts =
+  do act <- getEvalOptsAction
+     liftIO act
 
 getFocusedModule :: ModuleM (Maybe P.ModName)
 getFocusedModule  = ModuleT (meFocusedModule `fmap` get)
