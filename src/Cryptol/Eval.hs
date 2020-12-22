@@ -27,6 +27,7 @@ module Cryptol.Eval (
   , emptyEnv
   , evalExpr
   , evalDecls
+  , evalNewtypeDecls
   , evalSel
   , evalSetSel
   , EvalError(..)

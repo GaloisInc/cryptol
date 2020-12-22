@@ -364,7 +364,7 @@ dumpTestsCmd outFile str pos fnm =
      testNum <- getKnownUser "tests" :: REPL Int
      g <- io newTFGen
      tenv <- E.envTypes . M.deEnv <$> getDynEnv
-     ntEnv <- E.NewtypeEnv . M.loadedNewtypes <$> getModuleEnv
+     ntEnv <- M.loadedNewtypes <$> getModuleEnv
      let tyv = E.evalValType ntEnv tenv ty
      gens <-
        case TestR.dumpableType tyv of
@@ -428,7 +428,7 @@ qcExpr ::
 qcExpr qcMode exprDoc texpr schema =
   do (val,ty) <- replEvalCheckedExpr texpr schema
      testNum <- (toInteger :: Int -> Integer) <$> getKnownUser "tests"
-     ntEnv <- E.NewtypeEnv . M.loadedNewtypes <$> getModuleEnv
+     ntEnv <- M.loadedNewtypes <$> getModuleEnv
      tenv <- E.envTypes . M.deEnv <$> getDynEnv
      let tyv = E.evalValType ntEnv tenv ty
      percentRef <- io $ newIORef Nothing
@@ -1740,7 +1740,7 @@ replEvalCheckedExpr def sig =
      whenDebug (rPutStrLn (dump def1))
 
      tenv <- E.envTypes . M.deEnv <$> getDynEnv
-     ntEnv <- E.NewtypeEnv . M.loadedNewtypes <$> getModuleEnv
+     ntEnv <- M.loadedNewtypes <$> getModuleEnv
      let tyv = E.evalValType ntEnv tenv ty
 
      -- add "it" to the namespace via a new declaration

@@ -60,7 +60,6 @@ import qualified Cryptol.Backend.What4.SFloat as W4
 
 import qualified Cryptol.Eval as Eval
 import qualified Cryptol.Eval.Concrete as Concrete
-import qualified Cryptol.Eval.Type as Eval
 import qualified Cryptol.Eval.Value as Eval
 import           Cryptol.Eval.What4
 import           Cryptol.Parser.Position (emptyRange)
@@ -237,8 +236,7 @@ prepareQuery ::
                        ([FinType],[VarShape (What4 sym)],W4.Pred sym, W4.Pred sym)
                )
 prepareQuery sym ProverCommand { .. } = do
-  nts <- M.getNewtypes
-  let ntEnv = Eval.NewtypeEnv nts
+  ntEnv <- M.getNewtypes
   case predArgTypes ntEnv pcQueryType pcSchema of
     Left msg -> pure (Left msg)
     Right ts ->
@@ -290,7 +288,9 @@ prepareQuery sym ProverCommand { .. } = do
        let extDgs = M.allDeclGroups modEnv ++ pcExtraDecls
 
        doW4Eval (w4 sym)
-         do env <- Eval.evalDecls sym extDgs mempty
+         do env <- Eval.evalDecls sym extDgs =<<
+                     Eval.evalNewtypeDecls sym ntEnv mempty
+
             v   <- Eval.evalExpr  sym env    pcExpr
             appliedVal <-
               foldM (Eval.fromVFun sym) v (map (pure . varShapeToValue sym) args)

@@ -56,7 +56,6 @@ import qualified Cryptol.Backend.FloatHelpers as FH
 
 import qualified Cryptol.Eval as Eval
 import qualified Cryptol.Eval.Concrete as Concrete
-import qualified Cryptol.Eval.Type as Eval
 import qualified Cryptol.Eval.Value as Eval
 import           Cryptol.Eval.SBV
 import           Cryptol.Parser.Position (emptyRange)
@@ -314,7 +313,7 @@ prepareQuery evo ProverCommand{..} =
      getEOpts <- M.getEvalOptsAction
 
      nts <- M.getNewtypes
-     let ?ntEnv = Eval.NewtypeEnv nts
+     let ?ntEnv = nts
 
      -- The `addAsm` function is used to combine assumptions that
      -- arise from the types of symbolic variables (e.g. Z n values
@@ -348,7 +347,8 @@ prepareQuery evo ProverCommand{..} =
                  -- evaluation environment, then we compute the value, finally
                  -- we apply it to the symbolic inputs.
                  (safety,b) <- doSBVEval $
-                     do env <- Eval.evalDecls sym extDgs mempty
+                     do env <- Eval.evalDecls sym extDgs =<<
+                                 Eval.evalNewtypeDecls sym nts mempty
                         v <- Eval.evalExpr sym env pcExpr
                         appliedVal <- foldM (Eval.fromVFun sym) v args
                         case pcQueryType of

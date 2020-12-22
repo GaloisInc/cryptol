@@ -107,8 +107,7 @@ instance Semigroup TypeEnv where
   l <> r = TypeEnv
     { envTypeMap  = IntMap.union (envTypeMap l) (envTypeMap r) }
 
-newtype NewtypeEnv =
-  NewtypeEnv { newtypeEnv :: Map.Map Name Newtype }
+type NewtypeEnv = Map.Map Name Newtype
 
 lookupTypeVar :: TVar -> TypeEnv -> Maybe (Either Nat' TValue)
 lookupTypeVar tv env = IntMap.lookup (tvUnique tv) (envTypeMap env)
@@ -143,7 +142,7 @@ evalType ntEnv env ty =
         (TCNum n, [])   -> Left $ Nat n
         (TCInf, [])     -> Left $ Inf
         (TCNewtype u@(UserTC nm _),vs) ->
-            case Map.lookup nm (newtypeEnv ntEnv) of
+            case Map.lookup nm ntEnv of
               Just nt ->
                 let vs' = map (evalType ntEnv env) vs
                  in Right $ TVNewtype u vs' $ evalNewtypeBody ntEnv env nt vs'

@@ -40,7 +40,7 @@
 > import qualified Cryptol.Backend.FloatHelpers as FP
 > import Cryptol.Backend.Monad (EvalError(..))
 > import Cryptol.Eval.Type
->   (TValue(..), isTBit, evalValType, evalNumType, NewtypeEnv(..), TypeEnv, bindTypeVar)
+>   (TValue(..), isTBit, evalValType, evalNumType, NewtypeEnv, TypeEnv, bindTypeVar)
 > import Cryptol.Eval.Concrete (mkBv, ppBV, lg2)
 > import Cryptol.Utils.Ident (Ident,PrimIdent, prelPrim, floatPrim)
 > import Cryptol.Utils.Panic (panic)
@@ -1710,7 +1710,7 @@ running the reference evaluator on an expression.
 > evaluate expr minp = return (Right (val, modEnv), [])
 >   where
 >     modEnv = M.minpModuleEnv minp
->     ntEnv  = NewtypeEnv (M.loadedNewtypes modEnv)
+>     ntEnv  = M.loadedNewtypes modEnv
 >     extDgs = concatMap mDecls (M.loadedModules modEnv)
 >     env    = foldl (evalDeclGroup ntEnv) mempty extDgs
 >     val    = evalExpr ntEnv env expr
