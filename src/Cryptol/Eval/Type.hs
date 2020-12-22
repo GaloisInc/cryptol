@@ -20,7 +20,6 @@ import Cryptol.Utils.Ident (Ident)
 import Cryptol.Utils.RecordMap
 
 import Data.Maybe(fromMaybe)
-import qualified Data.Map.Strict as Map
 import qualified Data.IntMap.Strict as IntMap
 import GHC.Generics (Generic)
 import Control.DeepSeq
@@ -109,8 +108,6 @@ instance Semigroup TypeEnv where
   l <> r = TypeEnv
     { envTypeMap  = IntMap.union (envTypeMap l) (envTypeMap r) }
 
-type NewtypeEnv = Map.Map Name Newtype
-
 lookupTypeVar :: TVar -> TypeEnv -> Maybe (Either Nat' TValue)
 lookupTypeVar tv env = IntMap.lookup (tvUnique tv) (envTypeMap env)
 
@@ -118,19 +115,19 @@ bindTypeVar :: TVar -> Either Nat' TValue -> TypeEnv -> TypeEnv
 bindTypeVar tv ty env = env{ envTypeMap = IntMap.insert (tvUnique tv) ty (envTypeMap env) }
 
 -- | Evaluation for types (kind * or #).
-evalType :: NewtypeEnv -> TypeEnv -> Type -> Either Nat' TValue
-evalType ntEnv env ty =
+evalType :: TypeEnv -> Type -> Either Nat' TValue
+evalType env ty =
   case ty of
     TVar tv ->
       case lookupTypeVar tv env of
         Just v -> v
         Nothing -> evalPanic "evalType" ["type variable not bound", show tv]
 
-    TUser _ _ ty'  -> evalType ntEnv env ty'
+    TUser _ _ ty'  -> evalType env ty'
     TRec fields    -> Right $ TVRec (fmap val fields)
 
-    TNewtype nt ts -> Right $ TVNewtype nt tvs $ evalNewtypeBody ntEnv env nt tvs
-        where tvs = map (evalType ntEnv env) ts
+    TNewtype nt ts -> Right $ TVNewtype nt tvs $ evalNewtypeBody env nt tvs
+        where tvs = map (evalType env) ts
 
     TCon (TC c) ts ->
       case (c, ts) of
@@ -149,7 +146,7 @@ evalType ntEnv env ty =
         (TCInf, [])     -> Left $ Inf
         (TCAbstract u,vs) ->
             case kindOf ty of
-              KType -> Right $ TVAbstract u (map (evalType ntEnv env) vs)
+              KType -> Right $ TVAbstract u (map (evalType env) vs)
               k -> evalPanic "evalType"
                 [ "Unsupported"
                 , "*** Abstract type of kind: " ++ show (pp k)
@@ -162,16 +159,16 @@ evalType ntEnv env ty =
     TCon (TError _) ts -> evalPanic "evalType"
                              $ "Lingering invalid type" : map (show . pp) ts
   where
-    val = evalValType ntEnv env
-    num = evalNumType ntEnv env
+    val = evalValType env
+    num = evalNumType env
     inum x = case num x of
                Nat i -> i
                Inf   -> evalPanic "evalType"
                                   ["Expecting a finite size, but got `inf`"]
 
 -- | Evaluate the body of a newtype, given evaluated arguments
-evalNewtypeBody :: NewtypeEnv -> TypeEnv -> Newtype -> [Either Nat' TValue] -> RecordMap Ident TValue
-evalNewtypeBody ntEnv env0 nt args = fmap (evalValType ntEnv env') (ntFields nt)
+evalNewtypeBody :: TypeEnv -> Newtype -> [Either Nat' TValue] -> RecordMap Ident TValue
+evalNewtypeBody env0 nt args = fmap (evalValType env') (ntFields nt)
   where
   env' = loop env0 (ntParams nt) args
 
@@ -180,16 +177,16 @@ evalNewtypeBody ntEnv env0 nt args = fmap (evalValType ntEnv env') (ntFields nt)
   loop _ _ _ = evalPanic "evalNewtype" ["type parameter/argument mismatch"]
 
 -- | Evaluation for value types (kind *).
-evalValType :: NewtypeEnv -> TypeEnv -> Type -> TValue
-evalValType ntEnv env ty =
-  case evalType ntEnv env ty of
+evalValType :: TypeEnv -> Type -> TValue
+evalValType env ty =
+  case evalType env ty of
     Left _ -> evalPanic "evalValType" ["expected value type, found numeric type"]
     Right t -> t
 
 -- | Evaluation for number types (kind #).
-evalNumType :: NewtypeEnv -> TypeEnv -> Type -> Nat'
-evalNumType ntEnv env ty =
-  case evalType ntEnv env ty of
+evalNumType :: TypeEnv -> Type -> Nat'
+evalNumType env ty =
+  case evalType env ty of
     Left n -> n
     Right _ -> evalPanic "evalValType" ["expected numeric type, found value type"]
 

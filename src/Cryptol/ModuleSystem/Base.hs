@@ -206,8 +206,6 @@ doLoadModule quiet isrc path fp pm0 =
      let ?evalPrim = \i -> Right <$> Map.lookup i tbl
      callStacks <- getCallStacks
      let ?callStacks = callStacks
-     nts <- getNewtypes
-     let ?ntEnv = nts
      unless (T.isParametrizedModule tcm) $ modifyEvalEnv (E.moduleEnv Concrete tcm)
      loadedModule path fp tcm
 
@@ -572,8 +570,6 @@ evalExpr e = do
   let ?range = emptyRange
   callStacks <- getCallStacks
   let ?callStacks = callStacks
-  nts <- getNewtypes
-  let ?ntEnv = nts
 
   io $ E.runEval mempty (E.evalExpr Concrete (env <> deEnv denv) e)
 
@@ -587,8 +583,6 @@ evalDecls dgs = do
   let ?evalPrim = \i -> Right <$> Map.lookup i tbl
   callStacks <- getCallStacks
   let ?callStacks = callStacks
-  nts <- getNewtypes
-  let ?ntEnv = nts
 
   deEnv' <- io $ E.runEval mempty (E.evalDecls Concrete dgs env')
   let denv' = denv { deDecls = deDecls denv ++ dgs

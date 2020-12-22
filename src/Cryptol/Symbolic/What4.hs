@@ -237,7 +237,7 @@ prepareQuery ::
                )
 prepareQuery sym ProverCommand { .. } = do
   ntEnv <- M.getNewtypes
-  case predArgTypes ntEnv pcQueryType pcSchema of
+  case predArgTypes pcQueryType pcSchema of
     Left msg -> pure (Left msg)
     Right ts ->
       do args <- liftIO (mapM (freshVar (what4FreshFns (w4 sym))) ts)
@@ -282,7 +282,6 @@ prepareQuery sym ProverCommand { .. } = do
        let ?range = emptyRange
        callStacks <- M.getCallStacks
        let ?callStacks = callStacks
-       let ?ntEnv = ntEnv
 
        modEnv <- M.getModuleEnv
        let extDgs = M.allDeclGroups modEnv ++ pcExtraDecls

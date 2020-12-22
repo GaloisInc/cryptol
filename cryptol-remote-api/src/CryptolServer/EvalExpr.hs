@@ -44,8 +44,7 @@ evalExpression' e =
             let su = listParamSubst tys
             let theType = apSubst su (sType schema)
             tenv  <- E.envTypes . deEnv . meDynEnv <$> getModuleEnv
-            ntEnv <- loadedNewtypes <$> getModuleEnv
-            let tval = E.evalValType ntEnv tenv theType
+            let tval = E.evalValType tenv theType
             res <- runModuleCmd (evalExpr checked)
             val <- observe $ readBack tval res
             return (JSON.object [ "value" .= val

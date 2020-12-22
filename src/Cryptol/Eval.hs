@@ -68,10 +68,10 @@ import Prelude.Compat
 type EvalEnv = GenEvalEnv Concrete
 
 type EvalPrims sym =
-  ( Backend sym, ?ntEnv :: NewtypeEnv, ?callStacks :: Bool, ?evalPrim :: PrimIdent -> Maybe (Either Expr (Prim sym)) )
+  ( Backend sym, ?callStacks :: Bool, ?evalPrim :: PrimIdent -> Maybe (Either Expr (Prim sym)) )
 
 type ConcPrims =
-  (?callStacks :: Bool, ?ntEnv :: NewtypeEnv, ?evalPrim :: PrimIdent -> Maybe (Either Expr (Prim Concrete)))
+  (?callStacks :: Bool, ?evalPrim :: PrimIdent -> Maybe (Either Expr (Prim Concrete)))
 
 -- Expression Evaluation -------------------------------------------------------
 
@@ -131,7 +131,7 @@ evalExpr sym env expr = case expr of
         xs <- mapM (sDelay sym) vs
         return $ VSeq len $ finiteSeqMap xs
    where
-    tyv = evalValType ?ntEnv (envTypes env) ty
+    tyv = evalValType (envTypes env) ty
     vs  = map eval es
     len = genericLength es
 
@@ -149,7 +149,7 @@ evalExpr sym env expr = case expr of
 
   ESet ty e sel v -> {-# SCC "evalExpr->ESet" #-}
     do e' <- eval e
-       let tyv = evalValType ?ntEnv (envTypes env) ty
+       let tyv = evalValType (envTypes env) ty
        evalSetSel sym tyv e' sel (eval v)
 
   EIf c t f -> {-# SCC "evalExpr->EIf" #-} do
@@ -157,8 +157,8 @@ evalExpr sym env expr = case expr of
      iteValue sym b (eval t) (eval f)
 
   EComp n t h gs -> {-# SCC "evalExpr->EComp" #-} do
-      let len  = evalNumType ?ntEnv (envTypes env) n
-      let elty = evalValType ?ntEnv (envTypes env) t
+      let len  = evalNumType (envTypes env) n
+      let elty = evalValType (envTypes env) t
       evalComp sym env len elty h gs
 
   EVar n -> {-# SCC "evalExpr->EVar" #-} do
@@ -187,8 +187,8 @@ evalExpr sym env expr = case expr of
 
   ETApp e ty -> {-# SCC "evalExpr->ETApp" #-} do
     eval e >>= \case
-      f@VPoly{}    -> fromVPoly sym f    $! (evalValType ?ntEnv (envTypes env) ty)
-      f@VNumPoly{} -> fromVNumPoly sym f $! (evalNumType ?ntEnv (envTypes env) ty)
+      f@VPoly{}    -> fromVPoly sym f    $! (evalValType (envTypes env) ty)
+      f@VNumPoly{} -> fromVNumPoly sym f $! (evalNumType (envTypes env) ty)
       val     -> do vdoc <- ppV val
                     panic "[Eval] evalExpr"
                       ["expected a polymorphic value"
@@ -339,7 +339,6 @@ evalDeclGroup sym env dg = do
 
 
 {-# SPECIALIZE fillHole ::
-  (?ntEnv :: NewtypeEnv) =>
   Concrete ->
   GenEvalEnv Concrete ->
   (Name, Schema, SEval Concrete (GenValue Concrete), SEval Concrete (GenValue Concrete) -> SEval Concrete ()) ->
@@ -358,7 +357,7 @@ evalDeclGroup sym env dg = do
 --   operation and only fall back on full eta expansion if the thunk is double-forced.
 
 fillHole ::
-  (?ntEnv :: NewtypeEnv, Backend sym) =>
+  Backend sym =>
   sym ->
   GenEvalEnv sym ->
   (Name, Schema, SEval sym (GenValue sym), SEval sym (GenValue sym) -> SEval sym ()) ->
@@ -366,7 +365,7 @@ fillHole ::
 fillHole sym env (nm, sch, _, fill) = do
   case lookupVar nm env of
     Just (Right v)
-     | isValueType ?ntEnv env sch ->
+     | isValueType env sch ->
                fill =<< sDelayFill sym v
                           (Just (etaDelay sym env sch v))
                           (show (ppLocName nm))
@@ -380,9 +379,9 @@ fillHole sym env (nm, sch, _, fill) = do
 --   be implemented rather more efficiently than general types because we can
 --   rely on the 'delayFill' operation to build a thunk that falls back on performing
 --   eta-expansion rather than doing it eagerly.
-isValueType :: NewtypeEnv -> GenEvalEnv sym -> Schema -> Bool
-isValueType ntEnv env Forall{ sVars = [], sProps = [], sType = t0 }
-   = go (evalValType ntEnv (envTypes env) t0)
+isValueType :: GenEvalEnv sym -> Schema -> Bool
+isValueType env Forall{ sVars = [], sProps = [], sType = t0 }
+   = go (evalValType (envTypes env) t0)
  where
   go TVBit = True
   go (TVSeq _ x)  = go x
@@ -391,7 +390,7 @@ isValueType ntEnv env Forall{ sVars = [], sProps = [], sType = t0 }
   go (TVNewtype _ _ xs) = and (fmap go xs)
   go _            = False
 
-isValueType _ _ _ = False
+isValueType _ _ = False
 
 
 {-# SPECIALIZE etaWord  ::
@@ -415,7 +414,6 @@ etaWord sym n val = do
   pure $ LargeBitsVal n xs
 
 {-# SPECIALIZE etaDelay ::
-  (?ntEnv :: NewtypeEnv) =>
   Concrete ->
   GenEvalEnv Concrete ->
   Schema ->
@@ -430,7 +428,7 @@ etaWord sym n val = do
 --   expressions that should be expected to produce well-defined values in the
 --   denotational semantics will fail to terminate instead.
 etaDelay ::
-  (?ntEnv :: NewtypeEnv, Backend sym) =>
+  Backend sym =>
   sym ->
   GenEvalEnv sym ->
   Schema ->
@@ -440,7 +438,7 @@ etaDelay sym env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
   where
   goTpVars env []     val =
      do stk <- sGetCallStack sym
-        go stk (evalValType ?ntEnv (envTypes env) tp0) val
+        go stk (evalValType (envTypes env) tp0) val
   goTpVars env (v:vs) val =
     case tpKind v of
       KType -> tlam sym $ \t ->
@@ -851,7 +849,7 @@ evalMatch sym lenv m = case m of
         return $ bindVarList n vs lenv'
 
     where
-      len  = evalNumType ?ntEnv (leTypes lenv) l
+      len  = evalNumType (leTypes lenv) l
 
   -- XXX we don't currently evaluate these as though they could be recursive, as
   -- they are typechecked that way; the read environment to evalExpr is the same

@@ -40,7 +40,7 @@
 > import qualified Cryptol.Backend.FloatHelpers as FP
 > import Cryptol.Backend.Monad (EvalError(..))
 > import Cryptol.Eval.Type
->   (TValue(..), isTBit, evalValType, evalNumType, NewtypeEnv, TypeEnv, bindTypeVar)
+>   (TValue(..), isTBit, evalValType, evalNumType, TypeEnv, bindTypeVar)
 > import Cryptol.Eval.Concrete (mkBv, ppBV, lg2)
 > import Cryptol.Utils.Ident (Ident,PrimIdent, prelPrim, floatPrim)
 > import Cryptol.Utils.Panic (panic)
@@ -278,35 +278,34 @@ recursion over its structure. For an expression that contains free
 variables, the meaning also depends on the environment `env`, which
 assigns values to those variables.
 
-> evalExpr :: NewtypeEnv
->          -> Env     -- ^ Evaluation environment
+> evalExpr :: Env     -- ^ Evaluation environment
 >          -> Expr    -- ^ Expression to evaluate
 >          -> E Value
-> evalExpr ntEnv env expr =
+> evalExpr env expr =
 >   case expr of
 >
->     ELocated _ e -> evalExpr ntEnv env e
+>     ELocated _ e -> evalExpr env e
 >
 >     EList es _ty  ->
->       pure $ VList (Nat (genericLength es)) [ evalExpr ntEnv env e | e <- es ]
+>       pure $ VList (Nat (genericLength es)) [ evalExpr env e | e <- es ]
 >
 >     ETuple es     ->
->       pure $ VTuple [ evalExpr ntEnv env e | e <- es ]
+>       pure $ VTuple [ evalExpr env e | e <- es ]
 >
 >     ERec fields   ->
->       pure $ VRecord [ (f, evalExpr ntEnv env e) | (f, e) <- canonicalFields fields ]
+>       pure $ VRecord [ (f, evalExpr env e) | (f, e) <- canonicalFields fields ]
 >
 >     ESel e sel    ->
->       evalSel sel =<< evalExpr ntEnv env e
+>       evalSel sel =<< evalExpr env e
 >
 >     ESet ty e sel v ->
->       evalSet (evalValType ntEnv (envTypes env) ty)
->               (evalExpr ntEnv env e) sel (evalExpr ntEnv env v)
+>       evalSet (evalValType (envTypes env) ty)
+>               (evalExpr env e) sel (evalExpr env v)
 >
 >     EIf c t f ->
->       condValue (fromVBit <$> evalExpr ntEnv env c) (evalExpr ntEnv env t) (evalExpr ntEnv env f)
+>       condValue (fromVBit <$> evalExpr env c) (evalExpr env t) (evalExpr env f)
 >
->     EComp _n _ty e branches -> evalComp ntEnv env e branches
+>     EComp _n _ty e branches -> evalComp env e branches
 >
 >     EVar n ->
 >       case Map.lookup n (envVars env) of
@@ -317,22 +316,22 @@ assigns values to those variables.
 >     ETAbs tv b ->
 >       case tpKind tv of
 >         KType -> pure $ VPoly $ \ty ->
->                    evalExpr ntEnv (bindType (tpVar tv) (Right ty) env) b
+>                    evalExpr (bindType (tpVar tv) (Right ty) env) b
 >         KNum  -> pure $ VNumPoly $ \n ->
->                    evalExpr ntEnv (bindType (tpVar tv) (Left n) env) b
+>                    evalExpr (bindType (tpVar tv) (Left n) env) b
 >         k     -> evalPanic "evalExpr" ["Invalid kind on type abstraction", show k]
 >
 >     ETApp e ty ->
->       evalExpr ntEnv env e >>= \case
->         VPoly f     -> f $! (evalValType ntEnv (envTypes env) ty)
->         VNumPoly f  -> f $! (evalNumType ntEnv (envTypes env) ty)
+>       evalExpr env e >>= \case
+>         VPoly f     -> f $! (evalValType (envTypes env) ty)
+>         VNumPoly f  -> f $! (evalNumType (envTypes env) ty)
 >         _           -> evalPanic "evalExpr" ["Expected a polymorphic value"]
 >
->     EApp e1 e2     -> appFun (evalExpr ntEnv env e1) (evalExpr ntEnv env e2)
->     EAbs n _ty b   -> pure $ VFun (\v -> evalExpr ntEnv (bindVar (n, v) env) b)
->     EProofAbs _ e  -> evalExpr ntEnv env e
->     EProofApp e    -> evalExpr ntEnv env e
->     EWhere e dgs   -> evalExpr ntEnv (foldl (evalDeclGroup ntEnv) env dgs) e
+>     EApp e1 e2     -> appFun (evalExpr env e1) (evalExpr env e2)
+>     EAbs n _ty b   -> pure $ VFun (\v -> evalExpr (bindVar (n, v) env) b)
+>     EProofAbs _ e  -> evalExpr env e
+>     EProofApp e    -> evalExpr env e
+>     EWhere e dgs   -> evalExpr (foldl evalDeclGroup env dgs) e
 
 
 > appFun :: E Value -> E Value -> E Value
@@ -375,6 +374,7 @@ Update the given value using the given selector and new value.
 >   case (tyv, sel) of
 >     (TVTuple ts, TupleSel n _) -> updTupleAt ts n
 >     (TVRec fs, RecordSel n _)  -> updRecAt fs n
+>     (TVNewtype _ _ fs, RecordSel n _) -> updRecAt fs n
 >     (TVSeq len _, ListSel n _) -> updSeqAt len n
 >     (_, _) -> evalPanic "evalSet" ["type/selector mismatch", show tyv, show sel]
 >   where
@@ -417,43 +417,43 @@ The result of evaluating a match in an initial environment is a list
 of extended environments. Each new environment binds the same single
 variable to a different element of the match's list.
 
-> evalMatch :: NewtypeEnv -> Env -> Match -> [Env]
-> evalMatch ntEnv env m =
+> evalMatch :: Env -> Match -> [Env]
+> evalMatch env m =
 >   case m of
->     Let d -> [ bindVar (evalDecl ntEnv env d) env ]
+>     Let d -> [ bindVar (evalDecl env d) env ]
 >     From nm len _ty expr -> [ bindVar (nm, get i) env | i <- idxs ]
 >      where
 >       get i =
->         do v <- evalExpr ntEnv env expr
+>         do v <- evalExpr env expr
 >            genericIndex (fromVList v) i
 >
 >       idxs :: [Integer]
 >       idxs =
->         case evalNumType ntEnv (envTypes env) len of
+>         case evalNumType (envTypes env) len of
 >         Inf   -> [0 ..]
 >         Nat n -> [0 .. n-1]
 
-> lenMatch :: NewtypeEnv -> Env -> Match -> Nat'
-> lenMatch ntEnv env m =
+> lenMatch :: Env -> Match -> Nat'
+> lenMatch env m =
 >   case m of
 >     Let _          -> Nat 1
->     From _ len _ _ -> evalNumType ntEnv (envTypes env) len
+>     From _ len _ _ -> evalNumType (envTypes env) len
 
 The result of of evaluating a branch in an initial environment is a
 list of extended environments, each of which extends the initial
 environment with the same set of new variables. The length of the list
 is equal to the product of the lengths of the lists in the matches.
 
-> evalBranch :: NewtypeEnv -> Env -> [Match] -> [Env]
-> evalBranch _ env [] = [env]
-> evalBranch ntEnv env (match : matches) =
->   [ env'' | env' <- evalMatch ntEnv env match
->           , env'' <- evalBranch ntEnv env' matches ]
+> evalBranch :: Env -> [Match] -> [Env]
+> evalBranch env [] = [env]
+> evalBranch env (match : matches) =
+>   [ env'' | env' <- evalMatch env match
+>           , env'' <- evalBranch env' matches ]
 
-> lenBranch :: NewtypeEnv -> Env -> [Match] -> Nat'
-> lenBranch _ntEnv _env [] = Nat 1
-> lenBranch ntEnv env (match : matches) =
->   nMul (lenMatch ntEnv env match) (lenBranch ntEnv env matches)
+> lenBranch :: Env -> [Match] -> Nat'
+> lenBranch _env [] = Nat 1
+> lenBranch env (match : matches) =
+>   nMul (lenMatch env match) (lenBranch env matches)
 
 The head expression of the comprehension can refer to any variable
 bound in any of the parallel branches. So to evaluate the
@@ -462,18 +462,17 @@ environments from each branch. The head expression is then evaluated
 separately in each merged environment. The length of the resulting
 list is equal to the minimum length over all parallel branches.
 
-> evalComp :: NewtypeEnv
->          -> Env         -- ^ Starting evaluation environment
+> evalComp :: Env         -- ^ Starting evaluation environment
 >          -> Expr        -- ^ Head expression of the comprehension
 >          -> [[Match]]   -- ^ List of parallel comprehension branches
 >          -> E Value
-> evalComp ntEnv env expr branches =
->     pure $ VList len [ evalExpr ntEnv e expr | e <- envs ]
+> evalComp env expr branches =
+>     pure $ VList len [ evalExpr e expr | e <- envs ]
 >   where
 >     -- Generate a new environment for each iteration of each
 >     -- parallel branch.
 >     benvs :: [[Env]]
->     benvs = map (evalBranch ntEnv env) branches
+>     benvs = map (evalBranch env) branches
 >
 >     -- Zip together the lists of environments from each branch,
 >     -- producing a list of merged environments. Longer branches get
@@ -482,7 +481,7 @@ list is equal to the minimum length over all parallel branches.
 >     envs = foldr1 (zipWith mappend) benvs
 >
 >     len :: Nat'
->     len = foldr1 nMin (map (lenBranch ntEnv env) branches)
+>     len = foldr1 nMin (map (lenBranch env) branches)
 
 
 Declarations
@@ -494,22 +493,41 @@ recursive declaration group, we tie the recursive knot by evaluating
 each declaration in the extended environment `env'` that includes all
 the new bindings.
 
-> evalDeclGroup :: NewtypeEnv -> Env -> DeclGroup -> Env
-> evalDeclGroup ntEnv env dg = do
+> evalDeclGroup :: Env -> DeclGroup -> Env
+> evalDeclGroup env dg = do
 >   case dg of
 >     NonRecursive d ->
->       bindVar (evalDecl ntEnv env d) env
+>       bindVar (evalDecl env d) env
 >     Recursive ds ->
 >       let env' = foldr bindVar env bindings
->           bindings = map (evalDecl ntEnv env') ds
+>           bindings = map (evalDecl env') ds
 >       in env'
 >
-> evalDecl :: NewtypeEnv -> Env -> Decl -> (Name, E Value)
-> evalDecl ntEnv env d =
+> evalDecl :: Env -> Decl -> (Name, E Value)
+> evalDecl env d =
 >   case dDefinition d of
 >     DPrim   -> (dName d, pure (evalPrim (dName d)))
->     DExpr e -> (dName d, evalExpr ntEnv env e)
+>     DExpr e -> (dName d, evalExpr env e)
+>
 
+Newtypes
+--------
+
+At runtime, newtypes values are represented in exactly
+the same was as records.  The constructor function for
+newtypes is thus basically just the identity function,
+that consumes and ignores its type arguments.
+
+> evalNewtypeDecl :: Env -> Newtype -> Env
+> evalNewtypeDecl env nt = bindVar (ntName nt, pure val) env 
+>   where
+>     val = foldr tabs con (ntParams nt)
+>     con = VFun (\x -> x)
+>     tabs tp body =
+>       case tpKind tp of
+>         KType -> VPoly (\_ -> pure body)
+>         KNum  -> VNumPoly (\_ -> pure body)
+>         k -> evalPanic "evalNewtypeDecl" ["illegal newtype parameter kind", show k]
 
 Primitives
 ==========
@@ -1710,7 +1728,7 @@ running the reference evaluator on an expression.
 > evaluate expr minp = return (Right (val, modEnv), [])
 >   where
 >     modEnv = M.minpModuleEnv minp
->     ntEnv  = M.loadedNewtypes modEnv
 >     extDgs = concatMap mDecls (M.loadedModules modEnv)
->     env    = foldl (evalDeclGroup ntEnv) mempty extDgs
->     val    = evalExpr ntEnv env expr
+>     nts    = Map.elems (M.loadedNewtypes modEnv)
+>     env    = foldl evalDeclGroup (foldl evalNewtypeDecl mempty nts) extDgs
+>     val    = evalExpr env expr

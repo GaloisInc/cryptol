@@ -312,8 +312,7 @@ prepareQuery evo ProverCommand{..} =
 
      getEOpts <- M.getEvalOptsAction
 
-     nts <- M.getNewtypes
-     let ?ntEnv = nts
+     ntEnv <- M.getNewtypes
 
      -- The `addAsm` function is used to combine assumptions that
      -- arise from the types of symbolic variables (e.g. Z n values
@@ -325,7 +324,7 @@ prepareQuery evo ProverCommand{..} =
            SafetyQuery -> \x y -> SBV.svOr (SBV.svNot x) y
            SatQuery _ -> \x y -> SBV.svAnd x y
 
-     case predArgTypes ?ntEnv pcQueryType pcSchema of
+     case predArgTypes pcQueryType pcSchema of
        Left msg -> return (Left msg)
        Right ts -> M.io $
          do when pcVerbose $ logPutStrLn (Eval.evalLogger evo) "Simulating..."
@@ -348,7 +347,7 @@ prepareQuery evo ProverCommand{..} =
                  -- we apply it to the symbolic inputs.
                  (safety,b) <- doSBVEval $
                      do env <- Eval.evalDecls sym extDgs =<<
-                                 Eval.evalNewtypeDecls sym nts mempty
+                                 Eval.evalNewtypeDecls sym ntEnv mempty
                         v <- Eval.evalExpr sym env pcExpr
                         appliedVal <- foldM (Eval.fromVFun sym) v args
                         case pcQueryType of

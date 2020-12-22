@@ -55,7 +55,7 @@ import qualified Cryptol.Eval.Concrete as Concrete
 import           Cryptol.Eval.Value
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Solver.InfNat
-import           Cryptol.Eval.Type (TValue(..), evalType,NewtypeEnv,tValTy,tNumValTy)
+import           Cryptol.Eval.Type (TValue(..), evalType,tValTy,tNumValTy)
 import           Cryptol.Utils.Ident (Ident,prelPrim,floatPrim)
 import           Cryptol.Utils.RecordMap
 import           Cryptol.Utils.Panic
@@ -116,10 +116,10 @@ data ProverResult = AllSatResult [SatResult] -- LAZY
 
 
 
-predArgTypes :: NewtypeEnv -> QueryType -> Schema -> Either String [FinType]
-predArgTypes ntEnv qtype schema@(Forall ts ps ty)
+predArgTypes :: QueryType -> Schema -> Either String [FinType]
+predArgTypes qtype schema@(Forall ts ps ty)
   | null ts && null ps =
-      case go <$> (evalType ntEnv mempty ty) of
+      case go <$> (evalType mempty ty) of
         Right (Just fts) -> Right fts
         _ | SafetyQuery <- qtype -> Left $ "Expected finite result type:\n" ++ show (pp schema)
           | otherwise -> Left $ "Not a valid predicate type:\n" ++ show (pp schema)
