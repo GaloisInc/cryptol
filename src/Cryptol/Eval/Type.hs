@@ -39,7 +39,8 @@ data TValue
   | TVTuple [TValue]          -- ^ @ (a, b, c )@
   | TVRec (RecordMap Ident TValue) -- ^ @ { x : a, y : b, z : c } @
   | TVFun TValue TValue       -- ^ @ a -> b @
-  | TVNewtype UserTC [Either Nat' TValue]
+  | TVNewtype Newtype
+              [Either Nat' TValue]
               (RecordMap Ident TValue)     -- ^ a named newtype
   | TVAbstract UserTC [Either Nat' TValue] -- ^ an abstract type
     deriving (Generic, NFData, Eq)
@@ -59,14 +60,15 @@ tValTy tv =
     TVTuple ts  -> tTuple (map tValTy ts)
     TVRec fs    -> tRec (fmap tValTy fs)
     TVFun t1 t2 -> tFun (tValTy t1) (tValTy t2)
-    TVNewtype u vs _ -> tNewtype u (map arg vs)
-    TVAbstract u vs -> tAbstract u (map arg vs)
+    TVNewtype nt vs _ -> tNewtype nt (map tNumValTy vs)
+    TVAbstract u vs -> tAbstract u (map tNumValTy vs)
 
- where
-   arg x = case x of
-             Left Inf     -> tInf
-             Left (Nat n) -> tNum n
-             Right v      -> tValTy v
+tNumTy :: Nat' -> Type
+tNumTy Inf     = tInf
+tNumTy (Nat n) = tNum n
+
+tNumValTy :: Either Nat' TValue -> Type
+tNumValTy = either tNumTy tValTy
 
 
 instance Show TValue where
@@ -126,6 +128,10 @@ evalType ntEnv env ty =
 
     TUser _ _ ty'  -> evalType ntEnv env ty'
     TRec fields    -> Right $ TVRec (fmap val fields)
+
+    TNewtype nt ts -> Right $ TVNewtype nt tvs $ evalNewtypeBody ntEnv env nt tvs
+        where tvs = map (evalType ntEnv env) ts
+
     TCon (TC c) ts ->
       case (c, ts) of
         (TCBit, [])     -> Right $ TVBit
@@ -141,16 +147,6 @@ evalType ntEnv env ty =
         (TCTuple _, _)  -> Right $ TVTuple (map val ts)
         (TCNum n, [])   -> Left $ Nat n
         (TCInf, [])     -> Left $ Inf
-        (TCNewtype u@(UserTC nm _),vs) ->
-            case Map.lookup nm ntEnv of
-              Just nt ->
-                let vs' = map (evalType ntEnv env) vs
-                 in Right $ TVNewtype u vs' $ evalNewtypeBody ntEnv env nt vs'
-              Nothing -> evalPanic "evalType"
-                            [ "Unknown newtype"
-                            , "*** Name: " ++ show (pp nm)
-                            ]
-
         (TCAbstract u,vs) ->
             case kindOf ty of
               KType -> Right $ TVAbstract u (map (evalType ntEnv env) vs)

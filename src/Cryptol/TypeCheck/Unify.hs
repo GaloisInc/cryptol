@@ -74,6 +74,9 @@ mgu t1 t2
 mgu (TRec fs1) (TRec fs2)
   | fieldSet fs1 == fieldSet fs2 = mguMany (recordElements fs1) (recordElements fs2)
 
+mgu (TNewtype ntx xs) (TNewtype nty ys)
+  | ntx == nty = mguMany xs ys
+
 mgu t1 t2
   | not (k1 == k2)  = uniError $ UniKindMismatch k1 k2
   | otherwise       = uniError $ UniTypeMismatch t1 t2

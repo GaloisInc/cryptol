@@ -244,6 +244,7 @@ instance Inst Type where
       TUser x ts t  -> TUser y (inst env ts) (inst env t)
         where y = Map.findWithDefault x x (tyNameMap env)
       TRec fs       -> TRec (fmap (inst env) fs)
+      TNewtype nt ts -> TNewtype (inst env nt) (inst env ts)
 
 instance Inst TCon where
   inst env tc =
@@ -254,7 +255,6 @@ instance Inst TCon where
 instance Inst TC where
   inst env tc =
     case tc of
-      TCNewtype x  -> TCNewtype (inst env x)
       TCAbstract x -> TCAbstract (inst env x)
       _            -> tc
 

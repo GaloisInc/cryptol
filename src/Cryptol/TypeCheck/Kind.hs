@@ -261,10 +261,9 @@ checkTUser x ts k =
        checkKind (TUser x ts1 t1) k k1
 
   checkNewTypeUse nt =
-    do let tc = newtypeTyCon nt
-       (ts1,_) <- appTy ts (kindOf tc)
+    do (ts1,_) <- appTy ts (kindOf nt)
        ts2 <- checkParams (ntParams nt) ts1
-       return (TCon tc ts2)
+       return (TNewtype nt ts2)
 
   checkAbstractTypeUse absT =
     do let tc   = abstractTypeTC absT

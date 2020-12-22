@@ -19,6 +19,7 @@ tRebuild' withUser = go
         | otherwise -> go t
       TVar _        -> ty
       TRec xs       -> TRec (fmap go xs)
+      TNewtype nt xs -> TNewtype nt (map go xs)
       TCon tc ts    -> tCon tc (map go ts)
 
 tRebuild :: Type -> Type

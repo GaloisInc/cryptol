@@ -68,6 +68,10 @@ checkType ty =
       do ks <- mapM checkType ts
          checkKind (kindOf tc) ks
 
+    TNewtype nt ts ->
+      do ks <- mapM checkType ts
+         checkKind (kindOf nt) ks
+
     TVar tv -> lookupTVar tv
 
     TRec fs ->
@@ -368,6 +372,12 @@ convertible t1 t2 = go t1 t2
                             TCon tc2 ts2
                                | tc1 == tc2 -> goMany ts1 ts2
                             _ -> err
+
+         TNewtype nt1 ts1 ->
+            case other of
+              TNewtype nt2 ts2
+                | nt1 == nt2 -> goMany ts1 ts2
+              _ -> err
 
          TRec fs ->
            case other of

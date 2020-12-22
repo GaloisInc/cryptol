@@ -269,8 +269,14 @@ evalNewtypeDecl ::
   SEval sym (GenEvalEnv sym)
 evalNewtypeDecl _sym nt = pure . bindVarDirect (ntName nt) (foldr tabs con (ntParams nt))
   where
-  tabs _tp body = PTyPoly (\ _ -> body)
   con           = PFun PPrim
+
+  tabs tp body =
+    case tpKind tp of
+      KType -> PTyPoly  (\ _ -> body)
+      KNum  -> PNumPoly (\ _ -> body)
+      k -> evalPanic "evalNewtypeDecl" ["illegal newtype parameter kind", show (pp k)]
+
 {-# INLINE evalNewtypeDecl #-}
 
 
@@ -382,6 +388,7 @@ isValueType ntEnv env Forall{ sVars = [], sProps = [], sType = t0 }
   go (TVSeq _ x)  = go x
   go (TVTuple xs) = and (map go xs)
   go (TVRec xs)   = and (fmap go xs)
+  go (TVNewtype _ _ xs) = and (fmap go xs)
   go _            = False
 
 isValueType _ _ _ = False

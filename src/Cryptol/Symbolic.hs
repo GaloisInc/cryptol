@@ -55,7 +55,7 @@ import qualified Cryptol.Eval.Concrete as Concrete
 import           Cryptol.Eval.Value
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Solver.InfNat
-import           Cryptol.Eval.Type (TValue(..), evalType,NewtypeEnv,tValTy)
+import           Cryptol.Eval.Type (TValue(..), evalType,NewtypeEnv,tValTy,tNumValTy)
 import           Cryptol.Utils.Ident (Ident,prelPrim,floatPrim)
 import           Cryptol.Utils.RecordMap
 import           Cryptol.Utils.Panic
@@ -145,7 +145,7 @@ data FinType
     | FTSeq Integer FinType
     | FTTuple [FinType]
     | FTRecord (RecordMap Ident FinType)
-    | FTNewtype UserTC [Either Nat' TValue] (RecordMap Ident FinType)
+    | FTNewtype Newtype [Either Nat' TValue] (RecordMap Ident FinType)
 
 finType :: TValue -> Maybe FinType
 finType ty =
@@ -321,11 +321,13 @@ varToExpr prims = go
   go :: FinType -> VarShape Concrete.Concrete -> Expr
   go ty val =
     case (ty,val) of
-      (FTNewtype (UserTC nm _) _ tfs, VarRecord vfs) ->
+      (FTNewtype nt ts tfs, VarRecord vfs) ->
         let res = zipRecords (\_lbl v t -> go t v) vfs tfs
          in case res of
               Left _ -> mismatch -- different fields
-              Right efs -> EApp (EVar nm) (ERec efs)
+              Right efs ->
+                let f = foldl (\x t -> ETApp x (tNumValTy t)) (EVar (ntName nt)) ts
+                 in EApp f (ERec efs)
 
       (FTRecord tfs, VarRecord vfs) ->
         let res = zipRecords (\_lbl v t -> go t v) vfs tfs

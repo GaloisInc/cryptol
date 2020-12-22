@@ -211,6 +211,8 @@ instance JSON.ToJSON JSONType where
         , "name" .= show (ppWithNames ns v)
         ]
       convert (TUser _n _args def) = convert def
+      convert (TNewtype nt ts) =
+        error "JSON conversion of newtypes is not yet supported TODO"
       convert (TRec fields) =
         JSON.object
         [ "type" .= T.pack "record"

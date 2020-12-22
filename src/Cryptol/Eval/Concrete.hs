@@ -80,12 +80,14 @@ toExpr prims t0 v0 = findOne (go t0 v0)
              Left _ -> mismatch -- different fields
              Right efs -> pure (ERec efs)
 
-      (TVNewtype (UserTC nm _) _ tfs, VRecord vfs) ->
+      (TVNewtype nt ts tfs, VRecord vfs) ->
         do -- NB, vfs first argument to keep their display order
            res <- zipRecordsM (\_lbl v t -> go t =<< lift v) vfs tfs
            case res of
              Left _ -> mismatch -- different fields
-             Right efs -> pure (EApp (EVar nm) (ERec efs))
+             Right efs ->
+               let f = foldl (\x t -> ETApp x (tNumValTy t)) (EVar (ntName nt)) ts
+                in pure (EApp f (ERec efs))
 
       (TVTuple ts, VTuple tvs) ->
         do guard (length ts == length tvs)

@@ -10,7 +10,7 @@ module Cryptol.TypeCheck.Solver.Selector (tryHasGoal) where
 
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.InferTypes
-import Cryptol.TypeCheck.Monad( InferM, unify, newGoals, lookupNewtype
+import Cryptol.TypeCheck.Monad( InferM, unify, newGoals
                               , newType, applySubst, solveHasGoal
                               , newParamName
                               )
@@ -66,21 +66,18 @@ solveSelector sel outerT =
 
     (RecordSel l _, ty) ->
       case ty of
-        TRec fs  -> return (lookupField l fs)
+        TRec fs -> return (lookupField l fs)
+        TNewtype nt ts ->
+          case lookupField l (ntFields nt) of
+            Nothing -> return Nothing
+            Just t ->
+              do let su = listParamSubst (zip (ntParams nt) ts)
+                 newGoals (CtPartialTypeFun (ntName nt))
+                   $ apSubst su $ ntConstraints nt
+                 return $ Just $ apSubst su t
+
         TCon (TC TCSeq) [len,el] -> liftSeq len el
         TCon (TC TCFun) [t1,t2]  -> liftFun t1 t2
-        TCon (TC (TCNewtype (UserTC x _))) ts ->
-          do mb <- lookupNewtype x
-             case mb of
-               Nothing -> return Nothing
-               Just nt ->
-                 case lookupField l (ntFields nt) of
-                   Nothing -> return Nothing
-                   Just t  ->
-                     do let su = listParamSubst (zip (ntParams nt) ts)
-                        newGoals (CtPartialTypeFun x)
-                          $ apSubst su $ ntConstraints nt
-                        return $ Just $ apSubst su t
         _ -> return Nothing
 
     (TupleSel n _, ty) ->
