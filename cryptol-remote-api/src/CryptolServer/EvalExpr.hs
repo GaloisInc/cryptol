@@ -6,7 +6,7 @@ import Data.Aeson as JSON
 
 
 import Cryptol.ModuleSystem (checkExpr, evalExpr)
-import Cryptol.ModuleSystem.Env (meSolverConfig)
+import Cryptol.ModuleSystem.Env (meSolverConfig,deEnv,meDynEnv,loadedNewtypes)
 import Cryptol.TypeCheck.Solve (defaultReplExpr)
 import Cryptol.TypeCheck.Subst (apSubst, listParamSubst)
 import Cryptol.TypeCheck.Type (Schema(..))
@@ -14,6 +14,8 @@ import qualified Cryptol.Parser.AST as P
 import Cryptol.Parser.Name (PName)
 import qualified Cryptol.TypeCheck.Solver.SMT as SMT
 import Cryptol.Utils.PP (pretty)
+import qualified Cryptol.Eval.Env as E
+import qualified Cryptol.Eval.Type as E
 
 import CryptolServer
 import CryptolServer.Data.Expression
@@ -41,8 +43,11 @@ evalExpression' e =
          do -- TODO: warnDefaults here
             let su = listParamSubst tys
             let theType = apSubst su (sType schema)
+            tenv  <- E.envTypes . deEnv . meDynEnv <$> getModuleEnv
+            ntEnv <- E.NewtypeEnv . loadedNewtypes <$> getModuleEnv
+            let tval = E.evalValType ntEnv tenv theType
             res <- runModuleCmd (evalExpr checked)
-            val <- observe $ readBack theType res
+            val <- observe $ readBack tval res
             return (JSON.object [ "value" .= val
                                 , "type string" .= pretty theType
                                 , "type" .= JSONSchema (Forall [] [] theType)

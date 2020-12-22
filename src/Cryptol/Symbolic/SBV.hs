@@ -505,11 +505,11 @@ parseValue FTRational cvs =
      return (VarRational n d, cvs'')
 parseValue (FTSeq 0 FTBit) cvs = (VarWord (Concrete.mkBv 0 0), cvs)
 parseValue (FTSeq n FTBit) cvs =
-  case SBV.genParse (SBV.KBounded False n) cvs of
+  case SBV.genParse (SBV.KBounded False (fromInteger n)) cvs of
     Just (x, cvs') -> (VarWord (Concrete.mkBv (toInteger n) x), cvs')
     Nothing -> panic "Cryptol.Symbolic.parseValue" ["no bitvector"]
 parseValue (FTSeq n t) cvs = (VarFinSeq (toInteger n) vs, cvs')
-  where (vs, cvs') = parseValues (replicate n t) cvs
+  where (vs, cvs') = parseValues (replicate (fromInteger n) t) cvs
 parseValue (FTTuple ts) cvs = (VarTuple vs, cvs')
   where (vs, cvs') = parseValues ts cvs
 parseValue (FTRecord r) cvs = (VarRecord r', cvs')

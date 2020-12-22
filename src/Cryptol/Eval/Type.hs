@@ -42,7 +42,7 @@ data TValue
   | TVNewtype UserTC [Either Nat' TValue]
               (RecordMap Ident TValue)     -- ^ a named newtype
   | TVAbstract UserTC [Either Nat' TValue] -- ^ an abstract type
-    deriving (Generic, NFData)
+    deriving (Generic, NFData, Eq)
 
 -- | Convert a type value back into a regular type
 tValTy :: TValue -> Type

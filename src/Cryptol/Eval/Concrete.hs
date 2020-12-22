@@ -63,57 +63,66 @@ type Value = GenValue Concrete
 
 -- | Given an expected type, returns an expression that evaluates to
 -- this value, if we can determine it.
-toExpr :: PrimMap -> AST.Type -> Value -> Eval (Maybe AST.Expr)
+toExpr :: PrimMap -> TValue -> Value -> Eval (Maybe AST.Expr)
 toExpr prims t0 v0 = findOne (go t0 v0)
   where
 
   prim n = ePrim prims (prelPrim n)
 
 
-  go :: AST.Type -> Value -> ChoiceT Eval Expr
+  go :: TValue -> Value -> ChoiceT Eval Expr
   go ty val =
-    case val of
-      VRecord vfs ->
-        do tfs <- maybe mismatch pure (tIsRec ty)
-           -- NB, vfs first argument to keep their display order
+    case (ty,val) of
+      (TVRec tfs, VRecord vfs) ->
+        do -- NB, vfs first argument to keep their display order
            res <- zipRecordsM (\_lbl v t -> go t =<< lift v) vfs tfs
            case res of
              Left _ -> mismatch -- different fields
              Right efs -> pure (ERec efs)
-      VTuple tvs ->
-        do ts <- maybe mismatch pure (tIsTuple ty)
-           guard (length ts == length tvs)
+
+      (TVNewtype (UserTC nm _) _ tfs, VRecord vfs) ->
+        do -- NB, vfs first argument to keep their display order
+           res <- zipRecordsM (\_lbl v t -> go t =<< lift v) vfs tfs
+           case res of
+             Left _ -> mismatch -- different fields
+             Right efs -> pure (EApp (EVar nm) (ERec efs))
+
+      (TVTuple ts, VTuple tvs) ->
+        do guard (length ts == length tvs)
            ETuple <$> (zipWithM go ts =<< lift (sequence tvs))
-      VBit b ->
+      (TVBit, VBit b) ->
         pure (prim (if b then "True" else "False"))
-      VInteger i ->
-        -- This works uniformly for values of type Integer or Z n
-        pure $ ETApp (ETApp (prim "number") (tNum i)) ty
-      VRational (SRational n d) ->
+      (TVInteger, VInteger i) ->
+        pure $ ETApp (ETApp (prim "number") (tNum i)) tInteger
+      (TVIntMod n, VInteger i) ->
+        pure $ ETApp (ETApp (prim "number") (tNum i)) (tIntMod (tNum n))
+
+      (TVRational, VRational (SRational n d)) ->
         do let n' = ETApp (ETApp (prim "number") (tNum n)) tInteger
            let d' = ETApp (ETApp (prim "number") (tNum d)) tInteger
            pure $ EApp (EApp (prim "ratio") n') d'
-      VFloat i ->
-        do (eT, pT) <- maybe mismatch pure (tIsFloat ty)
-           pure (floatToExpr prims eT pT (bfValue i))
-      VSeq n svs ->
-        do (_a, b) <- maybe mismatch pure (tIsSeq ty)
-           ses <- traverse (go b) =<< lift (sequence (enumerateSeqMap n svs))
-           pure $ EList ses b
-      VWord _ wval ->
+
+      (TVFloat e p, VFloat i) ->
+           pure (floatToExpr prims (tNum e) (tNum p) (bfValue i))
+      (TVSeq _ b, VSeq n svs) ->
+        do ses <- traverse (go b) =<< lift (sequence (enumerateSeqMap n svs))
+           pure $ EList ses (tValTy b)
+      (TVSeq n TVBit, VWord _ wval) ->
         do BV _ v <- lift (asWordVal Concrete =<< wval)
-           pure $ ETApp (ETApp (prim "number") (tNum v)) ty
-      VStream _  -> mzero
-      VFun{}     -> mzero
-      VPoly{}    -> mzero
-      VNumPoly{} -> mzero
+           pure $ ETApp (ETApp (prim "number") (tNum v)) (tWord (tNum n))
+
+      (_,VStream{})  -> mzero
+      (_,VFun{})     -> mzero
+      (_,VPoly{})    -> mzero
+      (_,VNumPoly{}) -> mzero
+      _ -> mismatch
     where
       mismatch :: forall a. ChoiceT Eval a
       mismatch =
         do doc <- lift (ppValue Concrete defaultPPOpts val)
            panic "Cryptol.Eval.Concrete.toExpr"
              ["type mismatch:"
-             , pretty ty
+             , pretty (tValTy ty)
              , render doc
              ]
 

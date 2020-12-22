@@ -443,13 +443,13 @@ qcExpr qcMode exprDoc texpr schema =
                          (\ex -> do rPutStrLn "\nTest interrupted..."
                                     num <- io $ readIORef testsRef
                                     let report = TestReport exprDoc Pass num (Just sz)
-                                    ppReport (map E.tValTy tys) False report
+                                    ppReport tys False report
                                     rPutStrLn $ interruptedExhaust num sz
                                     Ex.throwM (ex :: Ex.SomeException))
             let report = TestReport exprDoc res num (Just sz)
             delProgress
             delTesting
-            ppReport (map E.tValTy tys) True report
+            ppReport tys True report
             return report
 
        Just (sz,tys,_,gens) | qcMode == QCRandom -> do
@@ -462,7 +462,7 @@ qcExpr qcMode exprDoc texpr schema =
                          (\ex -> do rPutStrLn "\nTest interrupted..."
                                     num <- io $ readIORef testsRef
                                     let report = TestReport exprDoc Pass num sz
-                                    ppReport (map E.tValTy tys) False report
+                                    ppReport tys False report
                                     case sz of
                                       Just n -> rPutStrLn $ coverageString num n
                                       _ -> return ()
@@ -470,7 +470,7 @@ qcExpr qcMode exprDoc texpr schema =
             let report = TestReport exprDoc res num sz
             delProgress
             delTesting
-            ppReport (map E.tValTy tys) False report
+            ppReport tys False report
             case sz of
               Just n | isPass res -> rPutStrLn $ coverageString testNum n
               _ -> return ()
@@ -537,14 +537,14 @@ qcExpr qcMode exprDoc texpr schema =
   delProgress = del totProgressWidth
 
 
-ppReport :: [T.Type] -> Bool -> TestReport -> REPL ()
+ppReport :: [E.TValue] -> Bool -> TestReport -> REPL ()
 ppReport _tys isExhaustive (TestReport _exprDoc Pass testNum _testPossible) =
     do rPutStrLn ("Passed " ++ show testNum ++ " tests.")
        when isExhaustive (rPutStrLn "Q.E.D.")
 ppReport tys _ (TestReport exprDoc failure _testNum _testPossible) =
     ppFailure tys exprDoc failure
 
-ppFailure :: [T.Type] -> Doc -> TestResult -> REPL ()
+ppFailure :: [E.TValue] -> Doc -> TestResult -> REPL ()
 ppFailure tys exprDoc failure = do
     opts <- getPPValOpts
     case failure of
@@ -553,7 +553,7 @@ ppFailure tys exprDoc failure = do
         case (tys,vs) of
           ([t],[v]) -> bindItVariableVal t v
           _ -> let fs = [ M.packIdent ("arg" ++ show (i::Int)) | i <- [ 1 .. ] ]
-                   t = T.TRec (recordFromFields (zip fs tys))
+                   t = E.TVRec (recordFromFields (zip fs tys))
                    v = E.VRecord (recordFromFields (zip fs (map return vs)))
                in bindItVariableVal t v
 
@@ -774,9 +774,9 @@ proveSatExpr isSat rng exprDoc texpr schema = do
             ~(EnvBool yes) <- getUser "show-examples"
             when yes $ forM_ vss (printSatisfyingModel exprDoc)
 
-            case (ty, exprs) of
-              (t, [e]) -> void $ bindItVariable t e
-              (t, es ) -> bindItVariables t es
+            case exprs of
+              [e] -> void $ bindItVariable ty e
+              _   -> bindItVariables ty exprs
 
         seeStats <- getUserShowProverStats
         when seeStats (showProverStats firstProver stats)
@@ -902,11 +902,11 @@ mkSolverResult ::
   String ->
   Range ->
   Bool ->
-  Either [T.Type] [(T.Type, T.Expr)] ->
-  REPL (T.Type, T.Expr)
+  Either [E.TValue] [(E.TValue, T.Expr)] ->
+  REPL (E.TValue, T.Expr)
 mkSolverResult thing rng result earg =
   do prims <- getPrimMap
-     let addError t = (t, T.ELocated rng (T.eError prims t ("no " ++ thing ++ " available")))
+     let addError t = (t, T.ELocated rng (T.eError prims (E.tValTy t) ("no " ++ thing ++ " available")))
 
          argF = case earg of
                   Left ts   -> mkArgs (map addError ts)
@@ -916,7 +916,7 @@ mkSolverResult thing rng result earg =
          eFalse = T.ePrim prims (M.prelPrim "False")
          resultE = if result then eTrue else eFalse
 
-         rty = T.TRec (recordFromFields $ [(rIdent, T.tBit )] ++ map fst argF)
+         rty = E.TVRec (recordFromFields $ [(rIdent, E.TVBit)] ++ map fst argF)
          re  = T.ERec (recordFromFields $ [(rIdent, resultE)] ++ map snd argF)
 
      return (rty, re)
@@ -987,7 +987,7 @@ readFileCmd fp = do
          let t = T.tWord (T.tNum (toInteger len * 8))
          let x = T.EProofApp (T.ETApp (T.ETApp number (T.tNum val)) t)
          let expr = T.EApp f x
-         void $ bindItVariable (T.tString len) expr
+         void $ bindItVariable (E.TVSeq (toInteger len) (E.TVSeq 8 E.TVBit)) expr
 
 -- | Convert a 'ByteString' (big-endian) of length @n@ to an 'Integer'
 -- with @8*n@ bits. This function uses a balanced binary fold to
@@ -1739,8 +1739,12 @@ replEvalCheckedExpr def sig =
 
      whenDebug (rPutStrLn (dump def1))
 
+     tenv <- E.envTypes . M.deEnv <$> getDynEnv
+     ntEnv <- E.NewtypeEnv . M.loadedNewtypes <$> getModuleEnv
+     let tyv = E.evalValType ntEnv tenv ty
+
      -- add "it" to the namespace via a new declaration
-     itVar <- bindItVariable ty def1
+     itVar <- bindItVariable tyv def1
 
      let itExpr = case getLoc def of
                     Nothing  -> T.EVar itVar
@@ -1776,12 +1780,12 @@ replReadFile fp handler =
 -- | Creates a fresh binding of "it" to the expression given, and adds
 -- it to the current dynamic environment.  The fresh name generated
 -- is returned.
-bindItVariable :: T.Type -> T.Expr -> REPL T.Name
+bindItVariable :: E.TValue -> T.Expr -> REPL T.Name
 bindItVariable ty expr = do
   freshIt <- freshName itIdent M.UserName
   let schema = T.Forall { T.sVars  = []
                         , T.sProps = []
-                        , T.sType  = ty
+                        , T.sType  = E.tValTy ty
                         }
       decl = T.Decl { T.dName       = freshIt
                     , T.dSignature  = schema
@@ -1802,7 +1806,7 @@ bindItVariable ty expr = do
 -- | Extend the dynamic environment with a fresh binding for "it",
 -- as defined by the given value.  If we cannot determine the definition
 -- of the value, then we don't bind `it`.
-bindItVariableVal :: T.Type -> Concrete.Value -> REPL ()
+bindItVariableVal :: E.TValue -> Concrete.Value -> REPL ()
 bindItVariableVal ty val =
   do prims   <- getPrimMap
      mb      <- rEval (Concrete.toExpr prims ty val)
@@ -1814,12 +1818,12 @@ bindItVariableVal ty val =
 -- | Creates a fresh binding of "it" to a finite sequence of
 -- expressions of the same type, and adds that sequence to the current
 -- dynamic environment
-bindItVariables :: T.Type -> [T.Expr] -> REPL ()
+bindItVariables :: E.TValue -> [T.Expr] -> REPL ()
 bindItVariables ty exprs = void $ bindItVariable seqTy seqExpr
   where
     len = length exprs
-    seqTy = T.tSeq (T.tNum len) ty
-    seqExpr = T.EList exprs ty
+    seqTy = E.TVSeq (toInteger len) ty
+    seqExpr = T.EList exprs (E.tValTy ty)
 
 replEvalDecl :: P.Decl P.PName -> REPL ()
 replEvalDecl decl = do
