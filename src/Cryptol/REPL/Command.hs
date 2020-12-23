@@ -36,7 +36,8 @@ module Cryptol.REPL.Command (
   , replCheckExpr
 
     -- Check, SAT, and prove
-  , qcCmd, QCMode(..)
+  , TestReport(..)
+  , qcExpr, qcCmd, QCMode(..)
   , satCmd
   , proveCmd
   , onlineProveSat
@@ -411,10 +412,10 @@ qcCmd qcMode str pos fnm =
 
 
 data TestReport = TestReport
-  { _reportExpr :: Doc
-  , _reportResult :: TestResult
-  , _reportTestsRun :: Integer
-  , _reportTestsPossible :: Maybe Integer
+  { reportExpr :: Doc
+  , reportResult :: TestResult
+  , reportTestsRun :: Integer
+  , reportTestsPossible :: Maybe Integer
   }
 
 qcExpr ::
