@@ -1,0 +1,23 @@
+:set show-examples=off
+:set prover-stats=off
+:set prover=w4-cvc4
+
+:l cplx.cry
+
+let a = CplxQ{ real = 42, imag = 0 }
+let b = CplxQ{ real =  1, imag = 1 }
+
+cplxMul (embedQ 10) a
+cplxMul (embedQ 10) b
+
+cplxAdd a b
+cplxMul a b
+
+:check
+:prove
+
+
+:l cplxbroken.cry
+
+:check
+:prove
