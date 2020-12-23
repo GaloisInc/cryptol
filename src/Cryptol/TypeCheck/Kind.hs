@@ -261,9 +261,13 @@ checkTUser x ts k =
        checkKind (TUser x ts1 t1) k k1
 
   checkNewTypeUse nt =
-    do (ts1,_) <- appTy ts (kindOf nt)
-       ts2 <- checkParams (ntParams nt) ts1
-       return (TNewtype nt ts2)
+    do (ts1,k1) <- appTy ts (kindOf nt)
+       let as = ntParams nt
+       ts2 <- checkParams as ts1
+       let su = zip as ts2
+       ps1 <- mapM (`kInstantiateT` su) (ntConstraints nt)
+       kNewGoals (CtPartialTypeFun (ntName nt)) ps1
+       checkKind (TNewtype nt ts2) k k1
 
   checkAbstractTypeUse absT =
     do let tc   = abstractTypeTC absT
