@@ -431,6 +431,7 @@ qcExpr qcMode exprDoc texpr schema =
      let tyv = E.evalValType tenv ty
      percentRef <- io $ newIORef Nothing
      testsRef <- io $ newIORef 0
+
      case testableType tyv of
        Just (Just sz,tys,vss,_gens) | qcMode == QCExhaust || sz <= testNum -> do
             rPutStrLn "Using exhaustive testing."
@@ -540,29 +541,37 @@ ppReport _tys isExhaustive (TestReport _exprDoc Pass testNum _testPossible) =
     do rPutStrLn ("Passed " ++ show testNum ++ " tests.")
        when isExhaustive (rPutStrLn "Q.E.D.")
 ppReport tys _ (TestReport exprDoc failure _testNum _testPossible) =
-    ppFailure tys exprDoc failure
+    do ppFailure tys exprDoc failure
 
 ppFailure :: [E.TValue] -> Doc -> TestResult -> REPL ()
 ppFailure tys exprDoc failure = do
-    opts <- getPPValOpts
-    case failure of
-      FailFalse vs -> do
-        printCounterexample PredicateFalsified exprDoc vs
-        case (tys,vs) of
-          ([t],[v]) -> bindItVariableVal t v
-          _ -> let fs = [ M.packIdent ("arg" ++ show (i::Int)) | i <- [ 1 .. ] ]
-                   t = E.TVRec (recordFromFields (zip fs tys))
-                   v = E.VRecord (recordFromFields (zip fs (map return vs)))
-               in bindItVariableVal t v
+    ~(EnvBool showEx) <- getUser "show-examples"
 
-      FailError err [] -> do
-        rPutStrLn "ERROR"
-        rPrint (pp err)
-      FailError err vs -> do
-        rPutStrLn "ERROR for the following inputs:"
-        mapM_ (\v -> rPrint =<< (rEval $ E.ppValue Concrete opts v)) vs
-        rPrint (pp err)
-      Pass -> panic "Cryptol.REPL.Command" ["unexpected Test.Pass"]
+    vs <- case failure of
+            FailFalse vs ->
+              do rPutStrLn "Counterexample"
+                 when showEx (printCounterexample PredicateFalsified exprDoc vs)
+                 pure vs
+            FailError err vs
+              | null vs || not showEx ->
+                do rPutStrLn "ERROR"
+                   rPrint (pp err)
+                   pure vs
+              | otherwise ->
+                do rPutStrLn "ERROR for the following inputs:"
+                   printCounterexample SafetyViolation exprDoc vs
+                   rPrint (pp err)
+                   pure vs
+
+            Pass -> panic "Cryptol.REPL.Command" ["unexpected Test.Pass"]
+
+    -- bind the 'it' variable
+    case (tys,vs) of
+      ([t],[v]) -> bindItVariableVal t v
+      _ -> let fs = [ M.packIdent ("arg" ++ show (i::Int)) | i <- [ 1 .. ] ]
+               t = E.TVRec (recordFromFields (zip fs tys))
+               v = E.VRecord (recordFromFields (zip fs (map return vs)))
+           in bindItVariableVal t v
 
 
 -- | This function computes the expected coverage percentage and

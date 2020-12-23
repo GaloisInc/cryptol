@@ -11,7 +11,8 @@ property t2 Using random testing.
 Testing... Passed 100 tests.
 Expected test coverage: 0.00% (100 of 2^^64 values)
 property f0 Using exhaustive testing.
-Testing... f0 = False
+Testing... Counterexample
+f0 = False
 :prove t0
 	Q.E.D.
 :prove t1
