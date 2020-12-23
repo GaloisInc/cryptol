@@ -8,6 +8,10 @@ module instance where
 
 import Float
 
+
+// we use this to test that newtypes do not inhabit any instances
+newtype Box a = { contents : a }
+
 ////////////////////////////////////////////////////////////////////////////////
 // Zero
 

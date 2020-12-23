@@ -11,6 +11,7 @@
 :t zero`{{}}
 :t zero`{{x : _, y : _}}
 :t zero`{Float _ _}
+:t zero`{Box _}
 
 :t complement`{Bit}
 :t complement`{Integer}
@@ -23,6 +24,7 @@
 :t complement`{{}}
 :t complement`{{x : _, y : _}}
 :t complement`{Float _ _}
+:t complement`{Box _}
 
 :t negate`{Bit}
 :t negate`{Integer}
@@ -36,6 +38,7 @@
 :t negate`{{}}
 :t negate`{{x : _, y : _}}
 :t negate`{Float _ _}
+:t negate`{Box _}
 
 :t (%)`{Bit}
 :t (%)`{Integer}
@@ -48,6 +51,7 @@
 :t (%)`{{}}
 :t (%)`{{x : _, y : _}}
 :t (%)`{Float _ _}
+:t (%)`{Box _}
 
 :t recip`{Bit}
 :t recip`{Integer}
@@ -60,6 +64,7 @@
 :t recip`{{}}
 :t recip`{{x : _, y : _}}
 :t recip`{Float _ _}
+:t recip`{Box _}
 
 :t floor`{Bit}
 :t floor`{Integer}
@@ -72,6 +77,7 @@
 :t floor`{{}}
 :t floor`{{x : _, y : _}}
 :t floor`{Float _ _}
+:t floor`{Box _}
 
 :t (==)`{Bit}
 :t (==)`{Integer}
@@ -84,6 +90,7 @@
 :t (==)`{{}}
 :t (==)`{{x : _, y : _}}
 :t (==)`{Float _ _}
+:t (==)`{Box _}
 
 :t (<)`{Bit}
 :t (<)`{Integer}
@@ -96,6 +103,7 @@
 :t (<)`{{}}
 :t (<)`{{x : _, y : _}}
 :t (<)`{Float _ _}
+:t (<)`{Box _}
 
 :t (<$)`{Bit}
 :t (<$)`{Integer}
@@ -108,6 +116,7 @@
 :t (<$)`{{}}
 :t (<$)`{{x : _, y : _}}
 :t (<$)`{Float _ _}
+:t (<$)`{Box _}
 
 :t number`{rep = Bit}
 :t number`{rep = Integer}
@@ -120,3 +129,4 @@
 :t number`{rep = {}}
 :t number`{rep = {x : _, y : _}}
 :t number`{rep = Float _ _}
+:t number`{rep = Box _}
