@@ -546,7 +546,7 @@ arguments. A type synonym is transparently unfolded at
 use sites and is treated as though the user had instead
 written the body of the type synonym in line.
 Type synonyms may mention other synonyms, but it is not
-allowed to create a recursive collectionof type synonyms.
+allowed to create a recursive collection of type synonyms.
 
 Newtypes
 ----------
@@ -556,7 +556,7 @@ Newtypes
 A `newtype` declaration declares a new named type which is defined by
 a record body.  Unlike type synonyms, each named `newtype` is treated
 as a distinct type by the type checker, even if they have the same
-bodies. Moreover, types created by a `newtype` declartion will not be
+bodies. Moreover, types created by a `newtype` declaration will not be
 members of any typeclasses, even if the record defining their body
 would be.  For the purposes of typechecking, two newtypes are
 considered equal only if all their arguments are equal, even if the
