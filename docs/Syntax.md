@@ -84,7 +84,6 @@ let
 import
 as
 hiding
-newtype
 infixl
 infixr
 infix
@@ -93,10 +92,11 @@ parameter
 constraint
 --->
 
-        else       include    property    let       newtype    primitive
-        extern     module     then        import    infixl     parameter
-        if         newtype    type        as        infixr     constraint
-        private    pragma     where       hiding    infix
+        else       include    property    let       infixl       parameter
+        extern     module     then        import    infixr       constraint
+        if         newtype    type        as        infix
+        private    pragma     where       hiding    primitive
+
 
 The following table contains Cryptol's operators and their
 associativity with lowest precedence operators first, and highest
@@ -136,7 +136,7 @@ Operator     Meaning
   `/`        Division
   `/^`       Ceiling division (`/` rounded up)
   `%`        Modulus
-  `%^`       Ceiling modulus (`%` rounded up)
+  `%^`       Ceiling modulus (compute padding)
   `^^`       Exponentiation
   `lg2`      Ceiling logarithm (base 2)
   `width`    Bit width (equal to `lg2(n+1)`)
@@ -332,7 +332,8 @@ sign.  Examples:
 
 The components of tuples are identified by position, while the
 components of records are identified by their label, and so the
-ordering of record components is not important.  Examples:
+ordering of record components is not important for most purposes.
+Examples:
 
                (1,2) == (1,2)               // True
                (1,2) == (2,1)               // False
@@ -340,6 +341,9 @@ ordering of record components is not important.  Examples:
     { x = 1, y = 2 } == { x = 1, y = 2 }    // True
     { x = 1, y = 2 } == { y = 2, x = 1 }    // True
 
+Ordering on tuples and records is defined lexicographically. Tuple
+components are compared in the order they appear, whereas record
+fields are compared in alphabetical order of field names.
 
 Accessing Fields
 ----------------
@@ -419,7 +423,6 @@ notation:
     // Update a nested field
     { n | pt.x = 10 }       == { pt = { x = 10, y = 20 }, size = 100 }
     { n | pt.x -> x + 10 }  == { pt = { x = 25, y = 20 }, size = 100 }
-
 
 
 Sequences
@@ -528,10 +531,51 @@ Type Signatures
 
     f,g : {a,b} (fin a) => [a] b
 
-Type Synonym Declarations
+
+Type Synonyms and Newtypes
 =========================
 
+Type synonyms
+--------------
+
     type T a b = [a] b
+
+A `type` declaration creates a synonym for a
+pre-existing type expression, which may optionally have
+arguments. A type synonym is transparently unfolded at
+use sites and is treated as though the user had instead
+written the body of the type synonym in line.
+Type synonyms may mention other synonyms, but it is not
+allowed to create a recursive collectionof type synonyms.
+
+Newtypes
+----------
+
+    newtype NewT a b = { seq : [a]b }
+
+A `newtype` declaration declares a new named type which is defined by
+a record body.  Unlike type synonyms, each named `newtype` is treated
+as a distinct type by the type checker, even if they have the same
+bodies. Moreover, types created by a `newtype` declartion will not be
+members of any typeclasses, even if the record defining their body
+would be.  For the purposes of typechecking, two newtypes are
+considered equal only if all their arguments are equal, even if the
+arguments do not appear in the body of the newtype, or are otherwise
+irrelevant.  Just like type synonyms, newtypes are not allowed to form
+recursive groups.
+
+Every `newtype` declaration brings into scope a new function with the
+same name as the type which can be used to create values of the
+newtype.
+
+    x : NewT 3 Integer
+    x = NewT { seq = [1,2,3] }
+
+Just as with records, field projections can be used directly on values
+of newtypes to extract the values in the body of the type.
+
+    > sum x.seq
+    6
 
 
 Modules

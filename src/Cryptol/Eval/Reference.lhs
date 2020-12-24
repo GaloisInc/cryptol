@@ -342,6 +342,8 @@ Selectors
 ---------
 
 Apply the the given selector form to the given value.
+Note that record selectors work uniformly on both record
+types and on newtypes.
 
 > evalSel :: Selector -> Value -> E Value
 > evalSel sel val =
@@ -368,6 +370,8 @@ Apply the the given selector form to the given value.
 
 
 Update the given value using the given selector and new value.
+Note that record selectors work uniformly on both record
+types and on newtypes.
 
 > evalSet :: TValue -> E Value -> Selector -> E Value -> E Value
 > evalSet tyv val sel fval =
@@ -515,7 +519,7 @@ Newtypes
 
 At runtime, newtypes values are represented in exactly
 the same was as records.  The constructor function for
-newtypes is thus basically just the identity function,
+newtypes is thus basically just an identity function
 that consumes and ignores its type arguments.
 
 > evalNewtypeDecl :: Env -> Newtype -> Env
