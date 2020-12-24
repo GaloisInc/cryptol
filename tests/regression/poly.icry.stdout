@@ -1,0 +1,17 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+{coeffs = [0, 2]}
+{coeffs = [0, 0, 1]}
+property polySquare Using random testing.
+Testing... Passed 100 tests.
+property polyAddEval Using random testing.
+Testing... Passed 100 tests.
+property polyMulEval Using random testing.
+Testing... Passed 100 tests.
+:prove polySquare
+	Q.E.D.
+:prove polyAddEval
+	Q.E.D.
+:prove polyMulEval
+	Q.E.D.
