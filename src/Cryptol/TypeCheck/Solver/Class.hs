@@ -16,6 +16,7 @@ module Cryptol.TypeCheck.Solver.Class
   , solveFieldInst
   , solveIntegralInst
   , solveRoundInst
+  , solveGenerateInst
   , solveEqInst
   , solveCmpInst
   , solveSignedCmpInst
@@ -312,6 +313,45 @@ solveRoundInst ty = case tNoUser ty of
 
   _ -> Unsolved
 
+
+-- | Solve a Generate constraint by instance, if possible.
+solveGenerateInst :: Type -> Solved
+solveGenerateInst ty = case tNoUser ty of
+
+  -- Generate Error -> fails
+  TCon (TError {}) _ -> Unsolvable
+
+  -- Generate Bit
+  TCon (TC TCBit) [] -> SolvedIf []
+
+  -- Generate Integer
+  TCon (TC TCInteger) [] -> SolvedIf []
+
+  -- Generate (Z n)
+  TCon (TC TCIntMod) [n] -> SolvedIf [ pFin n, n >== tOne ]
+
+  -- Generate Rational
+  TCon (TC TCRational) [] -> SolvedIf []
+
+  -- ValidFloat e p => Generate (Float e p)
+  TCon (TC TCFloat) [e,p] -> SolvedIf [ pValidFloat e p ]
+
+  -- Generate e => [n]e
+  TCon (TC TCSeq) [_n, e] -> SolvedIf [ pGenerate e ]
+
+  -- (Generate a, Generate b) => Generate (a,b)
+  TCon (TC (TCTuple _)) es -> SolvedIf [ pGenerate e | e <- es ]
+
+  -- (Generate a, Generate b) => Generate { x1 : a, x2 : b }
+  TRec fs -> SolvedIf [ pGenerate ety | ety <- recordElements fs ]
+
+  -- Generate (a -> b) -> fails
+  TCon (TC TCFun) [_a,_b] -> Unsolvable
+
+  -- Generate <newtype> -> fails
+  TNewtype{} -> Unsolvable
+
+  _ -> Unsolved
 
 
 -- | Solve Eq constraints.

@@ -334,6 +334,7 @@ superclassSet (TCon (PC p0) [t]) = go p0
 
   go PRing      = super PZero
   go PLogic     = super PZero
+  go PGenerate  = super PZero
   go PField     = super PRing
   go PIntegral  = super PRing
   go PRound     = super PField <> super PCmp
@@ -611,6 +612,9 @@ tInteger  = TCon (TC TCInteger) []
 tRational :: Type
 tRational  = TCon (TC TCRational) []
 
+tRandGen :: Type
+tRandGen = TCon (TC TCRandGen) []
+
 tFloat   :: Type -> Type -> Type
 tFloat e p = TCon (TC TCFloat) [ e, p ]
 
@@ -726,6 +730,9 @@ pField t = TCon (PC PField) [t]
 
 pRound :: Type -> Prop
 pRound t = TCon (PC PRound) [t]
+
+pGenerate :: Type -> Prop
+pGenerate t = TCon (PC PGenerate) [t]
 
 pEq :: Type -> Prop
 pEq t = TCon (PC PEq) [t]
@@ -955,6 +962,7 @@ instance PP (WithNames Type) where
           (TCBit,   [])       -> text "Bit"
           (TCInteger, [])     -> text "Integer"
           (TCRational, [])    -> text "Rational"
+          (TCRandGen, [])     -> text "RandGen"
 
           (TCIntMod, [n])     -> optParens (prec > 3) $ text "Z" <+> go 5 n
 
@@ -984,7 +992,7 @@ instance PP (WithNames Type) where
           (PField, [t1])      -> pp pc <+> go 5 t1
           (PIntegral, [t1])   -> pp pc <+> go 5 t1
           (PRound, [t1])      -> pp pc <+> go 5 t1
-
+          (PGenerate, [t1])   -> pp pc <+> go 5 t1
           (PCmp, [t1])        -> pp pc <+> go 5 t1
           (PSignedCmp, [t1])  -> pp pc <+> go 5 t1
           (PLiteral, [t1,t2]) -> pp pc <+> go 5 t1 <+> go 5 t2

@@ -10,7 +10,7 @@ import Cryptol.TypeCheck.Solver.Class
   ( solveZeroInst, solveLogicInst, solveRingInst
   , solveIntegralInst, solveFieldInst, solveRoundInst
   , solveEqInst, solveCmpInst, solveSignedCmpInst
-  , solveLiteralInst
+  , solveLiteralInst, solveGenerateInst
   , solveValidFloat, solveFLiteralInst
   )
 
@@ -50,6 +50,7 @@ simplifyStep ctxt prop =
     TCon (PC PField) [ty]      -> solveFieldInst ty
     TCon (PC PIntegral) [ty]   -> solveIntegralInst ty
     TCon (PC PRound) [ty]      -> solveRoundInst ty
+    TCon (PC PGenerate) [ty]   -> solveGenerateInst ty
 
     TCon (PC PEq)    [ty]      -> solveEqInst ty
     TCon (PC PCmp)   [ty]      -> solveCmpInst ty

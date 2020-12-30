@@ -159,6 +159,7 @@ finType ty =
     TVTuple ts          -> FTTuple <$> traverse finType ts
     TVRec fields        -> FTRecord <$> traverse finType fields
     TVNewtype u ts body -> FTNewtype u ts <$> traverse finType body
+    TVRandGen{}         -> Nothing
     TVAbstract {}       -> Nothing
     TVArray{}           -> Nothing
     TVStream{}          -> Nothing

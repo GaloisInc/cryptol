@@ -211,6 +211,9 @@ ringBinary sym opw opi opz opq opfp = loop
     TVArray{} ->
       evalPanic "arithBinary" ["Array not in class Ring"]
 
+    TVRandGen ->
+      evalPanic "arithBinary" ["RandGen not in class Ring"]
+
     TVSeq w a
       -- words and finite sequences
       | isTBit a -> do
@@ -298,6 +301,9 @@ ringUnary sym opw opi opz opq opfp = loop
     TVArray{} ->
       evalPanic "arithUnary" ["Array not in class Ring"]
 
+    TVRandGen ->
+      evalPanic "arithUnary" ["RandGen not in class Ring"]
+
     TVSeq w a
       -- words and finite sequences
       | isTBit a -> do
@@ -367,6 +373,8 @@ ringNullary sym opw opi opz opq opfp = loop
         TVRational -> VRational <$> opq
 
         TVArray{} -> evalPanic "arithNullary" ["Array not in class Ring"]
+
+        TVRandGen -> evalPanic "arithNullary" ["RandGen not in class Ring"]
 
         TVSeq w a
           -- words and finite sequences
@@ -745,8 +753,9 @@ cmpValue sym fb fw fi fz fq ff = cmp
         TVFloat _ _   -> ff (fromVFloat v1) (fromVFloat v2) k
         TVIntMod n    -> fz n (fromVInteger v1) (fromVInteger v2) k
         TVRational    -> fq (fromVRational v1) (fromVRational v2) k
-        TVArray{}     -> panic "Cryptol.Prims.Value.cmpValue"
-                               [ "Arrays are not comparable" ]
+        TVArray{}     -> evalPanic "cmpValue" [ "Arrays are not comparable" ]
+        TVRandGen     -> evalPanic "cmpVAlue" [ "RandGen values are not comparable" ]
+
         TVSeq n t
           | isTBit t  -> do w1 <- fromVWord sym "cmpValue" v1
                             w2 <- fromVWord sym "cmpValue" v2
@@ -908,6 +917,8 @@ zeroV sym ty = case ty of
     VRational <$> (intToRational sym =<< integerLit sym 0)
 
   TVArray{} -> evalPanic "zeroV" ["Array not in class Zero"]
+
+  TVRandGen{} -> evalPanic "zeroV" ["RandGen not in class Zero"]
 
   -- floating point
   TVFloat e p ->
@@ -1322,6 +1333,7 @@ logicBinary sym opb opw = loop
     TVArray{} -> evalPanic "logicBinary" ["Array not in class Logic"]
 
     TVFloat {}  -> evalPanic "logicBinary" ["Float not in class Logic"]
+    TVRandGen -> evalPanic "logicBinary" ["RandGen not in class Logic"]
     TVSeq w aty
          -- words
          | isTBit aty
@@ -1401,6 +1413,7 @@ logicUnary sym opb opw = loop
     TVFloat {} -> evalPanic "logicUnary" ["Float not in class Logic"]
     TVRational -> evalPanic "logicBinary" ["Rational not in class Logic"]
     TVArray{} -> evalPanic "logicUnary" ["Array not in class Logic"]
+    TVRandGen -> evalPanic "logicUnary" ["RandGen not in class Logic"]
 
     TVSeq w ety
          -- words
@@ -1858,6 +1871,7 @@ errorV sym ty0 msg =
        TVRational -> err stk
        TVArray{} -> err stk
        TVFloat {} -> err stk
+       TVRandGen -> err stk
 
        -- sequences
        TVSeq w ety
@@ -1962,8 +1976,11 @@ mergeValue sym c v1 v2 =
     (VStream vs1 , VStream vs2 ) -> VStream <$> memoMap sym (mergeSeqMap sym c vs1 vs2)
     (f1@VFun{}   , f2@VFun{}   ) -> lam sym $ \x -> mergeValue' sym c (fromVFun sym f1 x) (fromVFun sym f2 x)
     (f1@VPoly{}  , f2@VPoly{}  ) -> tlam sym $ \x -> mergeValue' sym c (fromVPoly sym f1 x) (fromVPoly sym f2 x)
+    (VRandGen{}  , VRandGen{}  ) -> liftIO (X.throw (UnsupportedSymbolicOp "random generator symbolic merge"))
     (_           , _           ) -> panic "Cryptol.Eval.Generic"
                                   [ "mergeValue: incompatible values" ]
+
+
 
 {-# INLINE mergeSeqMap #-}
 mergeSeqMap :: Backend sym =>

@@ -85,6 +85,7 @@ are as follows:
 | `(a, b, c)`       | tuples            | `TVTuple [a,b,c]`           |
 | `{x:a, y:b, z:c}` | records           | `TVRec [(x,a),(y,b),(z,c)]` |
 | `a -> b`          | functions         | `TVFun a b`                 |
+| `RandGen`         | random generators | `TVRandGen`                 |
 
 We model each (closed) Cryptol value type `t` as a complete partial order (cpo)
 *M*(`t`). The values of *M*(`t`) represent the _values_ present in the
@@ -937,6 +938,7 @@ For functions, `zero` returns the constant function that returns
 > zero (TVFun _ bty)  = VFun (\_ -> pure (zero bty))
 > zero (TVAbstract{}) = evalPanic "zero" ["Abstract type not in `Zero`"]
 > zero (TVNewtype{})  = evalPanic "zero" ["Newtype not in `Zero`"]
+> zero TVRandGen      = evalPanic "zero" ["RandGen not in `Zero`"]
 
 Literals
 --------
@@ -1006,6 +1008,7 @@ at the same positions.
 >         TVFloat{}    -> evalPanic "logicUnary" ["Float not in class Logic"]
 >         TVAbstract{} -> evalPanic "logicUnary" ["Abstract type not in `Logic`"]
 >         TVNewtype{}  -> evalPanic "logicUnary" ["Newtype not in `Logic`"]
+>         TVRandGen    -> evalPanic "logicUnary" ["RandGen not in `Logic`"]
 
 > logicBinary :: (Bool -> Bool -> Bool) -> TValue -> E Value -> E Value -> E Value
 > logicBinary op = go
@@ -1045,6 +1048,7 @@ at the same positions.
 >         TVFloat{}    -> evalPanic "logicBinary" ["Float not in class Logic"]
 >         TVAbstract{} -> evalPanic "logicBinary" ["Abstract type not in `Logic`"]
 >         TVNewtype{}  -> evalPanic "logicBinary" ["Newtype not in `Logic`"]
+>         TVRandGen    -> evalPanic "logicBinary" ["RandGen not in `Logic`"]
 
 
 Ring Arithmetic
@@ -1094,6 +1098,8 @@ False]`, but to `error "foo"`.
 >           evalPanic "arithNullary" ["Abstract type not in `Ring`"]
 >         TVNewtype {} ->
 >           evalPanic "arithNullary" ["Newtype type not in `Ring`"]
+>         TVRandGen ->
+>           evalPanic "arithNullary" ["RandGen not in `Ring`"]
 
 > ringUnary ::
 >   (Integer -> E Integer) ->
@@ -1134,6 +1140,8 @@ False]`, but to `error "foo"`.
 >           evalPanic "arithUnary" ["Abstract type not in `Ring`"]
 >         TVNewtype {} ->
 >           evalPanic "arithUnary" ["Newtype not in `Ring`"]
+>         TVRandGen ->
+>           evalPanic "arithUnary" ["RandGen not in `Ring`"]
 
 > ringBinary ::
 >   (Integer -> Integer -> E Integer) ->
@@ -1184,6 +1192,8 @@ False]`, but to `error "foo"`.
 >           evalPanic "arithBinary" ["Abstract type not in class `Ring`"]
 >         TVNewtype {} ->
 >           evalPanic "arithBinary" ["Newtype not in class `Ring`"]
+>         TVRandGen ->
+>           evalPanic "arithBinary" ["RandGen not in `Ring`"]
 
 
 Integral
@@ -1359,9 +1369,11 @@ bits to the *left* of that position are equal.
 >          rs <- map snd . sortBy (comparing fst) . fromVRecord <$> r
 >          lexList (zipWith3 lexCompare tys ls rs)
 >     TVAbstract {} ->
->       evalPanic "lexCompare" ["Abstract type not in `Cmp`"]
+>       evalPanic "lexCompare" ["invalid type"]
 >     TVNewtype {} ->
->       evalPanic "lexCompare" ["Newtype not in `Cmp`"]
+>       evalPanic "lexCompare" ["invalid type"]
+>     TVRandGen ->
+>       evalPanic "lexCompare" ["invalid type"]
 >
 > lexList :: [E Ordering] -> E Ordering
 > lexList [] = pure EQ
@@ -1415,9 +1427,11 @@ fields are compared in alphabetical order.
 >          rs <- map snd . sortBy (comparing fst) . fromVRecord <$> r
 >          lexList (zipWith3 lexSignedCompare tys ls rs)
 >     TVAbstract {} ->
->       evalPanic "lexSignedCompare" ["Abstract type not in `Cmp`"]
+>       evalPanic "lexSignedCompare" ["invalid type"]
 >     TVNewtype {} ->
->       evalPanic "lexSignedCompare" ["Newtype type not in `Cmp`"]
+>       evalPanic "lexSignedCompare" ["invalid type"]
+>     TVRandGen {} ->
+>       evalPanic "lexSignedCompare" ["invalid type"]
 
 
 Sequences

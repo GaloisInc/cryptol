@@ -26,17 +26,20 @@ module Cryptol.Eval.Concrete
   ) where
 
 import Control.Monad (guard, zipWithM, foldM, mzero)
+import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bits (Bits(..))
 import Data.Ratio((%),numerator,denominator)
-import Data.Word(Word32, Word64)
+import Data.Word( Word8, Word32, Word64 )
 import MonadLib( ChoiceT, findOne, lift )
 import qualified LibBF as FP
 import qualified Cryptol.F2 as F2
+import System.Random.TF.Gen (TFGen, seedTFGen, split, splitn, level)
+import System.Random (randomR)
 
 import qualified Data.Map.Strict as Map
 import Data.Map(Map)
 
-import Cryptol.TypeCheck.Solver.InfNat (Nat'(..))
+import Cryptol.TypeCheck.Solver.InfNat (Nat'(..), widthInteger)
 
 import Cryptol.Backend
 import Cryptol.Backend.Concrete
@@ -52,8 +55,9 @@ import qualified Cryptol.AES as AES
 import qualified Cryptol.PrimeEC as PrimeEC
 import Cryptol.ModuleSystem.Name
 import Cryptol.TypeCheck.AST as AST
+import Cryptol.Testing.Random( randomValue, randomIntegerBoundedBelow, randomIntegerBoundedAbove )
 import Cryptol.Utils.Panic (panic)
-import Cryptol.Utils.Ident (PrimIdent,prelPrim,floatPrim,suiteBPrim,primeECPrim)
+import Cryptol.Utils.Ident (PrimIdent,prelPrim,floatPrim,suiteBPrim,primeECPrim,testingPrim)
 import Cryptol.Utils.PP
 import Cryptol.Utils.RecordMap
 
@@ -113,6 +117,7 @@ toExpr prims t0 v0 = findOne (go t0 v0)
         do BV _ v <- lift (asWordVal Concrete =<< wval)
            pure $ ETApp (ETApp (prim "number") (tNum v)) (tWord (tNum n))
 
+      (_,VRandGen{}) -> mzero
       (_,VStream{})  -> mzero
       (_,VFun{})     -> mzero
       (_,VPoly{})    -> mzero
@@ -154,6 +159,7 @@ primTable :: IO EvalOpts -> Map PrimIdent (Prim Concrete)
 primTable getEOpts = let sym = Concrete in
   Map.union (genericPrimTable sym getEOpts) $
   Map.union (floatPrims sym) $
+  Map.union (testingPrims sym getEOpts) $
   Map.union suiteBPrims $
   Map.union primeECPrims $
 
@@ -216,6 +222,181 @@ primTable getEOpts = let sym = Concrete in
   ]
 
 
+testingPrims :: Concrete -> IO EvalOpts -> Map.Map PrimIdent (Prim Concrete)
+testingPrims sym getEOpts = Map.fromList $ map (\(n, v) -> (testingPrim n, v)) prims
+  where
+  (~>) = (,)
+  prims =
+    [ "seedGen" ~>
+        PWordFun \sz ->
+        PWordFun \seed ->
+        PPrim
+          do let mask64 = 0xFFFFFFFFFFFFFFFF
+                 unpack s = fromInteger (s .&. mask64) : unpack (s `shiftR` 64)
+                 [a, b, c, d] = take 4 (unpack (bvVal seed))
+             pure (VRandGen (fromIntegral (bvVal sz)) (seedTFGen (a,b,c,d)))
+
+    , "genSize" ~>
+        PFun \x ->
+        PPrim
+          do (sz,_) <- fromVRandGen <$> x
+             return . VWord 8 . pure . WordVal . mkBv 8 . toInteger $ sz
+
+    , "genResize" ~>
+        PFun \sz ->
+        PFun \x ->
+        PPrim
+          do sz' <- fromInteger . bvVal <$> (fromVWord sym "genResize" =<< sz)
+             (_,g) <- fromVRandGen <$> x
+             pure (VRandGen sz' g)
+
+    , "splitGen" ~>
+        PFinPoly \n ->
+        PFun \x ->
+        PPrim
+          do (sz,g) <- fromVRandGen <$> x
+             VSeq n <$> splitGenerators sym n sz g
+
+    , "generate" ~>
+        PTyPoly \ty ->
+        PFun \x ->
+        PPrim
+          do (sz,g) <- fromVRandGen <$> x
+             case randomValue sym ty of
+               Nothing -> evalPanic "generate" [ "invalid type", show ty ]
+               Just gen ->
+                 do let (v, g') = gen sz g
+                    pure (VTuple [v, pure (VRandGen sz g')])
+
+    , "boundedWord" ~>
+         PFinPoly \n ->
+         PFun \rng ->
+         PFun \x ->
+         PPrim
+           do res <- rng
+              case fromVTuple res of
+                [lo,hi] -> do
+                  lo' <- bvVal <$> (fromVWord sym "lo bound" =<< lo)
+                  hi' <- bvVal <$> (fromVWord sym "hi bound" =<< hi)
+                  (sz,g) <- fromVRandGen <$> x
+                  let (i, g') = randomR (min lo' hi', max lo' hi') g
+                  let v = VWord n (pure (WordVal (mkBv n i)))
+                  pure (VTuple [pure v, pure (VRandGen sz g')])
+                _ -> evalPanic "boundedWord" ["expected pair value"]
+
+    , "boundedSignedWord" ~>
+         PFinPoly \n ->
+         PFun \rng ->
+         PFun \x ->
+         PPrim
+           do res <- rng
+              case fromVTuple res of
+                [lo,hi] -> do
+                  lo' <- signedValue <$> (fromVWord sym "lo bound" =<< lo)
+                  hi' <- signedValue <$> (fromVWord sym "hi bound" =<< hi)
+                  (sz,g) <- fromVRandGen <$> x
+                  let (i, g') = randomR (min lo' hi', max lo' hi') g
+                  let v = VWord n (pure (WordVal (mkBv n i)))
+                  pure (VTuple [pure v, pure (VRandGen sz g')])
+                _ -> evalPanic "boundedSignedWord" ["expected pair value"]
+
+    , "boundedInteger" ~>
+         PFun \rng ->
+         PFun \x ->
+         PPrim
+           do res <- rng
+              case fromVTuple res of
+                [lo,hi] -> do
+                  lo' <- fromVInteger <$> lo
+                  hi' <- fromVInteger <$> hi
+                  (sz,g) <- fromVRandGen <$> x
+                  let (i, g') = randomR (min lo' hi', max lo' hi') g
+                  pure (VTuple [pure (VInteger i), pure (VRandGen sz g')])
+                _ -> evalPanic "boundedInteger" ["expected pair value"]
+
+    , "boundedBelowInteger" ~>
+         PFun \lo ->
+         PFun \x  ->
+         PPrim
+           do lo' <- fromVInteger <$> lo
+              (sz,g) <- fromVRandGen <$> x
+              let (v, g') = randomIntegerBoundedBelow sym lo' sz g
+              pure (VTuple [v, pure (VRandGen sz g')])
+
+    , "boundedAboveInteger" ~>
+         PFun \hi ->
+         PFun \x  ->
+         PPrim
+           do hi' <- fromVInteger <$> hi
+              (sz,g) <- fromVRandGen <$> x
+              let (v, g') = randomIntegerBoundedAbove sym hi' sz g
+              pure (VTuple [v, pure (VRandGen sz g')])
+
+    , "suchThat" ~>
+         PTyPoly \_ty ->
+         PFun \m ->
+         PFun \p ->
+         PFun \x ->
+         PPrim
+           do mf <- fromVFun sym <$> m
+              pf <- fromVFun sym <$> p
+              execSuchThat sym mf pf x
+
+    , "traceErr" ~>
+         PTyPoly  \a ->
+         PTyPoly  \_b ->
+         PFinPoly \_n ->
+         PFun     \s ->
+         PFun     \x ->
+         PPrim
+           do msg <- valueToString sym =<< s
+              EvalOpts { evalPPOpts } <- liftIO getEOpts
+              doc <- ppValue sym evalPPOpts =<< x
+              let msg' = if null msg then doc else text msg <+> doc
+              errorV sym a (show msg')
+
+
+    ]
+
+execSuchThat ::
+  Concrete ->
+  (SEval Concrete (GenValue Concrete) -> SEval Concrete (GenValue Concrete)) ->
+  (SEval Concrete (GenValue Concrete) -> SEval Concrete (GenValue Concrete)) ->
+  SEval Concrete (GenValue Concrete) ->
+  SEval Concrete (GenValue Concrete)
+execSuchThat sym mf pf g =
+  do res <- mf g
+     case fromVTuple res of
+       [v, g'] ->
+         do b <- fromVBit <$> pf v
+            if b then pure res else execSuchThat sym mf pf g'
+       _ -> evalPanic "suchThat" ["expected pair value"]
+
+{-
+  TVRational ->
+    do lo <- fromVRational <$> lov
+       hi <- fromVRational <$> hiv
+       diff <- rationalSub sym hi lo
+       let sz' = min 1 sz
+       let intervals = sNum diff * toInteger sz'
+       let (num, g') = uniformR (0 , intervals) g
+       let den = sDenom * toInteger sz'
+       x <- rationalAdd sym lo (SRational num den)
+       pure (pure (VRational x), g')
+-}
+
+-- | Precondition: width of `n` is no more than 32
+splitGenerators :: Concrete -> Integer -> Word8 -> TFGen -> SEval Concrete (SeqMap Concrete)
+splitGenerators _sym n sz g0
+  | n <= 2 =
+      do let (g1,g2) = split g0
+         pure (finiteSeqMap [ pure (VRandGen sz g1), pure (VRandGen sz g2) ])
+
+  | otherwise =
+      do let w = fromInteger (widthInteger n)
+             gfun = splitn (level g0) w
+         pure $ IndexSeqMap \i -> pure . VRandGen sz $! gfun (fromInteger i)
+
 primeECPrims :: Map.Map PrimIdent (Prim Concrete)
 primeECPrims = Map.fromList $ map (\(n,v) -> (primeECPrim n, v))
   [ ("ec_double", {-# SCC "PrimeEC::ec_double" #-}
@@ -230,7 +411,7 @@ primeECPrims = Map.fromList $ map (\(n,v) -> (primeECPrim n, v))
        PFinPoly \p ->
        PFun     \s ->
        PFun     \t ->
-       PPrim 
+       PPrim
           do s' <- toProjectivePoint =<< s
              t' <- toProjectivePoint =<< t
              let r = PrimeEC.ec_add_nonzero (PrimeEC.primeModulus p) s' t'
@@ -271,7 +452,6 @@ fromProjectivePoint (PrimeEC.ProjectivePoint x y z) =
    pure . VRecord . recordFromFields $ [("x", f x), ("y", f y), ("z", f z)]
   where
    f i = pure (VInteger (PrimeEC.bigNatToInteger i))
-
 
 
 suiteBPrims :: Map.Map PrimIdent (Prim Concrete)

@@ -506,6 +506,9 @@ explainUnsolvable names gs =
           PCmp        ->
             custom ("Type" <+> doc1 <+> "does not support comparisons.")
 
+          PGenerate  ->
+            custom ("Type" <+> doc1 <+> "does not support random generation.")
+
           PSignedCmp  ->
             custom ("Type" <+> doc1 <+> "does not support signed comparisons.")
 

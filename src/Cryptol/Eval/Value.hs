@@ -16,7 +16,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PatternGuards #-}
-{-# LANGUAGE Safe #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TupleSections #-}
@@ -48,6 +47,7 @@ module Cryptol.Eval.Value
   , fromVInteger
   , fromVRational
   , fromVFloat
+  , fromVRandGen
   , fromVSeq
   , fromSeq
   , fromWordVal
@@ -100,6 +100,8 @@ import Data.Ratio
 import qualified Data.Map.Strict as Map
 import MonadLib
 import Numeric (showIntAtBase)
+import System.Random.TF.Gen (TFGen)
+import Data.Word (Word8)
 
 import Cryptol.Backend
 import qualified Cryptol.Backend.Arch as Arch
@@ -323,7 +325,8 @@ data GenValue sym
   | VSeq !Integer !(SeqMap sym)                -- ^ @ [n]a   @
                                                --   Invariant: VSeq is never a sequence of bits
   | VWord !Integer !(SEval sym (WordValue sym))  -- ^ @ [n]Bit @
-  | VStream !(SeqMap sym)                   -- ^ @ [inf]a @
+  | VStream !(SeqMap sym)                      -- ^ @ [inf]a @
+  | VRandGen !Word8 !TFGen                     -- ^ @ RandGen @
   | VFun  CallStack (SEval sym (GenValue sym) -> SEval sym (GenValue sym)) -- ^ functions
   | VPoly CallStack (TValue -> SEval sym (GenValue sym))   -- ^ polymorphic values (kind *)
   | VNumPoly CallStack (Nat' -> SEval sym (GenValue sym))  -- ^ polymorphic values (kind #)
@@ -345,6 +348,7 @@ forceValue v = case v of
   VInteger i  -> seq i (return ())
   VRational q -> seq q (return ())
   VFloat f    -> seq f (return ())
+  VRandGen sz g -> seq sz (seq g (return ()))
   VWord _ wv  -> forceWordValue =<< wv
   VStream _   -> return ()
   VFun{}      -> return ()
@@ -364,6 +368,7 @@ instance Backend sym => Show (GenValue sym) where
     VSeq n _   -> "seq:" ++ show n
     VWord n _  -> "word:"  ++ show n
     VStream _  -> "stream"
+    VRandGen{} -> "randgen"
     VFun{}     -> "fun"
     VPoly{}    -> "poly"
     VNumPoly{} -> "numpoly"
@@ -398,6 +403,7 @@ ppValue x opts = loop
                                    $ punctuate comma
                                    ( vals' ++ [text "..."]
                                    )
+    VRandGen{}         -> return $ text "<random generator>"
     VFun{}             -> return $ text "<function>"
     VPoly{}            -> return $ text "<polymorphic value>"
     VNumPoly{}         -> return $ text "<polymorphic value>"
@@ -596,6 +602,12 @@ fromVRational val = case val of
   VRational q -> q
   _      -> evalPanic "fromVRational" ["not a Rational"]
 
+-- | Extract a random gen
+fromVRandGen :: GenValue sym -> (Word8, TFGen)
+fromVRandGen val = case val of
+  VRandGen sz g -> (sz,g)
+  _          -> evalPanic "fromRandGen" ["not a RandGen"]
+
 -- | Extract a finite sequence value.
 fromVSeq :: GenValue sym -> SeqMap sym
 fromVSeq val = case val of
@@ -608,6 +620,7 @@ fromSeq msg val = case val of
   VSeq _ vs   -> return vs
   VStream vs  -> return vs
   _           -> evalPanic "fromSeq" ["not a sequence", msg]
+
 
 fromWordVal :: Backend sym => String -> GenValue sym -> SEval sym (WordValue sym)
 fromWordVal _msg (VWord _ wval) = wval

@@ -453,6 +453,7 @@ etaDelay sym env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
       VWord{}     -> x
       VRational{} -> x
       VFloat{}    -> x
+      VRandGen{}  -> x
       VSeq n xs ->
         case tp of
           TVSeq _nt el -> return $ VSeq n $ IndexSeqMap $ \i -> go stk el (lookupSeqMap xs i)
@@ -504,6 +505,7 @@ etaDelay sym env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
       TVIntMod _ -> v
       TVRational -> v
       TVArray{} -> v
+      TVRandGen -> v
 
       TVSeq n TVBit ->
           do w <- sDelayFill sym (fromWordVal "during eta-expansion" =<< v) (Just (etaWord sym n v)) ""
