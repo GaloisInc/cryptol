@@ -58,7 +58,6 @@ builtInType nm =
 
   builtInTesting = Map.fromList
     [ "RandGen"           ~> TC TCRandGen
-    , "Generate"          ~> PC PGenerate
     ]
 
   -- Built-in types from Cryptol.cry
@@ -84,6 +83,7 @@ builtInType nm =
     , "Round"             ~> PC PRound
     , "Eq"                ~> PC PEq
     , "Cmp"               ~> PC PCmp
+    , "Generate"          ~> PC PGenerate
     , "SignedCmp"         ~> PC PSignedCmp
     , "Literal"           ~> PC PLiteral
     , "FLiteral"          ~> PC PFLiteral

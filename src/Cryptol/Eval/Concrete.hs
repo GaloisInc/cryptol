@@ -26,7 +26,6 @@ module Cryptol.Eval.Concrete
   ) where
 
 import Control.Monad (guard, zipWithM, foldM, mzero)
-import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bits (Bits(..))
 import Data.Ratio((%),numerator,denominator)
 import Data.Word( Word8, Word32, Word64 )
@@ -159,7 +158,7 @@ primTable :: IO EvalOpts -> Map PrimIdent (Prim Concrete)
 primTable getEOpts = let sym = Concrete in
   Map.union (genericPrimTable sym getEOpts) $
   Map.union (floatPrims sym) $
-  Map.union (testingPrims sym getEOpts) $
+  Map.union (testingPrims sym) $
   Map.union suiteBPrims $
   Map.union primeECPrims $
 
@@ -222,8 +221,8 @@ primTable getEOpts = let sym = Concrete in
   ]
 
 
-testingPrims :: Concrete -> IO EvalOpts -> Map.Map PrimIdent (Prim Concrete)
-testingPrims sym getEOpts = Map.fromList $ map (\(n, v) -> (testingPrim n, v)) prims
+testingPrims :: Concrete -> Map.Map PrimIdent (Prim Concrete)
+testingPrims sym = Map.fromList $ map (\(n, v) -> (testingPrim n, v)) prims
   where
   (~>) = (,)
   prims =
@@ -292,8 +291,8 @@ testingPrims sym getEOpts = Map.fromList $ map (\(n, v) -> (testingPrim n, v)) p
            do res <- rng
               case fromVTuple res of
                 [lo,hi] -> do
-                  lo' <- signedValue <$> (fromVWord sym "lo bound" =<< lo)
-                  hi' <- signedValue <$> (fromVWord sym "hi bound" =<< hi)
+                  lo' <- signedBV <$> (fromVWord sym "lo bound" =<< lo)
+                  hi' <- signedBV <$> (fromVWord sym "hi bound" =<< hi)
                   (sz,g) <- fromVRandGen <$> x
                   let (i, g') = randomR (min lo' hi', max lo' hi') g
                   let v = VWord n (pure (WordVal (mkBv n i)))
@@ -341,20 +340,6 @@ testingPrims sym getEOpts = Map.fromList $ map (\(n, v) -> (testingPrim n, v)) p
            do mf <- fromVFun sym <$> m
               pf <- fromVFun sym <$> p
               execSuchThat sym mf pf x
-
-    , "traceErr" ~>
-         PTyPoly  \a ->
-         PTyPoly  \_b ->
-         PFinPoly \_n ->
-         PFun     \s ->
-         PFun     \x ->
-         PPrim
-           do msg <- valueToString sym =<< s
-              EvalOpts { evalPPOpts } <- liftIO getEOpts
-              doc <- ppValue sym evalPPOpts =<< x
-              let msg' = if null msg then doc else text msg <+> doc
-              errorV sym a (show msg')
-
 
     ]
 

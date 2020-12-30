@@ -2053,13 +2053,11 @@ foldl'V sym =
 {-# SPECIALIZE randomV ::
   Concrete -> TValue -> Integer -> SEval Concrete (GenValue Concrete)
   #-}
--- | Produce a random value with the given seed. If we do not support
--- making values of the given type, return zero of that type.
--- TODO: do better than returning zero
+-- | Produce a random value with the given seed.
 randomV :: Backend sym => sym -> TValue -> Integer -> SEval sym (GenValue sym)
 randomV sym ty seed =
   case randomValue sym ty of
-    Nothing -> zeroV sym ty
+    Nothing -> panic "randomV" ["type not in class Generate", show ty]
     Just gen ->
       -- unpack the seed into four Word64s
       let mask64 = 0xFFFFFFFFFFFFFFFF
@@ -2299,6 +2297,19 @@ genericPrimTable sym getEOpts =
                          liftIO $ logPrint evalLogger
                              $ if null msg then doc else text msg <+> doc
                          y)
+
+  , ("traceError"  , {-# SCC "Prelude::traceError" #-}
+                     PTyPoly  \a ->
+                     PTyPoly  \_b ->
+                     PFinPoly \_n ->
+                     PFun     \s ->
+                     PFun     \x ->
+                     PPrim
+                       do msg <- valueToString sym =<< s
+                          EvalOpts { evalPPOpts } <- liftIO getEOpts
+                          doc <- ppValue sym evalPPOpts =<< x
+                          let msg' = if null msg then doc else text msg <+> doc
+                          errorV sym a (show msg'))
 
   , ("random"      , {-# SCC "Prelude::random" #-}
                      PTyPoly  \a ->

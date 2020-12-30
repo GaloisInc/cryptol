@@ -47,6 +47,7 @@ Primitive Types
     FLiteral : # -> # -> # -> * -> Prop
     Field : * -> Prop
     fin : # -> Prop
+    Generate : * -> Prop
     Integer : *
     Integral : * -> Prop
     inf : #
@@ -172,7 +173,7 @@ Symbols
     pmult :
       {u, v} (fin u, fin v) => [1 + u] -> [1 + v] -> [1 + (u + v)]
     product : {n, a} (fin n, Eq a, Ring a) => [n]a -> a
-    random : {a} [256] -> a
+    random : {a} (Generate a) => [256] -> a
     ratio : Integer -> Integer -> Rational
     recip : {a} (Field a) => a -> a
     repeat : {n, a} a -> [n]a
@@ -196,6 +197,7 @@ Symbols
     take : {front, back, a} (fin front) => [front + back]a -> [front]a
     toInteger : {a} (Integral a) => a -> Integer
     trace : {n, a, b} (fin n) => String n -> a -> b -> b
+    traceError : {a, b, n} (fin n) => String n -> b -> a
     traceVal : {n, a} (fin n) => String n -> a -> a
     transpose : {rows, cols, a} [rows][cols]a -> [cols][rows]a
     trunc : {a} (Round a) => a -> Integer

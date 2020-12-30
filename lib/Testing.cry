@@ -33,8 +33,6 @@ return a g = (a, g)
   where
     (x,g') = m g
 
-primitive type Generate : * -> Prop
-
 primitive generate : {a} Generate a => Gen a
 
 primitive boundedInteger : (Integer, Integer) -> Gen Integer
@@ -83,8 +81,6 @@ genPair ma mb =
   return (a,b)
 
 
-primitive traceErr : {a, b, n} (fin n) => String n -> b -> a
-
 isEven : Integer -> Bit
 isEven i = i%2 == 0
 
@@ -103,7 +99,7 @@ property addOddProp = evenSum <$> oddInteger <*> oddInteger
     evenSum x y = isEven (x + y)
 
 withCounterexample : {a,n} (fin n) => String n -> a -> Bit -> Bit
-withCounterexample msg vals test = test \/ traceErr ("counterexample " # msg) vals
+withCounterexample msg vals test = test \/ traceError ("counterexample " # msg) vals
 
 addOddPropWrong : Gen Bit
 property addOddPropWrong = evenSum <$> oddInteger <*> evenInteger
@@ -118,7 +114,7 @@ property addNoOverflow = noOverflow <$> boundedBelowInteger 0 <*> boundedBelowIn
    noOverflow x y = withCounterexample "noOverflow" (x,y) (x <= (x+y) /\ y <= (x+y))
 
 addNoWordOverflow : Gen Bit
-property addNoWordOverflow = noOverflow <$> boundedWord (0,0x8FFFFFFF) <*> boundedWord (0,0x7FFFFFFF)
+property addNoWordOverflow = noOverflow <$> boundedWord (0,0x7FFFFFFF) <*> boundedWord (0,0x7FFFFFFF)
   where
    noOverflow : [32] -> [32] -> Bit
    noOverflow x y = withCounterexample "noOverflow" (x,y) (x <= (x+y) /\ y <= (x+y))
