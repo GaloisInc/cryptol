@@ -1,3 +1,4 @@
+ARG GHCVER="8.8.4"
 FROM debian:buster AS solvers
 
 # Install needed packages for building
@@ -41,10 +42,18 @@ RUN curl -L https://cvc4.cs.stanford.edu/downloads/builds/x86_64-linux-opt/unsta
 # Set executable and run tests
 RUN chmod +x rootfs/usr/local/bin/*
 
-FROM haskell:8.8.4 AS build
+ARG GHCVER
+FROM debian:buster AS build
+ARG GHCVER
 
-RUN apt-get update && apt-get install -y libncurses-dev
+RUN apt-get update && apt-get install -y libncurses-dev libz-dev \
+    build-essential curl libffi-dev libffi6 libgmp-dev libgmp10 libncurses-dev libncurses5 libtinfo5 libnuma-dev
+RUN curl -o /usr/local/bin/ghcup "https://downloads.haskell.org/~ghcup/0.1.12/x86_64-linux-ghcup-0.1.12" && chmod +x /usr/local/bin/ghcup
+ENV GHCUP_USE_XDG_DIRS=true \
+    XDG_BIN_HOME=/usr/local/bin \
+    XDG_DATA_HOME=/usr/local/share
 COPY --from=solvers /solvers/rootfs /
+RUN ghcup install ghc ${GHCVER} && ghcup set ghc ${GHCVER} && ghcup install cabal --set
 RUN useradd -m cryptol
 COPY --chown=cryptol:cryptol . /cryptol
 USER cryptol
@@ -53,8 +62,10 @@ ENV PATH=/cryptol/rootfs/usr/local/bin:$PATH
 ARG CRYPTOLPATH="/cryptol/.cryptol"
 ENV LANG=C.UTF-8 \
     LC_ALL=C.UTF-8
-COPY cabal.GHC-8.8.4.config cabal.project.freeze
+COPY cabal.GHC-${GHCVER}.config cabal.project.freeze
+
 RUN mkdir -p rootfs/usr/local/bin
+
 RUN cabal v2-update && \
     cabal v2-build -j cryptol-remote-api:exe:cryptol-remote-api && \
     cp $(cabal v2-exec which cryptol-remote-api) rootfs/usr/local/bin
@@ -66,7 +77,7 @@ RUN chown -R root:root /cryptol/rootfs
 
 FROM debian:buster-slim
 RUN apt-get update \
-    && apt-get install -y libgmp10 libgomp1 libffi6 libncurses6 libtinfo6 libreadline7 \
+    && apt-get install -y libgmp10 libgomp1 libffi6 libncurses6 libtinfo6 libreadline7 libnuma-dev \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 RUN useradd -m cryptol && chown -R cryptol:cryptol /home/cryptol
 COPY --from=build /cryptol/rootfs /
