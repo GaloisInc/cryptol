@@ -51,7 +51,6 @@ import qualified Cryptol.Backend.Arch as Arch
 import qualified Cryptol.Backend.FloatHelpers as FP
 import Cryptol.Backend
 import Cryptol.Backend.Monad
-import Cryptol.Backend.SeqMap
 import Cryptol.TypeCheck.Solver.InfNat (genLog)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP

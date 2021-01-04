@@ -160,7 +160,6 @@ library
 
                        Cryptol.Backend,
                        Cryptol.Backend.Arch,
-                       Cryptol.Backend.SeqMap,
                        Cryptol.Backend.Concrete,
                        Cryptol.Backend.FloatHelpers,
                        Cryptol.Backend.Monad,

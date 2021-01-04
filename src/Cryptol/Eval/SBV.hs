@@ -32,7 +32,6 @@ import Data.SBV.Dynamic as SBV
 import Cryptol.Backend
 import Cryptol.Backend.Monad ( EvalError(..), Unsupported(..) )
 import Cryptol.Backend.SBV
-import Cryptol.Backend.SeqMap
 
 import Cryptol.Eval.Type (TValue(..))
 import Cryptol.Eval.Generic

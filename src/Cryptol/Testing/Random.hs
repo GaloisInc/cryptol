@@ -39,10 +39,9 @@ import qualified Data.Sequence as Seq
 import System.Random          (split, random, randomR)
 import System.Random.TF.Gen   (TFGen) 
 
-import Cryptol.Backend        (Backend(..), SRational(..))
+import Cryptol.Backend        (Backend(..), SRational(..), SeqMap(..), finiteSeqMap)
 import Cryptol.Backend.Monad  (runEval,Eval,EvalErrorEx(..))
 import Cryptol.Backend.Concrete
-import Cryptol.Backend.SeqMap
 
 import Cryptol.Eval.Type      (TValue(..))
 import Cryptol.Eval.Value     (GenValue(..), WordValue(..),

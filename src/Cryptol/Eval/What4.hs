@@ -42,7 +42,6 @@ import qualified What4.Utils.AbstractDomains as W4
 
 import Cryptol.Backend
 import Cryptol.Backend.Monad ( EvalError(..), Unsupported(..) )
-import Cryptol.Backend.SeqMap
 import Cryptol.Backend.What4
 import qualified Cryptol.Backend.What4.SFloat as W4
 

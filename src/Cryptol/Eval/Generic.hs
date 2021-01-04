@@ -39,7 +39,6 @@ import Cryptol.Backend
 import Cryptol.Backend.Concrete (Concrete(..))
 import Cryptol.Backend.Monad( Eval, evalPanic, EvalError(..), Unsupported(..) )
 import Cryptol.Testing.Random( randomValue )
-import Cryptol.Backend.SeqMap
 
 import Cryptol.Eval.Prims
 import Cryptol.Eval.Type

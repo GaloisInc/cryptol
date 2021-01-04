@@ -50,7 +50,6 @@ import qualified LibBF as FP
 
 import           Cryptol.Backend
 import           Cryptol.Backend.FloatHelpers(bfValue)
-import           Cryptol.Backend.SeqMap
 
 import qualified Cryptol.Eval.Concrete as Concrete
 import           Cryptol.Eval.Value

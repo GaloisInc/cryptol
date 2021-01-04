@@ -82,7 +82,6 @@ import Data.Ratio
 import Numeric (showIntAtBase)
 
 import Cryptol.Backend
-import Cryptol.Backend.SeqMap
 import qualified Cryptol.Backend.Arch as Arch
 import Cryptol.Backend.Monad
   ( evalPanic, wordTooWide, CallStack, combineCallStacks )

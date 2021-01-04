@@ -40,7 +40,6 @@ module Cryptol.Eval (
 import Cryptol.Backend
 import Cryptol.Backend.Concrete( Concrete(..) )
 import Cryptol.Backend.Monad
-import Cryptol.Backend.SeqMap
 import Cryptol.Eval.Generic ( iteValue )
 import Cryptol.Eval.Env
 import Cryptol.Eval.Prims
