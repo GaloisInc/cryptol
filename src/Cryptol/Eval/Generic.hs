@@ -2366,19 +2366,6 @@ testingPrims sym = Map.fromList $ map (\(n, v) -> (testingPrim n, v)) prims
                 x <- m'
                 sGenLift sym (f' (pure x))
 
-    , "<*>" ~>
-         PTyPoly \_a ->
-         PTyPoly \_b ->
-         PFun    \mf ->
-         PFun    \m ->
-         PPrim
-           do mf' <- fromVGen <$> mf
-              m'  <- fromVGen <$> m
-              pure $ VGen do
-                f <- fromVFun sym <$> mf'
-                x <- m'
-                sGenLift sym (f (pure x))
-
     , ">>=" ~>
          PTyPoly \_a ->
          PTyPoly \_b ->

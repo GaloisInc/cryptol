@@ -12,8 +12,10 @@ primitive runGen : {a} [8] -> [256] -> Gen a -> a
 primitive return : {a} a -> Gen a
 primitive (>>=)  : {a,b} Gen a -> (a -> Gen b) -> Gen b
 primitive (<$>)  : {a,b} (a -> b) -> Gen a -> Gen b
-primitive (<*>)  : {a,b} Gen (a -> b) -> Gen a -> Gen b
 primitive genStream : {a} Gen a -> Gen ([inf]a)
+
+(<*>)  : {a,b} Gen (a -> b) -> Gen a -> Gen b
+(<*>) mf mx = mf >>= \f -> f <$> mx
 
 primitive withSize : {a} [8] -> Gen a -> Gen a
 
