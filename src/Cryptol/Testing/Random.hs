@@ -42,10 +42,11 @@ import System.Random.TF.Gen   (TFGen)
 import Cryptol.Backend        (Backend(..), SRational(..))
 import Cryptol.Backend.Monad  (runEval,Eval,EvalErrorEx(..))
 import Cryptol.Backend.Concrete
+import Cryptol.Backend.SeqMap
 
 import Cryptol.Eval.Type      (TValue(..))
-import Cryptol.Eval.Value     (GenValue(..),SeqMap(..), WordValue(..),
-                               ppValue, defaultPPOpts, finiteSeqMap, fromVFun)
+import Cryptol.Eval.Value     (GenValue(..), WordValue(..),
+                               ppValue, defaultPPOpts, fromVFun)
 import Cryptol.Utils.Ident    (Ident)
 import Cryptol.Utils.Panic    (panic)
 import Cryptol.Utils.RecordMap
@@ -140,7 +141,6 @@ randomValue sym ty =
     TVIntMod m    -> Just (randomIntMod sym m)
     TVFloat e p   -> Just (randomFloat sym e p)
     TVSeq n TVBit -> Just (randomWord sym n)
-    TVRandGen     -> Just (randomGenerator sym)
     TVSeq n el ->
          do mk <- randomValue sym el
             return (randomSequence n mk)
@@ -159,7 +159,7 @@ randomValue sym ty =
     TVArray{} -> Nothing
     TVFun{} -> Nothing
     TVAbstract{} -> Nothing
-
+    TVGen{} -> Nothing
 
 {-# INLINE randomBit #-}
 
@@ -234,16 +234,6 @@ randomWord sym w _sz g =
    in (return $ VWord w (WordVal <$> wordLit sym w val), g1)
 
 {-# INLINE randomStream #-}
-
-
--- | Choose a 'random' generator.  This essentially just
---   splits the given random sequence, and returns
---   one of them as a value.
-randomGenerator :: Backend sym => sym -> Gen sym
-randomGenerator _sym sz g =
-  let (g1, g2) = split g
-   in ( pure (VRandGen sz g1), g2 )
-{-# INLINE randomGenerator #-}
 
 -- | Generate a random infinite stream value.
 randomStream :: Backend sym => Gen sym -> Gen sym
@@ -339,7 +329,8 @@ evalTest v0 vs0 = run `X.catch` handle
     go VFun{}   []       = panic "Not enough arguments while applying function"
                            []
 
-    go (VTuple [v,_]) vs = v >>= \x -> go x vs
+    -- TODO deal with VGen....
+    --go (VGen m) []
 
     go (VTuple []) []    = return True
     go (VBit b) []       = return b
@@ -378,7 +369,7 @@ testableType (TVFun t1 t2) =
       let vss' = [ v : vs | v <- typeValues t1, vs <- vss ]
       return (tot', t1:ts, vss', g:gs)
 
-testableType (TVTuple [v, TVRandGen]) = testableType v
+testableType (TVGen v) = testableType v
 testableType (TVTuple []) = return (Just 1, [], [[]], [])
 testableType TVBit = return (Just 1, [], [[]], [])
 
@@ -394,7 +385,6 @@ typeSize ty = case ty of
   TVInteger -> Nothing
   TVRational -> Nothing
   TVIntMod n -> Just n
-  TVRandGen -> Nothing
   TVFloat{} -> Nothing -- TODO?
   TVArray{} -> Nothing
   TVStream{} -> Nothing
@@ -403,6 +393,7 @@ typeSize ty = case ty of
   TVRec fs -> product <$> traverse typeSize fs
   TVFun{} -> Nothing
   TVAbstract{} -> Nothing
+  TVGen{} -> Nothing
   TVNewtype _ _ tbody -> typeSize (TVRec tbody)
 
 {- | Returns all the values in a type.  Returns an empty list of values,
@@ -417,7 +408,6 @@ typeValues ty =
     TVFloat{}  -> [] -- TODO?
     TVArray{}  -> []
     TVStream{} -> []
-    TVRandGen  -> []
     TVSeq n TVBit ->
       [ VWord n (pure (WordVal (BV n x)))
       | x <- [ 0 .. 2^n - 1 ]
@@ -436,6 +426,7 @@ typeValues ty =
       ]
     TVFun{} -> []
     TVAbstract{} -> []
+    TVGen{} -> []
 
     TVNewtype _ _ tbody -> typeValues (TVRec tbody)
 

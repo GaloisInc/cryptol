@@ -938,7 +938,7 @@ For functions, `zero` returns the constant function that returns
 > zero (TVFun _ bty)  = VFun (\_ -> pure (zero bty))
 > zero (TVAbstract{}) = evalPanic "zero" ["Abstract type not in `Zero`"]
 > zero (TVNewtype{})  = evalPanic "zero" ["Newtype not in `Zero`"]
-> zero TVRandGen      = evalPanic "zero" ["RandGen not in `Zero`"]
+> zero (TVGen{})      = evalPanic "zero" ["Gen not in `Zero`"]
 
 Literals
 --------
@@ -1008,7 +1008,7 @@ at the same positions.
 >         TVFloat{}    -> evalPanic "logicUnary" ["Float not in class Logic"]
 >         TVAbstract{} -> evalPanic "logicUnary" ["Abstract type not in `Logic`"]
 >         TVNewtype{}  -> evalPanic "logicUnary" ["Newtype not in `Logic`"]
->         TVRandGen    -> evalPanic "logicUnary" ["RandGen not in `Logic`"]
+>         TVGen{}      -> evalPanic "logicUnary" ["Gen not in `Logic`"]
 
 > logicBinary :: (Bool -> Bool -> Bool) -> TValue -> E Value -> E Value -> E Value
 > logicBinary op = go
@@ -1048,7 +1048,7 @@ at the same positions.
 >         TVFloat{}    -> evalPanic "logicBinary" ["Float not in class Logic"]
 >         TVAbstract{} -> evalPanic "logicBinary" ["Abstract type not in `Logic`"]
 >         TVNewtype{}  -> evalPanic "logicBinary" ["Newtype not in `Logic`"]
->         TVRandGen    -> evalPanic "logicBinary" ["RandGen not in `Logic`"]
+>         TVGen{}      -> evalPanic "logicBinary" ["Gen not in `Logic`"]
 
 
 Ring Arithmetic
@@ -1098,8 +1098,8 @@ False]`, but to `error "foo"`.
 >           evalPanic "arithNullary" ["Abstract type not in `Ring`"]
 >         TVNewtype {} ->
 >           evalPanic "arithNullary" ["Newtype type not in `Ring`"]
->         TVRandGen ->
->           evalPanic "arithNullary" ["RandGen not in `Ring`"]
+>         TVGen{} ->
+>           evalPanic "arithNullary" ["Gen not in `Ring`"]
 
 > ringUnary ::
 >   (Integer -> E Integer) ->
@@ -1140,8 +1140,8 @@ False]`, but to `error "foo"`.
 >           evalPanic "arithUnary" ["Abstract type not in `Ring`"]
 >         TVNewtype {} ->
 >           evalPanic "arithUnary" ["Newtype not in `Ring`"]
->         TVRandGen ->
->           evalPanic "arithUnary" ["RandGen not in `Ring`"]
+>         TVGen{} ->
+>           evalPanic "arithUnary" ["Gen not in `Ring`"]
 
 > ringBinary ::
 >   (Integer -> Integer -> E Integer) ->
@@ -1192,8 +1192,8 @@ False]`, but to `error "foo"`.
 >           evalPanic "arithBinary" ["Abstract type not in class `Ring`"]
 >         TVNewtype {} ->
 >           evalPanic "arithBinary" ["Newtype not in class `Ring`"]
->         TVRandGen ->
->           evalPanic "arithBinary" ["RandGen not in `Ring`"]
+>         TVGen{} ->
+>           evalPanic "arithBinary" ["Gen not in `Ring`"]
 
 
 Integral
@@ -1372,7 +1372,7 @@ bits to the *left* of that position are equal.
 >       evalPanic "lexCompare" ["invalid type"]
 >     TVNewtype {} ->
 >       evalPanic "lexCompare" ["invalid type"]
->     TVRandGen ->
+>     TVGen{} ->
 >       evalPanic "lexCompare" ["invalid type"]
 >
 > lexList :: [E Ordering] -> E Ordering
@@ -1430,7 +1430,7 @@ fields are compared in alphabetical order.
 >       evalPanic "lexSignedCompare" ["invalid type"]
 >     TVNewtype {} ->
 >       evalPanic "lexSignedCompare" ["invalid type"]
->     TVRandGen {} ->
+>     TVGen {} ->
 >       evalPanic "lexSignedCompare" ["invalid type"]
 
 

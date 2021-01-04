@@ -57,8 +57,7 @@ builtInType nm =
     ]
 
   builtInTesting = Map.fromList
-    [ "RandGen"           ~> TC TCRandGen
-    ]
+    [ "Gen"               ~> TC TCGen ]
 
   -- Built-in types from Cryptol.cry
   builtInTypes = Map.fromList
@@ -142,7 +141,7 @@ instance HasKind TC where
       TCBit     -> KType
       TCInteger -> KType
       TCRational -> KType
-      TCRandGen -> KType
+      TCGen     -> KType :-> KType
       TCFloat   -> KNum :-> KNum :-> KType
       TCIntMod  -> KNum :-> KType
       TCArray   -> KType :-> KType :-> KType
@@ -240,7 +239,7 @@ data TC     = TCNum Integer            -- ^ Numbers
             | TCFloat                  -- ^ Float
             | TCIntMod                 -- ^ @Z _@
             | TCRational               -- ^ @Rational@
-            | TCRandGen                -- ^ @RandGen@
+            | TCGen                    -- ^ @Gen@
             | TCArray                  -- ^ @Array _ _@
             | TCSeq                    -- ^ @[_] _@
             | TCFun                    -- ^ @_ -> _@
@@ -339,7 +338,7 @@ instance PP TC where
       TCInteger -> text "Integer"
       TCIntMod  -> text "Z"
       TCRational -> text "Rational"
-      TCRandGen -> text "RandGen"
+      TCGen     -> text "Gen"
       TCArray   -> text "Array"
       TCFloat   -> text "Float"
       TCSeq     -> text "[]"

@@ -612,8 +612,8 @@ tInteger  = TCon (TC TCInteger) []
 tRational :: Type
 tRational  = TCon (TC TCRational) []
 
-tRandGen :: Type
-tRandGen = TCon (TC TCRandGen) []
+tGen :: Type -> Type
+tGen a = TCon (TC TCGen) [a]
 
 tFloat   :: Type -> Type -> Type
 tFloat e p = TCon (TC TCFloat) [ e, p ]
@@ -962,7 +962,6 @@ instance PP (WithNames Type) where
           (TCBit,   [])       -> text "Bit"
           (TCInteger, [])     -> text "Integer"
           (TCRational, [])    -> text "Rational"
-          (TCRandGen, [])     -> text "RandGen"
 
           (TCIntMod, [n])     -> optParens (prec > 3) $ text "Z" <+> go 5 n
 

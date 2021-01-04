@@ -7,6 +7,7 @@ module Cryptol.Backend
   , cryUserError
   , cryNoPrimError
   , FPArith2
+  , SeqMap(..)
 
     -- * Rationals
   , SRational(..)
@@ -31,6 +32,7 @@ module Cryptol.Backend
 
 import Control.Monad.IO.Class
 import Data.Kind (Type)
+import Data.Map.Strict (Map)
 
 import Cryptol.Backend.FloatHelpers (BF)
 import Cryptol.Backend.Monad
@@ -191,15 +193,23 @@ iteRational :: Backend sym => sym -> SBit sym -> SRational sym -> SRational sym 
 iteRational sym p (SRational a b) (SRational c d) =
   SRational <$> iteInteger sym p a c <*> iteInteger sym p b d
 
+-- | A sequence map represents a mapping from nonnegative integer indices
+--   to values.  These are used to represent both finite and infinite sequences.
+data SeqMap sym a
+  = IndexSeqMap  !(Integer -> SEval sym a)
+  | UpdateSeqMap !(Map Integer (SEval sym a))
+                 !(Integer -> SEval sym a)
+
 -- | This type class defines a collection of operations on bits, words and integers that
 --   are necessary to define generic evaluator primitives that operate on both concrete
 --   and symbolic values uniformly.
-class MonadIO (SEval sym) => Backend sym where
+class (MonadIO (SEval sym), Monad (SGen sym)) => Backend sym where
   type SBit sym :: Type
   type SWord sym :: Type
   type SInteger sym :: Type
   type SFloat sym :: Type
   type SEval sym :: Type -> Type
+  type SGen sym :: Type -> Type
 
   -- ==== Evaluation monad operations ====
 
@@ -253,6 +263,32 @@ class MonadIO (SEval sym) => Backend sym where
 
   -- | Indiciate that an error condition exists
   raiseError :: sym -> EvalError -> SEval sym a
+
+  -- ==== Value generation operations =====
+
+  -- | Lifts evaluation into the generator monad
+  sGenLift :: sym -> SEval sym a -> SGen sym a
+
+  -- | Given a 8-bit size value and a 256-bit random seed, run the generator action
+  sRunGen :: sym -> SWord sym -> SWord sym -> SGen sym a -> SEval sym a
+
+  sGenGetSize :: sym -> SGen sym (SWord sym)
+  sGenWithSize :: sym -> SWord sym -> SGen sym a -> SGen sym a
+
+  sGenerateBit         :: sym -> SGen sym (SBit sym)
+
+  sUnboundedWord       :: sym -> Integer -> SGen sym (SWord sym)  
+  sBoundedWord         :: sym -> (SWord sym, SWord sym) -> SGen sym (SWord sym)
+  sBoundedSignedWord   :: sym -> (SWord sym, SWord sym) -> SGen sym (SWord sym)
+
+  sUnboundedInteger    :: sym -> SGen sym (SInteger sym)
+  sBoundedInteger      :: sym -> (SInteger sym, SInteger sym) -> SGen sym (SInteger sym)
+  sBoundedBelowInteger :: sym -> SInteger sym -> SGen sym (SInteger sym)
+  sBoundedAboveInteger :: sym -> SInteger sym -> SGen sym (SInteger sym)
+
+  sSuchThat :: sym -> SGen sym a -> (a -> SEval sym (SBit sym)) -> SGen sym a
+
+  sGenStream :: sym -> SGen sym a -> SGen sym (SeqMap sym a)
 
   -- ==== Identifying literal values ====
 

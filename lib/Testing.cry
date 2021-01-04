@@ -1,43 +1,72 @@
 module Testing where
 
-primitive type RandGen : *
-
 infixl 1 >>=
 infixl 3 <|>
 infixl 4 <$>
 infixl 4 <*>
 
-primitive seedGen  : [8] -> [256] -> RandGen
-primitive genSize  : RandGen -> [8]
-primitive genResize : [8] -> RandGen -> RandGen
-primitive splitGen : {n} (fin n, 2 <= n, width n <= 32) => RandGen -> [n]RandGen
+primitive type Gen : * -> *
 
-type Gen a = RandGen -> (a, RandGen)
+primitive runGen : {a} [8] -> [256] -> Gen a -> a
 
-return : {a} a -> Gen a
-return a g = (a, g)
+primitive return : {a} a -> Gen a
+primitive (>>=)  : {a,b} Gen a -> (a -> Gen b) -> Gen b
+primitive (<$>)  : {a,b} (a -> b) -> Gen a -> Gen b
+primitive (<*>)  : {a,b} Gen (a -> b) -> Gen a -> Gen b
+primitive genStream : {a} Gen a -> Gen ([inf]a)
 
-(<$>) : {a,b} (a -> b) -> Gen a -> Gen b
-(<$>) f m g = (f a, g')
-  where 
-    (a, g') = m g
+primitive withSize : {a} [8] -> Gen a -> Gen a
 
-(<*>) : {a,b} Gen (a -> b) -> Gen a -> Gen b
-(<*>) mf m g = (f x, g2)
-  where
-  (f,g1) = mf g
-  (x,g2) = m g1
+// primitive type RandGen : *
+// primitive seedGen  : [8] -> [256] -> RandGen
+// primitive genSize  : RandGen -> [8]
+// primitive genResize : [8] -> RandGen -> RandGen
+// primitive splitGen : {n} (fin n, 2 <= n, width n <= 32) => RandGen -> [n]RandGen
 
-(>>=) : {a,b} Gen a -> (a -> Gen b) -> Gen b
-(>>=) m f g = f x g'
-  where
-    (x,g') = m g
+//type Gen a = RandGen -> (a, RandGen)
+
+///runGen : {a} [8] -> [256] -> Gen a -> a
+//runGen sz seed m = (m (seedGen sz seed)).0
+
+//return : {a} a -> Gen a
+//return a = \g -> (a,g)
+
+//(>>=) : {a,b} Gen a -> (a -> Gen b) -> Gen b
+//(>>=) m f = \g -> uncurry f (m g)
+
+//(<$>) : {a,b} (a -> b) -> Gen a -> Gen b
+//(<$>) f m = \g -> ((f x,g') where (x,g') = m g)
+
+//(<*>) : {a,b} Gen (a -> b) -> Gen a -> Gen b
+//(<*>) mf m = \g ->
+//    ((f x,g2) where
+//                (f,g1) = mf g
+//		(x,g2) = m g1)
+
+// private
+//   mkStream : {a} Gen a -> RandGen -> [inf]a
+//   mkStream m g = xs.0
+//     where
+//       xs = [ m g ] # [ m g' | (_,g') <- xs ]
+
+// genStreams : {n,a} (fin n, n>=1, width (n+1) <= 32) => Gen a -> Gen ([n][inf]a)
+// genStreams m = \g0 -> ( (map (mkStream m) gs, g') where gs#[g'] = splitGen`{n+1} g0 )
+
+// genStream : {a} Gen a -> Gen ([inf]a)
+// genStream m = \g0 -> ((mkStream m g1, g2) where [g1,g2] = splitGen g0)
+
 
 primitive generate : {a} Generate a => Gen a
+
+unboundedInteger : Gen Integer
+unboundedInteger = generate`{Integer}
 
 primitive boundedInteger : (Integer, Integer) -> Gen Integer
 primitive boundedBelowInteger : Integer -> Gen Integer
 primitive boundedAboveInteger : Integer -> Gen Integer
+
+unboundedWord : {n} (fin n) => Gen [n]
+unboundedWord = generate`{[n]}
 
 primitive boundedWord : {n} (fin n) => ([n],[n]) -> Gen [n]
 primitive boundedSignedWord : {n} (fin n) => ([n],[n]) -> Gen [n]
@@ -52,24 +81,6 @@ choose gs = boundedInteger (0,`(n-1)) >>= \i -> gs@i
 
 oneOf : {n,a} (fin n, n >= 1) => [n]a -> Gen a
 oneOf xs = choose (map return xs)
-
-private
-  mkStream : {a} Gen a -> RandGen -> [inf]a
-  mkStream m g = xs.0
-    where
-      xs = [ m g ] # [ m g' | (_,g') <- xs ]
-
-genStreams : {n,a} (fin n, n>=1, width (n+1) <= 32) => Gen a -> Gen ([n][inf]a)
-genStreams m g0 = (xss, g')
-  where
-    gs#[g'] = splitGen`{n+1} g0
-    xss = map (mkStream m) gs
-
-genStream : {a} Gen a -> Gen ([inf]a)
-genStream m g0 = ( xs, g2 )
-  where
-    [g1,g2] = splitGen g0
-    xs = mkStream m g1
 
 genSequence : {n,a} (fin n) => Gen a -> Gen ([n]a)
 genSequence m = take`{n} <$> genStream m
@@ -98,6 +109,13 @@ property addOddProp = evenSum <$> oddInteger <*> oddInteger
   where
     evenSum x y = isEven (x + y)
 
+runTests : Integer -> Gen Bit -> [256] -> Bit
+runTests num m seed = runGen 100 seed (loop 0)
+  where
+    loop n = if n >= num then return True else go n
+    go n = withSize (sz n) m >>= \b -> if b then loop (n+1) else return False
+    sz n = fromInteger (1 + ((n * 100) / num))
+
 withCounterexample : {a,n} (fin n) => String n -> a -> Bit -> Bit
 withCounterexample msg vals test = test \/ traceError ("counterexample " # msg) vals
 
@@ -114,7 +132,7 @@ property addNoOverflow = noOverflow <$> boundedBelowInteger 0 <*> boundedBelowIn
    noOverflow x y = withCounterexample "noOverflow" (x,y) (x <= (x+y) /\ y <= (x+y))
 
 addNoWordOverflow : Gen Bit
-property addNoWordOverflow = noOverflow <$> boundedWord (0,0x7FFFFFFF) <*> boundedWord (0,0x7FFFFFFF)
+property addNoWordOverflow = noOverflow <$> boundedWord (0,0x8FFFFFFF) <*> boundedWord (0,0x7FFFFFFF)
   where
    noOverflow : [32] -> [32] -> Bit
    noOverflow x y = withCounterexample "noOverflow" (x,y) (x <= (x+y) /\ y <= (x+y))

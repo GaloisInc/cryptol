@@ -15,6 +15,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
 module Cryptol.Backend.Concrete
@@ -36,15 +37,21 @@ module Cryptol.Backend.Concrete
   ) where
 
 import qualified Control.Exception as X
-import Data.Bits
-import Numeric (showIntAtBase)
+import           Control.Monad.Reader
+import           Control.Monad.State.Strict
+import           Data.Bits
+import           Data.Word
+import           Numeric (showIntAtBase)
 import qualified LibBF as FP
 import qualified GHC.Integer.GMP.Internals as Integer
+import           System.Random (random, randomR, split)
+import           System.Random.TF.Gen (TFGen, seedTFGen)
 
 import qualified Cryptol.Backend.Arch as Arch
 import qualified Cryptol.Backend.FloatHelpers as FP
 import Cryptol.Backend
 import Cryptol.Backend.Monad
+import Cryptol.Backend.SeqMap
 import Cryptol.TypeCheck.Solver.InfNat (genLog)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
@@ -129,12 +136,19 @@ mask ::
 mask w i | w >= Arch.maxBigIntWidth = wordTooWide w
          | otherwise                = i .&. (bit (fromInteger w) - 1)
 
+randomSize :: Word8 -> Word8 -> TFGen -> (Word8, TFGen)
+randomSize k n g
+  | p == 1 = (n, g')
+  | otherwise = randomSize k (n + 1) g'
+  where (p, g') = randomR (1, k) g
+
 instance Backend Concrete where
   type SBit Concrete = Bool
   type SWord Concrete = BV
   type SInteger Concrete = Integer
   type SFloat Concrete = FP.BF
   type SEval Concrete = Eval
+  type SGen Concrete = ReaderT Word8 (StateT TFGen Eval)
 
   raiseError _ err =
     do stk <- getCallStack
@@ -164,6 +178,75 @@ instance Backend Concrete where
   sSpark _ = evalSpark
   sModifyCallStack _ f m = modifyCallStack f m
   sGetCallStack _ = getCallStack
+
+  sGenLift _sym m = lift (lift m)
+  sRunGen _sym sz seed m =
+    do let mask64 = 0xFFFFFFFFFFFFFFFF
+           unpack s = fromInteger (s .&. mask64) : unpack (s `shiftR` 64)
+           [a, b, c, d] = take 4 (unpack (bvVal seed))
+           g0 = seedTFGen (a,b,c,d)
+       fst <$> runStateT (runReaderT m (fromInteger (bvVal sz))) g0
+
+  sGenGetSize _sym = reader (mkBv 8 . toInteger)
+  sGenWithSize _sym sz m = local (\_ -> fromInteger (bvVal sz)) m
+
+  sGenerateBit _sym = state random
+  sUnboundedWord _sym w = mkBv w <$> state (randomR (0, 2^w - 1))
+  sBoundedWord _sym (BV w b1,BV _ b2) = mkBv w <$> state (randomR (lo, hi))
+    where
+    lo = min b1 b2
+    hi = max b1 b2
+
+  sBoundedSignedWord _sym (BV w x1,BV _ x2) = mkBv w <$> state (randomR (lo, hi))
+    where
+    b1 = signedValue w x1
+    b2 = signedValue w x2
+
+    lo = min b1 b2
+    hi = max b1 b2
+
+  sBoundedInteger _sym (x1,x2) = state (randomR (lo, hi))
+    where
+    lo = min x1 x2
+    hi = max x1 x2
+
+  sUnboundedInteger _sym =
+    do sz <- ask
+       n  <- if sz < 100 then pure sz else state (randomSize 8 100)
+       state (randomR (- 256^n, 256^n ))
+
+  sBoundedBelowInteger _sym lo =
+    do sz <- ask
+       n  <- if sz < 100 then pure sz else state (randomSize 8 100)
+       x  <- state (randomR (0, 256^n))
+       pure (lo + x)
+
+  sBoundedAboveInteger _sym hi =
+    do sz <- ask
+       n  <- if sz < 100 then pure sz else state (randomSize 8 100)
+       x  <- state (randomR (0, 256^n))
+       pure (hi - x)
+
+  sSuchThat sym m p =
+    do x <- m
+       b <- lift (lift (p x))
+       if b then pure x else sSuchThat sym m p
+
+  sGenStream sym m =
+    do sz <- ask
+       (x, fill) <- sGenLift sym (blackhole "sGenStream")
+       g0 <- state split
+       let mkElem  = runStateT (runReaderT m sz)
+       let mkMap = IndexSeqMap @Concrete \i ->
+                       if i <= 0 then
+                         mkElem g0
+                       else
+                         do x' <- x
+                            (_,g) <- lookupSeqMap @Concrete x' (i-1)
+                            mkElem g
+       sGenLift sym (fill (memoMap sym mkMap))
+       pure (IndexSeqMap \i -> x >>= \x' -> fst <$> lookupSeqMap @Concrete x' i)
+
 
   bitLit _ b = b
   bitAsLit _ b = Just b

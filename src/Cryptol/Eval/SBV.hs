@@ -32,6 +32,7 @@ import Data.SBV.Dynamic as SBV
 import Cryptol.Backend
 import Cryptol.Backend.Monad ( EvalError(..), Unsupported(..) )
 import Cryptol.Backend.SBV
+import Cryptol.Backend.SeqMap
 
 import Cryptol.Eval.Type (TValue(..))
 import Cryptol.Eval.Generic
@@ -92,7 +93,7 @@ indexFront ::
   SBV ->
   Nat' ->
   TValue ->
-  SeqMap SBV ->
+  SeqMap SBV (GenValue SBV) ->
   TValue ->
   SVal ->
   SEval SBV Value
@@ -131,7 +132,7 @@ indexBack ::
   SBV ->
   Nat' ->
   TValue ->
-  SeqMap SBV ->
+  SeqMap SBV (GenValue SBV) ->
   TValue ->
   SWord SBV ->
   SEval SBV Value
@@ -142,7 +143,7 @@ indexFront_bits ::
   SBV ->
   Nat' ->
   TValue ->
-  SeqMap SBV ->
+  SeqMap SBV (GenValue SBV) ->
   TValue ->
   [SBit SBV] ->
   SEval SBV Value
@@ -175,7 +176,7 @@ indexBack_bits ::
   SBV ->
   Nat' ->
   TValue ->
-  SeqMap SBV ->
+  SeqMap SBV (GenValue SBV) ->
   TValue ->
   [SBit SBV] ->
   SEval SBV Value
@@ -204,10 +205,10 @@ updateFrontSym ::
   SBV ->
   Nat' ->
   TValue ->
-  SeqMap SBV ->
+  SeqMap SBV (GenValue SBV) ->
   Either (SInteger SBV) (WordValue SBV) ->
   SEval SBV (GenValue SBV) ->
-  SEval SBV (SeqMap SBV)
+  SEval SBV (SeqMap SBV (GenValue SBV))
 updateFrontSym sym _len _eltTy vs (Left idx) val =
   case SBV.svAsInteger idx of
     Just i -> return $ updateSeqMap vs i val
@@ -265,10 +266,10 @@ updateBackSym ::
   SBV ->
   Nat' ->
   TValue ->
-  SeqMap SBV ->
+  SeqMap SBV (GenValue SBV) ->
   Either (SInteger SBV) (WordValue SBV) ->
   SEval SBV (GenValue SBV) ->
-  SEval SBV (SeqMap SBV)
+  SEval SBV (SeqMap SBV (GenValue SBV))
 updateBackSym _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["updateBackSym"]
 
 updateBackSym sym (Nat n) _eltTy vs (Left idx) val =

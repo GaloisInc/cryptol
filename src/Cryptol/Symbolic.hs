@@ -50,6 +50,7 @@ import qualified LibBF as FP
 
 import           Cryptol.Backend
 import           Cryptol.Backend.FloatHelpers(bfValue)
+import           Cryptol.Backend.SeqMap
 
 import qualified Cryptol.Eval.Concrete as Concrete
 import           Cryptol.Eval.Value
@@ -159,7 +160,7 @@ finType ty =
     TVTuple ts          -> FTTuple <$> traverse finType ts
     TVRec fields        -> FTRecord <$> traverse finType fields
     TVNewtype u ts body -> FTNewtype u ts <$> traverse finType body
-    TVRandGen{}         -> Nothing
+    TVGen{}             -> Nothing
     TVAbstract {}       -> Nothing
     TVArray{}           -> Nothing
     TVStream{}          -> Nothing

@@ -47,8 +47,8 @@ module Cryptol.Eval.Value
   , fromVInteger
   , fromVRational
   , fromVFloat
-  , fromVRandGen
   , fromVSeq
+  , fromVGen
   , fromSeq
   , fromWordVal
   , asIndex
@@ -65,21 +65,6 @@ module Cryptol.Eval.Value
   , defaultPPOpts
   , ppValue
 
-    -- * Sequence Maps
-  , SeqMap (..)
-  , lookupSeqMap
-  , finiteSeqMap
-  , infiniteSeqMap
-  , enumerateSeqMap
-  , streamSeqMap
-  , reverseSeqMap
-  , updateSeqMap
-  , dropSeqMap
-  , concatSeqMap
-  , splitSeqMap
-  , memoMap
-  , zipSeqMap
-  , mapSeqMap
   , largeBitSize
     -- * WordValue
   , WordValue(..)
@@ -92,18 +77,12 @@ module Cryptol.Eval.Value
   , updateWordValue
   ) where
 
-import Control.Monad.IO.Class
 import Data.Bits
-import Data.IORef
-import Data.Map.Strict (Map)
 import Data.Ratio
-import qualified Data.Map.Strict as Map
-import MonadLib
 import Numeric (showIntAtBase)
-import System.Random.TF.Gen (TFGen)
-import Data.Word (Word8)
 
 import Cryptol.Backend
+import Cryptol.Backend.SeqMap
 import qualified Cryptol.Backend.Arch as Arch
 import Cryptol.Backend.Monad
   ( evalPanic, wordTooWide, CallStack, combineCallStacks )
@@ -117,8 +96,6 @@ import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.PP
 import Cryptol.Utils.RecordMap
 
-import Data.List(genericIndex)
-
 import GHC.Generics (Generic)
 
 -- | Some options for evalutaion
@@ -127,122 +104,14 @@ data EvalOpts = EvalOpts
   , evalPPOpts :: PPOpts    -- ^ How to pretty print things.
   }
 
+
 -- Values ----------------------------------------------------------------------
-
--- | A sequence map represents a mapping from nonnegative integer indices
---   to values.  These are used to represent both finite and infinite sequences.
-data SeqMap sym
-  = IndexSeqMap  !(Integer -> SEval sym (GenValue sym))
-  | UpdateSeqMap !(Map Integer (SEval sym (GenValue sym)))
-                 !(Integer -> SEval sym (GenValue sym))
-
-lookupSeqMap :: SeqMap sym -> Integer -> SEval sym (GenValue sym)
-lookupSeqMap (IndexSeqMap f) i = f i
-lookupSeqMap (UpdateSeqMap m f) i =
-  case Map.lookup i m of
-    Just x  -> x
-    Nothing -> f i
 
 -- | An arbitrarily-chosen number of elements where we switch from a dense
 --   sequence representation of bit-level words to 'SeqMap' representation.
 largeBitSize :: Integer
 largeBitSize = 1 `shiftL` 48
 
--- | Generate a finite sequence map from a list of values
-finiteSeqMap :: [SEval sym (GenValue sym)] -> SeqMap sym
-finiteSeqMap xs =
-   UpdateSeqMap
-      (Map.fromList (zip [0..] xs))
-      (\i -> panic "finiteSeqMap" ["Out of bounds access of finite seq map", "length: " ++ show (length xs), show i])
-
--- | Generate an infinite sequence map from a stream of values
-infiniteSeqMap :: Backend sym => sym -> [SEval sym (GenValue sym)] -> SEval sym (SeqMap sym)
-infiniteSeqMap sym xs =
-   -- TODO: use an int-trie?
-   memoMap sym (IndexSeqMap $ \i -> genericIndex xs i)
-
--- | Create a finite list of length @n@ of the values from @[0..n-1]@ in
---   the given the sequence emap.
-enumerateSeqMap :: (Integral n) => n -> SeqMap sym -> [SEval sym (GenValue sym)]
-enumerateSeqMap n m = [ lookupSeqMap m  i | i <- [0 .. (toInteger n)-1] ]
-
--- | Create an infinite stream of all the values in a sequence map
-streamSeqMap :: SeqMap sym -> [SEval sym (GenValue sym)]
-streamSeqMap m = [ lookupSeqMap m i | i <- [0..] ]
-
--- | Reverse the order of a finite sequence map
-reverseSeqMap :: Integer     -- ^ Size of the sequence map
-              -> SeqMap sym
-              -> SeqMap sym
-reverseSeqMap n vals = IndexSeqMap $ \i -> lookupSeqMap vals (n - 1 - i)
-
-updateSeqMap :: SeqMap sym -> Integer -> SEval sym (GenValue sym) -> SeqMap sym
-updateSeqMap (UpdateSeqMap m sm) i x = UpdateSeqMap (Map.insert i x m) sm
-updateSeqMap (IndexSeqMap f) i x = UpdateSeqMap (Map.singleton i x) f
-
--- | Concatenate the first @n@ values of the first sequence map onto the
---   beginning of the second sequence map.
-concatSeqMap :: Integer -> SeqMap sym -> SeqMap sym -> SeqMap sym
-concatSeqMap n x y =
-    IndexSeqMap $ \i ->
-       if i < n
-         then lookupSeqMap x i
-         else lookupSeqMap y (i-n)
-
--- | Given a number @n@ and a sequence map, return two new sequence maps:
---   the first containing the values from @[0..n-1]@ and the next containing
---   the values from @n@ onward.
-splitSeqMap :: Integer -> SeqMap sym -> (SeqMap sym, SeqMap sym)
-splitSeqMap n xs = (hd,tl)
-  where
-  hd = xs
-  tl = IndexSeqMap $ \i -> lookupSeqMap xs (i+n)
-
--- | Drop the first @n@ elements of the given 'SeqMap'.
-dropSeqMap :: Integer -> SeqMap sym -> SeqMap sym
-dropSeqMap 0 xs = xs
-dropSeqMap n xs = IndexSeqMap $ \i -> lookupSeqMap xs (i+n)
-
--- | Given a sequence map, return a new sequence map that is memoized using
---   a finite map memo table.
-memoMap :: Backend sym => sym -> SeqMap sym -> SEval sym (SeqMap sym)
-memoMap sym x = do
-  stk <- sGetCallStack sym
-  cache <- liftIO $ newIORef $ Map.empty
-  return $ IndexSeqMap (memo cache stk)
-
-  where
-  memo cache stk i = do
-    mz <- liftIO (Map.lookup i <$> readIORef cache)
-    case mz of
-      Just z  -> return z
-      Nothing -> sWithCallStack sym stk (doEval cache i)
-
-  doEval cache i = do
-    v <- lookupSeqMap x i
-    liftIO $ atomicModifyIORef' cache (\m -> (Map.insert i v m, ()))
-    return v
-
--- | Apply the given evaluation function pointwise to the two given
---   sequence maps.
-zipSeqMap ::
-  Backend sym =>
-  sym ->
-  (GenValue sym -> GenValue sym -> SEval sym (GenValue sym)) ->
-  SeqMap sym ->
-  SeqMap sym ->
-  SEval sym (SeqMap sym)
-zipSeqMap sym f x y =
-  memoMap sym (IndexSeqMap $ \i -> join (f <$> lookupSeqMap x i <*> lookupSeqMap y i))
-
--- | Apply the given function to each value in the given sequence map
-mapSeqMap ::
-  Backend sym =>
-  sym ->
-  (GenValue sym -> SEval sym (GenValue sym)) ->
-  SeqMap sym -> SEval sym (SeqMap sym)
-mapSeqMap sym f x =
-  memoMap sym (IndexSeqMap $ \i -> f =<< lookupSeqMap x i)
 
 -- | For efficiency reasons, we handle finite sequences of bits as special cases
 --   in the evaluator.  In cases where we know it is safe to do so, we prefer to
@@ -255,8 +124,9 @@ mapSeqMap sym f x =
 --   representation.
 data WordValue sym
   = WordVal !(SWord sym)                      -- ^ Packed word representation for bit sequences.
-  | LargeBitsVal !Integer !(SeqMap sym)       -- ^ A large bitvector sequence, represented as a
-                                            --   'SeqMap' of bits.
+  | LargeBitsVal !Integer !(SeqMap sym (GenValue sym))
+       -- ^ A large bitvector sequence, represented as a
+       --   'SeqMap' of bits.
  deriving (Generic)
 
 -- | Force a word value into packed word form
@@ -265,7 +135,7 @@ asWordVal _   (WordVal w)         = return w
 asWordVal sym (LargeBitsVal n xs) = packWord sym =<< traverse (fromVBit <$>) (enumerateSeqMap n xs)
 
 -- | Force a word value into a sequence of bits
-asBitsMap :: Backend sym => sym -> WordValue sym -> SeqMap sym
+asBitsMap :: Backend sym => sym -> WordValue sym -> SeqMap sym (GenValue sym)
 asBitsMap sym (WordVal w)  = IndexSeqMap $ \i -> VBit <$> (wordBit sym w i)
 asBitsMap _   (LargeBitsVal _ xs) = xs
 
@@ -322,11 +192,11 @@ data GenValue sym
   | VInteger !(SInteger sym)                   -- ^ @ Integer @ or @ Z n @
   | VRational !(SRational sym)                 -- ^ @ Rational @
   | VFloat !(SFloat sym)
-  | VSeq !Integer !(SeqMap sym)                -- ^ @ [n]a   @
+  | VSeq !Integer !(SeqMap sym (GenValue sym)) -- ^ @ [n]a   @
                                                --   Invariant: VSeq is never a sequence of bits
   | VWord !Integer !(SEval sym (WordValue sym))  -- ^ @ [n]Bit @
-  | VStream !(SeqMap sym)                      -- ^ @ [inf]a @
-  | VRandGen !Word8 !TFGen                     -- ^ @ RandGen @
+  | VStream !(SeqMap sym (GenValue sym))       -- ^ @ [inf]a @
+  | VGen  !(SGen sym (GenValue sym))           -- ^ @ Gen a @
   | VFun  CallStack (SEval sym (GenValue sym) -> SEval sym (GenValue sym)) -- ^ functions
   | VPoly CallStack (TValue -> SEval sym (GenValue sym))   -- ^ polymorphic values (kind *)
   | VNumPoly CallStack (Nat' -> SEval sym (GenValue sym))  -- ^ polymorphic values (kind #)
@@ -348,9 +218,9 @@ forceValue v = case v of
   VInteger i  -> seq i (return ())
   VRational q -> seq q (return ())
   VFloat f    -> seq f (return ())
-  VRandGen sz g -> seq sz (seq g (return ()))
   VWord _ wv  -> forceWordValue =<< wv
   VStream _   -> return ()
+  VGen{}      -> return ()
   VFun{}      -> return ()
   VPoly{}     -> return ()
   VNumPoly{}  -> return ()
@@ -368,7 +238,7 @@ instance Backend sym => Show (GenValue sym) where
     VSeq n _   -> "seq:" ++ show n
     VWord n _  -> "word:"  ++ show n
     VStream _  -> "stream"
-    VRandGen{} -> "randgen"
+    VGen{}     -> "generator"
     VFun{}     -> "fun"
     VPoly{}    -> "poly"
     VNumPoly{} -> "numpoly"
@@ -403,7 +273,7 @@ ppValue x opts = loop
                                    $ punctuate comma
                                    ( vals' ++ [text "..."]
                                    )
-    VRandGen{}         -> return $ text "<random generator>"
+    VGen{}             -> return $ text "<random generator>"
     VFun{}             -> return $ text "<function>"
     VPoly{}            -> return $ text "<polymorphic value>"
     VNumPoly{}         -> return $ text "<polymorphic value>"
@@ -411,7 +281,7 @@ ppValue x opts = loop
   ppWordVal :: WordValue sym -> SEval sym Doc
   ppWordVal w = ppSWord x opts =<< asWordVal x w
 
-  ppWordSeq :: Integer -> SeqMap sym -> SEval sym Doc
+  ppWordSeq :: Integer -> SeqMap sym (GenValue sym) -> SEval sym Doc
   ppWordSeq sz vals = do
     ws <- sequence (enumerateSeqMap sz vals)
     case ws of
@@ -574,7 +444,7 @@ toSeq sym len elty vals = case len of
 
 -- | Construct either a finite sequence, or a stream.  In the finite case,
 -- record whether or not the elements were bits, to aid pretty-printing.
-mkSeq :: Backend sym => Nat' -> TValue -> SeqMap sym -> GenValue sym
+mkSeq :: Backend sym => Nat' -> TValue -> SeqMap sym (GenValue sym) -> GenValue sym
 mkSeq len elty vals = case len of
   Nat n
     | isTBit elty -> VWord n $ pure $ LargeBitsVal n vals
@@ -602,20 +472,19 @@ fromVRational val = case val of
   VRational q -> q
   _      -> evalPanic "fromVRational" ["not a Rational"]
 
--- | Extract a random gen
-fromVRandGen :: GenValue sym -> (Word8, TFGen)
-fromVRandGen val = case val of
-  VRandGen sz g -> (sz,g)
-  _          -> evalPanic "fromRandGen" ["not a RandGen"]
-
 -- | Extract a finite sequence value.
-fromVSeq :: GenValue sym -> SeqMap sym
+fromVSeq :: GenValue sym -> SeqMap sym (GenValue sym)
 fromVSeq val = case val of
   VSeq _ vs -> vs
   _         -> evalPanic "fromVSeq" ["not a sequence"]
 
+fromVGen :: GenValue sym -> SGen sym (GenValue sym)
+fromVGen val = case val of
+  VGen x -> x
+  _      -> evalPanic "fromVGen" ["not a random generator"]
+
 -- | Extract a sequence.
-fromSeq :: Backend sym => String -> GenValue sym -> SEval sym (SeqMap sym)
+fromSeq :: Backend sym => String -> GenValue sym -> SEval sym (SeqMap sym (GenValue sym))
 fromSeq msg val = case val of
   VSeq _ vs   -> return vs
   VStream vs  -> return vs
