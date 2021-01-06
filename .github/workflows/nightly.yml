@@ -77,7 +77,7 @@ jobs:
         with:
           tags: test-cryptol-remote-api
           push: false
-          dockerfile: cryptol-remote-api/test-scripts/Dockerfile
+          dockerfile: cryptol-remote-api/test/Dockerfile
           build_args: GHCVER=8.10.3
       - name: Test cryptol-remote-api helm chart
         run: |

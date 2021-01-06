@@ -14,6 +14,8 @@ import Paths_cryptol (version)
 import Cryptol.Version (commitShortHash,commitDirty)
 import Data.Version (showVersion)
 import System.Console.ANSI
+import Prelude ()
+import Prelude.Compat
 
 
 type Version = String
