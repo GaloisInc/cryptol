@@ -69,7 +69,7 @@ executable cryptol-remote-api
   main-is:             Main.hs
   hs-source-dirs:      cryptol-remote-api
   ghc-options:
-    -threaded
+    -threaded -rtsopts -with-rtsopts=-xb0x200000000
 
   build-depends:
     cryptol-remote-api,
@@ -80,7 +80,7 @@ executable cryptol-eval-server
   main-is:             Main.hs
   hs-source-dirs:      cryptol-eval-server
   ghc-options:
-    -threaded
+    -threaded -rtsopts
 
   build-depends:
     cryptol-remote-api,
