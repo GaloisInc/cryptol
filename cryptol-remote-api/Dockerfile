@@ -1,4 +1,4 @@
-ARG GHCVER="8.8.4"
+ARG GHCVER="8.10.3"
 FROM debian:buster AS solvers
 
 # Install needed packages for building
@@ -34,7 +34,7 @@ RUN curl -L https://yices.csl.sri.com/releases/2.6.2/yices-2.6.2-x86_64-pc-linux
 # The latest CVC4 1.8 and the release version has a minor discrepency between it, causing sbv to fail
 # https://github.com/CVC4/CVC4/releases/download/1.8/cvc4-1.8-x86_64-linux-opt
 RUN latest="$(curl -sSL 'http://cvc4.cs.stanford.edu/downloads/builds/x86_64-linux-opt/unstable/' | grep linux-opt | tail -n1 | sed -e 's/.*href="//' -e 's/\([^>]*\)">.*$/\1/')" && \
-    curl -output rootfs/usr/local/bin/cvc4 -sL "https://cvc4.cs.stanford.edu/downloads/builds/x86_64-linux-opt/unstable/$latest"
+    curl --output rootfs/usr/local/bin/cvc4 -sSL "https://cvc4.cs.stanford.edu/downloads/builds/x86_64-linux-opt/unstable/$latest"
 
 # Install MathSAT 5.6.3 - Uncomment if you are in compliance with MathSAT's license.
 # RUN curl -L https://mathsat.fbk.eu/download.php?file=mathsat-5.6.3-linux-x86_64.tar.gz | tar xz
