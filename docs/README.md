@@ -69,3 +69,9 @@ Other notes:
   of the above commands.
 
 * Lines starting with "Loading module" are silently ignored from the output.
+
+* It would be nice to support writing code to a file, then loading that file
+  into the REPL. We don't support this, but it will probably be necessary for
+  handling some of the more involved examples (for instance, those that define
+  functions).
+
