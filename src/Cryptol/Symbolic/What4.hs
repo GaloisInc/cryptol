@@ -274,7 +274,8 @@ prepareQuery sym ProverCommand { .. } =
                 let ds = Map.fromList [ (prelPrim (identText (M.nameIdent nm)), EWhere (EVar nm) decls) | nm <- nms ]
                 pure ds
 
-       let tbl = primTable sym
+       getEOpts <- M.getEvalOptsAction
+       let tbl = primTable sym getEOpts
        let ?evalPrim = \i -> (Right <$> Map.lookup i tbl) <|>
                              (Left <$> Map.lookup i ds)
        let ?range = emptyRange

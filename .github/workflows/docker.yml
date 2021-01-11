@@ -1,11 +1,18 @@
 name: Docker
 on:
   push:
-    tags: ["v?[0-9]+.[0-9]+.[0-9]+"]
+    tags: ["v?[0-9]+.[0-9]+(.[0-9]+)?"]
+  workflow_dispatch:
+    inputs:
+      image-to-build:
+        description: "Manually build and push a docker image (cryptol|cryptol-remote-api)"
+        required: false
+        default: ""
 
 jobs:
   cryptol:
     runs-on: ubuntu-latest
+    if: "github.event_name == 'push' || github.event.inputs.image-to-build == 'cryptol'"
     steps:
       - uses: actions/checkout@v2
         with:
@@ -22,6 +29,7 @@ jobs:
           add_git_labels: true
           push: true
   cryptol-remote-api:
+    if: "github.event_name == 'push' || github.event.inputs.image-to-build == 'cryptol-remote-api'"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -37,5 +45,6 @@ jobs:
           repository: galoisinc/cryptol-remote-api
           tags: "latest,${{ steps.outputs.outputs.cryptol-version }}"
           add_git_labels: true
+          build_args: GHCVER=8.10.3
           push: true
-          dockerfile: .github/Dockerfile-remote-api
+          dockerfile: cryptol-remote-api/Dockerfile

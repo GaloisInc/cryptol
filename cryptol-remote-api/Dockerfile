@@ -1,3 +1,4 @@
+ARG GHCVER="8.10.3"
 FROM debian:buster AS solvers
 
 # Install needed packages for building
@@ -32,7 +33,8 @@ RUN curl -L https://yices.csl.sri.com/releases/2.6.2/yices-2.6.2-x86_64-pc-linux
 # Install CVC4 1.8
 # The latest CVC4 1.8 and the release version has a minor discrepency between it, causing sbv to fail
 # https://github.com/CVC4/CVC4/releases/download/1.8/cvc4-1.8-x86_64-linux-opt
-RUN curl -L https://cvc4.cs.stanford.edu/downloads/builds/x86_64-linux-opt/unstable/cvc4-2020-10-28-x86_64-linux-opt --output rootfs/usr/local/bin/cvc4
+RUN latest="$(curl -sSL 'http://cvc4.cs.stanford.edu/downloads/builds/x86_64-linux-opt/unstable/' | grep linux-opt | tail -n1 | sed -e 's/.*href="//' -e 's/\([^>]*\)">.*$/\1/')" && \
+    curl --output rootfs/usr/local/bin/cvc4 -sSL "https://cvc4.cs.stanford.edu/downloads/builds/x86_64-linux-opt/unstable/$latest"
 
 # Install MathSAT 5.6.3 - Uncomment if you are in compliance with MathSAT's license.
 # RUN curl -L https://mathsat.fbk.eu/download.php?file=mathsat-5.6.3-linux-x86_64.tar.gz | tar xz
@@ -41,10 +43,18 @@ RUN curl -L https://cvc4.cs.stanford.edu/downloads/builds/x86_64-linux-opt/unsta
 # Set executable and run tests
 RUN chmod +x rootfs/usr/local/bin/*
 
-FROM haskell:8.8.4 AS build
+ARG GHCVER
+FROM debian:buster AS build
+ARG GHCVER
 
-RUN apt-get update && apt-get install -y libncurses-dev
+RUN apt-get update && apt-get install -y libncurses-dev libz-dev \
+    build-essential curl libffi-dev libffi6 libgmp-dev libgmp10 libncurses-dev libncurses5 libtinfo5 libnuma-dev
+RUN curl -o /usr/local/bin/ghcup "https://downloads.haskell.org/~ghcup/0.1.12/x86_64-linux-ghcup-0.1.12" && chmod +x /usr/local/bin/ghcup
+ENV GHCUP_USE_XDG_DIRS=true \
+    XDG_BIN_HOME=/usr/local/bin \
+    XDG_DATA_HOME=/usr/local/share
 COPY --from=solvers /solvers/rootfs /
+RUN ghcup install ghc ${GHCVER} && ghcup set ghc ${GHCVER} && ghcup install cabal --set
 RUN useradd -m cryptol
 COPY --chown=cryptol:cryptol . /cryptol
 USER cryptol
@@ -53,8 +63,10 @@ ENV PATH=/cryptol/rootfs/usr/local/bin:$PATH
 ARG CRYPTOLPATH="/cryptol/.cryptol"
 ENV LANG=C.UTF-8 \
     LC_ALL=C.UTF-8
-COPY cabal.GHC-8.8.4.config cabal.project.freeze
+COPY cabal.GHC-${GHCVER}.config cabal.project.freeze
+
 RUN mkdir -p rootfs/usr/local/bin
+
 RUN cabal v2-update && \
     cabal v2-build -j cryptol-remote-api:exe:cryptol-remote-api && \
     cp $(cabal v2-exec which cryptol-remote-api) rootfs/usr/local/bin
@@ -66,7 +78,7 @@ RUN chown -R root:root /cryptol/rootfs
 
 FROM debian:buster-slim
 RUN apt-get update \
-    && apt-get install -y libgmp10 libgomp1 libffi6 libncurses6 libtinfo6 libreadline7 \
+    && apt-get install -y libgmp10 libgomp1 libffi6 libncurses6 libtinfo6 libreadline7 libnuma-dev \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 RUN useradd -m cryptol && chown -R cryptol:cryptol /home/cryptol
 COPY --from=build /cryptol/rootfs /

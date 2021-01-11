@@ -19,7 +19,6 @@ module Cryptol.Testing.Random
 , randomValue
 , dumpableType
 , testableType
-, TestReport(..)
 , TestResult(..)
 , isPass
 , returnTests
@@ -394,13 +393,6 @@ typeValues ty =
 
 --------------------------------------------------------------------------------
 -- Driver function
-
-data TestReport = TestReport {
-    reportResult :: TestResult
-  , reportProp :: String -- ^ The property as entered by the user
-  , reportTestsRun :: Integer
-  , reportTestsPossible :: Maybe Integer
-  }
 
 exhaustiveTests :: MonadIO m =>
   (Integer -> m ()) {- ^ progress callback -} ->

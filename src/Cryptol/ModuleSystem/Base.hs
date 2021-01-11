@@ -203,7 +203,7 @@ doLoadModule quiet isrc path fp pm0 =
      tcm <- optionalInstantiate =<< checkModule isrc path pm
 
      -- extend the eval env, unless a functor.
-     tbl <- Concrete.primTable <$> getEvalOpts
+     tbl <- Concrete.primTable <$> getEvalOptsAction
      let ?evalPrim = \i -> Right <$> Map.lookup i tbl
      callStacks <- getCallStacks
      let ?callStacks = callStacks
@@ -565,7 +565,7 @@ evalExpr :: T.Expr -> ModuleM Concrete.Value
 evalExpr e = do
   env <- getEvalEnv
   denv <- getDynEnv
-  evopts <- getEvalOpts
+  evopts <- getEvalOptsAction
   let tbl = Concrete.primTable evopts
   let ?evalPrim = \i -> Right <$> Map.lookup i tbl
   let ?range = emptyRange
@@ -577,7 +577,7 @@ evalDecls :: [T.DeclGroup] -> ModuleM ()
 evalDecls dgs = do
   env <- getEvalEnv
   denv <- getDynEnv
-  evOpts <- getEvalOpts
+  evOpts <- getEvalOptsAction
   let env' = env <> deEnv denv
   let tbl = Concrete.primTable evOpts
   let ?evalPrim = \i -> Right <$> Map.lookup i tbl

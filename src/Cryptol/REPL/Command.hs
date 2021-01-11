@@ -36,7 +36,8 @@ module Cryptol.REPL.Command (
   , replCheckExpr
 
     -- Check, SAT, and prove
-  , qcCmd, QCMode(..)
+  , TestReport(..)
+  , qcExpr, qcCmd, QCMode(..)
   , satCmd
   , proveCmd
   , onlineProveSat
@@ -314,33 +315,6 @@ runCommand lineNum mbBatch c = case c of
     return CommandError
 
 
--- Get the setting we should use for displaying values.
-getPPValOpts :: REPL E.PPOpts
-getPPValOpts =
-  do base      <- getKnownUser "base"
-     ascii     <- getKnownUser "ascii"
-     infLength <- getKnownUser "infLength"
-
-     fpBase    <- getKnownUser "fp-base"
-     fpFmtTxt  <- getKnownUser "fp-format"
-     let fpFmt = case parsePPFloatFormat fpFmtTxt of
-                   Just f  -> f
-                   Nothing -> panic "getPPValOpts"
-                                      [ "Failed to parse fp-format" ]
-
-     return E.PPOpts { E.useBase      = base
-                     , E.useAscii     = ascii
-                     , E.useInfLength = infLength
-                     , E.useFPBase    = fpBase
-                     , E.useFPFormat  = fpFmt
-                     }
-
-getEvalOpts :: REPL E.EvalOpts
-getEvalOpts =
-  do ppOpts <- getPPValOpts
-     l      <- getLogger
-     return E.EvalOpts { E.evalPPOpts = ppOpts, E.evalLogger = l }
-
 evalCmd :: String -> Int -> Maybe FilePath -> REPL ()
 evalCmd str lineNum mbBatch = do
   ri <- replParseInput str lineNum mbBatch
@@ -366,22 +340,20 @@ evalCmd str lineNum mbBatch = do
       -- comment or empty input does nothing
       pure ()
 
-printCounterexample :: CounterExampleType -> P.Expr P.PName -> [Concrete.Value] -> REPL ()
-printCounterexample cexTy pexpr vs =
+printCounterexample :: CounterExampleType -> Doc -> [Concrete.Value] -> REPL ()
+printCounterexample cexTy exprDoc vs =
   do ppOpts <- getPPValOpts
      docs <- mapM (rEval . E.ppValue Concrete ppOpts) vs
-     let doc = ppPrec 3 pexpr -- function application has precedence 3
-     rPrint $ hang doc 2 (sep docs) <+>
+     rPrint $ hang exprDoc 2 (sep docs) <+>
        case cexTy of
          SafetyViolation -> text "~> ERROR"
          PredicateFalsified -> text "= False"
 
-printSatisfyingModel :: P.Expr P.PName -> [Concrete.Value] -> REPL ()
-printSatisfyingModel pexpr vs =
+printSatisfyingModel :: Doc -> [Concrete.Value] -> REPL ()
+printSatisfyingModel exprDoc vs =
   do ppOpts <- getPPValOpts
      docs <- mapM (rEval . E.ppValue Concrete ppOpts) vs
-     let doc = ppPrec 3 pexpr -- function application has precedence 3
-     rPrint $ hang doc 2 (sep docs) <+> text ("= True")
+     rPrint $ hang exprDoc 2 (sep docs) <+> text ("= True")
 
 
 dumpTestsCmd :: FilePath -> String -> (Int,Int) -> Maybe FilePath -> REPL ()
@@ -412,25 +384,48 @@ dumpTestsCmd outFile str pos fnm =
 
 data QCMode = QCRandom | QCExhaust deriving (Eq, Show)
 
+
 -- | Randomly test a property, or exhaustively check it if the number
 -- of values in the type under test is smaller than the @tests@
 -- environment variable, or we specify exhaustive testing.
 qcCmd :: QCMode -> String -> (Int,Int) -> Maybe FilePath -> REPL ()
-qcCmd qcMode "" pos fnm =
+qcCmd qcMode "" _pos _fnm =
   do (xs,disp) <- getPropertyNames
      let nameStr x = show (fixNameDisp disp (pp x))
      if null xs
         then rPutStrLn "There are no properties in scope."
-        else forM_ xs $ \x ->
-               -- TOOD, this is pretty bogus.  Should find a way to do
-               --  this directly from the 'Name' instead of parsing it again.
+        else forM_ xs $ \(x,d) ->
                do let str = nameStr x
                   rPutStr $ "property " ++ str ++ " "
-                  qcCmd qcMode str pos fnm
+                  let texpr = T.EVar x
+                  let schema = M.ifDeclSig d
+                  nd <- M.mctxNameDisp <$> getFocusedEnv
+                  let doc = fixNameDisp nd (pp texpr)
+                  void (qcExpr qcMode doc texpr schema)
 
 qcCmd qcMode str pos fnm =
   do expr <- replParseExpr str pos fnm
-     (val,ty) <- replEvalExpr expr
+     (_,texpr,schema) <- replCheckExpr expr
+     nd <- M.mctxNameDisp <$> getFocusedEnv
+     let doc = fixNameDisp nd (ppPrec 3 expr) -- function application has precedence 3
+     void (qcExpr qcMode doc texpr schema)
+
+
+data TestReport = TestReport
+  { reportExpr :: Doc
+  , reportResult :: TestResult
+  , reportTestsRun :: Integer
+  , reportTestsPossible :: Maybe Integer
+  }
+
+qcExpr ::
+  QCMode ->
+  Doc ->
+  T.Expr ->
+  T.Schema ->
+  REPL TestReport
+qcExpr qcMode exprDoc texpr schema =
+  do (val,ty) <- replEvalCheckedExpr texpr schema
      testNum <- (toInteger :: Int -> Integer) <$> getKnownUser "tests"
      tenv <- E.envTypes . M.deEnv <$> getDynEnv
      let tyv = E.evalValType tenv ty
@@ -445,15 +440,15 @@ qcCmd qcMode str pos fnm =
                                             val vss)
                          (\ex -> do rPutStrLn "\nTest interrupted..."
                                     num <- io $ readIORef testsRef
-                                    let report = TestReport Pass str num (Just sz)
-                                    ppReport (map E.tValTy tys) expr False report
+                                    let report = TestReport exprDoc Pass num (Just sz)
+                                    ppReport (map E.tValTy tys) False report
                                     rPutStrLn $ interruptedExhaust num sz
                                     Ex.throwM (ex :: Ex.SomeException))
-            let report = TestReport res str num (Just sz)
+            let report = TestReport exprDoc res num (Just sz)
             delProgress
             delTesting
-            ppReport (map E.tValTy tys) expr True report
-            --return [report]
+            ppReport (map E.tValTy tys) True report
+            return report
 
        Just (sz,tys,_,gens) | qcMode == QCRandom -> do
             rPutStrLn "Using random testing."
@@ -464,20 +459,20 @@ qcCmd qcMode str pos fnm =
                                         testNum val gens g)
                          (\ex -> do rPutStrLn "\nTest interrupted..."
                                     num <- io $ readIORef testsRef
-                                    let report = TestReport Pass str num sz
-                                    ppReport (map E.tValTy tys) expr False report
+                                    let report = TestReport exprDoc Pass num sz
+                                    ppReport (map E.tValTy tys) False report
                                     case sz of
                                       Just n -> rPutStrLn $ coverageString num n
                                       _ -> return ()
                                     Ex.throwM (ex :: Ex.SomeException))
-            let report = TestReport res str num sz
+            let report = TestReport exprDoc res num sz
             delProgress
             delTesting
-            ppReport (map E.tValTy tys) expr False report
+            ppReport (map E.tValTy tys) False report
             case sz of
               Just n | isPass res -> rPutStrLn $ coverageString testNum n
               _ -> return ()
-            --return [report]
+            return report
        _ -> raise (TypeNotTestable ty)
 
   where
@@ -507,7 +502,6 @@ qcCmd qcMode str pos fnm =
        ++ showValNum
        ++ " values)"
 
-
   totProgressWidth = 4    -- 100%
 
   lg2 :: Integer -> Integer
@@ -517,7 +511,6 @@ qcCmd qcMode str pos fnm =
                          in round $ logBase 2 valNumD :: Integer
 
   prt msg   = rPutStr msg >> io (hFlush stdout)
-  prtLn msg = rPutStrLn msg >> io (hFlush stdout)
 
   ppProgress percentRef testsRef this tot =
     do io $ writeIORef testsRef this
@@ -541,17 +534,20 @@ qcCmd qcMode str pos fnm =
   delTesting  = del (length testingMsg)
   delProgress = del totProgressWidth
 
-  ppReport _tys _expr isExhaustive (TestReport Pass _str testNum _testPossible) =
-    do prtLn $ "Passed " ++ show testNum ++ " tests."
-       when isExhaustive (rPutStrLn "Q.E.D.")
-  ppReport tys expr _ (TestReport failure _str _testNum _testPossible) =
-    ppFailure tys expr failure
 
-  ppFailure tys pexpr failure = do
+ppReport :: [T.Type] -> Bool -> TestReport -> REPL ()
+ppReport _tys isExhaustive (TestReport _exprDoc Pass testNum _testPossible) =
+    do rPutStrLn ("Passed " ++ show testNum ++ " tests.")
+       when isExhaustive (rPutStrLn "Q.E.D.")
+ppReport tys _ (TestReport exprDoc failure _testNum _testPossible) =
+    ppFailure tys exprDoc failure
+
+ppFailure :: [T.Type] -> Doc -> TestResult -> REPL ()
+ppFailure tys exprDoc failure = do
     opts <- getPPValOpts
     case failure of
       FailFalse vs -> do
-        printCounterexample PredicateFalsified pexpr vs
+        printCounterexample PredicateFalsified exprDoc vs
         case (tys,vs) of
           ([t],[v]) -> bindItVariableVal t v
           _ -> let fs = [ M.packIdent ("arg" ++ show (i::Int)) | i <- [ 1 .. ] ]
@@ -560,10 +556,10 @@ qcCmd qcMode str pos fnm =
                in bindItVariableVal t v
 
       FailError err [] -> do
-        prtLn "ERROR"
+        rPutStrLn "ERROR"
         rPrint (pp err)
       FailError err vs -> do
-        prtLn "ERROR for the following inputs:"
+        rPutStrLn "ERROR for the following inputs:"
         mapM_ (\v -> rPrint =<< (rEval $ E.ppValue Concrete opts v)) vs
         rPrint (pp err)
       Pass -> panic "Cryptol.REPL.Command" ["unexpected Test.Pass"]
@@ -639,12 +635,16 @@ safeCmd str pos fnm = do
   fileName   <- getKnownUser "smtfile"
   let mfile = if fileName == "-" then Nothing else Just fileName
   pexpr <- replParseExpr str pos fnm
+  nd <- M.mctxNameDisp <$> getFocusedEnv
+  let exprDoc = fixNameDisp nd (ppPrec 3 pexpr) -- function application has precedence 3
+
   let rng = fromMaybe (mkInteractiveRange pos fnm) (getLoc pexpr)
+  (_,texpr,schema) <- replCheckExpr pexpr
 
   if proverName `elem` ["offline","sbv-offline","w4-offline"] then
-    offlineProveSat proverName SafetyQuery pexpr mfile
+    offlineProveSat proverName SafetyQuery texpr schema mfile
   else
-     do (firstProver,result,stats) <- rethrowErrorCall (onlineProveSat proverName SafetyQuery pexpr mfile)
+     do (firstProver,result,stats) <- rethrowErrorCall (onlineProveSat proverName SafetyQuery texpr schema mfile)
         case result of
           EmptyResult         ->
             panic "REPL.Command" [ "got EmptyResult for online prover query" ]
@@ -661,8 +661,8 @@ safeCmd str pos fnm = do
             (t,e) <- mkSolverResult "counterexample" rng False (Right tes)
 
             ~(EnvBool yes) <- getUser "show-examples"
-            when yes $ printCounterexample cexType pexpr vs
-            when yes $ printSafetyViolation pexpr vs
+            when yes $ printCounterexample cexType exprDoc vs
+            when yes $ printSafetyViolation texpr schema vs
 
             void $ bindItVariable t e
 
@@ -678,31 +678,49 @@ safeCmd str pos fnm = do
 -- on the expression given. See ticket #66 for a discussion of this
 -- design.
 cmdProveSat :: Bool -> String -> (Int,Int) -> Maybe FilePath -> REPL ()
-cmdProveSat isSat "" pos fnm =
+cmdProveSat isSat "" _pos _fnm =
   do (xs,disp) <- getPropertyNames
      let nameStr x = show (fixNameDisp disp (pp x))
      if null xs
         then rPutStrLn "There are no properties in scope."
-        else forM_ xs $ \x ->
+        else forM_ xs $ \(x,d) ->
                do let str = nameStr x
                   if isSat
                      then rPutStr $ ":sat "   ++ str ++ "\n\t"
                      else rPutStr $ ":prove " ++ str ++ "\n\t"
-                  cmdProveSat isSat str pos fnm
+                  let texpr = T.EVar x
+                  let schema = M.ifDeclSig d
+                  nd <- M.mctxNameDisp <$> getFocusedEnv
+                  let doc = fixNameDisp nd (pp texpr)
+                  proveSatExpr isSat (M.nameLoc x) doc texpr schema
+
 cmdProveSat isSat str pos fnm = do
+  pexpr <- replParseExpr str pos fnm
+  nd <- M.mctxNameDisp <$> getFocusedEnv
+  let doc = fixNameDisp nd (ppPrec 3 pexpr) -- function application has precedence 3
+  (_,texpr,schema) <- replCheckExpr pexpr
+  let rng = fromMaybe (mkInteractiveRange pos fnm) (getLoc pexpr)
+  proveSatExpr isSat rng doc texpr schema
+
+proveSatExpr ::
+  Bool ->
+  Range ->
+  Doc ->
+  T.Expr ->
+  T.Schema ->
+  REPL ()
+proveSatExpr isSat rng exprDoc texpr schema = do
   let cexStr | isSat = "satisfying assignment"
              | otherwise = "counterexample"
   qtype <- if isSat then SatQuery <$> getUserSatNum else pure ProveQuery
   proverName <- getKnownUser "prover"
   fileName   <- getKnownUser "smtfile"
   let mfile = if fileName == "-" then Nothing else Just fileName
-  pexpr <- replParseExpr str pos fnm
-  let rng = fromMaybe (mkInteractiveRange pos fnm) (getLoc pexpr)
 
   if proverName `elem` ["offline","sbv-offline","w4-offline"] then
-     offlineProveSat proverName qtype pexpr mfile
+     offlineProveSat proverName qtype texpr schema mfile
   else
-     do (firstProver,result,stats) <- rethrowErrorCall (onlineProveSat proverName qtype pexpr mfile)
+     do (firstProver,result,stats) <- rethrowErrorCall (onlineProveSat proverName qtype texpr schema mfile)
         case result of
           EmptyResult         ->
             panic "REPL.Command" [ "got EmptyResult for online prover query" ]
@@ -722,12 +740,12 @@ cmdProveSat isSat str pos fnm = do
             (t,e) <- mkSolverResult cexStr rng isSat (Right tes)
 
             ~(EnvBool yes) <- getUser "show-examples"
-            when yes $ printCounterexample cexType pexpr vs
+            when yes $ printCounterexample cexType exprDoc vs
 
             -- if there's a safety violation, evalute the counterexample to
             -- find and print the actual concrete error
             case cexType of
-              SafetyViolation -> when yes $ printSafetyViolation pexpr vs
+              SafetyViolation -> when yes $ printSafetyViolation texpr schema vs
               _ -> return ()
 
             void $ bindItVariable t e
@@ -752,7 +770,7 @@ cmdProveSat isSat str pos fnm = do
                     _        -> collectTes resultRecs
 
             ~(EnvBool yes) <- getUser "show-examples"
-            when yes $ forM_ vss (printSatisfyingModel pexpr)
+            when yes $ forM_ vss (printSatisfyingModel exprDoc)
 
             case (ty, exprs) of
               (t, [e]) -> void $ bindItVariable t e
@@ -761,25 +779,26 @@ cmdProveSat isSat str pos fnm = do
         seeStats <- getUserShowProverStats
         when seeStats (showProverStats firstProver stats)
 
-printSafetyViolation :: P.Expr P.PName -> [E.GenValue Concrete] -> REPL ()
-printSafetyViolation pexpr vs =
+
+printSafetyViolation :: T.Expr -> T.Schema -> [E.GenValue Concrete] -> REPL ()
+printSafetyViolation texpr schema vs =
     catch
-      (do (fn,_) <- replEvalExpr pexpr
+      (do (fn,_) <- replEvalCheckedExpr texpr schema
           rEval (E.forceValue =<< foldM (\f v -> E.fromVFun Concrete f (pure v)) fn vs))
       (\case
           EvalError eex -> rPutStrLn (show (pp eex))
           ex -> raise ex)
 
-
-onlineProveSat :: String
-               -> QueryType
-               -> P.Expr P.PName
-               -> Maybe FilePath
-               -> REPL (Maybe String,ProverResult,ProverStats)
-onlineProveSat proverName qtype parseExpr mfile = do
+onlineProveSat ::
+  String ->
+  QueryType ->
+  T.Expr ->
+  T.Schema ->
+  Maybe FilePath ->
+  REPL (Maybe String,ProverResult,ProverStats)
+onlineProveSat proverName qtype expr schema mfile = do
   verbose <- getKnownUser "debug"
   modelValidate <- getUserProverValidate
-  (_, expr, schema) <- replCheckExpr parseExpr
   validEvalContext expr
   validEvalContext schema
   decls <- fmap M.deDecls getDynEnv
@@ -807,11 +826,11 @@ onlineProveSat proverName qtype parseExpr mfile = do
   stas <- io (readIORef timing)
   return (firstProver,res,stas)
 
-offlineProveSat :: String -> QueryType -> P.Expr P.PName -> Maybe FilePath -> REPL ()
-offlineProveSat proverName qtype parseExpr mfile = do
+offlineProveSat :: String -> QueryType -> T.Expr -> T.Schema -> Maybe FilePath -> REPL ()
+offlineProveSat proverName qtype expr schema mfile = do
   verbose <- getKnownUser "debug"
   modelValidate <- getUserProverValidate
-  (_, expr, schema) <- replCheckExpr parseExpr
+
   decls <- fmap M.deDecls getDynEnv
   timing <- io (newIORef 0)
   ~(EnvBool ignoreSafety) <- getUser "ignore-safety"
@@ -1617,7 +1636,7 @@ getPrimMap  = liftModuleCmd M.getPrimMap
 
 liftModuleCmd :: M.ModuleCmd a -> REPL a
 liftModuleCmd cmd =
-  do evo <- getEvalOpts
+  do evo <- getEvalOptsAction
      env <- getModuleEnv
      callStacks <- getCallStacks
      let minp = M.ModuleInput
@@ -1697,7 +1716,11 @@ replSpecExpr e = liftModuleCmd $ S.specialize e
 replEvalExpr :: P.Expr P.PName -> REPL (Concrete.Value, T.Type)
 replEvalExpr expr =
   do (_,def,sig) <- replCheckExpr expr
-     validEvalContext def
+     replEvalCheckedExpr def sig
+
+replEvalCheckedExpr :: T.Expr -> T.Schema -> REPL (Concrete.Value, T.Type)
+replEvalCheckedExpr def sig =
+  do validEvalContext def
      validEvalContext sig
 
      me <- getModuleEnv

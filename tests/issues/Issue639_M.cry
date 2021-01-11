@@ -1,0 +1,3 @@
+module Issue639_M where
+  f (a:Bit) = True
+  property p a = f a == a

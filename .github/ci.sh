@@ -47,6 +47,7 @@ setup_dist_bins() {
   extract_exe "cryptol" "dist/bin"
   extract_exe "cryptol-html" "dist/bin"
   extract_exe "cryptol-remote-api" "dist/bin"
+  extract_exe "cryptol-eval-server" "dist/bin"
   strip dist/bin/cryptol* || echo "Strip failed: Ignoring harmless error"
 }
 
@@ -77,7 +78,8 @@ install_cvc4() {
   esac
   # Temporary workaround
   if [[ "$RUNNER_OS" == "Linux" ]]; then
-    curl -o cvc4$EXT -sL "https://cvc4.cs.stanford.edu/downloads/builds/x86_64-linux-opt/unstable/cvc4-2020-12-11-x86_64-linux-opt"
+    latest="$(curl -sSL "http://cvc4.cs.stanford.edu/downloads/builds/x86_64-linux-opt/unstable/" | grep linux-opt | tail -n1 | sed -e 's/.*href="//' -e 's/\([^>]*\)">.*$/\1/')"
+    curl -o cvc4$EXT -sL "https://cvc4.cs.stanford.edu/downloads/builds/x86_64-linux-opt/unstable/$latest"
   else
     curl -o cvc4$EXT -sL "https://github.com/CVC4/CVC4/releases/download/$version/cvc4-$version-$file"
   fi
@@ -114,6 +116,7 @@ build() {
   cabal v2-configure -j2 --minimize-conflict-set
   retry ./cry build exe:cryptol-html "$@" # retry due to flakiness with windows builds
   retry ./cry build exe:cryptol-remote-api "$@"
+  retry ./cry build exe:cryptol-eval-server "$@"
 }
 
 install_system_deps() {

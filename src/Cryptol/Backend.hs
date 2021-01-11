@@ -27,20 +27,16 @@ module Cryptol.Backend
   , rationalLessThan
   , rationalGreaterThan
   , iteRational
-  , ppRational
   ) where
 
 import Control.Monad.IO.Class
 import Data.Kind (Type)
-import Data.Ratio ( (%), numerator, denominator )
 
 import Cryptol.Backend.FloatHelpers (BF)
 import Cryptol.Backend.Monad
-  ( PPOpts(..), EvalError(..), CallStack, pushCallFrame )
+  ( EvalError(..), CallStack, pushCallFrame )
 import Cryptol.ModuleSystem.Name(Name)
 import Cryptol.Parser.Position
-import Cryptol.Utils.PP
-
 
 invalidIndex :: Backend sym => sym -> Integer -> SEval sym a
 invalidIndex sym i = raiseError sym (InvalidIndex (Just i))
@@ -195,16 +191,6 @@ iteRational :: Backend sym => sym -> SBit sym -> SRational sym -> SRational sym 
 iteRational sym p (SRational a b) (SRational c d) =
   SRational <$> iteInteger sym p a c <*> iteInteger sym p b d
 
-ppRational :: Backend sym => sym -> PPOpts -> SRational sym -> Doc
-ppRational sym opts (SRational n d)
-  | Just ni <- integerAsLit sym n
-  , Just di <- integerAsLit sym d
-  = let q = ni % di in
-      text "(ratio" <+> integer (numerator q) <+> (integer (denominator q) <> text ")")
-
-  | otherwise
-  = text "(ratio" <+> ppInteger sym opts n <+> (ppInteger sym opts d <> text ")")
-
 -- | This type class defines a collection of operations on bits, words and integers that
 --   are necessary to define generic evaluator primitives that operate on both concrete
 --   and symbolic values uniformly.
@@ -268,20 +254,6 @@ class MonadIO (SEval sym) => Backend sym where
   -- | Indiciate that an error condition exists
   raiseError :: sym -> EvalError -> SEval sym a
 
-  -- ==== Pretty printing  ====
-  -- | Pretty-print an individual bit
-  ppBit :: sym -> SBit sym -> Doc
-
-  -- | Pretty-print a word value
-  ppWord :: sym -> PPOpts -> SWord sym -> Doc
-
-  -- | Pretty-print an integer value
-  ppInteger :: sym -> PPOpts -> SInteger sym -> Doc
-
-  -- | Pretty-print a floating-point value
-  ppFloat :: sym -> PPOpts -> SFloat sym -> Doc
-
-
   -- ==== Identifying literal values ====
 
   -- | Determine if this symbolic bit is a boolean literal
@@ -300,6 +272,9 @@ class MonadIO (SEval sym) => Backend sym where
 
   -- | Determine if this symbolic integer is a literal
   integerAsLit :: sym -> SInteger sym -> Maybe Integer
+
+  -- | Determine if this symbolic floating-point value is a literal
+  fpAsLit :: sym -> SFloat sym -> Maybe BF
 
   -- ==== Creating literal values ====
 

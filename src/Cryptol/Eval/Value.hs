@@ -30,6 +30,8 @@ module Cryptol.Eval.Value
   , forceValue
   , Backend(..)
   , asciiMode
+
+  , EvalOpts(..)
     -- ** Value introduction operations
   , word
   , lam
@@ -94,19 +96,21 @@ import Control.Monad.IO.Class
 import Data.Bits
 import Data.IORef
 import Data.Map.Strict (Map)
+import Data.Ratio
 import qualified Data.Map.Strict as Map
 import MonadLib
+import Numeric (showIntAtBase)
 
 import Cryptol.Backend
 import qualified Cryptol.Backend.Arch as Arch
 import Cryptol.Backend.Monad
-  ( PPOpts(..), evalPanic, wordTooWide, defaultPPOpts, asciiMode
-  , CallStack, combineCallStacks
-  )
+  ( evalPanic, wordTooWide, CallStack, combineCallStacks )
+import Cryptol.Backend.FloatHelpers (fpPP)
 import Cryptol.Eval.Type
 
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
 import Cryptol.Utils.Ident (Ident)
+import Cryptol.Utils.Logger(Logger)
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.PP
 import Cryptol.Utils.RecordMap
@@ -114,6 +118,12 @@ import Cryptol.Utils.RecordMap
 import Data.List(genericIndex)
 
 import GHC.Generics (Generic)
+
+-- | Some options for evalutaion
+data EvalOpts = EvalOpts
+  { evalLogger :: Logger    -- ^ Where to print stuff (e.g., for @trace@)
+  , evalPPOpts :: PPOpts    -- ^ How to pretty print things.
+  }
 
 -- Values ----------------------------------------------------------------------
 
@@ -377,10 +387,10 @@ ppValue x opts = loop
       ppField (f,r) = pp f <+> char '=' <+> r
     VTuple vals        -> do vals' <- traverse (>>=loop) vals
                              return $ parens (sep (punctuate comma vals'))
-    VBit b             -> return $ ppBit x b
-    VInteger i         -> return $ ppInteger x opts i
-    VRational q        -> return $ ppRational x opts q
-    VFloat i           -> return $ ppFloat x opts i
+    VBit b             -> ppSBit x b
+    VInteger i         -> ppSInteger x i
+    VRational q        -> ppSRational x q
+    VFloat i           -> ppSFloat x opts i
     VSeq sz vals       -> ppWordSeq sz vals
     VWord _ wv         -> ppWordVal =<< wv
     VStream vals       -> do vals' <- traverse (>>=loop) $ enumerateSeqMap (useInfLength opts) vals
@@ -393,7 +403,7 @@ ppValue x opts = loop
     VNumPoly{}         -> return $ text "<polymorphic value>"
 
   ppWordVal :: WordValue sym -> SEval sym Doc
-  ppWordVal w = ppWord x opts <$> asWordVal x w
+  ppWordVal w = ppSWord x opts =<< asWordVal x w
 
   ppWordSeq :: Integer -> SeqMap sym -> SEval sym Doc
   ppWordSeq sz vals = do
@@ -405,10 +415,101 @@ ppValue x opts = loop
         -> do vs <- traverse (fromVWord x "ppWordSeq") ws
               case traverse (wordAsChar x) vs of
                 Just str -> return $ text (show str)
-                _ -> return $ brackets (fsep (punctuate comma $ map (ppWord x opts) vs))
+                _ -> do vs' <- mapM (ppSWord x opts) vs
+                        return $ brackets (fsep (punctuate comma vs'))
       _ -> do ws' <- traverse loop ws
               return $ brackets (fsep (punctuate comma ws'))
 
+ppSBit :: Backend sym => sym -> SBit sym -> SEval sym Doc
+ppSBit sym b =
+  case bitAsLit sym b of
+    Just True  -> pure (text "True")
+    Just False -> pure (text "False")
+    Nothing    -> pure (text "?")
+
+ppSInteger :: Backend sym => sym -> SInteger sym -> SEval sym Doc
+ppSInteger sym x =
+  case integerAsLit sym x of
+    Just i  -> pure (integer i)
+    Nothing -> pure (text "[?]")
+
+ppSFloat :: Backend sym => sym -> PPOpts -> SFloat sym -> SEval sym Doc
+ppSFloat sym opts x =
+  case fpAsLit sym x of
+    Just fp -> pure (fpPP opts fp)
+    Nothing -> pure (text "[?]")
+
+ppSRational :: Backend sym => sym -> SRational sym -> SEval sym Doc
+ppSRational sym (SRational n d)
+  | Just ni <- integerAsLit sym n
+  , Just di <- integerAsLit sym d
+  = let q = ni % di in
+      pure (text "(ratio" <+> integer (numerator q) <+> (integer (denominator q) <> text ")"))
+
+  | otherwise
+  = do n' <- ppSInteger sym n
+       d' <- ppSInteger sym d
+       pure (text "(ratio" <+> n' <+> (d' <> text ")"))
+
+ppSWord :: Backend sym => sym -> PPOpts -> SWord sym -> SEval sym Doc
+ppSWord sym opts bv
+  | asciiMode opts width =
+      case wordAsLit sym bv of
+        Just (_,i) -> pure (text (show (toEnum (fromInteger i) :: Char)))
+        Nothing    -> pure (text "?")
+
+  | otherwise =
+      case wordAsLit sym bv of
+        Just (_,i) ->
+          let val = value i in
+          pure (prefix (length val) <.> text val)
+        Nothing
+          | base == 2  -> sliceDigits 1 "0b"
+          | base == 8  -> sliceDigits 3 "0o"
+          | base == 16 -> sliceDigits 4 "0x"
+          | otherwise  -> pure (text "[?]")
+
+  where
+  width = wordLen sym bv
+
+  base = if useBase opts > 36 then 10 else useBase opts
+
+  padding bitsPerDigit len = text (replicate padLen '0')
+    where
+    padLen | m > 0     = d + 1
+           | otherwise = d
+
+    (d,m) = (fromInteger width - (len * bitsPerDigit))
+                   `divMod` bitsPerDigit
+
+  prefix len = case base of
+    2  -> text "0b" <.> padding 1 len
+    8  -> text "0o" <.> padding 3 len
+    10 -> empty
+    16 -> text "0x" <.> padding 4 len
+    _  -> text "0"  <.> char '<' <.> int base <.> char '>'
+
+  value i = showIntAtBase (toInteger base) (digits !!) i ""
+  digits  = "0123456789abcdefghijklmnopqrstuvwxyz"
+
+  toDigit w =
+    case wordAsLit sym w of
+      Just (_,i) | i <= 36 -> digits !! fromInteger i
+      _ -> '?'
+
+  sliceDigits bits pfx =
+    do ws <- goDigits bits [] bv
+       let ds = map toDigit ws
+       pure (text pfx <.> text ds)
+
+  goDigits bits ds w
+    | wordLen sym w > bits =
+        do (hi,lo) <- splitWord sym (wordLen sym w - bits) bits w
+           goDigits bits (lo:ds) hi
+
+    | wordLen sym w > 0 = pure (w:ds)
+
+    | otherwise          = pure ds
 
 -- Value Constructors ----------------------------------------------------------
 

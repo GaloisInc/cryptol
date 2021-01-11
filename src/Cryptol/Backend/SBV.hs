@@ -44,7 +44,7 @@ import Data.SBV.Dynamic as SBV
 import qualified Data.SBV.Internals as SBV
 
 import Cryptol.Backend
-import Cryptol.Backend.Concrete ( integerToChar, ppBV, BV(..) )
+import Cryptol.Backend.Concrete ( integerToChar )
 import Cryptol.Backend.Monad
   ( Eval(..), blackhole, delayFill, evalSpark
   , EvalError(..), EvalErrorEx(..), Unsupported(..)
@@ -52,7 +52,6 @@ import Cryptol.Backend.Monad
   )
 
 import Cryptol.Utils.Panic (panic)
-import Cryptol.Utils.PP
 
 data SBV =
   SBV
@@ -203,16 +202,6 @@ instance Backend SBV where
   wordLen _ v = toInteger (intSizeOf v)
   wordAsChar _ v = integerToChar <$> svAsInteger v
 
-  ppBit _ v
-     | Just b <- svAsBool v = text $! if b then "True" else "False"
-     | otherwise            = text "?"
-  ppWord sym opts v
-     | Just x <- svAsInteger v = ppBV opts (BV (wordLen sym v) x)
-     | otherwise               = text "[?]"
-  ppInteger _ _opts v
-     | Just x <- svAsInteger v = integer x
-     | otherwise               = text "[?]"
-
   iteBit _ b x y = pure $! svSymbolicMerge KBool True b x y
   iteWord _ b x y = pure $! svSymbolicMerge (kindOf x) True b x y
   iteInteger _ b x y = pure $! svSymbolicMerge KUnbounded True b x y
@@ -335,7 +324,7 @@ instance Backend SBV where
   znNegate sym m a  = sModNegate sym m a
   znRecip = sModRecip
 
-  ppFloat _ _ _             = text "[?]"
+  fpAsLit _ _               = Nothing
   fpExactLit _ _            = unsupported "fpExactLit"
   fpLit _ _ _ _             = unsupported "fpLit"
   fpLogicalEq _ _ _         = unsupported "fpLogicalEq"

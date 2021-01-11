@@ -16,10 +16,9 @@ import Cryptol.Parser (parseModName)
 import Cryptol.Parser.AST (ModName)
 
 import CryptolServer
-import Argo
 
 
-loadFile :: LoadFileParams -> Method ServerState ()
+loadFile :: LoadFileParams -> CryptolMethod ()
 loadFile (LoadFileParams fn) =
   void $ runModuleCmd (loadModuleByPath fn)
 
@@ -31,7 +30,7 @@ instance JSON.FromJSON LoadFileParams where
     JSON.withObject "params for \"load module\"" $
     \o -> LoadFileParams <$> o .: "file"
 
-loadModule :: LoadModuleParams -> Method ServerState ()
+loadModule :: LoadModuleParams -> CryptolMethod ()
 loadModule (LoadModuleParams mn) =
   void $ runModuleCmd (loadModuleByName mn)
 

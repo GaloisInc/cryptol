@@ -8,19 +8,17 @@ import Data.Aeson as JSON
 import Cryptol.ModuleSystem (checkExpr)
 import Cryptol.ModuleSystem.Env (meSolverConfig)
 
-import Argo
-
 import CryptolServer
 import CryptolServer.Exceptions
 import CryptolServer.Data.Expression
 import CryptolServer.Data.Type
 
-checkType :: TypeCheckParams -> Method ServerState JSON.Value
+checkType :: TypeCheckParams -> CryptolMethod JSON.Value
 checkType (TypeCheckParams e) =
   do e' <- getExpr e
      (_expr, _ty, schema) <- runModuleCmd (checkExpr e')
      -- FIXME: why are we running this command if the result isn't used?
-     _cfg <- meSolverConfig . view moduleEnv <$> getState
+     _cfg <- meSolverConfig <$> getModuleEnv
      return (JSON.object [ "type schema" .= JSONSchema schema ])
   where
     -- FIXME: Why is this check not being used?

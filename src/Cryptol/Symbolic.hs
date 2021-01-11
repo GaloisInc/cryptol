@@ -188,12 +188,11 @@ data VarShape sym
   | VarRecord (RecordMap Ident (VarShape sym))
 
 ppVarShape :: Backend sym => sym -> VarShape sym -> Doc
-ppVarShape sym (VarBit b) = ppBit sym b
-ppVarShape sym (VarInteger i) = ppInteger sym defaultPPOpts i
-ppVarShape sym (VarFloat f) = ppFloat sym defaultPPOpts f
-ppVarShape sym (VarRational n d) =
-  text "(ratio" <+> ppInteger sym defaultPPOpts n <+> ppInteger sym defaultPPOpts d <+> text ")"
-ppVarShape sym (VarWord w) = ppWord sym defaultPPOpts w
+ppVarShape _sym (VarBit _b) = text "<bit>"
+ppVarShape _sym (VarInteger _i) = text "<integer>"
+ppVarShape _sym (VarFloat _f) = text "<float>"
+ppVarShape _sym (VarRational _n _d) = text "<rational>"
+ppVarShape sym (VarWord w) = text "<word:" <> integer (wordLen sym w) <> text ">"
 ppVarShape sym (VarFinSeq _ xs) =
   brackets (fsep (punctuate comma (map (ppVarShape sym) xs)))
 ppVarShape sym (VarTuple xs) =

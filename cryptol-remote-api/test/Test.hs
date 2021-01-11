@@ -1,4 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 module Main (main) where
 
@@ -6,10 +8,12 @@ import Data.Aeson as JSON (fromJSON, toJSON, Result(..))
 
 import qualified Data.HashMap.Strict as HM
 import Data.List.NonEmpty(NonEmpty(..))
+import System.Directory (findExecutable)
 
 import Test.QuickCheck.Instances.Text()
 import Test.Tasty
 import Test.Tasty.HUnit.ScriptExit
+import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 
 import CryptolServer.Call
@@ -17,9 +21,14 @@ import CryptolServer.Call
 import Argo.PythonBindings
 import Paths_cryptol_remote_api
 
+exeExists :: FilePath -> IO FilePath
+exeExists e = findExecutable e >>=
+  maybe (assertFailure $ e <> " executable not found") pure
+
 main :: IO ()
 main =
   do reqs <- getArgoPythonFile "requirements.txt"
+     sequence_ [exeExists "z3", exeExists "cryptol-remote-api", exeExists "cryptol-eval-server"]
      withPython3venv (Just reqs) $ \pip python ->
        do pySrc <- getArgoPythonFile "."
           testScriptsDir <- getDataFileName "test-scripts/"

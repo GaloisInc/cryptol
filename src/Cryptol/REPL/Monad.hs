@@ -38,6 +38,8 @@ module Cryptol.REPL.Monad (
   , getCallStacks
   , uniqify, freshName
   , whenDebug
+  , getEvalOptsAction
+  , getPPValOpts
   , getExprNames
   , getTypeNames
   , getPropertyNames
@@ -77,7 +79,7 @@ module Cryptol.REPL.Monad (
 
 import Cryptol.REPL.Trie
 
-import Cryptol.Eval (EvalErrorEx, Unsupported, WordTooWide)
+import Cryptol.Eval (EvalErrorEx, Unsupported, WordTooWide,EvalOpts(..))
 import qualified Cryptol.ModuleSystem as M
 import qualified Cryptol.ModuleSystem.Env as M
 import qualified Cryptol.ModuleSystem.Name as M
@@ -97,7 +99,6 @@ import qualified Cryptol.Parser.AST as P
 import Cryptol.Symbolic (SatNum(..))
 import Cryptol.Symbolic.SBV (SBVPortfolioException)
 import Cryptol.Symbolic.What4 (W4Exception)
-import Cryptol.Backend.Monad(PPFloatFormat(..),PPFloatExp(..))
 import qualified Cryptol.Symbolic.SBV as SBV (proverNames, setupProver, defaultProver, SBVProverConfig)
 import qualified Cryptol.Symbolic.What4 as W4 (proverNames, setupProver, W4ProverConfig)
 
@@ -391,6 +392,33 @@ getPrompt  = mkPrompt `fmap` getRW
 getCallStacks :: REPL Bool
 getCallStacks = eCallStacks <$> getRW
 
+-- Get the setting we should use for displaying values.
+getPPValOpts :: REPL PPOpts
+getPPValOpts =
+  do base      <- getKnownUser "base"
+     ascii     <- getKnownUser "ascii"
+     infLength <- getKnownUser "infLength"
+
+     fpBase    <- getKnownUser "fp-base"
+     fpFmtTxt  <- getKnownUser "fp-format"
+     let fpFmt = case parsePPFloatFormat fpFmtTxt of
+                   Just f  -> f
+                   Nothing -> panic "getPPOpts"
+                                      [ "Failed to parse fp-format" ]
+
+     return PPOpts { useBase      = base
+                   , useAscii     = ascii
+                   , useInfLength = infLength
+                   , useFPBase    = fpBase
+                   , useFPFormat  = fpFmt
+                   }
+
+getEvalOptsAction :: REPL (IO EvalOpts)
+getEvalOptsAction = REPL $ \rwRef -> pure $
+  do ppOpts <- unREPL getPPValOpts rwRef
+     l      <- unREPL getLogger rwRef
+     return EvalOpts { evalPPOpts = ppOpts, evalLogger = l }
+
 clearLoadedMod :: REPL ()
 clearLoadedMod = do modifyRW_ (\rw -> rw { eLoadedMod = upd <$> eLoadedMod rw })
                     updateREPLTitle
@@ -528,12 +556,12 @@ getTypeNames  =
      return (map (show . pp) (Map.keys (M.neTypes fNames)))
 
 -- | Return a list of property names, sorted by position in the file.
-getPropertyNames :: REPL ([M.Name],NameDisp)
+getPropertyNames :: REPL ([(M.Name,M.IfaceDecl)],NameDisp)
 getPropertyNames =
   do fe <- getFocusedEnv
      let xs = M.ifDecls (M.mctxDecls fe)
-         ps = sortBy (comparing (from . M.nameLoc))
-              [ x | (x,d) <- Map.toList xs,
+         ps = sortBy (comparing (from . M.nameLoc . fst))
+              [ (x,d) | (x,d) <- Map.toList xs,
                     T.PragmaProperty `elem` M.ifDeclPragmas d ]
 
      return (ps, M.mctxNameDisp fe)

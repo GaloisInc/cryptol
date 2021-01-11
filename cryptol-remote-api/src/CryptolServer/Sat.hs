@@ -5,7 +5,6 @@
 module CryptolServer.Sat (sat, ProveSatParams(..)) where
 
 import Control.Applicative
-import Control.Lens hiding ((.=))
 import Control.Monad.IO.Class
 import Data.Aeson ((.=), (.:), FromJSON, ToJSON)
 import qualified Data.Aeson as JSON
@@ -15,7 +14,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 
 import Cryptol.Eval.Concrete (Value)
-import Cryptol.ModuleSystem (checkExpr, getPrimMap)
+import Cryptol.ModuleSystem (checkExpr)
 import Cryptol.ModuleSystem.Env (DynamicEnv(..), meDynEnv, meSolverConfig)
 import Cryptol.Symbolic (ProverCommand(..), ProverResult(..), QueryType(..), SatNum(..))
 import Cryptol.Symbolic.SBV (proverNames, satProve, setupProver)
@@ -23,19 +22,17 @@ import Cryptol.TypeCheck.AST (Expr, Type)
 import Cryptol.TypeCheck.Solve (defaultReplExpr)
 import qualified Cryptol.TypeCheck.Solver.SMT as SMT
 
-import Argo
-
 import CryptolServer
 import CryptolServer.Exceptions (evalPolyErr, proverError)
 import CryptolServer.Data.Expression
 import CryptolServer.Data.Type
 
-sat :: ProveSatParams -> Method ServerState SatResult
+sat :: ProveSatParams -> CryptolMethod SatResult
 sat (ProveSatParams (Prover name) jsonExpr num) =
   do e <- getExpr jsonExpr
      (_expr, ty, schema) <- runModuleCmd (checkExpr e)
      -- TODO validEvalContext expr, ty, schema
-     me <- view moduleEnv <$> getState
+     me <- getModuleEnv
      let decls = deDecls (meDynEnv me)
      let cfg = meSolverConfig me
      perhapsDef <- liftIO $ SMT.withSolver cfg (\s -> defaultReplExpr s ty schema)
@@ -71,12 +68,11 @@ sat (ProveSatParams (Prover name) jsonExpr num) =
                 Satisfied <$> traverse satResult results
 
   where
-    satResult :: [(Type, Expr, Value)] -> Method ServerState [(JSONType, Expression)]
+    satResult :: [(Type, Expr, Value)] -> CryptolMethod [(JSONType, Expression)]
     satResult es = traverse result es
 
     result (t, _, v) =
-      do prims <- runModuleCmd getPrimMap
-         e <- observe $ readBack prims t v
+      do e <- observe $ readBack t v
          return (JSONType mempty t, e)
 
 data SatResult = Unsatisfiable | Satisfied [[(JSONType, Expression)]]

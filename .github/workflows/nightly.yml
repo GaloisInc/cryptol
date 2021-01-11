@@ -71,13 +71,14 @@ jobs:
           tags: "nightly"
           add_git_labels: true
           push: ${{ github.event_name == 'schedule' }}
-          dockerfile: .github/Dockerfile-remote-api
+          dockerfile: cryptol-remote-api/Dockerfile
       - name: Build test-cryptol-remote-api
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v1
         with:
           tags: test-cryptol-remote-api
           push: false
-          file: .github/test-cryptol-remote-api.Dockerfile
+          dockerfile: cryptol-remote-api/test/Dockerfile
+          build_args: GHCVER=8.10.3
       - name: Test cryptol-remote-api helm chart
         run: |
           set -x

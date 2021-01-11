@@ -27,6 +27,38 @@ import qualified Text.PrettyPrint as PJ
 import Prelude ()
 import Prelude.Compat
 
+
+-- | How to pretty print things when evaluating
+data PPOpts = PPOpts
+  { useAscii     :: Bool
+  , useBase      :: Int
+  , useInfLength :: Int
+  , useFPBase    :: Int
+  , useFPFormat  :: PPFloatFormat
+  }
+ deriving Show
+
+asciiMode :: PPOpts -> Integer -> Bool
+asciiMode opts width = useAscii opts && (width == 7 || width == 8)
+
+data PPFloatFormat =
+    FloatFixed Int PPFloatExp -- ^ Use this many significant digis
+  | FloatFrac Int             -- ^ Show this many digits after floating point
+  | FloatFree PPFloatExp      -- ^ Use the correct number of digits
+ deriving Show
+
+data PPFloatExp = ForceExponent -- ^ Always show an exponent
+                | AutoExponent  -- ^ Only show exponent when needed
+ deriving Show
+
+
+defaultPPOpts :: PPOpts
+defaultPPOpts = PPOpts { useAscii = False, useBase = 10, useInfLength = 5
+                       , useFPBase = 16
+                       , useFPFormat = FloatFree AutoExponent
+                       }
+
+
 -- Name Displaying -------------------------------------------------------------
 
 {- | How to display names, inspired by the GHC `Outputable` module.
