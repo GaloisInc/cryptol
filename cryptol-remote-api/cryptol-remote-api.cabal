@@ -69,7 +69,7 @@ executable cryptol-remote-api
   main-is:             Main.hs
   hs-source-dirs:      cryptol-remote-api
   ghc-options:
-    -threaded
+    -threaded -rtsopts -with-rtsopts=-xb0x200000000
 
   build-depends:
     cryptol-remote-api,
@@ -80,7 +80,7 @@ executable cryptol-eval-server
   main-is:             Main.hs
   hs-source-dirs:      cryptol-eval-server
   ghc-options:
-    -threaded
+    -threaded -rtsopts
 
   build-depends:
     cryptol-remote-api,
@@ -96,10 +96,14 @@ test-suite test-cryptol-remote-api
   other-modules:       Paths_cryptol_remote_api
   ghc-options:
     -Wno-orphans
+  build-tool-depends:
+    cryptol-remote-api:cryptol-remote-api,
+    cryptol-remote-api:cryptol-eval-server
   build-depends:
     argo-python,
     cryptol-remote-api,
     quickcheck-instances ^>= 0.3.19,
     tasty                 >= 1.2.1,
     tasty-quickcheck     ^>= 0.10,
+    tasty-hunit,
     tasty-script-exitcode
