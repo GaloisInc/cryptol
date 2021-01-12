@@ -79,9 +79,9 @@ install_cvc4() {
   # Temporary workaround
   if [[ "$RUNNER_OS" == "Linux" ]]; then
     latest="$(curl -sSL "http://cvc4.cs.stanford.edu/downloads/builds/x86_64-linux-opt/unstable/" | grep linux-opt | tail -n1 | sed -e 's/.*href="//' -e 's/\([^>]*\)">.*$/\1/')"
-    curl -o cvc4$EXT -sL "https://cvc4.cs.stanford.edu/downloads/builds/x86_64-linux-opt/unstable/$latest"
+    curl -o cvc4$EXT -sSL "https://cvc4.cs.stanford.edu/downloads/builds/x86_64-linux-opt/unstable/$latest"
   else
-    curl -o cvc4$EXT -sL "https://github.com/CVC4/CVC4/releases/download/$version/cvc4-$version-$file"
+    curl -o cvc4$EXT -sSL "https://github.com/CVC4/CVC4/releases/download/$version/cvc4-$version-$file"
   fi
   $IS_WIN || chmod +x cvc4$EXT
   mv cvc4$EXT "$BIN/cvc4$EXT"
