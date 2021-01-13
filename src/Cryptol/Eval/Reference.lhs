@@ -518,7 +518,7 @@ Newtypes
 --------
 
 At runtime, newtypes values are represented in exactly
-the same was as records.  The constructor function for
+the same way as records.  The constructor function for
 newtypes is thus basically just an identity function
 that consumes and ignores its type arguments.
 

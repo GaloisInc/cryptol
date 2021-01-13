@@ -3482,7 +3482,7 @@ equality are straightforward.
       r = x.real * y.real - x.imag * y.imag
       i = x.real * y.imag + x.imag * y.real
 
-  cplxEq : CplxQ -> CplxQ -> CplxQ
+  cplxEq : CplxQ -> CplxQ -> Bit
   cplxEq x y = (x.real == y.real) && (x.imag == y.imag)
 
 \end{code}
