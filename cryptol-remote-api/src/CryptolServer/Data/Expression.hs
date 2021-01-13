@@ -339,7 +339,8 @@ bytesToInt bs =
 readBack :: TValue -> Value -> Eval Expression
 readBack ty val =
   case ty of
-    TVNewtype u ts tfs -> error "readBack Newtype! TODO"
+    -- TODO, add actual support for newtypes
+    TVNewtype _u _ts _tfs -> liftIO $ throwIO (invalidType (tValTy ty))
 
     TVRec tfs ->
       Record . HM.fromList <$>
