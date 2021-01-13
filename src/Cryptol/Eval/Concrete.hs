@@ -28,7 +28,7 @@ module Cryptol.Eval.Concrete
 import Control.Monad (guard, zipWithM, foldM, mzero)
 import Data.Bits (Bits(..))
 import Data.Ratio((%),numerator,denominator)
-import Data.Word(Word32, Word64)
+import Data.Word( Word32, Word64 )
 import MonadLib( ChoiceT, findOne, lift )
 import qualified LibBF as FP
 import qualified Cryptol.F2 as F2
@@ -113,6 +113,7 @@ toExpr prims t0 v0 = findOne (go t0 v0)
         do BV _ v <- lift (asWordVal Concrete =<< wval)
            pure $ ETApp (ETApp (prim "number") (tNum v)) (tWord (tNum n))
 
+--      (_,VGen{})     -> mzero
       (_,VStream{})  -> mzero
       (_,VFun{})     -> mzero
       (_,VPoly{})    -> mzero
@@ -154,6 +155,7 @@ primTable :: IO EvalOpts -> Map PrimIdent (Prim Concrete)
 primTable getEOpts = let sym = Concrete in
   Map.union (genericPrimTable sym getEOpts) $
   Map.union (floatPrims sym) $
+  Map.union (testingPrims sym) $
   Map.union suiteBPrims $
   Map.union primeECPrims $
 
@@ -216,6 +218,171 @@ primTable getEOpts = let sym = Concrete in
   ]
 
 
+{-
+testingPrims :: Concrete -> Map.Map PrimIdent (Prim Concrete)
+testingPrims sym = Map.fromList $ map (\(n, v) -> (testingPrim n, v)) prims
+  where
+  (~>) = (,)
+  prims =
+    [ "seedGen" ~>
+        PWordFun \sz ->
+        PWordFun \seed ->
+        PPrim
+          do let mask64 = 0xFFFFFFFFFFFFFFFF
+                 unpack s = fromInteger (s .&. mask64) : unpack (s `shiftR` 64)
+                 [a, b, c, d] = take 4 (unpack (bvVal seed))
+             pure (VRandGen (fromIntegral (bvVal sz)) (seedTFGen (a,b,c,d)))
+
+    , "genSize" ~>
+        PFun \x ->
+        PPrim
+          do (sz,_) <- fromVRandGen <$> x
+             return . VWord 8 . pure . WordVal . mkBv 8 . toInteger $ sz
+
+    , "genResize" ~>
+        PFun \sz ->
+        PFun \x ->
+        PPrim
+          do sz' <- fromInteger . bvVal <$> (fromVWord sym "genResize" =<< sz)
+             (_,g) <- fromVRandGen <$> x
+             pure (VRandGen sz' g)
+
+    , "splitGen" ~>
+        PFinPoly \n ->
+        PFun \x ->
+        PPrim
+          do (sz,g) <- fromVRandGen <$> x
+             VSeq n <$> splitGenerators sym n sz g
+
+    , "generate" ~>
+        PTyPoly \ty ->
+        PFun \x ->
+        PPrim
+          do (sz,g) <- fromVRandGen <$> x
+             case randomValue sym ty of
+               Nothing -> evalPanic "generate" [ "invalid type", show ty ]
+               Just gen ->
+                 do let (v, g') = gen sz g
+                    pure (VTuple [v, pure (VRandGen sz g')])
+
+    , "boundedWord" ~>
+         PFinPoly \n ->
+         PFun \rng ->
+         PFun \x ->
+         PPrim
+           do res <- rng
+              case fromVTuple res of
+                [lo,hi] -> do
+                  lo' <- bvVal <$> (fromVWord sym "lo bound" =<< lo)
+                  hi' <- bvVal <$> (fromVWord sym "hi bound" =<< hi)
+                  (sz,g) <- fromVRandGen <$> x
+                  let (i, g') = randomR (min lo' hi', max lo' hi') g
+                  let v = VWord n (pure (WordVal (mkBv n i)))
+                  pure (VTuple [pure v, pure (VRandGen sz g')])
+                _ -> evalPanic "boundedWord" ["expected pair value"]
+
+    , "boundedSignedWord" ~>
+         PFinPoly \n ->
+         PFun \rng ->
+         PFun \x ->
+         PPrim
+           do res <- rng
+              case fromVTuple res of
+                [lo,hi] -> do
+                  lo' <- signedBV <$> (fromVWord sym "lo bound" =<< lo)
+                  hi' <- signedBV <$> (fromVWord sym "hi bound" =<< hi)
+                  (sz,g) <- fromVRandGen <$> x
+                  let (i, g') = randomR (min lo' hi', max lo' hi') g
+                  let v = VWord n (pure (WordVal (mkBv n i)))
+                  pure (VTuple [pure v, pure (VRandGen sz g')])
+                _ -> evalPanic "boundedSignedWord" ["expected pair value"]
+
+    , "boundedInteger" ~>
+         PFun \rng ->
+         PFun \x ->
+         PPrim
+           do res <- rng
+              case fromVTuple res of
+                [lo,hi] -> do
+                  lo' <- fromVInteger <$> lo
+                  hi' <- fromVInteger <$> hi
+                  (sz,g) <- fromVRandGen <$> x
+                  let (i, g') = randomR (min lo' hi', max lo' hi') g
+                  pure (VTuple [pure (VInteger i), pure (VRandGen sz g')])
+                _ -> evalPanic "boundedInteger" ["expected pair value"]
+
+    , "boundedBelowInteger" ~>
+         PFun \lo ->
+         PFun \x  ->
+         PPrim
+           do lo' <- fromVInteger <$> lo
+              (sz,g) <- fromVRandGen <$> x
+              let (v, g') = randomIntegerBoundedBelow sym lo' sz g
+              pure (VTuple [v, pure (VRandGen sz g')])
+
+    , "boundedAboveInteger" ~>
+         PFun \hi ->
+         PFun \x  ->
+         PPrim
+           do hi' <- fromVInteger <$> hi
+              (sz,g) <- fromVRandGen <$> x
+              let (v, g') = randomIntegerBoundedAbove sym hi' sz g
+              pure (VTuple [v, pure (VRandGen sz g')])
+
+    , "suchThat" ~>
+         PTyPoly \_ty ->
+         PFun \m ->
+         PFun \p ->
+         PFun \x ->
+         PPrim
+           do mf <- fromVFun sym <$> m
+              pf <- fromVFun sym <$> p
+              execSuchThat sym mf pf x
+
+    ]
+
+execSuchThat ::
+  Concrete ->
+  (SEval Concrete (GenValue Concrete) -> SEval Concrete (GenValue Concrete)) ->
+  (SEval Concrete (GenValue Concrete) -> SEval Concrete (GenValue Concrete)) ->
+  SEval Concrete (GenValue Concrete) ->
+  SEval Concrete (GenValue Concrete)
+execSuchThat sym mf pf g =
+  do res <- mf g
+     case fromVTuple res of
+       [v, g'] ->
+         do b <- fromVBit <$> pf v
+            if b then pure res else execSuchThat sym mf pf g'
+       _ -> evalPanic "suchThat" ["expected pair value"]
+
+{-
+  TVRational ->
+    do lo <- fromVRational <$> lov
+       hi <- fromVRational <$> hiv
+       diff <- rationalSub sym hi lo
+       let sz' = min 1 sz
+       let intervals = sNum diff * toInteger sz'
+       let (num, g') = uniformR (0 , intervals) g
+       let den = sDenom * toInteger sz'
+       x <- rationalAdd sym lo (SRational num den)
+       pure (pure (VRational x), g')
+-}
+
+-- | Precondition: width of `n` is no more than 32
+splitGenerators :: Concrete -> Integer -> Word8 -> TFGen -> SEval Concrete (SeqMap Concrete)
+splitGenerators _sym n sz g0
+  | n <= 2 =
+      do let (g1,g2) = split g0
+         pure (finiteSeqMap [ pure (VRandGen sz g1), pure (VRandGen sz g2) ])
+
+  | otherwise =
+      do let w = fromInteger (widthInteger n)
+             gfun = splitn (level g0) w
+         pure $ IndexSeqMap \i -> pure . VRandGen sz $! gfun (fromInteger i)
+-}
+
+
+
 primeECPrims :: Map.Map PrimIdent (Prim Concrete)
 primeECPrims = Map.fromList $ map (\(n,v) -> (primeECPrim n, v))
   [ ("ec_double", {-# SCC "PrimeEC::ec_double" #-}
@@ -230,7 +397,7 @@ primeECPrims = Map.fromList $ map (\(n,v) -> (primeECPrim n, v))
        PFinPoly \p ->
        PFun     \s ->
        PFun     \t ->
-       PPrim 
+       PPrim
           do s' <- toProjectivePoint =<< s
              t' <- toProjectivePoint =<< t
              let r = PrimeEC.ec_add_nonzero (PrimeEC.primeModulus p) s' t'
@@ -271,7 +438,6 @@ fromProjectivePoint (PrimeEC.ProjectivePoint x y z) =
    pure . VRecord . recordFromFields $ [("x", f x), ("y", f y), ("z", f z)]
   where
    f i = pure (VInteger (PrimeEC.bigNatToInteger i))
-
 
 
 suiteBPrims :: Map.Map PrimIdent (Prim Concrete)
@@ -466,7 +632,8 @@ sshrV =
 logicShift :: (Integer -> Integer -> Integer -> Integer)
               -- ^ The function may assume its arguments are masked.
               -- It is responsible for masking its result if needed.
-           -> (Nat' -> TValue -> SeqMap Concrete -> Integer -> SeqMap Concrete)
+           -> (Nat' -> TValue -> SeqMap Concrete (GenValue Concrete) ->
+                  Integer -> SeqMap Concrete (GenValue Concrete))
            -> Prim Concrete
 logicShift opW opS =
   PNumPoly \a ->
@@ -513,7 +680,7 @@ signedShiftRW w ival by
      else
        shiftR (signedValue w ival) (fromInteger by')
 
-shiftLS :: Nat' -> TValue -> SeqMap Concrete -> Integer -> SeqMap Concrete
+shiftLS :: Nat' -> TValue -> SeqMap Concrete (GenValue Concrete) -> Integer -> SeqMap Concrete (GenValue Concrete)
 shiftLS w ety vs by
   | by < 0 = shiftRS w ety vs (negate by)
 
@@ -525,7 +692,7 @@ shiftLS w ety vs by = IndexSeqMap $ \i ->
       | otherwise  -> evalPanic "shiftLS" ["Index out of bounds"]
     Inf            -> lookupSeqMap vs (i+by)
 
-shiftRS :: Nat' -> TValue -> SeqMap Concrete -> Integer -> SeqMap Concrete
+shiftRS :: Nat' -> TValue -> SeqMap Concrete (GenValue Concrete) -> Integer -> SeqMap Concrete (GenValue Concrete)
 shiftRS w ety vs by
   | by < 0 = shiftLS w ety vs (negate by)
 
@@ -546,7 +713,7 @@ rotateLW 0 i _  = i
 rotateLW w i by = mask w $ (i `shiftL` b) .|. (i `shiftR` (fromInteger w - b))
   where b = fromInteger (by `mod` w)
 
-rotateLS :: Nat' -> TValue -> SeqMap Concrete -> Integer -> SeqMap Concrete
+rotateLS :: Nat' -> TValue -> SeqMap Concrete (GenValue Concrete) -> Integer -> SeqMap Concrete (GenValue Concrete)
 rotateLS w _ vs by = IndexSeqMap $ \i ->
   case w of
     Nat len -> lookupSeqMap vs ((by + i) `mod` len)
@@ -558,7 +725,7 @@ rotateRW 0 i _  = i
 rotateRW w i by = mask w $ (i `shiftR` b) .|. (i `shiftL` (fromInteger w - b))
   where b = fromInteger (by `mod` w)
 
-rotateRS :: Nat' -> TValue -> SeqMap Concrete -> Integer -> SeqMap Concrete
+rotateRS :: Nat' -> TValue -> SeqMap Concrete (GenValue Concrete) -> Integer -> SeqMap Concrete (GenValue Concrete)
 rotateRS w _ vs by = IndexSeqMap $ \i ->
   case w of
     Nat len -> lookupSeqMap vs ((len - by + i) `mod` len)
@@ -567,22 +734,22 @@ rotateRS w _ vs by = IndexSeqMap $ \i ->
 
 -- Sequence Primitives ---------------------------------------------------------
 
-indexFront :: Nat' -> TValue -> SeqMap Concrete -> TValue -> BV -> Eval Value
+indexFront :: Nat' -> TValue -> SeqMap Concrete (GenValue Concrete) -> TValue -> BV -> Eval Value
 indexFront _mblen _a vs _ix (bvVal -> ix) = lookupSeqMap vs ix
 
-indexFront_bits :: Nat' -> TValue -> SeqMap Concrete -> TValue -> [Bool] -> Eval Value
+indexFront_bits :: Nat' -> TValue -> SeqMap Concrete (GenValue Concrete) -> TValue -> [Bool] -> Eval Value
 indexFront_bits mblen a vs ix bs = indexFront mblen a vs ix =<< packWord Concrete bs
 
-indexFront_int :: Nat' -> TValue -> SeqMap Concrete -> TValue -> Integer -> Eval Value
+indexFront_int :: Nat' -> TValue -> SeqMap Concrete (GenValue Concrete) -> TValue -> Integer -> Eval Value
 indexFront_int _mblen _a vs _ix idx = lookupSeqMap vs idx
 
-indexBack :: Nat' -> TValue -> SeqMap Concrete -> TValue -> BV -> Eval Value
+indexBack :: Nat' -> TValue -> SeqMap Concrete (GenValue Concrete) -> TValue -> BV -> Eval Value
 indexBack mblen a vs ix (bvVal -> idx) = indexBack_int mblen a vs ix idx
 
-indexBack_bits :: Nat' -> TValue -> SeqMap Concrete -> TValue -> [Bool] -> Eval Value
+indexBack_bits :: Nat' -> TValue -> SeqMap Concrete (GenValue Concrete) -> TValue -> [Bool] -> Eval Value
 indexBack_bits mblen a vs ix bs = indexBack mblen a vs ix =<< packWord Concrete bs
 
-indexBack_int :: Nat' -> TValue -> SeqMap Concrete -> TValue -> Integer -> Eval Value
+indexBack_int :: Nat' -> TValue -> SeqMap Concrete (GenValue Concrete) -> TValue -> Integer -> Eval Value
 indexBack_int mblen _a vs _ix idx =
   case mblen of
     Nat len -> lookupSeqMap vs (len - idx - 1)
@@ -591,10 +758,10 @@ indexBack_int mblen _a vs _ix idx =
 updateFront ::
   Nat'               {- ^ length of the sequence -} ->
   TValue             {- ^ type of values in the sequence -} ->
-  SeqMap Concrete    {- ^ sequence to update -} ->
+  SeqMap Concrete (GenValue Concrete) {- ^ sequence to update -} ->
   Either Integer (WordValue Concrete) {- ^ index -} ->
   Eval Value         {- ^ new value at index -} ->
-  Eval (SeqMap Concrete)
+  Eval (SeqMap Concrete (GenValue Concrete))
 updateFront _len _eltTy vs (Left idx) val = do
   return $ updateSeqMap vs idx val
 
@@ -619,10 +786,10 @@ updateFront_word _len _eltTy bs (Right w) val = do
 updateBack ::
   Nat'               {- ^ length of the sequence -} ->
   TValue             {- ^ type of values in the sequence -} ->
-  SeqMap Concrete    {- ^ sequence to update -} ->
+  SeqMap Concrete (GenValue Concrete) {- ^ sequence to update -} ->
   Either Integer (WordValue Concrete) {- ^ index -} ->
   Eval Value         {- ^ new value at index -} ->
-  Eval (SeqMap Concrete)
+  Eval (SeqMap Concrete (GenValue Concrete))
 updateBack Inf _eltTy _vs _w _val =
   evalPanic "Unexpected infinite sequence in updateEnd" []
 updateBack (Nat n) _eltTy vs (Left idx) val = do

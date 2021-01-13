@@ -558,6 +558,19 @@ x <=$ y = ~(y <$ x)
 x >=$ y = ~(x <$ y)
 
 
+// Random value generation  ---------------------------------------
+
+/**
+ * Values that support random generation.
+ */
+primitive type Generate : * -> Prop
+
+/**
+ * Generates random values from a seed.
+ */
+primitive random : {a} Generate a => [256] -> a
+
+
 // Bit specific operations ----------------------------------------
 
 /**
@@ -959,12 +972,6 @@ assert : {a, n} (fin n) => Bit -> String n -> a -> a
 assert pred msg x = if pred then x else error msg
 
 /**
- * Generates random values from a seed.  When called with a function, currently
- * generates a function that always returns zero.
- */
-primitive random : {a} [256] -> a
-
-/**
  * Debugging function for tracing.  The first argument is a string,
  * which is prepended to the printed value of the second argument.
  * This combined string is then printed when the trace function is
@@ -990,6 +997,15 @@ primitive trace : {n, a, b} (fin n) => String n -> a -> b -> b
  */
 traceVal : {n, a} (fin n) => String n -> a -> a
 traceVal msg x = trace msg x x
+
+/**
+ * Debugging function that combines the ability
+ * to print runtime values with the 'error' function that
+ * causes runtime errors.  The given error message is prepended
+ * to the printed value of the second argument.  This combined
+ * string is used to raise a runtime error.
+ */
+primitive traceError : {a, b, n} (fin n) => String n -> b -> a
 
 
 /* Functions previously in Cryptol::Extras */
@@ -1051,7 +1067,8 @@ foldr f acc xs = foldl g acc (reverse xs)
 
 /**
  * Functional right fold, with strict evaluation of the accumulator value.
- * The accumulator is reduced to weak head normal form at each step.
+ * The accumulator is reduced to normal form at each step. The Eq constraint
+ * restricts the accumulator to types where reduction to normal form makes sense.
  *
  * foldr' (-) 0 [1,2,3] = 0 - (1 - (2 - 3))
  */

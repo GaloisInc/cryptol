@@ -462,7 +462,11 @@ getUninterpFn sym funNm args ret =
                            ]
 
 toWord32 :: W4.IsSymExprBuilder sym =>
-  What4 sym -> String -> SeqMap (What4 sym) -> Integer -> SEval (What4 sym) (W4.SymBV sym 32)
+  What4 sym ->
+  String ->
+  SeqMap (What4 sym) (GenValue (What4 sym)) ->
+  Integer ->
+  SEval (What4 sym) (W4.SymBV sym 32)
 toWord32 sym nm ss i =
   do x <- fromVWord sym nm =<< lookupSeqMap ss i
      case x of
@@ -474,7 +478,11 @@ fromWord32 = pure . VWord 32 . pure . WordVal . SW.DBV
 
 
 toWord64 :: W4.IsSymExprBuilder sym =>
-  What4 sym -> String -> SeqMap (What4 sym) -> Integer -> SEval (What4 sym) (W4.SymBV sym 64)
+  What4 sym ->
+  String ->
+  SeqMap (What4 sym) (GenValue (What4 sym)) ->
+  Integer ->
+  SEval (What4 sym) (W4.SymBV sym 64)
 toWord64 sym nm ss i =
   do x <- fromVWord sym nm =<< lookupSeqMap ss i
      case x of
@@ -541,7 +549,7 @@ indexFront_int ::
   What4 sym ->
   Nat' ->
   TValue ->
-  SeqMap (What4 sym) ->
+  SeqMap (What4 sym) (GenValue (What4 sym)) ->
   TValue ->
   SInteger (What4 sym) ->
   SEval (What4 sym) (Value sym)
@@ -590,7 +598,7 @@ indexBack_int ::
   What4 sym ->
   Nat' ->
   TValue ->
-  SeqMap (What4 sym) ->
+  SeqMap (What4 sym) (GenValue (What4 sym)) ->
   TValue ->
   SInteger (What4 sym) ->
   SEval (What4 sym) (Value sym)
@@ -602,7 +610,7 @@ indexFront_word ::
   What4 sym ->
   Nat' ->
   TValue ->
-  SeqMap (What4 sym) ->
+  SeqMap (What4 sym) (GenValue (What4 sym)) ->
   TValue ->
   SWord (What4 sym) ->
   SEval (What4 sym) (Value sym)
@@ -643,7 +651,7 @@ indexBack_word ::
   What4 sym ->
   Nat' ->
   TValue ->
-  SeqMap (What4 sym) ->
+  SeqMap (What4 sym) (GenValue (What4 sym)) ->
   TValue ->
   SWord (What4 sym) ->
   SEval (What4 sym) (Value sym)
@@ -655,7 +663,7 @@ indexFront_bits :: forall sym.
   What4 sym ->
   Nat' ->
   TValue ->
-  SeqMap (What4 sym) ->
+  SeqMap (What4 sym) (GenValue (What4 sym)) ->
   TValue ->
   [SBit (What4 sym)] ->
   SEval (What4 sym) (Value sym)
@@ -688,7 +696,7 @@ indexBack_bits ::
   What4 sym ->
   Nat' ->
   TValue ->
-  SeqMap (What4 sym) ->
+  SeqMap (What4 sym) (GenValue (What4 sym)) ->
   TValue ->
   [SBit (What4 sym)] ->
   SEval (What4 sym) (Value sym)
@@ -727,10 +735,10 @@ updateFrontSym ::
   What4 sym ->
   Nat' ->
   TValue ->
-  SeqMap (What4 sym) ->
+  SeqMap (What4 sym) (GenValue (What4 sym)) ->
   Either (SInteger (What4 sym)) (WordValue (What4 sym)) ->
   SEval (What4 sym) (Value sym) ->
-  SEval (What4 sym) (SeqMap (What4 sym))
+  SEval (What4 sym) (SeqMap (What4 sym) (GenValue (What4 sym)))
 updateFrontSym sym _len _eltTy vs (Left idx) val =
   case W4.asInteger idx of
     Just i -> return $ updateSeqMap vs i val
@@ -752,10 +760,10 @@ updateBackSym ::
   What4 sym ->
   Nat' ->
   TValue ->
-  SeqMap (What4 sym) ->
+  SeqMap (What4 sym) (GenValue (What4 sym)) ->
   Either (SInteger (What4 sym)) (WordValue (What4 sym)) ->
   SEval (What4 sym) (Value sym) ->
-  SEval (What4 sym) (SeqMap (What4 sym))
+  SEval (What4 sym) (SeqMap (What4 sym) (GenValue (What4 sym)))
 updateBackSym _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["updateBackSym"]
 
 updateBackSym sym (Nat n) _eltTy vs (Left idx) val =

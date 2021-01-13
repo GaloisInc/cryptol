@@ -24,6 +24,8 @@ module Cryptol.Testing.Random
 , returnTests
 , exhaustiveTests
 , randomTests
+, randomIntegerBoundedBelow
+, randomIntegerBoundedAbove
 ) where
 
 import qualified Control.Exception as X
@@ -31,22 +33,24 @@ import Control.Monad          (liftM2)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Ratio             ((%))
 import Data.List              (unfoldr, genericTake, genericIndex, genericReplicate)
+import Data.Word              (Word8)
 import qualified Data.Sequence as Seq
 
-import System.Random          (RandomGen, split, random, randomR)
+import System.Random          (split, random, randomR)
+import System.Random.TF.Gen   (TFGen) 
 
-import Cryptol.Backend        (Backend(..), SRational(..))
+import Cryptol.Backend        (Backend(..), SRational(..), SeqMap(..), finiteSeqMap)
 import Cryptol.Backend.Monad  (runEval,Eval,EvalErrorEx(..))
 import Cryptol.Backend.Concrete
 
 import Cryptol.Eval.Type      (TValue(..))
-import Cryptol.Eval.Value     (GenValue(..),SeqMap(..), WordValue(..),
-                               ppValue, defaultPPOpts, finiteSeqMap, fromVFun)
+import Cryptol.Eval.Value     (GenValue(..), WordValue(..),
+                               ppValue, defaultPPOpts, fromVFun)
 import Cryptol.Utils.Ident    (Ident)
 import Cryptol.Utils.Panic    (panic)
 import Cryptol.Utils.RecordMap
 
-type Gen g x = Integer -> g -> (SEval x (GenValue x), g)
+type Gen x = Word8 -> TFGen -> (SEval x (GenValue x), TFGen)
 
 
 type Value = GenValue Concrete
@@ -58,12 +62,12 @@ type Value = GenValue Concrete
     Please note that this function assumes that the generators match
     the supplied value, otherwise we'll panic.
  -}
-runOneTest :: RandomGen g
-        => Value   -- ^ Function under test
-        -> [Gen g Concrete] -- ^ Argument generators
-        -> Integer -- ^ Size
-        -> g
-        -> IO (TestResult, g)
+runOneTest ::
+  Value  {- ^ Function under test -} ->
+  [Gen Concrete] {- ^ Argument generators -} ->
+  Word8 {- ^ Size -} ->
+  TFGen ->
+  IO (TestResult, TFGen)
 runOneTest fun argGens sz g0 = do
   let (args, g1) = foldr mkArg ([], g0) argGens
       mkArg argGen (as, g) = let (a, g') = argGen sz g in (a:as, g')
@@ -71,12 +75,12 @@ runOneTest fun argGens sz g0 = do
   result <- evalTest fun args'
   return (result, g1)
 
-returnOneTest :: RandomGen g
-           => Value    -- ^ Function to be used to calculate tests
-           -> [Gen g Concrete] -- ^ Argument generators
-           -> Integer -- ^ Size
-           -> g -- ^ Initial random state
-           -> IO ([Value], Value, g) -- ^ Arguments, result, and new random state
+returnOneTest ::
+  Value   {- ^ Function to be used to calculate tests -} ->
+  [Gen Concrete] {- ^ Argument generators -} ->
+  Word8 {- ^ Size -} ->
+  TFGen {- ^ Initial random state -} ->
+  IO ([Value], Value, TFGen) {- ^ Arguments, result, and new random state -}
 returnOneTest fun argGens sz g0 =
   do let (args, g1) = foldr mkArg ([], g0) argGens
          mkArg argGen (as, g) = let (a, g') = argGen sz g in (a:as, g')
@@ -93,41 +97,41 @@ returnOneTest fun argGens sz g0 =
 
 
 -- | Return a collection of random tests.
-returnTests :: RandomGen g
-         => g -- ^ The random generator state
-         -> [Gen g Concrete] -- ^ Generators for the function arguments
-         -> Value -- ^ The function itself
-         -> Int -- ^ How many tests?
-         -> IO [([Value], Value)] -- ^ A list of pairs of random arguments and computed outputs
+returnTests ::
+  TFGen {- ^ The random generator state -} ->
+  [Gen Concrete] {- ^ Generators for the function arguments -} ->
+  Value {- ^ The function itself -} ->
+  Int {- ^ How many tests? -} ->
+  IO [([Value], Value)] {- ^ A list of pairs of random arguments and computed outputs -}
 returnTests g gens fun num = go gens g 0
   where
     go args g0 n
       | n >= num = return []
       | otherwise =
-        do let sz = toInteger (div (100 * (1 + n)) num)
+        do let sz = fromIntegral (div (100 * (1 + n)) num)
            (inputs, output, g1) <- returnOneTest fun args sz g0
            more <- go args g1 (n + 1)
            return ((inputs, output) : more)
 
 {- | Given a (function) type, compute generators for the function's
 arguments. -}
-dumpableType :: forall g. RandomGen g => TValue -> Maybe [Gen g Concrete]
+dumpableType :: TValue -> Maybe [Gen Concrete]
 dumpableType (TVFun t1 t2) =
    do g  <- randomValue Concrete t1
       as <- dumpableType t2
       return (g : as)
 dumpableType ty =
-   do (_ :: Gen g Concrete) <- randomValue Concrete ty
+   do (_ :: Gen Concrete) <- randomValue Concrete ty
       return []
 
 
 {-# SPECIALIZE randomValue ::
-  RandomGen g => Concrete -> TValue -> Maybe (Gen g Concrete)
+  Concrete -> TValue -> Maybe (Gen Concrete)
   #-}
 
 {- | A generator for values of the given type.  This fails if we are
 given a type that lacks a suitable random value generator. -}
-randomValue :: (Backend sym, RandomGen g) => sym -> TValue -> Maybe (Gen g sym)
+randomValue :: Backend sym => sym -> TValue -> Maybe (Gen sym)
 randomValue sym ty =
   case ty of
     TVBit         -> Just (randomBit sym)
@@ -139,7 +143,7 @@ randomValue sym ty =
     TVSeq n el ->
          do mk <- randomValue sym el
             return (randomSequence n mk)
-    TVStream el  ->
+    TVStream el ->
          do mk <- randomValue sym el
             return (randomStream mk)
     TVTuple els ->
@@ -154,18 +158,19 @@ randomValue sym ty =
     TVArray{} -> Nothing
     TVFun{} -> Nothing
     TVAbstract{} -> Nothing
+    TVGen{} -> Nothing
 
 {-# INLINE randomBit #-}
 
 -- | Generate a random bit value.
-randomBit :: (Backend sym, RandomGen g) => sym -> Gen g sym
+randomBit :: Backend sym => sym -> Gen sym
 randomBit sym _ g =
   let (b,g1) = random g
   in (pure (VBit (bitLit sym b)), g1)
 
 {-# INLINE randomSize #-}
 
-randomSize :: RandomGen g => Int -> Int -> g -> (Int, g)
+randomSize :: Word8 -> Word8 -> TFGen -> (Word8, TFGen)
 randomSize k n g
   | p == 1 = (n, g')
   | otherwise = randomSize k (n + 1) g'
@@ -176,24 +181,40 @@ randomSize k n g
 -- | Generate a random integer value. The size parameter is assumed to
 -- vary between 1 and 100, and we use it to generate smaller numbers
 -- first.
-randomInteger :: (Backend sym, RandomGen g) => sym -> Gen g sym
+randomInteger :: Backend sym => sym -> Gen sym
 randomInteger sym w g =
-  let (n, g1) = if w < 100 then (fromInteger w, g) else randomSize 8 100 g
+  let (n, g1) = if w < 100 then (w, g) else randomSize 8 100 g
       (i, g2) = randomR (- 256^n, 256^n) g1
   in (VInteger <$> integerLit sym i, g2)
 
 {-# INLINE randomIntMod #-}
 
-randomIntMod :: (Backend sym, RandomGen g) => sym -> Integer -> Gen g sym
+randomIntegerBoundedBelow :: Backend sym => sym -> Integer -> Gen sym
+randomIntegerBoundedBelow sym lo w g =
+  let (n, g1) = if w < 100 then (w, g) else randomSize 8 100 g
+      (i, g2) = randomR (0, 256^n) g1
+  in (VInteger <$> integerLit sym (lo + i), g2)
+
+{-# INLINE randomIntegerBoundedBelow #-}
+
+randomIntegerBoundedAbove :: Backend sym => sym -> Integer -> Gen sym
+randomIntegerBoundedAbove sym hi w g =
+  let (n, g1) = if w < 100 then (w, g) else randomSize 8 100 g
+      (i, g2) = randomR (-256^n, 0) g1
+  in (VInteger <$> integerLit sym (hi + i), g2)
+
+{-# INLINE randomIntegerBoundedAbove #-}
+
+randomIntMod :: Backend sym => sym -> Integer -> Gen sym
 randomIntMod sym modulus _ g =
   let (i, g') = randomR (0, modulus-1) g
   in (VInteger <$> integerLit sym i, g')
 
 {-# INLINE randomRational #-}
 
-randomRational :: (Backend sym, RandomGen g) => sym -> Gen g sym
+randomRational :: Backend sym => sym -> Gen sym
 randomRational sym w g =
-  let (sz, g1) = if w < 100 then (fromInteger w, g) else randomSize 8 100 g
+  let (sz, g1) = if w <= 100 then (w, g) else randomSize 8 100 g
       (n, g2) = randomR (- 256^sz, 256^sz) g1
       (d, g3) = randomR ( 1, 256^sz) g2
    in (do n' <- integerLit sym n
@@ -206,7 +227,7 @@ randomRational sym w g =
 -- | Generate a random word of the given length (i.e., a value of type @[w]@)
 -- The size parameter is assumed to vary between 1 and 100, and we use
 -- it to generate smaller numbers first.
-randomWord :: (Backend sym, RandomGen g) => sym -> Integer -> Gen g sym
+randomWord :: Backend sym => sym -> Integer -> Gen sym
 randomWord sym w _sz g =
    let (val, g1) = randomR (0,2^w-1) g
    in (return $ VWord w (WordVal <$> wordLit sym w val), g1)
@@ -214,7 +235,7 @@ randomWord sym w _sz g =
 {-# INLINE randomStream #-}
 
 -- | Generate a random infinite stream value.
-randomStream :: (Backend sym, RandomGen g) => Gen g sym -> Gen g sym
+randomStream :: Backend sym => Gen sym -> Gen sym
 randomStream mkElem sz g =
   let (g1,g2) = split g
   in (pure $ VStream $ IndexSeqMap $ genericIndex (unfoldr (Just . mkElem sz) g1), g2)
@@ -223,7 +244,7 @@ randomStream mkElem sz g =
 
 {- | Generate a random sequence.  This should be used for sequences
 other than bits.  For sequences of bits use "randomWord". -}
-randomSequence :: (Backend sym, RandomGen g) => Integer -> Gen g sym -> Gen g sym
+randomSequence :: Backend sym => Integer -> Gen sym -> Gen sym
 randomSequence w mkElem sz g0 = do
   let (g1,g2) = split g0
   let f g = let (x,g') = mkElem sz g
@@ -235,7 +256,7 @@ randomSequence w mkElem sz g0 = do
 {-# INLINE randomTuple #-}
 
 -- | Generate a random tuple value.
-randomTuple :: (Backend sym, RandomGen g) => [Gen g sym] -> Gen g sym
+randomTuple :: Backend sym => [Gen sym] -> Gen sym
 randomTuple gens sz = go [] gens
   where
   go els [] g = (pure $ VTuple (reverse els), g)
@@ -246,7 +267,7 @@ randomTuple gens sz = go [] gens
 {-# INLINE randomRecord #-}
 
 -- | Generate a random record value.
-randomRecord :: (Backend sym, RandomGen g) => RecordMap Ident (Gen g sym) -> Gen g sym
+randomRecord :: Backend sym => RecordMap Ident (Gen sym) -> Gen sym
 randomRecord gens sz g0 =
   let (g', m) = recordMapAccum mk g0 gens in (pure $ VRecord m, g')
   where
@@ -255,11 +276,11 @@ randomRecord gens sz g0 =
       in seq v (g', v)
 
 randomFloat ::
-  (Backend sym, RandomGen g) =>
+  Backend sym =>
   sym ->
   Integer {- ^ Exponent width -} ->
   Integer {- ^ Precision width -} ->
-  Gen g sym
+  Gen sym
 randomFloat sym e p w g =
   ( VFloat <$> fpLit sym e p (nu % de)
   , g3
@@ -268,7 +289,7 @@ randomFloat sym e p w g =
   -- XXX: we never generat NaN
   -- XXX: Not sure that we need such big integers, we should probably
   -- use `e` and `p` as a guide.
-  (n,  g1) = if w < 100 then (fromInteger w, g) else randomSize 8 100 g
+  (n,  g1) = if w < 100 then (w, g) else randomSize 8 100 g
   (nu, g2) = randomR (- 256^n, 256^n) g1
   (de, g3) = randomR (1, 256^n) g2
 
@@ -306,7 +327,13 @@ evalTest v0 vs0 = run `X.catch` handle
                               go f' vs
     go VFun{}   []       = panic "Not enough arguments while applying function"
                            []
+
+    -- TODO deal with VGen....
+    --go (VGen m) []
+
+    go (VTuple []) []    = return True
     go (VBit b) []       = return b
+
     go v vs              = do vdoc    <- ppValue Concrete defaultPPOpts v
                               vsdocs  <- mapM (ppValue Concrete defaultPPOpts) vs
                               panic "Type error while running test" $
@@ -330,9 +357,9 @@ evalTest v0 vs0 = run `X.catch` handle
      eventually return @Bit@, or if we cannot compute a generator
      for one of the inputs.
 -}
-testableType :: RandomGen g =>
+testableType ::
   TValue ->
-  Maybe (Maybe Integer, [TValue], [[Value]], [Gen g Concrete])
+  Maybe (Maybe Integer, [TValue], [[Value]], [Gen Concrete])
 testableType (TVFun t1 t2) =
    do let sz = typeSize t1
       g <- randomValue Concrete t1
@@ -340,7 +367,11 @@ testableType (TVFun t1 t2) =
       let tot' = liftM2 (*) sz tot
       let vss' = [ v : vs | v <- typeValues t1, vs <- vss ]
       return (tot', t1:ts, vss', g:gs)
+
+testableType (TVGen v) = testableType v
+testableType (TVTuple []) = return (Just 1, [], [[]], [])
 testableType TVBit = return (Just 1, [], [[]], [])
+
 testableType _ = Nothing
 
 {- | Given a fully-evaluated type, try to compute the number of values in it.
@@ -361,6 +392,7 @@ typeSize ty = case ty of
   TVRec fs -> product <$> traverse typeSize fs
   TVFun{} -> Nothing
   TVAbstract{} -> Nothing
+  TVGen{} -> Nothing
   TVNewtype _ _ tbody -> typeSize (TVRec tbody)
 
 {- | Returns all the values in a type.  Returns an empty list of values,
@@ -393,6 +425,8 @@ typeValues ty =
       ]
     TVFun{} -> []
     TVAbstract{} -> []
+    TVGen{} -> []
+
     TVNewtype _ _ tbody -> typeValues (TVRec tbody)
 
 --------------------------------------------------------------------------------
@@ -413,12 +447,12 @@ exhaustiveTests ppProgress val = go 0
          Pass -> go (testNum+1) vss
          failure -> return (failure, testNum)
 
-randomTests :: (MonadIO m, RandomGen g) =>
+randomTests :: MonadIO m =>
   (Integer -> m ()) {- ^ progress callback -} ->
   Integer {- ^ Maximum number of tests to run -} ->
   Value {- ^ function under test -} ->
-  [Gen g Concrete] {- ^ input value generators -} ->
-  g {- ^ Inital random generator -} ->
+  [Gen Concrete] {- ^ input value generators -} ->
+  TFGen {- ^ Inital random generator -} ->
   m (TestResult, Integer)
 randomTests ppProgress maxTests val gens = go 0
   where
@@ -426,7 +460,7 @@ randomTests ppProgress maxTests val gens = go 0
     | testNum >= maxTests = return (Pass, testNum)
     | otherwise =
       do ppProgress testNum
-         let sz' = div (100 * (1 + testNum)) maxTests
+         let sz' = 1 + fromInteger (div (100 * testNum) maxTests)
          (res, g') <- liftIO (runOneTest val gens sz' g)
          case res of
            Pass -> go (testNum+1) g'

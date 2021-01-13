@@ -17,8 +17,8 @@ module Cryptol.Backend.What4 where
 
 import qualified Control.Exception as X
 import           Control.Concurrent.MVar
-import           Control.Monad (foldM,ap,liftM)
 import           Control.Monad.IO.Class
+import           Control.Monad.Reader
 import           Data.Bits (bit)
 import qualified Data.BitVector.Sized as BV
 import           Data.List
@@ -209,6 +209,8 @@ instance W4.IsSymExprBuilder sym => Backend (What4 sym) where
   type SInteger (What4 sym) = W4.SymInteger sym
   type SFloat (What4 sym)   = FP.SFloat sym
   type SEval (What4 sym)    = W4Eval sym
+
+  type SGen (What4 sym)     = ReaderT (SWord sym) (W4Eval sym)
 
   raiseError _ = evalError
 

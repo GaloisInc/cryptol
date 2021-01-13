@@ -44,6 +44,7 @@ builtInType nm =
       | m == preludeName -> Map.lookup (M.nameIdent nm) builtInTypes
       | m == floatName   -> Map.lookup (M.nameIdent nm) builtInFloat
       | m == arrayName   -> Map.lookup (M.nameIdent nm) builtInArray
+      | m == testingName -> Map.lookup (M.nameIdent nm) builtInTesting
     _ -> Nothing
 
   where
@@ -54,6 +55,9 @@ builtInType nm =
     [ "Float"             ~> TC TCFloat
     , "ValidFloat"        ~> PC PValidFloat
     ]
+
+  builtInTesting = Map.fromList
+    [ "Gen"               ~> TC TCGen ]
 
   -- Built-in types from Cryptol.cry
   builtInTypes = Map.fromList
@@ -78,6 +82,7 @@ builtInType nm =
     , "Round"             ~> PC PRound
     , "Eq"                ~> PC PEq
     , "Cmp"               ~> PC PCmp
+    , "Generate"          ~> PC PGenerate
     , "SignedCmp"         ~> PC PSignedCmp
     , "Literal"           ~> PC PLiteral
     , "FLiteral"          ~> PC PFLiteral
@@ -136,6 +141,7 @@ instance HasKind TC where
       TCBit     -> KType
       TCInteger -> KType
       TCRational -> KType
+      TCGen     -> KType :-> KType
       TCFloat   -> KNum :-> KNum :-> KType
       TCIntMod  -> KNum :-> KType
       TCArray   -> KType :-> KType :-> KType
@@ -162,6 +168,7 @@ instance HasKind PC where
       PEq        -> KType :-> KProp
       PCmp       -> KType :-> KProp
       PSignedCmp -> KType :-> KProp
+      PGenerate  -> KType :-> KProp
       PLiteral   -> KNum :-> KType :-> KProp
       PFLiteral  -> KNum :-> KNum :-> KNum :-> KType :-> KProp
       PValidFloat -> KNum :-> KNum :-> KProp
@@ -212,6 +219,7 @@ data PC     = PEqual        -- ^ @_ == _@
             | PEq           -- ^ @Eq _@
             | PCmp          -- ^ @Cmp _@
             | PSignedCmp    -- ^ @SignedCmp _@
+            | PGenerate     -- ^ @Generate _@
             | PLiteral      -- ^ @Literal _ _@
             | PFLiteral     -- ^ @FLiteral _ _ _@
 
@@ -231,6 +239,7 @@ data TC     = TCNum Integer            -- ^ Numbers
             | TCFloat                  -- ^ Float
             | TCIntMod                 -- ^ @Z _@
             | TCRational               -- ^ @Rational@
+            | TCGen                    -- ^ @Gen@
             | TCArray                  -- ^ @Array _ _@
             | TCSeq                    -- ^ @[_] _@
             | TCFun                    -- ^ @_ -> _@
@@ -313,6 +322,7 @@ instance PP PC where
       PEq        -> text "Eq"
       PCmp       -> text "Cmp"
       PSignedCmp -> text "SignedCmp"
+      PGenerate  -> text "Generate"
       PLiteral   -> text "Literal"
       PFLiteral  -> text "FLiteral"
       PValidFloat -> text "ValidFloat"
@@ -328,6 +338,7 @@ instance PP TC where
       TCInteger -> text "Integer"
       TCIntMod  -> text "Z"
       TCRational -> text "Rational"
+      TCGen     -> text "Gen"
       TCArray   -> text "Array"
       TCFloat   -> text "Float"
       TCSeq     -> text "[]"

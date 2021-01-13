@@ -43,7 +43,7 @@ import Cryptol.Testing.Random( randomValue )
 import Cryptol.Eval.Prims
 import Cryptol.Eval.Type
 import Cryptol.Eval.Value
-import Cryptol.Utils.Ident (PrimIdent, prelPrim)
+import Cryptol.Utils.Ident (PrimIdent, prelPrim, testingPrim)
 import Cryptol.Utils.Logger(logPrint)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
@@ -211,6 +211,9 @@ ringBinary sym opw opi opz opq opfp = loop
     TVArray{} ->
       evalPanic "arithBinary" ["Array not in class Ring"]
 
+    TVGen{} ->
+      evalPanic "arithBinary" ["Gen not in class Ring"]
+
     TVSeq w a
       -- words and finite sequences
       | isTBit a -> do
@@ -298,6 +301,9 @@ ringUnary sym opw opi opz opq opfp = loop
     TVArray{} ->
       evalPanic "arithUnary" ["Array not in class Ring"]
 
+    TVGen{} ->
+      evalPanic "arithUnary" ["Gen not in class Ring"]
+
     TVSeq w a
       -- words and finite sequences
       | isTBit a -> do
@@ -367,6 +373,8 @@ ringNullary sym opw opi opz opq opfp = loop
         TVRational -> VRational <$> opq
 
         TVArray{} -> evalPanic "arithNullary" ["Array not in class Ring"]
+
+        TVGen{} -> evalPanic "arithNullary" ["Gen not in class Ring"]
 
         TVSeq w a
           -- words and finite sequences
@@ -745,8 +753,9 @@ cmpValue sym fb fw fi fz fq ff = cmp
         TVFloat _ _   -> ff (fromVFloat v1) (fromVFloat v2) k
         TVIntMod n    -> fz n (fromVInteger v1) (fromVInteger v2) k
         TVRational    -> fq (fromVRational v1) (fromVRational v2) k
-        TVArray{}     -> panic "Cryptol.Prims.Value.cmpValue"
-                               [ "Arrays are not comparable" ]
+        TVArray{}     -> evalPanic "cmpValue" [ "Arrays are not comparable" ]
+        TVGen{}       -> evalPanic "cmpVAlue" [ "Gen values are not comparable" ]
+
         TVSeq n t
           | isTBit t  -> do w1 <- fromVWord sym "cmpValue" v1
                             w2 <- fromVWord sym "cmpValue" v2
@@ -909,6 +918,8 @@ zeroV sym ty = case ty of
 
   TVArray{} -> evalPanic "zeroV" ["Array not in class Zero"]
 
+  TVGen{} -> evalPanic "zeroV" ["Gen not in class Zero"]
+
   -- floating point
   TVFloat e p ->
     VFloat <$> fpLit sym e p 0
@@ -960,7 +971,7 @@ joinWordVal sym w1 w2
   Concrete ->
   Integer ->
   Integer ->
-  SeqMap Concrete ->
+  SeqMap Concrete (GenValue Concrete) ->
   SEval Concrete (GenValue Concrete)
   #-}
 joinWords :: forall sym.
@@ -968,7 +979,7 @@ joinWords :: forall sym.
   sym ->
   Integer ->
   Integer ->
-  SeqMap sym ->
+  SeqMap sym (GenValue sym) ->
   SEval sym (GenValue sym)
 joinWords sym nParts nEach xs =
   loop (WordVal <$> wordLit sym 0 0) (enumerateSeqMap nParts xs)
@@ -988,7 +999,7 @@ joinWords sym nParts nEach xs =
   Nat' ->
   Integer ->
   TValue ->
-  SeqMap Concrete ->
+  SeqMap Concrete (GenValue Concrete) ->
   SEval Concrete (GenValue Concrete)
   #-}
 joinSeq ::
@@ -997,7 +1008,7 @@ joinSeq ::
   Nat' ->
   Integer ->
   TValue ->
-  SeqMap sym ->
+  SeqMap sym (GenValue sym) ->
   SEval sym (GenValue sym)
 
 -- Special case for 0 length inner sequences.
@@ -1322,6 +1333,7 @@ logicBinary sym opb opw = loop
     TVArray{} -> evalPanic "logicBinary" ["Array not in class Logic"]
 
     TVFloat {}  -> evalPanic "logicBinary" ["Float not in class Logic"]
+    TVGen{} -> evalPanic "logicBinary" ["Gen not in class Logic"]
     TVSeq w aty
          -- words
          | isTBit aty
@@ -1401,6 +1413,7 @@ logicUnary sym opb opw = loop
     TVFloat {} -> evalPanic "logicUnary" ["Float not in class Logic"]
     TVRational -> evalPanic "logicBinary" ["Rational not in class Logic"]
     TVArray{} -> evalPanic "logicUnary" ["Array not in class Logic"]
+    TVGen{} -> evalPanic "logicUnary" ["Gen not in class Logic"]
 
     TVSeq w ety
          -- words
@@ -1517,9 +1530,9 @@ assertIndexInBounds sym (Nat n) (Right (LargeBitsVal w bits)) =
 indexPrim ::
   Backend sym =>
   sym ->
-  (Nat' -> TValue -> SeqMap sym -> TValue -> SInteger sym -> SEval sym (GenValue sym)) ->
-  (Nat' -> TValue -> SeqMap sym -> TValue -> [SBit sym] -> SEval sym (GenValue sym)) ->
-  (Nat' -> TValue -> SeqMap sym -> TValue -> SWord sym -> SEval sym (GenValue sym)) ->
+  (Nat' -> TValue -> SeqMap sym (GenValue sym) -> TValue -> SInteger sym -> SEval sym (GenValue sym)) ->
+  (Nat' -> TValue -> SeqMap sym (GenValue sym) -> TValue -> [SBit sym] -> SEval sym (GenValue sym)) ->
+  (Nat' -> TValue -> SeqMap sym (GenValue sym) -> TValue -> SWord sym -> SEval sym (GenValue sym)) ->
   Prim sym
 indexPrim sym int_op bits_op word_op =
   PNumPoly \len ->
@@ -1546,7 +1559,7 @@ updatePrim ::
   Backend sym =>
   sym ->
   (Nat' -> TValue -> WordValue sym -> Either (SInteger sym) (WordValue sym) -> SEval sym (GenValue sym) -> SEval sym (WordValue sym)) ->
-  (Nat' -> TValue -> SeqMap sym    -> Either (SInteger sym) (WordValue sym) -> SEval sym (GenValue sym) -> SEval sym (SeqMap sym)) ->
+  (Nat' -> TValue -> SeqMap sym (GenValue sym) -> Either (SInteger sym) (WordValue sym) -> SEval sym (GenValue sym) -> SEval sym (SeqMap sym (GenValue sym) )) ->
   Prim sym
 updatePrim sym updateWord updateSeq =
   PNumPoly \len ->
@@ -1632,11 +1645,11 @@ infFromThenV sym =
 
 barrelShifter :: Backend sym =>
   sym ->
-  (SeqMap sym -> Integer -> SEval sym (SeqMap sym))
+  (SeqMap sym (GenValue sym) -> Integer -> SEval sym (SeqMap sym (GenValue sym)))
      {- ^ concrete shifting operation -} ->
-  SeqMap sym  {- ^ initial value -} ->
+  SeqMap sym (GenValue sym) {- ^ initial value -} ->
   [SBit sym]  {- ^ bits of shift amount, in big-endian order -} ->
-  SEval sym (SeqMap sym)
+  SEval sym (SeqMap sym (GenValue sym))
 barrelShifter sym shift_op = go
   where
   go x [] = return x
@@ -1858,6 +1871,7 @@ errorV sym ty0 msg =
        TVRational -> err stk
        TVArray{} -> err stk
        TVFloat {} -> err stk
+       TVGen{} -> err stk
 
        -- sequences
        TVSeq w ety
@@ -1962,16 +1976,21 @@ mergeValue sym c v1 v2 =
     (VStream vs1 , VStream vs2 ) -> VStream <$> memoMap sym (mergeSeqMap sym c vs1 vs2)
     (f1@VFun{}   , f2@VFun{}   ) -> lam sym $ \x -> mergeValue' sym c (fromVFun sym f1 x) (fromVFun sym f2 x)
     (f1@VPoly{}  , f2@VPoly{}  ) -> tlam sym $ \x -> mergeValue' sym c (fromVPoly sym f1 x) (fromVPoly sym f2 x)
+
+    -- TODO?
+    (VGen{}      , VGen{}      ) -> liftIO (X.throw (UnsupportedSymbolicOp "random generator symbolic merge"))
     (_           , _           ) -> panic "Cryptol.Eval.Generic"
                                   [ "mergeValue: incompatible values" ]
+
+
 
 {-# INLINE mergeSeqMap #-}
 mergeSeqMap :: Backend sym =>
   sym ->
   SBit sym ->
-  SeqMap sym ->
-  SeqMap sym ->
-  SeqMap sym
+  SeqMap sym (GenValue sym) ->
+  SeqMap sym (GenValue sym) ->
+  SeqMap sym (GenValue sym)
 mergeSeqMap sym c x y =
   IndexSeqMap $ \i ->
     iteValue sym c (lookupSeqMap x i) (lookupSeqMap y i)
@@ -2036,13 +2055,11 @@ foldl'V sym =
 {-# SPECIALIZE randomV ::
   Concrete -> TValue -> Integer -> SEval Concrete (GenValue Concrete)
   #-}
--- | Produce a random value with the given seed. If we do not support
--- making values of the given type, return zero of that type.
--- TODO: do better than returning zero
+-- | Produce a random value with the given seed.
 randomV :: Backend sym => sym -> TValue -> Integer -> SEval sym (GenValue sym)
 randomV sym ty seed =
   case randomValue sym ty of
-    Nothing -> zeroV sym ty
+    Nothing -> panic "randomV" ["type not in class Generate", show ty]
     Just gen ->
       -- unpack the seed into four Word64s
       let mask64 = 0xFFFFFFFFFFFFFFFF
@@ -2079,8 +2096,8 @@ sparkParMap ::
   sym ->
   (SEval sym (GenValue sym) -> SEval sym (GenValue sym)) ->
   Integer ->
-  SeqMap sym ->
-  SEval sym (SeqMap sym)
+  SeqMap sym (GenValue sym) ->
+  SEval sym (SeqMap sym (GenValue sym))
 sparkParMap sym f n m =
   finiteSeqMap <$> mapM (sSpark sym . g) (enumerateSeqMap n m)
  where
@@ -2118,6 +2135,7 @@ fpRndRTZ sym = wordLit sym 3 4 {- to 0    -}
 
 genericPrimTable :: Backend sym => sym -> IO EvalOpts -> Map PrimIdent (Prim sym)
 genericPrimTable sym getEOpts =
+  Map.union (testingPrims sym) $
   Map.fromList $ map (\(n, v) -> (prelPrim n, v))
 
   [ -- Literals
@@ -2283,6 +2301,19 @@ genericPrimTable sym getEOpts =
                              $ if null msg then doc else text msg <+> doc
                          y)
 
+  , ("traceError"  , {-# SCC "Prelude::traceError" #-}
+                     PTyPoly  \a ->
+                     PTyPoly  \_b ->
+                     PFinPoly \_n ->
+                     PFun     \s ->
+                     PFun     \x ->
+                     PPrim
+                       do msg <- valueToString sym =<< s
+                          EvalOpts { evalPPOpts } <- liftIO getEOpts
+                          doc <- ppValue sym evalPPOpts =<< x
+                          let msg' = if null msg then doc else text msg <+> doc
+                          errorV sym a (show msg'))
+
   , ("random"      , {-# SCC "Prelude::random" #-}
                      PTyPoly  \a ->
                      PWordFun \x ->
@@ -2312,3 +2343,134 @@ genericPrimTable sym getEOpts =
                     fromZV sym)
 
   ]
+
+testingPrims :: Backend sym => sym -> Map.Map PrimIdent (Prim sym)
+testingPrims sym = Map.fromList $ map (\(n, v) -> (testingPrim n, v)) prims
+  where
+  (~>) = (,)
+  prims =
+    [ "return" ~>
+         PTyPoly \_a ->
+         PFun \x ->
+         PPrim (pure (VGen (sGenLift sym x)))
+
+    , "<$>" ~>
+         PTyPoly \_a ->
+         PTyPoly \_b ->
+         PFun    \f ->
+         PFun    \m ->
+         PPrim
+           do f' <- fromVFun sym <$> f
+              m' <- fromVGen <$> m
+              pure $ VGen do
+                x <- m'
+                sGenLift sym (f' (pure x))
+
+    , ">>=" ~>
+         PTyPoly \_a ->
+         PTyPoly \_b ->
+         PFun    \m ->
+         PFun    \f ->
+         PPrim
+           do m' <- fromVGen <$> m
+              f' <- fromVFun sym <$> f
+              pure $ VGen do
+                x <- m'
+                z <- fromVGen <$> sGenLift sym (f' (pure x))
+                z
+
+    , "runGen" ~>
+         PTyPoly  \_a ->
+         PWordFun \sz ->
+         PWordFun \seed ->
+         PFun     \m ->
+         PPrim
+           do m' <- fromVGen <$> m
+              sRunGen sym sz seed m'
+
+    , "withSize" ~>
+         PTyPoly \_a ->
+         PWordFun \sz ->
+         PFun     \m ->
+         PPrim
+           do m' <- fromVGen <$> m
+              pure (VGen (sGenWithSize sym sz m'))
+
+    , "generate" ~>
+         PTyPoly \a -> PPrim (pure (VGen (generateV sym a)))
+
+    , "boundedBelowInteger" ~>
+         PFun \x ->
+         PPrim
+           do x' <- fromVInteger <$> x
+              pure (VGen (VInteger <$> sBoundedBelowInteger sym x'))
+
+    , "boundedAboveInteger" ~>
+         PFun \x ->
+         PPrim
+           do x' <- fromVInteger <$> x
+              pure (VGen (VInteger <$> sBoundedAboveInteger sym x'))
+
+    , "boundedInteger" ~>
+         PFun \rng ->
+         PPrim
+           do rng' <- fromVTuple <$> rng
+              case rng' of
+                [x,y] ->
+                  do x' <- fromVInteger <$> x
+                     y' <- fromVInteger <$> y
+                     pure (VGen (VInteger <$> (sBoundedInteger sym (x', y'))))
+
+                _ -> evalPanic "boundedInteger" ["Expected pair value"]
+
+    , "boundedWord" ~>
+         PFinPoly \n ->
+         PFun \rng ->
+         PPrim
+           do rng' <- fromVTuple <$> rng
+              case rng' of
+                [x,y] ->
+                  do x' <- fromVWord sym "boundedWord" =<< x
+                     y' <- fromVWord sym "boundedWord" =<< y
+                     pure (VGen (VWord n . pure . WordVal <$> (sBoundedWord sym (x', y'))))
+                _ -> evalPanic "boundedWord" ["expected pair value"]
+
+    , "boundedSignedWord" ~>
+         PFinPoly \n ->
+         PFun \rng ->
+         PPrim
+           do rng' <- fromVTuple <$> rng
+              case rng' of
+                [x,y] ->
+                  do x' <- fromVWord sym "boundedSignedWord" =<< x
+                     y' <- fromVWord sym "boundedSignedWord" =<< y
+                     pure (VGen (VWord n . pure . WordVal <$> (sBoundedSignedWord sym (x', y'))))
+                _ -> evalPanic "boundedSignedWord" ["expected pair value"]
+
+    , "suchThat" ~>
+         PTyPoly \_a ->
+         PFun \m ->
+         PFun \p ->
+         PPrim
+           do m' <- fromVGen <$> m
+              p' <- fromVFun sym <$> p
+              pure (VGen (sSuchThat sym m' (\x -> fromVBit <$> p' (pure x))))
+
+    ]
+
+
+generateV :: Backend sym => sym -> TValue -> SGen sym (GenValue sym)
+generateV sym tv = case tv of
+  TVBit -> VBit <$> sGenerateBit sym
+  TVInteger  -> VInteger <$> sUnboundedInteger sym
+  TVIntMod m ->
+    do lo <- sGenLift sym (integerLit sym 0)
+       hi <- sGenLift sym (integerLit sym (m-1))
+       VInteger <$> sBoundedInteger sym (lo,hi)
+  TVRational -> error "generate rational TODO"
+  TVSeq n TVBit -> VWord n . pure . WordVal <$> sUnboundedWord sym n
+  TVSeq n a -> VSeq n <$> sGenStream sym (generateV sym a)
+  TVStream a -> VStream <$> sGenStream sym (generateV sym a)
+  TVTuple ts -> VTuple . map pure <$> mapM (generateV sym) ts
+  TVRec fs -> VRecord . fmap pure <$> traverse (generateV sym) fs
+  _ -> evalPanic "generateV" ["unexpected type", show tv]

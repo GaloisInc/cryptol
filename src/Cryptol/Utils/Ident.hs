@@ -21,6 +21,7 @@ module Cryptol.Utils.Ident
   , suiteBName
   , arrayName
   , primeECName
+  , testingName
   , interactiveName
   , noModuleName
   , exprModName
@@ -44,6 +45,7 @@ module Cryptol.Utils.Ident
     -- * Identifiers for primitives
   , PrimIdent(..)
   , prelPrim
+  , testingPrim
   , floatPrim
   , arrayPrim
   , suiteBPrim
@@ -127,6 +129,9 @@ suiteBName = packModName ["SuiteB"]
 primeECName :: ModName
 primeECName = packModName ["PrimeEC"]
 
+testingName :: ModName
+testingName = packModName ["Testing"]
+
 interactiveName :: ModName
 interactiveName  = packModName ["<interactive>"]
 
@@ -198,6 +203,9 @@ data PrimIdent = PrimIdent ModName T.Text
 -- | A shortcut to make (non-infix) primitives in the prelude.
 prelPrim :: T.Text -> PrimIdent
 prelPrim = PrimIdent preludeName
+
+testingPrim :: T.Text -> PrimIdent
+testingPrim = PrimIdent testingName
 
 floatPrim :: T.Text -> PrimIdent
 floatPrim = PrimIdent floatName

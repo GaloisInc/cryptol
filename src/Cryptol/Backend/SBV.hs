@@ -34,7 +34,7 @@ module Cryptol.Backend.SBV
 
 import qualified Control.Exception as X
 import           Control.Concurrent.MVar
-import           Control.Monad.IO.Class (MonadIO(..))
+import           Control.Monad.Reader
 import           Data.Bits (bit, complement)
 import           Data.List (foldl')
 
@@ -153,6 +153,7 @@ instance Backend SBV where
   type SInteger SBV = SVal
   type SFloat SBV = ()        -- XXX: not implemented
   type SEval SBV = SBVEval
+  type SGen SBV = ReaderT SVal SBVEval
 
   raiseError _ err = SBVEval $
     do stk <- getCallStack
