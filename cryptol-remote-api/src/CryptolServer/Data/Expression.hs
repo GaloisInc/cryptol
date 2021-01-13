@@ -28,6 +28,7 @@ import qualified Data.Vector as V
 import Data.Text.Encoding (encodeUtf8)
 import Numeric (showHex)
 
+import Cryptol.Backend (enumerateSeqMap)
 import Cryptol.Backend.Monad
 import Cryptol.Backend.Concrete hiding (Concrete)
 import qualified Cryptol.Backend.Concrete as C
@@ -35,7 +36,7 @@ import qualified Cryptol.Backend.Concrete as C
 import Cryptol.Eval (evalSel)
 import Cryptol.Eval.Concrete (Value)
 import Cryptol.Eval.Type (TValue(..), tValTy)
-import Cryptol.Eval.Value (GenValue(..), asWordVal, enumerateSeqMap)
+import Cryptol.Eval.Value (GenValue(..), asWordVal)
 import Cryptol.Parser
 import Cryptol.Parser.AST (Bind(..), BindDef(..), Decl(..), Expr(..), Named(Named), TypeInst(NamedInst), Type(..), PName(..), Literal(..), NumInfo(..), Type)
 import Cryptol.Parser.Position (Located(..), emptyRange)

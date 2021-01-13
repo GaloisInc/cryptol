@@ -6,7 +6,7 @@ import Data.Aeson as JSON
 
 
 import Cryptol.ModuleSystem (checkExpr, evalExpr)
-import Cryptol.ModuleSystem.Env (meSolverConfig,deEnv,meDynEnv,loadedNewtypes)
+import Cryptol.ModuleSystem.Env (meSolverConfig,deEnv,meDynEnv)
 import Cryptol.TypeCheck.Solve (defaultReplExpr)
 import Cryptol.TypeCheck.Subst (apSubst, listParamSubst)
 import Cryptol.TypeCheck.Type (Schema(..))
