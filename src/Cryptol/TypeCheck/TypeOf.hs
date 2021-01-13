@@ -116,10 +116,11 @@ fastSchemaOf tyenv expr =
 plainSubst :: Subst -> Type -> Type
 plainSubst s ty =
   case ty of
-    TCon tc ts   -> TCon tc (map (plainSubst s) ts)
-    TUser f ts t -> TUser f (map (plainSubst s) ts) (plainSubst s t)
-    TRec fs      -> TRec (fmap (plainSubst s) fs)
-    TVar x       -> apSubst s (TVar x)
+    TCon tc ts     -> TCon tc (map (plainSubst s) ts)
+    TUser f ts t   -> TUser f (map (plainSubst s) ts) (plainSubst s t)
+    TRec fs        -> TRec (fmap (plainSubst s) fs)
+    TNewtype nt ts -> TNewtype nt (map (plainSubst s) ts)
+    TVar x         -> apSubst s (TVar x)
 
 -- | Yields the return type of the selector on the given argument type.
 typeSelect :: Type -> Selector -> Type

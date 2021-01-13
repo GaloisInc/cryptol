@@ -39,6 +39,7 @@ import Control.Monad.IO.Class
 import Control.Exception (IOException)
 import Data.ByteString (ByteString)
 import Data.Function (on)
+import Data.Map (Map)
 import Data.Maybe (isJust)
 import Data.Text.Encoding.Error (UnicodeException)
 import MonadLib
@@ -522,6 +523,9 @@ getEvalOpts :: ModuleM EvalOpts
 getEvalOpts =
   do act <- getEvalOptsAction
      liftIO act
+
+getNewtypes :: ModuleM (Map T.Name T.Newtype)
+getNewtypes = ModuleT (loadedNewtypes <$> get)
 
 getFocusedModule :: ModuleM (Maybe P.ModName)
 getFocusedModule  = ModuleT (meFocusedModule `fmap` get)

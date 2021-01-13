@@ -106,6 +106,9 @@ data Type   = TCon !TCon ![Type]
             | TRec !(RecordMap Ident Type)
               -- ^ Record type
 
+            | TNewtype !Newtype ![Type]
+              -- ^ A newtype
+
               deriving (Show, Generic, NFData)
 
 
@@ -209,9 +212,16 @@ data TySyn  = TySyn { tsName        :: Name       -- ^ Name
 data Newtype  = Newtype { ntName   :: Name
                         , ntParams :: [TParam]
                         , ntConstraints :: [Prop]
-                        , ntFields :: [(Ident,Type)]
+                        , ntFields :: RecordMap Ident Type
                         , ntDoc :: Maybe Text
                         } deriving (Show, Generic, NFData)
+
+
+instance Eq Newtype where
+  x == y = ntName x == ntName y
+
+instance Ord Newtype where
+  compare x y = compare (ntName x) (ntName y)
 
 
 -- | Information about an abstract type.
@@ -240,6 +250,7 @@ instance HasKind Type where
       TCon c ts   -> quickApply (kindOf c) ts
       TUser _ _ t -> kindOf t
       TRec {}     -> KType
+      TNewtype{}  -> KType
 
 instance HasKind TySyn where
   kindOf ts = foldr (:->) (kindOf (tsDef ts)) (map kindOf (tsParams ts))
@@ -270,6 +281,7 @@ instance Eq Type where
   TCon x xs == TCon y ys  = x == y && xs == ys
   TVar x    == TVar y     = x == y
   TRec xs   == TRec ys    = xs == ys
+  TNewtype ntx xs == TNewtype nty ys = ntx == nty && xs == ys
 
   _         == _          = False
 
@@ -288,7 +300,10 @@ instance Ord Type where
       (_,TCon {})             -> GT
 
       (TRec xs, TRec ys)      -> compare xs ys
+      (TRec{}, _)             -> LT
+      (_, TRec{})             -> GT
 
+      (TNewtype x xs, TNewtype y ys) -> compare (x,xs) (y,ys)
 
 instance Eq TParam where
   x == y = tpUnique x == tpUnique y
@@ -332,7 +347,7 @@ superclassSet _ = mempty
 newtypeConType :: Newtype -> Schema
 newtypeConType nt =
   Forall as (ntConstraints nt)
-    $ TRec (recordFromFields (ntFields nt)) `tFun` TCon (newtypeTyCon nt) (map (TVar . tpVar) as)
+    $ TRec (ntFields nt) `tFun` TNewtype nt (map (TVar . tpVar) as)
   where
   as = ntParams nt
 
@@ -584,6 +599,9 @@ tNat' n'  = case n' of
 tAbstract :: UserTC -> [Type] -> Type
 tAbstract u ts = TCon (TC (TCAbstract u)) ts
 
+tNewtype :: Newtype -> [Type] -> Type
+tNewtype nt ts = TNewtype nt ts
+
 tBit     :: Type
 tBit      = TCon (TC TCBit) []
 
@@ -619,10 +637,6 @@ tRec      = TRec
 
 tTuple   :: [Type] -> Type
 tTuple ts = TCon (TC (TCTuple (length ts))) ts
-
-newtypeTyCon :: Newtype -> TCon
-newtypeTyCon nt = TC $ TCNewtype $ UserTC (ntName nt) (kindOf nt)
-
 
 -- | Make a function type.
 tFun     :: Type -> Type -> Type
@@ -801,6 +815,7 @@ instance FVS Type where
         TVar x      -> Set.singleton x
         TUser _ _ t -> go t
         TRec fs     -> fvs (recordElements fs)
+        TNewtype _nt ts -> fvs ts
 
 instance FVS a => FVS (Maybe a) where
   fvs Nothing  = Set.empty
@@ -915,6 +930,7 @@ instance PP (WithNames Type) where
   ppPrec prec ty0@(WithNames ty nmMap) =
     case ty of
       TVar a  -> ppWithNames nmMap a
+      TNewtype nt ts -> optParens (prec > 3) $ pp (ntName nt) <+> fsep (map (go 5) ts)
       TRec fs -> braces $ fsep $ punctuate comma
                     [ pp l <+> text ":" <+> go 0 t | (l,t) <- displayFields fs ]
 

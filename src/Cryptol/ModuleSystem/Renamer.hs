@@ -501,7 +501,7 @@ instance Rename Newtype where
     name' <- rnLocated renameType (nName n)
     shadowNames (nParams n) $
       do ps'   <- traverse rename (nParams n)
-         body' <- traverse (rnNamed rename) (nBody n)
+         body' <- traverse (traverse rename) (nBody n)
          return Newtype { nName   = name'
                         , nParams = ps'
                         , nBody   = body' }
@@ -966,10 +966,3 @@ instance Rename PropSyn where
                              <*> pure f
                              <*> traverse rename ps
                              <*> traverse rename cs
-
-
--- Utilities -------------------------------------------------------------------
-
-rnNamed :: (a -> RenameM b) -> Named a -> RenameM (Named b)
-rnNamed  = traverse
-{-# INLINE rnNamed #-}

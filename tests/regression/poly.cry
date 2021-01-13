@@ -1,0 +1,33 @@
+// n-degree polynomials over a
+newtype Poly n a = { coeffs : [n+1]a }
+
+evalPoly : {n, a} (fin n, Ring a) => Poly n a -> a -> a
+evalPoly p x = foldl (+) zero terms
+  where
+    terms = [ c*a | c <- p.coeffs | a <- xs ]
+    xs    = [fromInteger 1]#[ x*a | a <- xs ]
+
+polyConst : {n, a} (fin n, Ring a) => a -> Poly n a
+polyConst a = Poly { coeffs = [a]#zero }
+
+polyAdd : {n, a} (fin n, Ring a) => Poly n a -> Poly n a -> Poly n a
+polyAdd p1 p2 = Poly { coeffs = zipWith (+) p1.coeffs p2.coeffs }
+
+polyMul : {n1, n2, a} (fin n1, fin n2, Ring a) =>
+  Poly n1 a -> Poly n2 a -> Poly (n1+n2) a
+polyMul p1 p2 = foldl polyAdd (polyConst zero) ps
+  where
+    ps : [n1+1](Poly (n1+n2) a)
+    ps@i = Poly{ coeffs = scaleAndShift i }
+
+    scaleAndShift i =
+      ([ p1.coeffs@i * c | c <- p2.coeffs ] # zero) >> i
+
+property polySquare (x:Integer) =
+  evalPoly (Poly { coeffs = [0,0,1] }) x == x * x
+
+property polyAddEval x (p1:Poly 5 Integer) (p2:Poly 5 Integer) =
+  evalPoly (polyAdd p1 p2) x == evalPoly p1 x + evalPoly p2 x
+
+property polyMulEval x (p1:Poly 5 Integer) (p2:Poly 5 Integer) =
+  evalPoly (polyMul p1 p2) x == evalPoly p1 x * evalPoly p2 x

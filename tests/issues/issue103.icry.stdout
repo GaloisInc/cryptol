@@ -6,7 +6,7 @@ Cryptol::error called at Cryptol:951:13--951:18
 Cryptol::undefined called at issue103.icry:1:9--1:18
 Using exhaustive testing.
 Testing... ERROR for the following inputs:
-()
+(f : () -> Bit) () ~> ERROR
 invalid sequence index: 1
 -- Backtrace --
 (Cryptol::@) called at issue103.icry:2:11--2:21

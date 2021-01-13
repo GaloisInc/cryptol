@@ -140,7 +140,7 @@ instance FreeVars Type where
 
       TUser _ _ t -> freeVars t
       TRec fs     -> freeVars (recordElements fs)
-
+      TNewtype nt ts -> freeVars nt <> freeVars ts
 
 instance FreeVars TVar where
   freeVars tv = case tv of
@@ -148,14 +148,11 @@ instance FreeVars TVar where
                   _         -> mempty
 
 instance FreeVars TCon where
-  freeVars tc =
-    case tc of
-     TC (TCNewtype (UserTC n _)) -> mempty { tyDeps = Set.singleton n }
-     _ -> mempty
+  freeVars _tc = mempty
 
 instance FreeVars Newtype where
   freeVars nt = foldr rmTParam base (ntParams nt)
-    where base = freeVars (ntConstraints nt) <> freeVars (map snd (ntFields nt))
+    where base = freeVars (ntConstraints nt) <> freeVars (recordElements (ntFields nt))
 
 
 --------------------------------------------------------------------------------

@@ -289,16 +289,12 @@ instance Inst Type where
         where ts1 = inst ps ts
               t1  = inst ps t
 
-      TCon tc ts ->
-        case tc of
-          TC (TCNewtype (UserTC x k))
-            | needsInst ps x -> TCon (TC (TCNewtype (UserTC x (k1 k))))
-                                     (newTs ++ ts1)
-          _ -> TCon tc ts1
-        where
-        ts1 = inst ps ts
-        newTs = instTyParams ps
-        k1 k = foldr (:->) k (map kindOf newTs)
+      TNewtype nt ts
+        | needsInst ps (ntName nt) -> TNewtype (inst ps nt) (instTyParams ps ++ ts1)
+        | otherwise -> TNewtype nt ts1
+        where ts1 = inst ps ts
+
+      TCon tc ts -> TCon tc (inst ps ts)
 
       TVar x | Just x' <- isTParam ps x -> TVar (TVBound x')
              | otherwise  -> ty
@@ -312,7 +308,7 @@ instance Inst TySyn where
 
 instance Inst Newtype where
   inst ps nt = nt { ntConstraints = inst ps (ntConstraints nt)
-                  , ntFields = [ (f, inst ps t) | (f,t) <- ntFields nt ]
+                  , ntFields = fmap (inst ps) (ntFields nt)
                   }
 
 

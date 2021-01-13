@@ -38,8 +38,11 @@ data TValue
   | TVTuple [TValue]          -- ^ @ (a, b, c )@
   | TVRec (RecordMap Ident TValue) -- ^ @ { x : a, y : b, z : c } @
   | TVFun TValue TValue       -- ^ @ a -> b @
+  | TVNewtype Newtype
+              [Either Nat' TValue]
+              (RecordMap Ident TValue)     -- ^ a named newtype
   | TVAbstract UserTC [Either Nat' TValue] -- ^ an abstract type
-    deriving (Generic, NFData)
+    deriving (Generic, NFData, Eq)
 
 -- | Convert a type value back into a regular type
 tValTy :: TValue -> Type
@@ -56,11 +59,15 @@ tValTy tv =
     TVTuple ts  -> tTuple (map tValTy ts)
     TVRec fs    -> tRec (fmap tValTy fs)
     TVFun t1 t2 -> tFun (tValTy t1) (tValTy t2)
-    TVAbstract u vs -> tAbstract u (map arg vs)
-      where arg x = case x of
-                      Left Inf     -> tInf
-                      Left (Nat n) -> tNum n
-                      Right v      -> tValTy v
+    TVNewtype nt vs _ -> tNewtype nt (map tNumValTy vs)
+    TVAbstract u vs -> tAbstract u (map tNumValTy vs)
+
+tNumTy :: Nat' -> Type
+tNumTy Inf     = tInf
+tNumTy (Nat n) = tNum n
+
+tNumValTy :: Either Nat' TValue -> Type
+tNumValTy = either tNumTy tValTy
 
 
 instance Show TValue where
@@ -90,20 +97,38 @@ finNat' n' =
 
 -- Type Evaluation -------------------------------------------------------------
 
-type TypeEnv = IntMap.IntMap (Either Nat' TValue)
+newtype TypeEnv =
+  TypeEnv
+  { envTypeMap  :: IntMap.IntMap (Either Nat' TValue) }
 
+instance Monoid TypeEnv where
+  mempty = TypeEnv mempty
+
+instance Semigroup TypeEnv where
+  l <> r = TypeEnv
+    { envTypeMap  = IntMap.union (envTypeMap l) (envTypeMap r) }
+
+lookupTypeVar :: TVar -> TypeEnv -> Maybe (Either Nat' TValue)
+lookupTypeVar tv env = IntMap.lookup (tvUnique tv) (envTypeMap env)
+
+bindTypeVar :: TVar -> Either Nat' TValue -> TypeEnv -> TypeEnv
+bindTypeVar tv ty env = env{ envTypeMap = IntMap.insert (tvUnique tv) ty (envTypeMap env) }
 
 -- | Evaluation for types (kind * or #).
 evalType :: TypeEnv -> Type -> Either Nat' TValue
 evalType env ty =
   case ty of
     TVar tv ->
-      case IntMap.lookup (tvUnique tv) env of
+      case lookupTypeVar tv env of
         Just v -> v
         Nothing -> evalPanic "evalType" ["type variable not bound", show tv]
 
     TUser _ _ ty'  -> evalType env ty'
     TRec fields    -> Right $ TVRec (fmap val fields)
+
+    TNewtype nt ts -> Right $ TVNewtype nt tvs $ evalNewtypeBody env nt tvs
+        where tvs = map (evalType env) ts
+
     TCon (TC c) ts ->
       case (c, ts) of
         (TCBit, [])     -> Right $ TVBit
@@ -128,7 +153,6 @@ evalType env ty =
                 , "*** Name: " ++ show (pp u)
                 ]
 
-        -- FIXME: What about TCNewtype?
         _ -> evalPanic "evalType" ["not a value type", show ty]
     TCon (TF f) ts      -> Left $ evalTF f (map num ts)
     TCon (PC p) _       -> evalPanic "evalType" ["invalid predicate symbol", show p]
@@ -141,6 +165,16 @@ evalType env ty =
                Nat i -> i
                Inf   -> evalPanic "evalType"
                                   ["Expecting a finite size, but got `inf`"]
+
+-- | Evaluate the body of a newtype, given evaluated arguments
+evalNewtypeBody :: TypeEnv -> Newtype -> [Either Nat' TValue] -> RecordMap Ident TValue
+evalNewtypeBody env0 nt args = fmap (evalValType env') (ntFields nt)
+  where
+  env' = loop env0 (ntParams nt) args
+
+  loop env [] [] = env
+  loop env (p:ps) (a:as) = loop (bindTypeVar (TVBound p) a env) ps as
+  loop _ _ _ = evalPanic "evalNewtype" ["type parameter/argument mismatch"]
 
 -- | Evaluation for value types (kind *).
 evalValType :: TypeEnv -> Type -> TValue

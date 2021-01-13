@@ -118,14 +118,17 @@ type TypesMap = List TypeMap
 data TypeMap a = TM { tvar :: Map TVar a
                     , tcon :: Map TCon    (List TypeMap a)
                     , trec :: Map [Ident] (List TypeMap a)
+                    , tnewtype :: Map Newtype (List TypeMap a)
                     } deriving (Functor, Foldable, Traversable)
 
 instance TrieMap TypeMap Type where
-  emptyTM = TM { tvar = emptyTM, tcon = emptyTM, trec = emptyTM }
+  emptyTM = TM { tvar = emptyTM, tcon = emptyTM, trec = emptyTM, tnewtype = emptyTM }
 
   nullTM ty = and [ nullTM (tvar ty)
                   , nullTM (tcon ty)
-                  , nullTM (trec ty) ]
+                  , nullTM (trec ty)
+                  , nullTM (tnewtype ty)
+                  ]
 
   lookupTM ty =
     case ty of
@@ -134,6 +137,7 @@ instance TrieMap TypeMap Type where
       TCon c ts   -> lookupTM ts <=< lookupTM c . tcon
       TRec fs     -> let (xs,ts) = unzip $ canonicalFields fs
                      in lookupTM ts <=< lookupTM xs . trec
+      TNewtype nt ts -> lookupTM ts <=< lookupTM nt . tnewtype
 
   alterTM ty f m =
     case ty of
@@ -142,6 +146,7 @@ instance TrieMap TypeMap Type where
       TCon c ts   -> m { tcon = alterTM c (updSub ts f) (tcon m) }
       TRec fs     -> let (xs,ts) = unzip $ canonicalFields fs
                      in m { trec = alterTM xs (updSub ts f) (trec m) }
+      TNewtype nt ts -> m { tnewtype = alterTM nt (updSub ts f) (tnewtype m) }
 
   toListTM m =
     [ (TVar x,           v) | (x,v)   <- toListTM (tvar m) ] ++
@@ -152,11 +157,16 @@ instance TrieMap TypeMap Type where
     --  It's not clear if we should try to fix this.
     [ (TRec (recordFromFields (zip fs ts)), v)
           | (fs,m1) <- toListTM (trec m)
-          , (ts,v)  <- toListTM m1 ]
+          , (ts,v)  <- toListTM m1 ] ++
+
+    [ (TNewtype nt ts, v) | (nt,m1) <- toListTM (tnewtype m)
+                          , (ts,v)  <- toListTM m1
+    ]
 
   unionTM f m1 m2 = TM { tvar = unionTM f (tvar m1) (tvar m2)
                        , tcon = unionTM (unionTM f) (tcon m1) (tcon m2)
                        , trec = unionTM (unionTM f) (trec m1) (trec m2)
+                       , tnewtype = unionTM (unionTM f) (tnewtype m1) (tnewtype m2)
                        }
 
   mapMaybeWithKeyTM f m =
@@ -167,6 +177,8 @@ instance TrieMap TypeMap Type where
                              (\ts a -> f (TRec (recordFromFields (zip fs ts))) a) l) (trec m)
                                -- NB: this step loses 'displayOrder' information.
                                --  It's not clear if we should try to fix this.
+       , tnewtype = mapWithKeyTM (\nt l -> mapMaybeWithKeyTM
+                                 (\ts a -> f (TNewtype nt ts) a) l) (tnewtype m)
        }
 
 

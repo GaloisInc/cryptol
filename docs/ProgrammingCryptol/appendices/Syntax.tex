@@ -2,8 +2,7 @@
 % markdown in ../../Syntax.md.   If you make changes, please make them
 % there and then regenerate the .tex file using the Makefile.
 
-\hypertarget{layout}{%
-\section{Layout}\label{layout}}
+\section{Layout}\label{layout}
 
 Groups of declarations are organized based on indentation. Declarations
 with the same indentation belong to the same group. Lines of text that
@@ -33,8 +32,7 @@ containing \texttt{y} and \texttt{z}. This group ends just before
 \texttt{g}, because \texttt{g} is indented less than \texttt{y} and
 \texttt{z}.
 
-\hypertarget{comments}{%
-\section{Comments}\label{comments}}
+\section{Comments}\label{comments}
 
 Cryptol supports block comments, which start with \texttt{/*} and end
 with \texttt{*/}, and line comments, which start with \texttt{//} and
@@ -49,8 +47,7 @@ Examples:
 /* This is a /* Nested */ block comment */
 \end{verbatim}
 
-\hypertarget{identifiers}{%
-\section{Identifiers}\label{identifiers}}
+\section{Identifiers}\label{identifiers}
 
 Cryptol identifiers consist of one or more characters. The first
 character must be either an English letter or underscore (\texttt{\_}).
@@ -67,18 +64,17 @@ name    name1    name'    longer_name
 Name    Name2    Name''   longerName
 \end{verbatim}
 
-\hypertarget{keywords-and-built-in-operators}{%
-\section{Keywords and Built-in
-Operators}\label{keywords-and-built-in-operators}}
+\hypertarget{keywords-and-built-in-operators}{\section{Keywords and
+Built-in Operators}\label{keywords-and-built-in-operators}}
 
 The following identifiers have special meanings in Cryptol, and may not
 be used for programmer defined names:
 
 \begin{verbatim}
-    else       include    property    let       newtype    primitive
-    extern     module     then        import    infixl     parameter
-    if         newtype    type        as        infixr     constraint
-    private    pragma     where       hiding    infix
+    else       include    property    let       infixl       parameter
+    extern     module     then        import    infixr       constraint
+    if         newtype    type        as        infix
+    private    pragma     where       hiding    primitive
 \end{verbatim}
 
 The following table contains Cryptol's operators and their associativity
@@ -120,9 +116,8 @@ left\tabularnewline
 \bottomrule
 \end{longtable}
 
-\hypertarget{built-in-type-level-operators}{%
 \section{Built-in Type-level
-Operators}\label{built-in-type-level-operators}}
+Operators}\label{built-in-type-level-operators}
 
 Cryptol includes a variety of operators that allow computations on the
 numeric types used to specify the sizes of sequences.
@@ -137,25 +132,22 @@ Operator & Meaning\tabularnewline
 Operator & Meaning\tabularnewline
 \midrule
 \endhead
-\texttt{+} & Size addition\tabularnewline
-\texttt{-} & Size subtraction\tabularnewline
-\texttt{*} & Size multiplication\tabularnewline
-\texttt{/} & Size division\tabularnewline
-\texttt{/\^{}} & Size ceiling division (\texttt{/} rounded
-up)\tabularnewline
-\texttt{\%} & Size modulus\tabularnewline
-\texttt{\%\^{}} & Size ceiling modulus (\texttt{\%} rounded
-up)\tabularnewline
-\texttt{\^{}\^{}} & Size exponentiation\tabularnewline
-\texttt{lg2} & Size logarithm (base 2)\tabularnewline
-\texttt{width} & Size width (\texttt{lg2} rounded up)\tabularnewline
-\texttt{max} & Size maximum\tabularnewline
-\texttt{min} & Size minimum\tabularnewline
+\texttt{+} & Addition\tabularnewline
+\texttt{-} & Subtraction\tabularnewline
+\texttt{*} & Multiplication\tabularnewline
+\texttt{/} & Division\tabularnewline
+\texttt{/\^{}} & Ceiling division (\texttt{/} rounded up)\tabularnewline
+\texttt{\%} & Modulus\tabularnewline
+\texttt{\%\^{}} & Ceiling modulus (compute padding)\tabularnewline
+\texttt{\^{}\^{}} & Exponentiation\tabularnewline
+\texttt{lg2} & Ceiling logarithm (base 2)\tabularnewline
+\texttt{width} & Bit width (equal to \texttt{lg2(n+1)})\tabularnewline
+\texttt{max} & Maximum\tabularnewline
+\texttt{min} & Minimum\tabularnewline
 \bottomrule
 \end{longtable}
 
-\hypertarget{numeric-literals}{%
-\section{Numeric Literals}\label{numeric-literals}}
+\section{Numeric Literals}\label{numeric-literals}
 
 Numeric literals may be written in binary, octal, decimal, or
 hexadecimal notation. The base of a literal is determined by its prefix:
@@ -222,7 +214,8 @@ support fractional numbers (e.g., \texttt{Rational}, and the
 Some types (e.g.~the \texttt{Float} family) cannot represent all
 fractional literals precisely. Such literals are rejected statically
 when using binary, octal, or hexadecimal notation. When using decimal
-notation, the literal is rounded to the closes represental even number.
+notation, the literal is rounded to the closest representable even
+number.
 
 All numeric literals may also include \texttt{\_}, which has no effect
 on the literal value but may be used to improve readability. Here are
@@ -233,8 +226,7 @@ some examples:
 0x_FFFF_FFEA
 \end{verbatim}
 
-\hypertarget{expressions}{%
-\section{Expressions}\label{expressions}}
+\section{Expressions}\label{expressions}
 
 This section provides an overview of the Cryptol's expression syntax.
 
@@ -310,8 +302,7 @@ f \x -> x       // call `f` with one argument `x -> x`
       else z    // call `+` with two arguments: `2` and `if ...`
 \end{verbatim}
 
-\hypertarget{bits}{%
-\section{Bits}\label{bits}}
+\section{Bits}\label{bits}
 
 The type \texttt{Bit} has two inhabitants: \texttt{True} and
 \texttt{False}. These values may be combined using various logical
@@ -342,8 +333,7 @@ Operator & Associativity & Description\tabularnewline
 \bottomrule
 \end{longtable}
 
-\hypertarget{multi-way-conditionals}{%
-\section{Multi-way Conditionals}\label{multi-way-conditionals}}
+\section{Multi-way Conditionals}\label{multi-way-conditionals}
 
 The \texttt{if\ ...\ then\ ...\ else} construct can be used with
 multiple branches. For example:
@@ -357,8 +347,7 @@ x = if y % 2 == 0 then 1
      else 7
 \end{verbatim}
 
-\hypertarget{tuples-and-records}{%
-\section{Tuples and Records}\label{tuples-and-records}}
+\section{Tuples and Records}\label{tuples-and-records}
 
 Tuples and records are used for packaging multiple values together.
 Tuples are enclosed in parentheses, while records are enclosed in curly
@@ -376,7 +365,7 @@ of records are a label and a value separated by an equal sign. Examples:
 
 The components of tuples are identified by position, while the
 components of records are identified by their label, and so the ordering
-of record components is not important. Examples:
+of record components is not important for most purposes. Examples:
 
 \begin{verbatim}
            (1,2) == (1,2)               // True
@@ -386,8 +375,11 @@ of record components is not important. Examples:
 { x = 1, y = 2 } == { y = 2, x = 1 }    // True
 \end{verbatim}
 
-\hypertarget{accessing-fields}{%
-\subsection{Accessing Fields}\label{accessing-fields}}
+Ordering on tuples and records is defined lexicographically. Tuple
+components are compared in the order they appear, whereas record fields
+are compared in alphabetical order of field names.
+
+\subsection{Accessing Fields}\label{accessing-fields}
 
 The components of a record or a tuple may be accessed in two ways: via
 pattern matching or by using explicit component selectors. Explicit
@@ -449,8 +441,7 @@ only the first entry in the tuple.
 
 This behavior is quite handy when examining complex data at the REPL.
 
-\hypertarget{updating-fields}{%
-\subsection{Updating Fields}\label{updating-fields}}
+\subsection{Updating Fields}\label{updating-fields}
 
 The components of a record or a tuple may be updated using the following
 notation:
@@ -473,8 +464,7 @@ n = { pt = r, size = 100 }  // nested record
 { n | pt.x -> x + 10 }  == { pt = { x = 25, y = 20 }, size = 100 }
 \end{verbatim}
 
-\hypertarget{sequences}{%
-\section{Sequences}\label{sequences}}
+\section{Sequences}\label{sequences}
 
 A sequence is a fixed-length collection of elements of the same type.
 The type of a finite sequence of length \texttt{n}, with elements of
@@ -539,16 +529,14 @@ There are also lifted pointwise operations.
 p1 # p2                   // Split sequence pattern
 \end{verbatim}
 
-\hypertarget{functions}{%
-\section{Functions}\label{functions}}
+\section{Functions}\label{functions}
 
 \begin{verbatim}
 \p1 p2 -> e              // Lambda expression
 f p1 p2 = e              // Function definition
 \end{verbatim}
 
-\hypertarget{local-declarations}{%
-\section{Local Declarations}\label{local-declarations}}
+\section{Local Declarations}\label{local-declarations}
 
 \begin{verbatim}
 e where ds
@@ -558,9 +546,7 @@ Note that by default, any local declarations without type signatures are
 monomorphized. If you need a local declaration to be polymorphic, use an
 explicit type signature.
 
-\hypertarget{explicit-type-instantiation}{%
-\section{Explicit Type
-Instantiation}\label{explicit-type-instantiation}}
+\section{Explicit Type Instantiation}\label{explicit-type-instantiation}
 
 If \texttt{f} is a polymorphic value with type:
 
@@ -575,9 +561,8 @@ you can evaluate \texttt{f}, passing it a type parameter:
 f `{ tyParam = 13 }
 \end{verbatim}
 
-\hypertarget{demoting-numeric-types-to-values}{%
 \section{Demoting Numeric Types to
-Values}\label{demoting-numeric-types-to-values}}
+Values}\label{demoting-numeric-types-to-values}
 
 The value corresponding to a numeric type may be accessed using the
 following notation:
@@ -594,8 +579,7 @@ accommodate the value of the type:
 `t : {n} (fin n, n >= width t) => [n]
 \end{verbatim}
 
-\hypertarget{explicit-type-annotations}{%
-\section{Explicit Type Annotations}\label{explicit-type-annotations}}
+\section{Explicit Type Annotations}\label{explicit-type-annotations}
 
 Explicit type annotations may be added on expressions, patterns, and in
 argument definitions.
@@ -608,22 +592,62 @@ p : t
 f (x : t) = ...
 \end{verbatim}
 
-\hypertarget{type-signatures}{%
-\section{Type Signatures}\label{type-signatures}}
+\section{Type Signatures}\label{type-signatures}
 
 \begin{verbatim}
 f,g : {a,b} (fin a) => [a] b
 \end{verbatim}
 
-\hypertarget{type-synonym-declarations}{%
-\section{Type Synonym Declarations}\label{type-synonym-declarations}}
+\section{Type Synonyms and Newtypes}\label{type-synonyms-and-newtypes}
+
+\subsection{Type synonyms}\label{type-synonyms}
 
 \begin{verbatim}
 type T a b = [a] b
 \end{verbatim}
 
-\hypertarget{modules}{%
-\section{Modules}\label{modules}}
+A \texttt{type} declaration creates a synonym for a pre-existing type
+expression, which may optionally have arguments. A type synonym is
+transparently unfolded at use sites and is treated as though the user
+had instead written the body of the type synonym in line. Type synonyms
+may mention other synonyms, but it is not allowed to create a recursive
+collection of type synonyms.
+
+\subsection{Newtypes}\label{newtypes}
+
+\begin{verbatim}
+newtype NewT a b = { seq : [a]b }
+\end{verbatim}
+
+A \texttt{newtype} declaration declares a new named type which is
+defined by a record body. Unlike type synonyms, each named
+\texttt{newtype} is treated as a distinct type by the type checker, even
+if they have the same bodies. Moreover, types created by a
+\texttt{newtype} declaration will not be members of any typeclasses,
+even if the record defining their body would be. For the purposes of
+typechecking, two newtypes are considered equal only if all their
+arguments are equal, even if the arguments do not appear in the body of
+the newtype, or are otherwise irrelevant. Just like type synonyms,
+newtypes are not allowed to form recursive groups.
+
+Every \texttt{newtype} declaration brings into scope a new function with
+the same name as the type which can be used to create values of the
+newtype.
+
+\begin{verbatim}
+x : NewT 3 Integer
+x = NewT { seq = [1,2,3] }
+\end{verbatim}
+
+Just as with records, field projections can be used directly on values
+of newtypes to extract the values in the body of the type.
+
+\begin{verbatim}
+> sum x.seq
+6
+\end{verbatim}
+
+\section{Modules}\label{modules}
 
 A \textbf{\emph{module}} is used to group some related definitions. Each
 file may contain at most one module.
@@ -637,8 +661,7 @@ f : [8]
 f = 10
 \end{verbatim}
 
-\hypertarget{hierarchical-module-names}{%
-\section{Hierarchical Module Names}\label{hierarchical-module-names}}
+\section{Hierarchical Module Names}\label{hierarchical-module-names}
 
 Module may have either simple or \textbf{\emph{hierarchical}} names.
 Hierarchical names are constructed by gluing together ordinary
@@ -657,8 +680,7 @@ when searching for module \texttt{Hash::SHA256}, Cryptol will look for a
 file named \texttt{SHA256.cry} in a directory called \texttt{Hash},
 contained in one of the directories specified by \texttt{CRYPTOLPATH}.
 
-\hypertarget{module-imports}{%
-\section{Module Imports}\label{module-imports}}
+\section{Module Imports}\label{module-imports}
 
 To use the definitions from one module in another module, we use
 \texttt{import} declarations:
@@ -679,8 +701,7 @@ import M  // import all definitions from `M`
 g = f   // `f` was imported from `M`
 \end{verbatim}
 
-\hypertarget{import-lists}{%
-\section{Import Lists}\label{import-lists}}
+\section{Import Lists}\label{import-lists}
 
 Sometimes, we may want to import only some of the definitions from a
 module. To do so, we use an import declaration with an
@@ -704,8 +725,7 @@ Using explicit import lists helps reduce name collisions. It also tends
 to make code easier to understand, because it makes it easy to see the
 source of definitions.
 
-\hypertarget{hiding-imports}{%
-\section{Hiding Imports}\label{hiding-imports}}
+\section{Hiding Imports}\label{hiding-imports}
 
 Sometimes a module may provide many definitions, and we want to use most
 of them but with a few exceptions (e.g., because those would result to a
@@ -728,8 +748,7 @@ import M hiding (h) // Import everything but `h`
 x = f + g
 \end{verbatim}
 
-\hypertarget{qualified-module-imports}{%
-\section{Qualified Module Imports}\label{qualified-module-imports}}
+\section{Qualified Module Imports}\label{qualified-module-imports}
 
 Another way to avoid name collisions is by using a
 \textbf{\emph{qualified}} import.
@@ -746,7 +765,7 @@ import M as P
 
 g = P::f
 // `f` was imported from `M`
-// but when used it needs to be prefixed by the qualified `P`
+// but when used it needs to be prefixed by the qualifier `P`
 \end{verbatim}
 
 Qualified imports make it possible to work with definitions that happen
@@ -760,7 +779,7 @@ import X as Y hiding (f)  // introduces everything but `f` from X
                           // using the prefix `X`
 \end{verbatim}
 
-It is also possible the use the same qualifier prefix for imports from
+It is also possible to use the same qualifier prefix for imports from
 different modules. For example:
 
 \begin{verbatim}
@@ -772,8 +791,7 @@ Such declarations will introduces all definitions from \texttt{A} and
 \texttt{X} but to use them, you would have to qualify using the prefix
 \texttt{B:::}.
 
-\hypertarget{private-blocks}{%
-\section{Private Blocks}\label{private-blocks}}
+\section{Private Blocks}\label{private-blocks}
 
 In some cases, definitions in a module might use helper functions that
 are not intended to be used outside the module. It is good practice to
@@ -794,7 +812,7 @@ private
   helper2 = 3
 \end{verbatim}
 
-The keyword \texttt{private} introduce a new layout scope, and all
+The keyword \texttt{private} introduces a new layout scope, and all
 declarations in the block are considered to be private to the module. A
 single module may contain multiple private blocks. For example, the
 following module is equivalent to the previous one:
@@ -814,8 +832,7 @@ private
   helper2 = 3
 \end{verbatim}
 
-\hypertarget{parameterized-modules}{%
-\section{Parameterized Modules}\label{parameterized-modules}}
+\section{Parameterized Modules}\label{parameterized-modules}
 
 \begin{verbatim}
 module M where
@@ -833,9 +850,7 @@ f : [n]
 f = 1 + x
 \end{verbatim}
 
-\hypertarget{named-module-instantiations}{%
-\section{Named Module
-Instantiations}\label{named-module-instantiations}}
+\section{Named Module Instantiations}\label{named-module-instantiations}
 
 One way to use a parameterized module is through a named instantiation:
 
@@ -872,11 +887,10 @@ Note that the only purpose of the body of \texttt{N} (the declarations
 after the \texttt{where} keyword) is to define the parameters for
 \texttt{M}.
 
-\hypertarget{parameterized-instantiations}{%
 \section{Parameterized
-Instantiations}\label{parameterized-instantiations}}
+Instantiations}\label{parameterized-instantiations}
 
-It is possible for a module instantiations to be itself parameterized.
+It is possible for a module instantiation to be itself parameterized.
 This could be useful if we need to define some of a module's parameters
 but not others.
 
@@ -909,9 +923,8 @@ In this case \texttt{N} has a single parameter \texttt{x}. The result of
 instantiating \texttt{N} would result in instantiating \texttt{M} using
 the value of \texttt{x} and \texttt{12} for the value of \texttt{y}.
 
-\hypertarget{importing-parameterized-modules}{%
 \section{Importing Parameterized
-Modules}\label{importing-parameterized-modules}}
+Modules}\label{importing-parameterized-modules}
 
 It is also possible to import a parameterized module without using a
 module instantiation:

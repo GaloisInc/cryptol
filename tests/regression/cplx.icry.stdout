@@ -1,0 +1,33 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+{real = (ratio 420 1), imag = (ratio 0 1)}
+{real = (ratio 10 1), imag = (ratio 10 1)}
+{real = (ratio 43 1), imag = (ratio 1 1)}
+{real = (ratio 42 1), imag = (ratio 42 1)}
+property cplxAddAssoc Using random testing.
+Testing... Passed 100 tests.
+property cplxMulAssoc Using random testing.
+Testing... Passed 100 tests.
+property cplxMulDistrib Using random testing.
+Testing... Passed 100 tests.
+:prove cplxAddAssoc
+	Q.E.D.
+:prove cplxMulAssoc
+	Q.E.D.
+:prove cplxMulDistrib
+	Q.E.D.
+Loading module Cryptol
+Loading module Main
+property cplxAddAssoc Using random testing.
+Testing... Passed 100 tests.
+property cplxMulAssoc Using random testing.
+Testing... Counterexample
+property cplxMulDistrib Using random testing.
+Testing... Counterexample
+:prove cplxAddAssoc
+	Q.E.D.
+:prove cplxMulAssoc
+	Counterexample
+:prove cplxMulDistrib
+	Counterexample

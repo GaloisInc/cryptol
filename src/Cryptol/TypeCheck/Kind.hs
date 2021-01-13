@@ -20,7 +20,6 @@ module Cryptol.TypeCheck.Kind
   ) where
 
 import qualified Cryptol.Parser.AST as P
-import           Cryptol.Parser.AST (Named(..))
 import           Cryptol.Parser.Position
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Error
@@ -37,7 +36,7 @@ import           Data.List(sortBy,groupBy)
 import           Data.Maybe(fromMaybe)
 import           Data.Function(on)
 import           Data.Text (Text)
-import           Control.Monad(unless,forM,when)
+import           Control.Monad(unless,when)
 
 
 
@@ -114,11 +113,8 @@ checkNewtype (P.Newtype x as fs) mbD =
   do ((as1,fs1),gs) <- collectGoals $
        inRange (srcRange x) $
        do r <- withTParams NoWildCards newtypeParam as $
-               forM fs $ \field ->
-                 let n = name field
-                 in kInRange (srcRange n) $
-                    do t1 <- doCheckType (value field) (Just KType)
-                       return (thing n, t1)
+               flip traverseRecordMap fs $ \_n (rng,f) ->
+                 kInRange rng $ doCheckType f (Just KType)
           simplifyAllConstraints
           return r
 
@@ -265,10 +261,13 @@ checkTUser x ts k =
        checkKind (TUser x ts1 t1) k k1
 
   checkNewTypeUse nt =
-    do let tc = newtypeTyCon nt
-       (ts1,_) <- appTy ts (kindOf tc)
-       ts2 <- checkParams (ntParams nt) ts1
-       return (TCon tc ts2)
+    do (ts1,k1) <- appTy ts (kindOf nt)
+       let as = ntParams nt
+       ts2 <- checkParams as ts1
+       let su = zip as ts2
+       ps1 <- mapM (`kInstantiateT` su) (ntConstraints nt)
+       kNewGoals (CtPartialTypeFun (ntName nt)) ps1
+       checkKind (TNewtype nt ts2) k k1
 
   checkAbstractTypeUse absT =
     do let tc   = abstractTypeTC absT

@@ -240,7 +240,8 @@ apSubstMaybe su ty =
       do (ts1, t1) <- anyJust2 (anyJust (apSubstMaybe su)) (apSubstMaybe su) (ts, t)
          Just (TUser f ts1 t1)
 
-    TRec fs       -> TRec `fmap` (anyJust (apSubstMaybe su) fs)
+    TRec fs -> TRec `fmap` (anyJust (apSubstMaybe su) fs)
+    TNewtype nt ts -> TNewtype nt `fmap` anyJust (apSubstMaybe su) ts
     TVar x -> applySubstToVar su x
 
 lookupSubst :: TVar -> Subst -> Maybe Type
@@ -315,6 +316,7 @@ apSubstTypeMapKeys su = go (\_ x -> x) id
     tm' = TM { tvar = Map.fromList   vars
              , tcon = fmap (lgo merge atNode) tcon
              , trec = fmap (lgo merge atNode) trec
+             , tnewtype = fmap (lgo merge atNode) tnewtype
              }
 
     -- partition out variables that have been replaced with more specific types

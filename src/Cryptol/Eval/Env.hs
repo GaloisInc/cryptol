@@ -42,15 +42,14 @@ data GenEvalEnv sym = EvalEnv
 instance Semigroup (GenEvalEnv sym) where
   l <> r = EvalEnv
     { envVars     = IntMap.union (envVars l) (envVars r)
-    , envTypes    = IntMap.union (envTypes l) (envTypes r)
+    , envTypes    = envTypes l <> envTypes r
     }
 
 instance Monoid (GenEvalEnv sym) where
   mempty = EvalEnv
     { envVars       = IntMap.empty
-    , envTypes      = IntMap.empty
+    , envTypes      = mempty
     }
-
   mappend l r = l <> r
 
 ppEnv :: Backend sym => sym -> PPOpts -> GenEvalEnv sym -> SEval sym Doc
@@ -98,10 +97,10 @@ lookupVar n env = IntMap.lookup (nameUnique n) (envVars env)
 -- | Bind a type variable of kind *.
 {-# INLINE bindType #-}
 bindType :: TVar -> Either Nat' TValue -> GenEvalEnv sym -> GenEvalEnv sym
-bindType p ty env = env { envTypes = IntMap.insert (tvUnique p) ty (envTypes env) }
+bindType p ty env = env{ envTypes = bindTypeVar p ty (envTypes env) }
 
 -- | Lookup a type variable.
 {-# INLINE lookupType #-}
 lookupType :: TVar -> GenEvalEnv sym -> Maybe (Either Nat' TValue)
-lookupType p env = IntMap.lookup (tvUnique p) (envTypes env)
+lookupType p env = lookupTypeVar p (envTypes env)
 

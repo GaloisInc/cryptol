@@ -312,6 +312,8 @@ prepareQuery evo ProverCommand{..} =
 
      getEOpts <- M.getEvalOptsAction
 
+     ntEnv <- M.getNewtypes
+
      -- The `addAsm` function is used to combine assumptions that
      -- arise from the types of symbolic variables (e.g. Z n values
      -- are assumed to be integers in the range `0 <= x < n`) with
@@ -344,7 +346,8 @@ prepareQuery evo ProverCommand{..} =
                  -- evaluation environment, then we compute the value, finally
                  -- we apply it to the symbolic inputs.
                  (safety,b) <- doSBVEval $
-                     do env <- Eval.evalDecls sym extDgs mempty
+                     do env <- Eval.evalDecls sym extDgs =<<
+                                 Eval.evalNewtypeDecls sym ntEnv mempty
                         v <- Eval.evalExpr sym env pcExpr
                         appliedVal <- foldM (Eval.fromVFun sym) v args
                         case pcQueryType of
@@ -501,11 +504,11 @@ parseValue FTRational cvs =
      return (VarRational n d, cvs'')
 parseValue (FTSeq 0 FTBit) cvs = (VarWord (Concrete.mkBv 0 0), cvs)
 parseValue (FTSeq n FTBit) cvs =
-  case SBV.genParse (SBV.KBounded False n) cvs of
+  case SBV.genParse (SBV.KBounded False (fromInteger n)) cvs of
     Just (x, cvs') -> (VarWord (Concrete.mkBv (toInteger n) x), cvs')
     Nothing -> panic "Cryptol.Symbolic.parseValue" ["no bitvector"]
 parseValue (FTSeq n t) cvs = (VarFinSeq (toInteger n) vs, cvs')
-  where (vs, cvs') = parseValues (replicate n t) cvs
+  where (vs, cvs') = parseValues (replicate (fromInteger n) t) cvs
 parseValue (FTTuple ts) cvs = (VarTuple vs, cvs')
   where (vs, cvs') = parseValues ts cvs
 parseValue (FTRecord r) cvs = (VarRecord r', cvs')
@@ -513,6 +516,8 @@ parseValue (FTRecord r) cvs = (VarRecord r', cvs')
         (vs, cvs') = parseValues ts cvs
         fs         = zip ns vs
         r'         = recordFromFieldsWithDisplay (displayOrder r) fs
+
+parseValue (FTNewtype _ _ r) cvs = parseValue (FTRecord r) cvs
 
 parseValue (FTFloat e p) cvs =
    (VarFloat FH.BF { FH.bfValue = bfNaN

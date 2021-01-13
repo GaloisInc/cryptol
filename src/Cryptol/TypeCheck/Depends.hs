@@ -18,6 +18,7 @@ import           Cryptol.Parser.Names (namesB, tnamesT, tnamesC,
 import           Cryptol.TypeCheck.Monad( InferM, recordError, getTVars )
 import           Cryptol.TypeCheck.Error(Error(..))
 import           Cryptol.Utils.Panic(panic)
+import           Cryptol.Utils.RecordMap(recordElements)
 
 import           Data.List(sortBy, groupBy)
 import           Data.Function(on)
@@ -81,7 +82,7 @@ orderTyDecls ts =
                        boundNamesSet vs $
                        boundNames (map P.tpName as) $
                        Set.unions $
-                       map (tnamesT . P.value) fs
+                       map (tnamesT . snd) (recordElements fs)
                   )
         }
     )

@@ -235,12 +235,13 @@ prepareQuery ::
   M.ModuleT IO (Either String
                        ([FinType],[VarShape (What4 sym)],W4.Pred sym, W4.Pred sym)
                )
-prepareQuery sym ProverCommand { .. } =
+prepareQuery sym ProverCommand { .. } = do
+  ntEnv <- M.getNewtypes
   case predArgTypes pcQueryType pcSchema of
     Left msg -> pure (Left msg)
     Right ts ->
       do args <- liftIO (mapM (freshVar (what4FreshFns (w4 sym))) ts)
-         (safety,b) <- simulate args
+         (safety,b) <- simulate ntEnv args
          liftIO
            do -- Ignore the safety condition if the flag is set
               let safety' = if pcIgnoreSafety then W4.truePred (w4 sym) else safety
@@ -264,7 +265,7 @@ prepareQuery sym ProverCommand { .. } =
                        q' <- W4.andPred (w4 sym) defs q
                        pure (ts,args,safety',q')
   where
-  simulate args =
+  simulate ntEnv args =
     do let lPutStrLn = M.withLogger logPutStrLn
        when pcVerbose (lPutStrLn "Simulating...")
 
@@ -286,7 +287,9 @@ prepareQuery sym ProverCommand { .. } =
        let extDgs = M.allDeclGroups modEnv ++ pcExtraDecls
 
        doW4Eval (w4 sym)
-         do env <- Eval.evalDecls sym extDgs mempty
+         do env <- Eval.evalDecls sym extDgs =<<
+                     Eval.evalNewtypeDecls sym ntEnv mempty
+
             v   <- Eval.evalExpr  sym env    pcExpr
             appliedVal <-
               foldM (Eval.fromVFun sym) v (map (pure . varShapeToValue sym) args)

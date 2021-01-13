@@ -27,6 +27,7 @@ module Cryptol.Eval (
   , emptyEnv
   , evalExpr
   , evalDecls
+  , evalNewtypeDecls
   , evalSel
   , evalSetSel
   , EvalError(..)
@@ -69,7 +70,8 @@ type EvalEnv = GenEvalEnv Concrete
 type EvalPrims sym =
   ( Backend sym, ?callStacks :: Bool, ?evalPrim :: PrimIdent -> Maybe (Either Expr (Prim sym)) )
 
-type ConcPrims = (?callStacks :: Bool, ?evalPrim :: PrimIdent -> Maybe (Either Expr (Prim Concrete)))
+type ConcPrims =
+  (?callStacks :: Bool, ?evalPrim :: PrimIdent -> Maybe (Either Expr (Prim Concrete)))
 
 -- Expression Evaluation -------------------------------------------------------
 
@@ -89,7 +91,7 @@ moduleEnv ::
   Module         {- ^ Module containing declarations to evaluate -} ->
   GenEvalEnv sym {- ^ Environment to extend -} ->
   SEval sym (GenEvalEnv sym)
-moduleEnv sym m env = evalDecls sym (mDecls m) =<< evalNewtypes sym (mNewtypes m) env
+moduleEnv sym m env = evalDecls sym (mDecls m) =<< evalNewtypeDecls sym (mNewtypes m) env
 
 {-# SPECIALIZE evalExpr ::
   (?range :: Range, ConcPrims) =>
@@ -242,7 +244,7 @@ cacheCallStack sym v = case v of
 
 -- Newtypes --------------------------------------------------------------------
 
-{-# SPECIALIZE evalNewtypes ::
+{-# SPECIALIZE evalNewtypeDecls ::
   ConcPrims =>
   Concrete ->
   Map.Map Name Newtype ->
@@ -250,26 +252,32 @@ cacheCallStack sym v = case v of
   SEval Concrete (GenEvalEnv Concrete)
   #-}
 
-evalNewtypes ::
+evalNewtypeDecls ::
   EvalPrims sym =>
   sym ->
   Map.Map Name Newtype ->
   GenEvalEnv sym ->
   SEval sym (GenEvalEnv sym)
-evalNewtypes sym nts env = foldM (flip (evalNewtype sym)) env $ Map.elems nts
+evalNewtypeDecls sym nts env = foldM (flip (evalNewtypeDecl sym)) env $ Map.elems nts
 
 -- | Introduce the constructor function for a newtype.
-evalNewtype ::
+evalNewtypeDecl ::
   EvalPrims sym =>
   sym ->
   Newtype ->
   GenEvalEnv sym ->
   SEval sym (GenEvalEnv sym)
-evalNewtype _sym nt = pure . bindVarDirect (ntName nt) (foldr tabs con (ntParams nt))
+evalNewtypeDecl _sym nt = pure . bindVarDirect (ntName nt) (foldr tabs con (ntParams nt))
   where
-  tabs _tp body = PTyPoly (\ _ -> body)
   con           = PFun PPrim
-{-# INLINE evalNewtype #-}
+
+  tabs tp body =
+    case tpKind tp of
+      KType -> PTyPoly  (\ _ -> body)
+      KNum  -> PNumPoly (\ _ -> body)
+      k -> evalPanic "evalNewtypeDecl" ["illegal newtype parameter kind", show (pp k)]
+
+{-# INLINE evalNewtypeDecl #-}
 
 
 -- Declarations ----------------------------------------------------------------
@@ -357,11 +365,12 @@ fillHole ::
 fillHole sym env (nm, sch, _, fill) = do
   case lookupVar nm env of
     Just (Right v)
-     | isValueType env sch -> fill =<< sDelayFill sym v
-                                         (Just (etaDelay sym env sch v))
-                                         (show (ppLocName nm))
+     | isValueType env sch ->
+               fill =<< sDelayFill sym v
+                          (Just (etaDelay sym env sch v))
+                          (show (ppLocName nm))
 
-     | otherwise           -> fill (etaDelay sym env sch v)
+     | otherwise -> fill (etaDelay sym env sch v)
 
     _ -> evalPanic "fillHole" ["Recursive definition not completed", show (ppLocName nm)]
 
@@ -378,6 +387,7 @@ isValueType env Forall{ sVars = [], sProps = [], sType = t0 }
   go (TVSeq _ x)  = go x
   go (TVTuple xs) = and (map go xs)
   go (TVRec xs)   = and (fmap go xs)
+  go (TVNewtype _ _ xs) = and (fmap go xs)
   go _            = False
 
 isValueType _ _ = False
@@ -461,6 +471,12 @@ etaDelay sym env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
 
       VRecord fs ->
         case tp of
+          TVNewtype _ _ fts ->
+            do let res = zipRecords (\_ v t -> go stk t v) fs fts
+               case res of
+                 Left (Left f)  -> evalPanic "type mismatch during eta-expansion" ["missing field " ++ show f]
+                 Left (Right f) -> evalPanic "type mismatch during eta-expansion" ["unexpected field " ++ show f]
+                 Right fs' -> return (VRecord fs')
           TVRec fts ->
             do let res = zipRecords (\_ v t -> go stk t v) fs fts
                case res of
@@ -524,6 +540,7 @@ etaDelay sym env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
 
       TVAbstract {} -> v
 
+      TVNewtype _ _ body -> go stk (TVRec body) v
 
 {-# SPECIALIZE declHole ::
   Concrete ->
@@ -694,14 +711,14 @@ instance Semigroup (ListEnv sym) where
   l <> r = ListEnv
     { leVars   = IntMap.union (leVars  l)  (leVars  r)
     , leStatic = IntMap.union (leStatic l) (leStatic r)
-    , leTypes  = IntMap.union (leTypes l)  (leTypes r)
+    , leTypes  = leTypes l <> leTypes r
     }
 
 instance Monoid (ListEnv sym) where
   mempty = ListEnv
     { leVars   = IntMap.empty
     , leStatic = IntMap.empty
-    , leTypes  = IntMap.empty
+    , leTypes  = mempty
     }
 
   mappend l r = l <> r

@@ -1,0 +1,37 @@
+// This is a development of rational complex numbers
+
+type Q = Rational
+
+// Complex rational numbers in rectangular coordinates
+newtype CplxQ =
+  { real : Q, imag : Q }
+
+embedQ : Q -> CplxQ
+embedQ x = CplxQ{ real = x, imag = 0 }
+
+cplxAdd : CplxQ -> CplxQ -> CplxQ
+cplxAdd x y = CplxQ { real = r, imag = i }
+  where
+  r = x.real + y.real
+  i = x.imag + y.imag
+
+cplxMul : CplxQ -> CplxQ -> CplxQ
+cplxMul x y = CplxQ { real = r, imag = i }
+  where
+  r = x.real * y.real - x.imag * y.imag
+  i = x.real * y.imag + x.imag * y.real
+
+cplxEq : CplxQ -> CplxQ -> Bit
+cplxEq x y = (x.real == y.real) && (x.imag == y.imag)
+
+property cplxAddAssoc x y z =
+  cplxEq (cplxAdd (cplxAdd x y) z)
+         (cplxAdd x (cplxAdd y z))
+
+property cplxMulAssoc x y z =
+  cplxEq (cplxMul (cplxMul x y) z)
+         (cplxMul x (cplxMul y z))
+
+property cplxMulDistrib x y z =
+  cplxEq (cplxMul x (cplxAdd y z))
+         (cplxAdd (cplxMul x y) (cplxMul x z))

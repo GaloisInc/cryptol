@@ -3440,6 +3440,116 @@ equivalent:
 \end{code}
 
 %=====================================================================
+\section{Newtype declarations}
+
+Sometimes it it useful to be able to define a truly \emph{new} type
+that the typechecker will recognize as distinct from all other types.
+For example, one might wish to define a type with internal invariants,
+or use a collection of data in a way is semantically different from
+the default implementations of arithmetic or comparison.  For
+situations like this, where the programmer desires a lightweight
+abstraction barrier, a \texttt{newtype} declaration allows the
+creation of a new type name.
+
+For example, we can define a type to represent the complex rationals
+and define an injection from the rationals onto the real line with the
+following declarations.
+
+\begin{code}
+  newtype CplxQ = { real : Rational, imag : Rational }
+
+  embedQ : Rational -> CplxQ
+  embedQ x = CplxQ { real = x, imag = 0 }
+\end{code}
+
+To create values of the new \texttt{CplxQ} type, we apply the special
+\texttt{CplxQ} function (with the same name as the type) to a record
+containing all the fields of the newtype.  To access the fields of a
+newtype, we can use field projections, just as we would do for a
+record.  Now, the definitions of complex addition, multiplication and
+equality are straightforward.
+
+\begin{code}
+  cplxAdd : CplxQ -> CplxQ -> CplxQ
+  cplxAdd x y = CplxQ { real = r, imag = i }
+    where
+      r = x.real + y.real
+      i = x.imag + y.imag
+
+  cplxMul : CplxQ -> CplxQ -> CplxQ
+  cplxMul x y = CplxQ { real = r, imag = i }
+    where
+      r = x.real * y.real - x.imag * y.imag
+      i = x.real * y.imag + x.imag * y.real
+
+  cplxEq : CplxQ -> CplxQ -> Bit
+  cplxEq x y = (x.real == y.real) && (x.imag == y.imag)
+
+\end{code}
+
+Note that while \texttt{cplxAdd} computes the same component-wise
+addition that one would get from a record containing two rationals,
+the multiplication operation is distinct.  One of the effects of
+generating a type with \texttt{newtype} is that the new type is not a
+member of any of the basic typeclasses (like \texttt{Arith}) and this
+prevents users from accidentally using the wrong multiplication
+operation on complex values, as one might do if \texttt{CplxQ} were
+simply a type alias instead.  Likewise, there is no semantically
+meaningful total order on the complex plane; making \texttt{CplxQ} a
+newtype prevents it from having a (nonsense) total order automatically
+imposed.
+
+Newtype declarations can also have parameters (just as type synonyms
+do) allowing parameterized families of types.  Unlike type synonyms,
+however, newtypes are only considered equal by the typechecker if all
+their arguments are equal; the body of a newtype is \emph{not}
+unfolded when considering type equalities.
+
+To illustrate the use of parameters consider the following
+declarations, which we might use to define polynomials over a ring.
+
+\begin{code}
+  // n-degree polynomials over a
+  newtype Poly n a = { coeffs : [n+1]a }
+
+  evalPoly : {n, a} (fin n, Ring a) => Poly n a -> a -> a
+  evalPoly p x = foldl (+) zero terms
+    where
+      terms = [ c*a | c <- p.coeffs | a <- xs ]
+      xs    = [fromInteger 1]#[ x*a | a <- xs ]
+
+  polyConst : {n, a} (fin n, Ring a) => a -> Poly n a
+  polyConst a = Poly { coeffs = [a]#zero }
+
+  polyAdd : {n, a} (fin n, Ring a) => Poly n a -> Poly n a -> Poly n a
+  polyAdd p1 p2 = Poly { coeffs = zipWith (+) p1.coeffs p2.coeffs }
+
+  polyMul : {n1, n2, a} (fin n1, fin n2, Ring a) =>
+    Poly n1 a -> Poly n2 a -> Poly (n1+n2) a
+  polyMul p1 p2 = foldl polyAdd (polyConst zero) ps
+    where
+      ps : [n1+1](Poly (n1+n2) a)
+      ps@i = Poly{ coeffs = scaleAndShift i }
+
+      scaleAndShift i =
+        ([ p1.coeffs@i * c | c <- p2.coeffs ] # zero) >> i
+
+  property polyAddEval x (p1:Poly 5 Integer) (p2:Poly 5 Integer) =
+    evalPoly (polyAdd p1 p2) x == evalPoly p1 x + evalPoly p2 x
+
+  property polyMulEval x (p1:Poly 5 Integer) (p2:Poly 5 Integer) =
+    evalPoly (polyMul p1 p2) x == evalPoly p1 x * evalPoly p2 x
+\end{code}
+
+Note that when using newtypes as arguments to a property for
+\texttt{:check}, \texttt{:prove}, etc., (see
+\ref{cha:high-assur-progr}) newtype fields will be chosen arbitrarily,
+and this might not satisfy the intended invariants of the newtype.
+For these situations, other types should be used as the arguments of
+properties, with newtype values constructed in an invariant-preserving
+way from the given data.
+
+%=====================================================================
 \section{Program structure with modules}
 
 When a cryptographic specification gets very large it can make sense

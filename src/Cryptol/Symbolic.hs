@@ -54,7 +54,8 @@ import           Cryptol.Backend.FloatHelpers(bfValue)
 import qualified Cryptol.Eval.Concrete as Concrete
 import           Cryptol.Eval.Value
 import           Cryptol.TypeCheck.AST
-import           Cryptol.Eval.Type (TValue(..), evalType)
+import           Cryptol.TypeCheck.Solver.InfNat
+import           Cryptol.Eval.Type (TValue(..), evalType,tValTy,tNumValTy)
 import           Cryptol.Utils.Ident (Ident,prelPrim,floatPrim)
 import           Cryptol.Utils.RecordMap
 import           Cryptol.Utils.Panic
@@ -65,7 +66,7 @@ import Prelude ()
 import Prelude.Compat
 import Data.Time (NominalDiffTime)
 
-type SatResult = [(Type, Expr, Concrete.Value)]
+type SatResult = [(TValue, Expr, Concrete.Value)]
 
 data SatNum = AllSat | SomeSat Int
   deriving (Show)
@@ -108,7 +109,7 @@ data CounterExampleType = SafetyViolation | PredicateFalsified
 -- for the offline prover), a counterexample or a lazy list of
 -- satisfying assignments.
 data ProverResult = AllSatResult [SatResult] -- LAZY
-                  | ThmResult    [Type]
+                  | ThmResult    [TValue]
                   | CounterExample CounterExampleType SatResult
                   | EmptyResult
                   | ProverError  String
@@ -141,41 +142,57 @@ data FinType
     | FTIntMod Integer
     | FTRational
     | FTFloat Integer Integer
-    | FTSeq Int FinType
+    | FTSeq Integer FinType
     | FTTuple [FinType]
     | FTRecord (RecordMap Ident FinType)
-
-numType :: Integer -> Maybe Int
-numType n
-  | 0 <= n && n <= toInteger (maxBound :: Int) = Just (fromInteger n)
-  | otherwise = Nothing
+    | FTNewtype Newtype [Either Nat' TValue] (RecordMap Ident FinType)
 
 finType :: TValue -> Maybe FinType
 finType ty =
   case ty of
-    TVBit            -> Just FTBit
-    TVInteger        -> Just FTInteger
-    TVIntMod n       -> Just (FTIntMod n)
-    TVRational       -> Just FTRational
-    TVFloat e p      -> Just (FTFloat e p)
-    TVSeq n t        -> FTSeq <$> numType n <*> finType t
-    TVTuple ts       -> FTTuple <$> traverse finType ts
-    TVRec fields     -> FTRecord <$> traverse finType fields
-    TVAbstract {}    -> Nothing
-    _                     -> Nothing
+    TVBit               -> Just FTBit
+    TVInteger           -> Just FTInteger
+    TVIntMod n          -> Just (FTIntMod n)
+    TVRational          -> Just FTRational
+    TVFloat e p         -> Just (FTFloat e p)
+    TVSeq n t           -> FTSeq n <$> finType t
+    TVTuple ts          -> FTTuple <$> traverse finType ts
+    TVRec fields        -> FTRecord <$> traverse finType fields
+    TVNewtype u ts body -> FTNewtype u ts <$> traverse finType body
+    TVAbstract {}       -> Nothing
+    TVArray{}           -> Nothing
+    TVStream{}          -> Nothing
+    TVFun{}             -> Nothing
 
-unFinType :: FinType -> Type
+finTypeToType :: FinType -> Type
+finTypeToType fty =
+  case fty of
+    FTBit             -> tBit
+    FTInteger         -> tInteger
+    FTIntMod n        -> tIntMod (tNum n)
+    FTRational        -> tRational
+    FTFloat e p       -> tFloat (tNum e) (tNum p)
+    FTSeq l ety       -> tSeq (tNum l) (finTypeToType ety)
+    FTTuple ftys      -> tTuple (finTypeToType <$> ftys)
+    FTRecord fs       -> tRec (finTypeToType <$> fs)
+    FTNewtype u ts _  -> tNewtype u (map unArg ts)
+ where
+  unArg (Left Inf)     = tInf
+  unArg (Left (Nat n)) = tNum n
+  unArg (Right t)      = tValTy t
+
+unFinType :: FinType -> TValue
 unFinType fty =
   case fty of
-    FTBit        -> tBit
-    FTInteger    -> tInteger
-    FTIntMod n   -> tIntMod (tNum n)
-    FTRational   -> tRational
-    FTFloat e p  -> tFloat (tNum e) (tNum p)
-    FTSeq l ety  -> tSeq (tNum l) (unFinType ety)
-    FTTuple ftys -> tTuple (unFinType <$> ftys)
-    FTRecord fs  -> tRec (unFinType <$> fs)
-
+    FTBit             -> TVBit
+    FTInteger         -> TVInteger
+    FTIntMod n        -> TVIntMod n
+    FTRational        -> TVRational
+    FTFloat e p       -> TVFloat e p
+    FTSeq n ety       -> TVSeq n (unFinType ety)
+    FTTuple ftys      -> TVTuple (unFinType <$> ftys)
+    FTRecord fs       -> TVRec   (unFinType <$> fs)
+    FTNewtype u ts fs -> TVNewtype u ts (unFinType <$> fs)
 
 data VarShape sym
   = VarBit (SBit sym)
@@ -237,12 +254,13 @@ freshVar fns tp = case tp of
     FTSeq n t     -> VarFinSeq (toInteger n) <$> sequence (genericReplicate n (freshVar fns t))
     FTTuple ts    -> VarTuple    <$> mapM (freshVar fns) ts
     FTRecord fs   -> VarRecord   <$> traverse (freshVar fns) fs
+    FTNewtype _ _ fs -> VarRecord <$> traverse (freshVar fns) fs
 
 computeModel ::
   PrimMap ->
   [FinType] ->
   [VarShape Concrete.Concrete] ->
-  [(Type, Expr, Concrete.Value)]
+  [(TValue, Expr, Concrete.Value)]
 computeModel _ [] [] = []
 computeModel primMap (t:ts) (v:vs) =
   do let v' = varShapeToValue Concrete.Concrete v
@@ -303,6 +321,14 @@ varToExpr prims = go
   go :: FinType -> VarShape Concrete.Concrete -> Expr
   go ty val =
     case (ty,val) of
+      (FTNewtype nt ts tfs, VarRecord vfs) ->
+        let res = zipRecords (\_lbl v t -> go t v) vfs tfs
+         in case res of
+              Left _ -> mismatch -- different fields
+              Right efs ->
+                let f = foldl (\x t -> ETApp x (tNumValTy t)) (EVar (ntName nt)) ts
+                 in EApp f (ERec efs)
+
       (FTRecord tfs, VarRecord vfs) ->
         let res = zipRecords (\_lbl v t -> go t v) vfs tfs
          in case res of
@@ -316,11 +342,11 @@ varToExpr prims = go
 
       (FTInteger, VarInteger i) ->
         -- This works uniformly for values of type Integer or Z n
-        ETApp (ETApp (prim "number") (tNum i)) (unFinType ty)
+        ETApp (ETApp (prim "number") (tNum i)) (finTypeToType ty)
 
       (FTIntMod _, VarInteger i) ->
         -- This works uniformly for values of type Integer or Z n
-        ETApp (ETApp (prim "number") (tNum i)) (unFinType ty)
+        ETApp (ETApp (prim "number") (tNum i)) (finTypeToType ty)
 
       (FTRational, VarRational n d) ->
         let n' = ETApp (ETApp (prim "number") (tNum n)) tInteger
@@ -331,17 +357,17 @@ varToExpr prims = go
         floatToExpr prims e p (bfValue f)
 
       (FTSeq _ FTBit, VarWord (Concrete.BV _ v)) ->
-        ETApp (ETApp (prim "number") (tNum v)) (unFinType ty)
+        ETApp (ETApp (prim "number") (tNum v)) (finTypeToType ty)
 
       (FTSeq _ t, VarFinSeq _ svs) ->
-        EList (map (go t) svs) (unFinType t)
+        EList (map (go t) svs) (finTypeToType t)
 
       _ -> mismatch
     where
       mismatch =
            panic "Cryptol.Symbolic.varToExpr"
              ["type mismatch:"
-             , show (pp (unFinType ty))
+             , show (pp (finTypeToType ty))
              , show (ppVarShape Concrete.Concrete val)
              ]
 

@@ -34,13 +34,12 @@ import qualified Cryptol.Backend.Concrete as C
 
 import Cryptol.Eval (evalSel)
 import Cryptol.Eval.Concrete (Value)
+import Cryptol.Eval.Type (TValue(..), tValTy)
 import Cryptol.Eval.Value (GenValue(..), asWordVal, enumerateSeqMap)
 import Cryptol.Parser
 import Cryptol.Parser.AST (Bind(..), BindDef(..), Decl(..), Expr(..), Named(Named), TypeInst(NamedInst), Type(..), PName(..), Literal(..), NumInfo(..), Type)
 import Cryptol.Parser.Position (Located(..), emptyRange)
 import Cryptol.Parser.Selector
-import Cryptol.TypeCheck.SimpType (tRebuild)
-import qualified Cryptol.TypeCheck.Type as TC
 import Cryptol.Utils.Ident
 import Cryptol.Utils.RecordMap (recordFromFields, canonicalFields)
 
@@ -337,60 +336,58 @@ bytesToInt :: BS.ByteString -> Integer
 bytesToInt bs =
   BS.foldl' (\acc w -> (acc * 256) + toInteger w) 0 bs
 
-typeNum :: (Alternative f, Integral a) => TC.Type -> f a
-typeNum (tRebuild -> (TC.TCon (TC.TC (TC.TCNum n)) [])) =
-  pure $ fromIntegral n
-typeNum _ = empty
-
-readBack :: TC.Type -> Value -> Eval Expression
+readBack :: TValue -> Value -> Eval Expression
 readBack ty val =
-  case TC.tNoUser ty of
-    TC.TRec tfs ->
+  case ty of
+    -- TODO, add actual support for newtypes
+    TVNewtype _u _ts _tfs -> liftIO $ throwIO (invalidType (tValTy ty))
+
+    TVRec tfs ->
       Record . HM.fromList <$>
         sequence [ do fv <- evalSel C.Concrete val (RecordSel f Nothing)
                       fa <- readBack t fv
                       return (identText f, fa)
                  | (f, t) <- canonicalFields tfs
                  ]
-    TC.TCon (TC.TC (TC.TCTuple _)) [] ->
+    TVTuple [] ->
       pure Unit
-    TC.TCon (TC.TC (TC.TCTuple _)) ts ->
+    TVTuple ts ->
       Tuple <$> sequence [ do v <- evalSel C.Concrete val (TupleSel n Nothing)
                               a <- readBack t v
                               return a
                          | (n, t) <- zip [0..] ts
                          ]
-    TC.TCon (TC.TC TC.TCBit) [] ->
+    TVBit ->
       case val of
         VBit b -> pure (Bit b)
         _ -> mismatchPanic
-    TC.TCon (TC.TC TC.TCInteger) [] ->
+    TVInteger ->
       case val of
         VInteger i -> pure (Integer i)
         _ -> mismatchPanic
-    TC.TCon (TC.TC TC.TCIntMod) [typeNum -> Just n] ->
+    TVIntMod n ->
       case val of
         VInteger i -> pure (IntegerModulo i n)
         _ -> mismatchPanic
-    TC.TCon (TC.TC TC.TCSeq) [TC.tNoUser -> len, TC.tNoUser -> contents]
-      | len == TC.tZero ->
+    TVSeq len contents
+      | len == 0 ->
         return Unit
-      | contents == TC.TCon (TC.TC TC.TCBit) []
+      | contents == TVBit
       , VWord width wv <- val ->
         do BV w v <- wv >>= asWordVal C.Concrete
            let hexStr = T.pack $ showHex v ""
            let paddedLen = fromIntegral ((width `quot` 4) + (if width `rem` 4 == 0 then 0 else 1))
            return $ Num Hex (T.justifyRight paddedLen '0' hexStr) w
-      | TC.TCon (TC.TC (TC.TCNum k)) [] <- len
-      , VSeq _l (enumerateSeqMap k -> vs) <- val ->
+      | VSeq _l (enumerateSeqMap len -> vs) <- val ->
         Sequence <$> mapM (>>= readBack contents) vs
-    other -> liftIO $ throwIO (invalidType other)
+
+    other -> liftIO $ throwIO (invalidType (tValTy other))
   where
     mismatchPanic =
       error $ "Internal error: readBack: value '" <>
               show val <>
               "' didn't match type '" <>
-              show ty <>
+              show (tValTy ty) <>
               "'"
 
 

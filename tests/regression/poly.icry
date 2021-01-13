@@ -1,0 +1,11 @@
+:set prover=w4-cvc4
+:set prover-stats=no
+:l poly.cry
+
+let x = Poly { coeffs = [0,1:Integer] }
+
+polyAdd x x
+polyMul x x
+
+:check
+:prove

@@ -112,7 +112,7 @@ checkTyParams func inst =
            src = CtPartialTypeFun nm
        mapM_ (newGoal src) (ntConstraints nt)
 
-       return (tp, TCon (TC (TCNewtype (UserTC nm k2))) [])
+       return (tp, TNewtype nt [])
 
   -- Check that a type parameter defined as another type parameter is OK
   checkTP tp tp1 =

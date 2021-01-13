@@ -246,7 +246,7 @@ data Pragma   = PragmaNote String
 
 data Newtype name = Newtype { nName   :: Located name        -- ^ Type name
                             , nParams :: [TParam name]       -- ^ Type params
-                            , nBody   :: [Named (Type name)] -- ^ Constructor
+                            , nBody   :: Rec (Type name)     -- ^ Body
                             } deriving (Eq, Show, Generic, NFData)
 
 -- | A declaration for a type with no implementation.
@@ -497,7 +497,7 @@ instance HasLoc (Newtype name) where
     | null locs = Nothing
     | otherwise = Just (rCombs locs)
     where
-    locs = catMaybes [ getLoc (nName n), getLoc (nBody n) ]
+    locs = catMaybes ([ getLoc (nName n)] ++ map (Just . fst . snd) (displayFields (nBody n)))
 
 
 --------------------------------------------------------------------------------
@@ -576,7 +576,7 @@ ppFixity (Fixity NonAssoc   i) ns = text "infix"  <+> int i <+> commaSep (map pp
 instance PPName name => PP (Newtype name) where
   ppPrec _ nt = hsep
     [ text "newtype", ppL (nName nt), hsep (map pp (nParams nt)), char '='
-    , braces (commaSep (map (ppNamed ":") (nBody nt))) ]
+    , braces (commaSep (map (ppNamed' ":") (displayFields (nBody nt)))) ]
 
 instance PP Import where
   ppPrec _ d = text "import" <+> sep [ pp (iModule d), mbAs, mbSpec ]
@@ -939,7 +939,7 @@ instance NoPos (Decl name) where
 instance NoPos (Newtype name) where
   noPos n = Newtype { nName   = noPos (nName n)
                     , nParams = nParams n
-                    , nBody   = noPos (nBody n)
+                    , nBody   = fmap noPos (nBody n)
                     }
 
 instance NoPos (Bind name) where

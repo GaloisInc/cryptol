@@ -2,6 +2,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ViewPatterns #-}
 module CryptolServer.Sat (sat, ProveSatParams(..)) where
 
 import Control.Applicative
@@ -14,11 +15,12 @@ import Data.Text (Text)
 import qualified Data.Text as T
 
 import Cryptol.Eval.Concrete (Value)
+import Cryptol.Eval.Type (TValue, tValTy)
 import Cryptol.ModuleSystem (checkExpr)
 import Cryptol.ModuleSystem.Env (DynamicEnv(..), meDynEnv, meSolverConfig)
 import Cryptol.Symbolic (ProverCommand(..), ProverResult(..), QueryType(..), SatNum(..))
 import Cryptol.Symbolic.SBV (proverNames, satProve, setupProver)
-import Cryptol.TypeCheck.AST (Expr, Type)
+import Cryptol.TypeCheck.AST (Expr)
 import Cryptol.TypeCheck.Solve (defaultReplExpr)
 import qualified Cryptol.TypeCheck.Solver.SMT as SMT
 
@@ -68,12 +70,12 @@ sat (ProveSatParams (Prover name) jsonExpr num) =
                 Satisfied <$> traverse satResult results
 
   where
-    satResult :: [(Type, Expr, Value)] -> CryptolMethod [(JSONType, Expression)]
+    satResult :: [(TValue, Expr, Value)] -> CryptolMethod [(JSONType, Expression)]
     satResult es = traverse result es
 
     result (t, _, v) =
       do e <- observe $ readBack t v
-         return (JSONType mempty t, e)
+         return (JSONType mempty (tValTy t), e)
 
 data SatResult = Unsatisfiable | Satisfied [[(JSONType, Expression)]]
 
