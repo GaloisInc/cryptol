@@ -5,6 +5,7 @@
 {-# LANGUAGE ViewPatterns #-}
 module CryptolServer.Sat (sat, ProveSatParams(..)) where
 
+import qualified Argo.Doc as Doc
 import Control.Applicative
 import Control.Monad.IO.Class
 import Data.Aeson ((.=), (.:), FromJSON, ToJSON)
@@ -129,3 +130,18 @@ instance FromJSON ProveSatParams where
                   case floatingOrInteger s of
                     Left (_float :: Double) -> empty
                     Right int -> pure (SomeSat int)) v)
+
+
+instance Doc.DescribedParams ProveSatParams where
+  parameterFieldDescription =
+    [("prover",
+      Doc.Paragraph ([Doc.Text "The SMT solver to use to check for satisfiability. I.e., one of the following: "]
+                     ++ (concat (map (\p -> [Doc.Literal (T.pack p), Doc.Text ", "]) proverNames))
+                     ++ [Doc.Text "."]))
+    , ("expression",
+      Doc.Paragraph [Doc.Text "The predicate (i.e., function) to check for satisfiability; "
+                    , Doc.Text "must be a monomorphic function type with return type Bit." ])
+    , ("result count",
+      Doc.Paragraph [Doc.Text "How many satisfying results to search for; either a positive integer or "
+                    , Doc.Literal "all", Doc.Text"."])
+    ]

@@ -6,6 +6,7 @@ module CryptolServer.LoadModule
   , LoadModuleParams(..)
   ) where
 
+import qualified Argo.Doc as Doc
 import Control.Applicative
 import Data.Aeson as JSON
 import qualified Data.Text as T
@@ -30,6 +31,17 @@ instance JSON.FromJSON LoadFileParams where
     JSON.withObject "params for \"load module\"" $
     \o -> LoadFileParams <$> o .: "file"
 
+
+instance Doc.DescribedParams LoadFileParams where
+  parameterFieldDescription =
+    [("file",
+      Doc.Paragraph [Doc.Text "File path of the module to load."])
+    ]
+
+
+
+
+
 loadModule :: LoadModuleParams -> CryptolMethod ()
 loadModule (LoadModuleParams mn) =
   void $ runModuleCmd (loadModuleByName mn)
@@ -52,3 +64,9 @@ instance JSON.FromJSON LoadModuleParams where
   parseJSON =
     JSON.withObject "params for \"load module\"" $
     \o -> LoadModuleParams . unJSONModName <$> o .: "module name"
+
+instance Doc.DescribedParams LoadModuleParams where
+  parameterFieldDescription =
+    [("module name",
+      Doc.Paragraph [Doc.Text "Name of module to load."])
+    ]

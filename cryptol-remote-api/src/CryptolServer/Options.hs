@@ -1,8 +1,11 @@
 {-# OPTIONS_GHC -fno-warn-type-defaults -Wno-missing-deriving-strategies #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeApplications #-}
 module CryptolServer.Options (Options(..), WithOptions(..)) where
 
+import qualified Argo.Doc as Doc
 import Data.Aeson hiding (Options)
 import qualified Data.HashMap.Strict as HM
 
@@ -50,6 +53,9 @@ instance FromJSON Options where
 
 data WithOptions a = WithOptions Options a
   deriving Functor
+
+instance forall params . Doc.DescribedParams params => Doc.DescribedParams (WithOptions params) where
+  parameterFieldDescription = (Doc.parameterFieldDescription @params)
 
 instance FromJSON a => FromJSON (WithOptions a) where
   parseJSON = withObject "parameters with options" $

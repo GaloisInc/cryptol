@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module CryptolServer.FocusedModule (focusedModule, FocusedModParams(..)) where
 
+import qualified Argo.Doc as Doc
 import Data.Aeson as JSON
 
 import Cryptol.ModuleSystem (meFocusedModule, meLoadedModules)
@@ -25,3 +26,6 @@ data FocusedModParams = FocusedModParams
 
 instance JSON.FromJSON FocusedModParams where
   parseJSON _ = pure FocusedModParams
+
+instance Doc.DescribedParams FocusedModParams where
+  parameterFieldDescription = []

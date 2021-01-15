@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module CryptolServer.EvalExpr (evalExpression, evalExpression', EvalExprParams(..)) where
 
+import qualified Argo.Doc as Doc
 import Control.Monad.IO.Class
 import Data.Aeson as JSON
 
@@ -59,3 +60,9 @@ instance JSON.FromJSON EvalExprParams where
   parseJSON =
     JSON.withObject "params for \"evaluate expression\"" $
     \o -> EvalExprParams <$> o .: "expression"
+
+instance Doc.DescribedParams EvalExprParams where
+  parameterFieldDescription =
+    [("expression",
+      Doc.Paragraph [Doc.Text "The expression to evaluate."])
+    ]

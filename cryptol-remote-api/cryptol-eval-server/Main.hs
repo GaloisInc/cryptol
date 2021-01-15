@@ -1,11 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 module Main (main) where
 
-import qualified Data.Aeson as JSON
 import Control.Lens hiding (argument)
-import Data.Text (Text)
 import System.Environment (lookupEnv)
 import System.Exit (exitFailure)
 import System.FilePath (splitSearchPath)
@@ -19,21 +18,24 @@ import Cryptol.TypeCheck.AST (mName)
 import Cryptol.Utils.Ident (ModName, modNameToText, textToModName, preludeName)
 import Cryptol.Utils.Logger (quietLogger)
 
-import Argo (MethodType(..), Method, mkApp)
+import Argo (MethodType(..), AppMethod, mkApp)
 import Argo.DefaultMain
+import qualified Argo.Doc as Doc
 
 
 import CryptolServer
+import CryptolServer.Call
 import CryptolServer.EvalExpr
 import CryptolServer.FocusedModule
 import CryptolServer.Names
 import CryptolServer.TypeCheck
+import CryptolServer.Sat
 
 main :: IO ()
-main = customMain initMod initMod initMod description buildApp
+main = customMain initMod initMod initMod initMod description buildApp
   where
     buildApp opts =
-      mkApp (startingState (userOptions opts)) cryptolEvalMethods
+      mkApp "Cryptol RPC Server" evalServerDocs (startingState (userOptions opts)) cryptolEvalMethods
 
     startingState (StartingFile file) reader =
       do paths <- getSearchPaths
@@ -61,6 +63,12 @@ main = customMain initMod initMod initMod description buildApp
                , evalPPOpts = defaultPPOpts
                }
 
+
+evalServerDocs :: [Doc.Block]
+evalServerDocs =
+  [ Doc.Paragraph [Doc.Text "A remote server for Cryptol that supports only type checking and evaluation of Cryptol code."]
+  ]
+
 description :: String
 description =
   "An RPC server for Cryptol that supports only type checking and evaluation of Cryptol code."
@@ -87,10 +95,37 @@ initMod = StartingFile <$> (Left <$> filename <|> Right . textToModName <$> modu
       help "Cryptol module to load on startup" <>
       value (modNameToText preludeName)
 
-cryptolEvalMethods :: [(Text, MethodType, JSON.Value -> Method ServerState JSON.Value)]
+cryptolEvalMethods :: [AppMethod ServerState]
 cryptolEvalMethods =
-  [ ("focused module",      Query,   method focusedModule)
-  , ("evaluate expression", Query,   method evalExpression)
-  , ("visible names",       Query,   method visibleNames)
-  , ("check type",          Query,   method checkType)
+  [ method
+     "focused module"
+     Query
+     (Doc.Paragraph [Doc.Text "The 'current' module. Used to decide how to print names, for example."])
+     focusedModule
+  , method
+     "evaluate expression"
+     Query
+     (Doc.Paragraph [Doc.Text "Evaluate the Cryptol expression to a value."])
+     evalExpression
+  , method
+     "call"
+     Query
+     (Doc.Paragraph [Doc.Text "Evaluate the result of calling a Cryptol function on one or more parameters."])
+     call
+  , method
+     "visible names"
+     Query
+     (Doc.Paragraph [Doc.Text "List the currently visible (i.e., in scope) names."])
+     visibleNames
+  , method
+     "check type"
+     Query
+     (Doc.Paragraph [Doc.Text "Check and return the type of the given expression."])
+     checkType
+  , method
+     "satisfy"
+     Query
+     (Doc.Paragraph [ Doc.Text "Find a value which satisfies the given predicate "
+                    , Doc.Text "(i.e., a value which when passed to the argument produces true)."])
+     sat
   ]

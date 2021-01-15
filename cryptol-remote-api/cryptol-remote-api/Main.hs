@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 module Main (main) where
 
 import qualified Data.Aeson as JSON
@@ -8,8 +9,9 @@ import Data.Text (Text)
 import System.Environment (lookupEnv)
 import System.FilePath (splitSearchPath)
 
-import Argo (MethodType(..), Method, mkApp)
+import Argo (MethodType(..), AppMethod, mkApp)
 import Argo.DefaultMain
+import qualified Argo.Doc as Doc
 
 
 import CryptolServer
@@ -26,8 +28,12 @@ main :: IO ()
 main =
   do paths <- getSearchPaths
      initSt <- setSearchPath paths <$> initialState
-     theApp <- mkApp (const (pure initSt)) cryptolMethods
+     theApp <- mkApp "Cryptol RPC Server" serverDocs (const (pure initSt)) cryptolMethods
      defaultMain description theApp
+
+serverDocs :: [Doc.Block]
+serverDocs =
+  [ Doc.Paragraph [Doc.Text "A remote server for Cryptol."]]
 
 description :: String
 description =
@@ -37,15 +43,52 @@ getSearchPaths :: IO [FilePath]
 getSearchPaths =
   maybe [] splitSearchPath <$> lookupEnv "CRYPTOLPATH"
 
-cryptolMethods :: [(Text, MethodType, JSON.Value -> Method ServerState JSON.Value)]
+cryptolMethods :: [AppMethod ServerState]
 cryptolMethods =
-  [ ("change directory",    Command, method cd)
-  , ("load module",         Command, method loadModule)
-  , ("load file",           Command, method loadFile)
-  , ("focused module",      Query,   method focusedModule)
-  , ("evaluate expression", Query,   method evalExpression)
-  , ("call",                Query,   method call)
-  , ("visible names",       Query,   method visibleNames)
-  , ("check type",          Query,   method checkType)
-  , ("satisfy",             Query,   method sat)
+  [ method
+     "change directory"
+     Command
+     (Doc.Paragraph [Doc.Text "Changes the server's working directory to the given path."])
+     cd
+  , method
+     "load module"
+     Command
+     (Doc.Paragraph [Doc.Text "Load the specified module (by name)."])
+     loadModule
+  , method
+     "load file"
+     Command
+     (Doc.Paragraph [Doc.Text "Load the specified module (by file path)."])
+     loadFile -- The "current" module.  Used to decide how to print names, for example.
+  , method
+     "focused module"
+     Query
+     (Doc.Paragraph [Doc.Text "The 'current' module. Used to decide how to print names, for example."])
+     focusedModule
+  , method
+     "evaluate expression"
+     Query
+     (Doc.Paragraph [Doc.Text "Evaluate the Cryptol expression to a value."])
+     evalExpression
+  , method
+     "call"
+     Query
+     (Doc.Paragraph [Doc.Text "Evaluate the result of calling a Cryptol function on one or more parameters."])
+     call
+  , method
+     "visible names"
+     Query
+     (Doc.Paragraph [Doc.Text "List the currently visible (i.e., in scope) names."])
+     visibleNames
+  , method
+     "check type"
+     Query
+     (Doc.Paragraph [Doc.Text "Check and return the type of the given expression."])
+     checkType
+  , method
+     "satisfy"
+     Query
+     (Doc.Paragraph [ Doc.Text "Find a value which satisfies the given predicate "
+                    , Doc.Text "(i.e., a value which when passed to the argument produces true)."])
+     sat
   ]

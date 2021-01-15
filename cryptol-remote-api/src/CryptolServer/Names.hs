@@ -3,6 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module CryptolServer.Names (visibleNames) where
 
+import qualified Argo.Doc as Doc
 import qualified Data.Aeson as JSON
 import Data.Aeson ((.=))
 import qualified Data.Map as Map
@@ -20,8 +21,15 @@ import Cryptol.Utils.PP (pp)
 import CryptolServer
 import CryptolServer.Data.Type
 
+data VisibleNamesParams = VisibleNamesParams
 
-visibleNames :: JSON.Value -> CryptolMethod [NameInfo]
+instance JSON.FromJSON VisibleNamesParams where
+  parseJSON _ = pure VisibleNamesParams
+
+instance Doc.DescribedParams VisibleNamesParams where
+  parameterFieldDescription = []
+
+visibleNames :: VisibleNamesParams -> CryptolMethod [NameInfo]
 visibleNames _ =
   do me <- getModuleEnv
      let DEnv { deNames = dyNames } = meDynEnv me
