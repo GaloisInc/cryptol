@@ -4,8 +4,6 @@
 {-# LANGUAGE TypeApplications #-}
 module Main (main) where
 
-import qualified Data.Aeson as JSON
-import Data.Text (Text)
 import System.Environment (lookupEnv)
 import System.FilePath (splitSearchPath)
 
@@ -33,11 +31,14 @@ main =
 
 serverDocs :: [Doc.Block]
 serverDocs =
-  [ Doc.Paragraph [Doc.Text "A remote server for Cryptol."]]
+  [ Doc.Section "Summary" $ [ Doc.Paragraph
+    [Doc.Text "An RCP server for ",
+     Doc.Link (Doc.URL "https://https://cryptol.net/") "Cryptol",
+     Doc.Text " that supports type checking and evaluation of Cryptol code via the methods documented below."]]]
 
 description :: String
 description =
-  "An RPC server for Cryptol that supports type checking and evaluation of Cryptol code."
+  "An RPC server for Cryptol that supports type checking and evaluation of Cryptol code via the methods documented below."
 
 getSearchPaths :: IO [FilePath]
 getSearchPaths =
