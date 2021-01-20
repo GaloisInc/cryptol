@@ -1,11 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 module Main (main) where
 
-import qualified Data.Aeson as JSON
 import Control.Lens hiding (argument)
-import Data.Text (Text)
 import System.Environment (lookupEnv)
 import System.Exit (exitFailure)
 import System.FilePath (splitSearchPath)
@@ -19,21 +18,24 @@ import Cryptol.TypeCheck.AST (mName)
 import Cryptol.Utils.Ident (ModName, modNameToText, textToModName, preludeName)
 import Cryptol.Utils.Logger (quietLogger)
 
-import Argo (MethodType(..), Method, mkApp)
+import Argo (MethodType(..), AppMethod, mkDefaultApp)
 import Argo.DefaultMain
+import qualified Argo.Doc as Doc
 
 
 import CryptolServer
+import CryptolServer.Call
 import CryptolServer.EvalExpr
 import CryptolServer.FocusedModule
 import CryptolServer.Names
 import CryptolServer.TypeCheck
+import CryptolServer.Sat
 
 main :: IO ()
-main = customMain initMod initMod initMod description buildApp
+main = customMain initMod initMod initMod initMod description buildApp
   where
     buildApp opts =
-      mkApp (startingState (userOptions opts)) cryptolEvalMethods
+      mkDefaultApp "Cryptol RPC Server" evalServerDocs (startingState (userOptions opts)) cryptolEvalMethods
 
     startingState (StartingFile file) reader =
       do paths <- getSearchPaths
@@ -61,6 +63,14 @@ main = customMain initMod initMod initMod description buildApp
                , evalPPOpts = defaultPPOpts
                }
 
+
+evalServerDocs :: [Doc.Block]
+evalServerDocs =
+  [ Doc.Section "Summary" $ [ Doc.Paragraph
+    [Doc.Text "A remote server for ",
+     Doc.Link (Doc.URL "https://https://cryptol.net/") "Cryptol",
+     Doc.Text " that supports only type checking and evaluation of Cryptol code."]]]
+
 description :: String
 description =
   "An RPC server for Cryptol that supports only type checking and evaluation of Cryptol code."
@@ -87,10 +97,36 @@ initMod = StartingFile <$> (Left <$> filename <|> Right . textToModName <$> modu
       help "Cryptol module to load on startup" <>
       value (modNameToText preludeName)
 
-cryptolEvalMethods :: [(Text, MethodType, JSON.Value -> Method ServerState JSON.Value)]
+cryptolEvalMethods :: [AppMethod ServerState]
 cryptolEvalMethods =
-  [ ("focused module",      Query,   method focusedModule)
-  , ("evaluate expression", Query,   method evalExpression)
-  , ("visible names",       Query,   method visibleNames)
-  , ("check type",          Query,   method checkType)
+  [ method
+     "focused module"
+     Query
+     focusedModuleDescr
+     focusedModule
+  , method
+     "evaluate expression"
+     Query
+     evalExpressionDescr
+     evalExpression
+  , method
+     "call"
+     Query
+     (Doc.Paragraph [Doc.Text "Evaluate the result of calling a Cryptol function on one or more parameters."])
+     call
+  , method
+     "visible names"
+     Query
+     visibleNamesDescr
+     visibleNames
+  , method
+     "check type"
+     Query
+     (Doc.Paragraph [Doc.Text "Check and return the type of the given expression."])
+     checkType
+  , method
+     "satisfy"
+     Query
+     satDescr
+     sat
   ]

@@ -9,6 +9,7 @@ import Control.Lens
 import Control.Monad.IO.Class
 import Control.Monad.Reader (ReaderT(ReaderT))
 import qualified Data.Aeson as JSON
+import Data.Text (Text)
 
 import Cryptol.Eval (EvalOpts(..))
 import Cryptol.ModuleSystem (ModuleCmd, ModuleEnv, ModuleInput(..))
@@ -19,6 +20,7 @@ import Cryptol.ModuleSystem.Fingerprint
 import Cryptol.Parser.AST (ModName)
 
 import qualified Argo
+import qualified Argo.Doc as Doc
 import CryptolServer.Exceptions
 import CryptolServer.Options
 
@@ -27,14 +29,14 @@ newtype CryptolMethod a = CryptolMethod { runCryptolMethod :: Options -> Argo.Me
 
 method ::
   forall params result.
-  (JSON.FromJSON params, JSON.ToJSON result) =>
+  (JSON.FromJSON params, JSON.ToJSON result, Doc.DescribedParams params) =>
+  Text ->
+  Argo.MethodType ->
+  Doc.Block ->
   (params -> CryptolMethod result) ->
-  (JSON.Value -> Argo.Method ServerState JSON.Value)
-method f p =
-  case JSON.fromJSON p of
-    JSON.Error msg -> Argo.raise $ Argo.invalidParams msg p
-    JSON.Success (WithOptions opts params) ->
-      JSON.toJSON <$> runCryptolMethod (f params) opts
+  Argo.AppMethod ServerState
+method name ty doc f = Argo.method name ty doc f'
+  where f' (WithOptions opts params) = runCryptolMethod (f params) opts
 
 
 getOptions :: CryptolMethod Options

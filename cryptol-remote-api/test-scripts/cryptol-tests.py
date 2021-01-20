@@ -17,14 +17,14 @@ cryptol_path = dir_path.joinpath('test-data')
 
 def low_level_api_test(c):
 
-    id_1 = c.send_message("load module", {"module name": "M", "state": None})
+    id_1 = c.send_command("load module", {"module name": "M", "state": None})
     reply_1 = c.wait_for_reply_to(id_1)
     assert('result' in reply_1)
     assert('state' in reply_1['result'])
     assert('answer' in reply_1['result'])
     state_1 = reply_1['result']['state']
 
-    id_2 = c.send_message("evaluate expression", {"expression": {"expression":"call","function":"f","arguments":[{"expression":"bits","encoding":"hex","data":"ff","width":8}]}, "state": state_1})
+    id_2 = c.send_query("evaluate expression", {"expression": {"expression":"call","function":"f","arguments":[{"expression":"bits","encoding":"hex","data":"ff","width":8}]}, "state": state_1})
     reply_2 = c.wait_for_reply_to(id_2)
     assert('result' in reply_2)
     assert('answer' in reply_2['result'])
@@ -34,7 +34,7 @@ def low_level_api_test(c):
                      {'data': 'ff', 'width': 8, 'expression': 'bits', 'encoding': 'hex'}],
             'expression': 'sequence'})
 
-    id_3 = c.send_message("evaluate expression", {"expression": {"expression":"call","function":"g","arguments":[{"expression":"bits","encoding":"hex","data":"ff","width":8}]}, "state": state_1})
+    id_3 = c.send_query("evaluate expression", {"expression": {"expression":"call","function":"g","arguments":[{"expression":"bits","encoding":"hex","data":"ff","width":8}]}, "state": state_1})
     reply_3 = c.wait_for_reply_to(id_3)
     assert('result' in reply_3)
     assert('answer' in reply_3['result'])
@@ -44,7 +44,7 @@ def low_level_api_test(c):
                      {'data': 'ff', 'width': 8, 'expression': 'bits', 'encoding': 'hex'}],
             'expression': 'sequence'})
 
-    id_4 = c.send_message("evaluate expression", {"expression":{"expression":"call","function":"h","arguments":[{"expression":"sequence","data":[{"expression":"bits","encoding":"hex","data":"ff","width":8},{"expression":"bits","encoding":"hex","data":"ff","width":8}]}]}, "state": state_1})
+    id_4 = c.send_query("evaluate expression", {"expression":{"expression":"call","function":"h","arguments":[{"expression":"sequence","data":[{"expression":"bits","encoding":"hex","data":"ff","width":8},{"expression":"bits","encoding":"hex","data":"ff","width":8}]}]}, "state": state_1})
     reply_4 = c.wait_for_reply_to(id_4)
     assert('result' in reply_4)
     assert('answer' in reply_4['result'])
@@ -61,7 +61,7 @@ def low_level_api_test(c):
                                      "width": 4,
                                      "data": "f"}}}
 
-    id_5 = c.send_message("evaluate expression", {"state": state_1, "expression": a_record})
+    id_5 = c.send_query("evaluate expression", {"state": state_1, "expression": a_record})
     reply_5 = c.wait_for_reply_to(id_5)
     assert('result' in reply_5)
     assert('answer' in reply_5['result'])
@@ -76,7 +76,7 @@ def low_level_api_test(c):
                      'unit':
                      {'expression': 'unit'}}})
 
-    id_6 = c.send_message("evaluate expression",
+    id_6 = c.send_query("evaluate expression",
                           {"state": state_1,
                            "expression": {"expression": "let",
                                           "binders": [{"name": "theRecord", "definition": a_record}],
@@ -95,7 +95,7 @@ def low_level_api_test(c):
                                'unit': {'expression': 'unit'}},
                       'expression': 'record'}]})
 
-    id_7 = c.send_message("evaluate expression",
+    id_7 = c.send_query("evaluate expression",
                           {"state": state_1,
                            "expression": {"expression": "sequence",
                                           "data": [a_record, a_record]}})
@@ -112,7 +112,7 @@ def low_level_api_test(c):
                                'unit': {'expression': 'unit'}},
                       'expression': 'record'}]})
 
-    id_8 = c.send_message("evaluate expression",
+    id_8 = c.send_query("evaluate expression",
                           {"state": state_1,
                            "expression": {"expression": "integer modulo",
                                           "integer": 14,
@@ -126,7 +126,7 @@ def low_level_api_test(c):
             "integer": 14,
             "modulus": 42})
 
-    id_9 = c.send_message("evaluate expression",
+    id_9 = c.send_query("evaluate expression",
                           {"state": state_1,
                            "expression": "m `{a=60}"})
     reply_9 = c.wait_for_reply_to(id_9)
@@ -139,21 +139,21 @@ def low_level_api_test(c):
             "modulus": 60})
 
 
-    id_10 = c.send_message("evaluate expression", {"state": state_1, "expression": "two"})
+    id_10 = c.send_query("evaluate expression", {"state": state_1, "expression": "two"})
     reply_10 = c.wait_for_reply_to(id_10)
     assert('result' in reply_10)
     assert('answer' in reply_10['result'])
     assert('value' in reply_10['result']['answer'])
     assert(reply_10['result']['answer']['value'] == {'data': '0002', 'width': 15, 'expression': 'bits', 'encoding': 'hex'})
 
-    id_11 = c.send_message("evaluate expression", {"state": state_1, "expression": "three"})
+    id_11 = c.send_query("evaluate expression", {"state": state_1, "expression": "three"})
     reply_11 = c.wait_for_reply_to(id_11)
     assert('result' in reply_11)
     assert('answer' in reply_11['result'])
     assert('value' in reply_11['result']['answer'])
     assert(reply_11['result']['answer']['value'] == {'data': '0003', 'width': 16, 'expression': 'bits', 'encoding': 'hex'})
 
-    id_12 = c.send_message("evaluate expression", {"state": state_1, "expression": "four"})
+    id_12 = c.send_query("evaluate expression", {"state": state_1, "expression": "four"})
     reply_12 = c.wait_for_reply_to(id_12)
     assert('result' in reply_12)
     assert('answer' in reply_12['result'])
@@ -162,7 +162,7 @@ def low_level_api_test(c):
 
     # Test empty options
     def test_options(options):
-        id_opt = c.send_message("evaluate expression", {"state": state_1, "expression": "four", "options": options})
+        id_opt = c.send_query("evaluate expression", {"state": state_1, "expression": "four", "options": options})
         reply_opt = c.wait_for_reply_to(id_opt)
         assert('result' in reply_opt)
         assert('answer' in reply_opt['result'])
@@ -179,7 +179,7 @@ def low_level_api_test(c):
 
     def test_instantiation(t, expected=None):
         if expected is None: expected = t
-        id_t = c.send_message("check type", {"state": state_1, "expression": {"expression": "instantiate", "generic": "id", "arguments": {"a": t}}})
+        id_t = c.send_query("check type", {"state": state_1, "expression": {"expression": "instantiate", "generic": "id", "arguments": {"a": t}}})
         reply_t = c.wait_for_reply_to(id_t)
         assert('result' in reply_t)
         assert('answer' in reply_t['result'])

@@ -1,15 +1,15 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 module Main (main) where
 
-import qualified Data.Aeson as JSON
-import Data.Text (Text)
 import System.Environment (lookupEnv)
 import System.FilePath (splitSearchPath)
 
-import Argo (MethodType(..), Method, mkApp)
+import Argo (MethodType(..), AppMethod, mkDefaultApp)
 import Argo.DefaultMain
+import qualified Argo.Doc as Doc
 
 
 import CryptolServer
@@ -26,26 +26,69 @@ main :: IO ()
 main =
   do paths <- getSearchPaths
      initSt <- setSearchPath paths <$> initialState
-     theApp <- mkApp (const (pure initSt)) cryptolMethods
+     theApp <- mkDefaultApp "Cryptol RPC Server" serverDocs (const (pure initSt)) cryptolMethods
      defaultMain description theApp
+
+serverDocs :: [Doc.Block]
+serverDocs =
+  [ Doc.Section "Summary" $ [ Doc.Paragraph
+    [Doc.Text "An RCP server for ",
+     Doc.Link (Doc.URL "https://https://cryptol.net/") "Cryptol",
+     Doc.Text " that supports type checking and evaluation of Cryptol code via the methods documented below."]]]
 
 description :: String
 description =
-  "An RPC server for Cryptol that supports type checking and evaluation of Cryptol code."
+  "An RPC server for Cryptol that supports type checking and evaluation of Cryptol code via the methods documented below."
 
 getSearchPaths :: IO [FilePath]
 getSearchPaths =
   maybe [] splitSearchPath <$> lookupEnv "CRYPTOLPATH"
 
-cryptolMethods :: [(Text, MethodType, JSON.Value -> Method ServerState JSON.Value)]
+cryptolMethods :: [AppMethod ServerState]
 cryptolMethods =
-  [ ("change directory",    Command, method cd)
-  , ("load module",         Command, method loadModule)
-  , ("load file",           Command, method loadFile)
-  , ("focused module",      Query,   method focusedModule)
-  , ("evaluate expression", Query,   method evalExpression)
-  , ("call",                Query,   method call)
-  , ("visible names",       Query,   method visibleNames)
-  , ("check type",          Query,   method checkType)
-  , ("satisfy",             Query,   method sat)
+  [ method
+     "change directory"
+     Command
+     cdDescr
+     cd
+  , method
+     "load module"
+     Command
+     loadModuleDescr
+     loadModule
+  , method
+     "load file"
+     Command
+     loadFileDescr
+     loadFile -- The "current" module.  Used to decide how to print names, for example.
+  , method
+     "focused module"
+     Query
+     focusedModuleDescr
+     focusedModule
+  , method
+     "evaluate expression"
+     Query
+     evalExpressionDescr
+     evalExpression
+  , method
+     "call"
+     Query
+     callDescr
+     call
+  , method
+     "visible names"
+     Query
+     visibleNamesDescr
+     visibleNames
+  , method
+     "check type"
+     Query
+     checkTypeDescr
+     checkType
+  , method
+     "satisfy"
+     Query
+     satDescr
+     sat
   ]

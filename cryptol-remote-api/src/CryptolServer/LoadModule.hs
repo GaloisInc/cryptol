@@ -1,11 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 module CryptolServer.LoadModule
   ( loadFile
+  , loadFileDescr
   , loadModule
+  , loadModuleDescr
   , LoadFileParams(..)
   , LoadModuleParams(..)
   ) where
 
+import qualified Argo.Doc as Doc
 import Control.Applicative
 import Data.Aeson as JSON
 import qualified Data.Text as T
@@ -17,6 +20,8 @@ import Cryptol.Parser.AST (ModName)
 
 import CryptolServer
 
+loadFileDescr :: Doc.Block
+loadFileDescr = Doc.Paragraph [Doc.Text "Load the specified module (by file path)."]
 
 loadFile :: LoadFileParams -> CryptolMethod ()
 loadFile (LoadFileParams fn) =
@@ -29,6 +34,18 @@ instance JSON.FromJSON LoadFileParams where
   parseJSON =
     JSON.withObject "params for \"load module\"" $
     \o -> LoadFileParams <$> o .: "file"
+
+
+instance Doc.DescribedParams LoadFileParams where
+  parameterFieldDescription =
+    [("file",
+      Doc.Paragraph [Doc.Text "File path of the module to load."])
+    ]
+
+
+
+loadModuleDescr :: Doc.Block
+loadModuleDescr = Doc.Paragraph [Doc.Text "Load the specified module (by name)."]
 
 loadModule :: LoadModuleParams -> CryptolMethod ()
 loadModule (LoadModuleParams mn) =
@@ -52,3 +69,9 @@ instance JSON.FromJSON LoadModuleParams where
   parseJSON =
     JSON.withObject "params for \"load module\"" $
     \o -> LoadModuleParams . unJSONModName <$> o .: "module name"
+
+instance Doc.DescribedParams LoadModuleParams where
+  parameterFieldDescription =
+    [("module name",
+      Doc.Paragraph [Doc.Text "Name of module to load."])
+    ]

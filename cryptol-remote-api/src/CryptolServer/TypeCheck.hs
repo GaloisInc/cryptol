@@ -1,9 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
-module CryptolServer.TypeCheck (checkType, TypeCheckParams(..)) where
+module CryptolServer.TypeCheck
+  ( checkType
+  , checkTypeDescr
+  , TypeCheckParams(..)
+  ) where
+
+import qualified Argo.Doc as Doc
 
 --import Control.Lens hiding ((.=))
 import Data.Aeson as JSON
-
 
 import Cryptol.ModuleSystem (checkExpr)
 import Cryptol.ModuleSystem.Env (meSolverConfig)
@@ -12,6 +17,10 @@ import CryptolServer
 import CryptolServer.Exceptions
 import CryptolServer.Data.Expression
 import CryptolServer.Data.Type
+
+checkTypeDescr :: Doc.Block
+checkTypeDescr =
+  Doc.Paragraph [Doc.Text "Check and return the type of the given expression."]
 
 checkType :: TypeCheckParams -> CryptolMethod JSON.Value
 checkType (TypeCheckParams e) =
@@ -32,3 +41,9 @@ instance JSON.FromJSON TypeCheckParams where
   parseJSON =
     JSON.withObject "params for \"check type\"" $
     \o -> TypeCheckParams <$> o .: "expression"
+
+instance Doc.DescribedParams TypeCheckParams where
+  parameterFieldDescription =
+    [("expression",
+      Doc.Paragraph [Doc.Text "Expression to type check."])
+    ]
