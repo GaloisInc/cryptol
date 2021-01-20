@@ -66,8 +66,10 @@ main = customMain initMod initMod initMod initMod description buildApp
 
 evalServerDocs :: [Doc.Block]
 evalServerDocs =
-  [ Doc.Paragraph [Doc.Text "A remote server for Cryptol that supports only type checking and evaluation of Cryptol code."]
-  ]
+  [ Doc.Section "Summary" $ [ Doc.Paragraph
+    [Doc.Text "A remote server for ",
+     Doc.Link (Doc.URL "https://https://cryptol.net/") "Cryptol",
+     Doc.Text " that supports only type checking and evaluation of Cryptol code."]]]
 
 description :: String
 description =
@@ -100,12 +102,12 @@ cryptolEvalMethods =
   [ method
      "focused module"
      Query
-     (Doc.Paragraph [Doc.Text "The 'current' module. Used to decide how to print names, for example."])
+     focusedModuleDescr
      focusedModule
   , method
      "evaluate expression"
      Query
-     (Doc.Paragraph [Doc.Text "Evaluate the Cryptol expression to a value."])
+     evalExpressionDescr
      evalExpression
   , method
      "call"
@@ -115,7 +117,7 @@ cryptolEvalMethods =
   , method
      "visible names"
      Query
-     (Doc.Paragraph [Doc.Text "List the currently visible (i.e., in scope) names."])
+     visibleNamesDescr
      visibleNames
   , method
      "check type"
@@ -125,7 +127,6 @@ cryptolEvalMethods =
   , method
      "satisfy"
      Query
-     (Doc.Paragraph [ Doc.Text "Find a value which satisfies the given predicate "
-                    , Doc.Text "(i.e., a value which when passed to the argument produces true)."])
+     satDescr
      sat
   ]

@@ -3,7 +3,12 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
-module CryptolServer.Sat (sat, ProveSatParams(..)) where
+module CryptolServer.Sat
+  ( sat
+  , satDescr
+  , ProveSatParams(..)
+  )
+  where
 
 import qualified Argo.Doc as Doc
 import Control.Applicative
@@ -29,6 +34,12 @@ import CryptolServer
 import CryptolServer.Exceptions (evalPolyErr, proverError)
 import CryptolServer.Data.Expression
 import CryptolServer.Data.Type
+
+satDescr :: Doc.Block
+satDescr =
+  Doc.Paragraph
+    [ Doc.Text "Find a value which satisfies the given predicate "
+    , Doc.Text "(i.e., a value which when passed to the argument produces true)."]
 
 sat :: ProveSatParams -> CryptolMethod SatResult
 sat (ProveSatParams (Prover name) jsonExpr num) =

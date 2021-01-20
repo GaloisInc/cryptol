@@ -1,5 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
-module CryptolServer.EvalExpr (evalExpression, evalExpression', EvalExprParams(..)) where
+module CryptolServer.EvalExpr
+  ( evalExpression
+  , evalExpressionDescr
+  , evalExpression'
+  , EvalExprParams(..)
+  ) where
 
 import qualified Argo.Doc as Doc
 import Control.Monad.IO.Class
@@ -7,7 +12,7 @@ import Data.Aeson as JSON
 
 
 import Cryptol.ModuleSystem (checkExpr, evalExpr)
-import Cryptol.ModuleSystem.Env (meSolverConfig,deEnv,meDynEnv,loadedNewtypes)
+import Cryptol.ModuleSystem.Env (meSolverConfig,deEnv,meDynEnv)
 import Cryptol.TypeCheck.Solve (defaultReplExpr)
 import Cryptol.TypeCheck.Subst (apSubst, listParamSubst)
 import Cryptol.TypeCheck.Type (Schema(..))
@@ -22,6 +27,10 @@ import CryptolServer
 import CryptolServer.Data.Expression
 import CryptolServer.Data.Type
 import CryptolServer.Exceptions
+
+evalExpressionDescr :: Doc.Block
+evalExpressionDescr =
+  Doc.Paragraph [Doc.Text "Evaluate the Cryptol expression to a value."]
 
 evalExpression :: EvalExprParams -> CryptolMethod JSON.Value
 evalExpression (EvalExprParams jsonExpr) =

@@ -49,47 +49,46 @@ cryptolMethods =
   [ method
      "change directory"
      Command
-     (Doc.Paragraph [Doc.Text "Changes the server's working directory to the given path."])
+     cdDescr
      cd
   , method
      "load module"
      Command
-     (Doc.Paragraph [Doc.Text "Load the specified module (by name)."])
+     loadModuleDescr
      loadModule
   , method
      "load file"
      Command
-     (Doc.Paragraph [Doc.Text "Load the specified module (by file path)."])
+     loadFileDescr
      loadFile -- The "current" module.  Used to decide how to print names, for example.
   , method
      "focused module"
      Query
-     (Doc.Paragraph [Doc.Text "The 'current' module. Used to decide how to print names, for example."])
+     focusedModuleDescr
      focusedModule
   , method
      "evaluate expression"
      Query
-     (Doc.Paragraph [Doc.Text "Evaluate the Cryptol expression to a value."])
+     evalExpressionDescr
      evalExpression
   , method
      "call"
      Query
-     (Doc.Paragraph [Doc.Text "Evaluate the result of calling a Cryptol function on one or more parameters."])
+     callDescr
      call
   , method
      "visible names"
      Query
-     (Doc.Paragraph [Doc.Text "List the currently visible (i.e., in scope) names."])
+     visibleNamesDescr
      visibleNames
   , method
      "check type"
      Query
-     (Doc.Paragraph [Doc.Text "Check and return the type of the given expression."])
+     checkTypeDescr
      checkType
   , method
      "satisfy"
      Query
-     (Doc.Paragraph [ Doc.Text "Find a value which satisfies the given predicate "
-                    , Doc.Text "(i.e., a value which when passed to the argument produces true)."])
+     satDescr
      sat
   ]

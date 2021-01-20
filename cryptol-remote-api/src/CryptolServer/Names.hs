@@ -1,7 +1,10 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
-module CryptolServer.Names (visibleNames) where
+module CryptolServer.Names
+  ( visibleNames
+  , visibleNamesDescr
+  ) where
 
 import qualified Argo.Doc as Doc
 import qualified Data.Aeson as JSON
@@ -28,6 +31,10 @@ instance JSON.FromJSON VisibleNamesParams where
 
 instance Doc.DescribedParams VisibleNamesParams where
   parameterFieldDescription = []
+
+visibleNamesDescr :: Doc.Block
+visibleNamesDescr =
+  Doc.Paragraph [Doc.Text "List the currently visible (i.e., in scope) names."]
 
 visibleNames :: VisibleNamesParams -> CryptolMethod [NameInfo]
 visibleNames _ =

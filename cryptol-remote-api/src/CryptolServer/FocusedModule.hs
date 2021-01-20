@@ -1,5 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
-module CryptolServer.FocusedModule (focusedModule, FocusedModParams(..)) where
+module CryptolServer.FocusedModule
+  ( focusedModule
+  , focusedModuleDescr
+  , FocusedModParams(..)
+  ) where
 
 import qualified Argo.Doc as Doc
 import Data.Aeson as JSON
@@ -9,6 +13,11 @@ import Cryptol.ModuleSystem.Env (isLoadedParamMod)
 import Cryptol.Utils.PP
 
 import CryptolServer
+
+focusedModuleDescr :: Doc.Block
+focusedModuleDescr =
+  Doc.Paragraph
+    [Doc.Text "The 'current' module. Used to decide how to print names, for example."]
 
 focusedModule :: FocusedModParams -> CryptolMethod JSON.Value
 focusedModule _ =

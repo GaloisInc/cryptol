@@ -1,5 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
-module CryptolServer.TypeCheck (checkType, TypeCheckParams(..)) where
+module CryptolServer.TypeCheck
+  ( checkType
+  , checkTypeDescr
+  , TypeCheckParams(..)
+  ) where
 
 import qualified Argo.Doc as Doc
 
@@ -13,6 +17,10 @@ import CryptolServer
 import CryptolServer.Exceptions
 import CryptolServer.Data.Expression
 import CryptolServer.Data.Type
+
+checkTypeDescr :: Doc.Block
+checkTypeDescr =
+  Doc.Paragraph [Doc.Text "Check and return the type of the given expression."]
 
 checkType :: TypeCheckParams -> CryptolMethod JSON.Value
 checkType (TypeCheckParams e) =

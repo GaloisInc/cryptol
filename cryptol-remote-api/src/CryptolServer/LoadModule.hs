@@ -1,7 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 module CryptolServer.LoadModule
   ( loadFile
+  , loadFileDescr
   , loadModule
+  , loadModuleDescr
   , LoadFileParams(..)
   , LoadModuleParams(..)
   ) where
@@ -18,6 +20,8 @@ import Cryptol.Parser.AST (ModName)
 
 import CryptolServer
 
+loadFileDescr :: Doc.Block
+loadFileDescr = Doc.Paragraph [Doc.Text "Load the specified module (by file path)."]
 
 loadFile :: LoadFileParams -> CryptolMethod ()
 loadFile (LoadFileParams fn) =
@@ -40,7 +44,8 @@ instance Doc.DescribedParams LoadFileParams where
 
 
 
-
+loadModuleDescr :: Doc.Block
+loadModuleDescr = Doc.Paragraph [Doc.Text "Load the specified module (by name)."]
 
 loadModule :: LoadModuleParams -> CryptolMethod ()
 loadModule (LoadModuleParams mn) =

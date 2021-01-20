@@ -1,5 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
-module CryptolServer.ChangeDir (cd, ChangeDirectoryParams(..)) where
+module CryptolServer.ChangeDir
+  ( cd
+  , cdDescr
+  , ChangeDirectoryParams(..)
+  ) where
 
 import qualified Argo.Doc as Doc
 import Control.Monad.IO.Class
@@ -9,6 +13,10 @@ import System.Directory
 import CryptolServer
 import CryptolServer.Exceptions
 
+
+cdDescr :: Doc.Block
+cdDescr = Doc.Paragraph
+            [Doc.Text "Changes the server's working directory to the given path."]
 
 cd :: ChangeDirectoryParams -> CryptolMethod ()
 cd (ChangeDirectoryParams newDir) =

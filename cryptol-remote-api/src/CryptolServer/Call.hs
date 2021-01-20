@@ -9,6 +9,7 @@ module CryptolServer.Call
   , Encoding(..)
   , LetBinding(..)
   , call
+  , callDescr
   , CallParams(..)
   ) where
 
@@ -19,6 +20,11 @@ import qualified Data.Aeson as JSON
 import CryptolServer
 import CryptolServer.Data.Expression
 import CryptolServer.EvalExpr (evalExpression')
+
+callDescr :: Doc.Block
+callDescr =
+  Doc.Paragraph
+    [Doc.Text "Evaluate the result of calling a Cryptol function on one or more parameters."]
 
 call :: CallParams -> CryptolMethod JSON.Value
 call (CallParams rawFun rawArgs) =
