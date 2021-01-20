@@ -18,7 +18,7 @@ import Cryptol.TypeCheck.AST (mName)
 import Cryptol.Utils.Ident (ModName, modNameToText, textToModName, preludeName)
 import Cryptol.Utils.Logger (quietLogger)
 
-import Argo (MethodType(..), AppMethod, mkApp)
+import Argo (MethodType(..), AppMethod, mkDefaultApp)
 import Argo.DefaultMain
 import qualified Argo.Doc as Doc
 
@@ -35,7 +35,7 @@ main :: IO ()
 main = customMain initMod initMod initMod initMod description buildApp
   where
     buildApp opts =
-      mkApp "Cryptol RPC Server" evalServerDocs (startingState (userOptions opts)) cryptolEvalMethods
+      mkDefaultApp "Cryptol RPC Server" evalServerDocs (startingState (userOptions opts)) cryptolEvalMethods
 
     startingState (StartingFile file) reader =
       do paths <- getSearchPaths

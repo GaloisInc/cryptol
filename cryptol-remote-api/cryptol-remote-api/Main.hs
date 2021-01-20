@@ -7,7 +7,7 @@ module Main (main) where
 import System.Environment (lookupEnv)
 import System.FilePath (splitSearchPath)
 
-import Argo (MethodType(..), AppMethod, mkApp)
+import Argo (MethodType(..), AppMethod, mkDefaultApp)
 import Argo.DefaultMain
 import qualified Argo.Doc as Doc
 
@@ -26,7 +26,7 @@ main :: IO ()
 main =
   do paths <- getSearchPaths
      initSt <- setSearchPath paths <$> initialState
-     theApp <- mkApp "Cryptol RPC Server" serverDocs (const (pure initSt)) cryptolMethods
+     theApp <- mkDefaultApp "Cryptol RPC Server" serverDocs (const (pure initSt)) cryptolMethods
      defaultMain description theApp
 
 serverDocs :: [Doc.Block]

@@ -34,7 +34,7 @@ assert(poll_result is None)
 c = argo.ServerConnection(argo.HttpProcess('http://localhost:50005/'))
 
 
-mid = c.send_message("evaluate expression", {"expression": {"expression":"call","function":"f","arguments":[{"expression":"bits","encoding":"hex","data":"ff","width":8}]}, "state": None})
+mid = c.send_query("evaluate expression", {"expression": {"expression":"call","function":"f","arguments":[{"expression":"bits","encoding":"hex","data":"ff","width":8}]}, "state": None})
 reply = c.wait_for_reply_to(mid)
 assert('result' in reply)
 assert('answer' in reply['result'])
