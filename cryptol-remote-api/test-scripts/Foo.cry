@@ -49,3 +49,6 @@ op10 a = 0
 
 op11 : {n} (fin n) => [n] -> [lg2 n]
 op11 a = 0
+
+isSqrtOf9 : [8] -> Bit
+isSqrtOf9 x = x*x == 9

@@ -3,6 +3,7 @@ import unittest
 from cryptol import CryptolConnection, CryptolContext, cry
 import cryptol
 import cryptol.cryptoltypes
+from cryptol import solver
 from cryptol.bitvector import BV
 from BitVector import *
 
@@ -36,6 +37,34 @@ class CryptolTests(unittest.TestCase):
         self.assertEqual(add(BV(8,0),   BV(8,1)), BV(8,1))
         self.assertEqual(add(BV(8,1),   BV(8,2)), BV(8,3))
         self.assertEqual(add(BV(8,255), BV(8,1)), BV(8,0))
+
+    def test_sat(self):
+        # test a single sat model can be returned
+        rootsOf9 = c.sat('isSqrtOf9').result()
+        self.assertEqual(len(rootsOf9), 1)
+        self.assertTrue(int(rootsOf9[0]) ** 2 % 256, 9)
+
+        # check we can specify the solver
+        rootsOf9 = c.sat('isSqrtOf9', solver = solver.ANY).result()
+        self.assertEqual(len(rootsOf9), 1)
+        self.assertTrue(int(rootsOf9[0]) ** 2 % 256, 9)
+
+        # check we can ask for a specific number of results
+        rootsOf9 = c.sat('isSqrtOf9', count = 3).result()
+        self.assertEqual(len(rootsOf9), 3)
+        self.assertEqual([int(root) ** 2 % 256 for root in rootsOf9], [9,9,9])
+
+        # check we can ask for all results
+        rootsOf9 = c.sat('isSqrtOf9', count = None).result()
+        self.assertEqual(len(rootsOf9), 4)
+        self.assertEqual([int(root) ** 2 % 256 for root in rootsOf9], [9,9,9,9])
+
+        # check for an unsat condition
+        self.assertFalse(c.sat('\\x -> isSqrtOf9 x && ~(elem x [3,131,125,253])').result())
+
+        # check for a valid condition
+        self.assertTrue(c.prove('\\x -> isSqrtOf9 x ==> elem x [3,131,125,253]').result())
+
 
 
 unittest.main()

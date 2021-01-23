@@ -4,8 +4,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
 module CryptolServer.Sat
-  ( sat
-  , satDescr
+  ( proveSat
+  , proveSatDescr
   , ProveSatParams(..)
   )
   where
@@ -24,7 +24,8 @@ import Cryptol.Eval.Concrete (Value)
 import Cryptol.Eval.Type (TValue, tValTy)
 import Cryptol.ModuleSystem (checkExpr)
 import Cryptol.ModuleSystem.Env (DynamicEnv(..), meDynEnv, meSolverConfig)
-import Cryptol.Symbolic (ProverCommand(..), ProverResult(..), QueryType(..), SatNum(..))
+import Cryptol.Symbolic ( ProverCommand(..), ProverResult(..), QueryType(..)
+                        , SatNum(..), CounterExampleType(..))
 import Cryptol.Symbolic.SBV (proverNames, satProve, setupProver)
 import Cryptol.TypeCheck.AST (Expr)
 import Cryptol.TypeCheck.Solve (defaultReplExpr)
@@ -35,14 +36,14 @@ import CryptolServer.Exceptions (evalPolyErr, proverError)
 import CryptolServer.Data.Expression
 import CryptolServer.Data.Type
 
-satDescr :: Doc.Block
-satDescr =
+proveSatDescr :: Doc.Block
+proveSatDescr =
   Doc.Paragraph
-    [ Doc.Text "Find a value which satisfies the given predicate "
-    , Doc.Text "(i.e., a value which when passed to the argument produces true)."]
+    [ Doc.Text "Find a value which satisfies the given predicate, or show that it is valid."
+    , Doc.Text "(i.e., find a value which when passed as the argument produces true or show that for all possible arguments the predicate will produce true)."]
 
-sat :: ProveSatParams -> CryptolMethod SatResult
-sat (ProveSatParams (Prover name) jsonExpr num) =
+proveSat :: ProveSatParams -> CryptolMethod ProveSatResult
+proveSat (ProveSatParams queryType (Prover name) jsonExpr) =
   do e <- getExpr jsonExpr
      (_expr, ty, schema) <- runModuleCmd (checkExpr e)
      -- TODO validEvalContext expr, ty, schema
@@ -57,7 +58,7 @@ sat (ProveSatParams (Prover name) jsonExpr num) =
          do timing <- liftIO $ newIORef 0
             let cmd =
                   ProverCommand
-                  { pcQueryType    = SatQuery num
+                  { pcQueryType    = queryType
                   , pcProverName   = name
                   , pcVerbose      = True -- verbose
                   , pcProverStats  = timing
@@ -76,7 +77,7 @@ sat (ProveSatParams (Prover name) jsonExpr num) =
             case res of
               ProverError msg -> raise (proverError msg)
               EmptyResult -> error "got empty result for online prover!"
-              CounterExample{} -> error "Unexpected counter-example for SAT query"
+              CounterExample cexType es -> Invalid cexType <$> satResult es
               ThmResult _ts -> pure Unsatisfiable
               AllSatResult results ->
                 Satisfied <$> traverse satResult results
@@ -89,13 +90,29 @@ sat (ProveSatParams (Prover name) jsonExpr num) =
       do e <- observe $ readBack t v
          return (JSONType mempty (tValTy t), e)
 
-data SatResult = Unsatisfiable | Satisfied [[(JSONType, Expression)]]
+data ProveSatResult
+  = Unsatisfiable
+  | Invalid CounterExampleType [(JSONType, Expression)]
+  | Satisfied [[(JSONType, Expression)]]
 
-instance ToJSON SatResult where
+instance ToJSON ProveSatResult where
   toJSON Unsatisfiable = JSON.object ["result" .= ("unsatisfiable" :: Text)]
+  toJSON (Invalid cexType xs) =
+    JSON.object [ "result" .= ("invalid" :: Text)
+                , "counterexample type" .=
+                  case cexType of
+                    SafetyViolation -> "safety violation" :: JSON.Value
+                    PredicateFalsified -> "predicate falsified" :: JSON.Value
+                , "counterexample" .=
+                  [ JSON.object [ "type" .= t
+                                , "expr" .= e
+                                ]
+                  | (t, e) <- xs
+                  ]
+                ]
   toJSON (Satisfied xs) =
     JSON.object [ "result" .= ("satisfied" :: Text)
-                , "model" .=
+                , "models" .=
                   [ [ JSON.object [ "type" .= t
                                   , "expr" .= e
                                   ]
@@ -120,9 +137,9 @@ instance FromJSON Prover where
 
 data ProveSatParams =
   ProveSatParams
-    { prover     :: Prover
+    { queryType  :: QueryType
+    , prover     :: Prover
     , expression :: Expression
-    , numResults :: SatNum
     }
 
 instance FromJSON ProveSatParams where
@@ -132,8 +149,15 @@ instance FromJSON ProveSatParams where
       do prover     <- o .: "prover"
          expression <- o .: "expression"
          numResults <- (o .: "result count" >>= num)
-         pure ProveSatParams{prover, expression, numResults}
+         queryType  <- (o .: "query type" >>= getQueryType numResults)
+         pure ProveSatParams{queryType, prover, expression}
     where
+      getQueryType numResults =
+        (JSON.withText "query" $
+           \case
+             "sat" -> pure (SatQuery numResults)
+             "prove" -> pure ProveQuery
+             _ -> empty)
       num v = ((JSON.withText "all" $
                \t -> if t == "all" then pure AllSat else empty) v) <|>
               ((JSON.withScientific "count" $
@@ -155,4 +179,12 @@ instance Doc.DescribedParams ProveSatParams where
     , ("result count",
       Doc.Paragraph [Doc.Text "How many satisfying results to search for; either a positive integer or "
                     , Doc.Literal "all", Doc.Text"."])
+    , ("query type",
+      Doc.Paragraph [ Doc.Text "Whether to attempt to prove ("
+                    , Doc.Literal "prove"
+                    , Doc.Text ") or satisfy ("
+                    , Doc.Literal "sat"
+                    , Doc.Text ") the predicate."
+                    ]
+      )
     ]

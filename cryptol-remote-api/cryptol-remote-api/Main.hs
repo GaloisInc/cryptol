@@ -60,7 +60,7 @@ cryptolMethods =
      "load file"
      Command
      loadFileDescr
-     loadFile -- The "current" module.  Used to decide how to print names, for example.
+     loadFile
   , method
      "focused module"
      Query
@@ -87,8 +87,8 @@ cryptolMethods =
      checkTypeDescr
      checkType
   , method
-     "satisfy"
+     "prove or satisfy"
      Query
-     satDescr
-     sat
+     proveSatDescr
+     proveSat
   ]
