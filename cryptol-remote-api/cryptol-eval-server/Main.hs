@@ -125,8 +125,8 @@ cryptolEvalMethods =
      (Doc.Paragraph [Doc.Text "Check and return the type of the given expression."])
      checkType
   , method
-     "satisfy"
+     "prove or satisfy"
      Query
-     satDescr
-     sat
+     proveSatDescr
+     proveSat
   ]
