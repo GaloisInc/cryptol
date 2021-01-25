@@ -13,10 +13,11 @@ import argo.interaction
 from argo.interaction import HasProtocolState
 from argo.connection import DynamicSocketProcess, ServerConnection, ServerProcess, StdIOProcess
 from . import cryptoltypes
+from . import solver
 from cryptol.bitvector import BV
 
 
-__all__ = ['cryptoltypes']
+__all__ = ['cryptoltypes', 'solver']
 
 
 
@@ -137,6 +138,43 @@ class CryptolCheckType(argo.interaction.Query):
     def process_result(self, res : Any) -> Any:
         return res['type schema']
 
+class CryptolProveSat(argo.interaction.Query):
+    def __init__(self, connection : HasProtocolState, qtype : str, expr : Any, solver : solver.Solver, count : Optional[int]) -> None:
+        super(CryptolProveSat, self).__init__(
+            'prove or satisfy',
+            {'query type': qtype,
+             'expression': expr,
+             'prover': solver,
+             'result count': 'all' if count is None else count},
+            connection
+        )
+        self.qtype = qtype
+
+    def process_result(self, res : Any) -> Any:
+        if res['result'] == 'unsatisfiable':
+            if self.qtype == 'sat':
+                return False
+            elif self.qtype == 'prove':
+                return True
+            else:
+                raise ValueError("Unknown prove/sat query type: " + self.qtype)
+        elif res['result'] == 'invalid':
+            return [from_cryptol_arg(arg['expr'])
+                    for arg in res['counterexample']]
+        elif res['result'] == 'satisfied':
+            return [from_cryptol_arg(arg['expr'])
+                    for m in res['models']
+                    for arg in m]
+        else:
+            raise ValueError("Unknown sat result " + str(res))
+
+class CryptolProve(CryptolProveSat):
+    def __init__(self, connection : HasProtocolState, expr : Any, solver : solver.Solver) -> None:
+        super(CryptolProve, self).__init__(connection, 'prove', expr, solver, 1)
+
+class CryptolSat(CryptolProveSat):
+    def __init__(self, connection : HasProtocolState, expr : Any, solver : solver.Solver, count : int) -> None:
+        super(CryptolSat, self).__init__(connection, 'sat', expr, solver, count)
 
 class CryptolNames(argo.interaction.Query):
     def __init__(self, connection : HasProtocolState) -> None:
@@ -263,6 +301,23 @@ class CryptolConnection:
         their JSON equivalents.
         """
         self.most_recent_result = CryptolCheckType(self, code)
+        return self.most_recent_result
+
+    def sat(self, expr : Any, solver : solver.Solver = solver.Z3, count : int = 1) -> argo.interaction.Query:
+        """Check the satisfiability of a Cryptol expression, represented according to
+        :ref:`cryptol-json-expression`, with Python datatypes standing for
+        their JSON equivalents. Use the solver named `solver`, and return up to
+        `count` solutions.
+        """
+        self.most_recent_result = CryptolSat(self, expr, solver, count)
+        return self.most_recent_result
+
+    def prove(self, expr : Any, solver : solver.Solver = solver.Z3) -> argo.interaction.Query:
+        """Check the validity of a Cryptol expression, represented according to
+        :ref:`cryptol-json-expression`, with Python datatypes standing for
+        their JSON equivalents. Use the solver named `solver`.
+        """
+        self.most_recent_result = CryptolProve(self, expr, solver)
         return self.most_recent_result
 
     def names(self) -> argo.interaction.Query:
