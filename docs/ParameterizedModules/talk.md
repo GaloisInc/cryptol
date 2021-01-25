@@ -1,5 +1,12 @@
+
 ML-Sytle Modules for Cryptol
-============================
+----------------------------
+
+Iavor S. Diatchki
+
+Galois Inc
+
+15 January 2021
 
 Modules
 --------
