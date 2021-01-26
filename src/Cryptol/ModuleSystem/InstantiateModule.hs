@@ -1,4 +1,5 @@
 {-# Language FlexibleInstances, PatternGuards #-}
+{-# Language BlockArguments #-}
 -- | Assumes that local names do not shadow top level names.
 module Cryptol.ModuleSystem.InstantiateModule
   ( instantiateModule
@@ -10,12 +11,13 @@ import           Data.Map (Map)
 import qualified Data.Map as Map
 import           MonadLib(ReaderT,runReaderT,ask)
 
+import Cryptol.Utils.Panic(panic)
+import Cryptol.Utils.Ident(ModName,modParamIdent)
 import Cryptol.Parser.Position(Located(..))
 import Cryptol.ModuleSystem.Name
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Subst(listParamSubst, apSubst)
 import Cryptol.TypeCheck.SimpType(tRebuild)
-import Cryptol.Utils.Ident(ModName,modParamIdent)
 
 {-
 XXX: Should we simplify constraints in the instantiated modules?
@@ -35,8 +37,12 @@ instantiateModule :: FreshM m =>
                      Map Name Expr    {- ^ Value parameters -} ->
                      m ([Located Prop], Module)
                      -- ^ Instantiated constraints, fresh module, new supply
-instantiateModule func newName tpMap vpMap =
-  runReaderT newName $
+instantiateModule func newName tpMap vpMap
+  | not (null (mSubModules func)) =
+      panic "instantiateModule"
+        [ "XXX: we don't support functors with nested moduels yet." ]
+  | otherwise  =
+  runReaderT (TopModule newName) $
     do let oldVpNames = Map.keys vpMap
        newVpNames <- mapM freshParamName (Map.keys vpMap)
        let vpNames = Map.fromList (zip oldVpNames newVpNames)
@@ -72,6 +78,9 @@ instantiateModule func newName tpMap vpMap =
                  , mParamConstraints  = []
                  , mParamFuns         = Map.empty
                  , mDecls             = paramDecls ++ renamedDecls
+
+                 , mSubModules        = mempty
+                 , mFunctors          = mempty
                  } )
 
   where
@@ -110,7 +119,7 @@ instance Defines DeclGroup where
 
 --------------------------------------------------------------------------------
 
-type InstM = ReaderT ModName
+type InstM = ReaderT ModPath
 
 -- | Generate a new instance of a declared name.
 freshenName :: FreshM m => Name -> InstM m Name
@@ -119,13 +128,15 @@ freshenName x =
      let sys = case nameInfo x of
                  Declared _ s -> s
                  _            -> UserName
-     liftSupply (mkDeclared m sys (nameIdent x) (nameFixity x) (nameLoc x))
+     liftSupply (mkDeclared (nameNamespace x)
+                             m sys (nameIdent x) (nameFixity x) (nameLoc x))
 
 freshParamName :: FreshM m => Name -> InstM m Name
 freshParamName x =
   do m <- ask
      let newName = modParamIdent (nameIdent x)
-     liftSupply (mkDeclared m UserName newName (nameFixity x) (nameLoc x))
+     liftSupply (mkDeclared (nameNamespace x)
+                          m UserName newName (nameFixity x) (nameLoc x))
 
 
 
@@ -263,11 +274,14 @@ instance Inst UserTC where
     where y = Map.findWithDefault x x (tyNameMap env)
 
 instance Inst (ExportSpec Name) where
-  inst env es = ExportSpec { eTypes = Set.map instT (eTypes es)
-                           , eBinds = Set.map instV (eBinds es)
-                           }
-    where instT x = Map.findWithDefault x x (tyNameMap env)
-          instV x = Map.findWithDefault x x (funNameMap env)
+  inst env (ExportSpec spec) = ExportSpec (Map.mapWithKey doNS spec)
+    where
+    doNS ns =
+      case ns of
+        NSType  -> Set.map \x -> Map.findWithDefault x x (tyNameMap env)
+        NSValue -> Set.map \x -> Map.findWithDefault x x (funNameMap env)
+        NSModule -> id
+
 
 instance Inst TySyn where
   inst env ts = TySyn { tsName = instTyName env x

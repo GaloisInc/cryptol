@@ -1,0 +1,6 @@
+module T1 where
+
+submodule A where
+  x = 0x02
+
+y = x

@@ -2,6 +2,5 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module binarytree
 
-[error] at issue1040.cry:1:1--6:36:
-  Recursive type declarations:
-    `binarytree::Tree`
+[error] Invalid recursive dependency:
+    • type binarytree::Tree

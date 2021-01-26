@@ -24,6 +24,7 @@ import Cryptol.ModuleSystem.Name (Name,Supply,emptySupply)
 import qualified Cryptol.ModuleSystem.NamingEnv as R
 import Cryptol.Parser.AST
 import qualified Cryptol.TypeCheck as T
+import qualified Cryptol.TypeCheck.Interface as T
 import qualified Cryptol.TypeCheck.AST as T
 import Cryptol.Utils.PP (PP(..),text,parens,NameDisp)
 
@@ -197,6 +198,9 @@ data ModContext = ModContext
   , mctxDecls           :: IfaceDecls
   , mctxNames           :: R.NamingEnv
   , mctxNameDisp        :: NameDisp
+
+    -- XXX: use namespace
+  , mctxModProvenace    :: Map Name DeclProvenance
   , mctxTypeProvenace   :: Map Name DeclProvenance
   , mctxValueProvenance :: Map Name DeclProvenance
   }
@@ -214,6 +218,9 @@ data DeclProvenance =
 -- | Given the state of the environment, compute information about what's
 -- in scope on the REPL.  This includes what's in the focused module, plus any
 -- additional definitions from the REPL (e.g., let bound names, and @it@).
+-- XXX: nested modules.
+-- XXX: it seems that this does a bunch of work that should be happening
+-- somewhere else too...
 focusedEnv :: ModuleEnv -> ModContext
 focusedEnv me =
   ModContext
@@ -221,11 +228,16 @@ focusedEnv me =
     , mctxDecls    = mconcat (dynDecls : localDecls : importedDecls)
     , mctxNames    = namingEnv
     , mctxNameDisp = R.toNameDisp namingEnv
-    , mctxTypeProvenace = fst provenance
-    , mctxValueProvenance = snd provenance
+    , mctxModProvenace = fst3 provenance
+    , mctxTypeProvenace = snd3 provenance
+    , mctxValueProvenance = trd3 provenance
     }
 
   where
+  fst3 (x,_,_) = x
+  snd3 (_,x,_) = x
+  trd3 (_,_,x) = x
+
   (importedNames,importedDecls,importedProvs) = unzip3 (map loadImport imports)
   localDecls    = publicDecls `mappend` privateDecls
   localNames    = R.unqualifiedEnv localDecls `mappend`
@@ -258,7 +270,7 @@ focusedEnv me =
     case lookupModule (iModule imp) me of
       Just lm ->
         let decls = ifPublic (lmInterface lm)
-        in ( R.interpImport imp decls
+        in ( R.interpImportIface imp decls
            , decls
            , declsProv (NameIsImportedFrom (iModule imp)) decls
            )
@@ -267,14 +279,15 @@ focusedEnv me =
 
 
   -- earlier ones shadow
-  shadowProvs ps = let (tss,vss) = unzip ps
-                   in (Map.unions tss, Map.unions vss)
+  shadowProvs ps = let (mss,tss,vss) = unzip3 ps
+                   in (Map.unions mss, Map.unions tss, Map.unions vss)
 
-  paramProv IfaceParams { .. } = (doMap ifParamTypes, doMap ifParamFuns)
+  paramProv IfaceParams { .. } = (mempty, doMap ifParamTypes, doMap ifParamFuns)
     where doMap mp = const NameIsParameter <$> mp
 
   declsProv prov IfaceDecls { .. } =
-    ( Map.unions [ doMap ifTySyns, doMap ifNewtypes, doMap ifAbstractTypes ]
+    ( doMap ifModules
+    , Map.unions [ doMap ifTySyns, doMap ifNewtypes, doMap ifAbstractTypes ]
     , doMap ifDecls
     )
     where doMap mp = const prov <$> mp
@@ -390,7 +403,7 @@ addLoadedModule path ident fp tm lm
     { lmName            = T.mName tm
     , lmFilePath        = path
     , lmModuleId        = ident
-    , lmInterface       = genIface tm
+    , lmInterface       = T.genIface tm
     , lmModule          = tm
     , lmFingerprint     = fp
     }
@@ -444,7 +457,8 @@ deIfaceDecls DEnv { deDecls = dgs } =
             , ifNewtypes = Map.empty
             , ifAbstractTypes = Map.empty
             , ifDecls    = Map.singleton (ifDeclName ifd) ifd
+            , ifModules  = Map.empty
             }
           | decl <- concatMap T.groupDecls dgs
-          , let ifd = mkIfaceDecl decl
+          , let ifd = T.mkIfaceDecl decl
           ]

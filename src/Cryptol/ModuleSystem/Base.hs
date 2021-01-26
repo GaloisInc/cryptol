@@ -12,14 +12,37 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Cryptol.ModuleSystem.Base where
+
+import qualified Control.Exception as X
+import Control.Monad (unless,when)
+import Data.Maybe (fromMaybe)
+import Data.Monoid ((<>))
+import Data.Text.Encoding (decodeUtf8')
+import System.Directory (doesFileExist, canonicalizePath)
+import System.FilePath ( addExtension
+                       , isAbsolute
+                       , joinPath
+                       , (</>)
+                       , normalise
+                       , takeDirectory
+                       , takeFileName
+                       )
+import qualified System.IO.Error as IOE
+import qualified Data.Map as Map
+
+import Prelude ()
+import Prelude.Compat hiding ( (<>) )
+
+
 
 import Cryptol.ModuleSystem.Env (DynamicEnv(..))
 import Cryptol.ModuleSystem.Fingerprint
 import Cryptol.ModuleSystem.Interface
 import Cryptol.ModuleSystem.Monad
-import Cryptol.ModuleSystem.Name (Name,liftSupply,PrimMap)
+import Cryptol.ModuleSystem.Name (Name,liftSupply,PrimMap,ModPath(..))
 import Cryptol.ModuleSystem.Env (lookupModule
                                 , LoadedModule(..)
                                 , meCoreLint, CoreLint(..)
@@ -53,33 +76,21 @@ import Cryptol.Prelude ( preludeContents, floatContents, arrayContents
                        , suiteBContents, primeECContents, preludeReferenceContents )
 import Cryptol.Transform.MonoValues (rewModule)
 
-import qualified Control.Exception as X
-import Control.Monad (unless,when)
-import Data.Maybe (fromMaybe)
-import Data.Monoid ((<>))
-import Data.Text.Encoding (decodeUtf8')
-import System.Directory (doesFileExist, canonicalizePath)
-import System.FilePath ( addExtension
-                       , isAbsolute
-                       , joinPath
-                       , (</>)
-                       , normalise
-                       , takeDirectory
-                       , takeFileName
-                       )
-import qualified System.IO.Error as IOE
-import qualified Data.Map as Map
-
-import Prelude ()
-import Prelude.Compat hiding ( (<>) )
-
 
 -- Renaming --------------------------------------------------------------------
 
 rename :: ModName -> R.NamingEnv -> R.RenameM a -> ModuleM a
 rename modName env m = do
+  ifaces <- getIfaces
   (res,ws) <- liftSupply $ \ supply ->
-    case R.runRenamer supply modName env m of
+    let info = R.RenamerInfo
+                 { renSupply  = supply
+                 , renContext = TopModule modName
+                 , renEnv     = env
+                 , renIfaces  = ifaces
+                 }
+    in
+    case R.runRenamer info m of
       (Right (a,supply'),ws) -> ((Right a,ws),supply')
       (Left errs,ws)         -> ((Left errs,ws),supply)
 
@@ -89,12 +100,9 @@ rename modName env m = do
     Left errs -> renamerErrors errs
 
 -- | Rename a module in the context of its imported modules.
-renameModule :: P.Module PName
-             -> ModuleM (IfaceDecls,R.NamingEnv,P.Module Name)
-renameModule m = do
-  (decls,menv) <- importIfaces (map thing (P.mImports m))
-  (declsEnv,rm) <- rename (thing (mName m)) menv (R.renameModule m)
-  return (decls,declsEnv,rm)
+renameModule ::
+  P.Module PName -> ModuleM (IfaceDecls,R.NamingEnv,P.Module Name)
+renameModule m = rename (thing (mName m)) mempty (R.renameModule m)
 
 
 -- NoPat -----------------------------------------------------------------------
@@ -231,17 +239,6 @@ doLoadModule quiet isrc path fp pm0 =
 fullyQualified :: P.Import -> P.Import
 fullyQualified i = i { iAs = Just (iModule i) }
 
--- | Find the interface referenced by an import, and generate the naming
--- environment that it describes.
-importIface :: P.Import -> ModuleM (IfaceDecls,R.NamingEnv)
-importIface imp =
-  do Iface { .. } <- getIface (T.iModule imp)
-     return (ifPublic, R.interpImport imp ifPublic)
-
--- | Load a series of interfaces, merging their public interfaces.
-importIfaces :: [P.Import] -> ModuleM (IfaceDecls,R.NamingEnv)
-importIfaces is = mconcat `fmap` mapM importIface is
-
 moduleFile :: ModName -> String -> FilePath
 moduleFile n = addExtension (joinPath (modNameChunks n))
 
@@ -299,13 +296,13 @@ addPrelude :: P.Module PName -> P.Module PName
 addPrelude m
   | preludeName == P.thing (P.mName m) = m
   | preludeName `elem` importedMods    = m
-  | otherwise                          = m { mImports = importPrelude : mImports m }
+  | otherwise                          = m { mDecls = importPrelude : mDecls m }
   where
   importedMods  = map (P.iModule . P.thing) (P.mImports m)
-  importPrelude = P.Located
+  importPrelude = P.DImport P.Located
     { P.srcRange = emptyRange
     , P.thing    = P.Import
-      { iModule    = preludeName
+      { iModule    = P.ImpTop preludeName
       , iAs        = Nothing
       , iSpec      = Nothing
       }
@@ -360,11 +357,8 @@ checkDecls ds = do
       decls  = mctxDecls  fe
       names  = mctxNames  fe
 
-  -- introduce names for the declarations before renaming them
-  declsEnv <- liftSupply (R.namingEnv' (map (R.InModule interactiveName) ds))
-  rds <- rename interactiveName (declsEnv `R.shadowing` names)
-             (traverse R.rename ds)
-
+  (declsEnv,rds) <- rename interactiveName names
+                  $ R.renameTopDecls interactiveName ds
   prims <- getPrimMap
   let act  = TCAction { tcAction = T.tcDecls, tcLinter = declsLinter
                       , tcPrims = prims }

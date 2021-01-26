@@ -15,7 +15,7 @@ import Cryptol.TypeCheck.Monad( InferM, unify, newGoals
                               , newParamName
                               )
 import Cryptol.TypeCheck.Subst (listParamSubst, apSubst)
-import Cryptol.Utils.Ident (Ident, packIdent)
+import Cryptol.Utils.Ident (Ident, packIdent,Namespace(..))
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.RecordMap
 
@@ -163,9 +163,9 @@ mkSelSln s outerT innerT =
   -- xs.s             ~~> [ x.s           | x <- xs ]
   -- { xs | s = ys }  ~~> [ { x | s = y } | x <- xs | y <- ys ]
   liftSeq len el =
-    do x1 <- newParamName (packIdent "x")
-       x2 <- newParamName (packIdent "x")
-       y2 <- newParamName (packIdent "y")
+    do x1 <- newParamName NSValue (packIdent "x")
+       x2 <- newParamName NSValue (packIdent "x")
+       y2 <- newParamName NSValue (packIdent "y")
        case tNoUser innerT of
          TCon _ [_,eli] ->
            do d <- mkSelSln s el eli
@@ -187,8 +187,8 @@ mkSelSln s outerT innerT =
   -- f.s            ~~> \x -> (f x).s
   -- { f | s = g }  ~~> \x -> { f x | s = g x }
   liftFun t1 t2 =
-    do x1 <- newParamName (packIdent "x")
-       x2 <- newParamName (packIdent "x")
+    do x1 <- newParamName NSValue (packIdent "x")
+       x2 <- newParamName NSValue (packIdent "x")
        case tNoUser innerT of
          TCon _ [_,inT] ->
            do d <- mkSelSln s t2 inT

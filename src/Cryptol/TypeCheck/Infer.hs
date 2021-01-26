@@ -13,16 +13,18 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE Safe #-}
 module Cryptol.TypeCheck.Infer
   ( checkE
   , checkSigB
   , inferModule
   , inferBinds
-  , inferDs
+  , checkTopDecls
   )
 where
 
+import Data.Text(Text)
 import qualified Data.Text as Text
 
 
@@ -41,7 +43,6 @@ import           Cryptol.TypeCheck.Kind(checkType,checkSchema,checkTySyn,
                                         checkPrimType,
                                         checkParameterConstraints)
 import           Cryptol.TypeCheck.Instantiate
-import           Cryptol.TypeCheck.Depends
 import           Cryptol.TypeCheck.Subst (listSubst,apSubst,(@@),isEmptySubst)
 import           Cryptol.Utils.Ident
 import           Cryptol.Utils.Panic(panic)
@@ -50,43 +51,24 @@ import           Cryptol.Utils.RecordMap
 import qualified Data.Map as Map
 import           Data.Map (Map)
 import qualified Data.Set as Set
-import           Data.List(foldl',sortBy)
+import           Data.List(foldl',sortBy,groupBy)
 import           Data.Either(partitionEithers)
-import           Data.Maybe(mapMaybe,isJust, fromMaybe)
+import           Data.Maybe(isJust, fromMaybe, mapMaybe)
 import           Data.List(partition)
-import           Data.Graph(SCC(..))
 import           Data.Ratio(numerator,denominator)
 import           Data.Traversable(forM)
-import           Control.Monad(zipWithM,unless,foldM)
+import           Data.Function(on)
+import           Control.Monad(zipWithM,unless,foldM,forM_)
 
 
 
 inferModule :: P.Module Name -> InferM Module
 inferModule m =
-  inferDs (P.mDecls m) $ \ds1 ->
-    do proveModuleTopLevel
-       ts <- getTSyns
-       nts <- getNewtypes
-       ats <- getAbstractTypes
-       pTs <- getParamTypes
-       pCs <- getParamConstraints
-       pFuns <- getParamFuns
-       return Module { mName      = thing (P.mName m)
-                     , mExports   = P.modExports m
-                     , mImports   = map thing (P.mImports m)
-                     , mTySyns    = Map.mapMaybe onlyLocal ts
-                     , mNewtypes  = Map.mapMaybe onlyLocal nts
-                     , mPrimTypes = Map.mapMaybe onlyLocal ats
-                     , mParamTypes = pTs
-                     , mParamConstraints = pCs
-                     , mParamFuns = pFuns
-                     , mDecls     = ds1
-                     }
-  where
-  onlyLocal (IsLocal, x)    = Just x
-  onlyLocal (IsExternal, _) = Nothing
-
-
+  do newModuleScope (thing (P.mName m)) (map thing (P.mImports m))
+                                        (P.modExports m)
+     checkTopDecls (P.mDecls m)
+     proveModuleTopLevel
+     endModule
 
 -- | Construct a Prelude primitive in the parsed AST.
 mkPrim :: String -> InferM (P.Expr Name)
@@ -164,9 +146,8 @@ appTys expr ts tGoal =
     -- Here is an example of why this might be useful:
     -- f ` { x = T } where type T = ...
     P.EWhere e ds ->
-      inferDs ds $ \ds1 -> do e1 <- appTys e ts tGoal
-                              return (EWhere e1 ds1)
-         -- XXX: Is there a scoping issue here?  I think not, but check.
+      do (e1,ds1) <- checkLocalDecls ds (appTys e ts tGoal)
+         pure (EWhere e1 ds1)
 
     P.ELocated e r ->
       do e' <- inRange r (appTys e ts tGoal)
@@ -349,6 +330,23 @@ checkE expr tGoal =
          ds     <- combineMaps dss
          e'     <- withMonoTypes ds (checkE e (WithSource a TypeOfSeqElement))
          return (EComp len a e' mss')
+      where
+      -- the renamer should have made these checks already?
+      combineMaps ms = if null bad
+                          then return (Map.unions ms)
+                          else panic "combineMaps" $ "Multiple definitions"
+                                                      : map show bad
+          where
+          bad = do m <- ms
+                   duplicates [ a { thing = x } | (x,a) <- Map.toList m ]
+          duplicates = mapMaybe multiple
+                     . groupBy ((==) `on` thing)
+                     . sortBy (compare `on` thing)
+            where
+            multiple xs@(x : _ : _) = Just (thing x, map srcRange xs)
+            multiple _              = Nothing
+
+
 
     P.EAppT e fs -> appTys e (map uncheckedTypeArg fs) tGoal
 
@@ -366,8 +364,8 @@ checkE expr tGoal =
          return (EIf e1' e2' e3')
 
     P.EWhere e ds ->
-      inferDs ds $ \ds1 -> do e1 <- checkE e tGoal
-                              return (EWhere e1 ds1)
+      do (e1,ds1) <- checkLocalDecls ds (checkE e tGoal)
+         pure (EWhere e1 ds1)
 
     P.ETyped e t ->
       do tSig <- checkTypeOfKind t KType
@@ -406,7 +404,7 @@ checkRecUpd mb fs tGoal =
 
     -- { _ | fs } ~~>  \r -> { r | fs }
     Nothing ->
-      do r <- newParamName (packIdent "r")
+      do r <- newParamName NSValue (packIdent "r")
          let p  = P.PVar Located { srcRange = nameLoc r, thing = r }
              fe = P.EFun P.emptyFunDesc [p] (P.EUpd (Just (P.EVar r)) fs)
          checkE fe tGoal
@@ -432,7 +430,7 @@ checkRecUpd mb fs tGoal =
                 v1 <- checkE v (WithSource (tFun ft ft) src)
                 -- XXX: ^ may be used a different src?
                 d  <- newHasGoal s (twsType tGoal) ft
-                tmp <- newParamName (packIdent "rf")
+                tmp <- newParamName NSValue (packIdent "rf")
                 let e' = EVar tmp
                 pure $ hasDoSet d e' (EApp v1 (hasDoSelect d e'))
                        `EWhere`
@@ -581,10 +579,11 @@ checkHasType inferredType tGoal =
 
 
 checkFun ::
-  P.FunDesc Name -> [P.Pattern Name] -> P.Expr Name -> TypeWithSource -> InferM Expr
+  P.FunDesc Name -> [P.Pattern Name] ->
+  P.Expr Name -> TypeWithSource -> InferM Expr
 checkFun _    [] e tGoal = checkE e tGoal
 checkFun (P.FunDesc fun offset) ps e tGoal =
-  inNewScope $
+  inNewScope
   do let descs = [ TypeOfArg (ArgDescr fun (Just n)) | n <- [ 1 + offset .. ] ]
 
      (tys,tRes) <- expectFun fun (length ps) tGoal
@@ -965,68 +964,104 @@ checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
         , dDoc        = P.bDoc b
         }
 
-inferDs :: FromDecl d => [d] -> ([DeclGroup] -> InferM a) -> InferM a
-inferDs ds continue = either onErr checkTyDecls =<< orderTyDecls (mapMaybe toTyDecl ds)
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+checkLocalDecls :: [P.Decl Name] -> InferM a -> InferM (a,[DeclGroup])
+checkLocalDecls ds0 k =
+  do newLocalScope
+     forM_ ds0 \d -> checkDecl False d Nothing
+     a <- k
+     ds <- endLocalScope
+     pure (a,ds)
+
+
+
+checkTopDecls :: [P.TopDecl Name] -> InferM ()
+checkTopDecls = mapM_ checkTopDecl
   where
-  onErr err = recordError err >> continue []
+  checkTopDecl decl =
+    case decl of
+      P.Decl tl -> checkDecl True (P.tlValue tl) (thing <$> P.tlDoc tl)
 
-  isTopLevel = isTopDecl (head ds)
+      P.TDNewtype tl ->
+        do t <- checkNewtype (P.tlValue tl) (thing <$> P.tlDoc tl)
+           addNewtype t
 
-  checkTyDecls (AT t mbD : ts) =
-    do t1 <- checkParameterType t mbD
-       withParamType t1 (checkTyDecls ts)
+      P.DPrimType tl ->
+        do t <- checkPrimType (P.tlValue tl) (thing <$> P.tlDoc tl)
+           addPrimType t
 
-  checkTyDecls (TS t mbD : ts) =
-    do t1 <- checkTySyn t mbD
-       withTySyn t1 (checkTyDecls ts)
+      P.DParameterType ty ->
+        do t <- checkParameterType ty (P.ptDoc ty)
+           addParamType t
 
-  checkTyDecls (PS t mbD : ts) =
-    do t1 <- checkPropSyn t mbD
-       withTySyn t1 (checkTyDecls ts)
+      P.DParameterConstraint cs ->
+        do cs1 <- checkParameterConstraints cs
+           addParameterConstraints cs1
 
-  checkTyDecls (NT t mbD : ts) =
-    do t1 <- checkNewtype t mbD
-       withNewtype t1 (checkTyDecls ts)
+      P.DParameterFun pf ->
+        do x <- checkParameterFun pf
+           addParamFun x
 
-  checkTyDecls (PT p mbD : ts) =
-    do p1 <- checkPrimType p mbD
-       withPrimType p1 (checkTyDecls ts)
+      P.DModule tl ->
+         do let P.NestedModule m = P.tlValue tl
+            newSubmoduleScope (thing (P.mName m)) (map thing (P.mImports m))
+                                                  (P.modExports m)
+            checkTopDecls (P.mDecls m)
+            endSubmodule
 
-  -- We checked all type synonyms, now continue with value-level definitions:
-  checkTyDecls [] =
-    do cs <- checkParameterConstraints (concatMap toParamConstraints ds)
-       withParameterConstraints cs $
-         do xs <- mapM checkParameterFun (mapMaybe toParamFun ds)
-            withParamFuns xs $ checkBinds [] $ orderBinds $ mapMaybe toBind ds
+      P.DImport {} -> pure ()
+      P.Include {} -> panic "checkTopDecl" [ "Unexpected `inlude`" ]
 
 
-  checkParameterFun x =
-    do (s,gs) <- checkSchema NoWildCards (P.pfSchema x)
-       su <- proveImplication (Just (thing (P.pfName x)))
-                              (sVars s) (sProps s) gs
-       unless (isEmptySubst su) $
-         panic "checkParameterFun" ["Subst not empty??"]
-       let n = thing (P.pfName x)
-       return ModVParam { mvpName = n
-                        , mvpType = s
-                        , mvpDoc  = P.pfDoc x
-                        , mvpFixity = P.pfFixity x
-                        }
+checkDecl :: Bool -> P.Decl Name -> Maybe Text -> InferM ()
+checkDecl isTopLevel d mbDoc =
+  case d of
 
-  checkBinds decls (CyclicSCC bs : more) =
-     do bs1 <- inferBinds isTopLevel True bs
-        foldr (\b m -> withVar (dName b) (dSignature b) m)
-              (checkBinds (Recursive bs1 : decls) more)
-              bs1
+    P.DBind c ->
+      do ~[b] <- inferBinds isTopLevel False [c]
+         addDecls (NonRecursive b)
 
-  checkBinds decls (AcyclicSCC c : more) =
-    do ~[b] <- inferBinds isTopLevel False [c]
-       withVar (dName b) (dSignature b) $
-         checkBinds (NonRecursive b : decls) more
+    P.DRec bs ->
+      do bs1 <- inferBinds isTopLevel True bs
+         addDecls (Recursive bs1)
 
-  -- We are done with all value-level definitions.
-  -- Now continue with anything that's in scope of the declarations.
-  checkBinds decls [] = continue (reverse decls)
+    P.DType t ->
+      do t1 <- checkTySyn t mbDoc
+         addTySyn t1
+
+    P.DProp t ->
+      do t1 <- checkPropSyn t mbDoc
+         addTySyn t1
+
+    P.DLocated d' r -> inRange r (checkDecl isTopLevel d' mbDoc)
+
+    P.DSignature {} -> bad "DSignature"
+    P.DFixity {}    -> bad "DFixity"
+    P.DPragma {}    -> bad "DPragma"
+    P.DPatBind {}   -> bad "DPatBind"
+
+  where
+  bad x = panic "checkDecl" [x]
+
+
+checkParameterFun :: P.ParameterFun Name -> InferM ModVParam
+checkParameterFun x =
+  do (s,gs) <- checkSchema NoWildCards (P.pfSchema x)
+     su <- proveImplication (Just (thing (P.pfName x)))
+                            (sVars s) (sProps s) gs
+     unless (isEmptySubst su) $
+       panic "checkParameterFun" ["Subst not empty??"]
+     let n = thing (P.pfName x)
+     return ModVParam { mvpName = n
+                      , mvpType = s
+                      , mvpDoc  = P.pfDoc x
+                      , mvpFixity = P.pfFixity x
+                      }
+
+
 
 tcPanic :: String -> [String] -> a
 tcPanic l msg = panic ("[TypeCheck] " ++ l) msg

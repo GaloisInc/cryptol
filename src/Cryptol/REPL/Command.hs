@@ -1172,6 +1172,7 @@ browseCmd input = do
       disp   = M.mctxNameDisp fe
       provV  = M.mctxValueProvenance fe
       provT  = M.mctxTypeProvenace fe
+      provM  = M.mctxModProvenace fe
 
 
   let f &&& g = \x -> f x && g x
@@ -1180,18 +1181,41 @@ browseCmd input = do
                    _ -> True
       inSet s x = x `Set.member` s
 
-  let (visibleTypes,visibleDecls) = M.visibleNames names
+  let visNames      = M.visibleNames names
+      visibleTypes  = Map.findWithDefault Set.empty M.NSType    visNames
+      visibleDecls  = Map.findWithDefault Set.empty M.NSValue   visNames
+      visibleMods   = Map.findWithDefault Set.empty M.NSModule  visNames
 
       restricted = if null mnames then const True else hasAnyModName mnames
 
       visibleType  = isUser &&& restricted &&& inSet visibleTypes
       visibleDecl  = isUser &&& restricted &&& inSet visibleDecls
+      visibleMod   = isUser &&& restricted &&& inSet visibleMods
 
   browseMParams  visibleType visibleDecl params disp
+  browseMods     visibleMod  provM       iface disp
   browseTSyns    visibleType provT       iface disp
   browsePrimTys  visibleType provT       iface disp
   browseNewtypes visibleType provT       iface disp
   browseVars     visibleDecl provV       iface disp
+
+
+browseMods :: (T.Name -> Bool) -> Map T.Name M.DeclProvenance ->
+              M.IfaceDecls -> NameDisp  -> REPL ()
+browseMods isVisible prov M.IfaceDecls { .. } names =
+  ppSection (Map.elems ifModules)
+    Section { secName = "Modules"
+            , secEntryName = M.ifModName
+            , secProvenance = prov
+            , secDisp = names
+            , secPP = ppM
+            , secVisible = isVisible
+            }
+  where
+  ppM m = pp (M.ifModName m)
+  -- XXX: can print a lot more information about the moduels, but
+  -- might be better to do that with a separate command
+
 
 
 browseMParams :: (M.Name -> Bool) -> (M.Name -> Bool) ->
@@ -1596,10 +1620,12 @@ handleCtrlC a = do rPutStrLn "Ctrl-C"
 
 -- Utilities -------------------------------------------------------------------
 
+-- XXX: browsing nested modules?
 hasAnyModName :: [M.ModName] -> M.Name -> Bool
 hasAnyModName mnames n =
   case M.nameInfo n of
-    M.Declared m _ -> m `elem` mnames
+    M.Declared (M.TopModule m) _ -> m `elem` mnames
+    M.Declared (M.Nested p _) _ -> M.topModuleFor p `elem` mnames
     M.Parameter  -> False
 
 

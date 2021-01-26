@@ -43,7 +43,7 @@ import Cryptol.Utils.RecordMap(RecordMap)
 import Paths_cryptol
 }
 
-{- state 196 contains 1 shift/reduce conflicts.
+{- state 202 contains 1 shift/reduce conflicts.
      `_` identifier conflicts with `_` in record update.
     We have `_` as an identifier for the cases where we parse types as
     expressions, for example `[ 12 .. _ ]`.
@@ -77,6 +77,7 @@ import Paths_cryptol
   'type'      { Located $$ (Token (KW KW_type   ) _)}
   'newtype'   { Located $$ (Token (KW KW_newtype) _)}
   'module'    { Located $$ (Token (KW KW_module ) _)}
+  'submodule' { Located $$ (Token (KW KW_submodule ) _)}
   'where'     { Located $$ (Token (KW KW_where  ) _)}
   'let'       { Located $$ (Token (KW KW_let    ) _)}
   'if'        { Located $$ (Token (KW KW_if     ) _)}
@@ -158,27 +159,27 @@ import Paths_cryptol
 %%
 
 
-vmodule                    :: { Module PName }
-  : 'module' modName 'where' 'v{' vmod_body 'v}' { mkModule $2 $5 }
-  | 'module' modName '=' modName 'where' 'v{' vmod_body 'v}'
-                                                 { mkModuleInstance $2 $4 $7 }
-  | 'v{' vmod_body 'v}'                          { mkAnonymousModule $2 }
+vmodule :: { Module PName }
+  : 'module' module_def       { $2 }
+  | 'v{' vmod_body 'v}'       { mkAnonymousModule $2 }
 
-vmod_body                  :: { ([Located Import], [TopDecl PName]) }
-  : vimports 'v;' vtop_decls  { (reverse $1, reverse $3) }
-  | vimports ';'  vtop_decls  { (reverse $1, reverse $3) }
-  | vimports                  { (reverse $1, [])         }
-  | vtop_decls                { ([], reverse $1)         }
-  | {- empty -}               { ([], [])                 }
 
-vimports                   :: { [Located Import] }
-  : vimports 'v;' import      { $3 : $1 }
-  | vimports ';'  import      { $3 : $1 }
-  | import                    { [$1]    }
+module_def :: { Module PName }
+
+  : modName 'where'
+      'v{' vmod_body 'v}'                 { mkModule $1 $4 }
+
+  | modName '=' modName 'where'
+      'v{' vmod_body 'v}'                 { mkModuleInstance $1 $3 $6 }
+
+vmod_body                  :: { [TopDecl PName] }
+  : vtop_decls                { reverse $1 }
+  | {- empty -}               { [] }
+
 
 -- XXX replace rComb with uses of at
-import                     :: { Located Import }
-  : 'import' modName mbAs mbImportSpec
+import                          :: { Located (ImportG (ImpName PName)) }
+  : 'import' impName mbAs mbImportSpec
                               { Located { srcRange = rComb $1
                                                    $ fromMaybe (srcRange $2)
                                                    $ msum [ fmap srcRange $4
@@ -190,6 +191,11 @@ import                     :: { Located Import }
                                           , iSpec      = fmap thing $4
                                           }
                                         } }
+
+impName                    :: { Located (ImpName PName) }
+  : 'submodule' qname         { ImpNested `fmap` $2 }
+  | modName                   { ImpTop `fmap` $1 }
+
 
 mbAs                       :: { Maybe (Located ModName) }
   : 'as' modName              { Just $2 }
@@ -242,6 +248,9 @@ vtop_decl               :: { [TopDecl PName] }
   | prim_bind              { $1                                               }
   | private_decls          { $1                                               }
   | parameter_decls        { $1                                               }
+  | mbDoc 'submodule'
+    module_def             {% ((:[]) . exportModule $1) `fmap` mkNested $3 }
+  | import                 { [DImport $1] }
 
 top_decl                :: { [TopDecl PName] }
   : decl                   { [Decl (TopLevel {tlExport = Public, tlValue = $1 })] }
@@ -303,6 +312,7 @@ decl                    :: { Decl PName }
                                           , bInfix     = True
                                           , bFixity    = Nothing
                                           , bDoc       = Nothing
+                                          , bExport    = Public
                                           } }
 
   | 'type' name '=' type   {% at ($1,$4) `fmap` mkTySyn $2 [] $4 }

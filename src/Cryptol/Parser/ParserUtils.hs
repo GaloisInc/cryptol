@@ -38,7 +38,7 @@ import Cryptol.Parser.Lexer
 import Cryptol.Parser.LexerUtils(SelectorType(..))
 import Cryptol.Parser.Position
 import Cryptol.Parser.Utils (translateExprToNumT,widthIdent)
-import Cryptol.Utils.Ident(packModName)
+import Cryptol.Utils.Ident(packModName,packIdent,modNameChunks)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic
 import Cryptol.Utils.RecordMap
@@ -433,6 +433,11 @@ exportNewtype e d n = TDNewtype TopLevel { tlExport = e
                                          , tlDoc    = d
                                          , tlValue  = n }
 
+exportModule :: Maybe (Located Text) -> NestedModule PName -> TopDecl PName
+exportModule mbDoc m = DModule TopLevel { tlExport = Public
+                                        , tlDoc    = mbDoc
+                                        , tlValue  = m }
+
 mkParFun :: Maybe (Located Text) ->
             Located PName ->
             Schema PName ->
@@ -464,7 +469,9 @@ changeExport e = map change
   change (Decl d)      = Decl      d { tlExport = e }
   change (DPrimType t) = DPrimType t { tlExport = e }
   change (TDNewtype n) = TDNewtype n { tlExport = e }
+  change (DModule m)   = DModule   m { tlExport = e }
   change td@Include{}  = td
+  change td@DImport{}  = td
   change (DParameterType {}) = panic "changeExport" ["private type parameter?"]
   change (DParameterFun {})  = panic "changeExport" ["private value parameter?"]
   change (DParameterConstraint {}) =
@@ -534,6 +541,7 @@ mkProperty f ps e = DBind Bind { bName       = f
                                , bInfix      = False
                                , bFixity     = Nothing
                                , bDoc        = Nothing
+                               , bExport     = Public
                                }
 
 -- NOTE: The lists of patterns are reversed!
@@ -549,6 +557,7 @@ mkIndexedDecl f (ps, ixs) e =
              , bInfix      = False
              , bFixity     = Nothing
              , bDoc        = Nothing
+             , bExport     = Public
              }
   where
     rhs :: Expr PName
@@ -588,6 +597,7 @@ mkPrimDecl mbDoc ln sig =
                  , bInfix     = isInfixIdent (getIdent (thing ln))
                  , bFixity    = Nothing
                  , bDoc       = Nothing
+                 , bExport    = Public
                  }
   , exportDecl Nothing Public
     $ DSignature [ln] sig
@@ -737,18 +747,24 @@ mkProp ty =
     err = errorMessage r ["Invalid constraint"]
 
 -- | Make an ordinary module
-mkModule :: Located ModName ->
-            ([Located Import], [TopDecl PName]) ->
-            Module PName
-mkModule nm (is,ds) = Module { mName = nm
-                             , mInstance = Nothing
-                             , mImports = is
-                             , mDecls = ds
-                             }
+mkModule :: Located ModName -> [TopDecl PName] -> Module PName
+mkModule nm ds = Module { mName = nm
+                        , mInstance = Nothing
+                        , mDecls = ds
+                        }
+
+mkNested :: Module PName -> ParseM (NestedModule PName)
+mkNested m =
+  case modNameChunks (thing nm) of
+    [c] -> pure (NestedModule m { mName = nm { thing = mkUnqual (packIdent c)}})
+    _   -> errorMessage r
+                ["Nested modules names should be a simple identifier."]
+  where
+  nm = mName m
+  r = srcRange nm
 
 -- | Make an unnamed module---gets the name @Main@.
-mkAnonymousModule :: ([Located Import], [TopDecl PName]) ->
-                     Module PName
+mkAnonymousModule :: [TopDecl PName] -> Module PName
 mkAnonymousModule = mkModule Located { srcRange = emptyRange
                                      , thing    = mkModName [T.pack "Main"]
                                      }
@@ -756,12 +772,11 @@ mkAnonymousModule = mkModule Located { srcRange = emptyRange
 -- | Make a module which defines a functor instance.
 mkModuleInstance :: Located ModName ->
                     Located ModName ->
-                    ([Located Import], [TopDecl PName]) ->
+                    [TopDecl PName] ->
                     Module PName
-mkModuleInstance nm fun (is,ds) =
+mkModuleInstance nm fun ds =
   Module { mName     = nm
          , mInstance = Just fun
-         , mImports  = is
          , mDecls    = ds
          }
 

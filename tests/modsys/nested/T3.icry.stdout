@@ -1,0 +1,7 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module T3
+
+[error] Invalid recursive dependency:
+    • T3::x
+    • submodule T3::A

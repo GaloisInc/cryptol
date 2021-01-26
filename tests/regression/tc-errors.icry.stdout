@@ -51,9 +51,8 @@ Loading module Main
 Loading module Cryptol
 Loading module Main
 
-[error] at :1:1--1:11:
-  Recursive type declarations:
-    `Main::T`
+[error] Invalid recursive dependency:
+    • type Main::T
 Loading module Cryptol
 Loading module Main
 

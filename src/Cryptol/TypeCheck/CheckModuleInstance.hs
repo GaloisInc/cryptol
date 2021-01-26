@@ -1,3 +1,4 @@
+{-# Language OverloadedStrings #-}
 module Cryptol.TypeCheck.CheckModuleInstance (checkModuleInstance) where
 
 import           Data.Map ( Map )
@@ -20,7 +21,12 @@ import Cryptol.Utils.Panic
 checkModuleInstance :: Module {- ^ type-checked functor -} ->
                        Module {- ^ type-checked instance -} ->
                        InferM Module -- ^ Instantiated module
-checkModuleInstance func inst =
+checkModuleInstance func inst
+  | not (null (mSubModules func) && null (mSubModules inst)) =
+    do recordError $ TemporaryError
+         "Cannot combine nested modules with old-style parameterized modules"
+       pure func -- doesn't matter?
+  | otherwise =
   do tMap <- checkTyParams func inst
      vMap <- checkValParams func tMap inst
      (ctrs, m) <- instantiateModule func (mName inst) tMap vMap
@@ -43,6 +49,9 @@ checkModuleInstance func inst =
                    , mParamConstraints = mParamConstraints inst
                    , mParamFuns        = mParamFuns inst
                    , mDecls            = mDecls inst ++ mDecls m
+
+                   , mSubModules = mempty
+                   , mFunctors   = mempty
                    }
 
 -- | Check that the type parameters of the functors all have appropriate
@@ -179,6 +188,7 @@ makeValParamDef x sDef pDef =
                , P.bPragmas   = []
                , P.bMono      = False
                , P.bDoc       = Nothing
+               , P.bExport    = Public
                }
   loc a = P.Located { P.srcRange = nameLoc x, P.thing = a }
 

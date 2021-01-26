@@ -7,10 +7,16 @@
 -- Portability :  portable
 
 {-# LANGUAGE DeriveGeneric, OverloadedStrings #-}
+{-# LANGUAGE DeriveAnyClass #-}
 
 module Cryptol.Utils.Ident
   ( -- * Module names
-    ModName
+    ModPath(..)
+  , apPathRoot
+  , containsModule
+  , topModuleFor
+
+  , ModName
   , modNameToText
   , textToModName
   , modNameChunks
@@ -41,6 +47,13 @@ module Cryptol.Utils.Ident
   , identText
   , modParamIdent
 
+    -- * Namespaces
+  , Namespace(..)
+  , allNamespaces
+
+    -- * Original names
+  , OrigName(..)
+
     -- * Identifiers for primitives
   , PrimIdent(..)
   , prelPrim
@@ -52,13 +65,54 @@ module Cryptol.Utils.Ident
 
 import           Control.DeepSeq (NFData)
 import           Data.Char (isSpace)
-import           Data.List (unfoldr)
+import           Data.List (unfoldr,isPrefixOf)
 import qualified Data.Text as T
 import           Data.String (IsString(..))
 import           GHC.Generics (Generic)
 
 
--- | Module names are just text.
+--------------------------------------------------------------------------------
+
+-- | Namespaces for names
+data Namespace = NSValue | NSType | NSModule
+  deriving (Generic,Show,NFData,Eq,Ord,Enum,Bounded)
+
+allNamespaces :: [Namespace]
+allNamespaces = [ minBound .. maxBound ]
+
+-- | Idnetifies a possibly nested module
+data ModPath  = TopModule ModName
+              | Nested ModPath Ident
+                deriving (Eq,Ord,Show,Generic,NFData)
+
+apPathRoot :: (ModName -> ModName) -> ModPath -> ModPath
+apPathRoot f path =
+  case path of
+    TopModule m -> TopModule (f m)
+    Nested p q  -> Nested (apPathRoot f p) q
+
+topModuleFor :: ModPath -> ModName
+topModuleFor m =
+  case m of
+    TopModule x -> x
+    Nested p _ -> topModuleFor p
+
+containsModule :: ModPath -> ModPath -> Bool
+p1 `containsModule` p2 = m1 == m2 && reverse xs `isPrefixOf` reverse ys
+  where
+  (m1,xs) = toList p1
+  (m2,ys) = toList p2
+
+  toList p =
+    case p of
+      TopModule a -> (a, [])
+      Nested b i  -> (a, i:bs)
+        where (a,bs) = toList b
+
+
+
+--------------------------------------------------------------------------------
+-- | Top-level Module names are just text.
 data ModName = ModName T.Text
   deriving (Eq,Ord,Show,Generic)
 
@@ -135,6 +189,15 @@ noModuleName = packModName ["<none>"]
 
 exprModName :: ModName
 exprModName = packModName ["<expr>"]
+
+
+--------------------------------------------------------------------------------
+-- | Identifies an entitiy
+data OrigName = OrigName
+  { ogNamespace :: Namespace
+  , ogModule    :: ModPath
+  , ogName      :: Ident
+  } deriving (Eq,Ord,Show,Generic,NFData)
 
 
 --------------------------------------------------------------------------------

@@ -139,6 +139,12 @@ data Error    = KindMismatch (Maybe TypeSource) Kind Kind
               | TypeShadowing String Name String
               | MissingModTParam (Located Ident)
               | MissingModVParam (Located Ident)
+
+              | TemporaryError Doc
+                -- ^ This is for errors that don't fit other cateogories.
+                -- We should not use it much, and is generally to be used
+                -- for transient errors, which are due to incomplete
+                -- implementation.
                 deriving (Show, Generic, NFData)
 
 -- | When we have multiple errors on the same location, we show only the
@@ -147,6 +153,10 @@ errorImportance :: Error -> Int
 errorImportance err =
   case err of
     BareTypeApp                                      -> 11 -- basically a parse error
+    TemporaryError {}                                -> 11
+    -- show these as usually means the user used something that doesn't work
+
+
     KindMismatch {}                                  -> 10
     TyVarWithParams {}                               -> 9
     TypeMismatch {}                                  -> 8
@@ -236,6 +246,8 @@ instance TVars Error where
       MissingModTParam {}  -> err
       MissingModVParam {}  -> err
 
+      TemporaryError {} -> err
+
 
 instance FVS Error where
   fvs err =
@@ -268,6 +280,8 @@ instance FVS Error where
       TypeShadowing {}     -> Set.empty
       MissingModTParam {}  -> Set.empty
       MissingModVParam {}  -> Set.empty
+
+      TemporaryError {} -> Set.empty
 
 instance PP Warning where
   ppPrec = ppWithNamesPrec IntMap.empty
@@ -436,9 +450,7 @@ instance PP (WithNames Error) where
       MissingModVParam x ->
         "Missing definition for value parameter" <+> quotes (pp (thing x))
 
-
-
-
+      TemporaryError doc -> doc
     where
     bullets xs = vcat [ "•" <+> d | d <- xs ]
 

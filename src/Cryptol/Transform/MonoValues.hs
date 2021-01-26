@@ -79,11 +79,11 @@
 module Cryptol.Transform.MonoValues (rewModule) where
 
 import Cryptol.ModuleSystem.Name
-        (SupplyT,liftSupply,Supply,mkDeclared,NameSource(..))
+        (SupplyT,liftSupply,Supply,mkDeclared,NameSource(..),ModPath(..))
 import Cryptol.Parser.Position (emptyRange)
 import Cryptol.TypeCheck.AST hiding (splitTApp) -- XXX: just use this one
 import Cryptol.TypeCheck.TypeMap
-import Cryptol.Utils.Ident (ModName)
+import Cryptol.Utils.Ident(Namespace(..))
 import Data.List(sortBy,groupBy)
 import Data.Either(partitionEithers)
 import Data.Map (Map)
@@ -132,7 +132,7 @@ instance TrieMap RewMap' (Name,[Type],Int) where
 -- | Note that this assumes that this pass will be run only once for each
 -- module, otherwise we will get name collisions.
 rewModule :: Supply -> Module -> (Module,Supply)
-rewModule s m = runM body (mName m) s
+rewModule s m = runM body (TopModule (mName m)) s
   where
   body = do ds <- mapM (rewDeclGroup emptyTM) (mDecls m)
             return m { mDecls = ds }
@@ -140,13 +140,13 @@ rewModule s m = runM body (mName m) s
 --------------------------------------------------------------------------------
 
 type M  = ReaderT RO (SupplyT Id)
-type RO = ModName
+type RO = ModPath
 
 -- | Produce a fresh top-level name.
 newName :: M Name
 newName  =
   do ns <- ask
-     liftSupply (mkDeclared ns SystemName "$mono" Nothing emptyRange)
+     liftSupply (mkDeclared NSValue ns SystemName "$mono" Nothing emptyRange)
 
 newTopOrLocalName :: M Name
 newTopOrLocalName  = newName

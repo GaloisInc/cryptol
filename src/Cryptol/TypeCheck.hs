@@ -28,11 +28,10 @@ module Cryptol.TypeCheck
   ) where
 
 import           Cryptol.ModuleSystem.Name
-                    (liftSupply,mkDeclared,NameSource(..))
+                    (liftSupply,mkDeclared,NameSource(..),ModPath(..))
 import qualified Cryptol.Parser.AST as P
 import           Cryptol.Parser.Position(Range,emptyRange)
 import           Cryptol.TypeCheck.AST
-import           Cryptol.TypeCheck.Depends (FromDecl)
 import           Cryptol.TypeCheck.Error
 import           Cryptol.TypeCheck.Monad
                    ( runInferM
@@ -41,16 +40,19 @@ import           Cryptol.TypeCheck.Monad
                    , NameSeeds
                    , nameSeeds
                    , lookupVar
+                   , newLocalScope, endLocalScope
+                   , newModuleScope, addParamType, addParameterConstraints
+                   , endModuleInstance
                    )
-import           Cryptol.TypeCheck.Infer (inferModule, inferBinds, inferDs)
-import           Cryptol.TypeCheck.InferTypes(VarType(..), SolverConfig(..))
-import           Cryptol.TypeCheck.Solve(proveModuleTopLevel)
-import           Cryptol.TypeCheck.CheckModuleInstance(checkModuleInstance)
-import           Cryptol.TypeCheck.Monad(withParamType,withParameterConstraints)
-import           Cryptol.TypeCheck.PP(WithNames(..),NameMap)
-import           Cryptol.Utils.Ident (exprModName,packIdent)
-import           Cryptol.Utils.PP
-import           Cryptol.Utils.Panic(panic)
+import Cryptol.TypeCheck.Infer (inferModule, inferBinds, checkTopDecls)
+import Cryptol.TypeCheck.InferTypes(VarType(..), SolverConfig(..))
+import Cryptol.TypeCheck.Solve(proveModuleTopLevel)
+import Cryptol.TypeCheck.CheckModuleInstance(checkModuleInstance)
+-- import Cryptol.TypeCheck.Monad(withParamType,withParameterConstraints)
+import Cryptol.TypeCheck.PP(WithNames(..),NameMap)
+import Cryptol.Utils.Ident (exprModName,packIdent,Namespace(..))
+import Cryptol.Utils.PP
+import Cryptol.Utils.Panic(panic)
 
 
 
@@ -59,17 +61,20 @@ tcModule m inp = runInferM inp (inferModule m)
 
 -- | Check a module instantiation, assuming that the functor has already
 -- been checked.
+-- XXX: This will change
 tcModuleInst :: Module                  {- ^ functor -} ->
-                P.Module Name           {- params -} ->
+                P.Module Name           {- ^ params -} ->
                 InferInput              {- ^ TC settings -} ->
                 IO (InferOutput Module) {- ^ new version of instance -}
-tcModuleInst func m inp = runInferM inp
-                        $ do x <- inferModule m
-                             flip (foldr withParamType) (mParamTypes x) $
-                               withParameterConstraints (mParamConstraints x) $
-                               do y <- checkModuleInstance func x
-                                  proveModuleTopLevel
-                                  pure y
+tcModuleInst func m inp = runInferM inp $
+  do x <- inferModule m
+     newModuleScope (mName func) [] mempty
+     mapM_ addParamType (mParamTypes x)
+     addParameterConstraints (mParamConstraints x)
+     y <- checkModuleInstance func x
+     proveModuleTopLevel
+     endModuleInstance
+     pure y
 
 tcExpr :: P.Expr Name -> InferInput -> IO (InferOutput (Expr,Schema))
 tcExpr e0 inp = runInferM inp
@@ -92,8 +97,9 @@ tcExpr e0 inp = runInferM inp
                              , show e'
                              , show t
                              ]
-      _ -> do fresh <- liftSupply (mkDeclared exprModName SystemName
-                                      (packIdent "(expression)") Nothing loc)
+      _ -> do fresh <- liftSupply $
+                        mkDeclared NSValue (TopModule exprModName) SystemName
+                                      (packIdent "(expression)") Nothing loc
               res   <- inferBinds True False
                 [ P.Bind
                     { P.bName      = P.Located { P.srcRange = loc, P.thing = fresh }
@@ -105,6 +111,7 @@ tcExpr e0 inp = runInferM inp
                     , P.bInfix     = False
                     , P.bFixity    = Nothing
                     , P.bDoc       = Nothing
+                    , P.bExport    = Public
                     } ]
 
               case res of
@@ -119,10 +126,12 @@ tcExpr e0 inp = runInferM inp
                           : map show res
                           )
 
-tcDecls :: FromDecl d => [d] -> InferInput -> IO (InferOutput [DeclGroup])
-tcDecls ds inp = runInferM inp $ inferDs ds $ \dgs -> do
-                   proveModuleTopLevel
-                   return dgs
+tcDecls :: [P.TopDecl Name] -> InferInput -> IO (InferOutput [DeclGroup])
+tcDecls ds inp = runInferM inp $
+  do newLocalScope
+     checkTopDecls ds
+     proveModuleTopLevel
+     endLocalScope
 
 ppWarning :: (Range,Warning) -> Doc
 ppWarning (r,w) = text "[warning] at" <+> pp r <.> colon $$ nest 2 (pp w)

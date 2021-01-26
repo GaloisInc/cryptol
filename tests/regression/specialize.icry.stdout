@@ -11,30 +11,30 @@ where
   /* Not recursive */
   specialize::f : (Bit, Bit) -> (Bit, Bit)
   specialize::f = \ (__p1 : (Bit, Bit)) ->
-                  (specialize::x, specialize::y)
+                  (x, y)
                   where
                     /* Not recursive */
-                    specialize::y : Bit
-                    specialize::y = __p1 .1 /* of 2 */
+                    y : Bit
+                    y = __p1 .1 /* of 2 */
                     
                     /* Not recursive */
-                    specialize::x : Bit
-                    specialize::x = __p1 .0 /* of 2 */
+                    x : Bit
+                    x = __p1 .0 /* of 2 */
                     
                   
   
   /* Not recursive */
   specialize::top : (Bit, Bit) -> (Bit, Bit)
   specialize::top = \ (__p0 : (Bit, Bit)) ->
-                    specialize::f (specialize::x, specialize::y)
+                    specialize::f (x, y)
                     where
                       /* Not recursive */
-                      specialize::y : Bit
-                      specialize::y = __p0 .1 /* of 2 */
+                      y : Bit
+                      y = __p0 .1 /* of 2 */
                       
                       /* Not recursive */
-                      specialize::x : Bit
-                      specialize::x = __p0 .0 /* of 2 */
+                      x : Bit
+                      x = __p0 .0 /* of 2 */
                       
                     
   

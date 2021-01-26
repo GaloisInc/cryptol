@@ -1,0 +1,5 @@
+:load T2.icry
+:t x
+:t y
+x
+y

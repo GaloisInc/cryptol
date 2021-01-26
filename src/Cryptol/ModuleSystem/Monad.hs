@@ -463,11 +463,15 @@ getImportSource  = ModuleT $ do
     _      -> return (FromModule noModuleName)
 
 getIface :: P.ModName -> ModuleM Iface
-getIface mn =
-  do env <- ModuleT get
-     case lookupModule mn env of
-       Just lm -> return (lmInterface lm)
-       Nothing -> panic "ModuleSystem" ["Interface not available", show (pp mn)]
+getIface mn = ($ mn) <$> getIfaces
+
+getIfaces :: ModuleM (P.ModName -> Iface)
+getIfaces = doLookup <$> ModuleT get
+  where
+  doLookup env mn =
+    case lookupModule mn env of
+      Just lm -> lmInterface lm
+      Nothing -> panic "ModuleSystem" ["Interface not available", show (pp mn)]
 
 getLoaded :: P.ModName -> ModuleM T.Module
 getLoaded mn = ModuleT $

@@ -37,7 +37,10 @@ module Cryptol.Parser.AST
   , psFixity
 
     -- * Declarations
-  , Module(..)
+  , Module
+  , ModuleG(..)
+  , mImports
+  , mSubmoduleImports
   , Program(..)
   , TopDecl(..)
   , Decl(..)
@@ -50,11 +53,12 @@ module Cryptol.Parser.AST
   , Pragma(..)
   , ExportType(..)
   , TopLevel(..)
-  , Import(..), ImportSpec(..)
+  , Import, ImportG(..), ImportSpec(..), ImpName(..)
   , Newtype(..)
   , PrimType(..)
   , ParameterType(..)
   , ParameterFun(..)
+  , NestedModule(..)
 
     -- * Interactive
   , ReplInput(..)
@@ -119,13 +123,37 @@ newtype Program name = Program [TopDecl name]
                        deriving (Show)
 
 -- | A parsed module.
-data Module name = Module
-  { mName     :: Located ModName            -- ^ Name of the module
+data ModuleG mname name = Module
+  { mName     :: Located mname              -- ^ Name of the module
   , mInstance :: !(Maybe (Located ModName)) -- ^ Functor to instantiate
                                             -- (if this is a functor instnaces)
-  , mImports  :: [Located Import]           -- ^ Imports for the module
+  -- , mImports  :: [Located Import]           -- ^ Imports for the module
   , mDecls    :: [TopDecl name]             -- ^ Declartions for the module
   } deriving (Show, Generic, NFData)
+
+mImports :: ModuleG mname name -> [ Located Import ]
+mImports m =
+  [ li { thing = i { iModule = n } }
+  | DImport li <- mDecls m
+  , let i = thing li
+  , ImpTop n  <- [iModule i]
+  ]
+
+mSubmoduleImports :: ModuleG mname name -> [ Located (ImportG name) ]
+mSubmoduleImports m =
+  [ li { thing = i { iModule = n } }
+  | DImport li <- mDecls m
+  , let i = thing li
+  , ImpNested n  <- [iModule i]
+  ]
+
+
+
+type Module = ModuleG ModName
+
+
+newtype NestedModule name = NestedModule (ModuleG name name)
+  deriving (Show,Generic,NFData)
 
 
 modRange :: Module name -> Range
@@ -146,12 +174,21 @@ data TopDecl name =
   | DParameterConstraint [Located (Prop name)]
                                         -- ^ @parameter type constraint (fin T)@
   | DParameterFun  (ParameterFun name)  -- ^ @parameter someVal : [256]@
+  | DModule (TopLevel (NestedModule name))  -- ^ Nested module
+  | DImport (Located (ImportG (ImpName name)))  -- ^ An import declaration
                     deriving (Show, Generic, NFData)
+
+data ImpName name =
+    ImpTop    ModName
+  | ImpNested name
+    deriving (Show, Generic, NFData)
 
 data Decl name = DSignature [Located name] (Schema name)
                | DFixity !Fixity [Located name]
                | DPragma [Located name] Pragma
                | DBind (Bind name)
+               | DRec [Bind name]
+                 -- ^ A group of recursive bindings, introduced by the renamer.
                | DPatBind (Pattern name) (Expr name)
                | DType (TySyn name)
                | DProp (PropSyn name)
@@ -178,16 +215,15 @@ data ParameterFun name = ParameterFun
 
 
 -- | An import declaration.
-data Import = Import { iModule    :: !ModName
-                     , iAs        :: Maybe ModName
-                     , iSpec      :: Maybe ImportSpec
-                     } deriving (Eq, Show, Generic, NFData)
+data ImportG mname = Import
+  { iModule    :: !mname
+  , iAs        :: Maybe ModName
+  , iSpec      :: Maybe ImportSpec
+  } deriving (Eq, Show, Generic, NFData)
+
+type Import = ImportG ModName
 
 -- | The list of names following an import.
---
--- INVARIANT: All of the 'Name' entries in the list are expected to be
--- unqualified names; the 'QName' or 'NewName' constructors should not be
--- present.
 data ImportSpec = Hiding [Ident]
                 | Only   [Ident]
                   deriving (Eq, Show, Generic, NFData)
@@ -234,6 +270,7 @@ data Bind name = Bind
   , bPragmas   :: [Pragma]                -- ^ Optional pragmas
   , bMono      :: Bool                    -- ^ Is this a monomorphic binding
   , bDoc       :: Maybe Text              -- ^ Optional doc string
+  , bExport    :: !ExportType
   } deriving (Eq, Generic, NFData, Functor, Show)
 
 type LBindDef = Located (BindDef PName)
@@ -482,14 +519,17 @@ instance HasLoc a => HasLoc (TopLevel a) where
   getLoc = getLoc . tlValue
 
 instance HasLoc (TopDecl name) where
-  getLoc td = case td of
-    Decl tld    -> getLoc tld
-    DPrimType pt -> getLoc pt
-    TDNewtype n -> getLoc n
-    Include lfp -> getLoc lfp
-    DParameterType d -> getLoc d
-    DParameterFun d  -> getLoc d
-    DParameterConstraint d -> getLoc d
+  getLoc td =
+    case td of
+      Decl tld    -> getLoc tld
+      DPrimType pt -> getLoc pt
+      TDNewtype n -> getLoc n
+      Include lfp -> getLoc lfp
+      DParameterType d -> getLoc d
+      DParameterFun d  -> getLoc d
+      DParameterConstraint d -> getLoc d
+      DModule d -> getLoc d
+      DImport d -> getLoc d
 
 instance HasLoc (PrimType name) where
   getLoc pt = Just (rComb (srcRange (primTName pt)) (srcRange (primTKind pt)))
@@ -500,7 +540,7 @@ instance HasLoc (ParameterType name) where
 instance HasLoc (ParameterFun name) where
   getLoc a = getLoc (pfName a)
 
-instance HasLoc (Module name) where
+instance HasLoc (ModuleG mname name) where
   getLoc m
     | null locs = Nothing
     | otherwise = Just (rCombs locs)
@@ -509,6 +549,9 @@ instance HasLoc (Module name) where
                      , getLoc (mImports m)
                      , getLoc (mDecls m)
                      ]
+
+instance HasLoc (NestedModule name) where
+  getLoc (NestedModule m) = getLoc m
 
 instance HasLoc (Newtype name) where
   getLoc n
@@ -537,10 +580,24 @@ ppNamed s x = ppL (name x) <+> text s <+> pp (value x)
 ppNamed' :: PP a => String -> (Ident, (Range, a)) -> Doc
 ppNamed' s (i,(_,v)) = pp i <+> text s <+> pp v
 
-instance (Show name, PPName name) => PP (Module name) where
-  ppPrec _ m = text "module" <+> ppL (mName m) <+> text "where"
-            $$ vcat (map ppL (mImports m))
-            $$ vcat (map pp (mDecls m))
+
+
+instance (Show name, PPName mname, PPName name) => PP (ModuleG mname name) where
+  ppPrec _ = ppModule 0
+
+ppModule :: (Show name, PPName mname, PPName name) =>
+  Int -> ModuleG mname name -> Doc
+ppModule n m =
+  text "module" <+> ppL (mName m) <+> text "where" $$ nest n body
+  where
+  body = vcat (map ppL (mImports m))
+      $$ vcat (map pp (mDecls m))
+
+
+
+instance (Show name, PPName name) => PP (NestedModule name) where
+  ppPrec _ (NestedModule m) = ppModule 2 m
+
 
 instance (Show name, PPName name) => PP (Program name) where
   ppPrec _ (Program ds) = vcat (map pp ds)
@@ -556,10 +613,12 @@ instance (Show name, PPName name) => PP (TopDecl name) where
       DParameterType d -> pp d
       DParameterConstraint d ->
         "parameter" <+> "type" <+> "constraint" <+> prop
-        where prop = case map pp d of
+        where prop = case map (pp . thing) d of
                        [x] -> x
                        []  -> "()"
                        xs  -> parens (hsep (punctuate comma xs))
+      DModule d -> pp d
+      DImport i -> pp (thing i)
 
 instance (Show name, PPName name) => PP (PrimType name) where
   ppPrec _ pt =
@@ -580,6 +639,7 @@ instance (Show name, PPName name) => PP (Decl name) where
       DSignature xs s -> commaSep (map ppL xs) <+> text ":" <+> pp s
       DPatBind p e    -> pp p <+> text "=" <+> pp e
       DBind b         -> ppPrec n b
+      DRec bs         -> "recursive" $$ nest 2 (vcat (map (ppPrec n) bs))
       DFixity f ns    -> ppFixity f ns
       DPragma xs p    -> ppPragma xs p
       DType ts        -> ppPrec n ts
@@ -596,12 +656,18 @@ instance PPName name => PP (Newtype name) where
     [ text "newtype", ppL (nName nt), hsep (map pp (nParams nt)), char '='
     , braces (commaSep (map (ppNamed' ":") (displayFields (nBody nt)))) ]
 
-instance PP Import where
+instance PP mname => PP (ImportG mname) where
   ppPrec _ d = text "import" <+> sep [ pp (iModule d), mbAs, mbSpec ]
     where
     mbAs = maybe empty (\ name -> text "as" <+> pp name ) (iAs d)
 
     mbSpec = maybe empty pp (iSpec d)
+
+instance PP name => PP (ImpName name) where
+  ppPrec _ nm =
+    case nm of
+      ImpTop x    -> pp x
+      ImpNested x -> "submodule" <+> pp x
 
 instance PP ImportSpec where
   ppPrec _ s = case s of
@@ -915,12 +981,14 @@ instance (NoPos a, NoPos b) => NoPos (a,b) where
 instance NoPos (Program name) where
   noPos (Program x) = Program (noPos x)
 
-instance NoPos (Module name) where
+instance NoPos (ModuleG mname name) where
   noPos m = Module { mName      = mName m
                    , mInstance  = mInstance m
-                   , mImports   = noPos (mImports m)
                    , mDecls     = noPos (mDecls m)
                    }
+
+instance NoPos (NestedModule name) where
+  noPos (NestedModule m) = NestedModule (noPos m)
 
 instance NoPos (TopDecl name) where
   noPos decl =
@@ -932,6 +1000,9 @@ instance NoPos (TopDecl name) where
       DParameterFun d  -> DParameterFun (noPos d)
       DParameterType d -> DParameterType (noPos d)
       DParameterConstraint d -> DParameterConstraint (noPos d)
+      DModule d -> DModule (noPos d)
+      DImport d -> DImport (noPos d)
+
 
 instance NoPos (PrimType name) where
   noPos x = x
@@ -953,6 +1024,7 @@ instance NoPos (Decl name) where
       DPatBind   x y   -> DPatBind   (noPos x) (noPos y)
       DFixity f ns     -> DFixity f (noPos ns)
       DBind      x     -> DBind      (noPos x)
+      DRec       bs    -> DRec       (map noPos bs)
       DType      x     -> DType      (noPos x)
       DProp      x     -> DProp      (noPos x)
       DLocated   x _   -> noPos x
@@ -973,6 +1045,7 @@ instance NoPos (Bind name) where
                  , bPragmas   = noPos (bPragmas   x)
                  , bMono      = bMono x
                  , bDoc       = bDoc x
+                 , bExport    = bExport x
                  }
 
 instance NoPos Pragma where

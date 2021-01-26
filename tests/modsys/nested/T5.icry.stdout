@@ -1,0 +1,30 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module T4
+Loading module T5
+0x02
+Modules
+=======
+
+  From T4
+  -------
+
+    A
+
+Symbols
+=======
+
+  From T4
+  -------
+
+    x : [8]
+    z : [8]
+
+Symbols
+=======
+
+  Public
+  ------
+
+    a : [8]
+
