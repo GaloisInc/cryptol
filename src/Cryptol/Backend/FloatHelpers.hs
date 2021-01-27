@@ -234,7 +234,7 @@ floatToBits e p bf =  (isNeg      `shiftL` (e' + p'))
           case num of
             Zero     -> (0,0)
             Num i ev
-              | ex == 0   -> (0, i `shiftL` (p' - m  -1))
+              | ex <= 0   -> (0, i `shiftL` (p' - m -1 + fromInteger ex))
               | otherwise -> (ex, (i `shiftL` (p' - m)) .&. pMask)
               where
               m    = msb 0 i - 1
