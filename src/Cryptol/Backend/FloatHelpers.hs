@@ -1,9 +1,23 @@
 {-# Language BlockArguments, OverloadedStrings #-}
 {-# Language BangPatterns #-}
-module Cryptol.Backend.FloatHelpers where
+module Cryptol.Backend.FloatHelpers
+( BF(..)
+, fpRound
+, fpPP
+, fpLit
+, floatFromRational
+, floatToRational
+, floatToInteger
+, floatFromBits
+, floatToBits
+, FH.bfStatus
+, FH.fpOpts
+) where
 
 import Data.Ratio(numerator,denominator)
 import LibBF
+
+import qualified What4.Utils.FloatHelpers as FH
 
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
@@ -17,26 +31,6 @@ data BF = BF
   }
 
 
--- | Make LibBF options for the given precision and rounding mode.
-fpOpts :: Integer -> Integer -> RoundMode -> BFOpts
-fpOpts e p r =
-  case ok of
-    Just opts -> opts
-    Nothing   -> panic "floatOpts" [ "Invalid Float size"
-                                   , "exponent: " ++ show e
-                                   , "precision: " ++ show p
-                                   ]
-  where
-  ok = do eb <- rng expBits expBitsMin expBitsMax e
-          pb <- rng precBits precBitsMin precBitsMax p
-          pure (eb <> pb <> allowSubnormal <> rnd r)
-
-  rng f a b x = if toInteger a <= x && x <= toInteger b
-                  then Just (f (fromInteger x))
-                  else Nothing
-
-
-
 -- | Mapping from the rounding modes defined in the `Float.cry` to
 -- the rounding modes of `LibBF`.
 fpRound :: Integer -> Either EvalError RoundMode
@@ -48,14 +42,6 @@ fpRound n =
     3 -> Right ToNegInf
     4 -> Right ToZero
     _ -> Left (BadRoundingMode n)
-
--- | Check that we didn't get an unexpected status.
-fpCheckStatus :: (BigFloat,Status) -> BigFloat
-fpCheckStatus (r,s) =
-  case s of
-    MemError  -> panic "checkStatus" [ "libBF: Memory error" ]
-    _         -> r
-
 
 -- | Pretty print a float
 fpPP :: PPOpts -> BF -> Doc
@@ -108,12 +94,12 @@ floatFromRational :: Integer -> Integer -> RoundMode -> Rational -> BF
 floatFromRational e p r rat =
   BF { bfExpWidth = e
      , bfPrecWidth = p
-     , bfValue = fpCheckStatus
+     , bfValue = FH.bfStatus
                  if den == 1 then bfRoundFloat opts num
                              else bfDiv opts num (bfFromInteger den)
      }
   where
-  opts  = fpOpts e p r
+  opts  = FH.fpOpts e p r
 
   num   = bfFromInteger (numerator rat)
   den   = denominator rat
@@ -153,7 +139,7 @@ floatFromBits ::
   Integer {- ^ Precision widht -} ->
   Integer {- ^ Raw bits -} ->
   BF
-floatFromBits e p bv = BF { bfValue = bfFromBits (fpOpts e p NearEven) bv 
+floatFromBits e p bv = BF { bfValue = bfFromBits (FH.fpOpts e p NearEven) bv 
                           , bfExpWidth = e, bfPrecWidth = p }
 
 
@@ -161,4 +147,4 @@ floatFromBits e p bv = BF { bfValue = bfFromBits (fpOpts e p NearEven) bv
 -- @NaN@ is represented as a positive "quiet" @NaN@
 -- (most significant bit in the significand is set, the rest of it is 0)
 floatToBits :: Integer -> Integer -> BigFloat -> Integer
-floatToBits e p bf = bfToBits (fpOpts e p NearEven) bf
+floatToBits e p bf = bfToBits (FH.fpOpts e p NearEven) bf

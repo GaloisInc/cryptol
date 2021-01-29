@@ -165,7 +165,6 @@ library
                        Cryptol.Backend.Monad,
                        Cryptol.Backend.SBV,
                        Cryptol.Backend.What4,
-                       Cryptol.Backend.What4.SFloat,
 
                        Cryptol.Eval,
                        Cryptol.Eval.Concrete,

@@ -341,7 +341,7 @@ instance Backend Concrete where
     do r' <- fpRoundMode sym r
        pure FP.BF { FP.bfExpWidth = e
                   , FP.bfPrecWidth = p
-                  , FP.bfValue = FP.fpCheckStatus $
+                  , FP.bfValue = FP.bfStatus $
                                  FP.bfRoundInt r' (FP.bfFromInteger x)
                   }
   fpToInteger = fpCvtToInteger
@@ -367,7 +367,7 @@ fpBinArith ::
 fpBinArith fun = \sym r x y ->
   do opts <- FP.fpOpts (FP.bfExpWidth x) (FP.bfPrecWidth x)
                                                   <$> fpRoundMode sym r
-     pure x { FP.bfValue = FP.fpCheckStatus
+     pure x { FP.bfValue = FP.bfStatus
                                 (fun opts (FP.bfValue x) (FP.bfValue y)) }
 
 fpCvtToInteger ::

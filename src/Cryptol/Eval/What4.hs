@@ -43,7 +43,7 @@ import qualified What4.Utils.AbstractDomains as W4
 import Cryptol.Backend
 import Cryptol.Backend.Monad ( EvalError(..), Unsupported(..) )
 import Cryptol.Backend.What4
-import qualified Cryptol.Backend.What4.SFloat as W4
+import qualified What4.SFloat as FP
 
 import Cryptol.Eval.Generic
 import Cryptol.Eval.Prims
@@ -871,19 +871,19 @@ floatPrims sym =
   (~>) = (,)
 
   nonInfixTable =
-    [ "fpNaN"       ~> fpConst (W4.fpNaN w4sym)
-    , "fpPosInf"    ~> fpConst (W4.fpPosInf w4sym)
+    [ "fpNaN"       ~> fpConst (FP.fpNaN w4sym)
+    , "fpPosInf"    ~> fpConst (FP.fpPosInf w4sym)
     , "fpFromBits"  ~> PFinPoly \e -> PFinPoly \p -> PWordFun \w ->
-                       PPrim (VFloat <$> liftIO (W4.fpFromBinary w4sym e p w))
+                       PPrim (VFloat <$> liftIO (FP.fpFromBinary w4sym e p w))
     , "fpToBits"    ~> PFinPoly \e -> PFinPoly \p -> PFloatFun \x -> PVal
                             $ VWord (e+p)
-                            $ WordVal <$> liftIO (W4.fpToBinary w4sym x)
+                            $ WordVal <$> liftIO (FP.fpToBinary w4sym x)
     , "=.="         ~> PFinPoly \_ -> PFinPoly \_ -> PFloatFun \x -> PFloatFun \y ->
-                       PPrim (VBit <$> liftIO (W4.fpEq w4sym x y))
+                       PPrim (VBit <$> liftIO (FP.fpEq w4sym x y))
     , "fpIsFinite"  ~> PFinPoly \_ -> PFinPoly \_ -> PFloatFun \x ->
                        PPrim
-                         (VBit <$> liftIO do inf <- W4.fpIsInf w4sym x
-                                             nan <- W4.fpIsNaN w4sym x
+                         (VBit <$> liftIO do inf <- FP.fpIsInf w4sym x
+                                             nan <- FP.fpIsNaN w4sym x
                                              weird <- W4.orPred w4sym inf nan
                                              W4.notPred w4sym weird)
 
@@ -906,7 +906,7 @@ floatPrims sym =
 -- | A helper for definitng floating point constants.
 fpConst ::
   W4.IsSymExprBuilder sym =>
-  (Integer -> Integer -> IO (W4.SFloat sym)) ->
+  (Integer -> Integer -> IO (FP.SFloat sym)) ->
   Prim (What4 sym)
 fpConst mk =
   PFinPoly \e ->

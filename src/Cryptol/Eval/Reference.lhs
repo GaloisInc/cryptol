@@ -967,7 +967,7 @@ representable value.
 > fraction top btm _rnd ty =
 >   case ty of
 >     TVRational -> pure (VRational (top % btm))
->     TVFloat e p -> pure $ VFloat $ fpToBF e p  $ FP.fpCheckStatus val
+>     TVFloat e p -> pure $ VFloat $ fpToBF e p  $ FP.bfStatus val
 >       where val  = FP.bfDiv opts (FP.bfFromInteger top) (FP.bfFromInteger btm)
 >             opts = FP.fpOpts e p fpImplicitRound
 >     _ -> evalPanic "fraction" [show ty ++ " cannot represent " ++
@@ -1586,7 +1586,7 @@ The following two functions convert between floaitng point numbers
 and integers.
 
 > fpFromInteger :: Integer -> Integer -> Integer -> BigFloat
-> fpFromInteger e p = FP.fpCheckStatus . FP.bfRoundFloat opts . FP.bfFromInteger
+> fpFromInteger e p = FP.bfStatus . FP.bfRoundFloat opts . FP.bfFromInteger
 >   where opts = FP.fpOpts e p fpImplicitRound
 
 These functions capture the interactions with rationals.
@@ -1597,7 +1597,7 @@ This just captures a common pattern for binary floating point primitives.
 > fpBin :: (FP.BFOpts -> BigFloat -> BigFloat -> (BigFloat,FP.Status)) ->
 >          FP.RoundMode -> Integer -> Integer ->
 >          BigFloat -> BigFloat -> E BigFloat
-> fpBin f r e p x y = pure (FP.fpCheckStatus (f (FP.fpOpts e p r) x y))
+> fpBin f r e p x y = pure (FP.bfStatus (f (FP.fpOpts e p r) x y))
 
 
 Computes the reciprocal of a floating point number via division.
@@ -1605,7 +1605,7 @@ This assumes that 1 can be represented exactly, which should be
 true for all supported precisions.
 
 > fpRecip :: Integer -> Integer -> BigFloat -> E BigFloat
-> fpRecip e p x = pure (FP.fpCheckStatus (FP.bfDiv opts (FP.bfFromInteger 1) x))
+> fpRecip e p x = pure (FP.bfStatus (FP.bfDiv opts (FP.bfFromInteger 1) x))
 >   where opts = FP.fpOpts e p fpImplicitRound
 
 

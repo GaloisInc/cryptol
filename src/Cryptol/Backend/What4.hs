@@ -31,9 +31,8 @@ import           Data.Parameterized.Some
 import qualified GHC.Integer.GMP.Internals as Integer
 
 import qualified What4.Interface as W4
+import qualified What4.SFloat as FP
 import qualified What4.SWord as SW
-
-import qualified Cryptol.Backend.What4.SFloat as FP
 
 import Cryptol.Backend
 import Cryptol.Backend.FloatHelpers
