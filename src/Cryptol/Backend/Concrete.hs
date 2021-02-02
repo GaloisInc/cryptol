@@ -338,11 +338,11 @@ instance Backend Concrete where
   fpDiv   = fpBinArith FP.bfDiv
   fpNeg _ x = pure x { FP.bfValue = FP.bfNeg (FP.bfValue x) }
   fpFromInteger sym e p r x =
-    do opts <- FP.fpOpts e p <$> fpRoundMode sym r
+    do r' <- fpRoundMode sym r
        pure FP.BF { FP.bfExpWidth = e
                   , FP.bfPrecWidth = p
                   , FP.bfValue = FP.fpCheckStatus $
-                                 FP.bfRoundInt opts (FP.bfFromInteger x)
+                                 FP.bfRoundInt r' (FP.bfFromInteger x)
                   }
   fpToInteger = fpCvtToInteger
 
