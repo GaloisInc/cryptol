@@ -553,8 +553,8 @@ varShapeToConcrete evalFn v =
       let w = W4.intValue (W4.bvWidth x)
        in VarWord . Concrete.mkBv w . BV.asUnsigned <$> W4.groundEval evalFn x
     VarFloat fv@(W4.SFloat f) ->
-      do let (e,p) = W4.fpSize fv
-         VarFloat . FH.floatFromBits e p . BV.asUnsigned <$> W4.groundEval evalFn f
+      let (e,p) = W4.fpSize fv
+       in VarFloat . FH.BF e p <$> W4.groundEval evalFn f
     VarFinSeq n vs ->
       VarFinSeq n <$> mapM (varShapeToConcrete evalFn) vs
     VarTuple vs ->

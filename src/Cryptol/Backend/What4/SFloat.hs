@@ -183,7 +183,7 @@ fpFromRationalLit ::
   Rational ->
   IO (SFloat sym)
 fpFromRationalLit sym e p r
-  | Just (Some fpp) <- fpRepr e p = SFloat <$> floatLit sym fpp r
+  | Just (Some fpp) <- fpRepr e p = SFloat <$> floatLitRational sym fpp r
   | otherwise = unsupported "fpFromRational" e p
 
 
