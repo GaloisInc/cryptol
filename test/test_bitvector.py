@@ -1,19 +1,20 @@
 import unittest
 import random
 from cryptol.bitvector import BV
-from BitVector import BitVector
+from BitVector import BitVector #type: ignore
+from typing import Callable, cast
 
 
 class BVBaseTest(unittest.TestCase):
     """Base class for BV test cases."""
 
-    def assertBVEqual(self, b, size, value):
+    def assertBVEqual(self, b : BV, size : int, value : int) -> None:
         """Assert BV `b` has the specified `size` and `value`."""
         self.assertEqual(b.size(),  size)
         self.assertEqual(b.value(), value)
 
-    
-    def assertUnOpExpected(self, op_fn, expected_fn):
+
+    def assertUnOpExpected(self, op_fn : Callable[[BV], BV], expected_fn : Callable[[BV], BV]) -> None:
         """Assert `prop` holds for any BV value."""
         for width in range(0, 129):
             max_val = 2 ** width - 1
@@ -23,7 +24,7 @@ class BVBaseTest(unittest.TestCase):
                 # on failed test cases.
                 self.assertEqual((b, op_fn(b)), (b, expected_fn(b)))
 
-    def assertBinOpExpected(self, op_fn, expected_fn):
+    def assertBinOpExpected(self, op_fn : Callable[[BV, BV], BV], expected_fn : Callable[[BV, BV], BV]) -> None:
         """Assert `prop` holds for any BV value."""
         for width in range(0, 129):
             max_val = 2 ** width - 1
@@ -36,13 +37,13 @@ class BVBaseTest(unittest.TestCase):
 
 
 class BVBasicTests(BVBaseTest):
-    def test_constructor1(self):
+    def test_constructor1(self) -> None:
         b = BV(BitVector(intVal = 0, size = 8))
         self.assertBVEqual(b, 8, 0)
         b = BV(BitVector(intVal = 42, size = 8))
         self.assertBVEqual(b, 8, 42)
-        
-    def test_constructor2(self):
+
+    def test_constructor2(self) -> None:
         b = BV(0,0)
         self.assertBVEqual(b, 0, 0)
         b = BV(value=16,size=8)
@@ -50,13 +51,13 @@ class BVBasicTests(BVBaseTest):
         b = BV(8,42)
         self.assertBVEqual(b, 8, 42)
 
-    def test_constructor_fails(self):
+    def test_constructor_fails(self) -> None:
         with self.assertRaises(ValueError):
             BV(8, 256)
         with self.assertRaises(ValueError):
             BV(8, -1)
 
-    def test_hex(self):
+    def test_hex(self) -> None:
         self.assertEqual(hex(BV(0,0)), "0x0")
         self.assertEqual(BV(0,0).hex(), "0x0")
         self.assertEqual(hex(BV(4,0)), "0x0")
@@ -70,26 +71,26 @@ class BVBasicTests(BVBaseTest):
         self.assertEqual(hex(BV(9,255)), "0xff")
         self.assertEqual(BV(9,255).hex(), "0x0ff")
 
-    def test_repr(self):
+    def test_repr(self) -> None:
         self.assertEqual(repr(BV(0,0)), "BV(0, 0x0)")
         self.assertEqual(repr(BV(9,255)), "BV(9, 0x0ff)")
 
-    def test_int(self):
+    def test_int(self) -> None:
         self.assertEqual(int(BV(0,0)), 0)
         self.assertEqual(int(BV(9,255)), 255)
         self.assertUnOpExpected(
             lambda b: BV(b.size(), int(b)),
             lambda b: b)
 
-    def test_size(self):
+    def test_size(self) -> None:
         self.assertEqual(BV(0,0).size(), 0)
         self.assertEqual(BV(9,255).size(), 9)
 
-    def test_len(self):
+    def test_len(self) -> None:
         self.assertEqual(len(BV(0,0)), 0)
         self.assertEqual(len(BV(9,255)), 9)
 
-    def test_popcount(self):
+    def test_popcount(self) -> None:
         self.assertEqual(BV(0,0).popcount(), 0)
         self.assertEqual(BV(8,0).popcount(), 0)
         self.assertEqual(BV(8,1).popcount(), 1)
@@ -97,14 +98,14 @@ class BVBasicTests(BVBaseTest):
         self.assertEqual(BV(8,3).popcount(), 2)
         self.assertEqual(BV(8,255).popcount(), 8)
 
-    def test_eq(self):
+    def test_eq(self) -> None:
         self.assertEqual(BV(0,0), BV(0,0))
         self.assertEqual(BV(8,255), BV(8,255))
         self.assertTrue(BV(8,255) == BV(8,255))
         self.assertFalse(BV(8,255) == BV(8,254))
         self.assertFalse(BV(8,255) == BV(9,255))
 
-    def test_neq(self):
+    def test_neq(self) -> None:
         self.assertNotEqual(BV(0,0), BV(1,0))
         self.assertNotEqual(BV(0,0), 0)
         self.assertNotEqual(0, BV(0,0))
@@ -114,12 +115,12 @@ class BVBasicTests(BVBaseTest):
         self.assertTrue(BV(0,0) != 0)
         self.assertTrue(0 != BV(0,0))
 
-    def test_widen(self):
+    def test_widen(self) -> None:
         self.assertEqual(BV(0,0).widen(8), BV(8,0))
         self.assertEqual(BV(9,255).widen(8), BV(17,255))
 
 
-    def test_add(self):
+    def test_add(self) -> None:
         self.assertEqual(BV(16,7) + BV(16,9), BV(16,16))
         self.assertEqual(BV(16,9) + BV(16,7), BV(16,16))
         self.assertEqual(BV(16,9) + BV(16,7) + 1, BV(16,17))
@@ -130,9 +131,9 @@ class BVBasicTests(BVBaseTest):
                            BV(b1.size(), (int(b1) + int(b2)) % ((2 ** b1.size() - 1) + 1)))
         with self.assertRaises(ValueError):
             BV(15,7) + BV(16,9)
-                
-    
-    def test_bitewise_and(self):
+
+
+    def test_bitewise_and(self) -> None:
         self.assertEqual(BV(0,0) & BV(0,0), BV(0,0))
         self.assertEqual(BV(8,0xff) & BV(8,0xff), BV(8,0xff))
         self.assertEqual(BV(8,0xff) & BV(8,42), BV(8,42))
@@ -144,7 +145,7 @@ class BVBasicTests(BVBaseTest):
             lambda b: b & 0,
             lambda b: BV(b.size(), 0))
         self.assertUnOpExpected(
-            lambda b: b & (2 ** b.size() - 1),
+            lambda b: b & cast(int, 2 ** b.size() - 1),
             lambda b: b)
         self.assertBinOpExpected(
             lambda b1, b2: b1 & b2,
@@ -152,7 +153,7 @@ class BVBasicTests(BVBaseTest):
         with self.assertRaises(ValueError):
             BV(15,7) & BV(16,9)
 
-    def test_bitewise_not(self):
+    def test_bitewise_not(self) -> None:
         self.assertEqual(~BV(0,0), BV(0,0))
         self.assertEqual(~BV(1,0b0), BV(1,0b1))
         self.assertEqual(~BV(8,0x0f), BV(8,0xf0))
@@ -166,19 +167,19 @@ class BVBasicTests(BVBaseTest):
             lambda b: BV(b.size(), 0))
 
 
-    def test_positional_index(self):
+    def test_positional_index(self) -> None:
         self.assertFalse(BV(16,0b10)[0])
         self.assertTrue(BV(16,0b10)[1])
         self.assertFalse(BV(16,0b10)[3])
         self.assertFalse(BV(8,0b10)[7])
         with self.assertRaises(ValueError):
-            BV(8,7)["Bad Index"]
+            BV(8,7)["Bad Index"] #type: ignore
         with self.assertRaises(ValueError):
             BV(8,7)[-1]
         with self.assertRaises(ValueError):
             BV(8,7)[8]
 
-    def test_positional_slice(self):
+    def test_positional_slice(self) -> None:
         self.assertEqual(BV(0,0)[0:0], BV(0,0))
         self.assertEqual(BV(16,0b10)[2:0], BV(2,0b10))
         self.assertEqual(BV(16,0b10)[16:0], BV(16,0b10))
@@ -194,7 +195,7 @@ class BVBasicTests(BVBaseTest):
         with self.assertRaises(ValueError):
             BV(8,42)[10:10]
 
-    def test_concat(self):
+    def test_concat(self) -> None:
         self.assertEqual(BV(0,0).concat(BV(0,0)), BV(0,0))
         self.assertEqual(BV(1,0b1).concat(BV(0,0b0)), BV(1,0b1))
         self.assertEqual(BV(0,0b0).concat(BV(1,0b1)), BV(1,0b1))
@@ -211,11 +212,11 @@ class BVBasicTests(BVBaseTest):
             lambda b1, b2: b1.concat(b2)[b1.size() + b2.size():b2.size()],
             lambda b1, b2: b1)
         with self.assertRaises(ValueError):
-            BV(8,42).concat(42)
+            BV(8,42).concat(42) #type: ignore
         with self.assertRaises(ValueError):
-            BV(8,42).concat("Oops not a BV")
+            BV(8,42).concat("Oops not a BV") #type: ignore
 
-    def test_join(self):
+    def test_join(self) -> None:
         self.assertEqual(BV.join(), BV(0,0))
         self.assertEqual(BV.join(*[]), BV(0,0))
         self.assertEqual(BV.join(BV(8,42)), BV(8,42))
@@ -223,18 +224,18 @@ class BVBasicTests(BVBaseTest):
         self.assertEqual(BV.join(BV(0,0), BV(2,0b10),BV(3,0b110)), BV(5,0b10110))
         self.assertEqual(BV.join(*[BV(0,0), BV(2,0b10),BV(3,0b110)]), BV(5,0b10110))
 
-    def test_bytes(self):
+    def test_bytes(self) -> None:
         self.assertEqual(bytes(BV(0,0)), b'')
         self.assertEqual(bytes(BV(1,1)), b'\x01')
         self.assertEqual(bytes(BV(8,255)), b'\xff')
         self.assertEqual(bytes(BV(16,255)), b'\x00\xff')
 
 
-    def test_zero(self):
+    def test_zero(self) -> None:
         self.assertEqual(BV(0,0).zero(), BV(0,0))
         self.assertEqual(BV(9,255).zero(), BV(9,0))
 
-    def test_msb(self):
+    def test_msb(self) -> None:
         self.assertEqual(BV(8,0).msb(), False)
         self.assertEqual(BV(8,1).msb(), False)
         self.assertEqual(BV(8,127).msb(), False)
@@ -244,7 +245,7 @@ class BVBasicTests(BVBaseTest):
             BV(0,0).msb()
 
 
-    def test_lsb(self):
+    def test_lsb(self) -> None:
         self.assertEqual(BV(8,0).lsb(), False)
         self.assertEqual(BV(8,1).lsb(), True)
         self.assertEqual(BV(8,127).lsb(), True)
@@ -253,7 +254,7 @@ class BVBasicTests(BVBaseTest):
         with self.assertRaises(ValueError):
             BV(0,0).lsb()
 
-    def test_from_signed_int(self):
+    def test_from_signed_int(self) -> None:
         self.assertEqual(BV.from_signed_int(8,127), BV(8,127))
         self.assertEqual(BV.from_signed_int(8,-128), BV(8,0x80))
         self.assertEqual(BV.from_signed_int(8,-1), BV(8,255))
@@ -265,7 +266,7 @@ class BVBasicTests(BVBaseTest):
         with self.assertRaises(ValueError):
             BV.from_signed_int(8,-129)
 
-    def test_sub(self):
+    def test_sub(self) -> None:
         self.assertEqual(BV(0,0) - BV(0,0), BV(0,0))
         self.assertEqual(BV(0,0) - 0, BV(0,0))
         self.assertEqual(0 - BV(0,0), BV(0,0))
@@ -295,7 +296,7 @@ class BVBasicTests(BVBaseTest):
             BV(8,3) - (-1)
 
 
-    def test_mul(self):
+    def test_mul(self) -> None:
         self.assertEqual(BV(8,5) * BV(8,4), BV(8,20))
         self.assertEqual(5 * BV(8,4), BV(8,20))
         self.assertEqual(4 * BV(8,5), BV(8,20))
@@ -315,7 +316,7 @@ class BVBasicTests(BVBaseTest):
         with self.assertRaises(ValueError):
             BV(8,3) * (-1)
 
-    def test_split(self):
+    def test_split(self) -> None:
         self.assertEqual(
             BV(8,0xff).split(1),
             [BV(1,0x1),
@@ -350,12 +351,12 @@ class BVBasicTests(BVBaseTest):
              BV(4,0xe),
              BV(4,0xf)])
         with self.assertRaises(ValueError):
-            BV(9,3).split("4")
+            BV(9,3).split("4") #type: ignore
         with self.assertRaises(ValueError):
             BV(9,3).split(4)
 
 
-    def test_from_bytes(self):
+    def test_from_bytes(self) -> None:
         self.assertEqual(BV.from_bytes(b''), BV(0,0))
         self.assertEqual(BV.from_bytes(b'', size=64), BV(64,0))
         self.assertEqual(BV.from_bytes(b'\x00'), BV(8,0))
@@ -367,14 +368,14 @@ class BVBasicTests(BVBaseTest):
         self.assertEqual(BV.from_bytes(b'\x01\x00', byteorder='little'), BV(16,0x0001))
         self.assertEqual(BV.from_bytes(b'\x01\x00', size=32,byteorder='little'), BV(32,0x0001))
 
-    def test_to_bytes(self):
+    def test_to_bytes(self) -> None:
         self.assertEqual(BV(0,0).to_bytes() ,b'')
         self.assertEqual(BV(8,0).to_bytes() ,b'\x00')
         self.assertEqual(BV(8,1).to_bytes() ,b'\x01')
         self.assertEqual(BV(16,1).to_bytes(), b'\x00\x01')
 
 
-    def test_bitewise_or(self):
+    def test_bitewise_or(self) -> None:
         self.assertEqual(BV(0,0) | BV(0,0), BV(0,0))
         self.assertEqual(BV(8,0xff) | BV(8,0x00), BV(8,0xff))
         self.assertEqual(BV(8,0x00) | BV(8,0xff), BV(8,0xff))
@@ -396,7 +397,7 @@ class BVBasicTests(BVBaseTest):
             -1 | BV(8,9)
 
 
-    def test_bitewise_xor(self):
+    def test_bitewise_xor(self) -> None:
         self.assertEqual(BV(0,0) ^ BV(0,0), BV(0,0))
         self.assertEqual(BV(8,0xff) ^ BV(8,0x00), BV(8,0xff))
         self.assertEqual(BV(8,0x00) ^ BV(8,0xff), BV(8,0xff))
@@ -419,7 +420,7 @@ class BVBasicTests(BVBaseTest):
         with self.assertRaises(ValueError):
             -1 ^ BV(8,9)
 
-    def test_with_bit(self):
+    def test_with_bit(self) -> None:
         self.assertEqual(BV(1,0).with_bit(0,True), BV(1,1))
         self.assertEqual(BV(1,1).with_bit(0,False), BV(1,0))
         self.assertEqual(BV(8,0b11001100).with_bit(0,True), BV(8,0b11001101))
@@ -430,7 +431,7 @@ class BVBasicTests(BVBaseTest):
         with self.assertRaises(ValueError):
             BV(8,0b11001100).with_bit(-1,False)
 
-    def test_with_bits(self):
+    def test_with_bits(self) -> None:
         self.assertEqual(BV(1,0b0).with_bits(0,BV(1,0b0)), BV(1,0b0))
         self.assertEqual(BV(1,0b0).with_bits(0,BV(1,0b1)), BV(1,0b1))
         self.assertEqual(BV(1,0b1).with_bits(0,BV(1,0b0)), BV(1,0b0))
@@ -439,7 +440,7 @@ class BVBasicTests(BVBaseTest):
         with self.assertRaises(ValueError):
             BV(8,0b11000101).with_bits(-1,BV(3,0b111))
         with self.assertRaises(ValueError):
-            BV(8,0b11000101).with_bits(0,"bad")
+            BV(8,0b11000101).with_bits(0,"bad") #type: ignore
         with self.assertRaises(ValueError):
             BV(8,0b11000101).with_bits(0,BV(9,0))
         with self.assertRaises(ValueError):
