@@ -11,9 +11,9 @@ import Cryptol.Backend.Monad( EvalError(..) )
 
 
 data BF = BF
-  { bfExpWidth  :: Integer
-  , bfPrecWidth :: Integer
-  , bfValue     :: BigFloat
+  { bfExpWidth  :: !Integer
+  , bfPrecWidth :: !Integer
+  , bfValue     :: !BigFloat
   }
 
 

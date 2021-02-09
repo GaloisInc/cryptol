@@ -79,6 +79,7 @@ primitive
 primitive
   fpPosInf : {e,p} ValidFloat e p => Float e p
 
+/** Negative infinity. */
 fpNegInf : {e,p} ValidFloat e p => Float e p
 fpNegInf = - fpPosInf
 
@@ -133,11 +134,31 @@ primitive
 
 infix 20 =.=
 
+/** Test if this value is not-a-number (NaN). */
+primitive fpIsNaN : {e,p} ValidFloat e p => Float e p -> Bool
+
+/** Test if this value is positive or negative infinity. */
+primitive fpIsInf : {e,p} ValidFloat e p => Float e p -> Bool
+
+/** Test if this value is positive or negative zero. */
+primitive fpIsZero : {e,p} ValidFloat e p => Float e p -> Bool
+
+/** Test if this value is negative. */
+primitive fpIsNeg : {e,p} ValidFloat e p => Float e p -> Bool
+
+/** Test if this value is normal (not NaN, not infinite, not zero, and not subnormal). */
+primitive fpIsNormal : {e,p} ValidFloat e p => Float e p -> Bool
+
+/**
+ * Test if this value is subnormal.  Subnormal values are nonzero
+ * values with magnitudes smaller than can be represented with the
+ * normal implicit leading bit convention.
+ */
+primitive fpIsSubnormal : {e,p} ValidFloat e p => Float e p -> Bool
 
 /* Returns true for numbers that are not an infinity or NaN. */
-primitive
-  fpIsFinite : {e,p} ValidFloat e p => Float e p -> Bool
-
+fpIsFinite : {e,p} ValidFloat e p => Float e p -> Bool
+fpIsFinite f = ~ (fpIsNaN f \/ fpIsInf f )
 
 
 /* ----------------------------------------------------------------------
@@ -165,6 +186,30 @@ primitive
   fpDiv : {e,p} ValidFloat e p =>
     RoundingMode -> Float e p -> Float e p -> Float e p
 
+/**
+ * Fused-multiply-add.  'fpFMA r x y z' computes the value '(x*y)+z',
+ * rounding the result according to mode 'r' only after performing both
+ * operations.
+ */
+primitive
+  fpFMA : {e,p} ValidFloat e p =>
+    RoundingMode -> Float e p -> Float e p -> Float e p -> Float e p
+
+/**
+ * Absolute value of a floating-point value.
+ */
+primitive
+  fpAbs : {e,p} ValidFloat e p =>
+    Float e p -> Float e p
+
+/**
+ * Square root of a floating-point value.  The square root of
+ * a negative value yiels NaN, except that the sqaure root of
+ * '-0.0' is '-0.0'.
+ */
+primitive
+  fpSqrt : {e,p} ValidFloat e p =>
+    RoundingMode -> Float e p -> Float e p
 
 /* ------------------------------------------------------------ *
  * Rationals                                                    *
@@ -181,4 +226,3 @@ given rounding mode, if the number cannot be represented exactly. */
 primitive
   fpFromRational : {e,p} ValidFloat e p =>
     RoundingMode -> Rational -> Float e p
-

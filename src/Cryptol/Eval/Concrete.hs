@@ -27,7 +27,7 @@ module Cryptol.Eval.Concrete
 
 import Control.Monad (guard, zipWithM, foldM, mzero)
 import Data.Bits (Bits(..))
-import Data.Ratio((%),numerator,denominator)
+import Data.Ratio(numerator,denominator)
 import Data.Word(Word32, Word64)
 import MonadLib( ChoiceT, findOne, lift )
 import qualified LibBF as FP
@@ -153,7 +153,7 @@ floatToExpr prims eT pT f =
 primTable :: IO EvalOpts -> Map PrimIdent (Prim Concrete)
 primTable getEOpts = let sym = Concrete in
   Map.union (genericPrimTable sym getEOpts) $
-  Map.union (floatPrims sym) $
+  Map.union (genericFloatTable sym) $
   Map.union suiteBPrims $
   Map.union primeECPrims $
 
@@ -645,55 +645,3 @@ updateBack_word (Nat n) _eltTy bs (Left idx) val = do
 updateBack_word (Nat n) _eltTy bs (Right w) val = do
   idx <- bvVal <$> asWordVal Concrete w
   updateWordValue Concrete bs (n - idx - 1) (fromVBit <$> val)
-
-
-floatPrims :: Concrete -> Map PrimIdent (Prim Concrete)
-floatPrims sym = Map.fromList [ (floatPrim i,v) | (i,v) <- nonInfixTable ]
-  where
-  (~>) = (,)
-  nonInfixTable =
-    [ "fpNaN"       ~> PFinPoly \e -> PFinPoly \p -> PVal $
-                        VFloat BF { bfValue = FP.bfNaN
-                                  , bfExpWidth = e, bfPrecWidth = p }
-
-    , "fpPosInf"    ~> PFinPoly \e -> PFinPoly \p -> PVal $
-                       VFloat BF { bfValue = FP.bfPosInf
-                                 , bfExpWidth = e, bfPrecWidth = p }
-
-    , "fpFromBits"  ~> PFinPoly \e -> PFinPoly \p -> PWordFun \bv -> PVal $
-                       VFloat $ floatFromBits e p $ bvVal bv
-
-    , "fpToBits"    ~> PFinPoly \e -> PFinPoly \p -> PFloatFun \x -> PVal
-                            $ word sym (e + p)
-                            $ floatToBits e p
-                            $ bfValue x
-    , "=.="         ~> PFinPoly \_ -> PFinPoly \_ -> PFloatFun \x -> PFloatFun \y -> PVal
-                            $ VBit
-                            $ bitLit sym
-                            $ FP.bfCompare (bfValue x) (bfValue y) == EQ
-
-    , "fpIsFinite"  ~> PFinPoly \_ -> PFinPoly \_ -> PFloatFun \x -> PVal
-                        $ VBit $ bitLit sym $ FP.bfIsFinite $ bfValue x
-
-      -- From Backend class
-    , "fpAdd"      ~> fpBinArithV sym fpPlus
-    , "fpSub"      ~> fpBinArithV sym fpMinus
-    , "fpMul"      ~> fpBinArithV sym fpMult
-    , "fpDiv"      ~> fpBinArithV sym fpDiv
-
-    , "fpFromRational" ~>
-      PFinPoly \e -> PFinPoly \p -> PWordFun \r -> PFun \x ->
-      PPrim
-        do rat <- fromVRational <$> x
-           VFloat <$> do mode <- fpRoundMode sym r
-                         pure $ floatFromRational e p mode
-                              $ sNum rat % sDenom rat
-    , "fpToRational" ~>
-      PFinPoly \_e -> PFinPoly \_p -> PFloatFun \fp ->
-      PPrim
-      case floatToRational "fpToRational" fp of
-        Left err -> raiseError sym err
-        Right r  -> pure $
-                      VRational
-                        SRational { sNum = numerator r, sDenom = denominator r }
-    ]

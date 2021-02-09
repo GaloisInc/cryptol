@@ -325,6 +325,9 @@ instance Backend SBV where
   znRecip = sModRecip
 
   fpAsLit _ _               = Nothing
+  iteFloat _ _ _ _          = unsupported "iteFloat"
+  fpNaN _ _ _               = unsupported "fpNaN"
+  fpPosInf _ _ _            = unsupported "fpPosInf"
   fpExactLit _ _            = unsupported "fpExactLit"
   fpLit _ _ _ _             = unsupported "fpLit"
   fpLogicalEq _ _ _         = unsupported "fpLogicalEq"
@@ -335,9 +338,23 @@ instance Backend SBV where
   fpMinus _ _ _ _           = unsupported "fpMinus"
   fpMult _ _ _ _            = unsupported "fpMult"
   fpDiv _ _ _ _             = unsupported "fpDiv"
+  fpAbs _ _                 = unsupported "fpAbs"
+  fpSqrt _ _ _              = unsupported "fpSqrt"
+  fpFMA _ _ _ _ _           = unsupported "fpFMA"
   fpNeg _ _                 = unsupported "fpNeg"
   fpFromInteger _ _ _ _ _   = unsupported "fpFromInteger"
   fpToInteger _ _ _ _       = unsupported "fpToInteger"
+  fpIsZero _ _              = unsupported "fpIsZero"
+  fpIsInf _ _               = unsupported "fpIsInf"
+  fpIsNeg _ _               = unsupported "fpIsNeg"
+  fpIsNaN _ _               = unsupported "fpIsNaN"
+  fpIsNorm _ _              = unsupported "fpIsNorm"
+  fpIsSubnorm _ _           = unsupported "fpIsSubnorm"
+  fpToBits _ _              = unsupported "fpToBits"
+  fpFromBits _ _ _ _        = unsupported "fpFromBits"
+  fpToRational _ _          = unsupported "fpToRational"
+  fpFromRational _ _ _ _ _  = unsupported "fpFromRational"
+
 
 unsupported :: String -> SEval SBV a
 unsupported x = liftIO (X.throw (UnsupportedSymbolicOp x))

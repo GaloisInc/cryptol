@@ -18,7 +18,6 @@
 module Cryptol.Eval.What4
   ( Value
   , primTable
-  , floatPrims
   ) where
 
 import qualified Control.Exception as X
@@ -27,7 +26,6 @@ import           Control.Monad (foldM)
 import           Control.Monad.IO.Class
 import           Data.Bits
 import qualified Data.Map as Map
-import           Data.Map (Map)
 import qualified Data.Set as Set
 import           Data.Text (Text)
 import qualified Data.Text as Text
@@ -43,7 +41,6 @@ import qualified What4.Utils.AbstractDomains as W4
 import Cryptol.Backend
 import Cryptol.Backend.Monad ( EvalError(..), Unsupported(..) )
 import Cryptol.Backend.What4
-import qualified Cryptol.Backend.What4.SFloat as W4
 
 import Cryptol.Eval.Generic
 import Cryptol.Eval.Prims
@@ -64,9 +61,9 @@ type Value sym = GenValue (What4 sym)
 primTable :: W4.IsSymExprBuilder sym => What4 sym -> IO EvalOpts -> Map.Map PrimIdent (Prim (What4 sym))
 primTable sym getEOpts =
   let w4sym = w4 sym in
-  Map.union (floatPrims sym) $
   Map.union (suiteBPrims sym) $
   Map.union (primeECPrims sym) $
+  Map.union (genericFloatTable sym) $
   Map.union (genericPrimTable sym getEOpts) $
 
   Map.fromList $ map (\(n, v) -> (prelPrim n, v))
@@ -859,56 +856,3 @@ updateBackSym_word sym (Nat n) eltTy bv (Right wv) val =
 
     _ -> LargeBitsVal (wordValueSize sym wv) <$>
            updateBackSym sym (Nat n) eltTy (asBitsMap sym bv) (Right wv) val
-
-
-
--- | Table of floating point primitives
-floatPrims :: W4.IsSymExprBuilder sym => What4 sym -> Map PrimIdent (Prim (What4 sym))
-floatPrims sym =
-  Map.fromList [ (floatPrim i,v) | (i,v) <- nonInfixTable ]
-  where
-  w4sym = w4 sym
-  (~>) = (,)
-
-  nonInfixTable =
-    [ "fpNaN"       ~> fpConst (W4.fpNaN w4sym)
-    , "fpPosInf"    ~> fpConst (W4.fpPosInf w4sym)
-    , "fpFromBits"  ~> PFinPoly \e -> PFinPoly \p -> PWordFun \w ->
-                       PPrim (VFloat <$> liftIO (W4.fpFromBinary w4sym e p w))
-    , "fpToBits"    ~> PFinPoly \e -> PFinPoly \p -> PFloatFun \x -> PVal
-                            $ VWord (e+p)
-                            $ WordVal <$> liftIO (W4.fpToBinary w4sym x)
-    , "=.="         ~> PFinPoly \_ -> PFinPoly \_ -> PFloatFun \x -> PFloatFun \y ->
-                       PPrim (VBit <$> liftIO (W4.fpEq w4sym x y))
-    , "fpIsFinite"  ~> PFinPoly \_ -> PFinPoly \_ -> PFloatFun \x ->
-                       PPrim
-                         (VBit <$> liftIO do inf <- W4.fpIsInf w4sym x
-                                             nan <- W4.fpIsNaN w4sym x
-                                             weird <- W4.orPred w4sym inf nan
-                                             W4.notPred w4sym weird)
-
-    , "fpAdd"       ~> fpBinArithV sym fpPlus
-    , "fpSub"       ~> fpBinArithV sym fpMinus
-    , "fpMul"       ~> fpBinArithV sym fpMult
-    , "fpDiv"       ~> fpBinArithV sym fpDiv
-
-    , "fpFromRational" ~>
-       PFinPoly \e -> PFinPoly \p -> PWordFun \r -> PFun \x ->
-       PPrim
-         do rat <- fromVRational <$> x
-            VFloat <$> fpCvtFromRational sym e p r rat
-
-    , "fpToRational" ~>
-       PFinPoly \_e -> PFinPoly \_p -> PFloatFun \fp ->
-       PPrim (VRational <$> fpCvtToRational sym fp)
-    ]
-
--- | A helper for definitng floating point constants.
-fpConst ::
-  W4.IsSymExprBuilder sym =>
-  (Integer -> Integer -> IO (W4.SFloat sym)) ->
-  Prim (What4 sym)
-fpConst mk =
-  PFinPoly \e ->
-  PNumPoly \ ~(Nat p) ->
-  PPrim (VFloat <$> liftIO (mk e p))

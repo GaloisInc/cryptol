@@ -56,7 +56,6 @@ import qualified Cryptol.ModuleSystem.Name as M
 
 import qualified Cryptol.Backend.FloatHelpers as FH
 import           Cryptol.Backend.What4
-import qualified Cryptol.Backend.What4.SFloat as W4
 
 import qualified Cryptol.Eval as Eval
 import qualified Cryptol.Eval.Concrete as Concrete
@@ -73,6 +72,7 @@ import qualified What4.Interface as W4
 import qualified What4.Expr.Builder as W4
 import qualified What4.Expr.GroundEval as W4
 import qualified What4.SatResult as W4
+import qualified What4.SFloat as W4
 import qualified What4.SWord as SW
 import           What4.Solver
 import qualified What4.Solver.Adapter as W4
