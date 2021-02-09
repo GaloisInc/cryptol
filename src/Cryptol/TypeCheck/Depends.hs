@@ -15,7 +15,7 @@ import qualified Cryptol.Parser.AST as P
 import           Cryptol.Parser.Position(Range, Located(..), thing)
 import           Cryptol.Parser.Names (namesB, tnamesT, tnamesC,
                                       boundNamesSet, boundNames)
-import           Cryptol.TypeCheck.Monad( InferM, recordError, getTVars )
+import           Cryptol.TypeCheck.Monad( InferM, getTVars )
 import           Cryptol.TypeCheck.Error(Error(..))
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.RecordMap(recordElements)
@@ -29,6 +29,7 @@ import           Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import           Data.Text (Text)
+import           MonadLib (ExceptionT, runExceptionT, raise)
 
 data TyDecl =
     TS (P.TySyn Name) (Maybe Text)          -- ^ Type synonym
@@ -49,13 +50,13 @@ setDocString x d =
 
 -- | Check for duplicate and recursive type synonyms.
 -- Returns the type-synonyms in dependency order.
-orderTyDecls :: [TyDecl] -> InferM [TyDecl]
+orderTyDecls :: [TyDecl] -> InferM (Either Error [TyDecl])
 orderTyDecls ts =
   do vs <- getTVars
      ds <- combine $ map (toMap vs) ts
      let ordered = mkScc [ (t,[x],deps)
                               | (x,(t,deps)) <- Map.toList (Map.map thing ds) ]
-     concat `fmap` mapM check ordered
+     runExceptionT (concat `fmap` mapM check ordered)
 
   where
   toMap vs ty@(PT p _) =
@@ -113,17 +114,12 @@ orderTyDecls ts =
   getN (AT x _) = thing (P.ptName x)
   getN (PT x _) = thing (P.primTName x)
 
+  check :: SCC TyDecl -> ExceptionT Error InferM [TyDecl]
   check (AcyclicSCC x) = return [x]
 
   -- We don't support any recursion, for now.
   -- We could support recursion between newtypes, or newtypes and tysysn.
-  check (CyclicSCC xs) =
-    do recordError (RecursiveTypeDecls (map getN xs))
-       return [] -- XXX: This is likely to cause fake errors for missing
-                 -- type synonyms. We could avoid this by, for example, checking
-                 -- for recursive synonym errors, when looking up tycons.
-
-
+  check (CyclicSCC xs) = raise (RecursiveTypeDecls (map getN xs))
 
 -- | Associate type signatures with bindings and order bindings by dependency.
 orderBinds :: [P.Bind Name] -> [SCC (P.Bind Name)]

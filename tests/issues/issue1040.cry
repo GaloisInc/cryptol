@@ -1,0 +1,6 @@
+module binarytree where
+
+newtype Tree = { inTree : Tree }
+
+build : Tree
+build = Tree { inTree = undefined }
