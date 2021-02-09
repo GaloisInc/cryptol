@@ -1,2 +1,3 @@
 :m Float
 :exhaust (\x -> (y != y \/ x == fpToBits y  where y = fpFromBits x : Float16))
+:exhaust (\x -> (x : Float16)  =.= fpFromBits (fpToBits x))

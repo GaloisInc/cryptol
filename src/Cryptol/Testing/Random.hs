@@ -36,6 +36,7 @@ import qualified Data.Sequence as Seq
 import System.Random          (RandomGen, split, random, randomR)
 
 import Cryptol.Backend        (Backend(..), SRational(..))
+import Cryptol.Backend.FloatHelpers (floatFromBits)
 import Cryptol.Backend.Monad  (runEval,Eval,EvalErrorEx(..))
 import Cryptol.Backend.Concrete
 
@@ -353,7 +354,7 @@ typeSize ty = case ty of
   TVInteger -> Nothing
   TVRational -> Nothing
   TVIntMod n -> Just n
-  TVFloat{} -> Nothing -- TODO?
+  TVFloat e p -> Just (2 ^ (e+p))
   TVArray{} -> Nothing
   TVStream{} -> Nothing
   TVSeq n el -> (^ n) <$> typeSize el
@@ -368,13 +369,13 @@ for types where 'typeSize' returned 'Nothing'. -}
 typeValues :: TValue -> [Value]
 typeValues ty =
   case ty of
-    TVBit      -> [ VBit False, VBit True ]
-    TVInteger  -> []
-    TVRational -> []
-    TVIntMod n -> [ VInteger x | x <- [ 0 .. (n-1) ] ]
-    TVFloat{}  -> [] -- TODO?
-    TVArray{}  -> []
-    TVStream{} -> []
+    TVBit       -> [ VBit False, VBit True ]
+    TVInteger   -> []
+    TVRational  -> []
+    TVIntMod n  -> [ VInteger x | x <- [ 0 .. (n-1) ] ]
+    TVFloat e p -> [ VFloat (floatFromBits e p v) | v <- [0 .. 2^(e+p) - 1] ]
+    TVArray{}   -> []
+    TVStream{}  -> []
     TVSeq n TVBit ->
       [ VWord n (pure (WordVal (BV n x)))
       | x <- [ 0 .. 2^n - 1 ]
