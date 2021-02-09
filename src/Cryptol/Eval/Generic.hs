@@ -43,7 +43,7 @@ import Cryptol.Testing.Random( randomValue )
 import Cryptol.Eval.Prims
 import Cryptol.Eval.Type
 import Cryptol.Eval.Value
-import Cryptol.Utils.Ident (PrimIdent, prelPrim)
+import Cryptol.Utils.Ident (PrimIdent, prelPrim, floatPrim)
 import Cryptol.Utils.Logger(logPrint)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
@@ -1957,6 +1957,7 @@ mergeValue sym c v1 v2 =
     (VBit b1     , VBit b2     ) -> VBit <$> iteBit sym c b1 b2
     (VInteger i1 , VInteger i2 ) -> VInteger <$> iteInteger sym c i1 i2
     (VRational q1, VRational q2) -> VRational <$> iteRational sym c q1 q2
+    (VFloat f1   , VFloat f2)    -> VFloat <$> iteFloat sym c f1 f2
     (VWord n1 w1 , VWord n2 w2 ) | n1 == n2 -> pure $ VWord n1 $ mergeWord' sym c w1 w2
     (VSeq n1 vs1 , VSeq n2 vs2 ) | n1 == n2 -> VSeq n1 <$> memoMap sym (mergeSeqMap sym c vs1 vs2)
     (VStream vs1 , VStream vs2 ) -> VStream <$> memoMap sym (mergeSeqMap sym c vs1 vs2)
@@ -2092,6 +2093,16 @@ sparkParMap sym f n m =
 --------------------------------------------------------------------------------
 -- Floating Point Operations
 
+-- | A helper for definitng floating point constants.
+fpConst ::
+  Backend sym =>
+  (Integer -> Integer -> SEval sym (SFloat sym)) ->
+  Prim sym
+fpConst mk =
+  PFinPoly \e ->
+  PNumPoly \ ~(Nat p) ->
+  PPrim (VFloat <$> mk e p)
+
 -- | Make a Cryptol value for a binary arithmetic function.
 fpBinArithV :: Backend sym => sym -> FPArith2 sym -> Prim sym
 fpBinArithV sym fun =
@@ -2112,6 +2123,63 @@ fpRndRTP sym = wordLit sym 3 2 {- to +inf -}
 fpRndRTN sym = wordLit sym 3 3 {- to -inf -}
 fpRndRTZ sym = wordLit sym 3 4 {- to 0    -}
 
+
+{-# SPECIALIZE genericFloatTable :: Concrete -> Map PrimIdent (Prim Concrete) #-}
+
+genericFloatTable :: Backend sym => sym -> Map PrimIdent (Prim sym)
+genericFloatTable sym =
+  let (~>) = (,) in
+  Map.fromList $ map (\(n, v) -> (floatPrim n, v))
+    [ "fpNaN"       ~> fpConst (fpNaN sym)
+    , "fpPosInf"    ~> fpConst (fpPosInf sym)
+    , "fpFromBits"  ~> PFinPoly \e -> PFinPoly \p -> PWordFun \w ->
+                       PPrim (VFloat <$> fpFromBits sym e p w)
+    , "fpToBits"    ~> PFinPoly \e -> PFinPoly \p -> PFloatFun \x -> PVal
+                            $ VWord (e+p)
+                            $ WordVal <$> fpToBits sym x
+    , "=.="         ~> PFinPoly \_ -> PFinPoly \_ -> PFloatFun \x -> PFloatFun \y ->
+                       PPrim (VBit <$> fpLogicalEq sym x y)
+
+    , "fpIsNaN"     ~> PFinPoly \_ -> PFinPoly \_ -> PFloatFun \x ->
+                       PPrim (VBit <$> fpIsNaN sym x)
+    , "fpIsInf"     ~> PFinPoly \_ -> PFinPoly \_ -> PFloatFun \x ->
+                       PPrim (VBit <$> fpIsInf sym x)
+    , "fpIsZero"    ~> PFinPoly \_ -> PFinPoly \_ -> PFloatFun \x ->
+                       PPrim (VBit <$> fpIsZero sym x)
+    , "fpIsNeg"     ~> PFinPoly \_ -> PFinPoly \_ -> PFloatFun \x ->
+                       PPrim (VBit <$> fpIsNeg sym x)
+    , "fpIsNormal"  ~> PFinPoly \_ -> PFinPoly \_ -> PFloatFun \x ->
+                       PPrim (VBit <$> fpIsNorm sym x)
+    , "fpIsSubnormal" ~> PFinPoly \_ -> PFinPoly \_ -> PFloatFun \x ->
+                         PPrim (VBit <$> fpIsSubnorm sym x)
+
+    , "fpAdd"       ~> fpBinArithV sym fpPlus
+    , "fpSub"       ~> fpBinArithV sym fpMinus
+    , "fpMul"       ~> fpBinArithV sym fpMult
+    , "fpDiv"       ~> fpBinArithV sym fpDiv
+    , "fpFMA"       ~> PFinPoly \_ -> PFinPoly \_ -> PWordFun \r ->
+                       PFloatFun \x -> PFloatFun \y -> PFloatFun \z ->
+                       PPrim (VFloat <$> fpFMA sym r x y z)
+
+    , "fpAbs"       ~> PFinPoly \_ -> PFinPoly \_ ->
+                       PFloatFun \x ->
+                       PPrim (VFloat <$> fpAbs sym x)
+
+    , "fpSqrt"      ~> PFinPoly \_ -> PFinPoly \_ ->
+                       PWordFun \r -> PFloatFun \x ->
+                       PPrim (VFloat <$> fpSqrt sym r x)
+
+    , "fpToRational" ~>
+       PFinPoly \_e -> PFinPoly \_p -> PFloatFun \x ->
+       PPrim (VRational <$> fpToRational sym x)
+
+    , "fpFromRational" ~>
+       PFinPoly \e -> PFinPoly \p -> PWordFun \r -> PFun \x ->
+       PPrim
+         do rat <- fromVRational <$> x
+            VFloat <$> fpFromRational sym e p r rat
+
+    ]
 
 
 {-# SPECIALIZE genericPrimTable :: Concrete -> IO EvalOpts -> Map PrimIdent (Prim Concrete) #-}

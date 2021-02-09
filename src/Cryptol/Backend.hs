@@ -310,6 +310,7 @@ class MonadIO (SEval sym) => Backend sym where
   iteBit :: sym -> SBit sym -> SBit sym -> SBit sym -> SEval sym (SBit sym)
   iteWord :: sym -> SBit sym -> SWord sym -> SWord sym -> SEval sym (SWord sym)
   iteInteger :: sym -> SBit sym -> SInteger sym -> SInteger sym -> SEval sym (SInteger sym)
+  iteFloat :: sym -> SBit sym -> SFloat sym -> SFloat sym -> SEval sym (SFloat sym)
 
   -- ==== Bit operations ====
   bitEq  :: sym -> SBit sym -> SBit sym -> SEval sym (SBit sym)
@@ -317,7 +318,6 @@ class MonadIO (SEval sym) => Backend sym where
   bitAnd :: sym -> SBit sym -> SBit sym -> SEval sym (SBit sym)
   bitXor :: sym -> SBit sym -> SBit sym -> SEval sym (SBit sym)
   bitComplement :: sym -> SBit sym -> SEval sym (SBit sym)
-
 
   -- ==== Word operations ====
 
@@ -674,21 +674,51 @@ class MonadIO (SEval sym) => Backend sym where
 
   fpLogicalEq   :: sym -> SFloat sym -> SFloat sym -> SEval sym (SBit sym)
 
+  fpNaN    :: sym -> Integer {- ^ exponent bits -} -> Integer {- ^ precision bits -} -> SEval sym (SFloat sym)
+  fpPosInf :: sym -> Integer {- ^ exponent bits -} -> Integer {- ^ precision bits -} -> SEval sym (SFloat sym)
+
   fpPlus, fpMinus, fpMult, fpDiv :: FPArith2 sym
-  fpNeg :: sym -> SFloat sym -> SEval sym (SFloat sym)
+  fpNeg, fpAbs :: sym -> SFloat sym -> SEval sym (SFloat sym)
+  fpSqrt :: sym -> SWord sym -> SFloat sym -> SEval sym (SFloat sym)
+
+  fpFMA :: sym -> SWord sym -> SFloat sym -> SFloat sym -> SFloat sym -> SEval sym (SFloat sym)
+
+  fpIsZero, fpIsNeg, fpIsNaN, fpIsInf, fpIsNorm, fpIsSubnorm :: sym -> SFloat sym -> SEval sym (SBit sym)
+
+  fpToBits :: sym -> SFloat sym -> SEval sym (SWord sym)
+  fpFromBits ::
+    sym ->
+    Integer {- ^ exponent bits -} ->
+    Integer {- ^ precision bits -} ->
+    SWord sym ->
+    SEval sym (SFloat sym)
 
   fpToInteger ::
     sym ->
     String {- ^ Name of the function for error reporting -} ->
-    SWord sym {-^ Rounding mode -} ->
-    SFloat sym -> SEval sym (SInteger sym)
+    SWord sym {- ^ Rounding mode -} ->
+    SFloat sym ->
+    SEval sym (SInteger sym)
 
   fpFromInteger ::
     sym ->
-    Integer         {- exp width -} ->
-    Integer         {- prec width -} ->
+    Integer         {- ^ exp width -} ->
+    Integer         {- ^ prec width -} ->
     SWord sym       {- ^ rounding mode -} ->
-    SInteger sym    {- ^ the integeer to use -} ->
+    SInteger sym    {- ^ the integer to use -} ->
+    SEval sym (SFloat sym)
+
+  fpToRational ::
+    sym ->
+    SFloat sym ->
+    SEval sym (SRational sym)
+
+  fpFromRational ::
+    sym ->
+    Integer         {- ^ exp width -} ->
+    Integer         {- ^ prec width -} ->
+    SWord sym       {- ^ rounding mode -} ->
+    SRational sym ->
     SEval sym (SFloat sym)
 
 type FPArith2 sym =

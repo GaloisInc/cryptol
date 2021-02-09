@@ -37,6 +37,7 @@ module Cryptol.Backend.Concrete
 
 import qualified Control.Exception as X
 import Data.Bits
+import Data.Ratio
 import Numeric (showIntAtBase)
 import qualified LibBF as FP
 import qualified GHC.Integer.GMP.Internals as Integer
@@ -177,6 +178,7 @@ instance Backend Concrete where
   iteBit _ b x y  = pure $! if b then x else y
   iteWord _ b x y = pure $! if b then x else y
   iteInteger _ b x y = pure $! if b then x else y
+  iteFloat _ b x y   = pure $! if b then x else y
 
   wordLit _ w i = pure $! mkBv w i
   wordAsLit _ (BV w i) = Just (w,i)
@@ -326,6 +328,10 @@ instance Backend Concrete where
   ------------------------------------------------------------------------
   -- Floating Point
   fpLit _sym e p rat     = pure (FP.fpLit e p rat)
+
+  fpNaN _sym e p         = pure (FP.BF e p FP.bfNaN)
+  fpPosInf _sym e p      = pure (FP.BF e p FP.bfPosInf)
+
   fpAsLit _ f            = Just f
   fpExactLit _sym bf     = pure bf
   fpEq _sym x y          = pure (FP.bfValue x == FP.bfValue y)
@@ -336,7 +342,33 @@ instance Backend Concrete where
   fpMinus = fpBinArith FP.bfSub
   fpMult  = fpBinArith FP.bfMul
   fpDiv   = fpBinArith FP.bfDiv
-  fpNeg _ x = pure x { FP.bfValue = FP.bfNeg (FP.bfValue x) }
+  fpNeg _ x = pure $! x { FP.bfValue = FP.bfNeg (FP.bfValue x) }
+
+  fpAbs _ x = pure $! x { FP.bfValue = FP.bfAbs (FP.bfValue x) }
+  fpSqrt sym r x =
+    do r' <- fpRoundMode sym r
+       let opts = FP.fpOpts (FP.bfExpWidth x) (FP.bfPrecWidth x) r'
+       pure $! x{ FP.bfValue = FP.fpCheckStatus (FP.bfSqrt opts (FP.bfValue x)) }
+
+  fpFMA sym r x y z =
+    do r' <- fpRoundMode sym r
+       let opts = FP.fpOpts (FP.bfExpWidth x) (FP.bfPrecWidth x) r'
+       pure $! x { FP.bfValue = FP.fpCheckStatus (FP.bfFMA opts (FP.bfValue x) (FP.bfValue y) (FP.bfValue z)) }
+
+  fpIsZero _ x = pure (FP.bfIsZero (FP.bfValue x))
+  fpIsNeg _ x  = pure (FP.bfIsNeg (FP.bfValue x))
+  fpIsNaN _ x  = pure (FP.bfIsNaN (FP.bfValue x))
+  fpIsInf _ x  = pure (FP.bfIsInf (FP.bfValue x))
+  fpIsNorm _ x =
+    let opts = FP.fpOpts (FP.bfExpWidth x) (FP.bfPrecWidth x) FP.NearEven
+     in pure (FP.bfIsNormal opts (FP.bfValue x))
+  fpIsSubnorm _ x =
+    let opts = FP.fpOpts (FP.bfExpWidth x) (FP.bfPrecWidth x) FP.NearEven
+     in pure (FP.bfIsSubnormal opts (FP.bfValue x))
+
+  fpFromBits _sym e p bv = pure (FP.floatFromBits e p (bvVal bv))
+  fpToBits _sym (FP.BF e p v) = pure (mkBv (e+p) (FP.floatToBits e p v))
+
   fpFromInteger sym e p r x =
     do r' <- fpRoundMode sym r
        pure FP.BF { FP.bfExpWidth = e
@@ -346,6 +378,14 @@ instance Backend Concrete where
                   }
   fpToInteger = fpCvtToInteger
 
+  fpFromRational sym e p r x =
+    do mode <- fpRoundMode sym r
+       pure (FP.floatFromRational e p mode (sNum x % sDenom x))
+
+  fpToRational sym fp =
+      case FP.floatToRational "fpToRational" fp of
+        Left err -> raiseError sym err
+        Right r  -> pure $ SRational { sNum = numerator r, sDenom = denominator r }
 
 {-# INLINE liftBinIntMod #-}
 liftBinIntMod :: Monad m =>
@@ -367,7 +407,7 @@ fpBinArith ::
 fpBinArith fun = \sym r x y ->
   do opts <- FP.fpOpts (FP.bfExpWidth x) (FP.bfPrecWidth x)
                                                   <$> fpRoundMode sym r
-     pure x { FP.bfValue = FP.fpCheckStatus
+     pure $! x { FP.bfValue = FP.fpCheckStatus
                                 (fun opts (FP.bfValue x) (FP.bfValue y)) }
 
 fpCvtToInteger ::
