@@ -150,15 +150,21 @@ Solver returned UNKNOWN
 "-- Random Testing-------------------------------------------------------------"
 Using random testing.
 Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^64 values)
 Using random testing.
 Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^64 values)
 Using random testing.
 Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^64 values)
 Q.E.D.
 Q.E.D.
 Using random testing.
 Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^64 values)
 Using random testing.
 Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^128 values)
 Using random testing.
 Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^64 values)

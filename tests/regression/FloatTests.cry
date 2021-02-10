@@ -27,9 +27,6 @@ property leqRefl x    = x <= x \/ x =.= fpNaN
 
 roundTripRational : {e,p} (fin e, fin p, ValidFloat e p) => Float e p -> Bool
 property roundTripRational x =
-  (fpFromRational rne (fpToRational x) =.= x) \/
   ~(fpIsFinite x) \/
-  (x == fpNegZero)
-
-
-
+  (fpFromRational rne (fpToRational x) =.= x) \/
+  (x =.= fpNegZero)
