@@ -1,0 +1,10 @@
+f : {a} (fin a) => [a] -> (Bit, [a])
+f x = (True, x)
+
+g : {a} (fin a) => [a] -> [a]
+g x = (f`{a=a} x).1
+
+h = f.1
+
+i : {a} (fin a) => [a] -> [a]
+i = f`{a=a}.1
