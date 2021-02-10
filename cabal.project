@@ -3,5 +3,4 @@ packages:
     cryptol-remote-api
     tests
     deps/argo/argo
-    deps/argo/python
     deps/argo/tasty-script-exitcode

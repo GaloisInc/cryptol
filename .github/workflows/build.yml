@@ -86,9 +86,13 @@ jobs:
       - shell: bash
         run: .github/ci.sh test_dist
 
+      - shell: bash
+        run: .github/ci.sh build_python_client
+        if: runner.os != 'Windows'
+
       # TODO: get Python client to work on Windows
       - shell: bash
-        run: .github/ci.sh test_rpc
+        run: .github/ci.sh test_python_client
         if: runner.os != 'Windows'
 
       - if: >-

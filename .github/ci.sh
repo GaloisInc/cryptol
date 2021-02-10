@@ -144,8 +144,17 @@ check_docs() {
   find ./docs/ProgrammingCryptol -name '*.tex' -print0 | xargs -0 -n1 cabal v2-exec check-exercises
 }
 
-test_rpc() {
-  cabal v2-test cryptol-remote-api
+build_python_client() {
+    pushd cryptol-remote-api/python > /dev/null
+    python3 -m pip install -r requirements.txt
+    python3 -m mypy cryptol
+    popd > /dev/null
+}
+
+test_python_client() {
+    pushd cryptol-remote-api/python > /dev/null
+    python3 -m unittest discover tests
+    popd > /dev/null
 }
 
 bundle_files() {

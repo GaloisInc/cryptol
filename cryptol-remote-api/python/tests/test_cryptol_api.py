@@ -1,4 +1,5 @@
 import os
+import distutils.spawn
 import unittest
 from cryptol import CryptolConnection, CryptolContext, cry
 import cryptol
@@ -7,17 +8,28 @@ from cryptol import solver
 from cryptol.bitvector import BV
 from BitVector import *
 
+def exe_exists(name : str) -> bool:
+    return distutils.spawn.find_executable(name) is not None
+
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
-c = cryptol.connect("cryptol-remote-api socket")
-
-c.change_directory(dir_path)
-
-c.load_file("Foo.cry")
-
 class CryptolTests(unittest.TestCase):
+    # Connection to cryptol
+    c = None
+
+    @classmethod
+    def setUpClass(self):
+        if exe_exists("cryptol-remote-api"):
+            self.c = cryptol.connect("cryptol-remote-api socket")
+        else:
+            self.c = cryptol.connect("cabal run --verbose=0 exe:cryptol-remote-api -- socket")
+
+        self.c.change_directory(dir_path)
+
+        self.c.load_file("Foo.cry")
 
     def test_low_level(self):
+        c = self.c
         x_val = c.evaluate_expression("x").result()
 
         self.assertEqual(c.evaluate_expression("Id::id x").result(), x_val)
@@ -27,6 +39,7 @@ class CryptolTests(unittest.TestCase):
         self.assertEqual(c.call('add', bytes.fromhex('ff'), bytes.fromhex('03')).result(), BV(8,2))
 
     def test_module_import(self):
+        c = self.c
         cryptol.add_cryptol_module('Foo', c)
         from Foo import add
         self.assertEqual(add(b'\2', 2), BV(8,4))
@@ -39,6 +52,7 @@ class CryptolTests(unittest.TestCase):
         self.assertEqual(add(BV(8,255), BV(8,1)), BV(8,0))
 
     def test_sat(self):
+        c = self.c
         # test a single sat model can be returned
         rootsOf9 = c.sat('isSqrtOf9').result()
         self.assertEqual(len(rootsOf9), 1)
@@ -65,6 +79,3 @@ class CryptolTests(unittest.TestCase):
         # check for a valid condition
         self.assertTrue(c.prove('\\x -> isSqrtOf9 x ==> elem x [3,131,125,253]').result())
 
-
-
-unittest.main()

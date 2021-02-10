@@ -7,8 +7,7 @@ author:              David Thrane Christiansen
 maintainer:          dtc@galois.com
 category:            Language
 extra-source-files:  CHANGELOG.md
-data-files:          test-scripts/**/*.py
-                     test-scripts/**/*.cry
+
 
 common warnings
   ghc-options:

@@ -9,9 +9,9 @@ import sys
 from typing import Any, Dict, Iterable, List, Mapping, NoReturn, Optional, Type, Union
 from mypy_extensions import TypedDict
 
-import argo.interaction
-from argo.interaction import HasProtocolState
-from argo.connection import DynamicSocketProcess, ServerConnection, ServerProcess, StdIOProcess
+import argo_client.interaction as argo
+from argo_client.interaction import HasProtocolState
+from argo_client.connection import DynamicSocketProcess, ServerConnection, ServerProcess, StdIOProcess
 from . import cryptoltypes
 from . import solver
 from cryptol.bitvector import BV
@@ -79,7 +79,7 @@ def from_cryptol_arg(val : Any) -> Any:
 
 
 
-class CryptolChangeDirectory(argo.interaction.Command):
+class CryptolChangeDirectory(argo.Command):
     def __init__(self, connection : HasProtocolState, new_directory : str) -> None:
         super(CryptolChangeDirectory, self).__init__(
             'change directory',
@@ -90,14 +90,14 @@ class CryptolChangeDirectory(argo.interaction.Command):
     def process_result(self, res : Any) -> Any:
         return res
 
-class CryptolLoadModule(argo.interaction.Command):
+class CryptolLoadModule(argo.Command):
     def __init__(self, connection : HasProtocolState, mod_name : str) -> None:
         super(CryptolLoadModule, self).__init__('load module', {'module name': mod_name}, connection)
 
     def process_result(self, res : Any) -> Any:
         return res
 
-class CryptolLoadFile(argo.interaction.Command):
+class CryptolLoadFile(argo.Command):
     def __init__(self, connection : HasProtocolState, filename : str) -> None:
         super(CryptolLoadFile, self).__init__('load file', {'file': filename}, connection)
 
@@ -105,7 +105,7 @@ class CryptolLoadFile(argo.interaction.Command):
         return res
 
 
-class CryptolEvalExpr(argo.interaction.Query):
+class CryptolEvalExpr(argo.Query):
     def __init__(self, connection : HasProtocolState, expr : Any) -> None:
         super(CryptolEvalExpr, self).__init__(
             'evaluate expression',
@@ -116,7 +116,7 @@ class CryptolEvalExpr(argo.interaction.Query):
     def process_result(self, res : Any) -> Any:
         return res
 
-class CryptolCall(argo.interaction.Query):
+class CryptolCall(argo.Query):
     def __init__(self, connection : HasProtocolState, fun : str, args : List[Any]) -> None:
         super(CryptolCall, self).__init__(
             'call',
@@ -127,7 +127,7 @@ class CryptolCall(argo.interaction.Query):
     def process_result(self, res : Any) -> Any:
         return from_cryptol_arg(res['value'])
 
-class CryptolCheckType(argo.interaction.Query):
+class CryptolCheckType(argo.Query):
     def __init__(self, connection : HasProtocolState, expr : Any) -> None:
         super(CryptolCheckType, self).__init__(
             'check type',
@@ -138,7 +138,7 @@ class CryptolCheckType(argo.interaction.Query):
     def process_result(self, res : Any) -> Any:
         return res['type schema']
 
-class CryptolProveSat(argo.interaction.Query):
+class CryptolProveSat(argo.Query):
     def __init__(self, connection : HasProtocolState, qtype : str, expr : Any, solver : solver.Solver, count : Optional[int]) -> None:
         super(CryptolProveSat, self).__init__(
             'prove or satisfy',
@@ -176,14 +176,14 @@ class CryptolSat(CryptolProveSat):
     def __init__(self, connection : HasProtocolState, expr : Any, solver : solver.Solver, count : int) -> None:
         super(CryptolSat, self).__init__(connection, 'sat', expr, solver, count)
 
-class CryptolNames(argo.interaction.Query):
+class CryptolNames(argo.Query):
     def __init__(self, connection : HasProtocolState) -> None:
         super(CryptolNames, self).__init__('visible names', {}, connection)
 
     def process_result(self, res : Any) -> Any:
         return res
 
-class CryptolFocusedModule(argo.interaction.Query):
+class CryptolFocusedModule(argo.Query):
     def __init__(self, connection : HasProtocolState) -> None:
         super(CryptolFocusedModule, self).__init__(
             'focused module',
@@ -235,7 +235,7 @@ class CryptolConnection:
     explicitly requested. Note that blocking may occur in the case of
     sequential state dependencies between commands.
     """
-    most_recent_result : Optional[argo.interaction.Interaction]
+    most_recent_result : Optional[argo.Interaction]
     proc: ServerProcess
 
     def __init__(self, command_or_connection : Union[str, ServerConnection, ServerProcess], cryptol_path : Optional[str] = None) -> None:
@@ -265,24 +265,24 @@ class CryptolConnection:
             return self.most_recent_result.state()
 
     # Protocol messages
-    def change_directory(self, new_directory : str) -> argo.interaction.Command:
+    def change_directory(self, new_directory : str) -> argo.Command:
         """Change the working directory of the Cryptol process."""
         self.most_recent_result = CryptolChangeDirectory(self, new_directory)
         return self.most_recent_result
 
-    def load_file(self, filename : str) -> argo.interaction.Command:
+    def load_file(self, filename : str) -> argo.Command:
         """Load a filename as a Cryptol module, like ``:load`` at the Cryptol
         REPL.
         """
         self.most_recent_result = CryptolLoadFile(self, filename)
         return self.most_recent_result
 
-    def load_module(self, module_name : str) -> argo.interaction.Command:
+    def load_module(self, module_name : str) -> argo.Command:
         """Load a Cryptol module, like ``:module`` at the Cryptol REPL."""
         self.most_recent_result = CryptolLoadModule(self, module_name)
         return self.most_recent_result
 
-    def evaluate_expression(self, expression : Any) -> argo.interaction.Query:
+    def evaluate_expression(self, expression : Any) -> argo.Query:
         """Evaluate a Cryptol expression, represented according to
         :ref:`cryptol-json-expression`, with Python datatypes standing
         for their JSON equivalents.
@@ -290,12 +290,12 @@ class CryptolConnection:
         self.most_recent_result = CryptolEvalExpr(self, expression)
         return self.most_recent_result
 
-    def call(self, fun : str, *args : List[Any]) -> argo.interaction.Query:
+    def call(self, fun : str, *args : List[Any]) -> argo.Query:
         encoded_args = [cryptoltypes.CryptolType().from_python(a) for a in args]
         self.most_recent_result = CryptolCall(self, fun, encoded_args)
         return self.most_recent_result
 
-    def check_type(self, code : Any) -> argo.interaction.Query:
+    def check_type(self, code : Any) -> argo.Query:
         """Check the type of a Cryptol expression, represented according to
         :ref:`cryptol-json-expression`, with Python datatypes standing for
         their JSON equivalents.
@@ -303,7 +303,7 @@ class CryptolConnection:
         self.most_recent_result = CryptolCheckType(self, code)
         return self.most_recent_result
 
-    def sat(self, expr : Any, solver : solver.Solver = solver.Z3, count : int = 1) -> argo.interaction.Query:
+    def sat(self, expr : Any, solver : solver.Solver = solver.Z3, count : int = 1) -> argo.Query:
         """Check the satisfiability of a Cryptol expression, represented according to
         :ref:`cryptol-json-expression`, with Python datatypes standing for
         their JSON equivalents. Use the solver named `solver`, and return up to
@@ -312,7 +312,7 @@ class CryptolConnection:
         self.most_recent_result = CryptolSat(self, expr, solver, count)
         return self.most_recent_result
 
-    def prove(self, expr : Any, solver : solver.Solver = solver.Z3) -> argo.interaction.Query:
+    def prove(self, expr : Any, solver : solver.Solver = solver.Z3) -> argo.Query:
         """Check the validity of a Cryptol expression, represented according to
         :ref:`cryptol-json-expression`, with Python datatypes standing for
         their JSON equivalents. Use the solver named `solver`.
@@ -320,12 +320,12 @@ class CryptolConnection:
         self.most_recent_result = CryptolProve(self, expr, solver)
         return self.most_recent_result
 
-    def names(self) -> argo.interaction.Query:
+    def names(self) -> argo.Query:
         """Discover the list of names currently in scope in the current context."""
         self.most_recent_result = CryptolNames(self)
         return self.most_recent_result
 
-    def focused_module(self) -> argo.interaction.Query:
+    def focused_module(self) -> argo.Query:
         """Return the name of the currently-focused module."""
         self.most_recent_result = CryptolFocusedModule(self)
         return self.most_recent_result
