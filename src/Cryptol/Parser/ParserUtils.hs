@@ -65,7 +65,7 @@ lexerP k = P $ \cfg p s ->
   case sTokens s of
     t : _ | Err e <- tokenType it ->
       Left $ HappyErrorMsg (srcRange t) $
-         case e of
+        [case e of
            UnterminatedComment -> "unterminated comment"
            UnterminatedString  -> "unterminated string"
            UnterminatedChar    -> "unterminated character"
@@ -79,6 +79,7 @@ lexerP k = P $ \cfg p s ->
                                     T.unpack (tokenText it)
            MalformedSelector   -> "malformed selector: " ++
                                     T.unpack (tokenText it)
+        ]
       where it = thing t
 
     t : more -> unP (k t) cfg p s { sPrevTok = Just t, sTokens = more }
@@ -86,7 +87,7 @@ lexerP k = P $ \cfg p s ->
 
 data ParseError = HappyError FilePath         {- Name of source file -}
                              (Located Token)  {- Offending token -}
-                | HappyErrorMsg Range String
+                | HappyErrorMsg Range [String]
                 | HappyUnexpected FilePath (Maybe (Located Token)) String
                 | HappyOutOfTokens FilePath Position
                   deriving (Show, Generic, NFData)
@@ -123,7 +124,7 @@ ppError (HappyOutOfTokens path pos) =
   text "Unexpected end of file at:" <+>
     text path <.> char ':' <.> pp pos
 
-ppError (HappyErrorMsg p x)  = text "Parse error at" <+> pp p $$ nest 2 (text x)
+ppError (HappyErrorMsg p xs)  = text "Parse error at" <+> pp p $$ nest 2 (vcat (map text xs))
 
 ppError (HappyUnexpected path ltok e) =
   text "Parse error at" <+>
@@ -159,13 +160,13 @@ happyError = P $ \cfg _ s ->
   case sPrevTok s of
     Just t  -> Left (HappyError (cfgSource cfg) t)
     Nothing ->
-      Left (HappyErrorMsg emptyRange "Parse error at the beginning of the file")
+      Left (HappyErrorMsg emptyRange ["Parse error at the beginning of the file"])
 
-errorMessage :: Range -> String -> ParseM a
-errorMessage r x = P $ \_ _ _ -> Left (HappyErrorMsg r x)
+errorMessage :: Range -> [String] -> ParseM a
+errorMessage r xs = P $ \_ _ _ -> Left (HappyErrorMsg r xs)
 
 customError :: String -> Located Token -> ParseM a
-customError x t = P $ \_ _ _ -> Left (HappyErrorMsg (srcRange t) x)
+customError x t = P $ \_ _ _ -> Left (HappyErrorMsg (srcRange t) [x])
 
 expected :: String -> ParseM a
 expected x = P $ \cfg _ s ->
@@ -231,19 +232,19 @@ intVal :: Located Token -> ParseM Integer
 intVal tok =
   case tokenType (thing tok) of
     Num x _ _ -> return x
-    _         -> errorMessage (srcRange tok) "Expected an integer"
+    _         -> errorMessage (srcRange tok) ["Expected an integer"]
 
 mkFixity :: Assoc -> Located Token -> [LPName] -> ParseM (Decl PName)
 mkFixity assoc tok qns =
   do l <- intVal tok
      unless (l >= 1 && l <= 100)
-          (errorMessage (srcRange tok) "Fixity levels must be between 1 and 100")
+          (errorMessage (srcRange tok) ["Fixity levels must be between 1 and 100"])
      return (DFixity (Fixity assoc (fromInteger l)) qns)
 
 fromStrLit :: Located Token -> ParseM (Located String)
 fromStrLit loc = case tokenType (thing loc) of
   StrLit str -> return loc { thing = str }
-  _          -> errorMessage (srcRange loc) "Expected a string literal"
+  _          -> errorMessage (srcRange loc) ["Expected a string literal"]
 
 
 validDemotedType :: Range -> Type PName -> ParseM (Type PName)
@@ -264,14 +265,14 @@ validDemotedType rng ty =
     TParens t    -> validDemotedType rng t
     TInfix{}     -> ok
 
-  where bad x = errorMessage rng (x ++ " cannot be demoted.")
+  where bad x = errorMessage rng [x ++ " cannot be demoted."]
         ok    = return $ at rng ty
 
 -- | Input fields are reversed!
 mkRecord :: AddLoc b => Range -> (RecordMap Ident (Range, a) -> b) -> [Named a] -> ParseM b
 mkRecord rng f xs =
    case res of
-     Left (nm,(nmRng,_)) -> errorMessage nmRng ("Record has repeated field: " ++ show (pp nm))
+     Left (nm,(nmRng,_)) -> errorMessage nmRng ["Record has repeated field: " ++ show (pp nm)]
      Right r -> pure $ at rng (f r)
 
   where
@@ -325,7 +326,7 @@ eFromTo r e1 e2 e3 =
     (Nothing, Just (e2', t), Nothing) -> eFromToType r e1 (Just e2') e3 (Just t)
     (Nothing, Nothing, Just (e3', t)) -> eFromToType r e1 e2 e3' (Just t)
     (Nothing, Nothing, Nothing) -> eFromToType r e1 e2 e3 Nothing
-    _ -> errorMessage r "A sequence enumeration may have at most one element type annotation."
+    _ -> errorMessage r ["A sequence enumeration may have at most one element type annotation."]
   where
     asETyped (ELocated e _) = asETyped e
     asETyped (ETyped e t) = Just (e, t)
@@ -345,9 +346,9 @@ exprToNumT r expr =
     Just t -> return t
     Nothing -> bad
   where
-  bad = errorMessage (fromMaybe r (getLoc expr)) $ unlines
+  bad = errorMessage (fromMaybe r (getLoc expr))
         [ "The boundaries of .. sequences should be valid numeric types."
-        , "The expression `" ++ show expr ++ "` is not."
+        , "The expression `" ++ show (pp expr) ++ "` is not."
         ]
 
 
@@ -413,13 +414,13 @@ mkTypeInst x | nullIdent (thing (name x)) = PosInst (value x)
 
 mkTParam :: Located Ident -> Maybe Kind -> ParseM (TParam PName)
 mkTParam Located { srcRange = rng, thing = n } k
-  | n == widthIdent = errorMessage rng "`width` is not a valid type parameter name."
+  | n == widthIdent = errorMessage rng ["`width` is not a valid type parameter name."]
   | otherwise       = return (TParam (mkUnqual n) k (Just rng))
 
 mkTySyn :: Located PName -> [TParam PName] -> Type PName -> ParseM (Decl PName)
 mkTySyn ln ps b
   | getIdent (thing ln) == widthIdent =
-    errorMessage (srcRange ln) "`width` is not a valid type synonym name."
+    errorMessage (srcRange ln) ["`width` is not a valid type synonym name."]
 
   | otherwise =
     return $ DType $ TySyn ln Nothing ps b
@@ -427,7 +428,7 @@ mkTySyn ln ps b
 mkPropSyn :: Located PName -> [TParam PName] -> Type PName -> ParseM (Decl PName)
 mkPropSyn ln ps b
   | getIdent (thing ln) == widthIdent =
-    errorMessage (srcRange ln) "`width` is not a valid constraint synonym name."
+    errorMessage (srcRange ln) ["`width` is not a valid constraint synonym name."]
 
   | otherwise =
     DProp . PropSyn ln Nothing ps . thing <$> mkProp b
@@ -436,12 +437,12 @@ polyTerm :: Range -> Integer -> Integer -> ParseM (Bool, Integer)
 polyTerm rng k p
   | k == 0          = return (False, p)
   | k == 1          = return (True, p)
-  | otherwise       = errorMessage rng "Invalid polynomial coefficient"
+  | otherwise       = errorMessage rng ["Invalid polynomial coefficient"]
 
 mkPoly :: Range -> [ (Bool,Integer) ] -> ParseM (Expr PName)
 mkPoly rng terms
   | w <= toInteger (maxBound :: Int) = mk 0 (map fromInteger bits)
-  | otherwise = errorMessage rng ("Polynomial literal too large: " ++ show w)
+  | otherwise = errorMessage rng ["Polynomial literal too large: " ++ show w]
 
   where
   w    = case terms of
@@ -455,8 +456,7 @@ mkPoly rng terms
 
   mk res (n : ns)
     | testBit res n = errorMessage rng
-                       ("Polynomial contains multiple terms with exponent "
-                                                                    ++ show n)
+                       ["Polynomial contains multiple terms with exponent " ++ show n]
     | otherwise     = mk (setBit res n) ns
 
 
@@ -540,17 +540,17 @@ mkPrimTypeDecl mbDoc (Forall as qs st ~(Just schema_rng)) finK =
     Just (n,xs) ->
       do vs <- mapM tpK as
          unless (distinct (map fst vs)) $
-            errorMessage schema_rng "Repeated parameters."
+            errorMessage schema_rng ["Repeated parameters."]
          let kindMap = Map.fromList vs
              lkp v = case Map.lookup (thing v) kindMap of
                        Just (k,tp)  -> pure (k,tp)
                        Nothing ->
                         errorMessage
                             (srcRange v)
-                            ("Undefined parameter: " ++ show (pp (thing v)))
+                            ["Undefined parameter: " ++ show (pp (thing v))]
          (as',ins) <- unzip <$> mapM lkp xs
          unless (length vs == length xs) $
-           errorMessage schema_rng "All parameters should appear in the type."
+           errorMessage schema_rng ["All parameters should appear in the type."]
 
          let ki = finK { thing = foldr KFun (thing finK) ins }
 
@@ -565,7 +565,7 @@ mkPrimTypeDecl mbDoc (Forall as qs st ~(Just schema_rng)) finK =
                  }
               ]
 
-    Nothing -> errorMessage schema_rng "Invalid primitive signature"
+    Nothing -> errorMessage schema_rng ["Invalid primitive signature"]
 
   where
   splitT r ty = case ty of
@@ -592,7 +592,7 @@ mkPrimTypeDecl mbDoc (Forall as qs st ~(Just schema_rng)) finK =
              Just k  -> pure (tpName tp, (tp,k))
              Nothing ->
               case tpRange tp of
-                Just r -> errorMessage r "Parameters need a kind annotation"
+                Just r -> errorMessage r ["Parameters need a kind annotation"]
                 Nothing -> panic "mkPrimTypeDecl"
                               [ "Missing range on schema parameter." ]
 
@@ -671,7 +671,7 @@ mkProp ty =
       TTyApp{}  -> err
 
     where
-    err = errorMessage r "Invalid constraint"
+    err = errorMessage r ["Invalid constraint"]
 
 -- | Make an ordinary module
 mkModule :: Located ModName ->
@@ -708,7 +708,7 @@ ufToNamed (UpdField h ls e) =
     (UpdSet, [l]) | RecordSel i Nothing <- thing l ->
       pure Named { name = l { thing = i }, value = e }
     _ -> errorMessage (srcRange (head ls))
-            "Invalid record field.  Perhaps you meant to update a record?"
+            ["Invalid record field.  Perhaps you meant to update a record?"]
 
 exprToFieldPath :: Expr PName -> ParseM [Located Selector]
 exprToFieldPath e0 = reverse <$> go noLoc e0
@@ -744,7 +744,7 @@ exprToFieldPath e0 = reverse <$> go noLoc e0
                          }
                ]
 
-      _ -> errorMessage loc "Invalid label in record update."
+      _ -> errorMessage loc ["Invalid label in record update."]
 
 
 mkSelector :: Token -> Selector

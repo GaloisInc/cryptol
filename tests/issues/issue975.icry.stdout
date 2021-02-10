@@ -1,0 +1,13 @@
+Loading module Cryptol
+
+Parse error at issue975.icry:1:6--1:8
+  The boundaries of .. sequences should be valid numeric types.
+  The expression `-1` is not.
+
+Parse error at issue975.icry:2:9--2:11
+  The boundaries of .. sequences should be valid numeric types.
+  The expression `()` is not.
+
+Parse error at issue975.icry:3:3--3:10
+  The boundaries of .. sequences should be valid numeric types.
+  The expression `\x -> x` is not.
