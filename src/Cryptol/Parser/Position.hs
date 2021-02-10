@@ -57,6 +57,11 @@ rComb r1 r2  = Range { from = rFrom, to = rTo, source = source r1 }
   where rFrom = min (from r1) (from r2)
         rTo   = max (to r1)   (to r2)
 
+rCombMaybe :: Maybe Range -> Maybe Range -> Maybe Range
+rCombMaybe Nothing y = y
+rCombMaybe x Nothing = x
+rCombMaybe (Just x) (Just y) = Just (rComb x y)
+
 rCombs :: [Range] -> Range
 rCombs  = foldl1 rComb
 

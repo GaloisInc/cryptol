@@ -146,7 +146,7 @@ data Error    = KindMismatch (Maybe TypeSource) Kind Kind
 errorImportance :: Error -> Int
 errorImportance err =
   case err of
-    BareTypeApp{}                                    -> 11 -- basically a parse error
+    BareTypeApp                                      -> 11 -- basically a parse error
     KindMismatch {}                                  -> 10
     TyVarWithParams {}                               -> 9
     TypeMismatch {}                                  -> 8
@@ -229,7 +229,7 @@ instance TVars Error where
       RepeatedTypeParameter {} -> err
       AmbiguousSize x t -> AmbiguousSize x !$ (apSubst su t)
 
-      BareTypeApp{} -> err
+      BareTypeApp -> err
 
       UndefinedExistVar {} -> err
       TypeShadowing {}     -> err
@@ -262,7 +262,7 @@ instance FVS Error where
       AmbiguousSize _ t -> fvs t
       BadParameterKind tp _ -> Set.singleton (TVBound tp)
 
-      BareTypeApp{} -> Set.empty
+      BareTypeApp -> Set.empty
 
       UndefinedExistVar {} -> Set.empty
       TypeShadowing {}     -> Set.empty
@@ -423,7 +423,9 @@ instance PP (WithNames Error) where
                  Nothing -> empty
          in addTVarsDescsAfter names err ("Ambiguous numeric type:" <+> pp (tvarDesc x) $$ sizeMsg)
 
-      BareTypeApp -> "Unexpected bare type application"
+      BareTypeApp ->
+        "Unexpected bare type application." $$
+        "Perhaps you meant `( ... ) instead."
 
       UndefinedExistVar x -> "Undefined type" <+> quotes (pp x)
       TypeShadowing this new that ->

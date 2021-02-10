@@ -1,4 +1,9 @@
 `{1}
+(((True`{}, zero`{Integer})`{}).1)`{}
+number`{3}`{}`{}`{}`{}`{Integer}
 
 :l issue962a.cry
+:t i
+:t j
+
 :l issue962b.cry

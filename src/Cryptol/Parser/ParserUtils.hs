@@ -17,6 +17,8 @@ module Cryptol.Parser.ParserUtils where
 
 import Data.Maybe(fromMaybe)
 import Data.Bits(testBit,setBit)
+import Data.List.NonEmpty ( NonEmpty(..) )
+import qualified Data.List.NonEmpty as NE
 import Control.Monad(liftM,ap,unless,guard)
 import qualified Control.Monad.Fail as Fail
 import           Data.Text(Text)
@@ -281,11 +283,14 @@ mkRecord rng f xs =
 
 
 -- | Input expression are reversed
-mkEApp :: [Expr PName] -> Expr PName
-mkEApp es@(eLast : _) = at (eFirst,eLast) $ foldl EApp f xs
+mkEApp :: NonEmpty (Expr PName) -> ParseM (Expr PName)
+
+mkEApp es@(eLast :| _) =
+    do f :| xs <- cvtTypeParams eFirst rest
+       pure (at (eFirst,eLast) $ foldl EApp f xs)
+
   where
-  eFirst : rest = reverse es
-  f : xs        = cvtTypeParams eFirst rest
+  eFirst :| rest = NE.reverse es
 
   {- Type applications are parsed as `ETypeVal (TTyApp fs)` expressions.
      Here we associate them with their corresponding functions,
@@ -295,21 +300,51 @@ mkEApp es@(eLast : _) = at (eFirst,eLast) $ foldl EApp f xs
      becomes
      [ f, x ` { a = 2 }, y ]
   -}
-  cvtTypeParams e [] = [e]
+  cvtTypeParams e [] = pure (e :| [])
   cvtTypeParams e (p : ps) =
-    case toTypeParam p of
-      Just fs -> cvtTypeParams (EAppT e fs) ps
-      Nothing -> e : cvtTypeParams p ps
+    case toTypeParam p Nothing of
+      Nothing -> NE.cons e <$> cvtTypeParams p ps
 
-  toTypeParam e =
-    case dropLoc e of
-      ETypeVal t -> case dropLoc t of
-                      TTyApp fs -> Just (map mkTypeInst fs)
-                      _         -> Nothing
+      Just (fs,ss,rng) ->
+        if checkAppExpr e then
+          let e'  = foldr (flip ESel) (EAppT e fs) ss
+              e'' = case rCombMaybe (getLoc e) rng of
+                      Just r -> ELocated e' r
+                      Nothing -> e'
+           in cvtTypeParams e'' ps
+        else
+          errorMessage (fromMaybe emptyRange (getLoc e))
+                  [ "Explicit type applications can only be applied to named values."
+                  , "Unexpected: " ++ show (pp e)
+                  ]
+
+  {- Check if the given expression is a legal target for explicit type application.
+     This is basically only variables, but we also allow the parenthesis and
+     the phantom "located" AST node.
+   -}
+  checkAppExpr e =
+    case e of
+      ELocated e' _ -> checkAppExpr e'
+      EParens e'    -> checkAppExpr e'
+      EVar{}        -> True
+      _             -> False
+
+  {- Look under a potential chain of selectors to see if we have a TTyApp.
+     If so, return the ty app information and the collected selectors
+     to reapply.
+   -}
+  toTypeParam e mr =
+    case e of
+      ELocated e' rng -> toTypeParam e' (rCombMaybe mr (Just rng))
+      ETypeVal t -> toTypeParam' t mr
+      ESel e' s  -> ( \(fs,ss,r) -> (fs,s:ss,r) ) <$> toTypeParam e' mr
       _          ->  Nothing
 
-mkEApp es        = panic "[Parser] mkEApp" ["Unexpected:", show es]
-
+  toTypeParam' t mr =
+    case t of
+      TLocated t' rng -> toTypeParam' t' (rCombMaybe mr (Just rng))
+      TTyApp fs -> Just (map mkTypeInst fs, [], mr)
+      _ -> Nothing
 
 unOp :: Expr PName -> Expr PName -> Expr PName
 unOp f x = at (f,x) $ EApp f x
@@ -355,7 +390,7 @@ exprToNumT r expr =
 -- | WARNING: This is a bit of a hack.
 -- It is used to represent anonymous type applications.
 anonTyApp :: Maybe Range -> [Type PName] -> Type PName
-anonTyApp ~(Just r) ts = TTyApp (map toField ts)
+anonTyApp ~(Just r) ts = TLocated (TTyApp (map toField ts)) r
   where noName    = Located { srcRange = r, thing = mkIdent (T.pack "") }
         toField t = Named { name = noName, value = t }
 
@@ -754,4 +789,3 @@ mkSelector tok =
     Selector (RecordSelectorTok t) -> RecordSel (mkIdent t) Nothing
     _ -> panic "mkSelector"
           [ "Unexpected selector token", show tok ]
-
