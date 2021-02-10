@@ -141,7 +141,3 @@ section "Random Testing"
 :check \(x : Medium) -> leqRefl x
 :check \(x : Medium) y -> eqProp x y
 :check \(x : Medium) -> roundTripRational x
-
-
-
-

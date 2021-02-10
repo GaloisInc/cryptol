@@ -10,6 +10,7 @@
 
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE Trustworthy #-}
@@ -29,19 +30,21 @@ module Cryptol.Testing.Random
 import qualified Control.Exception as X
 import Control.Monad          (liftM2)
 import Control.Monad.IO.Class (MonadIO(..))
-import Data.Ratio             ((%))
+import Data.Bits
 import Data.List              (unfoldr, genericTake, genericIndex, genericReplicate)
 import qualified Data.Sequence as Seq
 
 import System.Random          (RandomGen, split, random, randomR)
 
 import Cryptol.Backend        (Backend(..), SRational(..))
+import Cryptol.Backend.FloatHelpers (floatFromBits)
 import Cryptol.Backend.Monad  (runEval,Eval,EvalErrorEx(..))
 import Cryptol.Backend.Concrete
 
 import Cryptol.Eval.Type      (TValue(..))
 import Cryptol.Eval.Value     (GenValue(..),SeqMap(..), WordValue(..),
                                ppValue, defaultPPOpts, finiteSeqMap, fromVFun)
+import Cryptol.TypeCheck.Solver.InfNat (widthInteger)
 import Cryptol.Utils.Ident    (Ident)
 import Cryptol.Utils.Panic    (panic)
 import Cryptol.Utils.RecordMap
@@ -260,20 +263,42 @@ randomFloat ::
   Integer {- ^ Exponent width -} ->
   Integer {- ^ Precision width -} ->
   Gen g sym
-randomFloat sym e p w g =
-  ( VFloat <$> fpLit sym e p (nu % de)
-  , g3
-  )
+randomFloat sym e p w g0 =
+    let sz = max 0 (min 100 w)
+        ( x, g') = randomR (0, 10*(sz+1)) g0
+     in if | x < 2    -> (VFloat <$> fpNaN sym e p, g')
+           | x < 4    -> (VFloat <$> fpPosInf sym e p, g')
+           | x < 6    -> (VFloat <$> (fpNeg sym =<< fpPosInf sym e p), g')
+           | x < 8    -> (VFloat <$> fpLit sym e p 0, g')
+           | x < 10   -> (VFloat <$> (fpNeg sym =<< fpLit sym e p 0), g')
+           | x <= sz       -> genSubnormal g'  -- about 10% of the time
+           | x <= 4*(sz+1) -> genBinary g'     -- about 40%
+           | otherwise     -> genNormal (toInteger sz) g'  -- remaining ~50%
+
   where
-  -- XXX: we never generat NaN
-  -- XXX: Not sure that we need such big integers, we should probably
-  -- use `e` and `p` as a guide.
-  (n,  g1) = if w < 100 then (fromInteger w, g) else randomSize 8 100 g
-  (nu, g2) = randomR (- 256^n, 256^n) g1
-  (de, g3) = randomR (1, 256^n) g2
+    emax = bit (fromInteger e) - 1
+    smax = bit (fromInteger p) - 1
 
+    -- generates floats uniformly chosen from among all bitpatterns
+    genBinary g =
+      let (v, g1) = randomR (0, bit (fromInteger (e+p)) - 1) g
+       in (VFloat <$> (fpFromBits sym e p =<< wordLit sym (e+p) v), g1)
 
+    -- generates floats corresponding to subnormal values.  These are
+    -- values with 0 biased exponent and nonzero mantissa.
+    genSubnormal g =
+      let (sgn, g1) = random g
+          (v, g2)   = randomR (1, bit (fromInteger p) - 1) g1
+       in (VFloat <$> ((if sgn then fpNeg sym else pure) =<< fpFromBits sym e p =<< wordLit sym (e+p) v), g2)
 
+    -- generates floats where the exponent and mantissa are scaled by the size
+    genNormal sz g =
+      let (sgn, g1) = random g
+          (ex,  g2) = randomR ((1-emax)*sz `div` 100, (sz*emax) `div` 100) g1
+          (mag, g3) = randomR (1, max 1 ((sz*smax) `div` 100)) g2
+          r  = fromInteger mag ^^ (ex - widthInteger mag)
+          r' = if sgn then negate r else r
+       in (VFloat <$> fpLit sym e p r', g3)
 
 
 -- | A test result is either a pass, a failure due to evaluating to
@@ -353,7 +378,7 @@ typeSize ty = case ty of
   TVInteger -> Nothing
   TVRational -> Nothing
   TVIntMod n -> Just n
-  TVFloat{} -> Nothing -- TODO?
+  TVFloat e p -> Just (2 ^ (e+p))
   TVArray{} -> Nothing
   TVStream{} -> Nothing
   TVSeq n el -> (^ n) <$> typeSize el
@@ -368,13 +393,13 @@ for types where 'typeSize' returned 'Nothing'. -}
 typeValues :: TValue -> [Value]
 typeValues ty =
   case ty of
-    TVBit      -> [ VBit False, VBit True ]
-    TVInteger  -> []
-    TVRational -> []
-    TVIntMod n -> [ VInteger x | x <- [ 0 .. (n-1) ] ]
-    TVFloat{}  -> [] -- TODO?
-    TVArray{}  -> []
-    TVStream{} -> []
+    TVBit       -> [ VBit False, VBit True ]
+    TVInteger   -> []
+    TVRational  -> []
+    TVIntMod n  -> [ VInteger x | x <- [ 0 .. (n-1) ] ]
+    TVFloat e p -> [ VFloat (floatFromBits e p v) | v <- [0 .. 2^(e+p) - 1] ]
+    TVArray{}   -> []
+    TVStream{}  -> []
     TVSeq n TVBit ->
       [ VWord n (pure (WordVal (BV n x)))
       | x <- [ 0 .. 2^n - 1 ]
