@@ -132,6 +132,9 @@ data Error    = KindMismatch (Maybe TypeSource) Kind Kind
                 --   but we know it must be at least as large as the given type
                 --   (or unconstrained, if Nothing).
 
+              | BareTypeApp
+                -- ^ Bare expression of the form `{_}
+
               | UndefinedExistVar Name
               | TypeShadowing String Name String
               | MissingModTParam (Located Ident)
@@ -143,6 +146,7 @@ data Error    = KindMismatch (Maybe TypeSource) Kind Kind
 errorImportance :: Error -> Int
 errorImportance err =
   case err of
+    BareTypeApp{}                                    -> 11 -- basically a parse error
     KindMismatch {}                                  -> 10
     TyVarWithParams {}                               -> 9
     TypeMismatch {}                                  -> 8
@@ -181,6 +185,7 @@ errorImportance err =
       | otherwise                                    -> 3
 
     AmbiguousSize {}                                 -> 2
+
 
 
 
@@ -224,6 +229,8 @@ instance TVars Error where
       RepeatedTypeParameter {} -> err
       AmbiguousSize x t -> AmbiguousSize x !$ (apSubst su t)
 
+      BareTypeApp{} -> err
+
       UndefinedExistVar {} -> err
       TypeShadowing {}     -> err
       MissingModTParam {}  -> err
@@ -254,6 +261,8 @@ instance FVS Error where
       RepeatedTypeParameter {}              -> Set.empty
       AmbiguousSize _ t -> fvs t
       BadParameterKind tp _ -> Set.singleton (TVBound tp)
+
+      BareTypeApp{} -> Set.empty
 
       UndefinedExistVar {} -> Set.empty
       TypeShadowing {}     -> Set.empty
@@ -413,6 +422,8 @@ instance PP (WithNames Error) where
                  Just t' -> "Must be at least:" <+> ppWithNames names t'
                  Nothing -> empty
          in addTVarsDescsAfter names err ("Ambiguous numeric type:" <+> pp (tvarDesc x) $$ sizeMsg)
+
+      BareTypeApp -> "Unexpected bare type application"
 
       UndefinedExistVar x -> "Undefined type" <+> quotes (pp x)
       TypeShadowing this new that ->
