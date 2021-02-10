@@ -946,8 +946,10 @@ checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
         }
 
 inferDs :: FromDecl d => [d] -> ([DeclGroup] -> InferM a) -> InferM a
-inferDs ds continue = checkTyDecls =<< orderTyDecls (mapMaybe toTyDecl ds)
+inferDs ds continue = either onErr checkTyDecls =<< orderTyDecls (mapMaybe toTyDecl ds)
   where
+  onErr err = recordError err >> continue []
+
   isTopLevel = isTopDecl (head ds)
 
   checkTyDecls (AT t mbD : ts) =

@@ -1,0 +1,5 @@
+:set prover=sbv-z3
+:safe \(x:Z 7) -> x * (recip x) == 1
+
+:set prover=w4-z3
+:safe \(x:Z 7) -> x * (recip x) == 1

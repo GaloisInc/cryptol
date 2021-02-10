@@ -422,7 +422,7 @@ processResults ProverCommand{..} ts results =
     -- to always be the first value in the model assignment list.
     let Right (_, (safetyCV : cvs)) = SBV.getModelAssignment result
         safety = SBV.cvToBool safetyCV
-        (vs, []) = parseValues ts cvs
+        (vs, _) = parseValues ts cvs
         mdl = computeModel prims ts vs
     return (safety, mdl)
 
