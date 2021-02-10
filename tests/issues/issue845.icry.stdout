@@ -6,7 +6,7 @@ Loading module Main
 [warning] at issue845.cry:1:9--1:24:
   Assuming  m to have a numeric type
 
-[error] at issue845.cry:2:1--2:18:
+[error] at issue845.cry:2:1--2:37:
   Failed to validate user-specified signature.
     in the definition of 'Main::rfrac', at issue845.cry:2:1--2:6,
     we need to show that
