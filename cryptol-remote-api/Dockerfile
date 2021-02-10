@@ -1,4 +1,5 @@
 ARG GHCVER="8.10.3"
+ARG GHCVER_BOOTSTRAP="8.10.2"
 FROM debian:buster AS solvers
 
 # Install needed packages for building
@@ -43,18 +44,40 @@ RUN latest="$(curl -sSL 'http://cvc4.cs.stanford.edu/downloads/builds/x86_64-lin
 # Set executable and run tests
 RUN chmod +x rootfs/usr/local/bin/*
 
-ARG GHCVER
 FROM debian:buster AS build
-ARG GHCVER
-
+ARG PORTABILITY=false
 RUN apt-get update && apt-get install -y libncurses-dev libz-dev \
-    build-essential curl libffi-dev libffi6 libgmp-dev libgmp10 libncurses-dev libncurses5 libtinfo5 libnuma-dev
+    build-essential curl libffi-dev libffi6 libgmp-dev libgmp10 libncurses-dev libncurses5 libtinfo5 libnuma-dev \
+    $(if ${PORTABILITY}; then echo git autoconf python3; fi)
 RUN curl -o /usr/local/bin/ghcup "https://downloads.haskell.org/~ghcup/0.1.12/x86_64-linux-ghcup-0.1.12" && chmod +x /usr/local/bin/ghcup
 ENV GHCUP_USE_XDG_DIRS=true \
     XDG_BIN_HOME=/usr/local/bin \
     XDG_DATA_HOME=/usr/local/share
 COPY --from=solvers /solvers/rootfs /
-RUN ghcup install ghc ${GHCVER} && ghcup set ghc ${GHCVER} && ghcup install cabal --set
+RUN ghcup install cabal --set
+ENV PATH /root/.cabal/bin:$PATH
+ADD ./cryptol-remote-api/ghc-portability.patch .
+ARG GHCVER
+ARG GHCVER_BOOTSTRAP
+RUN if ${PORTABILITY}; then \
+        ghcup install ghc ${GHCVER_BOOTSTRAP} && \
+        ghcup set ghc ${GHCVER_BOOTSTRAP} && \
+        cabal v2-update && \
+        cabal v2-install alex happy-1.19.12 && \
+        git clone --recurse-submodules --depth 1 --branch ghc-${GHCVER}-release https://gitlab.haskell.org/ghc/ghc.git && \
+        cd ./ghc && \
+        git apply ../ghc-portability.patch && \
+        ./boot && \
+        ./configure && \
+        make -j && \
+        make install && \
+        cd .. && \
+        rm -rf ./ghc; \
+    else \
+        ghcup install ghc ${GHCVER} && \
+        ghcup set ghc ${GHCVER}; \
+    fi
+
 RUN useradd -m cryptol
 COPY --chown=cryptol:cryptol . /cryptol
 USER cryptol
