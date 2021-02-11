@@ -831,8 +831,13 @@ generalize bs0 gs0 =
           * and vars in the inferred types that do not appear anywhere else. -}
      let as   = sortBy numFst
               $ as0 ++ Set.toList (Set.difference inSigs asmpVs)
-         asPs = [ TParam { tpUnique = x, tpKind = k, tpFlav = TPOther Nothing
-                         , tpInfo = i  } | TVFree x k _ i <- as ]
+         asPs = [ TParam { tpUnique = x
+                         , tpKind   = k
+                         , tpFlav   = TPUnifyVar
+                         , tpInfo   = i
+                         }
+                | TVFree x k _ i <- as
+                ]
 
      {- Finally, we replace free variables with bound ones, and fix-up
         the definitions as needed to reflect that we are now working

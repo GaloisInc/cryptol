@@ -128,7 +128,7 @@ checkNewtype (P.Newtype x as fs) mbD =
 checkPrimType :: P.PrimType Name -> Maybe Text -> InferM AbstractType
 checkPrimType p mbD =
   do let (as,cs) = P.primTCts p
-     (as',cs') <- withTParams NoWildCards (TPOther . Just) as $
+     (as',cs') <- withTParams NoWildCards TPPrimParam as $
                     mapM checkProp cs
      pure AbstractType { atName = thing (P.primTName p)
                        , atKind = cvtK (thing (P.primTKind p))
