@@ -4,14 +4,14 @@ Loading module Float
 Loading module FloatTests
 "-- Float Formatting-----------------------------------------------------------"
 
-    fp-base = 16
+    fpBase = 16
 
 Default value: 16
 
 The base to display floating point numbers at (2, 8, 10, or 16).
 
 
-    fp-format = free
+    fpFormat = free
 
 Default value: free
 

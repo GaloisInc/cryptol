@@ -545,7 +545,7 @@ ppReport tys _ (TestReport exprDoc failure _testNum _testPossible) =
 
 ppFailure :: [E.TValue] -> Doc -> TestResult -> REPL ()
 ppFailure tys exprDoc failure = do
-    ~(EnvBool showEx) <- getUser "show-examples"
+    ~(EnvBool showEx) <- getUser "showExamples"
 
     vs <- case failure of
             FailFalse vs ->
@@ -641,7 +641,7 @@ rethrowErrorCall m = REPL (\r -> unREPL m r `X.catches` hs)
 safeCmd :: String -> (Int,Int) -> Maybe FilePath -> REPL ()
 safeCmd str pos fnm = do
   proverName <- getKnownUser "prover"
-  fileName   <- getKnownUser "smtfile"
+  fileName   <- getKnownUser "smtFile"
   let mfile = if fileName == "-" then Nothing else Just fileName
   pexpr <- replParseExpr str pos fnm
   nd <- M.mctxNameDisp <$> getFocusedEnv
@@ -669,7 +669,7 @@ safeCmd str pos fnm = do
 
             (t,e) <- mkSolverResult "counterexample" rng False (Right tes)
 
-            ~(EnvBool yes) <- getUser "show-examples"
+            ~(EnvBool yes) <- getUser "showExamples"
             when yes $ printCounterexample cexType exprDoc vs
             when yes $ printSafetyViolation texpr schema vs
 
@@ -723,7 +723,7 @@ proveSatExpr isSat rng exprDoc texpr schema = do
              | otherwise = "counterexample"
   qtype <- if isSat then SatQuery <$> getUserSatNum else pure ProveQuery
   proverName <- getKnownUser "prover"
-  fileName   <- getKnownUser "smtfile"
+  fileName   <- getKnownUser "smtFile"
   let mfile = if fileName == "-" then Nothing else Just fileName
 
   if proverName `elem` ["offline","sbv-offline","w4-offline"] then
@@ -748,7 +748,7 @@ proveSatExpr isSat rng exprDoc texpr schema = do
 
             (t,e) <- mkSolverResult cexStr rng isSat (Right tes)
 
-            ~(EnvBool yes) <- getUser "show-examples"
+            ~(EnvBool yes) <- getUser "showExamples"
             when yes $ printCounterexample cexType exprDoc vs
 
             -- if there's a safety violation, evalute the counterexample to
@@ -778,7 +778,7 @@ proveSatExpr isSat rng exprDoc texpr schema = do
                     [(t, e)] -> (t, [e])
                     _        -> collectTes resultRecs
 
-            ~(EnvBool yes) <- getUser "show-examples"
+            ~(EnvBool yes) <- getUser "showExamples"
             when yes $ forM_ vss (printSatisfyingModel exprDoc)
 
             case exprs of
@@ -812,7 +812,7 @@ onlineProveSat proverName qtype expr schema mfile = do
   validEvalContext schema
   decls <- fmap M.deDecls getDynEnv
   timing <- io (newIORef 0)
-  ~(EnvBool ignoreSafety) <- getUser "ignore-safety"
+  ~(EnvBool ignoreSafety) <- getUser "ignoreSafety"
   let cmd = ProverCommand {
           pcQueryType    = qtype
         , pcProverName   = proverName
@@ -828,7 +828,7 @@ onlineProveSat proverName qtype expr schema mfile = do
   (firstProver, res) <- getProverConfig >>= \case
        Left sbvCfg -> liftModuleCmd $ SBV.satProve sbvCfg cmd
        Right w4Cfg ->
-         do ~(EnvBool hashConsing) <- getUser "hash-consing"
+         do ~(EnvBool hashConsing) <- getUser "hashConsing"
             ~(EnvBool warnUninterp) <- getUser "warnUninterp"
             liftModuleCmd $ W4.satProve w4Cfg hashConsing warnUninterp cmd
 
@@ -842,7 +842,7 @@ offlineProveSat proverName qtype expr schema mfile = do
 
   decls <- fmap M.deDecls getDynEnv
   timing <- io (newIORef 0)
-  ~(EnvBool ignoreSafety) <- getUser "ignore-safety"
+  ~(EnvBool ignoreSafety) <- getUser "ignoreSafety"
   let cmd = ProverCommand {
           pcQueryType    = qtype
         , pcProverName   = proverName
@@ -882,7 +882,7 @@ offlineProveSat proverName qtype expr schema mfile = do
                Nothing -> rPutStr smtlib
 
     Right w4Cfg ->
-      do ~(EnvBool hashConsing) <- getUser "hash-consing"
+      do ~(EnvBool hashConsing) <- getUser "hashConsing"
          ~(EnvBool warnUninterp) <- getUser "warnUninterp"
          result <- liftModuleCmd $ W4.satProveOffline w4Cfg hashConsing warnUninterp cmd $ \f ->
                      do displayMsg

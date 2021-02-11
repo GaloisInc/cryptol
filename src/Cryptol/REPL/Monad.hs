@@ -60,6 +60,7 @@ module Cryptol.REPL.Monad (
   , OptionDescr(..)
   , setUser, getUser, getKnownUser, tryGetUser
   , userOptions
+  , userOptionsWithAliases
   , getUserSatNum
   , getUserShowProverStats
   , getUserProverValidate
@@ -399,8 +400,8 @@ getPPValOpts =
      ascii     <- getKnownUser "ascii"
      infLength <- getKnownUser "infLength"
 
-     fpBase    <- getKnownUser "fp-base"
-     fpFmtTxt  <- getKnownUser "fp-format"
+     fpBase    <- getKnownUser "fpBase"
+     fpFmtTxt  <- getKnownUser "fpFormat"
      let fpFmt = case parsePPFloatFormat fpFmtTxt of
                    Just f  -> f
                    Nothing -> panic "getPPOpts"
@@ -637,7 +638,7 @@ mkUserEnv opts = Map.fromList $ do
 
 -- | Set a user option.
 setUser :: String -> String -> REPL ()
-setUser name val = case lookupTrieExact name userOptions of
+setUser name val = case lookupTrieExact name userOptionsWithAliases of
 
   [opt] -> setUserOpt opt
   []    -> rPutStrLn ("Unknown env value `" ++ name ++ "`")
@@ -740,10 +741,10 @@ badIsEnv x = panic "fromEnvVal" [ "[REPL] Expected a `" ++ x ++ "` value." ]
 
 
 getUserShowProverStats :: REPL Bool
-getUserShowProverStats = getKnownUser "prover-stats"
+getUserShowProverStats = getKnownUser "proverStats"
 
 getUserProverValidate :: REPL Bool
-getUserProverValidate = getKnownUser "prover-validate"
+getUserProverValidate = getKnownUser "proverValidate"
 
 -- Environment Options ---------------------------------------------------------
 
@@ -765,47 +766,53 @@ noWarns mb = return (mb, [])
 
 data OptionDescr = OptionDescr
   { optName    :: String
+  , optAliases :: [String]
   , optDefault :: EnvVal
   , optCheck   :: Checker
   , optHelp    :: String
   , optEff     :: EnvVal -> REPL ()
   }
 
-simpleOpt :: String -> EnvVal -> Checker -> String -> OptionDescr
-simpleOpt optName optDefault optCheck optHelp =
+simpleOpt :: String -> [String] -> EnvVal -> Checker -> String -> OptionDescr
+simpleOpt optName optAliases optDefault optCheck optHelp =
   OptionDescr { optEff = \ _ -> return (), .. }
+
+userOptionsWithAliases :: OptionMap
+userOptionsWithAliases = foldl insert userOptions (leaves userOptions)
+  where
+  insert m d = foldl (\m' n -> insertTrie n d m') m (optAliases d)
 
 userOptions :: OptionMap
 userOptions  = mkOptionMap
-  [ simpleOpt "base" (EnvNum 16) checkBase
+  [ simpleOpt "base" [] (EnvNum 16) checkBase
     "The base to display words at (2, 8, 10, or 16)."
-  , simpleOpt "debug" (EnvBool False) noCheck
+  , simpleOpt "debug" [] (EnvBool False) noCheck
     "Enable debugging output."
-  , simpleOpt "ascii" (EnvBool False) noCheck
+  , simpleOpt "ascii" [] (EnvBool False) noCheck
     "Whether to display 7- or 8-bit words using ASCII notation."
-  , simpleOpt "infLength" (EnvNum 5) checkInfLength
+  , simpleOpt "infLength" ["inf-length"] (EnvNum 5) checkInfLength
     "The number of elements to display for infinite sequences."
-  , simpleOpt "tests" (EnvNum 100) noCheck
+  , simpleOpt "tests" [] (EnvNum 100) noCheck
     "The number of random tests to try with ':check'."
-  , simpleOpt "satNum" (EnvString "1") checkSatNum
+  , simpleOpt "satNum" ["sat-num"] (EnvString "1") checkSatNum
     "The maximum number of :sat solutions to display (\"all\" for no limit)."
-  , simpleOpt "prover" (EnvString "z3") checkProver $
+  , simpleOpt "prover" [] (EnvString "z3") checkProver $
     "The external SMT solver for ':prove' and ':sat'\n(" ++ proverListString ++ ")."
-  , simpleOpt "warnDefaulting" (EnvBool False) noCheck
+  , simpleOpt "warnDefaulting" ["warn-defaulting"] (EnvBool False) noCheck
     "Choose whether to display warnings when defaulting."
-  , simpleOpt "warnShadowing" (EnvBool True) noCheck
+  , simpleOpt "warnShadowing" ["warn-shadowing"] (EnvBool True) noCheck
     "Choose whether to display warnings when shadowing symbols."
-  , simpleOpt "warnUninterp" (EnvBool True) noCheck
+  , simpleOpt "warnUninterp" ["warn-uninterp"] (EnvBool True) noCheck
     "Choose whether to issue a warning when uninterpreted functions are used to implement primitives in the symbolic simulator."
-  , simpleOpt "smtfile" (EnvString "-") noCheck
+  , simpleOpt "smtFile" ["smt-file"] (EnvString "-") noCheck
     "The file to use for SMT-Lib scripts (for debugging or offline proving).\nUse \"-\" for stdout."
-  , OptionDescr "mono-binds" (EnvBool True) noCheck
+  , OptionDescr "monoBinds" ["mono-binds"] (EnvBool True) noCheck
     "Whether or not to generalize bindings in a 'where' clause." $
     \case EnvBool b -> do me <- getModuleEnv
                           setModuleEnv me { M.meMonoBinds = b }
           _         -> return ()
 
-  , OptionDescr "tc-solver" (EnvProg "z3" [ "-smt2", "-in" ])
+  , OptionDescr "tcSolver" ["tc-solver"] (EnvProg "z3" [ "-smt2", "-in" ])
     noCheck  -- TODO: check for the program in the path
     "The solver that will be used by the type checker." $
     \case EnvProg prog args -> do me <- getModuleEnv
@@ -815,7 +822,7 @@ userOptions  = mkOptionMap
                                                           , T.solverArgs = args } }
           _                 -> return ()
 
-  , OptionDescr "tc-debug" (EnvNum 0)
+  , OptionDescr "tcDebug" ["tc-debug"] (EnvNum 0)
     noCheck
     (unlines
       [ "Enable type-checker debugging output:"
@@ -826,7 +833,7 @@ userOptions  = mkOptionMap
                          let cfg = M.meSolverConfig me
                          setModuleEnv me { M.meSolverConfig = cfg{ T.solverVerbose = n } }
           _        -> return ()
-  , OptionDescr "core-lint" (EnvBool False)
+  , OptionDescr "coreLint" ["core-lint"] (EnvBool False)
     noCheck
     "Enable sanity checking of type-checker." $
       let setIt x = do me <- getModuleEnv
@@ -835,22 +842,22 @@ userOptions  = mkOptionMap
                EnvBool False -> setIt M.NoCoreLint
                _             -> return ()
 
-  , simpleOpt "hash-consing" (EnvBool True) noCheck
+  , simpleOpt "hashConsing" ["hash-consing"] (EnvBool True) noCheck
     "Enable hash-consing in the What4 symbolic backends."
 
-  , simpleOpt "prover-stats" (EnvBool True) noCheck
+  , simpleOpt "proverStats" ["prover-stats"] (EnvBool True) noCheck
     "Enable prover timing statistics."
 
-  , simpleOpt "prover-validate" (EnvBool False) noCheck
+  , simpleOpt "proverValidate" ["prover-validate"] (EnvBool False) noCheck
     "Validate :sat examples and :prove counter-examples for correctness."
 
-  , simpleOpt "show-examples" (EnvBool True) noCheck
+  , simpleOpt "showExamples" ["show-examples"] (EnvBool True) noCheck
     "Print the (counter) example after :sat or :prove"
 
-  , simpleOpt "fp-base" (EnvNum 16) checkBase
+  , simpleOpt "fpBase" ["fp-base"] (EnvNum 16) checkBase
     "The base to display floating point numbers at (2, 8, 10, or 16)."
 
-  , simpleOpt "fp-format" (EnvString "free") checkPPFloatFormat
+  , simpleOpt "fpFormat" ["fp-format"] (EnvString "free") checkPPFloatFormat
     $ unlines
     [ "Specifies the format to use when showing floating point numbers:"
     , "  * free      show using as many digits as needed"
@@ -860,7 +867,7 @@ userOptions  = mkOptionMap
     , "  * NUM+exp   like NUM but always show exponent"
     ]
 
-  , simpleOpt "ignore-safety" (EnvBool False) noCheck
+  , simpleOpt "ignoreSafety" ["ignore-safety"] (EnvBool False) noCheck
     "Ignore safety predicates when performing :sat or :prove checks"
   ]
 
