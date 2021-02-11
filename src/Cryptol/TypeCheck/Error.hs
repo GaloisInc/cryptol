@@ -117,6 +117,10 @@ data Error    = KindMismatch (Maybe TypeSource) Kind Kind
                 -- ^ Too many positional type arguments, in an explicit
                 -- type instantiation
 
+              | BadParameterKind TParam Kind
+                -- ^ Kind other than `*` or `#` given to parameter of
+                --   type synonym, newtype, function signature, etc.
+
               | CannotMixPositionalAndNamedTypeParams
 
               | UndefinedTypeParameter (Located Ident)
@@ -151,7 +155,7 @@ errorImportance err =
     MissingModTParam {}                              -> 10
     MissingModVParam {}                              -> 10
 
-
+    BadParameterKind{}                               -> 9
     CannotMixPositionalAndNamedTypeParams {}         -> 8
     TooManyTypeParams {}                             -> 8
     TooFewTyParams {}                                -> 8
@@ -215,10 +219,10 @@ instance TVars Error where
       TooManyPositionalTypeParams -> err
       CannotMixPositionalAndNamedTypeParams -> err
 
+      BadParameterKind{} -> err
       UndefinedTypeParameter {} -> err
       RepeatedTypeParameter {} -> err
       AmbiguousSize x t -> AmbiguousSize x !$ (apSubst su t)
-
 
       UndefinedExistVar {} -> err
       TypeShadowing {}     -> err
@@ -249,6 +253,7 @@ instance FVS Error where
       UndefinedTypeParameter {}             -> Set.empty
       RepeatedTypeParameter {}              -> Set.empty
       AmbiguousSize _ t -> fvs t
+      BadParameterKind tp _ -> Set.singleton (TVBound tp)
 
       UndefinedExistVar {} -> Set.empty
       TypeShadowing {}     -> Set.empty
@@ -378,6 +383,12 @@ instance PP (WithNames Error) where
                , "When checking" <+> pp src
                ]
 
+      BadParameterKind tp k ->
+        addTVarsDescsAfter names err $
+        vcat [ "Illegal kind assigned to type variable:" <+> ppWithNames names tp
+             , "Unexpected:" <+> pp k
+             ]
+
       TooManyPositionalTypeParams ->
         addTVarsDescsAfter names err $
         "Too many positional type-parameters in explicit type application"
@@ -475,7 +486,7 @@ explainUnsolvable names gs =
           PPrime      -> useCtr
 
           PHas sel ->
-            custom ("Type" <+> doc1 <+> "does not have field" <+> f 
+            custom ("Type" <+> doc1 <+> "does not have field" <+> f
                     <+> "of type" <+> (tys !! 1))
             where f = case sel of
                         P.TupleSel n _ -> int n
@@ -570,4 +581,3 @@ computeFreeVarNames warns errs =
   variant n x = if n == 0 then x else x ++ suff n
 
   variants roots = [ variant n r | n <- [ 0 .. ], r <- roots ]
-
