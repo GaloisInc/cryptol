@@ -1,6 +1,7 @@
 #!/usr/bin/env runhaskell
 
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ViewPatterns #-}
 
 -- |
 -- Module      :  Main
@@ -11,13 +12,14 @@
 -- Portability :  portable
 
 import Cryptol.Parser.Lexer
+import Cryptol.Parser.Position
 import Cryptol.Utils.PP
 import qualified Data.Text.IO as Text
-import Text.Blaze.Html (Html, AttributeValue, toValue, toHtml, (!))
+import Text.Blaze.Html (Html, AttributeValue, toHtml, (!), toValue)
 import qualified Text.Blaze.Html as H
 import qualified Text.Blaze.Html5 as H
 import qualified Text.Blaze.Html5.Attributes as A
-import Text.Blaze.Html.Renderer.Pretty (renderHtml)
+import Text.Blaze.Html.Renderer.String (renderHtml)
 
 
 main :: IO ()
@@ -41,8 +43,9 @@ page inner = do
 
 
 toBlaze :: Located Token -> Html
+toBlaze (Located _ (tokenType -> EOF)) = mempty
 toBlaze tok = H.span ! (A.class_ $ cl $ tokenType $ thing tok)
-                     ! (A.title $ toValue $ show $ pp $ srcRange tok)
+                     ! (A.id $ toValue $ show $ pp $ from $ srcRange tok)
   $ H.toHtml
   $ tokenText
   $ thing tok
@@ -70,7 +73,7 @@ cl tok =
 
 sty :: String
 sty = unlines
-  [ "body { font-family: monospace }"
+  [ "body { font-family: monospace; white-space: pre; }"
   , ".number        { color: #cc00cc }"
   , ".identifier    { }"
   , ".selector      { color: #33033 }"
