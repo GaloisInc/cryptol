@@ -23,7 +23,7 @@ zero or more of the following fields:
    + ``base``: What base to display numbers in (default ``10``).
    + ``prefix of infinite lengths``: How much of an infinite sequence to display (default ``5``.
    + ``floating point base``: What base to display floating point numbers in (default ``10``).
-   + ``floating point format``: The output format used to display floating point numbers (accepts strings in the same format as the argument to ``:set fp-format`` in the REPL).
+   + ``floating point format``: The output format used to display floating point numbers (accepts strings in the same format as the argument to ``:set fpFormat`` in the REPL).
 
 Module Management
 =================
