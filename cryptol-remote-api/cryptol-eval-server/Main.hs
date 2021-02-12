@@ -12,9 +12,10 @@ import System.IO (hPutStrLn, stderr)
 import Options.Applicative
 
 import Cryptol.Eval (EvalOpts(..), defaultPPOpts)
-import Cryptol.ModuleSystem (ModuleInput(..), loadModuleByPath, loadModuleByName)
+import Cryptol.ModuleSystem (ModuleInput(..), loadModuleByPath, loadModuleByName, meSolverConfig)
 import Cryptol.ModuleSystem.Monad (runModuleM, setFocusedModule)
 import Cryptol.TypeCheck.AST (mName)
+import qualified Cryptol.TypeCheck.Solver.SMT as SMT
 import Cryptol.Utils.Ident (ModName, modNameToText, textToModName, preludeName)
 import Cryptol.Utils.Logger (quietLogger)
 
@@ -41,18 +42,18 @@ main = customMain initMod initMod initMod initMod description buildApp
       do paths <- getSearchPaths
          initSt <- setSearchPath paths <$> initialState
          let menv = view moduleEnv initSt
-         let minp = ModuleInput False (pure evOpts) reader menv
+         let minp s = ModuleInput False (pure evOpts) reader menv s
          let die =
                \err ->
                  do hPutStrLn stderr $ "Failed to load " ++ either ("file " ++) (("module " ++) . show) file ++ ":\n" ++ show err
                     exitFailure
-         menv' <-
-           do (res, _warnings) <- either loadModuleByPath loadModuleByName file minp
+         menv' <- SMT.withSolver (meSolverConfig menv) $ \s ->
+           do (res, _warnings) <- either loadModuleByPath loadModuleByName file (minp s)
               -- NB Warnings suppressed when running server
               case res of
                 Left err -> die err
                 Right (m, menv') ->
-                  do res' <- fst <$> runModuleM minp { minpModuleEnv = menv' } (setFocusedModule (mName (snd m)))
+                  do res' <- fst <$> runModuleM (minp s){ minpModuleEnv = menv' } (setFocusedModule (mName (snd m)))
                      case res' of
                        Left err -> die err
                        Right (_, menv'') -> pure menv''
