@@ -52,6 +52,8 @@ import           Cryptol.Utils.Ident (exprModName,packIdent)
 import           Cryptol.Utils.PP
 import           Cryptol.Utils.Panic(panic)
 
+
+
 tcModule :: P.Module Name -> InferInput -> IO (InferOutput Module)
 tcModule m inp = runInferM inp (inferModule m)
 

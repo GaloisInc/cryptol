@@ -1648,13 +1648,16 @@ liftModuleCmd cmd =
   do evo <- getEvalOptsAction
      env <- getModuleEnv
      callStacks <- getCallStacks
-     let minp = M.ModuleInput
+     let cfg = M.meSolverConfig env
+     let minp s =
+             M.ModuleInput
                 { minpCallStacks = callStacks
                 , minpEvalOpts   = evo
                 , minpByteReader = BS.readFile
                 , minpModuleEnv  = env
+                , minpTCSolver   = s
                 }
-     moduleCmdResult =<< io (cmd minp)
+     moduleCmdResult =<< io (SMT.withSolver cfg (cmd . minp))
 
 moduleCmdResult :: M.ModuleRes a -> REPL a
 moduleCmdResult (res,ws0) = do

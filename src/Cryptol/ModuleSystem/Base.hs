@@ -40,6 +40,7 @@ import qualified Cryptol.TypeCheck     as T
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck.PP as T
 import qualified Cryptol.TypeCheck.Sanity as TcSanity
+
 import Cryptol.Transform.AddModParams (addModParams)
 import Cryptol.Utils.Ident ( preludeName, floatName, arrayName, suiteBName, primeECName
                            , preludeReferenceName, interactiveName, modNameChunks
@@ -527,12 +528,12 @@ typecheck act i params env = do
          typeCheckingFailed nameMap errs
 
 -- | Generate input for the typechecker.
-genInferInput :: Range -> PrimMap ->
-                          IfaceParams -> IfaceDecls -> ModuleM T.InferInput
+genInferInput :: Range -> PrimMap -> IfaceParams -> IfaceDecls -> ModuleM T.InferInput
 genInferInput r prims params env = do
   seeds <- getNameSeeds
   monoBinds <- getMonoBinds
   cfg <- getSolverConfig
+  solver <- getTCSolver
   supply <- getSupply
   searchPath <- getSearchPath
   callStacks <- getCallStacks
@@ -554,8 +555,8 @@ genInferInput r prims params env = do
     , T.inpParamTypes       = ifParamTypes params
     , T.inpParamConstraints = ifParamConstraints params
     , T.inpParamFuns        = ifParamFuns params
+    , T.inpSolver           = solver
     }
-
 
 
 -- Evaluation ------------------------------------------------------------------

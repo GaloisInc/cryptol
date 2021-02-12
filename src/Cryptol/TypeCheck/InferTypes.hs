@@ -47,6 +47,7 @@ data SolverConfig = SolverConfig
     -- ^ Look for the solver prelude in these locations.
   } deriving (Show, Generic, NFData)
 
+
 -- | The types of variables in the environment.
 data VarType = ExtVar Schema
                -- ^ Known type

@@ -85,8 +85,9 @@ data InferInput = InferInput
     -- identifier (e.g., @number@).
 
   , inpSupply :: !Supply              -- ^ The supply for fresh name generation
-  } deriving Show
 
+  , inpSolver :: SMT.Solver           -- ^ Solver connection for typechecking
+  }
 
 -- | This is used for generating various names.
 data NameSeeds = NameSeeds
@@ -116,7 +117,7 @@ bumpCounter = do RO { .. } <- IM ask
                  io $ modifyIORef' iSolveCounter (+1)
 
 runInferM :: TVars a => InferInput -> InferM a -> IO (InferOutput a)
-runInferM info (IM m) = SMT.withSolver (inpSolverConfig info) $ \solver ->
+runInferM info (IM m) =
   do counter <- newIORef 0
      rec ro <- return RO { iRange     = inpRange info
                          , iVars          = Map.map ExtVar (inpVars info)
@@ -131,7 +132,7 @@ runInferM info (IM m) = SMT.withSolver (inpSolverConfig info) $ \solver ->
                          , iSolvedHasLazy = iSolvedHas finalRW     -- RECURSION
                          , iMonoBinds     = inpMonoBinds info
                          , iCallStacks    = inpCallStacks info
-                         , iSolver        = solver
+                         , iSolver        = inpSolver info
                          , iPrimNames     = inpPrimNames info
                          , iSolveCounter  = counter
                          }

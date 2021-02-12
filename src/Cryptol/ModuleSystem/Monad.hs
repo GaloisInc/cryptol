@@ -29,6 +29,8 @@ import qualified Cryptol.Parser.NoPat as NoPat
 import qualified Cryptol.Parser.NoInclude as NoInc
 import qualified Cryptol.TypeCheck as T
 import qualified Cryptol.TypeCheck.AST as T
+import qualified Cryptol.TypeCheck.Solver.SMT as SMT
+
 import           Cryptol.Parser.Position (Range)
 import           Cryptol.Utils.Ident (interactiveName, noModuleName)
 import           Cryptol.Utils.PP
@@ -304,6 +306,7 @@ data RO m =
      , roEvalOpts   :: m EvalOpts
      , roCallStacks :: Bool
      , roFileReader :: FilePath -> m ByteString
+     , roTCSolver   :: SMT.Solver
      }
 
 emptyRO :: ModuleInput m -> RO m
@@ -312,6 +315,7 @@ emptyRO minp =
      , roEvalOpts   = minpEvalOpts minp
      , roCallStacks = minpCallStacks minp
      , roFileReader = minpByteReader minp
+     , roTCSolver   = minpTCSolver minp
      }
 
 newtype ModuleT m a = ModuleT
@@ -364,6 +368,7 @@ data ModuleInput m =
   , minpEvalOpts   :: m EvalOpts
   , minpByteReader :: FilePath -> m ByteString
   , minpModuleEnv  :: ModuleEnv
+  , minpTCSolver   :: SMT.Solver
   }
 
 runModuleT ::
@@ -405,6 +410,9 @@ readBytes fn = do
 
 getModuleEnv :: Monad m => ModuleT m ModuleEnv
 getModuleEnv = ModuleT get
+
+getTCSolver :: Monad m => ModuleT m SMT.Solver
+getTCSolver = ModuleT (roTCSolver <$> ask)
 
 setModuleEnv :: Monad m => ModuleEnv -> ModuleT m ()
 setModuleEnv = ModuleT . set
