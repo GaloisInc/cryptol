@@ -1,0 +1,29 @@
+Loading module Cryptol
+[warning] at issue567.icry:1:7--1:8
+    This binding for `x` shadows the existing binding at
+    issue567.icry:1:5--1:6
+(\x x -> x : [8]) : {a} [8] -> a -> [8]
+[warning] at issue567.icry:2:11--2:12
+    This binding for `x` shadows the existing binding at
+    issue567.icry:2:5--2:6
+(\x -> \x -> x : [8]) : {a} a -> [8] -> [8]
+[warning] at issue567.icry:3:6--3:7
+    This binding for `x` shadows the existing binding at
+    issue567.icry:3:12--3:13
+(\(x, y) x -> x) : {a, b, c} (c, b) -> a -> c
+
+[error]
+    Overlapping symbols defined:
+    (at issue567.icry:4:6--4:7, x)
+    (at issue567.icry:4:13--4:14, x)
+[error]
+    Overlapping symbols defined:
+    (at issue567.icry:4:9--4:10, y)
+    (at issue567.icry:4:16--4:17, y)
+[warning] at issue567.icry:5:11--5:12
+    This binding for `x` shadows the existing binding at
+    issue567.icry:5:5--5:6
+[warning] at issue567.icry:5:8--5:9
+    This binding for `x` shadows the existing binding at
+    issue567.icry:5:5--5:6
+(\x [x] x -> x) : {a, b, c} a -> [1]c -> b -> c
