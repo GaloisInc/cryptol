@@ -368,7 +368,7 @@ checkE expr tGoal =
                    P.Named { name = Located l (packIdent "val")
                            , value = t }]) tGoal
 
-    P.EFun ps e -> checkFun Nothing ps e tGoal
+    P.EFun desc ps e -> checkFun desc ps e tGoal
 
     P.ELocated e r  ->
       do e' <- inRange r (checkE e tGoal)
@@ -393,7 +393,7 @@ checkRecUpd mb fs tGoal =
     Nothing ->
       do r <- newParamName (packIdent "r")
          let p  = P.PVar Located { srcRange = nameLoc r, thing = r }
-             fe = P.EFun [p] (P.EUpd (Just (P.EVar r)) fs)
+             fe = P.EFun P.emptyFunDesc [p] (P.EUpd (Just (P.EVar r)) fs)
          checkE fe tGoal
 
     Just e ->
@@ -566,11 +566,11 @@ checkHasType inferredType tGoal =
 
 
 checkFun ::
-  Maybe Name -> [P.Pattern Name] -> P.Expr Name -> TypeWithSource -> InferM Expr
+  P.FunDesc Name -> [P.Pattern Name] -> P.Expr Name -> TypeWithSource -> InferM Expr
 checkFun _    [] e tGoal = checkE e tGoal
-checkFun fun ps e tGoal =
+checkFun (P.FunDesc fun offset) ps e tGoal =
   inNewScope $
-  do let descs = [ TypeOfArg (ArgDescr fun (Just n)) | n <- [ 1 :: Int .. ] ]
+  do let descs = [ TypeOfArg (ArgDescr fun (Just n)) | n <- [ 1 + offset .. ] ]
 
      (tys,tRes) <- expectFun fun (length ps) tGoal
      largs      <- sequence (zipWith checkP ps (zipWith WithSource tys descs))
@@ -871,7 +871,7 @@ checkMonoB b t =
     P.DExpr e ->
       do let nm = thing (P.bName b)
          let tGoal = WithSource t (DefinitionOf nm)
-         e1 <- checkFun (Just nm) (P.bParams b) e tGoal
+         e1 <- checkFun (P.FunDesc (Just nm) 0) (P.bParams b) e tGoal
          let f = thing (P.bName b)
          return Decl { dName = f
                      , dSignature = Forall [] [] t
@@ -903,7 +903,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
   do (e1,cs0) <- collectGoals $
                 do let nm = thing (P.bName b)
                        tGoal = WithSource t0 (DefinitionOf nm)
-                   e1 <- checkFun (Just nm) (P.bParams b) e0 tGoal
+                   e1 <- checkFun (P.FunDesc (Just nm) 0) (P.bParams b) e0 tGoal
                    addGoals validSchema
                    () <- simplifyAllConstraints  -- XXX: using `asmps` also?
                    return e1

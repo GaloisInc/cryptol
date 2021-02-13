@@ -495,11 +495,11 @@ mkIndexedDecl f (ps, ixs) e =
 mkIndexedExpr :: ([Pattern PName], [Pattern PName]) -> Expr PName -> Expr PName
 mkIndexedExpr (ps, ixs) body
   | null ps = mkGenerate (reverse ixs) body
-  | otherwise = EFun (reverse ps) (mkGenerate (reverse ixs) body)
+  | otherwise = EFun emptyFunDesc (reverse ps) (mkGenerate (reverse ixs) body)
 
 mkGenerate :: [Pattern PName] -> Expr PName -> Expr PName
 mkGenerate pats body =
-  foldr (\pat e -> EGenerate (EFun [pat] e)) body pats
+  foldr (\pat e -> EGenerate (EFun emptyFunDesc [pat] e)) body pats
 
 mkIf :: [(Expr PName, Expr PName)] -> Expr PName -> Expr PName
 mkIf ifThens theElse = foldr addIfThen theElse ifThens

@@ -693,12 +693,17 @@ instance Rename UpdField where
        case more of
          [] -> case h of
                  UpdSet -> UpdField UpdSet [l] <$> rename e
-                 UpdFun -> UpdField UpdFun [l] <$> rename (EFun [PVar p] e)
+                 UpdFun -> UpdField UpdFun [l] <$> rename (EFun emptyFunDesc [PVar p] e)
                        where
                        p = UnQual . selName <$> last ls
          _ -> UpdField UpdFun [l] <$> rename (EUpd Nothing [ UpdField h more e])
       [] -> panic "rename@UpdField" [ "Empty label list." ]
 
+
+instance Rename FunDesc where
+  rename (FunDesc nm offset) =
+    do nm' <- traverse renameVar nm
+       pure (FunDesc nm' offset)
 
 instance Rename Expr where
   rename expr = case expr of
@@ -733,10 +738,11 @@ instance Rename Expr where
                             EWhere <$> rename e' <*> traverse rename ds
     ETyped e' ty    -> ETyped  <$> rename e' <*> rename ty
     ETypeVal ty     -> ETypeVal<$> rename ty
-    EFun ps e'      -> do (env,ps') <- renamePats ps
+    EFun desc ps e' -> do desc' <- rename desc
+                          (env,ps') <- renamePats ps
                           -- NOTE: renamePats will generate warnings, so we don't
                           -- need to duplicate them here
-                          shadowNames' CheckNone env (EFun ps' <$> rename e')
+                          shadowNames' CheckNone env (EFun desc' ps' <$> rename e')
     ELocated e' r   -> withLoc r
                      $ ELocated <$> rename e' <*> pure r
 

@@ -162,7 +162,7 @@ noPatE expr =
     EWhere e ds   -> EWhere <$> noPatE e <*> noPatDs ds
     ETyped e t    -> ETyped <$> noPatE e <*> return t
     ETypeVal {}   -> return expr
-    EFun ps e     -> noPatFun ps e
+    EFun desc ps e -> noPatFun (funDescrName desc) (funDescrArgOffset desc) ps e
     ELocated e r1 -> ELocated <$> inRange r1 (noPatE e) <*> return r1
 
     ESplit e      -> ESplit  <$> noPatE e
@@ -179,11 +179,11 @@ noPatUF (UpdField h ls e) = UpdField h ls <$> noPatE e
 -- interspersed into the lambdas to ensure that the lexical
 -- structure is reliable, with names on the right shadowing names
 -- on the left.
-noPatFun :: [Pattern PName] -> Expr PName -> NoPatM (Expr PName)
-noPatFun [] e = noPatE e
-noPatFun (p:ps) e =
+noPatFun :: Maybe PName -> Int -> [Pattern PName] -> Expr PName -> NoPatM (Expr PName)
+noPatFun _   _      []     e = noPatE e
+noPatFun mnm offset (p:ps) e =
   do (p',ds) <- noPat p
-     e' <- noPatFun ps e
+     e' <- noPatFun mnm (offset+1) ps e
      let body = case ds of
                   [] -> e'
                   _  -> EWhere e' $ map DBind (reverse ds)
@@ -191,7 +191,8 @@ noPatFun (p:ps) e =
                            -- This reverse isn't strictly necessary, but yields more sensible
                            -- variable ordering results from type inference.  I'm not entirely
                            -- sure why.
-     return (EFun [p'] body)
+     let desc = FunDesc mnm offset
+     return (EFun desc [p'] body)
 
 noPatArm :: [Match PName] -> NoPatM [Match PName]
 noPatArm ms = concat <$> mapM noPatM ms
@@ -212,7 +213,7 @@ noMatchB b =
                                               , show b ]
 
     DExpr e ->
-      do e' <- noPatFun (bParams b) e
+      do e' <- noPatFun (Just (thing (bName b))) 0 (bParams b) e
          return b { bParams = [], bDef = DExpr e' <$ bDef b }
 
 noMatchD :: Decl PName -> NoPatM [Decl PName]
