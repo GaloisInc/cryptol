@@ -380,7 +380,7 @@ instance PP (WithNames Error) where
 
       TooManyPositionalTypeParams ->
         addTVarsDescsAfter names err $
-        "Too many positional type-parameters in explicit type application"
+        "Too many positional type-parameters in explicit type application."
 
       CannotMixPositionalAndNamedTypeParams ->
         addTVarsDescsAfter names err $
@@ -475,7 +475,7 @@ explainUnsolvable names gs =
           PPrime      -> useCtr
 
           PHas sel ->
-            custom ("Type" <+> doc1 <+> "does not have field" <+> f 
+            custom ("Type" <+> doc1 <+> "does not have field" <+> f
                     <+> "of type" <+> (tys !! 1))
             where f = case sel of
                         P.TupleSel n _ -> int n
@@ -544,7 +544,7 @@ computeFreeVarNames warns errs =
 
   {- XXX: Currently we pick the names based on the unique of the variable:
      smaller uniques get an earlier name (e.g., 100 might get `a` and 200 `b`)
-     This may still lead to changes in the names if the uniques got reordred
+     This may still lead to changes in the names if the uniques got reordered
      for some reason.  A more stable approach might be to order the variables
      on their location in the error/warning, but that's quite a bit more code
      so for now we just go with the simple approximation. -}
@@ -570,4 +570,3 @@ computeFreeVarNames warns errs =
   variant n x = if n == 0 then x else x ++ suff n
 
   variants roots = [ variant n r | n <- [ 0 .. ], r <- roots ]
-
