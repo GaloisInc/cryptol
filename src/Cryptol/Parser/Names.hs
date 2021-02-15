@@ -95,7 +95,7 @@ namesE expr =
                      in Set.union (boundLNames bs (namesE e)) xs
     ETyped e _    -> namesE e
     ETypeVal _    -> Set.empty
-    EFun ps e     -> boundLNames (namesPs ps) (namesE e)
+    EFun _ ps e   -> boundLNames (namesPs ps) (namesE e)
     ELocated e _  -> namesE e
 
     ESplit e      -> namesE e
@@ -212,7 +212,7 @@ tnamesE expr =
                        in Set.union (boundLNames bs (tnamesE e)) xs
     ETyped e t      -> Set.union (tnamesE e) (tnamesT t)
     ETypeVal t      -> tnamesT t
-    EFun ps e       -> Set.union (Set.unions (map tnamesP ps)) (tnamesE e)
+    EFun _ ps e     -> Set.union (Set.unions (map tnamesP ps)) (tnamesE e)
     ELocated e _    -> tnamesE e
 
     ESplit e        -> tnamesE e

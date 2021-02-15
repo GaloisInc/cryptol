@@ -448,7 +448,7 @@ simpleExpr                     :: { Expr PName }
 -- An expression without an obvious end marker
 longExpr                       :: { Expr PName }
   : 'if' ifBranches 'else' exprNoWhere   { at ($1,$4) $ mkIf (reverse $2) $4 }
-  | '\\' apats '->' exprNoWhere          { at ($1,$4) $ EFun (reverse $2) $4 }
+  | '\\' apats '->' exprNoWhere          { at ($1,$4) $ EFun emptyFunDesc (reverse $2) $4 }
 
 ifBranches                     :: { [(Expr PName, Expr PName)] }
   : ifBranch                      { [$1] }

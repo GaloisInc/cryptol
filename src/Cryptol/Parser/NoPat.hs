@@ -162,8 +162,7 @@ noPatE expr =
     EWhere e ds   -> EWhere <$> noPatE e <*> noPatDs ds
     ETyped e t    -> ETyped <$> noPatE e <*> return t
     ETypeVal {}   -> return expr
-    EFun ps e     -> do (ps1,e1) <- noPatFun ps e
-                        return (EFun ps1 e1)
+    EFun desc ps e -> noPatFun (funDescrName desc) (funDescrArgOffset desc) ps e
     ELocated e r1 -> ELocated <$> inRange r1 (noPatE e) <*> return r1
 
     ESplit e      -> ESplit  <$> noPatE e
@@ -174,15 +173,26 @@ noPatE expr =
 noPatUF :: UpdField PName -> NoPatM (UpdField PName)
 noPatUF (UpdField h ls e) = UpdField h ls <$> noPatE e
 
-noPatFun :: [Pattern PName] -> Expr PName -> NoPatM ([Pattern PName], Expr PName)
-noPatFun ps e =
-  do (xs,bs) <- unzip <$> mapM noPat ps
-     e1 <- noPatE e
-     let body = case concat bs of
-                        [] -> e1
-                        ds -> EWhere e1 $ map DBind ds
-     return (xs, body)
-
+-- Desugar lambdas with multiple patterns into a sequence of
+-- lambdas with a single, simple pattern each.  Bindings required
+-- to simplify patterns are placed inside "where" blocks that are
+-- interspersed into the lambdas to ensure that the lexical
+-- structure is reliable, with names on the right shadowing names
+-- on the left.
+noPatFun :: Maybe PName -> Int -> [Pattern PName] -> Expr PName -> NoPatM (Expr PName)
+noPatFun _   _      []     e = noPatE e
+noPatFun mnm offset (p:ps) e =
+  do (p',ds) <- noPat p
+     e' <- noPatFun mnm (offset+1) ps e
+     let body = case ds of
+                  [] -> e'
+                  _  -> EWhere e' $ map DBind (reverse ds)
+                           --                  ^
+                           -- This reverse isn't strictly necessary, but yields more sensible
+                           -- variable ordering results from type inference.  I'm not entirely
+                           -- sure why.
+     let desc = FunDesc mnm offset
+     return (EFun desc [p'] body)
 
 noPatArm :: [Match PName] -> NoPatM [Match PName]
 noPatArm ms = concat <$> mapM noPatM ms
@@ -203,8 +213,8 @@ noMatchB b =
                                               , show b ]
 
     DExpr e ->
-      do (ps,e') <- noPatFun (bParams b) e
-         return b { bParams = ps, bDef = DExpr e' <$ bDef b }
+      do e' <- noPatFun (Just (thing (bName b))) 0 (bParams b) e
+         return b { bParams = [], bDef = DExpr e' <$ bDef b }
 
 noMatchD :: Decl PName -> NoPatM [Decl PName]
 noMatchD decl =

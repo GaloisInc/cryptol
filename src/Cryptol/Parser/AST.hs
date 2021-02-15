@@ -68,6 +68,8 @@ module Cryptol.Parser.AST
   , TypeInst(..)
   , UpdField(..)
   , UpdHow(..)
+  , FunDesc(..)
+  , emptyFunDesc
 
     -- * Positions
   , Located(..)
@@ -320,13 +322,26 @@ data Expr n   = EVar n                          -- ^ @ x @
               | EWhere (Expr n) [Decl n]        -- ^ @ 1 + x where { x = 2 } @
               | ETyped (Expr n) (Type n)        -- ^ @ 1 : [8] @
               | ETypeVal (Type n)               -- ^ @ `(x + 1)@, @x@ is a type
-              | EFun [Pattern n] (Expr n)       -- ^ @ \\x y -> x @
+              | EFun (FunDesc n) [Pattern n] (Expr n) -- ^ @ \\x y -> x @
               | ELocated (Expr n) Range         -- ^ position annotation
 
               | ESplit (Expr n)                 -- ^ @ splitAt x @ (Introduced by NoPat)
               | EParens (Expr n)                -- ^ @ (e)   @ (Removed by Fixity)
               | EInfix (Expr n) (Located n) Fixity (Expr n)-- ^ @ a + b @ (Removed by Fixity)
                 deriving (Eq, Show, Generic, NFData, Functor)
+
+-- | Description of functions.  Only trivial information is provided here
+--   by the parser.  The NoPat pass fills this in as required.
+data FunDesc n =
+  FunDesc
+  { funDescrName      :: Maybe n   -- ^ Name of this function, if it has one
+  , funDescrArgOffset :: Int -- ^ number of previous arguments to this function
+                             --   bound in surrounding lambdas (defaults to 0)
+  }
+ deriving (Eq, Show, Generic, NFData, Functor)
+
+emptyFunDesc :: FunDesc n
+emptyFunDesc = FunDesc Nothing 0
 
 data UpdField n = UpdField UpdHow [Located Selector] (Expr n)
                                                 -- ^ non-empty list @ x.y = e@
@@ -745,7 +760,7 @@ instance (Show name, PPName name) => PP (Expr name) where
       ESel    e l   -> ppPrec 4 e <.> text "." <.> pp l
 
       -- low prec
-      EFun xs e     -> wrap n 0 ((text "\\" <.> hsep (map (ppPrec 3) xs)) <+>
+      EFun _ xs e   -> wrap n 0 ((text "\\" <.> hsep (map (ppPrec 3) xs)) <+>
                                  text "->" <+> pp e)
 
       EIf e1 e2 e3  -> wrap n 0 $ sep [ text "if"   <+> pp e1
@@ -988,7 +1003,7 @@ instance NoPos (Expr name) where
       EWhere x y      -> EWhere   (noPos x) (noPos y)
       ETyped x y      -> ETyped   (noPos x) (noPos y)
       ETypeVal x      -> ETypeVal (noPos x)
-      EFun x y        -> EFun     (noPos x) (noPos y)
+      EFun dsc x y    -> EFun dsc (noPos x) (noPos y)
       ELocated x _    -> noPos x
 
       ESplit x        -> ESplit (noPos x)
