@@ -110,5 +110,5 @@ USER cryptol
 ENV LANG=C.UTF-8 \
     LC_ALL=C.UTF-8
 ENTRYPOINT ["/usr/local/bin/cryptol-remote-api"]
-CMD ["http", "--host", "0.0.0.0", "--port", "8080", "/"]
+CMD ["http", "--host", "0.0.0.0", "--port", "8080", "/home/cryptol"]
 EXPOSE 8080
