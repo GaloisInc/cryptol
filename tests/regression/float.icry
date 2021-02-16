@@ -2,8 +2,8 @@
 :set ascii=on
 
 section "Float Formatting"
-:help :set fp-base
-:help :set fp-format
+:help :set fpBase
+:help :set fpFormat
 
 :set fp-base=2
 10.25 : Medium

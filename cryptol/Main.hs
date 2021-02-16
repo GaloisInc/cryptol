@@ -195,9 +195,15 @@ displayHelp errs = do
             , "addition to the default locations"
             ]
           )
+        , ( "EDITOR"
+          , [ "Sets the editor executable to use when opening an editor"
+            , "via the `:edit` command"
+            ]
+          )
         , ( "SBV_{ABC,BOOLECTOR,CVC4,MATHSAT,YICES,Z3}_OPTIONS"
           , [ "A string of command-line arguments to be passed to the"
             , "corresponding solver invoked for `:sat` and `:prove`"
+            , "when using a prover via SBV"
             ]
           )
         ]
