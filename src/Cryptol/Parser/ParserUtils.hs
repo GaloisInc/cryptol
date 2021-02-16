@@ -299,6 +299,15 @@ mkEApp es@(eLast :| _) =
      [ f, x, `{ a = 2 }, y ]
      becomes
      [ f, x ` { a = 2 }, y ]
+
+     The parser associates field and tuple projectors that follow an
+     explicit type application onto the TTyApp term, so we also
+     have to unwind those projections and reapply them.  For example:
+
+     [ f, x, `{ a = 2 }.f.2, y ]
+     becomes
+     [ f, (x`{ a = 2 }).f.2, y ]
+
   -}
   cvtTypeParams e [] = pure (e :| [])
   cvtTypeParams e (p : ps) =
