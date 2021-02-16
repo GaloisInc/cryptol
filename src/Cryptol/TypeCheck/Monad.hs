@@ -483,20 +483,52 @@ newTVar' src extraBound k =
                      in (TVFree x k vs msg, s { seedTVar = x + 1 })
 
 
+-- | Check that the given "flavor" of parameter is allowed to
+--   have the given type, and raise an error if not
+checkParamKind :: TParam -> TPFlavor -> Kind -> InferM ()
+
+checkParamKind tp flav k =
+    case flav of
+      TPModParam _     -> return () -- All kinds allowed as module parameters
+      TPPropSynParam _ -> starOrHashOrProp
+      TPTySynParam _   -> starOrHash
+      TPSchemaParam _  -> starOrHash
+      TPNewtypeParam _ -> starOrHash
+      TPPrimParam _    -> starOrHash
+      TPUnifyVar       -> starOrHash
+
+  where
+    starOrHashOrProp =
+      case k of
+        KNum  -> return ()
+        KType -> return ()
+        KProp -> return ()
+        _ -> recordError (BadParameterKind tp k)
+
+    starOrHash =
+      case k of
+        KNum  -> return ()
+        KType -> return ()
+        _ -> recordError (BadParameterKind tp k)
+
 
 -- | Generate a new free type variable.
 newTParam :: P.TParam Name -> TPFlavor -> Kind -> InferM TParam
-newTParam nm flav k = newName $ \s ->
-  let x = seedTVar s
-  in (TParam { tpUnique = x
-            , tpKind   = k
-            , tpFlav   = flav
-            , tpInfo   = desc
-            }
-     , s { seedTVar = x + 1 })
-  where desc = TVarInfo { tvarDesc = TVFromSignature (P.tpName nm)
-                        , tvarSource = fromMaybe emptyRange (P.tpRange nm)
+newTParam nm flav k =
+  do let desc = TVarInfo { tvarDesc = TVFromSignature (P.tpName nm)
+                         , tvarSource = fromMaybe emptyRange (P.tpRange nm)
+                         }
+     tp <- newName $ \s ->
+             let x = seedTVar s
+             in (TParam { tpUnique = x
+                        , tpKind   = k
+                        , tpFlav   = flav
+                        , tpInfo   = desc
                         }
+                , s { seedTVar = x + 1 })
+
+     checkParamKind tp flav k
+     return tp
 
 
 -- | Generate an unknown type.  The doc is a note about what is this type about.

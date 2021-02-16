@@ -49,7 +49,12 @@ data TParam = TParam { tpUnique :: !Int       -- ^ Parameter identifier
               deriving (Generic, NFData, Show)
 
 data TPFlavor = TPModParam Name
-              | TPOther (Maybe Name)
+              | TPUnifyVar
+              | TPSchemaParam Name
+              | TPTySynParam Name
+              | TPPropSynParam Name
+              | TPNewtypeParam Name
+              | TPPrimParam Name
               deriving (Generic, NFData, Show)
 
 tMono :: Type -> Schema
@@ -62,18 +67,17 @@ isMono s =
     _              -> Nothing
 
 
-
 schemaParam :: Name -> TPFlavor
-schemaParam x = TPOther (Just x)
+schemaParam = TPSchemaParam
 
 tySynParam :: Name -> TPFlavor
-tySynParam x = TPOther (Just x)
+tySynParam = TPTySynParam
 
 propSynParam :: Name -> TPFlavor
-propSynParam x = TPOther (Just x)
+propSynParam = TPPropSynParam
 
 newtypeParam :: Name -> TPFlavor
-newtypeParam x = TPOther (Just x)
+newtypeParam = TPNewtypeParam
 
 modTyParam :: Name -> TPFlavor
 modTyParam = TPModParam
@@ -82,8 +86,13 @@ modTyParam = TPModParam
 tpfName :: TPFlavor -> Maybe Name
 tpfName f =
   case f of
-    TPModParam x -> Just x
-    TPOther x -> x
+    TPUnifyVar       -> Nothing
+    TPModParam x     -> Just x
+    TPSchemaParam x  -> Just x
+    TPTySynParam x   -> Just x
+    TPPropSynParam x -> Just x
+    TPNewtypeParam x -> Just x
+    TPPrimParam x    -> Just x
 
 tpName :: TParam -> Maybe Name
 tpName = tpfName . tpFlav
@@ -1027,10 +1036,15 @@ instance PP (WithNames TVar) where
       | otherwise =
           case tv of
             TVBound x ->
+              let declNm n = pp n <.> "`" <.> int (tpUnique x) in
               case tpFlav x of
                 TPModParam n     -> ppPrefixName n
-                TPOther (Just n) -> pp n <.> "`" <.> int (tpUnique x)
-                _  -> pickTVarName (tpKind x) (tvarDesc (tpInfo x)) (tpUnique x)
+                TPUnifyVar       -> pickTVarName (tpKind x) (tvarDesc (tpInfo x)) (tpUnique x)
+                TPSchemaParam n  -> declNm n
+                TPTySynParam n   -> declNm n
+                TPPropSynParam n -> declNm n
+                TPNewtypeParam n -> declNm n
+                TPPrimParam n    -> declNm n
 
             TVFree x k _ d -> pickTVarName k (tvarDesc d) x
 

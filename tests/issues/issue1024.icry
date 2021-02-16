@@ -1,0 +1,4 @@
+:l issue1024a.cry
+:l issue1024b.cry
+
+someFunc`{[16]}

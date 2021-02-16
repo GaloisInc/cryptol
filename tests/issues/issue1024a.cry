@@ -1,0 +1,5 @@
+type Funny (f : # -> *) = Integer
+type Strange (f : Prop) = Integer
+
+funnyFunc : { i : #, f : # -> *, g : * } Integer
+funnyFunc = zero

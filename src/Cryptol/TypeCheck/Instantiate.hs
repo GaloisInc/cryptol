@@ -102,9 +102,9 @@ instantiateWithPos nm e (Forall as ps t) ts =
     where
     src = case drop (n-1) {- count from 1 -} as of
             p:_ ->
-              case tpFlav p of
-                TPOther (Just a) -> TypeParamInstNamed nm (nameIdent a)
-                _                -> TypeParamInstPos nm n
+              case tpName p of
+                Just a -> TypeParamInstNamed nm (nameIdent a)
+                _      -> TypeParamInstPos nm n
             _ -> panic "instantiateWithPos"
                     [ "Invalid parameter index", show n, show as ]
 
