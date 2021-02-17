@@ -27,6 +27,7 @@ module Cryptol.Parser
 
 import           Control.Applicative as A
 import           Data.Maybe(fromMaybe)
+import           Data.List.NonEmpty ( NonEmpty(..), cons )
 import           Data.Text(Text)
 import qualified Data.Text as T
 import           Control.Monad(liftM2,msum)
@@ -470,7 +471,7 @@ longRHS                        :: { Expr PName }
 
 -- Prefix application expression, ends with an atom.
 simpleApp                      :: { Expr PName }
-  : aexprs                        { mkEApp $1 }
+  : aexprs                        {% mkEApp $1 }
 
 -- Prefix application expression, may end with a long expression
 longApp                        :: { Expr PName }
@@ -478,9 +479,9 @@ longApp                        :: { Expr PName }
   | longExpr                      { $1 }
   | simpleApp                     { $1 }
 
-aexprs                         :: { [Expr PName] }
-  : aexpr                         { [$1] }
-  | aexprs aexpr                  { $2 : $1 }
+aexprs                         :: { NonEmpty (Expr PName) }
+  : aexpr                         { $1 :| [] }
+  | aexprs aexpr                  { cons $2 $1 }
 
 
 -- Expression atom (needs no parens)

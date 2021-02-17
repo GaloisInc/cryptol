@@ -1,0 +1,36 @@
+type Fld = [4]
+
+type v1 = 36
+type o1 = 32
+type o2 = 32
+
+type nn = v1 + o1 + o2
+
+nats : {n} (fin n) => [n][width n]
+nats = take`{n} [0 .. n]
+
+vzero : {n} (fin n, n > 0) => [n]Fld
+vzero = [ zero | _ <- nats`{n=n} ]
+
+build1item : [width nn] -> [width nn] -> Fld
+build1item i j =
+  if i == j then
+    1
+  else        
+    0
+
+build2 : [v1][v1]Fld -> [v1][o1]Fld -> [v1][o2]Fld ->
+         [o1][o1]Fld -> [o1][o2]Fld -> [nn][nn]Fld
+build2 a11 a12 a13 a22 a23 =
+  map (build2row a11 a12 a13 a22 a23) (nats`{n=nn})
+
+build2row : [v1][v1]Fld -> [v1][o1]Fld -> [v1][o2]Fld ->
+            [o1][o1]Fld -> [o1][o2]Fld  -> [width nn] -> [nn]Fld
+build2row a11 a12 a13 a22 a23 i =
+  if i < `v1 then
+    a11 @ i # a12 @ i # a13 @ i
+  else if i < `{v1 + o1} then
+    /*    vzero`{n=v1} # a22 @ (i - `v1) # a23 @ (i - `v1) */
+    vzero`{n=v1} # vzero`{n=o1} # vzero`{n=o2}
+  else
+    map (build1item i) (nats`{n=nn})

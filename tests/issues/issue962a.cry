@@ -1,0 +1,13 @@
+f : {a, b} (fin a) => [a]b -> (Bit, [a]b)
+f x = (True, x)
+
+g : {a,b} (fin a) => [a]b -> [a]b
+g x = (f`{a=a} x).1
+
+h = f.1
+
+i : {a} (fin a) => [a] -> [a]
+i = f`{a=a}.1
+
+j : {a} (fin a) => [a]{ fld : Integer } -> [a]Integer
+j = f`{a=a,b={fld : Integer}}.1.fld

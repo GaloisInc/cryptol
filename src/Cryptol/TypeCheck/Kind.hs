@@ -387,8 +387,8 @@ doCheckType ty k =
 
     P.TInfix t x _ u-> doCheckType (P.TUser (thing x) [t, u]) k
 
-    P.TTyApp _fs    -> panic "doCheckType"
-                         ["TTyApp found when kind checking, but it should have been eliminated already"]
+    P.TTyApp _fs    -> do kRecordError BareTypeApp
+                          kNewType TypeWildCard KNum
 
   where
   checkF _nm (rng,v) = kInRange rng $ doCheckType v (Just KType)

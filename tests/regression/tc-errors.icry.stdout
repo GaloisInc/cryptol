@@ -33,8 +33,9 @@ Loading module Cryptol
 Parse error at tc-errors.icry:6:8,
   unexpected: ,
 
-[error] at tc-errors.icry:7:1--7:5:
-  Named and positional type applications may not be mixed.
+Parse error at tc-errors.icry:7:1--7:10
+  Explicit type applications can only be applied to named values.
+  Unexpected: take`{1}
 
 [error] at tc-errors.icry:8:1--8:5:
   Type mismatch:
