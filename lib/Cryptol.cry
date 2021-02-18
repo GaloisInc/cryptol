@@ -168,6 +168,13 @@ type constraint i < j = j >= i + 1
 primitive type Literal : # -> * -> Prop
 
 /**
+ * 'LiteralLessThan n a' asserts that the type 'a' contains all the
+ * natural numbers strictly below 'n'.  Note that we may have 'n = inf',
+ * in which case the type 'a' must be unbounded.
+ */
+primitive type LiteralLessThan : # -> * -> Prop
+
+/**
  * The value corresponding to a numeric type.
  */
 primitive number : {val, rep} Literal val rep => rep
@@ -193,6 +200,15 @@ length _ = `n
 primitive fromTo : {first, last, a} (fin last, last >= first,
                                     Literal first a, Literal last a) =>
                                     [1 + (last - first)]a
+
+/**
+ * A possibly infinite sequence counting up from 'first' up to (but not including) 'bound'.
+ *
+ * Note that if 'first' = 'bound' then the sequence will be empty.
+ */
+primitive fromToLessThan :
+  {first, bound, a} (fin first, bound >= first, LiteralLessThan bound a) => [bound - first]a
+
 
 /**
  * A finite arithmetic sequence starting with 'first' and 'next',
@@ -879,8 +895,8 @@ updatesEnd xs0 idxs vals = xss!0
  * Declarations of the form 'x @ i = e' are syntactic sugar for
  * 'x = generate (\i -> e)'.
  */
-generate : {n, a, ix} (fin n, n >= 1, Integral ix, Literal (n-1) ix) => (ix -> a) -> [n]a
-generate f = [ f i | i <- [0 .. n-1] ]
+generate : {n, a, ix} (Integral ix, LiteralLessThan n ix) => (ix -> a) -> [n]a
+generate f = [ f i | i <- fromToLessThan`{0,n} ]
 
 
 // GF_2^n polynomial computations -------------------------------------------

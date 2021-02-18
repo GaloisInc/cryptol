@@ -1581,6 +1581,21 @@ fromToV sym =
         in VSeq len $ IndexSeqMap $ \i -> f (first' + i)
       _ -> evalPanic "fromToV" ["invalid arguments"]
 
+{-# INLINE fromToLessThanV #-}
+
+-- @[ 0 .. <10 ]@
+fromToLessThanV :: Backend sym => sym -> Prim sym
+fromToLessThanV sym =
+  PFinPoly \first ->
+  PNumPoly \bound ->
+  PTyPoly  \ty ->
+  PVal
+    let !f = mkLit sym ty
+        ss = IndexSeqMap $ \i -> f (first + i)
+    in case bound of
+         Inf        -> VStream ss
+         Nat bound' -> VSeq (bound' - first) ss
+
 {-# INLINE fromThenToV #-}
 
 -- @[ 0, 1 .. 10 ]@
@@ -2285,8 +2300,13 @@ genericPrimTable sym getEOpts =
     -- Finite enumerations
   , ("fromTo"     , {-# SCC "Prelude::fromTo" #-}
                     fromToV sym)
+
   , ("fromThenTo" , {-# SCC "Prelude::fromThenTo" #-}
                     fromThenToV sym)
+
+  , ("fromToLessThan"
+                  , {-# SCC "Prelude::fromToLessThan" #-}
+                    fromToLessThanV sym)
 
     -- Sequence manipulations
   , ("#"          , {-# SCC "Prelude::(#)" #-}

@@ -537,6 +537,10 @@ explainUnsolvable names gs =
             let doc2 = tys !! 1
             in custom (doc1 <+> "is not a valid literal of type" <+> doc2)
 
+          PLiteralLessThan ->
+            let doc2 = tys !! 1
+            in custom ("Type" <+> doc2 <+> "does not contain all literals below" <+> (doc1 <> "."))
+
           PFLiteral ->
             case ts of
               ~[m,n,_r,_a] ->

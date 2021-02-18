@@ -7,7 +7,9 @@ module Cryptol.TypeCheck.TypePat
   , aCeilDiv, aCeilMod
   , aLenFromThenTo
 
-  , aLiteral, aLogic
+  , aLiteral
+  , aLiteralLessThan
+  , aLogic
 
   , aTVar
   , aFreeTVar
@@ -177,6 +179,9 @@ aTrue = tp PTrue ar0
 
 aLiteral :: Pat Prop (Type,Type)
 aLiteral = tp PLiteral ar2
+
+aLiteralLessThan :: Pat Prop (Type,Type)
+aLiteralLessThan = tp PLiteralLessThan ar2
 
 aLogic :: Pat Prop Type
 aLogic = tp PLogic ar1

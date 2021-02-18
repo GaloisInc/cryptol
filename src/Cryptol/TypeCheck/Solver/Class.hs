@@ -20,14 +20,15 @@ module Cryptol.TypeCheck.Solver.Class
   , solveCmpInst
   , solveSignedCmpInst
   , solveLiteralInst
+  , solveLiteralLessThanInst
   , solveFLiteralInst
   , solveValidFloat
   ) where
 
 import qualified LibBF as FP
 
-import Cryptol.TypeCheck.Type
-import Cryptol.TypeCheck.SimpType (tAdd,tWidth)
+import Cryptol.TypeCheck.Type hiding (tSub)
+import Cryptol.TypeCheck.SimpType (tAdd,tSub,tWidth,tMax)
 import Cryptol.TypeCheck.Solver.Types
 import Cryptol.Utils.RecordMap
 
@@ -483,6 +484,7 @@ solveFLiteralInst numT denT rndT ty
 
       _ -> Unsolvable
 
+
 -- | Solve Literal constraints.
 solveLiteralInst :: Type -> Type -> Solved
 solveLiteralInst val ty
@@ -514,12 +516,11 @@ solveLiteralInst val ty
         | otherwise -> Unsolved
 
 
-
       -- (fin val, fin m, m >= val + 1) => Literal val (Z m)
       TCon (TC TCIntMod) [modulus] ->
         SolvedIf [ pFin val, pFin modulus, modulus >== tAdd val tOne ]
 
-      -- (fin bits, bits => width n) => Literal n [bits]
+      -- (fin bits, bits >= width n) => Literal n [bits]
       TCon (TC TCSeq) [bits, elTy]
         | TCon (TC TCBit) [] <- ety ->
             SolvedIf [ pFin val, pFin bits, bits >== tWidth val ]
@@ -531,3 +532,50 @@ solveLiteralInst val ty
       _ -> Unsolvable
 
 
+-- | Solve Literal constraints.
+solveLiteralLessThanInst :: Type -> Type -> Solved
+solveLiteralLessThanInst val ty
+  | TCon (TError {}) _ <- tNoUser val = Unsolvable
+  | otherwise =
+    case tNoUser ty of
+
+      -- Literal n Error -> fails
+      TCon (TError {}) _ -> Unsolvable
+
+      -- (2 >= val) => LiteralLessThan val Bit
+      TCon (TC TCBit) [] -> SolvedIf [ tTwo >== val ]
+
+      -- LiteralLessThan val Integer
+      TCon (TC TCInteger) [] -> SolvedIf [ ]
+
+      -- LiteralLessThan val Rational
+      TCon (TC TCRational) [] -> SolvedIf [ ]
+
+      -- ValidFloat e p => LiteralLessThan val (Float e p)   if `val-1` is representable
+      -- RWD Should we remove this instance for floats?
+      TCon (TC TCFloat) [e, p]
+        | Just n <- tIsNum val
+        , n > 0
+        , Just opts  <- knownSupportedFloat e p ->
+          let bf = FP.bfFromInteger (n-1)
+          in case FP.bfRoundFloat opts bf of
+               (bf1,FP.Ok) | bf == bf1 -> SolvedIf []
+               _ -> Unsolvable
+
+        | otherwise -> Unsolved
+
+      -- (fin val, fin m, m >= val) => LiteralLessThan val (Z m)
+      TCon (TC TCIntMod) [modulus] ->
+        SolvedIf [ pFin val, pFin modulus, modulus >== val ]
+
+      -- (fin bits, bits >= lg2 n) => LiteralLessThan n [bits]
+      TCon (TC TCSeq) [bits, elTy]
+        | TCon (TC TCBit) [] <- ety ->
+            SolvedIf [ pFin val, pFin bits, bits >== tWidth val' ]
+        | TVar _ <- ety -> Unsolved
+        where ety  = tNoUser elTy
+              val' = tSub (tMax val tOne) tOne
+
+      TVar _ -> Unsolved
+
+      _ -> Unsolvable
