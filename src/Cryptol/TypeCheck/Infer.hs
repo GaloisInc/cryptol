@@ -183,6 +183,7 @@ appTys expr ts tGoal =
     P.ESel      {} -> mono
     P.EList     {} -> mono
     P.EFromTo   {} -> mono
+    P.EFromToLessThan {} -> mono
     P.EInfFrom  {} -> mono
     P.EComp     {} -> mono
     P.EApp      {} -> mono
@@ -293,6 +294,20 @@ checkE expr tGoal =
          let checkElem e = checkE e (WithSource a TypeOfSeqElement)
          es' <- mapM checkElem es
          return (EList es' a)
+
+    P.EFromToLessThan t1 t2 mety ->
+      do l <- curRange
+         let fs0 =
+               case mety of
+                 Just ety -> [("a", ety)]
+                 Nothing  -> []
+         let fs = [("first", t1), ("bound", t2)] ++ fs0
+         prim <- mkPrim "fromToLessThan"
+         let e' = P.EAppT prim
+                  [ P.NamedInst P.Named { name = Located l (packIdent x), value = y }
+                  | (x,y) <- fs
+                  ]
+         checkE e' tGoal
 
     P.EFromTo t1 mbt2 t3 mety ->
       do l <- curRange

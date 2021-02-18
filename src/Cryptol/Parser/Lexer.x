@@ -142,6 +142,7 @@ $white+                   { emit $ White Space }
 "`"                       { emit $ Sym BackTick }
 ".."                      { emit $ Sym DotDot }
 "..."                     { emit $ Sym DotDotDot }
+"..<"                     { emit $ Sym DotDotLt  }
 "|"                       { emit $ Sym Bar }
 "("                       { emit $ Sym ParenL }
 ")"                       { emit $ Sym ParenR }
@@ -160,6 +161,9 @@ $white+                   { emit $ White Space }
 "-"                       { emit  (Op   Minus) }
 "*"                       { emit  (Op   Mul  ) }
 "^^"                      { emit  (Op   Exp  ) }
+
+-- < can appear in the enumeration syntax `[ x .. < y ]
+"<"                       { emit $ Sym Lt }
 
 -- hash is used as a kind, and as a pattern
 "#"                       { emit  (Op   Hash ) }

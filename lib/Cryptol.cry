@@ -896,7 +896,7 @@ updatesEnd xs0 idxs vals = xss!0
  * 'x = generate (\i -> e)'.
  */
 generate : {n, a, ix} (Integral ix, LiteralLessThan n ix) => (ix -> a) -> [n]a
-generate f = [ f i | i <- fromToLessThan`{0,n} ]
+generate f = [ f i | i <- [0 .. <n] ]
 
 
 // GF_2^n polynomial computations -------------------------------------------

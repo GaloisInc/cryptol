@@ -154,6 +154,7 @@ noPatE expr =
     EUpd mb fs    -> EUpd    <$> traverse noPatE mb <*> traverse noPatUF fs
     EList es      -> EList   <$> mapM noPatE es
     EFromTo {}    -> return expr
+    EFromToLessThan{} -> return expr
     EInfFrom e e' -> EInfFrom <$> noPatE e <*> traverse noPatE e'
     EComp e mss   -> EComp  <$> noPatE e <*> mapM noPatArm mss
     EApp e1 e2    -> EApp   <$> noPatE e1 <*> noPatE e2
