@@ -51,6 +51,7 @@ Primitive Types
     Integral : * -> Prop
     inf : #
     Literal : # -> * -> Prop
+    LiteralLessThan : # -> * -> Prop
     Logic : * -> Prop
     lengthFromThenTo : # -> # -> # -> #
     max : # -> # -> #
@@ -145,10 +146,13 @@ Symbols
       {first, last, a} (fin last, last >= first, Literal first a,
                         Literal last a) =>
         [1 + (last - first)]a
+    fromToLessThan :
+      {first, bound, a} (fin first, bound >= first,
+                         LiteralLessThan bound a) =>
+        [bound - first]a
     fromZ : {n} (fin n, n >= 1) => Z n -> Integer
     generate :
-      {n, a, ix} (fin n, n >= 1, Integral ix, Literal (n - 1) ix) =>
-        (ix -> a) -> [n]a
+      {n, a, ix} (Integral ix, LiteralLessThan n ix) => (ix -> a) -> [n]a
     groupBy :
       {each, parts, a} (fin each) => [each * parts]a -> [parts][each]a
     head : {n, a} [1 + n]a -> a
