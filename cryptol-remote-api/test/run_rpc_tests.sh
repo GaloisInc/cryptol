@@ -9,6 +9,8 @@ fi
 
 pushd $DIR/galois-py-toolkit
 
+NUM_FAILS=0
+
 echo "Setting up python environment for remote server clients..."
 python3 -m venv virtenv
 . virtenv/bin/activate
@@ -17,9 +19,24 @@ pip install -r requirements.txt
 echo "Running cryptol-remote-api tests..."
 export CRYPTOL_SERVER=cryptol-remote-api
 python3 -m unittest discover tests/cryptol
-export CRYPTOL_SERVER=cryptol-eval-server
+if [ $? -ne 0 ]; then
+    NUM_FAILS=$(($NUM_FAILS+1))
+fi
 
 echo "Running cryptol-eval-server tests..."
+export CRYPTOL_SERVER=cryptol-eval-server
 python3 -m unittest discover tests/cryptol_eval
+if [ $? -ne 0 ]; then
+    NUM_FAILS=$(($NUM_FAILS+1))
+fi
 
 popd
+
+if [ $NUM_FAILS -eq 0 ]
+then
+  echo "All RPC tests passed"
+  exit 0
+else
+  echo "Some RPC tests failed"
+  exit 1
+fi
