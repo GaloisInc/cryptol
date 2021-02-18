@@ -16,15 +16,17 @@ python3 -m venv virtenv
 . virtenv/bin/activate
 pip install -r requirements.txt
 
+export CRYPTOL_SERVER=$(cabal v2-exec which cryptol-remote-api)
 echo "Running cryptol-remote-api tests..."
-export CRYPTOL_SERVER=cryptol-remote-api
+echo "Using server $CRYPTOL_SERVER"
 python3 -m unittest discover tests/cryptol
 if [ $? -ne 0 ]; then
     NUM_FAILS=$(($NUM_FAILS+1))
 fi
 
 echo "Running cryptol-eval-server tests..."
-export CRYPTOL_SERVER=cryptol-eval-server
+export CRYPTOL_SERVER=$(cabal v2-exec which cryptol-eval-server)
+echo "Using server $CRYPTOL_SERVER"
 python3 -m unittest discover tests/cryptol_eval
 if [ $? -ne 0 ]; then
     NUM_FAILS=$(($NUM_FAILS+1))
