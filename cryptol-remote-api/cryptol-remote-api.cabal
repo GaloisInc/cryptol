@@ -7,8 +7,7 @@ author:              David Thrane Christiansen
 maintainer:          dtc@galois.com
 category:            Language
 extra-source-files:  CHANGELOG.md
-data-files:          test-scripts/**/*.py
-                     test-scripts/**/*.cry
+
 
 common warnings
   ghc-options:
@@ -86,24 +85,3 @@ executable cryptol-eval-server
     cryptol-remote-api,
     optparse-applicative,
     sbv < 8.10
-
-
-test-suite test-cryptol-remote-api
-  import:              deps, warnings
-  type:                exitcode-stdio-1.0
-  hs-source-dirs:      test
-  main-is:             Test.hs
-  other-modules:       Paths_cryptol_remote_api
-  ghc-options:
-    -Wno-orphans
-  build-tool-depends:
-    cryptol-remote-api:cryptol-remote-api,
-    cryptol-remote-api:cryptol-eval-server
-  build-depends:
-    argo-python,
-    cryptol-remote-api,
-    quickcheck-instances ^>= 0.3.19,
-    tasty                 >= 1.2.1,
-    tasty-quickcheck     ^>= 0.10,
-    tasty-hunit,
-    tasty-script-exitcode
