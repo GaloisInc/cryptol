@@ -24,13 +24,13 @@ if [ $? -ne 0 ]; then
     NUM_FAILS=$(($NUM_FAILS+1))
 fi
 
-echo "Running cryptol-eval-server tests..."
-export CRYPTOL_SERVER=$(cabal v2-exec which cryptol-eval-server)
-echo "Using server $CRYPTOL_SERVER"
-python3 -m unittest discover tests/cryptol_eval
-if [ $? -ne 0 ]; then
-    NUM_FAILS=$(($NUM_FAILS+1))
-fi
+# echo "Running cryptol-eval-server tests..."
+# export CRYPTOL_SERVER=$(cabal v2-exec which cryptol-eval-server)
+# echo "Using server $CRYPTOL_SERVER"
+# python3 -m unittest discover tests/cryptol_eval
+# if [ $? -ne 0 ]; then
+#     NUM_FAILS=$(($NUM_FAILS+1))
+# fi
 
 popd
 
