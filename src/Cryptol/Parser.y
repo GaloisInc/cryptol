@@ -86,6 +86,16 @@ import Paths_cryptol
 
   'primitive' { Located $$ (Token (KW KW_primitive) _)}
   'constraint'{ Located $$ (Token (KW KW_constraint) _)}
+
+  'procedure' { Located $$ (Token (KW KW_procedure) _) }
+  'return'    { Located $$ (Token (KW KW_return) _) }
+  'sif'       { Located $$ (Token (KW KW_sif     ) _)}
+  'sthen'     { Located $$ (Token (KW KW_sthen     ) _)}
+  'selse'     { Located $$ (Token (KW KW_selse     ) _)}
+  'while'     { Located $$ (Token (KW KW_while     ) _)}
+  'for'       { Located $$ (Token (KW KW_for     ) _)}
+  'do'        { Located $$ (Token (KW KW_do     ) _)}
+
   'Prop'      { Located $$ (Token (KW KW_Prop) _)}
 
   '['         { Located $$ (Token (Sym BracketL) _)}
@@ -112,7 +122,6 @@ import Paths_cryptol
   '\\'        { Located $$ (Token (Sym Lambda  ) _)}
   '_'         { Located $$ (Token (Sym Underscore ) _)}
 
-
   'v{'        { Located $$ (Token (Virt VCurlyL)  _)}
   'v}'        { Located $$ (Token (Virt VCurlyR)  _)}
   'v;'        { Located $$ (Token (Virt VSemi)    _)}
@@ -126,6 +135,7 @@ import Paths_cryptol
 
   '#'         { Located $$ (Token (Op Hash) _)}
   '@'         { Located $$ (Token (Op At) _)}
+
 
   OP          { $$@(Located _ (Token (Op (Other [] _)) _))}
   QOP         { $$@(Located _ (Token (Op  Other{}   )  _))}
@@ -383,6 +393,26 @@ repl                    :: { ReplInput PName }
 
 
 --------------------------------------------------------------------------------
+-- Statements
+
+stmts :: { [Statement PName] }
+  : stmt ';'               { [$1] }
+  | stmts stmt ';'         { $2 : $1 }
+
+vstmts :: { [Statement PName] }
+  : stmt                   { [$1] }
+  | vstmts 'v;' stmt       { $3 : $1 }
+  | vstmts ';'  stmt       { $3 : $1 }
+
+stmt :: { Statement PName }
+  : pat '=' expr           { SAssign $1 $3 }
+  | 'return' expr          { SReturn $2 }
+  | 'sif' expr 'sthen' proc 'selse' proc { SIf $2 (thing $4) (thing $6) }
+  | 'sif' expr 'sthen' proc { SIf $2 (thing $4) [] }
+  | 'while' expr 'do'  proc { SWhile $2 (thing $4) }
+  | 'for' matches 'do' proc   { SFor (reverse $2) (thing $4) }
+
+--------------------------------------------------------------------------------
 -- Operators
 
 qop                              :: { LPName }
@@ -423,6 +453,7 @@ ops                     :: { [LPName] }
 expr                          :: { Expr PName }
   : exprNoWhere                  { $1 }
   | expr 'where' whereClause     { at ($1,$3) (EWhere $1 (thing $3)) }
+  | 'procedure' proc             { at ($1,$2) (EProcedure (thing $2)) }
 
 -- | An expression without a `where` clause
 exprNoWhere                    :: { Expr PName }
@@ -435,6 +466,11 @@ whereClause                    :: { Located [Decl PName] }
   | '{' decls '}'                 { Located (rComb $1 $3) (reverse $2) }
   | 'v{' 'v}'                     { Located (rComb $1 $2) [] }
   | 'v{' vdecls 'v}'              { let l2 = fromMaybe $3 (getLoc $2)
+                                    in Located (rComb $1 l2) (reverse $2) }
+
+proc :: { Located [Statement PName] }
+  : '{' stmts '}'                 { Located (rComb $1 $3) (reverse $2) }
+  | 'v{' vstmts 'v}'              { let l2 = fromMaybe $3 (getLoc $2)
                                     in Located (rComb $1 l2) (reverse $2) }
 
 -- An expression with a type annotation

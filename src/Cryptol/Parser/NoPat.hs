@@ -17,7 +17,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
-module Cryptol.Parser.NoPat (RemovePatterns(..),Error(..)) where
+module Cryptol.Parser.NoPat (RemovePatterns(..),Error(..),splitSimpleP) where
 
 import Cryptol.Parser.AST
 import Cryptol.Parser.Position(Range(..),emptyRange,start,at)
@@ -131,7 +131,7 @@ noPat pat =
   pTy  r x t = PTyped (PVar (Located r x)) t
 
 
-splitSimpleP :: Pattern PName -> (Located PName, [Type PName])
+splitSimpleP :: Show n => Pattern n -> (Located n, [Type n])
 splitSimpleP (PVar x)     = (x, [])
 splitSimpleP (PTyped p t) = let (x,ts) = splitSimpleP p
                             in (x, t:ts)
@@ -160,6 +160,7 @@ noPatE expr =
     EAppT e ts    -> EAppT  <$> noPatE e <*> return ts
     EIf e1 e2 e3  -> EIf    <$> noPatE e1 <*> noPatE e2 <*> noPatE e3
     EWhere e ds   -> EWhere <$> noPatE e <*> noPatDs ds
+    EProcedure ss -> EProcedure <$> noPatProc ss
     ETyped e t    -> ETyped <$> noPatE e <*> return t
     ETypeVal {}   -> return expr
     EFun desc ps e -> noPatFun (funDescrName desc) (funDescrArgOffset desc) ps e
@@ -169,6 +170,35 @@ noPatE expr =
     EParens e     -> EParens <$> noPatE e
     EInfix x y f z-> EInfix  <$> noPatE x <*> pure y <*> pure f <*> noPatE z
 
+
+noPatProc :: [Statement PName] -> NoPatM [Statement PName]
+noPatProc ss = concat <$> traverse noPatStmt ss
+
+noPatStmt :: Statement PName -> NoPatM [Statement PName]
+noPatStmt stmt =
+  case stmt of
+    SAssign p e ->
+      do (p',bs) <- noPat p
+         let (x,ts) = splitSimpleP p'
+         e1 <- noPatE e
+         let e2 = foldl ETyped e1 ts
+         let bnd = Bind{ bName = x
+                       , bParams = []
+                       , bDef = at e (Located emptyRange (DExpr e2))
+                       , bSignature = Nothing
+                       , bPragmas = []
+                       , bMono = True
+                       , bInfix = False
+                       , bFixity = Nothing
+                       , bDoc = Nothing
+                       }
+         pure (SBind bnd : map SBind bs)
+
+    SBind b     -> pure . SBind <$> noMatchB b
+    SReturn e   -> pure . SReturn <$> noPatE e
+    SIf e xs ys -> pure <$> (SIf <$> noPatE e <*> noPatProc xs <*> noPatProc ys)
+    SFor ms xs  -> pure <$> (SFor <$> noPatArm ms <*> noPatProc xs)
+    SWhile e xs -> pure <$> (SWhile <$> noPatE e <*> noPatProc xs)
 
 noPatUF :: UpdField PName -> NoPatM (UpdField PName)
 noPatUF (UpdField h ls e) = UpdField h ls <$> noPatE e

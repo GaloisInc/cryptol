@@ -93,6 +93,8 @@ namesE expr =
     EIf e1 e2 e3  -> Set.union (namesE e1) (Set.union (namesE e2) (namesE e3))
     EWhere  e ds  -> let (bs,xs) = namesDs ds
                      in Set.union (boundLNames bs (namesE e)) xs
+
+    EProcedure ss -> namesProc ss
     ETyped e _    -> namesE e
     ETypeVal _    -> Set.empty
     EFun _ ps e   -> boundLNames (namesPs ps) (namesE e)
@@ -101,6 +103,34 @@ namesE expr =
     ESplit e      -> namesE e
     EParens e     -> namesE e
     EInfix a o _ b-> Set.insert (thing o) (Set.union (namesE a) (namesE b))
+
+namesProc :: Ord name => [Statement name] -> Set name
+namesProc ss = Set.difference useSet defSet
+  where
+    defSet = Set.unions defs
+    useSet = Set.unions uses
+    (defs, uses) = unzip (map namesStmt ss)
+
+namesStmt :: Ord name => Statement name -> (Set name, Set name)
+namesStmt stmt =
+  case stmt of
+    SAssign p e -> (Set.fromList $ map thing $ namesP p, namesE e)
+    SReturn e   -> (Set.empty, namesE e)
+    SBind b     -> (Set.fromList (map thing bs), ns)
+      where
+        (bs, ns) = namesB b
+    SWhile e xs -> (Set.unions xbs, Set.unions (namesE e : xns))
+      where
+        (xbs, xns) = unzip (map namesStmt xs)
+    SFor ms xs -> (Set.unions (mbs : xbs), Set.unions (mns : xns))
+      where
+        mbs = Set.fromList (map thing bs)
+        (bs, mns)  = namesArm ms
+        (xbs, xns) = unzip (map namesStmt xs)
+    SIf e xs ys -> (Set.unions (xbs++ybs), Set.unions (namesE e : xns++yns))
+      where
+        (xbs, xns) = unzip (map namesStmt xs)
+        (ybs, yns) = unzip (map namesStmt ys)
 
 namesUF :: Ord name => UpdField name -> Set name
 namesUF (UpdField _ _ e) = namesE e
@@ -210,6 +240,7 @@ tnamesE expr =
     EIf e1 e2 e3    -> Set.union (tnamesE e1) (Set.union (tnamesE e2) (tnamesE e3))
     EWhere  e ds    -> let (bs,xs) = tnamesDs ds
                        in Set.union (boundLNames bs (tnamesE e)) xs
+    EProcedure ss   -> tnamesProc ss
     ETyped e t      -> Set.union (tnamesE e) (tnamesT t)
     ETypeVal t      -> tnamesT t
     EFun _ ps e     -> Set.union (Set.unions (map tnamesP ps)) (tnamesE e)
@@ -218,6 +249,17 @@ tnamesE expr =
     ESplit e        -> tnamesE e
     EParens e       -> tnamesE e
     EInfix a _ _ b  -> Set.union (tnamesE a) (tnamesE b)
+
+tnamesProc :: Ord name => [Statement name] -> Set name
+tnamesProc ss = Set.unions (map tnamesStmt ss)
+
+tnamesStmt :: Ord name => Statement name -> Set name
+tnamesStmt (SAssign _ e) = tnamesE e
+tnamesStmt (SBind b)     = tnamesB b
+tnamesStmt (SReturn e)   = tnamesE e
+tnamesStmt (SIf e xs ys) = Set.unions (tnamesE e : map tnamesStmt (xs ++ ys))
+tnamesStmt (SWhile e xs) = Set.unions (tnamesE e : map tnamesStmt xs)
+tnamesStmt (SFor ms xs)  = Set.unions (map tnamesM ms ++ map tnamesStmt xs)
 
 tnamesUF :: Ord name => UpdField name -> Set name
 tnamesUF (UpdField _ _ e) = tnamesE e

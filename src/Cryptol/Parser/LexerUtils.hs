@@ -375,6 +375,10 @@ startsLayout :: TokenT -> Bool
 startsLayout (KW KW_where)    = True
 startsLayout (KW KW_private)  = True
 startsLayout (KW KW_parameter) = True
+startsLayout (KW KW_procedure) = True
+startsLayout (KW KW_selse) = True
+startsLayout (KW KW_sthen) = True
+startsLayout (KW KW_do) = True
 startsLayout _                = False
 
 -- Add separators computed from layout
@@ -504,7 +508,17 @@ data TokenKW  = KW_else
               | KW_primitive
               | KW_parameter
               | KW_constraint
+              | KW_procedure
+              | KW_return
               | KW_Prop
+
+              | KW_sif
+              | KW_sthen
+              | KW_selse
+              | KW_while
+              | KW_do
+              | KW_for
+
                 deriving (Eq, Show, Generic, NFData)
 
 -- | The named operators are a special case for parsing types, and 'Other' is
@@ -531,6 +545,7 @@ data TokenSym = Bar
               | CurlyL   | CurlyR
               | TriL     | TriR
               | Underscore
+
                 deriving (Eq, Show, Generic, NFData)
 
 data TokenErr = UnterminatedComment

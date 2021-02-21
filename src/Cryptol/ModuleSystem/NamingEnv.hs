@@ -392,3 +392,25 @@ instance BindsNames (InModule (Decl PName)) where
     qualType ln f = BuildNamingEnv $
       do n <- mkName ln f
          return (singletonT (thing ln) n)
+
+
+data ProcEnv = ProcEnv !ModName [Statement PName]
+
+instance BindsNames ProcEnv where
+  namingEnv (ProcEnv _pfx ss) = foldMap varBind nms
+    where
+      nms = Map.toList (procBoundNames ss)
+      varBind (pn,loc) = BuildNamingEnv $
+        do n <- newLocal pn loc
+           return (singletonE pn n)
+
+procBoundNames :: [Statement PName] -> Map.Map PName Range
+procBoundNames = Map.unions . map stmtBoundNames
+
+stmtBoundNames :: Statement PName -> Map.Map PName Range
+stmtBoundNames (SBind b) = Map.singleton (thing (bName b)) (srcRange (bName b))
+stmtBoundNames SAssign{} = panic "ModuleSystem" ["Unexpected pattern assignment"]
+stmtBoundNames SReturn{} = Map.empty
+stmtBoundNames (SIf _ xs ys) = procBoundNames xs <> procBoundNames ys
+stmtBoundNames (SWhile _ xs) = procBoundNames xs
+stmtBoundNames (SFor _ xs)   = procBoundNames xs

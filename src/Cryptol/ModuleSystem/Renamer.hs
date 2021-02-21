@@ -32,14 +32,18 @@ import Cryptol.ModuleSystem.Name
 import Cryptol.ModuleSystem.NamingEnv
 import Cryptol.ModuleSystem.Exports
 import Cryptol.Parser.AST
+import Cryptol.Parser.Names (namesE, namesB)
 import Cryptol.Parser.Position
+import Cryptol.Parser.NoPat (splitSimpleP)
 import Cryptol.Parser.Selector(ppNestedSels,selName)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
 import Cryptol.Utils.RecordMap
+import Cryptol.Utils.Ident (packIdent,preludeName)
 
 import Data.List(find)
 import qualified Data.Foldable as F
+import           Data.Maybe (maybeToList, fromMaybe)
 import           Data.Map.Strict ( Map )
 import qualified Data.Map.Strict as Map
 import qualified Data.Sequence as Seq
@@ -53,6 +57,8 @@ import Control.DeepSeq
 
 import Prelude ()
 import Prelude.Compat
+
+import Debug.Trace (trace)
 
 -- Errors ----------------------------------------------------------------------
 
@@ -378,7 +384,7 @@ checkEnv disp check l r rw
           if check == CheckAll
              then case Map.lookup k (prj r) of
                     Nothing -> rwWarnings acc
-                    Just os -> addRenamerWarning 
+                    Just os -> addRenamerWarning
                                     (SymbolShadowed (head ns) os disp)
                                     (rwWarnings acc)
 
@@ -705,6 +711,16 @@ instance Rename FunDesc where
     do nm' <- traverse renameVar nm
        pure (FunDesc nm' offset)
 
+instance Rename Statement where
+  rename stmt = case stmt of
+    SAssign{}   -> panic "rename Statement" ["SAssign should be removed by NoPat"]
+    SBind b     -> SBind <$> rename b
+    SReturn e   -> SReturn <$> rename e
+    SIf e xs ys -> SIf <$> rename e <*> traverse rename xs <*> traverse rename ys
+    SWhile e xs -> SWhile <$> rename e <*> traverse rename xs
+    SFor ms xs  -> do (env,ms') <- renameArm ms
+                      shadowNames' CheckOverlap env (SFor ms' <$> traverse rename xs)
+
 instance Rename Expr where
   rename expr = case expr of
     EVar n          -> EVar <$> renameVar n
@@ -736,6 +752,7 @@ instance Rename Expr where
     EWhere e' ds    -> do ns <- getNS
                           shadowNames (map (InModule ns) ds) $
                             EWhere <$> rename e' <*> traverse rename ds
+    EProcedure ss   -> renameProc ss
     ETyped e' ty    -> ETyped  <$> rename e' <*> rename ty
     ETypeVal ty     -> ETypeVal<$> rename ty
     EFun desc ps e' -> do desc' <- rename desc
@@ -752,6 +769,20 @@ instance Rename Expr where
                           x' <- rename x
                           z' <- rename z
                           mkEInfix x' op z'
+
+renameProc :: [Statement PName] -> RenameM (Expr Name)
+renameProc ss =
+  do ns <- getNS
+     ss' <- shadowNames (ProcEnv ns ss) (traverse rename ss)
+     expr <- compileProc ss'
+
+     trace (unlines
+        [ "Compiled Procedure"
+        , show (nest 4 (pp (EProcedure ss)))
+        , show (nest 4 (pp expr))
+        ]) (return expr)
+
+--     return expr
 
 
 checkLabels :: [UpdField PName] -> RenameM ()
@@ -972,3 +1003,219 @@ instance Rename PropSyn where
                              <*> pure f
                              <*> traverse rename ps
                              <*> traverse rename cs
+
+
+data BBTerm
+  = BBReturn (Expr Name)
+  | BBJump Integer
+  | BBBranch (Expr Name) Integer Integer
+
+data BasicBlock =
+  BasicBlock
+  { _bbLabel :: Integer
+  , bbStmts :: [Bind Name]
+  , bbTerm  :: BBTerm
+  }
+
+data CFG =
+  CFG
+  { cfgBlocks  :: Map Integer BasicBlock
+  , cfgAllDefs :: Set Name
+  }
+
+emptyCFG :: CFG
+emptyCFG = CFG mempty mempty
+
+buildCFG :: [Integer] -> CFG -> Integer -> Maybe BBTerm -> [Statement Name] -> RenameM ([Integer], CFG)
+buildCFG labels cfg lbl mterm = processBB [] mempty
+  where
+    finishBB bnds defs term =
+      CFG
+      { cfgBlocks  = Map.insert lbl (BasicBlock lbl (reverse bnds) term) (cfgBlocks cfg)
+      , cfgAllDefs = Set.union defs (cfgAllDefs cfg)
+      }
+
+    processBB bnds defs [] =
+      case mterm of
+        Nothing   -> error "Unterminated procedure" -- TODO, real error handling
+        Just term -> pure (labels, finishBB bnds defs term)
+
+    processBB bnds defs (s:ss) =
+      case s of
+        SAssign{} -> panic "buildCFG" ["Unexpected pattern assignement in renamer"]
+        SBind b   -> processBB (b:bnds) (Set.insert (thing (bName b)) defs) ss
+        SReturn e -> pure (labels, finishBB bnds defs (BBReturn e))
+        SWhile e xs ->
+          do let (lx:lz:labels') = labels
+             let cfg' = finishBB bnds defs (BBBranch e lx lz)
+             (labelsx, cfgx) <- buildCFG labels' cfg' lx (Just (BBBranch e lx lz)) xs
+             buildCFG labelsx cfgx lz mterm ss
+        SIf e xs [] ->
+          do let (lx:lz:labels') = labels
+             let cfg' = finishBB bnds defs (BBBranch e lx lz)
+             (labelsx, cfgx) <- buildCFG labels' cfg' lx (Just (BBJump lz)) xs
+             buildCFG labelsx cfgx lz mterm ss
+        SIf e xs ys ->
+          do let (lx:ly:lz:labels') = labels
+             let cfg' = finishBB bnds defs (BBBranch e lx ly)
+             (labelsx, cfgx) <- buildCFG labels' cfg' lx (Just (BBJump lz)) xs
+             (labelsy, cfgy) <- buildCFG labelsx cfgx ly (Just (BBJump lz)) ys
+             buildCFG labelsy cfgy lz mterm ss
+        SFor ms xs ->
+          do s' <- processFor ms xs
+             processBB bnds defs (s' ++ ss)
+
+    simpleBind nm e =
+      Bind
+      { bName   = Located (nameLoc nm) nm
+      , bParams = []
+      , bDef    = at e (Located emptyRange (DExpr e))
+      , bSignature = Nothing
+      , bInfix = False
+      , bFixity = Nothing
+      , bPragmas = []
+      , bMono = True
+      , bDoc = Nothing
+      }
+
+--    prel ident = EVar <$> renameVar (mkQual preludeName ident)
+    prel ident = EVar <$> renameVar (mkUnqual ident)
+
+    -- reduce for loops down to while loops
+    processFor [] body = pure body
+    processFor (MatchLet b:ms) body = (SBind b:) <$> processFor ms body
+    processFor (Match p e:ms) body =
+      do idxVar <- liftSupply (mkParameter (packIdent "idx") emptyRange) -- TODO location info
+         seqVar <- liftSupply (mkParameter (packIdent "seq") emptyRange) -- TODO location info
+         addExpr    <- prel "+"
+         lookupExpr <- prel "@"
+         ltExpr     <- prel "<"
+         lengthExpr <- prel "length"
+         let idxInit = simpleBind idxVar (ELit (ECNum 0 (DecLit "0")))
+         let idxUpd  = simpleBind idxVar (addExpr `EApp` EVar idxVar `EApp` (ELit (ECNum 1 (DecLit "1"))))
+         let seqInit = simpleBind seqVar e
+         let testE = ltExpr `EApp` EVar idxVar `EApp` (lengthExpr `EApp` EVar seqVar)
+         let (pnm, ptys) = splitSimpleP p
+         let pbnd = simpleBind (thing pnm) (foldl ETyped (lookupExpr `EApp` EVar seqVar `EApp` EVar idxVar) ptys)
+
+         pure [ SBind seqInit, SBind idxInit, SWhile testE [SBind pbnd, SFor ms body, SBind idxUpd] ]
+
+
+bbDefUses :: Set Name -> BasicBlock -> (Set Name, Set Name)
+bbDefUses procNames bb = goBinds (bbStmts bb) mempty mempty
+  where
+    exprNms defs e = Set.intersection procNames (Set.difference (namesE e) defs)
+
+    goTerm defs uses =
+      case bbTerm bb of
+        BBReturn e     -> (defs, Set.union uses (exprNms defs e))
+        BBJump _       -> (defs, uses)
+        BBBranch e _ _ -> (defs, Set.union uses (exprNms defs e))
+
+    goBinds [] defs uses = goTerm defs uses
+    goBinds (b:bs) defs uses =
+      let (xs,ys) = namesB b
+       in goBinds bs ( Set.union defs (Set.fromList (map thing xs)) )
+                     ( Set.union uses (Set.intersection procNames (Set.difference ys defs)) )
+
+successors :: BasicBlock -> [Integer]
+successors bb =
+  case bbTerm bb of
+    BBReturn{}       -> []
+    BBJump l         -> [l]
+    BBBranch _ l1 l2 -> [l1,l2]
+
+cfgUses :: CFG -> Map Integer (BasicBlock, Set Name)
+cfgUses cfg = fmap (\(blk,_,u,_) -> (blk,u)) (work (map fst allBlocks) False initialMap)
+  where
+    allBlocks = Map.toDescList (cfgBlocks cfg)
+    initialMap = Map.fromList [ (b, (blk,ds,us,successors blk))
+                              | (b, blk) <- allBlocks
+                              , let (ds,us) = bbDefUses (cfgAllDefs cfg) blk
+                              ]
+
+    work [] False m = m
+    work [] True  m = work (map fst allBlocks) False m
+    work (b:bs) revisit m =
+      case Map.lookup b m of
+        Nothing -> panic "cfgDefUses" ["Missing block number", show b]
+        Just (blk, bDefs, bUses, succs) ->
+          let succUses = Set.unions [ u | s <- succs, (_,_,u,_) <- maybeToList (Map.lookup s m) ]
+              bUses'   = Set.union bUses (Set.difference succUses bDefs)
+              m'       = Map.insert b (blk, bDefs, bUses', succs) m
+           in if bUses == bUses' then work bs revisit m else work bs True m'
+
+computeLabelMap :: CFG -> RenameM (Map Integer (Name, BasicBlock, [Name]))
+computeLabelMap cfg = Map.traverseWithKey allocLabel useMap
+  where
+    useMap = cfgUses cfg
+    allocLabel l (blk,uses) =
+      do lnm <- liftSupply (mkParameter (packIdent ("label"++show l)) emptyRange) -- TODO, range info
+         pure (lnm, blk, Set.toList uses)
+
+compileBB :: Map Integer (Name, BasicBlock, [Name]) -> (Name, BasicBlock, [Name]) -> RenameM (Bind Name)
+compileBB labelMap (blockLabelName, blk, inputVars) =
+    do (ssaMap, formals) <- startBlock inputVars [] mempty
+       (ssaMap', lets)   <- processBinds ssaMap (bbStmts blk) []
+       termExpr          <- finishBlock ssaMap' (bbTerm blk)
+       let blockBody =
+            if null lets then termExpr else EWhere termExpr (map DBind lets)
+       pure Bind
+            { bName   = Located emptyRange blockLabelName -- TODO, range info
+            , bParams = [ PVar (Located (nameLoc f) f) | f <- formals ]
+            , bDef    = Located emptyRange (DExpr blockBody) -- TODO, range info
+            , bSignature = Nothing
+            , bInfix  = False
+            , bFixity = Nothing
+            , bPragmas = []
+            , bMono = True
+            , bDoc = Nothing
+            }
+
+  where
+    startBlock []     as ssaMap = pure (ssaMap, reverse as)
+    startBlock (i:is) as ssaMap =
+      do a <- liftSupply (mkUniqueParameter (nameIdent i) (nameLoc i)) -- Freshen the name
+         startBlock is (a:as) (Map.insert i a ssaMap)
+
+    processBinds ssaMap [] lets = pure (ssaMap, reverse lets)
+    processBinds ssaMap (b:bs) lets =
+      do let bnm = thing (bName b)
+         bnm' <- liftSupply (mkUniqueParameter (nameIdent bnm) (nameLoc bnm)) -- Freshen the name
+         let def' = fmap (updateVars ssaMap) (bDef b)
+         let b' = b{ bName = (bName b){ thing = bnm' }
+                   , bDef = def'
+                   }
+         let ssaMap' = Map.insert bnm bnm' ssaMap
+         processBinds ssaMap' bs (b':lets)
+
+    finishBlock ssaMap term =
+      case term of
+        BBReturn e -> return (updateVars ssaMap e)
+        BBJump l   -> jumpTarget ssaMap l
+        BBBranch e l1 l2 ->
+          do let e' = updateVars ssaMap e
+             l1' <- jumpTarget ssaMap l1
+             l2' <- jumpTarget ssaMap l2
+             pure (EIf e' l1' l2')
+
+    updateVars :: Functor f => Map.Map Name Name -> f Name -> f Name
+    updateVars ssaMap = fmap (\v -> fromMaybe v (Map.lookup v ssaMap))
+
+    jumpTarget ssaMap l =
+      case Map.lookup l labelMap of
+        Nothing -> panic "jumpTarget" ["Unknown block number", show l]
+        Just (tgtNm,_,vars) ->
+          do let vars' = updateVars ssaMap vars
+             pure (foldl EApp (EVar tgtNm) (map EVar vars'))
+
+compileProc :: [Statement Name] -> RenameM (Expr Name)
+compileProc ss =
+  do (_,cfg) <- buildCFG [1..] emptyCFG 0 Nothing ss
+     lblMap <- computeLabelMap cfg
+     blockBnds <- mapM (compileBB lblMap . snd) (Map.toList lblMap)
+     case Map.lookup 0 lblMap of
+       Just (entryLab, _, inputs) ->
+         do inputs' <- mapM (renameVar . mkUnqual . nameIdent) inputs
+            pure (EWhere (foldl EApp (EVar entryLab) (map EVar inputs')) (map DBind blockBnds))
+       Nothing -> panic "compileProc" ["Missing entry point for procedure!"]

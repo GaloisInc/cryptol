@@ -34,6 +34,7 @@ module Cryptol.ModuleSystem.Name (
     -- ** Creation
   , mkDeclared
   , mkParameter
+  , mkUniqueParameter
   , toParamInstName
   , asParamName
   , paramModRecParam
@@ -332,6 +333,15 @@ mkParameter :: Ident -> Range -> Supply -> (Name,Supply)
 mkParameter nIdent nLoc s =
   let (nUnique,s') = nextUnique s
       nFixity      = Nothing
+   in (Name { nInfo = Parameter, .. }, s')
+
+-- | Make a new parameter name, with it's unique value incorporated into the
+--   identifier.
+mkUniqueParameter :: Ident -> Range -> Supply -> (Name,Supply)
+mkUniqueParameter ident nLoc s =
+  let (nUnique,s') = nextUnique s
+      nFixity      = Nothing
+      nIdent       = mkIdent (identText ident <> Text.pack ("_" ++ show nUnique))
    in (Name { nInfo = Parameter, .. }, s')
 
 paramModRecParam :: Name

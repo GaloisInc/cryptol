@@ -46,6 +46,8 @@ import           Cryptol.TypeCheck.Subst (listSubst,apSubst,(@@),isEmptySubst)
 import           Cryptol.Utils.Ident
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.RecordMap
+import           Cryptol.Utils.PP (pp, nest)
+
 
 import qualified Data.Map as Map
 import           Data.Map (Map)
@@ -191,6 +193,7 @@ appTys expr ts tGoal =
     P.ETypeVal  {} -> mono
     P.EFun      {} -> mono
     P.ESplit    {} -> mono
+    P.EProcedure{} -> mono
 
     P.EParens e       -> appTys e ts tGoal
     P.EInfix a op _ b -> appTys (P.EVar (thing op) `P.EApp` a `P.EApp` b) ts tGoal
@@ -353,6 +356,9 @@ checkE expr tGoal =
     P.EWhere e ds ->
       inferDs ds $ \ds1 -> do e1 <- checkE e tGoal
                               return (EWhere e1 ds1)
+
+    P.EProcedure _ss ->
+      panic "TODO Typecheck EProcedure" [ "\n" ++ show (nest 4 (pp expr)) ]
 
     P.ETyped e t ->
       do tSig <- checkTypeOfKind t KType

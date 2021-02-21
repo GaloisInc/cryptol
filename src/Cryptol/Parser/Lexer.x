@@ -113,6 +113,13 @@ $white+                   { emit $ White Space }
 "hiding"                  { emit $ KW KW_hiding }
 "newtype"                 { emit $ KW KW_newtype }
 
+"sif"                     { emit $ KW KW_sif }
+"sthen"                   { emit $ KW KW_sthen }
+"selse"                   { emit $ KW KW_selse }
+"while"                   { emit $ KW KW_while }
+"do"                      { emit $ KW KW_do }
+"for"                     { emit $ KW KW_for }
+
 "infixl"                  { emit $ KW KW_infixl }
 "infixr"                  { emit $ KW KW_infixr }
 "infix"                   { emit $ KW KW_infix  }
@@ -120,6 +127,9 @@ $white+                   { emit $ White Space }
 "primitive"               { emit $ KW KW_primitive }
 "parameter"               { emit $ KW KW_parameter }
 "constraint"              { emit $ KW KW_constraint }
+
+"procedure"               { emit $ KW KW_procedure }
+"return"                  { emit $ KW KW_return }
 
 "Prop"                    { emit $ KW KW_Prop }
 

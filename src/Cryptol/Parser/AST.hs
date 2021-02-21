@@ -70,6 +70,7 @@ module Cryptol.Parser.AST
   , UpdHow(..)
   , FunDesc(..)
   , emptyFunDesc
+  , Statement(..)
 
     -- * Positions
   , Located(..)
@@ -320,6 +321,8 @@ data Expr n   = EVar n                          -- ^ @ x @
               | EAppT (Expr n) [(TypeInst n)]   -- ^ @ f `{x = 8}, f`{8} @
               | EIf (Expr n) (Expr n) (Expr n)  -- ^ @ if ok then e1 else e2 @
               | EWhere (Expr n) [Decl n]        -- ^ @ 1 + x where { x = 2 } @
+              | EProcedure [Statement n]
+                                                -- ^ @ procedure { x := 5; return x }
               | ETyped (Expr n) (Type n)        -- ^ @ 1 : [8] @
               | ETypeVal (Type n)               -- ^ @ `(x + 1)@, @x@ is a type
               | EFun (FunDesc n) [Pattern n] (Expr n) -- ^ @ \\x y -> x @
@@ -329,6 +332,14 @@ data Expr n   = EVar n                          -- ^ @ x @
               | EParens (Expr n)                -- ^ @ (e)   @ (Removed by Fixity)
               | EInfix (Expr n) (Located n) Fixity (Expr n)-- ^ @ a + b @ (Removed by Fixity)
                 deriving (Eq, Show, Generic, NFData, Functor)
+
+data Statement n = SAssign (Pattern n) (Expr n)
+                 | SBind (Bind n)
+                 | SReturn (Expr n)
+                 | SIf (Expr n) [Statement n] [Statement n]
+                 | SWhile (Expr n) [Statement n]
+                 | SFor [Match n] [Statement n]
+    deriving (Eq, Show, Generic, NFData, Functor)
 
 -- | Description of functions.  Only trivial information is provided here
 --   by the parser.  The NoPat pass fills this in as required.
@@ -417,6 +428,9 @@ instance AddLoc (Expr n) where
 
 instance HasLoc (Expr name) where
   getLoc (ELocated _ r) = Just r
+  getLoc _              = Nothing
+
+instance HasLoc (Statement name) where
   getLoc _              = Nothing
 
 instance HasLoc (TParam name) where
@@ -724,6 +738,21 @@ instance PPName name => PP (TypeInst name) where
   ppPrec _ (PosInst t)   = pp t
   ppPrec _ (NamedInst x) = ppNamed "=" x
 
+instance (Show name, PPName name) => PP (Statement name) where
+  ppPrec n stmt =
+    case stmt of
+      SAssign p e -> pp p <+> text "=" <+> pp e
+      SBind b     -> ppPrec n b
+      SReturn e   -> text "return" <+> ppPrec 0 e
+      SWhile e xs -> text "while" <+> ppPrec 0 e <+> text "do" $$
+                        nest 2 (vcat (map pp xs))
+      SFor ms xs  -> text "for" <+> commaSep (map pp ms) <+> text "do" $$
+                        nest 2 (vcat (map pp xs))
+      SIf e xs ys -> text "if" <+> ppPrec 0 e <+> text "then" $$
+                        nest 2 (vcat (map pp xs)) $$
+                        text "else" $$
+                        nest 2 (vcat (map pp ys))
+
 {- Precedences:
 0: lambda, if, where, type annotation
 2: infix expression   (separate precedence table)
@@ -773,6 +802,10 @@ instance (Show name, PPName name) => PP (Expr name) where
                                 $$ text "where"
                                 $$ nest 2 (vcat (map pp ds))
                                 $$ text "")
+
+      EProcedure ss -> wrap n 0 (text "procedure"
+                                    $$ nest 2 (vcat (map pp ss))
+                                    $$ text "")
 
       -- infix applications
       _ | Just ifix <- isInfix expr ->
@@ -1001,6 +1034,7 @@ instance NoPos (Expr name) where
       EAppT x y       -> EAppT    (noPos x) (noPos y)
       EIf   x y z     -> EIf      (noPos x) (noPos y) (noPos z)
       EWhere x y      -> EWhere   (noPos x) (noPos y)
+      EProcedure ss   -> EProcedure (map noPos ss)
       ETyped x y      -> ETyped   (noPos x) (noPos y)
       ETypeVal x      -> ETypeVal (noPos x)
       EFun dsc x y    -> EFun dsc (noPos x) (noPos y)
@@ -1009,6 +1043,14 @@ instance NoPos (Expr name) where
       ESplit x        -> ESplit (noPos x)
       EParens e       -> EParens (noPos e)
       EInfix x y f z  -> EInfix (noPos x) y f (noPos z)
+
+instance NoPos (Statement name) where
+  noPos (SAssign p e) = SAssign (noPos p) (noPos e)
+  noPos (SBind b)     = SBind (noPos b)
+  noPos (SReturn e)   = SReturn (noPos e)
+  noPos (SIf e xs ys) = SIf (noPos e) (noPos xs) (noPos ys)
+  noPos (SWhile e xs) = SWhile (noPos e) (noPos xs)
+  noPos (SFor ms xs)  = SFor (noPos ms) (noPos xs)
 
 instance NoPos (UpdField name) where
   noPos (UpdField h xs e) = UpdField h xs (noPos e)
