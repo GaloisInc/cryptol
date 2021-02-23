@@ -88,6 +88,7 @@ import Paths_cryptol
   'constraint'{ Located $$ (Token (KW KW_constraint) _)}
 
   'procedure' { Located $$ (Token (KW KW_procedure) _) }
+  'monad'     { Located $$ (Token (KW KW_monad) _) }
   'return'    { Located $$ (Token (KW KW_return) _) }
   'sif'       { Located $$ (Token (KW KW_sif     ) _)}
   'sthen'     { Located $$ (Token (KW KW_sthen     ) _)}
@@ -406,6 +407,7 @@ vstmts :: { [Statement PName] }
 
 stmt :: { Statement PName }
   : pat '=' expr           { SAssign $1 $3 }
+  | pat '<-' expr          { SMonadBind $1 $3 }
   | 'return' expr          { SReturn $2 }
   | 'sif' expr 'sthen' proc 'selse' proc { SIf $2 (thing $4) (thing $6) }
   | 'sif' expr 'sthen' proc { SIf $2 (thing $4) [] }
@@ -454,6 +456,7 @@ expr                          :: { Expr PName }
   : exprNoWhere                  { $1 }
   | expr 'where' whereClause     { at ($1,$3) (EWhere $1 (thing $3)) }
   | 'procedure' proc             { at ($1,$2) (EProcedure (thing $2)) }
+  | 'monad' var var 'do' proc    { at ($1,$5) (EMonadAction (thing $2) (thing $3) (thing $5)) }
 
 -- | An expression without a `where` clause
 exprNoWhere                    :: { Expr PName }

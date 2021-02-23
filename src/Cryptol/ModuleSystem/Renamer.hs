@@ -39,7 +39,7 @@ import Cryptol.Parser.Selector(ppNestedSels,selName)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
 import Cryptol.Utils.RecordMap
-import Cryptol.Utils.Ident (packIdent,preludeName)
+import Cryptol.Utils.Ident (packIdent)
 
 import Data.List(find)
 import qualified Data.Foldable as F
@@ -714,6 +714,12 @@ instance Rename FunDesc where
 instance Rename Statement where
   rename stmt = case stmt of
     SAssign{}   -> panic "rename Statement" ["SAssign should be removed by NoPat"]
+    SMonadBind p e ->
+      do let (nm,tps) = splitSimpleP p
+         nm'  <- rnLocated renameVar nm
+         tps' <- traverse rename tps
+         let p' = foldl PTyped (PVar nm') tps'
+         SMonadBind p' <$> rename e
     SBind b     -> SBind <$> rename b
     SReturn e   -> SReturn <$> rename e
     SIf e xs ys -> SIf <$> rename e <*> traverse rename xs <*> traverse rename ys
@@ -752,7 +758,9 @@ instance Rename Expr where
     EWhere e' ds    -> do ns <- getNS
                           shadowNames (map (InModule ns) ds) $
                             EWhere <$> rename e' <*> traverse rename ds
-    EProcedure ss   -> renameProc ss
+    EProcedure ss   -> renameProc ss Nothing
+    EMonadAction b p ss -> renameProc ss (Just (b,p))
+
     ETyped e' ty    -> ETyped  <$> rename e' <*> rename ty
     ETypeVal ty     -> ETypeVal<$> rename ty
     EFun desc ps e' -> do desc' <- rename desc
@@ -770,11 +778,12 @@ instance Rename Expr where
                           z' <- rename z
                           mkEInfix x' op z'
 
-renameProc :: [Statement PName] -> RenameM (Expr Name)
-renameProc ss =
+renameProc :: [Statement PName] -> Maybe (PName,PName) -> RenameM (Expr Name)
+renameProc ss monad =
   do ns <- getNS
+     monad' <- traverse (\ (b,p) -> (,) <$> renameVar b <*> renameVar p) monad
      ss' <- shadowNames (ProcEnv ns ss) (traverse rename ss)
-     expr <- compileProc ss'
+     expr <- compileProc ss' monad'
 
      trace (unlines
         [ "Compiled Procedure"
@@ -1009,6 +1018,7 @@ data BBTerm
   = BBReturn (Expr Name)
   | BBJump Integer
   | BBBranch (Expr Name) Integer Integer
+  | BBMonadBind Name [Type Name] (Expr Name) Integer
 
 data BasicBlock =
   BasicBlock
@@ -1043,6 +1053,11 @@ buildCFG labels cfg lbl mterm = processBB [] mempty
     processBB bnds defs (s:ss) =
       case s of
         SAssign{} -> panic "buildCFG" ["Unexpected pattern assignement in renamer"]
+        SMonadBind p e ->
+          do let (lz:labels') = labels
+             let (nm,ts) = splitSimpleP p
+             let cfg' = finishBB bnds (Set.insert (thing nm) defs) (BBMonadBind (thing nm) ts e lz)
+             buildCFG labels' cfg' lz mterm ss
         SBind b   -> processBB (b:bnds) (Set.insert (thing (bName b)) defs) ss
         SReturn e -> pure (labels, finishBB bnds defs (BBReturn e))
         SWhile e xs ->
@@ -1111,6 +1126,7 @@ bbDefUses procNames bb = goBinds (bbStmts bb) mempty mempty
         BBReturn e     -> (defs, Set.union uses (exprNms defs e))
         BBJump _       -> (defs, uses)
         BBBranch e _ _ -> (defs, Set.union uses (exprNms defs e))
+        BBMonadBind nm _ts e _ -> (Set.insert nm defs, Set.union uses (exprNms defs e))
 
     goBinds [] defs uses = goTerm defs uses
     goBinds (b:bs) defs uses =
@@ -1121,9 +1137,10 @@ bbDefUses procNames bb = goBinds (bbStmts bb) mempty mempty
 successors :: BasicBlock -> [Integer]
 successors bb =
   case bbTerm bb of
-    BBReturn{}       -> []
-    BBJump l         -> [l]
-    BBBranch _ l1 l2 -> [l1,l2]
+    BBReturn{}          -> []
+    BBJump l            -> [l]
+    BBBranch _ l1 l2    -> [l1,l2]
+    BBMonadBind _ _ _ l -> [l]
 
 cfgUses :: CFG -> Map Integer (BasicBlock, Set Name)
 cfgUses cfg = fmap (\(blk,_,u,_) -> (blk,u)) (work (map fst allBlocks) False initialMap)
@@ -1153,8 +1170,8 @@ computeLabelMap cfg = Map.traverseWithKey allocLabel useMap
       do lnm <- liftSupply (mkParameter (packIdent ("label"++show l)) emptyRange) -- TODO, range info
          pure (lnm, blk, Set.toList uses)
 
-compileBB :: Map Integer (Name, BasicBlock, [Name]) -> (Name, BasicBlock, [Name]) -> RenameM (Bind Name)
-compileBB labelMap (blockLabelName, blk, inputVars) =
+compileBB :: Map Integer (Name, BasicBlock, [Name]) -> Maybe (Name, Name) -> (Name, BasicBlock, [Name]) -> RenameM (Bind Name)
+compileBB labelMap monad (blockLabelName, blk, inputVars) =
     do (ssaMap, formals) <- startBlock inputVars [] mempty
        (ssaMap', lets)   <- processBinds ssaMap (bbStmts blk) []
        termExpr          <- finishBlock ssaMap' (bbTerm blk)
@@ -1191,8 +1208,24 @@ compileBB labelMap (blockLabelName, blk, inputVars) =
 
     finishBlock ssaMap term =
       case term of
-        BBReturn e -> return (updateVars ssaMap e)
-        BBJump l   -> jumpTarget ssaMap l
+        BBReturn e ->
+          case monad of
+            Just (_,p) -> return (EApp (EVar p) (updateVars ssaMap e))
+            Nothing    -> return (updateVars ssaMap e)
+
+        BBMonadBind nm ts e l ->
+          case monad of
+            Just (bnd,_) ->
+              do let e' = updateVars ssaMap e
+                 let loc = nameLoc nm
+                 nm' <- liftSupply (mkUniqueParameter (nameIdent nm) loc)
+                 let p = foldl PTyped (PVar (Located loc nm')) ts
+                 l' <- jumpTarget (Map.insert nm nm' ssaMap) l
+                 pure (EVar bnd `EApp` e' `EApp` EFun emptyFunDesc [p] l')
+            Nothing -> error "No monadic binds in a pure procedure"
+
+        BBJump l -> jumpTarget ssaMap l
+
         BBBranch e l1 l2 ->
           do let e' = updateVars ssaMap e
              l1' <- jumpTarget ssaMap l1
@@ -1209,11 +1242,11 @@ compileBB labelMap (blockLabelName, blk, inputVars) =
           do let vars' = updateVars ssaMap vars
              pure (foldl EApp (EVar tgtNm) (map EVar vars'))
 
-compileProc :: [Statement Name] -> RenameM (Expr Name)
-compileProc ss =
+compileProc :: [Statement Name] -> Maybe (Name,Name) -> RenameM (Expr Name)
+compileProc ss monad =
   do (_,cfg) <- buildCFG [1..] emptyCFG 0 Nothing ss
      lblMap <- computeLabelMap cfg
-     blockBnds <- mapM (compileBB lblMap . snd) (Map.toList lblMap)
+     blockBnds <- mapM (compileBB lblMap monad . snd) (Map.toList lblMap)
      case Map.lookup 0 lblMap of
        Just (entryLab, _, inputs) ->
          do inputs' <- mapM (renameVar . mkUnqual . nameIdent) inputs

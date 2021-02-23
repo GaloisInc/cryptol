@@ -161,6 +161,8 @@ noPatE expr =
     EIf e1 e2 e3  -> EIf    <$> noPatE e1 <*> noPatE e2 <*> noPatE e3
     EWhere e ds   -> EWhere <$> noPatE e <*> noPatDs ds
     EProcedure ss -> EProcedure <$> noPatProc ss
+    EMonadAction b p ss -> EMonadAction b p <$> noPatProc ss
+
     ETyped e t    -> ETyped <$> noPatE e <*> return t
     ETypeVal {}   -> return expr
     EFun desc ps e -> noPatFun (funDescrName desc) (funDescrArgOffset desc) ps e
@@ -193,6 +195,11 @@ noPatStmt stmt =
                        , bDoc = Nothing
                        }
          pure (SBind bnd : map SBind bs)
+
+    SMonadBind p e ->
+      do (p',bs) <- noPat p
+         e' <- noPatE e
+         pure (SMonadBind p' e' : map SBind bs)
 
     SBind b     -> pure . SBind <$> noMatchB b
     SReturn e   -> pure . SReturn <$> noPatE e

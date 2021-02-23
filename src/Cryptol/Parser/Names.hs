@@ -95,6 +95,7 @@ namesE expr =
                      in Set.union (boundLNames bs (namesE e)) xs
 
     EProcedure ss -> namesProc ss
+    EMonadAction b p ss -> Set.union (Set.fromList [b,p]) (namesProc ss)
     ETyped e _    -> namesE e
     ETypeVal _    -> Set.empty
     EFun _ ps e   -> boundLNames (namesPs ps) (namesE e)
@@ -115,6 +116,7 @@ namesStmt :: Ord name => Statement name -> (Set name, Set name)
 namesStmt stmt =
   case stmt of
     SAssign p e -> (Set.fromList $ map thing $ namesP p, namesE e)
+    SMonadBind p e -> (Set.fromList $ map thing $ namesP p, namesE e)
     SReturn e   -> (Set.empty, namesE e)
     SBind b     -> (Set.fromList (map thing bs), ns)
       where
@@ -241,6 +243,7 @@ tnamesE expr =
     EWhere  e ds    -> let (bs,xs) = tnamesDs ds
                        in Set.union (boundLNames bs (tnamesE e)) xs
     EProcedure ss   -> tnamesProc ss
+    EMonadAction _ _ ss -> tnamesProc ss
     ETyped e t      -> Set.union (tnamesE e) (tnamesT t)
     ETypeVal t      -> tnamesT t
     EFun _ ps e     -> Set.union (Set.unions (map tnamesP ps)) (tnamesE e)
@@ -256,6 +259,7 @@ tnamesProc ss = Set.unions (map tnamesStmt ss)
 tnamesStmt :: Ord name => Statement name -> Set name
 tnamesStmt (SAssign _ e) = tnamesE e
 tnamesStmt (SBind b)     = tnamesB b
+tnamesStmt (SMonadBind _ e) = tnamesE e
 tnamesStmt (SReturn e)   = tnamesE e
 tnamesStmt (SIf e xs ys) = Set.unions (tnamesE e : map tnamesStmt (xs ++ ys))
 tnamesStmt (SWhile e xs) = Set.unions (tnamesE e : map tnamesStmt xs)

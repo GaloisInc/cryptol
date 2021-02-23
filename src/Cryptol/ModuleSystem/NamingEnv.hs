@@ -21,6 +21,7 @@ import Cryptol.ModuleSystem.Interface
 import Cryptol.ModuleSystem.Name
 import Cryptol.Parser.AST
 import Cryptol.Parser.Name(isGeneratedName)
+import Cryptol.Parser.NoPat (splitSimpleP)
 import Cryptol.Parser.Position
 import qualified Cryptol.TypeCheck.AST as T
 import Cryptol.Utils.PP
@@ -409,6 +410,8 @@ procBoundNames = Map.unions . map stmtBoundNames
 
 stmtBoundNames :: Statement PName -> Map.Map PName Range
 stmtBoundNames (SBind b) = Map.singleton (thing (bName b)) (srcRange (bName b))
+stmtBoundNames (SMonadBind p _) =
+   let (n,_) = splitSimpleP p in Map.singleton (thing n) (srcRange n)
 stmtBoundNames SAssign{} = panic "ModuleSystem" ["Unexpected pattern assignment"]
 stmtBoundNames SReturn{} = Map.empty
 stmtBoundNames (SIf _ xs ys) = procBoundNames xs <> procBoundNames ys

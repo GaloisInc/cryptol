@@ -129,6 +129,7 @@ $white+                   { emit $ White Space }
 "constraint"              { emit $ KW KW_constraint }
 
 "procedure"               { emit $ KW KW_procedure }
+"monad"                   { emit $ KW KW_monad }
 "return"                  { emit $ KW KW_return }
 
 "Prop"                    { emit $ KW KW_Prop }

@@ -194,6 +194,7 @@ appTys expr ts tGoal =
     P.EFun      {} -> mono
     P.ESplit    {} -> mono
     P.EProcedure{} -> mono
+    P.EMonadAction{} -> mono
 
     P.EParens e       -> appTys e ts tGoal
     P.EInfix a op _ b -> appTys (P.EVar (thing op) `P.EApp` a `P.EApp` b) ts tGoal
@@ -359,6 +360,9 @@ checkE expr tGoal =
 
     P.EProcedure _ss ->
       panic "TODO Typecheck EProcedure" [ "\n" ++ show (nest 4 (pp expr)) ]
+
+    P.EMonadAction{} ->
+      panic "TODO Typecheck EMonadAction" [ "\n" ++ show (nest 4 (pp expr)) ]
 
     P.ETyped e t ->
       do tSig <- checkTypeOfKind t KType

@@ -509,6 +509,7 @@ data TokenKW  = KW_else
               | KW_parameter
               | KW_constraint
               | KW_procedure
+              | KW_monad
               | KW_return
               | KW_Prop
 

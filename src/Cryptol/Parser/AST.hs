@@ -322,6 +322,7 @@ data Expr n   = EVar n                          -- ^ @ x @
               | EIf (Expr n) (Expr n) (Expr n)  -- ^ @ if ok then e1 else e2 @
               | EWhere (Expr n) [Decl n]        -- ^ @ 1 + x where { x = 2 } @
               | EProcedure [Statement n]
+              | EMonadAction n n [Statement n]  -- ^ @ monad bind pure { x <- act; return x }
                                                 -- ^ @ procedure { x := 5; return x }
               | ETyped (Expr n) (Type n)        -- ^ @ 1 : [8] @
               | ETypeVal (Type n)               -- ^ @ `(x + 1)@, @x@ is a type
@@ -334,6 +335,7 @@ data Expr n   = EVar n                          -- ^ @ x @
                 deriving (Eq, Show, Generic, NFData, Functor)
 
 data Statement n = SAssign (Pattern n) (Expr n)
+                 | SMonadBind (Pattern n) (Expr n)
                  | SBind (Bind n)
                  | SReturn (Expr n)
                  | SIf (Expr n) [Statement n] [Statement n]
@@ -742,8 +744,10 @@ instance (Show name, PPName name) => PP (Statement name) where
   ppPrec n stmt =
     case stmt of
       SAssign p e -> pp p <+> text "=" <+> pp e
+      SMonadBind p e -> pp p <+> text "<-" <+> pp e
       SBind b     -> ppPrec n b
       SReturn e   -> text "return" <+> ppPrec 0 e
+
       SWhile e xs -> text "while" <+> ppPrec 0 e <+> text "do" $$
                         nest 2 (vcat (map pp xs))
       SFor ms xs  -> text "for" <+> commaSep (map pp ms) <+> text "do" $$
@@ -804,6 +808,11 @@ instance (Show name, PPName name) => PP (Expr name) where
                                 $$ text "")
 
       EProcedure ss -> wrap n 0 (text "procedure"
+                                    $$ nest 2 (vcat (map pp ss))
+                                    $$ text "")
+
+      EMonadAction bnd pur ss
+            -> wrap n 0 (text "monad" <+> pp bnd <+> pp pur
                                     $$ nest 2 (vcat (map pp ss))
                                     $$ text "")
 
@@ -1035,6 +1044,7 @@ instance NoPos (Expr name) where
       EIf   x y z     -> EIf      (noPos x) (noPos y) (noPos z)
       EWhere x y      -> EWhere   (noPos x) (noPos y)
       EProcedure ss   -> EProcedure (map noPos ss)
+      EMonadAction b p ss -> EMonadAction b p (map noPos ss)
       ETyped x y      -> ETyped   (noPos x) (noPos y)
       ETypeVal x      -> ETypeVal (noPos x)
       EFun dsc x y    -> EFun dsc (noPos x) (noPos y)
@@ -1046,6 +1056,7 @@ instance NoPos (Expr name) where
 
 instance NoPos (Statement name) where
   noPos (SAssign p e) = SAssign (noPos p) (noPos e)
+  noPos (SMonadBind p e) = SMonadBind (noPos p) (noPos e)
   noPos (SBind b)     = SBind (noPos b)
   noPos (SReturn e)   = SReturn (noPos e)
   noPos (SIf e xs ys) = SIf (noPos e) (noPos xs) (noPos ys)
