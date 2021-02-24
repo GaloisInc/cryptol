@@ -15,9 +15,10 @@ import Cryptol.Eval (EvalOpts(..))
 import Cryptol.ModuleSystem (ModuleCmd, ModuleEnv, ModuleInput(..))
 import Cryptol.ModuleSystem.Env
   (getLoadedModules, lmFilePath, lmFingerprint, meLoadedModules,
-   initialModuleEnv, meSearchPath, ModulePath(..))
-import Cryptol.ModuleSystem.Fingerprint
+   initialModuleEnv, meSearchPath, ModulePath(..), meSolverConfig)
+import Cryptol.ModuleSystem.Fingerprint ( fingerprintFile )
 import Cryptol.Parser.AST (ModName)
+import qualified Cryptol.TypeCheck.Solver.SMT as SMT
 
 import qualified Argo
 import qualified Argo.Doc as Doc
@@ -61,13 +62,15 @@ runModuleCmd cmd =
     do Options callStacks evOpts <- getOptions
        s <- CryptolMethod $ const Argo.getState
        reader <- CryptolMethod $ const Argo.getFileReader
-       let minp = ModuleInput
-                  { minpCallStacks = callStacks
-                  , minpEvalOpts   = pure evOpts
-                  , minpByteReader = reader
-                  , minpModuleEnv  = view moduleEnv s
-                  }
-       out <- liftIO $ cmd minp
+       let minp solver = ModuleInput
+                        { minpCallStacks = callStacks
+                        , minpEvalOpts   = pure evOpts
+                        , minpByteReader = reader
+                        , minpModuleEnv  = view moduleEnv s
+                        , minpTCSolver = solver
+                        }
+       let solverCfg = meSolverConfig (view moduleEnv s)
+       out <- liftIO $ SMT.withSolver solverCfg (cmd . minp)
        case out of
          (Left x, warns) ->
            raise (cryptolError x warns)

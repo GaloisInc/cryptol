@@ -12,7 +12,7 @@ data-files:          test-scripts/**/*.py
 
 common warnings
   ghc-options:
-    -Weverything
+    -Wall
     -Wno-missing-exported-signatures
     -Wno-missing-import-lists
     -Wno-missed-specialisations
@@ -24,6 +24,12 @@ common warnings
     -Wno-implicit-prelude
     -Wno-missing-deriving-strategies
 
+common errors
+  ghc-options:
+    -Werror=missing-fields
+    -Werror=incomplete-patterns
+    -Werror=missing-methods
+    -Werror=overlapping-patterns
 
 common deps
   build-depends:
@@ -46,7 +52,7 @@ common deps
   default-language:    Haskell2010
 
 library
-  import:              deps, warnings
+  import:              deps, warnings, errors
   hs-source-dirs:      src
 
   exposed-modules:
@@ -65,7 +71,7 @@ library
     CryptolServer.TypeCheck
 
 executable cryptol-remote-api
-  import:              deps, warnings
+  import:              deps, warnings, errors
   main-is:             Main.hs
   hs-source-dirs:      cryptol-remote-api
   ghc-options:
@@ -76,7 +82,7 @@ executable cryptol-remote-api
     sbv < 8.10
 
 executable cryptol-eval-server
-  import:              deps, warnings
+  import:              deps, warnings, errors
   main-is:             Main.hs
   hs-source-dirs:      cryptol-eval-server
   ghc-options:
@@ -89,7 +95,7 @@ executable cryptol-eval-server
 
 
 test-suite test-cryptol-remote-api
-  import:              deps, warnings
+  import:              deps, warnings, errors
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
   main-is:             Test.hs
