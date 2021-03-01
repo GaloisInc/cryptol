@@ -10,23 +10,22 @@ def get_README():
     return content
 
 setup(
-    name="galois-toolkit",
+    name="cryptol",
     python_requires=">=3.7",
     version="0.0.1",
-    url="https://github.com/GaloisInc/galois-py-toolkit",
+    url="https://github.com/GaloisInc/cryptol",
     project_urls={
-        "Changelog": "https://github.com/GaloisInc/galois-py-toolkit/tree/main/CHANGELOG.md",
-        "Source": "https://github.com/GaloisInc/galois-py-toolkit/tree/main/cryptol",
-        "Bug Tracker": "https://github.com/GaloisInc/galois-py-toolkit/issues"
+        "Source": "https://github.com/GaloisInc/cryptol/tree/master/cryptol-remote-api/pthon",
+        "Bug Tracker": "https://github.com/GaloisInc/cryptol/issues"
     },
     license="BSD",
-    description="A scripting library for interacting with the Cryptol and SAW RPC servers.",
+    description="A scripting library for interacting with the Cryptol RPC server.",
     long_description=get_README(),
     long_description_content_type="text/markdown",
     author="Galois, Inc.",
     author_email="andrew@galois.com",
-    packages=["cryptol", "saw"],
-    package_data={"cryptol": ["py.typed"], "saw": ["py.typed"]},
+    packages=["cryptol"],
+    package_data={"cryptol": ["py.typed"]},
     zip_safe=False,
     install_requires=[
         "BitVector==3.4.9",

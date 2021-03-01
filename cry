@@ -87,10 +87,7 @@ case $COMMAND in
   rpc-test)
     echo Running RPC server tests
     DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-    if [ ! -d "$DIR/cryptol-remote-api/test/galois-py-toolkit/tests" ]; then
-      git submodule update --init $DIR/cryptol-remote-api
-    fi
-    $DIR/cryptol-remote-api/test/run_rpc_tests.sh
+    $DIR/cryptol-remote-api/run_rpc_tests.sh
     ;;
 
 
