@@ -1,0 +1,8 @@
+module Param where
+parameter
+  type w : #
+  type constraint (fin w)
+
+foo : [w] -> [2 * w]
+foo x = x # x
+
