@@ -43,7 +43,7 @@ import Cryptol.Parser.Selector
 import Cryptol.Utils.Ident
 import Cryptol.Utils.RecordMap (recordFromFields, canonicalFields)
 
-
+import Argo
 import CryptolServer
 import CryptolServer.Exceptions
 import CryptolServer.Data.Type
@@ -231,20 +231,20 @@ instance JSON.ToJSON Expression where
     toJSON gen
 
 
-decode :: Encoding -> Text -> CryptolMethod Integer
+decode :: (Argo.Method m, Monad m) => Encoding -> Text -> m Integer
 decode Base64 txt =
   let bytes = encodeUtf8 txt
   in
     case Base64.decode bytes of
       Left err ->
-        raise (invalidBase64 bytes err)
+        Argo.raise (invalidBase64 bytes err)
       Right decoded -> return $ bytesToInt decoded
 decode Hex txt =
   squish <$> traverse hexDigit (T.unpack txt)
   where
     squish = foldl (\acc i -> (acc * 16) + i) 0
 
-hexDigit :: Num a => Char -> CryptolMethod a
+hexDigit :: (Argo.Method m, Monad m) => Num a => Char -> m a
 hexDigit '0' = pure 0
 hexDigit '1' = pure 1
 hexDigit '2' = pure 2
@@ -267,50 +267,54 @@ hexDigit 'e' = pure 14
 hexDigit 'E' = pure 14
 hexDigit 'f' = pure 15
 hexDigit 'F' = pure 15
-hexDigit c   = raise (invalidHex c)
+hexDigit c   = Argo.raise (invalidHex c)
 
 
-getExpr :: Expression -> CryptolMethod (Expr PName)
-getExpr Unit =
+getExpr :: Expression -> CryptolCommand (Expr PName)
+getExpr = CryptolCommand . const . getCryptolExpr
+
+-- N.B., used in SAWServer as well, hence the more generic monad
+getCryptolExpr :: (Argo.Method m, Monad m) => Expression -> m (Expr PName)
+getCryptolExpr Unit =
   return $
     ETyped
       (ETuple [])
       (TTuple [])
-getExpr (Bit b) =
+getCryptolExpr (Bit b) =
   return $
     ETyped
       (EVar (UnQual (mkIdent $ if b then "True" else "False")))
       TBit
-getExpr (Integer i) =
+getCryptolExpr (Integer i) =
   return $
     ETyped
       (ELit (ECNum i (DecLit (pack (show i)))))
       (TUser (UnQual (mkIdent "Integer")) [])
-getExpr (IntegerModulo i n) =
+getCryptolExpr (IntegerModulo i n) =
   return $
     ETyped
       (ELit (ECNum i (DecLit (pack (show i)))))
       (TUser (UnQual (mkIdent "Z")) [TNum n])
-getExpr (Num enc txt w) =
+getCryptolExpr (Num enc txt w) =
   do d <- decode enc txt
      return $ ETyped
        (ELit (ECNum d (DecLit txt)))
        (TSeq (TNum w) TBit)
-getExpr (Record fields) =
+getCryptolExpr (Record fields) =
   fmap (ERecord . recordFromFields) $ for (HM.toList fields) $
   \(recName, spec) ->
-    (mkIdent recName,) . (emptyRange,) <$> getExpr spec
-getExpr (Sequence elts) =
-  EList <$> traverse getExpr elts
-getExpr (Tuple projs) =
-  ETuple <$> traverse getExpr projs
-getExpr (Concrete syntax) =
+    (mkIdent recName,) . (emptyRange,) <$> getCryptolExpr spec
+getCryptolExpr (Sequence elts) =
+  EList <$> traverse getCryptolExpr elts
+getCryptolExpr (Tuple projs) =
+  ETuple <$> traverse getCryptolExpr projs
+getCryptolExpr (Concrete syntax) =
   case parseExpr syntax of
     Left err ->
-      raise (cryptolParseErr syntax err)
+      Argo.raise (cryptolParseErr syntax err)
     Right e -> pure e
-getExpr (Let binds body) =
-  EWhere <$> getExpr body <*> traverse mkBind binds
+getCryptolExpr (Let binds body) =
+  EWhere <$> getCryptolExpr body <*> traverse mkBind binds
   where
     mkBind (LetBinding x rhs) =
       DBind .
@@ -318,15 +322,15 @@ getExpr (Let binds body) =
          Bind (fakeLoc (UnQual (mkIdent x))) [] bindBody Nothing False Nothing [] True Nothing) .
       fakeLoc .
       DExpr <$>
-        getExpr rhs
+        getCryptolExpr rhs
 
     fakeLoc = Located emptyRange
-getExpr (Application fun (arg :| [])) =
-  EApp <$> getExpr fun <*> getExpr arg
-getExpr (Application fun (arg1 :| (arg : args))) =
-  getExpr (Application (Application fun (arg1 :| [])) (arg :| args))
-getExpr (TypeApplication gen (TypeArguments args)) =
-  EAppT <$> getExpr gen <*> pure (map inst (Map.toList args))
+getCryptolExpr (Application fun (arg :| [])) =
+  EApp <$> getCryptolExpr fun <*> getCryptolExpr arg
+getCryptolExpr (Application fun (arg1 :| (arg : args))) =
+  getCryptolExpr (Application (Application fun (arg1 :| [])) (arg :| args))
+getCryptolExpr (TypeApplication gen (TypeArguments args)) =
+  EAppT <$> getCryptolExpr gen <*> pure (map inst (Map.toList args))
   where
     inst (n, t) = NamedInst (Named (Located emptyRange n) (unJSONPType t))
 
@@ -391,7 +395,7 @@ readBack ty val =
               "'"
 
 
-observe :: Eval a -> CryptolMethod a
+observe :: Eval a -> CryptolCommand a
 observe e = liftIO (runEval mempty e)
 
 mkEApp :: Expr PName -> [Expr PName] -> Expr PName

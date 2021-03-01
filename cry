@@ -20,6 +20,7 @@ Available commands:
   haddock                      Generate Haddock documentation
   test                         Run some tests (may take a while)
   quick-test                   Like "test" but run fewer tests by default
+  rpc-test                     Run RPC server tests
   exe-path                     Print the location of the local executable
 EOM
 }
@@ -82,6 +83,16 @@ case $COMMAND in
       -F v2-run -F -v0 -F exe:cryptol -F -- -F -b \
       $TESTS
     ;;
+
+  rpc-test)
+    echo Running RPC server tests
+    DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+    if [ ! -d "$DIR/cryptol-remote-api/test/galois-py-toolkit/tests" ]; then
+      git submodule update --init $DIR/cryptol-remote-api
+    fi
+    $DIR/cryptol-remote-api/test/run_rpc_tests.sh
+    ;;
+
 
   help) show_usage && exit 0 ;;
 

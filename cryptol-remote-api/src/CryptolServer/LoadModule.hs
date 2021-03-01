@@ -23,7 +23,7 @@ import CryptolServer
 loadFileDescr :: Doc.Block
 loadFileDescr = Doc.Paragraph [Doc.Text "Load the specified module (by file path)."]
 
-loadFile :: LoadFileParams -> CryptolMethod ()
+loadFile :: LoadFileParams -> CryptolCommand ()
 loadFile (LoadFileParams fn) =
   void $ runModuleCmd (loadModuleByPath fn)
 
@@ -47,7 +47,7 @@ instance Doc.DescribedParams LoadFileParams where
 loadModuleDescr :: Doc.Block
 loadModuleDescr = Doc.Paragraph [Doc.Text "Load the specified module (by name)."]
 
-loadModule :: LoadModuleParams -> CryptolMethod ()
+loadModule :: LoadModuleParams -> CryptolCommand ()
 loadModule (LoadModuleParams mn) =
   void $ runModuleCmd (loadModuleByName mn)
 

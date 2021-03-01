@@ -4,3 +4,6 @@
 [submodule "deps/argo"]
 	path = deps/argo
 	url = https://github.com/galoisinc/argo
+[submodule "cryptol-remote-api/test/galois-py-toolkit"]
+	path = cryptol-remote-api/test/galois-py-toolkit
+	url = https://github.com/GaloisInc/galois-py-toolkit.git

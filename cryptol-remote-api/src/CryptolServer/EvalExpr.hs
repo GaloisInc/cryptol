@@ -32,12 +32,12 @@ evalExpressionDescr :: Doc.Block
 evalExpressionDescr =
   Doc.Paragraph [Doc.Text "Evaluate the Cryptol expression to a value."]
 
-evalExpression :: EvalExprParams -> CryptolMethod JSON.Value
+evalExpression :: EvalExprParams -> CryptolCommand JSON.Value
 evalExpression (EvalExprParams jsonExpr) =
   do e <- getExpr jsonExpr
      evalExpression' e
 
-evalExpression' :: P.Expr PName -> CryptolMethod JSON.Value
+evalExpression' :: P.Expr PName -> CryptolCommand JSON.Value
 evalExpression' e =
   do (_expr, ty, schema) <- runModuleCmd (checkExpr e)
      -- TODO: see Cryptol REPL for how to check whether we

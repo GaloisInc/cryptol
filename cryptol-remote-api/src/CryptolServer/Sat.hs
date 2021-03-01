@@ -42,7 +42,7 @@ proveSatDescr =
     [ Doc.Text "Find a value which satisfies the given predicate, or show that it is valid."
     , Doc.Text "(i.e., find a value which when passed as the argument produces true or show that for all possible arguments the predicate will produce true)."]
 
-proveSat :: ProveSatParams -> CryptolMethod ProveSatResult
+proveSat :: ProveSatParams -> CryptolCommand ProveSatResult
 proveSat (ProveSatParams queryType (Prover name) jsonExpr) =
   do e <- getExpr jsonExpr
      (_expr, ty, schema) <- runModuleCmd (checkExpr e)
@@ -83,7 +83,7 @@ proveSat (ProveSatParams queryType (Prover name) jsonExpr) =
                 Satisfied <$> traverse satResult results
 
   where
-    satResult :: [(TValue, Expr, Value)] -> CryptolMethod [(JSONType, Expression)]
+    satResult :: [(TValue, Expr, Value)] -> CryptolCommand [(JSONType, Expression)]
     satResult es = traverse result es
 
     result (t, _, v) =

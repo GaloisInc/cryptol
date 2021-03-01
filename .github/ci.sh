@@ -145,7 +145,7 @@ check_docs() {
 }
 
 test_rpc() {
-  cabal v2-test cryptol-remote-api
+  ./cry rpc-test
 }
 
 bundle_files() {

@@ -26,7 +26,7 @@ callDescr =
   Doc.Paragraph
     [Doc.Text "Evaluate the result of calling a Cryptol function on one or more parameters."]
 
-call :: CallParams -> CryptolMethod JSON.Value
+call :: CallParams -> CryptolCommand JSON.Value
 call (CallParams rawFun rawArgs) =
   do fun <- getExpr rawFun
      args <- traverse getExpr rawArgs

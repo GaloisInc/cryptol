@@ -19,7 +19,7 @@ focusedModuleDescr =
   Doc.Paragraph
     [Doc.Text "The 'current' module. Used to decide how to print names, for example."]
 
-focusedModule :: FocusedModParams -> CryptolMethod JSON.Value
+focusedModule :: FocusedModParams -> CryptolCommand JSON.Value
 focusedModule _ =
   do me <- getModuleEnv
      case meFocusedModule me of
