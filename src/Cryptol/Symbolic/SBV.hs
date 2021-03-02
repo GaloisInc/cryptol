@@ -540,11 +540,16 @@ freshBoundedInt sym lo hi =
        Nothing -> pure ()
      return x
 
+freshBitvector :: SBV -> Integer -> IO SBV.SVal
+freshBitvector sym w
+  | w == 0 = pure (SBV.svInteger (SBV.KBounded False 0) 0)
+  | otherwise = freshBV_ sym (fromInteger w)
+
 sbvFreshFns :: SBV -> FreshVarFns SBV
 sbvFreshFns sym =
   FreshVarFns
   { freshBitVar     = freshSBool_ sym
-  , freshWordVar    = freshBV_ sym . fromInteger
+  , freshWordVar    = freshBitvector sym
   , freshIntegerVar = freshBoundedInt sym
   , freshFloatVar   = \_ _ -> return () -- TODO
   }

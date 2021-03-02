@@ -1,0 +1,8 @@
+:set prover=z3
+:prove \(xs:[12][0]) -> reverse (reverse xs) == xs
+:prove \(xs:[0]) (ys:[0]) -> xs == ys
+:prove \(xs:[0]) (ys:[0]) (zs:[0]) -> (xs # ys) # zs == xs # (ys # zs)
+:set prover=w4-z3
+:prove \(xs:[12][0]) -> reverse (reverse xs) == xs
+:prove \(xs:[0]) (ys:[0]) -> xs == ys
+:prove \(xs:[0]) (ys:[0]) (zs:[0]) -> (xs # ys) # zs == xs # (ys # zs)

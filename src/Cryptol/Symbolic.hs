@@ -241,7 +241,8 @@ data FreshVarFns sym =
   }
 
 freshVar :: Backend sym => FreshVarFns sym -> FinType -> IO (VarShape sym)
-freshVar fns tp = case tp of
+freshVar fns tp =
+  case tp of
     FTBit         -> VarBit      <$> freshBitVar fns
     FTInteger     -> VarInteger  <$> freshIntegerVar fns Nothing Nothing
     FTRational    -> VarRational
@@ -250,7 +251,7 @@ freshVar fns tp = case tp of
     FTIntMod 0    -> panic "freshVariable" ["0 modulus not allowed"]
     FTIntMod m    -> VarInteger  <$> freshIntegerVar fns (Just 0) (Just (m-1))
     FTFloat e p   -> VarFloat    <$> freshFloatVar fns e p
-    FTSeq n FTBit | n > 0 -> VarWord     <$> freshWordVar fns (toInteger n)
+    FTSeq n FTBit -> VarWord     <$> freshWordVar fns (toInteger n)
     FTSeq n t     -> VarFinSeq (toInteger n) <$> sequence (genericReplicate n (freshVar fns t))
     FTTuple ts    -> VarTuple    <$> mapM (freshVar fns) ts
     FTRecord fs   -> VarRecord   <$> traverse (freshVar fns) fs
