@@ -524,12 +524,14 @@ data TokenSym = Bar
               | Dot
               | DotDot
               | DotDotDot
+              | DotDotLt
               | Colon
               | BackTick
               | ParenL   | ParenR
               | BracketL | BracketR
               | CurlyL   | CurlyR
               | TriL     | TriR
+              | Lt
               | Underscore
                 deriving (Eq, Show, Generic, NFData)
 

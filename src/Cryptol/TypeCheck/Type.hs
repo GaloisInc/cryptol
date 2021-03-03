@@ -562,6 +562,12 @@ pIsLiteral ty = case tNoUser ty of
                   TCon (PC PLiteral) [t1, t2] -> Just (t1, t2)
                   _                           -> Nothing
 
+pIsLiteralLessThan :: Prop -> Maybe (Type, Type)
+pIsLiteralLessThan ty =
+  case tNoUser ty of
+    TCon (PC PLiteralLessThan) [t1, t2] -> Just (t1, t2)
+    _                                   -> Nothing
+
 pIsFLiteral :: Prop -> Maybe (Type,Type,Type,Type)
 pIsFLiteral ty = case tNoUser ty of
                    TCon (PC PFLiteral) [t1,t2,t3,t4] -> Just (t1,t2,t3,t4)
@@ -747,6 +753,9 @@ pSignedCmp t = TCon (PC PSignedCmp) [t]
 
 pLiteral :: Type -> Type -> Prop
 pLiteral x y = TCon (PC PLiteral) [x, y]
+
+pLiteralLessThan :: Type -> Type -> Prop
+pLiteralLessThan x y = TCon (PC PLiteralLessThan) [x, y]
 
 -- | Make a greater-than-or-equal-to constraint.
 (>==) :: Type -> Type -> Prop
@@ -997,6 +1006,7 @@ instance PP (WithNames Type) where
           (PCmp, [t1])        -> pp pc <+> go 5 t1
           (PSignedCmp, [t1])  -> pp pc <+> go 5 t1
           (PLiteral, [t1,t2]) -> pp pc <+> go 5 t1 <+> go 5 t2
+          (PLiteralLessThan, [t1,t2]) -> pp pc <+> go 5 t1 <+> go 5 t2
 
           (_, _)              -> optParens (prec > 3) $ pp pc <+> fsep (map (go 5) ts)
 

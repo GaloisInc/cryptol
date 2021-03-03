@@ -80,6 +80,7 @@ builtInType nm =
     , "Cmp"               ~> PC PCmp
     , "SignedCmp"         ~> PC PSignedCmp
     , "Literal"           ~> PC PLiteral
+    , "LiteralLessThan"   ~> PC PLiteralLessThan
     , "FLiteral"          ~> PC PFLiteral
 
     -- Type functions
@@ -163,6 +164,7 @@ instance HasKind PC where
       PCmp       -> KType :-> KProp
       PSignedCmp -> KType :-> KProp
       PLiteral   -> KNum :-> KType :-> KProp
+      PLiteralLessThan -> KNum :-> KType :-> KProp
       PFLiteral  -> KNum :-> KNum :-> KNum :-> KType :-> KProp
       PValidFloat -> KNum :-> KNum :-> KProp
       PAnd       -> KProp :-> KProp :-> KProp
@@ -213,6 +215,7 @@ data PC     = PEqual        -- ^ @_ == _@
             | PCmp          -- ^ @Cmp _@
             | PSignedCmp    -- ^ @SignedCmp _@
             | PLiteral      -- ^ @Literal _ _@
+            | PLiteralLessThan -- ^ @LiteralLessThan _ _@
             | PFLiteral     -- ^ @FLiteral _ _ _@
 
             | PValidFloat   -- ^ @ValidFloat _ _@ constraints on supported
@@ -314,6 +317,7 @@ instance PP PC where
       PCmp       -> text "Cmp"
       PSignedCmp -> text "SignedCmp"
       PLiteral   -> text "Literal"
+      PLiteralLessThan -> text "LiteralLessThan"
       PFLiteral  -> text "FLiteral"
       PValidFloat -> text "ValidFloat"
       PTrue      -> text "True"

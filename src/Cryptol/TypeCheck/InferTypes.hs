@@ -67,6 +67,10 @@ data Goals = Goals
 
   , literalGoals :: Map TVar LitGoal
     -- ^ An entry @(a,t)@ corresponds to @Literal t a@.
+
+  , literalLessThanGoals :: Map TVar LitGoal
+    -- ^ An entry @(a,t)@ corresponds to @LiteralLessThan t a@.
+
   } deriving (Show)
 
 -- | This abuses the type 'Goal' a bit. The 'goal' field contains
@@ -85,15 +89,35 @@ goalToLitGoal g =
      return (a, g { goal = tn })
 
 
+litLessThanGoalToGoal :: (TVar,LitGoal) -> Goal
+litLessThanGoalToGoal (a,g) = g { goal = pLiteralLessThan (goal g) (TVar a) }
+
+goalToLitLessThanGoal :: Goal -> Maybe (TVar,LitGoal)
+goalToLitLessThanGoal g =
+  do (tn,a) <- matchMaybe $ do (tn,b) <- aLiteralLessThan (goal g)
+                               a      <- aTVar b
+                               return (tn,a)
+     return (a, g { goal = tn })
+
 
 emptyGoals :: Goals
-emptyGoals  = Goals { goalSet = Set.empty, saturatedPropSet = Set.empty, literalGoals = Map.empty }
+emptyGoals  =
+  Goals
+  { goalSet = Set.empty
+  , saturatedPropSet = Set.empty
+  , literalGoals = Map.empty
+  , literalLessThanGoals = Map.empty
+  }
 
 nullGoals :: Goals -> Bool
-nullGoals gs = Set.null (goalSet gs) && Map.null (literalGoals gs)
+nullGoals gs =
+  Set.null (goalSet gs) &&
+  Map.null (literalGoals gs) &&
+  Map.null (literalLessThanGoals gs)
 
 fromGoals :: Goals -> [Goal]
 fromGoals gs = map litGoalToGoal (Map.toList (literalGoals gs)) ++
+               map litLessThanGoalToGoal (Map.toList (literalLessThanGoals gs)) ++
                Set.toList (goalSet gs)
 
 goalsFromList :: [Goal] -> Goals
@@ -107,6 +131,11 @@ insertGoal g gls
        let jn g1 g2 = g1 { goal = tMax (goal g1) (goal g2) } in
        gls { literalGoals = Map.insertWith jn a newG (literalGoals gls)
            , saturatedPropSet = Set.insert (pFin (TVar a)) (saturatedPropSet gls)
+           }
+
+  | Just (a,newG) <- goalToLitLessThanGoal g =
+       let jn g1 g2 = g1 { goal = tMax (goal g1) (goal g2) } in
+       gls { literalLessThanGoals = Map.insertWith jn a newG (literalLessThanGoals gls)
            }
 
   -- If the goal is already implied by some other goal, skip it

@@ -3,7 +3,7 @@ module Cryptol.TypeCheck.Default where
 import qualified Data.Set as Set
 import           Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Maybe(mapMaybe)
+import Data.Maybe(mapMaybe, isJust)
 import Data.List((\\),nub)
 import Control.Monad(guard,mzero)
 
@@ -35,14 +35,16 @@ defaultLiterals as gs = let (binds,warns) = unzip (mapMaybe tryDefVar as)
   allProps = saturatedPropSet gSet
   has p a  = Set.member (p (TVar a)) allProps
 
+  isLiteralGoal a = isJust (Map.lookup a (literalGoals gSet)) ||
+                    isJust (Map.lookup a (literalLessThanGoals gSet))
   tryDefVar a =
     -- If there is an `FLiteral` constraint we use that for defaulting.
     case Map.lookup a (flitDefaultCandidates gSet) of
       Just m -> m
 
       -- Otherwise we try to use a `Literal`
-      Nothing ->
-        do _gt <- Map.lookup a (literalGoals gSet)
+      Nothing
+        | isLiteralGoal a -> do
            defT <- if has pLogic a then mzero
                    else if has pField a && not (has pIntegral a)
                           then pure tRational
@@ -56,6 +58,7 @@ defaultLiterals as gs = let (binds,warns) = unzip (mapMaybe tryDefVar as)
            -- to depend on
            return ((a,defT),w)
 
+        | otherwise -> mzero
 
 flitDefaultCandidates :: Goals -> Map TVar (Maybe ((TVar,Type),Warning))
 flitDefaultCandidates gs =

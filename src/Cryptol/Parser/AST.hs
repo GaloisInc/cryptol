@@ -314,6 +314,9 @@ data Expr n   = EVar n                          -- ^ @ x @
               | EList [Expr n]                  -- ^ @ [1,2,3] @
               | EFromTo (Type n) (Maybe (Type n)) (Type n) (Maybe (Type n))
                                                 -- ^ @ [1, 5 .. 117 : t] @
+              | EFromToLessThan (Type n) (Type n) (Maybe (Type n))
+                                                -- ^ @ [ 1 .. < 10 : t ] @
+
               | EInfFrom (Expr n) (Maybe (Expr n))-- ^ @ [1, 3 ...] @
               | EComp (Expr n) [[Match n]]      -- ^ @ [ 1 | x <- xs ] @
               | EApp (Expr n) (Expr n)          -- ^ @ f x @
@@ -748,6 +751,9 @@ instance (Show name, PPName name) => PP (Expr name) where
       EFromTo e1 e2 e3 t1 -> brackets (pp e1 <.> step <+> text ".." <+> end)
         where step = maybe empty (\e -> comma <+> pp e) e2
               end = maybe (pp e3) (\t -> pp e3 <+> colon <+> pp t) t1
+      EFromToLessThan e1 e2 t1 -> brackets (strt <+> text ".. <" <+> end)
+        where strt = maybe (pp e1) (\t -> pp e1 <+> colon <+> pp t) t1
+              end  = pp e2
       EInfFrom e1 e2 -> brackets (pp e1 <.> step <+> text "...")
         where step = maybe empty (\e -> comma <+> pp e) e2
       EComp e mss   -> brackets (pp e <+> vcat (map arm mss))
@@ -995,6 +1001,7 @@ instance NoPos (Expr name) where
       EUpd x y        -> EUpd     (noPos x) (noPos y)
       EList x         -> EList    (noPos x)
       EFromTo x y z t -> EFromTo  (noPos x) (noPos y) (noPos z) (noPos t)
+      EFromToLessThan x y t -> EFromToLessThan (noPos x) (noPos y) (noPos t)
       EInfFrom x y    -> EInfFrom (noPos x) (noPos y)
       EComp x y       -> EComp    (noPos x) (noPos y)
       EApp  x y       -> EApp     (noPos x) (noPos y)

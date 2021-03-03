@@ -93,7 +93,9 @@ import Paths_cryptol
   '<-'        { Located $$ (Token (Sym ArrL    ) _)}
   '..'        { Located $$ (Token (Sym DotDot  ) _)}
   '...'       { Located $$ (Token (Sym DotDotDot) _)}
+  '..<'       { Located $$ (Token (Sym DotDotLt) _)}
   '|'         { Located $$ (Token (Sym Bar     ) _)}
+  '<'         { Located $$ (Token (Sym Lt      ) _)}
 
   '('         { Located $$ (Token (Sym ParenL  ) _)}
   ')'         { Located $$ (Token (Sym ParenR  ) _)}
@@ -404,6 +406,7 @@ pat_op                           :: { LPName }
   | '-'                             { Located $1 $ mkUnqual $ mkInfix "-" }
   | '~'                             { Located $1 $ mkUnqual $ mkInfix "~" }
   | '^^'                            { Located $1 $ mkUnqual $ mkInfix "^^" }
+  | '<'                             { Located $1 $ mkUnqual $ mkInfix "<" }
 
 
 other_op                         :: { LPName }
@@ -569,6 +572,9 @@ list_expr                      :: { Expr PName }
 
   | expr          '..' expr       {% eFromTo $2 $1 Nothing   $3 }
   | expr ',' expr '..' expr       {% eFromTo $4 $1 (Just $3) $5 }
+
+  | expr '..' '<' expr            {% eFromToLessThan $2 $1 $4   }
+  | expr '..<'    expr            {% eFromToLessThan $2 $1 $3   }
 
   | expr '...'                    { EInfFrom $1 Nothing         }
   | expr ',' expr '...'           { EInfFrom $1 (Just $3)       }

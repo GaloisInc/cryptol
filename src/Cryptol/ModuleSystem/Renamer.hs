@@ -724,6 +724,10 @@ instance Rename Expr where
                                <*> traverse rename n
                                <*> rename e
                                <*> traverse rename t
+    EFromToLessThan s e t ->
+                       EFromToLessThan <$> rename s
+                                       <*> rename e
+                                       <*> traverse rename t
     EInfFrom a b    -> EInfFrom<$> rename a  <*> traverse rename b
     EComp e' bs     -> do arms' <- traverse renameArm bs
                           let (envs,bs') = unzip arms'

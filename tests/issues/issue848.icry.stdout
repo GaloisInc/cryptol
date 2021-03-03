@@ -1,6 +1,4 @@
 Loading module Cryptol
-a : {n, a} (Integral a, n >= 1, Literal (max 10 (n - 1)) a,
-            fin n) =>
-      [n]a
+a : {n, a} (Integral a, LiteralLessThan n a, Literal 10 a) => [n]a
 [0x0000000a, 0x0000000b, 0x0000000c, 0x0000000d, 0x0000000e,
  0x0000000f, 0x00000010, 0x00000011, 0x00000012, 0x00000013]

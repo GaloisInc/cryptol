@@ -371,10 +371,11 @@ eFromTo r e1 e2 e3 =
     (Nothing, Nothing, Just (e3', t)) -> eFromToType r e1 e2 e3' (Just t)
     (Nothing, Nothing, Nothing) -> eFromToType r e1 e2 e3 Nothing
     _ -> errorMessage r ["A sequence enumeration may have at most one element type annotation."]
-  where
-    asETyped (ELocated e _) = asETyped e
-    asETyped (ETyped e t) = Just (e, t)
-    asETyped _ = Nothing
+
+asETyped :: Expr n -> Maybe (Expr n, Type n)
+asETyped (ELocated e _) = asETyped e
+asETyped (ETyped e t) = Just (e, t)
+asETyped _ = Nothing
 
 eFromToType ::
   Range -> Expr PName -> Maybe (Expr PName) -> Expr PName -> Maybe (Type PName) -> ParseM (Expr PName)
@@ -383,6 +384,24 @@ eFromToType r e1 e2 e3 t =
           <*> mapM (exprToNumT r) e2
           <*> exprToNumT r e3
           <*> pure t
+
+eFromToLessThan ::
+  Range -> Expr PName -> Expr PName -> ParseM (Expr PName)
+eFromToLessThan r e1 e2 =
+  case asETyped e2 of
+    Just _  -> errorMessage r ["The exclusive upper bound of an enumeration may not have a type annotation."]
+    Nothing ->
+      case asETyped e1 of
+        Nothing      -> eFromToLessThanType r e1  e2 Nothing
+        Just (e1',t) -> eFromToLessThanType r e1' e2 (Just t)
+
+eFromToLessThanType ::
+  Range -> Expr PName -> Expr PName -> Maybe (Type PName) -> ParseM (Expr PName)
+eFromToLessThanType r e1 e2 t =
+  EFromToLessThan
+    <$> exprToNumT r e1
+    <*> exprToNumT r e2
+    <*> pure t
 
 exprToNumT :: Range -> Expr PName -> ParseM (Type PName)
 exprToNumT r expr =

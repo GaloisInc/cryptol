@@ -45,6 +45,8 @@ improveProp impSkol ctxt prop =
   improveLit impSkol prop
   -- XXX: others
 
+-- Whenever we have `Literal n [m]a`,
+-- we can learn that `a = Bit`
 improveLit :: Bool -> Prop -> Match (Subst, [Prop])
 improveLit impSkol prop =
   do (_,t) <- aLiteral prop
@@ -53,7 +55,6 @@ improveLit impSkol prop =
      unless impSkol $ guard (isFreeTV a)
      let su = uncheckedSingleSubst a tBit
      return (su, [])
-
 
 
 -- | Improvements from equality constraints.
