@@ -36,7 +36,7 @@ visibleNamesDescr :: Doc.Block
 visibleNamesDescr =
   Doc.Paragraph [Doc.Text "List the currently visible (i.e., in scope) names."]
 
-visibleNames :: VisibleNamesParams -> CryptolMethod [NameInfo]
+visibleNames :: VisibleNamesParams -> CryptolCommand [NameInfo]
 visibleNames _ =
   do me <- getModuleEnv
      let DEnv { deNames = dyNames } = meDynEnv me

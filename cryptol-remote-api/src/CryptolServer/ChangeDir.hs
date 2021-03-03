@@ -18,7 +18,7 @@ cdDescr :: Doc.Block
 cdDescr = Doc.Paragraph
             [Doc.Text "Changes the server's working directory to the given path."]
 
-cd :: ChangeDirectoryParams -> CryptolMethod ()
+cd :: ChangeDirectoryParams -> CryptolCommand ()
 cd (ChangeDirectoryParams newDir) =
   do exists <- liftIO $ doesDirectoryExist newDir
      if exists

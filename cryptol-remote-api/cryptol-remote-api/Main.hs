@@ -7,26 +7,36 @@ module Main (main) where
 import System.Environment (lookupEnv)
 import System.FilePath (splitSearchPath)
 
-import Argo (MethodType(..), AppMethod, mkDefaultApp)
-import Argo.DefaultMain
+import Argo (AppMethod, mkApp, defaultAppOpts, StateMutability( PureState ))
+import Argo.DefaultMain (defaultMain)
 import qualified Argo.Doc as Doc
 
 
 import CryptolServer
-import CryptolServer.Call
-import CryptolServer.ChangeDir
+    ( command, notification, initialState, setSearchPath, ServerState )
+import CryptolServer.Call ( call, callDescr )
+import CryptolServer.ChangeDir ( cd, cdDescr )
+import CryptolServer.ClearState ( clearState, clearStateDescr )
 import CryptolServer.EvalExpr
+    ( evalExpression, evalExpressionDescr )
 import CryptolServer.FocusedModule
+    ( focusedModule, focusedModuleDescr )
 import CryptolServer.LoadModule
-import CryptolServer.Names
-import CryptolServer.Sat
-import CryptolServer.TypeCheck
+    ( loadFile, loadFileDescr, loadModule, loadModuleDescr )
+import CryptolServer.Names ( visibleNames, visibleNamesDescr )
+import CryptolServer.Sat ( proveSat, proveSatDescr )
+import CryptolServer.TypeCheck ( checkType, checkTypeDescr )
 
 main :: IO ()
 main =
   do paths <- getSearchPaths
      initSt <- setSearchPath paths <$> initialState
-     theApp <- mkDefaultApp "Cryptol RPC Server" serverDocs (const (pure initSt)) cryptolMethods
+     theApp <- mkApp
+                 "Cryptol RPC Server"
+                 serverDocs
+                 (defaultAppOpts PureState)
+                 (const (pure initSt))
+                 cryptolMethods
      defaultMain description theApp
 
 serverDocs :: [Doc.Block]
@@ -46,49 +56,44 @@ getSearchPaths =
 
 cryptolMethods :: [AppMethod ServerState]
 cryptolMethods =
-  [ method
+  [ command
      "change directory"
-     Command
      cdDescr
      cd
-  , method
+  , notification
+    "clear state"
+    clearStateDescr
+    clearState
+  , command
      "load module"
-     Command
      loadModuleDescr
      loadModule
-  , method
+  , command
      "load file"
-     Command
      loadFileDescr
      loadFile
-  , method
+  , command
      "focused module"
-     Query
      focusedModuleDescr
      focusedModule
-  , method
+  , command
      "evaluate expression"
-     Query
      evalExpressionDescr
      evalExpression
-  , method
+  , command
      "call"
-     Query
      callDescr
      call
-  , method
+  , command
      "visible names"
-     Query
      visibleNamesDescr
      visibleNames
-  , method
+  , command
      "check type"
-     Query
      checkTypeDescr
      checkType
-  , method
+  , command
      "prove or satisfy"
-     Query
      proveSatDescr
      proveSat
   ]

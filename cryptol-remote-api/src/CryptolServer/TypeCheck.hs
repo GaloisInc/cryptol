@@ -22,7 +22,7 @@ checkTypeDescr :: Doc.Block
 checkTypeDescr =
   Doc.Paragraph [Doc.Text "Check and return the type of the given expression."]
 
-checkType :: TypeCheckParams -> CryptolMethod JSON.Value
+checkType :: TypeCheckParams -> CryptolCommand JSON.Value
 checkType (TypeCheckParams e) =
   do e' <- getExpr e
      (_expr, _ty, schema) <- runModuleCmd (checkExpr e')

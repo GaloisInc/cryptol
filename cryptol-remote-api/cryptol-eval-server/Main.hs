@@ -4,13 +4,21 @@
 {-# LANGUAGE TypeApplications #-}
 module Main (main) where
 
-import Control.Lens hiding (argument)
+import Control.Lens ( view, set )
 import System.Environment (lookupEnv)
 import System.Exit (exitFailure)
 import System.FilePath (splitSearchPath)
 import System.IO (hPutStrLn, stderr)
 import Options.Applicative
+    ( Parser,
+      Alternative((<|>)),
+      help,
+      long,
+      metavar,
+      strOption,
+      value )
 
+import CryptolServer.ClearState ( clearState, clearStateDescr )
 import Cryptol.Eval (EvalOpts(..), defaultPPOpts)
 import Cryptol.ModuleSystem (ModuleInput(..), loadModuleByPath, loadModuleByName, meSolverConfig)
 import Cryptol.ModuleSystem.Monad (runModuleM, setFocusedModule)
@@ -19,24 +27,32 @@ import qualified Cryptol.TypeCheck.Solver.SMT as SMT
 import Cryptol.Utils.Ident (ModName, modNameToText, textToModName, preludeName)
 import Cryptol.Utils.Logger (quietLogger)
 
-import Argo (MethodType(..), AppMethod, mkDefaultApp)
-import Argo.DefaultMain
+import Argo (AppMethod, mkApp, defaultAppOpts, StateMutability(PureState))
+import Argo.DefaultMain ( customMain, userOptions )
 import qualified Argo.Doc as Doc
 
 
 import CryptolServer
-import CryptolServer.Call
+    ( ServerState, moduleEnv, initialState, setSearchPath, command, notification )
+import CryptolServer.Call ( call )
 import CryptolServer.EvalExpr
+    ( evalExpressionDescr, evalExpression )
 import CryptolServer.FocusedModule
-import CryptolServer.Names
-import CryptolServer.TypeCheck
-import CryptolServer.Sat
+    ( focusedModuleDescr, focusedModule )
+import CryptolServer.Names ( visibleNamesDescr, visibleNames )
+import CryptolServer.TypeCheck ( checkType )
+import CryptolServer.Sat ( proveSatDescr, proveSat )
 
 main :: IO ()
 main = customMain initMod initMod initMod initMod description buildApp
   where
     buildApp opts =
-      mkDefaultApp "Cryptol RPC Server" evalServerDocs (startingState (userOptions opts)) cryptolEvalMethods
+      mkApp
+        "Cryptol RPC Server"
+        evalServerDocs
+        (defaultAppOpts PureState)
+        (startingState (userOptions opts))
+        cryptolEvalMethods
 
     startingState (StartingFile file) reader =
       do paths <- getSearchPaths
@@ -100,34 +116,32 @@ initMod = StartingFile <$> (Left <$> filename <|> Right . textToModName <$> modu
 
 cryptolEvalMethods :: [AppMethod ServerState]
 cryptolEvalMethods =
-  [ method
+  [ command
      "focused module"
-     Query
      focusedModuleDescr
      focusedModule
-  , method
+  , command
      "evaluate expression"
-     Query
      evalExpressionDescr
      evalExpression
-  , method
+  , command
      "call"
-     Query
      (Doc.Paragraph [Doc.Text "Evaluate the result of calling a Cryptol function on one or more parameters."])
      call
-  , method
+  , command
      "visible names"
-     Query
      visibleNamesDescr
      visibleNames
-  , method
+  , command
      "check type"
-     Query
      (Doc.Paragraph [Doc.Text "Check and return the type of the given expression."])
      checkType
-  , method
+  , command
      "prove or satisfy"
-     Query
      proveSatDescr
      proveSat
+  , notification
+    "clear state"
+    clearStateDescr
+    clearState
   ]

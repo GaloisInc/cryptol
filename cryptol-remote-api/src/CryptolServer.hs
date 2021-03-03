@@ -22,53 +22,72 @@ import qualified Cryptol.TypeCheck.Solver.SMT as SMT
 
 import qualified Argo
 import qualified Argo.Doc as Doc
-import CryptolServer.Exceptions
+import CryptolServer.Exceptions ( cryptolError )
 import CryptolServer.Options
+    ( WithOptions(WithOptions), Options(Options, optEvalOpts) )
 
-newtype CryptolMethod a = CryptolMethod { runCryptolMethod :: Options -> Argo.Method ServerState a }
-  deriving (Functor, Applicative, Monad, MonadIO) via ReaderT Options (Argo.Method ServerState)
+newtype CryptolCommand a = CryptolCommand { runCryptolCommand :: Options -> Argo.Command ServerState a }
+  deriving (Functor, Applicative, Monad, MonadIO) via ReaderT Options (Argo.Command ServerState)
 
-method ::
+newtype CryptolNotification a = CryptolNotification { runCryptolNotification :: Options -> Argo.Notification a }
+  deriving (Functor, Applicative, Monad, MonadIO) via ReaderT Options Argo.Notification
+
+command ::
   forall params result.
   (JSON.FromJSON params, JSON.ToJSON result, Doc.DescribedParams params) =>
   Text ->
-  Argo.MethodType ->
   Doc.Block ->
-  (params -> CryptolMethod result) ->
+  (params -> CryptolCommand result) ->
   Argo.AppMethod ServerState
-method name ty doc f = Argo.method name ty doc f'
-  where f' (WithOptions opts params) = runCryptolMethod (f params) opts
+command name doc f = Argo.command name doc f'
+  where f' (WithOptions opts params) = runCryptolCommand (f params) opts
 
 
-getOptions :: CryptolMethod Options
-getOptions = CryptolMethod pure
+notification ::
+  forall params.
+  (JSON.FromJSON params, Doc.DescribedParams params) =>
+  Text ->
+  Doc.Block ->
+  (params -> CryptolNotification ()) ->
+  Argo.AppMethod ServerState
+notification name doc f = Argo.notification name doc f'
+  where f' (WithOptions opts params) = runCryptolNotification (f params) opts
 
-getEvalOpts :: CryptolMethod EvalOpts
-getEvalOpts = optEvalOpts <$> getOptions
+class CryptolMethod m where
+  getOptions :: m Options
+  getEvalOpts :: m EvalOpts
+  raise :: Argo.JSONRPCException -> m a
 
-raise :: Argo.JSONRPCException -> CryptolMethod a
-raise = CryptolMethod . const . Argo.raise
+instance CryptolMethod CryptolCommand where
+  getOptions = CryptolCommand pure
+  getEvalOpts = optEvalOpts <$> getOptions
+  raise = CryptolCommand . const . Argo.raise
 
-getModuleEnv :: CryptolMethod ModuleEnv
-getModuleEnv =
-  CryptolMethod $ const $ view moduleEnv <$> Argo.getState
+instance CryptolMethod CryptolNotification where
+  getOptions = CryptolNotification pure
+  getEvalOpts = optEvalOpts <$> getOptions
+  raise = CryptolNotification . const . Argo.raise
 
-setModuleEnv :: ModuleEnv -> CryptolMethod ()
+getModuleEnv :: CryptolCommand ModuleEnv
+getModuleEnv = CryptolCommand $ const $ view moduleEnv <$> Argo.getState
+
+
+setModuleEnv :: ModuleEnv -> CryptolCommand ()
 setModuleEnv me =
-  CryptolMethod $ const $ Argo.getState >>= \s -> Argo.setState (set moduleEnv me s)
+  CryptolCommand $ const $ Argo.getState >>= \s -> Argo.setState (set moduleEnv me s)
 
-runModuleCmd :: ModuleCmd a -> CryptolMethod a
+runModuleCmd :: ModuleCmd a -> CryptolCommand a
 runModuleCmd cmd =
     do Options callStacks evOpts <- getOptions
-       s <- CryptolMethod $ const Argo.getState
-       reader <- CryptolMethod $ const Argo.getFileReader
+       s <- CryptolCommand $ const Argo.getState
+       reader <- CryptolCommand $ const Argo.getFileReader
        let minp solver = ModuleInput
-                        { minpCallStacks = callStacks
-                        , minpEvalOpts   = pure evOpts
-                        , minpByteReader = reader
-                        , minpModuleEnv  = view moduleEnv s
-                        , minpTCSolver = solver
-                        }
+                  { minpCallStacks = callStacks
+                  , minpEvalOpts   = pure evOpts
+                  , minpByteReader = reader
+                  , minpModuleEnv  = view moduleEnv s
+                  , minpTCSolver = solver
+                  }
        let solverCfg = meSolverConfig (view moduleEnv s)
        out <- liftIO $ SMT.withSolver solverCfg (cmd . minp)
        case out of
