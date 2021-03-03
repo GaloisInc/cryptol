@@ -24,6 +24,11 @@ class CryptolTests(unittest.TestCase):
         self.c = cryptol.connect()
         self.c.load_file(str(Path('tests','cryptol','test-files', 'Foo.cry')))
 
+    @classmethod
+    def tearDownClass(self):
+        if self.c:
+            self.c.reset()
+
     def test_low_level(self):
         c = self.c
         x_val = c.evaluate_expression("x").result()
