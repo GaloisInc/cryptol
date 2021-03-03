@@ -12,7 +12,7 @@ def get_README():
 setup(
     name="cryptol",
     python_requires=">=3.7",
-    version="0.0.1",
+    version="0.0.2",
     url="https://github.com/GaloisInc/cryptol",
     project_urls={
         "Source": "https://github.com/GaloisInc/cryptol/tree/master/cryptol-remote-api/pthon",
@@ -31,7 +31,7 @@ setup(
         "BitVector==3.4.9",
         "mypy==0.790",
         "mypy-extensions==0.4.3",
-        "argo-client==0.0.3"
+        "argo-client==0.0.4"
     ],
     classifiers=[
         "Development Status :: 3 - Alpha",

@@ -13,9 +13,10 @@ import qualified Argo.Doc as Doc
 
 
 import CryptolServer
-    ( command, initialState, setSearchPath, ServerState )
+    ( command, notification, initialState, setSearchPath, ServerState )
 import CryptolServer.Call ( call, callDescr )
 import CryptolServer.ChangeDir ( cd, cdDescr )
+import CryptolServer.ClearState ( clearState, clearStateDescr )
 import CryptolServer.EvalExpr
     ( evalExpression, evalExpressionDescr )
 import CryptolServer.FocusedModule
@@ -59,6 +60,10 @@ cryptolMethods =
      "change directory"
      cdDescr
      cd
+  , notification
+    "clear state"
+    clearStateDescr
+    clearState
   , command
      "load module"
      loadModuleDescr

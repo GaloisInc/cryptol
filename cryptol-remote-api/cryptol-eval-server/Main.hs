@@ -18,6 +18,7 @@ import Options.Applicative
       strOption,
       value )
 
+import CryptolServer.ClearState ( clearState, clearStateDescr )
 import Cryptol.Eval (EvalOpts(..), defaultPPOpts)
 import Cryptol.ModuleSystem (ModuleInput(..), loadModuleByPath, loadModuleByName, meSolverConfig)
 import Cryptol.ModuleSystem.Monad (runModuleM, setFocusedModule)
@@ -32,7 +33,7 @@ import qualified Argo.Doc as Doc
 
 
 import CryptolServer
-    ( ServerState, moduleEnv, initialState, setSearchPath, command )
+    ( ServerState, moduleEnv, initialState, setSearchPath, command, notification )
 import CryptolServer.Call ( call )
 import CryptolServer.EvalExpr
     ( evalExpressionDescr, evalExpression )
@@ -139,4 +140,8 @@ cryptolEvalMethods =
      "prove or satisfy"
      proveSatDescr
      proveSat
+  , notification
+    "clear state"
+    clearStateDescr
+    clearState
   ]

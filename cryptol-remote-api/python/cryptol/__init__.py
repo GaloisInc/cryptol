@@ -195,6 +195,14 @@ class CryptolFocusedModule(argo.Command):
     def process_result(self, res : Any) -> Any:
         return res
 
+class CryptolReset(argo.Notification):
+    def __init__(self, connection : HasProtocolState) -> None:
+        super(CryptolReset, self).__init__(
+            'clear state',
+            {'state to clear': connection.protocol_state()},
+            connection
+        )
+
 def connect(command : Optional[str]=None,
             *,
             cryptol_path : Optional[str] = None,
@@ -264,10 +272,6 @@ class CryptolConnection:
     ``CryptolConnection`` causes it to change its state into one in
     which the command has been carried out.
 
-    Use :py:meth:`cryptol.CryptolConnection.snapshot` to make a
-    lightweight copy of the current state that shares the underlying
-    server process.
-
     ``CryptolConnection`` is in the middle of the abstraction
     hierarchy. It relieves users from thinking about explicitly
     encoding state and protocol messages, but it provides a
@@ -291,14 +295,17 @@ class CryptolConnection:
         else:
             self.server_connection = command_or_connection
 
-    def snapshot(self) -> CryptolConnection:
-        """Create a lightweight snapshot of this connection. The snapshot
-        shares the underlying server process, but can have different
-        application state.
-        """
-        copy = CryptolConnection(self.server_connection)
-        copy.most_recent_result = self.most_recent_result
-        return copy
+    # Currently disabled in (overly?) conservative effort to not accidentally
+    # duplicate and share mutable state.
+
+    # def snapshot(self) -> CryptolConnection:
+    #     """Create a lightweight snapshot of this connection. The snapshot
+    #     shares the underlying server process, but can have different
+    #     application state.
+    #     """
+    #     copy = CryptolConnection(self.server_connection)
+    #     copy.most_recent_result = self.most_recent_result
+    #     return copy
 
     def protocol_state(self) -> Any:
         if self.most_recent_result is None:
@@ -377,6 +384,18 @@ class CryptolConnection:
         self.most_recent_result = CryptolFocusedModule(self)
         return self.most_recent_result
 
+    def reset(self) -> None:
+        """Resets the connection, causing its unique state on the server to be freed (if applicable).
+        
+        After a reset a connection may be treated as if it were a fresh connection with the server if desired."""
+        CryptolReset(self)
+        self.most_recent_result = None
+
+    def __del__(self):
+        # when being deleted, ensure we don't have a lingering state on the server
+        if self.most_recent_result is not None:
+            CryptolReset(self)
+
 class CryptolDynamicSocketProcess(DynamicSocketProcess):
 
     def __init__(self, command: str, *,
@@ -401,102 +420,105 @@ class CryptolStdIOProcess(StdIOProcess):
         super().__init__(command, environment=environment)
 
 
-
-class CryptolFunctionHandle:
-    def __init__(self,
-                 connection : CryptolConnection,
-                 name : str,
-                 ty : Any,
-                 schema : Any,
-                 docs : Optional[str] = None) -> None:
-        self.connection = connection.snapshot()
-        self.name = name
-        self.ty = ty
-        self.schema = schema
-        self.docs = docs
-
-        self.__doc__ = "Cryptol type: " + ty
-        if self.docs is not None and self.__doc__ is not None:
-            self.__doc__ += "\n" + self.docs
-
-    def __call__(self, *args : List[Any]) -> Any:
-        current_type = self.schema
-        remaining_args = args
-        arg_types = cryptoltypes.argument_types(current_type)
-        Call = TypedDict('Call', {'expression': str, 'function': str, 'arguments': List[Any]})
-        current_expr : Union[str, Call]
-        current_expr = self.name
-        found_args = []
-        while len(arg_types) > 0 and len(remaining_args) > 0:
-            found_args.append(arg_types[0].from_python(remaining_args[0]))
-            current_expr = {'expression': 'call', 'function': self.name, 'arguments': found_args}
-            ty = self.connection.check_type(current_expr).result()
-            current_type = cryptoltypes.to_schema(ty)
-            arg_types = cryptoltypes.argument_types(current_type)
-            remaining_args = remaining_args[1:]
-        return from_cryptol_arg(self.connection.evaluate_expression(current_expr).result()['value'])
-
-
 def cry(string : str) -> cryptoltypes.CryptolCode:
     return cryptoltypes.CryptolLiteral(string)
 
-class CryptolModule(types.ModuleType):
-    def __init__(self, connection : CryptolConnection) -> None:
-        self.connection = connection.snapshot()
-        name = connection.focused_module().result()
-        if name["module"] is None:
-            raise ValueError("Provided connection is not in a module")
-        super(CryptolModule, self).__init__(name["module"])
+# The below code relies on `connection.snapshot()` which duplicates
+# a connection and points to the same underlying server state. We
+# should come back to this and reevaluate if/how to do this, given
+# that some of our servers have varying degrees of mutable state.
 
-        for x in self.connection.names().result():
-            if 'documentation' in x:
-                setattr(self, x['name'],
-                        CryptolFunctionHandle(self.connection,
-                                              x['name'],
-                                              x['type string'],
-                                              cryptoltypes.to_schema(x['type']),
-                                              x['documentation']))
-            else:
-                setattr(self, x['name'],
-                        CryptolFunctionHandle(self.connection,
-                                              x['name'],
-                                              x['type string'],
-                                              cryptoltypes.to_schema(x['type'])))
+# class CryptolFunctionHandle:
+#     def __init__(self,
+#                  connection : CryptolConnection,
+#                  name : str,
+#                  ty : Any,
+#                  schema : Any,
+#                  docs : Optional[str] = None) -> None:
+#         self.connection = connection.snapshot()
+#         self.name = name
+#         self.ty = ty
+#         self.schema = schema
+#         self.docs = docs
+
+#         self.__doc__ = "Cryptol type: " + ty
+#         if self.docs is not None and self.__doc__ is not None:
+#             self.__doc__ += "\n" + self.docs
+
+#     def __call__(self, *args : List[Any]) -> Any:
+#         current_type = self.schema
+#         remaining_args = args
+#         arg_types = cryptoltypes.argument_types(current_type)
+#         Call = TypedDict('Call', {'expression': str, 'function': str, 'arguments': List[Any]})
+#         current_expr : Union[str, Call]
+#         current_expr = self.name
+#         found_args = []
+#         while len(arg_types) > 0 and len(remaining_args) > 0:
+#             found_args.append(arg_types[0].from_python(remaining_args[0]))
+#             current_expr = {'expression': 'call', 'function': self.name, 'arguments': found_args}
+#             ty = self.connection.check_type(current_expr).result()
+#             current_type = cryptoltypes.to_schema(ty)
+#             arg_types = cryptoltypes.argument_types(current_type)
+#             remaining_args = remaining_args[1:]
+#         return from_cryptol_arg(self.connection.evaluate_expression(current_expr).result()['value'])
+
+# class CryptolModule(types.ModuleType):
+#     def __init__(self, connection : CryptolConnection) -> None:
+#         self.connection = connection.snapshot()
+#         name = connection.focused_module().result()
+#         if name["module"] is None:
+#             raise ValueError("Provided connection is not in a module")
+#         super(CryptolModule, self).__init__(name["module"])
+
+#         for x in self.connection.names().result():
+#             if 'documentation' in x:
+#                 setattr(self, x['name'],
+#                         CryptolFunctionHandle(self.connection,
+#                                               x['name'],
+#                                               x['type string'],
+#                                               cryptoltypes.to_schema(x['type']),
+#                                               x['documentation']))
+#             else:
+#                 setattr(self, x['name'],
+#                         CryptolFunctionHandle(self.connection,
+#                                               x['name'],
+#                                               x['type string'],
+#                                               cryptoltypes.to_schema(x['type'])))
 
 
-def add_cryptol_module(name : str, connection : CryptolConnection) -> None:
-    """Given a name for a Python module and a Cryptol connection,
-    establish a Python module with the given name in which all the
-    Cryptol names are in scope as Python proxy objects.
-    """
-    sys.modules[name] = CryptolModule(connection)
+# def add_cryptol_module(name : str, connection : CryptolConnection) -> None:
+#     """Given a name for a Python module and a Cryptol connection,
+#     establish a Python module with the given name in which all the
+#     Cryptol names are in scope as Python proxy objects.
+#     """
+#     sys.modules[name] = CryptolModule(connection)
 
-class CryptolContext:
-    _defined : Dict[str, CryptolFunctionHandle]
+# class CryptolContext:
+#     _defined : Dict[str, CryptolFunctionHandle]
 
-    def __init__(self, connection : CryptolConnection) -> None:
-        self.connection = connection.snapshot()
-        self._defined = {}
-        for x in self.connection.names().result():
-            if 'documentation' in x:
-                self._defined[x['name']] = \
-                    CryptolFunctionHandle(self.connection,
-                                          x['name'],
-                                          x['type string'],
-                                          cryptoltypes.to_schema(x['type']),
-                                          x['documentation'])
-            else:
-                self._defined[x['name']] = \
-                    CryptolFunctionHandle(self.connection,
-                                          x['name'],
-                                          x['type string'],
-                                          cryptoltypes.to_schema(x['type']))
+#     def __init__(self, connection : CryptolConnection) -> None:
+#         self.connection = connection.snapshot()
+#         self._defined = {}
+#         for x in self.connection.names().result():
+#             if 'documentation' in x:
+#                 self._defined[x['name']] = \
+#                     CryptolFunctionHandle(self.connection,
+#                                           x['name'],
+#                                           x['type string'],
+#                                           cryptoltypes.to_schema(x['type']),
+#                                           x['documentation'])
+#             else:
+#                 self._defined[x['name']] = \
+#                     CryptolFunctionHandle(self.connection,
+#                                           x['name'],
+#                                           x['type string'],
+#                                           cryptoltypes.to_schema(x['type']))
 
-    def __dir__(self) -> Iterable[str]:
-        return self._defined.keys()
+#     def __dir__(self) -> Iterable[str]:
+#         return self._defined.keys()
 
-    def __getattr__(self, name : str) -> Any:
-        if name in self._defined:
-            return self._defined[name]
-        else:
-            raise AttributeError()
+#     def __getattr__(self, name : str) -> Any:
+#         if name in self._defined:
+#             return self._defined[name]
+#         else:
+#             raise AttributeError()

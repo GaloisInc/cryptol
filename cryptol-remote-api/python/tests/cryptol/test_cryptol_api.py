@@ -1,6 +1,14 @@
 import unittest
 from pathlib import Path
+import os
+from pathlib import Path
+import subprocess
+import time
+import unittest
+import signal
+from distutils.spawn import find_executable
 import cryptol
+import argo_client.connection as argo
 import cryptol.cryptoltypes
 from cryptol import solver
 from cryptol.bitvector import BV
@@ -69,11 +77,63 @@ class CryptolTests(unittest.TestCase):
         # check for a valid condition
         self.assertTrue(c.prove('\\x -> isSqrtOf9 x ==> elem x [3,131,125,253]').result())
 
-    def test_repeat_usages(self):
+    def test_many_usages_one_connection(self):
         c = self.c
         for i in range(0,100):
-            x_val = c.evaluate_expression("x").result()
-            self.assertEqual(c.eval("Id::id x").result(), x_val)
+            x_val1 = c.evaluate_expression("x").result()
+            x_val2 = c.eval("Id::id x").result()
+            self.assertEqual(x_val1, x_val2)
+
+
+
+class HttpMultiConnectionTests(unittest.TestCase):
+    # Connection to server
+    c = None
+    # Python initiated process running the server (if any)
+    p = None
+    # url of HTTP server
+    url = None
+
+    @classmethod
+    def setUpClass(self):
+        if (url := os.getenv('CRYPTOL_SERVER_URL')) is not None:
+            self.url = url
+        elif ((command := os.getenv('CRYPTOL_SERVER')) is not None and (command := find_executable(command)) is not None)\
+              or (command := find_executable('cryptol-remote-api')) is not None:
+            self.p = subprocess.Popen(
+                [command, "http", "/", "--port", "8080"],
+                stdout=subprocess.PIPE,
+                stdin=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                start_new_session=True)
+            time.sleep(5)
+            assert(self.p is not None)
+            poll_result = self.p.poll()
+            if poll_result is not None:
+                print(poll_result)
+                print(self.p.stdout.read())
+                print(self.p.stderr.read())
+            assert(poll_result is None)
+            self.url = "http://localhost:8080/"
+        else:
+            raise RuntimeError("NO CRYPTOL SERVER FOUND")
+
+    @classmethod
+    def tearDownClass(self):
+        if self.p is not None:
+            os.killpg(os.getpgid(self.p.pid), signal.SIGKILL)
+        super().tearDownClass()
+
+    def test_many_usages_many_connections(self):
+        for i in range(0,100):
+            time.sleep(.05)
+            c = cryptol.connect(url=self.url)
+            c.load_file(str(Path('tests','cryptol','test-files', 'Foo.cry')))
+            x_val1 = c.evaluate_expression("x").result()
+            x_val2 = c.eval("Id::id x").result()
+            self.assertEqual(x_val1, x_val2)
+            c.reset()
+
 
 if __name__ == "__main__":
     unittest.main()

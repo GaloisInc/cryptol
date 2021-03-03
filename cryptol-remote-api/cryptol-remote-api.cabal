@@ -58,6 +58,7 @@ library
     CryptolServer
     CryptolServer.Call
     CryptolServer.ChangeDir
+    CryptolServer.ClearState
     CryptolServer.Data.Expression
     CryptolServer.Data.Type
     CryptolServer.EvalExpr
