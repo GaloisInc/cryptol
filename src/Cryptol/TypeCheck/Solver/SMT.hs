@@ -33,13 +33,14 @@ module Cryptol.TypeCheck.Solver.SMT
 
 import           SimpleSMT (SExpr)
 import qualified SimpleSMT as SMT
+import           Data.IORef
 import           Data.Map ( Map )
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import           Data.Maybe(catMaybes)
 import           Data.List(partition)
 import           Control.Exception
-import           Control.Monad(msum,zipWithM,void)
+import           Control.Monad(msum, void)
 import           Data.Char(isSpace)
 import           Text.Read(readMaybe)
 import qualified System.IO.Strict as StrictIO
@@ -65,6 +66,9 @@ data Solver = Solver
 
   , logger    :: SMT.Logger
     -- ^ For debugging
+
+  , nameSupply :: IORef Int
+    -- ^ Fresh names for solver variables
   }
 
 -- | Start a fresh solver instance
@@ -77,6 +81,7 @@ startSolver SolverConfig { .. } =
       solver <- SMT.newSolver solverPath solverArgs smtDbg
       _ <- SMT.setOptionMaybe solver ":global-decls" "false"
       -- SMT.setLogic solver "QF_LIA"
+      nameSupply <- newIORef 0
       let sol = Solver { .. }
       loadTcPrelude sol solverPreludePath
       return sol
@@ -189,7 +194,7 @@ proveImp sol ps gs0 =
          vs        = Set.toList (fvs (numAsmp, map goal gs))
      tvs <- debugBlock sol "VARIABLES" $
        do SMT.push (solver sol)
-          Map.fromList <$> zipWithM (declareVar sol) [ 0 .. ] vs
+          Map.fromList <$> traverse (declareFreshVar sol) vs
      debugBlock sol "ASSUMPTIONS" $
        mapM_ (assume sol tvs) numAsmp
      gs' <- mapM (prove sol tvs) gs
@@ -206,7 +211,7 @@ checkUnsolvable sol gs0 =
          vs = Set.toList (fvs ps)
      tvs <- debugBlock sol "VARIABLES" $
        do push sol
-          Map.fromList <$> zipWithM (declareVar sol) [ 0 .. ] vs
+          Map.fromList <$> traverse (declareFreshVar sol) vs
      ans <- unsolvable sol tvs ps
      pop sol
      return ans
@@ -215,7 +220,7 @@ tryGetModel :: Solver -> [TVar] -> [Prop] -> IO (Maybe [(TVar,Nat')])
 tryGetModel sol as ps =
   debugBlock sol "TRY GET MODEL" $
   do push sol
-     tvs <- Map.fromList <$> zipWithM (declareVar sol) [ 0 .. ] as
+     tvs <- Map.fromList <$> traverse (declareFreshVar sol) as
      mapM_ (assume sol tvs) ps
      sat <- SMT.check (solver sol)
      su <- case sat of
@@ -277,6 +282,11 @@ push sol = SMT.push (solver sol)
 pop :: Solver -> IO ()
 pop sol = SMT.pop (solver sol)
 
+
+declareFreshVar :: Solver -> TVar -> IO (TVar, SExpr)
+declareFreshVar s v =
+  do x <- atomicModifyIORef' (nameSupply s) (\x -> (x+1, x))
+     declareVar s x v
 
 declareVar :: Solver -> Int -> TVar -> IO (TVar, SExpr)
 declareVar s x v =
