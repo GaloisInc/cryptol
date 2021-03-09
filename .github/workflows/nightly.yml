@@ -75,6 +75,7 @@ jobs:
       - name: Build test-cryptol-remote-api
         uses: docker/build-push-action@v1
         with:
+          tags: latest
           repository: galoisinc/test-cryptol-remote-api
           push: false
           dockerfile: cryptol-remote-api/test.Dockerfile
@@ -83,7 +84,7 @@ jobs:
           set -x
           kind create cluster --wait 10m
           kind load docker-image galoisinc/cryptol-remote-api:nightly
-          kind load docker-image galoisinc/test-cryptol-remote-api
+          kind load docker-image galoisinc/test-cryptol-remote-api:latest
           helm install --wait cra-http ./helm/cryptol-remote-api --set server.connType=http --set image.tag=nightly
           helm install --wait cra-socket ./helm/cryptol-remote-api --set server.connType=socket --set image.tag=nightly
           kubectl run --rm --attach test-http --image=galoisinc/test-cryptol-remote-api --image-pull-policy=Never --restart=Never -- http cra-http-cryptol-remote-api 8080
