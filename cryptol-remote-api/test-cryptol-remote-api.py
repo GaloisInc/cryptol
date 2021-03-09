@@ -1,5 +1,5 @@
 import sys
-import argo.connection as argo
+import argo_client.connection as argo
 import cryptol
 
 connType = sys.argv[1]
