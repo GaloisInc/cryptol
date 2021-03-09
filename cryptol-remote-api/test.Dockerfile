@@ -1,4 +1,4 @@
-FROM python:3.7
+FROM python:3.9
 # Intended to be built from the root of the cryptol git repository
 
 COPY cryptol-remote-api/python python
