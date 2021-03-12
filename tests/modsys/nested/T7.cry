@@ -1,0 +1,5 @@
+
+// Recursive definition in a submodule
+submodule A where
+  x = x
+
