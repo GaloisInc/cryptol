@@ -208,7 +208,7 @@ renameTopDecls' info ds =
       DBind {}      -> True
       DType {}      -> False
       DProp {}      -> False
-      DRec {}       -> bad "DRec"
+      DRec {}       -> True
       DSignature {} -> bad "DSignature"
       DFixity {}    -> bad "DFixity"
       DPragma {}    -> bad "DPragma"
