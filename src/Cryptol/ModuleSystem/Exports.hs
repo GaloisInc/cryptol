@@ -13,7 +13,7 @@ import Cryptol.Parser.AST
 import Cryptol.Parser.Names(namesD,tnamesD,tnamesNT)
 import Cryptol.ModuleSystem.Name
 
-modExports :: Ord name => ModuleG manme name -> ExportSpec name
+modExports :: Ord name => ModuleG mname name -> ExportSpec name
 modExports m = fold (concat [ exportedNames d | d <- mDecls m ])
   where
   names by td = [ td { tlValue = thing n } | n <- fst (by (tlValue td)) ]
