@@ -95,7 +95,7 @@ Loading module Main
 [error] at tc-errors-6.cry:4:7--4:8:
   The type ?a is not sufficiently polymorphic.
     It cannot depend on quantified variables: b`776
-    When checking the type of 'Main::g'
+    When checking the type of 'g'
   where
   ?a is the type of 'x' at tc-errors-6.cry:1:3--1:4
   b`776 is signature variable 'b' at tc-errors-6.cry:3:8--3:9
