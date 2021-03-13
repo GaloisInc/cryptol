@@ -523,7 +523,7 @@ typecheck act i params env = do
 
 -- | Generate input for the typechecker.
 genInferInput :: Range -> PrimMap -> IfaceParams -> IfaceDecls -> ModuleM T.InferInput
-genInferInput r prims params env = do
+genInferInput r prims params env' = do
   seeds <- getNameSeeds
   monoBinds <- getMonoBinds
   cfg <- getSolverConfig
@@ -533,6 +533,8 @@ genInferInput r prims params env = do
   callStacks <- getCallStacks
 
   -- TODO: include the environment needed by the module
+  let env = flatPublicDecls env'
+            -- XXX: we should really just pass this directly
   return T.InferInput
     { T.inpRange     = r
     , T.inpVars      = Map.map ifDeclSig (ifDecls env)

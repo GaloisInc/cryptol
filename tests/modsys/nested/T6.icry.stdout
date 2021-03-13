@@ -8,7 +8,7 @@ Modules
   From T4
   -------
 
-    X::A
+    submodule X::A
 
 Symbols
 =======

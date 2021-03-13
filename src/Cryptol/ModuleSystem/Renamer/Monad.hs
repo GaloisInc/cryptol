@@ -293,8 +293,9 @@ addDep :: Name -> RenameM ()
 addDep x =
   do cur  <- getCurMod
      deps <- case nameInfo x of
-               Declared m _ | cur /= m && cur `containsModule` m ->
-                 do mb <- nestedModuleOrig m
+               -- XXX: this should be the outermost thing
+               Declared m _ | Just (c,i:_) <- cur `containsModule` m ->
+                 do mb <- nestedModuleOrig (Nested c i)
                     pure case mb of
                            Just y  -> Set.fromList [x,y]
                            Nothing -> Set.singleton x

@@ -64,8 +64,9 @@ module Cryptol.Utils.Ident
   ) where
 
 import           Control.DeepSeq (NFData)
+import           Control.Monad(guard)
 import           Data.Char (isSpace)
-import           Data.List (unfoldr,isPrefixOf)
+import           Data.List (unfoldr)
 import qualified Data.Text as T
 import           Data.String (IsString(..))
 import           GHC.Generics (Generic)
@@ -97,8 +98,10 @@ topModuleFor m =
     TopModule x -> x
     Nested p _ -> topModuleFor p
 
-containsModule :: ModPath -> ModPath -> Bool
-p1 `containsModule` p2 = m1 == m2 && reverse xs `isPrefixOf` reverse ys
+containsModule :: ModPath -> ModPath -> Maybe (ModPath,[Ident])
+p1 `containsModule` p2 =
+  do guard (m1 == m2)
+     check (TopModule m1) (reverse xs) (reverse ys)
   where
   (m1,xs) = toList p1
   (m2,ys) = toList p2
@@ -108,6 +111,12 @@ p1 `containsModule` p2 = m1 == m2 && reverse xs `isPrefixOf` reverse ys
       TopModule a -> (a, [])
       Nested b i  -> (a, i:bs)
         where (a,bs) = toList b
+
+  check m is js =
+    case (is,js) of
+      ([], _) -> pure (m, js)
+      (i : is', j : js') -> guard (i == j) >> check (Nested m i) is' js'
+      _ -> Nothing
 
 
 

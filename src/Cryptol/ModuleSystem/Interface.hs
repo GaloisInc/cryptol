@@ -23,6 +23,9 @@ module Cryptol.ModuleSystem.Interface (
   , emptyIface
   , ifacePrimMap
   , noIfaceParams
+  , ifaceIsFunctor
+  , flatPublicIface
+  , flatPublicDecls
   ) where
 
 import qualified Data.Map as Map
@@ -52,6 +55,25 @@ data IfaceG mname = Iface
   , ifParams    :: IfaceParams  -- ^ Uninterpreted constants (aka module params)
   } deriving (Show, Generic, NFData)
 
+ifaceIsFunctor :: IfaceG mname -> Bool
+ifaceIsFunctor = not . isEmptyIfaceParams . ifParams
+
+-- | The public declarations in all modules, including nested
+-- The modules field contains public functors
+-- Assumes that we are not a functor.
+flatPublicIface :: IfaceG mname -> IfaceDecls
+flatPublicIface iface = flatPublicDecls (ifPublic iface)
+
+
+flatPublicDecls :: IfaceDecls -> IfaceDecls
+flatPublicDecls ifs = mconcat ( ifs { ifModules = fun }
+                              : map flatPublicIface (Map.elems nofun)
+                              )
+
+  where
+  (fun,nofun) = Map.partition ifaceIsFunctor (ifModules ifs)
+
+
 type Iface = IfaceG ModName
 
 emptyIface :: mname -> IfaceG mname
@@ -75,6 +97,10 @@ noIfaceParams = IfaceParams
   , ifParamFuns = Map.empty
   }
 
+isEmptyIfaceParams :: IfaceParams -> Bool
+isEmptyIfaceParams IfaceParams { .. } =
+  Map.null ifParamTypes && null ifParamConstraints && Map.null ifParamFuns
+
 data IfaceDecls = IfaceDecls
   { ifTySyns        :: Map.Map Name IfaceTySyn
   , ifNewtypes      :: Map.Map Name IfaceNewtype
@@ -82,6 +108,7 @@ data IfaceDecls = IfaceDecls
   , ifDecls         :: Map.Map Name IfaceDecl
   , ifModules       :: !(Map.Map Name (IfaceG Name))
   } deriving (Show, Generic, NFData)
+
 
 instance Semigroup IfaceDecls where
   l <> r = IfaceDecls

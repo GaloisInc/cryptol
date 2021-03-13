@@ -1212,7 +1212,7 @@ browseMods isVisible prov M.IfaceDecls { .. } names =
             , secVisible = isVisible
             }
   where
-  ppM m = pp (M.ifModName m)
+  ppM m = "submodule" <+> pp (M.ifModName m)
   -- XXX: can print a lot more information about the moduels, but
   -- might be better to do that with a separate command
 
