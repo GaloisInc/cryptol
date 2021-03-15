@@ -2,6 +2,7 @@
 {-# Language BangPatterns #-}
 module Cryptol.Backend.FloatHelpers where
 
+import Data.Char (isDigit)
 import Data.Ratio(numerator,denominator)
 import LibBF
 
@@ -82,18 +83,31 @@ fpPP opts bf =
   str = bfToString base fmt num
   fmt = addPrefix <> showRnd NearEven <>
         case useFPFormat opts of
-          FloatFree e -> withExp e $ showFreeMin
+          FloatFree e -> withExp e $ showFree
                                    $ Just $ fromInteger precW
           FloatFixed n e -> withExp e $ showFixed $ fromIntegral n
           FloatFrac n    -> showFrac $ fromIntegral n
 
   -- non-base 10 literals are not overloaded so we add an explicit
-  -- .0 if one is not present. 
+  -- .0 if one is not present.  Moreover, we trim any extra zeros
+  -- that appear in a decimal representation.
   hacStr
-    | base == 10 || elem '.' str = str
+    | base == 10   = trimZeros
+    | elem '.' str = str
     | otherwise = case break (== 'p') str of
                     (xs,ys) -> xs ++ ".0" ++ ys
 
+  trimZeros =
+    case break (== '.') str of
+      (xs,'.':ys) ->
+        case break (not . isDigit) ys of
+          (frac, suffix) -> xs ++ '.' : processFraction frac ++ suffix
+      _ -> str
+
+  processFraction frac =
+    case dropWhile (== '0') (reverse frac) of
+      [] -> "0"
+      zs -> reverse zs
 
 -- | Make a literal
 fpLit ::
