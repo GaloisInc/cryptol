@@ -59,7 +59,7 @@ step. If you'd prefer to just install them, then omit the `-e` flag.
 To run the `mypy` type checker, enter the virtual environment and then run:
 
 ```
-$ mypy cryptol
+$ mypy cryptol tests
 ```
 
 Actually using the application-specific bindings requires the
