@@ -99,7 +99,7 @@ class BV:
         Args:
             n (int): How many bits wider the returned ``BV`` should be than ``self`` (must be nonnegative).
         """
-        if not isinstance(n, int) or n < 0: #type: ignore
+        if not isinstance(n, int) or n < 0:
             raise ValueError(f'``widen`` expects a nonnegative integer, but got {n!r}')
         else:
             return BV(self.__size + n, self.__value)
@@ -193,7 +193,7 @@ class BV:
         
         :param size: Size of segments to partition ``self`` into (must evently divide ``self.size()``).
         """
-        if not isinstance(size, int) or size <= 0: #type: ignore
+        if not isinstance(size, int) or size <= 0:
             raise ValueError(f'`size` argument to splits must be a positive integer, got {size!r}')
         if not self.size() % size == 0:
             raise ValueError(f'{self!r} is not divisible into equal parts of size {size!r}')
@@ -246,7 +246,7 @@ class BV:
     def with_bits(self, low : int, bits : 'BV') -> 'BV':
         """Return a ``BV`` identical to ``self`` but with the bits from ``low`` to
         ``low + bits.size() - 1`` replaced by the bits from ``bits``."""
-        if not isinstance(low, int) or low < 0 or low >= self.__size: # type: ignore
+        if not isinstance(low, int) or low < 0 or low >= self.__size:
             raise ValueError(f'{low!r} is not a valid low bit index for {self!r}')
         elif not isinstance(bits, BV):
             raise ValueError(f'Expected a BV but got {bits!r}')

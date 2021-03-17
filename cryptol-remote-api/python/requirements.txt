@@ -9,7 +9,7 @@ idna==2.10
 imagesize==1.2.0
 Jinja2==2.11.2
 MarkupSafe==1.1.1
-mypy==0.790
+mypy==0.812
 mypy-extensions==0.4.3
 packaging==20.4
 Pygments==2.7.1
