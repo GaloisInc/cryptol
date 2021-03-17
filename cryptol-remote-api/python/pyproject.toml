@@ -14,4 +14,4 @@ argo-client = "0.0.4"
 mypy = "^0.790"
 
 [build-system]
-requires = ["poetry>=1.1.4"]
+requires = ["poetry>=1.1.4", "setuptools>=40.8.0"]
