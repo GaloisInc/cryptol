@@ -11,6 +11,13 @@ python3 -m venv virtenv
 . virtenv/bin/activate
 pip install -r requirements.txt
 
+echo "Typechecking code with mypy..."
+mypy cryptol/ tests/
+if [ $? -ne 0 ]; then
+  echo "Code failed to typecheck with mypy"
+  NUM_FAILS=$(($NUM_FAILS+1))
+fi
+
 export CRYPTOL_SERVER=$(cabal v2-exec which cryptol-remote-api)
 if [[ -x "$CRYPTOL_SERVER" ]]; then
   echo "Running cryptol-remote-api tests..."

@@ -12,7 +12,7 @@ import argo_client.connection as argo
 import cryptol.cryptoltypes
 from cryptol import solver
 from cryptol.bitvector import BV
-from BitVector import *
+from BitVector import * #type: ignore
 
 
 class CryptolTests(unittest.TestCase):
