@@ -1,4 +1,11 @@
-# NEXT
+# 2.11.0
+
+## Language changes
+
+* The `newtype` construct, which has existed in the interpreter in an
+  incomplete and undocumented form for quite a while, is now fullly
+  supported. The construct is documented in section 1.22 of [Programming
+  Cryptol](https://cryptol.net/files/ProgrammingCryptol.pdf).
 
 ## New features
 
@@ -8,6 +15,36 @@
   runtime errors. This additional bookkeeping incurs significant
   runtime overhead, but may be disabled using the `--no-call-stacks`
   command-line option.
+
+* The `:exhaust` command now works for floating-point types.
+
+* The `:check` command now uses more representative sampling of random
+  input values to test.
+
+* The `cryptol-remote-api` RPC server now has methods corresponding to
+  the `:prove` and `:sat` commands in the REPL.
+
+* The `cryptol-eval-server` executable is a new, stateless server
+  providing a subset of the functionality of `cryptol-remote-api`
+  dedicated entirely to invoking Cryptol functions on concrete inputs.
+
+## Internal changes
+
+* The single running instance of the SMT solver used for type checking
+  (Z3) is now used to check a larger number of type correctness queries.
+  This means that fewer solver instances are invoked, and type checking
+  should generally be faster.
+
+* The Cryptol interpreter now builds against `libBF` version 0.6, which
+  fixes a few bugs in the evaluation of floating-point operations.
+
+## Bug fixes
+
+* Closed issues #118, #398, #426, #470, #491, #567, #594, #639, #656,
+  #698, #743, #810, #858, #870, #905, #915, #917, #962, #973, #975,
+  #980, #984, #986, #990, #996, #997, #1002, #1006, #1009, #1012, #1024,
+  #1030, #1035, #1036, #1039, #1040, #1044, #1045, #1049, #1050, #1051,
+  #1052, #1063, #1092, #1093, #1094, and #1100.
 
 # 2.10.0
 
