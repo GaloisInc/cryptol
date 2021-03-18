@@ -30,7 +30,7 @@
 
 ## Internal changes
 
-* The single running instance of the SMT solver used for type checking
+* A single running instance of the SMT solver used for type checking
   (Z3) is now used to check a larger number of type correctness queries.
   This means that fewer solver instances are invoked, and type checking
   should generally be faster.
