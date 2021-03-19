@@ -15,7 +15,7 @@ class CryptolEvalServerTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(self):
-        dir_path = Path(os.path.dirname(os.path.realpath(__file__)))
+        dir_path = Path(os.path.dirname(os.path.realpath(__file__)), "test-files")
         if command := os.getenv('CRYPTOL_SERVER'):
             self.c = cryptol.connect(f'{command} socket --module M', cryptol_path=dir_path)
         else:
@@ -31,6 +31,63 @@ class CryptolEvalServerTests(unittest.TestCase):
     # def test_disallowed_ops(self):
     #     pass # TODO/FIXME
 
+
+class HttpMultiConnectionTests(unittest.TestCase):
+    # Connection to server
+    c = None
+    # Python initiated process running the server (if any)
+    p = None
+    # url of HTTP server
+    url = None
+
+    @classmethod
+    def setUpClass(self):
+        dir_path = Path(os.path.dirname(os.path.realpath(__file__)), "test-files")
+        if ((command := os.getenv('CRYPTOL_SERVER')) is not None and (command := find_executable(command)) is not None)\
+              or (command := find_executable('cryptol-eval-server')) is not None:
+            new_env = os.environ.copy()
+            new_env["CRYPTOLPATH"] = str(dir_path)
+            self.p = subprocess.Popen(
+                [command, "http", "/", "--port", "8081", "--module", "M"],
+                stdout=subprocess.PIPE,
+                stdin=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                start_new_session=True,
+                env=new_env)
+            time.sleep(5)
+            assert(self.p is not None)
+            poll_result = self.p.poll()
+            if poll_result is not None:
+                print(poll_result)
+                print(self.p.stdout.read())
+                print(self.p.stderr.read())
+            assert(poll_result is None)
+            self.url = "http://localhost:8081/"
+        elif os.getenv('CRYPTOL_SERVER_URL') is not None:
+            raise ValueError('CRYPTOL_SERVER_URL environment variable is set but the eval server tests currently only work with a local executable')
+        else:
+            raise RuntimeError("NO CRYPTOL EVAL SERVER FOUND")
+
+    @classmethod
+    def tearDownClass(self):
+        if self.p is not None:
+            os.killpg(os.getpgid(self.p.pid), signal.SIGKILL)
+        super().tearDownClass()
+
+    def test_reset_with_many_usages_many_connections(self):
+        for i in range(0,100):
+            time.sleep(.05)
+            c = cryptol.connect(url=self.url)
+            res = c.call('f', BV(size=8,value=0xff)).result()
+            self.assertEqual(res, [BV(size=8,value=0xff), BV(size=8,value=0xff)])
+            c.reset()
+
+    def test_reset_server_with_many_usages_many_connections(self):
+        for i in range(0,100):
+            time.sleep(.05)
+            c = cryptol.connect(url=self.url, reset_server=True)
+            res = c.call('f', BV(size=8,value=0xff)).result()
+            self.assertEqual(res, [BV(size=8,value=0xff), BV(size=8,value=0xff)])
 
 if __name__ == "__main__":
     unittest.main()
