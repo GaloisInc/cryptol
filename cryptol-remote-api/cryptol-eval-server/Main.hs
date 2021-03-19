@@ -18,7 +18,8 @@ import Options.Applicative
       strOption,
       value )
 
-import CryptolServer.ClearState ( clearState, clearStateDescr )
+import CryptolServer.ClearState
+    ( clearState, clearStateDescr, clearAllStates, clearAllStatesDescr)
 import Cryptol.Eval (EvalOpts(..), defaultPPOpts)
 import Cryptol.ModuleSystem (ModuleInput(..), loadModuleByPath, loadModuleByName, meSolverConfig)
 import Cryptol.ModuleSystem.Monad (runModuleM, setFocusedModule)
@@ -144,4 +145,8 @@ cryptolEvalMethods =
     "clear state"
     clearStateDescr
     clearState
+  , notification
+    "clear all states"
+    clearAllStatesDescr
+    clearAllStates
   ]

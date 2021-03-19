@@ -203,10 +203,19 @@ class CryptolReset(argo.Notification):
             connection
         )
 
+class CryptolResetServer(argo.Notification):
+    def __init__(self, connection : HasProtocolState) -> None:
+        super(CryptolResetServer, self).__init__(
+            'clear all states',
+            {},
+            connection
+        )
+
 def connect(command : Optional[str]=None,
             *,
             cryptol_path : Optional[str] = None,
-            url : Optional[str] = None) -> CryptolConnection:
+            url : Optional[str] = None,
+            reset_server : bool = False) -> CryptolConnection:
     """
     Connect to a (possibly new) Cryptol server process.
 
@@ -218,7 +227,12 @@ def connect(command : Optional[str]=None,
     :param url: A URL at which to connect to an already running Cryptol 
     HTTP server.
 
-    If no parameters are provided, the following are attempted in order:
+    :param reset_server: If ``True``, the server that is connected to will be
+    reset. (This ensures any states from previous server usages have been
+    cleared.)
+
+
+    If no ``command`` or ``url`` parameters are provided, the following are attempted in order:
 
     1. If the environment variable ``CRYPTOL_SERVER`` is set and referse to an executable,
     it is assumed to be a Cryptol server and will be used for a new ``socket`` connection.
@@ -230,18 +244,19 @@ def connect(command : Optional[str]=None,
     it is assumed to be a Cryptol server and will be used for a new ``socket`` connection.
 
     """
+    c = None
     if command is not None:
         if url is not None:
             raise ValueError("A Cryptol server URL cannot be specified with a command currently.")
-        return CryptolConnection(command, cryptol_path)
+        c = CryptolConnection(command, cryptol_path)
     elif url is not None:
-        return CryptolConnection(ServerConnection(HttpProcess(url)), cryptol_path)
+        c = CryptolConnection(ServerConnection(HttpProcess(url)), cryptol_path)
     elif (command := os.getenv('CRYPTOL_SERVER')) is not None and (command := find_executable(command)) is not None:
-        return CryptolConnection(command+" socket", cryptol_path=cryptol_path)
+        c = CryptolConnection(command+" socket", cryptol_path=cryptol_path)
     elif (url := os.getenv('CRYPTOL_SERVER_URL')) is not None:
-        return CryptolConnection(ServerConnection(HttpProcess(url)), cryptol_path)
+        c = CryptolConnection(ServerConnection(HttpProcess(url)), cryptol_path)
     elif (command := find_executable('cryptol-remote-api')) is not None:
-        return CryptolConnection(command+" socket", cryptol_path=cryptol_path)
+        c = CryptolConnection(command+" socket", cryptol_path=cryptol_path)
     else:
         raise ValueError(
             """cryptol.connect requires one of the following:",
@@ -249,7 +264,9 @@ def connect(command : Optional[str]=None,
                2) a URL to connect to a running cryptol server is provided via the `url` keyword argument,
                3) the environment variable `CRYPTOL_SERVER` must refer to a valid server executable, or
                4) the environment variable `CRYPTOL_SERVER_URL` must refer to the URL of a running cryptol server.""")
-    
+    if reset_server:
+        CryptolResetServer(c)
+    return c
 
 
 def connect_stdio(command : str, cryptol_path : Optional[str] = None) -> CryptolConnection:
@@ -391,10 +408,18 @@ class CryptolConnection:
         CryptolReset(self)
         self.most_recent_result = None
 
+    def reset_server(self) -> None:
+        """Resets the Cryptol server, clearing all states."""
+        CryptolResetServer(self)
+        self.most_recent_result = None
+
     def __del__(self) -> None:
         # when being deleted, ensure we don't have a lingering state on the server
         if self.most_recent_result is not None:
-            CryptolReset(self)
+            try:
+                CryptolReset(self)
+            except Exception:
+                pass
 
 class CryptolDynamicSocketProcess(DynamicSocketProcess):
 

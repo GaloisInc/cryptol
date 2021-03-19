@@ -129,7 +129,7 @@ class HttpMultiConnectionTests(unittest.TestCase):
             os.killpg(os.getpgid(self.p.pid), signal.SIGKILL)
         super().tearDownClass()
 
-    def test_many_usages_many_connections(self):
+    def test_reset_with_many_usages_many_connections(self):
         for i in range(0,100):
             time.sleep(.05)
             c = cryptol.connect(url=self.url)
@@ -138,6 +138,15 @@ class HttpMultiConnectionTests(unittest.TestCase):
             x_val2 = c.eval("Id::id x").result()
             self.assertEqual(x_val1, x_val2)
             c.reset()
+
+    def test_reset_server_with_many_usages_many_connections(self):
+        for i in range(0,100):
+            time.sleep(.05)
+            c = cryptol.connect(url=self.url, reset_server=True)
+            c.load_file(str(Path('tests','cryptol','test-files', 'Foo.cry')))
+            x_val1 = c.evaluate_expression("x").result()
+            x_val2 = c.eval("Id::id x").result()
+            self.assertEqual(x_val1, x_val2)
 
 
 if __name__ == "__main__":

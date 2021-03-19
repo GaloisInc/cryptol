@@ -16,7 +16,8 @@ import CryptolServer
     ( command, notification, initialState, setSearchPath, ServerState )
 import CryptolServer.Call ( call, callDescr )
 import CryptolServer.ChangeDir ( cd, cdDescr )
-import CryptolServer.ClearState ( clearState, clearStateDescr )
+import CryptolServer.ClearState
+    ( clearState, clearStateDescr, clearAllStates, clearAllStatesDescr )
 import CryptolServer.EvalExpr
     ( evalExpression, evalExpressionDescr )
 import CryptolServer.FocusedModule
@@ -64,6 +65,10 @@ cryptolMethods =
     "clear state"
     clearStateDescr
     clearState
+  , notification
+    "clear all states"
+    clearAllStatesDescr
+    clearAllStates
   , command
      "load module"
      loadModuleDescr
