@@ -205,7 +205,7 @@ jobs:
         id: prefix
         run: echo "::set-output name=prefix::portable-"
 
-      - uses: rlespinasse/github-slug-action@v3
+      - uses: rlespinasse/github-slug-action@v3.x
 
       - id: common-tag
         run: echo "::set-output name=common-tag::${{ steps.prefix.outputs.prefix }}$GITHUB_REF_SLUG"
