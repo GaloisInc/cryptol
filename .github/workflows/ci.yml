@@ -235,7 +235,7 @@ jobs:
           load: true
           push: false
           file: ${{ matrix.file }}
-          build-args: PORTABILITY=${{ matrix.portable }}
+          build-args: ["PORTABILITY=${{ matrix.portable }}"]
           cache-from: type=registry,ref=${{ matrix.image }}:cache-${{ steps.common-tag.outputs.common-tag }}
           cache-to: type=registry,ref=${{ matrix.image }}:cache-${{ steps.common-tag.outputs.common-tag }},mode=max
 
