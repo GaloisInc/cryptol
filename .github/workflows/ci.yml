@@ -86,7 +86,7 @@ jobs:
       - shell: bash
         run: .github/ci.sh build
 
-      - if: matrix.os == 'ubuntu-latest' && matrix.ghc == '8.10.3'
+      - if: matrix.os == 'ubuntu-latest' && matrix.ghc == '8.10.2'
         uses: mxschmitt/action-tmate@v3
 
       - shell: bash
