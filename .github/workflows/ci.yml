@@ -13,6 +13,11 @@ on:
         required: false
         default: "false"
 
+env:
+  Z3_VERSION: "4.8.8"
+  CVC4_VERSION: "4.1.8"
+  YICES_VERSION: "2.6.2"
+
 jobs:
   config:
     runs-on: ubuntu-latest
@@ -75,19 +80,12 @@ jobs:
 
       - shell: bash
         run: .github/ci.sh install_system_deps
-        env:
-          Z3_VERSION: "4.8.8"
-          CVC4_VERSION: "4.1.8"
-          YICES_VERSION: "2.6.2"
 
       - shell: bash
         run: .github/ci.sh setup_external_tools
 
       - shell: bash
         run: .github/ci.sh build
-
-      - if: matrix.os == 'ubuntu-latest' && matrix.ghc == '8.10.2'
-        uses: mxschmitt/action-tmate@v3
 
       - shell: bash
         run: .github/ci.sh check_docs
