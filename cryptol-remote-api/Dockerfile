@@ -91,8 +91,9 @@ COPY cabal.GHC-${GHCVER}.config cabal.project.freeze
 RUN mkdir -p rootfs/usr/local/bin
 
 RUN cabal v2-update && \
-    cabal v2-build -j cryptol-remote-api:exe:cryptol-remote-api && \
-    cp $(cabal v2-exec which cryptol-remote-api) rootfs/usr/local/bin
+    cabal v2-build -j cryptol-remote-api:exe:cryptol-remote-api cryptol-remote-api:exe:cryptol-eval-server && \
+    cp $(cabal v2-exec which cryptol-remote-api) rootfs/usr/local/bin && \
+    cp $(cabal v2-exec which cryptol-eval-server) rootfs/usr/local/bin
 ENV PATH=/usr/local/bin:/cryptol/rootfs/usr/local/bin:$PATH
 RUN mkdir -p rootfs/"${CRYPTOLPATH}" \
     && cp -r lib/* rootfs/"${CRYPTOLPATH}"
