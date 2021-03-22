@@ -131,6 +131,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
+        fail-fast: false
         os: [ubuntu-latest, macos-latest, windows-latest]
     needs: [config, build-docs, build]
     env:
@@ -192,6 +193,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [config]
     strategy:
+      fail-fast: false
       matrix:
         include:
           - image: ghcr.io/galoisinc/cryptol
@@ -245,7 +247,7 @@ jobs:
           load: true
           push: false
           file: ${{ matrix.file }}
-          build-args: "PORTABILITY=${{ matrix.portable }}"
+          build-args: ${{ matrix.build-args }}
           cache-from: type=registry,ref=${{ matrix.image }}:cache-${{ steps.common-tag.outputs.common-tag }}
           cache-to: type=registry,ref=${{ matrix.image }}:cache-${{ steps.common-tag.outputs.common-tag }},mode=max
 
@@ -290,4 +292,4 @@ jobs:
           labels: ${{ steps.labels.outputs.labels }}
           push: ${{ needs.config.outputs.publish }}
           file: ${{ matrix.file }}
-          build-args: PORTABILITY=${{ matrix.portable }}
+          build-args: ${{ matrix.build-args }}
