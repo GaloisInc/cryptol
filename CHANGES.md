@@ -5,7 +5,10 @@
 * The `newtype` construct, which has existed in the interpreter in an
   incomplete and undocumented form for quite a while, is now fullly
   supported. The construct is documented in section 1.22 of [Programming
-  Cryptol](https://cryptol.net/files/ProgrammingCryptol.pdf).
+  Cryptol](https://cryptol.net/files/ProgrammingCryptol.pdf). Note,
+  however, that the `cryptol-remote-api` RPC server currently does not
+  include full support for referring to `newtype` names, though it can
+  work with implementations that use `newtype` internally.
 
 ## New features
 
@@ -16,10 +19,9 @@
   runtime overhead, but may be disabled using the `--no-call-stacks`
   command-line option.
 
-* The `:exhaust` command now works for floating-point types.
-
-* The `:check` command now uses more representative sampling of random
-  input values to test.
+* The `:exhaust` command now works for floating-point types and the
+  `:check` command now uses more representative sampling of
+  floating-point input values to test.
 
 * The `cryptol-remote-api` RPC server now has methods corresponding to
   the `:prove` and `:sat` commands in the REPL.
