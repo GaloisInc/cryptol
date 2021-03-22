@@ -243,6 +243,9 @@ executable cryptol-html
   build-depends: base, text, cryptol, blaze-html
   GHC-options: -Wall
 
+  if os(linux) && flag(static)
+      ld-options:      -static
+
 executable check-exercises
   Default-language:
     Haskell2010
