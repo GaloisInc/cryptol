@@ -266,6 +266,7 @@ jobs:
         name: Build test-cryptol-remote-api
         with:
           tags: test-cryptol-remote-api:latest
+          load: true
           push: false
           file: cryptol-remote-api/test.Dockerfile
 
