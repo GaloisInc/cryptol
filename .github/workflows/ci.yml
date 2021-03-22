@@ -277,8 +277,8 @@ jobs:
           kind create cluster --wait 10m
           kind load docker-image ${{ matrix.image }}:${{ steps.common-tag.outputs.common-tag }}
           kind load docker-image test-cryptol-remote-api:latest
-          helm install --wait cra-http ./helm/cryptol-remote-api --set server.connType=http --set image.tag=${{ steps.common-tag.outputs.common-tag }}
-          helm install --wait cra-socket ./helm/cryptol-remote-api --set server.connType=socket --set image.tag=${{ steps.common-tag.outputs.common-tag }}
+          helm install --wait cra-http ./helm/cryptol-remote-api --set server.connType=http --set image.repository=${{ matrix.image }} --set image.tag=${{ steps.common-tag.outputs.common-tag }}
+          helm install --wait cra-socket ./helm/cryptol-remote-api --set server.connType=socket --set image.repository=${{ matrix.image }} --set image.tag=${{ steps.common-tag.outputs.common-tag }}
           kubectl run --rm --attach test-http --image=test-cryptol-remote-api:latest --image-pull-policy=Never --restart=Never -- http cra-http-cryptol-remote-api 8080
           kubectl run --rm --attach test-socket --image=test-cryptol-remote-api:latest --image-pull-policy=Never --restart=Never -- socket cra-socket-cryptol-remote-api 8080
 
