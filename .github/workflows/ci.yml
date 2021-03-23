@@ -86,6 +86,10 @@ jobs:
 
       - shell: bash
         run: .github/ci.sh build
+        continue-on-error: true
+
+      - if: runner.os == 'Linux' && matrix.ghc == '8.6.5'
+        uses: mxschmitt/action-tmate@v3
 
       - shell: bash
         run: .github/ci.sh check_docs
