@@ -135,7 +135,6 @@ jobs:
     env:
       VERSION: ${{ needs.config.outputs.cryptol-version }}
       RELEASE: ${{ needs.config.outputs.release }}
-      NAME: ${{ needs.config.outputs.name }}-${{ runner.os }}-x86_64
     steps:
       - uses: actions/checkout@v2
 
@@ -166,7 +165,10 @@ jobs:
         run: .github/ci.sh sign cryptol.msi
 
       - shell: bash
-        run: .github/ci.sh zip_dist $NAME
+        id: package
+        run: |
+          echo "NAME=${{ needs.config.outputs.name }}-${{ runner.os }}-x86_64" >> $GITHUB_ENV
+          .github/ci.sh zip_dist $NAME
 
       - if: |
           github.head_ref == 'master' ||
