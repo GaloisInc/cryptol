@@ -26,21 +26,25 @@ jobs:
       cryptol-version: ${{ steps.getconf.outputs.cryptol-version }}
       name: ${{ steps.getconf.outputs.name }}
       publish: ${{ steps.getconf-publish.outputs.publish }}
+      retention-days: ${{ steps.getconf-publish.outputs.retention-days }}
     steps:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 0
-      - id: getconf-publish
-        if: |
-          (github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/')) ||
-          (github.event_name == 'schedule') ||
-          (github.event_name == 'workflow_dispatch' && github.event.inputs.publish == 'true')
-        run: .github/ci.sh output publish true
       - id: getconf
         run: |
           .github/ci.sh set_files ${{ github.sha }}
           .github/ci.sh set_version
           .github/ci.sh output name cryptol-$(.github/ci.sh ver)
+          .github/ci.sh output retention-days 5
+      - id: getconf-publish
+        if: |
+          (github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/')) ||
+          (github.event_name == 'schedule') ||
+          (github.event_name == 'workflow_dispatch' && github.event.inputs.publish == 'true')
+        run: |
+          .github/ci.sh output publish true
+          .github/ci.sh output retention-days 90
 
   build:
     runs-on: ${{ matrix.os }}
@@ -104,6 +108,7 @@ jobs:
         with:
           path: dist/bin
           name: ${{ runner.os }}-bins
+          retention-days: ${{ needs.config.outputs.retention-days }}
 
   build-docs:
     runs-on: ubuntu-latest
@@ -124,6 +129,7 @@ jobs:
         with:
           path: docs
           name: docs
+          retention-days: ${{ needs.config.outputs.retention-days }}
 
   bundle:
     runs-on: ${{ matrix.os }}
@@ -183,6 +189,7 @@ jobs:
           name: ${{ env.NAME }}
           path: "${{ env.NAME }}.tar.gz*"
           if-no-files-found: error
+          retention-days: ${{ needs.config.outputs.retention-days }}
 
       - uses: actions/upload-artifact@v2
         if: runner.os == 'Windows'
@@ -190,6 +197,7 @@ jobs:
           name: ${{ env.NAME }}
           path: "cryptol.msi*"
           if-no-files-found: error
+          retention-days: ${{ needs.config.outputs.retention-days }}
 
   build-push-image:
     runs-on: ubuntu-latest
