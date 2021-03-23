@@ -180,12 +180,14 @@ jobs:
         with:
           name: ${{ needs.config.outputs.name }}
           path: "${{ needs.config.outputs.name }}.tar.gz*"
+          if-no-files-found: error
 
       - uses: actions/upload-artifact@v2
         if: runner.os == 'Windows'
         with:
           name: ${{ needs.config.outputs.name }}
           path: "cryptol.msi*"
+          if-no-files-found: error
 
   build-push-image:
     runs-on: ubuntu-latest

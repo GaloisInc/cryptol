@@ -174,7 +174,7 @@ zip_dist() {
   : "${VERSION?VERSION is required as an environment variable}"
   name="${name:-"cryptol-$VERSION-$RUNNER_OS-x86_64"}"
   mv dist "$name"
-  tar -czf "$name".tar.gz "$name"
+  tar -cvzf "$name".tar.gz "$name"
 }
 
 output() { echo "::set-output name=$1::$2"; }

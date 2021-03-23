@@ -72,12 +72,13 @@ RUN if ${PORTABILITY}; then \
         make -j && \
         make install && \
         cd .. && \
-        rm -rf ./ghc && \
-        ghcup rm ghc ${GHCVER_BOOTSTRAP}; \
+        rm -rf ./ghc; \
     else \
         ghcup install ghc ${GHCVER} && \
         ghcup set ghc ${GHCVER}; \
     fi
+
+RUN if ${PORTABILITY}; then  ghcup rm ghc-${GHCVER_BOOTSTRAP}; fi
 
 FROM toolchain AS build
 
