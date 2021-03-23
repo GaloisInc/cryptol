@@ -271,6 +271,9 @@ jobs:
           file: cryptol-remote-api/test.Dockerfile
 
       - if: matrix.image == 'ghcr.io/galoisinc/cryptol-remote-api'
+        uses: mxschmitt/action-tmate@v3
+
+      - if: matrix.image == 'ghcr.io/galoisinc/cryptol-remote-api'
         name: Test cryptol-remote-api helm chart
         run: |
           set -x
