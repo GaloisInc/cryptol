@@ -8,6 +8,9 @@ maintainer:          dtc@galois.com
 category:            Language
 extra-source-files:  CHANGELOG.md
 
+flag static
+  default: False
+  description: Create a statically-linked binary
 
 common warnings
   ghc-options:
@@ -81,6 +84,9 @@ executable cryptol-remote-api
     cryptol-remote-api,
     sbv < 8.10
 
+  if os(linux) && flag(static)
+      ld-options:      -static -pthread
+
 executable cryptol-eval-server
   import:              deps, warnings, errors
   main-is:             Main.hs
@@ -92,5 +98,8 @@ executable cryptol-eval-server
     cryptol-remote-api,
     optparse-applicative,
     sbv < 8.10
+
+  if os(linux) && flag(static)
+      ld-options:      -static -pthread
 
 

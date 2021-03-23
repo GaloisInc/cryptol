@@ -1,0 +1,326 @@
+name: Cryptol
+on:
+  push:
+    tags: ["v?[0-9]+.[0-9]+(.[0-9]+)?"]
+    branches: [master, "release-**"]
+  pull_request:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish release artifacts"
+        required: false
+        default: "false"
+
+env:
+  Z3_VERSION: "4.8.8"
+  CVC4_VERSION: "4.1.8"
+  YICES_VERSION: "2.6.2"
+
+jobs:
+  config:
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.getconf.outputs.changed-files }}
+      cryptol-version: ${{ steps.getconf.outputs.cryptol-version }}
+      name: ${{ steps.getconf.outputs.name }}
+      publish: ${{ steps.getconf-publish.outputs.publish }}
+      retention-days: ${{ steps.getconf-publish.outputs.retention-days }}
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - id: getconf
+        run: |
+          .github/ci.sh set_files ${{ github.sha }}
+          .github/ci.sh set_version
+          .github/ci.sh output name cryptol-$(.github/ci.sh ver)
+          .github/ci.sh output retention-days 5
+      - id: getconf-publish
+        if: |
+          (github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/')) ||
+          (github.event_name == 'schedule') ||
+          (github.event_name == 'workflow_dispatch' && github.event.inputs.publish == 'true')
+        run: |
+          .github/ci.sh output publish true
+          .github/ci.sh output retention-days 90
+
+  build:
+    runs-on: ${{ matrix.os }}
+    needs: [config]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        ghc: ["8.6.5", "8.8.4", "8.10.2"]
+        exclude:
+          # https://gitlab.haskell.org/ghc/ghc/-/issues/18550
+          - os: windows-latest
+            ghc: 8.10.2
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: true
+
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.x'
+
+      - uses: actions/setup-haskell@v1
+        id: setup-haskell
+        with:
+          ghc-version: ${{ matrix.ghc }}
+
+      - uses: actions/cache@v2
+        name: Cache cabal store
+        with:
+          path: |
+            ${{ steps.setup-haskell.outputs.cabal-store }}
+            dist-newstyle
+          key: cabal-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles(format('cabal.GHC-{0}.config', matrix.ghc)) }}-${{ github.sha }}
+          restore-keys: |
+            cabal-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles(format('cabal.GHC-{0}.config', matrix.ghc)) }}-
+
+      - shell: bash
+        run: .github/ci.sh install_system_deps
+
+      - shell: bash
+        run: .github/ci.sh setup_external_tools
+
+      - shell: bash
+        run: .github/ci.sh build
+
+      - shell: bash
+        run: .github/ci.sh check_docs
+        if: runner.os != 'Windows'
+
+      - shell: bash
+        run: .github/ci.sh test_dist
+
+      # TODO: get Python client to work on Windows
+      - shell: bash
+        run: .github/ci.sh test_rpc
+        if: runner.os != 'Windows'
+
+      - if: matrix.ghc == '8.8.4'
+        uses: actions/upload-artifact@v2
+        with:
+          path: dist/bin
+          name: ${{ runner.os }}-bins
+          retention-days: ${{ needs.config.outputs.retention-days }}
+
+  build-docs:
+    runs-on: ubuntu-latest
+    needs: [config]
+    steps:
+      - uses: actions/checkout@v2
+      - uses: docker://pandoc/latex:2.9.2
+        with:
+          args: >-
+            sh -c
+            "
+            apk add make &&
+            tlmgr install subfigure lastpage preprint adjustbox nag collectbox sectsty todonotes palatino mathpazo &&
+            cd docs &&
+            make
+            "
+      - uses: actions/upload-artifact@v2
+        with:
+          path: docs
+          name: docs
+          retention-days: ${{ needs.config.outputs.retention-days }}
+
+  bundle:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    needs: [config, build-docs, build]
+    env:
+      VERSION: ${{ needs.config.outputs.cryptol-version }}
+      RELEASE: ${{ needs.config.outputs.release }}
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/download-artifact@v2
+        with:
+          path: dist/bin
+          name: ${{ runner.os }}-bins
+
+      - uses: actions/download-artifact@v2
+        with:
+          path: docs
+          name: docs
+
+      - shell: bash
+        run: .github/ci.sh bundle_files
+
+      - if: runner.os == 'Windows'
+        run: .github/wix.ps1
+
+      - if: |
+          runner.os == 'Windows' &&
+          (github.head_ref == 'master' ||
+          startsWith(github.head_ref, 'release-'))
+        shell: bash
+        env:
+          SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+        run: .github/ci.sh sign cryptol.msi
+
+      - shell: bash
+        run: |
+          echo "NAME=${{ needs.config.outputs.name }}-${{ runner.os }}-x86_64" >> $GITHUB_ENV
+          .github/ci.sh zip_dist $NAME
+
+      - if: |
+          github.head_ref == 'master' ||
+          startsWith(github.head_ref, 'release-')
+        shell: bash
+        env:
+          SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+        run: .github/ci.sh sign ${NAME}.tar.gz
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: ${{ env.NAME }}
+          path: "${{ env.NAME }}.tar.gz*"
+          if-no-files-found: error
+          retention-days: ${{ needs.config.outputs.retention-days }}
+
+      - uses: actions/upload-artifact@v2
+        if: runner.os == 'Windows'
+        with:
+          name: ${{ env.NAME }}
+          path: "cryptol.msi*"
+          if-no-files-found: error
+          retention-days: ${{ needs.config.outputs.retention-days }}
+
+  build-push-image:
+    runs-on: ubuntu-latest
+    needs: [config]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - build-args: ''
+            file: Dockerfile
+            image: ghcr.io/galoisinc/cryptol
+            cache: ghcr.io/galoisinc/cache-cryptol
+          - build-args: PORTABILITY=true
+            file: cryptol-remote-api/Dockerfile
+            image: ghcr.io/galoisinc/cryptol-remote-api
+            cache: ghcr.io/galoisinc/cache-cryptol-remote-api
+          - build-args: PORTABILITY=false
+            file: cryptol-remote-api/Dockerfile
+            image: ghcr.io/galoisinc/cryptol-remote-api
+            cache: ghcr.io/galoisinc/cache-cryptol-remote-api
+    steps:
+      - if: matrix.build-args == 'PORTABILITY=true'
+        id: prefix
+        run: echo "::set-output name=prefix::portable-"
+
+      - uses: rlespinasse/github-slug-action@v3.x
+
+      - id: common-tag
+        run: echo "::set-output name=common-tag::${{ steps.prefix.outputs.prefix }}$GITHUB_REF_SLUG"
+
+      - uses: docker/setup-buildx-action@v1
+
+      - uses: crazy-max/ghaction-docker-meta@v1
+        name: Labels
+        id: labels
+        with:
+          images: ${{ matrix.image }}
+
+      - if: github.event_name != 'pull_request'
+        uses: crazy-max/ghaction-docker-meta@v1
+        name: Tags
+        id: tags
+        with:
+          images: ${{ matrix.image }}
+          tag-semver: |
+            ${{ steps.prefix.outputs.prefix }}{{version}}
+            ${{ steps.prefix.outputs.prefix }}{{major}}.{{minor}}
+          tag-schedule: |
+            ${{ steps.prefix.outputs.prefix }}nightly
+
+      - uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.CR_PAT }}
+
+      - uses: docker/build-push-action@v2
+        with:
+          tags: ${{ matrix.image }}:${{ steps.common-tag.outputs.common-tag }}
+          load: true
+          push: false
+          file: ${{ matrix.file }}
+          build-args: ${{ matrix.build-args }}
+          cache-from: |
+            type=registry,ref=${{ matrix.cache }}:${{ steps.prefix.outputs.prefix }}master
+            type=registry,ref=${{ matrix.cache }}:${{ steps.common-tag.outputs.common-tag }}
+          cache-to: type=registry,ref=${{ matrix.cache }}:${{ steps.common-tag.outputs.common-tag }},mode=max
+
+      - if: matrix.image == 'ghcr.io/galoisinc/cryptol-remote-api'
+        uses: actions/checkout@v2
+
+      - if: matrix.image == 'ghcr.io/galoisinc/cryptol-remote-api'
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.x'
+
+      - if: matrix.image == 'ghcr.io/galoisinc/cryptol-remote-api'
+        name: Test cryptol-remote-api
+        run: ./cryptol-remote-api/test_docker.sh ${{ matrix.image }}:${{ steps.common-tag.outputs.common-tag }}
+
+      - if: matrix.image == 'ghcr.io/galoisinc/cryptol-remote-api'
+        uses: docker/build-push-action@v2
+        name: Build test-cryptol-remote-api
+        with:
+          tags: test-cryptol-remote-api:latest
+          load: true
+          push: false
+          file: cryptol-remote-api/test.Dockerfile
+
+      - if: matrix.image == 'ghcr.io/galoisinc/cryptol-remote-api'
+        name: Test cryptol-remote-api helm chart
+        run: |
+          set -x
+          kind create cluster --wait 10m
+          kind load docker-image ${{ matrix.image }}:${{ steps.common-tag.outputs.common-tag }}
+          kind load docker-image test-cryptol-remote-api:latest
+          helm install --wait cra-http ./helm/cryptol-remote-api \
+            --set image.repository=${{ matrix.image }} \
+            --set image.tag=${{ steps.common-tag.outputs.common-tag }} \
+            --set image.pullPolicy=Never \
+            --set server.connType=http
+          helm install --wait cra-socket ./helm/cryptol-remote-api \
+            --set image.repository=${{ matrix.image }} \
+            --set image.tag=${{ steps.common-tag.outputs.common-tag }} \
+            --set image.pullPolicy=Never \
+            --set server.connType=socket
+          kubectl run --rm --attach test-http \
+            --image=test-cryptol-remote-api:latest \
+            --image-pull-policy=Never \
+            --restart=Never \
+            -- http cra-http-cryptol-remote-api 8080
+          kubectl run --rm --attach test-socket \
+            --image=test-cryptol-remote-api:latest \
+            --image-pull-policy=Never \
+            --restart=Never \
+            -- socket cra-socket-cryptol-remote-api 8080
+
+      - uses: docker/build-push-action@v2
+        with:
+          tags: |
+            ${{ matrix.image }}:${{ steps.common-tag.outputs.common-tag }}
+            ${{ steps.tags.outputs.tags }}
+          labels: ${{ steps.labels.outputs.labels }}
+          push: ${{ needs.config.outputs.publish }}
+          file: ${{ matrix.file }}
+          build-args: ${{ matrix.build-args }}

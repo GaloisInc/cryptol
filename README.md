@@ -1,6 +1,4 @@
-[![Build
-Status](https://github.com/GaloisInc/cryptol/workflows/Cryptol/badge.svg?branch=master)
-](https://github.com/GaloisInc/cryptol/actions?query=workflow%3A%22Cryptol+Nightly+Builds%22)
+[![Cryptol](https://github.com/GaloisInc/cryptol/actions/workflows/build.yml/badge.svg?event=push)](https://github.com/GaloisInc/cryptol/actions/workflows/ci.yml)
 
 # Cryptol, version 2
 
@@ -48,7 +46,7 @@ during type checking, and as the default solver for the `:sat` and
 `:prove` commands.  Cryptol generally requires the most recent version
 of Z3, but you can see the specific version tested in CI by looking for
 the `Z3_VERSION` setting in [this
-file](https://github.com/GaloisInc/cryptol/blob/master/.github/workflows/build.yml).
+file](https://github.com/GaloisInc/cryptol/blob/master/.github/workflows/ci.yml).
 
 You can download Z3 binaries for a variety of platforms from their
 [releases page](https://github.com/Z3Prover/z3/releases). If you
