@@ -150,10 +150,13 @@ test_rpc() {
 
 bundle_files() {
   doc=dist/share/doc/cryptol
+  lib=dist/share/cryptol
   mkdir -p $doc
   cp -R examples/ $doc/examples/
   rm -rf $doc/examples/cryptol-specs
   cp docs/*pdf $doc
+  mkdir -p $lib
+  cp -r lib/* $lib
 
   # Copy the two interesting examples over
   cp docs/ProgrammingCryptol/{aes/AES,enigma/Enigma}.cry $doc/examples/
