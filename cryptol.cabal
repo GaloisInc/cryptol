@@ -233,7 +233,7 @@ executable cryptol
      ghc-options: -Wno-redundant-constraints
 
   if os(linux) && flag(static)
-      ld-options:      -static -pthread
+      ld-options:      -static -pthread -optl-fuse-ld=bfd
 
 executable cryptol-html
   Default-language:
@@ -244,7 +244,7 @@ executable cryptol-html
   GHC-options: -Wall
 
   if os(linux) && flag(static)
-      ld-options:      -static -pthread
+      ld-options:      -static -pthread -optl-fuse-ld=bfd
 
 executable check-exercises
   Default-language:
@@ -272,7 +272,7 @@ benchmark cryptol-bench
   if impl(ghc >= 8.0.1)
      ghc-options: -Wno-redundant-constraints
   if os(linux) && flag(static)
-      ld-options:      -static -pthread
+      ld-options:      -static -pthread -optl-fuse-ld=bfd
   build-depends:       base
                      , criterion
                      , cryptol
