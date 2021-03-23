@@ -86,10 +86,6 @@ jobs:
 
       - shell: bash
         run: .github/ci.sh build
-        continue-on-error: true
-
-      - if: runner.os == 'Linux' && matrix.ghc == '8.6.5'
-        uses: mxschmitt/action-tmate@v3
 
       - shell: bash
         run: .github/ci.sh check_docs
@@ -250,8 +246,8 @@ jobs:
           push: false
           file: ${{ matrix.file }}
           build-args: ${{ matrix.build-args }}
-          cache-from: type=registry,ref=${{ matrix.image }}:cache-${{ steps.common-tag.outputs.common-tag }}
-          cache-to: type=registry,ref=${{ matrix.image }}:cache-${{ steps.common-tag.outputs.common-tag }},mode=max
+          cache-from: type=registry,ref=${{ matrix.image }}-cache:${{ steps.common-tag.outputs.common-tag }}
+          cache-to: type=registry,ref=${{ matrix.image }}-cache:${{ steps.common-tag.outputs.common-tag }},mode=max
 
       - if: matrix.image == 'ghcr.io/galoisinc/cryptol-remote-api'
         uses: actions/checkout@v2
@@ -276,7 +272,6 @@ jobs:
 
       - if: matrix.image == 'ghcr.io/galoisinc/cryptol-remote-api'
         name: Test cryptol-remote-api helm chart
-        continue-on-error: true
         run: |
           set -x
           kind create cluster --wait 10m
@@ -302,9 +297,6 @@ jobs:
             --image-pull-policy=Never \
             --restart=Never \
             -- socket cra-socket-cryptol-remote-api 8080
-
-      - if: matrix.image == 'ghcr.io/galoisinc/cryptol-remote-api'
-        uses: mxschmitt/action-tmate@v3
 
       - uses: docker/build-push-action@v2
         with:
