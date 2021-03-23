@@ -197,12 +197,15 @@ jobs:
           - build-args: ''
             file: Dockerfile
             image: ghcr.io/galoisinc/cryptol
+            cache: ghcr.io/galoisinc/cache-cryptol
           - build-args: PORTABILITY=true
             file: cryptol-remote-api/Dockerfile
             image: ghcr.io/galoisinc/cryptol-remote-api
+            cache: ghcr.io/galoisinc/cache-cryptol-remote-api
           - build-args: PORTABILITY=false
             file: cryptol-remote-api/Dockerfile
             image: ghcr.io/galoisinc/cryptol-remote-api
+            cache: ghcr.io/galoisinc/cache-cryptol-remote-api
     steps:
       - if: matrix.build-args == 'PORTABILITY=true'
         id: prefix
@@ -247,9 +250,9 @@ jobs:
           file: ${{ matrix.file }}
           build-args: ${{ matrix.build-args }}
           cache-from: |
-            type=registry,ref=cache-${{ matrix.image }}:${{ steps.prefix.outputs.prefix }}master
-            type=registry,ref=cache-${{ matrix.image }}:${{ steps.common-tag.outputs.common-tag }}
-          cache-to: type=registry,ref=cache-${{ matrix.image }}:${{ steps.common-tag.outputs.common-tag }},mode=max
+            type=registry,ref=${{ matrix.cache }}:${{ steps.prefix.outputs.prefix }}master
+            type=registry,ref=${{ matrix.cache }}:${{ steps.common-tag.outputs.common-tag }}
+          cache-to: type=registry,ref=${{ matrix.cache }}:${{ steps.common-tag.outputs.common-tag }},mode=max
 
       - if: matrix.image == 'ghcr.io/galoisinc/cryptol-remote-api'
         uses: actions/checkout@v2
