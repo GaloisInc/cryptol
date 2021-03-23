@@ -72,7 +72,8 @@ RUN if ${PORTABILITY}; then \
         make -j && \
         make install && \
         cd .. && \
-        rm -rf ./ghc; \
+        rm -rf ./ghc && \
+        ghcup rm ghc ${GHCVER_BOOTSTRAP}; \
     else \
         ghcup install ghc ${GHCVER} && \
         ghcup set ghc ${GHCVER}; \
