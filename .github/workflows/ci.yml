@@ -165,7 +165,6 @@ jobs:
         run: .github/ci.sh sign cryptol.msi
 
       - shell: bash
-        id: package
         run: |
           echo "NAME=${{ needs.config.outputs.name }}-${{ runner.os }}-x86_64" >> $GITHUB_ENV
           .github/ci.sh zip_dist $NAME
