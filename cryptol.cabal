@@ -244,7 +244,7 @@ executable cryptol-html
   GHC-options: -Wall
 
   if os(linux) && flag(static)
-      ld-options:      -static
+      ld-options:      -static -pthread
 
 executable check-exercises
   Default-language:
