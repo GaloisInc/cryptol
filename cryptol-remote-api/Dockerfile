@@ -44,7 +44,7 @@ RUN latest="$(curl -sSL 'http://cvc4.cs.stanford.edu/downloads/builds/x86_64-lin
 # Set executable and run tests
 RUN chmod +x rootfs/usr/local/bin/*
 
-FROM debian:buster AS build
+FROM debian:buster AS toolchain
 ARG PORTABILITY=false
 RUN apt-get update && apt-get install -y libncurses-dev libz-dev \
     build-essential curl libffi-dev libffi6 libgmp-dev libgmp10 libncurses-dev libncurses5 libtinfo5 libnuma-dev \
@@ -77,6 +77,8 @@ RUN if ${PORTABILITY}; then \
         ghcup install ghc ${GHCVER} && \
         ghcup set ghc ${GHCVER}; \
     fi
+
+FROM toolchain AS build
 
 RUN useradd -m cryptol
 COPY --chown=cryptol:cryptol . /cryptol
