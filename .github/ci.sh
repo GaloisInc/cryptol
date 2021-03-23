@@ -113,11 +113,7 @@ build() {
   ghc_ver="$(ghc --numeric-version)"
   cp cabal.GHC-"$ghc_ver".config cabal.project.freeze
   cabal v2-update
-  if [[ "$RUNNER_OS" == "Linux" ]]; then
-      cabal v2-configure -j2 --minimize-conflict-set --flags=static
-  else
-      cabal v2-configure -j2 --minimize-conflict-set
-  fi
+  cabal v2-configure -j2 --minimize-conflict-set
   retry ./cry build exe:cryptol-html "$@" # retry due to flakiness with windows builds
   retry ./cry build exe:cryptol-remote-api "$@"
   retry ./cry build exe:cryptol-eval-server "$@"
