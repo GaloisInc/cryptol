@@ -40,7 +40,7 @@ jobs:
         run: |
           .github/ci.sh set_files ${{ github.sha }}
           .github/ci.sh set_version
-          .github/ci.sh output name cryptol-$(.github/ci.sh ver)-${{ runner.os }}-x86_64
+          .github/ci.sh output name cryptol-$(.github/ci.sh ver)
 
   build:
     runs-on: ${{ matrix.os }}
@@ -135,6 +135,7 @@ jobs:
     env:
       VERSION: ${{ needs.config.outputs.cryptol-version }}
       RELEASE: ${{ needs.config.outputs.release }}
+      NAME: ${{ needs.config.outputs.name }}-${{ runner.os }}-x86_64
     steps:
       - uses: actions/checkout@v2
 
@@ -165,7 +166,7 @@ jobs:
         run: .github/ci.sh sign cryptol.msi
 
       - shell: bash
-        run: .github/ci.sh zip_dist ${{ needs.config.outputs.name }}
+        run: .github/ci.sh zip_dist $NAME
 
       - if: |
           github.head_ref == 'master' ||
@@ -174,18 +175,18 @@ jobs:
         env:
           SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
-        run: .github/ci.sh sign ${{ needs.config.outputs.name }}.tar.gz
+        run: .github/ci.sh sign ${NAME}.tar.gz
 
       - uses: actions/upload-artifact@v2
         with:
-          name: ${{ needs.config.outputs.name }}
-          path: "${{ needs.config.outputs.name }}.tar.gz*"
+          name: ${{ env.NAME }}
+          path: "${{ env.NAME }}.tar.gz*"
           if-no-files-found: error
 
       - uses: actions/upload-artifact@v2
         if: runner.os == 'Windows'
         with:
-          name: ${{ needs.config.outputs.name }}
+          name: ${{ env.NAME }}
           path: "cryptol.msi*"
           if-no-files-found: error
 
