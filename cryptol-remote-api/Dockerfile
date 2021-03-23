@@ -55,7 +55,7 @@ RUN curl -o /usr/local/bin/ghcup "https://downloads.haskell.org/~ghcup/0.1.14/x8
     chmod +x /usr/local/bin/ghcup
 COPY --from=solvers /solvers/rootfs /
 RUN ghcup install cabal --set
-ENV PATH /root/.cabal/bin:$PATH
+ENV PATH=/root/.cabal/bin:$PATH
 ADD ./cryptol-remote-api/ghc-portability.patch .
 ARG GHCVER
 ARG GHCVER_BOOTSTRAP
