@@ -50,9 +50,9 @@ RUN apt-get update && apt-get install -y libncurses-dev libz-dev \
     build-essential curl libffi-dev libffi6 libgmp-dev libgmp10 libncurses-dev libncurses5 libtinfo5 libnuma-dev \
     $(if ${PORTABILITY}; then echo git autoconf python3; fi)
 RUN curl -o /usr/local/bin/ghcup "https://downloads.haskell.org/~ghcup/0.1.12/x86_64-linux-ghcup-0.1.12" && chmod +x /usr/local/bin/ghcup
-ENV GHCUP_USE_XDG_DIRS=true \
-    XDG_BIN_HOME=/usr/local/bin \
-    XDG_DATA_HOME=/usr/local/share
+ENV GHCUP_BIN=~/.ghcup/bin \
+    GHCUP_DIR=~/.ghcup \
+    PATH=~/.ghcup/bin:$PATH
 COPY --from=solvers /solvers/rootfs /
 RUN ghcup install cabal --set
 ENV PATH /root/.cabal/bin:$PATH
