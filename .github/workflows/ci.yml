@@ -2,7 +2,7 @@ name: Cryptol
 on:
   push:
     tags: ["v?[0-9]+.[0-9]+(.[0-9]+)?"]
-    branches: [master, "release-**"]
+    branches: [$default-branch, "release-**"]
   pull_request:
   schedule:
     - cron: "0 0 * * *"
@@ -194,15 +194,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - image: ghcr.io/galoisinc/cryptol
+          - build-args: ''
             file: Dockerfile
-            build-args: ''
-          - image: ghcr.io/galoisinc/cryptol-remote-api
+            image: ghcr.io/galoisinc/cryptol
+          - build-args: PORTABILITY=true
             file: cryptol-remote-api/Dockerfile
-            build-args: PORTABILITY=true
-          - image: ghcr.io/galoisinc/cryptol-remote-api
+            image: ghcr.io/galoisinc/cryptol-remote-api
+          - build-args: PORTABILITY=false
             file: cryptol-remote-api/Dockerfile
-            build-args: PORTABILITY=false
+            image: ghcr.io/galoisinc/cryptol-remote-api
     steps:
       - if: matrix.build-args == 'PORTABILITY=true'
         id: prefix
@@ -246,7 +246,9 @@ jobs:
           push: false
           file: ${{ matrix.file }}
           build-args: ${{ matrix.build-args }}
-          cache-from: type=registry,ref=${{ matrix.image }}-cache:${{ steps.common-tag.outputs.common-tag }}
+          cache-from: |
+            type=registry,ref=${{ matrix.image }}-cache:$default-branch
+            type=registry,ref=${{ matrix.image }}-cache:${{ steps.common-tag.outputs.common-tag }}
           cache-to: type=registry,ref=${{ matrix.image }}-cache:${{ steps.common-tag.outputs.common-tag }},mode=max
 
       - if: matrix.image == 'ghcr.io/galoisinc/cryptol-remote-api'
