@@ -49,9 +49,8 @@ ARG PORTABILITY=false
 RUN apt-get update && apt-get install -y libncurses-dev libz-dev \
     build-essential curl libffi-dev libffi6 libgmp-dev libgmp10 libncurses-dev libncurses5 libtinfo5 libnuma-dev \
     $(if ${PORTABILITY}; then echo git autoconf python3; fi)
-ENV GHCUP_BIN=/root/.ghcup/bin \
-    GHCUP_DIR=/root/.ghcup \
-    PATH=/root/.ghcup/bin:$PATH
+ENV GHCUP_INSTALL_BASE_PREFIX=/opt \
+    PATH=/opt/.ghcup/bin:$PATH
 RUN curl -o /usr/local/bin/ghcup "https://downloads.haskell.org/~ghcup/0.1.14/x86_64-linux-ghcup-0.1.14" && \
     chmod +x /usr/local/bin/ghcup
 COPY --from=solvers /solvers/rootfs /
