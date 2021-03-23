@@ -275,19 +275,36 @@ jobs:
           file: cryptol-remote-api/test.Dockerfile
 
       - if: matrix.image == 'ghcr.io/galoisinc/cryptol-remote-api'
-        uses: mxschmitt/action-tmate@v3
-
-      - if: matrix.image == 'ghcr.io/galoisinc/cryptol-remote-api'
         name: Test cryptol-remote-api helm chart
+        continue-on-error: true
         run: |
           set -x
           kind create cluster --wait 10m
           kind load docker-image ${{ matrix.image }}:${{ steps.common-tag.outputs.common-tag }}
           kind load docker-image test-cryptol-remote-api:latest
-          helm install --wait cra-http ./helm/cryptol-remote-api --set server.connType=http --set image.repository=${{ matrix.image }} --set image.tag=${{ steps.common-tag.outputs.common-tag }}
-          helm install --wait cra-socket ./helm/cryptol-remote-api --set server.connType=socket --set image.repository=${{ matrix.image }} --set image.tag=${{ steps.common-tag.outputs.common-tag }}
-          kubectl run --rm --attach test-http --image=test-cryptol-remote-api:latest --image-pull-policy=Never --restart=Never -- http cra-http-cryptol-remote-api 8080
-          kubectl run --rm --attach test-socket --image=test-cryptol-remote-api:latest --image-pull-policy=Never --restart=Never -- socket cra-socket-cryptol-remote-api 8080
+          helm install --wait cra-http ./helm/cryptol-remote-api \
+            --set image.repository=${{ matrix.image }} \
+            --set image.tag=${{ steps.common-tag.outputs.common-tag }} \
+            --set image.pullPolicy=Never \
+            --set server.connType=http
+          helm install --wait cra-socket ./helm/cryptol-remote-api \
+            --set image.repository=${{ matrix.image }} \
+            --set image.tag=${{ steps.common-tag.outputs.common-tag }} \
+            --set image.pullPolicy=Never \
+            --set server.connType=socket
+          kubectl run --rm --attach test-http \
+            --image=test-cryptol-remote-api:latest \
+            --image-pull-policy=Never \
+            --restart=Never \
+            -- http cra-http-cryptol-remote-api 8080
+          kubectl run --rm --attach test-socket \
+            --image=test-cryptol-remote-api:latest \
+            --image-pull-policy=Never \
+            --restart=Never \
+            -- socket cra-socket-cryptol-remote-api 8080
+
+      - if: matrix.image == 'ghcr.io/galoisinc/cryptol-remote-api'
+        uses: mxschmitt/action-tmate@v3
 
       - uses: docker/build-push-action@v2
         with:
