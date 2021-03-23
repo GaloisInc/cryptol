@@ -49,10 +49,11 @@ ARG PORTABILITY=false
 RUN apt-get update && apt-get install -y libncurses-dev libz-dev \
     build-essential curl libffi-dev libffi6 libgmp-dev libgmp10 libncurses-dev libncurses5 libtinfo5 libnuma-dev \
     $(if ${PORTABILITY}; then echo git autoconf python3; fi)
-RUN curl -o /usr/local/bin/ghcup "https://downloads.haskell.org/~ghcup/0.1.14/x86_64-linux-ghcup-0.1.14" && chmod +x /usr/local/bin/ghcup
-ENV GHCUP_BIN=$HOME/.ghcup/bin \
-    GHCUP_DIR=$HOME/.ghcup \
-    PATH=$HOME/.ghcup/bin:$PATH
+ENV GHCUP_BIN=/root/.ghcup/bin \
+    GHCUP_DIR=/root/.ghcup \
+    PATH=/root/.ghcup/bin:$PATH
+RUN curl -o /usr/local/bin/ghcup "https://downloads.haskell.org/~ghcup/0.1.14/x86_64-linux-ghcup-0.1.14" && \
+    chmod +x /usr/local/bin/ghcup
 COPY --from=solvers /solvers/rootfs /
 RUN ghcup install cabal --set
 ENV PATH /root/.cabal/bin:$PATH
@@ -72,13 +73,12 @@ RUN if ${PORTABILITY}; then \
         make -j && \
         make install && \
         cd .. && \
-        rm -rf ./ghc; \
+        rm -rf ./ghc && \
+        ghcup rm ghc ${GHCVER_BOOTSTRAP}; \
     else \
         ghcup install ghc ${GHCVER} && \
         ghcup set ghc ${GHCVER}; \
     fi
-
-RUN if ${PORTABILITY}; then  ghcup rm ghc-${GHCVER_BOOTSTRAP}; fi
 
 FROM toolchain AS build
 
