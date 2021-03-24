@@ -111,7 +111,7 @@ jobs:
 
       - shell: bash
         env:
-          RELEASE: ${{ steps.getconf-release.outputs.release }}
+          RELEASE: ${{ needs.config.outputs.release }}
         run: .github/ci.sh build
 
       - shell: bash
