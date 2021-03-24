@@ -237,10 +237,6 @@ jobs:
             image: ghcr.io/galoisinc/cryptol-remote-api
             cache: ghcr.io/galoisinc/cache-cryptol-remote-api
     steps:
-      - uses: actions/checkout@v2
-        with:
-          submodules: true
-
       - if: matrix.build-args == 'PORTABILITY=true'
         id: prefix
         run: echo "::set-output name=prefix::portable-"
