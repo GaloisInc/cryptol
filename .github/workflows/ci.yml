@@ -26,25 +26,46 @@ jobs:
       cryptol-version: ${{ steps.getconf.outputs.cryptol-version }}
       name: ${{ steps.getconf.outputs.name }}
       publish: ${{ steps.getconf-publish.outputs.publish }}
-      retention-days: ${{ steps.getconf-publish.outputs.retention-days }}
+      release: ${{ steps.getconf-release.outputs.release }}
+      retention-days: ${{ steps.getconf-retention.outputs.retention-days }}
     steps:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 0
-      - id: getconf
+      - name: getconf
+        id: getconf
         run: |
+          set -x
           .github/ci.sh set_files ${{ github.sha }}
           .github/ci.sh set_version
           .github/ci.sh output name cryptol-$(.github/ci.sh ver)
-          .github/ci.sh output retention-days 5
-      - id: getconf-publish
+      - name: getconf-publish
+        id: getconf-publish
         if: |
           (github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/')) ||
           (github.event_name == 'schedule') ||
           (github.event_name == 'workflow_dispatch' && github.event.inputs.publish == 'true')
         run: |
+          set -x
           .github/ci.sh output publish true
-          .github/ci.sh output retention-days 90
+      - name: getconf-release
+        id: getconf-release
+        if: startsWith(github.event.ref, 'refs/heads/release-')
+        run: |
+          set -x
+          .github/ci.sh output release true
+      - name: getconf-retention
+        id: getconf-retention
+        env:
+          RELEASE: ${{ steps.getconf-release.outputs.release }}
+        shell: bash
+        run: |
+          set -x
+          if [[ "$RELEASE" == "true" ]]; then
+              .github/ci.sh output retention-days 90
+          else
+              .github/ci.sh output retention-days 5
+          fi
 
   build:
     runs-on: ${{ matrix.os }}
@@ -89,6 +110,8 @@ jobs:
         run: .github/ci.sh setup_external_tools
 
       - shell: bash
+        env:
+          RELEASE: ${{ needs.config.outputs.release }}
         run: .github/ci.sh build
 
       - shell: bash
@@ -160,7 +183,7 @@ jobs:
       - if: runner.os == 'Windows'
         run: .github/wix.ps1
 
-      - if: needs.config.outputs.publish == 'true' && runner.os == 'Windows'
+      - if: needs.config.outputs.release == 'true' && runner.os == 'Windows'
         shell: bash
         env:
           SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
@@ -172,7 +195,7 @@ jobs:
           echo "NAME=${{ needs.config.outputs.name }}-${{ runner.os }}-x86_64" >> $GITHUB_ENV
           .github/ci.sh zip_dist $NAME
 
-      - if: needs.config.outputs.publish == 'true'
+      - if: needs.config.outputs.release == 'true'
         shell: bash
         env:
           SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
@@ -251,7 +274,10 @@ jobs:
 
       - uses: docker/build-push-action@v2
         with:
-          tags: ${{ matrix.image }}:${{ steps.common-tag.outputs.common-tag }}
+          tags: |
+            ${{ matrix.image }}:${{ steps.common-tag.outputs.common-tag }}
+            ${{ steps.tags.outputs.tags }}
+          labels: ${{ steps.labels.outputs.labels }}
           load: true
           push: false
           file: ${{ matrix.file }}
@@ -259,6 +285,13 @@ jobs:
           cache-from: |
             type=registry,ref=${{ matrix.cache }}:${{ steps.prefix.outputs.prefix }}master
             type=registry,ref=${{ matrix.cache }}:${{ steps.common-tag.outputs.common-tag }}
+
+      - name: Cache image build
+        uses: docker/build-push-action@v2
+        continue-on-error: true  # Tolerate cache upload failures - this should be handled better
+        with:
+          file: ${{ matrix.file }}
+          build-args: ${{ matrix.build-args }}
           cache-to: type=registry,ref=${{ matrix.cache }}:${{ steps.common-tag.outputs.common-tag }},mode=max
 
       - if: matrix.image == 'ghcr.io/galoisinc/cryptol-remote-api'
@@ -310,13 +343,5 @@ jobs:
             --restart=Never \
             -- socket cra-socket-cryptol-remote-api 8080
 
-      - uses: docker/build-push-action@v2
-        with:
-          tags: |
-            ${{ matrix.image }}:${{ steps.common-tag.outputs.common-tag }}
-            ${{ steps.tags.outputs.tags }}
-          labels: ${{ steps.labels.outputs.labels }}
-          push: ${{ needs.config.outputs.publish }}
-          file: ${{ matrix.file }}
-          build-args: ${{ matrix.build-args }}
-          cache-from: type=registry,ref=${{ matrix.cache }}:${{ steps.common-tag.outputs.common-tag }}
+      - if: needs.config.outputs.publish == 'true'
+        run: docker push --all-tags ${{ matrix.image }}
