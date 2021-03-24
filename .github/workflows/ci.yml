@@ -109,9 +109,6 @@ jobs:
       - shell: bash
         run: .github/ci.sh setup_external_tools
 
-      - if: runner.os == 'Linux' && matrix.ghc == '8.6.5'
-        uses: mxschmitt/action-tmate@v3
-
       - shell: bash
         run: .github/ci.sh build
 
