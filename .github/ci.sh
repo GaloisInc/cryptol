@@ -62,7 +62,8 @@ install_z3() {
   curl -o z3.zip -sL "https://github.com/Z3Prover/z3/releases/download/z3-$Z3_VERSION/z3-$Z3_VERSION-x64-$file"
 
   if $IS_WIN; then 7z x -bd z3.zip; else unzip z3.zip; fi
-  cp z3-*/bin/z3$EXT $BIN/z3$EXT
+  cp z3-$Z3_VERSION-x64-$file/bin/z3$EXT $BIN/z3$EXT
+  rm -rf z3-$Z3_VERSION-x64-$file
   $IS_WIN || chmod +x $BIN/z3
   rm z3.zip
 }
@@ -114,6 +115,7 @@ build() {
   cp cabal.GHC-"$ghc_ver".config cabal.project.freeze
   cabal v2-update
   cabal v2-configure -j2 --minimize-conflict-set
+  git status --porcelain
   retry ./cry build exe:cryptol-html "$@" # retry due to flakiness with windows builds
   retry ./cry build exe:cryptol-remote-api "$@"
   retry ./cry build exe:cryptol-eval-server "$@"
