@@ -26,7 +26,8 @@ jobs:
       cryptol-version: ${{ steps.getconf.outputs.cryptol-version }}
       name: ${{ steps.getconf.outputs.name }}
       publish: ${{ steps.getconf-publish.outputs.publish }}
-      retention-days: ${{ steps.getconf-publish.outputs.retention-days }}
+      sign: ${{ steps.getconf-sign.outputs.publish }}
+      retention-days: ${{ steps.getconf-retention.outputs.retention-days }}
     steps:
       - uses: actions/checkout@v2
         with:
@@ -36,7 +37,6 @@ jobs:
           .github/ci.sh set_files ${{ github.sha }}
           .github/ci.sh set_version
           .github/ci.sh output name cryptol-$(.github/ci.sh ver)
-          .github/ci.sh output retention-days 5
       - id: getconf-publish
         if: |
           (github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/')) ||
@@ -44,7 +44,20 @@ jobs:
           (github.event_name == 'workflow_dispatch' && github.event.inputs.publish == 'true')
         run: |
           .github/ci.sh output publish true
-          .github/ci.sh output retention-days 90
+      - id: getconf-sign
+        if: startsWith(github.event.ref, 'refs/heads/release-')
+        run: |
+          .github/ci.sh output sign true
+      - id: getconf-retention
+        env:
+          SIGN: ${{ steps.getconf-sign.outputs.sign }}
+        shell: bash
+        run: |
+          if [[ "$SIGN" == "true" ]]; then
+              .github/ci.sh output retention-days 90
+          else
+              .github/ci.sh output retention-days 5
+          fi
 
   build:
     runs-on: ${{ matrix.os }}
@@ -160,7 +173,7 @@ jobs:
       - if: runner.os == 'Windows'
         run: .github/wix.ps1
 
-      - if: needs.config.outputs.publish == 'true' && runner.os == 'Windows'
+      - if: needs.config.outputs.sign == 'true' && runner.os == 'Windows'
         shell: bash
         env:
           SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
@@ -172,7 +185,7 @@ jobs:
           echo "NAME=${{ needs.config.outputs.name }}-${{ runner.os }}-x86_64" >> $GITHUB_ENV
           .github/ci.sh zip_dist $NAME
 
-      - if: needs.config.outputs.publish == 'true'
+      - if: needs.config.outputs.sign == 'true'
         shell: bash
         env:
           SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
