@@ -220,7 +220,7 @@ Sally Browning, Sam Anklesaria, Sigbjørn Finne, Stephen Magill, Thomas
 Nordin, Trevor Elliott, and Tristan Ravitch.
 
 Much of the work on Cryptol has been funded by, and lots of design input
-was provided by, the team at the [Laboratory for Advanced Cyber Security
+was provided by, the team at the [NSA's Laboratory for Advanced Cybersecurity
 Research](https://www.nsa.gov/what-we-do/research/cybersecurity-research/),
 including Brad Martin, Frank Taylor, and Sean Weaver.
 
