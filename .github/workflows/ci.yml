@@ -278,7 +278,6 @@ jobs:
 
       - uses: docker/build-push-action@v2
         with:
-          context: .
           tags: |
             ${{ matrix.image }}:${{ steps.common-tag.outputs.common-tag }}
             ${{ steps.tags.outputs.tags }}
@@ -295,7 +294,6 @@ jobs:
         uses: docker/build-push-action@v2
         continue-on-error: true  # Tolerate cache upload failures - this should be handled better
         with:
-          context: .
           file: ${{ matrix.file }}
           build-args: ${{ matrix.build-args }}
           cache-to: type=registry,ref=${{ matrix.cache }}:${{ steps.common-tag.outputs.common-tag }},mode=max
