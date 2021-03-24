@@ -32,23 +32,30 @@ jobs:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 0
-      - id: getconf
+      - name: getconf
+        id: getconf
         run: |
+          set -x
           .github/ci.sh set_files ${{ github.sha }}
           .github/ci.sh set_version
           .github/ci.sh output name cryptol-$(.github/ci.sh ver)
-      - id: getconf-publish
+      - name: getconf-publish
+        id: getconf-publish
         if: |
           (github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/')) ||
           (github.event_name == 'schedule') ||
           (github.event_name == 'workflow_dispatch' && github.event.inputs.publish == 'true')
         run: |
+          set -x
           .github/ci.sh output publish true
-      - id: getconf-sign
+      - name: getconf-sign
+        id: getconf-sign
         if: startsWith(github.event.ref, 'refs/heads/release-')
         run: |
+          set -x
           .github/ci.sh output sign true
-      - id: getconf-retention
+      - name: getconf-retention
+        id: getconf-retention
         env:
           SIGN: ${{ steps.getconf-sign.outputs.sign }}
         shell: bash
