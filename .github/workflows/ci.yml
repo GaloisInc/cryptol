@@ -26,7 +26,7 @@ jobs:
       cryptol-version: ${{ steps.getconf.outputs.cryptol-version }}
       name: ${{ steps.getconf.outputs.name }}
       publish: ${{ steps.getconf-publish.outputs.publish }}
-      sign: ${{ steps.getconf-sign.outputs.sign }}
+      release: ${{ steps.getconf-release.outputs.release }}
       retention-days: ${{ steps.getconf-retention.outputs.retention-days }}
     steps:
       - uses: actions/checkout@v2
@@ -48,20 +48,20 @@ jobs:
         run: |
           set -x
           .github/ci.sh output publish true
-      - name: getconf-sign
-        id: getconf-sign
+      - name: getconf-release
+        id: getconf-release
         if: startsWith(github.event.ref, 'refs/heads/release-')
         run: |
           set -x
-          .github/ci.sh output sign true
+          .github/ci.sh output release true
       - name: getconf-retention
         id: getconf-retention
         env:
-          SIGN: ${{ steps.getconf-sign.outputs.sign }}
+          RELEASE: ${{ steps.getconf-release.outputs.release }}
         shell: bash
         run: |
           set -x
-          if [[ "$SIGN" == "true" ]]; then
+          if [[ "$RELEASE" == "true" ]]; then
               .github/ci.sh output retention-days 90
           else
               .github/ci.sh output retention-days 5
@@ -110,6 +110,8 @@ jobs:
         run: .github/ci.sh setup_external_tools
 
       - shell: bash
+        env:
+          RELEASE: ${{ steps.getconf-release.outputs.release }}
         run: .github/ci.sh build
 
       - shell: bash
@@ -181,7 +183,7 @@ jobs:
       - if: runner.os == 'Windows'
         run: .github/wix.ps1
 
-      - if: needs.config.outputs.sign == 'true' && runner.os == 'Windows'
+      - if: needs.config.outputs.release == 'true' && runner.os == 'Windows'
         shell: bash
         env:
           SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
@@ -193,7 +195,7 @@ jobs:
           echo "NAME=${{ needs.config.outputs.name }}-${{ runner.os }}-x86_64" >> $GITHUB_ENV
           .github/ci.sh zip_dist $NAME
 
-      - if: needs.config.outputs.sign == 'true'
+      - if: needs.config.outputs.release == 'true'
         shell: bash
         env:
           SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
