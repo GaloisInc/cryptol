@@ -319,3 +319,4 @@ jobs:
           push: ${{ needs.config.outputs.publish }}
           file: ${{ matrix.file }}
           build-args: ${{ matrix.build-args }}
+          cache-from: type=registry,ref=${{ matrix.cache }}:${{ steps.common-tag.outputs.common-tag }}
