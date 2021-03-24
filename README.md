@@ -220,9 +220,9 @@ Sally Browning, Sam Anklesaria, Sigbjørn Finne, Stephen Magill, Thomas
 Nordin, Trevor Elliott, and Tristan Ravitch.
 
 Much of the work on Cryptol has been funded by, and lots of design input
-was provided by the team at the [NSA's Trusted Systems Research
+was provided by, the team at the [NSA's Trusted Systems Research
 Group](http://www.nsa.gov/research/ia_research/), including Brad Martin,
-Frank Taylor and Sean Weaver.
+Frank Taylor, and Sean Weaver.
 
 Portions of Cryptol are also based upon work supported by the Office
 of Naval Research under Contract No. N68335-17-C-0452. Any opinions,
