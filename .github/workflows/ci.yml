@@ -160,10 +160,7 @@ jobs:
       - if: runner.os == 'Windows'
         run: .github/wix.ps1
 
-      - if: |
-          runner.os == 'Windows' &&
-          (github.head_ref == 'master' ||
-          startsWith(github.head_ref, 'release-'))
+      - if: needs.config.outputs.publish == 'true' && runner.os == 'Windows'
         shell: bash
         env:
           SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
@@ -175,9 +172,7 @@ jobs:
           echo "NAME=${{ needs.config.outputs.name }}-${{ runner.os }}-x86_64" >> $GITHUB_ENV
           .github/ci.sh zip_dist $NAME
 
-      - if: |
-          github.head_ref == 'master' ||
-          startsWith(github.head_ref, 'release-')
+      - if: needs.config.outputs.publish == 'true'
         shell: bash
         env:
           SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
@@ -236,7 +231,7 @@ jobs:
         with:
           images: ${{ matrix.image }}
 
-      - if: github.event_name != 'pull_request'
+      - if: needs.config.outputs.publish == 'true'
         uses: crazy-max/ghaction-docker-meta@v1
         name: Tags
         id: tags
@@ -324,3 +319,4 @@ jobs:
           push: ${{ needs.config.outputs.publish }}
           file: ${{ matrix.file }}
           build-args: ${{ matrix.build-args }}
+          cache-from: type=registry,ref=${{ matrix.cache }}:${{ steps.common-tag.outputs.common-tag }}
