@@ -53,6 +53,7 @@ jobs:
           SIGN: ${{ steps.getconf-sign.outputs.sign }}
         shell: bash
         run: |
+          set -x
           if [[ "$SIGN" == "true" ]]; then
               .github/ci.sh output retention-days 90
           else
