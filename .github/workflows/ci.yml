@@ -26,7 +26,7 @@ jobs:
       cryptol-version: ${{ steps.getconf.outputs.cryptol-version }}
       name: ${{ steps.getconf.outputs.name }}
       publish: ${{ steps.getconf-publish.outputs.publish }}
-      sign: ${{ steps.getconf-sign.outputs.publish }}
+      sign: ${{ steps.getconf-sign.outputs.sign }}
       retention-days: ${{ steps.getconf-retention.outputs.retention-days }}
     steps:
       - uses: actions/checkout@v2
@@ -235,6 +235,10 @@ jobs:
             image: ghcr.io/galoisinc/cryptol-remote-api
             cache: ghcr.io/galoisinc/cache-cryptol-remote-api
     steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: true
+
       - if: matrix.build-args == 'PORTABILITY=true'
         id: prefix
         run: echo "::set-output name=prefix::portable-"
@@ -272,7 +276,11 @@ jobs:
 
       - uses: docker/build-push-action@v2
         with:
-          tags: ${{ matrix.image }}:${{ steps.common-tag.outputs.common-tag }}
+          context: .
+          tags: |
+            ${{ matrix.image }}:${{ steps.common-tag.outputs.common-tag }}
+            ${{ steps.tags.outputs.tags }}
+          labels: ${{ steps.labels.outputs.labels }}
           load: true
           push: false
           file: ${{ matrix.file }}
@@ -280,6 +288,14 @@ jobs:
           cache-from: |
             type=registry,ref=${{ matrix.cache }}:${{ steps.prefix.outputs.prefix }}master
             type=registry,ref=${{ matrix.cache }}:${{ steps.common-tag.outputs.common-tag }}
+
+      - name: Cache image build
+        uses: docker/build-push-action@v2
+        continue-on-error: true  # Tolerate cache upload failures - this should be handled better
+        with:
+          context: .
+          file: ${{ matrix.file }}
+          build-args: ${{ matrix.build-args }}
           cache-to: type=registry,ref=${{ matrix.cache }}:${{ steps.common-tag.outputs.common-tag }},mode=max
 
       - if: matrix.image == 'ghcr.io/galoisinc/cryptol-remote-api'
@@ -331,13 +347,5 @@ jobs:
             --restart=Never \
             -- socket cra-socket-cryptol-remote-api 8080
 
-      - uses: docker/build-push-action@v2
-        with:
-          tags: |
-            ${{ matrix.image }}:${{ steps.common-tag.outputs.common-tag }}
-            ${{ steps.tags.outputs.tags }}
-          labels: ${{ steps.labels.outputs.labels }}
-          push: ${{ needs.config.outputs.publish }}
-          file: ${{ matrix.file }}
-          build-args: ${{ matrix.build-args }}
-          cache-from: type=registry,ref=${{ matrix.cache }}:${{ steps.common-tag.outputs.common-tag }}
+      - if: needs.config.outputs.publish == 'true'
+        run: docker push --all-tags ${{ matrix.image }}
