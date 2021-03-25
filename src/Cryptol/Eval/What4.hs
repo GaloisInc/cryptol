@@ -467,8 +467,7 @@ toWord32 sym nm ss i =
        _ -> panic nm ["Unexpected word size", show (SW.bvWidth x)]
 
 fromWord32 :: W4.IsSymExprBuilder sym => W4.SymBV sym 32 -> SEval (What4 sym) (Value sym)
-fromWord32 = pure . VWord 32 . pure . WordVal . SW.DBV
-
+fromWord32 = pure . VWord 32 . WordVal . SW.DBV
 
 toWord64 :: W4.IsSymExprBuilder sym =>
   What4 sym -> String -> SeqMap (What4 sym) -> Integer -> SEval (What4 sym) (W4.SymBV sym 64)
@@ -479,7 +478,7 @@ toWord64 sym nm ss i =
        _ -> panic nm ["Unexpected word size", show (SW.bvWidth x)]
 
 fromWord64 :: W4.IsSymExprBuilder sym => W4.SymBV sym 64 -> SEval (What4 sym) (Value sym)
-fromWord64 = pure . VWord 64 . pure . WordVal . SW.DBV
+fromWord64 = pure . VWord 64 . WordVal . SW.DBV
 
 
 
@@ -518,7 +517,7 @@ sshrV sym =
   PWordFun \x ->
   PStrict  \y ->
   PPrim $
-    asIndex sym ">>$" ix y >>= \case
+    case asIndex sym ">>$" ix y of
        Left i ->
          do pneg <- intLessThan sym i =<< integerLit sym 0
             zneg <- do i' <- shiftShrink sym (Nat n) ix =<< intNegate sym i
@@ -527,11 +526,11 @@ sshrV sym =
             zpos <- do i' <- shiftShrink sym (Nat n) ix i
                        amt <- wordFromInt sym n i'
                        w4bvAshr (w4 sym) x amt
-            return (VWord (SW.bvWidth x) (WordVal <$> iteWord sym pneg zneg zpos))
+            VWord (SW.bvWidth x) . WordVal <$> iteWord sym pneg zneg zpos
 
        Right wv ->
          do amt <- asWordVal sym wv
-            return (VWord (SW.bvWidth x) (WordVal <$> w4bvAshr (w4 sym) x amt))
+            VWord (SW.bvWidth x) . WordVal <$> w4bvAshr (w4 sym) x amt
 
 indexFront_int ::
   W4.IsSymExprBuilder sym =>
@@ -786,6 +785,16 @@ updateFrontSym_word _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["updat
 updateFrontSym_word sym (Nat _) eltTy (LargeBitsVal n bv) idx val =
   LargeBitsVal n <$> updateFrontSym sym (Nat n) eltTy bv idx val
 
+updateFrontSym_word sym (Nat n) eltTy (ThunkWordVal _ m) idx val
+  | isReady sym m =
+       do x <- m
+          updateFrontSym_word sym (Nat n) eltTy x idx val
+  | otherwise =
+       do m' <- sDelay sym $
+                  do x <- m
+                     updateFrontSym_word sym (Nat n) eltTy x idx val
+          pure (ThunkWordVal n m')
+
 updateFrontSym_word sym (Nat n) eltTy (WordVal bv) (Left idx) val =
   do idx' <- wordFromInt sym n idx
      updateFrontSym_word sym (Nat n) eltTy (WordVal bv) (Right (WordVal idx')) val
@@ -828,6 +837,16 @@ updateBackSym_word _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["update
 
 updateBackSym_word sym (Nat _) eltTy (LargeBitsVal n bv) idx val =
   LargeBitsVal n <$> updateBackSym sym (Nat n) eltTy bv idx val
+
+updateBackSym_word sym (Nat n) eltTy (ThunkWordVal _ m) idx val
+  | isReady sym m =
+       do x <- m
+          updateBackSym_word sym (Nat n) eltTy x idx val
+  | otherwise =
+       do m' <- sDelay sym $
+                  do x <- m
+                     updateBackSym_word sym (Nat n) eltTy x idx val
+          pure (ThunkWordVal n m')
 
 updateBackSym_word sym (Nat n) eltTy (WordVal bv) (Left idx) val =
   do idx' <- wordFromInt sym n idx

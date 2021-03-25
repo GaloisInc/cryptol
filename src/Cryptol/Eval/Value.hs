@@ -252,40 +252,49 @@ mapSeqMap sym f x =
 --   will eventually be forced, we must instead rely on an explicit sequence of bits
 --   representation.
 data WordValue sym
-  = WordVal !(SWord sym)                      -- ^ Packed word representation for bit sequences.
+  = ThunkWordVal Integer !(SEval sym (WordValue sym))
+  | WordVal !(SWord sym)                      -- ^ Packed word representation for bit sequences.
   | LargeBitsVal !Integer !(SeqMap sym)       -- ^ A large bitvector sequence, represented as a
-                                            --   'SeqMap' of bits.
+                                              --   'SeqMap' of bits.
  deriving (Generic)
 
 -- | Force a word value into packed word form
 asWordVal :: Backend sym => sym -> WordValue sym -> SEval sym (SWord sym)
 asWordVal _   (WordVal w)         = return w
+asWordVal sym (ThunkWordVal _ m)  = asWordVal sym =<< m
 asWordVal sym (LargeBitsVal n xs) = packWord sym =<< traverse (fromVBit <$>) (enumerateSeqMap n xs)
 
 -- | Force a word value into a sequence of bits
 asBitsMap :: Backend sym => sym -> WordValue sym -> SeqMap sym
-asBitsMap sym (WordVal w)  = IndexSeqMap $ \i -> VBit <$> (wordBit sym w i)
+asBitsMap sym (WordVal w)         = IndexSeqMap $ \i -> VBit <$> (wordBit sym w i)
+asBitsMap sym (ThunkWordVal _ m)  = IndexSeqMap $ \i -> do mp <- asBitsMap sym <$> m; lookupSeqMap mp i
 asBitsMap _   (LargeBitsVal _ xs) = xs
 
 -- | Turn a word value into a sequence of bits, forcing each bit.
 --   The sequence is returned in big-endian order.
 enumerateWordValue :: Backend sym => sym -> WordValue sym -> SEval sym [SBit sym]
 enumerateWordValue sym (WordVal w) = unpackWord sym w
+enumerateWordValue sym (ThunkWordVal _ m) = enumerateWordValue sym =<< m
 enumerateWordValue _ (LargeBitsVal n xs) = traverse (fromVBit <$>) (enumerateSeqMap n xs)
 
 -- | Turn a word value into a sequence of bits, forcing each bit.
 --   The sequence is returned in reverse of the usual order, which is little-endian order.
 enumerateWordValueRev :: Backend sym => sym -> WordValue sym -> SEval sym [SBit sym]
 enumerateWordValueRev sym (WordVal w)  = reverse <$> unpackWord sym w
+enumerateWordValueRev sym (ThunkWordVal _ m)  = enumerateWordValueRev sym =<< m
 enumerateWordValueRev _   (LargeBitsVal n xs) = traverse (fromVBit <$>) (enumerateSeqMap n (reverseSeqMap n xs))
 
 -- | Compute the size of a word value
+-- TODO, can we get rid of this? If feels like it should be
+--  unnecessary.
 wordValueSize :: Backend sym => sym -> WordValue sym -> Integer
 wordValueSize sym (WordVal w)  = wordLen sym w
+wordValueSize _ (ThunkWordVal n _) = n
 wordValueSize _ (LargeBitsVal n _) = n
 
 -- | Select an individual bit from a word value
 indexWordValue :: Backend sym => sym -> WordValue sym -> Integer -> SEval sym (SBit sym)
+indexWordValue sym (ThunkWordVal _ m) idx = do m' <- m ; indexWordValue sym m' idx
 indexWordValue sym (WordVal w) idx
    | 0 <= idx && idx < wordLen sym w = wordBit sym w idx
    | otherwise = invalidIndex sym idx
@@ -322,8 +331,8 @@ data GenValue sym
   | VFloat !(SFloat sym)
   | VSeq !Integer !(SeqMap sym)                -- ^ @ [n]a   @
                                                --   Invariant: VSeq is never a sequence of bits
-  | VWord !Integer !(SEval sym (WordValue sym))  -- ^ @ [n]Bit @
-  | VStream !(SeqMap sym)                   -- ^ @ [inf]a @
+  | VWord !Integer !(WordValue sym)            -- ^ @ [n]Bit @
+  | VStream !(SeqMap sym)                      -- ^ @ [inf]a @
   | VFun  CallStack (SEval sym (GenValue sym) -> SEval sym (GenValue sym)) -- ^ functions
   | VPoly CallStack (TValue -> SEval sym (GenValue sym))   -- ^ polymorphic values (kind *)
   | VNumPoly CallStack (Nat' -> SEval sym (GenValue sym))  -- ^ polymorphic values (kind #)
@@ -333,6 +342,7 @@ data GenValue sym
 -- | Force the evaluation of a word value
 forceWordValue :: Backend sym => WordValue sym -> SEval sym ()
 forceWordValue (WordVal w)  = seq w (return ())
+forceWordValue (ThunkWordVal _ m)  = forceWordValue =<< m
 forceWordValue (LargeBitsVal n xs) = mapM_ (\x -> const () <$> x) (enumerateSeqMap n xs)
 
 -- | Force the evaluation of a value
@@ -345,7 +355,7 @@ forceValue v = case v of
   VInteger i  -> seq i (return ())
   VRational q -> seq q (return ())
   VFloat f    -> seq f (return ())
-  VWord _ wv  -> forceWordValue =<< wv
+  VWord _ wv  -> forceWordValue wv
   VStream _   -> return ()
   VFun{}      -> return ()
   VPoly{}     -> return ()
@@ -392,7 +402,7 @@ ppValue x opts = loop
     VRational q        -> ppSRational x q
     VFloat i           -> ppSFloat x opts i
     VSeq sz vals       -> ppWordSeq sz vals
-    VWord _ wv         -> ppWordVal =<< wv
+    VWord _ wv         -> ppWordVal wv
     VStream vals       -> do vals' <- traverse (>>=loop) $ enumerateSeqMap (useInfLength opts) vals
                              return $ brackets $ fsep
                                    $ punctuate comma
@@ -514,10 +524,10 @@ ppSWord sym opts bv
 -- Value Constructors ----------------------------------------------------------
 
 -- | Create a packed word of n bits.
-word :: Backend sym => sym -> Integer -> Integer -> GenValue sym
+word :: Backend sym => sym -> Integer -> Integer -> SEval sym (GenValue sym)
 word sym n i
   | n >= Arch.maxBigIntWidth = wordTooWide n
-  | otherwise                = VWord n (WordVal <$> wordLit sym n i)
+  | otherwise                = VWord n . WordVal <$> wordLit sym n i
 
 
 -- | Construct a function value
@@ -553,7 +563,7 @@ toFinSeq ::
   Backend sym =>
   sym -> Integer -> TValue -> [GenValue sym] -> GenValue sym
 toFinSeq sym len elty vs
-   | isTBit elty = VWord len (WordVal <$> packWord sym (map fromVBit vs))
+   | isTBit elty = VWord len $ (ThunkWordVal len (WordVal <$> packWord sym (map fromVBit vs)))
    | otherwise   = VSeq len $ finiteSeqMap (map pure vs)
 
 -- | Construct either a finite sequence, or a stream.  In the finite case,
@@ -571,7 +581,7 @@ toSeq sym len elty vals = case len of
 mkSeq :: Backend sym => Nat' -> TValue -> SeqMap sym -> GenValue sym
 mkSeq len elty vals = case len of
   Nat n
-    | isTBit elty -> VWord n $ pure $ LargeBitsVal n vals
+    | isTBit elty -> VWord n $ LargeBitsVal n vals
     | otherwise   -> VSeq n vals
   Inf             -> VStream vals
 
@@ -609,19 +619,19 @@ fromSeq msg val = case val of
   VStream vs  -> return vs
   _           -> evalPanic "fromSeq" ["not a sequence", msg]
 
-fromWordVal :: Backend sym => String -> GenValue sym -> SEval sym (WordValue sym)
+fromWordVal :: Backend sym => String -> GenValue sym -> WordValue sym
 fromWordVal _msg (VWord _ wval) = wval
 fromWordVal msg _ = evalPanic "fromWordVal" ["not a word value", msg]
 
 asIndex :: Backend sym =>
-  sym -> String -> TValue -> GenValue sym -> SEval sym (Either (SInteger sym) (WordValue sym))
-asIndex _sym _msg TVInteger (VInteger i) = pure (Left i)
-asIndex _sym _msg _ (VWord _ wval) = Right <$> wval
+  sym -> String -> TValue -> GenValue sym -> Either (SInteger sym) (WordValue sym)
+asIndex _sym _msg TVInteger (VInteger i) = Left i
+asIndex _sym _msg _ (VWord _ wval) = Right wval
 asIndex _sym  msg _ _ = evalPanic "asIndex" ["not an index value", msg]
 
 -- | Extract a packed word.
 fromVWord :: Backend sym => sym -> String -> GenValue sym -> SEval sym (SWord sym)
-fromVWord sym _msg (VWord _ wval) = wval >>= asWordVal sym
+fromVWord sym _msg (VWord _ wval) = asWordVal sym wval
 fromVWord _ msg _ = evalPanic "fromVWord" ["not a word", msg]
 
 vWordLen :: Backend sym => GenValue sym -> Maybe Integer

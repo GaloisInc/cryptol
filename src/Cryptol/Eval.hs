@@ -122,7 +122,7 @@ evalExpr sym env expr = case expr of
     -- NB, even if the list cannot be packed, we must use `VWord`
     -- when the element type is `Bit`.
     | isTBit tyv -> {-# SCC "evalExpr->Elist/bit" #-}
-        return $ VWord len $
+        VWord len <$>
           case tryFromBits sym vs of
             Just w  -> WordVal <$> w
             Nothing -> do xs <- mapM (sDelay sym) vs
@@ -408,7 +408,7 @@ etaWord  ::
   SEval sym (GenValue sym) ->
   SEval sym (WordValue sym)
 etaWord sym n val = do
-  w <- sDelay sym (fromWordVal "during eta-expansion" =<< val)
+  w <- sDelay sym (fromWordVal "during eta-expansion" <$> val)
   xs <- memoMap sym $ IndexSeqMap $ \i ->
           do w' <- w; VBit <$> indexWordValue sym w' i
   pure $ LargeBitsVal n xs
@@ -506,8 +506,8 @@ etaDelay sym env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
       TVArray{} -> v
 
       TVSeq n TVBit ->
-          do w <- sDelayFill sym (fromWordVal "during eta-expansion" =<< v) (Just (etaWord sym n v)) ""
-             return $ VWord n w
+          do m <- sDelayFill sym (fromWordVal "during eta-expansion" <$> v) (Just (etaWord sym n v)) ""
+             return $ VWord n (ThunkWordVal n m)
 
       TVSeq n el ->
           do x' <- sDelay sym (fromSeq "during eta-expansion" =<< v)
@@ -636,7 +636,7 @@ evalSel sym val sel = case sel of
     case v of
       VSeq _ vs       -> lookupSeqMap vs (toInteger n)
       VStream vs      -> lookupSeqMap vs (toInteger n)
-      VWord _ wv      -> VBit <$> (flip (indexWordValue sym) (toInteger n) =<< wv)
+      VWord _ wv      -> VBit <$> indexWordValue sym wv (toInteger n)
       _               -> do vdoc <- ppValue sym defaultPPOpts val
                             evalPanic "Cryptol.Eval.evalSel"
                               [ "Unexpected value in list selection"
@@ -685,8 +685,7 @@ evalSetSel sym _tyv e sel v =
     case e of
       VSeq i mp  -> pure $ VSeq i  $ updateSeqMap mp n v
       VStream mp -> pure $ VStream $ updateSeqMap mp n v
-      VWord i m  -> pure $ VWord i $ do m1 <- m
-                                        updateWordValue sym m1 n asBit
+      VWord i m  -> VWord i <$> updateWordValue sym m n asBit
       _ -> bad "Sequence update on a non-sequence."
 
   asBit = do res <- v
@@ -824,7 +823,7 @@ evalMatch sym lenv m = case m of
         let lenv' = lenv { leVars = fmap stutter (leVars lenv) }
         let vs i = do let (q, r) = i `divMod` nLen
                       lookupSeqMap vss q >>= \case
-                        VWord _ w   -> VBit <$> (flip (indexWordValue sym) r =<< w)
+                        VWord _ w   -> VBit <$> indexWordValue sym w r
                         VSeq _ xs'  -> lookupSeqMap xs' r
                         VStream xs' -> lookupSeqMap xs' r
                         _           -> evalPanic "evalMatch" ["Not a list value"]
@@ -842,7 +841,7 @@ evalMatch sym lenv m = case m of
         let env   = EvalEnv allvars (leTypes lenv)
         xs <- evalExpr sym env expr
         let vs i = case xs of
-                     VWord _ w   -> VBit <$> (flip (indexWordValue sym) i =<< w)
+                     VWord _ w   -> VBit <$> indexWordValue sym w i
                      VSeq _ xs'  -> lookupSeqMap xs' i
                      VStream xs' -> lookupSeqMap xs' i
                      _           -> evalPanic "evalMatch" ["Not a list value"]

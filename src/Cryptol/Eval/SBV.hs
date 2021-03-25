@@ -102,11 +102,11 @@ indexFront sym mblen a xs _ix idx
 
   | Nat n <- mblen
   , TVSeq wlen TVBit <- a
-  = do wvs <- traverse (fromWordVal "indexFront" =<<) (enumerateSeqMap n xs)
+  = do wvs <- traverse (fromWordVal "indexFront" <$>) (enumerateSeqMap n xs)
        case asWordList wvs of
          Just ws ->
            do z <- wordLit sym wlen 0
-              return $ VWord wlen $ pure $ WordVal $ SBV.svSelect ws z idx
+              return $ VWord wlen $ WordVal $ SBV.svSelect ws z idx
          Nothing -> folded
 
   | otherwise
@@ -237,6 +237,16 @@ updateFrontSym_word _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["updat
 updateFrontSym_word sym (Nat _) eltTy (LargeBitsVal n bv) idx val =
   LargeBitsVal n <$> updateFrontSym sym (Nat n) eltTy bv idx val
 
+updateFrontSym_word sym (Nat n) eltTy (ThunkWordVal _ m) idx val
+  | isReady sym m =
+       do x <- m
+          updateFrontSym_word sym (Nat n) eltTy x idx val
+  | otherwise =
+       do m' <- sDelay sym $
+                  do x <- m
+                     updateFrontSym_word sym (Nat n) eltTy x idx val
+          pure (ThunkWordVal n m')
+
 updateFrontSym_word sym (Nat n) eltTy (WordVal bv) (Left idx) val =
   do idx' <- wordFromInt sym n idx
      updateFrontSym_word sym (Nat n) eltTy (WordVal bv) (Right (WordVal idx')) val
@@ -300,6 +310,16 @@ updateBackSym_word _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["update
 updateBackSym_word sym (Nat _) eltTy (LargeBitsVal n bv) idx val =
   LargeBitsVal n <$> updateBackSym sym (Nat n) eltTy bv idx val
 
+updateBackSym_word sym (Nat n) eltTy (ThunkWordVal _ m) idx val
+  | isReady sym m =
+       do x <- m
+          updateBackSym_word sym (Nat n) eltTy x idx val
+  | otherwise =
+       do m' <- sDelay sym $
+                  do x <- m
+                     updateBackSym_word sym (Nat n) eltTy x idx val
+          pure (ThunkWordVal n m')
+
 updateBackSym_word sym (Nat n) eltTy (WordVal bv) (Left idx) val =
   do idx' <- wordFromInt sym n idx
      updateBackSym_word sym (Nat n) eltTy (WordVal bv) (Right (WordVal idx')) val
@@ -329,6 +349,7 @@ asWordList = go id
  where go :: ([SWord SBV] -> [SWord SBV]) -> [WordValue SBV] -> Maybe [SWord SBV]
        go f [] = Just (f [])
        go f (WordVal x :vs) = go (f . (x:)) vs
+       go _f (ThunkWordVal _ _ : _) = Nothing -- TODO? check for isReady?
        go _f (LargeBitsVal _ _ : _) = Nothing
 
 sshrV :: SBV -> Prim SBV
@@ -338,15 +359,15 @@ sshrV sym =
   PWordFun \x ->
   PStrict  \y ->
   PPrim $
-   asIndex sym ">>$" ix y >>= \case
+   case asIndex sym ">>$" ix y of
      Left idx ->
        do let w = toInteger (SBV.intSizeOf x)
           let pneg = svLessThan idx (svInteger KUnbounded 0)
           zneg <- shl x  . svFromInteger w <$> shiftShrink sym n ix (SBV.svUNeg idx)
           zpos <- ashr x . svFromInteger w <$> shiftShrink sym n ix idx
           let z = svSymbolicMerge (kindOf x) True pneg zneg zpos
-          return . VWord w . pure . WordVal $ z
+          return . VWord w . WordVal $ z
 
      Right wv ->
        do z <- ashr x <$> asWordVal sym wv
-          return . VWord (toInteger (SBV.intSizeOf x)) . pure . WordVal $ z
+          return . VWord (toInteger (SBV.intSizeOf x)) . WordVal $ z
