@@ -39,9 +39,6 @@ module Cryptol.Eval.Value
   , tlam
   , nlam
   , ilam
-  , toStream
-  , toFinSeq
-  , toSeq
   , mkSeq
     -- ** Value eliminators
   , fromVBit
@@ -553,28 +550,6 @@ ilam sym f =
    nlam sym (\n -> case n of
                      Nat i -> f i
                      Inf   -> panic "ilam" [ "Unexpected `inf`" ])
-
--- | Generate a stream.
-toStream :: Backend sym => sym -> [GenValue sym] -> SEval sym (GenValue sym)
-toStream sym vs =
-   VStream <$> infiniteSeqMap sym (map pure vs)
-
-toFinSeq ::
-  Backend sym =>
-  sym -> Integer -> TValue -> [GenValue sym] -> GenValue sym
-toFinSeq sym len elty vs
-   | isTBit elty = VWord len $ (ThunkWordVal len (WordVal <$> packWord sym (map fromVBit vs)))
-   | otherwise   = VSeq len $ finiteSeqMap (map pure vs)
-
--- | Construct either a finite sequence, or a stream.  In the finite case,
--- record whether or not the elements were bits, to aid pretty-printing.
-toSeq ::
-  Backend sym =>
-  sym -> Nat' -> TValue -> [GenValue sym] -> SEval sym (GenValue sym)
-toSeq sym len elty vals = case len of
-  Nat n -> return $ toFinSeq sym n elty vals
-  Inf   -> toStream sym vals
-
 
 -- | Construct either a finite sequence, or a stream.  In the finite case,
 -- record whether or not the elements were bits, to aid pretty-printing.
