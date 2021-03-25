@@ -21,10 +21,9 @@ import Options.Applicative
 import CryptolServer.ClearState
     ( clearState, clearStateDescr, clearAllStates, clearAllStatesDescr)
 import Cryptol.Eval (EvalOpts(..), defaultPPOpts)
-import Cryptol.ModuleSystem (ModuleInput(..), loadModuleByPath, loadModuleByName, meSolverConfig)
+import Cryptol.ModuleSystem (ModuleInput(..), loadModuleByPath, loadModuleByName)
 import Cryptol.ModuleSystem.Monad (runModuleM, setFocusedModule)
 import Cryptol.TypeCheck.AST (mName)
-import qualified Cryptol.TypeCheck.Solver.SMT as SMT
 import Cryptol.Utils.Ident (ModName, modNameToText, textToModName, preludeName)
 import Cryptol.Utils.Logger (quietLogger)
 
@@ -34,7 +33,7 @@ import qualified Argo.Doc as Doc
 
 
 import CryptolServer
-    ( ServerState, moduleEnv, initialState, setSearchPath, command, notification )
+    ( ServerState, moduleEnv, tcSolver, initialState, setSearchPath, command, notification )
 import CryptolServer.Call ( call )
 import CryptolServer.EvalExpr
     ( evalExpressionDescr, evalExpression )
@@ -58,19 +57,20 @@ main = customMain initMod initMod initMod initMod description buildApp
     startingState (StartingFile file) reader =
       do paths <- getSearchPaths
          initSt <- setSearchPath paths <$> initialState
+         let s    = view tcSolver initSt
          let menv = view moduleEnv initSt
-         let minp s = ModuleInput False (pure evOpts) reader menv s
+         let minp = ModuleInput False (pure evOpts) reader menv s
          let die =
                \err ->
                  do hPutStrLn stderr $ "Failed to load " ++ either ("file " ++) (("module " ++) . show) file ++ ":\n" ++ show err
                     exitFailure
-         menv' <- SMT.withSolver (meSolverConfig menv) $ \s ->
-           do (res, _warnings) <- either loadModuleByPath loadModuleByName file (minp s)
+         menv' <-
+           do (res, _warnings) <- either loadModuleByPath loadModuleByName file minp
               -- NB Warnings suppressed when running server
               case res of
                 Left err -> die err
                 Right (m, menv') ->
-                  do res' <- fst <$> runModuleM (minp s){ minpModuleEnv = menv' } (setFocusedModule (mName (snd m)))
+                  do res' <- fst <$> runModuleM minp{ minpModuleEnv = menv' } (setFocusedModule (mName (snd m)))
                      case res' of
                        Left err -> die err
                        Right (_, menv'') -> pure menv''

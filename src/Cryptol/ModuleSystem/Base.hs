@@ -532,7 +532,6 @@ genInferInput :: Range -> PrimMap -> IfaceParams -> IfaceDecls -> ModuleM T.Infe
 genInferInput r prims params env = do
   seeds <- getNameSeeds
   monoBinds <- getMonoBinds
-  cfg <- getSolverConfig
   solver <- getTCSolver
   supply <- getSupply
   searchPath <- getSearchPath
@@ -548,7 +547,6 @@ genInferInput r prims params env = do
     , T.inpNameSeeds = seeds
     , T.inpMonoBinds = monoBinds
     , T.inpCallStacks = callStacks
-    , T.inpSolverConfig = cfg
     , T.inpSearchPath = searchPath
     , T.inpSupply    = supply
     , T.inpPrimNames = prims

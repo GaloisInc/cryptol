@@ -570,16 +570,6 @@ setDynEnv denv = ModuleT $ do
   me <- get
   set $! me { meDynEnv = denv }
 
-setSolver :: T.SolverConfig -> ModuleM ()
-setSolver cfg = ModuleT $ do
-  me <- get
-  set $! me { meSolverConfig = cfg }
-
-getSolverConfig :: ModuleM T.SolverConfig
-getSolverConfig  = ModuleT $ do
-  me <- get
-  return (meSolverConfig me)
-
 -- | Usefule for logging.  For example: @withLogger logPutStrLn "Hello"@
 withLogger :: (Logger -> a -> IO b) -> a -> ModuleM b
 withLogger f a = do l <- getEvalOpts
