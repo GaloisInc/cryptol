@@ -1262,36 +1262,50 @@ transposeV sym a b c xs
 ccatV ::
   Backend sym =>
   sym ->
-  Nat' ->
+  Integer ->
   Nat' ->
   TValue ->
-  (GenValue sym) ->
-  (GenValue sym) ->
+  SEval sym (GenValue sym) ->
+  SEval sym (GenValue sym) ->
   SEval sym (GenValue sym)
 
-ccatV sym _front _back _elty (VWord m l) (VWord n r) =
-  do w <- sDelay sym (joinWordVal sym l r)
-     return $ VWord (m+n) (ThunkWordVal (m+n) w)
+-- Finite bitvectors
+ccatV sym front (Nat back) TVBit l r
+  | isReady sym l, isReady sym r
+  = do l' <- fromWordVal "ccatV left"  <$> l
+       r' <- fromWordVal "ccatV right" <$> r
+       VWord (front+back) <$> joinWordVal sym l' r'
 
-ccatV sym _front _back _elty (VWord m l) (VStream r) = do
-  return $ VStream $ IndexSeqMap $ \i ->
-    if i < m then
-      VBit <$> indexWordValue sym l i
-    else
-      lookupSeqMap r (i-m)
+  | otherwise
+  = do w <- sDelay sym
+             (do l' <- fromWordVal "ccatV left"  <$> l
+                 r' <- fromWordVal "ccatV right" <$> r
+                 joinWordVal sym l' r')
+       pure $ VWord (front+back) (ThunkWordVal (front+back) w)
 
-ccatV sym front back elty l r = do
-       -- TODO, are these delays necessary?
-       l'' <- sDelay sym (fromSeq "ccatV left" l)
-       r'' <- sDelay sym (fromSeq "ccatV right" r)
-       let Nat n = front
-       mkSeq (evalTF TCAdd [front,back]) elty <$> return (IndexSeqMap $ \i ->
-        if i < n then do
-         ls <- l''
-         lookupSeqMap ls i
-        else do
-         rs <- r''
-         lookupSeqMap rs (i-n))
+-- Infinite bitstream
+ccatV sym front Inf TVBit l r =
+  do l'' <- sDelay sym (asBitsMap sym  . fromWordVal "ccatV left" <$> l)
+     r'' <- sDelay sym (fromSeq "ccatV right" =<< r)
+     pure $ VStream $ IndexSeqMap $ \i ->
+      if i < front then do
+        ls <- l''
+        lookupSeqMap ls i
+      else do
+        rs <- r''
+        lookupSeqMap rs (i-front)
+
+-- streams/sequences of nonbits
+ccatV sym front back elty l r =
+  do l'' <- sDelay sym (fromSeq "ccatV left" =<< l)
+     r'' <- sDelay sym (fromSeq "ccatV right" =<< r)
+     pure $ mkSeq (evalTF TCAdd [Nat front,back]) elty $ IndexSeqMap $ \i ->
+      if i < front then do
+        ls <- l''
+        lookupSeqMap ls i
+      else do
+        rs <- r''
+        lookupSeqMap rs (i-front)
 
 {-# INLINE wordValLogicOp #-}
 
@@ -2374,7 +2388,7 @@ genericPrimTable sym getEOpts =
                     PTyPoly  \elty  ->
                     PFun \l ->
                     PFun \r ->
-                    PPrim (join (ccatV sym (Nat front) back elty <$> l <*> r)))
+                    PPrim $ ccatV sym front back elty l r)
 
   , ("join"       , {-# SCC "Prelude::join" #-}
                     PNumPoly \parts ->
