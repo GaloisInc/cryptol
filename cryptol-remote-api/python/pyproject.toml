@@ -1,8 +1,15 @@
 [tool.poetry]
 name = "cryptol"
-version = "0.0.2"
-description = "Cryptol client"
+version = "2.11.0"
+readme = "README.md"
+keywords = ["cryptography", "verification"]
+description = "Cryptol client for the Cryptol 2.11 RPC server"
 authors = ["Andrew Kent <andrew@galois.com>", "Aaron Tomb <atomb@galois.com>"]
+license = "BSD License"
+include = [
+    "LICENSE",
+    "mypy.ini",
+]
 
 [tool.poetry.dependencies]
 python = "^3.8"
