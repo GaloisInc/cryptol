@@ -362,7 +362,7 @@ fillHole ::
   GenEvalEnv sym ->
   (Name, Schema, SEval sym (GenValue sym), SEval sym (GenValue sym) -> SEval sym ()) ->
   SEval sym ()
-fillHole sym env (nm, sch, _, fill) = do
+fillHole _sym env (nm, _sch, _, fill) = do
   case lookupVar nm env of
     Just (Right v) -> fill v
     _ -> evalPanic "fillHole" ["Recursive definition not completed", show (ppLocName nm)]
