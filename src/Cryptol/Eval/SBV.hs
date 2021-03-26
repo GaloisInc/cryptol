@@ -234,8 +234,8 @@ updateFrontSym_word ::
   SEval SBV (WordValue SBV)
 updateFrontSym_word _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["updateFrontSym_bits"]
 
-updateFrontSym_word sym (Nat _) eltTy (LargeBitsVal n bv) idx val =
-  LargeBitsVal n <$> updateFrontSym sym (Nat n) eltTy bv idx val
+updateFrontSym_word sym (Nat _) eltTy lb@(LargeBitsVal n _bv) idx val =
+  largeBitsVal n <$> updateFrontSym sym (Nat n) eltTy (asBitsMap' sym lb) idx val
 
 updateFrontSym_word sym (Nat n) eltTy (ThunkWordVal _ m) idx val
   | isReady sym m =
@@ -268,7 +268,7 @@ updateFrontSym_word sym (Nat n) eltTy bv (Right wv) val =
              let bw'  = SBV.svAnd bw (SBV.svNot msk)
              return $! SBV.svXOr bw' (SBV.svAnd q msk)
 
-    _ -> LargeBitsVal n <$> updateFrontSym sym (Nat n) eltTy (asBitsMap sym bv) (Right wv) val
+    _ -> largeBitsVal n <$> updateFrontSym sym (Nat n) eltTy (asBitsMap' sym bv) (Right wv) val
 
 
 updateBackSym ::
@@ -307,8 +307,8 @@ updateBackSym_word ::
   SEval SBV (WordValue SBV)
 updateBackSym_word _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["updateBackSym_bits"]
 
-updateBackSym_word sym (Nat _) eltTy (LargeBitsVal n bv) idx val =
-  LargeBitsVal n <$> updateBackSym sym (Nat n) eltTy bv idx val
+updateBackSym_word sym (Nat _) eltTy lb@(LargeBitsVal n _bv) idx val =
+  largeBitsVal n <$> updateBackSym sym (Nat n) eltTy (asBitsMap' sym lb) idx val
 
 updateBackSym_word sym (Nat n) eltTy (ThunkWordVal _ m) idx val
   | isReady sym m =
@@ -341,7 +341,7 @@ updateBackSym_word sym (Nat n) eltTy bv (Right wv) val = do
              let bw'  = SBV.svAnd bw (SBV.svNot msk)
              return $! SBV.svXOr bw' (SBV.svAnd q msk)
 
-    _ -> LargeBitsVal n <$> updateBackSym sym (Nat n) eltTy (asBitsMap sym bv) (Right wv) val
+    _ -> largeBitsVal n <$> updateBackSym sym (Nat n) eltTy (asBitsMap' sym bv) (Right wv) val
 
 
 asWordList :: [WordValue SBV] -> Maybe [SWord SBV]

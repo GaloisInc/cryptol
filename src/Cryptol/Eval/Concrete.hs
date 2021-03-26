@@ -480,7 +480,7 @@ logicShift opW opS =
           VWord _ wval -> bvVal <$> asWordVal Concrete wval
           _ -> evalPanic "logicShift" ["not an index"]
         let goword (WordVal (BV w x))  = pure $ WordVal (BV w (opW w x i))
-            goword (LargeBitsVal n xs) = pure $ LargeBitsVal n $ opS (Nat n) c xs i
+            goword lb@(LargeBitsVal n _xs) = pure $ largeBitsVal n $ opS (Nat n) c (asBitsMap' Concrete lb) i
             goword (ThunkWordVal _n m) = goword =<< m
         l >>= \case
           VWord w wv -> VWord w <$> goword wv

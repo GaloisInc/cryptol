@@ -23,18 +23,18 @@
 module Cryptol.Eval.Generic where
 
 import qualified Control.Exception as X
+import Control.Monad(join)
 import Control.Monad.IO.Class (MonadIO(..))
-import Control.Monad (join, unless)
 import System.Random.TF.Gen (seedTFGen)
 
-import Data.Bits (testBit, (.&.), shiftR)
+import Data.Bits ((.&.), shiftR)
 import Data.Maybe (fromMaybe)
 import qualified Data.Map.Strict as Map
 import Data.Map(Map)
 import Data.Ratio ((%))
 
 import Cryptol.TypeCheck.AST
-import Cryptol.TypeCheck.Solver.InfNat (Nat'(..),nMul,widthInteger)
+import Cryptol.TypeCheck.Solver.InfNat (Nat'(..),nMul)
 import Cryptol.Backend
 import Cryptol.Backend.Concrete (Concrete(..))
 import Cryptol.Backend.Monad( Eval, evalPanic, EvalError(..), Unsupported(..) )
@@ -217,7 +217,7 @@ ringBinary sym opw opi opz opq opfp = loop
                   lw <- fromVWord sym "ringLeft" l
                   rw <- fromVWord sym "ringRight" r
                   stk <- sGetCallStack sym
-                  VWord w . WordVal <$> (sWithCallStack sym stk (opw w lw rw))
+                  VWord w . wordVal <$> (sWithCallStack sym stk (opw w lw rw))
       | otherwise -> VSeq w <$> (join (zipSeqMap sym (loop a) <$>
                                       (fromSeq "ringBinary left" l) <*>
                                       (fromSeq "ringBinary right" r)))
@@ -303,7 +303,7 @@ ringUnary sym opw opi opz opq opfp = loop
       | isTBit a -> do
               wx <- fromVWord sym "ringUnary" v
               stk <- sGetCallStack sym
-              VWord w . WordVal <$> sWithCallStack sym stk (opw w wx)
+              VWord w . wordVal <$> sWithCallStack sym stk (opw w wx)
       | otherwise -> VSeq w <$> (mapSeqMap sym (loop a) =<< fromSeq "ringUnary" v)
 
     TVStream a ->
@@ -372,7 +372,7 @@ ringNullary sym opw opi opz opq opfp = loop
           -- words and finite sequences
           | isTBit a ->
              do stk <- sGetCallStack sym
-                VWord w . WordVal <$> sWithCallStack sym stk (opw w)
+                VWord w . wordVal <$> sWithCallStack sym stk (opw w)
           | otherwise ->
              do v <- sDelay sym (loop a)
                 pure $ VSeq w $ IndexSeqMap \_i -> v
@@ -420,7 +420,7 @@ integralBinary sym opw opi ty l r = case ty of
           do wl <- fromVWord sym "integralBinary left" l
              wr <- fromVWord sym "integralBinary right" r
              stk <- sGetCallStack sym
-             VWord w . WordVal <$> sWithCallStack sym stk (opw w wl wr)
+             VWord w . wordVal <$> sWithCallStack sym stk (opw w wl wr)
 
     _ -> evalPanic "integralBinary" [show ty ++ " not int class `Integral`"]
 
@@ -695,7 +695,7 @@ lg2V :: Backend sym => sym -> Prim sym
 lg2V sym =
   PFinPoly \w ->
   PWordFun \x ->
-  PPrim (VWord w . WordVal <$> wordLg2 sym x)
+  PPrim (VWord w . wordVal <$> wordLg2 sym x)
 
 {-# SPECIALIZE sdivV :: Concrete -> Prim Concrete #-}
 sdivV :: Backend sym => sym -> Prim sym
@@ -703,7 +703,7 @@ sdivV sym =
   PFinPoly \w ->
   PWordFun \x ->
   PWordFun \y ->
-  PPrim (VWord w . WordVal <$> wordSignedDiv sym x y)
+  PPrim (VWord w . wordVal <$> wordSignedDiv sym x y)
 
 {-# SPECIALIZE smodV :: Concrete -> Prim Concrete #-}
 smodV :: Backend sym => sym -> Prim sym
@@ -711,7 +711,7 @@ smodV sym  =
   PFinPoly \w ->
   PWordFun \x ->
   PWordFun \y ->
-  PPrim (VWord w . WordVal <$> wordSignedMod sym x y)
+  PPrim (VWord w . wordVal <$> wordSignedMod sym x y)
 
 -- Cmp -------------------------------------------------------------------------
 
@@ -945,55 +945,6 @@ zeroV sym ty = case ty of
 
 --  | otherwise = evalPanic "zeroV" ["invalid type for zero"]
 
-{-# INLINE joinWordVal #-}
-joinWordVal :: Backend sym => sym -> WordValue sym -> WordValue sym -> SEval sym (WordValue sym)
-joinWordVal sym (WordVal w1) (WordVal w2)
-  | wordLen sym w1 + wordLen sym w2 < largeBitSize
-  = WordVal <$> joinWord sym w1 w2
-
-joinWordVal sym (ThunkWordVal _ m1) w2
-  = do w1 <- m1
-       joinWordVal sym w1 w2
-
-joinWordVal sym w1 (ThunkWordVal _ m2)
-  = do w2 <- m2
-       joinWordVal sym w1 w2
-
-joinWordVal sym w1 w2
-  = pure $ LargeBitsVal (n1+n2) (concatSeqMap n1 (asBitsMap sym w1) (asBitsMap sym w2))
- where n1 = wordValueSize sym w1
-       n2 = wordValueSize sym w2
-
-
-{-# SPECIALIZE joinWords ::
-  Concrete ->
-  Integer ->
-  Integer ->
-  SeqMap Concrete (GenValue Concrete)->
-  SEval Concrete (GenValue Concrete)
-  #-}
-joinWords :: forall sym.
-  Backend sym =>
-  sym ->
-  Integer ->
-  Integer ->
-  SeqMap sym (GenValue sym) ->
-  SEval sym (GenValue sym)
-joinWords sym nParts nEach xs =
-  loop (WordVal <$> wordLit sym 0 0) (enumerateSeqMap nParts xs)
-
- where
- loop :: SEval sym (WordValue sym) -> [SEval sym (GenValue sym)] -> SEval sym (GenValue sym)
- loop !wv [] =
-    let len = (nParts * nEach) in
-    VWord len . ThunkWordVal len <$> sDelay sym wv
- loop !wv (w : ws) =
-    w >>= \case
-      VWord _ w' ->
-        do let wv' = join (joinWordVal sym <$> wv <*> pure w')
-           loop wv' ws
-      _ -> evalPanic "joinWords: expected word value" []
-
 {-# SPECIALIZE joinSeq ::
   Concrete ->
   Nat' ->
@@ -1017,14 +968,7 @@ joinSeq sym _parts 0 a _xs
 
 -- finite sequence of words
 joinSeq sym (Nat parts) each TVBit xs
-  | parts * each < largeBitSize
   = joinWords sym parts each xs
-  | otherwise
-  = do let zs = IndexSeqMap $ \i ->
-                  do let (q,r) = divMod i each
-                     ys <- fromWordVal "join seq" <$> lookupSeqMap xs q
-                     VBit <$> indexWordValue sym ys r
-       return $ VWord (parts * each) $ LargeBitsVal (parts * each) zs
 
 -- infinite sequence of words
 joinSeq sym Inf each TVBit xs
@@ -1060,28 +1004,6 @@ joinV ::
 joinV sym parts each a val = joinSeq sym parts each a =<< fromSeq "joinV" val
 
 
-{-# INLINE splitWordVal #-}
-
-splitWordVal ::
-  Backend sym =>
-  sym ->
-  Integer ->
-  Integer ->
-  WordValue sym ->
-  SEval sym (WordValue sym, WordValue sym)
-splitWordVal sym leftWidth rightWidth (WordVal w) =
-  do (lw, rw) <- splitWord sym leftWidth rightWidth w
-     pure (WordVal lw, WordVal rw)
-
-splitWordVal sym leftWidth rightWidth (ThunkWordVal n m)
-  | isReady sym m = splitWordVal sym leftWidth rightWidth =<< m
-  | otherwise =
-      do m' <- sDelay sym (splitWordVal sym leftWidth rightWidth =<< m)
-         return (ThunkWordVal n (fst <$> m'), ThunkWordVal n (snd <$> m'))
-
-splitWordVal _ leftWidth rightWidth (LargeBitsVal _n xs) =
-  let (lxs, rxs) = splitSeqMap leftWidth xs
-   in pure (LargeBitsVal leftWidth lxs, LargeBitsVal rightWidth rxs)
 
 {-# INLINE splitAtV #-}
 splitAtV ::
@@ -1106,7 +1028,7 @@ splitAtV sym front back a val =
        vs <- sDelay sym (fromSeq "splitAtV" val)
        ls <- sDelay sym (fst . splitSeqMap leftWidth <$> vs)
        rs <- sDelay sym (snd . splitSeqMap leftWidth <$> vs)
-       return $ VTuple [ VWord leftWidth . LargeBitsVal leftWidth <$> ls
+       return $ VTuple [ VWord leftWidth . largeBitsVal leftWidth <$> ls
                        , VStream <$> rs
                        ]
 
@@ -1126,32 +1048,6 @@ splitAtV sym front back a val =
     _     -> evalPanic "splitAtV" ["invalid `front` len"]
 
 
-{-# INLINE extractWordVal #-}
-
--- | Extract a subsequence of bits from a @WordValue@.
---   The first integer argument is the number of bits in the
---   resulting word.  The second integer argument is the
---   number of less-significant digits to discard.  Stated another
---   way, the operation `extractWordVal n i w` is equivalent to
---   first shifting `w` right by `i` bits, and then truncating to
---   `n` bits.
-extractWordVal ::
-  Backend sym =>
-  sym ->
-  Integer ->
-  Integer ->
-  WordValue sym ->
-  SEval sym (WordValue sym)
-extractWordVal sym len start (WordVal w) =
-   WordVal <$> extractWord sym len start w
-extractWordVal sym len start (ThunkWordVal n m)
-  | isReady sym m = extractWordVal sym len start =<< m
-  | otherwise =
-      do m' <- sDelay sym (extractWordVal sym len start =<< m)
-         pure (ThunkWordVal n m')
-extractWordVal _ len start (LargeBitsVal n xs) =
-   let xs' = dropSeqMap (n - start - len) xs
-    in pure $ LargeBitsVal len xs'
 
 {-# INLINE ecSplitV #-}
 
@@ -1171,7 +1067,7 @@ ecSplitV sym =
        (Inf, Nat e) | isTBit a -> do
           val' <- sDelay sym (fromSeq "ecSplitV" =<< val)
           return $ VStream $ IndexSeqMap $ \i ->
-            return $ VWord e $ LargeBitsVal e $ IndexSeqMap $ \j ->
+            return $ VWord e $ largeBitsVal e $ IndexSeqMap $ \j ->
               let idx = i*e + toInteger j
                in idx `seq` do
                       xs <- val'
@@ -1203,7 +1099,7 @@ reverseV sym (VWord n x) = pure (VWord n (revword x))
  where
  revword wv =
    let m = wordValueSize sym wv in
-   LargeBitsVal m $ reverseSeqMap m $ asBitsMap sym wv
+   largeBitsVal' m $ reverseSeqMap m $ asBitsMap sym wv
 reverseV _ _ =
   evalPanic "reverseV" ["Not a finite sequence"]
 
@@ -1220,7 +1116,7 @@ transposeV ::
 transposeV sym a b c xs
   | isTBit c, Nat na <- a = -- Fin a => [a][b]Bit -> [b][a]Bit
       return $ bseq $ IndexSeqMap $ \bi ->
-        return $ VWord na $ LargeBitsVal na $ IndexSeqMap $ \ai ->
+        return $ VWord na $ largeBitsVal na $ IndexSeqMap $ \ai ->
          do xs' <- fromSeq "transposeV" xs
             ys <- lookupSeqMap xs' ai
             case ys of
@@ -1277,11 +1173,10 @@ ccatV sym front (Nat back) TVBit l r
        VWord (front+back) <$> joinWordVal sym l' r'
 
   | otherwise
-  = do w <- sDelay sym
+  = do VWord (front+back) <$> delayWordValue sym (front+back)
              (do l' <- fromWordVal "ccatV left"  <$> l
                  r' <- fromWordVal "ccatV right" <$> r
                  joinWordVal sym l' r')
-       pure $ VWord (front+back) (ThunkWordVal (front+back) w)
 
 -- Infinite bitstream
 ccatV sym front Inf TVBit l r =
@@ -1290,7 +1185,7 @@ ccatV sym front Inf TVBit l r =
      pure $ VStream $ IndexSeqMap $ \i ->
       if i < front then do
         ls <- l''
-        lookupSeqMap ls i
+        VBit <$> lookupSeqMap ls i
       else do
         rs <- r''
         lookupSeqMap rs (i-front)
@@ -1307,31 +1202,6 @@ ccatV sym front back elty l r =
         rs <- r''
         lookupSeqMap rs (i-front)
 
-{-# INLINE wordValLogicOp #-}
-
-wordValLogicOp ::
-  Backend sym =>
-  sym ->
-  (SBit sym -> SBit sym -> SEval sym (SBit sym)) ->
-  (SWord sym -> SWord sym -> SEval sym (SWord sym)) ->
-  WordValue sym ->
-  WordValue sym ->
-  SEval sym (WordValue sym)
-wordValLogicOp _sym _ wop (WordVal w1) (WordVal w2) = WordVal <$> wop w1 w2
-
-wordValLogicOp sym bop wop (ThunkWordVal _ m1) w2 =
-  do w1 <- m1
-     wordValLogicOp sym bop wop w1 w2
-
-wordValLogicOp sym bop wop w1 (ThunkWordVal _ m2) =
-  do w2 <- m2
-     wordValLogicOp sym bop wop w1 w2
-
-wordValLogicOp sym bop _ w1 w2 = LargeBitsVal (wordValueSize sym w1) <$> zs
-     where zs = memoMap sym $ IndexSeqMap $ \i -> join (op <$> (lookupSeqMap xs i) <*> (lookupSeqMap ys i))
-           xs = asBitsMap sym w1
-           ys = asBitsMap sym w2
-           op x y = VBit <$> (bop (fromVBit x) (fromVBit y))
 
 {-# SPECIALIZE logicBinary ::
   Concrete ->
@@ -1371,11 +1241,10 @@ logicBinary sym opb opw = loop
     TVSeq w aty
          -- words
          | isTBit aty
-              -> do v <- sDelay sym
-                            (wordValLogicOp sym opb opw
+              -> VWord w <$> delayWordValue sym w
+                               (wordValLogicOp sym opb opw
                                     (fromWordVal "logicBinary l" l)
                                     (fromWordVal "logicBinary r" r))
-                    return $ VWord w (ThunkWordVal w v)
 
          -- finite sequences
          | otherwise -> VSeq w <$>
@@ -1408,19 +1277,6 @@ logicBinary sym opb opw = loop
     TVNewtype {} -> evalPanic "logicBinary"
                         [ "Newtype not in `Logic`" ]
 
-{-# INLINE wordValUnaryOp #-}
-wordValUnaryOp ::
-  Backend sym =>
-  sym ->
-  (SBit sym -> SEval sym (SBit sym)) ->
-  (SWord sym -> SEval sym (SWord sym)) ->
-  WordValue sym ->
-  SEval sym (WordValue sym)
-wordValUnaryOp _ _ wop (WordVal w)  = WordVal <$> (wop w)
-wordValUnaryOp sym bop wop (ThunkWordVal _ m) = wordValUnaryOp sym bop wop =<< m
-wordValUnaryOp sym bop _ (LargeBitsVal n xs) = LargeBitsVal n <$> mapSeqMap sym f xs
-  where f x = VBit <$> (bop (fromVBit x))
-
 {-# SPECIALIZE logicUnary ::
   Concrete ->
   (SBit Concrete -> SEval Concrete (SBit Concrete)) ->
@@ -1452,8 +1308,7 @@ logicUnary sym opb opw = loop
     TVSeq w ety
          -- words
          | isTBit ety
-              -> do v <- sDelay sym (wordValUnaryOp sym opb opw (fromWordVal "logicUnary" val))
-                    return $ VWord w (ThunkWordVal w v)
+              -> VWord w <$> delayWordValue sym w (wordValUnaryOp sym opb opw (fromWordVal "logicUnary" val))
 
          -- finite sequences
          | otherwise
@@ -1479,31 +1334,6 @@ logicUnary sym opb opw = loop
     TVAbstract {} -> evalPanic "logicUnary" [ "Abstract type not in `Logic`" ]
 
     TVNewtype {} -> evalPanic "logicUnary" [ "Newtype not in `Logic`" ]
-
-{-# SPECIALIZE bitsValueLessThan ::
-  Concrete ->
-  Integer ->
-  [SBit Concrete] ->
-  Integer ->
-  SEval Concrete (SBit Concrete)
-  #-}
-bitsValueLessThan ::
-  Backend sym =>
-  sym ->
-  Integer {- ^ bit-width -} ->
-  [SBit sym] {- ^ big-endian list of index bits -} ->
-  Integer {- ^ Upper bound to test against -} ->
-  SEval sym (SBit sym)
-bitsValueLessThan sym _w [] _n = pure $ bitLit sym False
-bitsValueLessThan sym w (b:bs) n
-  | nbit =
-      do notb <- bitComplement sym b
-         bitOr sym notb =<< bitsValueLessThan sym (w-1) bs n
-  | otherwise =
-      do notb <- bitComplement sym b
-         bitAnd sym notb =<< bitsValueLessThan sym (w-1) bs n
- where
- nbit = testBit n (fromInteger (w-1))
 
 
 {-# INLINE assertIndexInBounds #-}
@@ -1533,34 +1363,8 @@ assertIndexInBounds _sym Inf (Right _) = return ()
 
 -- Can't index out of bounds for a sequence that is
 -- longer than the expressible index values
-assertIndexInBounds sym (Nat n) (Right idx)
-  | n >= 2^(wordValueSize sym idx)
-  = return ()
-
--- If the index is concrete, test it directly
-assertIndexInBounds sym (Nat n) (Right (WordVal idx))
-  | Just (_w,i) <- wordAsLit sym idx
-  = unless (i < n) (raiseError sym (InvalidIndex (Just i)))
-
--- If the index is a packed word, test that it
--- is less than the concrete value of n, which
--- fits into w bits because of the above test.
-assertIndexInBounds sym (Nat n) (Right (WordVal idx)) =
-  do n' <- wordLit sym (wordLen sym idx) n
-     p <- wordLessThan sym idx n'
-     assertSideCondition sym p (InvalidIndex Nothing)
-
--- Force thunks
-assertIndexInBounds sym (Nat n) (Right (ThunkWordVal _ m)) =
-  assertIndexInBounds sym (Nat n) . Right =<< m
-
--- If the index is an unpacked word, force all the bits
--- and compute the unsigned less-than test directly.
-assertIndexInBounds sym (Nat n) (Right (LargeBitsVal w bits)) =
-  do bitsList <- traverse (fromVBit <$>) (enumerateSeqMap w bits)
-     p <- bitsValueLessThan sym w bitsList n
-     assertSideCondition sym p (InvalidIndex Nothing)
-
+assertIndexInBounds sym (Nat n) (Right idx) =
+  assertWordValueInBounds sym n idx
 
 -- | Indexing operations.
 
@@ -1586,12 +1390,12 @@ indexPrim sym int_op bits_op word_op =
                _ -> evalPanic "Expected sequence value" ["indexPrim"]
       idx' <- asIndex sym "index" ix <$> idx
       assertIndexInBounds sym len idx'
-      let goword (WordVal w')        = word_op len eltTy vs ix w'
-          goword (LargeBitsVal m bs) = bits_op len eltTy vs ix =<< traverse (fromVBit <$>) (enumerateSeqMap m bs)
-          goword (ThunkWordVal _ m)  = goword =<< m
       case idx' of
         Left i  -> int_op len eltTy vs ix i
-        Right w -> goword w
+        Right w -> viewWordOrBits sym
+                     (word_op len eltTy vs ix)
+                     (bits_op len eltTy vs ix)
+                     w
 
 {-# INLINE updatePrim #-}
 
@@ -1612,8 +1416,7 @@ updatePrim sym updateWord updateSeq =
    do idx' <- asIndex sym "update" ix <$> idx
       assertIndexInBounds sym len idx'
       xs >>= \case
-        VWord l w  -> do w' <- sDelay sym (updateWord len eltTy w idx' val)
-                         return $ VWord l (ThunkWordVal l w')
+        VWord l w  -> VWord l <$> delayWordValue sym l (updateWord len eltTy w idx' val)
         VSeq l vs  -> VSeq l  <$> updateSeq len eltTy vs idx' val
         VStream vs -> VStream <$> updateSeq len eltTy vs idx' val
         _ -> evalPanic "Expected sequence value" ["updatePrim"]
@@ -1698,29 +1501,6 @@ infFromThenV sym =
 
 -- Shifting ---------------------------------------------------
 
-barrelShifter :: Backend sym =>
-  sym ->
-  (SeqMap sym (GenValue sym) -> Integer -> SEval sym (SeqMap sym (GenValue sym)))
-     {- ^ concrete shifting operation -} ->
-  SeqMap sym (GenValue sym) {- ^ initial value -} ->
-  [SBit sym]  {- ^ bits of shift amount, in big-endian order -} ->
-  SEval sym (SeqMap sym (GenValue sym))
-barrelShifter sym shift_op = go
-  where
-  go x [] = return x
-
-  go x (b:bs)
-    | Just True <- bitAsLit sym b
-    = do x_shft <- shift_op x (2 ^ length bs)
-         go x_shft bs
-
-    | Just False <- bitAsLit sym b
-    = do go x bs
-
-    | otherwise
-    = do x_shft <- shift_op x (2 ^ length bs)
-         x' <- memoMap sym (mergeSeqMap sym b x_shft x)
-         go x' bs
 
 {-# INLINE shiftLeftReindex #-}
 shiftLeftReindex :: Nat' -> Integer -> Integer -> Maybe Integer
@@ -1748,29 +1528,6 @@ rotateRightReindex sz i shft =
      Inf -> evalPanic "cannot rotate infinite sequence" []
      Nat n -> Just ((i+n-shft) `mod` n)
 
--- | Compute the list of bits in an integer in big-endian order.
---   Fails if neither the sequence length nor the type value
---   provide an upper bound for the integer.
-enumerateIntBits :: Backend sym =>
-  sym ->
-  Nat' ->
-  TValue ->
-  SInteger sym ->
-  SEval sym [SBit sym]
-enumerateIntBits sym (Nat n) _ idx = enumerateIntBits' sym n idx
-enumerateIntBits _sym Inf _ _ = liftIO (X.throw (UnsupportedSymbolicOp "unbounded integer shifting"))
-
--- | Compute the list of bits in an integer in big-endian order.
---   The integer argument is a concrete upper bound for
---   the symbolic integer.
-enumerateIntBits' :: Backend sym =>
-  sym ->
-  Integer ->
-  SInteger sym ->
-  SEval sym [SBit sym]
-enumerateIntBits' sym n idx =
-  do w <- wordFromInt sym (widthInteger n) idx
-     unpackWord sym w
 
 -- | Generic implementation of shifting.
 --   Uses the provided word-level operation to perform the shift, when
@@ -1807,10 +1564,21 @@ logicShift sym nm shrinkRange wopPos wopNeg reindexPos reindexNeg =
          Left int_idx ->
            do pneg <- intLessThan sym int_idx =<< integerLit sym 0
               iteValue sym pneg
-                (intShifter sym nm wopNeg reindexNeg m ix a xs' =<< shrinkRange sym m ix =<< intNegate sym int_idx)
-                (intShifter sym nm wopPos reindexPos m ix a xs' =<< shrinkRange sym m ix int_idx)
+                (intShifter sym nm wopNeg reindexNeg m a xs' =<< shrinkRange sym m ix =<< intNegate sym int_idx)
+                (intShifter sym nm wopPos reindexPos m a xs' =<< shrinkRange sym m ix int_idx)
          Right idx ->
            wordShifter sym nm wopPos reindexPos m a xs' idx
+
+-- | Compute the list of bits in an integer in big-endian order.
+--   Fails if neither the sequence length nor the type value
+--   provide an upper bound for the integer.
+enumerateIntBits :: Backend sym =>
+  sym ->
+  Nat' ->
+  SInteger sym ->
+  SEval sym [SBit sym]
+enumerateIntBits sym (Nat n) idx = enumerateIntBits' sym n idx
+enumerateIntBits _sym Inf _ = liftIO (X.throw (UnsupportedSymbolicOp "unbounded integer shifting"))
 
 intShifter :: Backend sym =>
    sym ->
@@ -1819,11 +1587,10 @@ intShifter :: Backend sym =>
    (Nat' -> Integer -> Integer -> Maybe Integer) ->
    Nat' ->
    TValue ->
-   TValue ->
    GenValue sym ->
    SInteger sym ->
    SEval sym (GenValue sym)
-intShifter sym nm wop reindex m ix a xs0 idx = go xs0
+intShifter sym nm wop reindex m a xs0 idx = go xs0
   where
      shiftOp vs shft =
          memoMap sym $ IndexSeqMap $ \i ->
@@ -1831,27 +1598,16 @@ intShifter sym nm wop reindex m ix a xs0 idx = go xs0
              Nothing -> zeroV sym a
              Just i' -> lookupSeqMap vs i'
 
-     goword w x = case x of
-            ThunkWordVal _ wm
-              | isReady sym wm -> goword w =<< wm
-              | otherwise ->
-                  do m' <- sDelay sym (goword w =<< wm)
-                     return (ThunkWordVal w m')
-            WordVal x' -> WordVal <$> (wop x' =<< wordFromInt sym w idx)
-            LargeBitsVal n bs0 ->
-                 do idx_bits <- enumerateIntBits sym m ix idx
-                    LargeBitsVal n <$> barrelShifter sym shiftOp bs0 idx_bits
-
      go xs = case xs of
-        VWord w x -> VWord w <$> goword w x
+        VWord w x -> VWord w <$> wordShiftByInt sym wop (reindex m) idx x
 
         VSeq w vs0 ->
-           do idx_bits <- enumerateIntBits sym m ix idx
-              VSeq w <$> barrelShifter sym shiftOp vs0 idx_bits
+           do idx_bits <- enumerateIntBits sym m idx
+              VSeq w <$> barrelShifter sym (mergeValue sym) shiftOp vs0 idx_bits
 
         VStream vs0 ->
-           do idx_bits <- enumerateIntBits sym m ix idx
-              VStream <$> barrelShifter sym shiftOp vs0 idx_bits
+           do idx_bits <- enumerateIntBits sym m idx
+              VStream <$> barrelShifter sym (mergeValue sym) shiftOp vs0 idx_bits
 
         _ -> evalPanic "expected sequence value in shift operation" [nm]
 
@@ -1874,28 +1630,16 @@ wordShifter sym nm wop reindex m a xs0 idx = go xs0
               Nothing -> zeroV sym a
               Just i' -> lookupSeqMap vs i'
 
-    goword w x = case x of
-            ThunkWordVal _ wm
-              | isReady sym wm -> goword w =<< wm
-              | otherwise ->
-                  do m' <- sDelay sym (goword w =<< wm)
-                     return (ThunkWordVal w m')
-            WordVal x' ->
-              WordVal <$> (wop x' =<< asWordVal sym idx)
-            LargeBitsVal n bs0 ->
-              do idx_bits <- enumerateWordValue sym idx
-                 LargeBitsVal n <$> barrelShifter sym shiftOp bs0 idx_bits
-
     go xs = case xs of
-        VWord w x -> VWord w <$> goword w x
+        VWord w x -> VWord w <$> wordShiftByWord sym wop (reindex m) idx x
 
         VSeq w vs0 ->
            do idx_bits <- enumerateWordValue sym idx
-              VSeq w <$> barrelShifter sym shiftOp vs0 idx_bits
+              VSeq w <$> barrelShifter sym (mergeValue sym) shiftOp vs0 idx_bits
 
         VStream vs0 ->
            do idx_bits <- enumerateWordValue sym idx
-              VStream <$> barrelShifter sym shiftOp vs0 idx_bits
+              VStream <$> barrelShifter sym (mergeValue sym) shiftOp vs0 idx_bits
 
         _ -> evalPanic "expected sequence value in shift operation" [nm]
 
@@ -1944,7 +1688,7 @@ errorV sym ty0 msg =
 
        -- sequences
        TVSeq w ety
-          | isTBit ety -> return $ VWord w $ LargeBitsVal w $ IndexSeqMap $ \_ -> err stk
+          | isTBit ety -> return $ VWord w $ largeBitsVal w $ IndexSeqMap $ \_ -> err stk
           | otherwise  -> return $ VSeq w $ IndexSeqMap $ \_ -> loop stk ety
 
        TVStream ety -> return $ VStream $ IndexSeqMap $ \_ -> loop stk ety
@@ -1977,95 +1721,6 @@ valueToChar _ _ = evalPanic "valueToChar" ["Not an 8-bit bitvector"]
 valueToString :: Backend sym => sym -> GenValue sym -> SEval sym String
 valueToString sym (VSeq n vals) = traverse (valueToChar sym =<<) (enumerateSeqMap n vals)
 valueToString _ _ = evalPanic "valueToString" ["Not a finite sequence"]
-
--- Merge and if/then/else
-
-{-# INLINE iteValue #-}
-iteValue :: Backend sym =>
-  sym ->
-  SBit sym ->
-  SEval sym (GenValue sym) ->
-  SEval sym (GenValue sym) ->
-  SEval sym (GenValue sym)
-iteValue sym b x y
-  | Just True  <- bitAsLit sym b = x
-  | Just False <- bitAsLit sym b = y
-  | otherwise = mergeValue' sym b x y
-
-{-# INLINE mergeWord #-}
-mergeWord :: Backend sym =>
-  sym ->
-  SBit sym ->
-  WordValue sym ->
-  WordValue sym ->
-  SEval sym (WordValue sym)
-mergeWord sym c (ThunkWordVal _ m1) (ThunkWordVal _ m2) =
-  mergeWord' sym c m1 m2
-mergeWord sym c (ThunkWordVal _ m1) w2 =
-  mergeWord' sym c m1 (pure w2)
-mergeWord sym c w1 (ThunkWordVal _ m2) =
-  mergeWord' sym c (pure w1) m2
-mergeWord sym c (WordVal w1) (WordVal w2) =
-  WordVal <$> iteWord sym c w1 w2
-mergeWord sym c w1 w2 =
-  LargeBitsVal (wordValueSize sym w1) <$> memoMap sym (mergeSeqMap sym c (asBitsMap sym w1) (asBitsMap sym w2))
-
-{-# INLINE mergeWord' #-}
-mergeWord' :: Backend sym =>
-  sym ->
-  SBit sym ->
-  SEval sym (WordValue sym) ->
-  SEval sym (WordValue sym) ->
-  SEval sym (WordValue sym)
-mergeWord' sym = mergeEval sym (mergeWord sym)
-
-{-# INLINE mergeValue' #-}
-mergeValue' :: Backend sym =>
-  sym ->
-  SBit sym ->
-  SEval sym (GenValue sym) ->
-  SEval sym (GenValue sym) ->
-  SEval sym (GenValue sym)
-mergeValue' sym = mergeEval sym (mergeValue sym)
-
-mergeValue :: Backend sym =>
-  sym ->
-  SBit sym ->
-  GenValue sym ->
-  GenValue sym ->
-  SEval sym (GenValue sym)
-mergeValue sym c v1 v2 =
-  case (v1, v2) of
-    (VRecord fs1 , VRecord fs2 ) ->
-      do let res = zipRecords (\_lbl -> mergeValue' sym c) fs1 fs2
-         case res of
-           Left f -> panic "Cryptol.Eval.Generic" [ "mergeValue: incompatible record values", show f ]
-           Right r -> pure (VRecord r)
-    (VTuple vs1  , VTuple vs2  ) | length vs1 == length vs2  ->
-                                  pure $ VTuple $ zipWith (mergeValue' sym c) vs1 vs2
-    (VBit b1     , VBit b2     ) -> VBit <$> iteBit sym c b1 b2
-    (VInteger i1 , VInteger i2 ) -> VInteger <$> iteInteger sym c i1 i2
-    (VRational q1, VRational q2) -> VRational <$> iteRational sym c q1 q2
-    (VFloat f1   , VFloat f2)    -> VFloat <$> iteFloat sym c f1 f2
-    (VWord n1 w1 , VWord n2 w2 ) | n1 == n2 -> VWord n1 <$> mergeWord sym c w1 w2
-    (VSeq n1 vs1 , VSeq n2 vs2 ) | n1 == n2 -> VSeq n1 <$> memoMap sym (mergeSeqMap sym c vs1 vs2)
-    (VStream vs1 , VStream vs2 ) -> VStream <$> memoMap sym (mergeSeqMap sym c vs1 vs2)
-    (f1@VFun{}   , f2@VFun{}   ) -> lam sym $ \x -> mergeValue' sym c (fromVFun sym f1 x) (fromVFun sym f2 x)
-    (f1@VPoly{}  , f2@VPoly{}  ) -> tlam sym $ \x -> mergeValue' sym c (fromVPoly sym f1 x) (fromVPoly sym f2 x)
-    (_           , _           ) -> panic "Cryptol.Eval.Generic"
-                                  [ "mergeValue: incompatible values" ]
-
-{-# INLINE mergeSeqMap #-}
-mergeSeqMap :: Backend sym =>
-  sym ->
-  SBit sym ->
-  SeqMap sym (GenValue sym)->
-  SeqMap sym (GenValue sym)->
-  SeqMap sym (GenValue sym)
-mergeSeqMap sym c x y =
-  IndexSeqMap $ \i ->
-    iteValue sym c (lookupSeqMap x i) (lookupSeqMap y i)
-
 
 
 foldlV :: Backend sym => sym -> Prim sym
@@ -2156,8 +1811,8 @@ parmapV sym =
        case xs' of
           VWord n w ->
             do let m = asBitsMap sym w
-               m' <- sparkParMap sym f' n m
-               pure (VWord n (LargeBitsVal n m'))
+               m' <- sparkParMap sym (\x -> f' (VBit <$> x)) n m
+               pure (VWord n (largeBitsVal n m'))
           VSeq n m ->
             VSeq n <$> sparkParMap sym f' n m
 
@@ -2167,9 +1822,9 @@ parmapV sym =
 sparkParMap ::
   Backend sym =>
   sym ->
-  (SEval sym (GenValue sym) -> SEval sym (GenValue sym)) ->
+  (SEval sym a -> SEval sym (GenValue sym)) ->
   Integer ->
-  SeqMap sym (GenValue sym) ->
+  SeqMap sym a ->
   SEval sym (SeqMap sym (GenValue sym))
 sparkParMap sym f n m =
   finiteSeqMap <$> mapM (sSpark sym . g) (enumerateSeqMap n m)
@@ -2224,7 +1879,7 @@ genericFloatTable sym =
     , "fpFromBits"  ~> PFinPoly \e -> PFinPoly \p -> PWordFun \w ->
                        PPrim (VFloat <$> fpFromBits sym e p w)
     , "fpToBits"    ~> PFinPoly \e -> PFinPoly \p -> PFloatFun \x -> PPrim
-                            (VWord (e+p) . WordVal <$> fpToBits sym x)
+                            (VWord (e+p) . wordVal <$> fpToBits sym x)
     , "=.="         ~> PFinPoly \_ -> PFinPoly \_ -> PFloatFun \x -> PFloatFun \y ->
                        PPrim (VBit <$> fpLogicalEq sym x y)
 

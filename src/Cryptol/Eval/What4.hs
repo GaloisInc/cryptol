@@ -782,8 +782,8 @@ updateFrontSym_word ::
   SEval (What4 sym) (WordValue (What4 sym))
 updateFrontSym_word _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["updateFrontSym_word"]
 
-updateFrontSym_word sym (Nat _) eltTy (LargeBitsVal n bv) idx val =
-  LargeBitsVal n <$> updateFrontSym sym (Nat n) eltTy bv idx val
+updateFrontSym_word sym (Nat _) eltTy ls@(LargeBitsVal n _bv) idx val =
+  largeBitsVal n <$> updateFrontSym sym (Nat n) eltTy (asBitsMap' sym ls) idx val
 
 updateFrontSym_word sym (Nat n) eltTy (ThunkWordVal _ m) idx val
   | isReady sym m =
@@ -820,8 +820,8 @@ updateFrontSym_word sym (Nat n) eltTy bv (Right wv) val =
                       bw' <- SW.bvAnd (w4 sym) bw =<< SW.bvNot (w4 sym) msk
                       SW.bvXor (w4 sym) bw' =<< SW.bvAnd (w4 sym) q msk
 
-    _ -> LargeBitsVal (wordValueSize sym wv) <$>
-           updateFrontSym sym (Nat n) eltTy (asBitsMap sym bv) (Right wv) val
+    _ -> largeBitsVal (wordValueSize sym wv) <$>
+           updateFrontSym sym (Nat n) eltTy (asBitsMap' sym bv) (Right wv) val
 
 
 updateBackSym_word ::
@@ -835,8 +835,8 @@ updateBackSym_word ::
   SEval (What4 sym) (WordValue (What4 sym))
 updateBackSym_word _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["updateBackSym_word"]
 
-updateBackSym_word sym (Nat _) eltTy (LargeBitsVal n bv) idx val =
-  LargeBitsVal n <$> updateBackSym sym (Nat n) eltTy bv idx val
+updateBackSym_word sym (Nat _) eltTy lb@(LargeBitsVal n _bv) idx val =
+  largeBitsVal n <$> updateBackSym sym (Nat n) eltTy (asBitsMap' sym lb) idx val
 
 updateBackSym_word sym (Nat n) eltTy (ThunkWordVal _ m) idx val
   | isReady sym m =
@@ -873,5 +873,5 @@ updateBackSym_word sym (Nat n) eltTy bv (Right wv) val =
                       bw' <- SW.bvAnd (w4 sym) bw =<< SW.bvNot (w4 sym) msk
                       SW.bvXor (w4 sym) bw' =<< SW.bvAnd (w4 sym) q msk
 
-    _ -> LargeBitsVal (wordValueSize sym wv) <$>
-           updateBackSym sym (Nat n) eltTy (asBitsMap sym bv) (Right wv) val
+    _ -> largeBitsVal (wordValueSize sym wv) <$>
+           updateBackSym sym (Nat n) eltTy (asBitsMap' sym bv) (Right wv) val

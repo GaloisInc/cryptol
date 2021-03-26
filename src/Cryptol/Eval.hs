@@ -40,7 +40,6 @@ module Cryptol.Eval (
 import Cryptol.Backend
 import Cryptol.Backend.Concrete( Concrete(..) )
 import Cryptol.Backend.Monad
-import Cryptol.Eval.Generic ( iteValue )
 import Cryptol.Eval.Env
 import Cryptol.Eval.Prims
 import Cryptol.Eval.Type
@@ -125,8 +124,8 @@ evalExpr sym env expr = case expr of
         VWord len <$>
           case tryFromBits sym vs of
             Just w  -> WordVal <$> w
-            Nothing -> do xs <- mapM (sDelay sym) vs
-                          return $ LargeBitsVal len $ finiteSeqMap xs
+            Nothing -> do xs <- mapM (\x -> sDelay sym (fromVBit <$> x)) vs
+                          return $ largeBitsVal' len $ finiteSeqMap xs
     | otherwise -> {-# SCC "evalExpr->EList" #-} do
         xs <- mapM (sDelay sym) vs
         return $ VSeq len $ finiteSeqMap xs
