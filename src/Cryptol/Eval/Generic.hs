@@ -968,7 +968,7 @@ joinSeq sym _parts 0 a _xs
 
 -- finite sequence of words
 joinSeq sym (Nat parts) each TVBit xs
-  = joinWords sym parts each xs
+  = VWord (parts*each) <$> joinWords sym parts each (fromWordVal "joinSeq" <$> xs)
 
 -- infinite sequence of words
 joinSeq sym Inf each TVBit xs

@@ -39,6 +39,8 @@ module Cryptol.Backend.SeqMap
   , memoMap
   , zipSeqMap
   , mapSeqMap
+  , mergeSeqMap
+  , barrelShifter
   ) where
 
 import Control.Monad
@@ -164,3 +166,40 @@ mapSeqMap ::
   SeqMap sym a -> SEval sym (SeqMap sym a)
 mapSeqMap sym f x =
   memoMap sym (IndexSeqMap $ \i -> f =<< lookupSeqMap x i)
+
+
+{-# INLINE mergeSeqMap #-}
+mergeSeqMap :: Backend sym =>
+  sym ->
+  (SBit sym -> a -> a -> SEval sym a) ->
+  SBit sym ->
+  SeqMap sym a ->
+  SeqMap sym a ->
+  SeqMap sym a
+mergeSeqMap sym f c x y =
+  IndexSeqMap $ \i -> mergeEval sym f c (lookupSeqMap x i) (lookupSeqMap y i)
+
+barrelShifter :: Backend sym =>
+  sym ->
+  (SBit sym -> a -> a -> SEval sym a) ->
+  (SeqMap sym a -> Integer -> SEval sym (SeqMap sym a))
+     {- ^ concrete shifting operation -} ->
+  SeqMap sym a {- ^ initial value -} ->
+  [SBit sym]  {- ^ bits of shift amount, in big-endian order -} ->
+  SEval sym (SeqMap sym a)
+barrelShifter sym mux shift_op = go
+  where
+  go x [] = return x
+
+  go x (b:bs)
+    | Just True <- bitAsLit sym b
+    = do x_shft <- shift_op x (2 ^ length bs)
+         go x_shft bs
+
+    | Just False <- bitAsLit sym b
+    = do go x bs
+
+    | otherwise
+    = do x_shft <- shift_op x (2 ^ length bs)
+         x' <- memoMap sym (mergeSeqMap sym mux b x_shft x)
+         go x' bs
