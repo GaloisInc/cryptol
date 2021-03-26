@@ -23,9 +23,10 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Cryptol.Backend.SeqMap 
+module Cryptol.Backend.SeqMap
   ( -- * Sequence Maps
-    SeqMap (..)
+    SeqMap
+  , indexSeqMap
   , lookupSeqMap
   , finiteSeqMap
   , infiniteSeqMap
@@ -60,6 +61,9 @@ data SeqMap sym a
   | UpdateSeqMap !(Map Integer (SEval sym a))
                  !(Integer -> SEval sym a)
 
+
+indexSeqMap :: (Integer -> SEval sym a) -> SeqMap sym a
+indexSeqMap = IndexSeqMap
 
 lookupSeqMap :: SeqMap sym a -> Integer -> SEval sym a
 lookupSeqMap (IndexSeqMap f) i = f i

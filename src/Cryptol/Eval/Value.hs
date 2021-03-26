@@ -62,7 +62,8 @@ module Cryptol.Eval.Value
   , ppValue
 
     -- * Sequence Maps
-  , SeqMap (..)
+  , SeqMap
+  , indexSeqMap
   , lookupSeqMap
   , finiteSeqMap
   , infiniteSeqMap
@@ -81,11 +82,9 @@ module Cryptol.Eval.Value
   , WordValue
   , wordVal
   , largeBitsVal
-  , largeBitsVal'
   , asWordList
   , asWordVal
   , asBitsMap
-  , asBitsMap'
   , joinWordVal
   , splitWordVal
   , extractWordVal
@@ -203,14 +202,6 @@ instance Backend sym => Show (GenValue sym) where
     VFun{}     -> "fun"
     VPoly{}    -> "poly"
     VNumPoly{} -> "numpoly"
-
-
-largeBitsVal :: Backend sym => Integer -> SeqMap sym (GenValue sym) -> WordValue sym
-largeBitsVal sz xs = largeBitsVal' sz (fmap fromVBit xs)
-
--- | Force a word value into a sequence of bits
-asBitsMap' :: Backend sym => sym -> WordValue sym -> SeqMap sym (GenValue sym)
-asBitsMap' sym w = VBit <$> asBitsMap sym w
 
 -- Pretty Printing -------------------------------------------------------------
 
@@ -392,7 +383,7 @@ ilam sym f =
 mkSeq :: Backend sym => Nat' -> TValue -> SeqMap sym (GenValue sym) -> GenValue sym
 mkSeq len elty vals = case len of
   Nat n
-    | isTBit elty -> VWord n $ largeBitsVal n vals
+    | isTBit elty -> VWord n $ largeBitsVal n (fromVBit <$> vals)
     | otherwise   -> VSeq n vals
   Inf             -> VStream vals
 
@@ -565,5 +556,5 @@ mergeSeqMapVal :: Backend sym =>
   SeqMap sym (GenValue sym)->
   SeqMap sym (GenValue sym)
 mergeSeqMapVal sym c x y =
-  IndexSeqMap $ \i ->
+  indexSeqMap $ \i ->
     iteValue sym c (lookupSeqMap x i) (lookupSeqMap y i)

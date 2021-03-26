@@ -481,7 +481,8 @@ logicShift opW opS =
           _ -> evalPanic "logicShift" ["not an index"]
         let goword = viewWordOrBitsMap Concrete
                        (\ (BV w x) -> pure $ wordVal (BV w (opW w x i)))
-                       (\ n bs -> pure $ largeBitsVal n $ opS (Nat n) c (asBitsMap' Concrete (largeBitsVal' n bs)) i)
+                       (\ n bs -> pure $ largeBitsVal n $ fmap fromVBit $
+                                    opS (Nat n) c (fmap VBit bs) i)
         l >>= \case
           VWord w wv -> VWord w <$> goword wv
           _ -> mkSeq a c <$> (opS a c <$> (fromSeq "logicShift" =<< l) <*> return i)
@@ -517,7 +518,7 @@ shiftLS :: Nat' -> TValue -> SeqMap Concrete (GenValue Concrete) -> Integer -> S
 shiftLS w ety vs by
   | by < 0 = shiftRS w ety vs (negate by)
 
-shiftLS w ety vs by = IndexSeqMap $ \i ->
+shiftLS w ety vs by = indexSeqMap $ \i ->
   case w of
     Nat len
       | i+by < len -> lookupSeqMap vs (i+by)
@@ -529,7 +530,7 @@ shiftRS :: Nat' -> TValue -> SeqMap Concrete (GenValue Concrete) -> Integer -> S
 shiftRS w ety vs by
   | by < 0 = shiftLS w ety vs (negate by)
 
-shiftRS w ety vs by = IndexSeqMap $ \i ->
+shiftRS w ety vs by = indexSeqMap $ \i ->
   case w of
     Nat len
       | i >= by   -> lookupSeqMap vs (i-by)
@@ -547,7 +548,7 @@ rotateLW w i by = mask w $ (i `shiftL` b) .|. (i `shiftR` (fromInteger w - b))
   where b = fromInteger (by `mod` w)
 
 rotateLS :: Nat' -> TValue -> SeqMap Concrete (GenValue Concrete) -> Integer -> SeqMap Concrete (GenValue Concrete)
-rotateLS w _ vs by = IndexSeqMap $ \i ->
+rotateLS w _ vs by = indexSeqMap $ \i ->
   case w of
     Nat len -> lookupSeqMap vs ((by + i) `mod` len)
     _ -> panic "Cryptol.Eval.Prim.rotateLS" [ "unexpected infinite sequence" ]
@@ -559,7 +560,7 @@ rotateRW w i by = mask w $ (i `shiftR` b) .|. (i `shiftL` (fromInteger w - b))
   where b = fromInteger (by `mod` w)
 
 rotateRS :: Nat' -> TValue -> SeqMap Concrete (GenValue Concrete) -> Integer -> SeqMap Concrete (GenValue Concrete)
-rotateRS w _ vs by = IndexSeqMap $ \i ->
+rotateRS w _ vs by = indexSeqMap $ \i ->
   case w of
     Nat len -> lookupSeqMap vs ((len - by + i) `mod` len)
     _ -> panic "Cryptol.Eval.Prim.rotateRS" [ "unexpected infinite sequence" ]

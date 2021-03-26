@@ -235,7 +235,7 @@ suiteBPrims sym = Map.fromList $ [ (suiteBPrim n, v) | (n,v) <- prims ]
              fn <- liftIO $ getUninterpFn sym ("AESKeyExpand" <> Text.pack (show k)) args (W4.BaseStructRepr ret)
              z  <- liftIO $ W4.applySymFn (w4 sym) fn ws
              -- compute a sequence that projects the relevant fields from the outout tuple
-             pure $ VSeq (4*(k+7)) $ IndexSeqMap $ \i ->
+             pure $ VSeq (4*(k+7)) $ indexSeqMap $ \i ->
                case intIndex (fromInteger i) (size ret) of
                  Just (Some idx) | Just W4.Refl <- W4.testEquality (ret!idx) (W4.BaseBVRepr (W4.knownNat @32)) ->
                    fromWord32 =<< liftIO (W4.structField (w4 sym) z idx)
@@ -250,7 +250,7 @@ suiteBPrims sym = Map.fromList $ [ (suiteBPrim n, v) | (n,v) <- prims ]
           addUninterpWarning sym "SHA-224"
           initSt <- liftIO (mkSHA256InitialState sym SHA.initialSHA224State)
           finalSt <- foldM (\st blk -> processSHA256Block sym st =<< blk) initSt blks
-          pure $ VSeq 7 $ IndexSeqMap \i ->
+          pure $ VSeq 7 $ indexSeqMap \i ->
             case intIndex (fromInteger i) (knownSize :: Size SHA256State) of
               Just (Some idx) ->
                 do z <- liftIO $ W4.structField (w4 sym) finalSt idx
@@ -268,7 +268,7 @@ suiteBPrims sym = Map.fromList $ [ (suiteBPrim n, v) | (n,v) <- prims ]
           addUninterpWarning sym "SHA-256"
           initSt <- liftIO (mkSHA256InitialState sym SHA.initialSHA256State)
           finalSt <- foldM (\st blk -> processSHA256Block sym st =<< blk) initSt blks
-          pure $ VSeq 8 $ IndexSeqMap \i ->
+          pure $ VSeq 8 $ indexSeqMap \i ->
             case intIndex (fromInteger i) (knownSize :: Size SHA256State) of
               Just (Some idx) ->
                 do z <- liftIO $ W4.structField (w4 sym) finalSt idx
@@ -286,7 +286,7 @@ suiteBPrims sym = Map.fromList $ [ (suiteBPrim n, v) | (n,v) <- prims ]
           addUninterpWarning sym "SHA-384"
           initSt <- liftIO (mkSHA512InitialState sym SHA.initialSHA384State)
           finalSt <- foldM (\st blk -> processSHA512Block sym st =<< blk) initSt blks
-          pure $ VSeq 6 $ IndexSeqMap \i ->
+          pure $ VSeq 6 $ indexSeqMap \i ->
             case intIndex (fromInteger i) (knownSize :: Size SHA512State) of
               Just (Some idx) ->
                 do z <- liftIO $ W4.structField (w4 sym) finalSt idx
@@ -304,7 +304,7 @@ suiteBPrims sym = Map.fromList $ [ (suiteBPrim n, v) | (n,v) <- prims ]
           addUninterpWarning sym "SHA-512"
           initSt <- liftIO (mkSHA512InitialState sym SHA.initialSHA512State)
           finalSt <- foldM (\st blk -> processSHA512Block sym st =<< blk) initSt blks
-          pure $ VSeq 8 $ IndexSeqMap \i ->
+          pure $ VSeq 8 $ indexSeqMap \i ->
             case intIndex (fromInteger i) (knownSize :: Size SHA512State) of
               Just (Some idx) ->
                 do z <- liftIO $ W4.structField (w4 sym) finalSt idx
@@ -495,7 +495,7 @@ applyAESStateFunc sym funNm x =
      w3 <- toWord32 sym nm ss 3
      fn <- liftIO $ getUninterpFn sym funNm argCtx (W4.BaseStructRepr argCtx)
      z  <- liftIO $ W4.applySymFn (w4 sym) fn (Empty :> w0 :> w1 :> w2 :> w3)
-     pure $ VSeq 4 $ IndexSeqMap \i ->
+     pure $ VSeq 4 $ indexSeqMap \i ->
        if | i == 0 -> fromWord32 =<< liftIO (W4.structField (w4 sym) z (natIndex @0))
           | i == 1 -> fromWord32 =<< liftIO (W4.structField (w4 sym) z (natIndex @1))
           | i == 2 -> fromWord32 =<< liftIO (W4.structField (w4 sym) z (natIndex @2))
@@ -732,7 +732,7 @@ updateFrontSym ::
 updateFrontSym sym _len _eltTy vs (Left idx) val =
   case W4.asInteger idx of
     Just i -> return $ updateSeqMap vs i val
-    Nothing -> return $ IndexSeqMap $ \i ->
+    Nothing -> return $ indexSeqMap $ \i ->
       do b <- intEq sym idx =<< integerLit sym i
          iteValue sym b val (lookupSeqMap vs i)
 
@@ -740,7 +740,7 @@ updateFrontSym sym _len _eltTy vs (Right wv) val
   | Just j <- wordValAsLit sym wv =
       return $ updateSeqMap vs j val
   | otherwise =
-      memoMap sym $ IndexSeqMap $ \i ->
+      memoMap sym $ indexSeqMap $ \i ->
       do b <- wordValueEqualsInteger sym wv i
          iteValue sym b val (lookupSeqMap vs i)
 
@@ -758,7 +758,7 @@ updateBackSym _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["updateBackS
 updateBackSym sym (Nat n) _eltTy vs (Left idx) val =
   case W4.asInteger idx of
     Just i -> return $ updateSeqMap vs (n - 1 - i) val
-    Nothing -> return $ IndexSeqMap $ \i ->
+    Nothing -> return $ indexSeqMap $ \i ->
       do b <- intEq sym idx =<< integerLit sym (n - 1 - i)
          iteValue sym b val (lookupSeqMap vs i)
 
@@ -766,7 +766,7 @@ updateBackSym sym (Nat n) _eltTy vs (Right wv) val
   | Just j <- wordValAsLit sym wv =
       return $ updateSeqMap vs (n - 1 - j) val
   | otherwise =
-      memoMap sym $ IndexSeqMap $ \i ->
+      memoMap sym $ indexSeqMap $ \i ->
       do b <- wordValueEqualsInteger sym wv (n - 1 - i)
          iteValue sym b val (lookupSeqMap vs i)
 
@@ -794,7 +794,7 @@ updateFrontSym_word sym (Nat n) eltTy w lridx val =
         Right idxwv ->
           goword bv =<< asWordVal sym idxwv)
     -- Sequence to update is a SeqMap
-    (\_ bs -> largeBitsVal n <$>
+    (\_ bs -> largeBitsVal n . fmap fromVBit <$>
       updateFrontSym sym (Nat n) eltTy (fmap VBit bs) lridx val)
     w
 
@@ -841,7 +841,7 @@ updateBackSym_word sym (Nat n) eltTy w lridx val =
         Right idxwv ->
           goword bv =<< asWordVal sym idxwv)
     -- Sequence to update is a SeqMap
-    (\_ bs -> largeBitsVal n <$>
+    (\_ bs -> largeBitsVal n . fmap fromVBit <$>
       updateBackSym sym (Nat n) eltTy (fmap VBit bs) lridx val)
     w
 

@@ -125,7 +125,7 @@ evalExpr sym env expr = case expr of
           case tryFromBits sym vs of
             Just w  -> wordVal <$> w
             Nothing -> do xs <- mapM (\x -> sDelay sym (fromVBit <$> x)) vs
-                          return $ largeBitsVal' len $ finiteSeqMap xs
+                          return $ largeBitsVal len $ finiteSeqMap xs
     | otherwise -> {-# SCC "evalExpr->EList" #-} do
         xs <- mapM (sDelay sym) vs
         return $ VSeq len $ finiteSeqMap xs
@@ -600,7 +600,7 @@ evalComp ::
   SEval sym (GenValue sym)
 evalComp sym env len elty body ms =
        do lenv <- mconcat <$> mapM (branchEnvs sym (toListEnv env)) ms
-          mkSeq len elty <$> memoMap sym (IndexSeqMap $ \i -> do
+          mkSeq len elty <$> memoMap sym (indexSeqMap $ \i -> do
               evalExpr sym (evalListEnv lenv i) body)
 
 {-# SPECIALIZE branchEnvs ::
@@ -643,7 +643,7 @@ evalMatch sym lenv m = case m of
       -- Select from a sequence of finite length.  This causes us to 'stutter'
       -- through our previous choices `nLen` times.
       Nat nLen -> do
-        vss <- memoMap sym $ IndexSeqMap $ \i -> evalExpr sym (evalListEnv lenv i) expr
+        vss <- memoMap sym $ indexSeqMap $ \i -> evalExpr sym (evalListEnv lenv i) expr
         let stutter xs = \i -> xs (i `div` nLen)
         let lenv' = lenv { leVars = fmap stutter (leVars lenv) }
         let vs i = do let (q, r) = i `divMod` nLen

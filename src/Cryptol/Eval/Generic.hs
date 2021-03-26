@@ -375,11 +375,11 @@ ringNullary sym opw opi opz opq opfp = loop
                 VWord w . wordVal <$> sWithCallStack sym stk (opw w)
           | otherwise ->
              do v <- sDelay sym (loop a)
-                pure $ VSeq w $ IndexSeqMap \_i -> v
+                pure $ VSeq w $ indexSeqMap \_i -> v
 
         TVStream a ->
              do v <- sDelay sym (loop a)
-                pure $ VStream $ IndexSeqMap \_i -> v
+                pure $ VStream $ indexSeqMap \_i -> v
 
         TVFun _ b ->
              do v <- sDelay sym (loop b)
@@ -918,11 +918,11 @@ zeroV sym ty = case ty of
       | isTBit ety -> word sym w 0
       | otherwise  ->
            do z <- sDelay sym (zeroV sym ety)
-              pure $ VSeq w (IndexSeqMap \_i -> z)
+              pure $ VSeq w (indexSeqMap \_i -> z)
 
   TVStream ety ->
      do z <- sDelay sym (zeroV sym ety)
-        pure $ VStream (IndexSeqMap \_i -> z)
+        pure $ VStream (indexSeqMap \_i -> z)
 
   -- functions
   TVFun _ bty ->
@@ -972,14 +972,14 @@ joinSeq sym (Nat parts) each TVBit xs
 
 -- infinite sequence of words
 joinSeq sym Inf each TVBit xs
-  = return $ VStream $ IndexSeqMap $ \i ->
+  = return $ VStream $ indexSeqMap $ \i ->
       do let (q,r) = divMod i each
          ys <- fromWordVal "join seq" <$> lookupSeqMap xs q
          VBit <$> indexWordValue sym ys r
 
 -- finite or infinite sequence of non-words
 joinSeq _sym parts each _a xs
-  = return $ vSeq $ IndexSeqMap $ \i -> do
+  = return $ vSeq $ indexSeqMap $ \i -> do
       let (q,r) = divMod i each
       ys <- fromSeq "join seq" =<< lookupSeqMap xs q
       lookupSeqMap ys r
@@ -1026,7 +1026,7 @@ splitAtV sym front back a val =
 
     Inf | aBit -> do
        vs <- sDelay sym (fromSeq "splitAtV" val)
-       ls <- sDelay sym (fst . splitSeqMap leftWidth <$> vs)
+       ls <- sDelay sym (fmap fromVBit . fst . splitSeqMap leftWidth <$> vs)
        rs <- sDelay sym (snd . splitSeqMap leftWidth <$> vs)
        return $ VTuple [ VWord leftWidth . largeBitsVal leftWidth <$> ls
                        , VStream <$> rs
@@ -1062,26 +1062,26 @@ ecSplitV sym =
     case (parts, each) of
        (Nat p, Nat e) | isTBit a -> do
           ~(VWord _ val') <- val
-          return $ VSeq p $ IndexSeqMap $ \i ->
+          return $ VSeq p $ indexSeqMap $ \i ->
             VWord e <$> extractWordVal sym e ((p-i-1)*e) val'
        (Inf, Nat e) | isTBit a -> do
           val' <- sDelay sym (fromSeq "ecSplitV" =<< val)
-          return $ VStream $ IndexSeqMap $ \i ->
-            return $ VWord e $ largeBitsVal e $ IndexSeqMap $ \j ->
+          return $ VStream $ indexSeqMap $ \i ->
+            return $ VWord e $ largeBitsVal e $ indexSeqMap $ \j ->
               let idx = i*e + toInteger j
                in idx `seq` do
                       xs <- val'
-                      lookupSeqMap xs idx
+                      fromVBit <$> lookupSeqMap xs idx
        (Nat p, Nat e) -> do
           val' <- sDelay sym (fromSeq "ecSplitV" =<< val)
-          return $ VSeq p $ IndexSeqMap $ \i ->
-            return $ VSeq e $ IndexSeqMap $ \j -> do
+          return $ VSeq p $ indexSeqMap $ \i ->
+            return $ VSeq e $ indexSeqMap $ \j -> do
               xs <- val'
               lookupSeqMap xs (e * i + j)
        (Inf  , Nat e) -> do
           val' <- sDelay sym (fromSeq "ecSplitV" =<< val)
-          return $ VStream $ IndexSeqMap $ \i ->
-            return $ VSeq e $ IndexSeqMap $ \j -> do
+          return $ VStream $ indexSeqMap $ \i ->
+            return $ VSeq e $ indexSeqMap $ \j -> do
               xs <- val'
               lookupSeqMap xs (e * i + j)
        _              -> evalPanic "splitV" ["invalid type arguments to split"]
@@ -1099,7 +1099,7 @@ reverseV sym (VWord n x) = pure (VWord n (revword x))
  where
  revword wv =
    let m = wordValueSize sym wv in
-   largeBitsVal' m $ reverseSeqMap m $ asBitsMap sym wv
+   largeBitsVal m $ reverseSeqMap m $ asBitsMap sym wv
 reverseV _ _ =
   evalPanic "reverseV" ["Not a finite sequence"]
 
@@ -1115,18 +1115,18 @@ transposeV ::
   SEval sym (GenValue sym)
 transposeV sym a b c xs
   | isTBit c, Nat na <- a = -- Fin a => [a][b]Bit -> [b][a]Bit
-      return $ bseq $ IndexSeqMap $ \bi ->
-        return $ VWord na $ largeBitsVal na $ IndexSeqMap $ \ai ->
+      return $ bseq $ indexSeqMap $ \bi ->
+        return $ VWord na $ largeBitsVal na $ indexSeqMap $ \ai ->
          do xs' <- fromSeq "transposeV" xs
             ys <- lookupSeqMap xs' ai
             case ys of
-              VStream ys' -> lookupSeqMap ys' bi
-              VWord _ wv  -> VBit <$> indexWordValue sym wv bi
+              VStream ys' -> fromVBit <$> lookupSeqMap ys' bi
+              VWord _ wv  -> indexWordValue sym wv bi
               _ -> evalPanic "transpose" ["expected sequence of bits"]
 
   | isTBit c, Inf <- a = -- [inf][b]Bit -> [b][inf]Bit
-      return $ bseq $ IndexSeqMap $ \bi ->
-        return $ VStream $ IndexSeqMap $ \ai ->
+      return $ bseq $ indexSeqMap $ \bi ->
+        return $ VStream $ indexSeqMap $ \ai ->
          do xs' <- fromSeq "transposeV" xs
             ys  <- lookupSeqMap xs' ai
             case ys of
@@ -1135,8 +1135,8 @@ transposeV sym a b c xs
               _ -> evalPanic "transpose" ["expected sequence of bits"]
 
   | otherwise = -- [a][b]c -> [b][a]c
-      return $ bseq $ IndexSeqMap $ \bi ->
-        return $ aseq $ IndexSeqMap $ \ai -> do
+      return $ bseq $ indexSeqMap $ \bi ->
+        return $ aseq $ indexSeqMap $ \ai -> do
           xs' <- fromSeq "transposeV 1" xs
           ys  <- fromSeq "transposeV 2" =<< lookupSeqMap xs' ai
           z   <- lookupSeqMap ys bi
@@ -1182,7 +1182,7 @@ ccatV sym front (Nat back) TVBit l r
 ccatV sym front Inf TVBit l r =
   do l'' <- sDelay sym (asBitsMap sym  . fromWordVal "ccatV left" <$> l)
      r'' <- sDelay sym (fromSeq "ccatV right" =<< r)
-     pure $ VStream $ IndexSeqMap $ \i ->
+     pure $ VStream $ indexSeqMap $ \i ->
       if i < front then do
         ls <- l''
         VBit <$> lookupSeqMap ls i
@@ -1194,7 +1194,7 @@ ccatV sym front Inf TVBit l r =
 ccatV sym front back elty l r =
   do l'' <- sDelay sym (fromSeq "ccatV left" =<< l)
      r'' <- sDelay sym (fromSeq "ccatV right" =<< r)
-     pure $ mkSeq (evalTF TCAdd [Nat front,back]) elty $ IndexSeqMap $ \i ->
+     pure $ mkSeq (evalTF TCAdd [Nat front,back]) elty $ indexSeqMap $ \i ->
       if i < front then do
         ls <- l''
         lookupSeqMap ls i
@@ -1384,7 +1384,7 @@ indexPrim sym int_op bits_op word_op =
   PFun     \idx ->
   PPrim
    do vs <- xs >>= \case
-               VWord _ w  -> return $ IndexSeqMap (\i -> VBit <$> indexWordValue sym w i)
+               VWord _ w  -> return $ indexSeqMap (\i -> VBit <$> indexWordValue sym w i)
                VSeq _ vs  -> return vs
                VStream vs -> return vs
                _ -> evalPanic "Expected sequence value" ["indexPrim"]
@@ -1434,7 +1434,7 @@ fromToV sym =
     case (first, lst) of
       (Nat first', Nat lst') ->
         let len = 1 + (lst' - first')
-        in VSeq len $ IndexSeqMap $ \i -> f (first' + i)
+        in VSeq len $ indexSeqMap $ \i -> f (first' + i)
       _ -> evalPanic "fromToV" ["invalid arguments"]
 
 {-# INLINE fromToLessThanV #-}
@@ -1447,7 +1447,7 @@ fromToLessThanV sym =
   PTyPoly  \ty ->
   PVal
     let !f = mkLit sym ty
-        ss = IndexSeqMap $ \i -> f (first + i)
+        ss = indexSeqMap $ \i -> f (first + i)
     in case bound of
          Inf        -> VStream ss
          Nat bound' -> VSeq (bound' - first) ss
@@ -1467,7 +1467,7 @@ fromThenToV sym =
     case (first, next, lst, len) of
       (Nat first', Nat next', Nat _lst', Nat len') ->
         let diff = next' - first'
-        in VSeq len' $ IndexSeqMap $ \i -> f (first' + i*diff)
+        in VSeq len' $ indexSeqMap $ \i -> f (first' + i*diff)
       _ -> evalPanic "fromThenToV" ["invalid arguments"]
 
 {-# INLINE infFromV #-}
@@ -1477,7 +1477,7 @@ infFromV sym =
   PFun    \x ->
   PPrim
     do mx <- sDelay sym x
-       return $ VStream $ IndexSeqMap $ \i ->
+       return $ VStream $ indexSeqMap $ \i ->
          do x' <- mx
             i' <- integerLit sym i
             addV sym ty x' =<< intV sym i' ty
@@ -1494,7 +1494,7 @@ infFromThenV sym =
                    y <- next
                    d <- subV sym ty y x
                    pure (x,d))
-       return $ VStream $ IndexSeqMap $ \i -> do
+       return $ VStream $ indexSeqMap $ \i -> do
          (x,d) <- mxd
          i' <- integerLit sym i
          addV sym ty x =<< mulV sym ty d =<< intV sym i' ty
@@ -1593,7 +1593,7 @@ intShifter :: Backend sym =>
 intShifter sym nm wop reindex m a xs0 idx = go xs0
   where
      shiftOp vs shft =
-         memoMap sym $ IndexSeqMap $ \i ->
+         memoMap sym $ indexSeqMap $ \i ->
            case reindex m i shft of
              Nothing -> zeroV sym a
              Just i' -> lookupSeqMap vs i'
@@ -1625,7 +1625,7 @@ wordShifter :: Backend sym =>
 wordShifter sym nm wop reindex m a xs0 idx = go xs0
   where
     shiftOp vs shft =
-          memoMap sym $ IndexSeqMap $ \i ->
+          memoMap sym $ indexSeqMap $ \i ->
             case reindex m i shft of
               Nothing -> zeroV sym a
               Just i' -> lookupSeqMap vs i'
@@ -1688,10 +1688,10 @@ errorV sym ty0 msg =
 
        -- sequences
        TVSeq w ety
-          | isTBit ety -> return $ VWord w $ largeBitsVal w $ IndexSeqMap $ \_ -> err stk
-          | otherwise  -> return $ VSeq w $ IndexSeqMap $ \_ -> loop stk ety
+          | isTBit ety -> return $ VWord w $ largeBitsVal w $ indexSeqMap $ \_ -> err stk
+          | otherwise  -> return $ VSeq w $ indexSeqMap $ \_ -> loop stk ety
 
-       TVStream ety -> return $ VStream $ IndexSeqMap $ \_ -> loop stk ety
+       TVStream ety -> return $ VStream $ indexSeqMap $ \_ -> loop stk ety
 
        -- functions
        TVFun _ bty -> lam sym (\ _ -> loop stk bty)
@@ -1812,7 +1812,7 @@ parmapV sym =
           VWord n w ->
             do let m = asBitsMap sym w
                m' <- sparkParMap sym (\x -> f' (VBit <$> x)) n m
-               pure (VWord n (largeBitsVal n m'))
+               pure (VWord n (largeBitsVal n (fromVBit <$> m')))
           VSeq n m ->
             VSeq n <$> sparkParMap sym f' n m
 

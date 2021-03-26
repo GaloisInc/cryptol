@@ -25,7 +25,7 @@ module Cryptol.Backend.WordValue
   ( -- * WordValue
     WordValue
   , wordVal
-  , largeBitsVal'
+  , largeBitsVal
   , asWordList
   , asWordVal
   , asBitsMap
@@ -98,9 +98,8 @@ data WordValue sym
 wordVal :: SWord sym -> WordValue sym
 wordVal = WordVal
 
-largeBitsVal' :: Backend sym => Integer -> SeqMap sym (SBit sym) -> WordValue sym
-largeBitsVal' = LargeBitsVal
-
+largeBitsVal :: Backend sym => Integer -> SeqMap sym (SBit sym) -> WordValue sym
+largeBitsVal = LargeBitsVal
 
 {-# INLINE joinWordVal #-}
 joinWordVal :: Backend sym => sym -> WordValue sym -> WordValue sym -> SEval sym (WordValue sym)
@@ -193,7 +192,7 @@ wordValLogicOp sym bop wop w1 (ThunkWordVal _ m2) =
      wordValLogicOp sym bop wop w1 w2
 
 wordValLogicOp sym bop _ w1 w2 = LargeBitsVal (wordValueSize sym w1) <$> zs
-     where zs = memoMap sym $ IndexSeqMap $ \i -> join (bop <$> (lookupSeqMap xs i) <*> (lookupSeqMap ys i))
+     where zs = memoMap sym $ indexSeqMap $ \i -> join (bop <$> (lookupSeqMap xs i) <*> (lookupSeqMap ys i))
            xs = asBitsMap sym w1
            ys = asBitsMap sym w2
 
@@ -242,7 +241,7 @@ joinWords sym nParts nEach xs | nParts * nEach < largeBitSize =
 joinWords sym nParts nEach xs =
    return $ LargeBitsVal (nParts * nEach) zs
   where
-    zs = IndexSeqMap $ \i ->
+    zs = indexSeqMap $ \i ->
             do let (q,r) = divMod i nEach
                ys <- lookupSeqMap xs q
                indexWordValue sym ys r
@@ -269,8 +268,8 @@ asWordList sym = loop id
 
 -- | Force a word value into a sequence of bits
 asBitsMap :: Backend sym => sym -> WordValue sym -> SeqMap sym (SBit sym)
-asBitsMap sym (WordVal w)         = IndexSeqMap $ \i -> wordBit sym w i
-asBitsMap sym (ThunkWordVal _ m)  = IndexSeqMap $ \i -> do mp <- asBitsMap sym <$> m; lookupSeqMap mp i
+asBitsMap sym (WordVal w)         = indexSeqMap $ \i -> wordBit sym w i
+asBitsMap sym (ThunkWordVal _ m)  = indexSeqMap $ \i -> do mp <- asBitsMap sym <$> m; lookupSeqMap mp i
 asBitsMap _   (LargeBitsVal _ xs) = xs
 
 -- | Turn a word value into a sequence of bits, forcing each bit.
@@ -439,7 +438,7 @@ wordShiftByInt sym wop reindex idx x =
 
  where
    shiftOp vs shft =
-      memoMap sym $ IndexSeqMap $ \i ->
+      memoMap sym $ indexSeqMap $ \i ->
         case reindex i shft of
           Nothing -> pure $ bitLit sym False
           Just i' -> lookupSeqMap vs i'
@@ -472,7 +471,7 @@ wordShiftByWord sym wop reindex idx x =
 
  where
    shiftOp vs shft =
-      memoMap sym $ IndexSeqMap $ \i ->
+      memoMap sym $ indexSeqMap $ \i ->
         case reindex i shft of
           Nothing -> pure $ bitLit sym False
           Just i' -> lookupSeqMap vs i'

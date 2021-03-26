@@ -213,7 +213,7 @@ updateFrontSym ::
 updateFrontSym sym _len _eltTy vs (Left idx) val =
   case SBV.svAsInteger idx of
     Just i -> return $ updateSeqMap vs i val
-    Nothing -> return $ IndexSeqMap $ \i ->
+    Nothing -> return $ indexSeqMap $ \i ->
       do b <- intEq sym idx =<< integerLit sym i
          iteValue sym b val (lookupSeqMap vs i)
 
@@ -221,7 +221,7 @@ updateFrontSym sym _len _eltTy vs (Right wv) val
   | Just j <- wordValAsLit sym wv =
       return $ updateSeqMap vs j val
   | otherwise =
-      return $ IndexSeqMap $ \i ->
+      return $ indexSeqMap $ \i ->
       do b <- wordValueEqualsInteger sym wv i
          iteValue sym b val (lookupSeqMap vs i)
 
@@ -247,7 +247,7 @@ updateFrontSym_word sym (Nat n) eltTy w lridx val =
         Right idxwv ->
           goword bv =<< asWordVal sym idxwv)
     -- Sequence to update is a SeqMap
-    (\_ bs -> largeBitsVal n <$>
+    (\_ bs -> largeBitsVal n . fmap fromVBit <$>
       updateFrontSym sym (Nat n) eltTy (fmap VBit bs) lridx val)
     w
 
@@ -280,7 +280,7 @@ updateBackSym _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["updateBackS
 updateBackSym sym (Nat n) _eltTy vs (Left idx) val =
   case SBV.svAsInteger idx of
     Just i -> return $ updateSeqMap vs (n - 1 - i) val
-    Nothing -> return $ IndexSeqMap $ \i ->
+    Nothing -> return $ indexSeqMap $ \i ->
       do b <- intEq sym idx =<< integerLit sym (n - 1 - i)
          iteValue sym b val (lookupSeqMap vs i)
 
@@ -288,7 +288,7 @@ updateBackSym sym (Nat n) _eltTy vs (Right wv) val
   | Just j <- wordValAsLit sym wv =
       return $ updateSeqMap vs (n - 1 - j) val
   | otherwise =
-      return $ IndexSeqMap $ \i ->
+      return $ indexSeqMap $ \i ->
       do b <- wordValueEqualsInteger sym wv (n - 1 - i)
          iteValue sym b val (lookupSeqMap vs i)
 
@@ -315,7 +315,7 @@ updateBackSym_word sym (Nat n) eltTy w lridx val =
         Right idxwv ->
           goword bv =<< asWordVal sym idxwv)
     -- Sequence to update is a SeqMap
-    (\_ bs -> largeBitsVal n <$>
+    (\_ bs -> largeBitsVal n . fmap fromVBit <$>
       updateBackSym sym (Nat n) eltTy (fmap VBit bs) lridx val)
     w
 

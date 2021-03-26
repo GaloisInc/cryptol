@@ -43,7 +43,7 @@ import Cryptol.Backend.Monad  (runEval,Eval,EvalErrorEx(..))
 import Cryptol.Backend.Concrete
 
 import Cryptol.Eval.Type      (TValue(..))
-import Cryptol.Eval.Value     (GenValue(..),SeqMap(..), wordVal,
+import Cryptol.Eval.Value     (GenValue(..), wordVal, indexSeqMap,
                                ppValue, defaultPPOpts, finiteSeqMap, fromVFun)
 import Cryptol.TypeCheck.Solver.InfNat (widthInteger)
 import Cryptol.Utils.Ident    (Ident)
@@ -221,7 +221,7 @@ randomWord sym w _sz g =
 randomStream :: (Backend sym, RandomGen g) => Gen g sym -> Gen g sym
 randomStream mkElem sz g =
   let (g1,g2) = split g
-  in (pure $ VStream $ IndexSeqMap $ genericIndex (unfoldr (Just . mkElem sz) g1), g2)
+  in (pure $ VStream $ indexSeqMap $ genericIndex (unfoldr (Just . mkElem sz) g1), g2)
 
 {-# INLINE randomSequence #-}
 
@@ -233,7 +233,7 @@ randomSequence w mkElem sz g0 = do
   let f g = let (x,g') = mkElem sz g
              in seq x (Just (x, g'))
   let xs = Seq.fromList $ genericTake w $ unfoldr f g1
-  let v  = VSeq w $ IndexSeqMap $ \i -> Seq.index xs (fromInteger i)
+  let v  = VSeq w $ indexSeqMap $ \i -> Seq.index xs (fromInteger i)
   seq xs (pure v, g2)
 
 {-# INLINE randomTuple #-}
