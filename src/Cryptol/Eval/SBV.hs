@@ -103,10 +103,10 @@ indexFront sym mblen a xs _ix idx
   | Nat n <- mblen
   , TVSeq wlen TVBit <- a
   = do wvs <- traverse (fromWordVal "indexFront" <$>) (enumerateSeqMap n xs)
-       case asWordList wvs of
+       asWordList sym wvs >>= \case
          Just ws ->
            do z <- wordLit sym wlen 0
-              return $ VWord wlen $ WordVal $ SBV.svSelect ws z idx
+              return $ VWord wlen $ wordVal $ SBV.svSelect ws z idx
          Nothing -> folded
 
   | otherwise
@@ -188,9 +188,11 @@ wordValueEqualsInteger :: SBV -> WordValue SBV -> Integer -> SEval SBV (SBit SBV
 wordValueEqualsInteger sym wv i
   | wordValueSize sym wv < widthInteger i = return SBV.svFalse
   | otherwise =
-    case wv of
-      WordVal w -> return $ SBV.svEqual w (literalSWord (SBV.intSizeOf w) i)
-      _ -> bitsAre i <$> enumerateWordValueRev sym wv -- little-endian
+      viewWordOrBits sym
+        (\w  -> return $ SBV.svEqual w (literalSWord (SBV.intSizeOf w) i))
+        (\bs -> return $ bitsAre i (reverse bs))
+        wv
+
   where
     bitsAre :: Integer -> [SBit SBV] -> SBit SBV
     bitsAre n [] = SBV.svBool (n == 0)
@@ -215,11 +217,10 @@ updateFrontSym sym _len _eltTy vs (Left idx) val =
       do b <- intEq sym idx =<< integerLit sym i
          iteValue sym b val (lookupSeqMap vs i)
 
-updateFrontSym sym _len _eltTy vs (Right wv) val =
-  case wv of
-    WordVal w | Just j <- SBV.svAsInteger w ->
+updateFrontSym sym _len _eltTy vs (Right wv) val
+  | Just j <- wordValAsLit sym wv =
       return $ updateSeqMap vs j val
-    _ ->
+  | otherwise =
       return $ IndexSeqMap $ \i ->
       do b <- wordValueEqualsInteger sym wv i
          iteValue sym b val (lookupSeqMap vs i)
@@ -234,31 +235,29 @@ updateFrontSym_word ::
   SEval SBV (WordValue SBV)
 updateFrontSym_word _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["updateFrontSym_bits"]
 
-updateFrontSym_word sym (Nat _) eltTy lb@(LargeBitsVal n _bv) idx val =
-  largeBitsVal n <$> updateFrontSym sym (Nat n) eltTy (asBitsMap' sym lb) idx val
+updateFrontSym_word sym (Nat n) eltTy w lridx val =
+  lazyViewWordOrBitsMap sym
+    -- Sequence to update is a packed word
+    (\bv ->
+      case lridx of
+        -- index value is an integer
+        Left idxint ->
+          goword bv =<< wordFromInt sym n idxint
+        -- index value is a bitvector
+        Right idxwv ->
+          goword bv =<< asWordVal sym idxwv)
+    -- Sequence to update is a SeqMap
+    (\_ bs -> largeBitsVal n <$>
+      updateFrontSym sym (Nat n) eltTy (fmap VBit bs) lridx val)
+    w
 
-updateFrontSym_word sym (Nat n) eltTy (ThunkWordVal _ m) idx val
-  | isReady sym m =
-       do x <- m
-          updateFrontSym_word sym (Nat n) eltTy x idx val
-  | otherwise =
-       do m' <- sDelay sym $
-                  do x <- m
-                     updateFrontSym_word sym (Nat n) eltTy x idx val
-          pure (ThunkWordVal n m')
+  where
+  goword bw idx
+    | Just j <- SBV.svAsInteger idx =
+        updateWordValue sym (wordVal bw) j (fromVBit <$> val)
 
-updateFrontSym_word sym (Nat n) eltTy (WordVal bv) (Left idx) val =
-  do idx' <- wordFromInt sym n idx
-     updateFrontSym_word sym (Nat n) eltTy (WordVal bv) (Right (WordVal idx')) val
-
-updateFrontSym_word sym (Nat n) eltTy bv (Right wv) val =
-  case wv of
-    WordVal idx
-      | Just j <- SBV.svAsInteger idx ->
-          updateWordValue sym bv j (fromVBit <$> val)
-
-      | WordVal bw <- bv ->
-        WordVal <$>
+    | otherwise =
+        wordVal <$>
           do b <- fromVBit <$> val
              let sz   = SBV.intSizeOf bw
              let z    = literalSWord sz 0
@@ -267,9 +266,6 @@ updateFrontSym_word sym (Nat n) eltTy bv (Right wv) val =
              let msk  = SBV.svShiftRight (literalSWord sz (bit (sz-1))) idx
              let bw'  = SBV.svAnd bw (SBV.svNot msk)
              return $! SBV.svXOr bw' (SBV.svAnd q msk)
-
-    _ -> largeBitsVal n <$> updateFrontSym sym (Nat n) eltTy (asBitsMap' sym bv) (Right wv) val
-
 
 updateBackSym ::
   SBV ->
@@ -288,14 +284,14 @@ updateBackSym sym (Nat n) _eltTy vs (Left idx) val =
       do b <- intEq sym idx =<< integerLit sym (n - 1 - i)
          iteValue sym b val (lookupSeqMap vs i)
 
-updateBackSym sym (Nat n) _eltTy vs (Right wv) val =
-  case wv of
-    WordVal w | Just j <- SBV.svAsInteger w ->
+updateBackSym sym (Nat n) _eltTy vs (Right wv) val
+  | Just j <- wordValAsLit sym wv =
       return $ updateSeqMap vs (n - 1 - j) val
-    _ ->
+  | otherwise =
       return $ IndexSeqMap $ \i ->
       do b <- wordValueEqualsInteger sym wv (n - 1 - i)
          iteValue sym b val (lookupSeqMap vs i)
+
 
 updateBackSym_word ::
   SBV ->
@@ -307,31 +303,29 @@ updateBackSym_word ::
   SEval SBV (WordValue SBV)
 updateBackSym_word _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["updateBackSym_bits"]
 
-updateBackSym_word sym (Nat _) eltTy lb@(LargeBitsVal n _bv) idx val =
-  largeBitsVal n <$> updateBackSym sym (Nat n) eltTy (asBitsMap' sym lb) idx val
+updateBackSym_word sym (Nat n) eltTy w lridx val =
+  lazyViewWordOrBitsMap sym
+    -- Sequence to update is a packed word
+    (\bv ->
+      case lridx of
+        -- index value is an integer
+        Left idxint ->
+          goword bv =<< wordFromInt sym n idxint
+        -- index value is a bitvector
+        Right idxwv ->
+          goword bv =<< asWordVal sym idxwv)
+    -- Sequence to update is a SeqMap
+    (\_ bs -> largeBitsVal n <$>
+      updateBackSym sym (Nat n) eltTy (fmap VBit bs) lridx val)
+    w
 
-updateBackSym_word sym (Nat n) eltTy (ThunkWordVal _ m) idx val
-  | isReady sym m =
-       do x <- m
-          updateBackSym_word sym (Nat n) eltTy x idx val
-  | otherwise =
-       do m' <- sDelay sym $
-                  do x <- m
-                     updateBackSym_word sym (Nat n) eltTy x idx val
-          pure (ThunkWordVal n m')
+  where
+  goword bw idx
+    | Just j <- SBV.svAsInteger idx =
+        updateWordValue sym (wordVal bw) (n - 1 - j) (fromVBit <$> val)
 
-updateBackSym_word sym (Nat n) eltTy (WordVal bv) (Left idx) val =
-  do idx' <- wordFromInt sym n idx
-     updateBackSym_word sym (Nat n) eltTy (WordVal bv) (Right (WordVal idx')) val
-
-updateBackSym_word sym (Nat n) eltTy bv (Right wv) val = do
-  case wv of
-    WordVal idx
-      | Just j <- SBV.svAsInteger idx ->
-          updateWordValue sym bv (n - 1 - j) (fromVBit <$> val)
-
-      | WordVal bw <- bv ->
-        WordVal <$>
+    | otherwise =
+        wordVal <$>
           do b <- fromVBit <$> val
              let sz   = SBV.intSizeOf bw
              let z    = literalSWord sz 0
@@ -340,17 +334,6 @@ updateBackSym_word sym (Nat n) eltTy bv (Right wv) val = do
              let msk  = SBV.svShiftLeft (literalSWord sz 1) idx
              let bw'  = SBV.svAnd bw (SBV.svNot msk)
              return $! SBV.svXOr bw' (SBV.svAnd q msk)
-
-    _ -> largeBitsVal n <$> updateBackSym sym (Nat n) eltTy (asBitsMap' sym bv) (Right wv) val
-
-
-asWordList :: [WordValue SBV] -> Maybe [SWord SBV]
-asWordList = go id
- where go :: ([SWord SBV] -> [SWord SBV]) -> [WordValue SBV] -> Maybe [SWord SBV]
-       go f [] = Just (f [])
-       go f (WordVal x :vs) = go (f . (x:)) vs
-       go _f (ThunkWordVal _ _ : _) = Nothing -- TODO? check for isReady?
-       go _f (LargeBitsVal _ _ : _) = Nothing
 
 sshrV :: SBV -> Prim SBV
 sshrV sym =
@@ -366,8 +349,8 @@ sshrV sym =
           zneg <- shl x  . svFromInteger w <$> shiftShrink sym n ix (SBV.svUNeg idx)
           zpos <- ashr x . svFromInteger w <$> shiftShrink sym n ix idx
           let z = svSymbolicMerge (kindOf x) True pneg zneg zpos
-          return . VWord w . WordVal $ z
+          return . VWord w . wordVal $ z
 
      Right wv ->
        do z <- ashr x <$> asWordVal sym wv
-          return . VWord (toInteger (SBV.intSizeOf x)) . WordVal $ z
+          return . VWord (toInteger (SBV.intSizeOf x)) . wordVal $ z

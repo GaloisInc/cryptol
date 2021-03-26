@@ -79,10 +79,11 @@ module Cryptol.Eval.Value
   , mapSeqMap
 
     -- * WordValue
-  , WordValue(..)
+  , WordValue
   , wordVal
   , largeBitsVal
   , largeBitsVal'
+  , asWordList
   , asWordVal
   , asBitsMap
   , asBitsMap'
@@ -98,11 +99,14 @@ module Cryptol.Eval.Value
   , indexWordValue
   , updateWordValue
   , viewWordOrBits
+  , viewWordOrBitsMap
   , lazyViewWordOrBits
+  , lazyViewWordOrBitsMap
   , delayWordValue
   , joinWords
   , wordShiftByInt
   , wordShiftByWord
+  , wordValAsLit
 
     -- * Merge and if/then/else
   , iteValue
@@ -171,7 +175,7 @@ wordVal :: SWord sym -> WordValue sym
 wordVal = WordVal
 
 largeBitsVal :: Backend sym => Integer -> SeqMap sym (GenValue sym) -> WordValue sym
-largeBitsVal sz xs = LargeBitsVal sz (IndexSeqMap (\i -> fromVBit <$> lookupSeqMap xs i))
+largeBitsVal sz xs = LargeBitsVal sz (fmap fromVBit xs)
 
 largeBitsVal' :: Backend sym => Integer -> SeqMap sym (SBit sym) -> WordValue sym
 largeBitsVal' = LargeBitsVal
@@ -324,11 +328,25 @@ joinWords sym nParts nEach xs =
                ys <- fromWordVal "join seq" <$> lookupSeqMap xs q
                indexWordValue sym ys r
 
+wordValAsLit :: Backend sym => sym -> WordValue sym -> Maybe Integer
+wordValAsLit sym (WordVal w) = snd <$> wordAsLit sym w
+wordValAsLit _ _ = Nothing
+
 -- | Force a word value into packed word form
 asWordVal :: Backend sym => sym -> WordValue sym -> SEval sym (SWord sym)
 asWordVal _   (WordVal w)         = return w
 asWordVal sym (ThunkWordVal _ m)  = asWordVal sym =<< m
 asWordVal sym (LargeBitsVal n xs) = packWord sym =<< sequence (enumerateSeqMap n xs)
+
+asWordList :: forall sym. Backend sym => sym -> [WordValue sym] -> SEval sym (Maybe [SWord sym])
+asWordList sym = loop id
+ where
+   loop :: ([SWord sym] -> [SWord sym]) -> [WordValue sym] -> SEval sym (Maybe [SWord sym])
+   loop f [] = pure (Just (f []))
+   loop f (WordVal x : vs) = loop (f . (x:)) vs
+   loop f (ThunkWordVal _ m : vs)
+     | isReady sym m = do m' <- m; loop f (m' : vs)
+   loop _ _ = pure Nothing
 
 -- | Force a word value into a sequence of bits
 asBitsMap :: Backend sym => sym -> WordValue sym -> SeqMap sym (SBit sym)
@@ -413,6 +431,36 @@ assertWordValueInBounds sym n (LargeBitsVal w bits) =
      p <- bitsValueLessThan sym w bitsList n
      assertSideCondition sym p (InvalidIndex Nothing)
 
+
+lazyViewWordOrBitsMap ::
+  Backend sym =>
+  sym ->
+  (SWord sym -> SEval sym (WordValue sym)) ->
+  (Integer -> SeqMap sym (SBit sym) -> SEval sym (WordValue sym)) ->
+  WordValue sym -> SEval sym (WordValue sym)
+
+lazyViewWordOrBitsMap sym wop bop (ThunkWordVal sz m)
+  | isReady sym m = viewWordOrBitsMap sym wop bop =<< m
+  | otherwise     = delayWordValue sym sz (viewWordOrBitsMap sym wop bop =<< m)
+
+lazyViewWordOrBitsMap _sym wop _bop (WordVal w) =
+  wop w
+lazyViewWordOrBitsMap _sym _wop bop (LargeBitsVal n bs) =
+  bop n bs
+
+
+viewWordOrBitsMap ::
+  Backend sym =>
+  sym ->
+  (SWord sym -> SEval sym a) ->
+  (Integer -> SeqMap sym (SBit sym) -> SEval sym a) ->
+  WordValue sym -> SEval sym a
+viewWordOrBitsMap sym wop bop (ThunkWordVal _ m) =
+  viewWordOrBitsMap sym wop bop =<< m
+viewWordOrBitsMap _sym wop _bop (WordVal w) =
+  wop w
+viewWordOrBitsMap _sym _wop bop (LargeBitsVal n bs) =
+  bop n bs
 
 viewWordOrBits ::
   Backend sym =>

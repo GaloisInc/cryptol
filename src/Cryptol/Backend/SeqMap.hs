@@ -58,6 +58,7 @@ data SeqMap sym a
   | UpdateSeqMap !(Map Integer (SEval sym a))
                  !(Integer -> SEval sym a)
 
+
 lookupSeqMap :: SeqMap sym a -> Integer -> SEval sym a
 lookupSeqMap (IndexSeqMap f) i = f i
 lookupSeqMap (UpdateSeqMap m f) i =
@@ -65,6 +66,8 @@ lookupSeqMap (UpdateSeqMap m f) i =
     Just x  -> x
     Nothing -> f i
 
+instance Backend sym => Functor (SeqMap sym) where
+  fmap f xs = IndexSeqMap (\i -> f <$> lookupSeqMap xs i)
 
 -- | Generate a finite sequence map from a list of values
 finiteSeqMap :: [SEval sym a] -> SeqMap sym a
