@@ -466,7 +466,7 @@ sshrV =
 logicShift :: (Integer -> Integer -> Integer -> Integer)
               -- ^ The function may assume its arguments are masked.
               -- It is responsible for masking its result if needed.
-           -> (Nat' -> TValue -> SeqMap Concrete -> Integer -> SeqMap Concrete)
+           -> (Nat' -> TValue -> SeqMap Concrete (GenValue Concrete) -> Integer -> SeqMap Concrete (GenValue Concrete))
            -> Prim Concrete
 logicShift opW opS =
   PNumPoly \a ->
@@ -513,7 +513,7 @@ signedShiftRW w ival by
      else
        shiftR (signedValue w ival) (fromInteger by')
 
-shiftLS :: Nat' -> TValue -> SeqMap Concrete -> Integer -> SeqMap Concrete
+shiftLS :: Nat' -> TValue -> SeqMap Concrete (GenValue Concrete) -> Integer -> SeqMap Concrete (GenValue Concrete)
 shiftLS w ety vs by
   | by < 0 = shiftRS w ety vs (negate by)
 
@@ -525,7 +525,7 @@ shiftLS w ety vs by = IndexSeqMap $ \i ->
       | otherwise  -> evalPanic "shiftLS" ["Index out of bounds"]
     Inf            -> lookupSeqMap vs (i+by)
 
-shiftRS :: Nat' -> TValue -> SeqMap Concrete -> Integer -> SeqMap Concrete
+shiftRS :: Nat' -> TValue -> SeqMap Concrete (GenValue Concrete) -> Integer -> SeqMap Concrete (GenValue Concrete)
 shiftRS w ety vs by
   | by < 0 = shiftLS w ety vs (negate by)
 
@@ -546,7 +546,7 @@ rotateLW 0 i _  = i
 rotateLW w i by = mask w $ (i `shiftL` b) .|. (i `shiftR` (fromInteger w - b))
   where b = fromInteger (by `mod` w)
 
-rotateLS :: Nat' -> TValue -> SeqMap Concrete -> Integer -> SeqMap Concrete
+rotateLS :: Nat' -> TValue -> SeqMap Concrete (GenValue Concrete) -> Integer -> SeqMap Concrete (GenValue Concrete)
 rotateLS w _ vs by = IndexSeqMap $ \i ->
   case w of
     Nat len -> lookupSeqMap vs ((by + i) `mod` len)
@@ -558,7 +558,7 @@ rotateRW 0 i _  = i
 rotateRW w i by = mask w $ (i `shiftR` b) .|. (i `shiftL` (fromInteger w - b))
   where b = fromInteger (by `mod` w)
 
-rotateRS :: Nat' -> TValue -> SeqMap Concrete -> Integer -> SeqMap Concrete
+rotateRS :: Nat' -> TValue -> SeqMap Concrete (GenValue Concrete) -> Integer -> SeqMap Concrete (GenValue Concrete)
 rotateRS w _ vs by = IndexSeqMap $ \i ->
   case w of
     Nat len -> lookupSeqMap vs ((len - by + i) `mod` len)
@@ -567,22 +567,22 @@ rotateRS w _ vs by = IndexSeqMap $ \i ->
 
 -- Sequence Primitives ---------------------------------------------------------
 
-indexFront :: Nat' -> TValue -> SeqMap Concrete -> TValue -> BV -> Eval Value
+indexFront :: Nat' -> TValue -> SeqMap Concrete (GenValue Concrete) -> TValue -> BV -> Eval Value
 indexFront _mblen _a vs _ix (bvVal -> ix) = lookupSeqMap vs ix
 
-indexFront_bits :: Nat' -> TValue -> SeqMap Concrete -> TValue -> [Bool] -> Eval Value
+indexFront_bits :: Nat' -> TValue -> SeqMap Concrete (GenValue Concrete) -> TValue -> [Bool] -> Eval Value
 indexFront_bits mblen a vs ix bs = indexFront mblen a vs ix =<< packWord Concrete bs
 
-indexFront_int :: Nat' -> TValue -> SeqMap Concrete -> TValue -> Integer -> Eval Value
+indexFront_int :: Nat' -> TValue -> SeqMap Concrete (GenValue Concrete) -> TValue -> Integer -> Eval Value
 indexFront_int _mblen _a vs _ix idx = lookupSeqMap vs idx
 
-indexBack :: Nat' -> TValue -> SeqMap Concrete -> TValue -> BV -> Eval Value
+indexBack :: Nat' -> TValue -> SeqMap Concrete (GenValue Concrete) -> TValue -> BV -> Eval Value
 indexBack mblen a vs ix (bvVal -> idx) = indexBack_int mblen a vs ix idx
 
-indexBack_bits :: Nat' -> TValue -> SeqMap Concrete -> TValue -> [Bool] -> Eval Value
+indexBack_bits :: Nat' -> TValue -> SeqMap Concrete (GenValue Concrete) -> TValue -> [Bool] -> Eval Value
 indexBack_bits mblen a vs ix bs = indexBack mblen a vs ix =<< packWord Concrete bs
 
-indexBack_int :: Nat' -> TValue -> SeqMap Concrete -> TValue -> Integer -> Eval Value
+indexBack_int :: Nat' -> TValue -> SeqMap Concrete (GenValue Concrete) -> TValue -> Integer -> Eval Value
 indexBack_int mblen _a vs _ix idx =
   case mblen of
     Nat len -> lookupSeqMap vs (len - idx - 1)
@@ -591,10 +591,10 @@ indexBack_int mblen _a vs _ix idx =
 updateFront ::
   Nat'               {- ^ length of the sequence -} ->
   TValue             {- ^ type of values in the sequence -} ->
-  SeqMap Concrete    {- ^ sequence to update -} ->
+  SeqMap Concrete (GenValue Concrete) {- ^ sequence to update -} ->
   Either Integer (WordValue Concrete) {- ^ index -} ->
   Eval Value         {- ^ new value at index -} ->
-  Eval (SeqMap Concrete)
+  Eval (SeqMap Concrete (GenValue Concrete))
 updateFront _len _eltTy vs (Left idx) val = do
   return $ updateSeqMap vs idx val
 
@@ -619,10 +619,10 @@ updateFront_word _len _eltTy bs (Right w) val = do
 updateBack ::
   Nat'               {- ^ length of the sequence -} ->
   TValue             {- ^ type of values in the sequence -} ->
-  SeqMap Concrete    {- ^ sequence to update -} ->
+  SeqMap Concrete (GenValue Concrete) {- ^ sequence to update -} ->
   Either Integer (WordValue Concrete) {- ^ index -} ->
   Eval Value         {- ^ new value at index -} ->
-  Eval (SeqMap Concrete)
+  Eval (SeqMap Concrete (GenValue Concrete))
 updateBack Inf _eltTy _vs _w _val =
   evalPanic "Unexpected infinite sequence in updateEnd" []
 updateBack (Nat n) _eltTy vs (Left idx) val = do

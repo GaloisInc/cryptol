@@ -164,6 +164,7 @@ library
                        Cryptol.Backend.Concrete,
                        Cryptol.Backend.FloatHelpers,
                        Cryptol.Backend.Monad,
+                       Cryptol.Backend.SeqMap,
                        Cryptol.Backend.SBV,
                        Cryptol.Backend.What4,
 

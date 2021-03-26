@@ -969,7 +969,7 @@ joinWordVal sym w1 w2
   Concrete ->
   Integer ->
   Integer ->
-  SeqMap Concrete ->
+  SeqMap Concrete (GenValue Concrete)->
   SEval Concrete (GenValue Concrete)
   #-}
 joinWords :: forall sym.
@@ -977,7 +977,7 @@ joinWords :: forall sym.
   sym ->
   Integer ->
   Integer ->
-  SeqMap sym ->
+  SeqMap sym (GenValue sym) ->
   SEval sym (GenValue sym)
 joinWords sym nParts nEach xs =
   loop (WordVal <$> wordLit sym 0 0) (enumerateSeqMap nParts xs)
@@ -999,7 +999,7 @@ joinWords sym nParts nEach xs =
   Nat' ->
   Integer ->
   TValue ->
-  SeqMap Concrete ->
+  SeqMap Concrete (GenValue Concrete) ->
   SEval Concrete (GenValue Concrete)
   #-}
 joinSeq ::
@@ -1008,7 +1008,7 @@ joinSeq ::
   Nat' ->
   Integer ->
   TValue ->
-  SeqMap sym ->
+  SeqMap sym (GenValue sym) ->
   SEval sym (GenValue sym)
 
 -- Special case for 0 length inner sequences.
@@ -1568,9 +1568,9 @@ assertIndexInBounds sym (Nat n) (Right (LargeBitsVal w bits)) =
 indexPrim ::
   Backend sym =>
   sym ->
-  (Nat' -> TValue -> SeqMap sym -> TValue -> SInteger sym -> SEval sym (GenValue sym)) ->
-  (Nat' -> TValue -> SeqMap sym -> TValue -> [SBit sym] -> SEval sym (GenValue sym)) ->
-  (Nat' -> TValue -> SeqMap sym -> TValue -> SWord sym -> SEval sym (GenValue sym)) ->
+  (Nat' -> TValue -> SeqMap sym (GenValue sym) -> TValue -> SInteger sym -> SEval sym (GenValue sym)) ->
+  (Nat' -> TValue -> SeqMap sym (GenValue sym) -> TValue -> [SBit sym] -> SEval sym (GenValue sym)) ->
+  (Nat' -> TValue -> SeqMap sym (GenValue sym) -> TValue -> SWord sym -> SEval sym (GenValue sym)) ->
   Prim sym
 indexPrim sym int_op bits_op word_op =
   PNumPoly \len ->
@@ -1599,7 +1599,7 @@ updatePrim ::
   Backend sym =>
   sym ->
   (Nat' -> TValue -> WordValue sym -> Either (SInteger sym) (WordValue sym) -> SEval sym (GenValue sym) -> SEval sym (WordValue sym)) ->
-  (Nat' -> TValue -> SeqMap sym    -> Either (SInteger sym) (WordValue sym) -> SEval sym (GenValue sym) -> SEval sym (SeqMap sym)) ->
+  (Nat' -> TValue -> SeqMap sym (GenValue sym) -> Either (SInteger sym) (WordValue sym) -> SEval sym (GenValue sym) -> SEval sym (SeqMap sym (GenValue sym))) ->
   Prim sym
 updatePrim sym updateWord updateSeq =
   PNumPoly \len ->
@@ -1700,11 +1700,11 @@ infFromThenV sym =
 
 barrelShifter :: Backend sym =>
   sym ->
-  (SeqMap sym -> Integer -> SEval sym (SeqMap sym))
+  (SeqMap sym (GenValue sym) -> Integer -> SEval sym (SeqMap sym (GenValue sym)))
      {- ^ concrete shifting operation -} ->
-  SeqMap sym  {- ^ initial value -} ->
+  SeqMap sym (GenValue sym) {- ^ initial value -} ->
   [SBit sym]  {- ^ bits of shift amount, in big-endian order -} ->
-  SEval sym (SeqMap sym)
+  SEval sym (SeqMap sym (GenValue sym))
 barrelShifter sym shift_op = go
   where
   go x [] = return x
@@ -2059,9 +2059,9 @@ mergeValue sym c v1 v2 =
 mergeSeqMap :: Backend sym =>
   sym ->
   SBit sym ->
-  SeqMap sym ->
-  SeqMap sym ->
-  SeqMap sym
+  SeqMap sym (GenValue sym)->
+  SeqMap sym (GenValue sym)->
+  SeqMap sym (GenValue sym)
 mergeSeqMap sym c x y =
   IndexSeqMap $ \i ->
     iteValue sym c (lookupSeqMap x i) (lookupSeqMap y i)
@@ -2169,8 +2169,8 @@ sparkParMap ::
   sym ->
   (SEval sym (GenValue sym) -> SEval sym (GenValue sym)) ->
   Integer ->
-  SeqMap sym ->
-  SEval sym (SeqMap sym)
+  SeqMap sym (GenValue sym) ->
+  SEval sym (SeqMap sym (GenValue sym))
 sparkParMap sym f n m =
   finiteSeqMap <$> mapM (sSpark sym . g) (enumerateSeqMap n m)
  where
