@@ -9,6 +9,7 @@ import Control.Lens
 import Control.Monad.IO.Class
 import Control.Monad.Reader (ReaderT(ReaderT))
 import qualified Data.Aeson as JSON
+import Data.Containers.ListUtils (nubOrd)
 import Data.Text (Text)
 
 import Cryptol.Eval (EvalOpts(..))
@@ -143,9 +144,11 @@ defaultSolverConfig searchPath =
   , solverPreludePath = searchPath
   }
 
-setSearchPath :: [FilePath] -> ServerState -> ServerState
-setSearchPath paths =
-  over moduleEnv $ \me -> me { meSearchPath = paths ++ meSearchPath me }
+extendSearchPath :: [FilePath] -> ServerState -> ServerState
+extendSearchPath paths =
+  over moduleEnv $ \me -> me { meSearchPath = nubOrd $ paths ++ meSearchPath me }
+
+
 
 
 -- | Check that all of the modules loaded in the Cryptol environment

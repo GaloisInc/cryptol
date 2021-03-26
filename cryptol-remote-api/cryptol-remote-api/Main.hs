@@ -13,13 +13,14 @@ import qualified Argo.Doc as Doc
 
 
 import CryptolServer
-    ( command, notification, initialState, setSearchPath, ServerState )
+    ( command, notification, initialState, extendSearchPath, ServerState )
 import CryptolServer.Call ( call, callDescr )
-import CryptolServer.ChangeDir ( cd, cdDescr )
 import CryptolServer.ClearState
     ( clearState, clearStateDescr, clearAllStates, clearAllStatesDescr )
 import CryptolServer.EvalExpr
     ( evalExpression, evalExpressionDescr )
+import CryptolServer.ExtendSearchPath
+    ( extSearchPath, extSearchPathDescr )
 import CryptolServer.FocusedModule
     ( focusedModule, focusedModuleDescr )
 import CryptolServer.LoadModule
@@ -31,7 +32,7 @@ import CryptolServer.TypeCheck ( checkType, checkTypeDescr )
 main :: IO ()
 main =
   do paths <- getSearchPaths
-     initSt <- setSearchPath paths <$> initialState
+     initSt <- extendSearchPath paths <$> initialState
      theApp <- mkApp
                  "Cryptol RPC Server"
                  serverDocs
@@ -57,11 +58,7 @@ getSearchPaths =
 
 cryptolMethods :: [AppMethod ServerState]
 cryptolMethods =
-  [ command
-     "change directory"
-     cdDescr
-     cd
-  , notification
+  [ notification
     "clear state"
     clearStateDescr
     clearState
@@ -69,6 +66,10 @@ cryptolMethods =
     "clear all states"
     clearAllStatesDescr
     clearAllStates
+  , command
+     "extend search path"
+     extSearchPathDescr
+     extSearchPath
   , command
      "load module"
      loadModuleDescr

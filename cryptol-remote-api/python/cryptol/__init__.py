@@ -22,15 +22,6 @@ __all__ = ['cryptoltypes', 'solver']
 
 
 
-# Current status:
-#  It can currently launch a server, given a suitable command line as an argument. Try this:
-#  >>> c = CryptolConnection("cabal -v0 run cryptol-remote-api")
-#  >>> f = c.load_file(FILE)
-#  >>> f.result()
-#
-
-
-
 def extend_hex(string : str) -> str:
     if len(string) % 2 == 1:
         return '0' + string
@@ -101,6 +92,13 @@ class CryptolLoadModule(argo.Command):
 class CryptolLoadFile(argo.Command):
     def __init__(self, connection : HasProtocolState, filename : str) -> None:
         super(CryptolLoadFile, self).__init__('load file', {'file': filename}, connection)
+
+    def process_result(self, res : Any) -> Any:
+        return res
+
+class CryptolExtendSearchPath(argo.Command):
+    def __init__(self, connection : HasProtocolState, dirs : List[str]) -> None:
+        super(CryptolExtendSearchPath, self).__init__('extend search path', {'paths': dirs}, connection)
 
     def process_result(self, res : Any) -> Any:
         return res
@@ -360,6 +358,11 @@ class CryptolConnection:
         """Synonym for member method ``eval``.
         """
         return self.eval(expression)
+
+    def extend_search_path(self, *dir : str) -> argo.Command:
+        """Load a Cryptol module, like ``:module`` at the Cryptol REPL."""
+        self.most_recent_result = CryptolExtendSearchPath(self, list(dir))
+        return self.most_recent_result
 
     def call(self, fun : str, *args : List[Any]) -> argo.Command:
         encoded_args = [cryptoltypes.CryptolType().from_python(a) for a in args]
