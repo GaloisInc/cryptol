@@ -389,7 +389,7 @@ readBack ty val =
         return Unit
       | contents == TVBit
       , VWord width wv <- val ->
-        do BV w v <- wv >>= asWordVal C.Concrete
+        do BV w v <- asWordVal C.Concrete wv
            let hexStr = T.pack $ showHex v ""
            let paddedLen = fromIntegral ((width `quot` 4) + (if width `rem` 4 == 0 then 0 else 1))
            return $ Num Hex (T.justifyRight paddedLen '0' hexStr) w
