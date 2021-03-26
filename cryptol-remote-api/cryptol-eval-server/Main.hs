@@ -33,10 +33,12 @@ import qualified Argo.Doc as Doc
 
 
 import CryptolServer
-    ( ServerState, moduleEnv, tcSolver, initialState, setSearchPath, command, notification )
+    ( ServerState, moduleEnv, tcSolver, initialState, extendSearchPath, command, notification )
 import CryptolServer.Call ( call )
 import CryptolServer.EvalExpr
     ( evalExpressionDescr, evalExpression )
+import CryptolServer.ExtendSearchPath
+    ( extSearchPath, extSearchPathDescr )
 import CryptolServer.FocusedModule
     ( focusedModuleDescr, focusedModule )
 import CryptolServer.Names ( visibleNamesDescr, visibleNames )
@@ -56,7 +58,7 @@ main = customMain initMod initMod initMod initMod description buildApp
 
     startingState (StartingFile file) reader =
       do paths <- getSearchPaths
-         initSt <- setSearchPath paths <$> initialState
+         initSt <- extendSearchPath paths <$> initialState
          let s    = view tcSolver initSt
          let menv = view moduleEnv initSt
          let minp = ModuleInput False (pure evOpts) reader menv s
@@ -125,6 +127,10 @@ cryptolEvalMethods =
      "evaluate expression"
      evalExpressionDescr
      evalExpression
+  , command
+     "extend search path"
+     extSearchPathDescr
+     extSearchPath
   , command
      "call"
      (Doc.Paragraph [Doc.Text "Evaluate the result of calling a Cryptol function on one or more parameters."])
