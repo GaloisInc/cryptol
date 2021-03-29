@@ -560,7 +560,7 @@ by corresponding type classes:
 
 * Comparison: `<`, `>`, `<=`, `>=`, `==`, `!=`
 
-* Sequences: `#`, `join`, `split`, `splitAt`, `reverse`, `transpose`
+* Sequences: `#`, `join`, `split`, `take`, `drop`, `reverse`, `transpose`
 
 * Shifting: `<<`, `>>`, `<<<`, `>>>`
 
@@ -734,17 +734,21 @@ by corresponding type classes:
 >                           do vs <- fromVList <$> val
 >                              indexFront (nMul parts (Nat each)) vs (i * each + j)
 >
->   , "splitAt"    ~> vFinPoly $ \front -> pure $
+>   , "take"       ~> VNumPoly $ \front -> pure $
+>                     VNumPoly $ \back  -> pure $
+>                     VPoly    $ \_a    -> pure $
+>                     VFun     $ \v ->
+>                       pure $ generateV front $ \i ->
+>                                do vs <- fromVList <$> v
+>                                   indexFront (nAdd front back) vs i
+>
+>   , "drop"       ~> vFinPoly $ \front -> pure $
 >                     VNumPoly $ \back -> pure $
 >                     VPoly $ \_a -> pure $
 >                     VFun $ \v ->
->                       let xs = pure $ generateV (Nat front) $ \i ->
->                                  do vs <- fromVList <$> v
->                                     indexFront (nAdd (Nat front) back) vs i
->                           ys = pure $ generateV back $ \i ->
->                                  do vs <- fromVList <$> v
->                                     indexFront (nAdd (Nat front) back) vs (front+i)
->                        in pure (VTuple [ xs, ys ])
+>                       pure $ generateV back $ \i ->
+>                                do vs <- fromVList <$> v
+>                                   indexFront (nAdd (Nat front) back) vs (front+i)
 >
 >   , "reverse"    ~> vFinPoly $ \n -> pure $
 >                     VPoly $ \_a -> pure $
