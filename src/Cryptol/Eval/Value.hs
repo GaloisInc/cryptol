@@ -75,6 +75,7 @@ module Cryptol.Eval.Value
   , concatSeqMap
   , splitSeqMap
   , memoMap
+  , delaySeqMap
   , zipSeqMap
   , mapSeqMap
 
@@ -188,7 +189,7 @@ forceValue v = case v of
 
 
 
-instance Backend sym => Show (GenValue sym) where
+instance Show (GenValue sym) where
   show v = case v of
     VRecord fs -> "record:" ++ show (displayOrder fs)
     VTuple xs  -> "tuple:" ++ show (length xs)
@@ -394,47 +395,47 @@ mkSeq len elty vals = case len of
 fromVBit :: GenValue sym -> SBit sym
 fromVBit val = case val of
   VBit b -> b
-  _      -> evalPanic "fromVBit" ["not a Bit"]
+  _      -> evalPanic "fromVBit" ["not a Bit", show val]
 
 -- | Extract an integer value.
 fromVInteger :: GenValue sym -> SInteger sym
 fromVInteger val = case val of
   VInteger i -> i
-  _      -> evalPanic "fromVInteger" ["not an Integer"]
+  _      -> evalPanic "fromVInteger" ["not an Integer", show val]
 
 -- | Extract a rational value.
 fromVRational :: GenValue sym -> SRational sym
 fromVRational val = case val of
   VRational q -> q
-  _      -> evalPanic "fromVRational" ["not a Rational"]
+  _      -> evalPanic "fromVRational" ["not a Rational", show val]
 
 -- | Extract a finite sequence value.
 fromVSeq :: GenValue sym -> SeqMap sym (GenValue sym)
 fromVSeq val = case val of
   VSeq _ vs -> vs
-  _         -> evalPanic "fromVSeq" ["not a sequence"]
+  _         -> evalPanic "fromVSeq" ["not a sequence", show val]
 
 -- | Extract a sequence.
 fromSeq :: Backend sym => String -> GenValue sym -> SEval sym (SeqMap sym (GenValue sym))
 fromSeq msg val = case val of
   VSeq _ vs   -> return vs
   VStream vs  -> return vs
-  _           -> evalPanic "fromSeq" ["not a sequence", msg]
+  _           -> evalPanic "fromSeq" ["not a sequence", msg, show val]
 
 fromWordVal :: Backend sym => String -> GenValue sym -> WordValue sym
 fromWordVal _msg (VWord _ wval) = wval
-fromWordVal msg _ = evalPanic "fromWordVal" ["not a word value", msg]
+fromWordVal msg val = evalPanic "fromWordVal" ["not a word value", msg, show val]
 
 asIndex :: Backend sym =>
   sym -> String -> TValue -> GenValue sym -> Either (SInteger sym) (WordValue sym)
 asIndex _sym _msg TVInteger (VInteger i) = Left i
 asIndex _sym _msg _ (VWord _ wval) = Right wval
-asIndex _sym  msg _ _ = evalPanic "asIndex" ["not an index value", msg]
+asIndex _sym  msg _ val = evalPanic "asIndex" ["not an index value", msg, show val]
 
 -- | Extract a packed word.
 fromVWord :: Backend sym => sym -> String -> GenValue sym -> SEval sym (SWord sym)
 fromVWord sym _msg (VWord _ wval) = asWordVal sym wval
-fromVWord _ msg _ = evalPanic "fromVWord" ["not a word", msg]
+fromVWord _ msg val = evalPanic "fromVWord" ["not a word", msg, show val]
 
 vWordLen :: Backend sym => GenValue sym -> Maybe Integer
 vWordLen val = case val of
@@ -456,46 +457,46 @@ fromVFun :: Backend sym => sym -> GenValue sym -> (SEval sym (GenValue sym) -> S
 fromVFun sym val = case val of
   VFun fnstk f ->
     \x -> sModifyCallStack sym (\stk -> combineCallStacks stk fnstk) (f x)
-  _ -> evalPanic "fromVFun" ["not a function"]
+  _ -> evalPanic "fromVFun" ["not a function", show val]
 
 -- | Extract a polymorphic function from a value.
 fromVPoly :: Backend sym => sym -> GenValue sym -> (TValue -> SEval sym (GenValue sym))
 fromVPoly sym val = case val of
   VPoly fnstk f ->
     \x -> sModifyCallStack sym (\stk -> combineCallStacks stk fnstk) (f x)
-  _ -> evalPanic "fromVPoly" ["not a polymorphic value"]
+  _ -> evalPanic "fromVPoly" ["not a polymorphic value", show val]
 
 -- | Extract a polymorphic function from a value.
 fromVNumPoly :: Backend sym => sym -> GenValue sym -> (Nat' -> SEval sym (GenValue sym))
 fromVNumPoly sym val = case val of
   VNumPoly fnstk f ->
     \x -> sModifyCallStack sym (\stk -> combineCallStacks stk fnstk) (f x)
-  _  -> evalPanic "fromVNumPoly" ["not a polymorphic value"]
+  _  -> evalPanic "fromVNumPoly" ["not a polymorphic value", show val]
 
 -- | Extract a tuple from a value.
 fromVTuple :: GenValue sym -> [SEval sym (GenValue sym)]
 fromVTuple val = case val of
   VTuple vs -> vs
-  _         -> evalPanic "fromVTuple" ["not a tuple"]
+  _         -> evalPanic "fromVTuple" ["not a tuple", show val]
 
 -- | Extract a record from a value.
 fromVRecord :: GenValue sym -> RecordMap Ident (SEval sym (GenValue sym))
 fromVRecord val = case val of
   VRecord fs -> fs
-  _          -> evalPanic "fromVRecord" ["not a record"]
+  _          -> evalPanic "fromVRecord" ["not a record", show val]
 
 fromVFloat :: GenValue sym -> SFloat sym
 fromVFloat val =
   case val of
     VFloat x -> x
-    _        -> evalPanic "fromVFloat" ["not a Float"]
+    _        -> evalPanic "fromVFloat" ["not a Float", show val]
 
 -- | Lookup a field in a record.
 lookupRecord :: Ident -> GenValue sym -> SEval sym (GenValue sym)
 lookupRecord f val =
   case lookupField f (fromVRecord val) of
     Just x  -> x
-    Nothing -> evalPanic "lookupRecord" ["malformed record"]
+    Nothing -> evalPanic "lookupRecord" ["malformed record", show val]
 
 
 -- Merge and if/then/else
@@ -532,7 +533,7 @@ mergeValue sym c v1 v2 =
     (VRecord fs1 , VRecord fs2 ) ->
       do let res = zipRecords (\_lbl -> mergeValue' sym c) fs1 fs2
          case res of
-           Left f -> panic "Cryptol.Eval.Generic" [ "mergeValue: incompatible record values", show f ]
+           Left f -> panic "Cryptol.Eval.Value" [ "mergeValue: incompatible record values", show f ]
            Right r -> pure (VRecord r)
     (VTuple vs1  , VTuple vs2  ) | length vs1 == length vs2  ->
                                   pure $ VTuple $ zipWith (mergeValue' sym c) vs1 vs2
@@ -545,8 +546,8 @@ mergeValue sym c v1 v2 =
     (VStream vs1 , VStream vs2 ) -> VStream <$> memoMap sym (mergeSeqMapVal sym c vs1 vs2)
     (f1@VFun{}   , f2@VFun{}   ) -> lam sym $ \x -> mergeValue' sym c (fromVFun sym f1 x) (fromVFun sym f2 x)
     (f1@VPoly{}  , f2@VPoly{}  ) -> tlam sym $ \x -> mergeValue' sym c (fromVPoly sym f1 x) (fromVPoly sym f2 x)
-    (_           , _           ) -> panic "Cryptol.Eval.Generic"
-                                  [ "mergeValue: incompatible values" ]
+    (_           , _           ) -> panic "Cryptol.Eval.Value"
+                                  [ "mergeValue: incompatible values", show v1, show v2 ]
 
 {-# INLINE mergeSeqMapVal #-}
 mergeSeqMapVal :: Backend sym =>

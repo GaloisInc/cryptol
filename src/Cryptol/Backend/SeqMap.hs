@@ -38,6 +38,7 @@ module Cryptol.Backend.SeqMap
   , concatSeqMap
   , splitSeqMap
   , memoMap
+  , delaySeqMap
   , zipSeqMap
   , mapSeqMap
   , mergeSeqMap
@@ -129,6 +130,11 @@ splitSeqMap n xs = (hd,tl)
 dropSeqMap :: Integer -> SeqMap sym a -> SeqMap sym a
 dropSeqMap 0 xs = xs
 dropSeqMap n xs = IndexSeqMap $ \i -> lookupSeqMap xs (i+n)
+
+delaySeqMap :: Backend sym => sym -> SEval sym (SeqMap sym a) -> SEval sym (SeqMap sym a)
+delaySeqMap sym xs =
+  do xs' <- sDelay sym xs
+     pure $ IndexSeqMap $ \i -> do m <- xs'; lookupSeqMap m i
 
 -- | Given a sequence map, return a new sequence map that is memoized using
 --   a finite map memo table.

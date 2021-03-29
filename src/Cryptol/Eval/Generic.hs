@@ -1005,48 +1005,50 @@ joinV sym parts each a val = joinSeq sym parts each a =<< fromSeq "joinV" val
 
 
 
-{-# INLINE splitAtV #-}
-splitAtV ::
+{-# INLINE takeV #-}
+takeV ::
   Backend sym =>
   sym ->
   Nat' ->
   Nat' ->
   TValue ->
-  GenValue sym ->
+  SEval sym (GenValue sym) ->
   SEval sym (GenValue sym)
-splitAtV sym front back a val =
+takeV sym front back a val =
+  case front of
+    Inf -> val
+    Nat front' ->
+      case back of
+        Nat back' | isTBit a ->
+          do w <- delayWordValue sym front' (fst <$> (splitWordVal sym front' back' =<< (fromWordVal "takeV" <$> val)))
+             pure (VWord front' w)
+
+        Inf | isTBit a ->
+          do w <- delayWordValue sym front' (largeBitsVal front' . fmap fromVBit <$> (fromSeq "takeV" =<< val))
+             pure (VWord front' w)
+
+        _ ->
+          do xs <- delaySeqMap sym (fromSeq "takeV" =<< val)
+             pure (VSeq front' xs)
+
+{-# INLINE dropV #-}
+dropV ::
+  Backend sym =>
+  sym ->
+  Integer ->
+  Nat' ->
+  TValue ->
+  SEval sym (GenValue sym) ->
+  SEval sym (GenValue sym)
+dropV sym front back a val =
   case back of
+    Nat back' | isTBit a ->
+      do w <- delayWordValue sym back' (snd <$> (splitWordVal sym front back' =<< (fromWordVal "dropV" <$> val)))
+         pure (VWord back' w)
 
-    Nat rightWidth | aBit -> do
-          ws <- sDelay sym (splitWordVal sym leftWidth rightWidth (fromWordVal "splitAtV" val))
-          return $ VTuple
-                   [ VWord leftWidth  . fst <$> ws
-                   , VWord rightWidth . snd <$> ws
-                   ]
-
-    Inf | aBit -> do
-       vs <- sDelay sym (fromSeq "splitAtV" val)
-       ls <- sDelay sym (fmap fromVBit . fst . splitSeqMap leftWidth <$> vs)
-       rs <- sDelay sym (snd . splitSeqMap leftWidth <$> vs)
-       return $ VTuple [ VWord leftWidth . largeBitsVal leftWidth <$> ls
-                       , VStream <$> rs
-                       ]
-
-    _ -> do
-       vs <- sDelay sym (fromSeq "splitAtV" val)
-       ls <- sDelay sym (fst . splitSeqMap leftWidth <$> vs)
-       rs <- sDelay sym (snd . splitSeqMap leftWidth <$> vs)
-       return $ VTuple [ VSeq leftWidth <$> ls
-                       , mkSeq back a <$> rs
-                       ]
-
-  where
-  aBit = isTBit a
-
-  leftWidth = case front of
-    Nat n -> n
-    _     -> evalPanic "splitAtV" ["invalid `front` len"]
-
+    _ ->
+      do xs <- delaySeqMap sym (dropSeqMap front <$> (fromSeq "dropV" =<< val))
+         pure $ mkSeq back a xs
 
 
 {-# INLINE ecSplitV #-}
@@ -2055,12 +2057,19 @@ genericPrimTable sym getEOpts =
   , ("split"      , {-# SCC "Prelude::split" #-}
                     ecSplitV sym)
 
-  , ("splitAt"    , {-# SCC "Prelude::splitAt" #-}
+  , ("take"       , {-# SCC "Preldue::take" #-}
                     PNumPoly \front ->
-                    PNumPoly \back  ->
-                    PTyPoly  \a     ->
-                    PStrict  \x   ->
-                    PPrim $ splitAtV sym front back a x)
+                    PNumPoly \back ->
+                    PTyPoly  \a ->
+                    PFun     \xs ->
+                    PPrim $ takeV sym front back a xs)
+
+  , ("drop"       , {-# SCC "Preldue::take" #-}
+                    PFinPoly \front ->
+                    PNumPoly \back ->
+                    PTyPoly  \a ->
+                    PFun     \xs ->
+                    PPrim $ dropV sym front back a xs)
 
   , ("reverse"    , {-# SCC "Prelude::reverse" #-}
                     PFinPoly \_a ->
