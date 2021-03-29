@@ -106,6 +106,7 @@ module Cryptol.Eval.Value
   , wordShiftByInt
   , wordShiftByWord
   , wordValAsLit
+  , reverseWordVal
   , forceWordValue
 
     -- * Merge and if/then/else

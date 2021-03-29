@@ -943,14 +943,13 @@ zeroV sym ty = case ty of
 
   TVNewtype {} -> evalPanic "zeroV" [ "Newtype not in `Zero`" ]
 
---  | otherwise = evalPanic "zeroV" ["invalid type for zero"]
 
 {-# SPECIALIZE joinSeq ::
   Concrete ->
   Nat' ->
   Integer ->
   TValue ->
-  SeqMap Concrete (GenValue Concrete) ->
+  SEval Concrete (SeqMap Concrete (GenValue Concrete)) ->
   SEval Concrete (GenValue Concrete)
   #-}
 joinSeq ::
@@ -959,28 +958,32 @@ joinSeq ::
   Nat' ->
   Integer ->
   TValue ->
-  SeqMap sym (GenValue sym) ->
+  SEval sym (SeqMap sym (GenValue sym)) ->
   SEval sym (GenValue sym)
 
 -- Special case for 0 length inner sequences.
-joinSeq sym _parts 0 a _xs
+joinSeq sym _parts 0 a _val
   = zeroV sym (TVSeq 0 a)
 
 -- finite sequence of words
-joinSeq sym (Nat parts) each TVBit xs
-  = VWord (parts*each) <$> joinWords sym parts each (fromWordVal "joinSeq" <$> xs)
+joinSeq sym (Nat parts) each TVBit val
+  = do w <- delayWordValue sym (parts*each)
+              (joinWords sym parts each . fmap (fromWordVal "joinV") =<< val)
+       pure (VWord (parts*each) w)
 
 -- infinite sequence of words
-joinSeq sym Inf each TVBit xs
+joinSeq sym Inf each TVBit val
   = return $ VStream $ indexSeqMap $ \i ->
       do let (q,r) = divMod i each
+         xs <- val
          ys <- fromWordVal "join seq" <$> lookupSeqMap xs q
          VBit <$> indexWordValue sym ys r
 
 -- finite or infinite sequence of non-words
-joinSeq _sym parts each _a xs
+joinSeq _sym parts each _a val
   = return $ vSeq $ indexSeqMap $ \i -> do
       let (q,r) = divMod i each
+      xs <- val
       ys <- fromSeq "join seq" =<< lookupSeqMap xs q
       lookupSeqMap ys r
   where
@@ -999,11 +1002,11 @@ joinV ::
   Nat' ->
   Integer ->
   TValue ->
-  GenValue sym ->
+  SEval sym (GenValue sym) ->
   SEval sym (GenValue sym)
-joinV sym parts each a val = joinSeq sym parts each a =<< fromSeq "joinV" val
-
-
+joinV sym parts each a val =
+  do xs <- sDelay sym (fromSeq "joinV" =<< val)
+     joinSeq sym parts each a xs
 
 {-# INLINE takeV #-}
 takeV ::
@@ -1051,59 +1054,62 @@ dropV sym front back a val =
          pure $ mkSeq back a xs
 
 
-{-# INLINE ecSplitV #-}
+{-# INLINE splitV #-}
 
 -- | Split implementation.
-ecSplitV :: Backend sym => sym -> Prim sym
-ecSplitV sym =
-  PNumPoly \parts ->
-  PNumPoly \each ->
-  PTyPoly  \a ->
-  PFun     \val ->
-  PPrim
+splitV :: Backend sym =>
+  sym ->
+  Nat' ->
+  Integer ->
+  TValue ->
+  SEval sym (GenValue sym) ->
+  SEval sym (GenValue sym)
+splitV sym parts each a val =
     case (parts, each) of
-       (Nat p, Nat e) | isTBit a -> do
-          ~(VWord _ val') <- val
+       (Nat p, e) | isTBit a -> do
+          val' <- sDelay sym (fromWordVal "splitV" <$> val)
           return $ VSeq p $ indexSeqMap $ \i ->
-            VWord e <$> extractWordVal sym e ((p-i-1)*e) val'
-       (Inf, Nat e) | isTBit a -> do
-          val' <- sDelay sym (fromSeq "ecSplitV" =<< val)
+            VWord e <$> (extractWordVal sym e ((p-i-1)*e) =<< val')
+       (Inf, e) | isTBit a -> do
+          val' <- sDelay sym (fromSeq "splitV" =<< val)
           return $ VStream $ indexSeqMap $ \i ->
             return $ VWord e $ largeBitsVal e $ indexSeqMap $ \j ->
               let idx = i*e + toInteger j
                in idx `seq` do
                       xs <- val'
                       fromVBit <$> lookupSeqMap xs idx
-       (Nat p, Nat e) -> do
-          val' <- sDelay sym (fromSeq "ecSplitV" =<< val)
+       (Nat p, e) -> do
+          val' <- sDelay sym (fromSeq "splitV" =<< val)
           return $ VSeq p $ indexSeqMap $ \i ->
             return $ VSeq e $ indexSeqMap $ \j -> do
               xs <- val'
               lookupSeqMap xs (e * i + j)
-       (Inf  , Nat e) -> do
-          val' <- sDelay sym (fromSeq "ecSplitV" =<< val)
+       (Inf  , e) -> do
+          val' <- sDelay sym (fromSeq "splitV" =<< val)
           return $ VStream $ indexSeqMap $ \i ->
             return $ VSeq e $ indexSeqMap $ \j -> do
               xs <- val'
               lookupSeqMap xs (e * i + j)
-       _              -> evalPanic "splitV" ["invalid type arguments to split"]
+
 
 {-# INLINE reverseV #-}
 
 reverseV :: forall sym.
   Backend sym =>
   sym ->
-  GenValue sym ->
+  Integer ->
+  TValue ->
+  SEval sym (GenValue sym) ->
   SEval sym (GenValue sym)
-reverseV _ (VSeq n xs) =
-  return $ VSeq n $ reverseSeqMap n xs
-reverseV sym (VWord n x) = pure (VWord n (revword x))
- where
- revword wv =
-   let m = wordValueSize sym wv in
-   largeBitsVal m $ reverseSeqMap m $ asBitsMap sym wv
-reverseV _ _ =
-  evalPanic "reverseV" ["Not a finite sequence"]
+
+reverseV sym n TVBit val =
+  do w <- delayWordValue sym n (reverseWordVal sym . fromWordVal "reverseV" =<< val)
+     pure (VWord n w)
+
+reverseV sym n _a val =
+  do xs <- delaySeqMap sym (reverseSeqMap n <$> (fromSeq "reverseV" =<< val))
+     pure (VSeq n xs)
+
 
 {-# INLINE transposeV #-}
 
@@ -2051,11 +2057,15 @@ genericPrimTable sym getEOpts =
                     PNumPoly \parts ->
                     PFinPoly \each  ->
                     PTyPoly  \a     ->
-                    PStrict  \x   ->
+                    PFun     \x   ->
                     PPrim $ joinV sym parts each a x)
 
   , ("split"      , {-# SCC "Prelude::split" #-}
-                    ecSplitV sym)
+                    PNumPoly \parts ->
+                    PFinPoly \each ->
+                    PTyPoly  \a ->
+                    PFun     \val ->
+                    PPrim $ splitV sym parts each a val)
 
   , ("take"       , {-# SCC "Preldue::take" #-}
                     PNumPoly \front ->
@@ -2072,17 +2082,17 @@ genericPrimTable sym getEOpts =
                     PPrim $ dropV sym front back a xs)
 
   , ("reverse"    , {-# SCC "Prelude::reverse" #-}
-                    PFinPoly \_a ->
-                    PTyPoly  \_b ->
-                    PStrict  \xs ->
-                    PPrim $ reverseV sym xs)
+                    PFinPoly \a ->
+                    PTyPoly  \b ->
+                    PFun     \xs ->
+                    PPrim $ reverseV sym a b xs)
 
   , ("transpose"  , {-# SCC "Prelude::transpose" #-}
                     PNumPoly \a ->
                     PNumPoly \b ->
                     PTyPoly  \c ->
-                    PStrict  \xs ->
-                    PPrim $ transposeV sym a b c xs)
+                    PFun     \xs ->
+                    PPrim $ transposeV sym a b c =<< xs)
 
     -- Misc
 

@@ -49,6 +49,7 @@ module Cryptol.Backend.WordValue
   , wordShiftByInt
   , wordShiftByWord
   , wordValAsLit
+  , reverseWordVal
   , forceWordValue
 
   , enumerateIntBits'
@@ -245,6 +246,11 @@ joinWords sym nParts nEach xs =
             do let (q,r) = divMod i nEach
                ys <- lookupSeqMap xs q
                indexWordValue sym ys r
+
+reverseWordVal :: Backend sym => sym -> WordValue sym -> SEval sym (WordValue sym)
+reverseWordVal sym w =
+  let m = wordValueSize sym w in
+  pure $ largeBitsVal m $ reverseSeqMap m $ asBitsMap sym w
 
 wordValAsLit :: Backend sym => sym -> WordValue sym -> Maybe Integer
 wordValAsLit sym (WordVal w) = snd <$> wordAsLit sym w
