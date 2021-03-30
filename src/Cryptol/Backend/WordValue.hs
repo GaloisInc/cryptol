@@ -46,11 +46,13 @@ module Cryptol.Backend.WordValue
   , lazyViewWordOrBitsMap
   , delayWordValue
   , joinWords
+  , seqShiftByWord
   , wordShiftByInt
   , wordShiftByWord
   , wordValAsLit
   , reverseWordVal
   , forceWordValue
+  , wordValueEqualsInteger
 
   , enumerateIntBits'
   , mergeWord
@@ -262,6 +264,30 @@ asWordVal _   (WordVal w)         = return w
 asWordVal sym (ThunkWordVal _ m)  = asWordVal sym =<< m
 asWordVal sym (LargeBitsVal n xs) = packWord sym =<< sequence (enumerateSeqMap n xs)
 
+wordValueEqualsInteger :: forall sym. Backend sym =>
+  sym ->
+  WordValue sym ->
+  Integer ->
+  SEval sym (SBit sym)
+wordValueEqualsInteger sym wv i
+  | wordValueSize sym wv < widthInteger i = return (bitLit sym False)
+  | otherwise =
+      viewWordOrBits sym
+        (\w  -> wordEq sym w =<< wordLit sym (wordLen sym w) i)
+        (\bs -> bitsAre i (reverse bs)) -- little-endian
+        wv
+
+ where
+   bitsAre :: Integer -> [SBit sym] -> SEval sym (SBit sym)
+   bitsAre !n [] = return (bitLit sym (n == 0))
+   bitsAre !n (b:bs) =
+     do pb  <- bitIs (testBit n 0) b
+        pbs <- bitsAre (n `shiftR` 1) bs
+        bitAnd sym pb pbs
+
+   bitIs :: Bool -> SBit sym -> SEval sym (SBit sym)
+   bitIs b x = if b then pure x else bitComplement sym x
+
 asWordList :: forall sym. Backend sym => sym -> [WordValue sym] -> SEval sym (Maybe [SWord sym])
 asWordList sym = loop id
  where
@@ -450,23 +476,42 @@ wordShiftByInt sym wop reindex idx x =
           Just i' -> lookupSeqMap vs i'
 
 
-
+seqShiftByWord  ::
+  Backend sym =>
+  sym ->
+  (SBit sym -> a -> a -> SEval sym a) ->
+  (Integer -> Integer -> Maybe Integer) ->
+  SEval sym a ->
+  SeqMap sym a ->
+  WordValue sym ->
+  SEval sym (SeqMap sym a)
+seqShiftByWord sym merge reindex zro xs idx =
+  do idx_bits <- enumerateWordValue sym idx
+     barrelShifter sym merge shiftOp xs idx_bits
+ where
+   shiftOp vs shft =
+     memoMap sym $ indexSeqMap $ \i ->
+       case reindex i shft of
+         Nothing -> zro
+         Just i' -> lookupSeqMap vs i'
 
 wordShiftByWord ::
   Backend sym =>
   sym ->
   (SWord sym -> SWord sym -> SEval sym (SWord sym)) ->
   (Integer -> Integer -> Maybe Integer) ->
-  WordValue sym ->
-  WordValue sym ->
+  WordValue sym {- ^ value to shift -} ->
+  WordValue sym {- ^ amount to shift -} ->
   SEval sym (WordValue sym)
-wordShiftByWord sym wop reindex idx x =
+wordShiftByWord sym wop reindex x idx =
   case x of
     ThunkWordVal w wm
       | isReady sym wm ->
-          wordShiftByWord sym wop reindex idx =<< wm
+          do wm' <- wm
+             wordShiftByWord sym wop reindex wm' idx
       | otherwise ->
-         do m' <- sDelay sym (wordShiftByWord sym wop reindex idx =<< wm)
+         do m' <- sDelay sym (do wm' <- wm
+                                 wordShiftByWord sym wop reindex wm' idx)
             return (ThunkWordVal w m')
 
     WordVal x' -> WordVal <$> (wop x' =<< asWordVal sym idx)

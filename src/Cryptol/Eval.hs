@@ -40,6 +40,8 @@ module Cryptol.Eval (
 import Cryptol.Backend
 import Cryptol.Backend.Concrete( Concrete(..) )
 import Cryptol.Backend.Monad
+import Cryptol.Backend.WordValue
+
 import Cryptol.Eval.Env
 import Cryptol.Eval.Prims
 import Cryptol.Eval.Type

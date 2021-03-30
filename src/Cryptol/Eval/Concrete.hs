@@ -42,6 +42,7 @@ import Cryptol.Backend
 import Cryptol.Backend.Concrete
 import Cryptol.Backend.FloatHelpers
 import Cryptol.Backend.Monad
+import Cryptol.Backend.WordValue
 
 import Cryptol.Eval.Generic hiding (logicShift)
 import Cryptol.Eval.Prims

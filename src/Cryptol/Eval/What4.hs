@@ -40,6 +40,7 @@ import qualified What4.Utils.AbstractDomains as W4
 
 import Cryptol.Backend
 import Cryptol.Backend.Monad ( EvalError(..), Unsupported(..) )
+import Cryptol.Backend.WordValue
 import Cryptol.Backend.What4
 
 import Cryptol.Eval.Generic
@@ -47,9 +48,10 @@ import Cryptol.Eval.Prims
 import Cryptol.Eval.Type (TValue(..))
 import Cryptol.Eval.Value
 
+
 import qualified Cryptol.SHA as SHA
 
-import Cryptol.TypeCheck.Solver.InfNat( Nat'(..), widthInteger )
+import Cryptol.TypeCheck.Solver.InfNat( Nat'(..) )
 
 import Cryptol.Utils.Ident
 import Cryptol.Utils.Panic
@@ -691,34 +693,6 @@ indexBack_bits ::
 indexBack_bits sym (Nat n) a xs ix idx = indexFront_bits sym (Nat n) a (reverseSeqMap n xs) ix idx
 indexBack_bits _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["indexBack_bits"]
 
-
--- | Compare a symbolic word value with a concrete integer.
-wordValueEqualsInteger :: forall sym.
-  W4.IsSymExprBuilder sym =>
-  What4 sym ->
-  WordValue (What4 sym) ->
-  Integer ->
-  W4Eval sym (W4.Pred sym)
-wordValueEqualsInteger sym wv i
-  | wordValueSize sym wv < widthInteger i = return (W4.falsePred w4sym)
-  | otherwise =
-      viewWordOrBits sym
-        (\w -> liftIO (SW.bvEq w4sym w =<< SW.bvLit w4sym (SW.bvWidth w) i))
-        (\bs -> liftIO (bitsAre i (reverse bs))) -- little-endian
-        wv
-
-  where
-    w4sym = w4 sym
-
-    bitsAre :: Integer -> [W4.Pred sym] -> IO (W4.Pred sym)
-    bitsAre n [] = pure (W4.backendPred w4sym (n == 0))
-    bitsAre n (b : bs) =
-      do pb  <- bitIs (testBit n 0) b
-         pbs <- bitsAre (n `shiftR` 1) bs
-         W4.andPred w4sym pb pbs
-
-    bitIs :: Bool -> W4.Pred sym -> IO (W4.Pred sym)
-    bitIs b x = if b then pure x else W4.notPred w4sym x
 
 updateFrontSym ::
   W4.IsSymExprBuilder sym =>

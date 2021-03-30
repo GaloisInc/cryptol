@@ -79,36 +79,6 @@ module Cryptol.Eval.Value
   , zipSeqMap
   , mapSeqMap
 
-    -- * WordValue
-  , WordValue
-  , wordVal
-  , largeBitsVal
-  , asWordList
-  , asWordVal
-  , asBitsMap
-  , joinWordVal
-  , splitWordVal
-  , extractWordVal
-  , wordValLogicOp
-  , wordValUnaryOp
-  , assertWordValueInBounds
-  , enumerateWordValue
-  , enumerateWordValueRev
-  , wordValueSize
-  , indexWordValue
-  , updateWordValue
-  , viewWordOrBits
-  , viewWordOrBitsMap
-  , lazyViewWordOrBits
-  , lazyViewWordOrBitsMap
-  , delayWordValue
-  , joinWords
-  , wordShiftByInt
-  , wordShiftByWord
-  , wordValAsLit
-  , reverseWordVal
-  , forceWordValue
-
     -- * Merge and if/then/else
   , iteValue
   , mergeWord

@@ -32,12 +32,13 @@ import Data.SBV.Dynamic as SBV
 import Cryptol.Backend
 import Cryptol.Backend.Monad ( EvalError(..), Unsupported(..) )
 import Cryptol.Backend.SBV
+import Cryptol.Backend.WordValue
 
 import Cryptol.Eval.Type (TValue(..))
 import Cryptol.Eval.Generic
 import Cryptol.Eval.Prims
 import Cryptol.Eval.Value
-import Cryptol.TypeCheck.Solver.InfNat (Nat'(..), widthInteger)
+import Cryptol.TypeCheck.Solver.InfNat (Nat'(..))
 import Cryptol.Utils.Ident
 
 -- Values ----------------------------------------------------------------------
@@ -181,25 +182,6 @@ indexBack_bits ::
   SEval SBV Value
 indexBack_bits sym (Nat n) a xs ix idx = indexFront_bits sym (Nat n) a (reverseSeqMap n xs) ix idx
 indexBack_bits _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["indexBack_bits"]
-
-
--- | Compare a symbolic word value with a concrete integer.
-wordValueEqualsInteger :: SBV -> WordValue SBV -> Integer -> SEval SBV (SBit SBV)
-wordValueEqualsInteger sym wv i
-  | wordValueSize sym wv < widthInteger i = return SBV.svFalse
-  | otherwise =
-      viewWordOrBits sym
-        (\w  -> return $ SBV.svEqual w (literalSWord (SBV.intSizeOf w) i))
-        (\bs -> return $ bitsAre i (reverse bs))
-        wv
-
-  where
-    bitsAre :: Integer -> [SBit SBV] -> SBit SBV
-    bitsAre n [] = SBV.svBool (n == 0)
-    bitsAre n (b : bs) = SBV.svAnd (bitIs (odd n) b) (bitsAre (n `div` 2) bs)
-
-    bitIs :: Bool -> SBit SBV -> SBit SBV
-    bitIs b x = if b then x else SBV.svNot x
 
 
 updateFrontSym ::

@@ -19,6 +19,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE BangPatterns #-}
+
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Cryptol.Eval.Generic where
 
@@ -39,6 +40,7 @@ import Cryptol.Backend
 import Cryptol.Backend.Concrete (Concrete(..))
 import Cryptol.Backend.Monad( Eval, evalPanic, EvalError(..), Unsupported(..) )
 import Cryptol.Testing.Random( randomValue )
+import Cryptol.Backend.WordValue
 
 import Cryptol.Eval.Prims
 import Cryptol.Eval.Type
@@ -1630,26 +1632,12 @@ wordShifter :: Backend sym =>
    GenValue sym ->
    WordValue sym ->
    SEval sym (GenValue sym)
-wordShifter sym nm wop reindex m a xs0 idx = go xs0
-  where
-    shiftOp vs shft =
-          memoMap sym $ indexSeqMap $ \i ->
-            case reindex m i shft of
-              Nothing -> zeroV sym a
-              Just i' -> lookupSeqMap vs i'
-
-    go xs = case xs of
-        VWord w x -> VWord w <$> wordShiftByWord sym wop (reindex m) idx x
-
-        VSeq w vs0 ->
-           do idx_bits <- enumerateWordValue sym idx
-              VSeq w <$> barrelShifter sym (mergeValue sym) shiftOp vs0 idx_bits
-
-        VStream vs0 ->
-           do idx_bits <- enumerateWordValue sym idx
-              VStream <$> barrelShifter sym (mergeValue sym) shiftOp vs0 idx_bits
-
-        _ -> evalPanic "expected sequence value in shift operation" [nm]
+wordShifter sym nm wop reindex m a xs idx =
+  case xs of
+    VWord w x   -> VWord w <$> wordShiftByWord sym wop (reindex m) x idx
+    VSeq w vs0  -> VSeq w  <$> seqShiftByWord sym (mergeValue sym) (reindex m) (zeroV sym a) vs0 idx
+    VStream vs0 -> VStream <$> seqShiftByWord sym (mergeValue sym) (reindex m) (zeroV sym a) vs0 idx
+    _ -> evalPanic "expected sequence value in shift operation" [nm]
 
 
 shiftShrink :: Backend sym => sym -> Nat' -> TValue -> SInteger sym -> SEval sym (SInteger sym)
