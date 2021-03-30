@@ -125,10 +125,10 @@ evalExpr sym env expr = case expr of
           case tryFromBits sym vs of
             Just w  -> wordVal <$> w
             Nothing -> do xs <- mapM (\x -> sDelay sym (fromVBit <$> x)) vs
-                          return $ largeBitsVal len $ finiteSeqMap xs
+                          return $ largeBitsVal len $ finiteSeqMap sym xs
     | otherwise -> {-# SCC "evalExpr->EList" #-} do
         xs <- mapM (sDelay sym) vs
-        return $ VSeq len $ finiteSeqMap xs
+        return $ VSeq len $ finiteSeqMap sym xs
    where
     tyv = evalValType (envTypes env) ty
     vs  = map eval es

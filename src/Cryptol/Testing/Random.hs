@@ -406,7 +406,7 @@ typeValues ty =
       | x <- [ 0 .. 2^n - 1 ]
       ]
     TVSeq n el ->
-      [ VSeq n (finiteSeqMap (map pure xs))
+      [ VSeq n (finiteSeqMap Concrete (map pure xs))
       | xs <- sequence (genericReplicate n (typeValues el))
       ]
     TVTuple ts ->

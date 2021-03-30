@@ -1835,7 +1835,7 @@ sparkParMap ::
   SeqMap sym a ->
   SEval sym (SeqMap sym (GenValue sym))
 sparkParMap sym f n m =
-  finiteSeqMap <$> mapM (sSpark sym . g) (enumerateSeqMap n m)
+  finiteSeqMap sym <$> mapM (sSpark sym . g) (enumerateSeqMap n m)
  where
  g x =
    do z <- sDelay sym (f x)

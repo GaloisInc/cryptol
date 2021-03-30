@@ -228,7 +228,7 @@ varShapeToValue sym var =
     VarRational n d -> VRational (SRational n d)
     VarWord w    -> VWord (wordLen sym w) (wordVal w)
     VarFloat f   -> VFloat f
-    VarFinSeq n vs -> VSeq n (finiteSeqMap (map (pure . varShapeToValue sym) vs))
+    VarFinSeq n vs -> VSeq n (finiteSeqMap sym (map (pure . varShapeToValue sym) vs))
     VarTuple vs  -> VTuple (map (pure . varShapeToValue sym) vs)
     VarRecord fs -> VRecord (fmap (pure . varShapeToValue sym) fs)
 

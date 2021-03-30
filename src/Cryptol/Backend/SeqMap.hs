@@ -53,7 +53,6 @@ import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 
 import Cryptol.Backend
-import Cryptol.Utils.Panic(panic)
 
 -- | A sequence map represents a mapping from nonnegative integer indices
 --   to values.  These are used to represent both finite and infinite sequences.
@@ -77,11 +76,11 @@ instance Backend sym => Functor (SeqMap sym) where
   fmap f xs = IndexSeqMap (\i -> f <$> lookupSeqMap xs i)
 
 -- | Generate a finite sequence map from a list of values
-finiteSeqMap :: [SEval sym a] -> SeqMap sym a
-finiteSeqMap xs =
+finiteSeqMap :: Backend sym => sym -> [SEval sym a] -> SeqMap sym a
+finiteSeqMap sym xs =
    UpdateSeqMap
       (Map.fromList (zip [0..] xs))
-      (\i -> panic "finiteSeqMap" ["Out of bounds access of finite seq map", "length: " ++ show (length xs), show i])
+      (\i -> invalidIndex sym i)
 
 -- | Generate an infinite sequence map from a stream of values
 infiniteSeqMap :: Backend sym => sym -> [SEval sym a] -> SEval sym (SeqMap sym a)
