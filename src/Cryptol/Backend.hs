@@ -240,7 +240,7 @@ class MonadIO (SEval sym) => Backend sym where
 
   -- | Check if an operation is "ready", which means its
   --   evaluation will be trivial.
-  isReady :: sym -> SEval sym a -> Bool
+  isReady :: sym -> SEval sym a -> SEval sym (Maybe a)
 
   -- | Produce a thunk value which can be filled with its associated computation
   --   after the fact.  A preallocated thunk is returned, along with an operation to

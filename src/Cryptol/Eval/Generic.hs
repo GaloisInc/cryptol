@@ -1177,17 +1177,18 @@ ccatV ::
   SEval sym (GenValue sym)
 
 -- Finite bitvectors
-ccatV sym front (Nat back) TVBit l r
-  | isReady sym l, isReady sym r
-  = do l' <- fromWordVal "ccatV left"  <$> l
-       r' <- fromWordVal "ccatV right" <$> r
-       VWord (front+back) <$> joinWordVal sym l' r'
-
-  | otherwise
-  = do VWord (front+back) <$> delayWordValue sym (front+back)
-             (do l' <- fromWordVal "ccatV left"  <$> l
-                 r' <- fromWordVal "ccatV right" <$> r
-                 joinWordVal sym l' r')
+ccatV sym front (Nat back) TVBit l r =
+  do ml <- isReady sym l
+     mr <- isReady sym r
+     case (ml, mr) of
+       (Just l', Just r') ->
+         VWord (front+back) <$>
+           joinWordVal sym (fromWordVal "ccatV left" l') (fromWordVal "ccatV right" r')
+       _ ->
+         VWord (front+back) <$> delayWordValue sym (front+back)
+                (do l' <- fromWordVal "ccatV left"  <$> l
+                    r' <- fromWordVal "ccatV right" <$> r
+                    joinWordVal sym l' r')
 
 -- Infinite bitstream
 ccatV sym front Inf TVBit l r =

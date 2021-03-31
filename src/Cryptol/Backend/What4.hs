@@ -39,7 +39,7 @@ import Cryptol.Backend.FloatHelpers
 import Cryptol.Backend.Monad
    ( Eval(..), EvalError(..), EvalErrorEx(..)
    , Unsupported(..), delayFill, blackhole, evalSpark
-   , modifyCallStack, getCallStack
+   , modifyCallStack, getCallStack, maybeReady
    )
 import Cryptol.Utils.Panic
 
@@ -76,7 +76,7 @@ data W4Result sym a
   | W4Result !(W4.Pred sym) !a
     -- ^ safety predicate and result: the result only makes sense when
     -- the predicate holds.
-
+ deriving Functor
 
 --------------------------------------------------------------------------------
 -- Moving between the layers
@@ -215,10 +215,10 @@ instance W4.IsSymExprBuilder sym => Backend (What4 sym) where
     | Just False <- W4.asConstantPred cond = evalError err
     | otherwise = addSafety cond
 
-  isReady sym m =
-    case w4Eval m (w4 sym) of
-      Ready _ -> True
-      _ -> False
+  isReady sym m = W4Eval $ W4Conn $ \_ ->
+    maybeReady (w4Eval m (w4 sym)) >>= \case
+      Just x  -> pure (Just <$> x)
+      Nothing -> pure (W4Result (W4.backendPred (w4 sym) True) Nothing)
 
   sDelayFill _ m retry msg =
     total

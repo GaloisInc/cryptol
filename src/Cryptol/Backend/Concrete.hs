@@ -152,8 +152,7 @@ instance Backend Concrete where
   wordUpdate _ (BV w x) idx True  = pure $! BV w (setBit   x (fromInteger (w - 1 - idx)))
   wordUpdate _ (BV w x) idx False = pure $! BV w (clearBit x (fromInteger (w - 1 - idx)))
 
-  isReady _ (Ready _) = True
-  isReady _ _ = False
+  isReady _ = maybeReady
 
   mergeEval _sym f c mx my =
     do x <- mx

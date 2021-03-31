@@ -134,9 +134,10 @@ splitWordVal sym leftWidth rightWidth (WordVal w) =
   do (lw, rw) <- splitWord sym leftWidth rightWidth w
      pure (WordVal lw, WordVal rw)
 
-splitWordVal sym leftWidth rightWidth (ThunkWordVal n m)
-  | isReady sym m = splitWordVal sym leftWidth rightWidth =<< m
-  | otherwise =
+splitWordVal sym leftWidth rightWidth (ThunkWordVal n m) =
+  isReady sym m >>= \case
+    Just w -> splitWordVal sym leftWidth rightWidth w
+    Nothing ->
       do m' <- sDelay sym (splitWordVal sym leftWidth rightWidth =<< m)
          return (ThunkWordVal n (fst <$> m'), ThunkWordVal n (snd <$> m'))
 
@@ -162,9 +163,10 @@ extractWordVal ::
   SEval sym (WordValue sym)
 extractWordVal sym len start (WordVal w) =
    WordVal <$> extractWord sym len start w
-extractWordVal sym len start (ThunkWordVal n m)
-  | isReady sym m = extractWordVal sym len start =<< m
-  | otherwise =
+extractWordVal sym len start (ThunkWordVal n m) =
+  isReady sym m >>= \case
+    Just w -> extractWordVal sym len start w
+    Nothing ->
       do m' <- sDelay sym (extractWordVal sym len start =<< m)
          pure (ThunkWordVal n m')
 extractWordVal _ len start (LargeBitsVal n xs) =
@@ -293,8 +295,10 @@ asWordList sym = loop id
    loop :: ([SWord sym] -> [SWord sym]) -> [WordValue sym] -> SEval sym (Maybe [SWord sym])
    loop f [] = pure (Just (f []))
    loop f (WordVal x : vs) = loop (f . (x:)) vs
-   loop f (ThunkWordVal _ m : vs)
-     | isReady sym m = do m' <- m; loop f (m' : vs)
+   loop f (ThunkWordVal _ m : vs) =
+     isReady sym m >>= \case
+       Just m' -> loop f (m' : vs)
+       Nothing -> pure Nothing
    loop _ _ = pure Nothing
 
 -- | Force a word value into a sequence of bits
@@ -382,12 +386,11 @@ assertWordValueInBounds sym n (LargeBitsVal w bits) =
      assertSideCondition sym p (InvalidIndex Nothing)
 
 
-
 delayWordValue :: Backend sym => sym -> Integer -> SEval sym (WordValue sym) -> SEval sym (WordValue sym)
-delayWordValue sym sz m
-  | isReady sym m = m
-  | otherwise     = ThunkWordVal sz <$> sDelay sym m
-
+delayWordValue sym sz m =
+  isReady sym m >>= \case
+    Just w  -> pure w
+    Nothing -> ThunkWordVal sz <$> sDelay sym m
 
 {-# INLINE shiftWordByInteger #-}
 shiftWordByInteger ::
@@ -401,11 +404,10 @@ shiftWordByInteger ::
 
 shiftWordByInteger sym wop reindex x idx =
   case x of
-    ThunkWordVal w wm
-      | isReady sym wm ->
-          do x' <- wm
-             shiftWordByInteger sym wop reindex x' idx
-      | otherwise ->
+    ThunkWordVal w wm ->
+      isReady sym wm >>= \case
+        Just x' -> shiftWordByInteger sym wop reindex x' idx
+        Nothing ->
          do m' <- sDelay sym
                      (do x' <- wm
                          shiftWordByInteger sym wop reindex x' idx)
@@ -440,11 +442,10 @@ shiftWordByWord ::
   SEval sym (WordValue sym)
 shiftWordByWord sym wop reindex x idx =
   case x of
-    ThunkWordVal w wm
-      | isReady sym wm ->
-          do wm' <- wm
-             shiftWordByWord sym wop reindex wm' idx
-      | otherwise ->
+    ThunkWordVal w wm ->
+      isReady sym wm >>= \case
+        Just wm' -> shiftWordByWord sym wop reindex wm' idx
+        Nothing ->
          do m' <- sDelay sym (do wm' <- wm
                                  shiftWordByWord sym wop reindex wm' idx)
             return (ThunkWordVal w m')
@@ -485,9 +486,10 @@ updateWordByWord sym dir w idx bitval
   | otherwise = loop w
 
  where
-   loop (ThunkWordVal sz m)
-     | isReady sym m = loop =<< m
-     | otherwise     = delayWordValue sym sz (loop =<< m)
+   loop (ThunkWordVal sz m) =
+     isReady sym m >>= \case
+       Just w' -> loop w'
+       Nothing -> delayWordValue sym sz (loop =<< m)
 
    loop (LargeBitsVal sz bs) =
      case dir of
@@ -564,22 +566,26 @@ indexWordValue sym (LargeBitsVal n xs) idx
 --   given bit value.
 updateWordValue :: Backend sym =>
   sym -> WordValue sym -> Integer -> SEval sym (SBit sym) -> SEval sym (WordValue sym)
-updateWordValue sym (ThunkWordVal sz m) idx b
-   | isReady sym m = do w <- m; updateWordValue sym w idx b
-   | otherwise = delayWordValue sym sz (do w <- m; updateWordValue sym w idx b)
+updateWordValue sym wv0 idx b = loop wv0
+  where
+    loop (ThunkWordVal sz m) =
+      isReady sym m >>= \case
+        Just w  -> loop w
+        Nothing -> delayWordValue sym sz (loop =<< m)
 
-updateWordValue sym (WordVal w) idx b
-   | idx < 0 || idx >= wordLen sym w = invalidIndex sym idx
-   | isReady sym b = WordVal <$> (wordUpdate sym w idx =<< b)
+    loop (WordVal w)
+      | idx < 0 || idx >= wordLen sym w = invalidIndex sym idx
+      | otherwise =
+          isReady sym b >>= \case
+            Just b' -> WordVal <$> wordUpdate sym w idx b'
+            Nothing ->
+              do let bs = asBitsMap sym (WordVal w)
+                 pure $ LargeBitsVal (wordLen sym w) $ updateSeqMap bs idx b
 
-updateWordValue sym wv idx b
-   | 0 <= idx && idx < sz =
-        pure $ LargeBitsVal sz $ updateSeqMap bs idx b
-   | otherwise = invalidIndex sym idx
-
- where sz = wordValueSize sym wv
-       bs = asBitsMap sym wv
-
+    loop (LargeBitsVal sz bs)
+      | 0 <= idx && idx < sz =
+          pure $ LargeBitsVal sz $ updateSeqMap bs idx b
+      | otherwise = invalidIndex sym idx
 
 {-# INLINE mergeWord #-}
 mergeWord :: Backend sym =>

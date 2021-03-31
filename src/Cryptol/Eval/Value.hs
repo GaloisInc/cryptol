@@ -416,12 +416,14 @@ vWordLen val = case val of
 -- | If the given list of values are all fully-evaluated thunks
 --   containing bits, return a packed word built from the same bits.
 --   However, if any value is not a fully-evaluated bit, return 'Nothing'.
-tryFromBits :: Backend sym => sym -> [SEval sym (GenValue sym)] -> Maybe (SEval sym (SWord sym))
+tryFromBits :: Backend sym => sym -> [SEval sym (GenValue sym)] -> SEval sym (Maybe (SWord sym))
 tryFromBits sym = go id
   where
-  go f [] = Just (packWord sym =<< sequence (f []))
-  go f (v : vs) | isReady sym v = go (f . ((fromVBit <$> v):)) vs
-  go _ (_ : _) = Nothing
+  go f [] = Just <$> (packWord sym (f []))
+  go f (v : vs) =
+    isReady sym v >>= \case
+      Just v' -> go (f . ((fromVBit v'):)) vs
+      Nothing -> pure Nothing
 
 -- | Extract a function from a value.
 fromVFun :: Backend sym => sym -> GenValue sym -> (SEval sym (GenValue sym) -> SEval sym (GenValue sym))
