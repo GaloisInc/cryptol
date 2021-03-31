@@ -262,6 +262,11 @@ instance Backend SBV where
   wordMult  _ a b = pure $! svTimes a b
   wordNegate _ a  = pure $! svUNeg a
 
+  wordShiftLeft _ a b   = pure $! shl a b
+  wordShiftRight _ a b  = pure $! lshr a b
+  wordRotateLeft _ a b  = pure $! SBV.svRotateLeft a b
+  wordRotateRight _ a b = pure $! SBV.svRotateRight a b
+
   wordDiv sym a b =
     do let z = literalSWord (intSizeOf b) 0
        assertSideCondition sym (svNot (svEqual b z)) DivideByZero

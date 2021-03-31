@@ -342,6 +342,11 @@ instance W4.IsSymExprBuilder sym => Backend (What4 sym) where
   wordNegate sym x   = liftIO (SW.bvNeg (w4 sym) x)
   wordLg2    sym x   = sLg2 (w4 sym) x
  
+  wordShiftLeft   sym x y = w4bvShl (w4 sym) x y
+  wordShiftRight  sym x y = w4bvLshr (w4 sym) x y
+  wordRotateLeft  sym x y = w4bvRol (w4 sym) x y
+  wordRotateRight sym x y = w4bvRor (w4 sym) x y
+
   wordDiv sym x y =
      do assertBVDivisor sym y
         liftIO (SW.bvUDiv (w4 sym) x y)

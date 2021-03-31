@@ -285,6 +285,26 @@ instance Backend Concrete where
            pure $! mkBv i (sx `rem` sy)
     | otherwise = panic "Attempt to mod words of different sizes: wordSignedMod" [show i, show j]
 
+  wordShiftLeft _sym (BV w ival) (BV _ by)
+    | by >= w   = pure $! BV w 0
+    | by > toInteger (maxBound :: Int) = panic "shl" ["Shift amount too large", show by]
+    | otherwise = pure $! mkBv w (shiftL ival (fromInteger by))
+
+  wordShiftRight _sym (BV w ival) (BV _ by)
+    | by >= w   = pure $! BV w 0
+    | by > toInteger (maxBound :: Int) = panic "lshr" ["Shift amount too large", show by]
+    | otherwise = pure $! BV w (shiftR ival (fromInteger by))
+
+  wordRotateRight _sym (BV 0 i) _ = pure (BV 0 i)
+  wordRotateRight _sym (BV w i) (BV _ by) =
+      pure . mkBv w $! (i `shiftR` b) .|. (i `shiftL` (fromInteger w - b))
+    where b = fromInteger (by `mod` w)
+
+  wordRotateLeft _sym (BV 0 i) _ = pure (BV 0 i)
+  wordRotateLeft _sym (BV w i) (BV _ by) =
+      pure . mkBv w $! (i `shiftL` b) .|. (i `shiftR` (fromInteger w - b))
+    where b = fromInteger (by `mod` w)
+
   wordLg2 _ (BV i x) = pure $! mkBv i (lg2 x)
 
   intEq _ x y = pure $! x == y

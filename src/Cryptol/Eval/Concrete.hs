@@ -164,24 +164,6 @@ primTable getEOpts = let sym = Concrete in
   [ (">>$"        , {-# SCC "Prelude::(>>$)" #-}
                     sshrV)
 
-    -- Shifts and rotates
-  , ("<<"         , {-# SCC "Prelude::(<<)" #-}
-                    logicShift sym "<<" shiftShrink
-                      concreteShl concreteLshr
-                      shiftLeftReindex shiftRightReindex)
-  , (">>"         , {-# SCC "Prelude::(>>)" #-}
-                    logicShift sym ">>"  shiftShrink
-                      concreteLshr concreteShl
-                      shiftRightReindex shiftLeftReindex)
-  , ("<<<"        , {-# SCC "Prelude::(<<<)" #-}
-                    logicShift sym "<<<" rotateShrink
-                      concreteRol concreteRor
-                      rotateLeftReindex rotateRightReindex)
-  , (">>>"        , {-# SCC "Prelude::(>>>)" #-}
-                    logicShift sym ">>>" rotateShrink
-                      concreteRor concreteRol
-                      rotateRightReindex rotateLeftReindex)
-
     -- Indexing and updates
   , ("@"          , {-# SCC "Prelude::(@)" #-}
                     indexPrim sym IndexForward indexFront_int indexFront_segs)
@@ -490,25 +472,6 @@ concreteShl (BV w ival) (BV _ by)
   | by >= w   = pure $! BV w 0
   | by > toInteger (maxBound :: Int) = panic "shl" ["Shift amount too large", show by]
   | otherwise = pure $! mkBv w (shiftL ival (fromInteger by))
-
-concreteLshr :: BV -> BV -> Eval BV
-concreteLshr (BV w ival) (BV _ by)
-  | by >= w   = pure $! BV w 0
-  | by > toInteger (maxBound :: Int) = panic "lshr" ["Shift amount too large", show by]
-  | otherwise = pure $! BV w (shiftR ival (fromInteger by))
-
-concreteRor  :: BV -> BV -> Eval BV
-concreteRor (BV 0 x) _ = pure (BV 0 x)
-concreteRor (BV w i) (BV _ by) =
-    pure . mkBv w $! (i `shiftR` b) .|. (i `shiftL` (fromInteger w - b))
-  where b = fromInteger (by `mod` w)
-
-concreteRol :: BV -> BV -> Eval BV
-concreteRol (BV 0 i) _ = pure (BV 0 i)
-concreteRol (BV w i) (BV _ by) =
-    pure . mkBv w $! (i `shiftL` b) .|. (i `shiftR` (fromInteger w - b))
-  where b = fromInteger (by `mod` w)
-
 
 -- Sequence Primitives ---------------------------------------------------------
 

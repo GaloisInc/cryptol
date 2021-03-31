@@ -56,31 +56,6 @@ primTable sym getEOpts =
 
   [ (">>$"         , sshrV sym)
 
-    -- Shifts and rotates
-  , ("<<"          , logicShift sym "<<"
-                       shiftShrink
-                       (\x y -> pure (shl x y))
-                       (\x y -> pure (lshr x y))
-                       shiftLeftReindex shiftRightReindex)
-
-  , (">>"          , logicShift sym ">>"
-                       shiftShrink
-                       (\x y -> pure (lshr x y))
-                       (\x y -> pure (shl x y))
-                       shiftRightReindex shiftLeftReindex)
-
-  , ("<<<"         , logicShift sym "<<<"
-                       rotateShrink
-                       (\x y -> pure (SBV.svRotateLeft x y))
-                       (\x y -> pure (SBV.svRotateRight x y))
-                       rotateLeftReindex rotateRightReindex)
-
-  , (">>>"         , logicShift sym ">>>"
-                       rotateShrink
-                       (\x y -> pure (SBV.svRotateRight x y))
-                       (\x y -> pure (SBV.svRotateLeft x y))
-                       rotateRightReindex rotateLeftReindex)
-
     -- Indexing and updates
   , ("@"           , indexPrim sym IndexForward  (indexFront sym) (indexFront_segs sym))
   , ("!"           , indexPrim sym IndexBackward (indexFront sym) (indexFront_segs sym))

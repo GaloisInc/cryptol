@@ -2073,6 +2073,24 @@ genericPrimTable sym getEOpts =
                     PFun     \xs ->
                     PPrim $ transposeV sym a b c =<< xs)
 
+    -- Shifts and rotates
+  , ("<<"         , {-# SCC "Prelude::(<<)" #-}
+                    logicShift sym "<<" shiftShrink
+                      (wordShiftLeft sym) (wordShiftRight sym)
+                      shiftLeftReindex shiftRightReindex)
+  , (">>"         , {-# SCC "Prelude::(>>)" #-}
+                    logicShift sym ">>"  shiftShrink
+                      (wordShiftRight sym) (wordShiftLeft sym)
+                      shiftRightReindex shiftLeftReindex)
+  , ("<<<"        , {-# SCC "Prelude::(<<<)" #-}
+                    logicShift sym "<<<" rotateShrink
+                      (wordRotateLeft sym) (wordRotateRight sym)
+                      rotateLeftReindex rotateRightReindex)
+  , (">>>"        , {-# SCC "Prelude::(>>>)" #-}
+                    logicShift sym ">>>" rotateShrink
+                      (wordRotateRight sym) (wordRotateLeft sym)
+                      rotateRightReindex rotateLeftReindex)
+
     -- Misc
 
     -- {at,len} (fin len) => [len][8] -> at

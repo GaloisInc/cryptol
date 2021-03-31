@@ -518,6 +518,38 @@ class MonadIO (SEval sym) => Backend sym where
     SWord sym ->
     SEval sym (SWord sym)
 
+  -- | Shift a bitvector left by the specified amount.
+  --   The shift amount is considered as an unsigned value.
+  --   Shifting by more than the word length results in 0.
+  wordShiftLeft ::
+    sym ->
+    SWord sym {- ^ value to shift -} ->
+    SWord sym {- ^ amount to shift by -} ->
+    SEval sym (SWord sym)
+
+  -- | Shift a bitvector right by the specified amount.
+  --   This is a logical shift, which shifts in 0 values
+  --   on the left. The shift amount is considered as an
+  --   unsigned value. Shifting by more than the word length
+  --   results in 0.
+  wordShiftRight ::
+    sym ->
+    SWord sym {- ^ value to shift -} ->
+    SWord sym {- ^ amount to shift by -} ->
+    SEval sym (SWord sym)
+
+  wordRotateLeft ::
+    sym ->
+    SWord sym {- ^ value to rotate -} ->
+    SWord sym {- ^ amount to rotate by -} ->
+    SEval sym (SWord sym)
+
+  wordRotateRight ::
+    sym ->
+    SWord sym {- ^ value to rotate -} ->
+    SWord sym {- ^ amount to rotate by -} ->
+    SEval sym (SWord sym)
+
   -- | 2's complement negation of bitvectors
   wordNegate ::
     sym ->

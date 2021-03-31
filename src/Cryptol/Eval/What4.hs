@@ -63,7 +63,6 @@ type Value sym = GenValue (What4 sym)
 -- See also Cryptol.Prims.Eval.primTable
 primTable :: W4.IsSymExprBuilder sym => What4 sym -> IO EvalOpts -> Map.Map PrimIdent (Prim (What4 sym))
 primTable sym getEOpts =
-  let w4sym = w4 sym in
   Map.union (suiteBPrims sym) $
   Map.union (primeECPrims sym) $
   Map.union (genericFloatTable sym) $
@@ -72,20 +71,6 @@ primTable sym getEOpts =
   Map.fromList $ map (\(n, v) -> (prelPrim n, v))
 
   [ (">>$"         , sshrV sym)
-
-    -- Shifts and rotates
-  , ("<<"          , logicShift sym "<<"  shiftShrink
-                        (w4bvShl w4sym) (w4bvLshr w4sym)
-                        shiftLeftReindex shiftRightReindex)
-  , (">>"          , logicShift sym ">>"  shiftShrink
-                        (w4bvLshr w4sym) (w4bvShl w4sym)
-                        shiftRightReindex shiftLeftReindex)
-  , ("<<<"         , logicShift sym "<<<" rotateShrink
-                        (w4bvRol w4sym) (w4bvRor w4sym)
-                        rotateLeftReindex rotateRightReindex)
-  , (">>>"         , logicShift sym ">>>" rotateShrink
-                        (w4bvRor w4sym) (w4bvRol w4sym)
-                        rotateRightReindex rotateLeftReindex)
 
     -- Indexing and updates
   , ("@"           , indexPrim sym IndexForward  (indexFront_int sym) (indexFront_segs sym))
