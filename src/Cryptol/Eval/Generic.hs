@@ -39,8 +39,9 @@ import Cryptol.TypeCheck.Solver.InfNat (Nat'(..),nMul)
 import Cryptol.Backend
 import Cryptol.Backend.Concrete (Concrete(..))
 import Cryptol.Backend.Monad( Eval, evalPanic, EvalError(..), Unsupported(..) )
-import Cryptol.Testing.Random( randomValue )
+import Cryptol.Backend.SeqMap
 import Cryptol.Backend.WordValue
+import Cryptol.Testing.Random( randomValue )
 
 import Cryptol.Eval.Prims
 import Cryptol.Eval.Type
@@ -511,7 +512,7 @@ expV sym =
                       intV sym onei aty
 
                 | n > 0 ->
-                    do ebits <- enumerateIntBits' sym n ei
+                    do (_,ebits) <- enumerateIntBits' sym n ei
                        computeExponent sym aty a ebits
 
                 | otherwise -> raiseError sym NegativeExponent
@@ -1378,15 +1379,19 @@ assertIndexInBounds sym (Nat n) (Right idx) =
 
 -- | Indexing operations.
 
+data IndexDirection
+  = IndexForward
+  | IndexBackward
+
 {-# INLINE indexPrim #-}
 indexPrim ::
   Backend sym =>
   sym ->
+  IndexDirection ->
   (Nat' -> TValue -> SeqMap sym (GenValue sym) -> TValue -> SInteger sym -> SEval sym (GenValue sym)) ->
-  (Nat' -> TValue -> SeqMap sym (GenValue sym) -> TValue -> [SBit sym] -> SEval sym (GenValue sym)) ->
-  (Nat' -> TValue -> SeqMap sym (GenValue sym) -> TValue -> SWord sym -> SEval sym (GenValue sym)) ->
+  (Nat' -> TValue -> SeqMap sym (GenValue sym) -> TValue -> Integer -> [IndexSegment sym] -> SEval sym (GenValue sym)) ->
   Prim sym
-indexPrim sym int_op bits_op word_op =
+indexPrim sym dir int_op word_op =
   PNumPoly \len ->
   PTyPoly  \eltTy ->
   PTyPoly  \ix ->
@@ -1398,14 +1403,15 @@ indexPrim sym int_op bits_op word_op =
                VSeq _ vs  -> return vs
                VStream vs -> return vs
                _ -> evalPanic "Expected sequence value" ["indexPrim"]
+      let vs' = case (len, dir) of
+                  (_    , IndexForward)  -> vs
+                  (Nat n, IndexBackward) -> reverseSeqMap n vs
+                  (Inf  , IndexBackward) -> evalPanic "Expected finite sequence" ["!"]
       idx' <- asIndex sym "index" ix <$> idx
       assertIndexInBounds sym len idx'
       case idx' of
-        Left i  -> int_op len eltTy vs ix i
-        Right w -> viewWordOrBits sym
-                     (word_op len eltTy vs ix)
-                     (bits_op len eltTy vs ix)
-                     w
+        Left i  -> int_op  len eltTy vs' ix i
+        Right w -> word_op len eltTy vs' ix (wordValueSize sym w) =<< enumerateIndexSegments sym w
 
 {-# INLINE updatePrim #-}
 
@@ -1579,16 +1585,6 @@ logicShift sym nm shrinkRange wopPos wopNeg reindexPos reindexNeg =
          Right idx ->
            wordShifter sym nm wopPos reindexPos m a xs' idx
 
--- | Compute the list of bits in an integer in big-endian order.
---   Fails if neither the sequence length nor the type value
---   provide an upper bound for the integer.
-enumerateIntBits :: Backend sym =>
-  sym ->
-  Nat' ->
-  SInteger sym ->
-  SEval sym [SBit sym]
-enumerateIntBits sym (Nat n) idx = enumerateIntBits' sym n idx
-enumerateIntBits _sym Inf _ = liftIO (X.throw (UnsupportedSymbolicOp "unbounded integer shifting"))
 
 intShifter :: Backend sym =>
    sym ->
@@ -1609,15 +1605,9 @@ intShifter sym nm wop reindex m a xs0 idx = go xs0
              Just i' -> lookupSeqMap vs i'
 
      go xs = case xs of
-        VWord w x -> VWord w <$> wordShiftByInt sym wop (reindex m) idx x
-
-        VSeq w vs0 ->
-           do idx_bits <- enumerateIntBits sym m idx
-              VSeq w <$> barrelShifter sym (mergeValue sym) shiftOp vs0 idx_bits
-
-        VStream vs0 ->
-           do idx_bits <- enumerateIntBits sym m idx
-              VStream <$> barrelShifter sym (mergeValue sym) shiftOp vs0 idx_bits
+        VWord w x  -> VWord w <$> shiftWordByInt sym wop (reindex m) x idx
+        VSeq w vs  -> VSeq w  <$> shiftSeqByInteger sym (mergeValue sym) shiftOp m vs idx
+        VStream vs -> VStream <$> shiftSeqByInteger sym (mergeValue sym) shiftOp m vs idx
 
         _ -> evalPanic "expected sequence value in shift operation" [nm]
 
@@ -1634,9 +1624,9 @@ wordShifter :: Backend sym =>
    SEval sym (GenValue sym)
 wordShifter sym nm wop reindex m a xs idx =
   case xs of
-    VWord w x   -> VWord w <$> wordShiftByWord sym wop (reindex m) x idx
-    VSeq w vs0  -> VSeq w  <$> seqShiftByWord sym (mergeValue sym) (reindex m) (zeroV sym a) vs0 idx
-    VStream vs0 -> VStream <$> seqShiftByWord sym (mergeValue sym) (reindex m) (zeroV sym a) vs0 idx
+    VWord w x  -> VWord w <$> shiftWordByWord sym wop (reindex m) x idx
+    VSeq w vs  -> VSeq w  <$> shiftSeqByWord sym (mergeValue sym) (reindex m) (zeroV sym a) vs idx
+    VStream vs -> VStream <$> shiftSeqByWord sym (mergeValue sym) (reindex m) (zeroV sym a) vs idx
     _ -> evalPanic "expected sequence value in shift operation" [nm]
 
 

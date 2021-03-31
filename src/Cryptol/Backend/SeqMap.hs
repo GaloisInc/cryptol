@@ -6,6 +6,7 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
@@ -43,16 +44,24 @@ module Cryptol.Backend.SeqMap
   , mapSeqMap
   , mergeSeqMap
   , barrelShifter
+  , shiftSeqByInteger
+
+  , IndexSegment(..)
   ) where
 
+import qualified Control.Exception as X
 import Control.Monad
 import Control.Monad.IO.Class
+import Data.Bits
 import Data.List
 import Data.IORef
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 
 import Cryptol.Backend
+import Cryptol.Backend.Monad (Unsupported(..))
+
+import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
 
 -- | A sequence map represents a mapping from nonnegative integer indices
 --   to values.  These are used to represent both finite and infinite sequences.
@@ -188,27 +197,63 @@ mergeSeqMap :: Backend sym =>
 mergeSeqMap sym f c x y =
   IndexSeqMap $ \i -> mergeEval sym f c (lookupSeqMap x i) (lookupSeqMap y i)
 
+
+{-# INLINE shiftSeqByInteger #-}
+shiftSeqByInteger :: Backend sym =>
+  sym ->
+  (SBit sym -> a -> a -> SEval sym a) ->
+  (SeqMap sym a -> Integer -> SEval sym (SeqMap sym a))
+     {- ^ concrete shifting operation -} ->
+  Nat' ->
+  SeqMap sym a ->
+  SInteger sym ->
+  SEval sym (SeqMap sym a)
+shiftSeqByInteger sym merge shiftOp m xs idx
+  | Just j <- integerAsLit sym idx = shiftOp xs j
+  | otherwise =
+      do (n, idx_bits) <- enumerateIntBits sym m idx
+         barrelShifter sym merge shiftOp xs n (map BitIndexSegment idx_bits)
+
+data IndexSegment sym
+  = BitIndexSegment (SBit sym)
+  | WordIndexSegment (SWord sym)
+
 barrelShifter :: Backend sym =>
   sym ->
   (SBit sym -> a -> a -> SEval sym a) ->
   (SeqMap sym a -> Integer -> SEval sym (SeqMap sym a))
      {- ^ concrete shifting operation -} ->
   SeqMap sym a {- ^ initial value -} ->
-  [SBit sym]  {- ^ bits of shift amount, in big-endian order -} ->
+  Integer {- Number of bits in shift amount -} ->
+  [IndexSegment sym]  {- ^ segments of the shift amount, in big-endian order -} ->
   SEval sym (SeqMap sym a)
-barrelShifter sym mux shift_op = go
+barrelShifter sym mux shift_op x0 n0 bs0
+  | n0 >= toInteger (maxBound :: Int) =
+      liftIO (X.throw (UnsupportedSymbolicOp ("Barrel shifter with too many bits in shift amount: " ++ show n0)))
+  | otherwise = go x0 (fromInteger n0) bs0
+
   where
-  go x [] = return x
+  go x !_n [] = return x
 
-  go x (b:bs)
-    | Just True <- bitAsLit sym b
-    = do x_shft <- shift_op x (2 ^ length bs)
-         go x_shft bs
+  go x !n (WordIndexSegment w:bs) =
+    let n' = n - fromInteger (wordLen sym w) in
+    case wordAsLit sym w of
+      Just (_,0) -> go x n' bs
+      Just (_,j) ->
+        do x_shft <- shift_op x (j * bit n')
+           go x_shft n' bs
+      Nothing ->
+        do wbs <- unpackWord sym w
+           go x n (map BitIndexSegment wbs ++ bs)
 
-    | Just False <- bitAsLit sym b
-    = do go x bs
-
-    | otherwise
-    = do x_shft <- shift_op x (2 ^ length bs)
-         x' <- memoMap sym (mergeSeqMap sym mux b x_shft x)
-         go x' bs
+  go x !n (BitIndexSegment b:bs) =
+    let n' = n - 1 in
+    case bitAsLit sym b of
+      Just False -> go x n' bs
+      Just True ->
+        do x_shft <- shift_op x (bit n')
+           go x_shft n' bs
+      Nothing ->
+        do x_shft <- shift_op x (bit n')
+           x' <- memoMap sym (mergeSeqMap sym mux b x_shft x)
+           go x' n' bs

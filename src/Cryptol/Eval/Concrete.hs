@@ -42,6 +42,7 @@ import Cryptol.Backend
 import Cryptol.Backend.Concrete
 import Cryptol.Backend.FloatHelpers
 import Cryptol.Backend.Monad
+import Cryptol.Backend.SeqMap
 import Cryptol.Backend.WordValue
 
 import Cryptol.Eval.Generic hiding (logicShift)
@@ -175,9 +176,9 @@ primTable getEOpts = let sym = Concrete in
 
     -- Indexing and updates
   , ("@"          , {-# SCC "Prelude::(@)" #-}
-                    indexPrim sym indexFront_int indexFront_bits indexFront)
+                    indexPrim sym IndexForward indexFront_int indexFront_segs)
   , ("!"          , {-# SCC "Prelude::(!)" #-}
-                    indexPrim sym indexBack_int indexBack_bits indexBack)
+                    indexPrim sym IndexBackward indexFront_int indexFront_segs)
 
   , ("update"     , {-# SCC "Prelude::update" #-}
                     updatePrim sym updateFront_word updateFront)
@@ -231,7 +232,7 @@ primeECPrims = Map.fromList $ map (\(n,v) -> (primeECPrim n, v))
        PFinPoly \p ->
        PFun     \s ->
        PFun     \t ->
-       PPrim 
+       PPrim
           do s' <- toProjectivePoint =<< s
              t' <- toProjectivePoint =<< t
              let r = PrimeEC.ec_add_nonzero (PrimeEC.primeModulus p) s' t'
@@ -569,26 +570,28 @@ rotateRS w _ vs by = indexSeqMap $ \i ->
 
 -- Sequence Primitives ---------------------------------------------------------
 
-indexFront :: Nat' -> TValue -> SeqMap Concrete (GenValue Concrete) -> TValue -> BV -> Eval Value
-indexFront _mblen _a vs _ix (bvVal -> ix) = lookupSeqMap vs ix
-
-indexFront_bits :: Nat' -> TValue -> SeqMap Concrete (GenValue Concrete) -> TValue -> [Bool] -> Eval Value
-indexFront_bits mblen a vs ix bs = indexFront mblen a vs ix =<< packWord Concrete bs
-
 indexFront_int :: Nat' -> TValue -> SeqMap Concrete (GenValue Concrete) -> TValue -> Integer -> Eval Value
 indexFront_int _mblen _a vs _ix idx = lookupSeqMap vs idx
 
-indexBack :: Nat' -> TValue -> SeqMap Concrete (GenValue Concrete) -> TValue -> BV -> Eval Value
-indexBack mblen a vs ix (bvVal -> idx) = indexBack_int mblen a vs ix idx
+indexFront_segs :: Nat' -> TValue -> SeqMap Concrete (GenValue Concrete) -> TValue -> Integer -> [IndexSegment Concrete] -> Eval Value
+indexFront_segs _mblen _a vs _ix idx_bits segs = lookupSeqMap vs $! packSegments idx_bits segs
 
-indexBack_bits :: Nat' -> TValue -> SeqMap Concrete (GenValue Concrete) -> TValue -> [Bool] -> Eval Value
-indexBack_bits mblen a vs ix bs = indexBack mblen a vs ix =<< packWord Concrete bs
-
-indexBack_int :: Nat' -> TValue -> SeqMap Concrete (GenValue Concrete) -> TValue -> Integer -> Eval Value
-indexBack_int mblen _a vs _ix idx =
-  case mblen of
-    Nat len -> lookupSeqMap vs (len - idx - 1)
-    Inf     -> evalPanic "indexBack" ["unexpected infinite sequence"]
+packSegments :: Integer -> [IndexSegment Concrete] -> Integer
+packSegments = loop 0
+  where
+  loop !val !n segs =
+    case segs of
+      [] -> val
+      [WordIndexSegment (BV _ x)] -> val + x
+      WordIndexSegment (BV xlen x) : bs ->
+        let n' = n - xlen
+         in loop (val + (x*2^n')) n' bs
+      BitIndexSegment True : bs ->
+        let n' = n - 1
+         in loop (val + 2^n') n' bs
+      BitIndexSegment False : bs ->
+        let n' = n - 1
+         in loop val n' bs
 
 updateFront ::
   Nat'               {- ^ length of the sequence -} ->

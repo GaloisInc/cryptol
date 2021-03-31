@@ -8,6 +8,9 @@ module Cryptol.Backend
   , cryNoPrimError
   , FPArith2
 
+  , enumerateIntBits
+  , enumerateIntBits'
+
     -- * Rationals
   , SRational(..)
   , intToRational
@@ -29,14 +32,16 @@ module Cryptol.Backend
   , iteRational
   ) where
 
+import qualified Control.Exception as X
 import Control.Monad.IO.Class
 import Data.Kind (Type)
 
 import Cryptol.Backend.FloatHelpers (BF)
 import Cryptol.Backend.Monad
-  ( EvalError(..), CallStack, pushCallFrame )
+  ( EvalError(..), Unsupported(..), CallStack, pushCallFrame )
 import Cryptol.ModuleSystem.Name(Name)
 import Cryptol.Parser.Position
+import Cryptol.TypeCheck.Solver.InfNat(Nat'(..),widthInteger)
 
 invalidIndex :: Backend sym => sym -> Integer -> SEval sym a
 invalidIndex sym i = raiseError sym (InvalidIndex (Just i))
@@ -190,6 +195,31 @@ rationalGreaterThan sym = flip (rationalLessThan sym)
 iteRational :: Backend sym => sym -> SBit sym -> SRational sym -> SRational sym -> SEval sym (SRational sym)
 iteRational sym p (SRational a b) (SRational c d) =
   SRational <$> iteInteger sym p a c <*> iteInteger sym p b d
+
+-- | Compute the list of bits in an integer in big-endian order.
+--   The integer argument is a concrete upper bound for
+--   the symbolic integer.
+enumerateIntBits' :: Backend sym =>
+  sym ->
+  Integer ->
+  SInteger sym ->
+  SEval sym (Integer, [SBit sym])
+enumerateIntBits' sym n idx =
+  do let width = widthInteger n
+     w <- wordFromInt sym width idx
+     bs <- unpackWord sym w
+     pure (width, bs)
+
+-- | Compute the list of bits in an integer in big-endian order.
+--   Fails if neither the sequence length nor the type value
+--   provide an upper bound for the integer.
+enumerateIntBits :: Backend sym =>
+  sym ->
+  Nat' ->
+  SInteger sym ->
+  SEval sym (Integer, [SBit sym])
+enumerateIntBits sym (Nat n) idx = enumerateIntBits' sym n idx
+enumerateIntBits _sym Inf _ = liftIO (X.throw (UnsupportedSymbolicOp "unbounded integer shifting"))
 
 -- | This type class defines a collection of operations on bits, words and integers that
 --   are necessary to define generic evaluator primitives that operate on both concrete

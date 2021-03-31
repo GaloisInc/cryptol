@@ -23,15 +23,16 @@ module Cryptol.Eval.SBV
 
 import qualified Control.Exception as X
 import           Control.Monad.IO.Class (MonadIO(..))
-import           Data.Bits (bit, shiftL)
+import           Data.Bits (bit)
 import qualified Data.Map as Map
 import qualified Data.Text as T
 
 import Data.SBV.Dynamic as SBV
 
 import Cryptol.Backend
-import Cryptol.Backend.Monad ( EvalError(..), Unsupported(..) )
+import Cryptol.Backend.Monad (Unsupported(..) )
 import Cryptol.Backend.SBV
+import Cryptol.Backend.SeqMap
 import Cryptol.Backend.WordValue
 
 import Cryptol.Eval.Type (TValue(..))
@@ -81,8 +82,8 @@ primTable sym getEOpts =
                        rotateRightReindex rotateLeftReindex)
 
     -- Indexing and updates
-  , ("@"           , indexPrim sym (indexFront sym) (indexFront_bits sym) (indexFront sym))
-  , ("!"           , indexPrim sym (indexBack sym) (indexBack_bits sym) (indexBack sym))
+  , ("@"           , indexPrim sym IndexForward  (indexFront sym) (indexFront_segs sym))
+  , ("!"           , indexPrim sym IndexBackward (indexFront sym) (indexFront_segs sym))
 
   , ("update"      , updatePrim sym (updateFrontSym_word sym) (updateFrontSym sym))
   , ("updateEnd"   , updatePrim sym (updateBackSym_word sym) (updateBackSym sym))
@@ -128,60 +129,23 @@ indexFront sym mblen a xs _ix idx
             Nat n -> foldr f def [0 .. n-1]
             Inf -> liftIO (X.throw (UnsupportedSymbolicOp "unbounded integer indexing"))
 
-indexBack ::
+indexFront_segs ::
   SBV ->
   Nat' ->
   TValue ->
   SeqMap SBV (GenValue SBV) ->
   TValue ->
-  SWord SBV ->
+  Integer ->
+  [IndexSegment SBV] ->
   SEval SBV Value
-indexBack sym (Nat n) a xs ix idx = indexFront sym (Nat n) a (reverseSeqMap n xs) ix idx
-indexBack _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["indexBack"]
+indexFront_segs sym mblen a xs ix _idx_bits [WordIndexSegment w] =
+  indexFront sym mblen a xs ix w
 
-indexFront_bits ::
-  SBV ->
-  Nat' ->
-  TValue ->
-  SeqMap SBV (GenValue SBV) ->
-  TValue ->
-  [SBit SBV] ->
-  SEval SBV Value
-indexFront_bits sym mblen _a xs _ix bits0 = go 0 (length bits0) bits0
- where
-  go :: Integer -> Int -> [SBit SBV] -> SEval SBV Value
-  go i _k []
-    -- For indices out of range, fail
-    | Nat n <- mblen
-    , i >= n
-    = raiseError sym (InvalidIndex (Just i))
-
-    | otherwise
-    = lookupSeqMap xs i
-
-  go i k (b:bs)
-    -- Fail early when all possible indices we could compute from here
-    -- are out of bounds
-    | Nat n <- mblen
-    , (i `shiftL` k) >= n
-    = raiseError sym (InvalidIndex Nothing)
-
-    | otherwise
-    = iteValue sym b
-         (go ((i `shiftL` 1) + 1) (k-1) bs)
-         (go  (i `shiftL` 1)      (k-1) bs)
-
-
-indexBack_bits ::
-  SBV ->
-  Nat' ->
-  TValue ->
-  SeqMap SBV (GenValue SBV) ->
-  TValue ->
-  [SBit SBV] ->
-  SEval SBV Value
-indexBack_bits sym (Nat n) a xs ix idx = indexFront_bits sym (Nat n) a (reverseSeqMap n xs) ix idx
-indexBack_bits _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["indexBack_bits"]
+indexFront_segs sym _mblen _a xs _ix idx_bits segs =
+  do xs' <- barrelShifter sym (mergeValue sym) shiftOp xs idx_bits segs
+     lookupSeqMap xs' 0
+  where
+    shiftOp vs amt = pure (indexSeqMap (\i -> lookupSeqMap vs $! amt+i))
 
 
 updateFrontSym ::

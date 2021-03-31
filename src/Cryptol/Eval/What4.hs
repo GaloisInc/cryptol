@@ -40,6 +40,7 @@ import qualified What4.Utils.AbstractDomains as W4
 
 import Cryptol.Backend
 import Cryptol.Backend.Monad ( EvalError(..), Unsupported(..) )
+import Cryptol.Backend.SeqMap
 import Cryptol.Backend.WordValue
 import Cryptol.Backend.What4
 
@@ -87,8 +88,8 @@ primTable sym getEOpts =
                         rotateRightReindex rotateLeftReindex)
 
     -- Indexing and updates
-  , ("@"           , indexPrim sym (indexFront_int sym) (indexFront_bits sym) (indexFront_word sym))
-  , ("!"           , indexPrim sym (indexBack_int sym) (indexBack_bits sym) (indexBack_word sym))
+  , ("@"           , indexPrim sym IndexForward  (indexFront_int sym) (indexFront_segs sym))
+  , ("!"           , indexPrim sym IndexBackward (indexFront_int sym) (indexFront_segs sym))
 
   , ("update"      , updatePrim sym (updateFrontSym_word sym) (updateFrontSym sym))
   , ("updateEnd"   , updatePrim sym (updateBackSym_word sym)  (updateBackSym sym))
@@ -582,29 +583,17 @@ indexFront_int sym mblen _a xs ix idx
         (Nat n, _)           -> Just n
         (_    , TVIntMod m)  -> Just m
         _                    -> Nothing
-
-indexBack_int ::
+indexFront_segs ::
   W4.IsSymExprBuilder sym =>
   What4 sym ->
   Nat' ->
   TValue ->
   SeqMap (What4 sym) (GenValue (What4 sym)) ->
   TValue ->
-  SInteger (What4 sym) ->
+  Integer ->
+  [IndexSegment (What4 sym)] ->
   SEval (What4 sym) (Value sym)
-indexBack_int sym (Nat n) a xs ix idx = indexFront_int sym (Nat n) a (reverseSeqMap n xs) ix idx
-indexBack_int _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["indexBack_int"]
-
-indexFront_word ::
-  W4.IsSymExprBuilder sym =>
-  What4 sym ->
-  Nat' ->
-  TValue ->
-  SeqMap (What4 sym) (GenValue (What4 sym)) ->
-  TValue ->
-  SWord (What4 sym) ->
-  SEval (What4 sym) (Value sym)
-indexFront_word sym mblen _a xs _ix idx
+indexFront_segs sym mblen _a xs _ix _idx_bits [WordIndexSegment idx]
   | Just i <- SW.bvAsUnsignedInteger idx
   = lookupSeqMap xs i
 
@@ -636,62 +625,11 @@ indexFront_word sym mblen _a xs _ix idx
         Just (lo, hi) -> [lo .. min hi maxIdx]
         _ -> [0 .. maxIdx]
 
-indexBack_word ::
-  W4.IsSymExprBuilder sym =>
-  What4 sym ->
-  Nat' ->
-  TValue ->
-  SeqMap (What4 sym) (GenValue (What4 sym)) ->
-  TValue ->
-  SWord (What4 sym) ->
-  SEval (What4 sym) (Value sym)
-indexBack_word sym (Nat n) a xs ix idx = indexFront_word sym (Nat n) a (reverseSeqMap n xs) ix idx
-indexBack_word _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["indexBack_word"]
-
-indexFront_bits :: forall sym.
-  W4.IsSymExprBuilder sym =>
-  What4 sym ->
-  Nat' ->
-  TValue ->
-  SeqMap (What4 sym) (GenValue (What4 sym)) ->
-  TValue ->
-  [SBit (What4 sym)] ->
-  SEval (What4 sym) (Value sym)
-indexFront_bits sym mblen _a xs _ix bits0 = go 0 (length bits0) bits0
- where
-  go :: Integer -> Int -> [W4.Pred sym] -> W4Eval sym (Value sym)
-  go i _k []
-    -- For indices out of range, fail
-    | Nat n <- mblen
-    , i >= n
-    = raiseError sym (InvalidIndex (Just i))
-
-    | otherwise
-    = lookupSeqMap xs i
-
-  go i k (b:bs)
-    -- Fail early when all possible indices we could compute from here
-    -- are out of bounds
-    | Nat n <- mblen
-    , (i `shiftL` k) >= n
-    = raiseError sym (InvalidIndex Nothing)
-
-    | otherwise
-    = iteValue sym b
-         (go ((i `shiftL` 1) + 1) (k-1) bs)
-         (go  (i `shiftL` 1)      (k-1) bs)
-
-indexBack_bits ::
-  W4.IsSymExprBuilder sym =>
-  What4 sym ->
-  Nat' ->
-  TValue ->
-  SeqMap (What4 sym) (GenValue (What4 sym)) ->
-  TValue ->
-  [SBit (What4 sym)] ->
-  SEval (What4 sym) (Value sym)
-indexBack_bits sym (Nat n) a xs ix idx = indexFront_bits sym (Nat n) a (reverseSeqMap n xs) ix idx
-indexBack_bits _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["indexBack_bits"]
+indexFront_segs sym _mblen _a xs _ix idx_bits segs =
+  do xs' <- barrelShifter sym (mergeValue sym) shiftOp xs idx_bits segs
+     lookupSeqMap xs' 0
+  where
+    shiftOp vs amt = pure (indexSeqMap (\i -> lookupSeqMap vs $! amt+i))
 
 
 updateFrontSym ::

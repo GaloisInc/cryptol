@@ -37,6 +37,7 @@ module Cryptol.Backend.WordValue
   , assertWordValueInBounds
   , enumerateWordValue
   , enumerateWordValueRev
+  , enumerateIndexSegments
   , wordValueSize
   , indexWordValue
   , updateWordValue
@@ -46,15 +47,14 @@ module Cryptol.Backend.WordValue
   , lazyViewWordOrBitsMap
   , delayWordValue
   , joinWords
-  , seqShiftByWord
-  , wordShiftByInt
-  , wordShiftByWord
+  , shiftSeqByWord
+  , shiftWordByInt
+  , shiftWordByWord
   , wordValAsLit
   , reverseWordVal
   , forceWordValue
   , wordValueEqualsInteger
 
-  , enumerateIntBits'
   , mergeWord
   , mergeWord'
   ) where
@@ -318,6 +318,12 @@ enumerateWordValueRev sym (WordVal w)  = reverse <$> unpackWord sym w
 enumerateWordValueRev sym (ThunkWordVal _ m)  = enumerateWordValueRev sym =<< m
 enumerateWordValueRev _   (LargeBitsVal n xs) = sequence (enumerateSeqMap n (reverseSeqMap n xs))
 
+
+enumerateIndexSegments :: Backend sym => sym -> WordValue sym -> SEval sym [IndexSegment sym]
+enumerateIndexSegments _sym (WordVal w) = pure [WordIndexSegment w]
+enumerateIndexSegments _sym (LargeBitsVal n xs) = traverse (BitIndexSegment <$>) (enumerateSeqMap n xs)
+enumerateIndexSegments sym (ThunkWordVal _ m) = enumerateIndexSegments sym =<< m
+
 {-# SPECIALIZE bitsValueLessThan ::
   Concrete ->
   Integer ->
@@ -444,29 +450,36 @@ delayWordValue sym sz m
   | otherwise     = ThunkWordVal sz <$> sDelay sym m
 
 
-wordShiftByInt ::
+shiftWordByInt ::
   Backend sym =>
   sym ->
   (SWord sym -> SWord sym -> SEval sym (SWord sym)) ->
   (Integer -> Integer -> Maybe Integer) ->
-  SInteger sym ->
   WordValue sym ->
+  SInteger sym ->
   SEval sym (WordValue sym)
 
-wordShiftByInt sym wop reindex idx x =
+shiftWordByInt sym wop reindex x idx =
   case x of
     ThunkWordVal w wm
       | isReady sym wm ->
-          wordShiftByInt sym wop reindex idx =<< wm
+          do x' <- wm
+             shiftWordByInt sym wop reindex x' idx
       | otherwise ->
-         do m' <- sDelay sym (wordShiftByInt sym wop reindex idx =<< wm)
+         do m' <- sDelay sym
+                     (do x' <- wm
+                         shiftWordByInt sym wop reindex x' idx)
             return (ThunkWordVal w m')
 
     WordVal x' -> WordVal <$> (wop x' =<< wordFromInt sym (wordLen sym x') idx)
 
     LargeBitsVal n bs0 ->
-         do idx_bits <- enumerateIntBits' sym n idx
-            LargeBitsVal n <$> barrelShifter sym (iteBit sym) shiftOp bs0 idx_bits
+      case integerAsLit sym idx of
+        Just j ->
+          LargeBitsVal n <$> shiftOp bs0 j
+        Nothing ->
+          do (numbits, idx_bits) <- enumerateIntBits' sym n idx
+             LargeBitsVal n <$> barrelShifter sym (iteBit sym) shiftOp bs0 numbits (map BitIndexSegment idx_bits)
 
  where
    shiftOp vs shft =
@@ -476,7 +489,44 @@ wordShiftByInt sym wop reindex idx x =
           Just i' -> lookupSeqMap vs i'
 
 
-seqShiftByWord  ::
+shiftWordByWord ::
+  Backend sym =>
+  sym ->
+  (SWord sym -> SWord sym -> SEval sym (SWord sym)) ->
+  (Integer -> Integer -> Maybe Integer) ->
+  WordValue sym {- ^ value to shift -} ->
+  WordValue sym {- ^ amount to shift -} ->
+  SEval sym (WordValue sym)
+shiftWordByWord sym wop reindex x idx =
+  case x of
+    ThunkWordVal w wm
+      | isReady sym wm ->
+          do wm' <- wm
+             shiftWordByWord sym wop reindex wm' idx
+      | otherwise ->
+         do m' <- sDelay sym (do wm' <- wm
+                                 shiftWordByWord sym wop reindex wm' idx)
+            return (ThunkWordVal w m')
+
+    WordVal x' -> WordVal <$> (wop x' =<< asWordVal sym idx)
+
+    LargeBitsVal n bs0 ->
+      case idx of
+        WordVal (wordAsLit sym -> Just (_,j)) ->
+          LargeBitsVal n <$> shiftOp bs0 j
+        _ ->
+          do idx_segs <- enumerateIndexSegments sym idx
+             LargeBitsVal n <$> barrelShifter sym (iteBit sym) shiftOp bs0 n idx_segs
+
+ where
+   shiftOp vs shft =
+      memoMap sym $ indexSeqMap $ \i ->
+        case reindex i shft of
+          Nothing -> pure $ bitLit sym False
+          Just i' -> lookupSeqMap vs i'
+
+
+shiftSeqByWord  ::
   Backend sym =>
   sym ->
   (SBit sym -> a -> a -> SEval sym a) ->
@@ -485,48 +535,15 @@ seqShiftByWord  ::
   SeqMap sym a ->
   WordValue sym ->
   SEval sym (SeqMap sym a)
-seqShiftByWord sym merge reindex zro xs idx =
-  do idx_bits <- enumerateWordValue sym idx
-     barrelShifter sym merge shiftOp xs idx_bits
+shiftSeqByWord sym merge reindex zro xs idx =
+  do idx_segs <- enumerateIndexSegments sym idx
+     barrelShifter sym merge shiftOp xs (wordValueSize sym idx) idx_segs
  where
    shiftOp vs shft =
      memoMap sym $ indexSeqMap $ \i ->
        case reindex i shft of
          Nothing -> zro
          Just i' -> lookupSeqMap vs i'
-
-wordShiftByWord ::
-  Backend sym =>
-  sym ->
-  (SWord sym -> SWord sym -> SEval sym (SWord sym)) ->
-  (Integer -> Integer -> Maybe Integer) ->
-  WordValue sym {- ^ value to shift -} ->
-  WordValue sym {- ^ amount to shift -} ->
-  SEval sym (WordValue sym)
-wordShiftByWord sym wop reindex x idx =
-  case x of
-    ThunkWordVal w wm
-      | isReady sym wm ->
-          do wm' <- wm
-             wordShiftByWord sym wop reindex wm' idx
-      | otherwise ->
-         do m' <- sDelay sym (do wm' <- wm
-                                 wordShiftByWord sym wop reindex wm' idx)
-            return (ThunkWordVal w m')
-
-    WordVal x' -> WordVal <$> (wop x' =<< asWordVal sym idx)
-
-    LargeBitsVal n bs0 ->
-      do idx_bits <- enumerateWordValue sym idx
-         LargeBitsVal n <$> barrelShifter sym (iteBit sym) shiftOp bs0 idx_bits
-
- where
-   shiftOp vs shft =
-      memoMap sym $ indexSeqMap $ \i ->
-        case reindex i shft of
-          Nothing -> pure $ bitLit sym False
-          Just i' -> lookupSeqMap vs i'
-
 
 -- | Compute the size of a word value
 -- TODO, can we get rid of this? If feels like it should be
@@ -559,17 +576,6 @@ updateWordValue sym wv idx b
         pure $ LargeBitsVal (wordValueSize sym wv) $ updateSeqMap (asBitsMap sym wv) idx b
    | otherwise = invalidIndex sym idx
 
--- | Compute the list of bits in an integer in big-endian order.
---   The integer argument is a concrete upper bound for
---   the symbolic integer.
-enumerateIntBits' :: Backend sym =>
-  sym ->
-  Integer ->
-  SInteger sym ->
-  SEval sym [SBit sym]
-enumerateIntBits' sym n idx =
-  do w <- wordFromInt sym (widthInteger n) idx
-     unpackWord sym w
 
 {-# INLINE mergeWord #-}
 mergeWord :: Backend sym =>
