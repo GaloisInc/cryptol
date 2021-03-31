@@ -2074,7 +2074,7 @@ genericPrimTable sym getEOpts =
                     PFun     \xs ->
                     PPrim $ takeV sym front back a xs)
 
-  , ("drop"       , {-# SCC "Preldue::take" #-}
+  , ("drop"       , {-# SCC "Preldue::drop" #-}
                     PFinPoly \front ->
                     PNumPoly \back ->
                     PTyPoly  \a ->
