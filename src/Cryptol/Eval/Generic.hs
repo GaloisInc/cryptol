@@ -1431,11 +1431,13 @@ updatePrim sym updateWord updateSeq =
   PPrim
    do idx' <- asIndex sym "update" ix <$> idx
       assertIndexInBounds sym len idx'
-      xs >>= \case
-        VWord l w  -> VWord l <$> delayWordValue sym l (updateWord len eltTy w idx' val)
-        VSeq l vs  -> VSeq l  <$> updateSeq len eltTy vs idx' val
-        VStream vs -> VStream <$> updateSeq len eltTy vs idx' val
-        _ -> evalPanic "Expected sequence value" ["updatePrim"]
+      case (len, eltTy) of
+        (Nat n, TVBit) -> VWord n <$> delayWordValue sym n
+                             (do w <- fromWordVal "updatePrim" <$> xs; updateWord len eltTy w idx' val)
+        (Nat n, _    ) -> VSeq n <$> delaySeqMap sym
+                             (do vs <- fromSeq "updatePrim" =<< xs; updateSeq len eltTy vs idx' val)
+        (Inf  , _    ) -> VStream <$> delaySeqMap sym
+                             (do vs <- fromSeq "updatePrim" =<< xs; updateSeq len eltTy vs idx' val)
 
 {-# INLINE fromToV #-}
 
