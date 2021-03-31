@@ -48,7 +48,7 @@ module Cryptol.Backend.WordValue
   , delayWordValue
   , joinWords
   , shiftSeqByWord
-  , shiftWordByInt
+  , shiftWordByInteger
   , shiftWordByWord
   , wordValAsLit
   , reverseWordVal
@@ -450,7 +450,7 @@ delayWordValue sym sz m
   | otherwise     = ThunkWordVal sz <$> sDelay sym m
 
 
-shiftWordByInt ::
+shiftWordByInteger ::
   Backend sym =>
   sym ->
   (SWord sym -> SWord sym -> SEval sym (SWord sym)) ->
@@ -459,16 +459,16 @@ shiftWordByInt ::
   SInteger sym ->
   SEval sym (WordValue sym)
 
-shiftWordByInt sym wop reindex x idx =
+shiftWordByInteger sym wop reindex x idx =
   case x of
     ThunkWordVal w wm
       | isReady sym wm ->
           do x' <- wm
-             shiftWordByInt sym wop reindex x' idx
+             shiftWordByInteger sym wop reindex x' idx
       | otherwise ->
          do m' <- sDelay sym
                      (do x' <- wm
-                         shiftWordByInt sym wop reindex x' idx)
+                         shiftWordByInteger sym wop reindex x' idx)
             return (ThunkWordVal w m')
 
     WordVal x' -> WordVal <$> (wop x' =<< wordFromInt sym (wordLen sym x') idx)
@@ -483,7 +483,7 @@ shiftWordByInt sym wop reindex x idx =
 
  where
    shiftOp vs shft =
-      memoMap sym $ indexSeqMap $ \i ->
+      pure $ indexSeqMap $ \i ->
         case reindex i shft of
           Nothing -> pure $ bitLit sym False
           Just i' -> lookupSeqMap vs i'
@@ -520,7 +520,7 @@ shiftWordByWord sym wop reindex x idx =
 
  where
    shiftOp vs shft =
-      memoMap sym $ indexSeqMap $ \i ->
+      pure $ indexSeqMap $ \i ->
         case reindex i shft of
           Nothing -> pure $ bitLit sym False
           Just i' -> lookupSeqMap vs i'
@@ -540,7 +540,7 @@ shiftSeqByWord sym merge reindex zro xs idx =
      barrelShifter sym merge shiftOp xs (wordValueSize sym idx) idx_segs
  where
    shiftOp vs shft =
-     memoMap sym $ indexSeqMap $ \i ->
+     pure $ indexSeqMap $ \i ->
        case reindex i shft of
          Nothing -> zro
          Just i' -> lookupSeqMap vs i'

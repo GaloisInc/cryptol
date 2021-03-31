@@ -202,17 +202,25 @@ mergeSeqMap sym f c x y =
 shiftSeqByInteger :: Backend sym =>
   sym ->
   (SBit sym -> a -> a -> SEval sym a) ->
-  (SeqMap sym a -> Integer -> SEval sym (SeqMap sym a))
-     {- ^ concrete shifting operation -} ->
+  (Integer -> Integer -> Maybe Integer)
+     {- ^ reindexing operation -} ->
+  SEval sym a ->
   Nat' ->
   SeqMap sym a ->
   SInteger sym ->
   SEval sym (SeqMap sym a)
-shiftSeqByInteger sym merge shiftOp m xs idx
+shiftSeqByInteger sym merge reindex zro m xs idx
   | Just j <- integerAsLit sym idx = shiftOp xs j
   | otherwise =
       do (n, idx_bits) <- enumerateIntBits sym m idx
          barrelShifter sym merge shiftOp xs n (map BitIndexSegment idx_bits)
+ where
+   shiftOp vs shft =
+     pure $ indexSeqMap $ \i ->
+       case reindex i shft of
+         Nothing -> zro
+         Just i' -> lookupSeqMap vs i'
+
 
 data IndexSegment sym
   = BitIndexSegment (SBit sym)

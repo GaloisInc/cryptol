@@ -1584,6 +1584,7 @@ logicShift sym nm shrinkRange wopPos wopNeg reindexPos reindexNeg =
                 (intShifter sym nm wopPos reindexPos m a xs' =<< shrinkRange sym m ix int_idx)
          Right idx ->
            wordShifter sym nm wopPos reindexPos m a xs' idx
+{-# INLINE logicShift #-}
 
 
 intShifter :: Backend sym =>
@@ -1596,21 +1597,12 @@ intShifter :: Backend sym =>
    GenValue sym ->
    SInteger sym ->
    SEval sym (GenValue sym)
-intShifter sym nm wop reindex m a xs0 idx = go xs0
-  where
-     shiftOp vs shft =
-         memoMap sym $ indexSeqMap $ \i ->
-           case reindex m i shft of
-             Nothing -> zeroV sym a
-             Just i' -> lookupSeqMap vs i'
-
-     go xs = case xs of
-        VWord w x  -> VWord w <$> shiftWordByInt sym wop (reindex m) x idx
-        VSeq w vs  -> VSeq w  <$> shiftSeqByInteger sym (mergeValue sym) shiftOp m vs idx
-        VStream vs -> VStream <$> shiftSeqByInteger sym (mergeValue sym) shiftOp m vs idx
-
-        _ -> evalPanic "expected sequence value in shift operation" [nm]
-
+intShifter sym nm wop reindex m a xs idx =
+  case xs of
+    VWord w x  -> VWord w <$> shiftWordByInteger sym wop (reindex m) x idx
+    VSeq w vs  -> VSeq w  <$> shiftSeqByInteger sym (mergeValue sym) (reindex m) (zeroV sym a) m vs idx
+    VStream vs -> VStream <$> shiftSeqByInteger sym (mergeValue sym) (reindex m) (zeroV sym a) m vs idx
+    _ -> evalPanic "expected sequence value in shift operation" [nm]
 
 wordShifter :: Backend sym =>
    sym ->
