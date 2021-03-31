@@ -604,4 +604,6 @@ mergeWord' :: Backend sym =>
   SEval sym (WordValue sym) ->
   SEval sym (WordValue sym) ->
   SEval sym (WordValue sym)
-mergeWord' sym = mergeEval sym (mergeWord sym)
+mergeWord' sym c x y
+  | Just b <- bitAsLit sym c = if b then x else y
+  | otherwise = mergeEval sym (mergeWord sym) c x y

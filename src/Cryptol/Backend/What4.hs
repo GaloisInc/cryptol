@@ -346,6 +346,7 @@ instance W4.IsSymExprBuilder sym => Backend (What4 sym) where
   wordShiftRight  sym x y = w4bvLshr (w4 sym) x y
   wordRotateLeft  sym x y = w4bvRol (w4 sym) x y
   wordRotateRight sym x y = w4bvRor (w4 sym) x y
+  wordSignedShiftRight sym x y = w4bvAshr (w4 sym) x y
 
   wordDiv sym x y =
      do assertBVDivisor sym y

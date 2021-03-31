@@ -266,6 +266,7 @@ instance Backend SBV where
   wordShiftRight _ a b  = pure $! lshr a b
   wordRotateLeft _ a b  = pure $! SBV.svRotateLeft a b
   wordRotateRight _ a b = pure $! SBV.svRotateRight a b
+  wordSignedShiftRight _ a b = pure $! ashr a b
 
   wordDiv sym a b =
     do let z = literalSWord (intSizeOf b) 0

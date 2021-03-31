@@ -295,6 +295,13 @@ instance Backend Concrete where
     | by > toInteger (maxBound :: Int) = panic "lshr" ["Shift amount too large", show by]
     | otherwise = pure $! BV w (shiftR ival (fromInteger by))
 
+  wordSignedShiftRight _sym (BV w ival) (BV _ by) =
+    let by' = min w by in
+    if by' > toInteger (maxBound :: Int) then
+      panic "wordSignedShiftRight" ["Shift amount too large", show by]
+    else
+      pure $! mkBv w (shiftR (signedValue w ival) (fromInteger by'))
+
   wordRotateRight _sym (BV 0 i) _ = pure (BV 0 i)
   wordRotateRight _sym (BV w i) (BV _ by) =
       pure . mkBv w $! (i `shiftR` b) .|. (i `shiftL` (fromInteger w - b))

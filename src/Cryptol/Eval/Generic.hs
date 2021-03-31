@@ -1645,6 +1645,30 @@ rotateShrink sym (Nat w) _ x =
   do w' <- integerLit sym w
      intMod sym x w'
 
+{-# INLINE sshrV #-}
+sshrV :: Backend sym => sym -> Prim sym
+sshrV sym =
+  PFinPoly \n ->
+  PTyPoly  \ix ->
+  PWordFun \x ->
+  PStrict  \y ->
+  PPrim $
+    case asIndex sym ">>$" ix y of
+       Left i ->
+         do pneg <- intLessThan sym i =<< integerLit sym 0
+            VWord n <$> mergeWord' sym
+              pneg
+              (do i' <- shiftShrink sym (Nat n) ix =<< intNegate sym i
+                  amt <- wordFromInt sym n i'
+                  wordVal <$> wordShiftLeft sym x amt)
+              (do i' <- shiftShrink sym (Nat n) ix i
+                  amt <- wordFromInt sym n i'
+                  wordVal <$> wordSignedShiftRight sym x amt)
+
+       Right wv ->
+         do amt <- asWordVal sym wv
+            VWord n . wordVal <$> wordSignedShiftRight sym x amt
+
 -- Miscellaneous ---------------------------------------------------------------
 
 {-# SPECIALIZE errorV ::
@@ -2090,6 +2114,9 @@ genericPrimTable sym getEOpts =
                     logicShift sym ">>>" rotateShrink
                       (wordRotateRight sym) (wordRotateLeft sym)
                       rotateRightReindex rotateLeftReindex)
+
+  , (">>$"        , {-# SCC "Prelude::(>>$)" #-}
+                    sshrV sym)
 
     -- Misc
 

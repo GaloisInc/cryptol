@@ -54,10 +54,8 @@ primTable sym getEOpts =
   Map.union (genericPrimTable sym getEOpts) $
   Map.fromList $ map (\(n, v) -> (prelPrim (T.pack n), v))
 
-  [ (">>$"         , sshrV sym)
-
-    -- Indexing and updates
-  , ("@"           , indexPrim sym IndexForward  (indexFront sym) (indexFront_segs sym))
+  [ -- Indexing and updates
+    ("@"           , indexPrim sym IndexForward  (indexFront sym) (indexFront_segs sym))
   , ("!"           , indexPrim sym IndexBackward (indexFront sym) (indexFront_segs sym))
 
   , ("update"      , updatePrim sym (updateFrontSym_word sym) (updateFrontSym sym))
@@ -256,22 +254,3 @@ updateBackSym_word sym (Nat n) eltTy w lridx val =
              let bw'  = SBV.svAnd bw (SBV.svNot msk)
              return $! SBV.svXOr bw' (SBV.svAnd q msk)
 
-sshrV :: SBV -> Prim SBV
-sshrV sym =
-  PNumPoly \n ->
-  PTyPoly  \ix ->
-  PWordFun \x ->
-  PStrict  \y ->
-  PPrim $
-   case asIndex sym ">>$" ix y of
-     Left idx ->
-       do let w = toInteger (SBV.intSizeOf x)
-          let pneg = svLessThan idx (svInteger KUnbounded 0)
-          zneg <- shl x  . svFromInteger w <$> shiftShrink sym n ix (SBV.svUNeg idx)
-          zpos <- ashr x . svFromInteger w <$> shiftShrink sym n ix idx
-          let z = svSymbolicMerge (kindOf x) True pneg zneg zpos
-          return . VWord w . wordVal $ z
-
-     Right wv ->
-       do z <- ashr x <$> asWordVal sym wv
-          return . VWord (toInteger (SBV.intSizeOf x)) . wordVal $ z

@@ -26,7 +26,6 @@ module Cryptol.Eval.Concrete
   ) where
 
 import Control.Monad (guard, zipWithM, foldM, mzero)
-import Data.Bits (Bits(..))
 import Data.Ratio(numerator,denominator)
 import Data.Word(Word32, Word64)
 import MonadLib( ChoiceT, findOne, lift )
@@ -161,11 +160,8 @@ primTable getEOpts = let sym = Concrete in
 
   Map.fromList $ map (\(n, v) -> (prelPrim n, v))
 
-  [ (">>$"        , {-# SCC "Prelude::(>>$)" #-}
-                    sshrV)
-
-    -- Indexing and updates
-  , ("@"          , {-# SCC "Prelude::(@)" #-}
+  [ -- Indexing and updates
+    ("@"          , {-# SCC "Prelude::(@)" #-}
                     indexPrim sym IndexForward indexFront_int indexFront_segs)
   , ("!"          , {-# SCC "Prelude::(!)" #-}
                     indexPrim sym IndexBackward indexFront_int indexFront_segs)
@@ -441,37 +437,6 @@ toSHA512Block blk =
         (toWord 14) <*>
         (toWord 15)
 
---------------------------------------------------------------------------------
-
-sshrV :: Prim Concrete
-sshrV =
-  PNumPoly \_n ->
-  PTyPoly  \ix ->
-  PWordFun \(BV w x) ->
-  PFun     \y ->
-  PPrim
-   do idx <- (asIndex Concrete ">>$" ix <$> y) >>= \case
-                 Left idx -> pure idx
-                 Right wv -> bvVal <$> asWordVal Concrete wv
-      if idx < 0 then
-        VWord w . wordVal <$> concreteShl (BV w x) (BV w (negate idx))
-      else
-        return . VWord w . wordVal $! mkBv w $ signedShiftRW w x idx
-
--- signed right shift for words
-signedShiftRW :: Integer -> Integer -> Integer -> Integer
-signedShiftRW w ival by =
-     let by' = min w by in
-     if by' > toInteger (maxBound :: Int) then
-       panic "signedShiftRW" ["Shift amount too large", show by]
-     else
-       shiftR (signedValue w ival) (fromInteger by')
-
-concreteShl  :: BV -> BV -> Eval BV
-concreteShl (BV w ival) (BV _ by)
-  | by >= w   = pure $! BV w 0
-  | by > toInteger (maxBound :: Int) = panic "shl" ["Shift amount too large", show by]
-  | otherwise = pure $! mkBv w (shiftL ival (fromInteger by))
 
 -- Sequence Primitives ---------------------------------------------------------
 

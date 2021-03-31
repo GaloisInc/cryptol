@@ -70,10 +70,8 @@ primTable sym getEOpts =
 
   Map.fromList $ map (\(n, v) -> (prelPrim n, v))
 
-  [ (">>$"         , sshrV sym)
-
-    -- Indexing and updates
-  , ("@"           , indexPrim sym IndexForward  (indexFront_int sym) (indexFront_segs sym))
+  [ -- Indexing and updates
+    ("@"           , indexPrim sym IndexForward  (indexFront_int sym) (indexFront_segs sym))
   , ("!"           , indexPrim sym IndexBackward (indexFront_int sym) (indexFront_segs sym))
 
   , ("update"      , updatePrim sym (updateFrontSym_word sym) (updateFrontSym sym))
@@ -497,28 +495,6 @@ applyAESStateFunc sym funNm x =
                  (EmptyCtx ::> W4.BaseBVType 32 ::> W4.BaseBVType 32 ::> W4.BaseBVType 32 ::> W4.BaseBVType 32)
    argCtx = W4.knownRepr
 
-
-sshrV :: W4.IsSymExprBuilder sym => What4 sym -> Prim (What4 sym)
-sshrV sym =
-  PFinPoly \n ->
-  PTyPoly  \ix ->
-  PWordFun \x ->
-  PStrict  \y ->
-  PPrim $
-    case asIndex sym ">>$" ix y of
-       Left i ->
-         do pneg <- intLessThan sym i =<< integerLit sym 0
-            zneg <- do i' <- shiftShrink sym (Nat n) ix =<< intNegate sym i
-                       amt <- wordFromInt sym n i'
-                       w4bvShl (w4 sym) x amt
-            zpos <- do i' <- shiftShrink sym (Nat n) ix i
-                       amt <- wordFromInt sym n i'
-                       w4bvAshr (w4 sym) x amt
-            VWord (SW.bvWidth x) . wordVal <$> iteWord sym pneg zneg zpos
-
-       Right wv ->
-         do amt <- asWordVal sym wv
-            VWord (SW.bvWidth x) . wordVal <$> w4bvAshr (w4 sym) x amt
 
 indexFront_int ::
   W4.IsSymExprBuilder sym =>
