@@ -134,12 +134,12 @@ splitWordVal sym leftWidth rightWidth (WordVal w) =
   do (lw, rw) <- splitWord sym leftWidth rightWidth w
      pure (WordVal lw, WordVal rw)
 
-splitWordVal sym leftWidth rightWidth (ThunkWordVal n m) =
+splitWordVal sym leftWidth rightWidth (ThunkWordVal _ m) =
   isReady sym m >>= \case
     Just w -> splitWordVal sym leftWidth rightWidth w
     Nothing ->
       do m' <- sDelay sym (splitWordVal sym leftWidth rightWidth =<< m)
-         return (ThunkWordVal n (fst <$> m'), ThunkWordVal n (snd <$> m'))
+         return (ThunkWordVal leftWidth (fst <$> m'), ThunkWordVal rightWidth (snd <$> m'))
 
 splitWordVal _ leftWidth rightWidth (LargeBitsVal _n xs) =
   let (lxs, rxs) = splitSeqMap leftWidth xs
