@@ -45,7 +45,7 @@ import Cryptol.Backend.Monad
 import Cryptol.Backend.SeqMap
 import Cryptol.Backend.WordValue
 
-import Cryptol.Eval.Generic hiding (logicShift)
+import Cryptol.Eval.Generic
 import Cryptol.Eval.Prims
 import Cryptol.Eval.Type
 import Cryptol.Eval.Value
@@ -166,13 +166,21 @@ primTable getEOpts = let sym = Concrete in
 
     -- Shifts and rotates
   , ("<<"         , {-# SCC "Prelude::(<<)" #-}
-                    logicShift shiftLW shiftLS)
+                    logicShift sym "<<" shiftShrink
+                      concreteShl concreteLshr
+                      shiftLeftReindex shiftRightReindex)
   , (">>"         , {-# SCC "Prelude::(>>)" #-}
-                    logicShift shiftRW shiftRS)
+                    logicShift sym ">>"  shiftShrink
+                      concreteLshr concreteShl
+                      shiftRightReindex shiftLeftReindex)
   , ("<<<"        , {-# SCC "Prelude::(<<<)" #-}
-                    logicShift rotateLW rotateLS)
+                    logicShift sym "<<<" rotateShrink
+                      concreteRol concreteRor
+                      rotateLeftReindex rotateRightReindex)
   , (">>>"        , {-# SCC "Prelude::(>>>)" #-}
-                    logicShift rotateRW rotateRS)
+                    logicShift sym ">>>" rotateShrink
+                      concreteRor concreteRol
+                      rotateRightReindex rotateLeftReindex)
 
     -- Indexing and updates
   , ("@"          , {-# SCC "Prelude::(@)" #-}
@@ -463,109 +471,43 @@ sshrV =
    do idx <- (asIndex Concrete ">>$" ix <$> y) >>= \case
                  Left idx -> pure idx
                  Right wv -> bvVal <$> asWordVal Concrete wv
-      return $ VWord w $ wordVal $ mkBv w $ signedShiftRW w x idx
-
-logicShift :: (Integer -> Integer -> Integer -> Integer)
-              -- ^ The function may assume its arguments are masked.
-              -- It is responsible for masking its result if needed.
-           -> (Nat' -> TValue -> SeqMap Concrete (GenValue Concrete) -> Integer -> SeqMap Concrete (GenValue Concrete))
-           -> Prim Concrete
-logicShift opW opS =
-  PNumPoly \a ->
-  PTyPoly  \_ix ->
-  PTyPoly  \c ->
-  PFun     \l ->
-  PFun     \r ->
-  PPrim
-     do i <- r >>= \case
-          VInteger i -> pure i
-          VWord _ wval -> bvVal <$> asWordVal Concrete wval
-          _ -> evalPanic "logicShift" ["not an index"]
-        let goword = viewWordOrBitsMap Concrete
-                       (\ (BV w x) -> pure $ wordVal (BV w (opW w x i)))
-                       (\ n bs -> pure $ largeBitsVal n $ fmap fromVBit $
-                                    opS (Nat n) c (fmap VBit bs) i)
-        l >>= \case
-          VWord w wv -> VWord w <$> goword wv
-          _ -> mkSeq a c <$> (opS a c <$> (fromSeq "logicShift" =<< l) <*> return i)
-
--- Left shift for words.
-shiftLW :: Integer -> Integer -> Integer -> Integer
-shiftLW w ival by
-  | by <  0   = shiftRW w ival (negate by)
-  | by >= w   = 0
-  | by > toInteger (maxBound :: Int) = panic "shiftLW" ["Shift amount too large", show by]
-  | otherwise = mask w (shiftL ival (fromInteger by))
-
--- Right shift for words
-shiftRW :: Integer -> Integer -> Integer -> Integer
-shiftRW w ival by
-  | by <  0   = shiftLW w ival (negate by)
-  | by >= w   = 0
-  | by > toInteger (maxBound :: Int) = panic "shiftRW" ["Shift amount too large", show by]
-  | otherwise = shiftR ival (fromInteger by)
+      if idx < 0 then
+        VWord w . wordVal <$> concreteShl (BV w x) (BV w (negate idx))
+      else
+        return . VWord w . wordVal $! mkBv w $ signedShiftRW w x idx
 
 -- signed right shift for words
 signedShiftRW :: Integer -> Integer -> Integer -> Integer
-signedShiftRW w ival by
-  | by < 0    = shiftLW w ival (negate by)
-  | otherwise =
+signedShiftRW w ival by =
      let by' = min w by in
      if by' > toInteger (maxBound :: Int) then
        panic "signedShiftRW" ["Shift amount too large", show by]
      else
        shiftR (signedValue w ival) (fromInteger by')
 
-shiftLS :: Nat' -> TValue -> SeqMap Concrete (GenValue Concrete) -> Integer -> SeqMap Concrete (GenValue Concrete)
-shiftLS w ety vs by
-  | by < 0 = shiftRS w ety vs (negate by)
+concreteShl  :: BV -> BV -> Eval BV
+concreteShl (BV w ival) (BV _ by)
+  | by >= w   = pure $! BV w 0
+  | by > toInteger (maxBound :: Int) = panic "shl" ["Shift amount too large", show by]
+  | otherwise = pure $! mkBv w (shiftL ival (fromInteger by))
 
-shiftLS w ety vs by = indexSeqMap $ \i ->
-  case w of
-    Nat len
-      | i+by < len -> lookupSeqMap vs (i+by)
-      | i    < len -> zeroV Concrete ety
-      | otherwise  -> evalPanic "shiftLS" ["Index out of bounds"]
-    Inf            -> lookupSeqMap vs (i+by)
+concreteLshr :: BV -> BV -> Eval BV
+concreteLshr (BV w ival) (BV _ by)
+  | by >= w   = pure $! BV w 0
+  | by > toInteger (maxBound :: Int) = panic "lshr" ["Shift amount too large", show by]
+  | otherwise = pure $! BV w (shiftR ival (fromInteger by))
 
-shiftRS :: Nat' -> TValue -> SeqMap Concrete (GenValue Concrete) -> Integer -> SeqMap Concrete (GenValue Concrete)
-shiftRS w ety vs by
-  | by < 0 = shiftLS w ety vs (negate by)
-
-shiftRS w ety vs by = indexSeqMap $ \i ->
-  case w of
-    Nat len
-      | i >= by   -> lookupSeqMap vs (i-by)
-      | i < len   -> zeroV Concrete ety
-      | otherwise -> evalPanic "shiftLS" ["Index out of bounds"]
-    Inf
-      | i >= by   -> lookupSeqMap vs (i-by)
-      | otherwise -> zeroV Concrete ety
-
-
--- XXX integer doesn't implement rotateL, as there's no bit bound
-rotateLW :: Integer -> Integer -> Integer -> Integer
-rotateLW 0 i _  = i
-rotateLW w i by = mask w $ (i `shiftL` b) .|. (i `shiftR` (fromInteger w - b))
+concreteRor  :: BV -> BV -> Eval BV
+concreteRor (BV 0 x) _ = pure (BV 0 x)
+concreteRor (BV w i) (BV _ by) =
+    pure . mkBv w $! (i `shiftR` b) .|. (i `shiftL` (fromInteger w - b))
   where b = fromInteger (by `mod` w)
 
-rotateLS :: Nat' -> TValue -> SeqMap Concrete (GenValue Concrete) -> Integer -> SeqMap Concrete (GenValue Concrete)
-rotateLS w _ vs by = indexSeqMap $ \i ->
-  case w of
-    Nat len -> lookupSeqMap vs ((by + i) `mod` len)
-    _ -> panic "Cryptol.Eval.Prim.rotateLS" [ "unexpected infinite sequence" ]
-
--- XXX integer doesn't implement rotateR, as there's no bit bound
-rotateRW :: Integer -> Integer -> Integer -> Integer
-rotateRW 0 i _  = i
-rotateRW w i by = mask w $ (i `shiftR` b) .|. (i `shiftL` (fromInteger w - b))
+concreteRol :: BV -> BV -> Eval BV
+concreteRol (BV 0 i) _ = pure (BV 0 i)
+concreteRol (BV w i) (BV _ by) =
+    pure . mkBv w $! (i `shiftL` b) .|. (i `shiftR` (fromInteger w - b))
   where b = fromInteger (by `mod` w)
-
-rotateRS :: Nat' -> TValue -> SeqMap Concrete (GenValue Concrete) -> Integer -> SeqMap Concrete (GenValue Concrete)
-rotateRS w _ vs by = indexSeqMap $ \i ->
-  case w of
-    Nat len -> lookupSeqMap vs ((len - by + i) `mod` len)
-    _ -> panic "Cryptol.Eval.Prim.rotateRS" [ "unexpected infinite sequence" ]
 
 
 -- Sequence Primitives ---------------------------------------------------------

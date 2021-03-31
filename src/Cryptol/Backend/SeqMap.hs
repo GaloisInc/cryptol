@@ -17,7 +17,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PatternGuards #-}
-{-# LANGUAGE Safe #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TupleSections #-}
@@ -59,6 +58,7 @@ import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 
 import Cryptol.Backend
+import Cryptol.Backend.Concrete (Concrete)
 import Cryptol.Backend.Monad (Unsupported(..))
 
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
@@ -226,6 +226,16 @@ data IndexSegment sym
   = BitIndexSegment (SBit sym)
   | WordIndexSegment (SWord sym)
 
+{-# SPECIALIZE
+  barrelShifter ::
+  Concrete ->
+  (SBit Concrete -> a -> a -> SEval Concrete a) ->
+  (SeqMap Concrete a -> Integer -> SEval Concrete (SeqMap Concrete a)) ->
+  SeqMap Concrete a ->
+  Integer ->
+  [IndexSegment Concrete] ->
+  SEval Concrete (SeqMap Concrete a)
+ #-}
 barrelShifter :: Backend sym =>
   sym ->
   (SBit sym -> a -> a -> SEval sym a) ->

@@ -1545,6 +1545,7 @@ rotateRightReindex sz i shft =
      Nat n -> Just ((i+n-shft) `mod` n)
 
 
+{-# INLINE logicShift #-}
 -- | Generic implementation of shifting.
 --   Uses the provided word-level operation to perform the shift, when
 --   possible.  Otherwise falls back on a barrel shifter that uses
@@ -1584,9 +1585,10 @@ logicShift sym nm shrinkRange wopPos wopNeg reindexPos reindexNeg =
                 (intShifter sym nm wopPos reindexPos m a xs' =<< shrinkRange sym m ix int_idx)
          Right idx ->
            wordShifter sym nm wopPos reindexPos m a xs' idx
-{-# INLINE logicShift #-}
 
 
+
+{-# INLINE intShifter #-}
 intShifter :: Backend sym =>
    sym ->
    String ->
@@ -1604,6 +1606,8 @@ intShifter sym nm wop reindex m a xs idx =
     VStream vs -> VStream <$> shiftSeqByInteger sym (mergeValue sym) (reindex m) (zeroV sym a) m vs idx
     _ -> evalPanic "expected sequence value in shift operation" [nm]
 
+
+{-# INLINE wordShifter #-}
 wordShifter :: Backend sym =>
    sym ->
    String ->
@@ -1622,6 +1626,8 @@ wordShifter sym nm wop reindex m a xs idx =
     _ -> evalPanic "expected sequence value in shift operation" [nm]
 
 
+
+{-# INLINE shiftShrink #-}
 shiftShrink :: Backend sym => sym -> Nat' -> TValue -> SInteger sym -> SEval sym (SInteger sym)
 shiftShrink _sym Inf _ x = return x
 shiftShrink sym (Nat w) _ x =
@@ -1629,6 +1635,7 @@ shiftShrink sym (Nat w) _ x =
      p  <- intLessThan sym w' x
      iteInteger sym p w' x
 
+{-# INLINE rotateShrink #-}
 rotateShrink :: Backend sym => sym -> Nat' -> TValue -> SInteger sym -> SEval sym (SInteger sym)
 rotateShrink _sym Inf _ _ = panic "rotateShrink" ["expected finite sequence in rotate"]
 rotateShrink sym (Nat 0) _ _ = integerLit sym 0

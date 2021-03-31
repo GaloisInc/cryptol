@@ -41,8 +41,6 @@ module Cryptol.Backend.WordValue
   , wordValueSize
   , indexWordValue
   , updateWordValue
-  , viewWordOrBits
-  , viewWordOrBitsMap
   , lazyViewWordOrBits
   , lazyViewWordOrBitsMap
   , delayWordValue
@@ -450,6 +448,7 @@ delayWordValue sym sz m
   | otherwise     = ThunkWordVal sz <$> sDelay sym m
 
 
+{-# INLINE shiftWordByInteger #-}
 shiftWordByInteger ::
   Backend sym =>
   sym ->
@@ -489,6 +488,7 @@ shiftWordByInteger sym wop reindex x idx =
           Just i' -> lookupSeqMap vs i'
 
 
+{-# INLINE shiftWordByWord #-}
 shiftWordByWord ::
   Backend sym =>
   sym ->
@@ -526,6 +526,7 @@ shiftWordByWord sym wop reindex x idx =
           Just i' -> lookupSeqMap vs i'
 
 
+{-# INLINE shiftSeqByWord #-}
 shiftSeqByWord  ::
   Backend sym =>
   sym ->
