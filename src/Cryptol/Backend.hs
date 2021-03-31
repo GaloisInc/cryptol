@@ -7,6 +7,7 @@ module Cryptol.Backend
   , cryUserError
   , cryNoPrimError
   , FPArith2
+  , IndexDirection(..)
 
   , enumerateIntBits
   , enumerateIntBits'
@@ -42,6 +43,10 @@ import Cryptol.Backend.Monad
 import Cryptol.ModuleSystem.Name(Name)
 import Cryptol.Parser.Position
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..),widthInteger)
+
+data IndexDirection
+  = IndexForward
+  | IndexBackward
 
 invalidIndex :: Backend sym => sym -> Integer -> SEval sym a
 invalidIndex sym i = raiseError sym (InvalidIndex (Just i))

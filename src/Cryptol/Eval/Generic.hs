@@ -1379,10 +1379,6 @@ assertIndexInBounds sym (Nat n) (Right idx) =
 
 -- | Indexing operations.
 
-data IndexDirection
-  = IndexForward
-  | IndexBackward
-
 {-# INLINE indexPrim #-}
 indexPrim ::
   Backend sym =>

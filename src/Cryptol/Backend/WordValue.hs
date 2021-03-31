@@ -41,8 +41,6 @@ module Cryptol.Backend.WordValue
   , wordValueSize
   , indexWordValue
   , updateWordValue
-  , lazyViewWordOrBits
-  , lazyViewWordOrBitsMap
   , delayWordValue
   , joinWords
   , shiftSeqByWord
@@ -52,6 +50,7 @@ module Cryptol.Backend.WordValue
   , reverseWordVal
   , forceWordValue
   , wordValueEqualsInteger
+  , updateWordByWord
 
   , mergeWord
   , mergeWord'
@@ -269,13 +268,15 @@ wordValueEqualsInteger :: forall sym. Backend sym =>
   SEval sym (SBit sym)
 wordValueEqualsInteger sym wv i
   | wordValueSize sym wv < widthInteger i = return (bitLit sym False)
-  | otherwise =
-      viewWordOrBits sym
-        (\w  -> wordEq sym w =<< wordLit sym (wordLen sym w) i)
-        (\bs -> bitsAre i (reverse bs)) -- little-endian
-        wv
+  | otherwise = loop wv
 
  where
+   loop (ThunkWordVal _ m) = loop =<< m
+   loop (WordVal w) = wordEq sym w =<< wordLit sym (wordLen sym w) i
+   loop (LargeBitsVal n bs) =
+     bitsAre i =<< sequence (enumerateSeqMap n (reverseSeqMap n bs))
+
+   -- NB little-endian sequence of bits
    bitsAre :: Integer -> [SBit sym] -> SEval sym (SBit sym)
    bitsAre !n [] = return (bitLit sym (n == 0))
    bitsAre !n (b:bs) =
@@ -381,66 +382,6 @@ assertWordValueInBounds sym n (LargeBitsVal w bits) =
      assertSideCondition sym p (InvalidIndex Nothing)
 
 
-lazyViewWordOrBitsMap ::
-  Backend sym =>
-  sym ->
-  (SWord sym -> SEval sym (WordValue sym)) ->
-  (Integer -> SeqMap sym (SBit sym) -> SEval sym (WordValue sym)) ->
-  WordValue sym -> SEval sym (WordValue sym)
-
-lazyViewWordOrBitsMap sym wop bop (ThunkWordVal sz m)
-  | isReady sym m = viewWordOrBitsMap sym wop bop =<< m
-  | otherwise     = delayWordValue sym sz (viewWordOrBitsMap sym wop bop =<< m)
-
-lazyViewWordOrBitsMap _sym wop _bop (WordVal w) =
-  wop w
-lazyViewWordOrBitsMap _sym _wop bop (LargeBitsVal n bs) =
-  bop n bs
-
-
-viewWordOrBitsMap ::
-  Backend sym =>
-  sym ->
-  (SWord sym -> SEval sym a) ->
-  (Integer -> SeqMap sym (SBit sym) -> SEval sym a) ->
-  WordValue sym -> SEval sym a
-viewWordOrBitsMap sym wop bop (ThunkWordVal _ m) =
-  viewWordOrBitsMap sym wop bop =<< m
-viewWordOrBitsMap _sym wop _bop (WordVal w) =
-  wop w
-viewWordOrBitsMap _sym _wop bop (LargeBitsVal n bs) =
-  bop n bs
-
-viewWordOrBits ::
-  Backend sym =>
-  sym ->
-  (SWord sym -> SEval sym a) ->
-  ([SBit sym] -> SEval sym a) ->
-  WordValue sym -> SEval sym a
-
-viewWordOrBits sym wop bop (ThunkWordVal _ m) =
-  viewWordOrBits sym wop bop =<< m
-viewWordOrBits _sym wop _bop (WordVal w) =
-  wop w
-viewWordOrBits _sym _wop bop (LargeBitsVal n bs) =
-  bop =<< sequence (enumerateSeqMap n bs)
-
-lazyViewWordOrBits ::
-  Backend sym =>
-  sym ->
-  (SWord sym -> SEval sym (WordValue sym)) ->
-  ([SBit sym] -> SEval sym (WordValue sym)) ->
-  WordValue sym -> SEval sym (WordValue sym)
-
-lazyViewWordOrBits sym wop bop (ThunkWordVal sz m)
-  | isReady sym m = viewWordOrBits sym wop bop =<< m
-  | otherwise     = delayWordValue sym sz (viewWordOrBits sym wop bop =<< m)
-
-lazyViewWordOrBits _sym wop _bop (WordVal w) =
-  wop w
-lazyViewWordOrBits _sym _wop bop (LargeBitsVal n bs) =
-  bop =<< sequence (enumerateSeqMap n bs)
-
 
 delayWordValue :: Backend sym => sym -> Integer -> SEval sym (WordValue sym) -> SEval sym (WordValue sym)
 delayWordValue sym sz m
@@ -525,6 +466,61 @@ shiftWordByWord sym wop reindex x idx =
           Nothing -> pure $ bitLit sym False
           Just i' -> lookupSeqMap vs i'
 
+{-# INLINE updateWordByWord #-}
+updateWordByWord ::
+  Backend sym =>
+  sym ->
+  IndexDirection ->
+  WordValue sym {- ^ value to update -} ->
+  WordValue sym {- ^ index to update at -} ->
+  SEval sym (SBit sym) {- ^ fresh bit -} ->
+  SEval sym (WordValue sym)
+updateWordByWord sym dir w idx bitval
+  | Just j <- wordValAsLit sym idx =
+      let sz = wordValueSize sym w in
+      case dir of
+        IndexForward  -> updateWordValue sym w j bitval
+        IndexBackward -> updateWordValue sym w (sz - j - 1) bitval
+
+  | otherwise = loop w
+
+ where
+   loop (ThunkWordVal sz m)
+     | isReady sym m = loop =<< m
+     | otherwise     = delayWordValue sym sz (loop =<< m)
+
+   loop (LargeBitsVal sz bs) =
+     case dir of
+       IndexForward ->
+         return $ LargeBitsVal sz $ indexSeqMap $ \i ->
+           do b <- wordValueEqualsInteger sym idx i
+              mergeEval sym (iteBit sym) b bitval (lookupSeqMap bs i)
+       IndexBackward ->
+         return $ LargeBitsVal sz $ indexSeqMap $ \i ->
+           do b <- wordValueEqualsInteger sym idx (sz - i - 1)
+              mergeEval sym (iteBit sym) b bitval (lookupSeqMap bs i)
+
+   loop (WordVal wv) = WordVal <$>
+      -- TODO, this is too strict in bit
+      do let sz = wordLen sym wv
+         b <- bitval
+         msk <- case dir of
+                  IndexForward ->
+                    do highbit <- wordLit sym sz (bit (fromInteger (sz-1)))
+                       wordShiftRight sym highbit =<< asWordVal sym idx
+                  IndexBackward ->
+                    do lowbit <- wordLit sym sz 1
+                       wordShiftLeft sym lowbit =<< asWordVal sym idx
+         case bitAsLit sym b of
+           Just True  -> wordOr  sym wv msk
+           Just False -> wordAnd sym wv =<< wordComplement sym msk
+           Nothing ->
+             do zro <- wordLit sym sz 0
+                one <- wordComplement sym zro
+                q   <- iteWord sym b one zro
+                w'  <- wordAnd sym wv =<< wordComplement sym msk
+                wordXor sym w' =<< wordAnd sym msk q
+
 
 {-# INLINE shiftSeqByWord #-}
 shiftSeqByWord  ::
@@ -568,14 +564,21 @@ indexWordValue sym (LargeBitsVal n xs) idx
 --   given bit value.
 updateWordValue :: Backend sym =>
   sym -> WordValue sym -> Integer -> SEval sym (SBit sym) -> SEval sym (WordValue sym)
+updateWordValue sym (ThunkWordVal sz m) idx b
+   | isReady sym m = do w <- m; updateWordValue sym w idx b
+   | otherwise = delayWordValue sym sz (do w <- m; updateWordValue sym w idx b)
+
 updateWordValue sym (WordVal w) idx b
    | idx < 0 || idx >= wordLen sym w = invalidIndex sym idx
    | isReady sym b = WordVal <$> (wordUpdate sym w idx =<< b)
 
 updateWordValue sym wv idx b
-   | 0 <= idx && idx < wordValueSize sym wv =
-        pure $ LargeBitsVal (wordValueSize sym wv) $ updateSeqMap (asBitsMap sym wv) idx b
+   | 0 <= idx && idx < sz =
+        pure $ LargeBitsVal sz $ updateSeqMap bs idx b
    | otherwise = invalidIndex sym idx
+
+ where sz = wordValueSize sym wv
+       bs = asBitsMap sym wv
 
 
 {-# INLINE mergeWord #-}

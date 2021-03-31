@@ -24,7 +24,7 @@ import qualified Control.Exception as X
 import           Control.Concurrent.MVar
 import           Control.Monad (foldM)
 import           Control.Monad.IO.Class
-import           Data.Bits
+
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import           Data.Text (Text)
@@ -655,40 +655,11 @@ updateFrontSym_word ::
   SEval (What4 sym) (WordValue (What4 sym))
 updateFrontSym_word _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["updateFrontSym_word"]
 
-updateFrontSym_word sym (Nat n) eltTy w lridx val =
-  lazyViewWordOrBitsMap sym
-    -- Sequence to update is a packed word
-    (\bv ->
-      case lridx of
-        -- index value is an integer
-        Left idxint ->
-          goword bv =<< wordFromInt sym n idxint
-        -- index value is a bitvector
-        Right idxwv ->
-          goword bv =<< asWordVal sym idxwv)
-    -- Sequence to update is a SeqMap
-    (\_ bs -> largeBitsVal n . fmap fromVBit <$>
-      updateFrontSym sym (Nat n) eltTy (fmap VBit bs) lridx val)
-    w
-
-  where
-  goword bw idx
-    | Just j <- SW.bvAsUnsignedInteger idx =
-        updateWordValue sym (wordVal bw) j (fromVBit <$> val)
-    | otherwise =
-        wordVal <$>
-          do b <- fromVBit <$> val
-             let sz = SW.bvWidth bw
-             highbit <- liftIO (SW.bvLit (w4 sym) sz (bit (fromInteger (sz-1))))
-             msk <- w4bvLshr (w4 sym) highbit idx
-             liftIO $
-               case W4.asConstantPred b of
-                 Just True  -> SW.bvOr  (w4 sym) bw msk
-                 Just False -> SW.bvAnd (w4 sym) bw =<< SW.bvNot (w4 sym) msk
-                 Nothing ->
-                   do q <- SW.bvFill (w4 sym) sz b
-                      bw' <- SW.bvAnd (w4 sym) bw =<< SW.bvNot (w4 sym) msk
-                      SW.bvXor (w4 sym) bw' =<< SW.bvAnd (w4 sym) q msk
+updateFrontSym_word sym (Nat n) _eltTy w (Left idx) val =
+  do idx' <- wordFromInt sym n idx
+     updateWordByWord sym IndexForward w (wordVal idx') (fromVBit <$> val)
+updateFrontSym_word sym (Nat _n) _eltTy w (Right idx) val =
+  updateWordByWord sym IndexForward w idx (fromVBit <$> val)
 
 
 updateBackSym_word ::
@@ -700,40 +671,10 @@ updateBackSym_word ::
   Either (SInteger (What4 sym)) (WordValue (What4 sym)) ->
   SEval (What4 sym) (GenValue (What4 sym)) ->
   SEval (What4 sym) (WordValue (What4 sym))
-updateBackSym_word _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["updateBackSym_word"]
+updateBackSym_word _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["updateFrontSym_word"]
 
-updateBackSym_word sym (Nat n) eltTy w lridx val =
-  lazyViewWordOrBitsMap sym
-    -- Sequence to update is a packed word
-    (\bv ->
-      case lridx of
-        -- index value is an integer
-        Left idxint ->
-          goword bv =<< wordFromInt sym n idxint
-        -- index value is a bitvector
-        Right idxwv ->
-          goword bv =<< asWordVal sym idxwv)
-    -- Sequence to update is a SeqMap
-    (\_ bs -> largeBitsVal n . fmap fromVBit <$>
-      updateBackSym sym (Nat n) eltTy (fmap VBit bs) lridx val)
-    w
-
-  where
-  goword bw idx
-    | Just j <- SW.bvAsUnsignedInteger idx =
-        updateWordValue sym (wordVal bw) (n - 1 - j) (fromVBit <$> val)
-
-    | otherwise =
-        wordVal <$>
-          do b <- fromVBit <$> val
-             let sz = SW.bvWidth bw
-             lowbit <- liftIO (SW.bvLit (w4 sym) sz 1)
-             msk <- w4bvShl (w4 sym) lowbit idx
-             liftIO $
-               case W4.asConstantPred b of
-                 Just True  -> SW.bvOr  (w4 sym) bw msk
-                 Just False -> SW.bvAnd (w4 sym) bw =<< SW.bvNot (w4 sym) msk
-                 Nothing ->
-                   do q <- SW.bvFill (w4 sym) sz b
-                      bw' <- SW.bvAnd (w4 sym) bw =<< SW.bvNot (w4 sym) msk
-                      SW.bvXor (w4 sym) bw' =<< SW.bvAnd (w4 sym) q msk
+updateBackSym_word sym (Nat n) _eltTy w (Left idx) val =
+  do idx' <- wordFromInt sym n idx
+     updateWordByWord sym IndexBackward w (wordVal idx') (fromVBit <$> val)
+updateBackSym_word sym (Nat _n) _eltTy w (Right idx) val =
+  updateWordByWord sym IndexBackward w idx (fromVBit <$> val)
