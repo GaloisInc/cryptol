@@ -312,16 +312,15 @@ joinWords :: forall sym.
 
 -- small enough to pack
 joinWords sym nParts nEach xs | nParts * nEach < largeBitSize =
-  loop (wordVal <$> wordLit sym 0 0) (enumerateSeqMap nParts xs)
+  do z <- wordLit sym 0 0
+     loop (wordVal z) (enumerateSeqMap nParts xs)
 
  where
- loop :: SEval sym (WordValue sym) -> [SEval sym (WordValue sym)] -> SEval sym (WordValue sym)
- loop !wv [] =
-    let len = (nParts * nEach) in
-    delayWordValue sym len wv
+ loop :: WordValue sym -> [SEval sym (WordValue sym)] -> SEval sym (WordValue sym)
+ loop !wv [] = pure wv
  loop !wv (w : ws) =
-    do w' <- w
-       let wv' = join (joinWordVal sym <$> wv <*> pure w')
+    do w'  <- delayWordValue sym nEach w
+       wv' <- joinWordVal sym wv w'
        loop wv' ws
 
 -- too large to pack
