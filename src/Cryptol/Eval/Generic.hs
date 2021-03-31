@@ -1680,38 +1680,9 @@ errorV :: forall sym.
   TValue ->
   String ->
   SEval sym (GenValue sym)
-errorV sym ty0 msg =
-     do stk <- sGetCallStack sym
-        loop stk ty0
-  where
-  err stk = sWithCallStack sym stk (cryUserError sym msg)
-
-  loop stk = \case
-       TVBit -> err stk
-       TVInteger -> err stk
-       TVIntMod _ -> err stk
-       TVRational -> err stk
-       TVArray{} -> err stk
-       TVFloat {} -> err stk
-
-       -- sequences
-       TVSeq w ety
-          | isTBit ety -> return $ VWord w $ largeBitsVal w $ indexSeqMap $ \_ -> err stk
-          | otherwise  -> return $ VSeq w $ indexSeqMap $ \_ -> loop stk ety
-
-       TVStream ety -> return $ VStream $ indexSeqMap $ \_ -> loop stk ety
-
-       -- functions
-       TVFun _ bty -> lam sym (\ _ -> loop stk bty)
-
-       -- tuples
-       TVTuple tys -> return $ VTuple (map (\t -> loop stk t) tys)
-
-       -- records
-       TVRec fields -> return $ VRecord $ fmap (\t -> loop stk t) $ fields
-
-       TVAbstract {} -> err stk
-       TVNewtype {} -> err stk
+errorV sym _ty msg =
+  do stk <- sGetCallStack sym
+     sWithCallStack sym stk (cryUserError sym msg)
 
 {-# INLINE valueToChar #-}
 
