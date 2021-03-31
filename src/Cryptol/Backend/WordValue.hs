@@ -163,12 +163,12 @@ extractWordVal ::
   SEval sym (WordValue sym)
 extractWordVal sym len start (WordVal w) =
    WordVal <$> extractWord sym len start w
-extractWordVal sym len start (ThunkWordVal n m) =
+extractWordVal sym len start (ThunkWordVal _n m) =
   isReady sym m >>= \case
     Just w -> extractWordVal sym len start w
     Nothing ->
       do m' <- sDelay sym (extractWordVal sym len start =<< m)
-         pure (ThunkWordVal n m')
+         pure (ThunkWordVal len m')
 extractWordVal _ len start (LargeBitsVal n xs) =
    let xs' = dropSeqMap (n - start - len) xs
     in pure $ LargeBitsVal len xs'
