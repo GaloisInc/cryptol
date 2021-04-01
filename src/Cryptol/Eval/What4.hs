@@ -609,10 +609,10 @@ updateFrontSym sym _len _eltTy vs (Left idx) val =
       do b <- intEq sym idx =<< integerLit sym i
          iteValue sym b val (lookupSeqMap vs i)
 
-updateFrontSym sym _len _eltTy vs (Right wv) val
-  | Just j <- wordValAsLit sym wv =
-      return $ updateSeqMap vs j val
-  | otherwise =
+updateFrontSym sym _len _eltTy vs (Right wv) val =
+  wordValAsLit sym wv >>= \case
+    Just j -> return $ updateSeqMap vs j val
+    Nothing ->
       memoMap sym $ indexSeqMap $ \i ->
       do b <- wordValueEqualsInteger sym wv i
          iteValue sym b val (lookupSeqMap vs i)
@@ -635,10 +635,11 @@ updateBackSym sym (Nat n) _eltTy vs (Left idx) val =
       do b <- intEq sym idx =<< integerLit sym (n - 1 - i)
          iteValue sym b val (lookupSeqMap vs i)
 
-updateBackSym sym (Nat n) _eltTy vs (Right wv) val
-  | Just j <- wordValAsLit sym wv =
+updateBackSym sym (Nat n) _eltTy vs (Right wv) val =
+  wordValAsLit sym wv >>= \case
+    Just j ->
       return $ updateSeqMap vs (n - 1 - j) val
-  | otherwise =
+    Nothing ->
       memoMap sym $ indexSeqMap $ \i ->
       do b <- wordValueEqualsInteger sym wv (n - 1 - i)
          iteValue sym b val (lookupSeqMap vs i)

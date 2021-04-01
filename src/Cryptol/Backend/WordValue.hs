@@ -72,7 +72,7 @@ import Cryptol.TypeCheck.Solver.InfNat(widthInteger)
 forceWordValue :: Backend sym => WordValue sym -> SEval sym ()
 forceWordValue (WordVal w)  = seq w (return ())
 forceWordValue (ThunkWordVal _ m)  = forceWordValue =<< m
-forceWordValue (LargeBitsVal n xs) = mapM_ (\x -> const () <$> x) (enumerateSeqMap n xs)
+forceWordValue (BitmapVal _n packed _) = do w <- packed; seq w (return ())
 
 -- | An arbitrarily-chosen number of elements where we switch from a dense
 --   sequence representation of bit-level words to 'SeqMap' representation.
@@ -91,22 +91,28 @@ largeBitSize = 1 `shiftL` 48
 data WordValue sym
   = ThunkWordVal Integer !(SEval sym (WordValue sym))
   | WordVal !(SWord sym)                      -- ^ Packed word representation for bit sequences.
-  | LargeBitsVal !Integer !(SeqMap sym (SBit sym))
-                                              -- ^ A large bitvector sequence, represented as a
-                                              --   'SeqMap' of bits.
+  | BitmapVal
+       !Integer -- ^ Length of the word
+       !(SEval sym (SWord sym)) -- ^ Thunk for packing the word
+       !(SeqMap sym (SBit sym)) -- ^
  deriving (Generic)
 
 wordVal :: SWord sym -> WordValue sym
 wordVal = WordVal
 
+packBitmap :: Backend sym => sym -> Integer -> SeqMap sym (SBit sym) -> SEval sym (SWord sym)
+packBitmap sym sz bs = packWord sym =<< sequence (enumerateSeqMap sz bs)
+
+unpackBitmap :: Backend sym => sym -> SWord sym -> SeqMap sym (SBit sym)
+unpackBitmap sym w = indexSeqMap $ \i -> wordBit sym w i
+
 bitmapWordVal :: Backend sym => sym -> Integer -> SeqMap sym (SBit sym) -> SEval sym (WordValue sym)
-bitmapWordVal _sym sz bs = pure (LargeBitsVal sz bs)
+bitmapWordVal sym sz bs =
+  do packed <- sDelay sym (packBitmap sym sz bs)
+     pure (BitmapVal sz packed bs)
 
 {-# INLINE joinWordVal #-}
 joinWordVal :: Backend sym => sym -> WordValue sym -> WordValue sym -> SEval sym (WordValue sym)
-joinWordVal sym (WordVal w1) (WordVal w2)
-  | wordLen sym w1 + wordLen sym w2 < largeBitSize
-  = WordVal <$> joinWord sym w1 w2
 
 joinWordVal sym (ThunkWordVal _ m1) w2
   = do w1 <- m1
@@ -116,11 +122,38 @@ joinWordVal sym w1 (ThunkWordVal _ m2)
   = do w2 <- m2
        joinWordVal sym w1 w2
 
-joinWordVal sym w1 w2
-  = pure $ LargeBitsVal (n1+n2) (concatSeqMap n1 (asBitsMap sym w1) (asBitsMap sym w2))
- where n1 = wordValueSize sym w1
-       n2 = wordValueSize sym w2
+joinWordVal sym (WordVal w1) (WordVal w2) =
+  WordVal <$> joinWord sym w1 w2
 
+joinWordVal sym (WordVal w1) (BitmapVal n2 packed2 bs2) =
+  isReady sym packed2 >>= \case
+    Just w2 -> WordVal <$> joinWord sym w1 w2
+    Nothing ->
+      do let n1 = wordLen sym w1
+         let len = n1 + n2
+         packed <- sDelay sym (do w2 <- packed2; joinWord sym w1 w2)
+         pure (BitmapVal len packed (concatSeqMap n1 (unpackBitmap sym w1) bs2))
+
+joinWordVal sym (BitmapVal n1 packed1 bs1) (WordVal w2) =
+  isReady sym packed1 >>= \case
+    Just w1 -> WordVal <$> joinWord sym w1 w2
+    Nothing ->
+      do let n2 = wordLen sym w2
+         let len = n1 + n2
+         packed <- sDelay sym (do w1 <- packed1; joinWord sym w1 w2)
+         pure (BitmapVal len packed (concatSeqMap n1 bs1 (unpackBitmap sym w2)))
+
+joinWordVal sym (BitmapVal n1 packed1 bs1) (BitmapVal n2 packed2 bs2) =
+  do r1 <- isReady sym packed1
+     r2 <- isReady sym packed2
+     case (r1,r2) of
+       (Just w1, Just w2) -> WordVal <$> joinWord sym w1 w2
+       _ -> do let len = n1 + n2
+               packed <- sDelay sym (do w1 <- packed1
+                                        w2 <- packed2
+                                        joinWord sym w1 w2)
+               let bs = concatSeqMap n1 bs1 bs2
+               pure (BitmapVal len packed bs)
 
 {-# INLINE takeWordVal #-}
 takeWordVal ::
@@ -141,10 +174,11 @@ takeWordVal sym leftWidth rightWidth (ThunkWordVal _ m) =
       do m' <- sDelay sym (takeWordVal sym leftWidth rightWidth =<< m)
          return (ThunkWordVal leftWidth m')
 
-takeWordVal _ leftWidth _rightWidth (LargeBitsVal _n xs) =
-  pure (LargeBitsVal leftWidth xs)
-
-
+takeWordVal sym leftWidth rightWidth (BitmapVal _n packed xs) =
+  isReady sym packed >>= \case
+    Just w -> do (lw, _rw) <- splitWord sym leftWidth rightWidth w
+                 pure (WordVal lw)
+    Nothing -> bitmapWordVal sym leftWidth xs
 
 {-# INLINE dropWordVal #-}
 dropWordVal ::
@@ -165,9 +199,13 @@ dropWordVal sym leftWidth rightWidth (ThunkWordVal _ m) =
       do m' <- sDelay sym (dropWordVal sym leftWidth rightWidth =<< m)
          return (ThunkWordVal rightWidth m')
 
-dropWordVal _ leftWidth rightWidth (LargeBitsVal _n xs) =
-  let rxs = dropSeqMap leftWidth xs
-   in pure (LargeBitsVal rightWidth rxs)
+dropWordVal sym leftWidth rightWidth (BitmapVal _n packed xs) =
+  isReady sym packed >>= \case
+    Just w -> do (_lw, rw) <- splitWord sym leftWidth rightWidth w
+                 pure (WordVal rw)
+    Nothing ->
+      do let rxs = dropSeqMap leftWidth xs
+         bitmapWordVal sym rightWidth rxs
 
 {-# INLINE extractWordVal #-}
 
@@ -193,9 +231,12 @@ extractWordVal sym len start (ThunkWordVal _n m) =
     Nothing ->
       do m' <- sDelay sym (extractWordVal sym len start =<< m)
          pure (ThunkWordVal len m')
-extractWordVal _ len start (LargeBitsVal n xs) =
-   let xs' = dropSeqMap (n - start - len) xs
-    in pure $ LargeBitsVal len xs'
+extractWordVal sym len start (BitmapVal n packed xs) =
+  isReady sym packed >>= \case
+    Just w -> WordVal <$> extractWord sym len start w
+    Nothing ->
+      do let xs' = dropSeqMap (n - start - len) xs
+         bitmapWordVal sym len xs'
 
 {-# INLINE wordValLogicOp #-}
 
@@ -209,6 +250,23 @@ wordValLogicOp ::
   SEval sym (WordValue sym)
 wordValLogicOp _sym _ wop (WordVal w1) (WordVal w2) = WordVal <$> wop w1 w2
 
+wordValLogicOp sym bop wop (WordVal w1) (BitmapVal n2 packed2 bs2) =
+  isReady sym packed2 >>= \case
+    Just w2 -> WordVal <$> wop w1 w2
+    Nothing -> bitmapWordVal sym n2 =<< zipSeqMap sym bop (unpackBitmap sym w1) bs2
+
+wordValLogicOp sym bop wop (BitmapVal n1 packed1 bs1) (WordVal w2) =
+  isReady sym packed1 >>= \case
+    Just w1 -> WordVal <$> wop w1 w2
+    Nothing -> bitmapWordVal sym n1 =<< zipSeqMap sym bop bs1 (unpackBitmap sym w2)
+
+wordValLogicOp sym bop wop (BitmapVal n1 packed1 bs1) (BitmapVal _n2 packed2 bs2) =
+  do r1 <- isReady sym packed1
+     r2 <- isReady sym packed2
+     case (r1,r2) of
+       (Just w1, Just w2) -> WordVal <$> wop w1 w2
+       _ -> bitmapWordVal sym n1 =<< zipSeqMap sym bop bs1 bs2
+
 wordValLogicOp sym bop wop (ThunkWordVal _ m1) w2 =
   do w1 <- m1
      wordValLogicOp sym bop wop w1 w2
@@ -216,11 +274,6 @@ wordValLogicOp sym bop wop (ThunkWordVal _ m1) w2 =
 wordValLogicOp sym bop wop w1 (ThunkWordVal _ m2) =
   do w2 <- m2
      wordValLogicOp sym bop wop w1 w2
-
-wordValLogicOp sym bop _ w1 w2 = LargeBitsVal (wordValueSize sym w1) <$> zs
-     where zs = memoMap sym $ indexSeqMap $ \i -> join (bop <$> (lookupSeqMap xs i) <*> (lookupSeqMap ys i))
-           xs = asBitsMap sym w1
-           ys = asBitsMap sym w2
 
 {-# INLINE wordValUnaryOp #-}
 wordValUnaryOp ::
@@ -230,9 +283,12 @@ wordValUnaryOp ::
   (SWord sym -> SEval sym (SWord sym)) ->
   WordValue sym ->
   SEval sym (WordValue sym)
-wordValUnaryOp _ _ wop (WordVal w)  = WordVal <$> (wop w)
+wordValUnaryOp _ _ wop (WordVal w)  = WordVal <$> wop w
 wordValUnaryOp sym bop wop (ThunkWordVal _ m) = wordValUnaryOp sym bop wop =<< m
-wordValUnaryOp sym bop _ (LargeBitsVal n xs) = LargeBitsVal n <$> mapSeqMap sym bop xs
+wordValUnaryOp sym bop wop (BitmapVal n packed xs) =
+  isReady sym packed >>= \case
+    Just w  -> WordVal <$> wop w
+    Nothing -> bitmapWordVal sym n =<< mapSeqMap sym bop xs
 
 {-# SPECIALIZE joinWords ::
   Concrete ->
@@ -264,8 +320,7 @@ joinWords sym nParts nEach xs | nParts * nEach < largeBitSize =
        loop wv' ws
 
 -- too large to pack
-joinWords sym nParts nEach xs =
-   return $ LargeBitsVal (nParts * nEach) zs
+joinWords sym nParts nEach xs = bitmapWordVal sym (nParts * nEach) zs
   where
     zs = indexSeqMap $ \i ->
             do let (q,r) = divMod i nEach
@@ -277,15 +332,22 @@ reverseWordVal sym w =
   let m = wordValueSize sym w in
   bitmapWordVal sym m <$> reverseSeqMap m $ asBitsMap sym w
 
-wordValAsLit :: Backend sym => sym -> WordValue sym -> Maybe Integer
-wordValAsLit sym (WordVal w) = snd <$> wordAsLit sym w
-wordValAsLit _ _ = Nothing
+wordValAsLit :: Backend sym => sym -> WordValue sym -> SEval sym (Maybe Integer)
+wordValAsLit sym (WordVal w) = pure (snd <$> wordAsLit sym w)
+wordValAsLit sym (ThunkWordVal _ m) =
+  isReady sym m >>= \case
+    Just v  -> wordValAsLit sym v
+    Nothing -> pure Nothing
+wordValAsLit sym (BitmapVal _ packed _) =
+  isReady sym packed >>= \case
+    Just w  -> pure (snd <$> wordAsLit sym w)
+    Nothing -> pure Nothing
 
 -- | Force a word value into packed word form
 asWordVal :: Backend sym => sym -> WordValue sym -> SEval sym (SWord sym)
-asWordVal _   (WordVal w)         = return w
-asWordVal sym (ThunkWordVal _ m)  = asWordVal sym =<< m
-asWordVal sym (LargeBitsVal n xs) = packWord sym =<< sequence (enumerateSeqMap n xs)
+asWordVal _   (WordVal w)            = return w
+asWordVal sym (ThunkWordVal _ m)     = asWordVal sym =<< m
+asWordVal _   (BitmapVal _ packed _) = packed
 
 wordValueEqualsInteger :: forall sym. Backend sym =>
   sym ->
@@ -299,8 +361,10 @@ wordValueEqualsInteger sym wv i
  where
    loop (ThunkWordVal _ m) = loop =<< m
    loop (WordVal w) = wordEq sym w =<< wordLit sym (wordLen sym w) i
-   loop (LargeBitsVal n bs) =
-     bitsAre i =<< sequence (enumerateSeqMap n (reverseSeqMap n bs))
+   loop (BitmapVal n packed bs) =
+     isReady sym packed >>= \case
+       Just w  -> loop (WordVal w)
+       Nothing -> bitsAre i =<< sequence (enumerateSeqMap n (reverseSeqMap n bs))
 
    -- NB little-endian sequence of bits
    bitsAre :: Integer -> [SBit sym] -> SEval sym (SBit sym)
@@ -323,33 +387,44 @@ asWordList sym = loop id
      isReady sym m >>= \case
        Just m' -> loop f (m' : vs)
        Nothing -> pure Nothing
-   loop _ _ = pure Nothing
+   loop f (BitmapVal _ packed _ : vs) =
+     isReady sym packed >>= \case
+       Just x -> loop (f . (x:)) vs
+       Nothing -> pure Nothing
 
 -- | Force a word value into a sequence of bits
 asBitsMap :: Backend sym => sym -> WordValue sym -> SeqMap sym (SBit sym)
+asBitsMap _   (BitmapVal _ _ xs)  = xs
 asBitsMap sym (WordVal w)         = indexSeqMap $ \i -> wordBit sym w i
-asBitsMap sym (ThunkWordVal _ m)  = indexSeqMap $ \i -> do mp <- asBitsMap sym <$> m; lookupSeqMap mp i
-asBitsMap _   (LargeBitsVal _ xs) = xs
+asBitsMap sym (ThunkWordVal _ m)  =
+  indexSeqMap $ \i ->
+    do mp <- asBitsMap sym <$> (unwindThunks m)
+       lookupSeqMap mp i
 
 -- | Turn a word value into a sequence of bits, forcing each bit.
 --   The sequence is returned in big-endian order.
 enumerateWordValue :: Backend sym => sym -> WordValue sym -> SEval sym [SBit sym]
 enumerateWordValue sym (WordVal w) = unpackWord sym w
 enumerateWordValue sym (ThunkWordVal _ m) = enumerateWordValue sym =<< m
-enumerateWordValue _ (LargeBitsVal n xs)  = sequence (enumerateSeqMap n xs)
+  -- TODO? used the packed value if it is ready?
+enumerateWordValue _ (BitmapVal n _ xs) = sequence (enumerateSeqMap n xs)
 
 -- | Turn a word value into a sequence of bits, forcing each bit.
 --   The sequence is returned in reverse of the usual order, which is little-endian order.
 enumerateWordValueRev :: Backend sym => sym -> WordValue sym -> SEval sym [SBit sym]
 enumerateWordValueRev sym (WordVal w)  = reverse <$> unpackWord sym w
 enumerateWordValueRev sym (ThunkWordVal _ m)  = enumerateWordValueRev sym =<< m
-enumerateWordValueRev _   (LargeBitsVal n xs) = sequence (enumerateSeqMap n (reverseSeqMap n xs))
+  -- TODO? used the packed value if it is ready?
+enumerateWordValueRev _   (BitmapVal n _ xs) = sequence (enumerateSeqMap n (reverseSeqMap n xs))
 
 
 enumerateIndexSegments :: Backend sym => sym -> WordValue sym -> SEval sym [IndexSegment sym]
 enumerateIndexSegments _sym (WordVal w) = pure [WordIndexSegment w]
-enumerateIndexSegments _sym (LargeBitsVal n xs) = traverse (BitIndexSegment <$>) (enumerateSeqMap n xs)
 enumerateIndexSegments sym (ThunkWordVal _ m) = enumerateIndexSegments sym =<< m
+enumerateIndexSegments sym (BitmapVal n packed xs) =
+  isReady sym packed >>= \case
+    Just w  -> pure [WordIndexSegment w]
+    Nothing -> traverse (BitIndexSegment <$>) (enumerateSeqMap n xs)
 
 {-# SPECIALIZE bitsValueLessThan ::
   Concrete ->
@@ -404,11 +479,13 @@ assertWordValueInBounds sym n (ThunkWordVal _ m) =
 
 -- If the index is an unpacked word, force all the bits
 -- and compute the unsigned less-than test directly.
-assertWordValueInBounds sym n (LargeBitsVal w bits) =
-  do bitsList <- sequence (enumerateSeqMap w bits)
-     p <- bitsValueLessThan sym w bitsList n
-     assertSideCondition sym p (InvalidIndex Nothing)
-
+assertWordValueInBounds sym n (BitmapVal sz packed bits) =
+  isReady sym packed >>= \case
+    Just w -> assertWordValueInBounds sym n (WordVal w)
+    Nothing ->
+      do bitsList <- sequence (enumerateSeqMap sz bits)
+         p <- bitsValueLessThan sym sz bitsList n
+         assertSideCondition sym p (InvalidIndex Nothing)
 
 delayWordValue :: Backend sym => sym -> Integer -> SEval sym (WordValue sym) -> SEval sym (WordValue sym)
 delayWordValue sym sz m =
@@ -447,13 +524,16 @@ shiftWordByInteger sym wop reindex x idx =
 
     WordVal x' -> WordVal <$> (wop x' =<< wordFromInt sym (wordLen sym x') idx)
 
-    LargeBitsVal n bs0 ->
-      case integerAsLit sym idx of
-        Just j ->
-          LargeBitsVal n <$> shiftOp bs0 j
+    BitmapVal n packed bs0 ->
+      isReady sym packed >>= \case
+        Just w -> shiftWordByInteger sym wop reindex (WordVal w) idx
         Nothing ->
-          do (numbits, idx_bits) <- enumerateIntBits' sym n idx
-             LargeBitsVal n <$> barrelShifter sym (iteBit sym) shiftOp bs0 numbits (map BitIndexSegment idx_bits)
+          case integerAsLit sym idx of
+            Just j -> bitmapWordVal sym n =<< shiftOp bs0 j
+            Nothing ->
+              do (numbits, idx_bits) <- enumerateIntBits' sym n idx
+                 bitmapWordVal sym n =<<
+                   barrelShifter sym (iteBit sym) shiftOp bs0 numbits (map BitIndexSegment idx_bits)
 
  where
    shiftOp vs shft =
@@ -484,13 +564,16 @@ shiftWordByWord sym wop reindex x idx =
 
     WordVal x' -> WordVal <$> (wop x' =<< asWordVal sym idx)
 
-    LargeBitsVal n bs0 ->
-      case idx of
-        WordVal (wordAsLit sym -> Just (_,j)) ->
-          LargeBitsVal n <$> shiftOp bs0 j
-        _ ->
-          do idx_segs <- enumerateIndexSegments sym idx
-             LargeBitsVal n <$> barrelShifter sym (iteBit sym) shiftOp bs0 n idx_segs
+    BitmapVal n packed bs0 ->
+      isReady sym packed >>= \case
+        Just w -> shiftWordByWord sym wop reindex (WordVal w) idx
+        Nothing ->
+          case idx of
+            WordVal (wordAsLit sym -> Just (_,j)) ->
+              bitmapWordVal sym n =<< shiftOp bs0 j
+            _ ->
+              do idx_segs <- enumerateIndexSegments sym idx
+                 bitmapWordVal sym n =<< barrelShifter sym (iteBit sym) shiftOp bs0 n idx_segs
 
  where
    shiftOp vs shft =
@@ -498,6 +581,7 @@ shiftWordByWord sym wop reindex x idx =
         case reindex i shft of
           Nothing -> pure $ bitLit sym False
           Just i' -> lookupSeqMap vs i'
+
 
 {-# INLINE updateWordByWord #-}
 updateWordByWord ::
@@ -508,14 +592,14 @@ updateWordByWord ::
   WordValue sym {- ^ index to update at -} ->
   SEval sym (SBit sym) {- ^ fresh bit -} ->
   SEval sym (WordValue sym)
-updateWordByWord sym dir w idx bitval
-  | Just j <- wordValAsLit sym idx =
-      let sz = wordValueSize sym w in
+updateWordByWord sym dir w0 idx bitval =
+  wordValAsLit sym idx >>= \case
+    Just j ->
+      let sz = wordValueSize sym w0 in
       case dir of
-        IndexForward  -> updateWordValue sym w j bitval
-        IndexBackward -> updateWordValue sym w (sz - j - 1) bitval
-
-  | otherwise = loop w
+        IndexForward  -> updateWordValue sym w0 j bitval
+        IndexBackward -> updateWordValue sym w0 (sz - j - 1) bitval
+    Nothing -> loop w0
 
  where
    loop (ThunkWordVal sz m) =
@@ -523,16 +607,19 @@ updateWordByWord sym dir w idx bitval
        Just w' -> loop w'
        Nothing -> delayWordValue sym sz (loop =<< m)
 
-   loop (LargeBitsVal sz bs) =
-     case dir of
-       IndexForward ->
-         return $ LargeBitsVal sz $ indexSeqMap $ \i ->
-           do b <- wordValueEqualsInteger sym idx i
-              mergeEval sym (iteBit sym) b bitval (lookupSeqMap bs i)
-       IndexBackward ->
-         return $ LargeBitsVal sz $ indexSeqMap $ \i ->
-           do b <- wordValueEqualsInteger sym idx (sz - i - 1)
-              mergeEval sym (iteBit sym) b bitval (lookupSeqMap bs i)
+   loop (BitmapVal sz packed bs) =
+     isReady sym packed >>= \case
+       Just w -> loop (WordVal w)
+       Nothing ->
+         case dir of
+           IndexForward ->
+             bitmapWordVal sym sz $ indexSeqMap $ \i ->
+               do b <- wordValueEqualsInteger sym idx i
+                  mergeEval sym (iteBit sym) b bitval (lookupSeqMap bs i)
+           IndexBackward ->
+             bitmapWordVal sym sz $ indexSeqMap $ \i ->
+               do b <- wordValueEqualsInteger sym idx (sz - i - 1)
+                  mergeEval sym (iteBit sym) b bitval (lookupSeqMap bs i)
 
    loop (WordVal wv) = WordVal <$>
       -- TODO, this is too strict in bit
@@ -582,7 +669,7 @@ shiftSeqByWord sym merge reindex zro xs idx =
 wordValueSize :: Backend sym => sym -> WordValue sym -> Integer
 wordValueSize sym (WordVal w)  = wordLen sym w
 wordValueSize _ (ThunkWordVal n _) = n
-wordValueSize _ (LargeBitsVal n _) = n
+wordValueSize _ (BitmapVal n _ _) = n
 
 -- | Select an individual bit from a word value
 indexWordValue :: Backend sym => sym -> WordValue sym -> Integer -> SEval sym (SBit sym)
@@ -590,7 +677,7 @@ indexWordValue sym (ThunkWordVal _ m) idx = do m' <- m ; indexWordValue sym m' i
 indexWordValue sym (WordVal w) idx
    | 0 <= idx && idx < wordLen sym w = wordBit sym w idx
    | otherwise = invalidIndex sym idx
-indexWordValue sym (LargeBitsVal n xs) idx
+indexWordValue sym (BitmapVal n _packed xs) idx
    | 0 <= idx && idx < n = lookupSeqMap xs idx
    | otherwise = invalidIndex sym idx
 
@@ -611,12 +698,14 @@ updateWordValue sym wv0 idx b = loop wv0
           isReady sym b >>= \case
             Just b' -> WordVal <$> wordUpdate sym w idx b'
             Nothing ->
-              do let bs = asBitsMap sym (WordVal w)
-                 pure $ LargeBitsVal (wordLen sym w) $ updateSeqMap bs idx b
+              do let bs = unpackBitmap sym w
+                 bitmapWordVal sym (wordLen sym w) $ updateSeqMap bs idx b
 
-    loop (LargeBitsVal sz bs)
+    loop (BitmapVal sz packed bs)
       | 0 <= idx && idx < sz =
-          pure $ LargeBitsVal sz $ updateSeqMap bs idx b
+          isReady sym packed >>= \case
+            Just w  -> loop (WordVal w)
+            Nothing -> bitmapWordVal sym sz $ updateSeqMap bs idx b
       | otherwise = invalidIndex sym idx
 
 {-# INLINE mergeWord #-}
@@ -627,16 +716,42 @@ mergeWord :: Backend sym =>
   WordValue sym ->
   SEval sym (WordValue sym)
 mergeWord sym c (ThunkWordVal _ m1) (ThunkWordVal _ m2) =
-  mergeWord' sym c m1 m2
+  mergeWord' sym c (unwindThunks m1) (unwindThunks m2)
 mergeWord sym c (ThunkWordVal _ m1) w2 =
-  mergeWord' sym c m1 (pure w2)
+  mergeWord' sym c (unwindThunks m1) (pure w2)
 mergeWord sym c w1 (ThunkWordVal _ m2) =
-  mergeWord' sym c (pure w1) m2
+  mergeWord' sym c (pure w1) (unwindThunks m2)
+
 mergeWord sym c (WordVal w1) (WordVal w2) =
   WordVal <$> iteWord sym c w1 w2
-mergeWord sym c w1 w2 =
-  LargeBitsVal (wordValueSize sym w1) <$>
-    memoMap sym (mergeSeqMap sym (iteBit sym) c (asBitsMap sym w1) (asBitsMap sym w2))
+
+mergeWord sym c (BitmapVal n1 packed1 bs1) (WordVal w2) =
+  isReady sym packed1 >>= \case
+    Just w1 -> WordVal <$> iteWord sym c w1 w2
+    Nothing -> mergeBitmaps sym c n1 bs1 (unpackBitmap sym w2)
+
+mergeWord sym c (WordVal w1) (BitmapVal n2 packed2 bs2) =
+  isReady sym packed2 >>= \case
+    Just w2 -> WordVal <$> iteWord sym c w1 w2
+    Nothing -> mergeBitmaps sym c n2 (unpackBitmap sym w1) bs2
+
+mergeWord sym c (BitmapVal n1 packed1 bs1) (BitmapVal _n2 packed2 bs2) =
+  do r1 <- isReady sym packed1
+     r2 <- isReady sym packed2
+     case (r1,r2) of
+       (Just w1, Just w2) -> WordVal <$> iteWord sym c w1 w2
+       _ -> mergeBitmaps sym c n1 bs1 bs2
+
+mergeBitmaps :: Backend sym =>
+  sym ->
+  SBit sym ->
+  Integer ->
+  SeqMap sym (SBit sym) ->
+  SeqMap sym (SBit sym) ->
+  SEval sym (WordValue sym)
+mergeBitmaps sym c sz bs1 bs2 =
+  do bs <- memoMap sym (mergeSeqMap sym (iteBit sym) c bs1 bs2)
+     bitmapWordVal sym sz bs
 
 {-# INLINE mergeWord' #-}
 mergeWord' :: Backend sym =>
