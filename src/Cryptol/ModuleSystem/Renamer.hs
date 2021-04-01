@@ -79,6 +79,8 @@ renameTopDecls m ds0 =
           pure (env,ds1)
 
 
+-- XXX: add implicit imports to the nested modules too
+-- XXX: also add imports for exported nested modules
 addImplicitNestedImports :: [TopDecl PName] -> [TopDecl PName]
 addImplicitNestedImports decls = mapMaybe addImp mods ++ decls
   where
