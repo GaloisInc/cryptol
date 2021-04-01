@@ -1026,7 +1026,7 @@ takeV sym front back a val =
     Nat front' ->
       case back of
         Nat back' | isTBit a ->
-          do w <- delayWordValue sym front' (fst <$> (splitWordVal sym front' back' =<< (fromWordVal "takeV" <$> val)))
+          do w <- delayWordValue sym front' (takeWordVal sym front' back' =<< (fromWordVal "takeV" <$> val))
              pure (VWord front' w)
 
         Inf | isTBit a ->
@@ -1049,7 +1049,7 @@ dropV ::
 dropV sym front back a val =
   case back of
     Nat back' | isTBit a ->
-      do w <- delayWordValue sym back' (snd <$> (splitWordVal sym front back' =<< (fromWordVal "dropV" <$> val)))
+      do w <- delayWordValue sym back' (dropWordVal sym front back' =<< (fromWordVal "dropV" <$> val))
          pure (VWord back' w)
 
     _ ->

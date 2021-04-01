@@ -30,7 +30,8 @@ module Cryptol.Backend.WordValue
   , asWordVal
   , asBitsMap
   , joinWordVal
-  , splitWordVal
+  , takeWordVal
+  , dropWordVal
   , extractWordVal
   , wordValLogicOp
   , wordValUnaryOp
@@ -121,29 +122,52 @@ joinWordVal sym w1 w2
        n2 = wordValueSize sym w2
 
 
-{-# INLINE splitWordVal #-}
-
-splitWordVal ::
+{-# INLINE takeWordVal #-}
+takeWordVal ::
   Backend sym =>
   sym ->
   Integer ->
   Integer ->
   WordValue sym ->
-  SEval sym (WordValue sym, WordValue sym)
-splitWordVal sym leftWidth rightWidth (WordVal w) =
-  do (lw, rw) <- splitWord sym leftWidth rightWidth w
-     pure (WordVal lw, WordVal rw)
+  SEval sym (WordValue sym)
+takeWordVal sym leftWidth rigthWidth (WordVal w) =
+  do (lw, _rw) <- splitWord sym leftWidth rigthWidth w
+     pure (WordVal lw)
 
-splitWordVal sym leftWidth rightWidth (ThunkWordVal _ m) =
+takeWordVal sym leftWidth rightWidth (ThunkWordVal _ m) =
   isReady sym m >>= \case
-    Just w -> splitWordVal sym leftWidth rightWidth w
+    Just w -> takeWordVal sym leftWidth rightWidth w
     Nothing ->
-      do m' <- sDelay sym (splitWordVal sym leftWidth rightWidth =<< m)
-         return (ThunkWordVal leftWidth (fst <$> m'), ThunkWordVal rightWidth (snd <$> m'))
+      do m' <- sDelay sym (takeWordVal sym leftWidth rightWidth =<< m)
+         return (ThunkWordVal leftWidth m')
 
-splitWordVal _ leftWidth rightWidth (LargeBitsVal _n xs) =
-  let (lxs, rxs) = splitSeqMap leftWidth xs
-   in pure (LargeBitsVal leftWidth lxs, LargeBitsVal rightWidth rxs)
+takeWordVal _ leftWidth _rightWidth (LargeBitsVal _n xs) =
+  pure (LargeBitsVal leftWidth xs)
+
+
+
+{-# INLINE dropWordVal #-}
+dropWordVal ::
+  Backend sym =>
+  sym ->
+  Integer ->
+  Integer ->
+  WordValue sym ->
+  SEval sym (WordValue sym)
+dropWordVal sym leftWidth rigthWidth (WordVal w) =
+  do (_lw, rw) <- splitWord sym leftWidth rigthWidth w
+     pure (WordVal rw)
+
+dropWordVal sym leftWidth rightWidth (ThunkWordVal _ m) =
+  isReady sym m >>= \case
+    Just w -> dropWordVal sym leftWidth rightWidth w
+    Nothing ->
+      do m' <- sDelay sym (dropWordVal sym leftWidth rightWidth =<< m)
+         return (ThunkWordVal rightWidth m')
+
+dropWordVal _ leftWidth rightWidth (LargeBitsVal _n xs) =
+  let rxs = dropSeqMap leftWidth xs
+   in pure (LargeBitsVal rightWidth rxs)
 
 {-# INLINE extractWordVal #-}
 
