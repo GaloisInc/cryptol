@@ -414,7 +414,15 @@ delayWordValue :: Backend sym => sym -> Integer -> SEval sym (WordValue sym) -> 
 delayWordValue sym sz m =
   isReady sym m >>= \case
     Just w  -> pure w
-    Nothing -> ThunkWordVal sz <$> sDelay sym m
+    Nothing -> ThunkWordVal sz <$> sDelay sym (unwindThunks m)
+
+-- If we are calling this, we know the spine of the word value has been
+-- demanded, so we unwind any chains of `ThunkWordValue` that may have built up.
+unwindThunks :: Backend sym => SEval sym (WordValue sym) -> SEval sym (WordValue sym)
+unwindThunks m =
+  m >>= \case
+    ThunkWordVal _ m' -> unwindThunks m'
+    x -> pure x
 
 {-# INLINE shiftWordByInteger #-}
 shiftWordByInteger ::
