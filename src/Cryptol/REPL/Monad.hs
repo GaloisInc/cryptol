@@ -36,6 +36,7 @@ module Cryptol.REPL.Monad (
   , getModuleEnv, setModuleEnv
   , getDynEnv, setDynEnv
   , getCallStacks
+  , getTCSolver
   , uniqify, freshName
   , whenDebug
   , getEvalOptsAction
@@ -91,6 +92,7 @@ import Cryptol.Parser.NoPat (Error)
 import Cryptol.Parser.Position (emptyRange, Range(from))
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck as T
+import qualified Cryptol.TypeCheck.Solver.SMT as SMT
 import qualified Cryptol.IR.FreeVars as T
 import qualified Cryptol.Utils.Ident as I
 import Cryptol.Utils.PP
@@ -102,6 +104,7 @@ import Cryptol.Symbolic.SBV (SBVPortfolioException)
 import Cryptol.Symbolic.What4 (W4Exception)
 import qualified Cryptol.Symbolic.SBV as SBV (proverNames, setupProver, defaultProver, SBVProverConfig)
 import qualified Cryptol.Symbolic.What4 as W4 (proverNames, setupProver, W4ProverConfig)
+
 
 import Control.Monad (ap,unless,when)
 import Control.Monad.Base
@@ -165,12 +168,27 @@ data RW = RW
     -- This is used to change the title of terminal when loading a module.
 
   , eProverConfig :: Either SBV.SBVProverConfig W4.W4ProverConfig
+
+  , eTCConfig :: T.SolverConfig
+    -- ^ Solver configuration to be used for typechecking
+
+  , eTCSolver :: Maybe SMT.Solver
+    -- ^ Solver instance to be used for typechecking
   }
 
+
 -- | Initial, empty environment.
-defaultRW :: Bool -> Bool ->Logger -> IO RW
+defaultRW :: Bool -> Bool -> Logger -> IO RW
 defaultRW isBatch callStacks l = do
   env <- M.initialModuleEnv
+  let searchPath = M.meSearchPath env
+  let solverConfig =
+             T.SolverConfig
+             { T.solverPath = "z3"
+             , T.solverArgs = [ "-smt2", "-in" ]
+             , T.solverVerbose = 0
+             , T.solverPreludePath = searchPath
+             }
   return RW
     { eLoadedMod   = Nothing
     , eEditFile    = Nothing
@@ -182,6 +200,8 @@ defaultRW isBatch callStacks l = do
     , eCallStacks  = callStacks
     , eUpdateTitle = return ()
     , eProverConfig = Left SBV.defaultProver
+    , eTCConfig    = solverConfig
+    , eTCSolver    = Nothing
     }
 
 -- | Build up the prompt for the REPL.
@@ -228,8 +248,10 @@ newtype REPL a = REPL { unREPL :: IORef RW -> IO a }
 -- | Run a REPL action with a fresh environment.
 runREPL :: Bool -> Bool -> Logger -> REPL a -> IO a
 runREPL isBatch callStacks l m = do
-  ref <- newIORef =<< defaultRW isBatch callStacks l
-  unREPL m ref
+  Ex.bracket
+    (newIORef =<< defaultRW isBatch callStacks l)
+    (unREPL resetTCSolver)
+    (unREPL m)
 
 instance Functor REPL where
   {-# INLINE fmap #-}
@@ -392,6 +414,25 @@ getPrompt  = mkPrompt `fmap` getRW
 
 getCallStacks :: REPL Bool
 getCallStacks = eCallStacks <$> getRW
+
+getTCSolver :: REPL SMT.Solver
+getTCSolver =
+  do rw <- getRW
+     case eTCSolver rw of
+       Just s -> return s
+       Nothing ->
+         do s <- io (SMT.startSolver (eTCConfig rw))
+            modifyRW_ (\rw' -> rw'{ eTCSolver = Just s })
+            return s
+
+resetTCSolver :: REPL ()
+resetTCSolver =
+  do mtc <- eTCSolver <$> getRW
+     case mtc of
+       Nothing -> return ()
+       Just s  ->
+         do io (SMT.stopSolver s)
+            modifyRW_ (\rw -> rw{ eTCSolver = Nothing })
 
 -- Get the setting we should use for displaying values.
 getPPValOpts :: REPL PPOpts
@@ -817,11 +858,11 @@ userOptions  = mkOptionMap
   , OptionDescr "tcSolver" ["tc-solver"] (EnvProg "z3" [ "-smt2", "-in" ])
     noCheck  -- TODO: check for the program in the path
     "The solver that will be used by the type checker." $
-    \case EnvProg prog args -> do me <- getModuleEnv
-                                  let cfg = M.meSolverConfig me
-                                  setModuleEnv me { M.meSolverConfig =
-                                                      cfg { T.solverPath = prog
-                                                          , T.solverArgs = args } }
+    \case EnvProg prog args -> do modifyRW_ (\rw -> rw { eTCConfig = (eTCConfig rw)
+                                                                      { T.solverPath = prog
+                                                                      , T.solverArgs = args
+                                                                      }})
+                                  resetTCSolver
           _                 -> return ()
 
   , OptionDescr "tcDebug" ["tc-debug"] (EnvNum 0)
@@ -831,9 +872,10 @@ userOptions  = mkOptionMap
       , "  *  0  no debug output"
       , "  *  1  show type-checker debug info"
       , "  * >1  show type-checker debug info and interactions with SMT solver"]) $
-    \case EnvNum n -> do me <- getModuleEnv
-                         let cfg = M.meSolverConfig me
-                         setModuleEnv me { M.meSolverConfig = cfg{ T.solverVerbose = n } }
+    \case EnvNum n -> do changed <- modifyRW (\rw -> ( rw{ eTCConfig = (eTCConfig rw){ T.solverVerbose = n } }
+                                                     , n /= T.solverVerbose (eTCConfig rw)
+                                                     ))
+                         when changed resetTCSolver
           _        -> return ()
   , OptionDescr "coreLint" ["core-lint"] (EnvBool False)
     noCheck

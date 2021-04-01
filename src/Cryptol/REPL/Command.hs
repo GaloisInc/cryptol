@@ -81,7 +81,6 @@ import qualified Cryptol.TypeCheck.Error as T
 import qualified Cryptol.TypeCheck.Parseable as T
 import qualified Cryptol.TypeCheck.Subst as T
 import           Cryptol.TypeCheck.Solve(defaultReplExpr)
-import qualified Cryptol.TypeCheck.Solver.SMT as SMT
 import           Cryptol.TypeCheck.PP (dump,ppWithNames,emptyNameMap)
 import           Cryptol.Utils.PP
 import           Cryptol.Utils.Panic(panic)
@@ -1674,16 +1673,16 @@ liftModuleCmd cmd =
   do evo <- getEvalOptsAction
      env <- getModuleEnv
      callStacks <- getCallStacks
-     let cfg = M.meSolverConfig env
-     let minp s =
+     tcSolver <- getTCSolver
+     let minp =
              M.ModuleInput
                 { minpCallStacks = callStacks
                 , minpEvalOpts   = evo
                 , minpByteReader = BS.readFile
                 , minpModuleEnv  = env
-                , minpTCSolver   = s
+                , minpTCSolver   = tcSolver
                 }
-     moduleCmdResult =<< io (SMT.withSolver cfg (cmd . minp))
+     moduleCmdResult =<< io (cmd minp)
 
 moduleCmdResult :: M.ModuleRes a -> REPL a
 moduleCmdResult (res,ws0) = do
@@ -1761,9 +1760,8 @@ replEvalCheckedExpr def sig =
   do validEvalContext def
      validEvalContext sig
 
-     me <- getModuleEnv
-     let cfg = M.meSolverConfig me
-     mbDef <- io $ SMT.withSolver cfg (\s -> defaultReplExpr s def sig)
+     s <- getTCSolver
+     mbDef <- io (defaultReplExpr s def sig)
 
      (def1,ty) <-
         case mbDef of

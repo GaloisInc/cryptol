@@ -26,8 +26,8 @@ Specifies the format to use when showing floating point numbers:
 0b1010.01
 0o12.2
 10.25
-0.4
-0.4
+0.38
+0.38
 0xa.4
 0x0.6
 0x1.234p4

@@ -2,6 +2,8 @@
 module CryptolServer.ClearState
   ( clearState
   , clearStateDescr
+  , clearAllStates
+  , clearAllStatesDescr
   ) where
 
 import qualified Argo
@@ -30,3 +32,22 @@ clearStateDescr =
 
 clearState :: ClearStateParams -> CryptolNotification ()
 clearState (ClearStateParams stateID) = CryptolNotification . const $ Argo.destroyState stateID
+
+
+
+data ClearAllStatesParams = ClearAllStatesParams
+
+instance JSON.FromJSON ClearAllStatesParams where
+  parseJSON =
+    JSON.withObject "params for \"clear all states\"" $
+    \_ -> pure ClearAllStatesParams
+
+instance Doc.DescribedParams ClearAllStatesParams where
+  parameterFieldDescription = []
+
+clearAllStatesDescr :: Doc.Block
+clearAllStatesDescr =
+  Doc.Paragraph [Doc.Text "Clear all states from the Cryptol server (making room for subsequent/unrelated states)."]
+
+clearAllStates :: ClearAllStatesParams -> CryptolNotification ()
+clearAllStates ClearAllStatesParams = CryptolNotification . const $ Argo.destroyAllStates

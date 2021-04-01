@@ -55,14 +55,15 @@ install_z3() {
   is_exe "$BIN" "z3" && return
 
   case "$RUNNER_OS" in
-    Linux) file="ubuntu-16.04.zip" ;;
-    macOS) file="osx-10.14.6.zip" ;;
-    Windows) file="win.zip" ;;
+    Linux) file="ubuntu-16.04" ;;
+    macOS) file="osx-10.14.6" ;;
+    Windows) file="win" ;;
   esac
-  curl -o z3.zip -sL "https://github.com/Z3Prover/z3/releases/download/z3-$Z3_VERSION/z3-$Z3_VERSION-x64-$file"
+  curl -o z3.zip -sL "https://github.com/Z3Prover/z3/releases/download/z3-$Z3_VERSION/z3-$Z3_VERSION-x64-$file.zip"
 
   if $IS_WIN; then 7z x -bd z3.zip; else unzip z3.zip; fi
-  cp z3-*/bin/z3$EXT $BIN/z3$EXT
+  cp z3-$Z3_VERSION-x64-$file/bin/z3$EXT $BIN/z3$EXT
+  rm -rf z3-$Z3_VERSION-x64-$file
   $IS_WIN || chmod +x $BIN/z3
   rm z3.zip
 }
@@ -114,6 +115,7 @@ build() {
   cp cabal.GHC-"$ghc_ver".config cabal.project.freeze
   cabal v2-update
   cabal v2-configure -j2 --minimize-conflict-set
+  git status --porcelain
   retry ./cry build exe:cryptol-html "$@" # retry due to flakiness with windows builds
   retry ./cry build exe:cryptol-remote-api "$@"
   retry ./cry build exe:cryptol-eval-server "$@"
@@ -150,10 +152,13 @@ test_rpc() {
 
 bundle_files() {
   doc=dist/share/doc/cryptol
+  lib=dist/share/cryptol
   mkdir -p $doc
   cp -R examples/ $doc/examples/
   rm -rf $doc/examples/cryptol-specs
   cp docs/*pdf $doc
+  mkdir -p $lib
+  cp -r lib/* $lib
 
   # Copy the two interesting examples over
   cp docs/ProgrammingCryptol/{aes/AES,enigma/Enigma}.cry $doc/examples/
@@ -171,9 +176,7 @@ zip_dist() {
   : "${VERSION?VERSION is required as an environment variable}"
   name="${name:-"cryptol-$VERSION-$RUNNER_OS-x86_64"}"
   mv dist "$name"
-  tar -czf "$name".tar.gz "$name"
-  sign "$name".tar.gz
-  [[ -f "$name".tar.gz.sig ]] && [[ -f "$name".tar.gz ]]
+  tar -cvzf "$name".tar.gz "$name"
 }
 
 output() { echo "::set-output name=$1::$2"; }

@@ -2,17 +2,14 @@
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-pushd $DIR/..
-
-docker build -t cryptol-remote-api --file cryptol-remote-api/Dockerfile .
-popd
+TAG=${1:-cryptol-remote-api}
 
 pushd $DIR
 
 docker run --name=cryptol-remote-api -d \
   -v $PWD/python/tests/cryptol/test-files:/home/cryptol/tests/cryptol/test-files \
   -p 8080:8080 \
-  cryptol-remote-api
+  $TAG
 
 popd
 

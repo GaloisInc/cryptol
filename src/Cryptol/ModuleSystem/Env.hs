@@ -61,9 +61,6 @@ data ModuleEnv = ModuleEnv
   , meNameSeeds     :: T.NameSeeds
     -- ^ A source of new names for the type checker.
 
-  , meSolverConfig  :: T.SolverConfig
-    -- ^ Configuration settings for the SMT solver used for type-checking.
-
   , meEvalEnv       :: EvalEnv
     -- ^ The evaluation environment.  Contains the values for all loaded
     -- modules, both public and private.
@@ -151,12 +148,6 @@ initialModuleEnv = do
     , meSearchPath    = searchPath
     , meDynEnv        = mempty
     , meMonoBinds     = True
-    , meSolverConfig  = T.SolverConfig
-                          { T.solverPath = "z3"
-                          , T.solverArgs = [ "-smt2", "-in" ]
-                          , T.solverVerbose = 0
-                          , T.solverPreludePath = searchPath
-                          }
     , meCoreLint      = NoCoreLint
     , meSupply        = emptySupply
     }

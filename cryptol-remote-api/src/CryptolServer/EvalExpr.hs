@@ -12,13 +12,12 @@ import Data.Aeson as JSON
 
 
 import Cryptol.ModuleSystem (checkExpr, evalExpr)
-import Cryptol.ModuleSystem.Env (meSolverConfig,deEnv,meDynEnv)
+import Cryptol.ModuleSystem.Env (deEnv,meDynEnv)
 import Cryptol.TypeCheck.Solve (defaultReplExpr)
 import Cryptol.TypeCheck.Subst (apSubst, listParamSubst)
 import Cryptol.TypeCheck.Type (Schema(..))
 import qualified Cryptol.Parser.AST as P
 import Cryptol.Parser.Name (PName)
-import qualified Cryptol.TypeCheck.Solver.SMT as SMT
 import Cryptol.Utils.PP (pretty)
 import qualified Cryptol.Eval.Env as E
 import qualified Cryptol.Eval.Type as E
@@ -43,9 +42,8 @@ evalExpression' e =
      -- TODO: see Cryptol REPL for how to check whether we
      -- can actually evaluate things, which we can't do in
      -- a parameterized module
-     me <- getModuleEnv
-     let cfg = meSolverConfig me
-     perhapsDef <- liftIO $ SMT.withSolver cfg (\s -> defaultReplExpr s ty schema)
+     s <- getTCSolver
+     perhapsDef <- liftIO (defaultReplExpr s ty schema)
      case perhapsDef of
        Nothing ->
          raise (evalPolyErr schema)

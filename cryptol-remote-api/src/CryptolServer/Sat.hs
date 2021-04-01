@@ -23,13 +23,12 @@ import qualified Data.Text as T
 import Cryptol.Eval.Concrete (Value)
 import Cryptol.Eval.Type (TValue, tValTy)
 import Cryptol.ModuleSystem (checkExpr)
-import Cryptol.ModuleSystem.Env (DynamicEnv(..), meDynEnv, meSolverConfig)
+import Cryptol.ModuleSystem.Env (DynamicEnv(..), meDynEnv)
 import Cryptol.Symbolic ( ProverCommand(..), ProverResult(..), QueryType(..)
                         , SatNum(..), CounterExampleType(..))
 import Cryptol.Symbolic.SBV (proverNames, satProve, setupProver)
 import Cryptol.TypeCheck.AST (Expr)
 import Cryptol.TypeCheck.Solve (defaultReplExpr)
-import qualified Cryptol.TypeCheck.Solver.SMT as SMT
 
 import CryptolServer
 import CryptolServer.Exceptions (evalPolyErr, proverError)
@@ -49,8 +48,9 @@ proveSat (ProveSatParams queryType (Prover name) jsonExpr) =
      -- TODO validEvalContext expr, ty, schema
      me <- getModuleEnv
      let decls = deDecls (meDynEnv me)
-     let cfg = meSolverConfig me
-     perhapsDef <- liftIO $ SMT.withSolver cfg (\s -> defaultReplExpr s ty schema)
+     s <- getTCSolver
+
+     perhapsDef <- liftIO (defaultReplExpr s ty schema)
      case perhapsDef of
        Nothing ->
          raise (evalPolyErr schema)

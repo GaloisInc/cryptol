@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "cryptol"
+version = "2.11.0"
+readme = "README.md"
+keywords = ["cryptography", "verification"]
+description = "Cryptol client for the Cryptol 2.11 RPC server"
+authors = ["Andrew Kent <andrew@galois.com>", "Aaron Tomb <atomb@galois.com>"]
+license = "BSD License"
+include = [
+    "LICENSE",
+    "mypy.ini",
+]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+requests = "^2.25.1"
+BitVector = "^3.4.9"
+argo-client = "0.0.4"
+
+[tool.poetry.dev-dependencies]
+mypy = "^0.812"
+
+[build-system]
+requires = ["poetry>=1.1.4", "setuptools>=40.8.0"]

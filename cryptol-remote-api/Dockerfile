@@ -44,18 +44,18 @@ RUN latest="$(curl -sSL 'http://cvc4.cs.stanford.edu/downloads/builds/x86_64-lin
 # Set executable and run tests
 RUN chmod +x rootfs/usr/local/bin/*
 
-FROM debian:buster AS build
+FROM debian:buster AS toolchain
 ARG PORTABILITY=false
 RUN apt-get update && apt-get install -y libncurses-dev libz-dev \
     build-essential curl libffi-dev libffi6 libgmp-dev libgmp10 libncurses-dev libncurses5 libtinfo5 libnuma-dev \
     $(if ${PORTABILITY}; then echo git autoconf python3; fi)
-RUN curl -o /usr/local/bin/ghcup "https://downloads.haskell.org/~ghcup/0.1.12/x86_64-linux-ghcup-0.1.12" && chmod +x /usr/local/bin/ghcup
-ENV GHCUP_USE_XDG_DIRS=true \
-    XDG_BIN_HOME=/usr/local/bin \
-    XDG_DATA_HOME=/usr/local/share
+ENV GHCUP_INSTALL_BASE_PREFIX=/opt \
+    PATH=/opt/.ghcup/bin:$PATH
+RUN curl -o /usr/local/bin/ghcup "https://downloads.haskell.org/~ghcup/0.1.14/x86_64-linux-ghcup-0.1.14" && \
+    chmod +x /usr/local/bin/ghcup
 COPY --from=solvers /solvers/rootfs /
 RUN ghcup install cabal --set
-ENV PATH /root/.cabal/bin:$PATH
+ENV PATH=/root/.cabal/bin:$PATH
 ADD ./cryptol-remote-api/ghc-portability.patch .
 ARG GHCVER
 ARG GHCVER_BOOTSTRAP
@@ -72,11 +72,14 @@ RUN if ${PORTABILITY}; then \
         make -j && \
         make install && \
         cd .. && \
-        rm -rf ./ghc; \
+        rm -rf ./ghc && \
+        ghcup rm ghc ${GHCVER_BOOTSTRAP}; \
     else \
         ghcup install ghc ${GHCVER} && \
         ghcup set ghc ${GHCVER}; \
     fi
+
+FROM toolchain AS build
 
 RUN useradd -m cryptol
 COPY --chown=cryptol:cryptol . /cryptol
@@ -91,8 +94,9 @@ COPY cabal.GHC-${GHCVER}.config cabal.project.freeze
 RUN mkdir -p rootfs/usr/local/bin
 
 RUN cabal v2-update && \
-    cabal v2-build -j cryptol-remote-api:exe:cryptol-remote-api && \
-    cp $(cabal v2-exec which cryptol-remote-api) rootfs/usr/local/bin
+    cabal v2-build -j cryptol-remote-api:exe:cryptol-remote-api cryptol-remote-api:exe:cryptol-eval-server && \
+    cp $(cabal v2-exec which cryptol-remote-api) rootfs/usr/local/bin && \
+    cp $(cabal v2-exec which cryptol-eval-server) rootfs/usr/local/bin
 ENV PATH=/usr/local/bin:/cryptol/rootfs/usr/local/bin:$PATH
 RUN mkdir -p rootfs/"${CRYPTOLPATH}" \
     && cp -r lib/* rootfs/"${CRYPTOLPATH}"

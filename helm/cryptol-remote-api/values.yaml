@@ -5,7 +5,7 @@
 replicaCount: 1
 
 image:
-  repository: galoisinc/cryptol-remote-api
+  repository: ghcr.io/galoisinc/cryptol-remote-api
   pullPolicy: Always
   # Overrides the image tag whose default is the chart appVersion.
   tag: ""

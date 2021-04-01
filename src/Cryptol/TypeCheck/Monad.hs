@@ -79,7 +79,6 @@ data InferInput = InferInput
 
   , inpCallStacks :: Bool             -- ^ Are we tracking call stacks?
 
-  , inpSolverConfig :: SolverConfig   -- ^ Options for the constraint solver
   , inpSearchPath :: [FilePath]
     -- ^ Where to look for Cryptol theory file.
 

@@ -9,15 +9,17 @@ import Control.Lens
 import Control.Monad.IO.Class
 import Control.Monad.Reader (ReaderT(ReaderT))
 import qualified Data.Aeson as JSON
+import Data.Containers.ListUtils (nubOrd)
 import Data.Text (Text)
 
 import Cryptol.Eval (EvalOpts(..))
 import Cryptol.ModuleSystem (ModuleCmd, ModuleEnv, ModuleInput(..))
 import Cryptol.ModuleSystem.Env
   (getLoadedModules, lmFilePath, lmFingerprint, meLoadedModules,
-   initialModuleEnv, meSearchPath, ModulePath(..), meSolverConfig)
+   initialModuleEnv, meSearchPath, ModulePath(..))
 import Cryptol.ModuleSystem.Fingerprint ( fingerprintFile )
 import Cryptol.Parser.AST (ModName)
+import Cryptol.TypeCheck( SolverConfig(..) )
 import qualified Cryptol.TypeCheck.Solver.SMT as SMT
 
 import qualified Argo
@@ -71,6 +73,8 @@ instance CryptolMethod CryptolNotification where
 getModuleEnv :: CryptolCommand ModuleEnv
 getModuleEnv = CryptolCommand $ const $ view moduleEnv <$> Argo.getState
 
+getTCSolver :: CryptolCommand SMT.Solver
+getTCSolver = CryptolCommand $ const $ view tcSolver <$> Argo.getState
 
 setModuleEnv :: ModuleEnv -> CryptolCommand ()
 setModuleEnv me =
@@ -81,15 +85,14 @@ runModuleCmd cmd =
     do Options callStacks evOpts <- getOptions
        s <- CryptolCommand $ const Argo.getState
        reader <- CryptolCommand $ const Argo.getFileReader
-       let minp solver = ModuleInput
+       let minp = ModuleInput
                   { minpCallStacks = callStacks
                   , minpEvalOpts   = pure evOpts
                   , minpByteReader = reader
                   , minpModuleEnv  = view moduleEnv s
-                  , minpTCSolver = solver
+                  , minpTCSolver   = view tcSolver s
                   }
-       let solverCfg = meSolverConfig (view moduleEnv s)
-       out <- liftIO $ SMT.withSolver solverCfg (cmd . minp)
+       out <- liftIO (cmd minp)
        case out of
          (Left x, warns) ->
            raise (cryptolError x warns)
@@ -114,6 +117,7 @@ loadedPath = lens _loadedPath (\v n -> v { _loadedPath = n })
 data ServerState =
   ServerState { _loadedModule :: Maybe LoadedModule
               , _moduleEnv :: ModuleEnv
+              , _tcSolver :: SMT.Solver
               }
 
 loadedModule :: Lens' ServerState (Maybe LoadedModule)
@@ -122,12 +126,29 @@ loadedModule = lens _loadedModule (\v n -> v { _loadedModule = n })
 moduleEnv :: Lens' ServerState ModuleEnv
 moduleEnv = lens _moduleEnv (\v n -> v { _moduleEnv = n })
 
-initialState :: IO ServerState
-initialState = ServerState Nothing <$> initialModuleEnv
+tcSolver :: Lens' ServerState SMT.Solver
+tcSolver = lens _tcSolver (\v n -> v { _tcSolver = n })
 
-setSearchPath :: [FilePath] -> ServerState -> ServerState
-setSearchPath paths =
-  over moduleEnv $ \me -> me { meSearchPath = paths ++ meSearchPath me }
+initialState :: IO ServerState
+initialState =
+  do modEnv <- initialModuleEnv
+     s <- SMT.startSolver (defaultSolverConfig (meSearchPath modEnv))
+     pure (ServerState Nothing modEnv s)
+
+defaultSolverConfig :: [FilePath] -> SolverConfig
+defaultSolverConfig searchPath =
+  SolverConfig
+  { solverPath = "z3"
+  , solverArgs = [ "-smt2", "-in" ]
+  , solverVerbose = 0
+  , solverPreludePath = searchPath
+  }
+
+extendSearchPath :: [FilePath] -> ServerState -> ServerState
+extendSearchPath paths =
+  over moduleEnv $ \me -> me { meSearchPath = nubOrd $ paths ++ meSearchPath me }
+
+
 
 
 -- | Check that all of the modules loaded in the Cryptol environment
