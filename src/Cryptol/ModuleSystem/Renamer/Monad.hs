@@ -30,7 +30,7 @@ import Cryptol.ModuleSystem.Interface
 import Cryptol.Parser.AST
 import Cryptol.Parser.Position
 import Cryptol.Utils.Panic (panic)
-import Cryptol.Utils.Ident(containsModule)
+import Cryptol.Utils.Ident(modPathCommon)
 
 import Cryptol.ModuleSystem.Renamer.Error
 
@@ -277,24 +277,26 @@ recordUse x = RenameM $ sets_ $ \rw ->
   rw { rwNameUseCount = Map.insertWith (+) x 1 (rwNameUseCount rw) }
   {- NOTE: we don't distinguish between bindings and uses here, because
   the situation is complicated by the pattern signatures where the first
-  "use" site is actually the bindin site.  Instead we just count them all, and
+  "use" site is actually the binding site.  Instead we just count them all, and
   something is considered unused if it is used only once (i.e, just the
   binding site) -}
 
--- | Mark something as a dependenicy. This is similar but different from
+-- | Mark something as a dependency. This is similar but different from
 -- `recordUse`, in particular:
---    * We only recurd use sites, not bindings
+--    * We only record use sites, not bindings
 --    * We record all namespaces, not just types
 --    * We only keep track of actual uses mentioned in the code.
 --      Otoh, `recordUse` also considers exported entities to be used.
---    * If we depend on a name in a nested submodule, we also add a
---      dependency on the submodule
+--    * If we depend on a name from a sibling submodule we add a dependency on
+--      the module in our common ancestor.  Examples:
+--      - @A::B::x@ depends on @A::B::C::D::y@, @x@ depends on @A::B::C@
+--      - @A::B::x@ depends on @A::P::Q::y@@,   @x@ depends on @A::P@
+
 addDep :: Name -> RenameM ()
 addDep x =
   do cur  <- getCurMod
      deps <- case nameInfo x of
-               -- XXX: this should be the outermost thing
-               Declared m _ | Just (c,i:_) <- cur `containsModule` m ->
+               Declared m _ | Just (c,_,i:_) <- modPathCommon cur m ->
                  do mb <- nestedModuleOrig (Nested c i)
                     pure case mb of
                            Just y  -> Set.fromList [x,y]

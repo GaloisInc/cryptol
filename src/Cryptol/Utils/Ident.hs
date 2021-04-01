@@ -13,7 +13,7 @@ module Cryptol.Utils.Ident
   ( -- * Module names
     ModPath(..)
   , apPathRoot
-  , containsModule
+  , modPathCommon
   , topModuleFor
 
   , ModName
@@ -64,7 +64,6 @@ module Cryptol.Utils.Ident
   ) where
 
 import           Control.DeepSeq (NFData)
-import           Control.Monad(guard)
 import           Data.Char (isSpace)
 import           Data.List (unfoldr)
 import qualified Data.Text as T
@@ -98,25 +97,33 @@ topModuleFor m =
     TopModule x -> x
     Nested p _ -> topModuleFor p
 
-containsModule :: ModPath -> ModPath -> Maybe (ModPath,[Ident])
-p1 `containsModule` p2 =
-  do guard (m1 == m2)
-     check (TopModule m1) (reverse xs) (reverse ys)
+-- | Compute a common prefix between two module paths, if any.
+-- This is basically "anti-unification" of the two paths, where we
+-- compute the longest common prefix, and the remaining differences for
+-- each module.
+modPathCommon :: ModPath -> ModPath -> Maybe (ModPath, [Ident], [Ident])
+modPathCommon p1 p2
+  | top1 == top2 = Just (findCommon (TopModule top1) as bs)
+  | otherwise    = Nothing
   where
-  (m1,xs) = toList p1
-  (m2,ys) = toList p2
+  (top1,as) = modPathSplit p1
+  (top2,bs) = modPathSplit p2
 
-  toList p =
+  findCommon com xs ys =
+    case (xs,ys) of
+      (x:xs',y:ys') | x == y -> findCommon (Nested com x) xs' ys'
+      _                      -> (com, xs, ys)
+
+modPathSplit :: ModPath -> (ModName, [Ident])
+modPathSplit p0 = (top,reverse xs)
+  where
+  (top,xs) = go p0
+  go p =
     case p of
       TopModule a -> (a, [])
       Nested b i  -> (a, i:bs)
-        where (a,bs) = toList b
+        where (a,bs) = go b
 
-  check m is js =
-    case (is,js) of
-      ([], _) -> pure (m, js)
-      (i : is', j : js') -> guard (i == j) >> check (Nested m i) is' js'
-      _ -> Nothing
 
 
 
