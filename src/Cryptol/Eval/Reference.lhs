@@ -566,7 +566,7 @@ by corresponding type classes:
 
 * Indexing: `@`, `@@`, `!`, `!!`, `update`, `updateEnd`
 
-* Enumerations: `fromTo`, `fromThenTo`, `infFrom`, `infFromThen`
+* Enumerations: `fromTo`, `fromThenTo`, `fromToLessThan`, `infFrom`, `infFromThen`
 
 * Polynomials: `pmult`, `pdiv`, `pmod`
 
@@ -794,6 +794,17 @@ by corresponding type classes:
 >                     let f i = literal i ty
 >                     in pure (VList (Nat len)
 >                               (map f (genericTake len [first, next ..])))
+>
+>   , "fromToLessThan" ~>
+>                     vFinPoly $ \first -> pure $
+>                     VNumPoly $ \bound -> pure $
+>                     VPoly    $ \ty    ->
+>                     let f i = literal i ty in
+>                     case bound of
+>                       Inf -> pure (VList Inf (map f [first ..]))
+>                       Nat bound' ->
+>                         let len = bound' - first in
+>                         pure (VList (Nat len) (map f (genericTake len [first ..])))
 >
 >   , "infFrom"    ~> VPoly $ \ty -> pure $
 >                     VFun $ \first ->

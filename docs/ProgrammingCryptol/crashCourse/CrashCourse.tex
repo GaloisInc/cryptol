@@ -790,7 +790,7 @@ Here are Cryptol's responses:
   []
   invalid sequence index: 12
    -- Backtrace --
-  (Cryptol::@) called at Cryptol:822:14--822:20
+  (Cryptol::@) called at Cryptol:820:14--820:20
   (Cryptol::@@) called at <interactive>:9:1--9:28
   [9, 8, 7, 6, 5, 4, 3, 2, 1, 0]
   9
@@ -2109,12 +2109,13 @@ the Cryptol primitive {\tt take}\indTake:
 \restartrepl
 \begin{replPrompt}
   Cryptol> :t take
-  take : {front, back, a} (fin front) => [front + back]a -> [front]a
+  take : {front, back, a} [front + back]a -> [front]a
 \end{replPrompt}
 
 The type of {\tt take} says that it is parameterized over {\tt front}
-and {\tt back}, {\tt front} must be a finite value,\indFin it takes a
-sequence {\tt front + back} long, and returns a sequence {\tt front} long.
+and {\tt back} and a type {\tt a}, it takes a sequence
+{\tt front + back} long of elements of type {\tt a}, and returns a
+sequence {\tt front} long.
 
 The impact of this predicate shows up when we try to take more than
 what is available:
