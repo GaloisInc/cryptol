@@ -29,7 +29,7 @@ import Prelude ()
 import Prelude.Compat
 
 import Data.Either(partitionEithers)
-import Data.Maybe(fromJust)
+import Data.Maybe(fromJust,mapMaybe)
 import Data.List(find,foldl')
 import Data.Foldable(toList)
 import Data.Map.Strict(Map)
@@ -48,7 +48,7 @@ import Cryptol.Parser.AST
 import Cryptol.Parser.Selector(selName)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.RecordMap
-import Cryptol.Utils.Ident(allNamespaces)
+import Cryptol.Utils.Ident(allNamespaces,textToModName)
 
 import Cryptol.ModuleSystem.Interface
 import Cryptol.ModuleSystem.Renamer.Error
@@ -56,8 +56,9 @@ import Cryptol.ModuleSystem.Renamer.Monad
 
 
 renameModule :: Module PName -> RenameM (IfaceDecls,NamingEnv,Module Name)
-renameModule m =
-  do env      <- liftSupply (defsOf m)
+renameModule m0 =
+  do let m = m0 { mDecls = addImplicitNestedImports (mDecls m0) }
+     env      <- liftSupply (defsOf m)
      nested   <- liftSupply (collectNestedModules env m)
      setNestedModule (nestedModuleNames nested)
        do (ifs,m1) <- collectIfaceDeps
@@ -66,8 +67,9 @@ renameModule m =
 
 renameTopDecls ::
   ModName -> [TopDecl PName] -> RenameM (NamingEnv,[TopDecl Name])
-renameTopDecls m ds =
-  do let mpath = TopModule m
+renameTopDecls m ds0 =
+  do let ds = addImplicitNestedImports ds0
+     let mpath = TopModule m
      env    <- liftSupply (defsOf (map (InModule (Just mpath)) ds))
      nested <- liftSupply (collectNestedModulesDecls env m ds)
 
@@ -75,6 +77,30 @@ renameTopDecls m ds =
        do ds1 <- shadowNames' CheckOverlap env
                                         (renameTopDecls' (nested,mpath) ds)
           pure (env,ds1)
+
+
+addImplicitNestedImports :: [TopDecl PName] -> [TopDecl PName]
+addImplicitNestedImports decls = mapMaybe addImp mods ++ decls
+  where
+  (imps,mods) = foldr modsOrImp (Set.empty, []) decls
+  addImp m
+    | mname `Set.member` imps = Nothing
+    | otherwise = Just $ DImport m { thing = Import
+                                               { iModule = ImpNested mname
+                                               , iAs     = Just qualName
+                                               , iSpec   = Nothing
+                                               }
+                                    }
+    where
+    mname    = thing m
+    qualName = textToModName (identText (getIdent mname))
+
+  modsOrImp d (is,ms) =
+    case d of
+      DImport li | ImpNested i <- iModule (thing li) -> (Set.insert i is, ms)
+      DModule tl | NestedModule m <- tlValue tl -> (is, mName m : ms)
+      _  -> (is, ms)
+  
 
 
 nestedModuleNames :: NestedMods -> Map ModPath Name
