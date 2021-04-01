@@ -62,6 +62,12 @@ data DepName = NamedThing Name
              | ConstratintAt Range -- ^ identifed by location in source
                deriving (Eq,Ord,Show,Generic,NFData)
 
+depNameLoc :: DepName -> Range
+depNameLoc x =
+  case x of
+    NamedThing n -> nameLoc n
+    ConstratintAt r -> r
+  
 
 
 instance PP RenamerError where
@@ -134,7 +140,9 @@ instance PP RenamerError where
 
     InvalidDependency ds ->
       "[error] Invalid recursive dependency:"
-      $$ nest 4 (vcat [ "•" <+> pp x | x <- ds ])
+      $$ nest 4 (vcat [ "•" <+> pp x <+> ", defined at" <+> ppR (depNameLoc x)
+                      | x <- ds ])
+      where ppR r = pp (from r) <.> "--" <.> pp (to r)
 
 instance PP DepName where
   ppPrec _ d =
