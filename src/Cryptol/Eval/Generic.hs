@@ -1030,7 +1030,7 @@ takeV sym front back a val =
              pure (VWord front' w)
 
         Inf | isTBit a ->
-          do w <- delayWordValue sym front' (largeBitsVal front' . fmap fromVBit <$> (fromSeq "takeV" =<< val))
+          do w <- delayWordValue sym front' (bitmapWordVal sym front' . fmap fromVBit =<< (fromSeq "takeV" =<< val))
              pure (VWord front' w)
 
         _ ->
@@ -1054,7 +1054,7 @@ dropV sym front back a val =
 
     _ ->
       do xs <- delaySeqMap sym (dropSeqMap front <$> (fromSeq "dropV" =<< val))
-         pure $ mkSeq back a xs
+         mkSeq sym back a xs
 
 
 {-# INLINE splitV #-}
@@ -1076,11 +1076,11 @@ splitV sym parts each a val =
        (Inf, e) | isTBit a -> do
           val' <- sDelay sym (fromSeq "splitV" =<< val)
           return $ VStream $ indexSeqMap $ \i ->
-            return $ VWord e $ largeBitsVal e $ indexSeqMap $ \j ->
+            VWord e <$> bitmapWordVal sym e (indexSeqMap $ \j ->
               let idx = i*e + toInteger j
                in idx `seq` do
                       xs <- val'
-                      fromVBit <$> lookupSeqMap xs idx
+                      fromVBit <$> lookupSeqMap xs idx)
        (Nat p, e) -> do
           val' <- sDelay sym (fromSeq "splitV" =<< val)
           return $ VSeq p $ indexSeqMap $ \i ->
@@ -1127,13 +1127,13 @@ transposeV ::
 transposeV sym a b c xs
   | isTBit c, Nat na <- a = -- Fin a => [a][b]Bit -> [b][a]Bit
       return $ bseq $ indexSeqMap $ \bi ->
-        return $ VWord na $ largeBitsVal na $ indexSeqMap $ \ai ->
+        VWord na <$> bitmapWordVal sym na (indexSeqMap $ \ai ->
          do xs' <- fromSeq "transposeV" xs
             ys <- lookupSeqMap xs' ai
             case ys of
               VStream ys' -> fromVBit <$> lookupSeqMap ys' bi
               VWord _ wv  -> indexWordValue sym wv bi
-              _ -> evalPanic "transpose" ["expected sequence of bits"]
+              _ -> evalPanic "transpose" ["expected sequence of bits"])
 
   | isTBit c, Inf <- a = -- [inf][b]Bit -> [b][inf]Bit
       return $ bseq $ indexSeqMap $ \bi ->
@@ -1206,7 +1206,7 @@ ccatV sym front Inf TVBit l r =
 ccatV sym front back elty l r =
   do l'' <- sDelay sym (fromSeq "ccatV left" =<< l)
      r'' <- sDelay sym (fromSeq "ccatV right" =<< r)
-     pure $ mkSeq (evalTF TCAdd [Nat front,back]) elty $ indexSeqMap $ \i ->
+     mkSeq sym (evalTF TCAdd [Nat front,back]) elty $ indexSeqMap $ \i ->
       if i < front then do
         ls <- l''
         lookupSeqMap ls i
@@ -1791,7 +1791,7 @@ parmapV sym =
           VWord n w ->
             do let m = asBitsMap sym w
                m' <- sparkParMap sym (\x -> f' (VBit <$> x)) n m
-               pure (VWord n (largeBitsVal n (fromVBit <$> m')))
+               VWord n <$> (bitmapWordVal sym n (fromVBit <$> m'))
           VSeq n m ->
             VSeq n <$> sparkParMap sym f' n m
 

@@ -25,7 +25,7 @@ module Cryptol.Backend.WordValue
   ( -- * WordValue
     WordValue
   , wordVal
-  , largeBitsVal
+  , bitmapWordVal
   , asWordList
   , asWordVal
   , asBitsMap
@@ -98,8 +98,8 @@ data WordValue sym
 wordVal :: SWord sym -> WordValue sym
 wordVal = WordVal
 
-largeBitsVal :: Backend sym => Integer -> SeqMap sym (SBit sym) -> WordValue sym
-largeBitsVal = LargeBitsVal
+bitmapWordVal :: Backend sym => sym -> Integer -> SeqMap sym (SBit sym) -> SEval sym (WordValue sym)
+bitmapWordVal _sym sz bs = pure (LargeBitsVal sz bs)
 
 {-# INLINE joinWordVal #-}
 joinWordVal :: Backend sym => sym -> WordValue sym -> WordValue sym -> SEval sym (WordValue sym)
@@ -251,7 +251,7 @@ joinWords sym nParts nEach xs =
 reverseWordVal :: Backend sym => sym -> WordValue sym -> SEval sym (WordValue sym)
 reverseWordVal sym w =
   let m = wordValueSize sym w in
-  pure $ largeBitsVal m $ reverseSeqMap m $ asBitsMap sym w
+  bitmapWordVal sym m <$> reverseSeqMap m $ asBitsMap sym w
 
 wordValAsLit :: Backend sym => sym -> WordValue sym -> Maybe Integer
 wordValAsLit sym (WordVal w) = snd <$> wordAsLit sym w

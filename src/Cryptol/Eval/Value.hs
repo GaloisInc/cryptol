@@ -352,12 +352,12 @@ ilam sym f =
 
 -- | Construct either a finite sequence, or a stream.  In the finite case,
 -- record whether or not the elements were bits, to aid pretty-printing.
-mkSeq :: Backend sym => Nat' -> TValue -> SeqMap sym (GenValue sym) -> GenValue sym
-mkSeq len elty vals = case len of
+mkSeq :: Backend sym => sym -> Nat' -> TValue -> SeqMap sym (GenValue sym) -> SEval sym (GenValue sym)
+mkSeq sym len elty vals = case len of
   Nat n
-    | isTBit elty -> VWord n $ largeBitsVal n (fromVBit <$> vals)
-    | otherwise   -> VSeq n vals
-  Inf             -> VStream vals
+    | isTBit elty -> VWord n <$> bitmapWordVal sym n (fromVBit <$> vals)
+    | otherwise   -> pure $ VSeq n vals
+  Inf             -> pure $ VStream vals
 
 
 -- Value Destructors -----------------------------------------------------------

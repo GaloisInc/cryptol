@@ -127,7 +127,7 @@ evalExpr sym env expr = case expr of
           (tryFromBits sym vs >>= \case
              Just w  -> pure (wordVal w)
              Nothing -> do xs <- mapM (\x -> sDelay sym (fromVBit <$> x)) vs
-                           return $ largeBitsVal len $ finiteSeqMap sym xs)
+                           bitmapWordVal sym len $ finiteSeqMap sym xs)
     | otherwise -> {-# SCC "evalExpr->EList" #-} do
         xs <- mapM (sDelay sym) vs
         return $ VSeq len $ finiteSeqMap sym xs
@@ -602,7 +602,7 @@ evalComp ::
   SEval sym (GenValue sym)
 evalComp sym env len elty body ms =
        do lenv <- mconcat <$> mapM (branchEnvs sym (toListEnv env)) ms
-          mkSeq len elty <$> memoMap sym (indexSeqMap $ \i -> do
+          mkSeq sym len elty =<< memoMap sym (indexSeqMap $ \i -> do
               evalExpr sym (evalListEnv lenv i) body)
 
 {-# SPECIALIZE branchEnvs ::
