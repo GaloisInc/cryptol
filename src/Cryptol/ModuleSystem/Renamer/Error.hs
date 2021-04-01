@@ -140,7 +140,7 @@ instance PP RenamerError where
 
     InvalidDependency ds ->
       "[error] Invalid recursive dependency:"
-      $$ nest 4 (vcat [ "•" <+> pp x <+> ", defined at" <+> ppR (depNameLoc x)
+      $$ nest 4 (vcat [ "•" <+> pp x <.> ", defined at" <+> ppR (depNameLoc x)
                       | x <- ds ])
       where ppR r = pp (from r) <.> "--" <.> pp (to r)
 

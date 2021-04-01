@@ -52,7 +52,7 @@ Loading module Cryptol
 Loading module Main
 
 [error] Invalid recursive dependency:
-    • type Main::T , defined at 1:6--1:7
+    • type Main::T, defined at 1:6--1:7
 Loading module Cryptol
 Loading module Main
 

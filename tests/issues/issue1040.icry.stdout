@@ -3,4 +3,4 @@ Loading module Cryptol
 Loading module binarytree
 
 [error] Invalid recursive dependency:
-    • type binarytree::Tree , defined at 3:9--3:13
+    • type binarytree::Tree, defined at 3:9--3:13

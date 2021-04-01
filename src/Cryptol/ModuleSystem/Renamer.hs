@@ -29,7 +29,7 @@ import Prelude ()
 import Prelude.Compat
 
 import Data.Either(partitionEithers)
-import Data.Maybe(fromJust,mapMaybe)
+import Data.Maybe(fromJust)
 import Data.List(find,foldl')
 import Data.Foldable(toList)
 import Data.Map.Strict(Map)
@@ -48,7 +48,7 @@ import Cryptol.Parser.AST
 import Cryptol.Parser.Selector(selName)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.RecordMap
-import Cryptol.Utils.Ident(allNamespaces,textToModName)
+import Cryptol.Utils.Ident(allNamespaces,packModName)
 
 import Cryptol.ModuleSystem.Interface
 import Cryptol.ModuleSystem.Renamer.Error
@@ -57,7 +57,7 @@ import Cryptol.ModuleSystem.Renamer.Monad
 
 renameModule :: Module PName -> RenameM (IfaceDecls,NamingEnv,Module Name)
 renameModule m0 =
-  do let m = m0 { mDecls = addImplicitNestedImports (mDecls m0) }
+  do let m = m0 { mDecls = snd (addImplicitNestedImports (mDecls m0)) }
      env      <- liftSupply (defsOf m)
      nested   <- liftSupply (collectNestedModules env m)
      setNestedModule (nestedModuleNames nested)
@@ -68,7 +68,7 @@ renameModule m0 =
 renameTopDecls ::
   ModName -> [TopDecl PName] -> RenameM (NamingEnv,[TopDecl Name])
 renameTopDecls m ds0 =
-  do let ds = addImplicitNestedImports ds0
+  do let ds = snd (addImplicitNestedImports ds0)
      let mpath = TopModule m
      env    <- liftSupply (defsOf (map (InModule (Just mpath)) ds))
      nested <- liftSupply (collectNestedModulesDecls env m ds)
@@ -79,30 +79,44 @@ renameTopDecls m ds0 =
           pure (env,ds1)
 
 
--- XXX: add implicit imports to the nested modules too
--- XXX: also add imports for exported nested modules
-addImplicitNestedImports :: [TopDecl PName] -> [TopDecl PName]
-addImplicitNestedImports decls = mapMaybe addImp mods ++ decls
+-- | Returns declarations with additional imports and the public module names
+-- of this module and its children
+addImplicitNestedImports ::
+  [TopDecl PName] -> ([[Ident]], [TopDecl PName])
+addImplicitNestedImports decls = (concat exportedMods, concat newDecls ++ other)
   where
-  (imps,mods) = foldr modsOrImp (Set.empty, []) decls
-  addImp m
-    | mname `Set.member` imps = Nothing
-    | otherwise = Just $ DImport m { thing = Import
-                                               { iModule = ImpNested mname
-                                               , iAs     = Just qualName
-                                               , iSpec   = Nothing
-                                               }
-                                    }
-    where
-    mname    = thing m
-    qualName = textToModName (identText (getIdent mname))
+  (mods,other)            = foldr classify ([], []) decls
+  (newDecls,exportedMods) = unzip (map processModule mods)
+  processModule m =
+    let NestedModule m1 = tlValue m
+        (childExs, ds1) = addImplicitNestedImports (mDecls m1)
+        mname           = getIdent (thing (mName m1))
+        imps            = map (mname :) ([] : childExs)
+        isToName is     = case is of
+                            [i] -> mkUnqual i
+                            _   -> mkQual (isToQual (init is)) (last is)
+        isToQual is     = packModName (map identText is)
+        mkImp xs        = DImport
+                          Located
+                            { srcRange = srcRange (mName m1)
+                            , thing = Import
+                                        { iModule = ImpNested (isToName xs)
+                                        , iAs     = Just (isToQual xs)
+                                        , iSpec   = Nothing
+                                        }
+                            }
+    in ( DModule m { tlValue = NestedModule m1 { mDecls = ds1 } }
+       : map mkImp imps
+       , case tlExport m of
+           Public  -> imps
+           Private -> []
+       )
 
-  modsOrImp d (is,ms) =
+
+  classify d (ms,ds) =
     case d of
-      DImport li | ImpNested i <- iModule (thing li) -> (Set.insert i is, ms)
-      DModule tl | NestedModule m <- tlValue tl -> (is, mName m : ms)
-      _  -> (is, ms)
-  
+      DModule tl -> (tl : ms, ds)
+      _          -> (ms, d : ds)
 
 
 nestedModuleNames :: NestedMods -> Map ModPath Name

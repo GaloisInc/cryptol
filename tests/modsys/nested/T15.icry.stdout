@@ -1,0 +1,15 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module T15
+[warning] at T15.cry:5:13--5:14
+    This binding for `A` shadows the existing binding at
+    T15.cry:3:11--3:12
+[warning] at T15.cry:7:15--7:16
+    This binding for `A` shadows the existing binding at
+    T15.cry:5:13--5:14
+[warning] at T15.cry:7:15--7:16
+    This binding for `A::A` shadows the existing binding at
+    T15.cry:5:13--5:14
+Showing a specific instance of polymorphic result:
+  * Using 'Integer' for 1st type argument of 'T15::A::A::y'
+2
