@@ -60,32 +60,9 @@ module Cryptol.Eval.Value
     -- ** Pretty printing
   , defaultPPOpts
   , ppValue
-
-    -- * Sequence Maps
-  , SeqMap
-  , indexSeqMap
-  , lookupSeqMap
-  , finiteSeqMap
-  , infiniteSeqMap
-  , enumerateSeqMap
-  , streamSeqMap
-  , reverseSeqMap
-  , updateSeqMap
-  , dropSeqMap
-  , concatSeqMap
-  , splitSeqMap
-  , memoMap
-  , delaySeqMap
-  , zipSeqMap
-  , mapSeqMap
-
     -- * Merge and if/then/else
   , iteValue
-  , mergeWord
   , mergeValue
-  , barrelShifter
-
-  , enumerateIntBits'
   ) where
 
 import Data.Ratio

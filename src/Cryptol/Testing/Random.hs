@@ -41,11 +41,11 @@ import Cryptol.Backend        (Backend(..), SRational(..))
 import Cryptol.Backend.FloatHelpers (floatFromBits)
 import Cryptol.Backend.Monad  (runEval,Eval,EvalErrorEx(..))
 import Cryptol.Backend.Concrete
+import Cryptol.Backend.SeqMap (indexSeqMap, finiteSeqMap)
 import Cryptol.Backend.WordValue (wordVal)
 
 import Cryptol.Eval.Type      (TValue(..))
-import Cryptol.Eval.Value     (GenValue(..), indexSeqMap,
-                               ppValue, defaultPPOpts, finiteSeqMap, fromVFun)
+import Cryptol.Eval.Value     (GenValue(..), ppValue, defaultPPOpts, fromVFun)
 import Cryptol.TypeCheck.Solver.InfNat (widthInteger)
 import Cryptol.Utils.Ident    (Ident)
 import Cryptol.Utils.Panic    (panic)
