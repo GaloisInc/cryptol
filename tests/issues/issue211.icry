@@ -1,4 +1,8 @@
-take`{1} (join [0x1, 0x2, repeat (error "boom"), 0x4])
+take`{1} (join [0x1, 0x2, error "boom", 0x4])
+take`{1} (join [0x1, 0x2, x where x = x, 0x4])
 take`{1} [True, False, error "boom", True]
+take`{1} [True, False, x where x = x, True]
 (splitAt`{0} [True, False, error "boom", True]).0
+(splitAt`{0} [True, False, x where x = x, True]).0
 (splitAt`{0} [True, False, error "boom", True]).1
+(splitAt`{0} [True, False, x where x = x, True]).1
