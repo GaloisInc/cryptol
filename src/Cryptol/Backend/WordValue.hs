@@ -113,47 +113,52 @@ bitmapWordVal sym sz bs =
 
 {-# INLINE joinWordVal #-}
 joinWordVal :: Backend sym => sym -> WordValue sym -> WordValue sym -> SEval sym (WordValue sym)
+joinWordVal sym wv1 wv2 =
+  let fallback = fallbackWordJoin sym wv1 wv2 in
+  case (wv1, wv2) of
+    (WordVal w1, WordVal w2) ->
+      WordVal <$> joinWord sym w1 w2
 
-joinWordVal sym (ThunkWordVal _ m1) w2
-  = do w1 <- m1
-       joinWordVal sym w1 w2
+    (ThunkWordVal _ m1, _) ->
+      isReady sym m1 >>= \case
+        Just x -> joinWordVal sym x wv2
+        Nothing -> fallback
 
-joinWordVal sym w1 (ThunkWordVal _ m2)
-  = do w2 <- m2
-       joinWordVal sym w1 w2
+    (_,ThunkWordVal _ m2) ->
+      isReady sym m2 >>= \case
+        Just x   -> joinWordVal sym wv1 x
+        Nothing  -> fallback
 
-joinWordVal sym (WordVal w1) (WordVal w2) =
-  WordVal <$> joinWord sym w1 w2
+    (WordVal w1, BitmapVal _ packed2 _) ->
+      isReady sym packed2 >>= \case
+        Just w2 -> WordVal <$> joinWord sym w1 w2
+        Nothing  -> fallback
 
-joinWordVal sym (WordVal w1) (BitmapVal n2 packed2 bs2) =
-  isReady sym packed2 >>= \case
-    Just w2 -> WordVal <$> joinWord sym w1 w2
-    Nothing ->
-      do let n1 = wordLen sym w1
-         let len = n1 + n2
-         packed <- sDelay sym (do w2 <- packed2; joinWord sym w1 w2)
-         pure (BitmapVal len packed (concatSeqMap n1 (unpackBitmap sym w1) bs2))
+    (BitmapVal _ packed1 _, WordVal w2) ->
+      isReady sym packed1 >>= \case
+        Just w1 -> WordVal <$> joinWord sym w1 w2
+        Nothing -> fallback
 
-joinWordVal sym (BitmapVal n1 packed1 bs1) (WordVal w2) =
-  isReady sym packed1 >>= \case
-    Just w1 -> WordVal <$> joinWord sym w1 w2
-    Nothing ->
-      do let n2 = wordLen sym w2
-         let len = n1 + n2
-         packed <- sDelay sym (do w1 <- packed1; joinWord sym w1 w2)
-         pure (BitmapVal len packed (concatSeqMap n1 bs1 (unpackBitmap sym w2)))
+    (BitmapVal _ packed1 _, BitmapVal _ packed2 _) ->
+      do r1 <- isReady sym packed1
+         r2 <- isReady sym packed2
+         case (r1,r2) of
+           (Just w1, Just w2) -> WordVal <$> joinWord sym w1 w2
+           _ -> fallback
 
-joinWordVal sym (BitmapVal n1 packed1 bs1) (BitmapVal n2 packed2 bs2) =
-  do r1 <- isReady sym packed1
-     r2 <- isReady sym packed2
-     case (r1,r2) of
-       (Just w1, Just w2) -> WordVal <$> joinWord sym w1 w2
-       _ -> do let len = n1 + n2
-               packed <- sDelay sym (do w1 <- packed1
-                                        w2 <- packed2
-                                        joinWord sym w1 w2)
-               let bs = concatSeqMap n1 bs1 bs2
-               pure (BitmapVal len packed bs)
+{-# INLINE fallbackWordJoin #-}
+fallbackWordJoin :: Backend sym => sym -> WordValue sym -> WordValue sym -> SEval sym (WordValue sym)
+fallbackWordJoin sym w1 w2 =
+  do let n1 = wordValueSize sym w1
+     let n2 = wordValueSize sym w2
+     let len = n1 + n2
+     packed <- sDelay sym
+                 (do a <- asWordVal sym w1
+                     b <- asWordVal sym w2
+                     joinWord sym a b)
+     let bs = concatSeqMap n1 (asBitsMap sym w1) (asBitsMap sym w2)
+     pure (BitmapVal len packed bs)
+
 
 {-# INLINE takeWordVal #-}
 takeWordVal ::
