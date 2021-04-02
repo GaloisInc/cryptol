@@ -57,7 +57,7 @@ module Cryptol.Backend.WordValue
   , mergeWord'
   ) where
 
-import Control.Monad (join, unless)
+import Control.Monad (unless)
 import Data.Bits
 import GHC.Generics (Generic)
 
@@ -77,7 +77,7 @@ forceWordValue (BitmapVal _n packed _) = do w <- packed; seq w (return ())
 -- | An arbitrarily-chosen number of elements where we switch from a dense
 --   sequence representation of bit-level words to 'SeqMap' representation.
 largeBitSize :: Integer
-largeBitSize = 1 `shiftL` 48
+largeBitSize = bit 32
 
 -- | For efficiency reasons, we handle finite sequences of bits as special cases
 --   in the evaluator.  In cases where we know it is safe to do so, we prefer to
