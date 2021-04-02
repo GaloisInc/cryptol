@@ -23,11 +23,16 @@ module Cryptol.ModuleSystem.Interface (
   , emptyIface
   , ifacePrimMap
   , noIfaceParams
+  , isEmptyIfaceParams
   , ifaceIsFunctor
   , flatPublicIface
   , flatPublicDecls
+  , filterIfaceDecls
+  , ifaceDeclsNames
   ) where
 
+import           Data.Set(Set)
+import qualified Data.Set as Set
 import qualified Data.Map as Map
 import           Data.Semigroup
 import           Data.Text (Text)
@@ -108,6 +113,26 @@ data IfaceDecls = IfaceDecls
   , ifDecls         :: Map.Map Name IfaceDecl
   , ifModules       :: !(Map.Map Name (IfaceG Name))
   } deriving (Show, Generic, NFData)
+
+filterIfaceDecls :: (Name -> Bool) -> IfaceDecls -> IfaceDecls
+filterIfaceDecls p ifs = IfaceDecls
+  { ifTySyns        = filterMap (ifTySyns ifs)
+  , ifNewtypes      = filterMap (ifNewtypes ifs)
+  , ifAbstractTypes = filterMap (ifAbstractTypes ifs)
+  , ifDecls         = filterMap (ifDecls ifs)
+  , ifModules       = filterMap (ifModules ifs)
+  }
+  where
+  filterMap :: Map.Map Name a -> Map.Map Name a
+  filterMap = Map.filterWithKey (\k _ -> p k)
+
+ifaceDeclsNames :: IfaceDecls -> Set Name
+ifaceDeclsNames i = Set.unions [ Map.keysSet (ifTySyns i)
+                               , Map.keysSet (ifNewtypes i)
+                               , Map.keysSet (ifAbstractTypes i)
+                               , Map.keysSet (ifDecls i)
+                               , Map.keysSet (ifModules i)
+                               ]
 
 
 instance Semigroup IfaceDecls where

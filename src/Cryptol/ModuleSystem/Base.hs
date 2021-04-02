@@ -100,8 +100,7 @@ rename modName env m = do
     Left errs -> renamerErrors errs
 
 -- | Rename a module in the context of its imported modules.
-renameModule ::
-  P.Module PName -> ModuleM (IfaceDecls,R.NamingEnv,P.Module Name)
+renameModule :: P.Module PName -> ModuleM R.RenamedModule
 renameModule m = rename (thing (mName m)) mempty (R.renameModule m)
 
 
@@ -208,7 +207,10 @@ doLoadModule quiet isrc path fp pm0 =
 
      unless quiet $ withLogger logPutStrLn
        ("Loading module " ++ pretty (P.thing (P.mName pm)))
-     tcm <- optionalInstantiate =<< checkModule isrc path pm
+
+
+     (nameEnv,tcmod) <- checkModule isrc path pm
+     tcm <- optionalInstantiate tcmod
 
      -- extend the eval env, unless a functor.
      tbl <- Concrete.primTable <$> getEvalOptsAction
@@ -216,7 +218,7 @@ doLoadModule quiet isrc path fp pm0 =
      callStacks <- getCallStacks
      let ?callStacks = callStacks
      unless (T.isParametrizedModule tcm) $ modifyEvalEnv (E.moduleEnv Concrete tcm)
-     loadedModule path fp tcm
+     loadedModule path fp nameEnv tcm
 
      return tcm
   where
@@ -384,7 +386,9 @@ getPrimMap  =
                   [ "Unable to find the prelude" ]
 
 -- | Load a module, be it a normal module or a functor instantiation.
-checkModule :: ImportSource -> ModulePath -> P.Module PName -> ModuleM T.Module
+checkModule ::
+  ImportSource -> ModulePath -> P.Module PName ->
+  ModuleM (R.NamingEnv, T.Module)
 checkModule isrc path m =
   case P.mInstance m of
     Nothing -> checkSingleModule T.tcModule isrc path m
@@ -400,7 +404,7 @@ checkSingleModule ::
   ImportSource                 {- ^ why are we loading this -} ->
   ModulePath                   {- path -} ->
   P.Module PName               {- ^ module to check -} ->
-  ModuleM T.Module
+  ModuleM (R.NamingEnv,T.Module)
 checkSingleModule how isrc path m = do
 
   -- check that the name of the module matches expectations
@@ -426,13 +430,13 @@ checkSingleModule how isrc path m = do
   npm <- noPat nim
 
   -- rename everything
-  (tcEnv,declsEnv,scm) <- renameModule npm
+  renMod <- renameModule npm
 
   -- when generating the prim map for the typechecker, if we're checking the
   -- prelude, we have to generate the map from the renaming environment, as we
   -- don't have the interface yet.
   prims <- if thing (mName m) == preludeName
-              then return (R.toPrimMap declsEnv)
+              then return (R.toPrimMap (R.rmDefines renMod))
               else getPrimMap
 
   -- typecheck
@@ -441,11 +445,12 @@ checkSingleModule how isrc path m = do
                      , tcPrims  = prims }
 
 
-  tcm0 <- typecheck act scm noIfaceParams tcEnv
+  tcm0 <- typecheck act (R.rmModule renMod) noIfaceParams (R.rmImported renMod)
 
   let tcm = tcm0 -- fromMaybe tcm0 (addModParams tcm0)
 
-  liftSupply (`rewModule` tcm)
+  rewMod <- liftSupply (`rewModule` tcm)
+  pure (R.rmInScope renMod,rewMod)
 
 data TCLinter o = TCLinter
   { lintCheck ::

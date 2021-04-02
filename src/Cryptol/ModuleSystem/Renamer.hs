@@ -23,6 +23,7 @@ module Cryptol.ModuleSystem.Renamer (
   , renameTopDecls
   , RenamerInfo(..)
   , NameType(..)
+  , RenamedModule(..)
   ) where
 
 import Prelude ()
@@ -55,15 +56,28 @@ import Cryptol.ModuleSystem.Renamer.Error
 import Cryptol.ModuleSystem.Renamer.Monad
 
 
-renameModule :: Module PName -> RenameM (IfaceDecls,NamingEnv,Module Name)
+data RenamedModule = RenamedModule
+  { rmModule   :: Module Name     -- ^ The renamed module
+  , rmDefines  :: NamingEnv       -- ^ What this module defines
+  , rmInScope  :: NamingEnv       -- ^ What's in scope in this module
+  , rmImported :: IfaceDecls      -- ^ Imported declarations
+  }
+
+renameModule :: Module PName -> RenameM RenamedModule
 renameModule m0 =
   do let m = m0 { mDecls = snd (addImplicitNestedImports (mDecls m0)) }
      env      <- liftSupply (defsOf m)
      nested   <- liftSupply (collectNestedModules env m)
      setNestedModule (nestedModuleNames nested)
-       do (ifs,m1) <- collectIfaceDeps
+       do (ifs,(inScope,m1)) <- collectIfaceDeps
                  $ renameModule' nested env (TopModule (thing (mName m))) m
-          pure (ifs,env,m1)
+          pure RenamedModule
+                 { rmModule = m1
+                 , rmDefines = env
+                 , rmInScope = inScope
+                 , rmImported = ifs
+                -- XXX: maybe we should keep the nested defines too?
+                 }
 
 renameTopDecls ::
   ModName -> [TopDecl PName] -> RenameM (NamingEnv,[TopDecl Name])
@@ -138,7 +152,7 @@ class Rename f where
 --    * Renamed module
 renameModule' ::
   NestedMods -> NamingEnv -> ModPath -> ModuleG mname PName ->
-  RenameM (ModuleG mname Name)
+  RenameM (NamingEnv, ModuleG mname Name)
 renameModule' thisNested env mpath m =
   setCurMod mpath
   do (moreNested,imps) <- mconcat <$> mapM doImport (mImports m)
@@ -146,14 +160,16 @@ renameModule' thisNested env mpath m =
          openDs    = map thing (mSubmoduleImports m)
          allImps   = openLoop allNested env openDs imps
 
-     decls' <- shadowNames allImps $
-               shadowNames' CheckOverlap env $
-               renameTopDecls' (allNested,mpath) $
-               mDecls m
+     (inScope,decls') <-
+        shadowNames allImps $
+        shadowNames' CheckOverlap env $
+        do inScope <- getNamingEnv
+           ds      <- renameTopDecls' (allNested,mpath) (mDecls m)
+           pure (inScope, ds)
      let m1      = m { mDecls = decls' }
          exports = modExports m1
      mapM_ recordUse (exported NSType exports)
-     return m1
+     return (inScope, m1)
 
 
 renameDecls :: [Decl PName] -> RenameM [Decl Name]
@@ -430,7 +446,9 @@ instance Rename (WithMods NestedModule) where
                         Just defs -> defs
                         Nothing -> panic "rename"
                            [ "Missing environment for nested module", show n ]
-            m1 <- renameModule' nested env newMPath m
+            -- XXX: we should store in scope somehwere if we want to browse
+            -- nested modules properly
+            (_inScope,m1) <- renameModule' nested env newMPath m
             pure (NestedModule m1 { mName = lnm { thing = n } })
 
 

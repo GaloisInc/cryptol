@@ -50,6 +50,12 @@ import Cryptol.ModuleSystem.Name
 newtype NamingEnv = NamingEnv (Map Namespace (Map PName [Name]))
   deriving (Show,Generic,NFData)
 
+-- | All names mentioned in the environment
+namingEnvNames :: NamingEnv -> Set Name
+namingEnvNames (NamingEnv xs) =
+  Set.fromList $ concatMap (concat . Map.elems) $ Map.elems xs
+
+
 -- | Get the names in a given namespace
 namespaceMap :: Namespace -> NamingEnv -> Map PName [Name]
 namespaceMap ns (NamingEnv env) = Map.findWithDefault Map.empty ns env

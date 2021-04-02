@@ -72,6 +72,7 @@ data RW = RW
     -- see 'depsOf'
 
   , rwExternalDeps  :: !IfaceDecls
+    -- ^ Info about imported things
   }
 
 
@@ -150,6 +151,9 @@ setCurMod mpath (RenameM m) =
 
 getCurMod :: RenameM ModPath
 getCurMod = RenameM $ asks roCurMod
+
+getNamingEnv :: RenameM NamingEnv
+getNamingEnv = RenameM (asks roNames)
 
 
 setNestedModule :: Map ModPath Name -> RenameM a -> RenameM a
