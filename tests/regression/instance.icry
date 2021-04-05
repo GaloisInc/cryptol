@@ -130,3 +130,17 @@
 :t number`{rep = {x : _, y : _}}
 :t number`{rep = Float _ _}
 :t number`{rep = Box _}
+
+:t fromToLessThan`{a=Bit}
+:t fromToLessThan`{a=Integer}
+:t fromToLessThan`{a=Rational}
+:t fromToLessThan`{a=[_]}
+:t fromToLessThan`{a=Z _}
+:t fromToLessThan`{a=[_]_}
+:t fromToLessThan`{a=_ -> _}
+:t fromToLessThan`{a=()}
+:t fromToLessThan`{a=(_, _)}
+:t fromToLessThan`{a={}}
+:t fromToLessThan`{a={x : _, y : _}}
+:t fromToLessThan`{a=Float _ _}
+:t fromToLessThan`{a=Box _}

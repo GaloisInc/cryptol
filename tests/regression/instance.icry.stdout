@@ -513,3 +513,76 @@ number`{rep = Float _ _} : {n, m, i} (ValidFloat m i,
   where
   ?m is type argument 'val' of 'number' at instance.icry:132:4--132:10
   ?a is type wildcard (_) at instance.icry:132:22--132:23
+fromToLessThan`{a = Bit} : {n, m} (2 >= m, m >= n, fin n) =>
+                             [m - n]
+fromToLessThan`{a = Integer} : {n, m} (m >= n, fin n) =>
+                                 [m - n]Integer
+fromToLessThan`{a = Rational} : {n, m} (m >= n, fin n) =>
+                                  [m - n]Rational
+fromToLessThan`{a = [_]} : {n, m, i} (i >= width (max 1 m - 1),
+                                      m >= n, fin i, fin m, fin n) =>
+                             [m - n][i]
+fromToLessThan`{a = Z _} : {n, m, i} (i >= 1, i >= m, m >= n,
+                                      fin i, fin m, fin n) =>
+                             [m - n](Z i)
+fromToLessThan`{a = [_]_} : {n, m, i, a} (LiteralLessThan m ([i]a),
+                                          m >= n, fin n) =>
+                              [m - n][i]a
+
+[error] at instance.icry:140:4--140:18:
+  • Type `?a -> ?b` does not contain all literals below `?m`.
+      arising from
+      use of expression fromToLessThan
+      at instance.icry:140:4--140:18
+  where
+  ?m is type argument 'bound' of 'fromToLessThan' at instance.icry:140:4--140:18
+  ?a is type wildcard (_) at instance.icry:140:22--140:23
+  ?b is type wildcard (_) at instance.icry:140:27--140:28
+
+[error] at instance.icry:141:4--141:18:
+  • Type `()` does not contain all literals below `?m`.
+      arising from
+      use of expression fromToLessThan
+      at instance.icry:141:4--141:18
+  where
+  ?m is type argument 'bound' of 'fromToLessThan' at instance.icry:141:4--141:18
+
+[error] at instance.icry:142:4--142:18:
+  • Type `(?a, ?b)` does not contain all literals below `?m`.
+      arising from
+      use of expression fromToLessThan
+      at instance.icry:142:4--142:18
+  where
+  ?m is type argument 'bound' of 'fromToLessThan' at instance.icry:142:4--142:18
+  ?a is type wildcard (_) at instance.icry:142:23--142:24
+  ?b is type wildcard (_) at instance.icry:142:26--142:27
+
+[error] at instance.icry:143:4--143:18:
+  • Type `{}` does not contain all literals below `?m`.
+      arising from
+      use of expression fromToLessThan
+      at instance.icry:143:4--143:18
+  where
+  ?m is type argument 'bound' of 'fromToLessThan' at instance.icry:143:4--143:18
+
+[error] at instance.icry:144:4--144:18:
+  • Type `{x : ?a, y : ?b}` does not contain all literals below `?m`.
+      arising from
+      use of expression fromToLessThan
+      at instance.icry:144:4--144:18
+  where
+  ?m is type argument 'bound' of 'fromToLessThan' at instance.icry:144:4--144:18
+  ?a is type wildcard (_) at instance.icry:144:27--144:28
+  ?b is type wildcard (_) at instance.icry:144:34--144:35
+fromToLessThan`{a = Float _ _} : {n, m, i, j} (ValidFloat i j,
+                                               LiteralLessThan m (Float i j), m >= n, fin n) =>
+                                   [m - n](Float i j)
+
+[error] at instance.icry:146:4--146:18:
+  • Type `Box ?a` does not contain all literals below `?m`.
+      arising from
+      use of expression fromToLessThan
+      at instance.icry:146:4--146:18
+  where
+  ?m is type argument 'bound' of 'fromToLessThan' at instance.icry:146:4--146:18
+  ?a is type wildcard (_) at instance.icry:146:26--146:27
