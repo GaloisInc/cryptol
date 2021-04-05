@@ -1,0 +1,3 @@
+let x = zero:[8]
+x@0
+:eval x@0

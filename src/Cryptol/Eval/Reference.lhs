@@ -251,7 +251,7 @@ and type variables that are in scope at any point.
 > instance Semigroup Env where
 >   l <> r = Env
 >     { envVars  = envVars  l <> envVars  r
->     , envTypes = envTypes l <> envTypes r 
+>     , envTypes = envTypes l <> envTypes r
 >     }
 >
 > instance Monoid Env where
@@ -523,7 +523,7 @@ newtypes is thus basically just an identity function
 that consumes and ignores its type arguments.
 
 > evalNewtypeDecl :: Env -> Newtype -> Env
-> evalNewtypeDecl env nt = bindVar (ntName nt, pure val) env 
+> evalNewtypeDecl env nt = bindVar (ntName nt, pure val) env
 >   where
 >     val = foldr tabs con (ntParams nt)
 >     con = VFun (\x -> x)
@@ -1732,7 +1732,7 @@ running the reference evaluator on an expression.
 > evaluate expr minp = return (Right (val, modEnv), [])
 >   where
 >     modEnv = M.minpModuleEnv minp
->     extDgs = concatMap mDecls (M.loadedModules modEnv)
+>     extDgs = concatMap mDecls (M.loadedModules modEnv) ++ M.deDecls (M.meDynEnv modEnv)
 >     nts    = Map.elems (M.loadedNewtypes modEnv)
 >     env    = foldl evalDeclGroup (foldl evalNewtypeDecl mempty nts) extDgs
 >     val    = evalExpr env expr
