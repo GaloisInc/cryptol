@@ -267,9 +267,11 @@
   ))
 )
 
-
-
 (declare-fun cryExpUnknown (Int Int) Int)
+
+(assert (forall ((x Int) (y Int))
+  (=> (and (> y 0) (> x 0))
+      (>= (cryExpUnknown x y) x))))
 
 (define-fun cryExpTable ((x Int) (y Int)) Int
   (ite (= y 0) 1
