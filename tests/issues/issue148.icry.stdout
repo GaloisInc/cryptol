@@ -2,4 +2,3 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module Main
 Satisfiable
-(\(e : [64]) -> (e @@ [8 .. 24]) != zero) 0x00feff8000000000 = True
