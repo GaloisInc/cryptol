@@ -375,3 +375,26 @@ literalZ = `val
 /** instance (fin val, fin n, n >= width val) => Literal val [n] */
 literalWord : {val, n} (fin val, fin n, n >= width val) => [n]
 literalWord = `val
+
+////////////////////////////////////////////////////////////////////////////////
+// LiteralLessThan
+
+/* instance (2 >= val) => LiteralLessThan val Bit */
+literalLessThanBit : {val} (2 >= val) => [val]Bit
+literalLessThanBit = [0..<val]
+
+/* instance LiteralLessThan val Integer */
+literalLessThanInteger : {val} [val]Integer
+literalLessThanInteger = [0..<val]
+
+/* instance LiteralLessThan val Rational */
+literalLessThanRational : {val} [val]Rational
+literalLessThanRational = [0..<val]
+
+/* instance (fin n, n >= 1, n >= val) => LiteralLessThan val (Z n) */
+literalLessThanZ : {val, n} (fin n, n >= 1, n >= val) => [val](Z n)
+literalLessThanZ = [0..<val]
+
+/* instance (fin n, n >= lg2 val) => LiteralLessThan val [n] */
+literalLessThanWord : {val, n} (fin n, n >= lg2 val) => [val][n]
+literalLessThanWord = [0..<val]
