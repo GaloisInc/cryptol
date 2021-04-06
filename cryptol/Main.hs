@@ -15,7 +15,7 @@ import OptParser
 
 import Cryptol.REPL.Command (loadCmd,loadPrelude,CommandExitCode(..))
 import Cryptol.REPL.Monad (REPL,updateREPLTitle,setUpdateREPLTitle,
-                   io,prependSearchPath,setSearchPath)
+                   io,prependSearchPath,setSearchPath,parseSearchPath)
 import qualified Cryptol.REPL.Monad as REPL
 import Cryptol.ModuleSystem.Env(ModulePath(..))
 
@@ -32,7 +32,7 @@ import System.Console.GetOpt
 import System.Directory (getTemporaryDirectory, removeFile)
 import System.Environment (getArgs, getProgName, lookupEnv)
 import System.Exit (exitFailure,exitSuccess)
-import System.FilePath (searchPathSeparator, splitSearchPath, takeDirectory)
+import System.FilePath (searchPathSeparator, takeDirectory)
 import System.IO (hClose, hPutStr, openTempFile)
 
 
@@ -256,14 +256,8 @@ setupREPL opts = do
   mCryptolPath <- io $ lookupEnv "CRYPTOLPATH"
   case mCryptolPath of
     Nothing -> return ()
-    Just path | optCryptolPathOnly opts -> setSearchPath path'
-              | otherwise               -> prependSearchPath path'
-#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
-      -- Windows paths search from end to beginning
-      where path' = reverse (splitSearchPath path)
-#else
-      where path' = splitSearchPath path
-#endif
+    Just path | optCryptolPathOnly opts -> setSearchPath (parseSearchPath path)
+              | otherwise               -> prependSearchPath (parseSearchPath path)
   smoke <- REPL.smokeTest
   case smoke of
     [] -> return ()

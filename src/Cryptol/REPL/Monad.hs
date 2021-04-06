@@ -6,6 +6,7 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -69,6 +70,7 @@ module Cryptol.REPL.Monad (
   , parsePPFloatFormat
   , parseFieldOrder
   , getProverConfig
+  , parseSearchPath
 
     -- ** Configurable Output
   , getPutStr
@@ -108,6 +110,7 @@ import qualified Cryptol.Symbolic.SBV as SBV (proverNames, setupProver, defaultP
 import qualified Cryptol.Symbolic.What4 as W4 (proverNames, setupProver, W4ProverConfig)
 
 
+
 import Control.Monad (ap,unless,when)
 import Control.Monad.Base
 import qualified Control.Monad.Catch as Ex
@@ -121,6 +124,7 @@ import Data.Maybe (catMaybes)
 import Data.Ord (comparing)
 import Data.Typeable (Typeable)
 import System.Directory (findExecutable)
+import System.FilePath (splitSearchPath, searchPathSeparator)
 import qualified Control.Exception as X
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -490,11 +494,14 @@ setSearchPath :: [FilePath] -> REPL ()
 setSearchPath path = do
   me <- getModuleEnv
   setModuleEnv $ me { M.meSearchPath = path }
+  setUserDirect "path" (EnvString (renderSearchPath path))
 
 prependSearchPath :: [FilePath] -> REPL ()
 prependSearchPath path = do
   me <- getModuleEnv
-  setModuleEnv $ me { M.meSearchPath = path ++ M.meSearchPath me }
+  let path' = path ++ M.meSearchPath me
+  setModuleEnv $ me { M.meSearchPath = path' }
+  setUserDirect "path" (EnvString (renderSearchPath path'))
 
 getProverConfig :: REPL (Either SBV.SBVProverConfig W4.W4ProverConfig)
 getProverConfig = eProverConfig <$> getRW
@@ -659,6 +666,24 @@ freshName i sys =
   where mpath = M.TopModule I.interactiveName
 
 
+parseSearchPath :: String -> [String]
+parseSearchPath path = path'
+#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
+      -- Windows paths search from end to beginning
+      where path' = reverse (splitSearchPath path)
+#else
+      where path' = splitSearchPath path
+#endif
+
+renderSearchPath :: [String] -> String
+renderSearchPath pathSegs = path
+#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
+      -- Windows paths search from end to beginning
+      where path = intercalate [searchPathSeparator] (reverse pathSegs)
+#else
+      where path = intercalate [searchPathSeparator] pathSegs
+#endif
+
 -- User Environment Interaction ------------------------------------------------
 
 -- | User modifiable environment, for things like numeric base.
@@ -750,6 +775,10 @@ getUser name = do
   case mb of
     Just ev -> return ev
     Nothing -> panic "[REPL] getUser" ["option `" ++ name ++ "` does not exist"]
+
+setUserDirect :: String -> EnvVal -> REPL ()
+setUserDirect optName val = do
+  modifyRW_ (\rw -> rw { eUserEnv = Map.insert optName val (eUserEnv rw) })
 
 getKnownUser :: IsEnvVal a => String -> REPL a
 getKnownUser x = fromEnvVal <$> getUser x
@@ -853,6 +882,14 @@ userOptions  = mkOptionMap
     "Choose whether to issue a warning when uninterpreted functions are used to implement primitives in the symbolic simulator."
   , simpleOpt "smtFile" ["smt-file"] (EnvString "-") noCheck
     "The file to use for SMT-Lib scripts (for debugging or offline proving).\nUse \"-\" for stdout."
+  , OptionDescr "path" [] (EnvString "") noCheck
+    "The search path for finding named Cryptol modules." $
+    \case EnvString path ->
+            do let segs = parseSearchPath path
+               me <- getModuleEnv
+               setModuleEnv me { M.meSearchPath = segs }
+          _ -> return ()
+
   , OptionDescr "monoBinds" ["mono-binds"] (EnvBool True) noCheck
     "Whether or not to generalize bindings in a 'where' clause." $
     \case EnvBool b -> do me <- getModuleEnv
