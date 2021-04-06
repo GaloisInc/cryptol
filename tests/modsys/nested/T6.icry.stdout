@@ -2,20 +2,15 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module T4
 Loading module T6
+
 Modules
 =======
-
-  From T4
-  -------
-
-    submodule X::A
-
+    
+  submodule A
+   
 Symbols
 =======
-
-  From T4
-  -------
-
-    X::x : [8]
-    X::z : [8]
-
+    
+  x : [8]
+  z : [8]
+   

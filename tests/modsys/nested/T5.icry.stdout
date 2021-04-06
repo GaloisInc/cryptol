@@ -5,26 +5,17 @@ Loading module T5
 0x02
 Modules
 =======
-
-  From T4
-  -------
-
-    submodule A
-
+    
+  submodule A
+   
 Symbols
 =======
-
-  From T4
-  -------
-
-    x : [8]
-    z : [8]
-
+    
+  x : [8]
+  z : [8]
+   
 Symbols
 =======
-
-  Public
-  ------
-
-    a : [8]
-
+    
+  a : [8]
+   

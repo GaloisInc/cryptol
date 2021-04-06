@@ -232,10 +232,11 @@ asParamName n = n { nInfo = Parameter }
 asOrigName :: Name -> Maybe OrigName
 asOrigName nm =
   case nInfo nm of
-    Declared p _ -> Just OrigName { ogModule    = p
-                                  , ogNamespace = nNamespace nm
-                                  , ogName      = nIdent nm
-                                  }
+    Declared p _ ->
+      Just OrigName { ogModule    = apPathRoot notParamInstModName  p
+                    , ogNamespace = nNamespace nm
+                    , ogName      = nIdent nm
+                    }
     Parameter    -> Nothing
 
 

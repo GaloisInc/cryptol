@@ -3,12 +3,9 @@ Loading module Cryptol
 Loading module Main
 Constraint Synonyms
 ===================
-
-  Public
-  ------
-
-    type constraint (<=>) i j = (i <= j, i >= j)
-    type constraint Both p q = (p, q)
-    type constraint Fin2 i j = Both (fin i) (fin j)
-    type constraint T n = (fin n, n >= 1)
-
+    
+  type constraint (<=>) i j = (i <= j, i >= j)
+  type constraint Both p q = (p, q)
+  type constraint Fin2 i j = Both (fin i) (fin j)
+  type constraint T n = (fin n, n >= 1)
+   

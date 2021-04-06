@@ -35,8 +35,8 @@ instantiateModule :: FreshM m =>
                      ModName          {- ^ Name of the new module -} ->
                      Map TParam Type  {- ^ Type params -} ->
                      Map Name Expr    {- ^ Value parameters -} ->
-                     m ([Located Prop], Module)
-                     -- ^ Instantiated constraints, fresh module, new supply
+                     m (Name -> Name, [Located Prop], Module)
+                     -- ^ Renaming, instantiated constraints, fresh module, new supply
 instantiateModule func newName tpMap vpMap
   | not (null (mSubModules func)) =
       panic "instantiateModule"
@@ -48,6 +48,10 @@ instantiateModule func newName tpMap vpMap
        let vpNames = Map.fromList (zip oldVpNames newVpNames)
 
        env <- computeEnv func tpMap vpNames
+       let ren x = case nameNamespace x of
+                     NSValue -> Map.findWithDefault x x (funNameMap env)
+                     NSType  -> Map.findWithDefault x x (tyNameMap env)
+                     NSModule -> x
 
        let rnMp :: Inst a => (a -> Name) -> Map Name a -> Map Name a
            rnMp f m = Map.fromList [ (f x, x) | a <- Map.elems m
@@ -66,7 +70,8 @@ instantiateModule func newName tpMap vpMap
        let renamedDecls = inst env (mDecls func)
            paramDecls = map (mkParamDecl su vpNames) (Map.toList vpMap)
 
-       return ( goals
+       return ( ren
+              , goals
               , Module
                  { mName              = newName
                  , mExports           = renamedExports

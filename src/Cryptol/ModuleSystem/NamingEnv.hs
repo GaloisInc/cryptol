@@ -85,6 +85,10 @@ singletonT :: PName -> Name -> NamingEnv
 singletonT = singletonNS NSType
 
 
+namingEnvRename :: (Name -> Name) -> NamingEnv -> NamingEnv
+namingEnvRename f (NamingEnv mp) = NamingEnv (ren <$> mp)
+  where
+  ren nsm = map f <$> nsm
 
 
 instance Semigroup NamingEnv where

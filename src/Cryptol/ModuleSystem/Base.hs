@@ -21,6 +21,7 @@ import Control.Monad (unless,when)
 import Data.Maybe (fromMaybe)
 import Data.Monoid ((<>))
 import Data.Text.Encoding (decodeUtf8')
+import Data.IORef(newIORef,readIORef)
 import System.Directory (doesFileExist, canonicalizePath)
 import System.FilePath ( addExtension
                        , isAbsolute
@@ -392,8 +393,17 @@ checkModule ::
 checkModule isrc path m =
   case P.mInstance m of
     Nothing -> checkSingleModule T.tcModule isrc path m
-    Just fmName -> do tf <- getLoaded (thing fmName)
-                      checkSingleModule (T.tcModuleInst tf) isrc path m
+    Just fmName ->
+      do mbtf <- getLoadedMaybe (thing fmName)
+         case mbtf of
+           Just tf ->
+             do renThis <- io $ newIORef (lmNamingEnv tf)
+                let how = T.tcModuleInst renThis (lmModule tf)
+                (_,m') <- checkSingleModule how isrc path m
+                newEnv <- io $ readIORef renThis
+                pure (newEnv,m')
+           Nothing -> panic "checkModule"
+                        [ "Functor of module instantiation not loaded" ]
 
 
 -- | Typecheck a single module.  If the module is an instantiation

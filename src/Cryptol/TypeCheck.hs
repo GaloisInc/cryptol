@@ -27,8 +27,11 @@ module Cryptol.TypeCheck
   , ppNamedError
   ) where
 
+import Data.IORef(IORef,modifyIORef')
+
 import           Cryptol.ModuleSystem.Name
                     (liftSupply,mkDeclared,NameSource(..),ModPath(..))
+import Cryptol.ModuleSystem.NamingEnv(NamingEnv,namingEnvRename)
 import qualified Cryptol.Parser.AST as P
 import           Cryptol.Parser.Position(Range,emptyRange)
 import           Cryptol.TypeCheck.AST
@@ -43,6 +46,7 @@ import           Cryptol.TypeCheck.Monad
                    , newLocalScope, endLocalScope
                    , newModuleScope, addParamType, addParameterConstraints
                    , endModuleInstance
+                   , io
                    )
 import Cryptol.TypeCheck.Infer (inferModule, inferBinds, checkTopDecls)
 import Cryptol.TypeCheck.InferTypes(VarType(..), SolverConfig(..))
@@ -62,16 +66,18 @@ tcModule m inp = runInferM inp (inferModule m)
 -- | Check a module instantiation, assuming that the functor has already
 -- been checked.
 -- XXX: This will change
-tcModuleInst :: Module                  {- ^ functor -} ->
+tcModuleInst :: IORef NamingEnv {- ^ renaming environment of functor -} ->
+                Module                  {- ^ functor -} ->
                 P.Module Name           {- ^ params -} ->
                 InferInput              {- ^ TC settings -} ->
                 IO (InferOutput Module) {- ^ new version of instance -}
-tcModuleInst func m inp = runInferM inp $
+tcModuleInst renThis func m inp = runInferM inp $
   do x <- inferModule m
      newModuleScope (mName func) [] mempty
      mapM_ addParamType (mParamTypes x)
      addParameterConstraints (mParamConstraints x)
-     y <- checkModuleInstance func x
+     (ren,y) <- checkModuleInstance func x
+     io $ modifyIORef' renThis (namingEnvRename ren)
      proveModuleTopLevel
      endModuleInstance
      pure y
