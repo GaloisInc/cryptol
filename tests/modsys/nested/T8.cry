@@ -1,0 +1,10 @@
+module T9 where
+
+x = y
+
+submodule A where
+  submodule B where
+    y = x
+
+import submodule A
+import submodule B

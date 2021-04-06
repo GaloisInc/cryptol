@@ -10,6 +10,9 @@
 
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE RecordWildCards #-}
 module Cryptol.Parser.Position where
 
@@ -22,7 +25,8 @@ import Control.DeepSeq
 import Cryptol.Utils.PP
 
 data Located a  = Located { srcRange :: !Range, thing :: !a }
-                  deriving (Eq, Ord, Show, Generic, NFData)
+                  deriving (Eq, Ord, Show, Generic, NFData
+                           , Functor, Foldable, Traversable )
 
 
 data Position   = Position { line :: !Int, col :: !Int }
@@ -65,8 +69,6 @@ rCombMaybe (Just x) (Just y) = Just (rComb x y)
 rCombs :: [Range] -> Range
 rCombs  = foldl1 rComb
 
-instance Functor Located where
-  fmap f l = l { thing = f (thing l) }
 
 --------------------------------------------------------------------------------
 

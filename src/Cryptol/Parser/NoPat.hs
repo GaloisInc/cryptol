@@ -44,11 +44,15 @@ instance RemovePatterns (Program PName) where
 instance RemovePatterns (Expr PName) where
   removePatterns e = runNoPatM (noPatE e)
 
-instance RemovePatterns (Module PName) where
+instance RemovePatterns (ModuleG mname PName) where
   removePatterns m = runNoPatM (noPatModule m)
 
 instance RemovePatterns [Decl PName] where
   removePatterns ds = runNoPatM (noPatDs ds)
+
+instance RemovePatterns (NestedModule PName) where
+  removePatterns (NestedModule m) = (NestedModule m1,errs)
+    where (m1,errs) = removePatterns m
 
 simpleBind :: Located PName -> Expr PName -> Bind PName
 simpleBind x e = Bind { bName = x, bParams = []
@@ -56,6 +60,7 @@ simpleBind x e = Bind { bName = x, bParams = []
                       , bSignature = Nothing, bPragmas = []
                       , bMono = True, bInfix = False, bFixity = Nothing
                       , bDoc = Nothing
+                      , bExport = Public
                       }
 
 sel :: Pattern PName -> PName -> Selector -> Bind PName
@@ -226,6 +231,7 @@ noMatchD decl =
 
     DBind b         -> do b1 <- noMatchB b
                           return [DBind b1]
+    DRec {}         -> panic "noMatchD" [ "DRec" ]
 
     DPatBind p e    -> do (p',bs) <- noPat p
                           let (x,ts) = splitSimpleP p'
@@ -240,6 +246,7 @@ noMatchD decl =
                                               , bInfix = False
                                               , bFixity = Nothing
                                               , bDoc = Nothing
+                                              , bExport = Public
                                               } : map DBind bs
     DType {}        -> return [decl]
     DProp {}        -> return [decl]
@@ -323,7 +330,7 @@ noPatTopDs tds =
 noPatProg :: Program PName -> NoPatM (Program PName)
 noPatProg (Program topDs) = Program <$> noPatTopDs topDs
 
-noPatModule :: Module PName -> NoPatM (Module PName)
+noPatModule :: ModuleG mname PName -> NoPatM (ModuleG mname PName)
 noPatModule m =
   do ds1 <- noPatTopDs (mDecls m)
      return m { mDecls = ds1 }
@@ -385,6 +392,13 @@ annotTopDs tds =
         TDNewtype {} -> (d :) <$> annotTopDs ds
         Include {}   -> (d :) <$> annotTopDs ds
 
+        DModule m ->
+          case removePatterns (tlValue m) of
+            (m1,errs) -> do lift (mapM_ recordError errs)
+                            (DModule m { tlValue = m1 } :) <$> annotTopDs ds
+
+        DImport {} -> (d :) <$> annotTopDs ds
+
     [] -> return []
 
 
@@ -403,6 +417,7 @@ annotD :: Decl PName -> ExceptionT () (StateT AnnotMap NoPatM) (Decl PName)
 annotD decl =
   case decl of
     DBind b       -> DBind <$> lift (annotB b)
+    DRec {}       -> panic "annotD" [ "DRec" ]
     DSignature {} -> raise ()
     DFixity{}     -> raise ()
     DPragma {}    -> raise ()
@@ -524,6 +539,7 @@ toDocs TopLevel { .. }
       DSignature ns _ -> [ (thing n, [txt]) | n <- ns ]
       DFixity _ ns    -> [ (thing n, [txt]) | n <- ns ]
       DBind b         -> [ (thing (bName b), [txt]) ]
+      DRec {}         -> panic "toDocs" [ "DRec" ]
       DLocated d _    -> go txt d
       DPatBind p _    -> [ (thing n, [txt]) | n <- namesP p ]
 

@@ -29,7 +29,7 @@ module Cryptol.ModuleSystem (
   , renameType
 
     -- * Interfaces
-  , Iface(..), IfaceParams(..), IfaceDecls(..), genIface
+  , Iface, IfaceG(..), IfaceParams(..), IfaceDecls(..), T.genIface
   , IfaceTySyn, IfaceDecl(..)
   ) where
 
@@ -44,6 +44,7 @@ import qualified Cryptol.Parser.AST        as P
 import           Cryptol.Parser.Name (PName)
 import           Cryptol.Parser.NoPat (RemovePatterns)
 import qualified Cryptol.TypeCheck.AST     as T
+import qualified Cryptol.TypeCheck.Interface as T
 import qualified Cryptol.Utils.Ident as M
 
 -- Public Interface ------------------------------------------------------------
@@ -105,10 +106,14 @@ evalDecls dgs env = runModuleM env (interactive (Base.evalDecls dgs))
 noPat :: RemovePatterns a => a -> ModuleCmd a
 noPat a env = runModuleM env (interactive (Base.noPat a))
 
+-- | Rename a *use* of a value name. The distinction between uses and
+-- binding is used to keep track of dependencies.
 renameVar :: R.NamingEnv -> PName -> ModuleCmd Name
 renameVar names n env = runModuleM env $ interactive $
-  Base.rename M.interactiveName names (R.renameVar n)
+  Base.rename M.interactiveName names (R.renameVar R.NameUse n)
 
+-- | Rename a *use* of a type name. The distinction between uses and
+-- binding is used to keep track of dependencies.
 renameType :: R.NamingEnv -> PName -> ModuleCmd Name
 renameType names n env = runModuleM env $ interactive $
-  Base.rename M.interactiveName names (R.renameType n)
+  Base.rename M.interactiveName names (R.renameType R.NameUse n)

@@ -1,13 +1,13 @@
 Loading module Cryptol
 Showing a specific instance of polymorphic result:
-  * Using 'Integer' for the type of '<interactive>::x'
+  * Using 'Integer' for the type of 'x'
 1
 Showing a specific instance of polymorphic result:
-  * Using 'Integer' for the type of '<interactive>::x'
+  * Using 'Integer' for the type of 'x'
 [1, 2]
 Showing a specific instance of polymorphic result:
-  * Using 'Integer' for the type of '<interactive>::x'
-  * Using 'Integer' for the type of '<interactive>::y'
+  * Using 'Integer' for the type of 'x'
+  * Using 'Integer' for the type of 'y'
 {x = 1, y = 2}
 Showing a specific instance of polymorphic result:
   * Using 'Integer' for type of 0th tuple field

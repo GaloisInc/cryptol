@@ -7,10 +7,16 @@
 -- Portability :  portable
 
 {-# LANGUAGE DeriveGeneric, OverloadedStrings #-}
+{-# LANGUAGE DeriveAnyClass #-}
 
 module Cryptol.Utils.Ident
   ( -- * Module names
-    ModName
+    ModPath(..)
+  , apPathRoot
+  , modPathCommon
+  , topModuleFor
+
+  , ModName
   , modNameToText
   , textToModName
   , modNameChunks
@@ -41,6 +47,13 @@ module Cryptol.Utils.Ident
   , identText
   , modParamIdent
 
+    -- * Namespaces
+  , Namespace(..)
+  , allNamespaces
+
+    -- * Original names
+  , OrigName(..)
+
     -- * Identifiers for primitives
   , PrimIdent(..)
   , prelPrim
@@ -58,7 +71,64 @@ import           Data.String (IsString(..))
 import           GHC.Generics (Generic)
 
 
--- | Module names are just text.
+--------------------------------------------------------------------------------
+
+-- | Namespaces for names
+data Namespace = NSValue | NSType | NSModule
+  deriving (Generic,Show,NFData,Eq,Ord,Enum,Bounded)
+
+allNamespaces :: [Namespace]
+allNamespaces = [ minBound .. maxBound ]
+
+-- | Idnetifies a possibly nested module
+data ModPath  = TopModule ModName
+              | Nested ModPath Ident
+                deriving (Eq,Ord,Show,Generic,NFData)
+
+apPathRoot :: (ModName -> ModName) -> ModPath -> ModPath
+apPathRoot f path =
+  case path of
+    TopModule m -> TopModule (f m)
+    Nested p q  -> Nested (apPathRoot f p) q
+
+topModuleFor :: ModPath -> ModName
+topModuleFor m =
+  case m of
+    TopModule x -> x
+    Nested p _ -> topModuleFor p
+
+-- | Compute a common prefix between two module paths, if any.
+-- This is basically "anti-unification" of the two paths, where we
+-- compute the longest common prefix, and the remaining differences for
+-- each module.
+modPathCommon :: ModPath -> ModPath -> Maybe (ModPath, [Ident], [Ident])
+modPathCommon p1 p2
+  | top1 == top2 = Just (findCommon (TopModule top1) as bs)
+  | otherwise    = Nothing
+  where
+  (top1,as) = modPathSplit p1
+  (top2,bs) = modPathSplit p2
+
+  findCommon com xs ys =
+    case (xs,ys) of
+      (x:xs',y:ys') | x == y -> findCommon (Nested com x) xs' ys'
+      _                      -> (com, xs, ys)
+
+modPathSplit :: ModPath -> (ModName, [Ident])
+modPathSplit p0 = (top,reverse xs)
+  where
+  (top,xs) = go p0
+  go p =
+    case p of
+      TopModule a -> (a, [])
+      Nested b i  -> (a, i:bs)
+        where (a,bs) = go b
+
+
+
+
+--------------------------------------------------------------------------------
+-- | Top-level Module names are just text.
 data ModName = ModName T.Text
   deriving (Eq,Ord,Show,Generic)
 
@@ -135,6 +205,15 @@ noModuleName = packModName ["<none>"]
 
 exprModName :: ModName
 exprModName = packModName ["<expr>"]
+
+
+--------------------------------------------------------------------------------
+-- | Identifies an entitiy
+data OrigName = OrigName
+  { ogNamespace :: Namespace
+  , ogModule    :: ModPath
+  , ogName      :: Ident
+  } deriving (Eq,Ord,Show,Generic,NFData)
 
 
 --------------------------------------------------------------------------------

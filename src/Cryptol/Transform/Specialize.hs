@@ -242,9 +242,10 @@ destETAbs = go []
 freshName :: Name -> [Type] -> SpecM Name
 freshName n _ =
   case nameInfo n of
-    Declared ns s -> liftSupply (mkDeclared ns s ident fx loc)
-    Parameter     -> liftSupply (mkParameter ident loc)
+    Declared m s  -> liftSupply (mkDeclared ns m s ident fx loc)
+    Parameter     -> liftSupply (mkParameter ns ident loc)
   where
+  ns    = nameNamespace n
   fx    = nameFixity n
   ident = nameIdent n
   loc   = nameLoc n

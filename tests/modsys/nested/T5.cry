@@ -1,0 +1,7 @@
+module T5 where
+
+import T4
+
+import submodule A
+
+a = x

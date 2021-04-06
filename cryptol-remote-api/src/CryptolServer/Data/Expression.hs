@@ -37,7 +37,8 @@ import Cryptol.Eval.Concrete (Value)
 import Cryptol.Eval.Type (TValue(..), tValTy)
 import Cryptol.Eval.Value (GenValue(..), asWordVal, enumerateSeqMap)
 import Cryptol.Parser
-import Cryptol.Parser.AST (Bind(..), BindDef(..), Decl(..), Expr(..), Named(Named), TypeInst(NamedInst), Type(..), PName(..), Literal(..), NumInfo(..), Type)
+import Cryptol.Parser.AST (Bind(..), BindDef(..), Decl(..), Expr(..), Named(Named), TypeInst(NamedInst), Type(..), PName(..), Literal(..), NumInfo(..), Type,
+          ExportType(..))
 import Cryptol.Parser.Position (Located(..), emptyRange)
 import Cryptol.Parser.Selector
 import Cryptol.Utils.Ident
@@ -319,7 +320,17 @@ getCryptolExpr (Let binds body) =
     mkBind (LetBinding x rhs) =
       DBind .
       (\bindBody ->
-         Bind (fakeLoc (UnQual (mkIdent x))) [] bindBody Nothing False Nothing [] True Nothing) .
+         Bind { bName = fakeLoc (UnQual (mkIdent x))
+              , bParams = []
+              , bDef = bindBody
+              , bSignature = Nothing
+              , bInfix = False
+              , bFixity = Nothing
+              , bPragmas = []
+              , bMono = True
+              , bDoc = Nothing
+              , bExport = Public
+              }) .
       fakeLoc .
       DExpr <$>
         getCryptolExpr rhs

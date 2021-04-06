@@ -21,6 +21,7 @@ import           Cryptol.ModuleSystem.Fingerprint
 import           Cryptol.ModuleSystem.Interface
 import           Cryptol.ModuleSystem.Name (FreshM(..),Supply)
 import           Cryptol.ModuleSystem.Renamer (RenamerError(),RenamerWarning())
+import           Cryptol.ModuleSystem.NamingEnv(NamingEnv)
 import qualified Cryptol.Parser     as Parser
 import qualified Cryptol.Parser.AST as P
 import           Cryptol.Parser.Position (Located)
@@ -463,11 +464,15 @@ getImportSource  = ModuleT $ do
     _      -> return (FromModule noModuleName)
 
 getIface :: P.ModName -> ModuleM Iface
-getIface mn =
-  do env <- ModuleT get
-     case lookupModule mn env of
-       Just lm -> return (lmInterface lm)
-       Nothing -> panic "ModuleSystem" ["Interface not available", show (pp mn)]
+getIface mn = ($ mn) <$> getIfaces
+
+getIfaces :: ModuleM (P.ModName -> Iface)
+getIfaces = doLookup <$> ModuleT get
+  where
+  doLookup env mn =
+    case lookupModule mn env of
+      Just lm -> lmInterface lm
+      Nothing -> panic "ModuleSystem" ["Interface not available", show (pp mn)]
 
 getLoaded :: P.ModName -> ModuleM T.Module
 getLoaded mn = ModuleT $
@@ -505,14 +510,16 @@ unloadModule rm = ModuleT $ do
   env <- get
   set $! env { meLoadedModules = removeLoadedModule rm (meLoadedModules env) }
 
-loadedModule :: ModulePath -> Fingerprint -> T.Module -> ModuleM ()
-loadedModule path fp m = ModuleT $ do
+loadedModule ::
+  ModulePath -> Fingerprint -> NamingEnv -> T.Module -> ModuleM ()
+loadedModule path fp nameEnv m = ModuleT $ do
   env <- get
   ident <- case path of
              InFile p  -> unModuleT $ io (canonicalizePath p)
              InMem l _ -> pure l
 
-  set $! env { meLoadedModules = addLoadedModule path ident fp m (meLoadedModules env) }
+  set $! env { meLoadedModules = addLoadedModule path ident fp nameEnv m
+                                                        (meLoadedModules env) }
 
 modifyEvalEnv :: (EvalEnv -> E.Eval EvalEnv) -> ModuleM ()
 modifyEvalEnv f = ModuleT $ do

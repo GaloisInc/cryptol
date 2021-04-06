@@ -41,9 +41,9 @@ builtInType :: M.Name -> Maybe TCon
 builtInType nm =
   case M.nameInfo nm of
     M.Declared m _
-      | m == preludeName -> Map.lookup (M.nameIdent nm) builtInTypes
-      | m == floatName   -> Map.lookup (M.nameIdent nm) builtInFloat
-      | m == arrayName   -> Map.lookup (M.nameIdent nm) builtInArray
+      | m == M.TopModule preludeName -> Map.lookup (M.nameIdent nm) builtInTypes
+      | m == M.TopModule floatName   -> Map.lookup (M.nameIdent nm) builtInFloat
+      | m == M.TopModule arrayName   -> Map.lookup (M.nameIdent nm) builtInArray
     _ -> Nothing
 
   where

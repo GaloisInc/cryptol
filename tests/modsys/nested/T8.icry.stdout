@@ -1,0 +1,7 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module T9
+
+[error] Invalid recursive dependency:
+    • submodule T9::A, defined at 5:11--5:12
+    • T9::x, defined at 3:1--3:2

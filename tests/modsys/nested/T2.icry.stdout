@@ -1,0 +1,13 @@
+Loading module Cryptol
+
+Parse error at T2.icry:1:1,
+  unexpected: :
+  expected: a declaration
+
+[error] at T2.icry:2:4--2:5 Value not in scope: x
+
+[error] at T2.icry:3:4--3:5 Value not in scope: y
+
+[error] at T2.icry:4:1--4:2 Value not in scope: x
+
+[error] at T2.icry:5:1--5:2 Value not in scope: y

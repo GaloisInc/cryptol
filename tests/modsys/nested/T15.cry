@@ -1,0 +1,12 @@
+module T15 where
+
+submodule A where
+  x = 1
+  submodule A where
+    y = 2
+    submodule A where
+      z = 3
+
+import submodule A::A
+
+out = y

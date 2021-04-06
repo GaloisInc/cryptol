@@ -4,32 +4,32 @@ Loading module issue226r2
 Loading module issue226
 Type Synonyms
 =============
-
+    
   From Cryptol
   ------------
-
+       
     type Bool = Bit
     type Char = [8]
     type lg2 n = width (max 1 n - 1)
     type String n = [n]Char
     type Word n = [n]
-
+     
 Constraint Synonyms
 ===================
-
+    
   From Cryptol
   ------------
-
+       
     type constraint i < j = j >= 1 + i
     type constraint i <= j = j >= i
     type constraint i > j = i >= 1 + j
-
+     
 Primitive Types
 ===============
-
+    
   From Cryptol
   ------------
-
+       
     (!=) : # -> # -> Prop
     (==) : # -> # -> Prop
     (>=) : # -> # -> Prop
@@ -64,18 +64,13 @@ Primitive Types
     width : # -> #
     Z : # -> *
     Zero : * -> Prop
-
+     
 Symbols
 =======
-
-  Public
-  ------
-
-    foo : {a} a -> a
-
+    
   From Cryptol
   ------------
-
+       
     (/.) : {a} (Field a) => a -> a -> a
     (==>) : Bit -> Bit -> Bit
     (\/) : Bit -> Bit -> Bit
@@ -217,4 +212,9 @@ Symbols
     zext : {m, n} (fin m, m >= n) => [n] -> [m]
     zip : {n, a, b} [n]a -> [n]b -> [n](a, b)
     zipWith : {n, a, b, c} (a -> b -> c) -> [n]a -> [n]b -> [n]c
-
+     
+  From issue226
+  -------------
+       
+    foo : {a} a -> a
+     

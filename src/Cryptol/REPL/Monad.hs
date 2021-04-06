@@ -533,7 +533,7 @@ validEvalContext a =
 
          badName nm bs =
            case M.nameInfo nm of
-             M.Declared m _
+             M.Declared (M.TopModule m) _   -- XXX: can we focus nested modules?
                | M.isLoadedParamMod m (M.meLoadedModules me) -> Set.insert nm bs
              _ -> bs
 
@@ -588,14 +588,14 @@ getFocusedEnv  = M.focusedEnv <$> getModuleEnv
 getExprNames :: REPL [String]
 getExprNames =
   do fNames <- M.mctxNames <$> getFocusedEnv
-     return (map (show . pp) (Map.keys (M.neExprs fNames)))
+     return (map (show . pp) (Map.keys (M.namespaceMap M.NSValue fNames)))
 
 -- | Get visible type signature names.
 -- This is used for command line completition.
 getTypeNames :: REPL [String]
 getTypeNames  =
   do fNames <- M.mctxNames <$> getFocusedEnv
-     return (map (show . pp) (Map.keys (M.neTypes fNames)))
+     return (map (show . pp) (Map.keys (M.namespaceMap M.NSType fNames)))
 
 -- | Return a list of property names, sorted by position in the file.
 getPropertyNames :: REPL ([(M.Name,M.IfaceDecl)],NameDisp)
@@ -636,7 +636,8 @@ uniqify :: M.Name -> REPL M.Name
 uniqify name =
   case M.nameInfo name of
     M.Declared ns s ->
-      M.liftSupply (M.mkDeclared ns s (M.nameIdent name) (M.nameFixity name) (M.nameLoc name))
+      M.liftSupply (M.mkDeclared (M.nameNamespace name)
+                  ns s (M.nameIdent name) (M.nameFixity name) (M.nameLoc name))
 
     M.Parameter ->
       panic "[REPL] uniqify" ["tried to uniqify a parameter: " ++ pretty name]
@@ -656,7 +657,8 @@ uniqify name =
 -- the "<interactive>" namespace.
 freshName :: I.Ident -> M.NameSource -> REPL M.Name
 freshName i sys =
-  M.liftSupply (M.mkDeclared I.interactiveName sys i Nothing emptyRange)
+  M.liftSupply (M.mkDeclared I.NSValue mpath sys i Nothing emptyRange)
+  where mpath = M.TopModule I.interactiveName
 
 
 -- User Environment Interaction ------------------------------------------------

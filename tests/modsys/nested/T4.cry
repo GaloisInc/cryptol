@@ -1,0 +1,11 @@
+module T4 where
+
+x = 0x02
+
+submodule A where
+  y = x
+
+import submodule A
+
+z = y
+

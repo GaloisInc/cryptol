@@ -2,6 +2,11 @@
 {-# Language FlexibleInstances, FlexibleContexts #-}
 {-# Language PatternGuards #-}
 {-# Language OverloadedStrings #-}
+{-| This module contains types related to typechecking and the output of the
+typechecker.  In particular, it should contain the types needed by
+interface files (see 'Crytpol.ModuleSystem.Interface'), which are (kind of)
+the output of the typechker.
+-}
 module Cryptol.TypeCheck.Type
   ( module Cryptol.TypeCheck.Type
   , module Cryptol.TypeCheck.TCon
@@ -31,6 +36,38 @@ import Prelude
 
 infix  4 =#=, >==
 infixr 5 `tFun`
+
+-- | A type parameter of a module.
+data ModTParam = ModTParam
+  { mtpName   :: Name
+  , mtpKind   :: Kind
+  , mtpNumber :: !Int -- ^ The number of the parameter in the module
+                      -- This is used when we move parameters from the module
+                      -- level to individual declarations
+                      -- (type synonyms in particular)
+  , mtpDoc    :: Maybe Text
+  } deriving (Show,Generic,NFData)
+
+
+mtpParam :: ModTParam -> TParam
+mtpParam mtp = TParam { tpUnique = nameUnique (mtpName mtp)
+                      , tpKind   = mtpKind mtp
+                      , tpFlav   = TPModParam (mtpName mtp)
+                      , tpInfo   = desc
+                      }
+  where desc = TVarInfo { tvarDesc   = TVFromModParam (mtpName mtp)
+                        , tvarSource = nameLoc (mtpName mtp)
+                        }
+
+-- | A value parameter of a module.
+data ModVParam = ModVParam
+  { mvpName   :: Name
+  , mvpType   :: Schema
+  , mvpDoc    :: Maybe Text
+  , mvpFixity :: Maybe Fixity
+  } deriving (Show,Generic,NFData)
+
+
 
 
 
@@ -957,9 +994,8 @@ instance PP (WithNames Type) where
 
       TUser c ts t ->
         withNameDisp $ \disp ->
-        case nameInfo c of
-          Declared m _
-            | NotInScope <- getNameFormat m (nameIdent c) disp ->
+        case asOrigName c of
+          Just og | NotInScope <- getNameFormat og disp ->
               go prec t -- unfold type synonym if not in scope
           _ ->
             case ts of
@@ -1076,7 +1112,7 @@ pickTVarName k src uni =
     TypeParamInstPos f n   -> mk (sh f ++ "_" ++ show n)
     DefinitionOf x ->
       case nameInfo x of
-        Declared m SystemName | m == exprModName -> mk "it"
+        Declared m SystemName | m == TopModule exprModName -> mk "it"
         _ -> using x
     LenOfCompGen           -> mk "n"
     GeneratorOfListComp    -> "seq"

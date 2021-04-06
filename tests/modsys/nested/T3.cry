@@ -1,0 +1,11 @@
+module T3 where
+
+import submodule A
+x = y
+
+submodule A where
+  y = x
+
+
+
+

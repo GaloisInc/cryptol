@@ -100,6 +100,7 @@ $white+                   { emit $ White Space }
 "private"                 { emit $ KW KW_private }
 "include"                 { emit $ KW KW_include }
 "module"                  { emit $ KW KW_module }
+"submodule"               { emit $ KW KW_submodule }
 "newtype"                 { emit $ KW KW_newtype }
 "pragma"                  { emit $ KW KW_pragma }
 "property"                { emit $ KW KW_property }

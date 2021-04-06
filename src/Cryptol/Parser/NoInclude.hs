@@ -160,7 +160,7 @@ collectErrors f ts = do
   return rs
 
 -- | Remove includes from a module.
-noIncludeModule :: Module PName -> NoIncM (Module PName)
+noIncludeModule :: ModuleG mname PName -> NoIncM (ModuleG mname PName)
 noIncludeModule m = update `fmap` collectErrors noIncTopDecl (mDecls m)
   where
   update tds = m { mDecls = concat tds }
@@ -174,13 +174,19 @@ noIncludeProgram (Program tds) =
 -- reference.
 noIncTopDecl :: TopDecl PName -> NoIncM [TopDecl PName]
 noIncTopDecl td = case td of
-  Decl _     -> return [td]
+  Decl _     -> pure [td]
   DPrimType {} -> pure [td]
-  TDNewtype _-> return [td]
-  DParameterType {} -> return [td]
-  DParameterConstraint {} -> return [td]
-  DParameterFun {} -> return [td]
+  TDNewtype _-> pure [td]
+  DParameterType {} -> pure [td]
+  DParameterConstraint {} -> pure [td]
+  DParameterFun {} -> pure [td]
   Include lf -> resolveInclude lf
+  DModule tl ->
+    case tlValue tl of
+      NestedModule m ->
+        do m1 <- noIncludeModule m
+           pure [ DModule tl { tlValue = NestedModule m1 } ]
+  DImport {} -> pure [td]
 
 -- | Resolve the file referenced by a include into a list of top-level
 -- declarations.

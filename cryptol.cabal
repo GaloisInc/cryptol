@@ -111,9 +111,11 @@ library
                        Cryptol.ModuleSystem.Monad,
                        Cryptol.ModuleSystem.Name,
                        Cryptol.ModuleSystem.NamingEnv,
-                       Cryptol.ModuleSystem.Renamer,
                        Cryptol.ModuleSystem.Exports,
                        Cryptol.ModuleSystem.InstantiateModule,
+                       Cryptol.ModuleSystem.Renamer,
+                       Cryptol.ModuleSystem.Renamer.Monad,
+                       Cryptol.ModuleSystem.Renamer.Error,
 
                        Cryptol.TypeCheck,
                        Cryptol.TypeCheck.Type,
@@ -126,12 +128,12 @@ library
                        Cryptol.TypeCheck.Infer,
                        Cryptol.TypeCheck.CheckModuleInstance,
                        Cryptol.TypeCheck.InferTypes,
+                       Cryptol.TypeCheck.Interface,
                        Cryptol.TypeCheck.Error,
                        Cryptol.TypeCheck.Kind,
                        Cryptol.TypeCheck.Subst,
                        Cryptol.TypeCheck.Instantiate,
                        Cryptol.TypeCheck.Unify,
-                       Cryptol.TypeCheck.Depends,
                        Cryptol.TypeCheck.PP,
                        Cryptol.TypeCheck.Solve,
                        Cryptol.TypeCheck.Default,
@@ -189,6 +191,7 @@ library
                        Cryptol.Symbolic.What4,
 
                        Cryptol.REPL.Command,
+                       Cryptol.REPL.Browse,
                        Cryptol.REPL.Monad,
                        Cryptol.REPL.Trie
 

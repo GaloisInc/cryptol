@@ -11,12 +11,12 @@ Loading module Cryptol
     This binding for `x` shadows the existing binding at
     issue567.icry:3:6--3:7
 (\(x, y) x -> x) : {a, b, c} (a, b) -> c -> c
-[warning] at issue567.icry:4:16--4:17
-    This binding for `y` shadows the existing binding at
-    issue567.icry:4:9--4:10
 [warning] at issue567.icry:4:13--4:14
     This binding for `x` shadows the existing binding at
     issue567.icry:4:6--4:7
+[warning] at issue567.icry:4:16--4:17
+    This binding for `y` shadows the existing binding at
+    issue567.icry:4:9--4:10
 (\(x, y) (x, y) -> x) : {a, b, c, d} (a, b) -> (c, d) -> c
 [warning] at issue567.icry:5:8--5:9
     This binding for `x` shadows the existing binding at

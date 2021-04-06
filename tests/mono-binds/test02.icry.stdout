@@ -6,13 +6,13 @@ import Cryptol
 /* Not recursive */
 test02::test : {a, b} a -> b
 test02::test = \{a, b} (a : a) ->
-               test02::f b a
+               f b a
                where
                  /* Recursive */
-                 test02::f : {c} a -> c
-                 test02::f = \{c} (x : a) -> test02::g c a
-                 test02::g : {c} a -> c
-                 test02::g = \{c} (x : a) -> test02::f c x
+                 f : {c} a -> c
+                 f = \{c} (x : a) -> g c a
+                 g : {c} a -> c
+                 g = \{c} (x : a) -> f c x
                  
                
 
@@ -23,13 +23,13 @@ import Cryptol
 /* Not recursive */
 test02::test : {a, b} b -> a
 test02::test = \{a, b} (a : b) ->
-               test02::f a
+               f a
                where
                  /* Recursive */
-                 test02::f : b -> a
-                 test02::f = \ (x : b) -> test02::g a
-                 test02::g : b -> a
-                 test02::g = \ (x : b) -> test02::f x
+                 f : b -> a
+                 f = \ (x : b) -> g a
+                 g : b -> a
+                 g = \ (x : b) -> f x
                  
                
 

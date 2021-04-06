@@ -9,14 +9,25 @@
 -- This module defines the scoping rules for value- and type-level
 -- names in Cryptol.
 
-module Cryptol.Parser.Names where
+module Cryptol.Parser.Names
+  ( tnamesNT
+  , tnamesT
+  , tnamesC
+
+  , namesD
+  , tnamesD
+  , namesB
+  , namesP
+
+  , boundNames
+  , boundNamesSet
+  ) where
 
 import Cryptol.Parser.AST
 import Cryptol.Utils.RecordMap
 
 import           Data.Set (Set)
 import qualified Data.Set as Set
-
 
 -- | The names defined by a newtype.
 tnamesNT :: Newtype name -> ([Located name], ())
@@ -34,6 +45,8 @@ namesD :: Ord name => Decl name -> ([Located name], Set name)
 namesD decl =
   case decl of
     DBind b       -> namesB b
+    DRec bs       -> let (xs,ys) = unzip (map namesB bs)
+                     in (concat xs, Set.unions ys)  -- remove binders?
     DPatBind p e  -> (namesP p, namesE e)
     DSignature {} -> ([],Set.empty)
     DFixity{}     -> ([],Set.empty)
@@ -42,25 +55,10 @@ namesD decl =
     DProp {}      -> ([],Set.empty)
     DLocated d _  -> namesD d
 
--- | The names defined and used by a single declarations in such a way
--- that they cannot be duplicated in a file. For example, it is fine
--- to use @x@ on the RHS of two bindings, but not on the LHS of two
--- type signatures.
-allNamesD :: Ord name => Decl name -> [Located name]
-allNamesD decl =
-  case decl of
-    DBind b         -> fst (namesB b)
-    DPatBind p _    -> namesP p
-    DSignature ns _ -> ns
-    DFixity _ ns    -> ns
-    DPragma ns _    -> ns
-    DType ts        -> [tsName ts]
-    DProp ps        -> [psName ps]
-    DLocated d _    -> allNamesD d
-
 -- | The names defined and used by a single binding.
 namesB :: Ord name => Bind name -> ([Located name], Set name)
-namesB b = ([bName b], boundLNames (namesPs (bParams b)) (namesDef (thing (bDef b))))
+namesB b =
+  ([bName b], boundLNames (namesPs (bParams b)) (namesDef (thing (bDef b))))
 
 
 namesDef :: Ord name => BindDef name -> Set name
@@ -164,6 +162,7 @@ tnamesD decl =
     DFixity {}           -> ([], Set.empty)
     DPragma {}           -> ([], Set.empty)
     DBind b              -> ([], tnamesB b)
+    DRec bs              -> ([], Set.unions (map tnamesB bs))
     DPatBind _ e         -> ([], tnamesE e)
     DLocated d _         -> tnamesD d
     DType (TySyn n _ ps t)

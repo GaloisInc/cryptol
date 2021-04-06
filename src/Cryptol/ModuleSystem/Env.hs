@@ -11,6 +11,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Cryptol.ModuleSystem.Env where
 
 #ifndef RELOCATABLE
@@ -24,6 +25,7 @@ import Cryptol.ModuleSystem.Name (Name,Supply,emptySupply)
 import qualified Cryptol.ModuleSystem.NamingEnv as R
 import Cryptol.Parser.AST
 import qualified Cryptol.TypeCheck as T
+import qualified Cryptol.TypeCheck.Interface as T
 import qualified Cryptol.TypeCheck.AST as T
 import Cryptol.Utils.PP (PP(..),text,parens,NameDisp)
 
@@ -31,6 +33,7 @@ import Data.ByteString(ByteString)
 import Control.Monad (guard,mplus)
 import qualified Control.Exception as X
 import Data.Function (on)
+import Data.Set(Set)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Semigroup
@@ -185,21 +188,65 @@ allDeclGroups = concatMap T.mDecls . loadedNonParamModules
 -- or type check new expressions.
 data ModContext = ModContext
   { mctxParams          :: IfaceParams
+  , mctxExported        :: Set Name
   , mctxDecls           :: IfaceDecls
+    -- ^ Should contain at least names in NamingEnv, but may have more
   , mctxNames           :: R.NamingEnv
+    -- ^ What's in scope inside the module
   , mctxNameDisp        :: NameDisp
-  , mctxTypeProvenace   :: Map Name DeclProvenance
-  , mctxValueProvenance :: Map Name DeclProvenance
   }
 
--- | Specifies how a declared name came to be in scope.
-data DeclProvenance =
-    NameIsImportedFrom ModName
-  | NameIsLocalPublic
-  | NameIsLocalPrivate
-  | NameIsParameter
-  | NameIsDynamicDecl
-    deriving (Eq,Ord)
+-- This instance is a bit bogus.  It is mostly used to add the dynamic
+-- environemnt to an existing module, and it makes sense for that use case.
+instance Semigroup ModContext where
+  x <> y = ModContext { mctxParams   = jnParams (mctxParams x) (mctxParams y)
+                      , mctxExported = mctxExported x <> mctxExported y
+                      , mctxDecls    = mctxDecls x  <> mctxDecls  y
+                      , mctxNames    = names
+                      , mctxNameDisp = R.toNameDisp names
+                      }
+
+      where
+      names = mctxNames x `R.shadowing` mctxNames y
+      jnParams a b
+        | isEmptyIfaceParams a = b
+        | isEmptyIfaceParams b = a
+        | otherwise =
+          panic "ModContext" [ "Cannot combined 2 parameterized contexts" ]
+
+instance Monoid ModContext where
+  mempty = ModContext { mctxParams   = noIfaceParams
+                      , mctxDecls    = mempty
+                      , mctxExported = mempty
+                      , mctxNames    = mempty
+                      , mctxNameDisp = R.toNameDisp mempty
+                      }
+
+
+
+modContextOf :: ModName -> ModuleEnv -> Maybe ModContext
+modContextOf mname me =
+  do lm <- lookupModule mname me
+     let localIface  = lmInterface lm
+         localNames  = lmNamingEnv lm
+         loadedDecls = map (ifPublic . lmInterface)
+                     $ getLoadedModules (meLoadedModules me)
+     pure ModContext
+       { mctxParams   = ifParams localIface
+       , mctxExported = ifaceDeclsNames (ifPublic localIface)
+       , mctxDecls    = mconcat (ifPrivate localIface : loadedDecls)
+       , mctxNames    = localNames
+       , mctxNameDisp = R.toNameDisp localNames
+       }
+
+dynModContext :: ModuleEnv -> ModContext
+dynModContext me = mempty { mctxNames    = dynNames
+                          , mctxNameDisp = R.toNameDisp dynNames
+                          , mctxDecls    = deIfaceDecls (meDynEnv me)
+                          }
+  where dynNames = deNames (meDynEnv me)
+
+
 
 
 -- | Given the state of the environment, compute information about what's
@@ -207,69 +254,13 @@ data DeclProvenance =
 -- additional definitions from the REPL (e.g., let bound names, and @it@).
 focusedEnv :: ModuleEnv -> ModContext
 focusedEnv me =
-  ModContext
-    { mctxParams   = parameters
-    , mctxDecls    = mconcat (dynDecls : localDecls : importedDecls)
-    , mctxNames    = namingEnv
-    , mctxNameDisp = R.toNameDisp namingEnv
-    , mctxTypeProvenace = fst provenance
-    , mctxValueProvenance = snd provenance
-    }
-
-  where
-  (importedNames,importedDecls,importedProvs) = unzip3 (map loadImport imports)
-  localDecls    = publicDecls `mappend` privateDecls
-  localNames    = R.unqualifiedEnv localDecls `mappend`
-                                                R.modParamsNamingEnv parameters
-  dynDecls      = deIfaceDecls (meDynEnv me)
-  dynNames      = deNames (meDynEnv me)
-
-  namingEnv     = dynNames   `R.shadowing`
-                   localNames `R.shadowing`
-                   mconcat importedNames
-
-  provenance    = shadowProvs
-                $ declsProv NameIsDynamicDecl dynDecls
-                : declsProv NameIsLocalPublic publicDecls
-                : declsProv NameIsLocalPrivate privateDecls
-                : paramProv parameters
-                : importedProvs
-
-  (imports, parameters, publicDecls, privateDecls) =
-    case meFocusedModule me of
-      Nothing -> (mempty, noIfaceParams, mempty, mempty)
-      Just fm ->
-        case lookupModule fm me of
-          Just lm ->
-            let Iface { .. } = lmInterface lm
-            in (T.mImports (lmModule lm), ifParams, ifPublic, ifPrivate)
-          Nothing -> panic "focusedEnv" ["Focused module is not loaded."]
-
-  loadImport imp =
-    case lookupModule (iModule imp) me of
-      Just lm ->
-        let decls = ifPublic (lmInterface lm)
-        in ( R.interpImport imp decls
-           , decls
-           , declsProv (NameIsImportedFrom (iModule imp)) decls
-           )
-      Nothing -> panic "focusedEnv"
-                   [ "Missing imported module: " ++ show (pp (iModule imp)) ]
-
-
-  -- earlier ones shadow
-  shadowProvs ps = let (tss,vss) = unzip ps
-                   in (Map.unions tss, Map.unions vss)
-
-  paramProv IfaceParams { .. } = (doMap ifParamTypes, doMap ifParamFuns)
-    where doMap mp = const NameIsParameter <$> mp
-
-  declsProv prov IfaceDecls { .. } =
-    ( Map.unions [ doMap ifTySyns, doMap ifNewtypes, doMap ifAbstractTypes ]
-    , doMap ifDecls
-    )
-    where doMap mp = const prov <$> mp
-
+  case meFocusedModule me of
+    Nothing -> dynModContext me
+    Just fm -> case modContextOf fm me of
+                 Just c -> dynModContext me <> c
+                 Nothing -> panic "focusedEnv"
+                              [ "Focused modules not loaded: " ++ show (pp fm) ]
+  
 
 -- Loaded Modules --------------------------------------------------------------
 
@@ -341,9 +332,11 @@ data LoadedModule = LoadedModule
     -- For files we just use the cononical path, for in memory things we
     -- use their label.
 
+  , lmNamingEnv         :: !R.NamingEnv
+    -- ^ What's in scope in this module
+
   , lmInterface         :: Iface
-    -- ^ The module's interface. This is for convenient.  At the moment
-    -- we have the whole module in 'lmModule', so this could be computer.
+    -- ^ The module's interface.
 
   , lmModule            :: T.Module
     -- ^ The actual type-checked module
@@ -369,8 +362,9 @@ lookupModule mn me = search lmLoadedModules `mplus` search lmLoadedParamModules
 -- | Add a freshly loaded module.  If it was previously loaded, then
 -- the new version is ignored.
 addLoadedModule ::
-  ModulePath -> String -> Fingerprint -> T.Module -> LoadedModules -> LoadedModules
-addLoadedModule path ident fp tm lm
+  ModulePath -> String -> Fingerprint -> R.NamingEnv -> T.Module ->
+  LoadedModules -> LoadedModules
+addLoadedModule path ident fp nameEnv tm lm
   | isLoaded (T.mName tm) lm  = lm
   | T.isParametrizedModule tm = lm { lmLoadedParamModules = loaded :
                                                 lmLoadedParamModules lm }
@@ -381,7 +375,8 @@ addLoadedModule path ident fp tm lm
     { lmName            = T.mName tm
     , lmFilePath        = path
     , lmModuleId        = ident
-    , lmInterface       = genIface tm
+    , lmNamingEnv       = nameEnv
+    , lmInterface       = T.genIface tm
     , lmModule          = tm
     , lmFingerprint     = fp
     }
@@ -435,7 +430,8 @@ deIfaceDecls DEnv { deDecls = dgs } =
             , ifNewtypes = Map.empty
             , ifAbstractTypes = Map.empty
             , ifDecls    = Map.singleton (ifDeclName ifd) ifd
+            , ifModules  = Map.empty
             }
           | decl <- concatMap T.groupDecls dgs
-          , let ifd = mkIfaceDecl decl
+          , let ifd = T.mkIfaceDecl decl
           ]

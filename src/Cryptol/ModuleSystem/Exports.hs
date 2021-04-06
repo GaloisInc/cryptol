@@ -3,14 +3,17 @@ module Cryptol.ModuleSystem.Exports where
 
 import Data.Set(Set)
 import qualified Data.Set as Set
+import Data.Map(Map)
+import qualified Data.Map as Map
 import Data.Foldable(fold)
 import Control.DeepSeq(NFData)
 import GHC.Generics (Generic)
 
 import Cryptol.Parser.AST
-import Cryptol.Parser.Names
+import Cryptol.Parser.Names(namesD,tnamesD,tnamesNT)
+import Cryptol.ModuleSystem.Name
 
-modExports :: Ord name => Module name -> ExportSpec name
+modExports :: Ord name => ModuleG mname name -> ExportSpec name
 modExports m = fold (concat [ exportedNames d | d <- mDecls m ])
   where
   names by td = [ td { tlValue = thing n } | n <- fst (by (tlValue td)) ]
@@ -20,46 +23,61 @@ modExports m = fold (concat [ exportedNames d | d <- mDecls m ])
   exportedNames (DPrimType t) = [ exportType (thing . primTName <$> t) ]
   exportedNames (TDNewtype nt) = map exportType (names tnamesNT nt)
   exportedNames (Include {})  = []
+  exportedNames (DImport {}) = []
   exportedNames (DParameterFun {}) = []
   exportedNames (DParameterType {}) = []
   exportedNames (DParameterConstraint {}) = []
+  exportedNames (DModule nested) =
+    case tlValue nested of
+      NestedModule x ->
+        [exportName NSModule nested { tlValue = thing (mName x) }]
 
 
 
-data ExportSpec name = ExportSpec { eTypes  :: Set name
-                                  , eBinds  :: Set name
-                                  } deriving (Show, Generic)
+newtype ExportSpec name = ExportSpec (Map Namespace (Set name))
+                                        deriving (Show, Generic)
 
 instance NFData name => NFData (ExportSpec name)
 
 instance Ord name => Semigroup (ExportSpec name) where
-  l <> r = ExportSpec { eTypes = eTypes l <> eTypes r
-                      , eBinds = eBinds l <> eBinds  r
-                      }
+  ExportSpec l <> ExportSpec r = ExportSpec (Map.unionWith Set.union l r)
 
 instance Ord name => Monoid (ExportSpec name) where
-  mempty  = ExportSpec { eTypes = mempty, eBinds = mempty }
-  mappend = (<>)
+  mempty  = ExportSpec Map.empty
+
+exportName :: Ord name => Namespace -> TopLevel name -> ExportSpec name
+exportName ns n
+  | tlExport n == Public = ExportSpec
+                         $ Map.singleton ns
+                         $ Set.singleton (tlValue n)
+  | otherwise = mempty
+
+exported :: Namespace -> ExportSpec name -> Set name
+exported ns (ExportSpec mp) = Map.findWithDefault Set.empty ns mp
 
 -- | Add a binding name to the export list, if it should be exported.
 exportBind :: Ord name => TopLevel name -> ExportSpec name
-exportBind n
-  | tlExport n == Public = mempty { eBinds = Set.singleton (tlValue n) }
-  | otherwise            = mempty
+exportBind = exportName NSValue
 
 -- | Add a type synonym name to the export list, if it should be exported.
 exportType :: Ord name => TopLevel name -> ExportSpec name
-exportType n
-  | tlExport n == Public = mempty { eTypes = Set.singleton (tlValue n) }
-  | otherwise            = mempty
+exportType = exportName NSType
+
+
+
+isExported :: Ord name => Namespace -> name -> ExportSpec name -> Bool
+isExported ns x (ExportSpec s) =
+  case Map.lookup ns s of
+    Nothing -> False
+    Just mp -> Set.member x mp
 
 -- | Check to see if a binding is exported.
 isExportedBind :: Ord name => name -> ExportSpec name -> Bool
-isExportedBind n = Set.member n . eBinds
+isExportedBind = isExported NSValue
 
 -- | Check to see if a type synonym is exported.
 isExportedType :: Ord name => name -> ExportSpec name -> Bool
-isExportedType n = Set.member n . eTypes
+isExportedType = isExported NSType
 
 
 

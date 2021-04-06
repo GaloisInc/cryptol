@@ -6,18 +6,18 @@ import Cryptol
 /* Not recursive */
 test04::test : {a, b} (Literal 10 b) => a -> ((a, ()), (a, b))
 test04::test = \{a, b} (Literal 10 b) (a : a) ->
-               (test04::f () (), test04::f b (Cryptol::number 10 b <>))
+               (f () (), f b (Cryptol::number 10 b <>))
                where
                  /* Not recursive */
-                 test04::f : {c} c -> (a, c)
-                 test04::f = \{c} (x : c) -> (a, x)
+                 f : {c} c -> (a, c)
+                 f = \{c} (x : c) -> (a, x)
                  
                
 
 Loading module Cryptol
 Loading module test04
 
-[error] at test04.cry:1:1--5:14:
+[error] at test04.cry:3:1--5:14:
   • `10` is not a valid literal of type `()`
       arising from
       use of literal or demoted expression

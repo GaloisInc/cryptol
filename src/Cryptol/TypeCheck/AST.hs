@@ -18,10 +18,10 @@ module Cryptol.TypeCheck.AST
   , Name()
   , TFun(..)
   , Selector(..)
-  , Import(..)
+  , Import, ImportG(..)
   , ImportSpec(..)
   , ExportType(..)
-  , ExportSpec(..), isExportedBind, isExportedType
+  , ExportSpec(..), isExportedBind, isExportedType, isExported
   , Pragma(..)
   , Fixity(..)
   , PrimMap(..)
@@ -30,10 +30,12 @@ module Cryptol.TypeCheck.AST
 
 import Cryptol.Parser.Position(Located,Range,HasLoc(..))
 import Cryptol.ModuleSystem.Name
+import Cryptol.ModuleSystem.Interface
 import Cryptol.ModuleSystem.Exports(ExportSpec(..)
-                                   , isExportedBind, isExportedType)
+                                   , isExportedBind, isExportedType, isExported)
 import Cryptol.Parser.AST ( Selector(..),Pragma(..)
-                          , Import(..), ImportSpec(..), ExportType(..)
+                          , Import
+                          , ImportG(..), ImportSpec(..), ExportType(..)
                           , Fixity(..))
 import Cryptol.Utils.Ident (Ident,isInfixIdent,ModName,PrimIdent,prelPrim)
 import Cryptol.Utils.RecordMap
@@ -50,56 +52,58 @@ import           Data.Text (Text)
 
 
 -- | A Cryptol module.
-data Module = Module { mName        :: !ModName
-                     , mExports     :: ExportSpec Name
-                     , mImports     :: [Import]
+data ModuleG mname =
+              Module { mName             :: !mname
+                     , mExports          :: ExportSpec Name
+                     , mImports          :: [Import]
 
-                     , mTySyns      :: Map Name TySyn
-                       -- ^ This is just the type-level type synonyms
-                       -- of a module.
+                       {-| Interfaces of submodules, including functors.
+                           This is only the directly nested modules.
+                           Info about more nested modules is in the
+                           corresponding interface. -}
+                     , mSubModules       :: Map Name (IfaceG Name)
 
-                     , mNewtypes         :: Map Name Newtype
-                     , mPrimTypes        :: Map Name AbstractType
+                     -- params, if functor
                      , mParamTypes       :: Map Name ModTParam
                      , mParamConstraints :: [Located Prop]
                      , mParamFuns        :: Map Name ModVParam
+
+
+                      -- Declarations, including everything from non-functor
+                      -- submodules
+                     , mTySyns           :: Map Name TySyn
+                     , mNewtypes         :: Map Name Newtype
+                     , mPrimTypes        :: Map Name AbstractType
                      , mDecls            :: [DeclGroup]
+                     , mFunctors         :: Map Name (ModuleG Name)
                      } deriving (Show, Generic, NFData)
 
+emptyModule :: mname -> ModuleG mname
+emptyModule nm =
+  Module
+    { mName             = nm
+    , mExports          = mempty
+    , mImports          = []
+    , mSubModules       = mempty
+
+    , mParamTypes       = mempty
+    , mParamConstraints = mempty
+    , mParamFuns        = mempty
+
+    , mTySyns           = mempty
+    , mNewtypes         = mempty
+    , mPrimTypes        = mempty
+    , mDecls            = mempty
+    , mFunctors         = mempty
+    }
+
+type Module = ModuleG ModName
+
 -- | Is this a parameterized module?
-isParametrizedModule :: Module -> Bool
+isParametrizedModule :: ModuleG mname -> Bool
 isParametrizedModule m = not (null (mParamTypes m) &&
                               null (mParamConstraints m) &&
                               null (mParamFuns m))
-
--- | A type parameter of a module.
-data ModTParam = ModTParam
-  { mtpName   :: Name
-  , mtpKind   :: Kind
-  , mtpNumber :: !Int -- ^ The number of the parameter in the module
-                      -- This is used when we move parameters from the module
-                      -- level to individual declarations
-                      -- (type synonyms in particular)
-  , mtpDoc    :: Maybe Text
-  } deriving (Show,Generic,NFData)
-
-mtpParam :: ModTParam -> TParam
-mtpParam mtp = TParam { tpUnique = nameUnique (mtpName mtp)
-                      , tpKind   = mtpKind mtp
-                      , tpFlav   = TPModParam (mtpName mtp)
-                      , tpInfo   = desc
-                      }
-  where desc = TVarInfo { tvarDesc   = TVFromModParam (mtpName mtp)
-                        , tvarSource = nameLoc (mtpName mtp)
-                        }
-
--- | A value parameter of a module.
-data ModVParam = ModVParam
-  { mvpName   :: Name
-  , mvpType   :: Schema
-  , mvpDoc    :: Maybe Text
-  , mvpFixity :: Maybe Fixity
-  } deriving (Show,Generic,NFData)
 
 
 data Expr   = EList [Expr] Type         -- ^ List value (with type of elements)
@@ -369,10 +373,10 @@ instance PP (WithNames DeclDef) where
 instance PP Decl where
   ppPrec = ppWithNamesPrec IntMap.empty
 
-instance PP Module where
+instance PP n => PP (ModuleG n) where
   ppPrec = ppWithNamesPrec IntMap.empty
 
-instance PP (WithNames Module) where
+instance PP n => PP (WithNames (ModuleG n)) where
   ppPrec _ (WithNames Module { .. } nm) =
     text "module" <+> pp mName $$
     -- XXX: Print exports?

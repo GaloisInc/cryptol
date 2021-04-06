@@ -487,6 +487,7 @@ data TokenKW  = KW_else
               | KW_max
               | KW_min
               | KW_module
+              | KW_submodule
               | KW_newtype
               | KW_pragma
               | KW_property

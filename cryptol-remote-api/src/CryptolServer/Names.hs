@@ -17,9 +17,11 @@ import Cryptol.Parser.Name (PName(..))
 import Cryptol.ModuleSystem.Env (ModContext(..), ModuleEnv(..), DynamicEnv(..), focusedEnv)
 import Cryptol.ModuleSystem.Interface (IfaceDecl(..), IfaceDecls(..))
 import Cryptol.ModuleSystem.Name (Name)
-import Cryptol.ModuleSystem.NamingEnv (NamingEnv(..), lookupValNames, shadowing)
+import Cryptol.ModuleSystem.NamingEnv
+                  (NamingEnv, namespaceMap, lookupValNames, shadowing)
 import Cryptol.TypeCheck.Type (Schema(..))
 import Cryptol.Utils.PP (pp)
+import Cryptol.Utils.Ident(Namespace(..))
 
 import CryptolServer
 import CryptolServer.Data.Type
@@ -41,7 +43,7 @@ visibleNames _ =
   do me <- getModuleEnv
      let DEnv { deNames = dyNames } = meDynEnv me
      let ModContext { mctxDecls = fDecls, mctxNames = fNames} = focusedEnv me
-     let inScope = Map.keys (neExprs $ dyNames `shadowing` fNames)
+     let inScope = Map.keys (namespaceMap NSValue $ dyNames `shadowing` fNames)
      return $ concatMap (getInfo fNames (ifDecls fDecls)) inScope
 
 getInfo :: NamingEnv -> Map Name IfaceDecl -> PName -> [NameInfo]

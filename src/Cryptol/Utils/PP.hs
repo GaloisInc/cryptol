@@ -66,14 +66,14 @@ Getting a value of 'Nothing' from the NameDisp function indicates
 that the display has no opinion on how this name should be displayed,
 and some other display should be tried out. -}
 data NameDisp = EmptyNameDisp
-              | NameDisp (ModName -> Ident -> Maybe NameFormat)
+              | NameDisp (OrigName -> Maybe NameFormat)
                 deriving (Generic, NFData)
 
 instance Show NameDisp where
   show _ = "<NameDisp>"
 
 instance S.Semigroup NameDisp where
-  NameDisp f    <> NameDisp g    = NameDisp (\m n -> f m n `mplus` g m n)
+  NameDisp f    <> NameDisp g    = NameDisp (\n -> f n `mplus` g n)
   EmptyNameDisp <> EmptyNameDisp = EmptyNameDisp
   EmptyNameDisp <> x             = x
   x             <> _             = x
@@ -88,21 +88,13 @@ data NameFormat = UnQualified
                   deriving (Show)
 
 -- | Never qualify names from this module.
-neverQualifyMod :: ModName -> NameDisp
-neverQualifyMod mn = NameDisp $ \ mn' _ ->
-  if mn == mn' then Just UnQualified
-               else Nothing
-
-alwaysQualify :: NameDisp
-alwaysQualify  = NameDisp $ \ mn _ -> Just (Qualified mn)
+neverQualifyMod :: ModPath -> NameDisp
+neverQualifyMod mn = NameDisp $ \n ->
+  if ogModule n == mn then Just UnQualified else Nothing
 
 neverQualify :: NameDisp
-neverQualify  = NameDisp $ \ _ _ -> Just UnQualified
+neverQualify  = NameDisp $ \ _ -> Just UnQualified
 
-fmtModName :: ModName -> NameFormat -> T.Text
-fmtModName _  UnQualified    = T.empty
-fmtModName _  (Qualified mn) = modNameToText mn
-fmtModName mn NotInScope     = modNameToText mn
 
 -- | Compose two naming environments, preferring names from the left
 -- environment.
@@ -111,9 +103,9 @@ extend  = mappend
 
 -- | Get the format for a name. When 'Nothing' is returned, the name is not
 -- currently in scope.
-getNameFormat :: ModName -> Ident -> NameDisp -> NameFormat
-getNameFormat m i (NameDisp f)  = fromMaybe NotInScope (f m i)
-getNameFormat _ _ EmptyNameDisp = NotInScope
+getNameFormat :: OrigName -> NameDisp -> NameFormat
+getNameFormat m (NameDisp f)  = fromMaybe NotInScope (f m)
+getNameFormat _ EmptyNameDisp = NotInScope
 
 -- | Produce a document in the context of the current 'NameDisp'.
 withNameDisp :: (NameDisp -> Doc) -> Doc
@@ -162,6 +154,11 @@ class PP a => PPName a where
 
   -- | Print a name as an infix operator: @a + b@
   ppInfixName  :: a -> Doc
+
+instance PPName ModName where
+  ppNameFixity _ = Nothing
+  ppPrefixName   = pp
+  ppInfixName    = pp
 
 pp :: PP a => a -> Doc
 pp = ppPrec 0
@@ -325,6 +322,7 @@ instance PP Ident where
 instance PP ModName where
   ppPrec _   = text . T.unpack . modNameToText
 
+
 instance PP Assoc where
   ppPrec _ LeftAssoc  = text "left-associative"
   ppPrec _ RightAssoc = text "right-associative"
@@ -333,3 +331,31 @@ instance PP Assoc where
 instance PP Fixity where
   ppPrec _ (Fixity assoc level) =
     text "precedence" <+> int level <.> comma <+> pp assoc
+
+instance PP ModPath where
+  ppPrec _ p =
+    case p of
+      TopModule m -> pp m
+      Nested q t  -> pp q <.> "::" <.> pp t
+
+instance PP OrigName where
+  ppPrec _ og =
+    withNameDisp $ \disp ->
+      case getNameFormat og disp of
+        UnQualified -> pp (ogName og)
+        Qualified m -> ppQual (TopModule m) (pp (ogName og))
+        NotInScope  -> ppQual (ogModule og) (pp (ogName og))
+    where
+   ppQual mo x =
+    case mo of
+      TopModule m
+        | m == exprModName -> x
+        | otherwise -> pp m <.> "::" <.> x 
+      Nested m y -> ppQual m (pp y <.> "::" <.> x)
+
+instance PP Namespace where
+  ppPrec _ ns =
+    case ns of
+      NSValue   -> "/*value*/"
+      NSType    -> "/*type*/"
+      NSModule  -> "/*module*/"

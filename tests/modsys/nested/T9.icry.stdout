@@ -1,0 +1,6 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module T9
+Showing a specific instance of polymorphic result:
+  * Using 'Integer' for 1st type argument of 'T9::A::B::y'
+2

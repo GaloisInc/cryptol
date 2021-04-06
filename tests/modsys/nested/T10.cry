@@ -1,0 +1,8 @@
+module T6 where
+
+import T4 as X
+
+import submodule X::A
+
+f = y
+

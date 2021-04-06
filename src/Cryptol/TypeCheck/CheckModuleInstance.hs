@@ -1,3 +1,4 @@
+{-# Language OverloadedStrings #-}
 module Cryptol.TypeCheck.CheckModuleInstance (checkModuleInstance) where
 
 import           Data.Map ( Map )
@@ -19,17 +20,24 @@ import Cryptol.Utils.Panic
 -- | Check that the instance provides what the functor needs.
 checkModuleInstance :: Module {- ^ type-checked functor -} ->
                        Module {- ^ type-checked instance -} ->
-                       InferM Module -- ^ Instantiated module
-checkModuleInstance func inst =
+                       InferM (Name->Name,Module)
+                       -- ^ Renaming,Instantiated module
+checkModuleInstance func inst
+  | not (null (mSubModules func) && null (mSubModules inst)) =
+    do recordError $ TemporaryError
+         "Cannot combine nested modules with old-style parameterized modules"
+       pure (id,func) -- doesn't matter?
+  | otherwise =
   do tMap <- checkTyParams func inst
      vMap <- checkValParams func tMap inst
-     (ctrs, m) <- instantiateModule func (mName inst) tMap vMap
+     (ren, ctrs, m) <- instantiateModule func (mName inst) tMap vMap
      let toG p = Goal { goal = thing p
                       , goalRange = srcRange p
                       , goalSource = CtModuleInstance (mName inst)
                       }
      addGoals (map toG ctrs)
-     return Module { mName = mName m
+     return ( ren
+            , Module { mName = mName m
                    , mExports = mExports m
                    , mImports = mImports inst ++ mImports m
                                 -- Note that this is just here to record
@@ -43,7 +51,11 @@ checkModuleInstance func inst =
                    , mParamConstraints = mParamConstraints inst
                    , mParamFuns        = mParamFuns inst
                    , mDecls            = mDecls inst ++ mDecls m
+
+                   , mSubModules = mempty
+                   , mFunctors   = mempty
                    }
+              )
 
 -- | Check that the type parameters of the functors all have appropriate
 -- definitions.
@@ -179,6 +191,7 @@ makeValParamDef x sDef pDef =
                , P.bPragmas   = []
                , P.bMono      = False
                , P.bDoc       = Nothing
+               , P.bExport    = Public
                }
   loc a = P.Located { P.srcRange = nameLoc x, P.thing = a }
 

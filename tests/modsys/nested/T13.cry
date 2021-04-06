@@ -1,0 +1,10 @@
+module T13 where
+
+import submodule B as C
+
+submodule A where
+  propA = C::y > 5
+
+submodule B where
+  y : Integer
+  y = 42
