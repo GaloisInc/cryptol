@@ -34,7 +34,8 @@ import Data.Bits
 import Data.List              (unfoldr, genericTake, genericIndex, genericReplicate)
 import qualified Data.Sequence as Seq
 
-import System.Random          (RandomGen, split, random, randomR)
+import System.Random.TF.Gen
+import System.Random.TF.Instances
 
 import Cryptol.Backend        (Backend(..), SRational(..))
 import Cryptol.Backend.FloatHelpers (floatFromBits)
