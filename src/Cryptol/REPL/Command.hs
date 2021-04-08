@@ -1404,8 +1404,8 @@ cdCmd f | null f = rPutStrLn $ "[error] :cd requires a path argument"
 -- XXX this should probably do something a bit more specific.
 handleCtrlC :: a -> REPL a
 handleCtrlC a = do rPutStrLn "Ctrl-C"
+                   resetTCSolver
                    return a
-
 
 -- Utilities -------------------------------------------------------------------
 

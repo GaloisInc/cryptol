@@ -37,6 +37,7 @@ module Cryptol.REPL.Monad (
   , getDynEnv, setDynEnv
   , getCallStacks
   , getTCSolver
+  , resetTCSolver
   , uniqify, freshName
   , whenDebug
   , getEvalOptsAction
