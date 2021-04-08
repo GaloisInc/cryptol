@@ -28,6 +28,21 @@ class CryptolEvalServerTests(unittest.TestCase):
             res = c.call('f', BV(size=8,value=0xff)).result()
             self.assertEqual(res, [BV(size=8,value=0xff), BV(size=8,value=0xff)])
 
+
+    # more thorough testing of backend functionality found in standard server's tests
+    def test_sat(self):
+        c = self.c
+        # test a single sat model can be returned
+        rootsOf9 = c.sat('isSqrtOf9').result()
+        self.assertEqual(len(rootsOf9), 1)
+        self.assertTrue(int(rootsOf9[0]) ** 2 % 256, 9)
+
+    # more thorough testing of backend functionality found in standard server's tests
+    def test_check(self):
+        c = self.c
+        res = c.check("\\x -> x==(x:[8])").result()
+        self.assertTrue(res.success)
+
     # def test_disallowed_ops(self):
     #     pass # TODO/FIXME
 

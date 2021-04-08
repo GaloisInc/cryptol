@@ -26,3 +26,6 @@ id x = x
 
 type Word8 = [8]
 type Twenty a = [20]a
+
+isSqrtOf9 : [8] -> Bit
+isSqrtOf9 x = x*x == 9

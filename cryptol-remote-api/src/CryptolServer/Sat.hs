@@ -175,7 +175,7 @@ instance Doc.DescribedParams ProveSatParams where
                      ++ [Doc.Text "."]))
     , ("expression",
       Doc.Paragraph [Doc.Text "The predicate (i.e., function) to check for satisfiability; "
-                    , Doc.Text "must be a monomorphic function type with return type Bit." ])
+                    , Doc.Text "must be a monomorphic function with return type Bit." ])
     , ("result count",
       Doc.Paragraph [Doc.Text "How many satisfying results to search for; either a positive integer or "
                     , Doc.Literal "all", Doc.Text"."])
