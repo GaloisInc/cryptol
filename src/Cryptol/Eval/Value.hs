@@ -492,8 +492,8 @@ mergeValue sym c v1 v2 =
     (VRational q1, VRational q2) -> VRational <$> iteRational sym c q1 q2
     (VFloat f1   , VFloat f2)    -> VFloat <$> iteFloat sym c f1 f2
     (VWord n1 w1 , VWord n2 w2 ) | n1 == n2 -> VWord n1 <$> mergeWord sym c w1 w2
-    (VSeq n1 vs1 , VSeq n2 vs2 ) | n1 == n2 -> VSeq n1 <$> memoMap sym (mergeSeqMapVal sym c vs1 vs2)
-    (VStream vs1 , VStream vs2 ) -> VStream <$> memoMap sym (mergeSeqMapVal sym c vs1 vs2)
+    (VSeq n1 vs1 , VSeq n2 vs2 ) | n1 == n2 -> VSeq n1 <$> memoMap sym (Nat n1) (mergeSeqMapVal sym c vs1 vs2)
+    (VStream vs1 , VStream vs2 ) -> VStream <$> memoMap sym Inf (mergeSeqMapVal sym c vs1 vs2)
     (f1@VFun{}   , f2@VFun{}   ) -> lam sym $ \x -> mergeValue' sym c (fromVFun sym f1 x) (fromVFun sym f2 x)
     (f1@VPoly{}  , f2@VPoly{}  ) -> tlam sym $ \x -> mergeValue' sym c (fromVPoly sym f1 x) (fromVPoly sym f2 x)
     (_           , _           ) -> panic "Cryptol.Eval.Value"

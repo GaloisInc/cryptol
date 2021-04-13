@@ -66,7 +66,7 @@ import Cryptol.Backend.Concrete (Concrete(..))
 import Cryptol.Backend.Monad (EvalError(..))
 import Cryptol.Backend.SeqMap
 
-import Cryptol.TypeCheck.Solver.InfNat(widthInteger)
+import Cryptol.TypeCheck.Solver.InfNat(widthInteger, Nat'(..))
 
 -- | Force the evaluation of a word value
 forceWordValue :: Backend sym => WordValue sym -> SEval sym ()
@@ -258,19 +258,19 @@ wordValLogicOp _sym _ wop (WordVal w1) (WordVal w2) = WordVal <$> wop w1 w2
 wordValLogicOp sym bop wop (WordVal w1) (BitmapVal n2 packed2 bs2) =
   isReady sym packed2 >>= \case
     Just w2 -> WordVal <$> wop w1 w2
-    Nothing -> bitmapWordVal sym n2 =<< zipSeqMap sym bop (unpackBitmap sym w1) bs2
+    Nothing -> bitmapWordVal sym n2 =<< zipSeqMap sym bop (Nat n2) (unpackBitmap sym w1) bs2
 
 wordValLogicOp sym bop wop (BitmapVal n1 packed1 bs1) (WordVal w2) =
   isReady sym packed1 >>= \case
     Just w1 -> WordVal <$> wop w1 w2
-    Nothing -> bitmapWordVal sym n1 =<< zipSeqMap sym bop bs1 (unpackBitmap sym w2)
+    Nothing -> bitmapWordVal sym n1 =<< zipSeqMap sym bop (Nat n1) bs1 (unpackBitmap sym w2)
 
 wordValLogicOp sym bop wop (BitmapVal n1 packed1 bs1) (BitmapVal _n2 packed2 bs2) =
   do r1 <- isReady sym packed1
      r2 <- isReady sym packed2
      case (r1,r2) of
        (Just w1, Just w2) -> WordVal <$> wop w1 w2
-       _ -> bitmapWordVal sym n1 =<< zipSeqMap sym bop bs1 bs2
+       _ -> bitmapWordVal sym n1 =<< zipSeqMap sym bop (Nat n1) bs1 bs2
 
 wordValLogicOp sym bop wop (ThunkWordVal _ m1) w2 =
   do w1 <- m1
@@ -293,7 +293,7 @@ wordValUnaryOp sym bop wop (ThunkWordVal _ m) = wordValUnaryOp sym bop wop =<< m
 wordValUnaryOp sym bop wop (BitmapVal n packed xs) =
   isReady sym packed >>= \case
     Just w  -> WordVal <$> wop w
-    Nothing -> bitmapWordVal sym n =<< mapSeqMap sym bop xs
+    Nothing -> bitmapWordVal sym n =<< mapSeqMap sym bop (Nat n) xs
 
 {-# SPECIALIZE joinWords ::
   Concrete ->
@@ -537,7 +537,7 @@ shiftWordByInteger sym wop reindex x idx =
             Nothing ->
               do (numbits, idx_bits) <- enumerateIntBits' sym n idx
                  bitmapWordVal sym n =<<
-                   barrelShifter sym (iteBit sym) shiftOp bs0 numbits (map BitIndexSegment idx_bits)
+                   barrelShifter sym (iteBit sym) shiftOp (Nat n) bs0 numbits (map BitIndexSegment idx_bits)
 
  where
    shiftOp vs shft =
@@ -577,7 +577,7 @@ shiftWordByWord sym wop reindex x idx =
               bitmapWordVal sym n =<< shiftOp bs0 j
             _ ->
               do idx_segs <- enumerateIndexSegments sym idx
-                 bitmapWordVal sym n =<< barrelShifter sym (iteBit sym) shiftOp bs0 n idx_segs
+                 bitmapWordVal sym n =<< barrelShifter sym (iteBit sym) shiftOp (Nat n) bs0 n idx_segs
 
  where
    shiftOp vs shft =
@@ -654,12 +654,13 @@ shiftSeqByWord  ::
   (SBit sym -> a -> a -> SEval sym a) ->
   (Integer -> Integer -> Maybe Integer) ->
   SEval sym a ->
+  Nat' ->
   SeqMap sym a ->
   WordValue sym ->
   SEval sym (SeqMap sym a)
-shiftSeqByWord sym merge reindex zro xs idx =
+shiftSeqByWord sym merge reindex zro sz xs idx =
   do idx_segs <- enumerateIndexSegments sym idx
-     barrelShifter sym merge shiftOp xs (wordValueSize sym idx) idx_segs
+     barrelShifter sym merge shiftOp sz xs (wordValueSize sym idx) idx_segs
  where
    shiftOp vs shft =
      pure $ indexSeqMap $ \i ->
@@ -754,7 +755,7 @@ mergeBitmaps :: Backend sym =>
   SeqMap sym (SBit sym) ->
   SEval sym (WordValue sym)
 mergeBitmaps sym c sz bs1 bs2 =
-  do bs <- memoMap sym (mergeSeqMap sym (iteBit sym) c bs1 bs2)
+  do bs <- memoMap sym (Nat sz) (mergeSeqMap sym (iteBit sym) c bs1 bs2)
      bitmapWordVal sym sz bs
 
 {-# INLINE mergeWord' #-}

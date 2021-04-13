@@ -603,7 +603,7 @@ evalComp ::
   SEval sym (GenValue sym)
 evalComp sym env len elty body ms =
        do lenv <- mconcat <$> mapM (branchEnvs sym (toListEnv env)) ms
-          mkSeq sym len elty =<< memoMap sym (indexSeqMap $ \i -> do
+          mkSeq sym len elty =<< memoMap sym len (indexSeqMap $ \i -> do
               evalExpr sym (evalListEnv lenv i) body)
 
 {-# SPECIALIZE branchEnvs ::
@@ -621,24 +621,24 @@ branchEnvs ::
   ListEnv sym ->
   [Match] ->
   SEval sym (ListEnv sym)
-branchEnvs sym env matches = foldM (evalMatch sym) env matches
+branchEnvs sym env matches = snd <$> foldM (evalMatch sym) (1, env) matches
 
 {-# SPECIALIZE evalMatch ::
   (?range :: Range, ConcPrims) =>
   Concrete ->
-  ListEnv Concrete ->
+  (Integer, ListEnv Concrete) ->
   Match ->
-  SEval Concrete (ListEnv Concrete)
+  SEval Concrete (Integer, ListEnv Concrete)
   #-}
 
 -- | Turn a match into the list of environments it represents.
 evalMatch ::
   (?range :: Range, EvalPrims sym) =>
   sym ->
-  ListEnv sym ->
+  (Integer, ListEnv sym) ->
   Match ->
-  SEval sym (ListEnv sym)
-evalMatch sym lenv m = case m of
+  SEval sym (Integer, ListEnv sym)
+evalMatch sym (lsz, lenv) m = seq lsz $ case m of
 
   -- many envs
   From n l _ty expr ->
@@ -646,7 +646,7 @@ evalMatch sym lenv m = case m of
       -- Select from a sequence of finite length.  This causes us to 'stutter'
       -- through our previous choices `nLen` times.
       Nat nLen -> do
-        vss <- memoMap sym $ indexSeqMap $ \i -> evalExpr sym (evalListEnv lenv i) expr
+        vss <- memoMap sym (Nat lsz) $ indexSeqMap $ \i -> evalExpr sym (evalListEnv lenv i) expr
         let stutter xs = \i -> xs (i `div` nLen)
         let lenv' = lenv { leVars = fmap stutter (leVars lenv) }
         let vs i = do let (q, r) = i `divMod` nLen
@@ -655,7 +655,7 @@ evalMatch sym lenv m = case m of
                         VSeq _ xs'  -> lookupSeqMap xs' r
                         VStream xs' -> lookupSeqMap xs' r
                         _           -> evalPanic "evalMatch" ["Not a list value"]
-        return $ bindVarList n vs lenv'
+        return (lsz * nLen, bindVarList n vs lenv')
 
       -- Select from a sequence of infinite length.  Note that this means we
       -- will never need to backtrack into previous branches.  Thus, we can convert
@@ -673,7 +673,9 @@ evalMatch sym lenv m = case m of
                      VSeq _ xs'  -> lookupSeqMap xs' i
                      VStream xs' -> lookupSeqMap xs' i
                      _           -> evalPanic "evalMatch" ["Not a list value"]
-        return $ bindVarList n vs lenv'
+        -- Selecting from an infinite list effectively resets the length of the
+        -- list environment, so return 1 as the length
+        return (1, bindVarList n vs lenv')
 
     where
       len  = evalNumType (leTypes lenv) l
@@ -681,7 +683,7 @@ evalMatch sym lenv m = case m of
   -- XXX we don't currently evaluate these as though they could be recursive, as
   -- they are typechecked that way; the read environment to evalExpr is the same
   -- as the environment to bind a new name in.
-  Let d -> return $ bindVarList (dName d) (\i -> f (evalListEnv lenv i)) lenv
+  Let d -> return (lsz, bindVarList (dName d) (\i -> f (evalListEnv lenv i)) lenv)
     where
       f env =
           case dDefinition d of

@@ -586,8 +586,8 @@ indexFront_segs sym mblen _a xs _ix _idx_bits [WordIndexSegment idx]
         Just (lo, hi) -> [lo .. min hi maxIdx]
         _ -> [0 .. maxIdx]
 
-indexFront_segs sym _mblen _a xs _ix idx_bits segs =
-  do xs' <- barrelShifter sym (mergeValue sym) shiftOp xs idx_bits segs
+indexFront_segs sym mblen _a xs _ix idx_bits segs =
+  do xs' <- barrelShifter sym (mergeValue sym) shiftOp mblen xs idx_bits segs
      lookupSeqMap xs' 0
   where
     shiftOp vs amt = pure (indexSeqMap (\i -> lookupSeqMap vs $! amt+i))
@@ -609,11 +609,11 @@ updateFrontSym sym _len _eltTy vs (Left idx) val =
       do b <- intEq sym idx =<< integerLit sym i
          iteValue sym b val (lookupSeqMap vs i)
 
-updateFrontSym sym _len _eltTy vs (Right wv) val =
+updateFrontSym sym len _eltTy vs (Right wv) val =
   wordValAsLit sym wv >>= \case
     Just j -> return $ updateSeqMap vs j val
     Nothing ->
-      memoMap sym $ indexSeqMap $ \i ->
+      memoMap sym len $ indexSeqMap $ \i ->
       do b <- wordValueEqualsInteger sym wv i
          iteValue sym b val (lookupSeqMap vs i)
 
@@ -640,7 +640,7 @@ updateBackSym sym (Nat n) _eltTy vs (Right wv) val =
     Just j ->
       return $ updateSeqMap vs (n - 1 - j) val
     Nothing ->
-      memoMap sym $ indexSeqMap $ \i ->
+      memoMap sym (Nat n) $ indexSeqMap $ \i ->
       do b <- wordValueEqualsInteger sym wv (n - 1 - i)
          iteValue sym b val (lookupSeqMap vs i)
 

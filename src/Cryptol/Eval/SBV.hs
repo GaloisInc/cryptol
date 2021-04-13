@@ -113,8 +113,8 @@ indexFront_segs ::
 indexFront_segs sym mblen a xs ix _idx_bits [WordIndexSegment w] =
   indexFront sym mblen a xs ix w
 
-indexFront_segs sym _mblen _a xs _ix idx_bits segs =
-  do xs' <- barrelShifter sym (mergeValue sym) shiftOp xs idx_bits segs
+indexFront_segs sym mblen _a xs _ix idx_bits segs =
+  do xs' <- barrelShifter sym (mergeValue sym) shiftOp mblen xs idx_bits segs
      lookupSeqMap xs' 0
   where
     shiftOp vs amt = pure (indexSeqMap (\i -> lookupSeqMap vs $! amt+i))

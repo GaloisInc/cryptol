@@ -221,13 +221,13 @@ ringBinary sym opw opi opz opq opfp = loop
                   rw <- fromVWord sym "ringRight" r
                   stk <- sGetCallStack sym
                   VWord w . wordVal <$> (sWithCallStack sym stk (opw w lw rw))
-      | otherwise -> VSeq w <$> (join (zipSeqMap sym (loop a) <$>
+      | otherwise -> VSeq w <$> (join (zipSeqMap sym (loop a) (Nat w) <$>
                                       (fromSeq "ringBinary left" l) <*>
                                       (fromSeq "ringBinary right" r)))
 
     TVStream a ->
       -- streams
-      VStream <$> (join (zipSeqMap sym (loop a) <$>
+      VStream <$> (join (zipSeqMap sym (loop a) Inf <$>
                              (fromSeq "ringBinary left" l) <*>
                              (fromSeq "ringBinary right" r)))
 
@@ -307,10 +307,10 @@ ringUnary sym opw opi opz opq opfp = loop
               wx <- fromVWord sym "ringUnary" v
               stk <- sGetCallStack sym
               VWord w . wordVal <$> sWithCallStack sym stk (opw w wx)
-      | otherwise -> VSeq w <$> (mapSeqMap sym (loop a) =<< fromSeq "ringUnary" v)
+      | otherwise -> VSeq w <$> (mapSeqMap sym (loop a) (Nat w) =<< fromSeq "ringUnary" v)
 
     TVStream a ->
-      VStream <$> (mapSeqMap sym (loop a) =<< fromSeq "ringUnary" v)
+      VStream <$> (mapSeqMap sym (loop a) Inf =<< fromSeq "ringUnary" v)
 
     -- functions
     TVFun _ ety ->
@@ -1260,12 +1260,12 @@ logicBinary sym opb opw = loop
 
          -- finite sequences
          | otherwise -> VSeq w <$>
-                           (join (zipSeqMap sym (loop aty) <$>
+                           (join (zipSeqMap sym (loop aty) (Nat w) <$>
                                     (fromSeq "logicBinary left" l)
                                     <*> (fromSeq "logicBinary right" r)))
 
     TVStream aty ->
-        VStream <$> (join (zipSeqMap sym (loop aty) <$>
+        VStream <$> (join (zipSeqMap sym (loop aty) Inf <$>
                           (fromSeq "logicBinary left" l) <*>
                           (fromSeq "logicBinary right" r)))
 
@@ -1324,11 +1324,11 @@ logicUnary sym opb opw = loop
 
          -- finite sequences
          | otherwise
-              -> VSeq w <$> (mapSeqMap sym (loop ety) =<< fromSeq "logicUnary" val)
+              -> VSeq w <$> (mapSeqMap sym (loop ety) (Nat w) =<< fromSeq "logicUnary" val)
 
          -- streams
     TVStream ety ->
-         VStream <$> (mapSeqMap sym (loop ety) =<< fromSeq "logicUnary" val)
+         VStream <$> (mapSeqMap sym (loop ety) Inf =<< fromSeq "logicUnary" val)
 
     TVTuple etys ->
       do as <- mapM (sDelay sym) (fromVTuple val)
@@ -1620,8 +1620,8 @@ wordShifter :: Backend sym =>
 wordShifter sym nm wop reindex m a xs idx =
   case xs of
     VWord w x  -> VWord w <$> shiftWordByWord sym wop (reindex m) x idx
-    VSeq w vs  -> VSeq w  <$> shiftSeqByWord sym (mergeValue sym) (reindex m) (zeroV sym a) vs idx
-    VStream vs -> VStream <$> shiftSeqByWord sym (mergeValue sym) (reindex m) (zeroV sym a) vs idx
+    VSeq w vs  -> VSeq w  <$> shiftSeqByWord sym (mergeValue sym) (reindex m) (zeroV sym a) (Nat w) vs idx
+    VStream vs -> VStream <$> shiftSeqByWord sym (mergeValue sym) (reindex m) (zeroV sym a) Inf     vs idx
     _ -> evalPanic "expected sequence value in shift operation" [nm]
 
 
