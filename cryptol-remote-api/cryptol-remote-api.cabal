@@ -47,6 +47,7 @@ common deps
     mtl                  ^>= 2.2,
     scientific           ^>= 0.3,
     text                 ^>= 1.2.3,
+    tf-random,
     unordered-containers ^>= 0.2,
     vector               ^>= 0.12,
 
@@ -59,6 +60,7 @@ library
   exposed-modules:
     CryptolServer
     CryptolServer.Call
+    CryptolServer.Check
     CryptolServer.ClearState
     CryptolServer.Data.Expression
     CryptolServer.Data.Type

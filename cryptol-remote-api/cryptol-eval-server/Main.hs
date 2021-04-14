@@ -18,6 +18,7 @@ import Options.Applicative
       strOption,
       value )
 
+import CryptolServer.Check ( check, checkDescr )
 import CryptolServer.ClearState
     ( clearState, clearStateDescr, clearAllStates, clearAllStatesDescr)
 import Cryptol.Eval (EvalOpts(..), defaultPPOpts)
@@ -120,6 +121,10 @@ initMod = StartingFile <$> (Left <$> filename <|> Right . textToModName <$> modu
 cryptolEvalMethods :: [AppMethod ServerState]
 cryptolEvalMethods =
   [ command
+    "check"
+    checkDescr
+    check
+  , command
      "focused module"
      focusedModuleDescr
      focusedModule

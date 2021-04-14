@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import base64
 import os
-import types
-import sys
+from dataclasses import dataclass
 from distutils.spawn import find_executable
-from typing import Any, Dict, Iterable, List, NoReturn, Optional, Union, Callable
-from mypy_extensions import TypedDict
+from typing import Any, List, NoReturn, Optional, Union
+from typing_extensions import Literal
 
 import argo_client.interaction as argo
 from argo_client.interaction import HasProtocolState
@@ -125,6 +124,54 @@ class CryptolCall(argo.Command):
 
     def process_result(self, res : Any) -> Any:
         return from_cryptol_arg(res['value'])
+
+
+@dataclass
+class CheckReport:
+    """Class for describing ``check`` test results."""
+    success: bool
+    args: List[Any]
+    error_msg: Optional[str]
+    tests_run: int
+    tests_possible: Optional[int]
+
+class CryptolCheck(argo.Command):
+    def __init__(self, connection : HasProtocolState, expr : Any, num_tests : Union[Literal['all'],int, None]) -> None:
+        if num_tests:
+            args = {'expression': expr, 'number of tests':num_tests}
+        else:
+            args = {'expression': expr}
+        super(CryptolCheck, self).__init__(
+            'check',
+            args,
+            connection
+        )
+
+    def process_result(self, res : Any) -> 'CheckReport':
+        if res['result'] == 'pass':
+            return CheckReport(
+                    success=True,
+                    args=[],
+                    error_msg = None,
+                    tests_run=res['tests run'],
+                    tests_possible=res['tests possible'])
+        elif res['result'] == 'fail':
+            return CheckReport(
+                    success=False,
+                    args=[from_cryptol_arg(arg['expr']) for arg in res['arguments']],
+                    error_msg = None,
+                    tests_run=res['tests run'],
+                    tests_possible=res['tests possible'])
+        elif res['result'] == 'error':
+            return CheckReport(
+                    success=False,
+                    args=[from_cryptol_arg(arg['expr']) for arg in res['arguments']],
+                    error_msg = res['error message'],
+                    tests_run=res['tests run'],
+                    tests_possible=res['tests possible'])
+        else:
+            raise ValueError("Unknown check result " + str(res))
+
 
 class CryptolCheckType(argo.Command):
     def __init__(self, connection : HasProtocolState, expr : Any) -> None:
@@ -369,6 +416,21 @@ class CryptolConnection:
         self.most_recent_result = CryptolCall(self, fun, encoded_args)
         return self.most_recent_result
 
+    def check(self, expr : Any, *, num_tests : Union[Literal['all'], int, None] = None) -> argo.Command:
+        """Tests the validity of a Cryptol expression with random inputs. The expression must be a function with
+        return type ``Bit``.
+
+        If ``num_tests`` is ``"all"`` then the expression is tested exhaustively (i.e., against all possible inputs).
+
+        If ``num_tests`` is omitted, Cryptol defaults to running 100 tests.
+        """
+        if num_tests == "all" or isinstance(num_tests, int) or num_tests is None:
+            self.most_recent_result = CryptolCheck(self, expr, num_tests)
+            return self.most_recent_result
+        else:
+            raise ValueError('``num_tests`` must be an integer, ``None``, or the string literall ``"all"``')
+
+
     def check_type(self, code : Any) -> argo.Command:
         """Check the type of a Cryptol expression, represented according to
         :ref:`cryptol-json-expression`, with Python datatypes standing for
@@ -406,7 +468,7 @@ class CryptolConnection:
 
     def reset(self) -> None:
         """Resets the connection, causing its unique state on the server to be freed (if applicable).
-        
+
         After a reset a connection may be treated as if it were a fresh connection with the server if desired."""
         CryptolReset(self)
         self.most_recent_result = None

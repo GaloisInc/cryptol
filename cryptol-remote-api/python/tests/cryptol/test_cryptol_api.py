@@ -82,6 +82,62 @@ class CryptolTests(unittest.TestCase):
         # check for a valid condition
         self.assertTrue(c.prove('\\x -> isSqrtOf9 x ==> elem x [3,131,125,253]').result())
 
+    def test_check(self):
+        c = self.c
+        res = c.check("\\x -> x==(x:[8])").result()
+        self.assertTrue(res.success)
+        self.assertEqual(res.tests_run, 100)
+        self.assertEqual(res.tests_possible, 256)
+        self.assertFalse(len(res.args), 0)
+        self.assertEqual(res.error_msg, None)
+
+        res = c.check("\\x -> x==(x:[8])", num_tests=1).result()
+        self.assertTrue(res.success)
+        self.assertEqual(res.tests_run, 1)
+        self.assertEqual(res.tests_possible, 256)
+        self.assertEqual(len(res.args), 0)
+        self.assertEqual(res.error_msg, None)
+
+        res = c.check("\\x -> x==(x:[8])", num_tests=42).result()
+        self.assertTrue(res.success)
+        self.assertEqual(res.tests_run, 42)
+        self.assertEqual(res.tests_possible, 256)
+        self.assertEqual(len(res.args), 0)
+        self.assertEqual(res.error_msg, None)
+
+        res = c.check("\\x -> x==(x:[8])", num_tests=1000).result()
+        self.assertTrue(res.success)
+        self.assertEqual(res.tests_run, 256)
+        self.assertEqual(res.tests_possible, 256)
+        self.assertEqual(len(res.args), 0)
+        self.assertEqual(res.error_msg, None)
+
+        res = c.check("\\x -> x==(x:[8])", num_tests='all').result()
+        self.assertTrue(res.success)
+        self.assertEqual(res.tests_run, 256)
+        self.assertEqual(res.tests_possible, 256)
+        self.assertEqual(len(res.args), 0)
+        self.assertEqual(res.error_msg, None)
+
+        res = c.check("\\x -> x==(x:Integer)", num_tests=1024).result()
+        self.assertTrue(res.success)
+        self.assertEqual(res.tests_run, 1024)
+        self.assertEqual(res.tests_possible, None)
+        self.assertEqual(len(res.args), 0)
+        self.assertEqual(res.error_msg, None)
+
+        res = c.check("\\x -> (x + 1)==(x:[8])").result()
+        self.assertFalse(res.success)
+        self.assertEqual(res.tests_possible, 256)
+        self.assertEqual(len(res.args), 1)
+        self.assertEqual(res.error_msg, None)
+
+        res = c.check("\\x -> (x / 0)==(x:[8])").result()
+        self.assertFalse(res.success)
+        self.assertEqual(res.tests_possible, 256)
+        self.assertEqual(len(res.args), 1)
+        self.assertIsInstance(res.error_msg, str)
+
     def test_many_usages_one_connection(self):
         c = self.c
         for i in range(0,100):

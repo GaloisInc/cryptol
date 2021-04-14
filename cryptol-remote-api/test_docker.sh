@@ -6,6 +6,9 @@ TAG=${1:-cryptol-remote-api}
 
 pushd $DIR
 
+rm $PWD/python/tests/cryptol/test-files/examples
+mv $PWD/../examples $PWD/python/tests/cryptol/test-files/
+
 docker run --name=cryptol-remote-api -d \
   -v $PWD/python/tests/cryptol/test-files:/home/cryptol/tests/cryptol/test-files \
   -p 8080:8080 \

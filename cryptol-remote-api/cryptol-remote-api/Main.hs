@@ -15,6 +15,7 @@ import qualified Argo.Doc as Doc
 import CryptolServer
     ( command, notification, initialState, extendSearchPath, ServerState )
 import CryptolServer.Call ( call, callDescr )
+import CryptolServer.Check ( check, checkDescr )
 import CryptolServer.ClearState
     ( clearState, clearStateDescr, clearAllStates, clearAllStatesDescr )
 import CryptolServer.EvalExpr
@@ -58,7 +59,11 @@ getSearchPaths =
 
 cryptolMethods :: [AppMethod ServerState]
 cryptolMethods =
-  [ notification
+  [ command
+    "check"
+    checkDescr
+    check
+  , notification
     "clear state"
     clearStateDescr
     clearState
