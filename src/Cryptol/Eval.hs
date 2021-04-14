@@ -40,7 +40,9 @@ module Cryptol.Eval (
 import Cryptol.Backend
 import Cryptol.Backend.Concrete( Concrete(..) )
 import Cryptol.Backend.Monad
-import Cryptol.Eval.Generic ( iteValue )
+import Cryptol.Backend.SeqMap
+import Cryptol.Backend.WordValue
+
 import Cryptol.Eval.Env
 import Cryptol.Eval.Prims
 import Cryptol.Eval.Type
@@ -122,14 +124,14 @@ evalExpr sym env expr = case expr of
     -- NB, even if the list cannot be packed, we must use `VWord`
     -- when the element type is `Bit`.
     | isTBit tyv -> {-# SCC "evalExpr->Elist/bit" #-}
-        return $ VWord len $
-          case tryFromBits sym vs of
-            Just w  -> WordVal <$> w
-            Nothing -> do xs <- mapM (sDelay sym) vs
-                          return $ LargeBitsVal len $ finiteSeqMap xs
+        VWord len <$>
+          (tryFromBits sym vs >>= \case
+             Just w  -> pure (wordVal w)
+             Nothing -> do xs <- mapM (\x -> sDelay sym (fromVBit <$> x)) vs
+                           bitmapWordVal sym len $ finiteSeqMap sym xs)
     | otherwise -> {-# SCC "evalExpr->EList" #-} do
         xs <- mapM (sDelay sym) vs
-        return $ VSeq len $ finiteSeqMap xs
+        return $ VSeq len $ finiteSeqMap sym xs
    where
     tyv = evalValType (envTypes env) ty
     vs  = map eval es
@@ -362,185 +364,11 @@ fillHole ::
   GenEvalEnv sym ->
   (Name, Schema, SEval sym (GenValue sym), SEval sym (GenValue sym) -> SEval sym ()) ->
   SEval sym ()
-fillHole sym env (nm, sch, _, fill) = do
+fillHole _sym env (nm, _sch, _, fill) = do
   case lookupVar nm env of
-    Just (Right v)
-     | isValueType env sch ->
-               fill =<< sDelayFill sym v
-                          (Just (etaDelay sym env sch v))
-                          (show (ppLocName nm))
-
-     | otherwise -> fill (etaDelay sym env sch v)
-
+    Just (Right v) -> fill v
     _ -> evalPanic "fillHole" ["Recursive definition not completed", show (ppLocName nm)]
 
--- | 'Value' types are non-polymorphic types recursive constructed from
---   bits, finite sequences, tuples and records.  Types of this form can
---   be implemented rather more efficiently than general types because we can
---   rely on the 'delayFill' operation to build a thunk that falls back on performing
---   eta-expansion rather than doing it eagerly.
-isValueType :: GenEvalEnv sym -> Schema -> Bool
-isValueType env Forall{ sVars = [], sProps = [], sType = t0 }
-   = go (evalValType (envTypes env) t0)
- where
-  go TVBit = True
-  go (TVSeq _ x)  = go x
-  go (TVTuple xs) = and (map go xs)
-  go (TVRec xs)   = and (fmap go xs)
-  go (TVNewtype _ _ xs) = and (fmap go xs)
-  go _            = False
-
-isValueType _ _ = False
-
-
-{-# SPECIALIZE etaWord  ::
-  Concrete ->
-  Integer ->
-  SEval Concrete (GenValue Concrete) ->
-  SEval Concrete (WordValue Concrete)
-  #-}
-
--- | Eta-expand a word value.  This forces an unpacked word representation.
-etaWord  ::
-  Backend sym =>
-  sym ->
-  Integer ->
-  SEval sym (GenValue sym) ->
-  SEval sym (WordValue sym)
-etaWord sym n val = do
-  w <- sDelay sym (fromWordVal "during eta-expansion" =<< val)
-  xs <- memoMap sym $ IndexSeqMap $ \i ->
-          do w' <- w; VBit <$> indexWordValue sym w' i
-  pure $ LargeBitsVal n xs
-
-{-# SPECIALIZE etaDelay ::
-  Concrete ->
-  GenEvalEnv Concrete ->
-  Schema ->
-  SEval Concrete (GenValue Concrete) ->
-  SEval Concrete (GenValue Concrete)
-  #-}
-
--- | Given a simulator value and its type, fully eta-expand the value.  This
---   is a type-directed pass that always produces a canonical value of the
---   expected shape.  Eta expansion of values is sometimes necessary to ensure
---   the correct evaluation semantics of recursive definitions.  Otherwise,
---   expressions that should be expected to produce well-defined values in the
---   denotational semantics will fail to terminate instead.
-etaDelay ::
-  Backend sym =>
-  sym ->
-  GenEvalEnv sym ->
-  Schema ->
-  SEval sym (GenValue sym) ->
-  SEval sym (GenValue sym)
-etaDelay sym env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
-  where
-  goTpVars env []     val =
-     do stk <- sGetCallStack sym
-        go stk (evalValType (envTypes env) tp0) val
-  goTpVars env (v:vs) val =
-    case tpKind v of
-      KType -> tlam sym $ \t ->
-                  goTpVars (bindType (tpVar v) (Right t) env) vs ( ($t) . fromVPoly sym =<< val )
-      KNum  -> nlam sym $ \n ->
-                  goTpVars (bindType (tpVar v) (Left n) env) vs ( ($n) . fromVNumPoly sym =<< val )
-      k     -> panic "[Eval] etaDelay" ["invalid kind on type abstraction", show k]
-
-  go stk tp x | isReady sym x = x >>= \case
-      VBit{}      -> x
-      VInteger{}  -> x
-      VWord{}     -> x
-      VRational{} -> x
-      VFloat{}    -> x
-      VSeq n xs ->
-        case tp of
-          TVSeq _nt el -> return $ VSeq n $ IndexSeqMap $ \i -> go stk el (lookupSeqMap xs i)
-          _ -> evalPanic "type mismatch during eta-expansion" ["Expected sequence type, but got " ++ show tp]
-
-      VStream xs ->
-        case tp of
-          TVStream el -> return $ VStream $ IndexSeqMap $ \i -> go stk el (lookupSeqMap xs i)
-          _ -> evalPanic "type mismatch during eta-expansion" ["Expected stream type, but got " ++ show tp]
-
-      VTuple xs ->
-        case tp of
-          TVTuple ts | length ts == length xs -> return $ VTuple (zipWith (go stk) ts xs)
-          _ -> evalPanic "type mismatch during eta-expansion" ["Expected tuple type with " ++ show (length xs)
-                                   ++ " elements, but got " ++ show tp]
-
-      VRecord fs ->
-        case tp of
-          TVNewtype _ _ fts ->
-            do let res = zipRecords (\_ v t -> go stk t v) fs fts
-               case res of
-                 Left (Left f)  -> evalPanic "type mismatch during eta-expansion" ["missing field " ++ show f]
-                 Left (Right f) -> evalPanic "type mismatch during eta-expansion" ["unexpected field " ++ show f]
-                 Right fs' -> return (VRecord fs')
-          TVRec fts ->
-            do let res = zipRecords (\_ v t -> go stk t v) fs fts
-               case res of
-                 Left (Left f)  -> evalPanic "type mismatch during eta-expansion" ["missing field " ++ show f]
-                 Left (Right f) -> evalPanic "type mismatch during eta-expansion" ["unexpected field " ++ show f]
-                 Right fs' -> return (VRecord fs')
-          _ -> evalPanic "type mismatch during eta-expansion" ["Expected record type, but got " ++ show tp]
-
-      f@VFun{} ->
-        case tp of
-          TVFun _t1 t2 -> lam sym $ \a -> go stk t2 (fromVFun sym f a)
-          _ -> evalPanic "type mismatch during eta-expansion" ["Expected function type but got " ++ show tp]
-
-      VPoly{} ->
-        evalPanic "type mismatch during eta-expansion" ["Encountered polymorphic value"]
-
-      VNumPoly{} ->
-        evalPanic "type mismatch during eta-expansion" ["Encountered numeric polymorphic value"]
-
-  go stk tp v = sWithCallStack sym stk $
-    case tp of
-      TVBit -> v
-      TVInteger -> v
-      TVFloat {} -> v
-      TVIntMod _ -> v
-      TVRational -> v
-      TVArray{} -> v
-
-      TVSeq n TVBit ->
-          do w <- sDelayFill sym (fromWordVal "during eta-expansion" =<< v) (Just (etaWord sym n v)) ""
-             return $ VWord n w
-
-      TVSeq n el ->
-          do x' <- sDelay sym (fromSeq "during eta-expansion" =<< v)
-             return $ VSeq n $ IndexSeqMap $ \i -> do
-               go stk el (flip lookupSeqMap i =<< x')
-
-      TVStream el ->
-          do x' <- sDelay sym (fromSeq "during eta-expansion" =<< v)
-             return $ VStream $ IndexSeqMap $ \i ->
-               go stk el (flip lookupSeqMap i =<< x')
-
-      TVFun _t1 t2 ->
-          do v' <- sDelay sym (fromVFun sym <$> v)
-             lam sym $ \a -> go stk t2 ( ($a) =<< v' )
-
-      TVTuple ts ->
-          do let n = length ts
-             v' <- sDelay sym (fromVTuple <$> v)
-             return $ VTuple $
-                [ go stk t =<< (flip genericIndex i <$> v')
-                | i <- [0..(n-1)]
-                | t <- ts
-                ]
-
-      TVRec fs ->
-          do v' <- sDelay sym (fromVRecord <$> v)
-             let err f = evalPanic "expected record value with field" [show f]
-             let eta f t = go stk t =<< (fromMaybe (err f) . lookupField f <$> v')
-             return $ VRecord (mapWithFieldName eta fs)
-
-      TVAbstract {} -> v
-
-      TVNewtype _ _ body -> go stk (TVRec body) v
 
 {-# SPECIALIZE declHole ::
   Concrete ->
@@ -636,7 +464,7 @@ evalSel sym val sel = case sel of
     case v of
       VSeq _ vs       -> lookupSeqMap vs (toInteger n)
       VStream vs      -> lookupSeqMap vs (toInteger n)
-      VWord _ wv      -> VBit <$> (flip (indexWordValue sym) (toInteger n) =<< wv)
+      VWord _ wv      -> VBit <$> indexWordValue sym wv (toInteger n)
       _               -> do vdoc <- ppValue sym defaultPPOpts val
                             evalPanic "Cryptol.Eval.evalSel"
                               [ "Unexpected value in list selection"
@@ -685,8 +513,7 @@ evalSetSel sym _tyv e sel v =
     case e of
       VSeq i mp  -> pure $ VSeq i  $ updateSeqMap mp n v
       VStream mp -> pure $ VStream $ updateSeqMap mp n v
-      VWord i m  -> pure $ VWord i $ do m1 <- m
-                                        updateWordValue sym m1 n asBit
+      VWord i m  -> VWord i <$> updateWordValue sym m n asBit
       _ -> bad "Sequence update on a non-sequence."
 
   asBit = do res <- v
@@ -776,7 +603,7 @@ evalComp ::
   SEval sym (GenValue sym)
 evalComp sym env len elty body ms =
        do lenv <- mconcat <$> mapM (branchEnvs sym (toListEnv env)) ms
-          mkSeq len elty <$> memoMap sym (IndexSeqMap $ \i -> do
+          mkSeq sym len elty =<< memoMap sym len (indexSeqMap $ \i -> do
               evalExpr sym (evalListEnv lenv i) body)
 
 {-# SPECIALIZE branchEnvs ::
@@ -794,24 +621,24 @@ branchEnvs ::
   ListEnv sym ->
   [Match] ->
   SEval sym (ListEnv sym)
-branchEnvs sym env matches = foldM (evalMatch sym) env matches
+branchEnvs sym env matches = snd <$> foldM (evalMatch sym) (1, env) matches
 
 {-# SPECIALIZE evalMatch ::
   (?range :: Range, ConcPrims) =>
   Concrete ->
-  ListEnv Concrete ->
+  (Integer, ListEnv Concrete) ->
   Match ->
-  SEval Concrete (ListEnv Concrete)
+  SEval Concrete (Integer, ListEnv Concrete)
   #-}
 
 -- | Turn a match into the list of environments it represents.
 evalMatch ::
   (?range :: Range, EvalPrims sym) =>
   sym ->
-  ListEnv sym ->
+  (Integer, ListEnv sym) ->
   Match ->
-  SEval sym (ListEnv sym)
-evalMatch sym lenv m = case m of
+  SEval sym (Integer, ListEnv sym)
+evalMatch sym (lsz, lenv) m = seq lsz $ case m of
 
   -- many envs
   From n l _ty expr ->
@@ -819,16 +646,16 @@ evalMatch sym lenv m = case m of
       -- Select from a sequence of finite length.  This causes us to 'stutter'
       -- through our previous choices `nLen` times.
       Nat nLen -> do
-        vss <- memoMap sym $ IndexSeqMap $ \i -> evalExpr sym (evalListEnv lenv i) expr
+        vss <- memoMap sym (Nat lsz) $ indexSeqMap $ \i -> evalExpr sym (evalListEnv lenv i) expr
         let stutter xs = \i -> xs (i `div` nLen)
         let lenv' = lenv { leVars = fmap stutter (leVars lenv) }
         let vs i = do let (q, r) = i `divMod` nLen
                       lookupSeqMap vss q >>= \case
-                        VWord _ w   -> VBit <$> (flip (indexWordValue sym) r =<< w)
+                        VWord _ w   -> VBit <$> indexWordValue sym w r
                         VSeq _ xs'  -> lookupSeqMap xs' r
                         VStream xs' -> lookupSeqMap xs' r
                         _           -> evalPanic "evalMatch" ["Not a list value"]
-        return $ bindVarList n vs lenv'
+        return (lsz * nLen, bindVarList n vs lenv')
 
       -- Select from a sequence of infinite length.  Note that this means we
       -- will never need to backtrack into previous branches.  Thus, we can convert
@@ -842,11 +669,13 @@ evalMatch sym lenv m = case m of
         let env   = EvalEnv allvars (leTypes lenv)
         xs <- evalExpr sym env expr
         let vs i = case xs of
-                     VWord _ w   -> VBit <$> (flip (indexWordValue sym) i =<< w)
+                     VWord _ w   -> VBit <$> indexWordValue sym w i
                      VSeq _ xs'  -> lookupSeqMap xs' i
                      VStream xs' -> lookupSeqMap xs' i
                      _           -> evalPanic "evalMatch" ["Not a list value"]
-        return $ bindVarList n vs lenv'
+        -- Selecting from an infinite list effectively resets the length of the
+        -- list environment, so return 1 as the length
+        return (1, bindVarList n vs lenv')
 
     where
       len  = evalNumType (leTypes lenv) l
@@ -854,7 +683,7 @@ evalMatch sym lenv m = case m of
   -- XXX we don't currently evaluate these as though they could be recursive, as
   -- they are typechecked that way; the read environment to evalExpr is the same
   -- as the environment to bind a new name in.
-  Let d -> return $ bindVarList (dName d) (\i -> f (evalListEnv lenv i)) lenv
+  Let d -> return (lsz, bindVarList (dName d) (\i -> f (evalListEnv lenv i)) lenv)
     where
       f env =
           case dDefinition d of

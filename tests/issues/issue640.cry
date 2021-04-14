@@ -1,0 +1,11 @@
+f : [1] -> [2]
+f x = out
+  where out = x # [out@0]
+
+g : [1] -> [2]
+g x = out
+  where out = x # (take out)
+
+h : [1] [8] -> [2] [8]
+h x = out
+  where out = x # take out

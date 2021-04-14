@@ -26,7 +26,6 @@ module Cryptol.Eval.Concrete
   ) where
 
 import Control.Monad (guard, zipWithM, foldM, mzero)
-import Data.Bits (Bits(..))
 import Data.Ratio(numerator,denominator)
 import Data.Word(Word32, Word64)
 import MonadLib( ChoiceT, findOne, lift )
@@ -42,8 +41,10 @@ import Cryptol.Backend
 import Cryptol.Backend.Concrete
 import Cryptol.Backend.FloatHelpers
 import Cryptol.Backend.Monad
+import Cryptol.Backend.SeqMap
+import Cryptol.Backend.WordValue
 
-import Cryptol.Eval.Generic hiding (logicShift)
+import Cryptol.Eval.Generic
 import Cryptol.Eval.Prims
 import Cryptol.Eval.Type
 import Cryptol.Eval.Value
@@ -110,7 +111,7 @@ toExpr prims t0 v0 = findOne (go t0 v0)
         do ses <- traverse (go b) =<< lift (sequence (enumerateSeqMap n svs))
            pure $ EList ses (tValTy b)
       (TVSeq n TVBit, VWord _ wval) ->
-        do BV _ v <- lift (asWordVal Concrete =<< wval)
+        do BV _ v <- lift (asWordVal Concrete wval)
            pure $ ETApp (ETApp (prim "number") (tNum v)) (tWord (tNum n))
 
       (_,VStream{})  -> mzero
@@ -159,24 +160,11 @@ primTable getEOpts = let sym = Concrete in
 
   Map.fromList $ map (\(n, v) -> (prelPrim n, v))
 
-  [ (">>$"        , {-# SCC "Prelude::(>>$)" #-}
-                    sshrV)
-
-    -- Shifts and rotates
-  , ("<<"         , {-# SCC "Prelude::(<<)" #-}
-                    logicShift shiftLW shiftLS)
-  , (">>"         , {-# SCC "Prelude::(>>)" #-}
-                    logicShift shiftRW shiftRS)
-  , ("<<<"        , {-# SCC "Prelude::(<<<)" #-}
-                    logicShift rotateLW rotateLS)
-  , (">>>"        , {-# SCC "Prelude::(>>>)" #-}
-                    logicShift rotateRW rotateRS)
-
-    -- Indexing and updates
-  , ("@"          , {-# SCC "Prelude::(@)" #-}
-                    indexPrim sym indexFront_int indexFront_bits indexFront)
+  [ -- Indexing and updates
+    ("@"          , {-# SCC "Prelude::(@)" #-}
+                    indexPrim sym IndexForward indexFront_int indexFront_segs)
   , ("!"          , {-# SCC "Prelude::(!)" #-}
-                    indexPrim sym indexBack_int indexBack_bits indexBack)
+                    indexPrim sym IndexBackward indexFront_int indexFront_segs)
 
   , ("update"     , {-# SCC "Prelude::update" #-}
                     updatePrim sym updateFront_word updateFront)
@@ -194,7 +182,7 @@ primTable getEOpts = let sym = Concrete in
                       F2.pmult (fromInteger (u+1)) x y
                     else
                       F2.pmult (fromInteger (v+1)) y x
-             in return . VWord (1+u+v) . pure . WordVal . mkBv (1+u+v) $! z)
+             in return . VWord (1+u+v) . wordVal . mkBv (1+u+v) $! z)
 
    , ("pmod",
         PFinPoly \_u ->
@@ -203,7 +191,7 @@ primTable getEOpts = let sym = Concrete in
         PWordFun \(BV _ m) ->
         PPrim
           do assertSideCondition sym (m /= 0) DivideByZero
-             return . VWord v . pure . WordVal . mkBv v $! F2.pmod (fromInteger w) x m)
+             return . VWord v . wordVal . mkBv v $! F2.pmod (fromInteger w) x m)
 
   , ("pdiv",
         PFinPoly \_u ->
@@ -212,7 +200,7 @@ primTable getEOpts = let sym = Concrete in
         PWordFun \(BV _ m) ->
         PPrim
           do assertSideCondition sym (m /= 0) DivideByZero
-             return . VWord w . pure . WordVal . mkBv w $! F2.pdiv (fromInteger w) x m)
+             return . VWord w . wordVal . mkBv w $! F2.pdiv (fromInteger w) x m)
   ]
 
 
@@ -230,7 +218,7 @@ primeECPrims = Map.fromList $ map (\(n,v) -> (primeECPrim n, v))
        PFinPoly \p ->
        PFun     \s ->
        PFun     \t ->
-       PPrim 
+       PPrim
           do s' <- toProjectivePoint =<< s
              t' <- toProjectivePoint =<< t
              let r = PrimeEC.ec_add_nonzero (PrimeEC.primeModulus p) s' t'
@@ -285,8 +273,8 @@ suiteBPrims = Map.fromList $ map (\(n, v) -> (suiteBPrim n, v))
               foldM (\st blk -> seq st (SHA.processSHA256Block st <$> (toSHA256Block =<< blk)))
                     SHA.initialSHA224State blks
            let f :: Word32 -> Eval Value
-               f = pure . VWord 32 . pure . WordVal . BV 32 . toInteger
-               zs = finiteSeqMap (map f [w0,w1,w2,w3,w4,w5,w6])
+               f = pure . VWord 32 . wordVal . BV 32 . toInteger
+               zs = finiteSeqMap Concrete (map f [w0,w1,w2,w3,w4,w5,w6])
            seq zs (pure (VSeq 7 zs)))
 
   , ("processSHA2_256", {-# SCC "SuiteB::processSHA2_256" #-}
@@ -298,8 +286,8 @@ suiteBPrims = Map.fromList $ map (\(n, v) -> (suiteBPrim n, v))
              foldM (\st blk -> seq st (SHA.processSHA256Block st <$> (toSHA256Block =<< blk)))
                    SHA.initialSHA256State blks
            let f :: Word32 -> Eval Value
-               f = pure . VWord 32 . pure . WordVal . BV 32 . toInteger
-               zs = finiteSeqMap (map f [w0,w1,w2,w3,w4,w5,w6,w7])
+               f = pure . VWord 32 . wordVal . BV 32 . toInteger
+               zs = finiteSeqMap Concrete (map f [w0,w1,w2,w3,w4,w5,w6,w7])
            seq zs (pure (VSeq 8 zs)))
 
   , ("processSHA2_384", {-# SCC "SuiteB::processSHA2_384" #-}
@@ -311,8 +299,8 @@ suiteBPrims = Map.fromList $ map (\(n, v) -> (suiteBPrim n, v))
              foldM (\st blk -> seq st (SHA.processSHA512Block st <$> (toSHA512Block =<< blk)))
                    SHA.initialSHA384State blks
            let f :: Word64 -> Eval Value
-               f = pure . VWord 64 . pure . WordVal . BV 64 . toInteger
-               zs = finiteSeqMap (map f [w0,w1,w2,w3,w4,w5])
+               f = pure . VWord 64 . wordVal . BV 64 . toInteger
+               zs = finiteSeqMap Concrete (map f [w0,w1,w2,w3,w4,w5])
            seq zs (pure (VSeq 6 zs)))
 
   , ("processSHA2_512", {-# SCC "SuiteB::processSHA2_512" #-}
@@ -324,8 +312,8 @@ suiteBPrims = Map.fromList $ map (\(n, v) -> (suiteBPrim n, v))
              foldM (\st blk -> seq st (SHA.processSHA512Block st <$> (toSHA512Block =<< blk)))
                    SHA.initialSHA512State blks
            let f :: Word64 -> Eval Value
-               f = pure . VWord 64 . pure . WordVal . BV 64 . toInteger
-               zs = finiteSeqMap (map f [w0,w1,w2,w3,w4,w5,w6,w7])
+               f = pure . VWord 64 . wordVal . BV 64 . toInteger
+               zs = finiteSeqMap Concrete (map f [w0,w1,w2,w3,w4,w5,w6,w7])
            seq zs (pure (VSeq 8 zs)))
 
   , ("AESKeyExpand", {-# SCC "SuiteB::AESKeyExpand" #-}
@@ -336,11 +324,11 @@ suiteBPrims = Map.fromList $ map (\(n, v) -> (suiteBPrim n, v))
             let toWord :: Integer -> Eval Word32
                 toWord i = fromInteger. bvVal <$> (fromVWord Concrete "AESInfKeyExpand" =<< lookupSeqMap ss i)
             let fromWord :: Word32 -> Eval Value
-                fromWord = pure . VWord 32 . pure . WordVal . BV 32 . toInteger
+                fromWord = pure . VWord 32 . wordVal . BV 32 . toInteger
             kws <- mapM toWord [0 .. k-1]
             let ws = AES.keyExpansionWords k kws
             let len = 4*(k+7)
-            pure (VSeq len (finiteSeqMap (map fromWord ws))))
+            pure (VSeq len (finiteSeqMap Concrete (map fromWord ws))))
 
   , ("AESInvMixColumns", {-# SCC "SuiteB::AESInvMixColumns" #-}
       PFun \st ->
@@ -349,10 +337,10 @@ suiteBPrims = Map.fromList $ map (\(n, v) -> (suiteBPrim n, v))
             let toWord :: Integer -> Eval Word32
                 toWord i = fromInteger. bvVal <$> (fromVWord Concrete "AESInvMixColumns" =<< lookupSeqMap ss i)
             let fromWord :: Word32 -> Eval Value
-                fromWord = pure . VWord 32 . pure . WordVal . BV 32 . toInteger
+                fromWord = pure . VWord 32 . wordVal . BV 32 . toInteger
             ws <- mapM toWord [0,1,2,3]
             let ws' = AES.invMixColumns ws
-            pure . VSeq 4 . finiteSeqMap . map fromWord $ ws')
+            pure . VSeq 4 . finiteSeqMap Concrete . map fromWord $ ws')
 
   , ("AESEncRound", {-# SCC "SuiteB::AESEncRound" #-}
       PFun \st ->
@@ -361,10 +349,10 @@ suiteBPrims = Map.fromList $ map (\(n, v) -> (suiteBPrim n, v))
             let toWord :: Integer -> Eval Word32
                 toWord i = fromInteger. bvVal <$> (fromVWord Concrete "AESEncRound" =<< lookupSeqMap ss i)
             let fromWord :: Word32 -> Eval Value
-                fromWord = pure . VWord 32 . pure . WordVal . BV 32 . toInteger
+                fromWord = pure . VWord 32 . wordVal . BV 32 . toInteger
             ws <- mapM toWord [0,1,2,3]
             let ws' = AES.aesRound ws
-            pure . VSeq 4 . finiteSeqMap . map fromWord $ ws')
+            pure . VSeq 4 . finiteSeqMap Concrete . map fromWord $ ws')
 
   , ("AESEncFinalRound", {-# SCC "SuiteB::AESEncFinalRound" #-}
      PFun \st ->
@@ -373,10 +361,10 @@ suiteBPrims = Map.fromList $ map (\(n, v) -> (suiteBPrim n, v))
             let toWord :: Integer -> Eval Word32
                 toWord i = fromInteger. bvVal <$> (fromVWord Concrete "AESEncFinalRound" =<< lookupSeqMap ss i)
             let fromWord :: Word32 -> Eval Value
-                fromWord = pure . VWord 32 . pure . WordVal . BV 32 . toInteger
+                fromWord = pure . VWord 32 . wordVal . BV 32 . toInteger
             ws <- mapM toWord [0,1,2,3]
             let ws' = AES.aesFinalRound ws
-            pure . VSeq 4 . finiteSeqMap . map fromWord $ ws')
+            pure . VSeq 4 . finiteSeqMap Concrete . map fromWord $ ws')
 
   , ("AESDecRound", {-# SCC "SuiteB::AESDecRound" #-}
       PFun \st ->
@@ -385,10 +373,10 @@ suiteBPrims = Map.fromList $ map (\(n, v) -> (suiteBPrim n, v))
             let toWord :: Integer -> Eval Word32
                 toWord i = fromInteger. bvVal <$> (fromVWord Concrete "AESDecRound" =<< lookupSeqMap ss i)
             let fromWord :: Word32 -> Eval Value
-                fromWord = pure . VWord 32 . pure . WordVal . BV 32 . toInteger
+                fromWord = pure . VWord 32 . wordVal . BV 32 . toInteger
             ws <- mapM toWord [0,1,2,3]
             let ws' = AES.aesInvRound ws
-            pure . VSeq 4 . finiteSeqMap . map fromWord $ ws')
+            pure . VSeq 4 . finiteSeqMap Concrete . map fromWord $ ws')
 
   , ("AESDecFinalRound", {-# SCC "SuiteB::AESDecFinalRound" #-}
      PFun \st ->
@@ -397,10 +385,10 @@ suiteBPrims = Map.fromList $ map (\(n, v) -> (suiteBPrim n, v))
             let toWord :: Integer -> Eval Word32
                 toWord i = fromInteger. bvVal <$> (fromVWord Concrete "AESDecFinalRound" =<< lookupSeqMap ss i)
             let fromWord :: Word32 -> Eval Value
-                fromWord = pure . VWord 32 . pure . WordVal . BV 32 . toInteger
+                fromWord = pure . VWord 32 . wordVal . BV 32 . toInteger
             ws <- mapM toWord [0,1,2,3]
             let ws' = AES.aesInvFinalRound ws
-            pure . VSeq 4 . finiteSeqMap . map fromWord $ ws')
+            pure . VSeq 4 . finiteSeqMap Concrete . map fromWord $ ws')
   ]
 
 
@@ -449,152 +437,39 @@ toSHA512Block blk =
         (toWord 14) <*>
         (toWord 15)
 
---------------------------------------------------------------------------------
-
-sshrV :: Prim Concrete
-sshrV =
-  PNumPoly \_n ->
-  PTyPoly  \ix ->
-  PWordFun \(BV w x) ->
-  PFun     \y ->
-  PPrim
-   do idx <- y >>= asIndex Concrete ">>$" ix >>= \case
-                 Left idx -> pure idx
-                 Right wv -> bvVal <$> asWordVal Concrete wv
-      return $ VWord w $ pure $ WordVal $ mkBv w $ signedShiftRW w x idx
-
-logicShift :: (Integer -> Integer -> Integer -> Integer)
-              -- ^ The function may assume its arguments are masked.
-              -- It is responsible for masking its result if needed.
-           -> (Nat' -> TValue -> SeqMap Concrete -> Integer -> SeqMap Concrete)
-           -> Prim Concrete
-logicShift opW opS =
-  PNumPoly \a ->
-  PTyPoly  \_ix ->
-  PTyPoly  \c ->
-  PFun     \l ->
-  PFun     \r ->
-  PPrim
-     do i <- r >>= \case
-          VInteger i -> pure i
-          VWord _ wval -> bvVal <$> (asWordVal Concrete =<< wval)
-          _ -> evalPanic "logicShift" ["not an index"]
-        l >>= \case
-          VWord w wv -> return $ VWord w $ wv >>= \case
-                          WordVal (BV _ x) -> return $ WordVal (BV w (opW w x i))
-                          LargeBitsVal n xs -> return $ LargeBitsVal n $ opS (Nat n) c xs i
-
-          _ -> mkSeq a c <$> (opS a c <$> (fromSeq "logicShift" =<< l) <*> return i)
-
--- Left shift for words.
-shiftLW :: Integer -> Integer -> Integer -> Integer
-shiftLW w ival by
-  | by <  0   = shiftRW w ival (negate by)
-  | by >= w   = 0
-  | by > toInteger (maxBound :: Int) = panic "shiftLW" ["Shift amount too large", show by]
-  | otherwise = mask w (shiftL ival (fromInteger by))
-
--- Right shift for words
-shiftRW :: Integer -> Integer -> Integer -> Integer
-shiftRW w ival by
-  | by <  0   = shiftLW w ival (negate by)
-  | by >= w   = 0
-  | by > toInteger (maxBound :: Int) = panic "shiftRW" ["Shift amount too large", show by]
-  | otherwise = shiftR ival (fromInteger by)
-
--- signed right shift for words
-signedShiftRW :: Integer -> Integer -> Integer -> Integer
-signedShiftRW w ival by
-  | by < 0    = shiftLW w ival (negate by)
-  | otherwise =
-     let by' = min w by in
-     if by' > toInteger (maxBound :: Int) then
-       panic "signedShiftRW" ["Shift amount too large", show by]
-     else
-       shiftR (signedValue w ival) (fromInteger by')
-
-shiftLS :: Nat' -> TValue -> SeqMap Concrete -> Integer -> SeqMap Concrete
-shiftLS w ety vs by
-  | by < 0 = shiftRS w ety vs (negate by)
-
-shiftLS w ety vs by = IndexSeqMap $ \i ->
-  case w of
-    Nat len
-      | i+by < len -> lookupSeqMap vs (i+by)
-      | i    < len -> zeroV Concrete ety
-      | otherwise  -> evalPanic "shiftLS" ["Index out of bounds"]
-    Inf            -> lookupSeqMap vs (i+by)
-
-shiftRS :: Nat' -> TValue -> SeqMap Concrete -> Integer -> SeqMap Concrete
-shiftRS w ety vs by
-  | by < 0 = shiftLS w ety vs (negate by)
-
-shiftRS w ety vs by = IndexSeqMap $ \i ->
-  case w of
-    Nat len
-      | i >= by   -> lookupSeqMap vs (i-by)
-      | i < len   -> zeroV Concrete ety
-      | otherwise -> evalPanic "shiftLS" ["Index out of bounds"]
-    Inf
-      | i >= by   -> lookupSeqMap vs (i-by)
-      | otherwise -> zeroV Concrete ety
-
-
--- XXX integer doesn't implement rotateL, as there's no bit bound
-rotateLW :: Integer -> Integer -> Integer -> Integer
-rotateLW 0 i _  = i
-rotateLW w i by = mask w $ (i `shiftL` b) .|. (i `shiftR` (fromInteger w - b))
-  where b = fromInteger (by `mod` w)
-
-rotateLS :: Nat' -> TValue -> SeqMap Concrete -> Integer -> SeqMap Concrete
-rotateLS w _ vs by = IndexSeqMap $ \i ->
-  case w of
-    Nat len -> lookupSeqMap vs ((by + i) `mod` len)
-    _ -> panic "Cryptol.Eval.Prim.rotateLS" [ "unexpected infinite sequence" ]
-
--- XXX integer doesn't implement rotateR, as there's no bit bound
-rotateRW :: Integer -> Integer -> Integer -> Integer
-rotateRW 0 i _  = i
-rotateRW w i by = mask w $ (i `shiftR` b) .|. (i `shiftL` (fromInteger w - b))
-  where b = fromInteger (by `mod` w)
-
-rotateRS :: Nat' -> TValue -> SeqMap Concrete -> Integer -> SeqMap Concrete
-rotateRS w _ vs by = IndexSeqMap $ \i ->
-  case w of
-    Nat len -> lookupSeqMap vs ((len - by + i) `mod` len)
-    _ -> panic "Cryptol.Eval.Prim.rotateRS" [ "unexpected infinite sequence" ]
-
 
 -- Sequence Primitives ---------------------------------------------------------
 
-indexFront :: Nat' -> TValue -> SeqMap Concrete -> TValue -> BV -> Eval Value
-indexFront _mblen _a vs _ix (bvVal -> ix) = lookupSeqMap vs ix
-
-indexFront_bits :: Nat' -> TValue -> SeqMap Concrete -> TValue -> [Bool] -> Eval Value
-indexFront_bits mblen a vs ix bs = indexFront mblen a vs ix =<< packWord Concrete bs
-
-indexFront_int :: Nat' -> TValue -> SeqMap Concrete -> TValue -> Integer -> Eval Value
+indexFront_int :: Nat' -> TValue -> SeqMap Concrete (GenValue Concrete) -> TValue -> Integer -> Eval Value
 indexFront_int _mblen _a vs _ix idx = lookupSeqMap vs idx
 
-indexBack :: Nat' -> TValue -> SeqMap Concrete -> TValue -> BV -> Eval Value
-indexBack mblen a vs ix (bvVal -> idx) = indexBack_int mblen a vs ix idx
+indexFront_segs :: Nat' -> TValue -> SeqMap Concrete (GenValue Concrete) -> TValue -> Integer -> [IndexSegment Concrete] -> Eval Value
+indexFront_segs _mblen _a vs _ix idx_bits segs = lookupSeqMap vs $! packSegments idx_bits segs
 
-indexBack_bits :: Nat' -> TValue -> SeqMap Concrete -> TValue -> [Bool] -> Eval Value
-indexBack_bits mblen a vs ix bs = indexBack mblen a vs ix =<< packWord Concrete bs
-
-indexBack_int :: Nat' -> TValue -> SeqMap Concrete -> TValue -> Integer -> Eval Value
-indexBack_int mblen _a vs _ix idx =
-  case mblen of
-    Nat len -> lookupSeqMap vs (len - idx - 1)
-    Inf     -> evalPanic "indexBack" ["unexpected infinite sequence"]
+packSegments :: Integer -> [IndexSegment Concrete] -> Integer
+packSegments = loop 0
+  where
+  loop !val !n segs =
+    case segs of
+      [] -> val
+      [WordIndexSegment (BV _ x)] -> val + x
+      WordIndexSegment (BV xlen x) : bs ->
+        let n' = n - xlen
+         in loop (val + (x*2^n')) n' bs
+      BitIndexSegment True : bs ->
+        let n' = n - 1
+         in loop (val + 2^n') n' bs
+      BitIndexSegment False : bs ->
+        let n' = n - 1
+         in loop val n' bs
 
 updateFront ::
   Nat'               {- ^ length of the sequence -} ->
   TValue             {- ^ type of values in the sequence -} ->
-  SeqMap Concrete    {- ^ sequence to update -} ->
+  SeqMap Concrete (GenValue Concrete) {- ^ sequence to update -} ->
   Either Integer (WordValue Concrete) {- ^ index -} ->
   Eval Value         {- ^ new value at index -} ->
-  Eval (SeqMap Concrete)
+  Eval (SeqMap Concrete (GenValue Concrete))
 updateFront _len _eltTy vs (Left idx) val = do
   return $ updateSeqMap vs idx val
 
@@ -619,10 +494,10 @@ updateFront_word _len _eltTy bs (Right w) val = do
 updateBack ::
   Nat'               {- ^ length of the sequence -} ->
   TValue             {- ^ type of values in the sequence -} ->
-  SeqMap Concrete    {- ^ sequence to update -} ->
+  SeqMap Concrete (GenValue Concrete) {- ^ sequence to update -} ->
   Either Integer (WordValue Concrete) {- ^ index -} ->
   Eval Value         {- ^ new value at index -} ->
-  Eval (SeqMap Concrete)
+  Eval (SeqMap Concrete (GenValue Concrete))
 updateBack Inf _eltTy _vs _w _val =
   evalPanic "Unexpected infinite sequence in updateEnd" []
 updateBack (Nat n) _eltTy vs (Left idx) val = do

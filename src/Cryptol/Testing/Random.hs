@@ -41,10 +41,11 @@ import Cryptol.Backend        (Backend(..), SRational(..))
 import Cryptol.Backend.FloatHelpers (floatFromBits)
 import Cryptol.Backend.Monad  (runEval,Eval,EvalErrorEx(..))
 import Cryptol.Backend.Concrete
+import Cryptol.Backend.SeqMap (indexSeqMap, finiteSeqMap)
+import Cryptol.Backend.WordValue (wordVal)
 
 import Cryptol.Eval.Type      (TValue(..))
-import Cryptol.Eval.Value     (GenValue(..),SeqMap(..), WordValue(..),
-                               ppValue, defaultPPOpts, finiteSeqMap, fromVFun)
+import Cryptol.Eval.Value     (GenValue(..), ppValue, defaultPPOpts, fromVFun)
 import Cryptol.TypeCheck.Solver.InfNat (widthInteger)
 import Cryptol.Utils.Ident    (Ident)
 import Cryptol.Utils.Panic    (panic)
@@ -213,7 +214,7 @@ randomRational sym w g =
 randomWord :: (Backend sym, RandomGen g) => sym -> Integer -> Gen g sym
 randomWord sym w _sz g =
    let (val, g1) = randomR (0,2^w-1) g
-   in (return $ VWord w (WordVal <$> wordLit sym w val), g1)
+   in (VWord w . wordVal <$> wordLit sym w val, g1)
 
 {-# INLINE randomStream #-}
 
@@ -221,7 +222,7 @@ randomWord sym w _sz g =
 randomStream :: (Backend sym, RandomGen g) => Gen g sym -> Gen g sym
 randomStream mkElem sz g =
   let (g1,g2) = split g
-  in (pure $ VStream $ IndexSeqMap $ genericIndex (unfoldr (Just . mkElem sz) g1), g2)
+  in (pure $ VStream $ indexSeqMap $ genericIndex (unfoldr (Just . mkElem sz) g1), g2)
 
 {-# INLINE randomSequence #-}
 
@@ -233,7 +234,7 @@ randomSequence w mkElem sz g0 = do
   let f g = let (x,g') = mkElem sz g
              in seq x (Just (x, g'))
   let xs = Seq.fromList $ genericTake w $ unfoldr f g1
-  let v  = VSeq w $ IndexSeqMap $ \i -> Seq.index xs (fromInteger i)
+  let v  = VSeq w $ indexSeqMap $ \i -> Seq.index xs (fromInteger i)
   seq xs (pure v, g2)
 
 {-# INLINE randomTuple #-}
@@ -402,11 +403,11 @@ typeValues ty =
     TVArray{}   -> []
     TVStream{}  -> []
     TVSeq n TVBit ->
-      [ VWord n (pure (WordVal (BV n x)))
+      [ VWord n (wordVal (BV n x))
       | x <- [ 0 .. 2^n - 1 ]
       ]
     TVSeq n el ->
-      [ VSeq n (finiteSeqMap (map pure xs))
+      [ VSeq n (finiteSeqMap Concrete (map pure xs))
       | xs <- sequence (genericReplicate n (typeValues el))
       ]
     TVTuple ts ->

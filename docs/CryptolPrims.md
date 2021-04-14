@@ -20,6 +20,7 @@ a member of `Ring` and `Zero`.
 Literals
 -----------------------
     type Literal : # -> * -> Prop
+    type LiteralLessThan : # -> * -> Prop
 
     number : {val, rep} Literal val rep => rep
     length : {n, a, b} (fin n, Literal n b) => [n]a -> b
@@ -38,6 +39,11 @@ Literals
                    , lengthFromThenTo first next last == len) =>
                   [len]a
 
+    // '[a .. < b]` is syntactic sugar for 'fromToLessThan`{first=a,bound=b}'
+    fromToLessThan : {first, bound, a}
+         (fin first, bound >= first, LiteralLessThan bound a) =>
+         [bound - first]a
+
 Fractional Literals
 -------------------
 
@@ -48,7 +54,7 @@ or report an error if the number can't be represented exactly.
     type FLiteral : # -> # -> # -> * -> Prop
 
 
-Fractional literals are desugared into calles to the primitive `fraction`:
+Fractional literals are desugared into calls to the primitive `fraction`:
 
     fraction : { m, n, r, a } FLiteral m n r a => a
 
@@ -274,7 +280,7 @@ Sequences
     updates    : {n,k,ix,a} (Integral ix, fin k) => [n]a -> [k]ix -> [k]a -> [n]a
     updatesEnd : {n,k,ix,d} (fin n, Integral ix, fin k) => [n]a -> [k]ix -> [k]a -> [n]a
 
-    take       : {front,back,elem} (fin front) => [front + back]elem -> [front]elem
+    take       : {front,back,elem} [front + back]elem -> [front]elem
     drop       : {front,back,elem} (fin front) => [front + back]elem -> [back]elem
     head       : {a, b} [1 + a]b -> b
     tail       : {a, b} [1 + a]b -> [a]b
@@ -282,7 +288,7 @@ Sequences
 
     // Declarations of the form 'x @ i = e' are syntactic
     // sugar for 'x = generate (\i -> e)'.
-    generate   : {n, a} (fin n, n >= 1) => (Integer -> a) -> [n]a
+    generate : {n, a, ix} (Integral ix, LiteralLessThan n ix) => (ix -> a) -> [n]a
 
     groupBy    : {each,parts,elem} (fin each) => [parts * each]elem -> [parts][each]elem
 

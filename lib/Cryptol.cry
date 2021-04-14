@@ -717,8 +717,9 @@ primitive (#) : {front, back, a} (fin front) => [front]a -> [back]a
  * Splits a sequence into a pair of sequences.
  * 'splitAt z = (x, y)' iff 'x # y = z'.
  */
-primitive splitAt : {front, back, a} (fin front) => [front + back]a
-                                                 -> ([front]a, [back]a)
+splitAt : {front, back, a} (fin front) => [front + back]a
+                                       -> ([front]a, [back]a)
+splitAt xs = (take`{front,back} xs, drop`{front,back} xs)
 
 /**
  * Concatenates a list of sequences.
@@ -745,18 +746,15 @@ primitive reverse : {n, a} (fin n) => [n]a -> [n]a
  */
 primitive transpose : {rows, cols, a} [rows][cols]a -> [cols][rows]a
 
-
 /**
  * Select the first (left-most) 'front' elements of a sequence.
  */
-take : {front, back, a} (fin front) => [front + back]a -> [front]a
-take (x # _) = x
+primitive take : {front, back, a} [front + back]a -> [front]a
 
 /**
  * Select all the elements after (to the right of) the 'front' elements of a sequence.
  */
-drop : {front, back, a} (fin front) => [front + back]a -> [back]a
-drop ((_ : [front] _) # y) = y
+primitive drop : {front, back, a} (fin front) => [front + back]a -> [back]a
 
 /**
  * Drop the first (left-most) element of a sequence.

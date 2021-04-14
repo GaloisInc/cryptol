@@ -24,7 +24,7 @@ import qualified Control.Exception as X
 import           Control.Concurrent.MVar
 import           Control.Monad (foldM)
 import           Control.Monad.IO.Class
-import           Data.Bits
+
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import           Data.Text (Text)
@@ -40,6 +40,8 @@ import qualified What4.Utils.AbstractDomains as W4
 
 import Cryptol.Backend
 import Cryptol.Backend.Monad ( EvalError(..), Unsupported(..) )
+import Cryptol.Backend.SeqMap
+import Cryptol.Backend.WordValue
 import Cryptol.Backend.What4
 
 import Cryptol.Eval.Generic
@@ -47,9 +49,10 @@ import Cryptol.Eval.Prims
 import Cryptol.Eval.Type (TValue(..))
 import Cryptol.Eval.Value
 
+
 import qualified Cryptol.SHA as SHA
 
-import Cryptol.TypeCheck.Solver.InfNat( Nat'(..), widthInteger )
+import Cryptol.TypeCheck.Solver.InfNat( Nat'(..) )
 
 import Cryptol.Utils.Ident
 import Cryptol.Utils.Panic
@@ -60,7 +63,6 @@ type Value sym = GenValue (What4 sym)
 -- See also Cryptol.Prims.Eval.primTable
 primTable :: W4.IsSymExprBuilder sym => What4 sym -> IO EvalOpts -> Map.Map PrimIdent (Prim (What4 sym))
 primTable sym getEOpts =
-  let w4sym = w4 sym in
   Map.union (suiteBPrims sym) $
   Map.union (primeECPrims sym) $
   Map.union (genericFloatTable sym) $
@@ -68,25 +70,9 @@ primTable sym getEOpts =
 
   Map.fromList $ map (\(n, v) -> (prelPrim n, v))
 
-  [ (">>$"         , sshrV sym)
-
-    -- Shifts and rotates
-  , ("<<"          , logicShift sym "<<"  shiftShrink
-                        (w4bvShl w4sym) (w4bvLshr w4sym)
-                        shiftLeftReindex shiftRightReindex)
-  , (">>"          , logicShift sym ">>"  shiftShrink
-                        (w4bvLshr w4sym) (w4bvShl w4sym)
-                        shiftRightReindex shiftLeftReindex)
-  , ("<<<"         , logicShift sym "<<<" rotateShrink
-                        (w4bvRol w4sym) (w4bvRor w4sym)
-                        rotateLeftReindex rotateRightReindex)
-  , (">>>"         , logicShift sym ">>>" rotateShrink
-                        (w4bvRor w4sym) (w4bvRol w4sym)
-                        rotateRightReindex rotateLeftReindex)
-
-    -- Indexing and updates
-  , ("@"           , indexPrim sym (indexFront_int sym) (indexFront_bits sym) (indexFront_word sym))
-  , ("!"           , indexPrim sym (indexBack_int sym) (indexBack_bits sym) (indexBack_word sym))
+  [ -- Indexing and updates
+    ("@"           , indexPrim sym IndexForward  (indexFront_int sym) (indexFront_segs sym))
+  , ("!"           , indexPrim sym IndexBackward (indexFront_int sym) (indexFront_segs sym))
 
   , ("update"      , updatePrim sym (updateFrontSym_word sym) (updateFrontSym sym))
   , ("updateEnd"   , updatePrim sym (updateBackSym_word sym)  (updateBackSym sym))
@@ -235,7 +221,7 @@ suiteBPrims sym = Map.fromList $ [ (suiteBPrim n, v) | (n,v) <- prims ]
              fn <- liftIO $ getUninterpFn sym ("AESKeyExpand" <> Text.pack (show k)) args (W4.BaseStructRepr ret)
              z  <- liftIO $ W4.applySymFn (w4 sym) fn ws
              -- compute a sequence that projects the relevant fields from the outout tuple
-             pure $ VSeq (4*(k+7)) $ IndexSeqMap $ \i ->
+             pure $ VSeq (4*(k+7)) $ indexSeqMap $ \i ->
                case intIndex (fromInteger i) (size ret) of
                  Just (Some idx) | Just W4.Refl <- W4.testEquality (ret!idx) (W4.BaseBVRepr (W4.knownNat @32)) ->
                    fromWord32 =<< liftIO (W4.structField (w4 sym) z idx)
@@ -250,7 +236,7 @@ suiteBPrims sym = Map.fromList $ [ (suiteBPrim n, v) | (n,v) <- prims ]
           addUninterpWarning sym "SHA-224"
           initSt <- liftIO (mkSHA256InitialState sym SHA.initialSHA224State)
           finalSt <- foldM (\st blk -> processSHA256Block sym st =<< blk) initSt blks
-          pure $ VSeq 7 $ IndexSeqMap \i ->
+          pure $ VSeq 7 $ indexSeqMap \i ->
             case intIndex (fromInteger i) (knownSize :: Size SHA256State) of
               Just (Some idx) ->
                 do z <- liftIO $ W4.structField (w4 sym) finalSt idx
@@ -268,7 +254,7 @@ suiteBPrims sym = Map.fromList $ [ (suiteBPrim n, v) | (n,v) <- prims ]
           addUninterpWarning sym "SHA-256"
           initSt <- liftIO (mkSHA256InitialState sym SHA.initialSHA256State)
           finalSt <- foldM (\st blk -> processSHA256Block sym st =<< blk) initSt blks
-          pure $ VSeq 8 $ IndexSeqMap \i ->
+          pure $ VSeq 8 $ indexSeqMap \i ->
             case intIndex (fromInteger i) (knownSize :: Size SHA256State) of
               Just (Some idx) ->
                 do z <- liftIO $ W4.structField (w4 sym) finalSt idx
@@ -286,7 +272,7 @@ suiteBPrims sym = Map.fromList $ [ (suiteBPrim n, v) | (n,v) <- prims ]
           addUninterpWarning sym "SHA-384"
           initSt <- liftIO (mkSHA512InitialState sym SHA.initialSHA384State)
           finalSt <- foldM (\st blk -> processSHA512Block sym st =<< blk) initSt blks
-          pure $ VSeq 6 $ IndexSeqMap \i ->
+          pure $ VSeq 6 $ indexSeqMap \i ->
             case intIndex (fromInteger i) (knownSize :: Size SHA512State) of
               Just (Some idx) ->
                 do z <- liftIO $ W4.structField (w4 sym) finalSt idx
@@ -304,7 +290,7 @@ suiteBPrims sym = Map.fromList $ [ (suiteBPrim n, v) | (n,v) <- prims ]
           addUninterpWarning sym "SHA-512"
           initSt <- liftIO (mkSHA512InitialState sym SHA.initialSHA512State)
           finalSt <- foldM (\st blk -> processSHA512Block sym st =<< blk) initSt blks
-          pure $ VSeq 8 $ IndexSeqMap \i ->
+          pure $ VSeq 8 $ indexSeqMap \i ->
             case intIndex (fromInteger i) (knownSize :: Size SHA512State) of
               Just (Some idx) ->
                 do z <- liftIO $ W4.structField (w4 sym) finalSt idx
@@ -459,7 +445,7 @@ getUninterpFn sym funNm args ret =
                            ]
 
 toWord32 :: W4.IsSymExprBuilder sym =>
-  What4 sym -> String -> SeqMap (What4 sym) -> Integer -> SEval (What4 sym) (W4.SymBV sym 32)
+  What4 sym -> String -> SeqMap (What4 sym) (GenValue (What4 sym)) -> Integer -> SEval (What4 sym) (W4.SymBV sym 32)
 toWord32 sym nm ss i =
   do x <- fromVWord sym nm =<< lookupSeqMap ss i
      case x of
@@ -467,11 +453,10 @@ toWord32 sym nm ss i =
        _ -> panic nm ["Unexpected word size", show (SW.bvWidth x)]
 
 fromWord32 :: W4.IsSymExprBuilder sym => W4.SymBV sym 32 -> SEval (What4 sym) (Value sym)
-fromWord32 = pure . VWord 32 . pure . WordVal . SW.DBV
-
+fromWord32 = pure . VWord 32 . wordVal . SW.DBV
 
 toWord64 :: W4.IsSymExprBuilder sym =>
-  What4 sym -> String -> SeqMap (What4 sym) -> Integer -> SEval (What4 sym) (W4.SymBV sym 64)
+  What4 sym -> String -> SeqMap (What4 sym) (GenValue (What4 sym)) -> Integer -> SEval (What4 sym) (W4.SymBV sym 64)
 toWord64 sym nm ss i =
   do x <- fromVWord sym nm =<< lookupSeqMap ss i
      case x of
@@ -479,7 +464,7 @@ toWord64 sym nm ss i =
        _ -> panic nm ["Unexpected word size", show (SW.bvWidth x)]
 
 fromWord64 :: W4.IsSymExprBuilder sym => W4.SymBV sym 64 -> SEval (What4 sym) (Value sym)
-fromWord64 = pure . VWord 64 . pure . WordVal . SW.DBV
+fromWord64 = pure . VWord 64 . wordVal . SW.DBV
 
 
 
@@ -496,7 +481,7 @@ applyAESStateFunc sym funNm x =
      w3 <- toWord32 sym nm ss 3
      fn <- liftIO $ getUninterpFn sym funNm argCtx (W4.BaseStructRepr argCtx)
      z  <- liftIO $ W4.applySymFn (w4 sym) fn (Empty :> w0 :> w1 :> w2 :> w3)
-     pure $ VSeq 4 $ IndexSeqMap \i ->
+     pure $ VSeq 4 $ indexSeqMap \i ->
        if | i == 0 -> fromWord32 =<< liftIO (W4.structField (w4 sym) z (natIndex @0))
           | i == 1 -> fromWord32 =<< liftIO (W4.structField (w4 sym) z (natIndex @1))
           | i == 2 -> fromWord32 =<< liftIO (W4.structField (w4 sym) z (natIndex @2))
@@ -511,34 +496,12 @@ applyAESStateFunc sym funNm x =
    argCtx = W4.knownRepr
 
 
-sshrV :: W4.IsSymExprBuilder sym => What4 sym -> Prim (What4 sym)
-sshrV sym =
-  PFinPoly \n ->
-  PTyPoly  \ix ->
-  PWordFun \x ->
-  PStrict  \y ->
-  PPrim $
-    asIndex sym ">>$" ix y >>= \case
-       Left i ->
-         do pneg <- intLessThan sym i =<< integerLit sym 0
-            zneg <- do i' <- shiftShrink sym (Nat n) ix =<< intNegate sym i
-                       amt <- wordFromInt sym n i'
-                       w4bvShl (w4 sym) x amt
-            zpos <- do i' <- shiftShrink sym (Nat n) ix i
-                       amt <- wordFromInt sym n i'
-                       w4bvAshr (w4 sym) x amt
-            return (VWord (SW.bvWidth x) (WordVal <$> iteWord sym pneg zneg zpos))
-
-       Right wv ->
-         do amt <- asWordVal sym wv
-            return (VWord (SW.bvWidth x) (WordVal <$> w4bvAshr (w4 sym) x amt))
-
 indexFront_int ::
   W4.IsSymExprBuilder sym =>
   What4 sym ->
   Nat' ->
   TValue ->
-  SeqMap (What4 sym) ->
+  SeqMap (What4 sym) (GenValue (What4 sym)) ->
   TValue ->
   SInteger (What4 sym) ->
   SEval (What4 sym) (Value sym)
@@ -581,29 +544,17 @@ indexFront_int sym mblen _a xs ix idx
         (Nat n, _)           -> Just n
         (_    , TVIntMod m)  -> Just m
         _                    -> Nothing
-
-indexBack_int ::
+indexFront_segs ::
   W4.IsSymExprBuilder sym =>
   What4 sym ->
   Nat' ->
   TValue ->
-  SeqMap (What4 sym) ->
+  SeqMap (What4 sym) (GenValue (What4 sym)) ->
   TValue ->
-  SInteger (What4 sym) ->
+  Integer ->
+  [IndexSegment (What4 sym)] ->
   SEval (What4 sym) (Value sym)
-indexBack_int sym (Nat n) a xs ix idx = indexFront_int sym (Nat n) a (reverseSeqMap n xs) ix idx
-indexBack_int _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["indexBack_int"]
-
-indexFront_word ::
-  W4.IsSymExprBuilder sym =>
-  What4 sym ->
-  Nat' ->
-  TValue ->
-  SeqMap (What4 sym) ->
-  TValue ->
-  SWord (What4 sym) ->
-  SEval (What4 sym) (Value sym)
-indexFront_word sym mblen _a xs _ix idx
+indexFront_segs sym mblen _a xs _ix _idx_bits [WordIndexSegment idx]
   | Just i <- SW.bvAsUnsignedInteger idx
   = lookupSeqMap xs i
 
@@ -635,112 +586,34 @@ indexFront_word sym mblen _a xs _ix idx
         Just (lo, hi) -> [lo .. min hi maxIdx]
         _ -> [0 .. maxIdx]
 
-indexBack_word ::
-  W4.IsSymExprBuilder sym =>
-  What4 sym ->
-  Nat' ->
-  TValue ->
-  SeqMap (What4 sym) ->
-  TValue ->
-  SWord (What4 sym) ->
-  SEval (What4 sym) (Value sym)
-indexBack_word sym (Nat n) a xs ix idx = indexFront_word sym (Nat n) a (reverseSeqMap n xs) ix idx
-indexBack_word _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["indexBack_word"]
-
-indexFront_bits :: forall sym.
-  W4.IsSymExprBuilder sym =>
-  What4 sym ->
-  Nat' ->
-  TValue ->
-  SeqMap (What4 sym) ->
-  TValue ->
-  [SBit (What4 sym)] ->
-  SEval (What4 sym) (Value sym)
-indexFront_bits sym mblen _a xs _ix bits0 = go 0 (length bits0) bits0
- where
-  go :: Integer -> Int -> [W4.Pred sym] -> W4Eval sym (Value sym)
-  go i _k []
-    -- For indices out of range, fail
-    | Nat n <- mblen
-    , i >= n
-    = raiseError sym (InvalidIndex (Just i))
-
-    | otherwise
-    = lookupSeqMap xs i
-
-  go i k (b:bs)
-    -- Fail early when all possible indices we could compute from here
-    -- are out of bounds
-    | Nat n <- mblen
-    , (i `shiftL` k) >= n
-    = raiseError sym (InvalidIndex Nothing)
-
-    | otherwise
-    = iteValue sym b
-         (go ((i `shiftL` 1) + 1) (k-1) bs)
-         (go  (i `shiftL` 1)      (k-1) bs)
-
-indexBack_bits ::
-  W4.IsSymExprBuilder sym =>
-  What4 sym ->
-  Nat' ->
-  TValue ->
-  SeqMap (What4 sym) ->
-  TValue ->
-  [SBit (What4 sym)] ->
-  SEval (What4 sym) (Value sym)
-indexBack_bits sym (Nat n) a xs ix idx = indexFront_bits sym (Nat n) a (reverseSeqMap n xs) ix idx
-indexBack_bits _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["indexBack_bits"]
-
-
--- | Compare a symbolic word value with a concrete integer.
-wordValueEqualsInteger :: forall sym.
-  W4.IsSymExprBuilder sym =>
-  What4 sym ->
-  WordValue (What4 sym) ->
-  Integer ->
-  W4Eval sym (W4.Pred sym)
-wordValueEqualsInteger sym wv i
-  | wordValueSize sym wv < widthInteger i = return (W4.falsePred w4sym)
-  | otherwise =
-    case wv of
-      WordVal w -> liftIO (SW.bvEq w4sym w =<< SW.bvLit w4sym (SW.bvWidth w) i)
-      _ -> liftIO . bitsAre i =<< enumerateWordValueRev sym wv -- little-endian
+indexFront_segs sym mblen _a xs _ix idx_bits segs =
+  do xs' <- barrelShifter sym (mergeValue sym) shiftOp mblen xs idx_bits segs
+     lookupSeqMap xs' 0
   where
-    w4sym = w4 sym
+    shiftOp vs amt = pure (indexSeqMap (\i -> lookupSeqMap vs $! amt+i))
 
-    bitsAre :: Integer -> [W4.Pred sym] -> IO (W4.Pred sym)
-    bitsAre n [] = pure (W4.backendPred w4sym (n == 0))
-    bitsAre n (b : bs) =
-      do pb  <- bitIs (testBit n 0) b
-         pbs <- bitsAre (n `shiftR` 1) bs
-         W4.andPred w4sym pb pbs
-
-    bitIs :: Bool -> W4.Pred sym -> IO (W4.Pred sym)
-    bitIs b x = if b then pure x else W4.notPred w4sym x
 
 updateFrontSym ::
   W4.IsSymExprBuilder sym =>
   What4 sym ->
   Nat' ->
   TValue ->
-  SeqMap (What4 sym) ->
+  SeqMap (What4 sym) (GenValue (What4 sym)) ->
   Either (SInteger (What4 sym)) (WordValue (What4 sym)) ->
   SEval (What4 sym) (Value sym) ->
-  SEval (What4 sym) (SeqMap (What4 sym))
+  SEval (What4 sym) (SeqMap (What4 sym) (GenValue (What4 sym)))
 updateFrontSym sym _len _eltTy vs (Left idx) val =
   case W4.asInteger idx of
     Just i -> return $ updateSeqMap vs i val
-    Nothing -> return $ IndexSeqMap $ \i ->
+    Nothing -> return $ indexSeqMap $ \i ->
       do b <- intEq sym idx =<< integerLit sym i
          iteValue sym b val (lookupSeqMap vs i)
 
-updateFrontSym sym _len _eltTy vs (Right wv) val =
-  case wv of
-    WordVal w | Just j <- SW.bvAsUnsignedInteger w ->
-      return $ updateSeqMap vs j val
-    _ ->
-      memoMap sym $ IndexSeqMap $ \i ->
+updateFrontSym sym len _eltTy vs (Right wv) val =
+  wordValAsLit sym wv >>= \case
+    Just j -> return $ updateSeqMap vs j val
+    Nothing ->
+      memoMap sym len $ indexSeqMap $ \i ->
       do b <- wordValueEqualsInteger sym wv i
          iteValue sym b val (lookupSeqMap vs i)
 
@@ -749,25 +622,25 @@ updateBackSym ::
   What4 sym ->
   Nat' ->
   TValue ->
-  SeqMap (What4 sym) ->
+  SeqMap (What4 sym) (GenValue (What4 sym)) ->
   Either (SInteger (What4 sym)) (WordValue (What4 sym)) ->
   SEval (What4 sym) (Value sym) ->
-  SEval (What4 sym) (SeqMap (What4 sym))
+  SEval (What4 sym) (SeqMap (What4 sym) (GenValue (What4 sym)))
 updateBackSym _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["updateBackSym"]
 
 updateBackSym sym (Nat n) _eltTy vs (Left idx) val =
   case W4.asInteger idx of
     Just i -> return $ updateSeqMap vs (n - 1 - i) val
-    Nothing -> return $ IndexSeqMap $ \i ->
+    Nothing -> return $ indexSeqMap $ \i ->
       do b <- intEq sym idx =<< integerLit sym (n - 1 - i)
          iteValue sym b val (lookupSeqMap vs i)
 
 updateBackSym sym (Nat n) _eltTy vs (Right wv) val =
-  case wv of
-    WordVal w | Just j <- SW.bvAsUnsignedInteger w ->
+  wordValAsLit sym wv >>= \case
+    Just j ->
       return $ updateSeqMap vs (n - 1 - j) val
-    _ ->
-      memoMap sym $ IndexSeqMap $ \i ->
+    Nothing ->
+      memoMap sym (Nat n) $ indexSeqMap $ \i ->
       do b <- wordValueEqualsInteger sym wv (n - 1 - i)
          iteValue sym b val (lookupSeqMap vs i)
 
@@ -783,36 +656,11 @@ updateFrontSym_word ::
   SEval (What4 sym) (WordValue (What4 sym))
 updateFrontSym_word _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["updateFrontSym_word"]
 
-updateFrontSym_word sym (Nat _) eltTy (LargeBitsVal n bv) idx val =
-  LargeBitsVal n <$> updateFrontSym sym (Nat n) eltTy bv idx val
-
-updateFrontSym_word sym (Nat n) eltTy (WordVal bv) (Left idx) val =
+updateFrontSym_word sym (Nat n) _eltTy w (Left idx) val =
   do idx' <- wordFromInt sym n idx
-     updateFrontSym_word sym (Nat n) eltTy (WordVal bv) (Right (WordVal idx')) val
-
-updateFrontSym_word sym (Nat n) eltTy bv (Right wv) val =
-  case wv of
-    WordVal idx
-      | Just j <- SW.bvAsUnsignedInteger idx ->
-          updateWordValue sym bv j (fromVBit <$> val)
-
-      | WordVal bw <- bv ->
-        WordVal <$>
-          do b <- fromVBit <$> val
-             let sz = SW.bvWidth bw
-             highbit <- liftIO (SW.bvLit (w4 sym) sz (bit (fromInteger (sz-1))))
-             msk <- w4bvLshr (w4 sym) highbit idx
-             liftIO $
-               case W4.asConstantPred b of
-                 Just True  -> SW.bvOr  (w4 sym) bw msk
-                 Just False -> SW.bvAnd (w4 sym) bw =<< SW.bvNot (w4 sym) msk
-                 Nothing ->
-                   do q <- SW.bvFill (w4 sym) sz b
-                      bw' <- SW.bvAnd (w4 sym) bw =<< SW.bvNot (w4 sym) msk
-                      SW.bvXor (w4 sym) bw' =<< SW.bvAnd (w4 sym) q msk
-
-    _ -> LargeBitsVal (wordValueSize sym wv) <$>
-           updateFrontSym sym (Nat n) eltTy (asBitsMap sym bv) (Right wv) val
+     updateWordByWord sym IndexForward w (wordVal idx') (fromVBit <$> val)
+updateFrontSym_word sym (Nat _n) _eltTy w (Right idx) val =
+  updateWordByWord sym IndexForward w idx (fromVBit <$> val)
 
 
 updateBackSym_word ::
@@ -824,35 +672,10 @@ updateBackSym_word ::
   Either (SInteger (What4 sym)) (WordValue (What4 sym)) ->
   SEval (What4 sym) (GenValue (What4 sym)) ->
   SEval (What4 sym) (WordValue (What4 sym))
-updateBackSym_word _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["updateBackSym_word"]
+updateBackSym_word _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["updateFrontSym_word"]
 
-updateBackSym_word sym (Nat _) eltTy (LargeBitsVal n bv) idx val =
-  LargeBitsVal n <$> updateBackSym sym (Nat n) eltTy bv idx val
-
-updateBackSym_word sym (Nat n) eltTy (WordVal bv) (Left idx) val =
+updateBackSym_word sym (Nat n) _eltTy w (Left idx) val =
   do idx' <- wordFromInt sym n idx
-     updateBackSym_word sym (Nat n) eltTy (WordVal bv) (Right (WordVal idx')) val
-
-updateBackSym_word sym (Nat n) eltTy bv (Right wv) val =
-  case wv of
-    WordVal idx
-      | Just j <- SW.bvAsUnsignedInteger idx ->
-          updateWordValue sym bv (n - 1 - j) (fromVBit <$> val)
-
-      | WordVal bw <- bv ->
-        WordVal <$>
-          do b <- fromVBit <$> val
-             let sz = SW.bvWidth bw
-             lowbit <- liftIO (SW.bvLit (w4 sym) sz 1)
-             msk <- w4bvShl (w4 sym) lowbit idx
-             liftIO $
-               case W4.asConstantPred b of
-                 Just True  -> SW.bvOr  (w4 sym) bw msk
-                 Just False -> SW.bvAnd (w4 sym) bw =<< SW.bvNot (w4 sym) msk
-                 Nothing ->
-                   do q <- SW.bvFill (w4 sym) sz b
-                      bw' <- SW.bvAnd (w4 sym) bw =<< SW.bvNot (w4 sym) msk
-                      SW.bvXor (w4 sym) bw' =<< SW.bvAnd (w4 sym) q msk
-
-    _ -> LargeBitsVal (wordValueSize sym wv) <$>
-           updateBackSym sym (Nat n) eltTy (asBitsMap sym bv) (Right wv) val
+     updateWordByWord sym IndexBackward w (wordVal idx') (fromVBit <$> val)
+updateBackSym_word sym (Nat _n) _eltTy w (Right idx) val =
+  updateWordByWord sym IndexBackward w idx (fromVBit <$> val)
