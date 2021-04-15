@@ -2,7 +2,7 @@ take `{Integer}              // kind mismatch
 take `{a = Z 1 2}            // Too amny type params
 [ 1@i | i <- [1,2,3] ]       // AmbiguousNumericType
 \x -> x x                    // Recusive type
-take `{inf}                  // Unsolvalbe constraint
+drop `{inf}                  // Unsolvable constraint
 take {1,2,Integer,4}         // TooManyPositionalTypeParams
 take `{1}`{a=Integer}        // CannotMixPositionalAndNamed
 True : Integer               // TypeMismatch

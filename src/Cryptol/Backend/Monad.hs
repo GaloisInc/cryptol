@@ -328,13 +328,15 @@ modifyCallStack f m =
   Eval $ \stk ->
     do let stk' = f stk
        -- putStrLn $ unwords ["Pushing call stack", show (displayCallStack stk')]
-       runEval stk' m
+       seq stk' (runEval stk' m)
+{-# INLINE modifyCallStack #-}
 
 -- | Execute the given evaluation action.
 runEval :: CallStack -> Eval a -> IO a
 runEval _   (Ready a)  = return a
 runEval stk (Eval x)   = x stk
 runEval _   (Thunk tv) = unDelay tv
+{-# INLINE runEval #-}
 
 {-# INLINE evalBind #-}
 evalBind :: Eval a -> (a -> Eval b) -> Eval b

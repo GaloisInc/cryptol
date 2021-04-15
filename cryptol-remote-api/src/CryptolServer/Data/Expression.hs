@@ -31,11 +31,15 @@ import Numeric (showHex)
 import Cryptol.Backend.Monad
 import Cryptol.Backend.Concrete hiding (Concrete)
 import qualified Cryptol.Backend.Concrete as C
+import Cryptol.Backend.SeqMap (enumerateSeqMap)
+import Cryptol.Backend.WordValue (asWordVal)
 
 import Cryptol.Eval (evalSel)
 import Cryptol.Eval.Concrete (Value)
 import Cryptol.Eval.Type (TValue(..), tValTy)
-import Cryptol.Eval.Value (GenValue(..), asWordVal, enumerateSeqMap)
+import Cryptol.Eval.Value (GenValue(..))
+
+
 import Cryptol.Parser
 import Cryptol.Parser.AST (Bind(..), BindDef(..), Decl(..), Expr(..), Named(Named), TypeInst(NamedInst), Type(..), PName(..), Literal(..), NumInfo(..), Type,
           ExportType(..))
@@ -389,7 +393,7 @@ readBack ty val =
         return Unit
       | contents == TVBit
       , VWord width wv <- val ->
-        do BV w v <- wv >>= asWordVal C.Concrete
+        do BV w v <- asWordVal C.Concrete wv
            let hexStr = T.pack $ showHex v ""
            let paddedLen = fromIntegral ((width `quot` 4) + (if width `rem` 4 == 0 then 0 else 1))
            return $ Num Hex (T.justifyRight paddedLen '0' hexStr) w

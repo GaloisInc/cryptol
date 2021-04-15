@@ -50,6 +50,8 @@ import qualified LibBF as FP
 
 import           Cryptol.Backend
 import           Cryptol.Backend.FloatHelpers(bfValue)
+import           Cryptol.Backend.SeqMap (finiteSeqMap)
+import           Cryptol.Backend.WordValue (wordVal)
 
 import qualified Cryptol.Eval.Concrete as Concrete
 import           Cryptol.Eval.Value
@@ -226,9 +228,9 @@ varShapeToValue sym var =
     VarBit b     -> VBit b
     VarInteger i -> VInteger i
     VarRational n d -> VRational (SRational n d)
-    VarWord w    -> VWord (wordLen sym w) (return (WordVal w))
+    VarWord w    -> VWord (wordLen sym w) (wordVal w)
     VarFloat f   -> VFloat f
-    VarFinSeq n vs -> VSeq n (finiteSeqMap (map (pure . varShapeToValue sym) vs))
+    VarFinSeq n vs -> VSeq n (finiteSeqMap sym (map (pure . varShapeToValue sym) vs))
     VarTuple vs  -> VTuple (map (pure . varShapeToValue sym) vs)
     VarRecord fs -> VRecord (fmap (pure . varShapeToValue sym) fs)
 

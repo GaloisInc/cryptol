@@ -7,6 +7,10 @@ module Cryptol.Backend
   , cryUserError
   , cryNoPrimError
   , FPArith2
+  , IndexDirection(..)
+
+  , enumerateIntBits
+  , enumerateIntBits'
 
     -- * Rationals
   , SRational(..)
@@ -29,14 +33,20 @@ module Cryptol.Backend
   , iteRational
   ) where
 
+import qualified Control.Exception as X
 import Control.Monad.IO.Class
 import Data.Kind (Type)
 
 import Cryptol.Backend.FloatHelpers (BF)
 import Cryptol.Backend.Monad
-  ( EvalError(..), CallStack, pushCallFrame )
+  ( EvalError(..), Unsupported(..), CallStack, pushCallFrame )
 import Cryptol.ModuleSystem.Name(Name)
 import Cryptol.Parser.Position
+import Cryptol.TypeCheck.Solver.InfNat(Nat'(..),widthInteger)
+
+data IndexDirection
+  = IndexForward
+  | IndexBackward
 
 invalidIndex :: Backend sym => sym -> Integer -> SEval sym a
 invalidIndex sym i = raiseError sym (InvalidIndex (Just i))
@@ -191,6 +201,31 @@ iteRational :: Backend sym => sym -> SBit sym -> SRational sym -> SRational sym 
 iteRational sym p (SRational a b) (SRational c d) =
   SRational <$> iteInteger sym p a c <*> iteInteger sym p b d
 
+-- | Compute the list of bits in an integer in big-endian order.
+--   The integer argument is a concrete upper bound for
+--   the symbolic integer.
+enumerateIntBits' :: Backend sym =>
+  sym ->
+  Integer ->
+  SInteger sym ->
+  SEval sym (Integer, [SBit sym])
+enumerateIntBits' sym n idx =
+  do let width = widthInteger n
+     w <- wordFromInt sym width idx
+     bs <- unpackWord sym w
+     pure (width, bs)
+
+-- | Compute the list of bits in an integer in big-endian order.
+--   Fails if neither the sequence length nor the type value
+--   provide an upper bound for the integer.
+enumerateIntBits :: Backend sym =>
+  sym ->
+  Nat' ->
+  SInteger sym ->
+  SEval sym (Integer, [SBit sym])
+enumerateIntBits sym (Nat n) idx = enumerateIntBits' sym n idx
+enumerateIntBits _sym Inf _ = liftIO (X.throw (UnsupportedSymbolicOp "unbounded integer shifting"))
+
 -- | This type class defines a collection of operations on bits, words and integers that
 --   are necessary to define generic evaluator primitives that operate on both concrete
 --   and symbolic values uniformly.
@@ -205,7 +240,7 @@ class MonadIO (SEval sym) => Backend sym where
 
   -- | Check if an operation is "ready", which means its
   --   evaluation will be trivial.
-  isReady :: sym -> SEval sym a -> Bool
+  isReady :: sym -> SEval sym a -> SEval sym (Maybe a)
 
   -- | Produce a thunk value which can be filled with its associated computation
   --   after the fact.  A preallocated thunk is returned, along with an operation to
@@ -487,6 +522,51 @@ class MonadIO (SEval sym) => Backend sym where
     SWord sym ->
     SWord sym ->
     SEval sym (SWord sym)
+
+  -- | Shift a bitvector left by the specified amount.
+  --   The shift amount is considered as an unsigned value.
+  --   Shifting by more than the word length results in 0.
+  wordShiftLeft ::
+    sym ->
+    SWord sym {- ^ value to shift -} ->
+    SWord sym {- ^ amount to shift by -} ->
+    SEval sym (SWord sym)
+
+  -- | Shift a bitvector right by the specified amount.
+  --   This is a logical shift, which shifts in 0 values
+  --   on the left. The shift amount is considered as an
+  --   unsigned value. Shifting by more than the word length
+  --   results in 0.
+  wordShiftRight ::
+    sym ->
+    SWord sym {- ^ value to shift -} ->
+    SWord sym {- ^ amount to shift by -} ->
+    SEval sym (SWord sym)
+
+  -- | Shift a bitvector right by the specified amount.  This is an
+  --   arithmetic shift, which shifts in copies of the high bit on the
+  --   left. The shift amount is considered as an unsigned
+  --   value. Shifting by more than the word length results in filling
+  --   the bitvector with the high bit.
+  wordSignedShiftRight ::
+    sym ->
+    SWord sym {- ^ value to shift -} ->
+    SWord sym {- ^ amount to shift by -} ->
+    SEval sym (SWord sym)
+
+  wordRotateLeft ::
+    sym ->
+    SWord sym {- ^ value to rotate -} ->
+    SWord sym {- ^ amount to rotate by -} ->
+    SEval sym (SWord sym)
+
+  wordRotateRight ::
+    sym ->
+    SWord sym {- ^ value to rotate -} ->
+    SWord sym {- ^ amount to rotate by -} ->
+    SEval sym (SWord sym)
+
+
 
   -- | 2's complement negation of bitvectors
   wordNegate ::

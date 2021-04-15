@@ -205,7 +205,7 @@ private
     type sha2_padded_size w L = sha2_num_blocks w L * sha2_block_size w
 
     sha2pad : {w, L} (fin w, fin L, w >= 1) => [L] -> [sha2_padded_size w L]
-    sha2pad M = M # 0b1 # zero # ((fromInteger `L) : [2*w])
+    sha2pad M = rnf (M # 0b1 # zero # ((fromInteger `L) : [2*w]))
 
     sha2blocks : {w, L} (fin w, fin L, w >= 1) =>
       [L] -> [sha2_num_blocks w L][16][w]

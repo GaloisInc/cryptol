@@ -152,8 +152,7 @@ instance Backend Concrete where
   wordUpdate _ (BV w x) idx True  = pure $! BV w (setBit   x (fromInteger (w - 1 - idx)))
   wordUpdate _ (BV w x) idx False = pure $! BV w (clearBit x (fromInteger (w - 1 - idx)))
 
-  isReady _ (Ready _) = True
-  isReady _ _ = False
+  isReady _ = maybeReady
 
   mergeEval _sym f c mx my =
     do x <- mx
@@ -284,6 +283,33 @@ instance Backend Concrete where
                sy = signedValue i y
            pure $! mkBv i (sx `rem` sy)
     | otherwise = panic "Attempt to mod words of different sizes: wordSignedMod" [show i, show j]
+
+  wordShiftLeft _sym (BV w ival) (BV _ by)
+    | by >= w   = pure $! BV w 0
+    | by > toInteger (maxBound :: Int) = panic "shl" ["Shift amount too large", show by]
+    | otherwise = pure $! mkBv w (shiftL ival (fromInteger by))
+
+  wordShiftRight _sym (BV w ival) (BV _ by)
+    | by >= w   = pure $! BV w 0
+    | by > toInteger (maxBound :: Int) = panic "lshr" ["Shift amount too large", show by]
+    | otherwise = pure $! BV w (shiftR ival (fromInteger by))
+
+  wordSignedShiftRight _sym (BV w ival) (BV _ by) =
+    let by' = min w by in
+    if by' > toInteger (maxBound :: Int) then
+      panic "wordSignedShiftRight" ["Shift amount too large", show by]
+    else
+      pure $! mkBv w (shiftR (signedValue w ival) (fromInteger by'))
+
+  wordRotateRight _sym (BV 0 i) _ = pure (BV 0 i)
+  wordRotateRight _sym (BV w i) (BV _ by) =
+      pure . mkBv w $! (i `shiftR` b) .|. (i `shiftL` (fromInteger w - b))
+    where b = fromInteger (by `mod` w)
+
+  wordRotateLeft _sym (BV 0 i) _ = pure (BV 0 i)
+  wordRotateLeft _sym (BV w i) (BV _ by) =
+      pure . mkBv w $! (i `shiftL` b) .|. (i `shiftR` (fromInteger w - b))
+    where b = fromInteger (by `mod` w)
 
   wordLg2 _ (BV i x) = pure $! mkBv i (lg2 x)
 

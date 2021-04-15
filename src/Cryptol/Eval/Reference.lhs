@@ -560,13 +560,13 @@ by corresponding type classes:
 
 * Comparison: `<`, `>`, `<=`, `>=`, `==`, `!=`
 
-* Sequences: `#`, `join`, `split`, `splitAt`, `reverse`, `transpose`
+* Sequences: `#`, `join`, `split`, `take`, `drop`, `reverse`, `transpose`
 
 * Shifting: `<<`, `>>`, `<<<`, `>>>`
 
 * Indexing: `@`, `@@`, `!`, `!!`, `update`, `updateEnd`
 
-* Enumerations: `fromTo`, `fromThenTo`, `infFrom`, `infFromThen`
+* Enumerations: `fromTo`, `fromThenTo`, `fromToLessThan`, `infFrom`, `infFromThen`
 
 * Polynomials: `pmult`, `pdiv`, `pmod`
 
@@ -734,17 +734,21 @@ by corresponding type classes:
 >                           do vs <- fromVList <$> val
 >                              indexFront (nMul parts (Nat each)) vs (i * each + j)
 >
->   , "splitAt"    ~> vFinPoly $ \front -> pure $
+>   , "take"       ~> VNumPoly $ \front -> pure $
+>                     VNumPoly $ \back  -> pure $
+>                     VPoly    $ \_a    -> pure $
+>                     VFun     $ \v ->
+>                       pure $ generateV front $ \i ->
+>                                do vs <- fromVList <$> v
+>                                   indexFront (nAdd front back) vs i
+>
+>   , "drop"       ~> vFinPoly $ \front -> pure $
 >                     VNumPoly $ \back -> pure $
 >                     VPoly $ \_a -> pure $
 >                     VFun $ \v ->
->                       let xs = pure $ generateV (Nat front) $ \i ->
->                                  do vs <- fromVList <$> v
->                                     indexFront (nAdd (Nat front) back) vs i
->                           ys = pure $ generateV back $ \i ->
->                                  do vs <- fromVList <$> v
->                                     indexFront (nAdd (Nat front) back) vs (front+i)
->                        in pure (VTuple [ xs, ys ])
+>                       pure $ generateV back $ \i ->
+>                                do vs <- fromVList <$> v
+>                                   indexFront (nAdd (Nat front) back) vs (front+i)
 >
 >   , "reverse"    ~> vFinPoly $ \n -> pure $
 >                     VPoly $ \_a -> pure $
@@ -790,6 +794,17 @@ by corresponding type classes:
 >                     let f i = literal i ty
 >                     in pure (VList (Nat len)
 >                               (map f (genericTake len [first, next ..])))
+>
+>   , "fromToLessThan" ~>
+>                     vFinPoly $ \first -> pure $
+>                     VNumPoly $ \bound -> pure $
+>                     VPoly    $ \ty    ->
+>                     let f i = literal i ty in
+>                     case bound of
+>                       Inf -> pure (VList Inf (map f [first ..]))
+>                       Nat bound' ->
+>                         let len = bound' - first in
+>                         pure (VList (Nat len) (map f (genericTake len [first ..])))
 >
 >   , "infFrom"    ~> VPoly $ \ty -> pure $
 >                     VFun $ \first ->

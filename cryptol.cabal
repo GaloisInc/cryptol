@@ -64,7 +64,6 @@ library
                        parameterized-utils >= 2.0.2,
                        pretty            >= 1.1,
                        process           >= 1.2,
-                       random            >= 1.0.1,
                        sbv               >= 8.6 && < 8.14,
                        simple-smt        >= 0.7.1,
                        stm               >= 2.4,
@@ -165,8 +164,10 @@ library
                        Cryptol.Backend.Concrete,
                        Cryptol.Backend.FloatHelpers,
                        Cryptol.Backend.Monad,
+                       Cryptol.Backend.SeqMap,
                        Cryptol.Backend.SBV,
                        Cryptol.Backend.What4,
+                       Cryptol.Backend.WordValue,
 
                        Cryptol.Eval,
                        Cryptol.Eval.Concrete,

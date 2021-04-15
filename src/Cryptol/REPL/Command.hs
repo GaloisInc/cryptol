@@ -65,6 +65,7 @@ import qualified Cryptol.Utils.Ident as M
 import qualified Cryptol.ModuleSystem.Env as M
 
 import qualified Cryptol.Backend.Monad as E
+import qualified Cryptol.Backend.SeqMap as E
 import           Cryptol.Eval.Concrete( Concrete(..) )
 import qualified Cryptol.Eval.Concrete as Concrete
 import qualified Cryptol.Eval.Env as E
@@ -1404,8 +1405,8 @@ cdCmd f | null f = rPutStrLn $ "[error] :cd requires a path argument"
 -- XXX this should probably do something a bit more specific.
 handleCtrlC :: a -> REPL a
 handleCtrlC a = do rPutStrLn "Ctrl-C"
+                   resetTCSolver
                    return a
-
 
 -- Utilities -------------------------------------------------------------------
 

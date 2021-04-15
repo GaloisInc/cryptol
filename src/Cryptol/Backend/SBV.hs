@@ -48,7 +48,7 @@ import Cryptol.Backend.Concrete ( integerToChar )
 import Cryptol.Backend.Monad
   ( Eval(..), blackhole, delayFill, evalSpark
   , EvalError(..), EvalErrorEx(..), Unsupported(..)
-  , modifyCallStack, getCallStack
+  , modifyCallStack, getCallStack, maybeReady
   )
 
 import Cryptol.Utils.Panic (panic)
@@ -162,8 +162,10 @@ instance Backend SBV where
     | Just False <- svAsBool cond = raiseError sym err
     | otherwise = SBVEval (pure (SBVResult cond ()))
 
-  isReady _ (SBVEval (Ready _)) = True
-  isReady _ _ = False
+  isReady _ (SBVEval m) = SBVEval $
+    maybeReady m >>= \case
+      Just x  -> pure (Just <$> x)
+      Nothing -> pure (pure Nothing)
 
   sDelayFill _ m retry msg = SBVEval $
     do m' <- delayFill (sbvEval m) (sbvEval <$> retry) msg
@@ -261,6 +263,12 @@ instance Backend SBV where
   wordMinus _ a b = pure $! svMinus a b
   wordMult  _ a b = pure $! svTimes a b
   wordNegate _ a  = pure $! svUNeg a
+
+  wordShiftLeft _ a b   = pure $! shl a b
+  wordShiftRight _ a b  = pure $! lshr a b
+  wordRotateLeft _ a b  = pure $! SBV.svRotateLeft a b
+  wordRotateRight _ a b = pure $! SBV.svRotateRight a b
+  wordSignedShiftRight _ a b = pure $! ashr a b
 
   wordDiv sym a b =
     do let z = literalSWord (intSizeOf b) 0
