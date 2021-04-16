@@ -15,6 +15,7 @@ module Cryptol.TypeCheck
   , InferInput(..)
   , InferOutput(..)
   , SolverConfig(..)
+  , defaultSolverConfig
   , NameSeeds
   , nameSeeds
   , Error(..)
@@ -49,7 +50,7 @@ import           Cryptol.TypeCheck.Monad
                    , io
                    )
 import Cryptol.TypeCheck.Infer (inferModule, inferBinds, checkTopDecls)
-import Cryptol.TypeCheck.InferTypes(VarType(..), SolverConfig(..))
+import Cryptol.TypeCheck.InferTypes(VarType(..), SolverConfig(..), defaultSolverConfig)
 import Cryptol.TypeCheck.Solve(proveModuleTopLevel)
 import Cryptol.TypeCheck.CheckModuleInstance(checkModuleInstance)
 -- import Cryptol.TypeCheck.Monad(withParamType,withParameterConstraints)

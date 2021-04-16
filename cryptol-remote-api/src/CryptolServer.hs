@@ -19,7 +19,7 @@ import Cryptol.ModuleSystem.Env
    initialModuleEnv, meSearchPath, ModulePath(..))
 import Cryptol.ModuleSystem.Fingerprint ( fingerprintFile )
 import Cryptol.Parser.AST (ModName)
-import Cryptol.TypeCheck( SolverConfig(..) )
+import Cryptol.TypeCheck( defaultSolverConfig )
 import qualified Cryptol.TypeCheck.Solver.SMT as SMT
 
 import qualified Argo
@@ -134,15 +134,6 @@ initialState =
   do modEnv <- initialModuleEnv
      s <- SMT.startSolver (defaultSolverConfig (meSearchPath modEnv))
      pure (ServerState Nothing modEnv s)
-
-defaultSolverConfig :: [FilePath] -> SolverConfig
-defaultSolverConfig searchPath =
-  SolverConfig
-  { solverPath = "z3"
-  , solverArgs = [ "-smt2", "-in" ]
-  , solverVerbose = 0
-  , solverPreludePath = searchPath
-  }
 
 extendSearchPath :: [FilePath] -> ServerState -> ServerState
 extendSearchPath paths =
