@@ -200,7 +200,7 @@ class CryptolProveSat(argo.Command):
         if res['result'] == 'unsatisfiable':
             if self.qtype == 'sat':
                 return False
-            elif self.qtype == 'prove':
+            elif self.qtype == 'prove' or self.qtype == 'safe':
                 return True
             else:
                 raise ValueError("Unknown prove/sat query type: " + self.qtype)
@@ -212,7 +212,7 @@ class CryptolProveSat(argo.Command):
                     for m in res['models']
                     for arg in m]
         else:
-            raise ValueError("Unknown sat result " + str(res))
+            raise ValueError("Unknown prove or sat result " + str(res))
 
 class CryptolProve(CryptolProveSat):
     def __init__(self, connection : HasProtocolState, expr : Any, solver : solver.Solver) -> None:
@@ -221,6 +221,10 @@ class CryptolProve(CryptolProveSat):
 class CryptolSat(CryptolProveSat):
     def __init__(self, connection : HasProtocolState, expr : Any, solver : solver.Solver, count : int) -> None:
         super(CryptolSat, self).__init__(connection, 'sat', expr, solver, count)
+
+class CryptolSafe(CryptolProveSat):
+    def __init__(self, connection : HasProtocolState, expr : Any, solver : solver.Solver) -> None:
+        super(CryptolSafe, self).__init__(connection, 'safe', expr, solver, 1)
 
 class CryptolNames(argo.Command):
     def __init__(self, connection : HasProtocolState) -> None:
@@ -454,6 +458,13 @@ class CryptolConnection:
         their JSON equivalents. Use the solver named `solver`.
         """
         self.most_recent_result = CryptolProve(self, expr, solver)
+        return self.most_recent_result
+
+    def safe(self, expr : Any, solver : solver.Solver = solver.Z3) -> argo.Command:
+        """Check via an external SMT solver that the given term is safe for all inputs,
+        which means it cannot encounter a run-time error.
+        """
+        self.most_recent_result = CryptolSafe(self, expr, solver)
         return self.most_recent_result
 
     def names(self) -> argo.Command:
