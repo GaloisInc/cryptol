@@ -15,6 +15,7 @@ module Cryptol.Utils.Ident
   , apPathRoot
   , modPathCommon
   , topModuleFor
+  , modPathSplit
 
   , ModName
   , modNameToText
