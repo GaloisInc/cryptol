@@ -69,18 +69,6 @@ def from_cryptol_arg(val : Any) -> Any:
         raise TypeError("Unsupported value " + str(val))
 
 
-
-class CryptolChangeDirectory(argo.Command):
-    def __init__(self, connection : HasProtocolState, new_directory : str) -> None:
-        super(CryptolChangeDirectory, self).__init__(
-            'change directory',
-            {'directory': new_directory},
-            connection
-        )
-
-    def process_result(self, res : Any) -> Any:
-        return res
-
 class CryptolLoadModule(argo.Command):
     def __init__(self, connection : HasProtocolState, mod_name : str) -> None:
         super(CryptolLoadModule, self).__init__('load module', {'module name': mod_name}, connection)
@@ -376,11 +364,6 @@ class CryptolConnection:
             return self.most_recent_result.state()
 
     # Protocol messages
-    def change_directory(self, new_directory : str) -> argo.Command:
-        """Change the working directory of the Cryptol process."""
-        self.most_recent_result = CryptolChangeDirectory(self, new_directory)
-        return self.most_recent_result
-
     def load_file(self, filename : str) -> argo.Command:
         """Load a filename as a Cryptol module, like ``:load`` at the Cryptol
         REPL.
