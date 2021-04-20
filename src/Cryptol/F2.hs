@@ -32,7 +32,7 @@ pdiv w x m = go (w-1) 0 0
 
 
 pmod :: Int -> Integer -> Integer -> Integer
-pmod w x m = mask .&. go 0 0 (reduce 1)
+pmod w x m = go degree (x .&. mask) (clearBit m degree)
   where
     degree :: Int
     degree = fromInteger (widthInteger m - 1)
@@ -43,6 +43,7 @@ pmod w x m = mask .&. go 0 0 (reduce 1)
 
     mask = bit degree - 1
 
+    -- invariant: z and p are in the range [0..mask]
     go !i !z !p
       | i < w     = go (i+1) (if testBit x i then z `xor` p else z) (reduce (p `shiftL` 1))
       | otherwise = z
