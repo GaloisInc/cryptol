@@ -1,0 +1,6 @@
+module T18::B where
+
+import T18::A
+import T18::A1
+
+f = u

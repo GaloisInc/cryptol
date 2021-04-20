@@ -1,0 +1,5 @@
+module T18::A where
+
+u = 0x02
+
+

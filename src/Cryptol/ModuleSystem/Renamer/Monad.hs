@@ -250,10 +250,16 @@ checkEnv check (NamingEnv lenv) r rw0
 
   where
   newEnv         = NamingEnv newMap
-  (rwFin,newMap) = Map.mapAccumWithKey doNS rw0 lenv
+  (rwFin,newMap) = Map.mapAccumWithKey doNS rw0 lenv  -- lenv 1 ns at a time
   doNS rw ns     = Map.mapAccumWithKey (step ns) rw
 
-  step ns acc k xs = (acc', [head xs])
+  -- namespace, current state, k : parse name, xs : possible entities for k
+  step ns acc k xs = (acc', case check of
+                              CheckNone -> xs
+                              _         -> [head xs]
+                              -- we've already reported an overlap error,
+                              -- so resolve arbitrarily to  the first entry
+                      )
     where
     acc' = acc
       { rwWarnings =

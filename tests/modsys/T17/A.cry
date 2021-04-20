@@ -1,0 +1,5 @@
+module T17::A where
+
+u = 0x02
+
+

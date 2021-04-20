@@ -161,8 +161,10 @@ renameModule' thisNested env mpath m =
          allImps   = openLoop allNested env openDs imps
 
      (inScope,decls') <-
-        shadowNames allImps $
+        shadowNames' CheckNone allImps $
         shadowNames' CheckOverlap env $
+                          -- maybe we should allow for a warning
+                          -- if a local name shadows an imported one?
         do inScope <- getNamingEnv
            ds      <- renameTopDecls' (allNested,mpath) (mDecls m)
            pure (inScope, ds)
