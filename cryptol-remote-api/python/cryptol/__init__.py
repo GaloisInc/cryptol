@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import os
+from enum import Enum
 from dataclasses import dataclass
 from distutils.spawn import find_executable
 from typing import Any, List, NoReturn, Optional, Union
@@ -184,8 +185,13 @@ class CryptolCheckType(argo.Command):
     def process_result(self, res : Any) -> Any:
         return res['type schema']
 
+class SmtQueryType(str, Enum):
+    PROVE = 'prove'
+    SAFE  = 'safe'
+    SAT   = 'sat'
+
 class CryptolProveSat(argo.Command):
-    def __init__(self, connection : HasProtocolState, qtype : str, expr : Any, solver : solver.Solver, count : Optional[int]) -> None:
+    def __init__(self, connection : HasProtocolState, qtype : SmtQueryType, expr : Any, solver : solver.Solver, count : Optional[int]) -> None:
         super(CryptolProveSat, self).__init__(
             'prove or satisfy',
             {'query type': qtype,
@@ -198,9 +204,9 @@ class CryptolProveSat(argo.Command):
 
     def process_result(self, res : Any) -> Any:
         if res['result'] == 'unsatisfiable':
-            if self.qtype == 'sat':
+            if self.qtype == SmtQueryType.SAT:
                 return False
-            elif self.qtype == 'prove' or self.qtype == 'safe':
+            elif self.qtype == SmtQueryType.PROVE or self.qtype == SmtQueryType.SAT:
                 return True
             else:
                 raise ValueError("Unknown prove/sat query type: " + self.qtype)
@@ -212,19 +218,19 @@ class CryptolProveSat(argo.Command):
                     for m in res['models']
                     for arg in m]
         else:
-            raise ValueError("Unknown prove or sat result " + str(res))
+            raise ValueError("Unknown SMT result: " + str(res))
 
 class CryptolProve(CryptolProveSat):
     def __init__(self, connection : HasProtocolState, expr : Any, solver : solver.Solver) -> None:
-        super(CryptolProve, self).__init__(connection, 'prove', expr, solver, 1)
+        super(CryptolProve, self).__init__(connection, SmtQueryType.PROVE, expr, solver, 1)
 
 class CryptolSat(CryptolProveSat):
     def __init__(self, connection : HasProtocolState, expr : Any, solver : solver.Solver, count : int) -> None:
-        super(CryptolSat, self).__init__(connection, 'sat', expr, solver, count)
+        super(CryptolSat, self).__init__(connection, SmtQueryType.SAT, expr, solver, count)
 
 class CryptolSafe(CryptolProveSat):
     def __init__(self, connection : HasProtocolState, expr : Any, solver : solver.Solver) -> None:
-        super(CryptolSafe, self).__init__(connection, 'safe', expr, solver, 1)
+        super(CryptolSafe, self).__init__(connection, SmtQueryType.SAFE, expr, solver, 1)
 
 class CryptolNames(argo.Command):
     def __init__(self, connection : HasProtocolState) -> None:
@@ -273,7 +279,7 @@ def connect(command : Optional[str]=None,
     :param cryptol_path: A replacement for the contents of
       the ``CRYPTOLPATH`` environment variable (if provided).
 
-    :param url: A URL at which to connect to an already running Cryptol 
+    :param url: A URL at which to connect to an already running Cryptol
     HTTP server.
 
     :param reset_server: If ``True``, the server that is connected to will be
