@@ -1,4 +1,4 @@
-[![Cryptol](https://github.com/GaloisInc/cryptol/actions/workflows/build.yml/badge.svg?event=push)](https://github.com/GaloisInc/cryptol/actions/workflows/ci.yml)
+[![Cryptol](https://github.com/GaloisInc/cryptol/workflows/Cryptol/badge.svg)](https://github.com/GaloisInc/cryptol/actions?query=workflow%3ACryptol)
 
 # Cryptol, version 2
 
