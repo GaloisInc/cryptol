@@ -39,7 +39,7 @@ retry() {
 
 setup_external_tools() {
   is_exe "$BIN" "test-runner" && return
-  cabal v2-install --install-method=copy --installdir="$BIN" test-lib-0.3
+  cabal v2-install --install-method=copy --installdir="$BIN" test-lib
 }
 
 setup_dist_bins() {
