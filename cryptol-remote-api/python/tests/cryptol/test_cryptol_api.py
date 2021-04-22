@@ -138,6 +138,15 @@ class CryptolTests(unittest.TestCase):
         self.assertEqual(len(res.args), 1)
         self.assertIsInstance(res.error_msg, str)
 
+    def test_safe(self):
+        c = self.c
+        res = c.safe("\\x -> x==(x:[8])").result()
+        self.assertTrue(res)
+
+        res = c.safe("\\x -> x / (x:[8])").result()
+        self.assertEqual(res, [BV(size=8, value=0)])
+
+
     def test_many_usages_one_connection(self):
         c = self.c
         for i in range(0,100):
