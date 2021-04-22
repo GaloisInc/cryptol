@@ -209,7 +209,7 @@ class CryptolProveSat(argo.Command):
             elif self.qtype == SmtQueryType.PROVE or self.qtype == SmtQueryType.SAT:
                 return True
             else:
-                raise ValueError("Unknown prove/sat query type: " + self.qtype)
+                raise ValueError("Unknown SMT query type: " + self.qtype)
         elif res['result'] == 'invalid':
             return [from_cryptol_arg(arg['expr'])
                     for arg in res['counterexample']]
