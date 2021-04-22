@@ -183,13 +183,7 @@ defaultRW :: Bool -> Bool -> Logger -> IO RW
 defaultRW isBatch callStacks l = do
   env <- M.initialModuleEnv
   let searchPath = M.meSearchPath env
-  let solverConfig =
-             T.SolverConfig
-             { T.solverPath = "z3"
-             , T.solverArgs = [ "-smt2", "-in" ]
-             , T.solverVerbose = 0
-             , T.solverPreludePath = searchPath
-             }
+  let solverConfig = T.defaultSolverConfig searchPath
   return RW
     { eLoadedMod   = Nothing
     , eEditFile    = Nothing

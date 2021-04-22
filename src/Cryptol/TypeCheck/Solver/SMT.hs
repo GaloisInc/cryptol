@@ -67,6 +67,7 @@ data Solver = Solver
     -- ^ For debugging
   }
 
+
 -- | Start a fresh solver instance
 startSolver :: SolverConfig -> IO Solver
 startSolver SolverConfig { .. } =

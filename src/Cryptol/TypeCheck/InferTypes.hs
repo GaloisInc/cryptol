@@ -48,6 +48,18 @@ data SolverConfig = SolverConfig
   } deriving (Show, Generic, NFData)
 
 
+-- | A default configuration for using Z3, where
+--   the solver prelude is expected to be found
+--   in the given search path.
+defaultSolverConfig :: [FilePath] -> SolverConfig
+defaultSolverConfig searchPath =
+  SolverConfig
+  { solverPath = "z3"
+  , solverArgs = [ "-smt2", "-in" ]
+  , solverVerbose = 0
+  , solverPreludePath = searchPath
+  }
+
 -- | The types of variables in the environment.
 data VarType = ExtVar Schema
                -- ^ Known type
