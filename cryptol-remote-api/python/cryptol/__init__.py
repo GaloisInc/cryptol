@@ -206,7 +206,7 @@ class CryptolProveSat(argo.Command):
         if res['result'] == 'unsatisfiable':
             if self.qtype == SmtQueryType.SAT:
                 return False
-            elif self.qtype == SmtQueryType.PROVE or self.qtype == SmtQueryType.SAT:
+            elif self.qtype == SmtQueryType.PROVE or self.qtype == SmtQueryType.SAFE:
                 return True
             else:
                 raise ValueError("Unknown SMT query type: " + self.qtype)
