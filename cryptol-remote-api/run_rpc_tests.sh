@@ -2,6 +2,11 @@
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
+pushd $DIR
+
+cabal v2-build exe:cryptol-remote-api
+cabal v2-build exe:cryptol-eval-server
+
 pushd $DIR/python
 
 NUM_FAILS=0
@@ -43,6 +48,8 @@ else
   echo "could not find the cryptol-eval-server via `cabal v2-exec which`"
   NUM_FAILS=$(($NUM_FAILS+1))
 fi
+popd
+
 popd
 
 if [ $NUM_FAILS -eq 0 ]
