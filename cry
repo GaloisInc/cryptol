@@ -8,7 +8,7 @@ QUICKTESTS="tests/issues tests/modsys tests/mono-binds tests/parser tests/regres
 
 function setup_external_tools() {
   [[ -x "$BIN/test-runner" || -x "$BIN/test-runner.exe" ]] && return
-  cabal v2-install --install-method=copy --installdir="$BIN" test-lib
+  cabal v2-install --constraint="test-lib>=0.3" --install-method=copy --installdir="$BIN" test-lib
 }
 
 function show_usage() {

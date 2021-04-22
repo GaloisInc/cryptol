@@ -38,8 +38,8 @@ retry() {
 }
 
 setup_external_tools() {
-  is_exe "$BIN" "test-runner" && return
-  cabal v2-install --install-method=copy --installdir="$BIN" test-lib
+  # is_exe "$BIN" "test-runner" && return
+  cabal v2-install --constraint="test-lib>=0.3" --install-method=copy --installdir="$BIN" test-lib
 }
 
 setup_dist_bins() {
@@ -134,10 +134,7 @@ install_system_deps() {
 test_dist() {
   setup_dist_bins
   setup_external_tools
-  if $IS_WIN; then
-    echo "Warning: janky hacky workaround to #764"
-    sed -i 's!/!\\!g' tests/modsys/T14.icry.stdout
-  fi
+  echo "test-runner version: $($BIN/test-runner --version)"
   $BIN/test-runner --ext=.icry -F -b --exe=dist/bin/cryptol tests
 }
 
