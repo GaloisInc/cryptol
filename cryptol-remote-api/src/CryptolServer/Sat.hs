@@ -157,6 +157,7 @@ instance FromJSON ProveSatParams where
            \case
              "sat" -> pure (SatQuery numResults)
              "prove" -> pure ProveQuery
+             "safe" -> pure SafetyQuery
              _ -> empty)
       num v = ((JSON.withText "all" $
                \t -> if t == "all" then pure AllSat else empty) v) <|>
@@ -174,17 +175,23 @@ instance Doc.DescribedParams ProveSatParams where
                      ++ (concat (map (\p -> [Doc.Literal (T.pack p), Doc.Text ", "]) proverNames))
                      ++ [Doc.Text "."]))
     , ("expression",
-      Doc.Paragraph [Doc.Text "The predicate (i.e., function) to check for satisfiability; "
-                    , Doc.Text "must be a monomorphic function with return type Bit." ])
+      Doc.Paragraph [ Doc.Text "The function to check for validity, satisfiability, or safety"
+                    , Doc.Text " depending on the specified value for "
+                    , Doc.Literal "query type"
+                    , Doc.Text ". For validity and satisfiability checks, the function must be a predicate"
+                    , Doc.Text " (i.e., monomorphic function with return type Bit)."
+                    ])
     , ("result count",
       Doc.Paragraph [Doc.Text "How many satisfying results to search for; either a positive integer or "
-                    , Doc.Literal "all", Doc.Text"."])
+                    , Doc.Literal "all", Doc.Text". Only affects satisfiability checks."])
     , ("query type",
-      Doc.Paragraph [ Doc.Text "Whether to attempt to prove ("
+      Doc.Paragraph [ Doc.Text "Whether to attempt to prove the predicate is true for all possible inputs ("
                     , Doc.Literal "prove"
-                    , Doc.Text ") or satisfy ("
+                    , Doc.Text "), find some inputs which make the predicate true ("
                     , Doc.Literal "sat"
-                    , Doc.Text ") the predicate."
+                    , Doc.Text "), or prove a function is safe ("
+                    , Doc.Literal "safe"
+                    , Doc.Text ")."
                     ]
       )
     ]
