@@ -59,7 +59,7 @@ RUN mkdir -p rootfs/usr/local/bin
 RUN cabal v2-update && \
     cabal v2-build -j cryptol:exe:cryptol && \
     cp $(cabal v2-exec which cryptol) rootfs/usr/local/bin && \
-    cabal v2-install --constraint="test-lib>=0.3" --install-method=copy --overwrite-policy=always --installdir=bin test-lib
+    cabal v2-install --install-method=copy --overwrite-policy=always --installdir=bin test-lib
 RUN ./bin/test-runner --ext=.icry --exe=./rootfs/usr/local/bin/cryptol -F -b tests
 ENV PATH=/usr/local/bin:/cryptol/rootfs/usr/local/bin:$PATH
 RUN    ! $(cryptol -c ":s prover=yices" | tail -n +2 | grep -q .) \

@@ -38,8 +38,8 @@ retry() {
 }
 
 setup_external_tools() {
-  # is_exe "$BIN" "test-runner" && return
-  cabal v2-install --constraint="test-lib>=0.3" --overwrite-policy=always --install-method=copy --installdir="$BIN" test-lib
+  is_exe "$BIN" "test-runner" && return
+  cabal v2-install --install-method=copy --installdir="$BIN" test-lib
 }
 
 setup_dist_bins() {
