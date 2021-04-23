@@ -16,6 +16,7 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Cryptol.ModuleSystem.NamingEnv where
 
 import Data.List (nub)
@@ -105,6 +106,11 @@ instance Monoid NamingEnv where
 merge :: [Name] -> [Name] -> [Name]
 merge xs ys | xs == ys  = xs
             | otherwise = nub (xs ++ ys)
+
+instance PP NamingEnv where
+  ppPrec _ (NamingEnv mps)   = vcat $ map ppNS $ Map.toList mps
+    where ppNS (ns,xs) = pp ns $$ nest 2 (vcat (map ppNm (Map.toList xs)))
+          ppNm (x,as)  = pp x <+> "->" <+> hsep (punctuate comma (map pp as))
 
 -- | Generate a mapping from 'PrimIdent' to 'Name' for a
 -- given naming environment.

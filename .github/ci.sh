@@ -134,10 +134,7 @@ install_system_deps() {
 test_dist() {
   setup_dist_bins
   setup_external_tools
-  if $IS_WIN; then
-    echo "Warning: janky hacky workaround to #764"
-    sed -i 's!/!\\!g' tests/modsys/T14.icry.stdout
-  fi
+  echo "test-runner version: $($BIN/test-runner --version)"
   $BIN/test-runner --ext=.icry -F -b --exe=dist/bin/cryptol tests
 }
 

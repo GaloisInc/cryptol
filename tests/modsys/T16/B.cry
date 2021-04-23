@@ -1,0 +1,5 @@
+module T16::B where
+
+import T16::A
+
+f = update
