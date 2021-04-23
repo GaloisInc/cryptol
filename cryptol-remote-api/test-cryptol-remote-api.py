@@ -14,4 +14,4 @@ else:
     raise Exception('specify socket or http for connection type')
 
 c.load_module('Cryptol')
-assert c.evaluate_expression("1+1") == 2
+assert c.evaluate_expression("1+1").result() == 2
