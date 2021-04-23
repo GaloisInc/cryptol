@@ -20,7 +20,7 @@ from .commands import *
 from .connection import *
 
 
-__all__ = ['cryptoltypes', 'solver']
+__all__ = ['bitvector', 'commands', 'connections', 'cryptoltypes', 'solver']
 
 
 def fail_with(x : Exception) -> NoReturn:
