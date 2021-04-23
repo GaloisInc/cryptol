@@ -1,0 +1,7 @@
+module Bar where
+
+id : {n} (fin n) => [n] -> [n]
+id a = a
+
+theAnswer : [8]
+theAnswer = 42

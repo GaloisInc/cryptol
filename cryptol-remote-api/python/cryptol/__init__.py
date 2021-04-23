@@ -18,9 +18,10 @@ from . import solver
 from .bitvector import BV
 from .commands import *
 from .connection import *
+from . import scryptol
 
 
-__all__ = ['cryptoltypes', 'solver']
+__all__ = ['cryptoltypes', 'solver', 'scryptol']
 
 
 def fail_with(x : Exception) -> NoReturn:
