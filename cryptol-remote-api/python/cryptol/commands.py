@@ -86,7 +86,7 @@ class CryptolEvalExpr(argo.Command):
         )
 
     def process_result(self, res : Any) -> Any:
-        return res
+        return from_cryptol_arg(res['value'])
 
 class CryptolCall(argo.Command):
     def __init__(self, connection : HasProtocolState, fun : str, args : List[Any]) -> None:
