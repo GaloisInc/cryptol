@@ -15,6 +15,7 @@ import Data.Aeson ((.=))
 import qualified Data.Map as Map
 import Data.Map (Map)
 import Data.Text (unpack)
+import Data.Maybe(maybeToList)
 import Data.Typeable (Proxy(..), typeRep)
 
 import Cryptol.Parser.Name (PName(..))
@@ -22,7 +23,7 @@ import Cryptol.ModuleSystem.Env (ModContext(..), ModuleEnv(..), DynamicEnv(..), 
 import Cryptol.ModuleSystem.Interface (IfaceDecl(..), IfaceDecls(..))
 import Cryptol.ModuleSystem.Name (Name)
 import Cryptol.ModuleSystem.NamingEnv
-                  (NamingEnv, namespaceMap, lookupValNames, shadowing)
+                  (NamingEnv, namespaceMap, lookupNS, shadowing, namesToList)
 import Cryptol.TypeCheck.Type (Schema(..))
 import Cryptol.Utils.PP (pp)
 import Cryptol.Utils.Ident(Namespace(..))
@@ -71,7 +72,7 @@ getInfo rnEnv info n' =
          let ty = ifDeclSig i
              nameDocs = ifDeclDoc i
          in NameInfo (show (pp n')) (show (pp ty)) ty (unpack <$> nameDocs)
-  | n <- lookupValNames n' rnEnv
+  | ns <- maybeToList (lookupNS NSValue n' rnEnv), n <- namesToList ns
   ]
 
 data NameInfo =

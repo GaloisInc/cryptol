@@ -84,6 +84,7 @@ import Paths_cryptol
   'if'        { Located $$ (Token (KW KW_if     ) _)}
   'then'      { Located $$ (Token (KW KW_then   ) _)}
   'else'      { Located $$ (Token (KW KW_else   ) _)}
+  'signature' { Located $$ (Token (KW KW_signature) _)}
   'x'         { Located $$ (Token (KW KW_x)       _)}
   'down'      { Located $$ (Token (KW KW_down)    _)}
   'by'        { Located $$ (Token (KW KW_by)      _)}
@@ -255,7 +256,24 @@ vtop_decl               :: { [TopDecl PName] }
   | parameter_decls        { $1                                               }
   | mbDoc 'submodule'
     module_def             {% ((:[]) . exportModule $1) `fmap` mkNested $3 }
-  | import                 { [DImport $1] }
+
+  | mbDoc sig_def          { [mkSigDecl $1 $2]  }
+  | mod_param_decl         { [DModParam $1] }
+  | mbDoc import           { [DImport $2] }
+    -- we allow for documentation here to avoid conflicts with module paramaters
+    -- currently that odcumentation is just discarded
+
+sig_def ::                 { Signature PName }
+  : 'signature' name 'where' 'v{' par_decls 'v}'
+                           { mkSignature $2 $5 }
+
+mod_param_decl ::          { ModParam PName }
+  : mbDoc
+   'import' 'signature'
+    name mbAs              { ModParam { mpSignature = $4
+                                      , mpAs        = fmap thing $5
+                                      , mpDoc       = $1 } }
+
 
 top_decl                :: { [TopDecl PName] }
   : decl                   { [Decl (TopLevel {tlExport = Public, tlValue = $1 })] }

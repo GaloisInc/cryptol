@@ -86,6 +86,7 @@ instance PP RenamerError where
                     NSValue   -> "Value"
                     NSType    -> "Type"
                     NSModule  -> "Module"
+                    NSSignature -> "Signature"
 
     OverlappingSyms qns ->
       hang (text "[error]")
@@ -103,6 +104,7 @@ instance PP RenamerError where
                      NSValue  -> "value"
                      NSType   -> "type"
                      NSModule -> "module"
+                     NSSignature -> "signature"
         suggestion =
           case (expected,actual) of
 
@@ -153,6 +155,7 @@ instance PP DepName where
           NSModule -> "submodule" <+> pp n
           NSType   -> "type" <+> pp n
           NSValue  -> pp n
+          NSSignature -> "signature" <+> pp n
 
 
 

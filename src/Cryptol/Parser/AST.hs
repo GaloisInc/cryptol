@@ -59,6 +59,8 @@ module Cryptol.Parser.AST
   , ParameterType(..)
   , ParameterFun(..)
   , NestedModule(..)
+  , Signature(..)
+  , ModParam(..)
 
     -- * Interactive
   , ReplInput(..)
@@ -125,12 +127,17 @@ newtype Program name = Program [TopDecl name]
 -- | A parsed module.
 data ModuleG mname name = Module
   { mName     :: Located mname              -- ^ Name of the module
-  , mInstance :: !(Maybe (Located ModName)) -- ^ Functor to instantiate
-                                            -- (if this is a functor instnaces)
-  -- , mImports  :: [Located Import]           -- ^ Imports for the module
-  , mDecls    :: [TopDecl name]             -- ^ Declartions for the module
+  , mInstance :: !(Maybe (Located ModName))
+    -- ^ Functor to instantiate (if this is a functor instnaces)
+    -- This is OLD module system functor.
+
+  , mDecls    :: [TopDecl name]
+    -- ^ Declartions for the module.  This includes module system related
+    -- stuff such as imports.
   } deriving (Show, Generic, NFData)
 
+
+-- | Imports of top-level (i.e. "file" based) modules.
 mImports :: ModuleG mname name -> [ Located Import ]
 mImports m =
   [ li { thing = i { iModule = n } }
@@ -139,6 +146,8 @@ mImports m =
   , ImpTop n  <- [iModule i]
   ]
 
+-- | Imports of nested modules---these may require name resolution to
+-- detrmine what module we are talking about.
 mSubmoduleImports :: ModuleG mname name -> [ Located (ImportG name) ]
 mSubmoduleImports m =
   [ li { thing = i { iModule = n } }
@@ -148,10 +157,10 @@ mSubmoduleImports m =
   ]
 
 
-
+-- | A top-level module
 type Module = ModuleG ModName
 
-
+-- | A nested module.
 newtype NestedModule name = NestedModule (ModuleG name name)
   deriving (Show,Generic,NFData)
 
@@ -164,7 +173,8 @@ modRange m = rCombs $ catMaybes
     , Just (Range { from = start, to = start, source = "" })
     ]
 
-
+-- | A declaration that may only appear at the top level of a module.
+-- The module may be nested, however.
 data TopDecl name =
     Decl (TopLevel (Decl name))
   | DPrimType (TopLevel (PrimType name))
@@ -176,13 +186,18 @@ data TopDecl name =
   | DParameterFun  (ParameterFun name)  -- ^ @parameter someVal : [256]@
   | DModule (TopLevel (NestedModule name))  -- ^ Nested module
   | DImport (Located (ImportG (ImpName name)))  -- ^ An import declaration
-                    deriving (Show, Generic, NFData)
-
-data ImpName name =
-    ImpTop    ModName
-  | ImpNested name
+  | DModSig (TopLevel (Signature name))         -- ^ A module signature
+  | DModParam (ModParam name)                   -- ^ A functor parameter
     deriving (Show, Generic, NFData)
 
+-- | The name of an imported module
+data ImpName name =
+    ImpTop    ModName           -- ^ A top-level module
+  | ImpNested name              -- ^ The module in scope with the given name
+    deriving (Show, Generic, NFData)
+
+-- | A simple declaration.  Generally these are things that can appear
+-- both at the top-level of a module and in `where` clauses.
 data Decl name = DSignature [Located name] (Schema name)
                | DFixity !Fixity [Located name]
                | DPragma [Located name] Pragma
@@ -196,7 +211,9 @@ data Decl name = DSignature [Located name] (Schema name)
                  deriving (Eq, Show, Generic, NFData, Functor)
 
 
--- | A type parameter
+-- | A type parameter for a module.
+-- This is used in the OLD module system, as well as in signatures of
+-- the NEW module system.
 data ParameterType name = ParameterType
   { ptName    :: Located name     -- ^ name of type parameter
   , ptKind    :: Kind             -- ^ kind of parameter
@@ -205,12 +222,35 @@ data ParameterType name = ParameterType
   , ptNumber  :: !Int             -- ^ number of the parameter
   } deriving (Eq,Show,Generic,NFData)
 
--- | A value parameter
+-- | A value parameter for a module.
+-- This is used in the OLD module system, as well as in signatures of
+-- the NEW module system.
 data ParameterFun name = ParameterFun
   { pfName   :: Located name      -- ^ name of value parameter
   , pfSchema :: Schema name       -- ^ schema for parameter
   , pfDoc    :: Maybe Text        -- ^ optional documentation
   , pfFixity :: Maybe Fixity      -- ^ info for infix use
+  } deriving (Eq,Show,Generic,NFData)
+
+
+-- | Module signatures (aka types of functor arguments)
+-- This is part of the NEW module system
+data Signature name = Signature
+  { sigName         :: Located name             -- ^ Name of the signature
+  , sigTypeParams   :: [ParameterType name]     -- ^ Type parameters
+  , sigConstraints  :: [Located (Prop name)]    -- ^ Constraints on type params
+  , sigFunParams    :: [ParameterFun name]      -- ^ Value parameters
+  } deriving (Eq,Show,Generic,NFData)
+
+{- | A module parameter declaration
+A functor may have either 1 unnamed parameter or multiple named parameters
+For the time being, unnamed parameters introduce the names from the
+signature unqualified, while the named version always adds them qualified,
+although we may want to add more control here -}
+data ModParam name = ModParam
+  { mpSignature     :: Located name         -- ^ Signature for parameter
+  , mpAs            :: Maybe ModName        -- ^ Qualifier and param. name
+  , mpDoc           :: Maybe (Located Text) -- ^ Optional documentation
   } deriving (Eq,Show,Generic,NFData)
 
 
@@ -535,6 +575,14 @@ instance HasLoc (TopDecl name) where
       DParameterConstraint d -> getLoc d
       DModule d -> getLoc d
       DImport d -> getLoc d
+      DModSig d -> getLoc d
+      DModParam d -> getLoc d
+
+instance HasLoc (ModParam name) where
+  getLoc mp = getLoc (mpSignature mp)
+
+instance HasLoc (Signature name) where
+  getLoc = getLoc . sigName
 
 instance HasLoc (PrimType name) where
   getLoc pt = Just (rComb (srcRange (primTName pt)) (srcRange (primTKind pt)))
@@ -624,6 +672,36 @@ instance (Show name, PPName name) => PP (TopDecl name) where
                        xs  -> nest 1 (parens (commaSepFill xs))
       DModule d -> pp d
       DImport i -> pp (thing i)
+      DModSig s -> pp s
+      DModParam s -> pp s
+
+instance (Show name, PPName name) => PP (Signature name) where
+  ppPrec _ = ppSignature "signature"
+
+ppSignature :: (Show name, PPName name) => Doc -> Signature name -> Doc
+ppSignature kw sig =
+    vcat [ kw <+> pp (sigName sig) <+> "where"
+         , nest 2 (vcat ds)
+         ]
+    where
+    ds = map pp (sigTypeParams sig)
+      ++ [ case map (pp . thing) (sigConstraints sig) of
+           [x] -> "type constraint" <+> x
+           []  -> mempty
+           xs  -> "type constraint" <+> parens (commaSep xs)
+         ]
+      ++ map pp (sigFunParams sig)
+
+
+instance (Show name, PPName name) => PP (ModParam name) where
+  ppPrec _ mp = mbDoc $$ "import signature" <+> pp (mpSignature mp) <+> mbAs
+    where
+    mbDoc = case mpDoc mp of
+              Nothing -> mempty
+              Just d  -> pp d
+    mbAs  = case mpAs mp of
+              Nothing -> mempty
+              Just d  -> "as" <+> pp d
 
 instance (Show name, PPName name) => PP (PrimType name) where
   ppPrec _ pt =
@@ -1019,7 +1097,21 @@ instance NoPos (TopDecl name) where
       DParameterConstraint d -> DParameterConstraint (noPos d)
       DModule d -> DModule (noPos d)
       DImport d -> DImport (noPos d)
+      DModSig d -> DModSig (noPos d)
+      DModParam d -> DModParam (noPos d)
 
+instance NoPos (Signature name) where
+  noPos sig = Signature { sigName = noPos (sigName sig)
+                        , sigTypeParams = map noPos (sigTypeParams sig)
+                        , sigConstraints = map noPos (sigConstraints sig)
+                        , sigFunParams = map noPos (sigFunParams sig)
+                        }
+
+instance NoPos (ModParam name) where
+  noPos mp = ModParam { mpSignature = noPos (mpSignature mp)
+                      , mpAs        = mpAs mp
+                      , mpDoc       = noPos <$> mpDoc mp
+                      }
 
 instance NoPos (PrimType name) where
   noPos x = x

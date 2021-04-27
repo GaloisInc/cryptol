@@ -75,7 +75,7 @@ import           GHC.Generics (Generic)
 --------------------------------------------------------------------------------
 
 -- | Namespaces for names
-data Namespace = NSValue | NSType | NSModule
+data Namespace = NSValue | NSType | NSModule | NSSignature
   deriving (Generic,Show,NFData,Eq,Ord,Enum,Bounded)
 
 allNamespaces :: [Namespace]

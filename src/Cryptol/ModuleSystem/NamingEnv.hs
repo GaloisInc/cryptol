@@ -19,7 +19,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Cryptol.ModuleSystem.NamingEnv where
 
-import Data.List (nub)
 import Data.Maybe (fromMaybe,mapMaybe,maybeToList)
 import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
@@ -36,6 +35,7 @@ import Prelude.Compat
 
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic (panic)
+import Cryptol.Utils.Ident(allNamespaces)
 import Cryptol.Parser.AST
 import Cryptol.Parser.Name(isGeneratedName)
 import Cryptol.Parser.Position
@@ -48,69 +48,95 @@ import Cryptol.ModuleSystem.Name
 
 -- | The 'NamingEnv' is used by the renamer to determine what
 -- identifiers refer to.
-newtype NamingEnv = NamingEnv (Map Namespace (Map PName [Name]))
+newtype NamingEnv = NamingEnv (Map Namespace (Map PName Names))
   deriving (Show,Generic,NFData)
+
+--------------------------------------------------------------------------------
+data Names = One Name | Ambig (Set Name) -- ^ Non-empty
+  deriving (Show,Generic,NFData)
+
+namesToList :: Names -> [Name]
+namesToList xs =
+  case xs of
+    One x -> [x]
+    Ambig ns -> Set.toList ns
+
+anyOne :: Names -> Name
+anyOne = head . namesToList
+
+unionNames :: Names -> Names -> Names
+unionNames xs ys =
+  case (xs,ys) of
+    (One x, One y) | x == y -> One x
+                   | otherwise -> Ambig $! Set.fromList [x,y]
+    (One x, Ambig as) -> Ambig $! Set.insert x as
+    (Ambig as, One x) -> Ambig $! Set.insert x as
+    (Ambig as, Ambig bs) -> Ambig $! Set.union as bs
+
+unionManyNames :: [Names] -> Maybe Names
+unionManyNames xs =
+  case xs of
+    [] -> Nothing
+    _  -> Just (foldr1 unionNames xs)
+
+mapNames :: (Name -> Name) -> Names -> Names
+mapNames f xs =
+  case xs of
+    One x -> One (f x)
+    Ambig as -> Ambig (Set.map f as)
+
+travNames :: Applicative f => (Name -> f Name) -> Names -> f Names
+travNames f xs =
+  case xs of
+    One x -> One <$> f x
+    Ambig as -> Ambig . Set.fromList <$> traverse f (Set.toList as)
+--------------------------------------------------------------------------------
+
 
 -- | All names mentioned in the environment
 namingEnvNames :: NamingEnv -> Set Name
 namingEnvNames (NamingEnv xs) =
-  Set.fromList $ concatMap (concat . Map.elems) $ Map.elems xs
-
+  case unionManyNames (mapMaybe (unionManyNames . Map.elems) (Map.elems xs)) of
+    Nothing -> Set.empty
+    Just (One x) -> Set.singleton x
+    Just (Ambig as) -> as
 
 -- | Get the names in a given namespace
-namespaceMap :: Namespace -> NamingEnv -> Map PName [Name]
+namespaceMap :: Namespace -> NamingEnv -> Map PName Names
 namespaceMap ns (NamingEnv env) = Map.findWithDefault Map.empty ns env
 
 -- | Resolve a name in the given namespace.
-lookupNS :: Namespace -> PName -> NamingEnv -> [Name]
-lookupNS ns x = Map.findWithDefault [] x . namespaceMap ns
+lookupNS :: Namespace -> PName -> NamingEnv -> Maybe Names
+lookupNS ns x env = Map.lookup x (namespaceMap ns env)
 
--- | Return a list of value-level names to which this parsed name may refer.
-lookupValNames :: PName -> NamingEnv -> [Name]
-lookupValNames = lookupNS NSValue
-
--- | Return a list of type-level names to which this parsed name may refer.
-lookupTypeNames :: PName -> NamingEnv -> [Name]
-lookupTypeNames = lookupNS NSType
+-- | Resolve a name in the given namespace.
+lookupListNS :: Namespace -> PName -> NamingEnv -> [Name]
+lookupListNS ns x env =
+  case lookupNS ns x env of
+    Nothing -> []
+    Just as -> namesToList as
 
 -- | Singleton renaming environment for the given namespace.
 singletonNS :: Namespace -> PName -> Name -> NamingEnv
-singletonNS ns pn n = NamingEnv (Map.singleton ns (Map.singleton pn [n]))
-
--- | Singleton expression renaming environment.
-singletonE :: PName -> Name -> NamingEnv
-singletonE = singletonNS NSValue
-
--- | Singleton type renaming environment.
-singletonT :: PName -> Name -> NamingEnv
-singletonT = singletonNS NSType
-
+singletonNS ns pn n =
+  NamingEnv (Map.singleton ns (Map.singleton pn (One n)))
 
 namingEnvRename :: (Name -> Name) -> NamingEnv -> NamingEnv
-namingEnvRename f (NamingEnv mp) = NamingEnv (ren <$> mp)
-  where
-  ren nsm = map f <$> nsm
-
+namingEnvRename f (NamingEnv mp) = NamingEnv (fmap (mapNames f) <$> mp)
 
 instance Semigroup NamingEnv where
   NamingEnv l <> NamingEnv r =
-      NamingEnv (Map.unionWith (Map.unionWith merge) l r)
+      NamingEnv (Map.unionWith (Map.unionWith unionNames) l r)
 
 instance Monoid NamingEnv where
   mempty = NamingEnv Map.empty
   {-# INLINE mempty #-}
 
 
--- | Merge two name maps, collapsing cases where the entries are the same, and
--- producing conflicts otherwise.
-merge :: [Name] -> [Name] -> [Name]
-merge xs ys | xs == ys  = xs
-            | otherwise = nub (xs ++ ys)
-
 instance PP NamingEnv where
   ppPrec _ (NamingEnv mps)   = vcat $ map ppNS $ Map.toList mps
     where ppNS (ns,xs) = pp ns $$ nest 2 (vcat (map ppNm (Map.toList xs)))
-          ppNm (x,as)  = pp x <+> "->" <+> commaSep (map pp as)
+          ppNm (x,as)  = pp x <+> "->" <+> commaSep (map pp (namesToList as))
 
 -- | Generate a mapping from 'PrimIdent' to 'Name' for a
 -- given naming environment.
@@ -122,7 +148,8 @@ toPrimMap env =
     }
   where
   fromNS ns = Map.fromList
-                [ entry x | xs <- Map.elems (namespaceMap ns env), x <- xs ]
+                [ entry x | xs <- Map.elems (namespaceMap ns env)
+                          , x <- namesToList xs ]
 
   entry n = case asPrim n of
               Just p  -> (p,n)
@@ -137,9 +164,9 @@ toNameDisp env = NameDisp (`Map.lookup` names)
   where
   names = Map.fromList
             [ (og, qn)
-              | ns            <- [ NSValue, NSType, NSModule ]
+              | ns            <- allNamespaces
               , (pn,xs)       <- Map.toList (namespaceMap ns env)
-              , x             <- xs
+              , x             <- namesToList xs
               , og            <- maybeToList (asOrigName x)
               , let qn = case getModName pn of
                           Just q  -> Qualified q
@@ -152,12 +179,8 @@ toNameDisp env = NameDisp (`Map.lookup` names)
 -- NOTE: if entries in the NamingEnv would have produced a name clash,
 -- they will be omitted from the resulting sets.
 visibleNames :: NamingEnv -> Map Namespace (Set Name)
-visibleNames (NamingEnv env) = Set.fromList . mapMaybe check . Map.elems <$> env
-  where
-  check names =
-    case names of
-      [name] -> Just name
-      _      -> Nothing
+visibleNames (NamingEnv env) = check <$> env
+  where check mp = Set.fromList [ a | One a <- Map.elems mp ]
 
 -- | Qualify all symbols in a 'NamingEnv' with the given prefix.
 qualify :: ModName -> NamingEnv -> NamingEnv
@@ -179,7 +202,7 @@ shadowing (NamingEnv l) (NamingEnv r) = NamingEnv (Map.unionWith Map.union l r)
 
 travNamingEnv :: Applicative f => (Name -> f Name) -> NamingEnv -> f NamingEnv
 travNamingEnv f (NamingEnv mp) =
-  NamingEnv <$> traverse (traverse (traverse f)) mp
+  NamingEnv <$> traverse (traverse (travNames f)) mp
 
 
 {- | Do somethign in context.  If `Nothing` than we are working with
@@ -210,45 +233,89 @@ defsOf = buildNamingEnv . namingEnv
 
 
 --------------------------------------------------------------------------------
--- Collect definitions of nested modules
+{- Collect definitions of entities that may contains other entities.
+For example, submodules and signatures, wen treated as declarations
+only introduce a single name (e.g., the name of the submodule or signature)
+but when used can introduce additional names (e.g., in an import or
+a submodule declaration).  The code in the following section computes the
+names that are "owned" by the all the entities, when "used".
+-}
 
-type NestedMods = Map Name NamingEnv
-type CollectM   = StateT NestedMods (SupplyT Id)
+
+data OwnedEntities = OwnedEntities
+  { ownSubmodules :: Map Name NamingEnv
+  , ownSignatures :: Map Name NamingEnv
+  }
+
+instance Semigroup OwnedEntities where
+  x <> y = OwnedEntities { ownSubmodules = ownSubmodules x <> ownSubmodules y
+                         , ownSignatures = ownSignatures x <> ownSignatures y
+                         }
+
+instance Monoid OwnedEntities where
+  mempty = OwnedEntities { ownSubmodules = mempty
+                         , ownSignatures = mempty
+                         }
+
+type CollectM   = StateT OwnedEntities (SupplyT Id)
 
 collectNestedModules ::
-  NamingEnv -> Module PName -> Supply -> (NestedMods, Supply)
+  NamingEnv -> Module PName -> Supply -> (OwnedEntities, Supply)
 collectNestedModules env m =
-  collectNestedModulesDecls env (thing (mName m)) (mDecls m)
+  collectNestedDecls env (thing (mName m)) (mDecls m)
 
-collectNestedModulesDecls ::
-  NamingEnv -> ModName -> [TopDecl PName] -> Supply -> (NestedMods, Supply)
-collectNestedModulesDecls env m ds sup = (mp,newS)
+collectNestedDecls ::
+  NamingEnv -> ModName -> [TopDecl PName] -> Supply -> (OwnedEntities, Supply)
+collectNestedDecls env m ds sup = (mp,newS)
   where
-  s0            = Map.empty
+  s0            = mempty
   mpath         = TopModule m
   ((_,mp),newS) = runId $ runSupplyT sup $ runStateT s0 $
-                  collectNestedModulesDs mpath env ds
+                  collectNestedDeclsM mpath env ds
 
-collectNestedModulesDs :: ModPath -> NamingEnv -> [TopDecl PName] -> CollectM ()
-collectNestedModulesDs mpath env ds =
-  forM_ [ tlValue nm | DModule nm <- ds ] \(NestedModule nested) ->
-    do let pname = thing (mName nested)
-           name  = case lookupNS NSModule pname env of
-                     n : _ -> n -- if a name is ambiguous we may get
-                                -- multiple answers, but we just pick one.
-                                -- This should be OK, as the error should be
-                                -- caught during actual renaming.
-                     _   -> panic "collectedNestedModulesDs"
-                             [ "Missing definition for " ++ show pname ]
-       newEnv <- lift (runBuild (moduleDefs (Nested mpath (nameIdent name)) nested))
-       sets_ (Map.insert name newEnv)
-       let newMPath = Nested mpath (nameIdent name)
-       collectNestedModulesDs newMPath newEnv (mDecls nested)
+
+
+collectNestedDeclsM :: ModPath -> NamingEnv -> [TopDecl PName] -> CollectM ()
+collectNestedDeclsM mpath env ds =
+
+  do forM_ [ tlValue s | DModSig s <- ds ] \s ->
+        do let pname = thing (sigName s)
+               name  = case lookupNS NSSignature pname env of
+                        Just ns -> anyOne ns
+                        Nothing -> panic "collectNestedDeclsM"
+                                    [ "Missing definition for " ++ show pname ]
+                        -- See comment below.
+
+           newEnv <- lift $ runBuild $
+                    signatureDefs (Nested mpath (nameIdent name)) s
+           sets_ \o -> o { ownSignatures = Map.insert name newEnv
+                                                        (ownSignatures o)}
+ 
+
+     forM_ [ tlValue nm | DModule nm <- ds ] \(NestedModule nested) ->
+       do let pname = thing (mName nested)
+              name  = case lookupNS NSModule pname env of
+                        Just ns -> anyOne ns
+                        Nothing -> panic "collectNestedDeclsM"
+                                    [ "Missing definition for " ++ show pname ]
+              -- if a name is ambiguous we may get
+              -- multiple answers, but we just pick one.
+              -- This should be OK, as the error should be
+              -- caught during actual renaming.
+
+          newEnv <- lift $ runBuild $
+                    moduleDefs (Nested mpath (nameIdent name)) nested
+          sets_ \o -> o { ownSubmodules = Map.insert name newEnv (ownSubmodules o)}
+          let newMPath = Nested mpath (nameIdent name)
+          collectNestedDeclsM newMPath newEnv (mDecls nested)
 
 --------------------------------------------------------------------------------
 
 
 
+
+--------------------------------------------------------------------------------
+-- Computes the names introduced by various declarations.
 
 instance Semigroup BuildNamingEnv where
   BuildNamingEnv a <> BuildNamingEnv b = BuildNamingEnv $
@@ -265,13 +332,15 @@ instance Monoid BuildNamingEnv where
     do ns <- sequence (map runBuild bs)
        return (mconcat ns)
 
---------------------------------------------------------------------------------
-
-
 
 -- | Things that define exported names.
 class BindsNames a where
   namingEnv :: a -> BuildNamingEnv
+
+
+
+
+
 
 instance BindsNames NamingEnv where
   namingEnv env = BuildNamingEnv (return env)
@@ -328,17 +397,31 @@ interpImportIface imp = interpImportEnv imp . unqualifiedEnv
 -- the names are qualified.
 unqualifiedEnv :: IfaceDecls -> NamingEnv
 unqualifiedEnv IfaceDecls { .. } =
-  mconcat [ exprs, tySyns, ntTypes, absTys, ntExprs, mods ]
+  mconcat [ exprs, tySyns, ntTypes, absTys, ntExprs, mods, sigs ]
   where
   toPName n = mkUnqual (nameIdent n)
 
-  exprs   = mconcat [ singletonE (toPName n) n | n <- Map.keys ifDecls ]
-  tySyns  = mconcat [ singletonT (toPName n) n | n <- Map.keys ifTySyns ]
-  ntTypes = mconcat [ singletonT (toPName n) n | n <- Map.keys ifNewtypes ]
-  absTys  = mconcat [ singletonT (toPName n) n | n <- Map.keys ifAbstractTypes ]
-  ntExprs = mconcat [ singletonE (toPName n) n | n <- Map.keys ifNewtypes ]
+  exprs   = mconcat [ singletonNS NSValue (toPName n) n
+                    | n <- Map.keys ifDecls ]
+
+  tySyns  = mconcat [ singletonNS NSType (toPName n) n
+                    | n <- Map.keys ifTySyns ]
+
+  ntTypes = mconcat [ singletonNS NSType (toPName n) n
+                    | n <- Map.keys ifNewtypes ]
+
+  absTys  = mconcat [ singletonNS NSType (toPName n) n
+                    | n <- Map.keys ifAbstractTypes ]
+
+  ntExprs = mconcat [ singletonNS NSValue (toPName n) n
+                    | n <- Map.keys ifNewtypes ]
+
   mods    = mconcat [ singletonNS NSModule (toPName n) n
-                                                | n <- Map.keys ifModules ]
+                    | n <- Map.keys ifModules ]
+
+  sigs    = mconcat [ singletonNS NSSignature (toPName n) n
+                    | n <- Map.keys ifSignatures ]
+
 
 -- | Compute an unqualified naming environment, containing the various module
 -- parameters.
@@ -352,9 +435,9 @@ modParamsNamingEnv IfaceParams { .. } =
   toPName n = mkUnqual (nameIdent n)
 
   fromTy tp = let nm = T.mtpName tp
-              in (toPName nm, [nm])
+              in (toPName nm, One nm)
 
-  fromFu f  = (toPName f, [f])
+  fromFu f  = (toPName f, One f)
 
 
 
@@ -375,14 +458,14 @@ instance BindsNames (InModule (Bind PName)) where
               Just m  -> newTop NSValue m thing (bFixity b) srcRange
               Nothing -> newLocal NSValue thing srcRange -- local fixitiies?
 
-       return (singletonE thing n)
+       return (singletonNS NSValue thing n)
 
 -- | Generate the naming environment for a type parameter.
 instance BindsNames (TParam PName) where
   namingEnv TParam { .. } = BuildNamingEnv $
     do let range = fromMaybe emptyRange tpRange
        n <- newLocal NSType tpName range
-       return (singletonT tpName n)
+       return (singletonNS NSType tpName n)
 
 -- | The naming environment for a single module.  This is the mapping from
 -- unqualified names to fully qualified names with uniques.
@@ -392,6 +475,15 @@ instance BindsNames (Module PName) where
 
 moduleDefs :: ModPath -> ModuleG mname PName -> BuildNamingEnv
 moduleDefs m Module { .. } = foldMap (namingEnv . InModule (Just m)) mDecls
+
+signatureDefs :: ModPath -> Signature PName -> BuildNamingEnv
+signatureDefs m sig =
+     mconcat [ namingEnv (InModule loc p) | p <- sigTypeParams sig ]
+  <> mconcat [ namingEnv (InModule loc p) | p <- sigFunParams sig ]
+  where
+  loc = Just m
+
+
 
 
 instance BindsNames (InModule (TopDecl PName)) where
@@ -407,6 +499,10 @@ instance BindsNames (InModule (TopDecl PName)) where
       DImport {}       -> mempty -- see 'openLoop' in the renamer
       DModule m        -> namingEnv (InModule ns (tlValue m))
 
+      DModSig s        -> namingEnv (InModule ns (tlValue s))
+      DModParam {}     -> mempty -- handled in the renamer as we need to resolve
+                                 -- the signature name first
+
 
 instance BindsNames (InModule (NestedModule PName)) where
   namingEnv (InModule ~(Just m) (NestedModule mdef)) = BuildNamingEnv $
@@ -414,25 +510,33 @@ instance BindsNames (InModule (NestedModule PName)) where
        nm   <- newTop NSModule m (thing pnmame) Nothing (srcRange pnmame)
        pure (singletonNS NSModule (thing pnmame) nm)
 
+instance BindsNames (InModule (Signature PName)) where
+  namingEnv (InModule ~(Just m) sig) = BuildNamingEnv
+    do let pname = sigName sig
+       nm <- newTop NSSignature m (thing pname) Nothing (srcRange pname)
+       pure (singletonNS NSSignature (thing pname) nm)
+
+
+
 instance BindsNames (InModule (PrimType PName)) where
   namingEnv (InModule ~(Just m) PrimType { .. }) =
     BuildNamingEnv $
       do let Located { .. } = primTName
          nm <- newTop NSType m thing primTFixity srcRange
-         pure (singletonT thing nm)
+         pure (singletonNS NSType thing nm)
 
 instance BindsNames (InModule (ParameterFun PName)) where
   namingEnv (InModule ~(Just ns) ParameterFun { .. }) = BuildNamingEnv $
     do let Located { .. } = pfName
        ntName <- newTop NSValue ns thing pfFixity srcRange
-       return (singletonE thing ntName)
+       return (singletonNS NSValue thing ntName)
 
 instance BindsNames (InModule (ParameterType PName)) where
   namingEnv (InModule ~(Just ns) ParameterType { .. }) = BuildNamingEnv $
     -- XXX: we don't seem to have a fixity environment at the type level
     do let Located { .. } = ptName
        ntName <- newTop NSType ns thing Nothing srcRange
-       return (singletonT thing ntName)
+       return (singletonNS NSType thing ntName)
 
 -- NOTE: we use the same name at the type and expression level, as there's only
 -- ever one name introduced in the declaration. The names are only ever used in
@@ -442,7 +546,7 @@ instance BindsNames (InModule (Newtype PName)) where
     do let Located { .. } = nName
        ntName <- newTop NSType ns thing Nothing srcRange
        -- XXX: the name reuse here is sketchy
-       return (singletonT thing ntName `mappend` singletonE thing ntName)
+       return (singletonNS NSType thing ntName `mappend` singletonNS NSValue thing ntName)
 
 -- | The naming environment for a single declaration.
 instance BindsNames (InModule (Decl PName)) where
@@ -465,8 +569,8 @@ instance BindsNames (InModule (Decl PName)) where
 
     qualBind ln = BuildNamingEnv $
       do n <- mkName NSValue ln Nothing
-         return (singletonE (thing ln) n)
+         return (singletonNS NSValue (thing ln) n)
 
     qualType ln f = BuildNamingEnv $
       do n <- mkName NSType ln f
-         return (singletonT (thing ln) n)
+         return (singletonNS NSType (thing ln) n)

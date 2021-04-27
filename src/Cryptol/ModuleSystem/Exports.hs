@@ -16,24 +16,28 @@ import Cryptol.ModuleSystem.Name
 modExports :: Ord name => ModuleG mname name -> ExportSpec name
 modExports m = fold (concat [ exportedNames d | d <- mDecls m ])
 
-
 exportedNames :: Ord name => TopDecl name -> [ExportSpec name]
-exportedNames (Decl td) = map exportBind  (names namesD td)
-                       ++ map exportType (names tnamesD td)
-exportedNames (DPrimType t) = [ exportType (thing . primTName <$> t) ]
-exportedNames (TDNewtype nt) = map exportType (names tnamesNT nt)
-exportedNames (Include {})  = []
-exportedNames (DImport {}) = []
-exportedNames (DParameterFun {}) = []
-exportedNames (DParameterType {}) = []
-exportedNames (DParameterConstraint {}) = []
-exportedNames (DModule nested) =
-  case tlValue nested of
-    NestedModule x ->
-      [exportName NSModule nested { tlValue = thing (mName x) }]
+exportedNames decl =
+    case decl of
+      Decl td -> map exportBind  (names  namesD td)
+              ++ map exportType (names tnamesD td)
+      DPrimType t -> [ exportType (thing . primTName <$> t) ]
+      TDNewtype nt -> map exportType (names tnamesNT nt)
+      Include {}  -> []
+      DImport {} -> []
+      DParameterFun {} -> []
+      DParameterType {} -> []
+      DParameterConstraint {} -> []
+      DModule nested ->
+        case tlValue nested of
+          NestedModule x ->
+            [exportName NSModule nested { tlValue = thing (mName x) }]
+      DModSig s ->
+        [ exportName NSSignature s { tlValue = thing (sigName (tlValue s)) } ]
+      DModParam {} -> []
+  where
+  names by td = [ td { tlValue = thing n } | n <- fst (by (tlValue td)) ]
 
-names :: (a -> ([Located a'], b)) -> TopLevel a -> [TopLevel a']
-names by td = [ td { tlValue = thing n } | n <- fst (by (tlValue td)) ]
 
 
 newtype ExportSpec name = ExportSpec (Map Namespace (Set name))

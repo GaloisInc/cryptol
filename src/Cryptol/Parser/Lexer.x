@@ -118,6 +118,7 @@ $white+                   { emit $ White Space }
 "newtype"                 { emit $ KW KW_newtype }
 "down"                    { emit $ KW KW_down }
 "by"                      { emit $ KW KW_by }
+"signature"               { emit $ KW KW_signature }
 
 "infixl"                  { emit $ KW KW_infixl }
 "infixr"                  { emit $ KW KW_infixr }

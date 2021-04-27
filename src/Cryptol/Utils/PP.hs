@@ -383,3 +383,4 @@ instance PP Namespace where
       NSValue   -> "/*value*/"
       NSType    -> "/*type*/"
       NSModule  -> "/*module*/"
+      NSSignature -> "/*signature*/"

@@ -17,6 +17,7 @@ module Cryptol.Parser.ParserUtils where
 
 import Data.Maybe(fromMaybe)
 import Data.Bits(testBit,setBit)
+import Data.List(foldl')
 import Data.List.NonEmpty ( NonEmpty(..) )
 import qualified Data.List.NonEmpty as NE
 import Control.Monad(liftM,ap,unless,guard)
@@ -509,16 +510,19 @@ mkParType mbDoc n k =
 changeExport :: ExportType -> [TopDecl PName] -> [TopDecl PName]
 changeExport e = map change
   where
-  change (Decl d)      = Decl      d { tlExport = e }
-  change (DPrimType t) = DPrimType t { tlExport = e }
-  change (TDNewtype n) = TDNewtype n { tlExport = e }
-  change (DModule m)   = DModule   m { tlExport = e }
-  change td@Include{}  = td
-  change td@DImport{}  = td
-  change (DParameterType {}) = panic "changeExport" ["private type parameter?"]
-  change (DParameterFun {})  = panic "changeExport" ["private value parameter?"]
-  change (DParameterConstraint {}) =
-    panic "changeExport" ["private type constraint parameter?"]
+  change decl =
+    case decl of
+      Decl d                  -> Decl      d { tlExport = e }
+      DPrimType t             -> DPrimType t { tlExport = e }
+      TDNewtype n             -> TDNewtype n { tlExport = e }
+      DModule m               -> DModule   m { tlExport = e }
+      DModSig s               -> DModSig   s { tlExport = e }
+      DModParam {}            -> decl
+      Include{}               -> decl
+      DImport{}               -> decl
+      DParameterType {}       -> decl
+      DParameterFun {}        -> decl
+      DParameterConstraint {} -> decl
 
 mkTypeInst :: Named (Type PName) -> TypeInst PName
 mkTypeInst x | nullIdent (thing (name x)) = PosInst (value x)
@@ -806,6 +810,32 @@ mkNested m =
   where
   nm = mName m
   r = srcRange nm
+
+mkSigDecl :: Maybe (Located Text) -> Signature PName -> TopDecl PName
+mkSigDecl doc sig =
+  DModSig
+  TopLevel { tlExport = Public
+           , tlDoc    = doc
+           , tlValue  = sig
+           }
+
+mkSignature :: LPName -> [TopDecl PName] -> Signature PName
+mkSignature nm =
+  foldl' add
+  Signature { sigName        = nm
+            , sigTypeParams  = []
+            , sigConstraints = []
+            , sigFunParams   = []
+            }
+
+  where
+  add s d =
+    case d of
+      DParameterType pt -> s { sigTypeParams = pt : sigTypeParams s }
+      DParameterConstraint ps -> s { sigConstraints = ps ++ sigConstraints s }
+      DParameterFun pf -> s { sigFunParams = pf : sigFunParams s }
+      _ -> panic "mkSignature" ["Unexpected top-level declaration"]
+ 
 
 -- | Make an unnamed module---gets the name @Main@.
 mkAnonymousModule :: [TopDecl PName] -> Module PName

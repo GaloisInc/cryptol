@@ -29,7 +29,6 @@ import Cryptol.ModuleSystem.NamingEnv
 import Cryptol.ModuleSystem.Interface
 import Cryptol.Parser.AST
 import Cryptol.Parser.Position
-import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.Ident(modPathCommon)
 
 import Cryptol.ModuleSystem.Renamer.Error
@@ -256,7 +255,7 @@ checkEnv check (NamingEnv lenv) r rw0
   -- namespace, current state, k : parse name, xs : possible entities for k
   step ns acc k xs = (acc', case check of
                               CheckNone -> xs
-                              _         -> [head xs]
+                              _         -> One (anyOne xs)
                               -- we've already reported an overlap error,
                               -- so resolve arbitrarily to  the first entry
                       )
@@ -265,8 +264,8 @@ checkEnv check (NamingEnv lenv) r rw0
       { rwWarnings =
           if check == CheckAll
              then case Map.lookup k (namespaceMap ns r) of
-                    Just os | [x] <- xs
-                            , let os' = filter (/=x) os
+                    Just os | One x <- xs
+                            , let os' = filter (/=x) (namesToList os)
                             , not (null os') ->
                               SymbolShadowed k x os' : rwWarnings acc
                     _ -> rwWarnings acc
@@ -276,11 +275,11 @@ checkEnv check (NamingEnv lenv) r rw0
       }
 
 -- | Check the RHS of a single name rewrite for conflicting sources.
-containsOverlap :: [Name] -> Seq.Seq RenamerError
-containsOverlap [_] = Seq.empty
-containsOverlap []  = panic "Renamer" ["Invalid naming environment"]
-containsOverlap ns  = Seq.singleton (OverlappingSyms ns)
-
+containsOverlap :: Names -> Seq.Seq RenamerError
+containsOverlap xs =
+  case xs of
+    One _    -> Seq.empty
+    Ambig as -> Seq.singleton (OverlappingSyms (Set.toList as))
 
 recordUse :: Name -> RenameM ()
 recordUse x = RenameM $ sets_ $ \rw ->

@@ -54,6 +54,7 @@ checkModuleInstance func inst
 
                    , mSubModules = mempty
                    , mFunctors   = mempty
+                   , mSignatures = mempty
                    }
               )
 

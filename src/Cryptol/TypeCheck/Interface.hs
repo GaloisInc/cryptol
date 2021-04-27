@@ -28,6 +28,7 @@ genIface m = Iface
     , ifAbstractTypes = atPub
     , ifDecls     = dPub
     , ifModules   = mPub
+    , ifSignatures  = sPub
     }
 
   , ifPrivate = IfaceDecls
@@ -36,12 +37,14 @@ genIface m = Iface
     , ifAbstractTypes = atPriv
     , ifDecls     = dPriv
     , ifModules   = mPriv
+    , ifSignatures  = sPriv
     }
 
   , ifParams = IfaceParams
     { ifParamTypes = mParamTypes m
     , ifParamConstraints = mParamConstraints m
     , ifParamFuns  = mParamFuns m
+    , ifParamDoc = Nothing
     }
   }
   where
@@ -68,6 +71,8 @@ genIface m = Iface
       Map.partitionWithKey (\ qn _ -> isExported NSModule qn (mExports m))
       $ mSubModules m
 
-
+  (sPub,sPriv) =
+      Map.partitionWithKey (\ qn _ -> isExported NSSignature qn (mExports m))
+      $ mSignatures m
 
 

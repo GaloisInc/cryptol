@@ -76,6 +76,7 @@ data ModuleG mname =
                      , mPrimTypes        :: Map Name AbstractType
                      , mDecls            :: [DeclGroup]
                      , mFunctors         :: Map Name (ModuleG Name)
+                     , mSignatures       :: !(Map Name IfaceParams)
                      } deriving (Show, Generic, NFData)
 
 emptyModule :: mname -> ModuleG mname
@@ -95,6 +96,7 @@ emptyModule nm =
     , mPrimTypes        = mempty
     , mDecls            = mempty
     , mFunctors         = mempty
+    , mSignatures       = mempty
     }
 
 type Module = ModuleG ModName

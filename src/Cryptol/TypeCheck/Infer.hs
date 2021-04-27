@@ -32,6 +32,7 @@ import           Cryptol.ModuleSystem.Name (lookupPrimDecl,nameLoc)
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
 import qualified Cryptol.ModuleSystem.Exports as P
+import           Cryptol.ModuleSystem.Interface
 import           Cryptol.TypeCheck.AST hiding (tSub,tMul,tExp)
 import           Cryptol.TypeCheck.Monad
 import           Cryptol.TypeCheck.Error
@@ -1057,7 +1058,7 @@ checkTopDecls = mapM_ checkTopDecl
            addPrimType t
 
       P.DParameterType ty ->
-        do t <- checkParameterType ty (P.ptDoc ty)
+        do t <- checkParameterType ty
            addParamType t
 
       P.DParameterConstraint cs ->
@@ -1074,6 +1075,11 @@ checkTopDecls = mapM_ checkTopDecl
                                                   (P.modExports m)
             checkTopDecls (P.mDecls m)
             endSubmodule
+
+      P.DModSig tl ->
+        do let sig = P.tlValue tl
+           ps <- checkSignature sig (P.thing <$> P.tlDoc tl)
+           addSignature (P.thing (P.sigName sig)) ps
 
       P.DImport {} -> pure ()
       P.Include {} -> panic "checkTopDecl" [ "Unexpected `inlude`" ]
@@ -1124,6 +1130,18 @@ checkParameterFun x =
                       , mvpFixity = P.pfFixity x
                       }
 
+
+checkSignature :: P.Signature Name -> Maybe Text -> InferM IfaceParams
+checkSignature sig mbDoc =
+  do ts <- mapM checkParameterType (P.sigTypeParams sig)
+     cs <- checkParameterConstraints (P.sigConstraints sig)
+     fs <- mapM checkParameterFun (P.sigFunParams sig)
+     pure IfaceParams
+       { ifParamTypes       = Map.fromList [ (mtpName p,p) | p <- ts ]
+       , ifParamConstraints = cs
+       , ifParamFuns        = Map.fromList [ (mvpName p,p) | p <- fs ]
+       , ifParamDoc         = mbDoc
+       }
 
 
 tcPanic :: String -> [String] -> a

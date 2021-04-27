@@ -66,9 +66,10 @@ checkSchema withWild (P.Forall xs ps t mb) =
 
 -- | Check a module parameter declarations.  Nothing much to check,
 -- we just translate from one syntax to another.
-checkParameterType :: P.ParameterType Name -> Maybe Text -> InferM ModTParam
-checkParameterType a mbDoc =
-  do let k = cvtK (P.ptKind a)
+checkParameterType :: P.ParameterType Name -> InferM ModTParam
+checkParameterType a =
+  do let mbDoc = P.ptDoc a
+         k = cvtK (P.ptKind a)
          n = thing (P.ptName a)
      return ModTParam { mtpKind = k, mtpName = n, mtpDoc = mbDoc
                       , mtpNumber = P.ptNumber a }

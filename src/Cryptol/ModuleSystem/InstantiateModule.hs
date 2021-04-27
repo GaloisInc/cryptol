@@ -52,6 +52,7 @@ instantiateModule func newName tpMap vpMap
                      NSValue -> Map.findWithDefault x x (funNameMap env)
                      NSType  -> Map.findWithDefault x x (tyNameMap env)
                      NSModule -> x
+                     NSSignature -> x
 
        let rnMp :: Inst a => (a -> Name) -> Map Name a -> Map Name a
            rnMp f m = Map.fromList [ (f x, x) | a <- Map.elems m
@@ -86,6 +87,7 @@ instantiateModule func newName tpMap vpMap
 
                  , mSubModules        = mempty
                  , mFunctors          = mempty
+                 , mSignatures        = mempty -- XXX
                  } )
 
   where
@@ -286,6 +288,7 @@ instance Inst (ExportSpec Name) where
         NSType  -> Set.map \x -> Map.findWithDefault x x (tyNameMap env)
         NSValue -> Set.map \x -> Map.findWithDefault x x (funNameMap env)
         NSModule -> id
+        NSSignature -> id
 
 
 instance Inst TySyn where

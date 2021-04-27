@@ -1,0 +1,52 @@
+
+signature S where         -- u1
+  type n : #              -- u5
+
+module M where            -- u2
+  parameter X : S         -- X, u1
+                          -- introduces: u6
+                          -- to do this, we need to resolve `S` first
+
+
+
+  f : [X.n]               -- u7, u6
+  f = ...                 -- u7
+
+module N where            -- u2
+  type n = 16             -- u9
+
+module I =                -- u4
+  M with X = N            -- u2, X, u3
+
+import I                  -- u4
+                          -- introduces: u10
+
+g = f                     -- u8, u10
+
+--------------------------------------------------------------------------------
+Defines (naming env)
+
+toplevel:
+  NS     Names    Uniq
+  module S        u1
+  module M        u2
+  module N        u3
+  module I        u4
+  value  g        u8
+
+u1:
+  type   n        u5
+
+u2:
+  type   X.n      u6
+  value  f        u7
+
+u3:
+  type   n        u9
+
+u4:
+  value  f       u10
+
+
+
+

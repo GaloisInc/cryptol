@@ -40,6 +40,7 @@ import           MonadLib hiding (mapM)
 import           Cryptol.ModuleSystem.Name
                     (FreshM(..),Supply,mkParameter
                     , nameInfo, NameInfo(..),NameSource(..))
+import           Cryptol.ModuleSystem.Interface(IfaceParams)
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
 import           Cryptol.TypeCheck.AST
@@ -906,6 +907,10 @@ addParamFun x =
   do updScope \r -> r { mParamFuns = Map.insert (mvpName x) x (mParamFuns r) }
      IM $ sets_ \rw -> rw { iBindTypes = Map.insert (mvpName x) (mvpType x)
                                                     (iBindTypes rw) }
+
+addSignature :: Name -> IfaceParams -> InferM ()
+addSignature x ps =
+  updScope \r -> r { mSignatures = Map.insert x ps (mSignatures r) }
 
 -- | Add some assumptions for an entire module
 addParameterConstraints :: [Located Prop] -> InferM ()

@@ -433,6 +433,7 @@ deIfaceDecls DEnv { deDecls = dgs, deTySyns = tySyns } =
                , ifAbstractTypes = Map.empty
                , ifDecls = decls
                , ifModules = Map.empty
+               , ifSignatures = Map.empty
                }
   where
     decls = mconcat
