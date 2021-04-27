@@ -37,10 +37,6 @@ retry() {
   done
 }
 
-setup_external_tools() {
-  cabal v2-install --install-method=copy --installdir="$BIN" test-lib
-}
-
 setup_dist_bins() {
   extract_exe "cryptol" "dist/bin"
   extract_exe "cryptol-html" "dist/bin"
@@ -123,12 +119,6 @@ install_system_deps() {
   export PATH=$PWD/$BIN:$PATH
   echo "$PWD/$BIN" >> "$GITHUB_PATH"
   is_exe "$BIN" z3 && is_exe "$BIN" cvc4 && is_exe "$BIN" yices
-}
-
-test_dist() {
-  setup_external_tools
-  echo "test-runner version: $($BIN/test-runner --version)"
-  $BIN/test-runner --ext=.icry -F -b --exe=dist/bin/cryptol tests
 }
 
 check_docs() {

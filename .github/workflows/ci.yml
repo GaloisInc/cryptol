@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 env:
-  Z3_VERSION: "4.8.8"
+  Z3_VERSION: "4.8.10"
   CVC4_VERSION: "4.1.8"
   YICES_VERSION: "2.6.2"
 
@@ -54,11 +54,13 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        ghc: ["8.6.5", "8.8.4", "8.10.2"]
+        ghc-version: ["8.6.5", "8.8.4", "8.10.2"]
         exclude:
           # https://gitlab.haskell.org/ghc/ghc/-/issues/18550
           - os: windows-latest
-            ghc: 8.10.2
+            ghc-version: 8.10.2
+    outputs:
+      test-lib-json: ${{ steps.test-lib.outputs.targets-json }}
     env:
       VERSION: ${{ needs.config.outputs.version }}
       RELEASE: ${{ needs.config.outputs.release }}
@@ -71,10 +73,10 @@ jobs:
         with:
           python-version: '3.x'
 
-      - uses: actions/setup-haskell@v1
+      - uses: haskell/actions/setup@v1
         id: setup-haskell
         with:
-          ghc-version: ${{ matrix.ghc }}
+          ghc-version: ${{ matrix.ghc-version }}
 
       - uses: actions/cache@v2
         name: Cache cabal store
@@ -82,9 +84,9 @@ jobs:
           path: |
             ${{ steps.setup-haskell.outputs.cabal-store }}
             dist-newstyle
-          key: cabal-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles(format('cabal.GHC-{0}.config', matrix.ghc)) }}-${{ github.sha }}
+          key: cabal-${{ runner.os }}-${{ matrix.ghc-version }}-${{ hashFiles(format('cabal.GHC-{0}.config', matrix.ghc-version)) }}-${{ github.sha }}
           restore-keys: |
-            cabal-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles(format('cabal.GHC-{0}.config', matrix.ghc)) }}-
+            cabal-${{ runner.os }}-${{ matrix.ghc-version }}-${{ hashFiles(format('cabal.GHC-{0}.config', matrix.ghc-version)) }}-
 
       - shell: bash
         run: .github/ci.sh install_system_deps
@@ -112,6 +114,20 @@ jobs:
             cd docs &&
             make
             "
+
+      - shell: bash
+        name: Partition test-lib tests
+        id: test-lib
+        run: |
+          set -x
+          cabal v2-install --install-method=copy --installdir="./bin" test-lib
+          cmd="cat \$1.stdout"
+          if ${{ runner.os == 'Windows' }}; then
+              cmd="cat \$1.stdout.mingw32 2>/dev/null || $cmd"
+          fi
+          ./bin/test-runner --ext=.icry -r ./output --exe=$(which bash) -F -c -F "$cmd" -F -- ./tests
+          TARGETS_JSON=$(echo -n "$(ls -1 ./output/tests)" | jq -Rsc 'split("\n")')
+          echo "::set-output name=targets-json::$TARGETS_JSON"
 
       - shell: bash
         run: .github/ci.sh bundle_files
@@ -146,6 +162,12 @@ jobs:
           if-no-files-found: error
           retention-days: ${{ needs.config.outputs.retention-days }}
 
+      - if: matrix.ghc-version == '8.6.5'
+        uses: actions/upload-artifact@v2
+        with:
+          path: dist/bin
+          name: ${{ runner.os }}-bins
+
       - uses: actions/upload-artifact@v2
         if: runner.os == 'Windows'
         with:
@@ -154,13 +176,69 @@ jobs:
           if-no-files-found: error
           retention-days: ${{ needs.config.outputs.retention-days }}
 
-      - shell: bash
-        run: .github/ci.sh test_dist
+  test:
+    runs-on: ${{ matrix.os }}
+    needs: [build]
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [test-lib]
+        target: ${{ fromJson(needs.build.outputs.test-lib-json) }}
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        continue-on-error: [false]
+        include:
+          - suite: rpc
+            target: ''
+            os: ubuntu-latest
+            continue-on-error: false
+          - suite: rpc
+            target: ''
+            os: macos-latest
+            continue-on-error: false
+          - suite: rpc
+            target: ''
+            os: windows
+            continue-on-error: true  # TODO: get Python client to work on Windows
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: true
 
-      # TODO: get Python client to work on Windows
+      - uses: haskell/actions/setup@v1
+        with:
+          ghc-version: '8.10.2'
+
+      - uses: actions/download-artifact@v2
+        with:
+          name: "${{ runner.os }}-bins"
+          path: dist/bin
+
       - shell: bash
-        run: .github/ci.sh test_rpc
-        if: runner.os != 'Windows'
+        run: |
+          set -x
+          chmod +x dist/bin/cryptol
+          .github/ci.sh install_system_deps
+          ghc_ver="$(ghc --numeric-version)"
+          cp cabal.GHC-"$ghc_ver".config cabal.project.freeze
+          cabal v2-update
+
+      - if: matrix.suite == 'test-lib'
+        shell: bash
+        continue-on-error: ${{ matrix.continue-on-error }}
+        name: test-lib ${{ matrix.target }}
+        run: |
+          set -x
+          cabal v2-install -j --install-method=copy --installdir="./bin" test-lib
+          export PATH=$PWD/bin:$PWD/dist/bin:$PATH
+          ./bin/test-runner --ext=.icry -F -b --exe=dist/bin/cryptol ./tests/${{ matrix.target }}
+
+      - if: matrix.suite == 'rpc'
+        shell: bash
+        continue-on-error: ${{ matrix.continue-on-error }}
+        run: |
+          set -x
+          export PATH=$PWD/bin:$PWD/dist/bin:$PATH
+          cryptol-remote-api/run_rpc_tests.sh
 
   build-push-image:
     runs-on: ubuntu-latest
