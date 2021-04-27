@@ -21,7 +21,7 @@ from .connection import *
 from . import scryptol
 
 
-__all__ = ['cryptoltypes', 'solver', 'scryptol']
+__all__ = ['bitvector', 'commands', 'connections', 'cryptoltypes', 'solver', 'scryptol']
 
 
 def fail_with(x : Exception) -> NoReturn:
