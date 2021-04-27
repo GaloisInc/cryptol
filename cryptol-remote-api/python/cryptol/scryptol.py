@@ -110,8 +110,7 @@ def eval(expression : Any) -> Any:
     :ref:`cryptol-json-expression`, with Python datatypes standing
     for their JSON equivalents.
     """
-    res = __get_designated_connection().eval(expression).result()
-    return commands.from_cryptol_arg(res['value'])
+    return __get_designated_connection().eval(expression).result()
 
 def evaluate_expression(expression : Any) -> Any:
     """Synonym for ``eval``.
