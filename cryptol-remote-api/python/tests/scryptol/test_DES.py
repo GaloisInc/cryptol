@@ -11,11 +11,11 @@ class TestDES(unittest.TestCase):
         load_file(str(Path('tests','cryptol','test-files','examples','DEStest.cry')))
 
         # we can run the test suite as indended...
-        # vkres = eval('vktest DES')
+        # vkres = evalCry('vktest DES')
         # self.assertTrue(all(passed for (_,_,passed) in vkres))
-        # vtres = eval('vttest DES')
+        # vtres = evalCry('vttest DES')
         # self.assertTrue(all(passed for (_,_,passed) in vtres))
-        # kares = eval('katest DES')
+        # kares = evalCry('katest DES')
         # self.assertTrue(all(passed for (_,_,passed) in kares))
         
         # ...but we can also do it manually, using the python bindings more
@@ -26,19 +26,19 @@ class TestDES(unittest.TestCase):
             self.assertEqual(pt0, pt1)
         
         # vktest
-        vk = eval('vk')
+        vk = evalCry('vk')
         pt0 = BV(size=64, value=0)
         for (key, ct0) in vk:
             test(key, pt0, ct0)
         
         # vttest
-        vt = eval('vt')
+        vt = evalCry('vt')
         key = BV(size=64, value=0x0101010101010101)
         for (pt0, ct0) in vt:
             test(key, pt0, ct0)
         
         # katest
-        ka = eval('ka')
+        ka = evalCry('ka')
         for (key, pt0, ct0) in ka:
             test(key, pt0, ct0)
 

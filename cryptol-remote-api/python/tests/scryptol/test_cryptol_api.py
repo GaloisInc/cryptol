@@ -30,7 +30,7 @@ class CryptolTests(unittest.TestCase):
     def test_low_level(self):
         x_val = evaluate_expression("x")
 
-        self.assertEqual(eval("Id::id x"), x_val)
+        self.assertEqual(evalCry("Id::id x"), x_val)
         self.assertEqual(call('Id::id', bytes.fromhex('ff')), BV(8,255))
 
         self.assertEqual(call('add', b'\0', b'\1'), BV(8,1))
@@ -143,7 +143,7 @@ class CryptolTests(unittest.TestCase):
     def test_many_usages_one_connection(self):
         for i in range(0,100):
             x_val1 = evaluate_expression("x")
-            x_val2 = eval("Id::id x")
+            x_val2 = evalCry("Id::id x")
             self.assertEqual(x_val1, x_val2)
 
 

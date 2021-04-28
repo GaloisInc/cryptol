@@ -21,7 +21,7 @@ class TestSHA256(unittest.TestCase):
         # m2 = CryptolLiteral('""')
         # j2 = call('join', m2)
         # h2 = call('sha256', j2)
-        h2 = eval('sha256 (join "")')
+        h2 = evalCry('sha256 (join "")')
         expected_h2 = BV(size=256, value=0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855)
         self.assertEqual(h2, expected_h2)
 

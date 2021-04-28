@@ -10,12 +10,12 @@ class TestEvenMansour(unittest.TestCase):
         connect(reset_server=True)
         load_file(str(Path('tests','cryptol','test-files','examples','contrib','EvenMansour.cry')))
                 
-        F_10_4 = eval('F:[10][4]')
+        F_10_4 = evalCry('F:[10][4]')
         self.assertTrue(call('is_a_permutation', F_10_4))
         
-        Finv_10_4 = eval("F':[10][4]")
+        Finv_10_4 = evalCry("F':[10][4]")
         digits = [ BV(size=4, value=i) for i in range(0,10) ]
-                 # ^ the same as: eval('[0..9]:[_][4]')
+                 # ^ the same as: evalCry('[0..9]:[_][4]')
         self.assertTrue(call('is_inverse_permutation', digits, F_10_4, Finv_10_4))
         
         self.assertTrue(check('E_and_D_are_inverses').success)

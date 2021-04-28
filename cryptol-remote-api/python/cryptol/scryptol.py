@@ -105,7 +105,7 @@ def load_module(module_name : str) -> Any:
     """Load a Cryptol module, like ``:module`` at the Cryptol REPL."""
     return __get_designated_connection().load_module(module_name).result()
 
-def eval(expression : Any) -> Any:
+def evalCry(expression : Any) -> Any:
     """Evaluate a Cryptol expression, represented according to
     :ref:`cryptol-json-expression`, with Python datatypes standing
     for their JSON equivalents.
@@ -113,9 +113,9 @@ def eval(expression : Any) -> Any:
     return __get_designated_connection().eval(expression).result()
 
 def evaluate_expression(expression : Any) -> Any:
-    """Synonym for ``eval``.
+    """Synonym for ``evalCry``.
     """
-    return eval(expression)
+    return evalCry(expression)
 
 def extend_search_path(*dir : str) -> Any:
     return __get_designated_connection().extend_search_path(*dir).result()
