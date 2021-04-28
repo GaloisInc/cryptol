@@ -234,9 +234,12 @@ collectNestedModulesDs mpath env ds =
   forM_ [ tlValue nm | DModule nm <- ds ] \(NestedModule nested) ->
     do let pname = thing (mName nested)
            name  = case lookupNS NSModule pname env of
-                     [n] -> n
+                     n : _ -> n -- if a name is ambiguous we may get
+                                -- multiple answers, but we just pick one.
+                                -- This should be OK, as the error should be
+                                -- caught during actual renaming.
                      _   -> panic "collectedNestedModulesDs"
-                             [ "Missing/ambi definition for " ++ show pname ]
+                             [ "Missing definition for " ++ show pname ]
        newEnv <- lift (runBuild (moduleDefs (Nested mpath (nameIdent name)) nested))
        sets_ (Map.insert name newEnv)
        let newMPath = Nested mpath (nameIdent name)
