@@ -377,121 +377,9 @@ startsLayout (KW KW_private)  = True
 startsLayout (KW KW_parameter) = True
 startsLayout _                = False
 
-endsLayout :: TokenT -> Bool
-endsLayout ty =
-  case ty of
-    Sym Comma    -> True
-    Sym BracketL -> True
-    Sym ParenR   -> True
-    Sym BracketR -> True
-    _            -> False
-
-{-
-
-We assume the existence of an explicit EOF token at the end of the input.  This token is *less* indented
-than all other tokens (i.e., it is at column 0)
-
-Explicit Layout Blocks
-
-  * The symbols `(`, `{`, and `[` start an explicit layout block.
-  * While in an explicit layout block we pass through tokens, except:
-      - We may start new implicit or explicit layout blocks
-      - We terminate the current layout block if we encounter the matching
-        closing symbol `)`, `}`, `]`
-
-Implicit Layout Blocks
-
-  * The keywords `where`, `private`, and `parameter` start an implicit
-    layout block.
-  * The layout block starts at the column of the *following* token and we
-    insert "virtual start block" between the current and the following tokens.
-  * While in an implicit layout block:
-    - We may start new implicit or explicit layout blocks
-    - We insert a "virtual separator" before tokens starting at the same
-      column as the layout block, EXCEPT:
-        * we do not insert a separator if the previous token was a
-          "documentation comment"
-        * we do not insert a separator before the first token in the block
-
-    - The implicit layout block is ended by one of the tokens
-          `,`, `)`, `}`, `]`, or a token than is less indented that the
-          block's column.
-    - When an implicit layout block ends, we insert a "virtual end block"
-      token just before the token that caused the block to end.
-
-Examples:
-
-f = x where x = 0x1         -- end implicit layout by layout (`g` is less indented than `x`)
-g = 0x3
-
-f (x where x = 2)           -- end implicit layout by `)`
-
-[ x where x = 2, 3 ]        -- end implicit layout by `,`
-
-module A where              -- two implicit layout blocks with the *same* indentation (`where` and `private`)
-private
-x = 0x2
--}
-
-
-
-
-layout' :: Config -> [Located Token] -> [Located Token]
-layout' cfg = go [] 0 False -- XXX: consult CFG for initial state
-  where
-  {- State parameters:
-       stack:    the stack of implicit and explicit blocks
-       lastVirt: the indentation of the outer most implicit block (or 0, if none)
-       noVirtSep: do not emit a virtual separator even if token matches block alignment
-       tokens:    remaining tokens to process
-  -}
-
-  go stack lastVirt noVirtSep tokens
-
-    -- End implicit layout due to indentation.
-    -- Note that the outermost layout block, even if we have
-    -- some explicit layout blocks due to parens.
-    | col curLoc < lastVirt = endImplictBlock
-
-    -- End implicit layout block due to a symbol
-    | Virtual {} <- curBlock, endsLayout curTokTy = endImplictBlock
-
-    -- Insert a virtual separator
-    | Virtual blockCol <- curBlock
-    , col curLoc == blockCol && not noVirtSep =
-      virt cfg curLoc VSemi : go stack lastVirt True tokens
-
-    -- Start a new implicit layout
-    | startsLayout curTokTy = startImplicitBlock
-
-    where
-    curTok : rest = (tokens :: [Located Token])
-    curTokTy      = tokenType (thing curTok)
-    curLoc        = from (srcRange curTok)
-
-    curBlock : popStack = stack
-
-
-    startImplicitBlock =
-      let nextLoc  = from (srcRange (head rest))
-          blockCol = col nextLoc
-      in curTok
-       : virt cfg nextLoc VCurlyL
-       : go (Virtual blockCol : stack) blockCol True rest
-
-    endImplictBlock =
-      case curBlock of
-        Virtual {} -> go popStack newVirt False tokens
-          where newVirt = case [ n | Virtual n <- popStack ] of
-                            n : _ -> n
-                            _     -> 0
-
-        Explicit {} -> errTok cfg curLoc InvalidIndentation : rest
-
-
 -- Add separators computed from layout
 layout :: Config -> [Located Token] -> [Located Token]
-layout cfg ts0 = loop cfg False implicitScope [] ts0
+layout cfg ts0 = loop False implicitScope [] ts0
   where
 
   (_pos0,implicitScope) = case ts0 of
@@ -499,59 +387,40 @@ layout cfg ts0 = loop cfg False implicitScope [] ts0
     _     -> (start,False)
 
 
-loop :: Config -> Bool -> Bool -> [Block] -> [Located Token] -> [Located Token]
-loop cfg afterDoc startBlock stack (t : ts) =
-    toks ++
-    case tokenType (thing t) of
-      EOF -> []
+  loop :: Bool -> Bool -> [Block] -> [Located Token] -> [Located Token]
+  loop afterDoc startBlock stack (t : ts)
+    | startsLayout ty    = toks ++ loop False True                             stack'  ts
 
-      -- Tokens between parens, curlies, and brackets introduce a new explicit-layout block
-      Sym ParenL   -> continue False False (Explicit (Sym ParenR) : stack')
-      Sym CurlyL   -> continue False False (Explicit (Sym CurlyR) : stack')
-      Sym BracketL -> continue False False (Explicit (Sym BracketR) : stack')
+    -- We don't do layout within these delimeters
+    | Sym ParenL   <- ty = toks ++ loop False False (Explicit (Sym ParenR)   : stack') ts
+    | Sym CurlyL   <- ty = toks ++ loop False False (Explicit (Sym CurlyR)   : stack') ts
+    | Sym BracketL <- ty = toks ++ loop False False (Explicit (Sym BracketR) : stack') ts
 
-      White DocStr -> continue True False stack'
-
-      curTok | startsLayout curTok -> continue False True  stack'
-             | otherwise           -> continue False False stack'
-
+    | EOF          <- ty = toks
+    | White DocStr <- ty = toks ++ loop True  False                            stack'  ts
+    | otherwise          = toks ++ loop False False                            stack'  ts
 
     where
-    continue newAfterDoc newStartBlock newStack = loop cfg newAfterDoc newStartBlock newStack ts
-
-
-    curToken = tokenType (thing t)
+    ty  = tokenType (thing t)
     pos = srcRange t
 
     (toks,offStack)
-
-      {- This special case is here to avoid, for example, adding a virtual semi in an example like this:
-
-      /** Hello */
-      world = x
-
-      This assumes that document comments would only appear in a grammar where there is no need for
-      special layout handling.
-      -}
-
       | afterDoc  = ([t], stack)
-
-
-      | otherwise = offsides cfg startToks t stack
+      | otherwise = offsides startToks t stack
 
     -- add any block start tokens, and push a level on the stack
     (startToks,stack')
-      | startBlock && curToken == EOF = ( [ virt cfg (to pos) VCurlyR, virt cfg (to pos) VCurlyL ]
-                                        , offStack
-                                        )
+      | startBlock && ty == EOF = ( [ virt cfg (to pos) VCurlyR
+                                    , virt cfg (to pos) VCurlyL ]
+                                  , offStack )
       | startBlock = ( [ virt cfg (to pos) VCurlyL ], Virtual (col (from pos)) : offStack )
       | otherwise  = ( [], offStack )
 
-loop _ _ _ _ [] = panic "[Lexer] layout" ["Missing EOF token"]
+  loop _ _ _ [] = panic "[Lexer] layout" ["Missing EOF token"]
 
 
-offsides :: Config -> [Located Token] -> Located Token -> [Block] -> ([Located Token], [Block])
-offsides cfg startToks curTok = go startToks
+  offsides :: [Located Token] -> Located Token -> [Block] -> ([Located Token], [Block])
+  offsides startToks t = go startToks
     where
     go virts stack = case stack of
 
@@ -574,15 +443,13 @@ offsides cfg startToks curTok = go startToks
 
       _ -> done virts stack
 
-    ty  = tokenType (thing curTok)
-    pos = srcRange curTok
+    ty  = tokenType (thing t)
+    pos = srcRange t
 
-    done ts s = (reverse (curTok:ts), s)
+    done ts s = (reverse (t:ts), s)
 
     closingToken = ty `elem` [ Sym ParenR, Sym BracketR, Sym CurlyR ]
 
-
--- | Make a virtual token of the given type
 virt :: Config -> Position -> TokenV -> Located Token
 virt cfg pos x = Located { srcRange = Range
                              { from = pos
@@ -595,19 +462,6 @@ virt cfg pos x = Located { srcRange = Range
                                VCurlyR -> "end of layout block"
                                VSemi   -> "layout block separator"
 
-errTok :: Config -> Position -> TokenErr -> Located Token
-errTok cfg pos x =
-  Located { srcRange = Range
-                         { from = pos
-                         , to = pos
-                         , source = cfgSource cfg
-                         }
-          , thing = Token { tokenType = Err x, tokenText = "" }
-          }
-
-
-
- 
 --------------------------------------------------------------------------------
 
 data Token    = Token { tokenType :: !TokenT, tokenText :: !Text }
@@ -690,7 +544,6 @@ data TokenErr = UnterminatedComment
               | LexicalError
               | MalformedLiteral
               | MalformedSelector
-              | InvalidIndentation
                 deriving (Eq, Show, Generic, NFData)
 
 data SelectorType = RecordSelectorTok Text | TupleSelectorTok Int
