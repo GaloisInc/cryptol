@@ -18,11 +18,13 @@ module Cryptol.Parser.Lexer
   , Located(..)
   , Config(..)
   , defaultConfig
+  , dbgLex
   ) where
 
 import Cryptol.Parser.Position
 import Cryptol.Parser.Token
 import Cryptol.Parser.LexerUtils
+import qualified Cryptol.Parser.Layout as L
 import Cryptol.Parser.Unlit(unLit)
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -196,7 +198,7 @@ stateToInt (InChar {})    = char
 -- This stream is fed to the parser.
 lexer :: Config -> Text -> ([Located Token], Position)
 lexer cfg cs = ( case cfgLayout cfg of
-                   Layout   -> layout cfg lexemes
+                   Layout   -> L.layout (cfgModuleScope cfg) lexemes
                    NoLayout -> lexemes
                , finalPos
                )
@@ -253,6 +255,11 @@ primLexer cfg cs = run inp Normal
             (mtok,s')   = act cfg (alexPos i) txt s
             (rest,pos)  = run i' $! s'
         in (mtok ++ rest, pos)
+
+dbgLex file =
+  do txt <- readFile file
+     let (ts,_) = lexer defaultConfig (Text.pack txt)
+     mapM_ (print . thing) ts
 
 -- vim: ft=haskell
 }

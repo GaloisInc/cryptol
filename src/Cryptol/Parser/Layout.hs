@@ -2,6 +2,7 @@
 {-# Language OverloadedStrings #-}
 module Cryptol.Parser.Layout where
 
+import Cryptol.Utils.Panic(panic)
 import Cryptol.Parser.Position
 import Cryptol.Parser.Token
 
@@ -15,6 +16,7 @@ Explicit Layout Blocks
   * The symbols `(`, `{`, and `[` start an explicit layout block.
   * While in an explicit layout block we pass through tokens, except:
       - We may start new implicit or explicit layout blocks
+      - A `,` terminates any *nested* layout blocks
       - We terminate the current layout block if we encounter the matching
         closing symbol `)`, `}`, `]`
 
@@ -32,8 +34,10 @@ Implicit Layout Blocks
           "documentation comment"
         * we do not insert a separator before the first token in the block
 
-    - The implicit layout block is ended by one of the tokens
-          `,`, `)`, `}`, `]`, or a token than is less indented that the
+    - The implicit layout block is ended by:
+          * a token than is less indented that the block, or
+          * `)`, `}`, `]`, or 
+          * ',' but only if there is an outer paren block
           block's column.
     - When an implicit layout block ends, we insert a "virtual end block"
       token just before the token that caused the block to end.
@@ -58,9 +62,10 @@ layout isMod ts0
 
   -- Star an implicit layout block at the top of the module
   | let t         = head ts0
-        blockCol  = col (from (srcRange t))
+        rng       = srcRange t
+        blockCol  = max 1 (col (from rng)) -- see startImplicitBlock
   , isMod && tokenType (thing t) /= KW KW_module =
-    go [ Virtual blockCol ] blockCol True ts0
+    virt rng VCurlyL : go [ Virtual blockCol ] blockCol True ts0
 
   | otherwise =
     go [] 0 False ts0
@@ -96,11 +101,17 @@ layout isMod ts0
       endImplictBlock
 
     -- End implicit layout block due to a symbol
-    | Virtual {} <- curBlock, endsLayout curTokTy =
+    | Just (Virtual {}) <- curBlock, endsLayout curTokTy =
+      endImplictBlock
+
+    -- End implicit layout block due to a comma
+    | Just (Virtual {}) <- curBlock
+    , Sym Comma <- curTokTy
+    , not (null [ () | Explicit _ <- popStack ]) =
       endImplictBlock
 
     -- Insert a virtual separator
-    | Virtual {} <- curBlock
+    | Just (Virtual {}) <- curBlock
     , col curLoc == lastVirt && not noVirtSep =
       virt curRange VSemi : go stack lastVirt True tokens
 
@@ -112,7 +123,7 @@ layout isMod ts0
       curTok : go (Explicit close : stack) lastVirt False advanceTokens
 
     -- End a paren block. Advances token position
-    | Explicit close <- curBlock, close == curTokTy =
+    | Just (Explicit close) <- curBlock, close == curTokTy =
       curTok : go popStack lastVirt False advanceTokens
 
     -- Disable virtual separator after doc string. Advances token position
@@ -135,13 +146,19 @@ layout isMod ts0
     curRange               = srcRange curTok
     curLoc                 = from curRange
 
-    curBlock : popStack = stack
+    (curBlock,popStack) =
+      case stack of
+        a : b -> (Just a,b)
+        []    -> (Nothing, panic "layout" ["pop empty stack"])
 
 
     startImplicitBlock =
       let nextRng  = srcRange (head advanceTokens)
           nextLoc  = from nextRng
-          blockCol = col nextLoc
+          blockCol = max 1 (col nextLoc)
+          -- the `max` ensuraes that indentation is always at least 1,
+          -- in case we are starting a block at the very end of the input
+
       in curTok
        : virt nextRng VCurlyL
        : go (Virtual blockCol : stack) blockCol True advanceTokens
@@ -149,12 +166,17 @@ layout isMod ts0
 
     endImplictBlock =
       case curBlock of
-        Virtual {} -> go popStack newVirt False tokens
+        Just (Virtual {}) ->
+           virt curRange VCurlyR
+           : go popStack newVirt False tokens
           where newVirt = case [ n | Virtual n <- popStack ] of
                             n : _ -> n
                             _     -> 0
 
-        Explicit c -> errTok curRange (InvalidIndentation c) : advanceTokens
+        Just (Explicit c) ->
+          errTok curRange (InvalidIndentation c) : advanceTokens
+
+        Nothing -> panic "layout" ["endImplictBlock with empty stack"]
 
 
 --------------------------------------------------------------------------------
@@ -177,7 +199,6 @@ startsLayout ty =
 endsLayout :: TokenT -> Bool
 endsLayout ty =
   case ty of
-    Sym Comma    -> True
     Sym BracketR -> True
     Sym ParenR   -> True
     Sym CurlyR   -> True
