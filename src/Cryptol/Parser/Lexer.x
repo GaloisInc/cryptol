@@ -21,6 +21,7 @@ module Cryptol.Parser.Lexer
   ) where
 
 import Cryptol.Parser.Position
+import Cryptol.Parser.Token
 import Cryptol.Parser.LexerUtils
 import Cryptol.Parser.Unlit(unLit)
 import Data.Text (Text)
