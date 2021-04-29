@@ -81,11 +81,11 @@ lexerP k = P $ \cfg p s ->
                                     T.unpack (tokenText it)
            MalformedSelector   -> "malformed selector: " ++
                                     T.unpack (tokenText it)
-           InvalidIndentation c -> "invalid indentation, expected " ++
+           InvalidIndentation c -> "invalid indentation, unmatched " ++
               case c of
-                Sym CurlyR    -> "}"
-                Sym ParenR    -> ")"
-                Sym BracketR  -> "]"
+                Sym CurlyR    -> "{ ... } "
+                Sym ParenR    -> "( ... )"
+                Sym BracketR  -> "[ ... ]"
                 _             -> show c -- basically panic
         ]
       where it = thing t
