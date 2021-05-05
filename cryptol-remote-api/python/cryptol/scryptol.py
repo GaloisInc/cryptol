@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Optional, Union
+from typing import cast, Any, Optional, Union, List
 from typing_extensions import Literal
 
 from . import solver
@@ -10,7 +10,7 @@ from . import commands
 from . import connection
 
 
-__designated_connection = None  # type: Optional[cryptol.CryptolConnection]
+__designated_connection = None  # type: Optional[connection.CryptolConnection]
 
 def __get_designated_connection() -> connection.CryptolConnection:
     global __designated_connection
@@ -131,7 +131,10 @@ def check(expr : Any, *, num_tests : Union[Literal['all'], int, None] = None) ->
 
     If ``num_tests`` is omitted, Cryptol defaults to running 100 tests.
     """
-    return __get_designated_connection().check(expr, num_tests=num_tests).result()
+    res = __get_designated_connection().check(expr, num_tests=num_tests).result()
+    # FIXME How to get mypy to know this result has type CheckReport? Add a
+    #  parameter to the arg.Command type?
+    return cast(commands.CheckReport, res)
 
 def check_type(code : Any) -> Any:
     """Check the type of a Cryptol expression, represented according to

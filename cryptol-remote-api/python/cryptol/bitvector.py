@@ -381,6 +381,68 @@ class BV:
         else:
             return BV.__from_signed_int(size, value)
 
+
+    def __neg__(self) -> 'BV':
+        """Returns the ``self.size()``-bit two's complement negation of ``value``"""
+        return BV.__from_signed_int(self.__size, -self.to_signed_int())
+
+    def __pos__(self) -> 'BV':
+        return BV(self.__size, self.__value)
+
+
+    def __lt__(self, other : Union[int, 'BV']) -> bool:
+        """Unsigned less than comparison bewteen ``BV``s of equal size or bewteen a ``BV`` and a
+           nonnegative integer whose value is expressible with the ``BV`` parameter's size."""
+        if isinstance(other, BV):
+            if self.__size == other.__size:
+                return self.__value < other.__value
+            else:
+                raise ValueError(self.__unequal_len_op_error_msg("<", other))
+        elif isinstance(other, int):
+            return self.__value < BV.__from_signed_int(self.__size, other).__value
+        else:
+            raise ValueError(f'Cannot compare {self!r} with {other!r}.')
+
+    def __le__(self, other : Union[int, 'BV']) -> bool:
+        """Unsigned less than or equal comparison bewteen ``BV``s of equal size or bewteen a ``BV`` and a
+           nonnegative integer whose value is expressible with the ``BV`` parameter's size."""
+        if isinstance(other, BV):
+            if self.__size == other.__size:
+                return self.__value <= other.__value
+            else:
+                raise ValueError(self.__unequal_len_op_error_msg("<=", other))
+        elif isinstance(other, int):
+            return self.__value <= BV.__from_signed_int(self.__size, other).__value
+        else:
+            raise ValueError(f'Cannot compare {self!r} with {other!r}.')
+
+    def __gt__(self, other : Union[int, 'BV']) -> bool:
+        """Unsigned greater than comparison bewteen ``BV``s of equal size or bewteen a ``BV`` and a
+           nonnegative integer whose value is expressible with the ``BV`` parameter's size."""
+        if isinstance(other, BV):
+            if self.__size == other.__size:
+                return self.__value > other.__value
+            else:
+                raise ValueError(self.__unequal_len_op_error_msg(">", other))
+        elif isinstance(other, int):
+            return self.__value > BV.__from_signed_int(self.__size, other).__value
+        else:
+            raise ValueError(f'Cannot compare {self!r} with {other!r}.')
+
+    def __ge__(self, other : Union[int, 'BV']) -> bool:
+        """Unsigned greater than or equal comparison bewteen ``BV``s of equal size or bewteen a ``BV`` and a
+           nonnegative integer whose value is expressible with the ``BV`` parameter's size."""
+        if isinstance(other, BV):
+            if self.__size == other.__size:
+                return self.__value >= other.__value
+            else:
+                raise ValueError(self.__unequal_len_op_error_msg(">=", other))
+        elif isinstance(other, int):
+            return self.__value >= BV.__from_signed_int(self.__size, other).__value
+        else:
+            raise ValueError(f'Cannot compare {self!r} with {other!r}.')
+
+
     def __sub__(self, other : Union[int, 'BV']) -> 'BV':
         """Subtraction bewteen ``BV``s of equal size or bewteen a ``BV`` and a nonnegative
            integer whose value is expressible with the ``BV`` parameter's size."""
@@ -439,6 +501,16 @@ class BV:
     def __rmul__(self, other : int) -> 'BV':
         return self.__mul__(other)
 
+
+    def __pow__(self, other: int) -> 'BV':
+        """Raising a ``BV`` to a nonnegative integer power."""
+        if isinstance(other, int):
+            return BV.__from_signed_int(
+                self.__size,
+                self.__mod_if_overflow(self.__value ** other))
+        else:
+            raise ValueError(f'Cannot raise {self!r} to the power of {other!r}.')
+    
     
     def __lshift__(self, other : Union[int, 'BV']) -> 'BV':
         """Returns the bitwise left shift of ``self``.

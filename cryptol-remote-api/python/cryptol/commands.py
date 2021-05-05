@@ -11,6 +11,7 @@ import argo_client.interaction as argo
 from argo_client.interaction import HasProtocolState
 from . import solver
 from .bitvector import BV
+from .intmod import IntMod
 
 
 def extend_hex(string : str) -> str:
@@ -49,6 +50,8 @@ def from_cryptol_arg(val : Any) -> Any:
             else:
                 raise ValueError("Unknown encoding " + str(enc))
             return BV(size, n)
+        elif tag == 'integer modulo':
+            return IntMod(val['integer'], val['modulus'])
         else:
             raise ValueError("Unknown expression tag " + tag)
     else:

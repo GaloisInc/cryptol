@@ -222,12 +222,24 @@ class Num(CryptolType):
     def __init__(self, number : int) -> None:
         self.number = number
 
+    def __eq__(self, other : Any) -> bool:
+        return isinstance(other, Num) and self.number == other.number
+
+    def __str__(self) -> str:
+        return f"{self.number}"
+
     def __repr__(self) -> str:
         return f"Num({self.number!r})"
 
 class Bit(CryptolType):
     def __init__(self) -> None:
         pass
+
+    def __eq__(self, other : Any) -> bool:
+        return isinstance(other, Bit)
+
+    def __str__(self) -> str:
+        return f"Bit"
 
     def __repr__(self) -> str:
         return f"Bit()"
@@ -237,24 +249,68 @@ class Sequence(CryptolType):
         self.length = length
         self.contents = contents
 
+    def __eq__(self, other : Any) -> bool:
+        return isinstance(other, Sequence) \
+               and self.length == other.length \
+               and self.contents == other.contents
+
+    def __str__(self) -> str:
+        if self.contents == Bit():
+            return f'[{self.length}]'
+        else:
+            return f'[{self.length}]{self.contents}'
+
     def __repr__(self) -> str:
         return f"Sequence({self.length!r}, {self.contents!r})"
 
 class Inf(CryptolType):
+    def __init__(self) -> None:
+        pass
+
+    def __eq__(self, other : Any) -> bool:
+        return isinstance(other, Inf)
+
+    def __str__(self) -> str:
+        return f"inf"
+
     def __repr__(self) -> str:
         return f"Inf()"
 
 class Integer(CryptolType):
+    def __init__(self) -> None:
+        pass
+
+    def __eq__(self, other : Any) -> bool:
+        return isinstance(other, Integer)
+
+    def __str__(self) -> str:
+        return f"Integer"
+
     def __repr__(self) -> str:
         return f"Integer()"
 
 class Rational(CryptolType):
+    def __init__(self) -> None:
+        pass
+
+    def __eq__(self, other : Any) -> bool:
+        return isinstance(other, Rational)
+
+    def __str__(self) -> str:
+        return f"Rational"
+
     def __repr__(self) -> str:
         return f"Rational()"
 
 class Z(CryptolType):
     def __init__(self, modulus : CryptolType) -> None:
         self.modulus = modulus
+
+    def __eq__(self, other : Any) -> bool:
+        return isinstance(other, Z) and self.modulus == other.modulus
+
+    def __str__(self) -> str:
+        return f"(Z {self.modulus})"
 
     def __repr__(self) -> str:
         return f"Z({self.modulus!r})"
@@ -391,21 +447,35 @@ class Min(CryptolType):
     def __repr__(self) -> str:
         return f"Min({self.left!r}, {self.right!r})"
 
+
 class Tuple(CryptolType):
     types : Iterable[CryptolType]
 
     def __init__(self, *types : CryptolType) -> None:
         self.types = types
 
+    def __eq__(self, other : Any) -> bool:
+        return isinstance(other, Tuple) and self.types == other.types
+
+    def __str__(self) -> str:
+        return "(" + ", ".join(map(str, self.types)) + ")"
+
     def __repr__(self) -> str:
-        return "Tuple(" + ", ".join(map(str, self.types)) + ")"
+        return "Tuple(" + ", ".join(map(repr, self.types)) + ")"
 
 class Record(CryptolType):
     def __init__(self, fields : Dict[str, CryptolType]) -> None:
         self.fields = fields
 
+    def __eq__(self, other : Any) -> bool:
+        return isinstance(other, Record) and self.fields == other.fields
+
+    def __str__(self) -> str:
+        return "{" + ", ".join(f"{str} : {self.fields[str]}" for str in self.fields) + "}"
+
     def __repr__(self) -> str:
         return f"Record({self.fields!r})"
+
 
 def to_type(t : Any) -> CryptolType:
     if t['type'] == 'variable':
