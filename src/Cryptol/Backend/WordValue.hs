@@ -576,8 +576,9 @@ shiftWordByWord sym wop reindex x idx =
             WordVal (wordAsLit sym -> Just (_,j)) ->
               bitmapWordVal sym n =<< shiftOp bs0 j
             _ ->
-              do idx_segs <- enumerateIndexSegments sym idx
-                 bitmapWordVal sym n =<< barrelShifter sym (iteBit sym) shiftOp (Nat n) bs0 n idx_segs
+              do let idx_w = wordValueSize sym idx
+                 idx_segs <- enumerateIndexSegments sym idx
+                 bitmapWordVal sym n =<< barrelShifter sym (iteBit sym) shiftOp (Nat n) bs0 idx_w idx_segs
 
  where
    shiftOp vs shft =
