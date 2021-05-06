@@ -1,0 +1,20 @@
+xs : [32]
+xs = 0xdeadbeef
+
+f : [32] -> [32]
+f zs = zs <<< ( [True,False,False]:[3] )
+
+q0 = f xs
+q1 = f (rnf (xs @@ [0..31]))
+q2 = f      (xs @@ [0..31])
+
+
+ys : [1][32]
+ys = [ 0xdeadbeef ]
+
+g : [1][32] -> [32]
+g zs = (zs@0) <<< ( [True,False,False]:[3] )
+
+r0 = g ys
+r1 = g (split (rnf (join ys)))
+r2 = g (split      (join ys))
