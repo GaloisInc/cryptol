@@ -228,6 +228,7 @@ jobs:
         run: |
           set -x
           chmod +x dist/bin/cryptol
+          chmod +x bin/test-runner
           .github/ci.sh install_system_deps
           ghc_ver="$(ghc --numeric-version)"
           cp cabal.GHC-"$ghc_ver".config cabal.project.freeze
