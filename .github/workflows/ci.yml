@@ -166,7 +166,13 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           path: dist/bin
-          name: ${{ runner.os }}-bins
+          name: ${{ runner.os }}-dist-bin
+
+      - if: matrix.ghc-version == '8.6.5'
+        uses: actions/upload-artifact@v2
+        with:
+          path: bin
+          name: ${{ runner.os }}-bin
 
       - uses: actions/upload-artifact@v2
         if: runner.os == 'Windows'
@@ -210,8 +216,13 @@ jobs:
 
       - uses: actions/download-artifact@v2
         with:
-          name: "${{ runner.os }}-bins"
+          name: "${{ runner.os }}-dist-bin"
           path: dist/bin
+
+      - uses: actions/download-artifact@v2
+        with:
+          name: "${{ runner.os }}-bin"
+          path: bin
 
       - shell: bash
         run: |
@@ -228,7 +239,6 @@ jobs:
         name: test-lib ${{ matrix.target }}
         run: |
           set -x
-          cabal v2-install -j --install-method=copy --installdir="./bin" test-lib
           export PATH=$PWD/bin:$PWD/dist/bin:$PATH
           ./bin/test-runner --ext=.icry -F -b --exe=dist/bin/cryptol ./tests/${{ matrix.target }}
 
