@@ -532,19 +532,8 @@ shiftWordByInteger sym wop reindex x idx =
       isReady sym packed >>= \case
         Just w -> shiftWordByInteger sym wop reindex (WordVal w) idx
         Nothing ->
-          case integerAsLit sym idx of
-            Just j -> bitmapWordVal sym n =<< shiftOp bs0 j
-            Nothing ->
-              do (numbits, idx_bits) <- enumerateIntBits' sym n idx
-                 bitmapWordVal sym n =<<
-                   barrelShifter sym (iteBit sym) shiftOp (Nat n) bs0 numbits (map BitIndexSegment idx_bits)
-
- where
-   shiftOp vs shft =
-      pure $ indexSeqMap $ \i ->
-        case reindex i shft of
-          Nothing -> pure $ bitLit sym False
-          Just i' -> lookupSeqMap vs i'
+          bitmapWordVal sym n =<<
+            shiftSeqByInteger sym (iteBit sym) reindex (pure (bitLit sym False)) (Nat n) bs0 idx
 
 
 {-# INLINE shiftWordByWord #-}
@@ -572,20 +561,8 @@ shiftWordByWord sym wop reindex x idx =
       isReady sym packed >>= \case
         Just w -> shiftWordByWord sym wop reindex (WordVal w) idx
         Nothing ->
-          case idx of
-            WordVal (wordAsLit sym -> Just (_,j)) ->
-              bitmapWordVal sym n =<< shiftOp bs0 j
-            _ ->
-              do let idx_w = wordValueSize sym idx
-                 idx_segs <- enumerateIndexSegments sym idx
-                 bitmapWordVal sym n =<< barrelShifter sym (iteBit sym) shiftOp (Nat n) bs0 idx_w idx_segs
-
- where
-   shiftOp vs shft =
-      pure $ indexSeqMap $ \i ->
-        case reindex i shft of
-          Nothing -> pure $ bitLit sym False
-          Just i' -> lookupSeqMap vs i'
+          bitmapWordVal sym n =<<
+            shiftSeqByWord sym (iteBit sym) reindex (pure (bitLit sym False)) (Nat n) bs0 idx
 
 
 {-# INLINE updateWordByWord #-}
@@ -660,9 +637,14 @@ shiftSeqByWord  ::
   WordValue sym ->
   SEval sym (SeqMap sym a)
 shiftSeqByWord sym merge reindex zro sz xs idx =
-  do idx_segs <- enumerateIndexSegments sym idx
-     barrelShifter sym merge shiftOp sz xs (wordValueSize sym idx) idx_segs
- where
+  wordValAsLit sym idx >>= \case
+    Just j -> shiftOp xs j
+    Nothing ->
+      do idx_segs <- enumerateIndexSegments sym idx
+         barrelShifter sym merge shiftOp sz xs idx_bits idx_segs
+  where
+   idx_bits = wordValueSize sym idx
+
    shiftOp vs shft =
      pure $ indexSeqMap $ \i ->
        case reindex i shft of
