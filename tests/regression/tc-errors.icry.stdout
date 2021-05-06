@@ -83,19 +83,19 @@ Loading module Main
 
 [error] at tc-errors-5.cry:2:5--2:7:
   Inferred type is not sufficiently polymorphic.
-    Quantified variable: a`748
+    Quantified variable: a`809
     cannot match type: [0]?a
     When checking the type of 'Main::f'
   where
   ?a is type of sequence member at tc-errors-5.cry:2:5--2:7
-  a`748 is signature variable 'a' at tc-errors-5.cry:1:6--1:7
+  a`809 is signature variable 'a' at tc-errors-5.cry:1:6--1:7
 Loading module Cryptol
 Loading module Main
 
 [error] at tc-errors-6.cry:4:7--4:8:
   The type ?a is not sufficiently polymorphic.
-    It cannot depend on quantified variables: b`752
+    It cannot depend on quantified variables: b`813
     When checking the type of 'g'
   where
   ?a is the type of 'x' at tc-errors-6.cry:1:3--1:4
-  b`752 is signature variable 'b' at tc-errors-6.cry:3:8--3:9
+  b`813 is signature variable 'b' at tc-errors-6.cry:3:8--3:9
