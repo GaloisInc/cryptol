@@ -221,13 +221,14 @@ mergeSeqMap sym f c x y =
 {-# INLINE shiftSeqByInteger #-}
 shiftSeqByInteger :: Backend sym =>
   sym ->
-  (SBit sym -> a -> a -> SEval sym a) ->
+  (SBit sym -> a -> a -> SEval sym a)
+     {- ^ if/then/else operation of values -} ->
   (Integer -> Integer -> Maybe Integer)
      {- ^ reindexing operation -} ->
-  SEval sym a ->
-  Nat' ->
-  SeqMap sym a ->
-  SInteger sym ->
+  SEval sym a {- ^ zero value -} ->
+  Nat' {- ^ size of the sequence -} ->
+  SeqMap sym a {- ^ sequence to shift -} ->
+  SInteger sym {- ^ shift amount, assumed to be in range [0,len) -} ->
   SEval sym (SeqMap sym a)
 shiftSeqByInteger sym merge reindex zro m xs idx
   | Just j <- integerAsLit sym idx = shiftOp xs j
@@ -259,7 +260,8 @@ data IndexSegment sym
  #-}
 barrelShifter :: Backend sym =>
   sym ->
-  (SBit sym -> a -> a -> SEval sym a) ->
+  (SBit sym -> a -> a -> SEval sym a)
+     {- ^ if/then/else operation of values -} ->
   (SeqMap sym a -> Integer -> SEval sym (SeqMap sym a))
      {- ^ concrete shifting operation -} ->
   Nat' {- ^ Size of the map being shifted -} ->

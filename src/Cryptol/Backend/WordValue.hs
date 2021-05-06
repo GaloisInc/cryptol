@@ -509,10 +509,12 @@ unwindThunks m =
 shiftWordByInteger ::
   Backend sym =>
   sym ->
-  (SWord sym -> SWord sym -> SEval sym (SWord sym)) ->
-  (Integer -> Integer -> Maybe Integer) ->
-  WordValue sym ->
-  SInteger sym ->
+  (SWord sym -> SWord sym -> SEval sym (SWord sym)) 
+    {- ^ operation on word values -} ->
+  (Integer -> Integer -> Maybe Integer)
+    {- ^ reindexing operation -} ->
+  WordValue sym {- ^ word value to shift -} ->
+  SInteger sym {- ^ shift amount, assumed to be in range [0,len) -} ->
   SEval sym (WordValue sym)
 
 shiftWordByInteger sym wop reindex x idx =
@@ -540,8 +542,10 @@ shiftWordByInteger sym wop reindex x idx =
 shiftWordByWord ::
   Backend sym =>
   sym ->
-  (SWord sym -> SWord sym -> SEval sym (SWord sym)) ->
-  (Integer -> Integer -> Maybe Integer) ->
+  (SWord sym -> SWord sym -> SEval sym (SWord sym))
+    {- ^ operation on word values -} ->
+  (Integer -> Integer -> Maybe Integer)
+    {- ^ reindexing operation -} ->
   WordValue sym {- ^ value to shift -} ->
   WordValue sym {- ^ amount to shift -} ->
   SEval sym (WordValue sym)
@@ -629,12 +633,14 @@ updateWordByWord sym dir w0 idx bitval =
 shiftSeqByWord  ::
   Backend sym =>
   sym ->
-  (SBit sym -> a -> a -> SEval sym a) ->
-  (Integer -> Integer -> Maybe Integer) ->
-  SEval sym a ->
-  Nat' ->
-  SeqMap sym a ->
-  WordValue sym ->
+  (SBit sym -> a -> a -> SEval sym a)
+     {- ^ if/then/else operation of values -} ->
+  (Integer -> Integer -> Maybe Integer)
+     {- ^ reindexing operation -} ->
+  SEval sym a  {- ^ zero value -} ->
+  Nat' {- ^ size of the sequence -} ->
+  SeqMap sym a {- ^ sequence to shift -} ->
+  WordValue sym {- ^ shift amount -} ->
   SEval sym (SeqMap sym a)
 shiftSeqByWord sym merge reindex zro sz xs idx =
   wordValAsLit sym idx >>= \case
