@@ -228,6 +228,8 @@ jobs:
         run: |
           set -x
           chmod +x dist/bin/cryptol
+          chmod +x dist/bin/cryptol-remote-api
+          chmod +x dist/bin/cryptol-eval-server
           chmod +x bin/test-runner
           .github/ci.sh install_system_deps
           ghc_ver="$(ghc --numeric-version)"
@@ -239,7 +241,6 @@ jobs:
         continue-on-error: ${{ matrix.continue-on-error }}
         name: test-lib ${{ matrix.target }}
         run: |
-          set -x
           export PATH=$PWD/bin:$PWD/dist/bin:$PATH
           ./bin/test-runner --ext=.icry -F -b --exe=dist/bin/cryptol ./tests/${{ matrix.target }}
 
@@ -247,7 +248,6 @@ jobs:
         shell: bash
         continue-on-error: ${{ matrix.continue-on-error }}
         run: |
-          set -x
           export PATH=$PWD/bin:$PWD/dist/bin:$PATH
           cryptol-remote-api/run_rpc_tests.sh
 
