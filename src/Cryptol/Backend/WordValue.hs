@@ -514,7 +514,7 @@ shiftWordByInteger ::
   (Integer -> Integer -> Maybe Integer)
     {- ^ reindexing operation -} ->
   WordValue sym {- ^ word value to shift -} ->
-  SInteger sym {- ^ shift amount, assumed to be in range [0,len) -} ->
+  SInteger sym {- ^ shift amount, assumed to be in range [0,len] -} ->
   SEval sym (WordValue sym)
 
 shiftWordByInteger sym wop reindex x idx =

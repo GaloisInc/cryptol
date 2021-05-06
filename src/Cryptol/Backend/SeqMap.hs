@@ -228,7 +228,7 @@ shiftSeqByInteger :: Backend sym =>
   SEval sym a {- ^ zero value -} ->
   Nat' {- ^ size of the sequence -} ->
   SeqMap sym a {- ^ sequence to shift -} ->
-  SInteger sym {- ^ shift amount, assumed to be in range [0,len) -} ->
+  SInteger sym {- ^ shift amount, assumed to be in range [0,len] -} ->
   SEval sym (SeqMap sym a)
 shiftSeqByInteger sym merge reindex zro m xs idx
   | Just j <- integerAsLit sym idx = shiftOp xs j
