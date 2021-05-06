@@ -40,7 +40,8 @@ class IntMod:
     def __eq__(self, other : Any) -> bool:
         """Returns ``True`` if ``other`` is also an ``IntMod`` with the same modulus, else returns ``False``."""
         if isinstance(other, IntMod):
-            return self.__value == other.__value == self.__modulus == other.__modulus
+            return self.__value == other.__value and \
+                   self.__modulus == other.__modulus
         else:
             return False
 

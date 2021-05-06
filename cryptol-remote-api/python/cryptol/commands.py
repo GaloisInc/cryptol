@@ -33,7 +33,7 @@ def from_cryptol_arg(val : Any) -> Any:
         elif tag == 'tuple':
             return tuple(from_cryptol_arg(x) for x in val['data'])
         elif tag == 'record':
-            return {k : from_cryptol_arg(val[k]) for k in val['data']}
+            return {k : from_cryptol_arg(val['data'][k]) for k in val['data']}
         elif tag == 'sequence':
             return [from_cryptol_arg(v) for v in val['data']]
         elif tag == 'bits':

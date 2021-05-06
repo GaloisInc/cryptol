@@ -1,0 +1,19 @@
+module Types where
+
+exWord : [8]
+exWord = 42
+
+exInteger : Integer
+exInteger = 257
+
+exZ : Z 12
+exZ = 1
+
+exTuple : ([8], Integer, Z 12)
+exTuple = (exWord, exInteger, exZ)
+
+exSeq : [5]Integer
+exSeq = [1,3,5,7,9]
+
+exRecord : {x : Bool, y : {a : [5]Integer}}
+exRecord = {x=True,y={a=exSeq}}

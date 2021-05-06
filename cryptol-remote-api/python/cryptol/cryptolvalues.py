@@ -770,7 +770,7 @@ class CrySeq(CryValue):
         elif isinstance(value, str):
             self.__value = value
             self.__element_type = cryptoltypes.Sequence(cryptoltypes.Num(8),
-                                                      cryptoltypes.Bit())
+                                                        cryptoltypes.Bit())
             if element_type is not None and element_type != self.__element_type:
                 raise ValueError(f"`CrySeq` given a string but not `element_type={self.__element_type!r}`")
         else:
