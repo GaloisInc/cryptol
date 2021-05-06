@@ -46,16 +46,17 @@ setup_dist_bins() {
 }
 
 install_z3() {
+  is_exe "$BIN" "z3" && return
+
   case "$RUNNER_OS" in
-    Linux) file="ubuntu-16.04" ;;
-    macOS) file="osx-10.14.6" ;;
-    Windows) file="win" ;;
+    Linux) file="ubuntu-18.04.zip" ;;
+    macOS) file="osx-10.15.7.zip" ;;
+    Windows) file="win.zip" ;;
   esac
-  curl -o z3.zip -sL "https://github.com/Z3Prover/z3/releases/download/z3-$Z3_VERSION/z3-$Z3_VERSION-x64-$file.zip"
+  curl -o z3.zip -sL "https://github.com/Z3Prover/z3/releases/download/z3-$Z3_VERSION/z3-$Z3_VERSION-x64-$file"
 
   if $IS_WIN; then 7z x -bd z3.zip; else unzip z3.zip; fi
-  cp z3-$Z3_VERSION-x64-$file/bin/z3$EXT $BIN/z3$EXT
-  rm -rf z3-$Z3_VERSION-x64-$file
+  cp z3-*/bin/z3$EXT $BIN/z3$EXT
   $IS_WIN || chmod +x $BIN/z3
   rm z3.zip
 }
