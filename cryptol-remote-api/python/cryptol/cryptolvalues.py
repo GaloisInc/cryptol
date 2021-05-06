@@ -34,6 +34,9 @@ class CryQuoted:
         """Return a string representation as Cryptol syntax."""
         return f'({self.__value})'
 
+    def __to_cryptol__(self, ty : cryptoltypes.CryptolType) -> Any:
+        return self.__value
+
     def value(self) -> str:
         return self.__value
 
@@ -114,7 +117,7 @@ class CryQuoted:
         return self.__rbinop("^^", other)
 
     # operators from the Cryptol `Integral` typeclass
-    
+
     def __floordiv__(self, other : Any) -> CryQuoted:
         return self.__binop("/", other)
     def __rfloordiv__(self, other : Any) -> CryQuoted:
@@ -146,6 +149,25 @@ class CryQuoted:
     def __rrshift__(self, other : Any) -> CryQuoted:
         return self.__rbinop(">>", other)
 
+    # operators on Cryptol records
+
+    def __getattr__(self, other : str) -> CryQuoted:
+        return CryQuoted(f'{self}.{other}')
+
+    # operators on Cryptol functions
+
+    def __call__(self, *args : Any) -> CryQuoted:
+        argsCry = []
+        for arg in args:
+            if isinstance(arg, CryQuoted):
+                argsCry.append(str(arg))
+            else:
+                try:
+                    argsCry.append(str(to_cryptol_value(arg)))
+                except CryValueError:
+                    return NotImplemented
+        return CryQuoted(f'{self}(' + ', '.join(argsCry) + ')')
+
     # conversions
 
     def __bool__(self) -> bool:
@@ -158,11 +180,11 @@ class CryQuoted:
         raise CryValueError("quoted Cryptol does not have a value!")
 
 
-    
+
 class CryValue(metaclass=ABCMeta):
     """The canonical representation of a Cryptol value.
     The class's `__str__` method converts the value into type-annotated Cryptol syntax."""
-    
+
     @abstractmethod
     def cryptol_term(self) -> str:
         """The Cryptol syntax for this value."""
@@ -186,6 +208,9 @@ class CryValue(metaclass=ABCMeta):
            mapping."""
         pass
 
+    @abstractmethod
+    def __to_cryptol__(self, ty : cryptoltypes.CryptolType) -> Any:
+        pass
 
 class CryBit(CryValue):
     """A Cryptol boolean value."""
@@ -215,12 +240,15 @@ class CryBit(CryValue):
             return value
         else:
             return CryBit(value)
-    
+
+    def __to_cryptol__(self, ty : cryptoltypes.CryptolType) -> Any:
+        return self.__value
+
     def value(self) -> bool:
         return self.__value
-    
+
     # some private functions useful when defining operators
-    
+
     def __binop(self, op : Callable[[bool,bool], A], other : Any) -> A:
         try:
             otherCry = CryBit.from_python(other)
@@ -246,7 +274,7 @@ class CryBit(CryValue):
         return self.__binop(lambda s,o: CryBit(s > o), other)
     def __ge__(self, other : Union[CryBit,bool,int]) -> CryBit:
         return self.__binop(lambda s,o: CryBit(s >= o), other)
-    
+
     # operators from the Cryptol `Logic` typeclass
 
     def __invert__(self) -> CryBit:
@@ -305,6 +333,9 @@ class CryInt(CryValue):
             return value
         else:
             return CryInt(value)
+
+    def __to_cryptol__(self, ty : cryptoltypes.CryptolType) -> Any:
+        return self.__value
 
     def value(self) -> int:
         return self.__value
@@ -396,7 +427,7 @@ class CryIntMod(CryValue):
             self.__value = value
         else:
             raise CryValueError(f'`CryIntMod` expects either an `IntMod` or an integer modulus and value, got {value!r}')
-    
+
     def __repr__(self) -> str:
         return f'CryIntMod({self.value()!r}, {self.modulus()!r})'
 
@@ -415,12 +446,17 @@ class CryIntMod(CryValue):
         else:
             raise CryValueError(f'Only an `IntMod` can be interpreted as a CryIntMod, got {value!r}')
 
+    def __to_cryptol__(self, ty : cryptoltypes.CryptolType) -> Any:
+        return {'expression': 'integer modulo',
+                'integer': self.value(),
+                'modulus': self.modulus() }
+
     def value(self) -> int:
         return self.__value.value()
 
     def modulus(self) -> int:
         return self.__value.modulus()
-    
+
     def valueAsIntMod(self) -> IntMod:
         return self.__value
 
@@ -461,7 +497,7 @@ class CryIntMod(CryValue):
         return self.__rbinop(lambda o,s: CryIntMod(o * s), other)
     def __pow__(self, other : Any) -> CryIntMod:
         return CryIntMod(self.__value ** int(other))
-    
+
     # conversions
 
     def __bool__(self) -> bool:
@@ -504,6 +540,9 @@ class CryRatio(CryValue):
             return value
         else:
             raise CryValueError(f'Cannot interpret {value!r} as a CryRatio')
+
+    def __to_cryptol__(self, ty : cryptoltypes.CryptolType) -> Any:
+        return ValueError("Cryptol JSON current does not support Rationals")
 
     def numerator(self) -> int:
         return self.__numerator
@@ -560,7 +599,7 @@ class CryRatio(CryValue):
 
     def __div__(self, other : CryRatio) -> CryRatio:
         return self.__binop(lambda sn,sd,on,od: CryRatio(sn * od, sd * on), other)
-    
+
     # operators from the Cryptol `Round` typeclass
 
     def __ceil__(self) -> CryInt:
@@ -602,6 +641,13 @@ class CryTuple(CryValue):
             return CryTuple(*value)
         else:
             raise CryValueError(f'Only a tuple can be interpreted as a CryTuple, got {value!r}')
+
+    def __to_cryptol__(self, ty : cryptoltypes.CryptolType) -> Any:
+        if len(self.__elements) == 0:
+            return {'expression': 'unit'}
+        else:
+            data = [cryptoltypes.to_cryptol(e) for e in self.__elements]
+            return {'expression': 'tuple', 'data': data}
 
     def elements(self) -> List[CryValue]:
         return self.__elements
@@ -757,6 +803,15 @@ class CrySeq(CryValue):
             return value
         else:
             return CrySeq(value, element_type=element_type)
+
+    def __to_cryptol__(self, ty : cryptoltypes.CryptolType) -> Any:
+        if isinstance(self.__value, list):
+            data = [cryptoltypes.to_cryptol(e) for e in self.__value]
+            return {'expression': 'sequence', 'data': data}
+        elif isinstance(self.__value, BV):
+            return cryptoltypes.to_cryptol(self.__value)
+        elif isinstance(self.__value, str):
+            return f'"self.__value"'
 
     def value(self) -> Union[List[CryValue],BV,str]:
         return self.__value
@@ -954,15 +1009,19 @@ class CryRec(CryValue):
         else:
             raise CryValueError(f'Only a dict can be interpreted as a CryRec, got {value!r}')
 
+    def __to_cryptol__(self, ty : cryptoltypes.CryptolType) -> Any:
+        data = { f: cryptoltypes.to_cryptol(v) for f,v in self.items() }
+        return {'expression': 'record', 'data': data}
+
     def itemsDict(self) -> Dict[str, CryValue]:
         return self.__items
-    
+
     def items(self) -> ItemsView[str, CryValue]:
         return self.__items.items()
-    
+
     def fields(self) -> KeysView[str]:
         return self.__items.keys()
-    
+
     def values(self) -> ValuesView[CryValue]:
         return self.__items.values()
 
@@ -1045,11 +1104,11 @@ class CryRec(CryValue):
     def __pow__(self, other : Any) -> CryRec:
         return self.__unopOnElts(lambda si: si ** int(other))
 
-    # operations on Cryptol records
-    
+    # operators on Cryptol records
+
     def __getattr__(self, key : str) -> CryValue:
         return self.__items[key]
-    
+
     def __getitem__(self, key : str) -> CryValue:
         return self.__items[key]
 
