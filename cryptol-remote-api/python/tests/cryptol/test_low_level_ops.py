@@ -36,14 +36,23 @@ class LowLevelCryptolApiTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(self):
-        if (command := os.getenv('CRYPTOL_SERVER')) is not None and (command := find_executable(command)) is not None:
-            self.c = argo.ServerConnection(argo.DynamicSocketProcess(command + " socket"))
-        elif (url := os.getenv('CRYPTOL_SERVER_URL')) is not None:
-            self.c = argo.ServerConnection(argo.HttpProcess(url))
-        elif (command := find_executable('cryptol-remote-api')) is not None:
-            self.c = argo.ServerConnection(argo.StdIOProcess(command + " stdio"))
+        server = os.getenv('CRYPTOL_SERVER')
+        if server:
+            server = find_executable(server)
+            if server:
+                self.c = argo.ServerConnection(argo.DynamicSocketProcess(server + " socket"))
+            else:
+                raise RuntimeError(f'CRYPTOL_SERVER executable {server} could not be found')
         else:
-            raise RuntimeError("NO CRYPTOL SERVER FOUND")
+            server = os.getenv('CRYPTOL_SERVER_URL')
+            if server:
+                self.c = argo.ServerConnection(argo.HttpProcess(server))
+            else:
+                server = find_executable('cryptol-remote-api')
+                if server:
+                    self.c = argo.ServerConnection(argo.StdIOProcess(server + " stdio"))
+                else:
+                    raise RuntimeError("NO CRYPTOL SERVER FOUND")
 
     def test_low_level_api(self):
         c = self.c
@@ -54,7 +63,7 @@ class LowLevelCryptolApiTests(unittest.TestCase):
         self.assertIn('state', reply['result'])
         self.assertIn('answer', reply['result'])
         state = reply['result']['state']
- 
+
         uid = c.send_command("evaluate expression", {"expression": {"expression":"call","function":"f","arguments":[{"expression":"bits","encoding":"hex","data":"ff","width":8}]}, "state": state})
         reply = c.wait_for_reply_to(uid)
         self.assertIn('result', reply)

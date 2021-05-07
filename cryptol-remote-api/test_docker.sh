@@ -23,12 +23,10 @@ pushd $DIR/python
 NUM_FAILS=0
 
 echo "Setting up python environment for remote server clients..."
-python3 -m venv virtenv
-. virtenv/bin/activate
-pip install -r requirements.txt
+poetry install
 
 export CRYPTOL_SERVER_URL="http://localhost:8080/"
-python3 -m unittest discover tests/cryptol
+poetry run python -m unittest discover tests/cryptol
 if [ $? -ne 0 ]; then
     NUM_FAILS=$(($NUM_FAILS+1))
 fi
