@@ -51,14 +51,31 @@ def connect(command : Optional[str]=None,
         if url is not None:
             raise ValueError("A Cryptol server URL cannot be specified with a command currently.")
         c = CryptolConnection(command, cryptol_path)
-    elif url is not None:
+    # User-passed url?
+    if c is None and url is not None:
         c = CryptolConnection(ServerConnection(HttpProcess(url)), cryptol_path)
-    elif (command := os.getenv('CRYPTOL_SERVER')) is not None and (command := find_executable(command)) is not None:
-        c = CryptolConnection(command+" socket", cryptol_path=cryptol_path)
-    elif (url := os.getenv('CRYPTOL_SERVER_URL')) is not None:
-        c = CryptolConnection(ServerConnection(HttpProcess(url)), cryptol_path)
-    elif (command := find_executable('cryptol-remote-api')) is not None:
-        c = CryptolConnection(command+" socket", cryptol_path=cryptol_path)
+    # Check `CRYPTOL_SERVER` env var if no connection identified yet
+    if c is None:
+        command = os.getenv('CRYPTOL_SERVER')
+        if command is not None:
+            command = find_executable(command)
+            if command is not None:
+                c = CryptolConnection(command+" socket", cryptol_path=cryptol_path)
+    # Check `CRYPTOL_SERVER_URL` env var if no connection identified yet
+    if c is None:
+        url = os.getenv('CRYPTOL_SERVER_URL')
+        if url is not None:
+            c = CryptolConnection(ServerConnection(HttpProcess(url)), cryptol_path)
+    # Check if `cryptol-remote-api` is in the PATH if no connection identified yet
+    if c is None:
+        command = find_executable('cryptol-remote-api')
+        if command is not None:
+            c = CryptolConnection(command+" socket", cryptol_path=cryptol_path)
+    # Raise an error if still no connection identified yet
+    if c is not None:
+        if reset_server:
+            CryptolResetServer(c)
+        return c
     else:
         raise ValueError(
             """cryptol.connect requires one of the following:",
@@ -66,9 +83,7 @@ def connect(command : Optional[str]=None,
                2) a URL to connect to a running cryptol server is provided via the `url` keyword argument,
                3) the environment variable `CRYPTOL_SERVER` must refer to a valid server executable, or
                4) the environment variable `CRYPTOL_SERVER_URL` must refer to the URL of a running cryptol server.""")
-    if reset_server:
-        CryptolResetServer(c)
-    return c
+
 
 
 def connect_stdio(command : str, cryptol_path : Optional[str] = None) -> CryptolConnection:
@@ -102,7 +117,7 @@ class CryptolConnection:
     proc: ServerProcess
 
     def __init__(self,
-                command_or_connection : Union[str, ServerConnection, ServerProcess], 
+                command_or_connection : Union[str, ServerConnection, ServerProcess],
                 cryptol_path : Optional[str] = None) -> None:
         self.most_recent_result = None
         if isinstance(command_or_connection, ServerProcess):

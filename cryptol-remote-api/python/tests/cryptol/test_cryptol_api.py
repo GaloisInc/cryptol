@@ -166,27 +166,33 @@ class HttpMultiConnectionTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(self):
-        if (url := os.getenv('CRYPTOL_SERVER_URL')) is not None:
-            self.url = url
-        elif ((command := os.getenv('CRYPTOL_SERVER')) is not None and (command := find_executable(command)) is not None)\
-              or (command := find_executable('cryptol-remote-api')) is not None:
-            self.p = subprocess.Popen(
-                [command, "http", "/", "--port", "8080"],
-                stdout=subprocess.PIPE,
-                stdin=subprocess.DEVNULL,
-                stderr=subprocess.PIPE,
-                start_new_session=True)
-            time.sleep(5)
-            assert(self.p is not None)
-            poll_result = self.p.poll()
-            if poll_result is not None:
-                print(poll_result)
-                print(self.p.stdout.read())
-                print(self.p.stderr.read())
-            assert(poll_result is None)
-            self.url = "http://localhost:8080/"
+        server = os.getenv('CRYPTOL_SERVER_URL')
+        if server is not None:
+            self.url = server
         else:
-            raise RuntimeError("NO CRYPTOL SERVER FOUND")
+            server = os.getenv('CRYPTOL_SERVER')
+            if server is not None:
+                server = find_executable(server)
+            if server is None:
+                server = find_executable('cryptol-remote-api')
+            if server is not None:
+                self.p = subprocess.Popen(
+                    [server, "http", "/", "--port", "8080"],
+                    stdout=subprocess.PIPE,
+                    stdin=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,
+                    start_new_session=True)
+                time.sleep(5)
+                assert(self.p is not None)
+                poll_result = self.p.poll()
+                if poll_result is not None:
+                    print(poll_result)
+                    print(self.p.stdout.read())
+                    print(self.p.stderr.read())
+                assert(poll_result is None)
+                self.url = "http://localhost:8080/"
+            else:
+                raise RuntimeError("NO CRYPTOL SERVER FOUND")
 
     @classmethod
     def tearDownClass(self):
