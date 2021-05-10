@@ -35,7 +35,7 @@ import Prelude.Compat
 
 import Cryptol.Parser.AST
 import Cryptol.Parser.Lexer
-import Cryptol.Parser.LexerUtils(SelectorType(..))
+import Cryptol.Parser.Token(SelectorType(..))
 import Cryptol.Parser.Position
 import Cryptol.Parser.Utils (translateExprToNumT,widthIdent)
 import Cryptol.Utils.Ident(packModName,packIdent,modNameChunks)
@@ -81,6 +81,12 @@ lexerP k = P $ \cfg p s ->
                                     T.unpack (tokenText it)
            MalformedSelector   -> "malformed selector: " ++
                                     T.unpack (tokenText it)
+           InvalidIndentation c -> "invalid indentation, unmatched " ++
+              case c of
+                Sym CurlyR    -> "{ ... } "
+                Sym ParenR    -> "( ... )"
+                Sym BracketR  -> "[ ... ]"
+                _             -> show c -- basically panic
         ]
       where it = thing t
 

@@ -81,6 +81,8 @@ library
 
   Exposed-modules:     Cryptol.Parser,
                        Cryptol.Parser.Lexer,
+                       Cryptol.Parser.Token,
+                       Cryptol.Parser.Layout,
                        Cryptol.Parser.AST,
                        Cryptol.Parser.Position,
                        Cryptol.Parser.Names,

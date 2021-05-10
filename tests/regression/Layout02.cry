@@ -1,0 +1,4 @@
+module Layout02 where
+
+x = 0x1 where y = ( 2
+          )
