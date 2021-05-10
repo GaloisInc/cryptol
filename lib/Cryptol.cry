@@ -897,6 +897,31 @@ generate : {n, a, ix} (Integral ix, LiteralLessThan n ix) => (ix -> a) -> [n]a
 generate f = [ f i | i <- [0 .. <n] ]
 
 
+/**
+ * Sort a sequence of elements. Equivalent to 'sortBy (<=)'.
+ */
+sort : {a, n} (Cmp a, fin n) => [n]a -> [n]a
+sort = sortBy (<=)
+
+/**
+ * Sort a sequence according to the given less-than-or-equal relation.
+ * The sorting is stable, so it preserves the relative position of any
+ * pair of elements that are equivalent according to the order relation.
+ */
+sortBy : {a, n} (fin n) => (a -> a -> Bit) -> [n]a -> [n]a
+sortBy le vs =
+  if `n == (0 : Integer) then vs
+  else drop`{1 - min 1 n} (insertBy (vs@0) (sortBy le (drop`{min 1 n} vs)))
+  where
+    insertBy : {k} (fin k) => a -> [k]a -> [k+1]a
+    insertBy x0 ys = xys.0 # [last xs]
+      where
+        xs : [k+1]a
+        xs = [x0] # xys.1
+        xys : [k](a, a)
+        xys = [ if le x y then (x, y) else (y, x) | x <- xs | y <- ys ]
+
+
 // GF_2^n polynomial computations -------------------------------------------
 
 /**
