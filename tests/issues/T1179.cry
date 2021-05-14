@@ -1,0 +1,5 @@
+module T1179 where
+
+x = 0x2
+private
+y = x

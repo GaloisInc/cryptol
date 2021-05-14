@@ -16,8 +16,9 @@ class CryptolEvalServerTests(unittest.TestCase):
     @classmethod
     def setUpClass(self):
         dir_path = Path(os.path.dirname(os.path.realpath(__file__)), "test-files")
-        if command := os.getenv('CRYPTOL_SERVER'):
-            self.c = cryptol.connect(f'{command} socket --module M', cryptol_path=dir_path)
+        server = os.getenv('CRYPTOL_SERVER')
+        if server:
+            self.c = cryptol.connect(f'{server} socket --module M', cryptol_path=dir_path)
         else:
             raise ValueError('CRYPTOL_SERVER environment variable not set (eval server tests currently only work with a local executable)')
 
@@ -58,12 +59,16 @@ class HttpMultiConnectionTests(unittest.TestCase):
     @classmethod
     def setUpClass(self):
         dir_path = Path(os.path.dirname(os.path.realpath(__file__)), "test-files")
-        if ((command := os.getenv('CRYPTOL_SERVER')) is not None and (command := find_executable(command)) is not None)\
-              or (command := find_executable('cryptol-eval-server')) is not None:
+        server = os.getenv('CRYPTOL_SERVER')
+        if server is not None:
+            server = find_executable(server)
+        if server is None:
+            server = find_executable('cryptol-eval-server')
+        if server is not None:
             new_env = os.environ.copy()
             new_env["CRYPTOLPATH"] = str(dir_path)
             self.p = subprocess.Popen(
-                [command, "http", "/", "--port", "8081", "--module", "M"],
+                [server, "http", "/", "--port", "8081", "--module", "M"],
                 stdout=subprocess.PIPE,
                 stdin=subprocess.DEVNULL,
                 stderr=subprocess.PIPE,

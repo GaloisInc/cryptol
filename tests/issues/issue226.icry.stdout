@@ -184,6 +184,8 @@ Symbols
     scanr : {n, a, b} (fin n) => (a -> b -> b) -> b -> [n]a -> [1 + n]b
     scarry : {n} (fin n, n >= 1) => [n] -> [n] -> Bit
     sext : {m, n} (fin m, m >= n, n >= 1) => [n] -> [m]
+    sort : {a, n} (Cmp a, fin n) => [n]a -> [n]a
+    sortBy : {a, n} (fin n) => (a -> a -> Bit) -> [n]a -> [n]a
     split :
       {parts, each, a} (fin each) => [parts * each]a -> [parts][each]a
     splitAt :

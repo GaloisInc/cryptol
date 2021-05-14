@@ -38,7 +38,7 @@ $ docker run --name=cryptol-remote-api -d \
   ghcr.io/galoisinc/cryptol-remote-api:nightly-portable
 $ export CRYPTOL_SERVER_URL="http://localhost:8080/"
 ```
-6. Install the Python client (requires Python v3.8 or newer -- we recommend using [`poetry`](https://python-poetry.org/docs/#installation) to install the package):
+6. Install the Python client (requires Python v3.7 or newer -- we recommend using [`poetry`](https://python-poetry.org/docs/#installation) to install the package):
 ```
 $ poetry install 
 ```
@@ -151,7 +151,7 @@ configured properly) should then appear as `cryptol-remote-api` in a user's `PAT
 # Running Python Cryptol scripts
 
 Once the server is setup and any path variables are setup as desired, the
-Python (>= v3.8) client can be installed using
+Python (>= v3.7) client can be installed using
 [`poetry`](https://python-poetry.org/docs/#installation) as follows:
 
 ```

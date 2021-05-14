@@ -1,60 +1,39 @@
 #!/bin/bash
 
+set -euo pipefail
+
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 pushd $DIR/python
 
 NUM_FAILS=0
+run_test() {
+    "$@"
+    if (( $? != 0 )); then NUM_FAILS=$(($NUM_FAILS+1)); fi
+}
+
+cabal-which() {
+    which $1 || cabal v2-exec which $1 || echo "could not locate $1 executable" >&2 && exit 1
+}
+
+get_server() {
+    CRYPTOL_SERVER=$(cabal-which $1)
+    export $CRYPTOL_SERVER
+    echo "Using server $CRYPTOL_SERVER"
+}
 
 echo "Setting up python environment for remote server clients..."
-python3 -m venv virtenv
-. virtenv/bin/activate
-pip install -r requirements.txt
+poetry install
 
 echo "Typechecking code with mypy..."
-mypy cryptol/ tests/
-if [ $? -ne 0 ]; then
-  echo "Code failed to typecheck with mypy"
-  NUM_FAILS=$(($NUM_FAILS+1))
-fi
+run_test poetry run mypy cryptol/ tests/
 
-export CRYPTOL_SERVER=$(which cryptol-remote-api)
-if [[ ! -x "$CRYPTOL_SERVER" ]]; then
-  export CRYPTOL_SERVER=$(cabal v2-exec which cryptol-remote-api)
-  if [[ ! -x "$CRYPTOL_SERVER" ]]; then
-    echo "could not locate cryptol-remote-api executable"
-    exit 1
-  fi
-fi
+get_server cryptol-remote-api
 echo "Running cryptol-remote-api tests..."
-echo "Using server $CRYPTOL_SERVER"
-python3 -m unittest discover tests/cryptol
-if [ $? -ne 0 ]; then
-    NUM_FAILS=$(($NUM_FAILS+1))
-fi
+run_test poetry run python -m unittest discover tests/cryptol
 
-export CRYPTOL_SERVER=$(which cryptol-eval-server)
-if [[ ! -x "$CRYPTOL_SERVER" ]]; then
-  export CRYPTOL_SERVER=$(cabal v2-exec which cryptol-eval-server)
-  if [[ ! -x "$CRYPTOL_SERVER" ]]; then
-    echo "could not locate cryptol-eval-server executable"
-    exit 1
-  fi
-fi
+get_server cryptol-eval-server
 echo "Running cryptol-eval-server tests..."
-echo "Using server $CRYPTOL_SERVER"
-python3 -m unittest discover tests/cryptol_eval
-if [ $? -ne 0 ]; then
-    NUM_FAILS=$(($NUM_FAILS+1))
-fi
+run_test poetry run python -m unittest discover tests/cryptol_eval
 
 popd
-
-if [ $NUM_FAILS -eq 0 ]
-then
-  echo "All RPC tests passed"
-  exit 0
-else
-  echo "Some RPC tests failed"
-  exit 1
-fi

@@ -1,0 +1,4 @@
+sortBy (\x y -> x.0 ==> y.0) [(True, 0x1), (False, 0x2), (True, 0x3), (False, 0x4)]
+[ ((n * n) % 23 : Integer, n) | n <- [0..22] ]
+sortBy (\x y -> x.0 <= y.0) it
+sortBy (\x y -> x.1 >= y.1) it

@@ -1,0 +1,12 @@
+:l issue1191.cry
+
+q0
+q1
+q2
+
+r0
+r1
+r2
+
+:prove (q0 == q1 /\ q1 == q2)
+:prove (r0 == r1 /\ r1 == r2)

@@ -124,7 +124,7 @@ class BV:
                 ``others`` in order on the right.
         """
         return reduce(lambda acc, b: acc.__concat_single(b), others, self)
-    
+
     @staticmethod
     def join(*bs : 'BV') -> 'BV':
         """Concatenate the given ``BV``s in order.
@@ -178,6 +178,10 @@ class BV:
         """Equivalent to ``self.value()``."""
         return self.__value
 
+    def __int__(self) -> int:
+        """Equivalent to ``self.value()``."""
+        return self.__value
+
     def __len__(self) -> int:
         """Equivalent to ``self.size()``."""
         return self.__size
@@ -190,7 +194,7 @@ class BV:
 
     def split(self, size : int) -> List['BV']:
         """Split ``self`` into a list of ``BV``s of length ``size``.
-        
+
         :param size: Size of segments to partition ``self`` into (must evently divide ``self.size()``).
         """
         if not isinstance(size, int) or size <= 0:
@@ -209,7 +213,7 @@ class BV:
     @staticmethod
     def from_bytes(bs : bytes, *, size : Optional[int] =None, byteorder : str ='big') -> 'BV':
         """Convert the given bytes ``bs`` into a ``BV``.
-        
+
         :param bs: Bytes to convert to a ``BV``.
         :param size, optional: Desired ``BV``'s size (must be large enough to represent ``bs``). The
             default (i.e., ``None``) will result in a ``BV`` of size ``len(bs) * 8``.

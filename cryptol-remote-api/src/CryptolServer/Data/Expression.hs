@@ -389,8 +389,6 @@ readBack ty val =
         VInteger i -> pure (IntegerModulo i n)
         _ -> mismatchPanic
     TVSeq len contents
-      | len == 0 ->
-        return Unit
       | contents == TVBit
       , VWord width wv <- val ->
         do BV w v <- asWordVal C.Concrete wv

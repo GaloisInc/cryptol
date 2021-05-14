@@ -35,6 +35,7 @@ import           Control.Monad(liftM2,msum)
 import Cryptol.Parser.AST
 import Cryptol.Parser.Position
 import Cryptol.Parser.LexerUtils hiding (mkIdent)
+import Cryptol.Parser.Token
 import Cryptol.Parser.ParserUtils
 import Cryptol.Parser.Unlit(PreProc(..), guessPreProc)
 import Cryptol.Utils.Ident(paramInstModName)

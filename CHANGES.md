@@ -1,3 +1,14 @@
+# Next Release
+
+## Language changes
+* Updates to the layout rule.  We simplified the specification and made
+  some minor changes, in particular:
+    - Paren blocks nested in a layout block need to respect the indentation
+      if the layout block
+    - We allow nested layout blocks to have the same indentation, which is
+      conveninet when writing `private` declarations as they don't need to
+      be indented as long as they are at the end of the file.
+
 # 2.11.0
 
 ## Language changes

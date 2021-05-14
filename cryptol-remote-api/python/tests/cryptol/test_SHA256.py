@@ -17,11 +17,9 @@ class TestSHA256(unittest.TestCase):
         expected_h1 = BV(size=256, value=0x248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1)
         self.assertEqual(h1, expected_h1)
 
-        # ugh, this gives a type error...
-        # m2 = CryptolLiteral('""')
-        # j2 = c.call('join', m2).result()
-        # h2 = c.call('sha256', j2).result()
-        h2 = c.eval('sha256 (join "")').result()
+        m2 = CryptolLiteral('""')
+        j2 = c.call('join', m2).result()
+        h2 = c.call('sha256', j2).result()
         expected_h2 = BV(size=256, value=0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855)
         self.assertEqual(h2, expected_h2)
 
