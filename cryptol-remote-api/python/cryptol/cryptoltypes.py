@@ -398,9 +398,11 @@ class Tuple(CryptolType):
         self.types = types
 
     def __repr__(self) -> str:
-        return "Tuple(" + ", ".join(map(str, self.types)) + ")"
+        return "Tuple(" + ", ".join(map(repr, self.types)) + ")"
 
 class Record(CryptolType):
+    fields : Dict[str, CryptolType]
+    
     def __init__(self, fields : Dict[str, CryptolType]) -> None:
         self.fields = fields
 
