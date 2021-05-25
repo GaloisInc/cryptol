@@ -397,24 +397,24 @@ getCallStacks = eCallStacks <$> getRW
 -- Get the setting we should use for displaying values.
 getPPValOpts :: REPL PPOpts
 getPPValOpts =
-  do base      <- getKnownUser "base"
-     ascii     <- getKnownUser "ascii"
-     infLength <- getKnownUser "infLength"
+  do base       <- getKnownUser "base"
+     ascii      <- getKnownUser "ascii"
+     infLength  <- getKnownUser "infLength"
 
-     fpBase    <- getKnownUser "fpBase"
-     fpFmtTxt  <- getKnownUser "fpFormat"
-     fieldOrder<- getKnownUser "fieldOrder"
+     fpBase     <- getKnownUser "fpBase"
+     fpFmtTxt   <- getKnownUser "fpFormat"
+     fieldOrder <- getKnownUser "fieldOrder"
      let fpFmt = case parsePPFloatFormat fpFmtTxt of
                    Just f  -> f
                    Nothing -> panic "getPPOpts"
                                       [ "Failed to parse fp-format" ]
 
-     return PPOpts { useBase      = base
-                   , useAscii     = ascii
-                   , useInfLength = infLength
-                   , useFPBase    = fpBase
-                   , useFPFormat  = fpFmt
-                   , useFieldOrder= fieldOrder
+     return PPOpts { useBase       = base
+                   , useAscii      = ascii
+                   , useInfLength  = infLength
+                   , useFPBase     = fpBase
+                   , useFPFormat   = fpFmt
+                   , useFieldOrder = fieldOrder
                    }
 
 getEvalOptsAction :: REPL (IO EvalOpts)
