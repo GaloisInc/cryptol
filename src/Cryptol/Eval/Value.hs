@@ -382,7 +382,7 @@ ppValue x opts = loop
   loop :: GenValue sym -> SEval sym Doc
   loop val = case val of
     VRecord fs         -> do fs' <- traverse (>>= loop) fs
-                             return $ braces (sep (punctuate comma (map ppField (displayFields fs'))))
+                             return $ braces (sep (punctuate comma (map ppField (fields fs'))))
       where
       ppField (f,r) = pp f <+> char '=' <+> r
     VTuple vals        -> do vals' <- traverse (>>=loop) vals
@@ -401,6 +401,11 @@ ppValue x opts = loop
     VFun{}             -> return $ text "<function>"
     VPoly{}            -> return $ text "<polymorphic value>"
     VNumPoly{}         -> return $ text "<polymorphic value>"
+
+  fields :: RecordMap Ident Doc -> [(Ident, Doc)]
+  fields = case useFieldOrder opts of
+    DisplayOrder -> displayFields
+    CanonicalOrder -> canonicalFields
 
   ppWordVal :: WordValue sym -> SEval sym Doc
   ppWordVal w = ppSWord x opts =<< asWordVal x w

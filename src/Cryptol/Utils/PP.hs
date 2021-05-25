@@ -35,6 +35,7 @@ data PPOpts = PPOpts
   , useInfLength :: Int
   , useFPBase    :: Int
   , useFPFormat  :: PPFloatFormat
+  , useFieldOrder:: FieldOrder
   }
  deriving Show
 
@@ -51,11 +52,14 @@ data PPFloatExp = ForceExponent -- ^ Always show an exponent
                 | AutoExponent  -- ^ Only show exponent when needed
  deriving Show
 
+data FieldOrder = DisplayOrder | CanonicalOrder deriving (Bounded, Enum, Eq, Ord, Read, Show)
+
 
 defaultPPOpts :: PPOpts
 defaultPPOpts = PPOpts { useAscii = False, useBase = 10, useInfLength = 5
                        , useFPBase = 16
                        , useFPFormat = FloatFree AutoExponent
+                       , useFieldOrder = DisplayOrder
                        }
 
 
