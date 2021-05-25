@@ -67,6 +67,7 @@ module Cryptol.REPL.Monad (
   , getUserShowProverStats
   , getUserProverValidate
   , parsePPFloatFormat
+  , parseFieldOrder
   , getProverConfig
 
     -- ** Configurable Output
@@ -438,6 +439,7 @@ getPPValOpts =
 
      fpBase    <- getKnownUser "fpBase"
      fpFmtTxt  <- getKnownUser "fpFormat"
+     fieldOrder<- getKnownUser "fieldOrder"
      let fpFmt = case parsePPFloatFormat fpFmtTxt of
                    Just f  -> f
                    Nothing -> panic "getPPOpts"
@@ -448,6 +450,7 @@ getPPValOpts =
                    , useInfLength = infLength
                    , useFPBase    = fpBase
                    , useFPFormat  = fpFmt
+                   , useFieldOrder= fieldOrder
                    }
 
 getEvalOptsAction :: REPL (IO EvalOpts)
@@ -774,6 +777,12 @@ instance IsEnvVal String where
                    EnvString b -> b
                    _           -> badIsEnv "String"
 
+instance IsEnvVal FieldOrder where
+  fromEnvVal x = case x of
+                   EnvString s | Just o <- parseFieldOrder s
+                     -> o
+                   _ -> badIsEnv "display` or `canonical"
+
 badIsEnv :: String -> a
 badIsEnv x = panic "fromEnvVal" [ "[REPL] Expected a `" ++ x ++ "` value." ]
 
@@ -908,6 +917,13 @@ userOptions  = mkOptionMap
 
   , simpleOpt "ignoreSafety" ["ignore-safety"] (EnvBool False) noCheck
     "Ignore safety predicates when performing :sat or :prove checks"
+
+  , simpleOpt "fieldOrder" ["field-order"] (EnvString "display") checkFieldOrder
+    $ unlines
+    [ "The order that record fields are displayed in."
+    , "  * display      try to match the order they were written in the source code"
+    , "  * canonical    use a predictable, canonical order"
+    ]
   ]
 
 
@@ -932,7 +948,16 @@ checkPPFloatFormat val =
     EnvString s | Just _ <- parsePPFloatFormat s -> noWarns Nothing
     _ -> noWarns $ Just "Failed to parse `fp-format`"
 
+parseFieldOrder :: String -> Maybe FieldOrder
+parseFieldOrder "canonical" = Just CanonicalOrder
+parseFieldOrder "display" = Just DisplayOrder
+parseFieldOrder _ = Nothing
 
+checkFieldOrder :: Checker
+checkFieldOrder val =
+  case val of
+    EnvString s | Just _ <- parseFieldOrder s -> noWarns Nothing
+    _ -> noWarns $ Just "Failed to parse field-order (expected one of \"canonical\" or \"display\")"
 
 -- | Check the value to the `base` option.
 checkBase :: Checker
