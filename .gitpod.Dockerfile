@@ -4,7 +4,7 @@ FROM gitpod/workspace-full
 USER root
 
 # Install Dropbear SSH server
-RUN DEBIAN_FRONTEND=noninteractive apt-get update && apt-get install -yq \
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -yq \
         dropbear \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/*
 
