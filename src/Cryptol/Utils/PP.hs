@@ -30,12 +30,12 @@ import Prelude.Compat
 
 -- | How to pretty print things when evaluating
 data PPOpts = PPOpts
-  { useAscii     :: Bool
-  , useBase      :: Int
-  , useInfLength :: Int
-  , useFPBase    :: Int
-  , useFPFormat  :: PPFloatFormat
-  , useFieldOrder:: FieldOrder
+  { useAscii      :: Bool
+  , useBase       :: Int
+  , useInfLength  :: Int
+  , useFPBase     :: Int
+  , useFPFormat   :: PPFloatFormat
+  , useFieldOrder :: FieldOrder
   }
  deriving Show
 
