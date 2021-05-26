@@ -20,7 +20,7 @@ tasks:
           echo "2. Connect via SSH from your local machine:"
           echo "   ssh -o ProxyCommand='chisel client $(gp url 8080) stdio:%h:%p' gitpod@localhost -p 2222"
           echo ""
-      done
+      fi
 ports:
   - port: 8080
   - port: 2222
