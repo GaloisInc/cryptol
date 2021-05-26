@@ -12,7 +12,8 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -yq \
 RUN curl https://i.jpillora.com/chisel! | bash
 
 # Install docker buildx plugin
-RUN wget \
+RUN mkdir -p ~/.docker/cli-plugins && \
+    wget \
       https://github.com/docker/buildx/releases/download/v0.5.1/buildx-v0.5.1.linux-amd64 \
       -O ~/.docker/cli-plugins/docker-buildx && \
     chmod a+x ~/.docker/cli-plugins/docker-buildx
