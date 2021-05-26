@@ -9,16 +9,6 @@ tasks:
       [ -f /workspace/dropbear.hostkey ] || dropbearkey -t rsa -f /workspace/dropbear.hostkey
       dropbear -r /workspace/dropbear.hostkey -F -E -s -p 2222 -P ~/dropbear.pid
   - command: |
-      mkdir -p ~/.ssh && code ~/.ssh/authorized_keys
-      echo "1. Add your public SSH key to the SSH_KEY environment variable before laun"
-      echo ""
-      echo "2. Install Chisel on your local machine, e.g. curl https://i.jpillora.com/chisel! | bash"
-      echo "   see https://github.com/jpillora/chisel"
-      echo ""
-      echo "3. Connect via SSH from your local machine:"
-      echo "   ssh -o ProxyCommand='chisel client $(gp url 8080) stdio:%h:%p' gitpod@localhost -p 2222"
-      echo ""
-  - command: |
       mkdir -p ~/.ssh
       if test -z "$SSH_KEY"; then
           echo "Warning: SSH_KEY not set, skipping SSH setup"
