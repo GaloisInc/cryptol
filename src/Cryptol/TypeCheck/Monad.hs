@@ -223,9 +223,6 @@ data RO = RO
     -- modules we are currently constructing.
     -- XXX: this sould probably be an interface
 
-    -- ^ Information about top-level declarations in modules under
-    -- construction, most nested first.
-
   , iSolvedHasLazy :: Map Int HasGoalSln
     -- ^ NOTE: This field is lazy in an important way!  It is the
     -- final version of 'iSolvedHas' in 'RW', and the two are tied
@@ -813,7 +810,7 @@ endLocalScope =
        case iScope rw of
          x : xs | LocalScope <- mName x ->
                     (reverse (mDecls x), rw { iScope = xs })
-            -- ^ This ignores local type synonyms... Where should we put them?
+            -- This ignores local type synonyms... Where should we put them?
 
          _ -> panic "endLocalScope" ["Missing local scope"]
 
