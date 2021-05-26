@@ -63,12 +63,33 @@ ready a = Ready a
 
 -- | The type of dynamic call stacks for the interpreter.
 --   New frames are pushed onto the right side of the sequence.
-type CallStack = Seq (Name, Range)
+data CallStack
+  = EmptyCallStack
+  | CombineCallStacks !CallStack !CallStack
+  | PushCallFrame !Name !Range !CallStack
+
+instance Semigroup CallStack where
+  (<>) = CombineCallStacks
+
+instance Monoid CallStack where
+  mempty = EmptyCallStack
+
+type CallStack' = Seq (Name, Range)
+
+evalCallStack :: CallStack -> CallStack'
+evalCallStack stk =
+  case stk of
+    EmptyCallStack -> mempty
+    CombineCallStacks appstk fnstk -> combineCallStacks' (evalCallStack appstk) (evalCallStack fnstk)
+    PushCallFrame n r stk1 -> pushCallFrame' n r (evalCallStack stk1)
 
 -- | Pretty print a call stack with each call frame on a separate
 --   line, with most recent call frames at the top.
 displayCallStack :: CallStack -> Doc
-displayCallStack = vcat . map f . toList . Seq.reverse
+displayCallStack = displayCallStack' . evalCallStack
+
+displayCallStack' :: CallStack' -> Doc
+displayCallStack' = vcat . map f . toList . Seq.reverse
   where
   f (nm,rng)
     | rng == emptyRange = pp nm
@@ -92,7 +113,13 @@ combineCallStacks ::
   CallStack {- ^ call stack of the application context -} ->
   CallStack {- ^ call stack of the function being applied -} ->
   CallStack
-combineCallStacks appstk fnstk = appstk <> dropCommonPrefix appstk fnstk
+combineCallStacks appstk fnstk = CombineCallStacks appstk fnstk
+
+combineCallStacks' ::
+  CallStack' {- ^ call stack of the application context -} ->
+  CallStack' {- ^ call stack of the function being applied -} ->
+  CallStack'
+combineCallStacks' appstk fnstk = appstk <> dropCommonPrefix appstk fnstk
   where
   dropCommonPrefix _  Seq.Empty = Seq.Empty
   dropCommonPrefix Seq.Empty fs = fs
@@ -102,9 +129,12 @@ combineCallStacks appstk fnstk = appstk <> dropCommonPrefix appstk fnstk
 
 -- | Add a call frame to the top of a call stack
 pushCallFrame :: Name -> Range -> CallStack -> CallStack
-pushCallFrame nm rng stk@( _ Seq.:|> (nm',rng'))
+pushCallFrame nm rng stk = PushCallFrame nm rng stk
+
+pushCallFrame' :: Name -> Range -> CallStack' -> CallStack'
+pushCallFrame' nm rng stk@( _ Seq.:|> (nm',rng'))
   | nm == nm', rng == rng' = stk
-pushCallFrame nm rng stk = stk Seq.:|> (nm,rng)
+pushCallFrame' nm rng stk = stk Seq.:|> (nm,rng)
 
 
 -- | The monad for Cryptol evaluation.
@@ -417,11 +447,12 @@ data EvalErrorEx =
  deriving Typeable
 
 instance PP EvalErrorEx where
-  ppPrec _ (EvalErrorEx stk ex) = vcat ([ pp ex ] ++ callStk)
+  ppPrec _ (EvalErrorEx stk0 ex) = vcat ([ pp ex ] ++ callStk)
 
    where
+    stk = evalCallStack stk0
     callStk | Seq.null stk = []
-            | otherwise = [ text "-- Backtrace --", displayCallStack stk ]
+            | otherwise = [ text "-- Backtrace --", displayCallStack' stk ]
 
 instance Show EvalErrorEx where
   show = show . pp
