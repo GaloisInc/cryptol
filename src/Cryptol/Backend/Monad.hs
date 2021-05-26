@@ -113,6 +113,8 @@ combineCallStacks ::
   CallStack {- ^ call stack of the application context -} ->
   CallStack {- ^ call stack of the function being applied -} ->
   CallStack
+combineCallStacks appstk EmptyCallStack = appstk
+combineCallStacks EmptyCallStack fnstk = fnstk
 combineCallStacks appstk fnstk = CombineCallStacks appstk fnstk
 
 combineCallStacks' ::
