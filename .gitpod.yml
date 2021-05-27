@@ -8,6 +8,7 @@ tasks:
     command: |
       [ -f /workspace/dropbear.hostkey ] || dropbearkey -t rsa -f /workspace/dropbear.hostkey
       dropbear -r /workspace/dropbear.hostkey -F -E -s -p 2222 -P ~/dropbear.pid
+  - command: cabal v2-update
   - command: |
       mkdir -p ~/.ssh
       if test -z "$SSH_KEY"; then
