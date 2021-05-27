@@ -8,7 +8,11 @@ tasks:
     command: |
       [ -f /workspace/dropbear.hostkey ] || dropbearkey -t rsa -f /workspace/dropbear.hostkey
       dropbear -r /workspace/dropbear.hostkey -F -E -s -p 2222 -P ~/dropbear.pid
-  - command: cabal v2-update
+  - command: |
+      cabal v2-update
+      test -e cabal.project.freeze && exit 0
+      FREEZE=cabal.GHC-$(ghc --numeric-version).config
+      test -e $FREEZE && ln -s $FREEZE cabal.project.freeze
   - command: |
       mkdir -p ~/.ssh
       if test -z "$SSH_KEY"; then
