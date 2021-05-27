@@ -1,3 +1,4 @@
+# syntax = docker/dockerfile:1.2
 ARG GHCVER="8.10.3"
 ARG GHCVER_BOOTSTRAP="8.10.2"
 FROM debian:buster-20210511 AS solvers
@@ -81,7 +82,7 @@ RUN if ${PORTABILITY}; then \
 
 FROM toolchain AS build
 
-RUN useradd -m cryptol
+RUN useradd -u 1000 -m cryptol
 COPY --chown=cryptol:cryptol . /cryptol
 USER cryptol
 WORKDIR /cryptol
@@ -91,10 +92,11 @@ ENV LANG=C.UTF-8 \
     LC_ALL=C.UTF-8
 COPY cabal.GHC-${GHCVER}.config cabal.project.freeze
 
-RUN mkdir -p rootfs/usr/local/bin
-
-RUN cabal v2-update && \
+RUN --mount=type=cache,target=/home/cryptol/.cabal,uid=1000 \
+    --mount=type=cache,target=/cryptol/dist-newstyle,uid=1000 \
+    cabal v2-update && \
     cabal v2-build -j cryptol-remote-api:exe:cryptol-remote-api cryptol-remote-api:exe:cryptol-eval-server && \
+    mkdir -p rootfs/usr/local/bin && \
     cp $(cabal v2-exec which cryptol-remote-api) rootfs/usr/local/bin && \
     cp $(cabal v2-exec which cryptol-eval-server) rootfs/usr/local/bin
 ENV PATH=/usr/local/bin:/cryptol/rootfs/usr/local/bin:$PATH
