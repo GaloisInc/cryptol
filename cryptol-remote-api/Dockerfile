@@ -1,6 +1,6 @@
 ARG GHCVER="8.10.3"
 ARG GHCVER_BOOTSTRAP="8.10.2"
-FROM debian:buster AS solvers
+FROM debian:buster-20210511 AS solvers
 
 # Install needed packages for building
 RUN apt-get update \
@@ -44,7 +44,7 @@ RUN latest="$(curl -sSL 'http://cvc4.cs.stanford.edu/downloads/builds/x86_64-lin
 # Set executable and run tests
 RUN chmod +x rootfs/usr/local/bin/*
 
-FROM debian:buster AS toolchain
+FROM debian:buster-20210511 AS toolchain
 ARG PORTABILITY=false
 RUN apt-get update && apt-get install -y libncurses-dev libz-dev \
     build-essential curl libffi-dev libffi6 libgmp-dev libgmp10 libncurses-dev libncurses5 libtinfo5 libnuma-dev \
@@ -103,7 +103,7 @@ RUN mkdir -p rootfs/"${CRYPTOLPATH}" \
 USER root
 RUN chown -R root:root /cryptol/rootfs
 
-FROM debian:buster-slim
+FROM debian:buster-20210511-slim
 RUN apt-get update \
     && apt-get install -y libgmp10 libgomp1 libffi6 libncurses6 libtinfo6 libreadline7 libnuma-dev \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
