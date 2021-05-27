@@ -20,8 +20,6 @@ RUN curl https://i.jpillora.com/chisel! | bash
 
 # Install GHC
 ARG GHCVER="8.10.3"
-RUN apt-get update && apt-get install -y libncurses-dev libz-dev \
-    build-essential curl libffi-dev libffi6 libgmp-dev libgmp10 libncurses-dev libncurses5 libtinfo5 libnuma-dev
 ENV GHCUP_INSTALL_BASE_PREFIX=/opt \
     PATH=/opt/.ghcup/bin:$PATH
 RUN curl -o /usr/local/bin/ghcup "https://downloads.haskell.org/~ghcup/0.1.14/x86_64-linux-ghcup-0.1.14" && \
