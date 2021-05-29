@@ -1,3 +1,4 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 module CryptolServer.ClearState
   ( clearState
@@ -20,8 +21,8 @@ instance JSON.FromJSON ClearStateParams where
     JSON.withObject "params for \"clear state\"" $
     \o -> ClearStateParams <$> o .: "state to clear"
 
-instance Doc.DescribedParams ClearStateParams where
-  parameterFieldDescription = 
+instance Doc.DescribedMethod ClearStateParams () where
+  parameterFieldDescription =
     [("state to clear",
        Doc.Paragraph [Doc.Text "The state to clear from the server to make room for other unrelated states."])
      ]
@@ -42,7 +43,7 @@ instance JSON.FromJSON ClearAllStatesParams where
     JSON.withObject "params for \"clear all states\"" $
     \_ -> pure ClearAllStatesParams
 
-instance Doc.DescribedParams ClearAllStatesParams where
+instance Doc.DescribedMethod ClearAllStatesParams () where
   parameterFieldDescription = []
 
 clearAllStatesDescr :: Doc.Block

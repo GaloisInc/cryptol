@@ -1,4 +1,6 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeApplications #-}
 module CryptolServer.EvalExpr
   ( evalExpression
   , evalExpressionDescr
@@ -9,6 +11,7 @@ module CryptolServer.EvalExpr
 import qualified Argo.Doc as Doc
 import Control.Monad.IO.Class
 import Data.Aeson as JSON
+import Data.Typeable (Proxy(..), typeRep)
 
 
 import Cryptol.ModuleSystem (checkExpr, evalExpr)
@@ -68,8 +71,23 @@ instance JSON.FromJSON EvalExprParams where
     JSON.withObject "params for \"evaluate expression\"" $
     \o -> EvalExprParams <$> o .: "expression"
 
-instance Doc.DescribedParams EvalExprParams where
+instance Doc.DescribedMethod EvalExprParams JSON.Value where
   parameterFieldDescription =
     [("expression",
       Doc.Paragraph [Doc.Text "The expression to evaluate."])
+    ]
+
+  resultFieldDescription =
+    [ ("value",
+      Doc.Paragraph [ Doc.Text "A "
+                    , Doc.Link (Doc.TypeDesc (typeRep (Proxy @Expression))) "JSON Cryptol expression"
+                    , Doc.Text " that denotes the value"
+                    ])
+    , ("type",
+      Doc.Paragraph [ Doc.Text " A"
+                    , Doc.Link (Doc.TypeDesc (typeRep (Proxy @JSONSchema))) "JSON Cryptol type"
+                    , Doc.Text " that denotes the result type"
+                    ])
+    , ("type string",
+      Doc.Paragraph [Doc.Text "A human-readable representation of the result type"])
     ]

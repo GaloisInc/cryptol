@@ -36,7 +36,7 @@ newtype CryptolNotification a = CryptolNotification { runCryptolNotification :: 
 
 command ::
   forall params result.
-  (JSON.FromJSON params, JSON.ToJSON result, Doc.DescribedParams params) =>
+  (JSON.FromJSON params, JSON.ToJSON result, Doc.DescribedMethod params result) =>
   Text ->
   Doc.Block ->
   (params -> CryptolCommand result) ->
@@ -47,7 +47,7 @@ command name doc f = Argo.command name doc f'
 
 notification ::
   forall params.
-  (JSON.FromJSON params, Doc.DescribedParams params) =>
+  (JSON.FromJSON params, Doc.DescribedMethod params ()) =>
   Text ->
   Doc.Block ->
   (params -> CryptolNotification ()) ->

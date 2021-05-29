@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -168,7 +169,7 @@ instance FromJSON ProveSatParams where
                     Right int -> pure (SomeSat int)) v)
 
 
-instance Doc.DescribedParams ProveSatParams where
+instance Doc.DescribedMethod ProveSatParams ProveSatResult where
   parameterFieldDescription =
     [("prover",
       Doc.Paragraph ([Doc.Text "The SMT solver to use to check for satisfiability. I.e., one of the following: "]
@@ -195,3 +196,33 @@ instance Doc.DescribedParams ProveSatParams where
                     ]
       )
     ]
+
+  resultFieldDescription =
+    [ ("result",
+      Doc.Paragraph [ Doc.Text "A string (one of "
+                    , Doc.Literal "unsatisfiable", Doc.Text ", "
+                    , Doc.Literal "invalid", Doc.Text ", or "
+                    , Doc.Literal "satisfied"
+                    , Doc.Text ") indicating the result of checking for validity, satisfiability, or safety."
+                    ])
+    , ("counterexample type",
+      Doc.Paragraph $ onlyIfResultIs "invalid" ++
+                    [ Doc.Text "This describes the variety of counterexample that was produced. This can be either "
+                    , Doc.Literal "safety violation", Doc.Text " or ", Doc.Literal "predicate falsified", Doc.Text "."
+                    ])
+    , ("counterexample",
+      Doc.Paragraph $ onlyIfResultIs "invalid" ++
+                    [ Doc.Text "A list of objects where each object has an "
+                    , Doc.Literal "expr", Doc.Text "field, indicating a counterexample expression, and a "
+                    , Doc.Literal "type", Doc.Text "field, indicating the type of the expression."
+                    ])
+    , ("models",
+      Doc.Paragraph $ onlyIfResultIs "satisfied" ++
+                    [ Doc.Text "A list of list of objects where each object has an "
+                    , Doc.Literal "expr", Doc.Text "field, indicating a expression in a model, and a "
+                    , Doc.Literal "type", Doc.Text "field, indicating the type of the expression."
+                    ])
+    ]
+    where
+      onlyIfResultIs val = [ Doc.Text "Only used if the " , Doc.Literal "result"
+                           , Doc.Text " is ", Doc.Literal val, Doc.Text "." ]

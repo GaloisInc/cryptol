@@ -1,3 +1,4 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 module CryptolServer.FocusedModule
   ( focusedModule
@@ -36,5 +37,18 @@ data FocusedModParams = FocusedModParams
 instance JSON.FromJSON FocusedModParams where
   parseJSON _ = pure FocusedModParams
 
-instance Doc.DescribedParams FocusedModParams where
+instance Doc.DescribedMethod FocusedModParams JSON.Value where
   parameterFieldDescription = []
+
+  resultFieldDescription =
+    [ ("module",
+      Doc.Paragraph [ Doc.Text "The name of the focused module, which would be shown in the "
+                    , Doc.Text "prompt in the Cryptol REPL, or "
+                    , Doc.Literal "null", Doc.Text " if there is no such focused module."
+                    ])
+    , ("parameterized",
+      Doc.Paragraph [ Doc.Text "A Boolean value indicating whether the focused module is "
+                    , Doc.Text "parameterized. This field is only present when the module name is not "
+                    , Doc.Literal "null", Doc.Text "."
+                    ])
+    ]

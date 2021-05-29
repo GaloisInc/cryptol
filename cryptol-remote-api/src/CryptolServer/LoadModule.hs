@@ -1,3 +1,4 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 module CryptolServer.LoadModule
   ( loadFile
@@ -36,7 +37,7 @@ instance JSON.FromJSON LoadFileParams where
     \o -> LoadFileParams <$> o .: "file"
 
 
-instance Doc.DescribedParams LoadFileParams where
+instance Doc.DescribedMethod LoadFileParams () where
   parameterFieldDescription =
     [("file",
       Doc.Paragraph [Doc.Text "File path of the module to load."])
@@ -70,7 +71,7 @@ instance JSON.FromJSON LoadModuleParams where
     JSON.withObject "params for \"load module\"" $
     \o -> LoadModuleParams . unJSONModName <$> o .: "module name"
 
-instance Doc.DescribedParams LoadModuleParams where
+instance Doc.DescribedMethod LoadModuleParams () where
   parameterFieldDescription =
     [("module name",
       Doc.Paragraph [Doc.Text "Name of module to load."])

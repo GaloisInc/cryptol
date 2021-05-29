@@ -1,3 +1,4 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 module CryptolServer.ExtendSearchPath
   ( extSearchPath
@@ -31,7 +32,7 @@ instance FromJSON ExtendSearchPathParams where
     withObject "params for \"extend search path\"" $
     \o -> ExtendSearchPathParams <$> o .: "paths"
 
-instance Doc.DescribedParams ExtendSearchPathParams where
+instance Doc.DescribedMethod ExtendSearchPathParams () where
   parameterFieldDescription =
     [("paths",
       Doc.Paragraph [Doc.Text "The paths to add to the search path."])
