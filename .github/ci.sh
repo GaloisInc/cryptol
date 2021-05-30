@@ -147,6 +147,10 @@ test_rpc() {
   ./cry rpc-test
 }
 
+check_rpc_docs() {
+  ./cry rpc-docs
+}
+
 bundle_files() {
   doc=dist/share/doc/cryptol
   lib=dist/share/cryptol
