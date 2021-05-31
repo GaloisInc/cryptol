@@ -64,7 +64,7 @@ library
                        parameterized-utils >= 2.0.2,
                        pretty            >= 1.1,
                        process           >= 1.2,
-                       sbv               >= 8.6 && < 8.15,
+                       sbv               >= 8.6 && < 8.16,
                        simple-smt        >= 0.7.1,
                        stm               >= 2.4,
                        strict,
