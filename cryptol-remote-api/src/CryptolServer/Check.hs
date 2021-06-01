@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -166,7 +167,7 @@ instance FromJSON CheckParams where
               Right n -> pure $ Just $ RandomCheckMode $ (toInteger :: Int -> Integer) n) v)
       num Nothing = pure Nothing
 
-instance Doc.DescribedParams CheckParams where
+instance Doc.DescribedMethod CheckParams CheckResult where
   parameterFieldDescription =
     [ ("expression",
       Doc.Paragraph [Doc.Text "The predicate (i.e., function) to check; "
@@ -181,4 +182,30 @@ instance Doc.DescribedParams CheckParams where
                     , Doc.Text " is specified and the property's argument types are not"
                     , Doc.Text " sufficiently small, checking may take longer than you are willing to wait!"
                       ])
+    ]
+
+  resultFieldDescription =
+    [ ("tests run",
+      Doc.Paragraph [Doc.Text "The number of tests that were successfully run."])
+    , ("tests possible",
+      Doc.Paragraph [Doc.Text "The maximum number of possible tests."])
+    , ("result",
+      Doc.Paragraph [ Doc.Text "The overall test result, represented as one of three string values:"
+                    , Doc.Literal "pass", Doc.Text " (all tests succeeded), "
+                    , Doc.Literal "fail", Doc.Text " (a test evaluated to ", Doc.Literal "False", Doc.Text "), or"
+                    , Doc.Literal "error", Doc.Text " (an exception was raised during evaluation)."
+                    ])
+    , ("arguments",
+      Doc.Paragraph [ Doc.Text "Only returned if the ", Doc.Literal "result"
+                    , Doc.Text " is ", Doc.Literal "fail", Doc.Text " or ", Doc.Literal "error", Doc.Text ". "
+                    , Doc.Text "An array of JSON objects indicating the arguments passed to the property "
+                    , Doc.Text "which triggered the failure or error. Each object has an "
+                    , Doc.Literal "expr", Doc.Text " field, which is an individual argument expression, and a "
+                    , Doc.Literal "type", Doc.Text " field, which is the type of the argument expression."
+                    ])
+    , ("error message",
+      Doc.Paragraph [ Doc.Text "Only returned if the ", Doc.Literal "result"
+                    , Doc.Text " is ", Doc.Literal "error", Doc.Text ". "
+                    , Doc.Text "A human-readable representation of the exception that was raised during evaluation."
+                    ])
     ]

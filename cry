@@ -21,6 +21,7 @@ Available commands:
   test                         Run some tests (may take a while)
   quick-test                   Like "test" but run fewer tests by default
   rpc-test                     Run RPC server tests
+  rpc-docs                     Check that the RPC documentation is up-to-date
   exe-path                     Print the location of the local executable
 EOM
 }
@@ -88,6 +89,12 @@ case $COMMAND in
     echo Running RPC server tests
     DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
     $DIR/cryptol-remote-api/run_rpc_tests.sh
+    ;;
+
+  rpc-docs)
+    echo "Checking cryptol-remote-api docs (Cryptol.rst) are up-to-date with server"
+    DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+    $DIR/cryptol-remote-api/check_docs.sh
     ;;
 
 

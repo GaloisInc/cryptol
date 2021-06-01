@@ -1,4 +1,6 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeApplications #-}
 module CryptolServer.TypeCheck
   ( checkType
   , checkTypeDescr
@@ -9,6 +11,7 @@ import qualified Argo.Doc as Doc
 
 --import Control.Lens hiding ((.=))
 import Data.Aeson as JSON
+import Data.Typeable
 
 import Cryptol.ModuleSystem (checkExpr)
 
@@ -39,8 +42,13 @@ instance JSON.FromJSON TypeCheckParams where
     JSON.withObject "params for \"check type\"" $
     \o -> TypeCheckParams <$> o .: "expression"
 
-instance Doc.DescribedParams TypeCheckParams where
+instance Doc.DescribedMethod TypeCheckParams JSON.Value where
   parameterFieldDescription =
     [("expression",
       Doc.Paragraph [Doc.Text "Expression to type check."])
+    ]
+
+  resultFieldDescription =
+    [("type schema",
+      Doc.Paragraph [Doc.Text "A ", Doc.Link (Doc.TypeDesc (typeRep (Proxy @JSONSchema))) "JSON Cryptol Type"])
     ]

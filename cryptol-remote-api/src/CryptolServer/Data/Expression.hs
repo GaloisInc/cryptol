@@ -4,6 +4,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
 module CryptolServer.Data.Expression
   ( module CryptolServer.Data.Expression
@@ -24,6 +25,7 @@ import qualified Data.Scientific as Sc
 import Data.Text (Text, pack)
 import qualified Data.Text as T
 import Data.Traversable
+import Data.Typeable (Proxy(..), typeRep)
 import qualified Data.Vector as V
 import Data.Text.Encoding (encodeUtf8)
 import Numeric (showHex)
@@ -49,6 +51,7 @@ import Cryptol.Utils.Ident
 import Cryptol.Utils.RecordMap (recordFromFields, canonicalFields)
 
 import Argo
+import qualified Argo.Doc as Doc
 import CryptolServer
 import CryptolServer.Exceptions
 import CryptolServer.Data.Type
@@ -234,6 +237,119 @@ instance JSON.ToJSON Expression where
     -- just fall through, rather than writing complicated code to
     -- serialize Type PName that never gets called and just bitrots.
     toJSON gen
+
+instance Doc.Described Expression where
+  typeName = "JSON Cryptol Expressions"
+  description =
+    [ Doc.Paragraph [Doc.Text "In the API, Cryptol expressions can be represented by the following:"]
+    , Doc.DescriptionList
+        [ (pure $ Doc.Text "JSON Booleans",
+           Doc.Paragraph [Doc.Text "Represent the corresponding Cryptol Booleans"])
+        , (pure $ Doc.Text "JSON Integers",
+           Doc.Paragraph [Doc.Text "Cryptol integer literals, that can be used at a variety of types"])
+        , (pure $ Doc.Text "JSON Strings",
+           Doc.Paragraph [Doc.Text "Cryptol concrete syntax"])
+        , (pure $ Doc.Text "JSON Objects",
+           Doc.Paragraph [ Doc.Text "Objects can represent a variety of Cryptol expressions. The field "
+                         , Doc.Literal "expression"
+                         , Doc.Text " contains a tag that can be used to determine the remaining fields."
+                         ])
+        ]
+    , Doc.Paragraph [Doc.Text "The tag values in objects can be:"]
+    , Doc.DescriptionList
+        [ (pure $ Doc.Literal "bits",
+           Doc.BulletedList
+             [ Doc.Paragraph [Doc.Text "The expression is a bitvector. Further fields are:"]
+             , Doc.Paragraph [ Doc.Literal "encoding", Doc.Text ": Either the string "
+                             , Doc.Literal "base64", Doc.Text " or ", Doc.Literal "hex"
+                             , Doc.Text ", for base-64 or hexadecimal representations of the bitvector"
+                             ]
+             , Doc.Paragraph [Doc.Literal "data", Doc.Text ": A string containing the actual data"]
+             , Doc.Paragraph [Doc.Literal "width", Doc.Text ": An integer: the bit-width of the represented bit vector"]
+             ])
+        , (pure $ Doc.Literal "record",
+           Doc.Paragraph [ Doc.Text "The expression is a record. The field "
+                         , Doc.Literal "data", Doc.Text " is a JSON object that maps record field names to "
+                         , Doc.Link (Doc.TypeDesc (typeRep (Proxy @Expression))) "JSON Cryptol expressions"
+                         , Doc.Text "."
+                         ])
+        , (pure $ Doc.Literal "sequence",
+           Doc.Paragraph [ Doc.Text "The expression is a sequence. The field "
+                         , Doc.Literal "data"
+                         , Doc.Text "contains a JSON array of the elements of the sequence; "
+                         , Doc.Text "each is a JSON Cryptol expression."
+                         ])
+        , (pure $ Doc.Literal "tuple",
+           Doc.Paragraph [ Doc.Text "The expression is a tuple. The field "
+                         , Doc.Literal "data"
+                         , Doc.Text "contains a JSON array of the elements of the tuple; "
+                         , Doc.Text "each is a JSON Cryptol expression."
+                         ])
+        , (pure $ Doc.Literal "unit",
+           Doc.Paragraph [Doc.Text "The expression is the unit constructor, and there are no further fields."])
+        , (pure $ Doc.Literal "let",
+           Doc.BulletedList
+             [ Doc.Paragraph [ Doc.Text "The expression is a ", Doc.Literal "where"
+                             , Doc.Text "binding. The fields are:"
+                             ]
+             , Doc.DescriptionList
+                 [ (pure $ Doc.Literal "binders",
+                    Doc.BulletedList
+                      [ Doc.Paragraph [Doc.Text "A list of binders. Each binder is an object with two fields:"]
+                      , Doc.Paragraph [ Doc.Literal "name"
+                                      , Doc.Text ": A string that is the name to be bound, and"
+                                      ]
+                      , Doc.Paragraph [ Doc.Literal "definition"
+                                      , Doc.Text "A "
+                                      , Doc.Link (Doc.TypeDesc (typeRep (Proxy @Expression))) "JSON Cryptol expression"
+                                      , Doc.Text "."
+                                      ]
+                     ])
+                 , (pure $ Doc.Literal "body",
+                    Doc.Paragraph [ Doc.Text "A "
+                                  , Doc.Link (Doc.TypeDesc (typeRep (Proxy @Expression))) "JSON Cryptol expression"
+                                  , Doc.Text " in which the bound names may be used."
+                                  ])
+                 ]
+             ])
+        , (pure $ Doc.Literal "call",
+           Doc.BulletedList
+             [ Doc.Paragraph [Doc.Text "The expression is a function application. Further fields are:"]
+             , Doc.Paragraph [ Doc.Literal "function", Doc.Text ": A "
+                             , Doc.Link (Doc.TypeDesc (typeRep (Proxy @Expression))) "JSON Cryptol expression"
+                             , Doc.Text "."
+                             ]
+             , Doc.Paragraph [ Doc.Literal "arguments", Doc.Text ": A JSON array of "
+                             , Doc.Link (Doc.TypeDesc (typeRep (Proxy @Expression))) "JSON Cryptol expressions"
+                             , Doc.Text "."
+                             ]
+             ])
+        , (pure $ Doc.Literal "instantiate",
+           Doc.BulletedList
+             [ Doc.Paragraph [Doc.Text "The expression is a type application. Further fields are:"]
+             , Doc.Paragraph [ Doc.Literal "generic"
+                             , Doc.Text ": The polymorphic expression to be instantiated"
+                             ]
+             , Doc.Paragraph [ Doc.Literal "arguments"
+                             , Doc.Text ": A JSON object in which keys are the names of type parameters and values are "
+                             , Doc.Link (Doc.TypeDesc (typeRep (Proxy @JSONSchema))) "JSON Cryptol types"
+                             , Doc.Text "."
+                             ]
+             ])
+        , (pure $ Doc.Literal "integer modulo",
+           Doc.BulletedList
+             [ Doc.Paragraph [ Doc.Text "The expression is an integer with a modulus (the Cryptol "
+                             , Doc.Literal "Z", Doc.Text " type). Further fields are:"
+                             ]
+             , Doc.Paragraph [ Doc.Literal "integer"
+                             , Doc.Text ": A JSON number, representing the integer"
+                             ]
+             , Doc.Paragraph [ Doc.Literal "modulus"
+                             , Doc.Text ": A JSON number, representing the modulus"
+                             ]
+             ])
+        ]
+    ]
 
 
 decode :: (Argo.Method m, Monad m) => Encoding -> Text -> m Integer

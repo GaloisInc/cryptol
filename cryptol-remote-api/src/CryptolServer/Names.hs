@@ -1,6 +1,9 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeApplications #-}
 module CryptolServer.Names
   ( visibleNames
   , visibleNamesDescr
@@ -12,6 +15,7 @@ import Data.Aeson ((.=))
 import qualified Data.Map as Map
 import Data.Map (Map)
 import Data.Text (unpack)
+import Data.Typeable (Proxy(..), typeRep)
 
 import Cryptol.Parser.Name (PName(..))
 import Cryptol.ModuleSystem.Env (ModContext(..), ModuleEnv(..), DynamicEnv(..), focusedEnv)
@@ -31,8 +35,21 @@ data VisibleNamesParams = VisibleNamesParams
 instance JSON.FromJSON VisibleNamesParams where
   parseJSON _ = pure VisibleNamesParams
 
-instance Doc.DescribedParams VisibleNamesParams where
+instance Doc.DescribedMethod VisibleNamesParams [NameInfo] where
   parameterFieldDescription = []
+
+  resultFieldDescription =
+    [ ("name",
+      Doc.Paragraph [Doc.Text "A human-readable representation of the name"])
+    , ("type string",
+      Doc.Paragraph [Doc.Text "A human-readable representation of the name's type schema"])
+    , ("type",
+      Doc.Paragraph [ Doc.Text " A"
+                    , Doc.Link (Doc.TypeDesc (typeRep (Proxy @JSONSchema))) "JSON Cryptol type"
+                    ])
+    , ("documentation",
+      Doc.Paragraph [Doc.Text "An optional field containing documentation string for the name, if it is documented"])
+    ]
 
 visibleNamesDescr :: Doc.Block
 visibleNamesDescr =
