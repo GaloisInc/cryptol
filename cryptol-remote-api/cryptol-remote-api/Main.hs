@@ -18,6 +18,8 @@ import CryptolServer.Call ( call, callDescr )
 import CryptolServer.Check ( check, checkDescr )
 import CryptolServer.ClearState
     ( clearState, clearStateDescr, clearAllStates, clearAllStatesDescr )
+import CryptolServer.Data.Expression ( Expression )
+import CryptolServer.Data.Type ( JSONSchema )
 import CryptolServer.EvalExpr
     ( evalExpression, evalExpressionDescr )
 import CryptolServer.ExtendSearchPath
@@ -47,7 +49,11 @@ serverDocs =
   [ Doc.Section "Summary" $ [ Doc.Paragraph
     [Doc.Text "An RCP server for ",
      Doc.Link (Doc.URL "https://https://cryptol.net/") "Cryptol",
-     Doc.Text " that supports type checking and evaluation of Cryptol code via the methods documented below."]]]
+     Doc.Text " that supports type checking and evaluation of Cryptol code via the methods documented below."]]
+  , Doc.Section "Terms and Types"
+    [Doc.datatype @Expression,
+     Doc.datatype @JSONSchema]
+  ]
 
 description :: String
 description =

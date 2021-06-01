@@ -106,6 +106,9 @@ jobs:
       - shell: bash
         run: .github/ci.sh check_docs
         if: runner.os != 'Windows'
+      - shell: bash
+        run: .github/ci.sh check_rpc_docs
+        if: runner.os != 'Windows'
 
       - if: runner.os == 'Linux'
         uses: docker://pandoc/latex:2.9.2

@@ -36,6 +36,8 @@ import qualified Argo.Doc as Doc
 import CryptolServer
     ( ServerState, moduleEnv, tcSolver, initialState, extendSearchPath, command, notification )
 import CryptolServer.Call ( call )
+import CryptolServer.Data.Expression ( Expression )
+import CryptolServer.Data.Type ( JSONSchema )
 import CryptolServer.EvalExpr
     ( evalExpressionDescr, evalExpression )
 import CryptolServer.ExtendSearchPath
@@ -90,7 +92,11 @@ evalServerDocs =
   [ Doc.Section "Summary" $ [ Doc.Paragraph
     [Doc.Text "A remote server for ",
      Doc.Link (Doc.URL "https://https://cryptol.net/") "Cryptol",
-     Doc.Text " that supports only type checking and evaluation of Cryptol code."]]]
+     Doc.Text " that supports only type checking and evaluation of Cryptol code."]]
+  , Doc.Section "Terms and Types"
+    [Doc.datatype @Expression,
+     Doc.datatype @JSONSchema]
+  ]
 
 description :: String
 description =
