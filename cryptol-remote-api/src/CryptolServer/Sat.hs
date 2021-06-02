@@ -23,7 +23,6 @@ import qualified Data.Text as T
 
 import Cryptol.Eval.Concrete (Value)
 import Cryptol.Eval.Type (TValue, tValTy)
-import Cryptol.ModuleSystem (checkExpr)
 import Cryptol.ModuleSystem.Env (DynamicEnv(..), meDynEnv)
 import Cryptol.Symbolic ( ProverCommand(..), ProverResult(..), QueryType(..)
                         , SatNum(..), CounterExampleType(..))
@@ -45,7 +44,7 @@ proveSatDescr =
 proveSat :: ProveSatParams -> CryptolCommand ProveSatResult
 proveSat (ProveSatParams queryType (Prover name) jsonExpr) =
   do e <- getExpr jsonExpr
-     (_expr, ty, schema) <- runModuleCmd (checkExpr e)
+     (ty, schema) <- typecheckExpr e
      -- TODO validEvalContext expr, ty, schema
      me <- getModuleEnv
      let decls = deDecls (meDynEnv me)
@@ -73,7 +72,7 @@ proveSat (ProveSatParams queryType (Prover name) jsonExpr) =
             sbvCfg <- liftIO (setupProver name) >>= \case
                         Left msg -> error msg
                         Right (_ws, sbvCfg) -> return sbvCfg
-            (_firstProver, res) <- runModuleCmd $ satProve sbvCfg cmd
+            (_firstProver, res) <- liftModuleCmd $ satProve sbvCfg cmd
             _stats <- liftIO (readIORef timing)
             case res of
               ProverError msg -> raise (proverError msg)
@@ -87,9 +86,11 @@ proveSat (ProveSatParams queryType (Prover name) jsonExpr) =
     satResult :: [(TValue, Expr, Value)] -> CryptolCommand [(JSONType, Expression)]
     satResult es = traverse result es
 
-    result (t, _, v) =
-      do e <- observe $ readBack t v
-         return (JSONType mempty (tValTy t), e)
+    result (t, _, v) = do
+      me <- readBack t v
+      case me of
+        Nothing -> error $ "type is not convertable: " ++ (show t)
+        Just e -> pure (JSONType mempty (tValTy t), e)
 
 data ProveSatResult
   = Unsatisfiable
