@@ -41,7 +41,7 @@ import Cryptol.Eval.Concrete (Value)
 import Cryptol.Eval.Type (TValue(..), tValTy)
 import Cryptol.Eval.Value (GenValue(..))
 import Cryptol.ModuleSystem
-  (ModuleEnv, ModuleCmd, getPrimMap, evalDecls, renameType, renameVar, checkExpr, focusedEnv)
+  (ModuleEnv, ModuleCmd, getPrimMap, evalDecls, renameType, checkExpr, focusedEnv)
 import Cryptol.ModuleSystem.Env (deNames,meDynEnv, mctxParams, mctxDecls, mctxNames)
 import Cryptol.ModuleSystem.Monad (runModuleM, interactive, getFocusedEnv)
 import qualified Cryptol.ModuleSystem.Base as Base

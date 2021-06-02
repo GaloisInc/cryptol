@@ -29,7 +29,7 @@ import qualified Argo
 import qualified Argo.Doc as Doc
 import CryptolServer.Data.FreshName
 import CryptolServer.Exceptions
-    ( cryptolError, unknownFreshName, invalidName)
+    ( cryptolError, invalidName)
 import CryptolServer.Options
     ( WithOptions(WithOptions), Options(Options, optEvalOpts) )
 
