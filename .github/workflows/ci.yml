@@ -224,7 +224,7 @@ jobs:
       - if: matrix.suite == 'rpc'
         uses: actions/setup-python@v2
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: '3.7'
 
       - if: matrix.suite == 'rpc'
         uses: abatilo/actions-poetry@v2.1.2
