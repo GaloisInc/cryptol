@@ -13,10 +13,8 @@ import qualified Argo.Doc as Doc
 import Data.Aeson as JSON
 import Data.Typeable
 
-import Cryptol.ModuleSystem (checkExpr)
 
 import CryptolServer
-import CryptolServer.Exceptions
 import CryptolServer.Data.Expression
 import CryptolServer.Data.Type
 
@@ -25,14 +23,10 @@ checkTypeDescr =
   Doc.Paragraph [Doc.Text "Check and return the type of the given expression."]
 
 checkType :: TypeCheckParams -> CryptolCommand JSON.Value
-checkType (TypeCheckParams e) =
-  do e' <- getExpr e
-     (_expr, _ty, schema) <- runModuleCmd (checkExpr e')
-     return (JSON.object [ "type schema" .= JSONSchema schema ])
-  where
-    -- FIXME: Why is this check not being used?
-    _noDefaults [] = return ()
-    _noDefaults xs@(_:_) = raise (unwantedDefaults xs)
+checkType (TypeCheckParams e) = do
+  e' <- getExpr e
+  (_ty, schema) <- typecheckExpr e'
+  return (JSON.object [ "type schema" .= JSONSchema schema ])
 
 newtype TypeCheckParams =
   TypeCheckParams Expression

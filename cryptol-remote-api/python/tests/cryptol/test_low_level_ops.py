@@ -12,23 +12,24 @@ from distutils.spawn import find_executable
 # cryptol_path = dir_path.joinpath('data')
 
 # Test empty options
-def do_test_options(c, state, options):
+def do_test_options(test : unittest.TestCase, c, state, options):
     id_opt = c.send_command("evaluate expression", {"state": state, "expression": "four", "options": options})
     reply = c.wait_for_reply_to(id_opt)
-    assert('result' in reply)
-    assert('answer' in reply['result'])
-    assert('value' in reply['result']['answer'])
-    assert(reply['result']['answer']['value'] == {'data': '00004', 'width': 17, 'expression': 'bits', 'encoding': 'hex'})
+    test.assertIn('result', reply)
+    test.assertIn('answer', reply['result'])
+    test.assertIn('value', reply['result']['answer'])
+    test.assertEqual(reply['result']['answer']['value'], {'data': '00004', 'width': 17, 'expression': 'bits', 'encoding': 'hex'})
     return reply['result']['state']
 
-def do_test_instantiation(c, state, t, expected=None):
+def do_test_instantiation(test : unittest.TestCase, c, state, t, expected=None):
     if expected is None: expected = t
     id_t = c.send_command("check type", {"state": state, "expression": {"expression": "instantiate", "generic": "id", "arguments": {"a": t}}})
     reply = c.wait_for_reply_to(id_t)
-    assert('result' in reply)
-    assert('answer' in reply['result'])
-    assert('type schema' in reply['result']['answer'])
-    assert(reply['result']['answer']['type schema']['type']['domain'] == expected)
+    test.assertIn('result', reply)
+    test.assertIn('result', reply)
+    test.assertIn('answer', reply['result'])
+    test.assertIn('type schema', reply['result']['answer'])
+    test.assertEqual(reply['result']['answer']['type schema']['type']['domain'], expected)
     return reply['result']['state']
 
 class LowLevelCryptolApiTests(unittest.TestCase):
@@ -119,27 +120,7 @@ class LowLevelCryptolApiTests(unittest.TestCase):
                              'unit':
                              {'expression': 'unit'}}})
         state = reply['result']['state']
- 
-        uid = c.send_command("evaluate expression",
-                             {"state": state,
-                             "expression": {"expression": "let",
-                                                  "binders": [{"name": "theRecord", "definition": a_record}],
-                                                  "body": {"expression": "tuple",
-                                                         "data": [a_record, "theRecord"]}}})
-        reply = c.wait_for_reply_to(uid)
-        self.assertIn('result', reply)
-        self.assertIn('answer', reply['result'])
-        self.assertIn('value', reply['result']['answer'])
-        self.assertEqual(reply['result']['answer']['value'],
-               {'expression': 'tuple',
-               'data': [{'data': {'fifteen': {'data': 'f', 'width': 4, 'expression': 'bits', 'encoding': 'hex'},
-                                    'unit': {'expression': 'unit'}},
-                             'expression': 'record'},
-                             {'data': {'fifteen': {'data': 'f', 'width': 4, 'expression': 'bits', 'encoding': 'hex'},
-                                    'unit': {'expression': 'unit'}},
-                             'expression': 'record'}]})
-        state = reply['result']['state']
- 
+
         uid = c.send_command("evaluate expression",
                              {"state": state,
                              "expression": {"expression": "sequence",
@@ -161,8 +142,8 @@ class LowLevelCryptolApiTests(unittest.TestCase):
         uid = c.send_command("evaluate expression",
                              {"state": state,
                              "expression": {"expression": "integer modulo",
-                                                  "integer": 14,
-                                                  "modulus": 42}})
+                                            "integer": 14,
+                                            "modulus": 42}})
         reply = c.wait_for_reply_to(uid)
         self.assertIn('result', reply)
         self.assertIn('answer', reply['result'])
@@ -211,29 +192,29 @@ class LowLevelCryptolApiTests(unittest.TestCase):
         self.assertEqual(reply['result']['answer']['value'], {'data': '00004', 'width': 17, 'expression': 'bits', 'encoding': 'hex'})
         state = reply['result']['state']
 
-        state = do_test_options(c, state, dict())
-        state = do_test_options(c, state, {"call stacks": True})
-        state = do_test_options(c, state, {"call stacks": False})
-        state = do_test_options(c, state, {"call stacks": False, "output": dict()})
-        state = do_test_options(c, state, {"call stacks": False, "output": {"ASCII": True}})
-        state = do_test_options(c, state, {"call stacks": False, "output": {"base": 16}})
-        state = do_test_options(c, state, {"call stacks": False, "output": {"prefix of infinite lengths": 3}})
+        state = do_test_options(self, c, state, dict())
+        state = do_test_options(self, c, state, {"call stacks": True})
+        state = do_test_options(self, c, state, {"call stacks": False})
+        state = do_test_options(self, c, state, {"call stacks": False, "output": dict()})
+        state = do_test_options(self, c, state, {"call stacks": False, "output": {"ASCII": True}})
+        state = do_test_options(self, c, state, {"call stacks": False, "output": {"base": 16}})
+        state = do_test_options(self, c, state, {"call stacks": False, "output": {"prefix of infinite lengths": 3}})
 
         # These test both the type instantiation form and the serialization/deserialization of the types involved
-        state = do_test_instantiation(c, state, {"type": "Integer"})
-        state = do_test_instantiation(c, state, {"type": "record",
+        state = do_test_instantiation(self, c, state, {"type": "Integer"})
+        state = do_test_instantiation(self, c, state, {"type": "record",
                              "fields": {'a': {'type': 'Integer'},
                                            'b': {'type': 'sequence', 'length': {'type': 'inf'}, 'contents': {'type': 'unit'}}}})
-        state = do_test_instantiation(c, state, {'type': 'sequence',
+        state = do_test_instantiation(self, c, state, {'type': 'sequence',
                              'length': {'type': 'number', 'value': 42},
                              'contents': {'type': 'Rational'}})
-        state = do_test_instantiation(c, state, {'type': 'bitvector',
+        state = do_test_instantiation(self, c, state, {'type': 'bitvector',
                              'width': {'type': 'number', 'value': 432}})
-        state = do_test_instantiation(c, state, {'type': 'variable',
+        state = do_test_instantiation(self, c, state, {'type': 'variable',
                              'name': 'Word8'},
                              {'type': 'bitvector',
                              'width': {'type': 'number', 'value': 8}})
-        state = do_test_instantiation(c, state, {'type': 'variable',
+        state = do_test_instantiation(self, c, state, {'type': 'variable',
                              'name': 'Twenty',
                              'arguments': [{'type': 'Z', 'modulus': {'type': 'number', 'value': 5}}]},
                              { 'type': 'sequence',

@@ -1245,7 +1245,7 @@ helpCmd cmd
       M.Parameter  -> rPutStrLn "// No documentation is available."
 
 
-  showModHelp env disp x =
+  showModHelp _env disp x =
     rPrint $ runDoc disp $ vcat [ "`" <> pp x <> "` is a module." ]
     -- XXX: show doc. if any
 

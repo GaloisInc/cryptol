@@ -36,13 +36,13 @@ import Cryptol.TypeCheck.Solve (defaultReplExpr)
 import CryptolServer
     ( getTCSolver,
       getModuleEnv,
-      runModuleCmd,
+      liftModuleCmd,
       CryptolMethod(raise),
       CryptolCommand )
 import CryptolServer.Exceptions (evalPolyErr)
 import CryptolServer.Data.Expression
-    ( readBack, observe, getExpr, Expression )
-import CryptolServer.Data.Type
+    ( readBack, getExpr, typecheckExpr, Expression)
+import CryptolServer.Data.Type ( JSONType(..) )
 import Cryptol.Utils.PP (pretty)
 
 checkDescr :: Doc.Block
@@ -54,7 +54,7 @@ checkDescr =
 check :: CheckParams -> CryptolCommand CheckResult
 check (CheckParams jsonExpr cMode) =
   do e <- getExpr jsonExpr
-     (_expr, ty, schema) <- runModuleCmd (CM.checkExpr e)
+     (ty, schema) <- typecheckExpr e
      -- TODO? validEvalContext expr, ty, schema
      s <- getTCSolver
      perhapsDef <- liftIO (defaultReplExpr s ty schema)
@@ -66,7 +66,7 @@ check (CheckParams jsonExpr cMode) =
            let theType = apSubst su (AST.sType schema)
            tenv  <- CEE.envTypes . deEnv . meDynEnv <$> getModuleEnv
            let tval = CET.evalValType tenv theType
-           val <- runModuleCmd (CM.evalExpr checked)
+           val <- liftModuleCmd (CM.evalExpr checked)
            pure (val,tval)
          let (isExaustive, randomTestNum) = case cMode of
                                               ExhaustiveCheckMode -> (True, 0)
@@ -86,8 +86,10 @@ check (CheckParams jsonExpr cMode) =
 
 convertTestArg :: (CET.TValue, CEC.Value) -> CryptolCommand (JSONType, Expression)
 convertTestArg (t, v) = do
-   e <- observe $ readBack t v
-   return (JSONType mempty (CET.tValTy t), e)
+   me <- readBack t v
+   case me of
+     Nothing -> error $ "type is not convertable: " ++ (show t)
+     Just e -> return (JSONType mempty (CET.tValTy t), e)
 
 convertTestResult ::
   [CET.TValue] {- ^ Argument types -} ->
