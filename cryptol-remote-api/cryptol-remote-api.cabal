@@ -46,6 +46,7 @@ common deps
     lens                 >= 4.17 && < 4.20,
     mtl                  ^>= 2.2,
     scientific           ^>= 0.3,
+    scotty-tls,
     text                 ^>= 1.2.3,
     tf-random,
     unordered-containers ^>= 0.2,
