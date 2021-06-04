@@ -18,7 +18,7 @@ cabal-which() {
 
 get_server() {
     CRYPTOL_SERVER=$(cabal-which $1)
-    export $CRYPTOL_SERVER
+    export CRYPTOL_SERVER
     echo "Using server $CRYPTOL_SERVER"
 }
 
