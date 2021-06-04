@@ -262,9 +262,6 @@ jobs:
           ./bin/test-runner --ext=.icry -F -b --exe=dist/bin/cryptol ./tests/${{ matrix.target }}
 
       - if: matrix.suite == 'rpc'
-        uses: lhotari/action-upterm@v1
-
-      - if: matrix.suite == 'rpc'
         shell: bash
         continue-on-error: ${{ matrix.continue-on-error }}
         run: |

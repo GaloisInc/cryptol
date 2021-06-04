@@ -13,7 +13,7 @@ run_test() {
 }
 
 cabal-which() {
-    which $1 || cabal v2-exec which $1 || echo "could not locate $1 executable" >&2 && exit 1
+    which $1 || cabal v2-exec which $1 || { echo "could not locate $1 executable" >&2 && exit 1; }
 }
 
 get_server() {
