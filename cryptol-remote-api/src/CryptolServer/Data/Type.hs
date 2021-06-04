@@ -26,6 +26,8 @@ import Cryptol.Utils.Ident (mkIdent)
 import Cryptol.Utils.PP (pp)
 import Cryptol.Utils.RecordMap (canonicalFields)
 
+import qualified Argo.Doc as Doc
+
 
 newtype JSONSchema = JSONSchema Schema
 
@@ -212,7 +214,7 @@ instance JSON.ToJSON JSONType where
         ]
       convert (TUser _n _args def) = convert def
       convert (TNewtype _nt _ts) =
-        error "JSON conversion of newtypes is not yet supported TODO"
+        JSON.object [ "type" .= T.pack "newtype" ]
       convert (TRec fields) =
         JSON.object
         [ "type" .= T.pack "record"
@@ -294,3 +296,31 @@ instance JSON.FromJSON JSONPType where
       unaryPropF prop f o = unaryProp prop <$> typeField o f
       binTC tc f1 f2 o = tc <$> typeField o f1 <*> typeField o f2
       tyFun tf o = C.TUser (name tf) <$> typeListField o "arguments"
+
+instance Doc.Described JSONSchema where
+  typeName = "JSON Cryptol Types"
+  description =
+    [ Doc.Paragraph [Doc.Text "JSON representations of types are type schemas. A type schema has three fields:"]
+    , Doc.DescriptionList
+        [ (pure $ Doc.Literal "forall",
+           Doc.Paragraph [ Doc.Text "Contains an array of objects. Each object has two fields: "
+                         , Doc.Literal "name", Doc.Text " is the name of a type variable, and "
+                         , Doc.Literal "kind", Doc.Text " is its kind. There are four kind formers: the string "
+                         , Doc.Literal "Type", Doc.Text " represents ordinary datatypes, the string "
+                         , Doc.Literal "Num", Doc.Text " is the kind of numbers, and "
+                         , Doc.Literal "Prop", Doc.Text " is the kind of propositions. "
+                         , Doc.Text "Arrow kinds are represented by objects in which the field "
+                         , Doc.Literal "kind", Doc.Text " is the string "
+                         , Doc.Literal "arrow", Doc.Text ", and the fields "
+                         , Doc.Literal "from", Doc.Text " and ", Doc.Literal "to"
+                         , Doc.Text " are the kinds on the left and right side of the arrow, respectively."
+                         ])
+        , (pure $ Doc.Literal "propositions",
+           Doc.Paragraph [Doc.Text "A JSON array of the constraints in the type."])
+        , (pure $ Doc.Literal "type",
+           Doc.Paragraph [ Doc.Text "The type in which the variables from "
+                         , Doc.Literal "forall", Doc.Text " are in scope and the constraints in "
+                         , Doc.Literal "propositions", Doc.Text " are in effect."
+                         ])
+        ]
+    ]

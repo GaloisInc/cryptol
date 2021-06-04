@@ -5,6 +5,7 @@ import base64
 from math import ceil
 import BitVector #type: ignore
 from .bitvector import BV
+from .opaque import OpaqueValue
 
 from typing import Any, Dict, Iterable, List, NoReturn, Optional, TypeVar, Union
 
@@ -29,6 +30,7 @@ class CryptolLiteral(CryptolCode):
 
     def __to_cryptol__(self, ty : CryptolType) -> Any:
         return self._code
+
 
 class CryptolApplication(CryptolCode):
     def __init__(self, rator : CryptolJSON, *rands : CryptolJSON) -> None:
@@ -163,6 +165,10 @@ class CryptolType:
                     'encoding': 'hex',
                     'width': val.size(), # N.B. original length, not padded
                     'data': val.hex()[2:]}
+        elif isinstance(val, OpaqueValue):
+            return {'expression': 'unique name',
+                    'unique': val.unique,
+                    'identifier': val.identifier}
         else:
             raise TypeError("Unsupported value: " + str(val))
 
@@ -406,6 +412,7 @@ class Record(CryptolType):
 
     def __repr__(self) -> str:
         return f"Record({self.fields!r})"
+
 
 def to_type(t : Any) -> CryptolType:
     if t['type'] == 'variable':

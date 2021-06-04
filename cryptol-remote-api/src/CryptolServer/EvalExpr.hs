@@ -1,4 +1,6 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeApplications #-}
 module CryptolServer.EvalExpr
   ( evalExpression
   , evalExpressionDescr
@@ -7,17 +9,19 @@ module CryptolServer.EvalExpr
   ) where
 
 import qualified Argo.Doc as Doc
+import Control.Exception (throwIO)
 import Control.Monad.IO.Class
 import Data.Aeson as JSON
+import Data.Typeable (Proxy(..), typeRep)
 
 
-import Cryptol.ModuleSystem (checkExpr, evalExpr)
+import Cryptol.ModuleSystem (evalExpr)
+import Cryptol.ModuleSystem.Name (Name)
 import Cryptol.ModuleSystem.Env (deEnv,meDynEnv)
 import Cryptol.TypeCheck.Solve (defaultReplExpr)
 import Cryptol.TypeCheck.Subst (apSubst, listParamSubst)
 import Cryptol.TypeCheck.Type (Schema(..))
 import qualified Cryptol.Parser.AST as P
-import Cryptol.Parser.Name (PName)
 import Cryptol.Utils.PP (pretty)
 import qualified Cryptol.Eval.Env as E
 import qualified Cryptol.Eval.Type as E
@@ -36,30 +40,32 @@ evalExpression (EvalExprParams jsonExpr) =
   do e <- getExpr jsonExpr
      evalExpression' e
 
-evalExpression' :: P.Expr PName -> CryptolCommand JSON.Value
-evalExpression' e =
-  do (_expr, ty, schema) <- runModuleCmd (checkExpr e)
-     -- TODO: see Cryptol REPL for how to check whether we
-     -- can actually evaluate things, which we can't do in
-     -- a parameterized module
-     s <- getTCSolver
-     perhapsDef <- liftIO (defaultReplExpr s ty schema)
-     case perhapsDef of
-       Nothing ->
-         raise (evalPolyErr schema)
-       Just (tys, checked) ->
-         do -- TODO: warnDefaults here
-            let su = listParamSubst tys
-            let theType = apSubst su (sType schema)
-            tenv  <- E.envTypes . deEnv . meDynEnv <$> getModuleEnv
-            let tval = E.evalValType tenv theType
-            res <- runModuleCmd (evalExpr checked)
-            val <- observe $ readBack tval res
-            return (JSON.object [ "value" .= val
-                                , "type string" .= pretty theType
-                                , "type" .= JSONSchema (Forall [] [] theType)
-                                ])
-
+evalExpression' :: P.Expr Name -> CryptolCommand JSON.Value
+evalExpression' e = do
+  (ty, schema) <- typecheckExpr e
+  -- TODO: see Cryptol REPL for how to check whether we
+  -- can actually evaluate things, which we can't do in
+  -- a parameterized module
+  s <- getTCSolver
+  perhapsDef <- liftIO (defaultReplExpr s ty schema)
+  case perhapsDef of
+    Nothing ->
+      raise (evalPolyErr schema)
+    Just (tys, checked) ->
+      do -- TODO: warnDefaults here
+         let su = listParamSubst tys
+         let theType = apSubst su (sType schema)
+         tenv  <- E.envTypes . deEnv . meDynEnv <$> getModuleEnv
+         let tval = E.evalValType tenv theType
+         val <- liftModuleCmd (evalExpr checked)
+         mExpr<- readBack tval val
+         case mExpr of
+           Just expr ->
+             pure $  JSON.object [ "value" .= expr
+                                 , "type string" .= pretty theType
+                                 , "type" .= JSONSchema (Forall [] [] theType)
+                                 ]
+           Nothing -> liftIO $ throwIO (invalidType theType)
 newtype EvalExprParams =
   EvalExprParams Expression
 
@@ -68,8 +74,23 @@ instance JSON.FromJSON EvalExprParams where
     JSON.withObject "params for \"evaluate expression\"" $
     \o -> EvalExprParams <$> o .: "expression"
 
-instance Doc.DescribedParams EvalExprParams where
+instance Doc.DescribedMethod EvalExprParams JSON.Value where
   parameterFieldDescription =
     [("expression",
       Doc.Paragraph [Doc.Text "The expression to evaluate."])
+    ]
+
+  resultFieldDescription =
+    [ ("value",
+      Doc.Paragraph [ Doc.Text "A "
+                    , Doc.Link (Doc.TypeDesc (typeRep (Proxy @Expression))) "JSON Cryptol expression"
+                    , Doc.Text " that denotes the value"
+                    ])
+    , ("type",
+      Doc.Paragraph [ Doc.Text " A"
+                    , Doc.Link (Doc.TypeDesc (typeRep (Proxy @JSONSchema))) "JSON Cryptol type"
+                    , Doc.Text " that denotes the result type"
+                    ])
+    , ("type string",
+      Doc.Paragraph [Doc.Text "A human-readable representation of the result type"])
     ]

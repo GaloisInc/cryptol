@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -35,13 +36,13 @@ import Cryptol.TypeCheck.Solve (defaultReplExpr)
 import CryptolServer
     ( getTCSolver,
       getModuleEnv,
-      runModuleCmd,
+      liftModuleCmd,
       CryptolMethod(raise),
       CryptolCommand )
 import CryptolServer.Exceptions (evalPolyErr)
 import CryptolServer.Data.Expression
-    ( readBack, observe, getExpr, Expression )
-import CryptolServer.Data.Type
+    ( readBack, getExpr, typecheckExpr, Expression)
+import CryptolServer.Data.Type ( JSONType(..) )
 import Cryptol.Utils.PP (pretty)
 
 checkDescr :: Doc.Block
@@ -53,7 +54,7 @@ checkDescr =
 check :: CheckParams -> CryptolCommand CheckResult
 check (CheckParams jsonExpr cMode) =
   do e <- getExpr jsonExpr
-     (_expr, ty, schema) <- runModuleCmd (CM.checkExpr e)
+     (ty, schema) <- typecheckExpr e
      -- TODO? validEvalContext expr, ty, schema
      s <- getTCSolver
      perhapsDef <- liftIO (defaultReplExpr s ty schema)
@@ -65,7 +66,7 @@ check (CheckParams jsonExpr cMode) =
            let theType = apSubst su (AST.sType schema)
            tenv  <- CEE.envTypes . deEnv . meDynEnv <$> getModuleEnv
            let tval = CET.evalValType tenv theType
-           val <- runModuleCmd (CM.evalExpr checked)
+           val <- liftModuleCmd (CM.evalExpr checked)
            pure (val,tval)
          let (isExaustive, randomTestNum) = case cMode of
                                               ExhaustiveCheckMode -> (True, 0)
@@ -85,8 +86,10 @@ check (CheckParams jsonExpr cMode) =
 
 convertTestArg :: (CET.TValue, CEC.Value) -> CryptolCommand (JSONType, Expression)
 convertTestArg (t, v) = do
-   e <- observe $ readBack t v
-   return (JSONType mempty (CET.tValTy t), e)
+   me <- readBack t v
+   case me of
+     Nothing -> error $ "type is not convertable: " ++ (show t)
+     Just e -> return (JSONType mempty (CET.tValTy t), e)
 
 convertTestResult ::
   [CET.TValue] {- ^ Argument types -} ->
@@ -166,7 +169,7 @@ instance FromJSON CheckParams where
               Right n -> pure $ Just $ RandomCheckMode $ (toInteger :: Int -> Integer) n) v)
       num Nothing = pure Nothing
 
-instance Doc.DescribedParams CheckParams where
+instance Doc.DescribedMethod CheckParams CheckResult where
   parameterFieldDescription =
     [ ("expression",
       Doc.Paragraph [Doc.Text "The predicate (i.e., function) to check; "
@@ -181,4 +184,30 @@ instance Doc.DescribedParams CheckParams where
                     , Doc.Text " is specified and the property's argument types are not"
                     , Doc.Text " sufficiently small, checking may take longer than you are willing to wait!"
                       ])
+    ]
+
+  resultFieldDescription =
+    [ ("tests run",
+      Doc.Paragraph [Doc.Text "The number of tests that were successfully run."])
+    , ("tests possible",
+      Doc.Paragraph [Doc.Text "The maximum number of possible tests."])
+    , ("result",
+      Doc.Paragraph [ Doc.Text "The overall test result, represented as one of three string values:"
+                    , Doc.Literal "pass", Doc.Text " (all tests succeeded), "
+                    , Doc.Literal "fail", Doc.Text " (a test evaluated to ", Doc.Literal "False", Doc.Text "), or"
+                    , Doc.Literal "error", Doc.Text " (an exception was raised during evaluation)."
+                    ])
+    , ("arguments",
+      Doc.Paragraph [ Doc.Text "Only returned if the ", Doc.Literal "result"
+                    , Doc.Text " is ", Doc.Literal "fail", Doc.Text " or ", Doc.Literal "error", Doc.Text ". "
+                    , Doc.Text "An array of JSON objects indicating the arguments passed to the property "
+                    , Doc.Text "which triggered the failure or error. Each object has an "
+                    , Doc.Literal "expr", Doc.Text " field, which is an individual argument expression, and a "
+                    , Doc.Literal "type", Doc.Text " field, which is the type of the argument expression."
+                    ])
+    , ("error message",
+      Doc.Paragraph [ Doc.Text "Only returned if the ", Doc.Literal "result"
+                    , Doc.Text " is ", Doc.Literal "error", Doc.Text ". "
+                    , Doc.Text "A human-readable representation of the exception that was raised during evaluation."
+                    ])
     ]

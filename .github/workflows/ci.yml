@@ -1,20 +1,15 @@
 name: Cryptol
 on:
   push:
-    tags: ["v?[0-9]+.[0-9]+(.[0-9]+)?"]
+    tags: ["?[0-9]+.[0-9]+(.[0-9]+)?"]
     branches: [master, "release-**"]
   pull_request:
   schedule:
-    - cron: "0 0 * * *"
+    - cron: "0 10 * * *" # 10am UTC -> 2/3am PST
   workflow_dispatch:
-    inputs:
-      publish:
-        description: "Publish release artifacts"
-        required: false
-        default: "false"
 
 env:
-  Z3_VERSION: "4.8.8"
+  Z3_VERSION: "4.8.10"
   CVC4_VERSION: "4.1.8"
   YICES_VERSION: "2.6.2"
 
@@ -22,50 +17,35 @@ jobs:
   config:
     runs-on: ubuntu-latest
     outputs:
-      changed: ${{ steps.getconf.outputs.changed-files }}
-      cryptol-version: ${{ steps.getconf.outputs.cryptol-version }}
-      name: ${{ steps.getconf.outputs.name }}
-      publish: ${{ steps.getconf-publish.outputs.publish }}
-      release: ${{ steps.getconf-release.outputs.release }}
-      retention-days: ${{ steps.getconf-retention.outputs.retention-days }}
+      name: ${{ steps.config.outputs.name }}
+      version: ${{ steps.config.outputs.version }}
+      event-tag: ${{ steps.config.outputs.tag }}
+      event-schedule: ${{ steps.config.outputs.schedule }}
+      release: ${{ steps.config.outputs.release }}
+      retention-days: ${{ steps.config.outputs.retention-days }}
     steps:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 0
-      - name: getconf
-        id: getconf
-        run: |
-          set -x
-          .github/ci.sh set_files ${{ github.sha }}
-          .github/ci.sh set_version
-          .github/ci.sh output name cryptol-$(.github/ci.sh ver)
-      - name: getconf-publish
-        id: getconf-publish
-        if: |
-          (github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/')) ||
-          (github.event_name == 'schedule') ||
-          (github.event_name == 'workflow_dispatch' && github.event.inputs.publish == 'true')
-        run: |
-          set -x
-          .github/ci.sh output publish true
-      - name: getconf-release
-        id: getconf-release
-        if: startsWith(github.event.ref, 'refs/heads/release-')
-        run: |
-          set -x
-          .github/ci.sh output release true
-      - name: getconf-retention
-        id: getconf-retention
+
+      - name: config
+        id: config
         env:
-          RELEASE: ${{ steps.getconf-release.outputs.release }}
-        shell: bash
+          EVENT_TAG: ${{ startsWith(github.event.ref, 'refs/tags/') }}
+          EVENT_SCHEDULE: ${{ github.event_name == 'schedule' }}
+          EVENT_DISPATCH: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
           set -x
-          if [[ "$RELEASE" == "true" ]]; then
-              .github/ci.sh output retention-days 90
-          else
-              .github/ci.sh output retention-days 5
-          fi
+          .github/ci.sh output name cryptol-$(.github/ci.sh ver)
+          .github/ci.sh output version $(.github/ci.sh ver)
+          .github/ci.sh output tag $EVENT_TAG
+          .github/ci.sh output schedule $EVENT_SCHEDULE
+          RELEASE=$( \
+            [[ "refs/heads/release-$(.github/ci.sh ver)" == "${{ github.event.ref }}" ]] && \
+            [[ "refs/heads/release-$(git describe --tags --abbrev=0)" == "${{ github.event.ref }}" ]] && \
+            echo true || echo false)
+          .github/ci.sh output release $RELEASE
+          .github/ci.sh output retention-days $($RELEASE && echo 90 || echo 5)
 
   build:
     runs-on: ${{ matrix.os }}
@@ -74,11 +54,16 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        ghc: ["8.6.5", "8.8.4", "8.10.2"]
+        ghc-version: ["8.6.5", "8.8.4", "8.10.2"]
         exclude:
           # https://gitlab.haskell.org/ghc/ghc/-/issues/18550
           - os: windows-latest
-            ghc: 8.10.2
+            ghc-version: 8.10.2
+    outputs:
+      test-lib-json: ${{ steps.test-lib.outputs.targets-json }}
+    env:
+      VERSION: ${{ needs.config.outputs.version }}
+      RELEASE: ${{ needs.config.outputs.release }}
     steps:
       - uses: actions/checkout@v2
         with:
@@ -92,10 +77,10 @@ jobs:
         with:
           poetry-version: 1.1.6
 
-      - uses: actions/setup-haskell@v1
+      - uses: haskell/actions/setup@v1
         id: setup-haskell
         with:
-          ghc-version: ${{ matrix.ghc }}
+          ghc-version: ${{ matrix.ghc-version }}
 
       - uses: actions/cache@v2
         name: Cache cabal store
@@ -103,15 +88,12 @@ jobs:
           path: |
             ${{ steps.setup-haskell.outputs.cabal-store }}
             dist-newstyle
-          key: cabal-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles(format('cabal.GHC-{0}.config', matrix.ghc)) }}-${{ github.sha }}
+          key: cabal-${{ runner.os }}-${{ matrix.ghc-version }}-${{ hashFiles(format('cabal.GHC-{0}.config', matrix.ghc-version)) }}-${{ github.sha }}
           restore-keys: |
-            cabal-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles(format('cabal.GHC-{0}.config', matrix.ghc)) }}-
+            cabal-${{ runner.os }}-${{ matrix.ghc-version }}-${{ hashFiles(format('cabal.GHC-{0}.config', matrix.ghc-version)) }}-
 
       - shell: bash
         run: .github/ci.sh install_system_deps
-
-      - shell: bash
-        run: .github/ci.sh setup_external_tools
 
       - shell: bash
         env:
@@ -119,30 +101,17 @@ jobs:
         run: .github/ci.sh build
 
       - shell: bash
+        run: .github/ci.sh setup_dist_bins
+
+      - shell: bash
         run: .github/ci.sh check_docs
         if: runner.os != 'Windows'
-
       - shell: bash
-        run: .github/ci.sh test_dist
-
-      # TODO: get Python client to work on Windows
-      - shell: bash
-        run: .github/ci.sh test_rpc
+        run: .github/ci.sh check_rpc_docs
         if: runner.os != 'Windows'
 
-      - if: matrix.ghc == '8.8.4'
-        uses: actions/upload-artifact@v2
-        with:
-          path: dist/bin
-          name: ${{ runner.os }}-bins
-          retention-days: ${{ needs.config.outputs.retention-days }}
-
-  build-docs:
-    runs-on: ubuntu-latest
-    needs: [config]
-    steps:
-      - uses: actions/checkout@v2
-      - uses: docker://pandoc/latex:2.9.2
+      - if: runner.os == 'Linux'
+        uses: docker://pandoc/latex:2.9.2
         with:
           args: >-
             sh -c
@@ -152,34 +121,20 @@ jobs:
             cd docs &&
             make
             "
-      - uses: actions/upload-artifact@v2
-        with:
-          path: docs
-          name: docs
-          retention-days: ${{ needs.config.outputs.retention-days }}
 
-  bundle:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    needs: [config, build-docs, build]
-    env:
-      VERSION: ${{ needs.config.outputs.cryptol-version }}
-      RELEASE: ${{ needs.config.outputs.release }}
-    steps:
-      - uses: actions/checkout@v2
-
-      - uses: actions/download-artifact@v2
-        with:
-          path: dist/bin
-          name: ${{ runner.os }}-bins
-
-      - uses: actions/download-artifact@v2
-        with:
-          path: docs
-          name: docs
+      - shell: bash
+        name: Partition test-lib tests
+        id: test-lib
+        run: |
+          set -x
+          cabal v2-install --install-method=copy --installdir="./bin" test-lib
+          cmd="cat \$1.stdout"
+          if ${{ runner.os == 'Windows' }}; then
+              cmd="cat \$1.stdout.mingw32 2>/dev/null || $cmd"
+          fi
+          ./bin/test-runner --ext=.icry -r ./output --exe=$(which bash) -F -c -F "$cmd" -F -- ./tests
+          TARGETS_JSON=$(echo -n "$(ls -1 ./output/tests)" | jq -Rsc 'split("\n")')
+          echo "::set-output name=targets-json::$TARGETS_JSON"
 
       - shell: bash
         run: .github/ci.sh bundle_files
@@ -194,17 +149,18 @@ jobs:
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
         run: .github/ci.sh sign cryptol.msi
 
-      - shell: bash
-        run: |
-          echo "NAME=${{ needs.config.outputs.name }}-${{ runner.os }}-x86_64" >> $GITHUB_ENV
-          .github/ci.sh zip_dist $NAME
-
       - if: needs.config.outputs.release == 'true'
         shell: bash
         env:
           SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
         run: .github/ci.sh sign ${NAME}.tar.gz
+
+      - shell: bash
+        run: |
+          NAME="${{ needs.config.outputs.name }}-${{ runner.os }}-x86_64"
+          echo "NAME=$NAME" >> $GITHUB_ENV
+          .github/ci.sh zip_dist $NAME
 
       - uses: actions/upload-artifact@v2
         with:
@@ -213,6 +169,18 @@ jobs:
           if-no-files-found: error
           retention-days: ${{ needs.config.outputs.retention-days }}
 
+      - if: matrix.ghc-version == '8.6.5'
+        uses: actions/upload-artifact@v2
+        with:
+          path: dist/bin
+          name: ${{ runner.os }}-dist-bin
+
+      - if: matrix.ghc-version == '8.6.5'
+        uses: actions/upload-artifact@v2
+        with:
+          path: bin
+          name: ${{ runner.os }}-bin
+
       - uses: actions/upload-artifact@v2
         if: runner.os == 'Windows'
         with:
@@ -220,6 +188,85 @@ jobs:
           path: "cryptol.msi*"
           if-no-files-found: error
           retention-days: ${{ needs.config.outputs.retention-days }}
+
+  test:
+    runs-on: ${{ matrix.os }}
+    needs: [build]
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [test-lib]
+        target: ${{ fromJson(needs.build.outputs.test-lib-json) }}
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        continue-on-error: [false]
+        include:
+          - suite: rpc
+            target: ''
+            os: ubuntu-latest
+            continue-on-error: false
+          - suite: rpc
+            target: ''
+            os: macos-latest
+            continue-on-error: false
+          - suite: rpc
+            target: ''
+            os: windows
+            continue-on-error: true  # TODO: get Python client to work on Windows
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: true
+
+      - uses: haskell/actions/setup@v1
+        with:
+          ghc-version: '8.10.2'
+
+      - if: matrix.suite == 'rpc'
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.7'
+
+      - if: matrix.suite == 'rpc'
+        uses: abatilo/actions-poetry@v2.1.2
+        with:
+          poetry-version: 1.1.6
+
+      - uses: actions/download-artifact@v2
+        with:
+          name: "${{ runner.os }}-dist-bin"
+          path: dist/bin
+
+      - uses: actions/download-artifact@v2
+        with:
+          name: "${{ runner.os }}-bin"
+          path: bin
+
+      - shell: bash
+        run: |
+          set -x
+          chmod +x dist/bin/cryptol
+          chmod +x dist/bin/cryptol-remote-api
+          chmod +x dist/bin/cryptol-eval-server
+          chmod +x bin/test-runner
+          .github/ci.sh install_system_deps
+          ghc_ver="$(ghc --numeric-version)"
+          cp cabal.GHC-"$ghc_ver".config cabal.project.freeze
+          cabal v2-update
+
+      - if: matrix.suite == 'test-lib'
+        shell: bash
+        continue-on-error: ${{ matrix.continue-on-error }}
+        name: test-lib ${{ matrix.target }}
+        run: |
+          export PATH=$PWD/bin:$PWD/dist/bin:$PATH
+          ./bin/test-runner --ext=.icry -F -b --exe=dist/bin/cryptol ./tests/${{ matrix.target }}
+
+      - if: matrix.suite == 'rpc'
+        shell: bash
+        continue-on-error: ${{ matrix.continue-on-error }}
+        run: |
+          export PATH=$PWD/bin:$PWD/dist/bin:$PATH
+          cryptol-remote-api/run_rpc_tests.sh
 
   build-push-image:
     runs-on: ubuntu-latest
@@ -258,18 +305,6 @@ jobs:
         with:
           images: ${{ matrix.image }}
 
-      - if: needs.config.outputs.publish == 'true'
-        uses: crazy-max/ghaction-docker-meta@v1
-        name: Tags
-        id: tags
-        with:
-          images: ${{ matrix.image }}
-          tag-semver: |
-            ${{ steps.prefix.outputs.prefix }}{{version}}
-            ${{ steps.prefix.outputs.prefix }}{{major}}.{{minor}}
-          tag-schedule: |
-            ${{ steps.prefix.outputs.prefix }}nightly
-
       - uses: docker/login-action@v1
         with:
           registry: ghcr.io
@@ -278,25 +313,26 @@ jobs:
 
       - uses: docker/build-push-action@v2
         with:
-          tags: |
-            ${{ matrix.image }}:${{ steps.common-tag.outputs.common-tag }}
-            ${{ steps.tags.outputs.tags }}
+          tags: ${{ matrix.image }}:${{ steps.common-tag.outputs.common-tag }}
           labels: ${{ steps.labels.outputs.labels }}
           load: true
           push: false
           file: ${{ matrix.file }}
           build-args: ${{ matrix.build-args }}
           cache-from: |
-            type=registry,ref=${{ matrix.cache }}:${{ steps.prefix.outputs.prefix }}master
-            type=registry,ref=${{ matrix.cache }}:${{ steps.common-tag.outputs.common-tag }}
+            type=registry,ref=${{ matrix.cache }}:cache-${{ steps.prefix.outputs.prefix }}master
+            type=registry,ref=${{ matrix.cache }}:cache-${{ steps.common-tag.outputs.common-tag }}
 
       - name: Cache image build
         uses: docker/build-push-action@v2
         continue-on-error: true  # Tolerate cache upload failures - this should be handled better
         with:
+          tags: ${{ matrix.cache }}:${{ steps.common-tag.outputs.common-tag }}
+          labels: ${{ steps.labels.outputs.labels }}
+          push: true
           file: ${{ matrix.file }}
           build-args: ${{ matrix.build-args }}
-          cache-to: type=registry,ref=${{ matrix.cache }}:${{ steps.common-tag.outputs.common-tag }},mode=max
+          cache-to: type=registry,ref=${{ matrix.cache }}:cache-${{ steps.common-tag.outputs.common-tag }},mode=max
 
       - if: matrix.image == 'ghcr.io/galoisinc/cryptol-remote-api'
         uses: actions/checkout@v2
@@ -307,7 +343,7 @@ jobs:
           python-version: '3.7'
 
       - if: matrix.image == 'ghcr.io/galoisinc/cryptol-remote-api'
-        uses: abatilo/actions-poetry@v2.0.0
+        uses: abatilo/actions-poetry@v2.1.2
         with:
           poetry-version: 1.1.6
 
@@ -352,5 +388,16 @@ jobs:
             --restart=Never \
             -- socket cra-socket-cryptol-remote-api 8080
 
-      - if: needs.config.outputs.publish == 'true'
-        run: docker push --all-tags ${{ matrix.image }}
+      - if: needs.config.outputs.event-schedule == 'true'
+        name: ${{ matrix.image }}:nightly
+        run: |
+          docker tag ${{ matrix.image }}:$COMMON_TAG ${{ matrix.image }}:nightly
+          docker push ${{ matrix.image }}:nightly
+
+      - if: needs.config.outputs.release == 'true'
+        name: ${{ matrix.image }}:${{ needs.config.outputs.version }}
+        run: |
+          docker tag ${{ matrix.image }}:$COMMON_TAG ${{ matrix.image }}:${{ needs.config.outputs.version }}
+          docker push ${{ matrix.image }}:${{ needs.config.outputs.version }}
+          docker tag ${{ matrix.image }}:$COMMON_TAG ${{ matrix.image }}:latest
+          docker push ${{ matrix.image }}:latest
