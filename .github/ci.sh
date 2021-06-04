@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -Eeuo pipefail
+set -xEeuo pipefail
 
 [[ "$RUNNER_OS" == 'Windows' ]] && IS_WIN=true || IS_WIN=false
 BIN=bin
@@ -37,13 +37,7 @@ retry() {
   done
 }
 
-setup_external_tools() {
-  is_exe "$BIN" "test-runner" && return
-  cabal v2-install --install-method=copy --installdir="$BIN" test-lib
-}
-
 setup_dist_bins() {
-  is_exe "dist/bin" "cryptol" && is_exe "dist/bin" "cryptol-html" && return
   extract_exe "cryptol" "dist/bin"
   extract_exe "cryptol-html" "dist/bin"
   extract_exe "cryptol-remote-api" "dist/bin"
@@ -55,21 +49,19 @@ install_z3() {
   is_exe "$BIN" "z3" && return
 
   case "$RUNNER_OS" in
-    Linux) file="ubuntu-16.04" ;;
-    macOS) file="osx-10.14.6" ;;
-    Windows) file="win" ;;
+    Linux) file="ubuntu-18.04.zip" ;;
+    macOS) file="osx-10.15.7.zip" ;;
+    Windows) file="win.zip" ;;
   esac
-  curl -o z3.zip -sL "https://github.com/Z3Prover/z3/releases/download/z3-$Z3_VERSION/z3-$Z3_VERSION-x64-$file.zip"
+  curl -o z3.zip -sL "https://github.com/Z3Prover/z3/releases/download/z3-$Z3_VERSION/z3-$Z3_VERSION-x64-$file"
 
   if $IS_WIN; then 7z x -bd z3.zip; else unzip z3.zip; fi
-  cp z3-$Z3_VERSION-x64-$file/bin/z3$EXT $BIN/z3$EXT
-  rm -rf z3-$Z3_VERSION-x64-$file
+  cp z3-*/bin/z3$EXT $BIN/z3$EXT
   $IS_WIN || chmod +x $BIN/z3
   rm z3.zip
 }
 
 install_cvc4() {
-  is_exe "$BIN" "cvc4" && return
   version="${CVC4_VERSION#4.}" # 4.y.z -> y.z
 
   case "$RUNNER_OS" in
@@ -89,7 +81,6 @@ install_cvc4() {
 }
 
 install_yices() {
-  is_exe "$BIN" "yices" && return
   ext=".tar.gz"
   case "$RUNNER_OS" in
     Linux) file="pc-linux-gnu-static-gmp.tar.gz" ;;
@@ -131,13 +122,6 @@ install_system_deps() {
   is_exe "$BIN" z3 && is_exe "$BIN" cvc4 && is_exe "$BIN" yices
 }
 
-test_dist() {
-  setup_dist_bins
-  setup_external_tools
-  echo "test-runner version: $($BIN/test-runner --version)"
-  $BIN/test-runner --ext=.icry -F -b --exe=dist/bin/cryptol tests
-}
-
 check_docs() {
   ./cry build exe:check-exercises
   find ./docs/ProgrammingCryptol -name '*.tex' -print0 | xargs -0 -n1 cabal v2-exec check-exercises
@@ -176,7 +160,7 @@ sign() {
 zip_dist() {
   : "${VERSION?VERSION is required as an environment variable}"
   name="${name:-"cryptol-$VERSION-$RUNNER_OS-x86_64"}"
-  mv dist "$name"
+  cp -r dist "$name"
   tar -cvzf "$name".tar.gz "$name"
 }
 
