@@ -1,6 +1,9 @@
 image:
   file: .gitpod.Dockerfile
-
+vscode:
+  extensions:
+    - haskell.haskell
+    - justusadam.language-haskell
 tasks:
   - name: TCP Tunnel
     command: chisel server --socks5
