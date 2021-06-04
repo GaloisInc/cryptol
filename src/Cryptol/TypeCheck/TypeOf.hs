@@ -54,8 +54,12 @@ fastTypeOf tyenv expr =
     polymorphic =
       case fastSchemaOf tyenv expr of
         Forall [] [] ty -> ty
-        _ -> panic "Cryptol.TypeCheck.TypeOf.fastTypeOf"
-               [ "unexpected polymorphic type" ]
+        s@Forall {} -> panic "Cryptol.TypeCheck.TypeOf.fastTypeOf"
+               [ "unexpected polymorphic type in expression:"
+               , pretty expr
+               , "with schema:"
+               , pretty s
+               ]
 
 fastSchemaOf :: Map Name Schema -> Expr -> Schema
 fastSchemaOf tyenv expr =
