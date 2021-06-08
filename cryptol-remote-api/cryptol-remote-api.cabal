@@ -63,7 +63,6 @@ library
     CryptolServer.Check
     CryptolServer.ClearState
     CryptolServer.Data.Expression
-    CryptolServer.Data.FreshName
     CryptolServer.Data.Type
     CryptolServer.EvalExpr
     CryptolServer.ExtendSearchPath

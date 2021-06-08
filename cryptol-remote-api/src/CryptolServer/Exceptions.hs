@@ -4,9 +4,7 @@ module CryptolServer.Exceptions
   , invalidBase64
   , invalidHex
   , invalidType
-  , invalidName
   , unwantedDefaults
-  , unknownFreshName
   , evalInParamMod
   , evalPolyErr
   , proverError
@@ -19,6 +17,7 @@ import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 
 import Cryptol.ModuleSystem (ModuleError(..), ModuleWarning(..))
+import Cryptol.ModuleSystem.Name as CM
 import Cryptol.Utils.PP (pretty, PP)
 
 import Data.Aeson hiding (Encoding, Value, decode)
@@ -28,13 +27,10 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.HashMap.Strict as HashMap
 
-import Cryptol.ModuleSystem.Name (Name, nameIdent)
-import Cryptol.Parser.AST (identText)
 import Cryptol.Parser
 import qualified Cryptol.TypeCheck.Type as TC
 
 import Argo
-import CryptolServer.Data.FreshName
 import CryptolServer.Data.Type
 
 cryptolError :: ModuleError -> [ModuleWarning] -> JSONRPCException
@@ -166,20 +162,6 @@ invalidType ty =
     20040 "Can't convert Cryptol data from this type to JSON"
     (Just (jsonTypeAndString ty))
 
-invalidName :: Name -> JSONRPCException
-invalidName nm =
-  makeJSONRPCException
-    20041 "Internal error: invalid fresh name for a Cryptol server marshalled value."
-    (Just (JSON.object ["name" .= (identText (nameIdent nm))]))
-
-unknownFreshName :: FreshName -> JSONRPCException
-unknownFreshName nm =
-  makeJSONRPCException
-    20042 "Internal error: fresh name is not known in the server."
-    (Just (JSON.object [ "unique" .= (freshNameUnique nm)
-                       , "ident" .= (freshNameText nm)
-                       ]))
-
 unwantedDefaults :: [(TC.TParam, TC.Type)] -> JSONRPCException
 unwantedDefaults defs =
   makeJSONRPCException
@@ -188,7 +170,7 @@ unwantedDefaults defs =
       [ jsonTypeAndString ty <> HashMap.fromList ["parameter" .= pretty param]
       | (param, ty) <- defs ] ]))
 
-evalInParamMod :: [Cryptol.ModuleSystem.Name.Name] -> JSONRPCException
+evalInParamMod :: [CM.Name] -> JSONRPCException
 evalInParamMod mods =
   makeJSONRPCException
     20220 "Can't evaluate Cryptol in a parameterized module."

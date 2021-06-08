@@ -50,8 +50,8 @@ def from_cryptol_arg(val : Any) -> Any:
             else:
                 raise ValueError("Unknown encoding " + str(enc))
             return BV(size, n)
-        elif tag == 'unique name':
-            return OpaqueValue(int(val['unique']), str(val['identifier']))
+        elif tag == 'variable':
+            return OpaqueValue(str(val['identifier']))
         else:
             raise ValueError("Unknown expression tag " + tag)
     else:

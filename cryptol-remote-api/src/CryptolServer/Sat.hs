@@ -23,6 +23,7 @@ import qualified Data.Text as T
 
 import Cryptol.Eval.Concrete (Value)
 import Cryptol.Eval.Type (TValue, tValTy)
+import Cryptol.ModuleSystem (checkExpr)
 import Cryptol.ModuleSystem.Env (DynamicEnv(..), meDynEnv)
 import Cryptol.Symbolic ( ProverCommand(..), ProverResult(..), QueryType(..)
                         , SatNum(..), CounterExampleType(..))
@@ -44,7 +45,7 @@ proveSatDescr =
 proveSat :: ProveSatParams -> CryptolCommand ProveSatResult
 proveSat (ProveSatParams queryType (Prover name) jsonExpr) =
   do e <- getExpr jsonExpr
-     (ty, schema) <- typecheckExpr e
+     (_expr, ty, schema) <- liftModuleCmd (checkExpr e)
      -- TODO validEvalContext expr, ty, schema
      me <- getModuleEnv
      let decls = deDecls (meDynEnv me)

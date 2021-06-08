@@ -15,8 +15,7 @@ import Data.Aeson as JSON
 import Data.Typeable (Proxy(..), typeRep)
 
 
-import Cryptol.ModuleSystem (evalExpr)
-import Cryptol.ModuleSystem.Name (Name)
+import Cryptol.ModuleSystem (evalExpr, checkExpr)
 import Cryptol.ModuleSystem.Env (deEnv,meDynEnv)
 import Cryptol.TypeCheck.Solve (defaultReplExpr)
 import Cryptol.TypeCheck.Subst (apSubst, listParamSubst)
@@ -40,9 +39,9 @@ evalExpression (EvalExprParams jsonExpr) =
   do e <- getExpr jsonExpr
      evalExpression' e
 
-evalExpression' :: P.Expr Name -> CryptolCommand JSON.Value
+evalExpression' :: P.Expr P.PName -> CryptolCommand JSON.Value
 evalExpression' e = do
-  (ty, schema) <- typecheckExpr e
+  (_expr, ty, schema) <- liftModuleCmd (checkExpr e)
   -- TODO: see Cryptol REPL for how to check whether we
   -- can actually evaluate things, which we can't do in
   -- a parameterized module
