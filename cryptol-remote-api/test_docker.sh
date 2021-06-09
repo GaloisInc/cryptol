@@ -2,8 +2,8 @@
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-TAG=${1:-cryptol-remote-api}
-PROTO=${2:-"http"}
+PROTO=${1:-"http"}
+TAG=${2:-cryptol-remote-api}
 
 pushd $DIR
 
