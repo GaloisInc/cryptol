@@ -349,7 +349,11 @@ jobs:
 
       - if: matrix.image == 'ghcr.io/galoisinc/cryptol-remote-api'
         name: Test cryptol-remote-api
-        run: ./cryptol-remote-api/test_docker.sh ${{ matrix.image }}:${{ steps.common-tag.outputs.common-tag }}
+        run: ./cryptol-remote-api/test_docker.sh http ${{ matrix.image }}:${{ steps.common-tag.outputs.common-tag }}
+
+      - if: matrix.image == 'ghcr.io/galoisinc/cryptol-remote-api'
+        name: Test cryptol-remote-api (TLS)
+        run: ./cryptol-remote-api/test_docker.sh https ${{ matrix.image }}:${{ steps.common-tag.outputs.common-tag }}
 
       - if: matrix.image == 'ghcr.io/galoisinc/cryptol-remote-api'
         uses: docker/build-push-action@v2
