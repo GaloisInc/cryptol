@@ -376,6 +376,11 @@ instance Doc.Described Expression where
                              , Doc.Text ": A JSON number, representing the modulus"
                              ]
              ])
+        , (pure $ Doc.Literal "variable",
+           Doc.Paragraph [ Doc.Text "The expression is a variable bound by the server. The field "
+                         , Doc.Literal "identifier"
+                         , Doc.Text " contains the name of the variable."
+                         ])
         ]
     ]
 
