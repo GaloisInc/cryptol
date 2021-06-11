@@ -7,24 +7,22 @@ class OpaqueValue():
   Note that as far as Python is concerned these values are only equal to
   themselves. If a richer notion of equality is required then the server should
   be consulted to compute the result."""
-  unique : int
   identifier : str
 
-  def __init__(self, unique : int, identifier : str) -> None:
-    self.unique = unique
+  def __init__(self, identifier : str) -> None:
     self.identifier = identifier
 
   def __str__(self) -> str:
     return self.identifier
 
   def __repr__(self) -> str:
-      return f"Opaque({self.unique!r}, {self.identifier!r})"
+      return f"Opaque({self.identifier!r})"
 
   def __eq__(self, other : Any) -> bool:
     if not isinstance(other, OpaqueValue):
         return False
     else:
-      return self.unique == other.unique and self.identifier == other.identifier
+      return self.identifier == other.identifier
 
   def __hash__(self) -> int:
-      return hash((self.unique, self.identifier))
+      return hash(self.identifier)

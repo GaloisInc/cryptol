@@ -40,21 +40,19 @@ import Cryptol.Eval (evalSel)
 import Cryptol.Eval.Concrete (Value)
 import Cryptol.Eval.Type (TValue(..), tValTy)
 import Cryptol.Eval.Value (GenValue(..))
-import Cryptol.ModuleSystem
-  (ModuleEnv, ModuleCmd, getPrimMap, evalDecls, renameType, checkExpr, focusedEnv)
-import Cryptol.ModuleSystem.Env (deNames,meDynEnv, mctxParams, mctxDecls, mctxNames)
-import Cryptol.ModuleSystem.Monad (runModuleM, interactive, getFocusedEnv)
+import Cryptol.ModuleSystem (ModuleCmd, getPrimMap, evalDecls, renameType)
+import Cryptol.ModuleSystem.Env (deNames,meDynEnv)
+import Cryptol.ModuleSystem.Monad (runModuleM, interactive)
 import qualified Cryptol.ModuleSystem.Base as Base
 import qualified Cryptol.ModuleSystem.Renamer as R
 import Cryptol.ModuleSystem.Name
   (Name, mkDeclared, NameSource( UserName ), liftSupply, nameIdent)
-import Cryptol.ModuleSystem.NamingEnv (singletonE, shadowing)
+import Cryptol.ModuleSystem.NamingEnv (singletonE, shadowing, namespaceMap)
 
 import qualified Cryptol.Parser as CP
 import qualified Cryptol.Parser.AST as CP
 import Cryptol.Parser.Position (Located(..), emptyRange)
 import Cryptol.Parser.Selector
-import qualified Cryptol.TypeCheck as TC
 import qualified Cryptol.TypeCheck.AST as TC
 import Cryptol.Utils.Ident
 import Cryptol.Utils.RecordMap (recordFromFields, canonicalFields)
@@ -63,7 +61,6 @@ import Argo
 import qualified Argo.Doc as Doc
 import CryptolServer
 import CryptolServer.Exceptions
-import CryptolServer.Data.FreshName
 import CryptolServer.Data.Type
 
 data Encoding = Base64 | Hex
@@ -98,7 +95,10 @@ instance JSON.ToJSON LetBinding where
 -- | Cryptol expressions which can be serialized into JSON and sent
 -- to an RPC client.
 data Expression =
-    Bit !Bool
+    Variable !Text
+    -- ^ Used when we need to send a result back to an RPC client which
+    --   cannot be cleanly represented syntactically.
+  | Bit !Bool
   | Unit
   | Num !Encoding !Text !Integer -- ^ data and bitwidth
   | Record !(HashMap Text Expression)
@@ -106,11 +106,9 @@ data Expression =
   | Tuple ![Expression]
   | Integer !Integer
   | IntegerModulo !Integer !Integer -- ^ value, modulus
-  | UniqueName !FreshName
-    -- ^ Essentially a Cryptol.ModuleSystem.Name's nameUnique and nameIdent.
-    -- Used when we need to send a result back to an RPC client
   | Concrete !Text -- ^ Concrete Cryptol syntax as a string -- the Cryptol parser
                    -- will establish it's meaning based on the current focus/context
+  | Let ![LetBinding] !Expression
   | Application !Expression !(NonEmpty Expression)
   | TypeApplication !Expression !TypeArguments
   deriving (Eq, Show)
@@ -124,10 +122,11 @@ data ExpressionTag
   | TagSequence
   | TagTuple
   | TagUnit
+  | TagLet
   | TagApp
   | TagTypeApp
   | TagIntMod
-  | TagUniqueName
+  | TagVariable
 
 instance JSON.FromJSON ExpressionTag where
   parseJSON =
@@ -138,10 +137,11 @@ instance JSON.FromJSON ExpressionTag where
       "record"         -> pure TagRecord
       "sequence"       -> pure TagSequence
       "tuple"          -> pure TagTuple
+      "let"            -> pure TagLet
       "call"           -> pure TagApp
       "instantiate"    -> pure TagTypeApp
       "integer modulo" -> pure TagIntMod
-      "unique name"    -> pure TagUniqueName
+      "variable"       -> pure TagVariable
       _                -> empty
 
 instance JSON.ToJSON ExpressionTag where
@@ -150,10 +150,11 @@ instance JSON.ToJSON ExpressionTag where
   toJSON TagSequence   = "sequence"
   toJSON TagTuple      = "tuple"
   toJSON TagUnit       = "unit"
+  toJSON TagLet        = "let"
   toJSON TagApp        = "call"
   toJSON TagTypeApp    = "instantiate"
   toJSON TagIntMod     = "integer modulo"
-  toJSON TagUniqueName = "unique name"
+  toJSON TagVariable   = "variable"
 
 instance JSON.FromJSON TypeArguments where
   parseJSON =
@@ -200,16 +201,16 @@ instance JSON.FromJSON Expression where
                   do contents <- o .: "data"
                      flip (withArray "tuple") contents $
                        \s -> Tuple . V.toList <$> traverse parseJSON s
+                TagLet ->
+                  Let <$> o .: "binders" <*> o .: "body"
                 TagApp ->
                   Application <$> o .: "function" <*> o .: "arguments"
                 TagTypeApp ->
                   TypeApplication <$> o .: "generic" <*> o .: "arguments"
                 TagIntMod ->
                   IntegerModulo <$> o .: "integer" <*> o .: "modulus"
-                TagUniqueName -> do
-                  contents <- o .: "unique"
-                  ident <- o .: "identifier"
-                  pure $ UniqueName $ unsafeFreshName contents ident
+                TagVariable ->
+                  Variable <$> o .: "identifier"
 
 instance ToJSON Encoding where
   toJSON Hex = String "hex"
@@ -245,15 +246,19 @@ instance JSON.ToJSON Expression where
     object [ "expression" .= TagTuple
            , "data" .= Array (V.fromList (map toJSON projs))
            ]
+  toJSON (Let binds body) =
+    object [ "expression" .= TagLet
+           , "binders" .= Array (V.fromList (map toJSON binds))
+           , "body" .= toJSON body
+           ]
   toJSON (Application fun args) =
     object [ "expression" .= TagApp
            , "function" .= fun
            , "arguments" .= args
            ]
-  toJSON (UniqueName nm) =
-    object [ "expression" .= TagUniqueName
-           , "unique" .= toJSON (freshNameUnique nm)
-           , "identifier" .= toJSON (freshNameText nm)
+  toJSON (Variable nm) =
+    object [ "expression" .= TagVariable
+           , "identifier" .= toJSON nm
            ]
   toJSON (TypeApplication _gen (TypeArguments _args)) =
     -- Presumably this is dead code, since values are what are sent back to
@@ -371,24 +376,28 @@ instance Doc.Described Expression where
                              , Doc.Text ": A JSON number, representing the modulus"
                              ]
              ])
+        , (pure $ Doc.Literal "variable",
+           Doc.Paragraph [ Doc.Text "The expression is a variable bound by the server. The field "
+                         , Doc.Literal "identifier"
+                         , Doc.Text " contains the name of the variable."
+                         ])
         ]
     ]
 
 
 decode ::
-  (Monad m) =>
-  (forall a. JSONRPCException -> m a) ->
+  (Argo.Method m, Monad m) =>
   Encoding ->
   Text ->
   m Integer
-decode raiseJSONErr Base64 txt =
+decode Base64 txt =
   let bytes = encodeUtf8 txt
   in
     case Base64.decode bytes of
-      Left err -> raiseJSONErr (invalidBase64 bytes err)
+      Left err -> Argo.raise (invalidBase64 bytes err)
       Right decoded -> pure $ bytesToInt decoded
-decode raiseJSONErr Hex txt =
-  squish <$> traverse (hexDigit raiseJSONErr) (T.unpack txt)
+decode Hex txt =
+  squish <$> traverse (hexDigit Argo.raise) (T.unpack txt)
   where
     squish = foldl (\acc i -> (acc * 16) + i) 0
 
@@ -428,100 +437,98 @@ hexDigit raiseJSONErr =
 -- `Name` for the type in the current module environment.
 getTypeName ::
   (Monad m) =>
-  m ModuleEnv ->
+  R.NamingEnv ->
   (forall a. ModuleCmd a -> m a) ->
   Text ->
   m Name
-getTypeName getModEnv runModuleCmd ty = do
-  nmEnv <- (mctxNames . focusedEnv) <$> getModEnv
+getTypeName nmEnv runModuleCmd ty =
   runModuleCmd $ renameType nmEnv (CP.UnQual (mkIdent ty))
 
 getCryptolType ::
   (Monad m) =>
-  m ModuleEnv ->
+  R.NamingEnv ->
   (forall a. ModuleCmd a -> m a) ->
   JSONPType ->
   m (CP.Type Name)
-getCryptolType getModEnv runModuleCmd (JSONPType rawTy) = do
-  nmEnv <- (mctxNames . focusedEnv) <$> getModEnv
+getCryptolType nmEnv runModuleCmd (JSONPType rawTy) =
   runModuleCmd $ \env -> runModuleM env $ interactive $
     Base.rename interactiveName nmEnv (R.rename rawTy)
 
-getExpr :: Expression -> CryptolCommand (CP.Expr Name)
-getExpr = getCryptolExpr resolveFreshName
-                         getModuleEnv
-                         liftModuleCmd
-                         CryptolServer.raise
+getExpr :: Expression -> CryptolCommand (CP.Expr CP.PName)
+getExpr = CryptolCommand . const . getCryptolExpr
 
--- N.B., used in SAWServer as well, hence the more generic monad and
--- parameterized monadic functions.
-getCryptolExpr :: forall m.
-  (Monad m) =>
-  (FreshName -> m (Maybe Name)) {- ^ How to resolve a FreshName in the server. -} ->
-  m ModuleEnv {- ^ Getter for Cryptol ModuleEnv. -} ->
-  (forall a. ModuleCmd a -> m a) {- ^ Runner for Cryptol ModuleCmd. -} ->
-  (forall a. JSONRPCException -> m a) {- ^ JSONRPCException error raiser. -} ->
-  Expression {- Syntactic expression to convert to Cryptol. -} ->
-  m (CP.Expr Name)
-getCryptolExpr getName getModEnv runModuleCmd raiseJSONErr = go
+-- N.B., used in SAWServer as well, hence the more generic monad
+getCryptolExpr :: (Argo.Method m, Monad m) => Expression -> m (CP.Expr CP.PName)
+getCryptolExpr (Variable nm) =
+  return $ CP.EVar $ CP.UnQual $ mkIdent nm
+getCryptolExpr Unit =
+  return $
+    CP.ETyped
+      (CP.ETuple [])
+      (CP.TTuple [])
+getCryptolExpr (Bit b) =
+  return $
+    CP.ETyped
+      (CP.EVar (CP.UnQual (mkIdent $ if b then "True" else "False")))
+      CP.TBit
+getCryptolExpr (Integer i) =
+  return $
+    CP.ETyped
+      (CP.ELit (CP.ECNum i (CP.DecLit (pack (show i)))))
+      (CP.TUser (CP.UnQual (mkIdent "Integer")) [])
+getCryptolExpr (IntegerModulo i n) =
+  return $
+    CP.ETyped
+      (CP.ELit (CP.ECNum i (CP.DecLit (pack (show i)))))
+      (CP.TUser (CP.UnQual (mkIdent "Z")) [CP.TNum n])
+getCryptolExpr (Num enc txt w) =
+  do d <- decode enc txt
+     return $ CP.ETyped
+       (CP.ELit (CP.ECNum d (CP.DecLit txt)))
+       (CP.TSeq (CP.TNum w) CP.TBit)
+getCryptolExpr (Record fields) =
+  fmap (CP.ERecord . recordFromFields) $ for (HM.toList fields) $
+  \(recName, spec) ->
+    (mkIdent recName,) . (emptyRange,) <$> getCryptolExpr spec
+getCryptolExpr (Sequence elts) =
+  CP.EList <$> traverse getCryptolExpr elts
+getCryptolExpr (Tuple projs) =
+  CP.ETuple <$> traverse getCryptolExpr projs
+getCryptolExpr (Concrete syntax) =
+  case CP.parseExpr syntax of
+    Left err ->
+      Argo.raise (cryptolParseErr syntax err)
+    Right e -> pure e
+getCryptolExpr (Let binds body) =
+  CP.EWhere <$> getCryptolExpr body <*> traverse mkBind binds
   where
-    go (UniqueName fnm) = do
-      mNm <- getName fnm
-      case mNm of
-        Nothing -> raiseJSONErr $ unknownFreshName fnm
-        Just nm -> pure $ CP.EVar nm
-    go Unit =
-      return $
-        CP.ETyped
-          (CP.ETuple [])
-          (CP.TTuple [])
-    go (Bit b) =
-      return $ CP.ETyped
-                  (if b
-                    then CP.ELit $ CP.ECNum 1 (CP.BinLit "1" 1)
-                    else CP.ELit $ CP.ECNum 0 (CP.BinLit "0" 0))
-                  CP.TBit
-    go (Integer i) = do
-      intTy <- getTypeName getModEnv runModuleCmd "Integer"
-      pure $
-        CP.ETyped
-          (CP.ELit (CP.ECNum i (CP.DecLit (pack (show i)))))
-          (CP.TUser intTy [])
-    go (IntegerModulo i n) = do
-      zTy <- getTypeName getModEnv runModuleCmd "Z"
-      return $
-        CP.ETyped
-          (CP.ELit (CP.ECNum i (CP.DecLit (pack (show i)))))
-          (CP.TUser zTy [CP.TNum n])
-    go (Num enc txt w) = do
-        d <- decode raiseJSONErr enc txt
-        return $ CP.ETyped
-          (CP.ELit (CP.ECNum d (CP.DecLit txt)))
-          (CP.TSeq (CP.TNum w) CP.TBit)
-    go (Record fields) =
-      fmap (CP.ERecord . recordFromFields) $ for (HM.toList fields) $
-      \(recName, spec) ->
-        (mkIdent recName,) . (emptyRange,) <$> go spec
-    go (Sequence elts) =
-      CP.EList <$> traverse go elts
-    go (Tuple projs) =
-      CP.ETuple <$> traverse go projs
-    go (Concrete syntax) =
-      case CP.parseExpr syntax of
-        Left err ->
-          raiseJSONErr $ cryptolParseErr syntax err
-        Right e -> do
-          (expr, _ty, _schema) <- runModuleCmd (checkExpr e)
-          pure expr
-    go (Application fun (arg :| [])) =
-      CP.EApp <$> go fun <*> go arg
-    go (Application fun (arg1 :| (arg : args))) =
-      go (Application (Application fun (arg1 :| [])) (arg :| args))
-    go (TypeApplication gen (TypeArguments args)) =
-      CP.EAppT <$> go gen <*> (mapM inst (Map.toList args))
-    inst (n, t) = do
-      t' <- getCryptolType getModEnv runModuleCmd t
-      pure $ CP.NamedInst (CP.Named (Located emptyRange n) t')
+    mkBind (LetBinding x rhs) =
+      CP.DBind .
+      (\bindBody ->
+         CP.Bind { CP.bName = fakeLoc (CP.UnQual (mkIdent x))
+              , CP.bParams = []
+              , CP.bDef = bindBody
+              , CP.bSignature = Nothing
+              , CP.bInfix = False
+              , CP.bFixity = Nothing
+              , CP.bPragmas = []
+              , CP.bMono = True
+              , CP.bDoc = Nothing
+              , CP.bExport = CP.Public
+              }) .
+      fakeLoc .
+      CP.DExpr <$>
+        getCryptolExpr rhs
+
+    fakeLoc = Located emptyRange
+getCryptolExpr (Application fun (arg :| [])) =
+  CP.EApp <$> getCryptolExpr fun <*> getCryptolExpr arg
+getCryptolExpr (Application fun (arg1 :| (arg : args))) =
+  getCryptolExpr (Application (Application fun (arg1 :| [])) (arg :| args))
+getCryptolExpr (TypeApplication gen (TypeArguments args)) =
+  CP.EAppT <$> getCryptolExpr gen <*> pure (map inst (Map.toList args))
+  where
+    inst (n, t) = CP.NamedInst (CP.Named (Located emptyRange n) (unJSONPType t))
 
 -- TODO add tests that this is big-endian
 -- | Interpret a ByteString as an Integer
@@ -577,7 +584,7 @@ readBack ty val =
       mName <- bindValToFreshName (varName ty) ty val
       case mName of
         Nothing -> pure Nothing
-        Just name -> pure $ Just $ UniqueName name
+        Just name -> pure $ Just $ Variable name
   where
     mismatchPanic :: CryptolCommand (Maybe Expression)
     mismatchPanic =
@@ -618,15 +625,14 @@ readBack ty val =
 -- the generated name will be of the form `CryptolServer'nameN` (where `N` is a
 -- natural number) and the `FreshName` that is returned can be serialized into an
 -- `Expression` and sent to an RPC client.
-bindValToFreshName :: Text -> TValue -> Concrete.Value -> CryptolCommand (Maybe FreshName)
+bindValToFreshName :: Text -> TValue -> Concrete.Value -> CryptolCommand (Maybe Text)
 bindValToFreshName nameBase ty val = do
   prims   <- liftModuleCmd getPrimMap
   mb      <- liftEval (Concrete.toExpr prims ty val)
   case mb of
     Nothing   -> return Nothing
     Just expr -> do
-      name <- genFreshName
-      fName <- registerName name
+      (txt, name) <- genFresh
       let schema = TC.Forall { TC.sVars  = []
                              , TC.sProps = []
                              , TC.sType  = tValTy ty
@@ -642,36 +648,28 @@ bindValToFreshName nameBase ty val = do
       liftModuleCmd (evalDecls [TC.NonRecursive decl])
       modifyModuleEnv $ \me ->
         let denv = meDynEnv me
-        in me {meDynEnv = denv { deNames = singletonE (CP.UnQual (nameIdent name)) name
-                                             `shadowing` deNames denv }}
-      return $ Just fName
+        in me {meDynEnv = denv { deNames = singletonE (CP.UnQual (mkIdent txt)) name `shadowing` deNames denv }}
+      return $ Just txt
   where
-    genFreshName :: CryptolCommand Name
-    genFreshName = do
-      cnt <- freshNameCount
-      let ident = mkIdent $ "CryptolServer'" <> nameBase <> (T.pack $ show cnt)
+    genFresh :: CryptolCommand (Text, Name)
+    genFresh = do
+      valNS <- (namespaceMap NSValue) . deNames . meDynEnv <$> getModuleEnv
+      let txt   = nextNewName valNS (Map.size valNS)
+          ident = mkIdent txt
           mpath = TopModule interactiveName
-      liftSupply (mkDeclared NSValue mpath UserName ident Nothing emptyRange)
+      name <- liftSupply (mkDeclared NSValue mpath UserName ident Nothing emptyRange)
+      pure (txt, name)
+      where nextNewName ::  Map CP.PName [Name] -> Int -> Text
+            nextNewName ns n =
+              let txt = "CryptolServer'" <> nameBase <> (T.pack $ show n)
+                  pname = CP.UnQual (mkIdent txt)
+              in if Map.member pname ns
+                 then nextNewName ns (n + 1)
+                 else txt
 
 
 liftEval :: Eval a -> CryptolCommand a
 liftEval e = liftIO (runEval mempty e)
 
-mkEApp :: CP.Expr Name -> [CP.Expr Name] -> CP.Expr Name
+mkEApp :: CP.Expr CP.PName -> [CP.Expr CP.PName] -> CP.Expr CP.PName
 mkEApp f args = foldl CP.EApp f args
-
-
-
--- | Typecheck a single expression, yielding a typechecked core expression and a type schema.
-typecheckExpr :: CP.Expr Name -> CryptolCommand (TC.Expr,TC.Schema)
-typecheckExpr e = liftModuleCmd $ \env -> runModuleM env $ interactive $ do
-  fe <- getFocusedEnv
-  let params = mctxParams fe
-      decls  = mctxDecls fe
-  -- merge the dynamic and opened environments for typechecking
-  prims <- Base.getPrimMap
-  let act  = Base.TCAction { Base.tcAction = TC.tcExpr
-                          , Base.tcLinter = Base.exprLinter
-                          , Base.tcPrims = prims }
-  (te,s) <- Base.typecheck act e params decls
-  return (te,s)

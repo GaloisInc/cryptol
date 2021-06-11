@@ -41,7 +41,7 @@ import CryptolServer
       CryptolCommand )
 import CryptolServer.Exceptions (evalPolyErr)
 import CryptolServer.Data.Expression
-    ( readBack, getExpr, typecheckExpr, Expression)
+    ( readBack, getExpr, Expression)
 import CryptolServer.Data.Type ( JSONType(..) )
 import Cryptol.Utils.PP (pretty)
 
@@ -54,7 +54,7 @@ checkDescr =
 check :: CheckParams -> CryptolCommand CheckResult
 check (CheckParams jsonExpr cMode) =
   do e <- getExpr jsonExpr
-     (ty, schema) <- typecheckExpr e
+     (_expr, ty, schema) <- liftModuleCmd (CM.checkExpr e)
      -- TODO? validEvalContext expr, ty, schema
      s <- getTCSolver
      perhapsDef <- liftIO (defaultReplExpr s ty schema)

@@ -14,6 +14,7 @@ import Data.Aeson as JSON
 import Data.Typeable
 
 
+import Cryptol.ModuleSystem (checkExpr)
 import CryptolServer
 import CryptolServer.Data.Expression
 import CryptolServer.Data.Type
@@ -25,7 +26,7 @@ checkTypeDescr =
 checkType :: TypeCheckParams -> CryptolCommand JSON.Value
 checkType (TypeCheckParams e) = do
   e' <- getExpr e
-  (_ty, schema) <- typecheckExpr e'
+  (_expr, _ty, schema) <- liftModuleCmd (checkExpr e')
   return (JSON.object [ "type schema" .= JSONSchema schema ])
 
 newtype TypeCheckParams =

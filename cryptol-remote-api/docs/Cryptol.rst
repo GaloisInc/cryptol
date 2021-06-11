@@ -208,6 +208,11 @@ The tag values in objects can be:
     
   
 
+``variable``
+  The expression is a variable bound by the server. The field ``identifier`` contains the name of the variable.
+  
+  
+
 .. _JSONSchema:
 JSON Cryptol Types
 ~~~~~~~~~~~~~~~~~~

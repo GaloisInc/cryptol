@@ -166,8 +166,7 @@ class CryptolType:
                     'width': val.size(), # N.B. original length, not padded
                     'data': val.hex()[2:]}
         elif isinstance(val, OpaqueValue):
-            return {'expression': 'unique name',
-                    'unique': val.unique,
+            return {'expression': 'variable',
                     'identifier': val.identifier}
         else:
             raise TypeError("Unsupported value: " + str(val))
