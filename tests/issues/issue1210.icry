@@ -1,0 +1,6 @@
+:l issue1210.cry
+:check
+:set prover=sbv-z3
+:prove
+:set prover=w4-z3
+:prove
