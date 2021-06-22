@@ -1,0 +1,31 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+property mwe Using exhaustive testing.
+Testing... Passed 16 tests.
+Q.E.D.
+property mwe' Using exhaustive testing.
+Testing... Passed 8 tests.
+Q.E.D.
+property mwe'' Using exhaustive testing.
+Testing... Passed 1 tests.
+Q.E.D.
+property bitget Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^3500 values)
+:prove mwe
+	Q.E.D.
+:prove mwe'
+	Q.E.D.
+:prove mwe''
+	Q.E.D.
+:prove bitget
+	Q.E.D.
+:prove mwe
+	Q.E.D.
+:prove mwe'
+	Q.E.D.
+:prove mwe''
+	Q.E.D.
+:prove bitget
+	Q.E.D.
