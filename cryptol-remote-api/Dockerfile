@@ -104,7 +104,7 @@ RUN chown -R root:root /cryptol/rootfs
 
 FROM debian:buster-20210511-slim
 RUN apt-get update \
-    && apt-get install -y libgmp10 libgomp1 libffi6 libncurses6 libtinfo6 libreadline7 libnuma-dev \
+    && apt-get install -y libgmp10 libgomp1 libffi6 libncurses6 libtinfo6 libreadline7 libnuma-dev openssl \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 RUN useradd -m cryptol && chown -R cryptol:cryptol /home/cryptol
 COPY --from=build /cryptol/rootfs /
@@ -114,5 +114,11 @@ ENV LANG=C.UTF-8 \
     LC_ALL=C.UTF-8
 ENTRYPOINT ["/usr/local/bin/cryptol-remote-api"]
 WORKDIR /home/cryptol
+# Create self-signed certificates for HTTPS testing purposes - N.B.,
+# clients must opt in to accepting these by passing `verify=False` to
+# the `cryptol.connect` method (otherwise a security error is raised).
+RUN openssl req -nodes -newkey rsa:2048 -keyout server.key -out server.csr \
+      -subj "/C=GB/ST=London/L=London/O=Acme Widgets/OU=IT Department/CN=localhost"
+RUN openssl x509 -req -days 365 -in server.csr -signkey server.key -out server.crt
 CMD ["http", "--host", "0.0.0.0", "--port", "8080", "/"]
 EXPOSE 8080
