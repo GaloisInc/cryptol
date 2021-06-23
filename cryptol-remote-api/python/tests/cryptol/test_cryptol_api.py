@@ -54,7 +54,7 @@ class CryptolTests(unittest.TestCase):
     #     self.assertEqual(add(BV(8,1),   BV(8,2)), BV(8,3))
     #     self.assertEqual(add(BV(8,255), BV(8,1)), BV(8,0))
 
-    def test_sat(self):
+    def test_sat_and_prove(self):
         c = self.c
         # test a single sat model can be returned
         rootsOf9 = c.sat('isSqrtOf9').result()
@@ -81,6 +81,13 @@ class CryptolTests(unittest.TestCase):
 
         # check for a valid condition
         self.assertTrue(c.prove('\\x -> isSqrtOf9 x ==> elem x [3,131,125,253]').result())
+        self.assertTrue(c.prove('\\x -> isSqrtOf9 x ==> elem x [3,131,125,253]', solver.Z3).result())
+        self.assertTrue(c.prove('\\x -> isSqrtOf9 x ==> elem x [3,131,125,253]', solver.W4_Z3).result())
+        self.assertTrue(c.prove('\\x -> isSqrtOf9 x ==> elem x [3,131,125,253]', solver.W4_Z3.without_hash_consing()).result())
+        self.assertTrue(c.prove('\\x -> isSqrtOf9 x ==> elem x [3,131,125,253]', solver.SBV_Z3).result())
+        self.assertIsInstance(c.prove('\\(x : [8]) -> x == reverse (reverse x)', solver.OFFLINE).result(), solver.OfflineSmtQuery)
+        self.assertIsInstance(c.prove('\\(x : [8]) -> x == reverse (reverse x)', solver.SBV_OFFLINE).result(), solver.OfflineSmtQuery)
+        self.assertIsInstance(c.prove('\\(x : [8]) -> x == reverse (reverse x)', solver.W4_OFFLINE).result(), solver.OfflineSmtQuery)
 
     def test_check(self):
         c = self.c
@@ -144,6 +151,12 @@ class CryptolTests(unittest.TestCase):
         self.assertTrue(res)
 
         res = c.safe("\\x -> x / (x:[8])").result()
+        self.assertEqual(res, [BV(size=8, value=0)])
+
+        res = c.safe("\\x -> x / (x:[8])", solver.Z3).result()
+        self.assertEqual(res, [BV(size=8, value=0)])
+
+        res = c.safe("\\x -> x / (x:[8])", solver.W4_Z3).result()
         self.assertEqual(res, [BV(size=8, value=0)])
 
 

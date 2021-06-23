@@ -559,7 +559,7 @@ Parameter fields
 
 
 ``prover``
-  The SMT solver to use to check for satisfiability. I.e., one of the following: ``cvc4``, ``yices``, ``z3``, ``boolector``, ``mathsat``, ``abc``, ``offline``, ``any``, ``sbv-cvc4``, ``sbv-yices``, ``sbv-z3``, ``sbv-boolector``, ``sbv-mathsat``, ``sbv-abc``, ``sbv-offline``, ``sbv-any``, .
+  The SMT solver to use to check for satisfiability. I.e., one of the following: ``w4-cvc4``, ``w4-yices``, ``w4-z3``, ``w4-boolector``, ``w4-offline``, ``w4-any``, ``cvc4``, ``yices``, ``z3``, ``boolector``, ``mathsat``, ``abc``, ``offline``, ``any``, ``sbv-cvc4``, ``sbv-yices``, ``sbv-z3``, ``sbv-boolector``, ``sbv-mathsat``, ``sbv-abc``, ``sbv-offline``, ``sbv-any``.
   
   
 
@@ -575,6 +575,11 @@ Parameter fields
 
 ``query type``
   Whether to attempt to prove the predicate is true for all possible inputs (``prove``), find some inputs which make the predicate true (``sat``), or prove a function is safe (``safe``).
+  
+  
+
+``hash consing``
+  Whether or not to use hash consing of terms (if available).``true`` to enable or ``false`` to disable.
   
   
 
