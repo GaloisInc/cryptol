@@ -227,6 +227,7 @@ class TLSConnectionTests(unittest.TestCase):
     p = None
     # url of HTTP server
     url = None
+    run_tests = True
 
     @classmethod
     def setUpClass(self):
@@ -255,7 +256,9 @@ class TLSConnectionTests(unittest.TestCase):
             assert(poll_result is None)
             self.url = "https://localhost:8081/"
         else:
-            raise RuntimeError("NO CRYPTOL SERVER FOUND")
+            print("WARNING: TLS tests not being run because no cryptol server executable was found")
+            print("         (Note that this is expected behavior, however, for some CI tests)")
+            self.run_tests = False
 
     @classmethod
     def tearDownClass(self):
@@ -264,11 +267,12 @@ class TLSConnectionTests(unittest.TestCase):
         super().tearDownClass()
 
     def test_tls_connection(self):
-        c = cryptol.connect(url=self.url, verify=False)
-        c.load_file(str(Path('tests','cryptol','test-files', 'Foo.cry')))
-        x_val1 = c.evaluate_expression("x").result()
-        x_val2 = c.eval("Id::id x").result()
-        self.assertEqual(x_val1, x_val2)
+        if self.run_tests:
+            c = cryptol.connect(url=self.url, verify=False)
+            c.load_file(str(Path('tests','cryptol','test-files', 'Foo.cry')))
+            x_val1 = c.evaluate_expression("x").result()
+            x_val2 = c.eval("Id::id x").result()
+            self.assertEqual(x_val1, x_val2)
 
 if __name__ == "__main__":
     unittest.main()
