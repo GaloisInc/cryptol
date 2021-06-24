@@ -203,7 +203,7 @@ class HttpMultiConnectionTests(unittest.TestCase):
     def test_reset_with_many_usages_many_connections(self):
         for i in range(0,100):
             time.sleep(.05)
-            c = cryptol.connect(url=self.url)
+            c = cryptol.connect(url=self.url, verify=False)
             c.load_file(str(Path('tests','cryptol','test-files', 'Foo.cry')))
             x_val1 = c.evaluate_expression("x").result()
             x_val2 = c.eval("Id::id x").result()
@@ -213,7 +213,7 @@ class HttpMultiConnectionTests(unittest.TestCase):
     def test_reset_server_with_many_usages_many_connections(self):
         for i in range(0,100):
             time.sleep(.05)
-            c = cryptol.connect(url=self.url, reset_server=True)
+            c = cryptol.connect(url=self.url, reset_server=True, verify=False)
             c.load_file(str(Path('tests','cryptol','test-files', 'Foo.cry')))
             x_val1 = c.evaluate_expression("x").result()
             x_val2 = c.eval("Id::id x").result()
