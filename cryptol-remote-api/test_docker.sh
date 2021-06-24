@@ -7,14 +7,14 @@ TAG=${2:-cryptol-remote-api}
 
 pushd $DIR
 
-rm $PWD/python/tests/cryptol/test-files/examples
-mv $PWD/../examples $PWD/python/tests/cryptol/test-files/
+rm $DIR/python/tests/cryptol/test-files/examples
+mv $DIR/../examples $DIR/python/tests/cryptol/test-files/
 
-docker run --name=cryptol-remote-api -d \
-  -v $PWD/python/tests/cryptol/test-files:/home/cryptol/tests/cryptol/test-files \
+CONTAINER=$(docker run -d \
+  -v $DIR/python/tests/cryptol/test-files:/home/cryptol/tests/cryptol/test-files \
   -p 8080:8080 \
   $([[ "$PROTO" == "https" ]] && echo "-e TLS_ENABLE=1") \
-  $TAG
+  $TAG)
 
 popd
 
@@ -37,7 +37,7 @@ popd
 
 echo "killing docker container"
 
-docker container kill cryptol-remote-api
+docker container kill $CONTAINER
 
 
 if [ $NUM_FAILS -eq 0 ]
