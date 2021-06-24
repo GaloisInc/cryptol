@@ -21,7 +21,7 @@ class CryptolTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(self):
-        self.c = cryptol.connect()
+        self.c = cryptol.connect(verify=False)
         self.c.load_file(str(Path('tests','cryptol','test-files', 'Foo.cry')))
 
     @classmethod

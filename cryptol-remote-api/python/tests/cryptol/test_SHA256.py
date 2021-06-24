@@ -8,7 +8,7 @@ from cryptol.bitvector import BV
 
 class TestSHA256(unittest.TestCase):
     def test_SHA256(self):
-        c = cryptol.connect()
+        c = cryptol.connect(verify=False)
         c.load_file(str(Path('tests','cryptol','test-files','examples','param_modules','SHA.cry')))
 
         m1 = CryptolLiteral('"abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"')
