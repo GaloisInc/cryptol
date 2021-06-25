@@ -1,6 +1,6 @@
 [[package]]
 name = "argo-client"
-version = "0.0.4"
+version = "0.0.5"
 description = "A JSON RPC client library."
 category = "main"
 optional = false
@@ -12,7 +12,7 @@ requests = "*"
 
 [[package]]
 name = "bitvector"
-version = "3.4.9"
+version = "3.5.0"
 description = "A memory-efficient packed representation for bit arrays in pure Python"
 category = "main"
 optional = false
@@ -20,7 +20,7 @@ python-versions = "*"
 
 [[package]]
 name = "certifi"
-version = "2020.12.5"
+version = "2021.5.30"
 description = "Python package for providing Mozilla's CA Bundle."
 category = "main"
 optional = false
@@ -115,19 +115,19 @@ socks = ["PySocks (>=1.5.6,!=1.5.7,<2.0)"]
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.7.0"
-content-hash = "41e923e3f418b73af25a9f5557564c8efe79b24ec779a875d706963648aa762d"
+content-hash = "4fec48a3684b15cd29af1c2f3db5a9033d34a1605ad11aec7babafd2f6bcb1b1"
 
 [metadata.files]
 argo-client = [
-    {file = "argo-client-0.0.4.tar.gz", hash = "sha256:1ce6af1cbc738d08348dcb62d573968da58e2382cb4ea753cc061aa16d45ff6a"},
-    {file = "argo_client-0.0.4-py2-none-any.whl", hash = "sha256:74c13e9f3bf5a48eeda847af343bdaf54a950c100496ed3c342a51f5406cf568"},
+    {file = "argo-client-0.0.5.tar.gz", hash = "sha256:9b2157f3ea953df812948c27eb762dbe8401bb9d0dc74f49310b6636320a0347"},
+    {file = "argo_client-0.0.5-py3-none-any.whl", hash = "sha256:745239a231a0d891088ca2aedebd7ec075faf0f19c2f6b0ceafd252e3eed616d"},
 ]
 bitvector = [
-    {file = "BitVector-3.4.9.tar.gz", hash = "sha256:a5e94cbb4804213b1f0c32d84517cd8f0bb8c689b5eb8055d351632e220a5edd"},
+    {file = "BitVector-3.5.0.tar.gz", hash = "sha256:cac2fbccf11e325115827ed7be03e5fd62615227b0bbf3fa5a18a842a221839c"},
 ]
 certifi = [
-    {file = "certifi-2020.12.5-py2.py3-none-any.whl", hash = "sha256:719a74fb9e33b9bd44cc7f3a8d94bc35e4049deebe19ba7d8e108280cfd59830"},
-    {file = "certifi-2020.12.5.tar.gz", hash = "sha256:1a4995114262bffbc2413b159f2a1a480c969de6e6eb13ee966d470af86af59c"},
+    {file = "certifi-2021.5.30-py2.py3-none-any.whl", hash = "sha256:50b1e4f8446b06f41be7dd6338db18e0990601dce795c2b1686458aa7e8fa7d8"},
+    {file = "certifi-2021.5.30.tar.gz", hash = "sha256:2bbf76fd432960138b3ef6dda3dde0544f27cbf8546c458e60baf371917ba9ee"},
 ]
 chardet = [
     {file = "chardet-4.0.0-py2.py3-none-any.whl", hash = "sha256:f864054d66fd9118f2e67044ac8981a54775ec5b67aed0441892edb553d21da5"},

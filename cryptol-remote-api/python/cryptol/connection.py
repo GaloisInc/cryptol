@@ -17,7 +17,8 @@ def connect(command : Optional[str]=None,
             *,
             cryptol_path : Optional[str] = None,
             url : Optional[str] = None,
-            reset_server : bool = False) -> CryptolConnection:
+            reset_server : bool = False,
+            verify : Union[bool, str] = True) -> CryptolConnection:
     """
     Connect to a (possibly new) Cryptol server process.
 
@@ -32,6 +33,11 @@ def connect(command : Optional[str]=None,
     :param reset_server: If ``True``, the server that is connected to will be
     reset. (This ensures any states from previous server usages have been
     cleared.)
+
+    :param verify: Determines whether a secure HTTP connection should verify the SSL certificates.
+                   Corresponds to the ``verify`` keyword parameter on ``requests.post``. N.B.,
+                   only has an affect when ``connect`` is called with a ``url`` parameter
+                   or when the ``CRYPTOL_SERVER_URL`` environment variable is set.
 
 
     If no ``command`` or ``url`` parameters are provided, the following are attempted in order:
@@ -53,7 +59,7 @@ def connect(command : Optional[str]=None,
         c = CryptolConnection(command, cryptol_path)
     # User-passed url?
     if c is None and url is not None:
-        c = CryptolConnection(ServerConnection(HttpProcess(url)), cryptol_path)
+        c = CryptolConnection(ServerConnection(HttpProcess(url, verify=verify)), cryptol_path)
     # Check `CRYPTOL_SERVER` env var if no connection identified yet
     if c is None:
         command = os.getenv('CRYPTOL_SERVER')
@@ -65,7 +71,7 @@ def connect(command : Optional[str]=None,
     if c is None:
         url = os.getenv('CRYPTOL_SERVER_URL')
         if url is not None:
-            c = CryptolConnection(ServerConnection(HttpProcess(url)), cryptol_path)
+            c = CryptolConnection(ServerConnection(HttpProcess(url,verify=verify)), cryptol_path)
     # Check if `cryptol-remote-api` is in the PATH if no connection identified yet
     if c is None:
         command = find_executable('cryptol-remote-api')

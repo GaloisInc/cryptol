@@ -1,4 +1,6 @@
 [![Cryptol](https://github.com/GaloisInc/cryptol/workflows/Cryptol/badge.svg)](https://github.com/GaloisInc/cryptol/actions?query=workflow%3ACryptol)
+[![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/GaloisInc/cryptol)
+
 
 # Cryptol, version 2
 

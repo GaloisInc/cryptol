@@ -24,7 +24,7 @@ class BasicServerTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(self):
-        self.c = cryptol.connect()
+        self.c = cryptol.connect(verify=False)
 
     @classmethod
     def tearDownClass(self):

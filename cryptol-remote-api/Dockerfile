@@ -1,6 +1,6 @@
 ARG GHCVER="8.10.3"
 ARG GHCVER_BOOTSTRAP="8.10.2"
-FROM debian:buster AS solvers
+FROM debian:buster-20210511 AS solvers
 
 # Install needed packages for building
 RUN apt-get update \
@@ -44,7 +44,7 @@ RUN latest="$(curl -sSL 'http://cvc4.cs.stanford.edu/downloads/builds/x86_64-lin
 # Set executable and run tests
 RUN chmod +x rootfs/usr/local/bin/*
 
-FROM debian:buster AS toolchain
+FROM debian:buster-20210511 AS toolchain
 ARG PORTABILITY=false
 RUN apt-get update && apt-get install -y libncurses-dev libz-dev \
     build-essential curl libffi-dev libffi6 libgmp-dev libgmp10 libncurses-dev libncurses5 libtinfo5 libnuma-dev \
@@ -81,7 +81,7 @@ RUN if ${PORTABILITY}; then \
 
 FROM toolchain AS build
 
-RUN useradd -m cryptol
+RUN useradd -u 1000 -m cryptol
 COPY --chown=cryptol:cryptol . /cryptol
 USER cryptol
 WORKDIR /cryptol
@@ -91,10 +91,9 @@ ENV LANG=C.UTF-8 \
     LC_ALL=C.UTF-8
 COPY cabal.GHC-${GHCVER}.config cabal.project.freeze
 
-RUN mkdir -p rootfs/usr/local/bin
-
 RUN cabal v2-update && \
     cabal v2-build -j cryptol-remote-api:exe:cryptol-remote-api cryptol-remote-api:exe:cryptol-eval-server && \
+    mkdir -p rootfs/usr/local/bin && \
     cp $(cabal v2-exec which cryptol-remote-api) rootfs/usr/local/bin && \
     cp $(cabal v2-exec which cryptol-eval-server) rootfs/usr/local/bin
 ENV PATH=/usr/local/bin:/cryptol/rootfs/usr/local/bin:$PATH
@@ -103,9 +102,9 @@ RUN mkdir -p rootfs/"${CRYPTOLPATH}" \
 USER root
 RUN chown -R root:root /cryptol/rootfs
 
-FROM debian:buster-slim
+FROM debian:buster-20210511-slim
 RUN apt-get update \
-    && apt-get install -y libgmp10 libgomp1 libffi6 libncurses6 libtinfo6 libreadline7 libnuma-dev \
+    && apt-get install -y libgmp10 libgomp1 libffi6 libncurses6 libtinfo6 libreadline7 libnuma-dev openssl \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 RUN useradd -m cryptol && chown -R cryptol:cryptol /home/cryptol
 COPY --from=build /cryptol/rootfs /
@@ -115,5 +114,11 @@ ENV LANG=C.UTF-8 \
     LC_ALL=C.UTF-8
 ENTRYPOINT ["/usr/local/bin/cryptol-remote-api"]
 WORKDIR /home/cryptol
+# Create self-signed certificates for HTTPS testing purposes - N.B.,
+# clients must opt in to accepting these by passing `verify=False` to
+# the `cryptol.connect` method (otherwise a security error is raised).
+RUN openssl req -nodes -newkey rsa:2048 -keyout server.key -out server.csr \
+      -subj "/C=GB/ST=London/L=London/O=Acme Widgets/OU=IT Department/CN=localhost"
+RUN openssl x509 -req -days 365 -in server.csr -signkey server.key -out server.crt
 CMD ["http", "--host", "0.0.0.0", "--port", "8080", "/"]
 EXPOSE 8080

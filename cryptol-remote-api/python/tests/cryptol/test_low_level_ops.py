@@ -47,7 +47,7 @@ class LowLevelCryptolApiTests(unittest.TestCase):
         else:
             server = os.getenv('CRYPTOL_SERVER_URL')
             if server:
-                self.c = argo.ServerConnection(argo.HttpProcess(server))
+                self.c = argo.ServerConnection(argo.HttpProcess(server, verify=False))
             else:
                 server = find_executable('cryptol-remote-api')
                 if server:

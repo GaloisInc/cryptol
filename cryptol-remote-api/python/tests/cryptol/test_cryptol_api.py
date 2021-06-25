@@ -21,7 +21,7 @@ class CryptolTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(self):
-        self.c = cryptol.connect()
+        self.c = cryptol.connect(verify=False)
         self.c.load_file(str(Path('tests','cryptol','test-files', 'Foo.cry')))
 
     @classmethod
@@ -203,7 +203,7 @@ class HttpMultiConnectionTests(unittest.TestCase):
     def test_reset_with_many_usages_many_connections(self):
         for i in range(0,100):
             time.sleep(.05)
-            c = cryptol.connect(url=self.url)
+            c = cryptol.connect(url=self.url, verify=False)
             c.load_file(str(Path('tests','cryptol','test-files', 'Foo.cry')))
             x_val1 = c.evaluate_expression("x").result()
             x_val2 = c.eval("Id::id x").result()
@@ -213,12 +213,66 @@ class HttpMultiConnectionTests(unittest.TestCase):
     def test_reset_server_with_many_usages_many_connections(self):
         for i in range(0,100):
             time.sleep(.05)
-            c = cryptol.connect(url=self.url, reset_server=True)
+            c = cryptol.connect(url=self.url, reset_server=True, verify=False)
             c.load_file(str(Path('tests','cryptol','test-files', 'Foo.cry')))
             x_val1 = c.evaluate_expression("x").result()
             x_val2 = c.eval("Id::id x").result()
             self.assertEqual(x_val1, x_val2)
 
+
+class TLSConnectionTests(unittest.TestCase):
+    # Connection to server
+    c = None
+    # Python initiated process running the server (if any)
+    p = None
+    # url of HTTP server
+    url = None
+    run_tests = True
+
+    @classmethod
+    def setUpClass(self):
+        os.system('openssl req -nodes -newkey rsa:2048 -keyout server.key -out server.csr'\
+            + ' -subj "/C=GB/ST=London/L=London/O=Acme Widgets/OU=IT Department/CN=localhost"')
+        os.system('openssl x509 -req -days 365 -in server.csr -signkey server.key -out server.crt')
+        server = os.getenv('CRYPTOL_SERVER')
+        if server is not None:
+            server = find_executable(server)
+        if server is None:
+            server = find_executable('cryptol-remote-api')
+        if server is not None:
+            self.p = subprocess.Popen(
+                [server, "http", "/", "--port", "8081", "--tls"],
+                stdout=subprocess.PIPE,
+                stdin=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                start_new_session=True)
+            time.sleep(5)
+            assert(self.p is not None)
+            poll_result = self.p.poll()
+            if poll_result is not None:
+                print(poll_result)
+                print(self.p.stdout.read())
+                print(self.p.stderr.read())
+            assert(poll_result is None)
+            self.url = "https://localhost:8081/"
+        else:
+            print("WARNING: TLS tests not being run because no cryptol server executable was found")
+            print("         (Note that this is expected behavior, however, for some CI tests)")
+            self.run_tests = False
+
+    @classmethod
+    def tearDownClass(self):
+        if self.p is not None:
+            os.killpg(os.getpgid(self.p.pid), signal.SIGKILL)
+        super().tearDownClass()
+
+    def test_tls_connection(self):
+        if self.run_tests:
+            c = cryptol.connect(url=self.url, verify=False)
+            c.load_file(str(Path('tests','cryptol','test-files', 'Foo.cry')))
+            x_val1 = c.evaluate_expression("x").result()
+            x_val2 = c.eval("Id::id x").result()
+            self.assertEqual(x_val1, x_val2)
 
 if __name__ == "__main__":
     unittest.main()
