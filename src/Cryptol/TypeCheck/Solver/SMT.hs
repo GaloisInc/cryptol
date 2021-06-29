@@ -69,13 +69,14 @@ data Solver = Solver
 
 
 -- | Start a fresh solver instance
-startSolver :: SolverConfig -> IO Solver
-startSolver SolverConfig { .. } =
+startSolver :: IO () -> SolverConfig -> IO Solver
+startSolver onExit SolverConfig { .. } =
    do logger <- if solverVerbose > 0 then SMT.newLogger 0
 
                                      else return quietLogger
       let smtDbg = if solverVerbose > 1 then Just logger else Nothing
-      solver <- SMT.newSolver solverPath solverArgs smtDbg
+      solver <- SMT.newSolverNotify
+                    solverPath solverArgs smtDbg (Just (const onExit))
       _ <- SMT.setOptionMaybe solver ":global-decls" "false"
       -- SMT.setLogic solver "QF_LIA"
       let sol = Solver { .. }
@@ -95,8 +96,8 @@ stopSolver :: Solver -> IO ()
 stopSolver s = void $ SMT.stop (solver s)
 
 -- | Execute a computation with a fresh solver instance.
-withSolver :: SolverConfig -> (Solver -> IO a) -> IO a
-withSolver cfg = bracket (startSolver cfg) stopSolver
+withSolver :: IO () -> SolverConfig -> (Solver -> IO a) -> IO a
+withSolver onExit cfg = bracket (startSolver onExit cfg) stopSolver
 
 -- | Load the definitions used for type checking.
 loadTcPrelude :: Solver -> [FilePath] {- ^ Search in this paths -} -> IO ()

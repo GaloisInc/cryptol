@@ -415,13 +415,18 @@ getPrompt  = mkPrompt `fmap` getRW
 getCallStacks :: REPL Bool
 getCallStacks = eCallStacks <$> getRW
 
+clearTCSolverAction :: REPL (IO ())
+clearTCSolverAction =
+  REPL (\ref -> pure (modifyIORef ref (\rw -> rw { eTCSolver = Nothing })))
+
 getTCSolver :: REPL SMT.Solver
 getTCSolver =
   do rw <- getRW
      case eTCSolver rw of
        Just s -> return s
        Nothing ->
-         do s <- io (SMT.startSolver (eTCConfig rw))
+         do onExit <- clearTCSolverAction
+            s <- io (SMT.startSolver onExit (eTCConfig rw))
             modifyRW_ (\rw' -> rw'{ eTCSolver = Just s })
             return s
 
