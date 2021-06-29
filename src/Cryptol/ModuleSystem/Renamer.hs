@@ -727,6 +727,18 @@ instance Rename Expr where
                                <*> traverse rename n
                                <*> rename e
                                <*> traverse rename t
+    EFromToBy isStrict s e b t ->
+                       EFromToBy isStrict
+                                 <$> rename s
+                                 <*> rename e
+                                 <*> rename b
+                                 <*> traverse rename t
+    EFromToDownBy isStrict s e b t ->
+                       EFromToDownBy isStrict
+                                 <$> rename s
+                                 <*> rename e
+                                 <*> rename b
+                                 <*> traverse rename t
     EFromToLessThan s e t ->
                        EFromToLessThan <$> rename s
                                        <*> rename e

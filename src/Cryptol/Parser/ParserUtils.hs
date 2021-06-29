@@ -378,6 +378,43 @@ eFromTo r e1 e2 e3 =
     (Nothing, Nothing, Nothing) -> eFromToType r e1 e2 e3 Nothing
     _ -> errorMessage r ["A sequence enumeration may have at most one element type annotation."]
 
+eFromToBy :: Range -> Expr PName -> Expr PName -> Expr PName -> Bool -> ParseM (Expr PName)
+eFromToBy r e1 e2 e3 isStrictBound =
+  case (asETyped e1, asETyped e2, asETyped e3) of
+    (Just (e1', t), Nothing, Nothing) -> eFromToByTyped r e1' e2 e3 (Just t) isStrictBound
+    (Nothing, Just (e2', t), Nothing) -> eFromToByTyped r e1 e2' e3 (Just t) isStrictBound   
+    (Nothing, Nothing, Just (e3', t)) -> eFromToByTyped r e1 e2 e3' (Just t) isStrictBound
+    (Nothing, Nothing, Nothing)       -> eFromToByTyped r e1 e2 e3 Nothing isStrictBound
+    _ -> errorMessage r ["A sequence enumeration may have at most one element type annotation."]
+
+eFromToByTyped :: Range -> Expr PName -> Expr PName -> Expr PName -> Maybe (Type PName) -> Bool -> ParseM (Expr PName)
+eFromToByTyped r e1 e2 e3 t isStrictBound =
+  EFromToBy isStrictBound
+      <$> exprToNumT r e1
+      <*> exprToNumT r e2
+      <*> exprToNumT r e3
+      <*> pure t
+
+eFromToDownBy ::
+  Range -> Expr PName -> Expr PName -> Expr PName -> Bool -> ParseM (Expr PName)
+eFromToDownBy r e1 e2 e3 isStrictBound =
+  case (asETyped e1, asETyped e2, asETyped e3) of
+    (Just (e1', t), Nothing, Nothing) -> eFromToDownByTyped r e1' e2 e3 (Just t) isStrictBound
+    (Nothing, Just (e2', t), Nothing) -> eFromToDownByTyped r e1 e2' e3 (Just t) isStrictBound   
+    (Nothing, Nothing, Just (e3', t)) -> eFromToDownByTyped r e1 e2 e3' (Just t) isStrictBound
+    (Nothing, Nothing, Nothing)       -> eFromToDownByTyped r e1 e2 e3 Nothing isStrictBound
+    _ -> errorMessage r ["A sequence enumeration may have at most one element type annotation."]
+
+eFromToDownByTyped ::
+  Range -> Expr PName -> Expr PName -> Expr PName -> Maybe (Type PName) -> Bool -> ParseM (Expr PName)
+eFromToDownByTyped r e1 e2 e3 t isStrictBound =
+  EFromToDownBy isStrictBound
+      <$> exprToNumT r e1
+      <*> exprToNumT r e2
+      <*> exprToNumT r e3
+      <*> pure t
+
+
 asETyped :: Expr n -> Maybe (Expr n, Type n)
 asETyped (ELocated e _) = asETyped e
 asETyped (ETyped e t) = Just (e, t)

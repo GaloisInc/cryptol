@@ -164,6 +164,8 @@ appTys expr ts tGoal =
     P.ESel      {} -> mono
     P.EList     {} -> mono
     P.EFromTo   {} -> mono
+    P.EFromToBy {} -> mono
+    P.EFromToDownBy {} -> mono
     P.EFromToLessThan {} -> mono
     P.EInfFrom  {} -> mono
     P.EComp     {} -> mono
@@ -275,6 +277,12 @@ checkE expr tGoal =
          let checkElem e = checkE e (WithSource a TypeOfSeqElement)
          es' <- mapM checkElem es
          return (EList es' a)
+
+    P.EFromToBy _isStrict _t1 _t2 _t3 _mety ->
+      error "TODO! implement typechecking for EFromToBy"
+
+    P.EFromToDownBy _isStrict _t1 _t2 _t3 _mety ->
+      error "TODO! implement typechecking for EFromToDownBy"
 
     P.EFromToLessThan t1 t2 mety ->
       do l <- curRange
