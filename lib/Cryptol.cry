@@ -195,19 +195,66 @@ length _ = `n
 /**
  * A finite sequence counting up from 'first' to 'last'.
  *
- * '[a..b]' is syntactic sugar for 'fromTo`{first=a,last=b}'.
+ * '[x .. y]' is syntactic sugar for 'fromTo`{first=x,last=y}'.
  */
-primitive fromTo : {first, last, a} (fin last, last >= first,
-                                    Literal first a, Literal last a) =>
-                                    [1 + (last - first)]a
+primitive fromTo : {first, last, a}
+  (fin last, last >= first, Literal last a) =>
+  [1 + (last - first)]a
+
+/**
+ * A finite sequence counting up from 'first' to 'last' by 'stride'
+ *
+ * '[x .. y by n]` is syntactic sugar for 'fromToBy`{first=x,last=y,stride=n}'.
+ */
+primitive fromToBy : {first, last, stride, a}
+  (fin last, fin stride, stride >= 1, last >= first, Literal last a) =>
+  [1 + (last - first)/stride]a
 
 /**
  * A possibly infinite sequence counting up from 'first' up to (but not including) 'bound'.
  *
- * Note that if 'first' = 'bound' then the sequence will be empty.
+ * '[ x ..< y ]' is syntacic sugar for 'fromToLessThan`{first=x,bound=y}'.
+ *
+ * Note that if 'first' = 'bound' then the sequence will be empty.  If 'bound = inf'
+ * then the sequence will be infinite, and will eventually wrap around for bounded types.
  */
 primitive fromToLessThan :
-  {first, bound, a} (fin first, bound >= first, LiteralLessThan bound a) => [bound - first]a
+  {first, bound, a} (fin first, bound >= first, LiteralLessThan bound a) =>
+  [bound - first]a
+
+/**
+ * A finite sequence counting from 'first' up to (but not including) 'bound'
+ * by 'stride'.  Note that if 'first = bound' then the sequence will
+ * be empty.  If 'bound = inf' then the sequence will be infinite, and will
+ * eventually wrap around for bounded types.
+ *
+ * '[x ..< y by n]' is syntactic sugar for 'fromToByLessThan`{first=a,bound=b,stride=n}'.
+ */
+primitive fromToByLessThan : {first, bound, stride, a}
+  (fin first, fin stride, stride >= 1, bound >= first, LiteralLessThan bound a) =>
+  [(bound - first)/^stride]a
+
+/**
+ * A finite sequence counting from 'first' down to 'last' by 'stride'.
+ *
+ * '[x .. y down by n]` is syntactic sugar for 'fromToDownBy`{first=x,last=y,stride=n}'.
+ */
+primitive fromToDownBy : {first, last, stride, a}
+  (fin first, fin stride, stride >= 1, first >= last, Literal first a) =>
+  [1 + (first - last)/stride]a
+
+/**
+ * A finite sequence counting from 'first' down to (but not including)
+ * 'bound' by 'stride'.
+ *
+ * '[x ..> y down by n]` is syntactic sugar for
+ * 'fromToDownByGreaterThan`{first=x,bound=y,stride=n}'.
+ *
+ * Note that if 'first = bound' the sequence will be empty.
+ */
+primitive fromToDownByGreaterThan : {first, bound, stride, a}
+  (fin first, fin stride, stride >= 1, first >= bound, Literal first a) =>
+  [(first - bound)/^stride]a
 
 
 /**
