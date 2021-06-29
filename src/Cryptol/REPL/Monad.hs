@@ -417,7 +417,8 @@ getCallStacks = eCallStacks <$> getRW
 
 clearTCSolverAction :: REPL (IO ())
 clearTCSolverAction =
-  REPL (\ref -> pure (modifyIORef ref (\rw -> rw { eTCSolver = Nothing })))
+  REPL (\ref -> pure (atomicModifyIORef ref
+                        (\rw -> (rw { eTCSolver = Nothing }, ()))))
 
 getTCSolver :: REPL SMT.Solver
 getTCSolver =
