@@ -312,11 +312,15 @@ instance Doc.DescribedMethod ProveSatParams ProveSatResult where
 
   resultFieldDescription =
     [ ("result",
-      Doc.Paragraph [ Doc.Text "A string (one of "
+      Doc.Paragraph [ Doc.Text "Either a string indicating the result of checking for validity, satisfiability, or safety"
+                    , Doc.Text "---i.e., one of "
                     , Doc.Literal "unsatisfiable", Doc.Text ", "
                     , Doc.Literal "invalid", Doc.Text ", or "
-                    , Doc.Literal "satisfied"
-                    , Doc.Text ") indicating the result of checking for validity, satisfiability, or safety."
+                    , Doc.Literal "satisfied",  Doc.Text "---"
+                    , Doc.Text "or the string literal "
+                    , Doc.Literal "offline"
+                    , Doc.Text " indicating an offline solver option was selected and the contents of the SMT query will be"
+                    , Doc.Text " returned instead of a SAT result."
                     ])
     , ("counterexample type",
       Doc.Paragraph $ onlyIfResultIs "invalid" ++
@@ -335,7 +339,12 @@ instance Doc.DescribedMethod ProveSatParams ProveSatResult where
                     , Doc.Literal "expr", Doc.Text "field, indicating a expression in a model, and a "
                     , Doc.Literal "type", Doc.Text "field, indicating the type of the expression."
                     ])
+    , ("query",
+      Doc.Paragraph $ onlyIfResultIs "offline" ++
+                    [ Doc.Text "The raw textual contents of the requested SMT query which can inspected or manually"
+                    , Doc.Text " given to an SMT solver."
+                    ])
     ]
     where
       onlyIfResultIs val = [ Doc.Text "Only used if the " , Doc.Literal "result"
-                           , Doc.Text " is ", Doc.Literal val, Doc.Text "." ]
+                           , Doc.Text " is ", Doc.Literal val, Doc.Text ". " ]
