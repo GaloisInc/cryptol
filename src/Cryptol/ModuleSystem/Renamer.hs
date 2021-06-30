@@ -465,6 +465,13 @@ instance Rename PrimType where
        depsOf (NamedThing (thing x))
          do let (as,ps) = primTCts pt
             (_,cts) <- renameQual as ps $ \as' ps' -> pure (as',ps')
+
+            -- Record an additional use for each parameter since we checked
+            -- earlier that all the parameters are used exactly once in the
+            -- body of the signature.  This prevents incorret warnings
+            -- about unused names.
+            mapM_ (recordUse . tpName) (fst cts)
+
             pure pt { primTCts = cts, primTName = x }
 
 instance Rename ParameterType where
