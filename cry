@@ -23,6 +23,7 @@ Available commands:
   rpc-test                     Run RPC server tests
   rpc-docs                     Check that the RPC documentation is up-to-date
   exe-path                     Print the location of the local executable
+  check-docs                   Check the exercises embedded in the documentation
 EOM
 }
 
@@ -97,6 +98,10 @@ case $COMMAND in
     $DIR/cryptol-remote-api/check_docs.sh
     ;;
 
+  check-docs)
+    cabal v2-build exe:check-exercises
+    find ./docs/ProgrammingCryptol -name '*.tex' -print0 | xargs -0 -n1 cabal v2-exec check-exercises
+    ;;
 
   help) show_usage && exit 0 ;;
 
