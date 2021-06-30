@@ -180,6 +180,12 @@ data RW = RW
 
   , eTCSolver :: Maybe SMT.Solver
     -- ^ Solver instance to be used for typechecking
+
+  , eTCSolverRestarts :: !Int
+    -- ^ Counts how many times we've restarted the solver.
+    -- Used as a kind of id for the current solver, which helps avoid
+    -- a race condition where the callback of a dead solver runs after
+    -- a new one has been started.
   }
 
 
@@ -202,6 +208,7 @@ defaultRW isBatch callStacks l = do
     , eProverConfig = Left SBV.defaultProver
     , eTCConfig    = solverConfig
     , eTCSolver    = Nothing
+    , eTCSolverRestarts = 0
     }
 
 -- | Build up the prompt for the REPL.
@@ -415,21 +422,25 @@ getPrompt  = mkPrompt `fmap` getRW
 getCallStacks :: REPL Bool
 getCallStacks = eCallStacks <$> getRW
 
-clearTCSolverAction :: REPL (IO ())
-clearTCSolverAction =
-  REPL (\ref -> pure (atomicModifyIORef ref
-                        (\rw -> (rw { eTCSolver = Nothing }, ()))))
-
+-- This assumes that we are not starting solvers in parallel, otherwise
+-- there are a bunch of race conditions here.
 getTCSolver :: REPL SMT.Solver
 getTCSolver =
   do rw <- getRW
      case eTCSolver rw of
        Just s -> return s
        Nothing ->
-         do onExit <- clearTCSolverAction
+         do ref <- REPL (\ref -> pure ref)
+            let now = eTCSolverRestarts rw + 1
+                upd new = if eTCSolverRestarts new == now
+                             then new { eTCSolver = Nothing }
+                             else new
+                onExit = atomicModifyIORef ref (\s -> (upd s, ()))
             s <- io (SMT.startSolver onExit (eTCConfig rw))
-            modifyRW_ (\rw' -> rw'{ eTCSolver = Just s })
+            modifyRW_ (\rw' -> rw'{ eTCSolver = Just s
+                                  , eTCSolverRestarts = now })
             return s
+
 
 resetTCSolver :: REPL ()
 resetTCSolver =
