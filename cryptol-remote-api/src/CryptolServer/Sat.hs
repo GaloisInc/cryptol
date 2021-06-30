@@ -13,13 +13,11 @@ module CryptolServer.Sat
 
 import qualified Argo.Doc as Doc
 import Control.Applicative
-import qualified Control.Exception as X
 import Control.Monad.IO.Class
 import Data.Aeson ((.=), (.:), (.:?), (.!=), FromJSON, ToJSON)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.Aeson as JSON
-import Data.Char
 import Data.IORef
 import qualified Data.List as List
 import Data.Scientific (floatingOrInteger)
@@ -43,10 +41,7 @@ import CryptolServer.Exceptions (evalPolyErr, proverError)
 import CryptolServer.Data.Expression
 import CryptolServer.Data.Type
 import Data.Text.IO as TIO
-import System.Directory
-  ( getTemporaryDirectory, removeFile)
-import System.IO
-         (openTempFile,hClose,hSeek,SeekMode(..))
+import System.IO (hSeek,SeekMode(..))
 
 proveSatDescr :: Doc.Block
 proveSatDescr =
@@ -122,16 +117,16 @@ offlineProveSat proverName cmd hConsing = do
       case result of
         Left msg -> do
           raise $ proverError $ "error setting up " ++ proverName ++ ": " ++ msg
-        Right smtlib -> pure $ OfflineSMTQuery smtlib
+        Right smtlib -> pure $ OfflineSMTQuery $ T.pack smtlib
     Right w4Cfg -> do
-      smtlibRef <- liftIO $ newIORef ""
+      smtlibRef <- liftIO $ newIORef ("" :: Text)
       result <- liftModuleCmd $
         W4.satProveOffline w4Cfg hConsing False cmd $ \f -> do
           withRWTempFile "smtOutput.tmp" $ \h -> do
             f h
             hSeek h AbsoluteSeek 0
             contents <- TIO.hGetContents h
-            writeIORef smtlibRef $ T.unpack contents
+            writeIORef smtlibRef contents
       case result of
         Just errMsg -> raise $ proverError $ "encountered an error using " ++ proverName ++ " to generate a query: " ++ errMsg
         Nothing -> do
