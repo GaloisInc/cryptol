@@ -131,13 +131,13 @@ primitive type max : # -> # -> #
 /** Divide numeric types, rounding up. */
 primitive type
   { m : #, n : # }
-  (fin m, fin n, n >= 1) =>
+  (fin n, n >= 1) =>
   m /^ n : #
 
 /** How much we need to add to make a proper multiple of the second argument. */
 primitive type
   { m : #, n : # }
-  (fin m, fin n, n >= 1) =>
+  (fin n, n >= 1) =>
   m %^ n : #
 
 /** The length of an enumeration. */
