@@ -790,7 +790,7 @@ Here are Cryptol's responses:
   []
   invalid sequence index: 12
    -- Backtrace --
-  (Cryptol::@) called at Cryptol:820:14--820:20
+  (Cryptol::@) called at Cryptol:867:14--867:20
   (Cryptol::@@) called at <interactive>:9:1--9:28
   [9, 8, 7, 6, 5, 4, 3, 2, 1, 0]
   9
@@ -1795,7 +1795,7 @@ is subtly different from \texttt{[k, k+1...]}.
   command to see the type Cryptol infers for this expression explicitly:
 \begin{replPrompt}
     Cryptol> :t [1:[_] .. 10]
-    [1 .. 10 : [_]] : {n} (n >= 4, n >= 1, fin n) => [10][n]
+    [1 .. 10 : [_]] : {n} (n >= 4, fin n) => [10][n]
 \end{replPrompt}
 Cryptol tells us that the sequence has precisely $10$ elements, and each
 element is at least $4$ bits wide.
