@@ -55,6 +55,3 @@ W4_Z3: Solver        = Solver("w4-z3")
 W4_BOOLECTOR: Solver = Solver("w4-boolector")
 W4_OFFLINE: Solver   = Solver("w4-offline")
 W4_ABC: Solver       = Solver("w4-any")
-
-
-
