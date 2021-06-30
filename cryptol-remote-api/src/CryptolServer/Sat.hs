@@ -30,6 +30,7 @@ import Cryptol.Eval.Concrete (Value)
 import Cryptol.Eval.Type (TValue, tValTy)
 import Cryptol.ModuleSystem (checkExpr)
 import Cryptol.ModuleSystem.Env (DynamicEnv(..), meDynEnv)
+import Cryptol.REPL.Command (withRWTempFile)
 import Cryptol.Symbolic ( ProverCommand(..), ProverResult(..), QueryType(..)
                         , SatNum(..), CounterExampleType(..))
 import qualified Cryptol.Symbolic.SBV as SBV
@@ -136,14 +137,7 @@ offlineProveSat proverName cmd hConsing = do
         Nothing -> do
           smtlib <- liftIO $ readIORef smtlibRef
           pure $ OfflineSMTQuery smtlib
-  where
-    withRWTempFile name k =
-      X.bracket
-        (do tmp <- getTemporaryDirectory
-            let esc c = if isAscii c && isAlphaNum c then c else '_'
-            openTempFile tmp (map esc name))
-        (\(nm,h) -> hClose h >> removeFile nm)
-        (k . snd)
+
 
 onlineProveSat ::
   -- | Prover name.
@@ -187,7 +181,7 @@ data ProveSatResult
   = Unsatisfiable
   | Invalid CounterExampleType [(JSONType, Expression)]
   | Satisfied [[(JSONType, Expression)]]
-  | OfflineSMTQuery String
+  | OfflineSMTQuery Text
 
 instance ToJSON ProveSatResult where
   toJSON Unsatisfiable = JSON.object ["result" .= ("unsatisfiable" :: Text)]
@@ -217,7 +211,7 @@ instance ToJSON ProveSatResult where
                 ]
   toJSON (OfflineSMTQuery smtlib) =
     JSON.object [ "result" .= ("offline" :: Text)
-                , "query" .= (T.pack smtlib)
+                , "query" .= smtlib
                 ]
 
 newtype ProverName = ProverName String
