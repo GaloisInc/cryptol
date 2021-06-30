@@ -32,7 +32,7 @@ primitive type Integer : *
 /**
  * 'Z n' is the type of integers, modulo 'n'.
  *
- * The values of 'Z n' may be thought of as equivalance
+ * The values of 'Z n' may be thought of as equivalence
  * classes of integers according to the equivalence
  * 'x ~ y' iff 'n' divides 'x - y'.  'Z n' naturally
  * forms a ring, but does not support integral division
@@ -41,9 +41,9 @@ primitive type Integer : *
  * However, you may use the 'fromZ' operation
  * to project values in 'Z n' into the integers if such operations
  * are required.  This will compute the reduced representative
- * of the equivalance class. In other words, 'fromZ' computes
+ * of the equivalence class. In other words, 'fromZ' computes
  * the (unique) integer value 'i'  where '0 <= i < n' and
- * 'i' is in the given equivalance class.
+ * 'i' is in the given equivalence class.
  *
  * If the modulus 'n' is prime, 'Z n' also
  * supports computing inverses and forms a field.
@@ -202,18 +202,9 @@ primitive fromTo : {first, last, a}
   [1 + (last - first)]a
 
 /**
- * A finite sequence counting up from 'first' to 'last' by 'stride'
- *
- * '[x .. y by n]` is syntactic sugar for 'fromToBy`{first=x,last=y,stride=n}'.
- */
-primitive fromToBy : {first, last, stride, a}
-  (fin last, fin stride, stride >= 1, last >= first, Literal last a) =>
-  [1 + (last - first)/stride]a
-
-/**
  * A possibly infinite sequence counting up from 'first' up to (but not including) 'bound'.
  *
- * '[ x ..< y ]' is syntacic sugar for 'fromToLessThan`{first=x,bound=y}'.
+ * '[ x ..< y ]' is syntactic sugar for 'fromToLessThan`{first=x,bound=y}'.
  *
  * Note that if 'first' = 'bound' then the sequence will be empty.  If 'bound = inf'
  * then the sequence will be infinite, and will eventually wrap around for bounded types.
@@ -221,6 +212,17 @@ primitive fromToBy : {first, last, stride, a}
 primitive fromToLessThan :
   {first, bound, a} (fin first, bound >= first, LiteralLessThan bound a) =>
   [bound - first]a
+
+/**
+ * A finite sequence counting up from 'first' to 'last' by 'stride'.
+ * Note that 'last' will only be an element of the enumeration if
+ * 'stride' divides 'last - first' evenly.
+ *
+ * '[x .. y by n]` is syntactic sugar for 'fromToBy`{first=x,last=y,stride=n}'.
+ */
+primitive fromToBy : {first, last, stride, a}
+  (fin last, fin stride, stride >= 1, last >= first, Literal last a) =>
+  [1 + (last - first)/stride]a
 
 /**
  * A finite sequence counting from 'first' up to (but not including) 'bound'
@@ -236,6 +238,8 @@ primitive fromToByLessThan : {first, bound, stride, a}
 
 /**
  * A finite sequence counting from 'first' down to 'last' by 'stride'.
+ * Note that 'last' will only be an element of the enumeration if
+ * 'stride' divides 'first - last' evenly.
  *
  * '[x .. y down by n]` is syntactic sugar for 'fromToDownBy`{first=x,last=y,stride=n}'.
  */
@@ -255,7 +259,6 @@ primitive fromToDownBy : {first, last, stride, a}
 primitive fromToDownByGreaterThan : {first, bound, stride, a}
   (fin first, fin stride, stride >= 1, first >= bound, Literal first a) =>
   [(first - bound)/^stride]a
-
 
 /**
  * A finite arithmetic sequence starting with 'first' and 'next',
@@ -434,7 +437,7 @@ primitive infFromThen : {a} (Integral a) => a -> a -> [inf]a
 
 /**
  * Value types that correspond to a field; that is,
- * a ring also posessing multiplicative inverses for
+ * a ring also possessing multiplicative inverses for
  * non-zero elements.
  *
  * Floating-point values are only approximately a field,
@@ -990,7 +993,7 @@ primitive pmod : {u, v} (fin u, fin v) => [u] -> [1 + v] -> [v]
 
 /**
  * Parallel map.  The given function is applied to each element in the
- * given finite seqeuence, and the results are computed in parallel.
+ * given finite sequence, and the results are computed in parallel.
  * The values in the resulting sequence are reduced to normal form,
  * as is done with the deepseq operation.
  *
