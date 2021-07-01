@@ -200,15 +200,15 @@ class CryptolProveSat(argo.Command):
             raise ValueError("Unknown SMT result: " + str(res))
 
 class CryptolProve(CryptolProveSat):
-    def __init__(self, connection : HasProtocolState, expr : Any, solver : solver.Solver) -> None:
+    def __init__(self, connection : HasProtocolState, expr : Any, solver : Solver) -> None:
         super(CryptolProve, self).__init__(connection, SmtQueryType.PROVE, expr, solver, 1)
 
 class CryptolSat(CryptolProveSat):
-    def __init__(self, connection : HasProtocolState, expr : Any, solver : solver.Solver, count : int) -> None:
+    def __init__(self, connection : HasProtocolState, expr : Any, solver : Solver, count : int) -> None:
         super(CryptolSat, self).__init__(connection, SmtQueryType.SAT, expr, solver, count)
 
 class CryptolSafe(CryptolProveSat):
-    def __init__(self, connection : HasProtocolState, expr : Any, solver : solver.Solver) -> None:
+    def __init__(self, connection : HasProtocolState, expr : Any, solver : Solver) -> None:
         super(CryptolSafe, self).__init__(connection, SmtQueryType.SAFE, expr, solver, 1)
 
 class CryptolNames(argo.Command):
