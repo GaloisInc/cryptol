@@ -1,7 +1,35 @@
 """Cryptol solver-related definitions"""
 from typing import NewType
 
-Solver = NewType('Solver', str)
+from dataclasses import dataclass
+
+@dataclass
+class OfflineSmtQuery():
+  """An SMTLIB2 script -- produced when an `offline` prover is used."""
+  content: str
+
+class Solver():
+  """An SMT solver mode selectable for Cryptol. Compare with the `:set prover` options in
+  the Cryptol REPL."""
+  __name: str
+  __hash_consing: bool
+
+  def __init__(self, name:str, hash_consing:bool=True) -> None:
+    self.__name = name
+    self.__hash_consing = hash_consing
+
+  def name(self) -> str:
+    """Returns a string describing the solver setup which Cryptol will recognize -- i.e.,
+    see the options available via `:set prover = NAME`."""
+    return self.__name
+
+  def hash_consing(self) -> bool:
+    """Returns whether hash consing is enabled (if applicable)."""
+    return self.__hash_consing
+
+  def without_hash_consing(self) -> 'Solver':
+    """Returns an identical solver but with hash consing disabled (if applicable)."""
+    return Solver(name=self.__name, hash_consing=False)
 
 # Cryptol-supported SMT configurations/solvers
 # (see Cryptol.Symbolic.SBV Haskell module)
@@ -25,5 +53,5 @@ W4_CVC4: Solver      = Solver("w4-cvc4")
 W4_YICES: Solver     = Solver("w4-yices")
 W4_Z3: Solver        = Solver("w4-z3")
 W4_BOOLECTOR: Solver = Solver("w4-boolector")
-W4_MATHSAT: Solver   = Solver("w4-offline")
+W4_OFFLINE: Solver   = Solver("w4-offline")
 W4_ABC: Solver       = Solver("w4-any")

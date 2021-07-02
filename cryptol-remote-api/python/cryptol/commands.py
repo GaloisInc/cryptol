@@ -9,7 +9,7 @@ from typing_extensions import Literal
 
 import argo_client.interaction as argo
 from argo_client.interaction import HasProtocolState
-from . import solver
+from .solver import Solver, OfflineSmtQuery
 from .bitvector import BV
 from .opaque import OpaqueValue
 
@@ -167,12 +167,13 @@ class SmtQueryType(str, Enum):
     SAT   = 'sat'
 
 class CryptolProveSat(argo.Command):
-    def __init__(self, connection : HasProtocolState, qtype : SmtQueryType, expr : Any, solver : solver.Solver, count : Optional[int]) -> None:
+    def __init__(self, connection : HasProtocolState, qtype : SmtQueryType, expr : Any, solver : Solver, count : Optional[int]) -> None:
         super(CryptolProveSat, self).__init__(
             'prove or satisfy',
             {'query type': qtype,
              'expression': expr,
-             'prover': solver,
+             'prover': solver.name(),
+             'hash consing': "true" if solver.hash_consing() else "false",
              'result count': 'all' if count is None else count},
             connection
         )
@@ -193,19 +194,21 @@ class CryptolProveSat(argo.Command):
             return [from_cryptol_arg(arg['expr'])
                     for m in res['models']
                     for arg in m]
+        elif res['result'] == 'offline':
+            return OfflineSmtQuery(content=res['query'])
         else:
             raise ValueError("Unknown SMT result: " + str(res))
 
 class CryptolProve(CryptolProveSat):
-    def __init__(self, connection : HasProtocolState, expr : Any, solver : solver.Solver) -> None:
+    def __init__(self, connection : HasProtocolState, expr : Any, solver : Solver) -> None:
         super(CryptolProve, self).__init__(connection, SmtQueryType.PROVE, expr, solver, 1)
 
 class CryptolSat(CryptolProveSat):
-    def __init__(self, connection : HasProtocolState, expr : Any, solver : solver.Solver, count : int) -> None:
+    def __init__(self, connection : HasProtocolState, expr : Any, solver : Solver, count : int) -> None:
         super(CryptolSat, self).__init__(connection, SmtQueryType.SAT, expr, solver, count)
 
 class CryptolSafe(CryptolProveSat):
-    def __init__(self, connection : HasProtocolState, expr : Any, solver : solver.Solver) -> None:
+    def __init__(self, connection : HasProtocolState, expr : Any, solver : Solver) -> None:
         super(CryptolSafe, self).__init__(connection, SmtQueryType.SAFE, expr, solver, 1)
 
 class CryptolNames(argo.Command):

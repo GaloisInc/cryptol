@@ -557,7 +557,7 @@ Parameter fields
 
 
 ``prover``
-  The SMT solver to use to check for satisfiability. I.e., one of the following: ``cvc4``, ``yices``, ``z3``, ``boolector``, ``mathsat``, ``abc``, ``offline``, ``any``, ``sbv-cvc4``, ``sbv-yices``, ``sbv-z3``, ``sbv-boolector``, ``sbv-mathsat``, ``sbv-abc``, ``sbv-offline``, ``sbv-any``, .
+  The SMT solver to use to check for satisfiability. I.e., one of the following: ``w4-cvc4``, ``w4-yices``, ``w4-z3``, ``w4-boolector``, ``w4-offline``, ``w4-any``, ``cvc4``, ``yices``, ``z3``, ``boolector``, ``mathsat``, ``abc``, ``offline``, ``any``, ``sbv-cvc4``, ``sbv-yices``, ``sbv-z3``, ``sbv-boolector``, ``sbv-mathsat``, ``sbv-abc``, ``sbv-offline``, ``sbv-any``.
   
   
 
@@ -576,27 +576,37 @@ Parameter fields
   
   
 
+``hash consing``
+  Whether or not to use hash consing of terms (if available).``true`` to enable or ``false`` to disable.
+  
+  
+
 Return fields
 +++++++++++++
 
 
 ``result``
-  A string (one of ``unsatisfiable``, ``invalid``, or ``satisfied``) indicating the result of checking for validity, satisfiability, or safety.
+  Either a string indicating the result of checking for validity, satisfiability, or safety---i.e., one of ``unsatisfiable``, ``invalid``, or ``satisfied``---or the string literal ``offline`` indicating an offline solver option was selected and the contents of the SMT query will be returned instead of a SAT result.
   
   
 
 ``counterexample type``
-  Only used if the ``result`` is ``invalid``.This describes the variety of counterexample that was produced. This can be either ``safety violation`` or ``predicate falsified``.
+  Only used if the ``result`` is ``invalid``. This describes the variety of counterexample that was produced. This can be either ``safety violation`` or ``predicate falsified``.
   
   
 
 ``counterexample``
-  Only used if the ``result`` is ``invalid``.A list of objects where each object has an ``expr``field, indicating a counterexample expression, and a ``type``field, indicating the type of the expression.
+  Only used if the ``result`` is ``invalid``. A list of objects where each object has an ``expr``field, indicating a counterexample expression, and a ``type``field, indicating the type of the expression.
   
   
 
 ``models``
-  Only used if the ``result`` is ``satisfied``.A list of list of objects where each object has an ``expr``field, indicating a expression in a model, and a ``type``field, indicating the type of the expression.
+  Only used if the ``result`` is ``satisfied``. A list of list of objects where each object has an ``expr``field, indicating a expression in a model, and a ``type``field, indicating the type of the expression.
+  
+  
+
+``query``
+  Only used if the ``result`` is ``offline``. The raw textual contents of the requested SMT query which can inspected or manually given to an SMT solver.
   
   
 
