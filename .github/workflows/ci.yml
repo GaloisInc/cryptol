@@ -154,7 +154,9 @@ jobs:
         env:
           SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
-        run: .github/ci.sh sign ${NAME}.tar.gz
+        run: |
+          .github/ci.sh sign ${NAME}.tar.gz
+          .github/ci.sh sign ${NAME}-with-solvers.tar.gz
 
       - shell: bash
         run: |
@@ -165,7 +167,7 @@ jobs:
       - uses: actions/upload-artifact@v2
         with:
           name: ${{ env.NAME }}
-          path: "${{ env.NAME }}.tar.gz*"
+          path: "${{ env.NAME }}*.tar.gz*"
           if-no-files-found: error
           retention-days: ${{ needs.config.outputs.retention-days }}
 

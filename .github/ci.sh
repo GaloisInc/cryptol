@@ -163,6 +163,15 @@ zip_dist() {
   name="${name:-"cryptol-$VERSION-$RUNNER_OS-x86_64"}"
   cp -r dist "$name"
   tar -cvzf "$name".tar.gz "$name"
+  sname="${name}-with-solvers"
+  cp "$(which abc)"        dist/bin/
+  cp "$(which boolector)"  dist/bin/
+  cp "$(which cvc4)"       dist/bin/
+  cp "$(which yices)"      dist/bin/
+  cp "$(which yices-smt2)" dist/bin/
+  cp "$(which z3)"         dist/bin/
+  cp -r dist "$sname"
+  tar -cvzf "$sname".tar.gz "$sname"
 }
 
 output() { echo "::set-output name=$1::$2"; }
