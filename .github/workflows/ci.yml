@@ -167,7 +167,14 @@ jobs:
       - uses: actions/upload-artifact@v2
         with:
           name: ${{ env.NAME }}
-          path: "${{ env.NAME }}*.tar.gz*"
+          path: "${{ env.NAME }}.tar.gz*"
+          if-no-files-found: error
+          retention-days: ${{ needs.config.outputs.retention-days }}
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: ${{ env.NAME }}-with-solvers
+          path: "${{ env.NAME }}-with-solvers.tar.gz*"
           if-no-files-found: error
           retention-days: ${{ needs.config.outputs.retention-days }}
 
