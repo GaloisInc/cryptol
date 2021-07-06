@@ -164,12 +164,13 @@ zip_dist() {
   cp -r dist "$name"
   tar -cvzf "$name".tar.gz "$name"
   sname="${name}-with-solvers"
-  cp "$(which abc)"        dist/bin/
-  cp "$(which boolector)"  dist/bin/
-  cp "$(which cvc4)"       dist/bin/
-  cp "$(which yices)"      dist/bin/
-  cp "$(which yices-smt2)" dist/bin/
-  cp "$(which z3)"         dist/bin/
+  export PATH=$PWD/$BIN:$PATH
+  cp bin/abc        dist/bin/
+  cp bin/boolector  dist/bin/
+  cp bin/cvc4       dist/bin/
+  cp bin/yices      dist/bin/
+  cp bin/yices-smt2 dist/bin/
+  cp bin/z3         dist/bin/
   cp -r dist "$sname"
   tar -cvzf "$sname".tar.gz "$sname"
 }
