@@ -1,0 +1,74 @@
+FROM centos/devtoolset-7-toolchain-centos7 AS solvers
+
+# Install needed packages for building
+USER root
+RUN yum -y update
+RUN yum -y install zlib-devel wget ncurses-devel ncurses-compat-libs make cmake readline-devel unzip gmp gmp-devel git
+
+RUN useradd -m user
+RUN install -d -o user -g user /solvers
+USER user
+WORKDIR /solvers
+RUN mkdir -p rootfs/usr/local/bin
+
+# Build abc from GitHub. (Latest version.)
+RUN git clone https://github.com/berkeley-abc/abc.git && \
+    ( cd abc && make -j$(nproc) ) && \
+    mv abc/abc rootfs/usr/local/bin
+
+# Build Z3 4.8.11 from GitHub
+RUN curl -L https://github.com/Z3Prover/z3/archive/refs/tags/z3-4.8.11.tar.gz | tar xz && \
+    (cd z3-* && python scripts/mk_make.py && cd build && make && mv z3 /solvers/rootfs/usr/local/bin)
+
+# Build Boolector release 3.2.1 from source
+#RUN curl -L https://github.com/Boolector/boolector/archive/3.2.1.tar.gz | tar xz && \
+#    ( cd boolector* && ./contrib/setup-lingeling.sh && ./contrib/setup-btor2tools.sh && ./configure.sh && cd build && make -j$(nproc) ) && \
+#    mv boolector*/build/bin/boolector /solvers/rootfs/usr/local/bin
+
+# Install Yices 2.6.2
+RUN curl -L https://yices.csl.sri.com/releases/2.6.2/yices-2.6.2-x86_64-pc-linux-gnu-static-gmp.tar.gz | tar xz && \
+    mv yices*/bin/yices-smt2 /solvers/rootfs/usr/local/bin && \
+    mv yices*/bin/yices /solvers/rootfs/usr/local/bin
+
+# Install CVC4 1.8
+# The latest CVC4 1.8 and the release version has a minor discrepency between it, causing sbv to fail
+# https://github.com/CVC4/CVC4/releases/download/1.8/cvc4-1.8-x86_64-linux-opt
+RUN latest="$(curl -sSL 'http://cvc4.cs.stanford.edu/downloads/builds/x86_64-linux-opt/unstable/' | grep linux-opt | tail -n1 | sed -e 's/.*href="//' -e 's/\([^>]*\)">.*$/\1/')" && \
+    curl --output /solvers/rootfs/usr/local/bin/cvc4 -sSL "https://cvc4.cs.stanford.edu/downloads/builds/x86_64-linux-opt/unstable/$latest"
+
+# Set executable and run tests
+RUN chmod +x /solvers/rootfs/usr/local/bin/*
+
+FROM centos:centos7 AS build
+
+RUN yum -y update \
+    && yum -y install zlib-devel ncurses-devel ncurses-compat-libs make gcc readline-devel gmp gmp-devel libffi libffi-devel
+
+COPY --from=solvers /solvers/rootfs /
+
+RUN useradd -m cryptol
+COPY --chown=cryptol:cryptol . /cryptol
+USER cryptol
+WORKDIR /cryptol
+ENV BOOTSTRAP_HASKELL_NONINTERACTIVE=1
+RUN curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
+ENV PATH=/cryptol/rootfs/usr/local/bin:/home/cryptol/.ghcup/bin:$PATH
+RUN echo $PATH
+RUN ghcup install ghc 8.10.5
+RUN ghcup install cabal 3.4.0.0
+ARG CRYPTOLPATH="/cryptol/.cryptol"
+COPY cabal.GHC-8.10.5.config cabal.project.freeze
+RUN mkdir -p rootfs/usr/local/bin
+RUN cabal v2-update
+RUN cabal v2-build -j cryptol:exe:cryptol
+RUN cp $(cabal list-bin exe:cryptol) rootfs/usr/local/bin && \
+    cp $(cabal list-bin exe:cryptol-remote-api) rootfs/usr/local/bin && \
+    cabal v2-install --install-method=copy --overwrite-policy=always --installdir=bin test-lib
+#RUN ./bin/test-runner --ext=.icry --exe=./rootfs/usr/local/bin/cryptol -F -b tests
+ENV PATH=/usr/local/bin:/cryptol/rootfs/usr/local/bin:$PATH
+RUN    ! $(cryptol -c ":s prover=yices" | tail -n +2 | grep -q .) \
+    && ! $(cryptol -c ":s prover=z3" | tail -n +2 | grep -q .)
+RUN mkdir -p rootfs/"${CRYPTOLPATH}" \
+    && cp -r lib/* rootfs/"${CRYPTOLPATH}"
+USER root
+RUN chown -R root:root /cryptol/rootfs
