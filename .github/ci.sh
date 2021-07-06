@@ -164,8 +164,6 @@ zip_dist() {
   cp -r dist "$name"
   tar -cvzf "$name".tar.gz "$name"
   sname="${name}-with-solvers"
-  cp "${BIN}/abc${EXT}"        dist/bin/
-  cp "${BIN}/boolector${EXT}"  dist/bin/
   cp "${BIN}/cvc4${EXT}"       dist/bin/
   cp "${BIN}/yices${EXT}"      dist/bin/
   cp "${BIN}/yices-smt2${EXT}" dist/bin/
