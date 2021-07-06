@@ -2,7 +2,7 @@
 set -xEeuo pipefail
 
 [[ "$RUNNER_OS" == 'Windows' ]] && IS_WIN=true || IS_WIN=false
-BIN=bin
+BIN=${PWD}/bin
 EXT=""
 $IS_WIN && EXT=".exe"
 mkdir -p "$BIN"
@@ -118,8 +118,8 @@ install_system_deps() {
   install_cvc4 &
   install_yices &
   wait
-  export PATH=$PWD/$BIN:$PATH
-  echo "$PWD/$BIN" >> "$GITHUB_PATH"
+  export PATH=$BIN:$PATH
+  echo "$BIN" >> "$GITHUB_PATH"
   is_exe "$BIN" z3 && is_exe "$BIN" cvc4 && is_exe "$BIN" yices
 }
 
@@ -164,13 +164,12 @@ zip_dist() {
   cp -r dist "$name"
   tar -cvzf "$name".tar.gz "$name"
   sname="${name}-with-solvers"
-  export PATH=$PWD/$BIN:$PATH
-  cp bin/abc        dist/bin/
-  cp bin/boolector  dist/bin/
-  cp bin/cvc4       dist/bin/
-  cp bin/yices      dist/bin/
-  cp bin/yices-smt2 dist/bin/
-  cp bin/z3         dist/bin/
+  cp "${BIN}/abc${EXT}"        dist/bin/
+  cp "${BIN}/boolector${EXT}"  dist/bin/
+  cp "${BIN}/cvc4${EXT}"       dist/bin/
+  cp "${BIN}/yices${EXT}"      dist/bin/
+  cp "${BIN}/yices-smt2${EXT}" dist/bin/
+  cp "${BIN}/z3${EXT}"         dist/bin/
   cp -r dist "$sname"
   tar -cvzf "$sname".tar.gz "$sname"
 }
