@@ -91,8 +91,10 @@ ENV LANG=C.UTF-8 \
     LC_ALL=C.UTF-8
 COPY cabal.GHC-${GHCVER}.config cabal.project.freeze
 
+RUN if ${PORTABILITY}; then SERVERS_NOT_THREADED="true"; fi
+
 RUN cabal v2-update && \
-    cabal v2-build -j cryptol-remote-api:exe:cryptol-remote-api cryptol-remote-api:exe:cryptol-eval-server && \
+    cabal v2-build -j ${SERVERS_NOT_THREADED:+-fNotThreaded} cryptol-remote-api:exe:cryptol-remote-api cryptol-remote-api:exe:cryptol-eval-server && \
     mkdir -p rootfs/usr/local/bin && \
     cp $(cabal v2-exec which cryptol-remote-api) rootfs/usr/local/bin && \
     cp $(cabal v2-exec which cryptol-eval-server) rootfs/usr/local/bin
