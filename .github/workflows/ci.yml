@@ -395,13 +395,13 @@ jobs:
       - if: needs.config.outputs.event-schedule == 'true'
         name: ${{ matrix.image }}:nightly
         run: |
-          docker tag ${{ matrix.image }}:$COMMON_TAG ${{ matrix.image }}:nightly
+          docker tag ${{ matrix.image }}:${{ steps.common-tag.outputs.common-tag }} ${{ matrix.image }}:nightly
           docker push ${{ matrix.image }}:nightly
 
       - if: needs.config.outputs.release == 'true'
         name: ${{ matrix.image }}:${{ needs.config.outputs.version }}
         run: |
-          docker tag ${{ matrix.image }}:$COMMON_TAG ${{ matrix.image }}:${{ needs.config.outputs.version }}
+          docker tag ${{ matrix.image }}:${{ steps.common-tag.outputs.common-tag }} ${{ matrix.image }}:${{ needs.config.outputs.version }}
           docker push ${{ matrix.image }}:${{ needs.config.outputs.version }}
-          docker tag ${{ matrix.image }}:$COMMON_TAG ${{ matrix.image }}:latest
+          docker tag ${{ matrix.image }}:${{ steps.common-tag.outputs.common-tag }} ${{ matrix.image }}:latest
           docker push ${{ matrix.image }}:latest
