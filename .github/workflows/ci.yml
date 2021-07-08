@@ -210,7 +210,7 @@ jobs:
             continue-on-error: false
           - suite: rpc
             target: ''
-            os: windows
+            os: windows-latest
             continue-on-error: true  # TODO: get Python client to work on Windows
     steps:
       - uses: actions/checkout@v2
