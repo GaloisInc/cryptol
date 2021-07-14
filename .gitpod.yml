@@ -1,0 +1,39 @@
+image:
+  file: .gitpod.Dockerfile
+vscode:
+  extensions:
+    - haskell.haskell
+    - justusadam.language-haskell
+tasks:
+  - name: TCP Tunnel
+    command: chisel server --socks5
+  - name: SSH Server
+    command: |
+      [ -f /workspace/dropbear.hostkey ] || dropbearkey -t rsa -f /workspace/dropbear.hostkey
+      dropbear -r /workspace/dropbear.hostkey -F -E -s -p 2222 -P ~/dropbear.pid
+  - command: |
+      cabal v2-update
+      test -e cabal.project.freeze && exit 0
+      FREEZE=cabal.GHC-$(ghc --numeric-version).config
+      test -e $FREEZE && ln -s $FREEZE cabal.project.freeze
+  - command: |
+      mkdir -p ~/.ssh
+      if test -z "$SSH_KEY"; then
+          echo "Warning: SSH_KEY not set, skipping SSH setup"
+      else
+          echo "$SSH_KEY" >> ~/.ssh/authorized_keys
+          echo "1. Install Chisel on your local machine, e.g. curl https://i.jpillora.com/chisel! | bash"
+          echo "   see https://github.com/jpillora/chisel"
+          echo ""
+          echo "2. Connect via SSH from your local machine:"
+          echo "   ssh -o ProxyCommand='chisel client $(gp url 8080) stdio:%h:%p' gitpod@localhost -p 2222"
+          echo ""
+      fi
+ports:
+  - port: 8080
+  - port: 2222
+    onOpen: ignore
+  - port: 2375
+    onOpen: ignore
+  - port: 43022
+    onOpen: ignore

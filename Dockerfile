@@ -1,4 +1,4 @@
-FROM debian:buster AS solvers
+FROM debian:buster-20210511 AS solvers
 
 # Install needed packages for building
 RUN apt-get update \
@@ -32,7 +32,8 @@ RUN curl -L https://yices.csl.sri.com/releases/2.6.2/yices-2.6.2-x86_64-pc-linux
 # Install CVC4 1.8
 # The latest CVC4 1.8 and the release version has a minor discrepency between it, causing sbv to fail
 # https://github.com/CVC4/CVC4/releases/download/1.8/cvc4-1.8-x86_64-linux-opt
-RUN latest="$(curl -sSL 'http://cvc4.cs.stanford.edu/downloads/builds/x86_64-linux-opt/unstable/' | grep linux-opt | tail -n1 | sed -e 's/.*href="//' -e 's/\([^>]*\)">.*$/\1/')" && \
+#RUN latest="$(curl -sSL 'http://cvc4.cs.stanford.edu/downloads/builds/x86_64-linux-opt/unstable/' | grep linux-opt | tail -n1 | sed -e 's/.*href="//' -e 's/\([^>]*\)">.*$/\1/')" && \
+RUN latest="cvc4-2021-03-13-x86_64-linux-opt" && \
     curl --output rootfs/usr/local/bin/cvc4 -sSL "https://cvc4.cs.stanford.edu/downloads/builds/x86_64-linux-opt/unstable/$latest"
 
 # Install MathSAT 5.6.3 - Uncomment if you are in compliance with MathSAT's license.
@@ -73,7 +74,7 @@ RUN mkdir -p rootfs/"${CRYPTOLPATH}" \
 USER root
 RUN chown -R root:root /cryptol/rootfs
 
-FROM debian:buster-slim
+FROM debian:buster-20210511-slim
 RUN apt-get update \
     && apt-get install -y libgmp10 libgomp1 libffi6 libncurses6 libtinfo6 libreadline7 \
     && apt-get clean && rm -rf /var/lib/apt/lists/*

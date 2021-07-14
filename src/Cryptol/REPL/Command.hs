@@ -46,6 +46,7 @@ module Cryptol.REPL.Command (
     -- Misc utilities
   , handleCtrlC
   , sanitize
+  , withRWTempFile
 
     -- To support Notebook interface (might need to refactor)
   , replParse

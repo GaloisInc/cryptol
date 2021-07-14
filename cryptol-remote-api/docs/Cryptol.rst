@@ -13,39 +13,37 @@ The server supports three transport methods:
 
 
 ``stdio``
-  in which the server communicates over ``stdin`` and ``stdout``
+  in which the server communicates over ``stdin`` and ``stdout`` using `netstrings. <http://cr.yp.to/proto/netstrings.txt>`_
   
   
 
-Socket
-  in which the server communicates over ``stdin`` and ``stdout``
+``socket``
+  in which the server communicates over a socket using `netstrings. <http://cr.yp.to/proto/netstrings.txt>`_
   
   
 
-HTTP
-  in which the server communicates over HTTP
+``http``
+  in which the server communicates over a socket using HTTP.
   
   
-In both ``stdio`` and socket mode, messages are delimited using `netstrings. <http://cr.yp.to/proto/netstrings.txt>`_
-
 
 Application State
 ~~~~~~~~~~~~~~~~~
 
 According to the JSON-RPC specification, the ``params`` field in a message object must be an array or object. In this protocol, it is always an object. While each message may specify its own arguments, every message has a parameter field named ``state``.
 
-When the first message is sent from the client to the server, the ``state`` parameter should be initialized to the JSON null value ``null``. Replies from the server may contain a new state that should be used in subsequent requests, so that state changes executed by the request are visible. Prior versions of this protocol represented the initial state as the empty array ``[]``, but this is now deprecated and will be removed.
+When the first message is sent from the client to the server, the ``state`` parameter should be initialized to the JSON null value ``null``. Replies from the server may contain a new state that should be used in subsequent requests, so that state changes executed by the request are visible.
 
 In particular, per JSON-RPC, non-error replies are always a JSON object that contains a ``result`` field. The result field always contains an ``answer`` field and a ``state`` field, as well as ``stdout`` and ``stderr``.
 
 
 ``answer``
-  The value returned as a response to the request (the precise contents depend on which request was sent)
+  The value returned as a response to the request (the precise contents depend on which request was sent).
   
   
 
 ``state``
-  The state, to be sent in subsequent requests. If the server did not modify its state in response to the command, then this state may be the same as the one sent by the client.
+  The state, to be sent in subsequent requests. If the server did not modify its state in response to the command, then this state may be the same as the one sent by the client. When a new state is in a server response, the previous state may no longer be available for requests.
   
   
 
@@ -559,7 +557,7 @@ Parameter fields
 
 
 ``prover``
-  The SMT solver to use to check for satisfiability. I.e., one of the following: ``cvc4``, ``yices``, ``z3``, ``boolector``, ``mathsat``, ``abc``, ``offline``, ``any``, ``sbv-cvc4``, ``sbv-yices``, ``sbv-z3``, ``sbv-boolector``, ``sbv-mathsat``, ``sbv-abc``, ``sbv-offline``, ``sbv-any``, .
+  The SMT solver to use to check for satisfiability. I.e., one of the following: ``w4-cvc4``, ``w4-yices``, ``w4-z3``, ``w4-boolector``, ``w4-offline``, ``w4-any``, ``cvc4``, ``yices``, ``z3``, ``boolector``, ``mathsat``, ``abc``, ``offline``, ``any``, ``sbv-cvc4``, ``sbv-yices``, ``sbv-z3``, ``sbv-boolector``, ``sbv-mathsat``, ``sbv-abc``, ``sbv-offline``, ``sbv-any``.
   
   
 
@@ -578,27 +576,37 @@ Parameter fields
   
   
 
+``hash consing``
+  Whether or not to use hash consing of terms (if available).``true`` to enable or ``false`` to disable.
+  
+  
+
 Return fields
 +++++++++++++
 
 
 ``result``
-  A string (one of ``unsatisfiable``, ``invalid``, or ``satisfied``) indicating the result of checking for validity, satisfiability, or safety.
+  Either a string indicating the result of checking for validity, satisfiability, or safety---i.e., one of ``unsatisfiable``, ``invalid``, or ``satisfied``---or the string literal ``offline`` indicating an offline solver option was selected and the contents of the SMT query will be returned instead of a SAT result.
   
   
 
 ``counterexample type``
-  Only used if the ``result`` is ``invalid``.This describes the variety of counterexample that was produced. This can be either ``safety violation`` or ``predicate falsified``.
+  Only used if the ``result`` is ``invalid``. This describes the variety of counterexample that was produced. This can be either ``safety violation`` or ``predicate falsified``.
   
   
 
 ``counterexample``
-  Only used if the ``result`` is ``invalid``.A list of objects where each object has an ``expr``field, indicating a counterexample expression, and a ``type``field, indicating the type of the expression.
+  Only used if the ``result`` is ``invalid``. A list of objects where each object has an ``expr``field, indicating a counterexample expression, and a ``type``field, indicating the type of the expression.
   
   
 
 ``models``
-  Only used if the ``result`` is ``satisfied``.A list of list of objects where each object has an ``expr``field, indicating a expression in a model, and a ``type``field, indicating the type of the expression.
+  Only used if the ``result`` is ``satisfied``. A list of list of objects where each object has an ``expr``field, indicating a expression in a model, and a ``type``field, indicating the type of the expression.
+  
+  
+
+``query``
+  Only used if the ``result`` is ``offline``. The raw textual contents of the requested SMT query which can inspected or manually given to an SMT solver.
   
   
 

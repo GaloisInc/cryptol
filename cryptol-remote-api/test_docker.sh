@@ -2,17 +2,19 @@
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-TAG=${1:-cryptol-remote-api}
+PROTO=${1:-"http"}
+TAG=${2:-cryptol-remote-api}
 
 pushd $DIR
 
-rm $PWD/python/tests/cryptol/test-files/examples
-mv $PWD/../examples $PWD/python/tests/cryptol/test-files/
+rm -fr $DIR/python/tests/cryptol/test-files/examples
+cp -r $DIR/../examples $DIR/python/tests/cryptol/test-files/
 
-docker run --name=cryptol-remote-api -d \
-  -v $PWD/python/tests/cryptol/test-files:/home/cryptol/tests/cryptol/test-files \
+CONTAINER=$(docker run -d \
+  -v $DIR/python/tests/cryptol/test-files:/home/cryptol/tests/cryptol/test-files \
   -p 8080:8080 \
-  $TAG
+  $([[ "$PROTO" == "https" ]] && echo "-e TLS_ENABLE=1") \
+  $TAG)
 
 popd
 
@@ -25,7 +27,7 @@ NUM_FAILS=0
 echo "Setting up python environment for remote server clients..."
 poetry install
 
-export CRYPTOL_SERVER_URL="http://localhost:8080/"
+export CRYPTOL_SERVER_URL="$PROTO://localhost:8080/"
 poetry run python -m unittest discover tests/cryptol
 if [ $? -ne 0 ]; then
     NUM_FAILS=$(($NUM_FAILS+1))
@@ -35,7 +37,7 @@ popd
 
 echo "killing docker container"
 
-docker container kill cryptol-remote-api
+docker container kill $CONTAINER
 
 
 if [ $NUM_FAILS -eq 0 ]

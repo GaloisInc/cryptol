@@ -197,7 +197,7 @@ jobs:
       matrix:
         suite: [test-lib]
         target: ${{ fromJson(needs.build.outputs.test-lib-json) }}
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest] # , windows-latest]
         continue-on-error: [false]
         include:
           - suite: rpc
@@ -208,10 +208,10 @@ jobs:
             target: ''
             os: macos-latest
             continue-on-error: false
-          - suite: rpc
-            target: ''
-            os: windows
-            continue-on-error: true  # TODO: get Python client to work on Windows
+          #- suite: rpc
+          #  target: ''
+          #  os: windows-latest
+          #  continue-on-error: true  # TODO: get Python client to work on Windows
     steps:
       - uses: actions/checkout@v2
         with:
@@ -349,7 +349,11 @@ jobs:
 
       - if: matrix.image == 'ghcr.io/galoisinc/cryptol-remote-api'
         name: Test cryptol-remote-api
-        run: ./cryptol-remote-api/test_docker.sh ${{ matrix.image }}:${{ steps.common-tag.outputs.common-tag }}
+        run: ./cryptol-remote-api/test_docker.sh http ${{ matrix.image }}:${{ steps.common-tag.outputs.common-tag }}
+
+      - if: matrix.image == 'ghcr.io/galoisinc/cryptol-remote-api'
+        name: Test cryptol-remote-api (TLS)
+        run: ./cryptol-remote-api/test_docker.sh https ${{ matrix.image }}:${{ steps.common-tag.outputs.common-tag }}
 
       - if: matrix.image == 'ghcr.io/galoisinc/cryptol-remote-api'
         uses: docker/build-push-action@v2
@@ -391,13 +395,13 @@ jobs:
       - if: needs.config.outputs.event-schedule == 'true'
         name: ${{ matrix.image }}:nightly
         run: |
-          docker tag ${{ matrix.image }}:$COMMON_TAG ${{ matrix.image }}:nightly
+          docker tag ${{ matrix.image }}:${{ steps.common-tag.outputs.common-tag }} ${{ matrix.image }}:nightly
           docker push ${{ matrix.image }}:nightly
 
       - if: needs.config.outputs.release == 'true'
         name: ${{ matrix.image }}:${{ needs.config.outputs.version }}
         run: |
-          docker tag ${{ matrix.image }}:$COMMON_TAG ${{ matrix.image }}:${{ needs.config.outputs.version }}
+          docker tag ${{ matrix.image }}:${{ steps.common-tag.outputs.common-tag }} ${{ matrix.image }}:${{ needs.config.outputs.version }}
           docker push ${{ matrix.image }}:${{ needs.config.outputs.version }}
-          docker tag ${{ matrix.image }}:$COMMON_TAG ${{ matrix.image }}:latest
+          docker tag ${{ matrix.image }}:${{ steps.common-tag.outputs.common-tag }} ${{ matrix.image }}:latest
           docker push ${{ matrix.image }}:latest
