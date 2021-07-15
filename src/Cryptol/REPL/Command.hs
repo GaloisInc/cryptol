@@ -785,6 +785,9 @@ proveSatExpr isSat rng exprDoc texpr schema = do
             ~(EnvBool yes) <- getUser "showExamples"
             when yes $ forM_ vss (printSatisfyingModel exprDoc)
 
+            let numModels = length tevss
+            when (numModels > 1) (rPutStrLn ("Models found: " ++ show numModels))
+
             case exprs of
               [e] -> void $ bindItVariable ty e
               _   -> bindItVariables ty exprs
