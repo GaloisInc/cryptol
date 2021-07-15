@@ -118,7 +118,10 @@ mod_mul p x y = (BN.bigNatMul x y) `BN.bigNatRem` (primeMod p)
 -- | Compute the modular difference of two input values.  The inputs are
 --   required to be in reduced form, and will output a value in reduced form.
 mod_sub :: PrimeModulus -> BigNat# -> BigNat# -> BigNat#
-mod_sub p x y = mod_add p x (BN.bigNatSubUnsafe (primeMod p) y)
+mod_sub p x y =
+  case BN.bigNatSub (primeMod p) y of
+    (# | y' #) -> mod_add p x y'
+    (# (# #) | #) -> x -- BOGUS!
 
 -- | Compute the modular square of an input value @x@; that is, @x*x@.
 --   The input is not required to be in reduced form, and the output
@@ -201,7 +204,9 @@ ec_add p s t
 --   cases for subtracting points which might be the identity.
 ec_sub :: PrimeModulus -> ProjectivePoint -> ProjectivePoint -> ProjectivePoint
 ec_sub p s t = ec_add p s u
-  where u = t{ py = BN.bigNatSubUnsafe (primeMod p) (py t) }
+  where u = case BN.bigNatSub (primeMod p) (py t) of
+              (# | y' #)    -> t{ py = y' }
+              (# (# #) | #) -> panic "ec_sub" ["cooridnate not in reduced form!", show (bigNatToInteger (py t))]
 {-# INLINE ec_sub #-}
 
 
