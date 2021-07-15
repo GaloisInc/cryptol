@@ -9,6 +9,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MagicHash #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE Rank2Types #-}
@@ -17,6 +18,7 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE UnboxedTuples #-}
 module Cryptol.Backend.Concrete
   ( BV(..)
   , binBV
@@ -40,7 +42,7 @@ import Data.Bits
 import Data.Ratio
 import Numeric (showIntAtBase)
 import qualified LibBF as FP
-import qualified GHC.Integer.GMP.Internals as Integer
+import qualified GHC.Num.Integer as Integer
 
 import qualified Cryptol.Backend.Arch as Arch
 import qualified Cryptol.Backend.FloatHelpers as FP
@@ -339,11 +341,10 @@ instance Backend Concrete where
   -- NB: under the precondition that `m` is prime,
   -- the only values for which no inverse exists are
   -- congruent to 0 modulo m.
-  znRecip sym m x
-    | r == 0    = raiseError sym DivideByZero
-    | otherwise = pure r
-   where
-     r = Integer.recipModInteger x m
+  znRecip sym m x =
+    case Integer.integerRecipMod# x (Integer.integerToNaturalClamp m) of
+      (# r |  #) -> integerLit sym (toInteger r)
+      (# | () #) -> raiseError sym DivideByZero
 
   znPlus  _ = liftBinIntMod (+)
   znMinus _ = liftBinIntMod (-)

@@ -8,10 +8,12 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MagicHash #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE UnboxedTuples #-}
 module Cryptol.Backend.What4 where
 
 
@@ -28,7 +30,7 @@ import           Data.Text (Text)
 import           Data.Parameterized.NatRepr
 import           Data.Parameterized.Some
 
-import qualified GHC.Integer.GMP.Internals as Integer
+import qualified GHC.Num.Integer as Integer
 
 import qualified What4.Interface as W4
 import qualified What4.SWord as SW
@@ -667,8 +669,9 @@ sModRecip _sym 0 _ = panic "sModRecip" ["0 modulus not allowed"]
 sModRecip sym m x
   -- If the input is concrete, evaluate the answer
   | Just xi <- W4.asInteger x
-  = let r = Integer.recipModInteger xi m
-     in if r == 0 then raiseError sym DivideByZero else integerLit sym r
+  = case Integer.integerRecipMod# xi (Integer.integerToNaturalClamp m) of
+      (# r |  #) -> integerLit sym (toInteger r)
+      (# | () #) -> raiseError sym DivideByZero
 
   -- If the input is symbolic, create a new symbolic constant
   -- and assert that it is the desired multiplicitive inverse.
