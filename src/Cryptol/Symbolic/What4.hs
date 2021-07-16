@@ -78,9 +78,10 @@ import qualified What4.SFloat as W4
 import qualified What4.SWord as SW
 import           What4.Solver
 import qualified What4.Solver.Boolector as W4
-import qualified What4.Solver.Z3 as W4
 import qualified What4.Solver.CVC4 as W4
+import qualified What4.Solver.ExternalABC as W4
 import qualified What4.Solver.Yices as W4
+import qualified What4.Solver.Z3 as W4
 import qualified What4.Solver.Adapter as W4
 import qualified What4.Protocol.Online as W4
 import qualified What4.Protocol.SMTLib2 as W4
@@ -159,6 +160,9 @@ proverConfigs =
   , ("w4-yices"     , W4ProverConfig yicesOnlineAdapter)
   , ("w4-z3"        , W4ProverConfig z3OnlineAdapter)
   , ("w4-boolector" , W4ProverConfig boolectorOnlineAdapter)
+
+  , ("w4-abc"       , W4ProverConfig (AnAdapter W4.externalABCAdapter))
+
   , ("w4-offline"   , W4OfflineConfig )
   , ("w4-any"       , allSolvers)
   ]
