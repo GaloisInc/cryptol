@@ -1,0 +1,9 @@
+:l allsat.cry
+
+:set satNum=all
+:set showExamples=false
+:set prover=sbv-yices
+:sat f
+
+:set prover=w4-yices
+:sat f

@@ -1,0 +1,3 @@
+f : (Integer, Integer, Integer) -> Bit
+f (x, y, z) =  inRange x && inRange y && inRange z
+  where inRange v = (1 <= v) && (v <= 15)
