@@ -888,10 +888,10 @@ offlineProveSat proverName qtype expr schema mfile = do
                Just path -> io $ writeFile path smtlib
                Nothing -> rPutStr smtlib
 
-    Right w4Cfg ->
+    Right _w4Cfg ->
       do ~(EnvBool hashConsing) <- getUser "hashConsing"
          ~(EnvBool warnUninterp) <- getUser "warnUninterp"
-         result <- liftModuleCmd $ W4.satProveOffline w4Cfg hashConsing warnUninterp cmd $ \f ->
+         result <- liftModuleCmd $ W4.satProveOffline hashConsing warnUninterp cmd $ \f ->
                      do displayMsg
                         case mfile of
                           Just path ->
