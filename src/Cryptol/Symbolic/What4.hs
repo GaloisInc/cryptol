@@ -196,6 +196,7 @@ allSolvers = W4Portfolio
   [ cvc4OnlineAdapter
   , boolectorOnlineAdapter
   , yicesOnlineAdapter
+  , AnAdapter W4.externalABCAdapter
   ]
 
 defaultProver :: W4ProverConfig
