@@ -118,7 +118,7 @@ import Control.Monad.IO.Class
 import Control.Monad.Trans.Control
 import Data.Char (isSpace, toLower)
 import Data.IORef
-    (IORef,newIORef,readIORef,modifyIORef,atomicModifyIORef)
+    (IORef,newIORef,readIORef,atomicModifyIORef)
 import Data.List (intercalate, isPrefixOf, unfoldr, sortBy)
 import Data.Maybe (catMaybes)
 import Data.Ord (comparing)
@@ -413,7 +413,7 @@ modifyRW :: (RW -> (RW,a)) -> REPL a
 modifyRW f = REPL (\ ref -> atomicModifyIORef ref f)
 
 modifyRW_ :: (RW -> RW) -> REPL ()
-modifyRW_ f = REPL (\ ref -> modifyIORef ref f)
+modifyRW_ f = REPL (\ ref -> atomicModifyIORef ref (\x -> (f x, ())))
 
 -- | Construct the prompt for the current environment.
 getPrompt :: REPL String
