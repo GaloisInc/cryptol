@@ -6,8 +6,18 @@
     - Paren blocks nested in a layout block need to respect the indentation
       if the layout block
     - We allow nested layout blocks to have the same indentation, which is
-      conveninet when writing `private` declarations as they don't need to
+      convenient when writing `private` declarations as they don't need to
       be indented as long as they are at the end of the file.
+
+## New features
+
+* What4 prover backends now feature an improved multi-SAT procedure
+  which is significantly faster than the old algorithm. Thanks to
+  Levent Erkök for the suggestion.
+
+* There is a new `w4-abc` solver option, which communicates to ABC
+  as an external process via What4.
+
 
 # 2.11.0
 
