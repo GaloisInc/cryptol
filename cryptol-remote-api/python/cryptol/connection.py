@@ -258,14 +258,6 @@ class CryptolConnection:
         CryptolResetServer(self)
         self.most_recent_result = None
 
-    def __del__(self) -> None:
-        # when being deleted, ensure we don't have a lingering state on the server
-        if self.most_recent_result is not None:
-            try:
-                CryptolReset(self)
-            except Exception:
-                pass
-
 class CryptolDynamicSocketProcess(DynamicSocketProcess):
 
     def __init__(self, command: str, *,
