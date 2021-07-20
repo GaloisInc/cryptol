@@ -785,6 +785,9 @@ proveSatExpr isSat rng exprDoc texpr schema = do
             ~(EnvBool yes) <- getUser "showExamples"
             when yes $ forM_ vss (printSatisfyingModel exprDoc)
 
+            let numModels = length tevss
+            when (numModels > 1) (rPutStrLn ("Models found: " ++ show numModels))
+
             case exprs of
               [e] -> void $ bindItVariable ty e
               _   -> bindItVariables ty exprs
@@ -885,10 +888,10 @@ offlineProveSat proverName qtype expr schema mfile = do
                Just path -> io $ writeFile path smtlib
                Nothing -> rPutStr smtlib
 
-    Right w4Cfg ->
+    Right _w4Cfg ->
       do ~(EnvBool hashConsing) <- getUser "hashConsing"
          ~(EnvBool warnUninterp) <- getUser "warnUninterp"
-         result <- liftModuleCmd $ W4.satProveOffline w4Cfg hashConsing warnUninterp cmd $ \f ->
+         result <- liftModuleCmd $ W4.satProveOffline hashConsing warnUninterp cmd $ \f ->
                      do displayMsg
                         case mfile of
                           Just path ->

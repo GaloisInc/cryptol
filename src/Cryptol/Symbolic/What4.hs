@@ -8,8 +8,10 @@
 
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE ParallelListComp #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -33,13 +35,14 @@ import Control.Applicative
 import Control.Concurrent.Async
 import Control.Concurrent.MVar
 import Control.Monad.IO.Class
-import Control.Monad (when, foldM, forM_)
+import Control.Monad (when, foldM, forM_, void)
 import qualified Control.Exception as X
 import System.IO (Handle)
 import Data.Time
 import Data.IORef
-import Data.List (intercalate)
+import Data.List (intercalate, tails, inits)
 import Data.List.NonEmpty (NonEmpty(..))
+import Data.Proxy
 import qualified Data.Map as Map
 import           Data.Set (Set)
 import qualified Data.Set as Set
@@ -60,7 +63,9 @@ import           Cryptol.Backend.What4
 import qualified Cryptol.Eval as Eval
 import qualified Cryptol.Eval.Concrete as Concrete
 import qualified Cryptol.Eval.Value as Eval
+import           Cryptol.Eval.Type (TValue)
 import           Cryptol.Eval.What4
+
 import           Cryptol.Parser.Position (emptyRange)
 import           Cryptol.Symbolic
 import           Cryptol.TypeCheck.AST
@@ -75,7 +80,15 @@ import qualified What4.SatResult as W4
 import qualified What4.SFloat as W4
 import qualified What4.SWord as SW
 import           What4.Solver
+import qualified What4.Solver.Boolector as W4
+import qualified What4.Solver.CVC4 as W4
+import qualified What4.Solver.ExternalABC as W4
+import qualified What4.Solver.Yices as W4
+import qualified What4.Solver.Z3 as W4
 import qualified What4.Solver.Adapter as W4
+import qualified What4.Protocol.Online as W4
+import qualified What4.Protocol.SMTLib2 as W4
+import qualified What4.ProblemFeatures as W4
 
 import qualified Data.BitVector.Sized as BV
 import           Data.Parameterized.Nonce
@@ -130,32 +143,64 @@ doW4Eval sym m =
        W4Result p x -> pure (p,x)
 
 
-data AnAdapter = AnAdapter (forall st. SolverAdapter st)
+data AnAdapter
+  = AnAdapter (forall st. SolverAdapter st)
+  | forall s. W4.OnlineSolver s =>
+     AnOnlineAdapter
+       String
+       W4.ProblemFeatures
+       [W4.ConfigDesc]
+       (Proxy s)
 
 data W4ProverConfig
   = W4ProverConfig AnAdapter
+  | W4OfflineConfig
   | W4Portfolio (NonEmpty AnAdapter)
 
 proverConfigs :: [(String, W4ProverConfig)]
 proverConfigs =
-  [ ("w4-cvc4"     , W4ProverConfig (AnAdapter cvc4Adapter) )
-  , ("w4-yices"    , W4ProverConfig (AnAdapter yicesAdapter) )
-  , ("w4-z3"       , W4ProverConfig (AnAdapter z3Adapter) )
-  , ("w4-boolector", W4ProverConfig (AnAdapter boolectorAdapter) )
-  , ("w4-offline"  , W4ProverConfig (AnAdapter z3Adapter) )
-  , ("w4-any"      , allSolvers)
+  [ ("w4-cvc4"      , W4ProverConfig cvc4OnlineAdapter)
+  , ("w4-yices"     , W4ProverConfig yicesOnlineAdapter)
+  , ("w4-z3"        , W4ProverConfig z3OnlineAdapter)
+  , ("w4-boolector" , W4ProverConfig boolectorOnlineAdapter)
+
+  , ("w4-abc"       , W4ProverConfig (AnAdapter W4.externalABCAdapter))
+
+  , ("w4-offline"   , W4OfflineConfig )
+  , ("w4-any"       , allSolvers)
   ]
+
+z3OnlineAdapter :: AnAdapter
+z3OnlineAdapter =
+  AnOnlineAdapter "Z3" W4.z3Features W4.z3Options
+         (Proxy :: Proxy (W4.Writer W4.Z3))
+
+yicesOnlineAdapter :: AnAdapter
+yicesOnlineAdapter =
+  AnOnlineAdapter "Yices" W4.yicesDefaultFeatures W4.yicesOptions
+         (Proxy :: Proxy W4.Connection)
+
+cvc4OnlineAdapter :: AnAdapter
+cvc4OnlineAdapter =
+  AnOnlineAdapter "CVC4" W4.cvc4Features W4.cvc4Options
+         (Proxy :: Proxy (W4.Writer W4.CVC4))
+
+boolectorOnlineAdapter :: AnAdapter
+boolectorOnlineAdapter =
+  AnOnlineAdapter "Boolector" W4.boolectorFeatures W4.boolectorOptions
+         (Proxy :: Proxy (W4.Writer W4.Boolector))
 
 allSolvers :: W4ProverConfig
 allSolvers = W4Portfolio
-  $ AnAdapter z3Adapter :|
-  [ AnAdapter cvc4Adapter
-  , AnAdapter boolectorAdapter
-  , AnAdapter yicesAdapter
+  $ z3OnlineAdapter :|
+  [ cvc4OnlineAdapter
+  , boolectorOnlineAdapter
+  , yicesOnlineAdapter
+  , AnAdapter W4.externalABCAdapter
   ]
 
 defaultProver :: W4ProverConfig
-defaultProver = W4ProverConfig (AnAdapter z3Adapter)
+defaultProver = W4ProverConfig z3OnlineAdapter
 
 proverNames :: [String]
 proverNames = map fst proverConfigs
@@ -178,12 +223,16 @@ setupProver nm =
            let msg = "What4 found the following solvers: " ++ show (adapterNames (p:ps')) in
            pure (Right ([msg], W4Portfolio (p:|ps')))
 
+    Just W4OfflineConfig -> pure (Right ([], W4OfflineConfig))
+
     Nothing -> pure (Left ("unknown solver name: " ++ nm))
 
   where
   adapterNames [] = []
   adapterNames (AnAdapter adpt : ps) =
     solver_adapter_name adpt : adapterNames ps
+  adapterNames (AnOnlineAdapter n _ _ _ : ps) =
+    n : adapterNames ps
 
   filterAdapters [] = pure []
   filterAdapters (p:ps) =
@@ -191,12 +240,25 @@ setupProver nm =
       Just _err -> filterAdapters ps
       Nothing   -> (p:) <$> filterAdapters ps
 
+  tryAdapter :: AnAdapter -> IO (Maybe X.SomeException)
+
   tryAdapter (AnAdapter adpt) =
      do sym <- W4.newExprBuilder W4.FloatIEEERepr CryptolState globalNonceGenerator
         W4.extendConfig (W4.solver_adapter_config_options adpt) (W4.getConfiguration sym)
         W4.smokeTest sym adpt
 
-
+  tryAdapter (AnOnlineAdapter _ fs opts (_ :: Proxy s)) = test `X.catch` (pure . Just)
+   where
+    test =
+      do sym <- W4.newExprBuilder W4.FloatIEEERepr CryptolState globalNonceGenerator
+         W4.extendConfig opts (W4.getConfiguration sym)
+         (proc :: W4.SolverProcess GlobalNonceGenerator s) <- W4.startSolverProcess fs Nothing sym
+         res <- W4.checkSatisfiable proc "smoke test" (W4.falsePred sym)
+         case res of
+           W4.Unsat () -> return ()
+           _ -> fail "smoke test failed, expected UNSAT!"
+         void (W4.shutdownSolverProcess proc)
+         return Nothing
 
 proverError :: String -> M.ModuleCmd (Maybe String, ProverResult)
 proverError msg minp =
@@ -211,11 +273,13 @@ setupAdapterOptions cfg sym =
    case cfg of
      W4ProverConfig p -> setupAnAdapter p
      W4Portfolio ps -> mapM_ setupAnAdapter ps
+     W4OfflineConfig -> return ()
 
   where
   setupAnAdapter (AnAdapter adpt) =
     W4.extendConfig (W4.solver_adapter_config_options adpt) (W4.getConfiguration sym)
-
+  setupAnAdapter (AnOnlineAdapter _n _fs opts _p) =
+    W4.extendConfig opts (W4.getConfiguration sym)
 
 what4FreshFns :: W4.IsSymExprBuilder sym => sym -> FreshVarFns (What4 sym)
 what4FreshFns sym =
@@ -350,16 +414,13 @@ satProve solverCfg hashConsing warnUninterp ProverCommand {..} =
       Right (ts,args,safety,query) ->
         case pcQueryType of
           ProveQuery ->
-            singleQuery sym solverCfg primMap logData ts args
-                                                          (Just safety) query
+            singleQuery sym solverCfg primMap logData ts args (Just safety) query
 
           SafetyQuery ->
-            singleQuery sym solverCfg primMap logData ts args
-                                                          (Just safety) query
+            singleQuery sym solverCfg primMap logData ts args (Just safety) query
 
           SatQuery num ->
-            multiSATQuery sym solverCfg primMap logData ts args
-                                                            query num
+            multiSATQuery sym solverCfg primMap logData ts args query num
 
 printUninterpWarn :: Logger -> Set Text -> IO ()
 printUninterpWarn lg uninterpWarns =
@@ -371,17 +432,14 @@ printUninterpWarn lg uninterpWarns =
              , "  " ++ intercalate ", " (map Text.unpack xs) ]
 
 satProveOffline ::
-  W4ProverConfig ->
   Bool {- ^ hash consing -} ->
   Bool {- ^ warn on uninterpreted functions -} ->
   ProverCommand ->
   ((Handle -> IO ()) -> IO ()) ->
   M.ModuleCmd (Maybe String)
 
-satProveOffline (W4Portfolio (p:|_)) hashConsing warnUninterp cmd outputContinuation =
-  satProveOffline (W4ProverConfig p) hashConsing warnUninterp cmd outputContinuation
+satProveOffline hashConsing warnUninterp ProverCommand{ .. } outputContinuation =
 
-satProveOffline (W4ProverConfig (AnAdapter adpt)) hashConsing warnUninterp ProverCommand {..} outputContinuation =
   protectStack onError \modIn ->
   M.runModuleM modIn
    do w4sym <- liftIO makeSym
@@ -396,27 +454,26 @@ satProveOffline (W4ProverConfig (AnAdapter adpt)) hashConsing warnUninterp Prove
         case ok of
           Left msg -> return (Just msg)
           Right (_ts,_args,_safety,query) ->
-            do outputContinuation
-                  (\hdl -> solver_adapter_write_smt2 adpt w4sym hdl [query])
+            do outputContinuation (\hdl -> W4.writeZ3SMT2File w4sym hdl [query])
                return Nothing
   where
   makeSym =
-    do sym <- W4.newExprBuilder W4.FloatIEEERepr CryptolState
-                                                    globalNonceGenerator
-       W4.extendConfig (W4.solver_adapter_config_options adpt)
-                       (W4.getConfiguration sym)
+    do sym <- W4.newExprBuilder W4.FloatIEEERepr CryptolState globalNonceGenerator
+       W4.extendConfig W4.z3Options (W4.getConfiguration sym)
        when hashConsing  (W4.startCaching sym)
        pure sym
 
   onError msg minp = pure (Right (Just msg, M.minpModuleEnv minp), [])
 
 
+{-
 decSatNum :: SatNum -> SatNum
 decSatNum (SomeSat n) | n > 0 = SomeSat (n-1)
 decSatNum n = n
+-}
 
 
-multiSATQuery ::
+multiSATQuery :: forall sym t fm.
   sym ~ W4.ExprBuilder t CryptolState fm =>
   What4 sym ->
   W4ProverConfig ->
@@ -427,57 +484,144 @@ multiSATQuery ::
   W4.Pred sym ->
   SatNum ->
   IO (Maybe String, ProverResult)
+
 multiSATQuery sym solverCfg primMap logData ts args query (SomeSat n) | n <= 1 =
   singleQuery sym solverCfg primMap logData ts args Nothing query
 
+multiSATQuery _sym W4OfflineConfig _primMap _logData _ts _args _query _satNum =
+  fail "What4 offline solver cannot be used for multi-SAT queries"
+
 multiSATQuery _sym (W4Portfolio _) _primMap _logData _ts _args _query _satNum =
-  fail "What4 portfolio solver cannot be used for multi SAT queries"
+  fail "What4 portfolio solver cannot be used for multi-SAT queries"
 
-multiSATQuery sym (W4ProverConfig (AnAdapter adpt)) primMap logData ts args query satNum0 =
-  do pres <- W4.solver_adapter_check_sat adpt (w4 sym) logData [query] $ \res ->
-         case res of
-           W4.Unknown -> return (Left (ProverError "Solver returned UNKNOWN"))
-           W4.Unsat _ -> return (Left (ThmResult (map unFinType ts)))
-           W4.Sat (evalFn,_) ->
-             do xs <- mapM (varShapeToConcrete evalFn) args
-                let model = computeModel primMap ts xs
-                blockingPred <- computeBlockingPred sym args xs
-                return (Right (model, blockingPred))
+multiSATQuery _sym (W4ProverConfig (AnAdapter adpt)) _primMap _logData _ts _args _query _satNum =
+  fail ("Solver " ++ solver_adapter_name adpt ++ " does not support incremental solving and " ++
+        "cannot be used for multi-SAT queries.")
 
-     case pres of
-       Left res -> pure (Just (solver_adapter_name adpt), res)
-       Right (mdl,block) ->
-         do mdls <- (mdl:) <$> computeMoreModels [block,query] (decSatNum satNum0)
-            return (Just (solver_adapter_name adpt), AllSatResult mdls)
+multiSATQuery sym (W4ProverConfig (AnOnlineAdapter nm fs _opts (_ :: Proxy s)))
+               primMap _logData ts args query satNum0 =
+    X.bracket
+      (W4.startSolverProcess fs Nothing (w4 sym))
+      (void . W4.shutdownSolverProcess)
+      (\ (proc :: W4.SolverProcess t s) ->
+        do W4.assume (W4.solverConn proc) query
+           res <- W4.checkAndGetModel proc "query"
+           case res of
+             W4.Unknown -> return (Just nm, ProverError "Solver returned UNKNOWN")
+             W4.Unsat _ -> return (Just nm, ThmResult (map unFinType ts))
+             W4.Sat evalFn ->
+               do xs <- mapM (varShapeToConcrete evalFn) args
+                  let mdl = computeModel primMap ts xs
+                  -- NB, we flatten these shapes to make sure that we can split
+                  -- our search across all of the atomic variables
+                  let vs = flattenShapes args []
+                  let cs = flattenShapes xs []
+                  mdls <- runMultiSat satNum0 $
+                            do yield mdl
+                               computeMoreModels proc vs cs
+                  return (Just nm, AllSatResult mdls))
 
   where
+  -- This search procedure uses incremental solving and push/pop to split on the concrete
+  -- values of variables, while also helping to prevent the accumulation of unhelpful
+  -- lemmas in the solver state.  This algorithm is basically taken from:
+  --   http://theory.stanford.edu/%7Enikolaj/programmingz3.html#sec-blocking-evaluations
+  computeMoreModels ::
+    W4.SolverProcess t s ->
+    [VarShape (What4 sym)] ->
+    [VarShape Concrete.Concrete] ->
+    MultiSat ()
+  computeMoreModels proc vs cs =
+    -- Enumerate all the ways to split up the current model
+    forM_ (computeSplits vs cs) $ \ (prefix, vi, ci, suffix) ->
+      do -- open a new solver frame
+         liftIO $ W4.push proc
+         -- force the selected pair to be different
+         liftIO $ W4.assume (W4.solverConn proc) =<< W4.notPred (w4 sym) =<< computeModelPred sym vi ci
+         -- force the prefix values to be the same
+         liftIO $ forM_ prefix $ \(v,c) ->
+           W4.assume (W4.solverConn proc) =<< computeModelPred sym v c
+         -- under these assumptions, find all the remaining models
+         findMoreModels proc (vi:suffix)
+         -- pop the current assumption frame
+         liftIO $ W4.pop proc
 
-  computeMoreModels _qs (SomeSat n) | n <= 0 = return [] -- should never happen...
-  computeMoreModels qs (SomeSat n) | n <= 1 = -- final model
-    W4.solver_adapter_check_sat adpt (w4 sym) logData qs $ \res ->
-         case res of
-           W4.Unknown -> return []
-           W4.Unsat _ -> return []
-           W4.Sat (evalFn,_) ->
-             do xs <- mapM (varShapeToConcrete evalFn) args
-                let model = computeModel primMap ts xs
-                return [model]
+  findMoreModels ::
+    W4.SolverProcess t s ->
+    [VarShape (What4 sym)] ->
+    MultiSat ()
+  findMoreModels proc vs =
+    -- see if our current assumptions are consistent
+    do res <- liftIO (W4.checkAndGetModel proc "find model")
+       case res of
+         -- if the solver gets stuck, drop all the way out and stop search
+         W4.Unknown -> done
+         -- if our assumptions are already unsatisfiable, stop search and return
+         W4.Unsat _ -> return ()
+         W4.Sat evalFn ->
+           -- We found a model.  Record it and then use it to split the remaining
+           -- search variables some more.
+           do xs <- liftIO (mapM (varShapeToConcrete evalFn) args)
+              yield (computeModel primMap ts xs)
+              cs <- liftIO (mapM (varShapeToConcrete evalFn) vs)
+              computeMoreModels proc vs cs
 
-  computeMoreModels qs satNum =
-    do pres <- W4.solver_adapter_check_sat adpt (w4 sym) logData qs $ \res ->
-         case res of
-           W4.Unknown -> return Nothing
-           W4.Unsat _ -> return Nothing
-           W4.Sat (evalFn,_) ->
-             do xs <- mapM (varShapeToConcrete evalFn) args
-                let model = computeModel primMap ts xs
-                blockingPred <- computeBlockingPred sym args xs
-                return (Just (model, blockingPred))
+-- == Support operations for multi-SAT ==
+type Models = [[(TValue, Expr, Concrete.Value)]]
 
-       case pres of
-         Nothing -> return []
-         Just (mdl, block) ->
-           (mdl:) <$> computeMoreModels (block:qs) (decSatNum satNum)
+newtype MultiSat a =
+  MultiSat { unMultiSat ::  Models -> SatNum -> (a -> Models -> SatNum -> IO Models) -> IO Models }
+
+instance Functor MultiSat where
+  fmap f m = MultiSat (\ms satNum k -> unMultiSat m ms satNum (k . f))
+
+instance Applicative MultiSat where
+  pure x = MultiSat (\ms satNum k -> k x ms satNum)
+  mf <*> mx = mf >>= \f -> fmap f mx
+
+instance Monad MultiSat where
+  m >>= f = MultiSat (\ms satNum k -> unMultiSat m ms satNum (\x ms' satNum' -> unMultiSat (f x) ms' satNum' k))
+
+instance MonadIO MultiSat where
+  liftIO m = MultiSat (\ms satNum k -> do x <- m; k x ms satNum)
+
+runMultiSat :: SatNum -> MultiSat a -> IO Models
+runMultiSat satNum m = reverse <$> unMultiSat m [] satNum (\_ ms _ -> return ms)
+
+done :: MultiSat a
+done = MultiSat (\ms _satNum _k -> return ms)
+
+yield :: [(TValue, Expr, Concrete.Value)] -> MultiSat ()
+yield mdl = MultiSat (\ms satNum k ->
+  case satNum of
+    SomeSat n
+      | n > 1 -> k () (mdl:ms) (SomeSat (n-1))
+      | otherwise -> return (mdl:ms)
+    _ -> k () (mdl:ms) satNum)
+
+-- Compute all the ways to split a sequences of variables
+-- and concrete values for those variables.  Each element
+-- of the list consists of a prefix of (varaible,value)
+-- pairs whose values we will fix, a single (varaible,value)
+-- pair that we will force to be different, and a list of
+-- additional unconstrained variables.
+computeSplits ::
+  [VarShape (What4 sym)] ->
+  [VarShape Concrete.Concrete] ->
+  [ ( [(VarShape (What4 sym), VarShape Concrete.Concrete)]
+    , VarShape (What4 sym)
+    , VarShape Concrete.Concrete
+    , [VarShape (What4 sym)]
+    )
+  ]
+computeSplits vs cs = reverse
+  [ (prefix, v, c, tl)
+  | prefix <- inits (zip vs cs)
+  | v      <- vs
+  | c      <- cs
+  | tl     <- tail (tails vs)
+  ]
+-- == END Support operations for multi-SAT ==
 
 singleQuery ::
   sym ~ W4.ExprBuilder t CryptolState fm =>
@@ -490,6 +634,10 @@ singleQuery ::
   Maybe (W4.Pred sym) {- ^ optional safety predicate.  Nothing = SAT query -} ->
   W4.Pred sym ->
   IO (Maybe String, ProverResult)
+
+singleQuery _ W4OfflineConfig _primMap _logData _ts _args _msafe _query =
+  -- this shouldn't happen...
+  fail "What4 offline solver cannot be used for direct queries"
 
 singleQuery sym (W4Portfolio ps) primMap logData ts args msafe query =
   do as <- mapM async [ singleQuery sym (W4ProverConfig p) primMap logData ts args msafe query
@@ -528,16 +676,37 @@ singleQuery sym (W4ProverConfig (AnAdapter adpt)) primMap logData ts args msafe 
 
      return (Just (W4.solver_adapter_name adpt), pres)
 
+singleQuery sym (W4ProverConfig (AnOnlineAdapter nm fs _opts (_ :: Proxy s)))
+              primMap _logData ts args msafe query =
+  X.bracket
+    (W4.startSolverProcess fs Nothing (w4 sym))
+    (void . W4.shutdownSolverProcess)
+    (\ (proc :: W4.SolverProcess t s) ->
+        do W4.assume (W4.solverConn proc) query
+           res <- W4.checkAndGetModel proc "query"
+           case res of
+             W4.Unknown -> return (Just nm, ProverError "Solver returned UNKNOWN")
+             W4.Unsat _ -> return (Just nm, ThmResult (map unFinType ts))
+             W4.Sat evalFn ->
+               do xs <- mapM (varShapeToConcrete evalFn) args
+                  let model = computeModel primMap ts xs
+                  case msafe of
+                    Just s ->
+                      do s' <- W4.groundEval evalFn s
+                         let cexType = if s' then PredicateFalsified else SafetyViolation
+                         return (Just nm, CounterExample cexType model)
+                    Nothing -> return (Just nm, AllSatResult [ model ])
+    )
 
-computeBlockingPred ::
+
+computeModelPred ::
   sym ~ W4.ExprBuilder t CryptolState fm =>
   What4 sym ->
-  [VarShape (What4 sym)] ->
-  [VarShape Concrete.Concrete] ->
+  VarShape (What4 sym) ->
+  VarShape Concrete.Concrete ->
   IO (W4.Pred sym)
-computeBlockingPred sym vs xs =
-  do res <- doW4Eval (w4 sym) (modelPred sym vs xs)
-     W4.notPred (w4 sym) (snd res)
+computeModelPred sym v c =
+  snd <$> doW4Eval (w4 sym) (varModelPred sym (v, c))
 
 varShapeToConcrete ::
   W4.GroundEvalFn t ->
