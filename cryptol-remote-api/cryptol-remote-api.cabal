@@ -91,7 +91,7 @@ executable cryptol-remote-api
 
   build-depends:
     cryptol-remote-api,
-    sbv < 8.10
+    sbv
 
   if os(linux) && flag(static)
       ld-options:      -static -pthread
@@ -108,7 +108,7 @@ executable cryptol-eval-server
   build-depends:
     cryptol-remote-api,
     optparse-applicative,
-    sbv < 8.10
+    sbv
 
   if os(linux) && flag(static)
       ld-options:      -static -pthread
