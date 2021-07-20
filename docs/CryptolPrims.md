@@ -25,13 +25,20 @@ Literals
     number : {val, rep} Literal val rep => rep
     length : {n, a, b} (fin n, Literal n b) => [n]a -> b
 
-    // '[a..b]' is syntactic sugar for 'fromTo`{first=a,last=b}'
+    // '[x..y]' is syntactic sugar for 'fromTo`{first=x,last=y}'
     fromTo : {first, last, a}
                (fin last, last >= first,
                Literal first a, Literal last a) =>
                [1 + (last - first)]a
 
-    // '[a,b..c]' is syntactic sugar for 'fromThenTo`{first=a,next=b,last=c}'
+    // '[x .. < y]' is syntactic sugar for
+    //   'fromToLessThan`{first=x,bound=y}'
+    fromToLessThan : {first, bound, a}
+         (fin first, bound >= first, LiteralLessThan bound a) =>
+         [bound - first]a
+
+    // '[x,y..z]' is syntactic sugar for
+    //   'fromThenTo`{first=x,next=y,last=z}'
     fromThenTo : {first, next, last, a, len}
                    ( fin first, fin next, fin last
                    , Literal first a, Literal next a, Literal last a
@@ -39,10 +46,30 @@ Literals
                    , lengthFromThenTo first next last == len) =>
                   [len]a
 
-    // '[a .. < b]` is syntactic sugar for 'fromToLessThan`{first=a,bound=b}'
-    fromToLessThan : {first, bound, a}
-         (fin first, bound >= first, LiteralLessThan bound a) =>
-         [bound - first]a
+    // '[x .. y by n]' is syntactic sugar for
+    //    'fromToBy`{first=x,last=y,stride=n}'.
+    primitive fromToBy : {first, last, stride, a}
+      (fin last, fin stride, stride >= 1, last >= first, Literal last a) =>
+      [1 + (last - first)/stride]a
+
+    // '[x ..< y by n]' is syntactic sugar for
+    //   'fromToByLessThan`{first=x,bound=y,stride=n}'.
+    primitive fromToByLessThan : {first, bound, stride, a}
+      (fin first, fin stride, stride >= 1, bound >= first, LiteralLessThan bound a) =>
+      [(bound - first)/^stride]a
+
+    // '[x .. y down by n]' is syntactic sugar for
+    //   'fromToDownBy`{first=x,last=y,stride=n}'.
+    primitive fromToDownBy : {first, last, stride, a}
+      (fin first, fin stride, stride >= 1, first >= last, Literal first a) =>
+      [1 + (first - last)/stride]a
+
+    // '[x ..> y down by n]' is syntactic sugar for
+    //   'fromToDownByGreaterThan`{first=x,bound=y,stride=n}'.
+    primitive fromToDownByGreaterThan : {first, bound, stride, a}
+      (fin first, fin stride, stride >= 1, first >= bound, Literal first a) =>
+      [(first - bound)/^stride]a
+
 
 Fractional Literals
 -------------------

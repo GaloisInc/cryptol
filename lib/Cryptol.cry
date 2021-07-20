@@ -218,7 +218,7 @@ primitive fromToLessThan :
  * Note that 'last' will only be an element of the enumeration if
  * 'stride' divides 'last - first' evenly.
  *
- * '[x .. y by n]` is syntactic sugar for 'fromToBy`{first=x,last=y,stride=n}'.
+ * '[x .. y by n]' is syntactic sugar for 'fromToBy`{first=x,last=y,stride=n}'.
  */
 primitive fromToBy : {first, last, stride, a}
   (fin last, fin stride, stride >= 1, last >= first, Literal last a) =>
@@ -230,7 +230,7 @@ primitive fromToBy : {first, last, stride, a}
  * be empty.  If 'bound = inf' then the sequence will be infinite, and will
  * eventually wrap around for bounded types.
  *
- * '[x ..< y by n]' is syntactic sugar for 'fromToByLessThan`{first=a,bound=b,stride=n}'.
+ * '[x ..< y by n]' is syntactic sugar for 'fromToByLessThan`{first=x,bound=y,stride=n}'.
  */
 primitive fromToByLessThan : {first, bound, stride, a}
   (fin first, fin stride, stride >= 1, bound >= first, LiteralLessThan bound a) =>
@@ -241,7 +241,7 @@ primitive fromToByLessThan : {first, bound, stride, a}
  * Note that 'last' will only be an element of the enumeration if
  * 'stride' divides 'first - last' evenly.
  *
- * '[x .. y down by n]` is syntactic sugar for 'fromToDownBy`{first=x,last=y,stride=n}'.
+ * '[x .. y down by n]' is syntactic sugar for 'fromToDownBy`{first=x,last=y,stride=n}'.
  */
 primitive fromToDownBy : {first, last, stride, a}
   (fin first, fin stride, stride >= 1, first >= last, Literal first a) =>
@@ -251,7 +251,7 @@ primitive fromToDownBy : {first, last, stride, a}
  * A finite sequence counting from 'first' down to (but not including)
  * 'bound' by 'stride'.
  *
- * '[x ..> y down by n]` is syntactic sugar for
+ * '[x ..> y down by n]' is syntactic sugar for
  * 'fromToDownByGreaterThan`{first=x,bound=y,stride=n}'.
  *
  * Note that if 'first = bound' the sequence will be empty.
@@ -264,7 +264,7 @@ primitive fromToDownByGreaterThan : {first, bound, stride, a}
  * A finite arithmetic sequence starting with 'first' and 'next',
  * stopping when the values reach or would skip over 'last'.
  *
- * '[a,b..c]' is syntactic sugar for 'fromThenTo`{first=a,next=b,last=c}'.
+ * '[x,y..z]' is syntactic sugar for 'fromThenTo`{first=x,next=y,last=z}'.
  */
 primitive fromThenTo : {first, next, last, a, len}
                        ( fin first, fin next, fin last
@@ -274,12 +274,12 @@ primitive fromThenTo : {first, next, last, a, len}
 
 // Fractional Literals ---------------------
 
-/** 'FLiteral m n r a' asserts that the type `a' contains the
-fraction `m/n`.  The flag `r` indicates if we should round (`r >= 1`)
+/** 'FLiteral m n r a' asserts that the type 'a' contains the
+fraction 'm/n'.  The flag 'r' indicates if we should round ('r >= 1')
 or report an error if the number can't be represented exactly. */
 primitive type FLiteral : # -> # -> # -> * -> Prop
 
-/** A fractional literal corresponding to `m/n` */
+/** A fractional literal corresponding to 'm/n' */
 primitive
   fraction : { m, n, r, a } FLiteral m n r a => a
 
