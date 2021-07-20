@@ -1,0 +1,12 @@
+[ 0:Integer .. 10 by 2]
+[ 0 .. <10:Integer by 2]
+
+[ 0 .. 9 by 2] : [_]Integer
+[ 0 .. <9 by 2:Integer]
+
+[ 10:Integer .. 0 down by 2 ]
+[ 10 .. >0 down by 2 ]
+
+[ 2^^16-1 .. >50000 down by 100 ] : [_][16]
+
+[ 200 .. 100:Integer down by 9 ]

@@ -351,6 +351,11 @@ data Expr n   = EVar n                          -- ^ @ x @
               | EList [Expr n]                  -- ^ @ [1,2,3] @
               | EFromTo (Type n) (Maybe (Type n)) (Type n) (Maybe (Type n))
                                                 -- ^ @ [1, 5 .. 117 : t] @
+              | EFromToBy Bool (Type n) (Type n) (Type n) (Maybe (Type n))
+                                                -- ^ @ [1 .. 10 by 2 : t ] @
+
+              | EFromToDownBy Bool (Type n) (Type n) (Type n) (Maybe (Type n))
+                                                -- ^ @ [10 .. 1 down by 2 : t ] @
               | EFromToLessThan (Type n) (Type n) (Maybe (Type n))
                                                 -- ^ @ [ 1 .. < 10 : t ] @
 
@@ -817,6 +822,14 @@ instance (Show name, PPName name) => PP (Expr name) where
       EFromTo e1 e2 e3 t1 -> brackets (pp e1 <.> step <+> text ".." <+> end)
         where step = maybe empty (\e -> comma <+> pp e) e2
               end = maybe (pp e3) (\t -> pp e3 <+> colon <+> pp t) t1
+      EFromToBy isStrict e1 e2 e3 t1 -> brackets (pp e1 <+> dots <+> pp e2 <+> text "by" <+> end)
+        where end = maybe (pp e3) (\t -> pp e3 <+> colon <+> pp t) t1
+              dots | isStrict  = text ".. <"
+                   | otherwise = text ".."
+      EFromToDownBy isStrict e1 e2 e3 t1 -> brackets (pp e1 <+> dots <+> pp e2 <+> text "down by" <+> end)
+        where end = maybe (pp e3) (\t -> pp e3 <+> colon <+> pp t) t1
+              dots | isStrict  = text ".. >"
+                   | otherwise = text ".."
       EFromToLessThan e1 e2 t1 -> brackets (strt <+> text ".. <" <+> end)
         where strt = maybe (pp e1) (\t -> pp e1 <+> colon <+> pp t) t1
               end  = pp e2
@@ -1074,6 +1087,10 @@ instance NoPos (Expr name) where
       EUpd x y        -> EUpd     (noPos x) (noPos y)
       EList x         -> EList    (noPos x)
       EFromTo x y z t -> EFromTo  (noPos x) (noPos y) (noPos z) (noPos t)
+      EFromToBy isStrict x y z t
+                      -> EFromToBy isStrict (noPos x) (noPos y) (noPos z) (noPos t)
+      EFromToDownBy isStrict x y z t
+                      -> EFromToDownBy isStrict (noPos x) (noPos y) (noPos z) (noPos t)
       EFromToLessThan x y t -> EFromToLessThan (noPos x) (noPos y) (noPos t)
       EInfFrom x y    -> EInfFrom (noPos x) (noPos y)
       EComp x y       -> EComp    (noPos x) (noPos y)

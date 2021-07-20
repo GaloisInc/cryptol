@@ -1437,7 +1437,6 @@ updatePrim sym updateWord updateSeq =
                              (do vs <- fromSeq "updatePrim" =<< xs; updateSeq len eltTy vs idx' val)
 
 {-# INLINE fromToV #-}
-
 -- @[ 0 .. 10 ]@
 fromToV :: Backend sym => sym -> Prim sym
 fromToV sym =
@@ -1452,23 +1451,7 @@ fromToV sym =
         in VSeq len $ indexSeqMap $ \i -> f (first' + i)
       _ -> evalPanic "fromToV" ["invalid arguments"]
 
-{-# INLINE fromToLessThanV #-}
-
--- @[ 0 .. <10 ]@
-fromToLessThanV :: Backend sym => sym -> Prim sym
-fromToLessThanV sym =
-  PFinPoly \first ->
-  PNumPoly \bound ->
-  PTyPoly  \ty ->
-  PVal
-    let !f = mkLit sym ty
-        ss = indexSeqMap $ \i -> f (first + i)
-    in case bound of
-         Inf        -> VStream ss
-         Nat bound' -> VSeq (bound' - first) ss
-
 {-# INLINE fromThenToV #-}
-
 -- @[ 0, 1 .. 10 ]@
 fromThenToV :: Backend sym => sym -> Prim sym
 fromThenToV sym =
@@ -1484,6 +1467,75 @@ fromThenToV sym =
         let diff = next' - first'
         in VSeq len' $ indexSeqMap $ \i -> f (first' + i*diff)
       _ -> evalPanic "fromThenToV" ["invalid arguments"]
+
+{-# INLINE fromToLessThanV #-}
+-- @[ 0 .. <10 ]@
+fromToLessThanV :: Backend sym => sym -> Prim sym
+fromToLessThanV sym =
+  PFinPoly \first ->
+  PNumPoly \bound ->
+  PTyPoly  \ty ->
+  PVal
+    let !f = mkLit sym ty
+        ss = indexSeqMap $ \i -> f (first + i)
+    in case bound of
+         Inf        -> VStream ss
+         Nat bound' -> VSeq (bound' - first) ss
+
+{-# INLINE fromToByV #-}
+-- @[ 0 .. 10 by 2 ]@
+fromToByV :: Backend sym => sym -> Prim sym
+fromToByV sym =
+  PFinPoly \first ->
+  PFinPoly \lst ->
+  PFinPoly \stride ->
+  PTyPoly  \ty ->
+  PVal
+    let !f = mkLit sym ty
+        ss = indexSeqMap $ \i -> f (first + i*stride)
+     in VSeq (1 + ((lst - first) `div` stride)) ss
+
+{-# INLINE fromToByLessThanV #-}
+-- @[ 0 .. <10 by 2 ]@
+fromToByLessThanV :: Backend sym => sym -> Prim sym
+fromToByLessThanV sym =
+  PFinPoly \first ->
+  PNumPoly \bound ->
+  PFinPoly \stride ->
+  PTyPoly  \ty ->
+  PVal
+    let !f = mkLit sym ty
+        ss = indexSeqMap $ \i -> f (first + i*stride)
+     in case bound of
+          Inf -> VStream ss
+          Nat bound' -> VSeq ((bound' - first + stride - 1) `div` stride) ss
+
+
+{-# INLINE fromToDownByV #-}
+-- @[ 10 .. 0 down by 2 ]@
+fromToDownByV :: Backend sym => sym -> Prim sym
+fromToDownByV sym =
+  PFinPoly \first ->
+  PFinPoly \lst ->
+  PFinPoly \stride ->
+  PTyPoly  \ty ->
+  PVal
+    let !f = mkLit sym ty
+        ss = indexSeqMap $ \i -> f (first - i*stride)
+     in VSeq (1 + ((first - lst) `div` stride)) ss
+
+{-# INLINE fromToDownByGreaterThanV #-}
+-- @[ 10 .. >0 down by 2 ]@
+fromToDownByGreaterThanV :: Backend sym => sym -> Prim sym
+fromToDownByGreaterThanV sym =
+  PFinPoly \first ->
+  PFinPoly \bound ->
+  PFinPoly \stride ->
+  PTyPoly  \ty ->
+  PVal
+    let !f = mkLit sym ty
+        ss = indexSeqMap $ \i -> f (first - i*stride)
+     in VSeq ((first - bound + stride - 1) `div` stride) ss
 
 {-# INLINE infFromV #-}
 infFromV :: Backend sym => sym -> Prim sym
@@ -2014,6 +2066,20 @@ genericPrimTable sym getEOpts =
   , ("fromToLessThan"
                   , {-# SCC "Prelude::fromToLessThan" #-}
                     fromToLessThanV sym)
+
+  , ("fromToBy"   , {-# SCC "Prelude::fromToBy" #-}
+                    fromToByV sym)
+
+  , ("fromToByLessThan",
+                    {-# SCC "Prelude::fromToByLessThan" #-}
+                    fromToByLessThanV sym)
+
+  , ("fromToDownBy", {-# SCC "Prelude::fromToDownBy" #-}
+                     fromToDownByV sym)
+
+  , ("fromToDownByGreaterThan"
+                  , {-# SCC "Prelude::fromToDownByGreaterThan" #-}
+                    fromToDownByGreaterThanV sym)
 
     -- Sequence manipulations
   , ("#"          , {-# SCC "Prelude::(#)" #-}

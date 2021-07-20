@@ -138,9 +138,24 @@ Symbols
                                    lengthFromThenTo first next last == len) =>
         [len]a
     fromTo :
-      {first, last, a} (fin last, last >= first, Literal first a,
-                        Literal last a) =>
+      {first, last, a} (fin last, last >= first, Literal last a) =>
         [1 + (last - first)]a
+    fromToBy :
+      {first, last, stride, a} (fin last, fin stride, stride >= 1,
+                                last >= first, Literal last a) =>
+        [1 + (last - first) / stride]a
+    fromToByLessThan :
+      {first, bound, stride, a} (fin first, fin stride, stride >= 1,
+                                 bound >= first, LiteralLessThan bound a) =>
+        [(bound - first) /^ stride]a
+    fromToDownBy :
+      {first, last, stride, a} (fin first, fin stride, stride >= 1,
+                                first >= last, Literal first a) =>
+        [1 + (first - last) / stride]a
+    fromToDownByGreaterThan :
+      {first, bound, stride, a} (fin first, fin stride, stride >= 1,
+                                 first >= bound, Literal first a) =>
+        [(first - bound) /^ stride]a
     fromToLessThan :
       {first, bound, a} (fin first, bound >= first,
                          LiteralLessThan bound a) =>

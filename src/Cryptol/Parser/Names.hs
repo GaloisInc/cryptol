@@ -82,6 +82,8 @@ namesE expr =
                      in Set.unions (e : map namesUF fs)
     EList es      -> Set.unions (map namesE es)
     EFromTo{}     -> Set.empty
+    EFromToBy{}   -> Set.empty
+    EFromToDownBy{} -> Set.empty
     EFromToLessThan{} -> Set.empty
     EInfFrom e e' -> Set.union (namesE e) (maybe Set.empty namesE e')
     EComp e arms  -> let (dss,uss) = unzip (map namesArm arms)
@@ -203,6 +205,8 @@ tnamesE expr =
                        `Set.union` maybe Set.empty tnamesT b
                        `Set.union` tnamesT c
                        `Set.union` maybe Set.empty tnamesT t
+    EFromToBy _ a b c t -> Set.unions [ tnamesT a, tnamesT b, tnamesT c, maybe Set.empty tnamesT t ]
+    EFromToDownBy _ a b c t -> Set.unions [ tnamesT a, tnamesT b, tnamesT c, maybe Set.empty tnamesT t ]
     EFromToLessThan a b t -> tnamesT a `Set.union` tnamesT b
                                        `Set.union` maybe Set.empty tnamesT t
     EInfFrom e e'   -> Set.union (tnamesE e) (maybe Set.empty tnamesE e')

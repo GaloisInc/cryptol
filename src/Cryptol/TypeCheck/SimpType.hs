@@ -182,7 +182,6 @@ tMod x y
 tCeilDiv :: Type -> Type -> Type
 tCeilDiv x y
   | Just t <- tOp TCCeilDiv (op2 nCeilDiv) [x,y] = t
-  | tIsInf x = bad
   | tIsInf y = bad
   | Just 0 <- tIsNum y = bad
   | otherwise = tf2 TCCeilDiv x y
@@ -191,7 +190,6 @@ tCeilDiv x y
 tCeilMod :: Type -> Type -> Type
 tCeilMod x y
   | Just t <- tOp TCCeilMod (op2 nCeilMod) [x,y] = t
-  | tIsInf x = bad
   | tIsInf y = bad
   | Just 0 <- tIsNum x = bad
   | otherwise = tf2 TCCeilMod x y
