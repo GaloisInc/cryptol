@@ -65,7 +65,7 @@ library
                        pretty            >= 1.1,
                        process           >= 1.2,
                        sbv               >= 8.6 && < 8.15,
-                       simple-smt        >= 0.7.1,
+                       simple-smt        >= 0.9.7,
                        stm               >= 2.4,
                        strict,
                        text              >= 1.1,
@@ -231,6 +231,7 @@ executable cryptol
                      , directory
                      , filepath
                      , haskeline >= 0.7 && < 0.9
+                     , exceptions
                      , monad-control
                      , text
                      , transformers

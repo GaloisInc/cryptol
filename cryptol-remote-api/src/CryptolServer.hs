@@ -138,7 +138,10 @@ tcSolver = lens _tcSolver (\v n -> v { _tcSolver = n })
 initialState :: IO ServerState
 initialState =
   do modEnv <- initialModuleEnv
-     s <- SMT.startSolver (defaultSolverConfig (meSearchPath modEnv))
+     -- NOTE: the "pure ()" is a callback which is invoked if/when the solver
+     -- stops for some reason.  This is just a placeholder for now, and could
+     -- be replaced by something more useful.
+     s <- SMT.startSolver (pure ()) (defaultSolverConfig (meSearchPath modEnv))
      pure (ServerState Nothing modEnv s)
 
 extendSearchPath :: [FilePath] -> ServerState -> ServerState
