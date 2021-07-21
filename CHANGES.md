@@ -9,6 +9,12 @@
       convenient when writing `private` declarations as they don't need to
       be indented as long as they are at the end of the file.
 
+* New enumeration forms `[x .. y by n]`, `[x .. <y by n]`,
+  `[x .. y down by n]` and `[x .. >y down by n]` have been
+  implemented. These new forms let the user explicitly specify
+  the stride for an enumeration, as opposed to the previous
+  `[x, y .. z]` form (where the stride was computed from `x` and `y`).
+
 ## New features
 
 * What4 prover backends now feature an improved multi-SAT procedure

@@ -22,7 +22,7 @@ Basic Syntax
 Declarations
 ============
 
-.. code-block:: cryptol 
+.. code-block:: cryptol
 
   f x = x + y + z
 
@@ -126,7 +126,8 @@ not be used for programmer defined names:
   primitive
   parameter
   constraint
-
+  down
+  by
 .. _Keywords:
 
 .. code-block:: none
@@ -134,8 +135,8 @@ not be used for programmer defined names:
 
   else       include    property    let       infixl       parameter
   extern     module     then        import    infixr       constraint
-  if         newtype    type        as        infix
-  private    pragma     where       hiding    primitive
+  if         newtype    type        as        infix        down
+  private    pragma     where       hiding    primitive    by
 
 
 The following table contains Cryptol's operators and their
@@ -246,7 +247,7 @@ type is inferred from context in which the literal is used. Examples:
   0b1010              // : [4],   1 * number of digits
   0o1234              // : [12],  3 * number of digits
   0x1234              // : [16],  4 * number of digits
-  
+
   10                  // : {a}. (Literal 10 a) => a
                       // a = Integer or [n] where n >= width 10
 
@@ -356,7 +357,7 @@ in argument definitions.
     then y
     else z : Bit  // the type annotation is on `z`, not the whole `if`
   [1..9 : [8]]    // specify that elements in `[1..9]` have type `[8]`
-  
+
   f (x : [8]) = x + 1   // type annotation on patterns
 
 .. todo::
@@ -442,15 +443,23 @@ following notation:
 
   `t
 
-Here ``t`` should be a type expression with numeric kind.  The resulting
-expression is a finite word, which is sufficiently large to accommodate
-the value of the type:
+Here `t` should be a finite type expression with numeric kind.  The resulting
+expression will be of a numeric base type, which is sufficiently large
+to accommodate the value of the type:
 
 .. code-block:: cryptol
 
-  `t : {n} (fin n, n >= width t) => [n]
+  `t : {a} (Literal t a) => a
 
+This backtick notation is syntax sugar for an application of the
+`number` primtive, so the above may be written as:
 
+.. code-block:: cryptol
+
+  number`{t} : {a} (Literal t a) => a
+
+If a type cannot be inferred from context, a suitable type will be
+automatically chosen if possible, usually `Integer`.
 
 
 
@@ -507,7 +516,7 @@ sign.  Examples:
 
   (1,2,3)           // A tuple with 3 component
   ()                // A tuple with no components
-  
+
   { x = 1, y = 2 }  // A record with two fields, `x` and `y`
   {}                // A record with no fields
 
@@ -520,7 +529,7 @@ Examples:
 
              (1,2) == (1,2)               // True
              (1,2) == (2,1)               // False
-   
+
   { x = 1, y = 2 } == { x = 1, y = 2 }    // True
   { x = 1, y = 2 } == { y = 2, x = 1 }    // True
 
@@ -539,7 +548,7 @@ component selectors are written as follows:
 
   (15, 20).0           == 15
   (15, 20).1           == 20
-  
+
   { x = 15, y = 20 }.x == 15
 
 Explicit record selectors may be used only if the program contains
@@ -549,12 +558,12 @@ record.  For example:
 .. code-block:: cryptol
 
   type T = { sign : Bit, number : [15] }
-  
+
   // Valid definition:
   // the type of the record is known.
   isPositive : T -> Bit
   isPositive x = x.sign
-  
+
   // Invalid definition:
   // insufficient type information.
   badDef x = x.f
@@ -567,9 +576,9 @@ patterns use braces.  Examples:
 .. code-block:: cryptol
 
   getFst (x,_) = x
-  
+
   distance2 { x = xPos, y = yPos } = xPos ^^ 2 + yPos ^^ 2
-  
+
   f p = x + y where
       (x, y) = p
 
@@ -605,14 +614,14 @@ notation:
   r = { x = 15, y = 20 }      // a record
   t = (True,True)             // a tuple
   n = { pt = r, size = 100 }  // nested record
-  
+
   // Setting fields
   { r | x = 30 }          == { x = 30, y = 20 }
   { t | 0 = False }       == (False,True)
-  
+
   // Update relative to the old value
   { r | x -> x + 5 }      == { x = 20, y = 20 }
-  
+
   // Update a nested field
   { n | pt.x = 10 }       == { pt = { x = 10, y = 20 }, size = 100 }
   { n | pt.x -> x + 10 }  == { pt = { x = 25, y = 20 }, size = 100 }
@@ -630,20 +639,25 @@ an infinite stream of bits.
 
 .. code-block:: cryptol
 
-  [e1,e2,e3]                    // A sequence with three elements
-  
-  [t1 .. t3 ]                   // Sequence enumerations
-  [t1, t2 .. t3 ]               // Step by t2 - t1
-  [e1 ... ]                     // Infinite sequence starting at e1
-  [e1, e2 ... ]                 // Infinite sequence stepping by e2-e1
-  
-  [ e | p11 <- e11, p12 <- e12  // Sequence comprehensions
-      | p21 <- e21, p22 <- e22 ]
-  
-  x = generate (\i -> e)        // Sequence from generating function
-  x @ i = e                     // Sequence with index binding
-  arr @ i @ j = e               // Two-dimensional sequence
+  [e1,e2,e3]            // A sequence with three elements
 
+  [t1 .. t2]            // Enumeration
+  [t1 .. <t2]           // Enumeration (exclusive bound)
+  [t1 .. t2 by n]       // Enumeration (stride)
+  [t1 .. <t2 by n]      // Enumeration (stride, ex. bound)
+  [t1 .. t2 down by n]  // Enumeration (downward stride)
+  [t1 .. >t2 down by n] // Enumeration (downward stride, ex. bound)
+  [t1, t2 .. t3]        // Enumeration (step by t2 - t1)
+
+  [e1 ...]              // Infinite sequence starting at e1
+  [e1, e2 ...]          // Infinite sequence stepping by e2-e1
+
+  [ e | p11 <- e11, p12 <- e12    // Sequence comprehensions
+      | p21 <- e21, p22 <- e22 ]
+
+  x = generate (\i -> e)    // Sequence from generating function
+  x @ i = e                 // Sequence with index binding
+  arr @ i @ j = e           // Two-dimensional sequence
 
 Note: the bounds in finite sequences (those with `..`) are type
 expressions, while the bounds in infinite sequences are value
@@ -774,7 +788,7 @@ identifiers using the symbol ``::``.
 .. code-block:: cryptol
 
   module Hash::SHA256 where
-  
+
   sha256 = ...
 
 The structure in the name may be used to group together related
@@ -853,7 +867,7 @@ to use a *hiding* import:
   :caption: module M
 
   module M where
-  
+
   f = 0x02
   g = 0x03
   h = 0x04
@@ -863,9 +877,9 @@ to use a *hiding* import:
   :caption: module N
 
   module N where
-  
+
   import M hiding (h) // Import everything but `h`
-  
+
   x = f + g
 
 
@@ -880,7 +894,7 @@ Another way to avoid name collisions is by using a
   :caption: module M
 
   module M where
-  
+
   f : [8]
   f = 2
 
@@ -889,9 +903,9 @@ Another way to avoid name collisions is by using a
   :caption: module N
 
   module N where
-  
+
   import M as P
-  
+
   g = P::f
   // `f` was imported from `M`
   // but when used it needs to be prefixed by the qualifier `P`
@@ -1097,20 +1111,20 @@ a module instantiation:
 .. code-block:: cryptol
 
   module M where
-  
+
   parameter
     x : [8]
     y : [8]
-  
+
   f : [8]
   f = x + y
 
 .. code-block:: cryptol
 
   module N where
-  
+
   import `M
-  
+
   g = f { x = 2, y = 3 }
 
 A *backtick* at the start of the name of an imported module indicates
