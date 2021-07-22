@@ -444,7 +444,7 @@ an infinite stream of bits.
     [t1 .. t2 by n]       // Enumeration (stride)
     [t1 .. <t2 by n]      // Enumeration (stride, ex. bound)
     [t1 .. t2 down by n]  // Enumeration (downward stride)
-    [t1 .. >t2 down by n] // Enumeration (downward stride, ex. bound)
+    [t1 .. <t2 down by n] // Enumeration (downward stride, ex. bound)
     [t1, t2 .. t3]        // Enumeration (step by t2 - t1)
 
     [e1 ...]              // Infinite sequence starting at e1
