@@ -149,6 +149,18 @@ jobs:
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
         run: .github/ci.sh sign cryptol.msi
 
+      - shell: bash
+        run: |
+          NAME="${{ needs.config.outputs.name }}-${{ runner.os }}-x86_64"
+          echo "NAME=$NAME" >> $GITHUB_ENV
+          .github/ci.sh zip_dist $NAME
+
+      - shell: bash
+        run: |
+          NAME="${{ needs.config.outputs.name }}-${{ runner.os }}-x86_64"
+          echo "NAME=$NAME" >> $GITHUB_ENV
+          .github/ci.sh zip_dist_with_solvers $NAME
+
       - if: needs.config.outputs.release == 'true'
         shell: bash
         env:
@@ -157,12 +169,6 @@ jobs:
         run: |
           .github/ci.sh sign ${NAME}.tar.gz
           .github/ci.sh sign ${NAME}-with-solvers.tar.gz
-
-      - shell: bash
-        run: |
-          NAME="${{ needs.config.outputs.name }}-${{ runner.os }}-x86_64"
-          echo "NAME=$NAME" >> $GITHUB_ENV
-          .github/ci.sh zip_dist $NAME
 
       - uses: actions/upload-artifact@v2
         with:

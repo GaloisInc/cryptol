@@ -163,6 +163,11 @@ zip_dist() {
   name="${name:-"cryptol-$VERSION-$RUNNER_OS-x86_64"}"
   cp -r dist "$name"
   tar -cvzf "$name".tar.gz "$name"
+}
+
+zip_dist_with_solvers() {
+  : "${VERSION?VERSION is required as an environment variable}"
+  name="${name:-"cryptol-$VERSION-$RUNNER_OS-x86_64"}"
   sname="${name}-with-solvers"
   cp "$(which cvc4)"       dist/bin/
   cp "$(which yices)"      dist/bin/
