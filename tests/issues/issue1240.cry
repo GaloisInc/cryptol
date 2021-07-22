@@ -1,0 +1,8 @@
+module test where
+
+parameter
+
+  type a : #
+  type constraint (fin a, a >= 1)
+
+  b : Z a

@@ -256,7 +256,12 @@ renameTopDecls' info ds =
       TDNewtype {}            -> False
       DParameterType {}       -> False
       DParameterConstraint {} -> False
-      DParameterFun {}        -> False
+
+      DParameterFun {}        -> True
+      -- Here we may need the constraints to validate the type
+      -- (e.g., if the parameter is of type `Z a`)
+
+
       DModule tl              -> any usesCtrs (mDecls m)
         where NestedModule m = tlValue tl
       DImport {}              -> False
