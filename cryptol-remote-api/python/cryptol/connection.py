@@ -127,7 +127,6 @@ class CryptolConnection:
     sequential state dependencies between commands.
     """
     most_recent_result : Optional[argo.Interaction]
-    proc: ServerProcess
 
     def __init__(self,
                 command_or_connection : Union[str, ServerConnection, ServerProcess],
@@ -135,13 +134,10 @@ class CryptolConnection:
                 *,
                 log_dest : Optional[TextIO] = None) -> None:
         self.most_recent_result = None
-        self.proc = None
         if isinstance(command_or_connection, ServerProcess):
-            self.proc = command_or_connection
-            self.server_connection = ServerConnection(self.proc)
+            self.server_connection = ServerConnection(command_or_connection)
         elif isinstance(command_or_connection, str):
-            self.proc = CryptolDynamicSocketProcess(command_or_connection, cryptol_path=cryptol_path)
-            self.server_connection = ServerConnection(self.proc)
+            self.server_connection = ServerConnection(CryptolDynamicSocketProcess(command_or_connection, cryptol_path=cryptol_path))
         else:
             self.server_connection = command_or_connection
 
