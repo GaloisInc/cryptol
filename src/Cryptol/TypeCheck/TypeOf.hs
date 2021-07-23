@@ -124,13 +124,32 @@ plainSubst s ty =
 
 -- | Yields the return type of the selector on the given argument type.
 typeSelect :: Type -> Selector -> Type
+
+-- Selectors push inside the definition of type aliases
 typeSelect (TUser _ _ ty) sel = typeSelect ty sel
+
+-- Tuple selector applied to a tuple
 typeSelect (tIsTuple -> Just ts) (TupleSel i _)
   | i < length ts = ts !! i
+
+-- Record selector applied to a record
 typeSelect (TRec fields) (RecordSel n _)
   | Just ty <- lookupField n fields = ty
+
+-- Record selector applied to a newtype
+typeSelect (TNewtype nt args) (RecordSel n _)
+  | Just ty <- lookupField n (ntFields nt)
+  = plainSubst (listParamSubst (zip (ntParams nt) args)) ty
+
+-- List selector applied to a sequence
 typeSelect (tIsSeq -> Just (_, a)) ListSel{} = a
+
+-- Tuple selectors and record selectors lift pointwise over sequences
 typeSelect (tIsSeq -> Just (n, a)) sel@TupleSel{} = tSeq n (typeSelect a sel)
 typeSelect (tIsSeq -> Just (n, a)) sel@RecordSel{} = tSeq n (typeSelect a sel)
+
+-- Selectors lift pointwise over functions
+typeSelect (tIsFun -> Just (a, b)) sel = tFun a (typeSelect b sel)
+
 typeSelect ty _ = panic "Cryptol.TypeCheck.TypeOf.typeSelect"
                     [ "cannot apply selector to value of type", render (pp ty) ]
