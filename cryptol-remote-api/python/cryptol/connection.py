@@ -273,7 +273,7 @@ class CryptolConnection:
 
     def logging(self, on : bool, *, dest : TextIO = sys.stderr) -> None:
         """Whether to log received and transmitted JSON."""
-        self.proc.logging(on=on,dest=dest)
+        self.server_connection.logging(on=on,dest=dest)
 
 class CryptolDynamicSocketProcess(DynamicSocketProcess):
 
