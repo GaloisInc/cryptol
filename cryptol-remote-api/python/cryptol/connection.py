@@ -135,6 +135,7 @@ class CryptolConnection:
                 *,
                 log_dest : Optional[TextIO] = None) -> None:
         self.most_recent_result = None
+        self.proc = None
         if isinstance(command_or_connection, ServerProcess):
             self.proc = command_or_connection
             self.server_connection = ServerConnection(self.proc)
