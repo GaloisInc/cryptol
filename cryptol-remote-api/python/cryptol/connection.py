@@ -2,15 +2,16 @@
 from __future__ import annotations
 
 import os
+import sys
 from distutils.spawn import find_executable
-from typing import Any, List, Optional, Union
+from typing import Any, List, Optional, Union, TextIO
 from typing_extensions import Literal
 
 import argo_client.interaction as argo
 from argo_client.connection import DynamicSocketProcess, ServerConnection, ServerProcess, StdIOProcess, HttpProcess
 from . import cryptoltypes
 from . import solver
-from .commands import * 
+from .commands import *
 
 
 def connect(command : Optional[str]=None,
@@ -18,7 +19,8 @@ def connect(command : Optional[str]=None,
             cryptol_path : Optional[str] = None,
             url : Optional[str] = None,
             reset_server : bool = False,
-            verify : Union[bool, str] = True) -> CryptolConnection:
+            verify : Union[bool, str] = True,
+            log_dest : Optional[TextIO] = None) -> CryptolConnection:
     """
     Connect to a (possibly new) Cryptol server process.
 
@@ -39,6 +41,9 @@ def connect(command : Optional[str]=None,
                    only has an affect when ``connect`` is called with a ``url`` parameter
                    or when the ``CRYPTOL_SERVER_URL`` environment variable is set.
 
+    :param log_dest: A destination to log JSON requests/responses to, e.g. ``log_dest=sys.stderr``
+    will print traffic to ``stderr``, ``log_dest=open('foo.log', 'w')`` will log to ``foo.log``,
+    etc.
 
     If no ``command`` or ``url`` parameters are provided, the following are attempted in order:
 
@@ -56,27 +61,27 @@ def connect(command : Optional[str]=None,
     if command is not None:
         if url is not None:
             raise ValueError("A Cryptol server URL cannot be specified with a command currently.")
-        c = CryptolConnection(command, cryptol_path)
+        c = CryptolConnection(command, cryptol_path, log_dest=log_dest)
     # User-passed url?
     if c is None and url is not None:
-        c = CryptolConnection(ServerConnection(HttpProcess(url, verify=verify)), cryptol_path)
+        c = CryptolConnection(ServerConnection(HttpProcess(url, verify=verify)), cryptol_path, log_dest=log_dest)
     # Check `CRYPTOL_SERVER` env var if no connection identified yet
     if c is None:
         command = os.getenv('CRYPTOL_SERVER')
         if command is not None:
             command = find_executable(command)
             if command is not None:
-                c = CryptolConnection(command+" socket", cryptol_path=cryptol_path)
+                c = CryptolConnection(command+" socket", cryptol_path=cryptol_path, log_dest=log_dest)
     # Check `CRYPTOL_SERVER_URL` env var if no connection identified yet
     if c is None:
         url = os.getenv('CRYPTOL_SERVER_URL')
         if url is not None:
-            c = CryptolConnection(ServerConnection(HttpProcess(url,verify=verify)), cryptol_path)
+            c = CryptolConnection(ServerConnection(HttpProcess(url,verify=verify)), cryptol_path, log_dest=log_dest)
     # Check if `cryptol-remote-api` is in the PATH if no connection identified yet
     if c is None:
         command = find_executable('cryptol-remote-api')
         if command is not None:
-            c = CryptolConnection(command+" socket", cryptol_path=cryptol_path)
+            c = CryptolConnection(command+" socket", cryptol_path=cryptol_path, log_dest=log_dest)
     # Raise an error if still no connection identified yet
     if c is not None:
         if reset_server:
@@ -92,7 +97,9 @@ def connect(command : Optional[str]=None,
 
 
 
-def connect_stdio(command : str, cryptol_path : Optional[str] = None) -> CryptolConnection:
+def connect_stdio(command : str,
+                  cryptol_path : Optional[str] = None,
+                  log_dest : Optional[TextIO] = None) -> CryptolConnection:
     """Start a new connection to a new Cryptol server process.
 
     :param command: The command to launch the Cryptol server.
@@ -103,7 +110,7 @@ def connect_stdio(command : str, cryptol_path : Optional[str] = None) -> Cryptol
     """
     conn = CryptolStdIOProcess(command, cryptol_path=cryptol_path)
 
-    return CryptolConnection(conn)
+    return CryptolConnection(conn, log_dest=log_dest)
 
 
 class CryptolConnection:
@@ -120,20 +127,22 @@ class CryptolConnection:
     sequential state dependencies between commands.
     """
     most_recent_result : Optional[argo.Interaction]
-    proc: ServerProcess
 
     def __init__(self,
                 command_or_connection : Union[str, ServerConnection, ServerProcess],
-                cryptol_path : Optional[str] = None) -> None:
+                cryptol_path : Optional[str] = None,
+                *,
+                log_dest : Optional[TextIO] = None) -> None:
         self.most_recent_result = None
         if isinstance(command_or_connection, ServerProcess):
-            self.proc = command_or_connection
-            self.server_connection = ServerConnection(self.proc)
+            self.server_connection = ServerConnection(command_or_connection)
         elif isinstance(command_or_connection, str):
-            self.proc = CryptolDynamicSocketProcess(command_or_connection, cryptol_path=cryptol_path)
-            self.server_connection = ServerConnection(self.proc)
+            self.server_connection = ServerConnection(CryptolDynamicSocketProcess(command_or_connection, cryptol_path=cryptol_path))
         else:
             self.server_connection = command_or_connection
+
+        if log_dest:
+            self.logging(on=True,dest=log_dest)
 
     # Currently disabled in (overly?) conservative effort to not accidentally
     # duplicate and share mutable state.
@@ -257,6 +266,10 @@ class CryptolConnection:
         """Resets the Cryptol server, clearing all states."""
         CryptolResetServer(self)
         self.most_recent_result = None
+
+    def logging(self, on : bool, *, dest : TextIO = sys.stderr) -> None:
+        """Whether to log received and transmitted JSON."""
+        self.server_connection.logging(on=on,dest=dest)
 
 class CryptolDynamicSocketProcess(DynamicSocketProcess):
 
