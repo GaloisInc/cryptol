@@ -428,9 +428,11 @@ evalDecl sym renv env d =
   SEval Concrete (GenValue Concrete)
   #-}
 
--- | Apply the the given "selector" form to the given value.  This function pushes
---   tuple and record selections pointwise down into other value constructs
---   (e.g., streams and functions).
+-- | Apply the the given "selector" form to the given value.  Note that
+--   selectors are expected to apply only to values of the right type,
+--   e.g. tuple selectors expect only tuple values.  The lifting of
+--   tuple an record selectors over functions and sequences has already
+--   been resolved earlier in the typechecker.
 evalSel ::
   Backend sym =>
   sym ->
