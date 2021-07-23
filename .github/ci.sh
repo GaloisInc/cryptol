@@ -2,7 +2,7 @@
 set -xEeuo pipefail
 
 [[ "$RUNNER_OS" == 'Windows' ]] && IS_WIN=true || IS_WIN=false
-BIN=bin
+BIN=${PWD}/bin
 EXT=""
 $IS_WIN && EXT=".exe"
 mkdir -p "$BIN"
@@ -118,8 +118,8 @@ install_system_deps() {
   install_cvc4 &
   install_yices &
   wait
-  export PATH=$PWD/$BIN:$PATH
-  echo "$PWD/$BIN" >> "$GITHUB_PATH"
+  export PATH=$BIN:$PATH
+  echo "$BIN" >> "$GITHUB_PATH"
   is_exe "$BIN" z3 && is_exe "$BIN" cvc4 && is_exe "$BIN" yices
 }
 
@@ -163,6 +163,18 @@ zip_dist() {
   name="${name:-"cryptol-$VERSION-$RUNNER_OS-x86_64"}"
   cp -r dist "$name"
   tar -cvzf "$name".tar.gz "$name"
+}
+
+zip_dist_with_solvers() {
+  : "${VERSION?VERSION is required as an environment variable}"
+  name="${name:-"cryptol-$VERSION-$RUNNER_OS-x86_64"}"
+  sname="${name}-with-solvers"
+  cp "$(which cvc4)"       dist/bin/
+  cp "$(which yices)"      dist/bin/
+  cp "$(which yices-smt2)" dist/bin/
+  cp "$(which z3)"         dist/bin/
+  cp -r dist "$sname"
+  tar -cvzf "$sname".tar.gz "$sname"
 }
 
 output() { echo "::set-output name=$1::$2"; }

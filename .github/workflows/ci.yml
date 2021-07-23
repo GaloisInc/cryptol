@@ -149,23 +149,38 @@ jobs:
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
         run: .github/ci.sh sign cryptol.msi
 
-      - if: needs.config.outputs.release == 'true'
-        shell: bash
-        env:
-          SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
-          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
-        run: .github/ci.sh sign ${NAME}.tar.gz
-
       - shell: bash
         run: |
           NAME="${{ needs.config.outputs.name }}-${{ runner.os }}-x86_64"
           echo "NAME=$NAME" >> $GITHUB_ENV
           .github/ci.sh zip_dist $NAME
 
+      - shell: bash
+        run: |
+          NAME="${{ needs.config.outputs.name }}-${{ runner.os }}-x86_64"
+          echo "NAME=$NAME" >> $GITHUB_ENV
+          .github/ci.sh zip_dist_with_solvers $NAME
+
+      - if: needs.config.outputs.release == 'true'
+        shell: bash
+        env:
+          SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+        run: |
+          .github/ci.sh sign ${NAME}.tar.gz
+          .github/ci.sh sign ${NAME}-with-solvers.tar.gz
+
       - uses: actions/upload-artifact@v2
         with:
           name: ${{ env.NAME }}
           path: "${{ env.NAME }}.tar.gz*"
+          if-no-files-found: error
+          retention-days: ${{ needs.config.outputs.retention-days }}
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: ${{ env.NAME }}-with-solvers
+          path: "${{ env.NAME }}-with-solvers.tar.gz*"
           if-no-files-found: error
           retention-days: ${{ needs.config.outputs.retention-days }}
 
