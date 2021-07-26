@@ -196,15 +196,13 @@ jobs:
           path: bin
           name: ${{ runner.os }}-bin
 
-# This is commented out because it appears to fail uploading
-# and the entire build fails.  XXX: investigate why.
-#      - uses: actions/upload-artifact@v2
-#        if: runner.os == 'Windows'
-#        with:
-#          name: ${{ env.NAME }}
-#          path: "cryptol.msi*"
-#          if-no-files-found: error
-#          retention-days: ${{ needs.config.outputs.retention-days }}
+      - uses: actions/upload-artifact@v2
+        if: runner.os == 'Windows'
+        with:
+          name: ${{ env.NAME }}
+          path: "cryptol.msi*"
+          if-no-files-found: error
+          retention-days: ${{ needs.config.outputs.retention-days }}
 
   test:
     runs-on: ${{ matrix.os }}
@@ -296,10 +294,11 @@ jobs:
             file: Dockerfile
             image: ghcr.io/galoisinc/cryptol
             cache: ghcr.io/galoisinc/cache-cryptol
-#          - build-args: PORTABILITY=true
-#            file: cryptol-remote-api/Dockerfile
-#            image: ghcr.io/galoisinc/cryptol-remote-api
-#            cache: ghcr.io/galoisinc/cache-cryptol-remote-api
+          - build-args: PORTABILITY=true
+            file: cryptol-remote-api/Dockerfile
+            image: ghcr.io/galoisinc/cryptol-remote-api
+            cache: ghcr.io/galoisinc/cache-cryptol-remote-api
+            if: ${{ github.event_name == 'schedule' }}
           - build-args: PORTABILITY=false
             file: cryptol-remote-api/Dockerfile
             image: ghcr.io/galoisinc/cryptol-remote-api
