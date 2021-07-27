@@ -353,7 +353,7 @@ checkExpr e = do
 -- | Typecheck a group of declarations.
 --
 -- INVARIANT: This assumes that NoPat has already been run on the declarations.
-checkDecls :: [P.TopDecl PName] -> ModuleM (R.NamingEnv,[T.DeclGroup])
+checkDecls :: [P.TopDecl PName] -> ModuleM (R.NamingEnv,[T.DeclGroup], Map.Map Name T.TySyn)
 checkDecls ds = do
   fe <- getFocusedEnv
   let params = mctxParams fe
@@ -365,8 +365,8 @@ checkDecls ds = do
   prims <- getPrimMap
   let act  = TCAction { tcAction = T.tcDecls, tcLinter = declsLinter
                       , tcPrims = prims }
-  ds' <- typecheck act rds params decls
-  return (declsEnv,ds')
+  (ds',tyMap) <- typecheck act rds params decls
+  return (declsEnv,ds',tyMap)
 
 -- | Generate the primitive map. If the prelude is currently being loaded, this
 -- should be generated directly from the naming environment given to the renamer
@@ -482,11 +482,11 @@ exprLinter = TCLinter
   , lintModule = Nothing
   }
 
-declsLinter :: TCLinter [ T.DeclGroup ]
+declsLinter :: TCLinter ([ T.DeclGroup ], a)
 declsLinter = TCLinter
-  { lintCheck = \ds' i -> case TcSanity.tcDecls i ds' of
-                            Left err -> Left err
-                            Right os -> Right os
+  { lintCheck = \(ds',_) i -> case TcSanity.tcDecls i ds' of
+                                Left err -> Left err
+                                Right os -> Right os
 
   , lintModule = Nothing
   }

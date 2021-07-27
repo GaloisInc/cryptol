@@ -804,13 +804,12 @@ updScope f = IM $ sets_ \rw -> rw { iScope = upd (iScope rw) }
       []       -> panic "updTopScope" [ "No top scope" ]
       s : more -> f s : more
 
-endLocalScope :: InferM [DeclGroup]
+endLocalScope :: InferM ([DeclGroup], Map Name TySyn)
 endLocalScope =
   IM $ sets \rw ->
        case iScope rw of
          x : xs | LocalScope <- mName x ->
-                    (reverse (mDecls x), rw { iScope = xs })
-            -- This ignores local type synonyms... Where should we put them?
+                    ( (reverse (mDecls x), mTySyns x), rw { iScope = xs })
 
          _ -> panic "endLocalScope" ["Missing local scope"]
 

@@ -400,38 +400,43 @@ removeLoadedModule rm lm =
 data DynamicEnv = DEnv
   { deNames :: R.NamingEnv
   , deDecls :: [T.DeclGroup]
+  , deTySyns :: Map Name T.TySyn
   , deEnv   :: EvalEnv
   } deriving Generic
 
 instance Semigroup DynamicEnv where
   de1 <> de2 = DEnv
-    { deNames = deNames de1 <> deNames de2
-    , deDecls = deDecls de1 <> deDecls de2
-    , deEnv   = deEnv   de1 <> deEnv   de2
+    { deNames  = deNames de1  <> deNames de2
+    , deDecls  = deDecls de1  <> deDecls de2
+    , deTySyns = deTySyns de1 <> deTySyns de2
+    , deEnv    = deEnv   de1  <> deEnv   de2
     }
 
 instance Monoid DynamicEnv where
   mempty = DEnv
-    { deNames = mempty
-    , deDecls = mempty
-    , deEnv   = mempty
+    { deNames  = mempty
+    , deDecls  = mempty
+    , deTySyns = mempty
+    , deEnv    = mempty
     }
   mappend de1 de2 = de1 <> de2
 
 -- | Build 'IfaceDecls' that correspond to all of the bindings in the
 -- dynamic environment.
 --
--- XXX: if we ever add type synonyms or newtypes at the REPL, revisit
+-- XXX: if we add newtypes, etc. at the REPL, revisit
 -- this.
 deIfaceDecls :: DynamicEnv -> IfaceDecls
-deIfaceDecls DEnv { deDecls = dgs } =
-  mconcat [ IfaceDecls
-            { ifTySyns   = Map.empty
-            , ifNewtypes = Map.empty
-            , ifAbstractTypes = Map.empty
-            , ifDecls    = Map.singleton (ifDeclName ifd) ifd
-            , ifModules  = Map.empty
-            }
-          | decl <- concatMap T.groupDecls dgs
-          , let ifd = T.mkIfaceDecl decl
-          ]
+deIfaceDecls DEnv { deDecls = dgs, deTySyns = tySyns } =
+    IfaceDecls { ifTySyns = tySyns
+               , ifNewtypes = Map.empty
+               , ifAbstractTypes = Map.empty
+               , ifDecls = decls
+               , ifModules = Map.empty
+               }
+  where
+    decls = mconcat
+      [ Map.singleton (ifDeclName ifd) ifd
+      | decl <- concatMap T.groupDecls dgs
+      , let ifd = T.mkIfaceDecl decl
+      ]

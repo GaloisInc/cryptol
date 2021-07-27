@@ -336,10 +336,10 @@ evalCmd str lineNum mbBatch = do
       --          $ return $!! show $ pp $ E.WithBase ppOpts val
 
       rPutStrLn (show valDoc)
-    P.LetInput decl -> do
+    P.LetInput ds -> do
       -- explicitly make this a top-level declaration, so that it will
       -- be generalized if mono-binds is enabled
-      replEvalDecl decl
+      replEvalDecls ds
     P.EmptyInput ->
       -- comment or empty input does nothing
       pure ()
@@ -1525,12 +1525,13 @@ replCheckDecls ds = do
   let mkTop d = P.Decl P.TopLevel { P.tlExport = P.Public
                                   , P.tlDoc    = Nothing
                                   , P.tlValue  = d }
-  (names,ds') <- liftModuleCmd (M.checkDecls (map mkTop npds))
+  (names,ds',tyMap) <- liftModuleCmd (M.checkDecls (map mkTop npds))
 
-  -- extend the naming env
+  -- extend the naming env and type synonym maps
   denv        <- getDynEnv
-  setDynEnv denv { M.deNames = names `M.shadowing` M.deNames denv }
-
+  setDynEnv denv { M.deNames  = names `M.shadowing` M.deNames denv
+                 , M.deTySyns = tyMap <> M.deTySyns denv
+                 }
   return ds'
 
 replSpecExpr :: T.Expr -> REPL T.Expr
@@ -1644,9 +1645,9 @@ bindItVariables ty exprs = void $ bindItVariable seqTy seqExpr
     seqTy = E.TVSeq (toInteger len) ty
     seqExpr = T.EList exprs (E.tValTy ty)
 
-replEvalDecl :: P.Decl P.PName -> REPL ()
-replEvalDecl decl = do
-  dgs <- replCheckDecls [decl]
+replEvalDecls :: [P.Decl P.PName] -> REPL ()
+replEvalDecls ds = do
+  dgs <- replCheckDecls ds
   validEvalContext dgs
   whenDebug (mapM_ (\dg -> (rPutStrLn (dump dg))) dgs)
   liftModuleCmd (M.evalDecls dgs)

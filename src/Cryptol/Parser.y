@@ -338,9 +338,46 @@ decl                    :: { Decl PName }
   | 'infix'  NUM ops       {% mkFixity NonAssoc   $2 (reverse $3) }
   | error                  {% expected "a declaration" }
 
+let_decls               :: { [Decl PName] }
+  : let_decl               { [$1] }
+  | let_decl ';'           { [$1] }
+  | let_decl ';' let_decls { ($1:$3) }
+
 let_decl                :: { Decl PName }
-  : 'let' ipat '=' expr          { at ($2,$4) $ DPatBind $2 $4                    }
-  | 'let' name apats_indices '=' expr    { at ($2,$5) $ mkIndexedDecl $2 $3 $5 }
+  : 'let' ipat '=' expr               { at ($2,$4) $ DPatBind $2 $4                    }
+  | 'let' var apats_indices '=' expr  { at ($2,$5) $ mkIndexedDecl $2 $3 $5 }
+  | 'let' '(' op ')' '=' expr         { at ($2,$6) $ DPatBind (PVar $3) $6             }
+  | 'let' apat pat_op apat '=' expr
+                           { at ($2,$6) $
+                             DBind $ Bind { bName      = $3
+                                          , bParams    = [$2,$4]
+                                          , bDef       = at $6 (Located emptyRange (DExpr $6))
+                                          , bSignature = Nothing
+                                          , bPragmas   = []
+                                          , bMono      = False
+                                          , bInfix     = True
+                                          , bFixity    = Nothing
+                                          , bDoc       = Nothing
+                                          , bExport    = Public
+                                          } }
+
+  | 'type' name '=' type   {% at ($1,$4) `fmap` mkTySyn $2 [] $4 }
+  | 'type' name tysyn_params '=' type
+                           {% at ($1,$5) `fmap` mkTySyn $2 (reverse $3) $5  }
+  | 'type' tysyn_param op tysyn_param '=' type
+                           {% at ($1,$6) `fmap` mkTySyn $3 [$2, $4] $6 }
+
+  | 'type' 'constraint' name '=' type
+                           {% at ($2,$5) `fmap` mkPropSyn $3 [] $5 }
+  | 'type' 'constraint' name tysyn_params '=' type
+                           {% at ($2,$6) `fmap` mkPropSyn $3 (reverse $4) $6 }
+  | 'type' 'constraint' tysyn_param op tysyn_param '=' type
+                           {% at ($2,$7) `fmap` mkPropSyn $4 [$3, $5] $7 }
+
+  | 'infixl' NUM ops       {% mkFixity LeftAssoc  $2 (reverse $3) }
+  | 'infixr' NUM ops       {% mkFixity RightAssoc $2 (reverse $3) }
+  | 'infix'  NUM ops       {% mkFixity NonAssoc   $2 (reverse $3) }
+
 
 newtype                 :: { Newtype PName }
   : 'newtype' qname '=' newtype_body
@@ -395,7 +432,7 @@ decls_layout            :: { [Decl PName] }
 
 repl                    :: { ReplInput PName }
   : expr                   { ExprInput $1 }
-  | let_decl               { LetInput $1 }
+  | let_decls              { LetInput $1 }
   | {- empty -}            { EmptyInput }
 
 

@@ -300,7 +300,7 @@ data PrimType name = PrimType { primTName :: Located name
 -- | Input at the REPL, which can be an expression, a @let@
 -- statement, or empty (possibly a comment).
 data ReplInput name = ExprInput (Expr name)
-                    | LetInput (Decl name)
+                    | LetInput [Decl name]
                     | EmptyInput
                       deriving (Eq, Show)
 
