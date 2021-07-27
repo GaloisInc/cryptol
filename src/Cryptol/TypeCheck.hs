@@ -29,6 +29,7 @@ module Cryptol.TypeCheck
   ) where
 
 import Data.IORef(IORef,modifyIORef')
+import Data.Map(Map)
 
 import           Cryptol.ModuleSystem.Name
                     (liftSupply,mkDeclared,NameSource(..),ModPath(..))
@@ -133,7 +134,7 @@ tcExpr e0 inp = runInferM inp
                           : map show res
                           )
 
-tcDecls :: [P.TopDecl Name] -> InferInput -> IO (InferOutput [DeclGroup])
+tcDecls :: [P.TopDecl Name] -> InferInput -> IO (InferOutput ([DeclGroup],Map Name TySyn))
 tcDecls ds inp = runInferM inp $
   do newLocalScope
      checkTopDecls ds

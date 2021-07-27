@@ -1027,7 +1027,7 @@ checkLocalDecls ds0 k =
   do newLocalScope
      forM_ ds0 \d -> checkDecl False d Nothing
      a <- k
-     ds <- endLocalScope
+     (ds,_tySyns) <- endLocalScope
      pure (a,ds)
 
 

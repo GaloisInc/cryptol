@@ -33,6 +33,8 @@ module Cryptol.ModuleSystem (
   , IfaceTySyn, IfaceDecl(..)
   ) where
 
+import Data.Map (Map)
+
 import qualified Cryptol.Eval.Concrete as Concrete
 import           Cryptol.ModuleSystem.Env
 import           Cryptol.ModuleSystem.Interface
@@ -94,7 +96,7 @@ evalExpr :: T.Expr -> ModuleCmd Concrete.Value
 evalExpr e env = runModuleM env (interactive (Base.evalExpr e))
 
 -- | Typecheck top-level declarations.
-checkDecls :: [P.TopDecl PName] -> ModuleCmd (R.NamingEnv,[T.DeclGroup])
+checkDecls :: [P.TopDecl PName] -> ModuleCmd (R.NamingEnv,[T.DeclGroup], Map Name T.TySyn)
 checkDecls ds env = runModuleM env
                   $ interactive
                   $ Base.checkDecls ds

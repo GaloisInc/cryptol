@@ -336,6 +336,14 @@ apSubstTypeMapKeys su = go (\_ x -> x) id
                                      (cons k)
                          }
 
+instance TVars a => TVars (Map.Map k a) where
+  -- NB, strict map
+  apSubst su m = Map.map (apSubst su) m
+
+instance TVars TySyn where
+  apSubst su (TySyn nm params props t doc) =
+    (\props' t' -> TySyn nm params props' t' doc)
+      !$ apSubst su props !$ apSubst su t
 
 {- | This instance does not need to worry about bound variable
 capture, because we rely on the 'Subst' datatype invariant to ensure

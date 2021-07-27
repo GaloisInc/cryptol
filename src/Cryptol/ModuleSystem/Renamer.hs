@@ -90,8 +90,12 @@ renameTopDecls m ds0 =
      setNestedModule (nestedModuleNames nested)
        do ds1 <- shadowNames' CheckOverlap env
                                         (renameTopDecls' (nested,mpath) ds)
-          pure (env,ds1)
+          -- record a use of top-level names to avoid
+          -- unused name warnings
+          let exports = concatMap exportedNames ds1
+          mapM_ recordUse (foldMap (exported NSType) exports)
 
+          pure (env,ds1)
 
 -- | Returns declarations with additional imports and the public module names
 -- of this module and its children

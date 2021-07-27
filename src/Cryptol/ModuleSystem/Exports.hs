@@ -15,23 +15,25 @@ import Cryptol.ModuleSystem.Name
 
 modExports :: Ord name => ModuleG mname name -> ExportSpec name
 modExports m = fold (concat [ exportedNames d | d <- mDecls m ])
-  where
-  names by td = [ td { tlValue = thing n } | n <- fst (by (tlValue td)) ]
 
-  exportedNames (Decl td) = map exportBind  (names  namesD td)
-                         ++ map exportType (names tnamesD td)
-  exportedNames (DPrimType t) = [ exportType (thing . primTName <$> t) ]
-  exportedNames (TDNewtype nt) = map exportType (names tnamesNT nt)
-  exportedNames (Include {})  = []
-  exportedNames (DImport {}) = []
-  exportedNames (DParameterFun {}) = []
-  exportedNames (DParameterType {}) = []
-  exportedNames (DParameterConstraint {}) = []
-  exportedNames (DModule nested) =
-    case tlValue nested of
-      NestedModule x ->
-        [exportName NSModule nested { tlValue = thing (mName x) }]
 
+exportedNames :: Ord name => TopDecl name -> [ExportSpec name]
+exportedNames (Decl td) = map exportBind  (names namesD td)
+                       ++ map exportType (names tnamesD td)
+exportedNames (DPrimType t) = [ exportType (thing . primTName <$> t) ]
+exportedNames (TDNewtype nt) = map exportType (names tnamesNT nt)
+exportedNames (Include {})  = []
+exportedNames (DImport {}) = []
+exportedNames (DParameterFun {}) = []
+exportedNames (DParameterType {}) = []
+exportedNames (DParameterConstraint {}) = []
+exportedNames (DModule nested) =
+  case tlValue nested of
+    NestedModule x ->
+      [exportName NSModule nested { tlValue = thing (mName x) }]
+
+names :: (a -> ([Located a'], b)) -> TopLevel a -> [TopLevel a']
+names by td = [ td { tlValue = thing n } | n <- fst (by (tlValue td)) ]
 
 
 newtype ExportSpec name = ExportSpec (Map Namespace (Set name))
@@ -78,6 +80,3 @@ isExportedBind = isExported NSValue
 -- | Check to see if a type synonym is exported.
 isExportedType :: Ord name => name -> ExportSpec name -> Bool
 isExportedType = isExported NSType
-
-
-
