@@ -24,6 +24,12 @@
 * There is a new `w4-abc` solver option, which communicates to ABC
   as an external process via What4.
 
+* Expanded support for declaration forms in the REPL. You can now
+  define infix operators, type synonyms and mutually-recursive functions,
+  and state signatures and fixity declarations. Multiple declarations
+  can be combined into a single line by separating them with `;`,
+  which is necessary for stating a signature together with a
+  definition, etc.
 
 # 2.11.0
 
