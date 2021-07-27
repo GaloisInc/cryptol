@@ -361,6 +361,8 @@ let_decl                :: { Decl PName }
                                           , bExport    = Public
                                           } }
 
+  | 'let' vars_comma ':' schema  { at (head $2,$4) $ DSignature (reverse $2) $4   }
+
   | 'type' name '=' type   {% at ($1,$4) `fmap` mkTySyn $2 [] $4 }
   | 'type' name tysyn_params '=' type
                            {% at ($1,$5) `fmap` mkTySyn $2 (reverse $3) $5  }
