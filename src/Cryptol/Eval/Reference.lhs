@@ -42,6 +42,7 @@
 > import Cryptol.Eval.Type
 >   (TValue(..), isTBit, evalValType, evalNumType, TypeEnv, bindTypeVar)
 > import Cryptol.Eval.Concrete (mkBv, ppBV, lg2)
+> import Cryptol.F2 (pmod, pmult, pdiv)
 > import Cryptol.Utils.Ident (Ident,PrimIdent, prelPrim, floatPrim)
 > import Cryptol.Utils.Panic (panic)
 > import Cryptol.Utils.PP
@@ -691,6 +692,30 @@ by corresponding type classes:
 >   , "lg2"        ~> vFinPoly $ \n -> pure $
 >                     VFun $ \v ->
 >                       vWord n <$> appOp1 lg2Wrap (fromVWord =<< v)
+>
+>   -- F2
+>   , "pmult"      ~> vFinPoly $ \u -> pure $
+>                     vFinPoly $ \v -> pure $
+>                     VFun $ \el -> pure $
+>                     VFun $ \er -> let w = u+v+1 in do
+>                       l <- fromVWord =<< el
+>                       r <- fromVWord =<< er
+>                       pure . vWord w $ pmult (fromIntegral w) l r
+>   , "pdiv"       ~> vFinPoly $ \u -> pure $
+>                     vFinPoly $ \_v -> pure $
+>                     VFun $ \enum -> pure $
+>                     VFun $ \eden -> do
+>                       num <- fromVWord =<< enum
+>                       den <- fromVWord =<< eden
+>                       pure . vWord u $ pdiv (fromIntegral u) num den
+>   , "pmod"       ~> vFinPoly $ \_u -> pure $
+>                     vFinPoly $ \v -> pure $
+>                     VFun $ \enum -> pure $
+>                     VFun $ \eden -> do
+>                       num <- fromVWord =<< enum
+>                       den <- fromVWord =<< eden
+>                       pure . vWord v $ pmod (fromIntegral v) num den
+>
 >   -- Rational
 >   , "ratio"      ~> VFun $ \l -> pure $
 >                     VFun $ \r ->
