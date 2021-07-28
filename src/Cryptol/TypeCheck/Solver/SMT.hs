@@ -102,7 +102,7 @@ stopSolver s = void $ SMT.stop (solver s)
 resetSolver :: Solver -> SolverConfig -> IO ()
 resetSolver s cfg = do
   _ <- SMT.simpleCommand (solver s) ["reset"]
-  setupSolver sol sCfg
+  setupSolver s sCfg
 
 -- | Execute a computation with a fresh solver instance.
 withSolver :: IO () -> SolverConfig -> (Solver -> IO a) -> IO a
