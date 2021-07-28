@@ -77,12 +77,12 @@ setupSolver s cfg = do
 -- | Start a fresh solver instance
 startSolver :: IO () -> SolverConfig -> IO Solver
 startSolver onExit sCfg =
-   do logger <- if solverVerbose > 0 then SMT.newLogger 0
+   do logger <- if (solverVerbose sCfg) > 0 then SMT.newLogger 0
 
                                      else return quietLogger
-      let smtDbg = if solverVerbose > 1 then Just logger else Nothing
+      let smtDbg = if (solverVerbose sCfg) > 1 then Just logger else Nothing
       solver <- SMT.newSolverNotify
-                    solverPath solverArgs smtDbg (Just (const onExit))
+                    (solverPath sCfg) (solverArgs sCfg) smtDbg (Just (const onExit))
       let sol = Solver solver logger
       setupSolver sol sCfg
       return sol
@@ -100,7 +100,7 @@ stopSolver :: Solver -> IO ()
 stopSolver s = void $ SMT.stop (solver s)
 
 resetSolver :: Solver -> SolverConfig -> IO ()
-resetSolver s cfg = do
+resetSolver s sCfg = do
   _ <- SMT.simpleCommand (solver s) ["reset"]
   setupSolver s sCfg
 

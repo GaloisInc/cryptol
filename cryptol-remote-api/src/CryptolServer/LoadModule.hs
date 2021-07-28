@@ -11,8 +11,6 @@ module CryptolServer.LoadModule
 
 import qualified Argo.Doc as Doc
 import Control.Applicative
-import Control.Monad.IO.Class
-import qualified Cryptol.TypeCheck.Solver.SMT as SMT
 import Data.Aeson as JSON
 import qualified Data.Text as T
 import Data.Functor
