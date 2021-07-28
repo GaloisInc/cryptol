@@ -15,10 +15,12 @@
 module Cryptol.TypeCheck.Solver.SMT
   ( -- * Setup
     Solver
+  , SolverConfig
   , withSolver
   , startSolver
   , stopSolver
   , isNumeric
+  , resetSolver
 
     -- * Debugging
   , debugBlock
@@ -67,20 +69,22 @@ data Solver = Solver
     -- ^ For debugging
   }
 
+setupSolver :: Solver -> SolverConfig -> IO ()
+setupSolver s cfg = do
+  _ <- SMT.setOptionMaybe (solver s) ":global-decls" "false"
+  loadTcPrelude s (solverPreludePath cfg)
 
 -- | Start a fresh solver instance
 startSolver :: IO () -> SolverConfig -> IO Solver
-startSolver onExit SolverConfig { .. } =
-   do logger <- if solverVerbose > 0 then SMT.newLogger 0
+startSolver onExit sCfg =
+   do logger <- if (solverVerbose sCfg) > 0 then SMT.newLogger 0
 
                                      else return quietLogger
-      let smtDbg = if solverVerbose > 1 then Just logger else Nothing
+      let smtDbg = if (solverVerbose sCfg) > 1 then Just logger else Nothing
       solver <- SMT.newSolverNotify
-                    solverPath solverArgs smtDbg (Just (const onExit))
-      _ <- SMT.setOptionMaybe solver ":global-decls" "false"
-      -- SMT.setLogic solver "QF_LIA"
-      let sol = Solver { .. }
-      loadTcPrelude sol solverPreludePath
+                    (solverPath sCfg) (solverArgs sCfg) smtDbg (Just (const onExit))
+      let sol = Solver solver logger
+      setupSolver sol sCfg
       return sol
 
   where
@@ -94,6 +98,11 @@ startSolver onExit SolverConfig { .. } =
 -- | Shut down a solver instance
 stopSolver :: Solver -> IO ()
 stopSolver s = void $ SMT.stop (solver s)
+
+resetSolver :: Solver -> SolverConfig -> IO ()
+resetSolver s sCfg = do
+  _ <- SMT.simpleCommand (solver s) ["reset"]
+  setupSolver s sCfg
 
 -- | Execute a computation with a fresh solver instance.
 withSolver :: IO () -> SolverConfig -> (Solver -> IO a) -> IO a

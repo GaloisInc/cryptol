@@ -25,7 +25,8 @@ loadFileDescr :: Doc.Block
 loadFileDescr = Doc.Paragraph [Doc.Text "Load the specified module (by file path)."]
 
 loadFile :: LoadFileParams -> CryptolCommand ()
-loadFile (LoadFileParams fn) =
+loadFile (LoadFileParams fn) = do
+  resetTCSolver
   void $ liftModuleCmd (loadModuleByPath fn)
 
 newtype LoadFileParams
@@ -49,7 +50,8 @@ loadModuleDescr :: Doc.Block
 loadModuleDescr = Doc.Paragraph [Doc.Text "Load the specified module (by name)."]
 
 loadModule :: LoadModuleParams -> CryptolCommand ()
-loadModule (LoadModuleParams mn) =
+loadModule (LoadModuleParams mn) = do
+  resetTCSolver
   void $ liftModuleCmd (loadModuleByName mn)
 
 newtype JSONModuleName
