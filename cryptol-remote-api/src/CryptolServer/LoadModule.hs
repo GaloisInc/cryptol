@@ -11,6 +11,8 @@ module CryptolServer.LoadModule
 
 import qualified Argo.Doc as Doc
 import Control.Applicative
+import Control.Monad.IO.Class
+import qualified Cryptol.TypeCheck.Solver.SMT as SMT
 import Data.Aeson as JSON
 import qualified Data.Text as T
 import Data.Functor
@@ -25,7 +27,8 @@ loadFileDescr :: Doc.Block
 loadFileDescr = Doc.Paragraph [Doc.Text "Load the specified module (by file path)."]
 
 loadFile :: LoadFileParams -> CryptolCommand ()
-loadFile (LoadFileParams fn) =
+loadFile (LoadFileParams fn) = do
+  resetTCSolver
   void $ liftModuleCmd (loadModuleByPath fn)
 
 newtype LoadFileParams
@@ -49,7 +52,8 @@ loadModuleDescr :: Doc.Block
 loadModuleDescr = Doc.Paragraph [Doc.Text "Load the specified module (by name)."]
 
 loadModule :: LoadModuleParams -> CryptolCommand ()
-loadModule (LoadModuleParams mn) =
+loadModule (LoadModuleParams mn) = do
+  resetTCSolver
   void $ liftModuleCmd (loadModuleByName mn)
 
 newtype JSONModuleName
