@@ -54,11 +54,10 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        ghc-version: ["8.6.5", "8.8.4", "8.10.2"]
+        ghc-version: ["8.6.5", "8.8.4", "8.10.5"]
         exclude:
-          # https://gitlab.haskell.org/ghc/ghc/-/issues/18550
           - os: windows-latest
-            ghc-version: 8.10.2
+            ghc-version: 8.8.4
     outputs:
       test-lib-json: ${{ steps.test-lib.outputs.targets-json }}
     env:
@@ -234,7 +233,7 @@ jobs:
 
       - uses: haskell/actions/setup@v1
         with:
-          ghc-version: '8.10.2'
+          ghc-version: '8.10.5'
 
       - if: matrix.suite == 'rpc'
         uses: actions/setup-python@v2
