@@ -299,7 +299,6 @@ jobs:
             file: cryptol-remote-api/Dockerfile
             image: ghcr.io/galoisinc/cryptol-remote-api
             cache: ghcr.io/galoisinc/cache-cryptol-remote-api
-            if: ${{ github.event_name == 'schedule' }}
           - build-args: PORTABILITY=false
             file: cryptol-remote-api/Dockerfile
             image: ghcr.io/galoisinc/cryptol-remote-api
