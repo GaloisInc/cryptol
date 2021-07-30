@@ -3,4 +3,5 @@
 
 :check
 
+:set prover=cvc4
 :prove
