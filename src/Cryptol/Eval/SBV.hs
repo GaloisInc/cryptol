@@ -29,7 +29,7 @@ import qualified Data.Text as T
 import Data.SBV.Dynamic as SBV
 
 import Cryptol.Backend
-import Cryptol.Backend.Monad (Unsupported(..) )
+import Cryptol.Backend.Monad (Unsupported(..), EvalError(..) )
 import Cryptol.Backend.SBV
 import Cryptol.Backend.SeqMap
 import Cryptol.Backend.WordValue
@@ -81,25 +81,32 @@ indexFront sym mblen a xs _ix idx
          Just ws ->
            do z <- wordLit sym wlen 0
               return $ VWord wlen $ wordVal $ SBV.svSelect ws z idx
-         Nothing -> folded
+         Nothing -> folded'
 
-  | otherwise
-  = folded
+  | otherwise = folded'
+
 
  where
     k = SBV.kindOf idx
-    def = zeroV sym a
-    f n y = iteValue sym (SBV.svEqual idx (SBV.svInteger k n)) (lookupSeqMap xs n) y
+
+    f n (Just y) = Just $ iteValue sym (SBV.svEqual idx (SBV.svInteger k n)) (lookupSeqMap xs n) y
+    f n Nothing  = Just $ lookupSeqMap xs n
+
+    folded' =
+      case folded of
+        Nothing -> raiseError sym (InvalidIndex Nothing)
+        Just m  -> m
+
     folded =
       case k of
         KBounded _ w ->
           case mblen of
-            Nat n | n < 2^w -> foldr f def [0 .. n-1]
-            _ -> foldr f def [0 .. 2^w - 1]
+            Nat n | n < 2^w -> foldr f Nothing [0 .. n-1]
+            _ -> foldr f Nothing [0 .. 2^w - 1]
         _ ->
           case mblen of
-            Nat n -> foldr f def [0 .. n-1]
-            Inf -> liftIO (X.throw (UnsupportedSymbolicOp "unbounded integer indexing"))
+            Nat n -> foldr f Nothing [0 .. n-1]
+            Inf -> Just (liftIO (X.throw (UnsupportedSymbolicOp "unbounded integer indexing")))
 
 indexFront_segs ::
   SBV ->

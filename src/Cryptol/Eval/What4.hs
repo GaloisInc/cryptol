@@ -510,7 +510,9 @@ indexFront_int sym mblen _a xs ix idx
   = lookupSeqMap xs i
 
   | (lo, Just hi) <- bounds
-  = foldr f def [lo .. hi]
+  = case foldr f Nothing [lo .. hi] of
+      Nothing -> raiseError sym (InvalidIndex Nothing)
+      Just m  -> m
 
   | otherwise
   = liftIO (X.throw (UnsupportedSymbolicOp "unbounded integer indexing"))
@@ -518,11 +520,10 @@ indexFront_int sym mblen _a xs ix idx
  where
     w4sym = w4 sym
 
-    def = raiseError sym (InvalidIndex Nothing)
-
-    f n y =
+    f n (Just y) = Just $
        do p <- liftIO (W4.intEq w4sym idx =<< W4.intLit w4sym n)
           iteValue sym p (lookupSeqMap xs n) y
+    f n Nothing = Just $ lookupSeqMap xs n
 
     bounds =
       (case W4.rangeLowBound (W4.integerBounds idx) of
@@ -559,17 +560,19 @@ indexFront_segs sym mblen _a xs _ix _idx_bits [WordIndexSegment idx]
   = lookupSeqMap xs i
 
   | otherwise
-  = foldr f def idxs
+  = case foldr f Nothing idxs of
+      Nothing -> raiseError sym (InvalidIndex Nothing)
+      Just m  -> m
 
  where
     w4sym = w4 sym
 
     w = SW.bvWidth idx
-    def = raiseError sym (InvalidIndex Nothing)
 
-    f n y =
+    f n (Just y) = Just $
        do p <- liftIO (SW.bvEq w4sym idx =<< SW.bvLit w4sym w n)
           iteValue sym p (lookupSeqMap xs n) y
+    f n Nothing = Just $ lookupSeqMap xs n
 
     -- maximum possible in-bounds index given the bitwidth
     -- of the index value and the length of the sequence

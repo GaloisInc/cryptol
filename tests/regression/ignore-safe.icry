@@ -10,7 +10,6 @@
 :prove (\ (x:[8]) y -> (y == 0) || (y*(x/y) + x%y == x))
 
 :prove (\ (x:Integer) -> [0,0,0]@x == 0 )
-:prove (\ (x:Integer) -> []@x == 0 )
 :prove (\ (x:[8]) -> [0,0,0]@x == 0 )
 
 :set ignore-safety = on
@@ -22,5 +21,4 @@
 :prove (\ (x:[8]) y -> (y == 0) || (y*(x/y) + x%y == x))
 
 :prove (\ (x:Integer) -> [0,0,0]@x == 0 )
-:prove (\ (x:Integer) -> []@x == 0 )
 :prove (\ (x:[8]) -> [0,0,0]@x == 0 )
