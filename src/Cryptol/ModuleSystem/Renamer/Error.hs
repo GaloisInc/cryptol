@@ -94,11 +94,10 @@ instance PP RenamerError where
 
     WrongNamespace expected actual lqn ->
       hang ("[error] at" <+> pp (srcRange lqn ))
-         4 (fsep
+         4 (fsep $
             [ "Expected a", sayNS expected, "named", quotes (pp (thing lqn))
             , "but found a", sayNS actual, "instead"
-            , suggestion
-            ])
+            ] ++ suggestion)
         where
         sayNS ns = case ns of
                      NSValue  -> "value"
@@ -106,30 +105,31 @@ instance PP RenamerError where
                      NSModule -> "module"
         suggestion =
           case (expected,actual) of
+
             (NSValue,NSType) ->
-                "Did you mean `(" <.> pp (thing lqn) <.> text")?"
-            _ -> empty
+                ["Did you mean `(" <.> pp (thing lqn) <.> text")?"]
+            _ -> []
 
     FixityError o1 f1 o2 f2 ->
       hang (text "[error] at" <+> pp (srcRange o1) <+> text "and" <+> pp (srcRange o2))
-         4 (fsep [ text "The fixities of"
-                 , nest 2 $ vcat
+         4 (vsep [ text "The fixities of"
+                 , indent 2 $ vcat
                    [ "•" <+> pp (thing o1) <+> parens (pp f1)
                    , "•" <+> pp (thing o2) <+> parens (pp f2) ]
                  , text "are not compatible."
                  , text "You may use explicit parentheses to disambiguate." ])
 
     InvalidConstraint ty ->
-      hang (text "[error]" <+> maybe empty (\r -> text "at" <+> pp r) (getLoc ty))
+      hang (hsep $ [text "[error]"] ++ maybe [] (\r -> [text "at" <+> pp r]) (getLoc ty))
          4 (fsep [ pp ty, text "is not a valid constraint" ])
 
     MalformedBuiltin ty pn ->
-      hang (text "[error]" <+> maybe empty (\r -> text "at" <+> pp r) (getLoc ty))
+      hang (hsep $ [text "[error]"] ++ maybe [] (\r -> [text "at" <+> pp r]) (getLoc ty))
          4 (fsep [ text "invalid use of built-in type", pp pn
                  , text "in type", pp ty ])
 
     BoundReservedType n loc src ->
-      hang (text "[error]" <+> maybe empty (\r -> text "at" <+> pp r) loc)
+      hang (hsep $ [text "[error]"] ++ maybe [] (\r -> [text "at" <+> pp r]) loc)
          4 (fsep [ text "built-in type", quotes (pp n), text "shadowed in", src ])
 
     OverlappingRecordUpdate xs ys ->
@@ -139,9 +139,9 @@ instance PP RenamerError where
       ppLab as = ppNestedSels (thing as) <+> "at" <+> pp (srcRange as)
 
     InvalidDependency ds ->
-      "[error] Invalid recursive dependency:"
-      $$ nest 4 (vcat [ "•" <+> pp x <.> ", defined at" <+> ppR (depNameLoc x)
-                      | x <- ds ])
+      hang "[error] Invalid recursive dependency:"
+         4 (vcat [ "•" <+> pp x <.> ", defined at" <+> ppR (depNameLoc x)
+                 | x <- ds ])
       where ppR r = pp (from r) <.> "--" <.> pp (to r)
 
 instance PP DepName where
@@ -193,7 +193,7 @@ instance PP RenamerWarning where
 
     where
     plural | length os > 1 = char 's'
-           | otherwise     = empty
+           | otherwise     = mempty
 
     loc = pp (nameLoc x)
 

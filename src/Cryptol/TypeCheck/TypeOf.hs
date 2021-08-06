@@ -156,4 +156,4 @@ typeSelect (tIsSeq -> Just (n, a)) sel@RecordSel{} = tSeq n (typeSelect a sel)
 typeSelect (tIsFun -> Just (a, b)) sel = tFun a (typeSelect b sel)
 
 typeSelect ty _ = panic "Cryptol.TypeCheck.TypeOf.typeSelect"
-                    [ "cannot apply selector to value of type", render (pp ty) ]
+                    [ "cannot apply selector to value of type", show (pp ty) ]

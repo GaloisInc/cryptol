@@ -930,17 +930,17 @@ instance PP Schema where
 instance PP (WithNames Schema) where
   ppPrec _ (WithNames s ns)
     | null (sVars s) && null (sProps s) = body
-    | otherwise = hang (vars <+> props) 2 body
+    | otherwise = nest 2 (sep (vars ++ props ++ [body]))
     where
     body = ppWithNames ns1 (sType s)
 
     vars = case sVars s of
-      [] -> empty
-      vs -> braces $ commaSep $ map (ppWithNames ns1) vs
+      [] -> []
+      vs -> [nest 1 (braces (commaSepFill (map (ppWithNames ns1) vs)))]
 
     props = case sProps s of
-      [] -> empty
-      ps -> parens (commaSep (map (ppWithNames ns1) ps)) <+> text "=>"
+      [] -> []
+      ps -> [nest 1 (parens (commaSepFill (map (ppWithNames ns1) ps))) <+> text "=>"]
 
     ns1 = addTNames (sVars s) ns
 
@@ -949,17 +949,20 @@ instance PP TySyn where
 
 instance PP (WithNames TySyn) where
   ppPrec _ (WithNames ts ns) =
-    text "type" <+> ctr <+> lhs <+> char '=' <+> ppWithNames ns1 (tsDef ts)
+    nest 2 $ sep
+      [ fsep ([text "type"] ++ ctr ++ lhs ++ [char '='])
+      , ppWithNames ns1 (tsDef ts)
+      ]
     where ns1 = addTNames (tsParams ts) ns
           ctr = case kindResult (kindOf ts) of
-                  KProp -> text "constraint"
-                  _     -> empty
+                  KProp -> [text "constraint"]
+                  _     -> []
           n = tsName ts
           lhs = case (nameFixity n, tsParams ts) of
                   (Just _, [x, y]) ->
-                    ppWithNames ns1 x <+> pp (nameIdent n) <+> ppWithNames ns1 y
+                    [ppWithNames ns1 x, pp (nameIdent n), ppWithNames ns1 y]
                   (_, ps) ->
-                    pp n <+> sep (map (ppWithNames ns1) ps)
+                    [pp n] ++ map (ppWithNames ns1) ps
 
 instance PP Newtype where
   ppPrec = ppWithNamesPrec IntMap.empty
@@ -985,8 +988,8 @@ instance PP (WithNames Type) where
   ppPrec prec ty0@(WithNames ty nmMap) =
     case ty of
       TVar a  -> ppWithNames nmMap a
-      TNewtype nt ts -> optParens (prec > 3) $ pp (ntName nt) <+> fsep (map (go 5) ts)
-      TRec fs -> braces $ fsep $ punctuate comma
+      TNewtype nt ts -> optParens (prec > 3) $ fsep (pp (ntName nt) : map (go 5) ts)
+      TRec fs -> ppRecord
                     [ pp l <+> text ":" <+> go 0 t | (l,t) <- displayFields fs ]
 
       _ | Just tinf <- isTInfix ty0 -> optParens (prec > 2)
@@ -1000,7 +1003,7 @@ instance PP (WithNames Type) where
           _ ->
             case ts of
               [] -> pp c
-              _ -> optParens (prec > 3) $ pp c <+> fsep (map (go 5) ts)
+              _ -> optParens (prec > 3) $ fsep (pp c : map (go 5) ts)
 
       TCon (TC tc) ts ->
         case (tc,ts) of
@@ -1019,9 +1022,9 @@ instance PP (WithNames Type) where
           (TCFun,   [t1,t2])  -> optParens (prec > 1)
                               $ go 2 t1 <+> text "->" <+> go 1 t2
 
-          (TCTuple _, fs)     -> parens $ fsep $ punctuate comma $ map (go 0) fs
+          (TCTuple _, fs)     -> ppTuple $ map (go 0) fs
 
-          (_, _)              -> optParens (prec > 3) $ pp tc <+> fsep (map (go 5) ts)
+          (_, _)              -> optParens (prec > 3) $ fsep (pp tc : (map (go 5) ts))
 
       TCon (PC pc) ts ->
         case (pc,ts) of
@@ -1032,7 +1035,7 @@ instance PP (WithNames Type) where
           (PPrime,  [t1])     -> optParens (prec > 3) $ text "prime" <+> (go 5 t1)
           (PHas x, [t1,t2])   -> ppSelector x <+> text "of"
                                <+> go 0 t1 <+> text "is" <+> go 0 t2
-          (PAnd, [t1,t2])     -> parens (commaSep (map (go 0) (t1 : pSplitAnd t2)))
+          (PAnd, [t1,t2])     -> nest 1 (parens (commaSepFill (map (go 0) (t1 : pSplitAnd t2))))
 
           (PRing, [t1])       -> pp pc <+> go 5 t1
           (PField, [t1])      -> pp pc <+> go 5 t1
@@ -1044,10 +1047,9 @@ instance PP (WithNames Type) where
           (PLiteral, [t1,t2]) -> pp pc <+> go 5 t1 <+> go 5 t2
           (PLiteralLessThan, [t1,t2]) -> pp pc <+> go 5 t1 <+> go 5 t2
 
-          (_, _)              -> optParens (prec > 3) $ pp pc <+> fsep (map (go 5) ts)
+          (_, _)              -> optParens (prec > 3) $ fsep (pp pc : map (go 5) ts)
 
-      TCon f ts -> optParens (prec > 3)
-                $ pp f <+> fsep (map (go 5) ts)
+      TCon f ts -> optParens (prec > 3) $ fsep (pp f : map (go 5) ts)
 
     where
     go p t = ppWithNamesPrec nmMap p t
@@ -1136,19 +1138,18 @@ instance PP Type where
   ppPrec n t = ppWithNamesPrec IntMap.empty n t
 
 instance PP TVarInfo where
-  ppPrec _ tvinfo = pp (tvarDesc tvinfo) <+> loc
+  ppPrec _ tvinfo = hsep $ [pp (tvarDesc tvinfo)] ++ loc
     where
-    loc = if rng == emptyRange then empty else "at" <+> pp rng
+    loc = if rng == emptyRange then [] else ["at" <+> pp rng]
     rng = tvarSource tvinfo
 
 instance PP ArgDescr where
-  ppPrec _ ad = which <+> "argument" <+> ofFun
+  ppPrec _ ad = hsep ([which, "argument"] ++ ofFun)
         where
         which = maybe "function" ordinal (argDescrNumber ad)
         ofFun = case argDescrFun ad of
-                  Nothing -> empty
-                  Just f  -> "of" <+> pp f
-
+                  Nothing -> []
+                  Just f  -> ["of" <+> pp f]
 
 
 instance PP TypeSource where

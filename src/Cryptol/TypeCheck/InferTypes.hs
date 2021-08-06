@@ -315,24 +315,25 @@ cppKind ki =
 addTVarsDescsAfter :: FVS t => NameMap -> t -> Doc -> Doc
 addTVarsDescsAfter nm t d
   | Set.null vs = d
+-- TODO? use `hang` here instead to indent things after "where"
   | otherwise   = d $$ text "where" $$ vcat (map desc (Set.toList vs))
   where
   vs     = fvs t
   desc v = ppWithNames nm v <+> text "is" <+> pp (tvInfo v)
 
 addTVarsDescsBefore :: FVS t => NameMap -> t -> Doc -> Doc
-addTVarsDescsBefore nm t d = frontMsg $$ d $$ backMsg
+addTVarsDescsBefore nm t d = vcat (frontMsg ++ [d] ++ backMsg)
   where
   (vs1,vs2)  = Set.partition isFreeTV (fvs t)
 
-  frontMsg | null vs1  = empty
-           | otherwise = "Failed to infer the following types:"
-                         $$ nest 2 (vcat (map desc1 (Set.toList vs1)))
+  frontMsg | null vs1  = []
+           | otherwise = [hang "Failed to infer the following types:"
+                             2 (vcat (map desc1 (Set.toList vs1)))]
   desc1 v    = "•" <+> ppWithNames nm v <.> comma <+> pp (tvInfo v)
 
-  backMsg  | null vs2  = empty
-           | otherwise = "where"
-                         $$ nest 2 (vcat (map desc2 (Set.toList vs2)))
+  backMsg  | null vs2  = []
+           | otherwise = [hang "where"
+                             2 (vcat (map desc2 (Set.toList vs2)))]
   desc2 v    = ppWithNames nm v <+> text "is" <+> pp (tvInfo v)
 
 
@@ -363,7 +364,7 @@ ppUse expr =
       | prim == "infFromThen"  -> "infinite enumeration (with step)"
       | prim == "fromTo"       -> "finite enumeration"
       | prim == "fromThenTo"   -> "finite enumeration"
-    _                                    -> "expression" <+> pp expr
+    _                          -> "expression" <+> pp expr
   where
   isPrelPrim x = do PrimIdent p i <- asPrim x
                     guard (p == preludeName)
@@ -371,19 +372,21 @@ ppUse expr =
 
 instance PP (WithNames Goal) where
   ppPrec _ (WithNames g names) =
-      (ppWithNames names (goal g)) $$
-               nest 2 (text "arising from" $$
-                       pp (goalSource g)   $$
-                       text "at" <+> pp (goalRange g))
+      hang (ppWithNames names (goal g))
+         2 (text "arising from" $$
+            pp (goalSource g)   $$
+            text "at" <+> pp (goalRange g))
 
 instance PP (WithNames DelayedCt) where
   ppPrec _ (WithNames d names) =
-    sig $$ "we need to show that" $$
-    nest 2 (vcat [ vars, asmps, "the following constraints hold:"
-                 , nest 2 $ vcat
-                          $ bullets
-                          $ map (ppWithNames ns1)
-                          $ dctGoals d ])
+    sig $$
+    hang "we need to show that"
+       2 (vcat ( vars ++ asmps ++ 
+               [ hang "the following constraints hold:"
+                    2 (vcat
+                       $ bullets
+                       $ map (ppWithNames ns1)
+                       $ dctGoals d )]))
     where
     bullets xs = [ "•" <+> x | x <- xs ]
 
@@ -394,12 +397,11 @@ instance PP (WithNames DelayedCt) where
 
     name  = dctSource d
     vars = case dctForall d of
-             [] -> empty
-             xs -> "for any type" <+>
-                      fsep (punctuate comma (map (ppWithNames ns1 ) xs))
+             [] -> []
+             xs -> ["for any type" <+> commaSep (map (ppWithNames ns1) xs)]
     asmps = case dctAsmps d of
-              [] -> empty
-              xs -> "assuming" $$
-                    nest 2 (vcat (bullets (map (ppWithNames ns1) xs)))
+              [] -> []
+              xs -> [hang "assuming"
+                       2 (vcat (bullets (map (ppWithNames ns1) xs)))]
 
     ns1 = addTNames (dctForall d) names

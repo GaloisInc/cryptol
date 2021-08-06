@@ -211,14 +211,14 @@ instance PP (WithNames Expr) where
       EList [] t    -> optParens (prec > 0)
                     $ text "[]" <+> colon <+> ppWP prec t
 
-      EList es _    -> brackets $ sep $ punctuate comma $ map ppW es
+      EList es _    -> ppList $ map ppW es
 
-      ETuple es     -> parens $ sep $ punctuate comma $ map ppW es
+      ETuple es     -> ppTuple $ map ppW es
 
-      ERec fs       -> braces $ sep $ punctuate comma
+      ERec fs       -> ppRecord
                         [ pp f <+> text "=" <+> ppW e | (f,e) <- displayFields fs ]
 
-      ESel e sel    -> ppWP 4 e <+> text "." <.> pp sel
+      ESel e sel    -> ppWP 4 e <.> text "." <.> pp sel
 
       ESet _ty e sel v  -> braces (pp e <+> "|" <+> pp sel <+> "=" <+> pp v)
 
@@ -228,7 +228,7 @@ instance PP (WithNames Expr) where
                           , text "else" <+> ppW e3 ]
 
       EComp _ _ e mss -> let arm ms = text "|" <+> commaSep (map ppW ms)
-                          in brackets $ ppW e <+> vcat (map arm mss)
+                          in brackets $ ppW e <+> (align (vcat (map arm mss)))
 
       EVar x        -> ppPrefixName x
 
@@ -261,28 +261,29 @@ instance PP (WithNames Expr) where
       ETApp e t     -> optParens (prec > 3)
                     $ ppWP 3 e <+> ppWP 5 t
 
-      EWhere e ds   -> optParens (prec > 0)
-                     ( ppW e $$ text "where"
-                                     $$ nest 2 (vcat (map ppW ds))
-                                     $$ text "" )
+      EWhere e ds   -> optParens (prec > 0) $ align $ vsep $
+                         [ ppW e
+                         , hang "where" 2 (vcat (map ppW ds))
+                         ]
 
     where
     ppW x   = ppWithNames nm x
     ppWP x  = ppWithNamesPrec nm x
 
 ppLam :: NameMap -> Int -> [TParam] -> [Prop] -> [(Name,Type)] -> Expr -> Doc
-ppLam nm prec [] [] [] e = ppWithNamesPrec nm prec e
+ppLam nm prec [] [] [] e = nest 2 (ppWithNamesPrec nm prec e)
 ppLam nm prec ts ps xs e =
   optParens (prec > 0) $
-  sep [ text "\\" <.> tsD <+> psD <+> xsD <+> text "->"
-      , ppWithNames ns1 e
-      ]
+  nest 2 $ sep
+    [ text "\\" <.> hsep (tsD ++ psD ++ xsD ++ [text "->"])
+    , ppWithNames ns1 e
+    ]
   where
   ns1 = addTNames ts nm
 
-  tsD = if null ts then empty else braces $ sep $ punctuate comma $ map ppT ts
-  psD = if null ps then empty else parens $ sep $ punctuate comma $ map ppP ps
-  xsD = if null xs then empty else sep    $ map ppArg xs
+  tsD = if null ts then [] else [braces $ commaSep $ map ppT ts]
+  psD = if null ps then [] else [parens $ commaSep $ map ppP ps]
+  xsD = if null xs then [] else [sep    $ map ppArg xs]
 
   ppT = ppWithNames ns1
   ppP = ppWithNames ns1
@@ -359,12 +360,12 @@ instance PP DeclGroup where
 
 instance PP (WithNames Decl) where
   ppPrec _ (WithNames Decl { .. } nm) =
-    pp dName <+> text ":" <+> ppWithNames nm dSignature  $$
-    (if null dPragmas
-        then empty
-        else text "pragmas" <+> pp dName <+> sep (map pp dPragmas)
-    ) $$
-    pp dName <+> text "=" <+> ppWithNames nm dDefinition
+    vcat $
+      [ pp dName <+> text ":" <+> ppWithNames nm dSignature ]
+      ++ (if null dPragmas
+            then []
+            else [text "pragmas" <+> pp dName <+> sep (map pp dPragmas)])
+      ++ [ nest 2 (sep [pp dName <+> text "=", ppWithNames nm dDefinition]) ]
 
 instance PP (WithNames DeclDef) where
   ppPrec _ (WithNames DPrim _)      = text "<primitive>"

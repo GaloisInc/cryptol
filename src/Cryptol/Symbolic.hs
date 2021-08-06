@@ -215,11 +215,11 @@ ppVarShape _sym (VarFloat _f) = text "<float>"
 ppVarShape _sym (VarRational _n _d) = text "<rational>"
 ppVarShape sym (VarWord w) = text "<word:" <> integer (wordLen sym w) <> text ">"
 ppVarShape sym (VarFinSeq _ xs) =
-  brackets (fsep (punctuate comma (map (ppVarShape sym) xs)))
+  ppList (map (ppVarShape sym) xs)
 ppVarShape sym (VarTuple xs) =
-  parens (sep (punctuate comma (map (ppVarShape sym) xs)))
+  ppTuple (map (ppVarShape sym) xs)
 ppVarShape sym (VarRecord fs) =
-  braces (sep (punctuate comma (map ppField (displayFields fs))))
+  ppRecord (map ppField (displayFields fs))
  where
   ppField (f,v) = pp f <+> char '=' <+> ppVarShape sym v
 

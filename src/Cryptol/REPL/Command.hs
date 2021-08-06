@@ -85,7 +85,7 @@ import qualified Cryptol.TypeCheck.Parseable as T
 import qualified Cryptol.TypeCheck.Subst as T
 import           Cryptol.TypeCheck.Solve(defaultReplExpr)
 import           Cryptol.TypeCheck.PP (dump,ppWithNames,emptyNameMap)
-import           Cryptol.Utils.PP
+import           Cryptol.Utils.PP hiding ((</>))
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.RecordMap
 import qualified Cryptol.Parser.AST as P
@@ -348,16 +348,16 @@ printCounterexample :: CounterExampleType -> Doc -> [Concrete.Value] -> REPL ()
 printCounterexample cexTy exprDoc vs =
   do ppOpts <- getPPValOpts
      docs <- mapM (rEval . E.ppValue Concrete ppOpts) vs
-     rPrint $ hang exprDoc 2 (sep docs) <+>
-       case cexTy of
-         SafetyViolation -> text "~> ERROR"
-         PredicateFalsified -> text "= False"
+     let cexRes = case cexTy of
+           SafetyViolation    -> [text "~> ERROR"]
+           PredicateFalsified -> [text "= False"]
+     rPrint $ nest 2 (sep ([exprDoc] ++ docs ++ cexRes))
 
 printSatisfyingModel :: Doc -> [Concrete.Value] -> REPL ()
 printSatisfyingModel exprDoc vs =
   do ppOpts <- getPPValOpts
      docs <- mapM (rEval . E.ppValue Concrete ppOpts) vs
-     rPrint $ hang exprDoc 2 (sep docs) <+> text ("= True")
+     rPrint $ nest 2 (sep ([exprDoc] ++ docs ++ [text "= True"]))
 
 
 dumpTestsCmd :: FilePath -> String -> (Int,Int) -> Maybe FilePath -> REPL ()
@@ -984,7 +984,8 @@ typeOfCmd str pos fnm = do
   whenDebug (rPutStrLn (dump def))
   fDisp <- M.mctxNameDisp <$> getFocusedEnv
   -- type annotation ':' has precedence 2
-  rPrint $ runDoc fDisp $ ppPrec 2 expr <+> text ":" <+> pp sig
+  rPrint $ runDoc fDisp $ group $ hang
+    (ppPrec 2 expr <+> text ":") 2 (pp sig)
 
 readFileCmd :: FilePath -> REPL ()
 readFileCmd fp = do
@@ -1281,9 +1282,9 @@ helpCmd cmd
                             ns = T.addTNames vs emptyNameMap
                             rs = [ "•" <+> ppWithNames ns c | c <- cs ]
                         rPutStrLn ""
-                        rPrint $ runDoc nameEnv $ nest 4 $
+                        rPrint $ runDoc nameEnv $ indent 4 $
                                     backticks (ppWithNames ns example) <+>
-                                    "requires:" $$ nest 2 (vcat rs)
+                                    "requires:" $$ indent 2 (vcat rs)
 
                    doShowFix (T.atFixitiy a)
                    doShowDocString (T.atDoc a)
@@ -1293,12 +1294,13 @@ helpCmd cmd
          let uses c = T.TVBound (T.mtpParam p) `Set.member` T.fvs c
              ctrs = filter uses (map P.thing (M.ifParamConstraints params))
              ctrDoc = case ctrs of
-                        [] -> empty
-                        [x] -> pp x
-                        xs  -> parens $ hsep $ punctuate comma $ map pp xs
-             decl = text "parameter" <+> pp name <+> text ":"
-                      <+> pp (T.mtpKind p)
-                   $$ ctrDoc
+                        []  -> []
+                        [x] -> [pp x]
+                        xs  -> [parens $ commaSep $ map pp xs]
+             decl = vcat $
+                      [ text "parameter" <+> pp name <+> text ":"
+                        <+> pp (T.mtpKind p) ]
+                      ++ ctrDoc
          return $ doShowTyHelp nameEnv decl (T.mtpDoc p)
 
   doShowTyHelp nameEnv decl doc =
@@ -1328,15 +1330,14 @@ helpCmd cmd
          return $
            do rPutStrLn ""
 
-              let property
-                    | P.PragmaProperty `elem` ifDeclPragmas = text "property"
-                    | otherwise                             = empty
+              let property 
+                    | P.PragmaProperty `elem` ifDeclPragmas = [text "property"]
+                    | otherwise                             = []
               rPrint $ runDoc nameEnv
-                     $ nest 4
-                     $ property
-                       <+> pp qname
-                       <+> colon
-                       <+> pp (ifDeclSig)
+                     $ indent 4
+                     $ hsep
+
+                     $ property ++ [pp qname, colon, pp (ifDeclSig)]
 
               doShowFix $ ifDeclFixity `mplus`
                           (guard ifDeclInfix >> return P.defaultFixity)
@@ -1352,7 +1353,7 @@ helpCmd cmd
          return $
            do rPutStrLn ""
               rPrint $ runDoc nameEnv
-                     $ nest 4
+                     $ indent 4
                      $ text "parameter" <+> pp qname
                                         <+> colon
                                         <+> pp (T.mvpType p)

@@ -78,7 +78,7 @@ instance PPName PName where
     i   = getIdent n
     pfx = case getModName n of
             Just ns -> pp ns <.> text "::"
-            Nothing -> empty
+            Nothing -> mempty
 
   ppInfixName n
     | isInfixIdent i = pfx <.> pp i
@@ -87,4 +87,4 @@ instance PPName PName where
     i   = getIdent n
     pfx = case getModName n of
             Just ns -> pp ns <.> text "::"
-            Nothing -> empty
+            Nothing -> mempty

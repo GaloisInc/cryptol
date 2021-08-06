@@ -324,11 +324,11 @@ instance PP (WithNames Error) where
       KindMismatch mbsrc k1 k2 ->
         addTVarsDescsAfter names err $
         nested "Incorrect type form." $
-         vcat [ "Expected:" <+> cppKind k1
-              , "Inferred:" <+> cppKind k2
-              , kindMismatchHint k1 k2
-              , maybe empty (\src -> "When checking" <+> pp src) mbsrc
-              ]
+         vcat $
+           [ "Expected:" <+> cppKind k1
+           , "Inferred:" <+> cppKind k2
+           ] ++ kindMismatchHint k1 k2
+             ++ maybe [] (\src -> ["When checking" <+> pp src]) mbsrc
 
       TooManyTypeParams extra k ->
         addTVarsDescsAfter names err $
@@ -355,16 +355,16 @@ instance PP (WithNames Error) where
       RecursiveTypeDecls ts ->
         addTVarsDescsAfter names err $
         nested "Recursive type declarations:"
-               (fsep $ punctuate comma $ map nm ts)
+               (commaSep $ map nm ts)
 
       TypeMismatch src t1 t2 ->
         addTVarsDescsAfter names err $
         nested "Type mismatch:" $
-        vcat [ "Expected type:" <+> ppWithNames names t1
-             , "Inferred type:" <+> ppWithNames names t2
-             , mismatchHint t1 t2
-             , "When checking" <+> pp src
-             ]
+        vcat $
+          [ "Expected type:" <+> ppWithNames names t1
+          , "Inferred type:" <+> ppWithNames names t2
+          ] ++ mismatchHint t1 t2
+            ++ ["When checking" <+> pp src]
 
       UnsolvableGoals gs -> explainUnsolvable names gs
 
@@ -394,7 +394,7 @@ instance PP (WithNames Error) where
         nested ("The type" <+> ppWithNames names t <+>
                                         "is not sufficiently polymorphic.") $
           vcat [ "It cannot depend on quantified variables:" <+>
-                          sep (punctuate comma (map (ppWithNames names) xs))
+                     (commaSep (map (ppWithNames names) xs))
                , "When checking" <+> pp src
                ]
 
@@ -426,16 +426,17 @@ instance PP (WithNames Error) where
           $$ "See" <+> pp (srcRange x)
 
       RepeatedTypeParameter x rs ->
-        addTVarsDescsAfter names err $
-        "Multiple definitions for type parameter `" <.> pp x <.> "`:"
-          $$ nest 2 (bullets (map pp rs))
+        addTVarsDescsAfter names err $ nest 2 $
+          "Multiple definitions for type parameter `" <.> pp x <.> "`:"
+          $$ bullets (map pp rs)
 
       AmbiguousSize x t ->
         let sizeMsg =
                case t of
-                 Just t' -> "Must be at least:" <+> ppWithNames names t'
-                 Nothing -> empty
-         in addTVarsDescsAfter names err ("Ambiguous numeric type:" <+> pp (tvarDesc x) $$ sizeMsg)
+                 Just t' -> ["Must be at least:" <+> ppWithNames names t']
+                 Nothing -> []
+         in addTVarsDescsAfter names err
+              (vcat (["Ambiguous numeric type:" <+> pp (tvarDesc x)] ++ sizeMsg))
 
       BareTypeApp ->
         "Unexpected bare type application." $$
@@ -454,7 +455,7 @@ instance PP (WithNames Error) where
     where
     bullets xs = vcat [ "•" <+> d | d <- xs ]
 
-    nested x y = x $$ nest 2 y
+    nested x y = nest 2 (x $$ y)
 
     pl 1 x     = text "1" <+> text x
     pl n x     = text (show n) <+> text x <.> text "s"
@@ -463,18 +464,18 @@ instance PP (WithNames Error) where
 
     kindMismatchHint k1 k2 =
       case (k1,k2) of
-        (KType,KProp) -> "Possibly due to a missing `=>`"
-        _ -> empty
+        (KType,KProp) -> [text "Possibly due to a missing `=>`"]
+        _ -> []
 
     mismatchHint (TRec fs1) (TRec fs2) =
-      hint "Missing" missing $$ hint "Unexpected" extra
+      hint "Missing" missing ++ hint "Unexpected" extra
       where
         missing = displayOrder fs1 \\ displayOrder fs2
         extra   = displayOrder fs2 \\ displayOrder fs1
-        hint _ []  = mempty
-        hint s [x] = text s <+> text "field" <+> pp x
-        hint s xs  = text s <+> text "fields" <+> commaSep (map pp xs)
-    mismatchHint _ _ = mempty
+        hint _ []  = []
+        hint s [x] = [text s <+> text "field" <+> pp x]
+        hint s xs  = [text s <+> text "fields" <+> commaSep (map pp xs)]
+    mismatchHint _ _ = []
 
     noUni = Set.null (Set.filter isFreeTV (fvs err))
 
@@ -490,18 +491,17 @@ explainUnsolvable names gs =
 
 
   explain g =
-    let useCtr = "Unsolvable constraint:" $$
-                  nest 2 (ppWithNames names g)
+    let useCtr = hang "Unsolvable constraint:" 2 (ppWithNames names g)
 
     in
     case tNoUser (goal g) of
       TCon (PC pc) ts ->
         let tys = [ backticks (ppWithNames names t) | t <- ts ]
             doc1 : _ = tys
-            custom msg = msg $$
-                         nest 2 (text "arising from" $$
-                                 pp (goalSource g)   $$
-                                 text "at" <+> pp (goalRange g))
+            custom msg = hang msg
+                            2 (text "arising from" $$
+                               pp (goalSource g)   $$
+                               text "at" <+> pp (goalRange g))
         in
         case pc of
           PEqual      -> useCtr
@@ -511,7 +511,7 @@ explainUnsolvable names gs =
           PPrime      -> useCtr
 
           PHas sel ->
-            custom ("Type" <+> doc1 <+> "does not have field" <+> f
+            custom ("Type" <+> doc1 </> "does not have field" <+> f
                     <+> "of type" <+> (tys !! 1))
             where f = case sel of
                         P.TupleSel n _ -> int n
@@ -519,39 +519,39 @@ explainUnsolvable names gs =
                         P.ListSel n _ -> int n
 
           PZero  ->
-            custom ("Type" <+> doc1 <+> "does not have `zero`")
+            custom ("Type" <+> doc1 </> "does not have `zero`")
 
           PLogic ->
-            custom ("Type" <+> doc1 <+> "does not support logical operations.")
+            custom ("Type" <+> doc1 </> "does not support logical operations.")
 
           PRing ->
-            custom ("Type" <+> doc1 <+> "does not support ring operations.")
+            custom ("Type" <+> doc1 </> "does not support ring operations.")
 
           PIntegral ->
-            custom (doc1 <+> "is not an integral type.")
+            custom (doc1 </> "is not an integral type.")
 
           PField ->
-            custom ("Type" <+> doc1 <+> "does not support field operations.")
+            custom ("Type" <+> doc1 </> "does not support field operations.")
 
           PRound ->
-            custom ("Type" <+> doc1 <+> "does not support rounding operations.")
+            custom ("Type" <+> doc1 </> "does not support rounding operations.")
 
           PEq ->
-            custom ("Type" <+> doc1 <+> "does not support equality.")
+            custom ("Type" <+> doc1 </> "does not support equality.")
 
           PCmp        ->
-            custom ("Type" <+> doc1 <+> "does not support comparisons.")
+            custom ("Type" <+> doc1 </> "does not support comparisons.")
 
           PSignedCmp  ->
-            custom ("Type" <+> doc1 <+> "does not support signed comparisons.")
+            custom ("Type" <+> doc1 </> "does not support signed comparisons.")
 
           PLiteral ->
             let doc2 = tys !! 1
-            in custom (doc1 <+> "is not a valid literal of type" <+> doc2)
+            in custom (doc1 </> "is not a valid literal of type" <+> doc2)
 
           PLiteralLessThan ->
             let doc2 = tys !! 1
-            in custom ("Type" <+> doc2 <+> "does not contain all literals below" <+> (doc1 <> "."))
+            in custom ("Type" <+> doc2 </> "does not contain all literals below" <+> (doc1 <> "."))
 
           PFLiteral ->
             case ts of
@@ -559,14 +559,14 @@ explainUnsolvable names gs =
                  let frac = backticks (ppWithNamesPrec names 4 m <> "/" <>
                                        ppWithNamesPrec names 4 n)
                      ty   = tys !! 3
-                 in custom (frac <+> "is not a valid literal of type" <+> ty)
+                 in custom (frac </> "is not a valid literal of type" </> ty)
 
           PValidFloat ->
             case ts of
-              ~[e,p] ->
-                custom ("Unsupported floating point parameters:" $$
-                     nest 2 ("exponent =" <+> ppWithNames names e $$
-                             "precision =" <+> ppWithNames names p))
+              ~[e,p] -> 
+                custom (hang "Unsupported floating point parameters:"
+                           2 ("exponent =" <+> ppWithNames names e $$
+                              "precision =" <+> ppWithNames names p))
 
 
           PAnd        -> useCtr

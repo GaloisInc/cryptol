@@ -360,9 +360,9 @@ instance PP REPLException where
                          $$ text "Type:" <+> pp s
     TypeNotTestable t    -> text "The expression is not of a testable type."
                          $$ text "Type:" <+> pp t
-    EvalInParamModule xs ->
-      text "Expression depends on definitions from a parameterized module:"
-        $$ nest 2 (vcat (map pp xs))
+    EvalInParamModule xs -> nest 2 $ vsep $
+      [ text "Expression depends on definitions from a parameterized module:" ]
+      ++ map pp xs
     SBVError s           -> text "SBV error:" $$ text s
     SBVException e       -> text "SBV exception:" $$ text (show e)
     SBVPortfolioException e -> text "SBV exception:" $$ text (show e)

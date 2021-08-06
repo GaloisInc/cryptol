@@ -126,7 +126,7 @@ toExpr prims t0 v0 = findOne (go t0 v0)
            panic "Cryptol.Eval.Concrete.toExpr"
              ["type mismatch:"
              , pretty (tValTy ty)
-             , render doc
+             , show doc
              ]
 
 floatToExpr :: PrimMap -> AST.Type -> AST.Type -> FP.BigFloat -> AST.Expr

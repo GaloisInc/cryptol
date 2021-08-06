@@ -117,13 +117,13 @@ ppError (HappyError path ltok)
   | White DocStr <- tokenType tok =
     "Unexpected documentation (/**) comment at" <+>
     text path <.> char ':' <.> pp pos <.> colon $$
-    nest 2
+    indent 2
       "Documentation comments need to be followed by something to document."
 
   | otherwise =
     text "Parse error at" <+>
     text path <.> char ':' <.> pp pos <.> comma $$
-    nest 2 (text "unexpected:" <+> pp tok)
+    indent 2 (text "unexpected:" <+> pp tok)
   where
   pos = from (srcRange ltok)
   tok = thing ltok
@@ -132,18 +132,18 @@ ppError (HappyOutOfTokens path pos) =
   text "Unexpected end of file at:" <+>
     text path <.> char ':' <.> pp pos
 
-ppError (HappyErrorMsg p xs)  = text "Parse error at" <+> pp p $$ nest 2 (vcat (map text xs))
+ppError (HappyErrorMsg p xs)  = text "Parse error at" <+> pp p $$ indent 2 (vcat (map text xs))
 
 ppError (HappyUnexpected path ltok e) =
-  text "Parse error at" <+>
-   text path <.> char ':' <.> pp pos <.> comma $$
-   nest 2 unexp $$
-   nest 2 ("expected:" <+> text e)
+  nest 2 $ vcat $
+   [ text "Parse error at" <+> text path <.> char ':' <.> pp pos <.> comma ]
+   ++ unexp
+   ++ ["expected:" <+> text e]
   where
   (unexp,pos) =
     case ltok of
-      Nothing -> (empty,start)
-      Just t  -> ( "unexpected:" <+> text (T.unpack (tokenText (thing t)))
+      Nothing -> ( [] ,start)
+      Just t  -> ( ["unexpected:" <+> text (T.unpack (tokenText (thing t)))]
                  , from (srcRange t)
                  )
 
