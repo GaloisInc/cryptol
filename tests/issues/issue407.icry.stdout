@@ -1,8 +1,7 @@
 Loading module Cryptol
-[[False, False, False, False, False, ...],
- [False, False, False, False, True, ...],
- [False, False, True, True, False, ...],
- [False, True, False, True, False, ...]]
+[[False, False, False, False, False, ...], [False, False, False,
+  False, True, ...], [False, False, True, True, False, ...], [False,
+  True, False, True, False, ...]]
 Counterexample
 (\(x : [4]) -> (transpose [x ...]) @ 0 @ 0 == False) 0x8 = False
 Q.E.D.

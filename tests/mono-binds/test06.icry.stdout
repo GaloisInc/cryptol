@@ -5,18 +5,18 @@ module test06
 import Cryptol
 /* Not recursive */
 test06::test : {a} (Zero a) => a -> a
-test06::test = \{a} (Zero a) (a : a) ->
-               bar
-               where
-                 /* Not recursive */
-                 foo : a
-                 foo = Cryptol::zero a <>
-                 
-                 /* Not recursive */
-                 bar : a
-                 bar = foo
-                 
-               
+test06::test =
+  \{a} (Zero a) (a : a) ->
+    bar
+    where
+      /* Not recursive */
+      foo : a
+      foo = Cryptol::zero a <>
+
+      /* Not recursive */
+      bar : a
+      bar = foo
+
 
 Loading module Cryptol
 Loading module test06
@@ -24,16 +24,16 @@ module test06
 import Cryptol
 /* Not recursive */
 test06::test : {a} (Zero a) => a -> a
-test06::test = \{a} (Zero a) (a : a) ->
-               bar
-               where
-                 /* Not recursive */
-                 foo : a
-                 foo = Cryptol::zero a <>
-                 
-                 /* Not recursive */
-                 bar : a
-                 bar = foo
-                 
-               
+test06::test =
+  \{a} (Zero a) (a : a) ->
+    bar
+    where
+      /* Not recursive */
+      foo : a
+      foo = Cryptol::zero a <>
+
+      /* Not recursive */
+      bar : a
+      bar = foo
+
 

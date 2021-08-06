@@ -1,7 +1,9 @@
 Loading module Cryptol
 Satisfiable
 (\(x : {b : Bit, a : Bit}) -> x.a && x.b)
-  {b = True, a = True} = True
+  {b = True, a = True}
+  = True
 Satisfiable
 (\(x : {b : [8], a : Bit}) -> x.b == 0 /\ x.a)
-  {b = 0x00, a = True} = True
+  {b = 0x00, a = True}
+  = True
