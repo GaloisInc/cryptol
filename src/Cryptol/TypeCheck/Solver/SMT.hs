@@ -55,7 +55,7 @@ import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
 import Cryptol.TypeCheck.TypePat hiding ((~>),(~~>))
 import Cryptol.TypeCheck.Subst(Subst)
 import Cryptol.Utils.Panic
-import Cryptol.Utils.PP -- ( Doc )
+import Cryptol.Utils.PP ( Doc, pp )
 
 
 

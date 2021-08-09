@@ -114,7 +114,7 @@ ppBV opts (BV width i)
   prefix = case base of
     2  -> text "0b" <.> padding 1
     8  -> text "0o" <.> padding 3
-    10 -> empty
+    10 -> mempty
     16 -> text "0x" <.> padding 4
     _  -> text "0"  <.> char '<' <.> int base <.> char '>'
 

@@ -2,4 +2,5 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module T1
 
-[error] at T1.cry:6:5--6:6 Value not in scope: x
+[error] at T1.cry:6:5--6:6
+    Value not in scope: x

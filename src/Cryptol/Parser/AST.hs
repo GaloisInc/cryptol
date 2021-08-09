@@ -621,7 +621,7 @@ instance (Show name, PPName name) => PP (TopDecl name) where
         where prop = case map (pp . thing) d of
                        [x] -> x
                        []  -> "()"
-                       xs  -> parens (hsep (punctuate comma xs))
+                       xs  -> nest 1 (parens (commaSepFill xs))
       DModule d -> pp d
       DImport i -> pp (thing i)
 
@@ -644,7 +644,7 @@ instance (Show name, PPName name) => PP (Decl name) where
       DSignature xs s -> commaSep (map ppL xs) <+> text ":" <+> pp s
       DPatBind p e    -> pp p <+> text "=" <+> pp e
       DBind b         -> ppPrec n b
-      DRec bs         -> "recursive" $$ nest 2 (vcat (map (ppPrec n) bs))
+      DRec bs         -> nest 2 (vcat ("recursive" : map (ppPrec n) bs))
       DFixity f ns    -> ppFixity f ns
       DPragma xs p    -> ppPragma xs p
       DType ts        -> ppPrec n ts
@@ -657,16 +657,16 @@ ppFixity (Fixity RightAssoc i) ns = text "infixr" <+> int i <+> commaSep (map pp
 ppFixity (Fixity NonAssoc   i) ns = text "infix"  <+> int i <+> commaSep (map pp ns)
 
 instance PPName name => PP (Newtype name) where
-  ppPrec _ nt = hsep
-    [ text "newtype", ppL (nName nt), hsep (map pp (nParams nt)), char '='
-    , braces (commaSep (map (ppNamed' ":") (displayFields (nBody nt)))) ]
+  ppPrec _ nt = nest 2 $ sep
+    [ fsep $ [text "newtype", ppL (nName nt)] ++ map pp (nParams nt) ++ [char '=']
+    , ppRecord (map (ppNamed' ":") (displayFields (nBody nt)))
+    ]
 
 instance PP mname => PP (ImportG mname) where
-  ppPrec _ d = text "import" <+> sep [ pp (iModule d), mbAs, mbSpec ]
+  ppPrec _ d = text "import" <+> sep ([pp (iModule d)] ++ mbAs ++ mbSpec)
     where
-    mbAs = maybe empty (\ name -> text "as" <+> pp name ) (iAs d)
-
-    mbSpec = maybe empty pp (iSpec d)
+    mbAs   = maybe [] (\ name -> [text "as" <+> pp name]) (iAs d)
+    mbSpec = maybe [] (\x -> [pp x]) (iSpec d)
 
 instance PP name => PP (ImpName name) where
   ppPrec _ nm =
@@ -694,16 +694,16 @@ ppPragma xs p =
   <+> text "*/"
 
 instance (Show name, PPName name) => PP (Bind name) where
-  ppPrec _ b = sig $$ vcat [ ppPragma [f] p | p <- bPragmas b ] $$
-               hang (def <+> eq) 4 (pp (thing (bDef b)))
+  ppPrec _ b = vcat (sig ++ [ ppPragma [f] p | p <- bPragmas b ] ++
+                     [hang (def <+> eq) 4 (pp (thing (bDef b)))])
     where def | bInfix b  = lhsOp
               | otherwise = lhs
           f = bName b
           sig = case bSignature b of
-                  Nothing -> empty
-                  Just s  -> pp (DSignature [f] s)
+                  Nothing -> []
+                  Just s  -> [pp (DSignature [f] s)]
           eq  = if bMono b then text ":=" else text "="
-          lhs = ppL f <+> fsep (map (ppPrec 3) (bParams b))
+          lhs = fsep (ppL f : (map (ppPrec 3) (bParams b)))
 
           lhsOp = case bParams b of
                     [x,y] -> pp x <+> ppL f <+> pp y
@@ -718,13 +718,17 @@ instance (Show name, PPName name) => PP (BindDef name) where
 
 instance PPName name => PP (TySyn name) where
   ppPrec _ (TySyn x _ xs t) =
-    text "type" <+> ppL x <+> fsep (map (ppPrec 1) xs)
-                <+> text "=" <+> pp t
+    nest 2 $ sep $
+      [ fsep $ [text "type", ppL x] ++ map (ppPrec 1) xs ++ [text "="]
+      , pp t
+      ]
 
 instance PPName name => PP (PropSyn name) where
   ppPrec _ (PropSyn x _ xs ps) =
-    text "constraint" <+> ppL x <+> fsep (map (ppPrec 1) xs)
-                      <+> text "=" <+> parens (commaSep (map pp ps))
+    nest 2 $ sep $
+      [ fsep $ [text "constraint", ppL x] ++ map (ppPrec 1) xs ++ [text "="]
+      , parens (commaSep (map pp ps))
+      ]
 
 instance PP Literal where
   ppPrec _ lit =
@@ -781,7 +785,7 @@ ppNumLit n info =
     | otherwise = bits (Just p) (p : res) (p + 1) (num `shiftR` 1)
 
 wrap :: Int -> Int -> Doc -> Doc
-wrap contextPrec myPrec doc = if myPrec < contextPrec then parens doc else doc
+wrap contextPrec myPrec doc = optParens (myPrec < contextPrec) doc
 
 isEApp :: Expr n -> Maybe (Expr n, Expr n)
 isEApp (ELocated e _)     = isEApp e
@@ -820,7 +824,7 @@ instance (Show name, PPName name) => PP (Expr name) where
       ERecord fs    -> braces (commaSep (map (ppNamed' "=") (displayFields fs)))
       EList es      -> brackets (commaSep (map pp es))
       EFromTo e1 e2 e3 t1 -> brackets (pp e1 <.> step <+> text ".." <+> end)
-        where step = maybe empty (\e -> comma <+> pp e) e2
+        where step = maybe mempty (\e -> comma <+> pp e) e2
               end = maybe (pp e3) (\t -> pp e3 <+> colon <+> pp t) t1
       EFromToBy isStrict e1 e2 e3 t1 -> brackets (pp e1 <+> dots <+> pp e2 <+> text "by" <+> end)
         where end = maybe (pp e3) (\t -> pp e3 <+> colon <+> pp t) t1
@@ -834,9 +838,9 @@ instance (Show name, PPName name) => PP (Expr name) where
         where strt = maybe (pp e1) (\t -> pp e1 <+> colon <+> pp t) t1
               end  = pp e2
       EInfFrom e1 e2 -> brackets (pp e1 <.> step <+> text "...")
-        where step = maybe empty (\e -> comma <+> pp e) e2
-      EComp e mss   -> brackets (pp e <+> vcat (map arm mss))
-        where arm ms = text "|" <+> commaSep (map pp ms)
+        where step = maybe mempty (\e -> comma <+> pp e) e2
+      EComp e mss   -> brackets (pp e <> align (vcat (map arm mss)))
+        where arm ms = text " |" <+> commaSep (map pp ms)
       EUpd mb fs    -> braces (hd <+> "|" <+> commaSep (map pp fs))
         where hd = maybe "_" pp mb
 
@@ -854,10 +858,10 @@ instance (Show name, PPName name) => PP (Expr name) where
 
       ETyped e t    -> wrap n 0 (ppPrec 2 e <+> text ":" <+> pp t)
 
-      EWhere  e ds  -> wrap n 0 (pp e
-                                $$ text "where"
-                                $$ nest 2 (vcat (map pp ds))
-                                $$ text "")
+      EWhere  e ds  -> wrap n 0 $ align $ vsep
+                         [ pp e
+                         , hang "where" 2 (vcat (map pp ds))
+                         ]
 
       -- infix applications
       _ | Just ifix <- isInfix expr ->
@@ -893,9 +897,9 @@ instance PPName name => PP (Pattern name) where
     case pat of
       PVar x        -> pp (thing x)
       PWild         -> char '_'
-      PTuple ps     -> parens   (commaSep (map pp ps))
-      PRecord fs    -> braces   (commaSep (map (ppNamed' "=") (displayFields fs)))
-      PList ps      -> brackets (commaSep (map pp ps))
+      PTuple ps     -> ppTuple (map pp ps)
+      PRecord fs    -> ppRecord (map (ppNamed' "=") (displayFields fs))
+      PList ps      -> ppList (map pp ps)
       PTyped p t    -> wrap n 0 (ppPrec 1 p  <+> text ":" <+> pp t)
       PSplit p1 p2  -> wrap n 1 (ppPrec 1 p1 <+> text "#" <+> ppPrec 1 p2)
       PLocated p _  -> ppPrec n p
@@ -906,13 +910,13 @@ instance (Show name, PPName name) => PP (Match name) where
 
 
 instance PPName name => PP (Schema name) where
-  ppPrec _ (Forall xs ps t _) = sep [vars <+> preds, pp t]
+  ppPrec _ (Forall xs ps t _) = sep (vars ++ preds ++ [pp t])
     where vars = case xs of
-                   [] -> empty
-                   _  -> braces (commaSep (map pp xs))
+                   [] -> []
+                   _  -> [nest 1 (braces (commaSepFill (map pp xs)))]
           preds = case ps of
-                    [] -> empty
-                    _  -> parens (commaSep (map pp ps)) <+> text "=>"
+                    [] -> []
+                    _  -> [nest 1 (parens (commaSepFill (map pp ps))) <+> text "=>"]
 
 instance PP Kind where
   ppPrec _ KType  = text "*"

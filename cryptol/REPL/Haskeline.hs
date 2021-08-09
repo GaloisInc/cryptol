@@ -16,7 +16,7 @@ module REPL.Haskeline where
 import           Cryptol.REPL.Command
 import           Cryptol.REPL.Monad
 import           Cryptol.REPL.Trie
-import           Cryptol.Utils.PP
+import           Cryptol.Utils.PP hiding ((</>))
 import           Cryptol.Utils.Logger(stdoutLogger)
 import           Cryptol.Utils.Ident(modNameToText, interactiveName)
 

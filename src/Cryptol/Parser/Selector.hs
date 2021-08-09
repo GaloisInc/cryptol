@@ -48,16 +48,16 @@ data Selector = TupleSel Int   (Maybe Int)
 instance PP Selector where
   ppPrec _ sel =
     case sel of
-      TupleSel x sig    -> int x <+> ppSig tupleSig sig
-      RecordSel x sig  -> pp x  <+> ppSig recordSig sig
-      ListSel x sig    -> int x <+> ppSig listSig sig
+      TupleSel x sig   -> sep (int x : ppSig tupleSig sig)
+      RecordSel x sig  -> sep (pp x  : ppSig recordSig sig)
+      ListSel x sig    -> sep (int x : ppSig listSig sig)
 
     where
     tupleSig n   = int n
-    recordSig xs = braces $ fsep $ punctuate comma $ map pp xs
+    recordSig xs = ppRecord $ map pp xs
     listSig n    = int n
 
-    ppSig f = maybe empty (\x -> text "/* of" <+> f x <+> text "*/")
+    ppSig f = maybe [] (\x -> [text "/* of" <+> f x <+> text "*/"])
 
 
 -- | Display the thing selected by the selector, nicely.

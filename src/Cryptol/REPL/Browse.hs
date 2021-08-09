@@ -6,7 +6,8 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe(mapMaybe)
 import Data.List(sortBy)
-import qualified Text.PrettyPrint as PP
+import Data.Void (Void)
+import qualified Prettyprinter as PP
 
 import Cryptol.Parser.AST(Pragma(..))
 import qualified Cryptol.TypeCheck.Type as T
@@ -19,10 +20,10 @@ import Cryptol.ModuleSystem.Interface
 
 data BrowseHow = BrowseExported | BrowseInScope
 
-browseModContext :: BrowseHow -> ModContext -> PP.Doc
+browseModContext :: BrowseHow -> ModContext -> PP.Doc Void
 browseModContext how mc = runDoc (env disp) (vcat sections)
   where
-  sections =
+  sections = concat
     [ browseMParams (env disp) (mctxParams mc)
     , browseMods disp decls
     , browseTSyns disp decls
@@ -43,15 +44,15 @@ data DispInfo = DispInfo { dispHow :: BrowseHow, env :: NameDisp }
 --------------------------------------------------------------------------------
 
 
-browseMParams :: NameDisp -> IfaceParams -> Doc
+browseMParams :: NameDisp -> IfaceParams -> [Doc]
 browseMParams disp params =
   ppSectionHeading "Module Parameters"
   $ addEmpty
   $ map ppParamTy (sortByName disp (Map.toList (ifParamTypes params))) ++
     map ppParamFu (sortByName disp (Map.toList (ifParamFuns  params)))
   where
-  ppParamTy p = hang ("type" <+> pp (T.mtpName p) <+> ":") 2 (pp (T.mtpKind p))
-  ppParamFu p = hang (pp (T.mvpName p) <+> ":") 2 (pp (T.mvpType p))
+  ppParamTy p = nest 2 (sep ["type", pp (T.mtpName p) <+> ":", pp (T.mtpKind p)])
+  ppParamFu p = nest 2 (sep [pp (T.mvpName p) <+> ":", pp (T.mvpType p)])
   -- XXX: should we print the constraints somewhere too?
 
   addEmpty xs = case xs of
@@ -59,7 +60,7 @@ browseMParams disp params =
                   _  -> xs ++ ["    "]
 
 
-browseMods :: DispInfo -> IfaceDecls -> Doc
+browseMods :: DispInfo -> IfaceDecls -> [Doc]
 browseMods disp decls =
   ppSection disp "Modules" ppM (ifModules decls)
   where
@@ -70,38 +71,37 @@ browseMods disp decls =
 
 
 
-browseTSyns :: DispInfo -> IfaceDecls -> Doc
+browseTSyns :: DispInfo -> IfaceDecls -> [Doc]
 browseTSyns disp decls =
      ppSection disp "Type Synonyms" pp tss
-  $$ ppSection disp "Constraint Synonyms" pp cts
+  ++ ppSection disp "Constraint Synonyms" pp cts
   where
   (cts,tss)  = Map.partition isCtrait (ifTySyns decls)
   isCtrait t = T.kindResult (T.kindOf (T.tsDef t)) == T.KProp
 
-browsePrimTys :: DispInfo -> IfaceDecls -> Doc
+browsePrimTys :: DispInfo -> IfaceDecls -> [Doc]
 browsePrimTys disp decls =
   ppSection disp "Primitive Types" ppA (ifAbstractTypes decls)
   where
-  ppA a = pp (T.atName a) <+> ":" <+> pp (T.atKind a)
+  ppA a = nest 2 (sep [pp (T.atName a) <+> ":", pp (T.atKind a)])
 
-browseNewtypes :: DispInfo -> IfaceDecls -> Doc
+browseNewtypes :: DispInfo -> IfaceDecls -> [Doc]
 browseNewtypes disp decls =
   ppSection disp "Newtypes" T.ppNewtypeShort (ifNewtypes decls)
 
-browseVars :: DispInfo -> IfaceDecls -> Doc
+browseVars :: DispInfo -> IfaceDecls -> [Doc]
 browseVars disp decls =
      ppSection disp "Properties" ppVar props
-  $$ ppSection disp "Symbols"    ppVar syms
+  ++ ppSection disp "Symbols"    ppVar syms
   where
   isProp p     = PragmaProperty `elem` ifDeclPragmas p
   (props,syms) = Map.partition isProp (ifDecls decls)
 
-  ppVar d      = hang (pp (ifDeclName d) <+> char ':') 2 (pp (ifDeclSig d))
-
+  ppVar d      = nest 2 (sep [pp (ifDeclName d) <+> ":", pp (ifDeclSig d)])
 
 --------------------------------------------------------------------------------
 
-ppSection :: DispInfo -> String -> (a -> Doc) -> Map Name a -> Doc
+ppSection :: DispInfo -> String -> (a -> Doc) -> Map Name a -> [Doc]
 ppSection disp heading ppThing mp =
   ppSectionHeading heading 
   case dispHow disp of
@@ -116,18 +116,18 @@ ppSection disp heading ppThing mp =
     [ "From" <+> pp nm
     , "-----" <.> text (map (const '-') (show (runDoc (env disp) (pp nm))))
     , "     "
-    , nest 2 (vcat (ppThings things))
+    , indent 2 (vcat (ppThings things))
     ]
 
-ppSectionHeading :: String -> [Doc] -> Doc
+ppSectionHeading :: String -> [Doc] -> [Doc]
 ppSectionHeading heading body
-  | null body = empty
+  | null body = []
   | otherwise = 
-    vcat [ text heading
-         , text (map (const '=') heading)
-         , "    "
-         , nest 2 (vcat body)
-         ]
+     [ text heading
+     , text (map (const '=') heading)
+     , "    "
+     , indent 2 (vcat body)
+     ]
 
 
 

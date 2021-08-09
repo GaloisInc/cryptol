@@ -1,11 +1,16 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Main
-[warning] at issue1024a.cry:1:12--1:24 Unused name: f
-[warning] at issue1024a.cry:2:14--2:24 Unused name: f
-[warning] at issue1024a.cry:4:15--4:20 Unused name: i
-[warning] at issue1024a.cry:4:22--4:32 Unused name: f
-[warning] at issue1024a.cry:4:34--4:39 Unused name: g
+[warning] at issue1024a.cry:1:12--1:24
+    Unused name: f
+[warning] at issue1024a.cry:2:14--2:24
+    Unused name: f
+[warning] at issue1024a.cry:4:15--4:20
+    Unused name: i
+[warning] at issue1024a.cry:4:22--4:32
+    Unused name: f
+[warning] at issue1024a.cry:4:34--4:39
+    Unused name: g
 
 [error] at issue1024a.cry:1:6--1:11:
   Illegal kind assigned to type variable: f`825

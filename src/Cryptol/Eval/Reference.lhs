@@ -1770,11 +1770,10 @@ Pretty Printing
 >           case traverse isBit vs of
 >             Just bs -> ppBV opts (mkBv n (bitsToInteger bs))
 >             Nothing -> ppList (map (ppEValue opts) vs)
->       where ppList docs = brackets (fsep (punctuate comma docs))
->             isBit v = case v of Value (VBit b) -> Just b
+>       where isBit v = case v of Value (VBit b) -> Just b
 >                                 _      -> Nothing
->     VTuple vs  -> parens (sep (punctuate comma (map (ppEValue opts) vs)))
->     VRecord fs -> braces (sep (punctuate comma (map ppField fs)))
+>     VTuple vs  -> ppTuple (map (ppEValue opts) vs)
+>     VRecord fs -> ppRecord (map ppField fs)
 >       where ppField (f,r) = pp f <+> char '=' <+> ppEValue opts r
 >     VFun _     -> text "<function>"
 >     VPoly _    -> text "<polymorphic value>"

@@ -34,7 +34,7 @@ import Cryptol.Parser.AST
 import Cryptol.Parser.LexerUtils (Config(..),defaultConfig)
 import Cryptol.Parser.ParserUtils
 import Cryptol.Parser.Unlit (guessPreProc)
-import Cryptol.Utils.PP
+import Cryptol.Utils.PP hiding ((</>))
 
 removeIncludesModule ::
   (FilePath -> IO ByteString) ->
