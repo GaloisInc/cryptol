@@ -193,6 +193,24 @@ length : {n, a, b} (fin n, Literal n b) => [n]a -> b
 length _ = `n
 
 /**
+ * Compare the given numeric types, returing
+ * 'True' when 'm == n' and 'False' otherwise.
+ */
+primitive compareEq : { m : #, n : # } Bit
+
+/**
+ * Compare the given numeric types, returning
+ * 'True' when 'm < n' and 'False' otherwise.
+ */
+primitive compareLt : { m : #, n : # } Bit
+
+/**
+ * Compare the given numeric types, returning
+ * 'True' when 'm <= n' and 'False' otherwise.
+ */
+primitive compareLeq : { m : #, n : # } Bit
+
+/**
  * A finite sequence counting up from 'first' to 'last'.
  *
  * '[x .. y]' is syntactic sugar for 'fromTo`{first=x,last=y}'.
@@ -1080,6 +1098,23 @@ primitive trace : {n, a, b} (fin n) => String n -> a -> b -> b
 traceVal : {n, a} (fin n) => String n -> a -> a
 traceVal msg x = trace msg x x
 
+
+/**
+ * Force a sequence to be recognized at another size.
+ * When `m == n`, this function is a no-op and passes the given
+ * sequence through unchanged.  When `m` is distinct from `n`,
+ * this function instead raises an error.
+ *
+ * This function is primarily useful when the typechecker cannot
+ * be convinced that certain equalites between size expressions holds.
+ * Inserting an explicit coercion instead allows the typechecker to
+ * skip proving the equation at the cost of performing dynamic checks
+ * at runtime.
+ */
+coerceSize : {m, n, a} [m]a -> [n]a
+coerceSize xs =
+  assert compareEq`{m,n} "coerceSize: size mismatch"
+         [ xs@i | i <- [0..<n] ]
 
 /* Functions previously in Cryptol::Extras */
 

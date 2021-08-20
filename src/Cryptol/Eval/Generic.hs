@@ -88,6 +88,27 @@ ecNumberV sym =
              , show ty
              ]
 
+{-# INLINE compareEqV #-}
+compareEqV :: Backend sym => sym -> Prim sym
+compareEqV sym =
+  PNumPoly \m ->
+  PNumPoly \n ->
+  PVal . VBit $! bitLit sym (m == n)
+
+{-# INLINE compareLtV #-}
+compareLtV :: Backend sym => sym -> Prim sym
+compareLtV sym =
+  PNumPoly \m ->
+  PNumPoly \n ->
+  PVal . VBit $! bitLit sym (m < n)
+
+{-# INLINE compareLeqV #-}
+compareLeqV :: Backend sym => sym -> Prim sym
+compareLeqV sym =
+  PNumPoly \m ->
+  PNumPoly \n ->
+  PVal . VBit $! bitLit sym (m <= n)
+
 
 {-# SPECIALIZE intV :: Concrete -> Integer -> TValue -> Eval (GenValue Concrete)
   #-}
@@ -1970,6 +1991,10 @@ genericPrimTable sym getEOpts =
   , ("ratio"      , {-# SCC "Prelude::ratio" #-}
                     ratioV sym)
   , ("fraction"   , ecFractionV sym)
+
+  , ("compareEq"  , {-# SCC "Prelude::compareEq" #-}  compareEqV sym)
+  , ("compareLt"  , {-# SCC "Prelude::compareLt" #-}  compareLtV sym)
+  , ("compareLeq" , {-# SCC "Prelude::compareLeq" #-} compareLeqV sym)
 
     -- Zero
   , ("zero"       , {-# SCC "Prelude::zero" #-}
