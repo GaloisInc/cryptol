@@ -45,13 +45,13 @@ primitive arraySet : {n, a} (Array [n] a) -> [n] -> a -> [n] -> (Array [n] a)
  */
 primitive arrayRangeEqual : {n, a} (Array [n] a) -> [n] -> (Array [n] a) -> [n] -> [n] -> Bool
 
-arrayRangeLookup : {a, b, n} (Integral a, fin n, n >= 1, LiteralLessThan n a) => (Array a b) -> a -> [n]b
+arrayRangeLookup : {a, b, n} (Integral a, fin n, LiteralLessThan n a) => (Array a b) -> a -> [n]b
 arrayRangeLookup arr idx = res
   where
     res @ i = arrayLookup arr (idx + i)
 
-arrayRangeUpdate : {a, b, n} (Integral a, fin n, n >= 1, Literal (n - 1) a) => (Array a b) -> a -> [n]b -> (Array a b)
+arrayRangeUpdate : {a, b, n} (Integral a, fin n, LiteralLessThan n a) => (Array a b) -> a -> [n]b -> (Array a b)
 arrayRangeUpdate arr idx vals = arrs ! 0
   where
-    arrs = [arr] # [ arrayUpdate acc (idx + i) val | acc <- arrs | i <- [0 .. (n - 1)] | val <- vals ]
+    arrs = [arr] # [ arrayUpdate acc (idx + i) val | acc <- arrs | i <- [0 ..< n] | val <- vals ]
 
