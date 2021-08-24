@@ -28,8 +28,8 @@ class TestAES(unittest.TestCase):
         decrypted_ct = c.call("aesDecrypt", (ct, key)).result()
         self.assertEqual(pt, decrypted_ct)
 
-        self.assertTrue(c.safe("aesEncrypt"))
-        self.assertTrue(c.safe("aesDecrypt"))
+        self.assertTrue(c.safe("aesEncrypt").result())
+        self.assertTrue(c.safe("aesDecrypt").result())
         self.assertTrue(c.check("AESCorrect").result().success)
         # c.prove("AESCorrect") # probably takes too long for this script...?
 
