@@ -10,6 +10,17 @@ Symbols
 =======
     
   arrayConstant : {a, b} b -> Array a b
+  arrayCopy :
+    {n, a} Array [n] a -> [n] -> Array [n] a -> [n] -> [n] -> Array [n] a
   arrayLookup : {a, b} Array a b -> a -> b
+  arrayRangeEqual :
+    {n, a} Array [n] a -> [n] -> Array [n] a -> [n] -> [n] -> Bool
+  arrayRangeLookup :
+    {a, b, n} (Integral a, fin n, LiteralLessThan n a) => Array a b -> a -> [n]b
+  arrayRangeUpdate :
+    {a, b, n}
+      (Integral a, fin n, LiteralLessThan n a) =>
+      Array a b -> a -> [n]b -> Array a b
+  arraySet : {n, a} Array [n] a -> [n] -> a -> [n] -> Array [n] a
   arrayUpdate : {a, b} Array a b -> a -> b -> Array a b
    
