@@ -16,8 +16,15 @@ class TestErrorRecovery(unittest.TestCase):
         
         # test that loading a valid file still works after an exception
         c.load_file(str(Path('tests','cryptol','test-files','Foo.cry'))).result()
+    
+        # ensure that we really did load the file with no errors
+        x_val1 = c.evaluate_expression("x").result()
+        x_val2 = c.eval("Id::id x").result()
+        self.assertEqual(x_val1, x_val2)
 
-        # test that a reset still works after an exception
+        # test that a reset still works after an exception (this used to throw
+        #  an error before the server even had a chance to respond because of
+        #  the `connection.protocol_state()` call in `CryptolReset`)
         c.reset()
 
 
