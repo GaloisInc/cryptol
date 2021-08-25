@@ -7,7 +7,7 @@ from cryptol.bitvector import BV
 
 
 class TestDES(unittest.TestCase):
-    def test_SHA256(self):
+    def test_DES(self):
         c = cryptol.connect(verify=False)
         c.load_file(str(Path('tests','cryptol','test-files','examples','DEStest.cry')))
 
