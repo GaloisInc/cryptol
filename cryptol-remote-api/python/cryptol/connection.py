@@ -175,6 +175,13 @@ class CryptolConnection:
         self.most_recent_result = CryptolLoadModule(self, module_name)
         return self.most_recent_result
 
+    def eval_raw(self, expression : Any) -> argo.Command:
+        """Like the member method ``eval``, but does not call
+        ``from_cryptol_arg`` on the ``.result()``.
+        """
+        self.most_recent_result = CryptolEvalExprRaw(self, expression)
+        return self.most_recent_result
+
     def eval(self, expression : Any) -> argo.Command:
         """Evaluate a Cryptol expression, represented according to
         :ref:`cryptol-json-expression`, with Python datatypes standing
@@ -189,14 +196,32 @@ class CryptolConnection:
         return self.eval(expression)
 
     def extend_search_path(self, *dir : str) -> argo.Command:
-        """Load a Cryptol module, like ``:module`` at the Cryptol REPL."""
+        """Extend the search path for loading Cryptol modules."""
         self.most_recent_result = CryptolExtendSearchPath(self, list(dir))
+        return self.most_recent_result
+
+    def call_raw(self, fun : str, *args : List[Any]) -> argo.Command:
+        """Like the member method ``call``, but does not call
+        ``from_cryptol_arg`` on the ``.result()``.
+        """
+        encoded_args = [cryptoltypes.CryptolType().from_python(a) for a in args]
+        self.most_recent_result = CryptolCallRaw(self, fun, encoded_args)
         return self.most_recent_result
 
     def call(self, fun : str, *args : List[Any]) -> argo.Command:
         encoded_args = [cryptoltypes.CryptolType().from_python(a) for a in args]
         self.most_recent_result = CryptolCall(self, fun, encoded_args)
         return self.most_recent_result
+
+    def check_raw(self, expr : Any, *, num_tests : Union[Literal['all'], int, None] = None) -> argo.Command:
+        """Like the member method ``check``, but does not call
+        `to_check_report` on the ``.result()``.
+        """
+        if num_tests == "all" or isinstance(num_tests, int) or num_tests is None:
+            self.most_recent_result = CryptolCheckRaw(self, expr, num_tests)
+            return self.most_recent_result
+        else:
+            raise ValueError('``num_tests`` must be an integer, ``None``, or the string literall ``"all"``')
 
     def check(self, expr : Any, *, num_tests : Union[Literal['all'], int, None] = None) -> argo.Command:
         """Tests the validity of a Cryptol expression with random inputs. The expression must be a function with
@@ -212,13 +237,20 @@ class CryptolConnection:
         else:
             raise ValueError('``num_tests`` must be an integer, ``None``, or the string literall ``"all"``')
 
-
     def check_type(self, code : Any) -> argo.Command:
         """Check the type of a Cryptol expression, represented according to
         :ref:`cryptol-json-expression`, with Python datatypes standing for
         their JSON equivalents.
         """
         self.most_recent_result = CryptolCheckType(self, code)
+        return self.most_recent_result
+
+    def prove_sat_raw(self, expr : Any, qtype : SmtQueryType, solver : solver.Solver, count : Optional[int]) -> argo.Command:
+        """A generalization of the member methods ``sat``, ``prove``, and
+        ``check`, but additionally does not call `to_smt_query_result` on the
+        ``.result()``.
+        """
+        self.most_recent_result = CryptolProveSatRaw(self, expr, qtype, solver, count)
         return self.most_recent_result
 
     def sat(self, expr : Any, solver : solver.Solver = solver.Z3, count : int = 1) -> argo.Command:
