@@ -30,7 +30,7 @@ class TestAES(unittest.TestCase):
 
         self.assertTrue(c.safe("aesEncrypt").result())
         self.assertTrue(c.safe("aesDecrypt").result())
-        self.assertTrue(c.check("AESCorrect").result().success)
+        self.assertTrue(c.check("AESCorrect").result())
         # c.prove("AESCorrect") # probably takes too long for this script...?
 
 

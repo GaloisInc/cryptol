@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import base64
+from abc import ABC
 from enum import Enum
 from dataclasses import dataclass
 from typing import Any, Tuple, List, Dict, Optional, Union
@@ -122,6 +123,9 @@ class CheckReport:
     error_msg: Optional[str]
     tests_run: int
     tests_possible: Optional[int]
+    
+    def __bool__(self) -> bool:
+        return self.success
 
 def to_check_report(res : Any) -> CheckReport:
     if res['result'] == 'pass':
@@ -185,23 +189,48 @@ class SmtQueryType(str, Enum):
     SAFE  = 'safe'
     SAT   = 'sat'
 
-SmtQueryResult = Union[bool, List[CryptolPython], OfflineSmtQuery]
+class SmtResult(ABC):
+    """Abstract class for SMT query results."""
+    qtype: SmtQueryType
+    
+    def __init__(self, qtype : SmtQueryType) -> None:
+        if qtype in [SmtQueryType.PROVE, SmtQueryType.SAFE, SmtQueryType.SAT]:
+            self.qtype = qtype
+        else:
+            raise ValueError("Unknown SMT query type: " + qtype)            
+
+class SmtUnsatResult(SmtResult):
+    def __init__(self, qtype : SmtQueryType) -> None:
+        super(SmtUnsatResult, self).__init__(qtype)
+
+    def __bool__(self) -> bool:
+        """An unsat result is a success for PROVE and SAFE queries but a
+        failure for SAT queries. Thus, the object is truthy iff qtype != SAT.
+        """
+        return self.qtype != SmtQueryType.SAT
+
+class SmtSatResult(List[CryptolPython], SmtResult):
+    def __init__(self, qtype : SmtQueryType, cxs : List[CryptolPython]) -> None:
+        SmtResult.__init__(self, qtype)
+        list.__init__(self, cxs)
+
+class SmtInvalidResult(List[CryptolPython], SmtResult):
+    def __init__(self, qtype : SmtQueryType, cxs : List[CryptolPython]) -> None:
+        SmtResult.__init__(self, qtype)
+        list.__init__(self, cxs)
+
+SmtQueryResult = Union[SmtResult, OfflineSmtQuery]
 
 def to_smt_query_result(qtype : SmtQueryType, res : Any) -> SmtQueryResult:
     if res['result'] == 'unsatisfiable':
-        if qtype == SmtQueryType.SAT:
-            return False
-        elif qtype == SmtQueryType.PROVE or qtype == SmtQueryType.SAFE:
-            return True
-        else:
-            raise ValueError("Unknown SMT query type: " + qtype)
+        return SmtUnsatResult(qtype)
     elif res['result'] == 'invalid':
-        return [from_cryptol_arg(arg['expr'])
-                for arg in res['counterexample']]
+        return SmtInvalidResult(qtype, [from_cryptol_arg(arg['expr'])
+                                        for arg in res['counterexample']])
     elif res['result'] == 'satisfied':
-        return [from_cryptol_arg(arg['expr'])
-                for m in res['models']
-                for arg in m]
+        return SmtSatResult(qtype, [from_cryptol_arg(arg['expr'])
+                                    for m in res['models']
+                                    for arg in m])
     elif res['result'] == 'offline':
         return OfflineSmtQuery(content=res['query'])
     else:

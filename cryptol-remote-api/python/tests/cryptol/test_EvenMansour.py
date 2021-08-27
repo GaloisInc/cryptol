@@ -19,7 +19,7 @@ class TestEvenMansour(unittest.TestCase):
                  # ^ the same as: c.eval('[0..9]:[_][4]').result()
         self.assertTrue(c.call('is_inverse_permutation', digits, F_10_4, Finv_10_4).result())
 
-        self.assertTrue(c.check('E_and_D_are_inverses').result().success)
+        self.assertTrue(c.check('E_and_D_are_inverses').result())
 
 
 if __name__ == "__main__":
