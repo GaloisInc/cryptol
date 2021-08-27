@@ -9,17 +9,17 @@ from cryptol.bitvector import BV
 
 class TestErrorRecovery(unittest.TestCase):
     def test_ErrorRecovery(self):
-        c = cryptol.connect()
+        c = cryptol.connect_sync()
         
         with self.assertRaises(ArgoException):
-            c.load_file(str(Path('tests','cryptol','test-files','bad.cry'))).result()
+            c.load_file(str(Path('tests','cryptol','test-files','bad.cry')))
         
         # test that loading a valid file still works after an exception
-        c.load_file(str(Path('tests','cryptol','test-files','Foo.cry'))).result()
+        c.load_file(str(Path('tests','cryptol','test-files','Foo.cry')))
     
         # ensure that we really did load the file with no errors
-        x_val1 = c.evaluate_expression("x").result()
-        x_val2 = c.eval("Id::id x").result()
+        x_val1 = c.eval("x")
+        x_val2 = c.eval("Id::id x")
         self.assertEqual(x_val1, x_val2)
 
         # test that a reset still works after an exception (this used to throw
