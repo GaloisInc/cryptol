@@ -245,12 +245,11 @@ class CryptolConnection:
         self.most_recent_result = CryptolCheckType(self, code)
         return self.most_recent_result
 
-    def prove_sat_raw(self, expr : Any, qtype : SmtQueryType, solver : solver.Solver, count : Optional[int]) -> argo.Command:
-        """A generalization of the member methods ``sat``, ``prove``, and
-        ``check`, but additionally does not call `to_smt_query_result` on the
-        ``.result()``.
+    def sat_raw(self, expr : Any, solver : solver.Solver = solver.Z3, count : int = 1) -> argo.Command:
+        """Like the member method ``sat``, but does not call
+        `to_smt_query_result` on the ``.result()``.
         """
-        self.most_recent_result = CryptolProveSatRaw(self, expr, qtype, solver, count)
+        self.most_recent_result = CryptolSatRaw(self, expr, solver, count)
         return self.most_recent_result
 
     def sat(self, expr : Any, solver : solver.Solver = solver.Z3, count : int = 1) -> argo.Command:
@@ -262,12 +261,26 @@ class CryptolConnection:
         self.most_recent_result = CryptolSat(self, expr, solver, count)
         return self.most_recent_result
 
+    def prove_raw(self, expr : Any, solver : solver.Solver = solver.Z3) -> argo.Command:
+        """Like the member method ``prove``, but does not call
+        `to_smt_query_result` on the ``.result()``.
+        """
+        self.most_recent_result = CryptolProveRaw(self, expr, solver)
+        return self.most_recent_result
+
     def prove(self, expr : Any, solver : solver.Solver = solver.Z3) -> argo.Command:
         """Check the validity of a Cryptol expression, represented according to
         :ref:`cryptol-json-expression`, with Python datatypes standing for
         their JSON equivalents. Use the solver named `solver`.
         """
         self.most_recent_result = CryptolProve(self, expr, solver)
+        return self.most_recent_result
+
+    def safe_raw(self, expr : Any, solver : solver.Solver = solver.Z3) -> argo.Command:
+        """Like the member method ``safe``, but does not call
+        `to_smt_query_result` on the ``.result()``.
+        """
+        self.most_recent_result = CryptolSafeRaw(self, expr, solver)
         return self.most_recent_result
 
     def safe(self, expr : Any, solver : solver.Solver = solver.Z3) -> argo.Command:

@@ -18,9 +18,10 @@ from . import solver
 from .bitvector import BV
 from .commands import *
 from .connection import *
+from .synchronous import *
 
 
-__all__ = ['bitvector', 'commands', 'connections', 'cryptoltypes', 'solver']
+__all__ = ['bitvector', 'commands', 'connection', 'cryptoltypes', 'opaque', 'solver', 'synchronous']
 
 
 def fail_with(x : Exception) -> NoReturn:

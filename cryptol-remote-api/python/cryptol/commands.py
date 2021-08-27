@@ -227,14 +227,23 @@ class CryptolProveSat(CryptolProveSatRaw):
     def process_result(self, res : Any) -> Any:
         return to_smt_query_result(self.qtype, super(CryptolProveSat, self).process_result(res))
 
+class CryptolProveRaw(CryptolProveSatRaw):
+    def __init__(self, connection : HasProtocolState, expr : Any, solver : Solver) -> None:
+        super(CryptolProveRaw, self).__init__(connection, SmtQueryType.PROVE, expr, solver, 1)
 class CryptolProve(CryptolProveSat):
     def __init__(self, connection : HasProtocolState, expr : Any, solver : Solver) -> None:
         super(CryptolProve, self).__init__(connection, SmtQueryType.PROVE, expr, solver, 1)
 
+class CryptolSatRaw(CryptolProveSatRaw):
+    def __init__(self, connection : HasProtocolState, expr : Any, solver : Solver, count : int) -> None:
+        super(CryptolSatRaw, self).__init__(connection, SmtQueryType.SAT, expr, solver, count)
 class CryptolSat(CryptolProveSat):
     def __init__(self, connection : HasProtocolState, expr : Any, solver : Solver, count : int) -> None:
         super(CryptolSat, self).__init__(connection, SmtQueryType.SAT, expr, solver, count)
 
+class CryptolSafeRaw(CryptolProveSatRaw):
+    def __init__(self, connection : HasProtocolState, expr : Any, solver : Solver) -> None:
+        super(CryptolSafeRaw, self).__init__(connection, SmtQueryType.SAFE, expr, solver, 1)
 class CryptolSafe(CryptolProveSat):
     def __init__(self, connection : HasProtocolState, expr : Any, solver : Solver) -> None:
         super(CryptolSafe, self).__init__(connection, SmtQueryType.SAFE, expr, solver, 1)
