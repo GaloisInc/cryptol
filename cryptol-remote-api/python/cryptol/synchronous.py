@@ -92,23 +92,22 @@ class CryptolSyncConnection:
         """Load a Cryptol module, like ``:module`` at the Cryptol REPL."""
         self.connection.load_module(module_name).result()
 
-    def eval(self, expression : Any) -> CryptolPython:
-        """Evaluate a Cryptol expression, represented according to
-        :ref:`cryptol-json-expression`, with Python datatypes standing
-        for their JSON equivalents.
-        """
-        return from_cryptol_arg(self.connection.eval_raw(expression).result())
-
-    def evaluate_expression(self, expression : Any) -> CryptolPython:
-        """Synonym for member method ``eval``.
-        """
-        return self.eval(expression)
-
     def extend_search_path(self, *dir : str) -> None:
         """Extend the search path for loading Cryptol modules."""
         self.connection.extend_search_path(*dir).result()
 
+    def eval(self, expression : Any) -> CryptolPython:
+        """Evaluate a Cryptol expression, with the result represented
+        according to :ref:`cryptol-json-expression`, with Python datatypes
+        standing for their JSON equivalents.
+        """
+        return from_cryptol_arg(self.connection.eval_raw(expression).result())
+
     def call(self, fun : str, *args : List[Any]) -> CryptolPython:
+        """Evaluate a Cryptol functiom by name, with the arguments and the
+        result represented according to :ref:`cryptol-json-expression`, with
+        Python datatypes standing for their JSON equivalents.
+        """
         return from_cryptol_arg(self.connection.call_raw(fun, *args).result())
 
     def check(self, expr : Any, *, num_tests : Union[Literal['all'], int, None] = None) -> CheckReport:
