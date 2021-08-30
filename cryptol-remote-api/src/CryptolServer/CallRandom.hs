@@ -38,7 +38,7 @@ callRandomDescr =
 
 getEntropy :: MonadIO m => Integer -> m [Bool]
 getEntropy w
-  | w > 0 = (:) <$> randomIO <*> getEntropy (w - 1)
+  | w > 0 = (:) <$> liftIO randomIO <*> getEntropy (w - 1)
   | otherwise = pure []
 
 funTypeTake :: Int -> CT.Type -> [CT.Type]
