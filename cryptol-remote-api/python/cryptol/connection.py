@@ -198,6 +198,11 @@ class CryptolConnection:
         self.most_recent_result = CryptolCall(self, fun, encoded_args)
         return self.most_recent_result
 
+    def call_random(self, fun : str, random: int, args : List[Any]) -> argo.Command:
+        encoded_args = [cryptoltypes.CryptolType().from_python(a) for a in args]
+        self.most_recent_result = CryptolCallRandom(self, fun, random, encoded_args)
+        return self.most_recent_result
+
     def check(self, expr : Any, *, num_tests : Union[Literal['all'], int, None] = None) -> argo.Command:
         """Tests the validity of a Cryptol expression with random inputs. The expression must be a function with
         return type ``Bit``.
