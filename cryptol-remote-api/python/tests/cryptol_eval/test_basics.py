@@ -102,10 +102,10 @@ class HttpMultiConnectionTests(unittest.TestCase):
             self.assertEqual(res, [BV(size=8,value=0xff), BV(size=8,value=0xff)])
             c.reset()
 
-    def test_reset_server_with_many_usages_many_connections(self):
+    def test_server_with_many_usages_many_connections(self):
         for i in range(0,100):
             time.sleep(.05)
-            c = cryptol.connect(url=self.url, reset_server=True)
+            c = cryptol.connect(url=self.url)
             res = c.call('f', BV(size=8,value=0xff)).result()
             self.assertEqual(res, [BV(size=8,value=0xff), BV(size=8,value=0xff)])
 
