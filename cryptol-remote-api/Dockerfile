@@ -81,6 +81,8 @@ RUN if ${PORTABILITY}; then \
 
 FROM toolchain AS build
 
+ARG GHCVER
+ARG GHCVER_BOOTSTRAP
 RUN useradd -u 1000 -m cryptol
 COPY --chown=cryptol:cryptol . /cryptol
 USER cryptol
