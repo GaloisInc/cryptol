@@ -132,7 +132,7 @@ runDoc :: NameDisp -> Doc -> PP.Doc Void
 runDoc names (Doc f) = f names
 
 instance Show Doc where
-  show d = PP.renderString (PP.layoutSmart opts (runDoc mempty d))
+  show d = PP.renderString (PP.layoutPretty opts (runDoc mempty d))
     where opts = PP.defaultLayoutOptions{ PP.layoutPageWidth = PP.AvailablePerLine 100 0.666 }
 
 instance IsString Doc where
