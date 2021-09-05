@@ -133,8 +133,8 @@ Symbols
     fromThenTo :
       {first, next, last, a, len}
         (fin first, fin next, fin last, Literal first a, Literal next a,
-         Literal last a, first != next, lengthFromThenTo first next last ==
-         len) =>
+         Literal last a, first != next,
+         lengthFromThenTo first next last == len) =>
         [len]a
     fromTo :
       {first, last, a}

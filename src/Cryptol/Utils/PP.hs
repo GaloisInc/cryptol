@@ -132,7 +132,7 @@ runDoc :: NameDisp -> Doc -> PP.Doc Void
 runDoc names (Doc f) = f names
 
 instance Show Doc where
-  show d = PP.renderString (PP.layoutSmart opts (runDoc mempty d))
+  show d = PP.renderString (PP.layoutPretty opts (runDoc mempty d))
     where opts = PP.defaultLayoutOptions{ PP.layoutPageWidth = PP.AvailablePerLine 100 0.666 }
 
 instance IsString Doc where
@@ -298,8 +298,14 @@ quotes  = liftPP1 PP.squotes
 commaSep :: [Doc] -> Doc
 commaSep xs = Doc (\e -> PP.sep (PP.punctuate PP.comma [ d e | Doc d <- xs ]))
 
+-- | Print a comma-separated list. Lay out each item on a single line
+-- if it will fit. If an item requires multiple lines, then start it
+-- on its own line.
 commaSepFill :: [Doc] -> Doc
-commaSepFill xs = Doc (\e -> PP.fillSep (PP.punctuate PP.comma [ d e | Doc d <- xs ]))
+commaSepFill xs = Doc (\e -> fillSep (PP.punctuate PP.comma [ d e | Doc d <- xs ]))
+  where
+    fillSep [] = mempty
+    fillSep (d0 : ds) = foldl (\a d -> a <> PP.group (PP.line <> d)) d0 ds
 
 ppList :: [Doc] -> Doc
 ppList xs = group (nest 1 (brackets (commaSepFill xs)))
