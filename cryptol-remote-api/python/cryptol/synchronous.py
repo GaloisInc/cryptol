@@ -96,14 +96,14 @@ class CryptolSyncConnection:
         """Extend the search path for loading Cryptol modules."""
         self.connection.extend_search_path(*dir).result()
 
-    def eval(self, expression : Any) -> CryptolPython:
+    def eval(self, expression : Any) -> CryptolValue:
         """Evaluate a Cryptol expression, with the result represented
         according to :ref:`cryptol-json-expression`, with Python datatypes
         standing for their JSON equivalents.
         """
         return from_cryptol_arg(self.connection.eval_raw(expression).result())
 
-    def call(self, fun : str, *args : List[Any]) -> CryptolPython:
+    def call(self, fun : str, *args : List[Any]) -> CryptolValue:
         """Evaluate a Cryptol functiom by name, with the arguments and the
         result represented according to :ref:`cryptol-json-expression`, with
         Python datatypes standing for their JSON equivalents.

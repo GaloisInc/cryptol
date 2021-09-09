@@ -21,9 +21,9 @@ def extend_hex(string : str) -> str:
     else:
         return string
 
-CryptolPython = Union[bool, int, BV, Tuple, List, Dict, OpaqueValue]
+CryptolValue = Union[bool, int, BV, Tuple, List, Dict, OpaqueValue]
 
-def from_cryptol_arg(val : Any) -> CryptolPython:
+def from_cryptol_arg(val : Any) -> CryptolValue:
     """Return the canonical Python value for a Cryptol JSON value."""
     if isinstance(val, bool):
         return val
@@ -209,13 +209,13 @@ class SmtUnsatResult(SmtResult):
         """
         return self.qtype != SmtQueryType.SAT
 
-class SmtSatResult(List[CryptolPython], SmtResult):
-    def __init__(self, qtype : SmtQueryType, cxs : List[CryptolPython]) -> None:
+class SmtSatResult(List[CryptolValue], SmtResult):
+    def __init__(self, qtype : SmtQueryType, cxs : List[CryptolValue]) -> None:
         SmtResult.__init__(self, qtype)
         list.__init__(self, cxs)
 
-class SmtInvalidResult(List[CryptolPython], SmtResult):
-    def __init__(self, qtype : SmtQueryType, cxs : List[CryptolPython]) -> None:
+class SmtInvalidResult(List[CryptolValue], SmtResult):
+    def __init__(self, qtype : SmtQueryType, cxs : List[CryptolValue]) -> None:
         SmtResult.__init__(self, qtype)
         list.__init__(self, cxs)
 
