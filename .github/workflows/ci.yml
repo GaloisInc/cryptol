@@ -47,13 +47,146 @@ jobs:
           .github/ci.sh output release $RELEASE
           .github/ci.sh output retention-days $($RELEASE && echo 90 || echo 5)
 
-  build:
+  # Linux builds are run independently to improve CI turnaround time.
+  build-linux:
     runs-on: ${{ matrix.os }}
     needs: [config]
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest]
+        ghc-version: ["8.6.5", "8.8.4", "8.10.2"]
+    outputs:
+      test-lib-json: ${{ steps.test-lib.outputs.targets-json }}
+    env:
+      VERSION: ${{ needs.config.outputs.version }}
+      RELEASE: ${{ needs.config.outputs.release }}
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: true
+
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.7'
+
+      - uses: abatilo/actions-poetry@v2.0.0
+        with:
+          poetry-version: 1.1.6
+
+      - uses: haskell/actions/setup@v1
+        id: setup-haskell
+        with:
+          ghc-version: ${{ matrix.ghc-version }}
+
+      - uses: actions/cache@v2
+        name: Cache cabal store
+        with:
+          path: |
+            ${{ steps.setup-haskell.outputs.cabal-store }}
+            dist-newstyle
+          key: cabal-${{ runner.os }}-${{ matrix.ghc-version }}-${{ hashFiles(format('cabal.GHC-{0}.config', matrix.ghc-version)) }}-${{ github.sha }}
+          restore-keys: |
+            cabal-${{ runner.os }}-${{ matrix.ghc-version }}-${{ hashFiles(format('cabal.GHC-{0}.config', matrix.ghc-version)) }}-
+
+      - shell: bash
+        run: .github/ci.sh install_system_deps
+
+      - shell: bash
+        env:
+          RELEASE: ${{ needs.config.outputs.release }}
+        run: .github/ci.sh build
+
+      - shell: bash
+        run: .github/ci.sh setup_dist_bins
+
+      - shell: bash
+        run: .github/ci.sh check_docs
+      - shell: bash
+        run: .github/ci.sh check_rpc_docs
+
+      - uses: docker://pandoc/latex:2.9.2
+        with:
+          args: >-
+            sh -c
+            "
+            apk add make &&
+            tlmgr install subfigure lastpage preprint adjustbox nag collectbox sectsty todonotes palatino mathpazo &&
+            cd docs &&
+            make
+            "
+
+      - shell: bash
+        name: Partition test-lib tests
+        id: test-lib
+        run: |
+          set -x
+          cabal v2-install --install-method=copy --installdir="./bin" test-lib
+          cmd="cat \$1.stdout"
+          if ${{ runner.os == 'Windows' }}; then
+              cmd="cat \$1.stdout.mingw32 2>/dev/null || $cmd"
+          fi
+          ./bin/test-runner --ext=.icry -r ./output --exe=$(which bash) -F -c -F "$cmd" -F -- ./tests
+          TARGETS_JSON=$(echo -n "$(ls -1 ./output/tests)" | jq -Rsc 'split("\n")')
+          echo "::set-output name=targets-json::$TARGETS_JSON"
+
+      - shell: bash
+        run: .github/ci.sh bundle_files
+
+      - shell: bash
+        run: |
+          NAME="${{ needs.config.outputs.name }}-${{ runner.os }}-x86_64"
+          echo "NAME=$NAME" >> $GITHUB_ENV
+          .github/ci.sh zip_dist $NAME
+
+      - shell: bash
+        run: |
+          NAME="${{ needs.config.outputs.name }}-${{ runner.os }}-x86_64"
+          echo "NAME=$NAME" >> $GITHUB_ENV
+          .github/ci.sh zip_dist_with_solvers $NAME
+
+      - if: needs.config.outputs.release == 'true'
+        shell: bash
+        env:
+          SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+        run: |
+          .github/ci.sh sign ${NAME}.tar.gz
+          .github/ci.sh sign ${NAME}-with-solvers.tar.gz
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: ${{ env.NAME }}
+          path: "${{ env.NAME }}.tar.gz*"
+          if-no-files-found: error
+          retention-days: ${{ needs.config.outputs.retention-days }}
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: ${{ env.NAME }}-with-solvers
+          path: "${{ env.NAME }}-with-solvers.tar.gz*"
+          if-no-files-found: error
+          retention-days: ${{ needs.config.outputs.retention-days }}
+
+      - if: matrix.ghc-version == '8.6.5'
+        uses: actions/upload-artifact@v2
+        with:
+          path: dist/bin
+          name: ${{ runner.os }}-dist-bin
+
+      - if: matrix.ghc-version == '8.6.5'
+        uses: actions/upload-artifact@v2
+        with:
+          path: bin
+          name: ${{ runner.os }}-bin
+
+  build-other:
+    runs-on: ${{ matrix.os }}
+    needs: [config]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
         ghc-version: ["8.6.5", "8.8.4", "8.10.2"]
         exclude:
           # https://gitlab.haskell.org/ghc/ghc/-/issues/18550
@@ -109,18 +242,6 @@ jobs:
       - shell: bash
         run: .github/ci.sh check_rpc_docs
         if: runner.os != 'Windows'
-
-      - if: runner.os == 'Linux'
-        uses: docker://pandoc/latex:2.9.2
-        with:
-          args: >-
-            sh -c
-            "
-            apk add make &&
-            tlmgr install subfigure lastpage preprint adjustbox nag collectbox sectsty todonotes palatino mathpazo &&
-            cd docs &&
-            make
-            "
 
       - shell: bash
         name: Partition test-lib tests
@@ -204,21 +325,88 @@ jobs:
           if-no-files-found: error
           retention-days: ${{ needs.config.outputs.retention-days }}
 
-  test:
+  test-linux:
     runs-on: ${{ matrix.os }}
-    needs: [build]
+    needs: build-linux
     strategy:
       fail-fast: false
       matrix:
         suite: [test-lib]
-        target: ${{ fromJson(needs.build.outputs.test-lib-json) }}
-        os: [ubuntu-latest, macos-latest] # , windows-latest]
+        target: ${{ fromJson(needs.build-linux.outputs.test-lib-json) }}
+        os: [ubuntu-latest]
         continue-on-error: [false]
         include:
           - suite: rpc
             target: ''
             os: ubuntu-latest
             continue-on-error: false
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: true
+
+      - uses: haskell/actions/setup@v1
+        with:
+          ghc-version: '8.10.2'
+
+      - if: matrix.suite == 'rpc'
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.7'
+
+      - if: matrix.suite == 'rpc'
+        uses: abatilo/actions-poetry@v2.1.2
+        with:
+          poetry-version: 1.1.6
+
+      - uses: actions/download-artifact@v2
+        with:
+          name: "${{ runner.os }}-dist-bin"
+          path: dist/bin
+
+      - uses: actions/download-artifact@v2
+        with:
+          name: "${{ runner.os }}-bin"
+          path: bin
+
+      - shell: bash
+        run: |
+          set -x
+          chmod +x dist/bin/cryptol
+          chmod +x dist/bin/cryptol-remote-api
+          chmod +x dist/bin/cryptol-eval-server
+          chmod +x bin/test-runner
+          .github/ci.sh install_system_deps
+          ghc_ver="$(ghc --numeric-version)"
+          cp cabal.GHC-"$ghc_ver".config cabal.project.freeze
+          cabal v2-update
+
+      - if: matrix.suite == 'test-lib'
+        shell: bash
+        continue-on-error: ${{ matrix.continue-on-error }}
+        name: test-lib ${{ matrix.target }}
+        run: |
+          export PATH=$PWD/bin:$PWD/dist/bin:$PATH
+          ./bin/test-runner --ext=.icry -F -b --exe=dist/bin/cryptol ./tests/${{ matrix.target }}
+
+      - if: matrix.suite == 'rpc'
+        shell: bash
+        continue-on-error: ${{ matrix.continue-on-error }}
+        run: |
+          export PATH=$PWD/bin:$PWD/dist/bin:$PATH
+          cryptol-remote-api/run_rpc_tests.sh
+
+  test-other:
+    runs-on: ${{ matrix.os }}
+    needs: [build-other]
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [test-lib]
+        target: ${{ fromJson(needs.build-other.outputs.test-lib-json) }}
+        os: [macos-latest]
+        continue-on-error: [false]
+        include:
           - suite: rpc
             target: ''
             os: macos-latest
