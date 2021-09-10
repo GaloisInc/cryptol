@@ -716,6 +716,13 @@ smodV sym  =
   PWordFun \y ->
   PPrim (VWord w . wordVal <$> wordSignedMod sym x y)
 
+{-# SPECIALIZE toSignedIntegerV :: Concrete -> Prim Concrete #-}
+toSignedIntegerV :: Backend sym => sym -> Prim sym
+toSignedIntegerV sym =
+  PFinPoly \_w ->
+  PWordFun \x ->
+  PPrim (VInteger <$> wordToSignedInt sym x)
+
 -- Cmp -------------------------------------------------------------------------
 
 {-# SPECIALIZE cmpValue ::
@@ -2031,6 +2038,9 @@ genericPrimTable sym getEOpts =
                     unary (roundToEvenV sym))
 
     -- Bitvector specific operations
+  , ("toSignedInteger"
+                  , {-# SCC "Prelude::toSignedInteger" #-}
+                    toSignedIntegerV sym)
   , ("/$"         , {-# SCC "Prelude::(/$)" #-}
                     sdivV sym)
   , ("%$"         , {-# SCC "Prelude::(%$)" #-}
