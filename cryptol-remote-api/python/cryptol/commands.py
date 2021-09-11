@@ -62,33 +62,34 @@ def from_cryptol_arg(val : Any) -> CryptolValue:
 
 
 class CryptolLoadModule(argo.Command):
-    def __init__(self, connection : HasProtocolState, mod_name : str) -> None:
-        super(CryptolLoadModule, self).__init__('load module', {'module name': mod_name}, connection)
+    def __init__(self, connection : HasProtocolState, mod_name : str, timeout: Optional[float]) -> None:
+        super(CryptolLoadModule, self).__init__('load module', {'module name': mod_name}, connection, timeout=timeout)
 
     def process_result(self, res : Any) -> Any:
         return res
 
 class CryptolLoadFile(argo.Command):
-    def __init__(self, connection : HasProtocolState, filename : str) -> None:
-        super(CryptolLoadFile, self).__init__('load file', {'file': filename}, connection)
+    def __init__(self, connection : HasProtocolState, filename : str, timeout: Optional[float]) -> None:
+        super(CryptolLoadFile, self).__init__('load file', {'file': filename}, connection, timeout=timeout)
 
     def process_result(self, res : Any) -> Any:
         return res
 
 class CryptolExtendSearchPath(argo.Command):
-    def __init__(self, connection : HasProtocolState, dirs : List[str]) -> None:
-        super(CryptolExtendSearchPath, self).__init__('extend search path', {'paths': dirs}, connection)
+    def __init__(self, connection : HasProtocolState, dirs : List[str], timeout: Optional[float]) -> None:
+        super(CryptolExtendSearchPath, self).__init__('extend search path', {'paths': dirs}, connection, timeout=timeout)
 
     def process_result(self, res : Any) -> Any:
         return res
 
 
 class CryptolEvalExprRaw(argo.Command):
-    def __init__(self, connection : HasProtocolState, expr : Any) -> None:
+    def __init__(self, connection : HasProtocolState, expr : Any, timeout: Optional[float]) -> None:
         super(CryptolEvalExprRaw, self).__init__(
             'evaluate expression',
             {'expression': expr},
-            connection
+            connection,
+            timeout=timeout
         )
 
     def process_result(self, res : Any) -> Any:
@@ -100,11 +101,12 @@ class CryptolEvalExpr(CryptolEvalExprRaw):
 
 
 class CryptolCallRaw(argo.Command):
-    def __init__(self, connection : HasProtocolState, fun : str, args : List[Any]) -> None:
+    def __init__(self, connection : HasProtocolState, fun : str, args : List[Any], timeout: Optional[float]) -> None:
         super(CryptolCallRaw, self).__init__(
             'call',
             {'function': fun, 'arguments': args},
-            connection
+            connection,
+            timeout=timeout
         )
 
     def process_result(self, res : Any) -> Any:
@@ -153,7 +155,10 @@ def to_check_report(res : Any) -> CheckReport:
         raise ValueError("Unknown check result " + str(res))
 
 class CryptolCheckRaw(argo.Command):
-    def __init__(self, connection : HasProtocolState, expr : Any, num_tests : Union[Literal['all'],int, None]) -> None:
+    def __init__(self, connection : HasProtocolState,
+                 expr : Any,
+                 num_tests : Union[Literal['all'],int, None],
+                 timeout: Optional[float]) -> None:
         if num_tests:
             args = {'expression': expr, 'number of tests':num_tests}
         else:
@@ -161,7 +166,8 @@ class CryptolCheckRaw(argo.Command):
         super(CryptolCheckRaw, self).__init__(
             'check',
             args,
-            connection
+            connection,
+            timeout=timeout
         )
 
     def process_result(self, res : Any) -> Any:
@@ -173,11 +179,12 @@ class CryptolCheck(CryptolCheckRaw):
 
 
 class CryptolCheckType(argo.Command):
-    def __init__(self, connection : HasProtocolState, expr : Any) -> None:
+    def __init__(self, connection : HasProtocolState, expr : Any, timeout: Optional[float]) -> None:
         super(CryptolCheckType, self).__init__(
             'check type',
             {'expression': expr},
-            connection
+            connection,
+            timeout=timeout
         )
 
     def process_result(self, res : Any) -> Any:
@@ -190,7 +197,13 @@ class SmtQueryType(str, Enum):
     SAT   = 'sat'
 
 class CryptolProveSatRaw(argo.Command):
-    def __init__(self, connection : HasProtocolState, qtype : SmtQueryType, expr : Any, solver : Solver, count : Optional[int]) -> None:
+    def __init__(self,
+                 connection : HasProtocolState,
+                 qtype : SmtQueryType,
+                 expr : Any,
+                 solver : Solver,
+                 count : Optional[int],
+                 timeout: Optional[float]) -> None:
         super(CryptolProveSatRaw, self).__init__(
             'prove or satisfy',
             {'query type': qtype,
@@ -198,7 +211,8 @@ class CryptolProveSatRaw(argo.Command):
              'prover': solver.name(),
              'hash consing': "true" if solver.hash_consing() else "false",
              'result count': 'all' if count is None else count},
-            connection
+            connection,
+            timeout=timeout
         )
         self.qtype = qtype
 
@@ -231,38 +245,39 @@ class CryptolProveRaw(CryptolProveSatRaw):
     def __init__(self, connection : HasProtocolState, expr : Any, solver : Solver) -> None:
         super(CryptolProveRaw, self).__init__(connection, SmtQueryType.PROVE, expr, solver, 1)
 class CryptolProve(CryptolProveSat):
-    def __init__(self, connection : HasProtocolState, expr : Any, solver : Solver) -> None:
-        super(CryptolProve, self).__init__(connection, SmtQueryType.PROVE, expr, solver, 1)
+    def __init__(self, connection : HasProtocolState, expr : Any, solver : Solver, timeout: Optional[float]) -> None:
+        super(CryptolProve, self).__init__(connection, SmtQueryType.PROVE, expr, solver, 1, timeout=timeout)
 
 class CryptolSatRaw(CryptolProveSatRaw):
     def __init__(self, connection : HasProtocolState, expr : Any, solver : Solver, count : int) -> None:
         super(CryptolSatRaw, self).__init__(connection, SmtQueryType.SAT, expr, solver, count)
 class CryptolSat(CryptolProveSat):
-    def __init__(self, connection : HasProtocolState, expr : Any, solver : Solver, count : int) -> None:
-        super(CryptolSat, self).__init__(connection, SmtQueryType.SAT, expr, solver, count)
+    def __init__(self, connection : HasProtocolState, expr : Any, solver : Solver, count : int, timeout: Optional[float]) -> None:
+        super(CryptolSat, self).__init__(connection, SmtQueryType.SAT, expr, solver, count, timeout=timeout)
 
 class CryptolSafeRaw(CryptolProveSatRaw):
     def __init__(self, connection : HasProtocolState, expr : Any, solver : Solver) -> None:
         super(CryptolSafeRaw, self).__init__(connection, SmtQueryType.SAFE, expr, solver, 1)
 class CryptolSafe(CryptolProveSat):
-    def __init__(self, connection : HasProtocolState, expr : Any, solver : Solver) -> None:
-        super(CryptolSafe, self).__init__(connection, SmtQueryType.SAFE, expr, solver, 1)
+    def __init__(self, connection : HasProtocolState, expr : Any, solver : Solver, timeout: Optional[float]) -> None:
+        super(CryptolSafe, self).__init__(connection, SmtQueryType.SAFE, expr, solver, 1, timeout=timeout)
 
 
 class CryptolNames(argo.Command):
-    def __init__(self, connection : HasProtocolState) -> None:
-        super(CryptolNames, self).__init__('visible names', {}, connection)
+    def __init__(self, connection : HasProtocolState, timeout: Optional[float]) -> None:
+        super(CryptolNames, self).__init__('visible names', {}, connection, timeout=timeout)
 
     def process_result(self, res : Any) -> Any:
         return res
 
 
 class CryptolFocusedModule(argo.Command):
-    def __init__(self, connection : HasProtocolState) -> None:
+    def __init__(self, connection : HasProtocolState, timeout: Optional[float]) -> None:
         super(CryptolFocusedModule, self).__init__(
             'focused module',
             {},
-            connection
+            connection,
+            timeout=timeout
         )
 
     def process_result(self, res : Any) -> Any:
@@ -282,6 +297,14 @@ class CryptolResetServer(argo.Notification):
     def __init__(self, connection : HasProtocolState) -> None:
         super(CryptolResetServer, self).__init__(
             'clear all states',
+            {},
+            connection
+        )
+
+class CryptolInterrupt(argo.Notification):
+    def __init__(self, connection : HasProtocolState) -> None:
+        super(CryptolInterrupt, self).__init__(
+            'interrupt',
             {},
             connection
         )

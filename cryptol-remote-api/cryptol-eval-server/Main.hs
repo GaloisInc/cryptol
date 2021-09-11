@@ -22,6 +22,8 @@ import CryptolServer.Check ( check, checkDescr )
 import CryptolServer.ClearState
     ( clearState, clearStateDescr, clearAllStates, clearAllStatesDescr)
 import Cryptol.Eval (EvalOpts(..), defaultPPOpts)
+import CryptolServer.Interrupt
+    ( interruptServer, interruptServerDescr )
 import Cryptol.ModuleSystem (ModuleInput(..), loadModuleByPath, loadModuleByName)
 import Cryptol.ModuleSystem.Monad (runModuleM, setFocusedModule)
 import Cryptol.TypeCheck.AST (mName)
@@ -166,4 +168,8 @@ cryptolEvalMethods =
     "clear all states"
     clearAllStatesDescr
     clearAllStates
+  , notification
+     "interrupt"
+     interruptServerDescr
+     interruptServer
   ]
