@@ -8,7 +8,7 @@ from cryptol.bitvector import BV
 
 class TestEvenMansour(unittest.TestCase):
     def test_EvenMansour(self):
-        c = cryptol.connect_sync(verify=False)
+        c = cryptol.sync.connect(verify=False)
         c.load_file(str(Path('tests','cryptol','test-files','examples','contrib','EvenMansour.cry')))
 
         F_10_4 = c.eval('F:[10][4]')

@@ -9,7 +9,7 @@ from cryptol.bitvector import BV
 
 class TestErrorRecovery(unittest.TestCase):
     def test_ErrorRecovery(self):
-        c = cryptol.connect_sync()
+        c = cryptol.sync.connect()
         
         with self.assertRaises(ArgoException):
             c.load_file(str(Path('tests','cryptol','test-files','bad.cry')))

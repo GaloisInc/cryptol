@@ -8,7 +8,7 @@ from cryptol.bitvector import BV
 
 class CryptolTypeTests(unittest.TestCase):
     def test_types(self):
-        c = cryptol.connect_sync(verify=False)
+        c = cryptol.sync.connect(verify=False)
         c.load_file(str(Path('tests','cryptol','test-files','Types.cry')))
 
         # Bits

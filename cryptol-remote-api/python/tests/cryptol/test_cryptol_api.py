@@ -21,7 +21,7 @@ class CryptolTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(self):
-        self.c = cryptol.connect_sync(verify=False)
+        self.c = cryptol.sync.connect(verify=False)
         self.c.load_file(str(Path('tests','cryptol','test-files', 'Foo.cry')))
 
     @classmethod
@@ -216,7 +216,7 @@ class HttpMultiConnectionTests(unittest.TestCase):
     def test_reset_with_many_usages_many_connections(self):
         for i in range(0,100):
             time.sleep(.05)
-            c = cryptol.connect_sync(url=self.url, verify=False)
+            c = cryptol.sync.connect(url=self.url, verify=False)
             c.load_file(str(Path('tests','cryptol','test-files', 'Foo.cry')))
             x_val1 = c.eval("x")
             x_val2 = c.eval("Id::id x")
@@ -226,7 +226,7 @@ class HttpMultiConnectionTests(unittest.TestCase):
     def test_reset_server_with_many_usages_many_connections(self):
         for i in range(0,100):
             time.sleep(.05)
-            c = cryptol.connect_sync(url=self.url, reset_server=True, verify=False)
+            c = cryptol.sync.connect(url=self.url, reset_server=True, verify=False)
             c.load_file(str(Path('tests','cryptol','test-files', 'Foo.cry')))
             x_val1 = c.eval("x")
             x_val2 = c.eval("Id::id x")
@@ -281,7 +281,7 @@ class TLSConnectionTests(unittest.TestCase):
 
     def test_tls_connection(self):
         if self.run_tests:
-            c = cryptol.connect_sync(url=self.url, verify=False)
+            c = cryptol.sync.connect(url=self.url, verify=False)
             c.load_file(str(Path('tests','cryptol','test-files', 'Foo.cry')))
             x_val1 = c.eval("x")
             x_val2 = c.eval("Id::id x")

@@ -7,7 +7,7 @@ from cryptol.bitvector import BV
 
 class TestAES(unittest.TestCase):
     def test_AES(self):
-        c = cryptol.connect_sync(verify=False)
+        c = cryptol.sync.connect(verify=False)
         c.load_file(str(Path('tests','cryptol','test-files', 'examples','AES.cry')))
 
         pt = BV(size=128, value=0x3243f6a8885a308d313198a2e0370734)

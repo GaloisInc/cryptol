@@ -60,13 +60,13 @@ class Unsatisfiable:
         return False
 
 
-def connect_sync(command : Optional[str]=None,
-                 *,
-                 cryptol_path : Optional[str] = None,
-                 url : Optional[str] = None,
-                 reset_server : bool = False,
-                 verify : Union[bool, str] = True,
-                 log_dest : Optional[TextIO] = None) -> CryptolSyncConnection:
+def connect(command : Optional[str]=None,
+            *,
+            cryptol_path : Optional[str] = None,
+            url : Optional[str] = None,
+            reset_server : bool = False,
+            verify : Union[bool, str] = True,
+            log_dest : Optional[TextIO] = None) -> CryptolSyncConnection:
     """
     Connect to a (possibly new) synchronous Cryptol server process.
 
@@ -111,7 +111,7 @@ def connect_sync(command : Optional[str]=None,
         verify=verify,
         log_dest=log_dest))
 
-def connect_sync_stdio(command : str, cryptol_path : Optional[str] = None) -> CryptolSyncConnection:
+def connect_stdio(command : str, cryptol_path : Optional[str] = None) -> CryptolSyncConnection:
     """Start a new synchronous connection to a new Cryptol server process.
     :param command: The command to launch the Cryptol server.
     :param cryptol_path: An optional replacement for the contents of

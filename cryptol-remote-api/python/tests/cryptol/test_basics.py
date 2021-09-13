@@ -17,7 +17,7 @@ class BasicServerTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(self):
-        self.c = cryptol.connect_sync(verify=False)
+        self.c = cryptol.sync.connect(verify=False)
 
     @classmethod
     def tearDownClass(self):
@@ -58,7 +58,7 @@ class BasicLoggingServerTests(unittest.TestCase):
     @classmethod
     def setUpClass(self):
         self.log_buffer = io.StringIO()
-        self.c = cryptol.connect_sync(verify=False, log_dest = self.log_buffer)
+        self.c = cryptol.sync.connect(verify=False, log_dest = self.log_buffer)
 
     @classmethod
     def tearDownClass(self):

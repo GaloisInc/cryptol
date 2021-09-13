@@ -8,7 +8,7 @@ from cryptol.bitvector import BV
 
 class TestDES(unittest.TestCase):
     def test_DES(self):
-        c = cryptol.connect_sync(verify=False)
+        c = cryptol.sync.connect(verify=False)
         c.load_file(str(Path('tests','cryptol','test-files','examples','DEStest.cry')))
 
         # we can run the test suite as indended...

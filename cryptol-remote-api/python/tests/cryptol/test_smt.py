@@ -8,7 +8,7 @@ from cryptol.bitvector import BV
 
 class TestSMT(unittest.TestCase):
     def test_SMT(self) -> None:
-        c = cryptol.connect_sync(verify=False)
+        c = cryptol.sync.connect(verify=False)
         c.load_module('Cryptol')
 
         ex_true  = '\(x : [8]) -> x+x == x+x'

@@ -18,7 +18,12 @@ from . import solver
 from .bitvector import BV
 from .commands import *
 from .connection import *
-from .synchronous import *
+# import everything from `.synchronous` except `connect` and `connect_stdio`
+#  (since functions with those names were already imported from `.connection`)
+from .synchronous import Qed, Safe, Counterexample, Satisfiable, Unsatisfiable, CryptolSyncConnection
+# and add an alias `sync` for the `synchronous` module
+from . import synchronous
+sync = synchronous
 
 
 __all__ = ['bitvector', 'commands', 'connection', 'cryptoltypes', 'opaque', 'solver', 'synchronous']
