@@ -7,6 +7,11 @@ from dataclasses import dataclass
 class OfflineSmtQuery():
   """An SMTLIB2 script -- produced when an `offline` prover is used."""
   content: str
+  
+  def __bool__(self) -> Any:
+    raise ValueError("Offline SMT query has no value")
+  def __nonzero__(self) -> Any:
+    raise ValueError("Offline SMT query has no value")
 
 class Solver(metaclass=ABCMeta):
   """An SMT solver mode selectable for Cryptol. Compare with the `:set prover` options in
