@@ -58,23 +58,33 @@ class CryptolTests(unittest.TestCase):
         c = self.c
         # test a single sat model can be returned
         rootsOf9 = c.sat('isSqrtOf9')
-        self.assertEqual(len(rootsOf9), 1)
-        self.assertTrue(int(rootsOf9[0]) ** 2 % 256, 9)
+        self.assertTrue(rootsOf9)
+        self.assertEqual(len(rootsOf9.models), 1)
+        self.assertEqual(len(rootsOf9.models[0]), 1)
+        self.assertTrue(int(rootsOf9.models[0][0]) ** 2 % 256, 9)
 
         # check we can specify the solver
         rootsOf9 = c.sat('isSqrtOf9', solver = solver.ANY)
-        self.assertEqual(len(rootsOf9), 1)
-        self.assertTrue(int(rootsOf9[0]) ** 2 % 256, 9)
+        self.assertTrue(rootsOf9)
+        self.assertEqual(len(rootsOf9.models), 1)
+        self.assertEqual(len(rootsOf9.models[0]), 1)
+        self.assertTrue(int(rootsOf9.models[0][0]) ** 2 % 256, 9)
 
         # check we can ask for a specific number of results
         rootsOf9 = c.sat('isSqrtOf9', count = 3)
-        self.assertEqual(len(rootsOf9), 3)
-        self.assertEqual([int(root) ** 2 % 256 for root in rootsOf9], [9,9,9])
+        self.assertTrue(rootsOf9)
+        self.assertEqual(len(rootsOf9.models), 3)
+        for model in rootsOf9.models:
+            self.assertEqual(len(model), 1)
+            self.assertTrue(int(model[0]) ** 2 % 256, 9)
 
         # check we can ask for all results
         rootsOf9 = c.sat('isSqrtOf9', count = None)
-        self.assertEqual(len(rootsOf9), 4)
-        self.assertEqual([int(root) ** 2 % 256 for root in rootsOf9], [9,9,9,9])
+        self.assertTrue(rootsOf9)
+        self.assertEqual(len(rootsOf9.models), 4)
+        for model in rootsOf9.models:
+            self.assertEqual(len(model), 1)
+            self.assertTrue(int(model[0]) ** 2 % 256, 9)
 
         # check for an unsat condition
         self.assertFalse(c.sat('\\x -> isSqrtOf9 x && ~(elem x [3,131,125,253])'))
@@ -151,13 +161,16 @@ class CryptolTests(unittest.TestCase):
         self.assertTrue(res)
 
         res = c.safe("\\x -> x / (x:[8])")
-        self.assertEqual(res, [BV(size=8, value=0)])
+        self.assertFalse(res)
+        self.assertEqual(res.assignments, [BV(size=8, value=0)])
 
         res = c.safe("\\x -> x / (x:[8])", solver.Z3)
-        self.assertEqual(res, [BV(size=8, value=0)])
+        self.assertFalse(res)
+        self.assertEqual(res.assignments, [BV(size=8, value=0)])
 
         res = c.safe("\\x -> x / (x:[8])", solver.W4_Z3)
-        self.assertEqual(res, [BV(size=8, value=0)])
+        self.assertFalse(res)
+        self.assertEqual(res.assignments, [BV(size=8, value=0)])
 
 
     def test_many_usages_one_connection(self):

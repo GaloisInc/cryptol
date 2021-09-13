@@ -40,11 +40,11 @@ class Solver(metaclass=ABCMeta):
 
 class OnlineSolver(Solver):
   def without_hash_consing(self) -> 'OnlineSolver':
-    return OnlineSolver(name=self.__name, hash_consing=False)
+    return OnlineSolver(name=self.name(), hash_consing=False)
 
 class OfflineSolver(Solver):
   def without_hash_consing(self) -> 'OfflineSolver':
-    return OfflineSolver(name=self.__name, hash_consing=False)
+    return OfflineSolver(name=self.name(), hash_consing=False)
 
 # Cryptol-supported SMT configurations/solvers
 # (see Cryptol.Symbolic.SBV Haskell module)
