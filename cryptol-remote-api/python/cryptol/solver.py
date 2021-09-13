@@ -33,26 +33,15 @@ class Solver(metaclass=ABCMeta):
     return self.__hash_consing
 
   @abstractmethod
-  def offline(self) -> bool:
-    """Returns true iff this solver generates offline queries."""
-    pass
-
-  @abstractmethod
   def without_hash_consing(self) -> 'Solver':
     """Returns an identical solver but with hash consing disabled (if applicable)."""
     pass
 
 class OnlineSolver(Solver):
-  def offline(self) -> bool:
-    return False
-
   def without_hash_consing(self) -> 'OnlineSolver':
     return OnlineSolver(name=self.__name, hash_consing=False)
 
 class OfflineSolver(Solver):
-  def offline(self) -> bool:
-    return True
-
   def without_hash_consing(self) -> 'OfflineSolver':
     return OfflineSolver(name=self.__name, hash_consing=False)
 

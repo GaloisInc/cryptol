@@ -29,7 +29,8 @@ class TestSMT(unittest.TestCase):
         ex_false_prove = c.prove(ex_false)
         self.assertFalse(ex_false_prove)
         self.assertIsInstance(ex_false_prove, cryptol.Counterexample)
-        self.assertEqual(ex_false_prove.type, "predicate falsified")
+        if isinstance(ex_false_prove, cryptol.Counterexample):
+            self.assertEqual(ex_false_prove.type, "predicate falsified")
         ex_false_sat = c.sat(ex_false)
         self.assertFalse(ex_false_sat)
         self.assertIsInstance(ex_false_sat, cryptol.Unsatisfiable)
@@ -38,11 +39,13 @@ class TestSMT(unittest.TestCase):
         ex_partial_safe = c.safe(ex_partial)
         self.assertFalse(ex_partial_safe)
         self.assertIsInstance(ex_partial_safe, cryptol.Counterexample)
-        self.assertEqual(ex_partial_safe.type, "safety violation")
+        if isinstance(ex_partial_safe, cryptol.Counterexample):
+            self.assertEqual(ex_partial_safe.type, "safety violation")
         ex_partial_prove = c.prove(ex_partial)
         self.assertFalse(ex_partial_prove)
         self.assertIsInstance(ex_partial_prove, cryptol.Counterexample)
-        self.assertEqual(ex_partial_prove.type, "safety violation")
+        if isinstance(ex_partial_prove, cryptol.Counterexample):
+            self.assertEqual(ex_partial_prove.type, "safety violation")
         ex_partial_sat = c.sat(ex_partial)
         self.assertTrue(ex_partial_sat)
         self.assertIsInstance(ex_partial_sat, cryptol.Satisfiable)
