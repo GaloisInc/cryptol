@@ -189,53 +189,6 @@ class SmtQueryType(str, Enum):
     SAFE  = 'safe'
     SAT   = 'sat'
 
-class SmtResult(ABC):
-    """Abstract class for SMT query results."""
-    qtype: SmtQueryType
-    
-    def __init__(self, qtype : SmtQueryType) -> None:
-        if qtype in [SmtQueryType.PROVE, SmtQueryType.SAFE, SmtQueryType.SAT]:
-            self.qtype = qtype
-        else:
-            raise ValueError("Unknown SMT query type: " + qtype)            
-
-class SmtUnsatResult(SmtResult):
-    def __init__(self, qtype : SmtQueryType) -> None:
-        super(SmtUnsatResult, self).__init__(qtype)
-
-    def __bool__(self) -> bool:
-        """An unsat result is a success for PROVE and SAFE queries but a
-        failure for SAT queries. Thus, the object is truthy iff qtype != SAT.
-        """
-        return self.qtype != SmtQueryType.SAT
-
-class SmtSatResult(List[CryptolValue], SmtResult):
-    def __init__(self, qtype : SmtQueryType, cxs : List[CryptolValue]) -> None:
-        SmtResult.__init__(self, qtype)
-        list.__init__(self, cxs)
-
-class SmtInvalidResult(List[CryptolValue], SmtResult):
-    def __init__(self, qtype : SmtQueryType, cxs : List[CryptolValue]) -> None:
-        SmtResult.__init__(self, qtype)
-        list.__init__(self, cxs)
-
-SmtQueryResult = Union[SmtResult, OfflineSmtQuery]
-
-def to_smt_query_result(qtype : SmtQueryType, res : Any) -> SmtQueryResult:
-    if res['result'] == 'unsatisfiable':
-        return SmtUnsatResult(qtype)
-    elif res['result'] == 'invalid':
-        return SmtInvalidResult(qtype, [from_cryptol_arg(arg['expr'])
-                                        for arg in res['counterexample']])
-    elif res['result'] == 'satisfied':
-        return SmtSatResult(qtype, [from_cryptol_arg(arg['expr'])
-                                    for m in res['models']
-                                    for arg in m])
-    elif res['result'] == 'offline':
-        return OfflineSmtQuery(content=res['query'])
-    else:
-        raise ValueError("Unknown SMT result: " + str(res))
-
 class CryptolProveSatRaw(argo.Command):
     def __init__(self, connection : HasProtocolState, qtype : SmtQueryType, expr : Any, solver : Solver, count : Optional[int]) -> None:
         super(CryptolProveSatRaw, self).__init__(
@@ -254,7 +207,25 @@ class CryptolProveSatRaw(argo.Command):
 
 class CryptolProveSat(CryptolProveSatRaw):
     def process_result(self, res : Any) -> Any:
-        return to_smt_query_result(self.qtype, super(CryptolProveSat, self).process_result(res))
+        res = super(CryptolProveSat, self).process_result(res)
+        if res['result'] == 'unsatisfiable':
+            if self.qtype == SmtQueryType.SAT:
+                return False
+            elif self.qtype == SmtQueryType.PROVE or self.qtype == SmtQueryType.SAFE:
+                return True
+            else:
+                raise ValueError("Unknown SMT query type: " + self.qtype)
+        elif res['result'] == 'invalid':
+            return [from_cryptol_arg(arg['expr'])
+                    for arg in res['counterexample']]
+        elif res['result'] == 'satisfied':
+            return [from_cryptol_arg(arg['expr'])
+                    for m in res['models']
+                    for arg in m]
+        elif res['result'] == 'offline':
+            return OfflineSmtQuery(content=res['query'])
+        else:
+            raise ValueError("Unknown SMT result: " + str(res))
 
 class CryptolProveRaw(CryptolProveSatRaw):
     def __init__(self, connection : HasProtocolState, expr : Any, solver : Solver) -> None:

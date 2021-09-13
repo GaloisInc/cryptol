@@ -3,14 +3,61 @@
 from __future__ import annotations
 
 import sys
-from typing import cast, Any, Optional, Union, List, Dict, TextIO
+from typing import Any, Optional, Union, List, Dict, TextIO, overload
 from typing_extensions import Literal
+from dataclasses import dataclass
 
-from . import solver
+from .solver import OfflineSmtQuery, Solver, OnlineSolver, OfflineSolver, Z3
 from . import connection
 from . import cryptoltypes
 from .commands import *
 from . import CryptolConnection, SmtQueryType
+
+
+@dataclass
+class Qed:
+    """The positive result of a 'prove' SMT query."""
+    def __bool__(self) -> bool:
+        return True
+    def __nonzero__(self) -> bool:
+        return True
+
+@dataclass
+class Safe:
+    """The positive result of a 'safe' SMT query."""
+    def __bool__(self) -> bool:
+        return True
+    def __nonzero__(self) -> bool:
+        return True
+
+@dataclass
+class Counterexample:
+    """The negative result of a 'prove' or 'safe' SMT query."""
+    type : str # Union[Literal["predicate falsified"], Literal["safety violation"]]
+    assignments : List[CryptolValue]
+
+    def __bool__(self) -> bool:
+        return False
+    def __nonzero__(self) -> bool:
+        return False
+
+@dataclass
+class Satisfiable:
+    """The positive result of a 'sat' SMT query."""
+    models : List[List[CryptolValue]]
+        
+    def __bool__(self) -> bool:
+        return True
+    def __nonzero__(self) -> bool:
+        return True
+
+@dataclass
+class Unsatisfiable:
+    """The negative result of a 'sat' SMT query."""
+    def __bool__(self) -> bool:
+        return False
+    def __nonzero__(self) -> bool:
+        return False
 
 
 def connect_sync(command : Optional[str]=None,
@@ -125,26 +172,86 @@ class CryptolSyncConnection:
         """
         return cryptoltypes.to_type(self.connection.check_type(code).result()['type'])
 
-    def sat(self, expr : Any, solver : solver.Solver = solver.Z3, count : int = 1) -> SmtQueryResult:
+    @overload
+    def sat(self, expr : Any, solver : OnlineSolver = Z3, count : int = 1) -> Union[Satisfiable, Unsatisfiable]: ...
+    @overload
+    def sat(self, expr : Any, solver : OfflineSolver, count : int = 1) -> OfflineSmtQuery: ...
+
+    def sat(self, expr : Any, solver : Solver = Z3, count : int = 1) -> Union[Satisfiable, Unsatisfiable, OfflineSmtQuery]:
         """Check the satisfiability of a Cryptol expression, represented according to
         :ref:`cryptol-json-expression`, with Python datatypes standing for
         their JSON equivalents. Use the solver named `solver`, and return up to
         `count` solutions.
         """
-        return to_smt_query_result(SmtQueryType.SAT, self.connection.sat_raw(expr, solver, count).result())
+        if isinstance(solver, OfflineSolver):
+            res = self.connection.sat_raw(expr, solver, count).result()
+            if res['result'] == 'offline':
+                return OfflineSmtQuery(res['query'])
+            else:
+                raise ValueError("Expected an offline SMT result, got: " + str(res))
+        elif isinstance(solver, OnlineSolver):
+            res = self.connection.sat_raw(expr, solver, count).result()
+            if res['result'] == 'unsatisfiable':
+                return Unsatisfiable()
+            elif res['result'] == 'satisfied':
+                return Satisfiable([[from_cryptol_arg(arg['expr']) for arg in m] for m in res['models']])
+            else:
+                raise ValueError("Unexpected 'sat' SMT result: " + str(res))
+        else:
+            raise ValueError("Unknown solver type: " + str(solver))
 
-    def prove(self, expr : Any, solver : solver.Solver = solver.Z3) -> SmtQueryResult:
+    @overload
+    def prove(self, expr : Any, solver : OnlineSolver = Z3) -> Union[Qed, Counterexample]: ...
+    @overload
+    def prove(self, expr : Any, solver : OfflineSolver) -> OfflineSmtQuery: ...
+
+    def prove(self, expr : Any, solver : Solver = Z3) -> Union[Qed, Counterexample, OfflineSmtQuery]:
         """Check the validity of a Cryptol expression, represented according to
         :ref:`cryptol-json-expression`, with Python datatypes standing for
         their JSON equivalents. Use the solver named `solver`.
         """
-        return to_smt_query_result(SmtQueryType.PROVE, self.connection.prove_raw(expr, solver).result())
+        if isinstance(solver, OfflineSolver):
+            res = self.connection.prove_raw(expr, solver).result()
+            if res['result'] == 'offline':
+                return OfflineSmtQuery(res['query'])
+            else:
+                raise ValueError("Expected an offline SMT result, got: " + str(res))
+        elif isinstance(solver, OnlineSolver):
+            res = self.connection.prove_raw(expr, solver).result()
+            if res['result'] == 'unsatisfiable':
+                return Qed()
+            elif res['result'] == 'invalid':
+                return Counterexample(res['counterexample type'], [from_cryptol_arg(arg['expr']) for arg in res['counterexample']])
+            else:
+                raise ValueError("Unexpected 'prove' SMT result: " + str(res))
+        else:
+            raise ValueError("Unknown solver type: " + str(solver))
 
-    def safe(self, expr : Any, solver : solver.Solver = solver.Z3) -> SmtQueryResult:
+    @overload
+    def safe(self, expr : Any, solver : OnlineSolver = Z3) -> Union[Safe, Counterexample]: ...
+    @overload
+    def safe(self, expr : Any, solver : OfflineSolver) -> OfflineSmtQuery: ...
+
+    def safe(self, expr : Any, solver : Solver = Z3) -> Union[Safe, Counterexample, OfflineSmtQuery]:
         """Check via an external SMT solver that the given term is safe for all inputs,
         which means it cannot encounter a run-time error.
         """
-        return to_smt_query_result(SmtQueryType.SAFE, self.connection.safe_raw(expr, solver).result())
+        if isinstance(solver, OfflineSolver):
+            res = self.connection.safe_raw(expr, solver).result()
+            if res['result'] == 'offline':
+                return OfflineSmtQuery(res['query'])
+            else:
+                raise ValueError("Expected an offline SMT result, got: " + str(res))
+        elif isinstance(solver, OnlineSolver):
+            res = self.connection.safe_raw(expr, solver).result()
+            if res['result'] == 'unsatisfiable':
+                return Safe()
+            elif res['result'] == 'invalid':
+                return Counterexample(res['counterexample type'], [from_cryptol_arg(arg['expr']) for arg in res['counterexample']])
+            else:
+                raise ValueError("Unexpected 'safe' SMT result: " + str(res))
+        else:
+            raise ValueError("Unknown solver type: " + str(solver))
 
     def names(self) -> List[Dict[str,Any]]:
         """Discover the list of names currently in scope in the current context."""
