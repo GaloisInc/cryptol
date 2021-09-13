@@ -13,8 +13,8 @@ flag static
   description: Create a statically-linked binary
 
 flag NotThreaded
-  default: false
-  manual: true
+  default: False
+  manual: True
   description: Omit the -threaded ghc flag
 
 common warnings
@@ -48,15 +48,18 @@ common deps
     bytestring           ^>= 0.10.8,
     containers           >=0.6.0.1 && <0.7,
     cryptol              >= 2.9.0,
+    cryptonite,
     directory,
     filepath             ^>= 1.4,
     lens                 >= 4.17 && < 4.20,
+    memory,
     mtl                  ^>= 2.2,
     scientific           ^>= 0.3,
     text                 ^>= 1.2.3,
     tf-random,
     unordered-containers ^>= 0.2,
     vector               ^>= 0.12,
+    word8,
 
   default-language:    Haskell2010
 
@@ -67,7 +70,6 @@ library
   exposed-modules:
     CryptolServer
     CryptolServer.Call
-    CryptolServer.CallRandom
     CryptolServer.Check
     CryptolServer.ClearState
     CryptolServer.Data.Expression
@@ -80,6 +82,7 @@ library
     CryptolServer.Options
     CryptolServer.Names
     CryptolServer.Sat
+    CryptolServer.ServiceCode
     CryptolServer.TypeCheck
 
 executable cryptol-remote-api

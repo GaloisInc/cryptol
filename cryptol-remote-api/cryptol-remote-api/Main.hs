@@ -15,7 +15,6 @@ import qualified Argo.Doc as Doc
 import CryptolServer
     ( command, notification, initialState, extendSearchPath, ServerState )
 import CryptolServer.Call ( call, callDescr )
-import CryptolServer.CallRandom ( callRandom, callRandomDescr )
 import CryptolServer.Check ( check, checkDescr )
 import CryptolServer.ClearState
     ( clearState, clearStateDescr, clearAllStates, clearAllStatesDescr )
@@ -31,6 +30,7 @@ import CryptolServer.LoadModule
     ( loadFile, loadFileDescr, loadModule, loadModuleDescr )
 import CryptolServer.Names ( visibleNames, visibleNamesDescr )
 import CryptolServer.Sat ( proveSat, proveSatDescr )
+import CryptolServer.ServiceCode ( serviceCode, serviceCodeDescr )
 import CryptolServer.TypeCheck ( checkType, checkTypeDescr )
 
 main :: IO ()
@@ -103,9 +103,9 @@ cryptolMethods =
      callDescr
      call
   , command
-     "call random"
-     callRandomDescr
-     callRandom
+     "service code"
+     serviceCodeDescr
+     serviceCode
   , command
      "visible names"
      visibleNamesDescr

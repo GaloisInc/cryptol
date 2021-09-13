@@ -102,16 +102,16 @@ class CryptolCall(argo.Command):
     def process_result(self, res : Any) -> Any:
         return from_cryptol_arg(res['value'])
 
-class CryptolCallRandom(argo.Command):
-    def __init__(self, connection : HasProtocolState, fun : str, random : int, args : List[Any]) -> None:
-        super(CryptolCallRandom, self).__init__(
-            'call random',
-            {'function': fun, 'random' : random, 'arguments': args},
+class CryptolServiceCode(argo.Command):
+    def __init__(self, connection : HasProtocolState, nm : str, random : int, args : List[Any]) -> None:
+        super(CryptolServiceCode, self).__init__(
+            'service code',
+            {'name': nm, 'random' : random, 'arguments': args},
             connection
         )
 
     def process_result(self, res : Any) -> Any:
-        return from_cryptol_arg(res['value'])
+        return res['result']
 
 
 @dataclass
