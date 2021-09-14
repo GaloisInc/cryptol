@@ -22,7 +22,6 @@ def __get_designated_connection() -> synchronous.CryptolSyncConnection:
     else:
         return __designated_connection
 
-
 def __set_designated_connection(conn: synchronous.CryptolSyncConnection) -> None:
     global __designated_connection
     __designated_connection = conn
