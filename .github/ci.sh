@@ -111,6 +111,7 @@ zip_dist_with_solvers() {
   : "${VERSION?VERSION is required as an environment variable}"
   name="${name:-"cryptol-$VERSION-$RUNNER_OS-x86_64"}"
   sname="${name}-with-solvers"
+  cp "$(which abc)"        dist/bin/
   cp "$(which cvc4)"       dist/bin/
   cp "$(which yices)"      dist/bin/
   cp "$(which yices-smt2)" dist/bin/
