@@ -33,7 +33,7 @@ class Safe:
 @dataclass
 class Counterexample:
     """The negative result of a 'prove' or 'safe' SMT query."""
-    type : str # Union[Literal["predicate falsified"], Literal["safety violation"]]
+    type : Union[Literal["predicate falsified"], Literal["safety violation"]]
     assignments : List[CryptolValue]
 
     def __bool__(self) -> bool:
