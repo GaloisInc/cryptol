@@ -115,6 +115,10 @@ Symbols
     assert : {a, n} (fin n) => Bit -> String n -> a -> a
     carry : {n} (fin n) => [n] -> [n] -> Bit
     ceiling : {a} (Round a) => a -> Integer
+    coerceSize : {m, n, a} [m]a -> [n]a
+    compareEq : {m, n} Bit
+    compareLeq : {m, n} Bit
+    compareLt : {m, n} Bit
     complement : {a} (Logic a) => a -> a
     curry : {a, b, c} ((a, b) -> c) -> a -> b -> c
     deepseq : {a, b} (Eq a) => a -> b -> b

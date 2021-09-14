@@ -32,7 +32,7 @@ import Prelude.Compat
 import Data.Either(partitionEithers)
 import Data.Maybe(fromJust)
 import Data.List(find,foldl')
-import Data.Foldable(toList)
+import Data.Foldable(toList, traverse_)
 import Data.Map.Strict(Map)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
@@ -500,9 +500,21 @@ rnLocated f loc = withLoc loc $
   do a' <- f (thing loc)
      return loc { thing = a' }
 
+touchSigParams :: Schema Name -> RenameM ()
+touchSigParams (Forall params _props _tp _loc) =
+  mapM_ (recordUse . tpName) params
+
 instance Rename Decl where
   rename d      = case d of
-    DBind b           -> DBind <$> rename b
+    DBind b ->
+      case thing (bDef b) of
+        DExpr _ -> DBind <$> rename b
+        DPrim ->
+          do b' <- rename b
+             -- Record an additional use for each type parameter of primitives.
+             -- This prevents "unused name" warnings for primitive declarations.
+             traverse_ touchSigParams (bSignature b')
+             return (DBind b')
 
     DType syn         -> DType         <$> rename syn
     DProp syn         -> DProp         <$> rename syn

@@ -895,6 +895,18 @@ by corresponding type classes:
 >                        do _ <- evalString s -- evaluate and ignore s
 >                           _ <- x -- evaluate and ignore x
 >                           y
+>
+>   , "compareEq"  ~> VNumPoly $ \m -> pure $
+>                     VNumPoly $ \n -> pure $
+>                     VBit (m == n)
+>
+>   , "compareLt"  ~> VNumPoly $ \m -> pure $
+>                     VNumPoly $ \n -> pure $
+>                     VBit (m < n)
+>
+>   , "compareLeq" ~> VNumPoly $ \m -> pure $
+>                     VNumPoly $ \n -> pure $
+>                     VBit (m <= n)
 >   ]
 >
 >
