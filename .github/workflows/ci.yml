@@ -9,9 +9,7 @@ on:
   workflow_dispatch:
 
 env:
-  Z3_VERSION: "4.8.10"
-  CVC4_VERSION: "4.1.8"
-  YICES_VERSION: "2.6.2"
+  SOLVER_PKG_VERSION: "snapshot-20210914"
 
 jobs:
   config:

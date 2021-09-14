@@ -57,7 +57,7 @@ build() {
 }
 
 install_system_deps() {
-  (cd $BIN && curl -o bins.zip -sL "https://github.com/GaloisInc/what4-solvers/releases/download/snapshot-20210914/$BIN_ZIP_FILE" && unzip -o bins.zip && rm bins.zip)
+  (cd $BIN && curl -o bins.zip -sL "https://github.com/GaloisInc/what4-solvers/releases/download/$SOLVER_PKG_VERSION/$BIN_ZIP_FILE" && unzip -o bins.zip && rm bins.zip)
   chmod +x $BIN/*
   cp $BIN/yices_smt2$EXT $BIN/yices-smt2$EXT
   export PATH=$BIN:$PATH
