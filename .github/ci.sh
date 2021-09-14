@@ -45,63 +45,6 @@ setup_dist_bins() {
   strip dist/bin/cryptol* || echo "Strip failed: Ignoring harmless error"
 }
 
-install_z3() {
-  is_exe "$BIN" "z3" && return
-
-  case "$RUNNER_OS" in
-    Linux) file="ubuntu-18.04.zip" ;;
-    macOS) file="osx-10.15.7.zip" ;;
-    Windows) file="win.zip" ;;
-  esac
-  curl -o z3.zip -sL "https://github.com/Z3Prover/z3/releases/download/z3-$Z3_VERSION/z3-$Z3_VERSION-x64-$file"
-
-  if $IS_WIN; then 7z x -bd z3.zip; else unzip z3.zip; fi
-  cp z3-*/bin/z3$EXT $BIN/z3$EXT
-  $IS_WIN || chmod +x $BIN/z3
-  rm z3.zip
-}
-
-install_cvc4() {
-  version="${CVC4_VERSION#4.}" # 4.y.z -> y.z
-
-  case "$RUNNER_OS" in
-    Linux) file="x86_64-linux-opt" ;;
-    Windows) file="win64-opt.exe" ;;
-    macOS) file="macos-opt" ;;
-  esac
-  # Temporary workaround
-  if [[ "$RUNNER_OS" == "Linux" ]]; then
-    #latest="$(curl -sSL "http://cvc4.cs.stanford.edu/downloads/builds/x86_64-linux-opt/unstable/" | grep linux-opt | tail -n1 | sed -e 's/.*href="//' -e 's/\([^>]*\)">.*$/\1/')"
-    latest="cvc4-2021-03-13-x86_64-linux-opt"
-    curl -o cvc4 -sSL "https://cvc4.cs.stanford.edu/downloads/builds/x86_64-linux-opt/unstable/$latest"
-  else
-    curl -o cvc4$EXT -sSL "https://github.com/CVC4/CVC4/releases/download/$version/cvc4-$version-$file"
-  fi
-  $IS_WIN || chmod +x cvc4$EXT
-  mv cvc4$EXT "$BIN/cvc4$EXT"
-}
-
-install_yices() {
-  ext=".tar.gz"
-  case "$RUNNER_OS" in
-    Linux) file="pc-linux-gnu-static-gmp.tar.gz" ;;
-    macOS) file="apple-darwin18.7.0-static-gmp.tar.gz" ;;
-    Windows) file="pc-mingw32-static-gmp.zip" && ext=".zip" ;;
-  esac
-  curl -o "yices$ext" -sL "https://yices.csl.sri.com/releases/$YICES_VERSION/yices-$YICES_VERSION-x86_64-$file"
-
-  if $IS_WIN; then
-    7z x -bd "yices$ext"
-    mv "yices-$YICES_VERSION"/bin/*.exe "$BIN"
-  else
-    tar -xzf "yices$ext"
-    pushd "yices-$YICES_VERSION" || exit
-    sudo ./install-yices
-    popd || exit
-  fi
-  rm -rf "yices$ext" "yices-$YICES_VERSION"
-}
-
 build() {
   ghc_ver="$(ghc --numeric-version)"
   cp cabal.GHC-"$ghc_ver".config cabal.project.freeze
@@ -114,10 +57,8 @@ build() {
 }
 
 install_system_deps() {
-  install_z3 &
-  install_cvc4 &
-  install_yices &
-  wait
+  (cd $BIN && curl -o bins.zip -sL "https://github.com/GaloisInc/what4-solvers/releases/download/snapshot-20210914/$BIN_ZIP_FILE" && unzip bins.zip && rm bins.zip)
+  chmod +x $BIN/*
   export PATH=$BIN:$PATH
   echo "$BIN" >> "$GITHUB_PATH"
   is_exe "$BIN" z3 && is_exe "$BIN" cvc4 && is_exe "$BIN" yices
