@@ -59,6 +59,7 @@ build() {
 install_system_deps() {
   (cd $BIN && curl -o bins.zip -sL "https://github.com/GaloisInc/what4-solvers/releases/download/snapshot-20210914/$BIN_ZIP_FILE" && unzip bins.zip && rm bins.zip)
   chmod +x $BIN/*
+  cp $BIN/yices_smt2$EXT $BIN/yices-smt2$EXT
   export PATH=$BIN:$PATH
   echo "$BIN" >> "$GITHUB_PATH"
   is_exe "$BIN" z3 && is_exe "$BIN" cvc4 && is_exe "$BIN" yices
