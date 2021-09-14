@@ -734,6 +734,11 @@ primitive (>>$) : {n, ix} (fin n, n >= 1, Integral ix) => [n] -> ix -> [n]
  */
 primitive lg2 : {n} (fin n) => [n] -> [n]
 
+/**
+ * Convert a signed 2's complement bitvector to an integer.
+ */
+primitive toSignedInteger : {n} (fin n, n >= 1) => [n] -> Integer
+
 
 // Rational specific operations ----------------------------------------------
 

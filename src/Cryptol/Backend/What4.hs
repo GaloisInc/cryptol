@@ -362,6 +362,7 @@ instance W4.IsSymExprBuilder sym => Backend (What4 sym) where
         liftIO (SW.bvSRem (w4 sym) x y)
 
   wordToInt sym x = liftIO (SW.bvToInteger (w4 sym) x)
+  wordToSignedInt sym x = liftIO (SW.sbvToInteger (w4 sym) x)
   wordFromInt sym width i = liftIO (SW.integerToBV (w4 sym) i width)
 
   intPlus   sym x y  = liftIO $ W4.intAdd (w4 sym) x y
