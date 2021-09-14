@@ -236,10 +236,10 @@ class HttpMultiConnectionTests(unittest.TestCase):
             self.assertEqual(x_val1, x_val2)
             c.reset()
 
-    def test_reset_server_with_many_usages_many_connections(self):
+    def test_server_with_many_usages_many_connections(self):
         for i in range(0,100):
             time.sleep(.05)
-            c = cryptol.sync.connect(url=self.url, reset_server=True, verify=False)
+            c = cryptol.sync.connect(url=self.url, verify=False)
             c.load_file(str(Path('tests','cryptol','test-files', 'Foo.cry')))
             x_val1 = c.eval("x")
             x_val2 = c.eval("Id::id x")

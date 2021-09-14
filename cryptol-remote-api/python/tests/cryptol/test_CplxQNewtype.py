@@ -7,7 +7,7 @@ from cryptol.bitvector import BV
 
 class TestCplxQ(unittest.TestCase):
     def test_CplxQ(self):
-        c = cryptol.sync.connect(reset_server=True, verify=False)
+        c = cryptol.sync.connect(verify=False)
         c.load_file(str(Path('tests','cryptol','test-files', 'CplxQNewtype.cry')))
 
         forty_two = c.eval("fortyTwo")
