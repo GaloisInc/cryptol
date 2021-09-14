@@ -95,7 +95,7 @@ jobs:
       - shell: bash
         run: .github/ci.sh install_system_deps
         env:
-          BIN_ZIP_FILE: $${{ matrix.os }}-bin.zip
+          BIN_ZIP_FILE: ${{ matrix.os }}-bin.zip
 
       - shell: bash
         env:
@@ -260,7 +260,7 @@ jobs:
 
       - shell: bash
         env:
-          BIN_ZIP_FILE: $${{ matrix.os }}-bin.zip
+          BIN_ZIP_FILE: ${{ matrix.os }}-bin.zip
         run: |
           set -x
           chmod +x dist/bin/cryptol
