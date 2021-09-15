@@ -214,7 +214,7 @@ jobs:
       matrix:
         suite: [test-lib]
         target: ${{ fromJson(needs.build.outputs.test-lib-json) }}
-        os: [ubuntu-latest, macos-latest] # , windows-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
         continue-on-error: [false]
         include:
           - suite: rpc
