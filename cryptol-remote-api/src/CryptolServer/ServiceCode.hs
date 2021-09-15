@@ -27,7 +27,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Crypto.Cipher.Types (AuthTag(..), cipherInit)
 import qualified Crypto.Cipher.AES as AES
 import qualified Crypto.Cipher.AESGCMSIV as AESGCMSIV
-import Crypto.Error (maybeCryptoError)
+import Crypto.Error (maybeCryptoError, eitherCryptoError)
 
 import Argo (makeJSONRPCException)
 import qualified Argo.Doc as Doc
@@ -56,25 +56,35 @@ getEntropy w
   | w > 0 = (:) <$> liftIO randomIO <*> getEntropy (w - 1)
   | otherwise = pure []
 
+testKey :: ByteString
+testKey = "foobarbazfoobarbazfoobarbazfooba"
+
 -- TODO
 encryptOutput :: MonadIO m => ByteString -> m (Maybe ByteString)
-encryptOutput plaintext
-  | Just cipher <- maybeCryptoError (cipherInit @AES.AES256 $ ("foobarbaz" :: ByteString))
-  = do
+encryptOutput plaintext =
+  case eitherCryptoError (cipherInit @AES.AES256 testKey) of
+    Right cipher -> do
       nonce <- liftIO AESGCMSIV.generateNonce
       let (tag, ct) = AESGCMSIV.encrypt cipher nonce BS.empty plaintext
       pure . Just $ BA.convert nonce <> BA.convert tag <> ct
-  | otherwise = pure Nothing
+    Left err -> do
+      liftIO $ print err
+      pure Nothing
 
-decryptInput :: MonadIO m => ByteString -> m (Maybe ByteString)
+decryptInput :: ByteString -> Maybe ByteString
 decryptInput ciphertext
-  | Just cipher <- maybeCryptoError (cipherInit @AES.AES256 $ ("foobarbaz" :: ByteString))
+  | Just cipher <- maybeCryptoError (cipherInit @AES.AES256 testKey)
   , Just nonce <- maybeCryptoError . AESGCMSIV.nonce $ BA.take 12 ciphertext
-  = do
-      let tag = AuthTag . BA.convert . BA.take 16 $ BA.drop 12 ciphertext
-      let ct = BA.drop 28 ciphertext
-      pure $ AESGCMSIV.decrypt cipher nonce BS.empty ct tag
-  | otherwise = pure Nothing
+  = let
+      tag = AuthTag . BA.convert . BA.take 16 $ BA.drop 12 ciphertext
+      ct = BA.drop 28 ciphertext
+    in AESGCMSIV.decrypt cipher nonce BS.empty ct tag
+  | otherwise = Nothing
+
+decryptOrThrow :: ByteString -> CryptolCommand ByteString
+decryptOrThrow ct  = case decryptInput ct of
+  Just pt -> pure pt
+  Nothing -> raise $ makeJSONRPCException 20300 "Failed to unwrap argument" (Nothing :: Maybe ())
 
 -- Given a (curried) function type, extract the given number of argument types
 funTypeTake :: Int -> CT.Type -> [CT.Type]
@@ -94,17 +104,18 @@ randTermOfType t
       getExpr (Sequence $ Bit <$> entropy)
   | otherwise = raise $ makeJSONRPCException 20300 "Can't generate random term of argument type" (Nothing :: Maybe ())
 
+wordBits :: Int -> Word8 -> [Bool]
+wordBits w = go w []
+  where
+    go :: Int -> [Bool] -> Word8 -> [Bool]
+    go 0 acc _ = acc
+    go n acc b = go (n - 1) ((b .&. 1 /= 0):acc) (shiftR b 1)
+
 byteStringToExpr :: ByteString -> CryptolCommand (P.Expr P.PName)
 byteStringToExpr bs = getExpr (Sequence $ Bit <$> bits)
   where
     bits :: [Bool]
-    bits = concatMap byteBits $ BS.unpack bs
-    byteBits :: Word8 -> [Bool]
-    byteBits = go 8 []
-      where
-        go :: Int -> [Bool] -> Word8 -> [Bool]
-        go 0 acc _ = acc
-        go n acc b = go (n - 1) ((b .&. 1 /= 0):acc) (shiftR b 1)
+    bits = concatMap (wordBits 8) $ BS.unpack bs
 
 exprToByteString :: Expression -> CryptolCommand ByteString
 exprToByteString expr
@@ -112,7 +123,14 @@ exprToByteString expr
   , Just bits <- sequence $ (\case Bit b -> Just b; _ -> Nothing) <$> s
   , Just bytes <- bitsToBytes bits
   = pure $ BS.pack bytes
-  | otherwise = raise $ makeJSONRPCException 20301 "Can't convert result to bytestring" (Nothing :: Maybe ())
+  | Num Hex val _ <- expr
+  , Just digits <- sequence $ hexDigit (const Nothing) <$> Text.unpack val
+  , bits <- mconcat $ wordBits 4 <$> digits
+  , Just bytes <- bitsToBytes bits
+  = pure $ BS.pack bytes
+  | otherwise = do
+      liftIO $ print expr
+      raise $ makeJSONRPCException 20301 "Can't convert result to bytestring" (Nothing :: Maybe ())
   where
     wordOf :: Bool -> Word8
     wordOf True = 1
@@ -152,6 +170,7 @@ evalExpression e = do
 
 serviceCode :: ServiceCodeParams -> CryptolCommand JSON.Value
 serviceCode scp = do
+  liftIO . putStrLn . Text.unpack $ "Invoking service code: " <> serviceCodeName scp
   resetTCSolver
   case parseModName . Text.unpack $ serviceCodeName scp of
     Nothing -> raise
@@ -171,9 +190,12 @@ serviceCode scp = do
       let fromBase64 str = case BS.Base64.decode $ encodeUtf8 str of
             Left _ -> raise $ makeJSONRPCException 20304 "Invalid service code argument" (Nothing :: Maybe ())
             Right bs -> pure bs
-      fixedArgs <- traverse (byteStringToExpr <=< fromBase64) $ serviceCodeFixedArgs scp
+      fixedArgs <- traverse (byteStringToExpr <=< decryptOrThrow <=< fromBase64) $ serviceCodeFixedArgs scp
       let appExpr = mkEApp fun $ randArgs <> fixedArgs
-      bs <- exprToByteString =<< evalExpression appExpr
+      expr <- evalExpression appExpr
+      liftIO . putStrLn $ "Returning result: " <> show expr
+      bs <- exprToByteString expr
+      liftIO . putStrLn $ "Converted to bytestring: " <> show bs
       encryptOutput bs >>= \case
         Nothing -> raise $ makeJSONRPCException 20305 "Failed to wrap result" (Nothing :: Maybe ())
         Just ebs -> pure $ JSON.object ["result" .= decodeUtf8 (BS.Base64.encode ebs)]

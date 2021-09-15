@@ -189,18 +189,17 @@ class CryptolConnection:
         return self.eval(expression)
 
     def extend_search_path(self, *dir : str) -> argo.Command:
-        """Load a Cryptol module, like ``:module`` at the Cryptol REPL."""
+        """Load a Cryptol module, like ``:module`` at the Cryptol REPL.""" # TODO: doc
         self.most_recent_result = CryptolExtendSearchPath(self, list(dir))
         return self.most_recent_result
 
-    def call(self, fun : str, *args : List[Any]) -> argo.Command:
+    def call(self, fun : str, *args : List[Any]) -> argo.Command: # TODO: *args type
         encoded_args = [cryptoltypes.CryptolType().from_python(a) for a in args]
         self.most_recent_result = CryptolCall(self, fun, encoded_args)
         return self.most_recent_result
 
     def service_code(self, nm : str, random: int, args : List[Any]) -> argo.Command:
-        encoded_args = [cryptoltypes.CryptolType().from_python(a) for a in args]
-        self.most_recent_result = CryptolServiceCode(self, nm, random, encoded_args)
+        self.most_recent_result = CryptolServiceCode(self, nm, random, args)
         return self.most_recent_result
 
     def check(self, expr : Any, *, num_tests : Union[Literal['all'], int, None] = None) -> argo.Command:
