@@ -1,5 +1,4 @@
 :l negshift.cry
 :set tests=1000
-:set prover=yices
 :check
 :prove
