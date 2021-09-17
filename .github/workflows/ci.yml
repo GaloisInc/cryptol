@@ -9,9 +9,7 @@ on:
   workflow_dispatch:
 
 env:
-  Z3_VERSION: "4.8.10"
-  CVC4_VERSION: "4.1.8"
-  YICES_VERSION: "2.6.2"
+  SOLVER_PKG_VERSION: "snapshot-20210917"
 
 jobs:
   config:
@@ -58,6 +56,8 @@ jobs:
         exclude:
           # https://gitlab.haskell.org/ghc/ghc/-/issues/18550
           - os: windows-latest
+            ghc-version: 8.8.4
+          - os: windows-latest
             ghc-version: 8.10.2
     outputs:
       test-lib-json: ${{ steps.test-lib.outputs.targets-json }}
@@ -94,6 +94,8 @@ jobs:
 
       - shell: bash
         run: .github/ci.sh install_system_deps
+        env:
+          BIN_ZIP_FILE: ${{ matrix.os }}-bin.zip
 
       - shell: bash
         env:
@@ -219,10 +221,10 @@ jobs:
             target: ''
             os: ubuntu-latest
             continue-on-error: false
-          - suite: rpc
-            target: ''
-            os: macos-latest
-            continue-on-error: false
+          #- suite: rpc
+          #  target: ''
+          #  os: macos-latest
+          #  continue-on-error: false
           #- suite: rpc
           #  target: ''
           #  os: windows-latest
@@ -234,7 +236,7 @@ jobs:
 
       - uses: haskell/actions/setup@v1
         with:
-          ghc-version: '8.10.2'
+          ghc-version: '8.10.3'
 
       - if: matrix.suite == 'rpc'
         uses: actions/setup-python@v2
@@ -257,6 +259,8 @@ jobs:
           path: bin
 
       - shell: bash
+        env:
+          BIN_ZIP_FILE: ${{ matrix.os }}-bin.zip
         run: |
           set -x
           chmod +x dist/bin/cryptol
@@ -264,6 +268,10 @@ jobs:
           chmod +x dist/bin/cryptol-eval-server
           chmod +x bin/test-runner
           .github/ci.sh install_system_deps
+          .github/ci.sh deps bin/abc*
+          .github/ci.sh deps bin/cvc4*
+          .github/ci.sh deps bin/yices-smt2*
+          .github/ci.sh deps bin/z3*
           ghc_ver="$(ghc --numeric-version)"
           cp cabal.GHC-"$ghc_ver".config cabal.project.freeze
           cabal v2-update
