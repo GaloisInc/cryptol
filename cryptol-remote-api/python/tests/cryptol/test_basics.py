@@ -17,7 +17,7 @@ class BasicServerTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(self):
-        self.c = cryptol.connect(verify=False)
+        self.c = cryptol.sync.connect(verify=False)
 
     @classmethod
     def tearDownClass(self):
@@ -29,25 +29,25 @@ class BasicServerTests(unittest.TestCase):
       c = self.c
 
       c.extend_search_path(str(Path('tests','cryptol','test-files', 'test-subdir')))
-      c.load_module('Bar').result()
-      ans1 = c.evaluate_expression("theAnswer").result()
-      ans2 = c.evaluate_expression("id theAnswer").result()
+      c.load_module('Bar')
+      ans1 = c.eval("theAnswer")
+      ans2 = c.eval("id theAnswer")
       self.assertEqual(ans1, ans2)
 
     def test_logging(self):
       c = self.c
       c.extend_search_path(str(Path('tests','cryptol','test-files', 'test-subdir')))
-      c.load_module('Bar').result()
+      c.load_module('Bar')
 
       log_buffer = io.StringIO()
       c.logging(on=True, dest=log_buffer)
-      _ = c.evaluate_expression("theAnswer").result()
+      _ = c.eval("theAnswer")
       contents = log_buffer.getvalue()
       print(f'CONTENTS: {contents}', file=sys.stderr)
 
       self.assertEqual(len(contents.strip().splitlines()), 2)
 
-      _ = c.evaluate_expression("theAnswer").result()
+      _ = c.eval("theAnswer")
 
 
 class BasicLoggingServerTests(unittest.TestCase):
@@ -58,7 +58,7 @@ class BasicLoggingServerTests(unittest.TestCase):
     @classmethod
     def setUpClass(self):
         self.log_buffer = io.StringIO()
-        self.c = cryptol.connect(verify=False, log_dest = self.log_buffer)
+        self.c = cryptol.sync.connect(verify=False, log_dest = self.log_buffer)
 
     @classmethod
     def tearDownClass(self):
@@ -69,7 +69,7 @@ class BasicLoggingServerTests(unittest.TestCase):
       c = self.c
       c.extend_search_path(str(Path('tests','cryptol','test-files', 'test-subdir')))
       c.load_module('Bar')
-      _ = c.evaluate_expression("theAnswer").result()
+      _ = c.eval("theAnswer")
 
       self.assertEqual(len(self.log_buffer.getvalue().splitlines()), 6)
 
