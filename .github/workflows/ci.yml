@@ -268,10 +268,10 @@ jobs:
           chmod +x dist/bin/cryptol-eval-server
           chmod +x bin/test-runner
           .github/ci.sh install_system_deps
-          .github/ci.sh bin/abc*
-          .github/ci.sh bin/cvc4*
-          .github/ci.sh bin/yices-smt2*
-          .github/ci.sh bin/z3*
+          .github/ci.sh deps bin/abc*
+          .github/ci.sh deps bin/cvc4*
+          .github/ci.sh deps bin/yices-smt2*
+          .github/ci.sh deps bin/z3*
           ghc_ver="$(ghc --numeric-version)"
           cp cabal.GHC-"$ghc_ver".config cabal.project.freeze
           cabal v2-update
