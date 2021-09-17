@@ -221,10 +221,10 @@ jobs:
             target: ''
             os: ubuntu-latest
             continue-on-error: false
-          - suite: rpc
-            target: ''
-            os: macos-latest
-            continue-on-error: false
+          #- suite: rpc
+          #  target: ''
+          #  os: macos-latest
+          #  continue-on-error: false
           #- suite: rpc
           #  target: ''
           #  os: windows-latest
