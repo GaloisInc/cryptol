@@ -185,6 +185,7 @@ instance Backend Concrete where
   integerAsLit _ = Just
 
   wordToInt _ (BV _ x) = pure x
+  wordToSignedInt _ (BV w x) = pure $! signedValue w x
   wordFromInt _ w x = pure $! mkBv w x
 
   packWord _ bits = pure $! BV (toInteger w) a

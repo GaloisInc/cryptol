@@ -16,47 +16,64 @@ from . import CryptolConnection, SmtQueryType
 
 @dataclass
 class Qed:
-    """The positive result of a 'prove' SMT query."""
-    def __bool__(self) -> bool:
+    """The positive result of a 'prove' SMT query. All instances of this class
+    are truthy, i.e. evaluate to `True` in an 'if' or 'while' statement.
+    """
+    def __bool__(self) -> Literal[True]:
         return True
-    def __nonzero__(self) -> bool:
+    def __nonzero__(self) -> Literal[True]:
         return True
 
 @dataclass
 class Safe:
-    """The positive result of a 'safe' SMT query."""
-    def __bool__(self) -> bool:
+    """The positive result of a 'safe' SMT query. All instances of this class
+    are truthy, i.e. evaluate to `True` in an 'if' or 'while' statement.
+    """
+    def __bool__(self) -> Literal[True]:
         return True
-    def __nonzero__(self) -> bool:
+    def __nonzero__(self) -> Literal[True]:
         return True
 
 @dataclass
 class Counterexample:
-    """The negative result of a 'prove' or 'safe' SMT query."""
+    """The negative result of a 'prove' or 'safe' SMT query, consisting of a
+    type (either "predicate falsified" or "safety violation") and the list of
+    values which constitute the counterexample. All instances of this class are
+    falsy, i.e. evaluate to `False` in an 'if' or 'while' statement. (Note that
+    this is different from the behaivor of a plain list, which is truthy iff
+    it has nonzero length.)
+    """
     type : Union[Literal["predicate falsified"], Literal["safety violation"]]
     assignments : List[CryptolValue]
 
-    def __bool__(self) -> bool:
+    def __bool__(self) -> Literal[False]:
         return False
-    def __nonzero__(self) -> bool:
+    def __nonzero__(self) -> Literal[False]:
         return False
 
 @dataclass
 class Satisfiable:
-    """The positive result of a 'sat' SMT query."""
+    """The positive result of a 'sat' SMT query, consisting of a list of
+    models, where each model is a list of values satisfying the predicate.
+    All instances of this class are truthy, i.e. evaluate to `True` in an 'if'
+    or 'while' statement. (Note that this is different from the behaivor of a
+    plain list, which is truthy iff it has nonzero length.)
+    """
     models : List[List[CryptolValue]]
-        
-    def __bool__(self) -> bool:
+
+    def __bool__(self) -> Literal[True]:
         return True
-    def __nonzero__(self) -> bool:
+    def __nonzero__(self) -> Literal[True]:
         return True
 
 @dataclass
 class Unsatisfiable:
-    """The negative result of a 'sat' SMT query."""
-    def __bool__(self) -> bool:
+    """The negative result of a 'sat' SMT query. All instances of this class
+    are falsy, i.e. evaluate to `False` in an 'if 'or 'while' statement.
+    """
+    def __bool__(self) -> Literal[False]:
         return False
-    def __nonzero__(self) -> bool:
+    def __nonzero__(self) -> Literal[False]:
         return False
 
 
@@ -184,6 +201,13 @@ class CryptolSyncConnection:
         :ref:`cryptol-json-expression`, with Python datatypes standing for
         their JSON equivalents. Use the solver named `solver`, and return up to
         `count` solutions.
+        
+        If the given solver is an `OnlineSolver`, the result is either an
+        instance of `Satisfiable`, which is always truthy, or `Unsatisfiable`,
+        which is always falsy - meaning the result will evaluate to `True` in
+        an 'if' or 'while' statement iff the given expression is satisfiable.
+        If the given solver is an `OfflineSolver`, an error will be raised if
+        the result is used in an 'if' or 'while' statement.
         """
         if isinstance(solver, OfflineSolver):
             res = self.connection.sat_raw(expr, solver, count).result()
@@ -213,6 +237,13 @@ class CryptolSyncConnection:
         """Check the validity of a Cryptol expression, represented according to
         :ref:`cryptol-json-expression`, with Python datatypes standing for
         their JSON equivalents. Use the solver named `solver`.
+        
+        If the given solver is an `OnlineSolver`, the result is either an
+        instance of `Qed`, which is always truthy, or `Counterexample`, which
+        is always falsy - meaning the result will evaluate to `True` in an 'if'
+        or 'while' statement iff the given expression can be proved. If the
+        given solver is an `OfflineSolver`, an error will be raised if the
+        result is used in an 'if' or 'while' statement.
         """
         if isinstance(solver, OfflineSolver):
             res = self.connection.prove_raw(expr, solver).result()
@@ -241,6 +272,13 @@ class CryptolSyncConnection:
     def safe(self, expr : Any, solver : Solver = Z3) -> Union[Safe, Counterexample, OfflineSmtQuery]:
         """Check via an external SMT solver that the given term is safe for all inputs,
         which means it cannot encounter a run-time error.
+        
+        If the given solver is an `OnlineSolver`, the result is either an
+        instance of `Safe`, which is always truthy, or `Counterexample`, which
+        is always falsy - meaning the result will evaluate to `True` in an 'if'
+        or 'while' statement iff the given expression is safe. If the given
+        solver is an `OfflineSolver`, an error will be raised if the result is
+        used in an 'if' or 'while' statement.
         """
         if isinstance(solver, OfflineSolver):
             res = self.connection.safe_raw(expr, solver).result()

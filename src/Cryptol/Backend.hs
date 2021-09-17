@@ -614,6 +614,12 @@ class MonadIO (SEval sym) => Backend sym where
     SWord sym ->
     SEval sym (SInteger sym)
 
+  -- | Construct a signed integer value from the given packed word.
+  wordToSignedInt ::
+    sym ->
+    SWord sym ->
+    SEval sym (SInteger sym)
+
   -- ==== Integer operations ====
 
   -- | Addition of unbounded integers.

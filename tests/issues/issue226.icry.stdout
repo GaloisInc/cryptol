@@ -207,6 +207,7 @@ Symbols
     tail : {n, a} [1 + n]a -> [n]a
     take : {front, back, a} [front + back]a -> [front]a
     toInteger : {a} (Integral a) => a -> Integer
+    toSignedInteger : {n} (fin n, n >= 1) => [n] -> Integer
     trace : {n, a, b} (fin n) => String n -> a -> b -> b
     traceVal : {n, a} (fin n) => String n -> a -> a
     transpose : {rows, cols, a} [rows][cols]a -> [cols][rows]a

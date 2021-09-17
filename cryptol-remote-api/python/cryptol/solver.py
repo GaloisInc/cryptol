@@ -6,9 +6,12 @@ from dataclasses import dataclass
 
 @dataclass
 class OfflineSmtQuery():
-  """An SMTLIB2 script -- produced when an `offline` prover is used."""
+  """An SMTLIB2 script -- produced when an `offline` prover is used. Instances
+  of this class are neither truthy nor falsy, using an instance of this class
+  in an 'if' or 'while' statement will result in an error.
+  """
   content: str
-  
+
   def __bool__(self) -> Any:
     raise ValueError("Offline SMT query has no value")
   def __nonzero__(self) -> Any:
