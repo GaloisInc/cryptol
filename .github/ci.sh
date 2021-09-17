@@ -9,6 +9,14 @@ mkdir -p "$BIN"
 
 is_exe() { [[ -x "$1/$2$EXT" ]] || command -v "$2" > /dev/null 2>&1; }
 
+deps() {
+    case "$RUNNER_OS" in
+      Linux) ldd $1 || true ;;
+      macOS) otool -L $1 || true ;;
+      Windows) ldd $1 || true ;;
+    esac
+}
+
 extract_exe() {
   exe="$(cabal v2-exec which "$1$EXT")"
   name="$(basename "$exe")"
