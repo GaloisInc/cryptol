@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 env:
-  SOLVER_PKG_VERSION: "snapshot-20210914"
+  SOLVER_PKG_VERSION: "snapshot-20210917"
 
 jobs:
   config:
