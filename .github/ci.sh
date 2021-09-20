@@ -9,6 +9,11 @@ mkdir -p "$BIN"
 
 is_exe() { [[ -x "$1/$2$EXT" ]] || command -v "$2" > /dev/null 2>&1; }
 
+# The deps() function is primarily used for producing debug output to
+# the CI logging files.  For each platform, it will indicate which
+# shared libraries are needed and if they are present or not.  The
+# '|| true' is used because statically linked binaries will cause
+# ldd (and possibly otool) to exit with a non-zero status.
 deps() {
   case "$RUNNER_OS" in
     Linux) ldd $1 || true ;;
@@ -17,6 +22,8 @@ deps() {
   esac
 }
 
+# Finds the cabal-built '$1' executable and copies it to the '$2'
+# directory.
 extract_exe() {
   exe="$(cabal v2-exec which "$1$EXT")"
   name="$(basename "$exe")"
