@@ -8,6 +8,7 @@ module CryptolServer.ServiceCode
   where
 
 import System.Random
+import System.Console.ANSI
 
 import Data.Aeson as JSON hiding (Encoding, Value, decode)
 import qualified Data.Aeson as JSON
@@ -50,6 +51,29 @@ serviceCodeDescr =
   Doc.Paragraph
     [Doc.Text "Evaluate the result of calling a Cryptol function on randomized parameters."]
 
+logMessage :: MonadIO m => Text -> m ()
+logMessage = liftIO . putStrLn . Text.unpack
+
+logBytes :: MonadIO m => Text -> ByteString -> m ()
+logBytes msg bytes = do
+  liftIO . putStr . Text.unpack $ mconcat
+    [ msg
+    , ": "
+    ]
+  liftIO $ setSGR [SetColor Foreground Dull Blue]
+  logMessage . decodeUtf8 $ BS.Base64.encode bytes
+  liftIO $ setSGR [Reset]
+
+logRedBytes :: MonadIO m => Text -> ByteString -> m ()
+logRedBytes msg bytes = do
+  liftIO . putStr . Text.unpack $ mconcat
+    [ msg
+    , ": "
+    ]
+  liftIO $ setSGR [SetColor Foreground Dull Red]
+  logMessage . decodeUtf8 $ BS.Base64.encode bytes
+  liftIO $ setSGR [Reset]
+
 -- TODO
 getEntropy :: MonadIO m => Integer -> m [Bool]
 getEntropy w
@@ -61,12 +85,15 @@ testKey = "foobarbazfoobarbazfoobarbazfooba"
 
 -- TODO
 encryptOutput :: MonadIO m => ByteString -> m (Maybe ByteString)
-encryptOutput plaintext =
+encryptOutput plaintext = do
+  logRedBytes "Wrapping result" plaintext
   case eitherCryptoError (cipherInit @AES.AES256 testKey) of
     Right cipher -> do
       nonce <- liftIO AESGCMSIV.generateNonce
       let (tag, ct) = AESGCMSIV.encrypt cipher nonce BS.empty plaintext
-      pure . Just $ BA.convert nonce <> BA.convert tag <> ct
+      let result = BA.convert nonce <> BA.convert tag <> ct
+      logBytes "Wrapped result is" result
+      pure $ Just result
     Left err -> do
       liftIO $ print err
       pure Nothing
@@ -82,9 +109,13 @@ decryptInput ciphertext
   | otherwise = Nothing
 
 decryptOrThrow :: ByteString -> CryptolCommand ByteString
-decryptOrThrow ct  = case decryptInput ct of
-  Just pt -> pure pt
-  Nothing -> raise $ makeJSONRPCException 20300 "Failed to unwrap argument" (Nothing :: Maybe ())
+decryptOrThrow ct = do
+  logBytes "Unwrapping argument" ct
+  case decryptInput ct of
+    Just pt -> do
+      logRedBytes "Unwrapped argument is" pt
+      pure pt
+    Nothing -> raise $ makeJSONRPCException 20300 "Failed to unwrap argument" (Nothing :: Maybe ())
 
 -- Given a (curried) function type, extract the given number of argument types
 funTypeTake :: Int -> CT.Type -> [CT.Type]
@@ -170,7 +201,8 @@ evalExpression e = do
 
 serviceCode :: ServiceCodeParams -> CryptolCommand JSON.Value
 serviceCode scp = do
-  liftIO . putStrLn . Text.unpack $ "Invoking service code: " <> serviceCodeName scp
+  logMessage ""
+  logMessage $ "Invoking service code: " <> serviceCodeName scp
   resetTCSolver
   case parseModName . Text.unpack $ serviceCodeName scp of
     Nothing -> raise
@@ -193,9 +225,7 @@ serviceCode scp = do
       fixedArgs <- traverse (byteStringToExpr <=< decryptOrThrow <=< fromBase64) $ serviceCodeFixedArgs scp
       let appExpr = mkEApp fun $ randArgs <> fixedArgs
       expr <- evalExpression appExpr
-      liftIO . putStrLn $ "Returning result: " <> show expr
       bs <- exprToByteString expr
-      liftIO . putStrLn $ "Converted to bytestring: " <> show bs
       encryptOutput bs >>= \case
         Nothing -> raise $ makeJSONRPCException 20305 "Failed to wrap result" (Nothing :: Maybe ())
         Just ebs -> pure $ JSON.object ["result" .= decodeUtf8 (BS.Base64.encode ebs)]
