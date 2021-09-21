@@ -199,7 +199,7 @@ class CryptolConnection:
 
         :param timeout: Optional timeout for this request (in seconds).
         """
-        self.most_recent_result = CryptolEvalExprRaw(self, expression)
+        self.most_recent_result = CryptolEvalExprRaw(self, expression, timeout)
         return self.most_recent_result
 
     def eval(self, expression : Any, *, timeout:Optional[float] = None) -> argo.Command:
@@ -251,7 +251,7 @@ class CryptolConnection:
         `to_check_report` on the ``.result()``.
         """
         if num_tests == "all" or isinstance(num_tests, int) or num_tests is None:
-            self.most_recent_result = CryptolCheckRaw(self, expr, num_tests)
+            self.most_recent_result = CryptolCheckRaw(self, expr, num_tests, timeout)
             return self.most_recent_result
         else:
             raise ValueError('``num_tests`` must be an integer, ``None``, or the string literall ``"all"``')
@@ -326,7 +326,7 @@ class CryptolConnection:
         """Like the member method ``safe``, but does not call
         `to_smt_query_result` on the ``.result()``.
         """
-        self.most_recent_result = CryptolSafeRaw(self, expr, solver)
+        self.most_recent_result = CryptolSafeRaw(self, expr, solver, timeout)
         return self.most_recent_result
 
     def safe(self, expr : Any, solver : solver.Solver = solver.Z3, *, timeout:Optional[float] = None) -> argo.Command:

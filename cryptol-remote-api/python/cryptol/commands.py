@@ -242,22 +242,22 @@ class CryptolProveSat(CryptolProveSatRaw):
             raise ValueError("Unknown SMT result: " + str(res))
 
 class CryptolProveRaw(CryptolProveSatRaw):
-    def __init__(self, connection : HasProtocolState, expr : Any, solver : Solver) -> None:
-        super(CryptolProveRaw, self).__init__(connection, SmtQueryType.PROVE, expr, solver, 1)
+    def __init__(self, connection : HasProtocolState, expr : Any, solver : Solver, timeout: Optional[float]) -> None:
+        super(CryptolProveRaw, self).__init__(connection, SmtQueryType.PROVE, expr, solver, 1, timeout)
 class CryptolProve(CryptolProveSat):
     def __init__(self, connection : HasProtocolState, expr : Any, solver : Solver, timeout: Optional[float]) -> None:
         super(CryptolProve, self).__init__(connection, SmtQueryType.PROVE, expr, solver, 1, timeout=timeout)
 
 class CryptolSatRaw(CryptolProveSatRaw):
-    def __init__(self, connection : HasProtocolState, expr : Any, solver : Solver, count : int) -> None:
-        super(CryptolSatRaw, self).__init__(connection, SmtQueryType.SAT, expr, solver, count)
+    def __init__(self, connection : HasProtocolState, expr : Any, solver : Solver, count : int, timeout: Optional[float]) -> None:
+        super(CryptolSatRaw, self).__init__(connection, SmtQueryType.SAT, expr, solver, count, timeout=timeout)
 class CryptolSat(CryptolProveSat):
     def __init__(self, connection : HasProtocolState, expr : Any, solver : Solver, count : int, timeout: Optional[float]) -> None:
         super(CryptolSat, self).__init__(connection, SmtQueryType.SAT, expr, solver, count, timeout=timeout)
 
 class CryptolSafeRaw(CryptolProveSatRaw):
-    def __init__(self, connection : HasProtocolState, expr : Any, solver : Solver) -> None:
-        super(CryptolSafeRaw, self).__init__(connection, SmtQueryType.SAFE, expr, solver, 1)
+    def __init__(self, connection : HasProtocolState, expr : Any, solver : Solver, timeout: Optional[float]) -> None:
+        super(CryptolSafeRaw, self).__init__(connection, SmtQueryType.SAFE, expr, solver, 1, timeout=timeout)
 class CryptolSafe(CryptolProveSat):
     def __init__(self, connection : HasProtocolState, expr : Any, solver : Solver, timeout: Optional[float]) -> None:
         super(CryptolSafe, self).__init__(connection, SmtQueryType.SAFE, expr, solver, 1, timeout=timeout)
