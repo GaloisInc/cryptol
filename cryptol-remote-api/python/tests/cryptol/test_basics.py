@@ -41,7 +41,8 @@ class BasicServerTests(unittest.TestCase):
       _ = c.eval("theAnswer").result()
       contents = log_buffer.getvalue()
 
-      self.assertEqual(len(contents.strip().splitlines()), 2)
+      self.assertEqual(len(contents.strip().splitlines()), 2,
+                       msg=f'log contents: {str(contents.strip().splitlines())}')
 
       _ = c.eval("theAnswer").result()
 
@@ -163,7 +164,8 @@ class BasicLoggingServerTests(unittest.TestCase):
       c.load_module('Bar')
       _ = c.eval("theAnswer")
 
-      self.assertEqual(len(self.log_buffer.getvalue().splitlines()), 6)
+      self.assertEqual(len(self.log_buffer.getvalue().splitlines()), 6,
+                       msg=f'log contents: {str(self.log_buffer.strip().splitlines())}')
 
 if __name__ == "__main__":
     unittest.main()
