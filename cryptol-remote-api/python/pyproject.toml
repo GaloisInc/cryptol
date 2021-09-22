@@ -1,10 +1,10 @@
 [tool.poetry]
 name = "cryptol"
-version = "2.11.6"
+version = "2.11.7"
 readme = "README.md"
 keywords = ["cryptography", "verification"]
 description = "Cryptol client for the Cryptol 2.11 RPC server"
-authors = ["Andrew Kent <andrew@galois.com>", "Aaron Tomb <atomb@galois.com>"]
+authors = ["Andrew Kent <andrew@galois.com>", "Aaron Tomb <atomb@galois.com>", "Matthew Yacavone <myac@galois.com>"]
 license = "BSD License"
 include = [
     "LICENSE",
