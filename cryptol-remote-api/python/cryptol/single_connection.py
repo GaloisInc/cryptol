@@ -36,7 +36,8 @@ def connect(command : Optional[str]=None,
             url : Optional[str] = None,
             reset_server : bool = False,
             verify : Union[bool, str] = True,
-            log_dest : Optional[TextIO] = None) -> None:
+            log_dest : Optional[TextIO] = None,
+            timeout : Optional[float] = None) -> None:
     """
     Connect to a (possibly new) synchronous Cryptol server process.
 
@@ -61,6 +62,10 @@ def connect(command : Optional[str]=None,
     will print traffic to ``stderr``, ``log_dest=open('foo.log', 'w')`` will log to ``foo.log``,
     etc.
 
+    :param timeout: Optional default timeout (in seconds) for methods. Can be modified/read via the
+    `timeout` member field on a `CryptolConnection`. Method invocations which specify
+    the optional `timeout` keyword parameter will cause the default to be ignored for that method.
+
     If no ``command`` or ``url`` parameters are provided, the following are attempted in order:
 
     1. If the environment variable ``CRYPTOL_SERVER`` is set and referse to an executable,
@@ -80,111 +85,120 @@ def connect(command : Optional[str]=None,
         url=url,
         reset_server=reset_server,
         verify=verify,
-        log_dest=log_dest))
+        log_dest=log_dest,
+        timeout=timeout))
 
-def connect_stdio(command : str, cryptol_path : Optional[str] = None) -> None:
+def connect_stdio(command : str,
+                  cryptol_path : Optional[str] = None,
+                  log_dest : Optional[TextIO] = None,
+                  timeout : Optional[float] = None) -> None:
     """Start a new synchronous connection to a new Cryptol server process.
+
     :param command: The command to launch the Cryptol server.
+
     :param cryptol_path: An optional replacement for the contents of
-      the ``CRYPTOLPATH`` environment var`iable.
+      the ``CRYPTOLPATH`` environment variable.
+
     """
     __set_designated_connection(synchronous.connect_stdio(
         command=command,
-        cryptol_path=cryptol_path))
+        cryptol_path=cryptol_path,
+        log_dest=log_dest,
+        timeout=timeout))
 
 
-def load_file(filename : str) -> None:
+def load_file(filename : str, *, timeout:Optional[float] = None) -> None:
     """Load a filename as a Cryptol module, like ``:load`` at the Cryptol
     REPL.
     """
-    __get_designated_connection().load_file(filename)
+    __get_designated_connection().load_file(filename, timeout=timeout)
 
-def load_module(module_name : str) -> None:
+def load_module(module_name : str, *, timeout:Optional[float] = None) -> None:
     """Load a Cryptol module, like ``:module`` at the Cryptol REPL."""
-    __get_designated_connection().load_module(module_name)
+    __get_designated_connection().load_module(module_name, timeout=timeout)
 
-def extend_search_path(*dir : str) -> None:
+def extend_search_path(*dir : str, timeout:Optional[float] = None) -> None:
     """Extend the search path for loading Cryptol modules."""
-    __get_designated_connection().extend_search_path(*dir)
+    __get_designated_connection().extend_search_path(*dir, timeout=timeout)
 
-def cry_eval(expression : Any) -> CryptolValue:
+def cry_eval(expression : Any, *, timeout:Optional[float] = None) -> CryptolValue:
     """Evaluate a Cryptol expression, with the result represented
     according to :ref:`cryptol-json-expression`, with Python datatypes
     standing for their JSON equivalents.
     """
-    return __get_designated_connection().eval(expression)
+    return __get_designated_connection().eval(expression, timeout=timeout)
 
-def call(fun : str, *args : List[Any]) -> CryptolValue:
+def call(fun : str, *args : List[Any], timeout:Optional[float] = None) -> CryptolValue:
     """Evaluate a Cryptol functiom by name, with the arguments and the
     result represented according to :ref:`cryptol-json-expression`, with
     Python datatypes standing for their JSON equivalents.
     """
-    return __get_designated_connection().call(fun, *args)
+    return __get_designated_connection().call(fun, *args, timeout=timeout)
 
-def check(expr : Any, *, num_tests : Union[Literal['all'], int, None] = None) -> CheckReport:
+def check(expr : Any, *, num_tests : Union[Literal['all'], int, None] = None, timeout:Optional[float] = None) -> CheckReport:
     """Tests the validity of a Cryptol expression with random inputs. The expression must be a function with
     return type ``Bit``.
     If ``num_tests`` is ``"all"`` then the expression is tested exhaustively (i.e., against all possible inputs).
     If ``num_tests`` is omitted, Cryptol defaults to running 100 tests.
     """
-    return __get_designated_connection().check(expr, num_tests=num_tests)
+    return __get_designated_connection().check(expr, num_tests=num_tests, timeout=timeout)
 
-def check_type(code : Any) -> cryptoltypes.CryptolType:
+def check_type(code : Any, *, timeout:Optional[float] = None) -> cryptoltypes.CryptolType:
     """Check the type of a Cryptol expression, represented according to
     :ref:`cryptol-json-expression`, with Python datatypes standing for
     their JSON equivalents.
     """
-    return __get_designated_connection().check_type(code)
+    return __get_designated_connection().check_type(code, timeout=timeout)
 
 @overload
-def sat(expr : Any, solver : OfflineSolver, count : int = 1) -> OfflineSmtQuery: ...
+def sat(expr : Any, solver : OfflineSolver, count : int = 1, *, timeout:Optional[float] = None) -> OfflineSmtQuery: ...
 @overload
-def sat(expr : Any, solver : OnlineSolver = Z3, count : int = 1) -> Union[Satisfiable, Unsatisfiable]: ...
+def sat(expr : Any, solver : OnlineSolver = Z3, count : int = 1, *, timeout:Optional[float] = None) -> Union[Satisfiable, Unsatisfiable]: ...
 @overload
-def sat(expr : Any, solver : Solver = Z3, count : int = 1) -> Union[Satisfiable, Unsatisfiable, OfflineSmtQuery]: ...
+def sat(expr : Any, solver : Solver = Z3, count : int = 1, *, timeout:Optional[float] = None) -> Union[Satisfiable, Unsatisfiable, OfflineSmtQuery]: ...
 
-def sat(expr : Any, solver : Solver = Z3, count : int = 1) -> Union[Satisfiable, Unsatisfiable, OfflineSmtQuery]:
+def sat(expr : Any, solver : Solver = Z3, count : int = 1, *, timeout:Optional[float] = None) -> Union[Satisfiable, Unsatisfiable, OfflineSmtQuery]:
     """Check the satisfiability of a Cryptol expression, represented according to
     :ref:`cryptol-json-expression`, with Python datatypes standing for
     their JSON equivalents. Use the solver named `solver`, and return up to
     `count` solutions.
     """
-    return __get_designated_connection().sat(expr, solver, count)
+    return __get_designated_connection().sat(expr, solver, count, timeout=timeout)
 
 @overload
-def prove(expr : Any, solver : OfflineSolver) -> OfflineSmtQuery: ...
+def prove(expr : Any, solver : OfflineSolver, *, timeout:Optional[float] = None) -> OfflineSmtQuery: ...
 @overload
-def prove(expr : Any, solver : OnlineSolver = Z3) -> Union[Qed, Counterexample]: ...
+def prove(expr : Any, solver : OnlineSolver = Z3, *, timeout:Optional[float] = None) -> Union[Qed, Counterexample]: ...
 @overload
-def prove(expr : Any, solver : Solver = Z3) -> Union[Qed, Counterexample, OfflineSmtQuery]: ...
+def prove(expr : Any, solver : Solver = Z3, *, timeout:Optional[float] = None) -> Union[Qed, Counterexample, OfflineSmtQuery]: ...
 
-def prove(expr : Any, solver : Solver = Z3) -> Union[Qed, Counterexample, OfflineSmtQuery]:
+def prove(expr : Any, solver : Solver = Z3, *, timeout:Optional[float] = None) -> Union[Qed, Counterexample, OfflineSmtQuery]:
     """Check the validity of a Cryptol expression, represented according to
     :ref:`cryptol-json-expression`, with Python datatypes standing for
     their JSON equivalents. Use the solver named `solver`.
     """
-    return __get_designated_connection().prove(expr, solver)
+    return __get_designated_connection().prove(expr, solver, timeout=timeout)
 
 @overload
-def safe(expr : Any, solver : OfflineSolver) -> OfflineSmtQuery: ...
+def safe(expr : Any, solver : OfflineSolver, *, timeout:Optional[float] = None) -> OfflineSmtQuery: ...
 @overload
-def safe(expr : Any, solver : OnlineSolver = Z3) -> Union[Safe, Counterexample]: ...
+def safe(expr : Any, solver : OnlineSolver = Z3, *, timeout:Optional[float] = None) -> Union[Safe, Counterexample]: ...
 @overload
-def safe(expr : Any, solver : Solver = Z3) -> Union[Safe, Counterexample, OfflineSmtQuery]: ...
+def safe(expr : Any, solver : Solver = Z3, *, timeout:Optional[float] = None) -> Union[Safe, Counterexample, OfflineSmtQuery]: ...
 
-def safe(expr : Any, solver : Solver = Z3) -> Union[Safe, Counterexample, OfflineSmtQuery]:
+def safe(expr : Any, solver : Solver = Z3, *, timeout:Optional[float] = None) -> Union[Safe, Counterexample, OfflineSmtQuery]:
     """Check via an external SMT solver that the given term is safe for all inputs,
     which means it cannot encounter a run-time error.
     """
-    return __get_designated_connection().safe(expr, solver)
+    return __get_designated_connection().safe(expr, solver, timeout=timeout)
 
-def names() -> List[Dict[str,Any]]:
+def names(*, timeout:Optional[float] = None) -> List[Dict[str,Any]]:
     """Discover the list of names currently in scope in the current context."""
-    return __get_designated_connection().names()
+    return __get_designated_connection().names(timeout=timeout)
 
-def focused_module() -> Dict[str,Any]:
+def focused_module(*, timeout:Optional[float] = None) -> Dict[str,Any]:
     """Returns the name and other information about the currently-focused module."""
-    return __get_designated_connection().focused_module()
+    return __get_designated_connection().focused_module(timeout=timeout)
 
 def reset() -> None:
     """Resets the connection, causing its unique state on the server to be freed (if applicable).
@@ -194,6 +208,10 @@ def reset() -> None:
 def reset_server() -> None:
     """Resets the Cryptol server, clearing all states."""
     __get_designated_connection().reset_server()
+
+def interrupt() -> None:
+    """Interrupt the Cryptol server, cancelling any in-progress requests."""
+    __get_designated_connection().interrupt()
 
 def logging(on : bool, *, dest : TextIO = sys.stderr) -> None:
     """Whether to log received and transmitted JSON."""

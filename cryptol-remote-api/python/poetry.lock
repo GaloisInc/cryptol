@@ -1,6 +1,6 @@
 [[package]]
 name = "argo-client"
-version = "0.0.7"
+version = "0.0.9"
 description = "A JSON RPC client library."
 category = "main"
 optional = false
@@ -28,7 +28,7 @@ python-versions = "*"
 
 [[package]]
 name = "charset-normalizer"
-version = "2.0.4"
+version = "2.0.6"
 description = "The Real First Universal Charset Detector. Open, modern and actively maintained alternative to Chardet."
 category = "main"
 optional = false
@@ -118,12 +118,12 @@ socks = ["PySocks (>=1.5.6,!=1.5.7,<2.0)"]
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.7.0"
-content-hash = "d02d45c69699f0c6e033eb54c94fd8858dbe1d83677f2bca29f3a5ba68c02cbe"
+content-hash = "fd163dd3fcc8f5322f548ad841c621370611d2f25fafc2dffb03395d30ed7d5e"
 
 [metadata.files]
 argo-client = [
-    {file = "argo-client-0.0.7.tar.gz", hash = "sha256:f3d54416448fff0162b1b669ca7ae1d846b8197fd77b7809f78ceb7f1b2675fb"},
-    {file = "argo_client-0.0.7-py3-none-any.whl", hash = "sha256:0149c5fc5a008cdaabd3764af0bcadce3efb07fdf6e1fb6fca86fc9cda5560d8"},
+    {file = "argo-client-0.0.9.tar.gz", hash = "sha256:762e16d7428046ecf1d4fd50d877cba9a3c21eac260806030876f76acac81325"},
+    {file = "argo_client-0.0.9-py3-none-any.whl", hash = "sha256:c482e3ba3346c7677fc1c8a470b173ba0d59736d6c628b0193a13b8e3aeeb9f1"},
 ]
 bitvector = [
     {file = "BitVector-3.5.0.tar.gz", hash = "sha256:cac2fbccf11e325115827ed7be03e5fd62615227b0bbf3fa5a18a842a221839c"},
@@ -133,8 +133,8 @@ certifi = [
     {file = "certifi-2021.5.30.tar.gz", hash = "sha256:2bbf76fd432960138b3ef6dda3dde0544f27cbf8546c458e60baf371917ba9ee"},
 ]
 charset-normalizer = [
-    {file = "charset-normalizer-2.0.4.tar.gz", hash = "sha256:f23667ebe1084be45f6ae0538e4a5a865206544097e4e8bbcacf42cd02a348f3"},
-    {file = "charset_normalizer-2.0.4-py3-none-any.whl", hash = "sha256:0c8911edd15d19223366a194a513099a302055a962bca2cec0f54b8b63175d8b"},
+    {file = "charset-normalizer-2.0.6.tar.gz", hash = "sha256:5ec46d183433dcbd0ab716f2d7f29d8dee50505b3fdb40c6b985c7c4f5a3591f"},
+    {file = "charset_normalizer-2.0.6-py3-none-any.whl", hash = "sha256:5d209c0a931f215cee683b6445e2d77677e7e75e159f78def0db09d68fafcaa6"},
 ]
 idna = [
     {file = "idna-3.2-py3-none-any.whl", hash = "sha256:14475042e284991034cb48e06f6851428fb14c4dc953acd9be9a5e95c7b6dd7a"},

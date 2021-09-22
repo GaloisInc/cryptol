@@ -199,6 +199,7 @@ class CryptolConnection:
 
         :param timeout: Optional timeout for this request (in seconds).
         """
+        timeout = timeout if timeout is not None else self.timeout
         self.most_recent_result = CryptolEvalExprRaw(self, expression, timeout)
         return self.most_recent_result
 
@@ -250,6 +251,7 @@ class CryptolConnection:
         """Like the member method ``check``, but does not call
         `to_check_report` on the ``.result()``.
         """
+        timeout = timeout if timeout is not None else self.timeout
         if num_tests == "all" or isinstance(num_tests, int) or num_tests is None:
             self.most_recent_result = CryptolCheckRaw(self, expr, num_tests, timeout)
             return self.most_recent_result
@@ -289,6 +291,7 @@ class CryptolConnection:
         """Like the member method ``sat``, but does not call
         `to_smt_query_result` on the ``.result()``.
         """
+        timeout = timeout if timeout is not None else self.timeout
         self.most_recent_result = CryptolSatRaw(self, expr, solver, count, timeout)
         return self.most_recent_result
 
@@ -308,6 +311,7 @@ class CryptolConnection:
         """Like the member method ``prove``, but does not call
         `to_smt_query_result` on the ``.result()``.
         """
+        timeout = timeout if timeout is not None else self.timeout
         self.most_recent_result = CryptolProveRaw(self, expr, solver, timeout)
         return self.most_recent_result
 
@@ -326,6 +330,7 @@ class CryptolConnection:
         """Like the member method ``safe``, but does not call
         `to_smt_query_result` on the ``.result()``.
         """
+        timeout = timeout if timeout is not None else self.timeout
         self.most_recent_result = CryptolSafeRaw(self, expr, solver, timeout)
         return self.most_recent_result
 
