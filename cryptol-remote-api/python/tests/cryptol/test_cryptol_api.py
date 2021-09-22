@@ -91,6 +91,7 @@ class CryptolTests(unittest.TestCase):
         self.assertIsInstance(prove('\\(x : [8]) -> x == reverse (reverse x)', solver.SBV_OFFLINE), solver.OfflineSmtQuery)
         self.assertIsInstance(prove('\\(x : [8]) -> x == reverse (reverse x)', solver.W4_OFFLINE), solver.OfflineSmtQuery)
 
+
     def test_check(self):
         res = check("\\x -> x==(x:[8])")
         self.assertTrue(res.success)
