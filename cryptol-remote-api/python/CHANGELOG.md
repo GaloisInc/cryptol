@@ -8,7 +8,7 @@
 * Add a single-connection, synchronous, type-annotated interface based on the
   above. To use this interface, add `from cryptol.single_connection import *`,
   connect using `connect()`, replace `c.eval(...).result()` with
-  `eval_cry(...)`, remove all `c.` prefixes, and remove all `.result()` calls.
+  `cry_eval(...)`, remove all `c.` prefixes, and remove all `.result()` calls.
 * Update most of the tests to use the single-connection interface.
 
 ## 2.11.6 -- 2021-09-10
