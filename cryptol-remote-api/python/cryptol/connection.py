@@ -47,8 +47,9 @@ def connect(command : Optional[str]=None,
     etc.
 
     :param timeout: Optional default timeout (in seconds) for methods. Can be modified/read via the
-    `timeout` member field on a `CryptolConnection`. Method invocations which specify
-    the optional `timeout` keyword parameter will cause the default to be ignored for that method.
+    `timeout` member field on a `CryptolConnection` or the `get_default_timeout` and
+    `set_default_timeout` methods. Method invocations which specify the optional `timeout` keyword
+    parameter will cause the default to be ignored for that method.
 
     If no ``command`` or ``url`` parameters are provided, the following are attempted in order:
 
@@ -113,6 +114,15 @@ def connect_stdio(command : str,
     :param cryptol_path: An optional replacement for the contents of
       the ``CRYPTOLPATH`` environment variable.
 
+    :param log_dest: A destination to log JSON requests/responses to, e.g. ``log_dest=sys.stderr``
+    will print traffic to ``stderr``, ``log_dest=open('foo.log', 'w')`` will log to ``foo.log``,
+    etc.
+
+    :param timeout: Optional default timeout (in seconds) for methods. Can be modified/read via the
+    `timeout` member field on a `CryptolConnection` or the `get_default_timeout` and
+    `set_default_timeout` methods. Method invocations which specify the optional `timeout` keyword
+    parameter will cause the default to be ignored for that method.
+
     """
     conn = CryptolStdIOProcess(command, cryptol_path=cryptol_path)
 
@@ -155,6 +165,14 @@ class CryptolConnection:
         if log_dest:
             self.logging(on=True,dest=log_dest)
 
+    def get_default_timeout(self) -> Optional[float]:
+        """Get the value of the optional default timeout for methods (in seconds)."""
+        return self.timeout
+    
+    def set_default_timeout(self, timeout : Optional[float]) -> None:
+        """Set the value of the optional default timeout for methods (in seconds)."""
+        self.timeout = timeout
+    
     # Currently disabled in (overly?) conservative effort to not accidentally
     # duplicate and share mutable state.
 

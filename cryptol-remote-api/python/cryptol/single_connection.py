@@ -63,7 +63,7 @@ def connect(command : Optional[str]=None,
     etc.
 
     :param timeout: Optional default timeout (in seconds) for methods. Can be modified/read via the
-    `timeout` member field on a `CryptolConnection`. Method invocations which specify
+    the `get_default_timeout` and `set_default_timeout` methods. Method invocations which specify
     the optional `timeout` keyword parameter will cause the default to be ignored for that method.
 
     If no ``command`` or ``url`` parameters are provided, the following are attempted in order:
@@ -99,6 +99,14 @@ def connect_stdio(command : str,
     :param cryptol_path: An optional replacement for the contents of
       the ``CRYPTOLPATH`` environment variable.
 
+    :param log_dest: A destination to log JSON requests/responses to, e.g. ``log_dest=sys.stderr``
+    will print traffic to ``stderr``, ``log_dest=open('foo.log', 'w')`` will log to ``foo.log``,
+    etc.
+
+    :param timeout: Optional default timeout (in seconds) for methods. Can be modified/read via the
+    the `get_default_timeout` and `set_default_timeout` methods. Method invocations which specify
+    the optional `timeout` keyword parameter will cause the default to be ignored for that method.
+
     """
     __set_designated_connection(synchronous.connect_stdio(
         command=command,
@@ -106,6 +114,14 @@ def connect_stdio(command : str,
         log_dest=log_dest,
         timeout=timeout))
 
+
+def get_default_timeout() -> Optional[float]:
+    """Get the value of the optional default timeout for methods (in seconds)."""
+    return __get_designated_connection().get_default_timeout()
+
+def set_default_timeout(timeout : Optional[float]) -> None:
+    """Set the value of the optional default timeout for methods (in seconds)."""
+    __get_designated_connection().set_default_timeout(timeout)
 
 def load_file(filename : str, *, timeout:Optional[float] = None) -> None:
     """Load a filename as a Cryptol module, like ``:load`` at the Cryptol
