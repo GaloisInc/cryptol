@@ -99,7 +99,7 @@ getInputLines :: String -> InputT REPL NextLine
 getInputLines = handleInterrupt (MTL.lift (handleCtrlC Interrupted)) . loop []
   where
   loop ls prompt =
-    do mb <- getInputLine prompt
+    do mb <- fmap (filter (/= '\r')) <$> getInputLine prompt
        let newPropmpt = map (\_ -> ' ') prompt
        case mb of
          Nothing -> return NoMoreLines
