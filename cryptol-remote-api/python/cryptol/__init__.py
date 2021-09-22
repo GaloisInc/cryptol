@@ -25,8 +25,7 @@ from .synchronous import Qed, Safe, Counterexample, Satisfiable, Unsatisfiable, 
 from . import synchronous
 sync = synchronous
 
-
-__all__ = ['bitvector', 'commands', 'connection', 'cryptoltypes', 'opaque', 'solver', 'synchronous']
+__all__ = ['bitvector', 'commands', 'connection', 'cryptoltypes', 'opaque', 'single_connection', 'solver', 'synchronous']
 
 
 def fail_with(x : Exception) -> NoReturn:

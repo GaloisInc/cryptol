@@ -47,8 +47,9 @@ def connect(command : Optional[str]=None,
     etc.
 
     :param timeout: Optional default timeout (in seconds) for methods. Can be modified/read via the
-    `timeout` member field on a `CryptolConnection`. Method invocations which specify
-    the optional `timeout` keyword parameter will cause the default to be ignored for that method.
+    `timeout` member field on a `CryptolConnection` or the `get_default_timeout` and
+    `set_default_timeout` methods. Method invocations which specify the optional `timeout` keyword
+    parameter will cause the default to be ignored for that method.
 
     If no ``command`` or ``url`` parameters are provided, the following are attempted in order:
 
@@ -113,6 +114,15 @@ def connect_stdio(command : str,
     :param cryptol_path: An optional replacement for the contents of
       the ``CRYPTOLPATH`` environment variable.
 
+    :param log_dest: A destination to log JSON requests/responses to, e.g. ``log_dest=sys.stderr``
+    will print traffic to ``stderr``, ``log_dest=open('foo.log', 'w')`` will log to ``foo.log``,
+    etc.
+
+    :param timeout: Optional default timeout (in seconds) for methods. Can be modified/read via the
+    `timeout` member field on a `CryptolConnection` or the `get_default_timeout` and
+    `set_default_timeout` methods. Method invocations which specify the optional `timeout` keyword
+    parameter will cause the default to be ignored for that method.
+
     """
     conn = CryptolStdIOProcess(command, cryptol_path=cryptol_path)
 
@@ -155,6 +165,14 @@ class CryptolConnection:
         if log_dest:
             self.logging(on=True,dest=log_dest)
 
+    def get_default_timeout(self) -> Optional[float]:
+        """Get the value of the optional default timeout for methods (in seconds)."""
+        return self.timeout
+    
+    def set_default_timeout(self, timeout : Optional[float]) -> None:
+        """Set the value of the optional default timeout for methods (in seconds)."""
+        self.timeout = timeout
+    
     # Currently disabled in (overly?) conservative effort to not accidentally
     # duplicate and share mutable state.
 
@@ -199,6 +217,7 @@ class CryptolConnection:
 
         :param timeout: Optional timeout for this request (in seconds).
         """
+        timeout = timeout if timeout is not None else self.timeout
         self.most_recent_result = CryptolEvalExprRaw(self, expression, timeout)
         return self.most_recent_result
 
@@ -250,6 +269,7 @@ class CryptolConnection:
         """Like the member method ``check``, but does not call
         `to_check_report` on the ``.result()``.
         """
+        timeout = timeout if timeout is not None else self.timeout
         if num_tests == "all" or isinstance(num_tests, int) or num_tests is None:
             self.most_recent_result = CryptolCheckRaw(self, expr, num_tests, timeout)
             return self.most_recent_result
@@ -289,6 +309,7 @@ class CryptolConnection:
         """Like the member method ``sat``, but does not call
         `to_smt_query_result` on the ``.result()``.
         """
+        timeout = timeout if timeout is not None else self.timeout
         self.most_recent_result = CryptolSatRaw(self, expr, solver, count, timeout)
         return self.most_recent_result
 
@@ -308,6 +329,7 @@ class CryptolConnection:
         """Like the member method ``prove``, but does not call
         `to_smt_query_result` on the ``.result()``.
         """
+        timeout = timeout if timeout is not None else self.timeout
         self.most_recent_result = CryptolProveRaw(self, expr, solver, timeout)
         return self.most_recent_result
 
@@ -326,6 +348,7 @@ class CryptolConnection:
         """Like the member method ``safe``, but does not call
         `to_smt_query_result` on the ``.result()``.
         """
+        timeout = timeout if timeout is not None else self.timeout
         self.most_recent_result = CryptolSafeRaw(self, expr, solver, timeout)
         return self.most_recent_result
 

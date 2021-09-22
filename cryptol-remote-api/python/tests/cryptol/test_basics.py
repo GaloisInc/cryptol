@@ -6,6 +6,7 @@ import io
 import time
 import cryptol
 import cryptol.cryptoltypes
+from cryptol.single_connection import *
 from cryptol.bitvector import BV
 from BitVector import * #type: ignore
 
@@ -14,8 +15,6 @@ from BitVector import * #type: ignore
 # focused on intricate Cryptol specifics per se.
 
 class BasicServerTests(unittest.TestCase):
-    # Connection to cryptol
-    c = None
 
     @classmethod
     def setUpClass(self):
@@ -145,24 +144,17 @@ class BasicServerTests(unittest.TestCase):
 
 class BasicLoggingServerTests(unittest.TestCase):
     # Connection to cryptol
-    c = None
     log_buffer = None
 
     @classmethod
     def setUpClass(self):
         self.log_buffer = io.StringIO()
-        self.c = cryptol.sync.connect(verify=False, log_dest = self.log_buffer)
-
-    @classmethod
-    def tearDownClass(self):
-        if self.c:
-            self.c.reset()
+        connect(verify=False, log_dest = self.log_buffer)
 
     def test_logging(self):
-      c = self.c
-      c.extend_search_path(str(Path('tests','cryptol','test-files', 'test-subdir')))
-      c.load_module('Bar')
-      _ = c.eval("theAnswer")
+      extend_search_path(str(Path('tests','cryptol','test-files', 'test-subdir')))
+      load_module('Bar')
+      _ = cry_eval("theAnswer")
       content_lines = self.log_buffer.getvalue().strip().splitlines()
 
       self.assertEqual(len(content_lines), 6,

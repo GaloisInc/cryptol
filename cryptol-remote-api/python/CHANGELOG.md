@@ -1,5 +1,16 @@
 # Revision history for `cryptol` Python package
 
+## 2.11.7 -- 2021-09-22
+
+* Add a synchronous, type-annotated interface (`synchronous.py`). To use this
+  interface, connect using `c = cryptol.sync.connect()` and remove all
+  `.result()` calls.
+* Add a single-connection, synchronous, type-annotated interface based on the
+  above. To use this interface, add `from cryptol.single_connection import *`,
+  connect using `connect()`, replace `c.eval(...).result()` with
+  `cry_eval(...)`, remove all `c.` prefixes, and remove all `.result()` calls.
+* Update most of the tests to use the single-connection interface.
+
 ## 2.11.6 -- 2021-09-10
 
 * Add a `timeout` field to the `CryptolConnection` class which can be used
