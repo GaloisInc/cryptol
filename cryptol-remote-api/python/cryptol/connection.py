@@ -20,7 +20,8 @@ def connect(command : Optional[str]=None,
             url : Optional[str] = None,
             reset_server : bool = False,
             verify : Union[bool, str] = True,
-            log_dest : Optional[TextIO] = None) -> CryptolConnection:
+            log_dest : Optional[TextIO] = None,
+            timeout : Optional[float] = None) -> CryptolConnection:
     """
     Connect to a (possibly new) Cryptol server process.
 
@@ -45,6 +46,10 @@ def connect(command : Optional[str]=None,
     will print traffic to ``stderr``, ``log_dest=open('foo.log', 'w')`` will log to ``foo.log``,
     etc.
 
+    :param timeout: Optional default timeout (in seconds) for methods. Can be modified/read via the
+    `timeout` member field on a `CryptolConnection`. Method invocations which specify
+    the optional `timeout` keyword parameter will cause the default to be ignored for that method.
+
     If no ``command`` or ``url`` parameters are provided, the following are attempted in order:
 
     1. If the environment variable ``CRYPTOL_SERVER`` is set and referse to an executable,
@@ -61,7 +66,7 @@ def connect(command : Optional[str]=None,
     if command is not None:
         if url is not None:
             raise ValueError("A Cryptol server URL cannot be specified with a command currently.")
-        c = CryptolConnection(command, cryptol_path, log_dest=log_dest)
+        c = CryptolConnection(command, cryptol_path, log_dest=log_dest, timeout=timeout)
     # User-passed url?
     if c is None and url is not None:
         c = CryptolConnection(ServerConnection(HttpProcess(url, verify=verify)), cryptol_path, log_dest=log_dest)
@@ -71,17 +76,17 @@ def connect(command : Optional[str]=None,
         if command is not None:
             command = find_executable(command)
             if command is not None:
-                c = CryptolConnection(command+" socket", cryptol_path=cryptol_path, log_dest=log_dest)
+                c = CryptolConnection(command+" socket", cryptol_path=cryptol_path, log_dest=log_dest, timeout=timeout)
     # Check `CRYPTOL_SERVER_URL` env var if no connection identified yet
     if c is None:
         url = os.getenv('CRYPTOL_SERVER_URL')
         if url is not None:
-            c = CryptolConnection(ServerConnection(HttpProcess(url,verify=verify)), cryptol_path, log_dest=log_dest)
+            c = CryptolConnection(ServerConnection(HttpProcess(url,verify=verify)), cryptol_path, log_dest=log_dest, timeout=timeout)
     # Check if `cryptol-remote-api` is in the PATH if no connection identified yet
     if c is None:
         command = find_executable('cryptol-remote-api')
         if command is not None:
-            c = CryptolConnection(command+" socket", cryptol_path=cryptol_path, log_dest=log_dest)
+            c = CryptolConnection(command+" socket", cryptol_path=cryptol_path, log_dest=log_dest, timeout=timeout)
     # Raise an error if still no connection identified yet
     if c is not None:
         if reset_server:
@@ -99,7 +104,8 @@ def connect(command : Optional[str]=None,
 
 def connect_stdio(command : str,
                   cryptol_path : Optional[str] = None,
-                  log_dest : Optional[TextIO] = None) -> CryptolConnection:
+                  log_dest : Optional[TextIO] = None,
+                  timeout : Optional[float] = None) -> CryptolConnection:
     """Start a new connection to a new Cryptol server process.
 
     :param command: The command to launch the Cryptol server.
@@ -110,7 +116,7 @@ def connect_stdio(command : str,
     """
     conn = CryptolStdIOProcess(command, cryptol_path=cryptol_path)
 
-    return CryptolConnection(conn, log_dest=log_dest)
+    return CryptolConnection(conn, log_dest=log_dest, timeout=timeout)
 
 
 class CryptolConnection:
@@ -128,12 +134,17 @@ class CryptolConnection:
     """
     most_recent_result : Optional[argo.Interaction]
 
+    timeout : Optional[float]
+    """(Optional) default timeout in seconds for methods."""
+
     def __init__(self,
                 command_or_connection : Union[str, ServerConnection, ServerProcess],
                 cryptol_path : Optional[str] = None,
                 *,
-                log_dest : Optional[TextIO] = None) -> None:
+                log_dest : Optional[TextIO] = None,
+                timeout : Optional[float] = None) -> None:
         self.most_recent_result = None
+        self.timeout = timeout
         if isinstance(command_or_connection, ServerProcess):
             self.server_connection = ServerConnection(command_or_connection)
         elif isinstance(command_or_connection, str):
@@ -163,141 +174,185 @@ class CryptolConnection:
             return self.most_recent_result.state()
 
     # Protocol messages
-    def load_file(self, filename : str) -> argo.Command:
+    def load_file(self, filename : str, *, timeout:Optional[float] = None) -> argo.Command:
         """Load a filename as a Cryptol module, like ``:load`` at the Cryptol
         REPL.
+
+        :param timeout: Optional timeout for this request (in seconds).
         """
-        self.most_recent_result = CryptolLoadFile(self, filename)
+        timeout = timeout if timeout is not None else self.timeout
+        self.most_recent_result = CryptolLoadFile(self, filename, timeout)
         return self.most_recent_result
 
-    def load_module(self, module_name : str) -> argo.Command:
-        """Load a Cryptol module, like ``:module`` at the Cryptol REPL."""
-        self.most_recent_result = CryptolLoadModule(self, module_name)
+    def load_module(self, module_name : str, *, timeout:Optional[float] = None) -> argo.Command:
+        """Load a Cryptol module, like ``:module`` at the Cryptol REPL.
+
+        :param timeout: Optional timeout for this request (in seconds).
+        """
+        timeout = timeout if timeout is not None else self.timeout
+        self.most_recent_result = CryptolLoadModule(self, module_name, timeout)
         return self.most_recent_result
 
-    def eval_raw(self, expression : Any) -> argo.Command:
+    def eval_raw(self, expression : Any, *, timeout:Optional[float] = None) -> argo.Command:
         """Like the member method ``eval``, but does not call
         ``from_cryptol_arg`` on the ``.result()``.
+
+        :param timeout: Optional timeout for this request (in seconds).
         """
-        self.most_recent_result = CryptolEvalExprRaw(self, expression)
+        self.most_recent_result = CryptolEvalExprRaw(self, expression, timeout)
         return self.most_recent_result
 
-    def eval(self, expression : Any) -> argo.Command:
+    def eval(self, expression : Any, *, timeout:Optional[float] = None) -> argo.Command:
         """Evaluate a Cryptol expression, represented according to
         :ref:`cryptol-json-expression`, with Python datatypes standing
         for their JSON equivalents.
+
+        :param timeout: Optional timeout for this request (in seconds).
         """
-        self.most_recent_result = CryptolEvalExpr(self, expression)
+        timeout = timeout if timeout is not None else self.timeout
+        self.most_recent_result = CryptolEvalExpr(self, expression, timeout)
         return self.most_recent_result
 
-    def evaluate_expression(self, expression : Any) -> argo.Command:
+    def evaluate_expression(self, expression : Any, *, timeout:Optional[float] = None) -> argo.Command:
         """Synonym for member method ``eval``.
-        """
-        return self.eval(expression)
 
-    def extend_search_path(self, *dir : str) -> argo.Command:
-        """Extend the search path for loading Cryptol modules."""
-        self.most_recent_result = CryptolExtendSearchPath(self, list(dir))
+        :param timeout: Optional timeout for this request (in seconds)."""
+        return self.eval(expression, timeout=timeout)
+
+    def extend_search_path(self, *dir : str, timeout:Optional[float] = None) -> argo.Command:
+        """Extend the search path for loading Cryptol modules.
+
+        :param timeout: Optional timeout for this request (in seconds)."""
+        timeout = timeout if timeout is not None else self.timeout
+        self.most_recent_result = CryptolExtendSearchPath(self, list(dir), timeout)
         return self.most_recent_result
 
-    def call_raw(self, fun : str, *args : List[Any]) -> argo.Command:
+    def call_raw(self, fun : str, *args : List[Any], timeout:Optional[float] = None) -> argo.Command:
         """Like the member method ``call``, but does not call
         ``from_cryptol_arg`` on the ``.result()``.
         """
+        timeout = timeout if timeout is not None else self.timeout
         encoded_args = [cryptoltypes.CryptolType().from_python(a) for a in args]
-        self.most_recent_result = CryptolCallRaw(self, fun, encoded_args)
+        self.most_recent_result = CryptolCallRaw(self, fun, encoded_args, timeout)
         return self.most_recent_result
 
-    def call(self, fun : str, *args : List[Any]) -> argo.Command:
+    def call(self, fun : str, *args : List[Any], timeout:Optional[float] = None) -> argo.Command:
+        """Call function ``fun`` with specified ``args``.
+
+        :param timeout: Optional timeout for this request (in seconds)."""
+        timeout = timeout if timeout is not None else self.timeout
         encoded_args = [cryptoltypes.CryptolType().from_python(a) for a in args]
-        self.most_recent_result = CryptolCall(self, fun, encoded_args)
+        self.most_recent_result = CryptolCall(self, fun, encoded_args, timeout)
         return self.most_recent_result
 
-    def check_raw(self, expr : Any, *, num_tests : Union[Literal['all'], int, None] = None) -> argo.Command:
+
+    def check_raw(self, expr : Any, *, num_tests : Union[Literal['all'], int, None] = None, timeout:Optional[float] = None) -> argo.Command:
         """Like the member method ``check``, but does not call
         `to_check_report` on the ``.result()``.
         """
         if num_tests == "all" or isinstance(num_tests, int) or num_tests is None:
-            self.most_recent_result = CryptolCheckRaw(self, expr, num_tests)
+            self.most_recent_result = CryptolCheckRaw(self, expr, num_tests, timeout)
             return self.most_recent_result
         else:
             raise ValueError('``num_tests`` must be an integer, ``None``, or the string literall ``"all"``')
 
-    def check(self, expr : Any, *, num_tests : Union[Literal['all'], int, None] = None) -> argo.Command:
+    def check(self, expr : Any, *, num_tests : Union[Literal['all'], int, None] = None, timeout:Optional[float] = None) -> argo.Command:
         """Tests the validity of a Cryptol expression with random inputs. The expression must be a function with
         return type ``Bit``.
 
         If ``num_tests`` is ``"all"`` then the expression is tested exhaustively (i.e., against all possible inputs).
 
         If ``num_tests`` is omitted, Cryptol defaults to running 100 tests.
+
+        :param timeout: Optional timeout for this request (in seconds).
         """
+        timeout = timeout if timeout is not None else self.timeout
         if num_tests == "all" or isinstance(num_tests, int) or num_tests is None:
-            self.most_recent_result = CryptolCheck(self, expr, num_tests)
+            self.most_recent_result = CryptolCheck(self, expr, num_tests, timeout)
             return self.most_recent_result
         else:
             raise ValueError('``num_tests`` must be an integer, ``None``, or the string literall ``"all"``')
 
-    def check_type(self, code : Any) -> argo.Command:
+
+    def check_type(self, code : Any, *, timeout:Optional[float] = None) -> argo.Command:
         """Check the type of a Cryptol expression, represented according to
         :ref:`cryptol-json-expression`, with Python datatypes standing for
         their JSON equivalents.
+
+        :param timeout: Optional timeout for this request (in seconds).
         """
-        self.most_recent_result = CryptolCheckType(self, code)
+        timeout = timeout if timeout is not None else self.timeout
+        self.most_recent_result = CryptolCheckType(self, code, timeout)
         return self.most_recent_result
 
-    def sat_raw(self, expr : Any, solver : solver.Solver = solver.Z3, count : int = 1) -> argo.Command:
+    def sat_raw(self, expr : Any, solver : solver.Solver = solver.Z3, count : int = 1, *, timeout:Optional[float] = None) -> argo.Command:
         """Like the member method ``sat``, but does not call
         `to_smt_query_result` on the ``.result()``.
         """
-        self.most_recent_result = CryptolSatRaw(self, expr, solver, count)
+        self.most_recent_result = CryptolSatRaw(self, expr, solver, count, timeout)
         return self.most_recent_result
 
-    def sat(self, expr : Any, solver : solver.Solver = solver.Z3, count : int = 1) -> argo.Command:
+    def sat(self, expr : Any, solver : solver.Solver = solver.Z3, count : int = 1, *, timeout:Optional[float] = None) -> argo.Command:
         """Check the satisfiability of a Cryptol expression, represented according to
         :ref:`cryptol-json-expression`, with Python datatypes standing for
         their JSON equivalents. Use the solver named `solver`, and return up to
         `count` solutions.
+
+        :param timeout: Optional timeout for this request (in seconds).
         """
-        self.most_recent_result = CryptolSat(self, expr, solver, count)
+        timeout = timeout if timeout is not None else self.timeout
+        self.most_recent_result = CryptolSat(self, expr, solver, count, timeout)
         return self.most_recent_result
 
-    def prove_raw(self, expr : Any, solver : solver.Solver = solver.Z3) -> argo.Command:
+    def prove_raw(self, expr : Any, solver : solver.Solver = solver.Z3, *, timeout:Optional[float] = None) -> argo.Command:
         """Like the member method ``prove``, but does not call
         `to_smt_query_result` on the ``.result()``.
         """
-        self.most_recent_result = CryptolProveRaw(self, expr, solver)
+        self.most_recent_result = CryptolProveRaw(self, expr, solver, timeout)
         return self.most_recent_result
 
-    def prove(self, expr : Any, solver : solver.Solver = solver.Z3) -> argo.Command:
+    def prove(self, expr : Any, solver : solver.Solver = solver.Z3, *, timeout:Optional[float] = None) -> argo.Command:
         """Check the validity of a Cryptol expression, represented according to
         :ref:`cryptol-json-expression`, with Python datatypes standing for
         their JSON equivalents. Use the solver named `solver`.
+
+        :param timeout: Optional timeout for this request (in seconds).
         """
-        self.most_recent_result = CryptolProve(self, expr, solver)
+        timeout = timeout if timeout is not None else self.timeout
+        self.most_recent_result = CryptolProve(self, expr, solver, timeout)
         return self.most_recent_result
 
-    def safe_raw(self, expr : Any, solver : solver.Solver = solver.Z3) -> argo.Command:
+    def safe_raw(self, expr : Any, solver : solver.Solver = solver.Z3, *, timeout:Optional[float] = None) -> argo.Command:
         """Like the member method ``safe``, but does not call
         `to_smt_query_result` on the ``.result()``.
         """
-        self.most_recent_result = CryptolSafeRaw(self, expr, solver)
+        self.most_recent_result = CryptolSafeRaw(self, expr, solver, timeout)
         return self.most_recent_result
 
-    def safe(self, expr : Any, solver : solver.Solver = solver.Z3) -> argo.Command:
+    def safe(self, expr : Any, solver : solver.Solver = solver.Z3, *, timeout:Optional[float] = None) -> argo.Command:
         """Check via an external SMT solver that the given term is safe for all inputs,
         which means it cannot encounter a run-time error.
+
+        :param timeout: Optional timeout for this request (in seconds).
         """
-        self.most_recent_result = CryptolSafe(self, expr, solver)
+        timeout = timeout if timeout is not None else self.timeout
+        self.most_recent_result = CryptolSafe(self, expr, solver, timeout)
         return self.most_recent_result
 
-    def names(self) -> argo.Command:
-        """Discover the list of names currently in scope in the current context."""
-        self.most_recent_result = CryptolNames(self)
+    def names(self, *, timeout:Optional[float] = None) -> argo.Command:
+        """Discover the list of names currently in scope in the current context.
+
+        :param timeout: Optional timeout for this request (in seconds)."""
+        timeout = timeout if timeout is not None else self.timeout
+        self.most_recent_result = CryptolNames(self, timeout)
         return self.most_recent_result
 
-    def focused_module(self) -> argo.Command:
-        """Return the name of the currently-focused module."""
-        self.most_recent_result = CryptolFocusedModule(self)
+    def focused_module(self, *, timeout:Optional[float] = None) -> argo.Command:
+        """Return the name of the currently-focused module.
+
+        :param timeout: Optional timeout for this request (in seconds)."""
+        timeout = timeout if timeout is not None else self.timeout
+        self.most_recent_result = CryptolFocusedModule(self, timeout)
         return self.most_recent_result
 
     def reset(self) -> None:
@@ -311,6 +366,10 @@ class CryptolConnection:
         """Resets the Cryptol server, clearing all states."""
         CryptolResetServer(self)
         self.most_recent_result = None
+
+    def interrupt(self) -> None:
+        """Interrupt the Cryptol server, cancelling any in-progress requests."""
+        CryptolInterrupt(self)
 
     def logging(self, on : bool, *, dest : TextIO = sys.stderr) -> None:
         """Whether to log received and transmitted JSON."""

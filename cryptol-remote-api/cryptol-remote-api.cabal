@@ -74,6 +74,7 @@ library
     CryptolServer.ExtendSearchPath
     CryptolServer.Exceptions
     CryptolServer.FocusedModule
+    CryptolServer.Interrupt
     CryptolServer.LoadModule
     CryptolServer.Options
     CryptolServer.Names

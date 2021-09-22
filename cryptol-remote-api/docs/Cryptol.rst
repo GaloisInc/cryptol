@@ -611,6 +611,24 @@ Return fields
   
 
 
+interrupt (notification)
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Interrupt the server, terminating it's current task (if one exists).
+
+Parameter fields
+++++++++++++++++
+
+No parameters
+
+
+Return fields
++++++++++++++
+
+No return fields
+
+
+
 
 
 
