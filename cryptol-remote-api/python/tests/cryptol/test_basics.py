@@ -163,9 +163,10 @@ class BasicLoggingServerTests(unittest.TestCase):
       c.extend_search_path(str(Path('tests','cryptol','test-files', 'test-subdir')))
       c.load_module('Bar')
       _ = c.eval("theAnswer")
+      content_lines = self.log_buffer.getvalue().strip().splitlines()
 
-      self.assertEqual(len(self.log_buffer.getvalue().splitlines()), 6,
-                       msg=f'log contents: {str(self.log_buffer.strip().splitlines())}')
+      self.assertEqual(len(content_lines), 6,
+                       msg=f'log contents: {str(content_lines)}')
 
 if __name__ == "__main__":
     unittest.main()
