@@ -34,7 +34,7 @@ class BasicServerTests(unittest.TestCase):
     def test_logging(self):
       c = self.c
       c.extend_search_path(str(Path('tests','cryptol','test-files', 'test-subdir')))
-      c.load_module('Bar')
+      c.load_module('Bar').result()
 
       log_buffer = io.StringIO()
       c.logging(on=True, dest=log_buffer)
