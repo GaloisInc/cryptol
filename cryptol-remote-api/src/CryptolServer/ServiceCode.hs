@@ -181,6 +181,12 @@ exprToByteString expr
     bitsToBytes [] = Just []
     bitsToBytes _ = Nothing
 
+processResult :: Expression -> CryptolCommand (ByteString, ByteString)
+processResult (Tuple [result, tag]) = (,) <$> exprToByteString result <*> exprToByteString tag
+processResult expr = do
+  liftIO $ print expr
+  raise $ makeJSONRPCException 20306 "Invalid result" (Nothing :: Maybe ())
+
 evalExpression :: P.Expr P.PName -> CryptolCommand Expression
 evalExpression e = do
   (_expr, ty, schema) <- liftModuleCmd (checkExpr e)
@@ -222,18 +228,27 @@ serviceCode scp = do
       let fromBase64 str = case BS.Base64.decode $ encodeUtf8 str of
             Left _ -> raise $ makeJSONRPCException 20304 "Invalid service code argument" (Nothing :: Maybe ())
             Right bs -> pure bs
+      metaArgs <- traverse getExpr [serviceCodeShortTitle scp, serviceCodeEdition scp, serviceCodeSegment scp]
       fixedArgs <- traverse (byteStringToExpr <=< decryptOrThrow <=< fromBase64) $ serviceCodeFixedArgs scp
-      let appExpr = mkEApp fun $ randArgs <> fixedArgs
+      let appExpr = mkEApp fun $ randArgs <> metaArgs <> fixedArgs
       expr <- evalExpression appExpr
-      bs <- exprToByteString expr
-      encryptOutput bs >>= \case
-        Nothing -> raise $ makeJSONRPCException 20305 "Failed to wrap result" (Nothing :: Maybe ())
-        Just ebs -> pure $ JSON.object ["result" .= decodeUtf8 (BS.Base64.encode ebs)]
+      (result, tagged) <- processResult expr
+      meresult <- encryptOutput result
+      metagged <- encryptOutput tagged
+      case (meresult, metagged) of
+        (Just eresult, Just etagged) -> pure $ JSON.object
+          [ "result" .= decodeUtf8 (BS.Base64.encode eresult)
+          , "tagged" .= decodeUtf8 (BS.Base64.encode etagged)
+          ]
+        _ -> raise $ makeJSONRPCException 20305 "Failed to wrap result" (Nothing :: Maybe ())
 
 data ServiceCodeParams = ServiceCodeParams
   { serviceCodeName :: Text
   , serviceCodeRandomArgs :: Int
   , serviceCodeFixedArgs :: [Text]
+  , serviceCodeShortTitle :: Expression
+  , serviceCodeEdition :: Expression
+  , serviceCodeSegment :: Expression
   }
 
 instance FromJSON ServiceCodeParams where
@@ -241,6 +256,9 @@ instance FromJSON ServiceCodeParams where
     serviceCodeName <- o .: "name"
     serviceCodeRandomArgs <- o .: "random"
     serviceCodeFixedArgs <- o .: "arguments"
+    serviceCodeShortTitle <- o .: "short_title"
+    serviceCodeEdition <- o .: "edition"
+    serviceCodeSegment <- o .: "segment"
     pure ServiceCodeParams{..}
 
 instance Doc.DescribedMethod ServiceCodeParams JSON.Value where
@@ -255,5 +273,7 @@ instance Doc.DescribedMethod ServiceCodeParams JSON.Value where
 
   resultFieldDescription =
     [ ("result",
-      Doc.Paragraph [ Doc.Text "The result of the service code (a bytestring)"])
+      Doc.Paragraph [ Doc.Text "The untagged result of the service code (a bytestring)"])
+    , ("tagged",
+      Doc.Paragraph [ Doc.Text "The tagged result of the service code (a bytestring)"])
     ]

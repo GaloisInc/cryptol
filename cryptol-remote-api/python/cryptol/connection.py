@@ -198,8 +198,11 @@ class CryptolConnection:
         self.most_recent_result = CryptolCall(self, fun, encoded_args)
         return self.most_recent_result
 
-    def service_code(self, nm : str, random: int, args : List[Any]) -> argo.Command:
-        self.most_recent_result = CryptolServiceCode(self, nm, random, args)
+    def service_code(self, nm : str, random: int, args : List[Any], short_title : Any, edition : Any, segment : Any) -> argo.Command:
+        encoded_short_title = cryptoltypes.CryptolType().from_python(short_title)
+        encoded_edition = cryptoltypes.CryptolType().from_python(edition)
+        encoded_segment = cryptoltypes.CryptolType().from_python(segment)
+        self.most_recent_result = CryptolServiceCode(self, nm, random, args, encoded_short_title, encoded_edition, encoded_segment)
         return self.most_recent_result
 
     def check(self, expr : Any, *, num_tests : Union[Literal['all'], int, None] = None) -> argo.Command:
