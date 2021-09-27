@@ -262,6 +262,12 @@ tMax x y
   maxK (Nat 0) t = t
   maxK (Nat k) t
 
+    -- max 1 t ~> t,   if t = a ^ b && a >= 1
+    | k == 1
+    , TCon (TF TCExp) [a,_] <- t'
+    , Just base <- tIsNat' a
+    , base >= Nat 1 = t
+
     | TCon (TF TCAdd) [a,b] <- t'
     , Just n <- tIsNum a = if k <= n
                              then t
@@ -283,6 +289,13 @@ tMax x y
 tWidth :: Type -> Type
 tWidth x
   | Just t <- tOp TCWidth (total (op1 nWidth)) [x] = t
+
+  -- width (2^n - 1) = n
+  | TCon (TF TCSub) [a,b] <- tNoUser x
+  , Just 1 <- tIsNum b
+  , TCon (TF TCExp) [p,q] <- tNoUser a
+  , Just 2 <- tIsNum p = q
+
   | otherwise = tf1 TCWidth x
 
 tLenFromThenTo :: Type -> Type -> Type -> Type
