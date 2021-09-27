@@ -240,7 +240,7 @@ infixl 6 <.>, <+>, </>
 (<+>)  = liftPP2 (PP.<+>)
 
 (</>) :: Doc -> Doc -> Doc
-Doc x </> Doc y = Doc (\e -> x e <> PP.softline <> y e)
+Doc x </> Doc y = Doc (\e -> x e <> PP.group (PP.line <> y e))
 
 infixl 5 $$
 
@@ -251,7 +251,10 @@ sep :: [Doc] -> Doc
 sep  = liftSep PP.sep
 
 fsep :: [Doc] -> Doc
-fsep  = liftSep PP.fillSep
+fsep  = liftSep fillSep
+  where
+    fillSep [] = mempty
+    fillSep (d0 : ds) = foldl (\a d -> a <> PP.group (PP.line <> d)) d0 ds
 
 hsep :: [Doc] -> Doc
 hsep  = liftSep PP.hsep
