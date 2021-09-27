@@ -3,6 +3,7 @@ from argo_client.interaction import ArgoException
 from pathlib import Path
 import unittest
 import io
+import os
 import time
 import cryptol
 import cryptol.cryptoltypes
@@ -21,7 +22,7 @@ class BasicServerTests(unittest.TestCase):
         self.c = cryptol.connect(verify=False)
 
     def test_extend_search_path(self):
-      """Test that extending the search path acts as expected w.r.t. loads."""
+      # Test that extending the search path acts as expected w.r.t. loads
       c = self.c
 
       c.extend_search_path(str(Path('tests','cryptol','test-files', 'test-subdir')))
@@ -68,15 +69,43 @@ class BasicServerTests(unittest.TestCase):
         self.assertLess(t2 - t1, 5)
 
     def test_interrupt(self):
-        c = self.c
-        c.load_file(str(Path('tests','cryptol','test-files', 'examples','AES.cry')))
+        # Check if this test is using a local server, if not we assume it's a remote HTTP server
+        if os.getenv('CRYPTOL_SERVER') is not None:
+            c = self.c
+            c.load_file(str(Path('tests','cryptol','test-files', 'examples','AES.cry')))
 
-        c.check("\\(bv : [256]) -> ~ (~ (~ (~bv))) == bv", num_tests="all")
-        # ^ .result() intentionally omitted so we don't wait on it's result and we can interrupt
-        # it on the next line.
-        time.sleep(.5)
-        c.interrupt()
-        self.assertTrue(c.safe("aesEncrypt").result())
+            t1 = time.time()
+            c.check("\\(bv : [256]) -> ~ (~ (~ (~bv))) == bv", num_tests="all", timeout=30.0)
+            # ^ .result() intentionally omitted so we don't wait on it's result and we can interrupt
+            # it on the next line. We add a timeout just in case to the test fails
+            time.sleep(.5)
+            c.interrupt()
+            self.assertTrue(c.safe("aesEncrypt").result())
+            t2 = time.time()
+            self.assertLess(t2 - t1, 15.0) # ensure th interrupt ended things and not the timeout
+        elif os.getenv('CRYPTOL_SERVER_URL') is not None:
+            c = self.c
+            other_c = cryptol.connect(verify=False)
+            # Since this is the HTTP server, due to client implementation details
+            # the requests don't return until they get a response, so we fork
+            # to interrupt the server
+            newpid = os.fork()
+            if newpid == 0:
+                time.sleep(5)
+                other_c.interrupt()
+                os._exit(0)
+
+            c.load_file(str(Path('tests','cryptol','test-files', 'examples','AES.cry')))
+
+            t1 = time.time()
+            c.check("\\(bv : [256]) -> ~ (~ (~ (~bv))) == bv", num_tests="all", timeout=60.0)
+            self.assertTrue(c.safe("aesEncrypt").result())
+            t2 = time.time()
+            self.assertLess(t2 - t1, 20.0) # ensure th interrupt ended things and not the timeout
+        else:
+            # Otherwise fail... since this shouldn't be possible
+            self.assertFalse("Impossible")
+
 
     def test_prove_timeout(self):
         c = self.c

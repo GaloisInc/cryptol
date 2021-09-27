@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -euo pipefail
+
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 PROTO=${1:-"http"}
@@ -25,10 +27,13 @@ pushd $DIR/python
 NUM_FAILS=0
 
 echo "Setting up python environment for remote server clients..."
+poetry update
 poetry install
 
 export CRYPTOL_SERVER_URL="$PROTO://localhost:8080/"
-poetry run python -m unittest discover tests/cryptol
+
+echo "Running cryptol-remote-api tests with remote server at $CRYPTOL_SERVER_URL..."
+poetry run python -m unittest discover --verbose tests/cryptol
 if [ $? -ne 0 ]; then
     NUM_FAILS=$(($NUM_FAILS+1))
 fi
