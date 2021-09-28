@@ -294,7 +294,7 @@ jobs:
   build-push-image:
     runs-on: ubuntu-latest
     needs: [config]
-    if: github.event_name == 'schedule'
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
       matrix:
@@ -307,7 +307,6 @@ jobs:
             file: cryptol-remote-api/Dockerfile
             image: ghcr.io/galoisinc/cryptol-remote-api
             cache: ghcr.io/galoisinc/cache-cryptol-remote-api
-            if: ${{ github.event_name == 'schedule' }}
           - build-args: PORTABILITY=false
             file: cryptol-remote-api/Dockerfile
             image: ghcr.io/galoisinc/cryptol-remote-api
