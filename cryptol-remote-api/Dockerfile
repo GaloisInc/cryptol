@@ -2,7 +2,7 @@ ARG GHCVER="8.10.3"
 ARG GHCVER_BOOTSTRAP="8.10.2"
 FROM debian:buster-20210511 AS toolchain
 ARG PORTABILITY=false
-RUN apt-get update && apt-get install -y libncurses-dev libz-dev \
+RUN apt-get update && apt-get install -y libncurses-dev libz-dev unzip \
     build-essential curl libffi-dev libffi6 libgmp-dev libgmp10 libncurses-dev libncurses5 libtinfo5 libnuma-dev \
     $(if ${PORTABILITY}; then echo git autoconf python3; fi)
 ENV GHCUP_INSTALL_BASE_PREFIX=/opt \
