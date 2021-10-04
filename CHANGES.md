@@ -1,4 +1,4 @@
-# Next Release
+# 2.12.0
 
 ## Language changes
 * Updates to the layout rule.  We simplified the specification and made
@@ -15,6 +15,19 @@
   the stride for an enumeration, as opposed to the previous
   `[x, y .. z]` form (where the stride was computed from `x` and `y`).
 
+* Nested modules are now available (from pull request #1048). For example, the following is now valid Cryptol:
+
+        module SubmodTest where
+
+        import submodule B as C
+
+        submodule A where
+          propA = C::y > 5
+
+        submodule B where
+          y : Integer
+          y = 42
+
 ## New features
 
 * What4 prover backends now feature an improved multi-SAT procedure
@@ -30,6 +43,38 @@
   can be combined into a single line by separating them with `;`,
   which is necessary for stating a signature together with a
   definition, etc.
+  
+* There is a new `:set path` REPL option that provides an alternative to
+  `CRYPTOLPATH` for controlling where to search for imported modules
+  (issue #631).
+
+* The `cryptol-remote-api` server now natively supports HTTPS (issue
+  #1008), `newtype` values (issue #1033), and safety checking (issue
+  #1166).
+
+* Releases optionally include solvers (issue #1111). See the
+  `*-with-solvers*` files in the assets list for this release.
+
+## Bug fixes
+
+* Closed issues #422, #436, #619, #631, #633, #640, #680, #734, #735,
+  #759, #760, #764, #849, #996, #1000, #1008, #1019, #1032, #1033,
+  #1034, #1043, #1047, #1060, #1064, #1083, #1084, #1087, #1102, #1111,
+  #1113, #1117, #1125, #1133, #1142, #1144, #1145, #1146, #1157, #1160,
+  #1163, #1166, #1169, #1175, #1179, #1182, #1190, #1191, #1196, #1197,
+  #1204, #1209, #1210, #1213, #1216, #1223, #1226, #1238, #1239, #1240,
+  #1241, #1250, #1256, #1259, #1261, #1266, #1274, #1275, #1283, and
+  #1291.
+
+* Merged pull requests #1048, #1128, #1129, #1130, #1131, #1135, #1136,
+  #1137, #1139, #1148, #1149, #1150, #1152, #1154, #1156, #1158, #1159,
+  #1161, #1164, #1165, #1168, #1170, #1171, #1172, #1173, #1174, #1176,
+  #1181, #1183, #1186, #1188, #1192, #1193, #1194, #1195, #1199, #1200,
+  #1202, #1203, #1205, #1207, #1211, #1214, #1215, #1218, #1219, #1221,
+  #1224, #1225, #1227, #1228, #1230, #1231, #1232, #1234, #1242, #1243,
+  #1244, #1245, #1246, #1247, #1248, #1251, #1252, #1254, #1255, #1258,
+  #1263, #1265, #1268, #1269, #1270, #1271, #1272, #1273, #1276, #1281,
+  #1282, #1284, #1285, #1286, #1287, #1288, #1293, #1294, and #1295.
 
 # 2.11.0
 
