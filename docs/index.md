@@ -1,2 +1,0 @@
-Cryptol Reference
-=================

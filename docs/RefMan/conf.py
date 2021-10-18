@@ -80,9 +80,11 @@ pygments_style = None
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'classic'
-# html_theme = 'sphinx_rtd_theme'
+# html_theme = 'classic'
+html_theme = 'sphinx_rtd_theme'
 # see: https://github.com/readthedocs/sphinx_rtd_theme
+# the theme may be installed using:
+# pip install sphinx-rtd-theme
 
 
 # Theme options are theme-specific and customize the look and feel of a theme
