@@ -124,6 +124,18 @@
 <li><a class="reference internal" href="#functions">Functions</a></li>
 </ul>
 </li>
+<li><a class="reference internal" href="#overloaded-operations">Overloaded Operations</a><ul>
+<li><a class="reference internal" href="#equality">Equality</a></li>
+<li><a class="reference internal" href="#comparisons">Comparisons</a></li>
+<li><a class="reference internal" href="#signed-comparisons">Signed Comparisons</a></li>
+<li><a class="reference internal" href="#zero">Zero</a></li>
+<li><a class="reference internal" href="#logical-operations">Logical Operations</a></li>
+<li><a class="reference internal" href="#basic-arithmetic">Basic Arithmetic</a></li>
+<li><a class="reference internal" href="#integral-operations">Integral Operations</a></li>
+<li><a class="reference internal" href="#division">Division</a></li>
+<li><a class="reference internal" href="#rounding">Rounding</a></li>
+</ul>
+</li>
 <li><a class="reference internal" href="#type-declarations">Type Declarations</a><ul>
 <li><a class="reference internal" href="#type-synonyms">Type Synonyms</a></li>
 <li><a class="reference internal" href="#newtypes">Newtypes</a></li>
@@ -869,6 +881,102 @@ a location
 <h3>Functions<a class="headerlink" href="#functions" title="Permalink to this headline">¶</a></h3>
 <div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">\</span><span class="n">p1</span> <span class="n">p2</span> <span class="ow">-&gt;</span> <span class="n">e</span>              <span class="c1">// Lambda expression</span>
 <span class="nf">f</span> <span class="n">p1</span> <span class="n">p2</span> <span class="ow">=</span> <span class="n">e</span>              <span class="c1">// Function definition</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="section" id="overloaded-operations">
+<h2>Overloaded Operations<a class="headerlink" href="#overloaded-operations" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="equality">
+<h3>Equality<a class="headerlink" href="#equality" title="Permalink to this headline">¶</a></h3>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kt">Eq</span>
+  <span class="p">(</span><span class="o">==</span><span class="p">)</span>        <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span>    <span class="p">(</span><span class="kt">Eq</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="kr">Bit</span>
+  <span class="p">(</span><span class="o">!=</span><span class="p">)</span>        <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span>    <span class="p">(</span><span class="kt">Eq</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="kr">Bit</span>
+  <span class="p">(</span><span class="o">===</span><span class="p">)</span>       <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">}</span> <span class="p">(</span><span class="kt">Eq</span> <span class="n">b</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="p">(</span><span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">b</span><span class="p">)</span> <span class="ow">-&gt;</span> <span class="p">(</span><span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">b</span><span class="p">)</span> <span class="ow">-&gt;</span> <span class="p">(</span><span class="n">a</span> <span class="ow">-&gt;</span> <span class="kr">Bit</span><span class="p">)</span>
+  <span class="p">(</span><span class="o">!==</span><span class="p">)</span>       <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">}</span> <span class="p">(</span><span class="kt">Eq</span> <span class="n">b</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="p">(</span><span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">b</span><span class="p">)</span> <span class="ow">-&gt;</span> <span class="p">(</span><span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">b</span><span class="p">)</span> <span class="ow">-&gt;</span> <span class="p">(</span><span class="n">a</span> <span class="ow">-&gt;</span> <span class="kr">Bit</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="comparisons">
+<h3>Comparisons<a class="headerlink" href="#comparisons" title="Permalink to this headline">¶</a></h3>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">Cmp</span>
+  <span class="p">(</span><span class="o">&lt;</span><span class="p">)</span>         <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kr">Cmp</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="kr">Bit</span>
+  <span class="p">(</span><span class="o">&gt;</span><span class="p">)</span>         <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kr">Cmp</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="kr">Bit</span>
+  <span class="p">(</span><span class="o">&lt;=</span><span class="p">)</span>        <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kr">Cmp</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="kr">Bit</span>
+  <span class="p">(</span><span class="o">&gt;=</span><span class="p">)</span>        <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kr">Cmp</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="kr">Bit</span>
+  <span class="kr">min</span>         <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kr">Cmp</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span>
+  <span class="kr">max</span>         <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kr">Cmp</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span>
+  <span class="n">abs</span>         <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kr">Cmp</span> <span class="n">a</span><span class="p">,</span> <span class="kt">Ring</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="signed-comparisons">
+<h3>Signed Comparisons<a class="headerlink" href="#signed-comparisons" title="Permalink to this headline">¶</a></h3>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kt">SignedCmp</span>
+  <span class="p">(</span><span class="o">&lt;$</span><span class="p">)</span>        <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">SignedCmp</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="kr">Bit</span>
+  <span class="p">(</span><span class="o">&gt;$</span><span class="p">)</span>        <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">SignedCmp</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="kr">Bit</span>
+  <span class="p">(</span><span class="o">&lt;=$</span><span class="p">)</span>       <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">SignedCmp</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="kr">Bit</span>
+  <span class="p">(</span><span class="o">&gt;=$</span><span class="p">)</span>       <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">SignedCmp</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="kr">Bit</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="zero">
+<h3>Zero<a class="headerlink" href="#zero" title="Permalink to this headline">¶</a></h3>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kt">Zero</span>
+  <span class="n">zero</span>        <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Zero</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="logical-operations">
+<h3>Logical Operations<a class="headerlink" href="#logical-operations" title="Permalink to this headline">¶</a></h3>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kt">Logic</span>
+  <span class="p">(</span><span class="o">&amp;&amp;</span><span class="p">)</span>        <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Logic</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span>
+  <span class="p">(</span><span class="o">||</span><span class="p">)</span>        <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Logic</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span>
+  <span class="p">(</span><span class="o">^</span><span class="p">)</span>         <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Logic</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span>
+  <span class="n">complement</span>  <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Logic</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="basic-arithmetic">
+<h3>Basic Arithmetic<a class="headerlink" href="#basic-arithmetic" title="Permalink to this headline">¶</a></h3>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kt">Ring</span>
+  <span class="n">fromInteger</span> <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Ring</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="kt">Integer</span> <span class="ow">-&gt;</span> <span class="n">a</span>
+  <span class="p">(</span><span class="o">+</span><span class="p">)</span>         <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Ring</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span>
+  <span class="p">(</span><span class="o">-</span><span class="p">)</span>         <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Ring</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span>
+  <span class="p">(</span><span class="o">*</span><span class="p">)</span>         <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Ring</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span>
+  <span class="n">negate</span>      <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Ring</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span>
+  <span class="p">(</span><span class="o">^^</span><span class="p">)</span>        <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">,</span> <span class="n">e</span><span class="p">}</span> <span class="p">(</span><span class="kt">Ring</span> <span class="n">a</span><span class="p">,</span> <span class="kt">Integral</span> <span class="n">e</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">e</span> <span class="ow">-&gt;</span> <span class="n">a</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="integral-operations">
+<h3>Integral Operations<a class="headerlink" href="#integral-operations" title="Permalink to this headline">¶</a></h3>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kt">Integral</span>
+  <span class="p">(</span><span class="o">/</span><span class="p">)</span>         <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Integral</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span>
+  <span class="p">(</span><span class="o">%</span><span class="p">)</span>         <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Integral</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span>
+  <span class="p">(</span><span class="o">^^</span><span class="p">)</span>        <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">,</span> <span class="n">e</span><span class="p">}</span> <span class="p">(</span><span class="kt">Ring</span> <span class="n">a</span><span class="p">,</span> <span class="kt">Integral</span> <span class="n">e</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">e</span> <span class="ow">-&gt;</span> <span class="n">a</span>
+  <span class="n">toInteger</span>   <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Integral</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="kt">Integer</span>
+  <span class="n">infFrom</span>     <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Integral</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="p">[</span><span class="kr">inf</span><span class="p">]</span><span class="n">a</span>
+  <span class="n">infFromThen</span> <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Integral</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="p">[</span><span class="kr">inf</span><span class="p">]</span><span class="n">a</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="division">
+<h3>Division<a class="headerlink" href="#division" title="Permalink to this headline">¶</a></h3>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kt">Field</span>
+  <span class="n">recip</span>       <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Field</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span>
+  <span class="p">(</span><span class="o">/.</span><span class="p">)</span>        <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Field</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="rounding">
+<h3>Rounding<a class="headerlink" href="#rounding" title="Permalink to this headline">¶</a></h3>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kt">Round</span>
+  <span class="n">ceiling</span>     <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Round</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="kt">Integer</span>
+  <span class="n">floor</span>       <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Round</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="kt">Integer</span>
+  <span class="n">trunc</span>       <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Round</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="kt">Integer</span>
+  <span class="n">roundAway</span>   <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Round</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="kt">Integer</span>
+  <span class="n">roundToEven</span> <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Round</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="kt">Integer</span>
 </pre></div>
 </div>
 </div>
