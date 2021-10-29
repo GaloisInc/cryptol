@@ -331,11 +331,20 @@ curRange = IM $ asks iRange
 
 -- | Report an error.
 recordError :: Error -> InferM ()
-recordError e =
-  do r <- case e of
-            AmbiguousSize d _ -> return (tvarSource d)
-            _ -> curRange
+recordError = recordErrorLoc Nothing
+
+-- | Report an error.
+recordErrorLoc :: Maybe Range -> Error -> InferM ()
+recordErrorLoc rng e =
+  do r <- case rng of
+            Just r  -> pure r
+            Nothing -> case e of
+                         AmbiguousSize d _ -> return (tvarSource d)
+                         _                 -> curRange
      IM $ sets_ $ \s -> s { iErrors = (r,e) : iErrors s }
+
+
+
 
 recordWarning :: Warning -> InferM ()
 recordWarning w =
@@ -549,7 +558,7 @@ newType src k = TVar `fmap` newTVar src k
 
 -- | Record that the two types should be syntactically equal.
 unify :: TypeWithSource -> Type -> InferM [Prop]
-unify (WithSource t1 src) t2 =
+unify (WithSource t1 src rng) t2 =
   do t1' <- applySubst t1
      t2' <- applySubst t2
      let ((su1, ps), errs) = runResult (mgu t1' t2')
@@ -565,7 +574,7 @@ unify (WithSource t1 src) t2 =
              UniNonPoly x t         -> NotForAll src x t
      case errs of
        [] -> return ps
-       _  -> do mapM_ (recordError . toError) errs
+       _  -> do mapM_ (recordErrorLoc rng . toError) errs
                 return []
 
 -- | Apply the accumulated substitution to something with free type variables.

@@ -8,6 +8,7 @@
 {-# LANGUAGE PatternGuards, Safe #-}
 module Cryptol.TypeCheck.Solver.Selector (tryHasGoal) where
 
+import Cryptol.Parser.Position(Range)
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.InferTypes
 import Cryptol.TypeCheck.Monad( InferM, unify, newGoals
@@ -41,8 +42,8 @@ listType n =
      return (tSeq (tNum n) elems)
 
 
-improveSelector :: Selector -> Type -> InferM Bool
-improveSelector sel outerT =
+improveSelector :: Maybe Range -> Selector -> Type -> InferM Bool
+improveSelector rng sel outerT =
   case sel of
     RecordSel _ mb -> cvt recordType mb
     TupleSel  _ mb -> cvt tupleType  mb
@@ -50,7 +51,7 @@ improveSelector sel outerT =
   where
   cvt _ Nothing   = return False
   cvt f (Just a)  = do ty <- f a
-                       ps <- unify (WithSource outerT (selSrc sel)) ty
+                       ps <- unify (WithSource outerT (selSrc sel) rng) ty
                        newGoals CtExactType ps
                        newT <- applySubst outerT
                        return (newT /= outerT)
@@ -117,13 +118,15 @@ solveSelector sel outerT =
 tryHasGoal :: HasGoal -> InferM (Bool, Bool) -- ^ changes, solved
 tryHasGoal has
   | TCon (PC (PHas sel)) [ th, ft ] <- goal (hasGoal has) =
-    do imped     <- improveSelector sel th
+    do let rng = Just (goalRange (hasGoal has))
+       imped     <- improveSelector rng sel th
        outerT    <- tNoUser `fmap` applySubst th
        mbInnerT  <- solveSelector sel outerT
        case mbInnerT of
          Nothing -> return (imped, False)
          Just innerT ->
-           do newGoals CtExactType =<< unify (WithSource innerT (selSrc sel)) ft
+           do newGoals CtExactType =<<
+                                  unify (WithSource innerT (selSrc sel) rng) ft
               oT <- applySubst outerT
               iT <- applySubst innerT
               sln <- mkSelSln sel oT iT
