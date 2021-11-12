@@ -915,14 +915,9 @@ primitive updateEnd : {n, a, ix} (fin n, Integral ix) => [n]a -> ix -> a -> [n]a
  * given update pairs.
  */
 updates : {n, k, ix, a} (Integral ix, fin k) => [n]a -> [k]ix -> [k]a -> [n]a
-updates xs0 idxs vals = xss!0
- where
-   xss = [ xs0 ] #
-         [ update xs i b
-         | xs <- xss
-         | i  <- idxs
-         | b  <- vals
-         ]
+updates xs0 idxs vals = foldl upd xs0 (zip idxs vals)
+  where
+    upd xs (i,b) = update xs i b
 
 /**
  * Perform a series of updates to a sequence.  The first argument is
@@ -932,14 +927,9 @@ updates xs0 idxs vals = xss!0
  * given update pairs.
  */
 updatesEnd : {n, k, ix, a} (fin n, Integral ix, fin k) => [n]a -> [k]ix -> [k]a -> [n]a
-updatesEnd xs0 idxs vals = xss!0
- where
-   xss = [ xs0 ] #
-         [ updateEnd xs i b
-         | xs  <- xss
-         | i   <- idxs
-         | b   <- vals
-         ]
+updatesEnd xs0 idxs vals = foldl upd xs0 (zip idxs vals)
+  where
+    upd xs (i,b) = updateEnd xs i b
 
 /**
  * Produce a sequence using a generating function.
@@ -1215,5 +1205,4 @@ curry f = \a b -> f (a, b)
  * list of successive function applications.
  */
 iterate : {a} (a -> a) -> a -> [inf]a
-iterate f x = xs
-  where xs = [x] # [ f v | v <- xs ]
+iterate f z = scanl (\x _ -> f x) z (zero:[inf]())
