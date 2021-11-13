@@ -964,32 +964,16 @@ sort = sortBy (<=)
  * pair of elements that are equivalent according to the order relation.
  */
 sortBy : {a, n} (fin n) => (a -> a -> Bit) -> [n]a -> [n]a
-sortBy le ((xs : [n/2]a) # (ys : [n/^2]a)) = merge le xs' ys'
+sortBy le ((xs : [n/2]a) # (ys : [n/^2]a)) = take zs.0
   where
     xs' = if `(n/2)  == 1 then xs else sortBy le xs
     ys' = if `(n/^2) == 1 then ys else sortBy le ys
-
-private
-
-  merge : {a, n, m} (fin n, fin m)
-   => (a -> a -> Bit) -> [n]a -> [m]a -> [n + m]a
-  merge le xs ys = take zs.0
-    where
-      zs =
-        [ if i == `n          then (ys@j, i  , j+1)
-           | j == `m          then (xs@i, i+1, j  )
-           | le (xs@i) (ys@j) then (xs@i, i+1, j  )
-          else                     (ys@j, i  , j+1)
-        | (_, i, j) <- [(undefined, 0, 0)] # zs
-        ]
-
-  merge' : {a, n, m} (fin n, fin m)
-   => (a -> a -> Bit) -> [n]a -> [m]a -> [n + m]a
-  merge' le xs ys =
-      if `n == 0 \/ `m == 0 then xs # ys
-       | le (xs@0) (ys@0)
-      then drop`{1 - min 1 n} ([xs@0] # merge' le (drop`{min 1 n} xs) ys)
-      else drop`{1 - min 1 m} ([ys@0] # merge' le xs (drop`{min 1 m} ys))
+    zs  = [ if i == `(n/2)        then (ys'@j, i  , j+1)
+             | j == `(n/^2)       then (xs'@i, i+1, j  )
+             | le (xs'@i) (ys'@j) then (xs'@i, i+1, j  )
+            else                       (ys'@j, i  , j+1)
+          | (_, i, j) <- [ (undefined, 0, 0) ] # zs
+          ]
 
 // GF_2^n polynomial computations -------------------------------------------
 
