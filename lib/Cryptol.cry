@@ -1156,12 +1156,12 @@ product xs = foldl' (*) (fromInteger 1) xs
 /**
  * Scan left is like a foldl that also emits the intermediate values.
  */
-primitive scanl : {n, a, b}  (a -> b -> a) -> a -> [n]b -> [n+1]a
+primitive scanl : {n, a, b}  (a -> b -> a) -> a -> [n]b -> [1+n]a
 
 /**
  * Scan right is like a foldr that also emits the intermediate values.
  */
-scanr : {n, a, b} (fin n) => (a -> b -> b) -> b -> [n]a -> [n+1]b
+scanr : {n, a, b} (fin n) => (a -> b -> b) -> b -> [n]a -> [1+n]b
 scanr f acc xs = reverse (scanl (\a b -> f b a) acc (reverse xs))
 
 /**

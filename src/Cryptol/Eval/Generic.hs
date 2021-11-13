@@ -1814,7 +1814,7 @@ foldl'V sym =
        go1 f a' bs
 
 
--- scanl : {n, a, b}  (a -> b -> a) -> a -> [n]b -> [n+1]a
+-- scanl : {n, a, b}  (a -> b -> a) -> a -> [n]b -> [1+n]a
 scanlV :: forall sym. Backend sym => sym -> Prim sym
 scanlV sym =
   PNumPoly \n ->
