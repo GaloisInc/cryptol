@@ -1,5 +1,9 @@
 # Revision history for `cryptol-remote-api` and `cryptol-eval-server`
 
+## 2.12.2 -- YYYY-MM-DD
+
+* NEW CHANGELOG ENTRIES SINCE 2.12.0 GO HERE
+
 ## 2.12.0 -- 2021-11-19
 
 * v2.12 release

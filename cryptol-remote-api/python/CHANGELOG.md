@@ -1,5 +1,9 @@
 # Revision history for `cryptol` Python package
 
+## 2.12.2 -- YYYY-MM-DD
+
+* NEW CHANGELOG ENTRIES SINCE 2.12.0 GO HERE
+
 ## 2.12.0 -- 2021-11-19
 
 * v2.12 release in tandem with Cryptol 2.12 release. See Cryptol release 2.12
