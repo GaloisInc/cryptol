@@ -1,5 +1,15 @@
 # Revision history for `cryptol` Python package
 
+## 2.12.2 -- YYYY-MM-DD
+
+* NEW CHANGELOG ENTRIES SINCE 2.12.0 GO HERE
+
+## 2.12.0 -- 2021-11-19
+
+* v2.12 release in tandem with Cryptol 2.12 release. See Cryptol release 2.12
+  release notes for relevant Cryptol changes. No notable changes to RPC server
+  or client since 2.11.7.
+
 ## 2.11.7 -- 2021-09-22
 
 * Add a synchronous, type-annotated interface (`synchronous.py`). To use this
