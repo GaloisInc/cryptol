@@ -16,6 +16,8 @@ from argo_client.connection import DynamicSocketProcess, ServerConnection, Serve
 from . import cryptoltypes
 from . import solver
 from .bitvector import BV
+from .cryptoltypes import fail_with
+from .quoting import cry, cry_f
 from .commands import *
 from .connection import *
 # import everything from `.synchronous` except `connect` and `connect_stdio`
@@ -25,13 +27,4 @@ from .synchronous import Qed, Safe, Counterexample, Satisfiable, Unsatisfiable, 
 from . import synchronous
 sync = synchronous
 
-__all__ = ['bitvector', 'commands', 'connection', 'cryptoltypes', 'opaque', 'single_connection', 'solver', 'synchronous']
-
-
-def fail_with(x : Exception) -> NoReturn:
-    "Raise an exception. This is valid in expression positions."
-    raise x
-
-
-def cry(string : str) -> cryptoltypes.CryptolCode:
-    return cryptoltypes.CryptolLiteral(string)
+__all__ = ['bitvector', 'commands', 'connection', 'cryptoltypes', 'opaque', 'single_connection', 'solver', 'synchronous', 'quoting']

@@ -17,8 +17,8 @@ class CryptolJSON(Protocol):
     def __to_cryptol__(self, ty : CryptolType) -> Any: ...
 
 class CryptolCode(metaclass=ABCMeta):
-    def __call__(self, other : CryptolJSON) -> CryptolCode:
-        return CryptolApplication(self, other)
+    def __call__(self, *others : CryptolJSON) -> CryptolCode:
+        return CryptolApplication(self, *others)
 
     @abstractmethod
     def __to_cryptol__(self, ty : CryptolType) -> Any: ...
@@ -31,6 +31,15 @@ class CryptolLiteral(CryptolCode):
     def __to_cryptol__(self, ty : CryptolType) -> Any:
         return self._code
 
+    def __eq__(self, other : Any) -> bool:
+        return isinstance(other, CryptolLiteral) and self._code == other._code
+
+    def __str__(self) -> str:
+        return self._code
+
+    def __repr__(self) -> str:
+        return f'CryptolLiteral({self._code!r})'
+
 
 class CryptolApplication(CryptolCode):
     def __init__(self, rator : CryptolJSON, *rands : CryptolJSON) -> None:
@@ -41,6 +50,14 @@ class CryptolApplication(CryptolCode):
         return {'expression': 'call',
                 'function': to_cryptol(self._rator),
                 'arguments': [to_cryptol(arg) for arg in self._rands]}
+
+    def __eq__(self, other : Any) -> bool:
+        return isinstance(other, CryptolApplication) and self._rator == other._rator and self._rands == other._rands
+
+    def __repr__(self) -> str:
+        args = [self._rator, *(arg for arg in self._rands)]
+        return f'CryptolApplication({", ".join(repr(x) for x in args)})'
+
 
 class CryptolArrowKind:
     def __init__(self, dom : CryptolKind, ran : CryptolKind):
