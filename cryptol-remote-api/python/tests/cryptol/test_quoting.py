@@ -18,8 +18,8 @@ class TestQuoting(unittest.TestCase):
         self.assertEqual(cry_eval(z), [x,x])
 
         y = cry_eval_f('g {x}')
-        self.assertEqual(y, [x,x])
         z = cry_eval_f('h {y}')
+        self.assertEqual(y, [x,x])
         self.assertEqual(z, [x,x])
         
         self.assertEqual(cry_f('id {BV(size=7, value=1)}'), cry('id (1 : [7])'))
