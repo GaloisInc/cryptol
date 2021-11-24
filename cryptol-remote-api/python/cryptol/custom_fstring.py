@@ -6,9 +6,8 @@ import ast
 import sys
 
 def customf(body : str, onAST : Callable[[ast.FormattedValue], List[ast.expr]],
-            frames : int = 0, globals : Dict[str, Any] = {},
-                              locals : Dict[str, Any] = {},
-            filename : str = "<custom f-string>") -> str:
+            globals : Dict[str, Any] = {}, locals : Dict[str, Any] = {},
+            *, frames : int = 0, filename : str = "<custom f-string>") -> str:
     """This function parses the given string as if it were an f-string,
     applies the given function to the AST of each of the formatting fields in
     the string, then evaluates the result to get the resulting string.
@@ -51,20 +50,30 @@ def customf(body : str, onAST : Callable[[ast.FormattedValue], List[ast.expr]],
         raise type(e)(str(e) + msg).with_traceback(sys.exc_info()[2])
 
 def func_customf(body : str, func : Callable,
-                 frames : int = 0, globals : Dict[str, Any] = {},
-                                   locals : Dict[str, Any] = {},
-                 filename : str = "<custom f-string>",
-                 func_id : str = "_func_customf__func_id") -> str:
+                 globals : Dict[str, Any] = {}, locals : Dict[str, Any] = {},
+                 *, frames : int = 0,  filename : str = "<custom f-string>",
+                    doConvFmtAfter : bool = False,
+                    func_id : str = "_func_customf__func_id") -> str:
     """Like ``customf``, but can be provided a function to apply to the values
     of each of the formatting fields before they are formatted as strings,
     instead of a function applied to their ASTs.
+    
+    Unless the parameter ``doConvFmtAfter`` is set to ``True``, any conversions
+    (i.e. ``{...!s}``, ``{...!r}``, or ``{...!a}``) or format specifiers
+    (e.g. ``{...:>30}`` or ``{...:+f}``) in the input string will be applied
+    before the given function is applied. For example,
+    ``func_customf('{5!r}', f)`` is the same as ``f'{f(repr(5))}'``, but
+    ``func_customf('{5!r}', f, doConvFmtAfter=True)`` is ``f'{repr(f(5))}'``.
     """
     def onAST(node : ast.FormattedValue) -> List[ast.expr]:
         kwargs = {'lineno': node.lineno, 'col_offset': node.col_offset}
         func = ast.Name(id=func_id, ctx=ast.Load(), **kwargs)
-        node.value = ast.Call(func=func, args=[node.value], keywords=[], **kwargs)
+        if doConvFmtAfter or (node.conversion == -1 and node.format_spec is None):
+            node.value = ast.Call(func=func, args=[node.value], keywords=[], **kwargs)
+        else:
+            node_str = ast.JoinedStr(values=[node], **kwargs)
+            node_val = ast.Call(func=func, args=[node_str], keywords=[], **kwargs)
+            node = ast.FormattedValue(value=node_val, conversion=-1, format_spec=None, **kwargs)
         return [node]
-    return customf(body, onAST, frames=1+frames,
-                                globals={**globals, func_id:func},
-                                locals=locals,
-                                filename=filename)
+    return customf(body, onAST, globals, {**locals, func_id:func}, frames=1+frames,
+                                                                   filename=filename)

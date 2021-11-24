@@ -61,8 +61,8 @@ def cry_f(s : str) -> CryptolLiteral:
        ``cry_f('length `{{2}} {x}')`` is equal to ``cry('length `{2} [0,1]')``
        and ``cry_f('{{ x = {x} }}')`` is equal to ``cry('{ x = [0,1] }')``.
 
-       When formatting Cryptol, it is recomended to always use this function
-       and never any of python's built-in methods of string formatting (e.g.
+       When formatting Cryptol, it is recomended to use this function rather
+       than any of python's built-in methods of string formatting (e.g.
        f-strings, ``str.format``) as the latter will not always produce valid
        cryptol syntax. Specifically, this function differs from these methods
        in the cases of ``BV``s, string literals, function application (this
@@ -70,6 +70,12 @@ def cry_f(s : str) -> CryptolLiteral:
        ``cry_f('{ {"x": 5, "y": 4} }')`` equals ``cry('{x = 5, y = 4}')``
        but ``f'{ {"x": 5, "y": 4} }'`` equals ``'{"x": 5, "y": 4}'``. Only
        the former is valid cryptol syntax for a record.
+       
+       Note that any conversion or format specifier will always result in the
+       argument being rendered as a cryptol string literal with the conversion
+       and/or formating applied. For example, `cry('f {5}')` is equal to
+       ``cry('f 5')`` but ``cry_f('f {5!s}')`` is equal to ``cry(`f "5"`)``
+       and ``cry_f('f {5:+.2%}')`` is equal to ``cry('f "+500.00%"')``.
 
        :example:
 

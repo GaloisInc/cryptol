@@ -27,6 +27,11 @@ class TestQuoting(unittest.TestCase):
 
         self.assertEqual(cry_f('{ {"a": x, "b": x} }'), cry('{a = 0x01, b = 0x01}'))
         self.assertEqual(cry_f('{{a = {x}, b = {x}}}'), cry('{a = 0x01, b = 0x01}'))
+        
+        self.assertEqual(cry_f('id {5}'),       cry('id 5'))
+        self.assertEqual(cry_f('id {5!s}'),     cry('id "5"'))
+        self.assertEqual(cry_f('id {5:#x}'),    cry('id "0x5"'))
+        self.assertEqual(cry_f('id {BV(4,5)}'), cry('id 0x5'))
 
 
 if __name__ == "__main__":
