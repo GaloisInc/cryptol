@@ -27,4 +27,4 @@ from .synchronous import Qed, Safe, Counterexample, Satisfiable, Unsatisfiable, 
 from . import synchronous
 sync = synchronous
 
-__all__ = ['bitvector', 'commands', 'connection', 'cryptoltypes', 'opaque', 'single_connection', 'solver', 'synchronous', 'quoting']
+__all__ = ['bitvector', 'commands', 'connection', 'cryptoltypes', 'opaque', 'quoting', 'single_connection', 'solver', 'synchronous']
