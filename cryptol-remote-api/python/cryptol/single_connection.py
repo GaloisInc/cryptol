@@ -151,7 +151,7 @@ def cry_eval_f(s : str, *, timeout:Optional[float] = None) -> CryptolValue:
     result represented according to :ref:`cryptol-json-expression`, with
     Python datatypes standing for their JSON equivalents.
     """
-    expression = func_customf(s, to_cryptol_str, frames=1, filename="<cry_eval_f>")
+    expression = to_cryptol_str_customf(s, frames=1, filename="<cry_eval_f>")
     return cry_eval(expression, timeout=timeout)
 
 def call(fun : str, *args : List[Any], timeout:Optional[float] = None) -> CryptolValue:

@@ -245,7 +245,7 @@ class CryptolConnection:
 
         :param timeout: Optional timeout for this request (in seconds).
         """
-        expression = func_customf(s, to_cryptol_str, frames=1, filename="<eval_f>")
+        expression = to_cryptol_str_customf(s, frames=1, filename="<eval_f>")
         return self.eval(expression, timeout=timeout)
 
     def evaluate_expression(self, expression : Any, *, timeout:Optional[float] = None) -> argo.Command:

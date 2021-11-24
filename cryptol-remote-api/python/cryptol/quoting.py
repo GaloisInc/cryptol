@@ -38,6 +38,12 @@ def to_cryptol_str(val : Union[CryptolValue, str, CryptolLiteral]) -> str:
     else:
         raise TypeError("Unable to convert value to Cryptol syntax: " + str(val))
 
+def to_cryptol_str_customf(s : str, *, frames : int = 0,
+                                       filename : str = "<cry_f>") -> str:
+    """The function used to parse strings given to ``cry_f``"""
+    return func_customf(s, to_cryptol_str, frames=1+frames,
+                                           filename=filename)
+
 def cry(s : str) -> CryptolLiteral:
     """Embed a string of cryptol syntax as ``CryptolCode``"""
     return CryptolLiteral(s)
@@ -72,4 +78,4 @@ def cry_f(s : str) -> CryptolLiteral:
        >>> cry_f('fun2 {y}')
        'fun2 (fun1 (1 : [7]))'
     """
-    return CryptolLiteral(func_customf(s, to_cryptol_str, frames=1, filename="<cry_f>"))
+    return CryptolLiteral(to_cryptol_str_customf(s, frames=1))

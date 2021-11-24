@@ -214,7 +214,7 @@ class CryptolSyncConnection:
         result represented according to :ref:`cryptol-json-expression`, with
         Python datatypes standing for their JSON equivalents.
         """
-        expression = func_customf(s, to_cryptol_str, frames=1, filename="<eval_f>")
+        expression = to_cryptol_str_customf(s, frames=1, filename="<eval_f>")
         return self.eval(expression, timeout=timeout)
 
     def call(self, fun : str, *args : List[Any], timeout:Optional[float] = None) -> CryptolValue:
