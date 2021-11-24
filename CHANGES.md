@@ -1,3 +1,11 @@
+# NEXT
+
+## Language changes
+
+* Update the implementation of the Prelude function `sortBy` to use
+  a merge sort instead of an insertion sort. This improves the both
+  asymptotic and observed performance on sorting tasks.
+
 # 2.12.0
 
 ## Language changes
