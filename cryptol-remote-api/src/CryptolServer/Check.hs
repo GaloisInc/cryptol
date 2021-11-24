@@ -39,6 +39,7 @@ import CryptolServer
       liftModuleCmd,
       CryptolMethod(raise),
       CryptolCommand )
+import CryptolServer.AesonCompat (KeyCompat)
 import CryptolServer.Exceptions (evalPolyErr)
 import CryptolServer.Data.Expression
     ( readBack, getExpr, Expression)
@@ -118,7 +119,7 @@ data CheckResult =
   , checkTestsPossible :: Maybe Integer
   }
 
-convertServerTestResult :: ServerTestResult -> [(Text, JSON.Value)]
+convertServerTestResult :: ServerTestResult -> [(KeyCompat, JSON.Value)]
 convertServerTestResult Pass = ["result" .= ("pass" :: Text)]
 convertServerTestResult (FailFalse args) =
   [ "result" .= ("fail" :: Text)
