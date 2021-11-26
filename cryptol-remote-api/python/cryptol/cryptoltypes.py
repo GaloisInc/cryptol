@@ -56,7 +56,10 @@ class CryptolJSON(Protocol):
 
 class CryptolCode(metaclass=ABCMeta):
     def __call__(self, *others : CryptolJSON) -> CryptolCode:
-        return CryptolApplication(self, *others)
+        if all(hasattr(other, '__to_cryptol__') for other in others):
+            return CryptolApplication(self, *others)
+        else:
+            raise ValueError("Argument to __call__ on CryptolCode is not CryptolJSON")
 
     @abstractmethod
     def __to_cryptol__(self, ty : CryptolType) -> Any: ...
@@ -100,8 +103,7 @@ class CryptolApplication(CryptolCode):
         return isinstance(other, CryptolApplication) and self._rator == other._rator and self._rands == other._rands
 
     def __repr__(self) -> str:
-        args = [self._rator, *(arg for arg in self._rands)]
-        return f'CryptolApplication({", ".join(repr(x) for x in args)})'
+        return f'CryptolApplication({", ".join(repr(x) for x in [self._rator, *self._rands])})'
 
 
 class CryptolArrowKind:

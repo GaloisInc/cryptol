@@ -33,11 +33,15 @@ class TestQuoting(unittest.TestCase):
         self.assertEqual(cry_f('id {5:#x}'),    cry('id "0x5"'))
         self.assertEqual(cry_f('id {BV(4,5)}'), cry('id 0x5'))
 
+        # Only here to check backwards compatability, the above syntax is preferred
         y = cry('g')(cry_f('{x}'))
         z = cry('h')(cry_f('{y}'))
         self.assertEqual(str(z), str(cry('(h) ((g) (0x01))')))
         self.assertEqual(cry_eval(z), [x,x])
         self.assertEqual(str(cry('id')(cry_f('{BV(size=7, value=1)}'))), str(cry('(id) (1 : [7])')))
+        # This is why this syntax is not preferred
+        with self.assertRaises(ValueError):
+            cry('g')(x) # x is not CryptolJSON
 
 
 if __name__ == "__main__":
