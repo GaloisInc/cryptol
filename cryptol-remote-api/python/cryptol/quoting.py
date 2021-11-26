@@ -5,11 +5,11 @@ from typing import Any, Union
 from .bitvector import BV
 from .opaque import OpaqueValue
 from .commands import CryptolValue
-from .cryptoltypes import CryptolLiteral
+from .cryptoltypes import CryptolCode, CryptolLiteral, parenthesize
 from .custom_fstring import *
 
-def to_cryptol_str(val : Union[CryptolValue, str, CryptolLiteral]) -> str:
-    """Converts a ``CryptolValue``, string literal, or ``CryptolLiteral`` into
+def to_cryptol_str(val : Union[CryptolValue, str, CryptolCode]) -> str:
+    """Converts a ``CryptolValue``, string literal, or ``CryptolCode`` into
        a string of cryptol syntax."""
     if isinstance(val, bool):
         return 'True' if val else 'False'
@@ -30,11 +30,8 @@ def to_cryptol_str(val : Union[CryptolValue, str, CryptolLiteral]) -> str:
         return str(val)
     elif isinstance(val, str):
         return f'"{val}"'
-    elif isinstance(val, CryptolLiteral):
-        if len(str(val)) > 0 and str(val)[0] == '(' and str(val)[-1] == ')':
-            return str(val)
-        else:
-            return f'({val})'
+    elif isinstance(val, CryptolCode):
+        return parenthesize(str(val))
     else:
         raise TypeError("Unable to convert value to Cryptol syntax: " + str(val))
 

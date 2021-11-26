@@ -13,6 +13,44 @@ from typing_extensions import Literal, Protocol
 
 A = TypeVar('A')
 
+def is_parenthesized(s : str) -> bool:
+    """Returns ``True`` iff the given string has balanced parentheses and is
+       enclosed in a matching pair of parentheses.
+       
+       :examples:
+       
+       >>> is_parenthesized(' ((a) b )')
+       True
+       >>> is_parenthesized('(a) (b)')
+       False
+       >>> is_parenthesized('(a')
+       False
+       """
+    seen_one, depth = False, 0
+    for c in s:
+        if depth > 0:
+            if c == '(': depth += 1
+            if c == ')': depth -= 1
+        else: # depth == 0
+            if c == '(':
+                if not seen_one: seen_one, depth = True, 1
+                # A new left paren after all parens have been closed means our
+                #  string is not enclosed in a matching pair of parentheses
+                else: return False
+            if c == ')':
+                # A right paren with no matching left means our string does
+                #  not have balanced parentheses
+                return False
+    # Return True if in the end all parentheses are balanced and we've seen at
+    #  least one matching pair
+    return seen_one and depth == 0
+
+def parenthesize(s : str) -> str:
+    """Encloses the given string ``s`` in parentheses if
+       ``is_parenthesized(s)`` is ``False``"""
+    return s if is_parenthesized(s) else f'({s})'
+
+
 class CryptolJSON(Protocol):
     def __to_cryptol__(self, ty : CryptolType) -> Any: ...
 
@@ -23,6 +61,8 @@ class CryptolCode(metaclass=ABCMeta):
     @abstractmethod
     def __to_cryptol__(self, ty : CryptolType) -> Any: ...
 
+    @abstractmethod
+    def __str__(self) -> str: ...
 
 class CryptolLiteral(CryptolCode):
     def __init__(self, code : str) -> None:
@@ -31,15 +71,14 @@ class CryptolLiteral(CryptolCode):
     def __to_cryptol__(self, ty : CryptolType) -> Any:
         return self._code
 
-    def __eq__(self, other : Any) -> bool:
-        return isinstance(other, CryptolLiteral) and self._code == other._code
-
     def __str__(self) -> str:
         return self._code
 
+    def __eq__(self, other : Any) -> bool:
+        return isinstance(other, CryptolLiteral) and self._code == other._code
+
     def __repr__(self) -> str:
         return f'CryptolLiteral({self._code!r})'
-
 
 class CryptolApplication(CryptolCode):
     def __init__(self, rator : CryptolJSON, *rands : CryptolJSON) -> None:
@@ -50,6 +89,12 @@ class CryptolApplication(CryptolCode):
         return {'expression': 'call',
                 'function': to_cryptol(self._rator),
                 'arguments': [to_cryptol(arg) for arg in self._rands]}
+
+    def __str__(self) -> str:
+        if len(self._rands) == 0:
+            return str(self._rator)
+        else:
+            return ' '.join(parenthesize(str(x)) for x in [self._rator, *self._rands])
 
     def __eq__(self, other : Any) -> bool:
         return isinstance(other, CryptolApplication) and self._rator == other._rator and self._rands == other._rands
