@@ -964,18 +964,16 @@ sort = sortBy (<=)
  * pair of elements that are equivalent according to the order relation.
  */
 sortBy : {a, n} (fin n) => (a -> a -> Bit) -> [n]a -> [n]a
-sortBy le vs =
-  if `n == (0 : Integer) then vs
-  else drop`{1 - min 1 n} (insertBy (vs@0) (sortBy le (drop`{min 1 n} vs)))
+sortBy le ((xs : [n/2]a) # (ys : [n/^2]a)) = take zs.0
   where
-    insertBy : {k} (fin k) => a -> [k]a -> [k+1]a
-    insertBy x0 ys = xys.0 # [last xs]
-      where
-        xs : [k+1]a
-        xs = [x0] # xys.1
-        xys : [k](a, a)
-        xys = [ if le x y then (x, y) else (y, x) | x <- xs | y <- ys ]
-
+    xs' = if `(n/2)  == 1 then xs else sortBy le xs
+    ys' = if `(n/^2) == 1 then ys else sortBy le ys
+    zs  = [ if i == `(n/2)        then (ys'@j, i  , j+1)
+             | j == `(n/^2)       then (xs'@i, i+1, j  )
+             | le (xs'@i) (ys'@j) then (xs'@i, i+1, j  )
+            else                       (ys'@j, i  , j+1)
+          | (_, i, j) <- [ (undefined, 0, 0) ] # zs
+          ]
 
 // GF_2^n polynomial computations -------------------------------------------
 
