@@ -7,8 +7,8 @@ import BitVector #type: ignore
 from .bitvector import BV
 from .opaque import OpaqueValue
 
-from typing import Any, Dict, Iterable, List, NoReturn, Optional, TypeVar, Union
-
+import typing
+from typing import cast, Any, Dict, Iterable, List, NoReturn, Optional, TypeVar, Union
 from typing_extensions import Literal, Protocol
 
 A = TypeVar('A')
@@ -51,8 +51,11 @@ def parenthesize(s : str) -> str:
     return s if is_parenthesized(s) else f'({s})'
 
 
+JSON = Union[bool, int, float, str, Dict, typing.Tuple, List]
+
 class CryptolJSON(Protocol):
-    def __to_cryptol__(self, ty : CryptolType) -> Any: ...
+    def __to_cryptol__(self, ty : CryptolType) -> JSON: ...
+    def __to_cryptol_str__(self) -> str: ...
 
 class CryptolCode(metaclass=ABCMeta):
     def __call__(self, *others : CryptolJSON) -> CryptolCode:
@@ -62,19 +65,22 @@ class CryptolCode(metaclass=ABCMeta):
             raise ValueError("Argument to __call__ on CryptolCode is not CryptolJSON")
 
     @abstractmethod
-    def __to_cryptol__(self, ty : CryptolType) -> Any: ...
+    def __to_cryptol__(self, ty : CryptolType) -> JSON: ...
 
     @abstractmethod
-    def __str__(self) -> str: ...
+    def __to_cryptol_str__(self) -> str: ...
+
+    def __str__(self) -> str:
+        return self.__to_cryptol_str__()
 
 class CryptolLiteral(CryptolCode):
     def __init__(self, code : str) -> None:
         self._code = code
 
-    def __to_cryptol__(self, ty : CryptolType) -> Any:
+    def __to_cryptol__(self, ty : CryptolType) -> JSON:
         return self._code
 
-    def __str__(self) -> str:
+    def __to_cryptol_str__(self) -> str:
         return self._code
 
     def __eq__(self, other : Any) -> bool:
@@ -88,16 +94,16 @@ class CryptolApplication(CryptolCode):
         self._rator = rator
         self._rands = rands
 
-    def __to_cryptol__(self, ty : CryptolType) -> Any:
+    def __to_cryptol__(self, ty : CryptolType) -> JSON:
         return {'expression': 'call',
                 'function': to_cryptol(self._rator),
                 'arguments': [to_cryptol(arg) for arg in self._rands]}
 
-    def __str__(self) -> str:
+    def __to_cryptol_str__(self) -> str:
         if len(self._rands) == 0:
-            return str(self._rator)
+            return self._rator.__to_cryptol_str__()
         else:
-            return ' '.join(parenthesize(str(x)) for x in [self._rator, *self._rands])
+            return ' '.join(parenthesize(x.__to_cryptol_str__()) for x in [self._rator, *self._rands])
 
     def __eq__(self, other : Any) -> bool:
         return isinstance(other, CryptolApplication) and self._rator == other._rator and self._rands == other._rands
@@ -157,7 +163,7 @@ class Logic(UnaryProp):
         return f"Logic({self.subject!r})"
 
 
-def to_cryptol(val : Any, cryptol_type : Optional[CryptolType] = None) -> Any:
+def to_cryptol(val : Any, cryptol_type : Optional[CryptolType] = None) -> JSON:
     if cryptol_type is not None:
         return cryptol_type.from_python(val)
     else:
@@ -179,11 +185,12 @@ def is_plausible_json(val : Any) -> bool:
     return False
 
 class CryptolType:
-    def from_python(self, val : Any) -> Any:
+    def from_python(self, val : Any) -> JSON:
         if hasattr(val, '__to_cryptol__'):
             code = val.__to_cryptol__(self)
             if is_plausible_json(code):
-                return code
+                # the call to is_plausible_json ensures this cast is OK
+                return cast(JSON, code)
             else:
                 raise ValueError(f"Improbable JSON from __to_cryptol__: {val!r} gave {code!r}")
             # if isinstance(code, CryptolCode):
@@ -193,7 +200,7 @@ class CryptolType:
         else:
             return self.convert(val)
 
-    def convert(self, val : Any) -> Any:
+    def convert(self, val : Any) -> JSON:
         if isinstance(val, bool):
             return val
         elif isinstance(val, tuple) and val == ():
