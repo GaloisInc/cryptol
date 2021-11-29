@@ -9,6 +9,8 @@ from typing_extensions import Literal
 
 import argo_client.interaction as argo
 from argo_client.connection import DynamicSocketProcess, ServerConnection, ServerProcess, StdIOProcess, HttpProcess
+from .custom_fstring import *
+from .quoting import *
 from . import cryptoltypes
 from . import solver
 from .commands import *
@@ -217,20 +219,34 @@ class CryptolConnection:
 
         :param timeout: Optional timeout for this request (in seconds).
         """
+        if hasattr(expression, '__to_cryptol__'):
+            expression = cryptoltypes.to_cryptol(expression)
         timeout = timeout if timeout is not None else self.timeout
         self.most_recent_result = CryptolEvalExprRaw(self, expression, timeout)
         return self.most_recent_result
 
     def eval(self, expression : Any, *, timeout:Optional[float] = None) -> argo.Command:
-        """Evaluate a Cryptol expression, represented according to
-        :ref:`cryptol-json-expression`, with Python datatypes standing
-        for their JSON equivalents.
+        """Evaluate a Cryptol expression, with the result represented
+        according to :ref:`cryptol-json-expression`, with Python datatypes
+        standing for their JSON equivalents.
 
         :param timeout: Optional timeout for this request (in seconds).
         """
+        if hasattr(expression, '__to_cryptol__'):
+            expression = cryptoltypes.to_cryptol(expression)
         timeout = timeout if timeout is not None else self.timeout
         self.most_recent_result = CryptolEvalExpr(self, expression, timeout)
         return self.most_recent_result
+
+    def eval_f(self, s : str, *, timeout:Optional[float] = None) -> argo.Command:
+        """Parses the given string like ``cry_f``, then evalues it, with the
+        result represented according to :ref:`cryptol-json-expression`, with
+        Python datatypes standing for their JSON equivalents.
+
+        :param timeout: Optional timeout for this request (in seconds).
+        """
+        expression = to_cryptol_str_customf(s, frames=1, filename="<eval_f>")
+        return self.eval(expression, timeout=timeout)
 
     def evaluate_expression(self, expression : Any, *, timeout:Optional[float] = None) -> argo.Command:
         """Synonym for member method ``eval``.
@@ -251,7 +267,7 @@ class CryptolConnection:
         ``from_cryptol_arg`` on the ``.result()``.
         """
         timeout = timeout if timeout is not None else self.timeout
-        encoded_args = [cryptoltypes.CryptolType().from_python(a) for a in args]
+        encoded_args = [cryptoltypes.to_cryptol(a) for a in args]
         self.most_recent_result = CryptolCallRaw(self, fun, encoded_args, timeout)
         return self.most_recent_result
 
@@ -260,7 +276,7 @@ class CryptolConnection:
 
         :param timeout: Optional timeout for this request (in seconds)."""
         timeout = timeout if timeout is not None else self.timeout
-        encoded_args = [cryptoltypes.CryptolType().from_python(a) for a in args]
+        encoded_args = [cryptoltypes.to_cryptol(a) for a in args]
         self.most_recent_result = CryptolCall(self, fun, encoded_args, timeout)
         return self.most_recent_result
 

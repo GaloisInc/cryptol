@@ -6,6 +6,8 @@ import sys
 from typing import Any, Optional, Union, List, Dict, TextIO, overload
 from typing_extensions import Literal
 
+from .custom_fstring import *
+from .quoting import *
 from .solver import OfflineSmtQuery, Solver, OnlineSolver, OfflineSolver, Z3
 from .connection import CryptolValue, CheckReport
 from . import synchronous
@@ -143,6 +145,14 @@ def cry_eval(expression : Any, *, timeout:Optional[float] = None) -> CryptolValu
     standing for their JSON equivalents.
     """
     return __get_designated_connection().eval(expression, timeout=timeout)
+
+def cry_eval_f(s : str, *, timeout:Optional[float] = None) -> CryptolValue:
+    """Parses the given string like ``cry_f``, then evalues it, with the
+    result represented according to :ref:`cryptol-json-expression`, with
+    Python datatypes standing for their JSON equivalents.
+    """
+    expression = to_cryptol_str_customf(s, frames=1, filename="<cry_eval_f>")
+    return cry_eval(expression, timeout=timeout)
 
 def call(fun : str, *args : List[Any], timeout:Optional[float] = None) -> CryptolValue:
     """Evaluate a Cryptol functiom by name, with the arguments and the

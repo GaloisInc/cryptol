@@ -7,6 +7,8 @@ from typing import Any, Optional, Union, List, Dict, TextIO, overload
 from typing_extensions import Literal
 from dataclasses import dataclass
 
+from .custom_fstring import *
+from .quoting import *
 from .solver import OfflineSmtQuery, Solver, OnlineSolver, OfflineSolver, Z3
 from . import connection
 from . import cryptoltypes
@@ -206,6 +208,14 @@ class CryptolSyncConnection:
         standing for their JSON equivalents.
         """
         return from_cryptol_arg(self.connection.eval_raw(expression, timeout=timeout).result())
+
+    def eval_f(self, s : str, *, timeout:Optional[float] = None) -> CryptolValue:
+        """Parses the given string like ``cry_f``, then evalues it, with the
+        result represented according to :ref:`cryptol-json-expression`, with
+        Python datatypes standing for their JSON equivalents.
+        """
+        expression = to_cryptol_str_customf(s, frames=1, filename="<eval_f>")
+        return self.eval(expression, timeout=timeout)
 
     def call(self, fun : str, *args : List[Any], timeout:Optional[float] = None) -> CryptolValue:
         """Evaluate a Cryptol functiom by name, with the arguments and the
