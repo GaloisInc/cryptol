@@ -1,6 +1,6 @@
 # Revision history for `cryptol` Python package
 
-## 2.12.2 -- 2021-11-19
+## 2.12.2 -- YYYY-MM-DD
 
 * Add an interface for Cryptol quasiquotation using an f-string-like syntax,
   see `tests/cryptol/test_quoting` for some examples.

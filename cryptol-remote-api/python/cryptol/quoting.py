@@ -10,7 +10,7 @@ from .custom_fstring import *
 
 def to_cryptol_str(val : Union[CryptolValue, str, CryptolCode]) -> str:
     """Converts a ``CryptolValue``, string literal, or ``CryptolCode`` into
-       a string of cryptol syntax."""
+       a string of Cryptol syntax."""
     if isinstance(val, bool):
         return 'True' if val else 'False'
     elif isinstance(val, tuple):
@@ -42,13 +42,13 @@ def to_cryptol_str_customf(s : str, *, frames : int = 0,
                                            filename=filename)
 
 def cry(s : str) -> CryptolLiteral:
-    """Embed a string of cryptol syntax as ``CryptolCode``"""
+    """Embed a string of Cryptol syntax as ``CryptolCode``"""
     return CryptolLiteral(s)
 
 def cry_f(s : str) -> CryptolLiteral:
-    """Embed a string of cryptol syntax as ``CryptolCode``, where the given
+    """Embed a string of Cryptol syntax as ``CryptolCode``, where the given
        string is parsed as an f-string, and the values within brackets are
-       converted to cryptol syntax using ``to_cryptol_str``.
+       converted to Cryptol syntax using ``to_cryptol_str``.
 
        Like f-strings, values in brackets (``{``, ``}``) are parsed as python
        expressions in the caller's context of local and global variables, and
@@ -61,15 +61,15 @@ def cry_f(s : str) -> CryptolLiteral:
        When formatting Cryptol, it is recomended to use this function rather
        than any of python's built-in methods of string formatting (e.g.
        f-strings, ``str.format``) as the latter will not always produce valid
-       cryptol syntax. Specifically, this function differs from these methods
+       Cryptol syntax. Specifically, this function differs from these methods
        in the cases of ``BV``s, string literals, function application (this
        function will add parentheses as needed), and dicts. For example,
        ``cry_f('{ {"x": 5, "y": 4} }')`` equals ``cry('{x = 5, y = 4}')``
        but ``f'{ {"x": 5, "y": 4} }'`` equals ``'{"x": 5, "y": 4}'``. Only
-       the former is valid cryptol syntax for a record.
+       the former is valid Cryptol syntax for a record.
        
        Note that any conversion or format specifier will always result in the
-       argument being rendered as a cryptol string literal with the conversion
+       argument being rendered as a Cryptol string literal with the conversion
        and/or formating applied. For example, `cry('f {5}')` is equal to
        ``cry('f 5')`` but ``cry_f('f {5!s}')`` is equal to ``cry(`f "5"`)``
        and ``cry_f('f {5:+.2%}')`` is equal to ``cry('f "+500.00%"')``.
