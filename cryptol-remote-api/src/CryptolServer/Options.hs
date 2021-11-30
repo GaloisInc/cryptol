@@ -12,13 +12,14 @@ import qualified Argo.Doc as Doc
 import Data.Aeson hiding (Options)
 import Data.Aeson.Types (Parser, typeMismatch)
 import Data.Coerce
-import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as T
 
 import Cryptol.Eval(EvalOpts(..))
 import Cryptol.REPL.Monad (parseFieldOrder, parsePPFloatFormat)
 import Cryptol.Utils.Logger (quietLogger)
 import Cryptol.Utils.PP (PPOpts(..), PPFloatFormat(..), PPFloatExp(..), FieldOrder(..), defaultPPOpts)
+
+import CryptolServer.AesonCompat
 
 data Options = Options { optCallStacks :: Bool, optEvalOpts :: EvalOpts }
 
@@ -40,7 +41,7 @@ newtypeField :: forall wrapped bare proxy.
   (Coercible wrapped bare, FromJSON wrapped) =>
   proxy wrapped bare ->
   Object -> T.Text -> bare -> Parser bare
-newtypeField _proxy o field def = unwrap (o .:! field) .!= def where
+newtypeField _proxy o field def = unwrap (o .:! keyFromText field) .!= def where
   unwrap :: Parser (Maybe wrapped) -> Parser (Maybe bare)
   unwrap = coerce
 
@@ -85,7 +86,7 @@ instance FromJSON a => FromJSON (WithOptions a) where
     \o ->
       WithOptions <$>
       o .:! "options" .!= defaultOpts <*>
-      parseJSON (Object (HM.delete "options" o))
+      parseJSON (Object (deleteKM "options" o))
 
 defaultOpts :: Options
 defaultOpts = Options False theEvalOpts

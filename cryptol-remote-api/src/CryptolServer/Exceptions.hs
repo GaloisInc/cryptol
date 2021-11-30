@@ -25,12 +25,12 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B8
 import Data.Text (Text)
 import qualified Data.Text as T
-import qualified Data.HashMap.Strict as HashMap
 
 import Cryptol.Parser
 import qualified Cryptol.TypeCheck.Type as TC
 
 import Argo
+import CryptolServer.AesonCompat
 import CryptolServer.Data.Type
 
 cryptolError :: ModuleError -> [ModuleWarning] -> JSONRPCException
@@ -167,7 +167,7 @@ unwantedDefaults defs =
   makeJSONRPCException
     20210 "Execution would have required these defaults"
     (Just (JSON.object ["defaults" .=
-      [ jsonTypeAndString ty <> HashMap.fromList ["parameter" .= pretty param]
+      [ jsonTypeAndString ty <> fromListKM ["parameter" .= pretty param]
       | (param, ty) <- defs ] ]))
 
 evalInParamMod :: [CM.Name] -> JSONRPCException
@@ -204,6 +204,6 @@ cryptolParseErr expr err =
 -- human-readable string
 jsonTypeAndString :: TC.Type -> JSON.Object
 jsonTypeAndString ty =
-  HashMap.fromList
+  fromListKM
     [ "type" .= JSONSchema (TC.Forall [] [] ty)
     , "type string" .= pretty ty ]
