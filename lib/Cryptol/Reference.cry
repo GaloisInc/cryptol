@@ -44,3 +44,33 @@ pmod x y = if y == 0 then 0/0 else last zs
     powers = [reduce 1] # [ reduce (p << 1) | p <- powers ]
 
     zs = [0] # [ z ^ (if xi then tail p else 0) | xi <- reverse x | p <- powers | z <- zs ]
+
+/**
+ * Functional left fold.
+ *
+ * foldl (+) 0 [1,2,3] = ((0 + 1) + 2) + 3
+ *
+ * Reference implementation.
+ */
+foldl : {n, a, b} (fin n) => (a -> b -> a) -> a -> [n]b -> a
+foldl f z bs = last (scanl f z bs)
+
+/**
+ * Scan left is like a foldl that also emits the intermediate values.
+ *
+ * Reference implementation.
+ */
+scanl : {n, a, b}  (a -> b -> a) -> a -> [n]b -> [1+n]a
+scanl f z bs = as
+  where
+    as = [z] # [ f a b | a <- as | b <- bs ]
+
+/**
+ * Map a function iteratively over a seed value, producing an infinite
+ * list of successive function applications.
+ *
+ * Reference implementation.
+ */
+iterate : {a} (a -> a) -> a -> [inf]a
+iterate f z = xs
+  where xs = [z] # [ f x | x <- xs ]
