@@ -1,0 +1,10 @@
+:l reference.cry
+
+:set tests=1000
+:check
+
+:set prover=sbv-z3
+:prove
+
+:set prover=w4-z3
+:prove

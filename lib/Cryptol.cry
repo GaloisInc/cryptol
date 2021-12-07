@@ -915,14 +915,9 @@ primitive updateEnd : {n, a, ix} (fin n, Integral ix) => [n]a -> ix -> a -> [n]a
  * given update pairs.
  */
 updates : {n, k, ix, a} (Integral ix, fin k) => [n]a -> [k]ix -> [k]a -> [n]a
-updates xs0 idxs vals = xss!0
- where
-   xss = [ xs0 ] #
-         [ update xs i b
-         | xs <- xss
-         | i  <- idxs
-         | b  <- vals
-         ]
+updates xs0 idxs vals = foldl upd xs0 (zip idxs vals)
+  where
+    upd xs (i,b) = update xs i b
 
 /**
  * Perform a series of updates to a sequence.  The first argument is
@@ -932,14 +927,9 @@ updates xs0 idxs vals = xss!0
  * given update pairs.
  */
 updatesEnd : {n, k, ix, a} (fin n, Integral ix, fin k) => [n]a -> [k]ix -> [k]a -> [n]a
-updatesEnd xs0 idxs vals = xss!0
- where
-   xss = [ xs0 ] #
-         [ updateEnd xs i b
-         | xs  <- xss
-         | i   <- idxs
-         | b   <- vals
-         ]
+updatesEnd xs0 idxs vals = foldl upd xs0 (zip idxs vals)
+  where
+    upd xs (i,b) = updateEnd xs i b
 
 /**
  * Produce a sequence using a generating function.
@@ -1157,27 +1147,22 @@ foldr' f acc xs = foldl' g acc (reverse xs)
 sum : {n, a} (fin n, Eq a, Ring a) => [n]a -> a
 sum xs = foldl' (+) (fromInteger 0) xs
 
-
 /**
  * Compute the product of the values in the sequence.
  */
 product : {n, a} (fin n, Eq a, Ring a) => [n]a -> a
 product xs = foldl' (*) (fromInteger 1) xs
 
-
 /**
  * Scan left is like a foldl that also emits the intermediate values.
  */
-scanl : {n, b, a}  (b -> a -> b) -> b -> [n]a -> [n+1]b
-scanl f acc xs = ys
-  where ys = [acc] # [f a x | a <- ys | x <- xs]
+primitive scanl : {n, a, b}  (a -> b -> a) -> a -> [n]b -> [1+n]a
 
 /**
  * Scan right is like a foldr that also emits the intermediate values.
  */
-scanr : {n, a, b} (fin n) => (a -> b -> b) -> b -> [n]a -> [n+1]b
-scanr f acc xs = reverse ys
-  where ys = [acc] # [f x a | a <- ys | x <- reverse xs]
+scanr : {n, a, b} (fin n) => (a -> b -> b) -> b -> [n]a -> [1+n]b
+scanr f acc xs = reverse (scanl (\a b -> f b a) acc (reverse xs))
 
 /**
  * Repeat a value.
@@ -1220,5 +1205,4 @@ curry f = \a b -> f (a, b)
  * list of successive function applications.
  */
 iterate : {a} (a -> a) -> a -> [inf]a
-iterate f x = xs
-  where xs = [x] # [ f v | v <- xs ]
+iterate f z = scanl (\x _ -> f x) z (zero:[inf]())

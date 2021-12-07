@@ -35,7 +35,7 @@ import Data.Map(Map)
 import Data.Ratio ((%))
 
 import Cryptol.TypeCheck.AST
-import Cryptol.TypeCheck.Solver.InfNat (Nat'(..),nMul)
+import Cryptol.TypeCheck.Solver.InfNat (Nat'(..),nMul,nAdd)
 import Cryptol.Backend
 import Cryptol.Backend.Concrete (Concrete(..))
 import Cryptol.Backend.Monad( Eval, evalPanic, EvalError(..), Unsupported(..) )
@@ -1814,6 +1814,40 @@ foldl'V sym =
        go1 f a' bs
 
 
+-- scanl : {n, a, b}  (a -> b -> a) -> a -> [n]b -> [1+n]a
+scanlV :: forall sym. Backend sym => sym -> Prim sym
+scanlV sym =
+  PNumPoly \n ->
+  PTyPoly  \a ->
+  PTyPoly  \_b ->
+  PFun     \f ->
+  PFun     \z ->
+  PStrict  \v ->
+  PPrim
+    do sm <- case v of
+            VSeq _ m   -> scan n f z m
+            VWord _ wv -> scan n f z (VBit <$> asBitsMap sym wv)
+            VStream m  -> scan n f z m
+            _ -> panic "Cryptol.Eval.Generic.scanlV" ["Expected sequence"]
+       mkSeq sym (nAdd (Nat 1) n) a sm
+
+ where
+  scan :: Nat' ->
+          SEval sym (GenValue sym) ->
+          SEval sym (GenValue sym) ->
+          (SeqMap sym (GenValue sym)) ->
+          SEval sym (SeqMap sym (GenValue sym))
+  scan n f z m =
+    do (result, fill) <- sDeclareHole sym "scanl"
+       fill $ memoMap sym (nAdd (Nat 1) n) $ indexSeqMap $ \i ->
+         if i == 0 then z
+         else
+           do r <- result
+              f'  <- fromVFun sym <$> f
+              f'' <- fromVFun sym <$> f' (lookupSeqMap r (i-1))
+              f'' (lookupSeqMap m (i-1))
+       result
+
 -- Random Values ---------------------------------------------------------------
 
 {-# SPECIALIZE randomV ::
@@ -2199,6 +2233,9 @@ genericPrimTable sym getEOpts =
 
   , ("foldl'"     , {-# SCC "Prelude::foldl'" #-}
                     foldl'V sym)
+
+  , ("scanl"      , {-# SCC "Prelude::scanl" #-}
+                    scanlV sym)
 
   , ("deepseq"    , {-# SCC "Prelude::deepseq" #-}
                     PTyPoly \_a ->

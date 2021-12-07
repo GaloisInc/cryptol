@@ -193,7 +193,7 @@ Symbols
     roundAway : {a} (Round a) => a -> Integer
     roundToEven : {a} (Round a) => a -> Integer
     sborrow : {n} (fin n, n >= 1) => [n] -> [n] -> Bit
-    scanl : {n, b, a} (b -> a -> b) -> b -> [n]a -> [1 + n]b
+    scanl : {n, a, b} (a -> b -> a) -> a -> [n]b -> [1 + n]a
     scanr : {n, a, b} (fin n) => (a -> b -> b) -> b -> [n]a -> [1 + n]b
     scarry : {n} (fin n, n >= 1) => [n] -> [n] -> Bit
     sext : {m, n} (fin m, m >= n, n >= 1) => [n] -> [m]
