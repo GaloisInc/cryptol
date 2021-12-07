@@ -1,0 +1,22 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Cryptol::Reference
+Loading module Main
+property foldl_eq Using random testing.
+Testing... Passed 1000 tests.
+property scanl_eq Using random testing.
+Testing... Passed 1000 tests.
+property iterate_eq Using random testing.
+Testing... Passed 1000 tests.
+:prove foldl_eq
+	Q.E.D.
+:prove scanl_eq
+	Q.E.D.
+:prove iterate_eq
+	Q.E.D.
+:prove foldl_eq
+	Q.E.D.
+:prove scanl_eq
+	Q.E.D.
+:prove iterate_eq
+	Q.E.D.
