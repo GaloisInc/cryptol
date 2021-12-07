@@ -1825,20 +1825,21 @@ scanlV sym =
   PStrict  \v ->
   PPrim
     do sm <- case v of
-            VSeq _ m   -> scan f z m
-            VWord _ wv -> scan f z (VBit <$> asBitsMap sym wv)
-            VStream m  -> scan f z m
+            VSeq _ m   -> scan n f z m
+            VWord _ wv -> scan n f z (VBit <$> asBitsMap sym wv)
+            VStream m  -> scan n f z m
             _ -> panic "Cryptol.Eval.Generic.scanlV" ["Expected sequence"]
-       mkSeq sym (nAdd n (Nat 1)) a sm
+       mkSeq sym (nAdd (Nat 1) n) a sm
 
  where
-  scan :: SEval sym (GenValue sym) ->
+  scan :: Nat' ->
+          SEval sym (GenValue sym) ->
           SEval sym (GenValue sym) ->
           (SeqMap sym (GenValue sym)) ->
           SEval sym (SeqMap sym (GenValue sym))
-  scan f z m =
+  scan n f z m =
     do (result, fill) <- sDeclareHole sym "scanl"
-       fill $ return $ indexSeqMap $ \i ->
+       fill $ memoMap sym (nAdd (Nat 1) n) $ indexSeqMap $ \i ->
          if i == 0 then z
          else
            do r <- result
