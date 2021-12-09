@@ -54,7 +54,7 @@ def parenthesize(s : str) -> str:
 JSON = Union[bool, int, float, str, Dict, typing.Tuple, List]
 
 class CryptolJSON(Protocol):
-    def __to_cryptol__(self, ty : CryptolType) -> JSON: ...
+    def __to_cryptol__(self) -> JSON: ...
     def __to_cryptol_str__(self) -> str: ...
 
 class CryptolCode(metaclass=ABCMeta):
@@ -65,7 +65,7 @@ class CryptolCode(metaclass=ABCMeta):
             raise ValueError("Argument to __call__ on CryptolCode is not CryptolJSON")
 
     @abstractmethod
-    def __to_cryptol__(self, ty : CryptolType) -> JSON: ...
+    def __to_cryptol__(self) -> JSON: ...
 
     @abstractmethod
     def __to_cryptol_str__(self) -> str: ...
@@ -77,7 +77,7 @@ class CryptolLiteral(CryptolCode):
     def __init__(self, code : str) -> None:
         self._code = code
 
-    def __to_cryptol__(self, ty : CryptolType) -> JSON:
+    def __to_cryptol__(self) -> JSON:
         return self._code
 
     def __to_cryptol_str__(self) -> str:
@@ -94,7 +94,7 @@ class CryptolApplication(CryptolCode):
         self._rator = rator
         self._rands = rands
 
-    def __to_cryptol__(self, ty : CryptolType) -> JSON:
+    def __to_cryptol__(self) -> JSON:
         return {'expression': 'call',
                 'function': to_cryptol(self._rator),
                 'arguments': [to_cryptol(arg) for arg in self._rands]}
@@ -163,11 +163,54 @@ class Logic(UnaryProp):
         return f"Logic({self.subject!r})"
 
 
-def to_cryptol(val : Any, cryptol_type : Optional[CryptolType] = None) -> JSON:
-    if cryptol_type is not None:
-        return cryptol_type.from_python(val)
+def to_cryptol(val : Any) -> JSON:
+    if isinstance(val, bool):
+        return val
+    elif isinstance(val, tuple) and val == ():
+        return {'expression': 'unit'}
+    elif isinstance(val, tuple):
+        return {'expression': 'tuple',
+                'data': [to_cryptol(x) for x in val]}
+    elif isinstance(val, dict):
+        return {'expression': 'record',
+                'data': {k : to_cryptol(val[k])
+                         if isinstance(k, str)
+                         else fail_with (TypeError("Record keys must be strings"))
+                         for k in val}}
+    elif isinstance(val, int):
+        return val
+    elif isinstance(val, list):
+        return {'expression': 'sequence',
+                'data': [to_cryptol(v) for v in val]}
+    elif isinstance(val, bytes) or isinstance(val, bytearray):
+        return {'expression': 'bits',
+                'encoding': 'base64',
+                'width': 8 * len(val),
+                'data': base64.b64encode(val).decode('ascii')}
+    elif isinstance(val, BitVector.BitVector):
+        n = int(val)
+        byte_width = ceil(n.bit_length()/8)
+        return {'expression': 'bits',
+                'encoding': 'base64',
+                'width': val.length(), # N.B. original length, not padded
+                'data': base64.b64encode(n.to_bytes(byte_width,'big')).decode('ascii')}
+    elif isinstance(val, BV):
+        return {'expression': 'bits',
+                'encoding': 'hex',
+                'width': val.size(), # N.B. original length, not padded
+                'data': val.hex()[2:]}
+    elif isinstance(val, OpaqueValue):
+        return {'expression': 'variable',
+                'identifier': val.identifier}
+    elif hasattr(val, '__to_cryptol__'):
+        code = val.__to_cryptol__()
+        if is_plausible_json(code):
+            # the call to is_plausible_json ensures this cast is OK
+            return cast(JSON, code)
+        else:
+            raise ValueError(f"Improbable JSON from __to_cryptol__: {val!r} gave {code!r}")
     else:
-        return CryptolType().from_python(val)
+        raise TypeError("Unsupported value: " + str(val))
 
 def fail_with(exn : Exception) -> NoReturn:
     raise exn
@@ -185,62 +228,7 @@ def is_plausible_json(val : Any) -> bool:
     return False
 
 class CryptolType:
-    def from_python(self, val : Any) -> JSON:
-        if hasattr(val, '__to_cryptol__'):
-            code = val.__to_cryptol__(self)
-            if is_plausible_json(code):
-                # the call to is_plausible_json ensures this cast is OK
-                return cast(JSON, code)
-            else:
-                raise ValueError(f"Improbable JSON from __to_cryptol__: {val!r} gave {code!r}")
-            # if isinstance(code, CryptolCode):
-            #     return self.convert(code)
-            # else:
-            #     raise ValueError(f"Expected Cryptol code from __to_cryptol__ on {val!r}, but got {code!r}.")
-        else:
-            return self.convert(val)
-
-    def convert(self, val : Any) -> JSON:
-        if isinstance(val, bool):
-            return val
-        elif isinstance(val, tuple) and val == ():
-            return {'expression': 'unit'}
-        elif isinstance(val, tuple):
-            return {'expression': 'tuple',
-                    'data': [to_cryptol(x) for x in val]}
-        elif isinstance(val, dict):
-            return {'expression': 'record',
-                    'data': {k : to_cryptol(val[k])
-                             if isinstance(k, str)
-                             else fail_with (TypeError("Record keys must be strings"))
-                             for k in val}}
-        elif isinstance(val, int):
-            return val
-        elif isinstance(val, list):
-            return {'expression': 'sequence',
-                    'data': [to_cryptol(v) for v in val]}
-        elif isinstance(val, bytes) or isinstance(val, bytearray):
-            return {'expression': 'bits',
-                    'encoding': 'base64',
-                    'width': 8 * len(val),
-                    'data': base64.b64encode(val).decode('ascii')}
-        elif isinstance(val, BitVector.BitVector):
-            n = int(val)
-            byte_width = ceil(n.bit_length()/8)
-            return {'expression': 'bits',
-                    'encoding': 'base64',
-                    'width': val.length(), # N.B. original length, not padded
-                    'data': base64.b64encode(n.to_bytes(byte_width,'big')).decode('ascii')}
-        elif isinstance(val, BV):
-            return {'expression': 'bits',
-                    'encoding': 'hex',
-                    'width': val.size(), # N.B. original length, not padded
-                    'data': val.hex()[2:]}
-        elif isinstance(val, OpaqueValue):
-            return {'expression': 'variable',
-                    'identifier': val.identifier}
-        else:
-            raise TypeError("Unsupported value: " + str(val))
+  pass
 
 class Var(CryptolType):
     def __init__(self, name : str, kind : CryptolKind) -> None:
@@ -267,25 +255,6 @@ class Bitvector(CryptolType):
     def __repr__(self) -> str:
         return f"Bitvector({self.width!r})"
 
-    def convert(self, val : Any) -> Any:
-        # XXX figure out what to do when width is not evenly divisible by 8
-        if isinstance(val, int):
-            w = eval_numeric(self.width, None)
-            if w is not None:
-                return self.convert(int.to_bytes(val, int(w / 8), 'big', signed=True))
-            else:
-                raise ValueError(f"Insufficent type information to serialize int as bitvector")
-        elif isinstance(val, bytearray) or isinstance(val, bytes):
-            return {'expression': 'bits',
-                    'encoding': 'base64',
-                    'width': eval_numeric(self.width, 8 * len(val)),
-                    'data': base64.b64encode(val).decode('ascii')}
-        elif isinstance(val, BitVector.BitVector):
-            return CryptolType.convert(self, val)
-        elif isinstance(val, BV):
-            return CryptolType.convert(self, val)
-        else:
-            raise ValueError(f"Not supported as bitvector: {val!r}")
 
 def eval_numeric(t : Any, default : A) -> Union[int, A]:
     if isinstance(t, Num):
