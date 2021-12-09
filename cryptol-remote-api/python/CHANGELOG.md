@@ -5,6 +5,8 @@
 * Add an interface for Cryptol quasiquotation using an f-string-like syntax,
   see `tests/cryptol/test_quoting` for some examples.
 
+* Fixed a bug with the client's `W4_ABC` solver, added a `W4_ANY` solver.
+
 ## 2.12.0 -- 2021-11-19
 
 * v2.12 release in tandem with Cryptol 2.12 release. See Cryptol release 2.12
