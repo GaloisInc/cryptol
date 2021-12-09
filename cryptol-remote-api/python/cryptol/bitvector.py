@@ -1,7 +1,10 @@
 
 from functools import reduce
 from typing import Any, List, Union, Optional, overload
+from typing_extensions import Literal
 from BitVector import BitVector #type: ignore
+
+ByteOrder = Union[Literal['little'], Literal['big']]
 
 
 class BV:
@@ -211,7 +214,7 @@ class BV:
         return bin(self).count("1")
 
     @staticmethod
-    def from_bytes(bs : bytes, *, size : Optional[int] =None, byteorder : str ='big') -> 'BV':
+    def from_bytes(bs : Union[bytes,bytearray], *, size : Optional[int] = None, byteorder : ByteOrder = 'big') -> 'BV':
         """Convert the given bytes ``bs`` into a ``BV``.
 
         :param bs: Bytes to convert to a ``BV``.
@@ -221,11 +224,13 @@ class BV:
             ``'big'``, ``little`` being the other acceptable value. Equivalent to the ``byteorder``
             parameter from Python's ``int.from_bytes``."""
 
-        if not isinstance(bs, bytes):
-            raise ValueError("from_bytes given not bytes value: {bs!r}")
+        if isinstance(bs, bytearray):
+            bs = bytes(bs)
+        elif not isinstance(bs, bytes):
+            raise ValueError(f"from_bytes given not a bytearray or bytes value: {bs!r}")
 
         if not byteorder == 'little' and not byteorder == 'big':
-            raise ValueError("from_bytes given not bytes value: {bs!r}")
+            raise ValueError("byteorder must be either 'little' or 'big'")
 
         if size == None:
             return BV(len(bs) * 8, int.from_bytes(bs, byteorder=byteorder))
