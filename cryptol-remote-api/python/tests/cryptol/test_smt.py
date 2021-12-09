@@ -49,9 +49,10 @@ class TestSMT(unittest.TestCase):
         self.assertIsInstance(ex_partial_sat, cryptol.Satisfiable)
 
     def test_each_online_solver(self):
-        # we test each solver that is packaged for use with what4
-        # via https://github.com/GaloisInc/what4-solvers
-        ex_true  = '\(x : [8]) -> x+x == x+x'
+        # We test each solver that is packaged for use with what4
+        # via https://github.com/GaloisInc/what4-solvers - the others
+        # are commented out for now.
+        ex_true  = '\(x : [128]) -> negate (complement x + 1) == complement (negate x) + 1'
         solvers = \
             [solver.CVC4,
              solver.YICES,
