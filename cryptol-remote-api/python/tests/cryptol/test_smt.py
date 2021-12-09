@@ -2,6 +2,7 @@ import unittest
 from pathlib import Path
 import unittest
 import cryptol
+import cryptol.solver as solver
 from cryptol.single_connection import *
 from cryptol.bitvector import BV
 
@@ -22,7 +23,7 @@ class TestSMT(unittest.TestCase):
         self.assertTrue(ex_true_sat)
         self.assertIsInstance(ex_true_sat, cryptol.Satisfiable)
 
-        ex_false = '\(x : [8]) -> x+2*x+1 == x'        
+        ex_false = '\(x : [8]) -> x+2*x+1 == x'
         ex_false_safe = safe(ex_false)
         self.assertTrue(ex_false_safe)
         self.assertIsInstance(ex_false_safe, cryptol.Safe)
@@ -46,6 +47,39 @@ class TestSMT(unittest.TestCase):
         ex_partial_sat = sat(ex_partial)
         self.assertTrue(ex_partial_sat)
         self.assertIsInstance(ex_partial_sat, cryptol.Satisfiable)
+
+    def test_each_online_solver(self):
+        # We test each solver that is packaged for use with what4
+        # via https://github.com/GaloisInc/what4-solvers - the others
+        # are commented out for now.
+        ex_true  = '\(x : [128]) -> negate (complement x + 1) == complement (negate x) + 1'
+        solvers = \
+            [solver.CVC4,
+             solver.YICES,
+             solver.Z3,
+             #solver.BOOLECTOR,
+             #solver.MATHSAT,
+             solver.ABC,
+             #solver.OFFLINE,
+             solver.ANY,
+             solver.SBV_CVC4,
+             solver.SBV_YICES,
+             solver.SBV_Z3,
+             #solver.SBV_BOOLECTOR,
+             #solver.SBV_MATHSAT,
+             solver.SBV_ABC,
+             #solver.SBV_OFFLINE,
+             solver.SBV_ANY,
+             solver.W4_CVC4,
+             solver.W4_YICES,
+             solver.W4_Z3,
+             #solver.W4_BOOLECTOR,
+             #solver.W4_OFFLINE,
+             solver.W4_ABC,
+             solver.W4_ANY]
+
+        for s in solvers:
+            self.assertTrue(prove(ex_true, s))
 
 
 if __name__ == "__main__":
