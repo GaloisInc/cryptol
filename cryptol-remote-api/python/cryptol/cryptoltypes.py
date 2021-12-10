@@ -228,7 +228,11 @@ def is_plausible_json(val : Any) -> bool:
     return False
 
 class CryptolType:
-  pass
+    def from_python(self, val : Any) -> NoReturn:
+        raise Exception("CryptolType.from_python is deprecated, use to_cryptol")
+    
+    def convert(self, val : Any) -> NoReturn:
+        raise Exception("CryptolType.convert is deprecated, use to_cryptol")
 
 class Var(CryptolType):
     def __init__(self, name : str, kind : CryptolKind) -> None:
