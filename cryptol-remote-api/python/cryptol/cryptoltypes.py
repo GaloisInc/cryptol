@@ -164,6 +164,8 @@ class Logic(UnaryProp):
 
 
 def to_cryptol(val : Any) -> JSON:
+    """Convert a ``CryptolJSON`` value, a Python value representing a Cryptol
+       term, or any combination of the two to Cryptol JSON."""
     if isinstance(val, bool):
         return val
     elif isinstance(val, tuple) and val == ():
@@ -258,13 +260,6 @@ class Bitvector(CryptolType):
 
     def __repr__(self) -> str:
         return f"Bitvector({self.width!r})"
-
-
-def eval_numeric(t : Any, default : A) -> Union[int, A]:
-    if isinstance(t, Num):
-        return t.number
-    else:
-        return default
 
 
 class Num(CryptolType):
