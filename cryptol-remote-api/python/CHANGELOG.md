@@ -4,8 +4,9 @@
 
 * Add an interface for Cryptol quasiquotation using an f-string-like syntax,
   see `tests/cryptol/test_quoting` for some examples.
-
-* Fixed a bug with the client's `W4_ABC` solver, added a `W4_ANY` solver.
+* Fix a bug with the client's `W4_ABC` solver, add a `W4_ANY` solver.
+* Deprecate `CryptolType.from_python` and `CryptolType.convert`
+* Remove `CryptolType` arguments to `to_cryptol` and `__to_cryptol__`
 
 ## 2.12.0 -- 2021-11-19
 
