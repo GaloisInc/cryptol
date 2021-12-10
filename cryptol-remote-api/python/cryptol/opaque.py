@@ -1,5 +1,7 @@
 from typing import Any
+from dataclasses import dataclass
 
+@dataclass(frozen=True)
 class OpaqueValue():
   """A value from the Cryptol server which cannot be directly represented and/or
   marshalled to an RPC client.
@@ -9,20 +11,5 @@ class OpaqueValue():
   be consulted to compute the result."""
   identifier : str
 
-  def __init__(self, identifier : str) -> None:
-    self.identifier = identifier
-
   def __str__(self) -> str:
     return self.identifier
-
-  def __repr__(self) -> str:
-      return f"Opaque({self.identifier!r})"
-
-  def __eq__(self, other : Any) -> bool:
-    if not isinstance(other, OpaqueValue):
-        return False
-    else:
-      return self.identifier == other.identifier
-
-  def __hash__(self) -> int:
-      return hash(self.identifier)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 from collections import OrderedDict
 from abc import ABCMeta, abstractmethod
+from dataclasses import dataclass
 import base64
 from math import ceil
 import BitVector #type: ignore
@@ -73,9 +74,9 @@ class CryptolCode(metaclass=ABCMeta):
     def __str__(self) -> str:
         return self.__to_cryptol_str__()
 
+@dataclass
 class CryptolLiteral(CryptolCode):
-    def __init__(self, code : str) -> None:
-        self._code = code
+    _code : str
 
     def __to_cryptol__(self) -> JSON:
         return self._code
@@ -83,16 +84,17 @@ class CryptolLiteral(CryptolCode):
     def __to_cryptol_str__(self) -> str:
         return self._code
 
-    def __eq__(self, other : Any) -> bool:
-        return isinstance(other, CryptolLiteral) and self._code == other._code
-
-    def __repr__(self) -> str:
-        return f'CryptolLiteral({self._code!r})'
-
+@dataclass
 class CryptolApplication(CryptolCode):
+    _rator : CryptolJSON
+    _rands : typing.Sequence[CryptolJSON]
+
     def __init__(self, rator : CryptolJSON, *rands : CryptolJSON) -> None:
         self._rator = rator
         self._rands = rands
+
+    def __repr__(self) -> str:
+        return f'CryptolApplication({", ".join(repr(x) for x in [self._rator, *self._rands])})'
 
     def __to_cryptol__(self) -> JSON:
         return {'expression': 'call',
@@ -105,20 +107,11 @@ class CryptolApplication(CryptolCode):
         else:
             return ' '.join(parenthesize(x.__to_cryptol_str__()) for x in [self._rator, *self._rands])
 
-    def __eq__(self, other : Any) -> bool:
-        return isinstance(other, CryptolApplication) and self._rator == other._rator and self._rands == other._rands
 
-    def __repr__(self) -> str:
-        return f'CryptolApplication({", ".join(repr(x) for x in [self._rator, *self._rands])})'
-
-
+@dataclass
 class CryptolArrowKind:
-    def __init__(self, dom : CryptolKind, ran : CryptolKind):
-        self.domain = dom
-        self.range = ran
-
-    def __repr__(self) -> str:
-        return f"CryptolArrowKind({self.domain!r}, {self.range!r})"
+    domain : CryptolKind
+    range : CryptolKind
 
 CryptolKind = Union[Literal['Type'], Literal['Num'], Literal['Prop'], CryptolArrowKind]
 
@@ -134,33 +127,33 @@ def to_kind(k : Any) -> CryptolKind:
 class CryptolProp:
     pass
 
+@dataclass
 class UnaryProp(CryptolProp):
-    def __init__(self, subject : CryptolType) -> None:
-        self.subject = subject
+    subject : CryptolType
 
+@dataclass
 class Fin(UnaryProp):
-    def __repr__(self) -> str:
-        return f"Fin({self.subject!r})"
+    pass
 
+@dataclass
 class Cmp(UnaryProp):
-    def __repr__(self) -> str:
-        return f"Cmp({self.subject!r})"
+    pass
 
+@dataclass
 class SignedCmp(UnaryProp):
-    def __repr__(self) -> str:
-        return f"SignedCmp({self.subject!r})"
+    pass
 
+@dataclass
 class Zero(UnaryProp):
-    def __repr__(self) -> str:
-        return f"Zero({self.subject!r})"
+    pass
 
+@dataclass
 class Arith(UnaryProp):
-    def __repr__(self) -> str:
-        return f"Arith({self.subject!r})"
+    pass
 
+@dataclass
 class Logic(UnaryProp):
-    def __repr__(self) -> str:
-        return f"Logic({self.subject!r})"
+    pass
 
 
 def to_cryptol(val : Any) -> JSON:
@@ -236,220 +229,184 @@ class CryptolType:
     def convert(self, val : Any) -> NoReturn:
         raise Exception("CryptolType.convert is deprecated, use to_cryptol")
 
+@dataclass
 class Var(CryptolType):
-    def __init__(self, name : str, kind : CryptolKind) -> None:
-        self.name = name
-        self.kind = kind
+    name : str
+    kind : CryptolKind
 
-    def __repr__(self) -> str:
-        return f"Var({self.name!r}, {self.kind!r})"
+    def __str__(self) -> str:
+        return self.name
 
-
-
+@dataclass
 class Function(CryptolType):
-    def __init__(self, dom : CryptolType, ran : CryptolType) -> None:
-        self.domain = dom
-        self.range = ran
+    domain : CryptolType
+    range : CryptolType
 
-    def __repr__(self) -> str:
-        return f"Function({self.domain!r}, {self.range!r})"
+    def __str__(self) -> str:
+        return f"({self.domain} -> {self.range})"
 
+@dataclass
 class Bitvector(CryptolType):
-    def __init__(self, width : CryptolType) -> None:
-        self.width = width
+    width : CryptolType
 
-    def __repr__(self) -> str:
-        return f"Bitvector({self.width!r})"
+    def __str__(self) -> str:
+        return f"[{self.width}]"
 
-
+@dataclass
 class Num(CryptolType):
-    def __init__(self, number : int) -> None:
-        self.number = number
+    number : int
 
-    def __repr__(self) -> str:
-        return f"Num({self.number!r})"
+    def __str__(self) -> str:
+        return str(self.number)
 
+@dataclass
 class Bit(CryptolType):
-    def __init__(self) -> None:
-        pass
+    def __str__(self) -> str:
+        return "Bit"
 
-    def __repr__(self) -> str:
-        return f"Bit()"
-
+@dataclass
 class Sequence(CryptolType):
-    def __init__(self, length : CryptolType, contents : CryptolType) -> None:
-        self.length = length
-        self.contents = contents
+    length : CryptolType
+    contents : CryptolType
 
-    def __repr__(self) -> str:
-        return f"Sequence({self.length!r}, {self.contents!r})"
+    def __str__(self) -> str:
+        return f"[{self.length}]{parenthesize(str(self.contents))}"
 
+@dataclass
 class Inf(CryptolType):
-    def __repr__(self) -> str:
-        return f"Inf()"
+    def __str__(self) -> str:
+        return "inf"
 
+@dataclass
 class Integer(CryptolType):
-    def __repr__(self) -> str:
-        return f"Integer()"
+    def __str__(self) -> str:
+        return "Integer"
 
+@dataclass
 class Rational(CryptolType):
-    def __repr__(self) -> str:
-        return f"Rational()"
+    def __str__(self) -> str:
+        return "Rational"
 
+@dataclass
 class Z(CryptolType):
-    def __init__(self, modulus : CryptolType) -> None:
-        self.modulus = modulus
+    modulus : CryptolType
 
-    def __repr__(self) -> str:
-        return f"Z({self.modulus!r})"
+    def __str__(self) -> str:
+        return f"(Z {self.modulus})"
 
-
+@dataclass
 class Plus(CryptolType):
-    def __init__(self, left : CryptolType, right : CryptolType) -> None:
-        self.left = left
-        self.right = right
+    left : CryptolType
+    right : CryptolType
 
     def __str__(self) -> str:
         return f"({self.left} + {self.right})"
 
-    def __repr__(self) -> str:
-        return f"Plus({self.left!r}, {self.right!r})"
-
+@dataclass
 class Minus(CryptolType):
-    def __init__(self, left : CryptolType, right : CryptolType) -> None:
-        self.left = left
-        self.right = right
+    left : CryptolType
+    right : CryptolType
 
     def __str__(self) -> str:
         return f"({self.left} - {self.right})"
 
-    def __repr__(self) -> str:
-        return f"Minus({self.left!r}, {self.right!r})"
-
+@dataclass
 class Times(CryptolType):
-    def __init__(self, left : CryptolType, right : CryptolType) -> None:
-        self.left = left
-        self.right = right
+    left : CryptolType
+    right : CryptolType
 
     def __str__(self) -> str:
         return f"({self.left} * {self.right})"
 
-    def __repr__(self) -> str:
-        return f"Times({self.left!r}, {self.right!r})"
-
-
+@dataclass
 class Div(CryptolType):
-    def __init__(self, left : CryptolType, right : CryptolType) -> None:
-        self.left = left
-        self.right = right
+    left : CryptolType
+    right : CryptolType
 
     def __str__(self) -> str:
         return f"({self.left} / {self.right})"
 
-    def __repr__(self) -> str:
-        return f"Div({self.left!r}, {self.right!r})"
-
+@dataclass
 class CeilDiv(CryptolType):
-    def __init__(self, left : CryptolType, right : CryptolType) -> None:
-        self.left = left
-        self.right = right
+    left : CryptolType
+    right : CryptolType
 
     def __str__(self) -> str:
         return f"({self.left} /^ {self.right})"
 
-    def __repr__(self) -> str:
-        return f"CeilDiv({self.left!r}, {self.right!r})"
-
+@dataclass
 class Mod(CryptolType):
-    def __init__(self, left : CryptolType, right : CryptolType) -> None:
-        self.left = left
-        self.right = right
+    left : CryptolType
+    right : CryptolType
 
     def __str__(self) -> str:
         return f"({self.left} % {self.right})"
 
-    def __repr__(self) -> str:
-        return f"Mod({self.left!r}, {self.right!r})"
-
+@dataclass
 class CeilMod(CryptolType):
-    def __init__(self, left : CryptolType, right : CryptolType) -> None:
-        self.left = left
-        self.right = right
+    left : CryptolType
+    right : CryptolType
 
     def __str__(self) -> str:
         return f"({self.left} %^ {self.right})"
 
-    def __repr__(self) -> str:
-        return f"CeilMod({self.left!r}, {self.right!r})"
-
+@dataclass
 class Expt(CryptolType):
-    def __init__(self, left : CryptolType, right : CryptolType) -> None:
-        self.left = left
-        self.right = right
+    left : CryptolType
+    right : CryptolType
 
     def __str__(self) -> str:
         return f"({self.left} ^^ {self.right})"
 
-    def __repr__(self) -> str:
-        return f"Expt({self.left!r}, {self.right!r})"
-
+@dataclass
 class Log2(CryptolType):
-    def __init__(self, operand : CryptolType) -> None:
-        self.operand = operand
+    operand : CryptolType
 
     def __str__(self) -> str:
         return f"(lg2 {self.operand})"
 
-    def __repr__(self) -> str:
-        return f"Log2({self.operand!r})"
-
+@dataclass
 class Width(CryptolType):
-    def __init__(self, operand : CryptolType) -> None:
-        self.operand = operand
+    operand : CryptolType
 
     def __str__(self) -> str:
         return f"(width {self.operand})"
 
-    def __repr__(self) -> str:
-        return f"Width({self.operand!r})"
-
+@dataclass
 class Max(CryptolType):
-    def __init__(self, left : CryptolType, right : CryptolType) -> None:
-        self.left = left
-        self.right = right
+    left : CryptolType
+    right : CryptolType
 
     def __str__(self) -> str:
         return f"(max {self.left} {self.right})"
 
-    def __repr__(self) -> str:
-        return f"Max({self.left!r}, {self.right!r})"
-
+@dataclass
 class Min(CryptolType):
-    def __init__(self, left : CryptolType, right : CryptolType) -> None:
-        self.left = left
-        self.right = right
+    left : CryptolType
+    right : CryptolType
 
     def __str__(self) -> str:
         return f"(min {self.left} {self.right})"
 
-    def __repr__(self) -> str:
-        return f"Min({self.left!r}, {self.right!r})"
-
+@dataclass
 class Tuple(CryptolType):
-    types : Iterable[CryptolType]
+    types : typing.Sequence[CryptolType]
 
     def __init__(self, *types : CryptolType) -> None:
         self.types = types
 
     def __repr__(self) -> str:
-        return "Tuple(" + ", ".join(map(str, self.types)) + ")"
+        return "Tuple(" + ", ".join(map(repr, self.types)) + ")"
 
+    def __str__(self) -> str:
+        return "(" + ",".join(map(str, self.types)) + ")"
+
+@dataclass
 class Record(CryptolType):
-    def __init__(self, fields : Dict[str, CryptolType]) -> None:
-        self.fields = fields
+    fields : Dict[str, CryptolType]
 
-    def __repr__(self) -> str:
-        return f"Record({self.fields!r})"
+    def __str__(self) -> str:
+        return "{" + ",".join(str(k) + " = " + str(self.fields[k]) for k in self.fields) + "}"
 
 
 def to_type(t : Any) -> CryptolType:
