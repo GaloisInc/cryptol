@@ -469,7 +469,7 @@ class CryptolStdIOProcess(StdIOProcess):
 #         current_expr = self.name
 #         found_args = []
 #         while len(arg_types) > 0 and len(remaining_args) > 0:
-#             found_args.append(arg_types[0].from_python(remaining_args[0]))
+#             found_args.append(to_cryptol(remaining_args[0]))
 #             current_expr = {'expression': 'call', 'function': self.name, 'arguments': found_args}
 #             ty = self.connection.check_type(current_expr).result()
 #             current_type = cryptoltypes.to_schema(ty)
