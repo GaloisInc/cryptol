@@ -10,7 +10,7 @@ from .opaque import OpaqueValue
 
 import typing
 from typing import cast, Any, Dict, Iterable, List, NoReturn, Optional, TypeVar, Union
-from typing_extensions import Literal, Protocol
+from typing_extensions import Literal, Protocol, runtime_checkable
 
 A = TypeVar('A')
 
@@ -51,31 +51,31 @@ def parenthesize(s : str) -> str:
        ``is_parenthesized(s)`` is ``False``"""
     return s if is_parenthesized(s) else f'({s})'
 
-
 JSON = Union[bool, int, float, str, Dict, typing.Tuple, List]
 
+@runtime_checkable
 class CryptolJSON(Protocol):
+    """A ``Protocol`` for objects which can be converted to Cryptol JSON or
+       Cryptol strings."""
     def __to_cryptol__(self) -> JSON: ...
     def __to_cryptol_str__(self) -> str: ...
 
 class CryptolCode(metaclass=ABCMeta):
-    def __call__(self, *others : CryptolJSON) -> CryptolCode:
-        if all(hasattr(other, '__to_cryptol__') for other in others):
-            return CryptolApplication(self, *others)
-        else:
-            raise ValueError("Argument to __call__ on CryptolCode is not CryptolJSON")
-
+    """The base class for ``CryptolLiteral`` and ``CryptolApplication``."""
     @abstractmethod
     def __to_cryptol__(self) -> JSON: ...
-
     @abstractmethod
     def __to_cryptol_str__(self) -> str: ...
 
     def __str__(self) -> str:
         return self.__to_cryptol_str__()
 
+    def __call__(self, *others : CryptolJSON) -> CryptolCode:
+        return CryptolApplication(self, *others)
+
 @dataclass
 class CryptolLiteral(CryptolCode):
+    """A string of Cryptol syntax."""
     _code : str
 
     def __to_cryptol__(self) -> JSON:
@@ -86,12 +86,16 @@ class CryptolLiteral(CryptolCode):
 
 @dataclass
 class CryptolApplication(CryptolCode):
+    """An application of a Cryptol function to some arguments."""
     _rator : CryptolJSON
     _rands : typing.Sequence[CryptolJSON]
 
     def __init__(self, rator : CryptolJSON, *rands : CryptolJSON) -> None:
-        self._rator = rator
-        self._rands = rands
+        if all(isinstance(rand, CryptolJSON) for rand in rands):
+            self._rator = rator
+            self._rands = rands
+        else:
+            raise ValueError("Arguments given to CryptolApplication must be CryptolJSON")
 
     def __repr__(self) -> str:
         return f'CryptolApplication({", ".join(repr(x) for x in [self._rator, *self._rands])})'
@@ -410,6 +414,7 @@ class Record(CryptolType):
 
 
 def to_type(t : Any) -> CryptolType:
+    """Convert a Cryptol JSON type to a ``CryptolType``."""
     if t['type'] == 'variable':
         return Var(t['name'], to_kind(t['kind']))
     elif t['type'] == 'function':
@@ -474,12 +479,14 @@ class CryptolTypeSchema:
         return f"CryptolTypeSchema({self.variables!r}, {self.propositions!r}, {self.body!r})"
 
 def to_schema(obj : Any) -> CryptolTypeSchema:
+    """Convert a Cryptol JSON type schema to a ``CryptolTypeSchema``."""
     return CryptolTypeSchema(OrderedDict((v['name'], to_kind(v['kind']))
                                          for v in obj['forall']),
                              [to_prop(p) for p in obj['propositions']],
                              to_type(obj['type']))
 
 def to_prop(obj : Any) -> Optional[CryptolProp]:
+    """Convert a Cryptol JSON proposition to a ``CryptolProp``."""
     if obj['prop'] == 'fin':
         return Fin(to_type(obj['subject']))
     elif obj['prop'] == 'Cmp':
