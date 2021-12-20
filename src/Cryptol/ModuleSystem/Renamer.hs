@@ -392,8 +392,8 @@ data OpenLoopState = OpenLoopState
 Notes:
   * ambiguity will be reported later when we do the renaming
   * assumes scoping only grows, which should be true
-  * we are not adding the names from *either* of the imports
-    so this may give rise to undefined names, so we may want to
+  * in case of ambiguous import, we are not adding the names from *either*
+    of the imports so this may give rise to undefined names, so we may want to
     suppress reporing undefined names if there ambiguities for
     module names.  Alternatively we could add the defitions from
     *all* options, but that might lead to spurious ambiguity errors.
