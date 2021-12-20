@@ -33,7 +33,7 @@ import Data.Map(Map)
 
 import           Cryptol.ModuleSystem.Name
                     (liftSupply,mkDeclared,NameSource(..),ModPath(..))
-import Cryptol.ModuleSystem.NamingEnv(NamingEnv,namingEnvRename)
+import Cryptol.ModuleSystem.NamingEnv(NamingEnv,mapNamingEnv)
 import qualified Cryptol.Parser.AST as P
 import           Cryptol.Parser.Position(Range,emptyRange)
 import           Cryptol.TypeCheck.AST
@@ -79,7 +79,7 @@ tcModuleInst renThis func m inp = runInferM inp $
      mapM_ addParamType (mParamTypes x)
      addParameterConstraints (mParamConstraints x)
      (ren,y) <- checkModuleInstance func x
-     io $ modifyIORef' renThis (namingEnvRename ren)
+     io $ modifyIORef' renThis (mapNamingEnv ren)
      proveModuleTopLevel
      endModuleInstance
      pure y

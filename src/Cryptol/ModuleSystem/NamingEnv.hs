@@ -73,6 +73,12 @@ unionNames xs ys =
     (Ambig as, One x) -> Ambig $! Set.insert x as
     (Ambig as, Ambig bs) -> Ambig $! Set.union as bs
 
+namesFromSet :: Set Name {- ^ Non-empty -} -> Names
+namesFromSet xs =
+  case Set.minView xs of
+    Just (a,ys) -> if Set.null ys then One a else Ambig xs
+    Nothing     -> panic "namesFromSet" ["empty set"]
+
 unionManyNames :: [Names] -> Maybe Names
 unionManyNames xs =
   case xs of
@@ -83,13 +89,13 @@ mapNames :: (Name -> Name) -> Names -> Names
 mapNames f xs =
   case xs of
     One x -> One (f x)
-    Ambig as -> Ambig (Set.map f as)
+    Ambig as -> namesFromSet (Set.map f as)
 
 travNames :: Applicative f => (Name -> f Name) -> Names -> f Names
 travNames f xs =
   case xs of
     One x -> One <$> f x
-    Ambig as -> Ambig . Set.fromList <$> traverse f (Set.toList as)
+    Ambig as -> namesFromSet . Set.fromList <$> traverse f (Set.toList as)
 --------------------------------------------------------------------------------
 
 
@@ -121,8 +127,6 @@ singletonNS :: Namespace -> PName -> Name -> NamingEnv
 singletonNS ns pn n =
   NamingEnv (Map.singleton ns (Map.singleton pn (One n)))
 
-namingEnvRename :: (Name -> Name) -> NamingEnv -> NamingEnv
-namingEnvRename f (NamingEnv mp) = NamingEnv (fmap (mapNames f) <$> mp)
 
 instance Semigroup NamingEnv where
   NamingEnv l <> NamingEnv r =
@@ -186,7 +190,8 @@ visibleNames (NamingEnv env) = check <$> env
 qualify :: ModName -> NamingEnv -> NamingEnv
 qualify pfx (NamingEnv env) = NamingEnv (Map.mapKeys toQual <$> env)
   where
-  -- XXX we don't currently qualify fresh names
+  -- We don't qualify fresh names, because they should not be directly
+  -- visible to the end users (i.e., they shouldn't really be exported)
   toQual (Qual _ n)  = Qual pfx n
   toQual (UnQual n)  = Qual pfx n
   toQual n@NewName{} = n
@@ -195,19 +200,24 @@ filterNames :: (PName -> Bool) -> NamingEnv -> NamingEnv
 filterNames p (NamingEnv env) = NamingEnv (Map.filterWithKey check <$> env)
   where check n _ = p n
 
-
 -- | Like mappend, but when merging, prefer values on the lhs.
 shadowing :: NamingEnv -> NamingEnv -> NamingEnv
 shadowing (NamingEnv l) (NamingEnv r) = NamingEnv (Map.unionWith Map.union l r)
+
+mapNamingEnv :: (Name -> Name) -> NamingEnv -> NamingEnv
+mapNamingEnv f (NamingEnv mp) = NamingEnv (fmap (mapNames f) <$> mp)
 
 travNamingEnv :: Applicative f => (Name -> f Name) -> NamingEnv -> f NamingEnv
 travNamingEnv f (NamingEnv mp) =
   NamingEnv <$> traverse (traverse (travNames f)) mp
 
 
-{- | Do somethign in context.  If `Nothing` than we are working with
-a local declaration. Otherwise we are at the top-level of the
-given module. -}
+{- | Do something in the context of a module.
+If `Nothing` than we are working with a local declaration.
+Otherwise we are at the top-level of the given module.
+
+By wrapping types with this, we can pass the module path
+to methdods that need the extra information. -}
 data InModule a = InModule (Maybe ModPath) a
                   deriving (Functor,Traversable,Foldable,Show)
 
@@ -223,7 +233,6 @@ newLocal ns thing rng = liftSupply (mkParameter ns (getIdent thing) rng)
 
 newtype BuildNamingEnv = BuildNamingEnv { runBuild :: SupplyT Id NamingEnv }
 
-
 buildNamingEnv :: BuildNamingEnv -> Supply -> (NamingEnv,Supply)
 buildNamingEnv b supply = runId $ runSupplyT supply $ runBuild b
 
@@ -234,11 +243,11 @@ defsOf = buildNamingEnv . namingEnv
 
 --------------------------------------------------------------------------------
 {- Collect definitions of entities that may contains other entities.
-For example, submodules and signatures, wen treated as declarations
+For example, submodules and signatures, when treated as declarations
 only introduce a single name (e.g., the name of the submodule or signature)
 but when used can introduce additional names (e.g., in an import or
 a submodule declaration).  The code in the following section computes the
-names that are "owned" by the all the entities, when "used".
+names that are "owned" by all the entities, when "used".
 -}
 
 
@@ -259,21 +268,21 @@ instance Monoid OwnedEntities where
 
 type CollectM   = StateT OwnedEntities (SupplyT Id)
 
-collectNestedModules ::
+-- | Collect things nested in a module
+collectNestedInModule ::
   NamingEnv -> Module PName -> Supply -> (OwnedEntities, Supply)
-collectNestedModules env m =
-  collectNestedDecls env (thing (mName m)) (mDecls m)
+collectNestedInModule env m =
+  collectNestedInDecls env (thing (mName m)) (mDecls m)
 
-collectNestedDecls ::
+-- | Collect things nested in a list of declarations
+collectNestedInDecls ::
   NamingEnv -> ModName -> [TopDecl PName] -> Supply -> (OwnedEntities, Supply)
-collectNestedDecls env m ds sup = (mp,newS)
+collectNestedInDecls env m ds sup = (mp,newS)
   where
   s0            = mempty
   mpath         = TopModule m
   ((_,mp),newS) = runId $ runSupplyT sup $ runStateT s0 $
                   collectNestedDeclsM mpath env ds
-
-
 
 collectNestedDeclsM :: ModPath -> NamingEnv -> [TopDecl PName] -> CollectM ()
 collectNestedDeclsM mpath env ds =
@@ -290,7 +299,6 @@ collectNestedDeclsM mpath env ds =
                     signatureDefs (Nested mpath (nameIdent name)) s
            sets_ \o -> o { ownSignatures = Map.insert name newEnv
                                                         (ownSignatures o)}
- 
 
      forM_ [ tlValue nm | DModule nm <- ds ] \(NestedModule nested) ->
        do let pname = thing (mName nested)
@@ -305,7 +313,8 @@ collectNestedDeclsM mpath env ds =
 
           newEnv <- lift $ runBuild $
                     moduleDefs (Nested mpath (nameIdent name)) nested
-          sets_ \o -> o { ownSubmodules = Map.insert name newEnv (ownSubmodules o)}
+          sets_ \o -> o { ownSubmodules =
+                                  Map.insert name newEnv (ownSubmodules o) }
           let newMPath = Nested mpath (nameIdent name)
           collectNestedDeclsM newMPath newEnv (mDecls nested)
 
@@ -473,18 +482,20 @@ instance BindsNames (Module PName) where
   namingEnv m = moduleDefs (TopModule (thing (mName m))) m
 
 
+-- | These are the names "owned" by the module.  These names are used
+-- when resolving the module itself, and also when the module is imported.
 moduleDefs :: ModPath -> ModuleG mname PName -> BuildNamingEnv
 moduleDefs m Module { .. } = foldMap (namingEnv . InModule (Just m)) mDecls
 
+-- | These are the names "owned" by the signature.  These names are
+-- used when resolving the signature.  They are also used to figure out what
+-- names to instantuate when the signature is used.
 signatureDefs :: ModPath -> Signature PName -> BuildNamingEnv
 signatureDefs m sig =
      mconcat [ namingEnv (InModule loc p) | p <- sigTypeParams sig ]
   <> mconcat [ namingEnv (InModule loc p) | p <- sigFunParams sig ]
   where
   loc = Just m
-
-
-
 
 instance BindsNames (InModule (TopDecl PName)) where
   namingEnv (InModule ns td) =
@@ -500,9 +511,8 @@ instance BindsNames (InModule (TopDecl PName)) where
       DModule m        -> namingEnv (InModule ns (tlValue m))
 
       DModSig s        -> namingEnv (InModule ns (tlValue s))
-      DModParam {}     -> mempty -- handled in the renamer as we need to resolve
-                                 -- the signature name first
-
+      DModParam {}     -> mempty-- handled in the renamer as we need to resolve
+                                 -- the signature name first (similar to import)
 
 instance BindsNames (InModule (NestedModule PName)) where
   namingEnv (InModule ~(Just m) (NestedModule mdef)) = BuildNamingEnv $

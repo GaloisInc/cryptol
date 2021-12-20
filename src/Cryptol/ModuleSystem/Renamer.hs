@@ -63,11 +63,12 @@ data RenamedModule = RenamedModule
   , rmImported :: IfaceDecls      -- ^ Imported declarations
   }
 
+-- | This is used for renaming a top-level module.
 renameModule :: Module PName -> RenameM RenamedModule
 renameModule m0 =
   do let m = m0 { mDecls = snd (addImplicitNestedImports (mDecls m0)) }
      env      <- liftSupply (defsOf m)
-     nested   <- liftSupply (collectNestedModules env m)
+     nested   <- liftSupply (collectNestedInModule env m)
      setNestedModule (nestedModuleNames nested)
        do (ifs,(inScope,m1)) <- collectIfaceDeps
                  $ renameModule' nested env (TopModule (thing (mName m))) m
@@ -85,7 +86,7 @@ renameTopDecls m ds0 =
   do let ds = snd (addImplicitNestedImports ds0)
      let mpath = TopModule m
      env    <- liftSupply (defsOf (map (InModule (Just mpath)) ds))
-     nested <- liftSupply (collectNestedDecls env m ds)
+     nested <- liftSupply (collectNestedInDecls env m ds)
 
      setNestedModule (nestedModuleNames nested)
        do ds1 <- shadowNames' CheckOverlap env
@@ -97,13 +98,31 @@ renameTopDecls m ds0 =
 
           pure (env,ds1)
 
--- | Returns declarations with additional imports and the public module names
--- of this module and its children
+{- | Returns declarations with additional imports and the public module names
+of this module and its children.
+
+The additional implicit imports are for public nested modules.  This allows
+using definitions from neste dmodules without having to explicitly import
+them, for example:
+
+module A where
+
+  submodule B where
+    x = 0x20
+
+  y = x     // This works because of the implicit import of `B`
+-}
+
 addImplicitNestedImports ::
   [TopDecl PName] -> ([[Ident]], [TopDecl PName])
 addImplicitNestedImports decls = (concat exportedMods, concat newDecls ++ other)
   where
   (mods,other)            = foldr classify ([], []) decls
+  classify d (ms,ds) =
+    case d of
+      DModule tl -> (tl : ms, ds)
+      _          -> (ms, d : ds)
+
   (newDecls,exportedMods) = unzip (map processModule mods)
   processModule m =
     let NestedModule m1 = tlValue m
@@ -131,11 +150,6 @@ addImplicitNestedImports decls = (concat exportedMods, concat newDecls ++ other)
        )
 
 
-  classify d (ms,ds) =
-    case d of
-      DModule tl -> (tl : ms, ds)
-      _          -> (ms, d : ds)
-
 
 nestedModuleNames :: OwnedEntities -> Map ModPath Name
 nestedModuleNames own = Map.fromList (map entry (Map.keys (ownSubmodules own)))
@@ -149,7 +163,8 @@ class Rename f where
   rename :: f PName -> RenameM (f Name)
 
 
--- | Returns:
+-- | This is used for both top-level and nested modules.
+-- Returns:
 --
 --    * Things defined in the module
 --    * Renamed module
@@ -178,6 +193,7 @@ renameModule' thisNested env mpath m =
      return (inScope, m1)
 
 
+-- | This is used to rename local declarations (e.g. `where`)
 renameDecls :: [Decl PName] -> RenameM [Decl Name]
 renameDecls ds =
   do (ds1,deps) <- depGroup (traverse rename ds)
@@ -262,6 +278,8 @@ renameTopDecls' info ds =
 
   -- XXX: types may also need constraints to ensure they are well formed:
   -- for example, `Z n` requires `(fin n, n >= 1)`.
+  -- Perhaps the rule should be that types that mention parameters depend
+  -- on the constraints, while others do not.
   usesCtrs td =
     case td of
       Decl tl                 -> isValDecl (tlValue tl)

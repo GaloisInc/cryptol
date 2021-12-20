@@ -233,8 +233,13 @@ data ParameterFun name = ParameterFun
   } deriving (Eq,Show,Generic,NFData)
 
 
--- | Module signatures (aka types of functor arguments)
--- This is part of the NEW module system
+{- | Module signatures (aka types of functor arguments)
+This is part of the NEW module system.
+
+Note that the names *defined* in a signature are only really used in the
+other members of a signature.   When a signature is "imported" as a functor
+parameter these names are instantiated to new names, because there could
+be multiple paramers using the same signature. -}
 data Signature name = Signature
   { sigName         :: Located name             -- ^ Name of the signature
   , sigTypeParams   :: [ParameterType name]     -- ^ Type parameters
@@ -242,14 +247,13 @@ data Signature name = Signature
   , sigFunParams    :: [ParameterFun name]      -- ^ Value parameters
   } deriving (Eq,Show,Generic,NFData)
 
-{- | A module parameter declaration
+{- | A module parameter declaration.
 A functor may have either 1 unnamed parameter or multiple named parameters
 For the time being, unnamed parameters introduce the names from the
-signature unqualified, while the named version always adds them qualified,
-although we may want to add more control here -}
+signature unqualified, while the named version adds them qualified. -}
 data ModParam name = ModParam
   { mpSignature     :: Located name         -- ^ Signature for parameter
-  , mpAs            :: Maybe ModName        -- ^ Qualifier and param. name
+  , mpAs            :: Maybe ModName        -- ^ Qualifier and parameter name
   , mpDoc           :: Maybe (Located Text) -- ^ Optional documentation
   } deriving (Eq,Show,Generic,NFData)
 
