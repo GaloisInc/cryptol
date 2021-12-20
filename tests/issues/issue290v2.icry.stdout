@@ -3,6 +3,19 @@ Loading module Cryptol
 Loading module Main
 
 [error] at issue290v2.cry:2:1--2:19:
+  Failed to validate user-specified signature.
+    in the definition of 'Main::minMax', at issue290v2.cry:2:1--2:7,
+    we need to show that
+      for any type n, a
+      assuming
+        • fin n
+        • Cmp a
+      the following constraints hold:
+        • n == 1
+            arising from
+            matching types
+            at issue290v2.cry:2:1--2:19
+[error] at issue290v2.cry:2:8--2:11:
   Unsolved constraints:
     • n`899 == 1
         arising from

@@ -231,6 +231,7 @@ tvSourceName tvs =
 data TypeWithSource = WithSource
   { twsType   :: Type
   , twsSource :: TypeSource
+  , twsRange  :: !(Maybe Range)
   }
 
 

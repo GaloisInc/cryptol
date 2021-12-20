@@ -205,5 +205,6 @@ doInst su' e ps t =
     | Set.notMember tp bounds = return []
     | otherwise = let a   = tpVar tp
                       src = tvarDesc (tvInfo a)
-                  in unify (WithSource (TVar a) src) ty
+                      rng = Just (tvarSource (tvInfo a))
+                  in unify (WithSource (TVar a) src rng) ty
 
