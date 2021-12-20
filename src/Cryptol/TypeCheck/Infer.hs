@@ -468,28 +468,28 @@ checkRecUpd mb fs tGoal =
 
     Just e ->
       do e1 <- checkE e tGoal
-         foldM doUpd e1 fs
+         fst <$> foldM doUpd (e1, getLoc e) fs
 
   where
-  doUpd e (P.UpdField how sels v) =
+  doUpd (e,eloc) (P.UpdField how sels v) =
     case sels of
       [l] ->
         case how of
           P.UpdSet ->
             do let src = selSrc s
                ft <- newType src KType
-               v1 <- checkE v (WithSource ft src (getLoc e))
+               v1 <- checkE v (WithSource ft src eloc)
                d  <- newHasGoal s (twsType tGoal) ft
-               pure (hasDoSet d e v1)
+               pure (hasDoSet d e v1, eloc `rCombMaybe` getLoc v)
           P.UpdFun ->
              do let src = selSrc s
                 ft <- newType src KType
-                v1 <- checkE v (WithSource (tFun ft ft) src (getLoc e))
+                v1 <- checkE v (WithSource (tFun ft ft) src eloc)
                 -- XXX: ^ may be used a different src?
                 d  <- newHasGoal s (twsType tGoal) ft
                 tmp <- newParamName NSValue (packIdent "rf")
                 let e' = EVar tmp
-                pure $ hasDoSet d e' (EApp v1 (hasDoSelect d e'))
+                pure ( hasDoSet d e' (EApp v1 (hasDoSelect d e'))
                        `EWhere`
                        [  NonRecursive
                           Decl { dName        = tmp
@@ -500,6 +500,7 @@ checkRecUpd mb fs tGoal =
                                , dFixity      = Nothing
                                , dDoc         = Nothing
                                } ]
+                      , eloc `rCombMaybe` getLoc v )
 
         where s = thing l
       _ -> panic "checkRecUpd/doUpd" [ "Expected exactly 1 field label"
