@@ -456,6 +456,16 @@ renameWithMods ::
 renameWithMods info m = forgetMods <$> rename (WithMods info m)
 
 
+rnLocated :: (a -> RenameM b) -> Located a -> RenameM (Located b)
+rnLocated f loc = withLoc loc $
+  do a' <- f (thing loc)
+     return loc { thing = a' }
+
+
+
+
+
+
 instance Rename (WithMods TopDecl) where
   rename (WithMods info td) = WithMods info <$>
     case td of
@@ -470,7 +480,7 @@ instance Rename (WithMods TopDecl) where
         case ds of
           [] -> pure (DParameterConstraint [])
           _  -> depsOf (ConstratintAt (fromJust (getLoc ds)))
-              $ DParameterConstraint <$> mapM renameLocated ds
+              $ DParameterConstraint <$> mapM (rnLocated rename) ds
       DModule m -> DModule <$> traverse (renameWithMods info) m
       DImport li -> DImport <$> traverse renI li
         where
@@ -478,29 +488,29 @@ instance Rename (WithMods TopDecl) where
                     pure i { iModule = m }
 
       -- DModParam mp -> undefined
-      DModSig sig -> DModSig <$> traverse (renameSignature (fst info)) sig
+      DModSig sig -> DModSig <$> traverse (renameWithMods info) sig
 
-renameSignature :: OwnedEntities -> Signature PName -> RenameM (Signature Name)
-renameSignature info sig =
-  do let pname = thing (sigName sig)
-     nm <- resolveName NameBind NSSignature pname
-     case Map.lookup nm (ownSignatures info) of
-       Just env ->
-         shadowNames' CheckOverlap env
-            do tps <- traverse rename (sigTypeParams sig)
-               cts <- traverse (traverse rename) (sigConstraints sig)
-               fun <- traverse rename (sigFunParams sig)
-               pure Signature
-                      { sigName = (sigName sig) { thing = nm }
-                      , sigTypeParams = tps
-                      , sigConstraints = cts
-                      , sigFunParams = fun
-                      }
+instance Rename (WithMods Signature) where
+  rename (WithMods info@(own,_) sig) = WithMods info <$>
+    do let pname = thing (sigName sig)
+       nm <- resolveName NameBind NSSignature pname
+       case Map.lookup nm (ownSignatures own) of
+         Just env ->
+           shadowNames' CheckOverlap env
+              do tps <- traverse rename (sigTypeParams sig)
+                 cts <- traverse (traverse rename) (sigConstraints sig)
+                 fun <- traverse rename (sigFunParams sig)
+                 pure Signature
+                        { sigName = (sigName sig) { thing = nm }
+                        , sigTypeParams = tps
+                        , sigConstraints = cts
+                        , sigFunParams = fun
+                        }
 
-       Nothing -> panic "renameSignature"
-                    [ "Missing naming environment for signature"
-                    , show nm
-                    ]
+         Nothing -> panic "renameSignature"
+                      [ "Missing naming environment for signature"
+                      , show nm
+                      ]
 
 
 
@@ -527,11 +537,6 @@ instance Rename (WithMods NestedModule) where
             (_inScope,m1) <- renameModule' nested env newMPath m
             pure (NestedModule m1 { mName = lnm { thing = n } })
 
-
-renameLocated :: Rename f => Located (f PName) -> RenameM (Located (f Name))
-renameLocated x =
-  do y <- rename (thing x)
-     return x { thing = y }
 
 instance Rename PrimType where
   rename pt =
@@ -560,11 +565,6 @@ instance Rename ParameterFun where
          do sig' <- renameSchema (pfSchema a)
             return a { pfName = n', pfSchema = snd sig' }
 
-rnLocated :: (a -> RenameM b) -> Located a -> RenameM (Located b)
-rnLocated f loc = withLoc loc $
-  do a' <- f (thing loc)
-     return loc { thing = a' }
-
 instance Rename Decl where
   rename d      = case d of
     DBind b           -> DBind <$> rename b
@@ -574,7 +574,7 @@ instance Rename Decl where
     DLocated d' r     -> withLoc r
                        $ DLocated      <$> rename d'  <*> pure r
 
-    DFixity{}         -> panic "renaem" [ "DFixity" ]
+    DFixity{}         -> panic "rename" [ "DFixity" ]
     DSignature {}     -> panic "rename" [ "DSignature" ]
     DPragma  {}       -> panic "rename" [ "DPragma" ]
     DPatBind {}       -> panic "rename" [ "DPatBind " ]
