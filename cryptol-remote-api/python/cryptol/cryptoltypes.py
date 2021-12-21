@@ -136,27 +136,57 @@ class UnaryProp(CryptolProp):
     subject : CryptolType
 
 @dataclass
-class Fin(UnaryProp):
-    pass
+class BinaryProp(CryptolProp):
+    left : CryptolType
+    right : CryptolType
 
 @dataclass
-class Cmp(UnaryProp):
-    pass
+class Equal(BinaryProp): pass
+@dataclass
+class NotEqual(BinaryProp): pass
+@dataclass
+class Geq(BinaryProp): pass
+@dataclass
+class Fin(UnaryProp): pass
+@dataclass
+class Prime(UnaryProp): pass
 
 @dataclass
-class SignedCmp(UnaryProp):
-    pass
+class Zero(UnaryProp): pass
+@dataclass
+class Logic(UnaryProp): pass
+@dataclass
+class Ring(UnaryProp): pass
+@dataclass
+class Integral(UnaryProp): pass
+@dataclass
+class Field(UnaryProp): pass
+@dataclass
+class Round(UnaryProp): pass
+@dataclass
+class Eq(UnaryProp): pass
+@dataclass
+class Cmp(UnaryProp): pass
+@dataclass
+class SignedCmp(UnaryProp): pass
+@dataclass
+class Literal(UnaryProp): pass
+@dataclass
+class LiteralLessThan(UnaryProp): pass
+@dataclass
+class FLiteral(CryptolProp):
+    numerator : CryptolType
+    denominator : CryptolType
 
 @dataclass
-class Zero(UnaryProp):
-    pass
+class ValidFloat(BinaryProp): pass
 
 @dataclass
-class Arith(UnaryProp):
-    pass
-
+class And(CryptolProp):
+    left : CryptolProp
+    right : CryptolProp
 @dataclass
-class Logic(UnaryProp):
+class True(CryptolProp):
     pass
 
 
@@ -274,7 +304,7 @@ class Sequence(CryptolType):
     contents : CryptolType
 
     def __str__(self) -> str:
-        return f"[{self.length}]{parenthesize(str(self.contents))}"
+        return f"[{self.length}]{self.contents}"
 
 @dataclass
 class Inf(CryptolType):
@@ -299,66 +329,47 @@ class Z(CryptolType):
         return f"(Z {self.modulus})"
 
 @dataclass
-class Plus(CryptolType):
+class BinaryType(CryptolType):
     left : CryptolType
     right : CryptolType
 
+@dataclass
+class Plus(BinaryType):
     def __str__(self) -> str:
         return f"({self.left} + {self.right})"
 
 @dataclass
-class Minus(CryptolType):
-    left : CryptolType
-    right : CryptolType
-
+class Minus(BinaryType):
     def __str__(self) -> str:
         return f"({self.left} - {self.right})"
 
 @dataclass
-class Times(CryptolType):
-    left : CryptolType
-    right : CryptolType
-
+class Times(BinaryType):
     def __str__(self) -> str:
         return f"({self.left} * {self.right})"
 
 @dataclass
-class Div(CryptolType):
-    left : CryptolType
-    right : CryptolType
-
+class Div(BinaryType):
     def __str__(self) -> str:
         return f"({self.left} / {self.right})"
 
 @dataclass
-class CeilDiv(CryptolType):
-    left : CryptolType
-    right : CryptolType
-
+class CeilDiv(BinaryType):
     def __str__(self) -> str:
         return f"({self.left} /^ {self.right})"
 
 @dataclass
-class Mod(CryptolType):
-    left : CryptolType
-    right : CryptolType
-
+class Mod(BinaryType):
     def __str__(self) -> str:
         return f"({self.left} % {self.right})"
 
 @dataclass
-class CeilMod(CryptolType):
-    left : CryptolType
-    right : CryptolType
-
+class CeilMod(BinaryType):
     def __str__(self) -> str:
         return f"({self.left} %^ {self.right})"
 
 @dataclass
-class Expt(CryptolType):
-    left : CryptolType
-    right : CryptolType
-
+class Expt(BinaryType):
     def __str__(self) -> str:
         return f"({self.left} ^^ {self.right})"
 
@@ -377,20 +388,23 @@ class Width(CryptolType):
         return f"(width {self.operand})"
 
 @dataclass
-class Max(CryptolType):
-    left : CryptolType
-    right : CryptolType
-
+class Max(BinaryType):
     def __str__(self) -> str:
         return f"(max {self.left} {self.right})"
 
 @dataclass
-class Min(CryptolType):
-    left : CryptolType
-    right : CryptolType
-
+class Min(BinaryType):
     def __str__(self) -> str:
         return f"(min {self.left} {self.right})"
+
+@dataclass
+class LenFromThenTo(CryptolType):
+    num_from : CryptolType
+    num_then : CryptolType
+    num_to : CryptolType
+
+    def __str__(self) -> str:
+        return f"(lengthFromThenTo {self.num_from} {self.num_then} {self.num_to})"
 
 @dataclass
 class Tuple(CryptolType):
@@ -455,6 +469,8 @@ def to_type(t : Any) -> CryptolType:
         return Min(*map(to_type, t['arguments']))
     elif t['type'] == 'tuple':
         return Tuple(*map(to_type, t['contents']))
+    elif t['type'] == 'unit':
+        return Tuple()
     elif t['type'] == 'record':
         return Record({k : to_type(t['fields'][k]) for k in t['fields']})
     elif t['type'] == 'Integer':
