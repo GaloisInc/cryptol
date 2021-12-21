@@ -518,6 +518,8 @@ def to_type(t : Any) -> CryptolType:
         return Max(*map(to_type, t['arguments']))
     elif t['type'] == 'min':
         return Min(*map(to_type, t['arguments']))
+    elif t['type'] == 'lengthFromThenTo':
+        return LenFromThenTo(*map(to_type, t['arguments']))
     elif t['type'] == 'tuple':
         return Tuple(*map(to_type, t['contents']))
     elif t['type'] == 'unit':
