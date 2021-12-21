@@ -212,6 +212,7 @@ travNamingEnv f (NamingEnv mp) =
   NamingEnv <$> traverse (traverse (travNames f)) mp
 
 
+
 {- | Do something in the context of a module.
 If `Nothing` than we are working with a local declaration.
 Otherwise we are at the top-level of the given module.
@@ -230,6 +231,11 @@ newTop ns m thing fx rng =
 
 newLocal :: FreshM m => Namespace -> PName -> Range -> m Name
 newLocal ns thing rng = liftSupply (mkParameter ns (getIdent thing) rng)
+
+-- | Given a name in a signature, make a name for the parameter corresponding
+-- to the signature.
+newModParam :: FreshM m => Name -> m Name
+newModParam n = liftSupply (mkModParam n)
 
 newtype BuildNamingEnv = BuildNamingEnv { runBuild :: SupplyT Id NamingEnv }
 

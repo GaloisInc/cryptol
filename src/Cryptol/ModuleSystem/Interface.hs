@@ -19,6 +19,7 @@ module Cryptol.ModuleSystem.Interface (
   , IfaceNewtype
   , IfaceDecl(..)
   , IfaceParams(..)
+  , IfaceModParam(..)
 
   , emptyIface
   , ifacePrimMap
@@ -33,6 +34,7 @@ module Cryptol.ModuleSystem.Interface (
 
 import           Data.Set(Set)
 import qualified Data.Set as Set
+import           Data.Map(Map)
 import qualified Data.Map as Map
 import           Data.Semigroup
 import           Data.Text (Text)
@@ -107,6 +109,13 @@ noIfaceParams = IfaceParams
 isEmptyIfaceParams :: IfaceParams -> Bool
 isEmptyIfaceParams IfaceParams { .. } =
   Map.null ifParamTypes && null ifParamConstraints && Map.null ifParamFuns
+
+
+data IfaceModParam = IfaceModParam
+  { ifModParamName      :: Maybe ModName
+  , ifModParamSig       :: Name
+  , ifModParamInstance  :: Map Name Name -- ^ Maps param names to names in sig.
+  }
 
 data IfaceDecls = IfaceDecls
   { ifTySyns        :: Map.Map Name IfaceTySyn

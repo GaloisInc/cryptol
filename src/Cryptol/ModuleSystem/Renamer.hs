@@ -178,6 +178,7 @@ renameModule' thisNested env mpath m =
          openDs    = map thing (mSubmoduleImports m)
          allImps   = openLoop allNested env openDs imps
          -- XXX: add parameters if any
+         -- XXX: check that there are no parameters with the same name
 
      (inScope,decls') <-
         shadowNames' CheckNone allImps $
@@ -373,6 +374,44 @@ doImport li =
      pure (own, interpImportIface i decls)
 
 
+{- | Compute the names introduced by a module parameter.
+This should be run in a context containg everything that's in scope
+except for the module parameters.  We don't need to compute a fixed point here
+because the signatures (and hence module parameters) cannot contain signatures.
+
+The resulting naming environment contains the new names introduced by this
+parameter.
+-}
+doModParam ::
+  OwnedEntities ->
+  ModParam PName ->
+  RenameM (NamingEnv, IfaceModParam)
+doModParam owned mp =
+  do let sigName = mpSignature mp
+     withLoc (srcRange sigName)
+       do nm <- resolveName NameUse NSSignature (thing sigName)
+          case Map.lookup nm (ownSignatures owned) of
+            Just sigEnv ->
+              do let newP x = do y <- lift (newModParam x)
+                                 sets_ (Map.insert y x)
+                                 pure y
+                 (newEnv',nameMap) <- runStateT Map.empty
+                                                    (travNamingEnv newP sigEnv)
+                 let paramName = mpAs mp
+                 let newEnv = case paramName of
+                                Nothing -> newEnv'
+                                Just q  -> qualify q newEnv'
+                 pure ( newEnv
+                      , IfaceModParam
+                        { ifModParamName = mpAs mp
+                        , ifModParamSig  = nm
+                        , ifModParamInstance = nameMap
+                        }
+                      )
+
+
+            Nothing  -> panic "doModParam"
+                                      [ "Missing signature", show sigName ]
 
 --------------------------------------------------------------------------------
 -- Compute names coming through `import submodule` statements.
@@ -493,7 +532,7 @@ instance Rename (WithMods TopDecl) where
 instance Rename (WithMods Signature) where
   rename (WithMods info@(own,_) sig) = WithMods info <$>
     do let pname = thing (sigName sig)
-       nm <- resolveName NameBind NSSignature pname
+       nm <- resolveName NameBind NSModule pname
        case Map.lookup nm (ownSignatures own) of
          Just env ->
            shadowNames' CheckOverlap env

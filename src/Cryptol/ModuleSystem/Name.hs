@@ -38,6 +38,7 @@ module Cryptol.ModuleSystem.Name (
     -- ** Creation
   , mkDeclared
   , mkParameter
+  , mkModParam
   , toParamInstName
   , asParamName
   , paramModRecParam
@@ -340,6 +341,12 @@ mkParameter nNamespace nIdent nLoc s =
   let (nUnique,s') = nextUnique s
       nFixity      = Nothing
    in (Name { nInfo = Parameter, .. }, s')
+
+mkModParam :: Name -> Supply -> (Name, Supply)
+mkModParam n s =
+  case nextUnique s of
+    (u,s') -> (n { nUnique = u, nInfo = Parameter }, s')
+
 
 paramModRecParam :: Name
 paramModRecParam = Name { nInfo = Parameter

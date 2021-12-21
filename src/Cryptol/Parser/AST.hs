@@ -41,6 +41,7 @@ module Cryptol.Parser.AST
   , ModuleG(..)
   , mImports
   , mSubmoduleImports
+  , mModParams
   , Program(..)
   , TopDecl(..)
   , Decl(..)
@@ -155,6 +156,10 @@ mSubmoduleImports m =
   , let i = thing li
   , ImpNested n  <- [iModule i]
   ]
+
+-- | Get the module parameters of a module (new module system)
+mModParams :: ModuleG mnam name -> [ ModParam name ]
+mModParams m = [ p | DModParam p <- mDecls m ]
 
 
 -- | A top-level module
