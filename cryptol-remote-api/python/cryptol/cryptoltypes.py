@@ -14,6 +14,11 @@ from typing_extensions import Literal, Protocol, runtime_checkable
 
 A = TypeVar('A')
 
+
+# -----------------------------------------------------------
+# CryptolJSON and CryptolCode
+# -----------------------------------------------------------
+
 def is_parenthesized(s : str) -> bool:
     """Returns ``True`` iff the given string has balanced parentheses and is
        enclosed in a matching pair of parentheses.
@@ -112,6 +117,10 @@ class CryptolApplication(CryptolCode):
             return ' '.join(parenthesize(x.__to_cryptol_str__()) for x in [self._rator, *self._rands])
 
 
+# -----------------------------------------------------------
+# Cryptol kinds
+# -----------------------------------------------------------
+
 @dataclass
 class CryptolArrowKind:
     domain : CryptolKind
@@ -127,6 +136,11 @@ def to_kind(k : Any) -> CryptolKind:
         return CryptolArrowKind(k['from'], k['to'])
     else:
         raise ValueError(f'Not a Cryptol kind: {k!r}')
+
+
+# -----------------------------------------------------------
+# Cryptol props
+# -----------------------------------------------------------
 
 class CryptolProp:
     pass
@@ -189,6 +203,10 @@ class And(CryptolProp):
 class True(CryptolProp):
     pass
 
+
+# -----------------------------------------------------------
+# Converting Python terms to Cryptol JSON
+# -----------------------------------------------------------
 
 def to_cryptol(val : Any) -> JSON:
     """Convert a ``CryptolJSON`` value, a Python value representing a Cryptol
@@ -255,6 +273,11 @@ def is_plausible_json(val : Any) -> bool:
         return all(is_plausible_json(elt) for elt in val)
 
     return False
+
+
+# -----------------------------------------------------------
+# Cryptol types
+# -----------------------------------------------------------
 
 class CryptolType:
     def from_python(self, val : Any) -> NoReturn:
@@ -426,7 +449,6 @@ class Record(CryptolType):
     def __str__(self) -> str:
         return "{" + ",".join(str(k) + " = " + str(self.fields[k]) for k in self.fields) + "}"
 
-
 def to_type(t : Any) -> CryptolType:
     """Convert a Cryptol JSON type to a ``CryptolType``."""
     if t['type'] == 'variable':
@@ -481,6 +503,11 @@ def to_type(t : Any) -> CryptolType:
         return Z(to_type(t['modulus']))
     else:
         raise NotImplementedError(f"to_type({t!r})")
+
+
+# -----------------------------------------------------------
+# Cryptol type schema
+# -----------------------------------------------------------
 
 class CryptolTypeSchema:
     def __init__(self,
