@@ -120,121 +120,6 @@ class CryptolApplication(CryptolCode):
 
 
 # -----------------------------------------------------------
-# Cryptol kinds
-# -----------------------------------------------------------
-
-@dataclass
-class CryptolArrowKind:
-    domain : CryptolKind
-    range : CryptolKind
-
-CryptolKind = Union[typing_extensions.Literal['Type'],
-                    typing_extensions.Literal['Num'],
-                    typing_extensions.Literal['Prop'], CryptolArrowKind]
-
-def to_kind(k : Any) -> CryptolKind:
-    if k == "Type": return "Type"
-    elif k == "Num": return "Num"
-    elif k == "Prop": return "Prop"
-    elif k['kind'] == "arrow":
-        return CryptolArrowKind(k['from'], k['to'])
-    else:
-        raise ValueError(f'Not a Cryptol kind: {k!r}')
-
-
-# -----------------------------------------------------------
-# Cryptol props
-# -----------------------------------------------------------
-
-class CryptolProp:
-    pass
-
-@dataclass
-class UnaryProp(CryptolProp):
-    subject : CryptolType
-
-@dataclass
-class BinaryProp(CryptolProp):
-    left : CryptolType
-    right : CryptolType
-
-@dataclass
-class Equal(BinaryProp): pass
-@dataclass
-class NotEqual(BinaryProp): pass
-@dataclass
-class Geq(BinaryProp): pass
-@dataclass
-class Fin(UnaryProp): pass
-
-@dataclass
-class Zero(UnaryProp): pass
-@dataclass
-class Logic(UnaryProp): pass
-@dataclass
-class Ring(UnaryProp): pass
-@dataclass
-class Integral(UnaryProp): pass
-@dataclass
-class Field(UnaryProp): pass
-@dataclass
-class Round(UnaryProp): pass
-@dataclass
-class Eq(UnaryProp): pass
-@dataclass
-class Cmp(UnaryProp): pass
-@dataclass
-class SignedCmp(UnaryProp): pass
-@dataclass
-class Literal(CryptolProp):
-    size : CryptolType
-    subject : CryptolType
-
-@dataclass
-class And(CryptolProp):
-    left : CryptolProp
-    right : CryptolProp
-@dataclass
-class TrueProp(CryptolProp):
-    pass
-
-def to_prop(obj : Any) -> CryptolProp:
-    """Convert a Cryptol JSON proposition to a ``CryptolProp``."""
-    if obj['prop'] == '==':
-        return Equal(to_type(obj['left']), to_type(obj['right']))
-    elif obj['prop'] == '!=':
-        return NotEqual(to_type(obj['left']), to_type(obj['right']))
-    elif obj['prop'] == '>=':
-        return Geq(to_type(obj['greater']), to_type(obj['less']))
-    elif obj['prop'] == 'fin':
-        return Fin(to_type(obj['subject']))
-    elif obj['prop'] == 'Ring':
-        return Ring(to_type(obj['subject']))
-    elif obj['prop'] == 'Field':
-        return Field(to_type(obj['subject']))
-    elif obj['prop'] == 'Round':
-        return Round(to_type(obj['subject']))
-    elif obj['prop'] == 'Integral':
-        return Integral(to_type(obj['subject']))
-    elif obj['prop'] == 'Cmp':
-        return Cmp(to_type(obj['subject']))
-    elif obj['prop'] == 'SignedCmp':
-        return SignedCmp(to_type(obj['subject']))
-    elif obj['prop'] == 'Literal':
-        return Literal(to_type(obj['size']), to_type(obj['subject']))
-    elif obj['prop'] == 'Zero':
-        return Zero(to_type(obj['subject']))
-    elif obj['prop'] == 'Logic':
-        return Logic(to_type(obj['subject']))
-    elif obj['prop'] == 'True':
-        return TrueProp()
-    elif obj['prop'] == 'And':
-        return And(to_prop(obj['left']), to_prop(obj['right']))
-    else:
-        raise NotImplementedError(f"to_prop({obj!r})")
-
-
-# -----------------------------------------------------------
 # Converting Python terms to Cryptol JSON
 # -----------------------------------------------------------
 
@@ -303,6 +188,30 @@ def is_plausible_json(val : Any) -> bool:
         return all(is_plausible_json(elt) for elt in val)
 
     return False
+
+
+# -----------------------------------------------------------
+# Cryptol kinds
+# -----------------------------------------------------------
+
+@dataclass
+class CryptolArrowKind:
+    domain : CryptolKind
+    range : CryptolKind
+
+CryptolKind = Union[typing_extensions.Literal['Type'],
+                    typing_extensions.Literal['Num'],
+                    typing_extensions.Literal['Prop'],
+                    CryptolArrowKind]
+
+def to_kind(k : Any) -> CryptolKind:
+    if k == "Type": return "Type"
+    elif k == "Num": return "Num"
+    elif k == "Prop": return "Prop"
+    elif k['kind'] == "arrow":
+        return CryptolArrowKind(k['from'], k['to'])
+    else:
+        raise ValueError(f'Not a Cryptol kind: {k!r}')
 
 
 # -----------------------------------------------------------
@@ -460,20 +369,86 @@ def to_type(t : Any) -> CryptolType:
 
 
 # -----------------------------------------------------------
+# Cryptol props
+# -----------------------------------------------------------
+
+class CryptolProp:
+    pass
+
+@dataclass
+class PropCon(CryptolProp):
+    con : str
+    args : typing.Sequence[CryptolType]
+
+    # we override the @dataclass __init__ and __repr__ because we want the
+    #  syntax of variable numbers of arguments
+    def __init__(self, con : str, *args : CryptolType) -> None:
+        self.con = con
+        self.args = args
+
+    def __repr__(self) -> str:
+        return "PropCon(" + ", ".join(map(repr, [self.con, *self.args])) + ")"
+
+    def __str__(self) -> str:
+        if self.con.isalnum():
+            return "(" + " ".join(map(str, [self.con, self.args])) + ")"
+        elif len(self.args) == 2:
+            return f"({self.args[0]} {self.con} {self.args[1]})"
+        else:
+            raise NotImplementedError(f"__str__ for: {self!r}")
+
+@dataclass
+class And(CryptolProp):
+    left : CryptolProp
+    right : CryptolProp
+
+    def __str__(self) -> str:
+        return f"({self.left} && {self.right})"
+
+@dataclass
+class TrueProp(CryptolProp):
+    def __str__(self) -> str:
+        return "True"
+
+def to_prop(obj : Any) -> CryptolProp:
+    """Convert a Cryptol JSON proposition to a ``CryptolProp``."""
+    if obj['prop'] == 'And':
+        return And(to_prop(obj['left']), to_prop(obj['right']))
+    elif obj['prop'] == 'True':
+        return TrueProp()
+    # special cases for props which have irregular JSON structure
+    elif obj['prop'] == 'Literal':
+        return PropCon('Literal', to_type(obj['size']), to_type(obj['subject']))
+    elif obj['prop'] == '>=':
+        return PropCon('>=', to_type(obj['greater']), to_type(obj['less']))
+    # general cases for unary, binary, and unknown props
+    elif 'subject' in obj and len(obj) == 2:
+        return PropCon(obj['prop'], to_type(obj['subject']))
+    elif 'left' in obj and 'right' in obj and len(obj) == 3:
+        return PropCon(obj['prop'], to_type(obj['left']), to_type(obj['right']))
+    elif obj['prop'] == 'unknown':
+        return PropCon(obj['constructor'], *map(to_type, obj['arguments']))
+    else:
+        raise NotImplementedError(f"to_prop({obj!r})")
+
+
+# -----------------------------------------------------------
 # Cryptol type schema
 # -----------------------------------------------------------
 
+@dataclass
 class CryptolTypeSchema:
-    def __init__(self,
-                 variables : OrderedDict[str, CryptolKind],
-                 propositions : List[Optional[CryptolProp]], # TODO complete me!
-                 body : CryptolType) -> None:
-        self.variables = variables
-        self.propositions = propositions
-        self.body = body
+    variables : OrderedDict[str, CryptolKind]
+    propositions : List[CryptolProp]
+    body : CryptolType
 
-    def __repr__(self) -> str:
-        return f"CryptolTypeSchema({self.variables!r}, {self.propositions!r}, {self.body!r})"
+    def __str__(self) -> str:
+        vstr, pstr = "", "()"
+        if len(self.variables) > 0:
+            vstr = "{" + ", ".join(self.variables.keys()) + "} "
+        if len(self.propositions) > 0:
+            pstr = "(" + ", ".join(map(str, self.propositions)) + ")"
+        return vstr + pstr + " => " + str(self.body)
 
 def to_schema(obj : Any) -> CryptolTypeSchema:
     """Convert a Cryptol JSON type schema to a ``CryptolTypeSchema``."""
@@ -483,6 +458,8 @@ def to_schema(obj : Any) -> CryptolTypeSchema:
                              to_type(obj['type']))
 
 def argument_types(obj : Union[CryptolTypeSchema, CryptolType]) -> List[CryptolType]:
+    """Given a ``CryptolTypeSchema` or ``CryptolType`` of a function, return
+    the types of its arguments."""
     if isinstance(obj, CryptolTypeSchema):
         return argument_types(obj.body)
     elif isinstance(obj, Function):
