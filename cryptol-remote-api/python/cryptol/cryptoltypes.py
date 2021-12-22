@@ -457,6 +457,14 @@ def to_schema(obj : Any) -> CryptolTypeSchema:
                              [to_prop(p) for p in obj['propositions']],
                              to_type(obj['type']))
 
+def to_schema_or_type(obj : Any) -> Union[CryptolTypeSchema, CryptolType]:
+    """Convert a Cryptol JSON type schema to a ``CryptolType`` if it has no
+    variables or propositions, or to a ``CryptolTypeSchema`` otherwise."""
+    if 'forall' in obj and 'propositions' in obj and len(obj['forall']) > 0 and len(obj['propositions']) > 0:
+        return to_schema(obj)
+    else:
+        return to_type(obj['type'])
+
 def argument_types(obj : Union[CryptolTypeSchema, CryptolType]) -> List[CryptolType]:
     """Given a ``CryptolTypeSchema` or ``CryptolType`` of a function, return
     the types of its arguments."""

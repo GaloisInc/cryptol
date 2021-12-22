@@ -169,7 +169,7 @@ def check(expr : Any, *, num_tests : Union[Literal['all'], int, None] = None, ti
     """
     return __get_designated_connection().check(expr, num_tests=num_tests, timeout=timeout)
 
-def check_type(code : Any, *, timeout:Optional[float] = None) -> cryptoltypes.CryptolType:
+def check_type(code : Any, *, timeout:Optional[float] = None) -> Union[cryptoltypes.CryptolType, cryptoltypes.CryptolTypeSchema]:
     """Check the type of a Cryptol expression, represented according to
     :ref:`cryptol-json-expression`, with Python datatypes standing for
     their JSON equivalents.

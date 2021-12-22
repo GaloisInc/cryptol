@@ -1,6 +1,7 @@
 from typing import Any
 from dataclasses import dataclass
 
+# we freeze this class because ``OpaqueValue``s represent immutable objects
 @dataclass(frozen=True)
 class OpaqueValue():
   """A value from the Cryptol server which cannot be directly represented and/or
