@@ -101,7 +101,8 @@ class CryptolApplication(CryptolCode):
             self._rator = rator
             self._rands = rands
         else:
-            raise ValueError("Arguments given to CryptolApplication must be CryptolJSON")
+            args_str = ", ".join(map(repr, [rator, *rands]))
+            raise ValueError("Arguments given to CryptolApplication must be CryptolJSON: " + args_str)
 
     def __repr__(self) -> str:
         return f'CryptolApplication({", ".join(repr(x) for x in [self._rator, *self._rands])})'
