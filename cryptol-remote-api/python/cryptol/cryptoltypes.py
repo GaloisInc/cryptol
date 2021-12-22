@@ -382,87 +382,33 @@ class Z(CryptolType):
         return f"(Z {self.modulus})"
 
 @dataclass
-class BinaryType(CryptolType):
-    left : CryptolType
-    right : CryptolType
+class TypeOp(CryptolType):
+    op : str
+    args : typing.Sequence[CryptolType]
 
-@dataclass
-class Plus(BinaryType):
-    def __str__(self) -> str:
-        return f"({self.left} + {self.right})"
+    # we override the @dataclass __init__ and __repr__ because we want the
+    #  syntax of variable numbers of arguments
+    def __init__(self, op : str, *args : CryptolType) -> None:
+        self.op = op
+        self.args = args
 
-@dataclass
-class Minus(BinaryType):
-    def __str__(self) -> str:
-        return f"({self.left} - {self.right})"
-
-@dataclass
-class Times(BinaryType):
-    def __str__(self) -> str:
-        return f"({self.left} * {self.right})"
-
-@dataclass
-class Div(BinaryType):
-    def __str__(self) -> str:
-        return f"({self.left} / {self.right})"
-
-@dataclass
-class CeilDiv(BinaryType):
-    def __str__(self) -> str:
-        return f"({self.left} /^ {self.right})"
-
-@dataclass
-class Mod(BinaryType):
-    def __str__(self) -> str:
-        return f"({self.left} % {self.right})"
-
-@dataclass
-class CeilMod(BinaryType):
-    def __str__(self) -> str:
-        return f"({self.left} %^ {self.right})"
-
-@dataclass
-class Expt(BinaryType):
-    def __str__(self) -> str:
-        return f"({self.left} ^^ {self.right})"
-
-@dataclass
-class Log2(CryptolType):
-    operand : CryptolType
+    def __repr__(self) -> str:
+        return "TypeOp(" + ", ".join(map(repr, [self.op, *self.args])) + ")"
 
     def __str__(self) -> str:
-        return f"(lg2 {self.operand})"
-
-@dataclass
-class Width(CryptolType):
-    operand : CryptolType
-
-    def __str__(self) -> str:
-        return f"(width {self.operand})"
-
-@dataclass
-class Max(BinaryType):
-    def __str__(self) -> str:
-        return f"(max {self.left} {self.right})"
-
-@dataclass
-class Min(BinaryType):
-    def __str__(self) -> str:
-        return f"(min {self.left} {self.right})"
-
-@dataclass
-class LenFromThenTo(CryptolType):
-    num_from : CryptolType
-    num_then : CryptolType
-    num_to : CryptolType
-
-    def __str__(self) -> str:
-        return f"(lengthFromThenTo {self.num_from} {self.num_then} {self.num_to})"
+        if self.op.isalnum():
+            return "(" + " ".join(map(str, [self.op, self.args])) + ")"
+        elif len(self.args) == 2:
+            return f"({self.args[0]} {self.op} {self.args[1]})"
+        else:
+            raise NotImplementedError(f"__str__ for: {self!r}")
 
 @dataclass
 class Tuple(CryptolType):
     types : typing.Sequence[CryptolType]
 
+    # we override the @dataclass __init__ and __repr__ because we want the
+    #  syntax of variable numbers of arguments
     def __init__(self, *types : CryptolType) -> None:
         self.types = types
 
@@ -495,32 +441,6 @@ def to_type(t : Any) -> CryptolType:
         return Sequence(to_type(t['length']), to_type(t['contents']))
     elif t['type'] == 'inf':
         return Inf()
-    elif t['type'] == '+':
-        return Plus(*map(to_type, t['arguments']))
-    elif t['type'] == '-':
-        return Minus(*map(to_type, t['arguments']))
-    elif t['type'] == '*':
-        return Times(*map(to_type, t['arguments']))
-    elif t['type'] == '/':
-        return Div(*map(to_type, t['arguments']))
-    elif t['type'] == '/^':
-        return CeilDiv(*map(to_type, t['arguments']))
-    elif t['type'] == '%':
-        return Mod(*map(to_type, t['arguments']))
-    elif t['type'] == '%^':
-        return CeilMod(*map(to_type, t['arguments']))
-    elif t['type'] == '^^':
-        return Expt(*map(to_type, t['arguments']))
-    elif t['type'] == 'lg2':
-        return Log2(*map(to_type, t['arguments']))
-    elif t['type'] == 'width':
-        return Width(*map(to_type, t['arguments']))
-    elif t['type'] == 'max':
-        return Max(*map(to_type, t['arguments']))
-    elif t['type'] == 'min':
-        return Min(*map(to_type, t['arguments']))
-    elif t['type'] == 'lengthFromThenTo':
-        return LenFromThenTo(*map(to_type, t['arguments']))
     elif t['type'] == 'tuple':
         return Tuple(*map(to_type, t['contents']))
     elif t['type'] == 'unit':
@@ -533,6 +453,8 @@ def to_type(t : Any) -> CryptolType:
         return Rational()
     elif t['type'] == 'Z':
         return Z(to_type(t['modulus']))
+    elif 'arguments' in t:
+        return TypeOp(t['type'], *map(to_type, t['arguments']))
     else:
         raise NotImplementedError(f"to_type({t!r})")
 
