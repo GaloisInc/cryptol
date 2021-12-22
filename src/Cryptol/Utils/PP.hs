@@ -49,7 +49,8 @@ data PPFloatExp = ForceExponent -- ^ Always show an exponent
                 | AutoExponent  -- ^ Only show exponent when needed
  deriving Show
 
-data FieldOrder = DisplayOrder | CanonicalOrder deriving (Bounded, Enum, Eq, Ord, Read, Show)
+data FieldOrder = DisplayOrder | CanonicalOrder
+  deriving (Bounded, Enum, Eq, Ord, Read, Show)
 
 
 defaultPPOpts :: PPOpts
@@ -102,24 +103,49 @@ neverQualify  = NameDisp $ \ _ -> Just UnQualified
 extend :: NameDisp -> NameDisp -> NameDisp
 extend  = mappend
 
--- | Get the format for a name. When 'Nothing' is returned, the name is not
--- currently in scope.
+-- | Get the format for a name.
 getNameFormat :: OrigName -> NameDisp -> NameFormat
 getNameFormat m (NameDisp f)  = fromMaybe NotInScope (f m)
 getNameFormat _ EmptyNameDisp = NotInScope
 
 -- | Produce a document in the context of the current 'NameDisp'.
 withNameDisp :: (NameDisp -> Doc) -> Doc
-withNameDisp k = Doc (\disp -> runDoc disp (k disp))
+withNameDisp k = withPPCfg (k . ppcfgNameDisp)
+
+-- | Produce a document in the context of the current configuration.
+withPPCfg :: (PPCfg -> Doc) -> Doc
+withPPCfg k = Doc (\cfg -> runDocWith cfg (k cfg))
 
 -- | Fix the way that names are displayed inside of a doc.
 fixNameDisp :: NameDisp -> Doc -> Doc
-fixNameDisp disp (Doc f) = Doc (\ _ -> f disp)
+fixNameDisp disp d =
+  withPPCfg (\cfg -> fixPPCfg cfg { ppcfgNameDisp = disp } d)
+
+-- | Fix the way that names are displayed inside of a doc.
+fixPPCfg :: PPCfg -> Doc -> Doc
+fixPPCfg cfg (Doc f) = Doc (\_ -> f cfg)
+
+updPPCfg :: (PPCfg -> PPCfg) -> Doc -> Doc
+updPPCfg f d = withPPCfg (\cfg -> fixPPCfg (f cfg) d)
+
+
+
 
 
 -- Documents -------------------------------------------------------------------
 
-newtype Doc = Doc (NameDisp -> PP.Doc Void) deriving (Generic, NFData)
+data PPCfg = PPCfg
+  { ppcfgNameDisp     :: NameDisp
+  , ppcfgShowNameUniques :: Bool
+  }
+
+defaultPPCfg :: PPCfg
+defaultPPCfg = PPCfg
+  { ppcfgNameDisp = mempty
+  , ppcfgShowNameUniques = False
+  }
+
+newtype Doc = Doc (PPCfg -> PP.Doc Void) deriving (Generic, NFData)
 
 instance Semigroup Doc where
   (<>) = liftPP2 (<>)
@@ -128,18 +154,22 @@ instance Monoid Doc where
   mempty = liftPP mempty
   mappend = (<>)
 
+runDocWith :: PPCfg -> Doc -> PP.Doc Void
+runDocWith names (Doc f) = f names
+
 runDoc :: NameDisp -> Doc -> PP.Doc Void
-runDoc names (Doc f) = f names
+runDoc disp = runDocWith defaultPPCfg { ppcfgNameDisp = disp }
 
 instance Show Doc where
-  show d = PP.renderString (PP.layoutPretty opts (runDoc mempty d))
-    where opts = PP.defaultLayoutOptions{ PP.layoutPageWidth = PP.AvailablePerLine 100 0.666 }
+  show d = PP.renderString (PP.layoutPretty opts (runDocWith defaultPPCfg d))
+    where opts = PP.defaultLayoutOptions
+                    { PP.layoutPageWidth = PP.AvailablePerLine 100 0.666 }
 
 instance IsString Doc where
   fromString = text
 
 renderOneLine :: Doc -> String
-renderOneLine d = PP.renderString (PP.layoutCompact (runDoc mempty d))
+renderOneLine d = PP.renderString (PP.layoutCompact (runDocWith defaultPPCfg d))
 
 class PP a where
   ppPrec :: Int -> a -> Doc
@@ -380,7 +410,7 @@ instance PP OrigName where
 instance PP Namespace where
   ppPrec _ ns =
     case ns of
-      NSValue   -> "/*value*/"
-      NSType    -> "/*type*/"
-      NSModule  -> "/*module*/"
+      NSValue     -> "/*value*/"
+      NSType      -> "/*type*/"
+      NSModule    -> "/*module*/"
       NSSignature -> "/*signature*/"

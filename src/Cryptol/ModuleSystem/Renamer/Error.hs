@@ -59,6 +59,7 @@ data RenamerError
 
 -- We use this because parameter constrstaints have no names
 data DepName = NamedThing Name
+             | ModParamName Range (Maybe ModName)
              | ConstratintAt Range -- ^ identifed by location in source
                deriving (Eq,Ord,Show,Generic,NFData)
 
@@ -67,7 +68,7 @@ depNameLoc x =
   case x of
     NamedThing n -> nameLoc n
     ConstratintAt r -> r
-  
+    ModParamName r _ -> r
 
 
 instance PP RenamerError where
@@ -156,6 +157,10 @@ instance PP DepName where
           NSType   -> "type" <+> pp n
           NSValue  -> pp n
           NSSignature -> "signature" <+> pp n
+      ModParamName r x ->
+        case x of
+          Nothing -> "module parameter at" <+> pp r
+          Just m  -> "module parameter" <+> pp m
 
 
 

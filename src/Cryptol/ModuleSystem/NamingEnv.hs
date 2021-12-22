@@ -139,7 +139,7 @@ instance Monoid NamingEnv where
 
 instance PP NamingEnv where
   ppPrec _ (NamingEnv mps)   = vcat $ map ppNS $ Map.toList mps
-    where ppNS (ns,xs) = pp ns $$ nest 2 (vcat (map ppNm (Map.toList xs)))
+    where ppNS (ns,xs) = nest 2 (vcat (pp ns : map ppNm (Map.toList xs)))
           ppNm (x,as)  = pp x <+> "->" <+> commaSep (map pp (namesToList as))
 
 -- | Generate a mapping from 'PrimIdent' to 'Name' for a
@@ -234,8 +234,8 @@ newLocal ns thing rng = liftSupply (mkParameter ns (getIdent thing) rng)
 
 -- | Given a name in a signature, make a name for the parameter corresponding
 -- to the signature.
-newModParam :: FreshM m => Name -> m Name
-newModParam n = liftSupply (mkModParam n)
+newModParam :: FreshM m => Range -> Name -> m Name
+newModParam rng n = liftSupply (mkModParam rng n)
 
 newtype BuildNamingEnv = BuildNamingEnv { runBuild :: SupplyT Id NamingEnv }
 

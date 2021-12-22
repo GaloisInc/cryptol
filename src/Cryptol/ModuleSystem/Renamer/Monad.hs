@@ -230,6 +230,7 @@ data EnvCheck = CheckAll     -- ^ Check for overlap and shadowing
                 deriving (Eq,Show)
 
 -- | Shadow the current naming environment with some more names.
+-- XXX: The checks are really confusing
 shadowNames' :: BindsNames env => EnvCheck -> env -> RenameM a -> RenameM a
 shadowNames' check names m = do
   do env <- liftSupply (defsOf names)
@@ -239,9 +240,12 @@ shadowNames' check names m = do
           let ro' = ro { roNames = env' `shadowing` roNames ro }
           local ro' (unRenameM m)
 
--- | Generate warnings when the left environment shadows things defined in
--- the right.  Additionally, generate errors when two names overlap in the
--- left environment.
+{- | Validate if it is ok to exten an environment in a certain way.
+If shadow check is enabled, then generate warnings when the left
+environment shadows things defined in the right. 
+If overlap checking is on, then we generate errors when two names overlap
+in the left environment (i.e., there are multiple definitions for something)
+-}
 checkEnv :: EnvCheck -> NamingEnv -> NamingEnv -> RW -> (NamingEnv,RW)
 checkEnv check (NamingEnv lenv) r rw0
   | check == CheckNone = (newEnv,rw0)

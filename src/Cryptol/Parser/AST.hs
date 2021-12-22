@@ -95,6 +95,8 @@ import Cryptol.Utils.Ident
 import Cryptol.Utils.RecordMap
 import Cryptol.Utils.PP
 
+import           Data.Map(Map)
+import qualified Data.Map as Map
 import           Data.List(intersperse)
 import           Data.Bits(shiftR)
 import           Data.Maybe (catMaybes)
@@ -260,6 +262,10 @@ data ModParam name = ModParam
   { mpSignature     :: Located name         -- ^ Signature for parameter
   , mpAs            :: Maybe ModName        -- ^ Qualifier and parameter name
   , mpDoc           :: Maybe (Located Text) -- ^ Optional documentation
+  , mpRenaming      :: !(Map name name)
+    -- ^ Filled in by the renamer.
+    -- Maps the actual parameter names of the componenets to
+    -- the names in the signature.
   } deriving (Eq,Show,Generic,NFData)
 
 
@@ -650,7 +656,7 @@ instance (Show name, PPName mname, PPName name) => PP (ModuleG mname name) where
 ppModule :: (Show name, PPName mname, PPName name) =>
   Int -> ModuleG mname name -> Doc
 ppModule n m =
-  text "module" <+> ppL (mName m) <+> text "where" $$ nest n body
+  nest n ((text "module" <+> ppL (mName m) <+> text "where") $$ body)
   where
   body = vcat (map ppL (mImports m))
       $$ vcat (map pp (mDecls m))
@@ -689,9 +695,8 @@ instance (Show name, PPName name) => PP (Signature name) where
 
 ppSignature :: (Show name, PPName name) => Doc -> Signature name -> Doc
 ppSignature kw sig =
-    vcat [ kw <+> pp (sigName sig) <+> "where"
-         , nest 2 (vcat ds)
-         ]
+    nest 2 $ vcat $ (kw <+> pp (sigName sig) <+> "where")
+                  : ds
     where
     ds = map pp (sigTypeParams sig)
       ++ [ case map (pp . thing) (sigConstraints sig) of
@@ -704,6 +709,7 @@ ppSignature kw sig =
 
 instance (Show name, PPName name) => PP (ModParam name) where
   ppPrec _ mp = mbDoc $$ "import signature" <+> pp (mpSignature mp) <+> mbAs
+                      $$ mbRen
     where
     mbDoc = case mpDoc mp of
               Nothing -> mempty
@@ -711,6 +717,13 @@ instance (Show name, PPName name) => PP (ModParam name) where
     mbAs  = case mpAs mp of
               Nothing -> mempty
               Just d  -> "as" <+> pp d
+    mbRen
+      | Map.null (mpRenaming mp) = mempty
+      | otherwise = nest 2 $ vcat $
+                        "/* Parameters"
+                      : [ pp x <+> "->" <+> pp y
+                        | (x,y) <- Map.toList (mpRenaming mp) ]
+                     ++ ["*/"]
 
 instance (Show name, PPName name) => PP (PrimType name) where
   ppPrec _ pt =
@@ -1120,6 +1133,7 @@ instance NoPos (ModParam name) where
   noPos mp = ModParam { mpSignature = noPos (mpSignature mp)
                       , mpAs        = mpAs mp
                       , mpDoc       = noPos <$> mpDoc mp
+                      , mpRenaming  = mpRenaming mp
                       }
 
 instance NoPos (PrimType name) where

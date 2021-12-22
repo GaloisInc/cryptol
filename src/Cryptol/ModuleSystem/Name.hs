@@ -15,6 +15,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BlockArguments #-}
 -- for the instances of RunM and BaseM
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -176,7 +177,10 @@ ppName nm =
   case asOrigName nm of
     Just og -> pp og
     Nothing -> pp (nameIdent nm)
-
+  <.>
+  withPPCfg \cfg ->
+    if ppcfgShowNameUniques cfg then "_" <.> int (nameUnique nm)
+                                else mempty
 
 instance PP Name where
   ppPrec _ = ppPrefixName
@@ -342,10 +346,10 @@ mkParameter nNamespace nIdent nLoc s =
       nFixity      = Nothing
    in (Name { nInfo = Parameter, .. }, s')
 
-mkModParam :: Name -> Supply -> (Name, Supply)
-mkModParam n s =
+mkModParam :: Range -> Name -> Supply -> (Name, Supply)
+mkModParam rng n s =
   case nextUnique s of
-    (u,s') -> (n { nUnique = u, nInfo = Parameter }, s')
+    (u,s') -> (n { nUnique = u, nInfo = Parameter, nLoc = rng }, s')
 
 
 paramModRecParam :: Name

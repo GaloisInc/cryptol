@@ -442,6 +442,10 @@ checkSingleModule how isrc path m = do
   -- rename everything
   renMod <- renameModule npm
 
+  -- dump renamed
+  when (False && thing (mName (R.rmModule renMod)) /= preludeName)
+       (io $ print (T.pp renMod))
+
   -- when generating the prim map for the typechecker, if we're checking the
   -- prelude, we have to generate the map from the renaming environment, as we
   -- don't have the interface yet.
