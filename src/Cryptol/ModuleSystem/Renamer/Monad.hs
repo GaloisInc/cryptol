@@ -25,7 +25,9 @@ import Prelude ()
 import Prelude.Compat
 
 import Cryptol.ModuleSystem.Name
+import Cryptol.ModuleSystem.Names
 import Cryptol.ModuleSystem.NamingEnv
+import Cryptol.ModuleSystem.Binds
 import Cryptol.ModuleSystem.Interface
 import Cryptol.Parser.AST
 import Cryptol.Parser.Position
@@ -163,9 +165,9 @@ nestedModuleOrig :: ModPath -> RenameM (Maybe Name)
 nestedModuleOrig x = RenameM (asks (Map.lookup x . roNestedMods))
 
 
--- | Record an error.  XXX: use a better name
-record :: RenamerError -> RenameM ()
-record f = RenameM $
+-- | Record an error.
+recordError :: RenamerError -> RenameM ()
+recordError f = RenameM $
   do RW { .. } <- get
      set RW { rwErrors = rwErrors Seq.|> f, .. }
 
@@ -229,6 +231,15 @@ data EnvCheck = CheckAll     -- ^ Check for overlap and shadowing
               | CheckNone    -- ^ Don't check the environment
                 deriving (Eq,Show)
 
+{-
+checkOverlap :: NamingEnv -> RenameM NamingEnv
+checkOverlap env
+  | isEmptyNamingEnv ambig = pure env
+  | otherwise =
+  where
+  ambig = onlyAmbig env
+-}
+
 -- | Shadow the current naming environment with some more names.
 -- XXX: The checks are really confusing
 shadowNames' :: BindsNames env => EnvCheck -> env -> RenameM a -> RenameM a
@@ -256,8 +267,8 @@ checkEnv check (NamingEnv lenv) r rw0
   (rwFin,newMap) = Map.mapAccumWithKey doNS rw0 lenv  -- lenv 1 ns at a time
   doNS rw ns     = Map.mapAccumWithKey (step ns) rw
 
-  -- namespace, current state, k : parse name, xs : possible entities for k
-  step ns acc k xs = (acc', case check of
+  -- namespace, current state, nm : parse name, xs : possible entities for nm
+  step ns acc nm xs = (acc', case check of
                               CheckNone -> xs
                               _         -> One (anyOne xs)
                               -- we've already reported an overlap error,
@@ -267,11 +278,11 @@ checkEnv check (NamingEnv lenv) r rw0
     acc' = acc
       { rwWarnings =
           if check == CheckAll
-             then case Map.lookup k (namespaceMap ns r) of
+             then case Map.lookup nm (namespaceMap ns r) of
                     Just os | One x <- xs
                             , let os' = filter (/=x) (namesToList os)
                             , not (null os') ->
-                              SymbolShadowed k x os' : rwWarnings acc
+                              SymbolShadowed nm x os' : rwWarnings acc
                     _ -> rwWarnings acc
 
              else rwWarnings acc

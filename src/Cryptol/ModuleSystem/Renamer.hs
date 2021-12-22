@@ -43,6 +43,7 @@ import MonadLib hiding (mapM, mapM_)
 
 
 import Cryptol.ModuleSystem.Name
+import Cryptol.ModuleSystem.Names
 import Cryptol.ModuleSystem.NamingEnv
 import Cryptol.ModuleSystem.Exports
 import Cryptol.Parser.Position(getLoc)
@@ -55,6 +56,7 @@ import Cryptol.Utils.PP
 
 import Cryptol.ModuleSystem.Interface
 import Cryptol.ModuleSystem.Renamer.Error
+import Cryptol.ModuleSystem.Binds
 import Cryptol.ModuleSystem.Renamer.Monad
 
 
@@ -183,6 +185,7 @@ renameModule' thisNested env mpath m =
          openDs    = map thing (mSubmoduleImports m)
          allImps   = openLoop allNested env openDs imps
 
+
      (inScope,decls') <-
         shadowNames' CheckNone allImps $
         shadowNames' CheckOverlap env $
@@ -222,7 +225,7 @@ renameDecls ds =
              CyclicSCC ds_xs ->
                let (rds,xs) = unzip ds_xs
                in case mapM validRecursiveD rds of
-                    Nothing -> do record (InvalidDependency xs)
+                    Nothing -> do recordError (InvalidDependency xs)
                                   pure rds
                     Just bs ->
                       do checkSameModule xs
@@ -242,7 +245,7 @@ checkSameModule xs =
   case ms of
     a : as | let bad = [ fst b | b <- as, snd a /= snd b ]
            , not (null bad) ->
-              record $ InvalidDependency $ map NamedThing $ fst a : bad
+              recordError (InvalidDependency $ map NamedThing $ fst a : bad)
     _ -> pure ()
   where
   ms = [ (x,p) | NamedThing x <- xs, Declared p _ <- [ nameInfo x ] ]
@@ -268,7 +271,7 @@ renameTopDecls' info ds =
               CyclicSCC ds_xs ->
                 let (rds,xs) = unzip ds_xs
                 in case mapM valid rds of
-                     Nothing -> do record (InvalidDependency xs)
+                     Nothing -> do recordError (InvalidDependency xs)
                                    pure rds
                      Just bs ->
                        do checkSameModule xs
@@ -697,7 +700,7 @@ resolveNameMaybe nt expected qn =
             do let syms = Set.toList symSet
                mapM_ use syms    -- mark as used to avoid unused warnings
                n <- located qn
-               record (MultipleSyms n syms)
+               recordError (MultipleSyms n syms)
                return (Just (head syms))
 
        Nothing -> pure Nothing
@@ -717,10 +720,10 @@ resolveName nt expected qn =
             nm <- located qn
             case others of
               -- name exists in a different namespace
-              actual : _ -> record (WrongNamespace expected actual nm)
+              actual : _ -> recordError (WrongNamespace expected actual nm)
 
               -- the value is just missing
-              [] -> record (UnboundName expected nm)
+              [] -> recordError (UnboundName expected nm)
 
             mkFakeName expected qn
 
@@ -801,7 +804,7 @@ mkTInfix t@(TInfix x o1 f1 y) op@(o2,f2) z =
     FCLeft  -> return (TInfix t o2 f2 z)
     FCRight -> do r <- mkTInfix y op z
                   return (TInfix x o1 f1 r)
-    FCError -> do record (FixityError o1 f1 o2 f2)
+    FCError -> do recordError (FixityError o1 f1 o2 f2)
                   return (TInfix t o2 f2 z)
 
 mkTInfix (TLocated t' _) op z =
@@ -943,7 +946,7 @@ checkLabels = foldM_ check [] . map labs
 
   check done l =
     do case find (overlap l) done of
-         Just l' -> record (OverlappingRecordUpdate (reLoc l) (reLoc l'))
+         Just l' -> recordError (OverlappingRecordUpdate (reLoc l) (reLoc l'))
          Nothing -> pure ()
        pure (l : done)
 
@@ -975,7 +978,7 @@ mkEInfix e@(EInfix x o1 f1 y) op@(o2,f2) z =
      FCRight -> do r <- mkEInfix y op z
                    return (EInfix x o1 f1 r)
 
-     FCError -> do record (FixityError o1 f1 o2 f2)
+     FCError -> do recordError (FixityError o1 f1 o2 f2)
                    return (EInfix e o2 f2 z)
 
 mkEInfix (ELocated e' _) op z =
@@ -1116,7 +1119,7 @@ patternEnv  = go
            -- error and continue with a made up name.
            | otherwise ->
              do loc <- curLoc
-                record (UnboundName NSType (Located loc pn))
+                recordError (UnboundName NSType (Located loc pn))
                 n   <- liftSupply (mkParameter NSType (getIdent pn) loc)
                 return (singletonNS NSType pn n)
 

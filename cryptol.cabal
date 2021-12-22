@@ -116,7 +116,9 @@ library
                        Cryptol.ModuleSystem.Interface,
                        Cryptol.ModuleSystem.Monad,
                        Cryptol.ModuleSystem.Name,
+                       Cryptol.ModuleSystem.Names,
                        Cryptol.ModuleSystem.NamingEnv,
+                       Cryptol.ModuleSystem.Binds
                        Cryptol.ModuleSystem.Exports,
                        Cryptol.ModuleSystem.InstantiateModule,
                        Cryptol.ModuleSystem.Renamer,
