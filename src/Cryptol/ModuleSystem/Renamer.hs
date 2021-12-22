@@ -188,12 +188,12 @@ renameModule' thisNested env mpath m =
 
      (inScope,decls') <-
         shadowNames' CheckNone allImps $
-        shadowNames' CheckOverlap env $
-                          -- maybe we should allow for a warning
-                          -- if a local name shadows an imported one?
-        do (envs,params) <- unzip <$> mapM (doModParam allNested) (mModParams m)
-           let sigImports = mconcat envs
-           shadowNames sigImports
+        do (envs,params) <-
+              shadowNames' CheckNone env $ -- the actual check will happen below
+                 unzip <$> mapM (doModParam allNested) (mModParams m)
+
+           shadowNames' CheckOverlap (mconcat (env : envs))
+                                                      -- here is the check
              do inScope <- getNamingEnv
                 let mparams = Map.fromList
                                 [ (ifModParamName p, ifModParamInstance p)
@@ -486,8 +486,8 @@ openLoop ::
   NamingEnv       {- ^ Imported declarations                    -} ->
   NamingEnv       {- ^ Completed imports                        -}
 openLoop modEnvs defs os imps =
-  scopingRel $ loop OpenLoopState
-                      { unresolvedOpen = os
+  scopeImports $
+  loop OpenLoopState  { unresolvedOpen = os
                       , scopeImports   = imps
                       , scopeDefs      = defs
                       , scopingRel     = defs `shadowing` imps
@@ -1166,9 +1166,10 @@ instance PP RenamedModule where
       vcat [ "// --- Defines -----------------------------"
            , pp (rmDefines rn)
            , "// --- In scope ----------------------------"
-           , pp (rmInScope rn)
+           -- , pp (rmInScope rn)
            , "// -- Module -------------------------------"
            , pp (rmModule rn)
+           , "// -----------------------------------------"
            ]
 
 

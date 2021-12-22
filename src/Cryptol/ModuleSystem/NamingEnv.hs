@@ -138,26 +138,24 @@ filterNames p (NamingEnv env) = NamingEnv (Map.filterWithKey check <$> env)
   where check n _ = p n
 
 
--- | Restrict an environment to contain only the ambiguous names
-onlyAmbig :: NamingEnv -> NamingEnv
-onlyAmbig (NamingEnv xs) =
-  NamingEnv (Map.filter (not . Map.null) (Map.filter isAmbig <$> xs))
-  where
-  isAmbig x = case x of
-                One {}   -> False
-                Ambig {} -> True
+-- | Find the ambiguous entries in an environmet.
+-- A name is ambiguous if it might refer to multiple entities.
+findAmbig :: NamingEnv -> [ [Name] ]
+findAmbig (NamingEnv ns) =
+  [ Set.toList xs
+  | mp <- Map.elems ns
+  , Ambig xs <- Map.elems mp
+  ]
 
 -- | Get the subset of the first environment that shadows something
 -- in the second one.
-onlyShadowing :: NamingEnv -> NamingEnv -> NamingEnv
-onlyShadowing (NamingEnv lhs) rhs = NamingEnv
-                                      (Map.filter (not . Map.null)
-                                                  (Map.mapWithKey doNS lhs))
-  where
-  doNS ns = Map.filterWithKey \nm' _ ->
-              case lookupNS ns nm' rhs of
-                Just {} -> True
-                _       -> False
+findShadowing :: NamingEnv -> NamingEnv -> [ (PName,Name,[Name]) ]
+findShadowing (NamingEnv lhs) rhs =
+  [ (p, anyOne xs, namesToList ys)
+  | (ns,mp) <- Map.toList lhs
+  , (p,xs) <- Map.toList mp
+  , Just ys <- [ lookupNS ns p rhs ]
+  ]
 
 -- | Do an arbitrary choice for ambiguous names.
 -- We do this to continue checking afetr we've reported an ambiguity error.

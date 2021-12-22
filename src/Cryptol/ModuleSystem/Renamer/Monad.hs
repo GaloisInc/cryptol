@@ -25,7 +25,6 @@ import Prelude ()
 import Prelude.Compat
 
 import Cryptol.ModuleSystem.Name
-import Cryptol.ModuleSystem.Names
 import Cryptol.ModuleSystem.NamingEnv
 import Cryptol.ModuleSystem.Binds
 import Cryptol.ModuleSystem.Interface
@@ -171,6 +170,10 @@ recordError f = RenameM $
   do RW { .. } <- get
      set RW { rwErrors = rwErrors Seq.|> f, .. }
 
+recordWarning :: RenamerWarning -> RenameM ()
+recordWarning w =
+  RenameM $ sets_ \rw -> rw { rwWarnings = w : rwWarnings rw }
+
 collectIfaceDeps :: RenameM a -> RenameM (IfaceDecls,a)
 collectIfaceDeps (RenameM m) =
   RenameM
@@ -231,70 +234,38 @@ data EnvCheck = CheckAll     -- ^ Check for overlap and shadowing
               | CheckNone    -- ^ Don't check the environment
                 deriving (Eq,Show)
 
-{-
+-- | Report errors if the given naming environemnt contains multiple
+-- definitions for the same symbol
 checkOverlap :: NamingEnv -> RenameM NamingEnv
-checkOverlap env
-  | isEmptyNamingEnv ambig = pure env
-  | otherwise =
-  where
-  ambig = onlyAmbig env
--}
+checkOverlap env =
+  case findAmbig env of
+    []    -> pure env
+    ambig -> do mapM_ recordError [ OverlappingSyms xs | xs <- ambig ]
+                pure (forceUnambig env)
+
+-- | Issue warnings if entries in the first environment would
+-- shadow something in the second.
+checkShadowing :: NamingEnv -> NamingEnv -> RenameM ()
+checkShadowing envNew envOld =
+  mapM_ recordWarning
+    [ SymbolShadowed p x xs | (p,x,xs) <- findShadowing envNew envOld ]
+
 
 -- | Shadow the current naming environment with some more names.
 -- XXX: The checks are really confusing
 shadowNames' :: BindsNames env => EnvCheck -> env -> RenameM a -> RenameM a
 shadowNames' check names m = do
-  do env <- liftSupply (defsOf names)
-     RenameM $
+  do env    <- liftSupply (defsOf names)
+     envOld <- RenameM (roNames <$> ask)
+     env1   <- case check of
+                 CheckNone    -> pure env
+                 CheckOverlap -> checkOverlap env
+                 CheckAll     -> do checkShadowing env envOld
+                                    checkOverlap env
+     RenameM
        do ro  <- ask
-          env' <- sets (checkEnv check env (roNames ro))
-          let ro' = ro { roNames = env' `shadowing` roNames ro }
+          let ro' = ro { roNames = env1 `shadowing` envOld }
           local ro' (unRenameM m)
-
-{- | Validate if it is ok to exten an environment in a certain way.
-If shadow check is enabled, then generate warnings when the left
-environment shadows things defined in the right. 
-If overlap checking is on, then we generate errors when two names overlap
-in the left environment (i.e., there are multiple definitions for something)
--}
-checkEnv :: EnvCheck -> NamingEnv -> NamingEnv -> RW -> (NamingEnv,RW)
-checkEnv check (NamingEnv lenv) r rw0
-  | check == CheckNone = (newEnv,rw0)
-  | otherwise          = (newEnv,rwFin)
-
-  where
-  newEnv         = NamingEnv newMap
-  (rwFin,newMap) = Map.mapAccumWithKey doNS rw0 lenv  -- lenv 1 ns at a time
-  doNS rw ns     = Map.mapAccumWithKey (step ns) rw
-
-  -- namespace, current state, nm : parse name, xs : possible entities for nm
-  step ns acc nm xs = (acc', case check of
-                              CheckNone -> xs
-                              _         -> One (anyOne xs)
-                              -- we've already reported an overlap error,
-                              -- so resolve arbitrarily to  the first entry
-                      )
-    where
-    acc' = acc
-      { rwWarnings =
-          if check == CheckAll
-             then case Map.lookup nm (namespaceMap ns r) of
-                    Just os | One x <- xs
-                            , let os' = filter (/=x) (namesToList os)
-                            , not (null os') ->
-                              SymbolShadowed nm x os' : rwWarnings acc
-                    _ -> rwWarnings acc
-
-             else rwWarnings acc
-      , rwErrors   = rwErrors acc Seq.>< containsOverlap xs
-      }
-
--- | Check the RHS of a single name rewrite for conflicting sources.
-containsOverlap :: Names -> Seq.Seq RenamerError
-containsOverlap xs =
-  case xs of
-    One _    -> Seq.empty
-    Ambig as -> Seq.singleton (OverlappingSyms (Set.toList as))
 
 recordUse :: Name -> RenameM ()
 recordUse x = RenameM $ sets_ $ \rw ->
