@@ -1,6 +1,7 @@
 from __future__ import annotations
 from collections import OrderedDict
 from abc import ABCMeta, abstractmethod
+from dataclasses import dataclass
 import base64
 from math import ceil
 import BitVector #type: ignore
@@ -9,9 +10,15 @@ from .opaque import OpaqueValue
 
 import typing
 from typing import cast, Any, Dict, Iterable, List, NoReturn, Optional, TypeVar, Union
-from typing_extensions import Literal, Protocol
+import typing_extensions
+from typing_extensions import Protocol, runtime_checkable
 
 A = TypeVar('A')
+
+
+# -----------------------------------------------------------
+# CryptolJSON and CryptolCode
+# -----------------------------------------------------------
 
 def is_parenthesized(s : str) -> bool:
     """Returns ``True`` iff the given string has balanced parentheses and is
@@ -50,32 +57,32 @@ def parenthesize(s : str) -> str:
        ``is_parenthesized(s)`` is ``False``"""
     return s if is_parenthesized(s) else f'({s})'
 
-
 JSON = Union[bool, int, float, str, Dict, typing.Tuple, List]
 
+@runtime_checkable
 class CryptolJSON(Protocol):
+    """A ``Protocol`` for objects which can be converted to Cryptol JSON or
+       Cryptol strings."""
     def __to_cryptol__(self) -> JSON: ...
     def __to_cryptol_str__(self) -> str: ...
 
 class CryptolCode(metaclass=ABCMeta):
-    def __call__(self, *others : CryptolJSON) -> CryptolCode:
-        if all(hasattr(other, '__to_cryptol__') for other in others):
-            return CryptolApplication(self, *others)
-        else:
-            raise ValueError("Argument to __call__ on CryptolCode is not CryptolJSON")
-
+    """The base class for ``CryptolLiteral`` and ``CryptolApplication``."""
     @abstractmethod
     def __to_cryptol__(self) -> JSON: ...
-
     @abstractmethod
     def __to_cryptol_str__(self) -> str: ...
 
     def __str__(self) -> str:
         return self.__to_cryptol_str__()
 
+    def __call__(self, *others : CryptolJSON) -> CryptolCode:
+        return CryptolApplication(self, *others)
+
+@dataclass
 class CryptolLiteral(CryptolCode):
-    def __init__(self, code : str) -> None:
-        self._code = code
+    """A string of Cryptol syntax."""
+    _code : str
 
     def __to_cryptol__(self) -> JSON:
         return self._code
@@ -83,16 +90,22 @@ class CryptolLiteral(CryptolCode):
     def __to_cryptol_str__(self) -> str:
         return self._code
 
-    def __eq__(self, other : Any) -> bool:
-        return isinstance(other, CryptolLiteral) and self._code == other._code
+@dataclass
+class CryptolApplication(CryptolCode):
+    """An application of a Cryptol function to some arguments."""
+    _rator : CryptolJSON
+    _rands : typing.Sequence[CryptolJSON]
+
+    def __init__(self, rator : CryptolJSON, *rands : CryptolJSON) -> None:
+        if all(isinstance(rand, CryptolJSON) for rand in rands):
+            self._rator = rator
+            self._rands = rands
+        else:
+            args_str = ", ".join(map(repr, [rator, *rands]))
+            raise ValueError("Arguments given to CryptolApplication must be CryptolJSON: " + args_str)
 
     def __repr__(self) -> str:
-        return f'CryptolLiteral({self._code!r})'
-
-class CryptolApplication(CryptolCode):
-    def __init__(self, rator : CryptolJSON, *rands : CryptolJSON) -> None:
-        self._rator = rator
-        self._rands = rands
+        return f'CryptolApplication({", ".join(repr(x) for x in [self._rator, *self._rands])})'
 
     def __to_cryptol__(self) -> JSON:
         return {'expression': 'call',
@@ -105,63 +118,10 @@ class CryptolApplication(CryptolCode):
         else:
             return ' '.join(parenthesize(x.__to_cryptol_str__()) for x in [self._rator, *self._rands])
 
-    def __eq__(self, other : Any) -> bool:
-        return isinstance(other, CryptolApplication) and self._rator == other._rator and self._rands == other._rands
 
-    def __repr__(self) -> str:
-        return f'CryptolApplication({", ".join(repr(x) for x in [self._rator, *self._rands])})'
-
-
-class CryptolArrowKind:
-    def __init__(self, dom : CryptolKind, ran : CryptolKind):
-        self.domain = dom
-        self.range = ran
-
-    def __repr__(self) -> str:
-        return f"CryptolArrowKind({self.domain!r}, {self.range!r})"
-
-CryptolKind = Union[Literal['Type'], Literal['Num'], Literal['Prop'], CryptolArrowKind]
-
-def to_kind(k : Any) -> CryptolKind:
-    if k == "Type": return "Type"
-    elif k == "Num": return "Num"
-    elif k == "Prop": return "Prop"
-    elif k['kind'] == "arrow":
-        return CryptolArrowKind(k['from'], k['to'])
-    else:
-        raise ValueError(f'Not a Cryptol kind: {k!r}')
-
-class CryptolProp:
-    pass
-
-class UnaryProp(CryptolProp):
-    def __init__(self, subject : CryptolType) -> None:
-        self.subject = subject
-
-class Fin(UnaryProp):
-    def __repr__(self) -> str:
-        return f"Fin({self.subject!r})"
-
-class Cmp(UnaryProp):
-    def __repr__(self) -> str:
-        return f"Cmp({self.subject!r})"
-
-class SignedCmp(UnaryProp):
-    def __repr__(self) -> str:
-        return f"SignedCmp({self.subject!r})"
-
-class Zero(UnaryProp):
-    def __repr__(self) -> str:
-        return f"Zero({self.subject!r})"
-
-class Arith(UnaryProp):
-    def __repr__(self) -> str:
-        return f"Arith({self.subject!r})"
-
-class Logic(UnaryProp):
-    def __repr__(self) -> str:
-        return f"Logic({self.subject!r})"
-
+# -----------------------------------------------------------
+# Converting Python terms to Cryptol JSON
+# -----------------------------------------------------------
 
 def to_cryptol(val : Any) -> JSON:
     """Convert a ``CryptolJSON`` value, a Python value representing a Cryptol
@@ -229,6 +189,35 @@ def is_plausible_json(val : Any) -> bool:
 
     return False
 
+
+# -----------------------------------------------------------
+# Cryptol kinds
+# -----------------------------------------------------------
+
+@dataclass
+class CryptolArrowKind:
+    domain : CryptolKind
+    range : CryptolKind
+
+CryptolKind = Union[typing_extensions.Literal['Type'],
+                    typing_extensions.Literal['Num'],
+                    typing_extensions.Literal['Prop'],
+                    CryptolArrowKind]
+
+def to_kind(k : Any) -> CryptolKind:
+    if k == "Type": return "Type"
+    elif k == "Num": return "Num"
+    elif k == "Prop": return "Prop"
+    elif k['kind'] == "arrow":
+        return CryptolArrowKind(k['from'], k['to'])
+    else:
+        raise ValueError(f'Not a Cryptol kind: {k!r}')
+
+
+# -----------------------------------------------------------
+# Cryptol types
+# -----------------------------------------------------------
+
 class CryptolType:
     def from_python(self, val : Any) -> NoReturn:
         raise Exception("CryptolType.from_python is deprecated, use to_cryptol")
@@ -236,223 +225,117 @@ class CryptolType:
     def convert(self, val : Any) -> NoReturn:
         raise Exception("CryptolType.convert is deprecated, use to_cryptol")
 
+@dataclass
 class Var(CryptolType):
-    def __init__(self, name : str, kind : CryptolKind) -> None:
-        self.name = name
-        self.kind = kind
+    name : str
+    kind : CryptolKind
 
-    def __repr__(self) -> str:
-        return f"Var({self.name!r}, {self.kind!r})"
+    def __str__(self) -> str:
+        return self.name
 
-
-
+@dataclass
 class Function(CryptolType):
-    def __init__(self, dom : CryptolType, ran : CryptolType) -> None:
-        self.domain = dom
-        self.range = ran
+    domain : CryptolType
+    range : CryptolType
 
-    def __repr__(self) -> str:
-        return f"Function({self.domain!r}, {self.range!r})"
+    def __str__(self) -> str:
+        return f"({self.domain} -> {self.range})"
 
+@dataclass
 class Bitvector(CryptolType):
-    def __init__(self, width : CryptolType) -> None:
-        self.width = width
+    width : CryptolType
 
-    def __repr__(self) -> str:
-        return f"Bitvector({self.width!r})"
+    def __str__(self) -> str:
+        return f"[{self.width}]"
 
-
+@dataclass
 class Num(CryptolType):
-    def __init__(self, number : int) -> None:
-        self.number = number
+    number : int
 
-    def __repr__(self) -> str:
-        return f"Num({self.number!r})"
+    def __str__(self) -> str:
+        return str(self.number)
 
+@dataclass
 class Bit(CryptolType):
-    def __init__(self) -> None:
-        pass
+    def __str__(self) -> str:
+        return "Bit"
 
-    def __repr__(self) -> str:
-        return f"Bit()"
-
+@dataclass
 class Sequence(CryptolType):
-    def __init__(self, length : CryptolType, contents : CryptolType) -> None:
-        self.length = length
-        self.contents = contents
+    length : CryptolType
+    contents : CryptolType
 
-    def __repr__(self) -> str:
-        return f"Sequence({self.length!r}, {self.contents!r})"
+    def __str__(self) -> str:
+        return f"[{self.length}]{self.contents}"
 
+@dataclass
 class Inf(CryptolType):
-    def __repr__(self) -> str:
-        return f"Inf()"
+    def __str__(self) -> str:
+        return "inf"
 
+@dataclass
 class Integer(CryptolType):
-    def __repr__(self) -> str:
-        return f"Integer()"
+    def __str__(self) -> str:
+        return "Integer"
 
+@dataclass
 class Rational(CryptolType):
-    def __repr__(self) -> str:
-        return f"Rational()"
+    def __str__(self) -> str:
+        return "Rational"
 
+@dataclass
 class Z(CryptolType):
-    def __init__(self, modulus : CryptolType) -> None:
-        self.modulus = modulus
-
-    def __repr__(self) -> str:
-        return f"Z({self.modulus!r})"
-
-
-class Plus(CryptolType):
-    def __init__(self, left : CryptolType, right : CryptolType) -> None:
-        self.left = left
-        self.right = right
+    modulus : CryptolType
 
     def __str__(self) -> str:
-        return f"({self.left} + {self.right})"
+        return f"(Z {self.modulus})"
+
+@dataclass
+class TypeOp(CryptolType):
+    op : str
+    args : typing.Sequence[CryptolType]
+
+    # we override the @dataclass __init__ and __repr__ because we want the
+    #  syntax of variable numbers of arguments
+    def __init__(self, op : str, *args : CryptolType) -> None:
+        self.op = op
+        self.args = args
 
     def __repr__(self) -> str:
-        return f"Plus({self.left!r}, {self.right!r})"
-
-class Minus(CryptolType):
-    def __init__(self, left : CryptolType, right : CryptolType) -> None:
-        self.left = left
-        self.right = right
+        return "TypeOp(" + ", ".join(map(repr, [self.op, *self.args])) + ")"
 
     def __str__(self) -> str:
-        return f"({self.left} - {self.right})"
+        if self.op.isalnum():
+            return "(" + " ".join(map(str, [self.op, self.args])) + ")"
+        elif len(self.args) == 2:
+            return f"({self.args[0]} {self.op} {self.args[1]})"
+        else:
+            raise NotImplementedError(f"__str__ for: {self!r}")
 
-    def __repr__(self) -> str:
-        return f"Minus({self.left!r}, {self.right!r})"
-
-class Times(CryptolType):
-    def __init__(self, left : CryptolType, right : CryptolType) -> None:
-        self.left = left
-        self.right = right
-
-    def __str__(self) -> str:
-        return f"({self.left} * {self.right})"
-
-    def __repr__(self) -> str:
-        return f"Times({self.left!r}, {self.right!r})"
-
-
-class Div(CryptolType):
-    def __init__(self, left : CryptolType, right : CryptolType) -> None:
-        self.left = left
-        self.right = right
-
-    def __str__(self) -> str:
-        return f"({self.left} / {self.right})"
-
-    def __repr__(self) -> str:
-        return f"Div({self.left!r}, {self.right!r})"
-
-class CeilDiv(CryptolType):
-    def __init__(self, left : CryptolType, right : CryptolType) -> None:
-        self.left = left
-        self.right = right
-
-    def __str__(self) -> str:
-        return f"({self.left} /^ {self.right})"
-
-    def __repr__(self) -> str:
-        return f"CeilDiv({self.left!r}, {self.right!r})"
-
-class Mod(CryptolType):
-    def __init__(self, left : CryptolType, right : CryptolType) -> None:
-        self.left = left
-        self.right = right
-
-    def __str__(self) -> str:
-        return f"({self.left} % {self.right})"
-
-    def __repr__(self) -> str:
-        return f"Mod({self.left!r}, {self.right!r})"
-
-class CeilMod(CryptolType):
-    def __init__(self, left : CryptolType, right : CryptolType) -> None:
-        self.left = left
-        self.right = right
-
-    def __str__(self) -> str:
-        return f"({self.left} %^ {self.right})"
-
-    def __repr__(self) -> str:
-        return f"CeilMod({self.left!r}, {self.right!r})"
-
-class Expt(CryptolType):
-    def __init__(self, left : CryptolType, right : CryptolType) -> None:
-        self.left = left
-        self.right = right
-
-    def __str__(self) -> str:
-        return f"({self.left} ^^ {self.right})"
-
-    def __repr__(self) -> str:
-        return f"Expt({self.left!r}, {self.right!r})"
-
-class Log2(CryptolType):
-    def __init__(self, operand : CryptolType) -> None:
-        self.operand = operand
-
-    def __str__(self) -> str:
-        return f"(lg2 {self.operand})"
-
-    def __repr__(self) -> str:
-        return f"Log2({self.operand!r})"
-
-class Width(CryptolType):
-    def __init__(self, operand : CryptolType) -> None:
-        self.operand = operand
-
-    def __str__(self) -> str:
-        return f"(width {self.operand})"
-
-    def __repr__(self) -> str:
-        return f"Width({self.operand!r})"
-
-class Max(CryptolType):
-    def __init__(self, left : CryptolType, right : CryptolType) -> None:
-        self.left = left
-        self.right = right
-
-    def __str__(self) -> str:
-        return f"(max {self.left} {self.right})"
-
-    def __repr__(self) -> str:
-        return f"Max({self.left!r}, {self.right!r})"
-
-class Min(CryptolType):
-    def __init__(self, left : CryptolType, right : CryptolType) -> None:
-        self.left = left
-        self.right = right
-
-    def __str__(self) -> str:
-        return f"(min {self.left} {self.right})"
-
-    def __repr__(self) -> str:
-        return f"Min({self.left!r}, {self.right!r})"
-
+@dataclass
 class Tuple(CryptolType):
-    types : Iterable[CryptolType]
+    types : typing.Sequence[CryptolType]
 
+    # we override the @dataclass __init__ and __repr__ because we want the
+    #  syntax of variable numbers of arguments
     def __init__(self, *types : CryptolType) -> None:
         self.types = types
 
     def __repr__(self) -> str:
-        return "Tuple(" + ", ".join(map(str, self.types)) + ")"
+        return "Tuple(" + ", ".join(map(repr, self.types)) + ")"
 
+    def __str__(self) -> str:
+        return "(" + ",".join(map(str, self.types)) + ")"
+
+@dataclass
 class Record(CryptolType):
-    def __init__(self, fields : Dict[str, CryptolType]) -> None:
-        self.fields = fields
+    fields : Dict[str, CryptolType]
 
-    def __repr__(self) -> str:
-        return f"Record({self.fields!r})"
-
+    def __str__(self) -> str:
+        return "{" + ",".join(str(k) + " = " + str(self.fields[k]) for k in self.fields) + "}"
 
 def to_type(t : Any) -> CryptolType:
+    """Convert a Cryptol JSON type to a ``CryptolType``."""
     if t['type'] == 'variable':
         return Var(t['name'], to_kind(t['kind']))
     elif t['type'] == 'function':
@@ -467,32 +350,10 @@ def to_type(t : Any) -> CryptolType:
         return Sequence(to_type(t['length']), to_type(t['contents']))
     elif t['type'] == 'inf':
         return Inf()
-    elif t['type'] == '+':
-        return Plus(*map(to_type, t['arguments']))
-    elif t['type'] == '-':
-        return Minus(*map(to_type, t['arguments']))
-    elif t['type'] == '*':
-        return Times(*map(to_type, t['arguments']))
-    elif t['type'] == '/':
-        return Div(*map(to_type, t['arguments']))
-    elif t['type'] == '/^':
-        return CeilDiv(*map(to_type, t['arguments']))
-    elif t['type'] == '%':
-        return Mod(*map(to_type, t['arguments']))
-    elif t['type'] == '%^':
-        return CeilMod(*map(to_type, t['arguments']))
-    elif t['type'] == '^^':
-        return Expt(*map(to_type, t['arguments']))
-    elif t['type'] == 'lg2':
-        return Log2(*map(to_type, t['arguments']))
-    elif t['type'] == 'width':
-        return Width(*map(to_type, t['arguments']))
-    elif t['type'] == 'max':
-        return Max(*map(to_type, t['arguments']))
-    elif t['type'] == 'min':
-        return Min(*map(to_type, t['arguments']))
     elif t['type'] == 'tuple':
         return Tuple(*map(to_type, t['contents']))
+    elif t['type'] == 'unit':
+        return Tuple()
     elif t['type'] == 'record':
         return Record({k : to_type(t['fields'][k]) for k in t['fields']})
     elif t['type'] == 'Integer':
@@ -501,45 +362,112 @@ def to_type(t : Any) -> CryptolType:
         return Rational()
     elif t['type'] == 'Z':
         return Z(to_type(t['modulus']))
+    elif 'arguments' in t:
+        return TypeOp(t['type'], *map(to_type, t['arguments']))
     else:
         raise NotImplementedError(f"to_type({t!r})")
 
-class CryptolTypeSchema:
-    def __init__(self,
-                 variables : OrderedDict[str, CryptolKind],
-                 propositions : List[Optional[CryptolProp]], # TODO complete me!
-                 body : CryptolType) -> None:
-        self.variables = variables
-        self.propositions = propositions
-        self.body = body
+
+# -----------------------------------------------------------
+# Cryptol props
+# -----------------------------------------------------------
+
+class CryptolProp:
+    pass
+
+@dataclass
+class PropCon(CryptolProp):
+    con : str
+    args : typing.Sequence[CryptolType]
+
+    # we override the @dataclass __init__ and __repr__ because we want the
+    #  syntax of variable numbers of arguments
+    def __init__(self, con : str, *args : CryptolType) -> None:
+        self.con = con
+        self.args = args
 
     def __repr__(self) -> str:
-        return f"CryptolTypeSchema({self.variables!r}, {self.propositions!r}, {self.body!r})"
+        return "PropCon(" + ", ".join(map(repr, [self.con, *self.args])) + ")"
+
+    def __str__(self) -> str:
+        if self.con.isalnum():
+            return "(" + " ".join(map(str, [self.con, self.args])) + ")"
+        elif len(self.args) == 2:
+            return f"({self.args[0]} {self.con} {self.args[1]})"
+        else:
+            raise NotImplementedError(f"__str__ for: {self!r}")
+
+@dataclass
+class And(CryptolProp):
+    left : CryptolProp
+    right : CryptolProp
+
+    def __str__(self) -> str:
+        return f"({self.left} && {self.right})"
+
+@dataclass
+class TrueProp(CryptolProp):
+    def __str__(self) -> str:
+        return "True"
+
+def to_prop(obj : Any) -> CryptolProp:
+    """Convert a Cryptol JSON proposition to a ``CryptolProp``."""
+    if obj['prop'] == 'And':
+        return And(to_prop(obj['left']), to_prop(obj['right']))
+    elif obj['prop'] == 'True':
+        return TrueProp()
+    # special cases for props which have irregular JSON structure
+    elif obj['prop'] == 'Literal':
+        return PropCon('Literal', to_type(obj['size']), to_type(obj['subject']))
+    elif obj['prop'] == '>=':
+        return PropCon('>=', to_type(obj['greater']), to_type(obj['less']))
+    # general cases for unary, binary, and unknown props
+    elif 'subject' in obj and len(obj) == 2:
+        return PropCon(obj['prop'], to_type(obj['subject']))
+    elif 'left' in obj and 'right' in obj and len(obj) == 3:
+        return PropCon(obj['prop'], to_type(obj['left']), to_type(obj['right']))
+    elif obj['prop'] == 'unknown':
+        return PropCon(obj['constructor'], *map(to_type, obj['arguments']))
+    else:
+        raise NotImplementedError(f"to_prop({obj!r})")
+
+
+# -----------------------------------------------------------
+# Cryptol type schema
+# -----------------------------------------------------------
+
+@dataclass
+class CryptolTypeSchema:
+    variables : OrderedDict[str, CryptolKind]
+    propositions : List[CryptolProp]
+    body : CryptolType
+
+    def __str__(self) -> str:
+        vstr, pstr = "", "()"
+        if len(self.variables) > 0:
+            vstr = "{" + ", ".join(self.variables.keys()) + "} "
+        if len(self.propositions) > 0:
+            pstr = "(" + ", ".join(map(str, self.propositions)) + ")"
+        return vstr + pstr + " => " + str(self.body)
 
 def to_schema(obj : Any) -> CryptolTypeSchema:
+    """Convert a Cryptol JSON type schema to a ``CryptolTypeSchema``."""
     return CryptolTypeSchema(OrderedDict((v['name'], to_kind(v['kind']))
                                          for v in obj['forall']),
                              [to_prop(p) for p in obj['propositions']],
                              to_type(obj['type']))
 
-def to_prop(obj : Any) -> Optional[CryptolProp]:
-    if obj['prop'] == 'fin':
-        return Fin(to_type(obj['subject']))
-    elif obj['prop'] == 'Cmp':
-        return Cmp(to_type(obj['subject']))
-    elif obj['prop'] == 'SignedCmp':
-        return SignedCmp(to_type(obj['subject']))
-    elif obj['prop'] == 'Zero':
-        return Zero(to_type(obj['subject']))
-    elif obj['prop'] == 'Arith':
-        return Arith(to_type(obj['subject']))
-    elif obj['prop'] == 'Logic':
-        return Logic(to_type(obj['subject']))
+def to_schema_or_type(obj : Any) -> Union[CryptolTypeSchema, CryptolType]:
+    """Convert a Cryptol JSON type schema to a ``CryptolType`` if it has no
+    variables or propositions, or to a ``CryptolTypeSchema`` otherwise."""
+    if 'forall' in obj and 'propositions' in obj and len(obj['forall']) > 0 and len(obj['propositions']) > 0:
+        return to_schema(obj)
     else:
-        return None
-        #raise ValueError(f"Can't convert to a Cryptol prop: {obj!r}")
+        return to_type(obj['type'])
 
 def argument_types(obj : Union[CryptolTypeSchema, CryptolType]) -> List[CryptolType]:
+    """Given a ``CryptolTypeSchema` or ``CryptolType`` of a function, return
+    the types of its arguments."""
     if isinstance(obj, CryptolTypeSchema):
         return argument_types(obj.body)
     elif isinstance(obj, Function):

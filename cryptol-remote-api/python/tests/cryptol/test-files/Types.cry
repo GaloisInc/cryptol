@@ -23,3 +23,6 @@ s = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
 
 r : {xCoord : [32], yCoord : [32]}
 r = {xCoord = 12 : [32], yCoord = 21 : [32]}
+
+id : {n} (fin n) => [n] -> [n]
+id a = a

@@ -232,12 +232,12 @@ class CryptolSyncConnection:
         """
         return to_check_report(self.connection.check_raw(expr, num_tests=num_tests, timeout=timeout).result())
 
-    def check_type(self, code : Any, *, timeout:Optional[float] = None) -> cryptoltypes.CryptolType:
+    def check_type(self, code : Any, *, timeout:Optional[float] = None) -> Union[cryptoltypes.CryptolType, cryptoltypes.CryptolTypeSchema]:
         """Check the type of a Cryptol expression, represented according to
         :ref:`cryptol-json-expression`, with Python datatypes standing for
         their JSON equivalents.
         """
-        return cryptoltypes.to_type(self.connection.check_type(code, timeout=timeout).result()['type'])
+        return cryptoltypes.to_schema_or_type(self.connection.check_type(code, timeout=timeout).result())
 
     @overload
     def sat(self, expr : Any, solver : OfflineSolver, count : int = 1, *, timeout:Optional[float] = None) -> OfflineSmtQuery: ...
