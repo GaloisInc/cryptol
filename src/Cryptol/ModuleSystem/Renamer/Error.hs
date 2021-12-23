@@ -41,25 +41,18 @@ data RenamerError
   | FixityError (Located Name) Fixity (Located Name) Fixity
     -- ^ When the fixity of two operators conflict
 
-  | InvalidConstraint (Type PName)
-    -- ^ When it's not possible to produce a Prop from a Type.
-
-  | MalformedBuiltin (Type PName) PName
-    -- ^ When a builtin type/type-function is used incorrectly.
-
-  | BoundReservedType PName (Maybe Range) Doc
-    -- ^ When a builtin type is named in a binder.
-
   | OverlappingRecordUpdate (Located [Selector]) (Located [Selector])
     -- ^ When record updates overlap (e.g., @{ r | x = e1, x.y = e2 }@)
 
   | InvalidDependency [DepName]
-    deriving (Show, Generic, NFData)
+
+  | MultipleModParams Ident [Range]
+    deriving (Show, Generic, NFData, Eq, Ord)
 
 
 -- We use this because parameter constrstaints have no names
 data DepName = NamedThing Name
-             | ModParamName Range (Maybe ModName)
+             | ModParamName Range Ident
                {- ^ Note that the range is important not just for error
                     reporting but to distinguish module parameters with
                     the same name (e.g., in nested functors) -}
@@ -125,19 +118,6 @@ instance PP RenamerError where
                  , text "are not compatible."
                  , text "You may use explicit parentheses to disambiguate." ])
 
-    InvalidConstraint ty ->
-      hang (hsep $ [text "[error]"] ++ maybe [] (\r -> [text "at" <+> pp r]) (getLoc ty))
-         4 (fsep [ pp ty, text "is not a valid constraint" ])
-
-    MalformedBuiltin ty pn ->
-      hang (hsep $ [text "[error]"] ++ maybe [] (\r -> [text "at" <+> pp r]) (getLoc ty))
-         4 (fsep [ text "invalid use of built-in type", pp pn
-                 , text "in type", pp ty ])
-
-    BoundReservedType n loc src ->
-      hang (hsep $ [text "[error]"] ++ maybe [] (\r -> [text "at" <+> pp r]) loc)
-         4 (fsep [ text "built-in type", quotes (pp n), text "shadowed in", src ])
-
     OverlappingRecordUpdate xs ys ->
       hang "[error] Overlapping record updates:"
          4 (vcat [ ppLab xs, ppLab ys ])
@@ -150,6 +130,10 @@ instance PP RenamerError where
                  | x <- ds ])
       where ppR r = pp (from r) <.> "--" <.> pp (to r)
 
+    MultipleModParams x rs ->
+      hang ("[error] Multiple parameters with name" <+> backticks (pp x))
+         4 (vcat [ "•" <+> pp r | r <- rs ])
+
 instance PP DepName where
   ppPrec _ d =
     case d of
@@ -160,10 +144,7 @@ instance PP DepName where
           NSType   -> "type" <+> pp n
           NSValue  -> pp n
           NSSignature -> "signature" <+> pp n
-      ModParamName r x ->
-        case x of
-          Nothing -> "module parameter at" <+> pp r
-          Just m  -> "module parameter" <+> pp m
+      ModParamName _r i -> "module parameter" <+> pp i
 
 
 

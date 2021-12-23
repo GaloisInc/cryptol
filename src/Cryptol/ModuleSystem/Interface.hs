@@ -46,7 +46,7 @@ import Prelude ()
 import Prelude.Compat
 
 import Cryptol.ModuleSystem.Name
-import Cryptol.Utils.Ident (ModName)
+import Cryptol.Utils.Ident (ModName,Ident)
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.Fixity(Fixity)
 import Cryptol.Parser.AST(Pragma)
@@ -112,7 +112,7 @@ isEmptyIfaceParams IfaceParams { .. } =
 
 
 data IfaceModParam = IfaceModParam
-  { ifModParamName      :: Maybe ModName
+  { ifModParamName      :: Ident
   , ifModParamRange     :: Range
   , ifModParamSig       :: Name
   , ifModParamInstance  :: Map Name Name -- ^ Maps param names to names in sig.

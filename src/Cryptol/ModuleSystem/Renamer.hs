@@ -32,7 +32,8 @@ import Prelude.Compat
 
 import Data.Either(partitionEithers)
 import Data.Maybe(fromJust)
-import Data.List(find,foldl')
+import Data.List(find,foldl',groupBy,sortBy)
+import Data.Function(on)
 import Data.Foldable(toList)
 import Data.Map.Strict(Map)
 import qualified Data.Map.Strict as Map
@@ -199,6 +200,16 @@ renameModule' info@Extra { extraModPath = mpath } env m =
         do (envs,params) <-
               shadowNames' CheckNone env $ -- the actual check will happen below
                  unzip <$> mapM (doModParam allNested) (mModParams m)
+
+           let repeated = groupBy ((==) `on` ifModParamName)
+                        $ sortBy (compare `on` ifModParamName) params
+
+           forM_ repeated \ps ->
+             case ps of
+               [_] -> pure ()
+               ~(p : _) -> recordError
+                             (MultipleModParams (ifModParamName p)
+                                                (map ifModParamRange ps))
 
            shadowNames' CheckOverlap (mconcat (env : envs))
                                                       -- here is the check
@@ -394,7 +405,7 @@ topDeclName topDecl =
 
     DModParam m             -> Right ( topDecl
                                      , ModParamName (srcRange (mpSignature m))
-                                                    (mpAs m))
+                                                    (mpName m))
 
     Include {}              -> bad "Include"
   where
@@ -447,16 +458,21 @@ doModParam owned mp =
                                 Just q  -> qualify q newEnv'
                  pure ( newEnv
                       , IfaceModParam
-                        { ifModParamName     = mpAs mp
+                        { ifModParamName     = mpName mp
                         , ifModParamRange    = loc
                         , ifModParamSig      = nm
                         , ifModParamInstance = nameMap
                         }
                       )
 
-
-            Nothing  -> panic "doModParam"
-                                      [ "Missing signature", show sigName ]
+            -- This can happen if the interface was undefined (i.e., error)
+            Nothing -> pure
+              (mempty, IfaceModParam { ifModParamName     = mpName mp
+                                     , ifModParamRange    = loc
+                                     , ifModParamSig      = nm
+                                     , ifModParamInstance = mempty
+                                     })
+ 
 
 --------------------------------------------------------------------------------
 -- Compute names coming through `import submodule` statements.
@@ -537,7 +553,7 @@ data Extra = Extra
   , extraModPath    :: ModPath
     -- ^ Path to the current location (for nested modules)
 
-  , extraModParams  :: !(Map (Maybe ModName) IfaceModParam)
+  , extraModParams  :: !(Map Ident IfaceModParam)
     -- ^ Module parameters for the current module
 
   , extraFromModParam :: !(Map Name DepName)
@@ -591,11 +607,11 @@ instance Rename (WithExtra TopDecl) where
 
 instance Rename (WithExtra ModParam) where
   rename (WithExtra info mp) =
-    depsOf (ModParamName (srcRange (mpSignature mp)) (mpAs mp))
+    depsOf (ModParamName (srcRange (mpSignature mp)) (mpName mp))
     do x <- rnLocated (resolveName NameUse NSSignature) (mpSignature mp)
        pure (WithExtra info mp { mpSignature = x, mpRenaming = ren })
     where
-    ren = case Map.lookup (mpAs mp) (extraModParams info) of
+    ren = case Map.lookup (mpName mp) (extraModParams info) of
             Just r -> ifModParamInstance r
             Nothing -> panic "rename@ModParam"
                           [ "Missing module parameter", show (mpAs mp) ]

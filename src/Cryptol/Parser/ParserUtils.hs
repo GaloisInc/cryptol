@@ -192,6 +192,18 @@ expected x = P $ \cfg _ s ->
 mkModName :: [Text] -> ModName
 mkModName = packModName
 
+-- | This is how we derive the name of a module parameter from the
+-- @import source@ declaration.
+mkModParamName :: Located PName -> Maybe (Located ModName) -> Ident
+mkModParamName lsig qual =
+  case qual of
+    Nothing ->
+      case thing lsig of
+        UnQual i -> i
+        Qual _ i -> i
+        NewName {} -> panic "mkModParamName" ["Unexpected NewName",show lsig]
+    Just m -> packIdent (last (modNameChunks (thing m)))
+
 -- Note that type variables are not resolved at this point: they are tcons.
 mkSchema :: [TParam PName] -> [Prop PName] -> Type PName -> Schema PName
 mkSchema xs ps t = Forall xs ps t Nothing

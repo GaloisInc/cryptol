@@ -23,10 +23,10 @@ import Control.DeepSeq
 
 -- | Information about associativity.
 data Assoc = LeftAssoc | RightAssoc | NonAssoc
-  deriving (Show, Eq, Generic, NFData)
+  deriving (Show, Eq, Ord, Generic, NFData)
 
 data Fixity = Fixity { fAssoc :: !Assoc, fLevel :: !Int }
-  deriving (Eq, Generic, NFData, Show)
+  deriving (Eq, Ord, Generic, NFData, Show)
 
 data FixityCmp = FCError
                | FCLeft

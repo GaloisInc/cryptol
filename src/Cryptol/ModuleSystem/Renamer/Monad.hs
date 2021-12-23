@@ -14,10 +14,8 @@ module Cryptol.ModuleSystem.Renamer.Monad where
 import Data.List(sort)
 import           Data.Set(Set)
 import qualified Data.Set as Set
-import qualified Data.Foldable as F
 import           Data.Map.Strict ( Map )
 import qualified Data.Map.Strict as Map
-import qualified Data.Sequence as Seq
 import qualified Data.Semigroup as S
 import           MonadLib hiding (mapM, mapM_)
 
@@ -57,7 +55,7 @@ data RO = RO
 
 data RW = RW
   { rwWarnings      :: ![RenamerWarning]
-  , rwErrors        :: !(Seq.Seq RenamerError)
+  , rwErrors        :: !(Set RenamerError)
   , rwSupply        :: !Supply
   , rwNameUseCount  :: !(Map Name Int)
     -- ^ How many times did we refer to each name.
@@ -125,7 +123,7 @@ runRenamer info m = (res, warns)
   warns = sort (rwWarnings rw ++ warnUnused (renContext info) (renEnv info) rw)
 
   (a,rw) = runM (unRenameM m) ro
-                              RW { rwErrors   = Seq.empty
+                              RW { rwErrors   = Set.empty
                                  , rwWarnings = []
                                  , rwSupply   = renSupply info
                                  , rwNameUseCount = Map.empty
@@ -141,8 +139,8 @@ runRenamer info m = (res, warns)
           , roNestedMods = Map.empty
           }
 
-  res | Seq.null (rwErrors rw) = Right (a,rwSupply rw)
-      | otherwise              = Left (F.toList (rwErrors rw))
+  res | Set.null (rwErrors rw) = Right (a,rwSupply rw)
+      | otherwise              = Left (Set.toList (rwErrors rw))
 
 
 setCurMod :: ModPath -> RenameM a -> RenameM a
@@ -168,7 +166,7 @@ nestedModuleOrig x = RenameM (asks (Map.lookup x . roNestedMods))
 recordError :: RenamerError -> RenameM ()
 recordError f = RenameM $
   do RW { .. } <- get
-     set RW { rwErrors = rwErrors Seq.|> f, .. }
+     set RW { rwErrors = Set.insert f rwErrors, .. }
 
 recordWarning :: RenamerWarning -> RenameM ()
 recordWarning w =

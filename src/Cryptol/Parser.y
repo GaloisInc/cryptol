@@ -272,6 +272,7 @@ mod_param_decl ::          { ModParam PName }
    'import' 'signature'
     name mbAs              { ModParam { mpSignature = $4
                                       , mpAs        = fmap thing $5
+                                      , mpName      = mkModParamName $4 $5
                                       , mpDoc       = $1
                                       , mpRenaming  = mempty } }
 

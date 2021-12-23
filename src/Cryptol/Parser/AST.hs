@@ -255,17 +255,29 @@ data Signature name = Signature
   } deriving (Eq,Show,Generic,NFData)
 
 {- | A module parameter declaration.
-A functor may have either 1 unnamed parameter or multiple named parameters
-For the time being, unnamed parameters introduce the names from the
-signature unqualified, while the named version adds them qualified. -}
+
+> import signature A
+> import signature A as B
+
+The name of the parameter is derived from the `as` clause.  If there
+is no `as` clause then it is derived from the name of the signature.
+
+If there is no `as` clause, then the type/value parameters are unqualified,
+and otherwise they are qualified.
+-}
 data ModParam name = ModParam
   { mpSignature     :: Located name         -- ^ Signature for parameter
-  , mpAs            :: Maybe ModName        -- ^ Qualifier and parameter name
+  , mpAs            :: Maybe ModName        -- ^ Qualified for actual params
+  , mpName          :: !Ident
+    {- ^ Parameter name (for inst.)
+    Note that this is not resolved in the rename, and is only used
+    when instantiating a functor. -}
+
   , mpDoc           :: Maybe (Located Text) -- ^ Optional documentation
   , mpRenaming      :: !(Map name name)
-    -- ^ Filled in by the renamer.
-    -- Maps the actual parameter names of the componenets to
-    -- the names in the signature.
+    {- ^ Filled in by the renamer.
+      Maps the actual (value/type) parameter names to the names in the
+      signature. -}
   } deriving (Eq,Show,Generic,NFData)
 
 
@@ -1132,6 +1144,7 @@ instance NoPos (Signature name) where
 instance NoPos (ModParam name) where
   noPos mp = ModParam { mpSignature = noPos (mpSignature mp)
                       , mpAs        = mpAs mp
+                      , mpName      = mpName mp
                       , mpDoc       = noPos <$> mpDoc mp
                       , mpRenaming  = mpRenaming mp
                       }
