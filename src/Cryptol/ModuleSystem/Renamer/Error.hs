@@ -60,6 +60,9 @@ data RenamerError
 -- We use this because parameter constrstaints have no names
 data DepName = NamedThing Name
              | ModParamName Range (Maybe ModName)
+               {- ^ Note that the range is important not just for error
+                    reporting but to distinguish module parameters with
+                    the same name (e.g., in nested functors) -}
              | ConstratintAt Range -- ^ identifed by location in source
                deriving (Eq,Ord,Show,Generic,NFData)
 

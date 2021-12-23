@@ -50,7 +50,7 @@ import Cryptol.Utils.Ident (ModName)
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.Fixity(Fixity)
 import Cryptol.Parser.AST(Pragma)
-import Cryptol.Parser.Position(Located)
+import Cryptol.Parser.Position(Located,Range)
 import Cryptol.TypeCheck.Type
 
 
@@ -113,6 +113,7 @@ isEmptyIfaceParams IfaceParams { .. } =
 
 data IfaceModParam = IfaceModParam
   { ifModParamName      :: Maybe ModName
+  , ifModParamRange     :: Range
   , ifModParamSig       :: Name
   , ifModParamInstance  :: Map Name Name -- ^ Maps param names to names in sig.
   }

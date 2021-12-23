@@ -74,8 +74,12 @@ renameModule m0 =
      env      <- liftSupply (defsOf m)
      nested   <- liftSupply (collectNestedInModule env m)
      setNestedModule (nestedModuleNames nested)
-       do (ifs,(inScope,m1)) <- collectIfaceDeps
-                 $ renameModule' nested env (TopModule (thing (mName m))) m
+       do let info = Extra { extraOwned = nested
+                           , extraModPath = TopModule (thing (mName m))
+                           , extraModParams = mempty
+                           , extraFromModParam = mempty
+                           }
+          (ifs,(inScope,m1)) <- collectIfaceDeps (renameModule' info env m)
           pure RenamedModule
                  { rmModule = m1
                  , rmDefines = env
@@ -96,6 +100,7 @@ renameTopDecls m ds0 =
        do let extra = Extra { extraOwned = nested
                             , extraModPath = mpath
                             , extraModParams = mempty
+                            , extraFromModParam = mempty
                             }
           ds1 <- shadowNames' CheckOverlap env (renameTopDecls' extra ds)
           -- record a use of top-level names to avoid
@@ -176,14 +181,17 @@ class Rename f where
 --    * Things defined in the module
 --    * Renamed module
 renameModule' ::
-  OwnedEntities -> NamingEnv -> ModPath ->
-  ModuleG mname PName -> RenameM (NamingEnv, ModuleG mname Name)
-renameModule' thisNested env mpath m =
+  Extra ->
+  NamingEnv ->
+  ModuleG mname PName ->
+  RenameM (NamingEnv, ModuleG mname Name)
+renameModule' info@Extra { extraModPath = mpath } env m =
   setCurMod mpath
   do (moreNested,imps) <- mconcat <$> mapM doImport (mImports m)
-     let allNested = moreNested <> thisNested
-         openDs    = map thing (mSubmoduleImports m)
-         allImps   = openLoop allNested env openDs imps
+     let thisNested = extraOwned info
+         allNested  = moreNested <> thisNested
+         openDs     = map thing (mSubmoduleImports m)
+         allImps    = openLoop allNested env openDs imps
 
 
      (inScope,decls') <-
@@ -196,19 +204,29 @@ renameModule' thisNested env mpath m =
                                                       -- here is the check
              do inScope <- getNamingEnv
                 let mparams = Map.fromList
-                                [ (ifModParamName p, ifModParamInstance p)
+                                [ (ifModParamName p, p)
                                 | p <- params ]
+                    newFrom =
+                      foldLoop params (extraFromModParam info) \p mp ->
+                        let nm = ModParamName (ifModParamRange p)
+                                              (ifModParamName p)
+                        in foldLoop (Map.keys (ifModParamInstance p)) mp \x ->
+                             Map.insert x nm
+
                     extra = Extra { extraOwned = allNested
                                   , extraModPath = mpath
                                   , extraModParams = mparams
+                                  , extraFromModParam = newFrom
                                   }
-                ds      <- renameTopDecls' extra (mDecls m)
+                ds <- renameTopDecls' extra (mDecls m)
                 pure (inScope, ds)
      let m1      = m { mDecls = decls' }
          exports = modExports m1
      mapM_ recordUse (exported NSType exports)
      return (inScope, m1)
 
+foldLoop :: [a] -> b -> (a -> b -> b) -> b
+foldLoop xs b f = foldl' (flip f) b xs
 
 -- | This is used to rename local declarations (e.g. `where`)
 renameDecls :: [Decl PName] -> RenameM [Decl Name]
@@ -260,10 +278,16 @@ renameTopDecls' info ds =
 
      let (noNameDs,nameDs) = partitionEithers (map topDeclName ds1)
          ctrs = [ nm | (_,nm@(ConstratintAt {})) <- nameDs ]
+
+         mkDepName x = case Map.lookup x (extraFromModParam info) of
+                        Just dn -> dn
+                        Nothing -> NamedThing x
+
          toNode (d,x) = ((d,x),x, (if usesCtrs d then ctrs else []) ++
-                               map NamedThing
+                               map mkDepName
                              ( Set.toList
                              ( Map.findWithDefault Set.empty x deps) ))
+
          ordered = stronglyConnComp (map toNode nameDs)
          fromSCC x =
             case x of
@@ -423,8 +447,9 @@ doModParam owned mp =
                                 Just q  -> qualify q newEnv'
                  pure ( newEnv
                       , IfaceModParam
-                        { ifModParamName = mpAs mp
-                        , ifModParamSig  = nm
+                        { ifModParamName     = mpAs mp
+                        , ifModParamRange    = loc
+                        , ifModParamSig      = nm
                         , ifModParamInstance = nameMap
                         }
                       )
@@ -512,8 +537,12 @@ data Extra = Extra
   , extraModPath    :: ModPath
     -- ^ Path to the current location (for nested modules)
 
-  , extraModParams  :: !(Map (Maybe ModName) (Map Name Name))
+  , extraModParams  :: !(Map (Maybe ModName) IfaceModParam)
     -- ^ Module parameters for the current module
+
+  , extraFromModParam :: !(Map Name DepName)
+    -- ^ Which parameter declaration did the given name come from
+    -- (see renameTopDecls' for details)
   }
 
 data WithExtra f n = WithExtra Extra (f n)
@@ -562,11 +591,12 @@ instance Rename (WithExtra TopDecl) where
 
 instance Rename (WithExtra ModParam) where
   rename (WithExtra info mp) =
+    depsOf (ModParamName (srcRange (mpSignature mp)) (mpAs mp))
     do x <- rnLocated (resolveName NameUse NSSignature) (mpSignature mp)
        pure (WithExtra info mp { mpSignature = x, mpRenaming = ren })
     where
     ren = case Map.lookup (mpAs mp) (extraModParams info) of
-            Just r -> r
+            Just r -> ifModParamInstance r
             Nothing -> panic "rename@ModParam"
                           [ "Missing module parameter", show (mpAs mp) ]
 
@@ -577,7 +607,8 @@ instance Rename (WithExtra Signature) where
        nm <- resolveName NameBind NSSignature pname
        case Map.lookup nm (ownSignatures own) of
          Just env ->
-           shadowNames' CheckOverlap env
+           shadowNames' CheckOverlap env $
+              depsOf (NamedThing nm)
               do tps <- traverse rename (sigTypeParams sig)
                  cts <- traverse (traverse rename) (sigConstraints sig)
                  fun <- traverse rename (sigFunParams sig)
@@ -605,8 +636,7 @@ instance Rename ImpName where
 
 instance Rename (WithExtra NestedModule) where
   rename (WithExtra info (NestedModule m)) = WithExtra info <$>
-    do let nested         = extraOwned info
-           mpath          = extraModPath info
+    do let mpath          = extraModPath info
            lnm            = mName m
            nm             = thing lnm
            newMPath       = Nested mpath (getIdent nm)
@@ -616,9 +646,10 @@ instance Rename (WithExtra NestedModule) where
                         Just defs -> defs
                         Nothing -> panic "rename"
                            [ "Missing environment for nested module", show n ]
+            let newInfo = info { extraModPath = newMPath }
             -- XXX: we should store in scope somehwere if we want to browse
             -- nested modules properly
-            (_inScope,m1) <- renameModule' nested env newMPath m
+            (_inScope,m1) <- renameModule' newInfo env m
             pure (NestedModule m1 { mName = lnm { thing = n } })
 
 
