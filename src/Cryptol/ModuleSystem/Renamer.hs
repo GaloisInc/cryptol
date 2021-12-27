@@ -31,7 +31,7 @@ import Prelude ()
 import Prelude.Compat
 
 import Data.Either(partitionEithers)
-import Data.Maybe(fromJust)
+import Data.Maybe(fromJust,mapMaybe)
 import Data.List(find,foldl',groupBy,sortBy)
 import Data.Function(on)
 import Data.Foldable(toList)
@@ -280,21 +280,91 @@ checkSameModule xs =
   ms = [ (x,p) | NamedThing x <- xs, Declared p _ <- [ nameInfo x ] ]
 
 
+
+{- NOTE: Dependincies on Top Level Constraints
+   ===========================================
+
+For the new module system, things using a parameter depend on the parameter
+declaration (i.e., `import signature`), which depends on the signature,
+so dependencies on constraints in there should be OK.
+
+However, we'd like to have a mchanism for declaring top level constraints in
+a functor, that can impose constraints across types from *different*
+parameters.  For the moment, we reuse `parameter type constrint C` for this.
+
+Such constraints need to be:
+  1. After the signature import
+  2. After any type synonyms/newtypes using the parameters
+  3. Before any value or type declarations that need to use the parameters.
+
+Note that type declarations used by a constraint cannot use the constraint,
+so they need to be well formed without it.
+
+For other types, we use the following rule to determine if they use a
+constraint:
+
+  If:
+    1. We have a constraint and type declaration
+    2. They both mention the same type parameter
+    3. There is no explicit dependency of the constraint on the DECL
+  Then:
+    The type declaration depends on the constraint.
+
+Example:
+
+  type T = 10             // Does not depend on anything so can go first
+
+  signature A where
+    type n : #
+
+  import signature A     // Depends on A, so need to be after A
+
+  parameter type constraint n > T
+                        // Depends on the import and T
+
+  type Q = [n-T]        // Depends on the top-level constraint
+-}
+
+
+
 -- This assumes imports have already been processed
 renameTopDecls' :: Extra -> [TopDecl PName] -> RenameM [TopDecl Name]
 renameTopDecls' info ds =
   do -- rename and compute what names we depend on
      (ds1,deps) <- depGroup (traverse (renameWithExtra info) ds)
+     let rawDepsFor x = Map.findWithDefault Set.empty x deps
+
+         isTyParam x = nameNamespace x == NSType &&
+                       x `Map.member` extraFromModParam info
 
 
-     let (noNameDs,nameDs) = partitionEithers (map topDeclName ds1)
+         (noNameDs,nameDs) = partitionEithers (map topDeclName ds1)
          ctrs = [ nm | (_,nm@(ConstratintAt {})) <- nameDs ]
+
+
+         {- See [NOTE: Dependincies on Top Level Constraints] -}
+         addCtr nm ctr =
+            case nm of
+              NamedThing x
+                | nameNamespace x == NSType
+                , let ctrDeps = rawDepsFor ctr
+                      tyDeps  = rawDepsFor nm
+                , not (x `Set.member` ctrDeps)
+                , not (Set.null (Set.intersection
+                                      (Set.filter isTyParam ctrDeps)
+                                      (Set.filter isTyParam tyDeps)))
+                  -> Just ctr
+              _ -> Nothing
+
+         addCtrs (d,x)
+          | usesCtrs d = ctrs
+          | otherwise  = mapMaybe (addCtr x) ctrs
 
          mkDepName x = case Map.lookup x (extraFromModParam info) of
                         Just dn -> dn
                         Nothing -> NamedThing x
 
-         toNode (d,x) = ((d,x),x, (if usesCtrs d then ctrs else []) ++
+         toNode (d,x) = ((d,x),x, addCtrs (d,x) ++
                                map mkDepName
                              ( Set.toList
                              ( Map.findWithDefault Set.empty x deps) ))
@@ -327,48 +397,10 @@ renameTopDecls' info ds =
   -- Since uses of contraints are not implicitly named, value declarations
   -- are assumed to potentially use the constraints.
 
-  -- XXX: types may also need constraints to ensure they are well formed:
-  -- for example, `Z n` requires `(fin n, n >= 1)`.
-  -- Perhaps the rule should be that types that mention parameters depend
-  -- on the constraints, while others do not.
-
-  {- XXX 2: For the new module system, things using a parameter depend
-     on the parameter declaration, which depends on the signature,
-     so dependencies on constraints in there shold be OK.   However, we'd
-     like to have a mchanism for declaring top level constraints in a functor,
-     that can impose constraints across types from *different* parameters.
-     Such constraints need to be:
-       1. After the parameter "imports"
-       2. After any type synonyms/newtypes using the parameters
-       3. Before any value declarations mentioning the parameters.
-    NOTE: If a constraint on a parameter uses a type declartion, that type
-          declaration *CANNOT* use the constraint, so it needs to be well-formed
-          *without* using the constraint.
-
-      The main issue with `usesCtrs` as defined below is that it misses
-      the dependencies of type declarations on constrains.  For example
-
-          type parameter constraint X > Y
-          newtype T = [X-Y]
-
-      the type `T` needs to go after the constraint so that it can be validated.
-      OTOH, we have this example:
-
-        type T = X + 1
-        type parameter constraint T > 2
-
-      In this case the constraint will naturally come after the type decl,
-      because of the use of the name T.
-
-      So we want something like this:
-        If:
-          1. We have a constraint and type declaration
-          2. The both mention the same type parameter
-          3. There is no explicit dependency of the constraint on the DECL
-        Then:
-          The constraint goes BEFORE the decl
-
-  -}
+  -- XXX: This is inacurate, and *I think* it amounts to checking that something
+  -- is in the value namespace.   Perhaps the rule should be that a value
+  -- depends on a parameter constraint if it mentiones at least one
+  -- type parameter somewhere.
   usesCtrs td =
     case td of
       Decl tl                 -> isValDecl (tlValue tl)
@@ -596,6 +628,8 @@ data Extra = Extra
 
   , extraFromModParam :: !(Map Name DepName)
     -- ^ Which parameter declaration did the given name come from
+    -- Also, if this is a type parameter, then the name of the actual
+    -- parameter (not the signature one)
     -- (see renameTopDecls' for details)
   }
 
