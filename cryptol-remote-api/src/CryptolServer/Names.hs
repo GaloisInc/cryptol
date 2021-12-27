@@ -23,7 +23,8 @@ import Cryptol.ModuleSystem.Env (ModContext(..), ModuleEnv(..), DynamicEnv(..), 
 import Cryptol.ModuleSystem.Interface (IfaceDecl(..), IfaceDecls(..))
 import Cryptol.ModuleSystem.Name (Name)
 import Cryptol.ModuleSystem.NamingEnv
-                  (NamingEnv, namespaceMap, lookupNS, shadowing, namesToList)
+                  (NamingEnv, namespaceMap, lookupNS, shadowing)
+import Cryptol.ModuleSystem.Names(namesToList)
 import Cryptol.TypeCheck.Type (Schema(..))
 import Cryptol.Utils.PP (pp)
 import Cryptol.Utils.Ident(Namespace(..))
