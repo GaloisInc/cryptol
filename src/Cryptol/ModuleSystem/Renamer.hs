@@ -331,6 +331,44 @@ renameTopDecls' info ds =
   -- for example, `Z n` requires `(fin n, n >= 1)`.
   -- Perhaps the rule should be that types that mention parameters depend
   -- on the constraints, while others do not.
+
+  {- XXX 2: For the new module system, things using a parameter depend
+     on the parameter declaration, which depends on the signature,
+     so dependencies on constraints in there shold be OK.   However, we'd
+     like to have a mchanism for declaring top level constraints in a functor,
+     that can impose constraints across types from *different* parameters.
+     Such constraints need to be:
+       1. After the parameter "imports"
+       2. After any type synonyms/newtypes using the parameters
+       3. Before any value declarations mentioning the parameters.
+    NOTE: If a constraint on a parameter uses a type declartion, that type
+          declaration *CANNOT* use the constraint, so it needs to be well-formed
+          *without* using the constraint.
+
+      The main issue with `usesCtrs` as defined below is that it misses
+      the dependencies of type declarations on constrains.  For example
+
+          type parameter constraint X > Y
+          newtype T = [X-Y]
+
+      the type `T` needs to go after the constraint so that it can be validated.
+      OTOH, we have this example:
+
+        type T = X + 1
+        type parameter constraint T > 2
+
+      In this case the constraint will naturally come after the type decl,
+      because of the use of the name T.
+
+      So we want something like this:
+        If:
+          1. We have a constraint and type declaration
+          2. The both mention the same type parameter
+          3. There is no explicit dependency of the constraint on the DECL
+        Then:
+          The constraint goes BEFORE the decl
+
+  -}
   usesCtrs td =
     case td of
       Decl tl                 -> isValDecl (tlValue tl)
