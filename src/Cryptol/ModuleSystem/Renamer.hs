@@ -681,6 +681,13 @@ instance Rename (WithExtra ModParam) where
   rename (WithExtra info mp) =
     depsOf (ModParamName (srcRange (mpSignature mp)) (mpName mp))
     do x <- rnLocated (resolveName NameUse NSSignature) (mpSignature mp)
+
+       {- Here we add a single "use" to all type-level names intorduced,
+       because this is their binding site.   The warnings for unused names
+       are reported for names with a single "use" (i.e., the binding site)
+       so if we don't add the bindg site use, we get incorrect warnings -}
+       mapM_ recordUse [ t | t <- Map.keys ren, nameNamespace t == NSType ]
+
        pure (WithExtra info mp { mpSignature = x, mpRenaming = ren })
     where
     ren = case Map.lookup (mpName mp) (extraModParams info) of
