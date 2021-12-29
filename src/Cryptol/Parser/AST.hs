@@ -270,7 +270,7 @@ data ModParam name = ModParam
   , mpAs            :: Maybe ModName        -- ^ Qualified for actual params
   , mpName          :: !Ident
     {- ^ Parameter name (for inst.)
-    Note that this is not resolved in the rename, and is only used
+    Note that this is not resolved in the renamer, and is only used
     when instantiating a functor. -}
 
   , mpDoc           :: Maybe (Located Text) -- ^ Optional documentation

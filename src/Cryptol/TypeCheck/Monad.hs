@@ -65,6 +65,7 @@ data InferInput = InferInput
   , inpTSyns     :: Map Name TySyn    -- ^ Type synonyms that are in scope
   , inpNewtypes  :: Map Name Newtype  -- ^ Newtypes in scope
   , inpAbstractTypes :: Map Name AbstractType -- ^ Abstract types in scope
+  , inpSignatures :: !(Map Name IfaceParams)  -- ^ Signatures in scope
 
     -- When typechecking a module these start off empty.
     -- We need them when type-checking an expression at the command
@@ -134,6 +135,7 @@ runInferM info (IM m) =
                              , mParamTypes       = inpParamTypes info
                              , mParamFuns        = inpParamFuns info
                              , mParamConstraints = inpParamConstraints info
+                             , mSignatures       = inpSignatures info
                              }
 
                          , iTVars         = []
@@ -684,6 +686,15 @@ lookupParamType x = Map.lookup x <$> getParamTypes
 lookupParamFun :: Name -> InferM (Maybe ModVParam)
 lookupParamFun x = Map.lookup x <$> getParamFuns
 
+lookupSignature :: Name -> InferM IfaceParams
+lookupSignature x =
+  do sigs <- getSignatures
+     case Map.lookup x sigs of
+       Just ips -> pure ips
+       Nothing  -> panic "lookupSignature"
+                    [ "Missing signature", show x ]
+
+
 -- | Check if we already have a name for this existential type variable and,
 -- if so, return the definition.  If not, try to create a new definition,
 -- if this is allowed.  If not, returns nothing.
@@ -747,6 +758,11 @@ getMonoBinds  = IM (asks iMonoBinds)
 
 getCallStacks :: InferM Bool
 getCallStacks = IM (asks iCallStacks)
+
+getSignatures :: InferM (Map Name IfaceParams)
+getSignatures = getScope mSignatures
+
+
 
 {- | We disallow shadowing between type synonyms and type variables
 because it is confusing.  As a bonus, in the implementation we don't

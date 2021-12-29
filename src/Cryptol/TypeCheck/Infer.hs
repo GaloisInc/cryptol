@@ -1081,8 +1081,19 @@ checkTopDecls = mapM_ checkTopDecl
            ps <- checkSignature sig (P.thing <$> P.tlDoc tl)
            addSignature (P.thing (P.sigName sig)) ps
 
+      -- XXX: Incomplete
+      P.DModParam p ->
+        inRange (srcRange (P.mpSignature p))
+        do ips <- lookupSignature (thing (P.mpSignature p))
+           let _sigTys   = ifParamTypes ips
+               _sigCtrs  = ifParamConstraints ips
+               _sigVals  = ifParamFuns ips
+           let _binds = P.mpRenaming p
+           pure ()
+
       P.DImport {} -> pure ()
       P.Include {} -> panic "checkTopDecl" [ "Unexpected `inlude`" ]
+
 
 
 checkDecl :: Bool -> P.Decl Name -> Maybe Text -> InferM ()

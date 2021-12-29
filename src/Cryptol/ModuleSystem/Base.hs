@@ -559,6 +559,7 @@ genInferInput r prims params env' = do
     , T.inpTSyns     = ifTySyns env
     , T.inpNewtypes  = ifNewtypes env
     , T.inpAbstractTypes = ifAbstractTypes env
+    , T.inpSignatures = ifSignatures env
     , T.inpNameSeeds = seeds
     , T.inpMonoBinds = monoBinds
     , T.inpCallStacks = callStacks
