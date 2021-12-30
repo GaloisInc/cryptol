@@ -63,10 +63,14 @@ data ModuleG mname =
                            corresponding interface. -}
                      , mSubModules       :: Map Name (IfaceG Name)
 
-                     -- params, if functor
+                     -- Functors:
+                     -- params, old style
                      , mParamTypes       :: Map Name ModTParam
-                     , mParamConstraints :: [Located Prop]
                      , mParamFuns        :: Map Name ModVParam
+
+                     -- Top-level constraints on parameters.
+                     -- Used for both old and new-style fnctors.
+                     , mParamConstraints :: [Located Prop]
 
 
                       -- Declarations, including everything from non-functor

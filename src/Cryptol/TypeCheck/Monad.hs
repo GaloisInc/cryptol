@@ -277,8 +277,13 @@ data RW = RW
   -- Constraints that need solving
   , iCts      :: !Goals                -- ^ Ordinary constraints
   , iHasCts   :: ![HasGoal]
-    {- ^ Tuple/record projection constraints.  The 'Int' is the "name"
-         of the constraint, used so that we can name its solution properly. -}
+    {- ^ Tuple/record projection constraints.  These are separate from
+       the other constraints because solving them results in actual elaboration
+       of the term, indicating how to do the projection.  The modification
+       of the term is done using lazyness, by looking up a thunk ahead of time
+       (@iSolvedHasLazy@ in RO), which is filled in when the constrait is
+       solved (@iSolvedHas@). for ellaboration.
+    -}
 
   , iScope :: ![ModuleG ScopeName]
     -- ^ Nested scopes we are currently checking, most nested first.
@@ -682,10 +687,6 @@ lookupAbstractType x = Map.lookup x <$> getAbstractTypes
 lookupParamType :: Name -> InferM (Maybe ModTParam)
 lookupParamType x = Map.lookup x <$> getParamTypes
 
--- | Lookup the schema for a parameter function.
-lookupParamFun :: Name -> InferM (Maybe ModVParam)
-lookupParamFun x = Map.lookup x <$> getParamFuns
-
 lookupSignature :: Name -> InferM IfaceParams
 lookupSignature x =
   do sigs <- getSignatures
@@ -727,10 +728,6 @@ getNewtypes = getScope mNewtypes
 -- | Returns the abstract type declarations that are in scope.
 getAbstractTypes :: InferM (Map Name AbstractType)
 getAbstractTypes = getScope mPrimTypes
-
--- | Returns the parameter functions declarations
-getParamFuns :: InferM (Map Name ModVParam)
-getParamFuns = getScope mParamFuns
 
 -- | Returns the abstract function declarations
 getParamTypes :: InferM (Map Name ModTParam)
@@ -913,6 +910,12 @@ addPrimType t =
   updScope \r ->
     r { mPrimTypes = Map.insert (atName t) t (mPrimTypes r) }
 
+
+
+addSignature :: Name -> IfaceParams -> InferM ()
+addSignature x ps =
+  updScope \r -> r { mSignatures = Map.insert x ps (mSignatures r) }
+
 addParamType :: ModTParam -> InferM ()
 addParamType a =
   updScope \r -> r { mParamTypes = Map.insert (mtpName a) a (mParamTypes r) }
@@ -923,11 +926,6 @@ addParamFun x =
   do updScope \r -> r { mParamFuns = Map.insert (mvpName x) x (mParamFuns r) }
      IM $ sets_ \rw -> rw { iBindTypes = Map.insert (mvpName x) (mvpType x)
                                                     (iBindTypes rw) }
-
-addSignature :: Name -> IfaceParams -> InferM ()
-addSignature x ps =
-  updScope \r -> r { mSignatures = Map.insert x ps (mSignatures r) }
-
 -- | Add some assumptions for an entire module
 addParameterConstraints :: [Located Prop] -> InferM ()
 addParameterConstraints ps =

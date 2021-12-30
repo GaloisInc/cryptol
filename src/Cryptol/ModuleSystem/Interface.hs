@@ -91,6 +91,8 @@ emptyIface nm = Iface
   , ifParams  = noIfaceParams
   }
 
+-- | All parameters in an "old-style" functor.
+-- This is also used for signatures in a new-style functors.
 data IfaceParams = IfaceParams
   { ifParamTypes       :: Map.Map Name ModTParam
   , ifParamConstraints :: [Located Prop] -- ^ Constraints on param. types

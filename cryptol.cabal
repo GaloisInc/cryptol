@@ -167,6 +167,7 @@ library
                        Cryptol.Transform.AddModParams,
 
                        Cryptol.IR.FreeVars,
+                       Cryptol.IR.TraverseNames,
 
                        Cryptol.Backend,
                        Cryptol.Backend.Arch,

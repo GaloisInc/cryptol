@@ -1084,11 +1084,17 @@ checkTopDecls = mapM_ checkTopDecl
       -- XXX: Incomplete
       P.DModParam p ->
         inRange (srcRange (P.mpSignature p))
-        do ips <- lookupSignature (thing (P.mpSignature p))
-           let _sigTys   = ifParamTypes ips
-               _sigCtrs  = ifParamConstraints ips
-               _sigVals  = ifParamFuns ips
-           let _binds = P.mpRenaming p
+        do let binds = P.mpRenaming p
+               suMap = Map.fromList [ (y,x) | (x,y) <- Map.toList binds ]
+               actualName x = Map.findWithDefault x x suMap
+
+           ips <- lookupSignature (thing (P.mpSignature p))
+           let sigTys     = ifParamTypes ips
+
+               sigCtrs  = ifParamConstraints ips
+               sigVals  = ifParamFuns ips
+
+
            pure ()
 
       P.DImport {} -> pure ()

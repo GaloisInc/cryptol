@@ -64,7 +64,7 @@ data ModVParam = ModVParam
   { mvpName   :: Name
   , mvpType   :: Schema
   , mvpDoc    :: Maybe Text
-  , mvpFixity :: Maybe Fixity
+  , mvpFixity :: Maybe Fixity       -- XXX: This should be in the name?
   } deriving (Show,Generic,NFData)
 
 

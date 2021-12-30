@@ -182,7 +182,8 @@ instance Ord Goal where
   compare x y = compare (goal x) (goal y)
 
 data HasGoal = HasGoal
-  { hasName :: !Int
+  { hasName :: !Int -- ^ This is the "name" of the constraint,
+                    -- used to find the solution for ellaboration.
   , hasGoal :: Goal
   } deriving Show
 
