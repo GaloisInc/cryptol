@@ -202,6 +202,7 @@ library
                        Cryptol.Symbolic.What4,
 
                        Cryptol.REPL.Command,
+                       Cryptol.REPL.Help,
                        Cryptol.REPL.Browse,
                        Cryptol.REPL.Monad,
                        Cryptol.REPL.Trie

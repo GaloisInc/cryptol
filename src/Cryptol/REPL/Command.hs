@@ -57,6 +57,7 @@ module Cryptol.REPL.Command (
 import Cryptol.REPL.Monad
 import Cryptol.REPL.Trie
 import Cryptol.REPL.Browse
+import Cryptol.REPL.Help
 
 import qualified Cryptol.ModuleSystem as M
 import qualified Cryptol.ModuleSystem.Name as M
@@ -84,7 +85,7 @@ import qualified Cryptol.TypeCheck.Error as T
 import qualified Cryptol.TypeCheck.Parseable as T
 import qualified Cryptol.TypeCheck.Subst as T
 import           Cryptol.TypeCheck.Solve(defaultReplExpr)
-import           Cryptol.TypeCheck.PP (dump,ppWithNames,emptyNameMap)
+import           Cryptol.TypeCheck.PP (dump)
 import           Cryptol.Utils.PP hiding ((</>))
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.RecordMap
@@ -108,7 +109,7 @@ import qualified Data.ByteString.Char8 as BS8
 import Data.Bits (shiftL, (.&.), (.|.))
 import Data.Char (isSpace,isPunctuation,isSymbol,isAlphaNum,isAscii)
 import Data.Function (on)
-import Data.List (intercalate, nub, isPrefixOf,intersperse)
+import Data.List (intercalate, nub, isPrefixOf)
 import Data.Maybe (fromMaybe,mapMaybe,isNothing)
 import System.Environment (lookupEnv)
 import System.Exit (ExitCode(ExitSuccess))
@@ -118,8 +119,6 @@ import System.FilePath((</>), isPathSeparator)
 import System.Directory(getHomeDirectory,setCurrentDirectory,doesDirectoryExist
                        ,getTemporaryDirectory,setPermissions,removeFile
                        ,emptyPermissions,setOwnerReadable)
-import qualified Data.Map as Map
-import qualified Data.Set as Set
 import System.IO
          (Handle,hFlush,stdout,openTempFile,hClose,openFile
          ,IOMode(..),hGetContents,hSeek,SeekMode(..))
@@ -1228,163 +1227,10 @@ helpCmd cmd
       cs  -> void $ runCommand 1 Nothing (Ambiguous cmd0 (concatMap cNames cs))
   | otherwise =
     case parseHelpName cmd of
-      Just qname ->
-        do fe <- getFocusedEnv
-           let params = M.mctxParams fe
-               env    = M.mctxDecls  fe
-               rnEnv  = M.mctxNames  fe
-               disp   = M.mctxNameDisp fe
-
-               vNames = M.lookupListNS M.NSValue  qname rnEnv
-               tNames = M.lookupListNS M.NSType   qname rnEnv
-               mNames = M.lookupListNS M.NSModule qname rnEnv
-               sNames = M.lookupListNS M.NSSignature qname rnEnv
-
-           let helps = map (showTypeHelp params env disp) tNames ++
-                       map (showValHelp params env disp qname) vNames ++
-                       map (showModHelp env disp) mNames ++
-                       map (showSigHelp env disp) sNames
-
-               separ = rPutStrLn "            ---------"
-           sequence_ (intersperse separ helps)
-
-           when (null (vNames ++ tNames ++ mNames ++ sNames)) $
-             rPrint $ "Undefined name:" <+> pp qname
-      Nothing ->
-           rPutStrLn ("Unable to parse name: " ++ cmd)
+      Just qname -> helpForNamed qname
+      Nothing    -> rPutStrLn ("Unable to parse name: " ++ cmd)
 
   where
-  noInfo nameEnv name =
-    case M.nameInfo name of
-      M.Declared m _ ->
-                      rPrint $runDoc nameEnv ("Name defined in module" <+> pp m)
-      M.Parameter  -> rPutStrLn "// No documentation is available."
-
-
-  showModHelp _env nameEnv x =
-    rPrint $ runDoc nameEnv $ vcat [ "`" <> pp x <> "` is a module." ]
-    -- XXX: show doc. if any
-
-  showSigHelp env nameEnv name =
-    do rPrint $ runDoc nameEnv $ vcat [ "`" <> pp name <> "` is a signature." ]
-       fromMaybe (noInfo nameEnv name)
-         do s <- Map.lookup name (M.ifSignatures env)
-            d <- M.ifParamDoc s
-            pure (rPrint (pp d))
-    -- XXX: show doc. if any, and maybe other stuff
-
-  showTypeHelp params env nameEnv name =
-    fromMaybe (noInfo nameEnv name) $
-    msum [ fromTySyn, fromPrimType, fromNewtype, fromTyParam ]
-
-    where
-    fromTySyn =
-      do ts <- Map.lookup name (M.ifTySyns env)
-         return (doShowTyHelp nameEnv (pp ts) (T.tsDoc ts))
-
-    fromNewtype =
-      do nt <- Map.lookup name (M.ifNewtypes env)
-         let decl = pp nt $$ (pp name <+> text ":" <+> pp (T.newtypeConType nt))
-         return $ doShowTyHelp nameEnv decl (T.ntDoc nt)
-
-    fromPrimType =
-      do a <- Map.lookup name (M.ifAbstractTypes env)
-         pure $ do rPutStrLn ""
-                   rPrint $ runDoc nameEnv $ nest 4
-                          $ "primitive type" <+> pp (T.atName a)
-                                     <+> ":" <+> pp (T.atKind a)
-
-                   let (vs,cs) = T.atCtrs a
-                   unless (null cs) $
-                     do let example = T.TCon (T.abstractTypeTC a)
-                                             (map (T.TVar . T.tpVar) vs)
-                            ns = T.addTNames vs emptyNameMap
-                            rs = [ "•" <+> ppWithNames ns c | c <- cs ]
-                        rPutStrLn ""
-                        rPrint $ runDoc nameEnv $ indent 4 $
-                                    backticks (ppWithNames ns example) <+>
-                                    "requires:" $$ indent 2 (vcat rs)
-
-                   doShowFix (T.atFixitiy a)
-                   doShowDocString (T.atDoc a)
-
-    fromTyParam =
-      do p <- Map.lookup name (M.ifParamTypes params)
-         let uses c = T.TVBound (T.mtpParam p) `Set.member` T.fvs c
-             ctrs = filter uses (map P.thing (M.ifParamConstraints params))
-             ctrDoc = case ctrs of
-                        []  -> []
-                        [x] -> [pp x]
-                        xs  -> [parens $ commaSep $ map pp xs]
-             decl = vcat $
-                      [ text "parameter" <+> pp name <+> text ":"
-                        <+> pp (T.mtpKind p) ]
-                      ++ ctrDoc
-         return $ doShowTyHelp nameEnv decl (T.mtpDoc p)
-
-  doShowTyHelp nameEnv decl doc =
-    do rPutStrLn ""
-       rPrint (runDoc nameEnv (nest 4 decl))
-       doShowDocString doc
-
-  doShowFix fx =
-    case fx of
-      Just f  ->
-        let msg = "Precedence " ++ show (P.fLevel f) ++ ", " ++
-                   (case P.fAssoc f of
-                      P.LeftAssoc   -> "associates to the left."
-                      P.RightAssoc  -> "associates to the right."
-                      P.NonAssoc    -> "does not associate.")
-
-        in rPutStrLn ('\n' : msg)
-
-      Nothing -> return ()
-
-  showValHelp params env nameEnv qname name =
-    fromMaybe (noInfo nameEnv name)
-              (msum [ fromDecl, fromNewtype, fromParameter ])
-    where
-    fromDecl =
-      do M.IfaceDecl { .. } <- Map.lookup name (M.ifDecls env)
-         return $
-           do rPutStrLn ""
-
-              let property 
-                    | P.PragmaProperty `elem` ifDeclPragmas = [text "property"]
-                    | otherwise                             = []
-              rPrint $ runDoc nameEnv
-                     $ indent 4
-                     $ hsep
-
-                     $ property ++ [pp qname, colon, pp (ifDeclSig)]
-
-              doShowFix $ ifDeclFixity `mplus`
-                          (guard ifDeclInfix >> return P.defaultFixity)
-
-              doShowDocString ifDeclDoc
-
-    fromNewtype =
-      do _ <- Map.lookup name (M.ifNewtypes env)
-         return $ return ()
-
-    fromParameter =
-      do p <- Map.lookup name (M.ifParamFuns params)
-         return $
-           do rPutStrLn ""
-              rPrint $ runDoc nameEnv
-                     $ indent 4
-                     $ text "parameter" <+> pp qname
-                                        <+> colon
-                                        <+> pp (T.mvpType p)
-
-              doShowFix (T.mvpFixity p)
-              doShowDocString (T.mvpDoc p)
-
-  doShowDocString doc =
-    case doc of
-      Nothing -> pure ()
-      Just d  -> rPutStrLn ('\n' : T.unpack d)
-
   showCmdHelp c [arg] | ":set" `elem` cNames c = showOptionHelp arg
   showCmdHelp c _args =
     do rPutStrLn ("\n    " ++ intercalate ", " (cNames c) ++ " " ++ intercalate " " (cArgs c))
