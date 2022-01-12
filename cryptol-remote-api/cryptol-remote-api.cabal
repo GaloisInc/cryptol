@@ -40,7 +40,7 @@ common errors
 
 common deps
   build-depends:
-    base                 >=4.11.1.0 && <4.15,
+    base                 >=4.11.1.0 && <4.16,
     argo,
     aeson                >= 1.4.2 && < 2.1,
     base64-bytestring    >= 1.0,
