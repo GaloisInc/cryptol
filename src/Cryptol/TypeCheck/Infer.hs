@@ -1075,6 +1075,7 @@ checkTopDecls = mapM_ checkTopDecl
             newSubmoduleScope (thing (P.mName m)) (map thing (P.mImports m))
                                                   (P.modExports m)
             checkTopDecls (P.mDecls m)
+            proveModuleTopLevel
             endSubmodule
 
       P.DModSig tl ->
