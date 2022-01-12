@@ -2,13 +2,28 @@
 set -xEeuo pipefail
 
 [[ "$RUNNER_OS" == 'Windows' ]] && IS_WIN=true || IS_WIN=false
-BIN=bin
+BIN=${PWD}/bin
 EXT=""
 $IS_WIN && EXT=".exe"
 mkdir -p "$BIN"
 
 is_exe() { [[ -x "$1/$2$EXT" ]] || command -v "$2" > /dev/null 2>&1; }
 
+# The deps() function is primarily used for producing debug output to
+# the CI logging files.  For each platform, it will indicate which
+# shared libraries are needed and if they are present or not.  The
+# '|| true' is used because statically linked binaries will cause
+# ldd (and possibly otool) to exit with a non-zero status.
+deps() {
+  case "$RUNNER_OS" in
+    Linux) ldd $1 || true ;;
+    macOS) otool -L $1 || true ;;
+    Windows) ldd $1 || true ;;
+  esac
+}
+
+# Finds the cabal-built '$1' executable and copies it to the '$2'
+# directory.
 extract_exe() {
   exe="$(cabal v2-exec which "$1$EXT")"
   name="$(basename "$exe")"
@@ -45,63 +60,6 @@ setup_dist_bins() {
   strip dist/bin/cryptol* || echo "Strip failed: Ignoring harmless error"
 }
 
-install_z3() {
-  is_exe "$BIN" "z3" && return
-
-  case "$RUNNER_OS" in
-    Linux) file="ubuntu-18.04.zip" ;;
-    macOS) file="osx-10.15.7.zip" ;;
-    Windows) file="win.zip" ;;
-  esac
-  curl -o z3.zip -sL "https://github.com/Z3Prover/z3/releases/download/z3-$Z3_VERSION/z3-$Z3_VERSION-x64-$file"
-
-  if $IS_WIN; then 7z x -bd z3.zip; else unzip z3.zip; fi
-  cp z3-*/bin/z3$EXT $BIN/z3$EXT
-  $IS_WIN || chmod +x $BIN/z3
-  rm z3.zip
-}
-
-install_cvc4() {
-  version="${CVC4_VERSION#4.}" # 4.y.z -> y.z
-
-  case "$RUNNER_OS" in
-    Linux) file="x86_64-linux-opt" ;;
-    Windows) file="win64-opt.exe" ;;
-    macOS) file="macos-opt" ;;
-  esac
-  # Temporary workaround
-  if [[ "$RUNNER_OS" == "Linux" ]]; then
-    #latest="$(curl -sSL "http://cvc4.cs.stanford.edu/downloads/builds/x86_64-linux-opt/unstable/" | grep linux-opt | tail -n1 | sed -e 's/.*href="//' -e 's/\([^>]*\)">.*$/\1/')"
-    latest="cvc4-2021-03-13-x86_64-linux-opt"
-    curl -o cvc4 -sSL "https://cvc4.cs.stanford.edu/downloads/builds/x86_64-linux-opt/unstable/$latest"
-  else
-    curl -o cvc4$EXT -sSL "https://github.com/CVC4/CVC4/releases/download/$version/cvc4-$version-$file"
-  fi
-  $IS_WIN || chmod +x cvc4$EXT
-  mv cvc4$EXT "$BIN/cvc4$EXT"
-}
-
-install_yices() {
-  ext=".tar.gz"
-  case "$RUNNER_OS" in
-    Linux) file="pc-linux-gnu-static-gmp.tar.gz" ;;
-    macOS) file="apple-darwin18.7.0-static-gmp.tar.gz" ;;
-    Windows) file="pc-mingw32-static-gmp.zip" && ext=".zip" ;;
-  esac
-  curl -o "yices$ext" -sL "https://yices.csl.sri.com/releases/$YICES_VERSION/yices-$YICES_VERSION-x86_64-$file"
-
-  if $IS_WIN; then
-    7z x -bd "yices$ext"
-    mv "yices-$YICES_VERSION"/bin/*.exe "$BIN"
-  else
-    tar -xzf "yices$ext"
-    pushd "yices-$YICES_VERSION" || exit
-    sudo ./install-yices
-    popd || exit
-  fi
-  rm -rf "yices$ext" "yices-$YICES_VERSION"
-}
-
 build() {
   ghc_ver="$(ghc --numeric-version)"
   cp cabal.GHC-"$ghc_ver".config cabal.project.freeze
@@ -114,12 +72,11 @@ build() {
 }
 
 install_system_deps() {
-  install_z3 &
-  install_cvc4 &
-  install_yices &
-  wait
-  export PATH=$PWD/$BIN:$PATH
-  echo "$PWD/$BIN" >> "$GITHUB_PATH"
+  (cd $BIN && curl -o bins.zip -sL "https://github.com/GaloisInc/what4-solvers/releases/download/$SOLVER_PKG_VERSION/$BIN_ZIP_FILE" && unzip -o bins.zip && rm bins.zip)
+  chmod +x $BIN/*
+  cp $BIN/yices_smt2$EXT $BIN/yices-smt2$EXT
+  export PATH=$BIN:$PATH
+  echo "$BIN" >> "$GITHUB_PATH"
   is_exe "$BIN" z3 && is_exe "$BIN" cvc4 && is_exe "$BIN" yices
 }
 
@@ -163,6 +120,19 @@ zip_dist() {
   name="${name:-"cryptol-$VERSION-$RUNNER_OS-x86_64"}"
   cp -r dist "$name"
   tar -cvzf "$name".tar.gz "$name"
+}
+
+zip_dist_with_solvers() {
+  : "${VERSION?VERSION is required as an environment variable}"
+  name="${name:-"cryptol-$VERSION-$RUNNER_OS-x86_64"}"
+  sname="${name}-with-solvers"
+  cp "$(which abc)"        dist/bin/
+  cp "$(which cvc4)"       dist/bin/
+  cp "$(which yices)"      dist/bin/
+  cp "$(which yices-smt2)" dist/bin/
+  cp "$(which z3)"         dist/bin/
+  cp -r dist "$sname"
+  tar -cvzf "$sname".tar.gz "$sname"
 }
 
 output() { echo "::set-output name=$1::$2"; }

@@ -1,0 +1,42 @@
+let x -<- y = x - y; infixl 5 -<-; let (-<-) : Integer -> Integer -> Integer
+let x ->- y = x - y; infixr 5 ->-; let (->-) : Integer -> Integer -> Integer
+
+42 -<- 10 -<- 100
+42 ->- 10 ->- 100
+42 ->- 10 -<- 100
+
+let even x = if x == 0 then True else odd (x-1);\
+let odd x = if x == 0 then False else even (x-1)
+
+:t even
+:t odd
+
+even 5
+even 4
+
+odd 5
+odd 6
+
+let even' : Integer -> Bool;\
+let even' x = if x == 0 then True else odd' (x-1);\
+let odd' x = if x == 0 then False else even' (x-1)
+
+:t even'
+:t odd'
+
+even' 5
+even' 4
+
+odd' 5
+odd' 6
+
+type X n = [n]Integer
+take [1...] : X 42
+
+type constraint CS t = (Ring t, Logic t, Integral t)
+
+let f : {a} CS a => a -> Integer;\
+let f x = [1..100]@( (x + fromInteger 5) && fromInteger `0x1f)
+
+:t f
+f 0x1234

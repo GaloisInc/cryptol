@@ -128,3 +128,8 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Files generated from running tests/cryptol/test_cryptol_api.py
+*.crt
+*.csr
+*.key

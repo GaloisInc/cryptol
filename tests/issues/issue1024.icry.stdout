@@ -1,27 +1,32 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Main
-[warning] at issue1024a.cry:1:12--1:24 Unused name: f
-[warning] at issue1024a.cry:2:14--2:24 Unused name: f
-[warning] at issue1024a.cry:4:15--4:20 Unused name: i
-[warning] at issue1024a.cry:4:22--4:32 Unused name: f
-[warning] at issue1024a.cry:4:34--4:39 Unused name: g
+[warning] at issue1024a.cry:1:12--1:24
+    Unused name: f
+[warning] at issue1024a.cry:2:14--2:24
+    Unused name: f
+[warning] at issue1024a.cry:4:15--4:20
+    Unused name: i
+[warning] at issue1024a.cry:4:22--4:32
+    Unused name: f
+[warning] at issue1024a.cry:4:34--4:39
+    Unused name: g
 
 [error] at issue1024a.cry:1:6--1:11:
-  Illegal kind assigned to type variable: f`809
+  Illegal kind assigned to type variable: f`899
   Unexpected: # -> *
   where
-  f`809 is signature variable 'f' at issue1024a.cry:1:12--1:24
+  f`899 is signature variable 'f' at issue1024a.cry:1:12--1:24
 [error] at issue1024a.cry:2:6--2:13:
-  Illegal kind assigned to type variable: f`810
+  Illegal kind assigned to type variable: f`900
   Unexpected: Prop
   where
-  f`810 is signature variable 'f' at issue1024a.cry:2:14--2:24
+  f`900 is signature variable 'f' at issue1024a.cry:2:14--2:24
 [error] at issue1024a.cry:4:13--4:49:
-  Illegal kind assigned to type variable: f`812
+  Illegal kind assigned to type variable: f`902
   Unexpected: # -> *
   where
-  f`812 is signature variable 'f' at issue1024a.cry:4:22--4:32
+  f`902 is signature variable 'f' at issue1024a.cry:4:22--4:32
 Loading module Cryptol
 Loading module Main
 0xffff

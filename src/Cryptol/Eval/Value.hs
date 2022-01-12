@@ -165,11 +165,11 @@ ppValue x opts = loop
   loop :: GenValue sym -> SEval sym Doc
   loop val = case val of
     VRecord fs         -> do fs' <- traverse (>>= loop) fs
-                             return $ braces (sep (punctuate comma (map ppField (fields fs'))))
+                             return $ ppRecord (map ppField (fields fs'))
       where
       ppField (f,r) = pp f <+> char '=' <+> r
     VTuple vals        -> do vals' <- traverse (>>=loop) vals
-                             return $ parens (sep (punctuate comma vals'))
+                             return $ ppTuple vals'
     VBit b             -> ppSBit x b
     VInteger i         -> ppSInteger x i
     VRational q        -> ppSRational x q
@@ -177,10 +177,7 @@ ppValue x opts = loop
     VSeq sz vals       -> ppWordSeq sz vals
     VWord _ wv         -> ppWordVal wv
     VStream vals       -> do vals' <- traverse (>>=loop) $ enumerateSeqMap (useInfLength opts) vals
-                             return $ brackets $ fsep
-                                   $ punctuate comma
-                                   ( vals' ++ [text "..."]
-                                   )
+                             return $ ppList ( vals' ++ [text "..."] )
     VFun{}             -> return $ text "<function>"
     VPoly{}            -> return $ text "<polymorphic value>"
     VNumPoly{}         -> return $ text "<polymorphic value>"
@@ -204,9 +201,9 @@ ppValue x opts = loop
               case traverse (wordAsChar x) vs of
                 Just str -> return $ text (show str)
                 _ -> do vs' <- mapM (ppSWord x opts) vs
-                        return $ brackets (fsep (punctuate comma vs'))
+                        return $ ppList vs'
       _ -> do ws' <- traverse loop ws
-              return $ brackets (fsep (punctuate comma ws'))
+              return $ ppList ws'
 
 ppSBit :: Backend sym => sym -> SBit sym -> SEval sym Doc
 ppSBit sym b =
@@ -273,7 +270,7 @@ ppSWord sym opts bv
   prefix len = case base of
     2  -> text "0b" <.> padding 1 len
     8  -> text "0o" <.> padding 3 len
-    10 -> empty
+    10 -> mempty
     16 -> text "0x" <.> padding 4 len
     _  -> text "0"  <.> char '<' <.> int base <.> char '>'
 

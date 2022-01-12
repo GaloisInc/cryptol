@@ -2,8 +2,10 @@ Loading module Cryptol
 Satisfiable
 it : {result : Bit, arg1 : [4]}
 Satisfiable
+Models found: 11
 it : [11]{result : Bit, arg1 : [4]}
 must be an integer > 0 or "all"
 must be an integer > 0 or "all"
 Satisfiable
+Models found: 3
 it : [3]{result : Bit, arg1 : [4]}

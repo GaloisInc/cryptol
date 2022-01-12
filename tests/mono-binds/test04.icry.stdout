@@ -5,14 +5,14 @@ module test04
 import Cryptol
 /* Not recursive */
 test04::test : {a, b} (Literal 10 b) => a -> ((a, ()), (a, b))
-test04::test = \{a, b} (Literal 10 b) (a : a) ->
-               (f () (), f b (Cryptol::number 10 b <>))
-               where
-                 /* Not recursive */
-                 f : {c} c -> (a, c)
-                 f = \{c} (x : c) -> (a, x)
-                 
-               
+test04::test =
+  \{a, b} (Literal 10 b) (a : a) ->
+    (f () (), f b (Cryptol::number 10 b <>))
+    where
+      /* Not recursive */
+      f : {c} c -> (a, c)
+      f = \{c} (x : c) -> (a, x)
+
 
 Loading module Cryptol
 Loading module test04

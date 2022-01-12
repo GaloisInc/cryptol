@@ -10,39 +10,32 @@ from distutils.spawn import find_executable
 import cryptol
 import argo_client.connection as argo
 import cryptol.cryptoltypes
+from cryptol.single_connection import *
 from cryptol import solver
 from cryptol.bitvector import BV
 from BitVector import * #type: ignore
 
 
 class CryptolTests(unittest.TestCase):
-    # Connection to cryptol
-    c = None
 
     @classmethod
     def setUpClass(self):
-        self.c = cryptol.connect(verify=False)
-        self.c.load_file(str(Path('tests','cryptol','test-files', 'Foo.cry')))
-
-    @classmethod
-    def tearDownClass(self):
-        if self.c:
-            self.c.reset()
+        connect(verify=False)
+        load_file(str(Path('tests','cryptol','test-files', 'Foo.cry')))
 
     def test_low_level(self):
-        c = self.c
-        x_val = c.evaluate_expression("x").result()
+        x_val = cry_eval("x")
 
-        self.assertEqual(c.eval("Id::id x").result(), x_val)
-        self.assertEqual(c.call('Id::id', bytes.fromhex('ff')).result(), BV(8,255))
+        self.assertEqual(cry_eval("Id::id x"), x_val)
+        self.assertEqual(call('Id::id', bytes.fromhex('ff')), BV(8,255))
 
-        self.assertEqual(c.call('add', b'\0', b'\1').result(), BV(8,1))
-        self.assertEqual(c.call('add', bytes.fromhex('ff'), bytes.fromhex('03')).result(), BV(8,2))
+        self.assertEqual(call('add', b'\0', b'\1'), BV(8,1))
+        self.assertEqual(call('add', bytes.fromhex('ff'), bytes.fromhex('03')), BV(8,2))
 
     # AMK: importing cryptol bindings into Python temporarily broken due to linear state usage changes
     # in argo approx 1 March 2020
     # def test_module_import(self):
-    #     c = self.c
+    #     c = cryptol.connect()
     #     cryptol.add_cryptol_module('Foo', c)
     #     from Foo import add
     #     self.assertEqual(add(b'\2', 2), BV(8,4))
@@ -55,123 +48,131 @@ class CryptolTests(unittest.TestCase):
     #     self.assertEqual(add(BV(8,255), BV(8,1)), BV(8,0))
 
     def test_sat_and_prove(self):
-        c = self.c
         # test a single sat model can be returned
-        rootsOf9 = c.sat('isSqrtOf9').result()
-        self.assertEqual(len(rootsOf9), 1)
-        self.assertTrue(int(rootsOf9[0]) ** 2 % 256, 9)
+        rootsOf9 = sat('isSqrtOf9')
+        self.assertTrue(rootsOf9)
+        self.assertEqual(len(rootsOf9.models), 1)
+        self.assertEqual(len(rootsOf9.models[0]), 1)
+        self.assertTrue(int(rootsOf9.models[0][0]) ** 2 % 256, 9)
 
         # check we can specify the solver
-        rootsOf9 = c.sat('isSqrtOf9', solver = solver.ANY).result()
-        self.assertEqual(len(rootsOf9), 1)
-        self.assertTrue(int(rootsOf9[0]) ** 2 % 256, 9)
+        rootsOf9 = sat('isSqrtOf9', solver = solver.ANY)
+        self.assertTrue(rootsOf9)
+        self.assertEqual(len(rootsOf9.models), 1)
+        self.assertEqual(len(rootsOf9.models[0]), 1)
+        self.assertTrue(int(rootsOf9.models[0][0]) ** 2 % 256, 9)
 
         # check we can ask for a specific number of results
-        rootsOf9 = c.sat('isSqrtOf9', count = 3).result()
-        self.assertEqual(len(rootsOf9), 3)
-        self.assertEqual([int(root) ** 2 % 256 for root in rootsOf9], [9,9,9])
+        rootsOf9 = sat('isSqrtOf9', count = 3)
+        self.assertTrue(rootsOf9)
+        self.assertEqual(len(rootsOf9.models), 3)
+        for model in rootsOf9.models:
+            self.assertEqual(len(model), 1)
+            self.assertTrue(int(model[0]) ** 2 % 256, 9)
 
         # check we can ask for all results
-        rootsOf9 = c.sat('isSqrtOf9', count = None).result()
-        self.assertEqual(len(rootsOf9), 4)
-        self.assertEqual([int(root) ** 2 % 256 for root in rootsOf9], [9,9,9,9])
+        rootsOf9 = sat('isSqrtOf9', count = None)
+        self.assertTrue(rootsOf9)
+        self.assertEqual(len(rootsOf9.models), 4)
+        for model in rootsOf9.models:
+            self.assertEqual(len(model), 1)
+            self.assertTrue(int(model[0]) ** 2 % 256, 9)
 
         # check for an unsat condition
-        self.assertFalse(c.sat('\\x -> isSqrtOf9 x && ~(elem x [3,131,125,253])').result())
+        self.assertFalse(sat('\\x -> isSqrtOf9 x && ~(elem x [3,131,125,253])'))
 
         # check for a valid condition
-        self.assertTrue(c.prove('\\x -> isSqrtOf9 x ==> elem x [3,131,125,253]').result())
-        self.assertTrue(c.prove('\\x -> isSqrtOf9 x ==> elem x [3,131,125,253]', solver.Z3).result())
-        self.assertTrue(c.prove('\\x -> isSqrtOf9 x ==> elem x [3,131,125,253]', solver.W4_Z3).result())
-        self.assertTrue(c.prove('\\x -> isSqrtOf9 x ==> elem x [3,131,125,253]', solver.W4_Z3.without_hash_consing()).result())
-        self.assertTrue(c.prove('\\x -> isSqrtOf9 x ==> elem x [3,131,125,253]', solver.SBV_Z3).result())
-        self.assertIsInstance(c.prove('\\(x : [8]) -> x == reverse (reverse x)', solver.OFFLINE).result(), solver.OfflineSmtQuery)
-        self.assertIsInstance(c.prove('\\(x : [8]) -> x == reverse (reverse x)', solver.SBV_OFFLINE).result(), solver.OfflineSmtQuery)
-        self.assertIsInstance(c.prove('\\(x : [8]) -> x == reverse (reverse x)', solver.W4_OFFLINE).result(), solver.OfflineSmtQuery)
+        self.assertTrue(prove('\\x -> isSqrtOf9 x ==> elem x [3,131,125,253]'))
+        self.assertTrue(prove('\\x -> isSqrtOf9 x ==> elem x [3,131,125,253]', solver.Z3))
+        self.assertTrue(prove('\\x -> isSqrtOf9 x ==> elem x [3,131,125,253]', solver.W4_Z3))
+        self.assertTrue(prove('\\x -> isSqrtOf9 x ==> elem x [3,131,125,253]', solver.W4_Z3.without_hash_consing()))
+        self.assertTrue(prove('\\x -> isSqrtOf9 x ==> elem x [3,131,125,253]', solver.SBV_Z3))
+        self.assertIsInstance(prove('\\(x : [8]) -> x == reverse (reverse x)', solver.OFFLINE), solver.OfflineSmtQuery)
+        self.assertIsInstance(prove('\\(x : [8]) -> x == reverse (reverse x)', solver.SBV_OFFLINE), solver.OfflineSmtQuery)
+        self.assertIsInstance(prove('\\(x : [8]) -> x == reverse (reverse x)', solver.W4_OFFLINE), solver.OfflineSmtQuery)
+
 
     def test_check(self):
-        c = self.c
-        res = c.check("\\x -> x==(x:[8])").result()
+        res = check("\\x -> x==(x:[8])")
         self.assertTrue(res.success)
         self.assertEqual(res.tests_run, 100)
         self.assertEqual(res.tests_possible, 256)
         self.assertFalse(len(res.args), 0)
         self.assertEqual(res.error_msg, None)
 
-        res = c.check("\\x -> x==(x:[8])", num_tests=1).result()
+        res = check("\\x -> x==(x:[8])", num_tests=1)
         self.assertTrue(res.success)
         self.assertEqual(res.tests_run, 1)
         self.assertEqual(res.tests_possible, 256)
         self.assertEqual(len(res.args), 0)
         self.assertEqual(res.error_msg, None)
 
-        res = c.check("\\x -> x==(x:[8])", num_tests=42).result()
+        res = check("\\x -> x==(x:[8])", num_tests=42)
         self.assertTrue(res.success)
         self.assertEqual(res.tests_run, 42)
         self.assertEqual(res.tests_possible, 256)
         self.assertEqual(len(res.args), 0)
         self.assertEqual(res.error_msg, None)
 
-        res = c.check("\\x -> x==(x:[8])", num_tests=1000).result()
+        res = check("\\x -> x==(x:[8])", num_tests=1000)
         self.assertTrue(res.success)
         self.assertEqual(res.tests_run, 256)
         self.assertEqual(res.tests_possible, 256)
         self.assertEqual(len(res.args), 0)
         self.assertEqual(res.error_msg, None)
 
-        res = c.check("\\x -> x==(x:[8])", num_tests='all').result()
+        res = check("\\x -> x==(x:[8])", num_tests='all')
         self.assertTrue(res.success)
         self.assertEqual(res.tests_run, 256)
         self.assertEqual(res.tests_possible, 256)
         self.assertEqual(len(res.args), 0)
         self.assertEqual(res.error_msg, None)
 
-        res = c.check("\\x -> x==(x:Integer)", num_tests=1024).result()
+        res = check("\\x -> x==(x:Integer)", num_tests=1024)
         self.assertTrue(res.success)
         self.assertEqual(res.tests_run, 1024)
         self.assertEqual(res.tests_possible, None)
         self.assertEqual(len(res.args), 0)
         self.assertEqual(res.error_msg, None)
 
-        res = c.check("\\x -> (x + 1)==(x:[8])").result()
+        res = check("\\x -> (x + 1)==(x:[8])")
         self.assertFalse(res.success)
         self.assertEqual(res.tests_possible, 256)
         self.assertEqual(len(res.args), 1)
         self.assertEqual(res.error_msg, None)
 
-        res = c.check("\\x -> (x / 0)==(x:[8])").result()
+        res = check("\\x -> (x / 0)==(x:[8])")
         self.assertFalse(res.success)
         self.assertEqual(res.tests_possible, 256)
         self.assertEqual(len(res.args), 1)
         self.assertIsInstance(res.error_msg, str)
 
     def test_safe(self):
-        c = self.c
-        res = c.safe("\\x -> x==(x:[8])").result()
+        res = safe("\\x -> x==(x:[8])")
         self.assertTrue(res)
 
-        res = c.safe("\\x -> x / (x:[8])").result()
-        self.assertEqual(res, [BV(size=8, value=0)])
+        res = safe("\\x -> x / (x:[8])")
+        self.assertFalse(res)
+        self.assertEqual(res.assignments, [BV(size=8, value=0)])
 
-        res = c.safe("\\x -> x / (x:[8])", solver.Z3).result()
-        self.assertEqual(res, [BV(size=8, value=0)])
+        res = safe("\\x -> x / (x:[8])", solver.Z3)
+        self.assertFalse(res)
+        self.assertEqual(res.assignments, [BV(size=8, value=0)])
 
-        res = c.safe("\\x -> x / (x:[8])", solver.W4_Z3).result()
-        self.assertEqual(res, [BV(size=8, value=0)])
+        res = safe("\\x -> x / (x:[8])", solver.W4_Z3)
+        self.assertFalse(res)
+        self.assertEqual(res.assignments, [BV(size=8, value=0)])
 
 
     def test_many_usages_one_connection(self):
-        c = self.c
         for i in range(0,100):
-            x_val1 = c.evaluate_expression("x").result()
-            x_val2 = c.eval("Id::id x").result()
+            x_val1 = cry_eval("x")
+            x_val2 = cry_eval("Id::id x")
             self.assertEqual(x_val1, x_val2)
 
 
 
 class HttpMultiConnectionTests(unittest.TestCase):
-    # Connection to server
-    c = None
     # Python initiated process running the server (if any)
     p = None
     # url of HTTP server
@@ -216,26 +217,24 @@ class HttpMultiConnectionTests(unittest.TestCase):
     def test_reset_with_many_usages_many_connections(self):
         for i in range(0,100):
             time.sleep(.05)
-            c = cryptol.connect(url=self.url, verify=False)
-            c.load_file(str(Path('tests','cryptol','test-files', 'Foo.cry')))
-            x_val1 = c.evaluate_expression("x").result()
-            x_val2 = c.eval("Id::id x").result()
+            connect(url=self.url, verify=False)
+            load_file(str(Path('tests','cryptol','test-files', 'Foo.cry')))
+            x_val1 = cry_eval("x")
+            x_val2 = cry_eval("Id::id x")
             self.assertEqual(x_val1, x_val2)
-            c.reset()
+            reset()
 
-    def test_reset_server_with_many_usages_many_connections(self):
+    def test_server_with_many_usages_many_connections(self):
         for i in range(0,100):
             time.sleep(.05)
-            c = cryptol.connect(url=self.url, reset_server=True, verify=False)
-            c.load_file(str(Path('tests','cryptol','test-files', 'Foo.cry')))
-            x_val1 = c.evaluate_expression("x").result()
-            x_val2 = c.eval("Id::id x").result()
+            connect(url=self.url, verify=False)
+            load_file(str(Path('tests','cryptol','test-files', 'Foo.cry')))
+            x_val1 = cry_eval("x")
+            x_val2 = cry_eval("Id::id x")
             self.assertEqual(x_val1, x_val2)
 
 
 class TLSConnectionTests(unittest.TestCase):
-    # Connection to server
-    c = None
     # Python initiated process running the server (if any)
     p = None
     # url of HTTP server
@@ -281,10 +280,10 @@ class TLSConnectionTests(unittest.TestCase):
 
     def test_tls_connection(self):
         if self.run_tests:
-            c = cryptol.connect(url=self.url, verify=False)
-            c.load_file(str(Path('tests','cryptol','test-files', 'Foo.cry')))
-            x_val1 = c.evaluate_expression("x").result()
-            x_val2 = c.eval("Id::id x").result()
+            connect(url=self.url, verify=False)
+            load_file(str(Path('tests','cryptol','test-files', 'Foo.cry')))
+            x_val1 = cry_eval("x")
+            x_val2 = cry_eval("Id::id x")
             self.assertEqual(x_val1, x_val2)
 
 if __name__ == "__main__":

@@ -13,7 +13,6 @@ import qualified Data.Aeson as JSON
 import Data.Aeson ((.=), (.:), (.!=), (.:?))
 import Data.Aeson.Types (Parser, typeMismatch)
 import Data.Functor ((<&>))
-import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as T
 
 import qualified Cryptol.Parser.AST as C
@@ -27,6 +26,7 @@ import Cryptol.Utils.PP (pp)
 import Cryptol.Utils.RecordMap (canonicalFields)
 
 import qualified Argo.Doc as Doc
+import CryptolServer.AesonCompat
 
 
 newtype JSONSchema = JSONSchema Schema
@@ -219,7 +219,7 @@ instance JSON.ToJSON JSONType where
         JSON.object
         [ "type" .= T.pack "record"
         , "fields" .=
-          JSON.object [ T.pack (show (pp f)) .= JSONType ns t'
+          JSON.object [ keyFromText (T.pack (show (pp f))) .= JSONType ns t'
                       | (f, t') <- canonicalFields fields
                       ]
         ]
@@ -231,17 +231,17 @@ instance JSON.FromJSON JSONPType where
     where
       getType :: JSON.Value -> Parser (C.Type C.PName)
       getType (JSON.Object o) =
-            case HM.lookup "type" o of
+            case lookupKM "type" o of
               Just t -> asType t o
               Nothing ->
-                case HM.lookup "prop" o of
+                case lookupKM "prop" o of
                   Just p -> asProp p o
                   Nothing -> fail "Expected type or prop key"
       getType other = typeMismatch "object" other
 
       asType "record" = \o -> C.TRecord <$> ((o .: "fields") >>= getFields)
         where
-          getFields obj = recordFromFields <$> traverse (\(k, v) -> (mkIdent k,) . (emptyRange,) <$> getType v) (HM.toList obj)
+          getFields obj = recordFromFields <$> traverse (\(k, v) -> (mkIdent (keyToText k),) . (emptyRange,) <$> getType v) (toListKM obj)
       asType "variable" = \o -> C.TUser <$> (name <$> o .: "name") <*> (map unJSONPType <$> (o .:? "arguments" .!= []))
       asType "number" = \o -> C.TNum <$> (o .: "value")
       asType "inf" = const $ pure $ C.TUser (name "inf") []

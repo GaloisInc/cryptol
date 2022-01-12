@@ -85,6 +85,9 @@ modifyModuleEnv f =
 getTCSolver :: CryptolCommand SMT.Solver
 getTCSolver = CryptolCommand $ const $ view tcSolver <$> Argo.getState
 
+getTCSolverConfig :: CryptolCommand SMT.SolverConfig
+getTCSolverConfig = CryptolCommand $ const $ solverConfig <$> Argo.getState
+
 liftModuleCmd :: ModuleCmd a -> CryptolCommand a
 liftModuleCmd cmd =
     do Options callStacks evOpts <- getOptions
@@ -123,6 +126,7 @@ data ServerState =
   ServerState { _loadedModule :: Maybe LoadedModule
               , _moduleEnv :: ModuleEnv
               , _tcSolver :: SMT.Solver
+              , solverConfig :: SMT.SolverConfig
               }
 
 loadedModule :: Lens' ServerState (Maybe LoadedModule)
@@ -138,13 +142,23 @@ tcSolver = lens _tcSolver (\v n -> v { _tcSolver = n })
 initialState :: IO ServerState
 initialState =
   do modEnv <- initialModuleEnv
-     s <- SMT.startSolver (defaultSolverConfig (meSearchPath modEnv))
-     pure (ServerState Nothing modEnv s)
+     -- NOTE: the "pure ()" is a callback which is invoked if/when the solver
+     -- stops for some reason.  This is just a placeholder for now, and could
+     -- be replaced by something more useful.
+     let sCfg = defaultSolverConfig (meSearchPath modEnv)
+     s <- SMT.startSolver (pure ()) sCfg
+     pure (ServerState Nothing modEnv s sCfg)
 
 extendSearchPath :: [FilePath] -> ServerState -> ServerState
 extendSearchPath paths =
   over moduleEnv $ \me -> me { meSearchPath = nubOrd $ paths ++ meSearchPath me }
 
+
+resetTCSolver :: CryptolCommand ()
+resetTCSolver = do
+  s <- getTCSolver
+  sCfg <- getTCSolverConfig
+  liftIO $ SMT.resetSolver s sCfg
 
 instance FreshM CryptolCommand where
   liftSupply f = do

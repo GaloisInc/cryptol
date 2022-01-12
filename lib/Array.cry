@@ -11,3 +11,47 @@ primitive arrayConstant : {a, b} b -> (Array a b)
 primitive arrayLookup : {a, b} (Array a b) -> a -> b
 primitive arrayUpdate : {a, b} (Array a b) -> a -> b -> (Array a b)
 
+/**
+ * Copy elements from the source array to the destination array.
+ *
+ * 'arrayCopy dest_arr dest_idx src_arr src_idx len' copies the
+ * elements from 'src_arr' at indices '[src_idx ..< (src_idx + len)]' into
+ * 'dest_arr' at indices '[dest_idx ..< (dest_idx + len)]'.
+ *
+ * The result is undefined if either 'dest_idx + len' or 'src_idx + len'
+ * wraps around.
+ */
+primitive arrayCopy : {n, a} (Array [n] a) -> [n] -> (Array [n] a) -> [n] -> [n] -> (Array [n] a)
+/**
+ * Set elements of the given array.
+ *
+ * 'arraySet' arr idx val len' sets the elements of 'arr' at indices
+ * '[idx ..< (idx + len)]' to 'val'.
+ *
+ * The result is undefined if 'idx + len' wraps around.
+ */
+primitive arraySet : {n, a} (Array [n] a) -> [n] -> a -> [n] -> (Array [n] a)
+/**
+ * Check whether the lhs array and rhs array are equal at a range of
+ * indices.
+ *
+ * 'arrayRangeEq sym lhs_arr lhs_idx rhs_arr rhs_idx len' checks whether
+ * the elements of 'lhs_arr' at indices '[lhs_idx ..< (lhs_idx + len)]' and
+ * the elements of 'rhs_arr' at indices '[rhs_idx ..< (rhs_idx + len)]' are
+ * equal.
+ *
+ * The result is undefined if either 'lhs_idx + len' or 'rhs_idx + len'
+ * wraps around.
+ */
+primitive arrayRangeEqual : {n, a} (Array [n] a) -> [n] -> (Array [n] a) -> [n] -> [n] -> Bool
+
+arrayRangeLookup : {a, b, n} (Integral a, fin n, LiteralLessThan n a) => (Array a b) -> a -> [n]b
+arrayRangeLookup arr idx = res
+  where
+    res @ i = arrayLookup arr (idx + i)
+
+arrayRangeUpdate : {a, b, n} (Integral a, fin n, LiteralLessThan n a) => (Array a b) -> a -> [n]b -> (Array a b)
+arrayRangeUpdate arr idx vals = arrs ! 0
+  where
+    arrs = [arr] # [ arrayUpdate acc (idx + i) val | acc <- arrs | i <- [0 ..< n] | val <- vals ]
+

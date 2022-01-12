@@ -29,6 +29,7 @@ module Cryptol.TypeCheck
   ) where
 
 import Data.IORef(IORef,modifyIORef')
+import Data.Map(Map)
 
 import           Cryptol.ModuleSystem.Name
                     (liftSupply,mkDeclared,NameSource(..),ModPath(..))
@@ -133,7 +134,7 @@ tcExpr e0 inp = runInferM inp
                           : map show res
                           )
 
-tcDecls :: [P.TopDecl Name] -> InferInput -> IO (InferOutput [DeclGroup])
+tcDecls :: [P.TopDecl Name] -> InferInput -> IO (InferOutput ([DeclGroup],Map Name TySyn))
 tcDecls ds inp = runInferM inp $
   do newLocalScope
      checkTopDecls ds
@@ -141,18 +142,16 @@ tcDecls ds inp = runInferM inp $
      endLocalScope
 
 ppWarning :: (Range,Warning) -> Doc
-ppWarning (r,w) = text "[warning] at" <+> pp r <.> colon $$ nest 2 (pp w)
+ppWarning (r,w) = nest 2 (text "[warning] at" <+> pp r <.> colon $$ pp w)
 
 ppError :: (Range,Error) -> Doc
-ppError (r,w) = text "[error] at" <+> pp r <.> colon $$ nest 2 (pp w)
-
+ppError (r,w) = nest 2 (text "[error] at" <+> pp r <.> colon $$ pp w)
 
 ppNamedWarning :: NameMap -> (Range,Warning) -> Doc
 ppNamedWarning nm (r,w) =
-  text "[warning] at" <+> pp r <.> colon $$ nest 2 (pp (WithNames w nm))
+  nest 2 (text "[warning] at" <+> pp r <.> colon $$ pp (WithNames w nm))
 
 ppNamedError :: NameMap -> (Range,Error) -> Doc
 ppNamedError nm (r,e) =
-  text "[error] at" <+> pp r <.> colon $$ nest 2 (pp (WithNames e nm))
-
+  nest 2 (text "[error] at" <+> pp r <.> colon $$ pp (WithNames e nm))
 

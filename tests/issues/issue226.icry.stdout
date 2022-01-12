@@ -90,9 +90,7 @@ Symbols
     (||) : {a} (Logic a) => a -> a -> a
     (^) : {a} (Logic a) => a -> a -> a
     (&&) : {a} (Logic a) => a -> a -> a
-    (#) :
-      {front, back, a} (fin front) =>
-        [front]a -> [back]a -> [front + back]a
+    (#) : {front, back, a} (fin front) => [front]a -> [back]a -> [front + back]a
     (<<) : {n, ix, a} (Integral ix, Zero a) => [n]a -> ix -> [n]a
     (<<<) : {n, ix, a} (fin n, Integral ix) => [n]a -> ix -> [n]a
     (>>) : {n, ix, a} (Integral ix, Zero a) => [n]a -> ix -> [n]a
@@ -133,29 +131,45 @@ Symbols
     fraction : {m, n, r, a} (FLiteral m n r a) => a
     fromInteger : {a} (Ring a) => Integer -> a
     fromThenTo :
-      {first, next, last, a, len} (fin first, fin next, fin last,
-                                   Literal first a, Literal next a, Literal last a, first != next,
-                                   lengthFromThenTo first next last == len) =>
+      {first, next, last, a, len}
+        (fin first, fin next, fin last, Literal first a, Literal next a,
+         Literal last a, first != next,
+         lengthFromThenTo first next last == len) =>
         [len]a
     fromTo :
-      {first, last, a} (fin last, last >= first, Literal first a,
-                        Literal last a) =>
+      {first, last, a}
+        (fin last, last >= first, Literal last a) =>
         [1 + (last - first)]a
+    fromToBy :
+      {first, last, stride, a}
+        (fin last, fin stride, stride >= 1, last >= first, Literal last a) =>
+        [1 + (last - first) / stride]a
+    fromToByLessThan :
+      {first, bound, stride, a}
+        (fin first, fin stride, stride >= 1, bound >= first,
+         LiteralLessThan bound a) =>
+        [(bound - first) /^ stride]a
+    fromToDownBy :
+      {first, last, stride, a}
+        (fin first, fin stride, stride >= 1, first >= last, Literal first a) =>
+        [1 + (first - last) / stride]a
+    fromToDownByGreaterThan :
+      {first, bound, stride, a}
+        (fin first, fin stride, stride >= 1, first >= bound, Literal first a) =>
+        [(first - bound) /^ stride]a
     fromToLessThan :
-      {first, bound, a} (fin first, bound >= first,
-                         LiteralLessThan bound a) =>
+      {first, bound, a}
+        (fin first, bound >= first, LiteralLessThan bound a) =>
         [bound - first]a
     fromZ : {n} (fin n, n >= 1) => Z n -> Integer
     generate :
       {n, a, ix} (Integral ix, LiteralLessThan n ix) => (ix -> a) -> [n]a
-    groupBy :
-      {each, parts, a} (fin each) => [each * parts]a -> [parts][each]a
+    groupBy : {each, parts, a} (fin each) => [each * parts]a -> [parts][each]a
     head : {n, a} [1 + n]a -> a
     infFrom : {a} (Integral a) => a -> [inf]a
     infFromThen : {a} (Integral a) => a -> a -> [inf]a
     iterate : {a} (a -> a) -> a -> [inf]a
-    join :
-      {parts, each, a} (fin each) => [parts][each]a -> [parts * each]a
+    join : {parts, each, a} (fin each) => [parts][each]a -> [parts * each]a
     last : {n, a} (fin n) => [1 + n]a -> a
     length : {n, a, b} (fin n, Literal n b) => [n]a -> b
     lg2 : {n} (fin n) => [n] -> [n]
@@ -168,8 +182,7 @@ Symbols
     parmap : {a, b, n} (Eq b, fin n) => (a -> b) -> [n]a -> [n]b
     pdiv : {u, v} (fin u, fin v) => [u] -> [v] -> [u]
     pmod : {u, v} (fin u, fin v) => [u] -> [1 + v] -> [v]
-    pmult :
-      {u, v} (fin u, fin v) => [1 + u] -> [1 + v] -> [1 + (u + v)]
+    pmult : {u, v} (fin u, fin v) => [1 + u] -> [1 + v] -> [1 + (u + v)]
     product : {n, a} (fin n, Eq a, Ring a) => [n]a -> a
     random : {a} [256] -> a
     ratio : Integer -> Integer -> Rational
@@ -180,22 +193,21 @@ Symbols
     roundAway : {a} (Round a) => a -> Integer
     roundToEven : {a} (Round a) => a -> Integer
     sborrow : {n} (fin n, n >= 1) => [n] -> [n] -> Bit
-    scanl : {n, b, a} (b -> a -> b) -> b -> [n]a -> [1 + n]b
+    scanl : {n, a, b} (a -> b -> a) -> a -> [n]b -> [1 + n]a
     scanr : {n, a, b} (fin n) => (a -> b -> b) -> b -> [n]a -> [1 + n]b
     scarry : {n} (fin n, n >= 1) => [n] -> [n] -> Bit
     sext : {m, n} (fin m, m >= n, n >= 1) => [n] -> [m]
     sort : {a, n} (Cmp a, fin n) => [n]a -> [n]a
     sortBy : {a, n} (fin n) => (a -> a -> Bit) -> [n]a -> [n]a
-    split :
-      {parts, each, a} (fin each) => [parts * each]a -> [parts][each]a
+    split : {parts, each, a} (fin each) => [parts * each]a -> [parts][each]a
     splitAt :
-      {front, back, a} (fin front) =>
-        [front + back]a -> ([front]a, [back]a)
+      {front, back, a} (fin front) => [front + back]a -> ([front]a, [back]a)
     sum : {n, a} (fin n, Eq a, Ring a) => [n]a -> a
     True : Bit
     tail : {n, a} [1 + n]a -> [n]a
     take : {front, back, a} [front + back]a -> [front]a
     toInteger : {a} (Integral a) => a -> Integer
+    toSignedInteger : {n} (fin n, n >= 1) => [n] -> Integer
     trace : {n, a, b} (fin n) => String n -> a -> b -> b
     traceVal : {n, a} (fin n) => String n -> a -> a
     transpose : {rows, cols, a} [rows][cols]a -> [cols][rows]a
@@ -203,13 +215,11 @@ Symbols
     uncurry : {a, b, c} (a -> b -> c) -> (a, b) -> c
     undefined : {a} a
     update : {n, a, ix} (Integral ix) => [n]a -> ix -> a -> [n]a
-    updateEnd :
-      {n, a, ix} (fin n, Integral ix) => [n]a -> ix -> a -> [n]a
+    updateEnd : {n, a, ix} (fin n, Integral ix) => [n]a -> ix -> a -> [n]a
     updates :
       {n, k, ix, a} (Integral ix, fin k) => [n]a -> [k]ix -> [k]a -> [n]a
     updatesEnd :
-      {n, k, ix, a} (fin n, Integral ix, fin k) =>
-        [n]a -> [k]ix -> [k]a -> [n]a
+      {n, k, ix, a} (fin n, Integral ix, fin k) => [n]a -> [k]ix -> [k]a -> [n]a
     zero : {a} (Zero a) => a
     zext : {m, n} (fin m, m >= n) => [n] -> [m]
     zip : {n, a, b} [n]a -> [n]b -> [n](a, b)

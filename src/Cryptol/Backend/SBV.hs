@@ -295,6 +295,7 @@ instance Backend SBV where
   wordLg2 _ a = sLg2 a
 
   wordToInt _ x = pure $! svToInteger x
+  wordToSignedInt _ x = pure $! svToInteger (svSign x)
   wordFromInt _ w i = pure $! svFromInteger w i
 
   intEq _ a b = pure $! svEqual a b

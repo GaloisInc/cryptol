@@ -557,7 +557,7 @@ Parameter fields
 
 
 ``prover``
-  The SMT solver to use to check for satisfiability. I.e., one of the following: ``w4-cvc4``, ``w4-yices``, ``w4-z3``, ``w4-boolector``, ``w4-offline``, ``w4-any``, ``cvc4``, ``yices``, ``z3``, ``boolector``, ``mathsat``, ``abc``, ``offline``, ``any``, ``sbv-cvc4``, ``sbv-yices``, ``sbv-z3``, ``sbv-boolector``, ``sbv-mathsat``, ``sbv-abc``, ``sbv-offline``, ``sbv-any``.
+  The SMT solver to use to check for satisfiability. I.e., one of the following: ``w4-cvc4``, ``w4-yices``, ``w4-z3``, ``w4-boolector``, ``w4-abc``, ``w4-offline``, ``w4-any``, ``cvc4``, ``yices``, ``z3``, ``boolector``, ``mathsat``, ``abc``, ``offline``, ``any``, ``sbv-cvc4``, ``sbv-yices``, ``sbv-z3``, ``sbv-boolector``, ``sbv-mathsat``, ``sbv-abc``, ``sbv-offline``, ``sbv-any``.
   
   
 
@@ -609,6 +609,24 @@ Return fields
   Only used if the ``result`` is ``offline``. The raw textual contents of the requested SMT query which can inspected or manually given to an SMT solver.
   
   
+
+
+interrupt (notification)
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Interrupt the server, terminating it's current task (if one exists).
+
+Parameter fields
+++++++++++++++++
+
+No parameters
+
+
+Return fields
++++++++++++++
+
+No return fields
+
 
 
 

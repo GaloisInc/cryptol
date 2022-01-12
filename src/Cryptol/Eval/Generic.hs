@@ -35,7 +35,7 @@ import Data.Map(Map)
 import Data.Ratio ((%))
 
 import Cryptol.TypeCheck.AST
-import Cryptol.TypeCheck.Solver.InfNat (Nat'(..),nMul)
+import Cryptol.TypeCheck.Solver.InfNat (Nat'(..),nMul,nAdd)
 import Cryptol.Backend
 import Cryptol.Backend.Concrete (Concrete(..))
 import Cryptol.Backend.Monad( Eval, evalPanic, EvalError(..), Unsupported(..) )
@@ -715,6 +715,13 @@ smodV sym  =
   PWordFun \x ->
   PWordFun \y ->
   PPrim (VWord w . wordVal <$> wordSignedMod sym x y)
+
+{-# SPECIALIZE toSignedIntegerV :: Concrete -> Prim Concrete #-}
+toSignedIntegerV :: Backend sym => sym -> Prim sym
+toSignedIntegerV sym =
+  PFinPoly \_w ->
+  PWordFun \x ->
+  PPrim (VInteger <$> wordToSignedInt sym x)
 
 -- Cmp -------------------------------------------------------------------------
 
@@ -1437,7 +1444,6 @@ updatePrim sym updateWord updateSeq =
                              (do vs <- fromSeq "updatePrim" =<< xs; updateSeq len eltTy vs idx' val)
 
 {-# INLINE fromToV #-}
-
 -- @[ 0 .. 10 ]@
 fromToV :: Backend sym => sym -> Prim sym
 fromToV sym =
@@ -1452,23 +1458,7 @@ fromToV sym =
         in VSeq len $ indexSeqMap $ \i -> f (first' + i)
       _ -> evalPanic "fromToV" ["invalid arguments"]
 
-{-# INLINE fromToLessThanV #-}
-
--- @[ 0 .. <10 ]@
-fromToLessThanV :: Backend sym => sym -> Prim sym
-fromToLessThanV sym =
-  PFinPoly \first ->
-  PNumPoly \bound ->
-  PTyPoly  \ty ->
-  PVal
-    let !f = mkLit sym ty
-        ss = indexSeqMap $ \i -> f (first + i)
-    in case bound of
-         Inf        -> VStream ss
-         Nat bound' -> VSeq (bound' - first) ss
-
 {-# INLINE fromThenToV #-}
-
 -- @[ 0, 1 .. 10 ]@
 fromThenToV :: Backend sym => sym -> Prim sym
 fromThenToV sym =
@@ -1484,6 +1474,75 @@ fromThenToV sym =
         let diff = next' - first'
         in VSeq len' $ indexSeqMap $ \i -> f (first' + i*diff)
       _ -> evalPanic "fromThenToV" ["invalid arguments"]
+
+{-# INLINE fromToLessThanV #-}
+-- @[ 0 .. <10 ]@
+fromToLessThanV :: Backend sym => sym -> Prim sym
+fromToLessThanV sym =
+  PFinPoly \first ->
+  PNumPoly \bound ->
+  PTyPoly  \ty ->
+  PVal
+    let !f = mkLit sym ty
+        ss = indexSeqMap $ \i -> f (first + i)
+    in case bound of
+         Inf        -> VStream ss
+         Nat bound' -> VSeq (bound' - first) ss
+
+{-# INLINE fromToByV #-}
+-- @[ 0 .. 10 by 2 ]@
+fromToByV :: Backend sym => sym -> Prim sym
+fromToByV sym =
+  PFinPoly \first ->
+  PFinPoly \lst ->
+  PFinPoly \stride ->
+  PTyPoly  \ty ->
+  PVal
+    let !f = mkLit sym ty
+        ss = indexSeqMap $ \i -> f (first + i*stride)
+     in VSeq (1 + ((lst - first) `div` stride)) ss
+
+{-# INLINE fromToByLessThanV #-}
+-- @[ 0 .. <10 by 2 ]@
+fromToByLessThanV :: Backend sym => sym -> Prim sym
+fromToByLessThanV sym =
+  PFinPoly \first ->
+  PNumPoly \bound ->
+  PFinPoly \stride ->
+  PTyPoly  \ty ->
+  PVal
+    let !f = mkLit sym ty
+        ss = indexSeqMap $ \i -> f (first + i*stride)
+     in case bound of
+          Inf -> VStream ss
+          Nat bound' -> VSeq ((bound' - first + stride - 1) `div` stride) ss
+
+
+{-# INLINE fromToDownByV #-}
+-- @[ 10 .. 0 down by 2 ]@
+fromToDownByV :: Backend sym => sym -> Prim sym
+fromToDownByV sym =
+  PFinPoly \first ->
+  PFinPoly \lst ->
+  PFinPoly \stride ->
+  PTyPoly  \ty ->
+  PVal
+    let !f = mkLit sym ty
+        ss = indexSeqMap $ \i -> f (first - i*stride)
+     in VSeq (1 + ((first - lst) `div` stride)) ss
+
+{-# INLINE fromToDownByGreaterThanV #-}
+-- @[ 10 .. >0 down by 2 ]@
+fromToDownByGreaterThanV :: Backend sym => sym -> Prim sym
+fromToDownByGreaterThanV sym =
+  PFinPoly \first ->
+  PFinPoly \bound ->
+  PFinPoly \stride ->
+  PTyPoly  \ty ->
+  PVal
+    let !f = mkLit sym ty
+        ss = indexSeqMap $ \i -> f (first - i*stride)
+     in VSeq ((first - bound + stride - 1) `div` stride) ss
 
 {-# INLINE infFromV #-}
 infFromV :: Backend sym => sym -> Prim sym
@@ -1755,6 +1814,40 @@ foldl'V sym =
        go1 f a' bs
 
 
+-- scanl : {n, a, b}  (a -> b -> a) -> a -> [n]b -> [1+n]a
+scanlV :: forall sym. Backend sym => sym -> Prim sym
+scanlV sym =
+  PNumPoly \n ->
+  PTyPoly  \a ->
+  PTyPoly  \_b ->
+  PFun     \f ->
+  PFun     \z ->
+  PStrict  \v ->
+  PPrim
+    do sm <- case v of
+            VSeq _ m   -> scan n f z m
+            VWord _ wv -> scan n f z (VBit <$> asBitsMap sym wv)
+            VStream m  -> scan n f z m
+            _ -> panic "Cryptol.Eval.Generic.scanlV" ["Expected sequence"]
+       mkSeq sym (nAdd (Nat 1) n) a sm
+
+ where
+  scan :: Nat' ->
+          SEval sym (GenValue sym) ->
+          SEval sym (GenValue sym) ->
+          (SeqMap sym (GenValue sym)) ->
+          SEval sym (SeqMap sym (GenValue sym))
+  scan n f z m =
+    do (result, fill) <- sDeclareHole sym "scanl"
+       fill $ memoMap sym (nAdd (Nat 1) n) $ indexSeqMap $ \i ->
+         if i == 0 then z
+         else
+           do r <- result
+              f'  <- fromVFun sym <$> f
+              f'' <- fromVFun sym <$> f' (lookupSeqMap r (i-1))
+              f'' (lookupSeqMap m (i-1))
+       result
+
 -- Random Values ---------------------------------------------------------------
 
 {-# SPECIALIZE randomV ::
@@ -1979,6 +2072,9 @@ genericPrimTable sym getEOpts =
                     unary (roundToEvenV sym))
 
     -- Bitvector specific operations
+  , ("toSignedInteger"
+                  , {-# SCC "Prelude::toSignedInteger" #-}
+                    toSignedIntegerV sym)
   , ("/$"         , {-# SCC "Prelude::(/$)" #-}
                     sdivV sym)
   , ("%$"         , {-# SCC "Prelude::(%$)" #-}
@@ -2014,6 +2110,20 @@ genericPrimTable sym getEOpts =
   , ("fromToLessThan"
                   , {-# SCC "Prelude::fromToLessThan" #-}
                     fromToLessThanV sym)
+
+  , ("fromToBy"   , {-# SCC "Prelude::fromToBy" #-}
+                    fromToByV sym)
+
+  , ("fromToByLessThan",
+                    {-# SCC "Prelude::fromToByLessThan" #-}
+                    fromToByLessThanV sym)
+
+  , ("fromToDownBy", {-# SCC "Prelude::fromToDownBy" #-}
+                     fromToDownByV sym)
+
+  , ("fromToDownByGreaterThan"
+                  , {-# SCC "Prelude::fromToDownByGreaterThan" #-}
+                    fromToDownByGreaterThanV sym)
 
     -- Sequence manipulations
   , ("#"          , {-# SCC "Prelude::(#)" #-}
@@ -2123,6 +2233,9 @@ genericPrimTable sym getEOpts =
 
   , ("foldl'"     , {-# SCC "Prelude::foldl'" #-}
                     foldl'V sym)
+
+  , ("scanl"      , {-# SCC "Prelude::scanl" #-}
+                    scanlV sym)
 
   , ("deepseq"    , {-# SCC "Prelude::deepseq" #-}
                     PTyPoly \_a ->

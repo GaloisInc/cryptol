@@ -18,15 +18,12 @@ import           Cryptol.Utils.Ident
 import           Control.DeepSeq
 import           Control.Monad (mplus)
 import           Data.Maybe (fromMaybe)
-import qualified Data.Semigroup as S
 import           Data.String (IsString(..))
 import qualified Data.Text as T
+import           Data.Void (Void)
 import           GHC.Generics (Generic)
-import qualified Text.PrettyPrint as PJ
-
-import Prelude ()
-import Prelude.Compat
-
+import qualified Prettyprinter as PP
+import qualified Prettyprinter.Render.String as PP
 
 -- | How to pretty print things when evaluating
 data PPOpts = PPOpts
@@ -76,7 +73,7 @@ data NameDisp = EmptyNameDisp
 instance Show NameDisp where
   show _ = "<NameDisp>"
 
-instance S.Semigroup NameDisp where
+instance Semigroup NameDisp where
   NameDisp f    <> NameDisp g    = NameDisp (\n -> f n `mplus` g n)
   EmptyNameDisp <> EmptyNameDisp = EmptyNameDisp
   EmptyNameDisp <> x             = x
@@ -84,7 +81,7 @@ instance S.Semigroup NameDisp where
 
 instance Monoid NameDisp where
   mempty = EmptyNameDisp
-  mappend = (S.<>)
+  mappend = (<>)
 
 data NameFormat = UnQualified
                 | Qualified !ModName
@@ -122,29 +119,27 @@ fixNameDisp disp (Doc f) = Doc (\ _ -> f disp)
 
 -- Documents -------------------------------------------------------------------
 
-newtype Doc = Doc (NameDisp -> PJ.Doc) deriving (Generic, NFData)
+newtype Doc = Doc (NameDisp -> PP.Doc Void) deriving (Generic, NFData)
 
-instance S.Semigroup Doc where
-  (<>) = liftPJ2 (PJ.<>)
+instance Semigroup Doc where
+  (<>) = liftPP2 (<>)
 
 instance Monoid Doc where
-  mempty = liftPJ PJ.empty
-  mappend = (S.<>)
+  mempty = liftPP mempty
+  mappend = (<>)
 
-runDoc :: NameDisp -> Doc -> PJ.Doc
+runDoc :: NameDisp -> Doc -> PP.Doc Void
 runDoc names (Doc f) = f names
 
 instance Show Doc where
-  show d = show (runDoc mempty d)
+  show d = PP.renderString (PP.layoutPretty opts (runDoc mempty d))
+    where opts = PP.defaultLayoutOptions{ PP.layoutPageWidth = PP.AvailablePerLine 100 0.666 }
 
 instance IsString Doc where
   fromString = text
 
-render :: Doc -> String
-render d = PJ.render (runDoc mempty d)
-
 renderOneLine :: Doc -> String
-renderOneLine d = PJ.renderStyle (PJ.style { PJ.mode = PJ.OneLineMode }) (runDoc mempty d)
+renderOneLine d = PP.renderString (PP.layoutCompact (runDoc mempty d))
 
 class PP a where
   ppPrec :: Int -> a -> Doc
@@ -171,7 +166,7 @@ pretty :: PP a => a -> String
 pretty  = show . pp
 
 optParens :: Bool -> Doc -> Doc
-optParens b body | b         = parens body
+optParens b body | b         = nest 1 (parens body)
                  | otherwise = body
 
 
@@ -182,10 +177,6 @@ data Infix op thing = Infix
   , ieRight  :: thing    -- ^ right argument
   , ieFixity :: Fixity   -- ^ operator fixity
   }
-
-commaSep :: [Doc] -> Doc
-commaSep = fsep . punctuate comma
-
 
 -- | Pretty print an infix expression of some sort.
 ppInfix :: (PP thing, PP op)
@@ -228,94 +219,123 @@ ordSuffix n0 =
 
 -- Wrapped Combinators ---------------------------------------------------------
 
-liftPJ :: PJ.Doc -> Doc
-liftPJ d = Doc (const d)
+liftPP :: PP.Doc Void -> Doc
+liftPP d = Doc (const d)
 
-liftPJ1 :: (PJ.Doc -> PJ.Doc) -> Doc -> Doc
-liftPJ1 f (Doc d) = Doc (\env -> f (d env))
+liftPP1 :: (PP.Doc Void -> PP.Doc Void) -> Doc -> Doc
+liftPP1 f (Doc d) = Doc (\env -> f (d env))
 
-liftPJ2 :: (PJ.Doc -> PJ.Doc -> PJ.Doc) -> (Doc -> Doc -> Doc)
-liftPJ2 f (Doc a) (Doc b) = Doc (\e -> f (a e) (b e))
+liftPP2 :: (PP.Doc Void -> PP.Doc Void -> PP.Doc Void) -> (Doc -> Doc -> Doc)
+liftPP2 f (Doc a) (Doc b) = Doc (\e -> f (a e) (b e))
 
-liftSep :: ([PJ.Doc] -> PJ.Doc) -> ([Doc] -> Doc)
+liftSep :: ([PP.Doc Void] -> PP.Doc Void) -> ([Doc] -> Doc)
 liftSep f ds = Doc (\e -> f [ d e | Doc d <- ds ])
 
-infixl 6 <.>, <+>
+infixl 6 <.>, <+>, </>
 
 (<.>) :: Doc -> Doc -> Doc
-(<.>)  = liftPJ2 (PJ.<>)
+(<.>)  = liftPP2 (PP.<>)
 
 (<+>) :: Doc -> Doc -> Doc
-(<+>)  = liftPJ2 (PJ.<+>)
+(<+>)  = liftPP2 (PP.<+>)
+
+(</>) :: Doc -> Doc -> Doc
+Doc x </> Doc y = Doc (\e -> x e <> PP.softline <> y e)
 
 infixl 5 $$
 
 ($$) :: Doc -> Doc -> Doc
-($$)  = liftPJ2 (PJ.$$)
+($$) x y = vsep [x,y]
 
 sep :: [Doc] -> Doc
-sep  = liftSep PJ.sep
+sep  = liftSep PP.sep
 
 fsep :: [Doc] -> Doc
-fsep  = liftSep PJ.fsep
+fsep  = liftSep PP.fillSep
 
 hsep :: [Doc] -> Doc
-hsep  = liftSep PJ.hsep
+hsep  = liftSep PP.hsep
 
 hcat :: [Doc] -> Doc
-hcat  = liftSep PJ.hcat
+hcat  = liftSep PP.hcat
 
 vcat :: [Doc] -> Doc
-vcat  = liftSep PJ.vcat
+vcat  = liftSep PP.vcat
 
+vsep :: [Doc] -> Doc
+vsep  = liftSep PP.vsep
+
+group :: Doc -> Doc
+group = liftPP1 PP.group
+
+-- NB, this is the semantics of "hang" as defined
+--  by the HugesPJ printer, not the "hang" from prettyprinter,
+--  which is subtly different.
 hang :: Doc -> Int -> Doc -> Doc
-hang (Doc p) i (Doc q) = Doc (\e -> PJ.hang (p e) i (q e))
+hang (Doc p) i (Doc q) = Doc (\e -> PP.hang i (PP.vsep [p e, q e]))
 
 nest :: Int -> Doc -> Doc
-nest n = liftPJ1 (PJ.nest n)
+nest n = liftPP1 (PP.nest n)
+
+indent :: Int -> Doc -> Doc
+indent n = liftPP1 (PP.indent n)
+
+align :: Doc -> Doc
+align = liftPP1 PP.align
 
 parens :: Doc -> Doc
-parens  = liftPJ1 PJ.parens
+parens  = liftPP1 PP.parens
 
 braces :: Doc -> Doc
-braces  = liftPJ1 PJ.braces
+braces  = liftPP1 PP.braces
 
 brackets :: Doc -> Doc
-brackets  = liftPJ1 PJ.brackets
+brackets  = liftPP1 PP.brackets
 
 quotes :: Doc -> Doc
-quotes  = liftPJ1 PJ.quotes
+quotes  = liftPP1 PP.squotes
+
+commaSep :: [Doc] -> Doc
+commaSep xs = Doc (\e -> PP.sep (PP.punctuate PP.comma [ d e | Doc d <- xs ]))
+
+-- | Print a comma-separated list. Lay out each item on a single line
+-- if it will fit. If an item requires multiple lines, then start it
+-- on its own line.
+commaSepFill :: [Doc] -> Doc
+commaSepFill xs = Doc (\e -> fillSep (PP.punctuate PP.comma [ d e | Doc d <- xs ]))
+  where
+    fillSep [] = mempty
+    fillSep (d0 : ds) = foldl (\a d -> a <> PP.group (PP.line <> d)) d0 ds
+
+ppList :: [Doc] -> Doc
+ppList xs = group (nest 1 (brackets (commaSepFill xs)))
+
+ppTuple :: [Doc] -> Doc
+ppTuple xs = group (nest 1 (parens (commaSep xs)))
+
+ppRecord :: [Doc] -> Doc
+ppRecord xs = group (nest 1 (braces (commaSep xs)))
 
 backticks :: Doc -> Doc
 backticks d = hcat [ "`", d, "`" ]
 
-punctuate :: Doc -> [Doc] -> [Doc]
-punctuate p = go
-  where
-  go (d:ds) | null ds   = [d]
-            | otherwise = d <.> p : go ds
-  go []                 = []
-
 text :: String -> Doc
-text s = liftPJ (PJ.text s)
+text s = liftPP (PP.pretty s)
 
 char :: Char -> Doc
-char c = liftPJ (PJ.char c)
+char c = liftPP (PP.pretty c)
 
 integer :: Integer -> Doc
-integer i = liftPJ (PJ.integer i)
+integer i = liftPP (PP.pretty i)
 
 int :: Int -> Doc
-int i = liftPJ (PJ.int i)
+int i = liftPP (PP.pretty i)
 
 comma :: Doc
-comma  = liftPJ PJ.comma
-
-empty :: Doc
-empty  = liftPJ PJ.empty
+comma  = liftPP PP.comma
 
 colon :: Doc
-colon  = liftPJ PJ.colon
+colon  = liftPP PP.colon
 
 instance PP T.Text where
   ppPrec _ str = text (T.unpack str)
@@ -354,7 +374,7 @@ instance PP OrigName where
     case mo of
       TopModule m
         | m == exprModName -> x
-        | otherwise -> pp m <.> "::" <.> x 
+        | otherwise -> pp m <.> "::" <.> x
       Nested m y -> ppQual m (pp y <.> "::" <.> x)
 
 instance PP Namespace where

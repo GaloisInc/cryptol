@@ -118,10 +118,10 @@ offlineProveSat proverName cmd hConsing = do
         Left msg -> do
           raise $ proverError $ "error setting up " ++ proverName ++ ": " ++ msg
         Right smtlib -> pure $ OfflineSMTQuery $ T.pack smtlib
-    Right w4Cfg -> do
+    Right _w4Cfg -> do
       smtlibRef <- liftIO $ newIORef ("" :: Text)
       result <- liftModuleCmd $
-        W4.satProveOffline w4Cfg hConsing False cmd $ \f -> do
+        W4.satProveOffline hConsing False cmd $ \f -> do
           withRWTempFile "smtOutput.tmp" $ \h -> do
             f h
             hSeek h AbsoluteSeek 0

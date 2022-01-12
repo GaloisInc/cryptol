@@ -7,15 +7,16 @@ module Main
 import Cryptol
 /* Recursive */
 Main::test : {a} [1 + a]
-Main::test = \{a} ->
-             Main::$mono
-             where
-               /* Recursive */
-               Main::$mono : [1 + a]
-               Main::$mono = (Cryptol::#) 1 a Bit <> [Cryptol::False] [y | i <- Cryptol::zero [a] <>
-                                                                         | y <- Main::$mono]
-               
-             
+Main::test =
+  \{a} ->
+    Main::$mono
+    where
+      /* Recursive */
+      Main::$mono : [1 + a]
+      Main::$mono =
+        (Cryptol::#) 1 a Bit <> [Cryptol::False] [y | i <- Cryptol::zero [a] <>
+                                                    | y <- Main::$mono]
+
 
 Main::test
 test : {a} [1 + a]

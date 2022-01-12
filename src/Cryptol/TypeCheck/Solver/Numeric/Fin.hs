@@ -56,7 +56,7 @@ cryIsFinType ctxt ty =
           i2 = typeInterval varInfo t2
 
 
-        (TCDiv, [t1,_])  -> SolvedIf [ pFin t1 ]
+        (TCDiv, [_,_])   -> SolvedIf []
         (TCMod, [_,_])   -> SolvedIf []
 
         -- fin (x ^ y)
@@ -85,7 +85,7 @@ cryIsFinType ctxt ty =
 
         (TCMax, [t1,t2])          -> SolvedIf [ pFin t1, pFin t2 ]
         (TCWidth, [t1])           -> SolvedIf [ pFin t1 ]
-        (TCCeilDiv, [_,_])        -> SolvedIf []
+        (TCCeilDiv, [t1,_])       -> SolvedIf [ pFin t1 ]
         (TCCeilMod, [_,_])        -> SolvedIf []
         (TCLenFromThenTo,[_,_,_]) -> SolvedIf []
 

@@ -16,7 +16,7 @@ module REPL.Haskeline where
 import           Cryptol.REPL.Command
 import           Cryptol.REPL.Monad
 import           Cryptol.REPL.Trie
-import           Cryptol.Utils.PP
+import           Cryptol.Utils.PP hiding ((</>))
 import           Cryptol.Utils.Logger(stdoutLogger)
 import           Cryptol.Utils.Ident(modNameToText, interactiveName)
 
@@ -99,7 +99,7 @@ getInputLines :: String -> InputT REPL NextLine
 getInputLines = handleInterrupt (MTL.lift (handleCtrlC Interrupted)) . loop []
   where
   loop ls prompt =
-    do mb <- getInputLine prompt
+    do mb <- fmap (filter (/= '\r')) <$> getInputLine prompt
        let newPropmpt = map (\_ -> ' ') prompt
        case mb of
          Nothing -> return NoMoreLines

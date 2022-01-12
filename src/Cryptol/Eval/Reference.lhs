@@ -543,7 +543,7 @@ To evaluate a primitive, we look up its implementation by name in a table.
 > evalPrim :: Name -> Value
 > evalPrim n
 >   | Just i <- asPrim n, Just v <- Map.lookup i primTable = v
->   | otherwise = evalPanic "evalPrim" ["Unimplemented primitive", show n]
+>   | otherwise = evalPanic "evalPrim" ["Unimplemented primitive", show (pp n)]
 
 Cryptol primitives fall into several groups, mostly delineated
 by corresponding type classes:
@@ -568,7 +568,9 @@ by corresponding type classes:
 
 * Indexing: `@`, `@@`, `!`, `!!`, `update`, `updateEnd`
 
-* Enumerations: `fromTo`, `fromThenTo`, `fromToLessThan`, `infFrom`, `infFromThen`
+* Enumerations: `fromTo`, `fromThenTo`, `fromToLessThan`, `fromToBy`,
+                `fromToByLessThan`, `fromToDownBy`, `fromToDownByGreaterThan`,
+                `infFrom`, `infFromThen`
 
 * Polynomials: `pmult`, `pdiv`, `pmod`
 
@@ -784,29 +786,71 @@ by corresponding type classes:
 >   -- Enumerations
 >   , "fromTo"     ~> vFinPoly $ \first -> pure $
 >                     vFinPoly $ \lst   -> pure $
->                     VPoly    $ \ty  ->
->                     let f i = literal i ty
->                     in pure (VList (Nat (1 + lst - first)) (map f [first .. lst]))
+>                     VPoly    $ \ty    -> pure $
+>                     let f i = literal i ty in
+>                     VList (Nat (1 + lst - first)) (map f [first .. lst])
+>
+>   , "fromToLessThan" ~>
+>                     vFinPoly $ \first -> pure $
+>                     VNumPoly $ \bound -> pure $
+>                     VPoly    $ \ty    -> pure $
+>                     let f i = literal i ty in
+>                     case bound of
+>                       Inf -> VList Inf (map f [first ..])
+>                       Nat bound' ->
+>                         let len = bound' - first in
+>                         VList (Nat len) (map f (genericTake len [first ..]))
+>
+>   , "fromToBy"   ~> vFinPoly $ \first  -> pure $
+>                     vFinPoly $ \lst    -> pure $
+>                     vFinPoly $ \stride -> pure $
+>                     VPoly    $ \ty     -> pure $
+>                     let f i = literal i ty in
+>                     let vs  = [ f (first + i*stride) | i <- [0..] ] in
+>                     let len = 1 + ((lst-first) `div` stride) in
+>                     VList (Nat len) (genericTake len vs)
+>
+>   , "fromToByLessThan" ~>
+>                     vFinPoly $ \first  -> pure $
+>                     VNumPoly $ \bound  -> pure $
+>                     vFinPoly $ \stride -> pure $
+>                     VPoly    $ \ty     -> pure $
+>                     let f i = literal i ty in
+>                     let vs  = [ f (first + i*stride) | i <- [0..] ] in
+>                     case bound of
+>                       Inf -> VList Inf vs
+>                       Nat bound' ->
+>                         let len = (bound'-first+stride-1) `div` stride in
+>                         VList (Nat len) (genericTake len vs)
+>
+>   , "fromToDownBy" ~>
+>                     vFinPoly $ \first  -> pure $
+>                     vFinPoly $ \lst    -> pure $
+>                     vFinPoly $ \stride -> pure $
+>                     VPoly    $ \ty     -> pure $
+>                     let f i = literal i ty in
+>                     let vs  = [ f (first - i*stride) | i <- [0..] ] in
+>                     let len = 1 + ((first-lst) `div` stride) in
+>                     VList (Nat len) (genericTake len vs)
+>
+>   , "fromToDownByGreaterThan" ~>
+>                     vFinPoly $ \first  -> pure $
+>                     vFinPoly $ \lst    -> pure $
+>                     vFinPoly $ \stride -> pure $
+>                     VPoly    $ \ty     -> pure $
+>                     let f i = literal i ty in
+>                     let vs  = [ f (first - i*stride) | i <- [0..] ] in
+>                     let len = (first-lst+stride-1) `div` stride in
+>                     VList (Nat len) (genericTake len vs)
 >
 >   , "fromThenTo" ~> vFinPoly $ \first -> pure $
 >                     vFinPoly $ \next  -> pure $
 >                     vFinPoly $ \_lst  -> pure $
 >                     VPoly    $ \ty    -> pure $
->                     vFinPoly $ \len   ->
->                     let f i = literal i ty
->                     in pure (VList (Nat len)
->                               (map f (genericTake len [first, next ..])))
->
->   , "fromToLessThan" ~>
->                     vFinPoly $ \first -> pure $
->                     VNumPoly $ \bound -> pure $
->                     VPoly    $ \ty    ->
+>                     vFinPoly $ \len   -> pure $
 >                     let f i = literal i ty in
->                     case bound of
->                       Inf -> pure (VList Inf (map f [first ..]))
->                       Nat bound' ->
->                         let len = bound' - first in
->                         pure (VList (Nat len) (map f (genericTake len [first ..])))
+>                     VList (Nat len)
+>                           (map f (genericTake len [first, next ..]))
 >
 >   , "infFrom"    ~> VPoly $ \ty -> pure $
 >                     VFun $ \first ->
@@ -1730,11 +1774,10 @@ Pretty Printing
 >           case traverse isBit vs of
 >             Just bs -> ppBV opts (mkBv n (bitsToInteger bs))
 >             Nothing -> ppList (map (ppEValue opts) vs)
->       where ppList docs = brackets (fsep (punctuate comma docs))
->             isBit v = case v of Value (VBit b) -> Just b
+>       where isBit v = case v of Value (VBit b) -> Just b
 >                                 _      -> Nothing
->     VTuple vs  -> parens (sep (punctuate comma (map (ppEValue opts) vs)))
->     VRecord fs -> braces (sep (punctuate comma (map ppField fs)))
+>     VTuple vs  -> ppTuple (map (ppEValue opts) vs)
+>     VRecord fs -> ppRecord (map ppField fs)
 >       where ppField (f,r) = pp f <+> char '=' <+> ppEValue opts r
 >     VFun _     -> text "<function>"
 >     VPoly _    -> text "<polymorphic value>"

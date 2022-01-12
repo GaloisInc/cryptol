@@ -202,7 +202,7 @@ instance PP ModuleError where
     FailedToParameterizeModDefs x xs ->
       hang (text "[error] Parameterized module" <+> pp x <+>
             text "has polymorphic parameters:")
-        4 (hsep $ punctuate comma $ map pp xs)
+         4 (commaSep (map pp xs))
 
     NotAParameterizedModule x ->
       text "[error] Module" <+> pp x <+> text "does not have parameters."

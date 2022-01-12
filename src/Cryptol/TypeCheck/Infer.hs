@@ -58,7 +58,7 @@ import           Data.List(partition)
 import           Data.Ratio(numerator,denominator)
 import           Data.Traversable(forM)
 import           Data.Function(on)
-import           Control.Monad(zipWithM,unless,foldM,forM_)
+import           Control.Monad(zipWithM,unless,foldM,forM_,mplus)
 
 
 
@@ -164,6 +164,8 @@ appTys expr ts tGoal =
     P.ESel      {} -> mono
     P.EList     {} -> mono
     P.EFromTo   {} -> mono
+    P.EFromToBy {} -> mono
+    P.EFromToDownBy {} -> mono
     P.EFromToLessThan {} -> mono
     P.EInfFrom  {} -> mono
     P.EComp     {} -> mono
@@ -245,13 +247,14 @@ checkE expr tGoal =
 
     P.ETuple es ->
       do etys <- expectTuple (length es) tGoal
-         let mkTGoal n t = WithSource t (TypeOfTupleField n)
-         es'  <- zipWithM checkE es (zipWith mkTGoal [1..] etys)
+         let mkTGoal n t e = WithSource t (TypeOfTupleField n) (getLoc e)
+         es'  <- zipWithM checkE es (zipWith3 mkTGoal [1..] etys es)
          return (ETuple es')
 
     P.ERecord fs ->
       do es  <- expectRec fs tGoal
-         let checkField f (e,t) = checkE e (WithSource t (TypeOfRecordField f))
+         let checkField f (e,t) =
+                checkE e (WithSource t (TypeOfRecordField f) (getLoc e))
          es' <- traverseRecordMap checkField es
          return (ERec es')
 
@@ -260,21 +263,73 @@ checkE expr tGoal =
     P.ESel e l ->
       do let src = selSrc l
          t <- newType src KType
-         e' <- checkE e (WithSource t src)
+         e' <- checkE e (WithSource t src (getLoc expr))
          f <- newHasGoal l t (twsType tGoal)
          return (hasDoSelect f e')
 
     P.EList [] ->
       do (len,a) <- expectSeq tGoal
-         expectFin 0 (WithSource len LenOfSeq)
+         expectFin 0 (WithSource len LenOfSeq (getLoc expr))
          return (EList [] a)
 
     P.EList es ->
       do (len,a) <- expectSeq tGoal
-         expectFin (length es) (WithSource len LenOfSeq)
-         let checkElem e = checkE e (WithSource a TypeOfSeqElement)
+         expectFin (length es) (WithSource len LenOfSeq (getLoc expr))
+         let checkElem e = checkE e (WithSource a TypeOfSeqElement (getLoc e))
          es' <- mapM checkElem es
          return (EList es' a)
+
+    P.EFromToBy isStrict t1 t2 t3 mety
+      | isStrict ->
+        do l <- curRange
+           let fs = [("first",t1),("bound",t2),("stride",t3)] ++
+                    case mety of
+                      Just ety -> [("a",ety)]
+                      Nothing  -> []
+           prim <- mkPrim "fromToByLessThan"
+           let e' = P.EAppT prim
+                    [ P.NamedInst P.Named{ name = Located l (packIdent x), value = y }
+                    | (x,y) <- fs
+                    ]
+           checkE e' tGoal
+      | otherwise ->
+        do l <- curRange
+           let fs = [("first",t1),("last",t2),("stride",t3)] ++
+                    case mety of
+                      Just ety -> [("a",ety)]
+                      Nothing  -> []
+           prim <- mkPrim "fromToBy"
+           let e' = P.EAppT prim
+                    [ P.NamedInst P.Named{ name = Located l (packIdent x), value = y }
+                    | (x,y) <- fs
+                    ]
+           checkE e' tGoal
+
+    P.EFromToDownBy isStrict t1 t2 t3 mety
+      | isStrict ->
+        do l <- curRange
+           let fs = [("first",t1),("bound",t2),("stride",t3)] ++
+                    case mety of
+                      Just ety -> [("a",ety)]
+                      Nothing  -> []
+           prim <- mkPrim "fromToDownByGreaterThan"
+           let e' = P.EAppT prim
+                    [ P.NamedInst P.Named{ name = Located l (packIdent x), value = y }
+                    | (x,y) <- fs
+                    ]
+           checkE e' tGoal
+      | otherwise ->
+        do l <- curRange
+           let fs = [("first",t1),("last",t2),("stride",t3)] ++
+                    case mety of
+                      Just ety -> [("a",ety)]
+                      Nothing  -> []
+           prim <- mkPrim "fromToDownBy"
+           let e' = P.EAppT prim
+                    [ P.NamedInst P.Named{ name = Located l (packIdent x), value = y }
+                    | (x,y) <- fs
+                    ]
+           checkE e' tGoal
 
     P.EFromToLessThan t1 t2 mety ->
       do l <- curRange
@@ -324,11 +379,12 @@ checkE expr tGoal =
          (len,a) <- expectSeq tGoal
 
          inferred <- smallest ts
-         ctrs <- unify (WithSource len LenOfSeq) inferred
+         ctrs <- unify (WithSource len LenOfSeq (getLoc expr)) inferred
          newGoals CtComprehension ctrs
 
          ds     <- combineMaps dss
-         e'     <- withMonoTypes ds (checkE e (WithSource a TypeOfSeqElement))
+         e'     <- withMonoTypes ds (checkE e
+                                (WithSource a TypeOfSeqElement (getLoc e)))
          return (EComp len a e' mss')
       where
       -- the renamer should have made these checks already?
@@ -353,12 +409,13 @@ checkE expr tGoal =
     P.EApp e1 e2 ->
       do let argSrc = TypeOfArg noArgDescr
          t1  <- newType argSrc  KType
-         e1' <- checkE e1 (WithSource (tFun t1 (twsType tGoal)) FunApp)
-         e2' <- checkE e2 (WithSource t1 argSrc)
+         e1' <- checkE e1
+                  (WithSource (tFun t1 (twsType tGoal)) FunApp (getLoc e1))
+         e2' <- checkE e2 (WithSource t1 argSrc (getLoc e2))
          return (EApp e1' e2')
 
     P.EIf e1 e2 e3 ->
-      do e1'      <- checkE e1 (WithSource tBit TypeOfIfCondExpr)
+      do e1'      <- checkE e1 (WithSource tBit TypeOfIfCondExpr (getLoc e1))
          e2'      <- checkE e2 tGoal
          e3'      <- checkE e3 tGoal
          return (EIf e1' e2' e3')
@@ -369,7 +426,7 @@ checkE expr tGoal =
 
     P.ETyped e t ->
       do tSig <- checkTypeOfKind t KType
-         e' <- checkE e (WithSource tSig TypeFromUserAnnotation)
+         e' <- checkE e (WithSource tSig TypeFromUserAnnotation (getLoc expr))
          checkHasType tSig tGoal
          return e'
 
@@ -411,28 +468,28 @@ checkRecUpd mb fs tGoal =
 
     Just e ->
       do e1 <- checkE e tGoal
-         foldM doUpd e1 fs
+         fst <$> foldM doUpd (e1, getLoc e) fs
 
   where
-  doUpd e (P.UpdField how sels v) =
+  doUpd (e,eloc) (P.UpdField how sels v) =
     case sels of
       [l] ->
         case how of
           P.UpdSet ->
             do let src = selSrc s
                ft <- newType src KType
-               v1 <- checkE v (WithSource ft src)
+               v1 <- checkE v (WithSource ft src eloc)
                d  <- newHasGoal s (twsType tGoal) ft
-               pure (hasDoSet d e v1)
+               pure (hasDoSet d e v1, eloc `rCombMaybe` getLoc v)
           P.UpdFun ->
              do let src = selSrc s
                 ft <- newType src KType
-                v1 <- checkE v (WithSource (tFun ft ft) src)
+                v1 <- checkE v (WithSource (tFun ft ft) src eloc)
                 -- XXX: ^ may be used a different src?
                 d  <- newHasGoal s (twsType tGoal) ft
                 tmp <- newParamName NSValue (packIdent "rf")
                 let e' = EVar tmp
-                pure $ hasDoSet d e' (EApp v1 (hasDoSelect d e'))
+                pure ( hasDoSet d e' (EApp v1 (hasDoSelect d e'))
                        `EWhere`
                        [  NonRecursive
                           Decl { dName        = tmp
@@ -443,6 +500,7 @@ checkRecUpd mb fs tGoal =
                                , dFixity      = Nothing
                                , dDoc         = Nothing
                                } ]
+                      , eloc `rCombMaybe` getLoc v )
 
         where s = thing l
       _ -> panic "checkRecUpd/doUpd" [ "Expected exactly 1 field label"
@@ -451,11 +509,11 @@ checkRecUpd mb fs tGoal =
 
 
 expectSeq :: TypeWithSource -> InferM (Type,Type)
-expectSeq tGoal@(WithSource ty src) =
+expectSeq tGoal@(WithSource ty src rng) =
   case ty of
 
     TUser _ _ ty' ->
-         expectSeq (WithSource ty' src)
+         expectSeq (WithSource ty' src rng)
 
     TCon (TC TCSeq) [a,b] ->
          return (a,b)
@@ -467,7 +525,7 @@ expectSeq tGoal@(WithSource ty src) =
 
     _ ->
       do tys@(a,b) <- genTys
-         recordError (TypeMismatch src ty (tSeq a b))
+         recordErrorLoc rng (TypeMismatch src ty (tSeq a b))
          return tys
   where
   genTys =
@@ -477,11 +535,11 @@ expectSeq tGoal@(WithSource ty src) =
 
 
 expectTuple :: Int -> TypeWithSource -> InferM [Type]
-expectTuple n tGoal@(WithSource ty src) =
+expectTuple n tGoal@(WithSource ty src rng) =
   case ty of
 
     TUser _ _ ty' ->
-         expectTuple n (WithSource ty' src)
+         expectTuple n (WithSource ty' src rng)
 
     TCon (TC (TCTuple n')) tys | n == n' ->
          return tys
@@ -493,7 +551,7 @@ expectTuple n tGoal@(WithSource ty src) =
 
     _ ->
       do tys <- genTys
-         recordError (TypeMismatch src ty (tTuple tys))
+         recordErrorLoc rng (TypeMismatch src ty (tTuple tys))
          return tys
 
   where
@@ -504,11 +562,11 @@ expectRec ::
   RecordMap Ident (Range, a) ->
   TypeWithSource ->
   InferM (RecordMap Ident (a, Type))
-expectRec fs tGoal@(WithSource ty src) =
+expectRec fs tGoal@(WithSource ty src rng) =
   case ty of
 
     TUser _ _ ty' ->
-         expectRec fs (WithSource ty' src)
+         expectRec fs (WithSource ty' src rng)
 
     TRec ls
       | Right r <- zipRecords (\_ (_rng,v) t -> (v,t)) fs ls -> pure r
@@ -523,16 +581,16 @@ expectRec fs tGoal@(WithSource ty src) =
          case ty of
            TVar TVFree{} -> do ps <- unify tGoal (TRec tys)
                                newGoals CtExactType ps
-           _ -> recordError (TypeMismatch src ty (TRec tys))
+           _ -> recordErrorLoc rng (TypeMismatch src ty (TRec tys))
          return res
 
 
 expectFin :: Int -> TypeWithSource -> InferM ()
-expectFin n tGoal@(WithSource ty src) =
+expectFin n tGoal@(WithSource ty src rng) =
   case ty of
 
     TUser _ _ ty' ->
-         expectFin n (WithSource ty' src)
+         expectFin n (WithSource ty' src rng)
 
     TCon (TC (TCNum n')) [] | toInteger n == n' ->
          return ()
@@ -540,7 +598,7 @@ expectFin n tGoal@(WithSource ty src) =
     _ -> newGoals CtExactType =<< unify tGoal (tNum n)
 
 expectFun :: Maybe Name -> Int -> TypeWithSource -> InferM ([Type],Type)
-expectFun mbN n (WithSource ty0 src)  = go [] n ty0
+expectFun mbN n (WithSource ty0 src rng)  = go [] n ty0
   where
 
   go tys arity ty
@@ -558,9 +616,10 @@ expectFun mbN n (WithSource ty0 src)  = go [] n ty0
              res  <- newType TypeOfRes KType
              case ty of
                TVar TVFree{} ->
-                  do ps <- unify (WithSource ty src) (foldr tFun res args)
+                  do ps <- unify (WithSource ty src rng) (foldr tFun res args)
                      newGoals CtExactType  ps
-               _ -> recordError (TypeMismatch src ty (foldr tFun res args))
+               _ -> recordErrorLoc rng
+                        (TypeMismatch src ty (foldr tFun res args))
              return (reverse tys ++ args, res)
 
     | otherwise =
@@ -587,9 +646,11 @@ checkFun (P.FunDesc fun offset) ps e tGoal =
   do let descs = [ TypeOfArg (ArgDescr fun (Just n)) | n <- [ 1 + offset .. ] ]
 
      (tys,tRes) <- expectFun fun (length ps) tGoal
-     largs      <- sequence (zipWith checkP ps (zipWith WithSource tys descs))
+     let srcs = zipWith3 WithSource tys descs (map getLoc ps)
+     largs      <- sequence (zipWith checkP ps srcs)
      let ds = Map.fromList [ (thing x, x { thing = t }) | (x,t) <- zip largs tys ]
-     e1         <- withMonoTypes ds (checkE e (WithSource tRes TypeOfRes))
+     e1 <- withMonoTypes ds
+              (checkE e (WithSource tRes TypeOfRes (twsRange tGoal)))
 
      let args = [ (thing x, t) | (x,t) <- zip largs tys ]
      return (foldr (\(x,t) b -> EAbs x t b) e1 args)
@@ -604,11 +665,12 @@ smallest ts   = do a <- newType LenOfSeq KNum
                    return a
 
 checkP :: P.Pattern Name -> TypeWithSource -> InferM (Located Name)
-checkP p tGoal@(WithSource _ src) =
+checkP p tGoal@(WithSource _ src rng0) =
   do (x, t) <- inferP p
      ps <- unify tGoal (thing t)
-     let rng   = fromMaybe emptyRange (getLoc p)
-     let mkErr = recordError . UnsolvedGoals . (:[])
+     let rngMb = getLoc p `mplus` rng0
+         rng   = fromMaybe emptyRange rngMb
+     let mkErr = recordErrorLoc rngMb . UnsolvedGoals . (:[])
                                                    . Goal (CtPattern src) rng
      mapM_ mkErr ps
      return (Located (srcRange t) x)
@@ -625,7 +687,7 @@ inferP pat =
 
     P.PTyped p t ->
       do tSig <- checkTypeOfKind t KType
-         ln   <- checkP p (WithSource tSig TypeFromUserAnnotation)
+         ln   <- checkP p (WithSource tSig TypeFromUserAnnotation (getLoc t))
          return (thing ln, ln { thing = tSig })
 
     _ -> tcPanic "inferP" [ "Unexpected pattern:", show pat ]
@@ -637,7 +699,8 @@ inferMatch :: P.Match Name -> InferM (Match, Name, Located Type, Type)
 inferMatch (P.Match p e) =
   do (x,t) <- inferP p
      n     <- newType LenOfCompGen KNum
-     e'    <- checkE e (WithSource (tSeq n (thing t)) GeneratorOfListComp)
+     e'    <- checkE e (WithSource (tSeq n (thing t)) GeneratorOfListComp
+                                   (getLoc e))
      return (From x n (thing t) e', x, t, n)
 
 inferMatch (P.MatchLet b)
@@ -889,7 +952,7 @@ checkMonoB b t =
 
     P.DExpr e ->
       do let nm = thing (P.bName b)
-         let tGoal = WithSource t (DefinitionOf nm)
+         let tGoal = WithSource t (DefinitionOf nm) (getLoc b)
          e1 <- checkFun (P.FunDesc (Just nm) 0) (P.bParams b) e tGoal
          let f = thing (P.bName b)
          return Decl { dName = f
@@ -921,7 +984,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
   withTParams as $
   do (e1,cs0) <- collectGoals $
                 do let nm = thing (P.bName b)
-                       tGoal = WithSource t0 (DefinitionOf nm)
+                       tGoal = WithSource t0 (DefinitionOf nm) (getLoc b)
                    e1 <- checkFun (P.FunDesc (Just nm) 0) (P.bParams b) e0 tGoal
                    addGoals validSchema
                    () <- simplifyAllConstraints  -- XXX: using `asmps` also?
@@ -973,7 +1036,7 @@ checkLocalDecls ds0 k =
   do newLocalScope
      forM_ ds0 \d -> checkDecl False d Nothing
      a <- k
-     ds <- endLocalScope
+     (ds,_tySyns) <- endLocalScope
      pure (a,ds)
 
 

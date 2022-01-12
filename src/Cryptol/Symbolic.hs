@@ -38,6 +38,8 @@ module Cryptol.Symbolic
  , modelPred
  , varModelPred
  , varToExpr
+ , flattenShape
+ , flattenShapes
  ) where
 
 
@@ -213,14 +215,32 @@ ppVarShape _sym (VarFloat _f) = text "<float>"
 ppVarShape _sym (VarRational _n _d) = text "<rational>"
 ppVarShape sym (VarWord w) = text "<word:" <> integer (wordLen sym w) <> text ">"
 ppVarShape sym (VarFinSeq _ xs) =
-  brackets (fsep (punctuate comma (map (ppVarShape sym) xs)))
+  ppList (map (ppVarShape sym) xs)
 ppVarShape sym (VarTuple xs) =
-  parens (sep (punctuate comma (map (ppVarShape sym) xs)))
+  ppTuple (map (ppVarShape sym) xs)
 ppVarShape sym (VarRecord fs) =
-  braces (sep (punctuate comma (map ppField (displayFields fs))))
+  ppRecord (map ppField (displayFields fs))
  where
   ppField (f,v) = pp f <+> char '=' <+> ppVarShape sym v
 
+
+-- | Flatten structured shapes (like tuples and sequences), leaving only
+--   a sequence of variable shapes of base type.
+flattenShapes :: [VarShape sym] -> [VarShape sym] -> [VarShape sym]
+flattenShapes []     tl = tl
+flattenShapes (x:xs) tl = flattenShape x (flattenShapes xs tl)
+
+flattenShape :: VarShape sym -> [VarShape sym] -> [VarShape sym]
+flattenShape x tl =
+  case x of
+    VarBit{}       -> x : tl
+    VarInteger{}   -> x : tl
+    VarRational{}  -> x : tl
+    VarWord{}      -> x : tl
+    VarFloat{}     -> x : tl
+    VarFinSeq _ vs -> flattenShapes vs tl
+    VarTuple vs    -> flattenShapes vs tl
+    VarRecord fs   -> flattenShapes (recordElements fs) tl
 
 varShapeToValue :: Backend sym => sym -> VarShape sym -> GenValue sym
 varShapeToValue sym var =

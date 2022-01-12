@@ -26,6 +26,8 @@ import CryptolServer.ExtendSearchPath
     ( extSearchPath, extSearchPathDescr )
 import CryptolServer.FocusedModule
     ( focusedModule, focusedModuleDescr )
+import CryptolServer.Interrupt
+    ( interruptServer, interruptServerDescr )
 import CryptolServer.LoadModule
     ( loadFile, loadFileDescr, loadModule, loadModuleDescr )
 import CryptolServer.Names ( visibleNames, visibleNamesDescr )
@@ -113,4 +115,8 @@ cryptolMethods =
      "prove or satisfy"
      proveSatDescr
      proveSat
+  , notification
+     "interrupt"
+     interruptServerDescr
+     interruptServer
   ]

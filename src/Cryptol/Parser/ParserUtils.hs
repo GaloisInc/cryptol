@@ -117,13 +117,13 @@ ppError (HappyError path ltok)
   | White DocStr <- tokenType tok =
     "Unexpected documentation (/**) comment at" <+>
     text path <.> char ':' <.> pp pos <.> colon $$
-    nest 2
+    indent 2
       "Documentation comments need to be followed by something to document."
 
   | otherwise =
     text "Parse error at" <+>
     text path <.> char ':' <.> pp pos <.> comma $$
-    nest 2 (text "unexpected:" <+> pp tok)
+    indent 2 (text "unexpected:" <+> pp tok)
   where
   pos = from (srcRange ltok)
   tok = thing ltok
@@ -132,18 +132,18 @@ ppError (HappyOutOfTokens path pos) =
   text "Unexpected end of file at:" <+>
     text path <.> char ':' <.> pp pos
 
-ppError (HappyErrorMsg p xs)  = text "Parse error at" <+> pp p $$ nest 2 (vcat (map text xs))
+ppError (HappyErrorMsg p xs)  = text "Parse error at" <+> pp p $$ indent 2 (vcat (map text xs))
 
 ppError (HappyUnexpected path ltok e) =
-  text "Parse error at" <+>
-   text path <.> char ':' <.> pp pos <.> comma $$
-   nest 2 unexp $$
-   nest 2 ("expected:" <+> text e)
+  nest 2 $ vcat $
+   [ text "Parse error at" <+> text path <.> char ':' <.> pp pos <.> comma ]
+   ++ unexp
+   ++ ["expected:" <+> text e]
   where
   (unexp,pos) =
     case ltok of
-      Nothing -> (empty,start)
-      Just t  -> ( "unexpected:" <+> text (T.unpack (tokenText (thing t)))
+      Nothing -> ( [] ,start)
+      Just t  -> ( ["unexpected:" <+> text (T.unpack (tokenText (thing t)))]
                  , from (srcRange t)
                  )
 
@@ -378,6 +378,43 @@ eFromTo r e1 e2 e3 =
     (Nothing, Nothing, Nothing) -> eFromToType r e1 e2 e3 Nothing
     _ -> errorMessage r ["A sequence enumeration may have at most one element type annotation."]
 
+eFromToBy :: Range -> Expr PName -> Expr PName -> Expr PName -> Bool -> ParseM (Expr PName)
+eFromToBy r e1 e2 e3 isStrictBound =
+  case (asETyped e1, asETyped e2, asETyped e3) of
+    (Just (e1', t), Nothing, Nothing) -> eFromToByTyped r e1' e2 e3 (Just t) isStrictBound
+    (Nothing, Just (e2', t), Nothing) -> eFromToByTyped r e1 e2' e3 (Just t) isStrictBound   
+    (Nothing, Nothing, Just (e3', t)) -> eFromToByTyped r e1 e2 e3' (Just t) isStrictBound
+    (Nothing, Nothing, Nothing)       -> eFromToByTyped r e1 e2 e3 Nothing isStrictBound
+    _ -> errorMessage r ["A sequence enumeration may have at most one element type annotation."]
+
+eFromToByTyped :: Range -> Expr PName -> Expr PName -> Expr PName -> Maybe (Type PName) -> Bool -> ParseM (Expr PName)
+eFromToByTyped r e1 e2 e3 t isStrictBound =
+  EFromToBy isStrictBound
+      <$> exprToNumT r e1
+      <*> exprToNumT r e2
+      <*> exprToNumT r e3
+      <*> pure t
+
+eFromToDownBy ::
+  Range -> Expr PName -> Expr PName -> Expr PName -> Bool -> ParseM (Expr PName)
+eFromToDownBy r e1 e2 e3 isStrictBound =
+  case (asETyped e1, asETyped e2, asETyped e3) of
+    (Just (e1', t), Nothing, Nothing) -> eFromToDownByTyped r e1' e2 e3 (Just t) isStrictBound
+    (Nothing, Just (e2', t), Nothing) -> eFromToDownByTyped r e1 e2' e3 (Just t) isStrictBound   
+    (Nothing, Nothing, Just (e3', t)) -> eFromToDownByTyped r e1 e2 e3' (Just t) isStrictBound
+    (Nothing, Nothing, Nothing)       -> eFromToDownByTyped r e1 e2 e3 Nothing isStrictBound
+    _ -> errorMessage r ["A sequence enumeration may have at most one element type annotation."]
+
+eFromToDownByTyped ::
+  Range -> Expr PName -> Expr PName -> Expr PName -> Maybe (Type PName) -> Bool -> ParseM (Expr PName)
+eFromToDownByTyped r e1 e2 e3 t isStrictBound =
+  EFromToDownBy isStrictBound
+      <$> exprToNumT r e1
+      <*> exprToNumT r e2
+      <*> exprToNumT r e3
+      <*> pure t
+
+
 asETyped :: Expr n -> Maybe (Expr n, Type n)
 asETyped (ELocated e _) = asETyped e
 asETyped (ETyped e t) = Just (e, t)
@@ -538,7 +575,8 @@ mkPoly rng terms
 
 -- NOTE: The list of patterns is reversed!
 mkProperty :: LPName -> [Pattern PName] -> Expr PName -> Decl PName
-mkProperty f ps e = DBind Bind { bName       = f
+mkProperty f ps e = at (f,e) $
+                    DBind Bind { bName       = f
                                , bParams     = reverse ps
                                , bDef        = at e (Located emptyRange (DExpr e))
                                , bSignature  = Nothing

@@ -90,8 +90,12 @@ renameTopDecls m ds0 =
      setNestedModule (nestedModuleNames nested)
        do ds1 <- shadowNames' CheckOverlap env
                                         (renameTopDecls' (nested,mpath) ds)
-          pure (env,ds1)
+          -- record a use of top-level names to avoid
+          -- unused name warnings
+          let exports = concatMap exportedNames ds1
+          mapM_ recordUse (foldMap (exported NSType) exports)
 
+          pure (env,ds1)
 
 -- | Returns declarations with additional imports and the public module names
 -- of this module and its children
@@ -256,7 +260,12 @@ renameTopDecls' info ds =
       TDNewtype {}            -> False
       DParameterType {}       -> False
       DParameterConstraint {} -> False
-      DParameterFun {}        -> False
+
+      DParameterFun {}        -> True
+      -- Here we may need the constraints to validate the type
+      -- (e.g., if the parameter is of type `Z a`)
+
+
       DModule tl              -> any usesCtrs (mDecls m)
         where NestedModule m = tlValue tl
       DImport {}              -> False
@@ -465,6 +474,13 @@ instance Rename PrimType where
        depsOf (NamedThing (thing x))
          do let (as,ps) = primTCts pt
             (_,cts) <- renameQual as ps $ \as' ps' -> pure (as',ps')
+
+            -- Record an additional use for each parameter since we checked
+            -- earlier that all the parameters are used exactly once in the
+            -- body of the signature.  This prevents incorret warnings
+            -- about unused names.
+            mapM_ (recordUse . tpName) (fst cts)
+
             pure pt { primTCts = cts, primTName = x }
 
 instance Rename ParameterType where
@@ -727,6 +743,18 @@ instance Rename Expr where
                                <*> traverse rename n
                                <*> rename e
                                <*> traverse rename t
+    EFromToBy isStrict s e b t ->
+                       EFromToBy isStrict
+                                 <$> rename s
+                                 <*> rename e
+                                 <*> rename b
+                                 <*> traverse rename t
+    EFromToDownBy isStrict s e b t ->
+                       EFromToDownBy isStrict
+                                 <$> rename s
+                                 <*> rename e
+                                 <*> rename b
+                                 <*> traverse rename t
     EFromToLessThan s e t ->
                        EFromToLessThan <$> rename s
                                        <*> rename e

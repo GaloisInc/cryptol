@@ -30,8 +30,7 @@ simplify ctxt p =
     SolvedIf ps -> dbg msg $ pAnd (map (simplify ctxt) ps)
      where msg = case ps of
                     [] -> text "solved:" <+> pp p
-                    _  -> pp p <+> text "~~~>" <+>
-                          vcat (punctuate comma (map pp ps))
+                    _  -> pp p <+> text "~~~>" <+> commaSep (map pp ps)
 
   where
   dbg msg x

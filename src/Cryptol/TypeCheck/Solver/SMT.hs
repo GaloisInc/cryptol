@@ -15,10 +15,12 @@
 module Cryptol.TypeCheck.Solver.SMT
   ( -- * Setup
     Solver
+  , SolverConfig
   , withSolver
   , startSolver
   , stopSolver
   , isNumeric
+  , resetSolver
 
     -- * Debugging
   , debugBlock
@@ -53,7 +55,7 @@ import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
 import Cryptol.TypeCheck.TypePat hiding ((~>),(~~>))
 import Cryptol.TypeCheck.Subst(Subst)
 import Cryptol.Utils.Panic
-import Cryptol.Utils.PP -- ( Doc )
+import Cryptol.Utils.PP ( Doc, pp )
 
 
 
@@ -67,19 +69,22 @@ data Solver = Solver
     -- ^ For debugging
   }
 
+setupSolver :: Solver -> SolverConfig -> IO ()
+setupSolver s cfg = do
+  _ <- SMT.setOptionMaybe (solver s) ":global-decls" "false"
+  loadTcPrelude s (solverPreludePath cfg)
 
 -- | Start a fresh solver instance
-startSolver :: SolverConfig -> IO Solver
-startSolver SolverConfig { .. } =
-   do logger <- if solverVerbose > 0 then SMT.newLogger 0
+startSolver :: IO () -> SolverConfig -> IO Solver
+startSolver onExit sCfg =
+   do logger <- if (solverVerbose sCfg) > 0 then SMT.newLogger 0
 
                                      else return quietLogger
-      let smtDbg = if solverVerbose > 1 then Just logger else Nothing
-      solver <- SMT.newSolver solverPath solverArgs smtDbg
-      _ <- SMT.setOptionMaybe solver ":global-decls" "false"
-      -- SMT.setLogic solver "QF_LIA"
-      let sol = Solver { .. }
-      loadTcPrelude sol solverPreludePath
+      let smtDbg = if (solverVerbose sCfg) > 1 then Just logger else Nothing
+      solver <- SMT.newSolverNotify
+                    (solverPath sCfg) (solverArgs sCfg) smtDbg (Just (const onExit))
+      let sol = Solver solver logger
+      setupSolver sol sCfg
       return sol
 
   where
@@ -94,9 +99,14 @@ startSolver SolverConfig { .. } =
 stopSolver :: Solver -> IO ()
 stopSolver s = void $ SMT.stop (solver s)
 
+resetSolver :: Solver -> SolverConfig -> IO ()
+resetSolver s sCfg = do
+  _ <- SMT.simpleCommand (solver s) ["reset"]
+  setupSolver s sCfg
+
 -- | Execute a computation with a fresh solver instance.
-withSolver :: SolverConfig -> (Solver -> IO a) -> IO a
-withSolver cfg = bracket (startSolver cfg) stopSolver
+withSolver :: IO () -> SolverConfig -> (Solver -> IO a) -> IO a
+withSolver onExit cfg = bracket (startSolver onExit cfg) stopSolver
 
 -- | Load the definitions used for type checking.
 loadTcPrelude :: Solver -> [FilePath] {- ^ Search in this paths -} -> IO ()

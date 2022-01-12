@@ -116,7 +116,7 @@ ppBV opts (BV width i)
   prefix = case base of
     2  -> text "0b" <.> padding 1
     8  -> text "0o" <.> padding 3
-    10 -> empty
+    10 -> mempty
     16 -> text "0x" <.> padding 4
     _  -> text "0"  <.> char '<' <.> int base <.> char '>'
 
@@ -187,6 +187,7 @@ instance Backend Concrete where
   integerAsLit _ = Just
 
   wordToInt _ (BV _ x) = pure x
+  wordToSignedInt _ (BV w x) = pure $! signedValue w x
   wordFromInt _ w x = pure $! mkBv w x
 
   packWord _ bits = pure $! BV (toInteger w) a

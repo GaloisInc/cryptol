@@ -122,23 +122,22 @@ nMod (Nat x) (Nat y)  = Just (Nat (mod x y))
 nMod (Nat x) Inf      = Just (Nat x)          -- inf * 0 + x = 0 + x
 
 -- | @nCeilDiv msgLen blockSize@ computes the least @n@ such that
--- @msgLen <= blockSize * n@. It is undefined when @blockSize = 0@.
--- It is also undefined when either input is infinite; perhaps this
--- could be relaxed later.
+-- @msgLen <= blockSize * n@. It is undefined when @blockSize = 0@,
+-- or when @blockSize = inf@. @inf@ divided by any positive
+-- finite value is @inf@.
 nCeilDiv :: Nat' -> Nat' -> Maybe Nat'
+nCeilDiv _       Inf      = Nothing
 nCeilDiv _       (Nat 0)  = Nothing
-nCeilDiv Inf     _        = Nothing
-nCeilDiv (Nat _) Inf      = Nothing
+nCeilDiv Inf     (Nat _)  = Just Inf
 nCeilDiv (Nat x) (Nat y)  = Just (Nat (- div (- x) y))
 
 -- | @nCeilMod msgLen blockSize@ computes the least @k@ such that
--- @blockSize@ divides @msgLen + k@. It is undefined when @blockSize = 0@.
--- It is also undefined when either input is infinite; perhaps this
--- could be relaxed later.
+-- @blockSize@ divides @msgLen + k@. It is undefined when @blockSize = 0@
+-- or @blockSize = inf@.  @inf@ modulus any positive finite value is @0@.
 nCeilMod :: Nat' -> Nat' -> Maybe Nat'
+nCeilMod _       Inf      = Nothing
 nCeilMod _       (Nat 0)  = Nothing
-nCeilMod Inf     _        = Nothing
-nCeilMod (Nat _) Inf      = Nothing
+nCeilMod Inf     (Nat _)  = Just (Nat 0)
 nCeilMod (Nat x) (Nat y)  = Just (Nat (mod (- x) y))
 
 -- | Rounds up.

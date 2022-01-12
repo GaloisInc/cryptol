@@ -60,6 +60,7 @@ import Cryptol.Utils.RecordMap (recordFromFields, canonicalFields)
 import Argo
 import qualified Argo.Doc as Doc
 import CryptolServer
+import CryptolServer.AesonCompat
 import CryptolServer.Exceptions
 import CryptolServer.Data.Type
 
@@ -160,9 +161,9 @@ instance JSON.FromJSON TypeArguments where
   parseJSON =
     withObject "type arguments" $ \o ->
       TypeArguments . Map.fromList <$>
-        traverse elt (HM.toList o)
+        traverse elt (toListKM o)
     where
-      elt (name, ty) = (mkIdent name,) <$> parseJSON ty
+      elt (name, ty) = (mkIdent (keyToText name),) <$> parseJSON ty
 
 instance JSON.FromJSON Expression where
   parseJSON v = bool v <|> integer v <|> concrete v <|> obj v
@@ -192,7 +193,7 @@ instance JSON.FromJSON Expression where
                 TagRecord ->
                   do fields <- o .: "data"
                      flip (withObject "record data") fields $
-                       \fs -> Record <$> traverse parseJSON fs
+                       \fs -> (Record . toHashMapTextKM) <$> traverse parseJSON fs
                 TagSequence ->
                   do contents <- o .: "data"
                      flip (withArray "sequence") contents $
@@ -234,7 +235,7 @@ instance JSON.ToJSON Expression where
            ]
   toJSON (Record fields) =
     object [ "expression" .= TagRecord
-           , "data" .= object [ fieldName .= toJSON val
+           , "data" .= object [ keyFromText fieldName .= toJSON val
                               | (fieldName, val) <- HM.toList fields
                               ]
            ]

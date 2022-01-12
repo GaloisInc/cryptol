@@ -1,6 +1,6 @@
 Cabal-version:       2.4
 Name:                cryptol
-Version:             2.11.0.99
+Version:             2.12.0.99
 Synopsis:            Cryptol: The Language of Cryptography
 Description: Cryptol is a domain-specific language for specifying cryptographic algorithms. A Cryptol implementation of an algorithm resembles its mathematical specification more closely than an implementation in a general purpose language. For more, see <http://www.cryptol.net/>.
 License:             BSD-3-Clause
@@ -9,7 +9,7 @@ Author:              Galois, Inc.
 Maintainer:          cryptol@galois.com
 Homepage:            http://www.cryptol.net/
 Bug-reports:         https://github.com/GaloisInc/cryptol/issues
-Copyright:           2013-2020 Galois Inc.
+Copyright:           2013-2021 Galois Inc.
 Category:            Language
 Build-type:          Simple
 extra-source-files:  bench/data/*.cry
@@ -63,10 +63,10 @@ library
                        monad-control     >= 1.0,
                        monadLib          >= 3.7.2,
                        parameterized-utils >= 2.0.2,
-                       pretty            >= 1.1,
+                       prettyprinter     >= 1.7.0,
                        process           >= 1.2,
-                       sbv               >= 8.10 && < 8.16,
-                       simple-smt        >= 0.7.1,
+                       sbv               >= 8.10 && < 8.17,
+                       simple-smt        >= 0.9.7,
                        stm               >= 2.4,
                        strict,
                        text              >= 1.1,
@@ -232,6 +232,7 @@ executable cryptol
                      , directory
                      , filepath
                      , haskeline >= 0.7 && < 0.9
+                     , exceptions
                      , monad-control
                      , text
                      , transformers

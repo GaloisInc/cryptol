@@ -118,7 +118,7 @@ import Control.Monad.IO.Class
 import Control.Monad.Trans.Control
 import Data.Char (isSpace, toLower)
 import Data.IORef
-    (IORef,newIORef,readIORef,modifyIORef,atomicModifyIORef)
+    (IORef,newIORef,readIORef,atomicModifyIORef)
 import Data.List (intercalate, isPrefixOf, unfoldr, sortBy)
 import Data.Maybe (catMaybes)
 import Data.Ord (comparing)
@@ -180,6 +180,12 @@ data RW = RW
 
   , eTCSolver :: Maybe SMT.Solver
     -- ^ Solver instance to be used for typechecking
+
+  , eTCSolverRestarts :: !Int
+    -- ^ Counts how many times we've restarted the solver.
+    -- Used as a kind of id for the current solver, which helps avoid
+    -- a race condition where the callback of a dead solver runs after
+    -- a new one has been started.
   }
 
 
@@ -202,6 +208,7 @@ defaultRW isBatch callStacks l = do
     , eProverConfig = Left SBV.defaultProver
     , eTCConfig    = solverConfig
     , eTCSolver    = Nothing
+    , eTCSolverRestarts = 0
     }
 
 -- | Build up the prompt for the REPL.
@@ -353,9 +360,9 @@ instance PP REPLException where
                          $$ text "Type:" <+> pp s
     TypeNotTestable t    -> text "The expression is not of a testable type."
                          $$ text "Type:" <+> pp t
-    EvalInParamModule xs ->
-      text "Expression depends on definitions from a parameterized module:"
-        $$ nest 2 (vcat (map pp xs))
+    EvalInParamModule xs -> nest 2 $ vsep $
+      [ text "Expression depends on definitions from a parameterized module:" ]
+      ++ map pp xs
     SBVError s           -> text "SBV error:" $$ text s
     SBVException e       -> text "SBV exception:" $$ text (show e)
     SBVPortfolioException e -> text "SBV exception:" $$ text (show e)
@@ -406,7 +413,7 @@ modifyRW :: (RW -> (RW,a)) -> REPL a
 modifyRW f = REPL (\ ref -> atomicModifyIORef ref f)
 
 modifyRW_ :: (RW -> RW) -> REPL ()
-modifyRW_ f = REPL (\ ref -> modifyIORef ref f)
+modifyRW_ f = REPL (\ ref -> atomicModifyIORef ref (\x -> (f x, ())))
 
 -- | Construct the prompt for the current environment.
 getPrompt :: REPL String
@@ -415,15 +422,25 @@ getPrompt  = mkPrompt `fmap` getRW
 getCallStacks :: REPL Bool
 getCallStacks = eCallStacks <$> getRW
 
+-- This assumes that we are not starting solvers in parallel, otherwise
+-- there are a bunch of race conditions here.
 getTCSolver :: REPL SMT.Solver
 getTCSolver =
   do rw <- getRW
      case eTCSolver rw of
        Just s -> return s
        Nothing ->
-         do s <- io (SMT.startSolver (eTCConfig rw))
-            modifyRW_ (\rw' -> rw'{ eTCSolver = Just s })
+         do ref <- REPL (\ref -> pure ref)
+            let now = eTCSolverRestarts rw + 1
+                upd new = if eTCSolverRestarts new == now
+                             then new { eTCSolver = Nothing }
+                             else new
+                onExit = atomicModifyIORef ref (\s -> (upd s, ()))
+            s <- io (SMT.startSolver onExit (eTCConfig rw))
+            modifyRW_ (\rw' -> rw'{ eTCSolver = Just s
+                                  , eTCSolverRestarts = now })
             return s
+
 
 resetTCSolver :: REPL ()
 resetTCSolver =

@@ -1,8 +1,8 @@
-down: [16][4]
-down = [ 1+d | d <- tail down ] # [0]
+dwn: [16][4]
+dwn = [ 1+d | d <- tail dwn ] # [0]
 
-down': [16][4]
-down' = [ 1+(down' @ i) | i <- [1 .. 15] ] # [0]
+dwn': [16][4]
+dwn' = [ 1+(dwn' @ i) | i <- [1 .. 15] ] # [0]
 
 take_some: {n,k,t} (n>=k) => [n]t -> [k]t
 take_some xs = takes where takes = [ x | x <- xs | _ <- takes ]

@@ -23,6 +23,7 @@ get_server() {
 }
 
 echo "Setting up python environment for remote server clients..."
+poetry update
 poetry install
 
 echo "Typechecking code with mypy..."
@@ -30,10 +31,10 @@ run_test poetry run mypy cryptol/ tests/
 
 get_server cryptol-remote-api
 echo "Running cryptol-remote-api tests..."
-run_test poetry run python -m unittest discover tests/cryptol
+run_test poetry run python -m unittest discover --verbose tests/cryptol
 
 get_server cryptol-eval-server
 echo "Running cryptol-eval-server tests..."
-run_test poetry run python -m unittest discover tests/cryptol_eval
+run_test poetry run python -m unittest discover --verbose tests/cryptol_eval
 
 popd

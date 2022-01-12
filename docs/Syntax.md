@@ -90,12 +90,14 @@ infix
 primitive
 parameter
 constraint
+by
+down
 --->
 
         else       include    property    let       infixl       parameter
         extern     module     then        import    infixr       constraint
-        if         newtype    type        as        infix
-        private    pragma     where       hiding    primitive
+        if         newtype    type        as        infix        by
+        private    pragma     where       hiding    primitive    down
 
 
 The following table contains Cryptol's operators and their
@@ -435,19 +437,25 @@ _word_.  We may abbreviate the type `[n] Bit` as `[n]`.  An infinite
 sequence with elements of type `a` has type `[inf] a`, and `[inf]` is
 an infinite stream of bits.
 
-    [e1,e2,e3]                    // A sequence with three elements
+    [e1,e2,e3]            // A sequence with three elements
 
-    [t1 .. t3 ]                   // Sequence enumerations
-    [t1, t2 .. t3 ]               // Step by t2 - t1
-    [e1 ... ]                     // Infinite sequence starting at e1
-    [e1, e2 ... ]                 // Infinite sequence stepping by e2-e1
+    [t1 .. t2]            // Enumeration
+    [t1 .. <t2]           // Enumeration (exclusive bound)
+    [t1 .. t2 by n]       // Enumeration (stride)
+    [t1 .. <t2 by n]      // Enumeration (stride, ex. bound)
+    [t1 .. t2 down by n]  // Enumeration (downward stride)
+    [t1 .. >t2 down by n] // Enumeration (downward stride, ex. bound)
+    [t1, t2 .. t3]        // Enumeration (step by t2 - t1)
 
-    [ e | p11 <- e11, p12 <- e12  // Sequence comprehensions
+    [e1 ...]              // Infinite sequence starting at e1
+    [e1, e2 ...]          // Infinite sequence stepping by e2-e1
+
+    [ e | p11 <- e11, p12 <- e12    // Sequence comprehensions
         | p21 <- e21, p22 <- e22 ]
 
-    x = generate (\i -> e)        // Sequence from generating function
-    x @ i = e                     // Sequence with index binding
-    arr @ i @ j = e               // Two-dimensional sequence
+    x = generate (\i -> e)    // Sequence from generating function
+    x @ i = e                 // Sequence with index binding
+    arr @ i @ j = e           // Two-dimensional sequence
 
 
 Note: the bounds in finite sequences (those with `..`) are type
@@ -508,11 +516,19 @@ following notation:
 
     `t
 
-Here `t` should be a type expression with numeric kind.  The resulting
-expression is a finite word, which is sufficiently large to accommodate
-the value of the type:
+Here `t` should be a finite type expression with numeric kind.  The resulting
+expression will be of a numeric base type, which is sufficiently large
+to accommodate the value of the type:
 
-    `t : {n} (fin n, n >= width t) => [n]
+    `t : {a} (Literal t a) => a
+
+This backtick notation is syntax sugar for an application of the
+`number` primtive, so the above may be written as:
+
+    number`{t} : {a} (Literal t a) => a
+
+If a type cannot be inferred from context, a suitable type will be
+automatically chosen if possible, usually `Integer`.
 
 Explicit Type Annotations
 =========================

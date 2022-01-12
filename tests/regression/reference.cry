@@ -1,0 +1,12 @@
+import Cryptol::Reference as Ref
+
+// NB, using subtraction here because is is not commutative or associative
+
+property foldl_eq (z:Integer) (xs:[10]Integer) =
+  foldl (-) z xs == Ref::foldl (-) z xs
+
+property scanl_eq (z:Integer) (xs:[10]Integer) =
+  scanl (-) z xs == Ref::scanl (-) z xs
+
+property iterate_eq (z:Integer) (i:[8]) =
+  (iterate (\x -> x + 1) z)@i == (Ref::iterate (\x -> x + 1) z)@i

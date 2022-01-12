@@ -46,9 +46,7 @@ Cryptol currently uses Microsoft Research's [Z3 SMT
 solver](https://github.com/Z3Prover/z3) by default to solve constraints
 during type checking, and as the default solver for the `:sat` and
 `:prove` commands.  Cryptol generally requires the most recent version
-of Z3, but you can see the specific version tested in CI by looking for
-the `Z3_VERSION` setting in [this
-file](https://github.com/GaloisInc/cryptol/blob/master/.github/workflows/ci.yml).
+of Z3, but you can see the specific version tested in CI by looking [here](https://github.com/GaloisInc/what4-solvers/releases/tag/snapshot-20210917).
 
 You can download Z3 binaries for a variety of platforms from their
 [releases page](https://github.com/Z3Prover/z3/releases). If you
@@ -77,7 +75,7 @@ Cryptol builds and runs on various flavors of Linux, Mac OS X, and
 Windows. We regularly build and test it in the following environments:
 
 - macOS 10.15, 64-bit
-- Ubuntu 18.04, 64-bit
+- Ubuntu 20.04, 64-bit
 - Windows Server 2019, 64-bit
 
 ## Prerequisites

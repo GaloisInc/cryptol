@@ -36,7 +36,7 @@ Specifies the format to use when showing floating point numbers:
 0x1.2p4
 "-- Float Type-----------------------------------------------------------------"
 
-    primitive type Float : # -> # -> *
+primitive type Float : # -> # -> *
 
     `Float exponent precision` requires:
       • ValidFloat exponent precision
