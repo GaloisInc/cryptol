@@ -42,6 +42,7 @@ module Cryptol.Parser.AST
   , mImports
   , mSubmoduleImports
   , mModParams
+  , mIsFunctor
   , Program(..)
   , TopDecl(..)
   , Decl(..)
@@ -160,8 +161,19 @@ mSubmoduleImports m =
   ]
 
 -- | Get the module parameters of a module (new module system)
-mModParams :: ModuleG mnam name -> [ ModParam name ]
+mModParams :: ModuleG mname name -> [ ModParam name ]
 mModParams m = [ p | DModParam p <- mDecls m ]
+
+mIsFunctor :: ModuleG mname nmae -> Bool
+mIsFunctor m = any isParam (mDecls m)
+  where
+  isParam d =
+    case d of
+      DModParam {} -> True
+      DParameterType {} -> True
+      DParameterConstraint {} -> True
+      DParameterFun {} -> True
+      _ -> False
 
 
 -- | A top-level module

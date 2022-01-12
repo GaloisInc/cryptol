@@ -133,8 +133,12 @@ addImplicitNestedImports decls = (concat exportedMods, concat newDecls ++ other)
   (mods,other)            = foldr classify ([], []) decls
   classify d (ms,ds) =
     case d of
-      DModule tl -> (tl : ms, ds)
+      DModule tl | notFunctor tl -> (tl : ms, ds)
       _          -> (ms, d : ds)
+
+  notFunctor x =
+    case tlValue x of
+      NestedModule m -> not (mIsFunctor m)
 
   (newDecls,exportedMods) = unzip (map processModule mods)
   processModule m =
