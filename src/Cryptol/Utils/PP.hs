@@ -7,7 +7,7 @@
 -- Portability :  portable
 
 {-# LANGUAGE Safe #-}
-
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -128,6 +128,8 @@ fixPPCfg cfg (Doc f) = Doc (\_ -> f cfg)
 updPPCfg :: (PPCfg -> PPCfg) -> Doc -> Doc
 updPPCfg f d = withPPCfg (\cfg -> fixPPCfg (f cfg) d)
 
+debugShowUniques :: Doc -> Doc
+debugShowUniques = updPPCfg \cfg -> cfg { ppcfgShowNameUniques = True }
 
 
 
