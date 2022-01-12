@@ -22,6 +22,7 @@ module Cryptol.TypeCheck.Monad
 import qualified Control.Applicative as A
 import qualified Control.Monad.Fail as Fail
 import           Control.Monad.Fix(MonadFix(..))
+import           Data.Text(Text)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import           Data.Map (Map)
@@ -40,7 +41,7 @@ import           MonadLib hiding (mapM)
 import           Cryptol.ModuleSystem.Name
                     (FreshM(..),Supply,mkParameter
                     , nameInfo, NameInfo(..),NameSource(..))
-import           Cryptol.ModuleSystem.Interface(IfaceParams)
+import           Cryptol.ModuleSystem.Interface(IfaceParams(..))
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
 import           Cryptol.TypeCheck.AST
@@ -207,6 +208,7 @@ newtype InferM a = IM { unIM :: ReaderT RO (StateT RW IO) a }
 data ScopeName = ExternalScope
                | LocalScope
                | SubModule Name
+               | SignatureScope Name (Maybe Text) -- ^ The Text is docs
                | MTopModule P.ModName
 
 -- | Read-only component of the monad.
@@ -808,6 +810,9 @@ newScope nm = IM $ sets_ \rw -> rw { iScope = emptyModule nm : iScope rw }
 newLocalScope :: InferM ()
 newLocalScope = newScope LocalScope
 
+newSignatureScope :: Name -> Maybe Text -> InferM ()
+newSignatureScope x doc = newScope (SignatureScope x doc)
+
 newSubmoduleScope :: Name -> [Import] -> ExportSpec Name -> InferM ()
 newSubmoduleScope x is e =
   do newScope (SubModule x)
@@ -875,6 +880,24 @@ endModuleInstance =
       [ x ] | MTopModule _ <- mName x -> rw { iScope = [] }
       _ -> panic "endModuleInstance" [ "Not single top module" ]
 
+endSignature :: InferM ()
+endSignature =
+  IM $ sets_ \rw ->
+    case iScope rw of
+      x@Module { mName = SignatureScope m doc } : y : more ->
+        rw { iScope = z : more }
+        where
+        z   = y { mSignatures = Map.insert m sig (mSignatures y) }
+        sig = IfaceParams
+                { ifParamTypes       = mParamTypes x
+                , ifParamConstraints = mParamConstraints x
+                , ifParamFuns        = mParamFuns x
+                , ifParamDoc         = doc
+                }
+      _ -> panic "endSignature" [ "Not a signature scope" ]
+
+
+
 
 -- | Get an environment combining all nested scopes.
 getScope :: Semigroup a => (ModuleG ScopeName -> a) -> InferM a
@@ -910,11 +933,6 @@ addPrimType t =
   updScope \r ->
     r { mPrimTypes = Map.insert (atName t) t (mPrimTypes r) }
 
-
-
-addSignature :: Name -> IfaceParams -> InferM ()
-addSignature x ps =
-  updScope \r -> r { mSignatures = Map.insert x ps (mSignatures r) }
 
 addParamType :: ModTParam -> InferM ()
 addParamType a =

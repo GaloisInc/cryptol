@@ -48,6 +48,7 @@ import           Cryptol.TypeCheck.Subst (listSubst,apSubst,(@@),isEmptySubst)
 import           Cryptol.Utils.Ident
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.RecordMap
+import           Cryptol.IR.TraverseNames(mapNames)
 
 import qualified Data.Map as Map
 import           Data.Map (Map)
@@ -1078,10 +1079,21 @@ checkTopDecls = mapM_ checkTopDecl
 
       P.DModSig tl ->
         do let sig = P.tlValue tl
-           ps <- checkSignature sig (P.thing <$> P.tlDoc tl)
-           addSignature (P.thing (P.sigName sig)) ps
+               doc = P.thing <$> P.tlDoc tl
+           inRange (srcRange (P.sigName sig))
+             do newSignatureScope (thing (P.sigName sig)) doc
 
-      -- XXX: Incomplete
+                forM_ (P.sigTypeParams sig) \pt ->
+                  addParamType =<< checkParameterType pt
+
+                addParameterConstraints =<<
+                  checkParameterConstraints (P.sigConstraints sig)
+
+                forM_ (P.sigFunParams sig) \f ->
+                  addParamFun =<< checkParameterFun f
+
+                endSignature
+
       P.DModParam p ->
         inRange (srcRange (P.mpSignature p))
         do let binds = P.mpRenaming p
@@ -1089,13 +1101,16 @@ checkTopDecls = mapM_ checkTopDecl
                actualName x = Map.findWithDefault x x suMap
 
            ips <- lookupSignature (thing (P.mpSignature p))
-           let sigTys     = ifParamTypes ips
+           let actualTys  = [ mapNames actualName mp
+                            | mp <- Map.elems (ifParamTypes ips) ]
+               actualCtrs = [ mapNames actualName prop
+                            | prop <- ifParamConstraints ips ]
+               actualVals = [ mapNames actualName vp
+                            | vp <- Map.elems (ifParamFuns ips) ]
 
-               sigCtrs  = ifParamConstraints ips
-               sigVals  = ifParamFuns ips
-
-
-           pure ()
+           mapM_ addParamType actualTys
+           addParameterConstraints actualCtrs
+           mapM_ addParamFun actualVals
 
       P.DImport {} -> pure ()
       P.Include {} -> panic "checkTopDecl" [ "Unexpected `inlude`" ]
@@ -1147,18 +1162,6 @@ checkParameterFun x =
                       , mvpFixity = P.pfFixity x
                       }
 
-
-checkSignature :: P.Signature Name -> Maybe Text -> InferM IfaceParams
-checkSignature sig mbDoc =
-  do ts <- mapM checkParameterType (P.sigTypeParams sig)
-     cs <- checkParameterConstraints (P.sigConstraints sig)
-     fs <- mapM checkParameterFun (P.sigFunParams sig)
-     pure IfaceParams
-       { ifParamTypes       = Map.fromList [ (mtpName p,p) | p <- ts ]
-       , ifParamConstraints = cs
-       , ifParamFuns        = Map.fromList [ (mvpName p,p) | p <- fs ]
-       , ifParamDoc         = mbDoc
-       }
 
 
 tcPanic :: String -> [String] -> a

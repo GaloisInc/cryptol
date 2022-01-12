@@ -64,12 +64,8 @@ data ModuleG mname =
                      , mSubModules       :: Map Name (IfaceG Name)
 
                      -- Functors:
-                     -- params, old style
                      , mParamTypes       :: Map Name ModTParam
                      , mParamFuns        :: Map Name ModVParam
-
-                     -- Top-level constraints on parameters.
-                     -- Used for both old and new-style fnctors.
                      , mParamConstraints :: [Located Prop]
 
 

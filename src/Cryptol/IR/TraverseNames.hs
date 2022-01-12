@@ -5,6 +5,7 @@ import Data.Set(Set)
 import qualified Data.Set as Set
 import Data.Functor.Identity
 
+import Cryptol.ModuleSystem.Name(nameUnique)
 import Cryptol.Utils.RecordMap(traverseRecordMap)
 import Cryptol.Parser.Position(Located(..))
 import Cryptol.TypeCheck.AST
@@ -113,7 +114,12 @@ instance TraverseNames Schema where
 instance TraverseNames TParam where
   traverseNamesIP tp = mk <$> traverseNamesIP (tpFlav tp)
                           <*> traverseNamesIP (tpInfo tp)
-    where mk f i = tp { tpFlav = f, tpInfo = i }
+    -- XXX: module parameters should probably be represented directly
+    -- as (abstract) user-defined types, rather than type variables.
+    where mk f i = case f of
+                     TPModParam x ->
+                      tp { tpUnique = nameUnique x, tpFlav = f, tpInfo = i }
+                     _ -> tp { tpFlav = f, tpInfo = i }
 
 
 instance TraverseNames TPFlavor where
@@ -203,4 +209,16 @@ instance TraverseNames Newtype where
                     , ntConstraints = c
                     , ntFields = d
                     }
+
+instance TraverseNames ModTParam where
+  traverseNamesIP nt = mk <$> traverseNamesIP (mtpName nt)
+    where
+    mk x = nt { mtpName = x }
+
+instance TraverseNames ModVParam where
+  traverseNamesIP nt = mk <$> traverseNamesIP (mvpName nt)
+                          <*> traverseNamesIP (mvpType nt)
+    where
+    mk x t = nt { mvpName = x, mvpType = t }
+
 
