@@ -56,8 +56,6 @@ jobs:
         exclude:
           # https://gitlab.haskell.org/ghc/ghc/-/issues/18550
           - os: windows-latest
-            ghc-version: 8.8.4
-          - os: windows-latest
             ghc-version: 8.10.7
           - os: windows-latest
             ghc-version: 9.0.2
