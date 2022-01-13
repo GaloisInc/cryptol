@@ -3,7 +3,3 @@ packages:
     cryptol-remote-api
     tests
     deps/argo/argo
-
-allow-newer:
-  -- See https://github.com/GaloisInc/test-lib/pull/2
-  test-lib:base
