@@ -40,7 +40,7 @@ import           Control.Monad.IO.Class (MonadIO(..))
 import           Data.Bits (bit, complement)
 import           Data.List (foldl')
 
-import qualified GHC.Num.Integer as Integer
+import qualified GHC.Num.Compat as Integer
 
 import Data.SBV.Dynamic as SBV
 import qualified Data.SBV.Internals as SBV
@@ -431,8 +431,8 @@ sModRecip _sym 0 _ = panic "sModRecip" ["0 modulus not allowed"]
 sModRecip sym m x
   -- If the input is concrete, evaluate the answer
   | Just xi <- svAsInteger x
-  = case Integer.integerRecipMod# xi (Integer.integerToNaturalClamp m) of
-      (# r |  #) -> integerLit sym (toInteger r)
+  = case Integer.integerRecipMod xi m of
+      (# r |  #) -> integerLit sym r
       (# | () #) -> raiseError sym DivideByZero
 
   -- If the input is symbolic, create a new symbolic constant

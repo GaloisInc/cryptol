@@ -33,7 +33,7 @@
 > import qualified Data.Text as T (pack)
 > import LibBF (BigFloat)
 > import qualified LibBF as FP
-> import qualified GHC.Num.Integer as Integer
+> import qualified GHC.Num.Compat as Integer
 >
 > import Cryptol.ModuleSystem.Name (asPrim)
 > import Cryptol.TypeCheck.Solver.InfNat (Nat'(..), nAdd, nMin, nMul)
@@ -1334,8 +1334,8 @@ confused with integral division).
 >
 > zRecip :: Integer -> Integer -> E Integer
 > zRecip m x =
->   case Integer.integerRecipMod# x (Integer.integerToNaturalClamp m) of
->     (# r |  #) -> pure (toInteger r)
+>   case Integer.integerRecipMod x m of
+>     (# r |  #) -> pure r
 >     (# | () #) -> cryError DivideByZero
 >
 > zDiv :: Integer -> Integer -> Integer -> E Integer

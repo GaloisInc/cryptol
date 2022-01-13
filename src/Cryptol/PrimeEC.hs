@@ -29,8 +29,8 @@ module Cryptol.PrimeEC
   , primeModulus
   , ProjectivePoint(..)
   , toProjectivePoint
-  , integerToBigNat
-  , bigNatToInteger
+  , BN.integerToBigNat
+  , BN.bigNatToInteger
 
   , ec_double
   , ec_add_nonzero
@@ -39,12 +39,15 @@ module Cryptol.PrimeEC
   ) where
 
 
+{-
 import           GHC.Num.BigNat (BigNat#)
 import qualified GHC.Num.Backend as BN
 import qualified GHC.Num.BigNat as BN
 import qualified GHC.Num.Integer as BN
-import           GHC.Prim
-import           GHC.Types
+-}
+import           GHC.Num.Compat (BigNat#)
+import qualified GHC.Num.Compat as BN
+import           GHC.Exts
 
 import Cryptol.TypeCheck.Solver.InfNat (widthInteger)
 import Cryptol.Utils.Panic
@@ -61,20 +64,12 @@ data ProjectivePoint =
 
 toProjectivePoint :: Integer -> Integer -> Integer -> ProjectivePoint
 toProjectivePoint x y z =
-  ProjectivePoint (integerToBigNat x) (integerToBigNat y) (integerToBigNat z)
+  ProjectivePoint (BN.integerToBigNat x) (BN.integerToBigNat y) (BN.integerToBigNat z)
 
 -- | The projective "point at infinity", which represents the zero element
 --   of the ECC group.
 zro :: ProjectivePoint
-zro = ProjectivePoint (BN.bigNatFromWord# 1##) (BN.bigNatFromWord# 1##) (BN.bigNatFromWord# 0##)
-
--- | Coerce an integer value to a @BigNat@.  This operation only really makes
---   sense for nonnegative values, but this condition is not checked.
-integerToBigNat :: Integer -> BigNat#
-integerToBigNat = BN.integerToBigNatClamp#
-
-bigNatToInteger :: BigNat# -> Integer
-bigNatToInteger = BN.integerFromBigNat#
+zro = ProjectivePoint (BN.oneBigNat (# #)) (BN.oneBigNat (# #)) (BN.zeroBigNat (# #))
 
 -- | Simple newtype wrapping the @BigNat@ value of the
 --   modulus of the underlying field Z p.  This modulus
@@ -85,7 +80,7 @@ newtype PrimeModulus = PrimeModulus { primeMod :: BigNat# }
 -- | Inject an integer value into the @PrimeModulus@ type.
 --   This modulus is required to be prime.
 primeModulus :: Integer -> PrimeModulus
-primeModulus x = PrimeModulus (integerToBigNat x)
+primeModulus x = PrimeModulus (BN.integerToBigNat x)
 {-# INLINE primeModulus #-}
 
 
@@ -104,10 +99,10 @@ mod_add p x y =
 --   in @Z p@ when @p > 2@.  The input @x@ is required to be in reduced form,
 --   and will output a value in reduced form.
 mod_half :: PrimeModulus -> BigNat# -> BigNat#
-mod_half p x = if BN.bigNatTestBit x 0 then qodd else qeven
+mod_half p x = if BN.testBitBigNat x 0# then qodd else qeven
   where
-  qodd  = (BN.bigNatAdd x (primeMod p)) `BN.bigNatShiftR#` 1##
-  qeven = x `BN.bigNatShiftR#` 1##
+  qodd  = (BN.bigNatAdd x (primeMod p)) `BN.shiftRBigNat` 1#
+  qeven = x `BN.shiftRBigNat` 1#
 
 -- | Compute the modular multiplication of two input values.  Currently, this
 --   uses naive modular reduction, and does not require the inputs to be in
@@ -134,7 +129,7 @@ mod_square p x = BN.bigNatSqr x `BN.bigNatRem` primeMod p
 --   will be in reduced form.
 mul2 :: PrimeModulus -> BigNat# -> BigNat#
 mul2 p x =
-  let r = x `BN.bigNatShiftL#` 1## in
+  let r = x `BN.shiftLBigNat` 1# in
   case BN.bigNatSub r (primeMod p) of
     (# (# #) | #) -> r
     (# | rmp #)   -> rmp
@@ -206,7 +201,7 @@ ec_sub :: PrimeModulus -> ProjectivePoint -> ProjectivePoint -> ProjectivePoint
 ec_sub p s t = ec_add p s u
   where u = case BN.bigNatSub (primeMod p) (py t) of
               (# | y' #)    -> t{ py = y' }
-              (# (# #) | #) -> panic "ec_sub" ["cooridnate not in reduced form!", show (bigNatToInteger (py t))]
+              (# (# #) | #) -> panic "ec_sub" ["cooridnate not in reduced form!", show (BN.bigNatToInteger (py t))]
 {-# INLINE ec_sub #-}
 
 
@@ -275,11 +270,11 @@ ec_add_nonzero p s@(ProjectivePoint sx sy sz) (ProjectivePoint tx ty tz) =
 ec_normalize :: PrimeModulus -> ProjectivePoint -> ProjectivePoint
 ec_normalize p s@(ProjectivePoint x y z)
   | BN.bigNatIsOne z = s
-  | otherwise = ProjectivePoint x' y' (BN.bigNatFromWord# 1##)
+  | otherwise = ProjectivePoint x' y' (BN.oneBigNat (# #))
  where
   m = primeMod p
 
-  l  = BN.sbignat_recip_mod 0# z m
+  l  = BN.recipModBigNat z m
   l2 = BN.bigNatSqr l
   l3 = BN.bigNatMul l l2
 
@@ -297,15 +292,15 @@ ec_mult p d s
   | BN.bigNatIsZero (pz s) = zro
   | otherwise =
       case m of
-        0# -> panic "ec_mult" ["modulus too large", show (bigNatToInteger (primeMod p))]
+        0# -> panic "ec_mult" ["modulus too large", show (BN.bigNatToInteger (primeMod p))]
         _  -> go m zro
 
  where
    s' = ec_normalize p s
    h  = 3*d
 
-   d' = integerToBigNat d
-   h' = integerToBigNat h
+   d' = BN.integerToBigNat d
+   h' = BN.integerToBigNat h
 
    m = case widthInteger h of
          BN.IS mint -> mint
@@ -317,9 +312,8 @@ ec_mult p d s
      | otherwise = go (i -# 1#) r'
 
     where
-      wi  = int2Word# i
-      h_i = isTrue# (BN.bigNatTestBit# h' wi)
-      d_i = isTrue# (BN.bigNatTestBit# d' wi)
+      h_i = BN.testBitBigNat h' i
+      d_i = BN.testBitBigNat d' i
 
       r' = if h_i then
              if d_i then r2 else ec_add p r2 s'
@@ -389,7 +383,7 @@ normalizeForTwinMult p s t
 
   abcd = mod_mul p a bcd
 
-  e = BN.sbignat_recip_mod 0# abcd m
+  e = BN.recipModBigNat abcd m
 
   a_inv = mod_mul p e bcd
   b_inv = mod_mul p e acd
@@ -408,11 +402,11 @@ normalizeForTwinMult p s t
   d_inv2 = mod_square p d_inv
   d_inv3 = mod_mul p d_inv d_inv2
 
-  s'   = ProjectivePoint (mod_mul p (px s) a_inv2) (mod_mul p (py s) a_inv3) (BN.bigNatFromWord# 1##)
-  t'   = ProjectivePoint (mod_mul p (px t) b_inv2) (mod_mul p (py t) b_inv3) (BN.bigNatFromWord# 1##)
+  s'   = ProjectivePoint (mod_mul p (px s) a_inv2) (mod_mul p (py s) a_inv3) (BN.oneBigNat (# #))
+  t'   = ProjectivePoint (mod_mul p (px t) b_inv2) (mod_mul p (py t) b_inv3) (BN.oneBigNat (# #))
 
-  spt' = ProjectivePoint (mod_mul p (px spt) c_inv2) (mod_mul p (py spt) c_inv3) (BN.bigNatFromWord# 1##)
-  smt' = ProjectivePoint (mod_mul p (px smt) d_inv2) (mod_mul p (py smt) d_inv3) (BN.bigNatFromWord# 1##)
+  spt' = ProjectivePoint (mod_mul p (px spt) c_inv2) (mod_mul p (py spt) c_inv3) (BN.oneBigNat (# #))
+  smt' = ProjectivePoint (mod_mul p (px smt) d_inv2) (mod_mul p (py smt) d_inv3) (BN.oneBigNat (# #))
 
 
 -- | Given an integer @j@ and a projective point @S@, together with
@@ -425,15 +419,15 @@ ec_twin_mult :: PrimeModulus ->
   Integer -> ProjectivePoint ->
   Integer -> ProjectivePoint ->
   ProjectivePoint
-ec_twin_mult p (integerToBigNat -> d0) s (integerToBigNat -> d1) t =
+ec_twin_mult p (BN.integerToBigNat -> d0) s (BN.integerToBigNat -> d1) t =
    case m of
-     0# -> panic "ec_twin_mult" ["modulus too large", show (bigNatToInteger (primeMod p))]
+     0# -> panic "ec_twin_mult" ["modulus too large", show (BN.bigNatToInteger (primeMod p))]
      _  -> go m init_c0 init_c1 zro
 
  where
   (s',t',spt',smt') = normalizeForTwinMult p s t
 
-  m = case max 4 (widthInteger (bigNatToInteger (primeMod p))) of
+  m = case max 4 (widthInteger (BN.bigNatToInteger (primeMod p))) of
         BN.IS mint -> mint
         _ -> 0# -- if `m` doesn't fit into an Int, should be impossible
 
@@ -441,7 +435,7 @@ ec_twin_mult p (integerToBigNat -> d0) s (integerToBigNat -> d1) t =
   init_c1 = C False False (tst d1 (m -# 1#)) (tst d1 (m -# 2#)) (tst d1 (m -# 3#)) (tst d1 (m -# 4#))
 
   tst x i
-    | isTrue# (i >=# 0#) = isTrue# (BN.bigNatTestBit# x (int2Word# i))
+    | isTrue# (i >=# 0#) = BN.testBitBigNat x i
     | otherwise = False
 
   f i =

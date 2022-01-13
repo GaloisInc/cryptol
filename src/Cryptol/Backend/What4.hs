@@ -30,7 +30,7 @@ import           Data.Text (Text)
 import           Data.Parameterized.NatRepr
 import           Data.Parameterized.Some
 
-import qualified GHC.Num.Integer as Integer
+import qualified GHC.Num.Compat as Integer
 
 import qualified What4.Interface as W4
 import qualified What4.SWord as SW
@@ -343,7 +343,7 @@ instance W4.IsSymExprBuilder sym => Backend (What4 sym) where
   wordMult   sym x y = liftIO (SW.bvMul (w4 sym) x y)
   wordNegate sym x   = liftIO (SW.bvNeg (w4 sym) x)
   wordLg2    sym x   = sLg2 (w4 sym) x
- 
+
   wordShiftLeft   sym x y = w4bvShl (w4 sym) x y
   wordShiftRight  sym x y = w4bvLshr (w4 sym) x y
   wordRotateLeft  sym x y = w4bvRol (w4 sym) x y
@@ -670,8 +670,8 @@ sModRecip _sym 0 _ = panic "sModRecip" ["0 modulus not allowed"]
 sModRecip sym m x
   -- If the input is concrete, evaluate the answer
   | Just xi <- W4.asInteger x
-  = case Integer.integerRecipMod# xi (Integer.integerToNaturalClamp m) of
-      (# r |  #) -> integerLit sym (toInteger r)
+  = case Integer.integerRecipMod xi m of
+      (# r |  #) -> integerLit sym r
       (# | () #) -> raiseError sym DivideByZero
 
   -- If the input is symbolic, create a new symbolic constant
