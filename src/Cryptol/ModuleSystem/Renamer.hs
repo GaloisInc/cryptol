@@ -495,8 +495,10 @@ doImport :: Located Import -> RenameM (OwnedEntities, NamingEnv)
 doImport li =
   do let i = thing li
      decls <- lookupImport i
-     let own = OwnedEntities
-           { ownSubmodules = unqualifiedEnv . ifPublic <$> ifModules decls
+     let (funs,others) = Map.partition ifaceIsFunctor (ifModules decls)
+         own = OwnedEntities
+           { ownSubmodules = unqualifiedEnv . ifPublic <$> others
+           , ownFunctors   = Map.keysSet funs
            , ownSignatures = modParamsNamingEnv        <$> ifSignatures decls
            }
      pure (own, interpImportIface i decls)
@@ -578,7 +580,10 @@ processOpen modEnvs s o =
     Nothing -> s { unresolvedOpen = o : unresolvedOpen s }
     Just (One n) ->
       case Map.lookup n (ownSubmodules modEnvs) of
-        Nothing  -> panic "openLoop" [ "Missing defintion for module", show n ]
+        Nothing
+          | n `Set.member` ownFunctors modEnvs -> s
+          | otherwise ->
+            panic "openLoop" [ "Missing defintion for module", show n ]
         Just def ->
           let new = interpImportEnv o def
               newImps = new <> scopeImports s
@@ -676,6 +681,11 @@ instance Rename (WithExtra TopDecl) where
       DImport li -> DImport <$> traverse renI li
         where
         renI i = do m <- rename (iModule i)
+                    case m of
+                      ImpNested nm
+                        | nm `Set.member` ownFunctors (extraOwned info) ->
+                          recordError (InvalidFunctorImport nm)
+                      _ -> pure ()
                     pure i { iModule = m }
 
       DModParam mp -> DModParam <$> renameWithExtra info mp

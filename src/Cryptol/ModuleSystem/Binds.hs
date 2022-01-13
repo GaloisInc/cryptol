@@ -7,6 +7,8 @@ module Cryptol.ModuleSystem.Binds where
 
 import Data.Map(Map)
 import qualified Data.Map as Map
+import Data.Set(Set)
+import qualified Data.Set as Set
 import Data.Maybe(fromMaybe)
 import MonadLib (runId,Id,StateT,runStateT,lift,sets_,forM_)
 
@@ -67,16 +69,19 @@ names that are "owned" by all the entities, when "used".
 
 data OwnedEntities = OwnedEntities
   { ownSubmodules :: Map Name NamingEnv
+  , ownFunctors   :: Set Name
   , ownSignatures :: Map Name NamingEnv
   }
 
 instance Semigroup OwnedEntities where
   x <> y = OwnedEntities { ownSubmodules = ownSubmodules x <> ownSubmodules y
+                         , ownFunctors   = ownFunctors x <> ownFunctors y
                          , ownSignatures = ownSignatures x <> ownSignatures y
                          }
 
 instance Monoid OwnedEntities where
   mempty = OwnedEntities { ownSubmodules = mempty
+                         , ownFunctors   = mempty
                          , ownSignatures = mempty
                          }
 
@@ -126,9 +131,14 @@ collectNestedDeclsM mpath env ds =
               -- caught during actual renaming.
 
           newEnv <- lift $ runBuild $
-                    moduleDefs (Nested mpath (nameIdent name)) nested
+                      moduleDefs (Nested mpath (nameIdent name)) nested
           sets_ \o -> o { ownSubmodules =
-                                  Map.insert name newEnv (ownSubmodules o) }
+                            Map.insert name newEnv (ownSubmodules o)
+                        , ownFunctors =
+                            if mIsFunctor nested
+                              then Set.insert name (ownFunctors o)
+                              else ownFunctors o
+                        }
           let newMPath = Nested mpath (nameIdent name)
           collectNestedDeclsM newMPath newEnv (mDecls nested)
 

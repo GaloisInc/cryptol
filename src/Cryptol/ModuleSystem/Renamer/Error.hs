@@ -45,8 +45,14 @@ data RenamerError
     -- ^ When record updates overlap (e.g., @{ r | x = e1, x.y = e2 }@)
 
   | InvalidDependency [DepName]
+    -- ^ Things that can't depend on each other
 
   | MultipleModParams Ident [Range]
+    -- ^ Module parameters with the same name
+
+  | InvalidFunctorImport Name
+    -- ^ Can't import functors directly
+
     deriving (Show, Generic, NFData, Eq, Ord)
 
 
@@ -133,6 +139,10 @@ instance PP RenamerError where
     MultipleModParams x rs ->
       hang ("[error] Multiple parameters with name" <+> backticks (pp x))
          4 (vcat [ "•" <+> pp r | r <- rs ])
+
+    InvalidFunctorImport x ->
+      hang ("[error] Invalid import of functor" <+> backticks (pp x))
+        4 "• Functors need to be instantiated before they can be imported."
 
 instance PP DepName where
   ppPrec _ d =
