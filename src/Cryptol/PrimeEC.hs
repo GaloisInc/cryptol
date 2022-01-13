@@ -18,11 +18,19 @@
 -- in order to speed up the basic modular arithmetic operations.
 -----------------------------------------------------------------------------
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE UnboxedTuples #-}
+
+#if __GLASGOW_HASKELL__ >= 900
+-- On GHC 9.0 or later—that is, when building with ghc-bignum—BigNum# is an
+-- unlifted type, so we need UnliftedNewtypes to declare a newtype on top of
+-- it. On older versions of GHC, BigNat# is simply a synonym for BigNat. BigNat
+-- is lifted, so declaring a newtype on top of it works out of the box.
 {-# LANGUAGE UnliftedNewtypes #-}
+#endif
 
 module Cryptol.PrimeEC
   ( PrimeModulus
