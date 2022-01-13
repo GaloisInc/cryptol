@@ -52,13 +52,13 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        ghc-version: ["8.8.4", "8.10.2", "9.0.2"]
+        ghc-version: ["8.8.4", "8.10.7", "9.0.2"]
         exclude:
           # https://gitlab.haskell.org/ghc/ghc/-/issues/18550
           - os: windows-latest
             ghc-version: 8.8.4
           - os: windows-latest
-            ghc-version: 8.10.2
+            ghc-version: 8.10.7
           - os: windows-latest
             ghc-version: 9.0.2
     outputs:
@@ -238,7 +238,7 @@ jobs:
 
       - uses: haskell/actions/setup@v1
         with:
-          ghc-version: '8.10.3'
+          ghc-version: '8.10.7'
 
       - if: matrix.suite == 'rpc'
         uses: actions/setup-python@v2
