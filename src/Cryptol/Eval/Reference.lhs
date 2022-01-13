@@ -10,8 +10,6 @@
 > {-# LANGUAGE BlockArguments #-}
 > {-# LANGUAGE PatternGuards #-}
 > {-# LANGUAGE LambdaCase #-}
-> {-# LANGUAGE MagicHash #-}
-> {-# LANGUAGE UnboxedTuples #-}
 >
 > module Cryptol.Eval.Reference
 >   ( Value(..)
@@ -1335,8 +1333,8 @@ confused with integral division).
 > zRecip :: Integer -> Integer -> E Integer
 > zRecip m x =
 >   case Integer.integerRecipMod x m of
->     (# r |  #) -> pure r
->     (# | () #) -> cryError DivideByZero
+>     Just r  -> pure r
+>     Nothing -> cryError DivideByZero
 >
 > zDiv :: Integer -> Integer -> Integer -> E Integer
 > zDiv m x y = f <$> zRecip m y

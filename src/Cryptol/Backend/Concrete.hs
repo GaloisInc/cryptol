@@ -9,7 +9,6 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE MagicHash #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE Rank2Types #-}
@@ -18,7 +17,6 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE UnboxedTuples #-}
 module Cryptol.Backend.Concrete
   ( BV(..)
   , binBV
@@ -344,8 +342,8 @@ instance Backend Concrete where
   -- congruent to 0 modulo m.
   znRecip sym m x =
     case Integer.integerRecipMod x m of
-      (# r |  #) -> integerLit sym r
-      (# | () #) -> raiseError sym DivideByZero
+      Just r  -> integerLit sym r
+      Nothing -> raiseError sym DivideByZero
 
   znPlus  _ = liftBinIntMod (+)
   znMinus _ = liftBinIntMod (-)

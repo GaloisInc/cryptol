@@ -52,11 +52,11 @@ import           GHC.Exts
 bigNatToInteger :: BigNat# -> Integer
 bigNatToInteger = Integer.integerFromBigNat#
 
-integerRecipMod :: Integer -> Integer -> (# Integer | () #)
+integerRecipMod :: Integer -> Integer -> Maybe Integer
 integerRecipMod x y =
   case Integer.integerRecipMod# x (Integer.integerToNaturalClamp y) of
-    (# r | #)  -> (# toInteger r | #)
-    (# | () #) -> (# | () #)
+    (# r | #)  -> Just (toInteger r)
+    (# | () #) -> Nothing
 
 -- | Coerce an integer value to a @BigNat#@.  This operation only really makes
 --   sense for nonnegative values, but this condition is not checked.
@@ -134,10 +134,10 @@ integerToBigNat (GMP.S# i)  = GMP.wordToBigNat (int2Word# i)
 integerToBigNat (GMP.Jp# b) = b
 integerToBigNat (GMP.Jn# b) = b
 
-integerRecipMod :: Integer -> Integer -> (# Integer | () #)
+integerRecipMod :: Integer -> Integer -> Maybe Integer
 integerRecipMod x y
-  | res == 0  = (# | () #)
-  | otherwise = (# res | #)
+  | res == 0  = Nothing
+  | otherwise = Just res
   where
     res = GMP.recipModInteger x y
 

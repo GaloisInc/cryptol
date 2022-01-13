@@ -11,14 +11,12 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE MagicHash #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE UnboxedTuples #-}
 module Cryptol.Backend.SBV
   ( SBV(..), SBVEval(..), SBVResult(..)
   , literalSWord
@@ -432,8 +430,8 @@ sModRecip sym m x
   -- If the input is concrete, evaluate the answer
   | Just xi <- svAsInteger x
   = case Integer.integerRecipMod xi m of
-      (# r |  #) -> integerLit sym r
-      (# | () #) -> raiseError sym DivideByZero
+      Just r  -> integerLit sym r
+      Nothing -> raiseError sym DivideByZero
 
   -- If the input is symbolic, create a new symbolic constant
   -- and assert that it is the desired multiplicitive inverse.
