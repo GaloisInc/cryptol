@@ -126,22 +126,11 @@ cmpNameDisplay :: NameDisp -> Name -> Name -> Ordering
 cmpNameDisplay disp l r =
   case (asOrigName l, asOrigName r) of
 
-    (Just ogl, Just ogr) -> -- XXX: uses system name info?
+    (ogl, ogr) -> -- XXX: uses system name info?
        case cmpText (fmtPref ogl) (fmtPref ogr) of
          EQ  -> cmpName l r
          cmp -> cmp
 
-    (Nothing,Nothing) -> cmpName l r
-
-    (Just ogl,Nothing) ->
-       case cmpText (fmtPref ogl) (identText (nameIdent r)) of
-         EQ  -> GT
-         cmp -> cmp
-
-    (Nothing,Just ogr) ->
-       case cmpText (identText (nameIdent l)) (fmtPref ogr) of
-         EQ  -> LT
-         cmp -> cmp
 
   where
   cmpName xs ys  = cmpIdent (nameIdent xs) (nameIdent ys)
@@ -151,7 +140,10 @@ cmpNameDisplay disp l r =
   fmtPref og = case getNameFormat og disp of
                  UnQualified -> ""
                  Qualified q -> modNameToText q
-                 NotInScope  -> Text.pack $ show $ pp (ogModule og)
+                 NotInScope  ->
+                    case ogModule og of
+                      Just q -> Text.pack $ show $ pp q
+                      Nothing -> ""
 
   -- Note that this assumes that `xs` is `l` and `ys` is `r`
   cmpText xs ys =
@@ -174,9 +166,7 @@ cmpNameDisplay disp l r =
 -- the need for parentheses.
 ppName :: Name -> Doc
 ppName nm =
-  case asOrigName nm of
-    Just og -> pp og
-    Nothing -> pp (nameIdent nm)
+  pp (asOrigName nm)
   <.>
   withPPCfg \cfg ->
     if ppcfgShowNameUniques cfg then "_" <.> int (nameUnique nm)
@@ -234,15 +224,16 @@ toParamInstName n =
 asParamName :: Name -> Name
 asParamName n = n { nInfo = Parameter }
 
-asOrigName :: Name -> Maybe OrigName
+asOrigName :: Name -> OrigName
 asOrigName nm =
-  case nInfo nm of
-    Declared p _ ->
-      Just OrigName { ogModule    = apPathRoot notParamInstModName  p
-                    , ogNamespace = nNamespace nm
-                    , ogName      = nIdent nm
-                    }
-    Parameter    -> Nothing
+  OrigName { ogModule    = case nInfo nm of
+                             Declared p _ ->
+                                Just (apPathRoot notParamInstModName  p)
+                             _ -> Nothing
+           , ogNamespace = nNamespace nm
+           , ogName      = nIdent nm
+           }
+
 
 
 -- Name Supply -----------------------------------------------------------------

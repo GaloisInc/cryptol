@@ -212,7 +212,9 @@ exprModName = packModName ["<expr>"]
 -- | Identifies an entitiy
 data OrigName = OrigName
   { ogNamespace :: Namespace
-  , ogModule    :: ModPath
+  , ogModule    :: Maybe ModPath
+    -- ^ Nothing means that this refers to a parameter
+
   , ogName      :: Ident
   } deriving (Eq,Ord,Show,Generic,NFData)
 

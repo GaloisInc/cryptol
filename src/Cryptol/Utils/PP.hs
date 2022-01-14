@@ -92,7 +92,7 @@ data NameFormat = UnQualified
 -- | Never qualify names from this module.
 neverQualifyMod :: ModPath -> NameDisp
 neverQualifyMod mn = NameDisp $ \n ->
-  if ogModule n == mn then Just UnQualified else Nothing
+  if ogModule n == Just mn then Just UnQualified else Nothing
 
 neverQualify :: NameDisp
 neverQualify  = NameDisp $ \ _ -> Just UnQualified
@@ -400,7 +400,10 @@ instance PP OrigName where
       case getNameFormat og disp of
         UnQualified -> pp (ogName og)
         Qualified m -> ppQual (TopModule m) (pp (ogName og))
-        NotInScope  -> ppQual (ogModule og) (pp (ogName og))
+        NotInScope  ->
+          case ogModule og of
+            Just q -> ppQual q (pp (ogName og))
+            Nothing -> pp (ogName og)
     where
    ppQual mo x =
     case mo of

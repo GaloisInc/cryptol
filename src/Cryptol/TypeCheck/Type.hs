@@ -999,7 +999,7 @@ instance PP (WithNames Type) where
       TUser c ts t ->
         withNameDisp $ \disp ->
         case asOrigName c of
-          Just og | NotInScope <- getNameFormat og disp ->
+          og | NotInScope <- getNameFormat og disp ->
               go prec t -- unfold type synonym if not in scope
           _ ->
             case ts of
