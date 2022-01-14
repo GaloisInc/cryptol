@@ -1,3 +1,5 @@
+// Don't show examples, as they can differ depending on the solver version.
+// See #1280.
 :set show-examples=false
 :sat \x -> x > 0x4
 :t it
