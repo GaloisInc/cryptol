@@ -1109,9 +1109,29 @@ checkTopDecls = mapM_ checkTopDecl
                actualVals = [ mapNames actualName vp
                             | vp <- Map.elems (ifParamFuns ips) ]
 
+               param =
+                 IfaceModParam
+                   { ifmpName = P.mpName p
+                   , ifmpSignature = thing (P.mpSignature p)
+                   , ifmpParameters =
+                        IfaceParams
+                          { ifParamTypes =
+                              Map.fromList [ (mtpName tp, tp)
+                                           | tp <- actualTys ]
+
+                          , ifParamConstraints = actualCtrs
+                          , ifParamFuns =
+                              Map.fromList [ (mvpName vp, vp)
+                                           | vp <- actualVals ]
+                          , ifParamDoc = thing <$> P.mpDoc p
+                          }
+                   }
+
+
            mapM_ addParamType actualTys
            addParameterConstraints actualCtrs
            mapM_ addParamFun actualVals
+           addModParam param
 
       P.DImport {} -> pure ()
       P.Include {} -> panic "checkTopDecl" [ "Unexpected `inlude`" ]

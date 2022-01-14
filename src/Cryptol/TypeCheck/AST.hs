@@ -68,6 +68,9 @@ data ModuleG mname =
                      , mParamFuns        :: Map Name ModVParam
                      , mParamConstraints :: [Located Prop]
 
+                     , mParams           :: Map Ident IfaceModParam
+                       -- ^ Parameters grouped by "import".
+
 
                       -- Declarations, including everything from non-functor
                       -- submodules
@@ -87,6 +90,7 @@ emptyModule nm =
     , mImports          = []
     , mSubModules       = mempty
 
+    , mParams           = mempty
     , mParamTypes       = mempty
     , mParamConstraints = mempty
     , mParamFuns        = mempty

@@ -18,6 +18,7 @@ module Cryptol.ModuleSystem.Interface (
   , IfaceTySyn, ifTySynName
   , IfaceNewtype
   , IfaceDecl(..)
+  , IfaceFunctorParams(..)
   , IfaceParams(..)
   , IfaceModParam(..)
 
@@ -38,6 +39,7 @@ import           Data.Map(Map)
 import qualified Data.Map as Map
 import           Data.Semigroup
 import           Data.Text (Text)
+import           Data.Maybe(isJust)
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
@@ -50,7 +52,7 @@ import Cryptol.Utils.Ident (ModName,Ident)
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.Fixity(Fixity)
 import Cryptol.Parser.AST(Pragma)
-import Cryptol.Parser.Position(Located,Range)
+import Cryptol.Parser.Position(Located)
 import Cryptol.TypeCheck.Type
 
 
@@ -59,11 +61,11 @@ data IfaceG mname = Iface
   { ifModName   :: !mname       -- ^ Module name
   , ifPublic    :: IfaceDecls   -- ^ Exported definitions
   , ifPrivate   :: IfaceDecls   -- ^ Private defintiions
-  , ifParams    :: IfaceParams  -- ^ Uninterpreted constants (aka module params)
+  , ifParams    :: Maybe IfaceFunctorParams
   } deriving (Show, Generic, NFData)
 
 ifaceIsFunctor :: IfaceG mname -> Bool
-ifaceIsFunctor = not . isEmptyIfaceParams . ifParams
+ifaceIsFunctor = isJust . ifParams
 
 -- | The public declarations in all modules, including nested
 -- The modules field contains public functors
@@ -88,11 +90,24 @@ emptyIface nm = Iface
   { ifModName = nm
   , ifPublic  = mempty
   , ifPrivate = mempty
-  , ifParams  = noIfaceParams
+  , ifParams  = Nothing
   }
 
--- | All parameters in an "old-style" functor.
--- This is also used for signatures in a new-style functors.
+data IfaceFunctorParams =
+    OldStyle IfaceParams
+  | NewStyle (Map Ident IfaceModParam)
+    deriving (Show, Generic, NFData)
+
+data IfaceModParam = IfaceModParam
+  { ifmpName        :: Ident
+  , ifmpSignature   :: Name
+  , ifmpParameters  :: IfaceParams
+    {- ^ These are the actual parameters, not the ones in the signature
+      For example if the same signature is used for multiple parameters
+      the `mpParameters` would all be different. -}
+  } deriving (Show, Generic, NFData)
+
+-- | A bunch of module parameters.
 data IfaceParams = IfaceParams
   { ifParamTypes       :: Map.Map Name ModTParam
   , ifParamConstraints :: [Located Prop] -- ^ Constraints on param. types
@@ -113,12 +128,6 @@ isEmptyIfaceParams IfaceParams { .. } =
   Map.null ifParamTypes && null ifParamConstraints && Map.null ifParamFuns
 
 
-data IfaceModParam = IfaceModParam
-  { ifModParamName      :: Ident
-  , ifModParamRange     :: Range
-  , ifModParamSig       :: Name
-  , ifModParamInstance  :: Map Name Name -- ^ Maps param names to names in sig.
-  }
 
 data IfaceDecls = IfaceDecls
   { ifTySyns        :: Map.Map Name IfaceTySyn

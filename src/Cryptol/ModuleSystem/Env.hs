@@ -187,7 +187,7 @@ allDeclGroups = concatMap T.mDecls . loadedNonParamModules
 -- | Contains enough information to browse what's in scope,
 -- or type check new expressions.
 data ModContext = ModContext
-  { mctxParams          :: IfaceParams
+  { mctxParams          :: Maybe IfaceFunctorParams
   , mctxExported        :: Set Name
   , mctxDecls           :: IfaceDecls
     -- ^ Should contain at least names in NamingEnv, but may have more
@@ -208,14 +208,14 @@ instance Semigroup ModContext where
 
       where
       names = mctxNames x `R.shadowing` mctxNames y
-      jnParams a b
-        | isEmptyIfaceParams a = b
-        | isEmptyIfaceParams b = a
-        | otherwise =
-          panic "ModContext" [ "Cannot combined 2 parameterized contexts" ]
+      jnParams a b =
+        case (a,b) of
+          (Nothing,_) -> b
+          (_,Nothing) -> a
+          _ -> panic "ModContext" [ "Cannot combined 2 parameterized contexts" ]
 
 instance Monoid ModContext where
-  mempty = ModContext { mctxParams   = noIfaceParams
+  mempty = ModContext { mctxParams   = Nothing
                       , mctxDecls    = mempty
                       , mctxExported = mempty
                       , mctxNames    = mempty

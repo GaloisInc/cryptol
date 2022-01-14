@@ -41,7 +41,8 @@ import           MonadLib hiding (mapM)
 import           Cryptol.ModuleSystem.Name
                     (FreshM(..),Supply,mkParameter
                     , nameInfo, NameInfo(..),NameSource(..))
-import           Cryptol.ModuleSystem.Interface(IfaceParams(..))
+import           Cryptol.ModuleSystem.Interface(IfaceModParam(..),
+                                                IfaceParams(..))
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
 import           Cryptol.TypeCheck.AST
@@ -126,6 +127,7 @@ runInferM info (IM m) =
   do counter <- newIORef 0
      let env = Map.map ExtVar (inpVars info)
             <> Map.map (ExtVar . newtypeConType) (inpNewtypes info)
+            <> Map.map (ExtVar . mvpType) (inpParamFuns info)
 
      rec ro <- return RO { iRange     = inpRange info
                          , iVars      = env
@@ -948,6 +950,10 @@ addParamFun x =
 addParameterConstraints :: [Located Prop] -> InferM ()
 addParameterConstraints ps =
   updScope \r -> r { mParamConstraints = ps ++ mParamConstraints r }
+
+addModParam :: IfaceModParam -> InferM ()
+addModParam p =
+  updScope \r -> r { mParams = Map.insert (ifmpName p) p (mParams r) }
 
 
 

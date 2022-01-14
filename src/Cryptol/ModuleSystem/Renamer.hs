@@ -47,7 +47,7 @@ import Cryptol.ModuleSystem.Name
 import Cryptol.ModuleSystem.Names
 import Cryptol.ModuleSystem.NamingEnv
 import Cryptol.ModuleSystem.Exports
-import Cryptol.Parser.Position(getLoc)
+import Cryptol.Parser.Position(getLoc,Range)
 import Cryptol.Parser.AST
 import Cryptol.Parser.Selector(selName)
 import Cryptol.Utils.Panic (panic)
@@ -59,6 +59,16 @@ import Cryptol.ModuleSystem.Interface
 import Cryptol.ModuleSystem.Renamer.Error
 import Cryptol.ModuleSystem.Binds
 import Cryptol.ModuleSystem.Renamer.Monad
+
+
+data RenModParam = RenModParam
+  { renModParamName      :: Ident
+  , renModParamRange     :: Range
+  , renModParamSig       :: Name
+  , renModParamInstance  :: Map Name Name -- ^ Maps param names to names in sig.
+  }
+
+
 
 
 data RenamedModule = RenamedModule
@@ -205,27 +215,27 @@ renameModule' info@Extra { extraModPath = mpath } env m =
               shadowNames' CheckNone env $ -- the actual check will happen below
                  unzip <$> mapM (doModParam allNested) (mModParams m)
 
-           let repeated = groupBy ((==) `on` ifModParamName)
-                        $ sortBy (compare `on` ifModParamName) params
+           let repeated = groupBy ((==) `on` renModParamName)
+                        $ sortBy (compare `on` renModParamName) params
 
            forM_ repeated \ps ->
              case ps of
                [_] -> pure ()
                ~(p : _) -> recordError
-                             (MultipleModParams (ifModParamName p)
-                                                (map ifModParamRange ps))
+                             (MultipleModParams (renModParamName p)
+                                                (map renModParamRange ps))
 
            shadowNames' CheckOverlap (mconcat (env : envs))
                                                       -- here is the check
              do inScope <- getNamingEnv
                 let mparams = Map.fromList
-                                [ (ifModParamName p, p)
+                                [ (renModParamName p, p)
                                 | p <- params ]
                     newFrom =
                       foldLoop params (extraFromModParam info) \p mp ->
-                        let nm = ModParamName (ifModParamRange p)
-                                              (ifModParamName p)
-                        in foldLoop (Map.keys (ifModParamInstance p)) mp \x ->
+                        let nm = ModParamName (renModParamRange p)
+                                              (renModParamName p)
+                        in foldLoop (Map.keys (renModParamInstance p)) mp \x ->
                              Map.insert x nm
 
                     extra = Extra { extraOwned = allNested
@@ -515,7 +525,7 @@ parameter.
 doModParam ::
   OwnedEntities ->
   ModParam PName ->
-  RenameM (NamingEnv, IfaceModParam)
+  RenameM (NamingEnv, RenModParam)
 doModParam owned mp =
   do let sigName = mpSignature mp
          loc     = srcRange sigName
@@ -533,21 +543,21 @@ doModParam owned mp =
                                 Nothing -> newEnv'
                                 Just q  -> qualify q newEnv'
                  pure ( newEnv
-                      , IfaceModParam
-                        { ifModParamName     = mpName mp
-                        , ifModParamRange    = loc
-                        , ifModParamSig      = nm
-                        , ifModParamInstance = nameMap
+                      , RenModParam
+                        { renModParamName     = mpName mp
+                        , renModParamRange    = loc
+                        , renModParamSig      = nm
+                        , renModParamInstance = nameMap
                         }
                       )
 
             -- This can happen if the interface was undefined (i.e., error)
             Nothing -> pure
-              (mempty, IfaceModParam { ifModParamName     = mpName mp
-                                     , ifModParamRange    = loc
-                                     , ifModParamSig      = nm
-                                     , ifModParamInstance = mempty
-                                     })
+              (mempty, RenModParam { renModParamName     = mpName mp
+                                   , renModParamRange    = loc
+                                   , renModParamSig      = nm
+                                   , renModParamInstance = mempty
+                                   })
  
 
 --------------------------------------------------------------------------------
@@ -632,7 +642,7 @@ data Extra = Extra
   , extraModPath    :: ModPath
     -- ^ Path to the current location (for nested modules)
 
-  , extraModParams  :: !(Map Ident IfaceModParam)
+  , extraModParams  :: !(Map Ident RenModParam)
     -- ^ Module parameters for the current module
 
   , extraFromModParam :: !(Map Name DepName)
@@ -705,7 +715,7 @@ instance Rename (WithExtra ModParam) where
        pure (WithExtra info mp { mpSignature = x, mpRenaming = ren })
     where
     ren = case Map.lookup (mpName mp) (extraModParams info) of
-            Just r -> ifModParamInstance r
+            Just r -> renModParamInstance r
             Nothing -> panic "rename@ModParam"
                           [ "Missing module parameter", show (mpAs mp) ]
 

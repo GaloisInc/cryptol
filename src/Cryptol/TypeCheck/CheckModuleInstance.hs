@@ -52,6 +52,7 @@ checkModuleInstance func inst
                    , mParamFuns        = mParamFuns inst
                    , mDecls            = mDecls inst ++ mDecls m
 
+                   , mParams     = mempty
                    , mSubModules = mempty
                    , mFunctors   = mempty
                    , mSignatures = mempty

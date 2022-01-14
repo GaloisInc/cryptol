@@ -40,12 +40,22 @@ genIface m = Iface
     , ifSignatures  = sPriv
     }
 
-  , ifParams = IfaceParams
-    { ifParamTypes = mParamTypes m
-    , ifParamConstraints = mParamConstraints m
-    , ifParamFuns  = mParamFuns m
-    , ifParamDoc = Nothing
-    }
+  , ifParams =
+    if Map.null (mParams m)
+      then -- old style
+        let d = IfaceParams
+                  { ifParamTypes = mParamTypes m
+                  , ifParamConstraints = mParamConstraints m
+                  , ifParamFuns  = mParamFuns m
+                  , ifParamDoc = Nothing
+                  }
+        in if isEmptyIfaceParams d
+             then Nothing
+             else Just (OldStyle d)
+
+      else Just (NewStyle (mParams m))
+
+
   }
   where
 

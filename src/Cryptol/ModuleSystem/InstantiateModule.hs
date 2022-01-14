@@ -85,6 +85,7 @@ instantiateModule func newName tpMap vpMap
                  , mParamFuns         = Map.empty
                  , mDecls             = paramDecls ++ renamedDecls
 
+                 , mParams            = mempty
                  , mSubModules        = mempty
                  , mFunctors          = mempty
                  , mSignatures        = mempty -- XXX

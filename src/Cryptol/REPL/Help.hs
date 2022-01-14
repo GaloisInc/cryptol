@@ -17,6 +17,7 @@ import qualified Cryptol.ModuleSystem as M
 import qualified Cryptol.ModuleSystem.Name as M
 import qualified Cryptol.ModuleSystem.NamingEnv as M
 import qualified Cryptol.ModuleSystem.Env as M
+import qualified Cryptol.ModuleSystem.Interface as M
 import qualified Cryptol.TypeCheck.AST as T
 import Cryptol.TypeCheck.PP(emptyNameMap,ppWithNames)
 
@@ -73,8 +74,9 @@ showSigHelp env nameEnv name =
   -- XXX: show doc. if any, and maybe other stuff
 
 
-showTypeHelp :: M.IfaceParams -> M.IfaceDecls -> NameDisp -> T.Name -> REPL ()
-showTypeHelp params env nameEnv name =
+showTypeHelp ::
+  Maybe M.IfaceFunctorParams -> M.IfaceDecls -> NameDisp -> T.Name -> REPL ()
+showTypeHelp mbParams env nameEnv name =
   fromMaybe (noInfo nameEnv name) $
   msum [ fromTySyn, fromPrimType, fromNewtype, fromTyParam ]
 
@@ -110,18 +112,22 @@ showTypeHelp params env nameEnv name =
                  doShowDocString (T.atDoc a)
 
   fromTyParam =
-    do p <- Map.lookup name (M.ifParamTypes params)
-       let uses c = T.TVBound (T.mtpParam p) `Set.member` T.fvs c
-           ctrs = filter uses (map P.thing (M.ifParamConstraints params))
-           ctrDoc = case ctrs of
-                      []  -> []
-                      [x] -> [pp x]
-                      xs  -> [parens $ commaSep $ map pp xs]
-           decl = vcat $
-                    [ text "parameter" <+> pp name <+> text ":"
-                      <+> pp (T.mtpKind p) ]
-                    ++ ctrDoc
-       return $ doShowTyHelp nameEnv decl (T.mtpDoc p)
+    do hasPs <- mbParams
+       case hasPs of
+         M.NewStyle {} -> undefined -- XXX
+         M.OldStyle params ->
+           do p <- Map.lookup name (M.ifParamTypes params)
+              let uses c = T.TVBound (T.mtpParam p) `Set.member` T.fvs c
+                  ctrs = filter uses (map P.thing (M.ifParamConstraints params))
+                  ctrDoc = case ctrs of
+                             []  -> []
+                             [x] -> [pp x]
+                             xs  -> [parens $ commaSep $ map pp xs]
+                  decl = vcat $
+                           [ text "parameter" <+> pp name <+> text ":"
+                             <+> pp (T.mtpKind p) ]
+                           ++ ctrDoc
+              return $ doShowTyHelp nameEnv decl (T.mtpDoc p)
 
 
 doShowTyHelp :: NameDisp -> Doc -> Maybe Text -> REPL ()
@@ -147,9 +153,10 @@ doShowFix fx =
 
 
 showValHelp ::
-  M.IfaceParams -> M.IfaceDecls -> NameDisp -> P.PName -> T.Name -> REPL ()
+  Maybe M.IfaceFunctorParams ->
+    M.IfaceDecls -> NameDisp -> P.PName -> T.Name -> REPL ()
 
-showValHelp params env nameEnv qname name =
+showValHelp mbParams env nameEnv qname name =
   fromMaybe (noInfo nameEnv name)
             (msum [ fromDecl, fromNewtype, fromParameter ])
   where
@@ -177,17 +184,21 @@ showValHelp params env nameEnv qname name =
        return $ return ()
 
   fromParameter =
-    do p <- Map.lookup name (M.ifParamFuns params)
-       return $
-         do rPutStrLn ""
-            rPrint $ runDoc nameEnv
-                   $ indent 4
-                   $ text "parameter" <+> pp qname
-                                      <+> colon
-                                      <+> pp (T.mvpType p)
+    do hasPs <- mbParams
+       case hasPs of
+         M.NewStyle {} -> undefined -- XXX
+         M.OldStyle params ->
+           do p <- Map.lookup name (M.ifParamFuns params)
+              return $
+                do rPutStrLn ""
+                   rPrint $ runDoc nameEnv
+                          $ indent 4
+                          $ text "parameter" <+> pp qname
+                                             <+> colon
+                                             <+> pp (T.mvpType p)
 
-            doShowFix (T.mvpFixity p)
-            doShowDocString (T.mvpDoc p)
+                   doShowFix (T.mvpFixity p)
+                   doShowDocString (T.mvpDoc p)
 
 
 doShowDocString :: Maybe Text -> REPL ()

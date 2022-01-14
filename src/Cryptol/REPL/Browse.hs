@@ -21,7 +21,8 @@ import Cryptol.ModuleSystem.Interface
 data BrowseHow = BrowseExported | BrowseInScope
 
 browseModContext :: BrowseHow -> ModContext -> PP.Doc Void
-browseModContext how mc = runDoc (env disp) (vcat sections)
+browseModContext how mc =
+  runDoc (env disp) (vcat sections)
   where
   sections = concat
     [ browseMParams (env disp) (mctxParams mc)
@@ -45,12 +46,27 @@ data DispInfo = DispInfo { dispHow :: BrowseHow, env :: NameDisp }
 --------------------------------------------------------------------------------
 
 
-browseMParams :: NameDisp -> IfaceParams -> [Doc]
-browseMParams disp params =
-  ppSectionHeading "Module Parameters"
-  $ addEmpty
-  $ map ppParamTy (sortByName disp (Map.toList (ifParamTypes params))) ++
-    map ppParamFu (sortByName disp (Map.toList (ifParamFuns  params)))
+browseMParams :: NameDisp -> Maybe IfaceFunctorParams -> [Doc]
+browseMParams disp mbParams =
+  case mbParams of
+    Nothing -> []
+    Just (OldStyle params) ->
+      ppSectionHeading "Module Parameters"
+      $ addEmpty
+      $ map ppParamTy (sortByName disp (Map.toList (ifParamTypes params))) ++
+        map ppParamFu (sortByName disp (Map.toList (ifParamFuns  params)))
+    Just (NewStyle params) ->
+      ppSectionHeading "Module Parameters"
+      $ [ "parameter" <+> pp (ifmpName p) <+> ":" <+>
+          "signature" <+> pp (ifmpSignature p) $$
+           indent 2 (vcat $
+            map ppParamTy (sortByName disp (Map.toList (ifParamTypes names))) ++
+            map ppParamFu (sortByName disp (Map.toList (ifParamFuns  names)))
+           )
+        | p <- Map.elems params
+        , let names = ifmpParameters p
+        ] ++
+        ["   "]
   where
   ppParamTy p = nest 2 (sep ["type", pp (T.mtpName p) <+> ":", pp (T.mtpKind p)])
   ppParamFu p = nest 2 (sep [pp (T.mvpName p) <+> ":", pp (T.mvpType p)])

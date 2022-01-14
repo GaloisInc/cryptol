@@ -459,7 +459,7 @@ checkSingleModule how isrc path m = do
                      , tcPrims  = prims }
 
 
-  tcm0 <- typecheck act (R.rmModule renMod) noIfaceParams (R.rmImported renMod)
+  tcm0 <- typecheck act (R.rmModule renMod) Nothing (R.rmImported renMod)
 
   let tcm = tcm0 -- fromMaybe tcm0 (addModParams tcm0)
 
@@ -512,8 +512,8 @@ data TCAction i o = TCAction
   }
 
 typecheck ::
-  (Show i, Show o, HasLoc i) => TCAction i o -> i ->
-                                  IfaceParams -> IfaceDecls -> ModuleM o
+  (Show i, Show o, HasLoc i) =>
+  TCAction i o -> i -> Maybe IfaceFunctorParams -> IfaceDecls -> ModuleM o
 typecheck act i params env = do
 
   let range = fromMaybe emptyRange (getLoc i)
@@ -541,8 +541,10 @@ typecheck act i params env = do
          typeCheckingFailed nameMap errs
 
 -- | Generate input for the typechecker.
-genInferInput :: Range -> PrimMap -> IfaceParams -> IfaceDecls -> ModuleM T.InferInput
-genInferInput r prims params env' = do
+genInferInput ::
+  Range -> PrimMap -> Maybe IfaceFunctorParams -> IfaceDecls ->
+  ModuleM T.InferInput
+genInferInput r prims mbParams env' = do
   seeds <- getNameSeeds
   monoBinds <- getMonoBinds
   solver <- getTCSolver
@@ -553,6 +555,19 @@ genInferInput r prims params env' = do
   -- TODO: include the environment needed by the module
   let env = flatPublicDecls env'
             -- XXX: we should really just pass this directly
+
+      (paramTys,paramCtrs,paramVs) =
+        case mbParams of
+          Nothing -> (mempty,mempty,mempty)
+          Just (OldStyle p) ->
+            (ifParamTypes p, ifParamConstraints p, ifParamFuns p)
+          Just (NewStyle p) ->
+            let ps = map ifmpParameters (Map.elems p)
+            in ( mconcat (map ifParamTypes ps)
+               , mconcat (map ifParamConstraints ps)
+               , mconcat (map ifParamFuns ps)
+               )
+
   return T.InferInput
     { T.inpRange     = r
     , T.inpVars      = Map.map ifDeclSig (ifDecls env)
@@ -566,9 +581,9 @@ genInferInput r prims params env' = do
     , T.inpSearchPath = searchPath
     , T.inpSupply    = supply
     , T.inpPrimNames = prims
-    , T.inpParamTypes       = ifParamTypes params
-    , T.inpParamConstraints = ifParamConstraints params
-    , T.inpParamFuns        = ifParamFuns params
+    , T.inpParamTypes       = paramTys
+    , T.inpParamConstraints = paramCtrs
+    , T.inpParamFuns        = paramVs
     , T.inpSolver           = solver
     }
 
