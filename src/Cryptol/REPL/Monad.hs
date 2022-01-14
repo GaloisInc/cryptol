@@ -557,6 +557,7 @@ validEvalContext a =
            case M.nameInfo nm of
              M.Declared (M.TopModule m) _   -- XXX: can we focus nested modules?
                | M.isLoadedParamMod m (M.meLoadedModules me) -> Set.insert nm bs
+             M.Parameter -> Set.insert nm bs
              _ -> bs
 
      unless (Set.null bad) $

@@ -107,7 +107,8 @@ type Module = ModuleG ModName
 
 -- | Is this a parameterized module?
 isParametrizedModule :: ModuleG mname -> Bool
-isParametrizedModule m = not (null (mParamTypes m) &&
+isParametrizedModule m = not (null (mParams m) &&
+                              null (mParamTypes m) &&
                               null (mParamConstraints m) &&
                               null (mParamFuns m))
 
