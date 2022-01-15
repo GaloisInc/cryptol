@@ -54,6 +54,7 @@ module Cryptol.Utils.Ident
 
     -- * Original names
   , OrigName(..)
+  , OrigSource(..)
 
     -- * Identifiers for primitives
   , PrimIdent(..)
@@ -212,11 +213,16 @@ exprModName = packModName ["<expr>"]
 -- | Identifies an entitiy
 data OrigName = OrigName
   { ogNamespace :: Namespace
-  , ogModule    :: Maybe ModPath
-    -- ^ Nothing means that this refers to a parameter
-
+  , ogModule    :: ModPath
+  , ogSource    :: OrigSource
   , ogName      :: Ident
   } deriving (Eq,Ord,Show,Generic,NFData)
+
+-- | Describes where a top-level name came from
+data OrigSource =
+    FromDefinition
+  | FromModParam Ident
+    deriving (Eq,Ord,Show,Generic,NFData)
 
 
 --------------------------------------------------------------------------------

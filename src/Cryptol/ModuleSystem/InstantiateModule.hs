@@ -134,7 +134,7 @@ freshenName :: FreshM m => Name -> InstM m Name
 freshenName x =
   do m <- ask
      let sys = case nameInfo x of
-                 Declared _ s -> s
+                 GlobalName s _ -> s
                  _            -> UserName
      liftSupply (mkDeclared (nameNamespace x)
                              m sys (nameIdent x) (nameFixity x) (nameLoc x))

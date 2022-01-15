@@ -12,6 +12,7 @@ import Data.List(intersperse)
 import Control.Monad(when,guard,unless,msum,mplus)
 
 import Cryptol.Utils.PP
+import Cryptol.Utils.Ident(OrigName(..))
 import qualified Cryptol.Parser.AST as P
 import qualified Cryptol.ModuleSystem as M
 import qualified Cryptol.ModuleSystem.Name as M
@@ -51,9 +52,9 @@ helpForNamed qname =
 noInfo :: NameDisp -> M.Name -> REPL ()
 noInfo nameEnv name =
   case M.nameInfo name of
-    M.Declared m _ ->
-      rPrint (runDoc nameEnv ("Name defined in module" <+> pp m))
-    M.Parameter  -> rPutStrLn "// No documentation is available."
+    M.GlobalName _ og ->
+      rPrint (runDoc nameEnv ("Name defined in module" <+> pp (ogModule og)))
+    M.LocalName {} -> rPutStrLn "// No documentation is available."
 
 
 showModHelp :: M.IfaceDecls -> NameDisp -> M.Name -> REPL ()

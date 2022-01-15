@@ -25,7 +25,7 @@ import           Data.Text (Text)
 import Cryptol.Parser.Selector
 import Cryptol.Parser.Position(Range,emptyRange)
 import Cryptol.ModuleSystem.Name
-import Cryptol.Utils.Ident (Ident, isInfixIdent, exprModName)
+import Cryptol.Utils.Ident (Ident, isInfixIdent, exprModName, ogModule)
 import Cryptol.TypeCheck.TCon
 import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.Solver.InfNat
@@ -999,7 +999,7 @@ instance PP (WithNames Type) where
       TUser c ts t ->
         withNameDisp $ \disp ->
         case asOrigName c of
-          og | NotInScope <- getNameFormat og disp ->
+          Just og | NotInScope <- getNameFormat og disp ->
               go prec t -- unfold type synonym if not in scope
           _ ->
             case ts of
@@ -1115,7 +1115,8 @@ pickTVarName k src uni =
     TypeParamInstPos f n   -> mk (sh f ++ "_" ++ show n)
     DefinitionOf x ->
       case nameInfo x of
-        Declared m SystemName | m == TopModule exprModName -> mk "it"
+        GlobalName SystemName og
+          | ogModule og == TopModule exprModName -> mk "it"
         _ -> using x
     LenOfCompGen           -> mk "n"
     GeneratorOfListComp    -> "seq"

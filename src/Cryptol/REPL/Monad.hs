@@ -555,9 +555,11 @@ validEvalContext a =
 
          badName nm bs =
            case M.nameInfo nm of
-             M.Declared (M.TopModule m) _   -- XXX: can we focus nested modules?
+
+             -- XXX: Changes if focusing on nested modules
+             M.GlobalName _ I.OrigName { ogModule = I.TopModule m }
                | M.isLoadedParamMod m (M.meLoadedModules me) -> Set.insert nm bs
-             M.Parameter -> Set.insert nm bs
+
              _ -> bs
 
      unless (Set.null bad) $
@@ -658,11 +660,12 @@ uniqify :: M.Name -> REPL M.Name
 
 uniqify name =
   case M.nameInfo name of
-    M.Declared ns s ->
+    M.GlobalName s og ->
       M.liftSupply (M.mkDeclared (M.nameNamespace name)
-                  ns s (M.nameIdent name) (M.nameFixity name) (M.nameLoc name))
+                  (I.ogModule og) s
+                  (M.nameIdent name) (M.nameFixity name) (M.nameLoc name))
 
-    M.Parameter ->
+    M.LocalName {} ->
       panic "[REPL] uniqify" ["tried to uniqify a parameter: " ++ pretty name]
 
 

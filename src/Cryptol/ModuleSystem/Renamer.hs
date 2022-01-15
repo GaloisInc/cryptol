@@ -52,7 +52,7 @@ import Cryptol.Parser.AST
 import Cryptol.Parser.Selector(selName)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.RecordMap
-import Cryptol.Utils.Ident(allNamespaces,packModName)
+import Cryptol.Utils.Ident(allNamespaces,packModName,OrigName(..))
 import Cryptol.Utils.PP
 
 import Cryptol.ModuleSystem.Interface
@@ -182,7 +182,7 @@ nestedModuleNames :: OwnedEntities -> Map ModPath Name
 nestedModuleNames own = Map.fromList (map entry (Map.keys (ownSubmodules own)))
   where
   entry n = case nameInfo n of
-              Declared p _ -> (Nested p (nameIdent n),n)
+              GlobalName _ og -> (Nested (ogModule og) (nameIdent n),n)
               _ -> panic "nestedModuleName" [ "Not a top-level name" ]
 
 
@@ -291,7 +291,9 @@ checkSameModule xs =
               recordError (InvalidDependency $ map NamedThing $ fst a : bad)
     _ -> pure ()
   where
-  ms = [ (x,p) | NamedThing x <- xs, Declared p _ <- [ nameInfo x ] ]
+  ms = [ (x,ogModule og)
+       | NamedThing x <- xs, GlobalName _ og <- [ nameInfo x ]
+       ]
 
 
 
@@ -533,7 +535,8 @@ doModParam owned mp =
        do nm <- resolveName NameUse NSSignature (thing sigName)
           case Map.lookup nm (ownSignatures owned) of
             Just sigEnv ->
-              do let newP x = do y <- lift (newModParam loc x)
+              do me <- getCurMod
+                 let newP x = do y <- lift (newModParam me (mpName mp) loc x)
                                  sets_ (Map.insert y x)
                                  pure y
                  (newEnv',nameMap) <- runStateT Map.empty
@@ -891,7 +894,7 @@ renameType nt = resolveName nt NSType
 mkFakeName :: Namespace -> PName -> RenameM Name
 mkFakeName ns pn =
   do ro <- RenameM ask
-     liftSupply (mkParameter ns (getIdent pn) (roLoc ro))
+     liftSupply (mkLocal ns (getIdent pn) (roLoc ro))
 
 -- | Rename a schema, assuming that none of its type variables are already in
 -- scope.
@@ -1222,7 +1225,7 @@ patternEnv :: Pattern PName -> RenameM NamingEnv
 patternEnv  = go
   where
   go (PVar Located { .. }) =
-    do n <- liftSupply (mkParameter NSValue (getIdent thing) srcRange)
+    do n <- liftSupply (mkLocal NSValue (getIdent thing) srcRange)
        -- XXX: for deps, we should record a use
        return (singletonNS NSValue thing n)
 
@@ -1262,7 +1265,7 @@ patternEnv  = go
            -- of the type of the pattern.
            | null ps ->
              do loc <- curLoc
-                n   <- liftSupply (mkParameter NSType (getIdent pn) loc)
+                n   <- liftSupply (mkLocal NSType (getIdent pn) loc)
                 return (singletonNS NSType pn n)
 
            -- This references a type synonym that's not in scope. Record an
@@ -1270,7 +1273,7 @@ patternEnv  = go
            | otherwise ->
              do loc <- curLoc
                 recordError (UnboundName NSType (Located loc pn))
-                n   <- liftSupply (mkParameter NSType (getIdent pn) loc)
+                n   <- liftSupply (mkLocal NSType (getIdent pn) loc)
                 return (singletonNS NSType pn n)
 
   typeEnv (TRecord fs)      = bindTypes (map snd (recordElements fs))

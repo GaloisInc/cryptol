@@ -28,7 +28,7 @@ import Cryptol.ModuleSystem.Binds
 import Cryptol.ModuleSystem.Interface
 import Cryptol.Parser.AST
 import Cryptol.Parser.Position
-import Cryptol.Utils.Ident(modPathCommon)
+import Cryptol.Utils.Ident(modPathCommon,OrigName(..))
 
 import Cryptol.ModuleSystem.Renamer.Error
 
@@ -289,7 +289,8 @@ addDep :: Name -> RenameM ()
 addDep x =
   do cur  <- getCurMod
      deps <- case nameInfo x of
-               Declared m _ | Just (c,_,i:_) <- modPathCommon cur m ->
+               GlobalName _ OrigName { ogModule = m }
+                 | Just (c,_,i:_) <- modPathCommon cur m ->
                  do mb <- nestedModuleOrig (Nested c i)
                     pure case mb of
                            Just y  -> Set.fromList [x,y]
@@ -310,9 +311,9 @@ warnUnused m0 env rw =
   keep nm count = count == 1 && isLocal nm
   oldNames = Map.findWithDefault Set.empty NSType (visibleNames env)
   isLocal nm = case nameInfo nm of
-                 Declared m sys -> sys == UserName &&
-                                   m == m0 && nm `Set.notMember` oldNames
-                 Parameter  -> True
+                 GlobalName sys OrigName { ogModule = m } ->
+                   sys == UserName && m == m0 && nm `Set.notMember` oldNames
+                 LocalName {} -> True
 
 -- | Get the exported declarations in a module
 lookupImport :: Import -> RenameM IfaceDecls

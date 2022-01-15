@@ -13,6 +13,7 @@ import Cryptol.Parser.AST(Pragma(..))
 import qualified Cryptol.TypeCheck.Type as T
 
 import Cryptol.Utils.PP
+import Cryptol.Utils.Ident(OrigName(..))
 import Cryptol.ModuleSystem.Env(ModContext(..))
 import Cryptol.ModuleSystem.NamingEnv(namingEnvNames)
 import Cryptol.ModuleSystem.Name
@@ -164,8 +165,8 @@ groupDecls disp = Map.toList
   where
   toEntry (n,a) =
     case nameInfo n of
-      Declared m _ -> Just (m,[(n,a)])
-      _            -> Nothing
+      GlobalName _ og -> Just (ogModule og,[(n,a)])
+      _               -> Nothing
 
 
 sortByName :: NameDisp -> [(Name,a)] -> [a]

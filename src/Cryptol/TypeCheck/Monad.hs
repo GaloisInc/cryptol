@@ -39,7 +39,7 @@ import           Control.DeepSeq
 import           MonadLib hiding (mapM)
 
 import           Cryptol.ModuleSystem.Name
-                    (FreshM(..),Supply,mkParameter
+                    (FreshM(..),Supply,mkLocal
                     , nameInfo, NameInfo(..),NameSource(..))
 import           Cryptol.ModuleSystem.Interface(IfaceModParam(..),
                                                 IfaceParams(..))
@@ -369,7 +369,7 @@ recordWarning w =
   ignore
     | DefaultingTo d _ <- w
     , Just n <- tvSourceName (tvarDesc d)
-    , Declared _ SystemName <- nameInfo n
+    , GlobalName SystemName _ <- nameInfo n
       = True
     | otherwise = False
 
@@ -480,10 +480,10 @@ solveHasGoal n e =
 --------------------------------------------------------------------------------
 
 -- | Generate a fresh variable name to be used in a local binding.
-newParamName :: Namespace -> Ident -> InferM Name
-newParamName ns x =
+newLocalName :: Namespace -> Ident -> InferM Name
+newLocalName ns x =
   do r <- curRange
-     liftSupply (mkParameter ns x r)
+     liftSupply (mkLocal ns x r)
 
 newName :: (NameSeeds -> (a , NameSeeds)) -> InferM a
 newName upd = IM $ sets $ \s -> let (x,seeds) = upd (iNameSeeds s)

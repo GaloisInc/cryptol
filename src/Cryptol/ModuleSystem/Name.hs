@@ -38,7 +38,7 @@ module Cryptol.ModuleSystem.Name (
 
     -- ** Creation
   , mkDeclared
-  , mkParameter
+  , mkLocal
   , mkModParam
   , toParamInstName
   , asParamName
@@ -73,29 +73,17 @@ import           Cryptol.Utils.Ident
 import           Cryptol.Utils.Panic
 import           Cryptol.Utils.PP
 
-
+data NameInfo = GlobalName NameSource OrigName
+              | LocalName Namespace Ident
+                deriving (Generic, NFData, Show)
 
 -- Names -----------------------------------------------------------------------
--- | Information about the binding site of the name.
-data NameInfo = Declared !ModPath !NameSource
-                -- ^ This name refers to a declaration from this module
-              | Parameter
-                -- ^ This name is a parameter (function or type)
-                deriving (Eq, Show, Generic, NFData)
-
-
 data Name = Name { nUnique :: {-# UNPACK #-} !Int
                    -- ^ INVARIANT: this field uniquely identifies a name for one
                    -- session with the Cryptol library. Names are unique to
                    -- their binding site.
 
                  , nInfo :: !NameInfo
-                   -- ^ Information about the origin of this name.
-
-                 , nNamespace :: !Namespace
-
-                 , nIdent :: !Ident
-                   -- ^ The name of the identifier
 
                  , nFixity :: !(Maybe Fixity)
                    -- ^ The associativity and precedence level of
@@ -126,11 +114,22 @@ cmpNameDisplay :: NameDisp -> Name -> Name -> Ordering
 cmpNameDisplay disp l r =
   case (asOrigName l, asOrigName r) of
 
-    (ogl, ogr) -> -- XXX: uses system name info?
+    (Just ogl, Just ogr) -> -- XXX: uses system name info?
        case cmpText (fmtPref ogl) (fmtPref ogr) of
          EQ  -> cmpName l r
          cmp -> cmp
 
+    (Nothing,Nothing) -> cmpName l r
+
+    (Just ogl,Nothing) ->
+       case cmpText (fmtPref ogl) (identText (nameIdent r)) of
+         EQ  -> GT
+         cmp -> cmp
+
+    (Nothing,Just ogr) ->
+       case cmpText (identText (nameIdent l)) (fmtPref ogr) of
+         EQ  -> LT
+         cmp -> cmp
 
   where
   cmpName xs ys  = cmpIdent (nameIdent xs) (nameIdent ys)
@@ -141,9 +140,11 @@ cmpNameDisplay disp l r =
                  UnQualified -> ""
                  Qualified q -> modNameToText q
                  NotInScope  ->
-                    case ogModule og of
-                      Just q -> Text.pack $ show $ pp q
-                      Nothing -> ""
+                    let m = Text.pack (show (pp (ogModule og)))
+                    in
+                    case ogSource og of
+                      FromDefinition  -> m
+                      FromModParam q  -> m <> "::" <> Text.pack (show (pp q))
 
   -- Note that this assumes that `xs` is `l` and `ys` is `r`
   cmpText xs ys =
@@ -166,7 +167,9 @@ cmpNameDisplay disp l r =
 -- the need for parentheses.
 ppName :: Name -> Doc
 ppName nm =
-  pp (asOrigName nm)
+  case nInfo nm of
+    GlobalName _ og -> pp og
+    LocalName _ i   -> pp i
   <.>
   withPPCfg \cfg ->
     if ppcfgShowNameUniques cfg then "_" <.> int (nameUnique nm)
@@ -178,12 +181,12 @@ instance PP Name where
 instance PPName Name where
   ppNameFixity n = nameFixity n
 
-  ppInfixName n@Name { .. }
-    | isInfixIdent nIdent = ppName n
+  ppInfixName n
+    | isInfixIdent (nameIdent n) = ppName n
     | otherwise           = panic "Name" [ "Non-infix name used infix"
-                                         , show nIdent ]
+                                         , show (nameIdent n) ]
 
-  ppPrefixName n@Name { .. } = optParens (isInfixIdent nIdent) (ppName n)
+  ppPrefixName n = optParens (isInfixIdent (nameIdent n)) (ppName n)
 
 
 -- | Pretty-print a name with its source location information.
@@ -193,14 +196,18 @@ ppLocName n = pp Located { srcRange = nameLoc n, thing = n }
 nameUnique :: Name -> Int
 nameUnique  = nUnique
 
+nameInfo :: Name -> NameInfo
+nameInfo = nInfo
+
 nameIdent :: Name -> Ident
-nameIdent  = nIdent
+nameIdent n = case nInfo n of
+                GlobalName _ og -> ogName og
+                LocalName _ i   -> i
 
 nameNamespace :: Name -> Namespace
-nameNamespace = nNamespace
-
-nameInfo :: Name -> NameInfo
-nameInfo  = nInfo
+nameNamespace n = case nInfo n of
+                    GlobalName _ og -> ogNamespace og
+                    LocalName ns _  -> ns
 
 nameLoc :: Name -> Range
 nameLoc  = nLoc
@@ -210,29 +217,32 @@ nameFixity = nFixity
 
 -- | Primtiives must be in a top level module, at least for now.
 asPrim :: Name -> Maybe PrimIdent
-asPrim Name { .. } =
-  case nInfo of
-    Declared (TopModule m) _ -> Just $ PrimIdent m $ identText nIdent
-    _                        -> Nothing
+asPrim n =
+  case nInfo n of
+    GlobalName _ og
+      | TopModule m <- ogModule og, FromDefinition <- ogSource og ->
+        Just $ PrimIdent m $ identText $ ogName og
+
+    _ -> Nothing
 
 toParamInstName :: Name -> Name
 toParamInstName n =
   case nInfo n of
-    Declared m s -> n { nInfo = Declared (apPathRoot paramInstModName m) s }
-    Parameter   -> n
+    GlobalName s og ->
+      n { nInfo = GlobalName s
+                    og { ogModule = apPathRoot paramInstModName (ogModule og) }
+        }
+    _ -> n
 
 asParamName :: Name -> Name
-asParamName n = n { nInfo = Parameter }
+asParamName n = n { nInfo = LocalName (nameNamespace n) (nameIdent n) }
 
-asOrigName :: Name -> OrigName
-asOrigName nm =
-  OrigName { ogModule    = case nInfo nm of
-                             Declared p _ ->
-                                Just (apPathRoot notParamInstModName  p)
-                             _ -> Nothing
-           , ogNamespace = nNamespace nm
-           , ogName      = nIdent nm
-           }
+
+asOrigName :: Name -> Maybe OrigName
+asOrigName n =
+  case nInfo n of
+    GlobalName _ og -> Just og
+    LocalName {}    -> Nothing
 
 
 
@@ -325,31 +335,60 @@ nextUnique (Supply n) = s' `seq` (n,s')
 mkDeclared ::
   Namespace -> ModPath -> NameSource -> Ident -> Maybe Fixity -> Range ->
   Supply -> (Name,Supply)
-mkDeclared nNamespace m sys nIdent nFixity nLoc s =
-  let (nUnique,s') = nextUnique s
-      nInfo        = Declared m sys
-   in (Name { .. }, s')
+mkDeclared ns m sys ident fixity loc s = (name, s')
+  where
+  (u,s') = nextUnique s
+  name = Name { nUnique   = u
+              , nFixity   = fixity
+              , nLoc      = loc
+              , nInfo     = GlobalName
+                              sys
+                              OrigName
+                                { ogNamespace = ns
+                                , ogModule    = m
+                                , ogName      = ident
+                                , ogSource    = FromDefinition
+                                }
+              }
 
 -- | Make a new parameter name.
-mkParameter :: Namespace -> Ident -> Range -> Supply -> (Name,Supply)
-mkParameter nNamespace nIdent nLoc s =
-  let (nUnique,s') = nextUnique s
-      nFixity      = Nothing
-   in (Name { nInfo = Parameter, .. }, s')
+mkLocal :: Namespace -> Ident -> Range -> Supply -> (Name,Supply)
+mkLocal ns ident loc s = (name, s')
+  where
+  (u,s')  = nextUnique s
+  name    = Name { nUnique = u
+                 , nLoc    = loc
+                 , nFixity = Nothing
+                 , nInfo   = LocalName ns ident
+                 }
 
-mkModParam :: Range -> Name -> Supply -> (Name, Supply)
-mkModParam rng n s =
-  case nextUnique s of
-    (u,s') -> (n { nUnique = u, nInfo = Parameter, nLoc = rng }, s')
-
+mkModParam ::
+  ModPath {- ^ Module containing the parameter -} ->
+  Ident   {- ^ Name of the module parameter    -} ->
+  Range   {- ^ Location                        -} ->
+  Name    {- ^ Name in the signature           -} ->
+  Supply -> (Name, Supply)
+mkModParam own pname rng n s = (name, s')
+  where
+  (u,s') = nextUnique s
+  name = Name { nUnique = u
+              , nInfo   = GlobalName
+                            UserName
+                            OrigName
+                              { ogModule    = own
+                              , ogName      = nameIdent n
+                              , ogNamespace = nameNamespace n
+                              , ogSource    = FromModParam pname
+                              }
+              , nFixity = nFixity n
+              , nLoc    = rng
+              }
 
 paramModRecParam :: Name
-paramModRecParam = Name { nInfo = Parameter
+paramModRecParam = Name { nInfo   = LocalName NSValue (packIdent "$modParams")
                         , nFixity = Nothing
-                        , nIdent  = packIdent "$modParams"
                         , nLoc    = emptyRange
                         , nUnique = 0x01
-                        , nNamespace = NSValue
                         }
 
 -- Prim Maps -------------------------------------------------------------------

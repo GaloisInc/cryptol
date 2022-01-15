@@ -349,12 +349,12 @@ newTop ns m thing fx rng =
   where src = if isGeneratedName thing then SystemName else UserName
 
 newLocal :: FreshM m => Namespace -> PName -> Range -> m Name
-newLocal ns thing rng = liftSupply (mkParameter ns (getIdent thing) rng)
+newLocal ns thing rng = liftSupply (mkLocal ns (getIdent thing) rng)
 
 -- | Given a name in a signature, make a name for the parameter corresponding
 -- to the signature.
-newModParam :: FreshM m => Range -> Name -> m Name
-newModParam rng n = liftSupply (mkModParam rng n)
+newModParam :: FreshM m => ModPath -> Ident -> Range -> Name -> m Name
+newModParam m i rng n = liftSupply (mkModParam m i rng n)
 
 
 {- | Do something in the context of a module.
