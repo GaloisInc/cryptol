@@ -17,6 +17,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE BlockArguments #-}
 module Cryptol.Parser.NoPat (RemovePatterns(..),Error(..)) where
 
 import Cryptol.Parser.AST
@@ -334,8 +335,12 @@ noPatProg (Program topDs) = Program <$> noPatTopDs topDs
 
 noPatModule :: ModuleG mname PName -> NoPatM (ModuleG mname PName)
 noPatModule m =
-  do ds1 <- noPatTopDs (mDecls m)
-     return m { mDecls = ds1 }
+  do def <-
+       case mDef m of
+         NormalModule ds         -> NormalModule <$> noPatTopDs ds
+         FunctorInstanceOld f ds -> FunctorInstanceOld f <$> noPatTopDs ds
+         d@FunctorInstance {}    -> pure d
+     pure m { mDef = def }
 
 --------------------------------------------------------------------------------
 

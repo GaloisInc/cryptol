@@ -91,7 +91,10 @@ type CollectM   = StateT OwnedEntities (SupplyT Id)
 collectNestedInModule ::
   NamingEnv -> Module PName -> Supply -> (OwnedEntities, Supply)
 collectNestedInModule env m =
-  collectNestedInDecls env (thing (mName m)) (mDecls m)
+  case mDef m of
+    NormalModule ds -> collectNestedInDecls env (thing (mName m)) ds
+    FunctorInstanceOld _ ds -> collectNestedInDecls env (thing (mName m)) ds
+    FunctorInstance {}      -> \s -> (mempty, s)
 
 -- | Collect things nested in a list of declarations
 collectNestedInDecls ::
@@ -140,13 +143,22 @@ collectNestedDeclsM mpath env ds =
                               else ownFunctors o
                         }
           let newMPath = Nested mpath (nameIdent name)
-          collectNestedDeclsM newMPath newEnv (mDecls nested)
+          case mDef nested of
+            NormalModule ds -> collectNestedDeclsM newMPath newEnv ds
+            FunctorInstanceOld f ds ->
+              collectNestedDeclsM newMPath newEnv ds
+            FunctorInstance {} -> pure ()
 
 
 -- | These are the names "owned" by the module.  These names are used
 -- when resolving the module itself, and also when the module is imported.
+-- XXX: Not neccesserily what's imported because for functor instances
+-- we don't know what's imported until 
 moduleDefs :: ModPath -> ModuleG mname PName -> BuildNamingEnv
-moduleDefs m Module { .. } = foldMap (namingEnv . InModule (Just m)) mDecls
+moduleDefs m mo =
+  case mDef mo of
+    NormalModule ds -> foldMap (namingEnv . InModule (Just m)) ds
+    -- XXX
 
 -- | These are the names "owned" by the signature.  These names are
 -- used when resolving the signature.  They are also used to figure out what

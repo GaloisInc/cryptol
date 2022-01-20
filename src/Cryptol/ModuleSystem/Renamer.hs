@@ -81,7 +81,11 @@ data RenamedModule = RenamedModule
 -- | This is used for renaming a top-level module.
 renameModule :: Module PName -> RenameM RenamedModule
 renameModule m0 =
-  do let m = m0 { mDecls = snd (addImplicitNestedImports (mDecls m0)) }
+  do let m = case mDef m0 of
+               NormalModule ds ->
+                 m0 { mDef = NormalModule
+                                (snd (addImplicitNestedImports (mDecls m0))) }
+               _ -> m0
      env      <- liftSupply (defsOf m)
      nested   <- liftSupply (collectNestedInModule env m)
      setNestedModule (nestedModuleNames nested)
@@ -153,29 +157,32 @@ addImplicitNestedImports decls = (concat exportedMods, concat newDecls ++ other)
   (newDecls,exportedMods) = unzip (map processModule mods)
   processModule m =
     let NestedModule m1 = tlValue m
-        (childExs, ds1) = addImplicitNestedImports (mDecls m1)
-        mname           = getIdent (thing (mName m1))
-        imps            = map (mname :) ([] : childExs)
-        isToName is     = case is of
-                            [i] -> mkUnqual i
-                            _   -> mkQual (isToQual (init is)) (last is)
-        isToQual is     = packModName (map identText is)
-        mkImp xs        = DImport
-                          Located
-                            { srcRange = srcRange (mName m1)
-                            , thing = Import
-                                        { iModule = ImpNested (isToName xs)
-                                        , iAs     = Just (isToQual xs)
-                                        , iSpec   = Nothing
-                                        }
-                            }
-    in ( DModule m { tlValue = NestedModule m1 { mDecls = ds1 } }
-       : map mkImp imps
-       , case tlExport m of
-           Public  -> imps
-           Private -> []
-       )
-
+    in
+    case mDef m1 of
+      NormalModule ds ->
+        let (childExs, ds1) = addImplicitNestedImports ds
+            mname           = getIdent (thing (mName m1))
+            imps            = map (mname :) ([] : childExs)
+            isToName is     = case is of
+                                [i] -> mkUnqual i
+                                _   -> mkQual (isToQual (init is)) (last is)
+            isToQual is     = packModName (map identText is)
+            mkImp xs        = DImport
+                              Located
+                                { srcRange = srcRange (mName m1)
+                                , thing = Import
+                                            { iModule = ImpNested (isToName xs)
+                                            , iAs     = Just (isToQual xs)
+                                            , iSpec   = Nothing
+                                            }
+                                }
+        in ( DModule m { tlValue = NestedModule m1 { mDef = NormalModule ds1 } }
+           : map mkImp imps
+           , case tlExport m of
+               Public  -> imps
+               Private -> []
+           )
+      _ -> ([],[])
 
 
 nestedModuleNames :: OwnedEntities -> Map ModPath Name
@@ -245,7 +252,7 @@ renameModule' info@Extra { extraModPath = mpath } env m =
                                   }
                 ds <- renameTopDecls' extra (mDecls m)
                 pure (inScope, ds)
-     let m1      = m { mDecls = decls' }
+     let m1      = undefined -- XXX m { mDecls = decls' }
          exports = modExports m1
      mapM_ recordUse (exported NSType exports)
      return (inScope, m1)

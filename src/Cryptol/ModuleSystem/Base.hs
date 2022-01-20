@@ -299,8 +299,14 @@ addPrelude :: P.Module PName -> P.Module PName
 addPrelude m
   | preludeName == P.thing (P.mName m) = m
   | preludeName `elem` importedMods    = m
-  | otherwise                          = m { mDecls = importPrelude : mDecls m }
+  | otherwise                          = m { mDef = newDef }
   where
+  newDef =
+    case mDef m of
+      NormalModule ds -> NormalModule (importPrelude : ds)
+      FunctorInstanceOld f ds -> FunctorInstanceOld f (importPrelude : ds)
+      FunctorInstance f as -> FunctorInstance f as
+
   importedMods  = map (P.iModule . P.thing) (P.mImports m)
   importPrelude = P.DImport P.Located
     { P.srcRange = emptyRange
@@ -312,15 +318,39 @@ addPrelude m
     }
 
 -- | Load the dependencies of a module into the environment.
-loadDeps :: P.Module name -> ModuleM ()
+loadDeps :: P.ModuleG mname name -> ModuleM ()
 loadDeps m =
-  do mapM_ loadI (P.mImports m)
-     mapM_ loadF (P.mInstance m)
+  case mDef m of
+    NormalModule ds         -> mapM_ depsOfDecl ds
+    FunctorInstanceOld f ds ->
+      do _ <- loadModuleFrom False (FromModuleInstance f)
+         mapM_ depsOfDecl ds
+    FunctorInstance f as ->
+      do loadImpName f
+         case as of
+           DefaultInstArg a   -> loadImpName a
+           NamedInstArgs args -> mapM_ loadInstArg args
   where
   loadI i = do (_,m1)  <- loadModuleFrom False (FromImport i)
                when (T.isParametrizedModule m1) $ importParamModule $ T.mName m1
   loadF f = do _ <- loadModuleFrom False (FromModuleInstance f)
                return ()
+
+  depsOfDecl d =
+    case d of
+      DImport li ->
+        case iModule (thing li) of
+          ImpTop f -> loadI li { thing = (thing li) { iModule = f } }
+          _        -> pure ()
+      DModule TopLevel { tlValue = NestedModule nm } -> loadDeps nm
+      _ -> pure ()
+
+  loadInstArg (ModuleInstanceArg _ f) = loadImpName f
+
+  loadImpName l =
+    case thing l of
+      ImpTop f -> loadF l { thing = f }
+      _        -> pure ()
 
 
 
@@ -391,9 +421,9 @@ checkModule ::
   ImportSource -> ModulePath -> P.Module PName ->
   ModuleM (R.NamingEnv, T.Module)
 checkModule isrc path m =
-  case P.mInstance m of
-    Nothing -> checkSingleModule T.tcModule isrc path m
-    Just fmName ->
+  case mDef m of
+    NormalModule _ -> checkSingleModule T.tcModule isrc path m
+    FunctorInstanceOld fmName _ ->
       do mbtf <- getLoadedMaybe (thing fmName)
          case mbtf of
            Just tf ->
@@ -404,7 +434,7 @@ checkModule isrc path m =
                 pure (newEnv,m')
            Nothing -> panic "checkModule"
                         [ "Functor of module instantiation not loaded" ]
-
+    -- XXX: functor instance
 
 -- | Typecheck a single module.  If the module is an instantiation
 -- of a functor, then this just type-checks the instantiating parameters.

@@ -161,9 +161,14 @@ collectErrors f ts = do
 
 -- | Remove includes from a module.
 noIncludeModule :: ModuleG mname PName -> NoIncM (ModuleG mname PName)
-noIncludeModule m = update `fmap` collectErrors noIncTopDecl (mDecls m)
+noIncludeModule m =
+  do newDef <- case mDef m of
+                 NormalModule ds         -> NormalModule <$> doDecls ds
+                 FunctorInstanceOld f ds -> FunctorInstanceOld f <$> doDecls ds
+                 FunctorInstance f as    -> pure (FunctorInstance f as)
+     pure m { mDef = newDef }
   where
-  update tds = m { mDecls = concat tds }
+  doDecls    = fmap concat . collectErrors noIncTopDecl
 
 -- | Remove includes from a program.
 noIncludeProgram :: Program PName -> NoIncM (Program PName)

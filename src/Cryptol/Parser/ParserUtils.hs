@@ -809,8 +809,7 @@ mkProp ty =
 -- | Make an ordinary module
 mkModule :: Located ModName -> [TopDecl PName] -> Module PName
 mkModule nm ds = Module { mName = nm
-                        , mInstance = Nothing
-                        , mDecls = ds
+                        , mDef = NormalModule ds
                         }
 
 mkNested :: Module PName -> ParseM (NestedModule PName)
@@ -856,15 +855,25 @@ mkAnonymousModule = mkModule Located { srcRange = emptyRange
                                      }
 
 -- | Make a module which defines a functor instance.
-mkModuleInstance :: Located ModName ->
+mkModuleInstanceOld :: Located ModName ->
                     Located ModName ->
                     [TopDecl PName] ->
                     Module PName
-mkModuleInstance nm fun ds =
-  Module { mName     = nm
-         , mInstance = Just fun
-         , mDecls    = ds
+mkModuleInstanceOld nm fun ds =
+  Module { mName  = nm
+         , mDef   = FunctorInstanceOld fun ds
          }
+
+mkModuleInstance ::
+  Located ModName ->
+  Located (ImpName PName) ->
+  ModuleInstanceArgs PName ->
+  Module PName
+mkModuleInstance m f as =
+  Module { mName = m
+         , mDef  = FunctorInstance f as
+         }
+
 
 ufToNamed :: UpdField PName -> ParseM (Named (Expr PName))
 ufToNamed (UpdField h ls e) =

@@ -39,10 +39,17 @@ module Cryptol.Parser.AST
     -- * Declarations
   , Module
   , ModuleG(..)
+  , mDecls        -- XXX: Temporary
+
   , mImports
   , mSubmoduleImports
   , mModParams
   , mIsFunctor
+
+  , ModuleDefinition(..)
+  , ModuleInstanceArgs(..)
+  , ModuleInstanceArg(..)
+
   , Program(..)
   , TopDecl(..)
   , Decl(..)
@@ -128,18 +135,27 @@ type Rec e = RecordMap Ident (Range, e)
 newtype Program name = Program [TopDecl name]
                        deriving (Show)
 
+
+data ModuleDefinition name =
+    NormalModule [TopDecl name]
+  | FunctorInstanceOld (Located ModName) [TopDecl name]
+  | FunctorInstance    (Located (ImpName name)) (ModuleInstanceArgs name)
+    deriving (Show, Generic, NFData)
+
 -- | A parsed module.
 data ModuleG mname name = Module
   { mName     :: Located mname              -- ^ Name of the module
-  , mInstance :: !(Maybe (Located ModName))
-    -- ^ Functor to instantiate (if this is a functor instnaces)
-    -- This is OLD module system functor.
-
-  , mDecls    :: [TopDecl name]
-    -- ^ Declartions for the module.  This includes module system related
-    -- stuff such as imports.
+  , mDef      :: ModuleDefinition name
   } deriving (Show, Generic, NFData)
 
+-- XXX: Review all places this is used, that it actually makes sense
+-- Probably shouldn't exist
+mDecls :: ModuleG mname name -> [TopDecl name]
+mDecls m =
+  case mDef m of
+    NormalModule ds         -> ds
+    FunctorInstanceOld _ ds -> ds
+    FunctorInstance _ _     -> []
 
 -- | Imports of top-level (i.e. "file" based) modules.
 mImports :: ModuleG mname name -> [ Located Import ]
@@ -208,6 +224,18 @@ data TopDecl name =
   | DModSig (TopLevel (Signature name))         -- ^ A module signature
   | DModParam (ModParam name)                   -- ^ A functor parameter
     deriving (Show, Generic, NFData)
+
+data ModuleInstanceArgs name =
+    DefaultInstArg (Located (ImpName name))
+    -- ^ Single parameter instantitaion
+
+  | NamedInstArgs  [ModuleInstanceArg name]
+    deriving (Show, Generic, NFData)
+
+data ModuleInstanceArg name =
+  ModuleInstanceArg (Located Ident) (Located (ImpName name))
+  deriving (Show, Generic, NFData)
+
 
 -- | The name of an imported module
 data ImpName name =
@@ -690,6 +718,9 @@ ppModule n m =
 instance (Show name, PPName name) => PP (NestedModule name) where
   ppPrec _ (NestedModule m) = ppModule 2 m
 
+-- instance (Show name, PPName name) => PP (ModuleInstance name) where
+
+
 
 instance (Show name, PPName name) => PP (Program name) where
   ppPrec _ (Program ds) = vcat (map pp ds)
@@ -1124,9 +1155,24 @@ instance NoPos (Program name) where
 
 instance NoPos (ModuleG mname name) where
   noPos m = Module { mName      = mName m
-                   , mInstance  = mInstance m
-                   , mDecls     = noPos (mDecls m)
+                   , mDef       = noPos (mDef m)
                    }
+
+instance NoPos (ModuleDefinition name) where
+  noPos m =
+    case m of
+      NormalModule ds         -> NormalModule (noPos ds)
+      FunctorInstanceOld f ds -> FunctorInstanceOld (noPos f) (noPos ds)
+      FunctorInstance f as    -> FunctorInstance (noPos f) (noPos as)
+
+instance NoPos (ModuleInstanceArgs name) where
+  noPos as =
+    case as of
+      DefaultInstArg a -> DefaultInstArg (noPos a)
+      NamedInstArgs xs -> NamedInstArgs (noPos xs)
+
+instance NoPos (ModuleInstanceArg name) where
+  noPos (ModuleInstanceArg x y) = ModuleInstanceArg (noPos x) (noPos y)
 
 instance NoPos (NestedModule name) where
   noPos (NestedModule m) = NestedModule (noPos m)

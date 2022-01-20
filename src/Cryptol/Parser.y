@@ -173,10 +173,27 @@ vmodule :: { Module PName }
 module_def :: { Module PName }
 
   : modName 'where'
-      'v{' vmod_body 'v}'                 { mkModule $1 $4 }
+      'v{' vmod_body 'v}'                     { mkModule $1 $4 }
 
   | modName '=' modName 'where'
-      'v{' vmod_body 'v}'                 { mkModuleInstance $1 $3 $6 }
+      'v{' vmod_body 'v}'                     { mkModuleInstanceOld $1 $3 $6 }
+
+  | modName '=' impName '{' modInstParams '}' { mkModuleInstance $1 $3 $5 }
+
+
+modInstParams            :: { ModuleInstanceArgs PName }
+  : impName                 { DefaultInstArg $1 }
+  | namedModInstParams      { NamedInstArgs $1 }
+
+namedModInstParams                         :: { [ ModuleInstanceArg PName ] }
+  : namedModInstParam                         { [$1] }
+  | namedModInstParams ',' namedModInstParam  { $3 : $1 }
+
+namedModInstParam        :: { ModuleInstanceArg PName }
+  : ident '=' impName       { ModuleInstanceArg $1 $3 }
+
+
+
 
 vmod_body                  :: { [TopDecl PName] }
   : vtop_decls                { reverse $1 }
