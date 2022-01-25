@@ -38,7 +38,7 @@ import           Control.Monad.IO.Class (MonadIO(..))
 import           Data.Bits (bit, complement)
 import           Data.List (foldl')
 
-import qualified GHC.Integer.GMP.Internals as Integer
+import qualified GHC.Num.Compat as Integer
 
 import Data.SBV.Dynamic as SBV
 import qualified Data.SBV.Internals as SBV
@@ -429,8 +429,9 @@ sModRecip _sym 0 _ = panic "sModRecip" ["0 modulus not allowed"]
 sModRecip sym m x
   -- If the input is concrete, evaluate the answer
   | Just xi <- svAsInteger x
-  = let r = Integer.recipModInteger xi m
-     in if r == 0 then raiseError sym DivideByZero else integerLit sym r
+  = case Integer.integerRecipMod xi m of
+      Just r  -> integerLit sym r
+      Nothing -> raiseError sym DivideByZero
 
   -- If the input is symbolic, create a new symbolic constant
   -- and assert that it is the desired multiplicitive inverse.

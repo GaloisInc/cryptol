@@ -31,7 +31,7 @@
 > import qualified Data.Text as T (pack)
 > import LibBF (BigFloat)
 > import qualified LibBF as FP
-> import qualified GHC.Integer.GMP.Internals as Integer
+> import qualified GHC.Num.Compat as Integer
 >
 > import Cryptol.ModuleSystem.Name (asPrim)
 > import Cryptol.TypeCheck.Solver.InfNat (Nat'(..), nAdd, nMin, nMul)
@@ -1331,8 +1331,10 @@ confused with integral division).
 > ratRecip x = pure (recip x)
 >
 > zRecip :: Integer -> Integer -> E Integer
-> zRecip m x = if r == 0 then cryError DivideByZero else pure r
->    where r = Integer.recipModInteger x m
+> zRecip m x =
+>   case Integer.integerRecipMod x m of
+>     Just r  -> pure r
+>     Nothing -> cryError DivideByZero
 >
 > zDiv :: Integer -> Integer -> Integer -> E Integer
 > zDiv m x y = f <$> zRecip m y

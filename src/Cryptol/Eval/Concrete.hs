@@ -250,9 +250,9 @@ primeECPrims = Map.fromList $ map (\(n,v) -> (primeECPrim n, v))
   ]
 
 toProjectivePoint :: Value -> Eval PrimeEC.ProjectivePoint
-toProjectivePoint v = PrimeEC.ProjectivePoint <$> f "x" <*> f "y" <*> f "z"
+toProjectivePoint v = PrimeEC.toProjectivePoint <$> f "x" <*> f "y" <*> f "z"
   where
-   f nm = PrimeEC.integerToBigNat . fromVInteger <$> lookupRecord nm v
+   f nm = fromVInteger <$> lookupRecord nm v
 
 fromProjectivePoint :: PrimeEC.ProjectivePoint -> Eval Value
 fromProjectivePoint (PrimeEC.ProjectivePoint x y z) =

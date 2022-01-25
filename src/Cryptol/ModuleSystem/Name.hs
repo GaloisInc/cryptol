@@ -183,12 +183,12 @@ instance PP Name where
 instance PPName Name where
   ppNameFixity n = nameFixity n
 
-  ppInfixName n @ Name { .. }
+  ppInfixName n@Name { .. }
     | isInfixIdent nIdent = ppName n
     | otherwise           = panic "Name" [ "Non-infix name used infix"
                                          , show nIdent ]
 
-  ppPrefixName n @ Name { .. } = optParens (isInfixIdent nIdent) (ppName n)
+  ppPrefixName n@Name { .. } = optParens (isInfixIdent nIdent) (ppName n)
 
 
 -- | Pretty-print a name with its source location information.

@@ -9,7 +9,6 @@
 
 module OptParser where
 
-import Data.Monoid (Endo(..))
 import Data.Semigroup
 
 import Prelude ()

@@ -1,3 +1,6 @@
+// Don't show examples, as they can differ depending on the solver version.
+// See #1280.
+:set show-examples=false
 :l issue093.cry
 :check
 :prove

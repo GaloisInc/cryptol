@@ -9,8 +9,7 @@ import qualified Control.Monad.Fail as Fail
 import           Data.List (sortBy)
 import           Data.MemoTrie
 
-import qualified GHC.Integer.GMP.Internals as Integer
-
+import Math.NumberTheory.Primes.Testing (isPrime)
 
 import Cryptol.Utils.Patterns
 import Cryptol.TypeCheck.Type hiding (tMul)
@@ -78,11 +77,6 @@ cryIsGeq i t1 t2 =
 {-# NOINLINE primeTable #-}
 primeTable :: Integer :->: Bool
 primeTable = trie isPrime
-  where
-    isPrime i =
-      case Integer.testPrimeInteger i 25# of
-        0# -> False
-        _  -> True
 
 cryIsPrime :: Ctxt -> Type -> Solved
 cryIsPrime _varInfo ty =

@@ -40,7 +40,7 @@ import Data.Bits
 import Data.Ratio
 import Numeric (showIntAtBase)
 import qualified LibBF as FP
-import qualified GHC.Integer.GMP.Internals as Integer
+import qualified GHC.Num.Compat as Integer
 
 import qualified Cryptol.Backend.Arch as Arch
 import qualified Cryptol.Backend.FloatHelpers as FP
@@ -340,11 +340,10 @@ instance Backend Concrete where
   -- NB: under the precondition that `m` is prime,
   -- the only values for which no inverse exists are
   -- congruent to 0 modulo m.
-  znRecip sym m x
-    | r == 0    = raiseError sym DivideByZero
-    | otherwise = pure r
-   where
-     r = Integer.recipModInteger x m
+  znRecip sym m x =
+    case Integer.integerRecipMod x m of
+      Just r  -> integerLit sym r
+      Nothing -> raiseError sym DivideByZero
 
   znPlus  _ = liftBinIntMod (+)
   znMinus _ = liftBinIntMod (-)

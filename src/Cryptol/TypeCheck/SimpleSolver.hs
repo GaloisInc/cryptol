@@ -34,7 +34,10 @@ simplify ctxt p =
 
   where
   dbg msg x
-    | False     = ppTrace msg x
+      -- Change `False` to `True` below to enable extra tracing. Note that
+      -- this is written with an extraneous `id` expression to suppress
+      -- pattern-match coverage checking warnings in this one case.
+    | id False  = ppTrace msg x
     | otherwise = x
 
 
