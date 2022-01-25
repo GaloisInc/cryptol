@@ -47,12 +47,6 @@ module Cryptol.PrimeEC
   ) where
 
 
-{-
-import           GHC.Num.BigNat (BigNat#)
-import qualified GHC.Num.Backend as BN
-import qualified GHC.Num.BigNat as BN
-import qualified GHC.Num.Integer as BN
--}
 import           GHC.Num.Compat (BigNat#)
 import qualified GHC.Num.Compat as BN
 import           GHC.Exts

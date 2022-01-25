@@ -52,6 +52,9 @@ import           GHC.Exts
 bigNatToInteger :: BigNat# -> Integer
 bigNatToInteger = Integer.integerFromBigNat#
 
+-- | @'integerRecipMod' x m@ computes the modular inverse of @x@ mod @m@.
+--
+-- PRECONDITION: @m@ must be strictly positive.
 integerRecipMod :: Integer -> Integer -> Maybe Integer
 integerRecipMod x y =
   case Integer.integerRecipMod# x (Integer.integerToNaturalClamp y) of
@@ -134,6 +137,9 @@ integerToBigNat (GMP.S# i)  = GMP.wordToBigNat (int2Word# i)
 integerToBigNat (GMP.Jp# b) = b
 integerToBigNat (GMP.Jn# b) = b
 
+-- | @'integerRecipMod' x m@ computes the modular inverse of @x@ mod @m@.
+--
+-- PRECONDITION: @m@ must be strictly positive.
 integerRecipMod :: Integer -> Integer -> Maybe Integer
 integerRecipMod x y
   | res == 0  = Nothing
