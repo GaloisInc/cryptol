@@ -70,18 +70,22 @@ names that are "owned" by all the entities, when "used".
 data OwnedEntities = OwnedEntities
   { ownSubmodules :: Map Name NamingEnv
   , ownFunctors   :: Set Name
+  , ownInstances  ::
+      Map (ImpName Name) (Located (ImpName PName), ModuleInstanceArgs PName)
   , ownSignatures :: Map Name NamingEnv
   }
 
 instance Semigroup OwnedEntities where
   x <> y = OwnedEntities { ownSubmodules = ownSubmodules x <> ownSubmodules y
                          , ownFunctors   = ownFunctors x <> ownFunctors y
+                         , ownInstances  = ownInstances x <> ownInstances y
                          , ownSignatures = ownSignatures x <> ownSignatures y
                          }
 
 instance Monoid OwnedEntities where
   mempty = OwnedEntities { ownSubmodules = mempty
                          , ownFunctors   = mempty
+                         , ownInstances  = mempty
                          , ownSignatures = mempty
                          }
 
@@ -92,9 +96,13 @@ collectNestedInModule ::
   NamingEnv -> Module PName -> Supply -> (OwnedEntities, Supply)
 collectNestedInModule env m =
   case mDef m of
-    NormalModule ds -> collectNestedInDecls env (thing (mName m)) ds
+    NormalModule ds         -> collectNestedInDecls env (thing (mName m)) ds
     FunctorInstanceOld _ ds -> collectNestedInDecls env (thing (mName m)) ds
-    FunctorInstance {}      -> \s -> (mempty, s)
+    FunctorInstance f as    -> \s -> (own f as, s)
+      where
+      own f as  = mempty { ownInstances = Map.singleton (ImpTop pname) (f,as) }
+      pname     = thing (mName m)
+
 
 -- | Collect things nested in a list of declarations
 collectNestedInDecls ::
@@ -144,21 +152,24 @@ collectNestedDeclsM mpath env ds =
                         }
           let newMPath = Nested mpath (nameIdent name)
           case mDef nested of
-            NormalModule ds -> collectNestedDeclsM newMPath newEnv ds
-            FunctorInstanceOld f ds ->
-              collectNestedDeclsM newMPath newEnv ds
-            FunctorInstance {} -> pure ()
+            NormalModule des -> collectNestedDeclsM newMPath newEnv des
+            FunctorInstanceOld _ des ->
+              collectNestedDeclsM newMPath newEnv des
+            FunctorInstance f as ->
+              sets_ \o -> o { ownInstances = Map.insert (ImpNested name) (f,as)
+                                                        (ownInstances o) }
 
 
--- | These are the names "owned" by the module.  These names are used
--- when resolving the module itself, and also when the module is imported.
--- XXX: Not neccesserily what's imported because for functor instances
--- we don't know what's imported until 
+-- | These are the names "owned" by the module.
+-- These names are used when resolving the module itself.
 moduleDefs :: ModPath -> ModuleG mname PName -> BuildNamingEnv
 moduleDefs m mo =
   case mDef mo of
-    NormalModule ds -> foldMap (namingEnv . InModule (Just m)) ds
-    -- XXX
+    NormalModule ds -> doDecls ds
+    FunctorInstanceOld _ ds -> doDecls ds
+    FunctorInstance {} -> mempty
+  where
+  doDecls = foldMap (namingEnv . InModule (Just m))
 
 -- | These are the names "owned" by the signature.  These names are
 -- used when resolving the signature.  They are also used to figure out what

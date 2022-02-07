@@ -65,7 +65,9 @@ data RenModParam = RenModParam
   { renModParamName      :: Ident
   , renModParamRange     :: Range
   , renModParamSig       :: Name
-  , renModParamInstance  :: Map Name Name -- ^ Maps param names to names in sig.
+  , renModParamInstance  :: Map Name Name
+    -- ^ Maps param names to names in *signature*.
+    -- This for functors, NOT functor instantantiations.
   }
 
 
@@ -216,7 +218,7 @@ renameModule' info@Extra { extraModPath = mpath } env m =
          allImps    = openLoop allNested env openDs imps
 
 
-     (inScope,decls') <-
+     (inScope,newDef) <-
         shadowNames' CheckNone allImps $
         do (envs,params) <-
               shadowNames' CheckNone env $ -- the actual check will happen below
@@ -250,9 +252,15 @@ renameModule' info@Extra { extraModPath = mpath } env m =
                                   , extraModParams = mparams
                                   , extraFromModParam = newFrom
                                   }
-                ds <- renameTopDecls' extra (mDecls m)
-                pure (inScope, ds)
-     let m1      = undefined -- XXX m { mDecls = decls' }
+                newDef <- case mDef m of
+                            NormalModule ds ->
+                              NormalModule <$> renameTopDecls' extra ds
+                            FunctorInstanceOld f ds ->
+                              FunctorInstanceOld f <$> renameTopDecls' extra ds
+                            FunctorInstance f as ->
+                              undefined -- XXX
+                pure (inScope, newDef)
+     let m1      = m { mDef = newDef }
          exports = modExports m1
      mapM_ recordUse (exported NSType exports)
      return (inScope, m1)
@@ -518,6 +526,9 @@ doImport li =
          own = OwnedEntities
            { ownSubmodules = unqualifiedEnv . ifPublic <$> others
            , ownFunctors   = Map.keysSet funs
+           , ownInstances  = mempty -- these are empty, because they
+                                    -- should have been resolved and so
+                                    -- are in ownSubmodules
            , ownSignatures = modParamsNamingEnv        <$> ifSignatures decls
            }
      pure (own, interpImportIface i decls)
@@ -568,12 +579,16 @@ doModParam owned mp =
                                    , renModParamSig      = nm
                                    , renModParamInstance = mempty
                                    })
- 
+
 
 --------------------------------------------------------------------------------
 -- Compute names coming through `import submodule` statements.
 -- The issue is that in `import submodule X` we need to resolve what `X`
 -- referes to before we know what it will import.
+-- Even triciker is the case for functor instantiations, `F { X }`:
+--   in this case we have to first resolve `F` and `X`, and then generate
+--   fresh names for the instance (or reusing an existing instantiation if
+--   we are going for applicative semantics).
 
 data OpenLoopState = OpenLoopState
   { unresolvedOpen  :: [ImportG PName]
@@ -647,7 +662,7 @@ openLoop modEnvs defs os imps =
 -- | Additional information needed to rename some constructs
 data Extra = Extra
   { extraOwned      :: OwnedEntities
-    -- ^ Owned entities, for resolving naemes in nested modules and signatures
+    -- ^ Owned entities, for resolving names in nested modules and signatures
 
   , extraModPath    :: ModPath
     -- ^ Path to the current location (for nested modules)

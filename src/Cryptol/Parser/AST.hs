@@ -241,7 +241,7 @@ data ModuleInstanceArg name =
 data ImpName name =
     ImpTop    ModName           -- ^ A top-level module
   | ImpNested name              -- ^ The module in scope with the given name
-    deriving (Show, Generic, NFData)
+    deriving (Show, Generic, NFData, Eq, Ord)
 
 -- | A simple declaration.  Generally these are things that can appear
 -- both at the top-level of a module and in `where` clauses.
