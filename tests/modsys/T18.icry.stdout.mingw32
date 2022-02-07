@@ -6,5 +6,5 @@ Loading module T18::B
 
 [error] at T18\B.cry:6:5--6:6
     Multiple definitions for symbol: u
-    (at T18\A.cry:3:1--3:2, T18::A::u)
-    (at T18\A1.cry:3:1--3:2, T18::A1::u)
+    (at .\T18\A.cry:3:1--3:2, T18::A::u)
+    (at .\T18\A1.cry:3:1--3:2, T18::A1::u)
