@@ -1,0 +1,4 @@
+module A::B::C where
+import A::B::D::E::F
+include "G/H.pcry"  // succeeds when run from `test/`
+

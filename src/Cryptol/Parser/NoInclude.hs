@@ -196,7 +196,9 @@ resolveInclude lf = pushPath lf $ do
   case parseProgramWith (defaultConfig { cfgSource = thing lf, cfgPreProc = guessPreProc (thing lf) }) source of
 
     Right prog -> do
-      Program ds <- withIncPath (thing lf) (noIncludeProgram prog)
+      Program ds <-
+        do path <- fromIncPath (thing lf)
+           withIncPath path (noIncludeProgram prog)
       return ds
 
     Left err -> M (raise [IncludeParseError err])
