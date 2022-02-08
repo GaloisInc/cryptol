@@ -1,4 +1,4 @@
 Loading module Cryptol
 
-Parse error at ./T14/Main.cry:3:9,
+Parse error at T14/Main.cry:3:9,
   unexpected: MalformedUtf8

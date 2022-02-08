@@ -1124,9 +1124,18 @@ moduleCmd :: String -> REPL ()
 moduleCmd modString
   | null modString = return ()
   | otherwise      = do
-      case parseModName modString of
-        Just m  -> loadHelper (M.loadModuleByName m)
-        Nothing -> rPutStrLn "Invalid module name."
+    case parseModName modString of
+      Just m
+        | M.isParamInstModName m -> loadHelper (M.loadModuleByName m)
+        | otherwise  ->
+          do mpath <- liftModuleCmd (M.findModule m)
+             case mpath of
+               M.InFile file ->
+                 do setEditPath file
+                    setLoadedMod LoadedModule { lName = Just m, lPath = mpath }
+                    loadHelper (M.loadModuleByPath file)
+               M.InMem {} -> loadHelper (M.loadModuleByName m)
+      Nothing -> rPutStrLn "Invalid module name."
 
 loadPrelude :: REPL ()
 loadPrelude  = moduleCmd $ show $ pp M.preludeName
