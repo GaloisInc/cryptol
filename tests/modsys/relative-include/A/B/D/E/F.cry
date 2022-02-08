@@ -1,0 +1,2 @@
+module A::B::D::E::F where
+x = 1
