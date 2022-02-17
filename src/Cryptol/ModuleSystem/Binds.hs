@@ -70,8 +70,8 @@ names that are "owned" by all the entities, when "used".
 data OwnedEntities = OwnedEntities
   { ownSubmodules :: Map Name NamingEnv
   , ownFunctors   :: Set Name
-  , ownInstances  ::
-      Map (ImpName Name) (Located (ImpName PName), ModuleInstanceArgs PName)
+  , ownInstances  :: Map Name
+                         (Located (ImpName PName), ModuleInstanceArgs PName)
   , ownSignatures :: Map Name NamingEnv
   }
 
@@ -98,10 +98,10 @@ collectNestedInModule env m =
   case mDef m of
     NormalModule ds         -> collectNestedInDecls env (thing (mName m)) ds
     FunctorInstanceOld _ ds -> collectNestedInDecls env (thing (mName m)) ds
-    FunctorInstance f as    -> \s -> (own f as, s)
-      where
-      own f as  = mempty { ownInstances = Map.singleton (ImpTop pname) (f,as) }
-      pname     = thing (mName m)
+    FunctorInstance {}      -> \s -> (mempty, s)
+      -- XXX: since this a top-level module, we *could* do the instantiation
+      -- right here as the functor and its arguments which must be other
+      -- top-level modules, and so are known.
 
 
 -- | Collect things nested in a list of declarations
@@ -156,7 +156,8 @@ collectNestedDeclsM mpath env ds =
             FunctorInstanceOld _ des ->
               collectNestedDeclsM newMPath newEnv des
             FunctorInstance f as ->
-              sets_ \o -> o { ownInstances = Map.insert (ImpNested name) (f,as)
+              sets_ \o -> o { ownInstances = Map.insert name
+                                                        (f,as)
                                                         (ownInstances o) }
 
 

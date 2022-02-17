@@ -61,6 +61,101 @@ import Cryptol.ModuleSystem.Binds
 import Cryptol.ModuleSystem.Renamer.Monad
 
 
+{- Note: Renaming Functor instantiations
+
+    module A where
+
+      signature S where ...
+
+      module F where
+        import signature S
+
+      module P where ...
+
+      module M = F P
+
+      import M
+
+When we process import `M` we can tell that it referes to the module `M`
+defined in the current module.  With ordinary nested modules that's all we
+need to know to process the impot---since we can pre-compute the renamings
+for all nested modules, we can lookup `M` and whatever it brings into scope
+as usual.
+
+Unforutnately, things are more complicates in this example because `M` is
+an instantiation, and we don't know what it brings in scope, until we have
+resolved `F` and `P`.  Once we have done that, we can generate a definition
+for `M` by using a fresh instantiation of `F` where the names that came
+from `F's parameters are replaced by the names provided by `P`.
+
+If we want applicative behavior, we'd also have to consult a cache to
+see if we've already encountered `F P` and reuse those names, rahter than
+generating a fresh instantiation.
+
+In terms of dependencies, we should be able to resolve `F` and `P` *without*
+resolving `M`.
+
+Before we have functor instantiation we can compute the names defined
+by each module (nested or not) without renaming the module.   With functor
+instantiation we can no longer do that because to know what a module defines
+we need to resolve the functors and its arguments.  Consider this example:
+
+module A where
+
+  submodule M where
+    import X  -- brings in F
+    submodule I = F P
+
+  submodule P where ...
+
+  import submodule M    -- brings in I
+  import submodule I
+
+Invariant: submodules that came in through a top-level import will
+always be fully processed so can be used directly.
+
+So we just need to do stuff for submodule defined in *this* top-level modules.
+  1. we can easily compute what "normal" submodule define
+  2. the hard case is submodule that are functor instantiation becuase
+     they require us to *resolve* the functor and its arguments.
+
+The current algorithm is done one module at a time:
+  1. things defined in this module
+  2. things imported from top-level modules
+  3. things imported from normal sub-modues
+     (the import loop)
+
+I think to deal with instantiations we may have to generalize the import
+loop to work on all nested module at once, so that for each nested module
+we keep track of:
+  1. what imports still need resolving
+  2. what's in scope in the module
+  3. definitions for instantiations
+
+When an import is resolved the names are add in scope to the current module
+and all modules nested in it.
+
+When an import refers to instantiation:
+  * if instantiation is resolved we just use it
+  * if arguments are not yet resolvable we delay
+  * if arguments are all resolved we generate a new instantiation
+    and resolve the import as a normal import
+
+It might make sense to process things from most nested to outermost
+because names flow from outside to nesting, thus adding extra names to
+the in-scope relation of the most nested modules does not affect anyone else.
+
+Also, we are just interested if a name can be resolved in *at least one way*.
+If it can be resolved in multiple ways, then it is ambiguous but we don't
+worry about this now.  After this pass, when we do the actula renaming,
+such ambiguitites will be caugh (I think).
+
+-}
+
+
+
+
+
 data RenModParam = RenModParam
   { renModParamName      :: Ident
   , renModParamRange     :: Range
@@ -655,7 +750,6 @@ openLoop modEnvs defs os imps =
                     s { unresolvedOpen = [], openLoopChange = False }
                     (unresolvedOpen s)
     | otherwise = s
-
 
 --------------------------------------------------------------------------------
 
