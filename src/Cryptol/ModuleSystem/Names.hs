@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE BlockArguments #-}
 module Cryptol.ModuleSystem.Names where
 
 import Data.Set(Set)
@@ -59,4 +60,21 @@ travNames f xs =
     Ambig as -> namesFromSet . Set.fromList <$> traverse f (Set.toList as)
 
 
+-- Names that are in the first but not the second
+diffNames :: Names -> Names -> Maybe Names
+diffNames x y =
+  case x of
+    One a ->
+      case y of
+        One b -> if a == b then Nothing
+                           else Just (One a)
+        Ambig xs -> if a `Set.member` xs then Nothing else Just (One a)
+    Ambig xs ->
+      do (a,rest) <- Set.minView ys
+         pure if Set.null rest then One a else Ambig xs
+
+      where
+      ys = case y of
+             One z    -> Set.delete z xs
+             Ambig zs -> Set.difference xs zs
 

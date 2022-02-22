@@ -59,6 +59,7 @@ import Cryptol.ModuleSystem.Interface
 import Cryptol.ModuleSystem.Renamer.Error
 import Cryptol.ModuleSystem.Binds
 import Cryptol.ModuleSystem.Renamer.Monad
+import Cryptol.ModuleSystem.Renamer.Imports
 
 
 {- Note: Renaming Functor instantiations
@@ -675,81 +676,6 @@ doModParam owned mp =
                                    , renModParamInstance = mempty
                                    })
 
-
---------------------------------------------------------------------------------
--- Compute names coming through `import submodule` statements.
--- The issue is that in `import submodule X` we need to resolve what `X`
--- referes to before we know what it will import.
--- Even triciker is the case for functor instantiations, `F { X }`:
---   in this case we have to first resolve `F` and `X`, and then generate
---   fresh names for the instance (or reusing an existing instantiation if
---   we are going for applicative semantics).
-
-data OpenLoopState = OpenLoopState
-  { unresolvedOpen  :: [ImportG PName]
-  , scopeImports    :: NamingEnv   -- names from open/impot
-  , scopeDefs       :: NamingEnv   -- names defined in this module
-  , scopingRel      :: NamingEnv   -- defs + imports with shadowing
-                                   -- (just a cache of `scopeImports+scopeDefs`)
-  , openLoopChange  :: Bool
-  }
-
-{- | Processing of a single @import submodule@ declaration
-Notes:
-  * ambiguity will be reported later when we do the renaming
-  * assumes scoping only grows, which should be true
-  * in case of ambiguous import, we are not adding the names from *either*
-    of the imports so this may give rise to undefined names, so we may want to
-    suppress reporing undefined names if there ambiguities for
-    module names.  Alternatively we could add the defitions from
-    *all* options, but that might lead to spurious ambiguity errors.
--}
-processOpen :: OwnedEntities -> OpenLoopState -> ImportG PName -> OpenLoopState
-processOpen modEnvs s o =
-  case lookupNS NSModule (iModule o) (scopingRel s) of
-    Nothing -> s { unresolvedOpen = o : unresolvedOpen s }
-    Just (One n) ->
-      case Map.lookup n (ownSubmodules modEnvs) of
-        Nothing
-          | n `Set.member` ownFunctors modEnvs -> s
-          | otherwise ->
-            panic "openLoop" [ "Missing defintion for module", show n ]
-        Just def ->
-          let new = interpImportEnv o def
-              newImps = new <> scopeImports s
-          in s { scopeImports   = newImps
-               , scopingRel     = scopeDefs s `shadowing` newImps
-               , openLoopChange = True
-               }
-    Just (Ambig _) -> s
-
-
-
-{- | Complete the set of import using @import submodule@ declarations.
-This should terminate because on each iteration either @unresolvedOpen@
-decreases or @openLoopChange@ remians @False@. We don't report errors
-here, as they will be reported during renaming anyway. -}
-openLoop ::
-  OwnedEntities   {- ^ Definitions of all known nested things -} ->
-  NamingEnv       {- ^ Definitions of the module (these shadow) -} ->
-  [ImportG PName] {- ^ Open declarations                        -} ->
-  NamingEnv       {- ^ Imported declarations                    -} ->
-  NamingEnv       {- ^ Completed imports                        -}
-openLoop modEnvs defs os imps =
-  scopeImports $
-  loop OpenLoopState  { unresolvedOpen = os
-                      , scopeImports   = imps
-                      , scopeDefs      = defs
-                      , scopingRel     = defs `shadowing` imps
-                      , openLoopChange = True
-                      }
-  where
-  loop s
-    | openLoopChange s =
-      loop $ foldl' (processOpen modEnvs)
-                    s { unresolvedOpen = [], openLoopChange = False }
-                    (unresolvedOpen s)
-    | otherwise = s
 
 --------------------------------------------------------------------------------
 

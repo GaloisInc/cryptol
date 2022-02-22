@@ -48,6 +48,7 @@ module Cryptol.ModuleSystem.Name (
   , FreshM(..), nextUniqueM
   , SupplyT(), runSupplyT
   , Supply(), emptySupply, nextUnique
+  , freshNameFor
 
     -- ** PrimMap
   , PrimMap(..)
@@ -390,6 +391,12 @@ paramModRecParam = Name { nInfo   = LocalName NSValue (packIdent "$modParams")
                         , nLoc    = emptyRange
                         , nUnique = 0x01
                         }
+
+
+-- XXX: change path
+freshNameFor :: Name -> Supply -> (Name,Supply)
+freshNameFor x s = (x { nUnique = u }, s1)
+  where (u,s1) = nextUnique s
 
 -- Prim Maps -------------------------------------------------------------------
 

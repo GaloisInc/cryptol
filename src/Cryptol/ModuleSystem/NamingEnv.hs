@@ -51,6 +51,13 @@ instance PP NamingEnv where
           ppNm (x,as)  = pp x <+> "->" <+> commaSep (map pp (namesToList as))
 
 
+-- | Keep only the bindings in the 1st environment that are *NOT* in the second.
+without :: NamingEnv -> NamingEnv -> NamingEnv
+NamingEnv keep `without` NamingEnv remove = NamingEnv result
+  where
+  result     = Map.differenceWith rmInNS keep remove
+  rmInNS a b = let c = Map.differenceWith diffNames a b
+               in if Map.null c then Nothing else Just c
 
 -- | All names mentioned in the environment
 namingEnvNames :: NamingEnv -> Set Name
