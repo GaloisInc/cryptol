@@ -163,17 +163,17 @@ tryInstantiate (cm, m, f, args) s =
   where
   scope = scopeOf cm s
 
-{- To instantiate a M under new name M' in module C
+{- To instantiate M under new name M' in module C
 
+Add { M' } to { mutNesting C }
 D  = definition of M
 
 if D is an instantion F A
   then add new instantion target (C,M',F,A)
   else
     do D' = fresh D
-       Add `M' = D'` to mutDefs
-       Add 'M' to mutNesting C
-       Let XS = mutNesting M
+       Add { M' = D' } to { mutDefs }
+       Let XS = { mutNesting M }
        For X in XS:
           do Let X' fresh equivalent of X
              Instantiate X under new name X' in module M'
