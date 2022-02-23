@@ -6,6 +6,17 @@
   a merge sort instead of an insertion sort. This improves the both
   asymptotic and observed performance on sorting tasks.
 
+## UI Improvements
+
+* "Type mismatch" errors now show a context giving more information
+  about the location of the error.   The context is shown when the
+  part of the types match, but then some nested types do not.
+  For example, when mathching `{ a : [8], b : [8] }` with
+  `{ a : [8], b : [16] }` the error will be `8` does not match `16`
+  and the context will be `{ b : [ERROR] _ }` indicating that the
+  error is in the length of the sequence of field `b`.
+
+
 # 2.12.0
 
 ## Language changes
