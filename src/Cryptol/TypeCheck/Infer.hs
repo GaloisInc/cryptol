@@ -44,6 +44,7 @@ import           Cryptol.TypeCheck.Kind(checkType,checkSchema,checkTySyn,
                                         checkParameterConstraints)
 import           Cryptol.TypeCheck.Instantiate
 import           Cryptol.TypeCheck.Subst (listSubst,apSubst,(@@),isEmptySubst)
+import           Cryptol.TypeCheck.Unify(rootPath)
 import           Cryptol.Utils.Ident
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.RecordMap
@@ -525,7 +526,7 @@ expectSeq tGoal@(WithSource ty src rng) =
 
     _ ->
       do tys@(a,b) <- genTys
-         recordErrorLoc rng (TypeMismatch src ty (tSeq a b))
+         recordErrorLoc rng (TypeMismatch src rootPath ty (tSeq a b))
          return tys
   where
   genTys =
@@ -551,7 +552,7 @@ expectTuple n tGoal@(WithSource ty src rng) =
 
     _ ->
       do tys <- genTys
-         recordErrorLoc rng (TypeMismatch src ty (tTuple tys))
+         recordErrorLoc rng (TypeMismatch src rootPath ty (tTuple tys))
          return tys
 
   where
@@ -581,7 +582,7 @@ expectRec fs tGoal@(WithSource ty src rng) =
          case ty of
            TVar TVFree{} -> do ps <- unify tGoal (TRec tys)
                                newGoals CtExactType ps
-           _ -> recordErrorLoc rng (TypeMismatch src ty (TRec tys))
+           _ -> recordErrorLoc rng (TypeMismatch src rootPath ty (TRec tys))
          return res
 
 
@@ -619,7 +620,7 @@ expectFun mbN n (WithSource ty0 src rng)  = go [] n ty0
                   do ps <- unify (WithSource ty src rng) (foldr tFun res args)
                      newGoals CtExactType  ps
                _ -> recordErrorLoc rng
-                        (TypeMismatch src ty (foldr tFun res args))
+                        (TypeMismatch src rootPath ty (foldr tFun res args))
              return (reverse tys ++ args, res)
 
     | otherwise =

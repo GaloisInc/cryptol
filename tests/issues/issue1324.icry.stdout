@@ -1,0 +1,10 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+
+[error] at issue1324.cry:8:1--8:6:
+  Type mismatch:
+    Expected type: 16
+    Inferred type: 8
+    Context: {a : [ERROR] _, …} -> _
+    When checking the type of 'Main::g'
