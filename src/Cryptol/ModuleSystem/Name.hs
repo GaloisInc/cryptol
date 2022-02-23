@@ -16,6 +16,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE RankNTypes #-}
 -- for the instances of RunM and BaseM
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -46,7 +47,7 @@ module Cryptol.ModuleSystem.Name (
 
     -- ** Unique Supply
   , FreshM(..), nextUniqueM
-  , SupplyT(), runSupplyT
+  , SupplyT(), runSupplyT, runSupply
   , Supply(), emptySupply, nextUnique
   , freshNameFor
 
@@ -59,6 +60,7 @@ module Cryptol.ModuleSystem.Name (
 import           Control.DeepSeq
 import qualified Data.Map as Map
 import qualified Data.Monoid as M
+import           Data.Functor.Identity(runIdentity)
 import           GHC.Generics (Generic)
 import           MonadLib
 import           Prelude ()
@@ -276,6 +278,9 @@ newtype SupplyT m a = SupplyT { unSupply :: StateT Supply m a }
 
 runSupplyT :: Monad m => Supply -> SupplyT m a -> m (a,Supply)
 runSupplyT s (SupplyT m) = runStateT s m
+
+runSupply :: Supply -> (forall m. FreshM m => m a) -> (a,Supply)
+runSupply s m = runIdentity (runSupplyT s m)
 
 instance Monad m => Functor (SupplyT m) where
   fmap f (SupplyT m) = SupplyT (fmap f m)

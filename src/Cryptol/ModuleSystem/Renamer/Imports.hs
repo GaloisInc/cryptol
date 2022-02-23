@@ -23,12 +23,14 @@ import Cryptol.Utils.Ident(Namespace(..),ModName)
 import Cryptol.Parser.Position(Located(..))
 import Cryptol.Parser.AST
   ( ImportG(..),PName, ModuleInstanceArgs(..), ModuleInstanceArg(..)
-  , ImpName(..)
+  , ImpName(..), ModParam(..)
   )
 import Cryptol.ModuleSystem.Binds(OwnedEntities(..), interpImportEnv)
-import Cryptol.ModuleSystem.Name(Name, Supply)
+import Cryptol.ModuleSystem.Name
+          (Name, Supply, runSupply, liftSupply, freshNameFor)
 import Cryptol.ModuleSystem.Names(Names(..))
-import Cryptol.ModuleSystem.NamingEnv(NamingEnv(..), lookupNS, shadowing)
+import Cryptol.ModuleSystem.NamingEnv
+          (NamingEnv(..), lookupNS, shadowing, travNamingEnv)
 
 
 {- | Information about what's in scope in a module.  -}
@@ -87,15 +89,16 @@ isEmptyMod m = null (modImports m) &&
 
 data CurState = CurState
   { curScope    :: NamingEnv
-    -- ^ only module name space matters
+    -- ^ What names are currently in scope
 
   , curMod      :: Mod
     -- ^ This is what needs to be done
 
-  , doneModules :: Map (ImpName Name) NamingEnv
+  , doneModules :: Map (ImpName Name) ([ModParam Name],NamingEnv)
     {- ^ These are modules that are fully resolved.
       Includes all modules we know about: external, nested in other
-      modules, etc.
+      modules, etc.  The naming environment contains what's *defined* by
+      the module.  For 
     -}
 
   , nameSupply  :: Supply
@@ -124,7 +127,7 @@ knownImpName s i =
     ImpTop m    -> pure (ImpTop m)
     ImpNested i -> ImpNested <$> knownPName s i
 
-knownModule :: CurState -> ImpName Name -> Maybe NamingEnv
+knownModule :: CurState -> ImpName Name -> Maybe ([ModParam Name],NamingEnv)
 knownModule s x = Map.lookup x (doneModules s)
 
 {- | Try to resolve an import full.  Either add the resulting names to
@@ -134,7 +137,10 @@ tryImport s imp =
   case knownModule s =<< knownImpName s (iModule imp) of
     Nothing -> let m = curMod s
                in s { curMod = m { modImports = imp : modImports m } }
-    Just ns -> s { curScope = ns <> curScope s, changes = True }
+    Just ([],ns) -> s { curScope = ns <> curScope s, changes = True }
+    Just _ -> s { changes = True }
+        -- ^ imported a functor.  consider resolved, but imports nothing
+        -- presumably this will lead to an error later?
 
 -- | Keep resolving imports until we can't make any more progress
 doImports :: CurState -> CurState
@@ -148,7 +154,7 @@ doImports s = if changes s2 then doImports s2 else s2
 
 tryInstance ::
   CurState ->
-  (ImpName PName, (ImpName PName, ModuleInstanceArgs PName)) ->
+  (Name, (ImpName PName, ModuleInstanceArgs PName)) ->
   CurState
 tryInstance s (mn,(f,xs)) =
   case mb of
@@ -157,15 +163,32 @@ tryInstance s (mn,(f,xs)) =
     Just (env,sup) ->
       s { nameSupply  = sup
         , changes     = True
-        , doneModules = Map.insert mn env
+        , doneModules = Map.insert (ImpNested mn) ([],env) (doneModules s)
         }
   where
   m = curMod s
 
   mb = do fn <- knownImpName s f
-          fm <- knownModule  s fn
-          xn <- tryLookupArg (curScope s) xs
-          undefined
+          (ps,fm) <- knownModule  s fn
+          -- XXX: realy the arguments *should* be known as well, it'd be odd
+          -- of an argument to an instantiation depends on the instantiation
+          -- then we could resolve the arguments as well
+          xn <- tryLookupArgs (curScope s) xs
+
+          -- XXX: we need to keep track of the mapping between the new
+          -- names and the original names
+
+          -- XXX: the original names for the new names should use
+          -- `mn` instead of `fn`
+          pure $ runSupply (nameSupply s)
+               $ travNamingEnv (\x -> liftSupply (freshNameFor x)) fm
+
+
+
+
+
+
+
 
 {-
 tryFinishMod :: CurState -> Maybe (CurState, NamingEnv)
