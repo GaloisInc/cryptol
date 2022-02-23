@@ -393,7 +393,8 @@ paramModRecParam = Name { nInfo   = LocalName NSValue (packIdent "$modParams")
                         }
 
 
--- XXX: change path
+-- This is used when instantiating functors
+-- XXX: what should be the OrigName for the instantiated names?
 freshNameFor :: Name -> Supply -> (Name,Supply)
 freshNameFor x s = (x { nUnique = u }, s1)
   where (u,s1) = nextUnique s
