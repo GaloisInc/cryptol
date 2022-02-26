@@ -156,6 +156,8 @@ doImports s = if changes s2 then doImports s2 else s2
   s2 = foldl' tryImport s1 is
 
 
+-- XXX: generalize so that it can work with top-level modules that are
+-- instances.
 tryInstance ::
   CurState ->
   Name ->
@@ -272,6 +274,38 @@ topModuleLoop :: CurState -> CurState
 topModuleLoop s = if changes s1 then topModuleLoop s1 else s
   where s1 = doModules s
 
+-- | Given the definitions of external modules, computes what is defined
+-- by all local modules, including instantiations.
+-- XXX: we may be able to compute what's in scope in all modules too, to
+-- avoid having to do it again later.
+topModule ::
+  Map (ImpName Name) ResolvedModule ->
+  m -> {- XXX -}
+  Supply ->
+  (Map (ImpName Name) ResolvedModule, Supply)
+topModule externalModules m supply = (doneModules result, nameSupply result)
+  where
+  result = topModuleLoop
+              CurState { curScope    = mempty
+                       , curMod      = theMod
+                       , doneModules = externalModules
+                       , nameSupply  = supply
+                       , changes     = False
+                       }
+
+  theMod = Mod { modImports   = undefined
+               , modParams    = undefined
+               , modDefines   = undefined
+               , modInstances = undefined
+               , modMods      = undefined
+               }
+{-
+  { modImports   :: [ ImportG (ImpName PName) ]
+  , modParams    :: Bool -- True = has params
+  , modInstances :: Map Name (ImpName PName, ModuleInstanceArgs PName)
+  , modMods      :: Map Name Mod
+  , modDefines   :: NamingEnv  -- ^ Things defined by this module
+-}
 
 
 
