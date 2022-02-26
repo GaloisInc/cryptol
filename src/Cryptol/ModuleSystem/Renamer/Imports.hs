@@ -16,38 +16,25 @@ import qualified Data.Set as Set
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.List(foldl')
+import Control.Monad(when)
+import MonadLib(StateT,sets_,runStateT,Id,runId,lift)
 
+import Cryptol.Utils.PP(pp)
 import Cryptol.Utils.Panic(panic)
-import Cryptol.Utils.Ident(Namespace(..),ModName)
+import Cryptol.Utils.Ident(Namespace(..))
 
 import Cryptol.Parser.Position(Located(..))
 import Cryptol.Parser.AST
   ( ImportG(..),PName, ModuleInstanceArgs(..), ModuleInstanceArg(..)
-  , ImpName(..), ModParam(..)
+  , ImpName(..)
   )
-import Cryptol.ModuleSystem.Binds(OwnedEntities(..), interpImportEnv)
+import Cryptol.ModuleSystem.Binds(OwnedEntities(..))
 import Cryptol.ModuleSystem.Name
-          (Name, Supply, runSupply, liftSupply, freshNameFor)
+          (Name, Supply, SupplyT, runSupplyT, liftSupply, freshNameFor)
 import Cryptol.ModuleSystem.Names(Names(..))
 import Cryptol.ModuleSystem.NamingEnv
-          (NamingEnv(..), lookupNS, shadowing, travNamingEnv)
-
-
-{- | Information about what's in scope in a module.  -}
-data Scope = Scope
-  { letDefs           :: NamingEnv      -- ^ Things defined in the module
-  , letTopImports     :: NamingEnv      -- ^ Things imported externally
-  , mutNestedImports  :: NamingEnv      -- ^ Things from imported submodules
-  }
-
--- | Compute the actual scoping environment for a module, based on the
--- current approximation.
-getScope :: Scope -> NamingEnv
-getScope x = letDefs x `shadowing` (letTopImports x <> mutNestedImports x)
-
--- | Add some extra names that came through a submodule import
-extScopeWith :: NamingEnv -> Scope -> Scope
-extScopeWith e s = s { mutNestedImports = e <> mutNestedImports s }
+          ( NamingEnv(..), lookupNS, shadowing, travNamingEnv
+          , interpImportEnv )
 
 {-
 Note: we assume that declarations can be ordered in dependency order,
@@ -74,10 +61,14 @@ In particular, this means that a functor may not depend on its own
 instantiation.
 -}
 
+
+-- | Unresolved module
 data Mod = Mod
   { modImports   :: [ ImportG (ImpName PName) ]
+  , modParams    :: Bool -- True = has params
   , modInstances :: Map Name (ImpName PName, ModuleInstanceArgs PName)
   , modMods      :: Map Name Mod
+  , modDefines   :: NamingEnv  -- ^ Things defined by this module
   }
 
 isEmptyMod :: Mod -> Bool
@@ -85,6 +76,11 @@ isEmptyMod m = null (modImports m) &&
                Map.null (modInstances m) &&
                Map.null (modMods m)
 
+data ResolvedModule = ResolvedModule
+  { rmodDefines :: NamingEnv    -- ^ Things defined by the module
+  , rmodParams  :: Bool         -- ^ Is it a functor
+  , rmodNested  :: Set Name     -- ^ Modules nested in this one
+  }
 
 
 data CurState = CurState
@@ -94,11 +90,12 @@ data CurState = CurState
   , curMod      :: Mod
     -- ^ This is what needs to be done
 
-  , doneModules :: Map (ImpName Name) ([ModParam Name],NamingEnv)
+  , doneModules :: Map (ImpName Name) ResolvedModule
     {- ^ These are modules that are fully resolved.
       Includes all modules we know about: external, nested in other
-      modules, etc.  The naming environment contains what's *defined* by
-      the module.  For 
+      modules, etc. 
+      Note: we only add a module here, if all of its nested modules are also
+            resolved.
     -}
 
   , nameSupply  :: Supply
@@ -116,7 +113,7 @@ knownPName :: CurState -> PName -> Maybe Name
 knownPName s x =
   do ns <- lookupNS NSModule x (curScope s)
      case ns of
-       One x    -> pure x
+       One n    -> pure n
        Ambig xs -> fst <$> Set.minView (Set.filter (definedHere s) xs)
           -- XXX: if still ambiguous, we should probably just stop and report
           -- error
@@ -125,9 +122,9 @@ knownImpName :: CurState -> ImpName PName -> Maybe (ImpName Name)
 knownImpName s i =
   case i of
     ImpTop m    -> pure (ImpTop m)
-    ImpNested i -> ImpNested <$> knownPName s i
+    ImpNested m -> ImpNested <$> knownPName s m
 
-knownModule :: CurState -> ImpName Name -> Maybe ([ModParam Name],NamingEnv)
+knownModule :: CurState -> ImpName Name -> Maybe ResolvedModule
 knownModule s x = Map.lookup x (doneModules s)
 
 {- | Try to resolve an import full.  Either add the resulting names to
@@ -135,10 +132,17 @@ the current scope, or add it back to the current to the @curMod@ -}
 tryImport :: CurState -> ImportG (ImpName PName) -> CurState
 tryImport s imp =
   case knownModule s =<< knownImpName s (iModule imp) of
-    Nothing -> let m = curMod s
-               in s { curMod = m { modImports = imp : modImports m } }
-    Just ([],ns) -> s { curScope = ns <> curScope s, changes = True }
-    Just _ -> s { changes = True }
+
+    Nothing ->
+      let m = curMod s
+      in s { curMod = m { modImports = imp : modImports m } }
+
+    Just m
+      | not (rmodParams m) ->
+        s { curScope = interpImportEnv imp (rmodDefines m) <> curScope s
+          , changes = True
+          }
+      | otherwise -> s { changes = True }
         -- ^ imported a functor.  consider resolved, but imports nothing
         -- presumably this will lead to an error later?
 
@@ -154,230 +158,123 @@ doImports s = if changes s2 then doImports s2 else s2
 
 tryInstance ::
   CurState ->
-  (Name, (ImpName PName, ModuleInstanceArgs PName)) ->
+  Name ->
+  (ImpName PName, ModuleInstanceArgs PName) ->
   CurState
-tryInstance s (mn,(f,xs)) =
-  case mb of
+tryInstance s mn (f,xs) =
+  case known of
     Nothing ->
       s { curMod = m { modInstances = Map.insert mn (f,xs) (modInstances m) } }
-    Just (env,sup) ->
-      s { nameSupply  = sup
-        , changes     = True
-        , doneModules = Map.insert (ImpNested mn) ([],env) (doneModules s)
-        }
+    Just s1 -> s1
   where
   m = curMod s
+  known =
+    do fn <- knownImpName s f
+       doInstantiateByName False mn fn s
 
-  mb = do fn <- knownImpName s f
-          (ps,fm) <- knownModule  s fn
-          -- XXX: realy the arguments *should* be known as well, it'd be odd
-          -- of an argument to an instantiation depends on the instantiation
-          -- then we could resolve the arguments as well
-          xn <- tryLookupArgs (curScope s) xs
+doInstantiateByName ::
+  Bool -> Name -> ImpName Name -> CurState -> Maybe CurState
+doInstantiateByName keepArgs newName mname s =
+  do def <- Map.lookup mname (doneModules s)
+     pure (doInstantiate keepArgs newName def s)
 
-          -- XXX: we need to keep track of the mapping between the new
-          -- names and the original names
-
-          -- XXX: the original names for the new names should use
-          -- `mn` instead of `fn`
-          pure $ runSupply (nameSupply s)
-               $ travNamingEnv (\x -> liftSupply (freshNameFor x)) fm
-
-
-
-
-
-
-
-
-{-
-tryFinishMod :: CurState -> Maybe (CurState, NamingEnv)
-tryFinishMod s
-  | isEmptyMod (curMod s) = Just (env, s)
+{- | Generate a new instantiation of the given module.
+Note that the module might not be a functor itself (e.g., if we are
+instantiating something nested in a functor -}
+doInstantiate :: Bool -> Name -> ResolvedModule -> CurState -> CurState
+doInstantiate keepArgs newName def s = Set.foldl' doSub newS nestedToDo
   where
-  env = singletonNS NSModule 
-wn
--}
+  ((newEnv,newNameSupply),nestedToDo) =
+      runId
+    $ runStateT Set.empty
+    $ runSupplyT (nameSupply s)
+    $ travNamingEnv instName
+    $ rmodDefines def
+
+  newDef = ResolvedModule { rmodDefines = newEnv
+                          , rmodParams  = if keepArgs
+                                            then rmodParams def
+                                            else False
+                          , rmodNested  = Set.map snd nestedToDo
+                          }
+
+  newS = s { changes     = True
+           , doneModules = Map.insert (ImpNested newName) newDef (doneModules s)
+           , nameSupply  = newNameSupply
+           }
 
 
+  doSub st (oldSubName,newSubName) =
+    case doInstantiateByName True newSubName (ImpNested oldSubName) st of
+      Just st1 -> st1
+      Nothing  -> panic "doInstantiate.doSub"
+                    [ "Missing nested module:", show (pp oldSubName) ]
 
-{-
---------------------------------------------------------------------------------
--- | Whose imports are we talking about
-data MName = TopM             -- ^ The top levelmodule
-           | NestedM Name     -- ^ One of the submodules
-  deriving (Show,Eq,Ord)
+  instName :: Name -> SupplyT (StateT (Set (Name,Name)) Id) Name
+  instName x =
+    do y <- liftSupply (freshNameFor x)
+       when (x `Set.member` rmodNested def)
+            (lift (sets_ (Set.insert (x,y))))
+       pure y
 
--- | Information about the current state of the approximating computation
-data AllModuleState = AllModuleState
-  { letMe         :: ModName
-    {- ^ Top-level name of module in which we work -}
 
-  , mutDefs       :: Map (ImpName Name) BoundNames
-    {- ^ Names defined in modules (functors and non-functors) and signature.
-         This is mutbale because when we instantiate a functor we added it
-         (and things nested in it) to this field.
-     -}
+doInstances :: CurState -> CurState
+doInstances s = Map.foldlWithKey' tryInstance s0 (modInstances m)
+  where
+  m  = curMod s
+  s0 = s { curMod = m { modInstances = Map.empty } }
 
-  , mutModules    :: Map MName Scope
-    {- ^ Keeps track of the current approximation to what's in scope in
-         all known modules -}
 
-  , mutUnresolved :: [(MName,ImportG PName)]
-    {- ^ Submodule imports that have not been resolved yet. -}
-
-  , mutUnresolvedInstances ::
-      [ (MName, Name, Located (ImpName PName), ModuleInstanceArgs PName) ]
-    {- ^ Submodules that need to be instantiated (M = F A). -}
-
-  , mutChanges    :: Bool
-    {- ^ Indicates if anything changed on the last iteration. -}
+resolveMod :: Mod -> ResolvedModule
+resolveMod m = ResolvedModule
+  { rmodDefines = modDefines m
+  , rmodParams  = modParams m
+  , rmodNested  = Map.keysSet (modInstances m) `Set.union`
+                  Map.keysSet (modMods m)
   }
--}
 
 
-{-
-Nesting of modules is important for two reasons:
-
-  1. To determine how to propagate imported names:
-
-      import submodule A
-      submodule B where
-        ... things imported from A are in scope here
-
-  2. When instantiating a functor, we also need need to instantiate all
-     the things nested in it.
-
-     submodule F where
-       import signature S
-       submodule P where
-         ...
-
-    submodule M = F X
-
-
-There are some subtleties here:
-  * if new stuff comes through an import A, it and goes to a F,
-    it also needs to go to all instantiations of F, even though they might
-    not be statically nested.  For example:
-
-  submodule M where
-    import A
-    submodule F where
-      import signature S
-
-  submodule C = F X
-
-  stuff imported from A is in scope in the concrete definition of 
-
-
-
-
-
--}
-
-
-{-
-toImpName :: AllModuleState -> MName -> ImpName Name
-toImpName s m =
-  case m of
-    TopM      -> ImpTop (letMe s)
-    NestedM n -> ImpNested n
-
-{- | Add some new names to the given module.
-The names are also propagate to modules nested within the original one. -}
-extScopeOf :: MName -> NamingEnv -> AllModuleState -> AllModuleState
-extScopeOf m e s = foldr extend s1 nested
-  where
-  s1        = s { mutModules = Map.adjust (extScopeWith e) m (mutModules s)
-                , mutChanges = True
-                  {- It is possible that nothing actually changed.
-                     For termination this is OK, because we only do this
-                     when we eliminate an import, so the measure is the
-                     number of imports that remain to be processed -}
-                }
-  nested    = Map.findWithDefault [] (toImpName s1 m) (mutNesting s)
-  extend n  = extScopeOf (NestedM n) e
-
-{- | Get the scoping environment for a particular module. -}
-scopeOf :: MName -> AllModuleState -> NamingEnv
-scopeOf m s =
-  case Map.lookup m (mutModules s) of
-    Just ms -> getScope ms
-    Nothing -> panic "scopeOf" [ "Missing module: " ++ show m ]
-
-{- | Try to resolve an import.
-If the import is not resolved, then it is saved in @mutUnresolved@,
-otherwise the state is updated as needed and the import is discarded. -}
-tryImport :: (MName, ImportG PName) -> AllModuleState -> AllModuleState
-tryImport (m,i) s =
-  case lookupNS NSModule (iModule i) (scopeOf m s) of
-
-    Nothing -> notYet
-
-    Just (One n) ->
-      case Map.lookup (ImpNested n) (mutDefs s) of
-        Nothing  -> notYet -- needs instantiation
-        Just def -> extScopeOf m (interpImportEnv i def) s
-
-    Just (Ambig _) -> s
-      {- We ignore names imported through ambiguous modules.
-         Later when we do renaming the ambiguity will be reported.
-         Note: This means we should report ambiguous names *before*
-         undefined names, because some of the undefined names might be due
-         to ambiguities. -}
+tryModule :: CurState -> Name -> Mod -> CurState
+tryModule s nm m
+  | isEmptyMod newM =
+    newS { curScope    = curScope s
+         , curMod      = topMod
+         , doneModules = Map.insert (ImpNested nm) r (doneModules newS)
+         , changes     = True
+         }
+  | otherwise =
+    newS { curScope = curScope s
+         , curMod = topMod { modMods = Map.insert nm newM (modMods topMod) }
+         }
 
   where
-  notYet = s { mutUnresolved = (m,i) : mutUnresolved s }
+  topMod = curMod s
+  r      = resolveMod m
+
+  newS = doModuleStep s { curMod = m
+                        , curScope = rmodDefines r `shadowing` curScope s
+                        }
+
+  newM = curMod newS
 
 
+doModuleStep :: CurState -> CurState
+doModuleStep = doModules . doInstances . doImports
 
-{- Our main goal here is to determine what is exported by the instantiation,
-*NOT* to check if the instantiation is correct (we do this later).  This is
-important because it means that we just need to generate fresh names for
-the functor definitions, and we don't need to know much about the actual
-arguments, which may be instantiations in their own right.
 
-We do wait until the names of the arguments are resolved though, as this
-would enable us to implement applicative semantics via caching.
-
-Note that when instantiating a functor, we also need to generate fresh
-instances for any submodules of the functor.
--}
-tryInstantiate ::
-  (MName, Name, Located (ImpName PName), ModuleInstanceArgs PName) ->
-  AllModuleState ->
-  AllModuleState
-tryInstantiate (cm, m, f, args) s =
-  case (,) <$> tryLookup scope f <*> tryLookupArgs scope args of
-    Nothing -> s { mutUnresolvedInstances = (cm, m, f, args )
-                                          : mutUnresolvedInstances s }
-    Just (f',args') -> undefined -- instantiateModule m f' args' s
+doModules :: CurState -> CurState
+doModules s = Map.foldlWithKey' tryModule s0 (modMods m)
   where
-  scope = scopeOf cm s
+  m  = curMod s
+  s0 = s { curMod = m { modMods = mempty } }
 
-{- To instantiate M under new name M' in module C
-
-Add { M' } to { mutNesting C }
-D  = definition of M
-
-if D is an instantion F A
-  then add new instantion target (C,M',F,A)
-  else
-    do D' = fresh D
-       Add { M' = D' } to { mutDefs }
-       Let XS = { mutNesting M }
-       For X in XS:
-          do Let X' fresh equivalent of X
-             Instantiate X under new name X' in module M'
--}
+topModuleLoop :: CurState -> CurState
+topModuleLoop s = if changes s1 then topModuleLoop s1 else s
+  where s1 = doModules s
 
 
 
 
-
-
--}
 --------------------------------------------------------------------------------
 
 data OpenLoopState = OpenLoopState

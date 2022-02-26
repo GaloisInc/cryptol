@@ -234,4 +234,26 @@ unqualifiedEnv IfaceDecls { .. } =
                     | n <- Map.keys ifSignatures ]
 
 
+-- | Adapt the things exported by something to the specific import/open.
+interpImportEnv :: ImportG name  {- ^ The import declarations -} ->
+                NamingEnv     {- ^ All public things coming in -} ->
+                NamingEnv
+interpImportEnv imp public = qualified
+  where
+
+  -- optionally qualify names based on the import
+  qualified | Just pfx <- iAs imp = qualify pfx restricted
+            | otherwise           =             restricted
+
+  -- restrict or hide imported symbols
+  restricted
+    | Just (Hiding ns) <- iSpec imp =
+       filterNames (\qn -> not (getIdent qn `elem` ns)) public
+
+    | Just (Only ns) <- iSpec imp =
+       filterNames (\qn -> getIdent qn `elem` ns) public
+
+    | otherwise = public
+
+
 
