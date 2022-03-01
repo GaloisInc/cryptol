@@ -25,7 +25,9 @@ import Cryptol.Utils.Ident(Namespace(..))
 
 import Cryptol.Parser.Position(Located(..))
 import Cryptol.Parser.AST
-  ( ImportG(..),PName, ModuleInstanceArgs(..), ModuleInstanceArg(..)
+  ( Module, ModuleG(..), ModuleDefinition(..)
+  , ImportG(..),PName
+  , ModuleInstanceArgs(..), ModuleInstanceArg(..)
   , ImpName(..)
   )
 import Cryptol.ModuleSystem.Binds(OwnedEntities(..))
@@ -69,6 +71,8 @@ data Mod = Mod
   , modInstances :: Map Name (ImpName PName, ModuleInstanceArgs PName)
   , modMods      :: Map Name Mod
   , modDefines   :: NamingEnv  -- ^ Things defined by this module
+  , modImported  :: NamingEnv
+    -- ^ These are things that came in through resolved imports
   }
 
 isEmptyMod :: Mod -> Bool
@@ -127,8 +131,11 @@ knownImpName s i =
 knownModule :: CurState -> ImpName Name -> Maybe ResolvedModule
 knownModule s x = Map.lookup x (doneModules s)
 
-{- | Try to resolve an import full.  Either add the resulting names to
-the current scope, or add it back to the current to the @curMod@ -}
+{- | Try to resolve an import. If the imported module can be resolved,
+and it refers to a module that's already been resolved, then we do the
+import and extend the current scoping environment.  Otherwise, we just
+queue the import back on the @modImports@ of the current module to be tried
+again later.-}
 tryImport :: CurState -> ImportG (ImpName PName) -> CurState
 tryImport s imp =
   case knownModule s =<< knownImpName s (iModule imp) of
@@ -156,26 +163,50 @@ doImports s = if changes s2 then doImports s2 else s2
   s2 = foldl' tryImport s1 is
 
 
--- XXX: generalize so that it can work with top-level modules that are
--- instances.
+{- | Try to instantiate a functor.  This succeeds if we can resolve the functor
+and the arguments and the both refer to already resolved names.
+Note: at the moment we ignore the arguments, but we'd have to do that in
+order to implment applicative behavior throuhg caching. -}
+tryInstanceMaybe ::
+  CurState ->
+  ImpName Name
+  {- ^ Name for the instantiated module -} ->
+  (ImpName PName, ModuleInstanceArgs PName)
+  {- ^ Functor and arguments -}  ->
+  Maybe CurState
+tryInstanceMaybe s mn (f,_xs) =
+  do fn <- knownImpName s f
+     doInstantiateByName False mn fn s
+
+{- | Try to instantiate a functor.  If successful, then the newly instantiated
+module (and all things nested in it) are going to be added to the
+@doneModules@ field.  Otherwise, we queue up the instantiatation in
+@curMod@ for later processing -}
 tryInstance ::
   CurState ->
   Name ->
   (ImpName PName, ModuleInstanceArgs PName) ->
   CurState
 tryInstance s mn (f,xs) =
-  case known of
+  case tryInstanceMaybe s (ImpNested mn) (f,xs) of
     Nothing ->
       s { curMod = m { modInstances = Map.insert mn (f,xs) (modInstances m) } }
     Just s1 -> s1
   where
   m = curMod s
-  known =
-    do fn <- knownImpName s f
-       doInstantiateByName False mn fn s
 
+
+{- | Generate a fresh instance for the functor with the given name. -}
 doInstantiateByName ::
-  Bool -> Name -> ImpName Name -> CurState -> Maybe CurState
+  Bool
+  {- ^ This indicates if the result is a functor or not.  When instantiating
+    a functor applied to some arguments the result is not a functor.  However,
+    if we are instantiating a functor nested withing some functor that's being
+    instantiated, then the result is still a functor. -} ->
+  ImpName Name {- ^ Name for the instantiation -} ->
+  ImpName Name {- ^ Name for the functor/module -} ->
+  CurState -> Maybe CurState
+
 doInstantiateByName keepArgs newName mname s =
   do def <- Map.lookup mname (doneModules s)
      pure (doInstantiate keepArgs newName def s)
@@ -183,7 +214,11 @@ doInstantiateByName keepArgs newName mname s =
 {- | Generate a new instantiation of the given module.
 Note that the module might not be a functor itself (e.g., if we are
 instantiating something nested in a functor -}
-doInstantiate :: Bool -> Name -> ResolvedModule -> CurState -> CurState
+doInstantiate ::
+  Bool            {- ^ See @doInstantiateByName@ -} ->
+  ImpName Name    {- ^ Name for instantiation -} ->
+  ResolvedModule  {- ^ The thing being instantiated -} ->
+  CurState -> CurState
 doInstantiate keepArgs newName def s = Set.foldl' doSub newS nestedToDo
   where
   ((newEnv,newNameSupply),nestedToDo) =
@@ -201,13 +236,14 @@ doInstantiate keepArgs newName def s = Set.foldl' doSub newS nestedToDo
                           }
 
   newS = s { changes     = True
-           , doneModules = Map.insert (ImpNested newName) newDef (doneModules s)
+           , doneModules = Map.insert newName newDef (doneModules s)
            , nameSupply  = newNameSupply
            }
 
 
   doSub st (oldSubName,newSubName) =
-    case doInstantiateByName True newSubName (ImpNested oldSubName) st of
+    case doInstantiateByName True (ImpNested newSubName)
+                                                    (ImpNested oldSubName) st of
       Just st1 -> st1
       Nothing  -> panic "doInstantiate.doSub"
                     [ "Missing nested module:", show (pp oldSubName) ]
@@ -220,6 +256,7 @@ doInstantiate keepArgs newName def s = Set.foldl' doSub newS nestedToDo
        pure y
 
 
+{- | ^ Keep insantiating things until we can't make any more progres -}
 doInstances :: CurState -> CurState
 doInstances s = Map.foldlWithKey' tryInstance s0 (modInstances m)
   where
@@ -227,6 +264,9 @@ doInstances s = Map.foldlWithKey' tryInstance s0 (modInstances m)
   s0 = s { curMod = m { modInstances = Map.empty } }
 
 
+{- | Mark a module as resolved.  Note that we can always do that for normal
+(i.e., non-instantiation) modules, however we don't actually place modules
+on the @doneModules@ list until all their children are done also -}
 resolveMod :: Mod -> ResolvedModule
 resolveMod m = ResolvedModule
   { rmodDefines = modDefines m
@@ -236,6 +276,12 @@ resolveMod m = ResolvedModule
   }
 
 
+-- | Try to resolve the "normal" module with the given name.
+-- XXX: This is wrong.  When we resolve an import, we add the things that
+-- flow in to `curScope`.  However, if there are some of the things in the
+-- module that are *not* resolved, we'll keep the unresolved parts, but the
+-- things imported through the resolved imports are lost, so we need to save
+-- them somewhere.
 tryModule :: CurState -> Name -> Mod -> CurState
 tryModule s nm m
   | isEmptyMod newM =
@@ -280,10 +326,20 @@ topModuleLoop s = if changes s1 then topModuleLoop s1 else s
 -- avoid having to do it again later.
 topModule ::
   Map (ImpName Name) ResolvedModule ->
-  m -> {- XXX -}
+  Module PName ->
   Supply ->
   (Map (ImpName Name) ResolvedModule, Supply)
 topModule externalModules m supply = (doneModules result, nameSupply result)
+{-
+tryInstanceMaybe ::
+  CurState ->
+  ImpName Name ->
+  (ImpName PName, ModuleInstanceArgs PName) ->
+  Maybe CurState
+-}
+
+
+-- 
   where
   result = topModuleLoop
               CurState { curScope    = mempty
@@ -293,12 +349,21 @@ topModule externalModules m supply = (doneModules result, nameSupply result)
                        , changes     = False
                        }
 
-  theMod = Mod { modImports   = undefined
+  theMod = undefined {-
+    case mDef m of
+      NormalModule ds -> undefined
+      FunctorInstanceOld f ds -> undefined
+      FunctorInstance f as -> undefined
+
+
+
+Mod { modImports   = undefined
                , modParams    = undefined
                , modDefines   = undefined
                , modInstances = undefined
                , modMods      = undefined
                }
+-}
 {-
   { modImports   :: [ ImportG (ImpName PName) ]
   , modParams    :: Bool -- True = has params
