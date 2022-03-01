@@ -16,6 +16,7 @@ import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.Type
 import Cryptol.TypeCheck.InferTypes
 import Cryptol.TypeCheck.Subst
+import Cryptol.TypeCheck.Unify(Path,isRootPath)
 import Cryptol.ModuleSystem.Name(Name)
 import Cryptol.Utils.Ident(Ident)
 import Cryptol.Utils.RecordMap
@@ -52,7 +53,7 @@ cleanupErrors = dropErrorsFromSameLoc
 
 -- | Should the first error suppress the next one.
 subsumes :: (Range,Error) -> (Range,Error) -> Bool
-subsumes (_,NotForAll _ x _) (_,NotForAll _ y _) = x == y
+subsumes (_,NotForAll _ _ x _) (_,NotForAll _ _ y _) = x == y
 subsumes (r1,KindMismatch {}) (r2,err) =
   case err of
     KindMismatch {} -> r1 == r2
@@ -84,10 +85,10 @@ data Error    = KindMismatch (Maybe TypeSource) Kind Kind
               | RecursiveTypeDecls [Name]
                 -- ^ The type synonym declarations are recursive
 
-              | TypeMismatch TypeSource Type Type
+              | TypeMismatch TypeSource Path Type Type
                 -- ^ Expected type, inferred type
 
-              | RecursiveType TypeSource Type Type
+              | RecursiveType TypeSource Path Type Type
                 -- ^ Unification results in a recursive type
 
               | UnsolvedGoals [Goal]
@@ -105,11 +106,11 @@ data Error    = KindMismatch (Maybe TypeSource) Kind Kind
                 -- ^ Type wild cards are not allowed in this context
                 -- (e.g., definitions of type synonyms).
 
-              | TypeVariableEscaped TypeSource Type [TParam]
+              | TypeVariableEscaped TypeSource Path Type [TParam]
                 -- ^ Unification variable depends on quantified variables
                 -- that are not in scope.
 
-              | NotForAll TypeSource TVar Type
+              | NotForAll TypeSource Path TVar Type
                 -- ^ Quantified type variables (of kind *) need to
                 -- match the given type, so it does not work for all types.
 
@@ -222,15 +223,15 @@ instance TVars Error where
       TooManyTySynParams {}     -> err
       TooFewTyParams {}         -> err
       RecursiveTypeDecls {}     -> err
-      TypeMismatch src t1 t2    -> TypeMismatch src !$ (apSubst su t1) !$ (apSubst su t2)
-      RecursiveType src t1 t2   -> RecursiveType src !$ (apSubst su t1) !$ (apSubst su t2)
+      TypeMismatch src pa t1 t2 -> TypeMismatch src pa !$ (apSubst su t1) !$ (apSubst su t2)
+      RecursiveType src pa t1 t2   -> RecursiveType src pa !$ (apSubst su t1) !$ (apSubst su t2)
       UnsolvedGoals gs          -> UnsolvedGoals !$ apSubst su gs
       UnsolvableGoals gs        -> UnsolvableGoals !$ apSubst su gs
       UnsolvedDelayedCt g       -> UnsolvedDelayedCt !$ (apSubst su g)
       UnexpectedTypeWildCard    -> err
-      TypeVariableEscaped src t xs ->
-                                 TypeVariableEscaped src !$ (apSubst su t) .$ xs
-      NotForAll src x t         -> NotForAll src x !$ (apSubst su t)
+      TypeVariableEscaped src pa t xs ->
+                                 TypeVariableEscaped src pa !$ (apSubst su t) .$ xs
+      NotForAll src pa x t        -> NotForAll src pa x !$ (apSubst su t)
       TooManyPositionalTypeParams -> err
       CannotMixPositionalAndNamedTypeParams -> err
 
@@ -258,15 +259,15 @@ instance FVS Error where
       TooManyTySynParams {}     -> Set.empty
       TooFewTyParams {}         -> Set.empty
       RecursiveTypeDecls {}     -> Set.empty
-      TypeMismatch _ t1 t2      -> fvs (t1,t2)
-      RecursiveType _ t1 t2     -> fvs (t1,t2)
+      TypeMismatch _ _ t1 t2    -> fvs (t1,t2)
+      RecursiveType _ _ t1 t2   -> fvs (t1,t2)
       UnsolvedGoals gs          -> fvs gs
       UnsolvableGoals gs        -> fvs gs
       UnsolvedDelayedCt g       -> fvs g
       UnexpectedTypeWildCard    -> Set.empty
-      TypeVariableEscaped _ t xs-> fvs t `Set.union`
+      TypeVariableEscaped _ _ t xs-> fvs t `Set.union`
                                             Set.fromList (map TVBound xs)
-      NotForAll _ x t             -> Set.insert x (fvs t)
+      NotForAll _ _ x t             -> Set.insert x (fvs t)
       TooManyPositionalTypeParams -> Set.empty
       CannotMixPositionalAndNamedTypeParams -> Set.empty
       UndefinedTypeParameter {}             -> Set.empty
@@ -308,13 +309,13 @@ instance PP (WithNames Error) where
   ppPrec _ (WithNames err names) =
     case err of
 
-      RecursiveType src t1 t2 ->
+      RecursiveType src pa t1 t2 ->
         addTVarsDescsAfter names err $
         nested "Matching would result in an infinite type." $
-          vcat [ "The type: " <+> ppWithNames names t1
-               , "occurs in:" <+> ppWithNames names t2
-               , "When checking" <+> pp src
-               ]
+          vcat ( [ "The type: " <+> ppWithNames names t1
+                 , "occurs in:" <+> ppWithNames names t2
+                 ] ++ ppCtxt pa ++
+                 [ "When checking" <+> pp src ] )
 
       UnexpectedTypeWildCard ->
         addTVarsDescsAfter names err $
@@ -357,13 +358,14 @@ instance PP (WithNames Error) where
         nested "Recursive type declarations:"
                (commaSep $ map nm ts)
 
-      TypeMismatch src t1 t2 ->
+      TypeMismatch src pa t1 t2 ->
         addTVarsDescsAfter names err $
         nested "Type mismatch:" $
         vcat $
           [ "Expected type:" <+> ppWithNames names t1
           , "Inferred type:" <+> ppWithNames names t2
           ] ++ mismatchHint t1 t2
+            ++ ppCtxt pa
             ++ ["When checking" <+> pp src]
 
       UnsolvableGoals gs -> explainUnsolvable names gs
@@ -389,22 +391,24 @@ instance PP (WithNames Error) where
           nested "while validating user-specified signature" $
           ppWithNames names g
 
-      TypeVariableEscaped src t xs ->
+      TypeVariableEscaped src pa t xs ->
         addTVarsDescsAfter names err $
         nested ("The type" <+> ppWithNames names t <+>
                                         "is not sufficiently polymorphic.") $
-          vcat [ "It cannot depend on quantified variables:" <+>
-                     (commaSep (map (ppWithNames names) xs))
-               , "When checking" <+> pp src
-               ]
+          vcat ( [ "It cannot depend on quantified variables:" <+>
+                       (commaSep (map (ppWithNames names) xs))
+                 ] ++ ppCtxt pa
+                   ++ [ "When checking" <+> pp src ]
+               )
 
-      NotForAll src x t ->
+      NotForAll src pa x t ->
         addTVarsDescsAfter names err $
         nested "Inferred type is not sufficiently polymorphic." $
-          vcat [ "Quantified variable:" <+> ppWithNames names x
-               , "cannot match type:"   <+> ppWithNames names t
-               , "When checking" <+> pp src
-               ]
+          vcat ( [ "Quantified variable:" <+> ppWithNames names x
+                 , "cannot match type:"   <+> ppWithNames names t
+                 ] ++ ppCtxt pa
+                   ++ [ "When checking" <+> pp src ]
+               )
 
       BadParameterKind tp k ->
         addTVarsDescsAfter names err $
@@ -478,6 +482,9 @@ instance PP (WithNames Error) where
     mismatchHint _ _ = []
 
     noUni = Set.null (Set.filter isFreeTV (fvs err))
+
+    ppCtxt pa = if isRootPath pa then [] else [ "Context:" <+> pp pa ]
+
 
 
 

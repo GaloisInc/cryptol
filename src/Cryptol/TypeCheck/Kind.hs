@@ -302,7 +302,8 @@ checkTUser x ts k =
     do let ty = tpVar (mtpParam a)
        (ts1,k1) <- appTy ts (kindOf ty)
        case k of
-         Just ks | ks /= k1 -> kRecordError $ KindMismatch Nothing ks k1
+         Just ks
+           | ks /= k1 -> kRecordError (KindMismatch Nothing ks k1)
          _ -> return ()
 
        unless (null ts1) $
