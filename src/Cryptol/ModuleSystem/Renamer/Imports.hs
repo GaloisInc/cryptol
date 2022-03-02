@@ -16,7 +16,7 @@ import qualified Data.Set as Set
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.List(foldl')
-import Control.Monad(when)
+import Control.Monad(when,mplus)
 import qualified MonadLib as M
 
 import Cryptol.Utils.PP(pp)
@@ -24,17 +24,13 @@ import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.Ident(ModPath(..),Namespace(..))
 
 import Cryptol.Parser.Position(Located(..))
-import Cryptol.Parser.Name(getIdent)
 import Cryptol.Parser.AST
   ( Module, ModuleG(..), ModuleDefinition(..)
-  , TopDecl(..)
-  , isParamDecl
   , ImportG(..),PName
   , ModuleInstanceArgs(..), ModuleInstanceArg(..)
   , ImpName(..)
   )
-import Cryptol.ModuleSystem.Binds (OwnedEntities(..))
-import qualified Cryptol.ModuleSystem.Binds as B
+import Cryptol.ModuleSystem.Binds (OwnedEntities(..), Mod(..), TopDef(..))
 import Cryptol.ModuleSystem.Name
           ( Name, Supply, SupplyT, runSupplyT, liftSupply, freshNameFor)
 import Cryptol.ModuleSystem.Names(Names(..))
@@ -67,20 +63,6 @@ In particular, this means that a functor may not depend on its own
 instantiation.
 -}
 
--- | Unresolved module
-data Mod = Mod
-  { modImports   :: [ ImportG (ImpName PName) ]
-  , modParams    :: Bool -- True = has params
-  , modInstances :: Map Name Inst
-  , modMods      :: Map Name Mod
-
-
-  , modDefines   :: NamingEnv  -- ^ Things defined by this module
-  , modOuter     :: NamingEnv  -- ^ Names from an outer lexical scope
-  , modImported  :: NamingEnv
-    -- ^ These are things that came in through resolved imports
-    -- They start off as empty, and are built up as we resolve imports.
-  }
 
 type Inst  = (ImpName PName, ModuleInstanceArgs PName)
 
@@ -93,10 +75,14 @@ isEmptyMod m = null (modImports m) &&
 
 --------------------------------------------------------------------------------
 
+{- | This represents a resolved module or signaure.
+Note that signaures are never "imported", however we do need to keep them
+here so that signatures in a functor are properly instantiated when
+the functor is instantiated. -}
 data ResolvedModule = ResolvedModule
-  { rmodDefines :: NamingEnv    -- ^ Things defined by the module
+  { rmodDefines :: NamingEnv    -- ^ Things defined by the module/signature.
   , rmodParams  :: Bool         -- ^ Is it a functor
-  , rmodNested  :: Set Name     -- ^ Modules nested in this one
+  , rmodNested  :: Set Name     -- ^ Modules and signatures nested in this one
   }
 
 
@@ -104,13 +90,16 @@ data CurState = CurState
   { curMod      :: Mod
     -- ^ This is what needs to be done
 
-  , doneModules :: Map (ImpName Name) ResolvedModule
-    {- ^ These are modules that are fully resolved.
-      Includes all modules we know about: external, nested in other
-      modules, etc. 
-      Note: we only add a module here, if all of its nested modules are also
-            resolved.
+  , externalModules :: Map (ImpName Name) ResolvedModule
+    -- ^ Modules defined outside the current top-level modules
+
+  , doneModules :: Map Name ResolvedModule
+    {- ^ Nested modules/signatures in the current top-level modules.
+         These may be either defined locally, or be the result of
+         instantiating a functor.  Note that the functor itself may be
+         either local or external.
     -}
+
 
   , nameSupply  :: Supply
     -- ^ Use this to instantiate functors
@@ -141,7 +130,14 @@ knownImpName s i =
     ImpNested m -> ImpNested <$> knownPName s m
 
 knownModule :: CurState -> ImpName Name -> Maybe ResolvedModule
-knownModule s x = Map.lookup x (doneModules s)
+knownModule s x =
+  Map.lookup x (externalModules s) `mplus`
+  case x of
+    ImpNested y -> Map.lookup y (doneModules s)
+    ImpTop {}   -> Nothing
+
+--------------------------------------------------------------------------------
+
 
 {- | Try to resolve an import. If the imported module can be resolved,
 and it refers to a module that's already been resolved, then we do the
@@ -182,14 +178,12 @@ Note: at the moment we ignore the arguments, but we'd have to do that in
 order to implment applicative behavior throuhg caching. -}
 tryInstanceMaybe ::
   CurState ->
-  ImpName Name
-  {- ^ Name for the instantiated module -} ->
   (ImpName PName, ModuleInstanceArgs PName)
   {- ^ Functor and arguments -}  ->
-  Maybe CurState
-tryInstanceMaybe s mn (f,_xs) =
+  Maybe (ResolvedModule,CurState)
+tryInstanceMaybe s (f,_xs) =
   do fn <- knownImpName s f
-     doInstantiateByName False mn fn s
+     doInstantiateByName False fn s
 
 {- | Try to instantiate a functor.  If successful, then the newly instantiated
 module (and all things nested in it) are going to be added to the
@@ -201,10 +195,10 @@ tryInstance ::
   (ImpName PName, ModuleInstanceArgs PName) ->
   CurState
 tryInstance s mn (f,xs) =
-  case tryInstanceMaybe s (ImpNested mn) (f,xs) of
+  case tryInstanceMaybe s (f,xs) of
     Nothing ->
       s { curMod = m { modInstances = Map.insert mn (f,xs) (modInstances m) } }
-    Just s1 -> s1
+    Just (def,s1) -> s1 { doneModules = Map.insert mn def (doneModules s1) }
   where
   m = curMod s
 
@@ -216,23 +210,23 @@ doInstantiateByName ::
     a functor applied to some arguments the result is not a functor.  However,
     if we are instantiating a functor nested withing some functor that's being
     instantiated, then the result is still a functor. -} ->
-  ImpName Name {- ^ Name for the instantiation -} ->
   ImpName Name {- ^ Name for the functor/module -} ->
-  CurState -> Maybe CurState
+  CurState -> Maybe (ResolvedModule,CurState)
 
-doInstantiateByName keepArgs newName mname s =
-  do def <- Map.lookup mname (doneModules s)
-     pure (doInstantiate keepArgs newName def s)
+doInstantiateByName keepArgs mname s =
+  do def <- knownModule s mname
+     pure (doInstantiate keepArgs def s)
 
-{- | Generate a new instantiation of the given module.
+
+
+{- | Generate a new instantiation of the given module/signature.
 Note that the module might not be a functor itself (e.g., if we are
 instantiating something nested in a functor -}
 doInstantiate ::
   Bool            {- ^ See @doInstantiateByName@ -} ->
-  ImpName Name    {- ^ Name for instantiation -} ->
   ResolvedModule  {- ^ The thing being instantiated -} ->
-  CurState -> CurState
-doInstantiate keepArgs newName def s = Set.foldl' doSub newS nestedToDo
+  CurState -> (ResolvedModule,CurState)
+doInstantiate keepArgs def s = (newDef, Set.foldl' doSub newS nestedToDo)
   where
   ((newEnv,newNameSupply),nestedToDo) =
       M.runId
@@ -241,6 +235,8 @@ doInstantiate keepArgs newName def s = Set.foldl' doSub newS nestedToDo
     $ travNamingEnv instName
     $ rmodDefines def
 
+  newS = s { changes = True, nameSupply  = newNameSupply }
+
   newDef = ResolvedModule { rmodDefines = newEnv
                           , rmodParams  = if keepArgs
                                             then rmodParams def
@@ -248,16 +244,12 @@ doInstantiate keepArgs newName def s = Set.foldl' doSub newS nestedToDo
                           , rmodNested  = Set.map snd nestedToDo
                           }
 
-  newS = s { changes     = True
-           , doneModules = Map.insert newName newDef (doneModules s)
-           , nameSupply  = newNameSupply
-           }
 
 
   doSub st (oldSubName,newSubName) =
-    case doInstantiateByName True (ImpNested newSubName)
-                                                    (ImpNested oldSubName) st of
-      Just st1 -> st1
+    case doInstantiateByName True (ImpNested oldSubName) st of
+      Just (idef,st1) -> st1 { doneModules = Map.insert newSubName idef
+                                                        (doneModules st1) }
       Nothing  -> panic "doInstantiate.doSub"
                     [ "Missing nested module:", show (pp oldSubName) ]
 
@@ -284,8 +276,11 @@ resolveMod :: Mod -> ResolvedModule
 resolveMod m = ResolvedModule
   { rmodDefines = modDefines m
   , rmodParams  = modParams m
-  , rmodNested  = Map.keysSet (modInstances m) `Set.union`
-                  Map.keysSet (modMods m)
+  , rmodNested  = Set.unions
+                    [ Map.keysSet (modInstances m)
+                    , Map.keysSet (modSigs m)
+                    , Map.keysSet (modMods m)
+                    ]
   }
 
 
@@ -294,9 +289,7 @@ tryModule :: CurState -> Name -> Mod -> CurState
 tryModule s nm m
   | isEmptyMod newM =
     newS { curMod      = topMod
-         , doneModules = Map.insert (ImpNested nm)
-                                    (resolveMod m)
-                                    (doneModules newS)
+         , doneModules = Map.insert nm (resolveMod m) (doneModules newS)
          , changes     = True
          }
   | otherwise =
@@ -310,9 +303,22 @@ tryModule s nm m
   newM   = curMod newS
 
 
-doModuleStep :: CurState -> CurState
-doModuleStep = doModules . doInstances . doImports
+doSignatures :: CurState -> CurState
+doSignatures s = s { doneModules = Map.union resolved (doneModules s)
+                   , curMod = m { modSigs = mempty }
+                   , changes = not (Map.null (modSigs m))
+                   }
+  where
+  m         = curMod s
+  resolved  = doSig <$> modSigs m
+  doSig sig = ResolvedModule { rmodDefines = sig
+                             , rmodNested  = mempty
+                             , rmodParams  = False
+                             }
 
+
+doModuleStep :: CurState -> CurState
+doModuleStep = doModules . doInstances . doSignatures . doImports
 
 doModules :: CurState -> CurState
 doModules s = Map.foldlWithKey' tryModule s0 (modMods m)
@@ -324,36 +330,28 @@ topModuleLoop :: CurState -> CurState
 topModuleLoop s = if changes s1 then topModuleLoop s1 else s
   where s1 = doModules s
 
-{-
--- | Given the definitions of external modules, computes what is defined
--- by all local modules, including instantiations.
-topModule ::
+
+doTopDef ::
   Map (ImpName Name) ResolvedModule ->
-  Module PName ->
+  TopDef ->
   Supply ->
-  (Map (ImpName Name) ResolvedModule, Supply)
-topModule externalModules m supply =
-  case mDef m of
-    NormalModule ds ->
-      let checkMod (ms,is) d =
-            case d of
-              DModule md ->
-                case tlValue md of
-                  NestedModule nmd ->
-                    case mDef nmd of
-                      NormalModule ds ->
-              _ -> (ms,is)
+  Maybe (Map Name ResolvedModule, Supply)
+doTopDef ext def su =
+  case def of
+    TopMod m mo ->
+      let s = topModuleLoop CurState
+                              { curMod = mo
+                              , externalModules = ext
+                              , doneModules = mempty
+                              , nameSupply = su
+                              , changes = False
+                              }
+      in if isEmptyMod (curMod s) then Just (doneModules s, nameSupply s)
+                                  else Nothing -- XXX: better error
 
 
-          theMod = Mod { 
-                       , modParams = mIsFunctor m
-
-                       , modImports = [ thing i | DImport i <- ds ]
-
-                       , modInstances = undefined
-                       , modMods
-                       }
--}
+    TopInst m f as -> undefined
+    TopInstOld m f a -> undefined
 
 
 

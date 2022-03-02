@@ -76,6 +76,9 @@ topModuleDefs m =
   where
   mname = thing (mName m)
 
+topDeclsDefs :: [TopDecl PName] -> ModBuilder Mod
+topDeclsDefs = declsToMod Nothing
+
 
 declsToMod :: Maybe ModPath -> [TopDecl PName] -> ModBuilder Mod
 declsToMod mbPath ds =
