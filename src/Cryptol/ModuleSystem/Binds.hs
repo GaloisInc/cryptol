@@ -10,7 +10,9 @@ import qualified Data.Map as Map
 import Data.Set(Set)
 import qualified Data.Set as Set
 import Data.Maybe(fromMaybe)
+import Control.Monad(foldM)
 import MonadLib (runId,Id,StateT,runStateT,lift,sets_,forM_)
+import qualified MonadLib as M
 
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Parser.Position
@@ -22,35 +24,116 @@ import Cryptol.ModuleSystem.NamingEnv
 import Cryptol.ModuleSystem.Interface
 
 
--- | Things that define exported names.
-class BindsNames a where
-  namingEnv :: a -> BuildNamingEnv
 
-newtype BuildNamingEnv = BuildNamingEnv { runBuild :: SupplyT Id NamingEnv }
-
-buildNamingEnv :: BuildNamingEnv -> Supply -> (NamingEnv,Supply)
-buildNamingEnv b supply = runId $ runSupplyT supply $ runBuild b
-
--- | Generate a 'NamingEnv' using an explicit supply.
-defsOf :: BindsNames a => a -> Supply -> (NamingEnv,Supply)
-defsOf = buildNamingEnv . namingEnv
-
-instance Semigroup BuildNamingEnv where
-  BuildNamingEnv a <> BuildNamingEnv b = BuildNamingEnv $
-    do x <- a
-       y <- b
-       return (mappend x y)
-
-instance Monoid BuildNamingEnv where
-  mempty = BuildNamingEnv (pure mempty)
-
-  mappend = (<>)
-
-  mconcat bs = BuildNamingEnv $
-    do ns <- sequence (map runBuild bs)
-       return (mconcat ns)
+--------------------------------------------------------------------------------
+-- XXX: TopDef and friends subsumes OwnedEntitities and they shoudl be removed
 
 
+data TopDef = TopMod ModName Mod
+            | TopInst ModName (ImpName PName) (ModuleInstanceArgs PName)
+            | TopInstOld ModName ModName Mod
+
+-- | Things defined by a module
+data Mod = Mod
+  { modImports   :: [ ImportG (ImpName PName) ]
+  , modParams    :: Bool -- True = has params
+  , modInstances :: Map Name (ImpName PName, ModuleInstanceArgs PName)
+  , modMods      :: Map Name Mod
+  , modSigs      :: Map Name NamingEnv
+  , modDefines   :: NamingEnv  -- ^ Things defined by this module
+
+    -- The 2 fields start off empty and are used when we are resolving imports
+  , modOuter     :: NamingEnv  -- ^ Names from an outer lexical scope
+  , modImported  :: NamingEnv
+    -- ^ These are things that came in through resolved imports
+    -- They start off as empty, and are built up as we resolve imports.
+  }
+
+data TopDefError = MultipleDefinitions (Maybe ModPath) Ident [Range]
+                 | UnexpectedNest Range PName
+
+type ModBuilder = SupplyT (M.ExceptionT TopDefError Id)
+
+modBuilder :: Supply -> ModBuilder a -> Either TopDefError (a, Supply)
+modBuilder s m = M.runId (M.runExceptionT (runSupplyT s m))
+
+defErr :: TopDefError -> ModBuilder a
+defErr a = M.lift (M.raise a)
+
+defNames :: BuildNamingEnv -> ModBuilder NamingEnv
+defNames b = liftSupply \s -> M.runId (runSupplyT s (runBuild b))
+
+
+topModuleDefs :: Module PName -> ModBuilder TopDef
+topModuleDefs m =
+  case mDef m of
+    NormalModule ds -> TopMod mname <$> declsToMod (Just (TopModule mname)) ds
+    FunctorInstanceOld f ds ->
+      TopInstOld mname (thing f) <$> declsToMod Nothing ds
+    FunctorInstance f as ->
+      pure (TopInst mname (thing f) as)
+
+  where
+  mname = thing (mName m)
+
+
+declsToMod :: Maybe ModPath -> [TopDecl PName] -> ModBuilder Mod
+declsToMod mbPath ds =
+  do defs <- defNames (foldMap (namingEnv . InModule mbPath) ds)
+     case findAmbig defs of
+       bad@(f : _) : _ ->
+         defErr (MultipleDefinitions mbPath (nameIdent f) (map nameLoc bad))
+       _ -> pure ()
+
+     let mo = Mod { modImports   = [ thing i | DImport i <- ds ]
+                  , modParams    = any isParamDecl ds
+                  , modInstances = mempty
+                  , modMods      = mempty
+                  , modSigs      = mempty
+                  , modDefines   = defs
+                  , modOuter     = mempty
+                  , modImported  = mempty
+                  }
+
+     foldM (checkNest defs) mo ds
+
+  where
+  checkNest defs mo d =
+    case d of
+      DModule tl ->
+        do let NestedModule nmod = tlValue tl
+               pname = thing (mName nmod)
+               name  = case lookupNS NSModule pname defs of
+                         Just (One x)    -> x
+                         _ -> panic "declsToMod" ["Missed ambig/undefined"]
+           case mbPath of
+             Nothing -> defErr (UnexpectedNest (srcRange (mName nmod)) pname)
+             Just path ->
+                case mDef nmod of
+                   NormalModule xs ->
+                     do m <- declsToMod (Just (Nested path (nameIdent name))) xs
+                        pure mo { modMods = Map.insert name m (modMods mo) }
+                   FunctorInstanceOld {} ->
+                     defErr (UnexpectedNest (srcRange (mName nmod)) pname)
+                   FunctorInstance f args ->
+                      pure mo { modInstances = Map.insert name (thing f, args)
+                                                    (modInstances mo) }
+
+      -- DModSig (TopLevel (Signature name))         -- ^ A module signature
+      DModSig tl ->
+        do let sig   = tlValue tl
+               pname = thing (sigName sig)
+               name  = case lookupNS NSSignature pname defs of
+                         Just (One x) -> x
+                         _ -> panic "declsToMod" ["sig: Missed ambig/undefined"]
+           case mbPath of
+             Nothing -> defErr (UnexpectedNest (srcRange (sigName sig)) pname)
+             Just path ->
+                do newEnv <-
+                     defNames (signatureDefs (Nested path (nameIdent name)) sig)
+                   pure mo { modSigs = Map.insert name newEnv (modSigs mo) }
+
+      _ -> pure mo
 
 
 
@@ -189,6 +272,34 @@ signatureDefs m sig =
 
 --------------------------------------------------------------------------------
 -- Computes the names introduced by various declarations.
+
+-- | Things that define exported names.
+class BindsNames a where
+  namingEnv :: a -> BuildNamingEnv
+
+newtype BuildNamingEnv = BuildNamingEnv { runBuild :: SupplyT Id NamingEnv }
+
+buildNamingEnv :: BuildNamingEnv -> Supply -> (NamingEnv,Supply)
+buildNamingEnv b supply = runId $ runSupplyT supply $ runBuild b
+
+-- | Generate a 'NamingEnv' using an explicit supply.
+defsOf :: BindsNames a => a -> Supply -> (NamingEnv,Supply)
+defsOf = buildNamingEnv . namingEnv
+
+instance Semigroup BuildNamingEnv where
+  BuildNamingEnv a <> BuildNamingEnv b = BuildNamingEnv $
+    do x <- a
+       y <- b
+       return (mappend x y)
+
+instance Monoid BuildNamingEnv where
+  mempty = BuildNamingEnv (pure mempty)
+
+  mappend = (<>)
+
+  mconcat bs = BuildNamingEnv $
+    do ns <- sequence (map runBuild bs)
+       return (mconcat ns)
 
 instance BindsNames NamingEnv where
   namingEnv env = BuildNamingEnv (return env)

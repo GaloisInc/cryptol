@@ -45,6 +45,7 @@ module Cryptol.Parser.AST
   , mSubmoduleImports
   , mModParams
   , mIsFunctor
+  , isParamDecl
 
   , ModuleDefinition(..)
   , ModuleInstanceArgs(..)
@@ -181,15 +182,16 @@ mModParams :: ModuleG mname name -> [ ModParam name ]
 mModParams m = [ p | DModParam p <- mDecls m ]
 
 mIsFunctor :: ModuleG mname nmae -> Bool
-mIsFunctor m = any isParam (mDecls m)
-  where
-  isParam d =
-    case d of
-      DModParam {} -> True
-      DParameterType {} -> True
-      DParameterConstraint {} -> True
-      DParameterFun {} -> True
-      _ -> False
+mIsFunctor m = any isParamDecl (mDecls m)
+
+isParamDecl :: TopDecl a -> Bool
+isParamDecl d =
+  case d of
+    DModParam {} -> True
+    DParameterType {} -> True
+    DParameterConstraint {} -> True
+    DParameterFun {} -> True
+    _ -> False
 
 
 -- | A top-level module

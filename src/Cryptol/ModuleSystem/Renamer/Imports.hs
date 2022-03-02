@@ -17,22 +17,26 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.List(foldl')
 import Control.Monad(when)
-import MonadLib(StateT,sets_,runStateT,Id,runId,lift)
+import qualified MonadLib as M
 
 import Cryptol.Utils.PP(pp)
 import Cryptol.Utils.Panic(panic)
-import Cryptol.Utils.Ident(Namespace(..))
+import Cryptol.Utils.Ident(ModPath(..),Namespace(..))
 
 import Cryptol.Parser.Position(Located(..))
+import Cryptol.Parser.Name(getIdent)
 import Cryptol.Parser.AST
   ( Module, ModuleG(..), ModuleDefinition(..)
+  , TopDecl(..)
+  , isParamDecl
   , ImportG(..),PName
   , ModuleInstanceArgs(..), ModuleInstanceArg(..)
   , ImpName(..)
   )
-import Cryptol.ModuleSystem.Binds(OwnedEntities(..))
+import Cryptol.ModuleSystem.Binds (OwnedEntities(..))
+import qualified Cryptol.ModuleSystem.Binds as B
 import Cryptol.ModuleSystem.Name
-          (Name, Supply, SupplyT, runSupplyT, liftSupply, freshNameFor)
+          ( Name, Supply, SupplyT, runSupplyT, liftSupply, freshNameFor)
 import Cryptol.ModuleSystem.Names(Names(..))
 import Cryptol.ModuleSystem.NamingEnv
           ( NamingEnv(..), lookupNS, shadowing, travNamingEnv
@@ -63,22 +67,31 @@ In particular, this means that a functor may not depend on its own
 instantiation.
 -}
 
-
 -- | Unresolved module
 data Mod = Mod
   { modImports   :: [ ImportG (ImpName PName) ]
   , modParams    :: Bool -- True = has params
-  , modInstances :: Map Name (ImpName PName, ModuleInstanceArgs PName)
+  , modInstances :: Map Name Inst
   , modMods      :: Map Name Mod
+
+
   , modDefines   :: NamingEnv  -- ^ Things defined by this module
+  , modOuter     :: NamingEnv  -- ^ Names from an outer lexical scope
   , modImported  :: NamingEnv
     -- ^ These are things that came in through resolved imports
+    -- They start off as empty, and are built up as we resolve imports.
   }
+
+type Inst  = (ImpName PName, ModuleInstanceArgs PName)
 
 isEmptyMod :: Mod -> Bool
 isEmptyMod m = null (modImports m) &&
                Map.null (modInstances m) &&
                Map.null (modMods m)
+
+
+
+--------------------------------------------------------------------------------
 
 data ResolvedModule = ResolvedModule
   { rmodDefines :: NamingEnv    -- ^ Things defined by the module
@@ -88,10 +101,7 @@ data ResolvedModule = ResolvedModule
 
 
 data CurState = CurState
-  { curScope    :: NamingEnv
-    -- ^ What names are currently in scope
-
-  , curMod      :: Mod
+  { curMod      :: Mod
     -- ^ This is what needs to be done
 
   , doneModules :: Map (ImpName Name) ResolvedModule
@@ -109,18 +119,20 @@ data CurState = CurState
     -- ^ True if something changed on the last iteration
   }
 
-definedHere :: CurState -> Name -> Bool
-definedHere s x = x `Map.member` modInstances me || x `Map.member` modMods me
-  where me = curMod s
+curScope :: CurState -> NamingEnv
+curScope s = modDefines m `shadowing` modImported m `shadowing` modOuter m
+  where m = curMod s
 
 knownPName :: CurState -> PName -> Maybe Name
 knownPName s x =
   do ns <- lookupNS NSModule x (curScope s)
      case ns of
        One n    -> pure n
-       Ambig xs -> fst <$> Set.minView (Set.filter (definedHere s) xs)
-          -- XXX: if still ambiguous, we should probably just stop and report
-          -- error
+       -- NOTE: since we build up what's in scope incrementally,
+       -- it is possible that this would eventually be ambiguous,
+       -- which we'll detect during actual renaming.
+
+       Ambig {} -> Nothing
 
 knownImpName :: CurState -> ImpName PName -> Maybe (ImpName Name)
 knownImpName s i =
@@ -140,18 +152,19 @@ tryImport :: CurState -> ImportG (ImpName PName) -> CurState
 tryImport s imp =
   case knownModule s =<< knownImpName s (iModule imp) of
 
-    Nothing ->
-      let m = curMod s
-      in s { curMod = m { modImports = imp : modImports m } }
+    Nothing -> s { curMod = m { modImports = imp : modImports m } }
 
-    Just m
-      | not (rmodParams m) ->
-        s { curScope = interpImportEnv imp (rmodDefines m) <> curScope s
-          , changes = True
-          }
+    Just ext
+      | not (rmodParams ext) ->
+        let new = interpImportEnv imp (rmodDefines ext)
+        in s { curMod   = m { modImported = new <> modImported m }
+             , changes  = True
+             }
       | otherwise -> s { changes = True }
         -- ^ imported a functor.  consider resolved, but imports nothing
         -- presumably this will lead to an error later?
+  where
+  m = curMod s
 
 -- | Keep resolving imports until we can't make any more progress
 doImports :: CurState -> CurState
@@ -222,8 +235,8 @@ doInstantiate ::
 doInstantiate keepArgs newName def s = Set.foldl' doSub newS nestedToDo
   where
   ((newEnv,newNameSupply),nestedToDo) =
-      runId
-    $ runStateT Set.empty
+      M.runId
+    $ M.runStateT Set.empty
     $ runSupplyT (nameSupply s)
     $ travNamingEnv instName
     $ rmodDefines def
@@ -248,11 +261,11 @@ doInstantiate keepArgs newName def s = Set.foldl' doSub newS nestedToDo
       Nothing  -> panic "doInstantiate.doSub"
                     [ "Missing nested module:", show (pp oldSubName) ]
 
-  instName :: Name -> SupplyT (StateT (Set (Name,Name)) Id) Name
+  instName :: Name -> SupplyT (M.StateT (Set (Name,Name)) M.Id) Name
   instName x =
     do y <- liftSupply (freshNameFor x)
        when (x `Set.member` rmodNested def)
-            (lift (sets_ (Set.insert (x,y))))
+            (M.lift (M.sets_ (Set.insert (x,y))))
        pure y
 
 
@@ -277,33 +290,24 @@ resolveMod m = ResolvedModule
 
 
 -- | Try to resolve the "normal" module with the given name.
--- XXX: This is wrong.  When we resolve an import, we add the things that
--- flow in to `curScope`.  However, if there are some of the things in the
--- module that are *not* resolved, we'll keep the unresolved parts, but the
--- things imported through the resolved imports are lost, so we need to save
--- them somewhere.
 tryModule :: CurState -> Name -> Mod -> CurState
 tryModule s nm m
   | isEmptyMod newM =
-    newS { curScope    = curScope s
-         , curMod      = topMod
-         , doneModules = Map.insert (ImpNested nm) r (doneModules newS)
+    newS { curMod      = topMod
+         , doneModules = Map.insert (ImpNested nm)
+                                    (resolveMod m)
+                                    (doneModules newS)
          , changes     = True
          }
   | otherwise =
-    newS { curScope = curScope s
-         , curMod = topMod { modMods = Map.insert nm newM (modMods topMod) }
-         }
+    newS { curMod = topMod { modMods = Map.insert nm newM (modMods topMod) } }
 
   where
   topMod = curMod s
-  r      = resolveMod m
 
-  newS = doModuleStep s { curMod = m
-                        , curScope = rmodDefines r `shadowing` curScope s
-                        }
+  newS   = doModuleStep s { curMod = m { modOuter = curScope s } }
 
-  newM = curMod newS
+  newM   = curMod newS
 
 
 doModuleStep :: CurState -> CurState
@@ -320,57 +324,37 @@ topModuleLoop :: CurState -> CurState
 topModuleLoop s = if changes s1 then topModuleLoop s1 else s
   where s1 = doModules s
 
+{-
 -- | Given the definitions of external modules, computes what is defined
 -- by all local modules, including instantiations.
--- XXX: we may be able to compute what's in scope in all modules too, to
--- avoid having to do it again later.
 topModule ::
   Map (ImpName Name) ResolvedModule ->
   Module PName ->
   Supply ->
   (Map (ImpName Name) ResolvedModule, Supply)
-topModule externalModules m supply = (doneModules result, nameSupply result)
-{-
-tryInstanceMaybe ::
-  CurState ->
-  ImpName Name ->
-  (ImpName PName, ModuleInstanceArgs PName) ->
-  Maybe CurState
--}
+topModule externalModules m supply =
+  case mDef m of
+    NormalModule ds ->
+      let checkMod (ms,is) d =
+            case d of
+              DModule md ->
+                case tlValue md of
+                  NestedModule nmd ->
+                    case mDef nmd of
+                      NormalModule ds ->
+              _ -> (ms,is)
 
 
--- 
-  where
-  result = topModuleLoop
-              CurState { curScope    = mempty
-                       , curMod      = theMod
-                       , doneModules = externalModules
-                       , nameSupply  = supply
-                       , changes     = False
+          theMod = Mod { 
+                       , modParams = mIsFunctor m
+
+                       , modImports = [ thing i | DImport i <- ds ]
+
+                       , modInstances = undefined
+                       , modMods
                        }
-
-  theMod = undefined {-
-    case mDef m of
-      NormalModule ds -> undefined
-      FunctorInstanceOld f ds -> undefined
-      FunctorInstance f as -> undefined
-
-
-
-Mod { modImports   = undefined
-               , modParams    = undefined
-               , modDefines   = undefined
-               , modInstances = undefined
-               , modMods      = undefined
-               }
 -}
-{-
-  { modImports   :: [ ImportG (ImpName PName) ]
-  , modParams    :: Bool -- True = has params
-  , modInstances :: Map Name (ImpName PName, ModuleInstanceArgs PName)
-  , modMods      :: Map Name Mod
-  , modDefines   :: NamingEnv  -- ^ Things defined by this module
--}
+
 
 
 
