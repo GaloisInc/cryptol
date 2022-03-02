@@ -159,7 +159,15 @@ parseModule path = do
                        case mb of
                          Right ok -> pure ok
                          Left err -> noIncludeErrors err
-                  _ -> pure pm
+
+                  {- We don't do "include" resolution for in-memory files
+                     because at the moment the include resolution pass requires
+                     the path to the file to be known---this is used when
+                     looking for other inlcude files.  This could be
+                     generalized, but we can do it once we have a concrete use
+                     case as it would help guide the design. -}
+                  InMem {} -> pure pm
+
          fp `seq` return (fp, pm1)
 
     Left err -> moduleParseError path err
