@@ -29,25 +29,27 @@ import Cryptol.ModuleSystem.Interface
 -- XXX: TopDef and friends subsumes OwnedEntitities and they shoudl be removed
 
 
-data TopDef = TopMod ModName Mod
+data TopDef = TopMod ModName (Mod ())
             | TopInst ModName (ImpName PName) (ModuleInstanceArgs PName)
-            | TopInstOld ModName ModName Mod
+            | TopInstOld ModName ModName (Mod ())
 
 -- | Things defined by a module
-data Mod = Mod
+data Mod a = Mod
   { modImports   :: [ ImportG (ImpName PName) ]
   , modParams    :: Bool -- True = has params
   , modInstances :: Map Name (ImpName PName, ModuleInstanceArgs PName)
-  , modMods      :: Map Name Mod
+  , modMods      :: Map Name (Mod a)
   , modSigs      :: Map Name NamingEnv
   , modDefines   :: NamingEnv  -- ^ Things defined by this module
 
-    -- The 2 fields start off empty and are used when we are resolving imports
-  , modOuter     :: NamingEnv  -- ^ Names from an outer lexical scope
-  , modImported  :: NamingEnv
-    -- ^ These are things that came in through resolved imports
-    -- They start off as empty, and are built up as we resolve imports.
+  , modState     :: a
+    -- ^ used in the import loop to track the current state of processing
   }
+
+instance Functor Mod where
+  fmap f m = m { modState = f (modState m)
+               , modMods  = fmap f <$> modMods m
+               }
 
 data TopDefError = MultipleDefinitions (Maybe ModPath) Ident [Range]
                  | UnexpectedNest Range PName
@@ -76,11 +78,11 @@ topModuleDefs m =
   where
   mname = thing (mName m)
 
-topDeclsDefs :: [TopDecl PName] -> ModBuilder Mod
+topDeclsDefs :: [TopDecl PName] -> ModBuilder (Mod ())
 topDeclsDefs = declsToMod Nothing
 
 
-declsToMod :: Maybe ModPath -> [TopDecl PName] -> ModBuilder Mod
+declsToMod :: Maybe ModPath -> [TopDecl PName] -> ModBuilder (Mod ())
 declsToMod mbPath ds =
   do defs <- defNames (foldMap (namingEnv . InModule mbPath) ds)
      case findAmbig defs of
@@ -88,14 +90,13 @@ declsToMod mbPath ds =
          defErr (MultipleDefinitions mbPath (nameIdent f) (map nameLoc bad))
        _ -> pure ()
 
-     let mo = Mod { modImports   = [ thing i | DImport i <- ds ]
-                  , modParams    = any isParamDecl ds
-                  , modInstances = mempty
-                  , modMods      = mempty
-                  , modSigs      = mempty
-                  , modDefines   = defs
-                  , modOuter     = mempty
-                  , modImported  = mempty
+     let mo = Mod { modImports      = [ thing i | DImport i <- ds ]
+                  , modParams       = any isParamDecl ds
+                  , modInstances    = mempty
+                  , modMods         = mempty
+                  , modSigs         = mempty
+                  , modDefines      = defs
+                  , modState        = ()
                   }
 
      foldM (checkNest defs) mo ds
