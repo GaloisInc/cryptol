@@ -117,6 +117,7 @@ noPat a = do
 
 -- Parsing ---------------------------------------------------------------------
 
+-- | Parse a module and expand includes
 parseModule :: ModulePath -> ModuleM (Fingerprint, P.Module PName)
 parseModule path = do
   getBytes <- getByteReader
@@ -149,8 +150,26 @@ parseModule path = do
               }
 
   case P.parseModule cfg txt of
-    Right pm -> let fp = fingerprint bytes
-                in fp `seq` return (fp, pm)
+    Right pm ->
+      do let fp = fingerprint bytes
+         pm1 <- case path of
+                  InFile p ->
+                    do r <- getByteReader
+                       mb <- io (removeIncludesModule r p pm)
+                       case mb of
+                         Right ok -> pure ok
+                         Left err -> noIncludeErrors err
+
+                  {- We don't do "include" resolution for in-memory files
+                     because at the moment the include resolution pass requires
+                     the path to the file to be known---this is used when
+                     looking for other inlcude files.  This could be
+                     generalized, but we can do it once we have a concrete use
+                     case as it would help guide the design. -}
+                  InMem {} -> pure pm
+
+         fp `seq` return (fp, pm1)
+
     Left err -> moduleParseError path err
 
 
@@ -210,7 +229,7 @@ doLoadModule quiet isrc path fp pm0 =
        ("Loading module " ++ pretty (P.thing (P.mName pm)))
 
 
-     (nameEnv,tcmod) <- checkModule isrc path pm
+     (nameEnv,tcmod) <- checkModule isrc pm
      tcm <- optionalInstantiate tcmod
 
      -- extend the eval env, unless a functor.
@@ -387,19 +406,17 @@ getPrimMap  =
                   [ "Unable to find the prelude" ]
 
 -- | Load a module, be it a normal module or a functor instantiation.
-checkModule ::
-  ImportSource -> ModulePath -> P.Module PName ->
-  ModuleM (R.NamingEnv, T.Module)
-checkModule isrc path m =
+checkModule :: ImportSource -> P.Module PName -> ModuleM (R.NamingEnv, T.Module)
+checkModule isrc m =
   case P.mInstance m of
-    Nothing -> checkSingleModule T.tcModule isrc path m
+    Nothing -> checkSingleModule T.tcModule isrc m
     Just fmName ->
       do mbtf <- getLoadedMaybe (thing fmName)
          case mbtf of
            Just tf ->
              do renThis <- io $ newIORef (lmNamingEnv tf)
                 let how = T.tcModuleInst renThis (lmModule tf)
-                (_,m') <- checkSingleModule how isrc path m
+                (_,m') <- checkSingleModule how isrc m
                 newEnv <- io $ readIORef renThis
                 pure (newEnv,m')
            Nothing -> panic "checkModule"
@@ -409,35 +426,21 @@ checkModule isrc path m =
 -- | Typecheck a single module.  If the module is an instantiation
 -- of a functor, then this just type-checks the instantiating parameters.
 -- See 'checkModule'
+-- Note: we assume that @include@s have already been processed
 checkSingleModule ::
   Act (P.Module Name) T.Module {- ^ how to check -} ->
   ImportSource                 {- ^ why are we loading this -} ->
-  ModulePath                   {- path -} ->
   P.Module PName               {- ^ module to check -} ->
   ModuleM (R.NamingEnv,T.Module)
-checkSingleModule how isrc path m = do
+checkSingleModule how isrc m = do
 
   -- check that the name of the module matches expectations
   let nm = importedModule isrc
   unless (notParamInstModName nm == thing (P.mName m))
          (moduleNameMismatch nm (mName m))
 
-  -- remove includes first; we only do this for actual files.
-  -- it is less clear what should happen for in-memory things, and since
-  -- this is a more-or-less obsolete feature, we are just not doing
-  -- ot for now.
-  e   <- case path of
-           InFile p -> do
-             r <- getByteReader
-             io (removeIncludesModule r p m)
-           InMem {} -> pure (Right m)
-
-  nim <- case e of
-           Right nim  -> return nim
-           Left ierrs -> noIncludeErrors ierrs
-
   -- remove pattern bindings
-  npm <- noPat nim
+  npm <- noPat m
 
   -- rename everything
   renMod <- renameModule npm
