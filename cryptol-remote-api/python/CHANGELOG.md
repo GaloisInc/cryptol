@@ -1,8 +1,7 @@
 # Revision history for `cryptol` Python package
 
-## 2.12.4 -- YYYY-MM-DD
+## 2.12.4 -- 2022-03-21
 
-* NEW CHANGELOG ENTRIES SINCE 2.12.2 GO HERE
 * fix: add `typing-extensions` as an explicit dependency for the client.
 
 ## 2.12.2 -- 2021-12-21
