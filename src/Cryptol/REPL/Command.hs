@@ -1156,6 +1156,7 @@ loadHelper how =
   do clearLoadedMod
      (path,m) <- liftModuleCmd how
      whenDebug (rPutStrLn (dump m))
+     io (putStrLn ("Loaded from: " ++ show path))
      setLoadedMod LoadedModule
         { lName = Just (T.mName m)
         , lPath = path

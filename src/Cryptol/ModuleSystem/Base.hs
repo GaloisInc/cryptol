@@ -210,6 +210,9 @@ loadModuleFrom quiet isrc =
             errorInFile path $
               do (fp, pm) <- parseModule path
                  m        <- doLoadModule quiet isrc path fp pm
+                 case path of
+                   InMem{} -> return ()
+                   InFile p -> io (putStrLn ("Loading from: " ++ show p))
                  return (path,m)
 
 -- | Load dependencies, typecheck, and add to the eval environment.
