@@ -62,95 +62,46 @@ import Cryptol.ModuleSystem.Renamer.Monad
 import Cryptol.ModuleSystem.Renamer.Imports
 
 
-{- Note: Renaming Functor instantiations
+{-
+The Renamer Algorithm
+=====================
 
-    module A where
+1. Compute what each module defines   (see "Cryptol.ModuleSystem.Binds")
+  - This assigns unique names to names introduces by various declarations
+  - Module instantiations also get a name, but are not yet resolved, so
+    we don't know what's defined by them.
+  - We do not generate unique names for functor parameters---those will
+    be matched textually to the arguments when applied.
+  - We *do* generate unique names for declarations in "signatures"
+    * those are only really needed when renaming the signature (step 3)
+      (e.g., to determine if a name refers to something declared in the
+      signature or something else).
+    * when validating a module against a signature the names of the declarations
+      are matched textually, *not* using the unique names
+      (e.g., `x` in a signature is matched with the thing named `x` in a module,
+       even though these two `x`s will have different unique `id`s)
 
-      signature S where ...
+2. Resolve imports and instantiations (see "Cryptol.ModuleSystem.Imports")
+  - Resolves names in submodule imports
+  - Resolves functor instantiations:
+    * generate new nemaes for delcarations in the functions.
+    * this includes any nested modules, and things nested withing them.
+  - At this point we have enough information to know what's exported by 
+    each module
 
-      module F where
-        import signature S
-
-      module P where ...
-
-      module M = F P
-
-      import M
-
-When we process import `M` we can tell that it referes to the module `M`
-defined in the current module.  With ordinary nested modules that's all we
-need to know to process the impot---since we can pre-compute the renamings
-for all nested modules, we can lookup `M` and whatever it brings into scope
-as usual.
-
-Unforutnately, things are more complicates in this example because `M` is
-an instantiation, and we don't know what it brings in scope, until we have
-resolved `F` and `P`.  Once we have done that, we can generate a definition
-for `M` by using a fresh instantiation of `F` where the names that came
-from `F's parameters are replaced by the names provided by `P`.
-
-If we want applicative behavior, we'd also have to consult a cache to
-see if we've already encountered `F P` and reuse those names, rahter than
-generating a fresh instantiation.
-
-In terms of dependencies, we should be able to resolve `F` and `P` *without*
-resolving `M`.
-
-Before we have functor instantiation we can compute the names defined
-by each module (nested or not) without renaming the module.   With functor
-instantiation we can no longer do that because to know what a module defines
-we need to resolve the functors and its arguments.  Consider this example:
-
-module A where
-
-  submodule M where
-    import X  -- brings in F
-    submodule I = F P
-
-  submodule P where ...
-
-  import submodule M    -- brings in I
-  import submodule I
-
-Invariant: submodules that came in through a top-level import will
-always be fully processed so can be used directly.
-
-So we just need to do stuff for submodule defined in *this* top-level modules.
-  1. we can easily compute what "normal" submodule define
-  2. the hard case is submodule that are functor instantiation becuase
-     they require us to *resolve* the functor and its arguments.
-
-The current algorithm is done one module at a time:
-  1. things defined in this module
-  2. things imported from top-level modules
-  3. things imported from normal sub-modues
-     (the import loop)
-
-I think to deal with instantiations we may have to generalize the import
-loop to work on all nested module at once, so that for each nested module
-we keep track of:
-  1. what imports still need resolving
-  2. what's in scope in the module
-  3. definitions for instantiations
-
-When an import is resolved the names are add in scope to the current module
-and all modules nested in it.
-
-When an import refers to instantiation:
-  * if instantiation is resolved we just use it
-  * if arguments are not yet resolvable we delay
-  * if arguments are all resolved we generate a new instantiation
-    and resolve the import as a normal import
-
-It might make sense to process things from most nested to outermost
-because names flow from outside to nesting, thus adding extra names to
-the in-scope relation of the most nested modules does not affect anyone else.
-
-Also, we are just interested if a name can be resolved in *at least one way*.
-If it can be resolved in multiple ways, then it is ambiguous but we don't
-worry about this now.  After this pass, when we do the actula renaming,
-such ambiguitites will be caugh (I think).
-
+3. Do the renaming (this module)
+  - Using step 2 we compute the scoping environment for each module/signature
+  - We traverse all declarations and replace the parser names with the
+    corresponding names in scope:
+    * Here we detect ambiguity and undefined errors
+    * During this pass is also where we keep track of infromation of what
+      names are used by declarations:
+      - this is used to compute the dependencies between declarations
+      - which are in turn used to order the declarations in dependency order
+        * this is assumed by the TC
+        * here we also report errors about invalid recursive dependencies
+    * During this stage we also issue warning about unused type names
+      (and we should probably do unused value names too one day)
 -}
 
 
