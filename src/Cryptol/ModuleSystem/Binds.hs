@@ -43,7 +43,10 @@ data Mod a = Mod
   , modDefines   :: NamingEnv  -- ^ Things defined by this module
 
   , modState     :: a
-    -- ^ used in the import loop to track the current state of processing
+    {- ^ Used in the import loop to track the current state of processing.
+         The reason this is here, rather than just having a pair in the
+         other algorithm is because this type is recursive (for nested modules)
+         and it is conveninet to keep track for all modules at once -}
   }
 
 instance Functor Mod where

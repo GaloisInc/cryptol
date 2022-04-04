@@ -1,17 +1,29 @@
 {- |
 
-This module deals with imports of nested modules (@import submodule@)
-The issue is that in @import submodule X@ we need to resolve what @X@
+This module deals with imports of nested modules (@import submodule@).
+This is more complex than it might seem at first because to resolve a
+declaration like @import submodule X@ we need to resolve what @X@
 referes to before we know what it will import.
 
-Even triciker is the case for functor instantiations, @F { X }@:
-in this case we have to first resolve @F@ and @X@, and then generate
-fresh names for the instance (or reusing an existing instantiation if
-we are going for applicative semantics).
+Even triciker is the case for functor instantiations:
 
-We assume that declarations can be ordered in dependency order,
-and submodules can be processed one at a time (i.e., no recursion across
-modules).  Thus, the following is OK:
+  module M = F { X }
+  import M
+
+In this case, even if we know what `M` referes to, we first need to
+resolve `F`, so that we can generate the instantiation and generate
+fresh names for names defined by `M`.
+
+If we want to support applicative sematnics, then before instantiation
+`M` we also need to resolve `X` so that we know if this instantiation has
+already been generated.
+
+An overall guiding principle of the design is that we assume that declarations
+can be ordered in dependency order, and submodules can be processed one
+at a time. In particular, this does not allow recursion across modules,
+or functor instantiations depending on their arguments.
+
+Thus, the following is OK:
 
 module A where
   x = 0x2
@@ -27,9 +39,6 @@ However, this is not OK:
   submodule A = F X
   submodule F where
     import A
-
-In particular, this means that a functor may not depend on its own
-instantiation.
 -}
 
 {-# Language BlockArguments #-}
@@ -63,25 +72,45 @@ import Cryptol.ModuleSystem.NamingEnv
           , interpImportEnv )
 
 
+--------------------------------------------------------------------------------
+
+
+-- | This keeps track of the current state of resolution of a module.
+type Todo = Mod ModState
+
 data ModState = ModState
   { modOuter        :: NamingEnv
+    -- ^ Things which come in scope from outer modules
+
   , modImported     :: NamingEnv
+    -- ^ Things which come in scope via imports.  These shadow outer names.
+
   , modImportOrder  :: [PName]
+    {- ^ @submodule import@ in dependency order.  Imports *later* in the
+       list can't depend on imports that are *earlier* in the list
+       (i.e., every time we finish processing an import we add it to the front).
+       Note that "rmodImpOrder" in "ResolvedModule" has the imports in the
+       reverse order! -}
   }
 
-emptyModState :: ModState
-emptyModState = ModState
-  { modOuter        = mempty
-  , modImported     = mempty
-  , modImportOrder  = []
-  }
-
-type Todo = Mod ModState
 
 -- | Initial state of a module that needs processing.
 todoModule :: Mod () -> Todo
 todoModule = fmap (const emptyModState)
+  where
+  emptyModState =
+    ModState
+      { modOuter        = mempty
+      , modImported     = mempty
+      , modImportOrder  = []
+      }
 
+{- | A module is fully processed when we are done with all its:
+
+  * submodule imports
+  * instantiations
+  * nested things (signatures and modules)
+-}
 isDone :: Todo -> Bool
 isDone m = null     (modImports m)   &&
            Map.null (modInstances m) &&
@@ -99,16 +128,31 @@ pushMod k v m = m { modMods = Map.insert k v (modMods m) }
 
 updMS :: (ModState -> ModState) -> Todo -> Todo
 updMS f m = m { modState = f (modState m) }
+--------------------------------------------------------------------------------
 
 
 
 {- | This represents a resolved module or signaure.
+The type parameter helps us distinguish between two types of resolved modules:
+
+  1. Resolved modules that are *inputs* to the algorithm (i.e., they are
+     defined outside the current module).  For such modules the type
+     parameter is @imps@ is ()
+
+  2. Resolved modules that are *outputs* of the algorithm (i.e., they
+     defined within the current module).  For such modules the type
+     parameter is @imps@ is @[PName]@, signifying the order in which
+     imports should be processed.  These are `PNames` because they
+     still need to be properly resolved using the full scoping relation.
+     Note that such module may also be used as inputs for other module.
+
 Note that signaures are never "imported", however we do need to keep them
 here so that signatures in a functor are properly instantiated when
-the functor is instantiated. -}
+the functor is instantiated.
+-}
 data ResolvedModule imps = ResolvedModule
   { rmodDefines   :: NamingEnv    -- ^ Things defined by the module/signature.
-  , rmodParams    :: Bool         -- ^ Is it a functor
+  , rmodParams    :: Bool         -- ^ Is it a functor?
   , rmodNested    :: Set Name     -- ^ Modules and signatures nested in this one
   , rmodImpOrder  :: imps
     {- ^ Process imports in this order
@@ -117,6 +161,8 @@ data ResolvedModule imps = ResolvedModule
     it is just part of the thing we compute for local modules. -}
   }
 
+{- | This is used when we need to use a local resolved module as an input
+     to another module. -}
 forget :: ResolvedModule [PName] -> ResolvedModule ()
 forget r = r { rmodImpOrder = () }
 
@@ -154,26 +200,41 @@ curScope s = modDefines m `shadowing` modImported ms `shadowing` modOuter ms
   m   = curMod s
   ms  = modState m
 
+
+-- | Keep applying a transformation while things are changing
+doStep :: (CurState -> CurState) -> (CurState -> CurState)
+doStep f s0 = go (changes s0) s0
+  where
+  go ch s = let s1 = f s { changes = False }
+            in if changes s1 then go True s1 else s { changes = ch }
+
+-- | Is this a known name for a module in the current scope?
 knownPName :: CurState -> PName -> Maybe Name
 knownPName s x =
   do ns <- lookupNS NSModule x (curScope s)
      case ns of
        One n    -> pure n
-       -- NOTE: since we build up what's in scope incrementally,
-       -- it is possible that this would eventually be ambiguous,
-       -- which we'll detect during actual renaming.
+       {- NOTE: since we build up what's in scope incrementally,
+          it is possible that this would eventually be ambiguous,
+          which we'll detect during actual renaming. -}
 
        Ambig {} -> Nothing
+       {- We treat ambiguous imports as undefined, which may lead to
+          spurious "undefined X" errors.  To avoid this we should prioritize
+          reporting "ambiguous X" errors. -}
 
+-- | Is the module mentioned in this import known in the current scope?
 knownImpName :: CurState -> ImpName PName -> Maybe (ImpName Name)
 knownImpName s i =
   case i of
     ImpTop m    -> pure (ImpTop m)
     ImpNested m -> ImpNested <$> knownPName s m
 
+-- | Is the module mentioned in the import already resolved?
 knownModule :: CurState -> ImpName Name -> Maybe (ResolvedModule ())
 knownModule s x =
-  Map.lookup x (externalModules s) `mplus`
+  Map.lookup x (externalModules s)
+  `mplus`
   case x of
     ImpNested y -> forget <$> Map.lookup y (doneModules s)
     ImpTop {}   -> Nothing
@@ -191,6 +252,7 @@ tryImport s imp =
   case knownModule s =<< knownImpName s (iModule imp) of
 
     Nothing -> updCur s (pushImport imp)
+      -- goes back on the queue, which started empty
 
     Just ext ->
       let new = if rmodParams ext
@@ -200,17 +262,15 @@ tryImport s imp =
            \ms -> ms { modImported = new <> modImported ms
                      , modImportOrder =
                          case iModule imp of
-                         ImpNested x -> x : modImportOrder ms
-                         _           ->     modImportOrder ms
+                           ImpNested x -> x : modImportOrder ms
+                           _           ->     modImportOrder ms
                      }
 
--- | Keep resolving imports until we can't make any more progress
-doImports :: CurState -> CurState
-doImports s = if changes s2 then doImports s2 else s2
+-- | Resolve all imports in the current modules
+doImportStep :: CurState -> CurState
+doImportStep s = foldl' tryImport s1 (modImports (curMod s))
   where
-  is = modImports (curMod s)
-  s1 = updCur s { changes = False } \m -> m { modImports = [] }
-  s2 = foldl' tryImport s1 is
+  s1 = updCur s \m -> m { modImports = [] }
 
 
 {- | Try to instantiate a functor.  This succeeds if we can resolve the functor
@@ -307,16 +367,16 @@ doInstantiate keepArgs def s = (newDef, Set.foldl' doSub newS nestedToDo)
 
 
 {- | ^ Keep insantiating things until we can't make any more progres -}
-doInstances :: CurState -> CurState
-doInstances s = Map.foldlWithKey' tryInstance s0 (modInstances m)
+doInstancesStep :: CurState -> CurState
+doInstancesStep s = Map.foldlWithKey' tryInstance s0 (modInstances m)
   where
   m  = curMod s
   s0 = updCur s \m' -> m' { modInstances = Map.empty }
 
 
 -- | Generate names for signatures.  This always succeeds.
-doSignatures :: CurState -> CurState
-doSignatures s = updCur s1 \m -> m { modSigs = mempty }
+doSignaturesStep :: CurState -> CurState
+doSignaturesStep s = updCur s1 \m -> m { modSigs = mempty }
   where
   s1 = s { doneModules = Map.union resolved (doneModules s)
          , changes     = not (Map.null sigs)
@@ -358,21 +418,22 @@ tryModule s nm m
              }
 
 -- | Process all submodules of a module.
-doModules :: CurState -> CurState
-doModules s = Map.foldlWithKey' tryModule s0 (modMods m)
+doModulesStep :: CurState -> CurState
+doModulesStep s = Map.foldlWithKey' tryModule s0 (modMods m)
   where
   m  = curMod s
   s0 = s { curMod = m { modMods = mempty } }
 
 
 
--- | Keep progressing in the various sub-components of the current module,
--- until we can't make any more progress.
+-- | All steps involved in processing a module.
 doModuleStep :: CurState -> CurState
-doModuleStep s0 = if changes s1 then doModuleStep s1 else s0
+doModuleStep = doStep step
   where
-  step = doModules . doInstances . doSignatures . doImports
-  s1   = step s0
+  step = doStep doModulesStep
+       . doStep doInstancesStep
+       . doStep doSignaturesStep
+       . doStep doImportStep
 
 
 
@@ -384,7 +445,7 @@ doTopDef ::
 doTopDef ext def su =
   case def of
     TopMod m mo ->
-      let s = doModules CurState
+      let s = doModuleStep CurState
                           { curMod = todoModule mo
                           , externalModules = ext
                           , doneModules = mempty
@@ -402,6 +463,8 @@ doTopDef ext def su =
 
 
 --------------------------------------------------------------------------------
+-- Old Loop
+
 
 data OpenLoopState = OpenLoopState
   { unresolvedOpen  :: [ImportG PName]
