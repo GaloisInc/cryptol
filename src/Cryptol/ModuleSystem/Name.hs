@@ -398,11 +398,18 @@ paramModRecParam = Name { nInfo   = LocalName NSValue (packIdent "$modParams")
                         }
 
 
--- This is used when instantiating functors
--- XXX: what should be the OrigName for the instantiated names?
-freshNameFor :: Name -> Supply -> (Name,Supply)
-freshNameFor x s = (x { nUnique = u }, s1)
-  where (u,s1) = nextUnique s
+-- | This is used when instantiating functors
+freshNameFor :: ModPath -> Name -> Supply -> (Name,Supply)
+freshNameFor mpath x s = (newName, s1)
+  where
+  (u,s1) = nextUnique s
+  newName =
+    x { nUnique = u
+      , nInfo =
+          case nInfo x of
+            GlobalName src og -> GlobalName src og { ogModule = mpath }
+            LocalName {} -> panic "freshNameFor" ["Unexpected local",show x]
+      }
 
 -- Prim Maps -------------------------------------------------------------------
 

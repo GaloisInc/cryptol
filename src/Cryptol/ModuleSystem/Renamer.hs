@@ -52,7 +52,7 @@ import Cryptol.Parser.AST
 import Cryptol.Parser.Selector(selName)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.RecordMap
-import Cryptol.Utils.Ident(allNamespaces,packModName,OrigName(..))
+import Cryptol.Utils.Ident(allNamespaces,OrigName(..))
 import Cryptol.Utils.PP
 
 import Cryptol.ModuleSystem.Interface
@@ -60,6 +60,7 @@ import Cryptol.ModuleSystem.Renamer.Error
 import Cryptol.ModuleSystem.Binds
 import Cryptol.ModuleSystem.Renamer.Monad
 import Cryptol.ModuleSystem.Renamer.Imports
+import Cryptol.ModuleSystem.Renamer.ImplicitImports
 
 
 {-
@@ -73,7 +74,7 @@ The Renamer Algorithm
   - We do not generate unique names for functor parameters---those will
     be matched textually to the arguments when applied.
   - We *do* generate unique names for declarations in "signatures"
-    * those are only really needed when renaming the signature (step 3)
+    * those are only really needed when renaming the signature (step 4)
       (e.g., to determine if a name refers to something declared in the
       signature or something else).
     * when validating a module against a signature the names of the declarations
@@ -81,7 +82,9 @@ The Renamer Algorithm
       (e.g., `x` in a signature is matched with the thing named `x` in a module,
        even though these two `x`s will have different unique `id`s)
 
-2. Resolve imports and instantiations (see "Cryptol.ModuleSystem.Imports")
+2. Add implicit imports for visible nested modules
+
+3. Resolve imports and instantiations (see "Cryptol.ModuleSystem.Imports")
   - Resolves names in submodule imports
   - Resolves functor instantiations:
     * generate new nemaes for delcarations in the functions.
@@ -89,8 +92,8 @@ The Renamer Algorithm
   - At this point we have enough information to know what's exported by 
     each module
 
-3. Do the renaming (this module)
-  - Using step 2 we compute the scoping environment for each module/signature
+4. Do the renaming (this module)
+  - Using step 3 we compute the scoping environment for each module/signature
   - We traverse all declarations and replace the parser names with the
     corresponding names in scope:
     * Here we detect ambiguity and undefined errors
@@ -105,21 +108,7 @@ The Renamer Algorithm
 -}
 
 
-
-
-
-data RenModParam = RenModParam
-  { renModParamName      :: Ident
-  , renModParamRange     :: Range
-  , renModParamSig       :: Name
-  , renModParamInstance  :: Map Name Name
-    -- ^ Maps param names to names in *signature*.
-    -- This for functors, NOT functor instantantiations.
-  }
-
-
-
-
+-- | The result of renaming a module
 data RenamedModule = RenamedModule
   { rmModule   :: Module Name     -- ^ The renamed module
   , rmDefines  :: NamingEnv       -- ^ What this module defines
@@ -127,14 +116,16 @@ data RenamedModule = RenamedModule
   , rmImported :: IfaceDecls      -- ^ Imported declarations
   }
 
--- | This is used for renaming a top-level module.
+-- | Entry point. This is used for renaming a top-level module.
 renameModule :: Module PName -> RenameM RenamedModule
 renameModule m0 =
   do let m = case mDef m0 of
                NormalModule ds ->
                  m0 { mDef = NormalModule
-                                (snd (addImplicitNestedImports (mDecls m0))) }
-               _ -> m0
+                                (addImplicitNestedImports (mDecls m0)) }
+               _ -> m0 -- XXX: OldStyleFunctor instnatiantions should
+                       -- be translated into normal instantiations and
+                       -- an anonymous module.
      env      <- liftSupply (defsOf m)
      nested   <- liftSupply (collectNestedInModule env m)
      setNestedModule (nestedModuleNames nested)
@@ -152,10 +143,13 @@ renameModule m0 =
                 -- XXX: maybe we should keep the nested defines too?
                  }
 
+{- | Entry point. Rename a list of top-level declarations.
+This is used for declaration that don't live in a module
+(e.g., define on the command line. -}
 renameTopDecls ::
   ModName -> [TopDecl PName] -> RenameM (NamingEnv,[TopDecl Name])
 renameTopDecls m ds0 =
-  do let ds = snd (addImplicitNestedImports ds0)
+  do let ds = addImplicitNestedImports ds0
      let mpath = TopModule m
      env    <- liftSupply (defsOf (map (InModule (Just mpath)) ds))
      nested <- liftSupply (collectNestedInDecls env m ds)
@@ -173,65 +167,6 @@ renameTopDecls m ds0 =
           mapM_ recordUse (foldMap (exported NSType) exports)
 
           pure (env,ds1)
-
-{- | Returns declarations with additional imports and the public module names
-of this module and its children.
-
-The additional implicit imports are for public nested modules.  This allows
-using definitions from neste dmodules without having to explicitly import
-them, for example:
-
-module A where
-
-  submodule B where
-    x = 0x20
-
-  y = x     // This works because of the implicit import of `B`
--}
-
-addImplicitNestedImports ::
-  [TopDecl PName] -> ([[Ident]], [TopDecl PName])
-addImplicitNestedImports decls = (concat exportedMods, concat newDecls ++ other)
-  where
-  (mods,other)            = foldr classify ([], []) decls
-  classify d (ms,ds) =
-    case d of
-      DModule tl | notFunctor tl -> (tl : ms, ds)
-      _          -> (ms, d : ds)
-
-  notFunctor x =
-    case tlValue x of
-      NestedModule m -> not (mIsFunctor m)
-
-  (newDecls,exportedMods) = unzip (map processModule mods)
-  processModule m =
-    let NestedModule m1 = tlValue m
-    in
-    case mDef m1 of
-      NormalModule ds ->
-        let (childExs, ds1) = addImplicitNestedImports ds
-            mname           = getIdent (thing (mName m1))
-            imps            = map (mname :) ([] : childExs)
-            isToName is     = case is of
-                                [i] -> mkUnqual i
-                                _   -> mkQual (isToQual (init is)) (last is)
-            isToQual is     = packModName (map identText is)
-            mkImp xs        = DImport
-                              Located
-                                { srcRange = srcRange (mName m1)
-                                , thing = Import
-                                            { iModule = ImpNested (isToName xs)
-                                            , iAs     = Just (isToQual xs)
-                                            , iSpec   = Nothing
-                                            }
-                                }
-        in ( DModule m { tlValue = NestedModule m1 { mDef = NormalModule ds1 } }
-           : map mkImp imps
-           , case tlExport m of
-               Public  -> imps
-               Private -> []
-           )
-      _ -> ([],[])
 
 
 nestedModuleNames :: OwnedEntities -> Map ModPath Name
@@ -579,6 +514,17 @@ doImport li =
            , ownSignatures = modParamsNamingEnv        <$> ifSignatures decls
            }
      pure (own, interpImportIface i decls)
+
+
+
+data RenModParam = RenModParam
+  { renModParamName      :: Ident
+  , renModParamRange     :: Range
+  , renModParamSig       :: Name
+  , renModParamInstance  :: Map Name Name
+    -- ^ Maps param names to names in *signature*.
+    -- This is for functors, NOT functor instantantiations.
+  }
 
 
 {- | Compute the names introduced by a module parameter.

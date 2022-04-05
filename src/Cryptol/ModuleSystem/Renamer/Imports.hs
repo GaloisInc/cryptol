@@ -14,7 +14,7 @@ In this case, even if we know what `M` referes to, we first need to
 resolve `F`, so that we can generate the instantiation and generate
 fresh names for names defined by `M`.
 
-If we want to support applicative sematnics, then before instantiation
+If we want to support applicative semantics, then before instantiation
 `M` we also need to resolve `X` so that we know if this instantiation has
 already been generated.
 
@@ -54,18 +54,19 @@ import qualified MonadLib as M
 
 import Cryptol.Utils.PP(pp)
 import Cryptol.Utils.Panic(panic)
-import Cryptol.Utils.Ident(ModPath(..),Namespace(..))
+import Cryptol.Utils.Ident(ModPath(..),Namespace(..),OrigName(..))
 
 import Cryptol.Parser.Position(Located(..))
 import Cryptol.Parser.AST
-  ( Module, ModuleG(..), ModuleDefinition(..)
+  ( ModuleG(..)
   , ImportG(..),PName
   , ModuleInstanceArgs(..), ModuleInstanceArg(..)
   , ImpName(..)
   )
 import Cryptol.ModuleSystem.Binds (OwnedEntities(..), Mod(..), TopDef(..))
 import Cryptol.ModuleSystem.Name
-          ( Name, Supply, SupplyT, runSupplyT, liftSupply, freshNameFor)
+          ( Name, Supply, SupplyT, runSupplyT, liftSupply, freshNameFor
+          , asOrigName, nameIdent )
 import Cryptol.ModuleSystem.Names(Names(..))
 import Cryptol.ModuleSystem.NamingEnv
           ( NamingEnv(..), lookupNS, shadowing, travNamingEnv
@@ -279,12 +280,20 @@ Note: at the moment we ignore the arguments, but we'd have to do that in
 order to implment applicative behavior throuhg caching. -}
 tryInstanceMaybe ::
   CurState ->
+  ImpName Name ->
   (ImpName PName, ModuleInstanceArgs PName)
   {- ^ Functor and arguments -}  ->
   Maybe (ResolvedModule [PName],CurState)
-tryInstanceMaybe s (f,_xs) =
+tryInstanceMaybe s mn (f,_xs) =
   do fn <- knownImpName s f
-     doInstantiateByName False fn s
+     let path = case mn of
+                  ImpTop m    -> TopModule m
+                  ImpNested m ->
+                    case asOrigName m of
+                      Just og -> ogModule og
+                      Nothing ->
+                        panic "tryInstanceMaybe" [ "Not a top-level name" ]
+     doInstantiateByName False path fn s
 
 {- | Try to instantiate a functor.  If successful, then the newly instantiated
 module (and all things nested in it) are going to be added to the
@@ -296,7 +305,7 @@ tryInstance ::
   (ImpName PName, ModuleInstanceArgs PName) ->
   CurState
 tryInstance s mn (f,xs) =
-  case tryInstanceMaybe s (f,xs) of
+  case tryInstanceMaybe s (ImpNested mn) (f,xs) of
     Nothing       -> updCur s (pushInst mn (f,xs))
     Just (def,s1) -> s1 { changes = True
                         , doneModules = Map.insert mn def (doneModules s1)
@@ -309,12 +318,13 @@ doInstantiateByName ::
     a functor applied to some arguments the result is not a functor.  However,
     if we are instantiating a functor nested withing some functor that's being
     instantiated, then the result is still a functor. -} ->
-  ImpName Name {- ^ Name for the functor/module -} ->
+  ModPath {- ^ Path for instantiated names -} ->
+  ImpName Name {- ^ Name of the functor/module being instantiated -} ->
   CurState -> Maybe (ResolvedModule [PName],CurState)
 
-doInstantiateByName keepArgs mname s =
-  do def <- knownModule s mname
-     pure (doInstantiate keepArgs def s)
+doInstantiateByName keepArgs mpath fname s =
+  do def <- knownModule s fname
+     pure (doInstantiate keepArgs mpath def s)
 
 
 
@@ -322,10 +332,11 @@ doInstantiateByName keepArgs mname s =
 Note that the module might not be a functor itself (e.g., if we are
 instantiating something nested in a functor -}
 doInstantiate ::
-  Bool               {- ^ See @doInstantiateByName@ -} ->
+  Bool               {- ^ See `doInstantiateByName` -} ->
+  ModPath            {- ^ Path for instantiated names -} ->
   ResolvedModule ()  {- ^ The thing being instantiated -} ->
   CurState -> (ResolvedModule [PName],CurState)
-doInstantiate keepArgs def s = (newDef, Set.foldl' doSub newS nestedToDo)
+doInstantiate keepArgs mpath def s = (newDef, Set.foldl' doSub newS nestedToDo)
   where
   ((newEnv,newNameSupply),nestedToDo) =
       M.runId
@@ -352,7 +363,8 @@ doInstantiate keepArgs def s = (newDef, Set.foldl' doSub newS nestedToDo)
                           }
 
   doSub st (oldSubName,newSubName) =
-    case doInstantiateByName True (ImpNested oldSubName) st of
+    case doInstantiateByName True (Nested mpath (nameIdent newSubName))
+                                  (ImpNested oldSubName) st of
       Just (idef,st1) -> st1 { doneModules = Map.insert newSubName idef
                                                         (doneModules st1) }
       Nothing  -> panic "doInstantiate.doSub"
@@ -360,17 +372,19 @@ doInstantiate keepArgs def s = (newDef, Set.foldl' doSub newS nestedToDo)
 
   instName :: Name -> SupplyT (M.StateT (Set (Name,Name)) M.Id) Name
   instName x =
-    do y <- liftSupply (freshNameFor x)
+    do y <- liftSupply (freshNameFor mpath x)
+       -- XXX: this should have a different original name using the name
+       -- of the instantied module.
+
        when (x `Set.member` rmodNested def)
             (M.lift (M.sets_ (Set.insert (x,y))))
        pure y
 
 
-{- | ^ Keep insantiating things until we can't make any more progres -}
+-- | Try to make progress on all instantiations.
 doInstancesStep :: CurState -> CurState
-doInstancesStep s = Map.foldlWithKey' tryInstance s0 (modInstances m)
+doInstancesStep s = Map.foldlWithKey' tryInstance s0 (modInstances (curMod s))
   where
-  m  = curMod s
   s0 = updCur s \m' -> m' { modInstances = Map.empty }
 
 
