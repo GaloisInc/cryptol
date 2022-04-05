@@ -3,7 +3,23 @@
 {-# Language FlexibleInstances #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
-module Cryptol.ModuleSystem.Binds where
+module Cryptol.ModuleSystem.Binds
+  ( BindsNames
+  , TopDef(..)
+  , Mod(..)
+  , TopDefError(..)
+  , modBuilder
+  , topModuleDefs
+  , topDeclsDefs
+  , interpImportIface
+  , newModParam
+  , InModule(..)
+
+  , OwnedEntities(..)
+  , collectNestedInModule
+  , collectNestedInDecls
+  , defsOf
+  ) where
 
 import Data.Map(Map)
 import qualified Data.Map as Map

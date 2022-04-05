@@ -42,7 +42,14 @@ However, this is not OK:
 -}
 
 {-# Language BlockArguments #-}
-module Cryptol.ModuleSystem.Renamer.Imports where
+{-# Language TypeSynonymInstances, FlexibleInstances #-}
+module Cryptol.ModuleSystem.Renamer.Imports
+  ( doTopDef
+  , ResolvedModule(..)
+
+  , openLoop
+  )
+  where
 
 import Data.Set(Set)
 import qualified Data.Set as Set
@@ -58,8 +65,7 @@ import Cryptol.Utils.Ident(ModPath(..),Namespace(..),OrigName(..))
 
 import Cryptol.Parser.Position(Located(..))
 import Cryptol.Parser.AST
-  ( ModuleG(..)
-  , ImportG(..),PName
+  ( ImportG(..),PName
   , ModuleInstanceArgs(..), ModuleInstanceArg(..)
   , ImpName(..)
   )
@@ -167,9 +173,10 @@ data ResolvedModule imps = ResolvedModule
 forget :: ResolvedModule [PName] -> ResolvedModule ()
 forget r = r { rmodImpOrder = () }
 
+type CurState = CurState' Todo
 
-data CurState = CurState
-  { curMod      :: Todo
+data CurState' a = CurState
+  { curMod      :: a
     -- ^ This is what needs to be done
 
   , externalModules :: Map (ImpName Name) (ResolvedModule ())
@@ -195,11 +202,17 @@ updCur m f = m { curMod = f (curMod m) }
 updCurMS :: CurState -> (ModState -> ModState) -> CurState
 updCurMS s f = updCur s (updMS f)
 
-curScope :: CurState -> NamingEnv
-curScope s = modDefines m `shadowing` modImported ms `shadowing` modOuter ms
-  where
-  m   = curMod s
-  ms  = modState m
+class HasCurScope a where
+  curScope :: CurState' a -> NamingEnv
+
+instance HasCurScope () where
+  curScope _ = mempty
+
+instance HasCurScope Todo where
+  curScope s = modDefines m `shadowing` modImported ms `shadowing` modOuter ms
+    where
+    m   = curMod s
+    ms  = modState m
 
 
 -- | Keep applying a transformation while things are changing
@@ -210,7 +223,7 @@ doStep f s0 = go (changes s0) s0
             in if changes s1 then go True s1 else s { changes = ch }
 
 -- | Is this a known name for a module in the current scope?
-knownPName :: CurState -> PName -> Maybe Name
+knownPName :: HasCurScope a => CurState' a -> PName -> Maybe Name
 knownPName s x =
   do ns <- lookupNS NSModule x (curScope s)
      case ns of
@@ -225,14 +238,16 @@ knownPName s x =
           reporting "ambiguous X" errors. -}
 
 -- | Is the module mentioned in this import known in the current scope?
-knownImpName :: CurState -> ImpName PName -> Maybe (ImpName Name)
+knownImpName ::
+  HasCurScope a => CurState' a -> ImpName PName -> Maybe (ImpName Name)
 knownImpName s i =
   case i of
     ImpTop m    -> pure (ImpTop m)
     ImpNested m -> ImpNested <$> knownPName s m
 
 -- | Is the module mentioned in the import already resolved?
-knownModule :: CurState -> ImpName Name -> Maybe (ResolvedModule ())
+knownModule ::
+  HasCurScope a => CurState' a -> ImpName Name -> Maybe (ResolvedModule ())
 knownModule s x =
   Map.lookup x (externalModules s)
   `mplus`
@@ -279,11 +294,12 @@ and the arguments and the both refer to already resolved names.
 Note: at the moment we ignore the arguments, but we'd have to do that in
 order to implment applicative behavior throuhg caching. -}
 tryInstanceMaybe ::
-  CurState ->
+  HasCurScope a =>
+  CurState' a ->
   ImpName Name ->
   (ImpName PName, ModuleInstanceArgs PName)
   {- ^ Functor and arguments -}  ->
-  Maybe (ResolvedModule [PName],CurState)
+  Maybe (ResolvedModule [PName],CurState' a)
 tryInstanceMaybe s mn (f,_xs) =
   do fn <- knownImpName s f
      let path = case mn of
@@ -313,6 +329,7 @@ tryInstance s mn (f,xs) =
 
 {- | Generate a fresh instance for the functor with the given name. -}
 doInstantiateByName ::
+  HasCurScope a =>
   Bool
   {- ^ This indicates if the result is a functor or not.  When instantiating
     a functor applied to some arguments the result is not a functor.  However,
@@ -320,7 +337,7 @@ doInstantiateByName ::
     instantiated, then the result is still a functor. -} ->
   ModPath {- ^ Path for instantiated names -} ->
   ImpName Name {- ^ Name of the functor/module being instantiated -} ->
-  CurState -> Maybe (ResolvedModule [PName],CurState)
+  CurState' a -> Maybe (ResolvedModule [PName],CurState' a)
 
 doInstantiateByName keepArgs mpath fname s =
   do def <- knownModule s fname
@@ -332,10 +349,11 @@ doInstantiateByName keepArgs mpath fname s =
 Note that the module might not be a functor itself (e.g., if we are
 instantiating something nested in a functor -}
 doInstantiate ::
+  HasCurScope a =>
   Bool               {- ^ See `doInstantiateByName` -} ->
   ModPath            {- ^ Path for instantiated names -} ->
   ResolvedModule ()  {- ^ The thing being instantiated -} ->
-  CurState -> (ResolvedModule [PName],CurState)
+  CurState' a -> (ResolvedModule [PName],CurState' a)
 doInstantiate keepArgs mpath def s = (newDef, Set.foldl' doSub newS nestedToDo)
   where
   ((newEnv,newNameSupply),nestedToDo) =
@@ -405,31 +423,39 @@ doSignaturesStep s = updCur s1 \m -> m { modSigs = mempty }
                                 -- no imports in signatures, at least for now.
                              }
 
+tryFinishCurMod :: Todo -> CurState -> Maybe (ResolvedModule [PName])
+tryFinishCurMod m newS
+  | isDone (curMod newS) =
+    Just ResolvedModule
+           { rmodDefines = modDefines m
+           , rmodParams  = modParams m
+           , rmodNested  = Set.unions
+                             [ Map.keysSet (modInstances m)
+                             , Map.keysSet (modSigs m)
+                             , Map.keysSet (modMods m)
+                             ]
+           , rmodImpOrder = reverse (modImportOrder (modState m))
+           }
+
+  | otherwise = Nothing
+
+
 
 -- | Try to resolve the "normal" module with the given name.
 tryModule :: CurState -> Name -> Todo -> CurState
-tryModule s nm m
-  | isDone newM =
-    newS { curMod      = curMod s
-         , doneModules = Map.insert nm rMod (doneModules newS)
-         , changes     = True
-         }
-  | otherwise = newS { curMod = pushMod nm newM (curMod s) }
+tryModule s nm m =
+  case tryFinishCurMod m newS of
+    Just rMod ->
+      newS { curMod      = curMod s
+           , doneModules = Map.insert nm rMod (doneModules newS)
+           , changes     = True
+           }
+    Nothing -> newS { curMod = pushMod nm newM (curMod s) }
   where
   s1     = updCur s \_ -> updMS (\ms -> ms { modOuter = curScope s }) m
   newS   = doModuleStep s1
   newM   = curMod newS
 
-  rMod   = ResolvedModule
-             { rmodDefines = modDefines m
-             , rmodParams  = modParams m
-             , rmodNested  = Set.unions
-                               [ Map.keysSet (modInstances m)
-                               , Map.keysSet (modSigs m)
-                               , Map.keysSet (modMods m)
-                               ]
-             , rmodImpOrder = reverse (modImportOrder (modState m))
-             }
 
 -- | Process all submodules of a module.
 doModulesStep :: CurState -> CurState
@@ -450,30 +476,46 @@ doModuleStep = doStep step
        . doStep doImportStep
 
 
-
+-- XXX: better error
 doTopDef ::
   Map (ImpName Name) (ResolvedModule ()) ->
   TopDef ->
   Supply ->
-  Maybe (Map Name (ResolvedModule [PName]), Supply)
+  Maybe (Map (ImpName Name) (ResolvedModule [PName]), Supply)
 doTopDef ext def su =
   case def of
     TopMod m mo ->
-      let s = doModuleStep CurState
-                          { curMod = todoModule mo
-                          , externalModules = ext
-                          , doneModules = mempty
-                          , nameSupply = su
-                          , changes = False
-                          }
-      in if isDone (curMod s) then Just (doneModules s, nameSupply s)
-                              else Nothing -- XXX: better error
+      do let cur  = todoModule mo
+             newS = doModuleStep CurState
+                                   { curMod = cur
+                                   , externalModules = ext
+                                   , doneModules = mempty
+                                   , nameSupply = su
+                                   , changes = False
+                                   }
+         r <- tryFinishCurMod cur newS
+         pure ( Map.insert (ImpTop m) r (toNest (doneModules newS))
+              , nameSupply newS
+              )
+
+    TopInst m f as ->
+      do let s = CurState
+                   { curMod = ()
+                   , externalModules = ext
+                   , doneModules = mempty
+                   , nameSupply = su
+                   , changes = False
+                   }
+         (r,newS) <- tryInstanceMaybe s (ImpTop m) (f,as)
+         pure ( Map.insert (ImpTop m) r (toNest (doneModules newS))
+              , nameSupply newS
+              )
 
 
-    TopInst m f as -> undefined
-    TopInstOld m f a -> undefined
+    TopInstOld {} -> undefined
 
-
+  where
+  toNest m = Map.fromList [ (ImpNested k, v) | (k,v) <- Map.toList m ]
 
 
 --------------------------------------------------------------------------------
@@ -544,7 +586,7 @@ processOpen modEnvs s o =
             in
             case (,) <$> tryLookup scope f <*> tryLookupArgs scope args of
               Nothing -> s    -- not yet ready
-              Just (f',args') -> undefined -- ready to isntantiate
+              Just {} -> undefined -- ready to isntantiate
 
           | otherwise ->
             panic "openLoop" [ "Missing defintion for module", show n ]

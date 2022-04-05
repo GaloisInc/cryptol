@@ -13,7 +13,7 @@
 {-# Language OverloadedStrings #-}
 module Cryptol.ModuleSystem.Renamer (
     NamingEnv(), shadowing
-  , BindsNames(..), InModule(..)
+  , BindsNames, InModule(..)
   , shadowNames
   , Rename(..), runRenamer, RenameM()
   , RenamerError(..)
@@ -69,6 +69,7 @@ The Renamer Algorithm
 
 1. Compute what each module defines   (see "Cryptol.ModuleSystem.Binds")
   - This assigns unique names to names introduces by various declarations
+  - Here we detect repeated top-level definitions in a module.
   - Module instantiations also get a name, but are not yet resolved, so
     we don't know what's defined by them.
   - We do not generate unique names for functor parameters---those will
