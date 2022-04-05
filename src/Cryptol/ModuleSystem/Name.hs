@@ -32,6 +32,7 @@ module Cryptol.ModuleSystem.Name (
   , nameNamespace
   , asPrim
   , asOrigName
+  , nameTopModule
   , ppLocName
   , Namespace(..)
   , ModPath(..)
@@ -246,6 +247,14 @@ asOrigName n =
   case nInfo n of
     GlobalName _ og -> Just og
     LocalName {}    -> Nothing
+
+-- | Get the name of the top-level module that introduced this name.
+-- Works only for top-level names (i.e., that have original names)
+nameTopModule :: Name -> ModName
+nameTopModule n =
+  case asOrigName n of
+    Just og -> topModuleFor (ogModule og)
+    Nothing -> panic "nameTopModule" [ "Not a top-level name.", show n ]
 
 
 

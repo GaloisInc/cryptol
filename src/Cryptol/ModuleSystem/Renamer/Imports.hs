@@ -56,12 +56,12 @@ import qualified Data.Set as Set
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.List(foldl')
-import Control.Monad(when,mplus)
+import Control.Monad(when)
 import qualified MonadLib as M
 
 import Cryptol.Utils.PP(pp)
 import Cryptol.Utils.Panic(panic)
-import Cryptol.Utils.Ident(ModPath(..),Namespace(..),OrigName(..))
+import Cryptol.Utils.Ident(ModName,ModPath(..),Namespace(..),OrigName(..))
 
 import Cryptol.Parser.Position(Located(..))
 import Cryptol.Parser.AST
@@ -72,7 +72,7 @@ import Cryptol.Parser.AST
 import Cryptol.ModuleSystem.Binds (OwnedEntities(..), Mod(..), TopDef(..))
 import Cryptol.ModuleSystem.Name
           ( Name, Supply, SupplyT, runSupplyT, liftSupply, freshNameFor
-          , asOrigName, nameIdent )
+          , asOrigName, nameIdent, nameTopModule )
 import Cryptol.ModuleSystem.Names(Names(..))
 import Cryptol.ModuleSystem.NamingEnv
           ( NamingEnv(..), lookupNS, shadowing, travNamingEnv
@@ -179,7 +179,12 @@ data CurState' a = CurState
   { curMod      :: a
     -- ^ This is what needs to be done
 
-  , externalModules :: Map (ImpName Name) (ResolvedModule ())
+  , curTop      :: !ModName
+    {- ^ The top-level module we are working on.  This does not change
+       throught the algorithm, it is just convenient to pass it here with 
+       all the other stuff. -}
+
+  , externalModules :: ImpName Name -> ResolvedModule ()
     -- ^ Modules defined outside the current top-level modules
 
   , doneModules :: Map Name (ResolvedModule [PName])
@@ -248,12 +253,18 @@ knownImpName s i =
 -- | Is the module mentioned in the import already resolved?
 knownModule ::
   HasCurScope a => CurState' a -> ImpName Name -> Maybe (ResolvedModule ())
-knownModule s x =
-  Map.lookup x (externalModules s)
-  `mplus`
-  case x of
-    ImpNested y -> forget <$> Map.lookup y (doneModules s)
-    ImpTop {}   -> Nothing
+knownModule s x
+  | root == curTop s =
+    case x of
+      ImpNested y -> forget <$> Map.lookup y (doneModules s)
+      ImpTop {}   -> Nothing   -- or panic? recursive import
+
+  | otherwise = Just (externalModules s x)
+
+  where
+  root = case x of
+           ImpTop r    -> r
+           ImpNested n -> nameTopModule n
 
 --------------------------------------------------------------------------------
 
@@ -478,7 +489,7 @@ doModuleStep = doStep step
 
 -- XXX: better error
 doTopDef ::
-  Map (ImpName Name) (ResolvedModule ()) ->
+  (ImpName Name -> ResolvedModule ()) ->
   TopDef ->
   Supply ->
   Maybe (Map (ImpName Name) (ResolvedModule [PName]), Supply)
@@ -488,6 +499,7 @@ doTopDef ext def su =
       do let cur  = todoModule mo
              newS = doModuleStep CurState
                                    { curMod = cur
+                                   , curTop = m
                                    , externalModules = ext
                                    , doneModules = mempty
                                    , nameSupply = su
@@ -501,6 +513,7 @@ doTopDef ext def su =
     TopInst m f as ->
       do let s = CurState
                    { curMod = ()
+                   , curTop = m
                    , externalModules = ext
                    , doneModules = mempty
                    , nameSupply = su

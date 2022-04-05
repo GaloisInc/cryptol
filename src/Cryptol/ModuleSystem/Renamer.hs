@@ -117,7 +117,9 @@ data RenamedModule = RenamedModule
   { rmModule   :: Module Name     -- ^ The renamed module
   , rmDefines  :: NamingEnv       -- ^ What this module defines
   , rmInScope  :: NamingEnv       -- ^ What's in scope in this module
-  , rmImported :: IfaceDecls      -- ^ Imported declarations
+  , rmImported :: IfaceDecls
+    -- ^ Imported declarations.  This provides the types for external
+    -- names (used by the type-checker).
   }
 
 -- | Entry point. This is used for renaming a top-level module.

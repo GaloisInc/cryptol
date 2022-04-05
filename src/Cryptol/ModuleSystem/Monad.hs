@@ -448,12 +448,12 @@ interactive  = loadingModule interactiveName
 loading :: ImportSource -> ModuleM a -> ModuleM a
 loading src m = ModuleT $ do
   ro <- ask
-  let ro'  = ro { roLoading = src : roLoading ro }
+  let new = src : roLoading ro
 
   -- check for recursive modules
-  when (src `elem` roLoading ro) (raise (RecursiveModules (roLoading ro')))
+  when (src `elem` roLoading ro) (raise (RecursiveModules new))
 
-  local ro' (unModuleT m)
+  local ro { roLoading = new } (unModuleT m)
 
 -- | Get the currently focused import source.
 getImportSource :: ModuleM ImportSource
@@ -469,7 +469,7 @@ getIface mn = ($ mn) <$> getIfaces
 getIfaces :: ModuleM (P.ModName -> Iface)
 getIfaces = doLookup <$> ModuleT get
   where
-  doLookup env mn =
+  doLookup env = \mn ->
     case lookupModule mn env of
       Just lm -> lmInterface lm
       Nothing -> panic "ModuleSystem" ["Interface not available", show (pp mn)]

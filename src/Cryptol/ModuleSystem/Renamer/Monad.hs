@@ -22,6 +22,7 @@ import           MonadLib hiding (mapM, mapM_)
 import Prelude ()
 import Prelude.Compat
 
+import Cryptol.Utils.Panic(panic)
 import Cryptol.ModuleSystem.Name
 import Cryptol.ModuleSystem.NamingEnv
 import Cryptol.ModuleSystem.Binds
@@ -322,5 +323,24 @@ lookupImport imp = RenameM $
      let ifs = ifPublic (getIf (iModule imp))
      sets_ \s -> s { rwExternalDeps = ifs <> rwExternalDeps s }
      pure ifs
+
+-- XXX: Maybe we'd want to cache some of the conversion to Mod?
+getLoadedMods :: RenameM (ImpName Name -> Mod ())
+getLoadedMods =
+  do getIf <- RenameM (roIfaces <$> ask)
+     pure \nm ->
+      case nm of
+        ImpTop m -> ifaceToMod (getIf m)
+        ImpNested n ->
+          let top = nameTopModule n
+              mp = modToMap (ImpTop top) (ifaceToMod (getIf top)) Map.empty
+          in case Map.lookup nm mp of
+               Just m  -> m
+               Nothing -> panic "lookupImportMod"
+                            [ "Missing nested module", show nm ]
+
+
+
+
 
 

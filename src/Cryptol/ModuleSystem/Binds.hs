@@ -14,6 +14,8 @@ module Cryptol.ModuleSystem.Binds
   , interpImportIface
   , newModParam
   , InModule(..)
+  , ifaceToMod
+  , modToMap
 
   , OwnedEntities(..)
   , collectNestedInModule
@@ -69,6 +71,31 @@ instance Functor Mod where
   fmap f m = m { modState = f (modState m)
                , modMods  = fmap f <$> modMods m
                }
+
+-- | Generate a map from this module and all modules nested in it.
+modToMap ::
+  ImpName Name -> Mod () ->
+  Map (ImpName Name) (Mod ()) -> Map (ImpName Name) (Mod ())
+modToMap x m mp = Map.insert x m (Map.foldrWithKey add mp (modMods m))
+  where
+  add n = modToMap (ImpNested n)
+
+ifaceToMod :: IfaceG name -> Mod ()
+ifaceToMod iface =
+  Mod
+    { modImports    = []
+    , modParams     = case ifParams iface of
+                        Nothing -> False
+                        Just {} -> True
+    , modInstances  = undefined
+    , modMods       = ifaceToMod         <$> ifModules pub
+    , modSigs       = modParamsNamingEnv <$> ifSignatures pub
+    , modDefines    = unqualifiedEnv pub
+    , modState      = ()
+    }
+  where
+  pub = ifPublic iface
+
 
 data TopDefError = MultipleDefinitions (Maybe ModPath) Ident [Range]
                  | UnexpectedNest Range PName
