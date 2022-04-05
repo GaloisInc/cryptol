@@ -149,9 +149,9 @@ The type parameter helps us distinguish between two types of resolved modules:
   2. Resolved modules that are *outputs* of the algorithm (i.e., they
      defined within the current module).  For such modules the type
      parameter is @imps@ is @[PName]@, signifying the order in which
-     imports should be processed.  These are `PNames` because they
+     imports should be processed.  These are `PName` because they
      still need to be properly resolved using the full scoping relation.
-     Note that such module may also be used as inputs for other module.
+     Note that such modules may also be used as inputs for other module.
 
 Note that signaures are never "imported", however we do need to keep them
 here so that signatures in a functor are properly instantiated when

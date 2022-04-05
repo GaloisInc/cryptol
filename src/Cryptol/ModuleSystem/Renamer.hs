@@ -106,6 +106,9 @@ The Renamer Algorithm
         * here we also report errors about invalid recursive dependencies
     * During this stage we also issue warning about unused type names
       (and we should probably do unused value names too one day)
+  - During the rewriting we also do:
+    - rebalance expression trees using the operator fixities
+    - desugar record update notation
 -}
 
 
@@ -956,7 +959,8 @@ instance Rename UpdField where
        case more of
          [] -> case h of
                  UpdSet -> UpdField UpdSet [l] <$> rename e
-                 UpdFun -> UpdField UpdFun [l] <$> rename (EFun emptyFunDesc [PVar p] e)
+                 UpdFun -> UpdField UpdFun [l] <$>
+                                        rename (EFun emptyFunDesc [PVar p] e)
                        where
                        p = UnQual . selName <$> last ls
          _ -> UpdField UpdFun [l] <$> rename (EUpd Nothing [ UpdField h more e])
