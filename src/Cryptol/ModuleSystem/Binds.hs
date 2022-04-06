@@ -43,10 +43,6 @@ import Cryptol.ModuleSystem.Interface
 
 
 
---------------------------------------------------------------------------------
--- XXX: TopDef and friends subsumes OwnedEntitities and they shoudl be removed
-
-
 data TopDef = TopMod ModName (Mod ())
             | TopInst ModName (ImpName PName) (ModuleInstanceArgs PName)
             | TopInstOld ModName ModName (Mod ())
@@ -100,13 +96,14 @@ ifaceToMod iface =
 data TopDefError = MultipleDefinitions (Maybe ModPath) Ident [Range]
                  | UnexpectedNest Range PName
 
-type ModBuilder = SupplyT (M.ExceptionT TopDefError Id)
+type ModBuilder = SupplyT (M.StateT [TopDefError] Id)
 
-modBuilder :: Supply -> ModBuilder a -> Either TopDefError (a, Supply)
-modBuilder s m = M.runId (M.runExceptionT (runSupplyT s m))
+modBuilder :: ModBuilder a -> Supply -> ((a, [TopDefError]),Supply)
+modBuilder m s = ((a,errs),s1)
+  where ((a,s1),errs) = M.runId (runStateT [] (runSupplyT s m))
 
-defErr :: TopDefError -> ModBuilder a
-defErr a = M.lift (M.raise a)
+defErr :: TopDefError -> ModBuilder ()
+defErr a = M.lift (M.sets_ (a:))
 
 defNames :: BuildNamingEnv -> ModBuilder NamingEnv
 defNames b = liftSupply \s -> M.runId (runSupplyT s (runBuild b))
@@ -154,22 +151,24 @@ declsToMod mbPath ds =
         do let NestedModule nmod = tlValue tl
                pname = thing (mName nmod)
                name  = case lookupNS NSModule pname defs of
-                         Just (One x)    -> x
-                         _ -> panic "declsToMod" ["Missed ambig/undefined"]
+                         Just xs -> anyOne xs
+                         _ -> panic "declsToMod" ["undefined name", show pname]
            case mbPath of
-             Nothing -> defErr (UnexpectedNest (srcRange (mName nmod)) pname)
+             Nothing ->
+               do defErr (UnexpectedNest (srcRange (mName nmod)) pname)
+                  pure mo
              Just path ->
                 case mDef nmod of
                    NormalModule xs ->
                      do m <- declsToMod (Just (Nested path (nameIdent name))) xs
                         pure mo { modMods = Map.insert name m (modMods mo) }
                    FunctorInstanceOld {} ->
-                     defErr (UnexpectedNest (srcRange (mName nmod)) pname)
+                     do defErr (UnexpectedNest (srcRange (mName nmod)) pname)
+                        pure mo
                    FunctorInstance f args ->
                       pure mo { modInstances = Map.insert name (thing f, args)
                                                     (modInstances mo) }
 
-      -- DModSig (TopLevel (Signature name))         -- ^ A module signature
       DModSig tl ->
         do let sig   = tlValue tl
                pname = thing (sigName sig)
@@ -177,7 +176,9 @@ declsToMod mbPath ds =
                          Just (One x) -> x
                          _ -> panic "declsToMod" ["sig: Missed ambig/undefined"]
            case mbPath of
-             Nothing -> defErr (UnexpectedNest (srcRange (sigName sig)) pname)
+             Nothing ->
+               do defErr (UnexpectedNest (srcRange (sigName sig)) pname)
+                  pure mo
              Just path ->
                 do newEnv <-
                      defNames (signatureDefs (Nested path (nameIdent name)) sig)
