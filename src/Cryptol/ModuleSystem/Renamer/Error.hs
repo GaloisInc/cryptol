@@ -53,6 +53,9 @@ data RenamerError
   | InvalidFunctorImport Name
     -- ^ Can't import functors directly
 
+  | UnexpectedNest Range PName
+    -- ^ Nested modules were not supposed to appear here
+
     deriving (Show, Generic, NFData, Eq, Ord)
 
 
@@ -143,6 +146,10 @@ instance PP RenamerError where
     InvalidFunctorImport x ->
       hang ("[error] Invalid import of functor" <+> backticks (pp x))
         4 "• Functors need to be instantiated before they can be imported."
+
+    UnexpectedNest s x ->
+      hang ("[error] at" <+> pp s)
+        4 ("submodule" <+> backticks (pp x) <+> "may not be defined here.")
 
 instance PP DepName where
   ppPrec _ d =

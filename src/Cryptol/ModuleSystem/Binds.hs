@@ -7,7 +7,6 @@ module Cryptol.ModuleSystem.Binds
   ( BindsNames
   , TopDef(..)
   , Mod(..)
-  , TopDefError(..)
   , modBuilder
   , topModuleDefs
   , topDeclsDefs
@@ -36,6 +35,7 @@ import Cryptol.Utils.Panic (panic)
 import Cryptol.Parser.Position
 import Cryptol.Parser.Name(isGeneratedName)
 import Cryptol.Parser.AST
+import Cryptol.ModuleSystem.Renamer.Error
 import Cryptol.ModuleSystem.Name
 import Cryptol.ModuleSystem.Names
 import Cryptol.ModuleSystem.NamingEnv
@@ -93,16 +93,13 @@ ifaceToMod iface =
   pub = ifPublic iface
 
 
-data TopDefError = MultipleDefinitions (Maybe ModPath) Ident [Range]
-                 | UnexpectedNest Range PName
+type ModBuilder = SupplyT (M.StateT [RenamerError] Id)
 
-type ModBuilder = SupplyT (M.StateT [TopDefError] Id)
-
-modBuilder :: ModBuilder a -> Supply -> ((a, [TopDefError]),Supply)
+modBuilder :: ModBuilder a -> Supply -> ((a, [RenamerError]),Supply)
 modBuilder m s = ((a,errs),s1)
   where ((a,s1),errs) = M.runId (runStateT [] (runSupplyT s m))
 
-defErr :: TopDefError -> ModBuilder ()
+defErr :: RenamerError -> ModBuilder ()
 defErr a = M.lift (M.sets_ (a:))
 
 defNames :: BuildNamingEnv -> ModBuilder NamingEnv
@@ -129,8 +126,9 @@ declsToMod :: Maybe ModPath -> [TopDecl PName] -> ModBuilder (Mod ())
 declsToMod mbPath ds =
   do defs <- defNames (foldMap (namingEnv . InModule mbPath) ds)
      case findAmbig defs of
-       bad@(f : _) : _ ->
-         defErr (MultipleDefinitions mbPath (nameIdent f) (map nameLoc bad))
+       bad@(_ : _) : _ ->
+         -- defErr (MultipleDefinitions mbPath (nameIdent f) (map nameLoc bad))
+         defErr (OverlappingSyms bad)
        _ -> pure ()
 
      let mo = Mod { modImports      = [ thing i | DImport i <- ds ]
@@ -176,6 +174,7 @@ declsToMod mbPath ds =
                          Just (One x) -> x
                          _ -> panic "declsToMod" ["sig: Missed ambig/undefined"]
            case mbPath of
+             -- XXX: it seems having top-level signatures should be OK?
              Nothing ->
                do defErr (UnexpectedNest (srcRange (sigName sig)) pname)
                   pure mo

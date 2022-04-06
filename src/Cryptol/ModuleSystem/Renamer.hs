@@ -125,7 +125,12 @@ data RenamedModule = RenamedModule
 -- | Entry point. This is used for renaming a top-level module.
 renameModule :: Module PName -> RenameM RenamedModule
 renameModule m0 =
-  do let m = case mDef m0 of
+  do -- Step 1
+     (defs,errs) <- liftSupply (modBuilder (topModuleDefs m0))
+     mapM_ recordError errs
+
+
+     let m = case mDef m0 of
                NormalModule ds ->
                  m0 { mDef = NormalModule
                                 (addImplicitNestedImports (mDecls m0)) }
