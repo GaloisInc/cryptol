@@ -125,11 +125,11 @@ data RenamedModule = RenamedModule
 -- | Entry point. This is used for renaming a top-level module.
 renameModule :: Module PName -> RenameM RenamedModule
 renameModule m0 =
-  do -- Step 1
+  do -- Step 1: compute what's defined
      (defs,errs) <- liftSupply (modBuilder (topModuleDefs m0))
      mapM_ recordError errs
 
-
+     -- Step 2: add implicit imports
      let m = case mDef m0 of
                NormalModule ds ->
                  m0 { mDef = NormalModule
@@ -137,10 +137,20 @@ renameModule m0 =
                _ -> m0 -- XXX: OldStyleFunctor instnatiantions should
                        -- be translated into normal instantiations and
                        -- an anonymous module.
+
+     -- Step 3: resolve imports
+     extern       <- getLoadedMods
+     mbOK         <- liftSupply (doTopDef extern defs)
+     resolvedMods <- case mbOK of
+                       Just mp -> pure mp
+                       Nothing -> error "XXX: report error here" -- XXX
+
+
      env      <- liftSupply (defsOf m)
      nested   <- liftSupply (collectNestedInModule env m)
      setNestedModule (nestedModuleNames nested)
-       do let info = Extra { extraOwned = nested
+       do let info = Extra { extraResolved = resolvedMods
+                           , extraOwned = nested
                            , extraModPath = TopModule (thing (mName m))
                            , extraModParams = mempty
                            , extraFromModParam = mempty
@@ -151,7 +161,7 @@ renameModule m0 =
                  , rmDefines = env
                  , rmInScope = inScope
                  , rmImported = ifs
-                -- XXX: maybe we should keep the nested defines too?
+                  -- XXX: maybe we should keep the nested defines too?
                  }
 
 {- | Entry point. Rename a list of top-level declarations.
@@ -160,13 +170,19 @@ This is used for declaration that don't live in a module
 renameTopDecls ::
   ModName -> [TopDecl PName] -> RenameM (NamingEnv,[TopDecl Name])
 renameTopDecls m ds0 =
-  do let ds = addImplicitNestedImports ds0
+  do (defs,errs) <- liftSupply (modBuilder (topDeclsDefs ds0))
+     mapM_ recordError errs
+     let ds = addImplicitNestedImports ds0
      let mpath = TopModule m
      env    <- liftSupply (defsOf (map (InModule (Just mpath)) ds))
      nested <- liftSupply (collectNestedInDecls env m ds)
 
      setNestedModule (nestedModuleNames nested)
-       do let extra = Extra { extraOwned = nested
+       do let extra = Extra { extraResolved = mempty
+                              -- this assumes no imports and modules in the
+                              -- decls
+
+                            , extraOwned = nested
                             , extraModPath = mpath
                             , extraModParams = mempty
                             , extraFromModParam = mempty
@@ -200,7 +216,7 @@ class Rename f where
 renameModule' ::
   Extra ->
   NamingEnv ->
-  ModuleG mname PName ->
+  ModuleG () PName ->
   RenameM (NamingEnv, ModuleG mname Name)
 renameModule' info@Extra { extraModPath = mpath } env m =
   setCurMod mpath
@@ -589,7 +605,9 @@ doModParam owned mp =
 
 -- | Additional information needed to rename some constructs
 data Extra = Extra
-  { extraOwned      :: OwnedEntities
+  { extraResolved   :: Map (ImpName Name) (ResolvedModule [PName])
+
+  , extraOwned      :: OwnedEntities
     -- ^ Owned entities, for resolving names in nested modules and signatures
 
   , extraModPath    :: ModPath

@@ -51,6 +51,7 @@ module Cryptol.ModuleSystem.Renamer.Imports
   )
   where
 
+import Data.Maybe(fromMaybe)
 import Data.Set(Set)
 import qualified Data.Set as Set
 import Data.Map (Map)
@@ -69,7 +70,8 @@ import Cryptol.Parser.AST
   , ModuleInstanceArgs(..), ModuleInstanceArg(..)
   , ImpName(..)
   )
-import Cryptol.ModuleSystem.Binds (OwnedEntities(..), Mod(..), TopDef(..))
+import Cryptol.ModuleSystem.Binds
+        (OwnedEntities(..), Mod(..), TopDef(..), modNested)
 import Cryptol.ModuleSystem.Name
           ( Name, Supply, SupplyT, runSupplyT, liftSupply, freshNameFor
           , asOrigName, nameIdent, nameTopModule )
@@ -77,6 +79,84 @@ import Cryptol.ModuleSystem.Names(Names(..))
 import Cryptol.ModuleSystem.NamingEnv
           ( NamingEnv(..), lookupNS, shadowing, travNamingEnv
           , interpImportEnv )
+
+
+{- | This represents a resolved module or signaure.
+The type parameter helps us distinguish between two types of resolved modules:
+
+  1. Resolved modules that are *inputs* to the algorithm (i.e., they are
+     defined outside the current module).  For such modules the type
+     parameter is @imps@ is ()
+
+  2. Resolved modules that are *outputs* of the algorithm (i.e., they
+     defined within the current module).  For such modules the type
+     parameter is @imps@ is @[PName]@, signifying the order in which
+     imports should be processed.  These are `PName` because they
+     still need to be properly resolved using the full scoping relation.
+     Note that such modules may also be used as inputs for other module.
+
+Note that signaures are never "imported", however we do need to keep them
+here so that signatures in a functor are properly instantiated when
+the functor is instantiated.
+-}
+data ResolvedModule imps = ResolvedModule
+  { rmodDefines   :: NamingEnv    -- ^ Things defined by the module/signature.
+  , rmodParams    :: Bool         -- ^ Is it a functor?
+  , rmodNested    :: Set Name     -- ^ Modules and signatures nested in this one
+  , rmodImpOrder  :: imps
+    {- ^ Process imports in this order
+    Also, top-level imports can (and should) always be processed before
+    local ones.  External modules need not specify this field,
+    it is just part of the thing we compute for local modules. -}
+  }
+
+
+-- XXX: better error
+doTopDef ::
+  (ImpName Name -> Mod ()) ->
+  TopDef ->
+  Supply ->
+  (Maybe (Map (ImpName Name) (ResolvedModule [PName])), Supply)
+doTopDef ext def su =
+  fromMaybe (Nothing, su)
+  case def of
+
+    TopMod m mo ->
+      do let cur  = todoModule mo
+             newS = doModuleStep CurState
+                                   { curMod = cur
+                                   , curTop = m
+                                   , externalModules = ext
+                                   , doneModules = mempty
+                                   , nameSupply = su
+                                   , changes = False
+                                   }
+         r <- tryFinishCurMod cur newS
+         pure ( Just (Map.insert (ImpTop m) r (toNest (doneModules newS)))
+              , nameSupply newS
+              )
+
+    TopInst m f as ->
+      do let s = CurState
+                   { curMod = ()
+                   , curTop = m
+                   , externalModules = ext
+                   , doneModules = mempty
+                   , nameSupply = su
+                   , changes = False
+                   }
+         (r,newS) <- tryInstanceMaybe s (ImpTop m) (f,as)
+         pure ( Just (Map.insert (ImpTop m) r (toNest (doneModules newS)))
+              , nameSupply newS
+              )
+
+
+    TopInstOld {} -> undefined
+
+  where
+  toNest m = Map.fromList [ (ImpNested k, v) | (k,v) <- Map.toList m ]
+
+
 
 
 --------------------------------------------------------------------------------
@@ -139,33 +219,12 @@ updMS f m = m { modState = f (modState m) }
 
 
 
-{- | This represents a resolved module or signaure.
-The type parameter helps us distinguish between two types of resolved modules:
-
-  1. Resolved modules that are *inputs* to the algorithm (i.e., they are
-     defined outside the current module).  For such modules the type
-     parameter is @imps@ is ()
-
-  2. Resolved modules that are *outputs* of the algorithm (i.e., they
-     defined within the current module).  For such modules the type
-     parameter is @imps@ is @[PName]@, signifying the order in which
-     imports should be processed.  These are `PName` because they
-     still need to be properly resolved using the full scoping relation.
-     Note that such modules may also be used as inputs for other module.
-
-Note that signaures are never "imported", however we do need to keep them
-here so that signatures in a functor are properly instantiated when
-the functor is instantiated.
--}
-data ResolvedModule imps = ResolvedModule
-  { rmodDefines   :: NamingEnv    -- ^ Things defined by the module/signature.
-  , rmodParams    :: Bool         -- ^ Is it a functor?
-  , rmodNested    :: Set Name     -- ^ Modules and signatures nested in this one
-  , rmodImpOrder  :: imps
-    {- ^ Process imports in this order
-    Also, top-level imports can (and should) always be processed before
-    local ones.  External modules need not specify this field,
-    it is just part of the thing we compute for local modules. -}
+modToResolved :: Mod () -> ResolvedModule ()
+modToResolved m = ResolvedModule
+  { rmodDefines  = modDefines m
+  , rmodParams   = modParams m
+  , rmodNested   = modNested m
+  , rmodImpOrder = ()
   }
 
 {- | This is used when we need to use a local resolved module as an input
@@ -184,7 +243,7 @@ data CurState' a = CurState
        throught the algorithm, it is just convenient to pass it here with 
        all the other stuff. -}
 
-  , externalModules :: ImpName Name -> ResolvedModule ()
+  , externalModules :: ImpName Name -> Mod ()
     -- ^ Modules defined outside the current top-level modules
 
   , doneModules :: Map Name (ResolvedModule [PName])
@@ -259,7 +318,7 @@ knownModule s x
       ImpNested y -> forget <$> Map.lookup y (doneModules s)
       ImpTop {}   -> Nothing   -- or panic? recursive import
 
-  | otherwise = Just (externalModules s x)
+  | otherwise = Just (modToResolved (externalModules s x))
 
   where
   root = case x of
@@ -486,49 +545,6 @@ doModuleStep = doStep step
        . doStep doSignaturesStep
        . doStep doImportStep
 
-
--- XXX: better error
-doTopDef ::
-  (ImpName Name -> ResolvedModule ()) ->
-  TopDef ->
-  Supply ->
-  Maybe (Map (ImpName Name) (ResolvedModule [PName]), Supply)
-doTopDef ext def su =
-  case def of
-    TopMod m mo ->
-      do let cur  = todoModule mo
-             newS = doModuleStep CurState
-                                   { curMod = cur
-                                   , curTop = m
-                                   , externalModules = ext
-                                   , doneModules = mempty
-                                   , nameSupply = su
-                                   , changes = False
-                                   }
-         r <- tryFinishCurMod cur newS
-         pure ( Map.insert (ImpTop m) r (toNest (doneModules newS))
-              , nameSupply newS
-              )
-
-    TopInst m f as ->
-      do let s = CurState
-                   { curMod = ()
-                   , curTop = m
-                   , externalModules = ext
-                   , doneModules = mempty
-                   , nameSupply = su
-                   , changes = False
-                   }
-         (r,newS) <- tryInstanceMaybe s (ImpTop m) (f,as)
-         pure ( Map.insert (ImpTop m) r (toNest (doneModules newS))
-              , nameSupply newS
-              )
-
-
-    TopInstOld {} -> undefined
-
-  where
-  toNest m = Map.fromList [ (ImpNested k, v) | (k,v) <- Map.toList m ]
 
 
 --------------------------------------------------------------------------------

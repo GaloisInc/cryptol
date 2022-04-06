@@ -7,6 +7,7 @@ module Cryptol.ModuleSystem.Binds
   ( BindsNames
   , TopDef(..)
   , Mod(..)
+  , modNested
   , modBuilder
   , topModuleDefs
   , topDeclsDefs
@@ -63,6 +64,12 @@ data Mod a = Mod
          and it is conveninet to keep track for all modules at once -}
   }
 
+modNested :: Mod a -> Set Name
+modNested m = Set.unions [ Map.keysSet (modInstances m)
+                         , Map.keysSet (modSigs m)
+                         , Map.keysSet (modMods m)
+                         ]
+
 instance Functor Mod where
   fmap f m = m { modState = f (modState m)
                , modMods  = fmap f <$> modMods m
@@ -76,6 +83,8 @@ modToMap x m mp = Map.insert x m (Map.foldrWithKey add mp (modMods m))
   where
   add n = modToMap (ImpNested n)
 
+-- | Make a `Mod` from the public declarations in an interface.
+-- This is used to handle imports.
 ifaceToMod :: IfaceG name -> Mod ()
 ifaceToMod iface =
   Mod

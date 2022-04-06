@@ -51,7 +51,11 @@ data RO = RO
   , roNames  :: NamingEnv
   , roIfaces :: ModName -> Iface
   , roCurMod :: ModPath           -- ^ Current module we are working on
+
   , roNestedMods :: Map ModPath Name
+    {- ^ Maps module pats to the actual name for this.   This is used
+         for dependency tracking, to find the name of a containing module.
+         See the note on `addDep`. -}
   }
 
 data RW = RW
