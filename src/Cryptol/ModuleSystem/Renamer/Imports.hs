@@ -46,6 +46,8 @@ However, this is not OK:
 module Cryptol.ModuleSystem.Renamer.Imports
   ( doTopDef
   , ResolvedModule(..)
+  , ResolvedLocal
+  , ResolvedExt
 
   , openLoop
   )
@@ -90,10 +92,7 @@ The type parameter helps us distinguish between two types of resolved modules:
 
   2. Resolved modules that are *outputs* of the algorithm (i.e., they
      defined within the current module).  For such modules the type
-     parameter is @imps@ is @[PName]@, signifying the order in which
-     imports should be processed.  These are `PName` because they
-     still need to be properly resolved using the full scoping relation.
-     Note that such modules may also be used as inputs for other module.
+     parameter @imps@ the list of resolved imports.
 
 Note that signaures are never "imported", however we do need to keep them
 here so that signatures in a functor are properly instantiated when
@@ -103,12 +102,16 @@ data ResolvedModule imps = ResolvedModule
   { rmodDefines   :: NamingEnv    -- ^ Things defined by the module/signature.
   , rmodParams    :: Bool         -- ^ Is it a functor?
   , rmodNested    :: Set Name     -- ^ Modules and signatures nested in this one
-  , rmodImpOrder  :: imps
-    {- ^ Process imports in this order
-    Also, top-level imports can (and should) always be processed before
-    local ones.  External modules need not specify this field,
+  , rmodImports   :: imps
+    {- ^ Resolved imports. External modules need not specify this field,
     it is just part of the thing we compute for local modules. -}
   }
+
+-- | A resolved module that's not defined in the current top-level module
+type ResolvedLocal = ResolvedModule [ImportG (ImpName Name)]
+
+-- | A resolved module that's defined in (or is) the current top-level module
+type ResolvedExt   = ResolvedModule ()
 
 
 -- XXX: better error
@@ -116,7 +119,7 @@ doTopDef ::
   (ImpName Name -> Mod ()) ->
   TopDef ->
   Supply ->
-  (Maybe (Map (ImpName Name) (ResolvedModule [PName])), Supply)
+  (Maybe (Map (ImpName Name) ResolvedLocal), Supply)
 doTopDef ext def su =
   fromMaybe (Nothing, su)
   case def of
@@ -172,12 +175,8 @@ data ModState = ModState
   , modImported     :: NamingEnv
     -- ^ Things which come in scope via imports.  These shadow outer names.
 
-  , modImportOrder  :: [PName]
-    {- ^ @submodule import@ in dependency order.  Imports *later* in the
-       list can't depend on imports that are *earlier* in the list
-       (i.e., every time we finish processing an import we add it to the front).
-       Note that "rmodImpOrder" in "ResolvedModule" has the imports in the
-       reverse order! -}
+  , modResolvedImports :: [ImportG (ImpName Name)]
+    {- ^ Resolved imports -}
   }
 
 
@@ -187,9 +186,9 @@ todoModule = fmap (const emptyModState)
   where
   emptyModState =
     ModState
-      { modOuter        = mempty
-      , modImported     = mempty
-      , modImportOrder  = []
+      { modOuter    = mempty
+      , modImported = mempty
+      , modResolvedImports  = []
       }
 
 {- | A module is fully processed when we are done with all its:
@@ -219,18 +218,18 @@ updMS f m = m { modState = f (modState m) }
 
 
 
-modToResolved :: Mod () -> ResolvedModule ()
+modToResolved :: Mod () -> ResolvedExt
 modToResolved m = ResolvedModule
   { rmodDefines  = modDefines m
   , rmodParams   = modParams m
   , rmodNested   = modNested m
-  , rmodImpOrder = ()
+  , rmodImports  = ()
   }
 
 {- | This is used when we need to use a local resolved module as an input
      to another module. -}
-forget :: ResolvedModule [PName] -> ResolvedModule ()
-forget r = r { rmodImpOrder = () }
+forget :: ResolvedLocal -> ResolvedExt
+forget r = r { rmodImports = () }
 
 type CurState = CurState' Todo
 
@@ -246,7 +245,7 @@ data CurState' a = CurState
   , externalModules :: ImpName Name -> Mod ()
     -- ^ Modules defined outside the current top-level modules
 
-  , doneModules :: Map Name (ResolvedModule [PName])
+  , doneModules :: Map Name ResolvedLocal
     {- ^ Nested modules/signatures in the current top-level modules.
          These may be either defined locally, or be the result of
          instantiating a functor.  Note that the functor itself may be
@@ -311,7 +310,7 @@ knownImpName s i =
 
 -- | Is the module mentioned in the import already resolved?
 knownModule ::
-  HasCurScope a => CurState' a -> ImpName Name -> Maybe (ResolvedModule ())
+  HasCurScope a => CurState' a -> ImpName Name -> Maybe ResolvedExt
 knownModule s x
   | root == curTop s =
     case x of
@@ -335,22 +334,19 @@ queue the import back on the @modImports@ of the current module to be tried
 again later.-}
 tryImport :: CurState -> ImportG (ImpName PName) -> CurState
 tryImport s imp =
-  case knownModule s =<< knownImpName s (iModule imp) of
+  fromMaybe (updCur s (pushImport imp))   -- not ready, put it back on the q
+  do let srcName = iModule imp
+     mname <- knownImpName s srcName
+     ext   <- knownModule s mname
 
-    Nothing -> updCur s (pushImport imp)
-      -- goes back on the queue, which started empty
+     let new = if rmodParams ext
+                 then mempty  -- imported a functor, error reported later
+                 else interpImportEnv imp (rmodDefines ext)
 
-    Just ext ->
-      let new = if rmodParams ext
-                  then mempty  -- imported a functor, error reported later
-                  else interpImportEnv imp (rmodDefines ext)
-      in updCurMS s { changes = True }
-           \ms -> ms { modImported = new <> modImported ms
-                     , modImportOrder =
-                         case iModule imp of
-                           ImpNested x -> x : modImportOrder ms
-                           _           ->     modImportOrder ms
-                     }
+     pure $ updCurMS s { changes = True }
+            \ms -> ms { modImported = new <> modImported ms
+                      , modResolvedImports =
+                          imp { iModule = mname } : modResolvedImports ms }
 
 -- | Resolve all imports in the current modules
 doImportStep :: CurState -> CurState
@@ -369,7 +365,7 @@ tryInstanceMaybe ::
   ImpName Name ->
   (ImpName PName, ModuleInstanceArgs PName)
   {- ^ Functor and arguments -}  ->
-  Maybe (ResolvedModule [PName],CurState' a)
+  Maybe (ResolvedLocal,CurState' a)
 tryInstanceMaybe s mn (f,_xs) =
   do fn <- knownImpName s f
      let path = case mn of
@@ -407,7 +403,7 @@ doInstantiateByName ::
     instantiated, then the result is still a functor. -} ->
   ModPath {- ^ Path for instantiated names -} ->
   ImpName Name {- ^ Name of the functor/module being instantiated -} ->
-  CurState' a -> Maybe (ResolvedModule [PName],CurState' a)
+  CurState' a -> Maybe (ResolvedLocal,CurState' a)
 
 doInstantiateByName keepArgs mpath fname s =
   do def <- knownModule s fname
@@ -422,8 +418,8 @@ doInstantiate ::
   HasCurScope a =>
   Bool               {- ^ See `doInstantiateByName` -} ->
   ModPath            {- ^ Path for instantiated names -} ->
-  ResolvedModule ()  {- ^ The thing being instantiated -} ->
-  CurState' a -> (ResolvedModule [PName],CurState' a)
+  ResolvedExt        {- ^ The thing being instantiated -} ->
+  CurState' a -> (ResolvedLocal,CurState' a)
 doInstantiate keepArgs mpath def s = (newDef, Set.foldl' doSub newS nestedToDo)
   where
   ((newEnv,newNameSupply),nestedToDo) =
@@ -440,7 +436,7 @@ doInstantiate keepArgs mpath def s = (newDef, Set.foldl' doSub newS nestedToDo)
                                               then rmodParams def
                                               else False
                           , rmodNested    = Set.map snd nestedToDo
-                          , rmodImpOrder  = []
+                          , rmodImports = []
                             {- we don't do name resolution on the instantiation
                                the usual way: instead the functor and the
                                arguments are renamed separately, then we
@@ -489,11 +485,11 @@ doSignaturesStep s = updCur s1 \m -> m { modSigs = mempty }
   doSig sig = ResolvedModule { rmodDefines  = sig
                              , rmodNested   = mempty
                              , rmodParams   = False
-                             , rmodImpOrder = []
+                             , rmodImports  = []
                                 -- no imports in signatures, at least for now.
                              }
 
-tryFinishCurMod :: Todo -> CurState -> Maybe (ResolvedModule [PName])
+tryFinishCurMod :: Todo -> CurState -> Maybe ResolvedLocal
 tryFinishCurMod m newS
   | isDone (curMod newS) =
     Just ResolvedModule
@@ -504,7 +500,7 @@ tryFinishCurMod m newS
                              , Map.keysSet (modSigs m)
                              , Map.keysSet (modMods m)
                              ]
-           , rmodImpOrder = reverse (modImportOrder (modState m))
+           , rmodImports  = modResolvedImports (modState m)
            }
 
   | otherwise = Nothing

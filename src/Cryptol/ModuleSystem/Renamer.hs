@@ -145,28 +145,45 @@ renameModule m0 =
                        Just mp -> pure mp
                        Nothing -> error "XXX: report error here" -- XXX
 
+     let pathToName = Map.fromList [ (nameModPath x, x)
+                                   | ImpNested x <- Map.keys resolvedMods ]
+
+
+
 
      env      <- liftSupply (defsOf m)
      nested   <- liftSupply (collectNestedInModule env m)
-     setNestedModule (nestedModuleNames nested)
+
+     setNestedModule pathToName
        do let info = Extra { extraResolved = resolvedMods
                            , extraOwned = nested
-                           , extraModPath = TopModule (thing (mName m))
                            , extraModParams = mempty
                            , extraFromModParam = mempty
                            }
-          (ifs,(inScope,m1)) <- collectIfaceDeps (renameModule' info env m)
+          let mname = mName m
+          let mpath = TopModule (thing mname)
+              m'    = m { mName = ImpTop <$> mname }
+          (ifs,(inScope,m1)) <- collectIfaceDeps
+                              $ setCurMod mpath
+                              $ renameModule' (ImpTop (thing mname)) info env m'
           pure RenamedModule
-                 { rmModule = m1
+                 { rmModule = m1 { mName = mname }
                  , rmDefines = env
                  , rmInScope = inScope
                  , rmImported = ifs
                   -- XXX: maybe we should keep the nested defines too?
                  }
 
+
+
+
+
 {- | Entry point. Rename a list of top-level declarations.
 This is used for declaration that don't live in a module
-(e.g., define on the command line. -}
+(e.g., define on the command line.
+
+We assume that these declarations do not contain any nested modules.
+-}
 renameTopDecls ::
   ModName -> [TopDecl PName] -> RenameM (NamingEnv,[TopDecl Name])
 renameTopDecls m ds0 =
@@ -177,13 +194,9 @@ renameTopDecls m ds0 =
      env    <- liftSupply (defsOf (map (InModule (Just mpath)) ds))
      nested <- liftSupply (collectNestedInDecls env m ds)
 
-     setNestedModule (nestedModuleNames nested)
+     setNestedModule mempty
        do let extra = Extra { extraResolved = mempty
-                              -- this assumes no imports and modules in the
-                              -- decls
-
                             , extraOwned = nested
-                            , extraModPath = mpath
                             , extraModParams = mempty
                             , extraFromModParam = mempty
                             }
@@ -196,13 +209,6 @@ renameTopDecls m ds0 =
           pure (env,ds1)
 
 
-nestedModuleNames :: OwnedEntities -> Map ModPath Name
-nestedModuleNames own = Map.fromList (map entry (Map.keys (ownSubmodules own)))
-  where
-  entry n = case nameInfo n of
-              GlobalName _ og -> (Nested (ogModule og) (nameIdent n),n)
-              _ -> panic "nestedModuleName" [ "Not a top-level name" ]
-
 
 class Rename f where
   rename :: f PName -> RenameM (f Name)
@@ -214,12 +220,12 @@ class Rename f where
 --    * Things defined in the module
 --    * Renamed module
 renameModule' ::
+  ImpName Name {- ^ Resolved name for this module -} ->
   Extra ->
-  NamingEnv ->
-  ModuleG () PName ->
-  RenameM (NamingEnv, ModuleG mname Name)
-renameModule' info@Extra { extraModPath = mpath } env m =
-  setCurMod mpath
+  NamingEnv {- ^ Things defined in this module -} ->
+  ModuleG (ImpName PName) PName ->
+  RenameM (NamingEnv, ModuleG (ImpName PName) Name)
+renameModule' mname info env m =
   do (moreNested,imps) <- mconcat <$> mapM doImport (mImports m)
      let thisNested = extraOwned info
          allNested  = moreNested <> thisNested
@@ -257,7 +263,7 @@ renameModule' info@Extra { extraModPath = mpath } env m =
                              Map.insert x nm
 
                     extra = Extra { extraOwned = allNested
-                                  , extraModPath = mpath
+                                  , extraResolved = extraResolved info
                                   , extraModParams = mparams
                                   , extraFromModParam = newFrom
                                   }
@@ -605,13 +611,10 @@ doModParam owned mp =
 
 -- | Additional information needed to rename some constructs
 data Extra = Extra
-  { extraResolved   :: Map (ImpName Name) (ResolvedModule [PName])
+  { extraResolved   :: Map (ImpName Name) ResolvedLocal
 
   , extraOwned      :: OwnedEntities
     -- ^ Owned entities, for resolving names in nested modules and signatures
-
-  , extraModPath    :: ModPath
-    -- ^ Path to the current location (for nested modules)
 
   , extraModParams  :: !(Map Ident RenModParam)
     -- ^ Module parameters for the current module
@@ -726,20 +729,19 @@ instance Rename ImpName where
 
 instance Rename (WithExtra NestedModule) where
   rename (WithExtra info (NestedModule m)) = WithExtra info <$>
-    do let mpath          = extraModPath info
-           lnm            = mName m
+    do let lnm            = mName m
            nm             = thing lnm
-           newMPath       = Nested mpath (getIdent nm)
        n   <- resolveName NameBind NSModule nm
        depsOf (NamedThing n)
          do let env = case Map.lookup n (ownSubmodules (extraOwned info)) of
                         Just defs -> defs
                         Nothing -> panic "rename"
                            [ "Missing environment for nested module", show n ]
-            let newInfo = info { extraModPath = newMPath }
             -- XXX: we should store in scope somehwere if we want to browse
             -- nested modules properly
-            (_inScope,m1) <- renameModule' newInfo env m
+            let m' = m { mName = ImpNested <$> mName m }
+            (_inScope,m1) <- setCurMod (nameModPath n)
+                                       (renameModule' (ImpNested n) info env m')
             pure (NestedModule m1 { mName = lnm { thing = n } })
 
 
