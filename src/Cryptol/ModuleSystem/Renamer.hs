@@ -146,11 +146,11 @@ renameModule m0 =
 
 
      let mname = ImpTop (thing (mName m))
-     env <- rmodDefines <$> lookupResolved mname
 
      setResolvedLocals resolvedMods $
        setNestedModule pathToName
        do (ifs,(inScope,m1)) <- collectIfaceDeps (renameModule' mname m)
+          env <- rmodDefines <$> lookupResolved mname
           pure RenamedModule
                  { rmModule = m1
                  , rmDefines = env
@@ -187,11 +187,12 @@ renameTopDecls m ds0 =
      let pathToName = Map.fromList [ (nameModPath x, x)
                                    | ImpNested x <- Map.keys resolvedMods ]
 
-     env    <- rmodDefines <$> lookupResolved (ImpTop m)
 
      setResolvedLocals resolvedMods $
       setNestedModule pathToName
-      do -- we already checked for duplicates in Step 2
+      do env    <- rmodDefines <$> lookupResolved (ImpTop m)
+
+         -- we already checked for duplicates in Step 2
          ds1 <- shadowNames' CheckNone env (renameTopDecls' ds)
          -- record a use of top-level names to avoid
          -- unused name warnings
