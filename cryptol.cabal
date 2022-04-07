@@ -124,7 +124,6 @@ library
                        Cryptol.ModuleSystem.Renamer,
                        Cryptol.ModuleSystem.Renamer.Imports,
                        Cryptol.ModuleSystem.Renamer.ImplicitImports,
-                       Cryptol.ModuleSystem.Renamer.Scoping,
                        Cryptol.ModuleSystem.Renamer.Monad,
                        Cryptol.ModuleSystem.Renamer.Error,
 

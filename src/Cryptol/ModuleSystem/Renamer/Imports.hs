@@ -44,12 +44,11 @@ However, this is not OK:
 {-# Language BlockArguments #-}
 {-# Language TypeSynonymInstances, FlexibleInstances #-}
 module Cryptol.ModuleSystem.Renamer.Imports
-  ( doTopDef
+  ( resolveImports
   , ResolvedModule(..)
+  , ModKind(..)
   , ResolvedLocal
   , ResolvedExt
-
-  , openLoop
   )
   where
 
@@ -66,14 +65,9 @@ import Cryptol.Utils.PP(pp)
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.Ident(ModName,ModPath(..),Namespace(..),OrigName(..))
 
-import Cryptol.Parser.Position(Located(..))
 import Cryptol.Parser.AST
-  ( ImportG(..),PName
-  , ModuleInstanceArgs(..), ModuleInstanceArg(..)
-  , ImpName(..)
-  )
-import Cryptol.ModuleSystem.Binds
-        (OwnedEntities(..), Mod(..), TopDef(..), modNested)
+  ( ImportG(..),PName, ModuleInstanceArgs(..), ImpName(..) )
+import Cryptol.ModuleSystem.Binds (Mod(..), TopDef(..), modNested)
 import Cryptol.ModuleSystem.Name
           ( Name, Supply, SupplyT, runSupplyT, liftSupply, freshNameFor
           , asOrigName, nameIdent, nameTopModule )
@@ -92,7 +86,8 @@ The type parameter helps us distinguish between two types of resolved modules:
 
   2. Resolved modules that are *outputs* of the algorithm (i.e., they
      defined within the current module).  For such modules the type
-     parameter @imps@ the list of resolved imports.
+     parameter @imps@ contains the naming environment for things
+     that came in through the import.
 
 Note that signaures are never "imported", however we do need to keep them
 here so that signatures in a functor are properly instantiated when
@@ -100,28 +95,29 @@ the functor is instantiated.
 -}
 data ResolvedModule imps = ResolvedModule
   { rmodDefines   :: NamingEnv    -- ^ Things defined by the module/signature.
-  , rmodParams    :: Bool         -- ^ Is it a functor?
+  , rmodKind      :: ModKind      -- ^ What sort of thing are we
   , rmodNested    :: Set Name     -- ^ Modules and signatures nested in this one
   , rmodImports   :: imps
     {- ^ Resolved imports. External modules need not specify this field,
     it is just part of the thing we compute for local modules. -}
   }
 
--- | A resolved module that's not defined in the current top-level module
-type ResolvedLocal = ResolvedModule [ImportG (ImpName Name)]
+data ModKind = AFunctor | ASignature | AModule
 
 -- | A resolved module that's defined in (or is) the current top-level module
+type ResolvedLocal = ResolvedModule NamingEnv
+
+-- | A resolved module that's not defined in the current top-level module
 type ResolvedExt   = ResolvedModule ()
 
 
--- XXX: better error
-doTopDef ::
+-- XXX: should we report errors here, or they going to be caught later?
+resolveImports ::
   (ImpName Name -> Mod ()) ->
   TopDef ->
   Supply ->
-  (Maybe (Map (ImpName Name) ResolvedLocal), Supply)
-doTopDef ext def su =
-  fromMaybe (Nothing, su)
+  (Map (ImpName Name) ResolvedLocal, Supply)
+resolveImports ext def su =
   case def of
 
     TopMod m mo ->
@@ -134,10 +130,12 @@ doTopDef ext def su =
                                    , nameSupply = su
                                    , changes = False
                                    }
-         r <- tryFinishCurMod cur newS
-         pure ( Just (Map.insert (ImpTop m) r (toNest (doneModules newS)))
-              , nameSupply newS
-              )
+
+
+         case tryFinishCurMod cur newS of
+           Just r  -> add m r newS
+           Nothing -> add m r s1
+              where (r,s1) = forceFinish newS
 
     TopInst m f as ->
       do let s = CurState
@@ -148,16 +146,19 @@ doTopDef ext def su =
                    , nameSupply = su
                    , changes = False
                    }
-         (r,newS) <- tryInstanceMaybe s (ImpTop m) (f,as)
-         pure ( Just (Map.insert (ImpTop m) r (toNest (doneModules newS)))
-              , nameSupply newS
-              )
 
+         case tryInstanceMaybe s (ImpTop m) (f,as) of
+           Just (r,newS) -> add m r newS
+           Nothing -> panic  "resolveImports"
+                          [ "Failed to finish a top-level instantiation" ]
 
     TopInstOld {} -> undefined
 
   where
   toNest m = Map.fromList [ (ImpNested k, v) | (k,v) <- Map.toList m ]
+  add m r s  = ( Map.insert (ImpTop m) r (toNest (doneModules s))
+               , nameSupply s
+               )
 
 
 
@@ -174,9 +175,6 @@ data ModState = ModState
 
   , modImported     :: NamingEnv
     -- ^ Things which come in scope via imports.  These shadow outer names.
-
-  , modResolvedImports :: [ImportG (ImpName Name)]
-    {- ^ Resolved imports -}
   }
 
 
@@ -188,7 +186,6 @@ todoModule = fmap (const emptyModState)
     ModState
       { modOuter    = mempty
       , modImported = mempty
-      , modResolvedImports  = []
       }
 
 {- | A module is fully processed when we are done with all its:
@@ -202,6 +199,50 @@ isDone m = null     (modImports m)   &&
            Map.null (modInstances m) &&
            Map.null (modSigs m)      &&
            Map.null (modMods m)
+
+
+-- | Finish up all unfinished modules as best as we can
+forceFinish :: CurState -> (ResolvedLocal,CurState)
+forceFinish s0 =
+  let this  = curMod s0
+      add k v s = s { doneModules = Map.insert k v (doneModules s) }
+      s1        = foldl' (\s k -> add k forceResolveInst s) s0
+                         (Map.keys (modInstances this))
+
+      doNestMod s (k,m) =
+        let (r,s') = forceFinish s { curMod = m }
+        in add k r s'
+
+  in ( forceResolveMod this
+     , foldl' doNestMod s1 (Map.toList (modMods this))
+     )
+
+
+-- | A place-holder entry for instnatitations we couldn't resolve.
+forceResolveInst :: ResolvedLocal
+forceResolveInst =
+  ResolvedModule
+    { rmodDefines = mempty
+    , rmodKind    = AModule
+    , rmodNested  = Set.empty
+    , rmodImports = mempty
+    }
+
+-- | Finish up unresolved modules as well as we can, in situations where
+-- the program contains an error.
+forceResolveMod :: Todo -> ResolvedLocal
+forceResolveMod todo =
+  ResolvedModule
+    { rmodDefines   = modDefines todo
+    , rmodKind      = if modParams todo then AFunctor else AModule
+    , rmodNested    = Map.keysSet (modSigs todo) `Set.union`
+                      Map.keysSet (modMods todo)
+    , rmodImports   = modImported (modState todo)
+    }
+
+
+
+
 
 pushImport :: ImportG (ImpName PName) -> Todo -> Todo
 pushImport i m = m { modImports = i : modImports m }
@@ -221,7 +262,7 @@ updMS f m = m { modState = f (modState m) }
 modToResolved :: Mod () -> ResolvedExt
 modToResolved m = ResolvedModule
   { rmodDefines  = modDefines m
-  , rmodParams   = modParams m
+  , rmodKind     = if modParams m then AFunctor else AModule
   , rmodNested   = modNested m
   , rmodImports  = ()
   }
@@ -339,14 +380,13 @@ tryImport s imp =
      mname <- knownImpName s srcName
      ext   <- knownModule s mname
 
-     let new = if rmodParams ext
-                 then mempty  -- imported a functor, error reported later
-                 else interpImportEnv imp (rmodDefines ext)
+     let new = case rmodKind ext of
+                 AModule    -> interpImportEnv imp (rmodDefines ext)
+                 AFunctor   -> mempty
+                 ASignature -> mempty
 
      pure $ updCurMS s { changes = True }
-            \ms -> ms { modImported = new <> modImported ms
-                      , modResolvedImports =
-                          imp { iModule = mname } : modResolvedImports ms }
+            \ms -> ms { modImported = new <> modImported ms }
 
 -- | Resolve all imports in the current modules
 doImportStep :: CurState -> CurState
@@ -432,11 +472,15 @@ doInstantiate keepArgs mpath def s = (newDef, Set.foldl' doSub newS nestedToDo)
   newS = s { nameSupply = newNameSupply }
 
   newDef = ResolvedModule { rmodDefines   = newEnv
-                          , rmodParams    = if keepArgs
-                                              then rmodParams def
-                                              else False
+                          , rmodKind      = case rmodKind def of
+                                              AFunctor ->
+                                                 if keepArgs then AFunctor
+                                                             else AModule
+                                              ASignature -> ASignature
+                                              AModule -> AModule
+
                           , rmodNested    = Set.map snd nestedToDo
-                          , rmodImports = []
+                          , rmodImports   = mempty
                             {- we don't do name resolution on the instantiation
                                the usual way: instead the functor and the
                                arguments are renamed separately, then we
@@ -484,8 +528,8 @@ doSignaturesStep s = updCur s1 \m -> m { modSigs = mempty }
   resolved  = doSig <$> sigs
   doSig sig = ResolvedModule { rmodDefines  = sig
                              , rmodNested   = mempty
-                             , rmodParams   = False
-                             , rmodImports  = []
+                             , rmodKind     = ASignature
+                             , rmodImports  = mempty
                                 -- no imports in signatures, at least for now.
                              }
 
@@ -494,13 +538,13 @@ tryFinishCurMod m newS
   | isDone (curMod newS) =
     Just ResolvedModule
            { rmodDefines = modDefines m
-           , rmodParams  = modParams m
+           , rmodKind    = if modParams m then AFunctor else AModule
            , rmodNested  = Set.unions
                              [ Map.keysSet (modInstances m)
                              , Map.keysSet (modSigs m)
                              , Map.keysSet (modMods m)
                              ]
-           , rmodImports  = modResolvedImports (modState m)
+           , rmodImports  = modImported (modState m)
            }
 
   | otherwise = Nothing
@@ -540,116 +584,6 @@ doModuleStep = doStep step
        . doStep doInstancesStep
        . doStep doSignaturesStep
        . doStep doImportStep
-
-
-
---------------------------------------------------------------------------------
--- Old Loop
-
-
-data OpenLoopState = OpenLoopState
-  { unresolvedOpen  :: [ImportG PName]
-  , scopeImports    :: NamingEnv   -- names from open/impot
-  , scopeDefs       :: NamingEnv   -- names defined in this module
-  , scopingRel      :: NamingEnv   -- defs + imports with shadowing
-                                   -- (just a cache of `scopeImports+scopeDefs`)
-  , openLoopChange  :: Bool
-  }
-
-
-{- | Complete the set of import using @import submodule@ declarations.
-This should terminate because on each iteration either @unresolvedOpen@
-decreases or @openLoopChange@ remians @False@. We don't report errors
-here, as they will be reported during renaming anyway. -}
-openLoop ::
-  OwnedEntities   {- ^ Definitions of all known nested things -} ->
-  NamingEnv       {- ^ Definitions of the module (these shadow) -} ->
-  [ImportG PName] {- ^ Open declarations                        -} ->
-  NamingEnv       {- ^ Imported declarations                    -} ->
-  NamingEnv       {- ^ Completed imports                        -}
-openLoop modEnvs defs os imps =
-  scopeImports $
-  loop OpenLoopState  { unresolvedOpen = os
-                      , scopeImports   = imps
-                      , scopeDefs      = defs
-                      , scopingRel     = defs `shadowing` imps
-                      , openLoopChange = True
-                      }
-  where
-  loop s
-    | openLoopChange s =
-      loop $ foldl' (processOpen modEnvs)
-                    s { unresolvedOpen = [], openLoopChange = False }
-                    (unresolvedOpen s)
-    | otherwise = s
-
-
-
-
-
-
-{- | Processing of a single @import submodule@ declaration
-Notes:
-  * ambiguity will be reported later when we do the renaming
-  * assumes scoping only grows, which should be true
-  * in case of ambiguous import, we are not adding the names from *either*
-    of the imports so this may give rise to undefined names, so we may want to
-    suppress reporing undefined names if there ambiguities for
-    module names.  Alternatively we could add the defitions from
-    *all* options, but that might lead to spurious ambiguity errors.
--}
-processOpen :: OwnedEntities -> OpenLoopState -> ImportG PName -> OpenLoopState
-processOpen modEnvs s o =
-  case lookupNS NSModule (iModule o) (scopingRel s) of
-    Nothing -> s { unresolvedOpen = o : unresolvedOpen s }
-    Just (One n) ->
-      case Map.lookup n (ownSubmodules modEnvs) of
-        Nothing
-
-          | Just (f,args) <- Map.lookup n (ownInstances modEnvs) ->
-            let scope = scopingRel s
-            in
-            case (,) <$> tryLookup scope f <*> tryLookupArgs scope args of
-              Nothing -> s    -- not yet ready
-              Just {} -> undefined -- ready to isntantiate
-
-          | otherwise ->
-            panic "openLoop" [ "Missing defintion for module", show n ]
-
-
-        Just def ->
-          let new     = interpImportEnv o def
-              newImps = new <> scopeImports s
-          in s { scopeImports   = newImps
-               , scopingRel     = scopeDefs s `shadowing` newImps
-               , openLoopChange = True
-               }
-    Just (Ambig _) -> s
-
-
-tryLookupArgs ::
-  NamingEnv -> ModuleInstanceArgs PName -> Maybe (ModuleInstanceArgs Name)
-tryLookupArgs env args =
-  case args of
-    DefaultInstArg x -> DefaultInstArg <$> tryLookup env x
-    NamedInstArgs xs -> NamedInstArgs <$> mapM (tryLookupArg env) xs
-
-tryLookup ::
-  NamingEnv -> Located (ImpName PName) -> Maybe (Located (ImpName Name))
-tryLookup env lin =
-  case thing lin of
-    ImpTop y -> pure lin { thing = ImpTop y }
-    ImpNested x ->
-      do ns <- lookupNS NSModule x env
-         case ns of
-           One n -> pure lin { thing = ImpNested n }
-           _     -> Nothing
-
-tryLookupArg ::
-  NamingEnv -> ModuleInstanceArg PName -> Maybe (ModuleInstanceArg Name)
-tryLookupArg env (ModuleInstanceArg a x) =
-  ModuleInstanceArg a <$> tryLookup env x
-
 
 
 

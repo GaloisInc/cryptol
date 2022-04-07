@@ -50,7 +50,7 @@ data RenamerError
   | MultipleModParams Ident [Range]
     -- ^ Module parameters with the same name
 
-  | InvalidFunctorImport Name
+  | InvalidFunctorImport (ImpName Name)
     -- ^ Can't import functors directly
 
   | UnexpectedNest Range PName

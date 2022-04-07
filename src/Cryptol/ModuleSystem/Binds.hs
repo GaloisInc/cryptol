@@ -16,10 +16,6 @@ module Cryptol.ModuleSystem.Binds
   , InModule(..)
   , ifaceToMod
   , modToMap
-
-  , OwnedEntities(..)
-  , collectNestedInModule
-  , collectNestedInDecls
   , defsOf
   ) where
 
@@ -29,7 +25,6 @@ import Data.Set(Set)
 import qualified Data.Set as Set
 import Data.Maybe(fromMaybe)
 import Control.Monad(foldM)
-import MonadLib (runId,Id,StateT,runStateT,lift,sets_,forM_)
 import qualified MonadLib as M
 
 import Cryptol.Utils.Panic (panic)
@@ -102,11 +97,11 @@ ifaceToMod iface =
   pub = ifPublic iface
 
 
-type ModBuilder = SupplyT (M.StateT [RenamerError] Id)
+type ModBuilder = SupplyT (M.StateT [RenamerError] M.Id)
 
 modBuilder :: ModBuilder a -> Supply -> ((a, [RenamerError]),Supply)
 modBuilder m s = ((a,errs),s1)
-  where ((a,s1),errs) = M.runId (runStateT [] (runSupplyT s m))
+  where ((a,s1),errs) = M.runId (M.runStateT [] (runSupplyT s m))
 
 defErr :: RenamerError -> ModBuilder ()
 defErr a = M.lift (M.sets_ (a:))
@@ -196,125 +191,6 @@ declsToMod mbPath ds =
 
 
 
-
-
-
-
---------------------------------------------------------------------------------
-{- Collect definitions of entities that may contains other entities.
-For example, submodules and signatures, when treated as declarations
-only introduce a single name (e.g., the name of the submodule or signature)
-but when used can introduce additional names (e.g., in an import or
-a submodule declaration).  The code in the following section computes the
-names that are "owned" by all the entities, when "used".
--}
-
-
-data OwnedEntities = OwnedEntities
-  { ownSubmodules :: Map Name NamingEnv
-  , ownFunctors   :: Set Name
-  , ownInstances  :: Map Name
-                         (Located (ImpName PName), ModuleInstanceArgs PName)
-  , ownSignatures :: Map Name NamingEnv
-  }
-
-instance Semigroup OwnedEntities where
-  x <> y = OwnedEntities { ownSubmodules = ownSubmodules x <> ownSubmodules y
-                         , ownFunctors   = ownFunctors x <> ownFunctors y
-                         , ownInstances  = ownInstances x <> ownInstances y
-                         , ownSignatures = ownSignatures x <> ownSignatures y
-                         }
-
-instance Monoid OwnedEntities where
-  mempty = OwnedEntities { ownSubmodules = mempty
-                         , ownFunctors   = mempty
-                         , ownInstances  = mempty
-                         , ownSignatures = mempty
-                         }
-
-type CollectM   = StateT OwnedEntities (SupplyT Id)
-
--- | Collect things nested in a module
-collectNestedInModule ::
-  NamingEnv -> Module PName -> Supply -> (OwnedEntities, Supply)
-collectNestedInModule env m =
-  case mDef m of
-    NormalModule ds         -> collectNestedInDecls env (thing (mName m)) ds
-    FunctorInstanceOld _ ds -> collectNestedInDecls env (thing (mName m)) ds
-    FunctorInstance {}      -> \s -> (mempty, s)
-      -- XXX: since this a top-level module, we *could* do the instantiation
-      -- right here as the functor and its arguments which must be other
-      -- top-level modules, and so are known.
-
-
--- | Collect things nested in a list of declarations
-collectNestedInDecls ::
-  NamingEnv -> ModName -> [TopDecl PName] -> Supply -> (OwnedEntities, Supply)
-collectNestedInDecls env m ds sup = (mp,newS)
-  where
-  s0            = mempty
-  mpath         = TopModule m
-  ((_,mp),newS) = runId $ runSupplyT sup $ runStateT s0 $
-                  collectNestedDeclsM mpath env ds
-
-collectNestedDeclsM :: ModPath -> NamingEnv -> [TopDecl PName] -> CollectM ()
-collectNestedDeclsM mpath env ds =
-
-  do forM_ [ tlValue s | DModSig s <- ds ] \s ->
-        do let pname = thing (sigName s)
-               name  = case lookupNS NSSignature pname env of
-                        Just ns -> anyOne ns
-                        Nothing -> panic "collectNestedDeclsM"
-                                    [ "Missing definition for " ++ show pname ]
-                        -- See comment below.
-
-           newEnv <- lift $ runBuild $
-                    signatureDefs (Nested mpath (nameIdent name)) s
-           sets_ \o -> o { ownSignatures = Map.insert name newEnv
-                                                        (ownSignatures o)}
-
-     forM_ [ tlValue nm | DModule nm <- ds ] \(NestedModule nested) ->
-       do let pname = thing (mName nested)
-              name  = case lookupNS NSModule pname env of
-                        Just ns -> anyOne ns
-                        Nothing -> panic "collectNestedDeclsM"
-                                    [ "Missing definition for " ++ show pname ]
-              -- if a name is ambiguous we may get
-              -- multiple answers, but we just pick one.
-              -- This should be OK, as the error should be
-              -- caught during actual renaming.
-
-          newEnv <- lift $ runBuild $
-                      moduleDefs (Nested mpath (nameIdent name)) nested
-          sets_ \o -> o { ownSubmodules =
-                            Map.insert name newEnv (ownSubmodules o)
-                        , ownFunctors =
-                            if mIsFunctor nested
-                              then Set.insert name (ownFunctors o)
-                              else ownFunctors o
-                        }
-          let newMPath = Nested mpath (nameIdent name)
-          case mDef nested of
-            NormalModule des -> collectNestedDeclsM newMPath newEnv des
-            FunctorInstanceOld _ des ->
-              collectNestedDeclsM newMPath newEnv des
-            FunctorInstance f as ->
-              sets_ \o -> o { ownInstances = Map.insert name
-                                                        (f,as)
-                                                        (ownInstances o) }
-
-
--- | These are the names "owned" by the module.
--- These names are used when resolving the module itself.
-moduleDefs :: ModPath -> ModuleG mname PName -> BuildNamingEnv
-moduleDefs m mo =
-  case mDef mo of
-    NormalModule ds -> doDecls ds
-    FunctorInstanceOld _ ds -> doDecls ds
-    FunctorInstance {} -> mempty
-  where
-  doDecls = foldMap (namingEnv . InModule (Just m))
-
 -- | These are the names "owned" by the signature.  These names are
 -- used when resolving the signature.  They are also used to figure out what
 -- names to instantuate when the signature is used.
@@ -336,10 +212,10 @@ signatureDefs m sig =
 class BindsNames a where
   namingEnv :: a -> BuildNamingEnv
 
-newtype BuildNamingEnv = BuildNamingEnv { runBuild :: SupplyT Id NamingEnv }
+newtype BuildNamingEnv = BuildNamingEnv { runBuild :: SupplyT M.Id NamingEnv }
 
 buildNamingEnv :: BuildNamingEnv -> Supply -> (NamingEnv,Supply)
-buildNamingEnv b supply = runId $ runSupplyT supply $ runBuild b
+buildNamingEnv b supply = M.runId $ runSupplyT supply $ runBuild b
 
 -- | Generate a 'NamingEnv' using an explicit supply.
 defsOf :: BindsNames a => a -> Supply -> (NamingEnv,Supply)
@@ -415,11 +291,6 @@ instance BindsNames (TParam PName) where
     do let range = fromMaybe emptyRange tpRange
        n <- newLocal NSType tpName range
        return (singletonNS NSType tpName n)
-
--- | The naming environment for a single module.  This is the mapping from
--- unqualified names to fully qualified names with uniques.
-instance BindsNames (Module PName) where
-  namingEnv m = moduleDefs (TopModule (thing (mName m))) m
 
 
 instance BindsNames (InModule (TopDecl PName)) where

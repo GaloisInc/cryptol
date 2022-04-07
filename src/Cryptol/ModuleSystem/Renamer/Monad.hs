@@ -32,6 +32,8 @@ import Cryptol.Parser.Position
 import Cryptol.Utils.Ident(modPathCommon,OrigName(..))
 
 import Cryptol.ModuleSystem.Renamer.Error
+import Cryptol.ModuleSystem.Renamer.Imports
+  (ResolvedLocal,rmodKind,ModKind(..))
 
 -- | Indicates if a name is in a binding poisition or a use site
 data NameType = NameBind | NameUse
@@ -53,9 +55,13 @@ data RO = RO
   , roCurMod :: ModPath           -- ^ Current module we are working on
 
   , roNestedMods :: Map ModPath Name
-    {- ^ Maps module pats to the actual name for this.   This is used
+    {- ^ Maps module paths to the actual name for it.   This is used
          for dependency tracking, to find the name of a containing module.
          See the note on `addDep`. -}
+
+  , roResolvedModules :: Map (ImpName Name) ResolvedLocal
+    -- ^ Info about locally defined modules
+
   }
 
 data RW = RW
@@ -75,7 +81,7 @@ data RW = RW
     -- see 'depsOf'
 
   , rwExternalDeps  :: !IfaceDecls
-    -- ^ Info about imported things
+    -- ^ Info about imported things, from external modules
   }
 
 
@@ -142,6 +148,7 @@ runRenamer info m = (res, warns)
           , roIfaces = renIfaces info
           , roCurMod = renContext info
           , roNestedMods = Map.empty
+          , roResolvedModules = mempty
           }
 
   res | Set.null (rwErrors rw) = Right (a,rwSupply rw)
@@ -157,6 +164,20 @@ getCurMod = RenameM $ asks roCurMod
 
 getNamingEnv :: RenameM NamingEnv
 getNamingEnv = RenameM (asks roNames)
+
+setResolvedLocals :: Map (ImpName Name) ResolvedLocal -> RenameM a -> RenameM a
+setResolvedLocals mp (RenameM m) =
+  RenameM $ mapReader (\ro -> ro { roResolvedModules = mp }) m
+
+lookupResolved :: ImpName Name -> RenameM ResolvedLocal
+lookupResolved nm =
+  do mp <- RenameM (roResolvedModules <$> ask)
+     pure case Map.lookup nm mp of
+            Just r  -> r
+
+            -- XXX: could this happen because we couldn't resolve a module?
+            Nothing -> panic "lookupResolved"
+                        [ "Missing module: " ++ show nm ]
 
 
 setNestedModule :: Map ModPath Name -> RenameM a -> RenameM a
@@ -320,13 +341,29 @@ warnUnused m0 env rw =
                    sys == UserName && m == m0 && nm `Set.notMember` oldNames
                  LocalName {} -> True
 
--- | Get the exported declarations in a module
-lookupImport :: Import -> RenameM IfaceDecls
-lookupImport imp = RenameM $
-  do getIf <- roIfaces <$> ask
-     let ifs = ifPublic (getIf (iModule imp))
-     sets_ \s -> s { rwExternalDeps = ifs <> rwExternalDeps s }
-     pure ifs
+{- | Record an import:
+      * record external dependency if the name refers to an external import
+      * record an error if the imported thing is a functor
+-}
+recordImport :: ImpName Name -> RenameM ()
+recordImport i =
+  do ro <- RenameM ask
+     case Map.lookup i (roResolvedModules ro) of
+       Just loc ->
+         case rmodKind loc of
+           AModule -> pure ()
+           _       -> bad
+       Nothing ->
+         do let topName = case i of
+                            ImpTop m -> m
+                            ImpNested n -> nameTopModule n
+            let iface = roIfaces ro topName
+            RenameM $ sets_ \s -> s { rwExternalDeps = ifPublic iface <>
+                                                          rwExternalDeps s }
+            when (ifaceIsFunctor iface) bad
+
+  where
+  bad = recordError (InvalidFunctorImport i)
 
 -- XXX: Maybe we'd want to cache some of the conversion to Mod?
 getLoadedMods :: RenameM (ImpName Name -> Mod ())
