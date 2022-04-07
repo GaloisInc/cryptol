@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "cryptol"
-version = "2.12.4"
+version = "2.12.5"
 readme = "README.md"
 keywords = ["cryptography", "verification"]
 description = "Cryptol client for the Cryptol 2.12 RPC server"
