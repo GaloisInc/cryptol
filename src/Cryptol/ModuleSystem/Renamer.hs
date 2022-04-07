@@ -32,10 +32,9 @@ import Prelude.Compat
 
 import Data.Either(partitionEithers)
 import Data.Maybe(fromJust,mapMaybe)
-import Data.List(find,foldl',groupBy,sortBy)
+import Data.List(find,groupBy,sortBy)
 import Data.Function(on)
 import Data.Foldable(toList)
-import Data.Map.Strict(Map)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Data.Graph(SCC(..))
@@ -47,7 +46,7 @@ import Cryptol.ModuleSystem.Name
 import Cryptol.ModuleSystem.Names
 import Cryptol.ModuleSystem.NamingEnv
 import Cryptol.ModuleSystem.Exports
-import Cryptol.Parser.Position(getLoc,Range)
+import Cryptol.Parser.Position(getLoc)
 import Cryptol.Parser.AST
 import Cryptol.Parser.Selector(selName)
 import Cryptol.Utils.Panic (panic)
@@ -151,11 +150,7 @@ renameModule m0 =
 
      setResolvedLocals resolvedMods $
        setNestedModule pathToName
-       do let info = Extra { extraModParams = mempty
-                           , extraFromModParam = mempty
-                           }
-
-          (ifs,(inScope,m1)) <- collectIfaceDeps (renameModule' mname info m)
+       do (ifs,(inScope,m1)) <- collectIfaceDeps (renameModule' mname m)
           pure RenamedModule
                  { rmModule = m1
                  , rmDefines = env
@@ -196,11 +191,8 @@ renameTopDecls m ds0 =
 
      setResolvedLocals resolvedMods $
       setNestedModule pathToName
-      do let extra = Extra { extraModParams = mempty
-                           , extraFromModParam = mempty
-                           }
-         -- we already checked for duplicates in Step 2
-         ds1 <- shadowNames' CheckNone env (renameTopDecls' extra ds)
+      do -- we already checked for duplicates in Step 2
+         ds1 <- shadowNames' CheckNone env (renameTopDecls' ds)
          -- record a use of top-level names to avoid
          -- unused name warnings
          let exports = concatMap exportedNames ds1
@@ -208,6 +200,8 @@ renameTopDecls m ds0 =
 
          pure (env,ds1)
 
+--------------------------------------------------------------------------------
+-- Stuff below is related to Step 4 of the algorighm.
 
 
 class Rename f where
@@ -221,10 +215,9 @@ class Rename f where
 --    * Renamed module
 renameModule' ::
   ImpName Name {- ^ Resolved name for this module -} ->
-  Extra ->
   ModuleG mname PName ->
   RenameM (NamingEnv, ModuleG mname Name)
-renameModule' mname info m =
+renameModule' mname m =
   setCurMod
     case mname of
       ImpTop r    -> TopModule r
@@ -236,41 +229,20 @@ renameModule' mname info m =
 
      (inScope,newDef) <-
         shadowNames' CheckNone (rmodImports resolved)
-        do (paramEnvs,params) <-
-              shadowNames' CheckNone env $ -- the actual check will happen below
-                 unzip <$> mapM doModParam (mModParams m)
+        do (paramEnv,params) <-
+                      shadowNames' CheckNone env (doModParams (mModParams m))
 
-           let repeated = groupBy ((==) `on` renModParamName)
-                        $ sortBy (compare `on` renModParamName) params
+           shadowNames' CheckOverlap (env <> paramEnv) $
+            -- we check that defined names and ones that came from parameters
+            -- do not clash, as this would be very confusing.
 
-           forM_ repeated \ps ->
-             case ps of
-               [_] -> pure ()
-               ~(p : _) -> recordError
-                             (MultipleModParams (renModParamName p)
-                                                (map renModParamRange ps))
-
-           shadowNames' CheckOverlap (mconcat (env : paramEnvs))
-                                                      -- here is the check
+             setModParams params
              do inScope <- getNamingEnv
-                let mparams = Map.fromList
-                                [ (renModParamName p, p)
-                                | p <- params ]
-                    newFrom =
-                      foldLoop params (extraFromModParam info) \p mp ->
-                        let nm = ModParamName (renModParamRange p)
-                                              (renModParamName p)
-                        in foldLoop (Map.keys (renModParamInstance p)) mp \x ->
-                             Map.insert x nm
-
-                    extra = Extra { extraModParams = mparams
-                                  , extraFromModParam = newFrom
-                                  }
                 newDef <- case mDef m of
                             NormalModule ds ->
-                              NormalModule <$> renameTopDecls' extra ds
+                              NormalModule <$> renameTopDecls' ds
                             FunctorInstanceOld f ds ->
-                              FunctorInstanceOld f <$> renameTopDecls' extra ds
+                              FunctorInstanceOld f <$> renameTopDecls' ds
                             FunctorInstance f as ->
                               undefined -- XXX
                 pure (inScope, newDef)
@@ -279,8 +251,6 @@ renameModule' mname info m =
      mapM_ recordUse (exported NSType exports)
      return (inScope, m1)
 
-foldLoop :: [a] -> b -> (a -> b -> b) -> b
-foldLoop xs b f = foldl' (flip f) b xs
 
 -- | This is used to rename local declarations (e.g. `where`)
 renameDecls :: [Decl PName] -> RenameM [Decl Name]
@@ -333,7 +303,7 @@ For the new module system, things using a parameter depend on the parameter
 declaration (i.e., `import signature`), which depends on the signature,
 so dependencies on constraints in there should be OK.
 
-However, we'd like to have a mchanism for declaring top level constraints in
+However, we'd like to have a mechanism for declaring top level constraints in
 a functor, that can impose constraints across types from *different*
 parameters.  For the moment, we reuse `parameter type constrint C` for this.
 
@@ -365,7 +335,7 @@ Example:
   import signature A     // Depends on A, so need to be after A
 
   parameter type constraint n > T
-                        // Depends on the import and T
+                        // Depends on the import (for @n@) and T
 
   type Q = [n-T]        // Depends on the top-level constraint
 -}
@@ -373,14 +343,14 @@ Example:
 
 
 -- This assumes imports have already been processed
-renameTopDecls' :: Extra -> [TopDecl PName] -> RenameM [TopDecl Name]
-renameTopDecls' info ds =
+renameTopDecls' :: [TopDecl PName] -> RenameM [TopDecl Name]
+renameTopDecls' ds =
   do -- rename and compute what names we depend on
-     (ds1,deps) <- depGroup (traverse (renameWithExtra info) ds)
+     (ds1,deps) <- depGroup (traverse rename ds)
+     fromParams <- getNamesFromModParams
      let rawDepsFor x = Map.findWithDefault Set.empty x deps
 
-         isTyParam x = nameNamespace x == NSType &&
-                       x `Map.member` extraFromModParam info
+         isTyParam x = nameNamespace x == NSType && x `Map.member` fromParams
 
 
          (noNameDs,nameDs) = partitionEithers (map topDeclName ds1)
@@ -405,7 +375,7 @@ renameTopDecls' info ds =
           | usesCtrs d = ctrs
           | otherwise  = mapMaybe (addCtr x) ctrs
 
-         mkDepName x = case Map.lookup x (extraFromModParam info) of
+         mkDepName x = case Map.lookup x fromParams of
                         Just dn -> dn
                         Nothing -> NamedThing x
 
@@ -530,15 +500,6 @@ topDeclName topDecl =
 
 
 
-data RenModParam = RenModParam
-  { renModParamName      :: Ident
-  , renModParamRange     :: Range
-  , renModParamSig       :: Name
-  , renModParamInstance  :: Map Name Name
-    -- ^ Maps param names to names in *signature*.
-    -- This is for functors, NOT functor instantantiations.
-  }
-
 
 {- | Compute the names introduced by a module parameter.
 This should be run in a context containg everything that's in scope
@@ -577,31 +538,29 @@ doModParam mp =
                  }
                )
 
+{- | Process the parameters of a module.
+Should be executed in a context where everything's already in the context,
+except the module parameters.
+-}
+doModParams :: [ModParam PName] -> RenameM (NamingEnv, [RenModParam])
+doModParams srcParams =
+  do (paramEnvs,params) <- unzip <$> mapM doModParam  srcParams
+
+     let repeated = groupBy ((==) `on` renModParamName)
+                  $ sortBy (compare `on` renModParamName) params
+
+     forM_ repeated \ps ->
+       case ps of
+         [_]      -> pure ()
+         ~(p : _) -> recordError (MultipleModParams (renModParamName p)
+                                                    (map renModParamRange ps))
+
+     pure (mconcat paramEnvs,params)
+
+
 
 
 --------------------------------------------------------------------------------
-
--- | Additional information needed to rename some constructs
-data Extra = Extra
-  { extraModParams  :: !(Map Ident RenModParam)
-    -- ^ Module parameters for the current module
-
-  , extraFromModParam :: !(Map Name DepName)
-    -- ^ Which parameter declaration did the given name come from
-    -- Also, if this is a type parameter, then the name of the actual
-    -- parameter (not the signature one)
-    -- (see renameTopDecls' for details)
-  }
-
-data WithExtra f n = WithExtra Extra (f n)
-
-forgetExtra :: WithExtra f n -> f n
-forgetExtra (WithExtra _ td) = td
-
-renameWithExtra ::
-  Rename (WithExtra f) => Extra -> f PName -> RenameM (f Name)
-renameWithExtra info m = forgetExtra <$> rename (WithExtra info m)
-
 
 rnLocated :: (a -> RenameM b) -> Located a -> RenameM (Located b)
 rnLocated f loc = withLoc loc $
@@ -613,35 +572,37 @@ rnLocated f loc = withLoc loc $
 
 
 
-instance Rename (WithExtra TopDecl) where
-  rename (WithExtra info td) = WithExtra info <$>
+instance Rename TopDecl where
+  rename td =
     case td of
-      Decl d      -> Decl      <$> traverse rename d
-      DPrimType d -> DPrimType <$> traverse rename d
-      TDNewtype n -> TDNewtype <$> traverse rename n
-      Include n   -> return (Include n)
-      DParameterFun f  -> DParameterFun  <$> rename f
-      DParameterType f -> DParameterType <$> rename f
+      Decl d            -> Decl      <$> traverse rename d
+      DPrimType d       -> DPrimType <$> traverse rename d
+      TDNewtype n       -> TDNewtype <$> traverse rename n
+      Include n         -> return (Include n)
+      DParameterFun f   -> DParameterFun  <$> rename f
+      DParameterType f  -> DParameterType <$> rename f
 
       DParameterConstraint ds ->
         case ds of
           [] -> pure (DParameterConstraint [])
           _  -> depsOf (ConstratintAt (fromJust (getLoc ds)))
               $ DParameterConstraint <$> mapM (rnLocated rename) ds
-      DModule m -> DModule <$> traverse (renameWithExtra info) m
+
+      DModule m  -> DModule <$> traverse rename m
       DImport li -> DImport <$> traverse renI li
         where
         renI i = do m <- rename (iModule i)
                     recordImport m
                     pure i { iModule = m }
 
-      DModParam mp -> DModParam <$> renameWithExtra info mp
-      DModSig sig -> DModSig <$> traverse (renameWithExtra info) sig
+      DModParam mp -> DModParam <$> rename mp
+      DModSig sig -> DModSig <$> traverse rename sig
 
-instance Rename (WithExtra ModParam) where
-  rename (WithExtra info mp) =
+instance Rename ModParam where
+  rename mp =
     depsOf (ModParamName (srcRange (mpSignature mp)) (mpName mp))
-    do x <- rnLocated (resolveName NameUse NSSignature) (mpSignature mp)
+    do x   <- rnLocated (resolveName NameUse NSSignature) (mpSignature mp)
+       ren <- renModParamInstance <$> getModParam (mpName mp)
 
        {- Here we add a single "use" to all type-level names intorduced,
        because this is their binding site.   The warnings for unused names
@@ -649,15 +610,10 @@ instance Rename (WithExtra ModParam) where
        so if we don't add the bindg site use, we get incorrect warnings -}
        mapM_ recordUse [ t | t <- Map.keys ren, nameNamespace t == NSType ]
 
-       pure (WithExtra info mp { mpSignature = x, mpRenaming = ren })
-    where
-    ren = case Map.lookup (mpName mp) (extraModParams info) of
-            Just r -> renModParamInstance r
-            Nothing -> panic "rename@ModParam"
-                          [ "Missing module parameter", show (mpAs mp) ]
+       pure mp { mpSignature = x, mpRenaming = ren }
 
-instance Rename (WithExtra Signature) where
-  rename (WithExtra info sig) = WithExtra info <$>
+instance Rename Signature where
+  rename sig =
     do let pname = thing (sigName sig)
        nm <- resolveName NameBind NSSignature pname
        env <- rmodDefines <$> lookupResolved (ImpNested nm)
@@ -680,8 +636,8 @@ instance Rename ImpName where
       ImpNested m -> ImpNested <$> resolveName NameUse NSModule m
 
 
-instance Rename (WithExtra NestedModule) where
-  rename (WithExtra info (NestedModule m)) = WithExtra info <$>
+instance Rename NestedModule where
+  rename (NestedModule m) =
     do let lnm            = mName m
            nm             = thing lnm
        n   <- resolveName NameBind NSModule nm
@@ -689,7 +645,7 @@ instance Rename (WithExtra NestedModule) where
          do -- XXX: we should store in scope somehwere if we want to browse
             -- nested modules properly
             let m' = m { mName = ImpNested <$> mName m }
-            (_inScope,m1) <- renameModule' (ImpNested n) info m'
+            (_inScope,m1) <- renameModule' (ImpNested n) m'
             pure (NestedModule m1 { mName = lnm { thing = n } })
 
 

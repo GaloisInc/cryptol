@@ -11,7 +11,7 @@
 {-# Language BlockArguments #-}
 module Cryptol.ModuleSystem.Renamer.Monad where
 
-import Data.List(sort)
+import Data.List(sort,foldl')
 import           Data.Set(Set)
 import qualified Data.Set as Set
 import           Data.Map.Strict ( Map )
@@ -62,6 +62,14 @@ data RO = RO
   , roResolvedModules :: Map (ImpName Name) ResolvedLocal
     -- ^ Info about locally defined modules
 
+  , roModParams :: Map Ident RenModParam
+    {- ^ Module parameters.  These are used when rename the module parameters,
+       and only refer to the parameters of the current module (i.e., no
+       outer parameters as those are not needed) -}
+
+  , roFromModParam :: Map Name DepName
+    -- ^ Keeps track of which names were introduce by module parameters
+    -- and which one.  The `DepName` is always a `ModParamName`.
   }
 
 data RW = RW
@@ -83,6 +91,19 @@ data RW = RW
   , rwExternalDeps  :: !IfaceDecls
     -- ^ Info about imported things, from external modules
   }
+
+
+
+data RenModParam = RenModParam
+  { renModParamName      :: Ident
+  , renModParamRange     :: Range
+  , renModParamSig       :: Name
+  , renModParamInstance  :: Map Name Name
+    {- ^ Maps names that come into scope through this parameter
+         to the names in *signature*.  This is for functors, NOT functor
+         instantantiations. -}
+  }
+
 
 
 
@@ -149,6 +170,8 @@ runRenamer info m = (res, warns)
           , roCurMod = renContext info
           , roNestedMods = Map.empty
           , roResolvedModules = mempty
+          , roModParams = mempty
+          , roFromModParam = mempty
           }
 
   res | Set.null (rwErrors rw) = Right (a,rwSupply rw)
@@ -178,6 +201,36 @@ lookupResolved nm =
             -- XXX: could this happen because we couldn't resolve a module?
             Nothing -> panic "lookupResolved"
                         [ "Missing module: " ++ show nm ]
+
+setModParams :: [RenModParam] -> RenameM a -> RenameM a
+setModParams ps (RenameM m) =
+  do let pmap = Map.fromList [ (renModParamName p, p) | p <- ps ]
+
+         newFrom =
+           foldLoop ps mempty \p mp ->
+             let nm = ModParamName (renModParamRange p) (renModParamName p)
+             in foldLoop (Map.keys (renModParamInstance p)) mp \x ->
+                  Map.insert x nm
+
+         upd ro = ro { roModParams    = pmap
+                     , roFromModParam = newFrom <> roFromModParam ro
+                     }
+
+     RenameM (mapReader upd m)
+
+
+foldLoop :: [a] -> b -> (a -> b -> b) -> b
+foldLoop xs b f = foldl' (flip f) b xs
+
+getModParam :: Ident -> RenameM RenModParam
+getModParam p =
+  do ps <- RenameM (roModParams <$> ask)
+     case Map.lookup p ps of
+       Just r  -> pure r
+       Nothing -> panic "getModParam" [ "Missing module paramter", show p ]
+
+getNamesFromModParams :: RenameM (Map Name DepName)
+getNamesFromModParams = RenameM (roFromModParam <$> ask)
 
 
 setNestedModule :: Map ModPath Name -> RenameM a -> RenameM a

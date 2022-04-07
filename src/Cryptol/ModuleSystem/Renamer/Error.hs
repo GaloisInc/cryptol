@@ -59,13 +59,16 @@ data RenamerError
     deriving (Show, Generic, NFData, Eq, Ord)
 
 
--- We use this because parameter constrstaints have no names
+{- | We use this to name dependencies.
+In addition to normla names we have a way to refer to module parameters
+and top-level module constraints, which have no explicit names -}
 data DepName = NamedThing Name
              | ModParamName Range Ident
                {- ^ Note that the range is important not just for error
                     reporting but to distinguish module parameters with
                     the same name (e.g., in nested functors) -}
-             | ConstratintAt Range -- ^ identifed by location in source
+             | ConstratintAt Range
+               -- ^ Identifed by location in source
                deriving (Eq,Ord,Show,Generic,NFData)
 
 depNameLoc :: DepName -> Range
