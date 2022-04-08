@@ -72,10 +72,9 @@ processModule ~(DModule m) =
              Private -> []
          )
 
-{- XXX
-    ModuleInstance {} -> panic "XXX"
-    _ -> ([],[])
--}
+    FunctorInstance {} -> ([DModule m],[])
+    FunctorInstanceOld {} -> ([DModule m],[])
+        -- XXX: OldInstance should be desugared
 
 
 
