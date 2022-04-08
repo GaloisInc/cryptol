@@ -259,8 +259,8 @@ updMS f m = m { modState = f (modState m) }
 
 
 
-modToResolved :: Mod () -> ResolvedExt
-modToResolved m = ResolvedModule
+externalMod :: Mod () -> ResolvedExt
+externalMod m = ResolvedModule
   { rmodDefines  = modDefines m
   , rmodKind     = if modParams m then AFunctor else AModule
   , rmodNested   = modNested m
@@ -324,7 +324,9 @@ doStep :: (CurState -> CurState) -> (CurState -> CurState)
 doStep f s0 = go (changes s0) s0
   where
   go ch s = let s1 = f s { changes = False }
-            in if changes s1 then go True s1 else s { changes = ch }
+            in if changes s1
+                then go True s1
+                else s { changes = ch }
 
 -- | Is this a known name for a module in the current scope?
 knownPName :: HasCurScope a => CurState' a -> PName -> Maybe Name
@@ -358,7 +360,7 @@ knownModule s x
       ImpNested y -> forget <$> Map.lookup y (doneModules s)
       ImpTop {}   -> Nothing   -- or panic? recursive import
 
-  | otherwise = Just (modToResolved (externalModules s x))
+  | otherwise = Just (externalMod (externalModules s x))
 
   where
   root = case x of
@@ -535,7 +537,7 @@ doSignaturesStep s = updCur s1 \m -> m { modSigs = mempty }
 
 tryFinishCurMod :: Todo -> CurState -> Maybe ResolvedLocal
 tryFinishCurMod m newS
-  | isDone (curMod newS) =
+  | isDone newM =
     Just ResolvedModule
            { rmodDefines = modDefines m
            , rmodKind    = if modParams m then AFunctor else AModule
@@ -544,11 +546,11 @@ tryFinishCurMod m newS
                              , Map.keysSet (modSigs m)
                              , Map.keysSet (modMods m)
                              ]
-           , rmodImports  = modImported (modState m)
+           , rmodImports  = modImported (modState newM)
            }
 
   | otherwise = Nothing
-
+  where newM = curMod newS
 
 
 -- | Try to resolve the "normal" module with the given name.
@@ -584,6 +586,5 @@ doModuleStep = doStep step
        . doStep doInstancesStep
        . doStep doSignaturesStep
        . doStep doImportStep
-
 
 
