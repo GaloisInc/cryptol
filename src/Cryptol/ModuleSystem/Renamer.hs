@@ -196,8 +196,8 @@ renameTopDecls m ds0 =
          ds1 <- shadowNames' CheckNone env (renameTopDecls' ds)
          -- record a use of top-level names to avoid
          -- unused name warnings
-         let exports = concatMap exportedNames ds1
-         mapM_ recordUse (foldMap (exported NSType) exports)
+         let exports = exportedDecls ds1
+         mapM_ recordUse (exported NSType exports)
 
          pure (env,ds1)
 
@@ -241,16 +241,17 @@ renameModule' mname m =
              do inScope <- getNamingEnv
                 newDef <- case mDef m of
                             NormalModule ds ->
-                              NormalModule <$> renameTopDecls' ds
+                              do ds1 <- renameTopDecls' ds
+                                 let exports = exportedDecls ds1
+                                 mapM_ recordUse (exported NSType exports)
+                                 pure (NormalModule ds1)
                             FunctorInstanceOld f ds ->
                               FunctorInstanceOld f <$> renameTopDecls' ds
                             FunctorInstance f as ->
-                              undefined -- XXX
+                              FunctorInstance <$> traverse rename f
+                                              <*> rename as
                 pure (inScope, newDef)
-     let m1      = m { mDef = newDef }
-         exports = modExports m1
-     mapM_ recordUse (exported NSType exports)
-     return (inScope, m1)
+     return (inScope, m { mDef = newDef })
 
 
 -- | This is used to rename local declarations (e.g. `where`)
@@ -348,6 +349,7 @@ renameTopDecls' :: [TopDecl PName] -> RenameM [TopDecl Name]
 renameTopDecls' ds =
   do -- rename and compute what names we depend on
      (ds1,deps) <- depGroup (traverse rename ds)
+
      fromParams <- getNamesFromModParams
      let rawDepsFor x = Map.findWithDefault Set.empty x deps
 
@@ -377,8 +379,8 @@ renameTopDecls' ds =
           | otherwise  = mapMaybe (addCtr x) ctrs
 
          mkDepName x = case Map.lookup x fromParams of
-                        Just dn -> dn
-                        Nothing -> NamedThing x
+                         Just dn -> dn
+                         Nothing -> NamedThing x
 
          toNode (d,x) = ((d,x),x, addCtrs (d,x) ++
                                map mkDepName
@@ -636,6 +638,16 @@ instance Rename ImpName where
       ImpTop m -> pure (ImpTop m)
       ImpNested m -> ImpNested <$> resolveName NameUse NSModule m
 
+instance Rename ModuleInstanceArgs where
+  rename args =
+    case args of
+      DefaultInstArg a -> DefaultInstArg <$> traverse rename a
+      NamedInstArgs xs -> NamedInstArgs  <$> traverse rename xs
+
+instance Rename ModuleInstanceArg where
+  rename (ModuleInstanceArg x m) =
+    ModuleInstanceArg x <$> traverse rename m
+
 
 instance Rename NestedModule where
   rename (NestedModule m) =
@@ -645,6 +657,8 @@ instance Rename NestedModule where
        depsOf (NamedThing n)
          do -- XXX: we should store in scope somehwere if we want to browse
             -- nested modules properly
+            -- XXX: This is also needed to store the names in instantiated
+            -- modules
             let m' = m { mName = ImpNested <$> mName m }
             (_inScope,m1) <- renameModule' (ImpNested n) m'
             pure (NestedModule m1 { mName = lnm { thing = n } })
@@ -1195,7 +1209,7 @@ instance PP RenamedModule where
       vcat [ "// --- Defines -----------------------------"
            , pp (rmDefines rn)
            , "// --- In scope ----------------------------"
-           -- , pp (rmInScope rn)
+           , pp (rmInScope rn)
            , "// -- Module -------------------------------"
            , pp (rmModule rn)
            , "// -----------------------------------------"
