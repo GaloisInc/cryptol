@@ -706,23 +706,23 @@ ppNamed' s (i,(_,v)) = pp i <+> text s <+> pp v
 
 
 instance (Show name, PPName mname, PPName name) => PP (ModuleG mname name) where
-  ppPrec _ = ppModule 0 "module"
+  ppPrec _ = ppModule "module"
 
 instance (Show name, PPName name) => PP (NestedModule name) where
-  ppPrec _ (NestedModule m) = ppModule 2 "submodule" m
+  ppPrec _ (NestedModule m) = ppModule "submodule" m
 
 ppModule :: (Show name, PPName mname, PPName name) =>
-  Int -> Doc -> ModuleG mname name -> Doc
-ppModule n kw m = nest n (kw <+> ppL (mName m) <+> pp (mDef m))
+  Doc -> ModuleG mname name -> Doc
+ppModule kw m = kw <+> ppL (mName m) <+> pp (mDef m)
 
 
 instance (Show name, PPName name) => PP (ModuleDefinition name) where
   ppPrec _ def =
     case def of
-      NormalModule ds -> "where" $$ nest 2 (vcat (map pp ds))
+      NormalModule ds -> "where" $$ indent 2 (vcat (map pp ds))
       FunctorInstance f as -> "=" <+> pp (thing f) <+> pp as
       FunctorInstanceOld f ds ->
-        "=" <+> pp (thing f) <+> "where" $$ nest 2 (vcat (map pp ds))
+        "=" <+> pp (thing f) <+> "where" $$ indent 2 (vcat (map pp ds))
 
 
 instance (Show name, PPName name) => PP (ModuleInstanceArgs name) where
@@ -762,37 +762,37 @@ instance (Show name, PPName name) => PP (Signature name) where
   ppPrec _ = ppSignature "signature"
 
 ppSignature :: (Show name, PPName name) => Doc -> Signature name -> Doc
-ppSignature kw sig =
-    nest 2 $ vcat $ (kw <+> pp (thing (sigName sig)) <+> "where")
-                  : ds
-    where
-    ds = map pp (sigTypeParams sig)
-      ++ [ case map (pp . thing) (sigConstraints sig) of
-           [x] -> "type constraint" <+> x
-           []  -> mempty
-           xs  -> "type constraint" <+> parens (commaSep xs)
-         ]
-      ++ map pp (sigFunParams sig)
+ppSignature kw sig = (kw <+> pp (thing (sigName sig)) <+> "where")
+                      $$ indent 2 (vcat ds)
+  where
+  ds = map pp (sigTypeParams sig)
+    ++ case map (pp . thing) (sigConstraints sig) of
+         [x] -> ["type constraint" <+> x]
+         []  -> []
+         xs  -> ["type constraint" <+> parens (commaSep xs)]
+    ++ map pp (sigFunParams sig)
 
 
 instance (Show name, PPName name) => PP (ModParam name) where
-  ppPrec _ mp = mbDoc $$ "import signature" <+>
-                                    pp (thing (mpSignature mp)) <+> mbAs
-                      $$ mbRen
+  ppPrec _ mp = vcat ( mbDoc
+                  ++ [ "import signature" <+>
+                                    pp (thing (mpSignature mp)) <+> mbAs ]
+                  ++ mbRen
+                     )
     where
     mbDoc = case mpDoc mp of
-              Nothing -> mempty
-              Just d  -> pp d
+              Nothing -> []
+              Just d  -> [pp d]
     mbAs  = case mpAs mp of
               Nothing -> mempty
               Just d  -> "as" <+> pp d
     mbRen
-      | Map.null (mpRenaming mp) = mempty
-      | otherwise = nest 2 $ vcat $
-                        "/* Parameters"
-                      : [ pp x <+> "->" <+> pp y
-                        | (x,y) <- Map.toList (mpRenaming mp) ]
-                     ++ ["*/"]
+      | Map.null (mpRenaming mp) = []
+      | otherwise =
+        [ indent 2 $ vcat $ "/* Parameters"
+                          : [ " *" <+> pp x <+> "->" <+> pp y
+                            | (x,y) <- Map.toList (mpRenaming mp) ]
+                         ++ [" */"] ]
 
 instance (Show name, PPName name) => PP (PrimType name) where
   ppPrec _ pt =
