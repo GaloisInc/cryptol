@@ -16,6 +16,7 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BlockArguments #-}
 module Cryptol.Parser.AST
   ( -- * Names
     Ident, mkIdent, mkInfix, isInfixIdent, nullIdent, identText
@@ -705,24 +706,34 @@ ppNamed' s (i,(_,v)) = pp i <+> text s <+> pp v
 
 
 instance (Show name, PPName mname, PPName name) => PP (ModuleG mname name) where
-  ppPrec _ = ppModule 0
-
-ppModule :: (Show name, PPName mname, PPName name) =>
-  Int -> ModuleG mname name -> Doc
-ppModule n m =
-  nest n ((text "module" <+> ppL (mName m) <+> text "where") $$ body)
-  where
-  body = vcat (map ppL (mImports m))
-      $$ vcat (map pp (mDecls m))
-
-
+  ppPrec _ = ppModule 0 "module"
 
 instance (Show name, PPName name) => PP (NestedModule name) where
-  ppPrec _ (NestedModule m) = ppModule 2 m
+  ppPrec _ (NestedModule m) = ppModule 2 "submodule" m
 
--- instance (Show name, PPName name) => PP (ModuleInstance name) where
+ppModule :: (Show name, PPName mname, PPName name) =>
+  Int -> Doc -> ModuleG mname name -> Doc
+ppModule n kw m = nest n (kw <+> ppL (mName m) <+> pp (mDef m))
 
 
+instance (Show name, PPName name) => PP (ModuleDefinition name) where
+  ppPrec _ def =
+    case def of
+      NormalModule ds -> "where" $$ nest 2 (vcat (map pp ds))
+      FunctorInstance f as -> "=" <+> pp (thing f) <+> pp as
+      FunctorInstanceOld f ds ->
+        "=" <+> pp (thing f) <+> "where" $$ nest 2 (vcat (map pp ds))
+
+
+instance (Show name, PPName name) => PP (ModuleInstanceArgs name) where
+  ppPrec _ arg =
+    braces
+    case arg of
+      DefaultInstArg x -> pp (thing x)
+      NamedInstArgs xs -> commaSep (map pp xs)
+
+instance (Show name, PPName name) => PP (ModuleInstanceArg name) where
+  ppPrec _ (ModuleInstanceArg x y) = pp (thing x) <+> "=" <+> pp (thing y)
 
 instance (Show name, PPName name) => PP (Program name) where
   ppPrec _ (Program ds) = vcat (map pp ds)
@@ -752,7 +763,7 @@ instance (Show name, PPName name) => PP (Signature name) where
 
 ppSignature :: (Show name, PPName name) => Doc -> Signature name -> Doc
 ppSignature kw sig =
-    nest 2 $ vcat $ (kw <+> pp (sigName sig) <+> "where")
+    nest 2 $ vcat $ (kw <+> pp (thing (sigName sig)) <+> "where")
                   : ds
     where
     ds = map pp (sigTypeParams sig)
@@ -765,7 +776,8 @@ ppSignature kw sig =
 
 
 instance (Show name, PPName name) => PP (ModParam name) where
-  ppPrec _ mp = mbDoc $$ "import signature" <+> pp (mpSignature mp) <+> mbAs
+  ppPrec _ mp = mbDoc $$ "import signature" <+>
+                                    pp (thing (mpSignature mp)) <+> mbAs
                       $$ mbRen
     where
     mbDoc = case mpDoc mp of
