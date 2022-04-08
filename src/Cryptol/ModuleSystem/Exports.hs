@@ -16,10 +16,11 @@ import Cryptol.ModuleSystem.Name
 modExports :: Ord name => ModuleG mname name -> ExportSpec name
 modExports m =
   case mDef m of
-    NormalModule ds -> doDs ds
+    NormalModule ds -> exportedDecls ds
     -- XXX: do module instances
-  where
-  doDs ds = fold (concat [ exportedNames d | d <- ds ])
+
+exportedDecls :: Ord name => [TopDecl name] -> ExportSpec name
+exportedDecls ds = fold (concat [ exportedNames d | d <- ds ])
 
 exportedNames :: Ord name => TopDecl name -> [ExportSpec name]
 exportedNames decl =
