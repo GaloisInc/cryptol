@@ -35,6 +35,7 @@ import Data.Maybe(fromJust,mapMaybe)
 import Data.List(find,groupBy,sortBy)
 import Data.Function(on)
 import Data.Foldable(toList)
+import Data.Map(Map)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Data.Graph(SCC(..))
@@ -247,22 +248,31 @@ renameModule' mname m =
                                  pure (NormalModule ds1)
 
                             FunctorInstance f as _ ->
-                              do f'     <- traverse rename f
+                              do f'  <- traverse rename f
                                  as' <- rename as
-
-                                 origNs <- lookupDefines (thing f')
-                                 thisNs <- lookupDefines mname
-                                 let instMap = zipByTextName origNs thisNs
-                                 -- XXX: we also need the info for all nested
-                                 -- things!
-
-                                 pure (FunctorInstance f' as' instMap)
+                                 imap <- mkInstMap mempty (thing f') mname
+                                 pure (FunctorInstance f' as' imap)
 
                             FunctorInstanceOld f ds ->
                               FunctorInstanceOld f <$> renameTopDecls' ds
 
                 pure (inScope, newDef)
      return (inScope, m { mDef = newDef })
+
+mkInstMap ::
+  Map Name Name -> ImpName Name -> ImpName Name -> RenameM (Map Name Name)
+mkInstMap acc0 ogname iname =
+  do (onames,osubs) <- lookupDefinesAndSubs ogname
+     inames         <- lookupDefines iname
+     let mp   = zipByTextName onames inames
+         subs = [ (ImpNested k, ImpNested v)
+                | k <- Set.toList osubs, Just v <- [Map.lookup k mp]
+                ]
+     foldM doSub (Map.union mp acc0) subs
+
+  where
+  doSub acc (k,v) = mkInstMap acc k v
+
 
 
 
