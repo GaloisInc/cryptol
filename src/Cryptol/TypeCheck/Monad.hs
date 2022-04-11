@@ -815,6 +815,9 @@ newLocalScope = newScope LocalScope
 newSignatureScope :: Name -> Maybe Text -> InferM ()
 newSignatureScope x doc = newScope (SignatureScope x doc)
 
+{- | Start a new submodule scope.  The imports and exports are just used
+to initialize an empty module.  As we type check declarations they are
+added to this module's scope. -}
 newSubmoduleScope :: Name -> [Import] -> ExportSpec Name -> InferM ()
 newSubmoduleScope x is e =
   do newScope (SubModule x)

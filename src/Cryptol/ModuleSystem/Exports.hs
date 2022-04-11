@@ -13,12 +13,6 @@ import Cryptol.Parser.AST
 import Cryptol.Parser.Names(namesD,tnamesD,tnamesNT)
 import Cryptol.ModuleSystem.Name
 
-modExports :: Ord name => ModuleG mname name -> ExportSpec name
-modExports m =
-  case mDef m of
-    NormalModule ds -> exportedDecls ds
-    -- XXX: do module instances
-
 exportedDecls :: Ord name => [TopDecl name] -> ExportSpec name
 exportedDecls ds = fold (concat [ exportedNames d | d <- ds ])
 

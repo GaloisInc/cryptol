@@ -66,11 +66,13 @@ import           Control.Monad(zipWithM,unless,foldM,forM_,mplus)
 
 inferModule :: P.Module Name -> InferM Module
 inferModule m =
-  do newModuleScope (thing (P.mName m)) (map thing (P.mImports m))
-                                        (P.modExports m)
-     checkTopDecls (P.mDecls m)
-     proveModuleTopLevel
-     endModule
+  case P.mDef m of
+    P.NormalModule ds ->
+      do newModuleScope (thing (P.mName m)) (map thing (P.mImports m))
+                                            (P.exportedDecls ds)
+         checkTopDecls ds
+         proveModuleTopLevel
+         endModule
 
 -- | Construct a Prelude primitive in the parsed AST.
 mkPrim :: String -> InferM (P.Expr Name)
@@ -1076,7 +1078,7 @@ checkTopDecls = mapM_ checkTopDecl
            P.NormalModule ds ->
              do newSubmoduleScope (thing (P.mName m))
                                   (map thing (P.mImports m))
-                                  (P.modExports m)
+                                  (P.exportedDecls ds)
                 checkTopDecls ds
                 proveModuleTopLevel
                 endSubmodule
