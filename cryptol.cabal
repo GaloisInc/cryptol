@@ -151,6 +151,7 @@ library
                        Cryptol.TypeCheck.TypeMap,
                        Cryptol.TypeCheck.TypeOf,
                        Cryptol.TypeCheck.Sanity,
+                       Cryptol.TypeCheck.Module,
 
                        Cryptol.TypeCheck.Solver.Types,
                        Cryptol.TypeCheck.Solver.SMT,

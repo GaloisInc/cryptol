@@ -45,6 +45,7 @@ import           Cryptol.TypeCheck.Kind(checkType,checkSchema,checkTySyn,
                                         checkParameterConstraints)
 import           Cryptol.TypeCheck.Instantiate
 import           Cryptol.TypeCheck.Subst (listSubst,apSubst,(@@),isEmptySubst)
+import           Cryptol.TypeCheck.Module
 import           Cryptol.Utils.Ident
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.RecordMap
@@ -1082,6 +1083,8 @@ checkTopDecls = mapM_ checkTopDecl
                 checkTopDecls ds
                 proveModuleTopLevel
                 endSubmodule
+
+           P.FunctorInstance f as inst -> doFunctorInst f as inst
 
         where P.NestedModule m = P.tlValue tl
 
