@@ -739,11 +739,11 @@ instance (Show name, PPName name) => PP (ModuleDefinition name) where
                                         )
         where
         ppInst    = if null inst then [] else [ indent 2
-                                                  (vcat (instLines ++ [" */"]))
+                                                  (vcat ("/* Instance:" :
+                                                        instLines ++ [" */"]))
                                               ]
-        instLines = [ p <+> pp k <+> "->" <+> pp v
-                    | (p,(k,v)) <- pref `zip` Map.toList inst ]
-        pref      = "/*" : repeat " *"
+        instLines = [ " *" <+> pp k <+> "->" <+> pp v
+                    | (k,v) <- Map.toList inst ]
 
 
       FunctorInstanceOld f ds ->
