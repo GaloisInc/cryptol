@@ -1071,12 +1071,17 @@ checkTopDecls = mapM_ checkTopDecl
            addParamFun x
 
       P.DModule tl ->
-         do let P.NestedModule m = P.tlValue tl
-            newSubmoduleScope (thing (P.mName m)) (map thing (P.mImports m))
-                                                  (P.modExports m)
-            checkTopDecls (P.mDecls m)
-            proveModuleTopLevel
-            endSubmodule
+         case P.mDef m of
+
+           P.NormalModule ds ->
+             do newSubmoduleScope (thing (P.mName m))
+                                  (map thing (P.mImports m))
+                                  (P.modExports m)
+                checkTopDecls ds
+                proveModuleTopLevel
+                endSubmodule
+
+        where P.NestedModule m = P.tlValue tl
 
       P.DModSig tl ->
         do let sig = P.tlValue tl
