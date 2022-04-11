@@ -33,7 +33,9 @@ module Cryptol.ModuleSystem.Name (
   , asPrim
   , asOrigName
   , nameModPath
+  , nameModPathMaybe
   , nameTopModule
+  , nameTopModuleMaybe
   , ppLocName
   , Namespace(..)
   , ModPath(..)
@@ -250,12 +252,21 @@ asOrigName n =
     LocalName {}    -> Nothing
 
 -- | Get the module path for the given name.
+nameModPathMaybe :: Name -> Maybe ModPath
+nameModPathMaybe n = ogModule <$> asOrigName n
+
+-- | Get the module path for the given name.
 -- The name should be a top-level name.
 nameModPath :: Name -> ModPath
 nameModPath n =
-  case asOrigName n of
-    Just og -> ogModule og
+  case nameModPathMaybe n of
+    Just p  -> p
     Nothing -> panic "nameModPath" [ "Not a top-level name: ", show n ]
+
+
+-- | Get the name of the top-level module that introduced this name.
+nameTopModuleMaybe :: Name -> Maybe ModName
+nameTopModuleMaybe = fmap topModuleFor . nameModPathMaybe
 
 -- | Get the name of the top-level module that introduced this name.
 -- Works only for top-level names (i.e., that have original names)
