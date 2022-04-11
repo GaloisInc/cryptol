@@ -253,6 +253,8 @@ renameModule' mname m =
                                  origNs <- lookupDefines (thing f')
                                  thisNs <- lookupDefines mname
                                  let instMap = zipByTextName origNs thisNs
+                                 -- XXX: we also need the info for all nested
+                                 -- things!
 
                                  pure (FunctorInstance f' as' instMap)
 
