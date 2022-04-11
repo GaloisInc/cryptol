@@ -33,7 +33,7 @@ import Cryptol.Utils.Ident(modPathCommon,OrigName(..))
 
 import Cryptol.ModuleSystem.Renamer.Error
 import Cryptol.ModuleSystem.Renamer.Imports
-  (ResolvedLocal,rmodKind,ModKind(..),rmodDefines)
+  (ResolvedLocal,rmodKind,ModKind(..),rmodDefines,rmodNested)
 
 -- | Indicates if a name is in a binding poisition or a use site
 data NameType = NameBind | NameUse
@@ -406,19 +406,24 @@ recordImport i =
          case rmodKind loc of
            AModule -> pure ()
            _       -> bad
-       Nothing ->
-         do let topName = case i of
-                            ImpTop m -> m
-                            ImpNested n -> nameTopModule n
-            let iface = roIfaces ro topName
-            RenameM $ sets_ \s -> s { rwExternalDeps = ifPublic iface <>
-                                                          rwExternalDeps s }
-            when (ifaceIsFunctor iface) bad
+       Nothing
+          | Just topName <- case i of
+                              ImpTop m    -> Just m
+                              ImpNested n -> nameTopModuleMaybe n
+           -> do let iface = roIfaces ro topName
+                 RenameM $ sets_ \s ->
+                                  s { rwExternalDeps = ifPublic iface <>
+                                                             rwExternalDeps s }
+                 when (ifaceIsFunctor iface) bad
+
+          -- This may happen if encoutnered an error (e.g., undefined name)
+          | otherwise -> pure ()
 
   where
   bad = recordError (InvalidFunctorImport i)
 
 -- XXX: Maybe we'd want to cache some of the conversion to Mod?
+-- | This gives the loaded *external* modules.
 getLoadedMods :: RenameM (ImpName Name -> Mod ())
 getLoadedMods =
   do getIf <- RenameM (roIfaces <$> ask)
@@ -440,8 +445,18 @@ lookupDefines nm =
        Just loc -> pure (rmodDefines loc)
        Nothing  -> modDefines . ($ nm) <$> getLoadedMods
 
-
-
-
+lookupDefinesAndSubs :: ImpName Name -> RenameM (NamingEnv, Set Name)
+lookupDefinesAndSubs nm =
+  do ro <- RenameM ask
+     case Map.lookup nm (roResolvedModules ro) of
+       Just loc -> pure (rmodDefines loc, rmodNested loc)
+       Nothing  ->
+          do m <- ($ nm) <$> getLoadedMods
+             pure ( modDefines m
+                  , Set.unions [ Map.keysSet (modMods m)
+                               , Map.keysSet (modSigs m)
+                               , Map.keysSet (modInstances m)
+                               ]
+                  )
 
 
