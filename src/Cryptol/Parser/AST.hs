@@ -51,6 +51,8 @@ module Cryptol.Parser.AST
   , ModuleDefinition(..)
   , ModuleInstanceArgs(..)
   , ModuleInstanceArg(..)
+  , ModuleInstance
+  , emptyModuleInstance
 
   , Program(..)
   , TopDecl(..)
@@ -137,18 +139,28 @@ type Rec e = RecordMap Ident (Range, e)
 newtype Program name = Program [TopDecl name]
                        deriving (Show)
 
-
-data ModuleDefinition name =
-    NormalModule [TopDecl name]
-  | FunctorInstanceOld (Located ModName) [TopDecl name]
-  | FunctorInstance    (Located (ImpName name)) (ModuleInstanceArgs name)
-    deriving (Show, Generic, NFData)
-
 -- | A parsed module.
 data ModuleG mname name = Module
   { mName     :: Located mname              -- ^ Name of the module
   , mDef      :: ModuleDefinition name
   } deriving (Show, Generic, NFData)
+
+
+data ModuleDefinition name =
+    NormalModule [TopDecl name]
+  | FunctorInstanceOld (Located ModName) [TopDecl name]
+  | FunctorInstance    (Located (ImpName name)) (ModuleInstanceArgs name)
+                       (ModuleInstance name)
+    -- ^ The instance is filled in by the renamer
+    deriving (Show, Generic, NFData)
+
+-- | Maps names in the original functor with names in the instnace.
+-- Does *NOT* include the parameters, just names for the definitions.
+type ModuleInstance name = Map name name
+
+emptyModuleInstance :: Ord name => ModuleInstance name
+emptyModuleInstance = mempty
+
 
 -- XXX: Review all places this is used, that it actually makes sense
 -- Probably shouldn't exist
@@ -157,7 +169,7 @@ mDecls m =
   case mDef m of
     NormalModule ds         -> ds
     FunctorInstanceOld _ ds -> ds
-    FunctorInstance _ _     -> []
+    FunctorInstance _ _ _   -> []
 
 -- | Imports of top-level (i.e. "file" based) modules.
 mImports :: ModuleG mname name -> [ Located Import ]
@@ -720,7 +732,18 @@ instance (Show name, PPName name) => PP (ModuleDefinition name) where
   ppPrec _ def =
     case def of
       NormalModule ds -> "where" $$ indent 2 (vcat (map pp ds))
-      FunctorInstance f as -> "=" <+> pp (thing f) <+> pp as
+      FunctorInstance f as inst -> vcat ( ("=" <+> pp (thing f) <+> pp as)
+                                        : ppInst
+                                        )
+        where
+        ppInst    = if null inst then [] else [ indent 2
+                                                  (vcat (instLines ++ [" */"]))
+                                              ]
+        instLines = [ p <+> pp k <+> "->" <+> pp v
+                    | (p,(k,v)) <- pref `zip` Map.toList inst ]
+        pref      = "/*" : repeat " *"
+
+
       FunctorInstanceOld f ds ->
         "=" <+> pp (thing f) <+> "where" $$ indent 2 (vcat (map pp ds))
 
@@ -1177,7 +1200,7 @@ instance NoPos (ModuleDefinition name) where
     case m of
       NormalModule ds         -> NormalModule (noPos ds)
       FunctorInstanceOld f ds -> FunctorInstanceOld (noPos f) (noPos ds)
-      FunctorInstance f as    -> FunctorInstance (noPos f) (noPos as)
+      FunctorInstance f as ds -> FunctorInstance (noPos f) (noPos as) ds
 
 instance NoPos (ModuleInstanceArgs name) where
   noPos as =

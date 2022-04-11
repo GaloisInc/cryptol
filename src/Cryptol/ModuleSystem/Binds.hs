@@ -116,7 +116,7 @@ topModuleDefs m =
     NormalModule ds -> TopMod mname <$> declsToMod (Just (TopModule mname)) ds
     FunctorInstanceOld f ds ->
       TopInstOld mname (thing f) <$> declsToMod Nothing ds
-    FunctorInstance f as ->
+    FunctorInstance f as _ ->
       pure (TopInst mname (thing f) as)
 
   where
@@ -167,7 +167,7 @@ declsToMod mbPath ds =
                    FunctorInstanceOld {} ->
                      do defErr (UnexpectedNest (srcRange (mName nmod)) pname)
                         pure mo
-                   FunctorInstance f args ->
+                   FunctorInstance f args _ ->
                       pure mo { modInstances = Map.insert name (thing f, args)
                                                     (modInstances mo) }
 
@@ -178,7 +178,8 @@ declsToMod mbPath ds =
                          Just (One x) -> x
                          _ -> panic "declsToMod" ["sig: Missed ambig/undefined"]
            case mbPath of
-             -- XXX: it seems having top-level signatures should be OK?
+             {- No top level signatures at the moment, as nothing would
+                be in scope in them (they don't have imports) -}
              Nothing ->
                do defErr (UnexpectedNest (srcRange (sigName sig)) pname)
                   pure mo

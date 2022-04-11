@@ -165,7 +165,7 @@ noIncludeModule m =
   do newDef <- case mDef m of
                  NormalModule ds         -> NormalModule <$> doDecls ds
                  FunctorInstanceOld f ds -> FunctorInstanceOld f <$> doDecls ds
-                 FunctorInstance f as    -> pure (FunctorInstance f as)
+                 FunctorInstance f as ds -> pure (FunctorInstance f as ds)
      pure m { mDef = newDef }
   where
   doDecls    = fmap concat . collectErrors noIncTopDecl

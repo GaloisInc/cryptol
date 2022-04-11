@@ -13,6 +13,7 @@
 {-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BlockArguments #-}
 
 module Cryptol.ModuleSystem.Base where
 
@@ -305,7 +306,7 @@ addPrelude m
     case mDef m of
       NormalModule ds -> NormalModule (importPrelude : ds)
       FunctorInstanceOld f ds -> FunctorInstanceOld f (importPrelude : ds)
-      FunctorInstance f as -> FunctorInstance f as
+      FunctorInstance f as ds -> FunctorInstance f as ds
 
   importedMods  = map (P.iModule . P.thing) (P.mImports m)
   importPrelude = P.DImport P.Located
@@ -325,7 +326,7 @@ loadDeps m =
     FunctorInstanceOld f ds ->
       do _ <- loadModuleFrom False (FromModuleInstance f)
          mapM_ depsOfDecl ds
-    FunctorInstance f as ->
+    FunctorInstance f as _ ->
       do loadImpName f
          case as of
            DefaultInstArg a   -> loadImpName a

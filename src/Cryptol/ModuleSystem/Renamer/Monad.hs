@@ -33,7 +33,7 @@ import Cryptol.Utils.Ident(modPathCommon,OrigName(..))
 
 import Cryptol.ModuleSystem.Renamer.Error
 import Cryptol.ModuleSystem.Renamer.Imports
-  (ResolvedLocal,rmodKind,ModKind(..))
+  (ResolvedLocal,rmodKind,ModKind(..),rmodDefines)
 
 -- | Indicates if a name is in a binding poisition or a use site
 data NameType = NameBind | NameUse
@@ -432,6 +432,13 @@ getLoadedMods =
                Just m  -> m
                Nothing -> panic "lookupImportMod"
                             [ "Missing nested module", show nm ]
+
+lookupDefines :: ImpName Name -> RenameM NamingEnv
+lookupDefines nm =
+  do ro <- RenameM ask
+     case Map.lookup nm (roResolvedModules ro) of
+       Just loc -> pure (rmodDefines loc)
+       Nothing  -> modDefines . ($ nm) <$> getLoadedMods
 
 
 

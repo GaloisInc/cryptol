@@ -51,6 +51,27 @@ instance PP NamingEnv where
           ppNm (x,as)  = pp x <+> "->" <+> commaSep (map pp (namesToList as))
 
 
+{- | This "joins" two naming environments by matching the text name.
+The result maps the unique names from the first environment with the
+matching names in the second.  This is used to compute the naming for
+an instantiated functor:
+  * if the left environment has the defined names of the functor, and
+  * the right one has the defined names of the instantiation, then
+  * the result maps functor names to instance names.
+-}
+zipByTextName :: NamingEnv -> NamingEnv -> Map Name Name
+zipByTextName (NamingEnv k) (NamingEnv v) = Map.fromList $ doInter doNS k v
+  where
+  doInter :: Ord k => (a -> b -> [c]) -> Map k a -> Map k b -> [c]
+  doInter f a b = concat (Map.elems (Map.intersectionWith f a b))
+
+  doNS :: Map PName Names -> Map PName Names -> [(Name,Name)]
+  doNS as bs = doInter doPName as bs
+
+  doPName :: Names -> Names -> [(Name,Name)]
+  doPName xs ys = [ (x,y) | x <- namesToList xs, y <- namesToList ys ]
+  -- NOTE: we'd exepct that there are no ambiguities in the environments.
+
 -- | Keep only the bindings in the 1st environment that are *NOT* in the second.
 without :: NamingEnv -> NamingEnv -> NamingEnv
 NamingEnv keep `without` NamingEnv remove = NamingEnv result

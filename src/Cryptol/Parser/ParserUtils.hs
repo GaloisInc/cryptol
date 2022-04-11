@@ -871,7 +871,7 @@ mkModuleInstance ::
   Module PName
 mkModuleInstance m f as =
   Module { mName = m
-         , mDef  = FunctorInstance f as
+         , mDef  = FunctorInstance f as emptyModuleInstance
          }
 
 

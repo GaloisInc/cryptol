@@ -503,9 +503,6 @@ doInstantiate keepArgs mpath def s = (newDef, Set.foldl' doSub newS nestedToDo)
   instName :: Name -> SupplyT (M.StateT (Set (Name,Name)) M.Id) Name
   instName x =
     do y <- liftSupply (freshNameFor mpath x)
-       -- XXX: this should have a different original name using the name
-       -- of the instantied module.
-
        when (x `Set.member` rmodNested def)
             (M.lift (M.sets_ (Set.insert (x,y))))
        pure y

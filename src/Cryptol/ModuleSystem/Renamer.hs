@@ -245,13 +245,23 @@ renameModule' mname m =
                                  let exports = exportedDecls ds1
                                  mapM_ recordUse (exported NSType exports)
                                  pure (NormalModule ds1)
+
+                            FunctorInstance f as _ ->
+                              do f'     <- traverse rename f
+                                 as' <- rename as
+
+                                 origNs <- lookupDefines (thing f')
+                                 thisNs <- lookupDefines mname
+                                 let instMap = zipByTextName origNs thisNs
+
+                                 pure (FunctorInstance f' as' instMap)
+
                             FunctorInstanceOld f ds ->
                               FunctorInstanceOld f <$> renameTopDecls' ds
-                            FunctorInstance f as ->
-                              FunctorInstance <$> traverse rename f
-                                              <*> rename as
+
                 pure (inScope, newDef)
      return (inScope, m { mDef = newDef })
+
 
 
 -- | This is used to rename local declarations (e.g. `where`)
@@ -520,9 +530,7 @@ doModParam mp =
          loc     = srcRange sigName
      withLoc loc
        do nm <- resolveName NameUse NSSignature (thing sigName)
-
-          -- XXX: WRONG: the signature need to be local
-          sigEnv <- rmodDefines <$> lookupResolved (ImpNested nm)
+          sigEnv <- lookupDefines (ImpNested nm)
           me <- getCurMod
           let newP x = do y <- lift (newModParam me (mpName mp) loc x)
                           sets_ (Map.insert y x)
@@ -657,8 +665,6 @@ instance Rename NestedModule where
        depsOf (NamedThing n)
          do -- XXX: we should store in scope somehwere if we want to browse
             -- nested modules properly
-            -- XXX: This is also needed to store the names in instantiated
-            -- modules
             let m' = m { mName = ImpNested <$> mName m }
             (_inScope,m1) <- renameModule' (ImpNested n) m'
             pure (NestedModule m1 { mName = lnm { thing = n } })
