@@ -154,8 +154,10 @@ data ModuleDefinition name =
     -- ^ The instance is filled in by the renamer
     deriving (Show, Generic, NFData)
 
--- | Maps names in the original functor with names in the instnace.
--- Does *NOT* include the parameters, just names for the definitions.
+{- | Maps names in the original functor with names in the instnace.
+Does *NOT* include the parameters, just names for the definitions.
+This *DOES* include entrirs for all the name in the instantiated functor,
+including names in modules nested inside the functor. -}
 type ModuleInstance name = Map name name
 
 emptyModuleInstance :: Ord name => ModuleInstance name
