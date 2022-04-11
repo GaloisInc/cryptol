@@ -435,7 +435,9 @@ checkModule isrc path m =
                 pure (newEnv,m')
            Nothing -> panic "checkModule"
                         [ "Functor of module instantiation not loaded" ]
-    -- XXX: functor instance
+
+    -- XXX: functor instance; this is for top-level functor instances
+
 
 -- | Typecheck a single module.  If the module is an instantiation
 -- of a functor, then this just type-checks the instantiating parameters.
