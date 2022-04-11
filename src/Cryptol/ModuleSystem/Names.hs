@@ -53,6 +53,14 @@ mapNames f xs =
     One x -> One (f x)
     Ambig as -> namesFromSet (Set.map f as)
 
+filterNames :: (Name -> Bool) -> Names -> Maybe Names
+filterNames p names =
+  case names of
+    One x -> if p x then Just (One x) else Nothing
+    Ambig xs -> do let ys = Set.filter p xs
+                   (y,zs) <- Set.minView ys
+                   if Set.null zs then Just (One y) else Just (Ambig ys)
+
 travNames :: Applicative f => (Name -> f Name) -> Names -> f Names
 travNames f xs =
   case xs of

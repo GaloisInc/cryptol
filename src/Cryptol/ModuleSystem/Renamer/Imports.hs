@@ -74,7 +74,7 @@ import Cryptol.ModuleSystem.Name
 import Cryptol.ModuleSystem.Names(Names(..))
 import Cryptol.ModuleSystem.NamingEnv
           ( NamingEnv(..), lookupNS, shadowing, travNamingEnv
-          , interpImportEnv )
+          , interpImportEnv, namingEnvNames, zipByTextName, filterUNames )
 
 
 {- | This represents a resolved module or signaure.
@@ -95,6 +95,7 @@ the functor is instantiated.
 -}
 data ResolvedModule imps = ResolvedModule
   { rmodDefines   :: NamingEnv    -- ^ Things defined by the module/signature.
+  , rmodPublic    :: !(Set Name)  -- ^ Exported names
   , rmodKind      :: ModKind      -- ^ What sort of thing are we
   , rmodNested    :: Set Name     -- ^ Modules and signatures nested in this one
   , rmodImports   :: imps
@@ -223,6 +224,7 @@ forceResolveInst :: ResolvedLocal
 forceResolveInst =
   ResolvedModule
     { rmodDefines = mempty
+    , rmodPublic  = mempty
     , rmodKind    = AModule
     , rmodNested  = Set.empty
     , rmodImports = mempty
@@ -234,6 +236,7 @@ forceResolveMod :: Todo -> ResolvedLocal
 forceResolveMod todo =
   ResolvedModule
     { rmodDefines   = modDefines todo
+    , rmodPublic    = modPublic todo
     , rmodKind      = if modParams todo then AFunctor else AModule
     , rmodNested    = Map.keysSet (modSigs todo) `Set.union`
                       Map.keysSet (modMods todo)
@@ -262,6 +265,7 @@ updMS f m = m { modState = f (modState m) }
 externalMod :: Mod () -> ResolvedExt
 externalMod m = ResolvedModule
   { rmodDefines  = modDefines m
+  , rmodPublic   = modPublic m
   , rmodKind     = if modParams m then AFunctor else AModule
   , rmodNested   = modNested m
   , rmodImports  = ()
@@ -382,8 +386,10 @@ tryImport s imp =
      mname <- knownImpName s srcName
      ext   <- knownModule s mname
 
-     let new = case rmodKind ext of
-                 AModule    -> interpImportEnv imp (rmodDefines ext)
+     let isPub x = x `Set.member` rmodPublic ext
+         new = case rmodKind ext of
+                 AModule    -> interpImportEnv imp
+                                 (filterUNames isPub (rmodDefines ext))
                  AFunctor   -> mempty
                  ASignature -> mempty
 
@@ -473,7 +479,17 @@ doInstantiate keepArgs mpath def s = (newDef, Set.foldl' doSub newS nestedToDo)
 
   newS = s { nameSupply = newNameSupply }
 
+  pub = let inst = zipByTextName (rmodDefines def) newEnv
+        in Set.fromList [ case Map.lookup og inst of
+                            Just newN -> newN
+                            Nothing -> panic "doInstantiate.pub"
+                                           [ "Lost a name", show og ]
+                        | og <- Set.toList (rmodPublic def)
+                        ]
+
+
   newDef = ResolvedModule { rmodDefines   = newEnv
+                          , rmodPublic    = pub
                           , rmodKind      = case rmodKind def of
                                               AFunctor ->
                                                  if keepArgs then AFunctor
@@ -525,18 +541,21 @@ doSignaturesStep s = updCur s1 \m -> m { modSigs = mempty }
 
   sigs      = modSigs (curMod s)
   resolved  = doSig <$> sigs
-  doSig sig = ResolvedModule { rmodDefines  = sig
-                             , rmodNested   = mempty
-                             , rmodKind     = ASignature
-                             , rmodImports  = mempty
-                                -- no imports in signatures, at least for now.
-                             }
+  doSig sig = ResolvedModule
+                { rmodDefines  = sig
+                , rmodPublic   = namingEnvNames sig -- doesn't matter
+                , rmodNested   = mempty
+                , rmodKind     = ASignature
+                , rmodImports  = mempty
+                   -- no imports in signatures, at least for now.
+                }
 
 tryFinishCurMod :: Todo -> CurState -> Maybe ResolvedLocal
 tryFinishCurMod m newS
   | isDone newM =
     Just ResolvedModule
            { rmodDefines = modDefines m
+           , rmodPublic  = modPublic m
            , rmodKind    = if modParams m then AFunctor else AModule
            , rmodNested  = Set.unions
                              [ Map.keysSet (modInstances m)

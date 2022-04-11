@@ -28,9 +28,11 @@ import Control.Monad(foldM)
 import qualified MonadLib as M
 
 import Cryptol.Utils.Panic (panic)
+import Cryptol.Utils.Ident(allNamespaces)
 import Cryptol.Parser.Position
 import Cryptol.Parser.Name(isGeneratedName)
 import Cryptol.Parser.AST
+import Cryptol.ModuleSystem.Exports(exportedDecls,exported)
 import Cryptol.ModuleSystem.Renamer.Error
 import Cryptol.ModuleSystem.Name
 import Cryptol.ModuleSystem.Names
@@ -51,6 +53,7 @@ data Mod a = Mod
   , modMods      :: Map Name (Mod a)
   , modSigs      :: Map Name NamingEnv
   , modDefines   :: NamingEnv  -- ^ Things defined by this module
+  , modPublic    :: !(Set Name)   -- ^ These are the exported names
 
   , modState     :: a
     {- ^ Used in the import loop to track the current state of processing.
@@ -90,11 +93,13 @@ ifaceToMod iface =
     , modInstances  = undefined
     , modMods       = ifaceToMod         <$> ifModules pub
     , modSigs       = modParamsNamingEnv <$> ifSignatures pub
-    , modDefines    = unqualifiedEnv pub
+    , modDefines    = defs
+    , modPublic     = namingEnvNames defs
     , modState      = ()
     }
   where
   pub = ifPublic iface
+  defs = unqualifiedEnv pub
 
 
 type ModBuilder = SupplyT (M.StateT [RenamerError] M.Id)
@@ -129,6 +134,14 @@ topDeclsDefs = declsToMod Nothing
 declsToMod :: Maybe ModPath -> [TopDecl PName] -> ModBuilder (Mod ())
 declsToMod mbPath ds =
   do defs <- defNames (foldMap (namingEnv . InModule mbPath) ds)
+     let expSpec = exportedDecls ds
+     let pub     = Set.fromList
+                     [ name
+                     | ns    <- allNamespaces
+                     , pname <- Set.toList (exported ns expSpec)
+                     , name  <- lookupListNS ns pname defs
+                     ]
+
      case findAmbig defs of
        bad@(_ : _) : _ ->
          -- defErr (MultipleDefinitions mbPath (nameIdent f) (map nameLoc bad))
@@ -141,6 +154,7 @@ declsToMod mbPath ds =
                   , modMods         = mempty
                   , modSigs         = mempty
                   , modDefines      = defs
+                  , modPublic       = pub
                   , modState        = ()
                   }
 

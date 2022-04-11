@@ -161,9 +161,17 @@ qualify pfx (NamingEnv env) = NamingEnv (Map.mapKeys toQual <$> env)
   toQual (UnQual n)  = Qual pfx n
   toQual n@NewName{} = n
 
-filterNames :: (PName -> Bool) -> NamingEnv -> NamingEnv
-filterNames p (NamingEnv env) = NamingEnv (Map.filterWithKey check <$> env)
-  where check n _ = p n
+filterPNames :: (PName -> Bool) -> NamingEnv -> NamingEnv
+filterPNames p (NamingEnv env) = NamingEnv (Map.mapMaybe checkNS env)
+  where
+  checkNS nsMap = let new = Map.filterWithKey (\n _ -> p n) nsMap
+                  in if Map.null new then Nothing else Just new
+
+filterUNames :: (Name -> Bool) -> NamingEnv -> NamingEnv
+filterUNames p (NamingEnv env) = NamingEnv (Map.mapMaybe check env)
+  where
+  check nsMap = let new = Map.mapMaybe (filterNames p) nsMap
+                in if Map.null new then Nothing else Just new
 
 
 -- | Find the ambiguous entries in an environmet.
@@ -269,10 +277,10 @@ interpImportEnv imp public = qualified
   -- restrict or hide imported symbols
   restricted
     | Just (Hiding ns) <- iSpec imp =
-       filterNames (\qn -> not (getIdent qn `elem` ns)) public
+       filterPNames (\qn -> not (getIdent qn `elem` ns)) public
 
     | Just (Only ns) <- iSpec imp =
-       filterNames (\qn -> getIdent qn `elem` ns) public
+       filterPNames (\qn -> getIdent qn `elem` ns) public
 
     | otherwise = public
 
