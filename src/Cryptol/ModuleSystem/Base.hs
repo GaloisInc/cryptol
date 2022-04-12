@@ -601,6 +601,8 @@ genInferInput r prims mbParams env' = do
                , mconcat (map ifParamFuns ps)
                )
 
+  topMods <- getAllLoaded
+
   return T.InferInput
     { T.inpRange     = r
     , T.inpVars      = Map.map ifDeclSig (ifDecls env)
@@ -618,6 +620,7 @@ genInferInput r prims mbParams env' = do
     , T.inpParamConstraints = paramCtrs
     , T.inpParamFuns        = paramVs
     , T.inpSolver           = solver
+    , T.inpTopModules = topMods
     }
 
 

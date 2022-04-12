@@ -57,7 +57,7 @@ import qualified Cryptol.TypeCheck.SimpleSolver as Simple
 import qualified Cryptol.TypeCheck.Solver.SMT as SMT
 import           Cryptol.TypeCheck.PP(NameMap)
 import           Cryptol.Utils.PP(pp, (<+>), text,commaSep,brackets)
-import           Cryptol.Utils.Ident(Ident,Namespace(..))
+import           Cryptol.Utils.Ident(Ident,Namespace(..),ModName)
 import           Cryptol.Utils.Panic(panic)
 
 -- | Information needed for type inference.
@@ -68,6 +68,8 @@ data InferInput = InferInput
   , inpNewtypes  :: Map Name Newtype  -- ^ Newtypes in scope
   , inpAbstractTypes :: Map Name AbstractType -- ^ Abstract types in scope
   , inpSignatures :: !(Map Name IfaceParams)  -- ^ Signatures in scope
+
+  , inpTopModules :: ModName -> Module
 
     -- When typechecking a module these start off empty.
     -- We need them when type-checking an expression at the command
@@ -131,6 +133,7 @@ runInferM info (IM m) =
 
      rec ro <- return RO { iRange     = inpRange info
                          , iVars      = env
+                         , iExtModules = inpTopModules info
                          , iExtScope = (emptyModule ExternalScope)
                              { mTySyns           = inpTSyns info
                              , mNewtypes         = inpNewtypes info
@@ -225,10 +228,16 @@ data RO = RO
 
   , iTVars    :: [TParam]    -- ^ Type variable that are in scope
 
+  , iExtModules :: ModName -> Module
+    -- ^ An exteral top-level module.  Used the find functors that
+    -- need to be instantiated.
+
   , iExtScope :: ModuleG ScopeName
     -- ^ These are things we know about, but are not part of the
     -- modules we are currently constructing.
     -- XXX: this sould probably be an interface
+    -- NOTE: External functors should be looked up in `iExtFunctors`
+    -- and not here, as they may be top-level modules.
 
   , iSolvedHasLazy :: Map Int HasGoalSln
     -- ^ NOTE: This field is lazy in an important way!  It is the
@@ -698,6 +707,7 @@ lookupSignature x =
        Just ips -> pure ips
        Nothing  -> panic "lookupSignature"
                     [ "Missing signature", show x ]
+
 
 
 -- | Check if we already have a name for this existential type variable and,

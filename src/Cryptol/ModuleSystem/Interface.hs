@@ -61,8 +61,6 @@ data IfaceG mname = Iface
   { ifModName   :: !mname       -- ^ Module name
   , ifPublic    :: IfaceDecls   -- ^ Exported definitions
   , ifPrivate   :: IfaceDecls
-    -- ^ Private defintiions. XXX: Why do we have this?
-
   , ifParams    :: Maybe IfaceFunctorParams
   } deriving (Show, Generic, NFData)
 
@@ -137,10 +135,6 @@ data IfaceDecls = IfaceDecls
   , ifAbstractTypes :: Map.Map Name IfaceAbstractType
   , ifDecls         :: Map.Map Name IfaceDecl
   , ifModules       :: !(Map.Map Name (IfaceG Name))
-  {- XXX: For functors we need to keep all definitions of the functor,
-  so that we can instantiate it (the idea is that the functor is like
-  a "template" for making modules, in this way consumers don't need to know
-  about the module system at all. -}
   , ifSignatures    :: !(Map.Map Name IfaceParams)
   } deriving (Show, Generic, NFData)
 

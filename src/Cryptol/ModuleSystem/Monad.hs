@@ -10,6 +10,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BlockArguments #-}
 module Cryptol.ModuleSystem.Monad where
 
 import           Cryptol.Eval (EvalEnv,EvalOpts(..))
@@ -480,6 +481,15 @@ getLoaded mn = ModuleT $
      case lookupModule mn env of
        Just lm -> return (lmModule lm)
        Nothing -> panic "ModuleSystem" ["Module not available", show (pp mn) ]
+
+getAllLoaded :: ModuleM (P.ModName -> T.Module)
+getAllLoaded = ModuleT
+  do env <- get
+     pure \nm ->
+       case lookupModule nm env of
+         Just lm -> lmModule lm
+         Nothing -> panic "getAllLoaded" ["Module not loaded:", show (pp nm) ]
+
 
 getNameSeeds :: ModuleM T.NameSeeds
 getNameSeeds  = ModuleT (meNameSeeds `fmap` get)
