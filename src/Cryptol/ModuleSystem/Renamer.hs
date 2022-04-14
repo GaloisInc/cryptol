@@ -248,7 +248,7 @@ renameModule' mname m =
                                  pure (NormalModule ds1)
 
                             FunctorInstance f as _ ->
-                              do f'  <- traverse rename f
+                              do f'  <- rnLocated rename f
                                  as' <- rename as
                                  checkFunctorArgs as'
 
@@ -672,12 +672,12 @@ instance Rename ImpName where
 instance Rename ModuleInstanceArgs where
   rename args =
     case args of
-      DefaultInstArg a -> DefaultInstArg <$> traverse rename a
+      DefaultInstArg a -> DefaultInstArg <$> rnLocated rename a
       NamedInstArgs xs -> NamedInstArgs  <$> traverse rename xs
 
 instance Rename ModuleInstanceArg where
   rename (ModuleInstanceArg x m) =
-    ModuleInstanceArg x <$> traverse rename m
+    ModuleInstanceArg x <$> rnLocated rename m
 
 
 instance Rename NestedModule where
