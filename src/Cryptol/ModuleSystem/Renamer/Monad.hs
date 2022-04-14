@@ -424,39 +424,79 @@ recordImport i =
 
 -- XXX: Maybe we'd want to cache some of the conversion to Mod?
 -- | This gives the loaded *external* modules.
-getLoadedMods :: RenameM (ImpName Name -> Mod ())
-getLoadedMods =
+getLoadedModsMaybe :: RenameM (ImpName Name -> Maybe (Mod ()))
+getLoadedModsMaybe =
   do getIf <- RenameM (roIfaces <$> ask)
      pure \nm ->
       case nm of
-        ImpTop m -> ifaceToMod (getIf m)
+        ImpTop m -> Just (ifaceToMod (getIf m))
         ImpNested n ->
-          let top = nameTopModule n
-              mp = modToMap (ImpTop top) (ifaceToMod (getIf top)) Map.empty
-          in case Map.lookup nm mp of
-               Just m  -> m
-               Nothing -> panic "lookupImportMod"
-                            [ "Missing nested module", show nm ]
+          do top <- nameTopModuleMaybe n
+             let mp = modToMap (ImpTop top) (ifaceToMod (getIf top)) Map.empty
+             Map.lookup nm mp
+
+getLoadedMods :: RenameM (ImpName Name -> Mod ())
+getLoadedMods =
+  do f <- getLoadedModsMaybe
+     pure \x -> case f x of
+                  Just a -> a
+                  Nothing -> panic "getLoadedMods"
+                               [ "Module not loaded", show x ]
 
 lookupDefines :: ImpName Name -> RenameM NamingEnv
 lookupDefines nm =
   do ro <- RenameM ask
      case Map.lookup nm (roResolvedModules ro) of
        Just loc -> pure (rmodDefines loc)
-       Nothing  -> modDefines . ($ nm) <$> getLoadedMods
+       Nothing  -> maybe mempty modDefines . ($ nm) <$> getLoadedModsMaybe
 
-lookupDefinesAndSubs :: ImpName Name -> RenameM (NamingEnv, Set Name)
-lookupDefinesAndSubs nm =
+
+checkIsModule :: Range -> ImpName Name -> RenameM ()
+checkIsModule r nm =
   do ro <- RenameM ask
      case Map.lookup nm (roResolvedModules ro) of
-       Just loc -> pure (rmodDefines loc, rmodNested loc)
+      Just loc ->
+        case rmodKind loc of
+          AModule -> pure ()
+          _ -> recordError (InvalidInstanceModule r nm)
+      Nothing ->
+        do mb <- ($ nm) <$> getLoadedModsMaybe
+           case mb of
+             Nothing -> pure ()
+             Just m ->
+               when (modParams m) (recordError (InvalidInstanceModule r nm))
+
+lookupDefinesAndSubs ::
+  Maybe Range -> ImpName Name -> RenameM (NamingEnv, Set Name)
+lookupDefinesAndSubs checkFun nm =
+  do ro <- RenameM ask
+     case Map.lookup nm (roResolvedModules ro) of
+
+       Just loc ->
+         do case checkFun of
+              Just r ->
+                case rmodKind loc of
+                  AFunctor -> pure ()
+                  _ -> recordError (InvalidFunctorInInstance r nm)
+              Nothing -> pure ()
+
+            pure (rmodDefines loc, rmodNested loc)
+
        Nothing  ->
-          do m <- ($ nm) <$> getLoadedMods
-             pure ( modDefines m
-                  , Set.unions [ Map.keysSet (modMods m)
-                               , Map.keysSet (modSigs m)
-                               , Map.keysSet (modInstances m)
-                               ]
-                  )
+          do mb <- ($ nm) <$> getLoadedModsMaybe
+             case mb of
+               Nothing -> pure ( mempty, Set.empty )
+               Just m ->
+                 do case checkFun of
+                      Just r -> unless (modParams m)
+                                  (recordError (InvalidFunctorInInstance r nm))
+                      Nothing -> pure ()
+
+                    pure ( modDefines m
+                         , Set.unions [ Map.keysSet (modMods m)
+                                      , Map.keysSet (modSigs m)
+                                      , Map.keysSet (modInstances m)
+                                      ]
+                         )
 
 

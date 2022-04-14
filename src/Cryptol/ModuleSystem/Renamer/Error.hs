@@ -53,6 +53,12 @@ data RenamerError
   | InvalidFunctorImport (ImpName Name)
     -- ^ Can't import functors directly
 
+  | InvalidFunctorInInstance Range (ImpName Name)
+    -- ^ The instantitated thing is not a functor
+
+  | InvalidInstanceModule Range (ImpName Name)
+    -- ^ The argument to a functor instance is not a module
+
   | UnexpectedNest Range PName
     -- ^ Nested modules were not supposed to appear here
 
@@ -153,6 +159,19 @@ instance PP RenamerError where
     UnexpectedNest s x ->
       hang ("[error] at" <+> pp s)
         4 ("submodule" <+> backticks (pp x) <+> "may not be defined here.")
+
+    InvalidFunctorInInstance r x ->
+      hang ("[error] at" <+> pp r)
+        4 (vcat [ "• Invalid functor instantiation:"
+                , " " <+> backticks (pp x) <+> "is not a functor."
+                ])
+
+    InvalidInstanceModule r x ->
+      hang ("[error] at" <+> pp r)
+        4 (vcat [ "• Invalid functor instantiation:"
+                , " " <+> backticks (pp x) <+> "is not a module."
+                ])
+
 
 instance PP DepName where
   ppPrec _ d =

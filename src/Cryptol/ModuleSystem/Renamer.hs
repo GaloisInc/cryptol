@@ -47,7 +47,7 @@ import Cryptol.ModuleSystem.Name
 import Cryptol.ModuleSystem.Names
 import Cryptol.ModuleSystem.NamingEnv
 import Cryptol.ModuleSystem.Exports
-import Cryptol.Parser.Position(getLoc)
+import Cryptol.Parser.Position(getLoc,Range)
 import Cryptol.Parser.AST
 import Cryptol.Parser.Selector(selName)
 import Cryptol.Utils.Panic (panic)
@@ -250,7 +250,10 @@ renameModule' mname m =
                             FunctorInstance f as _ ->
                               do f'  <- traverse rename f
                                  as' <- rename as
-                                 imap <- mkInstMap mempty (thing f') mname
+                                 checkFunctorArgs as'
+
+                                 let l = Just (srcRange f')
+                                 imap <- mkInstMap l mempty (thing f') mname
                                  pure (FunctorInstance f' as' imap)
 
                             FunctorInstanceOld f ds ->
@@ -259,10 +262,18 @@ renameModule' mname m =
                 pure (inScope, newDef)
      return (inScope, m { mDef = newDef })
 
-mkInstMap ::
-  Map Name Name -> ImpName Name -> ImpName Name -> RenameM (Map Name Name)
-mkInstMap acc0 ogname iname =
-  do (onames,osubs) <- lookupDefinesAndSubs ogname
+checkFunctorArgs :: ModuleInstanceArgs Name -> RenameM ()
+checkFunctorArgs args =
+  case args of
+    DefaultInstArg l -> checkIsModule (srcRange l) (thing l)
+    NamedInstArgs as -> mapM_ checkArg as
+  where
+  checkArg (ModuleInstanceArg _ l) = checkIsModule (srcRange l) (thing l)
+
+mkInstMap :: Maybe Range -> Map Name Name -> ImpName Name -> ImpName Name ->
+  RenameM (Map Name Name)
+mkInstMap checkFun acc0 ogname iname =
+  do (onames,osubs) <- lookupDefinesAndSubs checkFun ogname
      inames         <- lookupDefines iname
      let mp   = zipByTextName onames inames
          subs = [ (ImpNested k, ImpNested v)
@@ -271,7 +282,7 @@ mkInstMap acc0 ogname iname =
      foldM doSub (Map.union mp acc0) subs
 
   where
-  doSub acc (k,v) = mkInstMap acc k v
+  doSub acc (k,v) = mkInstMap Nothing acc k v
 
 
 

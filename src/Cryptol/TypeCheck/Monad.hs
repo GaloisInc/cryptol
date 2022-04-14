@@ -5,7 +5,7 @@
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
-{-# LANGUAGE Trustworthy #-}
+{-# LANGUAGE Safe #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
@@ -18,8 +18,6 @@ module Cryptol.TypeCheck.Monad
   ( module Cryptol.TypeCheck.Monad
   , module Cryptol.TypeCheck.InferTypes
   ) where
-
-import Debug.Trace
 
 import qualified Control.Applicative as A
 import qualified Control.Monad.Fail as Fail
@@ -70,7 +68,7 @@ data InferInput = InferInput
   , inpAbstractTypes :: Map Name AbstractType -- ^ Abstract types in scope
   , inpSignatures :: !(Map Name If.IfaceParams)  -- ^ Signatures in scope
 
-  , inpTopModules :: ModName -> (ModuleG (), If.IfaceG ())
+  , inpTopModules :: ModName -> Maybe (ModuleG (), If.IfaceG ())
 
     -- When typechecking a module these start off empty.
     -- We need them when type-checking an expression at the command
@@ -229,7 +227,7 @@ data RO = RO
 
   , iTVars    :: [TParam]    -- ^ Type variable that are in scope
 
-  , iExtModules :: ModName -> (ModuleG (), If.IfaceG ())
+  , iExtModules :: ModName -> Maybe (ModuleG (), If.IfaceG ())
     -- ^ An exteral top-level module.  Used the find functors that
     -- need to be instantiated.
 
@@ -710,7 +708,7 @@ lookupSignature x =
                     [ "Missing signature", show x ]
 
 -- | Lookup an external (i.e., previously loaded) top module.
-lookupTopModule :: ModName -> InferM (ModuleG (), If.IfaceG ())
+lookupTopModule :: ModName -> InferM (Maybe (ModuleG (), If.IfaceG ()))
 lookupTopModule m =
   do ms <- iExtModules <$> IM ask
      pure (ms m)
@@ -718,39 +716,45 @@ lookupTopModule m =
 lookupFunctor :: P.ImpName Name -> InferM (ModuleG ())
 lookupFunctor iname =
   case iname of
-    P.ImpTop m -> fst <$> lookupTopModule m
+    P.ImpTop m -> fst . fromMb <$> lookupTopModule m
     P.ImpNested m ->
       do localFuns <- getScope mFunctors
          case Map.lookup m localFuns of
            Just a -> pure a { mName = () }
            Nothing ->
-             do a <- lookupTopModule (nameTopModule m)
-                case Map.lookup m (mFunctors (fst a)) of
-                  Just b  -> pure b { mName = () }
-                  Nothing -> panic "lookupFunctor" ["Missing functor",show m]
+             do mbTop <- lookupTopModule (nameTopModule m)
+                pure (fromMb do a <- fst <$> mbTop
+                                b <- Map.lookup m (mFunctors a)
+                                pure b { mName = () })
+  where
+  fromMb mb = case mb of
+                Just a -> a
+                Nothing -> panic "lookupFunctor"
+                                  [ "Missing functor", show iname ]
+
 
 {- | Get information about the things defined in the module.
 Note that, in general, the interface may contain *more* than just the
 definitions in the module, however the `ifNames` should indicate which
-ones are part of the module. -}
-lookupModule :: P.ImpName Name -> InferM (If.IfaceG ())
+ones are part of the module.
+This returns Maybe becasuse the name may refer to a functor rather than module.
+-}
+lookupModule :: P.ImpName Name -> InferM (Maybe (If.IfaceG ()))
 lookupModule iname =
   case iname of
-    P.ImpTop m -> snd <$> lookupTopModule m
+    P.ImpTop m -> fmap snd <$> lookupTopModule m
     P.ImpNested m ->
       do localMods <- getScope mSubmodules
          case Map.lookup m localMods of
            Just names ->
              do iface <- genIface <$> getCurScope
-                pure iface { If.ifNames = names { If.ifsName = () } }
+                pure (Just iface { If.ifNames = names { If.ifsName = () } })
 
            Nothing ->
-             do a <- lookupTopModule (nameTopModule m)
-                let iface = snd a
-                case Map.lookup m (If.ifModules (If.ifPublic iface)) of
-                  Just names ->
-                     pure iface { If.ifNames = names { If.ifsName = () } }
-                  Nothing -> panic "lookupModule" ["Missing module",show m]
+             do mb <- lookupTopModule (nameTopModule m)
+                pure do iface <- snd <$> mb
+                        names <- Map.lookup m (If.ifModules (If.ifPublic iface))
+                        pure iface { If.ifNames = names { If.ifsName = () } }
 
 
 

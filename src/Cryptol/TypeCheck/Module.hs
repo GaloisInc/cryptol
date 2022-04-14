@@ -8,6 +8,7 @@ import Cryptol.Parser.Position (Located, thing)
 import qualified Cryptol.Parser.AST as P
 import Cryptol.ModuleSystem.Exports(exportedDecls)
 import Cryptol.TypeCheck.AST
+import Cryptol.TypeCheck.Error
 import Cryptol.TypeCheck.Monad
 
 
@@ -16,8 +17,14 @@ doFunctorInst ::
   P.ModuleInstanceArgs Name   {- ^ Instance arguments -} ->
   Map Name Name               {- ^ Basic instantiation -} ->
   InferM ()
-doFunctorInst f as inst = xxxTODO "functor instance"
-
+doFunctorInst f as inst =
+  do mbF <- lookupFunctor (thing f)
+{-
+     m   <- case mbF of
+              Nothing -> recordError (InstantiatedNotFunctor f)
+              Just {} -> pure () -- fix
+-}
+     xxxTODO "doFunctorInst"
 
 
 
