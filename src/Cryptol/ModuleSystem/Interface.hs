@@ -137,7 +137,15 @@ data IfaceDecls = IfaceDecls
   , ifModules       :: !(Map.Map Name (IfaceNames Name))
   , ifSignatures    :: !(Map.Map Name IfaceParams)
   , ifFunctors      :: !(Map.Map Name (IfaceG Name))
-    -- ^ XXX: Maybe arg info?
+    {- ^ XXX: Maybe arg info?
+    Also, with the current implementation we aim to complete remove functors
+    by essentially inlining them.  To achieve this with just interfaces
+    we'd have to store here the entire module, not just its interface.
+    At the moment we work around this by passing all loaded modules to the
+    type checker, so it looks up functors there, instead of in the interfaces,
+    but we'd need to change this if we want better support for separate
+    compilation. -}
+
   } deriving (Show, Generic, NFData)
 
 filterIfaceDecls :: (Name -> Bool) -> IfaceDecls -> IfaceDecls
