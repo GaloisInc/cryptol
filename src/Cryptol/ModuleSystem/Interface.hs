@@ -28,9 +28,8 @@ module Cryptol.ModuleSystem.Interface (
   , ifacePrimMap
   , noIfaceParams
   , isEmptyIfaceParams
+  , ifaceForgetName
   , ifaceIsFunctor
-  -- , flatPublicIface
-  -- , flatPublicDecls
   , filterIfaceDecls
   , ifaceDeclsNames
   ) where
@@ -67,6 +66,10 @@ data IfaceG name = Iface
   , ifParams    :: Maybe IfaceFunctorParams
   } deriving (Show, Generic, NFData)
 
+ifaceForgetName :: IfaceG name -> IfaceG ()
+ifaceForgetName i = i { ifNames = newNames }
+  where newNames = (ifNames i) { ifsName = () }
+
 ifModName :: Iface -> ModName
 ifModName = ifsName . ifNames
 
@@ -76,7 +79,6 @@ data IfaceNames name = IfaceNames
   , ifsDefines  :: Set Name   -- ^ Things defined in this module
   , ifsPublic   :: Set Name   -- ^ Subset of `ifsDefines` that is public
   } deriving (Show, Generic, NFData)
-
 
 
 ifaceIsFunctor :: IfaceG name -> Bool

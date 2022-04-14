@@ -43,8 +43,7 @@ import           MonadLib hiding (mapM)
 import           Cryptol.ModuleSystem.Name
                     (FreshM(..),Supply,mkLocal
                     , nameInfo, NameInfo(..),NameSource(..), nameTopModule)
-import           Cryptol.ModuleSystem.Interface(IfaceModParam(..),
-                                                IfaceParams(..))
+import qualified Cryptol.ModuleSystem.Interface as If
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
 import           Cryptol.TypeCheck.AST
@@ -69,9 +68,9 @@ data InferInput = InferInput
   , inpTSyns     :: Map Name TySyn    -- ^ Type synonyms that are in scope
   , inpNewtypes  :: Map Name Newtype  -- ^ Newtypes in scope
   , inpAbstractTypes :: Map Name AbstractType -- ^ Abstract types in scope
-  , inpSignatures :: !(Map Name IfaceParams)  -- ^ Signatures in scope
+  , inpSignatures :: !(Map Name If.IfaceParams)  -- ^ Signatures in scope
 
-  , inpTopModules :: ModName -> Module
+  , inpTopModules :: ModName -> (ModuleG (), If.IfaceG ())
 
     -- When typechecking a module these start off empty.
     -- We need them when type-checking an expression at the command
@@ -230,7 +229,7 @@ data RO = RO
 
   , iTVars    :: [TParam]    -- ^ Type variable that are in scope
 
-  , iExtModules :: ModName -> Module
+  , iExtModules :: ModName -> (ModuleG (), If.IfaceG ())
     -- ^ An exteral top-level module.  Used the find functors that
     -- need to be instantiated.
 
@@ -702,7 +701,7 @@ lookupAbstractType x = Map.lookup x <$> getAbstractTypes
 lookupParamType :: Name -> InferM (Maybe ModTParam)
 lookupParamType x = Map.lookup x <$> getParamTypes
 
-lookupSignature :: Name -> InferM IfaceParams
+lookupSignature :: Name -> InferM If.IfaceParams
 lookupSignature x =
   do sigs <- getSignatures
      case Map.lookup x sigs of
@@ -710,24 +709,50 @@ lookupSignature x =
        Nothing  -> panic "lookupSignature"
                     [ "Missing signature", show x ]
 
-lookupTopModule :: ModName -> InferM (ModuleG ())
+-- | Lookup an external (i.e., previously loaded) top module.
+lookupTopModule :: ModName -> InferM (ModuleG (), If.IfaceG ())
 lookupTopModule m =
   do ms <- iExtModules <$> IM ask
-     pure (ms m) { mName = () }
+     pure (ms m)
 
 lookupFunctor :: P.ImpName Name -> InferM (ModuleG ())
 lookupFunctor iname =
   case iname of
-    P.ImpTop m -> lookupTopModule m
+    P.ImpTop m -> fst <$> lookupTopModule m
     P.ImpNested m ->
       do localFuns <- getScope mFunctors
          case Map.lookup m localFuns of
            Just a -> pure a { mName = () }
            Nothing ->
              do a <- lookupTopModule (nameTopModule m)
-                case Map.lookup m (mFunctors a) of
+                case Map.lookup m (mFunctors (fst a)) of
                   Just b  -> pure b { mName = () }
                   Nothing -> panic "lookupFunctor" ["Missing functor",show m]
+
+{- | Get information about the things defined in the module.
+Note that, in general, the interface may contain *more* than just the
+definitions in the module, however the `ifNames` should indicate which
+ones are part of the module. -}
+lookupModule :: P.ImpName Name -> InferM (If.IfaceG ())
+lookupModule iname =
+  case iname of
+    P.ImpTop m -> snd <$> lookupTopModule m
+    P.ImpNested m ->
+      do localMods <- getScope mSubmodules
+         case Map.lookup m localMods of
+           Just names ->
+             do iface <- genIface <$> getCurScope
+                pure iface { If.ifNames = names { If.ifsName = () } }
+
+           Nothing ->
+             do a <- lookupTopModule (nameTopModule m)
+                let iface = snd a
+                case Map.lookup m (If.ifModules (If.ifPublic iface)) of
+                  Just names ->
+                     pure iface { If.ifNames = names { If.ifsName = () } }
+                  Nothing -> panic "lookupModule" ["Missing module",show m]
+
+
 
 
 -- | Check if we already have a name for this existential type variable and,
@@ -790,7 +815,7 @@ getMonoBinds  = IM (asks iMonoBinds)
 getCallStacks :: InferM Bool
 getCallStacks = IM (asks iCallStacks)
 
-getSignatures :: InferM (Map Name IfaceParams)
+getSignatures :: InferM (Map Name If.IfaceParams)
 getSignatures = getScope mSignatures
 
 
@@ -944,11 +969,11 @@ endSignature =
         rw { iScope = z : more }
         where
         z   = y { mSignatures = Map.insert m sig (mSignatures y) }
-        sig = IfaceParams
-                { ifParamTypes       = mParamTypes x
-                , ifParamConstraints = mParamConstraints x
-                , ifParamFuns        = mParamFuns x
-                , ifParamDoc         = doc
+        sig = If.IfaceParams
+                { If.ifParamTypes       = mParamTypes x
+                , If.ifParamConstraints = mParamConstraints x
+                , If.ifParamFuns        = mParamFuns x
+                , If.ifParamDoc         = doc
                 }
       _ -> panic "endSignature" [ "Not a signature scope" ]
 
@@ -961,6 +986,13 @@ getScope f =
   do ro <- IM ask
      rw <- IM get
      pure (sconcat (f (iExtScope ro) :| map f (iScope rw)))
+
+getCurScope :: InferM (ModuleG ScopeName)
+getCurScope =
+  do rw <- IM get
+     case iScope rw of
+       m : _ -> pure m
+       []    -> panic "getCurScope" ["No current scope."]
 
 addDecls :: DeclGroup -> InferM ()
 addDecls ds =
@@ -1005,9 +1037,9 @@ addParameterConstraints :: [Located Prop] -> InferM ()
 addParameterConstraints ps =
   updScope \r -> r { mParamConstraints = ps ++ mParamConstraints r }
 
-addModParam :: IfaceModParam -> InferM ()
+addModParam :: If.IfaceModParam -> InferM ()
 addModParam p =
-  updScope \r -> r { mParams = Map.insert (ifmpName p) p (mParams r) }
+  updScope \r -> r { mParams = Map.insert (If.ifmpName p) p (mParams r) }
 
 
 

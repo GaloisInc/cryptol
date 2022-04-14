@@ -482,12 +482,14 @@ getLoaded mn = ModuleT $
        Just lm -> return (lmModule lm)
        Nothing -> panic "ModuleSystem" ["Module not available", show (pp mn) ]
 
-getAllLoaded :: ModuleM (P.ModName -> T.Module)
+getAllLoaded :: ModuleM (P.ModName -> (T.ModuleG (), IfaceG ()))
 getAllLoaded = ModuleT
   do env <- get
      pure \nm ->
        case lookupModule nm env of
-         Just lm -> lmModule lm
+         Just lm -> ( (lmModule lm) { T.mName = () }
+                    , ifaceForgetName (lmInterface lm)
+                    )
          Nothing -> panic "getAllLoaded" ["Module not loaded:", show (pp nm) ]
 
 
