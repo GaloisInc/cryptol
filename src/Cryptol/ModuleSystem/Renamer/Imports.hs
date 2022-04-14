@@ -420,7 +420,7 @@ tryInstanceMaybe s mn (f,_xs) =
                   ImpTop m    -> TopModule m
                   ImpNested m ->
                     case asOrigName m of
-                      Just og -> ogModule og
+                      Just og -> Nested (ogModule og) (ogName og)
                       Nothing ->
                         panic "tryInstanceMaybe" [ "Not a top-level name" ]
      doInstantiateByName False path fn s
