@@ -82,7 +82,7 @@ browseMods :: DispInfo -> IfaceDecls -> [Doc]
 browseMods disp decls =
   ppSection disp "Modules" ppM (ifModules decls)
   where
-  ppM m = "submodule" <+> pp (ifModName m)
+  ppM m = "submodule" <+> pp (ifsName m)
   -- XXX: can print a lot more information about the moduels, but
   -- might be better to do that with a separate command
 

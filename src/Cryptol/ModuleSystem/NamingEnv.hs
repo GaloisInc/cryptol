@@ -18,6 +18,7 @@ import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import           Data.Set (Set)
 import qualified Data.Set as Set
+import           Data.Foldable(foldl')
 
 import GHC.Generics (Generic)
 import Control.DeepSeq(NFData)
@@ -87,6 +88,17 @@ namingEnvNames (NamingEnv xs) =
     Nothing -> Set.empty
     Just (One x) -> Set.singleton x
     Just (Ambig as) -> as
+
+-- | Get a unqualified naming environment for the given names
+namingEnvFromNames :: Set Name -> NamingEnv
+namingEnvFromNames xs = NamingEnv (foldl' add mempty xs)
+  where
+  add mp x = let ns = nameNamespace x
+                 txt = nameIdent x
+             in Map.insertWith (Map.unionWith (<>))
+                               ns (Map.singleton (mkUnqual txt) (One x))
+                               mp
+
 
 -- | Get the names in a given namespace
 namespaceMap :: Namespace -> NamingEnv -> Map PName Names

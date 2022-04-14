@@ -45,6 +45,8 @@ import Cryptol.TypeCheck.Type
 import GHC.Generics (Generic)
 import Control.DeepSeq
 
+
+import           Data.Set    (Set)
 import           Data.Map    (Map)
 import qualified Data.Map    as Map
 import qualified Data.IntMap as IntMap
@@ -57,12 +59,6 @@ data ModuleG mname =
                      , mExports          :: ExportSpec Name
                      , mImports          :: [Import]
 
-                       {-| Interfaces of submodules, including functors.
-                           This is only the directly nested modules.
-                           Info about more nested modules is in the
-                           corresponding interface. -}
-                     , mSubModules       :: Map Name (IfaceG Name)
-
                      -- Functors:
                      , mParamTypes       :: Map Name ModTParam
                      , mParamFuns        :: Map Name ModVParam
@@ -71,14 +67,23 @@ data ModuleG mname =
                      , mParams           :: Map Ident IfaceModParam
                        -- ^ Parameters grouped by "import".
 
+                     , mFunctors         :: Map Name (ModuleG Name)
+                       -- ^ Functors directly nested in this module.
+                       -- Things further nested are in the modules in the
+                       -- elements of the map.
 
-                      -- Declarations, including everything from non-functor
-                      -- submodules
+
+                     , mNested           :: !(Set Name)
+                       -- ^ Submodules, functors, and signature nested directly
+                       -- in this module
+
+                      -- These have everything from this module and
+                      -- all submodules
                      , mTySyns           :: Map Name TySyn
                      , mNewtypes         :: Map Name Newtype
                      , mPrimTypes        :: Map Name AbstractType
                      , mDecls            :: [DeclGroup]
-                     , mFunctors         :: Map Name (ModuleG Name)
+                     , mSubmodules       :: Map Name (IfaceNames Name)
                      , mSignatures       :: !(Map Name IfaceParams)
                      } deriving (Show, Generic, NFData)
 
@@ -88,18 +93,20 @@ emptyModule nm =
     { mName             = nm
     , mExports          = mempty
     , mImports          = []
-    , mSubModules       = mempty
 
     , mParams           = mempty
     , mParamTypes       = mempty
     , mParamConstraints = mempty
     , mParamFuns        = mempty
 
+    , mNested           = mempty
+
     , mTySyns           = mempty
     , mNewtypes         = mempty
     , mPrimTypes        = mempty
     , mDecls            = mempty
     , mFunctors         = mempty
+    , mSubmodules       = mempty
     , mSignatures       = mempty
     }
 

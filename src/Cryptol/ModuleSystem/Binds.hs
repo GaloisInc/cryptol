@@ -11,7 +11,6 @@ module Cryptol.ModuleSystem.Binds
   , modBuilder
   , topModuleDefs
   , topDeclsDefs
-  , interpImportIface
   , newModParam
   , InModule(..)
   , ifaceToMod
@@ -52,8 +51,14 @@ data Mod a = Mod
   , modInstances :: Map Name (ImpName PName, ModuleInstanceArgs PName)
   , modMods      :: Map Name (Mod a)
   , modSigs      :: Map Name NamingEnv
-  , modDefines   :: NamingEnv  -- ^ Things defined by this module
-  , modPublic    :: !(Set Name)   -- ^ These are the exported names
+  , modDefines   :: NamingEnv
+    {- ^ Things defined by this module.  Note the for normal modules we
+    really just need the public names, however for things within
+    functors we need all defined names, so that we can generate fresh
+    names in instantiations -}
+
+  , modPublic    :: !(Set Name)
+    -- ^ These are the exported names
 
   , modState     :: a
     {- ^ Used in the import loop to track the current state of processing.
@@ -84,22 +89,28 @@ modToMap x m mp = Map.insert x m (Map.foldrWithKey add mp (modMods m))
 -- | Make a `Mod` from the public declarations in an interface.
 -- This is used to handle imports.
 ifaceToMod :: IfaceG name -> Mod ()
-ifaceToMod iface =
+ifaceToMod iface = ifaceNamesToMod iface (ifaceIsFunctor iface) (ifNames iface)
+
+ifaceNamesToMod :: IfaceG topname -> Bool -> IfaceNames name -> Mod ()
+ifaceNamesToMod iface params names =
   Mod
-    { modImports    = []
-    , modParams     = case ifParams iface of
-                        Nothing -> False
-                        Just {} -> True
-    , modInstances  = undefined
-    , modMods       = ifaceToMod         <$> ifModules pub
-    , modSigs       = modParamsNamingEnv <$> ifSignatures pub
-    , modDefines    = defs
-    , modPublic     = namingEnvNames defs
-    , modState      = ()
+    { modParams  = params
+    , modMods    = (ifaceNamesToMod iface False <$> ifModules decls)
+                   `Map.union`
+                   (ifaceToMod <$> ifFunctors decls)
+    , modDefines = namingEnvFromNames defs
+    , modSigs    = modParamsNamingEnv <$> ifSignatures decls
+    , modPublic  = ifsPublic names
+
+    , modImports   = []
+    , modInstances = mempty
+    , modState     = ()
     }
   where
-  pub = ifPublic iface
-  defs = unqualifiedEnv pub
+  defs      = ifsDefines names
+  isLocal x = x `Set.member` defs
+  decls     = filterIfaceDecls isLocal (ifPublic iface <> ifPrivate iface)
+
 
 
 type ModBuilder = SupplyT (M.StateT [RenamerError] M.Id)
@@ -270,25 +281,6 @@ instance BindsNames (Schema PName) where
   {-# INLINE namingEnv #-}
 
 
-
-
--- | Interpret an import in the context of an interface, to produce a name
--- environment for the renamer, and a 'NameDisp' for pretty-printing.
-interpImportIface :: Import     {- ^ The import declarations -} ->
-                IfaceDecls {- ^ Declarations of imported module -} ->
-                NamingEnv
-interpImportIface imp = interpImportEnv imp . unqualifiedEnv
-
-
-
-data ImportIface = ImportIface Import Iface
-
--- | Produce a naming environment from an interface file, that contains a
--- mapping only from unqualified names to qualified ones.
-instance BindsNames ImportIface where
-  namingEnv (ImportIface imp Iface { .. }) = BuildNamingEnv $
-    return (interpImportIface imp ifPublic)
-  {-# INLINE namingEnv #-}
 
 -- | Introduce the name
 instance BindsNames (InModule (Bind PName)) where

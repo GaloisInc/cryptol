@@ -22,11 +22,14 @@ checkModuleInstance :: Module {- ^ type-checked functor -} ->
                        Module {- ^ type-checked instance -} ->
                        InferM (Name->Name,Module)
                        -- ^ Renaming,Instantiated module
-checkModuleInstance func inst
-  | not (null (mSubModules func) && null (mSubModules inst)) =
+checkModuleInstance func inst = undefined
+{-
+{-
+  | not (null (mSubmodules func) && null (mSubmodules inst)) =
     do recordError $ TemporaryError
          "Cannot combine nested modules with old-style parameterized modules"
        pure (id,func) -- doesn't matter?
+-}
   | otherwise =
   do tMap <- checkTyParams func inst
      vMap <- checkValParams func tMap inst
@@ -53,7 +56,8 @@ checkModuleInstance func inst
                    , mDecls            = mDecls inst ++ mDecls m
 
                    , mParams     = mempty
-                   , mSubModules = mempty
+                   -- , mSubmodules = mempty
+                   -- , mSubmoduleRoots = mempty
                    , mFunctors   = mempty
                    , mSignatures = mempty
                    }
@@ -198,4 +202,4 @@ makeValParamDef x sDef pDef =
   loc a = P.Located { P.srcRange = nameLoc x, P.thing = a }
 
 
-
+-}

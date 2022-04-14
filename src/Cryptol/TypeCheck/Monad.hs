@@ -5,7 +5,7 @@
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
-{-# LANGUAGE Safe #-}
+{-# LANGUAGE Trustworthy #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
@@ -18,6 +18,8 @@ module Cryptol.TypeCheck.Monad
   ( module Cryptol.TypeCheck.Monad
   , module Cryptol.TypeCheck.InferTypes
   ) where
+
+import Debug.Trace
 
 import qualified Control.Applicative as A
 import qualified Control.Monad.Fail as Fail
@@ -40,14 +42,14 @@ import           MonadLib hiding (mapM)
 
 import           Cryptol.ModuleSystem.Name
                     (FreshM(..),Supply,mkLocal
-                    , nameInfo, NameInfo(..),NameSource(..))
+                    , nameInfo, NameInfo(..),NameSource(..), nameTopModule)
 import           Cryptol.ModuleSystem.Interface(IfaceModParam(..),
                                                 IfaceParams(..))
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Subst
-import           Cryptol.TypeCheck.Interface(genIface)
+import           Cryptol.TypeCheck.Interface(genIface,genIfaceNames)
 import           Cryptol.TypeCheck.Unify(mgu, runResult, UnificationError(..))
 import           Cryptol.TypeCheck.InferTypes
 import           Cryptol.TypeCheck.Error( Warning(..),Error(..)
@@ -236,7 +238,7 @@ data RO = RO
     -- ^ These are things we know about, but are not part of the
     -- modules we are currently constructing.
     -- XXX: this sould probably be an interface
-    -- NOTE: External functors should be looked up in `iExtFunctors`
+    -- NOTE: External functors should be looked up in `iExtModules`
     -- and not here, as they may be top-level modules.
 
   , iSolvedHasLazy :: Map Int HasGoalSln
@@ -708,6 +710,24 @@ lookupSignature x =
        Nothing  -> panic "lookupSignature"
                     [ "Missing signature", show x ]
 
+lookupTopModule :: ModName -> InferM (ModuleG ())
+lookupTopModule m =
+  do ms <- iExtModules <$> IM ask
+     pure (ms m) { mName = () }
+
+lookupFunctor :: P.ImpName Name -> InferM (ModuleG ())
+lookupFunctor iname =
+  case iname of
+    P.ImpTop m -> lookupTopModule m
+    P.ImpNested m ->
+      do localFuns <- getScope mFunctors
+         case Map.lookup m localFuns of
+           Just a -> pure a { mName = () }
+           Nothing ->
+             do a <- lookupTopModule (nameTopModule m)
+                case Map.lookup m (mFunctors a) of
+                  Just b  -> pure b { mName = () }
+                  Nothing -> panic "lookupFunctor" ["Missing functor",show m]
 
 
 -- | Check if we already have a name for this existential type variable and,
@@ -823,14 +843,17 @@ newLocalScope :: InferM ()
 newLocalScope = newScope LocalScope
 
 newSignatureScope :: Name -> Maybe Text -> InferM ()
-newSignatureScope x doc = newScope (SignatureScope x doc)
+newSignatureScope x doc =
+  do updScope \o -> o { mNested = Set.insert x (mNested o) }
+     newScope (SignatureScope x doc)
 
 {- | Start a new submodule scope.  The imports and exports are just used
 to initialize an empty module.  As we type check declarations they are
 added to this module's scope. -}
 newSubmoduleScope :: Name -> [Import] -> ExportSpec Name -> InferM ()
 newSubmoduleScope x is e =
-  do newScope (SubModule x)
+  do updScope \o -> o { mNested = Set.insert x (mNested o) }
+     newScope (SubModule x)
      updScope \m -> m { mImports = is, mExports = e }
 
 newModuleScope :: P.ModName -> [Import] -> ExportSpec Name -> InferM ()
@@ -863,16 +886,34 @@ endSubmodule =
          x@Module { mName = SubModule m } : y : more -> rw { iScope = z : more }
            where
            x1    = x { mName = m }
-           iface = genIface x1
-           me = if isParametrizedModule x1 then Map.singleton m x1 else mempty
-           z = y { mImports     = mImports x ++ mImports y -- just for deps
-                 , mSubModules  = Map.insert m iface (mSubModules y)
 
-                 , mTySyns      = mTySyns x <> mTySyns y
-                 , mNewtypes    = mNewtypes x <> mNewtypes y
-                 , mPrimTypes   = mPrimTypes x <> mPrimTypes y
-                 , mDecls       = mDecls x <> mDecls y
-                 , mFunctors    = me <> mFunctors x <> mFunctors y
+           isFun = isParametrizedModule x1
+
+           add :: Monoid a => (ModuleG ScopeName -> a) -> a
+           add f = if isFun then f y else f x <> f y
+
+           z = Module
+                 { mName             = mName y
+                 , mExports          = mExports y
+                 , mParamTypes       = mParamTypes y
+                 , mParamFuns        = mParamFuns  y
+                 , mParamConstraints = mParamConstraints y
+                 , mParams           = mParams y
+                 , mNested           = mNested y
+
+                 , mImports     = add mImports -- just for deps
+                 , mTySyns      = add mTySyns
+                 , mNewtypes    = add mNewtypes
+                 , mPrimTypes   = add mPrimTypes
+                 , mDecls       = add mDecls
+                 , mSignatures  = add mSignatures
+                 , mSubmodules  = if isFun
+                                    then mSubmodules y
+                                    else Map.insert m (genIfaceNames x1)
+                                               (mSubmodules x <> mSubmodules y)
+                 , mFunctors    = if isFun
+                                    then Map.insert m x1 (mFunctors y)
+                                    else mFunctors x <> mFunctors y
                  }
 
          _ -> panic "endSubmodule" [ "Not a submodule" ]

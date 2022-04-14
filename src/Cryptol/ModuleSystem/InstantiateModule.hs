@@ -37,8 +37,9 @@ instantiateModule :: FreshM m =>
                      Map Name Expr    {- ^ Value parameters -} ->
                      m (Name -> Name, [Located Prop], Module)
                      -- ^ Renaming, instantiated constraints, fresh module, new supply
-instantiateModule func newName tpMap vpMap
-  | not (null (mSubModules func)) =
+instantiateModule func newName tpMap vpMap = undefined
+{-
+  | not (null (mSubmodules func)) =
       panic "instantiateModule"
         [ "XXX: we don't support functors with nested moduels yet." ]
   | otherwise  =
@@ -86,9 +87,10 @@ instantiateModule func newName tpMap vpMap
                  , mDecls             = paramDecls ++ renamedDecls
 
                  , mParams            = mempty
-                 , mSubModules        = mempty
+                 -- , mSubmodules        = mempty
                  , mFunctors          = mempty
                  , mSignatures        = mempty -- XXX
+                 -- , mSubmoduleRoots    = mempty
                  } )
 
   where
@@ -105,6 +107,7 @@ instantiateModule func newName tpMap vpMap
         , dDoc         = Nothing -- XXX: get from parametr(or instance?)
         }
 
+-}
 
 --------------------------------------------------------------------------------
 -- Things that need to be renamed

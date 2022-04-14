@@ -8,7 +8,7 @@
 
 {-# LANGUAGE Trustworthy, TemplateHaskell #-}
 module Cryptol.Utils.Panic
-  (HasCallStack, CryptolPanic, Cryptol, Panic, panic) where
+  (HasCallStack, CryptolPanic, Cryptol, Panic, panic, xxxTODO) where
 
 import Panic hiding (panic)
 import qualified Panic as Panic
@@ -19,6 +19,9 @@ type CryptolPanic = Panic Cryptol
 
 panic :: HasCallStack => String -> [String] -> a
 panic = Panic.panic Cryptol
+
+xxxTODO :: HasCallStack => String -> a
+xxxTODO x = panic "TODO" [x]
 
 instance PanicComponent Cryptol where
   panicComponentName _ = "Cryptol"

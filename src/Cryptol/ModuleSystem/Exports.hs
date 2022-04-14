@@ -58,6 +58,9 @@ exportName ns n
                          $ Set.singleton (tlValue n)
   | otherwise = mempty
 
+allExported :: Ord name => ExportSpec name -> Set name
+allExported (ExportSpec mp) = Set.unions (Map.elems mp)
+
 exported :: Namespace -> ExportSpec name -> Set name
 exported ns (ExportSpec mp) = Map.findWithDefault Set.empty ns mp
 

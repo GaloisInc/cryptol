@@ -17,6 +17,8 @@
 
 module Cryptol.ModuleSystem.Base where
 
+import System.Exit
+
 import qualified Control.Exception as X
 import Control.Monad (unless,when)
 import Data.Maybe (fromMaybe)
@@ -476,8 +478,9 @@ checkSingleModule how isrc path m = do
   renMod <- renameModule npm
 
   -- dump renamed
-  when (False && thing (mName (R.rmModule renMod)) /= preludeName)
-       (io $ print (T.pp renMod))
+  when (thing (mName (R.rmModule renMod)) /= preludeName)
+       do (io $ print (T.pp renMod))
+          -- io $ exitSuccess
 
   -- when generating the prim map for the typechecker, if we're checking the
   -- prelude, we have to generate the map from the renaming environment, as we
@@ -586,7 +589,7 @@ genInferInput r prims mbParams env' = do
   callStacks <- getCallStacks
 
   -- TODO: include the environment needed by the module
-  let env = flatPublicDecls env'
+  let env = env'
             -- XXX: we should really just pass this directly
 
       (paramTys,paramCtrs,paramVs) =
