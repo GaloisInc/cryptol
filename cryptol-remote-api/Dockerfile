@@ -1,4 +1,4 @@
-ARG GHCVER="8.10.3"
+ARG GHCVER="8.10.7"
 ARG GHCVER_BOOTSTRAP="8.10.2"
 FROM debian:buster-20210511 AS toolchain
 ARG PORTABILITY=false
@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y libncurses-dev libz-dev unzip \
     $(if ${PORTABILITY}; then echo git autoconf python3; fi)
 ENV GHCUP_INSTALL_BASE_PREFIX=/opt \
     PATH=/opt/.ghcup/bin:$PATH
-RUN curl -o /usr/local/bin/ghcup "https://downloads.haskell.org/~ghcup/0.1.14/x86_64-linux-ghcup-0.1.14" && \
+RUN curl -o /usr/local/bin/ghcup "https://downloads.haskell.org/~ghcup/0.1.17.7/x86_64-linux-ghcup-0.1.17.7" && \
     chmod +x /usr/local/bin/ghcup
 RUN ghcup install cabal --set
 ENV PATH=/root/.cabal/bin:$PATH
