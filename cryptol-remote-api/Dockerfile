@@ -57,7 +57,7 @@ ENV PATH=/usr/local/bin:/cryptol/rootfs/usr/local/bin:$PATH
 RUN mkdir -p rootfs/"${CRYPTOLPATH}" \
     && cp -r lib/* rootfs/"${CRYPTOLPATH}"
 WORKDIR /cryptol/rootfs/usr/local/bin
-RUN curl -sL -o solvers.zip "https://github.com/GaloisInc/what4-solvers/releases/download/snapshot-20210917/ubuntu-18.04-bin.zip" && \
+RUN curl -sL -o solvers.zip "https://github.com/GaloisInc/what4-solvers/releases/download/snapshot-20220114/ubuntu-18.04-bin.zip" && \
     unzip solvers.zip && rm solvers.zip && chmod +x *
 USER root
 RUN chown -R root:root /cryptol/rootfs
