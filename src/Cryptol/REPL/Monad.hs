@@ -218,7 +218,7 @@ mkPrompt rw
   | detailedPrompt = withEdit ++ "> "
   | otherwise      = modLn ++ "> "
   where
-  detailedPrompt = False
+  detailedPrompt = id False
 
   modLn   =
     case lName =<< eLoadedMod rw of
