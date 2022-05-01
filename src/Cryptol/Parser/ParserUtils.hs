@@ -151,11 +151,11 @@ instance Functor ParseM where
   fmap = liftM
 
 instance Applicative ParseM where
-  pure  = return
+  pure a = P (\_ _ s -> Right (a,s))
   (<*>) = ap
 
 instance Monad ParseM where
-  return a  = P (\_ _ s -> Right (a,s))
+  return    = pure
   m >>= k   = P (\cfg p s1 -> case unP m cfg p s1 of
                             Left e       -> Left e
                             Right (a,s2) -> unP (k a) cfg p s2)
@@ -382,7 +382,7 @@ eFromToBy :: Range -> Expr PName -> Expr PName -> Expr PName -> Bool -> ParseM (
 eFromToBy r e1 e2 e3 isStrictBound =
   case (asETyped e1, asETyped e2, asETyped e3) of
     (Just (e1', t), Nothing, Nothing) -> eFromToByTyped r e1' e2 e3 (Just t) isStrictBound
-    (Nothing, Just (e2', t), Nothing) -> eFromToByTyped r e1 e2' e3 (Just t) isStrictBound   
+    (Nothing, Just (e2', t), Nothing) -> eFromToByTyped r e1 e2' e3 (Just t) isStrictBound
     (Nothing, Nothing, Just (e3', t)) -> eFromToByTyped r e1 e2 e3' (Just t) isStrictBound
     (Nothing, Nothing, Nothing)       -> eFromToByTyped r e1 e2 e3 Nothing isStrictBound
     _ -> errorMessage r ["A sequence enumeration may have at most one element type annotation."]
@@ -400,7 +400,7 @@ eFromToDownBy ::
 eFromToDownBy r e1 e2 e3 isStrictBound =
   case (asETyped e1, asETyped e2, asETyped e3) of
     (Just (e1', t), Nothing, Nothing) -> eFromToDownByTyped r e1' e2 e3 (Just t) isStrictBound
-    (Nothing, Just (e2', t), Nothing) -> eFromToDownByTyped r e1 e2' e3 (Just t) isStrictBound   
+    (Nothing, Just (e2', t), Nothing) -> eFromToDownByTyped r e1 e2' e3 (Just t) isStrictBound
     (Nothing, Nothing, Just (e3', t)) -> eFromToDownByTyped r e1 e2 e3' (Just t) isStrictBound
     (Nothing, Nothing, Nothing)       -> eFromToDownByTyped r e1 e2 e3 Nothing isStrictBound
     _ -> errorMessage r ["A sequence enumeration may have at most one element type annotation."]

@@ -565,9 +565,11 @@ data Error  = MultipleSignatures PName [Located (Schema PName)]
               deriving (Show,Generic, NFData)
 
 instance Functor NoPatM where fmap = liftM
-instance Applicative NoPatM where pure = return; (<*>) = ap
+instance Applicative NoPatM where
+  pure x = M (pure x)
+  (<*>) = ap
 instance Monad NoPatM where
-  return x  = M (return x)
+  return    = pure
   M x >>= k = M (x >>= unM . k)
 
 -- | Pick a new name, to be used when desugaring patterns.

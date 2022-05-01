@@ -116,11 +116,11 @@ instance Functor NoIncM where
   fmap = liftM
 
 instance A.Applicative NoIncM where
-  pure = return
+  pure x = M (pure x)
   (<*>) = ap
 
 instance Monad NoIncM where
-  return x = M (return x)
+  return   = pure
   m >>= f  = M (unM m >>= unM . f)
 
 instance Fail.MonadFail NoIncM where

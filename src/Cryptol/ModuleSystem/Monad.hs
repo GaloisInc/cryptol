@@ -339,7 +339,7 @@ instance Monad m => Applicative (ModuleT m) where
 
 instance Monad m => Monad (ModuleT m) where
   {-# INLINE return #-}
-  return x      = ModuleT (return x)
+  return        = pure
 
   {-# INLINE (>>=) #-}
   m >>= f       = ModuleT (unModuleT m >>= unModuleT . f)

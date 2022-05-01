@@ -550,7 +550,7 @@ instance Monoid (ListEnv sym) where
     , leTypes  = mempty
     }
 
-  mappend l r = l <> r
+  mappend = (<>)
 
 toListEnv :: GenEvalEnv sym -> ListEnv sym
 toListEnv e =

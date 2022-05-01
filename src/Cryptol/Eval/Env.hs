@@ -48,7 +48,7 @@ instance Monoid (GenEvalEnv sym) where
     { envVars       = IntMap.empty
     , envTypes      = mempty
     }
-  mappend l r = l <> r
+  mappend = (<>)
 
 ppEnv :: Backend sym => sym -> PPOpts -> GenEvalEnv sym -> SEval sym Doc
 ppEnv sym opts env = brackets . fsep <$> mapM bind (IntMap.toList (envVars env))

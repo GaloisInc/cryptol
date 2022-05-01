@@ -259,7 +259,7 @@ and type variables that are in scope at any point.
 >     { envVars  = mempty
 >     , envTypes = mempty
 >     }
->   mappend l r = l <> r
+>   mappend = (<>)
 >
 > -- | Bind a variable in the evaluation environment.
 > bindVar :: (Name, E Value) -> Env -> Env

@@ -146,7 +146,7 @@ instance Semigroup IfaceDecls where
 
 instance Monoid IfaceDecls where
   mempty      = IfaceDecls Map.empty Map.empty Map.empty Map.empty Map.empty
-  mappend l r = l <> r
+  mappend     = (<>)
   mconcat ds  = IfaceDecls
     { ifTySyns   = Map.unions (map ifTySyns   ds)
     , ifNewtypes = Map.unions (map ifNewtypes ds)

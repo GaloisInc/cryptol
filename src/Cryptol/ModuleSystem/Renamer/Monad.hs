@@ -104,7 +104,7 @@ instance Applicative RenameM where
 
 instance Monad RenameM where
   {-# INLINE return #-}
-  return x      = RenameM (return x)
+  return        = pure
 
   {-# INLINE (>>=) #-}
   m >>= k       = RenameM (unRenameM m >>= unRenameM . k)

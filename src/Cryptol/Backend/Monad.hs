@@ -383,13 +383,13 @@ instance Functor Eval where
   {-# INLINE fmap #-}
 
 instance Applicative Eval where
-  pure  = return
+  pure  = Ready
   (<*>) = ap
   {-# INLINE pure #-}
   {-# INLINE (<*>) #-}
 
 instance Monad Eval where
-  return = Ready
+  return = pure
   (>>=)  = evalBind
   {-# INLINE return #-}
   {-# INLINE (>>=) #-}
