@@ -566,7 +566,7 @@ toListEnv e =
 --   locations.
 evalListEnv :: ListEnv sym -> Integer -> GenEvalEnv sym
 evalListEnv (ListEnv vm st tm) i =
-    let v = fmap (Right . ($i)) vm
+    let v = fmap (Right . ($ i)) vm
      in EvalEnv{ envVars = IntMap.union v st
                , envTypes = tm
                }
@@ -664,7 +664,7 @@ evalMatch sym (lsz, lenv) m = seq lsz $ case m of
       -- `leVars` elements of the comprehension environment into `leStatic` elements
       -- by selecting out the 0th element.
       Inf -> do
-        let allvars = IntMap.union (fmap (Right . ($0)) (leVars lenv)) (leStatic lenv)
+        let allvars = IntMap.union (fmap (Right . ($ 0)) (leVars lenv)) (leStatic lenv)
         let lenv' = lenv { leVars   = IntMap.empty
                          , leStatic = allvars
                          }

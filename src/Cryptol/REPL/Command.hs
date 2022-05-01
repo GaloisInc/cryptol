@@ -1255,7 +1255,7 @@ helpCmd cmd
   noInfo nameEnv name =
     case M.nameInfo name of
       M.Declared m _ ->
-                      rPrint $runDoc nameEnv ("Name defined in module" <+> pp m)
+                      rPrint $ runDoc nameEnv ("Name defined in module" <+> pp m)
       M.Parameter  -> rPutStrLn "// No documentation is available."
 
 
@@ -1339,7 +1339,7 @@ helpCmd cmd
          return $
            do rPutStrLn ""
 
-              let property 
+              let property
                     | P.PragmaProperty `elem` ifDeclPragmas = [text "property"]
                     | otherwise                             = []
               rPrint $ runDoc nameEnv
