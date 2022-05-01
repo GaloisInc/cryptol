@@ -17,6 +17,8 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE OverloadedStrings #-}
+-- See Note [-Wincomplete-uni-patterns and irrefutable patterns] in Cryptol.TypeCheck.TypePat
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 module Cryptol.ModuleSystem.NamingEnv where
 
 import Data.List (nub)

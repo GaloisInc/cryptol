@@ -294,8 +294,10 @@ keyExpansionWords nk key = genericTake (4*(nk+7)) keys
 
          subWordRcon :: Word32 -> GF28 -> Word32
          subWordRcon w rc = fromBytes [a `xor` rc, b, c, d]
-            where [a, b, c, d] = map sbox $ toBytes w
-
+            where (a, b, c, d) =
+                    case map sbox $ toBytes w of
+                      [a', b', c', d'] -> (a', b', c', d')
+                      bs -> error $ "Unexpected list length in keyExpansionWords: " ++ show (length bs)
 
 -- | Definition of round-constants, as specified in Section 5.2 of the AES standard.
 --   We only need up to the 11th value for AES-128, and fewer than that for AES-192

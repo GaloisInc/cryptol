@@ -1,6 +1,8 @@
 {-# Language FlexibleInstances, DeriveGeneric, DeriveAnyClass #-}
 {-# Language OverloadedStrings #-}
 {-# Language Safe #-}
+-- See Note [-Wincomplete-uni-patterns and irrefutable patterns] in Cryptol.TypeCheck.TypePat
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 module Cryptol.TypeCheck.Error where
 
 import qualified Data.IntMap as IntMap
@@ -504,7 +506,9 @@ explainUnsolvable names gs =
     case tNoUser (goal g) of
       TCon (PC pc) ts ->
         let tys = [ backticks (ppWithNames names t) | t <- ts ]
-            doc1 : _ = tys
+            doc1 = case tys of
+                     (doc1' : _) -> doc1'
+                     [] -> error "explainUnsolvable: Expected TCon to have at least one argument"
             custom msg = hang msg
                             2 (text "arising from" $$
                                pp (goalSource g)   $$
@@ -570,7 +574,7 @@ explainUnsolvable names gs =
 
           PValidFloat ->
             case ts of
-              ~[e,p] -> 
+              ~[e,p] ->
                 custom (hang "Unsupported floating point parameters:"
                            2 ("exponent =" <+> ppWithNames names e $$
                               "precision =" <+> ppWithNames names p))

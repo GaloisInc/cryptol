@@ -1,3 +1,5 @@
+-- See Note [-Wincomplete-uni-patterns and irrefutable patterns]
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 module Cryptol.TypeCheck.TypePat
   ( aInf, aNat, aNat'
 
@@ -193,4 +195,26 @@ anError k = \a -> case tNoUser a of
                     _                                     -> mzero
 
 
+{-
+Note [-Wincomplete-uni-patterns and irrefutable patterns]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Various parts of Cryptol use irrefutable patterns in functions that assume that
+their arguments have particular shapes. For example, the `ar1 ~[a] = a`
+function in this module uses an irrefutable pattern because it assumes the
+invariant that the argument list will have exactly one element. This lets ar1
+be slightly lazier when evaluated.
 
+Unfortunately, this use of irrefutable patterns is at odds with the
+-Wincomplete-uni-patterns warning. At present, -Wincomplete-uni-patterns will
+produce a warning for any irrefutable pattern that does not cover all possible
+data constructors. While we could rewrite functions like `ar1` to explicitly
+provide a fall-through case, that would change its strictness properties. As
+a result, we simply disable -Wincomplete-uni-patterns warnings in each part
+of Cryptol that uses irrefutable patterns.
+
+Arguably, -Wincomplete-uni-patterns shouldn't be producing warnings for
+irrefutable patterns at all. GHC issue #14800
+(https://gitlab.haskell.org/ghc/ghc/-/issues/14800) proposes this idea.
+If that issue is fixed in the future, we may want to reconsider whether we want
+to disable -Wincomplete-uni-patterns.
+-}

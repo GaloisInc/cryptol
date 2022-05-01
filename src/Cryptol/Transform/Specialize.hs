@@ -1,3 +1,6 @@
+-- See Note [-Wincomplete-uni-patterns and irrefutable patterns] in Cryptol.TypeCheck.TypePat
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+
 -- |
 -- Module      :  Cryptol.Transform.Specialize
 -- Copyright   :  (c) 2013-2016 Galois, Inc.
