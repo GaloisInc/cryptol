@@ -1,8 +1,8 @@
 diff --git a/configure.ac b/configure.ac
-index d1462db837..55053cefe1 100644
+index 6eac557b93..fd87983730 100644
 --- a/configure.ac
 +++ b/configure.ac
-@@ -918,7 +918,7 @@ dnl    off_t, because it will affect the result of that test.
+@@ -922,7 +922,7 @@ dnl    off_t, because it will affect the result of that test.
  AC_SYS_LARGEFILE
  
  dnl ** check for specific header (.h) files that we are interested in
@@ -11,8 +11,8 @@ index d1462db837..55053cefe1 100644
  
  dnl sys/cpuset.h needs sys/param.h to be included first on FreeBSD 9.1; #7708
  AC_CHECK_HEADERS([sys/cpuset.h], [], [],
-@@ -1174,10 +1174,6 @@ AC_TRY_LINK(
-     AC_MSG_RESULT(no)
+@@ -1230,10 +1230,6 @@ AC_LINK_IFELSE([
+   AC_MSG_RESULT(no)
  )
  
 -dnl ** check for eventfd which is needed by the I/O manager
@@ -23,11 +23,11 @@ index d1462db837..55053cefe1 100644
  AC_MSG_CHECKING(for __thread support)
  AC_COMPILE_IFELSE(
 diff --git a/libraries/base/configure.ac b/libraries/base/configure.ac
-index d34224acc7..a67bdef684 100644
+index 716e46cc05..694bf6aa81 100644
 --- a/libraries/base/configure.ac
 +++ b/libraries/base/configure.ac
-@@ -30,7 +30,7 @@ dnl ** check for full ANSI header (.h) files
- AC_HEADER_STDC
+@@ -23,7 +23,7 @@ AC_MSG_RESULT($WINDOWS)
+ AC_CHECK_TYPES([long long])
  
  # check for specific header (.h) files that we are interested in
 -AC_CHECK_HEADERS([ctype.h errno.h fcntl.h inttypes.h limits.h signal.h sys/file.h sys/resource.h sys/select.h sys/stat.h sys/syscall.h sys/time.h sys/timeb.h sys/timers.h sys/times.h sys/types.h sys/utsname.h sys/wait.h termios.h time.h unistd.h utime.h windows.h winsock.h langinfo.h poll.h sys/epoll.h sys/event.h sys/eventfd.h sys/socket.h])
@@ -35,7 +35,7 @@ index d34224acc7..a67bdef684 100644
  
  # Enable large file support. Do this before testing the types ino_t, off_t, and
  # rlim_t, because it will affect the result of that test.
-@@ -47,7 +47,7 @@ AC_CHECK_FUNCS([clock_gettime])
+@@ -40,7 +40,7 @@ AC_CHECK_FUNCS([clock_gettime])
  AC_CHECK_FUNCS([getclock getrusage times])
  AC_CHECK_FUNCS([_chsize ftruncate])
  
