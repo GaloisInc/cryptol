@@ -259,7 +259,7 @@ and type variables that are in scope at any point.
 >     { envVars  = mempty
 >     , envTypes = mempty
 >     }
->   mappend l r = l <> r
+>   mappend = (<>)
 >
 > -- | Bind a variable in the evaluation environment.
 > bindVar :: (Name, E Value) -> Env -> Env
@@ -1556,17 +1556,17 @@ amount, but as lazy as possible in the list values.
 >
 > signedShiftRV :: Value
 > signedShiftRV =
->   VNumPoly $ \(Nat n) -> pure $
+>   VNumPoly $ \n -> pure $
 >   VPoly $ \ix -> pure $
 >   VFun $ \v -> pure $
 >   VFun $ \x ->
 >   do amt <- cryToInteger ix x
->      pure $ generateV (Nat n) $ \i ->
+>      pure $ generateV n $ \i ->
 >        do vs <- fromVList <$> v
 >           if i < amt then
->             indexFront (Nat n) vs 0
+>             indexFront n vs 0
 >           else
->             indexFront (Nat n) vs (i - amt)
+>             indexFront n vs (i - amt)
 
 Indexing
 --------

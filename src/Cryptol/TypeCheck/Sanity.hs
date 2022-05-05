@@ -472,11 +472,11 @@ instance Functor TcM where
   fmap = liftM
 
 instance A.Applicative TcM where
-  pure  = return
+  pure a = TcM (pure a)
   (<*>) = ap
 
 instance Monad TcM where
-  return a    = TcM (return a)
+  return      = pure
   TcM m >>= f = TcM (do a <- m
                         let TcM m1 = f a
                         m1)

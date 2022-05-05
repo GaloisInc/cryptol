@@ -84,9 +84,10 @@ import Cryptol.Parser.Position (emptyRange)
 import Cryptol.TypeCheck.AST hiding (splitTApp) -- XXX: just use this one
 import Cryptol.TypeCheck.TypeMap
 import Cryptol.Utils.Ident(Namespace(..))
-import Data.List(sortBy,groupBy)
+import Data.List(sortBy)
 import Data.Either(partitionEithers)
 import Data.Map (Map)
+import qualified Data.List.NonEmpty as NE
 import MonadLib hiding (mapM)
 
 import Prelude ()
@@ -224,7 +225,7 @@ rewDeclGroup rews dg =
     NonRecursive d -> NonRecursive <$> rewD rews d
     Recursive ds ->
       do let (leave,rew) = partitionEithers (map consider ds)
-             rewGroups   = groupBy sameTParams
+             rewGroups   = NE.groupBy sameTParams
                          $ sortBy compareTParams rew
          ds1 <- mapM (rewD rews) leave
          ds2 <- mapM rewSame rewGroups
@@ -243,10 +244,10 @@ rewDeclGroup rews dg =
                      else Left d
 
   rewSame ds =
-     do new <- forM ds $ \(d,_,_,e) ->
+     do new <- forM (NE.toList ds) $ \(d,_,_,e) ->
                  do x <- newName
                     return (d, x, e)
-        let (_,tps,props,_) : _ = ds
+        let (_,tps,props,_) NE.:| _ = ds
             tys            = map (TVar . tpVar) tps
             proofNum       = length props
             addRew (d,x,_) = insertTM (dName d,tys,proofNum) x

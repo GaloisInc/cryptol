@@ -14,6 +14,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
+-- See Note [-Wincomplete-uni-patterns and irrefutable patterns] in Cryptol.TypeCheck.TypePat
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 module Cryptol.REPL.Command (
     -- * Commands
     Command(..), CommandDescr(..), CommandBody(..), CommandExitCode(..)
@@ -1255,7 +1257,7 @@ helpCmd cmd
   noInfo nameEnv name =
     case M.nameInfo name of
       M.Declared m _ ->
-                      rPrint $runDoc nameEnv ("Name defined in module" <+> pp m)
+                      rPrint $ runDoc nameEnv ("Name defined in module" <+> pp m)
       M.Parameter  -> rPutStrLn "// No documentation is available."
 
 
@@ -1339,7 +1341,7 @@ helpCmd cmd
          return $
            do rPutStrLn ""
 
-              let property 
+              let property
                     | P.PragmaProperty `elem` ifDeclPragmas = [text "property"]
                     | otherwise                             = []
               rPrint $ runDoc nameEnv

@@ -293,11 +293,11 @@ instance Functor InferM where
   fmap f (IM m) = IM (fmap f m)
 
 instance A.Applicative InferM where
-  pure  = return
+  pure x = IM (pure x)
   (<*>) = ap
 
 instance Monad InferM where
-  return x      = IM (return x)
+  return        = pure
   IM m >>= f    = IM (m >>= unIM . f)
 
 instance Fail.MonadFail InferM where
@@ -968,11 +968,11 @@ instance Functor KindM where
   fmap f (KM m) = KM (fmap f m)
 
 instance A.Applicative KindM where
-  pure  = return
+  pure x = KM (pure x)
   (<*>) = ap
 
 instance Monad KindM where
-  return x      = KM (return x)
+  return        = pure
   KM m >>= k    = KM (m >>= unKM . k)
 
 instance Fail.MonadFail KindM where

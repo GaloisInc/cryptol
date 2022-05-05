@@ -420,7 +420,10 @@ processResults ProverCommand{..} ts results =
   mkTevs prims result = do
     -- It's a bit fragile, but the value of the safety predicate seems
     -- to always be the first value in the model assignment list.
-    let Right (_, (safetyCV : cvs)) = SBV.getModelAssignment result
+    let (safetyCV, cvs) =
+          case SBV.getModelAssignment result of
+            Right (_, (safetyCV' : cvs')) -> (safetyCV', cvs')
+            _ -> error "processResults: SBV.getModelAssignment failure"
         safety = SBV.cvToBool safetyCV
         (vs, _) = parseValues ts cvs
         mdl = computeModel prims ts vs

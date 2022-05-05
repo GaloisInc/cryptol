@@ -36,7 +36,7 @@ Implicit Layout Blocks
 
     - The implicit layout block is ended by:
           * a token than is less indented that the block, or
-          * `)`, `}`, `]`, or 
+          * `)`, `}`, `]`, or
           * ',' but only if there is an outer paren block
           block's column.
     - When an implicit layout block ends, we insert a "virtual end block"
@@ -141,7 +141,9 @@ layout isMod ts0
       curTok : go stack lastVirt False advanceTokens
 
     where
-    curTok : advanceTokens = tokens
+    (curTok, advanceTokens) = case tokens of
+                                (curTok' : advanceTokens') -> (curTok', advanceTokens')
+                                [] -> error "layout: Unexpected empty list of tokens"
     curTokTy               = tokenType (thing curTok)
     curRange               = srcRange curTok
     curLoc                 = from curRange

@@ -32,7 +32,7 @@ instance Monoid Deps where
                 , tyParams  = Set.empty
                 }
 
-  mappend d1 d2 = d1 <> d2
+  mappend = (<>)
 
   mconcat ds = Deps { valDeps   = Set.unions (map valDeps ds)
                     , tyDeps    = Set.unions (map tyDeps  ds)

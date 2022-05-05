@@ -21,6 +21,8 @@
 {-# LANGUAGE BangPatterns #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+-- See Note [-Wincomplete-uni-patterns and irrefutable patterns] in Cryptol.TypeCheck.TypePat
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 module Cryptol.Eval.Generic where
 
 import qualified Control.Exception as X
@@ -1864,7 +1866,9 @@ randomV sym ty seed =
       -- unpack the seed into four Word64s
       let mask64 = 0xFFFFFFFFFFFFFFFF
           unpack s = fromInteger (s .&. mask64) : unpack (s `shiftR` 64)
-          [a, b, c, d] = take 4 (unpack seed)
+          (a, b, c, d) = case take 4 (unpack seed) of
+                           [a', b', c', d'] -> (a', b', c', d')
+                           _ -> error "randomV: impossible (infinite seed is finite)"
       in fst $ gen 100 $ seedTFGen (a, b, c, d)
 
 --------------------------------------------------------------------------------

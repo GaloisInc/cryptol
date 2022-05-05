@@ -260,7 +260,7 @@ focusedEnv me =
                  Just c -> dynModContext me <> c
                  Nothing -> panic "focusedEnv"
                               [ "Focused modules not loaded: " ++ show (pp fm) ]
-  
+
 
 -- Loaded Modules --------------------------------------------------------------
 
@@ -318,7 +318,7 @@ instance Monoid LoadedModules where
   mempty = LoadedModules { lmLoadedModules = []
                          , lmLoadedParamModules = []
                          }
-  mappend l r = l <> r
+  mappend = (<>)
 
 data LoadedModule = LoadedModule
   { lmName              :: ModName
@@ -419,7 +419,7 @@ instance Monoid DynamicEnv where
     , deTySyns = mempty
     , deEnv    = mempty
     }
-  mappend de1 de2 = de1 <> de2
+  mappend = (<>)
 
 -- | Build 'IfaceDecls' that correspond to all of the bindings in the
 -- dynamic environment.
