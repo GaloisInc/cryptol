@@ -68,6 +68,11 @@ jobs:
             ghc-version: 9.0.2
           - os: windows-2019
             ghc-version: 9.2.2
+        include:
+          # We include one job from an older Ubuntu LTS release to increase our
+          # coverage of possible Linux configurations.
+          - os: ubuntu-18.04
+            ghc-version: 8.8.4
     outputs:
       test-lib-json: ${{ steps.test-lib.outputs.targets-json }}
     env:
@@ -97,9 +102,9 @@ jobs:
           path: |
             ${{ steps.setup-haskell.outputs.cabal-store }}
             dist-newstyle
-          key: ${{ env.CACHE_VERSION }}-cabal-${{ runner.os }}-${{ matrix.ghc-version }}-${{ hashFiles(format('cabal.GHC-{0}.config', matrix.ghc-version)) }}-${{ github.sha }}
+          key: ${{ env.CACHE_VERSION }}-cabal-${{ matrix.os }}-${{ matrix.ghc-version }}-${{ hashFiles(format('cabal.GHC-{0}.config', matrix.ghc-version)) }}-${{ github.sha }}
           restore-keys: |
-            ${{ env.CACHE_VERSION }}-cabal-${{ runner.os }}-${{ matrix.ghc-version }}-${{ hashFiles(format('cabal.GHC-{0}.config', matrix.ghc-version)) }}-
+            ${{ env.CACHE_VERSION }}-cabal-${{ matrix.os }}-${{ matrix.ghc-version }}-${{ hashFiles(format('cabal.GHC-{0}.config', matrix.ghc-version)) }}-
 
       - shell: bash
         run: .github/ci.sh install_system_deps
@@ -162,15 +167,19 @@ jobs:
 
       - shell: bash
         run: |
-          NAME="${{ needs.config.outputs.name }}-${{ runner.os }}-x86_64"
+          NAME="${{ needs.config.outputs.name }}-${{ matrix.os }}-x86_64"
           echo "NAME=$NAME" >> $GITHUB_ENV
           .github/ci.sh zip_dist $NAME
+        env:
+          OS_TAG: ${{ matrix.os }}
 
       - shell: bash
         run: |
-          NAME="${{ needs.config.outputs.name }}-${{ runner.os }}-x86_64"
+          NAME="${{ needs.config.outputs.name }}-${{ matrix.os }}-x86_64"
           echo "NAME=$NAME" >> $GITHUB_ENV
           .github/ci.sh zip_dist_with_solvers $NAME
+        env:
+          OS_TAG: ${{ matrix.os }}
 
       - if: needs.config.outputs.release == 'true'
         shell: bash
