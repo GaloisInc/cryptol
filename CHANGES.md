@@ -1,4 +1,4 @@
-# NEXT
+# 2.13.0
 
 ## Language changes
 
@@ -6,7 +6,7 @@
   a merge sort instead of an insertion sort. This improves the both
   asymptotic and observed performance on sorting tasks.
 
-## UI Improvements
+## UI improvements
 
 * "Type mismatch" errors now show a context giving more information
   about the location of the error.   The context is shown when the
@@ -16,6 +16,26 @@
   and the context will be `{ b : [ERROR] _ }` indicating that the
   error is in the length of the sequence of field `b`.
 
+## Bug fixes
+
+* The What4 backend now properly supports Boolector 3.2.2 or later.
+
+* Make error message locations more precise in some cases (issue #1299).
+
+* Make `:reload` behave as expected after loading a module with `:module`
+  (issue #1313).
+
+* Make `include` paths work as expected when nested within another `include`
+  (issue #1321).
+
+* Fix a panic that occurred when loading dependencies before `include`s are
+  resolved (issue #1330).
+
+* Closed issues #1098, #1280, and #1347.
+
+* Merged pull requests #1233, #1300, #1301, #1302, #1303, #1305, #1306, #1307,
+  #1308, #1311, #1312, #1317, #1319, #1323, #1326, #1331, #1333, #1336, #1337,
+  #1338, #1342, #1346, #1348, and #1349.
 
 # 2.12.0
 
@@ -62,7 +82,7 @@
   can be combined into a single line by separating them with `;`,
   which is necessary for stating a signature together with a
   definition, etc.
-  
+
 * There is a new `:set path` REPL option that provides an alternative to
   `CRYPTOLPATH` for controlling where to search for imported modules
   (issue #631).

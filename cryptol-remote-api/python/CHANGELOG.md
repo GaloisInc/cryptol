@@ -1,9 +1,11 @@
 # Revision history for `cryptol` Python package
 
 
-## 2.12.6 -- YYYY-MM-DD
+## 2.13.0 -- YYYY-MM-DD
 
-* NEW CHANGELOG ENTRIES SINCE 2.12.4 GO HERE
+* v2.13.0 release in tandem with the Cryptol 2.13.0 release. See the Cryptol
+  2.13.0 release notes for relevant Cryptol changes. No notable changes to the
+  RPC server or client since 2.12.4.
 
 ## 2.12.4 -- 2022-03-21
 
