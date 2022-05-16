@@ -20,7 +20,7 @@ env:
 
 jobs:
   config:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     outputs:
       name: ${{ steps.config.outputs.name }}
       version: ${{ steps.config.outputs.version }}
@@ -58,16 +58,21 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-20.04, macos-10.15, windows-2019]
         ghc-version: ["8.8.4", "8.10.7", "9.0.2", "9.2.2"]
         exclude:
           # https://gitlab.haskell.org/ghc/ghc/-/issues/18550
-          - os: windows-latest
+          - os: windows-2019
             ghc-version: 8.10.7
-          - os: windows-latest
+          - os: windows-2019
             ghc-version: 9.0.2
-          - os: windows-latest
+          - os: windows-2019
             ghc-version: 9.2.2
+        include:
+          # We include one job from an older Ubuntu LTS release to increase our
+          # coverage of possible Linux configurations.
+          - os: ubuntu-18.04
+            ghc-version: 8.8.4
     outputs:
       test-lib-json: ${{ steps.test-lib.outputs.targets-json }}
     env:
@@ -97,9 +102,9 @@ jobs:
           path: |
             ${{ steps.setup-haskell.outputs.cabal-store }}
             dist-newstyle
-          key: ${{ env.CACHE_VERSION }}-cabal-${{ runner.os }}-${{ matrix.ghc-version }}-${{ hashFiles(format('cabal.GHC-{0}.config', matrix.ghc-version)) }}-${{ github.sha }}
+          key: ${{ env.CACHE_VERSION }}-cabal-${{ matrix.os }}-${{ matrix.ghc-version }}-${{ hashFiles(format('cabal.GHC-{0}.config', matrix.ghc-version)) }}-${{ github.sha }}
           restore-keys: |
-            ${{ env.CACHE_VERSION }}-cabal-${{ runner.os }}-${{ matrix.ghc-version }}-${{ hashFiles(format('cabal.GHC-{0}.config', matrix.ghc-version)) }}-
+            ${{ env.CACHE_VERSION }}-cabal-${{ matrix.os }}-${{ matrix.ghc-version }}-${{ hashFiles(format('cabal.GHC-{0}.config', matrix.ghc-version)) }}-
 
       - shell: bash
         run: .github/ci.sh install_system_deps
@@ -162,15 +167,19 @@ jobs:
 
       - shell: bash
         run: |
-          NAME="${{ needs.config.outputs.name }}-${{ runner.os }}-x86_64"
+          NAME="${{ needs.config.outputs.name }}-${{ matrix.os }}-x86_64"
           echo "NAME=$NAME" >> $GITHUB_ENV
           .github/ci.sh zip_dist $NAME
+        env:
+          OS_TAG: ${{ matrix.os }}
 
       - shell: bash
         run: |
-          NAME="${{ needs.config.outputs.name }}-${{ runner.os }}-x86_64"
+          NAME="${{ needs.config.outputs.name }}-${{ matrix.os }}-x86_64"
           echo "NAME=$NAME" >> $GITHUB_ENV
           .github/ci.sh zip_dist_with_solvers $NAME
+        env:
+          OS_TAG: ${{ matrix.os }}
 
       - if: needs.config.outputs.release == 'true'
         shell: bash
@@ -223,20 +232,20 @@ jobs:
       matrix:
         suite: [test-lib]
         target: ${{ fromJson(needs.build.outputs.test-lib-json) }}
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-20.04, macos-10.15, windows-2019]
         continue-on-error: [false]
         include:
           - suite: rpc
             target: ''
-            os: ubuntu-latest
+            os: ubuntu-20.04
             continue-on-error: false
           #- suite: rpc
           #  target: ''
-          #  os: macos-latest
+          #  os: macos-10.05
           #  continue-on-error: false
           #- suite: rpc
           #  target: ''
-          #  os: windows-latest
+          #  os: windows-2019
           #  continue-on-error: true  # TODO: get Python client to work on Windows
     steps:
       - uses: actions/checkout@v2
@@ -301,7 +310,7 @@ jobs:
           cryptol-remote-api/run_rpc_tests.sh
 
   build-push-image:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     needs: [config]
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     strategy:

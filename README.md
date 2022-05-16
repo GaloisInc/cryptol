@@ -75,6 +75,7 @@ Cryptol builds and runs on various flavors of Linux, Mac OS X, and
 Windows. We regularly build and test it in the following environments:
 
 - macOS 10.15, 64-bit
+- Ubuntu 18.04, 64-bit
 - Ubuntu 20.04, 64-bit
 - Windows Server 2019, 64-bit
 
