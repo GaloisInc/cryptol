@@ -1,3 +1,4 @@
+{-# Language Trustworthy #-}
 module Cryptol.TypeCheck.Interface where
 
 import qualified Data.Map as Map
@@ -44,10 +45,14 @@ genModDefines m =
                   Just y  -> ifsDefines y `Set.union` nestedInSet (ifsNested y)
                   Nothing -> Set.empty -- must be signature or a functor
 
--- | Generate an Iface from a typechecked module.
 genIface :: ModuleG name -> IfaceG name
-genIface m = Iface
-  { ifNames = genIfaceNames m
+genIface m = genIfaceWithNames (genIfaceNames m) m
+
+-- | Generate an Iface from a typechecked module.
+genIfaceWithNames :: IfaceNames name -> ModuleG ignored -> IfaceG name
+genIfaceWithNames names m =
+  Iface
+  { ifNames = names
 
   , ifPublic      = IfaceDecls
     { ifTySyns    = tsPub
@@ -87,35 +92,24 @@ genIface m = Iface
 
   }
   where
+  pub = ifsPublic names
 
-  (tsPub,tsPriv) =
-      Map.partitionWithKey (\ qn _ -> qn `isExportedType` mExports m )
-                          (mTySyns m)
-  (ntPub,ntPriv) =
-      Map.partitionWithKey (\ qn _ -> qn `isExportedType` mExports m )
-                           (mNewtypes m)
+  isPub qn _ = qn `Set.member` pub
 
-  (atPub,atPriv) =
-    Map.partitionWithKey (\qn _ -> qn `isExportedType` mExports m)
-                         (mPrimTypes m)
+
+  (tsPub,tsPriv) = Map.partitionWithKey isPub (mTySyns m)
+  (ntPub,ntPriv) = Map.partitionWithKey isPub (mNewtypes m)
+  (atPub,atPriv) = Map.partitionWithKey isPub (mPrimTypes m)
 
   (dPub,dPriv) =
-      Map.partitionWithKey (\ qn _ -> qn `isExportedBind` mExports m)
+      Map.partitionWithKey isPub
       $ Map.fromList [ (qn,mkIfaceDecl d) | dg <- mDecls m
                                           , d  <- groupDecls dg
                                           , let qn = dName d
                                           ]
 
-  (mPub,mPriv) =
-      Map.partitionWithKey (\ qn _ -> isExported NSModule qn (mExports m))
-      $ mSubmodules m
-
-  (sPub,sPriv) =
-      Map.partitionWithKey (\ qn _ -> isExported NSSignature qn (mExports m))
-      $ mSignatures m
-
-  (fPub,fPriv) =
-      Map.partitionWithKey (\ qn _ -> isExported NSModule qn (mExports m))
-      $ (genIface <$> mFunctors m)
+  (mPub,mPriv) = Map.partitionWithKey isPub (mSubmodules m)
+  (sPub,sPriv) = Map.partitionWithKey isPub (mSignatures m)
+  (fPub,fPriv) = Map.partitionWithKey isPub (genIface <$> mFunctors m)
 
 

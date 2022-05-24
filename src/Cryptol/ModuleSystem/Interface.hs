@@ -74,7 +74,7 @@ ifModName :: Iface -> ModName
 ifModName = ifsName . ifNames
 
 data IfaceNames name = IfaceNames
-  { ifsName     :: name -- ^ Name of this submodule
+  { ifsName     :: name       -- ^ Name of this submodule
   , ifsNested   :: Set Name   -- ^ Things nested in this module
   , ifsDefines  :: Set Name   -- ^ Things defined in this module
   , ifsPublic   :: Set Name   -- ^ Subset of `ifsDefines` that is public
@@ -107,7 +107,7 @@ data IfaceModParam = IfaceModParam
   , ifmpParameters  :: IfaceParams
     {- ^ These are the actual parameters, not the ones in the signature
       For example if the same signature is used for multiple parameters
-      the `mpParameters` would all be different. -}
+      the `ifmpParameters` would all be different. -}
   } deriving (Show, Generic, NFData)
 
 -- | A bunch of module parameters.
@@ -130,7 +130,8 @@ isEmptyIfaceParams :: IfaceParams -> Bool
 isEmptyIfaceParams IfaceParams { .. } =
   Map.null ifParamTypes && null ifParamConstraints && Map.null ifParamFuns
 
-
+-- | Declarations in a module.  Note that this includes things from nested
+-- modules, but not things from nested functors, which are in `ifFunctors`.
 data IfaceDecls = IfaceDecls
   { ifTySyns        :: Map.Map Name IfaceTySyn
   , ifNewtypes      :: Map.Map Name IfaceNewtype

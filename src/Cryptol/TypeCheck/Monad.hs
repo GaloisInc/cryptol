@@ -46,7 +46,7 @@ import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Subst
-import           Cryptol.TypeCheck.Interface(genIface,genIfaceNames)
+import           Cryptol.TypeCheck.Interface(genIfaceWithNames,genIfaceNames)
 import           Cryptol.TypeCheck.Unify(mgu, runResult, UnificationError(..))
 import           Cryptol.TypeCheck.InferTypes
 import           Cryptol.TypeCheck.Error( Warning(..),Error(..)
@@ -737,24 +737,33 @@ lookupFunctor iname =
 Note that, in general, the interface may contain *more* than just the
 definitions in the module, however the `ifNames` should indicate which
 ones are part of the module.
-This returns Maybe becasuse the name may refer to a functor rather than module.
 -}
-lookupModule :: P.ImpName Name -> InferM (Maybe (If.IfaceG ()))
+lookupModule :: P.ImpName Name -> InferM (If.IfaceG ())
 lookupModule iname =
   case iname of
-    P.ImpTop m -> fmap snd <$> lookupTopModule m
+    P.ImpTop m -> snd . fromMb <$> lookupTopModule m
     P.ImpNested m ->
       do localMods <- getScope mSubmodules
          case Map.lookup m localMods of
            Just names ->
-             do iface <- genIface <$> getCurScope
-                pure (Just iface { If.ifNames = names { If.ifsName = () } })
+              do n <- genIfaceWithNames names <$> getCurScope
+                 pure (If.ifaceForgetName n)
 
            Nothing ->
              do mb <- lookupTopModule (nameTopModule m)
-                pure do iface <- snd <$> mb
-                        names <- Map.lookup m (If.ifModules (If.ifPublic iface))
-                        pure iface { If.ifNames = names { If.ifsName = () } }
+                pure (fromMb
+                         do iface <- snd <$> mb
+                            names <- Map.lookup m
+                                        (If.ifModules (If.ifPublic iface))
+                            pure iface
+                                   { If.ifNames = names { If.ifsName = () } })
+
+  where
+  fromMb mb = case mb of
+                Just a -> a
+                Nothing -> panic "lookupModule"
+                                  [ "Missing module", show iname ]
+
 
 
 

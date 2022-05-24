@@ -63,6 +63,7 @@ library
                        monadLib          >= 3.7.2,
                        parameterized-utils >= 2.0.2,
                        prettyprinter     >= 1.7.0,
+                       pretty-show,
                        process           >= 1.2,
                        sbv               >= 8.10 && < 8.17,
                        simple-smt        >= 0.9.7,

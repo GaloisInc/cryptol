@@ -285,6 +285,8 @@ data AbstractType = AbstractType
 
 --------------------------------------------------------------------------------
 
+instance HasKind AbstractType where
+  kindOf at = foldr (:->) (atKind at) (map kindOf (fst (atCtrs at)))
 
 instance HasKind TVar where
   kindOf (TVFree  _ k _ _) = k
