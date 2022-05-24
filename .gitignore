@@ -31,3 +31,10 @@ cryptol-2.*
 /bin
 /output
 /tests/regression/*.out
+
+# WiX-generated files
+allfiles.wixobj
+allfiles.wxs
+cryptol.msi
+cryptol.wixobj
+cryptol.wixpdb

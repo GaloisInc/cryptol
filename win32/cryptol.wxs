@@ -32,7 +32,7 @@
             <Shortcut Id="startmenuCryptol"
                       Name="Cryptol $(var.version)"
                       WorkingDirectory='INSTALLDIR'
-                      Target="[INSTALLDIR]\dist\bin\cryptol.exe"
+                      Target="[INSTALLDIR]\bin\cryptol.exe"
                       Icon="crypto.ico"
                       IconIndex="0" />
             <!-- <Shortcut Id="startmenuTutorial" -->
@@ -56,7 +56,7 @@
 
     <DirectoryRef Id="TARGETDIR">
       <Component Id="Path" Guid="4D7F78E6-DA16-4C1B-96C4-B33C87502C81">
-        <Environment Id="PATH" Name="PATH" Value="[INSTALLDIR]\dist\bin" Permanent="no" Part="last" Action="set" System="no" />
+        <Environment Id="PATH" Name="PATH" Value="[INSTALLDIR]\bin" Permanent="no" Part="last" Action="set" System="no" />
       </Component>
     </DirectoryRef>
 
