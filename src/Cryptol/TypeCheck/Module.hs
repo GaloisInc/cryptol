@@ -1,5 +1,4 @@
 {-# Language BlockArguments #-}
-{-# Language Trustworthy #-}
 module Cryptol.TypeCheck.Module where
 
 import Data.Map(Map)
@@ -7,15 +6,12 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Control.Monad(unless,forM_)
 
-import Cryptol.Utils.PP
-import Text.Show.Pretty(ppShow)
 
 import Cryptol.Utils.Panic(xxxTODO)
 import Cryptol.Utils.Ident(Ident,Namespace(..))
 import Cryptol.Parser.Position (Range,Located(..), thing)
 import qualified Cryptol.Parser.AST as P
 import Cryptol.ModuleSystem.Name(nameIdent)
-import Cryptol.ModuleSystem.Exports(exportedDecls)
 import Cryptol.ModuleSystem.Interface
           ( IfaceG(..), IfaceModParam(..), IfaceDecls(..), IfaceNames(..)
           , IfaceParams(..), IfaceDecl(..)
@@ -23,11 +19,9 @@ import Cryptol.ModuleSystem.Interface
           )
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Error
-import Cryptol.TypeCheck.Subst(listParamSubst,apSubst)
+import Cryptol.TypeCheck.Subst(Subst,listParamSubst,apSubst)
 import Cryptol.TypeCheck.Monad
 import Cryptol.IR.TraverseNames(mapNames, TraverseNames)
-
-import Debug.Trace
 
 doFunctorInst ::
   Located (P.ImpName Name)    {- ^ Functor being instantiation -} ->
@@ -82,24 +76,25 @@ checkArity r mf args =
                checkArgs done ps more
 
 
-checkArg :: (Range, IfaceModParam, IfaceG ()) -> InferM (Map Name Name)
+checkArg :: (Range, IfaceModParam, IfaceG ()) -> InferM (Subst, Map Name Name)
 checkArg (r,expect,actual) =
-  do traceM (ppShow actual)
-     tRen <- Map.fromList <$>
-                mapM (checkParamType r tyMap) (Map.toList (ifParamTypes params))
-     let renT :: TraverseNames t => t -> t
-         renT = mapNames \x -> Map.findWithDefault x x tRen
+  do tRens <- mapM (checkParamType r tyMap) (Map.toList (ifParamTypes params))
+     let renSu = listParamSubst (concat tRens)
 
      forM_ (ifParamConstraints params) \lc ->
-        inRange (srcRange lc) (newGoal CtModuleInstance (renT (thing lc)))
+        inRange (srcRange lc)
+                (newGoal CtModuleInstance (apSubst renSu (thing lc)))
 
      -- Available value names
-     let vMap = nameMapToIdentMap (renT . ifDeclSig) (ifDecls decls)
+     let fromD d = (ifDeclName d, ifDeclSig d)
+         vMap = nameMapToIdentMap fromD (ifDecls decls)
 
      vRen <- Map.fromList <$>
-                mapM (checkParamValue r vMap) (Map.toList (ifParamFuns params))
+                mapM (checkParamValue r vMap)
+                     [ (i, s { mvpType = apSubst renSu (mvpType s) })
+                     | (i,s) <- Map.toList (ifParamFuns params) ]
 
-     pure (Map.union tRen vRen)
+     pure (renSu, vRen)
 
 
 
@@ -112,37 +107,43 @@ checkArg (r,expect,actual) =
   decls      = filterIfaceDecls isLocal (ifPublic actual)
 
   -- Available type names
-  tyMap      = Map.unions [ nameMapToIdentMap kindOf (ifTySyns decls)
-                          , nameMapToIdentMap kindOf (ifNewtypes decls)
-                          , nameMapToIdentMap kindOf (ifAbstractTypes decls)
+  tyMap      = Map.unions [ nameMapToIdentMap fromTS      (ifTySyns decls)
+                          , nameMapToIdentMap fromNewtype (ifNewtypes decls)
+                          , nameMapToIdentMap fromPrimT   (ifAbstractTypes decls)
                           ]
 
-nameMapToIdentMap :: (a -> b) -> Map Name a -> Map Ident (Name,b)
+  fromTS ts      = (kindOf ts, tsDef ts)
+  fromNewtype nt = (kindOf nt, TNewtype nt [])
+  fromPrimT pt   = (kindOf pt, TCon (abstractTypeTC pt) [])
+
+
+nameMapToIdentMap :: (a -> b) -> Map Name a -> Map Ident b
 nameMapToIdentMap f m =
-  Map.fromList [ (nameIdent n, (n,f v)) | (n,v) <- Map.toList m ]
+  Map.fromList [ (nameIdent n, f v) | (n,v) <- Map.toList m ]
 
 
 
 
 checkParamType ::
   Range                 {- ^ Location for error reporting -} ->
-  Map Ident (Name,Kind) {- ^ Actual types -} ->
+  Map Ident (Kind,Type) {- ^ Actual types -} ->
   (Name,ModTParam)      {- ^ Type parameter -} ->
-  InferM (Name,Name)    {- ^ Mapping from parameter name to actual name -}
+  InferM [(TParam,Type)]  {- ^ Mapping from parameter name to actual type -}
 checkParamType r tyMap (name,mp) =
   let i       = nameIdent name
       expectK = mtpKind mp
+      pvar    = mtpParam mp
   in
   case Map.lookup i tyMap of
     Nothing ->
       do recordErrorLoc (Just r) (FunctorInstanceMissingName NSType i)
-         pure (name,name)
-    Just (actualName,actualK) ->
+         pure []
+    Just (actualK,actualT) ->
       do unless (expectK == actualK)
            (recordErrorLoc (Just r)
                            (KindMismatch (Just (TVFromModParam name))
                                                   expectK actualK))
-         pure (name, actualName)
+         pure [(pvar, actualT)]
 
 checkParamValue ::
   Range                   {- ^ Location for error reporting -} ->
@@ -157,7 +158,7 @@ checkParamValue r vMap (name,mp) =
          do recordErrorLoc (Just r) (FunctorInstanceMissingName NSValue i)
             pure (name,name)
        Just (actualName,actualT) ->
-         do unless (sameSchema expectT actualT)
+         do unless (sameSchema expectT actualT) $
               (recordErrorLoc (Just r) (SchemaMismatch i expectT actualT))
             pure (name,actualName)
 

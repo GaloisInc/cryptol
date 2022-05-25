@@ -49,6 +49,7 @@ data ModTParam = ModTParam
   } deriving (Show,Generic,NFData)
 
 
+-- | This is how module parameters appear in actual types.
 mtpParam :: ModTParam -> TParam
 mtpParam mtp = TParam { tpUnique = nameUnique (mtpName mtp)
                       , tpKind   = mtpKind mtp
