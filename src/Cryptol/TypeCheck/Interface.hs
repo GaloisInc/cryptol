@@ -4,12 +4,12 @@ import qualified Data.Map as Map
 import Data.Set(Set)
 import qualified Data.Set as Set
 
-import Cryptol.Utils.Ident(Namespace(..))
 import Cryptol.ModuleSystem.Interface
 import Cryptol.ModuleSystem.Exports(allExported)
 import Cryptol.TypeCheck.AST
 
 
+-- | Information about a declaration to be stored an in interface.
 mkIfaceDecl :: Decl -> IfaceDecl
 mkIfaceDecl d = IfaceDecl
   { ifDeclName    = dName d
@@ -20,19 +20,22 @@ mkIfaceDecl d = IfaceDecl
   , ifDeclDoc     = dDoc d
   }
 
+-- | Compute information about the names in a module.
 genIfaceNames :: ModuleG name -> IfaceNames name
 genIfaceNames m = IfaceNames
-  { ifsName = mName m
-  , ifsNested = mNested m
-  , ifsDefines = genModDefines m
-  , ifsPublic = allExported (mExports m)
+  { ifsName     = mName m
+  , ifsNested   = mNested m
+  , ifsDefines  = genModDefines m
+  , ifsPublic   = allExported (mExports m)
   }
 
+-- | Things defines by a module
 genModDefines :: ModuleG name -> Set Name
 genModDefines m =
   Set.unions
     [ Map.keysSet  (mTySyns m)
     , Map.keysSet  (mNewtypes m)
+    , Map.keysSet  (mPrimTypes m)
     , Set.fromList (map dName (concatMap groupDecls (mDecls m)))
     , Map.keysSet  (mSubmodules m)
     , Map.keysSet  (mFunctors m)
