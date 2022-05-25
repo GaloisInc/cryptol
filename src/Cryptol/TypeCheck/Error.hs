@@ -87,6 +87,10 @@ data Error    = KindMismatch (Maybe TypeSource) Kind Kind
               | TypeMismatch TypeSource Type Type
                 -- ^ Expected type, inferred type
 
+              | SchemaMismatch Ident Schema Schema
+                -- ^ Name of module parameter, expected scehema, actual schema.
+                -- This may happen when instantiating modules.
+
               | RecursiveType TypeSource Type Type
                 -- ^ Unification results in a recursive type
 
@@ -168,6 +172,7 @@ errorImportance err =
     KindMismatch {}                                  -> 10
     TyVarWithParams {}                               -> 9
     TypeMismatch {}                                  -> 8
+    SchemaMismatch {}                                -> 7
     RecursiveType {}                                 -> 7
     NotForAll {}                                     -> 6
     TypeVariableEscaped {}                           -> 5
@@ -230,7 +235,10 @@ instance TVars Error where
       TooManyTySynParams {}     -> err
       TooFewTyParams {}         -> err
       RecursiveTypeDecls {}     -> err
-      TypeMismatch src t1 t2    -> TypeMismatch src !$ (apSubst su t1) !$ (apSubst su t2)
+      TypeMismatch src t1 t2 ->
+        TypeMismatch src !$ (apSubst su t1) !$ (apSubst su t2)
+      SchemaMismatch i t1 t2  ->
+        SchemaMismatch i !$ (apSubst su t1) !$ (apSubst su t2)
       RecursiveType src t1 t2   -> RecursiveType src !$ (apSubst su t1) !$ (apSubst su t2)
       UnsolvedGoals gs          -> UnsolvedGoals !$ apSubst su gs
       UnsolvableGoals gs        -> UnsolvableGoals !$ apSubst su gs
@@ -271,6 +279,7 @@ instance FVS Error where
       TooFewTyParams {}         -> Set.empty
       RecursiveTypeDecls {}     -> Set.empty
       TypeMismatch _ t1 t2      -> fvs (t1,t2)
+      SchemaMismatch _ t1 t2    -> fvs (t1,t2)
       RecursiveType _ t1 t2     -> fvs (t1,t2)
       UnsolvedGoals gs          -> fvs gs
       UnsolvableGoals gs        -> fvs gs
@@ -381,6 +390,14 @@ instance PP (WithNames Error) where
           , "Inferred type:" <+> ppWithNames names t2
           ] ++ mismatchHint t1 t2
             ++ ["When checking" <+> pp src]
+
+      SchemaMismatch i t1 t2 ->
+          addTVarsDescsAfter names err $
+          nested ("Type mismatch in module parameter" <+> quotes (pp i)) $
+          vcat $
+            [ "Expected type:" <+> ppWithNames names t1
+            , "Actual type:"   <+> ppWithNames names t2
+            ]
 
       UnsolvableGoals gs -> explainUnsolvable names gs
 

@@ -23,6 +23,7 @@ import Cryptol.ModuleSystem.Interface
           )
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Error
+import Cryptol.TypeCheck.Subst(listParamSubst,apSubst)
 import Cryptol.TypeCheck.Monad
 import Cryptol.IR.TraverseNames(mapNames, TraverseNames)
 
@@ -37,8 +38,7 @@ doFunctorInst f as inst =
   do mf    <- lookupFunctor (thing f)
      argIs <- checkArity (srcRange f) mf as
      ren   <- mapM_ checkArg argIs
-
-     pure () -- xxxTODO "doFunctorInst"
+     pure ()
 
 
 -- | Validate a functor application, just checking the argument names
@@ -94,9 +94,12 @@ checkArg (r,expect,actual) =
         inRange (srcRange lc) (newGoal CtModuleInstance (renT (thing lc)))
 
      -- Available value names
-     let valMap = nameMapToIdentMap (renT . ifDeclSig) (ifDecls decls)
+     let vMap = nameMapToIdentMap (renT . ifDeclSig) (ifDecls decls)
 
-     pure mempty
+     vRen <- Map.fromList <$>
+                mapM (checkParamValue r vMap) (Map.toList (ifParamFuns params))
+
+     pure (Map.union tRen vRen)
 
 
 
@@ -113,6 +116,11 @@ checkArg (r,expect,actual) =
                           , nameMapToIdentMap kindOf (ifNewtypes decls)
                           , nameMapToIdentMap kindOf (ifAbstractTypes decls)
                           ]
+
+nameMapToIdentMap :: (a -> b) -> Map Name a -> Map Ident (Name,b)
+nameMapToIdentMap f m =
+  Map.fromList [ (nameIdent n, (n,f v)) | (n,v) <- Map.toList m ]
+
 
 
 
@@ -136,8 +144,41 @@ checkParamType r tyMap (name,mp) =
                                                   expectK actualK))
          pure (name, actualName)
 
-nameMapToIdentMap :: (a -> b) -> Map Name a -> Map Ident (Name,b)
-nameMapToIdentMap f m =
-  Map.fromList [ (nameIdent n, (n,f v)) | (n,v) <- Map.toList m ]
+checkParamValue ::
+  Range                   {- ^ Location for error reporting -} ->
+  Map Ident (Name,Schema) {- ^ Actual values -} ->
+  (Name, ModVParam)       {- ^ The parameter we are checking -} ->
+  InferM (Name,Name)      {- ^ Mapping from parameter name to actual names -}
+checkParamValue r vMap (name,mp) =
+  let i        = nameIdent name
+      expectT  = mvpType mp
+  in case Map.lookup i vMap of
+       Nothing ->
+         do recordErrorLoc (Just r) (FunctorInstanceMissingName NSValue i)
+            pure (name,name)
+       Just (actualName,actualT) ->
+         do unless (sameSchema expectT actualT)
+              (recordErrorLoc (Just r) (SchemaMismatch i expectT actualT))
+            pure (name,actualName)
+
+{- | Compare two schemas for equality.  We are quite strict here because
+module instantiation is done by name (e.g., think linking).  As a result,
+the types need to match precisely, otherwise the call sites won't work.
+
+Some future ideas for quality of life improvements:
+  * compute an "adaptor" module that is derived from an exisiting instantitiation
+    module and automatically adjust the time.
+  * change the translation so that instantitation does not simply change names
+    but allows replacing them with expressions, which would require careful
+    rewrites at the call sites; this amounts to "inlining" the adaptor module
+    from the first bullet.
+-}
+sameSchema :: Schema -> Schema -> Bool
+sameSchema t1 t2 = map kindOf as == map kindOf bs
+                && apSubst su (sProps t1, sType t1) == (sProps t2, sType t2)
+  where
+  as = sVars t1
+  bs = sVars t2
+  su = listParamSubst [ (a, TVar (TVBound b)) | (a,b) <- zip as bs ]
 
 
