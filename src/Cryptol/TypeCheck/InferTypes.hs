@@ -220,7 +220,7 @@ data ConstraintSource
   | CtPartialTypeFun Name -- ^ Use of a partial type function.
   | CtImprovement
   | CtPattern TypeSource  -- ^ Constraints arising from type-checking patterns
-  | CtModuleInstance ModName -- ^ Instantiating a parametrized module
+  | CtModuleInstance      -- ^ Instantiating a parametrized module
     deriving (Show, Generic, NFData)
 
 selSrc :: Selector -> TypeSource
@@ -247,7 +247,7 @@ instance TVars ConstraintSource where
       CtPartialTypeFun _ -> src
       CtImprovement    -> src
       CtPattern _      -> src
-      CtModuleInstance _ -> src
+      CtModuleInstance -> src
 
 
 instance FVS Goal where
@@ -353,7 +353,7 @@ instance PP ConstraintSource where
       CtPartialTypeFun f -> "use of partial type function" <+> pp f
       CtImprovement   -> "examination of collected goals"
       CtPattern ad    -> "checking a pattern:" <+> pp ad
-      CtModuleInstance n -> "module instantiation" <+> pp n
+      CtModuleInstance -> "module instantiation"
 
 ppUse :: Expr -> Doc
 ppUse expr =

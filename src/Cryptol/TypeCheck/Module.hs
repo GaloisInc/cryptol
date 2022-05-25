@@ -18,12 +18,13 @@ import Cryptol.ModuleSystem.Name(nameIdent)
 import Cryptol.ModuleSystem.Exports(exportedDecls)
 import Cryptol.ModuleSystem.Interface
           ( IfaceG(..), IfaceModParam(..), IfaceDecls(..), IfaceNames(..)
-          , IfaceParams(..)
+          , IfaceParams(..), IfaceDecl(..)
           , filterIfaceDecls
           )
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Error
 import Cryptol.TypeCheck.Monad
+import Cryptol.IR.TraverseNames(mapNames, TraverseNames)
 
 import Debug.Trace
 
@@ -84,8 +85,21 @@ checkArity r mf args =
 checkArg :: (Range, IfaceModParam, IfaceG ()) -> InferM (Map Name Name)
 checkArg (r,expect,actual) =
   do traceM (ppShow actual)
-     tys <- mapM (checkParamType r tyMap) (Map.toList (ifParamTypes params))
-     pure (Map.fromList tys)
+     tRen <- Map.fromList <$>
+                mapM (checkParamType r tyMap) (Map.toList (ifParamTypes params))
+     let renT :: TraverseNames t => t -> t
+         renT = mapNames \x -> Map.findWithDefault x x tRen
+
+     forM_ (ifParamConstraints params) \lc ->
+        inRange (srcRange lc) (newGoal CtModuleInstance (renT (thing lc)))
+
+     -- Available value names
+     let valMap = nameMapToIdentMap (renT . ifDeclSig) (ifDecls decls)
+
+     pure mempty
+
+
+
 
   where
   params = ifmpParameters expect
@@ -95,13 +109,12 @@ checkArg (r,expect,actual) =
   decls      = filterIfaceDecls isLocal (ifPublic actual)
 
   -- Available type names
-  tyMap      = Map.unions [ nameMapToIdentMap' kindOf (ifTySyns decls)
-                          , nameMapToIdentMap' kindOf (ifNewtypes decls)
-                          , nameMapToIdentMap' kindOf (ifAbstractTypes decls)
+  tyMap      = Map.unions [ nameMapToIdentMap kindOf (ifTySyns decls)
+                          , nameMapToIdentMap kindOf (ifNewtypes decls)
+                          , nameMapToIdentMap kindOf (ifAbstractTypes decls)
                           ]
 
-  -- Available value names
-  valMap     = nameMapToIdentMap (ifDecls decls)
+
 
 checkParamType ::
   Range                 {- ^ Location for error reporting -} ->
@@ -123,11 +136,8 @@ checkParamType r tyMap (name,mp) =
                                                   expectK actualK))
          pure (name, actualName)
 
-nameMapToIdentMap :: Map Name a -> Map Ident Name
-nameMapToIdentMap m = Map.fromList [ (nameIdent n, n) | n <- Map.keys m ]
-
-nameMapToIdentMap' :: (a -> b) -> Map Name a -> Map Ident (Name,b)
-nameMapToIdentMap' f m =
+nameMapToIdentMap :: (a -> b) -> Map Name a -> Map Ident (Name,b)
+nameMapToIdentMap f m =
   Map.fromList [ (nameIdent n, (n,f v)) | (n,v) <- Map.toList m ]
 
 

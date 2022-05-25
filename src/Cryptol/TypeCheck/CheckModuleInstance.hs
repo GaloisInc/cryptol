@@ -36,7 +36,7 @@ checkModuleInstance func inst = undefined
      (ren, ctrs, m) <- instantiateModule func (mName inst) tMap vMap
      let toG p = Goal { goal = thing p
                       , goalRange = srcRange p
-                      , goalSource = CtModuleInstance (mName inst)
+                      , goalSource = CtModuleInstance
                       }
      addGoals (map toG ctrs)
      return ( ren
