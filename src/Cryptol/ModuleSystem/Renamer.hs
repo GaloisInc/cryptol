@@ -223,7 +223,7 @@ renameModule' mname m =
   setCurMod
     case mname of
       ImpTop r    -> TopModule r
-      ImpNested r -> nameModPath r
+      ImpNested r -> Nested (nameModPath r) (nameIdent r)
 
   do resolved <- lookupResolved mname
      let env = rmodDefines resolved
