@@ -1084,7 +1084,7 @@ checkTopDecls = mapM_ checkTopDecl
                 proveModuleTopLevel
                 endSubmodule
 
-           P.FunctorInstance f as inst -> doFunctorInst f as inst
+           P.FunctorInstance f as inst -> doFunctorInst (P.mName m) f as inst
 
         where P.NestedModule m = P.tlValue tl
 

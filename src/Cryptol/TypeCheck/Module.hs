@@ -1,5 +1,6 @@
 {-# Language BlockArguments #-}
-module Cryptol.TypeCheck.Module where
+{-# Language Trustworthy #-}
+module Cryptol.TypeCheck.Module (doFunctorInst) where
 
 import Data.Map(Map)
 import qualified Data.Map as Map
@@ -24,14 +25,16 @@ import Cryptol.TypeCheck.Monad
 import Cryptol.IR.TraverseNames(mapNames, TraverseNames)
 
 doFunctorInst ::
+  Located Name                {- ^ Name for the new module -} ->
   Located (P.ImpName Name)    {- ^ Functor being instantiation -} ->
   P.ModuleInstanceArgs Name   {- ^ Instance arguments -} ->
   Map Name Name               {- ^ Basic instantiation -} ->
   InferM ()
-doFunctorInst f as inst =
+doFunctorInst m f as inst =
   do mf    <- lookupFunctor (thing f)
      argIs <- checkArity (srcRange f) mf as
-     ren   <- mapM_ checkArg argIs
+     (tySus,valRens) <- unzip <$> mapM checkArg argIs
+
      pure ()
 
 
@@ -81,9 +84,11 @@ checkArg (r,expect,actual) =
   do tRens <- mapM (checkParamType r tyMap) (Map.toList (ifParamTypes params))
      let renSu = listParamSubst (concat tRens)
 
-     forM_ (ifParamConstraints params) \lc ->
-        inRange (srcRange lc)
-                (newGoal CtModuleInstance (apSubst renSu (thing lc)))
+     addGoals [ Goal
+                  { goalSource = CtModuleInstance
+                  , goalRange  = r -- location in signature: srcRange lc
+                  , goal       = apSubst renSu (thing lc)
+                  } | lc <- ifParamConstraints params ]
 
      -- Available value names
      let fromD d = (ifDeclName d, ifDeclSig d)
