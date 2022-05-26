@@ -13,6 +13,7 @@ module Cryptol.TypeCheck.TypePat
 
   , aTVar
   , aFreeTVar
+  , anAbstractType
   , aBit
   , aSeq
   , aWord
@@ -121,6 +122,11 @@ aTVar :: Pat Type TVar
 aTVar = \a -> case tNoUser a of
                 TVar x -> return x
                 _      -> mzero
+
+anAbstractType :: Pat Type UserTC
+anAbstractType = \a -> case tNoUser a of
+                         TCon (TC (TCAbstract ut)) [] -> pure ut
+                         _                            -> mzero
 
 aFreeTVar :: Pat Type TVar
 aFreeTVar t =

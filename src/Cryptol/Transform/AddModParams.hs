@@ -44,7 +44,8 @@ to modify the whole instantiation of `f` : f`{as} (<>...)
 
 
 addModParams :: Module -> Either [Name] Module
-addModParams m =
+addModParams m = Left []
+{-
   case getParams m of
     Left errs -> Left errs
     Right ps ->
@@ -311,4 +312,4 @@ instance Inst Newtype where
                   , ntFields = fmap (inst ps) (ntFields nt)
                   }
 
-
+-}

@@ -27,7 +27,7 @@ import           Cryptol.TypeCheck.PP
 import           Cryptol.TypeCheck.Subst
 import           Cryptol.TypeCheck.TypePat
 import           Cryptol.TypeCheck.SimpType(tMax)
-import           Cryptol.Utils.Ident (ModName, PrimIdent(..), preludeName)
+import           Cryptol.Utils.Ident (PrimIdent(..), preludeName)
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.Misc(anyJust)
 

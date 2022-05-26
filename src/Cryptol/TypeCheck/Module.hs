@@ -20,7 +20,7 @@ import Cryptol.ModuleSystem.Interface
           )
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Error
-import Cryptol.TypeCheck.Subst(Subst,listParamSubst,apSubst)
+import Cryptol.TypeCheck.Subst(Subst,abstractSubst,listParamSubst,apSubst)
 import Cryptol.TypeCheck.Monad
 import Cryptol.IR.TraverseNames(mapNames, TraverseNames)
 
@@ -82,7 +82,7 @@ checkArity r mf args =
 checkArg :: (Range, IfaceModParam, IfaceG ()) -> InferM (Subst, Map Name Name)
 checkArg (r,expect,actual) =
   do tRens <- mapM (checkParamType r tyMap) (Map.toList (ifParamTypes params))
-     let renSu = listParamSubst (concat tRens)
+     let renSu = abstractSubst (concat tRens)
 
      addGoals [ Goal
                   { goalSource = CtModuleInstance
@@ -133,11 +133,10 @@ checkParamType ::
   Range                 {- ^ Location for error reporting -} ->
   Map Ident (Kind,Type) {- ^ Actual types -} ->
   (Name,ModTParam)      {- ^ Type parameter -} ->
-  InferM [(TParam,Type)]  {- ^ Mapping from parameter name to actual type -}
+  InferM [(Name,Type)]  {- ^ Mapping from parameter name to actual type -}
 checkParamType r tyMap (name,mp) =
   let i       = nameIdent name
       expectK = mtpKind mp
-      pvar    = mtpParam mp
   in
   case Map.lookup i tyMap of
     Nothing ->
@@ -148,7 +147,7 @@ checkParamType r tyMap (name,mp) =
            (recordErrorLoc (Just r)
                            (KindMismatch (Just (TVFromModParam name))
                                                   expectK actualK))
-         pure [(pvar, actualT)]
+         pure [(name, actualT)]
 
 checkParamValue ::
   Range                   {- ^ Location for error reporting -} ->

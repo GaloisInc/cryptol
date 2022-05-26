@@ -5,7 +5,6 @@ import Data.Set(Set)
 import qualified Data.Set as Set
 import Data.Functor.Identity
 
-import Cryptol.ModuleSystem.Name(nameUnique)
 import Cryptol.Utils.RecordMap(traverseRecordMap)
 import Cryptol.Parser.Position(Located(..))
 import Cryptol.TypeCheck.AST
@@ -64,7 +63,7 @@ instance TraverseNames Expr where
                                  <*> traverseNamesIP mss
 
       EVar x            -> EVar <$> traverseNamesIP x
-      ETAbs tp e        -> ETAbs <$> traverseNamesIP tp <*> traverseNamesIP e
+      ETAbs tp e        -> ETAbs tp <$> traverseNamesIP e
       ETApp e t         -> ETApp <$> traverseNamesIP e <*> traverseNamesIP t
       EApp e1 e2        -> EApp <$> traverseNamesIP e1 <*> traverseNamesIP e2
       EAbs x t e        -> EAbs <$> traverseNamesIP x
@@ -107,25 +106,12 @@ instance TraverseNames DeclDef where
 
 instance TraverseNames Schema where
   traverseNamesIP (Forall as ps t) =
-    Forall <$> traverseNamesIP as
-           <*> traverseNamesIP ps
-           <*> traverseNamesIP t
-
-instance TraverseNames TParam where
-  traverseNamesIP tp = mk <$> traverseNamesIP (tpFlav tp)
-                          <*> traverseNamesIP (tpInfo tp)
-    -- XXX: module parameters should probably be represented directly
-    -- as (abstract) user-defined types, rather than type variables.
-    where mk f i = case f of
-                     TPModParam x ->
-                      tp { tpUnique = nameUnique x, tpFlav = f, tpInfo = i }
-                     _ -> tp { tpFlav = f, tpInfo = i }
+    Forall as <$> traverseNamesIP ps <*> traverseNamesIP t
 
 
 instance TraverseNames TPFlavor where
   traverseNamesIP tpf =
     case tpf of
-      TPModParam x      -> TPModParam     <$> traverseNamesIP x
       TPUnifyVar        -> pure tpf
       TPSchemaParam x   -> TPSchemaParam  <$> traverseNamesIP x
       TPTySynParam x    -> TPTySynParam   <$> traverseNamesIP x
@@ -194,12 +180,12 @@ instance TraverseNames UserTC where
 instance TraverseNames TVar where
   traverseNamesIP tvar =
     case tvar of
-      TVFree x k ys i -> TVFree x k <$> traverseNamesIP ys <*> traverseNamesIP i
-      TVBound x       -> TVBound <$> traverseNamesIP x
+      TVFree x k ys i -> TVFree x k ys <$> traverseNamesIP i
+      TVBound x       -> pure (TVBound x)
 
 instance TraverseNames Newtype where
   traverseNamesIP nt = mk <$> traverseNamesIP (ntName nt)
-                          <*> traverseNamesIP (ntParams nt)
+                          <*> pure (ntParams nt)
                           <*> traverseNamesIP (ntConstraints nt)
                           <*> traverseRecordMap (\_ -> traverseNamesIP)
                                                 (ntFields nt)

@@ -14,6 +14,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE Safe #-}
 module Cryptol.TypeCheck.Subst
   ( Subst
@@ -26,6 +27,7 @@ module Cryptol.TypeCheck.Subst
   , defaultingSubst
   , listSubst
   , listParamSubst
+  , abstractSubst
   , isEmptySubst
   , FVS(..)
   , apSubstMaybe
@@ -43,7 +45,9 @@ import qualified Data.Map.Strict as Map
 import qualified Data.IntMap as IntMap
 import           Data.Set (Set)
 import qualified Data.Set as Set
+import           Control.Monad(guard)
 
+import Cryptol.ModuleSystem.Name(nameUnique)
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.TypeMap
@@ -74,6 +78,12 @@ import Cryptol.Utils.Misc (anyJust, anyJust2)
 
 data Subst = S { suFreeMap :: !(IntMap.IntMap (TVar, Type))
                , suBoundMap :: !(IntMap.IntMap (TVar, Type))
+               , suAbstractMap :: !(IntMap.IntMap (Name,Type))
+                 {- ^ Replaces abstract types with concrete ones.
+                 This is used to insantiate modules, and is quite
+                 separate from the other substitutions. We have it here
+                 so we can reuse other machinery, such as not rebuilding
+                 and simplifying types. -}
                , suDefaulting :: !Bool
                }
                   deriving Show
@@ -82,6 +92,7 @@ emptySubst :: Subst
 emptySubst =
   S { suFreeMap = IntMap.empty
     , suBoundMap = IntMap.empty
+    , suAbstractMap = IntMap.empty
     , suDefaulting = False
     }
 
@@ -108,15 +119,10 @@ singleSubst x t
 
 uncheckedSingleSubst :: TVar -> Type -> Subst
 uncheckedSingleSubst v@(TVFree i _ _tps _) t =
-  S { suFreeMap = IntMap.singleton i (v, t)
-    , suBoundMap = IntMap.empty
-    , suDefaulting = False
-    }
+  emptySubst { suFreeMap = IntMap.singleton i (v, t) }
+
 uncheckedSingleSubst v@(TVBound tp) t =
-  S { suFreeMap = IntMap.empty
-    , suBoundMap = IntMap.singleton (tpUnique tp) (v, t)
-    , suDefaulting = False
-    }
+  emptySubst { suBoundMap = IntMap.singleton (tpUnique tp) (v, t) }
 
 singleTParamSubst :: TParam -> Type -> Subst
 singleTParamSubst tp t = uncheckedSingleSubst (TVBound tp) t
@@ -130,11 +136,13 @@ s2 @@ s1
       s1{ suDefaulting = True }
 
 s2 @@ s1 =
-  S { suFreeMap = IntMap.map (fmap (apSubst s2)) (suFreeMap s1) `IntMap.union` suFreeMap s2
-    , suBoundMap = IntMap.map (fmap (apSubst s2)) (suBoundMap s1) `IntMap.union` suBoundMap s2
-    , suDefaulting = suDefaulting s1 || suDefaulting s2
+  S { suFreeMap     = mkMap suFreeMap
+    , suBoundMap    = mkMap suBoundMap
+    , suAbstractMap = mkMap suAbstractMap
+    , suDefaulting  = suDefaulting s1 || suDefaulting s2
     }
-
+  where
+  mkMap f = IntMap.map (fmap (apSubst s2)) (f s1) `IntMap.union` f s2
 -- | A defaulting substitution maps all otherwise-unmapped free
 -- variables to a kind-appropriate default type (@Bit@ for value types
 -- and @0@ for numeric types).
@@ -147,9 +155,9 @@ defaultingSubst s = s { suDefaulting = True }
 listSubst :: [(TVar, Type)] -> Subst
 listSubst xs
   | null xs   = emptySubst
-  | otherwise = S { suFreeMap = IntMap.fromList frees
-                  , suBoundMap = IntMap.fromList bounds
-                  , suDefaulting = False }
+  | otherwise = emptySubst { suFreeMap = IntMap.fromList frees
+                           , suBoundMap = IntMap.fromList bounds
+                           }
   where
     (frees, bounds) = partitionEithers (map classify xs)
     classify x =
@@ -163,16 +171,25 @@ listSubst xs
 listParamSubst :: [(TParam, Type)] -> Subst
 listParamSubst xs
   | null xs   = emptySubst
-  | otherwise = S { suFreeMap = IntMap.empty
-                  , suBoundMap = IntMap.fromList bounds
-                  , suDefaulting = False }
+  | otherwise = emptySubst { suBoundMap = IntMap.fromList bounds }
   where
     bounds = [ (tpUnique tp, (TVBound tp, t)) | (tp, t) <- xs ]
 
-isEmptySubst :: Subst -> Bool
-isEmptySubst su = IntMap.null (suFreeMap su) && IntMap.null (suBoundMap su)
+-- | Makes a substitution for abstract types out of a list.
+-- WARNING: We do not validate the list in any way, so the caller should
+-- ensure that we end up with a valid (e.g., idempotent) substitution.
+abstractSubst :: [(Name,Type)] -> Subst
+abstractSubst xs
+  | null xs = emptySubst
+  | otherwise = emptySubst { suAbstractMap = IntMap.fromList bounds }
+  where bounds = [ (nameUnique n, (n,t)) | (n,t) <- xs ]
 
--- Returns the empty set if this is a defaulting substitution
+isEmptySubst :: Subst -> Bool
+isEmptySubst su = IntMap.null (suFreeMap su) && IntMap.null (suBoundMap su) &&
+                  IntMap.null (suAbstractMap su) && not (suDefaulting su)
+
+-- | Returns the empty set if this is a defaulting substitution.
+-- Note that this ignores name subst.
 substBinds :: Subst -> Set TVar
 substBinds su
   | suDefaulting su = Set.empty
@@ -183,6 +200,12 @@ substToList s
   | suDefaulting s = panic "substToList" ["Defaulting substitution."]
   | otherwise = assocsSubst s
 
+substNameList :: Subst -> [(Name,Type)]
+substNameList s
+  | suDefaulting s = panic "substToNameList" ["Defaulting substitution."]
+  | otherwise = IntMap.elems (suAbstractMap s)
+
+-- | Ignores name substitutions
 assocsSubst :: Subst -> [(TVar, Type)]
 assocsSubst s = frees ++ bounds
   where
@@ -191,10 +214,15 @@ assocsSubst s = frees ++ bounds
 
 instance PP (WithNames Subst) where
   ppPrec _ (WithNames s mp)
-    | null els  = text "(empty substitution)"
-    | otherwise = text "Substitution:" $$ nest 2 (vcat (map pp1 els))
-    where pp1 (x,t) = ppWithNames mp x <+> text "=" <+> ppWithNames mp t
+    | null els && null nms = text "(empty substitution)"
+    | null els = hdr (map ppNm nms)
+    | null nms = hdr (map pp1 els)
+    | otherwise = hdr (map pp1 els ++ map ppNm nms) -- shouldn't really happen
+    where pp1 (x,t) = ppWithNames mp x <+> "=" <+> ppWithNames mp t
+          ppNm (x,t) = pp x <+> "=" <+> ppWithNames mp t
           els       = assocsSubst s
+          nms       = substNameList s
+          hdr docs  = text "Substitution:" $$ nest 2 (vcat docs)
 
 instance PP Subst where
   ppPrec n = ppWithNamesPrec IntMap.empty n
@@ -229,6 +257,11 @@ fmap' f xs = case traverse f' xs of Done y -> y
 apSubstMaybe :: Subst -> Type -> Maybe Type
 apSubstMaybe su ty =
   case ty of
+    TCon (TC (TCAbstract (UserTC nm k))) [] ->
+      do (_,t) <- IntMap.lookup (nameUnique nm) (suAbstractMap su)
+         guard (kindOf t == k)
+         pure t
+
     TCon t ts ->
       do ss <- anyJust (apSubstMaybe su) ts
          case t of

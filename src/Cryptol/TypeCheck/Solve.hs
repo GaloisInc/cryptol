@@ -275,11 +275,9 @@ proveImplication lnam as ps gs =
   do evars <- varsWithAsmps
      solver <- getSolver
 
-     extraAs <- (map mtpParam . Map.elems) <$> getParamTypes
      extra   <- map thing <$> getParamConstraints
 
-     (mbErr,su) <- io (proveImplicationIO solver lnam evars
-                            (extraAs ++ as) (extra ++ ps) gs)
+     (mbErr,su) <- io (proveImplicationIO solver lnam evars as (extra ++ ps) gs)
      case mbErr of
        Right ws  -> mapM_ recordWarning ws
        Left errs -> mapM_ recordError errs

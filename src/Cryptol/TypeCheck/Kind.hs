@@ -300,7 +300,7 @@ checkTUser x ts k =
 
 
   checkModuleParamUse a =
-    do let ty = tpVar (mtpParam a)
+    do let ty = mtpType a
        (ts1,k1) <- appTy ts (kindOf ty)
        case k of
          Just ks | ks /= k1 -> kRecordError $ KindMismatch Nothing ks k1
@@ -309,7 +309,7 @@ checkTUser x ts k =
        unless (null ts1) $
          panic "Kind.checkTUser.checkModuleParam" [ "Unexpected parameters" ]
 
-       return (TVar ty)
+       return ty
 
   checkBoundVarUse v =
     do unless (null ts) $ kRecordError TyVarWithParams

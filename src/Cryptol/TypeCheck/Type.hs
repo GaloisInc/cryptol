@@ -49,16 +49,11 @@ data ModTParam = ModTParam
   } deriving (Show,Generic,NFData)
 
 
--- | This is how module parameters appear in actual types.
-mtpParam :: ModTParam -> TParam
-mtpParam mtp = TParam { tpUnique = nameUnique (mtpName mtp)
-                      , tpKind   = mtpKind mtp
-                      , tpFlav   = TPModParam (mtpName mtp)
-                      , tpInfo   = desc
-                      }
-  where desc = TVarInfo { tvarDesc   = TVFromModParam (mtpName mtp)
-                        , tvarSource = nameLoc (mtpName mtp)
-                        }
+-- | The type corresponding to a module parameter
+mtpType :: ModTParam -> Type
+mtpType mtp = TCon tcon []
+  where tcon = TC (TCAbstract (UserTC (mtpName mtp) (mtpKind mtp)))
+
 
 -- | A value parameter of a module.
 data ModVParam = ModVParam
@@ -86,8 +81,7 @@ data TParam = TParam { tpUnique :: !Int       -- ^ Parameter identifier
                      }
               deriving (Generic, NFData, Show)
 
-data TPFlavor = TPModParam Name
-              | TPUnifyVar
+data TPFlavor = TPUnifyVar
               | TPSchemaParam Name
               | TPTySynParam Name
               | TPPropSynParam Name
@@ -117,15 +111,11 @@ propSynParam = TPPropSynParam
 newtypeParam :: Name -> TPFlavor
 newtypeParam = TPNewtypeParam
 
-modTyParam :: Name -> TPFlavor
-modTyParam = TPModParam
-
 
 tpfName :: TPFlavor -> Maybe Name
 tpfName f =
   case f of
     TPUnifyVar       -> Nothing
-    TPModParam x     -> Just x
     TPSchemaParam x  -> Just x
     TPTySynParam x   -> Just x
     TPPropSynParam x -> Just x
@@ -876,6 +866,34 @@ instance FVS Type where
         TRec fs     -> fvs (recordElements fs)
         TNewtype _nt ts -> fvs ts
 
+
+-- | Find the abstract types mentioned in a type.
+class FreeAbstract t where
+  freeAbstract :: t -> Set UserTC
+
+instance FreeAbstract a => FreeAbstract [a] where
+  freeAbstract = Set.unions . map freeAbstract
+
+instance (FreeAbstract a, FreeAbstract b) => FreeAbstract (a,b) where
+  freeAbstract (a,b) = Set.union (freeAbstract a) (freeAbstract b)
+
+instance FreeAbstract TCon where
+  freeAbstract tc =
+    case tc of
+      TC (TCAbstract ut) -> Set.singleton ut
+      _                  -> Set.empty
+
+instance FreeAbstract Type where
+  freeAbstract ty =
+    case ty of
+      TCon tc ts      -> freeAbstract (tc,ts)
+      TVar {}         -> Set.empty
+      TUser _ _ t     -> freeAbstract t
+      TRec fs         -> freeAbstract (recordElements fs)
+      TNewtype _nt ts -> freeAbstract ts
+
+
+
 instance FVS a => FVS (Maybe a) where
   fvs Nothing  = Set.empty
   fvs (Just x) = fvs x
@@ -1090,7 +1108,6 @@ instance PP (WithNames TVar) where
             TVBound x ->
               let declNm n = pp n <.> "`" <.> int (tpUnique x) in
               case tpFlav x of
-                TPModParam n     -> ppPrefixName n
                 TPUnifyVar       -> pickTVarName (tpKind x) (tvarDesc (tpInfo x)) (tpUnique x)
                 TPSchemaParam n  -> declNm n
                 TPTySynParam n   -> declNm n
