@@ -21,8 +21,9 @@ import Cryptol.ModuleSystem.Interface
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Error
 import Cryptol.TypeCheck.Subst(Subst,abstractSubst,listParamSubst,apSubst)
+import Cryptol.TypeCheck.Solve(proveImplication)
 import Cryptol.TypeCheck.Monad
-import Cryptol.IR.TraverseNames(mapNames, TraverseNames)
+import Cryptol.TypeCheck.Instantiate(instantiateWith)
 
 doFunctorInst ::
   Located Name                {- ^ Name for the new module -} ->
@@ -79,7 +80,7 @@ checkArity r mf args =
                checkArgs done ps more
 
 
-checkArg :: (Range, IfaceModParam, IfaceG ()) -> InferM (Subst, Map Name Name)
+checkArg :: (Range, IfaceModParam, IfaceG ()) -> InferM (Subst, Map Name Expr)
 checkArg (r,expect,actual) =
   do tRens <- mapM (checkParamType r tyMap) (Map.toList (ifParamTypes params))
      let renSu = abstractSubst (concat tRens)
@@ -94,7 +95,7 @@ checkArg (r,expect,actual) =
      let fromD d = (ifDeclName d, ifDeclSig d)
          vMap = nameMapToIdentMap fromD (ifDecls decls)
 
-     vRen <- Map.fromList <$>
+     vRen <- Map.fromList . concat <$>
                 mapM (checkParamValue r vMap)
                      [ (i, s { mvpType = apSubst renSu (mvpType s) })
                      | (i,s) <- Map.toList (ifParamFuns params) ]
@@ -129,6 +130,7 @@ nameMapToIdentMap f m =
 
 
 
+-- | Check a type parameter to a module.
 checkParamType ::
   Range                 {- ^ Location for error reporting -} ->
   Map Ident (Kind,Type) {- ^ Actual types -} ->
@@ -149,41 +151,71 @@ checkParamType r tyMap (name,mp) =
                                                   expectK actualK))
          pure [(name, actualT)]
 
+-- | Check a value parameter to a module.
 checkParamValue ::
   Range                   {- ^ Location for error reporting -} ->
   Map Ident (Name,Schema) {- ^ Actual values -} ->
   (Name, ModVParam)       {- ^ The parameter we are checking -} ->
-  InferM (Name,Name)      {- ^ Mapping from parameter name to actual names -}
+  InferM [(Name,Expr)]    {- ^ Mapping from parameter name to actual names -}
 checkParamValue r vMap (name,mp) =
   let i        = nameIdent name
       expectT  = mvpType mp
   in case Map.lookup i vMap of
        Nothing ->
          do recordErrorLoc (Just r) (FunctorInstanceMissingName NSValue i)
-            pure (name,name)
-       Just (actualName,actualT) ->
+            pure []
+       Just actual ->
+         do e <- mkParamDef r (name,expectT) actual
+            pure [(name,e)]
+{-
          do unless (sameSchema expectT actualT) $
               (recordErrorLoc (Just r) (SchemaMismatch i expectT actualT))
-            pure (name,actualName)
-
-{- | Compare two schemas for equality.  We are quite strict here because
-module instantiation is done by name (e.g., think linking).  As a result,
-the types need to match precisely, otherwise the call sites won't work.
-
-Some future ideas for quality of life improvements:
-  * compute an "adaptor" module that is derived from an exisiting instantitiation
-    module and automatically adjust the time.
-  * change the translation so that instantitation does not simply change names
-    but allows replacing them with expressions, which would require careful
-    rewrites at the call sites; this amounts to "inlining" the adaptor module
-    from the first bullet.
+            pure [(name,EVar actualName)]
 -}
-sameSchema :: Schema -> Schema -> Bool
-sameSchema t1 t2 = map kindOf as == map kindOf bs
-                && apSubst su (sProps t1, sType t1) == (sProps t2, sType t2)
-  where
-  as = sVars t1
-  bs = sVars t2
-  su = listParamSubst [ (a, TVar (TVBound b)) | (a,b) <- zip as bs ]
+
+
+{- | Make an "adaptor" that instantiates the paramter into the form expected
+by the functor.  If the actual type is:
+
+> {x} P => t
+
+and the provided type is:
+
+> f : {y} Q => s
+
+The result, if successful would be:
+
+  /\x \{P}. f @a {Q}
+
+To do this we need to find types `a` to instantiate `y`, and prove that:
+  {x} P => Q[a/y] /\ s = t
+-}
+
+mkParamDef ::
+  Range           {- ^ Location of instantiation for error reporting -} ->
+  (Name,Schema)   {- ^ Name and type of parameter -} ->
+  (Name,Schema)   {- ^ Name and type of actual argument -} ->
+  InferM Expr
+mkParamDef r (pname,wantedS) (arg,actualS) =
+  do (e,todo) <- collectGoals
+          $ withTParams (sVars wantedS)
+            do (e,t) <- instantiateWith pname(EVar arg) actualS []
+               props <- unify WithSource { twsType   = sType wantedS
+                                         , twsSource = TVFromModParam arg
+                                         , twsRange  = Just r
+                                         }
+                        t
+               newGoals CtModuleInstance props
+               pure e
+     su <- proveImplication (Just pname)
+                            (sVars wantedS)
+                            (sProps wantedS)
+                            todo
+     let res  = foldr ETAbs     res1            (sVars wantedS)
+         res1 = foldr EProofAbs (apSubst su e)  (sProps wantedS)
+
+     pure res
+
+
 
 
