@@ -46,7 +46,6 @@ module Cryptol.ModuleSystem.Name (
   , mkLocal
   , mkModParam
   , toParamInstName
-  , asParamName
   , paramModRecParam
 
     -- ** Unique Supply
@@ -240,9 +239,6 @@ toParamInstName n =
                     og { ogModule = apPathRoot paramInstModName (ogModule og) }
         }
     _ -> n
-
-asParamName :: Name -> Name
-asParamName n = n { nInfo = LocalName (nameNamespace n) (nameIdent n) }
 
 
 asOrigName :: Name -> Maybe OrigName

@@ -1,5 +1,4 @@
-{-# Language BlockArguments #-}
-{-# Language Trustworthy #-}
+{-# Language BlockArguments, ImplicitParams #-}
 module Cryptol.TypeCheck.Module (doFunctorInst) where
 
 import Data.Map(Map)
@@ -8,8 +7,7 @@ import qualified Data.Set as Set
 import Control.Monad(unless,forM_)
 
 
-import Cryptol.Utils.Panic(xxxTODO)
-import Cryptol.Utils.Ident(Ident,Namespace(..))
+import Cryptol.Utils.Ident(Ident,Namespace(..),isInfixIdent)
 import Cryptol.Parser.Position (Range,Located(..), thing)
 import qualified Cryptol.Parser.AST as P
 import Cryptol.ModuleSystem.Name(nameIdent)
@@ -20,23 +18,50 @@ import Cryptol.ModuleSystem.Interface
           )
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Error
-import Cryptol.TypeCheck.Subst(Subst,abstractSubst,listParamSubst,apSubst)
+import Cryptol.TypeCheck.Subst( Subst,abstractSubst,apSubst
+                              , mergeDistinctSubst)
 import Cryptol.TypeCheck.Solve(proveImplication)
 import Cryptol.TypeCheck.Monad
 import Cryptol.TypeCheck.Instantiate(instantiateWith)
+import Cryptol.TypeCheck.ModuleInstance
 
 doFunctorInst ::
   Located Name                {- ^ Name for the new module -} ->
   Located (P.ImpName Name)    {- ^ Functor being instantiation -} ->
   P.ModuleInstanceArgs Name   {- ^ Instance arguments -} ->
-  Map Name Name               {- ^ Basic instantiation -} ->
+  Map Name Name
+  {- ^ Instantitation.  These is the renaming for the fuctor that arises from
+       generativity (i.e., it is something that will make the names "fresh").
+  -} ->
   InferM ()
 doFunctorInst m f as inst =
   do mf    <- lookupFunctor (thing f)
      argIs <- checkArity (srcRange f) mf as
-     (tySus,valRens) <- unzip <$> mapM checkArg argIs
+     (tySus,decls) <- unzip <$> mapM checkArg argIs
+     let ?tSu = mergeDistinctSubst tySus
+         ?vSu = inst
+     let m1   = moduleInstance mf
+         m2   = m1 { mName             = m
+                   , mParamTypes       = mempty
+                   , mParamFuns        = mempty
+                   , mParamConstraints = mempty
+                   , mParams           = mempty
+                   -- XXX: Should we modify `mImports` to record dependencies
+                   -- on parameters?
+                   , mDecls = map NonRecursive (concat decls) ++ mDecls m1
+                   }
 
-     pure ()
+     newSubmoduleScope (thing m) (mImports m2) (mExports m2)
+     mapM_ addTySyn     (Map.elems (mTySyns m2))
+     mapM_ addNewtype   (Map.elems (mNewtypes m2))
+     mapM_ addPrimType  (Map.elems (mPrimTypes m2))
+     addSignatures      (mSignatures m2)
+     addSubmodules      (mSubmodules m2)
+     addFunctors        (mFunctors m2)
+     mapM_ addDecls     (mDecls m2)
+     endSubmodule
+
+
 
 
 -- | Validate a functor application, just checking the argument names
@@ -80,7 +105,7 @@ checkArity r mf args =
                checkArgs done ps more
 
 
-checkArg :: (Range, IfaceModParam, IfaceG ()) -> InferM (Subst, Map Name Expr)
+checkArg :: (Range, IfaceModParam, IfaceG ()) -> InferM (Subst, [Decl])
 checkArg (r,expect,actual) =
   do tRens <- mapM (checkParamType r tyMap) (Map.toList (ifParamTypes params))
      let renSu = abstractSubst (concat tRens)
@@ -95,12 +120,12 @@ checkArg (r,expect,actual) =
      let fromD d = (ifDeclName d, ifDeclSig d)
          vMap = nameMapToIdentMap fromD (ifDecls decls)
 
-     vRen <- Map.fromList . concat <$>
+     vDecls <- concat <$>
                 mapM (checkParamValue r vMap)
-                     [ (i, s { mvpType = apSubst renSu (mvpType s) })
-                     | (i,s) <- Map.toList (ifParamFuns params) ]
+                     [ s { mvpType = apSubst renSu (mvpType s) }
+                     | s <- Map.elems (ifParamFuns params) ]
 
-     pure (renSu, vRen)
+     pure (renSu, vDecls)
 
 
 
@@ -155,10 +180,11 @@ checkParamType r tyMap (name,mp) =
 checkParamValue ::
   Range                   {- ^ Location for error reporting -} ->
   Map Ident (Name,Schema) {- ^ Actual values -} ->
-  (Name, ModVParam)       {- ^ The parameter we are checking -} ->
-  InferM [(Name,Expr)]    {- ^ Mapping from parameter name to actual names -}
-checkParamValue r vMap (name,mp) =
-  let i        = nameIdent name
+  ModVParam               {- ^ The parameter we are checking -} ->
+  InferM [Decl]           {- ^ Mapping from parameter name to definition -}
+checkParamValue r vMap mp =
+  let name     = mvpName mp
+      i        = nameIdent name
       expectT  = mvpType mp
   in case Map.lookup i vMap of
        Nothing ->
@@ -166,13 +192,16 @@ checkParamValue r vMap (name,mp) =
             pure []
        Just actual ->
          do e <- mkParamDef r (name,expectT) actual
-            pure [(name,e)]
-{-
-         do unless (sameSchema expectT actualT) $
-              (recordErrorLoc (Just r) (SchemaMismatch i expectT actualT))
-            pure [(name,EVar actualName)]
--}
+            let d = Decl { dName        = name
+                         , dSignature   = expectT
+                         , dDefinition  = DExpr e
+                         , dPragmas     = []
+                         , dInfix       = isInfixIdent (nameIdent name)
+                         , dFixity      = mvpFixity mp
+                         , dDoc         = mvpDoc mp
+                         }
 
+            pure [d]
 
 {- | Make an "adaptor" that instantiates the paramter into the form expected
 by the functor.  If the actual type is:

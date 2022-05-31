@@ -76,8 +76,7 @@ data ModuleG mname =
                        -- ^ Submodules, functors, and signature nested directly
                        -- in this module
 
-                      -- These have everything from this module and
-                      -- all submodules
+                      -- These have everything from this module and all submodules
                      , mTySyns           :: Map Name TySyn
                      , mNewtypes         :: Map Name Newtype
                      , mPrimTypes        :: Map Name AbstractType

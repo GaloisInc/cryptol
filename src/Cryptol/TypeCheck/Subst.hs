@@ -37,6 +37,7 @@ module Cryptol.TypeCheck.Subst
   , applySubstToVar
   , substToList
   , fmap', (!$), (.$)
+  , mergeDistinctSubst
   ) where
 
 import           Data.Maybe
@@ -95,6 +96,30 @@ emptySubst =
     , suAbstractMap = IntMap.empty
     , suDefaulting = False
     }
+
+mergeDistinctSubst :: [Subst] -> Subst
+mergeDistinctSubst sus =
+  case sus of
+    [] -> emptySubst
+    _  -> foldr1 merge sus
+
+  where
+  merge s1 s2 = S { suFreeMap     = jn suFreeMap s1 s2
+                  , suBoundMap    = jn suBoundMap s1 s2
+                  , suAbstractMap = jn suAbstractMap s1 s2
+                  , suDefaulting  = if suDefaulting s1 || suDefaulting s2
+                                      then err
+                                      else False
+                  }
+
+  err       = panic "mergeDistinctSubst" [ "Not distinct" ]
+  bad _ _   = err
+  jn f x y  = IntMap.unionWith bad (f x) (f y)
+
+
+
+
+
 
 -- | Reasons to reject a single-variable substitution.
 data SubstError
@@ -442,6 +467,7 @@ instance TVars DeclDef where
   apSubst su (DExpr e) = DExpr !$ (apSubst su e)
   apSubst _  DPrim     = DPrim
 
+-- WARNING: This applies the substitution only to the declarations.
 instance TVars Module where
   apSubst su m =
     let !decls' = apSubst su (mDecls m)

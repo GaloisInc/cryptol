@@ -13,7 +13,7 @@ import           Data.Ord(comparing)
 
 import Cryptol.TypeCheck.AST
 import Cryptol.Parser.Position(thing)
-import Cryptol.ModuleSystem.Name(toParamInstName,asParamName,nameIdent
+import Cryptol.ModuleSystem.Name(toParamInstName,nameIdent
                                 ,paramModRecParam)
 import Cryptol.Utils.Ident(paramInstModName)
 import Cryptol.Utils.RecordMap(recordFromFields)

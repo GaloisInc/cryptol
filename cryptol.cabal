@@ -153,6 +153,7 @@ library
                        Cryptol.TypeCheck.TypeOf,
                        Cryptol.TypeCheck.Sanity,
                        Cryptol.TypeCheck.Module,
+                       Cryptol.TypeCheck.ModuleInstance,
 
                        Cryptol.TypeCheck.Solver.Types,
                        Cryptol.TypeCheck.Solver.SMT,

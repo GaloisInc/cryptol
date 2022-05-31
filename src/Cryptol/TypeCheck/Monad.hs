@@ -1036,6 +1036,21 @@ addParamType :: ModTParam -> InferM ()
 addParamType a =
   updScope \r -> r { mParamTypes = Map.insert (mtpName a) a (mParamTypes r) }
 
+addSignatures :: Map Name If.IfaceParams -> InferM ()
+addSignatures mp =
+  updScope \r -> r { mSignatures = Map.union mp (mSignatures r) }
+
+addSubmodules :: Map Name (If.IfaceNames Name) -> InferM ()
+addSubmodules mp =
+  updScope \r -> r { mSubmodules = Map.union mp (mSubmodules r) }
+
+addFunctors :: Map Name (ModuleG Name) -> InferM ()
+addFunctors mp =
+  updScope \r -> r { mFunctors = Map.union mp (mFunctors r) }
+
+
+
+
 -- | The sub-computation is performed with the given abstract function in scope.
 addParamFun :: ModVParam -> InferM ()
 addParamFun x =

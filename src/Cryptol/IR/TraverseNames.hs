@@ -37,6 +37,9 @@ instance TraverseNames a => TraverseNames (Located a) where
 instance TraverseNames Name where
   traverseNamesIP = ?name
 
+instance (Ord a, TraverseNames a) => TraverseNames (ExportSpec a) where
+  traverseNamesIP (ExportSpec mp) = ExportSpec <$> traverse traverseNamesIP mp
+
 instance TraverseNames Expr where
   traverseNamesIP expr =
     case expr of
@@ -161,18 +164,18 @@ instance TraverseNames Type where
       TRec rm       -> TRec <$> traverseRecordMap (\_ -> traverseNamesIP) rm
       TNewtype nt ts -> TNewtype <$> traverseNamesIP nt <*> traverseNamesIP ts
 
--- XXX: It might be better to arrange to not have names here?
+
 instance TraverseNames TCon where
   traverseNamesIP tcon =
     case tcon of
       TC tc -> TC <$> traverseNamesIP tc
-      _ -> pure tcon
+      _     -> pure tcon
 
 instance TraverseNames TC where
   traverseNamesIP tc =
     case tc of
       TCAbstract ut -> TCAbstract <$> traverseNamesIP ut
-      _ -> pure tc
+      _             -> pure tc
 
 instance TraverseNames UserTC where
   traverseNamesIP (UserTC x k) = UserTC <$> traverseNamesIP x <*> pure k
