@@ -198,13 +198,9 @@ proveImp sol ps gs0 =
          (gs,rest) = partition (isNumeric . goal) gs1
          numAsmp   = filter isNumeric (concatMap pSplitAnd ps)
          vs        = Set.toList (fvs (numAsmp, map goal gs))
-         as        = Set.toList (freeAbstract (numAsmp, map goal gs))
      tvs <- debugBlock sol "VARIABLES" $
        do SMT.push (solver sol)
-          tves <- Map.fromList <$> zipWithM (declareVar sol) [ 0 .. ] vs
-          aes  <- Map.fromList <$> zipWithM (declareAbst sol) [ 0 .. ] as
-          pure (tves, aes)
-
+          Map.fromList <$> zipWithM (declareVar sol) [ 0 .. ] vs
      debugBlock sol "ASSUMPTIONS" $
        mapM_ (assume sol tvs) numAsmp
      gs' <- mapM (prove sol tvs) gs
@@ -219,12 +215,9 @@ checkUnsolvable sol gs0 =
             $ map goal
             $ concatMap flatGoal gs0
          vs = Set.toList (fvs ps)
-         as = Set.toList (freeAbstract ps)
      tvs <- debugBlock sol "VARIABLES" $
        do push sol
-          tves <- Map.fromList <$> zipWithM (declareVar sol) [ 0 .. ] vs
-          aes  <- Map.fromList <$> zipWithM (declareAbst sol) [ 0 .. ] as
-          pure (tves,aes)
+          Map.fromList <$> zipWithM (declareVar sol) [ 0 .. ] vs
      ans <- unsolvable sol tvs ps
      pop sol
      return ans
@@ -234,8 +227,7 @@ tryGetModel sol as ps =
   debugBlock sol "TRY GET MODEL" $
   do push sol
      tvs <- Map.fromList <$> zipWithM (declareVar sol) [ 0 .. ] as
-     -- Assumes no abstract
-     mapM_ (assume sol (tvs,mempty)) ps
+     mapM_ (assume sol tvs) ps
      sat <- SMT.check (solver sol)
      su <- case sat of
              SMT.Sat ->
@@ -297,25 +289,12 @@ pop :: Solver -> IO ()
 pop sol = SMT.pop (solver sol)
 
 
-declareVarAbst :: Solver -> Int -> Either TVar UserTC -> IO SExpr
-declareVarAbst s x va =
-  do let name = case va of
-                  Left v -> (if isFreeTV v then "fv" else "kv") ++ show x
-                  Right _a -> "av" ++ show x
-     e <- SMT.declare (solver s) name cryInfNat
-     SMT.assert (solver s) (SMT.fun "cryVar" [ e ])
-     return e
-
 declareVar :: Solver -> Int -> TVar -> IO (TVar, SExpr)
 declareVar s x v =
-  do e <- declareVarAbst s x (Left v)
-     pure (v,e)
-
-declareAbst :: Solver -> Int -> UserTC -> IO (UserTC, SExpr)
-declareAbst s x v =
-  do e <- declareVarAbst s x (Right v)
-     pure (v,e)
-
+  do let name = (if isFreeTV v then "fv" else "kv") ++ show x
+     e <- SMT.declare (solver s) name cryInfNat
+     SMT.assert (solver s) (SMT.fun "cryVar" [ e ])
+     return (v,e)
 
 assume :: Solver -> TVars -> Prop -> IO ()
 assume s tvs p = SMT.assert (solver s) (SMT.fun "cryAssume" [ toSMT tvs p ])
@@ -363,8 +342,7 @@ isNumeric ty = matchDefault False $ msum [ is (|=|), is (|/=|), is (|>=|), is aF
 
 --------------------------------------------------------------------------------
 
--- (type variables, abstract types)
-type TVars = (Map TVar SExpr, Map UserTC SExpr)
+type TVars = Map TVar SExpr
 
 cryInfNat :: SExpr
 cryInfNat = SMT.const "InfNat"
@@ -400,7 +378,6 @@ toSMT tvs ty = matchDefault (panic "toSMT" [ "Unexpected type", show ty ])
   , anError KProp   ~> "cryErrProp"
 
   , aTVar           ~> "(unused)"
-  , anAbstractType  ~> "(unused)"
   ]
 
 --------------------------------------------------------------------------------
@@ -418,10 +395,7 @@ instance Mk Integer where
   mk _ f x = SMT.fun f [ SMT.int x ]
 
 instance Mk TVar where
-  mk (tvs,_) _ x = tvs Map.! x
-
-instance Mk UserTC where
-  mk (_,abst) _ x = abst Map.! x
+  mk tvs _ x = tvs Map.! x
 
 instance Mk Type where
   mk tvs f x = SMT.fun f [toSMT tvs x]

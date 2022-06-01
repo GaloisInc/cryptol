@@ -525,6 +525,7 @@ checkParamKind :: TParam -> TPFlavor -> Kind -> InferM ()
 
 checkParamKind tp flav k =
     case flav of
+      TPModParam _     -> return () -- All kinds allowed as module parameters
       TPPropSynParam _ -> starOrHashOrProp
       TPTySynParam _   -> starOrHash
       TPSchemaParam _  -> starOrHash
@@ -816,7 +817,9 @@ getTVars = IM $ asks $ Set.fromList . mapMaybe tpName . iTVars
 getBoundInScope :: InferM (Set TParam)
 getBoundInScope =
   do ro <- IM ask
-     return $! Set.fromList (iTVars ro)
+     params <- Set.fromList . map mtpParam . Map.elems <$> getParamTypes
+     let bound  = Set.fromList (iTVars ro)
+     return $! Set.union params bound
 
 -- | Retrieve the value of the `mono-binds` option.
 getMonoBinds :: InferM Bool

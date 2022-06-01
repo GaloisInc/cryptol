@@ -43,7 +43,8 @@ tcModule :: InferInput -> Module -> Either (Range, Error) [ ProofObligation ]
 tcModule env m = case runTcM env check of
                    Left err -> Left err
                    Right (_,ps) -> Right ps
-  where check = foldr withAsmp k2 (map thing (mParamConstraints m))
+  where check = foldr withTVar k1 (map mtpParam (Map.elems (mParamTypes m)))
+        k1    = foldr withAsmp k2 (map thing (mParamConstraints m))
         k2    = withVars (Map.toList (fmap mvpType (mParamFuns m)))
               $ checkDecls (mDecls m)
 
@@ -486,7 +487,9 @@ runTcM env (TcM m) =
     (Left err, _) -> Left err
     (Right a, s)  -> Right (a, woProofObligations s)
   where
-  ro = RO { roTVars = mempty
+  ro = RO { roTVars = Map.fromList [ (tpUnique x, x)
+                                      | tp <- Map.elems (inpParamTypes env)
+                                      , let x = mtpParam tp ]
           , roAsmps = map thing (inpParamConstraints env)
           , roRange = emptyRange
           , roVars  = Map.union

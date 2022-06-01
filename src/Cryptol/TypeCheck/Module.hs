@@ -18,8 +18,7 @@ import Cryptol.ModuleSystem.Interface
           )
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Error
-import Cryptol.TypeCheck.Subst( Subst,abstractSubst,apSubst
-                              , mergeDistinctSubst)
+import Cryptol.TypeCheck.Subst(Subst,listParamSubst,apSubst,mergeDistinctSubst)
 import Cryptol.TypeCheck.Solve(proveImplication)
 import Cryptol.TypeCheck.Monad
 import Cryptol.TypeCheck.Instantiate(instantiateWith)
@@ -38,6 +37,8 @@ doFunctorInst m f as inst =
   do mf    <- lookupFunctor (thing f)
      argIs <- checkArity (srcRange f) mf as
      (tySus,decls) <- unzip <$> mapM checkArg argIs
+
+
      let ?tSu = mergeDistinctSubst tySus
          ?vSu = inst
      let m1   = moduleInstance mf
@@ -50,6 +51,7 @@ doFunctorInst m f as inst =
                    -- on parameters?
                    , mDecls = map NonRecursive (concat decls) ++ mDecls m1
                    }
+     newGoals CtModuleInstance (map thing (mParamConstraints m1))
 
      newSubmoduleScope (thing m) (mImports m2) (mExports m2)
      mapM_ addTySyn     (Map.elems (mTySyns m2))
@@ -108,7 +110,7 @@ checkArity r mf args =
 checkArg :: (Range, IfaceModParam, IfaceG ()) -> InferM (Subst, [Decl])
 checkArg (r,expect,actual) =
   do tRens <- mapM (checkParamType r tyMap) (Map.toList (ifParamTypes params))
-     let renSu = abstractSubst (concat tRens)
+     let renSu = listParamSubst (concat tRens)
 
      addGoals [ Goal
                   { goalSource = CtModuleInstance
@@ -160,7 +162,7 @@ checkParamType ::
   Range                 {- ^ Location for error reporting -} ->
   Map Ident (Kind,Type) {- ^ Actual types -} ->
   (Name,ModTParam)      {- ^ Type parameter -} ->
-  InferM [(Name,Type)]  {- ^ Mapping from parameter name to actual type -}
+  InferM [(TParam,Type)]  {- ^ Mapping from parameter name to actual type -}
 checkParamType r tyMap (name,mp) =
   let i       = nameIdent name
       expectK = mtpKind mp
@@ -174,7 +176,7 @@ checkParamType r tyMap (name,mp) =
            (recordErrorLoc (Just r)
                            (KindMismatch (Just (TVFromModParam name))
                                                   expectK actualK))
-         pure [(name, actualT)]
+         pure [(mtpParam mp, actualT)]
 
 -- | Check a value parameter to a module.
 checkParamValue ::

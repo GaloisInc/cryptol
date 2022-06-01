@@ -48,6 +48,7 @@ import Control.DeepSeq
 
 import           Data.Set    (Set)
 import           Data.Map    (Map)
+import qualified Data.Map    as Map
 import qualified Data.IntMap as IntMap
 import           Data.Text (Text)
 
@@ -396,6 +397,5 @@ instance PP n => PP (WithNames (ModuleG n)) where
     vcat (map pp mImports) $$
     -- XXX: Print tysyns
     -- XXX: Print abstarct types/functions
-    vcat (map (ppWithNames nm) mDecls)
-
-
+    vcat (map (ppWithNames (addTNames mps nm)) mDecls)
+    where mps = map mtpParam (Map.elems mParamTypes)

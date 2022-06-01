@@ -118,7 +118,7 @@ showTypeHelp mbParams env nameEnv name =
          M.NewStyle {} -> undefined -- XXX
          M.OldStyle params ->
            do p <- Map.lookup name (M.ifParamTypes params)
-              let uses c = True -- T.TVBound (T.mtpParam p) `Set.member` T.fvs c
+              let uses c = T.TVBound (T.mtpParam p) `Set.member` T.fvs c
                   ctrs = filter uses (map P.thing (M.ifParamConstraints params))
                   ctrDoc = case ctrs of
                              []  -> []
