@@ -165,11 +165,15 @@ noIncludeModule :: ModuleG mname PName -> NoIncM (ModuleG mname PName)
 noIncludeModule m =
   do newDef <- case mDef m of
                  NormalModule ds         -> NormalModule <$> doDecls ds
-                 FunctorInstanceOld f ds -> FunctorInstanceOld f <$> doDecls ds
-                 FunctorInstance f as ds -> pure (FunctorInstance f as ds)
+                 FunctorInstance f as ds ->
+                      FunctorInstance f <$> doArgs as <*> pure ds
      pure m { mDef = newDef }
   where
   doDecls    = fmap concat . collectErrors noIncTopDecl
+  doArgs as  = case as of
+                 DefaultInstAnonArg ds ->
+                    DefaultInstAnonArg . concat <$> mapM noIncTopDecl ds
+                 _ -> pure as
 
 -- | Remove includes from a program.
 noIncludeProgram :: Program PName -> NoIncM (Program PName)

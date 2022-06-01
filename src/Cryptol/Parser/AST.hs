@@ -148,9 +148,9 @@ data ModuleG mname name = Module
 
 data ModuleDefinition name =
     NormalModule [TopDecl name]
-  | FunctorInstanceOld (Located ModName) [TopDecl name]
-  | FunctorInstance    (Located (ImpName name)) (ModuleInstanceArgs name)
-                       (ModuleInstance name)
+  | FunctorInstance (Located (ImpName name))
+                    (ModuleInstanceArgs name)
+                    (ModuleInstance name)
     -- ^ The instance is filled in by the renamer
     deriving (Show, Generic, NFData)
 
@@ -170,7 +170,6 @@ mDecls :: ModuleG mname name -> [TopDecl name]
 mDecls m =
   case mDef m of
     NormalModule ds         -> ds
-    FunctorInstanceOld _ ds -> ds
     FunctorInstance _ _ _   -> []
 
 -- | Imports of top-level (i.e. "file" based) modules.
@@ -251,6 +250,9 @@ data TopDecl name =
 data ModuleInstanceArgs name =
     DefaultInstArg (Located (ImpName name))
     -- ^ Single parameter instantitaion
+
+  | DefaultInstAnonArg [TopDecl name]
+    -- ^ Single parameter instantitaion using this anonymous module
 
   | NamedInstArgs  [ModuleInstanceArg name]
     deriving (Show, Generic, NFData)
@@ -752,16 +754,12 @@ instance (Show name, PPName name) => PP (ModuleDefinition name) where
                     | (k,v) <- Map.toList inst ]
 
 
-      FunctorInstanceOld f ds ->
-        "=" <+> pp (thing f) <+> "where" $$ indent 2 (vcat (map pp ds))
-
-
 instance (Show name, PPName name) => PP (ModuleInstanceArgs name) where
   ppPrec _ arg =
-    braces
     case arg of
-      DefaultInstArg x -> pp (thing x)
-      NamedInstArgs xs -> commaSep (map pp xs)
+      DefaultInstArg x -> braces (pp (thing x))
+      DefaultInstAnonArg ds -> "where" $$ indent 2 (vcat (map pp ds))
+      NamedInstArgs xs -> braces (commaSep (map pp xs))
 
 instance (Show name, PPName name) => PP (ModuleInstanceArg name) where
   ppPrec _ (ModuleInstanceArg x y) = pp (thing x) <+> "=" <+> pp (thing y)
@@ -1207,14 +1205,14 @@ instance NoPos (ModuleDefinition name) where
   noPos m =
     case m of
       NormalModule ds         -> NormalModule (noPos ds)
-      FunctorInstanceOld f ds -> FunctorInstanceOld (noPos f) (noPos ds)
       FunctorInstance f as ds -> FunctorInstance (noPos f) (noPos as) ds
 
 instance NoPos (ModuleInstanceArgs name) where
   noPos as =
     case as of
-      DefaultInstArg a -> DefaultInstArg (noPos a)
-      NamedInstArgs xs -> NamedInstArgs (noPos xs)
+      DefaultInstArg a      -> DefaultInstArg (noPos a)
+      DefaultInstAnonArg ds -> DefaultInstAnonArg (noPos ds)
+      NamedInstArgs xs      -> NamedInstArgs (noPos xs)
 
 instance NoPos (ModuleInstanceArg name) where
   noPos (ModuleInstanceArg x y) = ModuleInstanceArg (noPos x) (noPos y)

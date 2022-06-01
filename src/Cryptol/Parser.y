@@ -175,8 +175,8 @@ module_def :: { Module PName }
   : modName 'where'
       'v{' vmod_body 'v}'                     { mkModule $1 $4 }
 
-  | modName '=' modName 'where'
-      'v{' vmod_body 'v}'                     { mkModuleInstanceOld $1 $3 $6 }
+  | modName '=' impName 'where'
+      'v{' vmod_body 'v}'                     { mkModuleInstanceAnon $1 $3 $6 }
 
   | modName '=' impName '{' modInstParams '}' { mkModuleInstance $1 $3 $5 }
 

@@ -337,10 +337,15 @@ noPatModule :: ModuleG mname PName -> NoPatM (ModuleG mname PName)
 noPatModule m =
   do def <-
        case mDef m of
-         NormalModule ds         -> NormalModule <$> noPatTopDs ds
-         FunctorInstanceOld f ds -> FunctorInstanceOld f <$> noPatTopDs ds
-         d@FunctorInstance {}    -> pure d
+         NormalModule ds -> NormalModule <$> noPatTopDs ds
+         FunctorInstance f as i -> FunctorInstance f <$> noPatModArg as <*> pure i
      pure m { mDef = def }
+
+noPatModArg :: ModuleInstanceArgs PName -> NoPatM (ModuleInstanceArgs PName)
+noPatModArg as =
+  case as of
+    DefaultInstAnonArg ds -> DefaultInstAnonArg <$> noPatTopDs ds
+    _                     -> pure as
 
 --------------------------------------------------------------------------------
 
@@ -477,15 +482,6 @@ annotPrimType :: Annotates (PrimType PName)
 annotPrimType pt =
   do f <- annotTyThing (thing (primTName pt))
      pure pt { primTFixity = f }
-
--- | Annotate a module's type parameter.
-annotParameterType :: Annotates (ParameterType PName)
-annotParameterType pt =
-  do f <- annotTyThing (thing (ptName pt))
-     pure pt { ptFixity = f }
-
-
-
 
 -- | Check for multiple signatures.
 checkSigs :: PName -> [Located (Schema PName)] -> NoPatM (Maybe (Schema PName))

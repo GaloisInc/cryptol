@@ -22,7 +22,6 @@ import Control.Monad (unless,when)
 import Data.Maybe (fromMaybe)
 import Data.Monoid ((<>))
 import Data.Text.Encoding (decodeUtf8')
-import Data.IORef(newIORef,readIORef)
 import System.Directory (doesFileExist, canonicalizePath)
 import System.FilePath ( addExtension
                        , isAbsolute
@@ -300,8 +299,11 @@ addPrelude m
   newDef =
     case mDef m of
       NormalModule ds -> NormalModule (importPrelude : ds)
-      FunctorInstanceOld f ds -> FunctorInstanceOld f (importPrelude : ds)
-      FunctorInstance f as ds -> FunctorInstance f as ds
+      FunctorInstance f as ins -> FunctorInstance f as' ins
+        where
+        as' = case as of
+                DefaultInstAnonArg ds -> DefaultInstAnonArg (importPrelude : ds)
+                _                     -> as
 
   importedMods  = map (P.iModule . P.thing) (P.mImports m)
   importPrelude = P.DImport P.Located
@@ -318,13 +320,11 @@ loadDeps :: P.ModuleG mname name -> ModuleM ()
 loadDeps m =
   case mDef m of
     NormalModule ds         -> mapM_ depsOfDecl ds
-    FunctorInstanceOld f ds ->
-      do _ <- loadModuleFrom False (FromModuleInstance f)
-         mapM_ depsOfDecl ds
     FunctorInstance f as _ ->
       do loadImpName f
          case as of
            DefaultInstArg a   -> loadImpName a
+           DefaultInstAnonArg ds -> mapM_ depsOfDecl ds
            NamedInstArgs args -> mapM_ loadInstArg args
   where
   loadI i = do (_,m1)  <- loadModuleFrom False (FromImport i)
@@ -419,7 +419,8 @@ checkModule ::
 checkModule isrc path m =
   case mDef m of
     NormalModule _ -> checkSingleModule T.tcModule isrc path m
-    FunctorInstanceOld fmName _ ->
+{-
+    FunctorInstanceAnon fmName _ ->
       do mbtf <- getLoadedMaybe (thing fmName)
          case mbtf of
            Just tf ->
@@ -432,7 +433,7 @@ checkModule isrc path m =
                         [ "Functor of module instantiation not loaded" ]
 
     -- XXX: functor instance; this is for top-level functor instances
-
+-}
 
 -- | Typecheck a single module.  If the module is an instantiation
 -- of a functor, then this just type-checks the instantiating parameters.

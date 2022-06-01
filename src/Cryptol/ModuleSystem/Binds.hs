@@ -42,7 +42,7 @@ import Cryptol.ModuleSystem.Interface
 
 data TopDef = TopMod ModName (Mod ())
             | TopInst ModName (ImpName PName) (ModuleInstanceArgs PName)
-            | TopInstOld ModName ModName (Mod ())
+            | TopInstAnon ModName ModName (Mod ())
 
 -- | Things defined by a module
 data Mod a = Mod
@@ -130,8 +130,6 @@ topModuleDefs :: Module PName -> ModBuilder TopDef
 topModuleDefs m =
   case mDef m of
     NormalModule ds -> TopMod mname <$> declsToMod (Just (TopModule mname)) ds
-    FunctorInstanceOld f ds ->
-      TopInstOld mname (thing f) <$> declsToMod Nothing ds
     FunctorInstance f as _ ->
       pure (TopInst mname (thing f) as)
 
@@ -189,9 +187,6 @@ declsToMod mbPath ds =
                    NormalModule xs ->
                      do m <- declsToMod (Just (Nested path (nameIdent name))) xs
                         pure mo { modMods = Map.insert name m (modMods mo) }
-                   FunctorInstanceOld {} ->
-                     do defErr (UnexpectedNest (srcRange (mName nmod)) pname)
-                        pure mo
                    FunctorInstance f args _ ->
                       pure mo { modInstances = Map.insert name (thing f, args)
                                                     (modInstances mo) }

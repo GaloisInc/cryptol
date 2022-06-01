@@ -72,9 +72,15 @@ processModule ~(DModule m) =
              Private -> []
          )
 
-    FunctorInstance {} -> ([DModule m],[])
-    FunctorInstanceOld {} -> ([DModule m],[])
-        -- XXX: OldInstance should be desugared
+    FunctorInstance f as is -> ([new], [])
+      where
+      new = DModule m { tlValue = NestedModule m1 { mDef = newDef } }
+      newDef = FunctorInstance f as' is
+      as' =
+        case as of
+          DefaultInstAnonArg ds ->
+            DefaultInstAnonArg (addImplicitNestedImports ds)
+          _ -> as
 
 
 

@@ -7,6 +7,7 @@ import qualified Data.Set as Set
 import Control.Monad(unless,forM_)
 
 
+import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.Ident(Ident,Namespace(..),isInfixIdent)
 import Cryptol.Parser.Position (Range,Located(..), thing)
 import qualified Cryptol.Parser.AST as P
@@ -85,6 +86,8 @@ checkArity r mf args =
       in checkArgs [] ps0 [ P.ModuleInstanceArg i arg ]
 
     P.NamedInstArgs as -> checkArgs [] ps0 as
+
+    P.DefaultInstAnonArg {} -> panic "checkArity" [ "DefaultInstAnonArg" ]
 
   where
   ps0 = mParams mf

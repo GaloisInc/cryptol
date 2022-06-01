@@ -127,12 +127,17 @@ data RenamedModule = RenamedModule
 renameModule :: Module PName -> RenameM RenamedModule
 renameModule m0 =
   do -- Step 1: add implicit imports
-     let m = case mDef m0 of
-               NormalModule ds ->
-                 m0 { mDef = NormalModule (addImplicitNestedImports ds) }
-               _ -> m0 -- XXX: OldStyleFunctor instnatiantions should
-                       -- be translated into normal instantiations and
-                       -- an anonymous module.
+     let m = m0 { mDef =
+                    case mDef m0 of
+                      NormalModule ds ->
+                        NormalModule (addImplicitNestedImports ds)
+                      FunctorInstance f as i -> FunctorInstance f as' i
+                        where
+                        as' = case as of
+                                DefaultInstAnonArg ds ->
+                                  DefaultInstAnonArg (addImplicitNestedImports ds)
+                                _ -> as
+                 }
 
      -- Step 2: compute what's defined
      (defs,errs) <- liftSupply (modBuilder (topModuleDefs m))
@@ -255,9 +260,6 @@ renameModule' mname m =
                                  let l = Just (srcRange f')
                                  imap <- mkInstMap l mempty (thing f') mname
                                  pure (FunctorInstance f' as' imap)
-
-                            FunctorInstanceOld f ds ->
-                              FunctorInstanceOld f <$> renameTopDecls' ds
 
                 pure (inScope, newDef)
      return (inScope, m { mDef = newDef })

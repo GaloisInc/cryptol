@@ -137,7 +137,6 @@ library
                        Cryptol.TypeCheck.Parseable,
                        Cryptol.TypeCheck.Monad,
                        Cryptol.TypeCheck.Infer,
-                       Cryptol.TypeCheck.CheckModuleInstance,
                        Cryptol.TypeCheck.InferTypes,
                        Cryptol.TypeCheck.Interface,
                        Cryptol.TypeCheck.Error,

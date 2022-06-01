@@ -856,13 +856,13 @@ mkAnonymousModule = mkModule Located { srcRange = emptyRange
                                      }
 
 -- | Make a module which defines a functor instance.
-mkModuleInstanceOld :: Located ModName ->
-                    Located ModName ->
-                    [TopDecl PName] ->
-                    Module PName
-mkModuleInstanceOld nm fun ds =
+mkModuleInstanceAnon :: Located ModName ->
+                      Located (ImpName PName) ->
+                      [TopDecl PName] ->
+                      Module PName
+mkModuleInstanceAnon nm fun ds =
   Module { mName  = nm
-         , mDef   = FunctorInstanceOld fun ds
+         , mDef   = FunctorInstance fun (DefaultInstAnonArg ds) mempty
          }
 
 mkModuleInstance ::

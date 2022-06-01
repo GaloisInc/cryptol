@@ -153,8 +153,6 @@ resolveImports ext def su =
            Nothing -> panic  "resolveImports"
                           [ "Failed to finish a top-level instantiation" ]
 
-    TopInstOld {} -> undefined
-
   where
   toNest m = Map.fromList [ (ImpNested k, v) | (k,v) <- Map.toList m ]
   add m r s  = ( Map.insert (ImpTop m) r (toNest (doneModules s))
