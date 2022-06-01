@@ -111,8 +111,8 @@ data ModuleError
     -- ^ Two modules loaded from different files have the same module name
   | ImportedParamModule P.ModName
     -- ^ Attempt to import a parametrized module that was not instantiated.
-  | FailedToParameterizeModDefs P.ModName [T.Name]
-    -- ^ Failed to add the module parameters to all definitions in a module.
+  | FailedToParameterizeModDefs P.ModName
+    -- ^ This style of parmaeterizing a module is no longer supported.
   | NotAParameterizedModule P.ModName
 
   | ErrorInFile ModulePath ModuleError
@@ -140,7 +140,7 @@ instance NFData ModuleError where
       name `deepseq` path1 `deepseq` path2 `deepseq` ()
     OtherFailure x                       -> x `deepseq` ()
     ImportedParamModule x                -> x `deepseq` ()
-    FailedToParameterizeModDefs x xs     -> x `deepseq` xs `deepseq` ()
+    FailedToParameterizeModDefs x        -> x `deepseq` ()
     NotAParameterizedModule x            -> x `deepseq` ()
     ErrorInFile x y                      -> x `deepseq` y `deepseq` ()
 
@@ -200,10 +200,9 @@ instance PP ModuleError where
     ImportedParamModule p ->
       text "[error] Import of a non-instantiated parameterized module:" <+> pp p
 
-    FailedToParameterizeModDefs x xs ->
-      hang (text "[error] Parameterized module" <+> pp x <+>
-            text "has polymorphic parameters:")
-         4 (commaSep (map pp xs))
+    FailedToParameterizeModDefs x ->
+      hang (text "[error] When importing" <+> backticks (pp x))
+         4 "Backtick imports are no longer supported."
 
     NotAParameterizedModule x ->
       text "[error] Module" <+> pp x <+> text "does not have parameters."
@@ -260,9 +259,8 @@ duplicateModuleName name path1 path2 =
 importParamModule :: P.ModName -> ModuleM a
 importParamModule x = ModuleT (raise (ImportedParamModule x))
 
-failedToParameterizeModDefs :: P.ModName -> [T.Name] -> ModuleM a
-failedToParameterizeModDefs x xs =
-  ModuleT (raise (FailedToParameterizeModDefs x xs))
+failedToParameterizeModDefs :: P.ModName -> ModuleM a
+failedToParameterizeModDefs x = ModuleT (raise (FailedToParameterizeModDefs x))
 
 notAParameterizedModule :: P.ModName -> ModuleM a
 notAParameterizedModule x = ModuleT (raise (NotAParameterizedModule x))

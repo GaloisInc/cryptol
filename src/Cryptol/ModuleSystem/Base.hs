@@ -66,7 +66,6 @@ import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck.PP as T
 import qualified Cryptol.TypeCheck.Sanity as TcSanity
 
-import Cryptol.Transform.AddModParams (addModParams)
 import Cryptol.Utils.Ident ( preludeName, floatName, arrayName, suiteBName, primeECName
                            , preludeReferenceName, interactiveName, modNameChunks
                            , notParamInstModName, isParamInstModName )
@@ -226,11 +225,7 @@ doLoadModule quiet isrc path fp pm0 =
   where
   optionalInstantiate tcm
     | isParamInstModName (importedModule isrc) =
-      if T.isParametrizedModule tcm then
-        case addModParams tcm of
-          Right tcm1 -> return tcm1
-          Left xs    -> failedToParameterizeModDefs (T.mName tcm) xs
-      else notAParameterizedModule (T.mName tcm)
+      failedToParameterizeModDefs (T.mName tcm)
     | otherwise = return tcm
 
 

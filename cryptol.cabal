@@ -169,7 +169,6 @@ library
 
                        Cryptol.Transform.MonoValues,
                        Cryptol.Transform.Specialize,
-                       Cryptol.Transform.AddModParams,
 
                        Cryptol.IR.FreeVars,
                        Cryptol.IR.TraverseNames,
