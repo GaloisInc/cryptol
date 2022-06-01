@@ -34,6 +34,7 @@ doFunctorInst ::
   -} ->
   InferM ()
 doFunctorInst m f as inst =
+  inRange (srcRange m)
   do mf    <- lookupFunctor (thing f)
      argIs <- checkArity (srcRange f) mf as
      (tySus,decls) <- unzip <$> mapM checkArg argIs
@@ -112,11 +113,9 @@ checkArg (r,expect,actual) =
   do tRens <- mapM (checkParamType r tyMap) (Map.toList (ifParamTypes params))
      let renSu = listParamSubst (concat tRens)
 
-     addGoals [ Goal
-                  { goalSource = CtModuleInstance
-                  , goalRange  = r -- location in signature: srcRange lc
-                  , goal       = apSubst renSu (thing lc)
-                  } | lc <- ifParamConstraints params ]
+     {- Note: the constraints from the signature are already added to the
+        constraints for the functor so and they are checked all at once in
+        doFunctorInst -}
 
      -- Available value names
      let fromD d = (ifDeclName d, ifDeclSig d)
