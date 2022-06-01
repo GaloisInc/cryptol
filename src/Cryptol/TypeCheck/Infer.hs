@@ -1061,17 +1061,11 @@ checkTopDecls = mapM_ checkTopDecl
         do t <- checkPrimType (P.tlValue tl) (thing <$> P.tlDoc tl)
            addPrimType t
 
-      P.DParameterType ty ->
-        do t <- checkParameterType ty
-           addParamType t
 
       P.DParameterConstraint cs ->
         do cs1 <- checkParameterConstraints cs
            addParameterConstraints cs1
 
-      P.DParameterFun pf ->
-        do x <- checkParameterFun pf
-           addParamFun x
 
       P.DModule tl ->
          case P.mDef m of
@@ -1144,7 +1138,13 @@ checkTopDecls = mapM_ checkTopDecl
            addModParam param
 
       P.DImport {} -> pure ()
-      P.Include {} -> panic "checkTopDecl" [ "Unexpected `inlude`" ]
+      P.Include {}        -> bad "Include"
+      P.DParameterType{}  -> bad "DParameterType"
+      P.DParameterFun{}   -> bad "DParameterFun"
+
+
+  bad x = panic "checkTopDecl" [ x ]
+
 
 
 
@@ -1174,7 +1174,6 @@ checkDecl isTopLevel d mbDoc =
     P.DFixity {}    -> bad "DFixity"
     P.DPragma {}    -> bad "DPragma"
     P.DPatBind {}   -> bad "DPatBind"
-
   where
   bad x = panic "checkDecl" [x]
 

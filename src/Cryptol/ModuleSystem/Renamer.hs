@@ -452,17 +452,15 @@ renameTopDecls' ds =
   -- is in the value namespace.   Perhaps the rule should be that a value
   -- depends on a parameter constraint if it mentiones at least one
   -- type parameter somewhere.
+
+  -- XXX: Besides, types might need constraints for well-formedness...
+  -- This is just bogus
   usesCtrs td =
     case td of
       Decl tl                 -> isValDecl (tlValue tl)
       DPrimType {}            -> False
       TDNewtype {}            -> False
-      DParameterType {}       -> False
       DParameterConstraint {} -> False
-
-      DParameterFun {}        -> True
-      -- Here we may need the constraints to validate the type
-      -- (e.g., if the parameter is of type `Z a`)
 
 
       DModule tl              -> any usesCtrs (mDecls m)
@@ -471,6 +469,8 @@ renameTopDecls' ds =
       DModSig {}              -> False    -- no definitions here
       DModParam {}            -> False    -- no definitions here
       Include {}              -> bad "Include"
+      DParameterType {}       -> bad "DParameterType"
+      DParameterFun {}        -> bad "DParameterFun"
 
   isValDecl d =
     case d of
@@ -481,10 +481,10 @@ renameTopDecls' ds =
       DType {}      -> False
       DProp {}      -> False
 
-      DSignature {} -> bad "DSignature"
-      DFixity {}    -> bad "DFixity"
-      DPragma {}    -> bad "DPragma"
-      DPatBind {}   -> bad "DPatBind"
+      DSignature {}       -> bad "DSignature"
+      DFixity {}          -> bad "DFixity"
+      DPragma {}          -> bad "DPragma"
+      DPatBind {}         -> bad "DPatBind"
 
   bad msg = panic "renameTopDecls'" [msg]
 
@@ -511,8 +511,6 @@ topDeclName topDecl =
     Decl d                  -> hasName (declName (tlValue d))
     DPrimType d             -> hasName (thing (primTName (tlValue d)))
     TDNewtype d             -> hasName (thing (nName (tlValue d)))
-    DParameterType d        -> hasName (thing (ptName d))
-    DParameterFun d         -> hasName (thing (pfName d))
     DModule d               -> hasName (thing (mName m))
       where NestedModule m = tlValue d
 
@@ -528,6 +526,8 @@ topDeclName topDecl =
                                      , ModParamName (srcRange (mpSignature m))
                                                     (mpName m))
 
+    DParameterType {}       -> bad "DParameterType"
+    DParameterFun {}        -> bad "DParameterFun"
     Include {}              -> bad "Include"
   where
   noName    = Left topDecl

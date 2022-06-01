@@ -39,7 +39,8 @@ import Cryptol.Parser.Lexer
 import Cryptol.Parser.Token(SelectorType(..))
 import Cryptol.Parser.Position
 import Cryptol.Parser.Utils (translateExprToNumT,widthIdent)
-import Cryptol.Utils.Ident(packModName,packIdent,modNameChunks)
+import Cryptol.Utils.Ident( packModName,packIdent,modNameChunks
+                          , anonymousSignatureIdent)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic
 import Cryptol.Utils.RecordMap
@@ -925,5 +926,51 @@ mkSelector tok =
   case tokenType tok of
     Selector (TupleSelectorTok n) -> TupleSel n Nothing
     Selector (RecordSelectorTok t) -> RecordSel (mkIdent t) Nothing
-    _ -> panic "mkSelector"
-          [ "Unexpected selector token", show tok ]
+    _ -> panic "mkSelector" [ "Unexpected selector token", show tok ]
+
+
+mkModBody :: [TopDecl PName] -> [TopDecl PName]
+mkModBody = collect [] []
+  where
+  collect ts fs ds =
+    case ds of
+      [] ->
+        case (ts,fs) of
+          ([],[]) -> []
+          (t : _, _) -> anonSig (srcRange (ptName t)) ts fs
+          (_, f : _) -> anonSig (srcRange (pfName f)) ts fs
+
+      d : more ->
+        case d of
+          DParameterType pt      ->     collect (pt : ts)       fs  more
+          DParameterFun  pf      ->     collect ts        (pf : fs) more
+          _                      -> d : collect ts              fs  more
+
+
+  anonSig l ts fs =
+    let nm = Located { srcRange = l, thing = mkUnqual anonymousSignatureIdent }
+    in [ DModSig
+         TopLevel
+           { tlExport = Private
+           , tlDoc    = Nothing
+           , tlValue  = Signature { sigName = nm
+                                  , sigTypeParams   = ts
+                                  , sigConstraints  = []
+                                  , sigFunParams    = fs
+                                  }
+           }
+
+       , DModParam
+         ModParam
+           { mpSignature = nm
+           , mpAs        = Nothing
+           , mpName      = anonymousSignatureIdent
+           , mpDoc       = Nothing
+           , mpRenaming  = mempty
+           }
+       ]
+
+
+
+
+

@@ -232,14 +232,20 @@ data TopDecl name =
   | DPrimType (TopLevel (PrimType name))
   | TDNewtype (TopLevel (Newtype name)) -- ^ @newtype T as = t
   | Include (Located FilePath)          -- ^ @include File@
+
+  -- Anonymous module parameters.
+  -- DParameterType and DParameterFun should only exist during parsing
+  -- and are converted to 
   | DParameterType (ParameterType name) -- ^ @parameter type T : #@
-  | DParameterConstraint [Located (Prop name)]
-                                        -- ^ @parameter type constraint (fin T)@
   | DParameterFun  (ParameterFun name)  -- ^ @parameter someVal : [256]@
-  | DModule (TopLevel (NestedModule name))  -- ^ Nested module
-  | DImport (Located (ImportG (ImpName name)))  -- ^ An import declaration
-  | DModSig (TopLevel (Signature name))         -- ^ A module signature
-  | DModParam (ModParam name)                   -- ^ A functor parameter
+
+  | DParameterConstraint [Located (Prop name)]
+    -- ^ @parameter type constraint (fin T)@
+
+  | DModule (TopLevel (NestedModule name))      -- ^ @submodule M where ...@
+  | DImport (Located (ImportG (ImpName name)))  -- ^ @import X@
+  | DModSig (TopLevel (Signature name))         -- ^ @signature X where ...@
+  | DModParam (ModParam name)                   -- ^ @import signature X ...@
     deriving (Show, Generic, NFData)
 
 data ModuleInstanceArgs name =

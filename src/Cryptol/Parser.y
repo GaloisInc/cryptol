@@ -196,7 +196,7 @@ namedModInstParam        :: { ModuleInstanceArg PName }
 
 
 vmod_body                  :: { [TopDecl PName] }
-  : vtop_decls                { reverse $1 }
+  : vtop_decls                { mkModBody (reverse $1) }
   | {- empty -}               { [] }
 
 

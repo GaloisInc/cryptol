@@ -29,12 +29,13 @@ import MonadLib
 import System.Directory (makeAbsolute)
 import System.FilePath (takeDirectory,(</>),isAbsolute)
 
+import Cryptol.Utils.Panic(panic)
+import Cryptol.Utils.PP hiding ((</>))
 import Cryptol.Parser (parseProgramWith)
 import Cryptol.Parser.AST
 import Cryptol.Parser.LexerUtils (Config(..),defaultConfig)
 import Cryptol.Parser.ParserUtils
 import Cryptol.Parser.Unlit (guessPreProc)
-import Cryptol.Utils.PP hiding ((</>))
 
 removeIncludesModule ::
   (FilePath -> IO ByteString) ->
@@ -182,9 +183,9 @@ noIncTopDecl td = case td of
   Decl _     -> pure [td]
   DPrimType {} -> pure [td]
   TDNewtype _-> pure [td]
-  DParameterType {} -> pure [td]
   DParameterConstraint {} -> pure [td]
-  DParameterFun {} -> pure [td]
+  DParameterType {} -> panic "noIncTopDecl" ["DParameterType"]
+  DParameterFun {} -> panic "noIncTopDecl" ["DParameterFun"]
   Include lf -> resolveInclude lf
   DModule tl ->
     case tlValue tl of

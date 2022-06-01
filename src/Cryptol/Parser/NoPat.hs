@@ -377,23 +377,10 @@ annotTopDs tds =
              let d1 = DPrimType tl { tlValue = pt }
              (d1 :) <$> annotTopDs ds
 
-        DParameterType p ->
-          do p1 <- annotParameterType p
-             (DParameterType p1 :) <$> annotTopDs ds
-
         DParameterConstraint {} -> (d :) <$> annotTopDs ds
 
-        DParameterFun p ->
-          do AnnotMap { .. } <- get
-             let rm _ _ = Nothing
-                 name = thing (pfName p)
-             case Map.updateLookupWithKey rm name annValueFs of
-               (Nothing,_)  -> (d :) <$> annotTopDs ds
-               (Just f,fs1) ->
-                 do mbF <- lift (checkFixs name f)
-                    set AnnotMap { annValueFs = fs1, .. }
-                    let p1 = p { pfFixity = mbF }
-                    (DParameterFun p1 :) <$> annotTopDs ds
+        DParameterType {} -> panic "annotTopDs" ["DParameterType"]
+        DParameterFun {} -> panic "annotTopDs" ["DParameterFun"]
 
         -- XXX: we may want to add pragmas to newtypes?
         TDNewtype {} -> (d :) <$> annotTopDs ds
