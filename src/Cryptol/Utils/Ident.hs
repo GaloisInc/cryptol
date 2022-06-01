@@ -48,6 +48,7 @@ module Cryptol.Utils.Ident
   , identText
   , modParamIdent
   , anonymousSignatureIdent
+  , anonymousModuleIdent
 
     -- * Namespaces
   , Namespace(..)
@@ -275,6 +276,11 @@ modParamIdent (Ident x t) = Ident x (T.append (T.pack "module parameter ") t)
 
 anonymousSignatureIdent :: Ident
 anonymousSignatureIdent = packIdent "AnonymousSignature"
+
+anonymousModuleIdent :: Int -> Ident
+anonymousModuleIdent i = packIdent ("AnonymousModule" <> show i)
+
+
 
 --------------------------------------------------------------------------------
 

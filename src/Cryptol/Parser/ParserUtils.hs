@@ -40,7 +40,7 @@ import Cryptol.Parser.Token(SelectorType(..))
 import Cryptol.Parser.Position
 import Cryptol.Parser.Utils (translateExprToNumT,widthIdent)
 import Cryptol.Utils.Ident( packModName,packIdent,modNameChunks
-                          , anonymousSignatureIdent)
+                          , anonymousSignatureIdent, anonymousModuleIdent)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic
 import Cryptol.Utils.RecordMap
@@ -930,9 +930,9 @@ mkSelector tok =
 
 
 mkModBody :: [TopDecl PName] -> [TopDecl PName]
-mkModBody = collect [] []
+mkModBody = collect 1 [] []
   where
-  collect ts fs ds =
+  collect ns ts fs ds =
     case ds of
       [] ->
         case (ts,fs) of
@@ -942,9 +942,30 @@ mkModBody = collect [] []
 
       d : more ->
         case d of
-          DParameterType pt      ->     collect (pt : ts)       fs  more
-          DParameterFun  pf      ->     collect ts        (pf : fs) more
-          _                      -> d : collect ts              fs  more
+          DParameterType pt      ->     collect ns (pt : ts)       fs  more
+          DParameterFun  pf      ->     collect ns ts        (pf : fs) more
+
+          DModule tl
+            | NestedModule m <- tlValue tl
+            , FunctorInstance f as is <- mDef m
+            , DefaultInstAnonArg lds <- as
+            , let i  = mkUnqual (anonymousModuleIdent ns)
+                  nm = Located { srcRange = srcRange (mName m)
+                               , thing    = i
+                               }
+                  as' = DefaultInstArg (ImpNested <$> nm) ->
+              DModule
+              TopLevel { tlExport = Private
+                       , tlDoc    = Nothing
+                       , tlValue  = NestedModule
+                                    Module { mName = nm, mDef = NormalModule lds }
+                       }
+            : DModule
+              tl { tlValue = NestedModule m { mDef = FunctorInstance f as' is } }
+            : collect (ns + 1) ts fs more
+
+
+          _ -> d : collect ns ts fs more
 
 
   anonSig l ts fs =

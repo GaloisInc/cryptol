@@ -121,7 +121,6 @@ library
                        Cryptol.ModuleSystem.NamingEnv,
                        Cryptol.ModuleSystem.Binds
                        Cryptol.ModuleSystem.Exports,
-                       Cryptol.ModuleSystem.InstantiateModule,
                        Cryptol.ModuleSystem.Renamer,
                        Cryptol.ModuleSystem.Renamer.Imports,
                        Cryptol.ModuleSystem.Renamer.ImplicitImports,
