@@ -421,19 +421,15 @@ instance TVars Expr where
         EAbs x t e1   -> EAbs x !$ (apSubst su t) !$ (go e1)
         ETAbs a e     -> ETAbs a !$ (go e)
         ETApp e t     -> ETApp !$ (go e) !$ (apSubst su t)
-        EProofAbs p e -> EProofAbs !$ hmm !$ (go e)
-          where hmm = case pSplitAnd (apSubst su p) of
-                        [p1] -> p1
-                        res -> panic "apSubst@EProofAbs"
-                                [ "Predicate split or disappeared after"
-                                , "we applied a substitution."
-                                , "Predicate:"
-                                , show (pp p)
-                                , "Became:"
-                                , show (map pp res)
-                                , "subst:"
-                                , show (pp su)
-                                ]
+        EProofAbs p e -> EProofAbs !$ p' !$ (go e)
+          where p' = pAnd (pSplitAnd (apSubst su p))
+          {- NOTE: we used to panic if `pSplitAnd` didn't return a single result.
+          It is useful to avoid the panic if applying the substitution to
+          already type checked code (e.g., when we are instantitaing a
+          functor).  In that case, we don't have the option to modify the
+          `EProofAbs` because we'd have to change all call sites, but things might
+          simplify because of the extra info in the substitution. -}
+
 
         EProofApp e   -> EProofApp !$ (go e)
 
