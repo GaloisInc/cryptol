@@ -131,12 +131,7 @@ renameModule m0 =
                     case mDef m0 of
                       NormalModule ds ->
                         NormalModule (addImplicitNestedImports ds)
-                      FunctorInstance f as i -> FunctorInstance f as' i
-                        where
-                        as' = case as of
-                                DefaultInstAnonArg ds ->
-                                  DefaultInstAnonArg (addImplicitNestedImports ds)
-                                _ -> as
+                      FunctorInstance f as i -> FunctorInstance f as i
                  }
 
      -- Step 2: compute what's defined
@@ -267,6 +262,8 @@ renameModule' mname m =
 checkFunctorArgs :: ModuleInstanceArgs Name -> RenameM ()
 checkFunctorArgs args =
   case args of
+    DefaultInstAnonArg {} ->
+      panic "checkFunctorArgs" ["Nested DefaultInstAnonArg"]
     DefaultInstArg l -> checkIsModule (srcRange l) (thing l)
     NamedInstArgs as -> mapM_ checkArg as
   where
@@ -676,6 +673,7 @@ instance Rename ModuleInstanceArgs where
     case args of
       DefaultInstArg a -> DefaultInstArg <$> rnLocated rename a
       NamedInstArgs xs -> NamedInstArgs  <$> traverse rename xs
+      DefaultInstAnonArg {} -> panic "rename" ["DefaultInstAnonArg"]
 
 instance Rename ModuleInstanceArg where
   rename (ModuleInstanceArg x m) =

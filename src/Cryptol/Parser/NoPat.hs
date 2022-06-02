@@ -338,14 +338,8 @@ noPatModule m =
   do def <-
        case mDef m of
          NormalModule ds -> NormalModule <$> noPatTopDs ds
-         FunctorInstance f as i -> FunctorInstance f <$> noPatModArg as <*> pure i
+         FunctorInstance f as i -> pure (FunctorInstance f as i)
      pure m { mDef = def }
-
-noPatModArg :: ModuleInstanceArgs PName -> NoPatM (ModuleInstanceArgs PName)
-noPatModArg as =
-  case as of
-    DefaultInstAnonArg ds -> DefaultInstAnonArg <$> noPatTopDs ds
-    _                     -> pure as
 
 --------------------------------------------------------------------------------
 

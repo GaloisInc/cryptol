@@ -165,9 +165,9 @@ import Paths_cryptol
 %%
 
 
-vmodule :: { Module PName }
-  : 'module' module_def       { $2 }
-  | 'v{' vmod_body 'v}'       { mkAnonymousModule $2 }
+vmodule :: { [Module PName] }
+  : 'module' module_def       { mkTopMods $2 }
+  | 'v{' vmod_body 'v}'       { [mkAnonymousModule $2] }
 
 
 module_def :: { Module PName }
@@ -897,7 +897,7 @@ parseProgramWith cfg s = case res s of
                       Layout   -> programLayout
                       NoLayout -> program
 
-parseModule :: Config -> Text -> Either ParseError (Module PName)
+parseModule :: Config -> Text -> Either ParseError [Module PName]
 parseModule cfg = parse cfg { cfgModuleScope = True } vmodule
 
 parseProgram :: Layout -> Text -> Either ParseError (Program PName)

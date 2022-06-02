@@ -112,7 +112,6 @@ type ResolvedLocal = ResolvedModule NamingEnv
 type ResolvedExt   = ResolvedModule ()
 
 
--- XXX: should we report errors here, or they going to be caught later?
 resolveImports ::
   (ImpName Name -> Mod ()) ->
   TopDef ->
@@ -404,7 +403,7 @@ doImportStep s = foldl' tryImport s1 (modImports (curMod s))
 {- | Try to instantiate a functor.  This succeeds if we can resolve the functor
 and the arguments and the both refer to already resolved names.
 Note: at the moment we ignore the arguments, but we'd have to do that in
-order to implment applicative behavior throuhg caching. -}
+order to implment applicative behavior with caching. -}
 tryInstanceMaybe ::
   HasCurScope a =>
   CurState' a ->

@@ -18,7 +18,7 @@
 module Cryptol.ModuleSystem.Base where
 
 import qualified Control.Exception as X
-import Control.Monad (unless,when)
+import Control.Monad (unless,when,forM)
 import Data.Maybe (fromMaybe)
 import Data.Monoid ((<>))
 import Data.Text.Encoding (decodeUtf8')
@@ -116,7 +116,7 @@ noPat a = do
 
 -- Parsing ---------------------------------------------------------------------
 
-parseModule :: ModulePath -> ModuleM (Fingerprint, P.Module PName)
+parseModule :: ModulePath -> ModuleM (Fingerprint, [P.Module PName])
 parseModule path = do
   getBytes <- getByteReader
 
@@ -160,26 +160,30 @@ loadModuleByPath :: FilePath -> ModuleM T.Module
 loadModuleByPath path = withPrependedSearchPath [ takeDirectory path ] $ do
   let fileName = takeFileName path
   foundPath <- findFile fileName
-  (fp, pm) <- parseModule (InFile foundPath)
-  let n = thing (P.mName pm)
+  (fp, pms) <- parseModule (InFile foundPath)
+  last <$>
+    forM pms \pm ->
+    do let n = thing (P.mName pm)
 
-  -- Check whether this module name has already been loaded from a different file
-  env <- getModuleEnv
-  -- path' is the resolved, absolute path, used only for checking
-  -- whether it's already been loaded
-  path' <- io (canonicalizePath foundPath)
+       -- Check whether this module name has already been loaded from a
+       -- different file
+       env <- getModuleEnv
+       -- path' is the resolved, absolute path, used only for checking
+       -- whether it's already been loaded
+       path' <- io (canonicalizePath foundPath)
 
-  case lookupModule n env of
-    -- loadModule will calculate the canonical path again
-    Nothing -> doLoadModule False (FromModule n) (InFile foundPath) fp pm
-    Just lm
-     | path' == loaded -> return (lmModule lm)
-     | otherwise       -> duplicateModuleName n path' loaded
-     where loaded = lmModuleId lm
+       case lookupModule n env of
+         -- loadModule will calculate the canonical path again
+         Nothing -> doLoadModule False (FromModule n) (InFile foundPath) fp pm
+         Just lm
+          | path' == loaded -> return (lmModule lm)
+          | otherwise       -> duplicateModuleName n path' loaded
+          where loaded = lmModuleId lm
 
 
 -- | Load a module, unless it was previously loaded.
-loadModuleFrom :: Bool {- ^ quiet mode -} -> ImportSource -> ModuleM (ModulePath,T.Module)
+loadModuleFrom ::
+  Bool {- ^ quiet mode -} -> ImportSource -> ModuleM (ModulePath,T.Module)
 loadModuleFrom quiet isrc =
   do let n = importedModule isrc
      mb <- getLoadedMaybe n
@@ -188,9 +192,9 @@ loadModuleFrom quiet isrc =
        Nothing ->
          do path <- findModule n
             errorInFile path $
-              do (fp, pm) <- parseModule path
-                 m        <- doLoadModule quiet isrc path fp pm
-                 return (path,m)
+              do (fp, pms) <- parseModule path
+                 ms        <- mapM (doLoadModule quiet isrc path fp) pms
+                 return (path,last ms)
 
 -- | Load dependencies, typecheck, and add to the eval environment.
 doLoadModule ::
@@ -217,7 +221,8 @@ doLoadModule quiet isrc path fp pm0 =
      let ?evalPrim = \i -> Right <$> Map.lookup i tbl
      callStacks <- getCallStacks
      let ?callStacks = callStacks
-     unless (T.isParametrizedModule tcm) $ modifyEvalEnv (E.moduleEnv Concrete tcm)
+     unless (T.isParametrizedModule tcm)
+       $ modifyEvalEnv (E.moduleEnv Concrete tcm)
      loadedModule path fp nameEnv tcm
 
      return tcm
@@ -299,11 +304,7 @@ addPrelude m
   newDef =
     case mDef m of
       NormalModule ds -> NormalModule (importPrelude : ds)
-      FunctorInstance f as ins -> FunctorInstance f as' ins
-        where
-        as' = case as of
-                DefaultInstAnonArg ds -> DefaultInstAnonArg (importPrelude : ds)
-                _                     -> as
+      FunctorInstance f as ins -> FunctorInstance f as ins
 
   importedMods  = map (P.iModule . P.thing) (P.mImports m)
   importPrelude = P.DImport P.Located
@@ -416,10 +417,10 @@ getPrimMap  =
 checkModule ::
   ImportSource -> ModulePath -> P.Module PName ->
   ModuleM (R.NamingEnv, T.Module)
-checkModule isrc path m =
-  case mDef m of
-    NormalModule _ -> checkSingleModule T.tcModule isrc path m
+checkModule isrc path m = checkSingleModule T.tcModule isrc path m
 {-
+  case mDef m of
+    NormalModule _ -> 
     FunctorInstanceAnon fmName _ ->
       do mbtf <- getLoadedMaybe (thing fmName)
          case mbtf of

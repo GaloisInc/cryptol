@@ -75,6 +75,12 @@ inferModule m =
          proveModuleTopLevel
          endModule
 
+    P.FunctorInstance f as inst ->
+      do mb <- doFunctorInst (P.ImpTop <$> P.mName m) f as inst
+         case mb of
+           Just mo -> pure mo
+           Nothing -> panic "inferModule" ["Didnt' get a module"]
+
 -- | Construct a Prelude primitive in the parsed AST.
 mkPrim :: String -> InferM (P.Expr Name)
 mkPrim str =
@@ -1078,7 +1084,9 @@ checkTopDecls = mapM_ checkTopDecl
                 proveModuleTopLevel
                 endSubmodule
 
-           P.FunctorInstance f as inst -> doFunctorInst (P.mName m) f as inst
+           P.FunctorInstance f as inst ->
+             do _ <- doFunctorInst (P.ImpNested <$> P.mName m) f as inst
+                pure ()
 
         where P.NestedModule m = P.tlValue tl
 

@@ -74,13 +74,8 @@ processModule ~(DModule m) =
 
     FunctorInstance f as is -> ([new], [])
       where
-      new = DModule m { tlValue = NestedModule m1 { mDef = newDef } }
-      newDef = FunctorInstance f as' is
-      as' =
-        case as of
-          DefaultInstAnonArg ds ->
-            DefaultInstAnonArg (addImplicitNestedImports ds)
-          _ -> as
+      new    = DModule m { tlValue = NestedModule m1 { mDef = newDef } }
+      newDef = FunctorInstance f as is
 
 
 

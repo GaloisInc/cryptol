@@ -31,6 +31,7 @@ module Cryptol.Utils.Ident
   , interactiveName
   , noModuleName
   , exprModName
+  , modNameArg
 
   , isParamInstModName
   , paramInstModName
@@ -73,6 +74,8 @@ import           Data.List (unfoldr)
 import qualified Data.Text as T
 import           Data.String (IsString(..))
 import           GHC.Generics (Generic)
+
+import Cryptol.Utils.Panic(panic)
 
 
 --------------------------------------------------------------------------------
@@ -133,16 +136,29 @@ modPathSplit p0 = (top,reverse xs)
 
 --------------------------------------------------------------------------------
 -- | Top-level Module names are just text.
-data ModName = ModName T.Text
+data ModName = ModName T.Text ModNameFlavor
+  deriving (Eq,Ord,Show,Generic)
+
+data ModNameFlavor = NormalModName | AnonModArgName
   deriving (Eq,Ord,Show,Generic)
 
 instance NFData ModName
+instance NFData ModNameFlavor
+
+modNameArg :: ModName -> ModName
+modNameArg (ModName m fl) =
+  case fl of
+    NormalModName -> ModName m AnonModArgName
+    AnonModArgName -> panic "modNameArg" ["Name is already an argument"]
 
 modNameToText :: ModName -> T.Text
-modNameToText (ModName x) = x
+modNameToText (ModName x fl) =
+  case fl of
+    NormalModName  -> x
+    AnonModArgName -> x <> "$argument"
 
 textToModName :: T.Text -> ModName
-textToModName = ModName
+textToModName txt = ModName txt NormalModName
 
 modNameChunks :: ModName -> [String]
 modNameChunks  = unfoldr step . modNameToText . notParamInstModName
@@ -153,21 +169,22 @@ modNameChunks  = unfoldr step . modNameToText . notParamInstModName
                      (a,b) -> Just (T.unpack a,T.drop (T.length modSep) b)
 
 isParamInstModName :: ModName -> Bool
-isParamInstModName (ModName x) = modInstPref `T.isPrefixOf` x
+isParamInstModName (ModName x _) = modInstPref `T.isPrefixOf` x
 
 -- | Convert a parameterized module's name to the name of the module
 -- containing the same definitions but with explicit parameters on each
 -- definition.
+-- XXX: This will go away
 paramInstModName :: ModName -> ModName
-paramInstModName (ModName x)
-  | modInstPref `T.isPrefixOf` x = ModName x
-  | otherwise = ModName (T.append modInstPref x)
+paramInstModName (ModName x f)
+  | modInstPref `T.isPrefixOf` x = ModName x f
+  | otherwise = ModName (T.append modInstPref x) f
 
 
 notParamInstModName :: ModName -> ModName
-notParamInstModName (ModName x)
-  | modInstPref `T.isPrefixOf` x = ModName (T.drop (T.length modInstPref) x)
-  | otherwise = ModName x
+notParamInstModName (ModName x f)
+  | modInstPref `T.isPrefixOf` x = ModName (T.drop (T.length modInstPref) x) f
+  | otherwise = ModName x f
 
 
 packModName :: [T.Text] -> ModName

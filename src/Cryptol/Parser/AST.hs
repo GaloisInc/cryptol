@@ -253,6 +253,7 @@ data ModuleInstanceArgs name =
 
   | DefaultInstAnonArg [TopDecl name]
     -- ^ Single parameter instantitaion using this anonymous module
+    -- Only appears while parsing, shouldn't be in the results of the parser.
 
   | NamedInstArgs  [ModuleInstanceArg name]
     deriving (Show, Generic, NFData)

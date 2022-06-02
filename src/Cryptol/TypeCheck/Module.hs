@@ -26,14 +26,14 @@ import Cryptol.TypeCheck.Instantiate(instantiateWith)
 import Cryptol.TypeCheck.ModuleInstance
 
 doFunctorInst ::
-  Located Name                {- ^ Name for the new module -} ->
+  Located (P.ImpName Name)    {- ^ Name for the new module -} ->
   Located (P.ImpName Name)    {- ^ Functor being instantiation -} ->
   P.ModuleInstanceArgs Name   {- ^ Instance arguments -} ->
   Map Name Name
-  {- ^ Instantitation.  These is the renaming for the fuctor that arises from
+  {- ^ Instantitation.  These is the renaming for the functor that arises from
        generativity (i.e., it is something that will make the names "fresh").
   -} ->
-  InferM ()
+  InferM (Maybe Module)
 doFunctorInst m f as inst =
   inRange (srcRange m)
   do mf    <- lookupFunctor (thing f)
@@ -55,7 +55,10 @@ doFunctorInst m f as inst =
                    }
      newGoals CtModuleInstance (map thing (mParamConstraints m1))
 
-     newSubmoduleScope (thing m) (mImports m2) (mExports m2)
+     case thing m of
+       P.ImpTop mn    -> newModuleScope mn (mImports m2) (mExports m2)
+       P.ImpNested mn -> newSubmoduleScope mn (mImports m2) (mExports m2)
+
      mapM_ addTySyn     (Map.elems (mTySyns m2))
      mapM_ addNewtype   (Map.elems (mNewtypes m2))
      mapM_ addPrimType  (Map.elems (mPrimTypes m2))
@@ -63,7 +66,10 @@ doFunctorInst m f as inst =
      addSubmodules      (mSubmodules m2)
      addFunctors        (mFunctors m2)
      mapM_ addDecls     (mDecls m2)
-     endSubmodule
+
+     case thing m of
+       P.ImpTop {}    -> Just <$> endModule
+       P.ImpNested {} -> endSubmodule >> pure Nothing
 
 
 

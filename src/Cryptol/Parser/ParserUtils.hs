@@ -40,7 +40,9 @@ import Cryptol.Parser.Token(SelectorType(..))
 import Cryptol.Parser.Position
 import Cryptol.Parser.Utils (translateExprToNumT,widthIdent)
 import Cryptol.Utils.Ident( packModName,packIdent,modNameChunks
-                          , anonymousSignatureIdent, anonymousModuleIdent)
+                          , anonymousSignatureIdent, anonymousModuleIdent
+                          , modNameArg
+                          )
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic
 import Cryptol.Utils.RecordMap
@@ -928,6 +930,23 @@ mkSelector tok =
     Selector (RecordSelectorTok t) -> RecordSel (mkIdent t) Nothing
     _ -> panic "mkSelector" [ "Unexpected selector token", show tok ]
 
+
+mkTopMods :: Module PName -> [Module PName]
+mkTopMods mo =
+  case mDef mo of
+    FunctorInstance f as i
+      | DefaultInstAnonArg ds <- as ->
+      let nm = modNameArg <$> mName mo
+         -- NOTE: order here is important as we want to load the argument
+        -- before the the instantiation.
+      in [ Module { mName = nm
+                  , mDef = NormalModule ds
+                  }
+
+        , mo { mDef = FunctorInstance f (DefaultInstArg (ImpTop <$> nm)) i }
+        ]
+
+    _ -> [mo]
 
 mkModBody :: [TopDecl PName] -> [TopDecl PName]
 mkModBody = collect 1 [] []

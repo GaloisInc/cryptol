@@ -42,7 +42,6 @@ import Cryptol.ModuleSystem.Interface
 
 data TopDef = TopMod ModName (Mod ())
             | TopInst ModName (ImpName PName) (ModuleInstanceArgs PName)
-            | TopInstAnon ModName ModName (Mod ())
 
 -- | Things defined by a module
 data Mod a = Mod
@@ -130,9 +129,7 @@ topModuleDefs :: Module PName -> ModBuilder TopDef
 topModuleDefs m =
   case mDef m of
     NormalModule ds -> TopMod mname <$> declsToMod (Just (TopModule mname)) ds
-    FunctorInstance f as _ ->
-      pure (TopInst mname (thing f) as)
-
+    FunctorInstance f as _ -> pure (TopInst mname (thing f) as)
   where
   mname = thing (mName m)
 
