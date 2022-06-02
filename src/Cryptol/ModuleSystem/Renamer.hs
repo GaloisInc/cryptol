@@ -555,7 +555,7 @@ doModParam mp =
          loc     = srcRange sigName
      withLoc loc
        do nm <- resolveName NameUse NSSignature (thing sigName)
-          sigEnv <- lookupDefines (ImpNested nm)
+          sigEnv <- lookupSigDefines nm
           me <- getCurMod
           let newP x = do y <- lift (newModParam me (mpName mp) loc x)
                           sets_ (Map.insert y x)

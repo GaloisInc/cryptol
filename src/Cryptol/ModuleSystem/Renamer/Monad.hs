@@ -448,7 +448,25 @@ lookupDefines nm =
   do ro <- RenameM ask
      case Map.lookup nm (roResolvedModules ro) of
        Just loc -> pure (rmodDefines loc)
-       Nothing  -> maybe mempty modDefines . ($ nm) <$> getLoadedModsMaybe
+       Nothing  ->
+         do loaded <- getLoadedMods
+            pure (modDefines (loaded nm))
+
+lookupSigDefines :: Name -> RenameM NamingEnv
+lookupSigDefines nm =
+  do ro <- RenameM ask
+     case Map.lookup (ImpNested nm) (roResolvedModules ro) of
+       Just loc -> pure (rmodDefines loc)
+       Nothing ->
+         do getIf <- RenameM (roIfaces <$> ask)
+            let top = nameTopModule nm
+                sigs = ifSignatures (ifPublic (getIf top))
+            case Map.lookup nm sigs of
+              Just s -> pure (modParamsNamingEnv s)
+              Nothing ->
+                panic "lookupSigDefines" [ "Missing signature "<> show nm]
+
+
 
 
 checkIsModule :: Range -> ImpName Name -> RenameM ()
