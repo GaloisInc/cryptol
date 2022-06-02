@@ -1,0 +1,7 @@
+:set prover=sbv-z3
+:safe \a -> sortBy (\c1 c2 -> c2 != ' ') (split`{8} a)
+:safe \(a : [64]) (i : Integer) -> (split`{8} a)@(max 0 (min i 7))
+
+:set prover=w4-z3
+:safe \a -> sortBy (\c1 c2 -> c2 != ' ') (split`{8} a)
+:safe \(a : [64]) (i : Integer) -> (split`{8} a)@(max 0 (min i 7))

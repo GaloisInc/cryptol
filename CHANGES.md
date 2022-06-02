@@ -1,3 +1,10 @@
+# next
+
+## Bug fixes
+
+* Fix a bug in the What4 backend that could cause applications of `(@)` with
+  symbolic `Integer` indices to become out of bounds (#1359).
+
 # 2.13.0
 
 ## Language changes

@@ -540,7 +540,7 @@ indexFront_int sym mblen _a xs _ix idx
     -- isn't much we can do.
     maxIdx =
       case mblen of
-        Nat n -> Just n
+        Nat n -> Just (n - 1)
         Inf   -> Nothing
 indexFront_segs ::
   W4.IsSymExprBuilder sym =>
