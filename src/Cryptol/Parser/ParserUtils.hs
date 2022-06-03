@@ -948,6 +948,8 @@ mkTopMods mo =
 
     _ -> [mo]
 
+-- XXX: This is wrong.
+-- The signautre should go outside of the functor that uses it.
 mkModBody :: [TopDecl PName] -> [TopDecl PName]
 mkModBody = collect 1 [] []
   where
