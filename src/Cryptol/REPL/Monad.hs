@@ -329,6 +329,7 @@ data REPLException
   | Unsupported Unsupported
   | ModuleSystemError NameDisp M.ModuleError
   | EvalPolyError T.Schema
+  | InstantiationsNotFound T.Schema
   | TypeNotTestable T.Type
   | EvalInParamModule [M.Name]
   | SBVError String
@@ -358,6 +359,8 @@ instance PP REPLException where
     TooWide e            -> pp e
     EvalPolyError s      -> text "Cannot evaluate polymorphic value."
                          $$ text "Type:" <+> pp s
+    InstantiationsNotFound s -> text "Cannot find instantiations for some type variables."
+                             $$ text "Type:" <+> pp s
     TypeNotTestable t    -> text "The expression is not of a testable type."
                          $$ text "Type:" <+> pp t
     EvalInParamModule xs -> nest 2 $ vsep $

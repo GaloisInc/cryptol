@@ -431,10 +431,17 @@ qcExpr ::
   T.Schema ->
   REPL TestReport
 qcExpr qcMode exprDoc texpr schema =
-  do (val,ty) <- replEvalCheckedExpr texpr schema
+  do (val,ty) <- replEvalCheckedExpr texpr schema >>= \mb_res -> case mb_res of
+       Just res -> pure res
+       -- If instance is not found, doesn't necessarily mean that there is no instance.
+       -- And due to nondeterminism in result from the solver (for finding solution to 
+       -- numeric type constraints), `:check` can get to this exception sometimes, but
+       -- successfully find an instance and test with it other times.
+       Nothing -> raise (InstantiationsNotFound schema)
      testNum <- (toInteger :: Int -> Integer) <$> getKnownUser "tests"
      tenv <- E.envTypes . M.deEnv <$> getDynEnv
      let tyv = E.evalValType tenv ty
+     -- tv has already had polymorphism instantiated 
      percentRef <- io $ newIORef Nothing
      testsRef <- io $ newIORef 0
 
@@ -801,7 +808,9 @@ proveSatExpr isSat rng exprDoc texpr schema = do
 printSafetyViolation :: T.Expr -> T.Schema -> [E.GenValue Concrete] -> REPL ()
 printSafetyViolation texpr schema vs =
     catch
-      (do (fn,_) <- replEvalCheckedExpr texpr schema
+      (do fn <- replEvalCheckedExpr texpr schema >>= \mb_res -> case mb_res of 
+            Just (fn, _) -> pure fn
+            Nothing -> raise (EvalPolyError schema)
           rEval (E.forceValue =<< foldM (\f v -> E.fromVFun Concrete f (pure v)) fn vs))
       (\case
           EvalError eex -> rPutStrLn (show (pp eex))
@@ -1552,9 +1561,11 @@ replSpecExpr e = liftModuleCmd $ S.specialize e
 replEvalExpr :: P.Expr P.PName -> REPL (Concrete.Value, T.Type)
 replEvalExpr expr =
   do (_,def,sig) <- replCheckExpr expr
-     replEvalCheckedExpr def sig
+     replEvalCheckedExpr def sig >>= \mb_res -> case mb_res of
+       Just res -> pure res
+       Nothing -> raise (EvalPolyError sig)
 
-replEvalCheckedExpr :: T.Expr -> T.Schema -> REPL (Concrete.Value, T.Type)
+replEvalCheckedExpr :: T.Expr -> T.Schema -> REPL (Maybe (Concrete.Value, T.Type))
 replEvalCheckedExpr def sig =
   do validEvalContext def
      validEvalContext sig
@@ -1562,29 +1573,27 @@ replEvalCheckedExpr def sig =
      s <- getTCSolver
      mbDef <- io (defaultReplExpr s def sig)
 
-     (def1,ty) <-
-        case mbDef of
-          Nothing -> raise (EvalPolyError sig)
-          Just (tys,def1) ->
-            do warnDefaults tys
-               let su = T.listParamSubst tys
-               return (def1, T.apSubst su (T.sType sig))
+     case mbDef of
+       Nothing -> pure Nothing
+       Just (tys, def1) ->
+           do warnDefaults tys
+              let su = T.listParamSubst tys
+              let ty = T.apSubst su (T.sType sig)
+              whenDebug (rPutStrLn (dump def1))
 
-     whenDebug (rPutStrLn (dump def1))
+              tenv <- E.envTypes . M.deEnv <$> getDynEnv
+              let tyv = E.evalValType tenv ty
 
-     tenv <- E.envTypes . M.deEnv <$> getDynEnv
-     let tyv = E.evalValType tenv ty
+              -- add "it" to the namespace via a new declaration
+              itVar <- bindItVariable tyv def1
 
-     -- add "it" to the namespace via a new declaration
-     itVar <- bindItVariable tyv def1
+              let itExpr = case getLoc def of
+                              Nothing  -> T.EVar itVar
+                              Just rng -> T.ELocated rng (T.EVar itVar)
 
-     let itExpr = case getLoc def of
-                    Nothing  -> T.EVar itVar
-                    Just rng -> T.ELocated rng (T.EVar itVar)
-
-     -- evaluate the it variable
-     val <- liftModuleCmd (rethrowEvalError . M.evalExpr itExpr)
-     return (val,ty)
+              -- evaluate the it variable
+              val <- liftModuleCmd (rethrowEvalError . M.evalExpr itExpr)
+              return $ Just (val,ty)
   where
   warnDefaults ts =
     case ts of
