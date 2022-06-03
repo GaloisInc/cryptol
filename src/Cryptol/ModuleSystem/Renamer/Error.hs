@@ -10,11 +10,14 @@
 {-# Language OverloadedStrings #-}
 module Cryptol.ModuleSystem.Renamer.Error where
 
+import Data.List(intersperse)
+
 import Cryptol.ModuleSystem.Name
 import Cryptol.Parser.AST
 import Cryptol.Parser.Position
 import Cryptol.Parser.Selector(ppNestedSels)
 import Cryptol.Utils.PP
+import Cryptol.Utils.Ident(modPathSplit)
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
@@ -69,6 +72,9 @@ data RenamerError
 In addition to normla names we have a way to refer to module parameters
 and top-level module constraints, which have no explicit names -}
 data DepName = NamedThing Name
+             | ModPath ModPath
+               -- ^ The module at this path
+
              | ModParamName Range Ident
                {- ^ Note that the range is important not just for error
                     reporting but to distinguish module parameters with
@@ -77,12 +83,13 @@ data DepName = NamedThing Name
                -- ^ Identifed by location in source
                deriving (Eq,Ord,Show,Generic,NFData)
 
-depNameLoc :: DepName -> Range
+depNameLoc :: DepName -> Maybe Range
 depNameLoc x =
   case x of
-    NamedThing n -> nameLoc n
-    ConstratintAt r -> r
-    ModParamName r _ -> r
+    NamedThing n -> Just (nameLoc n)
+    ConstratintAt r -> Just r
+    ModParamName r _ -> Just r
+    ModPath {} -> Nothing
 
 
 instance PP RenamerError where
@@ -144,7 +151,10 @@ instance PP RenamerError where
 
     InvalidDependency ds ->
       hang "[error] Invalid recursive dependency:"
-         4 (vcat [ "•" <+> pp x <.> ", defined at" <+> ppR (depNameLoc x)
+         4 (vcat [ "•" <+> pp x <.>
+                    case depNameLoc x of
+                      Just r -> ", defined at" <+> ppR r
+                      Nothing -> mempty
                  | x <- ds ])
       where ppR r = pp (from r) <.> "--" <.> pp (to r)
 
@@ -184,6 +194,10 @@ instance PP DepName where
           NSValue  -> pp n
           NSSignature -> "signature" <+> pp n
       ModParamName _r i -> "module parameter" <+> pp i
+      ModPath mp ->
+        case modPathSplit mp of
+          (m,[]) -> "module" <+> pp m
+          (_,is) -> "submodule" <+> hcat (intersperse "::" (map pp is))
 
 
 

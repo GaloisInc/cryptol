@@ -52,7 +52,7 @@ import Cryptol.Parser.AST
 import Cryptol.Parser.Selector(selName)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.RecordMap
-import Cryptol.Utils.Ident(allNamespaces,OrigName(..))
+import Cryptol.Utils.Ident(allNamespaces,OrigName(..),modPathCommon)
 import Cryptol.Utils.PP
 
 import Cryptol.ModuleSystem.Interface
@@ -552,8 +552,15 @@ doModParam mp =
          loc     = srcRange sigName
      withLoc loc
        do nm <- resolveName NameUse NSSignature (thing sigName)
-          sigEnv <- lookupSigDefines nm
+
           me <- getCurMod
+          case modPathCommon me (nameModPath nm) of
+            Just (_,[],_) ->
+              recordError (InvalidDependency [ModPath me, NamedThing  nm])
+            _ -> pure ()
+
+
+          sigEnv <- lookupSigDefines nm
           let newP x = do y <- lift (newModParam me (mpName mp) loc x)
                           sets_ (Map.insert y x)
                           pure y
@@ -633,17 +640,17 @@ instance Rename TopDecl where
 
 instance Rename ModParam where
   rename mp =
-    depsOf (ModParamName (srcRange (mpSignature mp)) (mpName mp))
     do x   <- rnLocated (resolveName NameUse NSSignature) (mpSignature mp)
-       ren <- renModParamInstance <$> getModParam (mpName mp)
+       depsOf (ModParamName (srcRange (mpSignature mp)) (mpName mp))
+         do ren <- renModParamInstance <$> getModParam (mpName mp)
 
-       {- Here we add a single "use" to all type-level names intorduced,
-       because this is their binding site.   The warnings for unused names
-       are reported for names with a single "use" (i.e., the binding site)
-       so if we don't add the bindg site use, we get incorrect warnings -}
-       mapM_ recordUse [ t | t <- Map.keys ren, nameNamespace t == NSType ]
+            {- Here we add a single "use" to all type-level names intorduced,
+            because this is their binding site.   The warnings for unused names
+            are reported for names with a single "use" (i.e., the binding site)
+            so if we don't add the bindg site use, we get incorrect warnings -}
+            mapM_ recordUse [ t | t <- Map.keys ren, nameNamespace t == NSType ]
 
-       pure mp { mpSignature = x, mpRenaming = ren }
+            pure mp { mpSignature = x, mpRenaming = ren }
 
 instance Rename Signature where
   rename sig =
