@@ -142,7 +142,7 @@ renameModule m0 =
      extern       <- getLoadedMods
      resolvedMods <- liftSupply (resolveImports extern defs)
 
-     let pathToName = Map.fromList [ (nameModPath x, x)
+     let pathToName = Map.fromList [ (Nested (nameModPath x) (nameIdent x), x)
                                    | ImpNested x <- Map.keys resolvedMods ]
 
 
@@ -185,7 +185,7 @@ renameTopDecls m ds0 =
      extern       <- getLoadedMods
      resolvedMods <- liftSupply (resolveImports extern (TopMod m defs))
 
-     let pathToName = Map.fromList [ (nameModPath x, x)
+     let pathToName = Map.fromList [ (Nested (nameModPath x) (nameIdent x), x)
                                    | ImpNested x <- Map.keys resolvedMods ]
 
 
