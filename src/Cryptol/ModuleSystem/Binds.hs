@@ -7,6 +7,7 @@ module Cryptol.ModuleSystem.Binds
   ( BindsNames
   , TopDef(..)
   , Mod(..)
+  , ModKind(..)
   , modNested
   , modBuilder
   , topModuleDefs
@@ -42,14 +43,15 @@ import Cryptol.ModuleSystem.Interface
 
 data TopDef = TopMod ModName (Mod ())
             | TopInst ModName (ImpName PName) (ModuleInstanceArgs PName)
+            | TopSig ModName (Mod ())
 
 -- | Things defined by a module
 data Mod a = Mod
   { modImports   :: [ ImportG (ImpName PName) ]
-  , modParams    :: Bool -- True = has params
+  , modKind      :: ModKind
   , modInstances :: Map Name (ImpName PName, ModuleInstanceArgs PName)
-  , modMods      :: Map Name (Mod a)
-  , modSigs      :: Map Name NamingEnv
+  , modMods      :: Map Name (Mod a) -- ^ this includes signatures
+
   , modDefines   :: NamingEnv
     {- ^ Things defined by this module.  Note the for normal modules we
     really just need the public names, however for things within
@@ -68,7 +70,6 @@ data Mod a = Mod
 
 modNested :: Mod a -> Set Name
 modNested m = Set.unions [ Map.keysSet (modInstances m)
-                         , Map.keysSet (modSigs m)
                          , Map.keysSet (modMods m)
                          ]
 
@@ -93,12 +94,13 @@ ifaceToMod iface = ifaceNamesToMod iface (ifaceIsFunctor iface) (ifNames iface)
 ifaceNamesToMod :: IfaceG topname -> Bool -> IfaceNames name -> Mod ()
 ifaceNamesToMod iface params names =
   Mod
-    { modParams  = params
+    { modKind    = if params then AFunctor else AModule
     , modMods    = (ifaceNamesToMod iface False <$> ifModules decls)
                    `Map.union`
                    (ifaceToMod <$> ifFunctors decls)
+                   `Map.union`
+                   (ifaceSigToMod <$> ifSignatures decls)
     , modDefines = namingEnvFromNames defs
-    , modSigs    = modParamsNamingEnv <$> ifSignatures decls
     , modPublic  = ifsPublic names
 
     , modImports   = []
@@ -109,6 +111,23 @@ ifaceNamesToMod iface params names =
   defs      = ifsDefines names
   isLocal x = x `Set.member` defs
   decls     = filterIfaceDecls isLocal (ifPublic iface <> ifPrivate iface)
+
+
+ifaceSigToMod :: IfaceParams -> Mod ()
+ifaceSigToMod ps = Mod
+  { modImports   = []
+  , modKind      = ASignature
+  , modInstances = mempty
+  , modMods      = mempty
+  , modDefines   = env
+  , modPublic    = namingEnvNames env
+  , modState     = ()
+  }
+  where
+  env = modParamsNamingEnv ps
+
+
+
 
 
 
@@ -130,11 +149,25 @@ topModuleDefs m =
   case mDef m of
     NormalModule ds -> TopMod mname <$> declsToMod (Just (TopModule mname)) ds
     FunctorInstance f as _ -> pure (TopInst mname (thing f) as)
+    SignatureModule s -> TopSig mname <$> sigToMod (TopModule mname) s
   where
   mname = thing (mName m)
 
 topDeclsDefs :: [TopDecl PName] -> ModBuilder (Mod ())
 topDeclsDefs = declsToMod Nothing
+
+sigToMod :: ModPath -> Signature PName -> ModBuilder (Mod ())
+sigToMod mp sig =
+  do env <- defNames (signatureDefs mp sig)
+     pure Mod { modImports   = map thing (sigImports sig)
+              , modKind      = ASignature
+              , modInstances = mempty
+              , modMods      = mempty
+              , modDefines   = env
+              , modPublic    = mempty -- unused
+              , modState     = ()
+              }
+
 
 
 declsToMod :: Maybe ModPath -> [TopDecl PName] -> ModBuilder (Mod ())
@@ -155,10 +188,10 @@ declsToMod mbPath ds =
        _ -> pure ()
 
      let mo = Mod { modImports      = [ thing i | DImport i <- ds ]
-                  , modParams       = any isParamDecl ds
+                  , modKind         = if any isParamDecl ds
+                                         then AFunctor else AModule
                   , modInstances    = mempty
                   , modMods         = mempty
-                  , modSigs         = mempty
                   , modDefines      = defs
                   , modPublic       = pub
                   , modState        = ()
@@ -181,29 +214,19 @@ declsToMod mbPath ds =
                   pure mo
              Just path ->
                 case mDef nmod of
+
                    NormalModule xs ->
                      do m <- declsToMod (Just (Nested path (nameIdent name))) xs
                         pure mo { modMods = Map.insert name m (modMods mo) }
+
                    FunctorInstance f args _ ->
                       pure mo { modInstances = Map.insert name (thing f, args)
                                                     (modInstances mo) }
 
-      DModSig tl ->
-        do let sig   = tlValue tl
-               pname = thing (sigName sig)
-               name  = case lookupNS NSSignature pname defs of
-                         Just (One x) -> x
-                         _ -> panic "declsToMod" ["sig: Missed ambig/undefined"]
-           case mbPath of
-             {- No top level signatures at the moment, as nothing would
-                be in scope in them (they don't have imports) -}
-             Nothing ->
-               do defErr (UnexpectedNest (srcRange (sigName sig)) pname)
-                  pure mo
-             Just path ->
-                do newEnv <-
-                     defNames (signatureDefs (Nested path (nameIdent name)) sig)
-                   pure mo { modSigs = Map.insert name newEnv (modSigs mo) }
+                   SignatureModule sig ->
+                      do m <- sigToMod (Nested path (nameIdent name)) sig
+                         pure mo { modMods = Map.insert name m (modMods mo) }
+
 
       _ -> pure mo
 
@@ -304,8 +327,6 @@ instance BindsNames (InModule (TopDecl PName)) where
       Include _        -> mempty
       DImport {}       -> mempty -- see 'openLoop' in the renamer
       DModule m        -> namingEnv (InModule ns (tlValue m))
-
-      DModSig s        -> namingEnv (InModule ns (tlValue s))
       DModParam {}     -> mempty-- handled in the renamer as we need to resolve
                                  -- the signature name first (similar to import)
 
@@ -314,14 +335,6 @@ instance BindsNames (InModule (NestedModule PName)) where
     do let pnmame = mName mdef
        nm   <- newTop NSModule m (thing pnmame) Nothing (srcRange pnmame)
        pure (singletonNS NSModule (thing pnmame) nm)
-
-instance BindsNames (InModule (Signature PName)) where
-  namingEnv (InModule ~(Just m) sig) = BuildNamingEnv
-    do let pname = sigName sig
-       nm <- newTop NSSignature m (thing pname) Nothing (srcRange pname)
-       pure (singletonNS NSSignature (thing pname) nm)
-
-
 
 instance BindsNames (InModule (PrimType PName)) where
   namingEnv (InModule ~(Just m) PrimType { .. }) =

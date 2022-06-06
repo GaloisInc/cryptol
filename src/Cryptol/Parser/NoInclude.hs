@@ -166,6 +166,7 @@ noIncludeModule m =
   do newDef <- case mDef m of
                  NormalModule ds         -> NormalModule <$> doDecls ds
                  FunctorInstance f as is -> pure (FunctorInstance f as is)
+                 SignatureModule s       -> pure (SignatureModule s)
      pure m { mDef = newDef }
   where
   doDecls    = fmap concat . collectErrors noIncTopDecl
@@ -192,7 +193,6 @@ noIncTopDecl td = case td of
         do m1 <- noIncludeModule m
            pure [ DModule tl { tlValue = NestedModule m1 } ]
   DImport {} -> pure [td]
-  DModSig {} -> pure [td]
   DModParam {} -> pure [td]
 
 -- | Resolve the file referenced by a include into a list of top-level

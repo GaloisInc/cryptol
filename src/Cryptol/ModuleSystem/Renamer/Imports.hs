@@ -67,14 +67,14 @@ import Cryptol.Utils.Ident(ModName,ModPath(..),Namespace(..),OrigName(..))
 
 import Cryptol.Parser.AST
   ( ImportG(..),PName, ModuleInstanceArgs(..), ImpName(..) )
-import Cryptol.ModuleSystem.Binds (Mod(..), TopDef(..), modNested)
+import Cryptol.ModuleSystem.Binds (Mod(..), TopDef(..), modNested, ModKind(..))
 import Cryptol.ModuleSystem.Name
           ( Name, Supply, SupplyT, runSupplyT, liftSupply, freshNameFor
           , asOrigName, nameIdent, nameTopModule )
 import Cryptol.ModuleSystem.Names(Names(..))
 import Cryptol.ModuleSystem.NamingEnv
           ( NamingEnv(..), lookupNS, shadowing, travNamingEnv
-          , interpImportEnv, namingEnvNames, zipByTextName, filterUNames )
+          , interpImportEnv, zipByTextName, filterUNames )
 
 
 {- | This represents a resolved module or signaure.
@@ -103,7 +103,6 @@ data ResolvedModule imps = ResolvedModule
     it is just part of the thing we compute for local modules. -}
   }
 
-data ModKind = AFunctor | ASignature | AModule
 
 -- | A resolved module that's defined in (or is) the current top-level module
 type ResolvedLocal = ResolvedModule NamingEnv
@@ -195,7 +194,6 @@ todoModule = fmap (const emptyModState)
 isDone :: Todo -> Bool
 isDone m = null     (modImports m)   &&
            Map.null (modInstances m) &&
-           Map.null (modSigs m)      &&
            Map.null (modMods m)
 
 
@@ -234,9 +232,8 @@ forceResolveMod todo =
   ResolvedModule
     { rmodDefines   = modDefines todo
     , rmodPublic    = modPublic todo
-    , rmodKind      = if modParams todo then AFunctor else AModule
-    , rmodNested    = Map.keysSet (modSigs todo) `Set.union`
-                      Map.keysSet (modMods todo)
+    , rmodKind      = modKind todo
+    , rmodNested    = Map.keysSet (modMods todo)
     , rmodImports   = modImported (modState todo)
     }
 
@@ -263,7 +260,7 @@ externalMod :: Mod () -> ResolvedExt
 externalMod m = ResolvedModule
   { rmodDefines  = modDefines m
   , rmodPublic   = modPublic m
-  , rmodKind     = if modParams m then AFunctor else AModule
+  , rmodKind     = modKind m
   , rmodNested   = modNested m
   , rmodImports  = ()
   }
@@ -527,36 +524,15 @@ doInstancesStep s = Map.foldlWithKey' tryInstance s0 (modInstances (curMod s))
   where
   s0 = updCur s \m' -> m' { modInstances = Map.empty }
 
-
--- | Generate names for signatures.  This always succeeds.
-doSignaturesStep :: CurState -> CurState
-doSignaturesStep s = updCur s1 \m -> m { modSigs = mempty }
-  where
-  s1 = s { doneModules = Map.union resolved (doneModules s)
-         , changes     = not (Map.null sigs)
-         }
-
-  sigs      = modSigs (curMod s)
-  resolved  = doSig <$> sigs
-  doSig sig = ResolvedModule
-                { rmodDefines  = sig
-                , rmodPublic   = namingEnvNames sig -- doesn't matter
-                , rmodNested   = mempty
-                , rmodKind     = ASignature
-                , rmodImports  = mempty
-                   -- no imports in signatures, at least for now.
-                }
-
 tryFinishCurMod :: Todo -> CurState -> Maybe ResolvedLocal
 tryFinishCurMod m newS
   | isDone newM =
     Just ResolvedModule
            { rmodDefines = modDefines m
            , rmodPublic  = modPublic m
-           , rmodKind    = if modParams m then AFunctor else AModule
+           , rmodKind    = modKind m
            , rmodNested  = Set.unions
                              [ Map.keysSet (modInstances m)
-                             , Map.keysSet (modSigs m)
                              , Map.keysSet (modMods m)
                              ]
            , rmodImports  = modImported (modState newM)
@@ -581,7 +557,6 @@ tryModule s nm m =
   newS   = doModuleStep s1
   newM   = curMod newS
 
-
 -- | Process all submodules of a module.
 doModulesStep :: CurState -> CurState
 doModulesStep s = Map.foldlWithKey' tryModule s0 (modMods m)
@@ -597,7 +572,6 @@ doModuleStep = doStep step
   where
   step = doStep doModulesStep
        . doStep doInstancesStep
-       . doStep doSignaturesStep
        . doStep doImportStep
 
 

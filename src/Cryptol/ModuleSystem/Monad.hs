@@ -61,6 +61,7 @@ import Prelude.Compat
 data ImportSource
   = FromModule P.ModName
   | FromImport (Located P.Import)
+  | FromSigImport (Located P.ModName)
   | FromModuleInstance (Located P.ModName)
     deriving (Show, Generic, NFData)
 
@@ -71,6 +72,7 @@ instance PP ImportSource where
   ppPrec _ is = case is of
     FromModule n  -> text "module name" <+> pp n
     FromImport li -> text "import of module" <+> pp (P.iModule (P.thing li))
+    FromSigImport l -> text "import of signature" <+> pp (P.thing l)
     FromModuleInstance l ->
       text "instantiation of module" <+> pp (P.thing l)
 
@@ -80,6 +82,7 @@ importedModule is =
     FromModule n          -> n
     FromImport li         -> P.iModule (P.thing li)
     FromModuleInstance l  -> P.thing l
+    FromSigImport l       -> P.thing l
 
 
 data ModuleError

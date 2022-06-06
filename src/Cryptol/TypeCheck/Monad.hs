@@ -699,13 +699,16 @@ lookupAbstractType x = Map.lookup x <$> getAbstractTypes
 lookupParamType :: Name -> InferM (Maybe ModTParam)
 lookupParamType x = Map.lookup x <$> getParamTypes
 
-lookupSignature :: Name -> InferM If.IfaceParams
-lookupSignature x =
-  do sigs <- getSignatures
-     case Map.lookup x sigs of
-       Just ips -> pure ips
-       Nothing  -> panic "lookupSignature"
-                    [ "Missing signature", show x ]
+lookupSignature :: P.ImpName Name -> InferM If.IfaceParams
+lookupSignature nx =
+  case nx of
+    -- XXX: top
+    P.ImpNested x ->
+      do sigs <- getSignatures
+         case Map.lookup x sigs of
+           Just ips -> pure ips
+           Nothing  -> panic "lookupSignature"
+                        [ "Missing signature", show x ]
 
 -- | Lookup an external (i.e., previously loaded) top module.
 lookupTopModule :: ModName -> InferM (Maybe (ModuleG (), If.IfaceG ()))

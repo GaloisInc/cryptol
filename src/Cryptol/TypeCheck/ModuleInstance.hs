@@ -10,6 +10,7 @@ import Cryptol.Parser.Position(Located)
 import Cryptol.ModuleSystem.Interface
   (IfaceParams(..), IfaceNames(..), IfaceModParam(..))
 import Cryptol.IR.TraverseNames(TraverseNames,mapNames)
+import Cryptol.Parser.AST(ImpName(..))
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Subst(Subst,TVars,apSubst)
 
@@ -51,6 +52,12 @@ instance ModuleInstance a => ModuleInstance (Located a) where
 
 instance ModuleInstance Name where
   moduleInstance = doVInst
+
+instance ModuleInstance name => ModuleInstance (ImpName name) where
+  moduleInstance x =
+    case x of
+      ImpTop t -> ImpTop t
+      ImpNested n -> ImpNested (moduleInstance n)
 
 instance ModuleInstance (ModuleG name) where
   moduleInstance m =

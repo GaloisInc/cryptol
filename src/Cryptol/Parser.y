@@ -200,6 +200,13 @@ vmod_body                  :: { [TopDecl PName] }
   | {- empty -}               { [] }
 
 
+
+-- inverted
+imports1                  :: { [ Located (ImportG (ImpName PName)) ] }
+  : imports1 'v;' import     { $3 : $1 }
+  | imports1 ';'  import     { $3 : $1 }
+  | import                   { [$1] }
+
 -- XXX replace rComb with uses of at
 import                          :: { Located (ImportG (ImpName PName)) }
   : 'import' impName mbAs mbImportSpec
@@ -280,14 +287,20 @@ vtop_decl               :: { [TopDecl PName] }
     -- we allow for documentation here to avoid conflicts with module paramaters
     -- currently that odcumentation is just discarded
 
-sig_def ::                 { Signature PName }
-  : 'signature' name 'where' 'v{' par_decls 'v}'
-                           { mkSignature $2 $5 }
+sig_def ::                 { (Located PName, Signature PName) }
+  : 'signature' name 'where' 'v{' sig_body 'v}'
+                           { ($2, $5) }
+
+sig_body                 :: { Signature PName }
+  : par_decls               { mkSignature [] $1 }
+  | imports1 'v;' par_decls { mkSignature (reverse $1) $3 }
+  | imports1 ';'  par_decls { mkSignature (reverse $1) $3 }
+
 
 mod_param_decl ::          { ModParam PName }
   : mbDoc
    'import' 'signature'
-    name mbAs              { ModParam { mpSignature = $4
+    impName mbAs           { ModParam { mpSignature = $4
                                       , mpAs        = fmap thing $5
                                       , mpName      = mkModParamName $4 $5
                                       , mpDoc       = $1

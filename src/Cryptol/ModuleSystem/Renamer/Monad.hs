@@ -9,6 +9,7 @@
 {-# Language RecordWildCards #-}
 {-# Language FlexibleContexts #-}
 {-# Language BlockArguments #-}
+{-# Language OverloadedStrings #-}
 module Cryptol.ModuleSystem.Renamer.Monad where
 
 import Data.List(sort,foldl')
@@ -33,7 +34,7 @@ import Cryptol.Utils.Ident(modPathCommon,OrigName(..))
 
 import Cryptol.ModuleSystem.Renamer.Error
 import Cryptol.ModuleSystem.Renamer.Imports
-  (ResolvedLocal,rmodKind,ModKind(..),rmodDefines,rmodNested)
+  (ResolvedLocal,rmodKind,rmodDefines,rmodNested)
 
 -- | Indicates if a name is in a binding poisition or a use site
 data NameType = NameBind | NameUse
@@ -97,7 +98,7 @@ data RW = RW
 data RenModParam = RenModParam
   { renModParamName      :: Ident
   , renModParamRange     :: Range
-  , renModParamSig       :: Name
+  , renModParamSig       :: ImpName Name
   , renModParamInstance  :: Map Name Name
     {- ^ Maps names that come into scope through this parameter
          to the names in *signature*.  This is for functors, NOT functor
@@ -424,8 +425,10 @@ recordImport i =
 
 -- XXX: Maybe we'd want to cache some of the conversion to Mod?
 -- | This gives the loaded *external* modules.
-getLoadedModsMaybe :: RenameM (ImpName Name -> Maybe (Mod ()))
-getLoadedModsMaybe =
+-- XXX: For now, this does *not* include top-level signatures, as we have no
+-- interface type for them yet.
+getExternalModsMaybe :: RenameM (ImpName Name -> Maybe (Mod ()))
+getExternalModsMaybe =
   do getIf <- RenameM (roIfaces <$> ask)
      pure \nm ->
       case nm of
@@ -435,54 +438,44 @@ getLoadedModsMaybe =
              let mp = modToMap (ImpTop top) (ifaceToMod (getIf top)) Map.empty
              Map.lookup nm mp
 
-getLoadedMods :: RenameM (ImpName Name -> Mod ())
-getLoadedMods =
-  do f <- getLoadedModsMaybe
+getExternalMods :: RenameM (ImpName Name -> Mod ())
+getExternalMods =
+  do f <- getExternalModsMaybe
      pure \x -> case f x of
                   Just a -> a
-                  Nothing -> panic "getLoadedMods"
+                  Nothing -> panic "getExternalMods"
                                [ "Module not loaded", show x ]
+
+lookupModuleThing :: ImpName Name -> RenameM (Either ResolvedLocal (Mod ()))
+lookupModuleThing nm =
+  do ro <- RenameM ask
+     traceM (unlines ("RESOLVED:" : [ show (pp k <+> pp (rmodKind v)) | (k,v) <- Map.toList (roResolvedModules ro) ]))
+     case Map.lookup nm (roResolvedModules ro) of
+       Just loc -> pure (Left loc)
+       Nothing  ->
+         do loaded <- getExternalMods
+            pure (Right (loaded nm))
 
 lookupDefines :: ImpName Name -> RenameM NamingEnv
 lookupDefines nm =
+  do thing <- lookupModuleThing nm
+     pure case thing of
+            Left loc -> rmodDefines (dump "resolved" rmodKind loc)
+            Right e  -> modDefines (dump "external" modKind e)
+  where
+  dump msg f d = trace (show ("lookup defines: " <+> msg <+> pp nm <+> pp (f d))) d
+
+checkIsModule :: Range -> ImpName Name -> ModKind -> RenameM ()
+checkIsModule r nm expect =
   do ro <- RenameM ask
-     case Map.lookup nm (roResolvedModules ro) of
-       Just loc -> pure (rmodDefines loc)
-       Nothing  ->
-         do loaded <- getLoadedMods
-            pure (modDefines (loaded nm))
+     actual <- case Map.lookup nm (roResolvedModules ro) of
+                 Just loc -> pure (rmodKind loc)
+                 Nothing ->
+                   do loaded <- getExternalMods
+                      pure (modKind (loaded nm))
 
-lookupSigDefines :: Name -> RenameM NamingEnv
-lookupSigDefines nm =
-  do ro <- RenameM ask
-     case Map.lookup (ImpNested nm) (roResolvedModules ro) of
-       Just loc -> pure (rmodDefines loc)
-       Nothing ->
-         do getIf <- RenameM (roIfaces <$> ask)
-            let top = nameTopModule nm
-                sigs = ifSignatures (ifPublic (getIf top))
-            case Map.lookup nm sigs of
-              Just s -> pure (modParamsNamingEnv s)
-              Nothing ->
-                panic "lookupSigDefines" [ "Missing signature "<> show nm]
-
-
-
-
-checkIsModule :: Range -> ImpName Name -> RenameM ()
-checkIsModule r nm =
-  do ro <- RenameM ask
-     case Map.lookup nm (roResolvedModules ro) of
-      Just loc ->
-        case rmodKind loc of
-          AModule -> pure ()
-          _ -> recordError (InvalidInstanceModule r nm)
-      Nothing ->
-        do mb <- ($ nm) <$> getLoadedModsMaybe
-           case mb of
-             Nothing -> pure ()
-             Just m ->
-               when (modParams m) (recordError (InvalidInstanceModule r nm))
+     unless (actual == expect)
+        (recordError (ModuleKindMismatch r nm expect actual))
 
 lookupDefinesAndSubs ::
   Maybe Range -> ImpName Name -> RenameM (NamingEnv, Set Name)
@@ -495,24 +488,25 @@ lookupDefinesAndSubs checkFun nm =
               Just r ->
                 case rmodKind loc of
                   AFunctor -> pure ()
-                  _ -> recordError (InvalidFunctorInInstance r nm)
+                  k -> recordError (ModuleKindMismatch r nm AFunctor k)
               Nothing -> pure ()
 
             pure (rmodDefines loc, rmodNested loc)
 
        Nothing  ->
-          do mb <- ($ nm) <$> getLoadedModsMaybe
+          do mb <- ($ nm) <$> getExternalModsMaybe
              case mb of
                Nothing -> pure ( mempty, Set.empty )
                Just m ->
                  do case checkFun of
-                      Just r -> unless (modParams m)
-                                  (recordError (InvalidFunctorInInstance r nm))
+                      Just r ->
+                        case modKind m of
+                          AFunctor -> pure ()
+                          k -> recordError (ModuleKindMismatch r nm AFunctor k)
                       Nothing -> pure ()
 
                     pure ( modDefines m
                          , Set.unions [ Map.keysSet (modMods m)
-                                      , Map.keysSet (modSigs m)
                                       , Map.keysSet (modInstances m)
                                       ]
                          )

@@ -56,7 +56,7 @@ addImplicitNestedImports' decls =
 
 
 processModule :: TopDecl PName -> ([TopDecl PName], [[Ident]])
-processModule ~(DModule m) =
+processModule ~dcl@(DModule m) =
   let NestedModule m1 = tlValue m
   in
   case mDef m1 of
@@ -72,10 +72,8 @@ processModule ~(DModule m) =
              Private -> []
          )
 
-    FunctorInstance f as is -> ([new], [])
-      where
-      new    = DModule m { tlValue = NestedModule m1 { mDef = newDef } }
-      newDef = FunctorInstance f as is
+    FunctorInstance {} -> ([dcl], [])
+    SignatureModule {} -> ([dcl], [])
 
 
 

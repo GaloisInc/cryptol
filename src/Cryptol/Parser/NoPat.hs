@@ -339,6 +339,7 @@ noPatModule m =
        case mDef m of
          NormalModule ds -> NormalModule <$> noPatTopDs ds
          FunctorInstance f as i -> pure (FunctorInstance f as i)
+         SignatureModule s -> pure (SignatureModule s)
      pure m { mDef = def }
 
 --------------------------------------------------------------------------------
@@ -392,7 +393,6 @@ annotTopDs tds =
 
         DImport {} -> (d :) <$> annotTopDs ds
 
-        DModSig {} -> (d :) <$> annotTopDs ds
         DModParam {} -> (d :) <$> annotTopDs ds
 
     [] -> return []

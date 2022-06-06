@@ -35,17 +35,15 @@ helpForNamed qname =
          vNames = M.lookupListNS M.NSValue  qname rnEnv
          tNames = M.lookupListNS M.NSType   qname rnEnv
          mNames = M.lookupListNS M.NSModule qname rnEnv
-         sNames = M.lookupListNS M.NSSignature qname rnEnv
 
      let helps = map (showTypeHelp params env disp) tNames ++
                  map (showValHelp params env disp qname) vNames ++
-                 map (showModHelp env disp) mNames ++
-                 map (showSigHelp env disp) sNames
+                 map (showModHelp env disp) mNames
 
          separ = rPutStrLn "            ---------"
      sequence_ (intersperse separ helps)
 
-     when (null (vNames ++ tNames ++ mNames ++ sNames)) $
+     when (null (vNames ++ tNames ++ mNames)) $
        rPrint $ "Undefined name:" <+> pp qname
 
 

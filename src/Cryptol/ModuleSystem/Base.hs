@@ -18,7 +18,7 @@
 module Cryptol.ModuleSystem.Base where
 
 import qualified Control.Exception as X
-import Control.Monad (unless,when,forM)
+import Control.Monad (unless,forM)
 import Data.Maybe (fromMaybe)
 import Data.Monoid ((<>))
 import Data.Text.Encoding (decodeUtf8')
@@ -303,11 +303,12 @@ addPrelude m
   where
   newDef =
     case mDef m of
-      NormalModule ds -> NormalModule (importPrelude : ds)
+      NormalModule ds -> NormalModule (P.DImport prel : ds)
       FunctorInstance f as ins -> FunctorInstance f as ins
+      SignatureModule s -> SignatureModule s { sigImports = prel : sigImports s }
 
   importedMods  = map (P.iModule . P.thing) (P.mImports m)
-  importPrelude = P.DImport P.Located
+  prel = P.Located
     { P.srcRange = emptyRange
     , P.thing    = P.Import
       { iModule    = P.ImpTop preludeName
@@ -320,34 +321,40 @@ addPrelude m
 loadDeps :: P.ModuleG mname name -> ModuleM ()
 loadDeps m =
   case mDef m of
-    NormalModule ds         -> mapM_ depsOfDecl ds
+    NormalModule ds -> mapM_ depsOfDecl ds
     FunctorInstance f as _ ->
-      do loadImpName f
+      do loadImpName FromModuleInstance f
          case as of
-           DefaultInstArg a   -> loadImpName a
+           DefaultInstArg a      -> loadImpName FromModuleInstance a
            DefaultInstAnonArg ds -> mapM_ depsOfDecl ds
            NamedInstArgs args -> mapM_ loadInstArg args
+    SignatureModule s -> mapM_ loadImpD (sigImports s)
   where
-  loadI i = do (_,m1)  <- loadModuleFrom False (FromImport i)
-               when (T.isParametrizedModule m1) $ importParamModule $ T.mName m1
-  loadF f = do _ <- loadModuleFrom False (FromModuleInstance f)
-               return ()
+  loadI i = do _ <- loadModuleFrom False i
+               pure ()
+
+  loadImpName src l =
+    case thing l of
+      ImpTop f -> loadI (src l { thing = f })
+      _        -> pure ()
+
+  loadImpD li = loadImpName (FromImport . new) (iModule <$> li)
+    where new i = i { thing = (thing li) { iModule = thing i } }
+
+  loadInstArg (ModuleInstanceArg _ f) = loadImpName FromModuleInstance f
 
   depsOfDecl d =
     case d of
-      DImport li ->
-        case iModule (thing li) of
-          ImpTop f -> loadI li { thing = (thing li) { iModule = f } }
-          _        -> pure ()
+      DImport li -> loadImpD li
+
       DModule TopLevel { tlValue = NestedModule nm } -> loadDeps nm
+
+      DModParam mo -> loadImpName FromSigImport s
+        where s = mpSignature mo
+
       _ -> pure ()
 
-  loadInstArg (ModuleInstanceArg _ f) = loadImpName f
 
-  loadImpName l =
-    case thing l of
-      ImpTop f -> loadF l { thing = f }
-      _        -> pure ()
 
 
 

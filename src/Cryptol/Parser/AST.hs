@@ -111,7 +111,7 @@ import           Data.Map(Map)
 import qualified Data.Map as Map
 import           Data.List(intersperse)
 import           Data.Bits(shiftR)
-import           Data.Maybe (catMaybes)
+import           Data.Maybe (catMaybes,mapMaybe)
 import           Data.Ratio(numerator,denominator)
 import           Data.Text (Text)
 import           Numeric(showIntAtBase,showFloat,showHFloat)
@@ -152,6 +152,7 @@ data ModuleDefinition name =
                     (ModuleInstanceArgs name)
                     (ModuleInstance name)
     -- ^ The instance is filled in by the renamer
+  | SignatureModule (Signature name)
     deriving (Show, Generic, NFData)
 
 {- | Maps names in the original functor with names in the instnace.
@@ -171,15 +172,22 @@ mDecls m =
   case mDef m of
     NormalModule ds         -> ds
     FunctorInstance _ _ _   -> []
+    SignatureModule {}      -> []
 
 -- | Imports of top-level (i.e. "file" based) modules.
 mImports :: ModuleG mname name -> [ Located Import ]
 mImports m =
-  [ li { thing = i { iModule = n } }
-  | DImport li <- mDecls m
-  , let i = thing li
-  , ImpTop n  <- [iModule i]
-  ]
+  case mDef m of
+    NormalModule ds     -> mapMaybe topImp [ li | DImport li <- ds ]
+    FunctorInstance {}  -> []
+    SignatureModule sig -> mapMaybe topImp (sigImports sig)
+  where
+  topImp li = case iModule i of
+               ImpTop n -> Just li { thing = i { iModule = n } }
+               _        -> Nothing
+    where i = thing li
+
+
 
 -- | Imports of nested modules---these may require name resolution to
 -- detrmine what module we are talking about.
@@ -243,7 +251,6 @@ data TopDecl name =
 
   | DModule (TopLevel (NestedModule name))      -- ^ @submodule M where ...@
   | DImport (Located (ImportG (ImpName name)))  -- ^ @import X@
-  | DModSig (TopLevel (Signature name))         -- ^ @signature X where ...@
   | DModParam (ModParam name)                   -- ^ @import signature X ...@
     deriving (Show, Generic, NFData)
 
@@ -314,7 +321,8 @@ other members of a signature.   When a signature is "imported" as a functor
 parameter these names are instantiated to new names, because there could
 be multiple paramers using the same signature. -}
 data Signature name = Signature
-  { sigName         :: Located name             -- ^ Name of the signature
+  { sigImports      :: ![Located (ImportG (ImpName name))]
+    -- ^ Add things in scope
   , sigTypeParams   :: [ParameterType name]     -- ^ Type parameters
   , sigConstraints  :: [Located (Prop name)]    -- ^ Constraints on type params
   , sigFunParams    :: [ParameterFun name]      -- ^ Value parameters
@@ -332,7 +340,7 @@ If there is no `as` clause, then the type/value parameters are unqualified,
 and otherwise they are qualified.
 -}
 data ModParam name = ModParam
-  { mpSignature     :: Located name         -- ^ Signature for parameter
+  { mpSignature     :: Located (ImpName name)  -- ^ Signature for parameter
   , mpAs            :: Maybe ModName        -- ^ Qualified for actual params
   , mpName          :: !Ident
     {- ^ Parameter name (for inst.)
@@ -668,14 +676,10 @@ instance HasLoc (TopDecl name) where
       DParameterConstraint d -> getLoc d
       DModule d -> getLoc d
       DImport d -> getLoc d
-      DModSig d -> getLoc d
       DModParam d -> getLoc d
 
 instance HasLoc (ModParam name) where
   getLoc mp = getLoc (mpSignature mp)
-
-instance HasLoc (Signature name) where
-  getLoc = getLoc . sigName
 
 instance HasLoc (PrimType name) where
   getLoc pt = Just (rComb (srcRange (primTName pt)) (srcRange (primTKind pt)))
@@ -736,7 +740,11 @@ instance (Show name, PPName name) => PP (NestedModule name) where
 
 ppModule :: (Show name, PPName mname, PPName name) =>
   Doc -> ModuleG mname name -> Doc
-ppModule kw m = kw <+> ppL (mName m) <+> pp (mDef m)
+ppModule kw m = kw' <+> ppL (mName m) <+> pp (mDef m)
+  where
+  kw' = case mDef m of
+          SignatureModule {} -> "parameter" <+> kw
+          _                  -> kw
 
 
 instance (Show name, PPName name) => PP (ModuleDefinition name) where
@@ -753,6 +761,7 @@ instance (Show name, PPName name) => PP (ModuleDefinition name) where
                                               ]
         instLines = [ " *" <+> pp k <+> "->" <+> pp v
                     | (k,v) <- Map.toList inst ]
+      SignatureModule s -> pp s
 
 
 instance (Show name, PPName name) => PP (ModuleInstanceArgs name) where
@@ -785,22 +794,18 @@ instance (Show name, PPName name) => PP (TopDecl name) where
                        xs  -> nest 1 (parens (commaSepFill xs))
       DModule d -> pp d
       DImport i -> pp (thing i)
-      DModSig s -> pp s
       DModParam s -> pp s
 
 instance (Show name, PPName name) => PP (Signature name) where
-  ppPrec _ = ppSignature "signature"
-
-ppSignature :: (Show name, PPName name) => Doc -> Signature name -> Doc
-ppSignature kw sig = (kw <+> pp (thing (sigName sig)) <+> "where")
-                      $$ indent 2 (vcat ds)
-  where
-  ds = map pp (sigTypeParams sig)
-    ++ case map (pp . thing) (sigConstraints sig) of
-         [x] -> ["type constraint" <+> x]
-         []  -> []
-         xs  -> ["type constraint" <+> parens (commaSep xs)]
-    ++ map pp (sigFunParams sig)
+  ppPrec _ sig = "where" $$ indent 2 (vcat (is ++ ds))
+    where
+    is = map pp (sigImports sig)
+    ds = map pp (sigTypeParams sig)
+      ++ case map (pp . thing) (sigConstraints sig) of
+           [x] -> ["type constraint" <+> x]
+           []  -> []
+           xs  -> ["type constraint" <+> parens (commaSep xs)]
+      ++ map pp (sigFunParams sig)
 
 
 instance (Show name, PPName name) => PP (ModParam name) where
@@ -1207,6 +1212,7 @@ instance NoPos (ModuleDefinition name) where
     case m of
       NormalModule ds         -> NormalModule (noPos ds)
       FunctorInstance f as ds -> FunctorInstance (noPos f) (noPos as) ds
+      SignatureModule s       -> SignatureModule (noPos s)
 
 instance NoPos (ModuleInstanceArgs name) where
   noPos as =
@@ -1233,11 +1239,10 @@ instance NoPos (TopDecl name) where
       DParameterConstraint d -> DParameterConstraint (noPos d)
       DModule d -> DModule (noPos d)
       DImport d -> DImport (noPos d)
-      DModSig d -> DModSig (noPos d)
       DModParam d -> DModParam (noPos d)
 
 instance NoPos (Signature name) where
-  noPos sig = Signature { sigName = noPos (sigName sig)
+  noPos sig = Signature { sigImports = sigImports sig
                         , sigTypeParams = map noPos (sigTypeParams sig)
                         , sigConstraints = map noPos (sigConstraints sig)
                         , sigFunParams = map noPos (sigFunParams sig)

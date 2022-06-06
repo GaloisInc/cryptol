@@ -499,7 +499,6 @@ instance PP (WithNames Error) where
               NSValue     -> "value"
               NSType      -> "type"
               NSModule    -> "module"
-              NSSignature -> "signature"
 
       TemporaryError doc -> doc
     where

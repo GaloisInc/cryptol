@@ -1088,24 +1088,24 @@ checkTopDecls = mapM_ checkTopDecl
              do _ <- doFunctorInst (P.ImpNested <$> P.mName m) f as inst
                 pure ()
 
+           P.SignatureModule sig ->
+              do let doc = P.thing <$> P.tlDoc tl
+                 inRange (srcRange (P.mName m))
+                   do newSignatureScope (thing (P.mName m)) doc
+
+                      forM_ (P.sigTypeParams sig) \pt ->
+                        addParamType =<< checkParameterType pt
+
+                      addParameterConstraints =<<
+                        checkParameterConstraints (P.sigConstraints sig)
+
+                      forM_ (P.sigFunParams sig) \f ->
+                        addParamFun =<< checkParameterFun f
+
+                      endSignature
+
+
         where P.NestedModule m = P.tlValue tl
-
-      P.DModSig tl ->
-        do let sig = P.tlValue tl
-               doc = P.thing <$> P.tlDoc tl
-           inRange (srcRange (P.sigName sig))
-             do newSignatureScope (thing (P.sigName sig)) doc
-
-                forM_ (P.sigTypeParams sig) \pt ->
-                  addParamType =<< checkParameterType pt
-
-                addParameterConstraints =<<
-                  checkParameterConstraints (P.sigConstraints sig)
-
-                forM_ (P.sigFunParams sig) \f ->
-                  addParamFun =<< checkParameterFun f
-
-                endSignature
 
       P.DModParam p ->
         inRange (srcRange (P.mpSignature p))

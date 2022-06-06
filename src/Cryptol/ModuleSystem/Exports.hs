@@ -33,8 +33,6 @@ exportedNames decl =
         case tlValue nested of
           NestedModule x ->
             [exportName NSModule nested { tlValue = thing (mName x) }]
-      DModSig s ->
-        [ exportName NSSignature s { tlValue = thing (sigName (tlValue s)) } ]
       DModParam {} -> []
   where
   names by td = [ td { tlValue = thing n } | n <- fst (by (tlValue td)) ]

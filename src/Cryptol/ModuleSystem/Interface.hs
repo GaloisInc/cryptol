@@ -52,7 +52,7 @@ import Cryptol.ModuleSystem.Name
 import Cryptol.Utils.Ident (ModName,Ident)
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.Fixity(Fixity)
-import Cryptol.Parser.AST(Pragma)
+import Cryptol.Parser.AST(Pragma,ImpName(..))
 import Cryptol.Parser.Position(Located)
 import Cryptol.TypeCheck.Type
 
@@ -65,6 +65,8 @@ data IfaceG name = Iface
   , ifPrivate   :: IfaceDecls
   , ifParams    :: Maybe IfaceFunctorParams
   } deriving (Show, Generic, NFData)
+
+-- XXX: signature
 
 ifaceForgetName :: IfaceG name -> IfaceG ()
 ifaceForgetName i = i { ifNames = newNames }
@@ -103,7 +105,7 @@ data IfaceFunctorParams =
 
 data IfaceModParam = IfaceModParam
   { ifmpName        :: Ident
-  , ifmpSignature   :: Name
+  , ifmpSignature   :: ImpName Name
   , ifmpParameters  :: IfaceParams
     {- ^ These are the actual parameters, not the ones in the signature
       For example if the same signature is used for multiple parameters

@@ -197,14 +197,17 @@ mkModName = packModName
 
 -- | This is how we derive the name of a module parameter from the
 -- @import source@ declaration.
-mkModParamName :: Located PName -> Maybe (Located ModName) -> Ident
+mkModParamName :: Located (ImpName PName) -> Maybe (Located ModName) -> Ident
 mkModParamName lsig qual =
   case qual of
     Nothing ->
       case thing lsig of
-        UnQual i -> i
-        Qual _ i -> i
-        NewName {} -> panic "mkModParamName" ["Unexpected NewName",show lsig]
+        ImpTop t -> packIdent (last (modNameChunks t))
+        ImpNested nm ->
+          case nm of
+            UnQual i -> i
+            Qual _ i -> i
+            NewName {} -> panic "mkModParamName" ["Unexpected NewName",show lsig]
     Just m -> packIdent (last (modNameChunks (thing m)))
 
 -- Note that type variables are not resolved at this point: they are tcons.
@@ -531,7 +534,6 @@ changeExport e = map change
       DPrimType t             -> DPrimType t { tlExport = e }
       TDNewtype n             -> TDNewtype n { tlExport = e }
       DModule m               -> DModule   m { tlExport = e }
-      DModSig s               -> DModSig   s { tlExport = e }
       DModParam {}            -> decl
       Include{}               -> decl
       DImport{}               -> decl
@@ -825,18 +827,22 @@ mkNested m =
   nm = mName m
   r = srcRange nm
 
-mkSigDecl :: Maybe (Located Text) -> Signature PName -> TopDecl PName
-mkSigDecl doc sig =
-  DModSig
+mkSigDecl :: Maybe (Located Text) -> (Located PName,Signature PName) -> TopDecl PName
+mkSigDecl doc (nm,sig) =
+  DModule
   TopLevel { tlExport = Public
            , tlDoc    = doc
-           , tlValue  = sig
+           , tlValue  = NestedModule
+                        Module { mName = nm
+                               , mDef  = SignatureModule sig
+                               }
            }
 
-mkSignature :: LPName -> [TopDecl PName] -> Signature PName
-mkSignature nm =
+mkSignature :: [Located (ImportG (ImpName PName))] ->
+             [TopDecl PName] -> Signature PName
+mkSignature is =
   foldl' add
-  Signature { sigName        = nm
+  Signature { sigImports     = is
             , sigTypeParams  = []
             , sigConstraints = []
             , sigFunParams   = []
@@ -990,12 +996,15 @@ mkModBody = collect 1 [] []
 
 
   anonSig l ts fs =
+    panic "anonSig" ["XXX"]
+{-
     let nm = Located { srcRange = l, thing = mkUnqual anonymousSignatureIdent }
     in [ DModSig
          TopLevel
            { tlExport = Private
            , tlDoc    = Nothing
            , tlValue  = Signature { sigName = nm
+                                  , sigImports = [] -- XXX: what to do here
                                   , sigTypeParams   = ts
                                   , sigConstraints  = []
                                   , sigFunParams    = fs
@@ -1011,7 +1020,7 @@ mkModBody = collect 1 [] []
            , mpRenaming  = mempty
            }
        ]
-
+-}
 
 
 

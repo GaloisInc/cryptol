@@ -132,6 +132,7 @@ renameModule m0 =
                       NormalModule ds ->
                         NormalModule (addImplicitNestedImports ds)
                       FunctorInstance f as i -> FunctorInstance f as i
+                      SignatureModule s -> SignatureModule s
                  }
 
      -- Step 2: compute what's defined
@@ -139,7 +140,7 @@ renameModule m0 =
      mapM_ recordError errs
 
      -- Step 3: resolve imports
-     extern       <- getLoadedMods
+     extern       <- getExternalMods
      resolvedMods <- liftSupply (resolveImports extern defs)
 
      let pathToName = Map.fromList [ (Nested (nameModPath x) (nameIdent x), x)
@@ -182,7 +183,7 @@ renameTopDecls m ds0 =
      mapM_ recordError errs
 
      -- Step 3: resolve imports
-     extern       <- getLoadedMods
+     extern       <- getExternalMods
      resolvedMods <- liftSupply (resolveImports extern (TopMod m defs))
 
      let pathToName = Map.fromList [ (Nested (nameModPath x) (nameIdent x), x)
@@ -256,6 +257,9 @@ renameModule' mname m =
                                  imap <- mkInstMap l mempty (thing f') mname
                                  pure (FunctorInstance f' as' imap)
 
+                            SignatureModule s ->
+                              SignatureModule <$> renameSig mname s
+
                 pure (inScope, newDef)
      return (inScope, m { mDef = newDef })
 
@@ -264,10 +268,10 @@ checkFunctorArgs args =
   case args of
     DefaultInstAnonArg {} ->
       panic "checkFunctorArgs" ["Nested DefaultInstAnonArg"]
-    DefaultInstArg l -> checkIsModule (srcRange l) (thing l)
+    DefaultInstArg l -> checkIsModule (srcRange l) (thing l) AModule
     NamedInstArgs as -> mapM_ checkArg as
   where
-  checkArg (ModuleInstanceArg _ l) = checkIsModule (srcRange l) (thing l)
+  checkArg (ModuleInstanceArg _ l) = checkIsModule (srcRange l) (thing l) AModule
 
 mkInstMap :: Maybe Range -> Map Name Name -> ImpName Name -> ImpName Name ->
   RenameM (Map Name Name)
@@ -465,7 +469,6 @@ renameTopDecls' ds =
       DModule tl              -> any usesCtrs (mDecls m)
         where NestedModule m = tlValue tl
       DImport {}              -> False
-      DModSig {}              -> False    -- no definitions here
       DModParam {}            -> False    -- no definitions here
       Include {}              -> bad "Include"
       DParameterType {}       -> bad "DParameterType"
@@ -513,8 +516,6 @@ topDeclName topDecl =
     DModule d               -> hasName (thing (mName m))
       where NestedModule m = tlValue d
 
-    DModSig d               -> hasName (thing (sigName (tlValue d)))
-
     DParameterConstraint ds ->
       case ds of
         []  -> noName
@@ -551,16 +552,23 @@ doModParam mp =
   do let sigName = mpSignature mp
          loc     = srcRange sigName
      withLoc loc
-       do nm <- resolveName NameUse NSSignature (thing sigName)
+       do me <- getCurMod
 
-          me <- getCurMod
-          case modPathCommon me (nameModPath nm) of
-            Just (_,[],_) ->
-              recordError (InvalidDependency [ModPath me, NamedThing  nm])
-            _ -> pure ()
+          sigName' <-
+             case thing sigName of
+               ImpTop t -> pure (ImpTop t)
+               ImpNested n ->
+                 do nm <- resolveName NameUse NSModule n
+                    case modPathCommon me (nameModPath nm) of
+                      Just (_,[],_) ->
+                        recordError
+                           (InvalidDependency [ModPath me, NamedThing nm])
+                      _ -> pure ()
+                    pure (ImpNested nm)
 
+          checkIsModule (srcRange sigName) sigName' ASignature
+          sigEnv <- lookupDefines sigName'
 
-          sigEnv <- lookupSigDefines nm
           let newP x = do y <- lift (newModParam me (mpName mp) loc x)
                           sets_ (Map.insert y x)
                           pure y
@@ -573,7 +581,7 @@ doModParam mp =
                , RenModParam
                  { renModParamName     = mpName mp
                  , renModParamRange    = loc
-                 , renModParamSig      = nm
+                 , renModParamSig      = sigName'
                  , renModParamInstance = nameMap
                  }
                )
@@ -630,17 +638,17 @@ instance Rename TopDecl where
 
       DModule m  -> DModule <$> traverse rename m
       DImport li -> DImport <$> traverse renI li
-        where
-        renI i = do m <- rename (iModule i)
-                    recordImport m
-                    pure i { iModule = m }
-
       DModParam mp -> DModParam <$> rename mp
-      DModSig sig -> DModSig <$> traverse rename sig
+
+renI :: ImportG (ImpName PName) -> RenameM (ImportG (ImpName Name))
+renI i = do m <- rename (iModule i)
+            recordImport m
+            pure i { iModule = m }
+
 
 instance Rename ModParam where
   rename mp =
-    do x   <- rnLocated (resolveName NameUse NSSignature) (mpSignature mp)
+    do x   <- rnLocated rename (mpSignature mp)
        depsOf (ModParamName (srcRange (mpSignature mp)) (mpName mp))
          do ren <- renModParamInstance <$> getModParam (mpName mp)
 
@@ -652,22 +660,24 @@ instance Rename ModParam where
 
             pure mp { mpSignature = x, mpRenaming = ren }
 
-instance Rename Signature where
-  rename sig =
-    do let pname = thing (sigName sig)
-       nm <- resolveName NameBind NSSignature pname
-       env <- rmodDefines <$> lookupResolved (ImpNested nm)
-       shadowNames' CheckOverlap env $
-          depsOf (NamedThing nm)
-          do tps <- traverse rename (sigTypeParams sig)
-             cts <- traverse (traverse rename) (sigConstraints sig)
-             fun <- traverse rename (sigFunParams sig)
-             pure Signature
-                    { sigName = (sigName sig) { thing = nm }
-                    , sigTypeParams = tps
-                    , sigConstraints = cts
-                    , sigFunParams = fun
-                    }
+renameSig :: ImpName Name -> Signature PName -> RenameM (Signature Name)
+renameSig nm sig =
+  do env <- rmodDefines <$> lookupResolved nm
+     let depName = case nm of
+                     ImpNested n -> NamedThing n
+                     ImpTop t    -> ModPath (TopModule t)
+     shadowNames' CheckOverlap env $
+        depsOf depName
+        do imps <- traverse (traverse renI) (sigImports sig)
+           tps <- traverse rename (sigTypeParams sig)
+           cts <- traverse (traverse rename) (sigConstraints sig)
+           fun <- traverse rename (sigFunParams sig)
+           pure Signature
+                  { sigImports = imps
+                  , sigTypeParams = tps
+                  , sigConstraints = cts
+                  , sigFunParams = fun
+                  }
 
 instance Rename ImpName where
   rename i =

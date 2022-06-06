@@ -271,7 +271,7 @@ unqualifiedEnv IfaceDecls { .. } =
   mods    = mconcat [ singletonNS NSModule (toPName n) n
                     | n <- Map.keys ifModules ]
 
-  sigs    = mconcat [ singletonNS NSSignature (toPName n) n
+  sigs    = mconcat [ singletonNS NSModule (toPName n) n
                     | n <- Map.keys ifSignatures ]
 
 

@@ -32,6 +32,7 @@ module Cryptol.Utils.Ident
   , noModuleName
   , exprModName
   , modNameArg
+  , modNameSig
 
   , isParamInstModName
   , paramInstModName
@@ -81,7 +82,7 @@ import Cryptol.Utils.Panic(panic)
 --------------------------------------------------------------------------------
 
 -- | Namespaces for names
-data Namespace = NSValue | NSType | NSModule | NSSignature
+data Namespace = NSValue | NSType | NSModule
   deriving (Generic,Show,NFData,Eq,Ord,Enum,Bounded)
 
 allNamespaces :: [Namespace]
@@ -139,7 +140,7 @@ modPathSplit p0 = (top,reverse xs)
 data ModName = ModName T.Text ModNameFlavor
   deriving (Eq,Ord,Show,Generic)
 
-data ModNameFlavor = NormalModName | AnonModArgName
+data ModNameFlavor = NormalModName | AnonModArgName | AnonSigName
   deriving (Eq,Ord,Show,Generic)
 
 instance NFData ModName
@@ -148,14 +149,25 @@ instance NFData ModNameFlavor
 modNameArg :: ModName -> ModName
 modNameArg (ModName m fl) =
   case fl of
-    NormalModName -> ModName m AnonModArgName
-    AnonModArgName -> panic "modNameArg" ["Name is already an argument"]
+    NormalModName  -> ModName m AnonModArgName
+    AnonModArgName -> panic "modNameArg" ["Name is not normal"]
+    AnonSigName    -> panic "modNameArg" ["Name is not normal"]
+
+modNameSig :: ModName -> ModName
+modNameSig (ModName m fl) =
+  case fl of
+    NormalModName  -> ModName m AnonSigName
+    AnonModArgName -> panic "modNameSig" ["Name is not normal"]
+    AnonSigName    -> panic "modNameSig" ["Name is not normal"]
+
+
 
 modNameToText :: ModName -> T.Text
 modNameToText (ModName x fl) =
   case fl of
     NormalModName  -> x
     AnonModArgName -> x <> "$argument"
+    AnonSigName    -> x <> "$signature"
 
 textToModName :: T.Text -> ModName
 textToModName txt = ModName txt NormalModName

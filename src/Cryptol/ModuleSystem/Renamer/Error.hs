@@ -56,14 +56,11 @@ data RenamerError
   | InvalidFunctorImport (ImpName Name)
     -- ^ Can't import functors directly
 
-  | InvalidFunctorInInstance Range (ImpName Name)
-    -- ^ The instantitated thing is not a functor
-
-  | InvalidInstanceModule Range (ImpName Name)
-    -- ^ The argument to a functor instance is not a module
-
   | UnexpectedNest Range PName
     -- ^ Nested modules were not supposed to appear here
+
+  | ModuleKindMismatch Range (ImpName Name) ModKind ModKind
+    -- ^ Exepcted one kind (first one) but found the other (second one)
 
     deriving (Show, Generic, NFData, Eq, Ord)
 
@@ -92,6 +89,18 @@ depNameLoc x =
     ModPath {} -> Nothing
 
 
+data ModKind = AFunctor | ASignature | AModule
+    deriving (Show, Generic, NFData, Eq, Ord)
+
+instance PP ModKind where
+  ppPrec _ e =
+    case e of
+      AFunctor   -> "a functor"
+      ASignature -> "a signatre"
+      AModule    -> "a module"
+
+
+
 instance PP RenamerError where
   ppPrec _ e = case e of
 
@@ -108,7 +117,6 @@ instance PP RenamerError where
                     NSValue   -> "Value"
                     NSType    -> "Type"
                     NSModule  -> "Module"
-                    NSSignature -> "Signature"
 
     OverlappingSyms qns ->
       hang (text "[error]")
@@ -126,7 +134,6 @@ instance PP RenamerError where
                      NSValue  -> "value"
                      NSType   -> "type"
                      NSModule -> "module"
-                     NSSignature -> "signature"
         suggestion =
           case (expected,actual) of
 
@@ -170,16 +177,10 @@ instance PP RenamerError where
       hang ("[error] at" <+> pp s)
         4 ("submodule" <+> backticks (pp x) <+> "may not be defined here.")
 
-    InvalidFunctorInInstance r x ->
+    ModuleKindMismatch r x expected actual ->
       hang ("[error] at" <+> pp r)
-        4 (vcat [ "• Invalid functor instantiation:"
-                , " " <+> backticks (pp x) <+> "is not a functor."
-                ])
-
-    InvalidInstanceModule r x ->
-      hang ("[error] at" <+> pp r)
-        4 (vcat [ "• Invalid functor instantiation:"
-                , " " <+> backticks (pp x) <+> "is not a module."
+        4 (vcat [ "• Expected" <+> pp expected
+                , "•" <+> backticks (pp x) <+> "is" <+> pp actual
                 ])
 
 
@@ -192,7 +193,6 @@ instance PP DepName where
           NSModule -> "submodule" <+> pp n
           NSType   -> "type" <+> pp n
           NSValue  -> pp n
-          NSSignature -> "signature" <+> pp n
       ModParamName _r i -> "module parameter" <+> pp i
       ModPath mp ->
         case modPathSplit mp of
