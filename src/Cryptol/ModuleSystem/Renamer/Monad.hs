@@ -449,7 +449,6 @@ getExternalMods =
 lookupModuleThing :: ImpName Name -> RenameM (Either ResolvedLocal (Mod ()))
 lookupModuleThing nm =
   do ro <- RenameM ask
-     traceM (unlines ("RESOLVED:" : [ show (pp k <+> pp (rmodKind v)) | (k,v) <- Map.toList (roResolvedModules ro) ]))
      case Map.lookup nm (roResolvedModules ro) of
        Just loc -> pure (Left loc)
        Nothing  ->
@@ -460,10 +459,8 @@ lookupDefines :: ImpName Name -> RenameM NamingEnv
 lookupDefines nm =
   do thing <- lookupModuleThing nm
      pure case thing of
-            Left loc -> rmodDefines (dump "resolved" rmodKind loc)
-            Right e  -> modDefines (dump "external" modKind e)
-  where
-  dump msg f d = trace (show ("lookup defines: " <+> msg <+> pp nm <+> pp (f d))) d
+            Left loc -> rmodDefines loc
+            Right e  -> modDefines e
 
 checkIsModule :: Range -> ImpName Name -> ModKind -> RenameM ()
 checkIsModule r nm expect =
