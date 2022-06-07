@@ -1,0 +1,6 @@
+
+signature A where
+  type T : #
+
+import submodule A
+
