@@ -505,7 +505,7 @@ indexFront_int ::
   TValue ->
   SInteger (What4 sym) ->
   SEval (What4 sym) (Value sym)
-indexFront_int sym mblen _a xs ix idx
+indexFront_int sym mblen _a xs _ix idx
   | Just i <- W4.asInteger idx
   = lookupSeqMap xs i
 
@@ -535,16 +535,13 @@ indexFront_int sym mblen _a xs ix idx
           _                        -> Nothing
       )
 
-    -- Maximum possible in-bounds index given `Z m`
-    -- type information and the length
-    -- of the sequence. If the sequences is infinite and the
-    -- integer is unbounded, there isn't much we can do.
+    -- Maximum possible in-bounds index given the length
+    -- of the sequence. If the sequence is infinite, there
+    -- isn't much we can do.
     maxIdx =
-      case (mblen, ix) of
-        (Nat n, TVIntMod m)  -> Just (min (toInteger n) (toInteger m))
-        (Nat n, _)           -> Just n
-        (_    , TVIntMod m)  -> Just m
-        _                    -> Nothing
+      case mblen of
+        Nat n -> Just (n - 1)
+        Inf   -> Nothing
 indexFront_segs ::
   W4.IsSymExprBuilder sym =>
   What4 sym ->
