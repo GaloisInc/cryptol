@@ -4,7 +4,7 @@ signature A where
   x : [n]
 
 submodule F where
-  import parameter A
+  import signature submodule A
 
   y : [n]
   y = 1 + x

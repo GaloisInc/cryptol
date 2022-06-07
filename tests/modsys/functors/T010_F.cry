@@ -1,7 +1,7 @@
 module T010_F where
 
 import T010_S
-import signature A
+import signature submodule A
 
 y = x + 3
 

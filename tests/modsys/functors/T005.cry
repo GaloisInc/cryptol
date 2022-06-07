@@ -4,8 +4,8 @@ signature A where
   x : [n]
 
 submodule F where
-  import signature A as X
-  import signature A as Y
+  import signature submodule A as X
+  import signature submodule A as Y
 
   parameter type constraint (X::n == Y::n)
 

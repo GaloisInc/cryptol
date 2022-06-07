@@ -4,12 +4,12 @@ signature A where
   x : [n]
 
 submodule F where
-  import signature A as X
+  import signature submodule A as X
 
   parameter type constraint (X::n >= 3)
 
   submodule G where
-    import signature A
+    import signature submodule A
     parameter type constraint (X::n == n)
 
     y : [n]

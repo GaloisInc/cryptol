@@ -4,7 +4,7 @@
 import T009_S
 
 submodule F where
-  import signature A
+  import signature submodule A
   y : [n]
   y = 1
 
