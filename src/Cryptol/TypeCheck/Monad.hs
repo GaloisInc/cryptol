@@ -68,7 +68,8 @@ data InferInput = InferInput
   , inpAbstractTypes :: Map Name AbstractType   -- ^ Abstract types in scope
   , inpSignatures :: !(Map Name ModParamNames)  -- ^ Signatures in scope
 
-  , inpTopModules :: ModName -> Maybe (ModuleG (), If.IfaceG ())
+  , inpTopModules    :: ModName -> Maybe (ModuleG (), If.IfaceG ())
+  , inpTopSignatures :: ModName -> Maybe ModParamNames
 
     -- When typechecking a module these start off empty.
     -- We need them when type-checking an expression at the command
@@ -132,6 +133,7 @@ runInferM info (IM m) =
      rec ro <- return RO { iRange     = inpRange info
                          , iVars      = env
                          , iExtModules = inpTopModules info
+                         , iExtSignatures = inpTopSignatures info
                          , iExtScope = (emptyModule ExternalScope)
                              { mTySyns           = inpTSyns info
                              , mNewtypes         = inpNewtypes info
@@ -227,8 +229,12 @@ data RO = RO
   , iTVars    :: [TParam]    -- ^ Type variable that are in scope
 
   , iExtModules :: ModName -> Maybe (ModuleG (), If.IfaceG ())
-    -- ^ An exteral top-level module.  Used the find functors that
-    -- need to be instantiated.
+    -- ^ An exteral top-level module.
+    -- We need the actual module when we instantiate functors,
+    -- because currently the type-checker desugars such modules.
+
+  , iExtSignatures :: ModName -> Maybe ModParamNames
+    -- ^ External top-level signatures.
 
   , iExtScope :: ModuleG ScopeName
     -- ^ These are things we know about, but are not part of the
@@ -708,6 +714,13 @@ lookupSignature nx =
            Just ips -> pure ips
            Nothing  -> panic "lookupSignature"
                         [ "Missing signature", show x ]
+
+    P.ImpTop t ->
+      do loaded <- iExtSignatures <$> IM ask
+         case loaded t of
+           Just ps -> pure ps
+           Nothing -> panic "lookupSignature"
+                        [ "Top level signature is not loaded", show (pp nx) ]
 
 -- | Lookup an external (i.e., previously loaded) top module.
 lookupTopModule :: ModName -> InferM (Maybe (ModuleG (), If.IfaceG ()))

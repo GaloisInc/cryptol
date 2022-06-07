@@ -573,6 +573,7 @@ genInferInput r prims params env = do
   callStacks <- getCallStacks
 
   topMods <- getAllLoaded
+  topSigs <- getAllLoadedSignatures
 
   return T.InferInput
     { T.inpRange            = r
@@ -590,6 +591,7 @@ genInferInput r prims params env = do
     , T.inpPrimNames        = prims
     , T.inpSolver           = solver
     , T.inpTopModules       = topMods
+    , T.inpTopSignatures    = topSigs
     }
 
 

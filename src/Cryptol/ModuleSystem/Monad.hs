@@ -492,6 +492,11 @@ getAllLoaded = ModuleT
                          , ifaceForgetName (lmInterface lm)
                          )
 
+getAllLoadedSignatures :: ModuleM (P.ModName -> Maybe T.ModParamNames)
+getAllLoadedSignatures = ModuleT
+  do env <- get
+     pure \nm -> lmData <$> lookupSignature nm env
+
 
 getNameSeeds :: ModuleM T.NameSeeds
 getNameSeeds  = ModuleT (meNameSeeds `fmap` get)

@@ -299,7 +299,7 @@ data LoadedModules = LoadedModules
   , lmLoadedParamModules :: [LoadedModule]
     -- ^ Loaded parameterized modules.
 
-  , lmLoadedSignatures :: ![LoadedSinature]
+  , lmLoadedSignatures :: ![LoadedSignature]
 
   } deriving (Show, Generic, NFData)
 
@@ -360,7 +360,7 @@ data LoadedModuleData = LoadedModuleData
   } deriving (Show, Generic, NFData)
 
 
-type LoadedSinature = LoadedModuleG T.ModParamNames
+type LoadedSignature = LoadedModuleG T.ModParamNames
 
 
 -- | Has this module been loaded already.
@@ -376,6 +376,10 @@ lookupModule :: ModName -> ModuleEnv -> Maybe LoadedModule
 lookupModule mn me = search lmLoadedModules `mplus` search lmLoadedParamModules
   where
   search how = List.find ((mn ==) . lmName) (how (meLoadedModules me))
+
+lookupSignature :: ModName -> ModuleEnv -> Maybe LoadedSignature
+lookupSignature mn me =
+  List.find ((mn ==) . lmName) (lmLoadedSignatures (meLoadedModules me))
 
 
 -- | Add a freshly loaded module.  If it was previously loaded, then
