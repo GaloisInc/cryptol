@@ -46,6 +46,18 @@ infixr 5 `tFun`
 
 type FunctorParams = Map Ident ModParam
 
+-- | Compute the names from all functor parameters
+allParamNames :: FunctorParams -> ModParamNames
+allParamNames mps =
+  ModParamNames
+    { mpnTypes       = Map.unions (map mpnTypes ps)
+    , mpnConstraints = concatMap mpnConstraints ps
+    , mpnFuns        = Map.unions (map mpnFuns ps)
+    , mpnDoc         = Nothing
+    }
+  where
+  ps = map mpParameters (Map.elems mps)
+
 
 -- | A module parameter.  Corresponds to a "signature import".
 -- A single module parameter can bring multiple things in scope.

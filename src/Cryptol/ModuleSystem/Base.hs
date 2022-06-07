@@ -572,13 +572,6 @@ genInferInput r prims params env = do
   searchPath <- getSearchPath
   callStacks <- getCallStacks
 
-  let (paramTys,paramCtrs,paramVs) =
-        let ps = map T.mpParameters (Map.elems params)
-        in ( mconcat (map T.mpnTypes ps)
-           , mconcat (map T.mpnConstraints ps)
-           , mconcat (map T.mpnFuns ps)
-           )
-
   topMods <- getAllLoaded
 
   return T.InferInput
@@ -593,10 +586,8 @@ genInferInput r prims params env = do
     , T.inpCallStacks       = callStacks
     , T.inpSearchPath       = searchPath
     , T.inpSupply           = supply
+    , T.inpParams           = params
     , T.inpPrimNames        = prims
-    , T.inpParamTypes       = paramTys
-    , T.inpParamConstraints = paramCtrs
-    , T.inpParamFuns        = paramVs
     , T.inpSolver           = solver
     , T.inpTopModules       = topMods
     }

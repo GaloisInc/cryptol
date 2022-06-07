@@ -73,10 +73,7 @@ data InferInput = InferInput
     -- When typechecking a module these start off empty.
     -- We need them when type-checking an expression at the command
     -- line, for example.
-  , inpParamTypes       :: !(Map Name ModTParam)  -- ^ Type parameters
-  , inpParamConstraints :: !([Located Prop])      -- ^ Constraints on parameters
-  , inpParamFuns        :: !(Map Name ModVParam)  -- ^ Value parameters
-
+  , inpParams :: !(FunctorParams)
 
   , inpNameSeeds :: NameSeeds         -- ^ Private state of type-checker
   , inpMonoBinds :: Bool              -- ^ Should local bindings without
@@ -126,9 +123,11 @@ bumpCounter = do RO { .. } <- IM ask
 runInferM :: TVars a => InferInput -> InferM a -> IO (InferOutput a)
 runInferM info (IM m) =
   do counter <- newIORef 0
+     let allPs = allParamNames (inpParams info)
+
      let env = Map.map ExtVar (inpVars info)
             <> Map.map (ExtVar . newtypeConType) (inpNewtypes info)
-            <> Map.map (ExtVar . mvpType) (inpParamFuns info)
+            <> Map.map (ExtVar . mvpType) (mpnFuns allPs)
 
      rec ro <- return RO { iRange     = inpRange info
                          , iVars      = env
@@ -137,9 +136,9 @@ runInferM info (IM m) =
                              { mTySyns           = inpTSyns info
                              , mNewtypes         = inpNewtypes info
                              , mPrimTypes        = inpAbstractTypes info
-                             , mParamTypes       = inpParamTypes info
-                             , mParamFuns        = inpParamFuns info
-                             , mParamConstraints = inpParamConstraints info
+                             , mParamTypes       = mpnTypes allPs
+                             , mParamFuns        = mpnFuns  allPs
+                             , mParamConstraints = mpnConstraints allPs
                              , mSignatures       = inpSignatures info
                              }
 
