@@ -18,7 +18,7 @@
 module Cryptol.TypeCheck.Infer
   ( checkE
   , checkSigB
-  , inferModule
+  , inferTopModule
   , inferBinds
   , checkTopDecls
   )
@@ -65,8 +65,8 @@ import           Control.Monad(zipWithM,unless,foldM,forM_,mplus)
 
 
 
-inferModule :: P.Module Name -> InferM Module
-inferModule m =
+inferTopModule :: P.Module Name -> InferM Module
+inferTopModule m =
   case P.mDef m of
     P.NormalModule ds ->
       do newModuleScope (thing (P.mName m)) (map thing (P.mImports m))
@@ -80,6 +80,8 @@ inferModule m =
          case mb of
            Just mo -> pure mo
            Nothing -> panic "inferModule" ["Didnt' get a module"]
+
+
 
 -- | Construct a Prelude primitive in the parsed AST.
 mkPrim :: String -> InferM (P.Expr Name)
@@ -1092,16 +1094,7 @@ checkTopDecls = mapM_ checkTopDecl
               do let doc = P.thing <$> P.tlDoc tl
                  inRange (srcRange (P.mName m))
                    do newSignatureScope (thing (P.mName m)) doc
-
-                      forM_ (P.sigTypeParams sig) \pt ->
-                        addParamType =<< checkParameterType pt
-
-                      addParameterConstraints =<<
-                        checkParameterConstraints (P.sigConstraints sig)
-
-                      forM_ (P.sigFunParams sig) \f ->
-                        addParamFun =<< checkParameterFun f
-
+                      checkSignature sig
                       endSignature
 
 
@@ -1139,13 +1132,12 @@ checkTopDecls = mapM_ checkTopDecl
                           }
                    }
 
-
            mapM_ addParamType actualTys
            addParameterConstraints actualCtrs
            mapM_ addParamFun actualVals
            addModParam param
 
-      P.DImport {} -> pure ()
+      P.DImport {}        -> pure ()
       P.Include {}        -> bad "Include"
       P.DParameterType{}  -> bad "DParameterType"
       P.DParameterFun{}   -> bad "DParameterFun"
@@ -1153,6 +1145,17 @@ checkTopDecls = mapM_ checkTopDecl
 
   bad x = panic "checkTopDecl" [ x ]
 
+
+checkSignature :: P.Signature Name -> InferM ()
+checkSignature sig =
+  do forM_ (P.sigTypeParams sig) \pt ->
+       addParamType =<< checkParameterType pt
+
+     addParameterConstraints =<<
+       checkParameterConstraints (P.sigConstraints sig)
+
+     forM_ (P.sigFunParams sig) \f ->
+       addParamFun =<< checkParameterFun f
 
 
 

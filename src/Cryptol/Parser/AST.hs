@@ -238,13 +238,12 @@ data TopDecl name =
     Decl (TopLevel (Decl name))
   | DPrimType (TopLevel (PrimType name))
   | TDNewtype (TopLevel (Newtype name)) -- ^ @newtype T as = t
-  | Include (Located FilePath)          -- ^ @include File@
+  | Include (Located FilePath)          -- ^ @include File@ (until NoPat)
 
-  -- Anonymous module parameters.
-  -- DParameterType and DParameterFun should only exist during parsing
-  -- and are converted to 
-  | DParameterType (ParameterType name) -- ^ @parameter type T : #@
+  -- Sugar for anonymous module parameters
+  | DParameterType (ParameterType name) -- ^ @parameter type T : #@ (parser only)
   | DParameterFun  (ParameterFun name)  -- ^ @parameter someVal : [256]@
+                                        -- (parser only)
 
   | DParameterConstraint [Located (Prop name)]
     -- ^ @parameter type constraint (fin T)@
@@ -259,8 +258,8 @@ data ModuleInstanceArgs name =
     -- ^ Single parameter instantitaion
 
   | DefaultInstAnonArg [TopDecl name]
-    -- ^ Single parameter instantitaion using this anonymous module
-    -- Only appears while parsing, shouldn't be in the results of the parser.
+    -- ^ Single parameter instantitaion using this anonymous module.
+    -- (parser only)
 
   | NamedInstArgs  [ModuleInstanceArg name]
     deriving (Show, Generic, NFData)

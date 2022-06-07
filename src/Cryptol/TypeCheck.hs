@@ -44,7 +44,7 @@ import           Cryptol.TypeCheck.Monad
                    , lookupVar
                    , newLocalScope, endLocalScope
                    )
-import Cryptol.TypeCheck.Infer (inferModule, inferBinds, checkTopDecls)
+import Cryptol.TypeCheck.Infer (inferTopModule, inferBinds, checkTopDecls)
 import Cryptol.TypeCheck.InferTypes(VarType(..), SolverConfig(..), defaultSolverConfig)
 import Cryptol.TypeCheck.Solve(proveModuleTopLevel)
 -- import Cryptol.TypeCheck.Monad(withParamType,withParameterConstraints)
@@ -56,7 +56,7 @@ import Cryptol.Utils.Panic(panic)
 
 
 tcModule :: P.Module Name -> InferInput -> IO (InferOutput Module)
-tcModule m inp = runInferM inp (inferModule m)
+tcModule m inp = runInferM inp (inferTopModule m)
 
 tcExpr :: P.Expr Name -> InferInput -> IO (InferOutput (Expr,Schema))
 tcExpr e0 inp = runInferM inp

@@ -141,7 +141,7 @@ import Paths_cryptol
 
   DOC         { $$@(Located _ (Token (White DocStr) _)) }
 
-%name vmodule vmodule
+%name top_module top_module
 %name program program
 %name programLayout program_layout
 %name expr    expr
@@ -165,7 +165,7 @@ import Paths_cryptol
 %%
 
 
-vmodule :: { [Module PName] }
+top_module :: { [Module PName] }
   : 'module' module_def       { mkTopMods $2 }
   | 'v{' vmod_body 'v}'       { [mkAnonymousModule $2] }
 
@@ -911,7 +911,7 @@ parseProgramWith cfg s = case res s of
                       NoLayout -> program
 
 parseModule :: Config -> Text -> Either ParseError [Module PName]
-parseModule cfg = parse cfg { cfgModuleScope = True } vmodule
+parseModule cfg = parse cfg { cfgModuleScope = True } top_module
 
 parseProgram :: Layout -> Text -> Either ParseError (Program PName)
 parseProgram l = parseProgramWith defaultConfig { cfgLayout = l }
