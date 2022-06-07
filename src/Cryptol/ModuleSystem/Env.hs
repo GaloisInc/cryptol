@@ -12,6 +12,7 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 module Cryptol.ModuleSystem.Env where
 
 #ifndef RELOCATABLE
@@ -298,6 +299,8 @@ data LoadedModules = LoadedModules
   , lmLoadedParamModules :: [LoadedModule]
     -- ^ Loaded parameterized modules.
 
+  , lmLoadedSignatures :: ![LoadedSinature]
+
   } deriving (Show, Generic, NFData)
 
 getLoadedModules :: LoadedModules -> [LoadedModule]
@@ -307,15 +310,20 @@ instance Semigroup LoadedModules where
   l <> r = LoadedModules
     { lmLoadedModules = List.unionBy ((==) `on` lmName)
                                       (lmLoadedModules l) (lmLoadedModules r)
-    , lmLoadedParamModules = lmLoadedParamModules l ++ lmLoadedParamModules r }
+    , lmLoadedParamModules = lmLoadedParamModules l ++ lmLoadedParamModules r
+    , lmLoadedSignatures   = lmLoadedSignatures l ++ lmLoadedSignatures r
+    }
 
 instance Monoid LoadedModules where
   mempty = LoadedModules { lmLoadedModules = []
                          , lmLoadedParamModules = []
+                         , lmLoadedSignatures = []
                          }
   mappend l r = l <> r
 
-data LoadedModule = LoadedModule
+-- | A generic type for loaded things.
+-- The things can be either modules or signatures.
+data LoadedModuleG a = LoadedModule
   { lmName              :: ModName
     -- ^ The name of this module.  Should match what's in 'lmModule'
 
@@ -330,14 +338,30 @@ data LoadedModule = LoadedModule
   , lmNamingEnv         :: !R.NamingEnv
     -- ^ What's in scope in this module
 
-  , lmInterface         :: Iface
+  , lmFingerprint       :: Fingerprint
+
+  , lmData              :: a
+  } deriving (Show, Generic, NFData)
+
+type LoadedModule = LoadedModuleG LoadedModuleData
+
+lmModule :: LoadedModule -> T.Module
+lmModule = lmdModule . lmData
+
+lmInterface :: LoadedModule -> Iface
+lmInterface = lmdInterface . lmData
+
+data LoadedModuleData = LoadedModuleData
+  { lmdInterface         :: Iface
     -- ^ The module's interface.
 
-  , lmModule            :: T.Module
+  , lmdModule            :: T.Module
     -- ^ The actual type-checked module
-
-  , lmFingerprint       :: Fingerprint
   } deriving (Show, Generic, NFData)
+
+
+type LoadedSinature = LoadedModuleG T.ModParamNames
+
 
 -- | Has this module been loaded already.
 isLoaded :: ModName -> LoadedModules -> Bool
@@ -371,19 +395,23 @@ addLoadedModule path ident fp nameEnv tm lm
     , lmFilePath        = path
     , lmModuleId        = ident
     , lmNamingEnv       = nameEnv
-    , lmInterface       = T.genIface tm
-    , lmModule          = tm
+    , lmData            = LoadedModuleData
+                             { lmdInterface = T.genIface tm
+                             , lmdModule    = tm
+                             }
     , lmFingerprint     = fp
     }
 
 -- | Remove a previously loaded module.
 -- Note that this removes exactly the modules specified by the predicate.
 -- One should be carfule to preserve the invariant on 'LoadedModules'.
-removeLoadedModule :: (LoadedModule -> Bool) -> LoadedModules -> LoadedModules
+removeLoadedModule ::
+  (forall a. LoadedModuleG a -> Bool) -> LoadedModules -> LoadedModules
 removeLoadedModule rm lm =
   LoadedModules
-    { lmLoadedModules = filter (not . rm) (lmLoadedModules lm)
-    , lmLoadedParamModules = filter (not . rm) (lmLoadedParamModules lm)
+    { lmLoadedModules       = filter (not . rm) (lmLoadedModules lm)
+    , lmLoadedParamModules  = filter (not . rm) (lmLoadedParamModules lm)
+    , lmLoadedSignatures    = filter (not . rm) (lmLoadedSignatures lm)
     }
 
 -- Dynamic Environments --------------------------------------------------------

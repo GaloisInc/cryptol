@@ -10,6 +10,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE BlockArguments #-}
 module Cryptol.ModuleSystem.Monad where
 
@@ -516,7 +517,7 @@ setSupply supply = ModuleT $
   do env <- get
      set $! env { meSupply = supply }
 
-unloadModule :: (LoadedModule -> Bool) -> ModuleM ()
+unloadModule :: (forall a. LoadedModuleG a -> Bool) -> ModuleM ()
 unloadModule rm = ModuleT $ do
   env <- get
   set $! env { meLoadedModules = removeLoadedModule rm (meLoadedModules env) }

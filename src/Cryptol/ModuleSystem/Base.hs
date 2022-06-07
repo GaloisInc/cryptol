@@ -45,7 +45,7 @@ import Cryptol.ModuleSystem.Interface
 import Cryptol.ModuleSystem.Monad
 import Cryptol.ModuleSystem.Name (Name,liftSupply,PrimMap,ModPath(..))
 import Cryptol.ModuleSystem.Env (lookupModule
-                                , LoadedModule(..)
+                                , LoadedModuleG(..), lmModule, lmInterface
                                 , meCoreLint, CoreLint(..)
                                 , ModContext(..)
                                 , ModulePath(..), modulePathLabel)
