@@ -64,7 +64,7 @@ data ModuleG mname =
                      , mParamFuns        :: Map Name ModVParam
                      , mParamConstraints :: [Located Prop]
 
-                     , mParams           :: Map Ident IfaceModParam
+                     , mParams           :: Map Ident ModParam
                        -- ^ Parameters grouped by "import".
 
                      , mFunctors         :: Map Name (ModuleG Name)
@@ -83,7 +83,7 @@ data ModuleG mname =
                      , mPrimTypes        :: Map Name AbstractType
                      , mDecls            :: [DeclGroup]
                      , mSubmodules       :: Map Name (IfaceNames Name)
-                     , mSignatures       :: !(Map Name IfaceParams)
+                     , mSignatures       :: !(Map Name ModParamNames)
                      } deriving (Show, Generic, NFData)
 
 emptyModule :: mname -> ModuleG mname

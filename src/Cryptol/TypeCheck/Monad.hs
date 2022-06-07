@@ -65,8 +65,8 @@ data InferInput = InferInput
   , inpVars      :: Map Name Schema   -- ^ Variables that are in scope
   , inpTSyns     :: Map Name TySyn    -- ^ Type synonyms that are in scope
   , inpNewtypes  :: Map Name Newtype  -- ^ Newtypes in scope
-  , inpAbstractTypes :: Map Name AbstractType -- ^ Abstract types in scope
-  , inpSignatures :: !(Map Name If.IfaceParams)  -- ^ Signatures in scope
+  , inpAbstractTypes :: Map Name AbstractType   -- ^ Abstract types in scope
+  , inpSignatures :: !(Map Name ModParamNames)  -- ^ Signatures in scope
 
   , inpTopModules :: ModName -> Maybe (ModuleG (), If.IfaceG ())
 
@@ -699,7 +699,7 @@ lookupAbstractType x = Map.lookup x <$> getAbstractTypes
 lookupParamType :: Name -> InferM (Maybe ModTParam)
 lookupParamType x = Map.lookup x <$> getParamTypes
 
-lookupSignature :: P.ImpName Name -> InferM If.IfaceParams
+lookupSignature :: P.ImpName Name -> InferM ModParamNames
 lookupSignature nx =
   case nx of
     -- XXX: top
@@ -831,7 +831,7 @@ getMonoBinds  = IM (asks iMonoBinds)
 getCallStacks :: InferM Bool
 getCallStacks = IM (asks iCallStacks)
 
-getSignatures :: InferM (Map Name If.IfaceParams)
+getSignatures :: InferM (Map Name ModParamNames)
 getSignatures = getScope mSignatures
 
 
@@ -985,11 +985,11 @@ endSignature =
         rw { iScope = z : more }
         where
         z   = y { mSignatures = Map.insert m sig (mSignatures y) }
-        sig = If.IfaceParams
-                { If.ifParamTypes       = mParamTypes x
-                , If.ifParamConstraints = mParamConstraints x
-                , If.ifParamFuns        = mParamFuns x
-                , If.ifParamDoc         = doc
+        sig = ModParamNames
+                { mpnTypes       = mParamTypes x
+                , mpnConstraints = mParamConstraints x
+                , mpnFuns        = mParamFuns x
+                , mpnDoc         = doc
                 }
       _ -> panic "endSignature" [ "Not a signature scope" ]
 
@@ -1042,7 +1042,7 @@ addParamType :: ModTParam -> InferM ()
 addParamType a =
   updScope \r -> r { mParamTypes = Map.insert (mtpName a) a (mParamTypes r) }
 
-addSignatures :: Map Name If.IfaceParams -> InferM ()
+addSignatures :: Map Name ModParamNames -> InferM ()
 addSignatures mp =
   updScope \r -> r { mSignatures = Map.union mp (mSignatures r) }
 
@@ -1068,9 +1068,9 @@ addParameterConstraints :: [Located Prop] -> InferM ()
 addParameterConstraints ps =
   updScope \r -> r { mParamConstraints = ps ++ mParamConstraints r }
 
-addModParam :: If.IfaceModParam -> InferM ()
+addModParam :: ModParam -> InferM ()
 addModParam p =
-  updScope \r -> r { mParams = Map.insert (If.ifmpName p) p (mParams r) }
+  updScope \r -> r { mParams = Map.insert (mpName p) p (mParams r) }
 
 
 

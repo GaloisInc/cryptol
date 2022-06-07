@@ -68,13 +68,12 @@ showSigHelp env nameEnv name =
   do rPrint $ runDoc nameEnv $ vcat [ "`" <> pp name <> "` is a signature." ]
      fromMaybe (noInfo nameEnv name)
        do s <- Map.lookup name (M.ifSignatures env)
-          d <- M.ifParamDoc s
+          d <- T.mpnDoc s
           pure (rPrint (pp d))
   -- XXX: show doc. if any, and maybe other stuff
 
 
-showTypeHelp ::
-  M.IfaceFunctorParams -> M.IfaceDecls -> NameDisp -> T.Name -> REPL ()
+showTypeHelp :: T.FunctorParams -> M.IfaceDecls -> NameDisp -> T.Name -> REPL ()
 showTypeHelp mbParams env nameEnv name =
   fromMaybe (noInfo nameEnv name) $
   msum [ fromTySyn, fromPrimType, fromNewtype, fromTyParam ]
@@ -154,8 +153,7 @@ doShowFix fx =
 
 
 showValHelp ::
-  M.IfaceFunctorParams ->
-    M.IfaceDecls -> NameDisp -> P.PName -> T.Name -> REPL ()
+  T.FunctorParams -> M.IfaceDecls -> NameDisp -> P.PName -> T.Name -> REPL ()
 
 showValHelp mbParams env nameEnv qname name =
   fromMaybe (noInfo nameEnv name)

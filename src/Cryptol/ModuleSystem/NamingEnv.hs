@@ -230,11 +230,11 @@ isEmptyNamingEnv (NamingEnv mp) = Map.null mp
 
 -- | Compute an unqualified naming environment, containing the various module
 -- parameters.
-modParamsNamingEnv :: IfaceParams -> NamingEnv
-modParamsNamingEnv IfaceParams { .. } =
+modParamsNamingEnv :: T.ModParamNames -> NamingEnv
+modParamsNamingEnv T.ModParamNames { .. } =
   NamingEnv $ Map.fromList
-    [ (NSValue, Map.fromList $ map fromFu $ Map.keys ifParamFuns)
-    , (NSType,  Map.fromList $ map fromTy $ Map.elems ifParamTypes)
+    [ (NSValue, Map.fromList $ map fromFu $ Map.keys mpnFuns)
+    , (NSType,  Map.fromList $ map fromTy $ Map.elems mpnTypes)
     ]
   where
   toPName n = mkUnqual (nameIdent n)

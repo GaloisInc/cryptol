@@ -29,8 +29,7 @@ module Cryptol.ModuleSystem (
   , renameType
 
     -- * Interfaces
-  , Iface, IfaceG(..), IfaceParams(..), IfaceDecls(..), T.genIface
-  , IfaceTySyn, IfaceDecl(..)
+  , Iface, IfaceG(..), IfaceDecls(..), T.genIface, IfaceDecl(..)
   ) where
 
 import Data.Map (Map)

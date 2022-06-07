@@ -171,7 +171,7 @@ loadedModules = map lmModule . getLoadedModules . meLoadedModules
 loadedNonParamModules :: ModuleEnv -> [T.Module]
 loadedNonParamModules = map lmModule . lmLoadedModules . meLoadedModules
 
-loadedNewtypes :: ModuleEnv -> Map Name IfaceNewtype
+loadedNewtypes :: ModuleEnv -> Map Name T.Newtype
 loadedNewtypes menv = Map.unions
    [ ifNewtypes (ifPublic i) <> ifNewtypes (ifPrivate i)
    | i <- map lmInterface (getLoadedModules (meLoadedModules menv))
@@ -187,7 +187,7 @@ allDeclGroups = concatMap T.mDecls . loadedNonParamModules
 -- | Contains enough information to browse what's in scope,
 -- or type check new expressions.
 data ModContext = ModContext
-  { mctxParams          :: IfaceFunctorParams
+  { mctxParams          :: T.FunctorParams
   , mctxExported        :: Set Name
   , mctxDecls           :: IfaceDecls
     -- ^ Should contain at least names in NamingEnv, but may have more

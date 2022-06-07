@@ -13,8 +13,7 @@ import Cryptol.Parser.Position (Range,Located(..), thing)
 import qualified Cryptol.Parser.AST as P
 import Cryptol.ModuleSystem.Name(nameIdent)
 import Cryptol.ModuleSystem.Interface
-          ( IfaceG(..), IfaceModParam(..), IfaceDecls(..), IfaceNames(..)
-          , IfaceParams(..), IfaceDecl(..)
+          ( IfaceG(..), IfaceDecls(..), IfaceNames(..), IfaceDecl(..)
           , filterIfaceDecls
           )
 import Cryptol.TypeCheck.AST
@@ -79,7 +78,7 @@ checkArity ::
   Range             {- ^ Location for reporting errors -} ->
   ModuleG ()        {- ^ The functor being instantiated -} ->
   P.ModuleInstanceArgs Name {- ^ The arguments -} ->
-  InferM [ (Range, IfaceModParam, IfaceG ()) ]
+  InferM [ (Range, ModParam, IfaceG ()) ]
   {- ^ Associates functor parameters with the interfaces of the
        instantiating modules -}
 checkArity r mf args =
@@ -117,9 +116,9 @@ checkArity r mf args =
                checkArgs done ps more
 
 
-checkArg :: (Range, IfaceModParam, IfaceG ()) -> InferM (Subst, [Decl])
+checkArg :: (Range, ModParam, IfaceG ()) -> InferM (Subst, [Decl])
 checkArg (r,expect,actual) =
-  do tRens <- mapM (checkParamType r tyMap) (Map.toList (ifParamTypes params))
+  do tRens <- mapM (checkParamType r tyMap) (Map.toList (mpnTypes params))
      let renSu = listParamSubst (concat tRens)
 
      {- Note: the constraints from the signature are already added to the
@@ -133,7 +132,7 @@ checkArg (r,expect,actual) =
      vDecls <- concat <$>
                 mapM (checkParamValue r vMap)
                      [ s { mvpType = apSubst renSu (mvpType s) }
-                     | s <- Map.elems (ifParamFuns params) ]
+                     | s <- Map.elems (mpnFuns params) ]
 
      pure (renSu, vDecls)
 
@@ -141,7 +140,7 @@ checkArg (r,expect,actual) =
 
 
   where
-  params = ifmpParameters expect
+  params = mpParameters expect
 
   localNames = ifsDefines (ifNames actual)
   isLocal x  = x `Set.member` localNames

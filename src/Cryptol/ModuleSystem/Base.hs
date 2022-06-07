@@ -534,7 +534,7 @@ data TCAction i o = TCAction
 
 typecheck ::
   (Show i, Show o, HasLoc i) =>
-  TCAction i o -> i -> IfaceFunctorParams -> IfaceDecls -> ModuleM o
+  TCAction i o -> i -> T.FunctorParams -> IfaceDecls -> ModuleM o
 typecheck act i params env = do
 
   let range = fromMaybe emptyRange (getLoc i)
@@ -562,9 +562,8 @@ typecheck act i params env = do
          typeCheckingFailed nameMap errs
 
 -- | Generate input for the typechecker.
-genInferInput ::
-  Range -> PrimMap -> IfaceFunctorParams -> IfaceDecls ->
-  ModuleM T.InferInput
+genInferInput :: Range -> PrimMap -> T.FunctorParams -> IfaceDecls ->
+                                                          ModuleM T.InferInput
 genInferInput r prims params env = do
   seeds <- getNameSeeds
   monoBinds <- getMonoBinds
@@ -574,10 +573,10 @@ genInferInput r prims params env = do
   callStacks <- getCallStacks
 
   let (paramTys,paramCtrs,paramVs) =
-        let ps = map ifmpParameters (Map.elems params)
-        in ( mconcat (map ifParamTypes ps)
-           , mconcat (map ifParamConstraints ps)
-           , mconcat (map ifParamFuns ps)
+        let ps = map T.mpParameters (Map.elems params)
+        in ( mconcat (map T.mpnTypes ps)
+           , mconcat (map T.mpnConstraints ps)
+           , mconcat (map T.mpnFuns ps)
            )
 
   topMods <- getAllLoaded

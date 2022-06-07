@@ -32,7 +32,6 @@ import           Cryptol.ModuleSystem.Name (lookupPrimDecl,nameLoc)
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
 import qualified Cryptol.ModuleSystem.Exports as P
-import           Cryptol.ModuleSystem.Interface
 import           Cryptol.TypeCheck.AST hiding (tSub,tMul,tExp)
 import           Cryptol.TypeCheck.Monad
 import           Cryptol.TypeCheck.Error
@@ -1108,27 +1107,25 @@ checkTopDecls = mapM_ checkTopDecl
 
            ips <- lookupSignature (thing (P.mpSignature p))
            let actualTys  = [ mapNames actualName mp
-                            | mp <- Map.elems (ifParamTypes ips) ]
+                            | mp <- Map.elems (mpnTypes ips) ]
                actualCtrs = [ mapNames actualName prop
-                            | prop <- ifParamConstraints ips ]
+                            | prop <- mpnConstraints ips ]
                actualVals = [ mapNames actualName vp
-                            | vp <- Map.elems (ifParamFuns ips) ]
+                            | vp <- Map.elems (mpnFuns ips) ]
 
                param =
-                 IfaceModParam
-                   { ifmpName = P.mpName p
-                   , ifmpSignature = thing (P.mpSignature p)
-                   , ifmpParameters =
-                        IfaceParams
-                          { ifParamTypes =
-                              Map.fromList [ (mtpName tp, tp)
-                                           | tp <- actualTys ]
+                 ModParam
+                   { mpName = P.mpName p
+                   , mpSignature = thing (P.mpSignature p)
+                   , mpParameters =
+                        ModParamNames
+                          { mpnTypes = Map.fromList [ (mtpName tp, tp)
+                                                    | tp <- actualTys ]
 
-                          , ifParamConstraints = actualCtrs
-                          , ifParamFuns =
-                              Map.fromList [ (mvpName vp, vp)
-                                           | vp <- actualVals ]
-                          , ifParamDoc = thing <$> P.mpDoc p
+                          , mpnConstraints = actualCtrs
+                          , mpnFuns = Map.fromList [ (mvpName vp, vp)
+                                                   | vp <- actualVals ]
+                          , mpnDoc = thing <$> P.mpDoc p
                           }
                    }
 

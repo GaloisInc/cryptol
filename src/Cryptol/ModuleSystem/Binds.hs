@@ -38,6 +38,7 @@ import Cryptol.ModuleSystem.Name
 import Cryptol.ModuleSystem.Names
 import Cryptol.ModuleSystem.NamingEnv
 import Cryptol.ModuleSystem.Interface
+import Cryptol.TypeCheck.Type(ModParamNames(..))
 
 
 
@@ -113,7 +114,7 @@ ifaceNamesToMod iface params names =
   decls     = filterIfaceDecls isLocal (ifPublic iface <> ifPrivate iface)
 
 
-ifaceSigToMod :: IfaceParams -> Mod ()
+ifaceSigToMod :: ModParamNames -> Mod ()
 ifaceSigToMod ps = Mod
   { modImports   = []
   , modKind      = ASignature

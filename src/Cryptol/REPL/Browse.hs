@@ -47,19 +47,19 @@ data DispInfo = DispInfo { dispHow :: BrowseHow, env :: NameDisp }
 --------------------------------------------------------------------------------
 
 
-browseMParams :: NameDisp -> IfaceFunctorParams -> [Doc]
+browseMParams :: NameDisp -> T.FunctorParams -> [Doc]
 browseMParams disp params
   | Map.null params = []
   | otherwise =
       ppSectionHeading "Module Parameters"
-      $ [ "parameter" <+> pp (ifmpName p) <+> ":" <+>
-          "signature" <+> pp (ifmpSignature p) $$
+      $ [ "parameter" <+> pp (T.mpName p) <+> ":" <+>
+          "signature" <+> pp (T.mpSignature p) $$
            indent 2 (vcat $
-            map ppParamTy (sortByName disp (Map.toList (ifParamTypes names))) ++
-            map ppParamFu (sortByName disp (Map.toList (ifParamFuns  names)))
+            map ppParamTy (sortByName disp (Map.toList (T.mpnTypes names))) ++
+            map ppParamFu (sortByName disp (Map.toList (T.mpnFuns  names)))
            )
         | p <- Map.elems params
-        , let names = ifmpParameters p
+        , let names = T.mpParameters p
         ] ++
         ["   "]
   where

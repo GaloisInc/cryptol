@@ -7,8 +7,7 @@ import Data.Set(Set)
 import qualified Data.Set as Set
 
 import Cryptol.Parser.Position(Located)
-import Cryptol.ModuleSystem.Interface
-  (IfaceParams(..), IfaceNames(..), IfaceModParam(..))
+import Cryptol.ModuleSystem.Interface(IfaceNames(..))
 import Cryptol.IR.TraverseNames(TraverseNames,mapNames)
 import Cryptol.Parser.AST(ImpName(..))
 import Cryptol.TypeCheck.AST
@@ -130,13 +129,13 @@ instance ModuleInstance name => ModuleInstance (IfaceNames name) where
                , ifsPublic   = doSet (ifsPublic ns)
                }
 
-instance ModuleInstance IfaceParams where
+instance ModuleInstance ModParamNames where
   moduleInstance si =
-    IfaceParams { ifParamTypes       = doMap (ifParamTypes si)
-                , ifParamConstraints = moduleInstance (ifParamConstraints si)
-                , ifParamFuns        = doMap (ifParamFuns si)
-                , ifParamDoc         = ifParamDoc si
-                }
+    ModParamNames { mpnTypes       = doMap (mpnTypes si)
+                  , mpnConstraints = moduleInstance (mpnConstraints si)
+                  , mpnFuns        = doMap (mpnFuns si)
+                  , mpnDoc         = mpnDoc si
+                  }
 
 instance ModuleInstance ModTParam where
   moduleInstance mp =
@@ -154,12 +153,12 @@ instance ModuleInstance ModVParam where
               , mvpFixity = mvpFixity mp
               }
 
-instance ModuleInstance IfaceModParam where
+instance ModuleInstance ModParam where
   moduleInstance p =
-    IfaceModParam { ifmpName        = ifmpName p
-                  , ifmpSignature   = moduleInstance (ifmpSignature p)
-                  , ifmpParameters  = moduleInstance (ifmpParameters p)
-                  }
+    ModParam { mpName        = mpName p
+             , mpSignature   = moduleInstance (mpSignature p)
+             , mpParameters  = moduleInstance (mpParameters p)
+             }
 
 
 
