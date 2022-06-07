@@ -74,7 +74,7 @@ showSigHelp env nameEnv name =
 
 
 showTypeHelp ::
-  Maybe M.IfaceFunctorParams -> M.IfaceDecls -> NameDisp -> T.Name -> REPL ()
+  M.IfaceFunctorParams -> M.IfaceDecls -> NameDisp -> T.Name -> REPL ()
 showTypeHelp mbParams env nameEnv name =
   fromMaybe (noInfo nameEnv name) $
   msum [ fromTySyn, fromPrimType, fromNewtype, fromTyParam ]
@@ -110,7 +110,8 @@ showTypeHelp mbParams env nameEnv name =
                  doShowFix (T.atFixitiy a)
                  doShowDocString (T.atDoc a)
 
-  fromTyParam =
+  fromTyParam = Nothing -- XXX
+{-
     do hasPs <- mbParams
        case hasPs of
          M.NewStyle {} -> undefined -- XXX
@@ -127,6 +128,7 @@ showTypeHelp mbParams env nameEnv name =
                              <+> pp (T.mtpKind p) ]
                            ++ ctrDoc
               return $ doShowTyHelp nameEnv decl (T.mtpDoc p)
+-}
 
 
 doShowTyHelp :: NameDisp -> Doc -> Maybe Text -> REPL ()
@@ -152,7 +154,7 @@ doShowFix fx =
 
 
 showValHelp ::
-  Maybe M.IfaceFunctorParams ->
+  M.IfaceFunctorParams ->
     M.IfaceDecls -> NameDisp -> P.PName -> T.Name -> REPL ()
 
 showValHelp mbParams env nameEnv qname name =
@@ -182,7 +184,8 @@ showValHelp mbParams env nameEnv qname name =
     do _ <- Map.lookup name (M.ifNewtypes env)
        return $ return ()
 
-  fromParameter =
+  fromParameter = Nothing -- XXX
+{-
     do hasPs <- mbParams
        case hasPs of
          M.NewStyle {} -> undefined -- XXX
@@ -198,6 +201,7 @@ showValHelp mbParams env nameEnv qname name =
 
                    doShowFix (T.mvpFixity p)
                    doShowDocString (T.mvpDoc p)
+-}
 
 
 doShowDocString :: Maybe Text -> REPL ()

@@ -18,7 +18,7 @@ module Cryptol.ModuleSystem.Interface (
   , IfaceTySyn, ifTySynName
   , IfaceNewtype
   , IfaceDecl(..)
-  , IfaceFunctorParams(..)
+  , IfaceFunctorParams
   , IfaceParams(..)
   , IfaceModParam(..)
   , IfaceNames(..)
@@ -40,7 +40,6 @@ import           Data.Map(Map)
 import qualified Data.Map as Map
 import           Data.Semigroup
 import           Data.Text (Text)
-import           Data.Maybe(isJust)
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
@@ -63,7 +62,7 @@ data IfaceG name = Iface
   { ifNames     :: IfaceNames name
   , ifPublic    :: IfaceDecls   -- ^ Exported definitions
   , ifPrivate   :: IfaceDecls
-  , ifParams    :: Maybe IfaceFunctorParams
+  , ifParams    :: IfaceFunctorParams
   } deriving (Show, Generic, NFData)
 
 -- XXX: signature
@@ -84,7 +83,7 @@ data IfaceNames name = IfaceNames
 
 
 ifaceIsFunctor :: IfaceG name -> Bool
-ifaceIsFunctor = isJust . ifParams
+ifaceIsFunctor = not . Map.null . ifParams
 
 emptyIface :: ModName -> Iface
 emptyIface nm = Iface
@@ -95,13 +94,10 @@ emptyIface nm = Iface
                            }
   , ifPublic  = mempty
   , ifPrivate = mempty
-  , ifParams  = Nothing
+  , ifParams  = mempty
   }
 
-data IfaceFunctorParams =
-    OldStyle IfaceParams
-  | NewStyle (Map Ident IfaceModParam)
-    deriving (Show, Generic, NFData)
+type IfaceFunctorParams = Map Ident IfaceModParam
 
 data IfaceModParam = IfaceModParam
   { ifmpName        :: Ident

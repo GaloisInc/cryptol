@@ -187,7 +187,7 @@ allDeclGroups = concatMap T.mDecls . loadedNonParamModules
 -- | Contains enough information to browse what's in scope,
 -- or type check new expressions.
 data ModContext = ModContext
-  { mctxParams          :: Maybe IfaceFunctorParams
+  { mctxParams          :: IfaceFunctorParams
   , mctxExported        :: Set Name
   , mctxDecls           :: IfaceDecls
     -- ^ Should contain at least names in NamingEnv, but may have more
@@ -199,7 +199,7 @@ data ModContext = ModContext
 -- This instance is a bit bogus.  It is mostly used to add the dynamic
 -- environemnt to an existing module, and it makes sense for that use case.
 instance Semigroup ModContext where
-  x <> y = ModContext { mctxParams   = jnParams (mctxParams x) (mctxParams y)
+  x <> y = ModContext { mctxParams   = mctxParams x <> mctxParams y
                       , mctxExported = mctxExported x <> mctxExported y
                       , mctxDecls    = mctxDecls x  <> mctxDecls  y
                       , mctxNames    = names
@@ -208,14 +208,9 @@ instance Semigroup ModContext where
 
       where
       names = mctxNames x `R.shadowing` mctxNames y
-      jnParams a b =
-        case (a,b) of
-          (Nothing,_) -> b
-          (_,Nothing) -> a
-          _ -> panic "ModContext" [ "Cannot combined 2 parameterized contexts" ]
 
 instance Monoid ModContext where
-  mempty = ModContext { mctxParams   = Nothing
+  mempty = ModContext { mctxParams   = mempty
                       , mctxDecls    = mempty
                       , mctxExported = mempty
                       , mctxNames    = mempty

@@ -47,16 +47,10 @@ data DispInfo = DispInfo { dispHow :: BrowseHow, env :: NameDisp }
 --------------------------------------------------------------------------------
 
 
-browseMParams :: NameDisp -> Maybe IfaceFunctorParams -> [Doc]
-browseMParams disp mbParams =
-  case mbParams of
-    Nothing -> []
-    Just (OldStyle params) ->
-      ppSectionHeading "Module Parameters"
-      $ addEmpty
-      $ map ppParamTy (sortByName disp (Map.toList (ifParamTypes params))) ++
-        map ppParamFu (sortByName disp (Map.toList (ifParamFuns  params)))
-    Just (NewStyle params) ->
+browseMParams :: NameDisp -> IfaceFunctorParams -> [Doc]
+browseMParams disp params
+  | Map.null params = []
+  | otherwise =
       ppSectionHeading "Module Parameters"
       $ [ "parameter" <+> pp (ifmpName p) <+> ":" <+>
           "signature" <+> pp (ifmpSignature p) $$
@@ -72,10 +66,6 @@ browseMParams disp mbParams =
   ppParamTy p = nest 2 (sep ["type", pp (T.mtpName p) <+> ":", pp (T.mtpKind p)])
   ppParamFu p = nest 2 (sep [pp (T.mvpName p) <+> ":", pp (T.mvpType p)])
   -- XXX: should we print the constraints somewhere too?
-
-  addEmpty xs = case xs of
-                  [] -> []
-                  _  -> xs ++ ["    "]
 
 
 browseMods :: DispInfo -> IfaceDecls -> [Doc]

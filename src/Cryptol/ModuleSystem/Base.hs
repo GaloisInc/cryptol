@@ -425,27 +425,8 @@ checkModule ::
   ImportSource -> ModulePath -> P.Module PName ->
   ModuleM (R.NamingEnv, T.Module)
 checkModule isrc path m = checkSingleModule T.tcModule isrc path m
-{-
-  case mDef m of
-    NormalModule _ -> 
-    FunctorInstanceAnon fmName _ ->
-      do mbtf <- getLoadedMaybe (thing fmName)
-         case mbtf of
-           Just tf ->
-             do renThis <- io $ newIORef (lmNamingEnv tf)
-                let how = T.tcModuleInst renThis (lmModule tf)
-                (_,m') <- checkSingleModule how isrc path m
-                newEnv <- io $ readIORef renThis
-                pure (newEnv,m')
-           Nothing -> panic "checkModule"
-                        [ "Functor of module instantiation not loaded" ]
 
-    -- XXX: functor instance; this is for top-level functor instances
--}
-
--- | Typecheck a single module.  If the module is an instantiation
--- of a functor, then this just type-checks the instantiating parameters.
--- See 'checkModule'
+-- | Typecheck a single module.
 checkSingleModule ::
   Act (P.Module Name) T.Module {- ^ how to check -} ->
   ImportSource                 {- ^ why are we loading this -} ->
@@ -499,7 +480,7 @@ checkSingleModule how isrc path m = do
                      , tcPrims  = prims }
 
 
-  tcm0 <- typecheck act (R.rmModule renMod) Nothing (R.rmImported renMod)
+  tcm0 <- typecheck act (R.rmModule renMod) mempty (R.rmImported renMod)
 
   let tcm = tcm0 -- fromMaybe tcm0 (addModParams tcm0)
 
@@ -553,7 +534,7 @@ data TCAction i o = TCAction
 
 typecheck ::
   (Show i, Show o, HasLoc i) =>
-  TCAction i o -> i -> Maybe IfaceFunctorParams -> IfaceDecls -> ModuleM o
+  TCAction i o -> i -> IfaceFunctorParams -> IfaceDecls -> ModuleM o
 typecheck act i params env = do
 
   let range = fromMaybe emptyRange (getLoc i)
@@ -582,9 +563,9 @@ typecheck act i params env = do
 
 -- | Generate input for the typechecker.
 genInferInput ::
-  Range -> PrimMap -> Maybe IfaceFunctorParams -> IfaceDecls ->
+  Range -> PrimMap -> IfaceFunctorParams -> IfaceDecls ->
   ModuleM T.InferInput
-genInferInput r prims mbParams env' = do
+genInferInput r prims params env = do
   seeds <- getNameSeeds
   monoBinds <- getMonoBinds
   solver <- getTCSolver
@@ -592,42 +573,33 @@ genInferInput r prims mbParams env' = do
   searchPath <- getSearchPath
   callStacks <- getCallStacks
 
-  -- TODO: include the environment needed by the module
-  let env = env'
-            -- XXX: we should really just pass this directly
-
-      (paramTys,paramCtrs,paramVs) =
-        case mbParams of
-          Nothing -> (mempty,mempty,mempty)
-          Just (OldStyle p) ->
-            (ifParamTypes p, ifParamConstraints p, ifParamFuns p)
-          Just (NewStyle p) ->
-            let ps = map ifmpParameters (Map.elems p)
-            in ( mconcat (map ifParamTypes ps)
-               , mconcat (map ifParamConstraints ps)
-               , mconcat (map ifParamFuns ps)
-               )
+  let (paramTys,paramCtrs,paramVs) =
+        let ps = map ifmpParameters (Map.elems params)
+        in ( mconcat (map ifParamTypes ps)
+           , mconcat (map ifParamConstraints ps)
+           , mconcat (map ifParamFuns ps)
+           )
 
   topMods <- getAllLoaded
 
   return T.InferInput
-    { T.inpRange     = r
-    , T.inpVars      = Map.map ifDeclSig (ifDecls env)
-    , T.inpTSyns     = ifTySyns env
-    , T.inpNewtypes  = ifNewtypes env
-    , T.inpAbstractTypes = ifAbstractTypes env
-    , T.inpSignatures = ifSignatures env
-    , T.inpNameSeeds = seeds
-    , T.inpMonoBinds = monoBinds
-    , T.inpCallStacks = callStacks
-    , T.inpSearchPath = searchPath
-    , T.inpSupply    = supply
-    , T.inpPrimNames = prims
+    { T.inpRange            = r
+    , T.inpVars             = Map.map ifDeclSig (ifDecls env)
+    , T.inpTSyns            = ifTySyns env
+    , T.inpNewtypes         = ifNewtypes env
+    , T.inpAbstractTypes    = ifAbstractTypes env
+    , T.inpSignatures       = ifSignatures env
+    , T.inpNameSeeds        = seeds
+    , T.inpMonoBinds        = monoBinds
+    , T.inpCallStacks       = callStacks
+    , T.inpSearchPath       = searchPath
+    , T.inpSupply           = supply
+    , T.inpPrimNames        = prims
     , T.inpParamTypes       = paramTys
     , T.inpParamConstraints = paramCtrs
     , T.inpParamFuns        = paramVs
     , T.inpSolver           = solver
-    , T.inpTopModules = topMods
+    , T.inpTopModules       = topMods
     }
 
 
