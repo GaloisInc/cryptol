@@ -637,13 +637,17 @@ instance Rename TopDecl where
               $ DParameterConstraint <$> mapM (rnLocated rename) ds
 
       DModule m  -> DModule <$> traverse rename m
-      DImport li -> DImport <$> traverse renI li
+      DImport li -> DImport <$> renI li
       DModParam mp -> DModParam <$> rename mp
 
-renI :: ImportG (ImpName PName) -> RenameM (ImportG (ImpName Name))
-renI i = do m <- rename (iModule i)
-            recordImport m
-            pure i { iModule = m }
+renI :: Located (ImportG (ImpName PName)) ->
+        RenameM (Located (ImportG (ImpName Name)))
+renI li =
+  do m <- rename (iModule i)
+     recordImport (srcRange li) m
+     pure li { thing = i { iModule = m } }
+  where
+  i = thing li
 
 
 instance Rename ModParam where
@@ -668,7 +672,7 @@ renameSig nm sig =
                      ImpTop t    -> ModPath (TopModule t)
      shadowNames' CheckOverlap env $
         depsOf depName
-        do imps <- traverse (traverse renI) (sigImports sig)
+        do imps <- traverse renI (sigImports sig)
            tps <- traverse rename (sigTypeParams sig)
            cts <- traverse (traverse rename) (sigConstraints sig)
            fun <- traverse rename (sigFunParams sig)

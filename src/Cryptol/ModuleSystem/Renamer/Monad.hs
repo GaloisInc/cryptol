@@ -399,14 +399,14 @@ warnUnused m0 env rw =
       * record external dependency if the name refers to an external import
       * record an error if the imported thing is a functor
 -}
-recordImport :: ImpName Name -> RenameM ()
-recordImport i =
+recordImport :: Range -> ImpName Name -> RenameM ()
+recordImport r i =
   do ro <- RenameM ask
      case Map.lookup i (roResolvedModules ro) of
        Just loc ->
          case rmodKind loc of
            AModule -> pure ()
-           _       -> bad
+           k       -> recordError (ModuleKindMismatch r i AModule k)
        Nothing
           | Just topName <- case i of
                               ImpTop m    -> Just m
@@ -415,13 +415,14 @@ recordImport i =
                  RenameM $ sets_ \s ->
                                   s { rwExternalDeps = ifPublic iface <>
                                                              rwExternalDeps s }
-                 when (ifaceIsFunctor iface) bad
+                 when (ifaceIsFunctor iface)
+                      (recordError (ModuleKindMismatch r i AModule AFunctor))
+                      -- XXX: This could be a signature, but we don't have top
+                      -- signature interfaces.
 
           -- This may happen if encoutnered an error (e.g., undefined name)
           | otherwise -> pure ()
 
-  where
-  bad = recordError (InvalidFunctorImport i)
 
 -- XXX: Maybe we'd want to cache some of the conversion to Mod?
 -- | This gives the loaded *external* modules.
