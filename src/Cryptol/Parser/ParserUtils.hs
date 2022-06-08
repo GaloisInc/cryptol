@@ -40,8 +40,8 @@ import Cryptol.Parser.Token(SelectorType(..))
 import Cryptol.Parser.Position
 import Cryptol.Parser.Utils (translateExprToNumT,widthIdent)
 import Cryptol.Utils.Ident( packModName,packIdent,modNameChunks
-                          , anonymousInterfaceIdent, anonymousModuleIdent
-                          , modNameArg
+                          , identAnonArg, identAnonIfaceMod
+                          , modNameArg, modNameIfaceMod
                           )
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic
@@ -858,8 +858,9 @@ mkInterface is =
  
 
 -- | Make an unnamed module---gets the name @Main@.
-mkAnonymousModule :: [TopDecl PName] -> Module PName
-mkAnonymousModule = mkModule Located { srcRange = emptyRange
+mkAnonymousModule :: [TopDecl PName] -> [Module PName]
+mkAnonymousModule = mkTopMods
+                  . mkModule Located { srcRange = emptyRange
                                      , thing    = mkModName [T.pack "Main"]
                                      }
 
@@ -938,21 +939,7 @@ mkSelector tok =
 
 
 mkTopMods :: Module PName -> [Module PName]
-mkTopMods mo =
-  case mDef mo of
-    FunctorInstance f as i
-      | DefaultInstAnonArg ds <- as ->
-      let nm = modNameArg <$> mName mo
-         -- NOTE: order here is important as we want to load the argument
-        -- before the the instantiation.
-      in [ Module { mName = nm
-                  , mDef = NormalModule ds
-                  }
-
-        , mo { mDef = FunctorInstance f (DefaultInstArg (ImpTop <$> nm)) i }
-        ]
-
-    _ -> [mo]
+mkTopMods = desugarMod
 
 mkTopSig :: Located ModName -> Signature PName -> [Module PName]
 mkTopSig nm sig =
@@ -961,74 +948,104 @@ mkTopSig nm sig =
            }
   ]
 
--- XXX: This is wrong.
--- The signautre should go outside of the functor that uses it.
-mkModBody :: [TopDecl PName] -> [TopDecl PName]
-mkModBody = collect 1 [] []
+
+class MkAnon t where
+  mkAnon    :: AnonThing -> t -> t
+  toImpName :: t -> ImpName PName
+
+data AnonThing = AnonArg | AnonIfaceMod
+
+instance MkAnon ModName where
+  mkAnon what   = case what of
+                    AnonArg      -> modNameArg
+                    AnonIfaceMod -> modNameIfaceMod
+  toImpName     = ImpTop
+
+instance MkAnon PName where
+  mkAnon what   = mkUnqual
+                . case what of
+                    AnonArg      -> identAnonArg
+                    AnonIfaceMod -> identAnonIfaceMod
+                . getIdent
+  toImpName     = ImpNested
+
+
+desugarMod :: MkAnon name => ModuleG name PName -> [ModuleG name PName]
+desugarMod mo =
+  case mDef mo of
+
+    FunctorInstance f as _ | DefaultInstAnonArg lds <- as ->
+      let i      = mkAnon AnonArg (thing (mName mo))
+          nm     = Located { srcRange = srcRange (mName mo), thing = i }
+          as'    = DefaultInstArg (toImpName <$> nm)
+      in [ Module { mName = nm, mDef  = NormalModule lds }
+         , mo { mDef = FunctorInstance f as' mempty }
+         ]
+
+    NormalModule ds ->
+      let (newMs, newDs) = desugarTopDs (mName mo) ds
+      in newMs ++ [ mo { mDef = NormalModule newDs } ]
+
+    _ -> [mo]
+
+
+desugarTopDs ::
+  MkAnon name =>
+  Located name ->
+  [TopDecl PName] ->
+  ([ModuleG name PName], [TopDecl PName])
+desugarTopDs ownerName = go [] [] []
+
   where
-  collect ns ts fs ds =
+  go is ts fs ds =
+
     case ds of
-      [] ->
+
+      [] -> 
         case (ts,fs) of
-          ([],[]) -> []
-          (t : _, _) -> anonSig (srcRange (ptName t)) ts fs
-          (_, f : _) -> anonSig (srcRange (pfName f)) ts fs
+          ([],[]) -> ([],[])
+          _ ->
+            let nm = mkAnon AnonIfaceMod <$> ownerName
+            in ( [ Module { mName = nm
+                          , mDef = InterfaceModule
+                                     Signature
+                                       { sigImports     = reverse is
+                                       , sigTypeParams  = reverse ts
+                                       , sigConstraints = []
+                                       , sigFunParams   = reverse fs
+                                       }
+                          }
+                  ]
+               , [ DModParam
+                   ModParam
+                     { mpSignature = toImpName <$> nm
+                     , mpAs        = Nothing
+                     , mpName      = mkModParamName (toImpName <$> nm) Nothing
+                     , mpDoc       = Nothing
+                     , mpRenaming  = mempty
+                     }
+                   ]
+               )
 
       d : more ->
+        let cont emit is' ts' fs' =
+               let (ms,ds') = go is' ts' fs' more
+               in (ms, emit ++ ds')
+        in
+
         case d of
-          DParameterType pt      ->     collect ns (pt : ts)       fs  more
-          DParameterFun  pf      ->     collect ns ts        (pf : fs) more
+          -- collect to add to interface module, if any
+          DImport i         -> cont [d] (i : is)       ts       fs
 
-          DModule tl
-            | NestedModule m <- tlValue tl
-            , FunctorInstance f as is <- mDef m
-            , DefaultInstAnonArg lds <- as
-            , let i  = mkUnqual (anonymousModuleIdent ns)
-                  nm = Located { srcRange = srcRange (mName m)
-                               , thing    = i
-                               }
-                  as' = DefaultInstArg (ImpNested <$> nm) ->
-              DModule
-              TopLevel { tlExport = Private
-                       , tlDoc    = Nothing
-                       , tlValue  = NestedModule
-                                    Module { mName = nm, mDef = NormalModule lds }
-                       }
-            : DModule
-              tl { tlValue = NestedModule m { mDef = FunctorInstance f as' is } }
-            : collect (ns + 1) ts fs more
+          -- these go in an interface module
+          DParameterType pt -> cont []       is  (pt : ts)      fs
+          DParameterFun  pf -> cont []       is        ts (pf : fs)
 
+          DModule tl | NestedModule mo <- tlValue tl ->
+            let ms = desugarMod mo
+            in cont [ DModule tl { tlValue = NestedModule m } | m <- ms ] is ts fs
 
-          _ -> d : collect ns ts fs more
-
-
-  anonSig l ts fs =
-    panic "anonSig" ["XXX"]
-{-
-    let nm = Located { srcRange = l, thing = mkUnqual anonymousSignatureIdent }
-    in [ DModSig
-         TopLevel
-           { tlExport = Private
-           , tlDoc    = Nothing
-           , tlValue  = Signature { sigName = nm
-                                  , sigImports = [] -- XXX: what to do here
-                                  , sigTypeParams   = ts
-                                  , sigConstraints  = []
-                                  , sigFunParams    = fs
-                                  }
-           }
-
-       , DModParam
-         ModParam
-           { mpSignature = nm
-           , mpAs        = Nothing
-           , mpName      = anonymousSignatureIdent
-           , mpDoc       = Nothing
-           , mpRenaming  = mempty
-           }
-       ]
--}
-
+          _ -> cont [d] is ts fs
 
 
 

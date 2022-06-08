@@ -8,6 +8,7 @@
 
 {-# LANGUAGE DeriveGeneric, OverloadedStrings #-}
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Cryptol.Utils.Ident
   ( -- * Module names
@@ -49,8 +50,8 @@ module Cryptol.Utils.Ident
   , nullIdent
   , identText
   , modParamIdent
-  , anonymousInterfaceIdent
-  , anonymousModuleIdent
+  , identAnonArg
+  , identAnonIfaceMod
 
     -- * Namespaces
   , Namespace(..)
@@ -303,11 +304,11 @@ identText (Ident _ t) = t
 modParamIdent :: Ident -> Ident
 modParamIdent (Ident x t) = Ident x (T.append (T.pack "module parameter ") t)
 
-anonymousInterfaceIdent :: Int -> Ident
-anonymousInterfaceIdent i = packIdent ("AnonymousInterfaceModule_" ++ show i)
+identAnonArg :: Ident -> Ident
+identAnonArg (Ident b txt) = Ident b (txt <> "$argument")
 
-anonymousModuleIdent :: Int -> Ident
-anonymousModuleIdent i = packIdent ("AnonymousModule" <> show i)
+identAnonIfaceMod :: Ident -> Ident
+identAnonIfaceMod (Ident b txt) = Ident b (txt <> "$interface")
 
 
 

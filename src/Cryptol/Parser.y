@@ -167,7 +167,7 @@ import Paths_cryptol
 
 top_module :: { [Module PName] }
   : 'module' module_def       { mkTopMods $2 }
-  | 'v{' vmod_body 'v}'       { [mkAnonymousModule $2] }
+  | 'v{' vmod_body 'v}'       { mkAnonymousModule $2 }
   | 'interface' 'module' modName 'where' 'v{' sig_body 'v}'
                               { mkTopSig $3 $6 }
 
@@ -197,7 +197,7 @@ namedModInstParam        :: { ModuleInstanceArg PName }
 
 
 vmod_body                  :: { [TopDecl PName] }
-  : vtop_decls                { mkModBody (reverse $1) }
+  : vtop_decls                { reverse $1 }
   | {- empty -}               { [] }
 
 
