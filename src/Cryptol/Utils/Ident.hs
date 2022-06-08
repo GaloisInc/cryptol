@@ -34,6 +34,7 @@ module Cryptol.Utils.Ident
   , exprModName
   , modNameArg
   , modNameIfaceMod
+  , modNameToNormalModName
 
   , isParamInstModName
   , paramInstModName
@@ -160,6 +161,11 @@ modNameIfaceMod (ModName m fl) =
     NormalModName     -> ModName m AnonIfaceModName
     AnonModArgName    -> panic "modNameIfaceMod" ["Name is not normal"]
     AnonIfaceModName  -> panic "modNameIfaceMod" ["Name is not normal"]
+
+-- | This is used when we check that the name of a module matches the
+-- file where it is defines.
+modNameToNormalModName :: ModName -> ModName
+modNameToNormalModName (ModName t _) = ModName t NormalModName
 
 
 

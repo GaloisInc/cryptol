@@ -974,6 +974,7 @@ desugarMod :: MkAnon name => ModuleG name PName -> [ModuleG name PName]
 desugarMod mo =
   case mDef mo of
 
+    -- XXX: we should check that `lds` does not have parameter declarations
     FunctorInstance f as _ | DefaultInstAnonArg lds <- as ->
       let i      = mkAnon AnonArg (thing (mName mo))
           nm     = Located { srcRange = srcRange (mName mo), thing = i }
@@ -1001,7 +1002,7 @@ desugarTopDs ownerName = go [] [] []
 
     case ds of
 
-      [] -> 
+      [] ->
         case (ts,fs) of
           ([],[]) -> ([],[])
           _ ->

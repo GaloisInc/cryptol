@@ -68,7 +68,7 @@ import qualified Cryptol.TypeCheck.Sanity as TcSanity
 
 import Cryptol.Utils.Ident ( preludeName, floatName, arrayName, suiteBName, primeECName
                            , preludeReferenceName, interactiveName, modNameChunks
-                           , notParamInstModName )
+                           , modNameToNormalModName )
 import Cryptol.Utils.PP (pretty)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.Logger(logPutStrLn, logPrint)
@@ -432,7 +432,7 @@ checkModule isrc path m = do
 
   -- check that the name of the module matches expectations
   let nm = importedModule isrc
-  unless (notParamInstModName nm == thing (P.mName m))
+  unless (modNameToNormalModName nm == modNameToNormalModName (thing (P.mName m)))
          (moduleNameMismatch nm (mName m))
 
   -- remove includes first; we only do this for actual files.
