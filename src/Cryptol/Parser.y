@@ -38,7 +38,6 @@ import Cryptol.Parser.LexerUtils hiding (mkIdent)
 import Cryptol.Parser.Token
 import Cryptol.Parser.ParserUtils
 import Cryptol.Parser.Unlit(PreProc(..), guessPreProc)
-import Cryptol.Utils.Ident(paramInstModName)
 import Cryptol.Utils.RecordMap(RecordMap)
 
 import Paths_cryptol
@@ -847,7 +846,7 @@ smodName                       :: { Located ModName }
 modName                        :: { Located ModName }
   : smodName                      { $1 }
   | 'module' smodName             { $2 }
-  | '`' smodName                  { fmap paramInstModName $2 }
+  | '`' smodName                  {% errorMessage $1 ["Backtick module imports are no longer supported."] }
 
 
 qname                          :: { Located PName }

@@ -36,10 +36,6 @@ module Cryptol.Utils.Ident
   , modNameIfaceMod
   , modNameToNormalModName
 
-  , isParamInstModName
-  , paramInstModName
-  , notParamInstModName
-
     -- * Identifiers
   , Ident
   , packIdent
@@ -180,31 +176,12 @@ textToModName :: T.Text -> ModName
 textToModName txt = ModName txt NormalModName
 
 modNameChunks :: ModName -> [String]
-modNameChunks  = unfoldr step . modNameToText . notParamInstModName
+modNameChunks  = unfoldr step . modNameToText . modNameToNormalModName
   where
   step str
     | T.null str = Nothing
     | otherwise  = case T.breakOn modSep str of
                      (a,b) -> Just (T.unpack a,T.drop (T.length modSep) b)
-
-isParamInstModName :: ModName -> Bool
-isParamInstModName (ModName x _) = modInstPref `T.isPrefixOf` x
-
--- | Convert a parameterized module's name to the name of the module
--- containing the same definitions but with explicit parameters on each
--- definition.
--- XXX: This will go away
-paramInstModName :: ModName -> ModName
-paramInstModName (ModName x f)
-  | modInstPref `T.isPrefixOf` x = ModName x f
-  | otherwise = ModName (T.append modInstPref x) f
-
-
-notParamInstModName :: ModName -> ModName
-notParamInstModName (ModName x f)
-  | modInstPref `T.isPrefixOf` x = ModName (T.drop (T.length modInstPref) x) f
-  | otherwise = ModName x f
-
 
 packModName :: [T.Text] -> ModName
 packModName strs = textToModName (T.intercalate modSep (map trim strs))
@@ -214,10 +191,6 @@ packModName strs = textToModName (T.intercalate modSep (map trim strs))
 
 modSep :: T.Text
 modSep  = "::"
-
-modInstPref :: T.Text
-modInstPref = "`"
-
 
 preludeName :: ModName
 preludeName  = packModName ["Cryptol"]

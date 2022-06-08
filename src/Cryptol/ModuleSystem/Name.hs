@@ -45,7 +45,6 @@ module Cryptol.ModuleSystem.Name (
   , mkDeclared
   , mkLocal
   , mkModParam
-  , toParamInstName
   , paramModRecParam
 
     -- ** Unique Supply
@@ -230,16 +229,6 @@ asPrim n =
         Just $ PrimIdent m $ identText $ ogName og
 
     _ -> Nothing
-
-toParamInstName :: Name -> Name
-toParamInstName n =
-  case nInfo n of
-    GlobalName s og ->
-      n { nInfo = GlobalName s
-                    og { ogModule = apPathRoot paramInstModName (ogModule og) }
-        }
-    _ -> n
-
 
 asOrigName :: Name -> Maybe OrigName
 asOrigName n =

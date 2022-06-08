@@ -1059,11 +1059,9 @@ reloadCmd  = do
   mb <- getLoadedMod
   case mb of
     Just lm  ->
-      case lName lm of
-        Just m | M.isParamInstModName m -> loadHelper (M.loadModuleByName m)
-        _ -> case lPath lm of
-               M.InFile f -> loadCmd f
-               _ -> return ()
+      case lPath lm of
+        M.InFile f -> loadCmd f
+        _ -> return ()
     Nothing -> return ()
 
 
@@ -1124,16 +1122,14 @@ moduleCmd modString
   | null modString = return ()
   | otherwise      = do
     case parseModName modString of
-      Just m
-        | M.isParamInstModName m -> loadHelper (M.loadModuleByName m)
-        | otherwise  ->
-          do mpath <- liftModuleCmd (M.findModule m)
-             case mpath of
-               M.InFile file ->
-                 do setEditPath file
-                    setLoadedMod LoadedModule { lName = Just m, lPath = mpath }
-                    loadHelper (M.loadModuleByPath file)
-               M.InMem {} -> loadHelper (M.loadModuleByName m)
+      Just m ->
+        do mpath <- liftModuleCmd (M.findModule m)
+           case mpath of
+             M.InFile file ->
+               do setEditPath file
+                  setLoadedMod LoadedModule { lName = Just m, lPath = mpath }
+                  loadHelper (M.loadModuleByPath file)
+             M.InMem {} -> loadHelper (M.loadModuleByName m)
       Nothing -> rPutStrLn "Invalid module name."
 
 loadPrelude :: REPL ()
