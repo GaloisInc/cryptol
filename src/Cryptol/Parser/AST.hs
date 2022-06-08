@@ -43,7 +43,6 @@ module Cryptol.Parser.AST
   , mDecls        -- XXX: Temporary
 
   , mImports
-  , mSubmoduleImports
   , mModParams
   , mIsFunctor
   , isParamDecl
@@ -146,13 +145,16 @@ data ModuleG mname name = Module
   } deriving (Show, Generic, NFData)
 
 
+-- | Different flavours of module we have.
 data ModuleDefinition name =
     NormalModule [TopDecl name]
+
   | FunctorInstance (Located (ImpName name))
                     (ModuleInstanceArgs name)
                     (ModuleInstance name)
     -- ^ The instance is filled in by the renamer
-  | SignatureModule (Signature name)
+
+  | InterfaceModule (Signature name)
     deriving (Show, Generic, NFData)
 
 {- | Maps names in the original functor with names in the instnace.
@@ -172,7 +174,7 @@ mDecls m =
   case mDef m of
     NormalModule ds         -> ds
     FunctorInstance _ _ _   -> []
-    SignatureModule {}      -> []
+    InterfaceModule {}      -> []
 
 -- | Imports of top-level (i.e. "file" based) modules.
 mImports :: ModuleG mname name -> [ Located Import ]
@@ -180,24 +182,13 @@ mImports m =
   case mDef m of
     NormalModule ds     -> mapMaybe topImp [ li | DImport li <- ds ]
     FunctorInstance {}  -> []
-    SignatureModule sig -> mapMaybe topImp (sigImports sig)
+    InterfaceModule sig -> mapMaybe topImp (sigImports sig)
   where
   topImp li = case iModule i of
                ImpTop n -> Just li { thing = i { iModule = n } }
                _        -> Nothing
     where i = thing li
 
-
-
--- | Imports of nested modules---these may require name resolution to
--- detrmine what module we are talking about.
-mSubmoduleImports :: ModuleG mname name -> [ Located (ImportG name) ]
-mSubmoduleImports m =
-  [ li { thing = i { iModule = n } }
-  | DImport li <- mDecls m
-  , let i = thing li
-  , ImpNested n  <- [iModule i]
-  ]
 
 -- | Get the module parameters of a module (new module system)
 mModParams :: ModuleG mname name -> [ ModParam name ]
@@ -348,7 +339,7 @@ data ModParam name = ModParam
   , mpRenaming      :: !(Map name name)
     {- ^ Filled in by the renamer.
       Maps the actual (value/type) parameter names to the names in the
-      signature. -}
+      interface module. -}
   } deriving (Eq,Show,Generic,NFData)
 
 
@@ -740,7 +731,7 @@ ppModule :: (Show name, PPName mname, PPName name) =>
 ppModule kw m = kw' <+> ppL (mName m) <+> pp (mDef m)
   where
   kw' = case mDef m of
-          SignatureModule {} -> "parameter" <+> kw
+          InterfaceModule {} -> "interface" <+> kw
           _                  -> kw
 
 
@@ -758,7 +749,7 @@ instance (Show name, PPName name) => PP (ModuleDefinition name) where
                                               ]
         instLines = [ " *" <+> pp k <+> "->" <+> pp v
                     | (k,v) <- Map.toList inst ]
-      SignatureModule s -> pp s
+      InterfaceModule s -> pp s
 
 
 instance (Show name, PPName name) => PP (ModuleInstanceArgs name) where
@@ -807,7 +798,7 @@ instance (Show name, PPName name) => PP (Signature name) where
 
 instance (Show name, PPName name) => PP (ModParam name) where
   ppPrec _ mp = vcat ( mbDoc
-                  ++ [ "import signature" <+>
+                  ++ [ "import interface" <+>
                                     pp (thing (mpSignature mp)) <+> mbAs ]
                   ++ mbRen
                      )
@@ -1209,7 +1200,7 @@ instance NoPos (ModuleDefinition name) where
     case m of
       NormalModule ds         -> NormalModule (noPos ds)
       FunctorInstance f as ds -> FunctorInstance (noPos f) (noPos as) ds
-      SignatureModule s       -> SignatureModule (noPos s)
+      InterfaceModule s       -> InterfaceModule (noPos s)
 
 instance NoPos (ModuleInstanceArgs name) where
   noPos as =

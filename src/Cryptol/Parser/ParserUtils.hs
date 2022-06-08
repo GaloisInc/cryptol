@@ -40,7 +40,7 @@ import Cryptol.Parser.Token(SelectorType(..))
 import Cryptol.Parser.Position
 import Cryptol.Parser.Utils (translateExprToNumT,widthIdent)
 import Cryptol.Utils.Ident( packModName,packIdent,modNameChunks
-                          , anonymousSignatureIdent, anonymousModuleIdent
+                          , anonymousInterfaceIdent, anonymousModuleIdent
                           , modNameArg
                           )
 import Cryptol.Utils.PP
@@ -834,13 +834,13 @@ mkSigDecl doc (nm,sig) =
            , tlDoc    = doc
            , tlValue  = NestedModule
                         Module { mName = nm
-                               , mDef  = SignatureModule sig
+                               , mDef  = InterfaceModule sig
                                }
            }
 
-mkSignature :: [Located (ImportG (ImpName PName))] ->
+mkInterface :: [Located (ImportG (ImpName PName))] ->
              [TopDecl PName] -> Signature PName
-mkSignature is =
+mkInterface is =
   foldl' add
   Signature { sigImports     = is
             , sigTypeParams  = []
@@ -957,7 +957,7 @@ mkTopMods mo =
 mkTopSig :: Located ModName -> Signature PName -> [Module PName]
 mkTopSig nm sig =
   [ Module { mName = nm
-           , mDef  = SignatureModule sig
+           , mDef  = InterfaceModule sig
            }
   ]
 

@@ -73,7 +73,7 @@ processModule ~dcl@(DModule m) =
          )
 
     FunctorInstance {} -> ([dcl], [])
-    SignatureModule {} -> ([dcl], [])
+    InterfaceModule {} -> ([dcl], [])
 
 
 

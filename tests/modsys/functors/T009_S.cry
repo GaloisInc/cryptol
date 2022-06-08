@@ -1,6 +1,6 @@
 module T009_S where
 
-signature A where
+interface submodule A where
   type n : #
   type constraint (fin n, n >= 1)
   x : [n]

@@ -45,7 +45,6 @@ import Cryptol.TypeCheck.Type(ModParamNames(..))
 
 data TopDef = TopMod ModName (Mod ())
             | TopInst ModName (ImpName PName) (ModuleInstanceArgs PName)
-            | TopSig ModName (Mod ())
 
 -- | Things defined by a module
 data Mod a = Mod
@@ -151,7 +150,7 @@ topModuleDefs m =
   case mDef m of
     NormalModule ds -> TopMod mname <$> declsToMod (Just (TopModule mname)) ds
     FunctorInstance f as _ -> pure (TopInst mname (thing f) as)
-    SignatureModule s -> TopMod mname <$> sigToMod (TopModule mname) s
+    InterfaceModule s -> TopMod mname <$> sigToMod (TopModule mname) s
   where
   mname = thing (mName m)
 
@@ -225,7 +224,7 @@ declsToMod mbPath ds =
                       pure mo { modInstances = Map.insert name (thing f, args)
                                                     (modInstances mo) }
 
-                   SignatureModule sig ->
+                   InterfaceModule sig ->
                       do m <- sigToMod (Nested path (nameIdent name)) sig
                          pure mo { modMods = Map.insert name m (modMods mo) }
 

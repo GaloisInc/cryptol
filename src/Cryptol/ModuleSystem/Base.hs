@@ -211,7 +211,7 @@ doLoadModule quiet isrc path fp pm0 =
      loadDeps pm
 
      let what = case P.mDef pm of
-                  P.SignatureModule {} -> "signature"
+                  P.InterfaceModule {} -> "interface module"
                   _                    -> "module"
 
      unless quiet $ withLogger logPutStrLn
@@ -307,7 +307,7 @@ addPrelude m
     case mDef m of
       NormalModule ds -> NormalModule (P.DImport prel : ds)
       FunctorInstance f as ins -> FunctorInstance f as ins
-      SignatureModule s -> SignatureModule s { sigImports = prel : sigImports s }
+      InterfaceModule s -> InterfaceModule s { sigImports = prel : sigImports s }
 
   importedMods  = map (P.iModule . P.thing) (P.mImports m)
   prel = P.Located
@@ -330,7 +330,7 @@ loadDeps m =
            DefaultInstArg a      -> loadImpName FromModuleInstance a
            DefaultInstAnonArg ds -> mapM_ depsOfDecl ds
            NamedInstArgs args -> mapM_ loadInstArg args
-    SignatureModule s -> mapM_ loadImpD (sigImports s)
+    InterfaceModule s -> mapM_ loadImpD (sigImports s)
   where
   loadI i = do _ <- loadModuleFrom False i
                pure ()
@@ -526,7 +526,7 @@ tcTopEntitytLinter m = TCLinter
                              T.TCTopModule mo ->
                                lintCheck (moduleLinter m) mo i
                              T.TCTopSignature {} -> Right []
-                                -- XXX: what can we lint about a signature
+                                -- XXX: what can we lint about module interfaces
   , lintModule  = Just m
   }
 

@@ -73,7 +73,7 @@ instance PP ImportSource where
   ppPrec _ is = case is of
     FromModule n  -> text "module name" <+> pp n
     FromImport li -> text "import of module" <+> pp (P.iModule (P.thing li))
-    FromSigImport l -> text "import of signature" <+> pp (P.thing l)
+    FromSigImport l -> text "import of interface" <+> pp (P.thing l)
     FromModuleInstance l ->
       text "instantiation of module" <+> pp (P.thing l)
 

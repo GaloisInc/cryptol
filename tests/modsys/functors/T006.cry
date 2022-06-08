@@ -1,15 +1,15 @@
-signature A where
+interface submodule A where
   type n : #
   type constraint (fin n, n >= 1)
   x : [n]
 
 submodule F where
-  import signature submodule A as X
+  import interface submodule A as X
 
   parameter type constraint (X::n >= 3)
 
   submodule G where
-    import signature submodule A
+    import interface submodule A
     parameter type constraint (X::n == n)
 
     y : [n]

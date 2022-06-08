@@ -106,8 +106,8 @@ data RenModParam = RenModParam
   , renModParamSig       :: ImpName Name
   , renModParamInstance  :: Map Name Name
     {- ^ Maps names that come into scope through this parameter
-         to the names in *signature*.  This is for functors, NOT functor
-         instantantiations. -}
+         to the names in the *module interface*.
+         This is for functors, NOT functor instantantiations. -}
   }
 
 

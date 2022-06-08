@@ -4,12 +4,12 @@
 submodule A where
   type T = [8]
 
-signature S where
+interface submodule S where
   import submodule A
   x : T
 
 submodule F where
-  import signature submodule S
+  import interface submodule S
 
   y = 2 * x
 

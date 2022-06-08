@@ -293,9 +293,9 @@ sig_def ::                 { (Located PName, Signature PName) }
                            { ($3, $6) }
 
 sig_body                 :: { Signature PName }
-  : par_decls               { mkSignature [] $1 }
-  | imports1 'v;' par_decls { mkSignature (reverse $1) $3 }
-  | imports1 ';'  par_decls { mkSignature (reverse $1) $3 }
+  : par_decls               { mkInterface [] $1 }
+  | imports1 'v;' par_decls { mkInterface (reverse $1) $3 }
+  | imports1 ';'  par_decls { mkInterface (reverse $1) $3 }
 
 
 mod_param_decl ::          { ModParam PName }

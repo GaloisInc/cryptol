@@ -339,7 +339,7 @@ noPatModule m =
        case mDef m of
          NormalModule ds -> NormalModule <$> noPatTopDs ds
          FunctorInstance f as i -> pure (FunctorInstance f as i)
-         SignatureModule s -> pure (SignatureModule s)
+         InterfaceModule s -> pure (InterfaceModule s)
      pure m { mDef = def }
 
 --------------------------------------------------------------------------------

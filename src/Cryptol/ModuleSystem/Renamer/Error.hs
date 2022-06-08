@@ -96,7 +96,7 @@ instance PP ModKind where
   ppPrec _ e =
     case e of
       AFunctor   -> "a functor"
-      ASignature -> "a signatre"
+      ASignature -> "an interface"
       AModule    -> "a module"
 
 

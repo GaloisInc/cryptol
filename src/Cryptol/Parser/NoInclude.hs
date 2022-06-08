@@ -166,7 +166,7 @@ noIncludeModule m =
   do newDef <- case mDef m of
                  NormalModule ds         -> NormalModule <$> doDecls ds
                  FunctorInstance f as is -> pure (FunctorInstance f as is)
-                 SignatureModule s       -> pure (SignatureModule s)
+                 InterfaceModule s       -> pure (InterfaceModule s)
      pure m { mDef = newDef }
   where
   doDecls    = fmap concat . collectErrors noIncTopDecl

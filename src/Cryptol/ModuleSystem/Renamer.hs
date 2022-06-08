@@ -132,7 +132,7 @@ renameModule m0 =
                       NormalModule ds ->
                         NormalModule (addImplicitNestedImports ds)
                       FunctorInstance f as i -> FunctorInstance f as i
-                      SignatureModule s -> SignatureModule s
+                      InterfaceModule s -> InterfaceModule s
                  }
 
      -- Step 2: compute what's defined
@@ -257,8 +257,8 @@ renameModule' mname m =
                                  imap <- mkInstMap l mempty (thing f') mname
                                  pure (FunctorInstance f' as' imap)
 
-                            SignatureModule s ->
-                              SignatureModule <$> renameSig mname s
+                            InterfaceModule s ->
+                              InterfaceModule <$> renameSig mname s
 
                 pure (inScope, newDef)
      return (inScope, m { mDef = newDef })

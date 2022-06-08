@@ -32,7 +32,7 @@ module Cryptol.Utils.Ident
   , noModuleName
   , exprModName
   , modNameArg
-  , modNameSig
+  , modNameIfaceMod
 
   , isParamInstModName
   , paramInstModName
@@ -49,7 +49,7 @@ module Cryptol.Utils.Ident
   , nullIdent
   , identText
   , modParamIdent
-  , anonymousSignatureIdent
+  , anonymousInterfaceIdent
   , anonymousModuleIdent
 
     -- * Namespaces
@@ -140,7 +140,7 @@ modPathSplit p0 = (top,reverse xs)
 data ModName = ModName T.Text ModNameFlavor
   deriving (Eq,Ord,Show,Generic)
 
-data ModNameFlavor = NormalModName | AnonModArgName | AnonSigName
+data ModNameFlavor = NormalModName | AnonModArgName | AnonIfaceModName
   deriving (Eq,Ord,Show,Generic)
 
 instance NFData ModName
@@ -149,25 +149,25 @@ instance NFData ModNameFlavor
 modNameArg :: ModName -> ModName
 modNameArg (ModName m fl) =
   case fl of
-    NormalModName  -> ModName m AnonModArgName
-    AnonModArgName -> panic "modNameArg" ["Name is not normal"]
-    AnonSigName    -> panic "modNameArg" ["Name is not normal"]
+    NormalModName     -> ModName m AnonModArgName
+    AnonModArgName    -> panic "modNameArg" ["Name is not normal"]
+    AnonIfaceModName  -> panic "modNameArg" ["Name is not normal"]
 
-modNameSig :: ModName -> ModName
-modNameSig (ModName m fl) =
+modNameIfaceMod :: ModName -> ModName
+modNameIfaceMod (ModName m fl) =
   case fl of
-    NormalModName  -> ModName m AnonSigName
-    AnonModArgName -> panic "modNameSig" ["Name is not normal"]
-    AnonSigName    -> panic "modNameSig" ["Name is not normal"]
+    NormalModName     -> ModName m AnonIfaceModName
+    AnonModArgName    -> panic "modNameIfaceMod" ["Name is not normal"]
+    AnonIfaceModName  -> panic "modNameIfaceMod" ["Name is not normal"]
 
 
 
 modNameToText :: ModName -> T.Text
 modNameToText (ModName x fl) =
   case fl of
-    NormalModName  -> x
-    AnonModArgName -> x <> "$argument"
-    AnonSigName    -> x <> "$signature"
+    NormalModName     -> x
+    AnonModArgName    -> x <> "$argument"
+    AnonIfaceModName  -> x <> "$interface"
 
 textToModName :: T.Text -> ModName
 textToModName txt = ModName txt NormalModName
@@ -303,8 +303,8 @@ identText (Ident _ t) = t
 modParamIdent :: Ident -> Ident
 modParamIdent (Ident x t) = Ident x (T.append (T.pack "module parameter ") t)
 
-anonymousSignatureIdent :: Ident
-anonymousSignatureIdent = packIdent "AnonymousSignature"
+anonymousInterfaceIdent :: Int -> Ident
+anonymousInterfaceIdent i = packIdent ("AnonymousInterfaceModule_" ++ show i)
 
 anonymousModuleIdent :: Int -> Ident
 anonymousModuleIdent i = packIdent ("AnonymousModule" <> show i)

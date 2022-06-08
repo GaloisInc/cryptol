@@ -1,10 +1,10 @@
-signature A where
+interface submodule A where
   type n : #
   type constraint (fin n, n >= 1)
   x : [n]
 
 submodule F where
-  import signature submodule A
+  import interface submodule A
 
   y : [n]
   y = 1 + x

@@ -80,7 +80,7 @@ inferTopModule m =
            Just mo -> pure mo
            Nothing -> panic "inferModule" ["Didnt' get a module"]
 
-    P.SignatureModule sig ->
+    P.InterfaceModule sig ->
       do newTopSignatureScope (thing (P.mName m))
          checkSignature sig
          endTopSignature
@@ -1095,7 +1095,7 @@ checkTopDecls = mapM_ checkTopDecl
              do _ <- doFunctorInst (P.ImpNested <$> P.mName m) f as inst
                 pure ()
 
-           P.SignatureModule sig ->
+           P.InterfaceModule sig ->
               do let doc = P.thing <$> P.tlDoc tl
                  inRange (srcRange (P.mName m))
                    do newSignatureScope (thing (P.mName m)) doc
