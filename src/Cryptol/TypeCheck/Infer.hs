@@ -64,7 +64,7 @@ import           Control.Monad(zipWithM,unless,foldM,forM_,mplus)
 
 
 
-inferTopModule :: P.Module Name -> InferM Module
+inferTopModule :: P.Module Name -> InferM TCTopEntity
 inferTopModule m =
   case P.mDef m of
     P.NormalModule ds ->
@@ -79,6 +79,12 @@ inferTopModule m =
          case mb of
            Just mo -> pure mo
            Nothing -> panic "inferModule" ["Didnt' get a module"]
+
+    P.SignatureModule sig ->
+      do newTopSignatureScope (thing (P.mName m))
+         checkSignature sig
+         endTopSignature
+
 
 
 

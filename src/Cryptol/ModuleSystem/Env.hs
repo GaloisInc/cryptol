@@ -35,6 +35,7 @@ import Control.Monad (guard,mplus)
 import qualified Control.Exception as X
 import Data.Function (on)
 import Data.Set(Set)
+import qualified Data.Set as Set
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Semigroup
@@ -303,8 +304,21 @@ data LoadedModules = LoadedModules
 
   } deriving (Show, Generic, NFData)
 
+getLoadedEntities ::
+  LoadedModules -> Map ModName (Either LoadedSignature LoadedModule)
+getLoadedEntities lm =
+  Map.fromList $ [ (lmName x, Right x) | x <- lmLoadedModules lm ] ++
+                 [ (lmName x, Right x) | x <- lmLoadedParamModules lm ] ++
+                 [ (lmName x, Left x)  | x <- lmLoadedSignatures lm ]
+
 getLoadedModules :: LoadedModules -> [LoadedModule]
 getLoadedModules x = lmLoadedParamModules x ++ lmLoadedModules x
+
+getLoadedNames :: LoadedModules -> Set ModName
+getLoadedNames lm = Set.fromList
+                  $ map lmName (lmLoadedModules lm)
+                 ++ map lmName (lmLoadedParamModules lm)
+                 ++ map lmName (lmLoadedSignatures lm)
 
 instance Semigroup LoadedModules where
   l <> r = LoadedModules
@@ -365,11 +379,21 @@ type LoadedSignature = LoadedModuleG T.ModParamNames
 
 -- | Has this module been loaded already.
 isLoaded :: ModName -> LoadedModules -> Bool
-isLoaded mn lm = any ((mn ==) . lmName) (getLoadedModules lm)
+isLoaded mn lm = mn `Set.member` getLoadedNames lm
 
 -- | Is this a loaded parameterized module.
 isLoadedParamMod :: ModName -> LoadedModules -> Bool
 isLoadedParamMod mn ln = any ((mn ==) . lmName) (lmLoadedParamModules ln)
+
+
+
+lookupTCEntity :: ModName -> ModuleEnv -> Maybe (LoadedModuleG T.TCTopEntity)
+lookupTCEntity m env =
+  case lookupModule m env of
+    Just lm -> pure lm { lmData = T.TCTopModule (lmModule lm) }
+    Nothing ->
+      do lm <- lookupSignature m env
+         pure lm { lmData = T.TCTopSignature m (lmData lm) }
 
 -- | Try to find a previously loaded module
 lookupModule :: ModName -> ModuleEnv -> Maybe LoadedModule
@@ -381,6 +405,22 @@ lookupSignature :: ModName -> ModuleEnv -> Maybe LoadedSignature
 lookupSignature mn me =
   List.find ((mn ==) . lmName) (lmLoadedSignatures (meLoadedModules me))
 
+addLoadedSignature ::
+  ModulePath -> String -> Fingerprint -> R.NamingEnv ->
+  ModName -> T.ModParamNames ->
+  LoadedModules -> LoadedModules
+addLoadedSignature path ident fp nameEnv nm si lm
+  | isLoaded nm lm = lm
+  | otherwise = lm { lmLoadedSignatures = loaded : lmLoadedSignatures lm }
+  where
+  loaded = LoadedModule
+            { lmName        = nm
+            , lmFilePath    = path
+            , lmModuleId    = ident
+            , lmNamingEnv   = nameEnv
+            , lmData        = si
+            , lmFingerprint = fp
+            }
 
 -- | Add a freshly loaded module.  If it was previously loaded, then
 -- the new version is ignored.

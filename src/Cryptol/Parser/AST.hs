@@ -250,7 +250,7 @@ data TopDecl name =
 
   | DModule (TopLevel (NestedModule name))      -- ^ @submodule M where ...@
   | DImport (Located (ImportG (ImpName name)))  -- ^ @import X@
-  | DModParam (ModParam name)                   -- ^ @import signature X ...@
+  | DModParam (ModParam name)                   -- ^ @import interface X ...@
     deriving (Show, Generic, NFData)
 
 data ModuleInstanceArgs name =
@@ -291,8 +291,6 @@ data Decl name = DSignature [Located name] (Schema name)
 
 
 -- | A type parameter for a module.
--- This is used in the OLD module system, as well as in signatures of
--- the NEW module system.
 data ParameterType name = ParameterType
   { ptName    :: Located name     -- ^ name of type parameter
   , ptKind    :: Kind             -- ^ kind of parameter
@@ -302,8 +300,6 @@ data ParameterType name = ParameterType
   } deriving (Eq,Show,Generic,NFData)
 
 -- | A value parameter for a module.
--- This is used in the OLD module system, as well as in signatures of
--- the NEW module system.
 data ParameterFun name = ParameterFun
   { pfName   :: Located name      -- ^ name of value parameter
   , pfSchema :: Schema name       -- ^ schema for parameter
@@ -312,13 +308,15 @@ data ParameterFun name = ParameterFun
   } deriving (Eq,Show,Generic,NFData)
 
 
-{- | Module signatures (aka types of functor arguments)
-This is part of the NEW module system.
+{- | Interface Modules (aka types of functor arguments)
 
-Note that the names *defined* in a signature are only really used in the
-other members of a signature.   When a signature is "imported" as a functor
-parameter these names are instantiated to new names, because there could
-be multiple paramers using the same signature. -}
+IMPORTANT: Interface Modules are a language construct and are different from
+the notion of "interface" in the Cyrptol implementation.
+
+Note that the names *defined* in an interface module are only really used in the
+other members of the interface module.  When an interface module  is "imported"
+as a functor parameter these names are instantiated to new names,
+because there could be multiple paramers using the same interface. -}
 data Signature name = Signature
   { sigImports      :: ![Located (ImportG (ImpName name))]
     -- ^ Add things in scope
@@ -329,11 +327,11 @@ data Signature name = Signature
 
 {- | A module parameter declaration.
 
-> import signature A
-> import signature A as B
+> import interface A
+> import interface A as B
 
 The name of the parameter is derived from the `as` clause.  If there
-is no `as` clause then it is derived from the name of the signature.
+is no `as` clause then it is derived from the name of the interface module.
 
 If there is no `as` clause, then the type/value parameters are unqualified,
 and otherwise they are qualified.

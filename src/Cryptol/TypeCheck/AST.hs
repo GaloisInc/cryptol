@@ -28,6 +28,8 @@ module Cryptol.TypeCheck.AST
   , module Cryptol.TypeCheck.Type
   ) where
 
+import Cryptol.Utils.Panic(panic)
+import Cryptol.Utils.Ident (Ident,isInfixIdent,ModName,PrimIdent,prelPrim)
 import Cryptol.Parser.Position(Located,Range,HasLoc(..))
 import Cryptol.ModuleSystem.Name
 import Cryptol.ModuleSystem.Interface
@@ -37,7 +39,6 @@ import Cryptol.Parser.AST ( Selector(..),Pragma(..)
                           , Import
                           , ImportG(..), ImportSpec(..), ExportType(..)
                           , Fixity(..))
-import Cryptol.Utils.Ident (Ident,isInfixIdent,ModName,PrimIdent,prelPrim)
 import Cryptol.Utils.RecordMap
 import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.Type
@@ -51,6 +52,25 @@ import           Data.Map    (Map)
 import qualified Data.Map    as Map
 import qualified Data.IntMap as IntMap
 import           Data.Text (Text)
+
+
+data TCTopEntity =
+    TCTopModule (ModuleG ModName)
+  | TCTopSignature ModName ModParamNames
+    deriving (Show, Generic, NFData)
+
+tcTopEntitytName :: TCTopEntity -> ModName
+tcTopEntitytName ent =
+  case ent of
+    TCTopModule m -> mName m
+    TCTopSignature m _ -> m
+
+-- | Panics if the entity is not a module
+tcTopEntityToModule :: TCTopEntity -> Module
+tcTopEntityToModule ent =
+  case ent of
+    TCTopModule m -> m
+    TCTopSignature {} -> panic "tcTopEntityToModule" [ "Not a module" ]
 
 
 -- | A Cryptol module.

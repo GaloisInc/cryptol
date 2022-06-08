@@ -15,6 +15,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Cryptol.REPL.Monad (
     -- * REPL Monad
@@ -328,6 +329,7 @@ data REPLException
   | TooWide WordTooWide
   | Unsupported Unsupported
   | ModuleSystemError NameDisp M.ModuleError
+  | CannotLoadASignature
   | EvalPolyError T.Schema
   | TypeNotTestable T.Type
   | EvalInParamModule [M.Name]
@@ -367,6 +369,7 @@ instance PP REPLException where
     SBVException e       -> text "SBV exception:" $$ text (show e)
     SBVPortfolioException e -> text "SBV exception:" $$ text (show e)
     W4Exception e        -> text "What4 exception:" $$ text (show e)
+    CannotLoadASignature -> "Cannot load signatures"
 
 -- | Raise an exception.
 raise :: REPLException -> REPL a

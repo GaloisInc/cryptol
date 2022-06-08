@@ -32,7 +32,7 @@ doFunctorInst ::
   {- ^ Instantitation.  These is the renaming for the functor that arises from
        generativity (i.e., it is something that will make the names "fresh").
   -} ->
-  InferM (Maybe Module)
+  InferM (Maybe TCTopEntity)
 doFunctorInst m f as inst =
   inRange (srcRange m)
   do mf    <- lookupFunctor (thing f)

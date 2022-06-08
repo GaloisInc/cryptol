@@ -434,3 +434,10 @@ instance TVars Module where
   apSubst su m =
     let !decls' = apSubst su (mDecls m)
     in m { mDecls = decls' }
+
+-- WARNING: This applies the substitution only to the declarations in modules.
+instance TVars TCTopEntity where
+  apSubst su ent =
+    case ent of
+      TCTopModule m -> TCTopModule (apSubst su m)
+      TCTopSignature {} -> ent

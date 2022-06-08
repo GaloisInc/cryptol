@@ -84,7 +84,7 @@ import Paths_cryptol
   'if'        { Located $$ (Token (KW KW_if     ) _)}
   'then'      { Located $$ (Token (KW KW_then   ) _)}
   'else'      { Located $$ (Token (KW KW_else   ) _)}
-  'signature' { Located $$ (Token (KW KW_signature) _)}
+  'interface' { Located $$ (Token (KW KW_interface) _)}
   'x'         { Located $$ (Token (KW KW_x)       _)}
   'down'      { Located $$ (Token (KW KW_down)    _)}
   'by'        { Located $$ (Token (KW KW_by)      _)}
@@ -168,7 +168,8 @@ import Paths_cryptol
 top_module :: { [Module PName] }
   : 'module' module_def       { mkTopMods $2 }
   | 'v{' vmod_body 'v}'       { [mkAnonymousModule $2] }
-
+  | 'interface' 'module' modName 'where' 'v{' sig_body 'v}'
+                              { mkTopSig $3 $6 }
 
 module_def :: { Module PName }
 
@@ -288,8 +289,8 @@ vtop_decl               :: { [TopDecl PName] }
     -- currently that odcumentation is just discarded
 
 sig_def ::                 { (Located PName, Signature PName) }
-  : 'signature' name 'where' 'v{' sig_body 'v}'
-                           { ($2, $5) }
+  : 'interface' 'submodule' name 'where' 'v{' sig_body 'v}'
+                           { ($3, $6) }
 
 sig_body                 :: { Signature PName }
   : par_decls               { mkSignature [] $1 }
@@ -299,7 +300,7 @@ sig_body                 :: { Signature PName }
 
 mod_param_decl ::          { ModParam PName }
   : mbDoc
-   'import' 'signature'
+   'import' 'interface'
     impName mbAs           { ModParam { mpSignature = $4
                                       , mpAs        = fmap thing $5
                                       , mpName      = mkModParamName $4 $5
@@ -845,6 +846,7 @@ smodName                       :: { Located ModName }
 
 modName                        :: { Located ModName }
   : smodName                      { $1 }
+  | 'module' smodName             { $2 }
   | '`' smodName                  { fmap paramInstModName $2 }
 
 

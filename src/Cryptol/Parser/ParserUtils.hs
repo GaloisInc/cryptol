@@ -954,6 +954,13 @@ mkTopMods mo =
 
     _ -> [mo]
 
+mkTopSig :: Located ModName -> Signature PName -> [Module PName]
+mkTopSig nm sig =
+  [ Module { mName = nm
+           , mDef  = SignatureModule sig
+           }
+  ]
+
 -- XXX: This is wrong.
 -- The signautre should go outside of the functor that uses it.
 mkModBody :: [TopDecl PName] -> [TopDecl PName]

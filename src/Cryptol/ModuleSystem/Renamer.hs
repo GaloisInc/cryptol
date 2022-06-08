@@ -140,7 +140,7 @@ renameModule m0 =
      mapM_ recordError errs
 
      -- Step 3: resolve imports
-     extern       <- getExternalMods
+     extern       <- getExternal
      resolvedMods <- liftSupply (resolveImports extern defs)
 
      let pathToName = Map.fromList [ (Nested (nameModPath x) (nameIdent x), x)
@@ -183,7 +183,7 @@ renameTopDecls m ds0 =
      mapM_ recordError errs
 
      -- Step 3: resolve imports
-     extern       <- getExternalMods
+     extern       <- getExternal
      resolvedMods <- liftSupply (resolveImports extern (TopMod m defs))
 
      let pathToName = Map.fromList [ (Nested (nameModPath x) (nameIdent x), x)
@@ -276,7 +276,10 @@ checkFunctorArgs args =
 mkInstMap :: Maybe Range -> Map Name Name -> ImpName Name -> ImpName Name ->
   RenameM (Map Name Name)
 mkInstMap checkFun acc0 ogname iname =
-  do (onames,osubs) <- lookupDefinesAndSubs checkFun ogname
+  do case checkFun of
+       Nothing -> pure ()
+       Just r  -> checkIsModule r ogname AFunctor
+     (onames,osubs) <- lookupDefinesAndSubs ogname
      inames         <- lookupDefines iname
      let mp   = zipByTextName onames inames
          subs = [ (ImpNested k, ImpNested v)
@@ -557,6 +560,10 @@ doModParam mp =
           sigName' <-
              case thing sigName of
                ImpTop t -> pure (ImpTop t)
+                -- XXX: should we record a dpendency here?
+                -- Not sure what the dependencies are for..
+                -- Not sure what the dependencies are for..
+
                ImpNested n ->
                  do nm <- resolveName NameUse NSModule n
                     case modPathCommon me (nameModPath nm) of

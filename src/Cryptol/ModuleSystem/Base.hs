@@ -44,8 +44,9 @@ import Cryptol.ModuleSystem.Fingerprint
 import Cryptol.ModuleSystem.Interface
 import Cryptol.ModuleSystem.Monad
 import Cryptol.ModuleSystem.Name (Name,liftSupply,PrimMap,ModPath(..))
-import Cryptol.ModuleSystem.Env (lookupModule
-                                , LoadedModuleG(..), lmModule, lmInterface
+import Cryptol.ModuleSystem.Env ( lookupModule
+                                , lookupTCEntity
+                                , LoadedModuleG(..), lmInterface
                                 , meCoreLint, CoreLint(..)
                                 , ModContext(..)
                                 , ModulePath(..), modulePathLabel)
@@ -67,7 +68,7 @@ import qualified Cryptol.TypeCheck.Sanity as TcSanity
 
 import Cryptol.Utils.Ident ( preludeName, floatName, arrayName, suiteBName, primeECName
                            , preludeReferenceName, interactiveName, modNameChunks
-                           , notParamInstModName, isParamInstModName )
+                           , notParamInstModName )
 import Cryptol.Utils.PP (pretty)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.Logger(logPutStrLn, logPrint)
@@ -153,10 +154,10 @@ parseModule path = do
     Left err -> moduleParseError path err
 
 
--- Modules ---------------------------------------------------------------------
+-- Top Level Modules and Signatures ----------------------------------------------
 
 -- | Load a module by its path.
-loadModuleByPath :: FilePath -> ModuleM T.Module
+loadModuleByPath :: FilePath -> ModuleM T.TCTopEntity
 loadModuleByPath path = withPrependedSearchPath [ takeDirectory path ] $ do
   let fileName = takeFileName path
   foundPath <- findFile fileName
@@ -172,23 +173,23 @@ loadModuleByPath path = withPrependedSearchPath [ takeDirectory path ] $ do
        -- whether it's already been loaded
        path' <- io (canonicalizePath foundPath)
 
-       case lookupModule n env of
+       case lookupTCEntity n env of
          -- loadModule will calculate the canonical path again
          Nothing -> doLoadModule False (FromModule n) (InFile foundPath) fp pm
          Just lm
-          | path' == loaded -> return (lmModule lm)
+          | path' == loaded -> return (lmData lm)
           | otherwise       -> duplicateModuleName n path' loaded
           where loaded = lmModuleId lm
 
 
 -- | Load a module, unless it was previously loaded.
 loadModuleFrom ::
-  Bool {- ^ quiet mode -} -> ImportSource -> ModuleM (ModulePath,T.Module)
+  Bool {- ^ quiet mode -} -> ImportSource -> ModuleM (ModulePath,T.TCTopEntity)
 loadModuleFrom quiet isrc =
   do let n = importedModule isrc
      mb <- getLoadedMaybe n
      case mb of
-       Just m -> return (lmFilePath m, lmModule m)
+       Just m -> return (lmFilePath m, lmData m)
        Nothing ->
          do path <- findModule n
             errorInFile path $
@@ -203,34 +204,34 @@ doLoadModule ::
   ModulePath ->
   Fingerprint ->
   P.Module PName ->
-  ModuleM T.Module
+  ModuleM T.TCTopEntity
 doLoadModule quiet isrc path fp pm0 =
   loading isrc $
   do let pm = addPrelude pm0
      loadDeps pm
 
+     let what = case P.mDef pm of
+                  P.SignatureModule {} -> "signature"
+                  _                    -> "module"
+
      unless quiet $ withLogger logPutStrLn
-       ("Loading module " ++ pretty (P.thing (P.mName pm)))
+       ("Loading " ++ what ++ " " ++ pretty (P.thing (P.mName pm)))
 
 
-     (nameEnv,tcmod) <- checkModule isrc path pm
-     tcm <- optionalInstantiate tcmod
+     (nameEnv,tcm) <- checkModule isrc path pm
 
      -- extend the eval env, unless a functor.
      tbl <- Concrete.primTable <$> getEvalOptsAction
      let ?evalPrim = \i -> Right <$> Map.lookup i tbl
      callStacks <- getCallStacks
      let ?callStacks = callStacks
-     unless (T.isParametrizedModule tcm)
-       $ modifyEvalEnv (E.moduleEnv Concrete tcm)
-     loadedModule path fp nameEnv tcm
+     case tcm of
+       T.TCTopModule m | not (T.isParametrizedModule m) ->
+                           modifyEvalEnv (E.moduleEnv Concrete m)
+       _ -> pure ()
 
+     loadedModule path fp nameEnv tcm
      return tcm
-  where
-  optionalInstantiate tcm
-    | isParamInstModName (importedModule isrc) =
-      failedToParameterizeModDefs (T.mName tcm)
-    | otherwise = return tcm
 
 
 
@@ -279,20 +280,21 @@ findModule n = do
 -- | Discover a file. This is distinct from 'findModule' in that we
 -- assume we've already been given a particular file name.
 findFile :: FilePath -> ModuleM FilePath
-findFile path | isAbsolute path = do
-  -- No search path checking for absolute paths
-  b <- io (doesFileExist path)
-  if b then return path else cantFindFile path
-findFile path = do
-  paths <- getSearchPath
-  loop (possibleFiles paths)
-  where
-  loop paths = case paths of
-    path':rest -> do
-      b <- io (doesFileExist path')
-      if b then return (normalise path') else loop rest
-    [] -> cantFindFile path
-  possibleFiles paths = map (</> path) paths
+findFile path
+  | isAbsolute path =
+    do -- No search path checking for absolute paths
+       b <- io (doesFileExist path)
+       if b then return path else cantFindFile path
+  | otherwise =
+    do paths <- getSearchPath
+       loop (possibleFiles paths)
+       where
+       loop paths = case paths of
+                      path' : rest ->
+                        do b <- io (doesFileExist path')
+                           if b then return (normalise path') else loop rest
+                      [] -> cantFindFile path
+       possibleFiles paths = map (</> path) paths
 
 -- | Add the prelude to the import list if it's not already mentioned.
 addPrelude :: P.Module PName -> P.Module PName
@@ -420,20 +422,13 @@ getPrimMap  =
        Nothing -> panic "Cryptol.ModuleSystem.Base.getPrimMap"
                   [ "Unable to find the prelude" ]
 
--- | Load a module, be it a normal module or a functor instantiation.
-checkModule ::
-  ImportSource -> ModulePath -> P.Module PName ->
-  ModuleM (R.NamingEnv, T.Module)
-checkModule isrc path m = checkSingleModule T.tcModule isrc path m
-
 -- | Typecheck a single module.
-checkSingleModule ::
-  Act (P.Module Name) T.Module {- ^ how to check -} ->
-  ImportSource                 {- ^ why are we loading this -} ->
-  ModulePath                   {- path -} ->
-  P.Module PName               {- ^ module to check -} ->
-  ModuleM (R.NamingEnv,T.Module)
-checkSingleModule how isrc path m = do
+checkModule ::
+  ImportSource                      {- ^ why are we loading this -} ->
+  ModulePath                        {- path -} ->
+  P.Module PName                    {- ^ module to check -} ->
+  ModuleM (R.NamingEnv,T.TCTopEntity)
+checkModule isrc path m = do
 
   -- check that the name of the module matches expectations
   let nm = importedModule isrc
@@ -475,21 +470,22 @@ checkSingleModule how isrc path m = do
               else getPrimMap
 
   -- typecheck
-  let act = TCAction { tcAction = how
-                     , tcLinter = moduleLinter (P.thing (P.mName m))
+  let act = TCAction { tcAction = T.tcModule
+                     , tcLinter = tcTopEntitytLinter (P.thing (P.mName m))
                      , tcPrims  = prims }
 
 
-  tcm0 <- typecheck act (R.rmModule renMod) mempty (R.rmImported renMod)
+  tcm <- typecheck act (R.rmModule renMod) mempty (R.rmImported renMod)
 
-  let tcm = tcm0 -- fromMaybe tcm0 (addModParams tcm0)
-
-  rewMod <- liftSupply (`rewModule` tcm)
+  rewMod <- case tcm of
+              T.TCTopModule mo -> T.TCTopModule <$> liftSupply (`rewModule` mo)
+              T.TCTopSignature {} -> pure tcm
   pure (R.rmInScope renMod,rewMod)
 
 data TCLinter o = TCLinter
   { lintCheck ::
-      o -> T.InferInput -> Either (Range, TcSanity.Error) [TcSanity.ProofObligation]
+      o -> T.InferInput ->
+                    Either (Range, TcSanity.Error) [TcSanity.ProofObligation]
   , lintModule :: Maybe P.ModName
   }
 
@@ -523,6 +519,17 @@ moduleLinter m = TCLinter
                             Right os -> Right os
   , lintModule  = Just m
   }
+
+tcTopEntitytLinter :: P.ModName -> TCLinter T.TCTopEntity
+tcTopEntitytLinter m = TCLinter
+  { lintCheck   = \m' i -> case m' of
+                             T.TCTopModule mo ->
+                               lintCheck (moduleLinter m) mo i
+                             T.TCTopSignature {} -> Right []
+                                -- XXX: what can we lint about a signature
+  , lintModule  = Just m
+  }
+
 
 type Act i o = i -> T.InferInput -> IO (T.InferOutput o)
 

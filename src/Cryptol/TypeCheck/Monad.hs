@@ -214,6 +214,7 @@ data ScopeName = ExternalScope
                | LocalScope
                | SubModule Name
                | SignatureScope Name (Maybe Text) -- ^ The Text is docs
+               | TopSignatureScope P.ModName
                | MTopModule P.ModName
 
 -- | Read-only component of the monad.
@@ -900,6 +901,9 @@ newSignatureScope x doc =
   do updScope \o -> o { mNested = Set.insert x (mNested o) }
      newScope (SignatureScope x doc)
 
+newTopSignatureScope :: ModName -> InferM ()
+newTopSignatureScope x = newScope (TopSignatureScope x)
+
 {- | Start a new submodule scope.  The imports and exports are just used
 to initialize an empty module.  As we type check declarations they are
 added to this module's scope. -}
@@ -972,12 +976,12 @@ endSubmodule =
          _ -> panic "endSubmodule" [ "Not a submodule" ]
 
 
-endModule :: InferM Module
+endModule :: InferM TCTopEntity
 endModule =
   IM $ sets \rw ->
     case iScope rw of
       [ x ] | MTopModule m <- mName x ->
-        ( x { mName = m, mDecls = reverse (mDecls x) }
+        ( TCTopModule x { mName = m, mDecls = reverse (mDecls x) }
         , rw { iScope = [] }
         )
       _ -> panic "endModule" [ "Not a single top module" ]
@@ -1005,6 +1009,20 @@ endSignature =
                 }
       _ -> panic "endSignature" [ "Not a signature scope" ]
 
+endTopSignature :: InferM TCTopEntity
+endTopSignature =
+  IM $ sets \rw ->
+    case iScope rw of
+      [ x ] | TopSignatureScope m <- mName x ->
+        ( TCTopSignature m ModParamNames
+                             { mpnTypes       = mParamTypes x
+                             , mpnConstraints = mParamConstraints x
+                             , mpnFuns        = mParamFuns x
+                             , mpnDoc         = Nothing
+                             }
+        , rw { iScope = [] }
+        )
+      _ -> panic "endTopSignature" [ "Not a top-level signature" ]
 
 
 

@@ -19,6 +19,7 @@ import           Cryptol.Eval (EvalEnv,EvalOpts(..))
 import qualified Cryptol.Backend.Monad           as E
 
 import           Cryptol.ModuleSystem.Env
+import qualified Cryptol.ModuleSystem.Env as MEnv
 import           Cryptol.ModuleSystem.Fingerprint
 import           Cryptol.ModuleSystem.Interface
 import           Cryptol.ModuleSystem.Name (FreshM(..),Supply)
@@ -45,7 +46,6 @@ import Control.Exception (IOException)
 import Data.ByteString (ByteString)
 import Data.Function (on)
 import Data.Map (Map)
-import Data.Maybe (isJust)
 import Data.Text.Encoding.Error (UnicodeException)
 import MonadLib
 import System.Directory (canonicalizePath)
@@ -426,13 +426,17 @@ modifyModuleEnv f = ModuleT $ do
   env <- get
   set $! f env
 
-getLoadedMaybe :: P.ModName -> ModuleM (Maybe LoadedModule)
+getLoadedMaybe :: P.ModName -> ModuleM (Maybe (LoadedModuleG T.TCTopEntity))
 getLoadedMaybe mn = ModuleT $
   do env <- get
-     return (lookupModule mn env)
+     return (lookupTCEntity mn env)
 
+-- | This checks if the given name is loaded---it might refer to either
+-- a module or a signature.
 isLoaded :: P.ModName -> ModuleM Bool
-isLoaded mn = isJust <$> getLoadedMaybe mn
+isLoaded mn =
+  do env <- ModuleT get
+     pure (MEnv.isLoaded mn (meLoadedModules env))
 
 loadingImport :: Located P.Import -> ModuleM a -> ModuleM a
 loadingImport  = loading . FromImport
@@ -466,16 +470,15 @@ getImportSource  = ModuleT $ do
     is : _ -> return is
     _      -> return (FromModule noModuleName)
 
-getIface :: P.ModName -> ModuleM Iface
-getIface mn = ($ mn) <$> getIfaces
-
-getIfaces :: ModuleM (P.ModName -> Iface)
-getIfaces = doLookup <$> ModuleT get
+getIfaces :: ModuleM (Map P.ModName (Either T.ModParamNames Iface))
+getIfaces = toMap <$> ModuleT get
   where
-  doLookup env = \mn ->
-    case lookupModule mn env of
-      Just lm -> lmInterface lm
-      Nothing -> panic "ModuleSystem" ["Interface not available", show (pp mn)]
+  toMap env = cvt <$> getLoadedEntities (meLoadedModules env)
+
+  cvt ent =
+    case ent of
+      Left sig -> Left (lmData sig)
+      Right mo -> Right (lmdInterface (lmData mo))
 
 getLoaded :: P.ModName -> ModuleM T.Module
 getLoaded mn = ModuleT $
@@ -528,15 +531,19 @@ unloadModule rm = ModuleT $ do
   set $! env { meLoadedModules = removeLoadedModule rm (meLoadedModules env) }
 
 loadedModule ::
-  ModulePath -> Fingerprint -> NamingEnv -> T.Module -> ModuleM ()
+  ModulePath -> Fingerprint -> NamingEnv -> T.TCTopEntity -> ModuleM ()
 loadedModule path fp nameEnv m = ModuleT $ do
   env <- get
   ident <- case path of
              InFile p  -> unModuleT $ io (canonicalizePath p)
              InMem l _ -> pure l
 
-  set $! env { meLoadedModules = addLoadedModule path ident fp nameEnv m
-                                                        (meLoadedModules env) }
+  let newLM = case m of
+                T.TCTopModule mo -> addLoadedModule path ident fp nameEnv mo
+                T.TCTopSignature x s ->
+                  addLoadedSignature path ident fp nameEnv x s
+
+  set $! env { meLoadedModules = newLM (meLoadedModules env) }
 
 modifyEvalEnv :: (EvalEnv -> E.Eval EvalEnv) -> ModuleM ()
 modifyEvalEnv f = ModuleT $ do

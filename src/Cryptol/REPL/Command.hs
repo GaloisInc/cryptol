@@ -1150,10 +1150,14 @@ loadCmd path
                                              }
                    loadHelper (M.loadModuleByPath path)
 
-loadHelper :: M.ModuleCmd (M.ModulePath,T.Module) -> REPL ()
+loadHelper :: M.ModuleCmd (M.ModulePath,T.TCTopEntity) -> REPL ()
 loadHelper how =
   do clearLoadedMod
-     (path,m) <- liftModuleCmd how
+     (path,ent) <- liftModuleCmd how
+     m <- case ent of
+            T.TCTopModule mo -> pure mo
+            T.TCTopSignature {} -> raise CannotLoadASignature
+
      whenDebug (rPutStrLn (dump m))
      setLoadedMod LoadedModule
         { lName = Just (T.mName m)

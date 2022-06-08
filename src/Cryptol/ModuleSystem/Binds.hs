@@ -15,6 +15,7 @@ module Cryptol.ModuleSystem.Binds
   , newModParam
   , InModule(..)
   , ifaceToMod
+  , ifaceSigToMod
   , modToMap
   , defsOf
   ) where
@@ -150,7 +151,7 @@ topModuleDefs m =
   case mDef m of
     NormalModule ds -> TopMod mname <$> declsToMod (Just (TopModule mname)) ds
     FunctorInstance f as _ -> pure (TopInst mname (thing f) as)
-    SignatureModule s -> TopSig mname <$> sigToMod (TopModule mname) s
+    SignatureModule s -> TopMod mname <$> sigToMod (TopModule mname) s
   where
   mname = thing (mName m)
 

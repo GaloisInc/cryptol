@@ -55,7 +55,7 @@ import Cryptol.Utils.Panic(panic)
 
 
 
-tcModule :: P.Module Name -> InferInput -> IO (InferOutput Module)
+tcModule :: P.Module Name -> InferInput -> IO (InferOutput TCTopEntity)
 tcModule m inp = runInferM inp (inferTopModule m)
 
 tcExpr :: P.Expr Name -> InferInput -> IO (InferOutput (Expr,Schema))

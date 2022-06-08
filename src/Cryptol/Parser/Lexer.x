@@ -104,6 +104,7 @@ $white+                   { emit $ White Space }
 "include"                 { emit $ KW KW_include }
 "module"                  { emit $ KW KW_module }
 "submodule"               { emit $ KW KW_submodule }
+"interface"               { emit $ KW KW_interface }
 "newtype"                 { emit $ KW KW_newtype }
 "pragma"                  { emit $ KW KW_pragma }
 "property"                { emit $ KW KW_property }
@@ -118,7 +119,6 @@ $white+                   { emit $ White Space }
 "newtype"                 { emit $ KW KW_newtype }
 "down"                    { emit $ KW KW_down }
 "by"                      { emit $ KW KW_by }
-"signature"               { emit $ KW KW_signature }
 
 "infixl"                  { emit $ KW KW_infixl }
 "infixr"                  { emit $ KW KW_infixr }

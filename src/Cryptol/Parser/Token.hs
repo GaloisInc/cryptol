@@ -50,7 +50,7 @@ data TokenKW  = KW_else
               | KW_primitive
               | KW_parameter
               | KW_constraint
-              | KW_signature
+              | KW_interface
               | KW_Prop
               | KW_by
               | KW_down
