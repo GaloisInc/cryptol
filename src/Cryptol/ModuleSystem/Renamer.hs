@@ -258,7 +258,7 @@ renameModule' mname m =
                                  pure (FunctorInstance f' as' imap)
 
                             InterfaceModule s ->
-                              InterfaceModule <$> renameSig mname s
+                              InterfaceModule <$> renameIfaceModule mname s
 
                 pure (inScope, newDef)
      return (inScope, m { mDef = newDef })
@@ -671,8 +671,8 @@ instance Rename ModParam where
 
             pure mp { mpSignature = x, mpRenaming = ren }
 
-renameSig :: ImpName Name -> Signature PName -> RenameM (Signature Name)
-renameSig nm sig =
+renameIfaceModule :: ImpName Name -> Signature PName -> RenameM (Signature Name)
+renameIfaceModule nm sig =
   do env <- rmodDefines <$> lookupResolved nm
      let depName = case nm of
                      ImpNested n -> NamedThing n
@@ -681,6 +681,11 @@ renameSig nm sig =
         depsOf depName
         do imps <- traverse renI (sigImports sig)
            tps <- traverse rename (sigTypeParams sig)
+
+           -- we record a use here to avoid getting a warning in interfaces
+           -- that declare only types, and so appear "unused".
+           forM_ tps \tp -> recordUse (thing (ptName tp))
+
            cts <- traverse (traverse rename) (sigConstraints sig)
            fun <- traverse rename (sigFunParams sig)
            pure Signature
