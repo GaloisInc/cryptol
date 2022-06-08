@@ -1,11 +1,11 @@
 // Test importing in a signature
 
-signature S where
+interface submodule S where
   import T012_M
   x : T
 
 submodule F where
-  import signature submodule S
+  import interface submodule S
 
   y = 2 * x
 

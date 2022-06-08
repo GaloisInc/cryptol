@@ -3,4 +3,4 @@ submodule A where
   x = 2
 
 submodule F where
-  import signature submodule A
+  import interface submodule A

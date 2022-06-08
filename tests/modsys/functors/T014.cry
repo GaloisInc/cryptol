@@ -1,5 +1,5 @@
 
-signature A where
+interface submodule A where
   type T : #
 
 import submodule A
