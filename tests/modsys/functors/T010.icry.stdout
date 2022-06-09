@@ -4,6 +4,4 @@ Loading module T010$argument
 Loading module T010_S
 Loading module T010_F
 Loading module T010
-[warning] at ./T010_F.cry:4:28--4:29
-    Unused name: T010_F::A::n
 0x0a
