@@ -231,7 +231,7 @@ data TopDecl name =
   | TDNewtype (TopLevel (Newtype name)) -- ^ @newtype T as = t
   | Include (Located FilePath)          -- ^ @include File@ (until NoPat)
 
-  -- Sugar for anonymous module parameters
+  -- Sugar for anonymous module parameters (parser only)
   | DParameterType (ParameterType name) -- ^ @parameter type T : #@ (parser only)
   | DParameterFun  (ParameterFun name)  -- ^ @parameter someVal : [256]@
                                         -- (parser only)
