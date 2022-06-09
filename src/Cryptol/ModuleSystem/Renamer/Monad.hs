@@ -25,6 +25,7 @@ import Prelude.Compat
 
 import Cryptol.Utils.PP(pp)
 import Cryptol.Utils.Panic(panic)
+import Cryptol.Utils.Ident(modPathCommon,OrigName(..),topModuleFor)
 import Cryptol.ModuleSystem.Name
 import Cryptol.ModuleSystem.NamingEnv
 import Cryptol.ModuleSystem.Binds
@@ -32,7 +33,6 @@ import Cryptol.ModuleSystem.Interface
 import Cryptol.Parser.AST
 import Cryptol.TypeCheck.AST(ModParamNames)
 import Cryptol.Parser.Position
-import Cryptol.Utils.Ident(modPathCommon,OrigName(..))
 
 import Cryptol.ModuleSystem.Renamer.Error
 import Cryptol.ModuleSystem.Renamer.Imports
@@ -393,17 +393,21 @@ addDep x =
 
 warnUnused :: ModPath -> NamingEnv -> RW -> [RenamerWarning]
 warnUnused m0 env rw =
-  map warn
+  map UnusedName
   $ Map.keys
   $ Map.filterWithKey keep
   $ rwNameUseCount rw
   where
-  warn x   = UnusedName x
   keep nm count = count == 1 && isLocal nm
   oldNames = Map.findWithDefault Set.empty NSType (visibleNames env)
+
+  isNestd og = case modPathCommon m0 (ogModule og) of
+                 Just (_,[],_) -> True
+                 _ -> False
+
   isLocal nm = case nameInfo nm of
-                 GlobalName sys OrigName { ogModule = m } ->
-                   sys == UserName && m == m0 && nm `Set.notMember` oldNames
+                 GlobalName sys og ->
+                   sys == UserName && isNestd og && nm `Set.notMember` oldNames
                  LocalName {} -> True
 
 
