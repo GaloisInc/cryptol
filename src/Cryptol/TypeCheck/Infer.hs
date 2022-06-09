@@ -1075,9 +1075,14 @@ checkTopDecls = mapM_ checkTopDecl
            addPrimType t
 
 
-      P.DParameterConstraint cs ->
-        do cs1 <- checkParameterConstraints cs
-           addParameterConstraints cs1
+      P.DParamDecl ds ->
+        forM_ ds \d ->
+          case d of
+            P.DParameterConstraint cs ->
+              do cs1 <- checkParameterConstraints cs
+                 addParameterConstraints cs1
+            P.DParameterType{}  -> bad "DParameterType"
+            P.DParameterFun{}   -> bad "DParameterFun"
 
 
       P.DModule tl ->
@@ -1142,8 +1147,6 @@ checkTopDecls = mapM_ checkTopDecl
 
       P.DImport {}        -> pure ()
       P.Include {}        -> bad "Include"
-      P.DParameterType{}  -> bad "DParameterType"
-      P.DParameterFun{}   -> bad "DParameterFun"
 
 
   bad x = panic "checkTopDecl" [ x ]

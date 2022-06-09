@@ -377,10 +377,7 @@ annotTopDs tds =
              let d1 = DPrimType tl { tlValue = pt }
              (d1 :) <$> annotTopDs ds
 
-        DParameterConstraint {} -> (d :) <$> annotTopDs ds
-
-        DParameterType {} -> panic "annotTopDs" ["DParameterType"]
-        DParameterFun {} -> panic "annotTopDs" ["DParameterFun"]
+        DParamDecl {} -> (d :) <$> annotTopDs ds
 
         -- XXX: we may want to add pragmas to newtypes?
         TDNewtype {} -> (d :) <$> annotTopDs ds

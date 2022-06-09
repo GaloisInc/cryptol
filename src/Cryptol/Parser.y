@@ -277,7 +277,7 @@ vtop_decl               :: { [TopDecl PName] }
   | mbDoc newtype          { [exportNewtype Public $1 $2]                     }
   | prim_bind              { $1                                               }
   | private_decls          { $1                                               }
-  | parameter_decls        { $1                                               }
+  | parameter_decls        { [ DParamDecl $1 ]                               }
   | mbDoc 'submodule'
     module_def             {% ((:[]) . exportModule $1) `fmap` mkNested $3 }
 
@@ -324,17 +324,17 @@ prim_bind               :: { [TopDecl PName] }
   | mbDoc 'primitive' 'type' schema ':' kind {% mkPrimTypeDecl $1 $4 $6 }
 
 
-parameter_decls                      :: { [TopDecl PName] }
+parameter_decls                      :: { [ParamDecl PName] }
   :     'parameter' 'v{' par_decls 'v}' { reverse $3 }
   | doc 'parameter' 'v{' par_decls 'v}' { reverse $4 }
 
 -- Reversed
-par_decls                            :: { [TopDecl PName] }
+par_decls                            :: { [ParamDecl PName] }
   : par_decl                            { [$1] }
   | par_decls ';'  par_decl             { $3 : $1 }
   | par_decls 'v;' par_decl             { $3 : $1 }
 
-par_decl                         :: { TopDecl PName }
+par_decl                         :: { ParamDecl PName }
   : mbDoc        name ':' schema    { mkParFun $1 $2 $4 }
   | mbDoc 'type' name ':' kind      {% mkParType $1 $3 $5 }
   | mbDoc 'type' 'constraint' type  {% fmap (DParameterConstraint . distrLoc)

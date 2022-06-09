@@ -73,6 +73,7 @@ module Cryptol.Parser.AST
   , NestedModule(..)
   , Signature(..)
   , ModParam(..)
+  , ParamDecl(..)
 
     -- * Interactive
   , ReplInput(..)
@@ -201,9 +202,7 @@ isParamDecl :: TopDecl a -> Bool
 isParamDecl d =
   case d of
     DModParam {} -> True
-    DParameterType {} -> True
-    DParameterConstraint {} -> True
-    DParameterFun {} -> True
+    DParamDecl {} -> True
     _ -> False
 
 
@@ -231,18 +230,26 @@ data TopDecl name =
   | TDNewtype (TopLevel (Newtype name)) -- ^ @newtype T as = t
   | Include (Located FilePath)          -- ^ @include File@ (until NoPat)
 
-  -- Sugar for anonymous module parameters (parser only)
-  | DParameterType (ParameterType name) -- ^ @parameter type T : #@ (parser only)
-  | DParameterFun  (ParameterFun name)  -- ^ @parameter someVal : [256]@
-                                        -- (parser only)
-
-  | DParameterConstraint [Located (Prop name)]
-    -- ^ @parameter type constraint (fin T)@
+  | DParamDecl [ParamDecl name]
+    -- ^ @parameter ...@
+    -- After parsing, there should be only DParamConstraint in this.
 
   | DModule (TopLevel (NestedModule name))      -- ^ @submodule M where ...@
   | DImport (Located (ImportG (ImpName name)))  -- ^ @import X@
   | DModParam (ModParam name)                   -- ^ @import interface X ...@
     deriving (Show, Generic, NFData)
+
+data ParamDecl name =
+
+    DParameterType (ParameterType name) -- ^ @parameter type T : #@ (parser only)
+  | DParameterFun  (ParameterFun name)  -- ^ @parameter someVal : [256]@
+                                        -- (parser only)
+
+  | DParameterConstraint [Located (Prop name)]
+    -- ^ @parameter type constraint (fin T)@
+    deriving (Show, Generic, NFData)
+
+
 
 data ModuleInstanceArgs name =
     DefaultInstArg (Located (ImpName name))
@@ -659,12 +666,17 @@ instance HasLoc (TopDecl name) where
       DPrimType pt -> getLoc pt
       TDNewtype n -> getLoc n
       Include lfp -> getLoc lfp
-      DParameterType d -> getLoc d
-      DParameterFun d  -> getLoc d
-      DParameterConstraint d -> getLoc d
       DModule d -> getLoc d
       DImport d -> getLoc d
       DModParam d -> getLoc d
+      DParamDecl ds -> foldr rCombMaybe Nothing (map getLoc ds)
+
+instance HasLoc (ParamDecl name) where
+  getLoc pd =
+    case pd of
+      DParameterType d -> getLoc d
+      DParameterFun d  -> getLoc d
+      DParameterConstraint d -> getLoc d
 
 instance HasLoc (ModParam name) where
   getLoc mp = getLoc (mpSignature mp)
@@ -772,17 +784,22 @@ instance (Show name, PPName name) => PP (TopDecl name) where
       DPrimType p -> pp p
       TDNewtype n -> pp n
       Include l   -> text "include" <+> text (show (thing l))
+      DModule d -> pp d
+      DImport i -> pp (thing i)
+      DModParam s -> pp s
+      DParamDecl ds -> "parameter" $$ indent 2 (vcat (map pp ds))
+
+instance (Show name, PPName name) => PP (ParamDecl name) where
+  ppPrec _ pd =
+    case pd of
       DParameterFun d -> pp d
       DParameterType d -> pp d
-      DParameterConstraint d ->
-        "parameter" <+> "type" <+> "constraint" <+> prop
+      DParameterConstraint d -> "type" <+> "constraint" <+> prop
         where prop = case map (pp . thing) d of
                        [x] -> x
                        []  -> "()"
                        xs  -> nest 1 (parens (commaSepFill xs))
-      DModule d -> pp d
-      DImport i -> pp (thing i)
-      DModParam s -> pp s
+
 
 instance (Show name, PPName name) => PP (Signature name) where
   ppPrec _ sig = "where" $$ indent 2 (vcat (is ++ ds))
@@ -822,11 +839,11 @@ instance (Show name, PPName name) => PP (PrimType name) where
     "primitive" <+> "type" <+> pp (primTName pt) <+> ":" <+> pp (primTKind pt)
 
 instance (Show name, PPName name) => PP (ParameterType name) where
-  ppPrec _ a = text "parameter" <+> text "type" <+>
+  ppPrec _ a = text "type" <+>
                ppPrefixName (ptName a) <+> text ":" <+> pp (ptKind a)
 
 instance (Show name, PPName name) => PP (ParameterFun name) where
-  ppPrec _ a = text "parameter" <+> ppPrefixName (pfName a) <+> text ":"
+  ppPrec _ a = ppPrefixName (pfName a) <+> text ":"
                   <+> pp (pfSchema a)
 
 
@@ -1222,12 +1239,17 @@ instance NoPos (TopDecl name) where
       DPrimType t -> DPrimType (noPos t)
       TDNewtype n -> TDNewtype(noPos n)
       Include x   -> Include  (noPos x)
-      DParameterFun d  -> DParameterFun (noPos d)
-      DParameterType d -> DParameterType (noPos d)
-      DParameterConstraint d -> DParameterConstraint (noPos d)
       DModule d -> DModule (noPos d)
       DImport d -> DImport (noPos d)
       DModParam d -> DModParam (noPos d)
+      DParamDecl ds -> DParamDecl (noPos ds)
+
+instance NoPos (ParamDecl name) where
+  noPos pd =
+    case pd of
+      DParameterFun d  -> DParameterFun (noPos d)
+      DParameterType d -> DParameterType (noPos d)
+      DParameterConstraint d -> DParameterConstraint (noPos d)
 
 instance NoPos (Signature name) where
   noPos sig = Signature { sigImports = sigImports sig

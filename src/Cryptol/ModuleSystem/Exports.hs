@@ -9,7 +9,6 @@ import Data.Foldable(fold)
 import Control.DeepSeq(NFData)
 import GHC.Generics (Generic)
 
-import Cryptol.Utils.Panic(panic)
 import Cryptol.Parser.AST
 import Cryptol.Parser.Names(namesD,tnamesD,tnamesNT)
 import Cryptol.ModuleSystem.Name
@@ -26,9 +25,7 @@ exportedNames decl =
       TDNewtype nt -> map exportType (names tnamesNT nt)
       Include {}  -> []
       DImport {} -> []
-      DParameterFun {} -> panic "exportedNames" ["DParameterFun"]
-      DParameterType {} -> panic "exportedNames" ["DParameterType"]
-      DParameterConstraint {} -> []
+      DParamDecl {} -> []
       DModule nested ->
         case tlValue nested of
           NestedModule x ->

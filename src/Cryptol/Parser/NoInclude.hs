@@ -29,7 +29,6 @@ import MonadLib
 import System.Directory (makeAbsolute)
 import System.FilePath (takeDirectory,(</>),isAbsolute)
 
-import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.PP hiding ((</>))
 import Cryptol.Parser (parseProgramWith)
 import Cryptol.Parser.AST
@@ -183,9 +182,7 @@ noIncTopDecl td = case td of
   Decl _     -> pure [td]
   DPrimType {} -> pure [td]
   TDNewtype _-> pure [td]
-  DParameterConstraint {} -> pure [td]
-  DParameterType {} -> panic "noIncTopDecl" ["DParameterType"]
-  DParameterFun {} -> panic "noIncTopDecl" ["DParameterFun"]
+  DParamDecl {} -> pure [td]
   Include lf -> resolveInclude lf
   DModule tl ->
     case tlValue tl of

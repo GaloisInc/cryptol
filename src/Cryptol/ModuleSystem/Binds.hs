@@ -322,9 +322,7 @@ instance BindsNames (InModule (TopDecl PName)) where
       Decl d           -> namingEnv (InModule ns (tlValue d))
       DPrimType d      -> namingEnv (InModule ns (tlValue d))
       TDNewtype d      -> namingEnv (InModule ns (tlValue d))
-      DParameterType {} -> panic "namingEnv" ["DParameterType"]
-      DParameterFun  {} -> panic "namingEnv" ["DParameterFun"]
-      DParameterConstraint {} -> mempty
+      DParamDecl {}    -> mempty
       Include _        -> mempty
       DImport {}       -> mempty -- see 'openLoop' in the renamer
       DModule m        -> namingEnv (InModule ns (tlValue m))

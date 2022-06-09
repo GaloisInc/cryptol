@@ -466,7 +466,7 @@ renameTopDecls' ds =
       Decl tl                 -> isValDecl (tlValue tl)
       DPrimType {}            -> False
       TDNewtype {}            -> False
-      DParameterConstraint {} -> False
+      DParamDecl {}           -> False
 
 
       DModule tl              -> any usesCtrs (mDecls m)
@@ -474,8 +474,6 @@ renameTopDecls' ds =
       DImport {}              -> False
       DModParam {}            -> False    -- no definitions here
       Include {}              -> bad "Include"
-      DParameterType {}       -> bad "DParameterType"
-      DParameterFun {}        -> bad "DParameterFun"
 
   isValDecl d =
     case d of
@@ -519,18 +517,25 @@ topDeclName topDecl =
     DModule d               -> hasName (thing (mName m))
       where NestedModule m = tlValue d
 
-    DParameterConstraint ds ->
+    DParamDecl ds ->
       case ds of
-        []  -> noName
-        _   -> Right (topDecl, ConstratintAt (fromJust (getLoc ds)))
+        [] -> noName
+        c : _ ->
+          case c of
+            DParameterConstraint cs ->
+              case cs of
+                []  -> noName
+                _   -> Right (topDecl, ConstratintAt (fromJust (getLoc cs)))
+
+            DParameterType {}       -> bad "DParameterType"
+            DParameterFun {}        -> bad "DParameterFun"
+
     DImport {}              -> noName
 
     DModParam m             -> Right ( topDecl
                                      , ModParamName (srcRange (mpSignature m))
                                                     (mpName m))
 
-    DParameterType {}       -> bad "DParameterType"
-    DParameterFun {}        -> bad "DParameterFun"
     Include {}              -> bad "Include"
   where
   noName    = Left topDecl
@@ -634,6 +639,15 @@ instance Rename TopDecl where
       DPrimType d       -> DPrimType <$> traverse rename d
       TDNewtype n       -> TDNewtype <$> traverse rename n
       Include n         -> return (Include n)
+      DModule m  -> DModule <$> traverse rename m
+      DImport li -> DImport <$> renI li
+      DModParam mp -> DModParam <$> rename mp
+      DParamDecl ds -> DParamDecl <$> traverse rename ds
+
+
+instance Rename ParamDecl where
+  rename pd =
+    case pd of
       DParameterFun f   -> DParameterFun  <$> rename f
       DParameterType f  -> DParameterType <$> rename f
 
@@ -643,9 +657,7 @@ instance Rename TopDecl where
           _  -> depsOf (ConstratintAt (fromJust (getLoc ds)))
               $ DParameterConstraint <$> mapM (rnLocated rename) ds
 
-      DModule m  -> DModule <$> traverse rename m
-      DImport li -> DImport <$> renI li
-      DModParam mp -> DModParam <$> rename mp
+
 
 renI :: Located (ImportG (ImpName PName)) ->
         RenameM (Located (ImportG (ImpName Name)))

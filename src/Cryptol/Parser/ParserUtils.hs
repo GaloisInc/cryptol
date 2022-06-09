@@ -503,7 +503,7 @@ exportModule mbDoc m = DModule TopLevel { tlExport = Public
 mkParFun :: Maybe (Located Text) ->
             Located PName ->
             Schema PName ->
-            TopDecl PName
+            ParamDecl PName
 mkParFun mbDoc n s = DParameterFun ParameterFun { pfName = n
                                                 , pfSchema = s
                                                 , pfDoc = thing <$> mbDoc
@@ -513,7 +513,7 @@ mkParFun mbDoc n s = DParameterFun ParameterFun { pfName = n
 mkParType :: Maybe (Located Text) ->
              Located PName ->
              Located Kind ->
-             ParseM (TopDecl PName)
+             ParseM (ParamDecl PName)
 mkParType mbDoc n k =
   do num <- P $ \_ _ s -> let nu = sNextTyParamNum s
                           in Right (nu, s { sNextTyParamNum = nu + 1 })
@@ -537,9 +537,7 @@ changeExport e = map change
       DModParam {}            -> decl
       Include{}               -> decl
       DImport{}               -> decl
-      DParameterType {}       -> decl
-      DParameterFun {}        -> decl
-      DParameterConstraint {} -> decl
+      DParamDecl{}            -> decl
 
 mkTypeInst :: Named (Type PName) -> TypeInst PName
 mkTypeInst x | nullIdent (thing (name x)) = PosInst (value x)
@@ -839,7 +837,7 @@ mkSigDecl doc (nm,sig) =
            }
 
 mkInterface :: [Located (ImportG (ImpName PName))] ->
-             [TopDecl PName] -> Signature PName
+             [ParamDecl PName] -> Signature PName
 mkInterface is =
   foldl' add
   Signature { sigImports     = is
@@ -855,7 +853,7 @@ mkInterface is =
       DParameterConstraint ps -> s { sigConstraints = ps ++ sigConstraints s }
       DParameterFun pf -> s { sigFunParams = pf : sigFunParams s }
       _ -> panic "mkSignature" ["Unexpected top-level declaration"]
- 
+
 
 -- | Make an unnamed module---gets the name @Main@.
 mkAnonymousModule :: [TopDecl PName] -> ParseM [Module PName]
@@ -980,7 +978,8 @@ desugarMod mo =
          case ms of
            m : _ | InterfaceModule si <- mDef m
                  , l : _ <- map (srcRange . ptName) (sigTypeParams si) ++
-                            map (srcRange . pfName) (sigFunParams si) ->
+                            map (srcRange . pfName) (sigFunParams si) ++
+                            map srcRange (sigConstraints si) ->
               errorMessage l
                 [ "Module argument may not be a functor" ]
            _ -> pure ()
@@ -1003,16 +1002,16 @@ desugarTopDs ::
   Located name ->
   [TopDecl PName] ->
   ParseM ([ModuleG name PName], [TopDecl PName])
-desugarTopDs ownerName = go [] [] []
+desugarTopDs ownerName = go [] [] [] []
 
   where
-  go is ts fs ds =
+  go is ts cs fs ds =
 
     case ds of
 
       [] ->
-        case (ts,fs) of
-          ([],[]) -> pure ([],[])
+        case (ts,cs,fs) of
+          ([],[],[]) -> pure ([],[])
           _ ->
             do let nm = mkAnon AnonIfaceMod <$> ownerName
                pure ( [ Module { mName = nm
@@ -1020,7 +1019,7 @@ desugarTopDs ownerName = go [] [] []
                                           Signature
                                             { sigImports     = reverse is
                                             , sigTypeParams  = reverse ts
-                                            , sigConstraints = []
+                                            , sigConstraints = reverse cs
                                             , sigFunParams   = reverse fs
                                             }
                                }
@@ -1038,23 +1037,38 @@ desugarTopDs ownerName = go [] [] []
                     )
 
       d : more ->
-        let cont emit is' ts' fs' =
-               do (ms,ds') <- go is' ts' fs' more
+        let cont emit is' ts' cs' fs' =
+               do (ms,ds') <- go is' ts' cs' fs' more
                   pure (ms, emit ++ ds')
         in
         case d of
           -- collect to add to interface module, if any
-          DImport i         -> cont [d] (i : is)       ts       fs
+          DImport i         -> cont [d] (i : is)       ts  cs     fs
 
-          -- these go in an interface module
-          DParameterType pt -> cont []       is  (pt : ts)      fs
-          DParameterFun  pf -> cont []       is        ts (pf : fs)
+          {- Parameter declarations only containing constrains are left as is
+          while ones that are part of a group with some parameters are factored.
+          This is because we reuse `parameter type constraint C` to also impose
+          constraints between parameters imports from *different* interfaces. -}
+
+          DParamDecl ds' ->
+            case groupParamDecls [] [] [] ds' of
+              ([],  _,  []) -> cont [DParamDecl ds'] is ts cs fs
+              (ts',cs',fs') -> cont [] is (ts'++ts) (cs'++cs) (fs'++fs)
 
           DModule tl | NestedModule mo <- tlValue tl ->
             do ms <- desugarMod mo
-               cont [ DModule tl { tlValue = NestedModule m } | m <- ms ] is ts fs
+               cont [ DModule tl { tlValue = NestedModule m } | m <- ms ]
+                    is ts cs fs
 
-          _ -> cont [d] is ts fs
+          _ -> cont [d] is ts cs fs
 
+  groupParamDecls ts cs fs ds =
+    case ds of
+      d : more ->
+        case d of
+          DParameterType t       -> groupParamDecls (t:ts)   cs    fs  more
+          DParameterFun  f       -> groupParamDecls    ts    cs (f:fs) more
+          DParameterConstraint c -> groupParamDecls    ts (c++cs)  fs  more
+      [] -> (ts,cs,fs)
 
 
