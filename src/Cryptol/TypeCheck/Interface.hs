@@ -54,49 +54,23 @@ genIface m = genIfaceWithNames (genIfaceNames m) m
 genIfaceWithNames :: IfaceNames name -> ModuleG ignored -> IfaceG name
 genIfaceWithNames names m =
   Iface
-  { ifNames = names
+  { ifNames       = names
 
-  , ifPublic      = IfaceDecls
-    { ifTySyns    = tsPub
-    , ifNewtypes  = ntPub
-    , ifAbstractTypes = atPub
-    , ifDecls     = dPub
-    , ifModules   = mPub
-    , ifSignatures  = sPub
-    , ifFunctors  = fPub
-    }
-
-  , ifPrivate = IfaceDecls
-    { ifTySyns    = tsPriv
-    , ifNewtypes  = ntPriv
-    , ifAbstractTypes = atPriv
-    , ifDecls     = dPriv
-    , ifModules   = mPriv
-    , ifSignatures  = sPriv
-    , ifFunctors  = fPriv
+  , ifDefines = IfaceDecls
+    { ifTySyns          = mTySyns m
+    , ifNewtypes        = mNewtypes m
+    , ifAbstractTypes   = mPrimTypes m
+    , ifDecls           = Map.fromList [ (qn,mkIfaceDecl d)
+                                       | dg <- mDecls m
+                                       , d  <- groupDecls dg
+                                       , let qn = dName d
+                                       ]
+    , ifModules         = mSubmodules m
+    , ifSignatures      = mSignatures m
+    , ifFunctors        = genIface <$> mFunctors m
     }
 
   , ifParams = mParams m
   }
-  where
-  pub = ifsPublic names
-
-  isPub qn _ = qn `Set.member` pub
-
-
-  (tsPub,tsPriv) = Map.partitionWithKey isPub (mTySyns m)
-  (ntPub,ntPriv) = Map.partitionWithKey isPub (mNewtypes m)
-  (atPub,atPriv) = Map.partitionWithKey isPub (mPrimTypes m)
-
-  (dPub,dPriv) =
-      Map.partitionWithKey isPub
-      $ Map.fromList [ (qn,mkIfaceDecl d) | dg <- mDecls m
-                                          , d  <- groupDecls dg
-                                          , let qn = dName d
-                                          ]
-
-  (mPub,mPriv) = Map.partitionWithKey isPub (mSubmodules m)
-  (sPub,sPriv) = Map.partitionWithKey isPub (mSignatures m)
-  (fPub,fPriv) = Map.partitionWithKey isPub (genIface <$> mFunctors m)
 
 

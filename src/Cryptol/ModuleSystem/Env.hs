@@ -175,7 +175,7 @@ loadedNonParamModules = map lmModule . lmLoadedModules . meLoadedModules
 
 loadedNewtypes :: ModuleEnv -> Map Name T.Newtype
 loadedNewtypes menv = Map.unions
-   [ ifNewtypes (ifPublic i) <> ifNewtypes (ifPrivate i)
+   [ ifNewtypes (ifDefines i) <> ifNewtypes (ifDefines i)
    | i <- map lmInterface (getLoadedModules (meLoadedModules menv))
    ]
 
@@ -226,12 +226,14 @@ modContextOf mname me =
   do lm <- lookupModule mname me
      let localIface  = lmInterface lm
          localNames  = lmNamingEnv lm
-         loadedDecls = map (ifPublic . lmInterface)
+
+         -- XXX: do we want only public ones here?
+         loadedDecls = map (ifDefines . lmInterface)
                      $ getLoadedModules (meLoadedModules me)
      pure ModContext
        { mctxParams   = ifParams localIface
-       , mctxExported = ifaceDeclsNames (ifPublic localIface)
-       , mctxDecls    = mconcat (ifPrivate localIface : loadedDecls)
+       , mctxExported = ifsPublic (ifNames localIface)
+       , mctxDecls    = mconcat (ifDefines localIface : loadedDecls)
        , mctxNames    = localNames
        , mctxNameDisp = R.toNameDisp localNames
        }

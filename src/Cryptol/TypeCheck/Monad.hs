@@ -681,8 +681,12 @@ lookupVar x =
          do mb1 <- Map.lookup x . iBindTypes <$> IM get
             case mb1 of
               Just a -> pure (ExtVar a)
-              Nothing -> panic "lookupVar" [ "Undefined vairable"
-                                           , show x ]
+              Nothing ->
+                do mp <- IM $ asks iVars
+                   panic "lookupVar" $ [ "Undefined vairable"
+                                     , show x
+                                     , "IVARS"
+                                     ] ++ map (show . pp) (Map.keys mp)
 
 -- | Lookup a type variable.  Return `Nothing` if there is no such variable
 -- in scope, in which case we must be dealing with a type constant.
@@ -770,7 +774,7 @@ lookupModule iname =
                 pure (fromMb
                          do iface <- snd <$> mb
                             names <- Map.lookup m
-                                        (If.ifModules (If.ifPublic iface))
+                                        (If.ifModules (If.ifDefines iface))
                             pure iface
                                    { If.ifNames = names { If.ifsName = () } })
 

@@ -144,7 +144,8 @@ checkArg (r,expect,actual) =
 
   localNames = ifsDefines (ifNames actual)
   isLocal x  = x `Set.member` localNames
-  decls      = filterIfaceDecls isLocal (ifPublic actual)
+  decls      = filterIfaceDecls isLocal (ifDefines actual)
+                -- XXX: check that the name is public
 
   -- Available type names
   tyMap      = Map.unions [ nameMapToIdentMap fromTS      (ifTySyns decls)

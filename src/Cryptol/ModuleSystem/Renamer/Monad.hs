@@ -455,7 +455,7 @@ recordImport r i =
                | ifaceIsFunctor iface ->
                        recordError (ModuleKindMismatch r i AModule AFunctor)
                | otherwise ->
-                 RenameM $ sets_ \s -> s { rwExternalDeps = ifPublic iface <>
+                 RenameM $ sets_ \s -> s { rwExternalDeps = ifDefines iface <>
                                                             rwExternalDeps s }
 
 

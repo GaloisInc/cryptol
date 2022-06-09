@@ -302,7 +302,7 @@ prepareQuery evo ProverCommand{..} =
               let m = tcTopEntityToModule ent
 
               let decls = mDecls m
-              let nms = fst <$> Map.toList (M.ifDecls (M.ifPublic (M.genIface m)))
+              let nms = fst <$> Map.toList (M.ifDecls (M.ifDefines (M.genIface m)))
               let ds = Map.fromList [ (prelPrim (identText (M.nameIdent nm)), EWhere (EVar nm) decls) | nm <- nms ]
               pure ds
 

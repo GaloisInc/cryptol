@@ -111,7 +111,7 @@ ifaceNamesToMod iface params names =
   where
   defs      = ifsDefines names
   isLocal x = x `Set.member` defs
-  decls     = filterIfaceDecls isLocal (ifPublic iface <> ifPrivate iface)
+  decls     = filterIfaceDecls isLocal (ifDefines iface)
 
 
 ifaceSigToMod :: ModParamNames -> Mod ()
