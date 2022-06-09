@@ -858,7 +858,7 @@ mkInterface is =
  
 
 -- | Make an unnamed module---gets the name @Main@.
-mkAnonymousModule :: [TopDecl PName] -> [Module PName]
+mkAnonymousModule :: [TopDecl PName] -> ParseM [Module PName]
 mkAnonymousModule = mkTopMods
                   . mkModule Located { srcRange = emptyRange
                                      , thing    = mkModName [T.pack "Main"]
@@ -938,7 +938,7 @@ mkSelector tok =
     _ -> panic "mkSelector" [ "Unexpected selector token", show tok ]
 
 
-mkTopMods :: Module PName -> [Module PName]
+mkTopMods :: Module PName -> ParseM [Module PName]
 mkTopMods = desugarMod
 
 mkTopSig :: Located ModName -> Signature PName -> [Module PName]
@@ -970,31 +970,35 @@ instance MkAnon PName where
   toImpName     = ImpNested
 
 
-desugarMod :: MkAnon name => ModuleG name PName -> [ModuleG name PName]
+desugarMod :: MkAnon name => ModuleG name PName -> ParseM [ModuleG name PName]
 desugarMod mo =
   case mDef mo of
 
     -- XXX: we should check that `lds` does not have parameter declarations
     FunctorInstance f as _ | DefaultInstAnonArg lds <- as ->
-      let i      = mkAnon AnonArg (thing (mName mo))
-          nm     = Located { srcRange = srcRange (mName mo), thing = i }
-          as'    = DefaultInstArg (toImpName <$> nm)
-      in [ Module { mName = nm, mDef  = NormalModule lds }
-         , mo { mDef = FunctorInstance f as' mempty }
-         ]
+      do (ms,lds') <- desugarTopDs (mName mo) lds
+         unless (null ms)
+           $ errorMessage (srcRange (mName mo))
+                          [ "Module argument may not be a functor" ]
+         let i      = mkAnon AnonArg (thing (mName mo))
+             nm     = Located { srcRange = srcRange (mName mo), thing = i }
+             as'    = DefaultInstArg (toImpName <$> nm)
+         pure [ Module { mName = nm, mDef  = NormalModule lds' }
+              , mo { mDef = FunctorInstance f as' mempty }
+              ]
 
     NormalModule ds ->
-      let (newMs, newDs) = desugarTopDs (mName mo) ds
-      in newMs ++ [ mo { mDef = NormalModule newDs } ]
+      do (newMs, newDs) <- desugarTopDs (mName mo) ds
+         pure (newMs ++ [ mo { mDef = NormalModule newDs } ])
 
-    _ -> [mo]
+    _ -> pure [mo]
 
 
 desugarTopDs ::
   MkAnon name =>
   Located name ->
   [TopDecl PName] ->
-  ([ModuleG name PName], [TopDecl PName])
+  ParseM ([ModuleG name PName], [TopDecl PName])
 desugarTopDs ownerName = go [] [] []
 
   where
@@ -1004,36 +1008,36 @@ desugarTopDs ownerName = go [] [] []
 
       [] ->
         case (ts,fs) of
-          ([],[]) -> ([],[])
+          ([],[]) -> pure ([],[])
           _ ->
-            let nm = mkAnon AnonIfaceMod <$> ownerName
-            in ( [ Module { mName = nm
-                          , mDef = InterfaceModule
-                                     Signature
-                                       { sigImports     = reverse is
-                                       , sigTypeParams  = reverse ts
-                                       , sigConstraints = []
-                                       , sigFunParams   = reverse fs
-                                       }
+            do let nm = mkAnon AnonIfaceMod <$> ownerName
+               pure ( [ Module { mName = nm
+                               , mDef = InterfaceModule
+                                          Signature
+                                            { sigImports     = reverse is
+                                            , sigTypeParams  = reverse ts
+                                            , sigConstraints = []
+                                            , sigFunParams   = reverse fs
+                                            }
+                               }
+                       ]
+                    , [ DModParam
+                        ModParam
+                          { mpSignature = toImpName <$> nm
+                          , mpAs        = Nothing
+                          , mpName      = mkModParamName (toImpName <$> nm)
+                                                                          Nothing
+                          , mpDoc       = Nothing
+                          , mpRenaming  = mempty
                           }
-                  ]
-               , [ DModParam
-                   ModParam
-                     { mpSignature = toImpName <$> nm
-                     , mpAs        = Nothing
-                     , mpName      = mkModParamName (toImpName <$> nm) Nothing
-                     , mpDoc       = Nothing
-                     , mpRenaming  = mempty
-                     }
-                   ]
-               )
+                        ]
+                    )
 
       d : more ->
         let cont emit is' ts' fs' =
-               let (ms,ds') = go is' ts' fs' more
-               in (ms, emit ++ ds')
+               do (ms,ds') <- go is' ts' fs' more
+                  pure (ms, emit ++ ds')
         in
-
         case d of
           -- collect to add to interface module, if any
           DImport i         -> cont [d] (i : is)       ts       fs
@@ -1043,8 +1047,8 @@ desugarTopDs ownerName = go [] [] []
           DParameterFun  pf -> cont []       is        ts (pf : fs)
 
           DModule tl | NestedModule mo <- tlValue tl ->
-            let ms = desugarMod mo
-            in cont [ DModule tl { tlValue = NestedModule m } | m <- ms ] is ts fs
+            do ms <- desugarMod mo
+               cont [ DModule tl { tlValue = NestedModule m } | m <- ms ] is ts fs
 
           _ -> cont [d] is ts fs
 
