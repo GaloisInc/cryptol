@@ -142,10 +142,9 @@ checkArg (r,expect,actual) =
   where
   params = mpParameters expect
 
-  localNames = ifsDefines (ifNames actual)
+  localNames = ifsPublic (ifNames actual)
   isLocal x  = x `Set.member` localNames
   decls      = filterIfaceDecls isLocal (ifDefines actual)
-                -- XXX: check that the name is public
 
   -- Available type names
   tyMap      = Map.unions [ nameMapToIdentMap fromTS      (ifTySyns decls)
