@@ -977,9 +977,13 @@ desugarMod mo =
     -- XXX: we should check that `lds` does not have parameter declarations
     FunctorInstance f as _ | DefaultInstAnonArg lds <- as ->
       do (ms,lds') <- desugarTopDs (mName mo) lds
-         unless (null ms)
-           $ errorMessage (srcRange (mName mo))
-                          [ "Module argument may not be a functor" ]
+         case ms of
+           m : _ | InterfaceModule si <- mDef m
+                 , l : _ <- map (srcRange . ptName) (sigTypeParams si) ++
+                            map (srcRange . pfName) (sigFunParams si) ->
+              errorMessage l
+                [ "Module argument may not be a functor" ]
+           _ -> pure ()
          let i      = mkAnon AnonArg (thing (mName mo))
              nm     = Located { srcRange = srcRange (mName mo), thing = i }
              as'    = DefaultInstArg (toImpName <$> nm)
