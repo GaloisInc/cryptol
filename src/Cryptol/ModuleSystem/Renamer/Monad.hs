@@ -25,7 +25,7 @@ import Prelude.Compat
 
 import Cryptol.Utils.PP(pp)
 import Cryptol.Utils.Panic(panic)
-import Cryptol.Utils.Ident(modPathCommon,OrigName(..),topModuleFor)
+import Cryptol.Utils.Ident(modPathCommon,OrigName(..))
 import Cryptol.ModuleSystem.Name
 import Cryptol.ModuleSystem.NamingEnv
 import Cryptol.ModuleSystem.Binds

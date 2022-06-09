@@ -663,11 +663,11 @@ instance Rename ModParam where
        depsOf (ModParamName (srcRange (mpSignature mp)) (mpName mp))
          do ren <- renModParamInstance <$> getModParam (mpName mp)
 
-            {- Here we add a single "use" to all type-level names intorduced,
-            because this is their binding site.   The warnings for unused names
-            are reported for names with a single "use" (i.e., the binding site)
-            so if we don't add the bindg site use, we get incorrect warnings -}
-            mapM_ recordUse [ t | t <- Map.keys ren, nameNamespace t == NSType ]
+            {- Here we add 2 "uses" to all type-level names intorduced,
+               so that we don't get unused warnings for type parameters.
+             -}
+            mapM_ recordUse [ s | t <- Map.keys ren, nameNamespace t == NSType
+                                , s <- [t,t] ]
 
             pure mp { mpSignature = x, mpRenaming = ren }
 
