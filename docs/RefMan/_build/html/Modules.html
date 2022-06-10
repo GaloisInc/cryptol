@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Modules &mdash; Cryptol 2.11.0 documentation</title>
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/jquery.js"></script>
+        <script src="_static/underscore.js"></script>
+        <script src="_static/doctools.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="Type Declarations" href="TypeDeclarations.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="RefMan.html" class="icon icon-home"> Cryptol
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Cryptol Reference Manual</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="BasicSyntax.html">Basic Syntax</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Expressions.html">Expressions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="BasicTypes.html">Basic Types</a></li>
+<li class="toctree-l1"><a class="reference internal" href="OverloadedOperations.html">Overloaded Operations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="TypeDeclarations.html">Type Declarations</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Modules</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#hierarchical-module-names">Hierarchical Module Names</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-imports">Module Imports</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#import-lists">Import Lists</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#hiding-imports">Hiding Imports</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#qualified-module-imports">Qualified Module Imports</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#private-blocks">Private Blocks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#parameterized-modules">Parameterized Modules</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#named-module-instantiations">Named Module Instantiations</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#parameterized-instantiations">Parameterized Instantiations</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#importing-parameterized-modules">Importing Parameterized Modules</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="RefMan.html">Cryptol</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="RefMan.html" class="icon icon-home"></a> &raquo;</li>
+      <li>Modules</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/Modules.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <div class="section" id="modules">
+<h1>Modules<a class="headerlink" href="#modules" title="Permalink to this headline"></a></h1>
+<p>A <em>module</em> is used to group some related definitions.  Each file may
+contain at most one top-level module.</p>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span> <span class="nn">M</span> <span class="kr">where</span>
+
+<span class="kr">type</span> <span class="kt">T</span> <span class="ow">=</span> <span class="p">[</span><span class="mi">8</span><span class="p">]</span>
+
+<span class="nf">f</span> <span class="kt">:</span> <span class="p">[</span><span class="mi">8</span><span class="p">]</span>
+<span class="nf">f</span> <span class="ow">=</span> <span class="mi">10</span>
+</pre></div>
+</div>
+<div class="section" id="hierarchical-module-names">
+<h2>Hierarchical Module Names<a class="headerlink" href="#hierarchical-module-names" title="Permalink to this headline"></a></h2>
+<p>Module may have either simple or <em>hierarchical</em> names.
+Hierarchical names are constructed by gluing together ordinary
+identifiers using the symbol <code class="docutils literal notranslate"><span class="pre">::</span></code>.</p>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span> <span class="nn">Hash</span><span class="ow">::</span><span class="kt">SHA256</span> <span class="kr">where</span>
+
+<span class="nf">sha256</span> <span class="ow">=</span> <span class="o">...</span>
+</pre></div>
+</div>
+<p>The structure in the name may be used to group together related
+modules.  Also, the Cryptol implementation uses the structure of the
+name to locate the file containing the definition of the module.
+For example, when searching for module <code class="docutils literal notranslate"><span class="pre">Hash::SHA256</span></code>, Cryptol
+will look for a file named <code class="docutils literal notranslate"><span class="pre">SHA256.cry</span></code> in a directory called
+<code class="docutils literal notranslate"><span class="pre">Hash</span></code>, contained in one of the directories specified by <code class="docutils literal notranslate"><span class="pre">CRYPTOLPATH</span></code>.</p>
+</div>
+<div class="section" id="module-imports">
+<h2>Module Imports<a class="headerlink" href="#module-imports" title="Permalink to this headline"></a></h2>
+<p>To use the definitions from one module in another module, we use
+<code class="docutils literal notranslate"><span class="pre">import</span></code> declarations:</p>
+<div class="literal-block-wrapper docutils container" id="id1">
+<div class="code-block-caption"><span class="caption-text">module M</span><a class="headerlink" href="#id1" title="Permalink to this code"></a></div>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="c1">// Provide some definitions</span>
+<span class="kr">module</span> <span class="nn">M</span> <span class="kr">where</span>
+
+<span class="nf">f</span> <span class="kt">:</span> <span class="p">[</span><span class="mi">8</span><span class="p">]</span>
+<span class="nf">f</span> <span class="ow">=</span> <span class="mi">2</span>
+</pre></div>
+</div>
+</div>
+<div class="literal-block-wrapper docutils container" id="id2">
+<div class="code-block-caption"><span class="caption-text">module N</span><a class="headerlink" href="#id2" title="Permalink to this code"></a></div>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="c1">// Uses definitions from `M`</span>
+<span class="kr">module</span> <span class="nn">N</span> <span class="kr">where</span>
+
+<span class="kr">import</span> <span class="nn">M</span>  <span class="c1">// import all definitions from `M`</span>
+
+<span class="nf">g</span> <span class="ow">=</span> <span class="n">f</span>   <span class="c1">// `f` was imported from `M`</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="import-lists">
+<h3>Import Lists<a class="headerlink" href="#import-lists" title="Permalink to this headline"></a></h3>
+<p>Sometimes, we may want to import only some of the definitions
+from a module.  To do so, we use an import declaration with
+an <em>import list</em>.</p>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span> <span class="nn">M</span> <span class="kr">where</span>
+
+<span class="nf">f</span> <span class="ow">=</span> <span class="mh">0x02</span>
+<span class="nf">g</span> <span class="ow">=</span> <span class="mh">0x03</span>
+<span class="nf">h</span> <span class="ow">=</span> <span class="mh">0x04</span>
+</pre></div>
+</div>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span> <span class="nn">N</span> <span class="kr">where</span>
+
+<span class="kr">import</span> <span class="nn">M</span><span class="p">(</span><span class="n">f</span><span class="p">,</span><span class="n">g</span><span class="p">)</span>  <span class="c1">// Imports only `f` and `g`, but not `h`</span>
+
+<span class="nf">x</span> <span class="ow">=</span> <span class="n">f</span> <span class="o">+</span> <span class="n">g</span>
+</pre></div>
+</div>
+<p>Using explicit import lists helps reduce name collisions.
+It also tends to make code easier to understand,  because
+it makes it easy to see the source of definitions.</p>
+</div>
+<div class="section" id="hiding-imports">
+<h3>Hiding Imports<a class="headerlink" href="#hiding-imports" title="Permalink to this headline"></a></h3>
+<p>Sometimes a module may provide many definitions, and we want to use
+most of them but with a few exceptions (e.g., because those would
+result to a name clash).   In such situations it is convenient
+to use a <em>hiding</em> import:</p>
+<div class="literal-block-wrapper docutils container" id="id3">
+<div class="code-block-caption"><span class="caption-text">module M</span><a class="headerlink" href="#id3" title="Permalink to this code"></a></div>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span> <span class="nn">M</span> <span class="kr">where</span>
+
+<span class="nf">f</span> <span class="ow">=</span> <span class="mh">0x02</span>
+<span class="nf">g</span> <span class="ow">=</span> <span class="mh">0x03</span>
+<span class="nf">h</span> <span class="ow">=</span> <span class="mh">0x04</span>
+</pre></div>
+</div>
+</div>
+<div class="literal-block-wrapper docutils container" id="id4">
+<div class="code-block-caption"><span class="caption-text">module N</span><a class="headerlink" href="#id4" title="Permalink to this code"></a></div>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span> <span class="nn">N</span> <span class="kr">where</span>
+
+<span class="kr">import</span> <span class="nn">M</span> <span class="k">hiding</span> <span class="p">(</span><span class="nf">h</span><span class="p">)</span> <span class="c1">// Import everything but `h`</span>
+
+<span class="nf">x</span> <span class="ow">=</span> <span class="n">f</span> <span class="o">+</span> <span class="n">g</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="section" id="qualified-module-imports">
+<h3>Qualified Module Imports<a class="headerlink" href="#qualified-module-imports" title="Permalink to this headline"></a></h3>
+<p>Another way to avoid name collisions is by using a
+<em>qualified</em> import.</p>
+<div class="literal-block-wrapper docutils container" id="id5">
+<div class="code-block-caption"><span class="caption-text">module M</span><a class="headerlink" href="#id5" title="Permalink to this code"></a></div>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span> <span class="nn">M</span> <span class="kr">where</span>
+
+<span class="nf">f</span> <span class="kt">:</span> <span class="p">[</span><span class="mi">8</span><span class="p">]</span>
+<span class="nf">f</span> <span class="ow">=</span> <span class="mi">2</span>
+</pre></div>
+</div>
+</div>
+<div class="literal-block-wrapper docutils container" id="id6">
+<div class="code-block-caption"><span class="caption-text">module N</span><a class="headerlink" href="#id6" title="Permalink to this code"></a></div>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span> <span class="nn">N</span> <span class="kr">where</span>
+
+<span class="kr">import</span> <span class="nn">M</span> <span class="k">as</span> <span class="n">P</span>
+
+<span class="nf">g</span> <span class="ow">=</span> <span class="kt">P</span><span class="ow">::</span><span class="n">f</span>
+<span class="c1">// `f` was imported from `M`</span>
+<span class="c1">// but when used it needs to be prefixed by the qualifier `P`</span>
+</pre></div>
+</div>
+</div>
+<p>Qualified imports make it possible to work with definitions
+that happen to have the same name but are defined in different modules.</p>
+<p>Qualified imports may be combined with import lists or hiding clauses:</p>
+<div class="literal-block-wrapper docutils container" id="id7">
+<div class="code-block-caption"><span class="caption-text">Example</span><a class="headerlink" href="#id7" title="Permalink to this code"></a></div>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">import</span> <span class="nn">A</span> <span class="k">as</span> <span class="n">B</span> <span class="p">(</span><span class="n">f</span><span class="p">)</span>         <span class="c1">// introduces B::f</span>
+<span class="kr">import</span> <span class="nn">X</span> <span class="k">as</span> <span class="n">Y</span> <span class="n">hiding</span> <span class="p">(</span><span class="n">f</span><span class="p">)</span>  <span class="c1">// introduces everything but `f` from X</span>
+                          <span class="c1">// using the prefix `X`</span>
+</pre></div>
+</div>
+</div>
+<p>It is also possible to use the same qualifier prefix for imports
+from different modules.  For example:</p>
+<div class="literal-block-wrapper docutils container" id="id8">
+<div class="code-block-caption"><span class="caption-text">Example</span><a class="headerlink" href="#id8" title="Permalink to this code"></a></div>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">import</span> <span class="nn">A</span> <span class="k">as</span> <span class="n">B</span>
+<span class="kr">import</span> <span class="nn">X</span> <span class="k">as</span> <span class="n">B</span>
+</pre></div>
+</div>
+</div>
+<p>Such declarations will introduces all definitions from <code class="docutils literal notranslate"><span class="pre">A</span></code> and <code class="docutils literal notranslate"><span class="pre">X</span></code>
+but to use them, you would have to qualify using the prefix <code class="docutils literal notranslate"><span class="pre">B::</span></code>.</p>
+</div>
+</div>
+<div class="section" id="private-blocks">
+<h2>Private Blocks<a class="headerlink" href="#private-blocks" title="Permalink to this headline"></a></h2>
+<p>In some cases, definitions in a module might use helper
+functions that are not intended to be used outside the module.
+It is good practice to place such declarations in <em>private blocks</em>:</p>
+<div class="literal-block-wrapper docutils container" id="id9">
+<div class="code-block-caption"><span class="caption-text">Private blocks</span><a class="headerlink" href="#id9" title="Permalink to this code"></a></div>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span> <span class="nn">M</span> <span class="kr">where</span>
+
+<span class="nf">f</span> <span class="kt">:</span> <span class="p">[</span><span class="mi">8</span><span class="p">]</span>
+<span class="nf">f</span> <span class="ow">=</span> <span class="mh">0x01</span> <span class="o">+</span> <span class="n">helper1</span> <span class="o">+</span> <span class="n">helper2</span>
+
+<span class="nf">private</span>
+
+  <span class="n">helper1</span> <span class="kt">:</span> <span class="p">[</span><span class="mi">8</span><span class="p">]</span>
+  <span class="n">helper1</span> <span class="ow">=</span> <span class="mi">2</span>
+
+  <span class="n">helper2</span> <span class="kt">:</span> <span class="p">[</span><span class="mi">8</span><span class="p">]</span>
+  <span class="n">helper2</span> <span class="ow">=</span> <span class="mi">3</span>
+</pre></div>
+</div>
+</div>
+<p>The private block only needs to be indented if it might be followed by
+additional public declarations.   If all remaining declarations are to be
+private then no additional indentation is needed as the <cite>private</cite> block will
+extend to the end of the module.</p>
+<div class="literal-block-wrapper docutils container" id="id10">
+<div class="code-block-caption"><span class="caption-text">Private blocks</span><a class="headerlink" href="#id10" title="Permalink to this code"></a></div>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span> <span class="nn">M</span> <span class="kr">where</span>
+
+<span class="nf">f</span> <span class="kt">:</span> <span class="p">[</span><span class="mi">8</span><span class="p">]</span>
+<span class="nf">f</span> <span class="ow">=</span> <span class="mh">0x01</span> <span class="o">+</span> <span class="n">helper1</span> <span class="o">+</span> <span class="n">helper2</span>
+
+<span class="nf">private</span>
+
+<span class="nf">helper1</span> <span class="kt">:</span> <span class="p">[</span><span class="mi">8</span><span class="p">]</span>
+<span class="nf">helper1</span> <span class="ow">=</span> <span class="mi">2</span>
+
+<span class="nf">helper2</span> <span class="kt">:</span> <span class="p">[</span><span class="mi">8</span><span class="p">]</span>
+<span class="nf">helper2</span> <span class="ow">=</span> <span class="mi">3</span>
+</pre></div>
+</div>
+</div>
+<p>The keyword <code class="docutils literal notranslate"><span class="pre">private</span></code> introduces a new layout scope, and all declarations
+in the block are considered to be private to the module.  A single module
+may contain multiple private blocks.  For example, the following module
+is equivalent to the previous one:</p>
+<div class="literal-block-wrapper docutils container" id="id11">
+<div class="code-block-caption"><span class="caption-text">Private blocks</span><a class="headerlink" href="#id11" title="Permalink to this code"></a></div>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span> <span class="nn">M</span> <span class="kr">where</span>
+
+<span class="nf">f</span> <span class="kt">:</span> <span class="p">[</span><span class="mi">8</span><span class="p">]</span>
+<span class="nf">f</span> <span class="ow">=</span> <span class="mh">0x01</span> <span class="o">+</span> <span class="n">helper1</span> <span class="o">+</span> <span class="n">helper2</span>
+
+<span class="nf">private</span>
+  <span class="n">helper1</span> <span class="kt">:</span> <span class="p">[</span><span class="mi">8</span><span class="p">]</span>
+  <span class="n">helper1</span> <span class="ow">=</span> <span class="mi">2</span>
+
+<span class="nf">private</span>
+  <span class="n">helper2</span> <span class="kt">:</span> <span class="p">[</span><span class="mi">8</span><span class="p">]</span>
+  <span class="n">helper2</span> <span class="ow">=</span> <span class="mi">3</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="section" id="parameterized-modules">
+<h2>Parameterized Modules<a class="headerlink" href="#parameterized-modules" title="Permalink to this headline"></a></h2>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>This section documents the current design, but we are in the process of
+redesigning some aspects of the parameterized modules mechanism.</p>
+</div>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span> <span class="nn">M</span> <span class="kr">where</span>
+
+<span class="nf">parameter</span>
+  <span class="kr">type</span> <span class="n">n</span> <span class="kt">:</span> <span class="o">#</span>              <span class="c1">// `n` is a numeric type parameter</span>
+
+  <span class="kr">type</span> <span class="n">constraint</span> <span class="p">(</span><span class="kr">fin</span> <span class="n">n</span><span class="p">,</span> <span class="n">n</span> <span class="o">&gt;=</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="c1">// Assumptions about the parameter</span>
+
+  <span class="n">x</span> <span class="kt">:</span> <span class="p">[</span><span class="n">n</span><span class="p">]</span>                 <span class="c1">// A value parameter</span>
+
+<span class="c1">// This definition uses the parameters.</span>
+<span class="nf">f</span> <span class="kt">:</span> <span class="p">[</span><span class="n">n</span><span class="p">]</span>
+<span class="nf">f</span> <span class="ow">=</span> <span class="mi">1</span> <span class="o">+</span> <span class="n">x</span>
+</pre></div>
+</div>
+<div class="section" id="named-module-instantiations">
+<h3>Named Module Instantiations<a class="headerlink" href="#named-module-instantiations" title="Permalink to this headline"></a></h3>
+<p>One way to use a parameterized module is through a named instantiation:</p>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="c1">// A parameterized module</span>
+<span class="kr">module</span> <span class="nn">M</span> <span class="kr">where</span>
+
+<span class="nf">parameter</span>
+  <span class="kr">type</span> <span class="n">n</span> <span class="kt">:</span> <span class="o">#</span>
+  <span class="n">x</span>      <span class="kt">:</span> <span class="p">[</span><span class="n">n</span><span class="p">]</span>
+  <span class="n">y</span>      <span class="kt">:</span> <span class="p">[</span><span class="n">n</span><span class="p">]</span>
+
+<span class="nf">f</span> <span class="kt">:</span> <span class="p">[</span><span class="n">n</span><span class="p">]</span>
+<span class="nf">f</span> <span class="ow">=</span> <span class="n">x</span> <span class="o">+</span> <span class="n">y</span>
+
+
+<span class="c1">// A module instantiation</span>
+<span class="kr">module</span> <span class="nn">N</span> <span class="ow">=</span> <span class="kt">M</span> <span class="kr">where</span>
+
+<span class="kr">type</span> <span class="n">n</span> <span class="ow">=</span> <span class="mi">32</span>
+<span class="nf">x</span>      <span class="ow">=</span> <span class="mi">11</span>
+<span class="nf">y</span>      <span class="ow">=</span> <span class="n">helper</span>
+
+<span class="nf">helper</span> <span class="ow">=</span> <span class="mi">12</span>
+</pre></div>
+</div>
+<p>The second module, <code class="docutils literal notranslate"><span class="pre">N</span></code>, is computed by instantiating the parameterized
+module <code class="docutils literal notranslate"><span class="pre">M</span></code>.  Module <code class="docutils literal notranslate"><span class="pre">N</span></code> will provide the exact same definitions as <code class="docutils literal notranslate"><span class="pre">M</span></code>,
+except that the parameters will be replaced by the values in the body
+of <code class="docutils literal notranslate"><span class="pre">N</span></code>.   In this example, <code class="docutils literal notranslate"><span class="pre">N</span></code> provides just a single definition, <code class="docutils literal notranslate"><span class="pre">f</span></code>.</p>
+<p>Note that the only purpose of the body of <code class="docutils literal notranslate"><span class="pre">N</span></code> (the declarations
+after the <code class="docutils literal notranslate"><span class="pre">where</span></code> keyword) is to define the parameters for <code class="docutils literal notranslate"><span class="pre">M</span></code>.</p>
+</div>
+<div class="section" id="parameterized-instantiations">
+<h3>Parameterized Instantiations<a class="headerlink" href="#parameterized-instantiations" title="Permalink to this headline"></a></h3>
+<p>It is possible for a module instantiation to be itself parameterized.
+This could be useful if we need to define some of a module’s parameters
+but not others.</p>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="c1">// A parameterized module</span>
+<span class="kr">module</span> <span class="nn">M</span> <span class="kr">where</span>
+
+<span class="nf">parameter</span>
+  <span class="kr">type</span> <span class="n">n</span> <span class="kt">:</span> <span class="o">#</span>
+  <span class="n">x</span>      <span class="kt">:</span> <span class="p">[</span><span class="n">n</span><span class="p">]</span>
+  <span class="n">y</span>      <span class="kt">:</span> <span class="p">[</span><span class="n">n</span><span class="p">]</span>
+
+<span class="nf">f</span> <span class="kt">:</span> <span class="p">[</span><span class="n">n</span><span class="p">]</span>
+<span class="nf">f</span> <span class="ow">=</span> <span class="n">x</span> <span class="o">+</span> <span class="n">y</span>
+
+
+<span class="c1">// A parameterized instantiation</span>
+<span class="kr">module</span> <span class="nn">N</span> <span class="ow">=</span> <span class="kt">M</span> <span class="kr">where</span>
+
+<span class="nf">parameter</span>
+  <span class="n">x</span> <span class="kt">:</span> <span class="p">[</span><span class="mi">32</span><span class="p">]</span>
+
+<span class="kr">type</span> <span class="n">n</span> <span class="ow">=</span> <span class="mi">32</span>
+<span class="nf">y</span>      <span class="ow">=</span> <span class="n">helper</span>
+
+<span class="nf">helper</span> <span class="ow">=</span> <span class="mi">12</span>
+</pre></div>
+</div>
+<p>In this case <code class="docutils literal notranslate"><span class="pre">N</span></code> has a single parameter <code class="docutils literal notranslate"><span class="pre">x</span></code>.  The result of instantiating
+<code class="docutils literal notranslate"><span class="pre">N</span></code> would result in instantiating <code class="docutils literal notranslate"><span class="pre">M</span></code> using the value of <code class="docutils literal notranslate"><span class="pre">x</span></code> and <code class="docutils literal notranslate"><span class="pre">12</span></code>
+for the value of <code class="docutils literal notranslate"><span class="pre">y</span></code>.</p>
+</div>
+<div class="section" id="importing-parameterized-modules">
+<h3>Importing Parameterized Modules<a class="headerlink" href="#importing-parameterized-modules" title="Permalink to this headline"></a></h3>
+<p>It is also possible to import a parameterized module without using
+a module instantiation:</p>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span> <span class="nn">M</span> <span class="kr">where</span>
+
+<span class="nf">parameter</span>
+  <span class="n">x</span> <span class="kt">:</span> <span class="p">[</span><span class="mi">8</span><span class="p">]</span>
+  <span class="n">y</span> <span class="kt">:</span> <span class="p">[</span><span class="mi">8</span><span class="p">]</span>
+
+<span class="nf">f</span> <span class="kt">:</span> <span class="p">[</span><span class="mi">8</span><span class="p">]</span>
+<span class="nf">f</span> <span class="ow">=</span> <span class="n">x</span> <span class="o">+</span> <span class="n">y</span>
+</pre></div>
+</div>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span>module N where
+
+import `M
+
+g = f { x = 2, y = 3 }
+</pre></div>
+</div>
+<p>A <em>backtick</em> at the start of the name of an imported module indicates
+that we are importing a parameterized module.  In this case, Cryptol
+will import all definitions from the module as usual, however every
+definition will have some additional parameters corresponding to
+the parameters of a module.  All value parameters are grouped in a record.</p>
+<p>This is why in the example <code class="docutils literal notranslate"><span class="pre">f</span></code> is applied to a record of values,
+even though its definition in <code class="docutils literal notranslate"><span class="pre">M</span></code> does not look like a function.</p>
+</div>
+</div>
+</div>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="TypeDeclarations.html" class="btn btn-neutral float-left" title="Type Declarations" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2021, The Cryptol Team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
