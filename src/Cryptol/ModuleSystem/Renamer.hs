@@ -31,7 +31,7 @@ import Prelude ()
 import Prelude.Compat
 
 import Data.Either(partitionEithers)
-import Data.Maybe(fromJust,mapMaybe)
+import Data.Maybe(mapMaybe)
 import Data.List(find,groupBy,sortBy)
 import Data.Function(on)
 import Data.Foldable(toList)
@@ -47,7 +47,7 @@ import Cryptol.ModuleSystem.Name
 import Cryptol.ModuleSystem.Names
 import Cryptol.ModuleSystem.NamingEnv
 import Cryptol.ModuleSystem.Exports
-import Cryptol.Parser.Position(getLoc,Range)
+import Cryptol.Parser.Position(Range)
 import Cryptol.Parser.AST
 import Cryptol.Parser.Selector(selName)
 import Cryptol.Utils.Panic (panic)
@@ -467,6 +467,7 @@ renameTopDecls' ds =
       DPrimType {}            -> False
       TDNewtype {}            -> False
       DParamDecl {}           -> False
+      DInterfaceConstraint {} -> False
 
 
       DModule tl              -> any usesCtrs (mDecls m)
@@ -517,18 +518,7 @@ topDeclName topDecl =
     DModule d               -> hasName (thing (mName m))
       where NestedModule m = tlValue d
 
-    DParamDecl ds ->
-      case ds of
-        [] -> noName
-        c : _ ->
-          case c of
-            DParameterConstraint cs ->
-              case cs of
-                []  -> noName
-                _   -> Right (topDecl, ConstratintAt (fromJust (getLoc cs)))
-
-            DParameterType {}       -> bad "DParameterType"
-            DParameterFun {}        -> bad "DParameterFun"
+    DInterfaceConstraint _ ds -> Right (topDecl, ConstratintAt (srcRange ds))
 
     DImport {}              -> noName
 
@@ -537,6 +527,7 @@ topDeclName topDecl =
                                                     (mpName m))
 
     Include {}              -> bad "Include"
+    DParamDecl {}           -> bad "DParamDecl"
   where
   noName    = Left topDecl
   hasName n = Right (topDecl, NamedThing n)
@@ -642,20 +633,10 @@ instance Rename TopDecl where
       DModule m  -> DModule <$> traverse rename m
       DImport li -> DImport <$> renI li
       DModParam mp -> DModParam <$> rename mp
-      DParamDecl ds -> DParamDecl <$> traverse rename ds
-
-
-instance Rename ParamDecl where
-  rename pd =
-    case pd of
-      DParameterFun f   -> DParameterFun  <$> rename f
-      DParameterType f  -> DParameterType <$> rename f
-
-      DParameterConstraint ds ->
-        case ds of
-          [] -> pure (DParameterConstraint [])
-          _  -> depsOf (ConstratintAt (fromJust (getLoc ds)))
-              $ DParameterConstraint <$> mapM (rnLocated rename) ds
+      DInterfaceConstraint d ds ->
+        depsOf (ConstratintAt (srcRange ds))
+        (DInterfaceConstraint d <$> rnLocated (mapM rename) ds)
+      DParamDecl {} -> panic "rename" ["DParamDecl"]
 
 
 

@@ -326,8 +326,11 @@ instance BindsNames (InModule (TopDecl PName)) where
       Include _        -> mempty
       DImport {}       -> mempty -- see 'openLoop' in the renamer
       DModule m        -> namingEnv (InModule ns (tlValue m))
-      DModParam {}     -> mempty-- handled in the renamer as we need to resolve
-                                 -- the signature name first (similar to import)
+      DModParam {}     -> mempty -- shouldn't happen
+      DInterfaceConstraint {} -> mempty
+        -- handled in the renamer as we need to resolve
+        -- the signature name first (similar to import)
+
 
 instance BindsNames (InModule (NestedModule PName)) where
   namingEnv (InModule ~(Just m) (NestedModule mdef)) = BuildNamingEnv $

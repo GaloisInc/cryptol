@@ -378,6 +378,7 @@ annotTopDs tds =
              (d1 :) <$> annotTopDs ds
 
         DParamDecl {} -> (d :) <$> annotTopDs ds
+        DInterfaceConstraint {} -> (d :) <$> annotTopDs ds
 
         -- XXX: we may want to add pragmas to newtypes?
         TDNewtype {} -> (d :) <$> annotTopDs ds

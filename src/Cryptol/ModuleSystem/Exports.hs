@@ -26,6 +26,7 @@ exportedNames decl =
       Include {}  -> []
       DImport {} -> []
       DParamDecl {} -> []
+      DInterfaceConstraint {} -> []
       DModule nested ->
         case tlValue nested of
           NestedModule x ->

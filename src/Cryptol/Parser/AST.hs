@@ -230,15 +230,18 @@ data TopDecl name =
   | TDNewtype (TopLevel (Newtype name)) -- ^ @newtype T as = t
   | Include (Located FilePath)          -- ^ @include File@ (until NoPat)
 
-  | DParamDecl [ParamDecl name]
-    -- ^ @parameter ...@
-    -- After parsing, there should be only DParamConstraint in this.
+  | DParamDecl Range (Signature name)   -- ^ @parameter ...@ (parser only)
 
   | DModule (TopLevel (NestedModule name))      -- ^ @submodule M where ...@
   | DImport (Located (ImportG (ImpName name)))  -- ^ @import X@
   | DModParam (ModParam name)                   -- ^ @import interface X ...@
+  | DInterfaceConstraint (Maybe Text) (Located [Prop name])
+    -- ^ @interface constraint@
     deriving (Show, Generic, NFData)
 
+
+-- | Things that maybe appear in an interface/parameter block.
+-- These only exist during parsering.
 data ParamDecl name =
 
     DParameterType (ParameterType name) -- ^ @parameter type T : #@ (parser only)
@@ -669,7 +672,8 @@ instance HasLoc (TopDecl name) where
       DModule d -> getLoc d
       DImport d -> getLoc d
       DModParam d -> getLoc d
-      DParamDecl ds -> foldr rCombMaybe Nothing (map getLoc ds)
+      DParamDecl r _ -> Just r
+      DInterfaceConstraint _ ds -> getLoc ds
 
 instance HasLoc (ParamDecl name) where
   getLoc pd =
@@ -761,7 +765,7 @@ instance (Show name, PPName name) => PP (ModuleDefinition name) where
                                               ]
         instLines = [ " *" <+> pp k <+> "->" <+> pp v
                     | (k,v) <- Map.toList inst ]
-      InterfaceModule s -> pp s
+      InterfaceModule s -> ppInterface "where" s
 
 
 instance (Show name, PPName name) => PP (ModuleInstanceArgs name) where
@@ -787,7 +791,13 @@ instance (Show name, PPName name) => PP (TopDecl name) where
       DModule d -> pp d
       DImport i -> pp (thing i)
       DModParam s -> pp s
-      DParamDecl ds -> "parameter" $$ indent 2 (vcat (map pp ds))
+      DParamDecl _ ds -> ppInterface "parameter" ds
+      DInterfaceConstraint _ ds ->
+        "interface constraint" <+>
+        case map pp (thing ds) of
+          [x] -> x
+          []  -> "()"
+          xs  -> nest 1 (parens (commaSepFill xs))
 
 instance (Show name, PPName name) => PP (ParamDecl name) where
   ppPrec _ pd =
@@ -800,9 +810,8 @@ instance (Show name, PPName name) => PP (ParamDecl name) where
                        []  -> "()"
                        xs  -> nest 1 (parens (commaSepFill xs))
 
-
-instance (Show name, PPName name) => PP (Signature name) where
-  ppPrec _ sig = "where" $$ indent 2 (vcat (is ++ ds))
+ppInterface :: (Show name, PPName name) => Doc -> Signature name -> Doc
+ppInterface kw sig = kw $$ indent 2 (vcat (is ++ ds))
     where
     is = map pp (sigImports sig)
     ds = map pp (sigTypeParams sig)
@@ -1242,7 +1251,9 @@ instance NoPos (TopDecl name) where
       DModule d -> DModule (noPos d)
       DImport d -> DImport (noPos d)
       DModParam d -> DModParam (noPos d)
-      DParamDecl ds -> DParamDecl (noPos ds)
+      DParamDecl _ ds -> DParamDecl rng (noPos ds)
+        where rng = Range { from = Position 0 0, to = Position 0 0, source = "" }
+      DInterfaceConstraint d ds -> DInterfaceConstraint d (noPos (noPos <$> ds))
 
 instance NoPos (ParamDecl name) where
   noPos pd =

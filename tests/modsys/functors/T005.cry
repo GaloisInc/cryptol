@@ -7,7 +7,7 @@ submodule F where
   import interface submodule A as X
   import interface submodule A as Y
 
-  parameter type constraint (X::n == Y::n)
+  interface constraint (X::n == Y::n)
 
   y : [X::n]
   y = X::x + Y::x

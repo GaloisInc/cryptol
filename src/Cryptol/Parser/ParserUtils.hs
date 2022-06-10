@@ -17,6 +17,7 @@ module Cryptol.Parser.ParserUtils where
 
 import Data.Maybe(fromMaybe)
 import Data.Bits(testBit,setBit)
+import Data.Maybe(mapMaybe)
 import Data.List(foldl')
 import Data.List.NonEmpty ( NonEmpty(..) )
 import qualified Data.List.NonEmpty as NE
@@ -538,6 +539,7 @@ changeExport e = map change
       Include{}               -> decl
       DImport{}               -> decl
       DParamDecl{}            -> decl
+      DInterfaceConstraint {} -> decl
 
 mkTypeInst :: Named (Type PName) -> TypeInst PName
 mkTypeInst x | nullIdent (thing (name x)) = PosInst (value x)
@@ -836,6 +838,16 @@ mkSigDecl doc (nm,sig) =
                                }
            }
 
+mkInterfaceConstraint ::
+  Maybe (Located Text) -> Type PName -> ParseM [TopDecl PName]
+mkInterfaceConstraint mbDoc ty =
+  do ps <- mkProp ty
+     pure [DInterfaceConstraint (thing <$> mbDoc) ps]
+
+mkParDecls :: [ParamDecl PName] -> TopDecl PName
+mkParDecls ds = DParamDecl loc (mkInterface [] ds)
+  where loc = rCombs (mapMaybe getLoc ds)
+
 mkInterface :: [Located (ImportG (ImpName PName))] ->
              [ParamDecl PName] -> Signature PName
 mkInterface is =
@@ -852,7 +864,6 @@ mkInterface is =
       DParameterType pt -> s { sigTypeParams = pt : sigTypeParams s }
       DParameterConstraint ps -> s { sigConstraints = ps ++ sigConstraints s }
       DParameterFun pf -> s { sigFunParams = pf : sigFunParams s }
-      _ -> panic "mkSignature" ["Unexpected top-level declaration"]
 
 
 -- | Make an unnamed module---gets the name @Main@.
@@ -972,7 +983,6 @@ desugarMod :: MkAnon name => ModuleG name PName -> ParseM [ModuleG name PName]
 desugarMod mo =
   case mDef mo of
 
-    -- XXX: we should check that `lds` does not have parameter declarations
     FunctorInstance f as _ | DefaultInstAnonArg lds <- as ->
       do (ms,lds') <- desugarTopDs (mName mo) lds
          case ms of
@@ -1002,73 +1012,65 @@ desugarTopDs ::
   Located name ->
   [TopDecl PName] ->
   ParseM ([ModuleG name PName], [TopDecl PName])
-desugarTopDs ownerName = go [] [] [] []
-
+desugarTopDs ownerName = go emptySig
   where
-  go is ts cs fs ds =
+  isEmpty s =
+    null (sigTypeParams s) && null (sigConstraints s) && null (sigFunParams s)
 
+  emptySig = Signature
+    { sigImports      = []
+    , sigTypeParams   = []
+    , sigConstraints  = []
+    , sigFunParams    = []
+    }
+
+  jnSig s1 s2 = Signature { sigImports      = j sigImports
+                          , sigTypeParams   = j sigTypeParams
+                          , sigConstraints  = j sigConstraints
+                          , sigFunParams    = j sigFunParams
+                          }
+
+      where
+      j f = f s1 ++ f s2
+
+  addI i s = s { sigImports = i : sigImports s }
+
+  go sig ds =
     case ds of
 
-      [] ->
-        case (ts,cs,fs) of
-          ([],[],[]) -> pure ([],[])
-          _ ->
-            do let nm = mkAnon AnonIfaceMod <$> ownerName
-               pure ( [ Module { mName = nm
-                               , mDef = InterfaceModule
-                                          Signature
-                                            { sigImports     = reverse is
-                                            , sigTypeParams  = reverse ts
-                                            , sigConstraints = reverse cs
-                                            , sigFunParams   = reverse fs
-                                            }
-                               }
-                       ]
-                    , [ DModParam
-                        ModParam
-                          { mpSignature = toImpName <$> nm
-                          , mpAs        = Nothing
-                          , mpName      = mkModParamName (toImpName <$> nm)
-                                                                          Nothing
-                          , mpDoc       = Nothing
-                          , mpRenaming  = mempty
-                          }
-                        ]
-                    )
+      []
+        | isEmpty sig -> pure ([],[])
+        | otherwise ->
+          do let nm = mkAnon AnonIfaceMod <$> ownerName
+             pure ( [ Module { mName = nm
+                             , mDef = InterfaceModule sig
+                             }
+                     ]
+                  , [ DModParam
+                      ModParam
+                        { mpSignature = toImpName <$> nm
+                        , mpAs        = Nothing
+                        , mpName      = mkModParamName (toImpName <$> nm)
+                                                                        Nothing
+                        , mpDoc       = Nothing
+                        , mpRenaming  = mempty
+                        }
+                      ]
+                  )
 
       d : more ->
-        let cont emit is' ts' cs' fs' =
-               do (ms,ds') <- go is' ts' cs' fs' more
+        let cont emit sig' =
+               do (ms,ds') <- go sig' more
                   pure (ms, emit ++ ds')
         in
         case d of
-          -- collect to add to interface module, if any
-          DImport i         -> cont [d] (i : is)       ts  cs     fs
 
-          {- Parameter declarations only containing constrains are left as is
-          while ones that are part of a group with some parameters are factored.
-          This is because we reuse `parameter type constraint C` to also impose
-          constraints between parameters imports from *different* interfaces. -}
-
-          DParamDecl ds' ->
-            case groupParamDecls [] [] [] ds' of
-              ([],  _,  []) -> cont [DParamDecl ds'] is ts cs fs
-              (ts',cs',fs') -> cont [] is (ts'++ts) (cs'++cs) (fs'++fs)
+          DImport i        -> cont [d] (addI i sig)
+          DParamDecl _ ds' -> cont []  (jnSig ds' sig)
 
           DModule tl | NestedModule mo <- tlValue tl ->
             do ms <- desugarMod mo
-               cont [ DModule tl { tlValue = NestedModule m } | m <- ms ]
-                    is ts cs fs
+               cont [ DModule tl { tlValue = NestedModule m } | m <- ms ] sig
 
-          _ -> cont [d] is ts cs fs
-
-  groupParamDecls ts cs fs ds =
-    case ds of
-      d : more ->
-        case d of
-          DParameterType t       -> groupParamDecls (t:ts)   cs    fs  more
-          DParameterFun  f       -> groupParamDecls    ts    cs (f:fs) more
-          DParameterConstraint c -> groupParamDecls    ts (c++cs)  fs  more
-      [] -> (ts,cs,fs)
-
+          _ -> cont [d] sig
 

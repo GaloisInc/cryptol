@@ -6,11 +6,11 @@ interface submodule A where
 submodule F where
   import interface submodule A as X
 
-  parameter type constraint (X::n >= 3)
+  interface constraint (X::n >= 3)
 
   submodule G where
     import interface submodule A
-    parameter type constraint (X::n == n)
+    interface constraint (X::n == n)
 
     y : [n]
     y = 5 * X::x + x

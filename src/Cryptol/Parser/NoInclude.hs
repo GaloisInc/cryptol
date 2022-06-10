@@ -183,6 +183,7 @@ noIncTopDecl td = case td of
   DPrimType {} -> pure [td]
   TDNewtype _-> pure [td]
   DParamDecl {} -> pure [td]
+  DInterfaceConstraint {} -> pure [td]
   Include lf -> resolveInclude lf
   DModule tl ->
     case tlValue tl of
