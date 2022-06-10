@@ -1163,6 +1163,8 @@ checkSignature sig =
      forM_ (P.sigFunParams sig) \f ->
        addParamFun =<< checkParameterFun f
 
+     proveModuleTopLevel
+
 
 
 checkDecl :: Bool -> P.Decl Name -> Maybe Text -> InferM ()
