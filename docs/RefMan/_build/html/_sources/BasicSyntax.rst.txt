@@ -94,6 +94,8 @@ not be used for programmer defined names:
   private
   include
   module
+  submodule
+  interface
   newtype
   pragma
   property
@@ -117,11 +119,10 @@ not be used for programmer defined names:
 .. code-block:: none
   :caption: Keywords
 
-  else       include    property    let       infixl       parameter
-  extern     module     then        import    infixr       constraint
-  if         newtype    type        as        infix        down
-  private    pragma     where       hiding    primitive    by
-
+  as              extern      include      interface      parameter      property      where    
+  by              hiding      infix        let            pragma         submodule     else      
+  constraint      if          infixl       module         primitive      then         
+  down            import      infixr       newtype        private        type         
 
 The following table contains Cryptol's operators and their
 associativity with lowest precedence operators first, and highest

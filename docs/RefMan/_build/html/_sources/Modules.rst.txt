@@ -196,7 +196,7 @@ It is good practice to place such declarations in *private blocks*:
 
 The private block only needs to be indented if it might be followed by
 additional public declarations.   If all remaining declarations are to be
-private then no additional indentation is needed as the `private` block will
+private then no additional indentation is needed as the ``private`` block will
 extend to the end of the module.
 
 .. code-block:: cryptol
@@ -238,139 +238,373 @@ is equivalent to the previous one:
     helper2 = 3
 
 
+Nested Modules
+--------------
+
+Module may be declared withing other modules, using the ``submodule`` keword.
+
+.. code-block:: cryptol
+  :caption: Declaring a nested module called N
+
+  module M where
+
+    x = 0x02
+
+    submodule N where
+      y = x + 2
+
+Submodules may refer to names in their enclosing scope.
+Declarations in a sub-module will shadow names in the outer scope.
+
+Declarations in a submdule may be imported with ``import submodule``,
+which works just like an ordinary import except that ``X`` refers
+to the name of a submodule.
+
+
+.. code-block:: cryptol
+  :caption: Using declarations from a submodule.
+
+  module M where
+
+    x = 0x02
+
+    submodule N where
+      y = x + 2
+
+    import submodule N as P
+
+    z = 2 * P::y
+
+Note that recursive definitions across modules are not allowed.
+So, in the previous example, it would be an error if ``y`` was
+to try to use ``z`` in its definition.
+
+
+
+Implicit Imports
+~~~~~~~~~~~~~~~~
+
+For convenience, we add an implicit qualified submodule import for
+each locally defined submodules.
+
+.. code-block:: cryptol
+  :caption: Making use of the implicit import for a submodule.
+
+  module M where
+
+    x = 0x02
+
+    submodule N where
+      y = x + 2
+
+    z = 2 * N::y
+
+``N::y`` works in the previous example because Cryptol added
+an implicit import ``import submoulde N as N``.
+
+
+Managing Module Names
+~~~~~~~~~~~~~~~~~~~~~
+
+The names of nested modules are managed by the module system just
+like the name of any other declaration in Cryptol.  Thus, nested
+modules may declared in the public or private sections of their
+containing module, and need to be imported before they can be used.
+Thus, to use a submodule defined in top-level module ``A`` into
+another top-level module ``B`` requires two steps:
+
+  1. First we need to import ``A`` to bring the name of the submodule in scope
+  2. Then we need to import the submodule to bring the names defined in it in scope.
+
+.. code-block:: cryptol
+  :caption: Using a nested module from a different top-level module.
+
+  module A where
+
+    x = 0x02
+
+    submodule N where
+      y = x + 2
+
+  module B where
+    import A            // Brings `N` in scope
+    import submodule N  // Brings `y` in scope
+    z = 2 * y
+
 
 Parameterized Modules
 ---------------------
 
-.. warning::
-  This section documents the current design, but we are in the process of
-  redesigning some aspects of the parameterized modules mechanism.
 
+Interface Modules
+~~~~~~~~~~~~~~~~~
+
+An *interface module* describes the content of a module
+without providing a concrete implementation.
 
 .. code-block:: cryptol
+  :caption: An interface module.
+
+  interface module I where
+
+    type n : #      // `n` is a numeric type
+
+    type constraint (fin n, n >= 1)
+                    // Assumptions about the declared numeric type
+
+    x : [n]         // A declarations of a constant
+
+Like other modules, interfaces modules may be nested in
+other modules:
+
+.. code-block:: cryptol
+  :caption: A nested interface module
 
   module M where
 
-  parameter
-    type n : #              // `n` is a numeric type parameter
+    interface submodule I where
 
+      type n : #      // `n` is a numeric type
+
+      type constraint (fin n, n >= 1)
+                      // Assumptions about the declared numeric type
+
+      x : [n]         // A declarations of a constant
+
+
+Importing an Interface Module
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A module may be parameterized by importing an interface,
+instead of a concrete module
+
+.. code-block:: cryptol
+  :caption: A parameterized module
+
+  // The interface desribes the parmaeters
+  interface module I where
+    type n : #
     type constraint (fin n, n >= 1)
-      // Assumptions about the parameter
-
-    x : [n]                 // A value parameter
-
-  // This definition uses the parameters.
-  f : [n]
-  f = 1 + x
+    x : [n]
 
 
-Named Module Instantiations
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  // This module is parameterized
+  module F where
+    import interface I
 
-One way to use a parameterized module is through a named instantiation:
+    y : [n]
+    y = x + 1
+
+To import a nested interface use ``import interface sumbodule I``
+and make sure that ``I`` is in scope.
+
+It is also possible to import multiple interface modules,
+or the same interface module more than once.   Each import
+of an interface module maybe be linked to a different concrete
+module, as described in :ref:`instantiating_modules`.
+
+
+.. code-block:: cryptol
+  :caption: Multiple interface parameters
+
+  interface module I where
+    type n : #
+    type constraint (fin n, n >= 1)
+    x : [n]
+
+
+  module F where
+    import interface I as I
+    import interface I as J
+
+    y : [I::n]
+    y = I::x + 1
+
+    z : [J::n]
+    z = J::x + 1
+
+
+Interface Constraints
+~~~~~~~~~~~~~~~~~~~~~
+
+When working with multiple interfaces, it is to useful
+to be able to impose additional constraints on the
+types imported from the interface.
+
+.. code-block:: cryptol
+  :caption: Adding constraints to interface parameters
+
+  interface module I where
+    type n : #
+    type constraint (fin n, n >= 1)
+    x : [n]
+
+
+  module F where
+    import interface I as I
+    import interface I as J
+
+    interface constraint (I::n == J::n)
+
+    y : [I::n]
+    y = I::x + J::x
+
+In this example we impose the constraint that ``n``
+(the width of ``x``) in both interfaces must be the
+same.  Note that, of course, the two instantiations
+may provide different values for ``x``.
+
+
+.. _instantiating_modules:
+
+
+Instantiating a Parameterized Module
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+To use a parameterized module we need to provide concrete
+implementations for the interfaces that it uses, and provide
+a name for the resulting module.  This is done as follows:
+
+.. code-block:: cryptol
+  :caption: Instantiating a parameterized module using a single interface.
+
+  interface module I where
+    type n : #
+    type constraint (fin n, n >= 1)
+    x : [n]
+
+  module F where
+    import interface I
+
+    y : [n]
+    y = x + 1
+
+  module Impl where
+    type n = 8
+    x = 26
+
+  module MyF = F { Impl }
+
+Here we defined a new module called ``MyF`` which is
+obtained by filling in module ``Impl`` for the interface
+used by ``F``.
+
+If a module is parameterized my multiple interfaces
+we need to provide an implementation module for each
+interface, using a slight variation on the previous notation.
+
+.. code-block:: cryptol
+  :caption: Instantiating a parameterized module by name.
+
+  // I is defined as above
+
+  module F where
+    import interface I as I
+    import interface I as J
+
+    interface constraint (I::n == J::n)
+
+    y : [I::n]
+    y = I::x + J::x
+
+  module Impl1 where
+    type n = 8
+    x = 26
+
+  module Impl2 where
+    type n = 8
+    x = 30
+
+  module MyF = F { I = Impl1, J = Impl 2 }
+
+Each interface import is identified by its name,
+which is derived from the ``as`` clause on the
+interface import.  If there is no ``as`` clause,
+then the name of the parameter is derived from
+the name of the interface itself.
+
+Since interfaces are identified by name, the
+order in which they are provided is not important.
+
+Modules defined by instantiation may be nested,
+just like any other module:
+
+.. code-block:: cryptol
+  :caption: Nested module instantiation.
+
+  module M where
+
+    import Somewhere // defines G
+
+    submodule F = submodule G { I }
+
+In this example, ``submodule F`` is defined
+by instantiating some other parameterized
+module ``G``, presumably imported from ``Somewhere``.
+Note that in this case the argument to the instantiation
+``I`` is a top-level module, because it is not
+preceded by the ``submodule`` keyword.
+
+
+Anonymous Interface Modules
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If we need to just parameterize a module by a couple of types/values,
+it is quite cumbersome to have to define a whole separate interface module.
+To make this more convenient we provide the following notation for defining
+an anonymous interface and using it straight away:
+
+.. code-block:: cryptol
+  :caption: Simple parameterized module.
+
+  module M where
+
+    parameter
+      type n : #
+      type constraint (fin n, n >= 1)
+      x : [n]
+
+    f : [n]
+    f = 1 + x
+
+The ``parameter`` block defines an interface module and uses it.
+Note that the parameters may not use things defined in ``M`` as
+the interface is declared outside of ``M``.
+
+
+Anonymous Instantiation Arguments
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Sometimes it is also a bit cumbersome to have to define a whole
+separate module just to pass it as an argument to some parameterized
+module.   To make this more convenient we support the following notion
+for instantiation a module:
 
 .. code-block:: cryptol
 
   // A parameterized module
   module M where
 
-  parameter
-    type n : #
-    x      : [n]
-    y      : [n]
+    parameter
+      type n : #
+      x      : [n]
+      y      : [n]
 
-  f : [n]
-  f = x + y
+    f : [n]
+    f = x + y
 
 
   // A module instantiation
-  module N = M where
+  module N = M
+    where
+    type n = 32
+    x      = 11
+    y      = helper
 
-  type n = 32
-  x      = 11
-  y      = helper
+    helper = 12
 
-  helper = 12
-
-The second module, ``N``, is computed by instantiating the parameterized
-module ``M``.  Module ``N`` will provide the exact same definitions as ``M``,
-except that the parameters will be replaced by the values in the body
-of ``N``.   In this example, ``N`` provides just a single definition, ``f``.
-
-Note that the only purpose of the body of ``N`` (the declarations
-after the ``where`` keyword) is to define the parameters for ``M``.
-
-
-Parameterized Instantiations
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-It is possible for a module instantiation to be itself parameterized.
-This could be useful if we need to define some of a module's parameters
-but not others.
-
-.. code-block:: cryptol
-
-  // A parameterized module
-  module M where
-
-  parameter
-    type n : #
-    x      : [n]
-    y      : [n]
-
-  f : [n]
-  f = x + y
-
-
-  // A parameterized instantiation
-  module N = M where
-
-  parameter
-    x : [32]
-
-  type n = 32
-  y      = helper
-
-  helper = 12
-
-In this case ``N`` has a single parameter ``x``.  The result of instantiating
-``N`` would result in instantiating ``M`` using the value of ``x`` and ``12``
-for the value of ``y``.
-
-
-Importing Parameterized Modules
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-It is also possible to import a parameterized module without using
-a module instantiation:
-
-.. code-block:: cryptol
-
-  module M where
-
-  parameter
-    x : [8]
-    y : [8]
-
-  f : [8]
-  f = x + y
-
-.. code-block:: cryptol
-
-  module N where
-
-  import `M
-
-  g = f { x = 2, y = 3 }
-
-A *backtick* at the start of the name of an imported module indicates
-that we are importing a parameterized module.  In this case, Cryptol
-will import all definitions from the module as usual, however every
-definition will have some additional parameters corresponding to
-the parameters of a module.  All value parameters are grouped in a record.
-
-This is why in the example ``f`` is applied to a record of values,
-even though its definition in ``M`` does not look like a function.
-
+The declarations in the ``where`` block are treated as the
+definition of an anonymous module which is passed as the argument
+to parameterized module ``M``.
 
 
