@@ -1,0 +1,4 @@
+module T012_M where
+
+type T = [8]
+

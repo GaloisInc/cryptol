@@ -1,0 +1,11 @@
+
+/* Test that importing signatures from another module works */
+
+import T009_S
+
+submodule F where
+  import interface submodule A
+  y : [n]
+  y = 1
+
+

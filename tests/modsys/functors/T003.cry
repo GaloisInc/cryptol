@@ -1,0 +1,20 @@
+interface submodule A where
+  type n : #
+  type constraint (fin n, n >= 1)
+  x : [n]
+
+submodule F where
+  import interface submodule A
+
+  y : [n]
+  y = 1 + x
+
+submodule I where
+  type n = 8
+
+  x : {a} Literal 42 a => a
+  x = 42
+
+submodule M = submodule F { submodule I }
+
+import submodule M as M

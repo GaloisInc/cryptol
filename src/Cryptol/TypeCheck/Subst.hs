@@ -35,6 +35,7 @@ module Cryptol.TypeCheck.Subst
   , applySubstToVar
   , substToList
   , fmap', (!$), (.$)
+  , mergeDistinctSubst
   ) where
 
 import           Data.Maybe
@@ -84,6 +85,29 @@ emptySubst =
     , suBoundMap = IntMap.empty
     , suDefaulting = False
     }
+
+mergeDistinctSubst :: [Subst] -> Subst
+mergeDistinctSubst sus =
+  case sus of
+    [] -> emptySubst
+    _  -> foldr1 merge sus
+
+  where
+  merge s1 s2 = S { suFreeMap     = jn suFreeMap s1 s2
+                  , suBoundMap    = jn suBoundMap s1 s2
+                  , suDefaulting  = if suDefaulting s1 || suDefaulting s2
+                                      then err
+                                      else False
+                  }
+
+  err       = panic "mergeDistinctSubst" [ "Not distinct" ]
+  bad _ _   = err
+  jn f x y  = IntMap.unionWith bad (f x) (f y)
+
+
+
+
+
 
 -- | Reasons to reject a single-variable substitution.
 data SubstError
@@ -363,19 +387,15 @@ instance TVars Expr where
         EAbs x t e1   -> EAbs x !$ (apSubst su t) !$ (go e1)
         ETAbs a e     -> ETAbs a !$ (go e)
         ETApp e t     -> ETApp !$ (go e) !$ (apSubst su t)
-        EProofAbs p e -> EProofAbs !$ hmm !$ (go e)
-          where hmm = case pSplitAnd (apSubst su p) of
-                        [p1] -> p1
-                        res -> panic "apSubst@EProofAbs"
-                                [ "Predicate split or disappeared after"
-                                , "we applied a substitution."
-                                , "Predicate:"
-                                , show (pp p)
-                                , "Became:"
-                                , show (map pp res)
-                                , "subst:"
-                                , show (pp su)
-                                ]
+        EProofAbs p e -> EProofAbs !$ p' !$ (go e)
+          where p' = pAnd (pSplitAnd (apSubst su p))
+          {- NOTE: we used to panic if `pSplitAnd` didn't return a single result.
+          It is useful to avoid the panic if applying the substitution to
+          already type checked code (e.g., when we are instantitaing a
+          functor).  In that case, we don't have the option to modify the
+          `EProofAbs` because we'd have to change all call sites, but things might
+          simplify because of the extra info in the substitution. -}
+
 
         EProofApp e   -> EProofApp !$ (go e)
 
@@ -409,7 +429,15 @@ instance TVars DeclDef where
   apSubst su (DExpr e) = DExpr !$ (apSubst su e)
   apSubst _  DPrim     = DPrim
 
+-- WARNING: This applies the substitution only to the declarations.
 instance TVars Module where
   apSubst su m =
     let !decls' = apSubst su (mDecls m)
     in m { mDecls = decls' }
+
+-- WARNING: This applies the substitution only to the declarations in modules.
+instance TVars TCTopEntity where
+  apSubst su ent =
+    case ent of
+      TCTopModule m -> TCTopModule (apSubst su m)
+      TCTopSignature {} -> ent

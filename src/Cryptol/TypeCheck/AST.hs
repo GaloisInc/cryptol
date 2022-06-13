@@ -28,6 +28,8 @@ module Cryptol.TypeCheck.AST
   , module Cryptol.TypeCheck.Type
   ) where
 
+import Cryptol.Utils.Panic(panic)
+import Cryptol.Utils.Ident (Ident,isInfixIdent,ModName,PrimIdent,prelPrim)
 import Cryptol.Parser.Position(Located,Range,HasLoc(..))
 import Cryptol.ModuleSystem.Name
 import Cryptol.ModuleSystem.Interface
@@ -37,7 +39,6 @@ import Cryptol.Parser.AST ( Selector(..),Pragma(..)
                           , Import
                           , ImportG(..), ImportSpec(..), ExportType(..)
                           , Fixity(..))
-import Cryptol.Utils.Ident (Ident,isInfixIdent,ModName,PrimIdent,prelPrim)
 import Cryptol.Utils.RecordMap
 import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.Type
@@ -45,10 +46,31 @@ import Cryptol.TypeCheck.Type
 import GHC.Generics (Generic)
 import Control.DeepSeq
 
+
+import           Data.Set    (Set)
 import           Data.Map    (Map)
 import qualified Data.Map    as Map
 import qualified Data.IntMap as IntMap
 import           Data.Text (Text)
+
+
+data TCTopEntity =
+    TCTopModule (ModuleG ModName)
+  | TCTopSignature ModName ModParamNames
+    deriving (Show, Generic, NFData)
+
+tcTopEntitytName :: TCTopEntity -> ModName
+tcTopEntitytName ent =
+  case ent of
+    TCTopModule m -> mName m
+    TCTopSignature m _ -> m
+
+-- | Panics if the entity is not a module
+tcTopEntityToModule :: TCTopEntity -> Module
+tcTopEntityToModule ent =
+  case ent of
+    TCTopModule m -> m
+    TCTopSignature {} -> panic "tcTopEntityToModule" [ "Not a module" ]
 
 
 -- | A Cryptol module.
@@ -57,25 +79,31 @@ data ModuleG mname =
                      , mExports          :: ExportSpec Name
                      , mImports          :: [Import]
 
-                       {-| Interfaces of submodules, including functors.
-                           This is only the directly nested modules.
-                           Info about more nested modules is in the
-                           corresponding interface. -}
-                     , mSubModules       :: Map Name (IfaceG Name)
-
-                     -- params, if functor
+                     -- Functors:
                      , mParamTypes       :: Map Name ModTParam
-                     , mParamConstraints :: [Located Prop]
                      , mParamFuns        :: Map Name ModVParam
+                     , mParamConstraints :: [Located Prop]
+
+                     , mParams           :: Map Ident ModParam
+                       -- ^ Parameters grouped by "import".
+
+                     , mFunctors         :: Map Name (ModuleG Name)
+                       -- ^ Functors directly nested in this module.
+                       -- Things further nested are in the modules in the
+                       -- elements of the map.
 
 
-                      -- Declarations, including everything from non-functor
-                      -- submodules
+                     , mNested           :: !(Set Name)
+                       -- ^ Submodules, functors, and signature nested directly
+                       -- in this module
+
+                      -- These have everything from this module and all submodules
                      , mTySyns           :: Map Name TySyn
                      , mNewtypes         :: Map Name Newtype
                      , mPrimTypes        :: Map Name AbstractType
                      , mDecls            :: [DeclGroup]
-                     , mFunctors         :: Map Name (ModuleG Name)
+                     , mSubmodules       :: Map Name (IfaceNames Name)
+                     , mSignatures       :: !(Map Name ModParamNames)
                      } deriving (Show, Generic, NFData)
 
 emptyModule :: mname -> ModuleG mname
@@ -84,24 +112,29 @@ emptyModule nm =
     { mName             = nm
     , mExports          = mempty
     , mImports          = []
-    , mSubModules       = mempty
 
+    , mParams           = mempty
     , mParamTypes       = mempty
     , mParamConstraints = mempty
     , mParamFuns        = mempty
+
+    , mNested           = mempty
 
     , mTySyns           = mempty
     , mNewtypes         = mempty
     , mPrimTypes        = mempty
     , mDecls            = mempty
     , mFunctors         = mempty
+    , mSubmodules       = mempty
+    , mSignatures       = mempty
     }
 
 type Module = ModuleG ModName
 
 -- | Is this a parameterized module?
 isParametrizedModule :: ModuleG mname -> Bool
-isParametrizedModule m = not (null (mParamTypes m) &&
+isParametrizedModule m = not (null (mParams m) &&
+                              null (mParamTypes m) &&
                               null (mParamConstraints m) &&
                               null (mParamFuns m))
 

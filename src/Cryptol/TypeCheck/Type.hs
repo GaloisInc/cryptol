@@ -16,6 +16,8 @@ module Cryptol.TypeCheck.Type
 import GHC.Generics (Generic)
 import Control.DeepSeq
 
+import           Data.Map(Map)
+import qualified Data.Map as Map
 import qualified Data.IntMap as IntMap
 import           Data.Maybe (fromMaybe)
 import           Data.Set (Set)
@@ -23,9 +25,10 @@ import qualified Data.Set as Set
 import           Data.Text (Text)
 
 import Cryptol.Parser.Selector
-import Cryptol.Parser.Position(Range,emptyRange)
+import Cryptol.Parser.Position(Located,Range,emptyRange)
+import Cryptol.Parser.AST(ImpName(..))
 import Cryptol.ModuleSystem.Name
-import Cryptol.Utils.Ident (Ident, isInfixIdent, exprModName)
+import Cryptol.Utils.Ident (Ident, isInfixIdent, exprModName, ogModule)
 import Cryptol.TypeCheck.TCon
 import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.Solver.InfNat
@@ -36,6 +39,45 @@ import Prelude
 
 infix  4 =#=, >==
 infixr 5 `tFun`
+
+
+--------------------------------------------------------------------------------
+-- Module parameters
+
+type FunctorParams = Map Ident ModParam
+
+-- | Compute the names from all functor parameters
+allParamNames :: FunctorParams -> ModParamNames
+allParamNames mps =
+  ModParamNames
+    { mpnTypes       = Map.unions (map mpnTypes ps)
+    , mpnConstraints = concatMap mpnConstraints ps
+    , mpnFuns        = Map.unions (map mpnFuns ps)
+    , mpnDoc         = Nothing
+    }
+  where
+  ps = map mpParameters (Map.elems mps)
+
+
+-- | A module parameter.  Corresponds to a "signature import".
+-- A single module parameter can bring multiple things in scope.
+data ModParam = ModParam
+  { mpName        :: Ident
+  , mpSignature   :: ImpName Name
+  , mpParameters  :: ModParamNames
+    {- ^ These are the actual parameters, not the ones in the signature
+      For example if the same signature is used for multiple parameters
+      the `ifmpParameters` would all be different. -}
+  } deriving (Show, Generic, NFData)
+
+-- | Information about the names brought in through a "signature import".
+-- This is also used to keep information about signatures.
+data ModParamNames = ModParamNames
+  { mpnTypes       :: Map Name ModTParam
+  , mpnConstraints :: [Located Prop] -- ^ Constraints on param. types
+  , mpnFuns        :: Map.Map Name ModVParam
+  , mpnDoc         :: !(Maybe Text)
+  } deriving (Show, Generic, NFData)
 
 -- | A type parameter of a module.
 data ModTParam = ModTParam
@@ -49,6 +91,7 @@ data ModTParam = ModTParam
   } deriving (Show,Generic,NFData)
 
 
+-- | This is how module parameters appear in actual types.
 mtpParam :: ModTParam -> TParam
 mtpParam mtp = TParam { tpUnique = nameUnique (mtpName mtp)
                       , tpKind   = mtpKind mtp
@@ -64,9 +107,9 @@ data ModVParam = ModVParam
   { mvpName   :: Name
   , mvpType   :: Schema
   , mvpDoc    :: Maybe Text
-  , mvpFixity :: Maybe Fixity
+  , mvpFixity :: Maybe Fixity       -- XXX: This should be in the name?
   } deriving (Show,Generic,NFData)
-
+--------------------------------------------------------------------------------
 
 
 
@@ -285,6 +328,8 @@ data AbstractType = AbstractType
 
 --------------------------------------------------------------------------------
 
+instance HasKind AbstractType where
+  kindOf at = foldr (:->) (atKind at) (map kindOf (fst (atCtrs at)))
 
 instance HasKind TVar where
   kindOf (TVFree  _ k _ _) = k
@@ -873,6 +918,34 @@ instance FVS Type where
         TRec fs     -> fvs (recordElements fs)
         TNewtype _nt ts -> fvs ts
 
+
+-- | Find the abstract types mentioned in a type.
+class FreeAbstract t where
+  freeAbstract :: t -> Set UserTC
+
+instance FreeAbstract a => FreeAbstract [a] where
+  freeAbstract = Set.unions . map freeAbstract
+
+instance (FreeAbstract a, FreeAbstract b) => FreeAbstract (a,b) where
+  freeAbstract (a,b) = Set.union (freeAbstract a) (freeAbstract b)
+
+instance FreeAbstract TCon where
+  freeAbstract tc =
+    case tc of
+      TC (TCAbstract ut) -> Set.singleton ut
+      _                  -> Set.empty
+
+instance FreeAbstract Type where
+  freeAbstract ty =
+    case ty of
+      TCon tc ts      -> freeAbstract (tc,ts)
+      TVar {}         -> Set.empty
+      TUser _ _ t     -> freeAbstract t
+      TRec fs         -> freeAbstract (recordElements fs)
+      TNewtype _nt ts -> freeAbstract ts
+
+
+
 instance FVS a => FVS (Maybe a) where
   fvs Nothing  = Set.empty
   fvs (Just x) = fvs x
@@ -1115,7 +1188,8 @@ pickTVarName k src uni =
     TypeParamInstPos f n   -> mk (sh f ++ "_" ++ show n)
     DefinitionOf x ->
       case nameInfo x of
-        Declared m SystemName | m == TopModule exprModName -> mk "it"
+        GlobalName SystemName og
+          | ogModule og == TopModule exprModName -> mk "it"
         _ -> using x
     LenOfCompGen           -> mk "n"
     GeneratorOfListComp    -> "seq"

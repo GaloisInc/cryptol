@@ -63,6 +63,7 @@ library
                        monadLib          >= 3.7.2,
                        parameterized-utils >= 2.0.2,
                        prettyprinter     >= 1.7.0,
+                       pretty-show,
                        process           >= 1.2,
                        sbv               >= 8.10 && < 9.1,
                        simple-smt        >= 0.9.7,
@@ -116,10 +117,13 @@ library
                        Cryptol.ModuleSystem.Interface,
                        Cryptol.ModuleSystem.Monad,
                        Cryptol.ModuleSystem.Name,
+                       Cryptol.ModuleSystem.Names,
                        Cryptol.ModuleSystem.NamingEnv,
+                       Cryptol.ModuleSystem.Binds
                        Cryptol.ModuleSystem.Exports,
-                       Cryptol.ModuleSystem.InstantiateModule,
                        Cryptol.ModuleSystem.Renamer,
+                       Cryptol.ModuleSystem.Renamer.Imports,
+                       Cryptol.ModuleSystem.Renamer.ImplicitImports,
                        Cryptol.ModuleSystem.Renamer.Monad,
                        Cryptol.ModuleSystem.Renamer.Error,
 
@@ -132,7 +136,6 @@ library
                        Cryptol.TypeCheck.Parseable,
                        Cryptol.TypeCheck.Monad,
                        Cryptol.TypeCheck.Infer,
-                       Cryptol.TypeCheck.CheckModuleInstance,
                        Cryptol.TypeCheck.InferTypes,
                        Cryptol.TypeCheck.Interface,
                        Cryptol.TypeCheck.Error,
@@ -147,6 +150,8 @@ library
                        Cryptol.TypeCheck.TypeMap,
                        Cryptol.TypeCheck.TypeOf,
                        Cryptol.TypeCheck.Sanity,
+                       Cryptol.TypeCheck.Module,
+                       Cryptol.TypeCheck.ModuleInstance,
 
                        Cryptol.TypeCheck.Solver.Types,
                        Cryptol.TypeCheck.Solver.SMT,
@@ -162,9 +167,9 @@ library
 
                        Cryptol.Transform.MonoValues,
                        Cryptol.Transform.Specialize,
-                       Cryptol.Transform.AddModParams,
 
                        Cryptol.IR.FreeVars,
+                       Cryptol.IR.TraverseNames,
 
                        Cryptol.Backend,
                        Cryptol.Backend.Arch,
@@ -199,6 +204,7 @@ library
                        Cryptol.Symbolic.What4,
 
                        Cryptol.REPL.Command,
+                       Cryptol.REPL.Help,
                        Cryptol.REPL.Browse,
                        Cryptol.REPL.Monad,
                        Cryptol.REPL.Trie

@@ -16,6 +16,7 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BlockArguments #-}
 module Cryptol.Parser.AST
   ( -- * Names
     Ident, mkIdent, mkInfix, isInfixIdent, nullIdent, identText
@@ -39,8 +40,19 @@ module Cryptol.Parser.AST
     -- * Declarations
   , Module
   , ModuleG(..)
+  , mDecls        -- XXX: Temporary
+
   , mImports
-  , mSubmoduleImports
+  , mModParams
+  , mIsFunctor
+  , isParamDecl
+
+  , ModuleDefinition(..)
+  , ModuleInstanceArgs(..)
+  , ModuleInstanceArg(..)
+  , ModuleInstance
+  , emptyModuleInstance
+
   , Program(..)
   , TopDecl(..)
   , Decl(..)
@@ -59,6 +71,9 @@ module Cryptol.Parser.AST
   , ParameterType(..)
   , ParameterFun(..)
   , NestedModule(..)
+  , Signature(..)
+  , ModParam(..)
+  , ParamDecl(..)
 
     -- * Interactive
   , ReplInput(..)
@@ -92,9 +107,11 @@ import Cryptol.Utils.Ident
 import Cryptol.Utils.RecordMap
 import Cryptol.Utils.PP
 
+import           Data.Map(Map)
+import qualified Data.Map as Map
 import           Data.List(intersperse)
 import           Data.Bits(shiftR)
-import           Data.Maybe (catMaybes)
+import           Data.Maybe (catMaybes,mapMaybe)
 import           Data.Ratio(numerator,denominator)
 import           Data.Text (Text)
 import           Numeric(showIntAtBase,showFloat,showHFloat)
@@ -125,33 +142,74 @@ newtype Program name = Program [TopDecl name]
 -- | A parsed module.
 data ModuleG mname name = Module
   { mName     :: Located mname              -- ^ Name of the module
-  , mInstance :: !(Maybe (Located ModName)) -- ^ Functor to instantiate
-                                            -- (if this is a functor instnaces)
-  -- , mImports  :: [Located Import]           -- ^ Imports for the module
-  , mDecls    :: [TopDecl name]             -- ^ Declartions for the module
+  , mDef      :: ModuleDefinition name
   } deriving (Show, Generic, NFData)
 
+
+-- | Different flavours of module we have.
+data ModuleDefinition name =
+    NormalModule [TopDecl name]
+
+  | FunctorInstance (Located (ImpName name))
+                    (ModuleInstanceArgs name)
+                    (ModuleInstance name)
+    -- ^ The instance is filled in by the renamer
+
+  | InterfaceModule (Signature name)
+    deriving (Show, Generic, NFData)
+
+{- | Maps names in the original functor with names in the instnace.
+Does *NOT* include the parameters, just names for the definitions.
+This *DOES* include entrirs for all the name in the instantiated functor,
+including names in modules nested inside the functor. -}
+type ModuleInstance name = Map name name
+
+emptyModuleInstance :: Ord name => ModuleInstance name
+emptyModuleInstance = mempty
+
+
+-- XXX: Review all places this is used, that it actually makes sense
+-- Probably shouldn't exist
+mDecls :: ModuleG mname name -> [TopDecl name]
+mDecls m =
+  case mDef m of
+    NormalModule ds         -> ds
+    FunctorInstance _ _ _   -> []
+    InterfaceModule {}      -> []
+
+-- | Imports of top-level (i.e. "file" based) modules.
 mImports :: ModuleG mname name -> [ Located Import ]
 mImports m =
-  [ li { thing = i { iModule = n } }
-  | DImport li <- mDecls m
-  , let i = thing li
-  , ImpTop n  <- [iModule i]
-  ]
-
-mSubmoduleImports :: ModuleG mname name -> [ Located (ImportG name) ]
-mSubmoduleImports m =
-  [ li { thing = i { iModule = n } }
-  | DImport li <- mDecls m
-  , let i = thing li
-  , ImpNested n  <- [iModule i]
-  ]
+  case mDef m of
+    NormalModule ds     -> mapMaybe topImp [ li | DImport li <- ds ]
+    FunctorInstance {}  -> []
+    InterfaceModule sig -> mapMaybe topImp (sigImports sig)
+  where
+  topImp li = case iModule i of
+               ImpTop n -> Just li { thing = i { iModule = n } }
+               _        -> Nothing
+    where i = thing li
 
 
+-- | Get the module parameters of a module (new module system)
+mModParams :: ModuleG mname name -> [ ModParam name ]
+mModParams m = [ p | DModParam p <- mDecls m ]
 
+mIsFunctor :: ModuleG mname nmae -> Bool
+mIsFunctor m = any isParamDecl (mDecls m)
+
+isParamDecl :: TopDecl a -> Bool
+isParamDecl d =
+  case d of
+    DModParam {} -> True
+    DParamDecl {} -> True
+    _ -> False
+
+
+-- | A top-level module
 type Module = ModuleG ModName
 
-
+-- | A nested module.
 newtype NestedModule name = NestedModule (ModuleG name name)
   deriving (Show,Generic,NFData)
 
@@ -164,25 +222,62 @@ modRange m = rCombs $ catMaybes
     , Just (Range { from = start, to = start, source = "" })
     ]
 
-
+-- | A declaration that may only appear at the top level of a module.
+-- The module may be nested, however.
 data TopDecl name =
     Decl (TopLevel (Decl name))
   | DPrimType (TopLevel (PrimType name))
   | TDNewtype (TopLevel (Newtype name)) -- ^ @newtype T as = t
-  | Include (Located FilePath)          -- ^ @include File@
-  | DParameterType (ParameterType name) -- ^ @parameter type T : #@
-  | DParameterConstraint [Located (Prop name)]
-                                        -- ^ @parameter type constraint (fin T)@
-  | DParameterFun  (ParameterFun name)  -- ^ @parameter someVal : [256]@
-  | DModule (TopLevel (NestedModule name))  -- ^ Nested module
-  | DImport (Located (ImportG (ImpName name)))  -- ^ An import declaration
-                    deriving (Show, Generic, NFData)
+  | Include (Located FilePath)          -- ^ @include File@ (until NoPat)
 
-data ImpName name =
-    ImpTop    ModName
-  | ImpNested name
+  | DParamDecl Range (Signature name)   -- ^ @parameter ...@ (parser only)
+
+  | DModule (TopLevel (NestedModule name))      -- ^ @submodule M where ...@
+  | DImport (Located (ImportG (ImpName name)))  -- ^ @import X@
+  | DModParam (ModParam name)                   -- ^ @import interface X ...@
+  | DInterfaceConstraint (Maybe Text) (Located [Prop name])
+    -- ^ @interface constraint@
     deriving (Show, Generic, NFData)
 
+
+-- | Things that maybe appear in an interface/parameter block.
+-- These only exist during parsering.
+data ParamDecl name =
+
+    DParameterType (ParameterType name) -- ^ @parameter type T : #@ (parser only)
+  | DParameterFun  (ParameterFun name)  -- ^ @parameter someVal : [256]@
+                                        -- (parser only)
+
+  | DParameterConstraint [Located (Prop name)]
+    -- ^ @parameter type constraint (fin T)@
+    deriving (Show, Generic, NFData)
+
+
+
+data ModuleInstanceArgs name =
+    DefaultInstArg (Located (ImpName name))
+    -- ^ Single parameter instantitaion
+
+  | DefaultInstAnonArg [TopDecl name]
+    -- ^ Single parameter instantitaion using this anonymous module.
+    -- (parser only)
+
+  | NamedInstArgs  [ModuleInstanceArg name]
+    deriving (Show, Generic, NFData)
+
+data ModuleInstanceArg name =
+  ModuleInstanceArg (Located Ident) (Located (ImpName name))
+  deriving (Show, Generic, NFData)
+
+
+-- | The name of an imported module
+data ImpName name =
+    ImpTop    ModName           -- ^ A top-level module
+  | ImpNested name              -- ^ The module in scope with the given name
+    deriving (Show, Generic, NFData, Eq, Ord)
+
+-- | A simple declaration.  Generally these are things that can appear
+-- both at the top-level of a module and in `where` clauses.
 data Decl name = DSignature [Located name] (Schema name)
                | DFixity !Fixity [Located name]
                | DPragma [Located name] Pragma
@@ -196,7 +291,7 @@ data Decl name = DSignature [Located name] (Schema name)
                  deriving (Eq, Show, Generic, NFData, Functor)
 
 
--- | A type parameter
+-- | A type parameter for a module.
 data ParameterType name = ParameterType
   { ptName    :: Located name     -- ^ name of type parameter
   , ptKind    :: Kind             -- ^ kind of parameter
@@ -205,12 +300,56 @@ data ParameterType name = ParameterType
   , ptNumber  :: !Int             -- ^ number of the parameter
   } deriving (Eq,Show,Generic,NFData)
 
--- | A value parameter
+-- | A value parameter for a module.
 data ParameterFun name = ParameterFun
   { pfName   :: Located name      -- ^ name of value parameter
   , pfSchema :: Schema name       -- ^ schema for parameter
   , pfDoc    :: Maybe Text        -- ^ optional documentation
   , pfFixity :: Maybe Fixity      -- ^ info for infix use
+  } deriving (Eq,Show,Generic,NFData)
+
+
+{- | Interface Modules (aka types of functor arguments)
+
+IMPORTANT: Interface Modules are a language construct and are different from
+the notion of "interface" in the Cyrptol implementation.
+
+Note that the names *defined* in an interface module are only really used in the
+other members of the interface module.  When an interface module  is "imported"
+as a functor parameter these names are instantiated to new names,
+because there could be multiple paramers using the same interface. -}
+data Signature name = Signature
+  { sigImports      :: ![Located (ImportG (ImpName name))]
+    -- ^ Add things in scope
+  , sigTypeParams   :: [ParameterType name]     -- ^ Type parameters
+  , sigConstraints  :: [Located (Prop name)]    -- ^ Constraints on type params
+  , sigFunParams    :: [ParameterFun name]      -- ^ Value parameters
+  } deriving (Eq,Show,Generic,NFData)
+
+{- | A module parameter declaration.
+
+> import interface A
+> import interface A as B
+
+The name of the parameter is derived from the `as` clause.  If there
+is no `as` clause then it is derived from the name of the interface module.
+
+If there is no `as` clause, then the type/value parameters are unqualified,
+and otherwise they are qualified.
+-}
+data ModParam name = ModParam
+  { mpSignature     :: Located (ImpName name)  -- ^ Signature for parameter
+  , mpAs            :: Maybe ModName        -- ^ Qualified for actual params
+  , mpName          :: !Ident
+    {- ^ Parameter name (for inst.)
+    Note that this is not resolved in the renamer, and is only used
+    when instantiating a functor. -}
+
+  , mpDoc           :: Maybe (Located Text) -- ^ Optional documentation
+  , mpRenaming      :: !(Map name name)
+    {- ^ Filled in by the renamer.
+      Maps the actual (value/type) parameter names to the names in the
+      interface module. -}
   } deriving (Eq,Show,Generic,NFData)
 
 
@@ -530,11 +669,21 @@ instance HasLoc (TopDecl name) where
       DPrimType pt -> getLoc pt
       TDNewtype n -> getLoc n
       Include lfp -> getLoc lfp
+      DModule d -> getLoc d
+      DImport d -> getLoc d
+      DModParam d -> getLoc d
+      DParamDecl r _ -> Just r
+      DInterfaceConstraint _ ds -> getLoc ds
+
+instance HasLoc (ParamDecl name) where
+  getLoc pd =
+    case pd of
       DParameterType d -> getLoc d
       DParameterFun d  -> getLoc d
       DParameterConstraint d -> getLoc d
-      DModule d -> getLoc d
-      DImport d -> getLoc d
+
+instance HasLoc (ModParam name) where
+  getLoc mp = getLoc (mpSignature mp)
 
 instance HasLoc (PrimType name) where
   getLoc pt = Just (rComb (srcRange (primTName pt)) (srcRange (primTKind pt)))
@@ -588,21 +737,46 @@ ppNamed' s (i,(_,v)) = pp i <+> text s <+> pp v
 
 
 instance (Show name, PPName mname, PPName name) => PP (ModuleG mname name) where
-  ppPrec _ = ppModule 0
-
-ppModule :: (Show name, PPName mname, PPName name) =>
-  Int -> ModuleG mname name -> Doc
-ppModule n m =
-  text "module" <+> ppL (mName m) <+> text "where" $$ nest n body
-  where
-  body = vcat (map ppL (mImports m))
-      $$ vcat (map pp (mDecls m))
-
-
+  ppPrec _ = ppModule "module"
 
 instance (Show name, PPName name) => PP (NestedModule name) where
-  ppPrec _ (NestedModule m) = ppModule 2 m
+  ppPrec _ (NestedModule m) = ppModule "submodule" m
 
+ppModule :: (Show name, PPName mname, PPName name) =>
+  Doc -> ModuleG mname name -> Doc
+ppModule kw m = kw' <+> ppL (mName m) <+> pp (mDef m)
+  where
+  kw' = case mDef m of
+          InterfaceModule {} -> "interface" <+> kw
+          _                  -> kw
+
+
+instance (Show name, PPName name) => PP (ModuleDefinition name) where
+  ppPrec _ def =
+    case def of
+      NormalModule ds -> "where" $$ indent 2 (vcat (map pp ds))
+      FunctorInstance f as inst -> vcat ( ("=" <+> pp (thing f) <+> pp as)
+                                        : ppInst
+                                        )
+        where
+        ppInst    = if null inst then [] else [ indent 2
+                                                  (vcat ("/* Instance:" :
+                                                        instLines ++ [" */"]))
+                                              ]
+        instLines = [ " *" <+> pp k <+> "->" <+> pp v
+                    | (k,v) <- Map.toList inst ]
+      InterfaceModule s -> ppInterface "where" s
+
+
+instance (Show name, PPName name) => PP (ModuleInstanceArgs name) where
+  ppPrec _ arg =
+    case arg of
+      DefaultInstArg x -> braces (pp (thing x))
+      DefaultInstAnonArg ds -> "where" $$ indent 2 (vcat (map pp ds))
+      NamedInstArgs xs -> braces (commaSep (map pp xs))
+
+instance (Show name, PPName name) => PP (ModuleInstanceArg name) where
+  ppPrec _ (ModuleInstanceArg x y) = pp (thing x) <+> "=" <+> pp (thing y)
 
 instance (Show name, PPName name) => PP (Program name) where
   ppPrec _ (Program ds) = vcat (map pp ds)
@@ -614,27 +788,71 @@ instance (Show name, PPName name) => PP (TopDecl name) where
       DPrimType p -> pp p
       TDNewtype n -> pp n
       Include l   -> text "include" <+> text (show (thing l))
+      DModule d -> pp d
+      DImport i -> pp (thing i)
+      DModParam s -> pp s
+      DParamDecl _ ds -> ppInterface "parameter" ds
+      DInterfaceConstraint _ ds ->
+        "interface constraint" <+>
+        case map pp (thing ds) of
+          [x] -> x
+          []  -> "()"
+          xs  -> nest 1 (parens (commaSepFill xs))
+
+instance (Show name, PPName name) => PP (ParamDecl name) where
+  ppPrec _ pd =
+    case pd of
       DParameterFun d -> pp d
       DParameterType d -> pp d
-      DParameterConstraint d ->
-        "parameter" <+> "type" <+> "constraint" <+> prop
+      DParameterConstraint d -> "type" <+> "constraint" <+> prop
         where prop = case map (pp . thing) d of
                        [x] -> x
                        []  -> "()"
                        xs  -> nest 1 (parens (commaSepFill xs))
-      DModule d -> pp d
-      DImport i -> pp (thing i)
+
+ppInterface :: (Show name, PPName name) => Doc -> Signature name -> Doc
+ppInterface kw sig = kw $$ indent 2 (vcat (is ++ ds))
+    where
+    is = map pp (sigImports sig)
+    ds = map pp (sigTypeParams sig)
+      ++ case map (pp . thing) (sigConstraints sig) of
+           [x] -> ["type constraint" <+> x]
+           []  -> []
+           xs  -> ["type constraint" <+> parens (commaSep xs)]
+      ++ map pp (sigFunParams sig)
+
+
+instance (Show name, PPName name) => PP (ModParam name) where
+  ppPrec _ mp = vcat ( mbDoc
+                  ++ [ "import interface" <+>
+                                    pp (thing (mpSignature mp)) <+> mbAs ]
+                  ++ mbRen
+                     )
+    where
+    mbDoc = case mpDoc mp of
+              Nothing -> []
+              Just d  -> [pp d]
+    mbAs  = case mpAs mp of
+              Nothing -> mempty
+              Just d  -> "as" <+> pp d
+    mbRen
+      | Map.null (mpRenaming mp) = []
+      | otherwise =
+        [ indent 2 $ vcat $ "/* Parameters"
+                          : [ " *" <+> pp x <+> "->" <+> pp y
+                            | (x,y) <- Map.toList (mpRenaming mp) ]
+                         ++ [" */"] ]
 
 instance (Show name, PPName name) => PP (PrimType name) where
   ppPrec _ pt =
     "primitive" <+> "type" <+> pp (primTName pt) <+> ":" <+> pp (primTKind pt)
 
 instance (Show name, PPName name) => PP (ParameterType name) where
-  ppPrec _ a = text "parameter" <+> text "type" <+>
+  ppPrec _ a = text "type" <+>
                ppPrefixName (ptName a) <+> text ":" <+> pp (ptKind a)
 
 instance (Show name, PPName name) => PP (ParameterFun name) where
-  ppPrec _ a = text "parameter" <+> ppPrefixName (pfName a) <+> text ":"
+  ppPrec _ a = ppPrefixName (pfName a) <+> text ":"
                   <+> pp (pfSchema a)
 
 
@@ -1000,9 +1218,25 @@ instance NoPos (Program name) where
 
 instance NoPos (ModuleG mname name) where
   noPos m = Module { mName      = mName m
-                   , mInstance  = mInstance m
-                   , mDecls     = noPos (mDecls m)
+                   , mDef       = noPos (mDef m)
                    }
+
+instance NoPos (ModuleDefinition name) where
+  noPos m =
+    case m of
+      NormalModule ds         -> NormalModule (noPos ds)
+      FunctorInstance f as ds -> FunctorInstance (noPos f) (noPos as) ds
+      InterfaceModule s       -> InterfaceModule (noPos s)
+
+instance NoPos (ModuleInstanceArgs name) where
+  noPos as =
+    case as of
+      DefaultInstArg a      -> DefaultInstArg (noPos a)
+      DefaultInstAnonArg ds -> DefaultInstAnonArg (noPos ds)
+      NamedInstArgs xs      -> NamedInstArgs (noPos xs)
+
+instance NoPos (ModuleInstanceArg name) where
+  noPos (ModuleInstanceArg x y) = ModuleInstanceArg (noPos x) (noPos y)
 
 instance NoPos (NestedModule name) where
   noPos (NestedModule m) = NestedModule (noPos m)
@@ -1014,12 +1248,34 @@ instance NoPos (TopDecl name) where
       DPrimType t -> DPrimType (noPos t)
       TDNewtype n -> TDNewtype(noPos n)
       Include x   -> Include  (noPos x)
+      DModule d -> DModule (noPos d)
+      DImport d -> DImport (noPos d)
+      DModParam d -> DModParam (noPos d)
+      DParamDecl _ ds -> DParamDecl rng (noPos ds)
+        where rng = Range { from = Position 0 0, to = Position 0 0, source = "" }
+      DInterfaceConstraint d ds -> DInterfaceConstraint d (noPos (noPos <$> ds))
+
+instance NoPos (ParamDecl name) where
+  noPos pd =
+    case pd of
       DParameterFun d  -> DParameterFun (noPos d)
       DParameterType d -> DParameterType (noPos d)
       DParameterConstraint d -> DParameterConstraint (noPos d)
-      DModule d -> DModule (noPos d)
-      DImport d -> DImport (noPos d)
 
+instance NoPos (Signature name) where
+  noPos sig = Signature { sigImports = sigImports sig
+                        , sigTypeParams = map noPos (sigTypeParams sig)
+                        , sigConstraints = map noPos (sigConstraints sig)
+                        , sigFunParams = map noPos (sigFunParams sig)
+                        }
+
+instance NoPos (ModParam name) where
+  noPos mp = ModParam { mpSignature = noPos (mpSignature mp)
+                      , mpAs        = mpAs mp
+                      , mpName      = mpName mp
+                      , mpDoc       = noPos <$> mpDoc mp
+                      , mpRenaming  = mpRenaming mp
+                      }
 
 instance NoPos (PrimType name) where
   noPos x = x

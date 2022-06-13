@@ -17,6 +17,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE BlockArguments #-}
 module Cryptol.Parser.NoPat (RemovePatterns(..),Error(..)) where
 
 import Cryptol.Parser.AST
@@ -334,8 +335,12 @@ noPatProg (Program topDs) = Program <$> noPatTopDs topDs
 
 noPatModule :: ModuleG mname PName -> NoPatM (ModuleG mname PName)
 noPatModule m =
-  do ds1 <- noPatTopDs (mDecls m)
-     return m { mDecls = ds1 }
+  do def <-
+       case mDef m of
+         NormalModule ds -> NormalModule <$> noPatTopDs ds
+         FunctorInstance f as i -> pure (FunctorInstance f as i)
+         InterfaceModule s -> pure (InterfaceModule s)
+     pure m { mDef = def }
 
 --------------------------------------------------------------------------------
 
@@ -372,23 +377,8 @@ annotTopDs tds =
              let d1 = DPrimType tl { tlValue = pt }
              (d1 :) <$> annotTopDs ds
 
-        DParameterType p ->
-          do p1 <- annotParameterType p
-             (DParameterType p1 :) <$> annotTopDs ds
-
-        DParameterConstraint {} -> (d :) <$> annotTopDs ds
-
-        DParameterFun p ->
-          do AnnotMap { .. } <- get
-             let rm _ _ = Nothing
-                 name = thing (pfName p)
-             case Map.updateLookupWithKey rm name annValueFs of
-               (Nothing,_)  -> (d :) <$> annotTopDs ds
-               (Just f,fs1) ->
-                 do mbF <- lift (checkFixs name f)
-                    set AnnotMap { annValueFs = fs1, .. }
-                    let p1 = p { pfFixity = mbF }
-                    (DParameterFun p1 :) <$> annotTopDs ds
+        DParamDecl {} -> (d :) <$> annotTopDs ds
+        DInterfaceConstraint {} -> (d :) <$> annotTopDs ds
 
         -- XXX: we may want to add pragmas to newtypes?
         TDNewtype {} -> (d :) <$> annotTopDs ds
@@ -400,6 +390,8 @@ annotTopDs tds =
                             (DModule m { tlValue = m1 } :) <$> annotTopDs ds
 
         DImport {} -> (d :) <$> annotTopDs ds
+
+        DModParam {} -> (d :) <$> annotTopDs ds
 
     [] -> return []
 
@@ -482,15 +474,6 @@ annotPrimType :: Annotates (PrimType PName)
 annotPrimType pt =
   do f <- annotTyThing (thing (primTName pt))
      pure pt { primTFixity = f }
-
--- | Annotate a module's type parameter.
-annotParameterType :: Annotates (ParameterType PName)
-annotParameterType pt =
-  do f <- annotTyThing (thing (ptName pt))
-     pure pt { ptFixity = f }
-
-
-
 
 -- | Check for multiple signatures.
 checkSigs :: PName -> [Located (Schema PName)] -> NoPatM (Maybe (Schema PName))

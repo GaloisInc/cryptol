@@ -1,5 +1,7 @@
 Loading module Cryptol
 Loading module Cryptol
+Loading module T4::Main$argument
+Loading interface module T4::A$interface
 Loading module T4::A
 Loading module T4::Main
 main : [8]

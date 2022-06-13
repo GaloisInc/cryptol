@@ -29,12 +29,12 @@ import MonadLib
 import System.Directory (makeAbsolute)
 import System.FilePath (takeDirectory,(</>),isAbsolute)
 
+import Cryptol.Utils.PP hiding ((</>))
 import Cryptol.Parser (parseProgramWith)
 import Cryptol.Parser.AST
 import Cryptol.Parser.LexerUtils (Config(..),defaultConfig)
 import Cryptol.Parser.ParserUtils
 import Cryptol.Parser.Unlit (guessPreProc)
-import Cryptol.Utils.PP hiding ((</>))
 
 removeIncludesModule ::
   (FilePath -> IO ByteString) ->
@@ -161,9 +161,14 @@ collectErrors f ts = do
 
 -- | Remove includes from a module.
 noIncludeModule :: ModuleG mname PName -> NoIncM (ModuleG mname PName)
-noIncludeModule m = update `fmap` collectErrors noIncTopDecl (mDecls m)
+noIncludeModule m =
+  do newDef <- case mDef m of
+                 NormalModule ds         -> NormalModule <$> doDecls ds
+                 FunctorInstance f as is -> pure (FunctorInstance f as is)
+                 InterfaceModule s       -> pure (InterfaceModule s)
+     pure m { mDef = newDef }
   where
-  update tds = m { mDecls = concat tds }
+  doDecls    = fmap concat . collectErrors noIncTopDecl
 
 -- | Remove includes from a program.
 noIncludeProgram :: Program PName -> NoIncM (Program PName)
@@ -177,9 +182,8 @@ noIncTopDecl td = case td of
   Decl _     -> pure [td]
   DPrimType {} -> pure [td]
   TDNewtype _-> pure [td]
-  DParameterType {} -> pure [td]
-  DParameterConstraint {} -> pure [td]
-  DParameterFun {} -> pure [td]
+  DParamDecl {} -> pure [td]
+  DInterfaceConstraint {} -> pure [td]
   Include lf -> resolveInclude lf
   DModule tl ->
     case tlValue tl of
@@ -187,6 +191,7 @@ noIncTopDecl td = case td of
         do m1 <- noIncludeModule m
            pure [ DModule tl { tlValue = NestedModule m1 } ]
   DImport {} -> pure [td]
+  DModParam {} -> pure [td]
 
 -- | Resolve the file referenced by a include into a list of top-level
 -- declarations.

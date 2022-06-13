@@ -19,6 +19,8 @@ module Cryptol.Parser.ParserUtils where
 
 import Data.Maybe(fromMaybe)
 import Data.Bits(testBit,setBit)
+import Data.Maybe(mapMaybe)
+import Data.List(foldl')
 import Data.List.NonEmpty ( NonEmpty(..) )
 import qualified Data.List.NonEmpty as NE
 import Control.Monad(liftM,ap,unless,guard)
@@ -40,7 +42,10 @@ import Cryptol.Parser.Lexer
 import Cryptol.Parser.Token(SelectorType(..))
 import Cryptol.Parser.Position
 import Cryptol.Parser.Utils (translateExprToNumT,widthIdent)
-import Cryptol.Utils.Ident(packModName,packIdent,modNameChunks)
+import Cryptol.Utils.Ident( packModName,packIdent,modNameChunks
+                          , identAnonArg, identAnonIfaceMod
+                          , modNameArg, modNameIfaceMod
+                          )
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic
 import Cryptol.Utils.RecordMap
@@ -192,6 +197,21 @@ expected x = P $ \cfg _ s ->
 
 mkModName :: [Text] -> ModName
 mkModName = packModName
+
+-- | This is how we derive the name of a module parameter from the
+-- @import source@ declaration.
+mkModParamName :: Located (ImpName PName) -> Maybe (Located ModName) -> Ident
+mkModParamName lsig qual =
+  case qual of
+    Nothing ->
+      case thing lsig of
+        ImpTop t -> packIdent (last (modNameChunks t))
+        ImpNested nm ->
+          case nm of
+            UnQual i -> i
+            Qual _ i -> i
+            NewName {} -> panic "mkModParamName" ["Unexpected NewName",show lsig]
+    Just m -> packIdent (last (modNameChunks (thing m)))
 
 -- Note that type variables are not resolved at this point: they are tcons.
 mkSchema :: [TParam PName] -> [Prop PName] -> Type PName -> Schema PName
@@ -486,7 +506,7 @@ exportModule mbDoc m = DModule TopLevel { tlExport = Public
 mkParFun :: Maybe (Located Text) ->
             Located PName ->
             Schema PName ->
-            TopDecl PName
+            ParamDecl PName
 mkParFun mbDoc n s = DParameterFun ParameterFun { pfName = n
                                                 , pfSchema = s
                                                 , pfDoc = thing <$> mbDoc
@@ -496,7 +516,7 @@ mkParFun mbDoc n s = DParameterFun ParameterFun { pfName = n
 mkParType :: Maybe (Located Text) ->
              Located PName ->
              Located Kind ->
-             ParseM (TopDecl PName)
+             ParseM (ParamDecl PName)
 mkParType mbDoc n k =
   do num <- P $ \_ _ s -> let nu = sNextTyParamNum s
                           in Right (nu, s { sNextTyParamNum = nu + 1 })
@@ -511,16 +531,17 @@ mkParType mbDoc n k =
 changeExport :: ExportType -> [TopDecl PName] -> [TopDecl PName]
 changeExport e = map change
   where
-  change (Decl d)      = Decl      d { tlExport = e }
-  change (DPrimType t) = DPrimType t { tlExport = e }
-  change (TDNewtype n) = TDNewtype n { tlExport = e }
-  change (DModule m)   = DModule   m { tlExport = e }
-  change td@Include{}  = td
-  change td@DImport{}  = td
-  change (DParameterType {}) = panic "changeExport" ["private type parameter?"]
-  change (DParameterFun {})  = panic "changeExport" ["private value parameter?"]
-  change (DParameterConstraint {}) =
-    panic "changeExport" ["private type constraint parameter?"]
+  change decl =
+    case decl of
+      Decl d                  -> Decl      d { tlExport = e }
+      DPrimType t             -> DPrimType t { tlExport = e }
+      TDNewtype n             -> TDNewtype n { tlExport = e }
+      DModule m               -> DModule   m { tlExport = e }
+      DModParam {}            -> decl
+      Include{}               -> decl
+      DImport{}               -> decl
+      DParamDecl{}            -> decl
+      DInterfaceConstraint {} -> decl
 
 mkTypeInst :: Named (Type PName) -> TypeInst PName
 mkTypeInst x | nullIdent (thing (name x)) = PosInst (value x)
@@ -795,8 +816,7 @@ mkProp ty =
 -- | Make an ordinary module
 mkModule :: Located ModName -> [TopDecl PName] -> Module PName
 mkModule nm ds = Module { mName = nm
-                        , mInstance = Nothing
-                        , mDecls = ds
+                        , mDef = NormalModule ds
                         }
 
 mkNested :: Module PName -> ParseM (NestedModule PName)
@@ -809,22 +829,72 @@ mkNested m =
   nm = mName m
   r = srcRange nm
 
+mkSigDecl :: Maybe (Located Text) -> (Located PName,Signature PName) -> TopDecl PName
+mkSigDecl doc (nm,sig) =
+  DModule
+  TopLevel { tlExport = Public
+           , tlDoc    = doc
+           , tlValue  = NestedModule
+                        Module { mName = nm
+                               , mDef  = InterfaceModule sig
+                               }
+           }
+
+mkInterfaceConstraint ::
+  Maybe (Located Text) -> Type PName -> ParseM [TopDecl PName]
+mkInterfaceConstraint mbDoc ty =
+  do ps <- mkProp ty
+     pure [DInterfaceConstraint (thing <$> mbDoc) ps]
+
+mkParDecls :: [ParamDecl PName] -> TopDecl PName
+mkParDecls ds = DParamDecl loc (mkInterface [] ds)
+  where loc = rCombs (mapMaybe getLoc ds)
+
+mkInterface :: [Located (ImportG (ImpName PName))] ->
+             [ParamDecl PName] -> Signature PName
+mkInterface is =
+  foldl' add
+  Signature { sigImports     = is
+            , sigTypeParams  = []
+            , sigConstraints = []
+            , sigFunParams   = []
+            }
+
+  where
+  add s d =
+    case d of
+      DParameterType pt -> s { sigTypeParams = pt : sigTypeParams s }
+      DParameterConstraint ps -> s { sigConstraints = ps ++ sigConstraints s }
+      DParameterFun pf -> s { sigFunParams = pf : sigFunParams s }
+
+
 -- | Make an unnamed module---gets the name @Main@.
-mkAnonymousModule :: [TopDecl PName] -> Module PName
-mkAnonymousModule = mkModule Located { srcRange = emptyRange
+mkAnonymousModule :: [TopDecl PName] -> ParseM [Module PName]
+mkAnonymousModule = mkTopMods
+                  . mkModule Located { srcRange = emptyRange
                                      , thing    = mkModName [T.pack "Main"]
                                      }
 
 -- | Make a module which defines a functor instance.
-mkModuleInstance :: Located ModName ->
-                    Located ModName ->
-                    [TopDecl PName] ->
-                    Module PName
-mkModuleInstance nm fun ds =
-  Module { mName     = nm
-         , mInstance = Just fun
-         , mDecls    = ds
+mkModuleInstanceAnon :: Located ModName ->
+                      Located (ImpName PName) ->
+                      [TopDecl PName] ->
+                      Module PName
+mkModuleInstanceAnon nm fun ds =
+  Module { mName  = nm
+         , mDef   = FunctorInstance fun (DefaultInstAnonArg ds) mempty
          }
+
+mkModuleInstance ::
+  Located ModName ->
+  Located (ImpName PName) ->
+  ModuleInstanceArgs PName ->
+  Module PName
+mkModuleInstance m f as =
+  Module { mName = m
+         , mDef  = FunctorInstance f as emptyModuleInstance
+         }
+
 
 ufToNamed :: UpdField PName -> ParseM (Named (Expr PName))
 ufToNamed (UpdField h ls e) =
@@ -876,5 +946,133 @@ mkSelector tok =
   case tokenType tok of
     Selector (TupleSelectorTok n) -> TupleSel n Nothing
     Selector (RecordSelectorTok t) -> RecordSel (mkIdent t) Nothing
-    _ -> panic "mkSelector"
-          [ "Unexpected selector token", show tok ]
+    _ -> panic "mkSelector" [ "Unexpected selector token", show tok ]
+
+
+mkTopMods :: Module PName -> ParseM [Module PName]
+mkTopMods = desugarMod
+
+mkTopSig :: Located ModName -> Signature PName -> [Module PName]
+mkTopSig nm sig =
+  [ Module { mName = nm
+           , mDef  = InterfaceModule sig
+           }
+  ]
+
+
+class MkAnon t where
+  mkAnon    :: AnonThing -> t -> t
+  toImpName :: t -> ImpName PName
+
+data AnonThing = AnonArg | AnonIfaceMod
+
+instance MkAnon ModName where
+  mkAnon what   = case what of
+                    AnonArg      -> modNameArg
+                    AnonIfaceMod -> modNameIfaceMod
+  toImpName     = ImpTop
+
+instance MkAnon PName where
+  mkAnon what   = mkUnqual
+                . case what of
+                    AnonArg      -> identAnonArg
+                    AnonIfaceMod -> identAnonIfaceMod
+                . getIdent
+  toImpName     = ImpNested
+
+
+desugarMod :: MkAnon name => ModuleG name PName -> ParseM [ModuleG name PName]
+desugarMod mo =
+  case mDef mo of
+
+    FunctorInstance f as _ | DefaultInstAnonArg lds <- as ->
+      do (ms,lds') <- desugarTopDs (mName mo) lds
+         case ms of
+           m : _ | InterfaceModule si <- mDef m
+                 , l : _ <- map (srcRange . ptName) (sigTypeParams si) ++
+                            map (srcRange . pfName) (sigFunParams si) ++
+                            map srcRange (sigConstraints si) ->
+              errorMessage l
+                [ "Module argument may not be a functor" ]
+           _ -> pure ()
+         let i      = mkAnon AnonArg (thing (mName mo))
+             nm     = Located { srcRange = srcRange (mName mo), thing = i }
+             as'    = DefaultInstArg (toImpName <$> nm)
+         pure [ Module { mName = nm, mDef  = NormalModule lds' }
+              , mo { mDef = FunctorInstance f as' mempty }
+              ]
+
+    NormalModule ds ->
+      do (newMs, newDs) <- desugarTopDs (mName mo) ds
+         pure (newMs ++ [ mo { mDef = NormalModule newDs } ])
+
+    _ -> pure [mo]
+
+
+desugarTopDs ::
+  MkAnon name =>
+  Located name ->
+  [TopDecl PName] ->
+  ParseM ([ModuleG name PName], [TopDecl PName])
+desugarTopDs ownerName = go emptySig
+  where
+  isEmpty s =
+    null (sigTypeParams s) && null (sigConstraints s) && null (sigFunParams s)
+
+  emptySig = Signature
+    { sigImports      = []
+    , sigTypeParams   = []
+    , sigConstraints  = []
+    , sigFunParams    = []
+    }
+
+  jnSig s1 s2 = Signature { sigImports      = j sigImports
+                          , sigTypeParams   = j sigTypeParams
+                          , sigConstraints  = j sigConstraints
+                          , sigFunParams    = j sigFunParams
+                          }
+
+      where
+      j f = f s1 ++ f s2
+
+  addI i s = s { sigImports = i : sigImports s }
+
+  go sig ds =
+    case ds of
+
+      []
+        | isEmpty sig -> pure ([],[])
+        | otherwise ->
+          do let nm = mkAnon AnonIfaceMod <$> ownerName
+             pure ( [ Module { mName = nm
+                             , mDef = InterfaceModule sig
+                             }
+                     ]
+                  , [ DModParam
+                      ModParam
+                        { mpSignature = toImpName <$> nm
+                        , mpAs        = Nothing
+                        , mpName      = mkModParamName (toImpName <$> nm)
+                                                                        Nothing
+                        , mpDoc       = Nothing
+                        , mpRenaming  = mempty
+                        }
+                      ]
+                  )
+
+      d : more ->
+        let cont emit sig' =
+               do (ms,ds') <- go sig' more
+                  pure (ms, emit ++ ds')
+        in
+        case d of
+
+          DImport i        -> cont [d] (addI i sig)
+          DParamDecl _ ds' -> cont []  (jnSig ds' sig)
+
+          DModule tl | NestedModule mo <- tlValue tl ->
+            do ms <- desugarMod mo
+               cont [ DModule tl { tlValue = NestedModule m } | m <- ms ] sig
+
+          _ -> cont [d] sig
+

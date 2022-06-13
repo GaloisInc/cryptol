@@ -22,6 +22,7 @@ module Cryptol.TypeCheck.Monad
 import qualified Control.Applicative as A
 import qualified Control.Monad.Fail as Fail
 import           Control.Monad.Fix(MonadFix(..))
+import           Data.Text(Text)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import           Data.Map (Map)
@@ -38,13 +39,14 @@ import           Control.DeepSeq
 import           MonadLib hiding (mapM)
 
 import           Cryptol.ModuleSystem.Name
-                    (FreshM(..),Supply,mkParameter
-                    , nameInfo, NameInfo(..),NameSource(..))
+                    (FreshM(..),Supply,mkLocal
+                    , nameInfo, NameInfo(..),NameSource(..), nameTopModule)
+import qualified Cryptol.ModuleSystem.Interface as If
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Subst
-import           Cryptol.TypeCheck.Interface(genIface)
+import           Cryptol.TypeCheck.Interface(genIfaceWithNames,genIfaceNames)
 import           Cryptol.TypeCheck.Unify(doMGU, runResult, UnificationError(..)
                                         , Path, rootPath)
 import           Cryptol.TypeCheck.InferTypes
@@ -55,7 +57,7 @@ import qualified Cryptol.TypeCheck.SimpleSolver as Simple
 import qualified Cryptol.TypeCheck.Solver.SMT as SMT
 import           Cryptol.TypeCheck.PP(NameMap)
 import           Cryptol.Utils.PP(pp, (<+>), text,commaSep,brackets)
-import           Cryptol.Utils.Ident(Ident,Namespace(..))
+import           Cryptol.Utils.Ident(Ident,Namespace(..),ModName)
 import           Cryptol.Utils.Panic(panic)
 
 -- | Information needed for type inference.
@@ -64,15 +66,16 @@ data InferInput = InferInput
   , inpVars      :: Map Name Schema   -- ^ Variables that are in scope
   , inpTSyns     :: Map Name TySyn    -- ^ Type synonyms that are in scope
   , inpNewtypes  :: Map Name Newtype  -- ^ Newtypes in scope
-  , inpAbstractTypes :: Map Name AbstractType -- ^ Abstract types in scope
+  , inpAbstractTypes :: Map Name AbstractType   -- ^ Abstract types in scope
+  , inpSignatures :: !(Map Name ModParamNames)  -- ^ Signatures in scope
+
+  , inpTopModules    :: ModName -> Maybe (ModuleG (), If.IfaceG ())
+  , inpTopSignatures :: ModName -> Maybe ModParamNames
 
     -- When typechecking a module these start off empty.
     -- We need them when type-checking an expression at the command
     -- line, for example.
-  , inpParamTypes       :: !(Map Name ModTParam)  -- ^ Type parameters
-  , inpParamConstraints :: !([Located Prop])      -- ^ Constraints on parameters
-  , inpParamFuns        :: !(Map Name ModVParam)  -- ^ Value parameters
-
+  , inpParams :: !(FunctorParams)
 
   , inpNameSeeds :: NameSeeds         -- ^ Private state of type-checker
   , inpMonoBinds :: Bool              -- ^ Should local bindings without
@@ -122,18 +125,24 @@ bumpCounter = do RO { .. } <- IM ask
 runInferM :: TVars a => InferInput -> InferM a -> IO (InferOutput a)
 runInferM info (IM m) =
   do counter <- newIORef 0
+     let allPs = allParamNames (inpParams info)
+
      let env = Map.map ExtVar (inpVars info)
             <> Map.map (ExtVar . newtypeConType) (inpNewtypes info)
+            <> Map.map (ExtVar . mvpType) (mpnFuns allPs)
 
      rec ro <- return RO { iRange     = inpRange info
                          , iVars      = env
+                         , iExtModules = inpTopModules info
+                         , iExtSignatures = inpTopSignatures info
                          , iExtScope = (emptyModule ExternalScope)
                              { mTySyns           = inpTSyns info
                              , mNewtypes         = inpNewtypes info
                              , mPrimTypes        = inpAbstractTypes info
-                             , mParamTypes       = inpParamTypes info
-                             , mParamFuns        = inpParamFuns info
-                             , mParamConstraints = inpParamConstraints info
+                             , mParamTypes       = mpnTypes allPs
+                             , mParamFuns        = mpnFuns  allPs
+                             , mParamConstraints = mpnConstraints allPs
+                             , mSignatures       = inpSignatures info
                              }
 
                          , iTVars         = []
@@ -205,6 +214,8 @@ newtype InferM a = IM { unIM :: ReaderT RO (StateT RW IO) a }
 data ScopeName = ExternalScope
                | LocalScope
                | SubModule Name
+               | SignatureScope Name (Maybe Text) -- ^ The Text is docs
+               | TopSignatureScope P.ModName
                | MTopModule P.ModName
 
 -- | Read-only component of the monad.
@@ -219,10 +230,20 @@ data RO = RO
 
   , iTVars    :: [TParam]    -- ^ Type variable that are in scope
 
+  , iExtModules :: ModName -> Maybe (ModuleG (), If.IfaceG ())
+    -- ^ An exteral top-level module.
+    -- We need the actual module when we instantiate functors,
+    -- because currently the type-checker desugars such modules.
+
+  , iExtSignatures :: ModName -> Maybe ModParamNames
+    -- ^ External top-level signatures.
+
   , iExtScope :: ModuleG ScopeName
     -- ^ These are things we know about, but are not part of the
     -- modules we are currently constructing.
     -- XXX: this sould probably be an interface
+    -- NOTE: External functors should be looked up in `iExtModules`
+    -- and not here, as they may be top-level modules.
 
   , iSolvedHasLazy :: Map Int HasGoalSln
     -- ^ NOTE: This field is lazy in an important way!  It is the
@@ -275,8 +296,13 @@ data RW = RW
   -- Constraints that need solving
   , iCts      :: !Goals                -- ^ Ordinary constraints
   , iHasCts   :: ![HasGoal]
-    {- ^ Tuple/record projection constraints.  The 'Int' is the "name"
-         of the constraint, used so that we can name its solution properly. -}
+    {- ^ Tuple/record projection constraints.  These are separate from
+       the other constraints because solving them results in actual elaboration
+       of the term, indicating how to do the projection.  The modification
+       of the term is done using lazyness, by looking up a thunk ahead of time
+       (@iSolvedHasLazy@ in RO), which is filled in when the constrait is
+       solved (@iSolvedHas@). for ellaboration.
+    -}
 
   , iScope :: ![ModuleG ScopeName]
     -- ^ Nested scopes we are currently checking, most nested first.
@@ -358,7 +384,7 @@ recordWarning w =
   ignore
     | DefaultingTo d _ <- w
     , Just n <- tvSourceName (tvarDesc d)
-    , Declared _ SystemName <- nameInfo n
+    , GlobalName SystemName _ <- nameInfo n
       = True
     | otherwise = False
 
@@ -469,10 +495,10 @@ solveHasGoal n e =
 --------------------------------------------------------------------------------
 
 -- | Generate a fresh variable name to be used in a local binding.
-newParamName :: Namespace -> Ident -> InferM Name
-newParamName ns x =
+newLocalName :: Namespace -> Ident -> InferM Name
+newLocalName ns x =
   do r <- curRange
-     liftSupply (mkParameter ns x r)
+     liftSupply (mkLocal ns x r)
 
 newName :: (NameSeeds -> (a , NameSeeds)) -> InferM a
 newName upd = IM $ sets $ \s -> let (x,seeds) = upd (iNameSeeds s)
@@ -656,8 +682,12 @@ lookupVar x =
          do mb1 <- Map.lookup x . iBindTypes <$> IM get
             case mb1 of
               Just a -> pure (ExtVar a)
-              Nothing -> panic "lookupVar" [ "Undefined vairable"
-                                           , show x ]
+              Nothing ->
+                do mp <- IM $ asks iVars
+                   panic "lookupVar" $ [ "Undefined vairable"
+                                     , show x
+                                     , "IVARS"
+                                     ] ++ map (show . pp) (Map.keys mp)
 
 -- | Lookup a type variable.  Return `Nothing` if there is no such variable
 -- in scope, in which case we must be dealing with a type constant.
@@ -680,9 +710,84 @@ lookupAbstractType x = Map.lookup x <$> getAbstractTypes
 lookupParamType :: Name -> InferM (Maybe ModTParam)
 lookupParamType x = Map.lookup x <$> getParamTypes
 
--- | Lookup the schema for a parameter function.
-lookupParamFun :: Name -> InferM (Maybe ModVParam)
-lookupParamFun x = Map.lookup x <$> getParamFuns
+lookupSignature :: P.ImpName Name -> InferM ModParamNames
+lookupSignature nx =
+  case nx of
+    -- XXX: top
+    P.ImpNested x ->
+      do sigs <- getSignatures
+         case Map.lookup x sigs of
+           Just ips -> pure ips
+           Nothing  -> panic "lookupSignature"
+                        [ "Missing signature", show x ]
+
+    P.ImpTop t ->
+      do loaded <- iExtSignatures <$> IM ask
+         case loaded t of
+           Just ps -> pure ps
+           Nothing -> panic "lookupSignature"
+                        [ "Top level signature is not loaded", show (pp nx) ]
+
+-- | Lookup an external (i.e., previously loaded) top module.
+lookupTopModule :: ModName -> InferM (Maybe (ModuleG (), If.IfaceG ()))
+lookupTopModule m =
+  do ms <- iExtModules <$> IM ask
+     pure (ms m)
+
+lookupFunctor :: P.ImpName Name -> InferM (ModuleG ())
+lookupFunctor iname =
+  case iname of
+    P.ImpTop m -> fst . fromMb <$> lookupTopModule m
+    P.ImpNested m ->
+      do localFuns <- getScope mFunctors
+         case Map.lookup m localFuns of
+           Just a -> pure a { mName = () }
+           Nothing ->
+             do mbTop <- lookupTopModule (nameTopModule m)
+                pure (fromMb do a <- fst <$> mbTop
+                                b <- Map.lookup m (mFunctors a)
+                                pure b { mName = () })
+  where
+  fromMb mb = case mb of
+                Just a -> a
+                Nothing -> panic "lookupFunctor"
+                                  [ "Missing functor", show iname ]
+
+
+{- | Get information about the things defined in the module.
+Note that, in general, the interface may contain *more* than just the
+definitions in the module, however the `ifNames` should indicate which
+ones are part of the module.
+-}
+lookupModule :: P.ImpName Name -> InferM (If.IfaceG ())
+lookupModule iname =
+  case iname of
+    P.ImpTop m -> snd . fromMb <$> lookupTopModule m
+    P.ImpNested m ->
+      do localMods <- getScope mSubmodules
+         case Map.lookup m localMods of
+           Just names ->
+              do n <- genIfaceWithNames names <$> getCurScope
+                 pure (If.ifaceForgetName n)
+
+           Nothing ->
+             do mb <- lookupTopModule (nameTopModule m)
+                pure (fromMb
+                         do iface <- snd <$> mb
+                            names <- Map.lookup m
+                                        (If.ifModules (If.ifDefines iface))
+                            pure iface
+                                   { If.ifNames = names { If.ifsName = () } })
+
+  where
+  fromMb mb = case mb of
+                Just a -> a
+                Nothing -> panic "lookupModule"
+                                  [ "Missing module", show iname ]
+
+
+
+
 
 -- | Check if we already have a name for this existential type variable and,
 -- if so, return the definition.  If not, try to create a new definition,
@@ -717,10 +822,6 @@ getNewtypes = getScope mNewtypes
 getAbstractTypes :: InferM (Map Name AbstractType)
 getAbstractTypes = getScope mPrimTypes
 
--- | Returns the parameter functions declarations
-getParamFuns :: InferM (Map Name ModVParam)
-getParamFuns = getScope mParamFuns
-
 -- | Returns the abstract function declarations
 getParamTypes :: InferM (Map Name ModTParam)
 getParamTypes = getScope mParamTypes
@@ -747,6 +848,11 @@ getMonoBinds  = IM (asks iMonoBinds)
 
 getCallStacks :: InferM Bool
 getCallStacks = IM (asks iCallStacks)
+
+getSignatures :: InferM (Map Name ModParamNames)
+getSignatures = getScope mSignatures
+
+
 
 {- | We disallow shadowing between type synonyms and type variables
 because it is confusing.  As a bonus, in the implementation we don't
@@ -795,9 +901,21 @@ newScope nm = IM $ sets_ \rw -> rw { iScope = emptyModule nm : iScope rw }
 newLocalScope :: InferM ()
 newLocalScope = newScope LocalScope
 
+newSignatureScope :: Name -> Maybe Text -> InferM ()
+newSignatureScope x doc =
+  do updScope \o -> o { mNested = Set.insert x (mNested o) }
+     newScope (SignatureScope x doc)
+
+newTopSignatureScope :: ModName -> InferM ()
+newTopSignatureScope x = newScope (TopSignatureScope x)
+
+{- | Start a new submodule scope.  The imports and exports are just used
+to initialize an empty module.  As we type check declarations they are
+added to this module's scope. -}
 newSubmoduleScope :: Name -> [Import] -> ExportSpec Name -> InferM ()
 newSubmoduleScope x is e =
-  do newScope (SubModule x)
+  do updScope \o -> o { mNested = Set.insert x (mNested o) }
+     newScope (SubModule x)
      updScope \m -> m { mImports = is, mExports = e }
 
 newModuleScope :: P.ModName -> [Import] -> ExportSpec Name -> InferM ()
@@ -830,27 +948,45 @@ endSubmodule =
          x@Module { mName = SubModule m } : y : more -> rw { iScope = z : more }
            where
            x1    = x { mName = m }
-           iface = genIface x1
-           me = if isParametrizedModule x1 then Map.singleton m x1 else mempty
-           z = y { mImports     = mImports x ++ mImports y -- just for deps
-                 , mSubModules  = Map.insert m iface (mSubModules y)
 
-                 , mTySyns      = mTySyns x <> mTySyns y
-                 , mNewtypes    = mNewtypes x <> mNewtypes y
-                 , mPrimTypes   = mPrimTypes x <> mPrimTypes y
-                 , mDecls       = mDecls x <> mDecls y
-                 , mFunctors    = me <> mFunctors x <> mFunctors y
+           isFun = isParametrizedModule x1
+
+           add :: Monoid a => (ModuleG ScopeName -> a) -> a
+           add f = if isFun then f y else f x <> f y
+
+           z = Module
+                 { mName             = mName y
+                 , mExports          = mExports y
+                 , mParamTypes       = mParamTypes y
+                 , mParamFuns        = mParamFuns  y
+                 , mParamConstraints = mParamConstraints y
+                 , mParams           = mParams y
+                 , mNested           = mNested y
+
+                 , mImports     = add mImports -- just for deps
+                 , mTySyns      = add mTySyns
+                 , mNewtypes    = add mNewtypes
+                 , mPrimTypes   = add mPrimTypes
+                 , mDecls       = add mDecls
+                 , mSignatures  = add mSignatures
+                 , mSubmodules  = if isFun
+                                    then mSubmodules y
+                                    else Map.insert m (genIfaceNames x1)
+                                               (mSubmodules x <> mSubmodules y)
+                 , mFunctors    = if isFun
+                                    then Map.insert m x1 (mFunctors y)
+                                    else mFunctors x <> mFunctors y
                  }
 
          _ -> panic "endSubmodule" [ "Not a submodule" ]
 
 
-endModule :: InferM Module
+endModule :: InferM TCTopEntity
 endModule =
   IM $ sets \rw ->
     case iScope rw of
       [ x ] | MTopModule m <- mName x ->
-        ( x { mName = m, mDecls = reverse (mDecls x) }
+        ( TCTopModule x { mName = m, mDecls = reverse (mDecls x) }
         , rw { iScope = [] }
         )
       _ -> panic "endModule" [ "Not a single top module" ]
@@ -862,6 +998,38 @@ endModuleInstance =
       [ x ] | MTopModule _ <- mName x -> rw { iScope = [] }
       _ -> panic "endModuleInstance" [ "Not single top module" ]
 
+endSignature :: InferM ()
+endSignature =
+  IM $ sets_ \rw ->
+    case iScope rw of
+      x@Module { mName = SignatureScope m doc } : y : more ->
+        rw { iScope = z : more }
+        where
+        z   = y { mSignatures = Map.insert m sig (mSignatures y) }
+        sig = ModParamNames
+                { mpnTypes       = mParamTypes x
+                , mpnConstraints = mParamConstraints x
+                , mpnFuns        = mParamFuns x
+                , mpnDoc         = doc
+                }
+      _ -> panic "endSignature" [ "Not a signature scope" ]
+
+endTopSignature :: InferM TCTopEntity
+endTopSignature =
+  IM $ sets \rw ->
+    case iScope rw of
+      [ x ] | TopSignatureScope m <- mName x ->
+        ( TCTopSignature m ModParamNames
+                             { mpnTypes       = mParamTypes x
+                             , mpnConstraints = mParamConstraints x
+                             , mpnFuns        = mParamFuns x
+                             , mpnDoc         = Nothing
+                             }
+        , rw { iScope = [] }
+        )
+      _ -> panic "endTopSignature" [ "Not a top-level signature" ]
+
+
 
 -- | Get an environment combining all nested scopes.
 getScope :: Semigroup a => (ModuleG ScopeName -> a) -> InferM a
@@ -869,6 +1037,13 @@ getScope f =
   do ro <- IM ask
      rw <- IM get
      pure (sconcat (f (iExtScope ro) :| map f (iScope rw)))
+
+getCurScope :: InferM (ModuleG ScopeName)
+getCurScope =
+  do rw <- IM get
+     case iScope rw of
+       m : _ -> pure m
+       []    -> panic "getCurScope" ["No current scope."]
 
 addDecls :: DeclGroup -> InferM ()
 addDecls ds =
@@ -897,9 +1072,25 @@ addPrimType t =
   updScope \r ->
     r { mPrimTypes = Map.insert (atName t) t (mPrimTypes r) }
 
+
 addParamType :: ModTParam -> InferM ()
 addParamType a =
   updScope \r -> r { mParamTypes = Map.insert (mtpName a) a (mParamTypes r) }
+
+addSignatures :: Map Name ModParamNames -> InferM ()
+addSignatures mp =
+  updScope \r -> r { mSignatures = Map.union mp (mSignatures r) }
+
+addSubmodules :: Map Name (If.IfaceNames Name) -> InferM ()
+addSubmodules mp =
+  updScope \r -> r { mSubmodules = Map.union mp (mSubmodules r) }
+
+addFunctors :: Map Name (ModuleG Name) -> InferM ()
+addFunctors mp =
+  updScope \r -> r { mFunctors = Map.union mp (mFunctors r) }
+
+
+
 
 -- | The sub-computation is performed with the given abstract function in scope.
 addParamFun :: ModVParam -> InferM ()
@@ -912,6 +1103,10 @@ addParamFun x =
 addParameterConstraints :: [Located Prop] -> InferM ()
 addParameterConstraints ps =
   updScope \r -> r { mParamConstraints = ps ++ mParamConstraints r }
+
+addModParam :: ModParam -> InferM ()
+addModParam p =
+  updScope \r -> r { mParams = Map.insert (mpName p) p (mParams r) }
 
 
 

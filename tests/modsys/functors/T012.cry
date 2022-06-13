@@ -1,0 +1,18 @@
+// Test importing in a signature
+
+interface submodule S where
+  import T012_M
+  x : T
+
+submodule F where
+  import interface submodule S
+
+  y = 2 * x
+
+submodule I where
+  x = 28
+
+submodule M = submodule F { submodule I }
+
+import submodule M as M
+

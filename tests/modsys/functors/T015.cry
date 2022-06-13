@@ -1,0 +1,6 @@
+
+submodule F where
+  import interface module T015_S
+
+  x : n
+  x = 0

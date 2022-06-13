@@ -13,27 +13,28 @@ import Cryptol.Parser.AST
 import Cryptol.Parser.Names(namesD,tnamesD,tnamesNT)
 import Cryptol.ModuleSystem.Name
 
-modExports :: Ord name => ModuleG mname name -> ExportSpec name
-modExports m = fold (concat [ exportedNames d | d <- mDecls m ])
-
+exportedDecls :: Ord name => [TopDecl name] -> ExportSpec name
+exportedDecls ds = fold (concat [ exportedNames d | d <- ds ])
 
 exportedNames :: Ord name => TopDecl name -> [ExportSpec name]
-exportedNames (Decl td) = map exportBind  (names namesD td)
-                       ++ map exportType (names tnamesD td)
-exportedNames (DPrimType t) = [ exportType (thing . primTName <$> t) ]
-exportedNames (TDNewtype nt) = map exportType (names tnamesNT nt)
-exportedNames (Include {})  = []
-exportedNames (DImport {}) = []
-exportedNames (DParameterFun {}) = []
-exportedNames (DParameterType {}) = []
-exportedNames (DParameterConstraint {}) = []
-exportedNames (DModule nested) =
-  case tlValue nested of
-    NestedModule x ->
-      [exportName NSModule nested { tlValue = thing (mName x) }]
+exportedNames decl =
+    case decl of
+      Decl td -> map exportBind  (names  namesD td)
+              ++ map exportType (names tnamesD td)
+      DPrimType t -> [ exportType (thing . primTName <$> t) ]
+      TDNewtype nt -> map exportType (names tnamesNT nt)
+      Include {}  -> []
+      DImport {} -> []
+      DParamDecl {} -> []
+      DInterfaceConstraint {} -> []
+      DModule nested ->
+        case tlValue nested of
+          NestedModule x ->
+            [exportName NSModule nested { tlValue = thing (mName x) }]
+      DModParam {} -> []
+  where
+  names by td = [ td { tlValue = thing n } | n <- fst (by (tlValue td)) ]
 
-names :: (a -> ([Located a'], b)) -> TopLevel a -> [TopLevel a']
-names by td = [ td { tlValue = thing n } | n <- fst (by (tlValue td)) ]
 
 
 newtype ExportSpec name = ExportSpec (Map Namespace (Set name))
@@ -53,6 +54,9 @@ exportName ns n
                          $ Map.singleton ns
                          $ Set.singleton (tlValue n)
   | otherwise = mempty
+
+allExported :: Ord name => ExportSpec name -> Set name
+allExported (ExportSpec mp) = Set.unions (Map.elems mp)
 
 exported :: Namespace -> ExportSpec name -> Set name
 exported ns (ExportSpec mp) = Map.findWithDefault Set.empty ns mp

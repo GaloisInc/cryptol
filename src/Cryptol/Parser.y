@@ -38,7 +38,6 @@ import Cryptol.Parser.LexerUtils hiding (mkIdent)
 import Cryptol.Parser.Token
 import Cryptol.Parser.ParserUtils
 import Cryptol.Parser.Unlit(PreProc(..), guessPreProc)
-import Cryptol.Utils.Ident(paramInstModName)
 import Cryptol.Utils.RecordMap(RecordMap)
 
 import Paths_cryptol
@@ -84,6 +83,7 @@ import Paths_cryptol
   'if'        { Located $$ (Token (KW KW_if     ) _)}
   'then'      { Located $$ (Token (KW KW_then   ) _)}
   'else'      { Located $$ (Token (KW KW_else   ) _)}
+  'interface' { Located $$ (Token (KW KW_interface) _)}
   'x'         { Located $$ (Token (KW KW_x)       _)}
   'down'      { Located $$ (Token (KW KW_down)    _)}
   'by'        { Located $$ (Token (KW KW_by)      _)}
@@ -140,7 +140,7 @@ import Paths_cryptol
 
   DOC         { $$@(Located _ (Token (White DocStr) _)) }
 
-%name vmodule vmodule
+%name top_module top_module
 %name program program
 %name programLayout program_layout
 %name expr    expr
@@ -164,23 +164,48 @@ import Paths_cryptol
 %%
 
 
-vmodule :: { Module PName }
-  : 'module' module_def       { $2 }
-  | 'v{' vmod_body 'v}'       { mkAnonymousModule $2 }
-
+top_module :: { [Module PName] }
+  : 'module' module_def       {% mkTopMods $2 }
+  | 'v{' vmod_body 'v}'       {% mkAnonymousModule $2 }
+  | 'interface' 'module' modName 'where' 'v{' sig_body 'v}'
+                              { mkTopSig $3 $6 }
 
 module_def :: { Module PName }
 
   : modName 'where'
-      'v{' vmod_body 'v}'                 { mkModule $1 $4 }
+      'v{' vmod_body 'v}'                     { mkModule $1 $4 }
 
-  | modName '=' modName 'where'
-      'v{' vmod_body 'v}'                 { mkModuleInstance $1 $3 $6 }
+  | modName '=' impName 'where'
+      'v{' vmod_body 'v}'                     { mkModuleInstanceAnon $1 $3 $6 }
+
+  | modName '=' impName '{' modInstParams '}' { mkModuleInstance $1 $3 $5 }
+
+
+modInstParams            :: { ModuleInstanceArgs PName }
+  : impName                 { DefaultInstArg $1 }
+  | namedModInstParams      { NamedInstArgs $1 }
+
+namedModInstParams                         :: { [ ModuleInstanceArg PName ] }
+  : namedModInstParam                         { [$1] }
+  | namedModInstParams ',' namedModInstParam  { $3 : $1 }
+
+namedModInstParam        :: { ModuleInstanceArg PName }
+  : ident '=' impName       { ModuleInstanceArg $1 $3 }
+
+
+
 
 vmod_body                  :: { [TopDecl PName] }
   : vtop_decls                { reverse $1 }
   | {- empty -}               { [] }
 
+
+
+-- inverted
+imports1                  :: { [ Located (ImportG (ImpName PName)) ] }
+  : imports1 'v;' import     { $3 : $1 }
+  | imports1 ';'  import     { $3 : $1 }
+  | import                   { [$1] }
 
 -- XXX replace rComb with uses of at
 import                          :: { Located (ImportG (ImpName PName)) }
@@ -252,10 +277,37 @@ vtop_decl               :: { [TopDecl PName] }
   | mbDoc newtype          { [exportNewtype Public $1 $2]                     }
   | prim_bind              { $1                                               }
   | private_decls          { $1                                               }
-  | parameter_decls        { $1                                               }
+  | mbDoc 'interface' 'constraint' type {% mkInterfaceConstraint $1 $4 }
+  | parameter_decls        { [ $1 ]                                       }
   | mbDoc 'submodule'
     module_def             {% ((:[]) . exportModule $1) `fmap` mkNested $3 }
-  | import                 { [DImport $1] }
+
+  | mbDoc sig_def          { [mkSigDecl $1 $2]  }
+  | mod_param_decl         { [DModParam $1] }
+  | mbDoc import           { [DImport $2] }
+    -- we allow for documentation here to avoid conflicts with module paramaters
+    -- currently that odcumentation is just discarded
+
+
+sig_def ::                 { (Located PName, Signature PName) }
+  : 'interface' 'submodule' name 'where' 'v{' sig_body 'v}'
+                           { ($3, $6) }
+
+sig_body                 :: { Signature PName }
+  : par_decls               { mkInterface [] $1 }
+  | imports1 'v;' par_decls { mkInterface (reverse $1) $3 }
+  | imports1 ';'  par_decls { mkInterface (reverse $1) $3 }
+
+
+mod_param_decl ::          { ModParam PName }
+  : mbDoc
+   'import' 'interface'
+    impName mbAs           { ModParam { mpSignature = $4
+                                      , mpAs        = fmap thing $5
+                                      , mpName      = mkModParamName $4 $5
+                                      , mpDoc       = $1
+                                      , mpRenaming  = mempty } }
+
 
 top_decl                :: { [TopDecl PName] }
   : decl                   { [Decl (TopLevel {tlExport = Public, tlValue = $1 })] }
@@ -274,17 +326,17 @@ prim_bind               :: { [TopDecl PName] }
   | mbDoc 'primitive' 'type' schema ':' kind {% mkPrimTypeDecl $1 $4 $6 }
 
 
-parameter_decls                      :: { [TopDecl PName] }
-  :     'parameter' 'v{' par_decls 'v}' { reverse $3 }
-  | doc 'parameter' 'v{' par_decls 'v}' { reverse $4 }
+parameter_decls                      :: { TopDecl PName }
+  :     'parameter' 'v{' par_decls 'v}' { mkParDecls (reverse $3) }
+  | doc 'parameter' 'v{' par_decls 'v}' { mkParDecls (reverse $4) }
 
 -- Reversed
-par_decls                            :: { [TopDecl PName] }
+par_decls                            :: { [ParamDecl PName] }
   : par_decl                            { [$1] }
   | par_decls ';'  par_decl             { $3 : $1 }
   | par_decls 'v;' par_decl             { $3 : $1 }
 
-par_decl                         :: { TopDecl PName }
+par_decl                         :: { ParamDecl PName }
   : mbDoc        name ':' schema    { mkParFun $1 $2 $4 }
   | mbDoc 'type' name ':' kind      {% mkParType $1 $3 $5 }
   | mbDoc 'type' 'constraint' type  {% fmap (DParameterConstraint . distrLoc)
@@ -795,7 +847,8 @@ smodName                       :: { Located ModName }
 
 modName                        :: { Located ModName }
   : smodName                      { $1 }
-  | '`' smodName                  { fmap paramInstModName $2 }
+  | 'module' smodName             { $2 }
+  | '`' smodName                  {% errorMessage $1 ["Backtick module imports are no longer supported."] }
 
 
 qname                          :: { Located PName }
@@ -860,8 +913,8 @@ parseProgramWith cfg s = case res s of
                       Layout   -> programLayout
                       NoLayout -> program
 
-parseModule :: Config -> Text -> Either ParseError (Module PName)
-parseModule cfg = parse cfg { cfgModuleScope = True } vmodule
+parseModule :: Config -> Text -> Either ParseError [Module PName]
+parseModule cfg = parse cfg { cfgModuleScope = True } top_module
 
 parseProgram :: Layout -> Text -> Either ParseError (Program PName)
 parseProgram l = parseProgramWith defaultConfig { cfgLayout = l }

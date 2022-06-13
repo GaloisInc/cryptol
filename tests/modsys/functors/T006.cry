@@ -1,0 +1,38 @@
+interface submodule A where
+  type n : #
+  type constraint (fin n, n >= 1)
+  x : [n]
+
+submodule F where
+  import interface submodule A as X
+
+  interface constraint (X::n >= 3)
+
+  submodule G where
+    import interface submodule A
+    interface constraint (X::n == n)
+
+    y : [n]
+    y = 5 * X::x + x
+
+  y : [X::n]
+  y = 5 * X::x
+
+
+submodule I where
+  type n = 8
+
+  x : {a} (Ring a, Literal 1 a, Literal 2 a) => a
+  x = 1 + 2
+
+submodule M = submodule F { submodule I }
+
+import submodule M as M
+
+submodule N = submodule M::G { submodule I }
+
+import submodule N as N
+
+
+
+

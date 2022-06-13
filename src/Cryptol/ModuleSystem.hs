@@ -29,8 +29,7 @@ module Cryptol.ModuleSystem (
   , renameType
 
     -- * Interfaces
-  , Iface, IfaceG(..), IfaceParams(..), IfaceDecls(..), T.genIface
-  , IfaceTySyn, IfaceDecl(..)
+  , Iface, IfaceG(..), IfaceDecls(..), T.genIface, IfaceDecl(..)
   ) where
 
 import Data.Map (Map)
@@ -63,21 +62,21 @@ findModule :: P.ModName -> ModuleCmd ModulePath
 findModule n env = runModuleM env (Base.findModule n)
 
 -- | Load the module contained in the given file.
-loadModuleByPath :: FilePath -> ModuleCmd (ModulePath,T.Module)
+loadModuleByPath :: FilePath -> ModuleCmd (ModulePath,T.TCTopEntity)
 loadModuleByPath path minp =
   runModuleM minp{ minpModuleEnv = resetModuleEnv (minpModuleEnv minp) } $ do
     unloadModule ((InFile path ==) . lmFilePath)
     m <- Base.loadModuleByPath path
-    setFocusedModule (T.mName m)
+    setFocusedModule (T.tcTopEntitytName m)
     return (InFile path,m)
 
 -- | Load the given parsed module.
-loadModuleByName :: P.ModName -> ModuleCmd (ModulePath,T.Module)
+loadModuleByName :: P.ModName -> ModuleCmd (ModulePath,T.TCTopEntity)
 loadModuleByName n minp =
   runModuleM minp{ minpModuleEnv = resetModuleEnv (minpModuleEnv minp) } $ do
     unloadModule ((n ==) . lmName)
     (path,m') <- Base.loadModuleFrom False (FromModule n)
-    setFocusedModule (T.mName m')
+    setFocusedModule (T.tcTopEntitytName m')
     return (path,m')
 
 -- Extended Environments -------------------------------------------------------

@@ -171,8 +171,9 @@ evalExpr sym env expr = case expr of
       Just (Right val)
         | ?callStacks ->
             case nameInfo n of
-              Declared{} -> sPushFrame sym n ?range (cacheCallStack sym =<< val)
-              Parameter  -> cacheCallStack sym =<< val
+              GlobalName {} ->
+                 sPushFrame sym n ?range (cacheCallStack sym =<< val)
+              LocalName {} -> cacheCallStack sym =<< val
         | otherwise -> val
       Nothing  -> do
         envdoc <- ppEnv sym defaultPPOpts env

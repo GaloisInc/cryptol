@@ -1,0 +1,6 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+
+[error] at T016.cry:14:39--14:40:
+  Functor argument does not define value parameter 'x'

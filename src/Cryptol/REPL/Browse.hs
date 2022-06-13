@@ -13,6 +13,7 @@ import Cryptol.Parser.AST(Pragma(..))
 import qualified Cryptol.TypeCheck.Type as T
 
 import Cryptol.Utils.PP
+import Cryptol.Utils.Ident(OrigName(..))
 import Cryptol.ModuleSystem.Env(ModContext(..))
 import Cryptol.ModuleSystem.NamingEnv(namingEnvNames)
 import Cryptol.ModuleSystem.Name
@@ -21,10 +22,12 @@ import Cryptol.ModuleSystem.Interface
 data BrowseHow = BrowseExported | BrowseInScope
 
 browseModContext :: BrowseHow -> ModContext -> PP.Doc Void
-browseModContext how mc = runDoc (env disp) (vcat sections)
+browseModContext how mc =
+  runDoc (env disp) (vcat sections)
   where
   sections = concat
     [ browseMParams (env disp) (mctxParams mc)
+    , browseSignatures disp decls
     , browseMods disp decls
     , browseTSyns disp decls
     , browsePrimTys disp decls
@@ -44,31 +47,41 @@ data DispInfo = DispInfo { dispHow :: BrowseHow, env :: NameDisp }
 --------------------------------------------------------------------------------
 
 
-browseMParams :: NameDisp -> IfaceParams -> [Doc]
-browseMParams disp params =
-  ppSectionHeading "Module Parameters"
-  $ addEmpty
-  $ map ppParamTy (sortByName disp (Map.toList (ifParamTypes params))) ++
-    map ppParamFu (sortByName disp (Map.toList (ifParamFuns  params)))
+browseMParams :: NameDisp -> T.FunctorParams -> [Doc]
+browseMParams disp params
+  | Map.null params = []
+  | otherwise =
+      ppSectionHeading "Module Parameters"
+      $ [ "parameter" <+> pp (T.mpName p) <+> ":" <+>
+          "signature" <+> pp (T.mpSignature p) $$
+           indent 2 (vcat $
+            map ppParamTy (sortByName disp (Map.toList (T.mpnTypes names))) ++
+            map ppParamFu (sortByName disp (Map.toList (T.mpnFuns  names)))
+           )
+        | p <- Map.elems params
+        , let names = T.mpParameters p
+        ] ++
+        ["   "]
   where
   ppParamTy p = nest 2 (sep ["type", pp (T.mtpName p) <+> ":", pp (T.mtpKind p)])
   ppParamFu p = nest 2 (sep [pp (T.mvpName p) <+> ":", pp (T.mvpType p)])
   -- XXX: should we print the constraints somewhere too?
-
-  addEmpty xs = case xs of
-                  [] -> []
-                  _  -> xs ++ ["    "]
 
 
 browseMods :: DispInfo -> IfaceDecls -> [Doc]
 browseMods disp decls =
   ppSection disp "Modules" ppM (ifModules decls)
   where
-  ppM m = "submodule" <+> pp (ifModName m)
+  ppM m = "submodule" <+> pp (ifsName m)
   -- XXX: can print a lot more information about the moduels, but
   -- might be better to do that with a separate command
 
 
+browseSignatures :: DispInfo -> IfaceDecls -> [Doc]
+browseSignatures disp decls =
+  ppSection disp "Signatures" ppS (Map.mapWithKey (,) (ifSignatures decls))
+  where
+  ppS (x,s) = "signature" <+> pp x
 
 
 browseTSyns :: DispInfo -> IfaceDecls -> [Doc]
@@ -142,8 +155,8 @@ groupDecls disp = Map.toList
   where
   toEntry (n,a) =
     case nameInfo n of
-      Declared m _ -> Just (m,[(n,a)])
-      _            -> Nothing
+      GlobalName _ og -> Just (ogModule og,[(n,a)])
+      _               -> Nothing
 
 
 sortByName :: NameDisp -> [(Name,a)] -> [a]

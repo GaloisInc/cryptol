@@ -8,6 +8,7 @@
 
 {-# LANGUAGE DeriveGeneric, OverloadedStrings #-}
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Cryptol.Utils.Ident
   ( -- * Module names
@@ -31,10 +32,9 @@ module Cryptol.Utils.Ident
   , interactiveName
   , noModuleName
   , exprModName
-
-  , isParamInstModName
-  , paramInstModName
-  , notParamInstModName
+  , modNameArg
+  , modNameIfaceMod
+  , modNameToNormalModName
 
     -- * Identifiers
   , Ident
@@ -47,6 +47,8 @@ module Cryptol.Utils.Ident
   , nullIdent
   , identText
   , modParamIdent
+  , identAnonArg
+  , identAnonIfaceMod
 
     -- * Namespaces
   , Namespace(..)
@@ -54,6 +56,7 @@ module Cryptol.Utils.Ident
 
     -- * Original names
   , OrigName(..)
+  , OrigSource(..)
 
     -- * Identifiers for primitives
   , PrimIdent(..)
@@ -70,6 +73,8 @@ import           Data.List (unfoldr)
 import qualified Data.Text as T
 import           Data.String (IsString(..))
 import           GHC.Generics (Generic)
+
+import Cryptol.Utils.Panic(panic)
 
 
 --------------------------------------------------------------------------------
@@ -130,42 +135,53 @@ modPathSplit p0 = (top,reverse xs)
 
 --------------------------------------------------------------------------------
 -- | Top-level Module names are just text.
-data ModName = ModName T.Text
+data ModName = ModName T.Text ModNameFlavor
+  deriving (Eq,Ord,Show,Generic)
+
+data ModNameFlavor = NormalModName | AnonModArgName | AnonIfaceModName
   deriving (Eq,Ord,Show,Generic)
 
 instance NFData ModName
+instance NFData ModNameFlavor
+
+modNameArg :: ModName -> ModName
+modNameArg (ModName m fl) =
+  case fl of
+    NormalModName     -> ModName m AnonModArgName
+    AnonModArgName    -> panic "modNameArg" ["Name is not normal"]
+    AnonIfaceModName  -> panic "modNameArg" ["Name is not normal"]
+
+modNameIfaceMod :: ModName -> ModName
+modNameIfaceMod (ModName m fl) =
+  case fl of
+    NormalModName     -> ModName m AnonIfaceModName
+    AnonModArgName    -> panic "modNameIfaceMod" ["Name is not normal"]
+    AnonIfaceModName  -> panic "modNameIfaceMod" ["Name is not normal"]
+
+-- | This is used when we check that the name of a module matches the
+-- file where it is defines.
+modNameToNormalModName :: ModName -> ModName
+modNameToNormalModName (ModName t _) = ModName t NormalModName
+
+
 
 modNameToText :: ModName -> T.Text
-modNameToText (ModName x) = x
+modNameToText (ModName x fl) =
+  case fl of
+    NormalModName     -> x
+    AnonModArgName    -> x <> "$argument"
+    AnonIfaceModName  -> x <> "$interface"
 
 textToModName :: T.Text -> ModName
-textToModName = ModName
+textToModName txt = ModName txt NormalModName
 
 modNameChunks :: ModName -> [String]
-modNameChunks  = unfoldr step . modNameToText . notParamInstModName
+modNameChunks  = unfoldr step . modNameToText . modNameToNormalModName
   where
   step str
     | T.null str = Nothing
     | otherwise  = case T.breakOn modSep str of
                      (a,b) -> Just (T.unpack a,T.drop (T.length modSep) b)
-
-isParamInstModName :: ModName -> Bool
-isParamInstModName (ModName x) = modInstPref `T.isPrefixOf` x
-
--- | Convert a parameterized module's name to the name of the module
--- containing the same definitions but with explicit parameters on each
--- definition.
-paramInstModName :: ModName -> ModName
-paramInstModName (ModName x)
-  | modInstPref `T.isPrefixOf` x = ModName x
-  | otherwise = ModName (T.append modInstPref x)
-
-
-notParamInstModName :: ModName -> ModName
-notParamInstModName (ModName x)
-  | modInstPref `T.isPrefixOf` x = ModName (T.drop (T.length modInstPref) x)
-  | otherwise = ModName x
-
 
 packModName :: [T.Text] -> ModName
 packModName strs = textToModName (T.intercalate modSep (map trim strs))
@@ -175,10 +191,6 @@ packModName strs = textToModName (T.intercalate modSep (map trim strs))
 
 modSep :: T.Text
 modSep  = "::"
-
-modInstPref :: T.Text
-modInstPref = "`"
-
 
 preludeName :: ModName
 preludeName  = packModName ["Cryptol"]
@@ -213,8 +225,15 @@ exprModName = packModName ["<expr>"]
 data OrigName = OrigName
   { ogNamespace :: Namespace
   , ogModule    :: ModPath
+  , ogSource    :: OrigSource
   , ogName      :: Ident
   } deriving (Eq,Ord,Show,Generic,NFData)
+
+-- | Describes where a top-level name came from
+data OrigSource =
+    FromDefinition
+  | FromModParam Ident
+    deriving (Eq,Ord,Show,Generic,NFData)
 
 
 --------------------------------------------------------------------------------
@@ -263,6 +282,13 @@ identText (Ident _ t) = t
 
 modParamIdent :: Ident -> Ident
 modParamIdent (Ident x t) = Ident x (T.append (T.pack "module parameter ") t)
+
+identAnonArg :: Ident -> Ident
+identAnonArg (Ident b txt) = Ident b (txt <> "$argument")
+
+identAnonIfaceMod :: Ident -> Ident
+identAnonIfaceMod (Ident b txt) = Ident b (txt <> "$interface")
+
 
 
 --------------------------------------------------------------------------------

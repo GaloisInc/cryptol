@@ -15,6 +15,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Cryptol.REPL.Monad (
     -- * REPL Monad
@@ -328,6 +329,7 @@ data REPLException
   | TooWide WordTooWide
   | Unsupported Unsupported
   | ModuleSystemError NameDisp M.ModuleError
+  | CannotLoadASignature
   | EvalPolyError T.Schema
   | InstantiationsNotFound T.Schema
   | TypeNotTestable T.Type
@@ -370,6 +372,7 @@ instance PP REPLException where
     SBVException e       -> text "SBV exception:" $$ text (show e)
     SBVPortfolioException e -> text "SBV exception:" $$ text (show e)
     W4Exception e        -> text "What4 exception:" $$ text (show e)
+    CannotLoadASignature -> "Cannot load signatures"
 
 -- | Raise an exception.
 raise :: REPLException -> REPL a
@@ -558,8 +561,11 @@ validEvalContext a =
 
          badName nm bs =
            case M.nameInfo nm of
-             M.Declared (M.TopModule m) _   -- XXX: can we focus nested modules?
+
+             -- XXX: Changes if focusing on nested modules
+             M.GlobalName _ I.OrigName { ogModule = I.TopModule m }
                | M.isLoadedParamMod m (M.meLoadedModules me) -> Set.insert nm bs
+
              _ -> bs
 
      unless (Set.null bad) $
@@ -660,11 +666,12 @@ uniqify :: M.Name -> REPL M.Name
 
 uniqify name =
   case M.nameInfo name of
-    M.Declared ns s ->
+    M.GlobalName s og ->
       M.liftSupply (M.mkDeclared (M.nameNamespace name)
-                  ns s (M.nameIdent name) (M.nameFixity name) (M.nameLoc name))
+                  (I.ogModule og) s
+                  (M.nameIdent name) (M.nameFixity name) (M.nameLoc name))
 
-    M.Parameter ->
+    M.LocalName {} ->
       panic "[REPL] uniqify" ["tried to uniqify a parameter: " ++ pretty name]
 
 
