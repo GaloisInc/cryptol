@@ -597,6 +597,18 @@ module <code class="docutils literal notranslate"><span class="pre">G</span></co
 Note that in this case the argument to the instantiation
 <code class="docutils literal notranslate"><span class="pre">I</span></code> is a top-level module, because it is not
 preceded by the <code class="docutils literal notranslate"><span class="pre">submodule</span></code> keyword.</p>
+<p>To pass a nested module as the argument of a function,
+use <code class="docutils literal notranslate"><span class="pre">submodule</span> <span class="pre">I</span></code> like this:</p>
+<div class="literal-block-wrapper docutils container" id="id24">
+<div class="code-block-caption"><span class="caption-text">Nested module instantiation.</span><a class="headerlink" href="#id24" title="Permalink to this code"></a></div>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span> <span class="nn">M</span> <span class="kr">where</span>
+
+  <span class="kr">import</span> <span class="nn">Somewhere</span> <span class="c1">// defines G and I</span>
+
+  <span class="n">submodule</span> <span class="kt">F</span> <span class="ow">=</span> <span class="n">submodule</span> <span class="kt">G</span> <span class="p">{</span> <span class="n">submodule</span> <span class="kt">I</span> <span class="p">}</span>
+</pre></div>
+</div>
+</div>
 </div>
 <div class="section" id="anonymous-interface-modules">
 <h3>Anonymous Interface Modules<a class="headerlink" href="#anonymous-interface-modules" title="Permalink to this headline"></a></h3>
@@ -604,8 +616,8 @@ preceded by the <code class="docutils literal notranslate"><span class="pre">sub
 it is quite cumbersome to have to define a whole separate interface module.
 To make this more convenient we provide the following notation for defining
 an anonymous interface and using it straight away:</p>
-<div class="literal-block-wrapper docutils container" id="id24">
-<div class="code-block-caption"><span class="caption-text">Simple parameterized module.</span><a class="headerlink" href="#id24" title="Permalink to this code"></a></div>
+<div class="literal-block-wrapper docutils container" id="id25">
+<div class="code-block-caption"><span class="caption-text">Simple parameterized module.</span><a class="headerlink" href="#id25" title="Permalink to this code"></a></div>
 <div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span> <span class="nn">M</span> <span class="kr">where</span>
 
   <span class="n">parameter</span>

@@ -545,6 +545,20 @@ Note that in this case the argument to the instantiation
 ``I`` is a top-level module, because it is not
 preceded by the ``submodule`` keyword.
 
+To pass a nested module as the argument of a function,
+use ``submodule I`` like this:
+
+.. code-block:: cryptol
+  :caption: Nested module instantiation.
+
+  module M where
+
+    import Somewhere // defines G and I
+
+    submodule F = submodule G { submodule I }
+
+
+
 
 Anonymous Interface Modules
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
