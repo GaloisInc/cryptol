@@ -83,10 +83,6 @@ data ModParamNames = ModParamNames
 data ModTParam = ModTParam
   { mtpName   :: Name
   , mtpKind   :: Kind
-  , mtpNumber :: !Int -- ^ The number of the parameter in the module
-                      -- This is used when we move parameters from the module
-                      -- level to individual declarations
-                      -- (type synonyms in particular)
   , mtpDoc    :: Maybe Text
   } deriving (Show,Generic,NFData)
 

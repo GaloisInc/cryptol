@@ -142,7 +142,6 @@ instance ModuleInstance ModTParam where
     ModTParam { mtpName = moduleInstance (mtpName mp)
               , mtpKind = mtpKind mp
               , mtpDoc  = mtpDoc mp
-              , mtpNumber = mtpNumber mp
               }
 
 instance ModuleInstance ModVParam where

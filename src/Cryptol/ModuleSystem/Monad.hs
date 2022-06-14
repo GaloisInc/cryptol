@@ -113,11 +113,6 @@ data ModuleError
     -- ^ Module loaded by 'import' statement has the wrong module name
   | DuplicateModuleName P.ModName FilePath FilePath
     -- ^ Two modules loaded from different files have the same module name
-  | ImportedParamModule P.ModName
-    -- ^ Attempt to import a parametrized module that was not instantiated.
-  | FailedToParameterizeModDefs P.ModName
-    -- ^ This style of parmaeterizing a module is no longer supported.
-  | NotAParameterizedModule P.ModName
 
   | ErrorInFile ModulePath ModuleError
     -- ^ This is just a tag on the error, indicating the file containing it.
@@ -143,9 +138,6 @@ instance NFData ModuleError where
     DuplicateModuleName name path1 path2 ->
       name `deepseq` path1 `deepseq` path2 `deepseq` ()
     OtherFailure x                       -> x `deepseq` ()
-    ImportedParamModule x                -> x `deepseq` ()
-    FailedToParameterizeModDefs x        -> x `deepseq` ()
-    NotAParameterizedModule x            -> x `deepseq` ()
     ErrorInFile x y                      -> x `deepseq` y `deepseq` ()
 
 instance PP ModuleError where
@@ -201,16 +193,6 @@ instance PP ModuleError where
 
     OtherFailure x -> text x
 
-    ImportedParamModule p ->
-      text "[error] Import of a non-instantiated parameterized module:" <+> pp p
-
-    FailedToParameterizeModDefs x ->
-      hang (text "[error] When importing" <+> backticks (pp x))
-         4 "Backtick imports are no longer supported."
-
-    NotAParameterizedModule x ->
-      text "[error] Module" <+> pp x <+> text "does not have parameters."
-
     ErrorInFile _ x -> ppPrec prec x
 
 moduleNotFound :: P.ModName -> [FilePath] -> ModuleM a
@@ -259,15 +241,6 @@ moduleNameMismatch expected found =
 duplicateModuleName :: P.ModName -> FilePath -> FilePath -> ModuleM a
 duplicateModuleName name path1 path2 =
   ModuleT (raise (DuplicateModuleName name path1 path2))
-
-importParamModule :: P.ModName -> ModuleM a
-importParamModule x = ModuleT (raise (ImportedParamModule x))
-
-failedToParameterizeModDefs :: P.ModName -> ModuleM a
-failedToParameterizeModDefs x = ModuleT (raise (FailedToParameterizeModDefs x))
-
-notAParameterizedModule :: P.ModName -> ModuleM a
-notAParameterizedModule x = ModuleT (raise (NotAParameterizedModule x))
 
 -- | Run the computation, and if it caused and error, tag the error
 -- with the given file.
