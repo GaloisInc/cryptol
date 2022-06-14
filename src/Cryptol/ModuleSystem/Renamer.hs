@@ -52,7 +52,7 @@ import Cryptol.Parser.AST
 import Cryptol.Parser.Selector(selName)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.RecordMap
-import Cryptol.Utils.Ident(allNamespaces,OrigName(..),modPathCommon)
+import Cryptol.Utils.Ident(allNamespaces,OrigName(..),modPathCommon,preludeName)
 import Cryptol.Utils.PP
 
 import Cryptol.ModuleSystem.Interface
@@ -643,6 +643,7 @@ instance Rename TopDecl where
 renI :: Located (ImportG (ImpName PName)) ->
         RenameM (Located (ImportG (ImpName Name)))
 renI li =
+  withLoc (srcRange li)
   do m <- rename (iModule i)
      recordImport (srcRange li) m
      pure li { thing = i { iModule = m } }
@@ -838,7 +839,8 @@ renameType nt = resolveName nt NSType
 mkFakeName :: Namespace -> PName -> RenameM Name
 mkFakeName ns pn =
   do ro <- RenameM ask
-     liftSupply (mkLocal ns (getIdent pn) (roLoc ro))
+     liftSupply (mkDeclared ns (TopModule preludeName) SystemName (getIdent pn)
+                                                       Nothing (roLoc ro))
 
 -- | Rename a schema, assuming that none of its type variables are already in
 -- scope.

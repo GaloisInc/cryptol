@@ -1,0 +1,4 @@
+module T16_M where
+private
+  submodule A where
+    x = 0x02
