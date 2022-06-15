@@ -1,0 +1,5 @@
+module A where
+
+x <+> y = x + y
+
+type a ∸ b = max a b - b
