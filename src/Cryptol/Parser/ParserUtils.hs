@@ -1067,8 +1067,10 @@ desugarTopDs ownerName = go emptySig
         in
         case d of
 
-          DImport i        -> cont [d] (addI i sig)
-          DParamDecl _ ds' -> cont []  (jnSig ds' sig)
+          DImport i | ImpTop _ <- iModule (thing i) ->
+            cont [d] (addI i sig)
+
+          DParamDecl _ ds' -> cont [] (jnSig ds' sig)
 
           DModule tl | NestedModule mo <- tlValue tl ->
             do ms <- desugarMod mo

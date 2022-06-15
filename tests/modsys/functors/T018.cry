@@ -1,0 +1,11 @@
+module T1 where
+
+parameter
+  anything : Bit
+
+submodule A where
+  x = 0x02
+
+import submodule A
+
+y = x
