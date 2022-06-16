@@ -216,9 +216,9 @@ mbImportSpec               :: { Maybe (Located ImportSpec) }
   | {- empty -}               { Nothing }
 
 name_list                  :: { [LIdent] }
-  : name_list ',' ident       { $3 : $1 }
-  | ident                     { [$1]    }
-  | {- empty -}               { []      }
+  : name_list ',' var         { fmap getIdent $3 : $1 }
+  | var                       { [fmap getIdent $1]    }
+  | {- empty -}               { []                    }
 
 mbHiding                   :: { [Ident] -> ImportSpec }
   : 'hiding'                  { Hiding }
