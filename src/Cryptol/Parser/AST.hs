@@ -74,6 +74,8 @@ module Cryptol.Parser.AST
   , UpdHow(..)
   , FunDesc(..)
   , emptyFunDesc
+  , PrefixOp(..)
+  , prefixFixity
 
     -- * Positions
   , Located(..)
@@ -341,8 +343,6 @@ data Literal  = ECNum Integer NumInfo           -- ^ @0x10@  (HexLit 2)
 
 data Expr n   = EVar n                          -- ^ @ x @
               | ELit Literal                    -- ^ @ 0x10 @
-              | ENeg (Expr n)                   -- ^ @ -1 @
-              | EComplement (Expr n)            -- ^ @ ~1 @
               | EGenerate (Expr n)              -- ^ @ generate f @
               | ETuple [Expr n]                 -- ^ @ (1,2,3) @
               | ERecord (Rec (Expr n))          -- ^ @ { x = 1, y = 2 } @
@@ -373,7 +373,19 @@ data Expr n   = EVar n                          -- ^ @ x @
               | ESplit (Expr n)                 -- ^ @ splitAt x @ (Introduced by NoPat)
               | EParens (Expr n)                -- ^ @ (e)   @ (Removed by Fixity)
               | EInfix (Expr n) (Located n) Fixity (Expr n)-- ^ @ a + b @ (Removed by Fixity)
+              | EPrefix PrefixOp (Expr n)       -- ^ @ -1, ~1 @
                 deriving (Eq, Show, Generic, NFData, Functor)
+
+-- | Prefix operator.
+data PrefixOp = PrefixNeg -- ^ @ - @
+              | PrefixComplement -- ^ @ ~ @
+                deriving (Eq, Show, Generic, NFData)
+
+prefixFixity :: PrefixOp -> Fixity
+prefixFixity op = Fixity { fAssoc = LeftAssoc, .. }
+  where fLevel = case op of
+          PrefixNeg        -> 80
+          PrefixComplement -> 100
 
 -- | Description of functions.  Only trivial information is provided here
 --   by the parser.  The NoPat pass fills this in as required.
@@ -816,8 +828,6 @@ instance (Show name, PPName name) => PP (Expr name) where
       EVar x        -> ppPrefixName x
       ELit x        -> pp x
 
-      ENeg x        -> wrap n 3 (text "-" <.> ppPrec 4 x)
-      EComplement x -> wrap n 3 (text "~" <.> ppPrec 4 x)
       EGenerate x   -> wrap n 3 (text "generate" <+> ppPrec 4 x)
 
       ETuple es     -> parens (commaSep (map pp es))
@@ -878,11 +888,15 @@ instance (Show name, PPName name) => PP (Expr name) where
       EParens e -> parens (pp e)
 
       EInfix e1 op _ e2 -> wrap n 0 (pp e1 <+> ppInfixName (thing op) <+> pp e2)
+
+      EPrefix op e  -> wrap n 3 (text (prefixText op) <.> ppPrec 4 e)
    where
    isInfix (EApp (EApp (EVar ieOp) ieLeft) ieRight) = do
      ieFixity <- ppNameFixity ieOp
      return Infix { .. }
    isInfix _ = Nothing
+   prefixText PrefixNeg        = "-"
+   prefixText PrefixComplement = "~"
 
 instance (Show name, PPName name) => PP (UpdField name) where
   ppPrec _ (UpdField h xs e) = ppNestedSels (map thing xs) <+> pp h <+> pp e
@@ -1082,8 +1096,6 @@ instance NoPos (Expr name) where
     case expr of
       EVar x          -> EVar     x
       ELit x          -> ELit     x
-      ENeg x          -> ENeg     (noPos x)
-      EComplement x   -> EComplement (noPos x)
       EGenerate x     -> EGenerate (noPos x)
       ETuple x        -> ETuple   (noPos x)
       ERecord x       -> ERecord  (fmap noPos x)
@@ -1110,6 +1122,7 @@ instance NoPos (Expr name) where
       ESplit x        -> ESplit (noPos x)
       EParens e       -> EParens (noPos e)
       EInfix x y f z  -> EInfix (noPos x) y f (noPos z)
+      EPrefix op x    -> EPrefix op (noPos x)
 
 instance NoPos (UpdField name) where
   noPos (UpdField h xs e) = UpdField h xs (noPos e)
