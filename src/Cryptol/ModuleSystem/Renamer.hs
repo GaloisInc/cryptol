@@ -830,8 +830,11 @@ mkEInfix e@(EInfix x o1 f1 y) op@(o2,f2) z =
 
 mkEInfix e@(EPrefix o1 x) op@(o2, f2) y =
   case compareFixity (prefixFixity o1) f2 of
-    FCRight -> do r <- mkEInfix x op y
-                  return (EPrefix o1 r)
+    FCRight -> do
+      let warning = PrefixAssocChanged o1 x o2 f2 y
+      RenameM $ sets_ (\rw -> rw {rwWarnings = warning : rwWarnings rw})
+      r <- mkEInfix x op y
+      return (EPrefix o1 r)
 
     -- Even if the fixities conflict, we make the prefix operator take
     -- precedence.

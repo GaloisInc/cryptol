@@ -161,27 +161,29 @@ instance PP DepName where
 data RenamerWarning
   = SymbolShadowed PName Name [Name]
   | UnusedName Name
+  | PrefixAssocChanged PrefixOp (Expr Name) (Located Name) Fixity (Expr Name)
     deriving (Show, Generic, NFData)
 
 instance Eq RenamerWarning where
   x == y = compare x y == EQ
 
--- used to determine in what order ot show things
+-- used to determine in what order to show things
 instance Ord RenamerWarning where
   compare w1 w2 =
-    case w1 of
-      SymbolShadowed x y _ ->
-        case w2 of
-          SymbolShadowed x' y' _ -> compare (byStart y,x) (byStart y',x')
-          _                      -> LT
-      UnusedName x ->
-        case w2 of
-          UnusedName y -> compare (byStart x) (byStart y)
-          _            -> GT
+    case (w1, w2) of
+      (SymbolShadowed x y _, SymbolShadowed x' y' _) ->
+        compare (byStart y, x) (byStart y', x')
+      (UnusedName x, UnusedName x') ->
+        compare (byStart x) (byStart x')
+      (PrefixAssocChanged _ _ op _ _, PrefixAssocChanged _ _ op' _ _) ->
+        compare (from $ srcRange op) (from $ srcRange op')
+      _ -> compare (priority w1) (priority w2)
 
       where
       byStart = from . nameLoc
-
+      priority SymbolShadowed {}     = 0 :: Int
+      priority UnusedName {}         = 1
+      priority PrefixAssocChanged {} = 2
 
 instance PP RenamerWarning where
   ppPrec _ (SymbolShadowed k x os) =
@@ -201,5 +203,12 @@ instance PP RenamerWarning where
     hang (text "[warning] at" <+> pp (nameLoc x))
        4 (text "Unused name:" <+> pp x)
 
+  ppPrec _ (PrefixAssocChanged prefixOp x infixOp infixFixity y) =
+    hang (text "[warning] at" <+> pp (srcRange infixOp))
+       4 $ fsep [ backticks (pp old)
+                , "is now parsed as"
+                , backticks (pp new) ]
 
-
+    where
+    old = EInfix (EPrefix prefixOp x) infixOp infixFixity y
+    new = EPrefix prefixOp (EInfix x infixOp infixFixity y)
