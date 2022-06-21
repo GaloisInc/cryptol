@@ -993,7 +993,8 @@ desugarMod mo =
                             map (srcRange . pfName) (sigFunParams si) ++
                             map srcRange (sigConstraints si) ->
               errorMessage l
-                [ "Module argument may not be a functor" ]
+                [ "Instantiation of a parameterized module may not itself be "
+                  ++ "parameterized" ]
            _ -> pure ()
          let i      = mkAnon AnonArg (thing (mName mo))
              nm     = Located { srcRange = srcRange (mName mo), thing = i }

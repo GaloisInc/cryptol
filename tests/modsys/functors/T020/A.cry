@@ -1,0 +1,5 @@
+module T020::A where
+
+import interface T020::I
+  
+main = x + y

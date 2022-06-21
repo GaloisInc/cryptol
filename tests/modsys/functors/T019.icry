@@ -1,0 +1,2 @@
+// a version of test/modsys/T5 with parameterized modules desugared
+:module T019::Main

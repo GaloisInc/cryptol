@@ -1,4 +1,4 @@
 Loading module Cryptol
 
 Parse error at T12/Main.cry:4:8--4:9
-  Module argument may not be a functor
+  Instantiation of a parameterized module may not itself be parameterized

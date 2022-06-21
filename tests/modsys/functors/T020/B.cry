@@ -1,0 +1,10 @@
+module T020::B where
+
+import interface T020::J
+
+submodule AInst = T020::A where
+  x = z
+  y = 10
+import submodule AInst as A
+
+main = A::main

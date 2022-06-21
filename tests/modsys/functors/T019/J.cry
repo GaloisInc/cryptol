@@ -1,0 +1,3 @@
+interface module T019::J where
+
+z : [8]

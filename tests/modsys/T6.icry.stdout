@@ -3,7 +3,7 @@ Loading module Cryptol
 Loading module T5::Main$argument
 
 Parse error at ./T5/B.cry:4:3--4:4
-  Module argument may not be a functor
+  Instantiation of a parameterized module may not itself be parameterized
 
 [error] at T6.icry:2:4--2:8
     Value not in scope: main
