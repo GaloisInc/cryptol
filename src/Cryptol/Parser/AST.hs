@@ -887,6 +887,9 @@ instance (Show name, PPName name) => PP (Expr name) where
 
       EParens e -> parens (pp e)
 
+      -- NOTE: these don't produce correctly parenthesized expressions without
+      -- explicit EParens nodes when necessary, since we don't check the actual
+      -- fixities of the operators.
       EInfix e1 op _ e2 -> wrap n 0 (pp e1 <+> ppInfixName (thing op) <+> pp e2)
 
       EPrefix op e  -> wrap n 3 (text (prefixText op) <.> ppPrec 4 e)
