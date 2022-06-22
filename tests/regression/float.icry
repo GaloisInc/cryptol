@@ -72,20 +72,20 @@ leqRefl     (fpNaN : Medium)
 section "Arithmetic"
 
 :set fp-base=10
-1.0 + 1.0    : Medium
-1.0 - 1.0    : Medium
-3.0 * 2.0    : Medium
-3.0 /. 2.0   : Medium
+1.0 + 1.0      : Medium
+1.0 - 1.0      : Medium
+3.0 * 2.0      : Medium
+3.0 /. 2.0     : Medium
 
-1.0  /. 0.0  : Medium
--1.0 /. 0.0  : Medium
--0.0 /. 0.0  : Medium
-1.0  /. -0.0 : Medium
--1.0 /. -0.0 : Medium
--0.0 /. -0.0 : Medium
+1.0  /. 0.0    : Medium
+(-1.0) /. 0.0  : Medium
+(-0.0) /. 0.0  : Medium
+1.0  /. -0.0   : Medium
+(-1.0) /. -0.0 : Medium
+(-0.0) /. -0.0 : Medium
 
-2.0 + 3.0    : Small
-2.0 + 8.0    : Small
+2.0 + 3.0      : Small
+2.0 + 8.0      : Small
 
 fpAdd rne 2.0 3.0         : Small
 fpAdd rne 2.0 8.0         : Small
