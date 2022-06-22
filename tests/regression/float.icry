@@ -1,5 +1,6 @@
 :module FloatTests
 :set ascii=on
+:set warnPrefixAssoc=off
 
 section "Float Formatting"
 :help :set fpBase
