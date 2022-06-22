@@ -44,19 +44,19 @@ primitive type Float : # -> # -> *
 IEEE-754 floating point numbers.
 
 
-[error] at float.icry:37:1--37:17:
+[error] at float.icry:36:1--36:17:
   Unsolved constraints:
     • ValidFloat 0 0
         arising from
         use of partial type function Float
-        at float.icry:37:1--37:17
+        at float.icry:36:1--36:17
 
-[error] at float.icry:38:1--38:21:
+[error] at float.icry:37:1--37:21:
   Unsolved constraints:
     • ValidFloat 80 1000
         arising from
         use of partial type function Float
-        at float.icry:38:1--38:21
+        at float.icry:37:1--37:21
 0x0.0p0
 0x0.0p0
 0x0.0p0
@@ -70,21 +70,21 @@ IEEE-754 floating point numbers.
 0x1.0p8
 0x4.0p0
 
-[error] at float.icry:54:1--54:20:
+[error] at float.icry:53:1--53:20:
   • `5/1` is not a valid literal of type `Small`
       arising from
       use of fractional literal
-      at float.icry:54:1--54:6
+      at float.icry:53:1--53:6
 0x1.3p0
 0x2.0p-4
 0x2.0p-4
 0x8.0p0
 
-[error] at float.icry:60:1--60:2:
+[error] at float.icry:59:1--59:2:
   • `7` is not a valid literal of type `Small`
       arising from
       use of literal or demoted expression
-      at float.icry:60:1--60:2
+      at float.icry:59:1--59:2
 "-- NaN------------------------------------------------------------------------"
 
     fpNaN : {e, p} (ValidFloat e p) => Float e p
