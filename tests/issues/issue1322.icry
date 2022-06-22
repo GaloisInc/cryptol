@@ -1,0 +1,15 @@
+// ^^ has higher precedence than -
+-2^^8 : Integer
+
+// - allowed in second operand
+3 + -2 : Integer
+
+// >> has lower precedence than -
+-1 >> 2 : [3]
+
+// ~ is still highest precedence
+~2^^2 : [3]
+
+// disable new behavior warning
+:set warnPrefixAssoc=off
+-2^^8 : Integer
