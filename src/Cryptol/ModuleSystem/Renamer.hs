@@ -179,7 +179,7 @@ renameTopDecls m ds0 =
      let ds = addImplicitNestedImports ds0
 
      -- Step 2: compute what's defined
-     (defs,errs) <- liftSupply (modBuilder (topDeclsDefs ds))
+     (defs,errs) <- liftSupply (modBuilder (topDeclsDefs (TopModule m) ds))
      mapM_ recordError errs
 
      -- Step 3: resolve imports

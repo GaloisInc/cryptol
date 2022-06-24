@@ -154,8 +154,8 @@ topModuleDefs m =
   where
   mname = thing (mName m)
 
-topDeclsDefs :: [TopDecl PName] -> ModBuilder (Mod ())
-topDeclsDefs = declsToMod Nothing
+topDeclsDefs :: ModPath -> [TopDecl PName] -> ModBuilder (Mod ())
+topDeclsDefs = declsToMod . Just
 
 sigToMod :: ModPath -> Signature PName -> ModBuilder (Mod ())
 sigToMod mp sig =
