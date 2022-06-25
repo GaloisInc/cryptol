@@ -90,6 +90,7 @@ import Paths_cryptol
 
   'primitive' { Located $$ (Token (KW KW_primitive) _)}
   'constraint'{ Located $$ (Token (KW KW_constraint) _)}
+  'foreign'   { Located $$ (Token (KW KW_foreign) _)}
   'Prop'      { Located $$ (Token (KW KW_Prop) _)}
 
   '['         { Located $$ (Token (Sym BracketL) _)}
@@ -251,6 +252,7 @@ vtop_decl               :: { [TopDecl PName] }
                            { [exportDecl $1 Public (mkProperty $3 [] $5)]     }
   | mbDoc newtype          { [exportNewtype Public $1 $2]                     }
   | prim_bind              { $1                                               }
+  | foreign_bind           { $1                                               }
   | private_decls          { $1                                               }
   | parameter_decls        { $1                                               }
   | mbDoc 'submodule'
@@ -273,6 +275,8 @@ prim_bind               :: { [TopDecl PName] }
   | mbDoc 'primitive' '(' op ')' ':' schema  { mkPrimDecl $1 $4 $7 }
   | mbDoc 'primitive' 'type' schema ':' kind {% mkPrimTypeDecl $1 $4 $6 }
 
+foreign_bind            :: { [TopDecl PName] }
+  : mbDoc 'foreign' name ':' schema          { mkForeignDecl $1 $3 $5 }
 
 parameter_decls                      :: { [TopDecl PName] }
   :     'parameter' 'v{' par_decls 'v}' { reverse $3 }

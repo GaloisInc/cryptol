@@ -187,9 +187,10 @@ specializeConst e0 = do
                  sig' <- instantiateSchema ts n (dSignature decl)
                  modifySpecCache (Map.adjust (fmap (insertTM ts (qname', Nothing))) qname)
                  rhs' <- case dDefinition decl of
-                           DExpr e -> do e' <- specializeExpr =<< instantiateExpr ts n e
-                                         return (DExpr e')
-                           DPrim   -> return DPrim
+                           DExpr e  -> do e' <- specializeExpr =<< instantiateExpr ts n e
+                                          return (DExpr e')
+                           DPrim    -> return DPrim
+                           DForeign -> return DForeign
                  let decl' = decl { dName = qname', dSignature = sig', dDefinition = rhs' }
                  modifySpecCache (Map.adjust (fmap (insertTM ts (qname', Just decl'))) qname)
                  return (EVar qname')

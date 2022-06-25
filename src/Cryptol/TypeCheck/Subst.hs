@@ -408,6 +408,7 @@ instance TVars Decl where
 instance TVars DeclDef where
   apSubst su (DExpr e) = DExpr !$ (apSubst su e)
   apSubst _  DPrim     = DPrim
+  apSubst _  DForeign  = DForeign
 
 instance TVars Module where
   apSubst su m =

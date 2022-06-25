@@ -382,9 +382,11 @@ declHole ::
   sym -> Decl -> SEval sym (Name, Schema, SEval sym (GenValue sym), SEval sym (GenValue sym) -> SEval sym ())
 declHole sym d =
   case dDefinition d of
-    DPrim   -> evalPanic "Unexpected primitive declaration in recursive group"
-                         [show (ppLocName nm)]
-    DExpr _ -> do
+    DPrim    -> evalPanic "Unexpected primitive declaration in recursive group"
+                          [show (ppLocName nm)]
+    DForeign -> evalPanic "Unexpected foreign declaration in recursive group"
+                          [show (ppLocName nm)]
+    DExpr _  -> do
       (hole, fill) <- sDeclareHole sym msg
       return (nm, sch, hole, fill)
   where
@@ -415,6 +417,8 @@ evalDecl sym renv env d =
         Just (Right p) -> pure $ bindVarDirect (dName d) p env
         Just (Left ex) -> bindVar sym (dName d) (evalExpr sym renv ex) env
         Nothing        -> bindVar sym (dName d) (cryNoPrimError sym (dName d)) env
+
+    DForeign -> evalPanic "FFI unimplemented" []
 
     DExpr e -> bindVar sym (dName d) (evalExpr sym renv e) env
 
@@ -689,5 +693,6 @@ evalMatch sym (lsz, lenv) m = seq lsz $ case m of
     where
       f env =
           case dDefinition d of
-            DPrim   -> evalPanic "evalMatch" ["Unexpected local primitive"]
-            DExpr e -> evalExpr sym env e
+            DPrim    -> evalPanic "evalMatch" ["Unexpected local primitive"]
+            DForeign -> evalPanic "evalMatch" ["Unexpected local foreign"]
+            DExpr e  -> evalExpr sym env e

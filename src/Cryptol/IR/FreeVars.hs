@@ -93,6 +93,7 @@ instance FreeVars Decl where
 instance FreeVars DeclDef where
   freeVars d = case d of
                  DPrim -> mempty
+                 DForeign -> mempty
                  DExpr e -> freeVars e
 
 

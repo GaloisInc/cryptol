@@ -146,11 +146,12 @@ instance AddParams DeclGroup where
 instance AddParams Decl where
   addParams ps d =
     case dDefinition d of
-      DPrim   -> d
-      DExpr e -> d { dSignature = addParams ps (dSignature d)
-                   , dDefinition = DExpr (addParams ps e)
-                   , dName = toParamInstName (dName d)
-                   }
+      DPrim    -> d
+      DForeign -> d
+      DExpr e  -> d { dSignature = addParams ps (dSignature d)
+                    , dDefinition = DExpr (addParams ps e)
+                    , dName = toParamInstName (dName d)
+                    }
 
 instance AddParams TySyn where
   addParams ps ts = ts { tsParams = pTypes ps ++ tsParams ts
@@ -278,6 +279,7 @@ instance Inst DeclDef where
   inst ps d =
     case d of
       DPrim -> DPrim
+      DForeign -> DForeign
       DExpr e -> DExpr (inst ps e)
 
 instance Inst Type where

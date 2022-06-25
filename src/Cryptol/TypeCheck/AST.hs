@@ -178,6 +178,7 @@ data Decl       = Decl { dName        :: !Name
                        } deriving (Generic, NFData, Show)
 
 data DeclDef    = DPrim
+                | DForeign
                 | DExpr Expr
                   deriving (Show, Generic, NFData)
 
@@ -369,6 +370,7 @@ instance PP (WithNames Decl) where
 
 instance PP (WithNames DeclDef) where
   ppPrec _ (WithNames DPrim _)      = text "<primitive>"
+  ppPrec _ (WithNames DForeign _)   = text "<foreign>"
   ppPrec _ (WithNames (DExpr e) nm) = ppWithNames nm e
 
 instance PP Decl where

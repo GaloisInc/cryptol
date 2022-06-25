@@ -927,8 +927,9 @@ generalize bs0 gs0 =
 
          genE e = foldr ETAbs (foldr EProofAbs (apSubst su e) qs) asPs
          genB d = d { dDefinition = case dDefinition d of
-                                      DExpr e -> DExpr (genE e)
-                                      DPrim   -> DPrim
+                                      DExpr e  -> DExpr (genE e)
+                                      DPrim    -> DPrim
+                                      DForeign -> DForeign
                     , dSignature  = Forall asPs qs
                                   $ apSubst su $ sType $ dSignature d
                     }
@@ -949,6 +950,8 @@ checkMonoB b t =
   case thing (P.bDef b) of
 
     P.DPrim -> panic "checkMonoB" ["Primitive with no signature?"]
+
+    P.DForeign -> panic "checkMonoB" ["Foreign with no signature?"]
 
     P.DExpr e ->
       do let nm = thing (P.bName b)
@@ -978,6 +981,28 @@ checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
                   , dFixity     = P.bFixity b
                   , dDoc        = P.bDoc b
                   }
+
+ -- We only support very specific types for FFI for now
+ P.DForeign ->
+  let loc = getLoc b
+      src = DefinitionOf $ thing $ P.bName b
+  in  inRangeMb loc do
+        unless (null as && null asmps0) $
+          recordErrorLoc loc $ UnsupportedFFIPoly src
+        case t0 of
+          TCon (TC TCFun)
+            [ TCon (TC TCSeq) [TCon (TC (TCNum 64)) [], TCon (TC TCBit) []]
+            , TCon (TC TCSeq) [TCon (TC (TCNum 64)) [], TCon (TC TCBit) []]
+            ] -> pure ()
+          _ -> recordErrorLoc loc $ UnsupportedFFIType src t0
+        return Decl { dName       = thing (P.bName b)
+                    , dSignature  = Forall as asmps0 t0
+                    , dDefinition = DForeign
+                    , dPragmas    = P.bPragmas b
+                    , dInfix      = P.bInfix b
+                    , dFixity     = P.bFixity b
+                    , dDoc        = P.bDoc b
+                    }
 
  P.DExpr e0 ->
   inRangeMb (getLoc b) $

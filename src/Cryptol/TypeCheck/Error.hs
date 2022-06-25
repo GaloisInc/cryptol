@@ -143,6 +143,13 @@ data Error    = KindMismatch (Maybe TypeSource) Kind Kind
               | MissingModTParam (Located Ident)
               | MissingModVParam (Located Ident)
 
+              | UnsupportedFFIType TypeSource Type
+                -- ^ Type is not supported for passing to/returning from a
+                -- foreign function
+
+              | UnsupportedFFIPoly TypeSource
+                -- ^ Foreign functions cannot be polymorphic
+
               | TemporaryError Doc
                 -- ^ This is for errors that don't fit other cateogories.
                 -- We should not use it much, and is generally to be used
@@ -199,7 +206,8 @@ errorImportance err =
 
     AmbiguousSize {}                                 -> 2
 
-
+    UnsupportedFFIPoly {}                            -> 10
+    UnsupportedFFIType {}                            -> 9
 
 
 instance TVars Warning where
@@ -249,6 +257,9 @@ instance TVars Error where
       MissingModTParam {}  -> err
       MissingModVParam {}  -> err
 
+      UnsupportedFFIType src t -> UnsupportedFFIType src !$ apSubst su t
+      UnsupportedFFIPoly {}    -> err
+
       TemporaryError {} -> err
 
 
@@ -283,6 +294,9 @@ instance FVS Error where
       TypeShadowing {}     -> Set.empty
       MissingModTParam {}  -> Set.empty
       MissingModVParam {}  -> Set.empty
+
+      UnsupportedFFIType _ t -> fvs t
+      UnsupportedFFIPoly {}  -> Set.empty
 
       TemporaryError {} -> Set.empty
 
@@ -456,6 +470,15 @@ instance PP (WithNames Error) where
         "Missing definition for type parameter" <+> quotes (pp (thing x))
       MissingModVParam x ->
         "Missing definition for value parameter" <+> quotes (pp (thing x))
+
+      UnsupportedFFIType src t ->
+        nested "Type unsupported for FFI:" $
+        vcat
+          [ ppWithNames names t
+          , "When checking" <+> pp src]
+      UnsupportedFFIPoly src ->
+        nested "Polymorphism is not supported for FFI" $
+          "When checking" <+> pp src
 
       TemporaryError doc -> doc
     where

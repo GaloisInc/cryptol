@@ -278,6 +278,7 @@ data Bind name = Bind
 type LBindDef = Located (BindDef PName)
 
 data BindDef name = DPrim
+                  | DForeign
                   | DExpr (Expr name)
                     deriving (Eq, Show, Generic, NFData, Functor)
 
@@ -725,6 +726,7 @@ instance (Show name, PPName name) => PP (Bind name) where
 
 instance (Show name, PPName name) => PP (BindDef name) where
   ppPrec _ DPrim     = text "<primitive>"
+  ppPrec _ DForeign  = text "<foreign>"
   ppPrec p (DExpr e) = ppPrec p e
 
 
