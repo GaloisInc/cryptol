@@ -157,8 +157,6 @@ appTys expr ts tGoal =
          cs <- getCallStacks
          if cs then pure (ELocated r e') else pure e'
 
-    P.ENeg        {} -> mono
-    P.EComplement {} -> mono
     P.EGenerate   {} -> mono
 
     P.ETuple    {} -> mono
@@ -178,6 +176,7 @@ appTys expr ts tGoal =
     P.ETypeVal  {} -> mono
     P.EFun      {} -> mono
     P.ESplit    {} -> mono
+    P.EPrefix   {} -> mono
 
     P.EParens e       -> appTys e ts tGoal
     P.EInfix a op _ b -> appTys (P.EVar (thing op) `P.EApp` a `P.EApp` b) ts tGoal
@@ -220,14 +219,6 @@ checkE expr tGoal =
 
          checkHasType t tGoal
          return e'
-
-    P.ENeg e ->
-      do prim <- mkPrim "negate"
-         checkE (P.EApp prim e) tGoal
-
-    P.EComplement e ->
-      do prim <- mkPrim "complement"
-         checkE (P.EApp prim e) tGoal
 
     P.EGenerate e ->
       do prim <- mkPrim "generate"
@@ -453,6 +444,12 @@ checkE expr tGoal =
          checkE (P.EApp prim e) tGoal
 
     P.EInfix a op _ b -> checkE (P.EVar (thing op) `P.EApp` a `P.EApp` b) tGoal
+
+    P.EPrefix op e ->
+      do prim <- mkPrim case op of
+           P.PrefixNeg        -> "negate"
+           P.PrefixComplement -> "complement"
+         checkE (P.EApp prim e) tGoal
 
     P.EParens e -> checkE e tGoal
 

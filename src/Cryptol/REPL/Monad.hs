@@ -898,6 +898,8 @@ userOptions  = mkOptionMap
     "Choose whether to display warnings when defaulting."
   , simpleOpt "warnShadowing" ["warn-shadowing"] (EnvBool True) noCheck
     "Choose whether to display warnings when shadowing symbols."
+  , simpleOpt "warnPrefixAssoc" ["warn-prefix-assoc"] (EnvBool True) noCheck
+    "Choose whether to display warnings when expression association has changed due to new prefix operator fixities."
   , simpleOpt "warnUninterp" ["warn-uninterp"] (EnvBool True) noCheck
     "Choose whether to issue a warning when uninterpreted functions are used to implement primitives in the symbolic simulator."
   , simpleOpt "smtFile" ["smt-file"] (EnvString "-") noCheck

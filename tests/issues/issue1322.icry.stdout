@@ -1,0 +1,8 @@
+Loading module Cryptol
+[warning] at issue1322.icry:2:3--2:5
+    `-2 ^^ 8` is now parsed as `-(2 ^^ 8)`
+-256
+1
+0x1
+0x1
+-256

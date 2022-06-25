@@ -72,8 +72,6 @@ namesE expr =
   case expr of
     EVar x        -> Set.singleton x
     ELit _        -> Set.empty
-    ENeg e        -> namesE e
-    EComplement e -> namesE e
     EGenerate e   -> namesE e
     ETuple es     -> Set.unions (map namesE es)
     ERecord fs    -> Set.unions (map (namesE . snd) (recordElements fs))
@@ -102,6 +100,7 @@ namesE expr =
     ESplit e      -> namesE e
     EParens e     -> namesE e
     EInfix a o _ b-> Set.insert (thing o) (Set.union (namesE a) (namesE b))
+    EPrefix _ e   -> namesE e
 
 namesUF :: Ord name => UpdField name -> Set name
 namesUF (UpdField _ _ e) = namesE e
@@ -192,8 +191,6 @@ tnamesE expr =
   case expr of
     EVar _          -> Set.empty
     ELit _          -> Set.empty
-    ENeg e          -> tnamesE e
-    EComplement e   -> tnamesE e
     EGenerate e     -> tnamesE e
     ETuple es       -> Set.unions (map tnamesE es)
     ERecord fs      -> Set.unions (map (tnamesE . snd) (recordElements fs))
@@ -224,6 +221,7 @@ tnamesE expr =
     ESplit e        -> tnamesE e
     EParens e       -> tnamesE e
     EInfix a _ _ b  -> Set.union (tnamesE a) (tnamesE b)
+    EPrefix _ e     -> tnamesE e
 
 tnamesUF :: Ord name => UpdField name -> Set name
 tnamesUF (UpdField _ _ e) = tnamesE e
