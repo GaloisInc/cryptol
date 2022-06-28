@@ -45,8 +45,11 @@ import qualified GHC.Num.Compat as Integer
 import qualified Cryptol.Backend.Arch as Arch
 import qualified Cryptol.Backend.FloatHelpers as FP
 import Cryptol.Backend
+import Cryptol.Backend.FFI
 import Cryptol.Backend.Monad
+import Cryptol.ModuleSystem.Name
 import Cryptol.TypeCheck.Solver.InfNat (genLog)
+import Cryptol.Utils.Ident
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
 
@@ -136,6 +139,8 @@ instance Backend Concrete where
   type SInteger Concrete = Integer
   type SFloat Concrete = FP.BF
   type SEval Concrete = Eval
+  type SForeignSrc Concrete = ForeignSrc
+  type SForeignImpl Concrete = ForeignImpl
 
   raiseError _ err =
     do stk <- getCallStack
@@ -412,6 +417,10 @@ instance Backend Concrete where
       case FP.floatToRational "fpToRational" fp of
         Left err -> raiseError sym err
         Right r  -> pure $ SRational { sNum = numerator r, sDenom = denominator r }
+
+  sLoadForeign _ src = io . loadForeignImpl src . unpackIdent . nameIdent
+  sCallForeign _ impl = io . fmap (mkBv 64 . toInteger)
+    . callForeignImpl impl . fromInteger . bvVal
 
 {-# INLINE liftBinIntMod #-}
 liftBinIntMod :: Monad m =>

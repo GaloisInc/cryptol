@@ -14,6 +14,7 @@ module Cryptol.ModuleSystem.Monad where
 
 import           Cryptol.Eval (EvalEnv,EvalOpts(..))
 
+import           Cryptol.Backend.FFI
 import qualified Cryptol.Backend.Monad           as E
 
 import           Cryptol.ModuleSystem.Env
@@ -508,17 +509,19 @@ setSupply supply = ModuleT $
 unloadModule :: (LoadedModule -> Bool) -> ModuleM ()
 unloadModule rm = ModuleT $ do
   env <- get
-  set $! env { meLoadedModules = removeLoadedModule rm (meLoadedModules env) }
+  lm' <- inBase $ removeLoadedModule rm (meLoadedModules env)
+  set $! env { meLoadedModules = lm' }
 
 loadedModule ::
-  ModulePath -> Fingerprint -> NamingEnv -> T.Module -> ModuleM ()
-loadedModule path fp nameEnv m = ModuleT $ do
+  ModulePath -> Fingerprint -> NamingEnv -> Maybe ForeignSrc -> T.Module ->
+  ModuleM ()
+loadedModule path fp nameEnv fsrc m = ModuleT $ do
   env <- get
   ident <- case path of
              InFile p  -> unModuleT $ io (canonicalizePath p)
              InMem l _ -> pure l
 
-  set $! env { meLoadedModules = addLoadedModule path ident fp nameEnv m
+  set $! env { meLoadedModules = addLoadedModule path ident fp nameEnv fsrc m
                                                         (meLoadedModules env) }
 
 modifyEvalEnv :: (EvalEnv -> E.Eval EvalEnv) -> ModuleM ()

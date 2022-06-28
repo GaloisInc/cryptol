@@ -235,6 +235,8 @@ class MonadIO (SEval sym) => Backend sym where
   type SInteger sym :: Type
   type SFloat sym :: Type
   type SEval sym :: Type -> Type
+  type SForeignSrc sym :: Type
+  type SForeignImpl sym :: Type
 
   -- ==== Evaluation monad operations ====
 
@@ -806,6 +808,10 @@ class MonadIO (SEval sym) => Backend sym where
     SWord sym       {- ^ rounding mode -} ->
     SRational sym ->
     SEval sym (SFloat sym)
+
+  sLoadForeign :: sym -> SForeignSrc sym -> Name -> SEval sym (SForeignImpl sym)
+
+  sCallForeign :: sym -> SForeignImpl sym -> SWord sym -> SEval sym (SWord sym)
 
 type FPArith2 sym =
   sym ->

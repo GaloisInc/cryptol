@@ -11,6 +11,7 @@
 
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ImplicitParams #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -18,10 +19,11 @@ module Cryptol.ModuleSystem.Base where
 
 import qualified Control.Exception as X
 import Control.Monad (unless,when)
+import Control.Monad.IO.Class
 import Data.Maybe (fromMaybe)
 import Data.Monoid ((<>))
 import Data.Text.Encoding (decodeUtf8')
-import Data.IORef(newIORef,readIORef)
+import Data.IORef(newIORef,readIORef,writeIORef)
 import System.Directory (doesFileExist, canonicalizePath)
 import System.FilePath ( addExtension
                        , isAbsolute
@@ -49,6 +51,7 @@ import Cryptol.ModuleSystem.Env (lookupModule
                                 , meCoreLint, CoreLint(..)
                                 , ModContext(..)
                                 , ModulePath(..), modulePathLabel)
+import Cryptol.Backend.FFI
 import qualified Cryptol.Eval                 as E
 import qualified Cryptol.Eval.Concrete as Concrete
 import           Cryptol.Eval.Concrete (Concrete(..))
@@ -237,8 +240,19 @@ doLoadModule quiet isrc path fp pm0 =
      let ?evalPrim = \i -> Right <$> Map.lookup i tbl
      callStacks <- getCallStacks
      let ?callStacks = callStacks
+     foreignSrc <- io $ newIORef Nothing
+     let ?getForeignSrc = liftIO $ readIORef foreignSrc >>= \case
+           Nothing -> case path of
+             InFile p -> do
+               fsrc <- loadForeignSrc p
+               writeIORef foreignSrc (Just fsrc)
+               pure fsrc
+             InMem _ _ -> panic "doLoadModule"
+               ["Can't find foreign source of in-memory module"]
+           Just fsrc -> pure fsrc
      unless (T.isParametrizedModule tcm) $ modifyEvalEnv (E.moduleEnv Concrete tcm)
-     loadedModule path fp nameEnv tcm
+     fsrc <- io $ readIORef foreignSrc
+     loadedModule path fp nameEnv fsrc tcm
 
      return tcm
   where
@@ -596,6 +610,7 @@ evalDecls dgs = do
   let ?evalPrim = \i -> Right <$> Map.lookup i tbl
   callStacks <- getCallStacks
   let ?callStacks = callStacks
+  let ?getForeignSrc = panic "evalDecls" ["Foreign declaration outside module"]
 
   deEnv' <- io $ E.runEval mempty (E.evalDecls Concrete dgs env')
   let denv' = denv { deDecls = deDecls denv ++ dgs

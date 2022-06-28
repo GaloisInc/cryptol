@@ -18,6 +18,7 @@ module Cryptol.ModuleSystem.Env where
 import Paths_cryptol (getDataDir)
 #endif
 
+import Cryptol.Backend.FFI
 import Cryptol.Eval (EvalEnv)
 import Cryptol.ModuleSystem.Fingerprint
 import Cryptol.ModuleSystem.Interface
@@ -41,6 +42,7 @@ import System.Directory (getAppUserDataDirectory, getCurrentDirectory)
 import System.Environment(getExecutablePath)
 import System.FilePath ((</>), normalise, joinPath, splitPath, takeDirectory)
 import qualified Data.List as List
+import Data.Foldable
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
@@ -342,6 +344,9 @@ data LoadedModule = LoadedModule
     -- ^ The actual type-checked module
 
   , lmFingerprint       :: Fingerprint
+
+  , lmForeignSrc        :: Maybe ForeignSrc
+    -- ^ The dynamically loaded source for any foreign functions in the module
   } deriving (Show, Generic, NFData)
 
 -- | Has this module been loaded already.
@@ -362,9 +367,9 @@ lookupModule mn me = search lmLoadedModules `mplus` search lmLoadedParamModules
 -- | Add a freshly loaded module.  If it was previously loaded, then
 -- the new version is ignored.
 addLoadedModule ::
-  ModulePath -> String -> Fingerprint -> R.NamingEnv -> T.Module ->
-  LoadedModules -> LoadedModules
-addLoadedModule path ident fp nameEnv tm lm
+  ModulePath -> String -> Fingerprint -> R.NamingEnv -> Maybe ForeignSrc ->
+  T.Module -> LoadedModules -> LoadedModules
+addLoadedModule path ident fp nameEnv fsrc tm lm
   | isLoaded (T.mName tm) lm  = lm
   | T.isParametrizedModule tm = lm { lmLoadedParamModules = loaded :
                                                 lmLoadedParamModules lm }
@@ -379,16 +384,24 @@ addLoadedModule path ident fp nameEnv tm lm
     , lmInterface       = T.genIface tm
     , lmModule          = tm
     , lmFingerprint     = fp
+    , lmForeignSrc      = fsrc
     }
 
 -- | Remove a previously loaded module.
 -- Note that this removes exactly the modules specified by the predicate.
--- One should be carfule to preserve the invariant on 'LoadedModules'.
-removeLoadedModule :: (LoadedModule -> Bool) -> LoadedModules -> LoadedModules
-removeLoadedModule rm lm =
-  LoadedModules
-    { lmLoadedModules = filter (not . rm) (lmLoadedModules lm)
-    , lmLoadedParamModules = filter (not . rm) (lmLoadedParamModules lm)
+-- One should be careful to preserve the invariant on 'LoadedModules'.
+removeLoadedModule ::
+  (LoadedModule -> Bool) -> LoadedModules -> IO LoadedModules
+removeLoadedModule rm lms = do
+  let (remove, keep) = List.partition rm (lmLoadedModules lms)
+  let (removeParam, keepParam) = List.partition rm (lmLoadedParamModules lms)
+  for_ (remove ++ removeParam) $ \lm ->
+    case lmForeignSrc lm of
+      Just fsrc -> unloadForeignSrc fsrc
+      Nothing   -> pure ()
+  pure LoadedModules
+    { lmLoadedModules = keep
+    , lmLoadedParamModules = keepParam
     }
 
 -- Dynamic Environments --------------------------------------------------------

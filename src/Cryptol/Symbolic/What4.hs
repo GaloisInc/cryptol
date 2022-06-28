@@ -346,6 +346,7 @@ prepareQuery sym ProverCommand { .. } = do
        let ?range = emptyRange
        callStacks <- M.getCallStacks
        let ?callStacks = callStacks
+       let ?getForeignSrc = error "FFI not supported for What4 backend"
 
        modEnv <- M.getModuleEnv
        let extDgs = M.allDeclGroups modEnv ++ pcExtraDecls
