@@ -337,8 +337,6 @@ prepareQuery evo ProverCommand{..} =
                  let ?evalPrim = \i -> (Right <$> Map.lookup i tbl) <|>
                                        (Left <$> Map.lookup i ds)
                  let ?range = emptyRange
-                 let ?getForeignSrc = panic "prepareQuery"
-                       ["FFI not supported for SBV backend"]
 
                  -- Compute the symbolic inputs, and any domain constraints needed
                  -- according to their types.

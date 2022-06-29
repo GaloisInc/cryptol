@@ -203,11 +203,11 @@ assertIntDivisor sym x =
      assertSideCondition sym p DivideByZero
 
 instance W4.IsSymExprBuilder sym => Backend (What4 sym) where
-  type SBit (What4 sym)         = W4.Pred sym
-  type SWord (What4 sym)        = SW.SWord sym
-  type SInteger (What4 sym)     = W4.SymInteger sym
-  type SFloat (What4 sym)       = FP.SFloat sym
-  type SEval (What4 sym)        = W4Eval sym
+  type SBit (What4 sym)     = W4.Pred sym
+  type SWord (What4 sym)    = SW.SWord sym
+  type SInteger (What4 sym) = W4.SymInteger sym
+  type SFloat (What4 sym)   = FP.SFloat sym
+  type SEval (What4 sym)    = W4Eval sym
 
   raiseError _ = evalError
 

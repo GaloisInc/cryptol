@@ -11,7 +11,6 @@
 
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ImplicitParams #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -601,7 +600,6 @@ evalDecls dgs = do
   let ?evalPrim = \i -> Right <$> Map.lookup i tbl
   callStacks <- getCallStacks
   let ?callStacks = callStacks
-  let ?getForeignSrc = panic "evalDecls" ["Foreign declaration outside module"]
 
   deEnv' <- io $ E.runEval mempty (E.evalDecls Concrete dgs env')
   let denv' = denv { deDecls = deDecls denv ++ dgs

@@ -212,9 +212,7 @@ evalExpr sym env expr = case expr of
   EProofApp e   -> eval e
 
   EWhere e ds -> {-# SCC "evalExpr->EWhere" #-} do
-     env' <- let ?getForeignSrc =
-                   evalPanic "evalExpr" ["Foreign in where block"]
-             in  evalDecls sym ds env
+     env' <- evalDecls sym ds env
      evalExpr sym env' e
 
   where
