@@ -39,13 +39,11 @@ module Cryptol.Eval (
 
 import Cryptol.Backend
 import Cryptol.Backend.Concrete( Concrete(..) )
-import Cryptol.Backend.FFI
 import Cryptol.Backend.Monad
 import Cryptol.Backend.SeqMap
 import Cryptol.Backend.WordValue
 
 import Cryptol.Eval.Env
-import Cryptol.Eval.FFI
 import Cryptol.Eval.Prims
 import Cryptol.Eval.Type
 import Cryptol.Eval.Value
@@ -80,7 +78,7 @@ type ConcPrims =
 -- Expression Evaluation -------------------------------------------------------
 
 {-# SPECIALIZE moduleEnv ::
-  (ConcPrims, ?getForeignSrc :: Eval ForeignSrc) =>
+  ConcPrims =>
   Concrete ->
   Module ->
   GenEvalEnv Concrete ->
@@ -90,7 +88,7 @@ type ConcPrims =
 -- | Extend the given evaluation environment with all the declarations
 --   contained in the given module.
 moduleEnv ::
-  (EvalPrims sym, ?getForeignSrc :: SEval sym (SForeignSrc sym)) =>
+  EvalPrims sym =>
   sym ->
   Module         {- ^ Module containing declarations to evaluate -} ->
   GenEvalEnv sym {- ^ Environment to extend -} ->
@@ -289,7 +287,7 @@ evalNewtypeDecl _sym nt = pure . bindVarDirect (ntName nt) (foldr tabs con (ntPa
 -- Declarations ----------------------------------------------------------------
 
 {-# SPECIALIZE evalDecls ::
-  (ConcPrims, ?getForeignSrc :: Eval ForeignSrc) =>
+  ConcPrims =>
   Concrete ->
   [DeclGroup] ->
   GenEvalEnv Concrete ->
@@ -299,7 +297,7 @@ evalNewtypeDecl _sym nt = pure . bindVarDirect (ntName nt) (foldr tabs con (ntPa
 -- | Extend the given evaluation environment with the result of evaluating the
 --   given collection of declaration groups.
 evalDecls ::
-  (EvalPrims sym, ?getForeignSrc :: SEval sym (SForeignSrc sym)) =>
+  EvalPrims sym =>
   sym ->
   [DeclGroup]   {- ^ Declaration groups to evaluate -} ->
   GenEvalEnv sym  {- ^ Environment to extend -} ->
@@ -307,7 +305,7 @@ evalDecls ::
 evalDecls x dgs env = foldM (evalDeclGroup x) env dgs
 
 {-# SPECIALIZE evalDeclGroup ::
-  (ConcPrims, ?getForeignSrc :: Eval ForeignSrc) =>
+  ConcPrims =>
   Concrete ->
   GenEvalEnv Concrete ->
   DeclGroup ->
@@ -315,7 +313,7 @@ evalDecls x dgs env = foldM (evalDeclGroup x) env dgs
   #-}
 
 evalDeclGroup ::
-  (EvalPrims sym, ?getForeignSrc :: SEval sym (SForeignSrc sym)) =>
+  EvalPrims sym =>
   sym ->
   GenEvalEnv sym ->
   DeclGroup ->
@@ -407,7 +405,7 @@ declHole sym d =
 --   definitions.  The 'read only' environment is used to bring recursive
 --   names into scope while we are still defining them.
 evalDecl ::
-  (EvalPrims sym, ?getForeignSrc :: SEval sym (SForeignSrc sym)) =>
+  EvalPrims sym =>
   sym ->
   GenEvalEnv sym  {- ^ A 'read only' environment for use in declaration bodies -} ->
   GenEvalEnv sym  {- ^ An evaluation environment to extend with the given declaration -} ->
@@ -423,9 +421,10 @@ evalDecl sym renv env d =
         Nothing        -> bindVar sym (dName d) (cryNoPrimError sym (dName d)) env
 
     DForeign -> do
-      src <- ?getForeignSrc
-      impl <- sLoadForeign sym src $ dName d
-      pure $ bindVarDirect (dName d) (foreignPrim sym impl) env
+      case lookupVar (dName d) env of
+        Just _  -> pure env
+        Nothing -> bindVar sym (dName d)
+          (cryFFINotSupportedError sym (dName d)) env
 
     DExpr e -> bindVar sym (dName d) (evalExpr sym renv e) env
 

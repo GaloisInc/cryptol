@@ -208,8 +208,6 @@ instance W4.IsSymExprBuilder sym => Backend (What4 sym) where
   type SInteger (What4 sym)     = W4.SymInteger sym
   type SFloat (What4 sym)       = FP.SFloat sym
   type SEval (What4 sym)        = W4Eval sym
-  type SForeignSrc (What4 sym)  = ()
-  type SForeignImpl (What4 sym) = ()
 
   raiseError _ = evalError
 
@@ -488,11 +486,6 @@ instance W4.IsSymExprBuilder sym => Backend (What4 sym) where
 
   fpFromRational = fpCvtFromRational
   fpToRational = fpCvtToRational
-
-  sLoadForeign _ _ = evalPanic "sLoadForeign"
-    ["FFI not supported for What4 backend"]
-  sCallForeign _ _ _ = evalPanic "sCallForeign"
-    ["FFI not supported for What4 backend"]
 
 sModAdd :: W4.IsSymExprBuilder sym =>
   sym -> Integer -> W4.SymInteger sym -> W4.SymInteger sym -> IO (W4.SymInteger sym)

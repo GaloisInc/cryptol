@@ -43,9 +43,11 @@ import Control.Monad.IO.Class
 import Control.Exception (IOException)
 import Data.ByteString (ByteString)
 import Data.Function (on)
+import Data.Functor.Identity
 import Data.Map (Map)
 import Data.Maybe (isJust)
 import Data.Text.Encoding.Error (UnicodeException)
+import Data.Traversable
 import MonadLib
 import System.Directory (canonicalizePath)
 
@@ -524,12 +526,16 @@ loadedModule path fp nameEnv fsrc m = ModuleT $ do
   set $! env { meLoadedModules = addLoadedModule path ident fp nameEnv fsrc m
                                                         (meLoadedModules env) }
 
-modifyEvalEnv :: (EvalEnv -> E.Eval EvalEnv) -> ModuleM ()
-modifyEvalEnv f = ModuleT $ do
+modifyEvalEnvM :: Traversable t =>
+  (EvalEnv -> E.Eval (t EvalEnv)) -> ModuleM (t ())
+modifyEvalEnvM f = ModuleT $ do
   env <- get
   let evalEnv = meEvalEnv env
-  evalEnv' <- inBase $ E.runEval mempty (f evalEnv)
-  set $! env { meEvalEnv = evalEnv' }
+  inBase (E.runEval mempty (f evalEnv))
+    >>= traverse (\evalEnv' -> set $! env { meEvalEnv = evalEnv' })
+
+modifyEvalEnv :: (EvalEnv -> E.Eval EvalEnv) -> ModuleM ()
+modifyEvalEnv = fmap runIdentity . modifyEvalEnvM . (fmap Identity .)
 
 getEvalEnv :: ModuleM EvalEnv
 getEvalEnv  = ModuleT (meEvalEnv `fmap` get)

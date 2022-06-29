@@ -153,8 +153,6 @@ instance Backend SBV where
   type SInteger SBV = SVal
   type SFloat SBV = ()        -- XXX: not implemented
   type SEval SBV = SBVEval
-  type SForeignSrc SBV = ()
-  type SForeignImpl SBV = ()
 
   raiseError _ err = SBVEval $
     do stk <- getCallStack
@@ -365,9 +363,6 @@ instance Backend SBV where
   fpFromBits _ _ _ _        = unsupported "fpFromBits"
   fpToRational _ _          = unsupported "fpToRational"
   fpFromRational _ _ _ _ _  = unsupported "fpFromRational"
-
-  sLoadForeign _ _ _ = unsupported "sLoadForeign"
-  sCallForeign _ _ _ = unsupported "sCallForeign"
 
 
 unsupported :: String -> SEval SBV a

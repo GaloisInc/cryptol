@@ -421,6 +421,7 @@ data EvalError
   | NoPrim Name                   -- ^ Primitive with no implementation
   | BadRoundingMode Integer       -- ^ Invalid rounding mode
   | BadValue String               -- ^ Value outside the domain of a partial function.
+  | FFINotSupported Name          -- ^ Foreign function cannot be called
     deriving Typeable
 
 instance PP EvalError where
@@ -440,6 +441,10 @@ instance PP EvalError where
     BadRoundingMode r -> "invalid rounding mode" <+> integer r
     BadValue x -> "invalid input for" <+> backticks (text x)
     NoPrim x -> text "unimplemented primitive:" <+> pp x
+    FFINotSupported x -> vcat
+      [ text "cannot call foreign function " <+> pp x
+      , text "FFI calls are not supported in this context"
+      ]
 
 instance Show EvalError where
   show = show . pp

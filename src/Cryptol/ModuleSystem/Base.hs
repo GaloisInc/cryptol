@@ -19,11 +19,10 @@ module Cryptol.ModuleSystem.Base where
 
 import qualified Control.Exception as X
 import Control.Monad (unless,when)
-import Control.Monad.IO.Class
 import Data.Maybe (fromMaybe)
 import Data.Monoid ((<>))
 import Data.Text.Encoding (decodeUtf8')
-import Data.IORef(newIORef,readIORef,writeIORef)
+import Data.IORef(newIORef,readIORef)
 import System.Directory (doesFileExist, canonicalizePath)
 import System.FilePath ( addExtension
                        , isAbsolute
@@ -51,10 +50,10 @@ import Cryptol.ModuleSystem.Env (lookupModule
                                 , meCoreLint, CoreLint(..)
                                 , ModContext(..)
                                 , ModulePath(..), modulePathLabel)
-import Cryptol.Backend.FFI
 import qualified Cryptol.Eval                 as E
 import qualified Cryptol.Eval.Concrete as Concrete
 import           Cryptol.Eval.Concrete (Concrete(..))
+import Cryptol.Eval.FFI
 import qualified Cryptol.ModuleSystem.NamingEnv as R
 import qualified Cryptol.ModuleSystem.Renamer as R
 import qualified Cryptol.Parser               as P
@@ -240,18 +239,10 @@ doLoadModule quiet isrc path fp pm0 =
      let ?evalPrim = \i -> Right <$> Map.lookup i tbl
      callStacks <- getCallStacks
      let ?callStacks = callStacks
-     foreignSrc <- io $ newIORef Nothing
-     let ?getForeignSrc = liftIO $ readIORef foreignSrc >>= \case
-           Nothing -> case path of
-             InFile p -> do
-               fsrc <- loadForeignSrc p
-               writeIORef foreignSrc (Just fsrc)
-               pure fsrc
-             InMem _ _ -> panic "doLoadModule"
-               ["Can't find foreign source of in-memory module"]
-           Just fsrc -> pure fsrc
-     unless (T.isParametrizedModule tcm) $ modifyEvalEnv (E.moduleEnv Concrete tcm)
-     fsrc <- io $ readIORef foreignSrc
+     fsrc <- if T.isParametrizedModule tcm
+       then pure Nothing
+       else fst <$> modifyEvalEnvM (addForeignDecls path tcm)
+            <* modifyEvalEnv (E.moduleEnv Concrete tcm)
      loadedModule path fp nameEnv fsrc tcm
 
      return tcm
