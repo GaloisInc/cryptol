@@ -11,6 +11,7 @@
 
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ImplicitParams #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -18,6 +19,7 @@ module Cryptol.ModuleSystem.Base where
 
 import qualified Control.Exception as X
 import Control.Monad (unless,when)
+import Data.Functor.Compose
 import Data.Maybe (fromMaybe)
 import Data.Monoid ((<>))
 import Data.Text.Encoding (decodeUtf8')
@@ -240,8 +242,12 @@ doLoadModule quiet isrc path fp pm0 =
      let ?callStacks = callStacks
      fsrc <- if T.isParametrizedModule tcm
        then pure Nothing
-       else fst <$> modifyEvalEnvM (addForeignDecls path tcm)
+       else getCompose
+              <$> modifyEvalEnvM (fmap Compose . evalForeignDecls path tcm)
             <* modifyEvalEnv (E.moduleEnv Concrete tcm)
+            >>= \case
+              Left errs -> ffiLoadErrors (T.mName tcm) errs
+              Right (fsrc, ()) -> pure fsrc
      loadedModule path fp nameEnv fsrc tcm
 
      return tcm

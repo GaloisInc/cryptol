@@ -116,6 +116,7 @@ data ModuleError
   | FailedToParameterizeModDefs P.ModName [T.Name]
     -- ^ Failed to add the module parameters to all definitions in a module.
   | NotAParameterizedModule P.ModName
+  | FFILoadErrors P.ModName [FFILoadError]
 
   | ErrorInFile ModulePath ModuleError
     -- ^ This is just a tag on the error, indicating the file containing it.
@@ -144,6 +145,7 @@ instance NFData ModuleError where
     ImportedParamModule x                -> x `deepseq` ()
     FailedToParameterizeModDefs x xs     -> x `deepseq` xs `deepseq` ()
     NotAParameterizedModule x            -> x `deepseq` ()
+    FFILoadErrors x errs                 -> x `deepseq` errs `deepseq` ()
     ErrorInFile x y                      -> x `deepseq` y `deepseq` ()
 
 instance PP ModuleError where
@@ -210,6 +212,11 @@ instance PP ModuleError where
     NotAParameterizedModule x ->
       text "[error] Module" <+> pp x <+> text "does not have parameters."
 
+    FFILoadErrors x errs ->
+      hang (text "[error] Failed to load foreign implementations for module"
+            <+> pp x <.> colon)
+         4 (vcat $ map pp errs)
+
     ErrorInFile _ x -> ppPrec prec x
 
 moduleNotFound :: P.ModName -> [FilePath] -> ModuleM a
@@ -268,6 +275,9 @@ failedToParameterizeModDefs x xs =
 
 notAParameterizedModule :: P.ModName -> ModuleM a
 notAParameterizedModule x = ModuleT (raise (NotAParameterizedModule x))
+
+ffiLoadErrors :: P.ModName -> [FFILoadError] -> ModuleM a
+ffiLoadErrors x errs = ModuleT (raise (FFILoadErrors x errs))
 
 -- | Run the computation, and if it caused and error, tag the error
 -- with the given file.
