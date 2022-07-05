@@ -277,6 +277,7 @@ type LBindDef = Located (BindDef PName)
 
 data BindDef name = DPrim
                   | DExpr (Expr name)
+                  | DPropGuards [([Prop name], Expr name)]
                     deriving (Eq, Show, Generic, NFData, Functor)
 
 data Pragma   = PragmaNote String
