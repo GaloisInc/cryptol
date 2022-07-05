@@ -43,13 +43,15 @@ import           Cryptol.TypeCheck.Kind(checkType,checkSchema,checkTySyn,
                                         checkPropSyn,checkNewtype,
                                         checkParameterType,
                                         checkPrimType,
-                                        checkParameterConstraints)
+                                        checkParameterConstraints,
+                                        checkPropGuard)
 import           Cryptol.TypeCheck.Instantiate
 import           Cryptol.TypeCheck.Subst (listSubst,apSubst,(@@),isEmptySubst)
 import           Cryptol.TypeCheck.Unify(rootPath)
 import           Cryptol.Utils.Ident
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.RecordMap
+import           Cryptol.Utils.PP (pp)
 
 import qualified Data.Map as Map
 import           Data.Map (Map)
@@ -966,6 +968,11 @@ checkMonoB b t =
                      , dFixity = P.bFixity b
                      , dDoc = P.bDoc b
                      }
+    
+    P.DPropGuards _ ->
+      tcPanic "checkMonoB"
+        [ "Used constraint guards without a signature, dumbwit, at "
+        , show . pp $ P.bName b ]
 
 -- XXX: Do we really need to do the defaulting business in two different places?
 checkSigB :: P.Bind Name -> (Schema,[Goal]) -> InferM Decl
@@ -1030,6 +1037,36 @@ checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
         , dDoc        = P.bDoc b
         }
 
+ P.DPropGuards propGuards -> 
+  inRangeMb (getLoc b) $
+  withTParams as $ do
+    asmps1 <- applySubstPreds asmps0
+    t      <- applySubst t0
+    -- handle cases
+    let f :: ([P.Prop Name], P.Expr Name) -> InferM ([Prop], Expr)
+        f (ps0, e0) = do
+            -- validate props
+            (ps1, gss) <- unzip <$> mapM checkPropGuard ps0
+            let gs = concat gss
+                ps2 = asmps1 <> (goal <$> gs) <> ps1
+            -- typecheck expr
+            let tGoal = WithSource t0 (DefinitionOf nm) (getLoc b)
+                nm = thing $ P.bName b
+            e1 <- checkFun (P.FunDesc (Just nm) 0) (P.bParams b) e0 tGoal
+            e2 <- applySubst e1
+            pure (ps2, e2)
+            -- undefined :: InferM ([Prop], Expr)
+    cases <- mapM f propGuards
+   
+    return Decl
+      { dName       = thing (P.bName b)
+      , dSignature  = Forall as asmps1 t
+      , dDefinition = DExpr (EPropGuards cases)
+      , dPragmas    = P.bPragmas b
+      , dInfix      = P.bInfix b
+      , dFixity     = P.bFixity b
+      , dDoc        = P.bDoc b
+      }
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
