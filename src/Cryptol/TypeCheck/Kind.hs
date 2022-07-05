@@ -19,6 +19,7 @@ module Cryptol.TypeCheck.Kind
   , checkPropSyn
   , checkParameterType
   , checkParameterConstraints
+  , checkPropGuard
   ) where
 
 import qualified Cryptol.Parser.AST as P
@@ -39,8 +40,6 @@ import           Data.Maybe(fromMaybe)
 import           Data.Function(on)
 import           Data.Text (Text)
 import           Control.Monad(unless,when)
-
-
 
 -- | Check a type signature.  Returns validated schema, and any implicit
 -- constraints that we inferred.
@@ -413,3 +412,10 @@ checkKind _ (Just k1) k2
 checkKind t _ _ = return t
 
 
+-- | Validate a parsed proposition that appears on the LHS of a PropGuard.
+-- Returns the validated proposition as well as any inferred goal propisitions.
+checkPropGuard :: P.Prop Name -> InferM (Prop, [Goal])
+checkPropGuard p =
+  collectGoals $
+  (undefined :: KindM Type -> InferM Type) $ -- TODO
+  checkProp p
