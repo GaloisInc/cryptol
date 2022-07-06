@@ -29,9 +29,8 @@ evalForeignDecls :: ModulePath -> Module -> EvalEnv ->
   Eval (Either [FFILoadError] EvalEnv)
 evalForeignDecls path m env = do
   foreignSrc <- liftIO $ newIORef Nothing
-  let evalForeignDeclGroup e (NonRecursive d) = evalForeignDecl e d
-      evalForeignDeclGroup _ (Recursive _) = panic "evalForeignDecls"
-        ["Recursive foreign declaration group"]
+  let evalForeignDeclGroup e (Recursive ds)   = foldlM evalForeignDecl e ds
+      evalForeignDeclGroup e (NonRecursive d) = evalForeignDecl e d
       evalForeignDecl e d = case dDefinition d of
         DForeign -> do
           fsrc <- liftIO (readIORef foreignSrc) >>= \case
