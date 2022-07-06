@@ -1,6 +1,8 @@
+{-# LANGUAGE BlockArguments            #-}
 {-# LANGUAGE DeriveAnyClass            #-}
 {-# LANGUAGE DeriveGeneric             #-}
 {-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE RecordWildCards           #-}
 {-# LANGUAGE StandaloneDeriving        #-}
 {-# LANGUAGE TypeSynonymInstances      #-}
 
@@ -12,15 +14,18 @@ module Cryptol.Backend.FFI
   , ForeignImpl
   , FFILoadError (..)
   , loadForeignSrc
-  , unloadForeignSrc
   , loadForeignImpl
   , callForeignImpl
   ) where
 
 import           Control.DeepSeq
 import           Control.Exception
+import           Control.Monad
 import           Data.Bifunctor
+import           Data.IORef
 import           Data.Word
+import           Foreign.Concurrent
+import           Foreign.ForeignPtr         (ForeignPtr, withForeignPtr)
 import           Foreign.LibFFI
 import           Foreign.Ptr
 import           GHC.Generics
@@ -30,12 +35,21 @@ import           System.Posix.DynamicLinker
 
 import           Cryptol.Utils.PP
 
-type ForeignSrc = DL
+-- | A 'ForeignSrc' consists of a handle to the dynamically loaded library and
+-- a reference count for the number of foreign functions from the library that
+-- are still in memory.
+-- When all references to the foreign functions are garbage collected the
+-- library will be closed by the 'ForeignPtr' finalizer in 'loadForeignImpl'.
+data ForeignSrc = ForeignSrc
+  { foreignLib  :: !ForeignLib
+  , foreignRefs :: !(IORef Word) }
 
-deriving instance Generic ForeignSrc
-deriving instance NFData ForeignSrc
+type ForeignLib = DL
 
-data ForeignImpl = forall a. ForeignImpl (FunPtr a)
+deriving instance Generic ForeignLib
+deriving instance NFData ForeignLib
+
+data ForeignImpl = forall a. ForeignImpl (ForeignPtr a)
 
 data FFILoadError
   = CantLoadFFISrc
@@ -58,18 +72,28 @@ instance PP FFILoadError where
          4 (text msg)
 
 loadForeignSrc :: FilePath -> IO (Either FFILoadError ForeignSrc)
-loadForeignSrc path =
+loadForeignSrc = loadForeignLib >=> traverse \foreignLib -> do
+  foreignRefs <- newIORef 0
+  pure ForeignSrc {..}
+
+loadForeignLib :: FilePath -> IO (Either FFILoadError ForeignLib)
+loadForeignLib path =
   tryLoad (CantLoadFFISrc path) $ dlopen (path -<.> "so") [RTLD_NOW]
 
-unloadForeignSrc :: ForeignSrc -> IO ()
-unloadForeignSrc = dlclose
+unloadForeignLib :: ForeignLib -> IO ()
+unloadForeignLib = dlclose
 
 loadForeignImpl :: ForeignSrc -> String -> IO (Either FFILoadError ForeignImpl)
-loadForeignImpl src name =
-  tryLoad (CantLoadFFIImpl name) $ ForeignImpl <$> dlsym src name
+loadForeignImpl ForeignSrc {..} name = tryLoad (CantLoadFFIImpl name) do
+  ptr <- castFunPtrToPtr <$> dlsym foreignLib name
+  atomicModifyIORef' foreignRefs (\n -> (succ n, ()))
+  ForeignImpl <$> newForeignPtr ptr do
+    n <- atomicModifyIORef' foreignRefs (\n -> let n' = pred n in (n', n'))
+    when (n == 0) $ unloadForeignLib foreignLib
 
 tryLoad :: (String -> FFILoadError) -> IO a -> IO (Either FFILoadError a)
 tryLoad err = fmap (first $ err . displayException) . tryIOError
 
 callForeignImpl :: ForeignImpl -> Word64 -> IO Word64
-callForeignImpl (ForeignImpl p) x = callFFI p retWord64 [argWord64 x]
+callForeignImpl (ForeignImpl fp) x = withForeignPtr fp \p ->
+  callFFI (castPtrToFunPtr p) retWord64 [argWord64 x]

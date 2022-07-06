@@ -7,9 +7,9 @@ module Cryptol.Eval.FFI
   ) where
 
 import           Control.Monad.Except
-import           Control.Monad.State.Strict
 import           Control.Monad.Writer.Strict
 import           Data.Foldable
+import           Data.IORef
 
 import           Cryptol.Backend.Concrete
 import           Cryptol.Backend.FFI
@@ -26,31 +26,32 @@ import           Cryptol.Utils.Ident
 import           Cryptol.Utils.Panic
 
 evalForeignDecls :: ModulePath -> Module -> EvalEnv ->
-  Eval (Either [FFILoadError] (Maybe ForeignSrc, EvalEnv))
-evalForeignDecls path m env = fmap report $ runExceptT $ runWriterT $
-  runStateT (foldlM evalForeignDeclGroup env $ mDecls m) Nothing
-  where
-  report (Right ((env', fsrc), [])) = Right (fsrc, env')
-  report (Right (_, errs))          = Left errs
-  report (Left err)                 = Left [err]
-  evalForeignDeclGroup e (Recursive ds)   = foldlM evalForeignDecl e ds
-  evalForeignDeclGroup e (NonRecursive d) = evalForeignDecl e d
-  evalForeignDecl e d = case dDefinition d of
-    DForeign -> do
-      fsrc <- get >>= \case
-        Nothing -> case path of
-          InFile p -> do
-            fsrc <- liftIO (loadForeignSrc p) >>= liftEither
-            put $ Just fsrc
-            pure fsrc
-          InMem _ _ -> panic "evalForeignDecls"
-            ["Can't find foreign source of in-memory module"]
-        Just fsrc -> pure fsrc
-      liftIO (loadForeignImpl fsrc $ unpackIdent $ nameIdent $ dName d)
-        >>= \case
-          Left err   -> tell [err] >> pure e
-          Right impl -> pure $ bindVarDirect (dName d) (foreignPrim impl) e
-    _ -> pure e
+  Eval (Either [FFILoadError] EvalEnv)
+evalForeignDecls path m env = do
+  foreignSrc <- liftIO $ newIORef Nothing
+  let evalForeignDeclGroup e (Recursive ds)   = foldlM evalForeignDecl e ds
+      evalForeignDeclGroup e (NonRecursive d) = evalForeignDecl e d
+      evalForeignDecl e d = case dDefinition d of
+        DForeign -> do
+          fsrc <- liftIO (readIORef foreignSrc) >>= \case
+            Nothing -> case path of
+              InFile p -> do
+                fsrc <- liftIO (loadForeignSrc p) >>= liftEither
+                liftIO $ writeIORef foreignSrc $ Just fsrc
+                pure fsrc
+              InMem _ _ -> panic "evalForeignDecls"
+                ["Can't find foreign source of in-memory module"]
+            Just fsrc -> pure fsrc
+          liftIO (loadForeignImpl fsrc $ unpackIdent $ nameIdent $ dName d)
+            >>= \case
+              Left err   -> tell [err] >> pure e
+              Right impl -> pure $ bindVarDirect (dName d) (foreignPrim impl) e
+        _ -> pure e
+      report (Left err)         = Left [err]
+      report (Right (env', [])) = Right env'
+      report (Right (_, errs))  = Left errs
+  fmap report $ runExceptT $ runWriterT $
+    foldlM evalForeignDeclGroup env $ mDecls m
 
 foreignPrim :: ForeignImpl -> Prim Concrete
 foreignPrim impl = PStrict \case

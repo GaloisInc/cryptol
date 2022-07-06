@@ -521,19 +521,17 @@ setSupply supply = ModuleT $
 unloadModule :: (LoadedModule -> Bool) -> ModuleM ()
 unloadModule rm = ModuleT $ do
   env <- get
-  lm' <- inBase $ removeLoadedModule rm (meLoadedModules env)
-  set $! env { meLoadedModules = lm' }
+  set $! env { meLoadedModules = removeLoadedModule rm (meLoadedModules env) }
 
 loadedModule ::
-  ModulePath -> Fingerprint -> NamingEnv -> Maybe ForeignSrc -> T.Module ->
-  ModuleM ()
-loadedModule path fp nameEnv fsrc m = ModuleT $ do
+  ModulePath -> Fingerprint -> NamingEnv -> T.Module -> ModuleM ()
+loadedModule path fp nameEnv m = ModuleT $ do
   env <- get
   ident <- case path of
              InFile p  -> unModuleT $ io (canonicalizePath p)
              InMem l _ -> pure l
 
-  set $! env { meLoadedModules = addLoadedModule path ident fp nameEnv fsrc m
+  set $! env { meLoadedModules = addLoadedModule path ident fp nameEnv m
                                                         (meLoadedModules env) }
 
 modifyEvalEnvM :: Traversable t =>

@@ -19,7 +19,6 @@ module Cryptol.ModuleSystem.Base where
 
 import qualified Control.Exception as X
 import Control.Monad (unless,when)
-import Data.Functor.Compose
 import Data.Maybe (fromMaybe)
 import Data.Monoid ((<>))
 import Data.Text.Encoding (decodeUtf8')
@@ -54,7 +53,7 @@ import Cryptol.ModuleSystem.Env (lookupModule
 import qualified Cryptol.Eval                 as E
 import qualified Cryptol.Eval.Concrete as Concrete
 import           Cryptol.Eval.Concrete (Concrete(..))
-import Cryptol.Eval.FFI
+import           Cryptol.Eval.FFI
 import qualified Cryptol.ModuleSystem.NamingEnv as R
 import qualified Cryptol.ModuleSystem.Renamer as R
 import qualified Cryptol.Parser               as P
@@ -240,15 +239,11 @@ doLoadModule quiet isrc path fp pm0 =
      let ?evalPrim = \i -> Right <$> Map.lookup i tbl
      callStacks <- getCallStacks
      let ?callStacks = callStacks
-     fsrc <- if T.isParametrizedModule tcm
-       then pure Nothing
-       else getCompose
-              <$> modifyEvalEnvM (fmap Compose . evalForeignDecls path tcm)
-            <* modifyEvalEnv (E.moduleEnv Concrete tcm)
-            >>= \case
-              Left errs -> ffiLoadErrors (T.mName tcm) errs
-              Right (fsrc, ()) -> pure fsrc
-     loadedModule path fp nameEnv fsrc tcm
+     unless (T.isParametrizedModule tcm) $
+       modifyEvalEnvM (evalForeignDecls path tcm) >>= \case
+         Left errs -> ffiLoadErrors (T.mName tcm) errs
+         Right ()  -> modifyEvalEnv (E.moduleEnv Concrete tcm)
+     loadedModule path fp nameEnv tcm
 
      return tcm
   where
