@@ -129,6 +129,8 @@ $white+                   { emit $ White Space }
 
 "Prop"                    { emit $ KW KW_Prop }
 
+"propguards"              { emit $ KW KW_propguards }
+
 @num                      { emitS numToken }
 @fnum                     { emitFancy fnumTokens }
 

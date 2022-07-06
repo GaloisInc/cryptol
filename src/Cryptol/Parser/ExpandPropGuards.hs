@@ -44,8 +44,12 @@ runExpandPropGuardsM m = m
 class ExpandPropGuards a where
   expandPropGuards :: a -> ExpandPropGuardsM a
 
+-- | Error
 data Error = NoSignature (Located PName)
   deriving (Show,Generic, NFData)
+
+instance PP Error where
+  ppPrec = undefined -- TODO
 
 -- | Instances
 

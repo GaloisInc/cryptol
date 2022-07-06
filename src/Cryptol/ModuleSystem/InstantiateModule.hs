@@ -217,6 +217,8 @@ instance Inst Expr where
         EProofApp e               -> EProofApp (go e)
         EWhere e ds               -> EWhere (go e) (inst env ds)
 
+        EPropGuards _guards       -> EPropGuards undefined -- TODO
+
 
 instance Inst DeclGroup where
   inst env dg =

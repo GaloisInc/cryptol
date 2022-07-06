@@ -332,7 +332,8 @@ assigns values to those variables.
 >     EProofAbs _ e  -> evalExpr env e
 >     EProofApp e    -> evalExpr env e
 >     EWhere e dgs   -> evalExpr (foldl evalDeclGroup env dgs) e
-
+>
+>     EPropGuards _guards -> error "unimplemented: `evalExpr (EPropGuards _)`" -- TODO
 
 > appFun :: E Value -> E Value -> E Value
 > appFun f v = f >>= \f' -> fromVFun f' v

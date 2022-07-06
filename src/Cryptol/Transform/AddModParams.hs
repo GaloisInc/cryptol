@@ -257,6 +257,7 @@ instance Inst Expr where
          _ -> EProofApp (inst ps e1)
 
      EWhere e dgs  -> EWhere (inst ps e) (inst ps dgs)
+     EPropGuards _guards -> error "undefined: inst ps (EPropGuards _guards)"
 
 
 instance Inst Match where

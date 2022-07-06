@@ -224,6 +224,10 @@ noMatchB b =
       do e' <- noPatFun (Just (thing (bName b))) 0 (bParams b) e
          return b { bParams = [], bDef = DExpr e' <$ bDef b }
 
+    DPropGuards guards -> do
+      guards' <- (\(props, e) -> (,) <$> pure props <*> noPatFun (Just (thing (bName b))) 0 (bParams b) e) `traverse` guards
+      pure b { bParams = [], bDef = DPropGuards guards' <$ bDef b }
+
 noMatchD :: Decl PName -> NoPatM [Decl PName]
 noMatchD decl =
   case decl of

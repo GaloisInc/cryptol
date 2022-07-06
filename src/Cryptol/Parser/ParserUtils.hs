@@ -610,6 +610,27 @@ mkIndexedDecl f (ps, ixs) e =
     rhs = mkGenerate (reverse ixs) e
 
 -- NOTE: The lists of patterns are reversed!
+mkIndexedPropGuardsDecl ::
+  LPName -> ([Pattern PName], [Pattern PName]) -> [([Prop PName], Expr PName)] -> Decl PName
+mkIndexedPropGuardsDecl f (ps, ixs) guards =
+  DBind Bind { bName       = f
+             , bParams     = reverse ps
+               -- TODO: add range properly
+             , bDef        = Located emptyRange (DPropGuards guards')
+             , bSignature  = Nothing
+             , bPragmas    = []
+             , bMono       = False
+             , bInfix      = False
+             , bFixity     = Nothing
+             , bDoc        = Nothing
+             , bExport     = Public
+             }
+  where
+    -- TODO: need to do anything to `props`?
+    -- guards' :: [([Prop name], Expr name)]
+    guards' = (\(props, e) -> (props, mkGenerate (reverse ixs) e)) <$> guards
+
+-- NOTE: The lists of patterns are reversed!
 mkIndexedExpr :: ([Pattern PName], [Pattern PName]) -> Expr PName -> Expr PName
 mkIndexedExpr (ps, ixs) body
   | null ps = mkGenerate (reverse ixs) body

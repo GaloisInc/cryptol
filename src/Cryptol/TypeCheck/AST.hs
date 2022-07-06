@@ -267,6 +267,8 @@ instance PP (WithNames Expr) where
                          [ ppW e
                          , hang "where" 2 (vcat (map ppW ds))
                          ]
+      
+      EPropGuards _guards -> undefined -- TODO
 
     where
     ppW x   = ppWithNames nm x

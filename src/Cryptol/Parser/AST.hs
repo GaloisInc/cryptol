@@ -715,6 +715,7 @@ instance (Show name, PPName name) => PP (Bind name) where
 instance (Show name, PPName name) => PP (BindDef name) where
   ppPrec _ DPrim     = text "<primitive>"
   ppPrec p (DExpr e) = ppPrec p e
+  ppPrec _p (DPropGuards _guards) = text "propguards"
 
 
 instance PPName name => PP (TySyn name) where

@@ -91,6 +91,8 @@ import Paths_cryptol
   'primitive' { Located $$ (Token (KW KW_primitive) _)}
   'constraint'{ Located $$ (Token (KW KW_constraint) _)}
   'Prop'      { Located $$ (Token (KW KW_Prop) _)}
+  
+  'propguards' { Located $$ (Token (KW KW_propguards) _) }
 
   '['         { Located $$ (Token (Sym BracketL) _)}
   ']'         { Located $$ (Token (Sym BracketR) _)}
@@ -298,11 +300,30 @@ mbDoc                   :: { Maybe (Located Text) }
   : doc                    { Just $1 }
   | {- empty -}            { Nothing }
 
+propguards :: { [([Prop PName], Expr PName)] }
+  : 'propguards' propguards_cases { $2 }
+
+propguards_cases :: { [([Prop PName], Expr PName)] }
+  -- : propguards_case '|' propguards_cases { $1 ++ $3 }
+  -- | propguards_case { $1 }
+  : '|' propguards_case { $2 }
+  
+propguards_case :: { [([Prop PName], Expr PName)] }
+  : propguards_quals '=>' expr { [($1, $3)] }
+
+-- support multiple
+propguards_quals :: { [Prop PName] }
+  -- : type { [_ $1] }
+  : type {% fmap thing (mkProp $1) }
+
+-- propguards_qual : { [Prop PName] } -- TODO
 
 decl                    :: { Decl PName }
   : vars_comma ':' schema  { at (head $1,$3) $ DSignature (reverse $1) $3   }
   | ipat '=' expr          { at ($1,$3) $ DPatBind $1 $3                    }
   | '(' op ')' '=' expr    { at ($1,$5) $ DPatBind (PVar $2) $5             }
+  | var apats_indices '=' propguards
+                           { mkIndexedPropGuardsDecl $1 $2 $4 }
   | var apats_indices '=' expr
                            { at ($1,$4) $ mkIndexedDecl $1 $2 $4 }
 

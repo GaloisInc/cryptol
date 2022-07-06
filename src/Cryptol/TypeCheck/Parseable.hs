@@ -63,6 +63,7 @@ instance ShowParseable Expr where
   --NOTE: erase all "proofs" for now (change the following two lines to change that)
   showParseable (EProofAbs {-p-}_ e) = showParseable e --"(EProofAbs " ++ show p ++ showParseable e ++ ")"
   showParseable (EProofApp e) = showParseable e --"(EProofApp " ++ showParseable e ++ ")"
+  showParseable (EPropGuards _guards) = error "undefined: showParseable (EPropGuards _guards)"
 
 instance (ShowParseable a, ShowParseable b) => ShowParseable (a,b) where
   showParseable (x,y) = parens (showParseable x <> comma <> showParseable y)

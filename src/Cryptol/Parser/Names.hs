@@ -64,6 +64,7 @@ namesB b =
 namesDef :: Ord name => BindDef name -> Set name
 namesDef DPrim     = Set.empty
 namesDef (DExpr e) = namesE e
+namesDef (DPropGuards guards) = mconcat . fmap (\(_props, e) -> namesE e) $ guards
 
 
 -- | The names used by an expression.
@@ -185,6 +186,7 @@ tnamesB b = Set.unions [setS, setP, setE]
 tnamesDef :: Ord name => BindDef name -> Set name
 tnamesDef DPrim     = Set.empty
 tnamesDef (DExpr e) = tnamesE e
+tnamesDef (DPropGuards guards) = mconcat . fmap (\(_props, e) -> tnamesE e) $ guards
 
 -- | The type names used by an expression.
 tnamesE :: Ord name => Expr name -> Set name

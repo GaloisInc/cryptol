@@ -102,6 +102,7 @@ specializeExpr expr =
     EProofAbs p e -> EProofAbs p <$> specializeExpr e
     EProofApp {}  -> specializeConst expr
     EWhere e dgs  -> specializeEWhere e dgs
+    EPropGuards guards -> EPropGuards <$> (\(props, e) -> (,) <$> pure props <*> specializeExpr e) `traverse` guards
 
 specializeMatch :: Match -> SpecM Match
 specializeMatch (From qn l t e) = From qn l t <$> specializeExpr e

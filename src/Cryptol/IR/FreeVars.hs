@@ -116,6 +116,7 @@ instance FreeVars Expr where
       EProofAbs p e     -> freeVars p <> freeVars e
       EProofApp e       -> freeVars e
       EWhere e ds       -> foldFree ds <> rmVals (defs ds) (freeVars e)
+      EPropGuards _guards -> error "undefined: freeVars (EPropGuards _guards)"
     where
       foldFree :: (FreeVars a, Defs a) => [a] -> Deps
       foldFree = foldr updateFree mempty

@@ -215,6 +215,14 @@ evalExpr sym env expr = case expr of
      env' <- evalDecls sym ds env
      evalExpr sym env' e
 
+  EPropGuards _guards -> do
+    -- -- -- TODO: modify this to work for propguards
+    -- b <- fromVBit <$> eval c
+    -- iteValue sym b (eval t) (eval f)
+    -- -- -- error "should not evaluate EPropGuards"
+    -- -- evalPanic "evalExpr" ["cannot evalute EPropGuards"]
+    pure $ VBit $ bitLit sym True
+
   where
 
   {-# INLINE eval #-}

@@ -100,7 +100,7 @@ data ModuleError
   | NoPatErrors ImportSource [NoPat.Error]
     -- ^ Problems during the NoPat phase
   | ExpandPropGuardsError ImportSource ExpandPropGuards.Error
-    -- ^ Problems during the ExpandExpandPropGuards phase
+    -- ^ Problems during the ExpandPropGuards phase
   | NoIncludeErrors ImportSource [NoInc.IncludeError]
     -- ^ Problems during the NoInclude phase
   | TypeCheckingFailed ImportSource T.NameMap [(Range,T.Error)]
@@ -134,6 +134,7 @@ instance NFData ModuleError where
     RecursiveModules mods                -> mods `deepseq` ()
     RenamerErrors src errs               -> src `deepseq` errs `deepseq` ()
     NoPatErrors src errs                 -> src `deepseq` errs `deepseq` ()
+    ExpandPropGuardsError src err        -> src `deepseq` err `deepseq` ()
     NoIncludeErrors src errs             -> src `deepseq` errs `deepseq` ()
     TypeCheckingFailed nm src errs       -> nm `deepseq` src `deepseq` errs `deepseq` ()
     ModuleNameMismatch expected found    ->
@@ -180,6 +181,8 @@ instance PP ModuleError where
     RenamerErrors _src errs -> vcat (map pp errs)
 
     NoPatErrors _src errs -> vcat (map pp errs)
+
+    ExpandPropGuardsError _src err -> pp err
 
     NoIncludeErrors _src errs -> vcat (map NoInc.ppIncludeError errs)
 

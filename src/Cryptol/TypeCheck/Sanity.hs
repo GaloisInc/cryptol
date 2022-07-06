@@ -269,6 +269,9 @@ exprSchema expr =
                            withVars xs (go ds)
       in go dgs
 
+    
+    EPropGuards _guards -> error "undefined: exprSchema (EPropGuards _guards)"
+
 
 checkHas :: Type -> Selector -> TcM Type
 checkHas t sel =
