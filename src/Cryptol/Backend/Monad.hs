@@ -442,8 +442,10 @@ instance PP EvalError where
     BadValue x -> "invalid input for" <+> backticks (text x)
     NoPrim x -> text "unimplemented primitive:" <+> pp x
     FFINotSupported x -> vcat
-      [ text "cannot call foreign function " <+> pp x
+      [ text "cannot call foreign function" <+> pp x
       , text "FFI calls are not supported in this context"
+      , text "If you are trying to evaluate an expression, try rebuilding"
+      , text "  Cryptol with FFI support enabled."
       ]
 
 instance Show EvalError where

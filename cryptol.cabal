@@ -37,6 +37,10 @@ flag relocatable
   default: True
   description: Don't use the Cabal-provided data directory for looking up Cryptol libraries. This is useful when the data directory can't be known ahead of time, like for a relocatable distribution.
 
+flag ffi
+  default: True
+  description: Enable the foreign function interface
+
 library
   Default-language:
     Haskell2010
@@ -58,7 +62,6 @@ library
                        GraphSCC          >= 1.0.4,
                        heredoc           >= 0.2,
                        libBF             >= 0.6 && < 0.7,
-                       libffi,
                        MemoTrie          >= 0.6 && < 0.7,
                        monad-control     >= 1.0,
                        monadLib          >= 3.7.2,
@@ -82,8 +85,10 @@ library
   else
     build-depends:     integer-gmp       >= 1.0 && < 1.1
 
-  if !os(windows)
-    build-depends:     unix
+  if flag(ffi)
+    build-depends:     libffi,
+                       unix
+    cpp-options:       -DFFI_ENABLED
 
   Build-tool-depends:  alex:alex, happy:happy
   hs-source-dirs:      src
@@ -174,6 +179,7 @@ library
                        Cryptol.Backend.Arch,
                        Cryptol.Backend.Concrete,
                        Cryptol.Backend.FFI,
+                       Cryptol.Backend.FFI.Error,
                        Cryptol.Backend.FloatHelpers,
                        Cryptol.Backend.Monad,
                        Cryptol.Backend.SeqMap,

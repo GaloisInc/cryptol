@@ -1,10 +1,18 @@
 {-# LANGUAGE BlockArguments   #-}
+{-# LANGUAGE CPP              #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase       #-}
 
 module Cryptol.Eval.FFI
   ( evalForeignDecls
   ) where
+
+import           Cryptol.Backend.FFI.Error
+import           Cryptol.Eval
+import           Cryptol.ModuleSystem.Env
+import           Cryptol.TypeCheck.AST
+
+#ifdef FFI_ENABLED
 
 import           Control.Monad.Except
 import           Control.Monad.Writer.Strict
@@ -15,13 +23,10 @@ import           Cryptol.Backend.Concrete
 import           Cryptol.Backend.FFI
 import           Cryptol.Backend.Monad
 import           Cryptol.Backend.WordValue
-import           Cryptol.Eval
 import           Cryptol.Eval.Env
 import           Cryptol.Eval.Prims
 import           Cryptol.Eval.Value
-import           Cryptol.ModuleSystem.Env
 import           Cryptol.ModuleSystem.Name
-import           Cryptol.TypeCheck.AST
 import           Cryptol.Utils.Ident
 import           Cryptol.Utils.Panic
 
@@ -60,3 +65,11 @@ foreignPrim impl = PStrict \case
       io . fmap (mkBv 64 . toInteger) .
         callForeignImpl impl . fromInteger . bvVal
   _ -> evalPanic "foreignPrim" ["Argument is not a 64-bit word"]
+
+#else
+
+evalForeignDecls :: ModulePath -> Module -> EvalEnv ->
+  Eval (Either [FFILoadError] EvalEnv)
+evalForeignDecls _ _ env = pure $ Right env
+
+#endif
