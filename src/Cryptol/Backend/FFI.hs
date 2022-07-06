@@ -54,13 +54,23 @@ deriving instance NFData ForeignLib
 data ForeignImpl = forall a. ForeignImpl (ForeignPtr a)
 
 loadForeignSrc :: FilePath -> IO (Either FFILoadError ForeignSrc)
-loadForeignSrc path = tryLoad (CantLoadFFISrc path) do
-  foreignLib <- loadForeignLib path
+loadForeignSrc = loadForeignLib >=> traverse \foreignLib -> do
   foreignRefs <- newIORef 0
   pure ForeignSrc {..}
 
-loadForeignLib :: FilePath -> IO ForeignLib
-loadForeignLib path = dlopen (path -<.> "so") [RTLD_NOW]
+loadForeignLib :: FilePath -> IO (Either FFILoadError ForeignLib)
+#ifdef darwin_HOST_OS
+loadForeignLib path =
+  (Right <$> open "dylib") `catchIOError` \e1 ->
+    (Right <$> open "so") `catchIOError` \e2 ->
+      pure $ Left $ CantLoadFFISrc path $
+        displayException e1 ++ "\n" ++ displayException e2
+#else
+loadForeignLib path =
+  tryLoad (CantLoadFFISrc path) $ open "so"
+#endif
+  where
+  open ext = dlopen (path -<.> ext) [RTLD_NOW]
 
 unloadForeignLib :: ForeignLib -> IO ()
 unloadForeignLib = dlclose
