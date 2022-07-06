@@ -27,6 +27,7 @@ import qualified Cryptol.Parser.AST as P
 import           Cryptol.Parser.Position (Located)
 import           Cryptol.Utils.Panic (panic)
 import qualified Cryptol.Parser.NoPat as NoPat
+import qualified Cryptol.Parser.ExpandPropGuards as ExpandPropGuards
 import qualified Cryptol.Parser.NoInclude as NoInc
 import qualified Cryptol.TypeCheck as T
 import qualified Cryptol.TypeCheck.AST as T
@@ -98,6 +99,8 @@ data ModuleError
     -- ^ Problems during the renaming phase
   | NoPatErrors ImportSource [NoPat.Error]
     -- ^ Problems during the NoPat phase
+  | ExpandPropGuardsError ImportSource ExpandPropGuards.Error
+    -- ^ Problems during the ExpandExpandPropGuards phase
   | NoIncludeErrors ImportSource [NoInc.IncludeError]
     -- ^ Problems during the NoInclude phase
   | TypeCheckingFailed ImportSource T.NameMap [(Range,T.Error)]
@@ -237,6 +240,11 @@ noPatErrors :: [NoPat.Error] -> ModuleM a
 noPatErrors errs = do
   src <- getImportSource
   ModuleT (raise (NoPatErrors src errs))
+
+expandPropGuardsError :: ExpandPropGuards.Error -> ModuleM a
+expandPropGuardsError err = do
+  src <- getImportSource
+  ModuleT (raise (ExpandPropGuardsError src err))
 
 noIncludeErrors :: [NoInc.IncludeError] -> ModuleM a
 noIncludeErrors errs = do
