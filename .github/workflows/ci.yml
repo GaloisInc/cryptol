@@ -16,7 +16,7 @@ env:
   # older .so files are cached, which can have various effects
   # (e.g. cabal complains it can't find a valid version of the "happy"
   # tool).
-  CACHE_VERSION: 1
+  CACHE_VERSION: 2
 
 jobs:
   config:
