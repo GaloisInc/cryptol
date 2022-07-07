@@ -16,6 +16,7 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleInstances #-}
 module Cryptol.Parser.AST
   ( -- * Names
     Ident, mkIdent, mkInfix, isInfixIdent, nullIdent, identText
@@ -974,6 +975,8 @@ instance PPName name => PP (Type name) where
 instance PPName name => PP (Prop name) where
   ppPrec n (CType t) = ppPrec n t
 
+instance PPName name => PP [Prop name] where
+  ppPrec n props = parens . commaSep . fmap (ppPrec n) $ props
 
 --------------------------------------------------------------------------------
 -- Drop all position information, so equality reflects program structure
