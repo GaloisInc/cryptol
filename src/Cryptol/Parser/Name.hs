@@ -33,6 +33,7 @@ data PName = UnQual !Ident
 -- | Passes that can generate fresh names.
 data Pass = NoPat
           | MonoValues
+          | ExpandPropGuards String
             deriving (Eq,Ord,Show,Generic)
 
 instance NFData PName
@@ -54,8 +55,9 @@ getIdent (Qual _ n)    = n
 getIdent (NewName p i) = packIdent ("__" ++ pass ++ show i)
   where
   pass = case p of
-           NoPat      -> "p"
-           MonoValues -> "mv"
+           NoPat              -> "p"
+           MonoValues         -> "mv"
+           ExpandPropGuards _ -> "epg"
 
 isGeneratedName :: PName -> Bool
 isGeneratedName x =
