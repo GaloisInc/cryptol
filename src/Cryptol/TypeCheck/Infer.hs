@@ -976,97 +976,107 @@ checkMonoB b t =
 
 -- XXX: Do we really need to do the defaulting business in two different places?
 checkSigB :: P.Bind Name -> (Schema,[Goal]) -> InferM Decl
-checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
+checkSigB b (Forall as asmps0 t0, validSchema) = 
+  let checkBindDefExpr :: [Prop] -> P.Expr Name -> InferM (Type, [Prop], Expr)
+      checkBindDefExpr asmps1 e0 = do
+        
+        (e1,cs0) <- collectGoals $ do
+          let nm = thing (P.bName b)
+              tGoal = WithSource t0 (DefinitionOf nm) (getLoc b)
+          e1 <- checkFun (P.FunDesc (Just nm) 0) (P.bParams b) e0 tGoal
+          addGoals validSchema
+          () <- simplifyAllConstraints  -- XXX: using `asmps` also?
+          return e1
 
- -- XXX what should we do with validSchema in this case?
- P.DPrim ->
-   do return Decl { dName       = thing (P.bName b)
-                  , dSignature  = Forall as asmps0 t0
-                  , dDefinition = DPrim
-                  , dPragmas    = P.bPragmas b
-                  , dInfix      = P.bInfix b
-                  , dFixity     = P.bFixity b
-                  , dDoc        = P.bDoc b
-                  }
+        asmps2 <- applySubstPreds asmps1
+        cs     <- applySubstGoals cs0
 
- P.DExpr e0 ->
-  inRangeMb (getLoc b) $
-  withTParams as $
-  do (e1,cs0) <- collectGoals $
-                do let nm = thing (P.bName b)
-                       tGoal = WithSource t0 (DefinitionOf nm) (getLoc b)
-                   e1 <- checkFun (P.FunDesc (Just nm) 0) (P.bParams b) e0 tGoal
-                   addGoals validSchema
-                   () <- simplifyAllConstraints  -- XXX: using `asmps` also?
-                   return e1
+        let findKeep vs keep todo =
+              let stays (_,cvs)    = not $ Set.null $ Set.intersection vs cvs
+                  (yes,perhaps)    = partition stays todo
+                  (stayPs,newVars) = unzip yes
+              in case stayPs of
+                  [] -> (keep,map fst todo)
+                  _  -> findKeep (Set.unions (vs:newVars)) (stayPs ++ keep) perhaps
 
-     asmps1 <- applySubstPreds asmps0
-     cs     <- applySubstGoals cs0
+        let -- if a goal mentions any of these variables, we'll commit to
+            -- solving it now.
+            stickyVars = Set.fromList (map tpVar as) `Set.union` fvs asmps2
+            (stay,leave) = findKeep stickyVars []
+                                [ (c, fvs c) | c <- cs ]
 
-     let findKeep vs keep todo =
-          let stays (_,cvs)    = not $ Set.null $ Set.intersection vs cvs
-              (yes,perhaps)    = partition stays todo
-              (stayPs,newVars) = unzip yes
-          in case stayPs of
-               [] -> (keep,map fst todo)
-               _  -> findKeep (Set.unions (vs:newVars)) (stayPs ++ keep) perhaps
-
-     let -- if a goal mentions any of these variables, we'll commit to
-         -- solving it now.
-         stickyVars = Set.fromList (map tpVar as) `Set.union` fvs asmps1
-         (stay,leave) = findKeep stickyVars []
-                            [ (c, fvs c) | c <- cs ]
-
-     addGoals leave
+        addGoals leave
 
 
-     su <- proveImplication (Just (thing (P.bName b))) as asmps1 stay
-     extendSubst su
+        su <- proveImplication (Just (thing (P.bName b))) as asmps2 stay
+        extendSubst su
 
-     let asmps  = concatMap pSplitAnd (apSubst su asmps1)
-     t      <- applySubst t0
-     e2     <- applySubst e1
+        let asmps  = concatMap pSplitAnd (apSubst su asmps2)
+        t      <- applySubst t0
+        e2     <- applySubst e1
 
-     return Decl
+        pure (t, asmps, e2)
+  
+  in case thing (P.bDef b) of
+
+    -- XXX what should we do with validSchema in this case?
+    P.DPrim -> do
+      return Decl 
         { dName       = thing (P.bName b)
-        , dSignature  = Forall as asmps t
-        , dDefinition = DExpr (foldr ETAbs (foldr EProofAbs e2 asmps) as)
+        , dSignature  = Forall as asmps0 t0
+        , dDefinition = DPrim
         , dPragmas    = P.bPragmas b
         , dInfix      = P.bInfix b
         , dFixity     = P.bFixity b
         , dDoc        = P.bDoc b
         }
 
- P.DPropGuards propGuards -> 
-  inRangeMb (getLoc b) $
-  withTParams as $ do
-    asmps1 <- applySubstPreds asmps0
-    t      <- applySubst t0
-    -- handle cases
-    let f :: ([P.Prop Name], P.Expr Name) -> InferM ([Prop], Expr)
-        f (ps0, e0) = do
-            -- validate props
-            (ps1, gss) <- unzip <$> mapM checkPropGuard ps0
-            let gs = concat gss
-                ps2 = asmps1 <> (goal <$> gs) <> ps1
-            -- typecheck expr
-            let tGoal = WithSource t0 (DefinitionOf nm) (getLoc b)
-                nm = thing $ P.bName b
-            e1 <- checkFun (P.FunDesc (Just nm) 0) (P.bParams b) e0 tGoal
-            e2 <- applySubst e1
-            pure (ps2, e2)
-            -- undefined :: InferM ([Prop], Expr)
-    cases <- mapM f propGuards
-   
-    return Decl
-      { dName       = thing (P.bName b)
-      , dSignature  = Forall as asmps1 t
-      , dDefinition = DExpr (EPropGuards cases)
-      , dPragmas    = P.bPragmas b
-      , dInfix      = P.bInfix b
-      , dFixity     = P.bFixity b
-      , dDoc        = P.bDoc b
-      }
+    P.DExpr e0 ->
+      inRangeMb (getLoc b) $
+      withTParams as $ do
+        (t, asmps, e2) <- checkBindDefExpr asmps0 e0
+
+        return Decl
+          { dName       = thing (P.bName b)
+          , dSignature  = Forall as asmps t
+          , dDefinition = DExpr (foldr ETAbs (foldr EProofAbs e2 asmps) as)
+          , dPragmas    = P.bPragmas b
+          , dInfix      = P.bInfix b
+          , dFixity     = P.bFixity b
+          , dDoc        = P.bDoc b
+          }
+
+    P.DPropGuards propGuards -> 
+      inRangeMb (getLoc b) $
+      withTParams as $ do
+        -- Checking each guarded case is the same as checking a DExpr, except 
+        -- that the guarding assumptions are added first.
+        let checkPropGuard :: ([P.Prop Name], P.Expr Name) -> InferM ([Prop], Expr)
+            checkPropGuard (asmpsGuard0, e0) = do
+              asmps0' <- do
+                -- validate props
+                (asmpsGuard1', goalss) <- unzip <$> mapM checkPropGuard asmpsGuard0
+                let asmpsGoals = goal <$> concat goalss
+                    asmpsGuard2 = asmpsGoals <> asmpsGuard1'
+                pure $ asmps0 <> asmpsGuard2
+
+              (_t', props', e') <- checkBindDefExpr asmps0' e0
+              pure (props', e')
+
+        cases <- mapM checkPropGuard propGuards
+
+        asmps1 <- applySubstPreds asmps0
+        t      <- applySubst t0
+        
+        return Decl
+          { dName       = thing (P.bName b)
+          , dSignature  = Forall as asmps1 t
+          , dDefinition = DExpr (EPropGuards cases)
+          , dPragmas    = P.bPragmas b
+          , dInfix      = P.bInfix b
+          , dFixity     = P.bFixity b
+          , dDoc        = P.bDoc b
+          }
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------

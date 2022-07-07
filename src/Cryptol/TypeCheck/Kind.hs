@@ -417,7 +417,6 @@ checkKind t _ _ = return t
 checkPropGuard :: P.Prop Name -> InferM (Prop, [Goal])
 checkPropGuard p =
   collectGoals $
-  undefined
-  -- withTParams _ _ _ 
-  -- (undefined :: KindM Type -> InferM Type) $ -- TODO
-  -- checkProp p
+  fmap (\(t, _, _) -> t) $
+  runKindM NoWildCards [] $
+  checkProp p
