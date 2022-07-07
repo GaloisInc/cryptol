@@ -1,5 +1,6 @@
 -- See Note [-Wincomplete-uni-patterns and irrefutable patterns]
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+{-# LANGUAGE Safe #-}
 module Cryptol.TypeCheck.TypePat
   ( aInf, aNat, aNat'
 

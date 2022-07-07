@@ -6,7 +6,7 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE Safe #-}
+-- {-# LANGUAGE Safe #-}
 
 module Cryptol.Version (
     commitHash

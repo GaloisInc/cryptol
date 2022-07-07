@@ -14,6 +14,7 @@
 
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE Safe #-}
 
 module Cryptol.Utils.RecordMap
   ( RecordMap

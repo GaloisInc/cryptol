@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE Safe #-}
 module Cryptol.Parser.Token where
 
 import Data.Text(Text)

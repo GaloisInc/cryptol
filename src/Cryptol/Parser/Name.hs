@@ -7,6 +7,7 @@
 -- Portability :  portable
 
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE Safe #-}
 
 module Cryptol.Parser.Name where
 
