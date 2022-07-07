@@ -453,8 +453,11 @@ checkSingleModule how isrc m = do
   -- remove pattern bindings
   npm <- noPat m
 
+  -- run expandPropGuards
+  epgm <- expandPropGuards npm
+
   -- rename everything
-  renMod <- renameModule npm
+  renMod <- renameModule epgm
 
   -- when generating the prim map for the typechecker, if we're checking the
   -- prelude, we have to generate the map from the renaming environment, as we
