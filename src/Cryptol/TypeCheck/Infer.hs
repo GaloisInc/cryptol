@@ -977,47 +977,7 @@ checkMonoB b t =
 -- XXX: Do we really need to do the defaulting business in two different places?
 checkSigB :: P.Bind Name -> (Schema,[Goal]) -> InferM Decl
 checkSigB b (Forall as asmps0 t0, validSchema) = 
-  let checkBindDefExpr :: [Prop] -> P.Expr Name -> InferM (Type, [Prop], Expr)
-      checkBindDefExpr asmps1 e0 = do
-        
-        (e1,cs0) <- collectGoals $ do
-          let nm = thing (P.bName b)
-              tGoal = WithSource t0 (DefinitionOf nm) (getLoc b)
-          e1 <- checkFun (P.FunDesc (Just nm) 0) (P.bParams b) e0 tGoal
-          addGoals validSchema
-          () <- simplifyAllConstraints  -- XXX: using `asmps` also?
-          return e1
-
-        asmps2 <- applySubstPreds asmps1
-        cs     <- applySubstGoals cs0
-
-        let findKeep vs keep todo =
-              let stays (_,cvs)    = not $ Set.null $ Set.intersection vs cvs
-                  (yes,perhaps)    = partition stays todo
-                  (stayPs,newVars) = unzip yes
-              in case stayPs of
-                  [] -> (keep,map fst todo)
-                  _  -> findKeep (Set.unions (vs:newVars)) (stayPs ++ keep) perhaps
-
-        let -- if a goal mentions any of these variables, we'll commit to
-            -- solving it now.
-            stickyVars = Set.fromList (map tpVar as) `Set.union` fvs asmps2
-            (stay,leave) = findKeep stickyVars []
-                                [ (c, fvs c) | c <- cs ]
-
-        addGoals leave
-
-
-        su <- proveImplication (Just (thing (P.bName b))) as asmps2 stay
-        extendSubst su
-
-        let asmps  = concatMap pSplitAnd (apSubst su asmps2)
-        t      <- applySubst t0
-        e2     <- applySubst e1
-
-        pure (t, asmps, e2)
-  
-  in case thing (P.bDef b) of
+  case thing (P.bDef b) of
 
     -- XXX what should we do with validSchema in this case?
     P.DPrim -> do
@@ -1077,6 +1037,48 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
           , dFixity     = P.bFixity b
           , dDoc        = P.bDoc b
           }
+  
+  where
+
+    checkBindDefExpr :: [Prop] -> P.Expr Name -> InferM (Type, [Prop], Expr)
+    checkBindDefExpr asmps1 e0 = do
+      
+      (e1,cs0) <- collectGoals $ do
+        let nm = thing (P.bName b)
+            tGoal = WithSource t0 (DefinitionOf nm) (getLoc b)
+        e1 <- checkFun (P.FunDesc (Just nm) 0) (P.bParams b) e0 tGoal
+        addGoals validSchema
+        () <- simplifyAllConstraints  -- XXX: using `asmps` also?
+        return e1
+
+      asmps2 <- applySubstPreds asmps1
+      cs     <- applySubstGoals cs0
+
+      let findKeep vs keep todo =
+            let stays (_,cvs)    = not $ Set.null $ Set.intersection vs cvs
+                (yes,perhaps)    = partition stays todo
+                (stayPs,newVars) = unzip yes
+            in case stayPs of
+                [] -> (keep,map fst todo)
+                _  -> findKeep (Set.unions (vs:newVars)) (stayPs ++ keep) perhaps
+
+      let -- if a goal mentions any of these variables, we'll commit to
+          -- solving it now.
+          stickyVars = Set.fromList (map tpVar as) `Set.union` fvs asmps2
+          (stay,leave) = findKeep stickyVars []
+                              [ (c, fvs c) | c <- cs ]
+
+      addGoals leave
+
+
+      su <- proveImplication (Just (thing (P.bName b))) as asmps2 stay
+      extendSubst su
+
+      let asmps  = concatMap pSplitAnd (apSubst su asmps2)
+      t      <- applySubst t0
+      e2     <- applySubst e1
+
+      pure (t, asmps, e2)
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
