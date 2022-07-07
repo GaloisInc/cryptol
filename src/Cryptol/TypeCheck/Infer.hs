@@ -1046,13 +1046,13 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
           , dDoc        = P.bDoc b
           }
 
-    P.DPropGuards propGuards -> 
+    P.DPropGuards cases0 -> 
       inRangeMb (getLoc b) $
       withTParams as $ do
         -- Checking each guarded case is the same as checking a DExpr, except 
         -- that the guarding assumptions are added first.
-        let checkPropGuard :: ([P.Prop Name], P.Expr Name) -> InferM ([Prop], Expr)
-            checkPropGuard (asmpsGuard0, e0) = do
+        let checkPropGuardCase :: ([P.Prop Name], P.Expr Name) -> InferM ([Prop], Expr)
+            checkPropGuardCase (asmpsGuard0, e0) = do
               asmps0' <- do
                 -- validate props
                 (asmpsGuard1', goalss) <- unzip <$> mapM checkPropGuard asmpsGuard0
@@ -1063,7 +1063,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
               (_t', props', e') <- checkBindDefExpr asmps0' e0
               pure (props', e')
 
-        cases <- mapM checkPropGuard propGuards
+        cases1 <- mapM checkPropGuardCase cases0
 
         asmps1 <- applySubstPreds asmps0
         t      <- applySubst t0
@@ -1071,7 +1071,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
         return Decl
           { dName       = thing (P.bName b)
           , dSignature  = Forall as asmps1 t
-          , dDefinition = DExpr (EPropGuards cases)
+          , dDefinition = DExpr (EPropGuards cases1)
           , dPragmas    = P.bPragmas b
           , dInfix      = P.bInfix b
           , dFixity     = P.bFixity b
