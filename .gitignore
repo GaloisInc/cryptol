@@ -38,3 +38,5 @@ allfiles.wxs
 cryptol.msi
 cryptol.wixobj
 cryptol.wixpdb
+
+.vscode/
