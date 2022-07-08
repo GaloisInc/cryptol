@@ -69,7 +69,6 @@ import           Control.Applicative
 import Prelude ()
 import Prelude.Compat
 import Math.NumberTheory.Primes (UniqueFactorisation(isPrime))
-import System.IO.Unsafe (unsafePerformIO)
 
 type EvalEnv = GenEvalEnv Concrete
 
@@ -443,13 +442,6 @@ evalDecl ::
 --   let ?range = nameLoc (dName d) in
 evalDecl sym renv env d = do
   let ?range = nameLoc (dName d)
-  -- case show $ pp d of
-  --   'P' : 'a' : 'r' : 's' : 'i' : 'n' : 'g' : ':' : ':' : 'x' : 'x' : 'x' : _ -> pure $! unsafePerformIO $ do
-  --     putStrLn "===[ pp ]====================="
-  --     print $ pp d
-  --     putStrLn "===[ show ]====================="
-  --     print d
-  --   _ -> pure ()
   case dDefinition d of
     DPrim ->
       case ?evalPrim =<< asPrim (dName d) of
