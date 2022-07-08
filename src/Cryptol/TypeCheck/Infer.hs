@@ -1031,7 +1031,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
         return Decl
           { dName       = thing (P.bName b)
           , dSignature  = Forall as asmps1 t
-          , dDefinition = DExpr (EPropGuards cases1)
+          , dDefinition = DExpr (foldr ETAbs (foldr EProofAbs (EPropGuards cases1) asmps0) as)
           , dPragmas    = P.bPragmas b
           , dInfix      = P.bInfix b
           , dFixity     = P.bFixity b

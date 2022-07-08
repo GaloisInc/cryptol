@@ -117,10 +117,10 @@ newName locName props =
   case thing locName of 
     Qual modName ident -> do
       let txt  = identText ident
-          txt' = pack $ renderOneLine $ pp props
+          txt' = pack $ show $ pp props
       pure $ const (Qual modName (mkIdent $ txt <> txt')) <$> locName
     UnQual ident -> do
       let txt  = identText ident
-          txt' = pack $ renderOneLine $ pp props
+          txt' = pack $ show $ pp props
       pure $ const (UnQual (mkIdent $ txt <> txt')) <$> locName 
     NewName _ _ -> panic "mkName" ["During expanding prop guards, tried to make new name from NewName case of PName"]

@@ -268,7 +268,10 @@ instance PP (WithNames Expr) where
                          , hang "where" 2 (vcat (map ppW ds))
                          ]
       
-      EPropGuards _guards -> undefined -- TODO
+      EPropGuards guards -> 
+        parens (text "propguard" <+> hsep (ppGuard <$> guards))
+        where ppGuard (props, e) = 
+                pipe <+> commaSep (pp <$> props) <+> text "=>" <+> pp e
 
     where
     ppW x   = ppWithNames nm x
