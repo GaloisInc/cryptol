@@ -432,7 +432,7 @@ qcExpr ::
   T.Schema ->
   REPL TestReport
 qcExpr qcMode exprDoc texpr schema =
-  do (val,ty) <- replEvalCheckedExpr texpr schema >>= \mb_res -> case mb_res of
+  do (val,ty) <- replEvalCheckedExpr texpr schema >>= \case
        Just res -> pure res
        -- If instance is not found, doesn't necessarily mean that there is no instance.
        -- And due to nondeterminism in result from the solver (for finding solution to 
