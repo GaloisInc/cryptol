@@ -9,7 +9,7 @@
 -- This module defines natural numbers with an additional infinity
 -- element, and various arithmetic operators on them.
 
-{-# LANGUAGE Safe #-}
+{-# LANGUAGE Trustworthy #-}
 
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}

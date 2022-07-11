@@ -1,4 +1,4 @@
-{-# Language OverloadedStrings, DeriveGeneric, DeriveAnyClass, Safe #-}
+{-# Language OverloadedStrings, DeriveGeneric, DeriveAnyClass, Trustworthy #-}
 module Cryptol.TypeCheck.TCon where
 
 import qualified Data.Map as Map

@@ -7,7 +7,7 @@
 -- Portability :  portable
 
 {-# LANGUAGE RecursiveDo #-}
-{-# LANGUAGE Safe #-}
+{-# LANGUAGE Trustworthy #-}
 -- See Note [-Wincomplete-uni-patterns and irrefutable patterns] in Cryptol.TypeCheck.TypePat
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 module Cryptol.TypeCheck.Kind

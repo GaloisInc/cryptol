@@ -14,7 +14,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE Safe #-}
+{-# LANGUAGE Trustworthy #-}
 module Cryptol.TypeCheck.Subst
   ( Subst
   , emptySubst

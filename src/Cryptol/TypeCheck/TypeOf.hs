@@ -6,7 +6,7 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE Safe                                #-}
+{-# LANGUAGE Trustworthy                                #-}
 {-# LANGUAGE ViewPatterns                        #-}
 {-# LANGUAGE PatternGuards                       #-}
 module Cryptol.TypeCheck.TypeOf

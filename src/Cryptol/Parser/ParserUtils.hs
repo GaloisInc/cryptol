@@ -6,7 +6,7 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE Safe #-}
+{-# LANGUAGE Trustworthy #-}
 
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveAnyClass #-}
