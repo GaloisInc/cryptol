@@ -78,8 +78,6 @@ install_system_deps() {
   export PATH=$BIN:$PATH
   echo "$BIN" >> "$GITHUB_PATH"
   is_exe "$BIN" z3 && is_exe "$BIN" cvc4 && is_exe "$BIN" yices
-  dpkg --get-selections | grep libffi
-  find /usr/lib -iname "libffi.so*"
 }
 
 check_docs() {
