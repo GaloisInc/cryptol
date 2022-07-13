@@ -1,10 +1,11 @@
-{-# LANGUAGE BlockArguments   #-}
-{-# LANGUAGE CPP              #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE LambdaCase       #-}
-{-# LANGUAGE RankNTypes       #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE RecordWildCards  #-}
+{-# LANGUAGE BlockArguments      #-}
+{-# LANGUAGE CPP                 #-}
+{-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE RankNTypes          #-}
+{-# LANGUAGE RecordWildCards     #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications    #-}
 
 module Cryptol.Eval.FFI
   ( evalForeignDecls
@@ -21,6 +22,7 @@ import           Control.Monad.Except
 import           Control.Monad.Writer.Strict
 import           Data.Foldable
 import           Data.IORef
+import           Data.Proxy
 import           Data.Word
 
 import           Cryptol.Backend.Concrete
@@ -71,25 +73,21 @@ foreignPrim FFIFunRep {..} impl = PStrict \val ->
 
 withArg :: FFIRep -> GenValue Concrete ->
   (forall a. FFIType a => a -> Eval b) -> Eval b
-withArg FFIBool x f       = f @Word8 $ fromIntegral $ fromEnum $ fromVBit x
-withArg (FFIWord8 _) x f  = withWordArg @Word8 x f
-withArg (FFIWord16 _) x f = withWordArg @Word16 x f
-withArg (FFIWord32 _) x f = withWordArg @Word32 x f
-withArg (FFIWord64 _) x f = withWordArg @Word64 x f
-
-withWordArg :: Integral a => GenValue Concrete -> (a -> Eval b) -> Eval b
-withWordArg x f =
-  fromVWord Concrete "withWordArg" x >>= f . fromInteger . bvVal
+withArg FFIBool x f = f @Word8 $ fromIntegral $ fromEnum $ fromVBit x
+withArg (FFIWord _ s) x f = withWordType s \(_ :: p t) ->
+  fromVWord Concrete "withArg" x >>= f @t . fromInteger . bvVal
 
 withRet :: FFIRep -> (forall a. FFIType a => Eval a) -> Eval (GenValue Concrete)
-withRet FFIBool x       = VBit . toEnum . fromIntegral <$> x @Word8
-withRet (FFIWord8 n) x  = wordToValue @Word8 n x
-withRet (FFIWord16 n) x = wordToValue @Word16 n x
-withRet (FFIWord32 n) x = wordToValue @Word32 n x
-withRet (FFIWord64 n) x = wordToValue @Word64 n x
+withRet FFIBool x = VBit . toEnum . fromIntegral <$> x @Word8
+withRet (FFIWord n s) x = withWordType s \(_ :: p t) ->
+  x @t >>= word Concrete n . toInteger
 
-wordToValue :: Integral a => Integer -> Eval a -> Eval (GenValue Concrete)
-wordToValue n = (>>= word Concrete n . toInteger)
+withWordType :: FFIWordSize ->
+  (forall proxy a. (FFIType a, Integral a) => proxy a -> b) -> b
+withWordType FFIWord8  = ($ Proxy @Word8)
+withWordType FFIWord16 = ($ Proxy @Word16)
+withWordType FFIWord32 = ($ Proxy @Word32)
+withWordType FFIWord64 = ($ Proxy @Word64)
 
 #else
 
