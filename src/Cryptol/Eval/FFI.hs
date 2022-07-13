@@ -84,11 +84,11 @@ withRet (FFIWord n s) x = withWordType s \(_ :: p t) ->
   x @t >>= word Concrete n . toInteger
 
 withWordType :: FFIWordSize ->
-  (forall proxy a. (FFIType a, Integral a) => proxy a -> b) -> b
-withWordType FFIWord8  = ($ Proxy @Word8)
-withWordType FFIWord16 = ($ Proxy @Word16)
-withWordType FFIWord32 = ($ Proxy @Word32)
-withWordType FFIWord64 = ($ Proxy @Word64)
+  (forall a. (FFIType a, Integral a) => Proxy a -> b) -> b
+withWordType FFIWord8  f = f $ Proxy @Word8
+withWordType FFIWord16 f = f $ Proxy @Word16
+withWordType FFIWord32 f = f $ Proxy @Word32
+withWordType FFIWord64 f = f $ Proxy @Word64
 
 #else
 
