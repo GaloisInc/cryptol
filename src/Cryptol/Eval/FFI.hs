@@ -24,6 +24,7 @@ import           Data.Foldable
 import           Data.IORef
 import           Data.Proxy
 import           Data.Word
+import           Foreign.Marshal.Utils
 
 import           Cryptol.Backend.Concrete
 import           Cryptol.Backend.FFI
@@ -73,12 +74,12 @@ foreignPrim FFIFunRep {..} impl = PStrict \val ->
 
 withArg :: FFIRep -> GenValue Concrete ->
   (forall a. FFIType a => a -> Eval b) -> Eval b
-withArg FFIBool x f = f @Word8 $ fromIntegral $ fromEnum $ fromVBit x
+withArg FFIBool x f = f @Word8 $ fromBool $ fromVBit x
 withArg (FFIWord _ s) x f = withWordType s \(_ :: p t) ->
   fromVWord Concrete "withArg" x >>= f @t . fromInteger . bvVal
 
 withRet :: FFIRep -> (forall a. FFIType a => Eval a) -> Eval (GenValue Concrete)
-withRet FFIBool x = VBit . toEnum . fromIntegral <$> x @Word8
+withRet FFIBool x = VBit . toBool <$> x @Word8
 withRet (FFIWord n s) x = withWordType s \(_ :: p t) ->
   x @t >>= word Concrete n . toInteger
 
