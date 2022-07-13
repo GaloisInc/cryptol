@@ -47,6 +47,7 @@ import           Cryptol.TypeCheck.Kind(checkType,checkSchema,checkTySyn,
 import           Cryptol.TypeCheck.Instantiate
 import           Cryptol.TypeCheck.Subst (listSubst,apSubst,(@@),isEmptySubst)
 import           Cryptol.TypeCheck.Unify(rootPath)
+import           Cryptol.TypeCheck.FFI
 import           Cryptol.Utils.Ident
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.RecordMap
@@ -927,9 +928,9 @@ generalize bs0 gs0 =
 
          genE e = foldr ETAbs (foldr EProofAbs (apSubst su e) qs) asPs
          genB d = d { dDefinition = case dDefinition d of
-                                      DExpr e  -> DExpr (genE e)
-                                      DPrim    -> DPrim
-                                      DForeign -> DForeign
+                                      DExpr e    -> DExpr (genE e)
+                                      DPrim      -> DPrim
+                                      DForeign r -> DForeign r
                     , dSignature  = Forall asPs qs
                                   $ apSubst su $ sType $ dSignature d
                     }
@@ -982,22 +983,19 @@ checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
                   , dDoc        = P.bDoc b
                   }
 
- -- We only support very specific types for FFI for now
  P.DForeign ->
   let loc = getLoc b
       src = DefinitionOf $ thing $ P.bName b
   in  inRangeMb loc do
-        unless (null as && null asmps0) $
-          recordErrorLoc loc $ UnsupportedFFIPoly src
-        case t0 of
-          TCon (TC TCFun)
-            [ TCon (TC TCSeq) [TCon (TC (TCNum 64)) [], TCon (TC TCBit) []]
-            , TCon (TC TCSeq) [TCon (TC (TCNum 64)) [], TCon (TC TCBit) []]
-            ] -> pure ()
-          _ -> recordErrorLoc loc $ UnsupportedFFIType src t0
+        ffiFunRep <- case toFFIFunRep (Forall as asmps0 t0) of
+          Just ffiFunRep -> pure ffiFunRep
+          Nothing -> do
+            recordErrorLoc loc $ UnsupportedFFIType src t0
+            -- Just a placeholder
+            pure FFIFunRep { ffiArgRep = FFIBool, ffiRetRep = FFIBool }
         return Decl { dName       = thing (P.bName b)
                     , dSignature  = Forall as asmps0 t0
-                    , dDefinition = DForeign
+                    , dDefinition = DForeign ffiFunRep
                     , dPragmas    = P.bPragmas b
                     , dInfix      = P.bInfix b
                     , dFixity     = P.bFixity b

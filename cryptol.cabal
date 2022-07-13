@@ -156,6 +156,7 @@ library
                        Cryptol.TypeCheck.TypeMap,
                        Cryptol.TypeCheck.TypeOf,
                        Cryptol.TypeCheck.Sanity,
+                       Cryptol.TypeCheck.FFI,
 
                        Cryptol.TypeCheck.Solver.Types,
                        Cryptol.TypeCheck.Solver.SMT,

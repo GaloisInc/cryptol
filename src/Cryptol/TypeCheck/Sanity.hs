@@ -398,7 +398,7 @@ checkDecl checkSig d =
       do when checkSig $ checkSchema $ dSignature d
          return (dName d, dSignature d)
 
-    DForeign ->
+    DForeign _ ->
       do when checkSig $ checkSchema $ dSignature d
          return (dName d, dSignature d)
 

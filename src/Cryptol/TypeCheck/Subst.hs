@@ -406,9 +406,9 @@ instance TVars Decl where
     in d { dSignature = sig', dDefinition = def' }
 
 instance TVars DeclDef where
-  apSubst su (DExpr e) = DExpr !$ (apSubst su e)
-  apSubst _  DPrim     = DPrim
-  apSubst _  DForeign  = DForeign
+  apSubst su (DExpr e)    = DExpr !$ (apSubst su e)
+  apSubst _  DPrim        = DPrim
+  apSubst _  (DForeign r) = DForeign r
 
 instance TVars Module where
   apSubst su m =

@@ -144,11 +144,7 @@ data Error    = KindMismatch (Maybe TypeSource) Kind Kind
               | MissingModVParam (Located Ident)
 
               | UnsupportedFFIType TypeSource Type
-                -- ^ Type is not supported for passing to/returning from a
-                -- foreign function
-
-              | UnsupportedFFIPoly TypeSource
-                -- ^ Foreign functions cannot be polymorphic
+                -- ^ Type is not supported for FFI
 
               | TemporaryError Doc
                 -- ^ This is for errors that don't fit other cateogories.
@@ -206,8 +202,7 @@ errorImportance err =
 
     AmbiguousSize {}                                 -> 2
 
-    UnsupportedFFIPoly {}                            -> 10
-    UnsupportedFFIType {}                            -> 9
+    UnsupportedFFIType {}                            -> 10
 
 
 instance TVars Warning where
@@ -258,7 +253,6 @@ instance TVars Error where
       MissingModVParam {}  -> err
 
       UnsupportedFFIType src t -> UnsupportedFFIType src !$ apSubst su t
-      UnsupportedFFIPoly {}    -> err
 
       TemporaryError {} -> err
 
@@ -296,7 +290,6 @@ instance FVS Error where
       MissingModVParam {}  -> Set.empty
 
       UnsupportedFFIType _ t -> fvs t
-      UnsupportedFFIPoly {}  -> Set.empty
 
       TemporaryError {} -> Set.empty
 
@@ -476,9 +469,6 @@ instance PP (WithNames Error) where
         vcat
           [ ppWithNames names t
           , "When checking" <+> pp src]
-      UnsupportedFFIPoly src ->
-        nested "Polymorphism is not supported for FFI" $
-          "When checking" <+> pp src
 
       TemporaryError doc -> doc
     where

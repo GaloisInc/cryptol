@@ -510,9 +510,9 @@ the new bindings.
 > evalDecl :: Env -> Decl -> (Name, E Value)
 > evalDecl env d =
 >   case dDefinition d of
->     DPrim    -> (dName d, pure (evalPrim (dName d)))
->     DForeign -> evalPanic "FFI unimplemented" []
->     DExpr e  -> (dName d, evalExpr env e)
+>     DPrim      -> (dName d, pure (evalPrim (dName d)))
+>     DForeign _ -> evalPanic "FFI unsupported in reference interpreter" []
+>     DExpr e    -> (dName d, evalExpr env e)
 >
 
 Newtypes

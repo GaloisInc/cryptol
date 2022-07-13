@@ -4,21 +4,27 @@
 {-# LANGUAGE DeriveGeneric             #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE RecordWildCards           #-}
+{-# LANGUAGE ScopedTypeVariables       #-}
 {-# LANGUAGE StandaloneDeriving        #-}
+{-# LANGUAGE TypeApplications          #-}
 {-# LANGUAGE TypeSynonymInstances      #-}
 
 -- We need some instances that the unix package doesn't define
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-#ifdef FFI_ENABLED
-
 module Cryptol.Backend.FFI
+#ifdef FFI_ENABLED
   ( ForeignSrc
   , ForeignImpl
   , loadForeignSrc
   , loadForeignImpl
+  , FFIType
   , callForeignImpl
-  ) where
+  )
+#endif
+  where
+
+#ifdef FFI_ENABLED
 
 import           Control.DeepSeq
 import           Control.Exception
@@ -51,8 +57,6 @@ type ForeignLib = DL
 deriving instance Generic ForeignLib
 deriving instance NFData ForeignLib
 
-data ForeignImpl = forall a. ForeignImpl (ForeignPtr a)
-
 loadForeignSrc :: FilePath -> IO (Either FFILoadError ForeignSrc)
 loadForeignSrc = loadForeignLib >=> traverse \foreignLib -> do
   foreignRefs <- newIORef 0
@@ -75,6 +79,8 @@ loadForeignLib path =
 unloadForeignLib :: ForeignLib -> IO ()
 unloadForeignLib = dlclose
 
+data ForeignImpl = forall a. ForeignImpl (ForeignPtr a)
+
 loadForeignImpl :: ForeignSrc -> String -> IO (Either FFILoadError ForeignImpl)
 loadForeignImpl ForeignSrc {..} name = tryLoad (CantLoadFFIImpl name) do
   ptr <- castFunPtrToPtr <$> loadForeignFunPtr foreignLib name
@@ -89,12 +95,29 @@ loadForeignFunPtr = dlsym
 tryLoad :: (String -> FFILoadError) -> IO a -> IO (Either FFILoadError a)
 tryLoad err = fmap (first $ err . displayException) . tryIOError
 
-callForeignImpl :: ForeignImpl -> Word64 -> IO Word64
+class FFIType a where
+  ffiArg :: a -> Arg
+  ffiRet :: RetType a
+
+instance FFIType Word8 where
+  ffiArg = argWord8
+  ffiRet = retWord8
+
+instance FFIType Word16 where
+  ffiArg = argWord16
+  ffiRet = retWord16
+
+instance FFIType Word32 where
+  ffiArg = argWord32
+  ffiRet = retWord32
+
+instance FFIType Word64 where
+  ffiArg = argWord64
+  ffiRet = retWord64
+
+callForeignImpl :: forall a b.
+  (FFIType a, FFIType b) => ForeignImpl -> a -> IO b
 callForeignImpl (ForeignImpl fp) x = withForeignPtr fp \p ->
-  callFFI (castPtrToFunPtr p) retWord64 [argWord64 x]
-
-#else
-
-module Cryptol.Backend.FFI where
+  callFFI (castPtrToFunPtr p) (ffiRet @b) [ffiArg x]
 
 #endif

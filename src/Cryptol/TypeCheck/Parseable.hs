@@ -93,7 +93,7 @@ instance ShowParseable Decl where
 
 instance ShowParseable DeclDef where
   showParseable DPrim = text (show DPrim)
-  showParseable DForeign = text (show DForeign)
+  showParseable (DForeign r) = text (show $ DForeign r)
   showParseable (DExpr e) = parens (text "DExpr" $$ showParseable e)
 
 instance ShowParseable DeclGroup where
