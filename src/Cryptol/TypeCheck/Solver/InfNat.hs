@@ -45,8 +45,6 @@ instance Num Nat' where
 
   negate (Nat i) = Nat (negate i)
   negate Inf = error "cannot negate Inf"
-  
-
 
 --------------------------------------------------------------------------------
 
