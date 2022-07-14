@@ -1,28 +1,24 @@
 module GCM_AES_Tests where
 
-submodule AES128_Inst = AES where
+import AES as AES128 where
   type m = 0
   type k = 128
-import submodule AES128_Inst as AES128
 
-submodule AES192_Inst = AES where
+import AES as AES192 where
   type m = 1
   type k = 192
-import submodule AES192_Inst as AES192
 
-submodule AES256_Inst = AES where
+import AES as AES256 where
   type m = 2
   type k = 256
-import submodule AES256_Inst as AES256
 
 
-submodule GCM_128_96_0_128_Inst = Common::GCM where
+import Common::GCM as GCM_128_96_0_128 where
   type K = 128
   type IV = 96
   type AAD = 0
   type T = 128
   E = AES128::encrypt
-import submodule GCM_128_96_0_128_Inst as GCM_128_96_0_128
 
 property test1 =
   GCM_128_96_0_128::encrypt
@@ -67,13 +63,12 @@ property test3 =
   }
 
 
-submodule GCM_128_96_160_128_Inst = Common::GCM where
+import Common::GCM as GCM_128_96_160_128 where
   type K = 128
   type IV = 96
   type AAD = 160
   type T = 128
   E = AES128::encrypt
-import submodule GCM_128_96_160_128_Inst as GCM_128_96_160_128
 
 property test4 =
   GCM_128_96_160_128::encrypt
@@ -95,13 +90,12 @@ property test4 =
   }
 
 
-submodule GCM_128_64_160_128_Inst = Common::GCM where
+import Common::GCM as GCM_128_64_160_128 where
   type K = 128
   type IV = 64
   type AAD = 160
   type T = 128
   E = AES128::encrypt
-import submodule GCM_128_64_160_128_Inst as GCM_128_64_160_128
 
 property test5 =
   GCM_128_64_160_128::encrypt
@@ -123,13 +117,12 @@ property test5 =
   }
 
 
-submodule GCM_128_480_160_128_Inst = Common::GCM where
+import Common::GCM as GCM_128_480_160_128 where
   type K = 128
   type IV = 480
   type AAD = 160
   type T = 128
   E = AES128::encrypt
-import submodule GCM_128_480_160_128_Inst as GCM_128_480_160_128
 
 property test6 =
   GCM_128_480_160_128::encrypt
@@ -154,13 +147,12 @@ property test6 =
   }
 
 
-submodule GCM_192_96_0_128_Inst = Common::GCM where
+import Common::GCM as GCM_192_96_0_128 where
   type K = 192
   type IV = 96
   type AAD = 0
   type T = 128
   E = AES192::encrypt
-import submodule GCM_192_96_0_128_Inst as GCM_192_96_0_128
 
 property test7 =
   GCM_192_96_0_128::encrypt
@@ -208,13 +200,12 @@ property test9 =
   }
 
 
-submodule GCM_192_96_160_128_Inst = Common::GCM where
+import Common::GCM as GCM_192_96_160_128 where
   type K = 192
   type IV = 96
   type AAD = 160
   type T = 128
   E = AES192::encrypt
-import submodule GCM_192_96_160_128_Inst as GCM_192_96_160_128
 
 property test10 =
   GCM_192_96_160_128::encrypt
@@ -237,13 +228,12 @@ property test10 =
   }
 
 
-submodule GCM_192_64_160_128_Inst = Common::GCM where
+import Common::GCM as GCM_192_64_160_128 where
   type K = 192
   type IV = 64
   type AAD = 160
   type T = 128
   E = AES192::encrypt
-import submodule GCM_192_64_160_128_Inst as GCM_192_64_160_128
 
 property test11 =
   GCM_192_64_160_128::encrypt
@@ -266,13 +256,12 @@ property test11 =
   }
 
 
-submodule GCM_192_480_160_128_Inst = Common::GCM where
+import Common::GCM as GCM_192_480_160_128 where
   type K = 192
   type IV = 480
   type AAD = 160
   type T = 128
   E = AES192::encrypt
-import submodule GCM_192_480_160_128_Inst as GCM_192_480_160_128
 
 property test12 =
   GCM_192_480_160_128::encrypt
@@ -298,13 +287,12 @@ property test12 =
   }
 
 
-submodule GCM_256_96_0_128_Inst = Common::GCM where
+import Common::GCM as GCM_256_96_0_128 where
   type K = 256
   type IV = 96
   type AAD = 0
   type T = 128
   E = AES256::encrypt
-import submodule GCM_256_96_0_128_Inst as GCM_256_96_0_128
 
 property test13 =
   GCM_256_96_0_128::encrypt
@@ -352,13 +340,12 @@ property test15 =
   }
 
 
-submodule GCM_256_96_160_128_Inst = Common::GCM where
+import Common::GCM as GCM_256_96_160_128 where
   type K = 256
   type IV = 96
   type AAD = 160
   type T = 128
   E = AES256::encrypt
-import submodule GCM_256_96_160_128_Inst as GCM_256_96_160_128
 
 property test16 =
   GCM_256_96_160_128::encrypt
@@ -381,13 +368,12 @@ property test16 =
   }
 
 
-submodule GCM_256_64_160_128_Inst = Common::GCM where
+import Common::GCM as GCM_256_64_160_128 where
   type K = 256
   type IV = 64
   type AAD = 160
   type T = 128
   E = AES256::encrypt
-import submodule GCM_256_64_160_128_Inst as GCM_256_64_160_128
 
 property test17 =
   GCM_256_64_160_128::encrypt
@@ -410,13 +396,12 @@ property test17 =
   }
 
 
-submodule GCM_256_480_160_128_Inst = Common::GCM where
+import Common::GCM as GCM_256_480_160_128 where
   type K = 256
   type IV = 480
   type AAD = 160
   type T = 128
   E = AES256::encrypt
-import submodule GCM_256_480_160_128_Inst as GCM_256_480_160_128
 
 property test18 =
   GCM_256_480_160_128::encrypt

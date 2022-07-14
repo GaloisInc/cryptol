@@ -1,8 +1,7 @@
 
-submodule AES_GCM_SIV_0_56_Inst = Common::AES_GCM_SIV where
+import Common::AES_GCM_SIV as AES_GCM_SIV_0_56 where
   type Mode = 0
   type AAD = 56
-import submodule AES_GCM_SIV_0_56_Inst as AES_GCM_SIV_0_56
 
 property test0 =
   AES_GCM_SIV_0_56::aes_gcm_siv
@@ -16,10 +15,9 @@ property test0 =
   0x4fbcdeb7e4793f4a1d7e4faa70100af1
 
 
-submodule AES_GCM_SIV_0_0_Inst = Common::AES_GCM_SIV where
+import Common::AES_GCM_SIV as AES_GCM_SIV_0_0 where
   type Mode = 0
   type AAD = 0
-import submodule AES_GCM_SIV_0_0_Inst as AES_GCM_SIV_0_0
 
 property test1 =
   AES_GCM_SIV_0_0::aes_gcm_siv
@@ -110,10 +108,9 @@ property test7 =
   0x8a263dd317aa88d56bdf3936dba75bb8
 
 
-submodule AES_GCM_SIV_0_8_Inst = Common::AES_GCM_SIV where
+import Common::AES_GCM_SIV as AES_GCM_SIV_0_8 where
   type Mode = 0
   type AAD = 8
-import submodule AES_GCM_SIV_0_8_Inst as AES_GCM_SIV_0_8
 
 property test8 =
  AES_GCM_SIV_0_8::aes_gcm_siv
@@ -194,10 +191,9 @@ property test13 =
   0xcdc46ae475563de037001ef84ae21744
 
 
-submodule AES_GCM_SIV_0_96_Inst = Common::AES_GCM_SIV where
+import Common::AES_GCM_SIV as AES_GCM_SIV_0_96 where
   type Mode = 0
   type AAD = 96
-import submodule AES_GCM_SIV_0_96_Inst as AES_GCM_SIV_0_96
 
 property test14 =
   AES_GCM_SIV_0_96::aes_gcm_siv
@@ -211,10 +207,9 @@ property test14 =
   0xe2f48a14
 
 
-submodule AES_GCM_SIV_0_144_Inst = Common::AES_GCM_SIV where
+import Common::AES_GCM_SIV as AES_GCM_SIV_0_144 where
   type Mode = 0
   type AAD = 144
-import submodule AES_GCM_SIV_0_144_Inst as AES_GCM_SIV_0_144
 
 property test15 =
   AES_GCM_SIV_0_144::aes_gcm_siv
@@ -231,10 +226,9 @@ property test15 =
   0xfe106514
 
 
-submodule AES_GCM_SIV_0_160_Inst = Common::AES_GCM_SIV where
+import Common::AES_GCM_SIV as AES_GCM_SIV_0_160 where
   type Mode = 0
   type AAD = 160
-import submodule AES_GCM_SIV_0_160_Inst as AES_GCM_SIV_0_160
 
 property test16 =
   AES_GCM_SIV_0_160::aes_gcm_siv
@@ -261,10 +255,9 @@ property test16' =
    == 0xa4194b79071b01a87d65f706e3949578
 
 
-submodule AES_GCM_SIV_0_40_Inst = Common::AES_GCM_SIV where
+import Common::AES_GCM_SIV as AES_GCM_SIV_0_40 where
   type Mode = 0
   type AAD = 40
-import submodule AES_GCM_SIV_0_40_Inst as AES_GCM_SIV_0_40
 
 property test17 =
   AES_GCM_SIV_0_40::aes_gcm_siv
@@ -277,10 +270,9 @@ property test17 =
       0xa428a8
 
 
-submodule AES_GCM_SIV_0_80_Inst = Common::AES_GCM_SIV where
+import Common::AES_GCM_SIV as AES_GCM_SIV_0_80 where
   type Mode = 0
   type AAD = 80
-import submodule AES_GCM_SIV_0_80_Inst as AES_GCM_SIV_0_80
 
 property test18 =
   AES_GCM_SIV_0_80::aes_gcm_siv
@@ -293,10 +285,9 @@ property test18 =
       0x743dba20f966
 
 
-submodule AES_GCM_SIV_0_120_Inst = Common::AES_GCM_SIV where
+import Common::AES_GCM_SIV as AES_GCM_SIV_0_120 where
   type Mode = 0
   type AAD = 120
-import submodule AES_GCM_SIV_0_120_Inst as AES_GCM_SIV_0_120
 
 property test19 =
   AES_GCM_SIV_0_120::aes_gcm_siv
@@ -321,10 +312,9 @@ property test20 =
       0x1fb7561da1286e655e24b7b0
 
 
-submodule AES_GCM_SIV_0_200_Inst = Common::AES_GCM_SIV where
+import Common::AES_GCM_SIV as AES_GCM_SIV_0_200 where
   type Mode = 0
   type AAD = 200
-import submodule AES_GCM_SIV_0_200_Inst as AES_GCM_SIV_0_200
 
 property test21 =
   AES_GCM_SIV_0_200::aes_gcm_siv
@@ -338,10 +328,9 @@ property test21 =
            0xb3449b9f39552de99dc214a1190b0b
 
 
-submodule AES_GCM_SIV_0_240_Inst = Common::AES_GCM_SIV where
+import Common::AES_GCM_SIV as AES_GCM_SIV_0_240 where
   type Mode = 0
   type AAD = 240
-import submodule AES_GCM_SIV_0_240_Inst as AES_GCM_SIV_0_240
 
 property test22 =
   AES_GCM_SIV_0_240::aes_gcm_siv
@@ -357,10 +346,9 @@ property test22 =
            0xdb84
 
 
-submodule AES_GCM_SIV_0_280_Inst = Common::AES_GCM_SIV where
+import Common::AES_GCM_SIV as AES_GCM_SIV_0_280 where
   type Mode = 0
   type AAD = 280
-import submodule AES_GCM_SIV_0_280_Inst as AES_GCM_SIV_0_280
 
 property test23 =
   AES_GCM_SIV_0_280::aes_gcm_siv
@@ -377,10 +365,9 @@ property test23 =
       0xd24a2a6e70
 
 
-submodule AES_GCM_SIV_1_0_Inst = Common::AES_GCM_SIV where
+import Common::AES_GCM_SIV as AES_GCM_SIV_1_0 where
   type Mode = 1
   type AAD = 0
-import submodule AES_GCM_SIV_1_0_Inst as AES_GCM_SIV_1_0
 
 property test24 =
   AES_GCM_SIV_1_0::aes_gcm_siv
@@ -472,10 +459,9 @@ property test30 =
       0x112864c269fc0d9d88c61fa47e39aa08
 
 
-submodule AES_GCM_SIV_1_8_Inst = Common::AES_GCM_SIV where
+import Common::AES_GCM_SIV as AES_GCM_SIV_1_8 where
   type Mode = 1
   type AAD = 8
-import submodule AES_GCM_SIV_1_8_Inst as AES_GCM_SIV_1_8
 
 property test31 =
   AES_GCM_SIV_1_8::aes_gcm_siv
@@ -556,10 +542,9 @@ property test36 =
       0x5bde0285037c5de81e5b570a049b62a0
 
 
-submodule AES_GCM_SIV_1_96_Inst = Common::AES_GCM_SIV where
+import Common::AES_GCM_SIV as AES_GCM_SIV_1_96 where
   type Mode = 1
   type AAD = 96
-import submodule AES_GCM_SIV_1_96_Inst as AES_GCM_SIV_1_96
 
 property test37 =
   AES_GCM_SIV_1_96::aes_gcm_siv
@@ -573,10 +558,9 @@ property test37 =
       0x661b74cf
 
 
-submodule AES_GCM_SIV_1_144_Inst = Common::AES_GCM_SIV where
+import Common::AES_GCM_SIV as AES_GCM_SIV_1_144 where
   type Mode = 1
   type AAD = 144
-import submodule AES_GCM_SIV_1_144_Inst as AES_GCM_SIV_1_144
 
 property test38 =
   AES_GCM_SIV_1_144::aes_gcm_siv
@@ -593,10 +577,9 @@ property test38 =
       0xcabfe307
 
 
-submodule AES_GCM_SIV_1_160_Inst = Common::AES_GCM_SIV where
+import Common::AES_GCM_SIV as AES_GCM_SIV_1_160 where
   type Mode = 1
   type AAD = 160
-import submodule AES_GCM_SIV_1_160_Inst as AES_GCM_SIV_1_160
 
 property test39 =
   AES_GCM_SIV_1_160::aes_gcm_siv
@@ -624,10 +607,9 @@ property test40 =
    == 0x169fbb2fbf389a995f6390af22228a62
 
 
-submodule AES_GCM_SIV_1_40_Inst = Common::AES_GCM_SIV where
+import Common::AES_GCM_SIV as AES_GCM_SIV_1_40 where
   type Mode = 1
   type AAD = 40
-import submodule AES_GCM_SIV_1_40_Inst as AES_GCM_SIV_1_40
 
 property test41 =
   AES_GCM_SIV_1_40::aes_gcm_siv
@@ -641,10 +623,9 @@ property test41 =
       0x19719d
 
 
-submodule AES_GCM_SIV_1_80_Inst = Common::AES_GCM_SIV where
+import Common::AES_GCM_SIV as AES_GCM_SIV_1_80 where
   type Mode = 1
   type AAD = 80
-import submodule AES_GCM_SIV_1_80_Inst as AES_GCM_SIV_1_80
 
 property test42 =
   AES_GCM_SIV_1_80::aes_gcm_siv
@@ -658,10 +639,9 @@ property test42 =
       0xc12020ec8c2c
 
 
-submodule AES_GCM_SIV_1_120_Inst = Common::AES_GCM_SIV where
+import Common::AES_GCM_SIV as AES_GCM_SIV_1_120 where
   type Mode = 1
   type AAD = 120
-import submodule AES_GCM_SIV_1_120_Inst as AES_GCM_SIV_1_120
 
 property test43 =
   AES_GCM_SIV_1_120::aes_gcm_siv
@@ -688,10 +668,9 @@ property test44 =
       0x587f64979f21826706d497d5
 
 
-submodule AES_GCM_SIV_1_200_Inst = Common::AES_GCM_SIV where
+import Common::AES_GCM_SIV as AES_GCM_SIV_1_200 where
   type Mode = 1
   type AAD = 200
-import submodule AES_GCM_SIV_1_200_Inst as AES_GCM_SIV_1_200
 
 property test45 =
   AES_GCM_SIV_1_200::aes_gcm_siv
@@ -706,10 +685,9 @@ property test45 =
       0x080d28f6ebb5d3648ce97bd5ba67fd
 
 
-submodule AES_GCM_SIV_1_240_Inst = Common::AES_GCM_SIV where
+import Common::AES_GCM_SIV as AES_GCM_SIV_1_240 where
   type Mode = 1
   type AAD = 240
-import submodule AES_GCM_SIV_1_240_Inst as AES_GCM_SIV_1_240
 
 property test46 =
   AES_GCM_SIV_1_240::aes_gcm_siv
@@ -726,10 +704,9 @@ property test46 =
       0x0a49
 
 
-submodule AES_GCM_SIV_1_280_Inst = Common::AES_GCM_SIV where
+import Common::AES_GCM_SIV as AES_GCM_SIV_1_280 where
   type Mode = 1
   type AAD = 280
-import submodule AES_GCM_SIV_1_280_Inst as AES_GCM_SIV_1_280
 
 property test47 =
   AES_GCM_SIV_1_280::aes_gcm_siv

@@ -10,10 +10,9 @@ https://tools.ietf.org/html/draft-irtf-cfrg-gcmsiv-06
 
 module Common::AES_GCM_SIV where
 
-submodule AESInst = AES where
+import AES as AES where
   type m = (2 * Mode)
   type k = K
-import submodule AESInst as AES
 
 parameter
   /** 0: use AES128, 1: use AES256 */

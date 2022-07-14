@@ -1,15 +1,13 @@
 module AES where
 
-submodule AESAlg = AES::Algorithm where
+import AES::Algorithm as AES where
   type Mode = m
   encRound = AESRound
   decRound = AESInvRound
-import submodule AESAlg as AES
 
-submodule AESKey = AES::ExpandKey where
+import AES::ExpandKey where
   type Nk = AES::Nk
   type Nr = AES::Nr
-import submodule AESKey as AES
 
 import AES::TBox
 
@@ -31,7 +29,7 @@ decrypt k = decryptWithSchedule (expandKeyDec k)
 
 
 expandKeyEnc : [k] -> EncKey
-expandKeyEnc = AES::expandKey
+expandKeyEnc = expandKey
 
 encryptWithSchedule : EncKey -> [128] -> [128]
 encryptWithSchedule = AES::encrypt
@@ -39,7 +37,7 @@ encryptWithSchedule = AES::encrypt
 
 
 expandKeyDec : [k] -> EncKey
-expandKeyDec k = makeDecKey (AES::expandKey k)
+expandKeyDec k = makeDecKey (expandKey k)
 
 decryptWithSchedule : DecKey -> [128] -> [128]
 decryptWithSchedule = AES::decrypt
