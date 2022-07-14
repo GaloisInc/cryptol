@@ -683,7 +683,22 @@ at the same time:</p>
 <p>The <code class="docutils literal notranslate"><span class="pre">where</span></code> block may is the same as the <code class="docutils literal notranslate"><span class="pre">where</span></code> block in
 expressions:  you may define type synonyms and values, but nothing else
 (e.g., no <code class="docutils literal notranslate"><span class="pre">newtype</span></code>).</p>
-<p>Semantically, this is equivalent to:</p>
+<p>It is also possible to import and instantiate using an existing module
+like this:</p>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">submodule</span> <span class="kt">F</span> <span class="kr">where</span>
+  <span class="n">parameter</span>
+    <span class="n">x</span> <span class="kt">:</span> <span class="p">[</span><span class="mi">8</span><span class="p">]</span>
+  <span class="n">y</span> <span class="ow">=</span> <span class="n">x</span> <span class="o">+</span> <span class="mi">1</span>
+
+<span class="nf">submodule</span> <span class="kt">G</span> <span class="kr">where</span>
+  <span class="n">x</span> <span class="ow">=</span> <span class="mi">7</span>
+
+<span class="kr">import</span> <span class="nn">submodule</span> <span class="kt">F</span> <span class="p">{</span> <span class="n">submodule</span> <span class="kt">G</span> <span class="p">}</span>
+</pre></div>
+</div>
+<p>Semantically, insantiating imports declare a local nested module and
+import it.  For example, the <code class="docutils literal notranslate"><span class="pre">where</span></code> import from above is equivalent
+to the following declarations:</p>
 <div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">submodule</span> <span class="kt">F</span> <span class="kr">where</span>
 
   <span class="n">parameter</span>

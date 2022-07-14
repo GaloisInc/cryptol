@@ -642,7 +642,25 @@ The ``where`` block may is the same as the ``where`` block in
 expressions:  you may define type synonyms and values, but nothing else
 (e.g., no ``newtype``).
 
-Semantically, this is equivalent to:
+It is also possible to import and instantiate using an existing module
+like this:
+
+.. code-block:: cryptol
+
+  submodule F where
+    parameter
+      x : [8]
+    y = x + 1
+
+  submodule G where
+    x = 7
+
+  import submodule F { submodule G }
+
+
+Semantically, insantiating imports declare a local nested module and
+import it.  For example, the ``where`` import from above is equivalent
+to the following declarations:
 
 .. code-block:: cryptol
 
