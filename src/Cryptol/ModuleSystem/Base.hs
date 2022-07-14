@@ -336,6 +336,7 @@ addPrelude m
       { iModule    = P.ImpTop preludeName
       , iAs        = Nothing
       , iSpec      = Nothing
+      , iWhere     = Nothing
       }
     }
 

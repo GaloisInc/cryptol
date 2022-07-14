@@ -49,6 +49,7 @@ module Cryptol.Utils.Ident
   , modParamIdent
   , identAnonArg
   , identAnonIfaceMod
+  , identAnonInstance
 
     -- * Namespaces
   , Namespace(..)
@@ -296,6 +297,11 @@ identAnonArg (Ident b txt) = Ident b (txt <> "$argument")
 
 identAnonIfaceMod :: Ident -> Ident
 identAnonIfaceMod (Ident b txt) = Ident b (txt <> "$interface")
+
+identAnonInstance :: Int -> T.Text -> Ident
+identAnonInstance uniq pref =
+  Ident False (pref <> "$instance_" <> T.pack (show uniq))
+
 
 
 

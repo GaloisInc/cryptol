@@ -209,7 +209,7 @@ imports1                  :: { [ Located (ImportG (ImpName PName)) ] }
 
 -- XXX replace rComb with uses of at
 import                          :: { Located (ImportG (ImpName PName)) }
-  : 'import' impName mbAs mbImportSpec
+  : 'import' impName mbAs mbImportSpec optImportWhere
                               { Located { srcRange = rComb $1
                                                    $ fromMaybe (srcRange $2)
                                                    $ msum [ fmap srcRange $4
@@ -219,8 +219,13 @@ import                          :: { Located (ImportG (ImpName PName)) }
                                           { iModule    = thing $2
                                           , iAs        = fmap thing $3
                                           , iSpec      = fmap thing $4
+                                          , iWhere     = $5
                                           }
                                         } }
+
+optImportWhere             :: { Maybe (Located [Decl PName]) }
+  : 'where' whereClause       { Just $2 }
+  |                           { Nothing }
 
 impName                    :: { Located (ImpName PName) }
   : 'submodule' qname         { ImpNested `fmap` $2 }

@@ -358,6 +358,8 @@ data ImportG mname = Import
   { iModule    :: !mname
   , iAs        :: Maybe ModName
   , iSpec      :: Maybe ImportSpec
+  , iWhere     :: !(Maybe (Located [Decl PName]))
+    -- ^ `iWhere' exists only during parsing
   } deriving (Eq, Show, Generic, NFData)
 
 type Import = ImportG ModName
@@ -880,11 +882,16 @@ instance PPName name => PP (Newtype name) where
     , ppRecord (map (ppNamed' ":") (displayFields (nBody nt)))
     ]
 
-instance PP mname => PP (ImportG mname) where
-  ppPrec _ d = text "import" <+> sep ([pp (iModule d)] ++ mbAs ++ mbSpec)
+instance (PP mname) => PP (ImportG mname) where
+  ppPrec _ d = vcat [ text "import" <+> sep ([pp (iModule d)] ++ mbAs ++ mbSpec)
+                    , indent 2 mbWhere
+                    ]
     where
     mbAs   = maybe [] (\ name -> [text "as" <+> pp name]) (iAs d)
     mbSpec = maybe [] (\x -> [pp x]) (iSpec d)
+    mbWhere = case iWhere d of
+                Nothing -> mempty
+                Just ds -> "where" $$ vcat (map pp (thing ds))
 
 instance PP name => PP (ImpName name) where
   ppPrec _ nm =

@@ -12,11 +12,13 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE OverloadedStrings #-}
 -- See Note [-Wincomplete-uni-patterns and irrefutable patterns] in Cryptol.TypeCheck.TypePat
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 module Cryptol.Parser.ParserUtils where
 
+import qualified Data.Text as Text
 import Data.Maybe(fromMaybe)
 import Data.Bits(testBit,setBit)
 import Data.Maybe(mapMaybe)
@@ -45,6 +47,7 @@ import Cryptol.Parser.Utils (translateExprToNumT,widthIdent)
 import Cryptol.Utils.Ident( packModName,packIdent,modNameChunks
                           , identAnonArg, identAnonIfaceMod
                           , modNameArg, modNameIfaceMod
+                          , modNameToText, identAnonInstance
                           )
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic
@@ -1015,7 +1018,7 @@ desugarTopDs ::
   Located name ->
   [TopDecl PName] ->
   ParseM ([ModuleG name PName], [TopDecl PName])
-desugarTopDs ownerName = go emptySig
+desugarTopDs ownerName = go 1 emptySig
   where
   isEmpty s =
     null (sigTypeParams s) && null (sigConstraints s) && null (sigFunParams s)
@@ -1038,7 +1041,7 @@ desugarTopDs ownerName = go emptySig
 
   addI i s = s { sigImports = i : sigImports s }
 
-  go sig ds =
+  go st sig ds =
     case ds of
 
       []
@@ -1062,14 +1065,21 @@ desugarTopDs ownerName = go emptySig
                   )
 
       d : more ->
-        let cont emit sig' =
-               do (ms,ds') <- go sig' more
-                  pure (ms, emit ++ ds')
+        let cont emit sig' = cont' emit st sig'
+
+            cont' emit st' sig' =
+              do (ms,ds') <- go st' sig' more
+                 pure (ms, emit ++ ds')
         in
         case d of
 
-          DImport i | ImpTop _ <- iModule (thing i) ->
+          DImport i | ImpTop _ <- iModule (thing i)
+                    , Nothing  <- iWhere (thing i) ->
             cont [d] (addI i sig)
+
+          DImport i | Just lds <- iWhere (thing i) ->
+            do newDs <- desugarWhereImport st i (thing lds)
+               cont' newDs (st + 1) sig
 
           DParamDecl _ ds' -> cont [] (jnSig ds' sig)
 
@@ -1078,4 +1088,47 @@ desugarTopDs ownerName = go emptySig
                cont [ DModule tl { tlValue = NestedModule m } | m <- ms ] sig
 
           _ -> cont [d] sig
+
+desugarWhereImport ::
+  Int                               {- ^ Used to generate a fresh name -} ->
+  Located (ImportG (ImpName PName)) {- ^ The import -} ->
+  [Decl PName]                      {- ^ The `where` clause -} ->
+  ParseM [TopDecl PName]
+desugarWhereImport st i ds =
+  do ms <- desugarMod
+           Module { mName = i { thing = iname }
+                  , mDef  = FunctorInstance
+                              (iModule <$> i)
+                              (DefaultInstAnonArg (map instTop ds))
+                              emptyModuleInstance
+                  }
+     pure (DImport (newImp <$> i) : map modTop ms)
+
+  where
+  imp = thing i
+  iname = mkUnqual
+        $ identAnonInstance st
+          case iModule imp of
+            ImpTop f    -> modNameToText f
+            ImpNested n -> Text.pack (show (pp n))
+
+  newImp d = d { iModule = ImpNested iname
+               , iWhere  = Nothing
+               }
+
+  modTop m = DModule TopLevel
+                       { tlExport = Private
+                       , tlDoc    = Nothing
+                       , tlValue  = NestedModule m
+                       }
+
+
+
+  instTop d = Decl TopLevel
+                     { tlExport = Public
+                     , tlDoc    = Nothing
+                     , tlValue  = d
+                     }
+
+
 

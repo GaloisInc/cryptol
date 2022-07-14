@@ -1,0 +1,12 @@
+
+submodule F where
+  parameter
+    x : [8]
+
+  y = x + 1
+
+
+import submodule F where
+  x = 2
+
+
