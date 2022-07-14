@@ -333,10 +333,10 @@ addPrelude m
   prel = P.Located
     { P.srcRange = emptyRange
     , P.thing    = P.Import
-      { iModule    = P.ImpTop preludeName
-      , iAs        = Nothing
-      , iSpec      = Nothing
-      , iWhere     = Nothing
+      { iModule  = P.ImpTop preludeName
+      , iAs      = Nothing
+      , iSpec    = Nothing
+      , iInst    = Nothing
       }
     }
 

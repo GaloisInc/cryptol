@@ -25,7 +25,7 @@ import Data.Maybe(mapMaybe)
 import Data.List(foldl')
 import Data.List.NonEmpty ( NonEmpty(..) )
 import qualified Data.List.NonEmpty as NE
-import Control.Monad(liftM,ap,unless,guard)
+import Control.Monad(liftM,ap,unless,guard,msum)
 import qualified Control.Monad.Fail as Fail
 import           Data.Text(Text)
 import qualified Data.Text as T
@@ -952,6 +952,55 @@ mkSelector tok =
     _ -> panic "mkSelector" [ "Unexpected selector token", show tok ]
 
 
+mkImport ::
+  Range ->
+  Located (ImpName PName) ->
+  Maybe (ModuleInstanceArgs PName) ->
+  Maybe (Located ModName) ->
+  Maybe (Located ImportSpec) ->
+  Maybe (Located [Decl PName]) ->
+  ParseM (Located (ImportG (ImpName PName)))
+
+mkImport loc impName optInst mbAs mbImportSpec optImportWhere =
+  do i <- getInst
+     let end = fromMaybe (srcRange impName)
+             $ msum [ srcRange <$> optImportWhere
+                    , srcRange <$> mbImportSpec
+                    , srcRange <$> mbAs
+                    ]
+
+     pure Located { srcRange = rComb loc end
+                  , thing    = Import
+                                 { iModule    = thing impName
+                                 , iAs        = thing <$> mbAs
+                                 , iSpec      = thing <$> mbImportSpec
+                                 , iInst      = i
+                                 }
+                  }
+  where
+  getInst =
+    case (optInst,optImportWhere) of
+      (Just _, Just _) ->
+         errorMessage loc [ "Invalid instantiating import."
+                          , "Import should have at most one of:"
+                          , "  * { } instantiation, or"
+                          , "  * where instantiation"
+                          ]
+      (Just a, Nothing)  -> pure (Just a)
+      (Nothing, Just a)  ->
+        pure (Just (DefaultInstAnonArg (map instTop (thing a))))
+         where
+         instTop d = Decl TopLevel
+                            { tlExport = Public
+                            , tlDoc    = Nothing
+                            , tlValue  = d
+                            }
+      (Nothing, Nothing) -> pure Nothing
+
+
+
+
+
 mkTopMods :: Module PName -> ParseM [Module PName]
 mkTopMods = desugarMod
 
@@ -1074,11 +1123,11 @@ desugarTopDs ownerName = go 1 emptySig
         case d of
 
           DImport i | ImpTop _ <- iModule (thing i)
-                    , Nothing  <- iWhere (thing i) ->
+                    , Nothing  <- iInst (thing i) ->
             cont [d] (addI i sig)
 
-          DImport i | Just lds <- iWhere (thing i) ->
-            do newDs <- desugarWhereImport st i (thing lds)
+          DImport i | Just inst <- iInst (thing i) ->
+            do newDs <- desugarInstImport st i inst
                cont' newDs (st + 1) sig
 
           DParamDecl _ ds' -> cont [] (jnSig ds' sig)
@@ -1089,18 +1138,16 @@ desugarTopDs ownerName = go 1 emptySig
 
           _ -> cont [d] sig
 
-desugarWhereImport ::
+desugarInstImport ::
   Int                               {- ^ Used to generate a fresh name -} ->
   Located (ImportG (ImpName PName)) {- ^ The import -} ->
-  [Decl PName]                      {- ^ The `where` clause -} ->
+  ModuleInstanceArgs PName          {- ^ The insantiation -} ->
   ParseM [TopDecl PName]
-desugarWhereImport st i ds =
+desugarInstImport st i inst =
   do ms <- desugarMod
            Module { mName = i { thing = iname }
                   , mDef  = FunctorInstance
-                              (iModule <$> i)
-                              (DefaultInstAnonArg (map instTop ds))
-                              emptyModuleInstance
+                              (iModule <$> i) inst emptyModuleInstance
                   }
      pure (DImport (newImp <$> i) : map modTop ms)
 
@@ -1113,7 +1160,7 @@ desugarWhereImport st i ds =
             ImpNested n -> Text.pack (show (pp n))
 
   newImp d = d { iModule = ImpNested iname
-               , iWhere  = Nothing
+               , iInst   = Nothing
                }
 
   modTop m = DModule TopLevel
@@ -1121,14 +1168,6 @@ desugarWhereImport st i ds =
                        , tlDoc    = Nothing
                        , tlValue  = NestedModule m
                        }
-
-
-
-  instTop d = Decl TopLevel
-                     { tlExport = Public
-                     , tlDoc    = Nothing
-                     , tlValue  = d
-                     }
 
 
 

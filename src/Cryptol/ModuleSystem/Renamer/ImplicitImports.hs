@@ -106,7 +106,7 @@ mkImp loc xs =
                      { iModule = ImpNested (isToName xs)
                      , iAs     = Just (isToQual xs)
                      , iSpec   = Nothing
-                     , iWhere  = Nothing
+                     , iInst   = Nothing
                      }
       }
 

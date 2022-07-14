@@ -324,7 +324,7 @@ data Signature name = Signature
   , sigTypeParams   :: [ParameterType name]     -- ^ Type parameters
   , sigConstraints  :: [Located (Prop name)]    -- ^ Constraints on type params
   , sigFunParams    :: [ParameterFun name]      -- ^ Value parameters
-  } deriving (Eq,Show,Generic,NFData)
+  } deriving (Show,Generic,NFData)
 
 {- | A module parameter declaration.
 
@@ -358,9 +358,9 @@ data ImportG mname = Import
   { iModule    :: !mname
   , iAs        :: Maybe ModName
   , iSpec      :: Maybe ImportSpec
-  , iWhere     :: !(Maybe (Located [Decl PName]))
-    -- ^ `iWhere' exists only during parsing
-  } deriving (Eq, Show, Generic, NFData)
+  , iInst      :: !(Maybe (ModuleInstanceArgs PName))
+    -- ^ `iInst' exists only during parsing
+  } deriving (Show, Generic, NFData)
 
 type Import = ImportG ModName
 
@@ -883,15 +883,22 @@ instance PPName name => PP (Newtype name) where
     ]
 
 instance (PP mname) => PP (ImportG mname) where
-  ppPrec _ d = vcat [ text "import" <+> sep ([pp (iModule d)] ++ mbAs ++ mbSpec)
+  ppPrec _ d = vcat [ text "import" <+> sep ([pp (iModule d)] ++ mbInst ++
+                                                      mbAs ++ mbSpec)
                     , indent 2 mbWhere
                     ]
     where
     mbAs   = maybe [] (\ name -> [text "as" <+> pp name]) (iAs d)
     mbSpec = maybe [] (\x -> [pp x]) (iSpec d)
-    mbWhere = case iWhere d of
-                Nothing -> mempty
-                Just ds -> "where" $$ vcat (map pp (thing ds))
+    mbInst = case iInst d of
+                Just (DefaultInstArg x) -> [ braces (pp (thing x)) ]
+                Just (NamedInstArgs xs) -> [ braces (commaSep (map pp xs)) ]
+                _ -> []
+    mbWhere = case iInst d of
+                Just (DefaultInstAnonArg ds) ->
+                  "where" $$ vcat (map pp ds)
+                _ -> mempty
+ 
 
 instance PP name => PP (ImpName name) where
   ppPrec _ nm =
