@@ -3,6 +3,7 @@ Loading module Cryptol
 Loading module test02
 module test02
 import Cryptol
+  
 /* Not recursive */
 test02::test : {a, b} a -> b
 test02::test =
@@ -20,6 +21,7 @@ Loading module Cryptol
 Loading module test02
 module test02
 import Cryptol
+  
 /* Not recursive */
 test02::test : {a, b} b -> a
 test02::test =
