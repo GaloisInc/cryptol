@@ -5,6 +5,7 @@ Loading module Main
   Assuming  a to have a numeric type
 module Main
 import Cryptol
+  
 /* Recursive */
 Main::test : {a} [1 + a]
 Main::test =
