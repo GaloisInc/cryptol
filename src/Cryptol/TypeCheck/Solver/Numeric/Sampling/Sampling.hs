@@ -5,6 +5,7 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE MultiWayIf #-}
 
 -- infers instances such as KnownNat n => KnownNat (n + n)
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
@@ -58,19 +59,48 @@ sample' = undefined
     getRange :: Finite n -> StateT (Vector n (Range n)) (GenM g) (Range n)
     getRange i = gets (`V.index` i)
 
-    evalVar :: Finite n -> StateT (Vector n (Range n)) (GenM g) ()
+    evalVar :: Finite n -> StateT (Vector n (Range n)) (GenM g) Nat'
     evalVar i = do
-      getRange i >>= \case
-        Range es -> do
-          vs <- evalExp `traverse` es
-          let v = min vs
-          -- 
-          pure ()
-        Fixed e -> do
-          evalExp e
-          pure ()
+      range <- getRange i
+      v <- case range of
+        Range es -> Prelude.minimum <$> evalExp `traverse` es
+        Fixed e -> evalExp e
+      modify (V.// [(i, Fixed $ fromConstant v)])
+      pure v
 
     evalExp :: Exp n Nat' -> StateT (Vector n (Range n)) (GenM g) Nat'
-    evalExp e = undefined
+    evalExp (Exp as c) = do
+      -- 1. Evaluate all the vars with positive nonzero coefficients
+      -- 2. Evaluate all the vars with negative nonzero coefficients, in an 
+      --    order while updating their range each time and weighting by number 
+      --    of possibilities after choice is made.
+
+      as <- V.foldM
+        -- `e` starts off as the sum of positive terms, then progressively gets 
+        --    subtracted from by each negative valeu that is sampled
+        -- `as` is the new vector being built up
+        (\(e, as) (i, a) ->
+          if | a >  0 -> pure undefined
+             | a <  0 -> pure undefined
+             | otherwise {- a == 0 -} -> pure (e, as) 
+        )
+        (undefined :: Exp n Nat', V.replicate _)
+        (generate id `V.zip` as)
+        :: StateT (Vector n (Range n)) (GenM g) (Exp n Nat', Vector n a)
+
+
+      -- -- FIX: this naive approach doesn't work with negative values
+      -- -- vars with nonzero coefficients need to be evaluated
+      -- (c +) <$> 
+      --   V.foldM
+      --     (\v (i, a) -> (v +) . (a *) <$> 
+      --       if a == 0 
+      --         then pure 0 -- vars with zero coefficients neen not be evaluated yet
+      --         else evalVar i)
+      --     0
+      --     (generate id `V.zip` as)
+      
+      undefined
+      
 
 data Range n = Range [Exp n Nat'] | Fixed (Exp n Nat')
