@@ -622,3 +622,45 @@ definition of an anonymous module which is passed as the argument
 to parameterized module ``M``.
 
 
+Anonymous Import Instantiations
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+We provide syntactic sugar for importing and instantiating a functor
+at the same time:
+
+.. code-block:: cryptol
+
+  submodule F where
+    parameter
+      x : [8]
+    y = x + 1
+
+  import submodule F where
+    x = 2
+
+The ``where`` block may is the same as the ``where`` block in
+expressions:  you may define type synonyms and values, but nothing else
+(e.g., no ``newtype``).
+
+Semantically, this is equivalent to:
+
+.. code-block:: cryptol
+
+  submodule F where
+
+    parameter
+      x : [8]
+
+    y = x + 1
+
+
+  submodule M where
+    x = 2
+
+
+  submodule N = submodule F { submodule M }
+
+
+  import submodule N
+
+
