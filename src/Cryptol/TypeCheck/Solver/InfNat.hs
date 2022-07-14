@@ -31,7 +31,21 @@ fromNat n' =
     Nat i -> Just i
     _     -> Nothing
 
+instance Num Nat' where
+  (+) = nAdd
+  (*) = nMul
 
+  abs (Nat i) = Nat (abs i)
+  abs Inf = Inf
+
+  signum (Nat i) = Nat (signum i)
+  signum Inf = Nat 1
+
+  fromInteger = Nat
+
+  negate (Nat i) = Nat (negate i)
+  negate Inf = error "cannot negate Inf"
+  
 
 
 --------------------------------------------------------------------------------
