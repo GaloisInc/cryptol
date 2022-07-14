@@ -57,6 +57,7 @@ module Cryptol.Utils.Ident
     -- * Original names
   , OrigName(..)
   , OrigSource(..)
+  , ogFromModParam
 
     -- * Identifiers for primitives
   , PrimIdent(..)
@@ -232,8 +233,15 @@ data OrigName = OrigName
 -- | Describes where a top-level name came from
 data OrigSource =
     FromDefinition
+  | FromFunctorInst
   | FromModParam Ident
     deriving (Eq,Ord,Show,Generic,NFData)
+
+-- | Returns true iff the 'ogSource' of the given 'OrigName' is 'FromModParam'
+ogFromModParam :: OrigName -> Bool
+ogFromModParam og = case ogSource og of
+                      FromModParam _ -> True
+                      _ -> False
 
 
 --------------------------------------------------------------------------------

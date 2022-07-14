@@ -94,10 +94,6 @@ Loading module AES::Algorithm
 Loading interface module AES::ExpandKey$interface
 Loading module AES::ExpandKey
 Loading module AES
-[warning] at param_modules/AES/Algorithm.cry:25:6--25:8
-    Unused name: AES::AESAlg::Nk
-[warning] at param_modules/AES/Algorithm.cry:28:6--28:8
-    Unused name: AES::AESAlg::Nr
 Loading module Cryptol
 Loading interface module Common::AES_GCM_SIV$interface
 Loading module AES::GF28
@@ -115,12 +111,6 @@ Loading module AES::ExpandKey
 Loading module AES
 Loading module Common::AES_GCM_SIV
 Loading module Main
-[warning] at param_modules/AES/Algorithm.cry:25:6--25:8
-    Unused name: AES::Nk
-[warning] at param_modules/AES/Algorithm.cry:28:6--28:8
-    Unused name: AES::Nr
-[warning] at param_modules/AES.cry:22:6--22:12
-    Unused name: Common::AES_GCM_SIV::AESInst::EncKey
 Loading module Cryptol
 Loading module AES::GF28
 Loading module AES::State
@@ -138,10 +128,6 @@ Loading module AES
 Loading interface module Common::GCM$interface
 Loading module Common::GCM
 Loading module GCM_AES_Tests
-[warning] at param_modules/AES/Algorithm.cry:25:6--25:8
-    Unused name: AES::AESAlg::Nk
-[warning] at param_modules/AES/Algorithm.cry:28:6--28:8
-    Unused name: AES::AESAlg::Nr
 Loading module Cryptol
 Loading module SHA256$argument
 Loading interface module Common::SHA$interface

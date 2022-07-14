@@ -25,7 +25,7 @@ import Prelude.Compat
 
 import Cryptol.Utils.PP(pp)
 import Cryptol.Utils.Panic(panic)
-import Cryptol.Utils.Ident(modPathCommon,OrigName(..))
+import Cryptol.Utils.Ident(modPathCommon,OrigName(..),OrigSource(..))
 import Cryptol.ModuleSystem.Name
 import Cryptol.ModuleSystem.NamingEnv
 import Cryptol.ModuleSystem.Binds
@@ -401,8 +401,10 @@ warnUnused m0 env rw =
   keep nm count = count == 1 && isLocal nm
   oldNames = Map.findWithDefault Set.empty NSType (visibleNames env)
 
+  -- returns true iff the name comes from a definition in a nested module,
+  -- including the current module
   isNestd og = case modPathCommon m0 (ogModule og) of
-                 Just (_,[],_) -> True
+                 Just (_,[],_) | FromDefinition <- ogSource og -> True
                  _ -> False
 
   isLocal nm = case nameInfo nm of

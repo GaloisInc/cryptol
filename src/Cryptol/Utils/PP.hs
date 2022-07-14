@@ -404,8 +404,8 @@ instance PP OrigName where
         Qualified m -> ppQual (TopModule m) (pp (ogName og))
         NotInScope  -> ppQual (ogModule og)
                        case ogSource og of
-                         FromDefinition -> pp (ogName og)
                          FromModParam x -> pp x <.> "::" <.> pp (ogName og)
+                         _ -> pp (ogName og)
     where
    ppQual mo x =
     case mo of

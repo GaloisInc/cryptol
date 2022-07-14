@@ -149,8 +149,8 @@ cmpNameDisplay disp l r =
                     let m = Text.pack (show (pp (ogModule og)))
                     in
                     case ogSource og of
-                      FromDefinition  -> m
                       FromModParam q  -> m <> "::" <> Text.pack (show (pp q))
+                      _ -> m
 
   -- Note that this assumes that `xs` is `l` and `ys` is `r`
   cmpText xs ys =
@@ -226,7 +226,7 @@ asPrim :: Name -> Maybe PrimIdent
 asPrim n =
   case nInfo n of
     GlobalName _ og
-      | TopModule m <- ogModule og, FromDefinition <- ogSource og ->
+      | TopModule m <- ogModule og, not (ogFromModParam og) ->
         Just $ PrimIdent m $ identText $ ogName og
 
     _ -> Nothing
@@ -418,7 +418,8 @@ freshNameFor mpath x s = (newName, s1)
     x { nUnique = u
       , nInfo =
           case nInfo x of
-            GlobalName src og -> GlobalName src og { ogModule = mpath }
+            GlobalName src og -> GlobalName src og { ogModule = mpath
+                                                   , ogSource = FromFunctorInst }
             LocalName {} -> panic "freshNameFor" ["Unexpected local",show x]
       }
 
