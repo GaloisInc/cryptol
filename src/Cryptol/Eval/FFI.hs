@@ -66,11 +66,12 @@ evalForeignDecls path m env = do
   fmap report $ runExceptT $ runWriterT $
     foldlM evalForeignDeclGroup env $ mDecls m
 
-{- HLINT ignore foreignPrim "Avoid lambda" -}
 foreignPrim :: FFIFunRep -> ForeignImpl -> Prim Concrete
-foreignPrim FFIFunRep {..} impl = PStrict \val ->
-  PPrim $ withArg ffiArgRep val \arg ->
-    withRet ffiRetRep $ io $ callForeignImpl impl arg
+foreignPrim FFIFunRep {..} impl = go ffiArgReps pure
+  where go [] getArgs = PPrim $
+          withRet ffiRetRep $ getArgs [] >>= io . callForeignImpl impl
+        go (argRep:argReps) getArgs = PStrict \val -> go argReps \args ->
+          withArg argRep val \arg -> (SomeFFIType arg :) <$> getArgs args
 
 withArg :: FFIRep -> GenValue Concrete ->
   (forall a. FFIType a => a -> Eval b) -> Eval b

@@ -19,6 +19,7 @@ module Cryptol.Backend.FFI
   , loadForeignSrc
   , loadForeignImpl
   , FFIType
+  , SomeFFIType (..)
   , callForeignImpl
   )
 #endif
@@ -73,8 +74,7 @@ loadForeignLib path =
 loadForeignLib path =
   tryLoad (CantLoadFFISrc path) $ open "so"
 #endif
-  where
-  open ext = dlopen (path -<.> ext) [RTLD_NOW]
+  where open ext = dlopen (path -<.> ext) [RTLD_NOW]
 
 unloadForeignLib :: ForeignLib -> IO ()
 unloadForeignLib = dlclose
@@ -115,9 +115,11 @@ instance FFIType Word64 where
   ffiArg = argWord64
   ffiRet = retWord64
 
-callForeignImpl :: forall a b.
-  (FFIType a, FFIType b) => ForeignImpl -> a -> IO b
-callForeignImpl (ForeignImpl fp) x = withForeignPtr fp \p ->
-  callFFI (castPtrToFunPtr p) (ffiRet @b) [ffiArg x]
+data SomeFFIType = forall a. FFIType a => SomeFFIType a
+
+callForeignImpl :: forall a. FFIType a => ForeignImpl -> [SomeFFIType] -> IO a
+callForeignImpl (ForeignImpl fp) xs = withForeignPtr fp \p ->
+  callFFI (castPtrToFunPtr p) (ffiRet @a) $ map toArg xs
+  where toArg (SomeFFIType x) = ffiArg x
 
 #endif

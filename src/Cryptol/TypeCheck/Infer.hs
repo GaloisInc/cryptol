@@ -992,7 +992,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
           Nothing -> do
             recordErrorLoc loc $ UnsupportedFFIType src t0
             -- Just a placeholder
-            pure FFIFunRep { ffiArgRep = FFIBool, ffiRetRep = FFIBool }
+            pure FFIFunRep { ffiArgReps = [FFIBool], ffiRetRep = FFIBool }
         return Decl { dName       = thing (P.bName b)
                     , dSignature  = Forall as asmps0 t0
                     , dDefinition = DForeign ffiFunRep

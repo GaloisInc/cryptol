@@ -22,15 +22,20 @@ data FFIWordSize
   deriving (Show, Generic, NFData)
 
 data FFIFunRep = FFIFunRep
-  { ffiArgRep :: FFIRep
-  , ffiRetRep :: FFIRep
+  { ffiArgReps :: [FFIRep]
+  , ffiRetRep  :: FFIRep
   } deriving (Show, Generic, NFData)
 
 toFFIFunRep :: Schema -> Maybe FFIFunRep
-toFFIFunRep (Forall [] [] (TCon (TC TCFun) [argType, retType])) = do
-  ffiArgRep <- toFFIRep argType
-  ffiRetRep <- toFFIRep retType
-  pure FFIFunRep {..}
+toFFIFunRep (Forall [] [] t) = go t
+  where go (TCon (TC TCFun) [argType, retType]) = do
+          arg <- toFFIRep argType
+          case go retType of
+            Just funRep -> Just funRep { ffiArgReps = arg : ffiArgReps funRep }
+            Nothing -> do
+              ffiRetRep <- toFFIRep retType
+              Just FFIFunRep { ffiArgReps = [arg], .. }
+        go _ = Nothing
 toFFIFunRep _ = Nothing
 
 toFFIRep :: Type -> Maybe FFIRep
