@@ -49,7 +49,7 @@ module Cryptol.Parser.AST
 
   , ModuleDefinition(..)
   , ModuleInstanceArgs(..)
-  , ModuleInstanceArg(..)
+  , ModuleInstanceNamedArg(..)
   , ModuleInstance
   , emptyModuleInstance
 
@@ -262,12 +262,13 @@ data ModuleInstanceArgs name =
     -- ^ Single parameter instantitaion using this anonymous module.
     -- (parser only)
 
-  | NamedInstArgs  [ModuleInstanceArg name]
+  | NamedInstArgs  [ModuleInstanceNamedArg name]
     deriving (Show, Generic, NFData)
 
-data ModuleInstanceArg name =
-  ModuleInstanceArg (Located Ident) (Located (ImpName name))
+data ModuleInstanceNamedArg name =
+  ModuleInstanceNamedArg (Located Ident) (Located (ImpName name))
   deriving (Show, Generic, NFData)
+
 
 
 -- | The name of an imported module
@@ -777,8 +778,8 @@ instance (Show name, PPName name) => PP (ModuleInstanceArgs name) where
       DefaultInstAnonArg ds -> "where" $$ indent 2 (vcat (map pp ds))
       NamedInstArgs xs -> braces (commaSep (map pp xs))
 
-instance (Show name, PPName name) => PP (ModuleInstanceArg name) where
-  ppPrec _ (ModuleInstanceArg x y) = pp (thing x) <+> "=" <+> pp (thing y)
+instance (Show name, PPName name) => PP (ModuleInstanceNamedArg name) where
+  ppPrec _ (ModuleInstanceNamedArg x y) = pp (thing x) <+> "=" <+> pp (thing y)
 
 instance (Show name, PPName name) => PP (Program name) where
   ppPrec _ (Program ds) = vcat (map pp ds)
@@ -1249,8 +1250,9 @@ instance NoPos (ModuleInstanceArgs name) where
       DefaultInstAnonArg ds -> DefaultInstAnonArg (noPos ds)
       NamedInstArgs xs      -> NamedInstArgs (noPos xs)
 
-instance NoPos (ModuleInstanceArg name) where
-  noPos (ModuleInstanceArg x y) = ModuleInstanceArg (noPos x) (noPos y)
+instance NoPos (ModuleInstanceNamedArg name) where
+  noPos (ModuleInstanceNamedArg x y) =
+    ModuleInstanceNamedArg (noPos x) (noPos y)
 
 instance NoPos (NestedModule name) where
   noPos (NestedModule m) = NestedModule (noPos m)

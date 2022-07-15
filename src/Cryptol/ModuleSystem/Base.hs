@@ -364,7 +364,7 @@ loadDeps m =
   loadImpD li = loadImpName (FromImport . new) (iModule <$> li)
     where new i = i { thing = (thing li) { iModule = thing i } }
 
-  loadInstArg (ModuleInstanceArg _ f) = loadImpName FromModuleInstance f
+  loadInstArg (ModuleInstanceNamedArg _ f) = loadImpName FromModuleInstance f
 
   depsOfDecl d =
     case d of

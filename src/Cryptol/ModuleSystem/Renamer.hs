@@ -271,7 +271,8 @@ checkFunctorArgs args =
     DefaultInstArg l -> checkIsModule (srcRange l) (thing l) AModule
     NamedInstArgs as -> mapM_ checkArg as
   where
-  checkArg (ModuleInstanceArg _ l) = checkIsModule (srcRange l) (thing l) AModule
+  checkArg (ModuleInstanceNamedArg _ l) =
+    checkIsModule (srcRange l) (thing l) AModule
 
 mkInstMap :: Maybe Range -> Map Name Name -> ImpName Name -> ImpName Name ->
   RenameM (Map Name Name)
@@ -702,9 +703,9 @@ instance Rename ModuleInstanceArgs where
       NamedInstArgs xs -> NamedInstArgs  <$> traverse rename xs
       DefaultInstAnonArg {} -> panic "rename" ["DefaultInstAnonArg"]
 
-instance Rename ModuleInstanceArg where
-  rename (ModuleInstanceArg x m) =
-    ModuleInstanceArg x <$> rnLocated rename m
+instance Rename ModuleInstanceNamedArg where
+  rename (ModuleInstanceNamedArg x m) =
+    ModuleInstanceNamedArg x <$> rnLocated rename m
 
 
 instance Rename NestedModule where

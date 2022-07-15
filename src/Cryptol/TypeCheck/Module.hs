@@ -88,7 +88,7 @@ checkArity r mf args =
       let i = Located { srcRange = srcRange arg
                       , thing    = head (Map.keys ps0)
                       }
-      in checkArgs [] ps0 [ P.ModuleInstanceArg i arg ]
+      in checkArgs [] ps0 [ P.ModuleInstanceNamedArg i arg ]
 
     P.NamedInstArgs as -> checkArgs [] ps0 as
 
@@ -104,7 +104,7 @@ checkArity r mf args =
                  recordErrorLoc (Just r) (FunctorInstanceMissingArgument p)
                pure done
 
-      P.ModuleInstanceArg ll lm : more ->
+      P.ModuleInstanceNamedArg ll lm : more ->
         case Map.lookup (thing ll) ps of
           Just i ->
             do mo <- lookupModule (thing lm)

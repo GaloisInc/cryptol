@@ -185,12 +185,12 @@ modInstParams            :: { ModuleInstanceArgs PName }
   : impName                 { DefaultInstArg $1 }
   | namedModInstParams      { NamedInstArgs $1 }
 
-namedModInstParams                         :: { [ ModuleInstanceArg PName ] }
+namedModInstParams                       :: { [ ModuleInstanceNamedArg PName ] }
   : namedModInstParam                         { [$1] }
   | namedModInstParams ',' namedModInstParam  { $3 : $1 }
 
-namedModInstParam        :: { ModuleInstanceArg PName }
-  : ident '=' impName       { ModuleInstanceArg $1 $3 }
+namedModInstParam        :: { ModuleInstanceNamedArg PName }
+  : ident '=' impName       { ModuleInstanceNamedArg $1 $3 }
 
 
 
