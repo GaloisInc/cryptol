@@ -947,7 +947,7 @@ endSubmodule =
        case iScope rw of
          x@Module { mName = SubModule m } : y : more -> rw { iScope = z : more }
            where
-           x1    = x { mName = m }
+           x1    = x { mName = m, mDecls = reverse (mDecls x) }
 
            isFun = isParametrizedModule x1
 
