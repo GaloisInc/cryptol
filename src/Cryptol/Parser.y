@@ -182,18 +182,19 @@ module_def :: { Module PName }
 
 
 modInstParams            :: { ModuleInstanceArgs PName }
-  : impName                 { DefaultInstArg $1 }
+  : modInstParam            { DefaultInstArg $1 }
   | namedModInstParams      { NamedInstArgs $1 }
 
 namedModInstParams                       :: { [ ModuleInstanceNamedArg PName ] }
   : namedModInstParam                         { [$1] }
   | namedModInstParams ',' namedModInstParam  { $3 : $1 }
 
-namedModInstParam        :: { ModuleInstanceNamedArg PName }
-  : ident '=' impName       { ModuleInstanceNamedArg $1 $3 }
+namedModInstParam          :: { ModuleInstanceNamedArg PName }
+  : ident '=' modInstParam    { ModuleInstanceNamedArg $1 $3 }
 
-
-
+modInstParam               :: { Located (ModuleInstanceArg PName) }
+  : impName                   { fmap ModuleArg $1 }
+  | 'interface' ident         { fmap ParameterArg $2 }
 
 vmod_body                  :: { [TopDecl PName] }
   : vtop_decls                { reverse $1 }

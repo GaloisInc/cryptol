@@ -146,6 +146,7 @@ data Error    = KindMismatch (Maybe TypeSource) Kind Kind
               | TypeShadowing String Name String
               | MissingModTParam (Located Ident)
               | MissingModVParam (Located Ident)
+              | MissingModParam Ident
 
               | FunctorInstanceMissingArgument Ident
               | FunctorInstanceBadArgument Ident
@@ -168,6 +169,7 @@ errorImportance err =
     -- show these as usually means the user used something that doesn't work
 
     FunctorInstanceMissingArgument {}                 -> 10
+    MissingModParam {}                                -> 10
     FunctorInstanceBadArgument {}                     -> 10
     FunctorInstanceMissingName {}                     ->  9
 
@@ -263,6 +265,7 @@ instance TVars Error where
       TypeShadowing {}     -> err
       MissingModTParam {}  -> err
       MissingModVParam {}  -> err
+      MissingModParam {}   -> err
 
       FunctorInstanceMissingArgument {} -> err
       FunctorInstanceBadArgument {} -> err
@@ -303,6 +306,7 @@ instance FVS Error where
       TypeShadowing {}     -> Set.empty
       MissingModTParam {}  -> Set.empty
       MissingModVParam {}  -> Set.empty
+      MissingModParam {}   -> Set.empty
 
       FunctorInstanceMissingArgument {} -> Set.empty
       FunctorInstanceBadArgument {} -> Set.empty
@@ -488,6 +492,9 @@ instance PP (WithNames Error) where
         "Missing definition for type parameter" <+> quotes (pp (thing x))
       MissingModVParam x ->
         "Missing definition for value parameter" <+> quotes (pp (thing x))
+
+      MissingModParam x ->
+        "Missing module parameter" <+> quotes (pp x)
 
       FunctorInstanceMissingArgument i ->
         "Missing functor argument" <+> quotes (pp i)

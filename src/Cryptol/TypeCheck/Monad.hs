@@ -787,6 +787,10 @@ lookupModule iname =
 
 
 
+lookupModParam :: P.Ident -> InferM (Maybe ModParam)
+lookupModParam p =
+  do scope <- getScope mParams
+     pure (Map.lookup p scope)
 
 
 -- | Check if we already have a name for this existential type variable and,

@@ -1050,7 +1050,7 @@ desugarMod mo =
            _ -> pure ()
          let i      = mkAnon AnonArg (thing (mName mo))
              nm     = Located { srcRange = srcRange (mName mo), thing = i }
-             as'    = DefaultInstArg (toImpName <$> nm)
+             as'    = DefaultInstArg (ModuleArg . toImpName <$> nm)
          pure [ Module { mName = nm, mDef  = NormalModule lds' }
               , mo { mDef = FunctorInstance f as' mempty }
               ]

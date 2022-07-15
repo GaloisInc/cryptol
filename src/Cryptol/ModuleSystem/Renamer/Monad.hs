@@ -244,6 +244,12 @@ getModParam p =
 getNamesFromModParams :: RenameM (Map Name DepName)
 getNamesFromModParams = RenameM (roFromModParam <$> ask)
 
+getLocalModParamDeps :: RenameM (Map Ident DepName)
+getLocalModParamDeps =
+  do ps <- RenameM (roModParams <$> ask)
+     let toName mp = ModParamName (renModParamRange mp) (renModParamName mp)
+     pure (toName <$> ps)
+
 
 setNestedModule :: Map ModPath Name -> RenameM a -> RenameM a
 setNestedModule mp (RenameM m) =

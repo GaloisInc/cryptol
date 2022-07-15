@@ -50,6 +50,7 @@ module Cryptol.Parser.AST
   , ModuleDefinition(..)
   , ModuleInstanceArgs(..)
   , ModuleInstanceNamedArg(..)
+  , ModuleInstanceArg(..)
   , ModuleInstance
   , emptyModuleInstance
 
@@ -253,9 +254,9 @@ data ParamDecl name =
     deriving (Show, Generic, NFData)
 
 
-
+-- | All arguments in a functor instantiation
 data ModuleInstanceArgs name =
-    DefaultInstArg (Located (ImpName name))
+    DefaultInstArg (Located (ModuleInstanceArg name))
     -- ^ Single parameter instantitaion
 
   | DefaultInstAnonArg [TopDecl name]
@@ -265,10 +266,16 @@ data ModuleInstanceArgs name =
   | NamedInstArgs  [ModuleInstanceNamedArg name]
     deriving (Show, Generic, NFData)
 
+-- | A named argument in a functor instantiation
 data ModuleInstanceNamedArg name =
-  ModuleInstanceNamedArg (Located Ident) (Located (ImpName name))
+  ModuleInstanceNamedArg (Located Ident) (Located (ModuleInstanceArg name))
   deriving (Show, Generic, NFData)
 
+-- | An argument in a functor instantiation
+data ModuleInstanceArg name =
+    ModuleArg (ImpName name)  -- ^ An argument that is a module
+  | ParameterArg Ident        -- ^ An argument that is a parameter
+    deriving (Show, Generic, NFData)
 
 
 -- | The name of an imported module
@@ -780,6 +787,14 @@ instance (Show name, PPName name) => PP (ModuleInstanceArgs name) where
 
 instance (Show name, PPName name) => PP (ModuleInstanceNamedArg name) where
   ppPrec _ (ModuleInstanceNamedArg x y) = pp (thing x) <+> "=" <+> pp (thing y)
+
+
+instance (Show name, PPName name) => PP (ModuleInstanceArg name) where
+  ppPrec _ arg =
+    case arg of
+      ModuleArg x -> pp x
+      ParameterArg i -> "parameter" <+> pp i
+
 
 instance (Show name, PPName name) => PP (Program name) where
   ppPrec _ (Program ds) = vcat (map pp ds)

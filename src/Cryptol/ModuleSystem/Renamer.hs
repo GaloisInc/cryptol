@@ -268,11 +268,15 @@ checkFunctorArgs args =
   case args of
     DefaultInstAnonArg {} ->
       panic "checkFunctorArgs" ["Nested DefaultInstAnonArg"]
-    DefaultInstArg l -> checkIsModule (srcRange l) (thing l) AModule
-    NamedInstArgs as -> mapM_ checkArg as
+    DefaultInstArg l -> checkArg l
+    NamedInstArgs as -> mapM_ checkNamedArg as
   where
-  checkArg (ModuleInstanceNamedArg _ l) =
-    checkIsModule (srcRange l) (thing l) AModule
+  checkNamedArg (ModuleInstanceNamedArg _ l) = checkArg l
+
+  checkArg l =
+      case thing l of
+        ModuleArg m -> checkIsModule (srcRange l) m AModule
+        ParameterArg {} -> pure () -- we check these in the type checker
 
 mkInstMap :: Maybe Range -> Map Name Name -> ImpName Name -> ImpName Name ->
   RenameM (Map Name Name)
@@ -391,6 +395,8 @@ renameTopDecls' ds =
      (ds1,deps) <- depGroup (traverse rename ds)
 
      fromParams <- getNamesFromModParams
+     localParams <- getLocalModParamDeps
+
      let rawDepsFor x = Map.findWithDefault Set.empty x deps
 
          isTyParam x = nameNamespace x == NSType && x `Map.member` fromParams
@@ -418,11 +424,30 @@ renameTopDecls' ds =
           | usesCtrs d = ctrs
           | otherwise  = mapMaybe (addCtr x) ctrs
 
+         addModParams d =
+           case d of
+             DModule tl | NestedModule m <- tlValue tl
+                        , FunctorInstance _ as _ <- mDef m ->
+               case as of
+                  DefaultInstArg arg -> depsOfArg arg
+                  NamedInstArgs args -> concatMap depsOfNamedArg args
+                  DefaultInstAnonArg {} -> []
+
+               where depsOfNamedArg (ModuleInstanceNamedArg _ a) = depsOfArg a
+                     depsOfArg a = case thing a of
+                                     ModuleArg {} -> []
+                                     ParameterArg p ->
+                                       case Map.lookup p localParams of
+                                         Just i -> [i]
+                                         Nothing -> []
+             _ -> []
+
          mkDepName x = case Map.lookup x fromParams of
                          Just dn -> dn
                          Nothing -> NamedThing x
 
          toNode (d,x) = ((d,x),x, addCtrs (d,x) ++
+                                  addModParams d ++
                                map mkDepName
                              ( Set.toList
                              ( Map.findWithDefault Set.empty x deps) ))
@@ -707,6 +732,12 @@ instance Rename ModuleInstanceNamedArg where
   rename (ModuleInstanceNamedArg x m) =
     ModuleInstanceNamedArg x <$> rnLocated rename m
 
+instance Rename ModuleInstanceArg where
+  rename arg =
+    case arg of
+      ModuleArg m -> ModuleArg <$> rename m
+      ParameterArg a -> pure (ParameterArg a)
+ 
 
 instance Rename NestedModule where
   rename (NestedModule m) =

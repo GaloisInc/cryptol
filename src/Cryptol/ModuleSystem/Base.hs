@@ -348,9 +348,9 @@ loadDeps m =
     FunctorInstance f as _ ->
       do loadImpName FromModuleInstance f
          case as of
-           DefaultInstArg a      -> loadImpName FromModuleInstance a
+           DefaultInstArg a      -> loadInstArg a
            DefaultInstAnonArg ds -> mapM_ depsOfDecl ds
-           NamedInstArgs args -> mapM_ loadInstArg args
+           NamedInstArgs args -> mapM_ loadNamedInstArg args
     InterfaceModule s -> mapM_ loadImpD (sigImports s)
   where
   loadI i = do _ <- loadModuleFrom False i
@@ -364,7 +364,11 @@ loadDeps m =
   loadImpD li = loadImpName (FromImport . new) (iModule <$> li)
     where new i = i { thing = (thing li) { iModule = thing i } }
 
-  loadInstArg (ModuleInstanceNamedArg _ f) = loadImpName FromModuleInstance f
+  loadNamedInstArg (ModuleInstanceNamedArg _ f) = loadInstArg f
+  loadInstArg f =
+    case thing f of
+      ModuleArg mo -> loadImpName FromModuleInstance f { thing = mo }
+      _            -> pure ()
 
   depsOfDecl d =
     case d of
@@ -462,12 +466,14 @@ checkModule isrc m = do
   -- rename everything
   renMod <- renameModule npm
 
+
 {-
   -- dump renamed
   unless (thing (mName (R.rmModule renMod)) == preludeName)
        do (io $ print (T.pp renMod))
           -- io $ exitSuccess
 --}
+
 
   -- when generating the prim map for the typechecker, if we're checking the
   -- prelude, we have to generate the map from the renaming environment, as we

@@ -52,6 +52,7 @@ doFunctorInst m f as inst =
                    -- on parameters?
                    , mDecls = map NonRecursive (concat decls) ++ mDecls m1
                    }
+
      newGoals CtModuleInstance (map thing (mParamConstraints m1))
 
      case thing m of
@@ -78,7 +79,7 @@ checkArity ::
   Range             {- ^ Location for reporting errors -} ->
   ModuleG ()        {- ^ The functor being instantiated -} ->
   P.ModuleInstanceArgs Name {- ^ The arguments -} ->
-  InferM [ (Range, ModParam, IfaceG ()) ]
+  InferM [ (Range, ModParam, Either ModParam (IfaceG ())) ]
   {- ^ Associates functor parameters with the interfaces of the
        instantiating modules -}
 checkArity r mf args =
@@ -107,27 +108,37 @@ checkArity r mf args =
       P.ModuleInstanceNamedArg ll lm : more ->
         case Map.lookup (thing ll) ps of
           Just i ->
-            do mo <- lookupModule (thing lm)
-               checkArgs ((srcRange lm, i, mo) : done)
-                         (Map.delete (thing ll) ps) more
+            do arg <- case thing lm of
+                        P.ModuleArg m -> Just . Right <$> lookupModule m
+                        P.ParameterArg p ->
+                           do mb <- lookupModParam p
+                              case mb of
+                                Nothing ->
+                                   do inRange (srcRange lm)
+                                              (recordError (MissingModParam p))
+                                      pure Nothing
+                                Just a -> pure (Just (Left a))
+               let next = case arg of
+                            Nothing -> done
+                            Just a  -> (srcRange lm, i, a) : done
+               checkArgs next (Map.delete (thing ll) ps) more
+
           Nothing ->
             do recordErrorLoc (Just (srcRange ll))
                               (FunctorInstanceBadArgument (thing ll))
                checkArgs done ps more
 
 
-checkArg :: (Range, ModParam, IfaceG ()) -> InferM (Subst, [Decl])
-checkArg (r,expect,actual) =
+checkArg ::
+  (Range, ModParam, Either ModParam (IfaceG ())) -> InferM (Subst, [Decl])
+checkArg (r,expect,actual') =
   do tRens <- mapM (checkParamType r tyMap) (Map.toList (mpnTypes params))
      let renSu = listParamSubst (concat tRens)
 
      {- Note: the constraints from the signature are already added to the
-        constraints for the functor so and they are checked all at once in
+        constraints for the functor and they are checked all at once in
         doFunctorInst -}
 
-     -- Available value names
-     let fromD d = (ifDeclName d, ifDeclSig d)
-         vMap = nameMapToIdentMap fromD (ifDecls decls)
 
      vDecls <- concat <$>
                 mapM (checkParamValue r vMap)
@@ -142,19 +153,38 @@ checkArg (r,expect,actual) =
   where
   params = mpParameters expect
 
-  localNames = ifsPublic (ifNames actual)
-  isLocal x  = x `Set.member` localNames
-  decls      = filterIfaceDecls isLocal (ifDefines actual)
+  tyMap :: Map Ident (Kind, Type)
+  vMap  :: Map Ident (Name, Schema)
+  (tyMap,vMap) =
+    case actual' of
+      Left mp -> ( nameMapToIdentMap fromTP (mpnTypes ps)
+                 , nameMapToIdentMap fromVP (mpnFuns ps)
+                 )
+        where
+        ps        = mpParameters mp
+        fromTP tp = (mtpKind tp, TVar (TVBound (mtpParam tp)))
+        fromVP vp = (mvpName vp, mvpType vp)
 
-  -- Available type names
-  tyMap      = Map.unions [ nameMapToIdentMap fromTS      (ifTySyns decls)
-                          , nameMapToIdentMap fromNewtype (ifNewtypes decls)
-                          , nameMapToIdentMap fromPrimT   (ifAbstractTypes decls)
-                          ]
+      Right actual ->
+        ( Map.unions [ nameMapToIdentMap fromTS      (ifTySyns decls)
+                     , nameMapToIdentMap fromNewtype (ifNewtypes decls)
+                     , nameMapToIdentMap fromPrimT   (ifAbstractTypes decls)
+                     ]
 
-  fromTS ts      = (kindOf ts, tsDef ts)
-  fromNewtype nt = (kindOf nt, TNewtype nt [])
-  fromPrimT pt   = (kindOf pt, TCon (abstractTypeTC pt) [])
+        , nameMapToIdentMap fromD (ifDecls decls)
+        )
+
+        where
+        localNames      = ifsPublic (ifNames actual)
+        isLocal x       = x `Set.member` localNames
+
+        decls           = filterIfaceDecls isLocal (ifDefines actual)
+
+        fromD d         = (ifDeclName d, ifDeclSig d)
+        fromTS ts       = (kindOf ts, tsDef ts)
+        fromNewtype nt  = (kindOf nt, TNewtype nt [])
+        fromPrimT pt    = (kindOf pt, TCon (abstractTypeTC pt) [])
+
 
 
 nameMapToIdentMap :: (a -> b) -> Map Name a -> Map Ident b
