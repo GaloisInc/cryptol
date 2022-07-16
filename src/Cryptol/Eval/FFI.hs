@@ -67,11 +67,14 @@ evalForeignDecls path m env = do
     foldlM evalForeignDeclGroup env $ mDecls m
 
 foreignPrim :: FFIFunRep -> ForeignImpl -> Prim Concrete
-foreignPrim FFIFunRep {..} impl = go ffiArgReps pure
-  where go [] getArgs = PPrim $
-          withRet ffiRetRep $ getArgs [] >>= io . callForeignImpl impl
-        go (argRep:argReps) getArgs = PStrict \val -> go argReps \args ->
-          withArg argRep val \arg -> (SomeFFIType arg :) <$> getArgs args
+foreignPrim FFIFunRep {..} impl = buildPrim ffiArgReps pure
+  where buildPrim [] getArgs = PPrim do
+          args <- getArgs []
+          withRet ffiRetRep $ io $ callForeignImpl impl args
+        buildPrim (argRep:argReps) getArgs = PStrict \val ->
+          buildPrim argReps \args ->
+            withArg argRep val \arg ->
+              getArgs $ SomeFFIType arg : args
 
 withArg :: FFIRep -> GenValue Concrete ->
   (forall a. FFIType a => a -> Eval b) -> Eval b
