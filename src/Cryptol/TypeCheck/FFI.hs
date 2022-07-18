@@ -7,6 +7,7 @@ module Cryptol.TypeCheck.FFI where
 import           Control.DeepSeq
 import           GHC.Generics
 
+import           Cryptol.TypeCheck.SimpType
 import           Cryptol.TypeCheck.Type
 
 data FFIRep
@@ -33,7 +34,7 @@ data FFIFunRep = FFIFunRep
   } deriving (Show, Generic, NFData)
 
 toFFIFunRep :: Schema -> Maybe FFIFunRep
-toFFIFunRep (Forall [] [] t) = go t
+toFFIFunRep (Forall [] [] t) = go $ tRebuild' False t
   where go (TCon (TC TCFun) [argType, retType]) = do
           arg <- toFFIRep argType
           case go retType of
