@@ -1006,8 +1006,6 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
           , dDoc        = P.bDoc b
           }
 
-    -- TODO: somewhere in here, the signature's props are being added into the
-    -- propguard's props, but they shound't be
     P.DPropGuards cases0 -> 
       inRangeMb (getLoc b) $
       withTParams as $ do
