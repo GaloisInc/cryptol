@@ -12,6 +12,7 @@ import           Cryptol.TypeCheck.Type
 data FFIRep
   = FFIBool
   | FFIWord Integer FFIWordSize
+  | FFIFloat Integer Integer FFIFloatSize
   deriving (Show, Generic, NFData)
 
 data FFIWordSize
@@ -19,6 +20,11 @@ data FFIWordSize
   | FFIWord16
   | FFIWord32
   | FFIWord64
+  deriving (Show, Generic, NFData)
+
+data FFIFloatSize
+  = FFIFloat32
+  | FFIFloat64
   deriving (Show, Generic, NFData)
 
 data FFIFunRep = FFIFunRep
@@ -46,4 +52,8 @@ toFFIRep (TCon (TC TCSeq) [TCon (TC (TCNum n)) [], TCon (TC TCBit) []])
   | n <= 32 = word FFIWord32
   | n <= 64 = word FFIWord64
   where word = Just . FFIWord n
+toFFIRep (TCon (TC TCFloat) [TCon (TC (TCNum e)) [], TCon (TC (TCNum p)) []])
+  | e == 8, p == 24 = float FFIFloat32
+  | e == 11, p == 53 = float FFIFloat64
+  where float = Just . FFIFloat e p
 toFFIRep _ = Nothing

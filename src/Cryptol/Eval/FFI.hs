@@ -24,10 +24,14 @@ import           Data.Foldable
 import           Data.IORef
 import           Data.Proxy
 import           Data.Word
+import           Foreign.C.Types
 import           Foreign.Marshal.Utils
+import           GHC.Float
+import           LibBF
 
 import           Cryptol.Backend.Concrete
 import           Cryptol.Backend.FFI
+import           Cryptol.Backend.FloatHelpers
 import           Cryptol.Backend.Monad
 import           Cryptol.Eval.Env
 import           Cryptol.Eval.Prims
@@ -81,11 +85,18 @@ withArg :: FFIRep -> GenValue Concrete ->
 withArg FFIBool x f = f @Word8 $ fromBool $ fromVBit x
 withArg (FFIWord _ s) x f = withWordType s \(_ :: p t) ->
   fromVWord Concrete "withArg" x >>= f @t . fromInteger . bvVal
+withArg (FFIFloat _ _ s) x f = case s of
+  FFIFloat32 -> f $ CFloat $ double2Float d
+  FFIFloat64 -> f $ CDouble d
+  where d = fst $ bfToDouble NearEven $ bfValue $ fromVFloat x
 
 withRet :: FFIRep -> (forall a. FFIType a => Eval a) -> Eval (GenValue Concrete)
 withRet FFIBool x = VBit . toBool <$> x @Word8
 withRet (FFIWord n s) x = withWordType s \(_ :: p t) ->
   x @t >>= word Concrete n . toInteger
+withRet (FFIFloat e p s) x = VFloat . BF e p . bfFromDouble <$> case s of
+  FFIFloat32 -> (\(CFloat f) -> float2Double f) <$> x @CFloat
+  FFIFloat64 -> (\(CDouble d) -> d) <$> x @CDouble
 
 withWordType :: FFIWordSize ->
   (forall a. (FFIType a, Integral a) => Proxy a -> b) -> b

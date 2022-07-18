@@ -24,6 +24,7 @@ import           Control.Exception
 import           Control.Monad
 import           Data.Bifunctor
 import           Data.Word
+import           Foreign.C.Types
 import           Foreign.Concurrent
 import           Foreign.ForeignPtr         (ForeignPtr, withForeignPtr)
 import           Foreign.LibFFI
@@ -98,6 +99,14 @@ instance FFIType Word32 where
 instance FFIType Word64 where
   ffiArg = argWord64
   ffiRet = retWord64
+
+instance FFIType CFloat where
+  ffiArg = argCFloat
+  ffiRet = retCFloat
+
+instance FFIType CDouble where
+  ffiArg = argCDouble
+  ffiRet = retCDouble
 
 data SomeFFIType = forall a. FFIType a => SomeFFIType a
 
