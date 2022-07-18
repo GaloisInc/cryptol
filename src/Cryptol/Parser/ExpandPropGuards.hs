@@ -79,6 +79,7 @@ instance ExpandPropGuards [Decl PName] where
 instance ExpandPropGuards [Bind PName] where
   expandPropGuards binds = concat <$> traverse f binds
     where 
+      f :: Bind PName -> Either Error [Bind PName]
       f bind = case thing $ bDef bind of 
         DPropGuards guards -> do
           Forall params props t rng <-

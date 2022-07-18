@@ -14,7 +14,7 @@
 {-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE Safe #-}
+{-# LANGUAGE Trustworthy #-}
 -- See Note [-Wincomplete-uni-patterns and irrefutable patterns] in Cryptol.TypeCheck.TypePat
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 module Cryptol.TypeCheck.Infer
@@ -1006,6 +1006,8 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
           , dDoc        = P.bDoc b
           }
 
+    -- TODO: somewhere in here, the signature's props are being added into the
+    -- propguard's props, but they shound't be
     P.DPropGuards cases0 -> 
       inRangeMb (getLoc b) $
       withTParams as $ do

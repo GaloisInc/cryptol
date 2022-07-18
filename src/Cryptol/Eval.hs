@@ -68,7 +68,6 @@ import           Control.Applicative
 
 import Prelude ()
 import Prelude.Compat
-import Math.NumberTheory.Primes (UniqueFactorisation(isPrime))
 
 type EvalEnv = GenEvalEnv Concrete
 
@@ -221,7 +220,6 @@ evalExpr sym env expr = case expr of
   EPropGuards guards -> {-# SCC "evalExpr->EPropGuards" #-} do
     -- TODO: says that type var not bound.. which is true because we haven't called the function yet...
     let
-      -- evalPropGuard :: ([Prop], Expr) -> SEval sym (Maybe (GenValue sym))
       evalPropGuard (props, e) = do
         if and $ evalProp env <$> props
           then Just <$> evalExpr sym env e
@@ -239,19 +237,15 @@ evalExpr sym env expr = case expr of
 evalProp :: GenEvalEnv sym -> Prop -> Bool
 evalProp EvalEnv { envTypes } prop = case prop of 
   TCon tcon ts
-    -- | Just ns <- sequence $ toTypeNat' . evalType envTypes <$> ts
     | ns <- evalNumType envTypes <$> ts
-    -> case (tcon, ns) of
-      (PC PEqual, [n1, n2]) -> n1 == n2
-      (PC PNeq, [n1, n2]) -> n1 /= n2
-      (PC PGeq, [n1, n2]) -> n1 <= n2
-      (PC PFin, [n]) -> n /= Inf
-      (PC PPrime, [Nat n]) -> isJust $ isPrime n
-      _ -> evalPanic "evalProp" ["invalid use of constraints: ", show . pp $ prop ]
+      -> case tcon of
+          PC PEqual | [n1, n2] <- ns -> n1 == n2
+          PC PNeq | [n1, n2] <- ns -> n1 /= n2
+          PC PGeq | [n1, n2] <- ns -> n1 >= n2
+          PC PFin | [n] <- ns -> n /= Inf
+          -- PC PPrime | [n] <- ns -> isJust (isPrime n) -- TODO: instantiate UniqueFactorization for Nat'?
+          _ -> evalPanic "evalProp" ["cannot use this as a guarding constraint: ", show . pp $ prop ]
   _ -> evalPanic "evalProp" ["cannot use this as a guarding constraint: ", show . pp $ prop ]
-  -- where 
-  --   toTypeNat' (Left a) = Just a
-  --   toTypeNat' (Right _) = Nothing
 
 -- | Capure the current call stack from the evaluation monad and
 --   annotate function values.  When arguments are later applied

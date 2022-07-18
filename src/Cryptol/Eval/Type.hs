@@ -100,6 +100,7 @@ finNat' n' =
 newtype TypeEnv =
   TypeEnv
   { envTypeMap  :: IntMap.IntMap (Either Nat' TValue) }
+  deriving (Show)
 
 instance Monoid TypeEnv where
   mempty = TypeEnv mempty
