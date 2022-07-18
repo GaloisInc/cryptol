@@ -658,7 +658,7 @@ like this:
   import submodule F { submodule G }
 
 
-Semantically, insantiating imports declare a local nested module and
+Semantically, instantiating imports declare a local nested module and
 import it.  For example, the ``where`` import from above is equivalent
 to the following declarations:
 
@@ -680,5 +680,47 @@ to the following declarations:
 
 
   import submodule N
+
+
+Passing Through Module Parameters
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Occasionally it is useful to define a functor that instantiates *another*
+functor using the same parameters as the functor being defined
+(i.e., a functor parameter is passed on to another functor).  This can
+be done by using the keyword ``interface`` followed by the name of a parameter
+in an instantiation.  Here is an example:
+
+.. code-block:: cryptol
+
+  interface submodule S where
+    x : [8]
+
+  // A functor, parameterized on S
+  submodule G where
+    import interface submodule S
+    y = x + 1
+
+  // Another functor, also parameterize on S
+  submodule F where
+    import interface submodule S as A
+
+    // Instantiate `G` using parameter `A` of `F`
+    import submodule G { interface A }    // Brings `y` in scope
+
+    z = A::x + y
+
+  // Brings `z` into scope: z = A::x + y
+  //                          = 5    + (5 + 1)
+  //                          = 11
+  import submodule F where
+    x = 5
+
+
+
+
+
+
+
 
 

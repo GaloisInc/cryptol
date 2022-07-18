@@ -64,6 +64,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#anonymous-interface-modules">Anonymous Interface Modules</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#anonymous-instantiation-arguments">Anonymous Instantiation Arguments</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#anonymous-import-instantiations">Anonymous Import Instantiations</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#passing-through-module-parameters">Passing Through Module Parameters</a></li>
 </ul>
 </li>
 </ul>
@@ -696,7 +697,7 @@ like this:</p>
 <span class="kr">import</span> <span class="nn">submodule</span> <span class="kt">F</span> <span class="p">{</span> <span class="n">submodule</span> <span class="kt">G</span> <span class="p">}</span>
 </pre></div>
 </div>
-<p>Semantically, insantiating imports declare a local nested module and
+<p>Semantically, instantiating imports declare a local nested module and
 import it.  For example, the <code class="docutils literal notranslate"><span class="pre">where</span></code> import from above is equivalent
 to the following declarations:</p>
 <div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">submodule</span> <span class="kt">F</span> <span class="kr">where</span>
@@ -715,6 +716,38 @@ to the following declarations:</p>
 
 
 <span class="kr">import</span> <span class="nn">submodule</span> <span class="kt">N</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="passing-through-module-parameters">
+<h3>Passing Through Module Parameters<a class="headerlink" href="#passing-through-module-parameters" title="Permalink to this headline"></a></h3>
+<p>Occasionally it is useful to define a functor that instantiates <em>another</em>
+functor using the same parameters as the functor being defined
+(i.e., a functor parameter is passed on to another functor).  This can
+be done by using the keyword <code class="docutils literal notranslate"><span class="pre">interface</span></code> followed by the name of a parameter
+in an instantiation.  Here is an example:</p>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">interface</span> <span class="n">submodule</span> <span class="kt">S</span> <span class="kr">where</span>
+  <span class="n">x</span> <span class="kt">:</span> <span class="p">[</span><span class="mi">8</span><span class="p">]</span>
+
+<span class="c1">// A functor, parameterized on S</span>
+<span class="nf">submodule</span> <span class="kt">G</span> <span class="kr">where</span>
+  <span class="kr">import</span> <span class="nn">interface</span> <span class="n">submodule</span> <span class="kt">S</span>
+  <span class="n">y</span> <span class="ow">=</span> <span class="n">x</span> <span class="o">+</span> <span class="mi">1</span>
+
+<span class="c1">// Another functor, also parameterize on S</span>
+<span class="nf">submodule</span> <span class="kt">F</span> <span class="kr">where</span>
+  <span class="kr">import</span> <span class="nn">interface</span> <span class="n">submodule</span> <span class="kt">S</span> <span class="n">as</span> <span class="kt">A</span>
+
+  <span class="c1">// Instantiate `G` using parameter `A` of `F`</span>
+  <span class="kr">import</span> <span class="nn">submodule</span> <span class="kt">G</span> <span class="p">{</span> <span class="n">interface</span> <span class="kt">A</span> <span class="p">}</span>    <span class="c1">// Brings `y` in scope</span>
+
+  <span class="n">z</span> <span class="ow">=</span> <span class="kt">A</span><span class="ow">::</span><span class="n">x</span> <span class="o">+</span> <span class="n">y</span>
+
+<span class="c1">// Brings `z` into scope: z = A::x + y</span>
+<span class="c1">//                          = 5    + (5 + 1)</span>
+<span class="c1">//                          = 11</span>
+<span class="kr">import</span> <span class="nn">submodule</span> <span class="kt">F</span> <span class="kr">where</span>
+  <span class="n">x</span> <span class="ow">=</span> <span class="mi">5</span>
 </pre></div>
 </div>
 </div>
