@@ -24,8 +24,8 @@ import           Data.Foldable
 import           Data.IORef
 import           Data.Proxy
 import           Data.Word
+import           Foreign
 import           Foreign.C.Types
-import           Foreign.Marshal.Utils
 import           GHC.Float
 import           LibBF
 
@@ -33,6 +33,7 @@ import           Cryptol.Backend.Concrete
 import           Cryptol.Backend.FFI
 import           Cryptol.Backend.FloatHelpers
 import           Cryptol.Backend.Monad
+import           Cryptol.Backend.SeqMap
 import           Cryptol.Eval.Env
 import           Cryptol.Eval.Prims
 import           Cryptol.Eval.Value
@@ -71,35 +72,57 @@ evalForeignDecls path m env = do
     foldlM evalForeignDeclGroup env $ mDecls m
 
 foreignPrim :: FFIFunRep -> ForeignImpl -> Prim Concrete
-foreignPrim FFIFunRep {..} impl = buildPrim ffiArgReps pure
-  where buildPrim [] getArgs = PPrim do
-          args <- getArgs []
-          withRet ffiRetRep $ io $ callForeignImpl impl args
-        buildPrim (argRep:argReps) getArgs = PStrict \val ->
-          buildPrim argReps \args ->
-            withArg argRep val \arg ->
-              getArgs $ SomeFFIType arg : args
+foreignPrim FFIFunRep {..} impl = buildPrim ffiArgReps ($ [])
+  where buildPrim [] withArgs = PPrim do
+          withArgs \inArgs ->
+            marshalRet ffiRetRep \outArgs ->
+              callForeignImpl impl (inArgs ++ outArgs)
+        buildPrim (argRep:argReps) withArgs = PStrict \val ->
+          buildPrim argReps \f ->
+            withArgs \prevArgs ->
+              marshalArg argRep val \currArgs ->
+                f $ prevArgs ++ currArgs
 
-withArg :: FFIRep -> GenValue Concrete ->
-  (forall a. FFIType a => a -> Eval b) -> Eval b
-withArg FFIBool x f = f @Word8 $ fromBool $ fromVBit x
-withArg (FFIWord _ s) x f = withWordType s \(_ :: p t) ->
-  fromVWord Concrete "withArg" x >>= f @t . fromInteger . bvVal
-withArg (FFIFloat _ _ s) x f = case s of
-  FFIFloat32 -> f $ CFloat $ double2Float d
-  FFIFloat64 -> f $ CDouble d
-  where d = fst $ bfToDouble NearEven $ bfValue $ fromVFloat x
+marshalArg :: FFIRep -> GenValue Concrete -> ([SomeFFIArg] -> Eval a) -> Eval a
+marshalArg FFIBool x f = f [SomeFFIArg @Word8 $ fromBool $ fromVBit x]
+marshalArg (FFIBasic r) x f = getMarshalBasicArg r \m ->
+  m x >>= f . pure . SomeFFIArg
+marshalArg (FFIArray n r) x f = getMarshalBasicArg r \m -> do
+  args <- traverse (>>= m) $ enumerateSeqMap n $ fromVSeq x
+  Eval \stk ->
+    withArray args \ptr ->
+      runEval stk $ f [SomeFFIArg ptr]
 
-withRet :: FFIRep -> (forall a. FFIType a => Eval a) -> Eval (GenValue Concrete)
-withRet FFIBool x = VBit . toBool <$> x @Word8
-withRet (FFIWord n s) x = withWordType s \(_ :: p t) ->
-  x @t >>= word Concrete n . toInteger
-withRet (FFIFloat e p s) x = VFloat . BF e p . bfFromDouble <$> case s of
-  FFIFloat32 -> (\(CFloat f) -> float2Double f) <$> x @CFloat
-  FFIFloat64 -> (\(CDouble d) -> d) <$> x @CDouble
+getMarshalBasicArg :: FFIBasicRep ->
+  (forall a. FFIArg a => (GenValue Concrete -> Eval a) -> b) -> b
+getMarshalBasicArg (FFIWord _ s) f = withWordType s \(_ :: p t) ->
+  f @t $ fmap (fromInteger . bvVal) . fromVWord Concrete "getMarshalBasicArg"
+getMarshalBasicArg (FFIFloat _ _ s) f = case s of
+  FFIFloat32 -> f $ pure . CFloat . double2Float . toDouble
+  FFIFloat64 -> f $ pure . CDouble . toDouble
+  where toDouble = fst . bfToDouble NearEven . bfValue . fromVFloat
+
+marshalRet :: FFIRep ->
+  (forall a. FFIRet a => [SomeFFIArg] -> IO a) -> Eval (GenValue Concrete)
+marshalRet FFIBool f = VBit . toBool <$> io (f @Word8 [])
+marshalRet (FFIBasic r) f = getMarshalBasicRet r (io (f []) >>=)
+marshalRet (FFIArray n r) f = getMarshalBasicRet r \m ->
+  fmap (VSeq (toInteger n) . finiteSeqMap Concrete . map m) $
+    io $ allocaArray n \ptr -> do
+      f @() [SomeFFIArg ptr]
+      peekArray n ptr
+
+getMarshalBasicRet :: FFIBasicRep ->
+  (forall a. FFIRet a => (a -> Eval (GenValue Concrete)) -> b) -> b
+getMarshalBasicRet (FFIWord n s) f = withWordType s \(_ :: p t) ->
+  f @t $ word Concrete n . toInteger
+getMarshalBasicRet (FFIFloat e p s) f = case s of
+  FFIFloat32 -> f $ toValue . \case CFloat x -> float2Double x
+  FFIFloat64 -> f $ toValue . \case CDouble x -> x
+  where toValue = pure . VFloat . BF e p . bfFromDouble
 
 withWordType :: FFIWordSize ->
-  (forall a. (FFIType a, Integral a) => Proxy a -> b) -> b
+  (forall a. (FFIArg a, FFIRet a, Integral a) => Proxy a -> b) -> b
 withWordType FFIWord8  f = f $ Proxy @Word8
 withWordType FFIWord16 f = f $ Proxy @Word16
 withWordType FFIWord32 f = f $ Proxy @Word32

@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveAnyClass  #-}
 {-# LANGUAGE DeriveGeneric   #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ViewPatterns    #-}
 
 module Cryptol.TypeCheck.FFI where
 
@@ -12,7 +13,12 @@ import           Cryptol.TypeCheck.Type
 
 data FFIRep
   = FFIBool
-  | FFIWord Integer FFIWordSize
+  | FFIBasic FFIBasicRep
+  | FFIArray Int FFIBasicRep
+  deriving (Show, Generic, NFData)
+
+data FFIBasicRep
+  = FFIWord Integer FFIWordSize
   | FFIFloat Integer Integer FFIFloatSize
   deriving (Show, Generic, NFData)
 
@@ -47,14 +53,21 @@ toFFIFunRep _ = Nothing
 
 toFFIRep :: Type -> Maybe FFIRep
 toFFIRep (TCon (TC TCBit) []) = Just FFIBool
-toFFIRep (TCon (TC TCSeq) [TCon (TC (TCNum n)) [], TCon (TC TCBit) []])
+toFFIRep (toFFIBasicRep -> Just r) = Just $ FFIBasic r
+toFFIRep (TCon (TC TCSeq) [TCon (TC (TCNum n)) [], toFFIBasicRep -> Just r])
+  | n <= toInteger (maxBound :: Int) = Just $ FFIArray (fromInteger n) r
+toFFIRep _ = Nothing
+
+toFFIBasicRep :: Type -> Maybe FFIBasicRep
+toFFIBasicRep (TCon (TC TCSeq) [TCon (TC (TCNum n)) [], TCon (TC TCBit) []])
   | n <= 8 = word FFIWord8
   | n <= 16 = word FFIWord16
   | n <= 32 = word FFIWord32
   | n <= 64 = word FFIWord64
   where word = Just . FFIWord n
-toFFIRep (TCon (TC TCFloat) [TCon (TC (TCNum e)) [], TCon (TC (TCNum p)) []])
+toFFIBasicRep
+  (TCon (TC TCFloat) [TCon (TC (TCNum e)) [], TCon (TC (TCNum p)) []])
   | e == 8, p == 24 = float FFIFloat32
   | e == 11, p == 53 = float FFIFloat64
   where float = Just . FFIFloat e p
-toFFIRep _ = Nothing
+toFFIBasicRep _ = Nothing

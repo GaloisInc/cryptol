@@ -11,8 +11,9 @@ module Cryptol.Backend.FFI
   , ForeignImpl
   , loadForeignSrc
   , loadForeignImpl
-  , FFIType
-  , SomeFFIType (..)
+  , FFIArg
+  , FFIRet
+  , SomeFFIArg (..)
   , callForeignImpl
   )
 #endif
@@ -24,11 +25,10 @@ import           Control.Exception
 import           Control.Monad
 import           Data.Bifunctor
 import           Data.Word
+import           Foreign                    hiding (newForeignPtr)
 import           Foreign.C.Types
 import           Foreign.Concurrent
-import           Foreign.ForeignPtr         (ForeignPtr, withForeignPtr)
 import           Foreign.LibFFI
-import           Foreign.Ptr
 import           System.FilePath            ((-<.>))
 import           System.IO.Error
 import           System.Posix.DynamicLinker
@@ -80,39 +80,59 @@ loadForeignFunPtr = dlsym . DLHandle
 tryLoad :: (String -> FFILoadError) -> IO a -> IO (Either FFILoadError a)
 tryLoad err = fmap (first $ err . displayException) . tryIOError
 
-class FFIType a where
+class Storable a => FFIArg a where
   ffiArg :: a -> Arg
+
+instance FFIArg Word8 where
+  ffiArg = argWord8
+
+instance FFIArg Word16 where
+  ffiArg = argWord16
+
+instance FFIArg Word32 where
+  ffiArg = argWord32
+
+instance FFIArg Word64 where
+  ffiArg = argWord64
+
+instance FFIArg CFloat where
+  ffiArg = argCFloat
+
+instance FFIArg CDouble where
+  ffiArg = argCDouble
+
+instance FFIArg (Ptr a) where
+  ffiArg = argPtr
+
+class Storable a => FFIRet a where
   ffiRet :: RetType a
 
-instance FFIType Word8 where
-  ffiArg = argWord8
+instance FFIRet Word8 where
   ffiRet = retWord8
 
-instance FFIType Word16 where
-  ffiArg = argWord16
+instance FFIRet Word16 where
   ffiRet = retWord16
 
-instance FFIType Word32 where
-  ffiArg = argWord32
+instance FFIRet Word32 where
   ffiRet = retWord32
 
-instance FFIType Word64 where
-  ffiArg = argWord64
+instance FFIRet Word64 where
   ffiRet = retWord64
 
-instance FFIType CFloat where
-  ffiArg = argCFloat
+instance FFIRet CFloat where
   ffiRet = retCFloat
 
-instance FFIType CDouble where
-  ffiArg = argCDouble
+instance FFIRet CDouble where
   ffiRet = retCDouble
 
-data SomeFFIType = forall a. FFIType a => SomeFFIType a
+instance FFIRet () where
+  ffiRet = retVoid
 
-callForeignImpl :: forall a. FFIType a => ForeignImpl -> [SomeFFIType] -> IO a
+data SomeFFIArg = forall a. FFIArg a => SomeFFIArg a
+
+callForeignImpl :: forall a. FFIRet a => ForeignImpl -> [SomeFFIArg] -> IO a
 callForeignImpl ForeignImpl {..} xs = withForeignPtr foreignImplLib \_ ->
   callFFI foreignImplFun (ffiRet @a) $ map toArg xs
-  where toArg (SomeFFIType x) = ffiArg x
+  where toArg (SomeFFIArg x) = ffiArg x
 
 #endif
