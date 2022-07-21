@@ -179,7 +179,7 @@ data Decl       = Decl { dName        :: !Name
                        } deriving (Generic, NFData, Show)
 
 data DeclDef    = DPrim
-                | DForeign FFIFunRep
+                | DForeign FFIFunType
                 | DExpr Expr
                   deriving (Show, Generic, NFData)
 

@@ -49,7 +49,7 @@ evalForeignDecls path m env = do
   let evalForeignDeclGroup e (Recursive ds)   = foldlM evalForeignDecl e ds
       evalForeignDeclGroup e (NonRecursive d) = evalForeignDecl e d
       evalForeignDecl e d = case dDefinition d of
-        DForeign rep -> do
+        DForeign ffiType -> do
           fsrc <- liftIO (readIORef foreignSrc) >>= \case
             Nothing -> case path of
               InFile p -> do
@@ -63,7 +63,7 @@ evalForeignDecls path m env = do
             >>= \case
               Left err -> tell [err] >> pure e
               Right impl -> pure $
-                bindVarDirect (dName d) (foreignPrim rep impl) e
+                bindVarDirect (dName d) (foreignPrim ffiType impl) e
         _ -> pure e
       report (Left err)         = Left [err]
       report (Right (env', [])) = Right env'
@@ -71,29 +71,29 @@ evalForeignDecls path m env = do
   fmap report $ runExceptT $ runWriterT $
     foldlM evalForeignDeclGroup env $ mDecls m
 
-foreignPrim :: FFIFunRep -> ForeignImpl -> Prim Concrete
-foreignPrim FFIFunRep {..} impl = buildPrim ffiArgReps ($ [])
+foreignPrim :: FFIFunType -> ForeignImpl -> Prim Concrete
+foreignPrim FFIFunType {..} impl = buildPrim ffiArgTypes ($ [])
   where buildPrim [] withArgs = PPrim do
           withArgs \inArgs ->
-            marshalRet ffiRetRep \outArgs ->
+            marshalRet ffiRetType \outArgs ->
               callForeignImpl impl (inArgs ++ outArgs)
-        buildPrim (argRep:argReps) withArgs = PStrict \val ->
-          buildPrim argReps \f ->
+        buildPrim (argType:argTypes) withArgs = PStrict \val ->
+          buildPrim argTypes \f ->
             withArgs \prevArgs ->
-              marshalArg argRep val \currArgs ->
+              marshalArg argType val \currArgs ->
                 f $ prevArgs ++ currArgs
 
-marshalArg :: FFIRep -> GenValue Concrete -> ([SomeFFIArg] -> Eval a) -> Eval a
+marshalArg :: FFIType -> GenValue Concrete -> ([SomeFFIArg] -> Eval a) -> Eval a
 marshalArg FFIBool x f = f [SomeFFIArg @Word8 $ fromBool $ fromVBit x]
-marshalArg (FFIBasic r) x f = getMarshalBasicArg r \m ->
+marshalArg (FFIBasic t) x f = getMarshalBasicArg t \m ->
   m x >>= f . pure . SomeFFIArg
-marshalArg (FFIArray n r) x f = getMarshalBasicArg r \m -> do
+marshalArg (FFIArray n t) x f = getMarshalBasicArg t \m -> do
   args <- traverse (>>= m) $ enumerateSeqMap n $ fromVSeq x
   Eval \stk ->
     withArray args \ptr ->
       runEval stk $ f [SomeFFIArg ptr]
 
-getMarshalBasicArg :: FFIBasicRep ->
+getMarshalBasicArg :: FFIBasicType ->
   (forall a. FFIArg a => (GenValue Concrete -> Eval a) -> b) -> b
 getMarshalBasicArg (FFIWord _ s) f = withWordType s \(_ :: p t) ->
   f @t $ fmap (fromInteger . bvVal) . fromVWord Concrete "getMarshalBasicArg"
@@ -102,17 +102,17 @@ getMarshalBasicArg (FFIFloat _ _ s) f = case s of
   FFIFloat64 -> f $ pure . CDouble . toDouble
   where toDouble = fst . bfToDouble NearEven . bfValue . fromVFloat
 
-marshalRet :: FFIRep ->
+marshalRet :: FFIType ->
   (forall a. FFIRet a => [SomeFFIArg] -> IO a) -> Eval (GenValue Concrete)
 marshalRet FFIBool f = VBit . toBool <$> io (f @Word8 [])
-marshalRet (FFIBasic r) f = getMarshalBasicRet r (io (f []) >>=)
-marshalRet (FFIArray n r) f = getMarshalBasicRet r \m ->
+marshalRet (FFIBasic t) f = getMarshalBasicRet t (io (f []) >>=)
+marshalRet (FFIArray n t) f = getMarshalBasicRet t \m ->
   fmap (VSeq (toInteger n) . finiteSeqMap Concrete . map m) $
     io $ allocaArray n \ptr -> do
       f @() [SomeFFIArg ptr]
       peekArray n ptr
 
-getMarshalBasicRet :: FFIBasicRep ->
+getMarshalBasicRet :: FFIBasicType ->
   (forall a. FFIRet a => (a -> Eval (GenValue Concrete)) -> b) -> b
 getMarshalBasicRet (FFIWord n s) f = withWordType s \(_ :: p t) ->
   f @t $ word Concrete n . toInteger

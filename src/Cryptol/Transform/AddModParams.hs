@@ -279,7 +279,7 @@ instance Inst DeclDef where
   inst ps d =
     case d of
       DPrim -> DPrim
-      DForeign r -> DForeign r
+      DForeign t -> DForeign t
       DExpr e -> DExpr (inst ps e)
 
 instance Inst Type where

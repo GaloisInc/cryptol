@@ -930,7 +930,7 @@ generalize bs0 gs0 =
          genB d = d { dDefinition = case dDefinition d of
                                       DExpr e    -> DExpr (genE e)
                                       DPrim      -> DPrim
-                                      DForeign r -> DForeign r
+                                      DForeign t -> DForeign t
                     , dSignature  = Forall asPs qs
                                   $ apSubst su $ sType $ dSignature d
                     }
@@ -987,15 +987,15 @@ checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
   let loc = getLoc b
       src = DefinitionOf $ thing $ P.bName b
   in  inRangeMb loc do
-        ffiFunRep <- case toFFIFunRep (Forall as asmps0 t0) of
-          Just ffiFunRep -> pure ffiFunRep
+        ffiFunType <- case toFFIFunType (Forall as asmps0 t0) of
+          Just ffiFunType -> pure ffiFunType
           Nothing -> do
             recordErrorLoc loc $ UnsupportedFFIType src t0
             -- Just a placeholder
-            pure FFIFunRep { ffiArgReps = [FFIBool], ffiRetRep = FFIBool }
+            pure FFIFunType { ffiArgTypes = [FFIBool], ffiRetType = FFIBool }
         return Decl { dName       = thing (P.bName b)
                     , dSignature  = Forall as asmps0 t0
-                    , dDefinition = DForeign ffiFunRep
+                    , dDefinition = DForeign ffiFunType
                     , dPragmas    = P.bPragmas b
                     , dInfix      = P.bInfix b
                     , dFixity     = P.bFixity b

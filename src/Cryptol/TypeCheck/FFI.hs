@@ -11,13 +11,13 @@ import           GHC.Generics
 import           Cryptol.TypeCheck.SimpType
 import           Cryptol.TypeCheck.Type
 
-data FFIRep
+data FFIType
   = FFIBool
-  | FFIBasic FFIBasicRep
-  | FFIArray Int FFIBasicRep
+  | FFIBasic FFIBasicType
+  | FFIArray Int FFIBasicType
   deriving (Show, Generic, NFData)
 
-data FFIBasicRep
+data FFIBasicType
   = FFIWord Integer FFIWordSize
   | FFIFloat Integer Integer FFIFloatSize
   deriving (Show, Generic, NFData)
@@ -34,40 +34,41 @@ data FFIFloatSize
   | FFIFloat64
   deriving (Show, Generic, NFData)
 
-data FFIFunRep = FFIFunRep
-  { ffiArgReps :: [FFIRep]
-  , ffiRetRep  :: FFIRep
+data FFIFunType = FFIFunType
+  { ffiArgTypes :: [FFIType]
+  , ffiRetType  :: FFIType
   } deriving (Show, Generic, NFData)
 
-toFFIFunRep :: Schema -> Maybe FFIFunRep
-toFFIFunRep (Forall [] [] t) = go $ tRebuild' False t
+toFFIFunType :: Schema -> Maybe FFIFunType
+toFFIFunType (Forall [] [] t) = go $ tRebuild' False t
   where go (TCon (TC TCFun) [argType, retType]) = do
-          arg <- toFFIRep argType
+          arg <- toFFIType argType
           case go retType of
-            Just funRep -> Just funRep { ffiArgReps = arg : ffiArgReps funRep }
+            Just ffiFunType -> Just ffiFunType
+              { ffiArgTypes = arg : ffiArgTypes ffiFunType }
             Nothing -> do
-              ffiRetRep <- toFFIRep retType
-              Just FFIFunRep { ffiArgReps = [arg], .. }
+              ffiRetType <- toFFIType retType
+              Just FFIFunType { ffiArgTypes = [arg], .. }
         go _ = Nothing
-toFFIFunRep _ = Nothing
+toFFIFunType _ = Nothing
 
-toFFIRep :: Type -> Maybe FFIRep
-toFFIRep (TCon (TC TCBit) []) = Just FFIBool
-toFFIRep (toFFIBasicRep -> Just r) = Just $ FFIBasic r
-toFFIRep (TCon (TC TCSeq) [TCon (TC (TCNum n)) [], toFFIBasicRep -> Just r])
-  | n <= toInteger (maxBound :: Int) = Just $ FFIArray (fromInteger n) r
-toFFIRep _ = Nothing
+toFFIType :: Type -> Maybe FFIType
+toFFIType (TCon (TC TCBit) []) = Just FFIBool
+toFFIType (toFFIBasicType -> Just t) = Just $ FFIBasic t
+toFFIType (TCon (TC TCSeq) [TCon (TC (TCNum n)) [], toFFIBasicType -> Just t])
+  | n <= toInteger (maxBound :: Int) = Just $ FFIArray (fromInteger n) t
+toFFIType _ = Nothing
 
-toFFIBasicRep :: Type -> Maybe FFIBasicRep
-toFFIBasicRep (TCon (TC TCSeq) [TCon (TC (TCNum n)) [], TCon (TC TCBit) []])
+toFFIBasicType :: Type -> Maybe FFIBasicType
+toFFIBasicType (TCon (TC TCSeq) [TCon (TC (TCNum n)) [], TCon (TC TCBit) []])
   | n <= 8 = word FFIWord8
   | n <= 16 = word FFIWord16
   | n <= 32 = word FFIWord32
   | n <= 64 = word FFIWord64
   where word = Just . FFIWord n
-toFFIBasicRep
+toFFIBasicType
   (TCon (TC TCFloat) [TCon (TC (TCNum e)) [], TCon (TC (TCNum p)) []])
   | e == 8, p == 24 = float FFIFloat32
   | e == 11, p == 53 = float FFIFloat64
   where float = Just . FFIFloat e p
-toFFIBasicRep _ = Nothing
+toFFIBasicType _ = Nothing

@@ -218,7 +218,7 @@ rewD rews d = do e <- rewDef rews (dDefinition d)
 rewDef :: RewMap -> DeclDef -> M DeclDef
 rewDef rews (DExpr e)    = DExpr <$> rewE rews e
 rewDef _    DPrim        = return DPrim
-rewDef _    (DForeign r) = return $ DForeign r
+rewDef _    (DForeign t) = return $ DForeign t
 
 rewDeclGroup :: RewMap -> DeclGroup -> M DeclGroup
 rewDeclGroup rews dg =

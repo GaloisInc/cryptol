@@ -190,7 +190,7 @@ specializeConst e0 = do
                            DExpr e    -> do e' <- specializeExpr =<< instantiateExpr ts n e
                                             return (DExpr e')
                            DPrim      -> return DPrim
-                           DForeign r -> return $ DForeign r
+                           DForeign t -> return $ DForeign t
                  let decl' = decl { dName = qname', dSignature = sig', dDefinition = rhs' }
                  modifySpecCache (Map.adjust (fmap (insertTM ts (qname', Just decl'))) qname)
                  return (EVar qname')
