@@ -58,15 +58,14 @@ import qualified Data.Map as Map
 import           Data.Map (Map)
 import qualified Data.Set as Set
 import           Data.List(foldl',sortBy,groupBy)
-import           Data.Either(partitionEithers, isRight, isLeft)
+import           Data.Either(partitionEithers)
 import           Data.Maybe(isJust, fromMaybe, mapMaybe)
 import           Data.List(partition)
 import           Data.Ratio(numerator,denominator)
 import           Data.Traversable(forM)
 import           Data.Function(on)
-import           Control.Monad(zipWithM,unless,foldM,forM_,mplus,filterM)
-import System.IO.Unsafe (unsafePerformIO)
-import Data.Bifunctor (Bifunctor(first, second, bimap))
+import           Control.Monad(zipWithM,unless,foldM,forM_,mplus)
+import Data.Bifunctor (Bifunctor(second))
 
 
 
@@ -1009,18 +1008,6 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
           , dDoc        = P.bDoc b
           }
 
-    -- TODO: If the guarding prop is `n == 0` then here the constraint `fin n`
-    -- will be inferred. But, if the signature already constrains `fin n`,
-    -- then it should not be redundantly included in the validated guard again,
-    -- since then it will be checked unecessarily.
-
-    -- TODO: In general, if a goal is inferred by a guarding constraint and also
-    -- implied the declaration's constraints, then that goal should not be
-    -- prepended to the local assumptions of the guard. 
-
-    -- TODO: can i check the implication considered above using an SMT solver
-    -- call?
-
     P.DPropGuards cases0 ->
       inRangeMb (getLoc b) $
       withTParams as $ do
@@ -1046,94 +1033,6 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
               (_t, guards3, e1) <- checkBindDefExpr asmps1 guards2 e0
               e2 <- applySubst e1
               pure (guards3, e2)
-
-        {-
-        -- OLD
-        -- Checking each guarded case is the same as checking a DExpr, except 
-        -- that the guarding assumptions are added first.
-        let checkPropGuardCase' :: ([P.Prop Name], P.Expr Name) -> InferM ([Prop], Expr)
-            checkPropGuardCase' (asmpsGuard0, e0) = do
-              pure $! unsafePerformIO $ putStrLn "====================================" -- DEBUG
-              asmpsGuard0' <- do
-                -- validate props
-                -- - asmpsGuard1': validated props in the guard
-                -- - goals: goals that are yielded by validating the props (i.e.
-                --   additional assumptions needed to make sense of props)
-                -- - goals': goals that are not already implied by the
-                --   declaration's constraints
-                let bTParams = case P.bSignature b of
-                      Just (P.Forall params _ _ _) -> params
-                      _ -> undefined -- TODO: error handle
-                ((asmpsGuard1', propsInferred), goals) <-
-                  first (second concat . unzip) . -- concats propsInferred
-                  fmap concat .
-                  unzip <$>
-                  mapM (checkPropGuard (zip3 (P.tpName <$> bTParams) (Just . tpKind <$> as) as)) asmpsGuard0
-
-                pure $! unsafePerformIO $ putStrLn $ "propsInferred = " ++ show (pp <$> propsInferred)
-                pure $! unsafePerformIO $ putStrLn $ "goals = " ++ show (pp . goal <$> goals)
-
-                -- filter out propsInferred that are implied by asmps1, which
-                -- are the assumptions introduced by declaration
-
-                let makeGoal :: Prop -> Goal
-                    makeGoal prop = Goal
-                      { goalSource = CtImprovement
-                      , goalRange  = emptyRange -- TODO: better range
-                      , goal       = prop
-                      }
-
-                propsInferred' <-
-                  concat <$>
-                  mapM
-                    (\prop -> do
-                      tryProveImplication Nothing as asmps1 [makeGoal prop] >>= \case
-                        -- if can be proven, then DON'T need to include it among
-                        -- the guarding constraints
-                        Right _su -> pure []
-                        -- if can't be proven, then DO need to include it among
-                        -- the guarding constraints
-                        Left _errs -> pure [prop]
-                    )
-                    propsInferred
-
-                pure $! unsafePerformIO $ putStrLn $ "propsInferred' = " ++ show (pp <$> propsInferred')
-
-                -- filter out collected goals that are implied by asmps1, which
-                -- are the assumptions introduced by declaration
-                goals' <-
-                  concat <$>
-                  mapM
-                    (\goal -> do
-                      tryProveImplication Nothing as asmps1 [goal] >>= \case
-                        -- if can be proven, then DON'T need to include it among
-                        -- the guarding constraints
-                        Right _su -> pure []
-                        -- if can't be proven, then DO need to include it among
-                        -- the guarding constraints
-                        Left _errs -> pure [goal]
-                    )
-                    goals
-
-                pure $! unsafePerformIO $ putStrLn $ "goals' = " ++ show (pp . goal <$> goals')
-
-                let asmpsGoals = goal <$> goals'
-
-                -- note that the goals are checked first, to prevent checking a
-                -- prop that is undefined if the goal is not satisfied
-                let asmpsGuard2 = asmpsGoals <> propsInferred' <> asmpsGuard1'
-
-                pure $! unsafePerformIO $ putStrLn $ "asmpsGuard2 = " ++ show (pp <$> asmpsGuard2)
-
-                pure asmpsGuard2
-
-              (_t', props', e') <- checkBindDefExpr asmps1 asmpsGuard0' e0
-
-              pure $! unsafePerformIO $ putStrLn $ "props' = " ++ show (pp <$> props') ++ "\n===================================="
-              pure $! unsafePerformIO $ putStrLn "===================================="
-
-              pure (props', e')
-        -}
 
         cases1 <- mapM checkPropGuardCase cases0
 

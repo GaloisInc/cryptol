@@ -40,8 +40,6 @@ import           Data.Maybe(fromMaybe)
 import           Data.Function(on)
 import           Data.Text (Text)
 import           Control.Monad(unless,when)
-import System.IO.Unsafe (unsafePerformIO)
-import Cryptol.TypeCheck.PP (pp)
 
 -- | Check a type signature.  Returns validated schema, and any implicit
 -- constraints that we inferred.
@@ -67,6 +65,8 @@ checkSchema withWild (P.Forall xs ps t mb) =
           Nothing -> id
           Just r  -> inRange r
 
+-- | Validate a parsed proposition that appears in the guard of a PropGuard.
+-- Returns the validated proposition as well as any inferred goal propisitions.
 checkPropGuard :: P.Schema Name -> P.Prop Name -> InferM (Type, [Goal])
 checkPropGuard (P.Forall xs _ _ mb_rng) prop = do
   ((_, t), goals) <-
@@ -423,17 +423,3 @@ checkKind _ (Just k1) k2
   | k1 /= k2    = do kRecordError (KindMismatch Nothing k1 k2)
                      kNewType TypeErrorPlaceHolder k1
 checkKind t _ _ = return t
-
-
--- -- | Validate a parsed proposition that appears on the LHS of a PropGuard.
--- -- Returns the validated proposition as well as any inferred goal propisitions.
--- checkPropGuard :: [(Name, Maybe Kind, TParam)] -> P.Prop Name -> InferM ((Prop, [Prop]), [Goal])
--- checkPropGuard params p =
---   collectGoals $
---   fmap (\(t, _, res) -> unsafePerformIO $ do
---     -- print (fmap pp . snd <$> res) -- DEBUG
---     pure (t, concat $ snd <$> res)
---   ) $
---   runKindM NoWildCards params $
---   checkProp p
-
