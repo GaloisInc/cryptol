@@ -150,8 +150,6 @@ noPatE expr =
   case expr of
     EVar {}       -> return expr
     ELit {}       -> return expr
-    ENeg e        -> ENeg    <$> noPatE e
-    EComplement e -> EComplement <$> noPatE e
     EGenerate e   -> EGenerate <$> noPatE e
     ETuple es     -> ETuple  <$> mapM noPatE es
     ERecord es    -> ERecord <$> traverse (traverse noPatE) es
@@ -176,6 +174,7 @@ noPatE expr =
     ESplit e      -> ESplit  <$> noPatE e
     EParens e     -> EParens <$> noPatE e
     EInfix x y f z-> EInfix  <$> noPatE x <*> pure y <*> pure f <*> noPatE z
+    EPrefix op e  -> EPrefix op <$> noPatE e
 
 
 noPatUF :: UpdField PName -> NoPatM (UpdField PName)
