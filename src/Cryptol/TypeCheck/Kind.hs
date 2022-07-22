@@ -7,7 +7,7 @@
 -- Portability :  portable
 
 {-# LANGUAGE RecursiveDo #-}
-{-# LANGUAGE Trustworthy #-}
+{-# LANGUAGE Safe #-}
 -- See Note [-Wincomplete-uni-patterns and irrefutable patterns] in Cryptol.TypeCheck.TypePat
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 module Cryptol.TypeCheck.Kind
@@ -67,7 +67,6 @@ checkSchema withWild (P.Forall xs ps t mb) =
 
 -- | Validate a parsed proposition that appears in the guard of a PropGuard.
 -- Returns the validated proposition as well as any inferred goal propisitions.
--- IDEA [WORKS]: is using `xs` making it use the old names rather than the new names? so, try just giving `[]` instead of `xs` to `withTParams`
 checkPropGuard :: Maybe Range -> P.Prop Name -> InferM (Type, [Goal])
 checkPropGuard mb_rng prop = do
   ((_, t), goals) <-
