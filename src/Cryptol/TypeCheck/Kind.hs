@@ -7,7 +7,7 @@
 -- Portability :  portable
 
 {-# LANGUAGE RecursiveDo #-}
-{-# LANGUAGE Safe #-}
+{-# LANGUAGE Trustworthy #-}
 -- See Note [-Wincomplete-uni-patterns and irrefutable patterns] in Cryptol.TypeCheck.TypePat
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 module Cryptol.TypeCheck.Kind
@@ -40,6 +40,8 @@ import           Data.Maybe(fromMaybe)
 import           Data.Function(on)
 import           Data.Text (Text)
 import           Control.Monad(unless,when)
+import System.IO.Unsafe (unsafePerformIO)
+import Cryptol.TypeCheck.PP (pp)
 
 -- | Check a type signature.  Returns validated schema, and any implicit
 -- constraints that we inferred.
@@ -64,6 +66,17 @@ checkSchema withWild (P.Forall xs ps t mb) =
   rng = case mb of
           Nothing -> id
           Just r  -> inRange r
+
+checkPropGuard :: P.Schema Name -> P.Prop Name -> InferM (Type, [Goal])
+checkPropGuard (P.Forall xs _ _ mb_rng) prop = do
+  ((_, t), goals) <-
+    collectGoals $
+    rng $
+    withTParams NoWildCards schemaParam xs $
+    checkProp prop
+  pure (t, goals)
+  where
+    rng = maybe id inRange mb_rng
 
 -- | Check a module parameter declarations.  Nothing much to check,
 -- we just translate from one syntax to another.
@@ -412,11 +425,15 @@ checkKind _ (Just k1) k2
 checkKind t _ _ = return t
 
 
--- | Validate a parsed proposition that appears on the LHS of a PropGuard.
--- Returns the validated proposition as well as any inferred goal propisitions.
-checkPropGuard :: P.Prop Name -> InferM (Prop, [Goal])
-checkPropGuard p =
-  collectGoals $
-  fmap (\(t, _, _) -> t) $
-  runKindM NoWildCards [] $
-  checkProp p
+-- -- | Validate a parsed proposition that appears on the LHS of a PropGuard.
+-- -- Returns the validated proposition as well as any inferred goal propisitions.
+-- checkPropGuard :: [(Name, Maybe Kind, TParam)] -> P.Prop Name -> InferM ((Prop, [Prop]), [Goal])
+-- checkPropGuard params p =
+--   collectGoals $
+--   fmap (\(t, _, res) -> unsafePerformIO $ do
+--     -- print (fmap pp . snd <$> res) -- DEBUG
+--     pure (t, concat $ snd <$> res)
+--   ) $
+--   runKindM NoWildCards params $
+--   checkProp p
+

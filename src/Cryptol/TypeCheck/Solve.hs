@@ -285,6 +285,23 @@ proveImplication lnam as ps gs =
        Left errs -> mapM_ recordError errs
      return su
 
+-- FIX: don't need this anymore
+-- -- | Tries to prove an implication, and return any improvements that we computed
+-- -- if it can be prove. If can't be proven, then returns errors.
+-- tryProveImplication :: Maybe Name -> [TParam] -> [Prop] -> [Goal] -> InferM (Either [Error] Subst)
+-- tryProveImplication lnam as ps gs =
+--   do evars <- varsWithAsmps
+--      solver <- getSolver
+
+--      extraAs <- map mtpParam . Map.elems <$> getParamTypes
+--      extra   <- map thing <$> getParamConstraints
+
+--      (mbErr,su) <- io (proveImplicationIO solver lnam evars
+--                             (extraAs ++ as) (extra ++ ps) gs)
+--      case mbErr of
+--        Right ws  -> mapM_ recordWarning ws >> pure (Right su)
+--        Left errs -> mapM_ recordError errs >> pure (Left errs)
+
 
 proveImplicationIO :: Solver
                    -> Maybe Name     -- ^ Checking this function
