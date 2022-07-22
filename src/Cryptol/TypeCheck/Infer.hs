@@ -1018,14 +1018,15 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
         -- that the guarding assumptions are added first.
         let checkPropGuardCase :: ([P.Prop Name], P.Expr Name) -> InferM ([Prop], Expr)
             checkPropGuardCase (guards0, e0) = do
-              let pSchema = case P.bSignature b of
-                    Just schema -> schema
-                    _ -> undefined -- TODO: handle error
-              -- TODO: use new impl of `checkPropGuard`
+              mb_rng <- case P.bSignature b of
+                Just (P.Forall _ _ _ mb_rng) -> pure mb_rng
+                _ -> panic "checkSigB" 
+                  [ "Used constraint guards without a signature, dumbwit, at " 
+                  , show . pp $ P.bName b ]
               -- check guards
               (guards1, goals) <-  
                 second concat . unzip <$> 
-                checkPropGuard pSchema `traverse` guards0
+                checkPropGuard mb_rng `traverse` guards0
               -- try to prove all goals
               su <- proveImplication (Just . thing $ P.bName b) as (asmps1 <> guards1) goals
               extendSubst su
@@ -1039,7 +1040,9 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
         return Decl
           { dName       = thing (P.bName b)
           , dSignature  = Forall as asmps1 t1
-          , dDefinition = DExpr (foldr ETAbs (foldr EProofAbs (EPropGuards cases1) asmps1) as)
+          , dDefinition = DExpr
+                            (foldr ETAbs 
+                            (foldr EProofAbs (EPropGuards cases1) asmps1) as)
           , dPragmas    = P.bPragmas b
           , dInfix      = P.bInfix b
           , dFixity     = P.bFixity b

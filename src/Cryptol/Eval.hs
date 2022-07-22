@@ -218,7 +218,6 @@ evalExpr sym env expr = case expr of
      evalExpr sym env' e
 
   EPropGuards guards -> {-# SCC "evalExpr->EPropGuards" #-} do
-    -- TODO: says that type var not bound.. which is true because we haven't called the function yet...
     let
       evalPropGuard (props, e) = do
         if and $ evalProp env <$> props
@@ -243,7 +242,9 @@ evalProp EvalEnv { envTypes } prop = case prop of
           PC PNeq | [n1, n2] <- ns -> n1 /= n2
           PC PGeq | [n1, n2] <- ns -> n1 >= n2
           PC PFin | [n] <- ns -> n /= Inf
-          -- PC PPrime | [n] <- ns -> isJust (isPrime n) -- TODO: instantiate UniqueFactorization for Nat'?
+          -- TODO: instantiate UniqueFactorization for Nat'?
+          -- PC PPrime | [n] <- ns -> isJust (isPrime n) 
+          PC PTrue -> True
           _ -> evalPanic "evalProp" ["cannot use this as a guarding constraint: ", show . pp $ prop ]
   _ -> evalPanic "evalProp" ["cannot use this as a guarding constraint: ", show . pp $ prop ]
 

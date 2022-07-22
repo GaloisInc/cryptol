@@ -67,12 +67,15 @@ checkSchema withWild (P.Forall xs ps t mb) =
 
 -- | Validate a parsed proposition that appears in the guard of a PropGuard.
 -- Returns the validated proposition as well as any inferred goal propisitions.
-checkPropGuard :: P.Schema Name -> P.Prop Name -> InferM (Type, [Goal])
-checkPropGuard (P.Forall xs _ _ mb_rng) prop = do
+-- IDEA [WORKS]: is using `xs` making it use the old names rather than the new names? so, try just giving `[]` instead of `xs` to `withTParams`
+checkPropGuard :: Maybe Range -> P.Prop Name -> InferM (Type, [Goal])
+checkPropGuard mb_rng prop = do
   ((_, t), goals) <-
     collectGoals $
     rng $
-    withTParams NoWildCards schemaParam xs $
+    -- not really doing anything here, since we don't want to introduce any new
+    -- type vars into scope
+    withTParams NoWildCards schemaParam [] $
     checkProp prop
   pure (t, goals)
   where
