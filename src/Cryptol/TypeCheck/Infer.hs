@@ -1027,7 +1027,11 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
               -- try to prove all goals
               su <- proveImplication (Just . thing $ P.bName b) as (asmps1 <> guards1) goals
               extendSubst su
-              let guards2 = concatMap pSplitAnd (apSubst su guards1)
+              -- preprends the goals to the constraints, because these must be
+              -- checked first before the rest of the constraints (during
+              -- evaluation) to ensure well-definedness, since some constraints
+              -- make use of partial functions e.g. `a - b` requires `a >= b`.
+              let guards2 = (goal <$> goals) <> concatMap pSplitAnd (apSubst su guards1)
               (_t, guards3, e1) <- checkBindDefExpr asmps1 guards2 e0
               e2 <- applySubst e1
               pure (guards3, e2)
