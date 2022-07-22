@@ -1,0 +1,12 @@
+// PASSES
+// testA : {n} (fin n) => [n] -> [n]
+// testA x = propguards
+//   | n - n == 0 => x
+
+// FAILS
+// testB : {m, n, l} [n] -> [n]
+// testB x = propguards
+//   | (m - n == l) => x
+
+test : {m, n, l} (m - n == l) => [n] -> [n]
+test x = x
