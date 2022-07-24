@@ -40,7 +40,6 @@ import           Cryptol.Eval.Value
 import           Cryptol.ModuleSystem.Name
 import           Cryptol.TypeCheck.FFI
 import           Cryptol.Utils.Ident
-import           Cryptol.Utils.Panic
 
 evalForeignDecls :: ModulePath -> Module -> EvalEnv ->
   Eval (Either [FFILoadError] EvalEnv)
@@ -56,7 +55,7 @@ evalForeignDecls path m env = do
                 fsrc <- liftIO (loadForeignSrc p) >>= liftEither
                 liftIO $ writeIORef foreignSrc $ Just fsrc
                 pure fsrc
-              InMem _ _ -> panic "evalForeignDecls"
+              InMem _ _ -> evalPanic "evalForeignDecls"
                 ["Can't find foreign source of in-memory module"]
             Just fsrc -> pure fsrc
           liftIO (loadForeignImpl fsrc $ unpackIdent $ nameIdent $ dName d)
@@ -75,8 +74,9 @@ foreignPrim :: FFIFunType -> ForeignImpl -> Prim Concrete
 foreignPrim FFIFunType {..} impl = buildPrim ffiArgTypes ($ [])
   where buildPrim [] withArgs = PPrim do
           withArgs \inArgs ->
-            marshalRet ffiRetType \outArgs ->
-              callForeignImpl impl (inArgs ++ outArgs)
+            marshalRet ffiRetType GetRet
+              { getRetAsValue = callForeignImpl impl inArgs
+              , getRetAsOutArgs = callForeignImpl impl . (inArgs ++) }
         buildPrim (argType:argTypes) withArgs = PStrict \val ->
           buildPrim argTypes \f ->
             withArgs \prevArgs ->
@@ -84,14 +84,23 @@ foreignPrim FFIFunType {..} impl = buildPrim ffiArgTypes ($ [])
                 f $ prevArgs ++ currArgs
 
 marshalArg :: FFIType -> GenValue Concrete -> ([SomeFFIArg] -> Eval a) -> Eval a
-marshalArg FFIBool x f = f [SomeFFIArg @Word8 $ fromBool $ fromVBit x]
-marshalArg (FFIBasic t) x f = getMarshalBasicArg t \m ->
-  m x >>= f . pure . SomeFFIArg
-marshalArg (FFIArray n t) x f = getMarshalBasicArg t \m -> do
-  args <- traverse (>>= m) $ enumerateSeqMap n $ fromVSeq x
+marshalArg FFIBool val f = f [SomeFFIArg @Word8 $ fromBool $ fromVBit val]
+marshalArg (FFIBasic t) val f = getMarshalBasicArg t \m -> do
+  arg <- m val
+  f [SomeFFIArg arg]
+marshalArg (FFIArray n t) val f = getMarshalBasicArg t \m -> do
+  args <- traverse (>>= m) $ enumerateSeqMap n $ fromVSeq val
   Eval \stk ->
     withArray args \ptr ->
       runEval stk $ f [SomeFFIArg ptr]
+marshalArg (FFITuple types) val f = go types (fromVTuple val) []
+  where go [] [] args = f args
+        go (t:ts) (ev:evs) prevArgs = do
+          v <- ev
+          marshalArg t v \currArgs ->
+            go ts evs (prevArgs ++ currArgs)
+        go _ _ _ = evalPanic "marshalArg"
+          ["Tuple type and value length mismatch", show types, show val]
 
 getMarshalBasicArg :: FFIBasicType ->
   (forall a. FFIArg a => (GenValue Concrete -> Eval a) -> b) -> b
@@ -102,15 +111,35 @@ getMarshalBasicArg (FFIFloat _ _ s) f = case s of
   FFIFloat64 -> f $ pure . CDouble . toDouble
   where toDouble = fst . bfToDouble NearEven . bfValue . fromVFloat
 
-marshalRet :: FFIType ->
-  (forall a. FFIRet a => [SomeFFIArg] -> IO a) -> Eval (GenValue Concrete)
-marshalRet FFIBool f = VBit . toBool <$> io (f @Word8 [])
-marshalRet (FFIBasic t) f = getMarshalBasicRet t (io (f []) >>=)
-marshalRet (FFIArray n t) f = getMarshalBasicRet t \m ->
+data GetRet = GetRet
+  { getRetAsValue   :: forall a. FFIRet a => IO a
+  , getRetAsOutArgs :: [SomeFFIArg] -> IO () }
+
+marshalRet :: FFIType -> GetRet -> Eval (GenValue Concrete)
+marshalRet FFIBool gr = VBit . toBool <$> io (getRetAsValue gr @Word8)
+marshalRet (FFIBasic t) gr = getMarshalBasicRet t (io (getRetAsValue gr) >>=)
+marshalRet (FFIArray n t) gr = getMarshalBasicRet t \m ->
   fmap (VSeq (toInteger n) . finiteSeqMap Concrete . map m) $
     io $ allocaArray n \ptr -> do
-      f @() [SomeFFIArg ptr]
+      getRetAsOutArgs gr [SomeFFIArg ptr]
       peekArray n ptr
+marshalRet (FFITuple types) gr = Eval \stk -> do
+  vals <- newIORef []
+  let go [] args = getRetAsOutArgs gr args
+      go (t:ts) prevArgs = do
+        val <- runEval stk $ marshalRetAsOutArgs t \currArgs ->
+          go ts (prevArgs ++ currArgs)
+        modifyIORef' vals (val :)
+  go types []
+  VTuple . map pure <$> readIORef vals
+
+marshalRetAsOutArgs :: FFIType ->
+  ([SomeFFIArg] -> IO ()) -> Eval (GenValue Concrete)
+marshalRetAsOutArgs t f = marshalRet t GetRet
+  { getRetAsValue = alloca \ptr -> do
+      f [SomeFFIArg ptr]
+      peek ptr
+  , getRetAsOutArgs = f }
 
 getMarshalBasicRet :: FFIBasicType ->
   (forall a. FFIRet a => (a -> Eval (GenValue Concrete)) -> b) -> b

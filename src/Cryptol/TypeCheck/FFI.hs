@@ -15,6 +15,7 @@ data FFIType
   = FFIBool
   | FFIBasic FFIBasicType
   | FFIArray Int FFIBasicType
+  | FFITuple [FFIType]
   deriving (Show, Generic, NFData)
 
 data FFIBasicType
@@ -36,8 +37,8 @@ data FFIFloatSize
 
 data FFIFunType = FFIFunType
   { ffiArgTypes :: [FFIType]
-  , ffiRetType  :: FFIType
-  } deriving (Show, Generic, NFData)
+  , ffiRetType  :: FFIType }
+  deriving (Show, Generic, NFData)
 
 toFFIFunType :: Schema -> Maybe FFIFunType
 toFFIFunType (Forall [] [] t) = go $ tRebuild' False t
@@ -54,9 +55,11 @@ toFFIFunType _ = Nothing
 
 toFFIType :: Type -> Maybe FFIType
 toFFIType (TCon (TC TCBit) []) = Just FFIBool
-toFFIType (toFFIBasicType -> Just t) = Just $ FFIBasic t
-toFFIType (TCon (TC TCSeq) [TCon (TC (TCNum n)) [], toFFIBasicType -> Just t])
-  | n <= toInteger (maxBound :: Int) = Just $ FFIArray (fromInteger n) t
+toFFIType (toFFIBasicType -> Just fbt) = Just $ FFIBasic fbt
+toFFIType (TCon (TC TCSeq) [TCon (TC (TCNum n)) [], toFFIBasicType -> Just fbt])
+  | n <= toInteger (maxBound :: Int) = Just $ FFIArray (fromInteger n) fbt
+toFFIType (TCon (TC (TCTuple _)) (traverse toFFIType -> Just fts)) =
+  Just $ FFITuple fts
 toFFIType _ = Nothing
 
 toFFIBasicType :: Type -> Maybe FFIBasicType

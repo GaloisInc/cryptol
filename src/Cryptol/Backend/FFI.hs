@@ -8,8 +8,8 @@
 module Cryptol.Backend.FFI
 #ifdef FFI_ENABLED
   ( ForeignSrc
-  , ForeignImpl
   , loadForeignSrc
+  , ForeignImpl
   , loadForeignImpl
   , FFIArg
   , FFIRet
