@@ -3,10 +3,10 @@ Loading module Cryptol
 Loading module T4
 Loading module T5
 0x02
-Modules
-=======
+Submodules
+==========
     
-  submodule A
+  A
    
 Symbols
 =======
