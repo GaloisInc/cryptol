@@ -92,9 +92,10 @@ browseFunctors disp decls =
 
 browseSignatures :: DispInfo -> IfaceDecls -> [Doc]
 browseSignatures disp decls =
-  ppSection disp "Interfaces" ppS (Map.mapWithKey (,) (ifSignatures decls))
+  ppSection disp "Interface Submodules"
+    ppS (Map.mapWithKey (,) (ifSignatures decls))
   where
-  ppS (x,s) = "interface submodule" <+> pp x
+  ppS (x,s) = pp x
 
 
 browseTSyns :: DispInfo -> IfaceDecls -> [Doc]
