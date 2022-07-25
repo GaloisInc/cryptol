@@ -29,6 +29,7 @@ browseModContext how mc =
     [ browseMParams (env disp) (mctxParams mc)
     , browseSignatures disp decls
     , browseMods disp decls
+    , browseFunctors disp decls
     , browseTSyns disp decls
     , browsePrimTys disp decls
     , browseNewtypes disp decls
@@ -53,7 +54,7 @@ browseMParams disp params
   | otherwise =
       ppSectionHeading "Module Parameters"
       $ [ "parameter" <+> pp (T.mpName p) <+> ":" <+>
-          "signature" <+> pp (T.mpSignature p) $$
+          "interface" <+> pp (T.mpSignature p) $$
            indent 2 (vcat $
             map ppParamTy (sortByName disp (Map.toList (T.mpnTypes names))) ++
             map ppParamFu (sortByName disp (Map.toList (T.mpnFuns  names)))
@@ -76,12 +77,20 @@ browseMods disp decls =
   -- XXX: can print a lot more information about the moduels, but
   -- might be better to do that with a separate command
 
+browseFunctors :: DispInfo -> IfaceDecls -> [Doc]
+browseFunctors disp decls =
+  ppSection disp "Functors" ppM (ifFunctors decls)
+  where
+  ppM m = "submodule" <+> pp (ifModName m)
+
+
+
 
 browseSignatures :: DispInfo -> IfaceDecls -> [Doc]
 browseSignatures disp decls =
-  ppSection disp "Signatures" ppS (Map.mapWithKey (,) (ifSignatures decls))
+  ppSection disp "Interfaces" ppS (Map.mapWithKey (,) (ifSignatures decls))
   where
-  ppS (x,s) = "signature" <+> pp x
+  ppS (x,s) = "interface" <+> pp x
 
 
 browseTSyns :: DispInfo -> IfaceDecls -> [Doc]

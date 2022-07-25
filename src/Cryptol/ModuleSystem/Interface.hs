@@ -60,7 +60,7 @@ ifaceForgetName :: IfaceG name -> IfaceG ()
 ifaceForgetName i = i { ifNames = newNames }
   where newNames = (ifNames i) { ifsName = () }
 
-ifModName :: Iface -> ModName
+ifModName :: IfaceG name -> name
 ifModName = ifsName . ifNames
 
 -- | Information about the names in a module.
