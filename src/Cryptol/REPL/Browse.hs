@@ -90,7 +90,7 @@ browseSignatures :: DispInfo -> IfaceDecls -> [Doc]
 browseSignatures disp decls =
   ppSection disp "Interfaces" ppS (Map.mapWithKey (,) (ifSignatures decls))
   where
-  ppS (x,s) = "interface" <+> pp x
+  ppS (x,s) = "interface submodule" <+> pp x
 
 
 browseTSyns :: DispInfo -> IfaceDecls -> [Doc]

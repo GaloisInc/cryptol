@@ -35,6 +35,7 @@ module Cryptol.Utils.Ident
   , modNameArg
   , modNameIfaceMod
   , modNameToNormalModName
+  , modNameIsNormal
 
     -- * Identifiers
   , Ident
@@ -49,7 +50,6 @@ module Cryptol.Utils.Ident
   , modParamIdent
   , identAnonArg
   , identAnonIfaceMod
-  , identAnonInstance
 
     -- * Namespaces
   , Namespace(..)
@@ -72,6 +72,7 @@ module Cryptol.Utils.Ident
 import           Control.DeepSeq (NFData)
 import           Data.Char (isSpace)
 import           Data.List (unfoldr)
+import           Data.Text (Text)
 import qualified Data.Text as T
 import           Data.String (IsString(..))
 import           GHC.Generics (Generic)
@@ -137,15 +138,19 @@ modPathSplit p0 = (top,reverse xs)
 
 --------------------------------------------------------------------------------
 -- | Top-level Module names are just text.
-data ModName = ModName T.Text ModNameFlavor
+data ModName = ModName Text ModNameFlavor
   deriving (Eq,Ord,Show,Generic)
 
-data ModNameFlavor = NormalModName | AnonModArgName | AnonIfaceModName
+data ModNameFlavor = NormalModName
+                   | AnonModArgName   -- ^Anonymous module (from `where`)
+                   | AnonIfaceModName -- ^Anonymous interface (from `parameter`)
   deriving (Eq,Ord,Show,Generic)
 
 instance NFData ModName
 instance NFData ModNameFlavor
 
+-- | Change a normal module name to a module name to be used for an
+-- anonnymous argument.
 modNameArg :: ModName -> ModName
 modNameArg (ModName m fl) =
   case fl of
@@ -153,6 +158,8 @@ modNameArg (ModName m fl) =
     AnonModArgName    -> panic "modNameArg" ["Name is not normal"]
     AnonIfaceModName  -> panic "modNameArg" ["Name is not normal"]
 
+-- | Change a normal module name to a module name to be used for an
+-- anonnymous interface.
 modNameIfaceMod :: ModName -> ModName
 modNameIfaceMod (ModName m fl) =
   case fl of
@@ -161,19 +168,25 @@ modNameIfaceMod (ModName m fl) =
     AnonIfaceModName  -> panic "modNameIfaceMod" ["Name is not normal"]
 
 -- | This is used when we check that the name of a module matches the
--- file where it is defines.
+-- file where it is defined.
 modNameToNormalModName :: ModName -> ModName
 modNameToNormalModName (ModName t _) = ModName t NormalModName
 
-
-
-modNameToText :: ModName -> T.Text
+modNameToText :: ModName -> Text
 modNameToText (ModName x fl) =
   case fl of
     NormalModName     -> x
-    AnonModArgName    -> x <> "$argument"
-    AnonIfaceModName  -> x <> "$interface"
+    AnonModArgName    -> txtAnonArg x
+    AnonIfaceModName  -> txtAnonIfaceMod x
 
+-- | This is useful when we want to hide anonymous modules.
+modNameIsNormal :: ModName -> Bool
+modNameIsNormal (ModName _ fl) =
+  case fl of
+    NormalModName -> True
+    _             -> False
+
+-- | Make a normal module name out of text.
 textToModName :: T.Text -> ModName
 textToModName txt = ModName txt NormalModName
 
@@ -292,18 +305,26 @@ identText (Ident _ t) = t
 modParamIdent :: Ident -> Ident
 modParamIdent (Ident x t) = Ident x (T.append (T.pack "module parameter ") t)
 
+{- | This is used for the name of the anonymous module used to instantiate
+a functor when writing things like `import F where x = 2`.  The argument is
+the functor-name and the `where` part is placed in a separate module with
+this kind of name. -}
+txtAnonArg :: Text -> Text
+txtAnonArg txt = "`where` argument of " <> txt
+
+-- | See 'txtAnonArg'.
 identAnonArg :: Ident -> Ident
-identAnonArg (Ident b txt) = Ident b (txt <> "$argument")
+identAnonArg (Ident b txt) = Ident b (txtAnonArg txt)
 
+{- | This is use for the name of anonymous interfaces arising from the
+use of `parameter x : [8]`.  This will declare an interface (aka signature)
+with this kind of name. -}
+txtAnonIfaceMod :: Text -> Text
+txtAnonIfaceMod txt = "`parameter` interface of " <> txt
+
+-- | See 'txtAnonIfaceMod'
 identAnonIfaceMod :: Ident -> Ident
-identAnonIfaceMod (Ident b txt) = Ident b (txt <> "$interface")
-
-identAnonInstance :: Int -> T.Text -> Ident
-identAnonInstance uniq pref =
-  Ident False (pref <> "$instance_" <> T.pack (show uniq))
-
-
-
+identAnonIfaceMod (Ident b txt) = Ident b (txtAnonIfaceMod txt)
 
 --------------------------------------------------------------------------------
 

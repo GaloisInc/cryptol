@@ -47,7 +47,7 @@ import Cryptol.Parser.Utils (translateExprToNumT,widthIdent)
 import Cryptol.Utils.Ident( packModName,packIdent,modNameChunks
                           , identAnonArg, identAnonIfaceMod
                           , modNameArg, modNameIfaceMod
-                          , modNameToText, identAnonInstance
+                          , modNameToText
                           )
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic
@@ -1067,7 +1067,7 @@ desugarTopDs ::
   Located name ->
   [TopDecl PName] ->
   ParseM ([ModuleG name PName], [TopDecl PName])
-desugarTopDs ownerName = go 1 emptySig
+desugarTopDs ownerName = go emptySig
   where
   isEmpty s =
     null (sigTypeParams s) && null (sigConstraints s) && null (sigFunParams s)
@@ -1090,7 +1090,7 @@ desugarTopDs ownerName = go 1 emptySig
 
   addI i s = s { sigImports = i : sigImports s }
 
-  go st sig ds =
+  go sig ds =
     case ds of
 
       []
@@ -1114,10 +1114,8 @@ desugarTopDs ownerName = go 1 emptySig
                   )
 
       d : more ->
-        let cont emit sig' = cont' emit st sig'
-
-            cont' emit st' sig' =
-              do (ms,ds') <- go st' sig' more
+        let cont emit sig' =
+              do (ms,ds') <- go sig' more
                  pure (ms, emit ++ ds')
         in
         case d of
@@ -1127,8 +1125,8 @@ desugarTopDs ownerName = go 1 emptySig
             cont [d] (addI i sig)
 
           DImport i | Just inst <- iInst (thing i) ->
-            do newDs <- desugarInstImport st i inst
-               cont' newDs (st + 1) sig
+            do newDs <- desugarInstImport i inst
+               cont newDs sig
 
           DParamDecl _ ds' -> cont [] (jnSig ds' sig)
 
@@ -1139,11 +1137,10 @@ desugarTopDs ownerName = go 1 emptySig
           _ -> cont [d] sig
 
 desugarInstImport ::
-  Int                               {- ^ Used to generate a fresh name -} ->
   Located (ImportG (ImpName PName)) {- ^ The import -} ->
   ModuleInstanceArgs PName          {- ^ The insantiation -} ->
   ParseM [TopDecl PName]
-desugarInstImport st i inst =
+desugarInstImport i inst =
   do ms <- desugarMod
            Module { mName = i { thing = iname }
                   , mDef  = FunctorInstance
@@ -1154,10 +1151,12 @@ desugarInstImport st i inst =
   where
   imp = thing i
   iname = mkUnqual
-        $ identAnonInstance st
-          case iModule imp of
-            ImpTop f    -> modNameToText f
-            ImpNested n -> Text.pack (show (pp n))
+        $ mkIdent
+        $ "import of " <> nm <> " at " <> Text.pack (show (pp (srcRange i)))
+    where
+    nm = case iModule imp of
+           ImpTop f    -> modNameToText f
+           ImpNested n -> "submodule " <> Text.pack (show (pp n))
 
   newImp d = d { iModule = ImpNested iname
                , iInst   = Nothing
