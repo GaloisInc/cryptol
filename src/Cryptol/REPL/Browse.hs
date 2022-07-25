@@ -13,7 +13,8 @@ import Cryptol.Parser.AST(Pragma(..))
 import qualified Cryptol.TypeCheck.Type as T
 
 import Cryptol.Utils.PP
-import Cryptol.Utils.Ident(OrigName(..))
+import Cryptol.Utils.Ident (OrigName(..), modPathIsNormal, identIsNormal)
+
 import Cryptol.ModuleSystem.Env(ModContext(..))
 import Cryptol.ModuleSystem.NamingEnv(namingEnvNames)
 import Cryptol.ModuleSystem.Name
@@ -39,7 +40,12 @@ browseModContext how mc =
   disp     = DispInfo { dispHow = how, env = mctxNameDisp mc }
   decls    = filterIfaceDecls (`Set.member` visNames) (mctxDecls mc)
   allNames = namingEnvNames (mctxNames mc)
-  visNames = case how of
+  notAnon nm = identIsNormal (nameIdent nm) &&
+               case nameModPathMaybe nm of
+                  Just p -> modPathIsNormal p
+                  _      -> True    -- shouldn't happen?
+  visNames = Set.filter notAnon
+             case how of
                BrowseInScope  -> allNames
                BrowseExported -> mctxExported mc
 
@@ -71,17 +77,15 @@ browseMParams disp params
 
 browseMods :: DispInfo -> IfaceDecls -> [Doc]
 browseMods disp decls =
-  ppSection disp "Modules" ppM (ifModules decls)
+  ppSection disp "Submodules" ppM (ifModules decls)
   where
-  ppM m = "submodule" <+> pp (ifsName m)
-  -- XXX: can print a lot more information about the moduels, but
-  -- might be better to do that with a separate command
+  ppM m = pp (ifsName m)
 
 browseFunctors :: DispInfo -> IfaceDecls -> [Doc]
 browseFunctors disp decls =
-  ppSection disp "Functors" ppM (ifFunctors decls)
+  ppSection disp "Submodule Functors" ppM (ifFunctors decls)
   where
-  ppM m = "submodule" <+> pp (ifModName m)
+  ppM m = pp (ifModName m)
 
 
 

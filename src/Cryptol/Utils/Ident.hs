@@ -17,6 +17,7 @@ module Cryptol.Utils.Ident
   , modPathCommon
   , topModuleFor
   , modPathSplit
+  , modPathIsNormal
 
   , ModName
   , modNameToText
@@ -50,6 +51,7 @@ module Cryptol.Utils.Ident
   , modParamIdent
   , identAnonArg
   , identAnonIfaceMod
+  , identIsNormal
 
     -- * Namespaces
   , Namespace(..)
@@ -133,28 +135,24 @@ modPathSplit p0 = (top,reverse xs)
       Nested b i  -> (a, i:bs)
         where (a,bs) = go b
 
-
+modPathIsNormal :: ModPath -> Bool
+modPathIsNormal p = modNameIsNormal m && all identIsNormal is
+  where (m,is) = modPathSplit p
 
 
 --------------------------------------------------------------------------------
 -- | Top-level Module names are just text.
-data ModName = ModName Text ModNameFlavor
-  deriving (Eq,Ord,Show,Generic)
-
-data ModNameFlavor = NormalModName
-                   | AnonModArgName   -- ^Anonymous module (from `where`)
-                   | AnonIfaceModName -- ^Anonymous interface (from `parameter`)
+data ModName = ModName Text MaybeAnon
   deriving (Eq,Ord,Show,Generic)
 
 instance NFData ModName
-instance NFData ModNameFlavor
 
 -- | Change a normal module name to a module name to be used for an
 -- anonnymous argument.
 modNameArg :: ModName -> ModName
 modNameArg (ModName m fl) =
   case fl of
-    NormalModName     -> ModName m AnonModArgName
+    NormalName        -> ModName m AnonModArgName
     AnonModArgName    -> panic "modNameArg" ["Name is not normal"]
     AnonIfaceModName  -> panic "modNameArg" ["Name is not normal"]
 
@@ -163,40 +161,36 @@ modNameArg (ModName m fl) =
 modNameIfaceMod :: ModName -> ModName
 modNameIfaceMod (ModName m fl) =
   case fl of
-    NormalModName     -> ModName m AnonIfaceModName
+    NormalName        -> ModName m AnonIfaceModName
     AnonModArgName    -> panic "modNameIfaceMod" ["Name is not normal"]
     AnonIfaceModName  -> panic "modNameIfaceMod" ["Name is not normal"]
 
 -- | This is used when we check that the name of a module matches the
 -- file where it is defined.
 modNameToNormalModName :: ModName -> ModName
-modNameToNormalModName (ModName t _) = ModName t NormalModName
+modNameToNormalModName (ModName t _) = ModName t NormalName
 
 modNameToText :: ModName -> Text
-modNameToText (ModName x fl) =
-  case fl of
-    NormalModName     -> x
-    AnonModArgName    -> txtAnonArg x
-    AnonIfaceModName  -> txtAnonIfaceMod x
+modNameToText (ModName x fl) = maybeAnonText fl x
 
 -- | This is useful when we want to hide anonymous modules.
 modNameIsNormal :: ModName -> Bool
-modNameIsNormal (ModName _ fl) =
-  case fl of
-    NormalModName -> True
-    _             -> False
+modNameIsNormal (ModName _ fl) = isNormal fl
 
 -- | Make a normal module name out of text.
 textToModName :: T.Text -> ModName
-textToModName txt = ModName txt NormalModName
+textToModName txt = ModName txt NormalName
 
 modNameChunks :: ModName -> [String]
-modNameChunks  = unfoldr step . modNameToText . modNameToNormalModName
+modNameChunks (ModName x fl) = unfoldr step x
   where
   step str
     | T.null str = Nothing
-    | otherwise  = case T.breakOn modSep str of
-                     (a,b) -> Just (T.unpack a,T.drop (T.length modSep) b)
+    | otherwise  =
+      case T.breakOn modSep str of
+        (a,b)
+          | T.null b  -> Just (T.unpack (maybeAnonText fl str), b)
+          | otherwise -> Just (T.unpack a,T.drop (T.length modSep) b)
 
 packModName :: [T.Text] -> ModName
 packModName strs = textToModName (T.intercalate modSep (map trim strs))
@@ -260,10 +254,12 @@ ogFromModParam og = case ogSource og of
 
 --------------------------------------------------------------------------------
 
--- | Identifiers, along with a flag that indicates whether or not they're infix
--- operators. The boolean is present just as cached information from the lexer,
--- and never used during comparisons.
-data Ident = Ident Bool T.Text
+{- | The type of identifiers.
+  * The boolean flag indicates whether or not they're infix operators.
+    The boolean is present just as cached information from the lexer,
+    and never used during comparisons.
+  * The MaybeAnon indicates if this is an anonymous name  -}
+data Ident = Ident Bool MaybeAnon T.Text
              deriving (Show,Generic)
 
 instance Eq Ident where
@@ -271,60 +267,83 @@ instance Eq Ident where
   a /= b = compare a b /= EQ
 
 instance Ord Ident where
-  compare (Ident _ i1) (Ident _ i2) = compare i1 i2
+  compare (Ident _ mb1 i1) (Ident _ mb2 i2) = compare (mb1,i1) (mb2,i2)
 
 instance IsString Ident where
   fromString str = mkIdent (T.pack str)
 
 instance NFData Ident
 
+-- | Make a normal (i.e., not anonymous) identifier
 packIdent :: String -> Ident
 packIdent  = mkIdent . T.pack
 
+-- | Make a normal (i.e., not anonymous) identifier
 packInfix :: String -> Ident
 packInfix  = mkInfix . T.pack
 
 unpackIdent :: Ident -> String
 unpackIdent  = T.unpack . identText
 
+-- | Make a normal (i.e., not anonymous) identifier
 mkIdent :: T.Text -> Ident
-mkIdent  = Ident False
+mkIdent  = Ident False NormalName
 
 mkInfix :: T.Text -> Ident
-mkInfix  = Ident True
+mkInfix  = Ident True NormalName
 
 isInfixIdent :: Ident -> Bool
-isInfixIdent (Ident b _) = b
+isInfixIdent (Ident b _ _) = b
 
 nullIdent :: Ident -> Bool
-nullIdent (Ident _ t) = T.null t
+nullIdent = T.null . identText
 
 identText :: Ident -> T.Text
-identText (Ident _ t) = t
+identText (Ident _ mb t) = maybeAnonText mb t
 
 modParamIdent :: Ident -> Ident
-modParamIdent (Ident x t) = Ident x (T.append (T.pack "module parameter ") t)
+modParamIdent (Ident x a t) =
+  Ident x a (T.append (T.pack "module parameter ") t)
 
-{- | This is used for the name of the anonymous module used to instantiate
-a functor when writing things like `import F where x = 2`.  The argument is
-the functor-name and the `where` part is placed in a separate module with
-this kind of name. -}
-txtAnonArg :: Text -> Text
-txtAnonArg txt = "`where` argument of " <> txt
-
--- | See 'txtAnonArg'.
+-- | Make an anonymous identifier for the module corresponding to
+-- a `where` block in a functor instantiation.
 identAnonArg :: Ident -> Ident
-identAnonArg (Ident b txt) = Ident b (txtAnonArg txt)
+identAnonArg (Ident b _ txt) = Ident b AnonModArgName txt
 
-{- | This is use for the name of anonymous interfaces arising from the
-use of `parameter x : [8]`.  This will declare an interface (aka signature)
-with this kind of name. -}
-txtAnonIfaceMod :: Text -> Text
-txtAnonIfaceMod txt = "`parameter` interface of " <> txt
-
--- | See 'txtAnonIfaceMod'
+-- | Make an anonymous identifier for the interface corresponding to
+-- a `parameter` declaration.
 identAnonIfaceMod :: Ident -> Ident
-identAnonIfaceMod (Ident b txt) = Ident b (txtAnonIfaceMod txt)
+identAnonIfaceMod (Ident b _ txt) = Ident b AnonIfaceModName txt
+
+identIsNormal :: Ident -> Bool
+identIsNormal (Ident _ mb _) = isNormal mb
+
+--------------------------------------------------------------------------------
+
+-- | Information about anonymous names.
+data MaybeAnon = NormalName       -- ^ Not an anonymous name.
+               | AnonModArgName   -- ^ Anonymous module (from `where`)
+               | AnonIfaceModName -- ^ Anonymous interface (from `parameter`)
+  deriving (Eq,Ord,Show,Generic)
+
+instance NFData MaybeAnon
+
+-- | Modify a name, if it is a nonymous
+maybeAnonText :: MaybeAnon -> Text -> Text
+maybeAnonText mb txt =
+  case mb of
+    NormalName       -> txt
+    AnonModArgName   -> "`where` argument of " <> txt
+    AnonIfaceModName -> "`parameter` interface of " <> txt
+
+isNormal :: MaybeAnon -> Bool
+isNormal mb =
+  case mb of
+    NormalName -> True
+    _          -> False
+
+
+
 
 --------------------------------------------------------------------------------
 
