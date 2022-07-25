@@ -5,6 +5,7 @@ module Cryptol.REPL.Help (helpForNamed) where
 
 import Data.Text (Text)
 import qualified Data.Text as Text
+import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Maybe(fromMaybe)
@@ -55,22 +56,78 @@ noInfo nameEnv name =
     M.LocalName {} -> rPutStrLn "// No documentation is available."
 
 
+-- | Show help for something in the module namespace.
 showModHelp :: M.IfaceDecls -> NameDisp -> M.Name -> REPL ()
-showModHelp _env nameEnv x =
-    rPrint $ runDoc nameEnv $ vcat [ "`" <> pp x <> "` is a module." ]
-    -- XXX: show doc. if any
+showModHelp env nameEnv name =
+  fromMaybe (noInfo nameEnv name) $
+    msum [ attempt M.ifModules showModuleHelp
+         , attempt M.ifFunctors showFunctorHelp
+         , attempt M.ifSignatures showSigHelp
+         ]
+
+  where
+  attempt :: (M.IfaceDecls -> Map M.Name a) ->
+             (M.IfaceDecls -> NameDisp -> M.Name -> a -> REPL ()) ->
+             Maybe (REPL ())
+  attempt inMap doShow =
+    do th <- Map.lookup name (inMap env)
+       pure (doShow env nameEnv name th)
+
+showModuleHelp ::
+  M.IfaceDecls -> NameDisp -> M.Name -> M.IfaceNames M.Name -> REPL ()
+showModuleHelp _env nameEnv name info =
+  do rPrint $ runDoc nameEnv $ indent 4 $ vcat [ " ", ppM ]
+     doShowDocString (M.ifsDoc info)
+
+  where
+  ppM = vcat [ "module" <+> pp name <+> "exports:"
+             , indent 2 (vcat (map ppN (Set.toList (M.ifsPublic info))))
+             ]
+  ppN x = pp x
 
 
+showFunctorHelp ::
+  M.IfaceDecls -> NameDisp -> M.Name -> M.IfaceG M.Name -> REPL ()
+showFunctorHelp env nameEnv name info =
+  rPrint $ runDoc nameEnv
+         $ vcat [ "`" <> pp name <> "` is a parameterized submodule." ]
 
+showSigHelp ::
+  M.IfaceDecls -> NameDisp -> M.Name -> T.ModParamNames -> REPL ()
+showSigHelp _env _nameEnv name info =
+  do rPutStrLn ""
+     ppDoc (indent 4 ppS)
+     case T.mpnDoc info of
+       Just d -> do rPutStrLn ""
+                    rPutStrLn (Text.unpack d)
+       Nothing -> pure ()
 
-showSigHelp :: M.IfaceDecls -> NameDisp -> M.Name -> REPL ()
-showSigHelp env nameEnv name =
-  do rPrint $ runDoc nameEnv $ vcat [ "`" <> pp name <> "` is a signature." ]
-     fromMaybe (noInfo nameEnv name)
-       do s <- Map.lookup name (M.ifSignatures env)
-          d <- T.mpnDoc s
-          pure (rPrint (pp d))
-  -- XXX: show doc. if any, and maybe other stuff
+  where
+  -- qualifying stuff is too noisy
+  disp        = NameDisp \_ -> Just UnQualified
+  ppDoc d     = rPrint (runDoc disp d)
+
+  ppS = vcat [ "interface" <+> pp name <+> "requires:"
+             , indent 2 (vcat [ " ", ppTPs, ppCtrs, ppFPs ])
+             ]
+
+  withDoc mb x = case mb of
+                   Nothing -> x
+                   Just d  -> vcat [x, indent 2 (pp d)]
+
+  ppTPs  = vcat (map ppTP (Map.elems (T.mpnTypes info)))
+  ppTP x = withDoc (T.mtpDoc x)
+         $ hsep ["type", pp (T.mtpName x), ":", pp (T.mtpKind x)]
+
+  ppCtrs = case T.mpnConstraints info of
+             [] -> mempty
+             cs -> vcat [" ", "satisfying:"
+                        , indent 2 (vcat (map ppCtr cs)), " "]
+  ppCtr x = pp (P.thing x)
+
+  ppFPs  = vcat (map ppFP (Map.elems (T.mpnFuns info)))
+  ppFP x = withDoc (T.mvpDoc x)
+         $ hsep [pp (T.mvpName x), ":" <+> pp (T.mvpType x) ]
 
 
 showTypeHelp :: T.FunctorParams -> M.IfaceDecls -> NameDisp -> T.Name -> REPL ()

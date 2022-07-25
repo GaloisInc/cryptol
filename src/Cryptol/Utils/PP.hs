@@ -23,6 +23,7 @@ import qualified Data.Text as T
 import           Data.Void (Void)
 import           GHC.Generics (Generic)
 import qualified Prettyprinter as PP
+import qualified Prettyprinter.Util as PP
 import qualified Prettyprinter.Render.String as PP
 
 -- | How to pretty print things when evaluating
@@ -264,6 +265,9 @@ liftPP2 f (Doc a) (Doc b) = Doc (\e -> f (a e) (b e))
 
 liftSep :: ([PP.Doc Void] -> PP.Doc Void) -> ([Doc] -> Doc)
 liftSep f ds = Doc (\e -> f [ d e | Doc d <- ds ])
+
+reflow :: T.Text -> Doc
+reflow x = liftPP (PP.reflow x)
 
 infixl 6 <.>, <+>, </>
 
