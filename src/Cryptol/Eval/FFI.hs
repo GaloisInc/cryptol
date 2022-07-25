@@ -40,6 +40,7 @@ import           Cryptol.Eval.Value
 import           Cryptol.ModuleSystem.Name
 import           Cryptol.TypeCheck.FFI
 import           Cryptol.Utils.Ident
+import           Cryptol.Utils.RecordMap
 
 evalForeignDecls :: ModulePath -> Module -> EvalEnv ->
   Eval (Either [FFILoadError] EvalEnv)
@@ -93,14 +94,19 @@ marshalArg (FFIArray n t) val f = getMarshalBasicArg t \m -> do
   Eval \stk ->
     withArray args \ptr ->
       runEval stk $ f [SomeFFIArg ptr]
-marshalArg (FFITuple types) val f = go types (fromVTuple val) []
-  where go [] [] args = f args
-        go (t:ts) (ev:evs) prevArgs = do
+marshalArg (FFITuple types) val f = marshalArgs (zip types (fromVTuple val)) f
+marshalArg (FFIRecord typeMap) val f = marshalArgs (zip types evals) f
+  where types = displayElements typeMap
+        evals = map (`lookupRecord` val) $ displayOrder typeMap
+
+marshalArgs :: [(FFIType, Eval (GenValue Concrete))] ->
+  ([SomeFFIArg] -> Eval a) -> Eval a
+marshalArgs typesAndEvals f = go typesAndEvals []
+  where go [] args = f args
+        go ((t, ev):tevs) prevArgs = do
           v <- ev
           marshalArg t v \currArgs ->
-            go ts evs (prevArgs ++ currArgs)
-        go _ _ _ = evalPanic "marshalArg"
-          ["Tuple type and value length mismatch", show types, show val]
+            go tevs (prevArgs ++ currArgs)
 
 getMarshalBasicArg :: FFIBasicType ->
   (forall a. FFIArg a => (GenValue Concrete -> Eval a) -> b) -> b
@@ -123,19 +129,24 @@ marshalRet (FFIArray n t) gr = getMarshalBasicRet t \m ->
     io $ allocaArray n \ptr -> do
       getRetAsOutArgs gr [SomeFFIArg ptr]
       peekArray n ptr
-marshalRet (FFITuple types) gr = Eval \stk -> do
+marshalRet (FFITuple types) gr = VTuple <$> marshalMultiRet types gr
+marshalRet (FFIRecord typeMap) gr =
+  VRecord . recordFromFields . zip (displayOrder typeMap) <$>
+    marshalMultiRet (displayElements typeMap) gr
+
+marshalMultiRet :: [FFIType] -> GetRet -> Eval [Eval (GenValue Concrete)]
+marshalMultiRet types gr = Eval \stk -> do
   vals <- newIORef []
   let go [] args = getRetAsOutArgs gr args
       go (t:ts) prevArgs = do
-        val <- runEval stk $ marshalRetAsOutArgs t \currArgs ->
+        val <- runEval stk $ marshalRet t $ getRetFromAsOutArgs \currArgs ->
           go ts (prevArgs ++ currArgs)
         modifyIORef' vals (val :)
   go types []
-  VTuple . map pure <$> readIORef vals
+  map pure <$> readIORef vals
 
-marshalRetAsOutArgs :: FFIType ->
-  ([SomeFFIArg] -> IO ()) -> Eval (GenValue Concrete)
-marshalRetAsOutArgs t f = marshalRet t GetRet
+getRetFromAsOutArgs :: ([SomeFFIArg] -> IO ()) -> GetRet
+getRetFromAsOutArgs f = GetRet
   { getRetAsValue = alloca \ptr -> do
       f [SomeFFIArg ptr]
       peek ptr

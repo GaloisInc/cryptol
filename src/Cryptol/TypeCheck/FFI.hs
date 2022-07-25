@@ -10,12 +10,15 @@ import           GHC.Generics
 
 import           Cryptol.TypeCheck.SimpType
 import           Cryptol.TypeCheck.Type
+import           Cryptol.Utils.Ident
+import           Cryptol.Utils.RecordMap
 
 data FFIType
   = FFIBool
   | FFIBasic FFIBasicType
   | FFIArray Int FFIBasicType
   | FFITuple [FFIType]
+  | FFIRecord (RecordMap Ident FFIType)
   deriving (Show, Generic, NFData)
 
 data FFIBasicType
@@ -60,6 +63,7 @@ toFFIType (TCon (TC TCSeq) [TCon (TC (TCNum n)) [], toFFIBasicType -> Just fbt])
   | n <= toInteger (maxBound :: Int) = Just $ FFIArray (fromInteger n) fbt
 toFFIType (TCon (TC (TCTuple _)) (traverse toFFIType -> Just fts)) =
   Just $ FFITuple fts
+toFFIType (TRec (traverse toFFIType -> Just ftMap)) = Just $ FFIRecord ftMap
 toFFIType _ = Nothing
 
 toFFIBasicType :: Type -> Maybe FFIBasicType

@@ -21,6 +21,7 @@ module Cryptol.Utils.RecordMap
   , canonicalFields
   , displayFields
   , recordElements
+  , displayElements
   , fieldSet
   , recordFromFields
   , recordFromFieldsErr
@@ -88,6 +89,11 @@ recordElements = map snd . canonicalFields
 -- | Return a list of field/value pairs in canonical order.
 canonicalFields :: RecordMap a b -> [(a,b)]
 canonicalFields = Map.toList . recordMap
+
+-- | Retrieve the elements of the record in display order
+--   of the field names.
+displayElements :: (Show a, Ord a) => RecordMap a b -> [b]
+displayElements = map snd . displayFields
 
 -- | Return a list of field/value pairs in display order.
 displayFields :: (Show a, Ord a) => RecordMap a b -> [(a,b)]
