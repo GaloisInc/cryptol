@@ -83,7 +83,7 @@ browseMods disp decls =
 
 browseFunctors :: DispInfo -> IfaceDecls -> [Doc]
 browseFunctors disp decls =
-  ppSection disp "Submodule Functors" ppM (ifFunctors decls)
+  ppSection disp "Parameterized Submodules" ppM (ifFunctors decls)
   where
   ppM m = pp (ifModName m)
 
