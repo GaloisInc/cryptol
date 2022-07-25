@@ -916,16 +916,17 @@ newTopSignatureScope x = newScope (TopSignatureScope x)
 {- | Start a new submodule scope.  The imports and exports are just used
 to initialize an empty module.  As we type check declarations they are
 added to this module's scope. -}
-newSubmoduleScope :: Name -> [Import] -> ExportSpec Name -> InferM ()
-newSubmoduleScope x is e =
+newSubmoduleScope ::
+  Name -> Maybe Text -> [Import] -> ExportSpec Name -> InferM ()
+newSubmoduleScope x docs is e =
   do updScope \o -> o { mNested = Set.insert x (mNested o) }
      newScope (SubModule x)
-     updScope \m -> m { mImports = is, mExports = e }
+     updScope \m -> m { mDoc = docs, mImports = is, mExports = e }
 
 newModuleScope :: P.ModName -> [Import] -> ExportSpec Name -> InferM ()
 newModuleScope x is e =
   do newScope (MTopModule x)
-     updScope \m -> m { mImports = is, mExports = e }
+     updScope \m -> m { mDoc = Nothing, mImports = is, mExports = e }
 
 -- | Update the current scope (first in the list). Assumes there is one.
 updScope :: (ModuleG ScopeName -> ModuleG ScopeName) -> InferM ()
@@ -960,6 +961,7 @@ endSubmodule =
 
            z = Module
                  { mName             = mName y
+                 , mDoc              = mDoc y
                  , mExports          = mExports y
                  , mParamTypes       = mParamTypes y
                  , mParamFuns        = mParamFuns  y

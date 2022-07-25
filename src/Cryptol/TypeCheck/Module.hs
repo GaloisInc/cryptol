@@ -1,6 +1,7 @@
 {-# Language BlockArguments, ImplicitParams #-}
 module Cryptol.TypeCheck.Module (doFunctorInst) where
 
+import Data.Text(Text)
 import Data.Map(Map)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -32,8 +33,9 @@ doFunctorInst ::
   {- ^ Instantitation.  These is the renaming for the functor that arises from
        generativity (i.e., it is something that will make the names "fresh").
   -} ->
+  Maybe Text                  {- ^ Documentation -} ->
   InferM (Maybe TCTopEntity)
-doFunctorInst m f as inst =
+doFunctorInst m f as inst doc =
   inRange (srcRange m)
   do mf    <- lookupFunctor (thing f)
      argIs <- checkArity (srcRange f) mf as
@@ -44,6 +46,7 @@ doFunctorInst m f as inst =
          ?vSu = inst
      let m1   = moduleInstance mf
          m2   = m1 { mName             = m
+                   , mDoc              = Nothing
                    , mParamTypes       = mempty
                    , mParamFuns        = mempty
                    , mParamConstraints = mempty
@@ -57,7 +60,7 @@ doFunctorInst m f as inst =
 
      case thing m of
        P.ImpTop mn    -> newModuleScope mn (mImports m2) (mExports m2)
-       P.ImpNested mn -> newSubmoduleScope mn (mImports m2) (mExports m2)
+       P.ImpNested mn -> newSubmoduleScope mn doc (mImports m2) (mExports m2)
 
      mapM_ addTySyn     (Map.elems (mTySyns m2))
      mapM_ addNewtype   (Map.elems (mNewtypes m2))

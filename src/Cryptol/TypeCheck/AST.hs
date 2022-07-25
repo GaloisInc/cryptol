@@ -76,6 +76,7 @@ tcTopEntityToModule ent =
 -- | A Cryptol module.
 data ModuleG mname =
               Module { mName             :: !mname
+                     , mDoc              :: !(Maybe Text)
                      , mExports          :: ExportSpec Name
                      , mImports          :: [Import]
 
@@ -110,6 +111,7 @@ emptyModule :: mname -> ModuleG mname
 emptyModule nm =
   Module
     { mName             = nm
+    , mDoc              = Nothing
     , mExports          = mempty
     , mImports          = []
 

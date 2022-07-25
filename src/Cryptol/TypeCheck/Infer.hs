@@ -78,7 +78,7 @@ inferTopModule m =
          endModule
 
     P.FunctorInstance f as inst ->
-      do mb <- doFunctorInst (P.ImpTop <$> P.mName m) f as inst
+      do mb <- doFunctorInst (P.ImpTop <$> P.mName m) f as inst Nothing
          case mb of
            Just mo -> pure mo
            Nothing -> panic "inferModule" ["Didnt' get a module"]
@@ -1088,6 +1088,7 @@ checkTopDecls = mapM_ checkTopDecl
 
            P.NormalModule ds ->
              do newSubmoduleScope (thing (P.mName m))
+                                  (thing <$> P.tlDoc tl)
                                   (map thing (P.mImports m))
                                   (P.exportedDecls ds)
                 checkTopDecls ds
@@ -1095,7 +1096,8 @@ checkTopDecls = mapM_ checkTopDecl
                 endSubmodule
 
            P.FunctorInstance f as inst ->
-             do _ <- doFunctorInst (P.ImpNested <$> P.mName m) f as inst
+             do let doc = thing <$> P.tlDoc tl
+                _ <- doFunctorInst (P.ImpNested <$> P.mName m) f as inst doc
                 pure ()
 
            P.InterfaceModule sig ->

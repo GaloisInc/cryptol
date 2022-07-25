@@ -27,6 +27,7 @@ genIfaceNames m = IfaceNames
   , ifsNested   = mNested m
   , ifsDefines  = genModDefines m
   , ifsPublic   = allExported (mExports m)
+  , ifsDoc      = mDoc m
   }
 
 -- | Things defines by a module

@@ -61,6 +61,7 @@ instance ModuleInstance name => ModuleInstance (ImpName name) where
 instance ModuleInstance (ModuleG name) where
   moduleInstance m =
     Module { mName             = mName m
+           , mDoc              = Nothing
            , mExports          = doVInst (mExports m)
            , mImports          = mImports m
            , mParamTypes       = doMap (mParamTypes m)
@@ -127,6 +128,7 @@ instance ModuleInstance name => ModuleInstance (IfaceNames name) where
                , ifsNested   = doSet (ifsNested ns)
                , ifsDefines  = doSet (ifsDefines ns)
                , ifsPublic   = doSet (ifsPublic ns)
+               , ifsDoc      = ifsDoc ns
                }
 
 instance ModuleInstance ModParamNames where

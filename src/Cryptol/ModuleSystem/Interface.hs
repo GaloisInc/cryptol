@@ -69,6 +69,7 @@ data IfaceNames name = IfaceNames
   , ifsNested   :: Set Name   -- ^ Things nested in this module
   , ifsDefines  :: Set Name   -- ^ Things defined in this module
   , ifsPublic   :: Set Name   -- ^ Subset of `ifsDefines` that is public
+  , ifsDoc      :: !(Maybe Text) -- ^ Documentation
   } deriving (Show, Generic, NFData)
 
 -- | Is this interface for a functor.
@@ -81,6 +82,7 @@ emptyIface nm = Iface
                            , ifsDefines = mempty
                            , ifsPublic  = mempty
                            , ifsNested  = mempty
+                           , ifsDoc     = Nothing
                            }
   , ifParams  = mempty
   , ifDefines = mempty
