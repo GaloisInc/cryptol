@@ -20,12 +20,7 @@ import qualified Data.List as L
 import Data.Maybe
 import qualified Data.Vector as V
 import GHC.Real
-
--- | System
--- A system of linear equations over domain `a`
--- The expression `a1*x1 + ... + aN*xN + c` encodes the equation
--- `a1*x1 + ... + aN*aN = c`.
-type System a = [Exp a]
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.Constraints
 
 -- | IxEqu
 -- Index of an equation in the system.

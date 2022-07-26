@@ -14,7 +14,7 @@ import GHC.TypeNats
 
 data Preconstraints
 
--- | [TParam] -> [Prop] -> Preconstraints
-
+-- | fromProps
+-- Preserves order of `[TParam]`.
 fromProps :: Monad m => [TParam] -> [Prop] -> SamplingM m Preconstraints
 fromProps tparams props = undefined

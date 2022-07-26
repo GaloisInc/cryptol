@@ -47,6 +47,7 @@ Sample constraints
     be `Single` of the value just sampled for it.
 -}
 
+-- TODO: make use of `fin` type constraint
 sample :: forall g. RandomGen g => Constraints Nat' -> SamplingM (GenM g) (Vector Nat')
 sample con = do
   let nVars = Constraints.countVars con
@@ -139,5 +140,4 @@ sample con = do
             `traverse` (vars `V.zip` as)
 
     -- sample all the vars
-    lift . lift $
-      (evalStateT (sampleVar `traverse` vars) rngs :: GenM g (Vector Nat'))
+    lift $ evalStateT (sampleVar `traverse` vars) rngs

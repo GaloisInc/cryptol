@@ -15,10 +15,11 @@ import Control.Monad
 import Cryptol.TypeCheck.Solver.InfNat (Nat')
 import qualified Cryptol.TypeCheck.Solver.InfNat as Nat'
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.Constraints
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp (Exp (..), Var (..))
 import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp as Exp
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Q
-import Cryptol.TypeCheck.Solver.Numeric.Sampling.System (IxEqu (..), System)
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.System (IxEqu (..))
 import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.System as System
 import Data.Bifunctor (Bifunctor (bimap, first, second))
 import qualified Data.List as L
@@ -27,23 +28,10 @@ import Data.Vector (Vector)
 import qualified Data.Vector as V
 import GHC.Real
 
--- | SolvedSystem If equ `i` is `Nothing`, then var `i` is free. If equ `i` is
--- `Just e`, then var `i` is bound to expression `e`. A `SolvedSystem`
--- corresponds to an `n` by `n + 1` matrix, or `n` equations of the form:
--- ```
---   x0 = ...
---   x1 = ...
---   ...
---   x{n} = ...
--- ```
--- where the RHS expression for equation `i` must have `0*xi`. Since each
--- equation corresponds to a var, a SolvedSystem is indexed by `Var`.
-type SolvedSystem a = Vector (Maybe (Exp a))
-
-countVars :: SolvedSystem a -> Int
-countVars sys = case V.find isJust sys of
-  Just (Just e) -> Exp.countVars e
-  _ -> error "countVars mempty"
+-- countVars :: SolvedSystem a -> Int
+-- countVars sys = case V.find isJust sys of
+--   Just (Just e) -> Exp.countVars e
+--   _ -> error "countVars mempty"
 
 (!) :: SolvedSystem a -> Var -> Maybe (Exp a)
 solsys ! j = solsys V.! unVar j
@@ -75,11 +63,13 @@ toSolvedSystem sys = do
           -- if coeff is 1, then Just solve for this var, else error
           -- if there is no non-0 coeff, then Nothing
           case Var <$> V.findIndex (0 /=) as of
-            Just i 
+            Just i
               | e Exp.! i == 1 -> pure $ Just (i, Exp.solveFor i e)
-              | otherwise -> throwSamplingError $ 
-                SamplingError "toSolvedSystem"
-                  "A leftmost non-0 coeff in row is not 1"
+              | otherwise ->
+                throwSamplingError $
+                  SamplingError
+                    "toSolvedSystem"
+                    "A leftmost non-0 coeff in row is not 1"
             Nothing -> pure Nothing
 
 -- SolvedSystem n -> SolvedSystem (n + m)
@@ -104,11 +94,15 @@ extendN m sys = fmap (Exp.extendN m) <$> sys
 -- a system of `n + n` variables.
 --
 -- elimDens :: SolvedSystem n -> SolvedSystem (n + n)
-elimDens :: forall m. Monad m => SolvedSystem Q -> SamplingM m (SolvedSystem Nat')
-elimDens solsys = do
-  -- solsys <- V.foldM fold (extendN n solsys) (V.generate n Var)
-  -- mapM (maybe (pure Nothing) (fmap pure . cast_ExpQ_ExpNat')) solsys
-  --
+elimDens :: forall m. Monad m => Constraints Q -> SamplingM m (Constraints Nat')
+elimDens cons = do
+  solsys <- case sys cons of
+    Left _ ->
+      throwSamplingError $
+        SamplingError
+          "elimDens"
+          "Expected the system to be solved, but it's unsolved."
+    Right solsys -> pure solsys
   -- extend exps to have `n + n` variables
   solsys <- pure $ fmap (Exp.extendN (n + n)) <$> solsys
   -- init equs `n` through `n + n - 1` with `Nothing`
@@ -116,9 +110,11 @@ elimDens solsys = do
   -- elim dens
   solsys <- foldM fold solsys (Var <$> [0 .. n -1])
   -- cast to Nat'
-  mapM (maybe (pure Nothing) (fmap pure . cast_ExpQ_ExpNat')) solsys
+  solsys <- mapM (maybe (pure Nothing) (fmap pure . cast_ExpQ_ExpNat')) solsys
+  tcs <- mapM (overTcExp cast_ExpQ_ExpNat') (tcs cons)
+  pure cons {sys = Right solsys, tcs = tcs}
   where
-    n = countVars solsys
+    n = countVars cons
 
     fold ::
       SolvedSystem Q ->
@@ -134,7 +130,12 @@ elimDens solsys = do
                   mempty
                   (\a -> if a `elem` [0, 1] then mempty else pure a)
               )
-              $ fmap (Exp.! j) <$> solsys
+              $ V.concat
+                [ -- coeffs from solsys
+                  fmap (Exp.! j) <$> solsys,
+                  -- coeffs from tcs
+                  V.fromList (fmap (Exp.! j) . expFromTc <$> tcs cons)
+                ]
           -- compute lcm of denoms of coeffs
           a :: Q
           a = toRational $ foldr lcm (1 :: Int) dens

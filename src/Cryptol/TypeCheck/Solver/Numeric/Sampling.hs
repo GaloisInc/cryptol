@@ -1,4 +1,10 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE BlockArguments #-}
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
+{-# OPTIONS_GHC -Wno-name-shadowing #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Redundant pure" #-}
 
 
 module Cryptol.TypeCheck.Solver.Numeric.Sampling where
@@ -17,51 +23,12 @@ import Cryptol.TypeCheck.Solver.Numeric.Sampling.System
 import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp as Exp
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Q
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Sampling (sample)
+import Data.Vector.Primitive (Vector(Vector))
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.SolvedSystem (toSolvedSystem, elimDens)
+import qualified Data.Vector as V
 
--- Tries to make a sampler of type `Gen g (TParam, Type)` if the input is in the
+-- Tries to make a sampler of type `[(TParam, Nat')]` if the input is in the
 -- handled domain and a solution is found by the algorithm.
-makeSampler ::
-  forall g.
-  RandomGen g =>
-  [TParam] ->
-  [Prop] ->
-  Maybe (Gen g [(TParam, Nat')])
-makeSampler = undefined
-
-{-
-makeSampler tparams props = do
-  case runsamplingM m of
-    Left err -> panic "makeSampler" ["Error during sampler generation: " ++ show err]
-    Right Nothing -> Nothing
-    Right (Just _) -> undefined
-  where
-    m :: SamplingM (Gen g [(TParam, Nat')])
-    m = do
-      somePrecons <- fromProps tparams props
-      someCon <- fromPreconstraints somePrecons
-      someCon <- case someCon of
-        SomeConstraints con -> do
-          -- gaussian elimination
-          solsys <- case sys con of
-            Left sys -> solveGauss sys
-            Right _ -> panic "makeSampler" ["the system should be initialized as unsolved"]
-          -- cast from Q to Nat'
-          solsys <- elimDens solsys
-          tcs' <- pure $ (\(Tc tcName e) -> Tc tcName (Exp.extendN e)) <$> tcs con
-          tcs' <- mapM (\(Tc tcName e) -> do
-            case mapM fromQ e of
-              Just e' -> pure $ Tc tcName $ Nat <$> e'
-              Nothing -> throwSamplingError undefined
-            ) tcs'
-          -- 
-          pure $ SomeConstraints $ Constraints {
-            sys = Right solsys,
-            tcs = tcs'
-          }
-      -- produce sampler
-      sample someCon
--}
-
 {-
 Steps:
 1. Translate Prop -> Preconstraints
@@ -76,3 +43,31 @@ Steps:
       - if it's already been evaluated, use that value
       - if it's not been evaluated and it's assigned to an expression 
 -}
+makeSampler ::
+  forall g.
+  RandomGen g =>
+  [TParam] ->
+  [Prop] ->
+  GenM g [(TParam, Nat')]
+makeSampler tparams props =
+  runSamplingM m >>= \case 
+    Left err -> panic "makeSampler" ["Error during sampling literals: " ++ show err]
+    Right sampling -> pure sampling
+  where
+    m :: SamplingM (GenM g) [(TParam, Nat')]
+    m = do
+      precons <- fromProps tparams props
+      cons <- fromPreconstraints precons
+      -- solve system
+      cons <- do
+        -- gaussian elimination
+        cons <- overSystem solveGauss cons
+        -- verify gaussian-eliminated form
+        cons <- solveSystemVia toSolvedSystem cons
+        -- eliminate denomenators
+        cons <- elimDens cons
+        -- 
+        pure cons
+      vals <- V.toList <$> sample cons
+      pure (tparams `zip` vals)
+

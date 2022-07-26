@@ -8,26 +8,18 @@ import System.Random.TF.Gen (RandomGen)
 import Cryptol.Testing.Random (Gen)
 
 -- | SamplingM
--- • `ExceptT SamplingError` thows errors during sampling
--- • `ExceptT ()` excepts when can't sample
-type SamplingM m = ExceptT SamplingError (ExceptT () m)
+type SamplingM m = ExceptT SamplingError m
 
 data SamplingError = SamplingError String String
   deriving (Show) -- TODO
 
 -- TODO
--- runsamplingM :: Monad m => SamplingM m a -> m (Either SamplingError (Maybe a))
--- -- runsamplingM m = either (const Nothing) Just <$> runExcept (runExceptT m)
--- runsamplingM m = _ <$> runExceptT (runExceptT m)
+runSamplingM :: Monad m => SamplingM m a -> m (Either SamplingError a)
+runSamplingM = undefined
+-- -- runSamplingM m = either (const Nothing) Just <$> runExcept (runExceptT m)
 
 throwSamplingError :: Monad m => SamplingError -> SamplingM m a
 throwSamplingError = throwError
-
-noSampling :: Monad m => SamplingM m a
-noSampling =
-  -- throwError . SamplingError "sampling" $
-  --   "no sampling"
-  lift . throwError $ ()
 
 -- | GenM
 type GenM g = StateT g (Except SamplingError)
