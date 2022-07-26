@@ -4,9 +4,7 @@
 
 module Cryptol.TypeCheck.Solver.Numeric.Sampling.Preconstraints where
 
-import Data.Finite
 import Cryptol.TypeCheck.Type (TParam, Prop)
-
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Q
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base
@@ -14,11 +12,9 @@ import GHC.TypeNats
 
 -- | Preconstraints
 
-data Preconstraints (n :: Nat)
-
-data SomePreconstraints = forall n. KnownNat n => SomePreconstraints (Preconstraints n)
+data Preconstraints
 
 -- | [TParam] -> [Prop] -> Preconstraints
 
-fromProps :: Monad m => [TParam] -> [Prop] -> samplingM m SomePreconstraints
+fromProps :: Monad m => [TParam] -> [Prop] -> SamplingM m Preconstraints
 fromProps tparams props = undefined

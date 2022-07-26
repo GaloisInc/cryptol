@@ -6,34 +6,34 @@
 
 module Cryptol.TypeCheck.Solver.Numeric.Sampling.Constraints where
 
-import GHC.TypeNats
-
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Q
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.System
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.SolvedSystem
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Preconstraints
+import Data.Vector (Vector)
+import Cryptol.TypeCheck.Type (TParam)
 
 -- | Constraints
 
-data Constraints n a = Constraints 
-  { sys :: System n a
-  , tcs :: [Tc n a]
+data Constraints a = Constraints 
+  { sys :: Either (System a) (SolvedSystem a)
+  , tcs :: [Tc a]
+  , tparams :: Vector TParam -- Var => TParam
   }
-  deriving (Show, Functor)
 
-data SomeConstraints a = forall n. KnownNat n => SomeConstraints (Constraints n a)
-
-deriving instance Show a => Show (SomeConstraints a)
-deriving instance Functor SomeConstraints
-
-data Tc n a = Tc TcName (Exp n a)
+deriving instance Show a => Show (Constraints a)
+data Tc a = Tc TcName (Exp a)
   deriving (Show, Functor)
 
 data TcName = FinTc | PrimTc
   deriving (Show)
 
+countVars :: Constraints a -> Int
+countVars = undefined
+
 -- | Translate Preconstraints -> Constraints
 
-fromPreconstraints :: Monad m => SomePreconstraints -> samplingM m (SomeConstraints Q)
+fromPreconstraints :: Monad m => Preconstraints -> SamplingM m (Constraints Q)
 fromPreconstraints = undefined

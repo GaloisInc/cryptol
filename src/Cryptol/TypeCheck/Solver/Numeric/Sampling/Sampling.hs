@@ -1,106 +1,143 @@
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE MultiWayIf #-}
-
--- infers instances such as KnownNat n => KnownNat (n + n)
-{-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
-{-# OPTIONS_GHC -Wno-name-shadowing #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeOperators #-}
+{-# OPTIONS_GHC -Wno-name-shadowing #-}
 
 module Cryptol.TypeCheck.Solver.Numeric.Sampling.Sampling where
 
 import Control.Monad
-import GHC.Real
-import Data.Maybe
-import qualified Data.List as L
-import Data.Proxy
-import GHC.TypeNats
-import qualified Data.Vector.Sized as V
-import Data.Finite
-import System.Random.TF.Gen (RandomGen)
-import Cryptol.Testing.Random (Gen)
-import Cryptol.TypeCheck.Type
-import Cryptol.TypeCheck.Solver.InfNat
 import Control.Monad.State as State
-import Data.Vector.Sized as V
-
-import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp as Exp
-import Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp
-import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base
-import Cryptol.TypeCheck.Solver.Numeric.Sampling.Q
+import Cryptol.Testing.Random (Gen)
+import Cryptol.TypeCheck.Solver.InfNat
 import qualified Cryptol.TypeCheck.Solver.InfNat as Nat'
-import Cryptol.TypeCheck.Solver.Numeric.Sampling.Constraints
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.Constraints as Constraints
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp
+import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp as Exp
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.Q
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.SolvedSystem as SolvedSystem
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.System as System
+import Cryptol.TypeCheck.Type
+import qualified Data.List as L
+import Data.Maybe
+import Data.Vector (Vector)
+import qualified Data.Vector as V
+import GHC.Real
+import System.Random.TF.Gen (RandomGen)
+import System.Random.TF.Instances (Random (randomR))
+
+data Range = UpperBounds [Exp Nat'] | Single (Exp Nat')
 
 {-
 Sample constraints
 1. Collect upper bounds on each var
 2. Sampling procedure:
-  1. Evaluate each var in order, statefully keeping track of evaluations so far
-  2. To evaluate a var:
-    - if it's already been evaluated, use that value
-    - if it's not been evaluated and it's assigned to an expression 
+  1. Sample each var in order, statefully keeping track of samplings so far
+  2. To sample a var: If it's `Range` is `Single` then the variable's value is
+    equal to the sampling of the one expression, so sample that expression. If
+    it's `Range` is `UpperBounds` then sample each upper-bounding expression
+    then sample a value (TODO: how to weight choice) between `0` and the minimum
+    of the sampled upper-bounding values. Then update the variable's `Range` to
+    be `Single` of the value just sampled for it.
 -}
-sample :: forall g. RandomGen g => SomeConstraints Nat' -> Gen g (TParam, Type)
-sample someCon = case someCon of
-  SomeConstraints con -> sample' con
 
+sample :: forall g. RandomGen g => Constraints Nat' -> SamplingM (GenM g) (Vector Nat')
+sample con = do
+  let nVars = Constraints.countVars con
+      vars = V.generate nVars Var
 
-sample' :: forall g n. (RandomGen g, KnownNat n) => Constraints n Nat' -> Gen g (TParam, Type)
-sample' = undefined
-  where
-    collectRanges :: Constraints n Nat' -> Vector n (Range n)
-    collectRanges = undefined
+  solsys <- case sys con of
+    Left _ -> throwSamplingError $ SamplingError "sampleing" "the system should be solved before sampling"
+    Right solsys -> pure solsys
 
-    getRange :: Finite n -> StateT (Vector n (Range n)) (GenM g) (Range n)
-    getRange i = gets (`V.index` i)
+  -- collect the range of each var
+  rngs <- do
+    let getRange :: Var -> Vector Range -> Range
+        getRange i rngs = rngs V.! unVar i
 
-    evalVar :: Finite n -> StateT (Vector n (Range n)) (GenM g) Nat'
-    evalVar i = do
-      range <- getRange i
-      v <- case range of
-        Range es -> Prelude.minimum <$> evalExp `traverse` es
-        Fixed e -> evalExp e
-      modify (V.// [(i, Fixed $ fromConstant v)])
-      pure v
+        setSingle :: Var -> Exp Nat' -> Vector Range -> Vector Range
+        setSingle i e = (V.// [(unVar i, Single e)])
 
-    evalExp :: Exp n Nat' -> StateT (Vector n (Range n)) (GenM g) Nat'
-    evalExp (Exp as c) = do
-      -- 1. Evaluate all the vars with positive nonzero coefficients
-      -- 2. Evaluate all the vars with negative nonzero coefficients, in an 
-      --    order while updating their range each time and weighting by number 
-      --    of possibilities after choice is made.
+        addUpperBound :: Var -> Exp Nat' -> Vector Range -> Vector Range
+        addUpperBound i e rngs = case getRange i rngs of
+          UpperBounds bnds -> rngs V.// [(unVar i, UpperBounds (e : bnds))]
+          Single _ -> rngs -- upper bounding an equality is a nullop
+    V.foldM
+      ( \rngs (i, mb_e) ->
+          case mb_e of
+            -- register equ for `xi = e` if there are subtractions in `e`,
+            -- then register those upper bounds
+            Just e@(Exp as c) -> do
+              rngs <- pure $ setSingle i e rngs
+              let iNegs = Var <$> V.findIndices (< 0) as -- vars in neg terms
+              -- e' starts off with only pos non-0 terms, then bounds each
+              -- neg term iteratively by subtracting from e' e.g. an example
+              -- sequence of iterations:
+              --    e  = x + y - z - w
+              --    e' := x + y
+              --    z <= e' = x + y
+              --    e' <- x + y - z
+              --    w <= e' = x + y - z
+              let e' = (\a -> if a > 0 then a else 0) <$> e
+              pure . snd $
+                foldr
+                  ( \i' (e', rngs) ->
+                      ( -- re-include negative term of var i'
+                        e' Exp.// [(i', e Exp.! i')],
+                        -- upper bound var i' by current e'
+                        addUpperBound i' e' rngs
+                      )
+                  )
+                  (e', rngs)
+                  iNegs
+            -- if variable is free, then just upper bounded by inf by
+            -- default
+            Nothing -> pure rngs
+      )
+      (V.replicate nVars (UpperBounds [Exp.fromConstant nVars Inf]))
+      (V.generate nVars Var `V.zip` solsys)
 
-      as <- V.foldM
-        -- `e` starts off as the sum of positive terms, then progressively gets 
-        --    subtracted from by each negative valeu that is sampled
-        -- `as` is the new vector being built up
-        (\(e, as) (i, a) ->
-          if | a >  0 -> pure undefined
-             | a <  0 -> pure undefined
-             | otherwise {- a == 0 -} -> pure (e, as) 
-        )
-        (undefined :: Exp n Nat', V.replicate _)
-        (generate id `V.zip` as)
-        :: StateT (Vector n (Range n)) (GenM g) (Exp n Nat', Vector n a)
+  -- sample all the vars
+  do
+    let getRange :: Var -> StateT (Vector Range) (GenM g) Range
+        getRange i = gets (V.! unVar i)
 
+        sampleNat' :: Nat' -> GenM g Nat'
+        sampleNat' Inf = Nat <$> toGenM (randomR (0, 10)) -- FIX: placeholder max
+        sampleNat' (Nat n) = Nat <$> toGenM (randomR (0, n))
 
-      -- -- FIX: this naive approach doesn't work with negative values
-      -- -- vars with nonzero coefficients need to be evaluated
-      -- (c +) <$> 
-      --   V.foldM
-      --     (\v (i, a) -> (v +) . (a *) <$> 
-      --       if a == 0 
-      --         then pure 0 -- vars with zero coefficients neen not be evaluated yet
-      --         else evalVar i)
-      --     0
-      --     (generate id `V.zip` as)
-      
-      undefined
-      
+        sampleVar :: Var -> StateT (Vector Range) (GenM g) Nat'
+        sampleVar i = do
+          range <- getRange i
+          -- sample from `Range`
+          val <- case range of
+            UpperBounds es -> do
+              -- upper bound
+              n <- minimum <$> sampleExp `traverse` es
+              lift $ sampleNat' n -- TODO: weight choices
+            Single e -> sampleExp e
+          -- update `Range` to be `xi = val`
+          modify (V.// [(unVar i, Single $ fromConstant nVars val)])
+          --
+          pure val
 
-data Range n = Range [Exp n Nat'] | Fixed (Exp n Nat')
+        sampleExp :: Exp Nat' -> StateT (Vector Range) (GenM g) Nat'
+        sampleExp (Exp as c) =
+          -- only sampleuates terms that have non-0 coeff
+          (c +) . V.sum
+            <$> ( \(i, a) ->
+                    if a /= 0
+                      then sampleVar i
+                      else pure 0
+                )
+            `traverse` (vars `V.zip` as)
+
+    -- sample all the vars
+    lift . lift $
+      (evalStateT (sampleVar `traverse` vars) rngs :: GenM g (Vector Nat'))

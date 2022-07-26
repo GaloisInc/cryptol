@@ -1,7 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
-{-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
-{-# OPTIONS_GHC -Wno-name-shadowing #-}
 
 module Cryptol.TypeCheck.Solver.Numeric.Sampling where
 
@@ -10,6 +8,7 @@ import Cryptol.TypeCheck.AST
 import System.Random.TF.Gen (RandomGen)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.TypeCheck.Solver.InfNat
+import GHC.TypeNats
 
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Preconstraints
@@ -26,39 +25,43 @@ makeSampler ::
   RandomGen g =>
   [TParam] ->
   [Prop] ->
-  Maybe (Gen g (TParam, Type))
+  Maybe (Gen g [(TParam, Nat')])
+makeSampler = undefined
+
+{-
 makeSampler tparams props = do
   case runsamplingM m of
     Left err -> panic "makeSampler" ["Error during sampler generation: " ++ show err]
     Right Nothing -> Nothing
     Right (Just _) -> undefined
-  where 
-    m :: SamplingM (Gen g (TParam, Type))
+  where
+    m :: SamplingM (Gen g [(TParam, Nat')])
     m = do
       somePrecons <- fromProps tparams props
       someCon <- fromPreconstraints somePrecons
-      -- gaussian elimination
       someCon <- case someCon of
         SomeConstraints con -> do
-          sys' <- elimGauss (sys con)
-          pure $ SomeConstraints (con {sys = sys'})
-      -- cast everything from Q to Nat'
-      someCon <- case someCon of
-        SomeConstraints con -> do
-          sys' <- elimDens (sys con)
+          -- gaussian elimination
+          solsys <- case sys con of
+            Left sys -> solveGauss sys
+            Right _ -> panic "makeSampler" ["the system should be initialized as unsolved"]
+          -- cast from Q to Nat'
+          solsys <- elimDens solsys
           tcs' <- pure $ (\(Tc tcName e) -> Tc tcName (Exp.extendN e)) <$> tcs con
           tcs' <- mapM (\(Tc tcName e) -> do
             case mapM fromQ e of
               Just e' -> pure $ Tc tcName $ Nat <$> e'
-              Nothing -> throwSamplingError undefined 
+              Nothing -> throwSamplingError undefined
             ) tcs'
+          -- 
           pure $ SomeConstraints $ Constraints {
-            sys = sys',
+            sys = Right solsys,
             tcs = tcs'
           }
       -- produce sampler
-      pure $ sample someCon
-  
+      sample someCon
+-}
+
 {-
 Steps:
 1. Translate Prop -> Preconstraints
