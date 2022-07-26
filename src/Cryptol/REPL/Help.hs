@@ -111,9 +111,14 @@ showSigHelp _env _nameEnv name info =
              , indent 2 (vcat [ " ", ppTPs, ppCtrs, ppFPs ])
              ]
 
-  withDoc mb x = case mb of
-                   Nothing -> x
-                   Just d  -> vcat [x, indent 2 (pp d)]
+  withMaybeNest mb x =
+    case mb of
+      Nothing -> x
+      Just d  -> vcat [x, indent 2 d]
+
+  withDoc mb = withMaybeNest (pp <$> mb)
+  withFix mb = withMaybeNest (text . ppFixity <$> mb)
+
 
   ppTPs  = vcat (map ppTP (Map.elems (T.mpnTypes info)))
   ppTP x = withDoc (T.mtpDoc x)
@@ -126,7 +131,8 @@ showSigHelp _env _nameEnv name info =
   ppCtr x = pp (P.thing x)
 
   ppFPs  = vcat (map ppFP (Map.elems (T.mpnFuns info)))
-  ppFP x = withDoc (T.mvpDoc x)
+  ppFP x = withFix (T.mvpFixity x)
+         $ withDoc (T.mvpDoc x)
          $ hsep [pp (T.mvpName x), ":" <+> pp (T.mvpType x) ]
 
 
@@ -187,20 +193,6 @@ doShowTyHelp nameEnv decl doc =
      rPrint (runDoc nameEnv (nest 4 decl))
      doShowDocString doc
 
-
-doShowFix :: Maybe T.Fixity -> REPL ()
-doShowFix fx =
-  case fx of
-    Just f  ->
-      let msg = "Precedence " ++ show (P.fLevel f) ++ ", " ++
-                 (case P.fAssoc f of
-                    P.LeftAssoc   -> "associates to the left."
-                    P.RightAssoc  -> "associates to the right."
-                    P.NonAssoc    -> "does not associate.")
-
-      in rPutStrLn ('\n' : msg)
-
-    Nothing -> return ()
 
 
 showValHelp ::
@@ -265,5 +257,17 @@ doShowDocString doc =
     Nothing -> pure ()
     Just d  -> rPutStrLn ('\n' : Text.unpack d)
 
+ppFixity :: T.Fixity -> String
+ppFixity f = "Precedence " ++ show (P.fLevel f) ++ ", " ++
+               case P.fAssoc f of
+                 P.LeftAssoc   -> "associates to the left."
+                 P.RightAssoc  -> "associates to the right."
+                 P.NonAssoc    -> "does not associate."
+
+doShowFix :: Maybe T.Fixity -> REPL ()
+doShowFix fx =
+  case fx of
+    Just f  -> rPutStrLn ('\n' : ppFixity f)
+    Nothing -> return ()
 
 
