@@ -13,7 +13,7 @@ import Data.List(intersperse)
 import Control.Monad(when,guard,unless,msum,mplus)
 
 import Cryptol.Utils.PP
-import Cryptol.Utils.Ident(OrigName(..))
+import Cryptol.Utils.Ident(OrigName(..),identIsNormal)
 import qualified Cryptol.Parser.AST as P
 import qualified Cryptol.ModuleSystem as M
 import qualified Cryptol.ModuleSystem.Name as M
@@ -131,7 +131,7 @@ showSigHelp _env _nameEnv name info =
 
 
 showTypeHelp :: T.FunctorParams -> M.IfaceDecls -> NameDisp -> T.Name -> REPL ()
-showTypeHelp mbParams env nameEnv name =
+showTypeHelp fparams env nameEnv name =
   fromMaybe (noInfo nameEnv name) $
   msum [ fromTySyn, fromPrimType, fromNewtype, fromTyParam ]
 
@@ -166,25 +166,19 @@ showTypeHelp mbParams env nameEnv name =
                  doShowFix (T.atFixitiy a)
                  doShowDocString (T.atDoc a)
 
-  fromTyParam = Nothing -- XXX
-{-
-    do hasPs <- mbParams
-       case hasPs of
-         M.NewStyle {} -> undefined -- XXX
-         M.OldStyle params ->
-           do p <- Map.lookup name (M.ifParamTypes params)
-              let uses c = T.TVBound (T.mtpParam p) `Set.member` T.fvs c
-                  ctrs = filter uses (map P.thing (M.ifParamConstraints params))
-                  ctrDoc = case ctrs of
-                             []  -> []
-                             [x] -> [pp x]
-                             xs  -> [parens $ commaSep $ map pp xs]
-                  decl = vcat $
-                           [ text "parameter" <+> pp name <+> text ":"
-                             <+> pp (T.mtpKind p) ]
-                           ++ ctrDoc
-              return $ doShowTyHelp nameEnv decl (T.mtpDoc p)
--}
+  allParamNames =
+    Map.unions
+      [ (\x -> (p,x)) <$> T.mpnTypes (T.mpParameters ps)
+      | (p, ps) <- Map.toList fparams
+      ]
+
+  fromTyParam =
+    do (x,p) <- Map.lookup name allParamNames
+       pure do rPutStrLn ""
+               doShowParameterSource x
+               let ty = "type" <+> pp name <+> ":" <+> pp (T.mtpKind p)
+               rPrint (runDoc nameEnv (indent 4 ty))
+               doShowDocString (T.mtpDoc p)
 
 
 doShowTyHelp :: NameDisp -> Doc -> Maybe Text -> REPL ()
@@ -212,7 +206,7 @@ doShowFix fx =
 showValHelp ::
   T.FunctorParams -> M.IfaceDecls -> NameDisp -> P.PName -> T.Name -> REPL ()
 
-showValHelp mbParams env nameEnv qname name =
+showValHelp fparams env nameEnv qname name =
   fromMaybe (noInfo nameEnv name)
             (msum [ fromDecl, fromNewtype, fromParameter ])
   where
@@ -239,24 +233,30 @@ showValHelp mbParams env nameEnv qname name =
     do _ <- Map.lookup name (M.ifNewtypes env)
        return $ return ()
 
-  fromParameter = Nothing -- XXX
-{-
-    do hasPs <- mbParams
-       case hasPs of
-         M.NewStyle {} -> undefined -- XXX
-         M.OldStyle params ->
-           do p <- Map.lookup name (M.ifParamFuns params)
-              return $
-                do rPutStrLn ""
-                   rPrint $ runDoc nameEnv
-                          $ indent 4
-                          $ text "parameter" <+> pp qname
-                                             <+> colon
-                                             <+> pp (T.mvpType p)
+  allParamNames =
+    Map.unions
+      [ (\x -> (p,x)) <$> T.mpnFuns (T.mpParameters ps)
+      | (p, ps) <- Map.toList fparams
+      ]
 
-                   doShowFix (T.mvpFixity p)
-                   doShowDocString (T.mvpDoc p)
--}
+  fromParameter =
+    do (x,p) <- Map.lookup name allParamNames
+       pure do rPutStrLn ""
+               doShowParameterSource x
+               let ty = pp name <+> ":" <+> pp (T.mvpType p)
+               rPrint (runDoc nameEnv (indent 4 ty))
+               doShowFix (T.mvpFixity p)
+               doShowDocString (T.mvpDoc p)
+
+
+doShowParameterSource :: P.Ident -> REPL ()
+doShowParameterSource i =
+  do rPutStrLn (Text.unpack msg)
+     rPutStrLn ""
+  where
+  msg
+    | identIsNormal i = "Provided by module parameter " <> P.identText i
+    | otherwise       = "Provided by `parameters` declaration"
 
 
 doShowDocString :: Maybe Text -> REPL ()

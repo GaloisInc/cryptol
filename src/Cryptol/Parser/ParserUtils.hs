@@ -47,7 +47,8 @@ import Cryptol.Parser.Utils (translateExprToNumT,widthIdent)
 import Cryptol.Utils.Ident( packModName,packIdent,modNameChunks
                           , identAnonArg, identAnonIfaceMod
                           , modNameArg, modNameIfaceMod
-                          , modNameToText
+                          , modNameToText, modNameIsNormal
+                          , modNameToNormalModName
                           )
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic
@@ -208,7 +209,13 @@ mkModParamName lsig qual =
   case qual of
     Nothing ->
       case thing lsig of
-        ImpTop t -> packIdent (last (modNameChunks t))
+        ImpTop t
+          | modNameIsNormal t -> packIdent (last (modNameChunks t))
+          | otherwise         -> identAnonIfaceMod
+                               $ packIdent
+                               $ last
+                               $ modNameChunks
+                               $ modNameToNormalModName t
         ImpNested nm ->
           case nm of
             UnQual i -> i
