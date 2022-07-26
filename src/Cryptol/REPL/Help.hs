@@ -20,6 +20,7 @@ import qualified Cryptol.ModuleSystem.Name as M
 import qualified Cryptol.ModuleSystem.NamingEnv as M
 import qualified Cryptol.ModuleSystem.Env as M
 import qualified Cryptol.ModuleSystem.Interface as M
+import qualified Cryptol.ModuleSystem.Renamer.Error as M (ModKind(..))
 import qualified Cryptol.TypeCheck.AST as T
 import Cryptol.TypeCheck.PP(emptyNameMap,ppWithNames)
 
@@ -75,41 +76,123 @@ showModHelp env nameEnv name =
 
 showModuleHelp ::
   M.IfaceDecls -> NameDisp -> M.Name -> M.IfaceNames M.Name -> REPL ()
-showModuleHelp _env nameEnv name info =
-  do rPrint $ runDoc nameEnv $ indent 4 $ vcat [ " ", ppM ]
-     doShowDocString (M.ifsDoc info)
+showModuleHelp env _nameEnv name info =
+  showSummary M.AModule name (M.ifsDoc info) (ifaceSummary env info)
 
+ifaceSummary :: M.IfaceDecls -> M.IfaceNames M.Name -> ModSummary
+ifaceSummary env info =
+    foldr addName emptySummary (Set.toList (M.ifsPublic info))
   where
-  ppM = vcat [ "module" <+> pp name <+> "exports:"
-             , indent 2 (vcat (map ppN (Set.toList (M.ifsPublic info))))
-             ]
-  ppN x = pp x
+  addName x ns = fromMaybe ns
+               $ msum [ addT <$> msum [fromTS, fromNT, fromAT]
+                      , addV <$> fromD
+                      , addM <$> msum [ fromM, fromS, fromF ]
+                      ]
+    where
+    addT (k,d) = ns { msTypes = T.ModTParam { T.mtpName = x
+                                            , T.mtpKind = k
+                                            , T.mtpDoc  = d
+                                            } : msTypes ns }
+
+    addV (t,d,f) = ns { msVals = T.ModVParam { T.mvpName = x
+                                             , T.mvpType = t
+                                             , T.mvpDoc  = d
+                                             , T.mvpFixity = f
+                                             } : msVals ns }
+
+    addM (k,d)= ns { msMods = (x, k, d) : msMods ns }
+
+
+    fromTS = do def <- Map.lookup x (M.ifTySyns env)
+                pure (T.kindOf def, T.tsDoc def)
+
+    fromNT = do def <- Map.lookup x (M.ifNewtypes env)
+                pure (T.kindOf def, T.ntDoc def)
+
+    fromAT = do def <- Map.lookup x (M.ifAbstractTypes env)
+                pure (T.kindOf def, T.atDoc def)
+
+    fromD = do def <- Map.lookup x (M.ifDecls env)
+               pure (M.ifDeclSig def, M.ifDeclDoc def, M.ifDeclFixity def)
+
+    fromM = do def <- Map.lookup x (M.ifModules env)
+               pure (M.AModule, M.ifsDoc def)
+
+    fromF = do def <- Map.lookup x (M.ifFunctors env)
+               pure (M.AFunctor, M.ifsDoc (M.ifNames def))
+
+    fromS = do def <- Map.lookup x (M.ifSignatures env)
+               pure (M.ASignature, T.mpnDoc def)
+
 
 
 showFunctorHelp ::
   M.IfaceDecls -> NameDisp -> M.Name -> M.IfaceG M.Name -> REPL ()
-showFunctorHelp env nameEnv name info =
-  rPrint $ runDoc nameEnv
-         $ vcat [ "`" <> pp name <> "` is a parameterized submodule." ]
+showFunctorHelp _env _nameEnv name info =
+  showSummary M.AFunctor name (M.ifsDoc ns) summary
+  where
+  ns      = M.ifNames info
+  summary = (ifaceSummary (M.ifDefines info) ns)
+                { msParams = [ (T.mpName p, T.mpSignature p)
+                             | p <- Map.elems (M.ifParams info)
+                             ]
+                }
+
 
 showSigHelp ::
   M.IfaceDecls -> NameDisp -> M.Name -> T.ModParamNames -> REPL ()
 showSigHelp _env _nameEnv name info =
+  showSummary M.ASignature name (T.mpnDoc info)
+    emptySummary
+      { msTypes = Map.elems (T.mpnTypes info)
+      , msVals  = Map.elems (T.mpnFuns info)
+      , msConstraints = map P.thing (T.mpnConstraints info)
+      }
+
+--------------------------------------------------------------------------------
+data ModSummary = ModSummary
+  { msParams      :: [(P.Ident, P.ImpName M.Name)]
+  , msConstraints :: [T.Prop]
+  , msTypes       :: [T.ModTParam]
+  , msVals        :: [T.ModVParam]
+  , msMods        :: [ (M.Name, M.ModKind, Maybe Text) ]
+  }
+
+emptySummary :: ModSummary
+emptySummary = ModSummary
+  { msParams      = []
+  , msConstraints = []
+  , msTypes       = []
+  , msVals        = []
+  , msMods        = []
+  }
+
+showSummary :: M.ModKind -> M.Name -> Maybe Text -> ModSummary -> REPL ()
+showSummary k name doc info =
   do rPutStrLn ""
-     ppDoc (indent 4 ppS)
-     case T.mpnDoc info of
-       Just d -> do rPutStrLn ""
-                    rPutStrLn (Text.unpack d)
-       Nothing -> pure ()
+
+     rPrint $ runDoc disp
+        case k of
+          M.AModule    ->
+            vcat [ "Module" <+> pp name <+> "exports:"
+                 , indent 2 $ vcat [ ppTPs, ppFPs ]
+                 ]
+          M.ASignature ->
+            vcat [ "Interface" <+> pp name <+> "requires:"
+                 , indent 2 $ vcat [ ppTPs, ppCtrs, ppFPs ]
+                 ]
+          M.AFunctor ->
+            vcat [ "Parameterized module" <+> pp name <+> "requires:"
+                 , indent 2 $ ppPs
+                 , " ", "and exports:"
+                 , indent 2 $ vcat [ ppTPs, ppFPs ]
+                 ]
+
+     doShowDocString doc
 
   where
   -- qualifying stuff is too noisy
   disp        = NameDisp \_ -> Just UnQualified
-  ppDoc d     = rPrint (runDoc disp d)
-
-  ppS = vcat [ "interface" <+> pp name <+> "requires:"
-             , indent 2 (vcat [ " ", ppTPs, ppCtrs, ppFPs ])
-             ]
 
   withMaybeNest mb x =
     case mb of
@@ -118,22 +201,29 @@ showSigHelp _env _nameEnv name info =
 
   withDoc mb = withMaybeNest (pp <$> mb)
   withFix mb = withMaybeNest (text . ppFixity <$> mb)
+  ppMany xs  = case xs of
+                 [] -> mempty
+                 _  -> vcat (" " : xs)
+
+  ppPs = ppMany (map ppP (msParams info))
+  ppP (x,y)
+    | identIsNormal x = pp x <+> ": interface" <+> pp y
+    | otherwise = "(anonymous parameter)"
 
 
-  ppTPs  = vcat (map ppTP (Map.elems (T.mpnTypes info)))
+  ppTPs  = ppMany (map ppTP (msTypes info))
   ppTP x = withDoc (T.mtpDoc x)
          $ hsep ["type", pp (T.mtpName x), ":", pp (T.mtpKind x)]
 
-  ppCtrs = case T.mpnConstraints info of
-             [] -> mempty
-             cs -> vcat [" ", "satisfying:"
-                        , indent 2 (vcat (map ppCtr cs)), " "]
-  ppCtr x = pp (P.thing x)
+  ppCtrs = ppMany (map pp (msConstraints info))
 
-  ppFPs  = vcat (map ppFP (Map.elems (T.mpnFuns info)))
+  ppFPs  = ppMany (map ppFP (msVals info))
   ppFP x = withFix (T.mvpFixity x)
          $ withDoc (T.mvpDoc x)
          $ hsep [pp (T.mvpName x), ":" <+> pp (T.mvpType x) ]
+--------------------------------------------------------------------------------
+
+
 
 
 showTypeHelp :: T.FunctorParams -> M.IfaceDecls -> NameDisp -> T.Name -> REPL ()
@@ -247,8 +337,8 @@ doShowParameterSource i =
      rPutStrLn ""
   where
   msg
-    | identIsNormal i = "Provided by module parameter " <> P.identText i
-    | otherwise       = "Provided by `parameters` declaration"
+    | identIsNormal i = "Provided by module parameter " <> P.identText i <> "."
+    | otherwise       = "Provided by `parameters` declaration."
 
 
 doShowDocString :: Maybe Text -> REPL ()
