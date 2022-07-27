@@ -5,27 +5,31 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Redundant pure" #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
 
 module Cryptol.TypeCheck.Solver.Numeric.Sampling where
 
 import Cryptol.Testing.Random
 import Cryptol.TypeCheck.AST
+import Cryptol.TypeCheck.TCon
 import System.Random.TF.Gen (RandomGen)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.TypeCheck.Solver.InfNat
-import GHC.TypeNats
-
+import Cryptol.TypeCheck.Subst
+import Control.Monad.Trans
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Preconstraints
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Constraints
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.System
 import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp as Exp
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Q
-import Cryptol.TypeCheck.Solver.Numeric.Sampling.Sampling (sample)
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.Sampling as Sampling
 import Data.Vector.Primitive (Vector(Vector))
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.SolvedSystem (toSolvedSystem, elimDens)
 import qualified Data.Vector as V
+import Control.Monad
+import Data.Bifunctor (Bifunctor(first))
 
 -- Tries to make a sampler of type `[(TParam, Nat')]` if the input is in the
 -- handled domain and a solution is found by the algorithm.
@@ -43,18 +47,22 @@ Steps:
       - if it's already been evaluated, use that value
       - if it's not been evaluated and it's assigned to an expression 
 -}
-makeSampler ::
+
+type Sample = [(TParam, Type)]
+
+sample ::
   forall g.
   RandomGen g =>
   [TParam] ->
   [Prop] ->
-  GenM g [(TParam, Nat')]
-makeSampler tparams props =
-  runSamplingM m >>= \case 
-    Left err -> panic "makeSampler" ["Error during sampling literals: " ++ show err]
+  Int ->
+  GenM g [Sample]
+sample tparams props nSamples =
+  runSamplingM m >>= \case
+    Left err -> panic "sample" ["Error during sampling literals: " ++ show err]
     Right sampling -> pure sampling
   where
-    m :: SamplingM (GenM g) [(TParam, Nat')]
+    m :: SamplingM (GenM g) [Sample]
     m = do
       precons <- fromProps tparams props
       cons <- fromPreconstraints precons
@@ -68,6 +76,23 @@ makeSampler tparams props =
         cons <- elimDens cons
         -- 
         pure cons
-      vals <- V.toList <$> sample cons
-      pure (tparams `zip` vals)
+      -- sample `nSamples` number of times
+      replicateM nSamples do
+        vals <- V.toList <$> Sampling.sample cons
+        pure (tparams `zip` ((\v -> TCon (TC (TCNum v)) []) <$> vals))
 
+-- applySample :: Sample -> Type -> Type
+-- applySample sample = apSubst subst
+--   where
+--     subst = listSubst $ first TVBound <$> sample
+
+applySample :: Sample -> Schema -> Schema
+applySample sample Forall {sVars, sProps, sType} = 
+  Forall {
+    -- only keep vars that are not substituted by sample
+    sVars = filter (not . (`elem` (fst <$> sample))) sVars,
+    sProps = apSubst subst sProps,
+    sType = apSubst subst sType
+  }
+  where
+    subst = listSubst $ first TVBound <$> sample

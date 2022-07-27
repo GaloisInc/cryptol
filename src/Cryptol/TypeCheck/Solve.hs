@@ -8,6 +8,7 @@
 
 {-# LANGUAGE PatternGuards, BangPatterns, RecordWildCards #-}
 {-# LANGUAGE Trustworthy #-}
+{-# LANGUAGE NamedFieldPuns #-}
 module Cryptol.TypeCheck.Solve
   ( simplifyAllConstraints
   , proveImplication
@@ -43,6 +44,9 @@ import           Data.Set ( Set )
 import qualified Data.Set as Set
 import           Data.List(partition)
 import           Data.Maybe(listToMaybe,fromMaybe)
+import System.Random.TF (newTFGen)
+import Cryptol.TypeCheck.Solver.Numeric.Sampling (sample, applySample)
+import Control.Monad.State (evalState)
 
 
 
@@ -147,6 +151,28 @@ addIncompatible g i =
 
 --------------------------------------------------------------------------------
 
+-- For the polymorphic literals in a schema, uses a custom constraint-solver to
+-- sample over the solution space. Returns a list of Schemas, where each Schema
+-- corresponds to a sampled solution applied to that Schema (i.e. the solution's
+-- substituion is applied to the Schema and the params that corresponded to the
+-- substituted variables are omitted). If there are no polymorphic literals,
+-- then Nothing.
+-- TODO: explain sampling distributions
+sampleLiterals ::
+  Solver -> Schema -> Int ->
+  IO (Maybe [Schema])
+sampleLiterals sol schema@Forall {sVars, sProps} nSamples = do
+  g <- newTFGen
+  -- let (literalVars, otherVars) = partition ((KNum ==) . tpKind) sVars
+  let literalVars = filter ((KNum ==) . tpKind) sVars
+  if null literalVars then
+    -- there are no literal vars to sample
+    pure Nothing
+  else Just <$> do
+    -- there are some literal vars to sample
+    -- each sample in `samples` is a type var subst
+    let samples = evalState (sample literalVars sProps nSamples) g
+    pure $ flip applySample schema <$> samples
 
 defaultReplExpr :: Solver -> Expr -> Schema ->
                     IO (Maybe ([(TParam,Type)], Expr))

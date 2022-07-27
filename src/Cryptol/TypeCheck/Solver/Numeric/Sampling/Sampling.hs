@@ -48,7 +48,7 @@ Sample constraints
 -}
 
 -- TODO: make use of `fin` type constraint
-sample :: forall g. RandomGen g => Constraints Nat' -> SamplingM (GenM g) (Vector Nat')
+sample :: forall g. RandomGen g => Constraints Nat' -> SamplingM (GenM g) (Vector Integer)
 sample con = do
   let nVars = Constraints.countVars con
       vars = V.generate nVars Var
@@ -110,7 +110,7 @@ sample con = do
         getRange i = gets (V.! unVar i)
 
         sampleNat' :: Nat' -> GenM g Nat'
-        sampleNat' Inf = Nat <$> toGenM (randomR (0, 10)) -- FIX: placeholder max
+        sampleNat' Inf = Nat <$> toGenM (randomR (0, 10)) -- TODO: actually, sample exp dist up to MAX_INT
         sampleNat' (Nat n) = Nat <$> toGenM (randomR (0, n))
 
         sampleVar :: Var -> StateT (Vector Range) (GenM g) Nat'
@@ -140,4 +140,10 @@ sample con = do
             `traverse` (vars `V.zip` as)
 
     -- sample all the vars
-    lift $ evalStateT (sampleVar `traverse` vars) rngs
+    vals <- lift $ evalStateT (sampleVar `traverse` vars) rngs 
+
+    -- cast to Integer
+    let fromNat' :: Nat' -> Integer
+        fromNat' Inf = integer_max
+        fromNat' (Nat n) = n
+    pure $ fromNat' <$> vals

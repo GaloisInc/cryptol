@@ -425,6 +425,8 @@ data TestReport = TestReport
   , reportTestsPossible :: Maybe Integer
   }
 
+-- TODO: add another layer of random testing, which is testing over ranges of
+-- different instantiations of numeric type vars
 qcExpr ::
   QCMode ->
   Doc ->
@@ -434,10 +436,11 @@ qcExpr ::
 qcExpr qcMode exprDoc texpr schema =
   do (val,ty) <- replEvalCheckedExpr texpr schema >>= \case
        Just res -> pure res
-       -- If instance is not found, doesn't necessarily mean that there is no instance.
-       -- And due to nondeterminism in result from the solver (for finding solution to 
-       -- numeric type constraints), `:check` can get to this exception sometimes, but
-       -- successfully find an instance and test with it other times.
+       -- If instance is not found, doesn't necessarily mean that there is no
+       -- instance. And due to nondeterminism in result from the solver (for
+       -- finding solution to numeric type constraints), `:check` can get to
+       -- this exception sometimes, but successfully find an instance and test
+       -- with it other times.
        Nothing -> raise (InstantiationsNotFound schema)
      testNum <- (toInteger :: Int -> Integer) <$> getKnownUser "tests"
      tenv <- E.envTypes . M.deEnv <$> getDynEnv
