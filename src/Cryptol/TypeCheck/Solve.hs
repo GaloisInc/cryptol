@@ -15,6 +15,7 @@ module Cryptol.TypeCheck.Solve
   , proveModuleTopLevel
   , defaultAndSimplify
   , defaultReplExpr
+  , sampleLiterals
   ) where
 
 import           Cryptol.Parser.Position(thing,emptyRange)
@@ -159,9 +160,9 @@ addIncompatible g i =
 -- then Nothing.
 -- TODO: explain sampling distributions
 sampleLiterals ::
-  Solver -> Schema -> Int ->
+  Schema -> Int ->
   IO (Maybe [Schema])
-sampleLiterals sol schema@Forall {sVars, sProps} nSamples = do
+sampleLiterals schema@Forall {sVars, sProps} nLiteralSamples = do
   g <- newTFGen
   -- let (literalVars, otherVars) = partition ((KNum ==) . tpKind) sVars
   let literalVars = filter ((KNum ==) . tpKind) sVars
@@ -171,7 +172,7 @@ sampleLiterals sol schema@Forall {sVars, sProps} nSamples = do
   else Just <$> do
     -- there are some literal vars to sample
     -- each sample in `samples` is a type var subst
-    let samples = evalState (sample literalVars sProps nSamples) g
+    let samples = evalState (sample literalVars sProps nLiteralSamples) g
     pure $ flip applySample schema <$> samples
 
 defaultReplExpr :: Solver -> Expr -> Schema ->

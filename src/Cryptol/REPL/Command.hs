@@ -16,6 +16,8 @@
 {-# LANGUAGE RecordWildCards #-}
 -- See Note [-Wincomplete-uni-patterns and irrefutable patterns] in Cryptol.TypeCheck.TypePat
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Use camelCase" #-}
 module Cryptol.REPL.Command (
     -- * Commands
     Command(..), CommandDescr(..), CommandBody(..), CommandExitCode(..)
@@ -86,7 +88,7 @@ import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck.Error as T
 import qualified Cryptol.TypeCheck.Parseable as T
 import qualified Cryptol.TypeCheck.Subst as T
-import           Cryptol.TypeCheck.Solve(defaultReplExpr)
+import           Cryptol.TypeCheck.Solve(defaultReplExpr,sampleLiterals)
 import           Cryptol.TypeCheck.PP (dump,ppWithNames,emptyNameMap)
 import           Cryptol.Utils.PP hiding ((</>))
 import           Cryptol.Utils.Panic(panic)
@@ -396,6 +398,53 @@ data QCMode = QCRandom | QCExhaust deriving (Eq, Show)
 -- of values in the type under test is smaller than the @tests@
 -- environment variable, or we specify exhaustive testing.
 qcCmd :: QCMode -> String -> (Int,Int) -> Maybe FilePath -> REPL ()
+qcCmd qcMode str pos fnm = do
+  -- (qcMde, doc, texpr, schema) <- case str of 
+  case str of 
+    "" -> do
+      (xs,disp) <- getPropertyNames
+      let nameStr x = show (fixNameDisp disp (pp x))
+      if null xs
+      then do
+        rPutStrLn "There are no properties in scope."
+      else 
+        forM_ xs $ \(x,d) -> do
+          let str = nameStr x
+          rPutStr $ "property " ++ str ++ " "
+          let texpr = T.EVar x
+          let schema = M.ifDeclSig d
+          nd <- M.mctxNameDisp <$> getFocusedEnv
+          let doc = fixNameDisp nd (pp texpr)
+          -- void (qcExpr qcMode doc texpr schema)
+          go doc texpr schema
+    _ -> do
+      expr <- replParseExpr str pos fnm
+      (_,texpr,schema) <- replCheckExpr expr
+      nd <- M.mctxNameDisp <$> getFocusedEnv
+      let doc = fixNameDisp nd (ppPrec 3 expr) -- function application has precedence 3
+      -- void (qcExpr qcMode doc texpr schema)
+      go doc texpr schema
+  where
+    go doc texpr schema = case qcMode of 
+      QCExhaust -> do
+        testNum <- (toInteger :: Int -> Integer) <$> getKnownUser "tests"
+        void (qcExpr qcMode doc texpr schema testNum)
+      QCRandom -> do 
+        testNum <- (toInteger :: Int -> Integer) <$> getKnownUser "tests"
+        useLitSampling <- getKnownUser "literal-sampling" :: REPL Bool
+        if useLitSampling then do
+          litBinSize <- (toInteger :: Int -> Integer) <$> getKnownUser "literal-sampling-bin-size"
+          let litSamplesNum = testNum `div` litBinSize
+          io (sampleLiterals schema (fromInteger litSamplesNum)) >>= \case
+            Just schemas ->
+              (\schema' -> qcExpr qcMode doc texpr schema' testNum)
+                `mapM_` schemas
+            Nothing -> do
+              void (qcExpr qcMode doc texpr schema testNum)
+        else
+          void (qcExpr qcMode doc texpr schema testNum)
+
+{- OLD
 qcCmd qcMode "" _pos _fnm =
   do (xs,disp) <- getPropertyNames
      let nameStr x = show (fixNameDisp disp (pp x))
@@ -416,7 +465,7 @@ qcCmd qcMode str pos fnm =
      nd <- M.mctxNameDisp <$> getFocusedEnv
      let doc = fixNameDisp nd (ppPrec 3 expr) -- function application has precedence 3
      void (qcExpr qcMode doc texpr schema)
-
+-}
 
 data TestReport = TestReport
   { reportExpr :: Doc
@@ -425,15 +474,14 @@ data TestReport = TestReport
   , reportTestsPossible :: Maybe Integer
   }
 
--- TODO: add another layer of random testing, which is testing over ranges of
--- different instantiations of numeric type vars
 qcExpr ::
   QCMode ->
   Doc ->
   T.Expr ->
   T.Schema ->
+  Integer ->
   REPL TestReport
-qcExpr qcMode exprDoc texpr schema =
+qcExpr qcMode exprDoc texpr schema testNum =
   do (val,ty) <- replEvalCheckedExpr texpr schema >>= \case
        Just res -> pure res
        -- If instance is not found, doesn't necessarily mean that there is no
@@ -442,7 +490,8 @@ qcExpr qcMode exprDoc texpr schema =
        -- this exception sometimes, but successfully find an instance and test
        -- with it other times.
        Nothing -> raise (InstantiationsNotFound schema)
-     testNum <- (toInteger :: Int -> Integer) <$> getKnownUser "tests"
+     -- pulled out as param of `qcExpr`
+     -- testNum <- (toInteger :: Int -> Integer) <$> getKnownUser "tests"
      tenv <- E.envTypes . M.deEnv <$> getDynEnv
      let tyv = E.evalValType tenv ty
      -- tv has already had polymorphism instantiated 

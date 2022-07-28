@@ -57,7 +57,7 @@ sample ::
   [Prop] ->
   Int ->
   GenM g [Sample]
-sample tparams props nSamples =
+sample tparams props nLiteralSamples =
   runSamplingM m >>= \case
     Left err -> panic "sample" ["Error during sampling literals: " ++ show err]
     Right sampling -> pure sampling
@@ -76,8 +76,8 @@ sample tparams props nSamples =
         cons <- elimDens cons
         -- 
         pure cons
-      -- sample `nSamples` number of times
-      replicateM nSamples do
+      -- sample `nLiteralSamples` number of times
+      replicateM nLiteralSamples do
         vals <- V.toList <$> Sampling.sample cons
         pure (tparams `zip` ((\v -> TCon (TC (TCNum v)) []) <$> vals))
 
