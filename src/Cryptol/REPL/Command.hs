@@ -436,10 +436,12 @@ qcCmd qcMode str pos fnm = do
           litBinSize <- (toInteger :: Int -> Integer) <$> getKnownUser "literal-sampling-bin-size"
           let litSamplesNum = testNum `div` litBinSize
           io (sampleLiterals schema (fromInteger litSamplesNum)) >>= \case
-            Just schemas ->
+            Just schemas -> do
+              rPutStrLn "Using literal sampling."
               (\schema' -> qcExpr qcMode doc texpr schema' testNum)
                 `mapM_` schemas
             Nothing -> do
+              rPutStrLn "Invalid attempt to use literal sampling, so instead using default literal solution."
               void (qcExpr qcMode doc texpr schema testNum)
         else
           void (qcExpr qcMode doc texpr schema testNum)

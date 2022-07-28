@@ -890,6 +890,10 @@ userOptions  = mkOptionMap
     "The number of elements to display for infinite sequences."
   , simpleOpt "tests" [] (EnvNum 100) noCheck
     "The number of random tests to try with ':check'."
+  , simpleOpt "literal-sampling" [] (EnvBool False) noCheck
+    "Whether or not to use literal sampling during random testing."
+  , simpleOpt "literal-sampling-bin-size" [] (EnvNum 10) noCheck
+    "How many tests to run for each sampling of literals during random testing."
   , simpleOpt "satNum" ["sat-num"] (EnvString "1") checkSatNum
     "The maximum number of :sat solutions to display (\"all\" for no limit)."
   , simpleOpt "prover" [] (EnvString "z3") checkProver $
