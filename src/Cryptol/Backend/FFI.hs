@@ -104,6 +104,9 @@ instance FFIArg CDouble where
 instance FFIArg (Ptr a) where
   ffiArg = argPtr
 
+instance FFIArg CSize where
+  ffiArg = argCSize
+
 class Storable a => FFIRet a where
   ffiRet :: RetType a
 

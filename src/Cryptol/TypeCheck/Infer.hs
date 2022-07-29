@@ -48,6 +48,7 @@ import           Cryptol.TypeCheck.Instantiate
 import           Cryptol.TypeCheck.Subst (listSubst,apSubst,(@@),isEmptySubst)
 import           Cryptol.TypeCheck.Unify(rootPath)
 import           Cryptol.TypeCheck.FFI
+import           Cryptol.TypeCheck.FFI.FFIType
 import           Cryptol.Utils.Ident
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.RecordMap
@@ -62,7 +63,7 @@ import           Data.List(partition)
 import           Data.Ratio(numerator,denominator)
 import           Data.Traversable(forM)
 import           Data.Function(on)
-import           Control.Monad(zipWithM,unless,foldM,forM_,mplus)
+import           Control.Monad(zipWithM,unless,foldM,forM_,mplus,when)
 
 
 
@@ -984,23 +985,30 @@ checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
                   }
 
  P.DForeign ->
-  let loc = getLoc b
-      src = DefinitionOf $ thing $ P.bName b
-  in  inRangeMb loc do
-        ffiFunType <- case toFFIFunType (Forall as asmps0 t0) of
-          Just ffiFunType -> pure ffiFunType
-          Nothing -> do
-            recordErrorLoc loc $ UnsupportedFFIType src t0
-            -- Just a placeholder
-            pure FFIFunType { ffiArgTypes = [], ffiRetType = FFITuple [] }
-        return Decl { dName       = thing (P.bName b)
-                    , dSignature  = Forall as asmps0 t0
-                    , dDefinition = DForeign ffiFunType
-                    , dPragmas    = P.bPragmas b
-                    , dInfix      = P.bInfix b
-                    , dFixity     = P.bFixity b
-                    , dDoc        = P.bDoc b
-                    }
+   do let loc = getLoc b
+          name = thing $ P.bName b
+          src = DefinitionOf name
+      inRangeMb loc do
+        forM_ as \a ->
+          when (tpKind a /= KNum) $
+            recordErrorLoc loc $ UnsupportedFFIKind src a $ tpKind a
+        withTParams as do
+          ffiFunType <- case toFFIFunType (Forall as asmps0 t0) of
+            Right (props, ffiFunType) -> ffiFunType <$
+              (traverse (newGoal (CtFFI name)) props
+                >>= proveImplication (Just name) as asmps0)
+            Left err -> do
+              recordErrorLoc loc $ UnsupportedFFIType src err
+              pure FFIFunType
+                { ffiTParams = as, ffiArgTypes = [], ffiRetType = FFITuple [] }
+          return Decl { dName       = thing (P.bName b)
+                      , dSignature  = Forall as asmps0 t0
+                      , dDefinition = DForeign ffiFunType
+                      , dPragmas    = P.bPragmas b
+                      , dInfix      = P.bInfix b
+                      , dFixity     = P.bFixity b
+                      , dDoc        = P.bDoc b
+                      }
 
  P.DExpr e0 ->
   inRangeMb (getLoc b) $

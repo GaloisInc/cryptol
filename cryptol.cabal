@@ -157,6 +157,8 @@ library
                        Cryptol.TypeCheck.TypeOf,
                        Cryptol.TypeCheck.Sanity,
                        Cryptol.TypeCheck.FFI,
+                       Cryptol.TypeCheck.FFI.Error,
+                       Cryptol.TypeCheck.FFI.FFIType,
 
                        Cryptol.TypeCheck.Solver.Types,
                        Cryptol.TypeCheck.Solver.SMT,

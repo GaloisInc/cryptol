@@ -19,6 +19,7 @@ import Cryptol.TypeCheck.Type
 import Cryptol.TypeCheck.InferTypes
 import Cryptol.TypeCheck.Subst
 import Cryptol.TypeCheck.Unify(Path,isRootPath)
+import Cryptol.TypeCheck.FFI.Error
 import Cryptol.ModuleSystem.Name(Name)
 import Cryptol.Utils.Ident(Ident)
 import Cryptol.Utils.RecordMap
@@ -143,7 +144,9 @@ data Error    = KindMismatch (Maybe TypeSource) Kind Kind
               | MissingModTParam (Located Ident)
               | MissingModVParam (Located Ident)
 
-              | UnsupportedFFIType TypeSource Type
+              | UnsupportedFFIKind TypeSource TParam Kind
+                -- ^ Kind is not supported for FFI
+              | UnsupportedFFIType TypeSource FFITypeError
                 -- ^ Type is not supported for FFI
 
               | TemporaryError Doc
@@ -202,7 +205,8 @@ errorImportance err =
 
     AmbiguousSize {}                                 -> 2
 
-    UnsupportedFFIType {}                            -> 10
+    UnsupportedFFIKind {}                            -> 10
+    UnsupportedFFIType {}                            -> 9
 
 
 instance TVars Warning where
@@ -252,7 +256,8 @@ instance TVars Error where
       MissingModTParam {}  -> err
       MissingModVParam {}  -> err
 
-      UnsupportedFFIType src t -> UnsupportedFFIType src !$ apSubst su t
+      UnsupportedFFIKind {}    -> err
+      UnsupportedFFIType src e -> UnsupportedFFIType src !$ apSubst su e
 
       TemporaryError {} -> err
 
@@ -289,6 +294,7 @@ instance FVS Error where
       MissingModTParam {}  -> Set.empty
       MissingModVParam {}  -> Set.empty
 
+      UnsupportedFFIKind {}  -> Set.empty
       UnsupportedFFIType _ t -> fvs t
 
       TemporaryError {} -> Set.empty
@@ -464,11 +470,16 @@ instance PP (WithNames Error) where
       MissingModVParam x ->
         "Missing definition for value parameter" <+> quotes (pp (thing x))
 
-      UnsupportedFFIType src t ->
-        nested "Type unsupported for FFI:" $
+      UnsupportedFFIKind src param k ->
+        nested "Kind of type variable unsupported for FFI: " $
         vcat
-          [ ppWithNames names t
-          , "When checking" <+> pp src]
+          [ pp param <+> colon <+> pp k
+          , "Only type variables of kind" <+> pp KNum <+> "are supported"
+          , "When checking" <+> pp src ]
+
+      UnsupportedFFIType src t -> vcat
+        [ ppWithNames names t
+        , "When checking" <+> pp src ]
 
       TemporaryError doc -> doc
     where

@@ -39,7 +39,7 @@ import Cryptol.Parser.AST ( Selector(..),Pragma(..)
                           , Fixity(..))
 import Cryptol.Utils.Ident (Ident,isInfixIdent,ModName,PrimIdent,prelPrim)
 import Cryptol.Utils.RecordMap
-import Cryptol.TypeCheck.FFI
+import Cryptol.TypeCheck.FFI.FFIType
 import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.Type
 

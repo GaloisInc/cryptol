@@ -6,7 +6,6 @@ module Cryptol.Backend
   , invalidIndex
   , cryUserError
   , cryNoPrimError
-  , cryFFINotSupportedError
   , FPArith2
   , IndexDirection(..)
 
@@ -57,9 +56,6 @@ cryUserError sym msg = raiseError sym (UserError msg)
 
 cryNoPrimError :: Backend sym => sym -> Name -> SEval sym a
 cryNoPrimError sym nm = raiseError sym (NoPrim nm)
-
-cryFFINotSupportedError :: Backend sym => sym -> Name -> SEval sym a
-cryFFINotSupportedError sym nm = raiseError sym (FFINotSupported nm)
 
 {-# INLINE sDelay #-}
 -- | Delay the given evaluation computation, returning a thunk

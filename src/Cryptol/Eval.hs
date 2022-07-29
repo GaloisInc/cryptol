@@ -422,7 +422,7 @@ evalDecl sym renv env d =
       case lookupVar (dName d) env of
         Just _  -> pure env
         Nothing -> bindVar sym (dName d)
-          (cryFFINotSupportedError sym (dName d)) env
+          (raiseError sym $ FFINotSupported $ dName d) env
 
     DExpr e -> bindVar sym (dName d) (evalExpr sym renv e) env
 
