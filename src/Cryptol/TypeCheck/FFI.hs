@@ -6,6 +6,7 @@ module Cryptol.TypeCheck.FFI
   ( toFFIFunType
   ) where
 
+import           Data.Containers.ListUtils
 import           Data.Either
 
 import           Cryptol.TypeCheck.FFI.Error
@@ -15,10 +16,11 @@ import           Cryptol.TypeCheck.Type
 import           Cryptol.Utils.RecordMap
 
 toFFIFunType :: Schema -> Either FFITypeError ([Prop], FFIFunType)
-toFFIFunType (Forall params props t) = case go $ tRebuild' False t of
-  Just (Right r)   -> Right r
+toFFIFunType (Forall params _ t) = case go $ tRebuild' False t of
+  Just (Right (props, fft)) -> Right
+    (nubOrd $ map (fin . TVar . TVBound) params ++ props, fft)
   Just (Left errs) -> Left $ FFITypeError t $ FFIBadComponentTypes errs
-  Nothing          -> Left $ FFITypeError t FFINotFunction
+  Nothing -> Left $ FFITypeError t FFINotFunction
   where go (TCon (TC TCFun) [argType, retType]) = Just case toFFIType argType of
           Right (ps, ffiArgType) -> case go retType of
             Just (Right (ps', ffiFunType)) -> Right
@@ -28,7 +30,7 @@ toFFIFunType (Forall params props t) = case go $ tRebuild' False t of
             Just (Left errs) -> Left errs
             Nothing -> case toFFIType retType of
               Right (ps', ffiRetType) -> Right
-                ( ps ++ ps' ++ map (fin . TVar . TVBound) params ++ props
+                ( ps ++ ps'
                 , FFIFunType
                     { ffiTParams = params, ffiArgTypes = [ffiArgType], .. } )
               Left err -> Left [err]
@@ -46,8 +48,8 @@ toFFIType t = case t of
   (toFFIBasicType -> Just r) -> (\fbt -> ([], FFIBasic fbt)) <$> r
   TCon (TC TCSeq) [sz, bt] -> case toFFIBasicType bt of
     Just (Right fbt) -> Right ([fin sz], FFIArray sz fbt)
-    Just (Left err) -> Left $ FFITypeError t $ FFIBadComponentTypes [err]
-    Nothing -> Left $ FFITypeError t FFIBadArrayType
+    Just (Left err)  -> Left $ FFITypeError t $ FFIBadComponentTypes [err]
+    Nothing          -> Left $ FFITypeError t FFIBadArrayType
   TCon (TC (TCTuple _)) ts -> case partitionEithers $ map toFFIType ts of
     ([], unzip -> (pss, fts)) -> Right (concat pss, FFITuple fts)
     (errs, _) -> Left $ FFITypeError t $ FFIBadComponentTypes errs

@@ -996,19 +996,19 @@ checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
           ffiFunType <- case toFFIFunType (Forall as asmps0 t0) of
             Right (props, ffiFunType) -> ffiFunType <$
               (traverse (newGoal (CtFFI name)) props
-                >>= proveImplication (Just name) as asmps0)
+                >>= proveImplication True (Just name) as asmps0)
             Left err -> do
               recordErrorLoc loc $ UnsupportedFFIType src err
               pure FFIFunType
                 { ffiTParams = as, ffiArgTypes = [], ffiRetType = FFITuple [] }
-          return Decl { dName       = thing (P.bName b)
-                      , dSignature  = Forall as asmps0 t0
-                      , dDefinition = DForeign ffiFunType
-                      , dPragmas    = P.bPragmas b
-                      , dInfix      = P.bInfix b
-                      , dFixity     = P.bFixity b
-                      , dDoc        = P.bDoc b
-                      }
+          pure Decl { dName       = thing (P.bName b)
+                    , dSignature  = Forall as asmps0 t0
+                    , dDefinition = DForeign ffiFunType
+                    , dPragmas    = P.bPragmas b
+                    , dInfix      = P.bInfix b
+                    , dFixity     = P.bFixity b
+                    , dDoc        = P.bDoc b
+                    }
 
  P.DExpr e0 ->
   inRangeMb (getLoc b) $
@@ -1041,7 +1041,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
      addGoals leave
 
 
-     su <- proveImplication (Just (thing (P.bName b))) as asmps1 stay
+     su <- proveImplication False (Just (thing (P.bName b))) as asmps1 stay
      extendSubst su
 
      let asmps  = concatMap pSplitAnd (apSubst su asmps1)
@@ -1144,8 +1144,8 @@ checkDecl isTopLevel d mbDoc =
 checkParameterFun :: P.ParameterFun Name -> InferM ModVParam
 checkParameterFun x =
   do (s,gs) <- checkSchema NoWildCards (P.pfSchema x)
-     su <- proveImplication (Just (thing (P.pfName x)))
-                            (sVars s) (sProps s) gs
+     su <- proveImplication False (Just (thing (P.pfName x)))
+                                  (sVars s) (sProps s) gs
      unless (isEmptySubst su) $
        panic "checkParameterFun" ["Subst not empty??"]
      let n = thing (P.pfName x)
