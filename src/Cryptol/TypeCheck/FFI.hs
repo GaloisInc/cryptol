@@ -2,6 +2,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns    #-}
 
+-- | Checking and conversion of 'Type's to 'FFIType's.
 module Cryptol.TypeCheck.FFI
   ( toFFIFunType
   ) where
@@ -15,12 +16,17 @@ import           Cryptol.TypeCheck.SimpType
 import           Cryptol.TypeCheck.Type
 import           Cryptol.Utils.RecordMap
 
+-- | Convert a 'Schema' to a 'FFIFunType', along with any 'Prop's that must be
+-- satisfied for the 'FFIFunType' to be valid.
 toFFIFunType :: Schema -> Either FFITypeError ([Prop], FFIFunType)
-toFFIFunType (Forall params _ t) = case go $ tRebuild' False t of
-  Just (Right (props, fft)) -> Right
-    (nubOrd $ map (fin . TVar . TVBound) params ++ props, fft)
-  Just (Left errs) -> Left $ FFITypeError t $ FFIBadComponentTypes errs
-  Nothing -> Left $ FFITypeError t FFINotFunction
+toFFIFunType (Forall params _ t) =
+  -- Remove all type synonyms and simplify the type before processing it
+  case go $ tRebuild' False t of
+    Just (Right (props, fft)) -> Right
+      -- Remove duplicate constraints
+      (nubOrd $ map (fin . TVar . TVBound) params ++ props, fft)
+    Just (Left errs) -> Left $ FFITypeError t $ FFIBadComponentTypes errs
+    Nothing -> Left $ FFITypeError t FFINotFunction
   where go (TCon (TC TCFun) [argType, retType]) = Just case toFFIType argType of
           Right (ps, ffiArgType) -> case go retType of
             Just (Right (ps', ffiFunType)) -> Right
@@ -42,6 +48,8 @@ toFFIFunType (Forall params _ t) = case go $ tRebuild' False t of
               Left err' -> [err, err']
         go _ = Nothing
 
+-- | Convert a 'Type' to a 'FFIType', along with any 'Prop's that must be
+-- satisfied for the 'FFIType' to be valid.
 toFFIType :: Type -> Either FFITypeError ([Prop], FFIType)
 toFFIType t = case t of
   TCon (TC TCBit) [] -> Right ([], FFIBool)
@@ -61,6 +69,8 @@ toFFIType t = case t of
     where resMap = fmap toFFIType tMap
   _ -> Left $ FFITypeError t FFIBadType
 
+-- | Convert a 'Type' to a 'FFIBasicType', returning 'Nothing' if it isn't a
+-- basic type and 'Left' if it is but there was some other issue with it.
 toFFIBasicType :: Type -> Maybe (Either FFITypeError FFIBasicType)
 toFFIBasicType t = case t of
   TCon (TC TCSeq) [TCon (TC (TCNum n)) [], TCon (TC TCBit) []]

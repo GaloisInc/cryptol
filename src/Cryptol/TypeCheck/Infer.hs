@@ -989,6 +989,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
           name = thing $ P.bName b
           src = DefinitionOf name
       inRangeMb loc do
+        -- Ensure all type params are of kind #
         forM_ as \a ->
           when (tpKind a /= KNum) $
             recordErrorLoc loc $ UnsupportedFFIKind src a $ tpKind a
@@ -999,6 +1000,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
                 >>= proveImplication True (Just name) as asmps0)
             Left err -> do
               recordErrorLoc loc $ UnsupportedFFIType src err
+              -- Just a placeholder type
               pure FFIFunType
                 { ffiTParams = as, ffiArgTypes = [], ffiRetType = FFITuple [] }
           pure Decl { dName       = thing (P.bName b)

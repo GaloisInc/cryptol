@@ -419,6 +419,12 @@ evalDecl sym renv env d =
         Nothing        -> bindVar sym (dName d) (cryNoPrimError sym (dName d)) env
 
     DForeign _ -> do
+      -- Foreign declarations should have been handled by the previous
+      -- Cryptol.Eval.FFI.evalForeignDecls pass already, so they should already
+      -- be in the environment. If not, then either Cryptol was not compiled
+      -- with FFI support enabled, or we are in a non-Concrete backend. In that
+      -- case, we just bind the name to an error computation which will raise an
+      -- error if we try to evaluate it.
       case lookupVar (dName d) env of
         Just _  -> pure env
         Nothing -> bindVar sym (dName d)

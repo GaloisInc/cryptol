@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric  #-}
 
+-- | Errors from dynamic loading of shared libraries for FFI.
 module Cryptol.Backend.FFI.Error where
 
 import           Control.DeepSeq

@@ -117,6 +117,7 @@ data ModuleError
     -- ^ Failed to add the module parameters to all definitions in a module.
   | NotAParameterizedModule P.ModName
   | FFILoadErrors P.ModName [FFILoadError]
+    -- ^ Errors loading foreign function implementations
 
   | ErrorInFile ModulePath ModuleError
     -- ^ This is just a tag on the error, indicating the file containing it.

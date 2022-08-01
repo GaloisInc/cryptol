@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 
+-- | Errors from typechecking foreign functions.
 module Cryptol.TypeCheck.FFI.Error where
 
 import           Control.DeepSeq
