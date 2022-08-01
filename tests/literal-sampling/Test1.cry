@@ -1,0 +1,4 @@
+module Test1 where
+
+test : {n} [n] -> Bit
+test x = True
