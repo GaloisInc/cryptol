@@ -56,7 +56,8 @@ sample ::
   [TParam] ->
   [Prop] ->
   Int ->
-  GenM g [Sample]
+  -- GenM g [Sample]
+  SamplingM (GenM g) [Sample] -- TODO
 sample tparams props nLiteralSamples =
   runSamplingM m >>= \case
     Left err -> panic "sample" ["Error during sampling literals: " ++ show err]

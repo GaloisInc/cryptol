@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
+{-# LANGUAGE FlexibleInstances #-}
 module Cryptol.TypeCheck.Solver.Numeric.Sampling.Base where
 
 import Control.Monad.Except
@@ -13,9 +14,13 @@ type SamplingM m = ExceptT SamplingError m
 data SamplingError = SamplingError String String
   deriving (Show) -- TODO
 
+-- instance MonadFail m => MonadFail (ExceptT SamplingError m) where
+--   fail = throwSamplingError . SamplingError "pattern fail"
+
+
 -- TODO
 runSamplingM :: Monad m => SamplingM m a -> m (Either SamplingError a)
-runSamplingM = undefined
+runSamplingM = runExceptT
 -- -- runSamplingM m = either (const Nothing) Just <$> runExcept (runExceptT m)
 
 throwSamplingError :: Monad m => SamplingError -> SamplingM m a
@@ -31,7 +36,7 @@ toGenM m = do
   pure a
 
 genWeightedFromList :: RandomGen g => [(Int, Nat')] -> GenM g Nat'
-genWeightedFromList = undefined
+genWeightedFromList = undefined -- TODO: also, use this in the correct place
 
 nat'_max :: Nat'
 nat'_max = 128
@@ -48,4 +53,4 @@ genLeq = undefined
 -- Generate a randon Nat' that is less than or equal to the given bound, where
 -- each choice `x` is given weight `1/x`.
 genLeqWBI :: RandomGen g => Nat' -> GenM g Nat'
-genLeqWBI = undefined
+genLeqWBI = undefined -- TODO: also, use this in the correct place
