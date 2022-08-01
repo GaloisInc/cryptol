@@ -3474,7 +3474,6 @@ happyNewToken action sts stk
 	Located happy_dollar_dollar (Token (KW KW_primitive) _) -> cont 30;
 	Located happy_dollar_dollar (Token (KW KW_constraint) _) -> cont 31;
 	Located happy_dollar_dollar (Token (KW KW_Prop) _) -> cont 32;
-	Located happy_dollar_dollar (Token (KW KW_propguards) _) -> cont 33;
 	Located happy_dollar_dollar (Token (Sym BracketL) _) -> cont 34;
 	Located happy_dollar_dollar (Token (Sym BracketR) _) -> cont 35;
 	Located happy_dollar_dollar (Token (Sym ArrL    ) _) -> cont 36;

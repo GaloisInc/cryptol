@@ -1,5 +1,5 @@
 // WHY isn't n in scope during evaluation? it typechecks just fine
 len : {n, a} (fin n) => [n]a -> Integer
-len x = propguards
+len x
   | (n == 0) => 0
   | (n >= 1) => 1 + len (drop`{1} x)

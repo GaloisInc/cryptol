@@ -43,8 +43,9 @@ l _ = `n
 // g' : {n} [n] -> [n]
 // g' <| (n == 1) |> x = x
 
+// FAILS when evaluated on [1,2]
 f : {n} [n] -> [8]
-f x = propguards
+f x
   | n == 1 => g1 x // passes
   | n == 2 => g2 x // passes
   | n == 3 => g3 x // passes

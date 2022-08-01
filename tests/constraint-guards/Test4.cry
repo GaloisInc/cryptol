@@ -1,5 +1,5 @@
 test : {n, a} [n]a -> Bit
-test x = propguards
+test x
   | (n - 5 >= 0, n >= 5) => True
   | 0 == 0 => False
 

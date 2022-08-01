@@ -8,5 +8,5 @@
 // testB x = propguards
 //   | (m - n == l) => x
 
-test : {m, n, l} (m - n == l) => [n] -> [n]
+test : {m, n, l} (fin n, m >= n, m - n == l) => [n] -> [n]
 test x = x

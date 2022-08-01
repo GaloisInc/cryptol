@@ -1,4 +1,4 @@
 test : {n, a} [n]a -> Integer
-test x = propguards
+test x
   | (n - 1 >= 0, n >= 1) => 0
   | n == n => 1

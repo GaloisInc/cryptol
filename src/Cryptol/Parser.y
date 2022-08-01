@@ -91,8 +91,6 @@ import Paths_cryptol
   'primitive' { Located $$ (Token (KW KW_primitive) _)}
   'constraint'{ Located $$ (Token (KW KW_constraint) _)}
   'Prop'      { Located $$ (Token (KW KW_Prop) _)}
-  
-  'propguards' { Located $$ (Token (KW KW_propguards) _) }
 
   '['         { Located $$ (Token (Sym BracketL) _)}
   ']'         { Located $$ (Token (Sym BracketR) _)}
@@ -300,8 +298,8 @@ mbDoc                   :: { Maybe (Located Text) }
   : doc                    { Just $1 }
   | {- empty -}            { Nothing }
 
-propguards :: { [([Prop PName], Expr PName)] }
-  : 'propguards' '|' propguards_cases { $3 }
+-- propguards :: { [([Prop PName], Expr PName)] }
+--   : 'propguards' '|' propguards_cases { $3 }
 
 propguards_cases :: { [([Prop PName], Expr PName)] }
   : propguards_case '|' propguards_cases { $1 ++ $3 }
@@ -319,7 +317,7 @@ decl                    :: { Decl PName }
   : vars_comma ':' schema  { at (head $1,$3) $ DSignature (reverse $1) $3   }
   | ipat '=' expr          { at ($1,$3) $ DPatBind $1 $3                    }
   | '(' op ')' '=' expr    { at ($1,$5) $ DPatBind (PVar $2) $5             }
-  | var apats_indices '=' propguards
+  | var apats_indices '|' propguards_cases
                            { mkIndexedPropGuardsDecl $1 $2 $4 }
   | var apats_indices '=' expr
                            { at ($1,$4) $ mkIndexedDecl $1 $2 $4 }
