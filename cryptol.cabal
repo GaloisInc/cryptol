@@ -173,8 +173,8 @@ library
                        Cryptol.TypeCheck.Solver.Numeric.Sampling.Preconstraints,
                        Cryptol.TypeCheck.Solver.Numeric.Sampling.Q,
                        Cryptol.TypeCheck.Solver.Numeric.Sampling.Sampling,
+                       Cryptol.TypeCheck.Solver.Numeric.Sampling.SolvedConstraints,
                        Cryptol.TypeCheck.Solver.Numeric.Sampling.System,
-                       Cryptol.TypeCheck.Solver.Numeric.Sampling.SolvedSystem,
 
                        Cryptol.IR.FreeVars,
 

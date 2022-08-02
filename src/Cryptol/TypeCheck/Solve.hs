@@ -47,7 +47,7 @@ import           Data.List(partition)
 import           Data.Maybe(listToMaybe,fromMaybe)
 import System.Random.TF (newTFGen)
 import Cryptol.TypeCheck.Solver.Numeric.Sampling (sample, applySample)
-import Control.Monad.State (evalState)
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base (runSamplingM, runGenM)
 
 
 
@@ -172,8 +172,13 @@ sampleLiterals schema@Forall {sVars, sProps} nLiteralSamples = do
   else Just <$> do
     -- there are some literal vars to sample
     -- each sample in `samples` is a type var subst
-    let samples = evalState (sample literalVars sProps nLiteralSamples) g
-    pure $ flip applySample schema <$> samples
+    let res = runGenM g $ runSamplingM (sample literalVars sProps nLiteralSamples)
+    case res of
+      (Left err, _) -> do
+        putStrLn $ "Error while sampling literals: " ++ show err
+        pure []
+      (Right samples, _) ->
+        pure $ flip applySample schema <$> samples
 
 defaultReplExpr :: Solver -> Expr -> Schema ->
                     IO (Maybe ([(TParam,Type)], Expr))

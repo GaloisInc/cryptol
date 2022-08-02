@@ -7,26 +7,57 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
-module Cryptol.TypeCheck.Solver.Numeric.Sampling.SolvedSystem where
+module Cryptol.TypeCheck.Solver.Numeric.Sampling.SolvedConstraints where
 
 import Control.Monad
 import Cryptol.TypeCheck.Solver.InfNat (Nat')
 import qualified Cryptol.TypeCheck.Solver.InfNat as Nat'
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base
-import Cryptol.TypeCheck.Solver.Numeric.Sampling.Constraints
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.Constraints (Constraints, System, Tc)
+import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.Constraints as Cons
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp (Exp (..), Var (..))
 import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp as Exp
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.Preconstraints (SamplingParam)
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Q
-import Cryptol.TypeCheck.Solver.Numeric.Sampling.System (IxEqu (..))
-import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.System as System
-import Data.Bifunctor (Bifunctor (bimap, first, second))
-import qualified Data.List as L
-import Data.Maybe
+import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.System as Sys
+import Data.Bifunctor (Bifunctor (first))
 import Data.Vector (Vector)
 import qualified Data.Vector as V
 import GHC.Real
+
+-- | SolvedConstraints
+data SolvedConstraints a = SolvedConstraints
+  { solsys :: SolvedSystem a,
+    tcs :: [Tc a],
+    params :: Vector SamplingParam
+  }
+
+countVars :: SolvedConstraints a -> Int
+countVars = undefined -- TODO
+
+toSolvedConstraints :: (Monad m, Num a, Eq a) => Constraints a -> SamplingM m (SolvedConstraints a)
+toSolvedConstraints cons = do
+  solsys <- toSolvedSystem (Cons.sys cons)
+  pure
+    SolvedConstraints
+      { solsys = solsys,
+        tcs = Cons.tcs cons,
+        params = Cons.params cons
+      }
+
+-- | SolvedSystem If equ `i` is `Nothing`, then var `i` is free. If equ `i` is
+-- `Just e`, then var `i` is bound to expression `e`. A `SolvedSystem`
+-- corresponds to an `n` by `n + 1` matrix, or `n` equations of the form:
+-- ```
+--   x0 = ...
+--   x1 = ...
+--   ...
+--   x{n} = ...
+-- ```
+-- where the RHS expression for equation `i` must have `0*xi`. Since each
+-- equation corresponds to a var, a SolvedSystem is indexed by `Var`.
+type SolvedSystem a = Vector (Maybe (Exp a))
 
 -- countVars :: SolvedSystem a -> Int
 -- countVars sys = case V.find isJust sys of
@@ -43,7 +74,7 @@ solsys // mods = solsys V.// (first unVar <$> mods)
 -- invalid form, then throws `invalidGaussElim`.
 toSolvedSystem :: forall m a. Monad m => (Num a, Eq a) => System a -> SamplingM m (SolvedSystem a)
 toSolvedSystem sys = do
-  let n = System.countVars sys
+  let n = Sys.countVars sys
   foldM fold (V.replicate n Nothing) sys
   where
     fold :: SolvedSystem a -> Exp a -> SamplingM m (SolvedSystem a)
@@ -94,15 +125,9 @@ extendN m sys = fmap (Exp.extendN m) <$> sys
 -- a system of `n + n` variables.
 --
 -- elimDens :: SolvedSystem n -> SolvedSystem (n + n)
-elimDens :: forall m. Monad m => Constraints Q -> SamplingM m (Constraints Nat')
-elimDens cons = do
-  solsys <- case sys cons of
-    Left _ ->
-      throwSamplingError $
-        SamplingError
-          "elimDens"
-          "Expected the system to be solved, but it's unsolved."
-    Right solsys -> pure solsys
+elimDens :: forall m. Monad m => SolvedConstraints Q -> SamplingM m (SolvedConstraints Nat')
+elimDens solcons = do
+  solsys <- pure $ solsys solcons
   -- extend exps to have `n + n` variables
   solsys <- pure $ fmap (Exp.extendN (n + n)) <$> solsys
   -- init equs `n` through `n + n - 1` with `Nothing`
@@ -111,10 +136,10 @@ elimDens cons = do
   solsys <- foldM fold solsys (Var <$> [0 .. n -1])
   -- cast to Nat'
   solsys <- mapM (maybe (pure Nothing) (fmap pure . cast_ExpQ_ExpNat')) solsys
-  tcs <- mapM (overTcExp cast_ExpQ_ExpNat') (tcs cons)
-  pure cons {sys = Right solsys, tcs = tcs}
+  tcs <- mapM (Cons.overTcExp cast_ExpQ_ExpNat') (tcs solcons)
+  pure solcons {solsys = solsys, tcs = tcs}
   where
-    n = countVars cons
+    n = countVars solcons
 
     fold ::
       SolvedSystem Q ->
@@ -134,7 +159,7 @@ elimDens cons = do
                 [ -- coeffs from solsys
                   fmap (Exp.! j) <$> solsys,
                   -- coeffs from tcs
-                  V.fromList (fmap (Exp.! j) . expFromTc <$> tcs cons)
+                  V.fromList (fmap (Exp.! j) . Cons.expFromTc <$> tcs solcons)
                 ]
           -- compute lcm of denoms of coeffs
           a :: Q

@@ -17,12 +17,11 @@ import Cryptol.Testing.Random (Gen)
 import Cryptol.TypeCheck.Solver.InfNat
 import qualified Cryptol.TypeCheck.Solver.InfNat as Nat'
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base
-import Cryptol.TypeCheck.Solver.Numeric.Sampling.Constraints as Constraints
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.Constraints as Cons
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp
 import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp as Exp
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Q
-import Cryptol.TypeCheck.Solver.Numeric.Sampling.SolvedSystem as SolvedSystem
-import Cryptol.TypeCheck.Solver.Numeric.Sampling.System as System
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.System as Sys
 import Cryptol.TypeCheck.Type
 import qualified Data.List as L
 import Data.Maybe
@@ -31,11 +30,13 @@ import qualified Data.Vector as V
 import GHC.Real
 import System.Random.TF.Gen (RandomGen)
 import System.Random.TF.Instances (Random (randomR))
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.SolvedConstraints (SolvedConstraints)
+import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.SolvedConstraints as SolCons
 
 data Range = UpperBounds [Exp Nat'] | Single (Exp Nat')
 
 {-
-Sample constraints
+Sample solved constraints
 1. Collect upper bounds on each var
 2. Sampling procedure:
   1. Sample each var in order, statefully keeping track of samplings so far
@@ -48,14 +49,12 @@ Sample constraints
 -}
 
 -- TODO: make use of `fin` type constraint
-sample :: forall g. RandomGen g => Constraints Nat' -> SamplingM (GenM g) (Vector Integer)
-sample con = do
-  let nVars = Constraints.countVars con
+sample :: forall g. RandomGen g => SolvedConstraints Nat' -> SamplingM (GenM g) (Vector Integer)
+sample solcons = do
+  let nVars = SolCons.countVars solcons
       vars = V.generate nVars Var
 
-  solsys <- case sys con of
-    Left _ -> throwSamplingError $ SamplingError "sampleing" "the system should be solved before sampling"
-    Right solsys -> pure solsys
+  let solsys = SolCons.solsys solcons
 
   -- collect the range of each var
   rngs <- do
@@ -140,7 +139,7 @@ sample con = do
             `traverse` (vars `V.zip` as)
 
     -- sample all the vars
-    vals <- lift $ evalStateT (sampleVar `traverse` vars) rngs 
+    vals <- lift $ evalStateT (sampleVar `traverse` vars) rngs
 
     -- cast to Integer
     let fromNat' :: Nat' -> Integer

@@ -26,10 +26,10 @@ import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp as Exp
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Q
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Sampling as Sampling
 import Data.Vector.Primitive (Vector(Vector))
-import Cryptol.TypeCheck.Solver.Numeric.Sampling.SolvedSystem (toSolvedSystem, elimDens)
 import qualified Data.Vector as V
 import Control.Monad
 import Data.Bifunctor (Bifunctor(first))
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.SolvedConstraints (toSolvedConstraints, elimDens)
 
 -- Tries to make a sampler of type `[(TParam, Nat')]` if the input is in the
 -- handled domain and a solution is found by the algorithm.
@@ -65,20 +65,21 @@ sample tparams props nLiteralSamples = do
     m :: SamplingM (GenM g) [Sample]
     m = do
       precons <- fromProps tparams props
-      cons <- fromPreconstraints precons
-      -- solve system
-      cons <- do
+      cons <- toConstraints precons
+      -- solve constraints system
+      solcons <- do 
         -- gaussian elimination
         cons <- overSystem solveGauss cons
         -- verify gaussian-eliminated form
-        cons <- solveSystemVia toSolvedSystem cons
+        solcons <- toSolvedConstraints cons
         -- eliminate denomenators
-        cons <- elimDens cons
-        -- 
-        pure cons
+        solsys <- elimDens solcons
+        --
+        pure solsys
+      -- 
       -- sample `nLiteralSamples` number of times
       replicateM nLiteralSamples do
-        vals <- V.toList <$> Sampling.sample cons
+        vals <- V.toList <$> Sampling.sample solcons
         pure (tparams `zip` ((\v -> TCon (TC (TCNum v)) []) <$> vals))
 
 applySample :: Sample -> Schema -> Schema
