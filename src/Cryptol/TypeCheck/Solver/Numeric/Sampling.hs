@@ -58,8 +58,8 @@ sample ::
   Int ->
   -- GenM g [Sample]
   SamplingM (GenM g) [Sample] -- TODO
-sample tparams props nLiteralSamples =
-  runSamplingM m >>= \case
+sample tparams props nLiteralSamples = do
+  lift (runSamplingM m) >>= \case
     Left err -> panic "sample" ["Error during sampling literals: " ++ show err]
     Right sampling -> pure sampling
   where
@@ -81,11 +81,6 @@ sample tparams props nLiteralSamples =
       replicateM nLiteralSamples do
         vals <- V.toList <$> Sampling.sample cons
         pure (tparams `zip` ((\v -> TCon (TC (TCNum v)) []) <$> vals))
-
--- applySample :: Sample -> Type -> Type
--- applySample sample = apSubst subst
---   where
---     subst = listSubst $ first TVBound <$> sample
 
 applySample :: Sample -> Schema -> Schema
 applySample sample Forall {sVars, sProps, sType} = 

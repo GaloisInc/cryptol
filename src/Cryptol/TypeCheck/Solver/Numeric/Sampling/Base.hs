@@ -3,7 +3,7 @@
 module Cryptol.TypeCheck.Solver.Numeric.Sampling.Base where
 
 import Control.Monad.Except
-import Control.Monad.State (StateT, MonadState (get, put), gets, State)
+import Control.Monad.State (StateT, MonadState (get, put), gets, State, runState)
 import Cryptol.TypeCheck.Solver.InfNat (Nat')
 import System.Random.TF.Gen (RandomGen)
 import Cryptol.Testing.Random (Gen)
@@ -28,6 +28,9 @@ throwSamplingError = throwError
 
 -- | GenM
 type GenM g = State g
+
+runGenM :: g -> GenM g a -> (a, g)
+runGenM = flip runState
 
 toGenM :: (g -> (a, g)) -> GenM g a
 toGenM m = do
