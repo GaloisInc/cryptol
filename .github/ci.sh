@@ -61,7 +61,11 @@ setup_dist_bins() {
 }
 
 setup_libffi() {
-  cp "$(ghc --print-libdir)"/rts/libffi.* "dist/bin"
+  libffi=("$(ghc --print-libdir)"/rts/libffi.*)
+  build_lib="$(dirname "$(cabal v2-exec which cryptol)")/../lib"
+  mkdir -p dist/lib "$build_lib"
+  cp "${libffi[@]}" dist/lib
+  cp "${libffi[@]}" "$build_lib"
 }
 
 build() {
