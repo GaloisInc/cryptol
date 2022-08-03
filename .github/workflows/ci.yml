@@ -120,6 +120,10 @@ jobs:
         run: .github/ci.sh setup_dist_bins
 
       - shell: bash
+        run: .github/ci.sh setup_libffi
+        if: runner.os == 'Linux'
+
+      - shell: bash
         run: .github/ci.sh check_docs
         if: runner.os != 'Windows'
       - shell: bash

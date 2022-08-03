@@ -60,6 +60,10 @@ setup_dist_bins() {
   strip dist/bin/cryptol* || echo "Strip failed: Ignoring harmless error"
 }
 
+setup_libffi() {
+  cp "$(ghc --print-libdir)"/rts/libffi.* "dist/bin"
+}
+
 build() {
   ghc_ver="$(ghc --numeric-version)"
   cp cabal.GHC-"$ghc_ver".config cabal.project.freeze
