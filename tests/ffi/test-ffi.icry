@@ -1,0 +1,3 @@
+:! make -s test-ffi
+:l test-ffi.cry
+add 1 2
