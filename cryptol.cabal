@@ -279,6 +279,9 @@ executable cryptol-html
       ld-options: -static -pthread
       ghc-options: -optl-fuse-ld=bfd
 
+  if os(linux) && flag(ffi)
+      ld-options: -Wl,-rpath,$ORIGIN/../lib
+
 executable check-exercises
   Default-language:
     Haskell2010

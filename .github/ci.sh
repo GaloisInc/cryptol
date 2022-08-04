@@ -33,6 +33,16 @@ extract_exe() {
   $IS_WIN || chmod +x "$2/$name"
 }
 
+extract_libffi() {
+  libffi=("$(ghc --print-libdir)"/rts/libffi.*)
+  mkdir -p "$1"
+  cp "${libffi[@]}" "$1"
+}
+
+extract_libffi_for_bin() {
+  extract_libffi "$(dirname "$(cabal v2-exec which "$1$EXT")")/../lib"
+}
+
 retry() {
   echo "Attempting with retry:" "$@"
   local n=1
@@ -61,11 +71,11 @@ setup_dist_bins() {
 }
 
 setup_libffi() {
-  libffi=("$(ghc --print-libdir)"/rts/libffi.*)
-  build_lib="$(dirname "$(cabal v2-exec which cryptol)")/../lib"
-  mkdir -p dist/lib "$build_lib"
-  cp "${libffi[@]}" dist/lib
-  cp "${libffi[@]}" "$build_lib"
+  extract_libffi "dist/lib"
+  extract_libffi_for_bin "cryptol"
+  extract_libffi_for_bin "cryptol-html"
+  extract_libffi_for_bin "cryptol-remote-api"
+  extract_libffi_for_bin "cryptol-eval-server"
 }
 
 build() {
