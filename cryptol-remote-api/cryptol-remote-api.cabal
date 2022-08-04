@@ -125,5 +125,5 @@ executable cryptol-eval-server
       ld-options:      -static -pthread
 
   if os(linux) && flag(ffi)
-      ld-options:      -Wl,-rpath,$ORIGIN/../lib
+      ld-options:      -Wl,-rpath,$ORIGIN
 

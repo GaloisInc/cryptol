@@ -35,12 +35,11 @@ extract_exe() {
 
 extract_libffi() {
   libffi=("$(ghc --print-libdir)"/rts/libffi.*)
-  mkdir -p "$1"
   cp "${libffi[@]}" "$1"
 }
 
 extract_libffi_for_bin() {
-  extract_libffi "$(dirname "$(cabal v2-exec which "$1$EXT")")/../lib"
+  extract_libffi "$(dirname "$(cabal v2-exec which "$1$EXT")")"
 }
 
 retry() {
@@ -71,7 +70,7 @@ setup_dist_bins() {
 }
 
 setup_libffi() {
-  extract_libffi "dist/lib"
+  extract_libffi "dist/bin"
   extract_libffi_for_bin "cryptol"
   extract_libffi_for_bin "cryptol-html"
   extract_libffi_for_bin "cryptol-remote-api"

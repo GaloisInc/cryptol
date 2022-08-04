@@ -280,7 +280,7 @@ executable cryptol-html
       ghc-options: -optl-fuse-ld=bfd
 
   if os(linux) && flag(ffi)
-      ld-options: -Wl,-rpath,$ORIGIN/../lib
+      ld-options: -Wl,-rpath,$ORIGIN
 
 executable check-exercises
   Default-language:
