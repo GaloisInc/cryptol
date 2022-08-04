@@ -1011,9 +1011,6 @@ instance Rename Expr where
   rename expr = case expr of
     EVar n          -> EVar <$> renameVar NameUse n
     ELit l          -> return (ELit l)
-    ENeg e          -> ENeg    <$> rename e
-    EComplement e   -> EComplement
-                               <$> rename e
     EGenerate e     -> EGenerate
                                <$> rename e
     ETuple es       -> ETuple  <$> traverse rename es
@@ -1069,6 +1066,7 @@ instance Rename Expr where
                           x' <- rename x
                           z' <- rename z
                           mkEInfix x' op z'
+    EPrefix op e    -> EPrefix op <$> rename e
 
 
 checkLabels :: [UpdField PName] -> RenameM ()
@@ -1112,6 +1110,22 @@ mkEInfix e@(EInfix x o1 f1 y) op@(o2,f2) z =
 
      FCError -> do recordError (FixityError o1 f1 o2 f2)
                    return (EInfix e o2 f2 z)
+
+mkEInfix e@(EPrefix o1 x) op@(o2, f2) y =
+  case compareFixity (prefixFixity o1) f2 of
+    FCRight -> do
+      let warning = PrefixAssocChanged o1 x o2 f2 y
+      RenameM $ sets_ (\rw -> rw {rwWarnings = warning : rwWarnings rw})
+      r <- mkEInfix x op y
+      return (EPrefix o1 r)
+
+    -- Even if the fixities conflict, we make the prefix operator take
+    -- precedence.
+    _ -> return (EInfix e o2 f2 y)
+
+-- Note that for prefix operator on RHS of infix operator we make the prefix
+-- operator always have precedence, so we allow a * -b instead of requiring
+-- a * (-b).
 
 mkEInfix (ELocated e' _) op z =
      mkEInfix e' op z

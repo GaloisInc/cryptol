@@ -64,7 +64,8 @@ import Cryptol.REPL.Help
 import qualified Cryptol.ModuleSystem as M
 import qualified Cryptol.ModuleSystem.Name as M
 import qualified Cryptol.ModuleSystem.NamingEnv as M
-import qualified Cryptol.ModuleSystem.Renamer as M (RenamerWarning(SymbolShadowed))
+import qualified Cryptol.ModuleSystem.Renamer as M
+    (RenamerWarning(SymbolShadowed, PrefixAssocChanged))
 import qualified Cryptol.Utils.Ident as M
 import qualified Cryptol.ModuleSystem.Env as M
 
@@ -1349,8 +1350,9 @@ liftModuleCmd cmd =
 
 moduleCmdResult :: M.ModuleRes a -> REPL a
 moduleCmdResult (res,ws0) = do
-  warnDefaulting <- getKnownUser "warnDefaulting"
-  warnShadowing  <- getKnownUser "warnShadowing"
+  warnDefaulting  <- getKnownUser "warnDefaulting"
+  warnShadowing   <- getKnownUser "warnShadowing"
+  warnPrefixAssoc <- getKnownUser "warnPrefixAssoc"
   -- XXX: let's generalize this pattern
   let isDefaultWarn (T.DefaultingTo _ _) = True
       isDefaultWarn _ = False
@@ -1365,14 +1367,20 @@ moduleCmdResult (res,ws0) = do
       isShadowWarn (M.SymbolShadowed {}) = True
       isShadowWarn _                     = False
 
-      filterShadowing w | warnShadowing = Just w
-      filterShadowing (M.RenamerWarnings xs) =
-        case filter (not . isShadowWarn) xs of
+      isPrefixAssocWarn (M.PrefixAssocChanged {}) = True
+      isPrefixAssocWarn _                         = False
+
+      filterRenamer True _ w = Just w
+      filterRenamer _ check (M.RenamerWarnings xs) =
+        case filter (not . check) xs of
           [] -> Nothing
           ys -> Just (M.RenamerWarnings ys)
-      filterShadowing w = Just w
+      filterRenamer _ _ w = Just w
 
-  let ws = mapMaybe filterDefaults . mapMaybe filterShadowing $ ws0
+  let ws = mapMaybe filterDefaults
+         . mapMaybe (filterRenamer warnShadowing isShadowWarn)
+         . mapMaybe (filterRenamer warnPrefixAssoc isPrefixAssocWarn)
+         $ ws0
   names <- M.mctxNameDisp <$> getFocusedEnv
   mapM_ (rPrint . runDoc names . pp) ws
   case res of

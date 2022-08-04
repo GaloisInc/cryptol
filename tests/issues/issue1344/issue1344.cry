@@ -1,0 +1,5 @@
+import A ((<+>), (∸))
+
+plus = (<+>)
+
+type monus a b = a ∸ b

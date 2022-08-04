@@ -67,7 +67,7 @@ proveSat (ProveSatParams queryType (ProverName proverName) jsonExpr hConsing) = 
             ProverCommand
             { pcQueryType    = queryType
             , pcProverName   = proverName
-            , pcVerbose      = True
+            , pcVerbose      = False
             , pcProverStats  = timing
             , pcExtraDecls   = decls
             , pcSmtFile      = Nothing

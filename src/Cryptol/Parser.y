@@ -240,9 +240,9 @@ mbImportSpec               :: { Maybe (Located ImportSpec) }
   | {- empty -}               { Nothing }
 
 name_list                  :: { [LIdent] }
-  : name_list ',' ident       { $3 : $1 }
-  | ident                     { [$1]    }
-  | {- empty -}               { []      }
+  : name_list ',' var         { fmap getIdent $3 : $1 }
+  | var                       { [fmap getIdent $1]    }
+  | {- empty -}               { []                    }
 
 mbHiding                   :: { [Ident] -> ImportSpec }
   : 'hiding'                  { Hiding }
@@ -567,13 +567,13 @@ ifBranch                       :: { (Expr PName, Expr PName) }
   : expr 'then' expr              { ($1, $3) }
 
 simpleRHS                      :: { Expr PName }
-  : '-' simpleApp                 { at ($1,$2) (ENeg $2) }
-  | '~' simpleApp                 { at ($1,$2) (EComplement $2) }
+  : '-' simpleApp                 { at ($1,$2) (EPrefix PrefixNeg $2) }
+  | '~' simpleApp                 { at ($1,$2) (EPrefix PrefixComplement $2) }
   | simpleApp                     { $1 }
 
 longRHS                        :: { Expr PName }
-  : '-' longApp                   { at ($1,$2) (ENeg $2) }
-  | '~' longApp                   { at ($1,$2) (EComplement $2) }
+  : '-' longApp                   { at ($1,$2) (EPrefix PrefixNeg $2) }
+  | '~' longApp                   { at ($1,$2) (EPrefix PrefixComplement $2) }
   | longApp                       { $1 }
 
 
