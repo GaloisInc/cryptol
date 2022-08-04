@@ -1,4 +1,17 @@
 Loading module Cryptol
 Loading module Cryptol
+Loading module Float
 Loading module Main
-0x00000003
+0x03
+0x0001
+0x0000000c
+0x0000000000000002
+0x07
+0x7
+False
+0x45.1eb8
+-0x1e61.c71de69ad5
+fpPosInf
+fpNegInf
+fpNaN
+-0.0

@@ -1,1 +1,15 @@
-foreign add : [32] -> [32] -> [32]
+import Float
+
+foreign add8 : [8] -> [8] -> [8]
+foreign sub16 : [16] -> [16] -> [16]
+foreign mul32 : [32] -> [32] -> [32]
+foreign div64 : [64] -> [64] -> [64]
+
+foreign extendInput : [3] -> [8]
+foreign maskOutput : [8] -> [3]
+
+foreign not : Bit -> Bit
+
+foreign addFloat32 : Float32 -> Float32 -> Float32
+foreign subFloat64 : Float64 -> Float64 -> Float64
+foreign specialFloats : [2] -> Float32

@@ -1,3 +1,23 @@
 :! make -s test-ffi
 :l test-ffi.cry
-add 1 2
+
+// Basic integral types
+add8 1 2
+sub16 3 2
+mul32 3 4
+div64 5 2
+
+// Non-machine integer sizes
+extendInput 7
+maskOutput 255
+
+// Bit
+not True
+
+// Float
+addFloat32 12.34 56.78
+subFloat64 1234.5678 9012.3456
+specialFloats 0
+specialFloats 1
+specialFloats 2
+specialFloats 3
