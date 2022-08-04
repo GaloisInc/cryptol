@@ -17,6 +17,10 @@ flag NotThreaded
   manual: true
   description: Omit the -threaded ghc flag
 
+flag ffi
+  default: True
+  description: Correctly link the executable if cryptol was built with FFI
+
 common warnings
   ghc-options:
     -Wall
