@@ -335,7 +335,6 @@ another top-level module ``B`` requires two steps:
 Parameterized Modules
 ---------------------
 
-
 Interface Modules
 ~~~~~~~~~~~~~~~~~
 
