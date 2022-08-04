@@ -335,6 +335,10 @@ another top-level module ``B`` requires two steps:
 Parameterized Modules
 ---------------------
 
+.. warning::
+  The documentation in this section is for the upcoming variant of
+  the feature, which is not yet part of main line Cryptol.
+
 
 Interface Modules
 ~~~~~~~~~~~~~~~~~
