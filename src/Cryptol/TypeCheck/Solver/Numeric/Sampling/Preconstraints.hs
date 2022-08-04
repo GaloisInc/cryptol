@@ -18,6 +18,7 @@ import Cryptol.TypeCheck.Type
 import Data.Vector (Vector)
 import qualified Data.Vector as V
 import Data.List (elemIndex)
+import Cryptol.TypeCheck.PP (PP (ppPrec), pp, text)
 
 -- | Preconstraints
 data Preconstraints = Preconstraints
@@ -28,6 +29,11 @@ data Preconstraints = Preconstraints
 
 data SamplingParam = SPTParam TParam | SPFresh Int
   deriving (Show, Eq)
+
+instance PP SamplingParam where 
+  ppPrec i = \case
+    SPTParam tparam -> pp tparam
+    SPFresh n -> text $ "fresh(" ++ show n ++ ")"
 
 emptyPreconstraints :: Vector TParam -> Preconstraints
 emptyPreconstraints tparams =
@@ -64,14 +70,12 @@ data POp2 = PAdd | PSub | PMul | PDiv | PMod | PPow
 -- Expects that all available substitions have been applied to the props.
 -- Preserves order of `[TParam]`.
 fromProps ::
-  forall m.
-  Monad m =>
   [TParam] ->
   [Prop] ->
-  SamplingM m Preconstraints
+  SamplingM Preconstraints
 fromProps tparams = foldM fold (emptyPreconstraints $ V.fromList tparams)
   where
-    fold :: Preconstraints -> Prop -> SamplingM m Preconstraints
+    fold :: Preconstraints -> Prop -> SamplingM Preconstraints
     fold precons = \case
       -- type predicates
       TCon (PC pc) ts -> case pc of
@@ -92,12 +96,12 @@ fromProps tparams = foldM fold (emptyPreconstraints $ V.fromList tparams)
             [e] -> pure $ addPProps [con e] precons
             _ -> undefined -- bad number of args
 
-    toPExp :: Type -> SamplingM m PExp
+    toPExp :: Type -> SamplingM PExp
     toPExp = \case
       TCon tcon ts -> case tcon of
         -- type constants
         TC tc -> case tc of
-          TCNum n -> pure . PEConst $ toRational n
+          TCNum n -> pure . PEConst $ toQ n
           -- TCInf -> pure . PEConst $ Inf -- TODO: how to handle constant inf?
           TCAbstract _ut -> undefined -- TODO: support user-defined type constraints
           _ -> undefined -- unsupported type function
@@ -138,7 +142,7 @@ fromProps tparams = foldM fold (emptyPreconstraints $ V.fromList tparams)
 - Apply commutativity of addition to combine terms in a sum of products
 - Evaluate operations over constants
 -}
-normalizePreconstraints :: forall m. Monad m => Preconstraints -> SamplingM m Preconstraints
+normalizePreconstraints :: Preconstraints -> SamplingM Preconstraints
 normalizePreconstraints precons = do
   -- TODO: the state's final value is the number of fresh variables introduced
   -- via `mod` and perhaps other kinds of expansions
@@ -148,7 +152,7 @@ normalizePreconstraints precons = do
   pure precons { preprops = preprops' <> preprops'' }
   where
 
-  normPProp :: PProp -> WriterT [PProp] (StateT Int (SamplingM m)) PProp
+  normPProp :: PProp -> WriterT [PProp] (StateT Int SamplingM) PProp
   normPProp = \case
     PPEqual pe1 pe2 -> PPEqual <$> normPExp pe1 <*> normPExp pe2
     PPNeq _a _b -> do
@@ -159,14 +163,14 @@ normalizePreconstraints precons = do
       normPProp $ PPGeq a (PEOp2 PAdd b (PETerm 1 c))
     PPFin pe -> pure $ PPFin pe -- don't need to normalize this
 
-  normPExp :: PExp -> WriterT [PProp] (StateT Int (SamplingM m)) PExp
+  normPExp :: PExp -> WriterT [PProp] (StateT Int SamplingM) PExp
   normPExp pe =
     step pe >>= \case
       Just pe' -> normPExp pe'
       Nothing -> pure pe
     where
       -- writes the new equations generated from expanding mod
-      step :: PExp -> WriterT [PProp] (StateT Int (SamplingM m)) (Maybe PExp)
+      step :: PExp -> WriterT [PProp] (StateT Int SamplingM) (Maybe PExp)
       step = \case
         -- PEConst
         PEConst _ -> pure Nothing
@@ -188,13 +192,13 @@ normalizePreconstraints precons = do
                 PEConst n2 <- pe2',
                 Just z1 <- (fromQ n1 :: Maybe Int),
                 Just z2 <- (fromQ n2 :: Maybe Int) ->
-                pure . Just . PEConst . toRational $ z1 `mod` z2
+                pure . Just . PEConst . toQ $ z1 `mod` z2
             -- `m ^^ n` requires that `m`, `n` are constant
             PPow
               | PEConst n1 <- pe1',
                 PEConst n2 <- pe2',
                 Just z2 <- (fromQ n2 :: Maybe Int) ->
-                pure . Just . PEConst . toRational $ n1 ^^ z2
+                pure . Just . PEConst $ n1 ^^ z2
             -- `a mod n` where only `n` is constant
             PMod | PEConst n <- pe2' -> do
               -- `a mod n` is replaced by `b` such that `b = a - n*c`
@@ -212,7 +216,7 @@ normalizePreconstraints precons = do
             -- only expressions that are already normalized should get here
             _ -> pure Nothing
 
-  freshVar :: WriterT [PProp] (StateT Int (SamplingM m)) Var
+  freshVar :: WriterT [PProp] (StateT Int SamplingM) Var
   freshVar = do
     var <- gets Var
     modify (+1)

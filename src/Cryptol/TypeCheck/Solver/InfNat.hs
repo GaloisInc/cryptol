@@ -13,6 +13,7 @@
 
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE LambdaCase #-}
 module Cryptol.TypeCheck.Solver.InfNat where
 
 import Data.Bits
@@ -23,7 +24,12 @@ import Control.DeepSeq
 
 -- | Natural numbers with an infinity element
 data Nat' = Nat Integer | Inf
-            deriving (Show, Eq, Ord, Generic, NFData)
+            deriving (Eq, Ord, Generic, NFData)
+
+instance Show Nat' where 
+  show = \case
+    Nat n -> show n
+    Inf -> "inf"
 
 fromNat :: Nat' -> Maybe Integer
 fromNat n' =

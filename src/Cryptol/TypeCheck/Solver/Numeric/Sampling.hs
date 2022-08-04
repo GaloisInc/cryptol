@@ -51,35 +51,48 @@ Steps:
 type Sample = [(TParam, Type)]
 
 sample ::
-  forall g.
-  RandomGen g =>
   [TParam] ->
   [Prop] ->
   Int ->
-  SamplingM (GenM g) [Sample]
+  SamplingM [Sample]
 sample tparams props nLiteralSamples = do
-  lift (runSamplingM m) >>= \case
+  debug $ "breakpoint Numeric.Sampling:1"
+  liftIO (runSamplingM m) >>= \case
     Left err -> panic "sample" ["Error during sampling literals: " ++ show err]
     Right sampling -> pure sampling
   where
-    m :: SamplingM (GenM g) [Sample]
+    m :: SamplingM [Sample]
     m = do
+      debug $ "breakpoint Numeric.Sampling:2"
       precons <- fromProps tparams props
+      debug $ "breakpoint Numeric.Sampling:3"
       cons <- toConstraints precons
+      debug $ "cons <- toConstraints precons"
+      debug $ "cons = " ++ show cons
       -- solve constraints system
       solcons <- do 
+        debug $ "breakpoint Numeric.Sampling:5"
         -- gaussian elimination
         cons <- overSystem solveGauss cons
+        debug $ "cons <- overSystem solveGauss cons"
+        debug $ "cons = " ++ show cons
         -- verify gaussian-eliminated form
         solcons <- toSolvedConstraints cons
+        debug $ "solcons <- toSolvedConstraints cons"
+        debug $ "solcons = " ++ show solcons
         -- eliminate denomenators
-        solsys <- elimDens solcons
+        solcons <- elimDens solcons
+        debug $ "solcons <- elimDens solcons"
+        debug $ "solcons = " ++ show solcons
         --
-        pure solsys
+        pure solcons
       -- 
       -- sample `nLiteralSamples` number of times
+      debug $ "breakpoint Numeric.Sampling:9"
       replicateM nLiteralSamples do
+        debug $ "breakpoint Numeric.Sampling:10"
         vals <- V.toList <$> Sampling.sample solcons
+        debug $ "breakpoint Numeric.Sampling:11"
         pure (tparams `zip` ((\v -> TCon (TC (TCNum v)) []) <$> vals))
 
 applySample :: Sample -> Schema -> Schema

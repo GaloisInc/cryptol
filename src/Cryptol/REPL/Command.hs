@@ -400,14 +400,14 @@ data QCMode = QCRandom | QCExhaust deriving (Eq, Show)
 qcCmd :: QCMode -> String -> (Int,Int) -> Maybe FilePath -> REPL ()
 qcCmd qcMode str pos fnm = do
   -- (qcMde, doc, texpr, schema) <- case str of 
-  case str of 
+  case str of
     "" -> do
       (xs,disp) <- getPropertyNames
       let nameStr x = show (fixNameDisp disp (pp x))
       if null xs
       then do
         rPutStrLn "There are no properties in scope."
-      else 
+      else
         forM_ xs $ \(x,d) -> do
           let str = nameStr x
           rPutStr $ "property " ++ str ++ " "
@@ -425,21 +425,39 @@ qcCmd qcMode str pos fnm = do
       -- void (qcExpr qcMode doc texpr schema)
       go doc texpr schema
   where
-    go doc texpr schema = case qcMode of 
+    go doc texpr schema = case qcMode of
       QCExhaust -> do
         testNum <- (toInteger :: Int -> Integer) <$> getKnownUser "tests"
         void (qcExpr qcMode doc texpr schema testNum)
-      QCRandom -> do 
+      QCRandom -> do
         testNum <- (toInteger :: Int -> Integer) <$> getKnownUser "tests"
-        useLitSampling <- getKnownUser "literal-sampling" :: REPL Bool
+        useLitSampling <- getKnownUser "literalSampling" :: REPL Bool
         if useLitSampling then do
-          litBinSize <- (toInteger :: Int -> Integer) <$> getKnownUser "literal-sampling-bin-size"
-          let litSamplesNum = testNum `div` litBinSize
+          -- do this many tests per sample, until out of tests
+          litBin <- (toInteger :: Int -> Integer) <$> getKnownUser "literalSamplingBin"
+          let litSamplesNum = testNum `div` litBin
           io (sampleLiterals schema (fromInteger litSamplesNum)) >>= \case
             Just schemas -> do
               rPutStrLn "Using literal sampling."
-              (\schema' -> qcExpr qcMode doc texpr schema' testNum)
-                `mapM_` schemas
+              (\schema' -> do
+                rPutStrLn $ "qcMode = " ++ show qcMode
+                rPutStrLn $ "doc = " ++ show doc
+                rPutStrLn $ "texpr = " ++ show (pp texpr)
+                rPutStrLn $ "schema' = " ++ show (pp schema')
+                rPutStrLn $ "litBin = " ++ show litBin
+                -- TODO: also need to substitute the sampled solution into the
+                -- expression being checked, since the typechecked expression
+                -- will have type-abstractions for the polymorphic literals that
+                -- I have already substituted away via the sampling. But, as far
+                -- as I can see the `texpr` isn't actually the expression
+                -- itself, but a reference by name or something to the defined
+                -- expression being checked... so how do I substitute only the
+                -- specific type abstractions that I handled via sampling?
+                -- Apparently there is a syntax for doing type applications by
+                -- name e.g. `f {A = [8], B = Bit}`, so maybe I can take
+                -- advtange of that?
+                qcExpr qcMode doc texpr schema' litBin)
+                `mapM_` take (fromInteger $ testNum `div` litBin) schemas
             Nothing -> do
               rPutStrLn "Invalid attempt to use literal sampling, so instead using default literal solution."
               void (qcExpr qcMode doc texpr schema testNum)
@@ -494,11 +512,17 @@ qcExpr qcMode exprDoc texpr schema testNum =
        Nothing -> raise (InstantiationsNotFound schema)
      -- pulled out as param of `qcExpr`
      -- testNum <- (toInteger :: Int -> Integer) <$> getKnownUser "tests"
+
+     io . putStrLn $ "val = " ++ show val ++ "\n"
+     io . putStrLn $ "ty = " ++ show ty ++ "\n"
+
      tenv <- E.envTypes . M.deEnv <$> getDynEnv
      let tyv = E.evalValType tenv ty
+     io . putStrLn $ "tyv = " ++ show tyv ++ "\n"
      -- tv has already had polymorphism instantiated 
      percentRef <- io $ newIORef Nothing
      testsRef <- io $ newIORef 0
+
 
      case testableType tyv of
        Just (Just sz,tys,vss,_gens) | qcMode == QCExhaust || sz <= testNum -> do
@@ -863,7 +887,7 @@ proveSatExpr isSat rng exprDoc texpr schema = do
 printSafetyViolation :: T.Expr -> T.Schema -> [E.GenValue Concrete] -> REPL ()
 printSafetyViolation texpr schema vs =
     catch
-      (do fn <- replEvalCheckedExpr texpr schema >>= \mb_res -> case mb_res of 
+      (do fn <- replEvalCheckedExpr texpr schema >>= \mb_res -> case mb_res of
             Just (fn, _) -> pure fn
             Nothing -> raise (EvalPolyError schema)
           rEval (E.forceValue =<< foldM (\f v -> E.fromVFun Concrete f (pure v)) fn vs))
@@ -1629,10 +1653,13 @@ replEvalExpr expr =
 
 replEvalCheckedExpr :: T.Expr -> T.Schema -> REPL (Maybe (Concrete.Value, T.Type))
 replEvalCheckedExpr def sig =
-  do validEvalContext def
+  do io $ putStrLn $ "replEvalCheckedExpr (" ++ pretty def ++") (" ++ pretty sig ++ ")"
+     validEvalContext def
      validEvalContext sig
 
      s <- getTCSolver
+     io $ putStrLn $ "def = " ++ pretty def
+     io $ putStrLn $ "sig = " ++ pretty sig
      mbDef <- io (defaultReplExpr s def sig)
 
      case mbDef of

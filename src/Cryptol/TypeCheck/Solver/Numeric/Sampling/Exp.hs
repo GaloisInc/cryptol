@@ -1,22 +1,31 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE TypeOperators #-}
 
 module Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp where
 
+import Data.Bifunctor (Bifunctor (first))
+import qualified Data.List as L
 import Data.Vector (Vector)
 import qualified Data.Vector as V
-import Data.Bifunctor (Bifunctor(first))
 
 -- | Exp
 -- A linear polynomial over domain `a` with `n` variables.
 data Exp a = Exp (Vector a) a -- a1*x1 + ... + aN*xN + c
-  deriving (Show, Eq, Functor, Foldable, Traversable)
+  deriving (Eq, Functor, Foldable, Traversable)
 
-newtype Var = Var { unVar :: Int }
+instance Show a => Show (Exp a) where
+  show (Exp as c) =
+    L.intercalate " + " . V.toList $
+      ( (\(i, a) -> show a ++ "*" ++ "x{" ++ show i ++ "}")
+          <$> V.zip (V.generate (V.length as) id) as
+      )
+        <> pure (show c)
+
+newtype Var = Var {unVar :: Int}
   deriving (Eq, Ord, Num, Show)
 
 instance Num a => Num (Exp a) where
@@ -45,15 +54,23 @@ extend (Exp as c) = Exp (V.snoc as 0) c
 extendN :: Num a => Int -> Exp a -> Exp a
 extendN m (Exp as c) = Exp (as <> V.replicate m 0) c
 
-(!) :: Exp a -> Var -> a 
+-- Exp n a -> Exp m a
+pad :: Num a => Int -> Exp a -> Exp a 
+pad m e@(Exp as c) 
+  | n <- V.length as, n <= m = extendN (m - n) e
+  | otherwise = error "tried to pad an `Exp` that is larger than the padding"
+
+
+(!) :: Exp a -> Var -> a
 Exp as _ ! i = as V.! unVar i
 
 (//) :: Exp a -> [(Var, a)] -> Exp a
 Exp as c // mods = Exp (as V.// (first unVar <$> mods)) c
 
 solveFor :: Num a => Var -> Exp a -> Exp a
-solveFor i (Exp as c) = 
-  Exp 
-    ( (\(i', a) -> if i == i' then 0 else -a) <$>
-      V.zip (V.generate (V.length as) Var) as )
+solveFor i (Exp as c) =
+  Exp
+    ( (\(i', a) -> if i == i' then 0 else - a)
+        <$> V.zip (V.generate (V.length as) Var) as
+    )
     c

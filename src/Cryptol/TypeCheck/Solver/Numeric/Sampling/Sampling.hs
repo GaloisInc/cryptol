@@ -28,7 +28,7 @@ import Data.Maybe
 import Data.Vector (Vector)
 import qualified Data.Vector as V
 import GHC.Real
-import System.Random.TF.Gen (RandomGen)
+import System.Random.TF.Gen (TFGen)
 import System.Random.TF.Instances (Random (randomR))
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.SolvedConstraints (SolvedConstraints)
 import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.SolvedConstraints as SolCons
@@ -49,10 +49,13 @@ Sample solved constraints
 -}
 
 -- TODO: make use of `fin` type constraint
-sample :: forall g. RandomGen g => SolvedConstraints Nat' -> SamplingM (GenM g) (Vector Integer)
+sample :: SolvedConstraints Nat' -> SamplingM (Vector Integer)
 sample solcons = do
+  debug $ "breakpoint Numeric.Sampling.Sampling:1"
   let nVars = SolCons.countVars solcons
       vars = V.generate nVars Var
+
+  debug $ "nVars = " ++ show nVars
 
   let solsys = SolCons.solsys solcons
 
@@ -69,7 +72,10 @@ sample solcons = do
           UpperBounds bnds -> rngs V.// [(unVar i, UpperBounds (e : bnds))]
           Single _ -> rngs -- upper bounding an equality is a nullop
     V.foldM
-      ( \rngs (i, mb_e) ->
+      ( \rngs (i, mb_e) -> do
+          debug $ "breakpoint Numeric.Sampling.Sampling:2"
+          debug $ "i   = " ++ show i
+          debug $ "mb_e = " ++ show mb_e
           case mb_e of
             -- register equ for `xi = e` if there are subtractions in `e`,
             -- then register those upper bounds
@@ -105,14 +111,17 @@ sample solcons = do
 
   -- sample all the vars
   do
-    let getRange :: Var -> StateT (Vector Range) (GenM g) Range
+    let liftR :: (TFGen -> (a, TFGen)) -> SamplingM a
+        liftR = undefined
+      
+        getRange :: Var -> StateT (Vector Range) SamplingM Range
         getRange i = gets (V.! unVar i)
 
-        sampleNat' :: Nat' -> GenM g Nat'
-        sampleNat' Inf = Nat <$> toGenM (randomR (0, 10)) -- TODO: actually, sample exp dist up to MAX_INT
-        sampleNat' (Nat n) = Nat <$> toGenM (randomR (0, n))
+        sampleNat' :: Nat' -> SamplingM Nat'
+        sampleNat' Inf = Nat <$> liftR (randomR (0, 10)) -- TODO: actually, sample exp dist up to MAX_INT
+        sampleNat' (Nat n) = Nat <$> liftR (randomR (0, n))
 
-        sampleVar :: Var -> StateT (Vector Range) (GenM g) Nat'
+        sampleVar :: Var -> StateT (Vector Range) SamplingM Nat'
         sampleVar i = do
           range <- getRange i
           -- sample from `Range`
@@ -127,7 +136,7 @@ sample solcons = do
           --
           pure val
 
-        sampleExp :: Exp Nat' -> StateT (Vector Range) (GenM g) Nat'
+        sampleExp :: Exp Nat' -> StateT (Vector Range) SamplingM Nat'
         sampleExp (Exp as c) =
           -- only sampleuates terms that have non-0 coeff
           (c +) . V.sum
@@ -139,10 +148,13 @@ sample solcons = do
             `traverse` (vars `V.zip` as)
 
     -- sample all the vars
-    vals <- lift $ evalStateT (sampleVar `traverse` vars) rngs
+    vals <- evalStateT (sampleVar `traverse` vars) rngs
+    debug $ "breakpoint Numeric.Sampling.Sampling:3"
+    
 
     -- cast to Integer
     let fromNat' :: Nat' -> Integer
         fromNat' Inf = integer_max
         fromNat' (Nat n) = n
+    debug $ "breakpoint Numeric.Sampling.Sampling:4"
     pure $ fromNat' <$> vals
