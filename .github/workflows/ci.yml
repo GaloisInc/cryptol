@@ -149,12 +149,7 @@ jobs:
               cmd="cat \$1.stdout.mingw32 2>/dev/null || $cmd"
           fi
           ./bin/test-runner --ext=.icry -r ./output --exe=$(which bash) -F -c -F "$cmd" -F -- ./tests
-          if cabal v2-exec cryptol -- -v | grep -q 'FFI enabled'; then
-              filter="cat"
-          else
-              filter="grep -v ffi"
-          fi
-          TARGETS_JSON=$(echo -n "$(ls -1 ./output/tests)" | $filter | jq -Rsc 'split("\n")')
+          TARGETS_JSON=$(echo -n "$(ls -1 ./output/tests)" | jq -Rsc 'split("\n")')
           echo "::set-output name=targets-json::$TARGETS_JSON"
 
       - shell: bash
@@ -304,7 +299,9 @@ jobs:
         name: test-lib ${{ matrix.target }}
         run: |
           export PATH=$PWD/bin:$PWD/dist/bin:$PATH
-          ./bin/test-runner --ext=.icry -F -b --exe=dist/bin/cryptol ./tests/${{ matrix.target }}
+          if ${{ matrix.target != 'ffi' }} || dist/bin/cryptol -v | grep -q 'FFI enabled'; then
+            ./bin/test-runner --ext=.icry -F -b --exe=dist/bin/cryptol ./tests/${{ matrix.target }}
+          fi
 
       - if: matrix.suite == 'rpc'
         shell: bash
