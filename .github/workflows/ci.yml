@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 env:
-  SOLVER_PKG_VERSION: "snapshot-20220114"
+  SOLVER_PKG_VERSION: "snapshot-20220721"
   # The CACHE_VERSION can be updated to force the use of a new cache if
   # the current cache contents become corrupted/invalid.  This can
   # sometimes happen when (for example) the OS version is changed but
@@ -58,7 +58,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-20.04, macos-10.15, windows-2019]
+        os: [ubuntu-20.04, macos-12, windows-2019]
         ghc-version: ["8.8.4", "8.10.7", "9.0.2", "9.2.2"]
         exclude:
           # https://gitlab.haskell.org/ghc/ghc/-/issues/18550
@@ -196,14 +196,14 @@ jobs:
 
       - uses: actions/upload-artifact@v2
         with:
-          name: ${{ env.NAME }}
+          name: ${{ env.NAME }} (GHC ${{ matrix.ghc-version }})
           path: "${{ env.NAME }}.tar.gz*"
           if-no-files-found: error
           retention-days: ${{ needs.config.outputs.retention-days }}
 
       - uses: actions/upload-artifact@v2
         with:
-          name: ${{ env.NAME }}-with-solvers
+          name: ${{ env.NAME }}-with-solvers (GHC ${{ matrix.ghc-version }})
           path: "${{ env.NAME }}-with-solvers.tar.gz*"
           if-no-files-found: error
           retention-days: ${{ needs.config.outputs.retention-days }}
@@ -223,7 +223,7 @@ jobs:
       - uses: actions/upload-artifact@v2
         if: runner.os == 'Windows'
         with:
-          name: ${{ env.NAME }}
+          name: ${{ env.NAME }} (GHC ${{ matrix.ghc-version }})
           path: "cryptol.msi*"
           if-no-files-found: error
           retention-days: ${{ needs.config.outputs.retention-days }}
@@ -236,7 +236,7 @@ jobs:
       matrix:
         suite: [test-lib]
         target: ${{ fromJson(needs.build.outputs.test-lib-json) }}
-        os: [ubuntu-20.04, macos-10.15, windows-2019]
+        os: [ubuntu-20.04, macos-12, windows-2019]
         continue-on-error: [false]
         include:
           - suite: rpc
@@ -245,7 +245,7 @@ jobs:
             continue-on-error: false
           #- suite: rpc
           #  target: ''
-          #  os: macos-10.05
+          #  os: macos-12
           #  continue-on-error: false
           #- suite: rpc
           #  target: ''

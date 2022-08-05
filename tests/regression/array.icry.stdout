@@ -12,6 +12,7 @@ Symbols
   arrayConstant : {a, b} b -> Array a b
   arrayCopy :
     {n, a} Array [n] a -> [n] -> Array [n] a -> [n] -> [n] -> Array [n] a
+  arrayEq : {n, a} Array [n] a -> Array [n] a -> Bool
   arrayLookup : {a, b} Array a b -> a -> b
   arrayRangeEqual :
     {n, a} Array [n] a -> [n] -> Array [n] a -> [n] -> [n] -> Bool
