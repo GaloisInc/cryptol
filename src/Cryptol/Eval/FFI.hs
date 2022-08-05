@@ -32,6 +32,7 @@ import           Foreign.C.Types
 import           GHC.Float
 import           LibBF                           (bfFromDouble, bfToDouble,
                                                   pattern NearEven)
+import           System.Directory
 
 import           Cryptol.Backend.Concrete
 import           Cryptol.Backend.FFI
@@ -66,7 +67,8 @@ evalForeignDecls path m env = do
               InFile p -> do
                 -- If any error happens when loading the 'ForeignSrc', stop
                 -- processing the module.
-                fsrc <- liftIO (loadForeignSrc p) >>= liftEither
+                fsrc <- liftEither =<<
+                  liftIO (canonicalizePath p >>= loadForeignSrc)
                 liftIO $ writeIORef foreignSrc $ Just fsrc
                 pure fsrc
               -- We don't handle in-memory modules for now
