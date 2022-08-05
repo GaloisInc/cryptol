@@ -17,10 +17,6 @@ flag NotThreaded
   manual: true
   description: Omit the -threaded ghc flag
 
-flag ffi
-  default: True
-  description: Correctly link the executable if cryptol was built with FFI
-
 common warnings
   ghc-options:
     -Wall
@@ -104,9 +100,6 @@ executable cryptol-remote-api
   if os(linux) && flag(static)
       ld-options:      -static -pthread
 
-  if os(linux) && flag(ffi)
-      ld-options:      -Wl,-rpath,$ORIGIN/../lib
-
 executable cryptol-eval-server
   import:              deps, warnings, errors
   main-is:             Main.hs
@@ -123,7 +116,4 @@ executable cryptol-eval-server
 
   if os(linux) && flag(static)
       ld-options:      -static -pthread
-
-  if os(linux) && flag(ffi)
-      ld-options:      -Wl,-rpath,$ORIGIN
 

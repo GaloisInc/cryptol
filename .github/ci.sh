@@ -33,15 +33,6 @@ extract_exe() {
   $IS_WIN || chmod +x "$2/$name"
 }
 
-extract_libffi() {
-  libffi=("$(ghc --print-libdir)"/rts/libffi.*)
-  cp "${libffi[@]}" "$1"
-}
-
-extract_libffi_for_bin() {
-  extract_libffi "$(dirname "$(cabal v2-exec which "$1$EXT")")"
-}
-
 retry() {
   echo "Attempting with retry:" "$@"
   local n=1
@@ -67,14 +58,6 @@ setup_dist_bins() {
   extract_exe "cryptol-remote-api" "dist/bin"
   extract_exe "cryptol-eval-server" "dist/bin"
   strip dist/bin/cryptol* || echo "Strip failed: Ignoring harmless error"
-}
-
-setup_libffi() {
-  extract_libffi "dist/bin"
-  extract_libffi_for_bin "cryptol"
-  extract_libffi_for_bin "cryptol-html"
-  extract_libffi_for_bin "cryptol-remote-api"
-  extract_libffi_for_bin "cryptol-eval-server"
 }
 
 build() {
