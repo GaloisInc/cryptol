@@ -1,15 +1,40 @@
 import Float
 
+// Basic integral types
 foreign add8 : [8] -> [8] -> [8]
 foreign sub16 : [16] -> [16] -> [16]
 foreign mul32 : [32] -> [32] -> [32]
 foreign div64 : [64] -> [64] -> [64]
 
+// Non-machine integer sizes
 foreign extendInput : [3] -> [8]
 foreign maskOutput : [8] -> [3]
+foreign noBits : [0] -> [0]
 
+// Bit
 foreign not : Bit -> Bit
 
+// Float
 foreign addFloat32 : Float32 -> Float32 -> Float32
 foreign subFloat64 : Float64 -> Float64 -> Float64
 foreign specialFloats : [2] -> Float32
+
+// Type synonyms
+type Word32 = [32]
+type MyFunc = Word32 -> Float32 -> Bit
+foreign usesTypeSynonym : MyFunc
+
+// Sequences
+foreign sum10 : [10]Word32 -> Word32
+foreign reverse5 : [5]Float64 -> [5]Float64
+
+// Tuples and records
+foreign compoundTypes : ([32], { x : [10], y : [3][20] }) -> { z : [5][20] }
+  -> { a : ([16], [16]), b : { c : [8][20], d : [5], e : [5] } }
+
+// Polymorphic sizes
+foreign typeToValue : {n} (fin n) => () -> [64]
+foreign sumPoly : {n} (fin n) => [n]Word32 -> Word32
+foreign inits : {n} (fin n) => [n][8] -> [n * (n + 1) / 2][8]
+foreign zipMul3 : {n, m, p} (fin n, fin m, fin p) =>
+  [n]Float32 -> [m]Float32 -> [p]Float32 -> [min n (min m p)]Float32
