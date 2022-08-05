@@ -4,3 +4,7 @@
 [submodule "deps/argo"]
 	path = deps/argo
 	url = https://github.com/galoisinc/argo
+[submodule "deps/libffi"]
+	path = deps/libffi
+	url = https://github.com/RyanGlScott/libffi
+	branch = static-linking-alt
