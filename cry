@@ -79,11 +79,21 @@ case $COMMAND in
   test)
     echo Running tests
     setup_external_tools
-    if [ "$#" == "0" ]; then TESTS=tests; else TESTS=$*; fi
+    if [ "$#" == "0" ]; then
+      if cabal v2-exec cryptol -- -v | grep -q 'FFI enabled'; then
+        TESTS=(tests/*)
+      else
+        GLOBIGNORE="tests/ffi"
+        TESTS=(tests/*)
+        unset GLOBIGNORE
+      fi
+    else
+      TESTS=("$*")
+    fi
     $BIN/test-runner --ext=.icry \
       --exe=cabal \
       -F v2-run -F -v0 -F exe:cryptol -F -- -F -b \
-      $TESTS
+      "${TESTS[@]}"
     ;;
 
   rpc-test)

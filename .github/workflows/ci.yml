@@ -153,7 +153,12 @@ jobs:
               cmd="cat \$1.stdout.mingw32 2>/dev/null || $cmd"
           fi
           ./bin/test-runner --ext=.icry -r ./output --exe=$(which bash) -F -c -F "$cmd" -F -- ./tests
-          TARGETS_JSON=$(echo -n "$(ls -1 ./output/tests)" | jq -Rsc 'split("\n")')
+          if cabal v2-exec cryptol -- -v | grep -q 'FFI enabled'; then
+              filter="cat"
+          else
+              filter="grep -v ffi"
+          fi
+          TARGETS_JSON=$(echo -n "$(ls -1 ./output/tests)" | $filter | jq -Rsc 'split("\n")')
           echo "::set-output name=targets-json::$TARGETS_JSON"
 
       - shell: bash
