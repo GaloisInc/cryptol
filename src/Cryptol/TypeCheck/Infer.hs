@@ -835,7 +835,11 @@ guessType exprMap b@(P.Bind { .. }) =
   case bSignature of
 
     Just s ->
-      do s1 <- checkSchema AllowWildCards s
+      do let wildOk = case thing bDef of
+                        P.DForeign {} -> NoWildCards
+                        P.DPrim       -> NoWildCards
+                        P.DExpr {}    -> AllowWildCards
+         s1 <- checkSchema wildOk s
          return ((name, ExtVar (fst s1)), Left (checkSigB b s1))
 
     Nothing

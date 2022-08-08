@@ -13,7 +13,7 @@ import Data.List((\\),sortBy,groupBy,partition)
 import Data.Function(on)
 
 import qualified Cryptol.Parser.AST as P
-import Cryptol.Parser.Position(Located(..), Range(..))
+import Cryptol.Parser.Position(Located(..), Range(..), rangeWithin)
 import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.Type
 import Cryptol.TypeCheck.InferTypes
@@ -57,6 +57,8 @@ cleanupErrors = dropErrorsFromSameLoc
 -- | Should the first error suppress the next one.
 subsumes :: (Range,Error) -> (Range,Error) -> Bool
 subsumes (_,NotForAll _ _ x _) (_,NotForAll _ _ y _) = x == y
+subsumes (r1,UnexpectedTypeWildCard) (r2,UnsupportedFFIType{}) =
+  r1 `rangeWithin` r2
 subsumes (r1,KindMismatch {}) (r2,err) =
   case err of
     KindMismatch {} -> r1 == r2
@@ -206,7 +208,8 @@ errorImportance err =
     AmbiguousSize {}                                 -> 2
 
     UnsupportedFFIKind {}                            -> 10
-    UnsupportedFFIType {}                            -> 9
+    UnsupportedFFIType {}                            -> 7
+    -- less than UnexpectedTypeWildCard
 
 
 instance TVars Warning where
@@ -335,7 +338,7 @@ instance PP (WithNames Error) where
       UnexpectedTypeWildCard ->
         addTVarsDescsAfter names err $
         nested "Wild card types are not allowed in this context"
-          "(e.g., they cannot be used in type synonyms)."
+          "(e.g., they cannot be used in type synonyms or FFI declarations)."
 
       KindMismatch mbsrc k1 k2 ->
         addTVarsDescsAfter names err $
