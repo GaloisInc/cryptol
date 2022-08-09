@@ -154,7 +154,10 @@ tMul x y
            , Just b' <- tIsNum b
            -- XXX: similar for a = b * k?
            , n == b' = tSub a (tMod a b)
-
+           -- c * c ^ x = c ^ (1 + x)
+           | TCon (TF TCExp) [a,b] <- t'
+           , Just n' <- tIsNum a
+           , n == n' = tf2 TCExp a (tAdd (tNum (1::Int)) b)
 
            | otherwise = tf2 TCMul (tNum n) t
     where t' = tNoUser t

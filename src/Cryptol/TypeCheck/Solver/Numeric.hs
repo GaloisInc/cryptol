@@ -48,6 +48,7 @@ cryIsEqual ctxt t1 t2 =
     <|> tryCancelVar ctxt (=#=) t1 t2
     <|> tryLinearSolution t1 t2
     <|> tryLinearSolution t2 t1
+    <|> tryEqExp t1 t2
 
 -- | Try to solve @t1 /= t2@
 cryIsNotEqual :: Ctxt -> Type -> Type -> Solved
@@ -67,6 +68,7 @@ cryIsGeq i t1 t2 =
     <|> tryAddConst (>==) t1 t2
     <|> tryCancelVar i (>==) t1 t2
     <|> tryMinIsGeq t1 t2
+    <|> tryGeqExp i t1 t2
     -- XXX: k >= width e
     -- XXX: width e >= k
 
@@ -135,6 +137,17 @@ tryGeqThanK _ t (Nat k) =
                             then []
                             else [ b >== tNum (k - n) ]
   -- XXX: K1 ^^ n >= K2
+
+
+-- (x >= 2 && x^a >= x^b) => a >= b
+tryGeqExp :: Ctxt -> Type -> Type -> Match Solved
+tryGeqExp _ x y = 
+      do  (x_1, a) <- (|^|) x
+          (x_2, b) <- (|^|) y
+          guard (x_1 == x_2)
+          n <- aNat x_1
+          guard (n >= 2)
+          return $ SolvedIf [ a >== b ]
 
 
 tryGeqThanSub :: Ctxt -> Type -> Type -> Match Solved
@@ -223,6 +236,20 @@ tryCancelVar ctxt p t1 t2 =
 
 
 
+-- if (x >= 2) && x^a*x^b = x^c => a+b = c
+tryEqExp :: Type -> Type -> Match Solved
+tryEqExp x y = check x y <|> check y x
+  where 
+    check i j =
+      do  (m1,m2) <- aMul i
+          (x_1, a) <- (|^|) m1
+          (x_2, b) <- (|^|) m2
+          (x_3, c) <- (|^|) j
+          guard (x_1 == x_2 && x_2 == x_3)
+          n <- aNat x_1
+          guard (n >= 2)
+          return $ SolvedIf [ tAdd a b =#= c ]
+  
 -- min t1 t2 = t1 ~> t1 <= t2
 tryEqMin :: Type -> Type -> Match Solved
 tryEqMin x y =
