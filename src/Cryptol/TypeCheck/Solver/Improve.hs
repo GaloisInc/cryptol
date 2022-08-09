@@ -1,4 +1,6 @@
 -- | Look for opportunity to solve goals by instantiating variables.
+-- This is a form of forward reasoning: we look for equations of the
+-- form `x = t`, that are implied by the given propositions.
 module Cryptol.TypeCheck.Solver.Improve where
 
 import qualified Data.Set as Set
@@ -11,6 +13,7 @@ import Cryptol.TypeCheck.Type
 import Cryptol.TypeCheck.SimpType as Mk
 import Cryptol.TypeCheck.Solver.Types
 import Cryptol.TypeCheck.Solver.Numeric.Interval
+import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
 import Cryptol.TypeCheck.TypePat
 import Cryptol.TypeCheck.Subst
 
@@ -19,6 +22,7 @@ import Cryptol.TypeCheck.Subst
 -- | Improvements from a bunch of propositions.
 -- Invariant:
 -- the substitions should be already applied to the new sub-goals, if any.
+-- The context has information known information about the variables in scope.
 improveProps :: Bool -> Ctxt -> [Prop] -> Match (Subst,[Prop])
 improveProps impSkol ctxt ps0 = loop emptySubst ps0
   where
@@ -63,28 +67,47 @@ improveLit impSkol prop =
 improveEq :: Bool -> Ctxt -> Prop -> Match (Subst,[Prop])
 improveEq impSkol fins prop =
   do (lhs,rhs) <- (|=|) prop
-     rewrite lhs rhs <|> rewrite rhs lhs
+     rewriteNotSym lhs rhs <|> rewriteNotSym rhs lhs
+                           <|> rewriteSym rhs lhs
   where
-  rewrite this other =
+  rewriteNotSym this other =
+
+    -- x == t       ~>   (x := t)
     do x <- aTVar this
        guard (considerVar x)
        case singleSubst x other of
          Left _ -> mzero
          Right su -> return (su, [])
     <|>
+
+    -- x + y  = t     ~> (x := t - y, y <= t)
     do (v,s) <- isSum this
        case singleSubst v (Mk.tSub other s) of
          Left _ -> mzero
          Right su -> return (su, [ other >== s ])
+
+
+  rewriteSym this other =
+
+    -- (a >= 2, fin a, a ^ x == b ^ y) -> x = y
+    do (a,x) <- matches this  ((|^|), __, __)
+       (b,y) <- matches other ((|^|), __, __)
+       guard (a == b)
+       let i = intervalFor a
+       guard (iLower i >= Nat 2 && iIsFin i)
+       improveEq impSkol fins (x =#= y)
+
 
   isSum t = do (v,s) <- matches t (anAdd, aTVar, __)
                valid v s
         <|> do (s,v) <- matches t (anAdd, __, aTVar)
                valid v s
 
-  valid v s = do let i = typeInterval (intervals fins) s
+  valid v s = do let i = intervalFor s
                  guard (considerVar v && v `Set.notMember` fvs s && iIsFin i)
                  return (v,s)
+
+  intervalFor = typeInterval (intervals fins)
 
   considerVar x = impSkol || isFreeTV x
 

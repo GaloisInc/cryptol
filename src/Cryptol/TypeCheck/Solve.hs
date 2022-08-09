@@ -337,7 +337,8 @@ proveImplicationIO s f varsInEnv ps asmps0 gs0 =
   (asmps,gs) =
      let gs1 = [ g { goal = p } | g <- gs0, p <- pSplitAnd (goal g)
                                 , notElem p asmps1 ]
-     in case matchMaybe (improveProps True mempty asmps1) of
+         asmpCtxt = buildSolverCtxt asmps1
+     in case matchMaybe (improveProps True asmpCtxt asmps1) of
           Nothing -> (asmps1,gs1)
           Just (newSu,newAsmps) ->
              ( [ TVar x =#= t | (x,t) <- substToList newSu ]
