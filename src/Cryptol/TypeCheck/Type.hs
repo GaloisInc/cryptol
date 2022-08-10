@@ -696,7 +696,7 @@ tFun     :: Type -> Type -> Type
 tFun a b  = TCon (TC TCFun) [a,b]
 
 -- | Eliminate outermost type synonyms.
-tNoUser  :: Type -> Type
+tNoUser :: Type -> Type
 tNoUser t = case t of
               TUser _ _ a -> tNoUser a
               _           -> t
