@@ -40,3 +40,5 @@ cryptol.msi
 cryptol.wixobj
 cryptol.wixpdb
 
+# happy-generated files
+src/Cryptol/Parser.hs
