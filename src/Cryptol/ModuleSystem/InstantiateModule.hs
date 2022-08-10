@@ -217,7 +217,9 @@ instance Inst Expr where
         EProofApp e               -> EProofApp (go e)
         EWhere e ds               -> EWhere (go e) (inst env ds)
 
-        EPropGuards _guards       -> EPropGuards undefined -- TODO
+        -- this doesn't exist in the new module system, so it will have to be
+        -- implemented differently there anyway
+        EPropGuards _guards       -> EPropGuards undefined 
 
 
 instance Inst DeclGroup where
