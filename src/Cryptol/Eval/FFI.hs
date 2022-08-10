@@ -46,7 +46,6 @@ import           Cryptol.Eval.Type
 import           Cryptol.Eval.Value
 import           Cryptol.ModuleSystem.Name
 import           Cryptol.TypeCheck.FFI.FFIType
-import           Cryptol.TypeCheck.Solver.InfNat
 import           Cryptol.Utils.Ident
 import           Cryptol.Utils.RecordMap
 
@@ -136,13 +135,11 @@ foreignPrim name FFIFunType {..} impl tenv = buildFun ffiArgTypes []
   -- Look up the value of a type parameter in the type environment and marshal
   -- it.
   marshalTyArg :: TParam -> Eval SomeFFIArg
-  marshalTyArg tp = case lookupTypeVar (TVBound tp) tenv of
-    Just (Left (Nat n))
-      | n <= toInteger (maxBound :: CSize) ->
-        pure $ SomeFFIArg @CSize $ fromInteger n
-      | otherwise -> raiseError Concrete $ FFITypeNumTooBig name tp n
-    x -> evalPanic "marshalTyArg"
-      ["Bad type env lookup", show name, show tp, show x]
+  marshalTyArg tp
+    | n <= toInteger (maxBound :: CSize) =
+      pure $ SomeFFIArg @CSize $ fromInteger n
+    | otherwise = raiseError Concrete $ FFITypeNumTooBig name tp n
+    where n = evalFinType $ TVar $ TVBound tp
 
   -- Marshal the given value as the given FFIType and call the given function
   -- with the results. A single Cryptol argument may correspond to any number of
