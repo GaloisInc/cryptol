@@ -68,6 +68,7 @@ import           Control.Applicative
 
 import Prelude ()
 import Prelude.Compat
+import Data.Bifunctor (Bifunctor(first))
 
 type EvalEnv = GenEvalEnv Concrete
 
@@ -218,14 +219,22 @@ evalExpr sym env expr = case expr of
      evalExpr sym env' e
 
   EPropGuards guards -> {-# SCC "evalExpr->EPropGuards" #-} do
-    let
-      evalPropGuard (props, e) = do
-        if and $ evalProp env <$> props
-          then Just <$> evalExpr sym env e
-          else pure Nothing
-    evalPropGuard `traverse` guards >>= (\case
-      Just val -> pure val
-      Nothing -> evalPanic "evalExpr" ["no guard case was satisfied"]) . foldr (<|>) Nothing
+    -- let
+    --   evalPropGuard (props, e) = do
+    --     if and $ checkProp . evalProp env <$> props
+    --       then Just <$> evalExpr sym env e
+    --       else pure Nothing
+    let checkedGuards =
+          first (and . (checkProp . evalProp env <$>))
+          <$> guards
+    case find fst checkedGuards of 
+      Nothing -> raiseError sym (NoMatchingPropGuardCase $ "Available prop guards: `" ++ show (fmap pp . fst <$> guards) ++ "`")
+      Just (_, e) -> eval e
+      
+      -- (\case
+      -- Just val -> pure val
+      -- Nothing -> evalPanic "evalExpr" ["no guard case was satisfied"]) . 
+      -- -- raiseError
 
   where
 
@@ -233,20 +242,41 @@ evalExpr sym env expr = case expr of
   eval = evalExpr sym env
   ppV = ppValue sym defaultPPOpts
 
-evalProp :: GenEvalEnv sym -> Prop -> Bool
-evalProp EvalEnv { envTypes } prop = case prop of 
-  TCon tcon ts
-    | ns <- evalNumType envTypes <$> ts
-      -> case tcon of
-          PC PEqual | [n1, n2] <- ns -> n1 == n2
-          PC PNeq | [n1, n2] <- ns -> n1 /= n2
-          PC PGeq | [n1, n2] <- ns -> n1 >= n2
-          PC PFin | [n] <- ns -> n /= Inf
-          -- TODO: instantiate UniqueFactorization for Nat'?
-          -- PC PPrime | [n] <- ns -> isJust (isPrime n) 
-          PC PTrue -> True
-          _ -> evalPanic "evalProp" ["cannot use this as a guarding constraint: ", show . pp $ prop ]
-  _ -> evalPanic "evalProp" ["cannot use this as a guarding constraint: ", show . pp $ prop ]
+-- | Checks whether an evaluated `Prop` holds
+checkProp :: Prop -> Bool
+checkProp = \case
+  TCon tcon ts ->
+    let ns = toNat' <$> ts in
+    case tcon of
+      PC PEqual | [n1, n2] <- ns -> n1 == n2
+      PC PNeq | [n1, n2] <- ns -> n1 /= n2
+      PC PGeq | [n1, n2] <- ns -> n1 >= n2
+      PC PFin | [n] <- ns -> n /= Inf
+      -- TODO: instantiate UniqueFactorization for Nat'?
+      -- PC PPrime | [n] <- ns -> isJust (isPrime n) 
+      PC PTrue -> True
+      pc -> evalPanic "evalProp" ["cannot use this as a guarding constraint: ", show . pp $ TCon tcon ts ]
+  prop -> evalPanic "evalProp" ["cannot use this as a guarding constraint: ", show . pp $ prop ]
+  where
+    toNat' :: Prop -> Nat'
+    toNat' = \case
+      TCon (TC (TCNum n)) [] -> Nat n
+      TCon (TC TCInf) [] -> Inf
+      prop -> panic "checkProp" ["Expected `" ++ pretty prop ++ "` to be an evaluated numeric type"]
+
+
+-- | Evaluates a `Prop` in an `EvalEnv` by substituting all variables according
+-- to `envTypes` and expanding all type synonyms via `tNoUser`.
+evalProp :: GenEvalEnv sym -> Prop -> Prop
+evalProp env@EvalEnv { envTypes } = \case
+  TCon tc tys -> TCon tc (toType . evalType envTypes <$> tys)
+  TVar tv -> case lookupTypeVar tv envTypes of
+    Nothing -> panic "evalProp" ["Could not find type variable `" ++ pretty tv ++ "` in the type evaluation environment"]
+    Just either_nat'_tval -> toType either_nat'_tval
+  prop@TUser {} -> evalProp env (tNoUser prop)
+  prop -> panic "evalProp" ["Cannot use the following as a type constraint: `" ++ pretty prop ++ "`"]
+  where
+    toType = either tNumTy tValTy
 
 -- | Capure the current call stack from the evaluation monad and
 --   annotate function values.  When arguments are later applied
