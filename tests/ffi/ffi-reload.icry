@@ -1,0 +1,10 @@
+:! echo '#include <stdint.h>\nuint8_t test() { return 0; }' > ffi-reload.c
+:! make -s ffi-reload
+:l ffi-reload.cry
+test ()
+:! sleep 1
+:! sed -i.bak 's/return 0/return 1/' ffi-reload.c
+:! make -s ffi-reload
+:r
+test ()
+:! rm ffi-reload.c ffi-reload.c.bak
