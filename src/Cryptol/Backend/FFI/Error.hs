@@ -19,12 +19,13 @@ data FFILoadError
   deriving (Show, Generic, NFData)
 
 instance PP FFILoadError where
-  ppPrec _ e = case e of
-    CantLoadFFISrc path msg ->
-      hang (text "Could not load foreign source for module located at"
-            <+> text path <.> colon)
-         4 (text msg)
-    CantLoadFFIImpl name msg ->
-      hang (text "Could not load foreign implementation for binding"
-            <+> text name <.> colon)
-         4 (text msg)
+  ppPrec _ e =
+    case e of
+      CantLoadFFISrc path msg ->
+        hang (text "Could not load foreign source for module located at"
+              <+> text path <.> colon)
+          4 (text msg)
+      CantLoadFFIImpl name msg ->
+        hang (text "Could not load foreign implementation for binding"
+              <+> text name <.> colon)
+          4 (text msg)

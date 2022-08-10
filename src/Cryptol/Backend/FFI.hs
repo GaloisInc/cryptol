@@ -118,9 +118,11 @@ unloadForeignLib :: Ptr () -> IO ()
 unloadForeignLib = dlclose . DLHandle
 
 withForeignSrc :: ForeignSrc -> (Ptr () -> IO a) -> IO a
-withForeignSrc ForeignSrc {..} f = withMVar foreignSrcLoaded \case
-  True  -> withForeignPtr foreignSrcFPtr f
-  False -> panic "[FFI] withForeignSrc" ["Use of foreign library after unload"]
+withForeignSrc ForeignSrc {..} f = withMVar foreignSrcLoaded
+  \case
+    True -> withForeignPtr foreignSrcFPtr f
+    False ->
+      panic "[FFI] withForeignSrc" ["Use of foreign library after unload"]
 
 -- | An implementation of a foreign function.
 data ForeignImpl = ForeignImpl

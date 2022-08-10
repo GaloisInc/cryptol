@@ -998,15 +998,17 @@ checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
           when (tpKind a /= KNum) $
             recordErrorLoc loc $ UnsupportedFFIKind src a $ tpKind a
         withTParams as do
-          ffiFunType <- case toFFIFunType (Forall as asmps0 t0) of
-            Right (props, ffiFunType) -> ffiFunType <$
-              (traverse (newGoal (CtFFI name)) props
-                >>= proveImplication True (Just name) as asmps0)
-            Left err -> do
-              recordErrorLoc loc $ UnsupportedFFIType src err
-              -- Just a placeholder type
-              pure FFIFunType
-                { ffiTParams = as, ffiArgTypes = [], ffiRetType = FFITuple [] }
+          ffiFunType <-
+            case toFFIFunType (Forall as asmps0 t0) of
+              Right (props, ffiFunType) -> ffiFunType <$
+                (traverse (newGoal (CtFFI name)) props
+                  >>= proveImplication True (Just name) as asmps0)
+              Left err -> do
+                recordErrorLoc loc $ UnsupportedFFIType src err
+                -- Just a placeholder type
+                pure FFIFunType
+                  { ffiTParams = as, ffiArgTypes = []
+                  , ffiRetType = FFITuple [] }
           pure Decl { dName       = thing (P.bName b)
                     , dSignature  = Forall as asmps0 t0
                     , dDefinition = DForeign ffiFunType
