@@ -1,5 +1,7 @@
 {-# LANGUAGE BlockArguments            #-}
 {-# LANGUAGE CPP                       #-}
+{-# LANGUAGE DeriveAnyClass            #-}
+{-# LANGUAGE DeriveGeneric             #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE LambdaCase                #-}
 {-# LANGUAGE RecordWildCards           #-}
@@ -9,24 +11,27 @@
 -- | The implementation of loading and calling external functions from shared
 -- libraries. Currently works on Unix only.
 module Cryptol.Backend.FFI
-#ifdef FFI_ENABLED
   ( ForeignSrc
   , loadForeignSrc
   , unloadForeignSrc
+#ifdef FFI_ENABLED
   , ForeignImpl
   , loadForeignImpl
   , FFIArg
   , FFIRet
   , SomeFFIArg (..)
   , callForeignImpl
-  )
 #endif
+  )
   where
+
+import           Control.DeepSeq
+
+import           Cryptol.Backend.FFI.Error
 
 #ifdef FFI_ENABLED
 
 import           Control.Concurrent.MVar
-import           Control.DeepSeq
 import           Control.Exception
 import           Control.Monad
 import           Data.Bifunctor
@@ -39,8 +44,15 @@ import           System.FilePath            ((-<.>))
 import           System.IO.Error
 import           System.Posix.DynamicLinker
 
-import           Cryptol.Backend.FFI.Error
 import           Cryptol.Utils.Panic
+
+#else
+
+import           GHC.Generics
+
+#endif
+
+#ifdef FFI_ENABLED
 
 -- | A source from which we can retrieve implementations of foreign functions.
 data ForeignSrc = ForeignSrc
@@ -199,5 +211,15 @@ callForeignImpl :: forall a. FFIRet a => ForeignImpl -> [SomeFFIArg] -> IO a
 callForeignImpl ForeignImpl {..} xs = withForeignSrc foreignImplSrc \_ ->
   callFFI foreignImplFun (ffiRet @a) $ map toArg xs
   where toArg (SomeFFIArg x) = ffiArg x
+
+#else
+
+data ForeignSrc = ForeignSrc deriving (Show, Generic, NFData)
+
+loadForeignSrc :: FilePath -> IO (Either FFILoadError ForeignSrc)
+loadForeignSrc _ = pure $ Right ForeignSrc
+
+unloadForeignSrc :: ForeignSrc -> IO ()
+unloadForeignSrc _ = pure ()
 
 #endif

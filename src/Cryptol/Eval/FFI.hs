@@ -15,6 +15,7 @@ module Cryptol.Eval.FFI
   ( evalForeignDecls
   ) where
 
+import           Cryptol.Backend.FFI
 import           Cryptol.Backend.FFI.Error
 import           Cryptol.Eval
 import           Cryptol.ModuleSystem.Env
@@ -36,7 +37,6 @@ import           LibBF                           (bfFromDouble, bfToDouble,
 import           System.Directory
 
 import           Cryptol.Backend.Concrete
-import           Cryptol.Backend.FFI
 import           Cryptol.Backend.FloatHelpers
 import           Cryptol.Backend.Monad
 import           Cryptol.Backend.SeqMap
@@ -276,7 +276,7 @@ withWordType FFIWord64 f = f $ Proxy @Word64
 -- | Dummy implementation for when FFI is disabled. Does not add anything to
 -- the environment.
 evalForeignDecls :: ModulePath -> Module -> EvalEnv ->
-  Eval (Either [FFILoadError] EvalEnv)
-evalForeignDecls _ _ env = pure $ Right env
+  Eval (Either [FFILoadError] (ForeignSrc, EvalEnv))
+evalForeignDecls _ _ _ = pure $ Left []
 
 #endif
