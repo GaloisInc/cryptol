@@ -1,6 +1,7 @@
 {-# LANGUAGE BlockArguments            #-}
 {-# LANGUAGE CPP                       #-}
 {-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE LambdaCase                #-}
 {-# LANGUAGE RecordWildCards           #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
 {-# LANGUAGE TypeApplications          #-}
@@ -11,6 +12,7 @@ module Cryptol.Backend.FFI
 #ifdef FFI_ENABLED
   ( ForeignSrc
   , loadForeignSrc
+  , unloadForeignSrc
   , ForeignImpl
   , loadForeignImpl
   , FFIArg
@@ -23,6 +25,8 @@ module Cryptol.Backend.FFI
 
 #ifdef FFI_ENABLED
 
+import           Control.Concurrent.MVar
+import           Control.DeepSeq
 import           Control.Exception
 import           Control.Monad
 import           Data.Bifunctor
@@ -36,22 +40,35 @@ import           System.IO.Error
 import           System.Posix.DynamicLinker
 
 import           Cryptol.Backend.FFI.Error
+import           Cryptol.Utils.Panic
 
 -- | A source from which we can retrieve implementations of foreign functions.
---
--- This is implemented as a 'ForeignPtr' wrapper around the pointer returned by
--- 'dlopen', where the destructor calls 'dlclose' when the library is no longer
--- needed. We keep references to the 'ForeignPtr' in each foreign function that
--- is in the evaluation environment, so when the Cryptol module is unloaded, the
--- shared library will be closed too.
-newtype ForeignSrc = ForeignSrc (ForeignPtr ())
+data ForeignSrc = ForeignSrc
+  { -- | The 'ForeignPtr' wraps the pointer returned by 'dlopen', where the
+    -- finalizer calls 'dlclose' when the library is no longer needed. We keep
+    -- references to the 'ForeignPtr' in each foreign function that is in the
+    -- evaluation environment, so that the shared library will stay open as long
+    -- as there are references to it.
+    foreignSrcFPtr   :: ForeignPtr ()
+    -- | We support explicit unloading of the shared library so we keep track of
+    -- if it has already been unloaded, and if so the finalizer does nothing.
+    -- This is updated atomically when the library is unloaded.
+  , foreignSrcLoaded :: MVar Bool }
+
+instance Show ForeignSrc where
+  show = show . foreignSrcFPtr
+
+instance NFData ForeignSrc where
+  rnf ForeignSrc {..} = foreignSrcFPtr `seq` foreignSrcLoaded `deepseq` ()
 
 -- | Load a 'ForeignSrc' for the given __Cryptol__ file path. The file path of
 -- the shared library that we try to load is the same as the Cryptol file path
 -- except with a platform specific extension.
 loadForeignSrc :: FilePath -> IO (Either FFILoadError ForeignSrc)
-loadForeignSrc = loadForeignLib >=> traverse \ptr ->
-  ForeignSrc <$> newForeignPtr ptr (unloadForeignLib ptr)
+loadForeignSrc = loadForeignLib >=> traverse \ptr -> do
+  foreignSrcLoaded <- newMVar True
+  foreignSrcFPtr <- newForeignPtr ptr (unloadForeignSrc' foreignSrcLoaded ptr)
+  pure ForeignSrc {..}
 
 loadForeignLib :: FilePath -> IO (Either FFILoadError (Ptr ()))
 #ifdef darwin_HOST_OS
@@ -70,22 +87,42 @@ loadForeignLib path =
         -- module loading time
         open ext = undl <$> dlopen (path -<.> ext) [RTLD_NOW]
 
+-- | Explicitly unload a 'ForeignSrc' immediately instead of waiting for the
+-- garbage collector to do it. This can be useful if you want to immediately
+-- load the same library again to pick up new changes.
+--
+-- The 'ForeignSrc' __must not__ be used in any way after this is called,
+-- including calling 'ForeignImpl's loaded from it.
+unloadForeignSrc :: ForeignSrc -> IO ()
+unloadForeignSrc ForeignSrc {..} = withForeignPtr foreignSrcFPtr $
+  unloadForeignSrc' foreignSrcLoaded
+
+unloadForeignSrc' :: MVar Bool -> Ptr () -> IO ()
+unloadForeignSrc' loaded lib = modifyMVar_ loaded \l -> do
+  when l $ unloadForeignLib lib
+  pure False
+
 unloadForeignLib :: Ptr () -> IO ()
 unloadForeignLib = dlclose . DLHandle
+
+withForeignSrc :: ForeignSrc -> (Ptr () -> IO a) -> IO a
+withForeignSrc ForeignSrc {..} f = withMVar foreignSrcLoaded \case
+  True  -> withForeignPtr foreignSrcFPtr f
+  False -> panic "[FFI] withForeignSrc" ["Use of foreign library after unload"]
 
 -- | An implementation of a foreign function.
 data ForeignImpl = ForeignImpl
   { foreignImplFun :: FunPtr ()
     -- | We don't need this to call the function but we want to keep the library
-    -- around as long as we still have a function from it so that the destructor
-    -- isn't called too early.
-  , foreignImplLib :: ForeignPtr ()
+    -- around as long as we still have a function from it so that it isn't
+    -- unloaded too early.
+  , foreignImplSrc :: ForeignSrc
   }
 
 -- | Load a 'ForeignImpl' with the given name from the given 'ForeignSrc'.
 loadForeignImpl :: ForeignSrc -> String -> IO (Either FFILoadError ForeignImpl)
-loadForeignImpl (ForeignSrc foreignImplLib) name =
-  withForeignPtr foreignImplLib \lib ->
+loadForeignImpl foreignImplSrc name =
+  withForeignSrc foreignImplSrc \lib ->
     tryLoad (CantLoadFFIImpl name) do
       foreignImplFun <- loadForeignFunPtr lib name
       pure ForeignImpl {..}
@@ -159,7 +196,7 @@ data SomeFFIArg = forall a. FFIArg a => SomeFFIArg a
 -- | Call a 'ForeignImpl' with the given arguments. The type parameter decides
 -- how the return value should be converted into a Haskell value.
 callForeignImpl :: forall a. FFIRet a => ForeignImpl -> [SomeFFIArg] -> IO a
-callForeignImpl ForeignImpl {..} xs = withForeignPtr foreignImplLib \_ ->
+callForeignImpl ForeignImpl {..} xs = withForeignSrc foreignImplSrc \_ ->
   callFFI foreignImplFun (ffiRet @a) $ map toArg xs
   where toArg (SomeFFIArg x) = ffiArg x
 

@@ -1,11 +1,12 @@
 {-# LANGUAGE BlockArguments      #-}
 {-# LANGUAGE CPP                 #-}
-{-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE NamedFieldPuns      #-}
 {-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE ViewPatterns        #-}
 
@@ -21,11 +22,11 @@ import           Cryptol.TypeCheck.AST
 
 #ifdef FFI_ENABLED
 
-import           Control.Monad.Except
-import           Control.Monad.Writer.Strict
-import           Data.Foldable
+import           Data.Either
 import           Data.IORef
+import           Data.Maybe
 import           Data.Proxy
+import           Data.Traversable
 import           Data.Word
 import           Foreign
 import           Foreign.C.Types
@@ -52,42 +53,34 @@ import           Cryptol.Utils.RecordMap
 -- | Find all the foreign declarations in the module and add them to the
 -- environment. This is a separate pass from the main evaluation functions in
 -- "Cryptol.Eval" since it only works for the Concrete backend.
+--
+-- Note: 'Right' is only returned if we successfully loaded some foreign
+-- functions and the environment was modified. If there were no foreign
+-- declarations at all then @Left []@ is returned, so 'Left' does not
+-- necessarily indicate an error.
 evalForeignDecls :: ModulePath -> Module -> EvalEnv ->
-  Eval (Either [FFILoadError] EvalEnv)
-evalForeignDecls path m env = do
-  -- We only want to try loading the 'ForeignSrc' when we encounter the first
-  -- foreign decl, so we store it in an 'IORef'
-  foreignSrc <- liftIO $ newIORef Nothing
-  let evalForeignDeclGroup e (Recursive ds)   = foldlM evalForeignDecl e ds
-      evalForeignDeclGroup e (NonRecursive d) = evalForeignDecl e d
-      evalForeignDecl e d = case dDefinition d of
-        DForeign ffiType -> do
-          fsrc <- liftIO (readIORef foreignSrc) >>= \case
-            Nothing -> case path of
-              InFile p -> do
-                -- If any error happens when loading the 'ForeignSrc', stop
-                -- processing the module.
-                fsrc <- liftEither =<<
-                  liftIO (canonicalizePath p >>= loadForeignSrc)
-                liftIO $ writeIORef foreignSrc $ Just fsrc
-                pure fsrc
-              -- We don't handle in-memory modules for now
-              InMem _ _ -> evalPanic "evalForeignDecls"
-                ["Can't find foreign source of in-memory module"]
-            Just fsrc -> pure fsrc
-          liftIO (loadForeignImpl fsrc $ unpackIdent $ nameIdent $ dName d)
-            >>= \case
-              -- If there is an error loading the 'ForeignImpl', record it and
-              -- keep going, because we want to check all the functions.
-              Left err -> tell [err] >> pure e
-              Right impl -> pure $ bindVarDirect (dName d)
-                (foreignPrimPoly (dName d) ffiType impl) e
-        _ -> pure e
-      report (Left err)         = Left [err]
-      report (Right (env', [])) = Right env'
-      report (Right (_, errs))  = Left errs
-  fmap report $ runExceptT $ runWriterT $
-    foldlM evalForeignDeclGroup env $ mDecls m
+  Eval (Either [FFILoadError] (ForeignSrc, EvalEnv))
+evalForeignDecls path m env = io
+  case mapMaybe getForeign $ mDecls m of
+    [] -> pure $ Left []
+    foreigns ->
+      case path of
+        InFile p -> canonicalizePath p >>= loadForeignSrc >>=
+          \case
+            Right fsrc -> collect <$> for foreigns \(name, ffiType) ->
+              fmap ((name,) . foreignPrimPoly name ffiType) <$>
+                loadForeignImpl fsrc (unpackIdent $ nameIdent name)
+              where collect (partitionEithers -> (errs, primMap))
+                      | null errs = Right
+                        (fsrc, foldr (uncurry bindVarDirect) env primMap)
+                      | otherwise = Left errs
+            Left err -> pure $ Left [err]
+        -- We don't handle in-memory modules for now
+        InMem _ _ -> evalPanic "evalForeignDecls"
+          ["Can't find foreign source of in-memory module"]
+  where getForeign (NonRecursive Decl { dName, dDefinition = DForeign ffiType })
+          = Just (dName, ffiType)
+        getForeign _ = Nothing
 
 -- | Generate a 'Prim' value representing the given foreign function, containing
 -- all the code necessary to marshal arguments and return values and do the
