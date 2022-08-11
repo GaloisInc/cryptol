@@ -40,7 +40,7 @@ data Range      = Range { from   :: !Position
 -- | Returns `True` if the first range is contained in the second one.
 rangeWithin :: Range -> Range -> Bool
 a `rangeWithin` b =
-  source a == source b && from a >= from b && to b <= to a
+  source a == source b && from a >= from b && to a <= to b
 
 -- | An empty range.
 --
