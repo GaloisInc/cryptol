@@ -19,6 +19,43 @@ Type Signatures
   f,g : {a,b} (fin a) => [a] b
 
 
+Numeric Constraint Guards
+-------------------------
+
+A declaration with a signature can use numeric constraint guards, which are like
+normal guards (such as in a multi-branch `if`` expression) except that the
+guarding conditions can be numeric constraints. For example:
+
+.. code-block:: cryptol
+
+  len : {n} (fin n) => [n]a -> Integer
+  len xs | n == 0 => 0
+         | n >  0 => 1 + len (drop `{1} xs)
+
+
+Note that this is importantly different from
+
+.. code-block:: cryptol
+  
+  len' : {n} (fin n) => [n]a -> Integer
+  len' xs = if `n == 0 => 0
+             | `n >  0 => 1 + len (drop `{1} xs)
+
+In `len'`, the type-checker cannot determine that `n >= 1` which is
+required to use the
+
+.. code-block:: cryptol
+
+  drop `{1} xs
+
+since the `if`'s condition is only on values, not types.
+
+However, in `len`, the type-checker locally-assumes the constraint `n > 0` in
+that constraint-guarded branch and so it can in fact determine that `n >= 1`.
+
+Numeric constraint guards only support constraints over numeric literals, such
+as `fin`, `<=`, `==`, etc. Type constraint aliases can also be used as long as
+they only constraint numeric literals.
 
 Layout
 ------
