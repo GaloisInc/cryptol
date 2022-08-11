@@ -1,69 +1,32 @@
-
-
 <!DOCTYPE html>
-<html class="writer-html4" lang="en" >
+<html class="writer-html5" lang="en" >
 <head>
   <meta charset="utf-8" />
-  
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  
   <title>Cryptol Reference Manual &mdash; Cryptol 2.11.0 documentation</title>
-  
-
-  
-  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
-  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
-
-  
-  
-
-  
-  
-
-  
-
-  
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
   <!--[if lt IE 9]>
     <script src="_static/js/html5shiv.min.js"></script>
   <![endif]-->
   
-    
-      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
-        <script type="text/javascript" src="_static/jquery.js"></script>
-        <script type="text/javascript" src="_static/underscore.js"></script>
-        <script type="text/javascript" src="_static/doctools.js"></script>
-        <script type="text/javascript" src="_static/language_data.js"></script>
-    
-    <script type="text/javascript" src="_static/js/theme.js"></script>
-
-    
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/jquery.js"></script>
+        <script src="_static/underscore.js"></script>
+        <script src="_static/doctools.js"></script>
+    <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
-    <link rel="search" title="Search" href="search.html" /> 
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Basic Syntax" href="BasicSyntax.html" /> 
 </head>
 
-<body class="wy-body-for-nav">
-
-   
+<body class="wy-body-for-nav"> 
   <div class="wy-grid-for-nav">
-    
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-          
-
-          
             <a href="#" class="icon icon-home"> Cryptol
-          
-
-          
           </a>
-
-          
-            
-            
-          
-
-          
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
     <input type="text" name="q" placeholder="Search docs" />
@@ -71,1341 +34,155 @@
     <input type="hidden" name="area" value="default" />
   </form>
 </div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Cryptol Reference Manual</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="BasicSyntax.html">Basic Syntax</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Expressions.html">Expressions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="BasicTypes.html">Basic Types</a></li>
+<li class="toctree-l1"><a class="reference internal" href="OverloadedOperations.html">Overloaded Operations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="TypeDeclarations.html">Type Declarations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Modules.html">Modules</a></li>
+</ul>
 
-          
         </div>
-
-        
-        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
-          
-            
-            
-              
-            
-            
-              <!-- Local TOC -->
-              <div class="local-toc"><ul>
-<li><a class="reference internal" href="#">Cryptol Reference Manual</a><ul>
-<li><a class="reference internal" href="#basic-syntax">Basic Syntax</a><ul>
-<li><a class="reference internal" href="#declarations">Declarations</a><ul>
-<li><a class="reference internal" href="#type-signatures">Type Signatures</a></li>
-</ul>
-</li>
-<li><a class="reference internal" href="#layout">Layout</a></li>
-<li><a class="reference internal" href="#comments">Comments</a></li>
-<li><a class="reference internal" href="#identifiers">Identifiers</a></li>
-<li><a class="reference internal" href="#keywords-and-built-in-operators">Keywords and Built-in Operators</a></li>
-<li><a class="reference internal" href="#built-in-type-level-operators">Built-in Type-level Operators</a></li>
-<li><a class="reference internal" href="#numeric-literals">Numeric Literals</a></li>
-</ul>
-</li>
-<li><a class="reference internal" href="#expressions">Expressions</a><ul>
-<li><a class="reference internal" href="#calling-functions">Calling Functions</a></li>
-<li><a class="reference internal" href="#prefix-operators">Prefix Operators</a></li>
-<li><a class="reference internal" href="#infix-functions">Infix Functions</a></li>
-<li><a class="reference internal" href="#type-annotations">Type Annotations</a></li>
-<li><a class="reference internal" href="#explicit-type-instantiation">Explicit Type Instantiation</a></li>
-<li><a class="reference internal" href="#local-declarations">Local Declarations</a><ul>
-<li><a class="reference internal" href="#block-arguments">Block Arguments</a></li>
-<li><a class="reference internal" href="#conditionals">Conditionals</a></li>
-<li><a class="reference internal" href="#demoting-numeric-types-to-values">Demoting Numeric Types to Values</a></li>
-</ul>
-</li>
-</ul>
-</li>
-<li><a class="reference internal" href="#basic-types">Basic Types</a><ul>
-<li><a class="reference internal" href="#bits">Bits</a></li>
-<li><a class="reference internal" href="#tuples-and-records">Tuples and Records</a><ul>
-<li><a class="reference internal" href="#accessing-fields">Accessing Fields</a></li>
-<li><a class="reference internal" href="#updating-fields">Updating Fields</a></li>
-</ul>
-</li>
-<li><a class="reference internal" href="#sequences">Sequences</a></li>
-<li><a class="reference internal" href="#functions">Functions</a></li>
-</ul>
-</li>
-<li><a class="reference internal" href="#overloaded-operations">Overloaded Operations</a><ul>
-<li><a class="reference internal" href="#equality">Equality</a></li>
-<li><a class="reference internal" href="#comparisons">Comparisons</a></li>
-<li><a class="reference internal" href="#signed-comparisons">Signed Comparisons</a></li>
-<li><a class="reference internal" href="#zero">Zero</a></li>
-<li><a class="reference internal" href="#logical-operations">Logical Operations</a></li>
-<li><a class="reference internal" href="#basic-arithmetic">Basic Arithmetic</a></li>
-<li><a class="reference internal" href="#integral-operations">Integral Operations</a></li>
-<li><a class="reference internal" href="#division">Division</a></li>
-<li><a class="reference internal" href="#rounding">Rounding</a></li>
-</ul>
-</li>
-<li><a class="reference internal" href="#type-declarations">Type Declarations</a><ul>
-<li><a class="reference internal" href="#type-synonyms">Type Synonyms</a></li>
-<li><a class="reference internal" href="#newtypes">Newtypes</a></li>
-</ul>
-</li>
-<li><a class="reference internal" href="#modules">Modules</a><ul>
-<li><a class="reference internal" href="#hierarchical-module-names">Hierarchical Module Names</a></li>
-<li><a class="reference internal" href="#module-imports">Module Imports</a><ul>
-<li><a class="reference internal" href="#import-lists">Import Lists</a></li>
-<li><a class="reference internal" href="#hiding-imports">Hiding Imports</a></li>
-<li><a class="reference internal" href="#qualified-module-imports">Qualified Module Imports</a></li>
-</ul>
-</li>
-<li><a class="reference internal" href="#private-blocks">Private Blocks</a></li>
-<li><a class="reference internal" href="#parameterized-modules">Parameterized Modules</a><ul>
-<li><a class="reference internal" href="#named-module-instantiations">Named Module Instantiations</a></li>
-<li><a class="reference internal" href="#parameterized-instantiations">Parameterized Instantiations</a></li>
-<li><a class="reference internal" href="#importing-parameterized-modules">Importing Parameterized Modules</a></li>
-</ul>
-</li>
-</ul>
-</li>
-</ul>
-</li>
-</ul>
-</div>
-            
-          
-        </div>
-        
       </div>
     </nav>
 
-    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
-
-      
-      <nav class="wy-nav-top" aria-label="top navigation">
-        
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
           <a href="#">Cryptol</a>
-        
       </nav>
 
-
       <div class="wy-nav-content">
-        
         <div class="rst-content">
-        
-          
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-<div role="navigation" aria-label="breadcrumbs navigation">
-
+          <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-    
       <li><a href="#" class="icon icon-home"></a> &raquo;</li>
-        
       <li>Cryptol Reference Manual</li>
-    
-    
       <li class="wy-breadcrumbs-aside">
-        
-          
             <a href="_sources/RefMan.rst.txt" rel="nofollow"> View page source</a>
-          
-        
       </li>
-    
   </ul>
-
-  
   <hr/>
 </div>
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
-            
+             
   <div class="section" id="cryptol-reference-manual">
-<h1>Cryptol Reference Manual<a class="headerlink" href="#cryptol-reference-manual" title="Permalink to this headline">¶</a></h1>
+<h1>Cryptol Reference Manual<a class="headerlink" href="#cryptol-reference-manual" title="Permalink to this headline"></a></h1>
 <div class="toctree-wrapper compound">
-</div>
-<div class="section" id="basic-syntax">
-<h2>Basic Syntax<a class="headerlink" href="#basic-syntax" title="Permalink to this headline">¶</a></h2>
-<div class="section" id="declarations">
-<h3>Declarations<a class="headerlink" href="#declarations" title="Permalink to this headline">¶</a></h3>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">f</span> <span class="n">x</span> <span class="ow">=</span> <span class="n">x</span> <span class="o">+</span> <span class="n">y</span> <span class="o">+</span> <span class="n">z</span>
-</pre></div>
-</div>
-<div class="section" id="type-signatures">
-<h4>Type Signatures<a class="headerlink" href="#type-signatures" title="Permalink to this headline">¶</a></h4>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">f</span><span class="p">,</span><span class="n">g</span> <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">,</span><span class="n">b</span><span class="p">}</span> <span class="p">(</span><span class="kr">fin</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="p">[</span><span class="n">a</span><span class="p">]</span> <span class="n">b</span>
-</pre></div>
-</div>
-</div>
-</div>
-<div class="section" id="layout">
-<h3>Layout<a class="headerlink" href="#layout" title="Permalink to this headline">¶</a></h3>
-<p>Groups of declarations are organized based on indentation.
-Declarations with the same indentation belong to the same group.
-Lines of text that are indented more than the beginning of a
-declaration belong to that declaration, while lines of text that are
-indented less terminate a group of declarations.  Consider, for example,
-the following Cryptol declarations:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">f</span> <span class="n">x</span> <span class="ow">=</span> <span class="n">x</span> <span class="o">+</span> <span class="n">y</span> <span class="o">+</span> <span class="n">z</span>
-  <span class="kr">where</span>
-  <span class="n">y</span> <span class="ow">=</span> <span class="n">x</span> <span class="o">*</span> <span class="n">x</span>
-  <span class="n">z</span> <span class="ow">=</span> <span class="n">x</span> <span class="o">+</span> <span class="n">y</span>
-
-<span class="nf">g</span> <span class="n">y</span> <span class="ow">=</span> <span class="n">y</span>
-</pre></div>
-</div>
-<p>This group has two declarations, one for <cite>f</cite> and one for <cite>g</cite>.  All the
-lines between <cite>f</cite> and <cite>g</cite> that are indented more than <cite>f</cite> belong to
-<cite>f</cite>.  The same principle applies to the declarations in the <code class="docutils literal notranslate"><span class="pre">where</span></code> block
-of <cite>f</cite>, which defines two more local names, <cite>y</cite> and <cite>z</cite>.</p>
-</div>
-<div class="section" id="comments">
-<h3>Comments<a class="headerlink" href="#comments" title="Permalink to this headline">¶</a></h3>
-<p>Cryptol supports block comments, which start with <code class="docutils literal notranslate"><span class="pre">/*</span></code> and end with
-<code class="docutils literal notranslate"><span class="pre">*/</span></code>, and line comments, which start with <code class="docutils literal notranslate"><span class="pre">//</span></code> and terminate at the
-end of the line.  Block comments may be nested arbitrarily.</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="cm">/* This is a block comment */</span>
-<span class="c1">// This is a line comment</span>
-<span class="cm">/* This is a /* Nested */ block comment */</span>
-</pre></div>
-</div>
-<div class="admonition-todo admonition" id="index-0">
-<p class="first admonition-title">Todo</p>
-<p class="last">Document <code class="docutils literal notranslate"><span class="pre">/**</span> <span class="pre">*/</span></code></p>
-</div>
-</div>
-<div class="section" id="identifiers">
-<h3>Identifiers<a class="headerlink" href="#identifiers" title="Permalink to this headline">¶</a></h3>
-<p>Cryptol identifiers consist of one or more characters.  The first
-character must be either an English letter or underscore (<code class="docutils literal notranslate"><span class="pre">_</span></code>).  The
-following characters may be an English letter, a decimal digit,
-underscore (<code class="docutils literal notranslate"><span class="pre">_</span></code>), or a prime (<code class="docutils literal notranslate"><span class="pre">'</span></code>).  Some identifiers have special
-meaning in the language, so they may not be used in programmer-defined
-names (see <a class="reference internal" href="#keywords-and-built-in-operators">Keywords and Built-in Operators</a>).</p>
-<div class="literal-block-wrapper docutils container" id="id1">
-<div class="code-block-caption"><span class="caption-text">Examples of identifiers</span><a class="headerlink" href="#id1" title="Permalink to this code">¶</a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">name</span>    <span class="n">name1</span>    <span class="n">name&#39;</span>    <span class="n">longer_name</span>
-<span class="kt">Name</span>    <span class="kt">Name2</span>    <span class="kt">Name&#39;&#39;</span>   <span class="n">longerName</span>
-</pre></div>
-</div>
-</div>
-</div>
-<div class="section" id="keywords-and-built-in-operators">
-<h3>Keywords and Built-in Operators<a class="headerlink" href="#keywords-and-built-in-operators" title="Permalink to this headline">¶</a></h3>
-<p>The following identifiers have special meanings in Cryptol, and may
-not be used for programmer defined names:</p>
-<div class="literal-block-wrapper docutils container" id="id2">
-<span id="keywords"></span><div class="code-block-caption"><span class="caption-text">Keywords</span><a class="headerlink" href="#id2" title="Permalink to this code">¶</a></div>
-<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>else       include    property    let       infixl       parameter
-extern     module     then        import    infixr       constraint
-if         newtype    type        as        infix        down
-private    pragma     where       hiding    primitive    by
-</pre></div>
-</div>
-</div>
-<p>The following table contains Cryptol’s operators and their
-associativity with lowest precedence operators first, and highest
-precedence last.</p>
-<table border="1" class="docutils" id="id3">
-<caption><span class="caption-text">Operator precedences</span><a class="headerlink" href="#id3" title="Permalink to this table">¶</a></caption>
-<colgroup>
-<col width="71%" />
-<col width="29%" />
-</colgroup>
-<thead valign="bottom">
-<tr class="row-odd"><th class="head">Operator</th>
-<th class="head">Associativity</th>
-</tr>
-</thead>
-<tbody valign="top">
-<tr class="row-even"><td><code class="docutils literal notranslate"><span class="pre">==&gt;</span></code></td>
-<td>right</td>
-</tr>
-<tr class="row-odd"><td><code class="docutils literal notranslate"><span class="pre">\/</span></code></td>
-<td>right</td>
-</tr>
-<tr class="row-even"><td><code class="docutils literal notranslate"><span class="pre">/\</span></code></td>
-<td>right</td>
-</tr>
-<tr class="row-odd"><td><code class="docutils literal notranslate"><span class="pre">==</span></code> <code class="docutils literal notranslate"><span class="pre">!=</span></code> <code class="docutils literal notranslate"><span class="pre">===</span></code> <code class="docutils literal notranslate"><span class="pre">!==</span></code></td>
-<td>not associative</td>
-</tr>
-<tr class="row-even"><td><code class="docutils literal notranslate"><span class="pre">&gt;</span></code> <code class="docutils literal notranslate"><span class="pre">&lt;</span></code> <code class="docutils literal notranslate"><span class="pre">&lt;=</span></code> <code class="docutils literal notranslate"><span class="pre">&gt;=</span></code>
-<code class="docutils literal notranslate"><span class="pre">&lt;$</span></code> <code class="docutils literal notranslate"><span class="pre">&gt;$</span></code> <code class="docutils literal notranslate"><span class="pre">&lt;=$</span></code> <code class="docutils literal notranslate"><span class="pre">&gt;=$</span></code></td>
-<td>not associative</td>
-</tr>
-<tr class="row-odd"><td><code class="docutils literal notranslate"><span class="pre">||</span></code></td>
-<td>right</td>
-</tr>
-<tr class="row-even"><td><code class="docutils literal notranslate"><span class="pre">^</span></code></td>
-<td>left</td>
-</tr>
-<tr class="row-odd"><td><code class="docutils literal notranslate"><span class="pre">&amp;&amp;</span></code></td>
-<td>right</td>
-</tr>
-<tr class="row-even"><td><code class="docutils literal notranslate"><span class="pre">#</span></code></td>
-<td>right</td>
-</tr>
-<tr class="row-odd"><td><code class="docutils literal notranslate"><span class="pre">&gt;&gt;</span></code> <code class="docutils literal notranslate"><span class="pre">&lt;&lt;</span></code> <code class="docutils literal notranslate"><span class="pre">&gt;&gt;&gt;</span></code> <code class="docutils literal notranslate"><span class="pre">&lt;&lt;&lt;</span></code> <code class="docutils literal notranslate"><span class="pre">&gt;&gt;$</span></code></td>
-<td>left</td>
-</tr>
-<tr class="row-even"><td><code class="docutils literal notranslate"><span class="pre">+</span></code> <code class="docutils literal notranslate"><span class="pre">-</span></code></td>
-<td>left</td>
-</tr>
-<tr class="row-odd"><td><code class="docutils literal notranslate"><span class="pre">*</span></code> <code class="docutils literal notranslate"><span class="pre">/</span></code> <code class="docutils literal notranslate"><span class="pre">%</span></code> <code class="docutils literal notranslate"><span class="pre">/$</span></code> <code class="docutils literal notranslate"><span class="pre">%$</span></code></td>
-<td>left</td>
-</tr>
-<tr class="row-even"><td><code class="docutils literal notranslate"><span class="pre">^^</span></code></td>
-<td>right</td>
-</tr>
-<tr class="row-odd"><td><code class="docutils literal notranslate"><span class="pre">&#64;</span></code>  <code class="docutils literal notranslate"><span class="pre">&#64;&#64;</span></code>  <code class="docutils literal notranslate"><span class="pre">!</span></code> <code class="docutils literal notranslate"><span class="pre">!!</span></code></td>
-<td>left</td>
-</tr>
-<tr class="row-even"><td>(unary) <code class="docutils literal notranslate"><span class="pre">-</span></code> <code class="docutils literal notranslate"><span class="pre">~</span></code></td>
-<td>right</td>
-</tr>
-</tbody>
-</table>
-</div>
-<div class="section" id="built-in-type-level-operators">
-<h3>Built-in Type-level Operators<a class="headerlink" href="#built-in-type-level-operators" title="Permalink to this headline">¶</a></h3>
-<p>Cryptol includes a variety of operators that allow computations on
-the numeric types used to specify the sizes of sequences.</p>
-<table border="1" class="docutils" id="id4">
-<caption><span class="caption-text">Type-level operators</span><a class="headerlink" href="#id4" title="Permalink to this table">¶</a></caption>
-<colgroup>
-<col width="23%" />
-<col width="77%" />
-</colgroup>
-<thead valign="bottom">
-<tr class="row-odd"><th class="head">Operator</th>
-<th class="head">Meaning</th>
-</tr>
-</thead>
-<tbody valign="top">
-<tr class="row-even"><td><code class="docutils literal notranslate"><span class="pre">+</span></code></td>
-<td>Addition</td>
-</tr>
-<tr class="row-odd"><td><code class="docutils literal notranslate"><span class="pre">-</span></code></td>
-<td>Subtraction</td>
-</tr>
-<tr class="row-even"><td><code class="docutils literal notranslate"><span class="pre">*</span></code></td>
-<td>Multiplication</td>
-</tr>
-<tr class="row-odd"><td><code class="docutils literal notranslate"><span class="pre">/</span></code></td>
-<td>Division</td>
-</tr>
-<tr class="row-even"><td><code class="docutils literal notranslate"><span class="pre">/^</span></code></td>
-<td>Ceiling division (<code class="docutils literal notranslate"><span class="pre">/</span></code> rounded up)</td>
-</tr>
-<tr class="row-odd"><td><code class="docutils literal notranslate"><span class="pre">%</span></code></td>
-<td>Modulus</td>
-</tr>
-<tr class="row-even"><td><code class="docutils literal notranslate"><span class="pre">%^</span></code></td>
-<td>Ceiling modulus (compute padding)</td>
-</tr>
-<tr class="row-odd"><td><code class="docutils literal notranslate"><span class="pre">^^</span></code></td>
-<td>Exponentiation</td>
-</tr>
-<tr class="row-even"><td><code class="docutils literal notranslate"><span class="pre">lg2</span></code></td>
-<td>Ceiling logarithm (base 2)</td>
-</tr>
-<tr class="row-odd"><td><code class="docutils literal notranslate"><span class="pre">width</span></code></td>
-<td>Bit width (equal to <code class="docutils literal notranslate"><span class="pre">lg2(n+1)</span></code>)</td>
-</tr>
-<tr class="row-even"><td><code class="docutils literal notranslate"><span class="pre">max</span></code></td>
-<td>Maximum</td>
-</tr>
-<tr class="row-odd"><td><code class="docutils literal notranslate"><span class="pre">min</span></code></td>
-<td>Minimum</td>
-</tr>
-</tbody>
-</table>
-</div>
-<div class="section" id="numeric-literals">
-<h3>Numeric Literals<a class="headerlink" href="#numeric-literals" title="Permalink to this headline">¶</a></h3>
-<p>Numeric literals may be written in binary, octal, decimal, or
-hexadecimal notation. The base of a literal is determined by its prefix:
-<code class="docutils literal notranslate"><span class="pre">0b</span></code> for binary, <code class="docutils literal notranslate"><span class="pre">0o</span></code> for octal, no special prefix for
-decimal, and <code class="docutils literal notranslate"><span class="pre">0x</span></code> for hexadecimal.</p>
-<div class="literal-block-wrapper docutils container" id="id5">
-<div class="code-block-caption"><span class="caption-text">Examples of literals</span><a class="headerlink" href="#id5" title="Permalink to this code">¶</a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="mi">254</span>                 <span class="c1">// Decimal literal</span>
-<span class="mi">0254</span>                <span class="c1">// Decimal literal</span>
-<span class="mi">0</span><span class="n">b11111110</span>          <span class="c1">// Binary literal</span>
-<span class="mo">0o376</span>               <span class="c1">// Octal literal</span>
-<span class="mh">0xFE</span>                <span class="c1">// Hexadecimal literal</span>
-<span class="mh">0xfe</span>                <span class="c1">// Hexadecimal literal</span>
-</pre></div>
-</div>
-</div>
-<p>Numeric literals in binary, octal, or hexadecimal notation result in
-bit sequences of a fixed length (i.e., they have type <code class="docutils literal notranslate"><span class="pre">[n]</span></code> for
-some <cite>n</cite>). The length is determined by the base and the number
-of digits in the literal. Decimal literals are overloaded, and so the
-type is inferred from context in which the literal is used. Examples:</p>
-<div class="literal-block-wrapper docutils container" id="id6">
-<div class="code-block-caption"><span class="caption-text">Literals and their types</span><a class="headerlink" href="#id6" title="Permalink to this code">¶</a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="mi">0</span><span class="n">b1010</span>              <span class="c1">// : [4],   1 * number of digits</span>
-<span class="mo">0o1234</span>              <span class="c1">// : [12],  3 * number of digits</span>
-<span class="mh">0x1234</span>              <span class="c1">// : [16],  4 * number of digits</span>
-
-<span class="mi">10</span>                  <span class="c1">// : {a}. (Literal 10 a) =&gt; a</span>
-                    <span class="c1">// a = Integer or [n] where n &gt;= width 10</span>
-</pre></div>
-</div>
-</div>
-<p>Numeric literals may also be written as polynomials by writing a polynomial
-expression in terms of <cite>x</cite> between an opening <code class="docutils literal notranslate"><span class="pre">&lt;|</span></code> and a closing <code class="docutils literal notranslate"><span class="pre">|&gt;</span></code>.
-Numeric literals in polynomial notation result in bit sequences of length
-one more than the degree of the polynomial.  Examples:</p>
-<div class="literal-block-wrapper docutils container" id="id7">
-<div class="code-block-caption"><span class="caption-text">Polynomial literals</span><a class="headerlink" href="#id7" title="Permalink to this code">¶</a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="o">&lt;|</span> <span class="n">x</span><span class="o">^^</span><span class="mi">6</span> <span class="o">+</span> <span class="n">x</span><span class="o">^^</span><span class="mi">4</span> <span class="o">+</span> <span class="n">x</span><span class="o">^^</span><span class="mi">2</span> <span class="o">+</span> <span class="n">x</span><span class="o">^^</span><span class="mi">1</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">|&gt;</span>  <span class="c1">// : [7], equal to 0b1010111</span>
-<span class="o">&lt;|</span> <span class="n">x</span><span class="o">^^</span><span class="mi">4</span> <span class="o">+</span> <span class="n">x</span><span class="o">^^</span><span class="mi">3</span> <span class="o">+</span> <span class="n">x</span> <span class="o">|&gt;</span>                <span class="c1">// : [5], equal to 0b11010</span>
-</pre></div>
-</div>
-</div>
-<p>Cryptol also supports fractional literals using binary (prefix <code class="docutils literal notranslate"><span class="pre">0b</span></code>),
-octal (prefix <code class="docutils literal notranslate"><span class="pre">0o</span></code>), decimal (no prefix), and hexadecimal (prefix <code class="docutils literal notranslate"><span class="pre">ox</span></code>)
-digits.  A fractional literal must contain a <code class="docutils literal notranslate"><span class="pre">.</span></code> and may optionally
-have an exponent.  The base of the exponent for binary, octal,
-and hexadecimal literals is 2 and the exponent is marked using the symbol <code class="docutils literal notranslate"><span class="pre">p</span></code>.
-Decimal fractional literals use exponent base 10, and the symbol <code class="docutils literal notranslate"><span class="pre">e</span></code>.
-Examples:</p>
-<div class="literal-block-wrapper docutils container" id="id8">
-<div class="code-block-caption"><span class="caption-text">Fractional literals</span><a class="headerlink" href="#id8" title="Permalink to this code">¶</a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="mf">10.2</span>
-<span class="mf">10.2e3</span>            <span class="c1">// 10.2 * 10^3</span>
-<span class="mh">0x30</span><span class="o">.</span><span class="mi">1</span>            <span class="c1">// 3 * 64 + 1/16</span>
-<span class="mh">0x30</span><span class="o">.</span><span class="mi">1</span><span class="n">p4</span>          <span class="c1">// (3 * 64 + 1/16) * 2^4</span>
-</pre></div>
-</div>
-</div>
-<p>All fractional literals are overloaded and may be used with types that support
-fractional numbers (e.g., <code class="docutils literal notranslate"><span class="pre">Rational</span></code>, and the <code class="docutils literal notranslate"><span class="pre">Float</span></code> family of types).</p>
-<p>Some types (e.g. the <code class="docutils literal notranslate"><span class="pre">Float</span></code> family) cannot represent all fractional literals
-precisely.  Such literals are rejected statically when using binary, octal,
-or hexadecimal notation.  When using decimal notation, the literal is rounded
-to the closest representable even number.</p>
-<p>All numeric literals may also include <code class="docutils literal notranslate"><span class="pre">_</span></code>, which has no effect on the
-literal value but may be used to improve readability.  Here are some examples:</p>
-<div class="literal-block-wrapper docutils container" id="id9">
-<div class="code-block-caption"><span class="caption-text">Using _</span><a class="headerlink" href="#id9" title="Permalink to this code">¶</a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="mi">0</span><span class="n">b_0000_0010</span>
-<span class="mi">0</span><span class="n">x_FFFF_FFEA</span>
-</pre></div>
-</div>
-</div>
-</div>
-</div>
-<div class="section" id="expressions">
-<h2>Expressions<a class="headerlink" href="#expressions" title="Permalink to this headline">¶</a></h2>
-<p>This section provides an overview of the Cryptol’s expression syntax.</p>
-<div class="section" id="calling-functions">
-<h3>Calling Functions<a class="headerlink" href="#calling-functions" title="Permalink to this headline">¶</a></h3>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">f</span> <span class="mi">2</span>             <span class="c1">// call `f` with parameter `2`</span>
-<span class="nf">g</span> <span class="n">x</span> <span class="n">y</span>           <span class="c1">// call `g` with two parameters: `x` and `y`</span>
-<span class="nf">h</span> <span class="p">(</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">)</span>         <span class="c1">// call `h` with one parameter,  the pair `(x,y)`</span>
-</pre></div>
-</div>
-</div>
-<div class="section" id="prefix-operators">
-<h3>Prefix Operators<a class="headerlink" href="#prefix-operators" title="Permalink to this headline">¶</a></h3>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="o">-</span><span class="mi">2</span>              <span class="c1">// call unary `-` with parameter `2`</span>
-<span class="o">-</span> <span class="mi">2</span>             <span class="c1">// call unary `-` with parameter `2`</span>
-<span class="nf">f</span> <span class="p">(</span><span class="o">-</span><span class="mi">2</span><span class="p">)</span>          <span class="c1">// call `f` with one argument: `-2`,  parens are important</span>
-<span class="o">-</span><span class="n">f</span> <span class="mi">2</span>            <span class="c1">// call unary `-` with parameter `f 2`</span>
-<span class="o">-</span> <span class="n">f</span> <span class="mi">2</span>           <span class="c1">// call unary `-` with parameter `f 2`</span>
-</pre></div>
-</div>
-</div>
-<div class="section" id="infix-functions">
-<h3>Infix Functions<a class="headerlink" href="#infix-functions" title="Permalink to this headline">¶</a></h3>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="mi">2</span> <span class="o">+</span> <span class="mi">3</span>           <span class="c1">// call `+` with two parameters: `2` and `3`</span>
-<span class="mi">2</span> <span class="o">+</span> <span class="mi">3</span> <span class="o">*</span> <span class="mi">5</span>       <span class="c1">// call `+` with two parameters: `2` and `3 * 5`</span>
-<span class="p">(</span><span class="o">+</span><span class="p">)</span> <span class="mi">2</span> <span class="mi">3</span>         <span class="c1">// call `+` with two parameters: `2` and `3`</span>
-<span class="nf">f</span> <span class="mi">2</span> <span class="o">+</span> <span class="n">g</span> <span class="mi">3</span>       <span class="c1">// call `+` with two parameters: `f 2` and `g 3`</span>
-<span class="o">-</span> <span class="mi">2</span> <span class="o">+</span> <span class="o">-</span> <span class="mi">3</span>       <span class="c1">// call `+` with two parameters: `-2` and `-3`</span>
-<span class="o">-</span> <span class="n">f</span> <span class="mi">2</span> <span class="o">+</span> <span class="o">-</span> <span class="n">g</span> <span class="mi">3</span>
-</pre></div>
-</div>
-</div>
-<div class="section" id="type-annotations">
-<h3>Type Annotations<a class="headerlink" href="#type-annotations" title="Permalink to this headline">¶</a></h3>
-<p>Explicit type annotations may be added on expressions, patterns, and
-in argument definitions.</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">x</span> <span class="kt">:</span> <span class="kr">Bit</span>         <span class="c1">// specify that `x` has type `Bit`</span>
-<span class="nf">f</span> <span class="n">x</span> <span class="kt">:</span> <span class="kr">Bit</span>       <span class="c1">// specify that `f x` has type `Bit`</span>
-<span class="o">-</span> <span class="n">f</span> <span class="n">x</span> <span class="kt">:</span> <span class="p">[</span><span class="mi">8</span><span class="p">]</span>     <span class="c1">// specify that `- f x` has type `[8]`</span>
-<span class="mi">2</span> <span class="o">+</span> <span class="mi">3</span> <span class="kt">:</span> <span class="p">[</span><span class="mi">8</span><span class="p">]</span>     <span class="c1">// specify that `2 + 3` has type `[8]`</span>
-<span class="nf">\</span><span class="n">x</span> <span class="ow">-&gt;</span> <span class="n">x</span> <span class="kt">:</span> <span class="p">[</span><span class="mi">8</span><span class="p">]</span>   <span class="c1">// type annotation is on `x`, not the function</span>
-<span class="kr">if</span> <span class="n">x</span>
-  <span class="kr">then</span> <span class="n">y</span>
-  <span class="kr">else</span> <span class="n">z</span> <span class="kt">:</span> <span class="kr">Bit</span>  <span class="c1">// the type annotation is on `z`, not the whole `if`</span>
-<span class="p">[</span><span class="mi">1</span><span class="o">..</span><span class="mi">9</span> <span class="kt">:</span> <span class="p">[</span><span class="mi">8</span><span class="p">]]</span>    <span class="c1">// specify that elements in `[1..9]` have type `[8]`</span>
-
-<span class="nf">f</span> <span class="p">(</span><span class="n">x</span> <span class="kt">:</span> <span class="p">[</span><span class="mi">8</span><span class="p">])</span> <span class="ow">=</span> <span class="n">x</span> <span class="o">+</span> <span class="mi">1</span>   <span class="c1">// type annotation on patterns</span>
-</pre></div>
-</div>
-<div class="admonition-todo admonition" id="index-1">
-<p class="first admonition-title">Todo</p>
-<p class="last">Patterns with type variables</p>
-</div>
-</div>
-<div class="section" id="explicit-type-instantiation">
-<h3>Explicit Type Instantiation<a class="headerlink" href="#explicit-type-instantiation" title="Permalink to this headline">¶</a></h3>
-<p>If <code class="docutils literal notranslate"><span class="pre">f</span></code> is a polymorphic value with type:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">f</span> <span class="kt">:</span> <span class="p">{</span> <span class="n">tyParam</span> <span class="p">}</span> <span class="n">tyParam</span>
-<span class="nf">f</span> <span class="ow">=</span> <span class="n">zero</span>
-</pre></div>
-</div>
-<p>you can evaluate <code class="docutils literal notranslate"><span class="pre">f</span></code>, passing it a type parameter:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">f</span> <span class="p">`{</span> <span class="n">tyParam</span> <span class="ow">=</span> <span class="mi">13</span> <span class="p">}</span>
-</pre></div>
-</div>
-</div>
-<div class="section" id="local-declarations">
-<h3>Local Declarations<a class="headerlink" href="#local-declarations" title="Permalink to this headline">¶</a></h3>
-<p>Local declarations have the weakest precedence of all expressions.</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="mi">2</span> <span class="o">+</span> <span class="n">x</span> <span class="kt">:</span> <span class="p">[</span><span class="kt">T</span><span class="p">]</span>
-  <span class="kr">where</span>
-  <span class="kr">type</span> <span class="kt">T</span> <span class="ow">=</span> <span class="mi">8</span>
-  <span class="n">x</span>      <span class="ow">=</span> <span class="mi">2</span>          <span class="c1">// `T` and `x` are in scope of `2 + x : `[T]`</span>
-
-<span class="kr">if</span> <span class="n">x</span> <span class="kr">then</span> <span class="mi">1</span> <span class="kr">else</span> <span class="mi">2</span>
-  <span class="kr">where</span> <span class="n">x</span> <span class="ow">=</span> <span class="mi">2</span>         <span class="c1">// `x` is in scope in the whole `if`</span>
-
-<span class="nf">\</span><span class="n">y</span> <span class="ow">-&gt;</span> <span class="n">x</span> <span class="o">+</span> <span class="n">y</span>
-  <span class="kr">where</span> <span class="n">x</span> <span class="ow">=</span> <span class="mi">2</span>         <span class="c1">// `y` is not in scope in the defintion of `x`</span>
-</pre></div>
-</div>
-<div class="section" id="block-arguments">
-<h4>Block Arguments<a class="headerlink" href="#block-arguments" title="Permalink to this headline">¶</a></h4>
-<p>When used as the last argument to a function call,
-<code class="docutils literal notranslate"><span class="pre">if</span></code> and lambda expressions do not need parens:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">f</span> <span class="nf">\</span><span class="n">x</span> <span class="ow">-&gt;</span> <span class="n">x</span>       <span class="c1">// call `f` with one argument `x -&gt; x`</span>
-<span class="mi">2</span> <span class="o">+</span> <span class="kr">if</span> <span class="n">x</span>
-      <span class="kr">then</span> <span class="n">y</span>
-      <span class="kr">else</span> <span class="n">z</span>    <span class="c1">// call `+` with two arguments: `2` and `if ...`</span>
-</pre></div>
-</div>
-</div>
-<div class="section" id="conditionals">
-<h4>Conditionals<a class="headerlink" href="#conditionals" title="Permalink to this headline">¶</a></h4>
-<p>The <code class="docutils literal notranslate"><span class="pre">if</span> <span class="pre">...</span> <span class="pre">then</span> <span class="pre">...</span> <span class="pre">else</span></code> construct can be used with
-multiple branches. For example:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">x</span> <span class="ow">=</span> <span class="kr">if</span> <span class="n">y</span> <span class="o">%</span> <span class="mi">2</span> <span class="o">==</span> <span class="mi">0</span> <span class="kr">then</span> <span class="mi">22</span> <span class="kr">else</span> <span class="mi">33</span>
-
-<span class="nf">x</span> <span class="ow">=</span> <span class="kr">if</span> <span class="n">y</span> <span class="o">%</span> <span class="mi">2</span> <span class="o">==</span> <span class="mi">0</span> <span class="kr">then</span> <span class="mi">1</span>
-     <span class="o">|</span> <span class="n">y</span> <span class="o">%</span> <span class="mi">3</span> <span class="o">==</span> <span class="mi">0</span> <span class="kr">then</span> <span class="mi">2</span>
-     <span class="o">|</span> <span class="n">y</span> <span class="o">%</span> <span class="mi">5</span> <span class="o">==</span> <span class="mi">0</span> <span class="kr">then</span> <span class="mi">3</span>
-     <span class="kr">else</span> <span class="mi">7</span>
-</pre></div>
-</div>
-</div>
-<div class="section" id="demoting-numeric-types-to-values">
-<h4>Demoting Numeric Types to Values<a class="headerlink" href="#demoting-numeric-types-to-values" title="Permalink to this headline">¶</a></h4>
-<p>The value corresponding to a numeric type may be accessed using the
-following notation:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="p">`</span><span class="n">t</span>
-</pre></div>
-</div>
-<p>Here <cite>t</cite> should be a finite type expression with numeric kind.  The resulting
-expression will be of a numeric base type, which is sufficiently large
-to accommodate the value of the type:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="p">`</span><span class="n">t</span> <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Literal</span> <span class="n">t</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span>
-</pre></div>
-</div>
-<p>This backtick notation is syntax sugar for an application of the
-<cite>number</cite> primtive, so the above may be written as:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">number</span><span class="p">`{</span><span class="n">t</span><span class="p">}</span> <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Literal</span> <span class="n">t</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span>
-</pre></div>
-</div>
-<p>If a type cannot be inferred from context, a suitable type will be
-automatically chosen if possible, usually <cite>Integer</cite>.</p>
-</div>
-</div>
-</div>
-<div class="section" id="basic-types">
-<h2>Basic Types<a class="headerlink" href="#basic-types" title="Permalink to this headline">¶</a></h2>
-<div class="section" id="bits">
-<h3>Bits<a class="headerlink" href="#bits" title="Permalink to this headline">¶</a></h3>
-<p>The type <code class="docutils literal notranslate"><span class="pre">Bit</span></code> has two inhabitants: <code class="docutils literal notranslate"><span class="pre">True</span></code> and <code class="docutils literal notranslate"><span class="pre">False</span></code>.  These values
-may be combined using various logical operators, or constructed as
-results of comparisons.</p>
-<table border="1" class="docutils" id="id10">
-<caption><span class="caption-text">Bit operations.</span><a class="headerlink" href="#id10" title="Permalink to this table">¶</a></caption>
-<colgroup>
-<col width="40%" />
-<col width="23%" />
-<col width="37%" />
-</colgroup>
-<tbody valign="top">
-<tr class="row-odd"><td>Operator</td>
-<td>Associativity</td>
-<td>Description</td>
-</tr>
-<tr class="row-even"><td><code class="docutils literal notranslate"><span class="pre">==&gt;</span></code></td>
-<td>right</td>
-<td>Short-cut implication</td>
-</tr>
-<tr class="row-odd"><td><code class="docutils literal notranslate"><span class="pre">\/</span></code></td>
-<td>right</td>
-<td>Short-cut or</td>
-</tr>
-<tr class="row-even"><td><code class="docutils literal notranslate"><span class="pre">/\</span></code></td>
-<td>right</td>
-<td>Short-cut and</td>
-</tr>
-<tr class="row-odd"><td><cite>!=</cite> <cite>==</cite></td>
-<td>none</td>
-<td>Not equals, equals</td>
-</tr>
-<tr class="row-even"><td><code class="docutils literal notranslate"><span class="pre">&gt;</span></code> <code class="docutils literal notranslate"><span class="pre">&lt;</span></code> <code class="docutils literal notranslate"><span class="pre">&lt;=</span></code> <code class="docutils literal notranslate"><span class="pre">&gt;=</span></code>
-<code class="docutils literal notranslate"><span class="pre">&lt;$</span></code> <code class="docutils literal notranslate"><span class="pre">&gt;$</span></code>
-<code class="docutils literal notranslate"><span class="pre">&lt;=$</span></code> <code class="docutils literal notranslate"><span class="pre">&gt;=$</span></code></td>
-<td>none</td>
-<td>Comparisons;
-$ indicates signed</td>
-</tr>
-<tr class="row-odd"><td><cite>||</cite></td>
-<td>right</td>
-<td>Logical or</td>
-</tr>
-<tr class="row-even"><td><cite>^</cite></td>
-<td>left</td>
-<td>Exclusive-or</td>
-</tr>
-<tr class="row-odd"><td><cite>&amp;&amp;</cite></td>
-<td>right</td>
-<td>Logical and</td>
-</tr>
-<tr class="row-even"><td><cite>~</cite></td>
-<td>right</td>
-<td>Logical negation</td>
-</tr>
-</tbody>
-</table>
-</div>
-<div class="section" id="tuples-and-records">
-<h3>Tuples and Records<a class="headerlink" href="#tuples-and-records" title="Permalink to this headline">¶</a></h3>
-<p>Tuples and records are used for packaging multiple values together.
-Tuples are enclosed in parentheses, while records are enclosed in
-curly braces.  The components of both tuples and records are separated by
-commas.  The components of tuples are expressions, while the
-components of records are a label and a value separated by an equal
-sign.  Examples:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">)</span>           <span class="c1">// A tuple with 3 component</span>
-<span class="nb">()</span>                <span class="c1">// A tuple with no components</span>
-
-<span class="p">{</span> <span class="n">x</span> <span class="ow">=</span> <span class="mi">1</span><span class="p">,</span> <span class="n">y</span> <span class="ow">=</span> <span class="mi">2</span> <span class="p">}</span>  <span class="c1">// A record with two fields, `x` and `y`</span>
-<span class="p">{}</span>                <span class="c1">// A record with no fields</span>
-</pre></div>
-</div>
-<p>The components of tuples are identified by position, while the
-components of records are identified by their label, and so the
-ordering of record components is not important for most purposes.
-Examples:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span>           <span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">)</span>               <span class="c1">// True</span>
-           <span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span><span class="mi">2</span><span class="p">,</span><span class="mi">1</span><span class="p">)</span>               <span class="c1">// False</span>
-
-<span class="p">{</span> <span class="n">x</span> <span class="ow">=</span> <span class="mi">1</span><span class="p">,</span> <span class="n">y</span> <span class="ow">=</span> <span class="mi">2</span> <span class="p">}</span> <span class="o">==</span> <span class="p">{</span> <span class="n">x</span> <span class="ow">=</span> <span class="mi">1</span><span class="p">,</span> <span class="n">y</span> <span class="ow">=</span> <span class="mi">2</span> <span class="p">}</span>    <span class="c1">// True</span>
-<span class="p">{</span> <span class="n">x</span> <span class="ow">=</span> <span class="mi">1</span><span class="p">,</span> <span class="n">y</span> <span class="ow">=</span> <span class="mi">2</span> <span class="p">}</span> <span class="o">==</span> <span class="p">{</span> <span class="n">y</span> <span class="ow">=</span> <span class="mi">2</span><span class="p">,</span> <span class="n">x</span> <span class="ow">=</span> <span class="mi">1</span> <span class="p">}</span>    <span class="c1">// True</span>
-</pre></div>
-</div>
-<p>Ordering on tuples and records is defined lexicographically. Tuple
-components are compared in the order they appear, whereas record
-fields are compared in alphabetical order of field names.</p>
-<div class="section" id="accessing-fields">
-<h4>Accessing Fields<a class="headerlink" href="#accessing-fields" title="Permalink to this headline">¶</a></h4>
-<p>The components of a record or a tuple may be accessed in two ways: via
-pattern matching or by using explicit component selectors.  Explicit
-component selectors are written as follows:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="p">(</span><span class="mi">15</span><span class="p">,</span> <span class="mi">20</span><span class="p">)</span><span class="o">.</span><span class="mi">0</span>           <span class="o">==</span> <span class="mi">15</span>
-<span class="p">(</span><span class="mi">15</span><span class="p">,</span> <span class="mi">20</span><span class="p">)</span><span class="o">.</span><span class="mi">1</span>           <span class="o">==</span> <span class="mi">20</span>
-
-<span class="p">{</span> <span class="n">x</span> <span class="ow">=</span> <span class="mi">15</span><span class="p">,</span> <span class="n">y</span> <span class="ow">=</span> <span class="mi">20</span> <span class="p">}</span><span class="o">.</span><span class="n">x</span> <span class="o">==</span> <span class="mi">15</span>
-</pre></div>
-</div>
-<p>Explicit record selectors may be used only if the program contains
-sufficient type information to determine the shape of the tuple or
-record.  For example:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">type</span> <span class="kt">T</span> <span class="ow">=</span> <span class="p">{</span> <span class="n">sign</span> <span class="kt">:</span> <span class="kr">Bit</span><span class="p">,</span> <span class="n">number</span> <span class="kt">:</span> <span class="p">[</span><span class="mi">15</span><span class="p">]</span> <span class="p">}</span>
-
-<span class="c1">// Valid definition:</span>
-<span class="c1">// the type of the record is known.</span>
-<span class="nf">isPositive</span> <span class="kt">:</span> <span class="kt">T</span> <span class="ow">-&gt;</span> <span class="kr">Bit</span>
-<span class="nf">isPositive</span> <span class="n">x</span> <span class="ow">=</span> <span class="n">x</span><span class="o">.</span><span class="n">sign</span>
-
-<span class="c1">// Invalid definition:</span>
-<span class="c1">// insufficient type information.</span>
-<span class="nf">badDef</span> <span class="n">x</span> <span class="ow">=</span> <span class="n">x</span><span class="o">.</span><span class="n">f</span>
-</pre></div>
-</div>
-<p>The components of a tuple or a record may also be accessed using
-pattern matching.  Patterns for tuples and records mirror the syntax
-for constructing values: tuple patterns use parentheses, while record
-patterns use braces.  Examples:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">getFst</span> <span class="p">(</span><span class="n">x</span><span class="p">,</span><span class="n">_</span><span class="p">)</span> <span class="ow">=</span> <span class="n">x</span>
-
-<span class="nf">distance2</span> <span class="p">{</span> <span class="n">x</span> <span class="ow">=</span> <span class="n">xPos</span><span class="p">,</span> <span class="n">y</span> <span class="ow">=</span> <span class="n">yPos</span> <span class="p">}</span> <span class="ow">=</span> <span class="n">xPos</span> <span class="o">^^</span> <span class="mi">2</span> <span class="o">+</span> <span class="n">yPos</span> <span class="o">^^</span> <span class="mi">2</span>
-
-<span class="nf">f</span> <span class="n">p</span> <span class="ow">=</span> <span class="n">x</span> <span class="o">+</span> <span class="n">y</span> <span class="kr">where</span>
-    <span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span> <span class="ow">=</span> <span class="n">p</span>
-</pre></div>
-</div>
-<p>Selectors are also lifted through sequence and function types, point-wise,
-so that the following equations should hold:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">xs</span><span class="o">.</span><span class="n">l</span> <span class="o">==</span> <span class="p">[</span> <span class="n">x</span><span class="o">.</span><span class="n">l</span> <span class="o">|</span> <span class="n">x</span> <span class="ow">&lt;-</span> <span class="n">xs</span> <span class="p">]</span>     <span class="c1">// sequences</span>
-<span class="nf">f</span><span class="o">.</span><span class="n">l</span>  <span class="o">==</span> <span class="nf">\</span><span class="n">x</span> <span class="ow">-&gt;</span> <span class="p">(</span><span class="n">f</span> <span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">l</span>         <span class="c1">// functions</span>
-</pre></div>
-</div>
-<p>Thus, if we have a sequence of tuples, <code class="docutils literal notranslate"><span class="pre">xs</span></code>, then we can quickly obtain a
-sequence with only the tuples’ first components by writing <code class="docutils literal notranslate"><span class="pre">xs.0</span></code>.</p>
-<p>Similarly, if we have a function, <code class="docutils literal notranslate"><span class="pre">f</span></code>, that computes a tuple of results,
-then we can write <code class="docutils literal notranslate"><span class="pre">f.0</span></code> to get a function that computes only the first
-entry in the tuple.</p>
-<p>This behavior is quite handy when examining complex data at the REPL.</p>
-</div>
-<div class="section" id="updating-fields">
-<h4>Updating Fields<a class="headerlink" href="#updating-fields" title="Permalink to this headline">¶</a></h4>
-<p>The components of a record or a tuple may be updated using the following
-notation:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="c1">// Example values</span>
-<span class="nf">r</span> <span class="ow">=</span> <span class="p">{</span> <span class="n">x</span> <span class="ow">=</span> <span class="mi">15</span><span class="p">,</span> <span class="n">y</span> <span class="ow">=</span> <span class="mi">20</span> <span class="p">}</span>      <span class="c1">// a record</span>
-<span class="nf">t</span> <span class="ow">=</span> <span class="p">(</span><span class="kr">True</span><span class="p">,</span><span class="kr">True</span><span class="p">)</span>             <span class="c1">// a tuple</span>
-<span class="nf">n</span> <span class="ow">=</span> <span class="p">{</span> <span class="n">pt</span> <span class="ow">=</span> <span class="n">r</span><span class="p">,</span> <span class="n">size</span> <span class="ow">=</span> <span class="mi">100</span> <span class="p">}</span>  <span class="c1">// nested record</span>
-
-<span class="c1">// Setting fields</span>
-<span class="p">{</span> <span class="n">r</span> <span class="o">|</span> <span class="n">x</span> <span class="ow">=</span> <span class="mi">30</span> <span class="p">}</span>          <span class="o">==</span> <span class="p">{</span> <span class="n">x</span> <span class="ow">=</span> <span class="mi">30</span><span class="p">,</span> <span class="n">y</span> <span class="ow">=</span> <span class="mi">20</span> <span class="p">}</span>
-<span class="p">{</span> <span class="n">t</span> <span class="o">|</span> <span class="mi">0</span> <span class="ow">=</span> <span class="kr">False</span> <span class="p">}</span>       <span class="o">==</span> <span class="p">(</span><span class="kr">False</span><span class="p">,</span><span class="kr">True</span><span class="p">)</span>
-
-<span class="c1">// Update relative to the old value</span>
-<span class="p">{</span> <span class="n">r</span> <span class="o">|</span> <span class="n">x</span> <span class="ow">-&gt;</span> <span class="n">x</span> <span class="o">+</span> <span class="mi">5</span> <span class="p">}</span>      <span class="o">==</span> <span class="p">{</span> <span class="n">x</span> <span class="ow">=</span> <span class="mi">20</span><span class="p">,</span> <span class="n">y</span> <span class="ow">=</span> <span class="mi">20</span> <span class="p">}</span>
-
-<span class="c1">// Update a nested field</span>
-<span class="p">{</span> <span class="n">n</span> <span class="o">|</span> <span class="n">pt</span><span class="o">.</span><span class="n">x</span> <span class="ow">=</span> <span class="mi">10</span> <span class="p">}</span>       <span class="o">==</span> <span class="p">{</span> <span class="n">pt</span> <span class="ow">=</span> <span class="p">{</span> <span class="n">x</span> <span class="ow">=</span> <span class="mi">10</span><span class="p">,</span> <span class="n">y</span> <span class="ow">=</span> <span class="mi">20</span> <span class="p">},</span> <span class="n">size</span> <span class="ow">=</span> <span class="mi">100</span> <span class="p">}</span>
-<span class="p">{</span> <span class="n">n</span> <span class="o">|</span> <span class="n">pt</span><span class="o">.</span><span class="n">x</span> <span class="ow">-&gt;</span> <span class="n">x</span> <span class="o">+</span> <span class="mi">10</span> <span class="p">}</span>  <span class="o">==</span> <span class="p">{</span> <span class="n">pt</span> <span class="ow">=</span> <span class="p">{</span> <span class="n">x</span> <span class="ow">=</span> <span class="mi">25</span><span class="p">,</span> <span class="n">y</span> <span class="ow">=</span> <span class="mi">20</span> <span class="p">},</span> <span class="n">size</span> <span class="ow">=</span> <span class="mi">100</span> <span class="p">}</span>
-</pre></div>
-</div>
-</div>
-</div>
-<div class="section" id="sequences">
-<h3>Sequences<a class="headerlink" href="#sequences" title="Permalink to this headline">¶</a></h3>
-<p>A sequence is a fixed-length collection of elements of the same type.
-The type of a finite sequence of length <cite>n</cite>, with elements of type <cite>a</cite>
-is <code class="docutils literal notranslate"><span class="pre">[n]</span> <span class="pre">a</span></code>.  Often, a finite sequence of bits, <code class="docutils literal notranslate"><span class="pre">[n]</span> <span class="pre">Bit</span></code>, is called a
-<em>word</em>.  We may abbreviate the type <code class="docutils literal notranslate"><span class="pre">[n]</span> <span class="pre">Bit</span></code> as <code class="docutils literal notranslate"><span class="pre">[n]</span></code>.  An infinite
-sequence with elements of type <cite>a</cite> has type <code class="docutils literal notranslate"><span class="pre">[inf]</span> <span class="pre">a</span></code>, and <code class="docutils literal notranslate"><span class="pre">[inf]</span></code> is
-an infinite stream of bits.</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="p">[</span><span class="n">e1</span><span class="p">,</span><span class="n">e2</span><span class="p">,</span><span class="n">e3</span><span class="p">]</span>            <span class="c1">// A sequence with three elements</span>
-
-<span class="p">[</span><span class="n">t1</span> <span class="o">..</span> <span class="n">t2</span><span class="p">]</span>            <span class="c1">// Enumeration</span>
-<span class="p">[</span><span class="n">t1</span> <span class="o">..</span> <span class="o">&lt;</span><span class="n">t2</span><span class="p">]</span>           <span class="c1">// Enumeration (exclusive bound)</span>
-<span class="p">[</span><span class="n">t1</span> <span class="o">..</span> <span class="n">t2</span> <span class="n">by</span> <span class="n">n</span><span class="p">]</span>       <span class="c1">// Enumeration (stride)</span>
-<span class="p">[</span><span class="n">t1</span> <span class="o">..</span> <span class="o">&lt;</span><span class="n">t2</span> <span class="n">by</span> <span class="n">n</span><span class="p">]</span>      <span class="c1">// Enumeration (stride, ex. bound)</span>
-<span class="p">[</span><span class="n">t1</span> <span class="o">..</span> <span class="n">t2</span> <span class="n">down</span> <span class="n">by</span> <span class="n">n</span><span class="p">]</span>  <span class="c1">// Enumeration (downward stride)</span>
-<span class="p">[</span><span class="n">t1</span> <span class="o">..</span> <span class="o">&gt;</span><span class="n">t2</span> <span class="n">down</span> <span class="n">by</span> <span class="n">n</span><span class="p">]</span> <span class="c1">// Enumeration (downward stride, ex. bound)</span>
-<span class="p">[</span><span class="n">t1</span><span class="p">,</span> <span class="n">t2</span> <span class="o">..</span> <span class="n">t3</span><span class="p">]</span>        <span class="c1">// Enumeration (step by t2 - t1)</span>
-
-<span class="p">[</span><span class="n">e1</span> <span class="o">...</span><span class="p">]</span>              <span class="c1">// Infinite sequence starting at e1</span>
-<span class="p">[</span><span class="n">e1</span><span class="p">,</span> <span class="n">e2</span> <span class="o">...</span><span class="p">]</span>          <span class="c1">// Infinite sequence stepping by e2-e1</span>
-
-<span class="p">[</span> <span class="n">e</span> <span class="o">|</span> <span class="n">p11</span> <span class="ow">&lt;-</span> <span class="n">e11</span><span class="p">,</span> <span class="n">p12</span> <span class="ow">&lt;-</span> <span class="n">e12</span>    <span class="c1">// Sequence comprehensions</span>
-    <span class="o">|</span> <span class="n">p21</span> <span class="ow">&lt;-</span> <span class="n">e21</span><span class="p">,</span> <span class="n">p22</span> <span class="ow">&lt;-</span> <span class="n">e22</span> <span class="p">]</span>
-
-<span class="nf">x</span> <span class="ow">=</span> <span class="n">generate</span> <span class="p">(</span><span class="nf">\</span><span class="n">i</span> <span class="ow">-&gt;</span> <span class="n">e</span><span class="p">)</span>    <span class="c1">// Sequence from generating function</span>
-<span class="nf">x</span> <span class="o">@</span> <span class="n">i</span> <span class="ow">=</span> <span class="n">e</span>                 <span class="c1">// Sequence with index binding</span>
-<span class="nf">arr</span> <span class="o">@</span> <span class="n">i</span> <span class="o">@</span> <span class="n">j</span> <span class="ow">=</span> <span class="n">e</span>           <span class="c1">// Two-dimensional sequence</span>
-</pre></div>
-</div>
-<p>Note: the bounds in finite sequences (those with <cite>..</cite>) are type
-expressions, while the bounds in infinite sequences are value
-expressions.</p>
-<table border="1" class="docutils" id="id11">
-<caption><span class="caption-text">Sequence operations.</span><a class="headerlink" href="#id11" title="Permalink to this table">¶</a></caption>
-<colgroup>
-<col width="40%" />
-<col width="60%" />
-</colgroup>
-<thead valign="bottom">
-<tr class="row-odd"><th class="head">Operator</th>
-<th class="head">Description</th>
-</tr>
-</thead>
-<tbody valign="top">
-<tr class="row-even"><td><code class="docutils literal notranslate"><span class="pre">#</span></code></td>
-<td>Sequence concatenation</td>
-</tr>
-<tr class="row-odd"><td><code class="docutils literal notranslate"><span class="pre">&gt;&gt;</span></code>  <code class="docutils literal notranslate"><span class="pre">&lt;&lt;</span></code></td>
-<td>Shift (right, left)</td>
-</tr>
-<tr class="row-even"><td><code class="docutils literal notranslate"><span class="pre">&gt;&gt;&gt;</span></code> <code class="docutils literal notranslate"><span class="pre">&lt;&lt;&lt;</span></code></td>
-<td>Rotate (right, left)</td>
-</tr>
-<tr class="row-odd"><td><code class="docutils literal notranslate"><span class="pre">&gt;&gt;$</span></code></td>
-<td>Arithmetic right shift (on bitvectors only)</td>
-</tr>
-<tr class="row-even"><td><code class="docutils literal notranslate"><span class="pre">&#64;</span></code> <code class="docutils literal notranslate"><span class="pre">!</span></code></td>
-<td>Access elements (front, back)</td>
-</tr>
-<tr class="row-odd"><td><code class="docutils literal notranslate"><span class="pre">&#64;&#64;</span></code> <code class="docutils literal notranslate"><span class="pre">!!</span></code></td>
-<td>Access sub-sequence (front, back)</td>
-</tr>
-<tr class="row-even"><td><code class="docutils literal notranslate"><span class="pre">update</span></code> <code class="docutils literal notranslate"><span class="pre">updateEnd</span></code></td>
-<td>Update the value of a sequence at
-a location
-(front, back)</td>
-</tr>
-<tr class="row-odd"><td><code class="docutils literal notranslate"><span class="pre">updates</span></code> <code class="docutils literal notranslate"><span class="pre">updatesEnd</span></code></td>
-<td>Update multiple values of a sequence
-(front, back)</td>
-</tr>
-</tbody>
-</table>
-<p>There are also lifted pointwise operations.</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="p">[</span><span class="n">p1</span><span class="p">,</span> <span class="n">p2</span><span class="p">,</span> <span class="n">p3</span><span class="p">,</span> <span class="n">p4</span><span class="p">]</span>          <span class="c1">// Sequence pattern</span>
-<span class="nf">p1</span> <span class="o">#</span> <span class="n">p2</span>                   <span class="c1">// Split sequence pattern</span>
-</pre></div>
-</div>
-</div>
-<div class="section" id="functions">
-<h3>Functions<a class="headerlink" href="#functions" title="Permalink to this headline">¶</a></h3>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">\</span><span class="n">p1</span> <span class="n">p2</span> <span class="ow">-&gt;</span> <span class="n">e</span>              <span class="c1">// Lambda expression</span>
-<span class="nf">f</span> <span class="n">p1</span> <span class="n">p2</span> <span class="ow">=</span> <span class="n">e</span>              <span class="c1">// Function definition</span>
-</pre></div>
-</div>
-</div>
-</div>
-<div class="section" id="overloaded-operations">
-<h2>Overloaded Operations<a class="headerlink" href="#overloaded-operations" title="Permalink to this headline">¶</a></h2>
-<div class="section" id="equality">
-<h3>Equality<a class="headerlink" href="#equality" title="Permalink to this headline">¶</a></h3>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kt">Eq</span>
-  <span class="p">(</span><span class="o">==</span><span class="p">)</span>        <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span>    <span class="p">(</span><span class="kt">Eq</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="kr">Bit</span>
-  <span class="p">(</span><span class="o">!=</span><span class="p">)</span>        <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span>    <span class="p">(</span><span class="kt">Eq</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="kr">Bit</span>
-  <span class="p">(</span><span class="o">===</span><span class="p">)</span>       <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">}</span> <span class="p">(</span><span class="kt">Eq</span> <span class="n">b</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="p">(</span><span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">b</span><span class="p">)</span> <span class="ow">-&gt;</span> <span class="p">(</span><span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">b</span><span class="p">)</span> <span class="ow">-&gt;</span> <span class="p">(</span><span class="n">a</span> <span class="ow">-&gt;</span> <span class="kr">Bit</span><span class="p">)</span>
-  <span class="p">(</span><span class="o">!==</span><span class="p">)</span>       <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">}</span> <span class="p">(</span><span class="kt">Eq</span> <span class="n">b</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="p">(</span><span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">b</span><span class="p">)</span> <span class="ow">-&gt;</span> <span class="p">(</span><span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">b</span><span class="p">)</span> <span class="ow">-&gt;</span> <span class="p">(</span><span class="n">a</span> <span class="ow">-&gt;</span> <span class="kr">Bit</span><span class="p">)</span>
-</pre></div>
-</div>
-</div>
-<div class="section" id="comparisons">
-<h3>Comparisons<a class="headerlink" href="#comparisons" title="Permalink to this headline">¶</a></h3>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">Cmp</span>
-  <span class="p">(</span><span class="o">&lt;</span><span class="p">)</span>         <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kr">Cmp</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="kr">Bit</span>
-  <span class="p">(</span><span class="o">&gt;</span><span class="p">)</span>         <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kr">Cmp</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="kr">Bit</span>
-  <span class="p">(</span><span class="o">&lt;=</span><span class="p">)</span>        <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kr">Cmp</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="kr">Bit</span>
-  <span class="p">(</span><span class="o">&gt;=</span><span class="p">)</span>        <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kr">Cmp</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="kr">Bit</span>
-  <span class="kr">min</span>         <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kr">Cmp</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span>
-  <span class="kr">max</span>         <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kr">Cmp</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span>
-  <span class="n">abs</span>         <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kr">Cmp</span> <span class="n">a</span><span class="p">,</span> <span class="kt">Ring</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span>
-</pre></div>
-</div>
-</div>
-<div class="section" id="signed-comparisons">
-<h3>Signed Comparisons<a class="headerlink" href="#signed-comparisons" title="Permalink to this headline">¶</a></h3>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kt">SignedCmp</span>
-  <span class="p">(</span><span class="o">&lt;$</span><span class="p">)</span>        <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">SignedCmp</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="kr">Bit</span>
-  <span class="p">(</span><span class="o">&gt;$</span><span class="p">)</span>        <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">SignedCmp</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="kr">Bit</span>
-  <span class="p">(</span><span class="o">&lt;=$</span><span class="p">)</span>       <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">SignedCmp</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="kr">Bit</span>
-  <span class="p">(</span><span class="o">&gt;=$</span><span class="p">)</span>       <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">SignedCmp</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="kr">Bit</span>
-</pre></div>
-</div>
-</div>
-<div class="section" id="zero">
-<h3>Zero<a class="headerlink" href="#zero" title="Permalink to this headline">¶</a></h3>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kt">Zero</span>
-  <span class="n">zero</span>        <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Zero</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span>
-</pre></div>
-</div>
-</div>
-<div class="section" id="logical-operations">
-<h3>Logical Operations<a class="headerlink" href="#logical-operations" title="Permalink to this headline">¶</a></h3>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kt">Logic</span>
-  <span class="p">(</span><span class="o">&amp;&amp;</span><span class="p">)</span>        <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Logic</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span>
-  <span class="p">(</span><span class="o">||</span><span class="p">)</span>        <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Logic</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span>
-  <span class="p">(</span><span class="o">^</span><span class="p">)</span>         <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Logic</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span>
-  <span class="n">complement</span>  <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Logic</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span>
-</pre></div>
-</div>
-</div>
-<div class="section" id="basic-arithmetic">
-<h3>Basic Arithmetic<a class="headerlink" href="#basic-arithmetic" title="Permalink to this headline">¶</a></h3>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kt">Ring</span>
-  <span class="n">fromInteger</span> <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Ring</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="kt">Integer</span> <span class="ow">-&gt;</span> <span class="n">a</span>
-  <span class="p">(</span><span class="o">+</span><span class="p">)</span>         <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Ring</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span>
-  <span class="p">(</span><span class="o">-</span><span class="p">)</span>         <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Ring</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span>
-  <span class="p">(</span><span class="o">*</span><span class="p">)</span>         <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Ring</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span>
-  <span class="n">negate</span>      <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Ring</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span>
-  <span class="p">(</span><span class="o">^^</span><span class="p">)</span>        <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">,</span> <span class="n">e</span><span class="p">}</span> <span class="p">(</span><span class="kt">Ring</span> <span class="n">a</span><span class="p">,</span> <span class="kt">Integral</span> <span class="n">e</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">e</span> <span class="ow">-&gt;</span> <span class="n">a</span>
-</pre></div>
-</div>
-</div>
-<div class="section" id="integral-operations">
-<h3>Integral Operations<a class="headerlink" href="#integral-operations" title="Permalink to this headline">¶</a></h3>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kt">Integral</span>
-  <span class="p">(</span><span class="o">/</span><span class="p">)</span>         <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Integral</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span>
-  <span class="p">(</span><span class="o">%</span><span class="p">)</span>         <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Integral</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span>
-  <span class="p">(</span><span class="o">^^</span><span class="p">)</span>        <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">,</span> <span class="n">e</span><span class="p">}</span> <span class="p">(</span><span class="kt">Ring</span> <span class="n">a</span><span class="p">,</span> <span class="kt">Integral</span> <span class="n">e</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">e</span> <span class="ow">-&gt;</span> <span class="n">a</span>
-  <span class="n">toInteger</span>   <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Integral</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="kt">Integer</span>
-  <span class="n">infFrom</span>     <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Integral</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="p">[</span><span class="kr">inf</span><span class="p">]</span><span class="n">a</span>
-  <span class="n">infFromThen</span> <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Integral</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="p">[</span><span class="kr">inf</span><span class="p">]</span><span class="n">a</span>
-</pre></div>
-</div>
-</div>
-<div class="section" id="division">
-<h3>Division<a class="headerlink" href="#division" title="Permalink to this headline">¶</a></h3>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kt">Field</span>
-  <span class="n">recip</span>       <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Field</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span>
-  <span class="p">(</span><span class="o">/.</span><span class="p">)</span>        <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Field</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span>
-</pre></div>
-</div>
-</div>
-<div class="section" id="rounding">
-<h3>Rounding<a class="headerlink" href="#rounding" title="Permalink to this headline">¶</a></h3>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kt">Round</span>
-  <span class="n">ceiling</span>     <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Round</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="kt">Integer</span>
-  <span class="n">floor</span>       <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Round</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="kt">Integer</span>
-  <span class="n">trunc</span>       <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Round</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="kt">Integer</span>
-  <span class="n">roundAway</span>   <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Round</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="kt">Integer</span>
-  <span class="n">roundToEven</span> <span class="kt">:</span> <span class="p">{</span><span class="n">a</span><span class="p">}</span> <span class="p">(</span><span class="kt">Round</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="kt">Integer</span>
-</pre></div>
-</div>
-</div>
-</div>
-<div class="section" id="type-declarations">
-<h2>Type Declarations<a class="headerlink" href="#type-declarations" title="Permalink to this headline">¶</a></h2>
-<div class="section" id="type-synonyms">
-<h3>Type Synonyms<a class="headerlink" href="#type-synonyms" title="Permalink to this headline">¶</a></h3>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">type</span> <span class="kt">T</span> <span class="n">a</span> <span class="n">b</span> <span class="ow">=</span> <span class="p">[</span><span class="n">a</span><span class="p">]</span> <span class="n">b</span>
-</pre></div>
-</div>
-<p>A <code class="docutils literal notranslate"><span class="pre">type</span></code> declaration creates a synonym for a
-pre-existing type expression, which may optionally have
-arguments. A type synonym is transparently unfolded at
-use sites and is treated as though the user had instead
-written the body of the type synonym in line.
-Type synonyms may mention other synonyms, but it is not
-allowed to create a recursive collection of type synonyms.</p>
-</div>
-<div class="section" id="newtypes">
-<h3>Newtypes<a class="headerlink" href="#newtypes" title="Permalink to this headline">¶</a></h3>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">newtype</span> <span class="kt">NewT</span> <span class="n">a</span> <span class="n">b</span> <span class="ow">=</span> <span class="p">{</span> <span class="nb">seq</span> <span class="kt">:</span> <span class="p">[</span><span class="n">a</span><span class="p">]</span><span class="n">b</span> <span class="p">}</span>
-</pre></div>
-</div>
-<p>A <code class="docutils literal notranslate"><span class="pre">newtype</span></code> declaration declares a new named type which is defined by
-a record body.  Unlike type synonyms, each named <code class="docutils literal notranslate"><span class="pre">newtype</span></code> is treated
-as a distinct type by the type checker, even if they have the same
-bodies. Moreover, types created by a <code class="docutils literal notranslate"><span class="pre">newtype</span></code> declaration will not be
-members of any typeclasses, even if the record defining their body
-would be.  For the purposes of typechecking, two newtypes are
-considered equal only if all their arguments are equal, even if the
-arguments do not appear in the body of the newtype, or are otherwise
-irrelevant.  Just like type synonyms, newtypes are not allowed to form
-recursive groups.</p>
-<p>Every <code class="docutils literal notranslate"><span class="pre">newtype</span></code> declaration brings into scope a new function with the
-same name as the type which can be used to create values of the
-newtype.</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">x</span> <span class="kt">:</span> <span class="kt">NewT</span> <span class="mi">3</span> <span class="kt">Integer</span>
-<span class="nf">x</span> <span class="ow">=</span> <span class="kt">NewT</span> <span class="p">{</span> <span class="nb">seq</span> <span class="ow">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">]</span> <span class="p">}</span>
-</pre></div>
-</div>
-<p>Just as with records, field projections can be used directly on values
-of newtypes to extract the values in the body of the type.</p>
-<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>&gt; sum x.seq
-6
-</pre></div>
-</div>
-</div>
-</div>
-<div class="section" id="modules">
-<h2>Modules<a class="headerlink" href="#modules" title="Permalink to this headline">¶</a></h2>
-<p>A <em>module</em> is used to group some related definitions.  Each file may
-contain at most one top-level module.</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span> <span class="nn">M</span> <span class="kr">where</span>
-
-<span class="kr">type</span> <span class="kt">T</span> <span class="ow">=</span> <span class="p">[</span><span class="mi">8</span><span class="p">]</span>
-
-<span class="nf">f</span> <span class="kt">:</span> <span class="p">[</span><span class="mi">8</span><span class="p">]</span>
-<span class="nf">f</span> <span class="ow">=</span> <span class="mi">10</span>
-</pre></div>
-</div>
-<div class="section" id="hierarchical-module-names">
-<h3>Hierarchical Module Names<a class="headerlink" href="#hierarchical-module-names" title="Permalink to this headline">¶</a></h3>
-<p>Module may have either simple or <em>hierarchical</em> names.
-Hierarchical names are constructed by gluing together ordinary
-identifiers using the symbol <code class="docutils literal notranslate"><span class="pre">::</span></code>.</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span> <span class="nn">Hash</span><span class="ow">::</span><span class="kt">SHA256</span> <span class="kr">where</span>
-
-<span class="nf">sha256</span> <span class="ow">=</span> <span class="o">...</span>
-</pre></div>
-</div>
-<p>The structure in the name may be used to group together related
-modules.  Also, the Cryptol implementation uses the structure of the
-name to locate the file containing the definition of the module.
-For example, when searching for module <code class="docutils literal notranslate"><span class="pre">Hash::SHA256</span></code>, Cryptol
-will look for a file named <code class="docutils literal notranslate"><span class="pre">SHA256.cry</span></code> in a directory called
-<code class="docutils literal notranslate"><span class="pre">Hash</span></code>, contained in one of the directories specified by <code class="docutils literal notranslate"><span class="pre">CRYPTOLPATH</span></code>.</p>
-</div>
-<div class="section" id="module-imports">
-<h3>Module Imports<a class="headerlink" href="#module-imports" title="Permalink to this headline">¶</a></h3>
-<p>To use the definitions from one module in another module, we use
-<code class="docutils literal notranslate"><span class="pre">import</span></code> declarations:</p>
-<div class="literal-block-wrapper docutils container" id="id12">
-<div class="code-block-caption"><span class="caption-text">module M</span><a class="headerlink" href="#id12" title="Permalink to this code">¶</a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="c1">// Provide some definitions</span>
-<span class="kr">module</span> <span class="nn">M</span> <span class="kr">where</span>
-
-<span class="nf">f</span> <span class="kt">:</span> <span class="p">[</span><span class="mi">8</span><span class="p">]</span>
-<span class="nf">f</span> <span class="ow">=</span> <span class="mi">2</span>
-</pre></div>
-</div>
-</div>
-<div class="literal-block-wrapper docutils container" id="id13">
-<div class="code-block-caption"><span class="caption-text">module N</span><a class="headerlink" href="#id13" title="Permalink to this code">¶</a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="c1">// Uses definitions from `M`</span>
-<span class="kr">module</span> <span class="nn">N</span> <span class="kr">where</span>
-
-<span class="kr">import</span> <span class="nn">M</span>  <span class="c1">// import all definitions from `M`</span>
-
-<span class="nf">g</span> <span class="ow">=</span> <span class="n">f</span>   <span class="c1">// `f` was imported from `M`</span>
-</pre></div>
-</div>
-</div>
-<div class="section" id="import-lists">
-<h4>Import Lists<a class="headerlink" href="#import-lists" title="Permalink to this headline">¶</a></h4>
-<p>Sometimes, we may want to import only some of the definitions
-from a module.  To do so, we use an import declaration with
-an <em>import list</em>.</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span> <span class="nn">M</span> <span class="kr">where</span>
-
-<span class="nf">f</span> <span class="ow">=</span> <span class="mh">0x02</span>
-<span class="nf">g</span> <span class="ow">=</span> <span class="mh">0x03</span>
-<span class="nf">h</span> <span class="ow">=</span> <span class="mh">0x04</span>
-</pre></div>
-</div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span> <span class="nn">N</span> <span class="kr">where</span>
-
-<span class="kr">import</span> <span class="nn">M</span><span class="p">(</span><span class="n">f</span><span class="p">,</span><span class="n">g</span><span class="p">)</span>  <span class="c1">// Imports only `f` and `g`, but not `h`</span>
-
-<span class="nf">x</span> <span class="ow">=</span> <span class="n">f</span> <span class="o">+</span> <span class="n">g</span>
-</pre></div>
-</div>
-<p>Using explicit import lists helps reduce name collisions.
-It also tends to make code easier to understand,  because
-it makes it easy to see the source of definitions.</p>
-</div>
-<div class="section" id="hiding-imports">
-<h4>Hiding Imports<a class="headerlink" href="#hiding-imports" title="Permalink to this headline">¶</a></h4>
-<p>Sometimes a module may provide many definitions, and we want to use
-most of them but with a few exceptions (e.g., because those would
-result to a name clash).   In such situations it is convenient
-to use a <em>hiding</em> import:</p>
-<div class="literal-block-wrapper docutils container" id="id14">
-<div class="code-block-caption"><span class="caption-text">module M</span><a class="headerlink" href="#id14" title="Permalink to this code">¶</a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span> <span class="nn">M</span> <span class="kr">where</span>
-
-<span class="nf">f</span> <span class="ow">=</span> <span class="mh">0x02</span>
-<span class="nf">g</span> <span class="ow">=</span> <span class="mh">0x03</span>
-<span class="nf">h</span> <span class="ow">=</span> <span class="mh">0x04</span>
-</pre></div>
-</div>
-</div>
-<div class="literal-block-wrapper docutils container" id="id15">
-<div class="code-block-caption"><span class="caption-text">module N</span><a class="headerlink" href="#id15" title="Permalink to this code">¶</a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span> <span class="nn">N</span> <span class="kr">where</span>
-
-<span class="kr">import</span> <span class="nn">M</span> <span class="k">hiding</span> <span class="p">(</span><span class="nf">h</span><span class="p">)</span> <span class="c1">// Import everything but `h`</span>
-
-<span class="nf">x</span> <span class="ow">=</span> <span class="n">f</span> <span class="o">+</span> <span class="n">g</span>
-</pre></div>
-</div>
-</div>
-</div>
-<div class="section" id="qualified-module-imports">
-<h4>Qualified Module Imports<a class="headerlink" href="#qualified-module-imports" title="Permalink to this headline">¶</a></h4>
-<p>Another way to avoid name collisions is by using a
-<em>qualified</em> import.</p>
-<div class="literal-block-wrapper docutils container" id="id16">
-<div class="code-block-caption"><span class="caption-text">module M</span><a class="headerlink" href="#id16" title="Permalink to this code">¶</a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span> <span class="nn">M</span> <span class="kr">where</span>
-
-<span class="nf">f</span> <span class="kt">:</span> <span class="p">[</span><span class="mi">8</span><span class="p">]</span>
-<span class="nf">f</span> <span class="ow">=</span> <span class="mi">2</span>
-</pre></div>
-</div>
-</div>
-<div class="literal-block-wrapper docutils container" id="id17">
-<div class="code-block-caption"><span class="caption-text">module N</span><a class="headerlink" href="#id17" title="Permalink to this code">¶</a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span> <span class="nn">N</span> <span class="kr">where</span>
-
-<span class="kr">import</span> <span class="nn">M</span> <span class="k">as</span> <span class="n">P</span>
-
-<span class="nf">g</span> <span class="ow">=</span> <span class="kt">P</span><span class="ow">::</span><span class="n">f</span>
-<span class="c1">// `f` was imported from `M`</span>
-<span class="c1">// but when used it needs to be prefixed by the qualifier `P`</span>
-</pre></div>
-</div>
-</div>
-<p>Qualified imports make it possible to work with definitions
-that happen to have the same name but are defined in different modules.</p>
-<p>Qualified imports may be combined with import lists or hiding clauses:</p>
-<div class="literal-block-wrapper docutils container" id="id18">
-<div class="code-block-caption"><span class="caption-text">Example</span><a class="headerlink" href="#id18" title="Permalink to this code">¶</a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">import</span> <span class="nn">A</span> <span class="k">as</span> <span class="n">B</span> <span class="p">(</span><span class="n">f</span><span class="p">)</span>         <span class="c1">// introduces B::f</span>
-<span class="kr">import</span> <span class="nn">X</span> <span class="k">as</span> <span class="n">Y</span> <span class="n">hiding</span> <span class="p">(</span><span class="n">f</span><span class="p">)</span>  <span class="c1">// introduces everything but `f` from X</span>
-                          <span class="c1">// using the prefix `X`</span>
-</pre></div>
-</div>
-</div>
-<p>It is also possible to use the same qualifier prefix for imports
-from different modules.  For example:</p>
-<div class="literal-block-wrapper docutils container" id="id19">
-<div class="code-block-caption"><span class="caption-text">Example</span><a class="headerlink" href="#id19" title="Permalink to this code">¶</a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">import</span> <span class="nn">A</span> <span class="k">as</span> <span class="n">B</span>
-<span class="kr">import</span> <span class="nn">X</span> <span class="k">as</span> <span class="n">B</span>
-</pre></div>
-</div>
-</div>
-<p>Such declarations will introduces all definitions from <code class="docutils literal notranslate"><span class="pre">A</span></code> and <code class="docutils literal notranslate"><span class="pre">X</span></code>
-but to use them, you would have to qualify using the prefix <code class="docutils literal notranslate"><span class="pre">B::</span></code>.</p>
-</div>
-</div>
-<div class="section" id="private-blocks">
-<h3>Private Blocks<a class="headerlink" href="#private-blocks" title="Permalink to this headline">¶</a></h3>
-<p>In some cases, definitions in a module might use helper
-functions that are not intended to be used outside the module.
-It is good practice to place such declarations in <em>private blocks</em>:</p>
-<div class="literal-block-wrapper docutils container" id="id20">
-<div class="code-block-caption"><span class="caption-text">Private blocks</span><a class="headerlink" href="#id20" title="Permalink to this code">¶</a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span> <span class="nn">M</span> <span class="kr">where</span>
-
-<span class="nf">f</span> <span class="kt">:</span> <span class="p">[</span><span class="mi">8</span><span class="p">]</span>
-<span class="nf">f</span> <span class="ow">=</span> <span class="mh">0x01</span> <span class="o">+</span> <span class="n">helper1</span> <span class="o">+</span> <span class="n">helper2</span>
-
-<span class="nf">private</span>
-
-  <span class="n">helper1</span> <span class="kt">:</span> <span class="p">[</span><span class="mi">8</span><span class="p">]</span>
-  <span class="n">helper1</span> <span class="ow">=</span> <span class="mi">2</span>
-
-  <span class="n">helper2</span> <span class="kt">:</span> <span class="p">[</span><span class="mi">8</span><span class="p">]</span>
-  <span class="n">helper2</span> <span class="ow">=</span> <span class="mi">3</span>
-</pre></div>
-</div>
-</div>
-<p>The private block only needs to be indented if it might be followed by
-additional public declarations.   If all remaining declarations are to be
-private then no additional indentation is needed as the <cite>private</cite> block will
-extend to the end of the module.</p>
-<div class="literal-block-wrapper docutils container" id="id21">
-<div class="code-block-caption"><span class="caption-text">Private blocks</span><a class="headerlink" href="#id21" title="Permalink to this code">¶</a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span> <span class="nn">M</span> <span class="kr">where</span>
-
-<span class="nf">f</span> <span class="kt">:</span> <span class="p">[</span><span class="mi">8</span><span class="p">]</span>
-<span class="nf">f</span> <span class="ow">=</span> <span class="mh">0x01</span> <span class="o">+</span> <span class="n">helper1</span> <span class="o">+</span> <span class="n">helper2</span>
-
-<span class="nf">private</span>
-
-<span class="nf">helper1</span> <span class="kt">:</span> <span class="p">[</span><span class="mi">8</span><span class="p">]</span>
-<span class="nf">helper1</span> <span class="ow">=</span> <span class="mi">2</span>
-
-<span class="nf">helper2</span> <span class="kt">:</span> <span class="p">[</span><span class="mi">8</span><span class="p">]</span>
-<span class="nf">helper2</span> <span class="ow">=</span> <span class="mi">3</span>
-</pre></div>
-</div>
-</div>
-<p>The keyword <code class="docutils literal notranslate"><span class="pre">private</span></code> introduces a new layout scope, and all declarations
-in the block are considered to be private to the module.  A single module
-may contain multiple private blocks.  For example, the following module
-is equivalent to the previous one:</p>
-<div class="literal-block-wrapper docutils container" id="id22">
-<div class="code-block-caption"><span class="caption-text">Private blocks</span><a class="headerlink" href="#id22" title="Permalink to this code">¶</a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span> <span class="nn">M</span> <span class="kr">where</span>
-
-<span class="nf">f</span> <span class="kt">:</span> <span class="p">[</span><span class="mi">8</span><span class="p">]</span>
-<span class="nf">f</span> <span class="ow">=</span> <span class="mh">0x01</span> <span class="o">+</span> <span class="n">helper1</span> <span class="o">+</span> <span class="n">helper2</span>
-
-<span class="nf">private</span>
-  <span class="n">helper1</span> <span class="kt">:</span> <span class="p">[</span><span class="mi">8</span><span class="p">]</span>
-  <span class="n">helper1</span> <span class="ow">=</span> <span class="mi">2</span>
-
-<span class="nf">private</span>
-  <span class="n">helper2</span> <span class="kt">:</span> <span class="p">[</span><span class="mi">8</span><span class="p">]</span>
-  <span class="n">helper2</span> <span class="ow">=</span> <span class="mi">3</span>
-</pre></div>
-</div>
-</div>
-</div>
-<div class="section" id="parameterized-modules">
-<h3>Parameterized Modules<a class="headerlink" href="#parameterized-modules" title="Permalink to this headline">¶</a></h3>
-<div class="admonition warning">
-<p class="first admonition-title">Warning</p>
-<p class="last">This section documents the current design, but we are in the process of
-redesigning some aspects of the parameterized modules mechanism.</p>
-</div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span> <span class="nn">M</span> <span class="kr">where</span>
-
-<span class="nf">parameter</span>
-  <span class="kr">type</span> <span class="n">n</span> <span class="kt">:</span> <span class="o">#</span>              <span class="c1">// `n` is a numeric type parameter</span>
-
-  <span class="kr">type</span> <span class="n">constraint</span> <span class="p">(</span><span class="kr">fin</span> <span class="n">n</span><span class="p">,</span> <span class="n">n</span> <span class="o">&gt;=</span> <span class="mi">1</span><span class="p">)</span>
-    <span class="c1">// Assumptions about the parameter</span>
-
-  <span class="n">x</span> <span class="kt">:</span> <span class="p">[</span><span class="n">n</span><span class="p">]</span>                 <span class="c1">// A value parameter</span>
-
-<span class="c1">// This definition uses the parameters.</span>
-<span class="nf">f</span> <span class="kt">:</span> <span class="p">[</span><span class="n">n</span><span class="p">]</span>
-<span class="nf">f</span> <span class="ow">=</span> <span class="mi">1</span> <span class="o">+</span> <span class="n">x</span>
-</pre></div>
-</div>
-<div class="section" id="named-module-instantiations">
-<h4>Named Module Instantiations<a class="headerlink" href="#named-module-instantiations" title="Permalink to this headline">¶</a></h4>
-<p>One way to use a parameterized module is through a named instantiation:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="c1">// A parameterized module</span>
-<span class="kr">module</span> <span class="nn">M</span> <span class="kr">where</span>
-
-<span class="nf">parameter</span>
-  <span class="kr">type</span> <span class="n">n</span> <span class="kt">:</span> <span class="o">#</span>
-  <span class="n">x</span>      <span class="kt">:</span> <span class="p">[</span><span class="n">n</span><span class="p">]</span>
-  <span class="n">y</span>      <span class="kt">:</span> <span class="p">[</span><span class="n">n</span><span class="p">]</span>
-
-<span class="nf">f</span> <span class="kt">:</span> <span class="p">[</span><span class="n">n</span><span class="p">]</span>
-<span class="nf">f</span> <span class="ow">=</span> <span class="n">x</span> <span class="o">+</span> <span class="n">y</span>
-
-
-<span class="c1">// A module instantiation</span>
-<span class="kr">module</span> <span class="nn">N</span> <span class="ow">=</span> <span class="kt">M</span> <span class="kr">where</span>
-
-<span class="kr">type</span> <span class="n">n</span> <span class="ow">=</span> <span class="mi">32</span>
-<span class="nf">x</span>      <span class="ow">=</span> <span class="mi">11</span>
-<span class="nf">y</span>      <span class="ow">=</span> <span class="n">helper</span>
-
-<span class="nf">helper</span> <span class="ow">=</span> <span class="mi">12</span>
-</pre></div>
-</div>
-<p>The second module, <code class="docutils literal notranslate"><span class="pre">N</span></code>, is computed by instantiating the parameterized
-module <code class="docutils literal notranslate"><span class="pre">M</span></code>.  Module <code class="docutils literal notranslate"><span class="pre">N</span></code> will provide the exact same definitions as <code class="docutils literal notranslate"><span class="pre">M</span></code>,
-except that the parameters will be replaced by the values in the body
-of <code class="docutils literal notranslate"><span class="pre">N</span></code>.   In this example, <code class="docutils literal notranslate"><span class="pre">N</span></code> provides just a single definition, <code class="docutils literal notranslate"><span class="pre">f</span></code>.</p>
-<p>Note that the only purpose of the body of <code class="docutils literal notranslate"><span class="pre">N</span></code> (the declarations
-after the <code class="docutils literal notranslate"><span class="pre">where</span></code> keyword) is to define the parameters for <code class="docutils literal notranslate"><span class="pre">M</span></code>.</p>
-</div>
-<div class="section" id="parameterized-instantiations">
-<h4>Parameterized Instantiations<a class="headerlink" href="#parameterized-instantiations" title="Permalink to this headline">¶</a></h4>
-<p>It is possible for a module instantiation to be itself parameterized.
-This could be useful if we need to define some of a module’s parameters
-but not others.</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="c1">// A parameterized module</span>
-<span class="kr">module</span> <span class="nn">M</span> <span class="kr">where</span>
-
-<span class="nf">parameter</span>
-  <span class="kr">type</span> <span class="n">n</span> <span class="kt">:</span> <span class="o">#</span>
-  <span class="n">x</span>      <span class="kt">:</span> <span class="p">[</span><span class="n">n</span><span class="p">]</span>
-  <span class="n">y</span>      <span class="kt">:</span> <span class="p">[</span><span class="n">n</span><span class="p">]</span>
-
-<span class="nf">f</span> <span class="kt">:</span> <span class="p">[</span><span class="n">n</span><span class="p">]</span>
-<span class="nf">f</span> <span class="ow">=</span> <span class="n">x</span> <span class="o">+</span> <span class="n">y</span>
-
-
-<span class="c1">// A parameterized instantiation</span>
-<span class="kr">module</span> <span class="nn">N</span> <span class="ow">=</span> <span class="kt">M</span> <span class="kr">where</span>
-
-<span class="nf">parameter</span>
-  <span class="n">x</span> <span class="kt">:</span> <span class="p">[</span><span class="mi">32</span><span class="p">]</span>
-
-<span class="kr">type</span> <span class="n">n</span> <span class="ow">=</span> <span class="mi">32</span>
-<span class="nf">y</span>      <span class="ow">=</span> <span class="n">helper</span>
-
-<span class="nf">helper</span> <span class="ow">=</span> <span class="mi">12</span>
-</pre></div>
-</div>
-<p>In this case <code class="docutils literal notranslate"><span class="pre">N</span></code> has a single parameter <code class="docutils literal notranslate"><span class="pre">x</span></code>.  The result of instantiating
-<code class="docutils literal notranslate"><span class="pre">N</span></code> would result in instantiating <code class="docutils literal notranslate"><span class="pre">M</span></code> using the value of <code class="docutils literal notranslate"><span class="pre">x</span></code> and <code class="docutils literal notranslate"><span class="pre">12</span></code>
-for the value of <code class="docutils literal notranslate"><span class="pre">y</span></code>.</p>
-</div>
-<div class="section" id="importing-parameterized-modules">
-<h4>Importing Parameterized Modules<a class="headerlink" href="#importing-parameterized-modules" title="Permalink to this headline">¶</a></h4>
-<p>It is also possible to import a parameterized module without using
-a module instantiation:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span> <span class="nn">M</span> <span class="kr">where</span>
-
-<span class="nf">parameter</span>
-  <span class="n">x</span> <span class="kt">:</span> <span class="p">[</span><span class="mi">8</span><span class="p">]</span>
-  <span class="n">y</span> <span class="kt">:</span> <span class="p">[</span><span class="mi">8</span><span class="p">]</span>
-
-<span class="nf">f</span> <span class="kt">:</span> <span class="p">[</span><span class="mi">8</span><span class="p">]</span>
-<span class="nf">f</span> <span class="ow">=</span> <span class="n">x</span> <span class="o">+</span> <span class="n">y</span>
-</pre></div>
-</div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span>module N where
-
-import `M
-
-g = f { x = 2, y = 3 }
-</pre></div>
-</div>
-<p>A <em>backtick</em> at the start of the name of an imported module indicates
-that we are importing a parameterized module.  In this case, Cryptol
-will import all definitions from the module as usual, however every
-definition will have some additional parameters corresponding to
-the parameters of a module.  All value parameters are grouped in a record.</p>
-<p>This is why in the example <code class="docutils literal notranslate"><span class="pre">f</span></code> is applied to a record of values,
-even though its definition in <code class="docutils literal notranslate"><span class="pre">M</span></code> does not look like a function.</p>
-</div>
-</div>
+<p class="caption" role="heading"><span class="caption-text">Cryptol Reference Manual</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="BasicSyntax.html">Basic Syntax</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="BasicSyntax.html#declarations">Declarations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="BasicSyntax.html#type-signatures">Type Signatures</a></li>
+<li class="toctree-l2"><a class="reference internal" href="BasicSyntax.html#layout">Layout</a></li>
+<li class="toctree-l2"><a class="reference internal" href="BasicSyntax.html#comments">Comments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="BasicSyntax.html#identifiers">Identifiers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="BasicSyntax.html#keywords-and-built-in-operators">Keywords and Built-in Operators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="BasicSyntax.html#built-in-type-level-operators">Built-in Type-level Operators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="BasicSyntax.html#numeric-literals">Numeric Literals</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="Expressions.html">Expressions</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="Expressions.html#calling-functions">Calling Functions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Expressions.html#prefix-operators">Prefix Operators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Expressions.html#infix-functions">Infix Functions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Expressions.html#type-annotations">Type Annotations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Expressions.html#explicit-type-instantiation">Explicit Type Instantiation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Expressions.html#local-declarations">Local Declarations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Expressions.html#block-arguments">Block Arguments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Expressions.html#conditionals">Conditionals</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Expressions.html#demoting-numeric-types-to-values">Demoting Numeric Types to Values</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="BasicTypes.html">Basic Types</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="BasicTypes.html#tuples-and-records">Tuples and Records</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="BasicTypes.html#accessing-fields">Accessing Fields</a></li>
+<li class="toctree-l3"><a class="reference internal" href="BasicTypes.html#updating-fields">Updating Fields</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="BasicTypes.html#sequences">Sequences</a></li>
+<li class="toctree-l2"><a class="reference internal" href="BasicTypes.html#functions">Functions</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="OverloadedOperations.html">Overloaded Operations</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="OverloadedOperations.html#equality">Equality</a></li>
+<li class="toctree-l2"><a class="reference internal" href="OverloadedOperations.html#comparisons">Comparisons</a></li>
+<li class="toctree-l2"><a class="reference internal" href="OverloadedOperations.html#signed-comparisons">Signed Comparisons</a></li>
+<li class="toctree-l2"><a class="reference internal" href="OverloadedOperations.html#zero">Zero</a></li>
+<li class="toctree-l2"><a class="reference internal" href="OverloadedOperations.html#logical-operations">Logical Operations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="OverloadedOperations.html#basic-arithmetic">Basic Arithmetic</a></li>
+<li class="toctree-l2"><a class="reference internal" href="OverloadedOperations.html#integral-operations">Integral Operations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="OverloadedOperations.html#division">Division</a></li>
+<li class="toctree-l2"><a class="reference internal" href="OverloadedOperations.html#rounding">Rounding</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="TypeDeclarations.html">Type Declarations</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="TypeDeclarations.html#type-synonyms">Type Synonyms</a></li>
+<li class="toctree-l2"><a class="reference internal" href="TypeDeclarations.html#newtypes">Newtypes</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="Modules.html">Modules</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="Modules.html#hierarchical-module-names">Hierarchical Module Names</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Modules.html#module-imports">Module Imports</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="Modules.html#import-lists">Import Lists</a></li>
+<li class="toctree-l3"><a class="reference internal" href="Modules.html#hiding-imports">Hiding Imports</a></li>
+<li class="toctree-l3"><a class="reference internal" href="Modules.html#qualified-module-imports">Qualified Module Imports</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="Modules.html#private-blocks">Private Blocks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Modules.html#nested-modules">Nested Modules</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="Modules.html#implicit-imports">Implicit Imports</a></li>
+<li class="toctree-l3"><a class="reference internal" href="Modules.html#managing-module-names">Managing Module Names</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="Modules.html#parameterized-modules">Parameterized Modules</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="Modules.html#interface-modules">Interface Modules</a></li>
+<li class="toctree-l3"><a class="reference internal" href="Modules.html#importing-an-interface-module">Importing an Interface Module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="Modules.html#interface-constraints">Interface Constraints</a></li>
+<li class="toctree-l3"><a class="reference internal" href="Modules.html#instantiating-a-parameterized-module">Instantiating a Parameterized Module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="Modules.html#anonymous-interface-modules">Anonymous Interface Modules</a></li>
+<li class="toctree-l3"><a class="reference internal" href="Modules.html#anonymous-instantiation-arguments">Anonymous Instantiation Arguments</a></li>
+<li class="toctree-l3"><a class="reference internal" href="Modules.html#anonymous-import-instantiations">Anonymous Import Instantiations</a></li>
+<li class="toctree-l3"><a class="reference internal" href="Modules.html#passing-through-module-parameters">Passing Through Module Parameters</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
 </div>
 </div>
 
 
            </div>
-           
           </div>
-          <footer>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="BasicSyntax.html" class="btn btn-neutral float-right" title="Basic Syntax" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
 
   <hr/>
 
   <div role="contentinfo">
-    <p>
-        &#169; Copyright 2021, The Cryptol Team.
-
-    </p>
+    <p>&#169; Copyright 2021, The Cryptol Team.</p>
   </div>
-    
-    
-    
-    Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
-    
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
     <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
-    
-    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
 
 </footer>
         </div>
       </div>
-
     </section>
-
   </div>
-  
-
-  <script type="text/javascript">
+  <script>
       jQuery(function () {
           SphinxRtdTheme.Navigation.enable(true);
       });
-  </script>
-
-  
-  
-    
-   
+  </script> 
 
 </body>
 </html>
