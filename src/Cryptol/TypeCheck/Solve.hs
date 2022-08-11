@@ -11,6 +11,7 @@
 module Cryptol.TypeCheck.Solve
   ( simplifyAllConstraints
   , proveImplication
+  , tryProveImplication
   , proveModuleTopLevel
   , defaultAndSimplify
   , defaultReplExpr
@@ -284,6 +285,30 @@ proveImplication lnam as ps gs =
        Right ws  -> mapM_ recordWarning ws
        Left errs -> mapM_ recordError errs
      return su
+
+-- | Tries to prove an implication. If proved, then returns `Right (m_su ::
+-- InferM Subst)` where `m_su` is an `InferM` computation that results in the
+-- solution substitution, and records any warning invoked during proving. If not
+-- proved, then returns `Left (m_err :: InferM ())`, which records all errors
+-- invoked during proving.
+tryProveImplication :: 
+  Maybe Name -> [TParam] -> [Prop] -> [Goal] ->
+  InferM (Either (InferM ()) (InferM Subst))
+tryProveImplication lnam as ps gs =
+  do evars <- varsWithAsmps
+     solver <- getSolver
+
+     extraAs <- (map mtpParam . Map.elems) <$> getParamTypes
+     extra   <- map thing <$> getParamConstraints
+
+     (mbErr,su) <- io (proveImplicationIO solver lnam evars
+                            (extraAs ++ as) (extra ++ ps) gs)
+     case mbErr of
+       Left errs -> pure . Left $ do
+         mapM_ recordError errs
+       Right ws  -> pure . Right $ do
+         mapM_ recordWarning ws
+         return su
 
 proveImplicationIO :: Solver
                    -> Maybe Name     -- ^ Checking this function
