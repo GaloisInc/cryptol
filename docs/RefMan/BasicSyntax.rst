@@ -53,9 +53,12 @@ since the `if`'s condition is only on values, not types.
 However, in `len`, the type-checker locally-assumes the constraint `n > 0` in
 that constraint-guarded branch and so it can in fact determine that `n >= 1`.
 
-Numeric constraint guards only support constraints over numeric literals, such
-as `fin`, `<=`, `==`, etc. Type constraint aliases can also be used as long as
-they only constraint numeric literals.
+Requirements:
+  - Numeric constraint guards only support constraints over numeric literals,
+    such as `fin`, `<=`, `==`, etc. Type constraint aliases can also be used as
+    long as they only constraint numeric literals.
+  - The numeric constraint guards of a declaration must be exhaustive.
+
 
 Layout
 ------
