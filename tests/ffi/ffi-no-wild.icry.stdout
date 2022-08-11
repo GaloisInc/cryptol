@@ -1,8 +1,0 @@
-Loading module Cryptol
-Loading module Cryptol
-Loading module Float
-Loading module Main
-
-[error] at ffi-no-wild.cry:3:41--3:42:
-  Wild card types are not allowed in this context
-    (e.g., they cannot be used in type synonyms or FFI declarations).

@@ -1,3 +1,0 @@
-import Float
-
-foreign f : { x : [8], y : Float32 } -> _
