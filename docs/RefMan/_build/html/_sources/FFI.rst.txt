@@ -72,20 +72,26 @@ Overall structure
 
 Cryptol ``foreign`` bindings must be functions. These functions may have
 multiple (curried) arguments; they may also be polymorphic, with certain
-limitations.
+limitations. That is, the general structure of a ``foreign`` declaration would
+look something like this:
 
-Each type argument to the Cryptol function corresponds to a value argument to
-the C function. These arguments are passed first, in the order of the type
-variables declared in the Cryptol signature, before any Cryptol value arguments.
+.. code-block:: cryptol
 
-Each value argument to the Cryptol function corresponds to a number of value
-arguments to the C function. That is, a Cryptol value argument could correspond
-to zero, one, or many C arguments. The C arguments for each Cryptol value
-argument are passed in the order of the Cryptol value arguments, after any C
-arguments corresponding to Cryptol type arguments.
+  foreign f : {a1, ..., ak} (c1, ..., cn) => T1 -> ... -> Tm -> Tr
 
-The return value of the Cryptol function is either obtained by directly
-returning from the C function or by passing *output arguments* to the C
+Each type argument to the Cryptol function (``a1, ..., ak`` above) corresponds
+to a value argument to the C function. These arguments are passed first, in the
+order of the type variables declared in the Cryptol signature, before any
+Cryptol value arguments.
+
+Each value argument to the Cryptol function (``T1, ..., Tm`` above) corresponds
+to a number of value arguments to the C function. That is, a Cryptol value
+argument could correspond to zero, one, or many C arguments. The C arguments for
+each Cryptol value argument are passed in the order of the Cryptol value
+arguments, after any C arguments corresponding to Cryptol type arguments.
+
+The return value of the Cryptol function (``Tr`` above) is either obtained by
+directly returning from the C function or by passing *output arguments* to the C
 function, depending on the return type. Output arguments are pointers to memory
 which can be modified by the C function to store its output values. If output
 arguments are used, they are passed last, after the C arguments corresponding to
@@ -180,7 +186,7 @@ Cryptol type  C type
 
 The C pointer points to an array of ``n`` elements of type ``U``. Note that,
 while the length of the array itself is not explicitly passed along with the
-pointer, any type arguments contained in the size are passed as C numbers
+pointer, any type arguments contained in the size are passed as C ``size_t``'s
 earlier, so the C code can always know the length of the array.
 
 Tuples and records
@@ -203,6 +209,12 @@ an argument behaves the same as if you passed its components individually. This
 flattening is applied recursively for nested tuples and records. Note that this
 means empty tuples don't map to any C values at all.
 
+Type synonyms
+~~~~~~~~~~~~~
+
+All type synonyms are expanded before applying the above rules, so you can use
+type synonyms in ``foreign`` declarations to improve readability.
+
 Return values
 ~~~~~~~~~~~~~
 
@@ -219,16 +231,40 @@ a pointer ``U*`` instead, except in the case of sequences, where the output and
 input versions are the same type, because it is already a pointer.
 
 Memory
-~~~~~~
+------
 
 When pointers are involved, namely in the cases of sequences and output
 arguments, they point to memory. This memory is always allocated and deallocated
-by Cryptol; the C code does not need to manage this memory. In the case of
-sequences, the pointer will point to an array. In the case of an output argument
-for a non-sequence type, the pointer will point to a piece of memory large
-enough to hold the given C type, and you should not try to access any adjacent
-memory. For input sequence arguments, the array will already be set to the
-values corresponding to the Cryptol values in the sequence, and the C function
-should not modify the array. For output arguments, the memory may be
-uninitialized when passed to C, and the C code should not read from it. It must
-write to the memory the value it is returning.
+by Cryptol; the C code does not need to manage this memory.
+
+In the case of sequences, the pointer will point to an array. In the case of an
+output argument for a non-sequence type, the pointer will point to a piece of
+memory large enough to hold the given C type, and you should not try to access
+any adjacent memory.
+
+For input sequence arguments, the array will already be set to the values
+corresponding to the Cryptol values in the sequence. For output arguments, the
+memory may be uninitialized when passed to C, and the C code should not read
+from it. It must write to the memory the value it is returning.
+
+Evaluation
+----------
+
+All Cryptol arguments are fully evaluated when a foreign function is called.
+
+Example
+-------
+
+The Cryptol signature
+
+.. code-block:: cryptol
+
+  foreign f : {n} (fin n) => [n][10] -> {a : Bit, b : [64]}
+                             -> (Float64, [n + 1][20])
+
+corresponds to the C signature
+
+.. code-block:: c
+
+  void f(size_t n, uint16_t *in0, uint8_t in1, uint64_t in2,
+         double *out0, uint32_t *out1);
