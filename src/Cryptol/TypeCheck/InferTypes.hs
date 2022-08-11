@@ -220,7 +220,7 @@ data ConstraintSource
   | CtImprovement
   | CtPattern TypeSource  -- ^ Constraints arising from type-checking patterns
   | CtModuleInstance ModName -- ^ Instantiating a parametrized module
-  | CtPropGuardsExhaustion Name -- ^ Checking that a use of prop guards is exhastive
+  | CtPropGuardsExhaustive Name -- ^ Checking that a use of prop guards is exhastive
     deriving (Show, Generic, NFData)
 
 selSrc :: Selector -> TypeSource
@@ -248,7 +248,7 @@ instance TVars ConstraintSource where
       CtImprovement    -> src
       CtPattern _      -> src
       CtModuleInstance _ -> src
-      CtPropGuardsExhaustion _ -> src
+      CtPropGuardsExhaustive _ -> src
 
 
 instance FVS Goal where
@@ -355,7 +355,7 @@ instance PP ConstraintSource where
       CtImprovement   -> "examination of collected goals"
       CtPattern ad    -> "checking a pattern:" <+> pp ad
       CtModuleInstance n -> "module instantiation" <+> pp n
-      CtPropGuardsExhaustion n -> "exhaustion check for prop guards used in defining" <+> pp n
+      CtPropGuardsExhaustive n -> "exhaustion check for prop guards used in defining" <+> pp n
 
 ppUse :: Expr -> Doc
 ppUse expr =

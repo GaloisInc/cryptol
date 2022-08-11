@@ -65,7 +65,7 @@ import           Data.Maybe(isJust, fromMaybe, mapMaybe)
 import           Data.Ratio(numerator,denominator)
 import           Data.Traversable(forM)
 import           Data.Function(on)
-import           Control.Monad(zipWithM,unless,foldM,forM_,mplus)
+import           Control.Monad(zipWithM,unless,foldM,forM_,mplus, when)
 import           Data.Bifunctor (Bifunctor(second))
 
 
@@ -1013,7 +1013,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
           asmps1 <- applySubstPreds asmps0
           t1     <- applySubst t0
 
-          -- Checking each guarded case is the same as checking a DExpr, except 
+          -- Checking each guarded case is the same as checking a DExpr, except
           -- that the guarding assumptions are added first.
           let checkPropGuardCase :: ([P.Prop Name], P.Expr Name) -> InferM ([Prop], Expr)
               checkPropGuardCase (guards0, e0) = do
@@ -1031,8 +1031,9 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
                 extendSubst su
                 -- Preprends the goals to the constraints, because these must be
                 -- checked first before the rest of the constraints (during
-                -- evaluation) to ensure well-definedness, since some constraints
-                -- make use of partial functions e.g. `a - b` requires `a >= b`.
+                -- evaluation) to ensure well-definedness, since some
+                -- constraints make use of partial functions e.g. `a - b`
+                -- requires `a >= b`.
                 let guards2 = (goal <$> goals) <> concatMap pSplitAnd (apSubst su guards1)
                 (_t, guards3, e1) <- checkBindDefExpr asmps1 guards2 e0
                 e2 <- applySubst e1
@@ -1040,29 +1041,30 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
 
           cases1 <- mapM checkPropGuardCase cases0
 
-          -- Try to prove that at leats one guard will be satisfied. We do this
-          -- instead of directly check exhaustive because that requires either
-          -- negation or disjunction, which are not currently provided for Cryptol
-          -- constraints.
-          or <$> mapM
-            (\(props, _e) ->
-              isRight <$> tryProveImplication (Just name) as asmps1
-                ((\goal ->
-                  Goal
-                    { goalSource = CtPropGuardsExhaustion name
-                    , goalRange = srcRange $ P.bName b
-                    , goal = goal}
-                )
-                  <$> props)
-            )
-            cases1 >>= \case
-              True ->
-                -- proved exhaustive
-                pure ()
-              False ->
-                -- didn't prove exhaustive i.e. none of the guarding props
-                -- necessarily hold
-                recordWarning (NonExhaustivePropGuards name)
+          askWarnNonExhaustiveConstraintGuards >>= \flag -> when flag $
+            -- Try to prove that at leats one guard will be satisfied. We do
+            -- this instead of directly check exhaustive because that requires
+            -- either negation or disjunction, which are not currently provided
+            -- for Cryptol constraints.
+            or <$> mapM
+              (\(props, _e) ->
+                isRight <$> tryProveImplication (Just name) as asmps1
+                  ((\goal ->
+                    Goal
+                      { goalSource = CtPropGuardsExhaustive name
+                      , goalRange = srcRange $ P.bName b
+                      , goal = goal}
+                  )
+                    <$> props)
+              )
+              cases1 >>= \case
+                True ->
+                  -- proved exhaustive
+                  pure ()
+                False ->
+                  -- didn't prove exhaustive i.e. none of the guarding props
+                  -- necessarily hold
+                  recordWarning (NonExhaustivePropGuards name)
 
           return Decl
             { dName       = name
