@@ -65,6 +65,7 @@ subsumes _ _ = False
 data Warning  = DefaultingKind (P.TParam Name) P.Kind
               | DefaultingWildType P.Kind
               | DefaultingTo !TVarInfo Type
+              | NonExhaustivePropGuards Name
                 deriving (Show, Generic, NFData)
 
 -- | Various errors that might happen during type checking/inference
@@ -208,6 +209,7 @@ instance TVars Warning where
       DefaultingKind {}     -> warn
       DefaultingWildType {} -> warn
       DefaultingTo d ty     -> DefaultingTo d $! (apSubst su ty)
+      NonExhaustivePropGuards {} -> warn
 
 instance FVS Warning where
   fvs warn =
@@ -215,6 +217,7 @@ instance FVS Warning where
       DefaultingKind {}     -> Set.empty
       DefaultingWildType {} -> Set.empty
       DefaultingTo _ ty     -> fvs ty
+      NonExhaustivePropGuards {} -> Set.empty
 
 instance TVars Error where
   apSubst su err =
@@ -306,6 +309,10 @@ instance PP (WithNames Warning) where
       DefaultingTo d ty ->
         text "Defaulting" <+> pp (tvarDesc d) <+> text "to"
                                               <+> ppWithNames names ty
+
+      NonExhaustivePropGuards n ->
+        text "Could not prove that the constraint guards used in defining" <+> 
+        pp n <+> text "were exhaustive."
 
 instance PP (WithNames Error) where
   ppPrec _ (WithNames err names) =

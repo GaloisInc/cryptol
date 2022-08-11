@@ -18,6 +18,8 @@
 -- See Note [-Wincomplete-uni-patterns and irrefutable patterns] in Cryptol.TypeCheck.TypePat
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# LANGUAGE LambdaCase #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Redundant <$>" #-}
 module Cryptol.TypeCheck.Infer
   ( checkE
   , checkSigB
@@ -57,15 +59,14 @@ import           Cryptol.Utils.PP (pp)
 import qualified Data.Map as Map
 import           Data.Map (Map)
 import qualified Data.Set as Set
-import           Data.List(foldl',sortBy,groupBy)
-import           Data.Either(partitionEithers)
+import           Data.List(foldl', sortBy, groupBy, partition)
+import           Data.Either(partitionEithers, isRight)
 import           Data.Maybe(isJust, fromMaybe, mapMaybe)
-import           Data.List(partition)
 import           Data.Ratio(numerator,denominator)
 import           Data.Traversable(forM)
 import           Data.Function(on)
 import           Control.Monad(zipWithM,unless,foldM,forM_,mplus)
-import Data.Bifunctor (Bifunctor(second))
+import           Data.Bifunctor (Bifunctor(second))
 
 
 
@@ -976,12 +977,13 @@ checkMonoB b t =
 -- XXX: Do we really need to do the defaulting business in two different places?
 checkSigB :: P.Bind Name -> (Schema,[Goal]) -> InferM Decl
 checkSigB b (Forall as asmps0 t0, validSchema) =
+  let name = thing (P.bName b) in
   case thing (P.bDef b) of
 
     -- XXX what should we do with validSchema in this case?
     P.DPrim -> do
       return Decl
-        { dName       = thing (P.bName b)
+        { dName       = name
         , dSignature  = Forall as asmps0 t0
         , dDefinition = DPrim
         , dPragmas    = P.bPragmas b
@@ -996,7 +998,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
         (t, asmps, e2) <- checkBindDefExpr [] asmps0 e0
 
         return Decl
-          { dName       = thing (P.bName b)
+          { dName       = name
           , dSignature  = Forall as asmps t
           , dDefinition = DExpr (foldr ETAbs (foldr EProofAbs e2 asmps) as)
           , dPragmas    = P.bPragmas b
@@ -1005,50 +1007,75 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
           , dDoc        = P.bDoc b
           }
 
-    P.DPropGuards cases0 ->
+    P.DPropGuards cases0 -> do
       inRangeMb (getLoc b) $
-      withTParams as $ do
-        asmps1 <- applySubstPreds asmps0
-        t1     <- applySubst t0
+        withTParams as $ do
+          asmps1 <- applySubstPreds asmps0
+          t1     <- applySubst t0
 
-        -- Checking each guarded case is the same as checking a DExpr, except 
-        -- that the guarding assumptions are added first.
-        let checkPropGuardCase :: ([P.Prop Name], P.Expr Name) -> InferM ([Prop], Expr)
-            checkPropGuardCase (guards0, e0) = do
-              mb_rng <- case P.bSignature b of
-                Just (P.Forall _ _ _ mb_rng) -> pure mb_rng
-                _ -> panic "checkSigB" 
-                  [ "Used constraint guards without a signature, dumbwit, at " 
-                  , show . pp $ P.bName b ]
-              -- check guards
-              (guards1, goals) <-  
-                second concat . unzip <$> 
-                checkPropGuard mb_rng `traverse` guards0
-              -- try to prove all goals
-              su <- proveImplication (Just . thing $ P.bName b) as (asmps1 <> guards1) goals
-              extendSubst su
-              -- preprends the goals to the constraints, because these must be
-              -- checked first before the rest of the constraints (during
-              -- evaluation) to ensure well-definedness, since some constraints
-              -- make use of partial functions e.g. `a - b` requires `a >= b`.
-              let guards2 = (goal <$> goals) <> concatMap pSplitAnd (apSubst su guards1)
-              (_t, guards3, e1) <- checkBindDefExpr asmps1 guards2 e0
-              e2 <- applySubst e1
-              pure (guards3, e2)
+          -- Checking each guarded case is the same as checking a DExpr, except 
+          -- that the guarding assumptions are added first.
+          let checkPropGuardCase :: ([P.Prop Name], P.Expr Name) -> InferM ([Prop], Expr)
+              checkPropGuardCase (guards0, e0) = do
+                mb_rng <- case P.bSignature b of
+                  Just (P.Forall _ _ _ mb_rng) -> pure mb_rng
+                  _ -> panic "checkSigB"
+                    [ "Used constraint guards without a signature, dumbwit, at "
+                    , show . pp $ P.bName b ]
+                -- check guards
+                (guards1, goals) <-
+                  second concat . unzip <$>
+                  checkPropGuard mb_rng `traverse` guards0
+                -- try to prove all goals
+                su <- proveImplication (Just name) as (asmps1 <> guards1) goals
+                extendSubst su
+                -- Preprends the goals to the constraints, because these must be
+                -- checked first before the rest of the constraints (during
+                -- evaluation) to ensure well-definedness, since some constraints
+                -- make use of partial functions e.g. `a - b` requires `a >= b`.
+                let guards2 = (goal <$> goals) <> concatMap pSplitAnd (apSubst su guards1)
+                (_t, guards3, e1) <- checkBindDefExpr asmps1 guards2 e0
+                e2 <- applySubst e1
+                pure (guards3, e2)
 
-        cases1 <- mapM checkPropGuardCase cases0
+          cases1 <- mapM checkPropGuardCase cases0
 
-        return Decl
-          { dName       = thing (P.bName b)
-          , dSignature  = Forall as asmps1 t1
-          , dDefinition = DExpr
-                            (foldr ETAbs 
-                            (foldr EProofAbs (EPropGuards cases1) asmps1) as)
-          , dPragmas    = P.bPragmas b
-          , dInfix      = P.bInfix b
-          , dFixity     = P.bFixity b
-          , dDoc        = P.bDoc b
-          }
+          -- Try to prove that at leats one guard will be satisfied. We do this
+          -- instead of directly check exhaustive because that requires either
+          -- negation or disjunction, which are not currently provided for Cryptol
+          -- constraints.
+          or <$> mapM
+            (\(props, _e) ->
+              isRight <$> tryProveImplication (Just name) as asmps1
+                ((\goal ->
+                  Goal
+                    { goalSource = CtPropGuardsExhaustion name
+                    , goalRange = srcRange $ P.bName b
+                    , goal = goal}
+                )
+                  <$> props)
+            )
+            cases1 >>= \case
+              True ->
+                -- proved exhaustive
+                pure ()
+              False ->
+                -- didn't prove exhaustive i.e. none of the guarding props
+                -- necessarily hold
+                recordWarning (NonExhaustivePropGuards name)
+
+          return Decl
+            { dName       = name
+            , dSignature  = Forall as asmps1 t1
+            , dDefinition = DExpr
+                              (foldr ETAbs
+                              (foldr EProofAbs (EPropGuards cases1) asmps1) as)
+            , dPragmas    = P.bPragmas b
+            , dInfix      = P.bInfix b
+            , dFixity     = P.bFixity b
+            , dDoc        = P.bDoc b
+            }
+
 
   where
 

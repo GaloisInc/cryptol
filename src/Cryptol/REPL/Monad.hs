@@ -902,6 +902,8 @@ userOptions  = mkOptionMap
     "Choose whether to display warnings when expression association has changed due to new prefix operator fixities."
   , simpleOpt "warnUninterp" ["warn-uninterp"] (EnvBool True) noCheck
     "Choose whether to issue a warning when uninterpreted functions are used to implement primitives in the symbolic simulator."
+  , simpleOpt "warnNonExhaustiveConstraintGuards" ["warn-nonexhaustive-constraintguards"] (EnvBool True) noCheck
+    "Choose whether to issue a warning when a use of constraint guards is not determined to be exhaustive."
   , simpleOpt "smtFile" ["smt-file"] (EnvString "-") noCheck
     "The file to use for SMT-Lib scripts (for debugging or offline proving).\nUse \"-\" for stdout."
   , OptionDescr "path" [] (EnvString "") noCheck
