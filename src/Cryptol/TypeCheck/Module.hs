@@ -278,7 +278,8 @@ mkParamDef r (pname,wantedS) (arg,actualS) =
                         t
                newGoals CtModuleInstance props
                pure e
-     su <- proveImplication (Just pname)
+     su <- proveImplication False
+                            (Just pname)
                             (sVars wantedS)
                             (sProps wantedS)
                             todo

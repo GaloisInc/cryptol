@@ -127,6 +127,7 @@ $white+                   { emit $ White Space }
 "primitive"               { emit $ KW KW_primitive }
 "parameter"               { emit $ KW KW_parameter }
 "constraint"              { emit $ KW KW_constraint }
+"foreign"                 { emit $ KW KW_foreign }
 
 "Prop"                    { emit $ KW KW_Prop }
 

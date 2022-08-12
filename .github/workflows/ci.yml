@@ -299,7 +299,9 @@ jobs:
         name: test-lib ${{ matrix.target }}
         run: |
           export PATH=$PWD/bin:$PWD/dist/bin:$PATH
-          ./bin/test-runner --ext=.icry -F -b --exe=dist/bin/cryptol ./tests/${{ matrix.target }}
+          if ${{ matrix.target != 'ffi' }} || dist/bin/cryptol -v | grep -q 'FFI enabled'; then
+            ./bin/test-runner --ext=.icry -F -b --exe=dist/bin/cryptol ./tests/${{ matrix.target }}
+          fi
 
       - if: matrix.suite == 'rpc'
         shell: bash

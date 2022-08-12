@@ -9,6 +9,7 @@ import Cryptol.ModuleSystem.Name(nameUnique)
 import Cryptol.Utils.RecordMap(traverseRecordMap)
 import Cryptol.Parser.Position(Located(..))
 import Cryptol.TypeCheck.AST
+import Cryptol.TypeCheck.FFI.FFIType
 
 traverseNames ::
   (TraverseNames t, Applicative f) => (Name -> f Name) -> (t -> f t)
@@ -106,6 +107,7 @@ instance TraverseNames DeclDef where
   traverseNamesIP d =
     case d of
       DPrim   -> pure d
+      DForeign t -> DForeign <$> traverseNamesIP t
       DExpr e -> DExpr <$> traverseNamesIP e
 
 instance TraverseNames Schema where
@@ -224,4 +226,24 @@ instance TraverseNames ModVParam where
     where
     mk x t = nt { mvpName = x, mvpType = t }
 
+instance TraverseNames FFIFunType where
+  traverseNamesIP fi = mk <$> traverseNamesIP (ffiArgTypes fi)
+                          <*> traverseNamesIP (ffiRetType fi)
+    where
+    mk as b =
+      FFIFunType
+        { ffiTParams  = ffiTParams fi
+        , ffiArgTypes = as
+        , ffiRetType  = b
+        }
+
+instance TraverseNames FFIType where
+  traverseNamesIP ft =
+    case ft of
+      FFIBool       -> pure ft
+      FFIBasic _    -> pure ft   -- assumes no names here
+      FFIArray sz t -> (`FFIArray` t) <$> traverseNamesIP sz
+      FFITuple ts   -> FFITuple  <$> traverseNamesIP ts
+      FFIRecord mp  -> FFIRecord <$> traverseRecordMap
+                                                (\_ -> traverseNamesIP) mp
 

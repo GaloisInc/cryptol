@@ -426,8 +426,9 @@ instance TVars Decl where
     in d { dSignature = sig', dDefinition = def' }
 
 instance TVars DeclDef where
-  apSubst su (DExpr e) = DExpr !$ (apSubst su e)
-  apSubst _  DPrim     = DPrim
+  apSubst su (DExpr e)    = DExpr !$ (apSubst su e)
+  apSubst _  DPrim        = DPrim
+  apSubst _  (DForeign t) = DForeign t
 
 -- WARNING: This applies the substitution only to the declarations.
 instance TVars Module where

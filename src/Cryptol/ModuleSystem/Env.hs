@@ -19,6 +19,7 @@ module Cryptol.ModuleSystem.Env where
 import Paths_cryptol (getDataDir)
 #endif
 
+import Cryptol.Backend.FFI (ForeignSrc, unloadForeignSrc)
 import Cryptol.Eval (EvalEnv)
 import Cryptol.ModuleSystem.Fingerprint
 import Cryptol.ModuleSystem.Interface
@@ -43,6 +44,7 @@ import System.Directory (getAppUserDataDirectory, getCurrentDirectory)
 import System.Environment(getExecutablePath)
 import System.FilePath ((</>), normalise, joinPath, splitPath, takeDirectory)
 import qualified Data.List as List
+import Data.Foldable
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
@@ -101,14 +103,19 @@ data CoreLint = NoCoreLint        -- ^ Don't run core lint
               | CoreLint          -- ^ Run core lint
   deriving (Generic, NFData)
 
-resetModuleEnv :: ModuleEnv -> ModuleEnv
-resetModuleEnv env = env
-  { meLoadedModules = mempty
-  , meNameSeeds     = T.nameSeeds
-  , meEvalEnv       = mempty
-  , meFocusedModule = Nothing
-  , meDynEnv        = mempty
-  }
+resetModuleEnv :: ModuleEnv -> IO ModuleEnv
+resetModuleEnv env = do
+  for_ (getLoadedModules $ meLoadedModules env) $ \lm ->
+    case lmForeignSrc (lmData lm) of
+      Just fsrc -> unloadForeignSrc fsrc
+      _         -> pure ()
+  pure env
+    { meLoadedModules = mempty
+    , meNameSeeds     = T.nameSeeds
+    , meEvalEnv       = mempty
+    , meFocusedModule = Nothing
+    , meDynEnv        = mempty
+    }
 
 initialModuleEnv :: IO ModuleEnv
 initialModuleEnv = do
@@ -373,8 +380,10 @@ data LoadedModuleData = LoadedModuleData
 
   , lmdModule            :: T.Module
     -- ^ The actual type-checked module
-  } deriving (Show, Generic, NFData)
 
+  , lmForeignSrc        :: Maybe ForeignSrc
+    -- ^ The dynamically loaded source for any foreign functions in the module
+  } deriving (Show, Generic, NFData)
 
 type LoadedSignature = LoadedModuleG T.ModParamNames
 
@@ -427,9 +436,9 @@ addLoadedSignature path ident fp nameEnv nm si lm
 -- | Add a freshly loaded module.  If it was previously loaded, then
 -- the new version is ignored.
 addLoadedModule ::
-  ModulePath -> String -> Fingerprint -> R.NamingEnv -> T.Module ->
-  LoadedModules -> LoadedModules
-addLoadedModule path ident fp nameEnv tm lm
+  ModulePath -> String -> Fingerprint -> R.NamingEnv -> Maybe ForeignSrc ->
+  T.Module -> LoadedModules -> LoadedModules
+addLoadedModule path ident fp nameEnv fsrc tm lm
   | isLoaded (T.mName tm) lm  = lm
   | T.isParametrizedModule tm = lm { lmLoadedParamModules = loaded :
                                                 lmLoadedParamModules lm }
@@ -444,6 +453,7 @@ addLoadedModule path ident fp nameEnv tm lm
     , lmData            = LoadedModuleData
                              { lmdInterface = T.genIface tm
                              , lmdModule    = tm
+                             , lmForeignSrc = fsrc
                              }
     , lmFingerprint     = fp
     }

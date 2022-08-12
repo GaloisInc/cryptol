@@ -48,6 +48,8 @@ import           Cryptol.TypeCheck.Instantiate
 import           Cryptol.TypeCheck.Subst (listSubst,apSubst,(@@),isEmptySubst)
 import           Cryptol.TypeCheck.Unify(rootPath)
 import           Cryptol.TypeCheck.Module
+import           Cryptol.TypeCheck.FFI
+import           Cryptol.TypeCheck.FFI.FFIType
 import           Cryptol.Utils.Ident
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.RecordMap
@@ -63,7 +65,7 @@ import           Data.List(partition)
 import           Data.Ratio(numerator,denominator)
 import           Data.Traversable(forM)
 import           Data.Function(on)
-import           Control.Monad(zipWithM,unless,foldM,forM_,mplus)
+import           Control.Monad(zipWithM,unless,foldM,forM_,mplus,when)
 
 
 
@@ -851,7 +853,11 @@ guessType exprMap b@(P.Bind { .. }) =
   case bSignature of
 
     Just s ->
-      do s1 <- checkSchema AllowWildCards s
+      do let wildOk = case thing bDef of
+                        P.DForeign {} -> NoWildCards
+                        P.DPrim       -> NoWildCards
+                        P.DExpr {}    -> AllowWildCards
+         s1 <- checkSchema wildOk s
          return ((name, ExtVar (fst s1)), Left (checkSigB b s1))
 
     Nothing
@@ -945,8 +951,9 @@ generalize bs0 gs0 =
 
          genE e = foldr ETAbs (foldr EProofAbs (apSubst su e) qs) asPs
          genB d = d { dDefinition = case dDefinition d of
-                                      DExpr e -> DExpr (genE e)
-                                      DPrim   -> DPrim
+                                      DExpr e    -> DExpr (genE e)
+                                      DPrim      -> DPrim
+                                      DForeign t -> DForeign t
                     , dSignature  = Forall asPs qs
                                   $ apSubst su $ sType $ dSignature d
                     }
@@ -967,6 +974,8 @@ checkMonoB b t =
   case thing (P.bDef b) of
 
     P.DPrim -> panic "checkMonoB" ["Primitive with no signature?"]
+
+    P.DForeign -> panic "checkMonoB" ["Foreign with no signature?"]
 
     P.DExpr e ->
       do let nm = thing (P.bName b)
@@ -996,6 +1005,37 @@ checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
                   , dFixity     = P.bFixity b
                   , dDoc        = P.bDoc b
                   }
+
+ P.DForeign ->
+   do let loc = getLoc b
+          name = thing $ P.bName b
+          src = DefinitionOf name
+      inRangeMb loc do
+        -- Ensure all type params are of kind #
+        forM_ as \a ->
+          when (tpKind a /= KNum) $
+            recordErrorLoc loc $ UnsupportedFFIKind src a $ tpKind a
+        withTParams as do
+          ffiFunType <-
+            case toFFIFunType (Forall as asmps0 t0) of
+              Right (props, ffiFunType) -> ffiFunType <$ do
+                ffiGoals <- traverse (newGoal (CtFFI name)) props
+                proveImplication True (Just name) as asmps0 $
+                  validSchema ++ ffiGoals
+              Left err -> do
+                recordErrorLoc loc $ UnsupportedFFIType src err
+                -- Just a placeholder type
+                pure FFIFunType
+                  { ffiTParams = as, ffiArgTypes = []
+                  , ffiRetType = FFITuple [] }
+          pure Decl { dName       = thing (P.bName b)
+                    , dSignature  = Forall as asmps0 t0
+                    , dDefinition = DForeign ffiFunType
+                    , dPragmas    = P.bPragmas b
+                    , dInfix      = P.bInfix b
+                    , dFixity     = P.bFixity b
+                    , dDoc        = P.bDoc b
+                    }
 
  P.DExpr e0 ->
   inRangeMb (getLoc b) $
@@ -1028,7 +1068,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
      addGoals leave
 
 
-     su <- proveImplication (Just (thing (P.bName b))) as asmps1 stay
+     su <- proveImplication False (Just (thing (P.bName b))) as asmps1 stay
      extendSubst su
 
      let asmps  = concatMap pSplitAnd (apSubst su asmps1)
@@ -1191,6 +1231,7 @@ checkDecl isTopLevel d mbDoc =
     P.DFixity {}    -> bad "DFixity"
     P.DPragma {}    -> bad "DPragma"
     P.DPatBind {}   -> bad "DPatBind"
+
   where
   bad x = panic "checkDecl" [x]
 
@@ -1198,8 +1239,8 @@ checkDecl isTopLevel d mbDoc =
 checkParameterFun :: P.ParameterFun Name -> InferM ModVParam
 checkParameterFun x =
   do (s,gs) <- checkSchema NoWildCards (P.pfSchema x)
-     su <- proveImplication (Just (thing (P.pfName x)))
-                            (sVars s) (sProps s) gs
+     su <- proveImplication False (Just (thing (P.pfName x)))
+                                  (sVars s) (sProps s) gs
      unless (isEmptySubst su) $
        panic "checkParameterFun" ["Subst not empty??"]
      let n = thing (P.pfName x)

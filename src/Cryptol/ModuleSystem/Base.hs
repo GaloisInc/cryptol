@@ -11,6 +11,7 @@
 
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ImplicitParams #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BlockArguments #-}
@@ -53,6 +54,7 @@ import Cryptol.ModuleSystem.Env ( lookupModule
 import qualified Cryptol.Eval                 as E
 import qualified Cryptol.Eval.Concrete as Concrete
 import           Cryptol.Eval.Concrete (Concrete(..))
+import           Cryptol.Eval.FFI
 import qualified Cryptol.ModuleSystem.NamingEnv as R
 import qualified Cryptol.ModuleSystem.Renamer as R
 import qualified Cryptol.Parser               as P
@@ -245,12 +247,25 @@ doLoadModule quiet isrc path fp pm0 =
      let ?evalPrim = \i -> Right <$> Map.lookup i tbl
      callStacks <- getCallStacks
      let ?callStacks = callStacks
-     case tcm of
-       T.TCTopModule m | not (T.isParametrizedModule m) ->
-                           modifyEvalEnv (E.moduleEnv Concrete m)
-       _ -> pure ()
+     fsrc <- case tcm of
+               T.TCTopModule m | not (T.isParametrizedModule m) ->
+                 do (getForeign,_) <-
+                      modifyEvalEnvM \env ->
+                        do res <- evalForeignDecls path m env
+                           pure
+                             case res of
+                               Left []   -> (pure Nothing, env)
+                               Left errs ->
+                                 (ffiLoadErrors (T.mName m) errs, env)
+                               Right (foreignSrc,newEnv) ->
+                                 (pure (Just foreignSrc), newEnv)
+                    fsrc <- getForeign
+                    modifyEvalEnv (E.moduleEnv Concrete m)
+                    pure fsrc
 
-     loadedModule path fp nameEnv tcm
+               _ -> pure Nothing
+     loadedModule path fp nameEnv fsrc tcm
+
      return tcm
 
 

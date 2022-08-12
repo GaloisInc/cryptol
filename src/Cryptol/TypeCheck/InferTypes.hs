@@ -221,6 +221,8 @@ data ConstraintSource
   | CtImprovement
   | CtPattern TypeSource  -- ^ Constraints arising from type-checking patterns
   | CtModuleInstance      -- ^ Instantiating a parametrized module
+  | CtFFI Name            -- ^ Constraints on a foreign declaration required
+                          --   by the FFI (e.g. sequences must be finite)
     deriving (Show, Generic, NFData)
 
 selSrc :: Selector -> TypeSource
@@ -248,7 +250,7 @@ instance TVars ConstraintSource where
       CtImprovement    -> src
       CtPattern _      -> src
       CtModuleInstance -> src
-
+      CtFFI _          -> src
 
 instance FVS Goal where
   fvs g = fvs (goal g)
@@ -354,6 +356,7 @@ instance PP ConstraintSource where
       CtImprovement   -> "examination of collected goals"
       CtPattern ad    -> "checking a pattern:" <+> pp ad
       CtModuleInstance -> "module instantiation"
+      CtFFI f         -> "declaration of foreign function" <+> pp f
 
 ppUse :: Expr -> Doc
 ppUse expr =

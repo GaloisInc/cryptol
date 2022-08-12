@@ -40,6 +40,7 @@ import Cryptol.Parser.AST ( Selector(..),Pragma(..)
                           , ImportG(..), ImportSpec(..), ExportType(..)
                           , Fixity(..))
 import Cryptol.Utils.RecordMap
+import Cryptol.TypeCheck.FFI.FFIType
 import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.Type
 
@@ -213,6 +214,7 @@ data Decl       = Decl { dName        :: !Name
                        } deriving (Generic, NFData, Show)
 
 data DeclDef    = DPrim
+                | DForeign FFIFunType
                 | DExpr Expr
                   deriving (Show, Generic, NFData)
 
@@ -403,8 +405,9 @@ instance PP (WithNames Decl) where
       ++ [ nest 2 (sep [pp dName <+> text "=", ppWithNames nm dDefinition]) ]
 
 instance PP (WithNames DeclDef) where
-  ppPrec _ (WithNames DPrim _)      = text "<primitive>"
-  ppPrec _ (WithNames (DExpr e) nm) = ppWithNames nm e
+  ppPrec _ (WithNames DPrim _)        = text "<primitive>"
+  ppPrec _ (WithNames (DForeign _) _) = text "<foreign>"
+  ppPrec _ (WithNames (DExpr e) nm)   = ppWithNames nm e
 
 instance PP Decl where
   ppPrec = ppWithNamesPrec IntMap.empty

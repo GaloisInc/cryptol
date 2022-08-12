@@ -97,6 +97,10 @@ cryptolError modErr warns =
         (20610, [ ("name", jsonPretty name)
                 , ("paths", jsonList [jsonString path1, jsonString path2])
                 ])
+       FFILoadErrors x errs ->
+        (20660, [ ("module", jsonPretty x)
+                , ("errors", jsonList (map jsonPretty errs))
+                ])
       OtherFailure x ->
         (29999, [ ("error", jsonString x)
                 ])

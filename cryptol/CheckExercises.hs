@@ -291,7 +291,7 @@ main = do
 
     if Seq.null (rdReplout rd)
       then do let cryCmd = (P.shell (exe ++ " --interactive-batch " ++ inFile ++ " -e"))
-              (cryEC, cryOut, _) <- P.readCreateProcessWithExitCode cryCmd ""
+              (cryEC, cryOut, cryErr) <- P.readCreateProcessWithExitCode cryCmd ""
 
 
               Line lnReplinStart _ Seq.:<| _ <- return $ rdReplin rd
@@ -301,6 +301,7 @@ main = do
                   putStrLn $ "REPL error (replin lines " ++
                     show lnReplinStart ++ "-" ++ show lnReplinEnd ++ ")."
                   putStr cryOut
+                  putStr cryErr
                   exitFailure
                 ExitSuccess -> do
                   -- remove temporary input file

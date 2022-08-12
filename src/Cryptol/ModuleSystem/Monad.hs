@@ -16,6 +16,8 @@ module Cryptol.ModuleSystem.Monad where
 
 import           Cryptol.Eval (EvalEnv,EvalOpts(..))
 
+import           Cryptol.Backend.FFI (ForeignSrc)
+import           Cryptol.Backend.FFI.Error
 import qualified Cryptol.Backend.Monad           as E
 
 import           Cryptol.ModuleSystem.Env
@@ -45,8 +47,10 @@ import Control.Monad.IO.Class
 import Control.Exception (IOException)
 import Data.ByteString (ByteString)
 import Data.Function (on)
+import Data.Functor.Identity
 import Data.Map (Map)
 import Data.Text.Encoding.Error (UnicodeException)
+import Data.Traversable
 import MonadLib
 import System.Directory (canonicalizePath)
 
@@ -113,6 +117,8 @@ data ModuleError
     -- ^ Module loaded by 'import' statement has the wrong module name
   | DuplicateModuleName P.ModName FilePath FilePath
     -- ^ Two modules loaded from different files have the same module name
+  | FFILoadErrors P.ModName [FFILoadError]
+    -- ^ Errors loading foreign function implementations
 
   | ErrorInFile ModulePath ModuleError
     -- ^ This is just a tag on the error, indicating the file containing it.
@@ -138,6 +144,7 @@ instance NFData ModuleError where
     DuplicateModuleName name path1 path2 ->
       name `deepseq` path1 `deepseq` path2 `deepseq` ()
     OtherFailure x                       -> x `deepseq` ()
+    FFILoadErrors x errs                 -> x `deepseq` errs `deepseq` ()
     ErrorInFile x y                      -> x `deepseq` y `deepseq` ()
 
 instance PP ModuleError where
@@ -193,6 +200,11 @@ instance PP ModuleError where
 
     OtherFailure x -> text x
 
+    FFILoadErrors x errs ->
+      hang (text "[error] Failed to load foreign implementations for module"
+            <+> pp x <.> colon)
+         4 (vcat $ map pp errs)
+
     ErrorInFile _ x -> ppPrec prec x
 
 moduleNotFound :: P.ModName -> [FilePath] -> ModuleM a
@@ -241,6 +253,9 @@ moduleNameMismatch expected found =
 duplicateModuleName :: P.ModName -> FilePath -> FilePath -> ModuleM a
 duplicateModuleName name path1 path2 =
   ModuleT (raise (DuplicateModuleName name path1 path2))
+
+ffiLoadErrors :: P.ModName -> [FFILoadError] -> ModuleM a
+ffiLoadErrors x errs = ModuleT (raise (FFILoadErrors x errs))
 
 -- | Run the computation, and if it caused and error, tag the error
 -- with the given file.
@@ -504,26 +519,32 @@ unloadModule rm = ModuleT $ do
   set $! env { meLoadedModules = removeLoadedModule rm (meLoadedModules env) }
 
 loadedModule ::
-  ModulePath -> Fingerprint -> NamingEnv -> T.TCTopEntity -> ModuleM ()
-loadedModule path fp nameEnv m = ModuleT $ do
+  ModulePath -> Fingerprint -> NamingEnv -> Maybe ForeignSrc -> T.TCTopEntity ->
+  ModuleM ()
+loadedModule path fp nameEnv fsrc m = ModuleT $ do
   env <- get
   ident <- case path of
              InFile p  -> unModuleT $ io (canonicalizePath p)
              InMem l _ -> pure l
 
-  let newLM = case m of
-                T.TCTopModule mo -> addLoadedModule path ident fp nameEnv mo
-                T.TCTopSignature x s ->
-                  addLoadedSignature path ident fp nameEnv x s
+  let newLM =
+        case m of
+          T.TCTopModule mo -> addLoadedModule path ident fp nameEnv fsrc mo
+          T.TCTopSignature x s -> addLoadedSignature path ident fp nameEnv x s
 
   set $! env { meLoadedModules = newLM (meLoadedModules env) }
 
-modifyEvalEnv :: (EvalEnv -> E.Eval EvalEnv) -> ModuleM ()
-modifyEvalEnv f = ModuleT $ do
+
+modifyEvalEnvM :: Traversable t =>
+  (EvalEnv -> E.Eval (t EvalEnv)) -> ModuleM (t ())
+modifyEvalEnvM f = ModuleT $ do
   env <- get
   let evalEnv = meEvalEnv env
-  evalEnv' <- inBase $ E.runEval mempty (f evalEnv)
-  set $! env { meEvalEnv = evalEnv' }
+  tenv <- inBase (E.runEval mempty (f evalEnv))
+  traverse (\evalEnv' -> set $! env { meEvalEnv = evalEnv' }) tenv
+
+modifyEvalEnv :: (EvalEnv -> E.Eval EvalEnv) -> ModuleM ()
+modifyEvalEnv = fmap runIdentity . modifyEvalEnvM . (fmap Identity .)
 
 getEvalEnv :: ModuleM EvalEnv
 getEvalEnv  = ModuleT (meEvalEnv `fmap` get)
