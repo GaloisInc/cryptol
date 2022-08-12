@@ -511,7 +511,7 @@ the new bindings.
 > evalDecl env d =
 >   case dDefinition d of
 >     DPrim      -> (dName d, pure (evalPrim (dName d)))
->     DForeign _ -> evalPanic "FFI not supported in reference interpreter" []
+>     DForeign _ -> (dName d, cryError $ FFINotSupported $ dName d)
 >     DExpr e    -> (dName d, evalExpr env e)
 >
 
