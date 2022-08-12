@@ -28,9 +28,10 @@ In our Cryptol file, we write a ``foreign`` declaration with no body:
   foreign add : [32] -> [32] -> [32]
 
 The C code must first be compiled into a dynamically loaded shared library. When
-Cryptol loads the module, it will look for a shared library in the same
-directory as the Cryptol module, with the same name as the Cryptol file but with
-a different file extension. The exact extension it uses is platform-specific:
+Cryptol loads the module containing the ``foreign`` declaration, it will look
+for a shared library in the same directory as the Cryptol module, with the same
+name as the Cryptol file but with a different file extension. The exact
+extension it uses is platform-specific:
 
 * On Linux, it looks for the extension ``.so``.
 * On macOS, it looks for the extension ``.dylib``.
@@ -44,6 +45,19 @@ in the shared library.
 Once the module is loaded, the foreign ``add`` function can be called like any
 other Cryptol function. Cryptol automatically converts between Cryptol ``[32]``
 values and C ``uint32_t`` values.
+
+The whole process would look something like this:
+
+.. code-block::
+
+  $ cc -fPIC -shared Example.c -o Example.so
+  $ cryptol
+  Loading module Cryptol
+  Cryptol> :l Example.cry
+  Loading module Cryptol
+  Loading module Main
+  Main> add 1 2
+  0x00000003
 
 Note: Since Cryptol currently only accesses the compiled binary and not the C
 source, it has no way of checking that the Cryptol function type you declare in
@@ -229,6 +243,28 @@ returned using output arguments, and the return type of the C function will be
 output arguments. When treated as an output argument, each C type ``U`` will be
 a pointer ``U*`` instead, except in the case of sequences, where the output and
 input versions are the same type, because it is already a pointer.
+
+Quick reference
+~~~~~~~~~~~~~~~
+
+==================================  ===================  =============  =========================
+Cryptol type (or kind)              C argument type(s)   C return type  C output argument type(s)
+==================================  ===================  =============  =========================
+``#``                               ``size_t``           N/A            N/A
+``Bit``                             ``uint8_t``          ``uint8_t``    ``uint8_t*``
+``[K]Bit`` where ``0  <= K <= 8``   ``uint8_t``          ``uint8_t``    ``uint8_t*``
+``[K]Bit`` where ``8  <  K <= 16``  ``uint16_t``         ``uint16_t``   ``uint16_t*``
+``[K]Bit`` where ``16 <  K <= 32``  ``uint32_t``         ``uint32_t``   ``uint32_t*``
+``[K]Bit`` where ``32 <  K <= 64``  ``uint64_t``         ``uint64_t``   ``uint64_t*``
+``Float32``                         ``float``            ``float``      ``float*``
+``Float64``                         ``double``           ``double``     ``double*``
+``[n]T``                            ``U*``               N/A            ``U*``
+``(T1, T2, ..., Tn)``               ``U1, U2, ..., Un``  N/A            ``V1, V2, ..., Vn``
+``{f1: T1, f2: T2, ..., fn: Tn}``   ``U1, U2, ..., Un``  N/A            ``V1, V2, ..., Vn``
+==================================  ===================  =============  =========================
+
+where ``K`` is a constant number, ``n`` is a variable number, ``Ti`` is a type,
+``Ui`` is its C argument type, and ``Vi`` is its C output argument type.
 
 Memory
 ------
