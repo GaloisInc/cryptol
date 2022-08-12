@@ -1000,9 +1000,10 @@ checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
         withTParams as do
           ffiFunType <-
             case toFFIFunType (Forall as asmps0 t0) of
-              Right (props, ffiFunType) -> ffiFunType <$
-                (traverse (newGoal (CtFFI name)) props
-                  >>= proveImplication True (Just name) as asmps0)
+              Right (props, ffiFunType) -> ffiFunType <$ do
+                ffiGoals <- traverse (newGoal (CtFFI name)) props
+                proveImplication True (Just name) as asmps0 $
+                  validSchema ++ ffiGoals
               Left err -> do
                 recordErrorLoc loc $ UnsupportedFFIType src err
                 -- Just a placeholder type
