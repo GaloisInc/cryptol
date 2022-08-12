@@ -14,6 +14,8 @@ module Cryptol.ModuleSystem.Monad where
 
 import           Cryptol.Eval (EvalEnv,EvalOpts(..))
 
+import           Cryptol.Backend.FFI (ForeignSrc)
+import           Cryptol.Backend.FFI.Error
 import qualified Cryptol.Backend.Monad           as E
 
 import           Cryptol.ModuleSystem.Env
@@ -42,9 +44,11 @@ import Control.Monad.IO.Class
 import Control.Exception (IOException)
 import Data.ByteString (ByteString)
 import Data.Function (on)
+import Data.Functor.Identity
 import Data.Map (Map)
 import Data.Maybe (isJust)
 import Data.Text.Encoding.Error (UnicodeException)
+import Data.Traversable
 import MonadLib
 import System.Directory (canonicalizePath)
 
@@ -113,6 +117,8 @@ data ModuleError
   | FailedToParameterizeModDefs P.ModName [T.Name]
     -- ^ Failed to add the module parameters to all definitions in a module.
   | NotAParameterizedModule P.ModName
+  | FFILoadErrors P.ModName [FFILoadError]
+    -- ^ Errors loading foreign function implementations
 
   | ErrorInFile ModulePath ModuleError
     -- ^ This is just a tag on the error, indicating the file containing it.
@@ -141,6 +147,7 @@ instance NFData ModuleError where
     ImportedParamModule x                -> x `deepseq` ()
     FailedToParameterizeModDefs x xs     -> x `deepseq` xs `deepseq` ()
     NotAParameterizedModule x            -> x `deepseq` ()
+    FFILoadErrors x errs                 -> x `deepseq` errs `deepseq` ()
     ErrorInFile x y                      -> x `deepseq` y `deepseq` ()
 
 instance PP ModuleError where
@@ -207,6 +214,11 @@ instance PP ModuleError where
     NotAParameterizedModule x ->
       text "[error] Module" <+> pp x <+> text "does not have parameters."
 
+    FFILoadErrors x errs ->
+      hang (text "[error] Failed to load foreign implementations for module"
+            <+> pp x <.> colon)
+         4 (vcat $ map pp errs)
+
     ErrorInFile _ x -> ppPrec prec x
 
 moduleNotFound :: P.ModName -> [FilePath] -> ModuleM a
@@ -265,6 +277,9 @@ failedToParameterizeModDefs x xs =
 
 notAParameterizedModule :: P.ModName -> ModuleM a
 notAParameterizedModule x = ModuleT (raise (NotAParameterizedModule x))
+
+ffiLoadErrors :: P.ModName -> [FFILoadError] -> ModuleM a
+ffiLoadErrors x errs = ModuleT (raise (FFILoadErrors x errs))
 
 -- | Run the computation, and if it caused and error, tag the error
 -- with the given file.
@@ -511,22 +526,27 @@ unloadModule rm = ModuleT $ do
   set $! env { meLoadedModules = removeLoadedModule rm (meLoadedModules env) }
 
 loadedModule ::
-  ModulePath -> Fingerprint -> NamingEnv -> T.Module -> ModuleM ()
-loadedModule path fp nameEnv m = ModuleT $ do
+  ModulePath -> Fingerprint -> NamingEnv -> Maybe ForeignSrc -> T.Module ->
+  ModuleM ()
+loadedModule path fp nameEnv fsrc m = ModuleT $ do
   env <- get
   ident <- case path of
              InFile p  -> unModuleT $ io (canonicalizePath p)
              InMem l _ -> pure l
 
-  set $! env { meLoadedModules = addLoadedModule path ident fp nameEnv m
+  set $! env { meLoadedModules = addLoadedModule path ident fp nameEnv fsrc m
                                                         (meLoadedModules env) }
 
-modifyEvalEnv :: (EvalEnv -> E.Eval EvalEnv) -> ModuleM ()
-modifyEvalEnv f = ModuleT $ do
+modifyEvalEnvM :: Traversable t =>
+  (EvalEnv -> E.Eval (t EvalEnv)) -> ModuleM (t ())
+modifyEvalEnvM f = ModuleT $ do
   env <- get
   let evalEnv = meEvalEnv env
-  evalEnv' <- inBase $ E.runEval mempty (f evalEnv)
-  set $! env { meEvalEnv = evalEnv' }
+  inBase (E.runEval mempty (f evalEnv))
+    >>= traverse (\evalEnv' -> set $! env { meEvalEnv = evalEnv' })
+
+modifyEvalEnv :: (EvalEnv -> E.Eval EvalEnv) -> ModuleM ()
+modifyEvalEnv = fmap runIdentity . modifyEvalEnvM . (fmap Identity .)
 
 getEvalEnv :: ModuleM EvalEnv
 getEvalEnv  = ModuleT (meEvalEnv `fmap` get)

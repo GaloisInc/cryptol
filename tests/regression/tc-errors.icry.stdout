@@ -77,7 +77,7 @@ Loading module Main
 
 [error] at tc-errors-4.cry:1:10--1:11:
   Wild card types are not allowed in this context
-    (e.g., they cannot be used in type synonyms).
+    (e.g., they cannot be used in type synonyms or FFI declarations).
 Loading module Cryptol
 Loading module Main
 

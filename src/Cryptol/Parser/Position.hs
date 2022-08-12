@@ -37,6 +37,11 @@ data Range      = Range { from   :: !Position
                         , source :: FilePath }
                   deriving (Eq, Ord, Show, Generic, NFData)
 
+-- | Returns `True` if the first range is contained in the second one.
+rangeWithin :: Range -> Range -> Bool
+a `rangeWithin` b =
+  source a == source b && from a >= from b && to a <= to b
+
 -- | An empty range.
 --
 -- Caution: using this on the LHS of a use of rComb will cause the empty source

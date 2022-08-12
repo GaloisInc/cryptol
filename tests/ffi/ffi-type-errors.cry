@@ -1,0 +1,11 @@
+import Float
+
+foreign badWordSizes : [65] -> [128]
+foreign badFloatSizes : Float16 -> Float128
+foreign badArrayTypes : {n} (fin n) => [n]Bit -> [n]([16], [16]) -> [n][4][8]
+foreign badTypes : Integer -> Z 3
+foreign notFunction : [32]
+foreign badKind : {t} t -> [32]
+foreign noFin : {n} [n][32] -> [n * 2][32]
+foreign infSeq : [inf][32] -> Bit
+foreign wildcard : { x : [8], y : Float32 } -> _

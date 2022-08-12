@@ -12,4 +12,5 @@ Cryptol Reference Manual
   OverloadedOperations
   TypeDeclarations
   Modules
+  FFI
 
