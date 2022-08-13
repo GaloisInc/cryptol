@@ -12,6 +12,7 @@
 -- libraries. Currently works on Unix only.
 module Cryptol.Backend.FFI
   ( ForeignSrc
+  , foreignSrcPath
   , loadForeignSrc
   , unloadForeignSrc
 #ifdef FFI_ENABLED
@@ -56,12 +57,14 @@ import           GHC.Generics
 
 -- | A source from which we can retrieve implementations of foreign functions.
 data ForeignSrc = ForeignSrc
-  { -- | The 'ForeignPtr' wraps the pointer returned by 'dlopen', where the
+  { -- | The file path of the 'ForeignSrc'.
+    foreignSrcPath   :: FilePath
+    -- | The 'ForeignPtr' wraps the pointer returned by 'dlopen', where the
     -- finalizer calls 'dlclose' when the library is no longer needed. We keep
     -- references to the 'ForeignPtr' in each foreign function that is in the
     -- evaluation environment, so that the shared library will stay open as long
     -- as there are references to it.
-    foreignSrcFPtr   :: ForeignPtr ()
+  , foreignSrcFPtr   :: ForeignPtr ()
     -- | We support explicit unloading of the shared library so we keep track of
     -- if it has already been unloaded, and if so the finalizer does nothing.
     -- This is updated atomically when the library is unloaded.
@@ -77,12 +80,12 @@ instance NFData ForeignSrc where
 -- the shared library that we try to load is the same as the Cryptol file path
 -- except with a platform specific extension.
 loadForeignSrc :: FilePath -> IO (Either FFILoadError ForeignSrc)
-loadForeignSrc = loadForeignLib >=> traverse \ptr -> do
+loadForeignSrc = loadForeignLib >=> traverse \(foreignSrcPath, ptr) -> do
   foreignSrcLoaded <- newMVar True
   foreignSrcFPtr <- newForeignPtr ptr (unloadForeignSrc' foreignSrcLoaded ptr)
   pure ForeignSrc {..}
 
-loadForeignLib :: FilePath -> IO (Either FFILoadError (Ptr ()))
+loadForeignLib :: FilePath -> IO (Either FFILoadError (FilePath, Ptr ()))
 #ifdef darwin_HOST_OS
 -- On Darwin, try loading .dylib first, and if that fails try .so
 loadForeignLib path =
@@ -95,9 +98,12 @@ loadForeignLib path =
 loadForeignLib path =
   tryLoad (CantLoadFFISrc path) $ open "so"
 #endif
-  where -- RTLD_NOW so we can make sure that the symbols actually exist at
-        -- module loading time
-        open ext = undl <$> dlopen (path -<.> ext) [RTLD_NOW]
+  where open ext = do
+          let libPath = path -<.> ext
+          -- RTLD_NOW so we can make sure that the symbols actually exist at
+          -- module loading time
+          ptr <- undl <$> dlopen libPath [RTLD_NOW]
+          pure (libPath, ptr)
 
 -- | Explicitly unload a 'ForeignSrc' immediately instead of waiting for the
 -- garbage collector to do it. This can be useful if you want to immediately
