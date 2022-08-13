@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 env:
-  SOLVER_PKG_VERSION: "snapshot-20220721"
+  SOLVER_PKG_VERSION: "snapshot-20220812"
   # The CACHE_VERSION can be updated to force the use of a new cache if
   # the current cache contents become corrupted/invalid.  This can
   # sometimes happen when (for example) the OS version is changed but
@@ -20,7 +20,7 @@ env:
 
 jobs:
   config:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     outputs:
       name: ${{ steps.config.outputs.name }}
       version: ${{ steps.config.outputs.version }}
@@ -58,7 +58,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-20.04, macos-12, windows-2019]
+        os: [ubuntu-22.04, macos-12, windows-2019]
         ghc-version: ["8.8.4", "8.10.7", "9.0.2", "9.2.2"]
         exclude:
           # https://gitlab.haskell.org/ghc/ghc/-/issues/18550
@@ -71,7 +71,7 @@ jobs:
         include:
           # We include one job from an older Ubuntu LTS release to increase our
           # coverage of possible Linux configurations.
-          - os: ubuntu-18.04
+          - os: ubuntu-22.04
             ghc-version: 8.8.4
     outputs:
       test-lib-json: ${{ steps.test-lib.outputs.targets-json }}
@@ -231,12 +231,12 @@ jobs:
       matrix:
         suite: [test-lib]
         target: ${{ fromJson(needs.build.outputs.test-lib-json) }}
-        os: [ubuntu-20.04, macos-12, windows-2019]
+        os: [ubuntu-22.04, macos-12, windows-2019]
         continue-on-error: [false]
         include:
           - suite: rpc
             target: ''
-            os: ubuntu-20.04
+            os: ubuntu-22.04
             continue-on-error: false
           #- suite: rpc
           #  target: ''
@@ -311,7 +311,7 @@ jobs:
           cryptol-remote-api/run_rpc_tests.sh
 
   build-push-image:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: [config]
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.config.outputs.release == 'true'
     strategy:
