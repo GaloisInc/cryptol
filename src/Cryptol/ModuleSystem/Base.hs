@@ -264,8 +264,11 @@ doLoadModule quiet isrc path fp pm0 =
       InFile p -> io (canonicalizePath p >>= loadForeignSrc) >>=
         \case
           Right fsrc -> do
-            unless quiet $ withLogger logPutStrLn
-              ("Loading dynamic library " ++ takeFileName (foreignSrcPath fsrc))
+            unless quiet $
+              case getForeignSrcPath fsrc of
+                Just fpath -> withLogger logPutStrLn $
+                  "Loading dynamic library " ++ takeFileName fpath
+                Nothing -> pure ()
             modifyEvalEnvM (evalForeignDecls fsrc foreigns) >>=
               \case
                 Right () -> pure $ Just fsrc

@@ -12,7 +12,7 @@
 -- libraries. Currently works on Unix only.
 module Cryptol.Backend.FFI
   ( ForeignSrc
-  , foreignSrcPath
+  , getForeignSrcPath
   , loadForeignSrc
   , unloadForeignSrc
 #ifdef FFI_ENABLED
@@ -75,6 +75,10 @@ instance Show ForeignSrc where
 
 instance NFData ForeignSrc where
   rnf ForeignSrc {..} = foreignSrcFPtr `seq` foreignSrcLoaded `deepseq` ()
+
+-- | Get the file path of the 'ForeignSrc'.
+getForeignSrcPath :: ForeignSrc -> Maybe FilePath
+getForeignSrcPath = Just . foreignSrcPath
 
 -- | Load a 'ForeignSrc' for the given __Cryptol__ file path. The file path of
 -- the shared library that we try to load is the same as the Cryptol file path
@@ -223,6 +227,9 @@ callForeignImpl ForeignImpl {..} xs = withForeignSrc foreignImplSrc \_ ->
 #else
 
 data ForeignSrc = ForeignSrc deriving (Show, Generic, NFData)
+
+getForeignSrcPath :: ForeignSrc -> Maybe FilePath
+getForeignSrcPath = Nothing
 
 loadForeignSrc :: FilePath -> IO (Either FFILoadError ForeignSrc)
 loadForeignSrc _ = pure $ Right ForeignSrc
