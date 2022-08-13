@@ -16,16 +16,18 @@ module Cryptol.Eval.FFI
   , evalForeignDecls
   ) where
 
+import           Data.Maybe
+
 import           Cryptol.Backend.FFI
 import           Cryptol.Backend.FFI.Error
 import           Cryptol.Eval
 import           Cryptol.TypeCheck.AST
+import           Cryptol.TypeCheck.FFI.FFIType
 
 #ifdef FFI_ENABLED
 
 import           Data.Either
 import           Data.IORef
-import           Data.Maybe
 import           Data.Proxy
 import           Data.Traversable
 import           Data.Word
@@ -44,7 +46,6 @@ import           Cryptol.Eval.Prims
 import           Cryptol.Eval.Type
 import           Cryptol.Eval.Value
 import           Cryptol.ModuleSystem.Name
-import           Cryptol.TypeCheck.FFI.FFIType
 import           Cryptol.Utils.Ident
 import           Cryptol.Utils.RecordMap
 
