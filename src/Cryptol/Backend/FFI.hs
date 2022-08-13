@@ -229,7 +229,7 @@ callForeignImpl ForeignImpl {..} xs = withForeignSrc foreignImplSrc \_ ->
 data ForeignSrc = ForeignSrc deriving (Show, Generic, NFData)
 
 getForeignSrcPath :: ForeignSrc -> Maybe FilePath
-getForeignSrcPath = Nothing
+getForeignSrcPath _ = Nothing
 
 loadForeignSrc :: FilePath -> IO (Either FFILoadError ForeignSrc)
 loadForeignSrc _ = pure $ Right ForeignSrc
