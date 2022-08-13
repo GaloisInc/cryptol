@@ -683,6 +683,7 @@ instance Rename Bind where
 
 instance Rename BindDef where
   rename DPrim     = return DPrim
+  rename DForeign  = return DForeign
   rename (DExpr e) = DExpr <$> rename e
   rename (DPropGuards cases) = DPropGuards <$> traverse renameCase cases
     where 

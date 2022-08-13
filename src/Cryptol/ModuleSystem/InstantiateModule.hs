@@ -231,8 +231,9 @@ instance Inst DeclGroup where
 instance Inst DeclDef where
   inst env d =
     case d of
-      DPrim   -> DPrim
-      DExpr e -> DExpr (inst env e)
+      DPrim      -> DPrim
+      DForeign t -> DForeign t
+      DExpr e    -> DExpr (inst env e)
 
 instance Inst Decl where
   inst env d = d { dSignature = inst env (dSignature d)

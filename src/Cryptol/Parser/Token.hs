@@ -51,6 +51,7 @@ data TokenKW  = KW_else
               | KW_primitive
               | KW_parameter
               | KW_constraint
+              | KW_foreign
               | KW_Prop
               | KW_by
               | KW_down

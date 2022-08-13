@@ -54,7 +54,7 @@ import qualified Control.Exception as X
 import Cryptol.Parser.Position
 import Cryptol.Utils.Panic
 import Cryptol.Utils.PP
-import Cryptol.TypeCheck.AST(Name)
+import Cryptol.TypeCheck.AST(Name, TParam)
 
 -- | A computation that returns an already-evaluated value.
 ready :: a -> Eval a
@@ -412,17 +412,20 @@ evalPanic cxt = panic ("[Eval] " ++ cxt)
 
 -- | Data type describing errors that can occur during evaluation.
 data EvalError
-  = InvalidIndex (Maybe Integer)  -- ^ Out-of-bounds index
-  | DivideByZero                  -- ^ Division or modulus by 0
-  | NegativeExponent              -- ^ Exponentiation by negative integer
-  | LogNegative                   -- ^ Logarithm of a negative integer
-  | UserError String              -- ^ Call to the Cryptol @error@ primitive
-  | LoopError String              -- ^ Detectable nontermination
-  | NoPrim Name                   -- ^ Primitive with no implementation
-  | BadRoundingMode Integer       -- ^ Invalid rounding mode
-  | BadValue String               -- ^ Value outside the domain of a partial function.
+  = InvalidIndex (Maybe Integer)         -- ^ Out-of-bounds index
+  | DivideByZero                         -- ^ Division or modulus by 0
+  | NegativeExponent                     -- ^ Exponentiation by negative integer
+  | LogNegative                          -- ^ Logarithm of a negative integer
+  | UserError String                     -- ^ Call to the Cryptol @error@ primitive
+  | LoopError String                     -- ^ Detectable nontermination
+  | NoPrim Name                          -- ^ Primitive with no implementation
+  | BadRoundingMode Integer              -- ^ Invalid rounding mode
+  | BadValue String                      -- ^ Value outside the domain of a partial function.
   | NoMatchingPropGuardCase String    -- ^ No prop guard holds for the given type variables.
-    deriving Typeable
+  | FFINotSupported Name                 -- ^ Foreign function cannot be called
+  | FFITypeNumTooBig Name TParam Integer -- ^ Number passed to foreign function
+                                         --   as a type argument is too large
+  deriving Typeable
 
 instance PP EvalError where
   ppPrec _ e = case e of
@@ -442,6 +445,17 @@ instance PP EvalError where
     BadValue x -> "invalid input for" <+> backticks (text x)
     NoPrim x -> text "unimplemented primitive:" <+> pp x
     NoMatchingPropGuardCase msg -> text $ "No matching prop guard case; " ++ msg
+    FFINotSupported x -> vcat
+      [ text "cannot call foreign function" <+> pp x
+      , text "FFI calls are not supported in this context"
+      , text "If you are trying to evaluate an expression, try rebuilding"
+      , text "  Cryptol with FFI support enabled."
+      ]
+    FFITypeNumTooBig f p n -> vcat
+      [ text "numeric type argument to foreign function is too large:"
+        <+> integer n
+      , text "in type parameter" <+> pp p <+> "of function" <+> pp f
+      , text "type arguments must fit in a C `size_t`" ]
 
 instance Show EvalError where
   show = show . pp

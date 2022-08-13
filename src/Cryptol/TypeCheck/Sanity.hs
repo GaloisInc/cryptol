@@ -404,6 +404,10 @@ checkDecl checkSig d =
       do when checkSig $ checkSchema $ dSignature d
          return (dName d, dSignature d)
 
+    DForeign _ ->
+      do when checkSig $ checkSchema $ dSignature d
+         return (dName d, dSignature d)
+
     DExpr e ->
       do let s = dSignature d
          when checkSig $ checkSchema s

@@ -221,6 +221,8 @@ data ConstraintSource
   | CtPattern TypeSource  -- ^ Constraints arising from type-checking patterns
   | CtModuleInstance ModName -- ^ Instantiating a parametrized module
   | CtPropGuardsExhaustive Name -- ^ Checking that a use of prop guards is exhastive
+  | CtFFI Name            -- ^ Constraints on a foreign declaration required
+                          --   by the FFI (e.g. sequences must be finite)
     deriving (Show, Generic, NFData)
 
 selSrc :: Selector -> TypeSource
@@ -249,6 +251,7 @@ instance TVars ConstraintSource where
       CtPattern _      -> src
       CtModuleInstance _ -> src
       CtPropGuardsExhaustive _ -> src
+      CtFFI _          -> src
 
 
 instance FVS Goal where
@@ -356,6 +359,7 @@ instance PP ConstraintSource where
       CtPattern ad    -> "checking a pattern:" <+> pp ad
       CtModuleInstance n -> "module instantiation" <+> pp n
       CtPropGuardsExhaustive n -> "exhaustion check for prop guards used in defining" <+> pp n
+      CtFFI f         -> "declaration of foreign function" <+> pp f
 
 ppUse :: Expr -> Doc
 ppUse expr =

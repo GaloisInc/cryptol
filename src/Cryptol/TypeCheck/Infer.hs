@@ -52,6 +52,8 @@ import           Cryptol.TypeCheck.Kind(checkType,checkSchema,checkTySyn,
 import           Cryptol.TypeCheck.Instantiate
 import           Cryptol.TypeCheck.Subst (listSubst,apSubst,(@@),isEmptySubst)
 import           Cryptol.TypeCheck.Unify(rootPath)
+import           Cryptol.TypeCheck.FFI
+import           Cryptol.TypeCheck.FFI.FFIType
 import           Cryptol.Utils.Ident
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.RecordMap
@@ -66,7 +68,8 @@ import           Data.Maybe(isJust, fromMaybe, mapMaybe)
 import           Data.Ratio(numerator,denominator)
 import           Data.Traversable(forM)
 import           Data.Function(on)
-import           Control.Monad(zipWithM,unless,foldM,forM_,mplus, join)
+import           Control.Monad(zipWithM, unless, foldM, forM_, mplus, zipWithM,
+                               unless, foldM, forM_, mplus, when)
 import           Data.Bifunctor (Bifunctor(second))
 
 
@@ -839,7 +842,12 @@ guessType exprMap b@(P.Bind { .. }) =
   case bSignature of
 
     Just s ->
-      do s1 <- checkSchema AllowWildCards s
+      do let wildOk = case thing bDef of
+                        P.DForeign {}    -> NoWildCards
+                        P.DPrim          -> NoWildCards
+                        P.DExpr {}       -> AllowWildCards
+                        P.DPropGuards {} -> NoWildCards
+         s1 <- checkSchema wildOk s
          return ((name, ExtVar (fst s1)), Left (checkSigB b s1))
 
     Nothing
@@ -933,8 +941,9 @@ generalize bs0 gs0 =
 
          genE e = foldr ETAbs (foldr EProofAbs (apSubst su e) qs) asPs
          genB d = d { dDefinition = case dDefinition d of
-                                      DExpr e -> DExpr (genE e)
-                                      DPrim   -> DPrim
+                                      DExpr e    -> DExpr (genE e)
+                                      DPrim      -> DPrim
+                                      DForeign t -> DForeign t
                     , dSignature  = Forall asPs qs
                                   $ apSubst su $ sType $ dSignature d
                     }
@@ -955,6 +964,8 @@ checkMonoB b t =
   case thing (P.bDef b) of
 
     P.DPrim -> panic "checkMonoB" ["Primitive with no signature?"]
+
+    P.DForeign -> panic "checkMonoB" ["Foreign with no signature?"]
 
     P.DExpr e ->
       do let nm = thing (P.bName b)
@@ -993,6 +1004,37 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
         , dDoc        = P.bDoc b
         }
 
+    P.DForeign -> do
+      let loc = getLoc b
+          name' = thing $ P.bName b
+          src = DefinitionOf name'
+      inRangeMb loc do
+        -- Ensure all type params are of kind #
+        forM_ as \a ->
+          when (tpKind a /= KNum) $
+            recordErrorLoc loc $ UnsupportedFFIKind src a $ tpKind a
+        withTParams as do
+          ffiFunType <-
+            case toFFIFunType (Forall as asmps0 t0) of
+              Right (props, ffiFunType) -> ffiFunType <$ do
+                ffiGoals <- traverse (newGoal (CtFFI name')) props
+                proveImplication True (Just name') as asmps0 $
+                  validSchema ++ ffiGoals
+              Left err -> do
+                recordErrorLoc loc $ UnsupportedFFIType src err
+                -- Just a placeholder type
+                pure FFIFunType
+                  { ffiTParams = as, ffiArgTypes = []
+                  , ffiRetType = FFITuple [] }
+          pure Decl { dName       = thing (P.bName b)
+                    , dSignature  = Forall as asmps0 t0
+                    , dDefinition = DForeign ffiFunType
+                    , dPragmas    = P.bPragmas b
+                    , dInfix      = P.bInfix b
+                    , dFixity     = P.bFixity b
+                    , dDoc        = P.bDoc b
+                    }
+
     P.DExpr e0 ->
       inRangeMb (getLoc b) $
       withTParams as $ do
@@ -1013,7 +1055,6 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
         withTParams as $ do
           asmps1 <- applySubstPreds asmps0
           t1     <- applySubst t0
-
           -- Checking each guarded case is the same as checking a DExpr, except
           -- that the guarding assumptions are added first.
           let checkPropGuardCase :: ([P.Prop Name], P.Expr Name) -> InferM ([Prop], Expr)
@@ -1028,7 +1069,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
                   second concat . unzip <$>
                   checkPropGuard mb_rng `traverse` guards0
                 -- try to prove all goals
-                su <- proveImplication (Just name) as (asmps1 <> guards1) goals
+                su <- proveImplication True (Just name) as (asmps1 <> guards1) goals
                 extendSubst su
                 -- Preprends the goals to the constraints, because these must be
                 -- checked first before the rest of the constraints (during
@@ -1076,21 +1117,21 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
                   panicInvalid = tcPanic "checkSigB"
                     [ "This type shouldn't be a valid type constraint: " ++
                       "`" ++ pretty prop ++ "`"]
-              
+
               negateSimpleNumProps :: [Prop] -> [[Prop]]
               negateSimpleNumProps props = do
                 prop <- props
                 maybe mempty pure (negateSimpleNumProp prop)
 
-              toGoal :: Prop -> Goal 
-              toGoal prop = 
+              toGoal :: Prop -> Goal
+              toGoal prop =
                 Goal
                   { goalSource = CtPropGuardsExhaustive name
                   , goalRange = srcRange $ P.bName b
                   , goal = prop }
 
               canProve :: [Prop] -> [Goal] -> InferM Bool
-              canProve asmps goals = isRight <$> 
+              canProve asmps goals = isRight <$>
                 tryProveImplication (Just name) as asmps goals
 
               -- Try to prove that the first guard will be satisfied. If cannot,
@@ -1109,14 +1150,14 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
               checkExhaustive :: [Prop] -> [[Prop]] -> InferM Bool
               checkExhaustive _asmps [] = pure False -- empty GuardProps
               checkExhaustive asmps [guard] = do
-                canProve asmps (toGoal <$> guard) 
-              checkExhaustive asmps (guard : guards) = 
-                canProve asmps (toGoal <$> guard) >>= \case 
+                canProve asmps (toGoal <$> guard)
+              checkExhaustive asmps (guard : guards) =
+                canProve asmps (toGoal <$> guard) >>= \case
                   True -> pure True
                   False -> and <$> mapM
                     (\asmps' -> checkExhaustive (asmps <> asmps') guards)
                     (negateSimpleNumProps guard)
-          
+
           checkExhaustive asmps1 (fst <$> cases1) >>= \case
             True ->
               -- proved exhaustive
@@ -1125,7 +1166,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
               -- didn't prove exhaustive i.e. none of the guarding props
               -- necessarily hold
               recordWarning (NonExhaustivePropGuards name)
-                
+
           return Decl
             { dName       = name
             , dSignature  = Forall as asmps1 t1
@@ -1178,7 +1219,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
 
       -- includes asmpsSign for the sake of implication, but doesn't actually
       -- include them in the resulting asmps
-      su <- proveImplication (Just (thing (P.bName b))) as (asmpsSign <> asmps2) stay
+      su <- proveImplication True (Just (thing (P.bName b))) as (asmpsSign <> asmps2) stay
       extendSubst su
 
       let asmps  = concatMap pSplitAnd (apSubst su asmps2)
@@ -1274,8 +1315,8 @@ checkDecl isTopLevel d mbDoc =
 checkParameterFun :: P.ParameterFun Name -> InferM ModVParam
 checkParameterFun x =
   do (s,gs) <- checkSchema NoWildCards (P.pfSchema x)
-     su <- proveImplication (Just (thing (P.pfName x)))
-                            (sVars s) (sProps s) gs
+     su <- proveImplication False (Just (thing (P.pfName x)))
+                                  (sVars s) (sProps s) gs
      unless (isEmptySubst su) $
        panic "checkParameterFun" ["Subst not empty??"]
      let n = thing (P.pfName x)

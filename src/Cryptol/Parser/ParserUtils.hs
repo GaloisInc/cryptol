@@ -645,19 +645,26 @@ mkIf ifThens theElse = foldr addIfThen theElse ifThens
     where
     addIfThen (cond, doexpr) elseExpr = EIf cond doexpr elseExpr
 
--- | Generate a signature and a primitive binding.  The reason for generating
--- both instead of just adding the signature at this point is that it means the
--- primitive declarations don't need to be treated differently in the noPat
+mkPrimDecl :: Maybe (Located Text) -> LPName -> Schema PName -> [TopDecl PName]
+mkPrimDecl = mkNoImplDecl DPrim
+
+mkForeignDecl :: Maybe (Located Text) -> LPName -> Schema PName -> [TopDecl PName]
+mkForeignDecl = mkNoImplDecl DForeign
+
+-- | Generate a signature and a binding for value declarations with no
+-- implementation (i.e. primitive or foreign declarations).  The reason for
+-- generating both instead of just adding the signature at this point is that it
+-- means the declarations don't need to be treated differently in the noPat
 -- pass.  This is also the reason we add the doc to the TopLevel constructor,
 -- instead of just place it on the binding directly.  A better solution might be
--- to just have a different constructor for primitives.
-mkPrimDecl ::
-  Maybe (Located Text) -> LPName -> Schema PName -> [TopDecl PName]
-mkPrimDecl mbDoc ln sig =
+-- to just have a different constructor for primitives and foreigns.
+mkNoImplDecl :: BindDef PName
+  -> Maybe (Located Text) -> LPName -> Schema PName -> [TopDecl PName]
+mkNoImplDecl def mbDoc ln sig =
   [ exportDecl mbDoc Public
     $ DBind Bind { bName      = ln
                  , bParams    = []
-                 , bDef       = at sig (Located emptyRange DPrim)
+                 , bDef       = at sig (Located emptyRange def)
                  , bSignature = Nothing
                  , bPragmas   = []
                  , bMono      = False

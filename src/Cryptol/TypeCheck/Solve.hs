@@ -38,6 +38,7 @@ import           Cryptol.Utils.Patterns(matchMaybe)
 
 import           Control.Applicative ((<|>))
 import           Control.Monad(mzero)
+import           Data.Containers.ListUtils (nubOrd)
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Set ( Set )
@@ -266,20 +267,21 @@ proveModuleTopLevel =
      cs <- getParamConstraints
      case cs of
        [] -> addGoals gs1
-       _  -> do su2 <- proveImplication Nothing [] [] gs1
+       _  -> do su2 <- proveImplication False Nothing [] [] gs1
                 extendSubst su2
 
 -- | Prove an implication, and return any improvements that we computed.
 -- Records errors, if any of the goals couldn't be solved.
-proveImplication :: Maybe Name -> [TParam] -> [Prop] -> [Goal] -> InferM Subst
-proveImplication lnam as ps gs =
+proveImplication :: Bool -> Maybe Name ->
+  [TParam] -> [Prop] -> [Goal] -> InferM Subst
+proveImplication dedupErrs lnam as ps gs =
   do evars <- varsWithAsmps
      solver <- getSolver
 
      extraAs <- (map mtpParam . Map.elems) <$> getParamTypes
      extra   <- map thing <$> getParamConstraints
 
-     (mbErr,su) <- io (proveImplicationIO solver lnam evars
+     (mbErr,su) <- io (proveImplicationIO solver dedupErrs lnam evars
                             (extraAs ++ as) (extra ++ ps) gs)
      case mbErr of
        Right ws  -> mapM_ recordWarning ws
@@ -301,7 +303,7 @@ tryProveImplication lnam as ps gs =
      extraAs <- (map mtpParam . Map.elems) <$> getParamTypes
      extra   <- map thing <$> getParamConstraints
 
-     (mbErr,su) <- io (proveImplicationIO solver lnam evars
+     (mbErr,su) <- io (proveImplicationIO solver False lnam evars
                             (extraAs ++ as) (extra ++ ps) gs)
      case mbErr of
        Left errs -> pure . Left $ do
@@ -311,6 +313,7 @@ tryProveImplication lnam as ps gs =
          return su
 
 proveImplicationIO :: Solver
+                   -> Bool     -- ^ Whether to remove duplicate goals in errors
                    -> Maybe Name     -- ^ Checking this function
                    -> Set TVar -- ^ These appear in the env., and we should
                                -- not try to default them
@@ -318,8 +321,8 @@ proveImplicationIO :: Solver
                    -> [Prop]   -- ^ Assumed constraint
                    -> [Goal]   -- ^ Collected constraints
                    -> IO (Either [Error] [Warning], Subst)
-proveImplicationIO _   _     _         _  [] [] = return (Right [], emptySubst)
-proveImplicationIO s f varsInEnv ps asmps0 gs0 =
+proveImplicationIO _ _         _ _         _  []     []  = return (Right [], emptySubst)
+proveImplicationIO s dedupErrs f varsInEnv ps asmps0 gs0 =
   do let ctxt = buildSolverCtxt asmps
      res <- quickSolverIO ctxt gs
      case res of
@@ -339,7 +342,7 @@ proveImplicationIO s f varsInEnv ps asmps0 gs0 =
                                  return (Left (err gs3:errs), su) -- XXX: Old?
                      (_,newGs,newSu,ws,errs) ->
                        do let su1 = newSu @@ su
-                          (res1,su2) <- proveImplicationIO s f varsInEnv ps
+                          (res1,su2) <- proveImplicationIO s dedupErrs f varsInEnv ps
                                                  (apSubst su1 asmps0) newGs
                           let su3 = su2 @@ su1
                           case res1 of
@@ -353,7 +356,7 @@ proveImplicationIO s f varsInEnv ps asmps0 gs0 =
            $ DelayedCt { dctSource = f
                        , dctForall = ps
                        , dctAsmps  = asmps0
-                       , dctGoals  = us
+                       , dctGoals  = if dedupErrs then nubOrd us else us
                        }
 
 

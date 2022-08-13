@@ -1,0 +1,9 @@
+:! make -s ffi-runtime-errors
+:l ffi-runtime-errors.cry
+
+f []
+
+:prove g
+:sat g
+:safe g
+:eval g
