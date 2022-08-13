@@ -56,8 +56,12 @@ that constraint-guarded branch and so it can in fact determine that `n >= 1`.
 Requirements:
   - Numeric constraint guards only support constraints over numeric literals,
     such as `fin`, `<=`, `==`, etc. Type constraint aliases can also be used as
-    long as they only constraint numeric literals.
-  - The numeric constraint guards of a declaration must be exhaustive.
+    long as they only constrain numeric literals.
+  - The numeric constraint guards of a declaration should be exhaustive. The
+    type-checker will attempt to prove that the set of constraint guards is
+    exhaustive, but if it can't then it will issue a non-exhaustive constraint
+    guards warning. This warning is controlled by the environmental option
+    `warnNonExhaustiveConstraintGuards`.
 
 
 Layout

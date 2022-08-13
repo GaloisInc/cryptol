@@ -43,6 +43,7 @@
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Basic Syntax</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#declarations">Declarations</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#type-signatures">Type Signatures</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#numeric-constraint-guards">Numeric Constraint Guards</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#layout">Layout</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#comments">Comments</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#identifiers">Identifiers</a></li>
@@ -96,6 +97,44 @@
 <div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">f</span><span class="p">,</span><span class="n">g</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">,</span><span class="n">b</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kr">fin</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="p">[</span><span class="n">a</span><span class="p">]</span><span class="w"> </span><span class="n">b</span><span class="w"></span>
 </pre></div>
 </div>
+</section>
+<section id="numeric-constraint-guards">
+<h2>Numeric Constraint Guards<a class="headerlink" href="#numeric-constraint-guards" title="Permalink to this heading"></a></h2>
+<p>A declaration with a signature can use numeric constraint guards, which are like
+normal guards (such as in a multi-branch <cite>if`</cite> expression) except that the
+guarding conditions can be numeric constraints. For example:</p>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">len</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">n</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kr">fin</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kt">Integer</span><span class="w"></span>
+<span class="nf">len</span><span class="w"> </span><span class="n">xs</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"></span>
+<span class="w">       </span><span class="o">|</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">&gt;</span><span class="w">  </span><span class="mi">0</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">len</span><span class="w"> </span><span class="p">(</span><span class="n">drop</span><span class="w"> </span><span class="p">`{</span><span class="mi">1</span><span class="p">}</span><span class="w"> </span><span class="n">xs</span><span class="p">)</span><span class="w"></span>
+</pre></div>
+</div>
+<p>Note that this is importantly different from</p>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">len&#39;</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">n</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kr">fin</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kt">Integer</span><span class="w"></span>
+<span class="nf">len&#39;</span><span class="w"> </span><span class="n">xs</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kr">if</span><span class="w"> </span><span class="p">`</span><span class="n">n</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"></span>
+<span class="w">           </span><span class="o">|</span><span class="w"> </span><span class="p">`</span><span class="n">n</span><span class="w"> </span><span class="o">&gt;</span><span class="w">  </span><span class="mi">0</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">len</span><span class="w"> </span><span class="p">(</span><span class="n">drop</span><span class="w"> </span><span class="p">`{</span><span class="mi">1</span><span class="p">}</span><span class="w"> </span><span class="n">xs</span><span class="p">)</span><span class="w"></span>
+</pre></div>
+</div>
+<p>In <cite>len’</cite>, the type-checker cannot determine that <cite>n &gt;= 1</cite> which is
+required to use the</p>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">drop</span><span class="w"> </span><span class="p">`{</span><span class="mi">1</span><span class="p">}</span><span class="w"> </span><span class="n">xs</span><span class="w"></span>
+</pre></div>
+</div>
+<p>since the <cite>if</cite>’s condition is only on values, not types.</p>
+<p>However, in <cite>len</cite>, the type-checker locally-assumes the constraint <cite>n &gt; 0</cite> in
+that constraint-guarded branch and so it can in fact determine that <cite>n &gt;= 1</cite>.</p>
+<dl class="simple">
+<dt>Requirements:</dt><dd><ul class="simple">
+<li><p>Numeric constraint guards only support constraints over numeric literals,
+such as <cite>fin</cite>, <cite>&lt;=</cite>, <cite>==</cite>, etc. Type constraint aliases can also be used as
+long as they only constrain numeric literals.</p></li>
+<li><p>The numeric constraint guards of a declaration should be exhaustive. The
+type-checker will attempt to prove that the set of constraint guards is
+exhaustive, but if it can’t then it will issue a non-exhaustive constraint
+guards warning. This warning is controlled by the environmental option
+<cite>warnNonExhaustiveConstraintGuards</cite>.</p></li>
+</ul>
+</dd>
+</dl>
 </section>
 <section id="layout">
 <h2>Layout<a class="headerlink" href="#layout" title="Permalink to this heading"></a></h2>
