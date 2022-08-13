@@ -116,7 +116,9 @@ fastSchemaOf tyenv expr =
     EAbs   {}      -> monomorphic
     
     -- PropGuards
-    EPropGuards _guards -> undefined -- TODO
+    EPropGuards [] -> panic "Cryptol.TypeCheck.TypeOf.fastSchemaOf"
+                        [ "EPropGuards with no guards" ]
+    EPropGuards ((_, e):_) -> fastSchemaOf tyenv e
   where
     monomorphic = Forall [] [] (fastTypeOf tyenv expr)
 
