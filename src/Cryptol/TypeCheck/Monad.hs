@@ -245,9 +245,6 @@ data RO = RO
   , iPrimNames :: !PrimMap
 
   , iSolveCounter :: !(IORef Int)
-
-    -- matches the user option `warnNonExhaustiveConstraintGuards`
-  , iWarnNonExhaustiveConstraintGuards :: Bool
   }
 
 -- | Read-write component of the monad.
@@ -949,9 +946,6 @@ withMonoType (x,lt) = withVar x (Forall [] [] (thing lt))
 -- | The sub-computation is performed with the given variables in scope.
 withMonoTypes :: Map Name (Located Type) -> InferM a -> InferM a
 withMonoTypes xs m = foldr withMonoType m (Map.toList xs)
-
-askWarnNonExhaustiveConstraintGuards :: InferM Bool
-askWarnNonExhaustiveConstraintGuards = IM $ asks iWarnNonExhaustiveConstraintGuards
 
 --------------------------------------------------------------------------------
 -- Kind checking
