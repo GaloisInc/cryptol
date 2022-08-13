@@ -263,10 +263,13 @@ doLoadModule quiet isrc path fp pm0 =
     | otherwise = case path of
       InFile p -> io (canonicalizePath p >>= loadForeignSrc) >>=
         \case
-          Right fsrc -> modifyEvalEnvM (evalForeignDecls fsrc foreigns) >>=
-            \case
-              Right () -> pure $ Just fsrc
-              Left errs -> ffiLoadErrors (T.mName tcm) errs
+          Right fsrc -> do
+            unless quiet $ withLogger logPutStrLn
+              ("Loading dynamic library " ++ takeFileName (foreignSrcPath fsrc))
+            modifyEvalEnvM (evalForeignDecls fsrc foreigns) >>=
+              \case
+                Right () -> pure $ Just fsrc
+                Left errs -> ffiLoadErrors (T.mName tcm) errs
           Left err -> ffiLoadErrors (T.mName tcm) [err]
       InMem m _ -> panic "doLoadModule"
         ["Can't find foreign source of in-memory module", m]
