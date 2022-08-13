@@ -20,6 +20,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Redundant <$>" #-}
+{-# HLINT ignore "Redundant <&>" #-}
 module Cryptol.TypeCheck.Infer
   ( checkE
   , checkSigB
@@ -54,7 +55,7 @@ import           Cryptol.TypeCheck.Unify(rootPath)
 import           Cryptol.Utils.Ident
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.RecordMap
-import           Cryptol.Utils.PP (pp)
+import           Cryptol.Utils.PP (pp, pretty)
 
 import qualified Data.Map as Map
 import           Data.Map (Map)
@@ -65,7 +66,7 @@ import           Data.Maybe(isJust, fromMaybe, mapMaybe)
 import           Data.Ratio(numerator,denominator)
 import           Data.Traversable(forM)
 import           Data.Function(on)
-import           Control.Monad(zipWithM,unless,foldM,forM_,mplus, when)
+import           Control.Monad(zipWithM,unless,foldM,forM_,mplus, join)
 import           Data.Bifunctor (Bifunctor(second))
 
 
@@ -1041,31 +1042,90 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
 
           cases1 <- mapM checkPropGuardCase cases0
 
-          askWarnNonExhaustiveConstraintGuards >>= \flag -> when flag $
-            -- Try to prove that at leats one guard will be satisfied. We do
-            -- this instead of directly check exhaustive because that requires
-            -- either negation or disjunction, which are not currently provided
-            -- for Cryptol constraints.
-            or <$> mapM
-              (\(props, _e) ->
-                isRight <$> tryProveImplication (Just name) as asmps1
-                  ((\goal ->
-                    Goal
-                      { goalSource = CtPropGuardsExhaustive name
-                      , goalRange = srcRange $ P.bName b
-                      , goal = goal}
-                  )
-                    <$> props)
-              )
-              cases1 >>= \case
-                True ->
-                  -- proved exhaustive
-                  pure ()
-                False ->
-                  -- didn't prove exhaustive i.e. none of the guarding props
-                  -- necessarily hold
-                  recordWarning (NonExhaustivePropGuards name)
+          -- Here, `props` is a conjunction of multiple constraints, and so the
+          -- negation is the disjunction of the negation of each conjunct i.e.
+          -- "not (A and B and C) <=> (not A) or (not B) or (not C)". This is
+          -- one of DeMorgan's laws of boolean logic. Since there are no
+          -- constraint disjunctions, we encode a disjunction of conjunctions as
+          -- `[[Prop]]`. For exhaustive checking, each disjunct will need to be
+          -- checked independently, and all must pass in order to be considered
+          -- exhaustive.
 
+          let negateSimpleNumProp :: Prop -> Maybe [Prop]
+              negateSimpleNumProp prop = case prop of
+                TCon tcon tys -> case tcon of
+                  PC pc -> case pc of
+                    -- not x == y  <=>  x /= y
+                    PEqual -> pure [TCon (PC PNeq) tys]
+                    -- not x /= y  <=>  x == y
+                    PNeq -> pure [TCon (PC PEqual) tys]
+                    -- not x >= y  <=>  x /= y and y >= x
+                    PGeq -> pure [TCon (PC PNeq) tys, TCon (PC PGeq) (reverse tys)]
+                    -- not fin x  <=>  x == Inf
+                    PFin | [ty] <- tys -> pure [TCon (PC PEqual) [ty, tInf]]
+                         | otherwise -> panicInvalid
+                    -- not True  <=>  0 == 1
+                    PTrue -> pure [TCon (PC PEqual) [tZero, tOne]]
+                    _ -> mempty
+                  TC _tc -> panicInvalid
+                  TF _tf -> panicInvalid
+                  TError _ki -> panicInvalid -- TODO: where does this come from?
+                TUser _na _tys ty -> negateSimpleNumProp ty
+                _ -> panicInvalid
+                where
+                  panicInvalid = tcPanic "checkSigB"
+                    [ "This type shouldn't be a valid type constraint: " ++
+                      "`" ++ pretty prop ++ "`"]
+              
+              negateSimpleNumProps :: [Prop] -> [[Prop]]
+              negateSimpleNumProps props = do
+                prop <- props
+                maybe mempty pure (negateSimpleNumProp prop)
+
+              toGoal :: Prop -> Goal 
+              toGoal prop = 
+                Goal
+                  { goalSource = CtPropGuardsExhaustive name
+                  , goalRange = srcRange $ P.bName b
+                  , goal = prop }
+
+              canProve :: [Prop] -> [Goal] -> InferM Bool
+              canProve asmps goals = isRight <$> 
+                tryProveImplication (Just name) as asmps goals
+
+              -- Try to prove that the first guard will be satisfied. If cannot,
+              -- then assume it is false (via `negateSimpleNumProps`) and try to
+              -- prove that the second guard will be satisfied. If cannot, then
+              -- assume it is false, and so on. If the last guard cannot be
+              -- proven in this way, then issue a `NonExhaustivePropGuards`
+              -- warning. Note that when assuming that a conjunction of multiple
+              -- constraints is false, this results in a disjunction, and so
+              -- must check exhaustive under assumption that each disjunct is
+              -- false independently. 
+              -- 
+              -- TODO: do I have to check all combinations of false/true
+              -- disjuncts? Or is it satisfactory to just check setting each one
+              -- to false seperately.
+              checkExhaustive :: [Prop] -> [[Prop]] -> InferM Bool
+              checkExhaustive _asmps [] = pure False -- empty GuardProps
+              checkExhaustive asmps [guard] = do
+                canProve asmps (toGoal <$> guard) 
+              checkExhaustive asmps (guard : guards) = 
+                canProve asmps (toGoal <$> guard) >>= \case 
+                  True -> pure True
+                  False -> and <$> mapM
+                    (\asmps' -> checkExhaustive (asmps <> asmps') guards)
+                    (negateSimpleNumProps guard)
+          
+          checkExhaustive asmps1 (fst <$> cases1) >>= \case
+            True ->
+              -- proved exhaustive
+              pure ()
+            False ->
+              -- didn't prove exhaustive i.e. none of the guarding props
+              -- necessarily hold
+              recordWarning (NonExhaustivePropGuards name)
+                
           return Decl
             { dName       = name
             , dSignature  = Forall as asmps1 t1
