@@ -29,6 +29,7 @@ import qualified Control.Applicative as A
 
 import           Data.Map ( Map )
 import qualified Data.Map as Map
+import Cryptol.Utils.Panic (panic)
 
 
 tcExpr :: InferInput -> Expr -> Either (Range, Error) (Schema, [ ProofObligation ])
@@ -269,8 +270,10 @@ exprSchema expr =
                            withVars xs (go ds)
       in go dgs
 
-    
-    EPropGuards _guards -> error "undefined: exprSchema (EPropGuards _guards)"
+
+    EPropGuards _guards -> panic "exprSchema" 
+      [ "Since `EPropGuards` should (currently) only appear at the top level, " ++
+        "it should never be the argument to `exprSchema`." ]
 
 
 checkHas :: Type -> Selector -> TcM Type
