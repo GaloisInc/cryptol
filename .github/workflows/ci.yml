@@ -59,7 +59,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-22.04, macos-12, windows-2019]
-        ghc-version: ["8.8.4", "8.10.7", "9.0.2", "9.2.2"]
+        ghc-version: ["8.8.4", "8.10.7", "9.0.2", "9.2.4"]
         exclude:
           # https://gitlab.haskell.org/ghc/ghc/-/issues/18550
           - os: windows-2019
@@ -67,7 +67,7 @@ jobs:
           - os: windows-2019
             ghc-version: 9.0.2
           - os: windows-2019
-            ghc-version: 9.2.2
+            ghc-version: 9.2.4
         include:
           # We include one job from an older Ubuntu LTS release to increase our
           # coverage of possible Linux configurations.
