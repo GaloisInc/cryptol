@@ -1,9 +1,8 @@
-// Yields non-exhaustive constraint guards warning if
-// warnNonExhaustiveConstraintGuards is on.
 len : {n,a} (fin n) => [n] a -> Integer
 len x
   | (n == 0) => 0
   | (n >  0) => 1 + len (drop`{1} x)
+
 
 property 
   len_correct = and

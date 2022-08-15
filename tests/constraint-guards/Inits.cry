@@ -9,20 +9,18 @@ inits : {n, a} (fin n) => [n]a -> [(n * (n+1))/2]a
 inits xs
   | n == 0 => []
   | n >  0 => go xs' x []
-  where
-    x   = take `{1} xs
-    xs' = drop `{1} xs
-    
-    go : {l, m} (fin l, fin m, l + m == n, m >= 1) =>
-      [l]a -> [m]a -> 
-      [((m-1) * ((m-1)+1))/2]a ->
-      [(n * (n+1))/2]a
-    go ys zs acc
-      | l == 0 => acc # zs
-      | l >  0 => go ys' (zs # y) (acc # zs)
-        where 
-          y   = take `{1} ys
-          ys' = drop `{1} ys
+    where
+      (x : [1]_) # xs' = xs
+      
+      go : {l, m} (fin l, fin m, l + m == n, m >= 1) =>
+        [l]a -> [m]a -> 
+        [((m-1) * ((m-1)+1))/2]a ->
+        [(n * (n+1))/2]a
+      go ys zs acc
+        | l == 0 => acc # zs
+        | l >  0 => go ys' (zs # y) (acc # zs)
+          where 
+            (y : [1]_) # ys' = ys
 
 
 property inits_correct =
