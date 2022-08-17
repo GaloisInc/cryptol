@@ -38,3 +38,7 @@ foreign sumPoly : {n} (fin n) => [n]Word32 -> Word32
 foreign inits : {n} (fin n) => [n][8] -> [n * (n + 1) / 2][8]
 foreign zipMul3 : {n, m, p} (fin n, fin m, fin p) =>
   [n]Float32 -> [m]Float32 -> [p]Float32 -> [min n (min m p)]Float32
+
+// Nested sequences
+foreign nestedSeq : {n, m, p} (fin n, fin m, fin p, n * m * p == 4 * 3 * 2) =>
+  [n][m][p][8] -> [4][3][2][8]
