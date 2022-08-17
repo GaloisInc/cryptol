@@ -219,22 +219,12 @@ evalExpr sym env expr = case expr of
      evalExpr sym env' e
 
   EPropGuards guards _ -> {-# SCC "evalExpr->EPropGuards" #-} do
-    -- let
-    --   evalPropGuard (props, e) = do
-    --     if and $ checkProp . evalProp env <$> props
-    --       then Just <$> evalExpr sym env e
-    --       else pure Nothing
     let checkedGuards =
           first (and . (checkProp . evalProp env <$>))
           <$> guards
     case find fst checkedGuards of 
       Nothing -> raiseError sym (NoMatchingPropGuardCase $ "Available prop guards: `" ++ show (fmap pp . fst <$> guards) ++ "`")
       Just (_, e) -> eval e
-      
-      -- (\case
-      -- Just val -> pure val
-      -- Nothing -> evalPanic "evalExpr" ["no guard case was satisfied"]) . 
-      -- -- raiseError
 
   where
 
