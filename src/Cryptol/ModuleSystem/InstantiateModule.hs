@@ -217,8 +217,8 @@ instance Inst Expr where
         EProofApp e               -> EProofApp (go e)
         EWhere e ds               -> EWhere (go e) (inst env ds)
 
-        -- this doesn't exist in the new module system, so it will have to be
-        -- implemented differently there anyway
+        -- TODO: this doesn't exist in the new module system, so it will have to
+        -- be implemented differently there anyway
         EPropGuards _guards _schema -> panic "inst" ["This is not implemented for EPropGuards yet."]
 
 
