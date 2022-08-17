@@ -993,7 +993,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
   case thing (P.bDef b) of
 
     -- XXX what should we do with validSchema in this case?
-    P.DPrim -> do
+    P.DPrim ->
       return Decl
         { dName       = name
         , dSignature  = Forall as asmps0 t0
@@ -1050,7 +1050,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
           , dDoc        = P.bDoc b
           }
 
-    P.DPropGuards cases0 -> do
+    P.DPropGuards cases0 ->
       inRangeMb (getLoc b) $
         withTParams as $ do
           asmps1 <- applySubstPreds asmps0

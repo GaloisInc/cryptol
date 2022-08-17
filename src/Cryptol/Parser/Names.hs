@@ -67,7 +67,7 @@ namesDef :: Ord name => BindDef name -> Set name
 namesDef DPrim     = Set.empty
 namesDef DForeign  = Set.empty
 namesDef (DExpr e) = namesE e
-namesDef (DPropGuards guards) = mconcat . fmap (\(_props, e) -> namesE e) $ guards
+namesDef (DPropGuards guards) = Set.unions [ namesE e | (_, e) <- guards ]
 
 
 -- | The names used by an expression.
