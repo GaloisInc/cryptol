@@ -27,6 +27,7 @@ import           Data.Text(Text)
 import qualified Data.Text as T
 import qualified Data.Map as Map
 import Text.Read(readMaybe)
+import Data.Bifunctor(second)
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
@@ -615,8 +616,7 @@ mkIndexedPropGuardsDecl ::
 mkIndexedPropGuardsDecl f (ps, ixs) guards =
   DBind Bind { bName       = f
              , bParams     = reverse ps
-               -- TODO: add range properly
-             , bDef        = Located emptyRange (DPropGuards guards')
+             , bDef        = at f $ Located emptyRange (DPropGuards guards')
              , bSignature  = Nothing
              , bPragmas    = []
              , bMono       = False
@@ -626,9 +626,7 @@ mkIndexedPropGuardsDecl f (ps, ixs) guards =
              , bExport     = Public
              }
   where
-    -- TODO: need to do anything to `props`?
-    -- guards' :: [([Prop name], Expr name)]
-    guards' = (\(props, e) -> (props, mkGenerate (reverse ixs) e)) <$> guards
+    guards' = second (mkGenerate (reverse ixs)) <$> guards
 
 -- NOTE: The lists of patterns are reversed!
 mkIndexedExpr :: ([Pattern PName], [Pattern PName]) -> Expr PName -> Expr PName
