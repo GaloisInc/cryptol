@@ -9,6 +9,7 @@
 {-# LANGUAGE Safe                                #-}
 {-# LANGUAGE ViewPatterns                        #-}
 {-# LANGUAGE PatternGuards                       #-}
+{-# LANGUAGE NamedFieldPuns                      #-}
 module Cryptol.TypeCheck.TypeOf
   ( fastTypeOf
   , fastSchemaOf
@@ -43,9 +44,7 @@ fastTypeOf tyenv expr =
                         Just (_, t) -> t
                         Nothing     -> panic "Cryptol.TypeCheck.TypeOf.fastTypeOf"
                                          [ "EApp with non-function operator" ]
-    EPropGuards guards _ -> case guards of 
-      ((_props, e):_) -> fastTypeOf tyenv e
-      [] -> error "fastTypOf empty EPropGuards"
+    EPropGuards _guards Forall {sType} -> sType
     -- Polymorphic fragment
     EVar      {}  -> polymorphic
     ETAbs     {}  -> polymorphic
@@ -114,14 +113,10 @@ fastSchemaOf tyenv expr =
     EComp  {}      -> monomorphic
     EApp   {}      -> monomorphic
     EAbs   {}      -> monomorphic
-    
+
     -- PropGuards
     EPropGuards [] schema -> schema
-      -- TODO: remove
-      -- panic "Cryptol.TypeCheck.TypeOf.fastSchemaOf"
-      --                   [ "EPropGuards with no guards" ]
-    EPropGuards ((_, e):_) schema -> schema 
-    -- TODO: remove -- fastSchemaOf tyenv e
+    EPropGuards _ schema -> schema
   where
     monomorphic = Forall [] [] (fastTypeOf tyenv expr)
 
