@@ -1167,12 +1167,14 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
               -- necessarily hold
               recordWarning (NonExhaustivePropGuards name)
 
+          let schema = Forall as asmps1 t1
+
           return Decl
             { dName       = name
-            , dSignature  = Forall as asmps1 t1
+            , dSignature  = schema
             , dDefinition = DExpr
                               (foldr ETAbs
-                              (foldr EProofAbs (EPropGuards cases1) asmps1) as)
+                              (foldr EProofAbs (EPropGuards cases1 schema) asmps1) as)
             , dPragmas    = P.bPragmas b
             , dInfix      = P.bInfix b
             , dFixity     = P.bFixity b

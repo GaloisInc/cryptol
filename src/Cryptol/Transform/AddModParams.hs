@@ -259,7 +259,7 @@ instance Inst Expr where
          _ -> EProofApp (inst ps e1)
 
      EWhere e dgs  -> EWhere (inst ps e) (inst ps dgs)
-     EPropGuards guards -> EPropGuards (second (inst ps) <$> guards)
+     EPropGuards guards schema -> EPropGuards (second (inst ps) <$> guards) schema
 
 
 instance Inst Match where

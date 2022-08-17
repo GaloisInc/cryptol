@@ -218,7 +218,7 @@ evalExpr sym env expr = case expr of
      env' <- evalDecls sym ds env
      evalExpr sym env' e
 
-  EPropGuards guards -> {-# SCC "evalExpr->EPropGuards" #-} do
+  EPropGuards guards _ -> {-# SCC "evalExpr->EPropGuards" #-} do
     -- let
     --   evalPropGuard (props, e) = do
     --     if and $ checkProp . evalProp env <$> props

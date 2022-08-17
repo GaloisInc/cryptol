@@ -64,7 +64,7 @@ instance ShowParseable Expr where
   showParseable (EProofAbs {-p-}_ e) = showParseable e --"(EProofAbs " ++ show p ++ showParseable e ++ ")"
   showParseable (EProofApp e) = showParseable e --"(EProofApp " ++ showParseable e ++ ")"
   
-  showParseable (EPropGuards guards) = parens (text "EPropGuards" $$ showParseable guards)
+  showParseable (EPropGuards guards _) = parens (text "EPropGuards" $$ showParseable guards)
 
 instance (ShowParseable a, ShowParseable b) => ShowParseable (a,b) where
   showParseable (x,y) = parens (showParseable x <> comma <> showParseable y)

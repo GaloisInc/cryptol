@@ -150,7 +150,7 @@ data Expr   = EList [Expr] Type         -- ^ List value (with type of elements)
 
             | EWhere Expr [DeclGroup]
 
-            | EPropGuards [([Prop], Expr)]
+            | EPropGuards [([Prop], Expr)] Schema
 
               deriving (Show, Generic, NFData)
 
@@ -270,7 +270,7 @@ instance PP (WithNames Expr) where
                          , hang "where" 2 (vcat (map ppW ds))
                          ]
       
-      EPropGuards guards -> 
+      EPropGuards guards _ -> 
         parens (text "propguard" <+> hsep (ppGuard <$> guards))
         where ppGuard (props, e) = 
                 pipe <+> commaSep (pp <$> props) <+> text "=>" <+> pp e

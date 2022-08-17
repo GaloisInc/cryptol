@@ -271,9 +271,11 @@ exprSchema expr =
       in go dgs
 
 
-    EPropGuards _guards -> panic "exprSchema" 
-      [ "Since `EPropGuards` should (currently) only appear at the top level, " ++
-        "it should never be the argument to `exprSchema`." ]
+    EPropGuards _guards schema -> pure schema
+      -- TODO: remove 
+      -- panic "exprSchema" 
+      -- [ "Since `EPropGuards` should (currently) only appear at the top level, " ++
+      --   "it should never be the argument to `exprSchema`." ]
 
 
 checkHas :: Type -> Selector -> TcM Type

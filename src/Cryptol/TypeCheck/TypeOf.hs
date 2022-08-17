@@ -43,7 +43,7 @@ fastTypeOf tyenv expr =
                         Just (_, t) -> t
                         Nothing     -> panic "Cryptol.TypeCheck.TypeOf.fastTypeOf"
                                          [ "EApp with non-function operator" ]
-    EPropGuards guards -> case guards of 
+    EPropGuards guards _ -> case guards of 
       ((_props, e):_) -> fastTypeOf tyenv e
       [] -> error "fastTypOf empty EPropGuards"
     -- Polymorphic fragment
@@ -116,9 +116,12 @@ fastSchemaOf tyenv expr =
     EAbs   {}      -> monomorphic
     
     -- PropGuards
-    EPropGuards [] -> panic "Cryptol.TypeCheck.TypeOf.fastSchemaOf"
-                        [ "EPropGuards with no guards" ]
-    EPropGuards ((_, e):_) -> fastSchemaOf tyenv e
+    EPropGuards [] schema -> schema
+      -- TODO: remove
+      -- panic "Cryptol.TypeCheck.TypeOf.fastSchemaOf"
+      --                   [ "EPropGuards with no guards" ]
+    EPropGuards ((_, e):_) schema -> schema 
+    -- TODO: remove -- fastSchemaOf tyenv e
   where
     monomorphic = Forall [] [] (fastTypeOf tyenv expr)
 
