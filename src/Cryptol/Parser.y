@@ -302,18 +302,13 @@ mbDoc                   :: { Maybe (Located Text) }
   : doc                    { Just $1 }
   | {- empty -}            { Nothing }
 
--- propguards :: { [([Prop PName], Expr PName)] }
---   : 'propguards' '|' propguards_cases { $3 }
-
 propguards_cases :: { [([Prop PName], Expr PName)] }
-  : propguards_case '|' propguards_cases { $1 ++ $3 }
+  : propguards_case propguards_cases { $1 ++ $2 }
   | propguards_case { $1 }
 
 propguards_case :: { [([Prop PName], Expr PName)] }
-  : propguards_quals '=>' expr { [($1, $3)] }
+  : '|' propguards_quals '=>' expr { [($2, $4)] }
 
--- TODO: support multiple, or is that handles just as pairs or something?
--- I think that mkProp handles parsing pairs
 propguards_quals :: { [Prop PName] }
   : type {% fmap thing (mkProp $1) }
 
@@ -321,8 +316,8 @@ decl                    :: { Decl PName }
   : vars_comma ':' schema  { at (head $1,$3) $ DSignature (reverse $1) $3   }
   | ipat '=' expr          { at ($1,$3) $ DPatBind $1 $3                    }
   | '(' op ')' '=' expr    { at ($1,$5) $ DPatBind (PVar $2) $5             }
-  | var apats_indices '|' propguards_cases
-                           { mkIndexedPropGuardsDecl $1 $2 $4 }
+  | var apats_indices propguards_cases
+                           { mkIndexedPropGuardsDecl $1 $2 $3 }
   | var apats_indices '=' expr
                            { at ($1,$4) $ mkIndexedDecl $1 $2 $4 }
 
