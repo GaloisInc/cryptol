@@ -261,12 +261,11 @@ checkProp = \case
 evalProp :: GenEvalEnv sym -> Prop -> Prop
 evalProp env@EvalEnv { envTypes } = \case
   TCon tc tys -> TCon tc (toType . evalType envTypes <$> tys)
-  TVar tv -> case lookupTypeVar tv envTypes of
-    Nothing -> panic "evalProp" ["Could not find type variable `" ++ pretty tv ++ "` in the type evaluation environment"]
-    Just either_nat'_tval -> toType either_nat'_tval
+  TVar tv | Just (toType -> ty) <- lookupTypeVar tv envTypes -> ty
   prop@TUser {} -> evalProp env (tNoUser prop)
+  TVar tv | Nothing <- lookupTypeVar tv envTypes -> panic "evalProp" ["Could not find type variable `" ++ pretty tv ++ "` in the type evaluation environment"]
   prop -> panic "evalProp" ["Cannot use the following as a type constraint: `" ++ pretty prop ++ "`"]
-  where
+  where 
     toType = either tNumTy tValTy
 
 -- | Capure the current call stack from the evaluation monad and
