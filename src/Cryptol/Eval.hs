@@ -36,6 +36,7 @@ module Cryptol.Eval (
   , Unsupported(..)
   , WordTooWide(..)
   , forceValue
+  , checkProp
   ) where
 
 import Cryptol.Backend
@@ -245,7 +246,7 @@ checkProp = \case
       -- TODO: instantiate UniqueFactorization for Nat'?
       -- PC PPrime | [n] <- ns -> isJust (isPrime n) 
       PC PTrue -> True
-      pc -> evalPanic "evalProp" ["cannot use this as a guarding constraint: ", show . pp $ TCon tcon ts ]
+      _ -> evalPanic "evalProp" ["cannot use this as a guarding constraint: ", show . pp $ TCon tcon ts ]
   prop -> evalPanic "evalProp" ["cannot use this as a guarding constraint: ", show . pp $ prop ]
   where
     toNat' :: Prop -> Nat'

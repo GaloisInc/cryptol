@@ -19,10 +19,12 @@ import qualified Cryptol.ModuleSystem as M
 import qualified Cryptol.ModuleSystem.Env as M
 import qualified Cryptol.ModuleSystem.Monad as M
 import Cryptol.ModuleSystem.Name
+import Cryptol.Eval (checkProp)
 
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe (catMaybes)
+import qualified Data.List as List
 
 import MonadLib hiding (mapM)
 
@@ -102,7 +104,13 @@ specializeExpr expr =
     EProofAbs p e -> EProofAbs p <$> specializeExpr e
     EProofApp {}  -> specializeConst expr
     EWhere e dgs  -> specializeEWhere e dgs
-    EPropGuards guards schema -> EPropGuards <$> (\(props, e) -> (,) <$> pure props <*> specializeExpr e) `traverse` guards <*> pure schema
+    -- The type should be monomorphic, and the guarded expressions should
+    -- already be normalized, so we just need to choose the first expression
+    -- that's true.
+    EPropGuards guards _schema -> 
+      case List.find (all checkProp . fst) guards of
+        Just (_, e) -> specializeExpr e
+        Nothing -> fail "no guard constraint was satisfied"
 
 specializeMatch :: Match -> SpecM Match
 specializeMatch (From qn l t e) = From qn l t <$> specializeExpr e
