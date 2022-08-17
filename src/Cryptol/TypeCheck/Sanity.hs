@@ -29,7 +29,6 @@ import qualified Control.Applicative as A
 
 import           Data.Map ( Map )
 import qualified Data.Map as Map
-import Cryptol.Utils.Panic (panic)
 
 
 tcExpr :: InferInput -> Expr -> Either (Range, Error) (Schema, [ ProofObligation ])
