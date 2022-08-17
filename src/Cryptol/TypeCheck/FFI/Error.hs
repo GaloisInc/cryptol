@@ -70,12 +70,12 @@ instance PP (WithNames FFITypeErrorReason) where
         , "Only Float32 and Float64 are supported" ]
       FFIBadArrayType -> vcat
         [ "Unsupported sequence element type"
-        , "Only words or floats are supported as the element type of sequences"
+        , "Only words or floats are supported as the element type of"
+        , "(possibly multidimensional) sequences"
         ]
       FFIBadComponentTypes errs ->
         indent 2 $ vcat $ map (ppWithNames names) errs
       FFIBadType -> vcat
-        [ "Only Bit, words, floats, sequences of words or floats,"
-        , "or structs or tuples of the above are supported as FFI"
-        , "argument or return types"]
+        [ "Only Bit, words, floats, sequences, or structs or tuples"
+        , "of the above are supported as FFI argument or return types" ]
       FFINotFunction -> "FFI binding must be a function"

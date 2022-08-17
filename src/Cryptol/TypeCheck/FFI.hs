@@ -7,6 +7,7 @@ module Cryptol.TypeCheck.FFI
   ( toFFIFunType
   ) where
 
+import           Data.Bifunctor
 import           Data.Containers.ListUtils
 import           Data.Either
 
@@ -61,11 +62,14 @@ toFFIType t =
   case t of
     TCon (TC TCBit) [] -> Right ([], FFIBool)
     (toFFIBasicType -> Just r) -> (\fbt -> ([], FFIBasic fbt)) <$> r
-    TCon (TC TCSeq) [sz, bt] ->
-      case toFFIBasicType bt of
-        Just (Right fbt) -> Right ([fin sz], FFIArray sz fbt)
-        Just (Left err)  -> Left $ FFITypeError t $ FFIBadComponentTypes [err]
-        Nothing          -> Left $ FFITypeError t FFIBadArrayType
+    TCon (TC TCSeq) _ ->
+      (\(szs, fbt) -> (map fin szs, FFIArray szs fbt)) <$> go t
+      where go (toFFIBasicType -> Just r) =
+              case r of
+                Right fbt -> Right ([], fbt)
+                Left err  -> Left $ FFITypeError t $ FFIBadComponentTypes [err]
+            go (TCon (TC TCSeq) [sz, ty]) = first (sz:) <$> go ty
+            go _ = Left $ FFITypeError t FFIBadArrayType
     TCon (TC (TCTuple _)) ts ->
       case partitionEithers $ map toFFIType ts of
         ([], unzip -> (pss, fts)) -> Right (concat pss, FFITuple fts)

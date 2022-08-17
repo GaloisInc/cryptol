@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE BlockArguments      #-}
 {-# LANGUAGE CPP                 #-}
 {-# LANGUAGE LambdaCase          #-}
@@ -148,13 +149,23 @@ foreignPrim name FFIFunType {..} impl tenv = buildFun ffiArgTypes []
   marshalArg (FFIBasic t) val f = getMarshalBasicArg t \m -> do
     arg <- m val
     f [SomeFFIArg arg]
-  marshalArg (FFIArray (evalFinType -> n) t) val f =
-    getMarshalBasicArg t \m -> do
-      args <- traverse (>>= m) $ enumerateSeqMap n $ fromVSeq val
-      -- Since we need to do an Eval action in an IO callback, we need to
-      -- manually unwrap and wrap the Eval datatype
+  marshalArg (FFIArray (map evalFinType -> sizes) t) val f =
+    getMarshalBasicArg t \m ->
+      -- Since we need to do Eval actions in an IO callback, we need to manually
+      -- unwrap and wrap the Eval datatype
       Eval \stk ->
-        withArray args \ptr ->
+        allocaArray (fromInteger $ product sizes) \ptr -> do
+          -- Traverse the nested sequences and write the elements to the array
+          -- in order
+          let write (n:ns) (v:vs) nvss !i = do
+                vs' <- traverse (runEval stk) $ enumerateSeqMap n $ fromVSeq v
+                write ns vs' ((n, vs):nvss) i
+              write [] (v:vs) nvss !i = do
+                runEval stk (m v) >>= pokeElemOff ptr i
+                write [] vs nvss (i + 1)
+              write ns [] ((n, vs):nvss) !i = write (n:ns) vs nvss i
+              write _ _ [] _ = pure ()
+          write sizes [val] [] 0
           runEval stk $ f [SomeFFIArg ptr]
   marshalArg (FFITuple types) val f = do
     vals <- sequence $ fromVTuple val
@@ -172,17 +183,26 @@ foreignPrim name FFIFunType {..} impl tenv = buildFun ffiArgTypes []
           go ((t, v):tvs) prevArgs = marshalArg t v \currArgs ->
             go tvs (prevArgs ++ currArgs)
 
-  -- Given a FFIType and a GetRet, obtain a return value and convert it to a
+  -- Given an FFIType and a GetRet, obtain a return value and convert it to a
   -- Cryptol value. The return value is obtained differently depending on the
   -- FFIType.
   marshalRet :: FFIType -> GetRet -> Eval (GenValue Concrete)
   marshalRet FFIBool gr = VBit . toBool <$> io (getRetAsValue gr @Word8)
   marshalRet (FFIBasic t) gr = getMarshalBasicRet t (io (getRetAsValue gr) >>=)
-  marshalRet (FFIArray (evalFinType -> n) t) gr = getMarshalBasicRet t \m ->
-    fmap (VSeq n . finiteSeqMap Concrete . map m) $
-      io $ allocaArray (fromInteger n) \ptr -> do
-        getRetAsOutArgs gr [SomeFFIArg ptr]
-        peekArray (fromInteger n) ptr
+  marshalRet (FFIArray (map evalFinType -> sizes) t) gr =
+    getMarshalBasicRet t \m ->
+      Eval \stk ->
+        allocaArray (fromInteger $ product sizes) \ptr -> do
+          getRetAsOutArgs gr [SomeFFIArg ptr]
+          let build (n:ns) !i = do
+                -- We need to be careful to actually run this here and not just
+                -- stick the IO action into the sequence with io, or else we
+                -- will read from the array after it is deallocated.
+                vs <- for [0 .. fromInteger n - 1] \j ->
+                  build ns (i * fromInteger n + j)
+                pure $ VSeq n $ finiteSeqMap Concrete $ map pure vs
+              build [] !i = peekElemOff ptr i >>= runEval stk . m
+          build sizes 0
   marshalRet (FFITuple types) gr = VTuple <$> marshalMultiRet types gr
   marshalRet (FFIRecord typeMap) gr =
     VRecord . recordFromFields . zip (displayOrder typeMap) <$>
