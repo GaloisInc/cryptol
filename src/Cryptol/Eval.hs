@@ -249,7 +249,7 @@ checkProp = \case
       _ -> evalPanic "evalProp" ["cannot use this as a guarding constraint: ", show . pp $ TCon tcon ts ]
   prop -> evalPanic "evalProp" ["cannot use this as a guarding constraint: ", show . pp $ prop ]
   where
-    toNat' :: Prop -> Nat'
+    toNat' :: Type -> Nat'
     toNat' = \case
       TCon (TC (TCNum n)) [] -> Nat n
       TCon (TC TCInf) [] -> Inf
