@@ -6,7 +6,6 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
--- {-# LANGUAGE Safe #-}
 {-# LANGUAGE CPP  #-}
 {-# LANGUAGE Safe #-}
 
