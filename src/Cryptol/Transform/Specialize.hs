@@ -110,7 +110,7 @@ specializeExpr expr =
     EPropGuards guards _schema -> 
       case List.find (all checkProp . fst) guards of
         Just (_, e) -> specializeExpr e
-        Nothing -> fail "no guard constraint was satisfied"
+        Nothing -> fail "No guard constraint was satisfied"
 
 specializeMatch :: Match -> SpecM Match
 specializeMatch (From qn l t e) = From qn l t <$> specializeExpr e
