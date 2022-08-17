@@ -69,7 +69,6 @@ import           Control.Applicative
 
 import Prelude ()
 import Prelude.Compat
-import Data.Bifunctor (Bifunctor(first))
 
 type EvalEnv = GenEvalEnv Concrete
 
@@ -220,12 +219,10 @@ evalExpr sym env expr = case expr of
      evalExpr sym env' e
 
   EPropGuards guards _ -> {-# SCC "evalExpr->EPropGuards" #-} do
-    let checkedGuards =
-          first (and . (checkProp . evalProp env <$>))
-          <$> guards
-    case find fst checkedGuards of 
-      Nothing -> raiseError sym (NoMatchingPropGuardCase $ "Available prop guards: `" ++ show (fmap pp . fst <$> guards) ++ "`")
-      Just (_, e) -> eval e
+    let checkedGuards = [ e | (ps,e) <- guards, all (checkProp . evalProp env) ps ]
+    case checkedGuards of
+      (e:_) -> eval e
+      [] -> raiseError sym (NoMatchingPropGuardCase $ "Available prop guards: `" ++ show (fmap pp . fst <$> guards) ++ "`")
 
   where
 
@@ -265,7 +262,7 @@ evalProp env@EvalEnv { envTypes } = \case
   prop@TUser {} -> evalProp env (tNoUser prop)
   TVar tv | Nothing <- lookupTypeVar tv envTypes -> panic "evalProp" ["Could not find type variable `" ++ pretty tv ++ "` in the type evaluation environment"]
   prop -> panic "evalProp" ["Cannot use the following as a type constraint: `" ++ pretty prop ++ "`"]
-  where 
+  where
     toType = either tNumTy tValTy
 
 -- | Capure the current call stack from the evaluation monad and
