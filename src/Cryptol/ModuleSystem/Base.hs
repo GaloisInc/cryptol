@@ -19,7 +19,6 @@ module Cryptol.ModuleSystem.Base where
 
 import qualified Control.Exception as X
 import Control.Monad (unless,when)
-import Data.Functor.Compose
 import Data.Maybe (fromMaybe)
 import Data.Monoid ((<>))
 import Data.Text.Encoding (decodeUtf8')
@@ -51,6 +50,7 @@ import Cryptol.ModuleSystem.Env (lookupModule
                                 , meCoreLint, CoreLint(..)
                                 , ModContext(..)
                                 , ModulePath(..), modulePathLabel)
+import           Cryptol.Backend.FFI
 import qualified Cryptol.Eval                 as E
 import qualified Cryptol.Eval.Concrete as Concrete
 import           Cryptol.Eval.Concrete (Concrete(..))
@@ -240,16 +240,11 @@ doLoadModule quiet isrc path fp pm0 =
      let ?evalPrim = \i -> Right <$> Map.lookup i tbl
      callStacks <- getCallStacks
      let ?callStacks = callStacks
-     foreignSrc <-
-       if T.isParametrizedModule tcm
-         then pure Nothing
-         else (getCompose
-                <$> modifyEvalEnvM (fmap Compose . evalForeignDecls path tcm)
-                >>= \case
-                  Left []                -> pure Nothing
-                  Left errs              -> ffiLoadErrors (T.mName tcm) errs
-                  Right (foreignSrc, ()) -> pure (Just foreignSrc))
-              <* modifyEvalEnv (E.moduleEnv Concrete tcm)
+     foreignSrc <- if T.isParametrizedModule tcm
+       then pure Nothing
+       else evalForeign tcm
+     unless (T.isParametrizedModule tcm) $
+       modifyEvalEnv (E.moduleEnv Concrete tcm)
      loadedModule path fp nameEnv foreignSrc tcm
 
      return tcm
@@ -263,7 +258,25 @@ doLoadModule quiet isrc path fp pm0 =
       else notAParameterizedModule (T.mName tcm)
     | otherwise = return tcm
 
-
+  evalForeign tcm
+    | null foreigns = pure Nothing
+    | otherwise = case path of
+      InFile p -> io (canonicalizePath p >>= loadForeignSrc) >>=
+        \case
+          Right fsrc -> do
+            unless quiet $
+              case getForeignSrcPath fsrc of
+                Just fpath -> withLogger logPutStrLn $
+                  "Loading dynamic library " ++ takeFileName fpath
+                Nothing -> pure ()
+            modifyEvalEnvM (evalForeignDecls fsrc foreigns) >>=
+              \case
+                Right () -> pure $ Just fsrc
+                Left errs -> ffiLoadErrors (T.mName tcm) errs
+          Left err -> ffiLoadErrors (T.mName tcm) [err]
+      InMem m _ -> panic "doLoadModule"
+        ["Can't find foreign source of in-memory module", m]
+    where foreigns = findForeignDecls tcm
 
 
 

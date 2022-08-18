@@ -147,6 +147,8 @@ jobs:
           cmd="cat \$1.stdout"
           if ${{ runner.os == 'Windows' }}; then
               cmd="cat \$1.stdout.mingw32 2>/dev/null || $cmd"
+          elif ${{ runner.os == 'macOS' }}; then
+              cmd="cat \$1.stdout.darwin 2>/dev/null || $cmd"
           fi
           ./bin/test-runner --ext=.icry -r ./output --exe=$(which bash) -F -c -F "$cmd" -F -- ./tests
           TARGETS_JSON=$(echo -n "$(ls -1 ./output/tests)" | jq -Rsc 'split("\n")')

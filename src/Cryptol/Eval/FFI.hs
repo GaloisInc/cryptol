@@ -12,29 +12,30 @@
 
 -- | Evaluation of foreign functions.
 module Cryptol.Eval.FFI
-  ( evalForeignDecls
+  ( findForeignDecls
+  , evalForeignDecls
   ) where
+
+import           Data.Maybe
 
 import           Cryptol.Backend.FFI
 import           Cryptol.Backend.FFI.Error
 import           Cryptol.Eval
-import           Cryptol.ModuleSystem.Env
 import           Cryptol.TypeCheck.AST
+import           Cryptol.TypeCheck.FFI.FFIType
 
 #ifdef FFI_ENABLED
 
 import           Data.Either
 import           Data.IORef
-import           Data.Maybe
 import           Data.Proxy
 import           Data.Traversable
 import           Data.Word
 import           Foreign
 import           Foreign.C.Types
 import           GHC.Float
-import           LibBF                           (bfFromDouble, bfToDouble,
-                                                  pattern NearEven)
-import           System.Directory
+import           LibBF                         (bfFromDouble, bfToDouble,
+                                                pattern NearEven)
 
 import           Cryptol.Backend.Concrete
 import           Cryptol.Backend.FloatHelpers
@@ -45,41 +46,35 @@ import           Cryptol.Eval.Prims
 import           Cryptol.Eval.Type
 import           Cryptol.Eval.Value
 import           Cryptol.ModuleSystem.Name
-import           Cryptol.TypeCheck.FFI.FFIType
 import           Cryptol.Utils.Ident
 import           Cryptol.Utils.RecordMap
 
--- | Find all the foreign declarations in the module and add them to the
--- environment. This is a separate pass from the main evaluation functions in
--- "Cryptol.Eval" since it only works for the Concrete backend.
---
--- Note: 'Right' is only returned if we successfully loaded some foreign
--- functions and the environment was modified. If there were no foreign
--- declarations at all then @Left []@ is returned, so 'Left' does not
--- necessarily indicate an error.
-evalForeignDecls :: ModulePath -> Module -> EvalEnv ->
-  Eval (Either [FFILoadError] (ForeignSrc, EvalEnv))
-evalForeignDecls path m env = io
-  case mapMaybe getForeign $ mDecls m of
-    [] -> pure $ Left []
-    foreigns ->
-      case path of
-        InFile p -> canonicalizePath p >>= loadForeignSrc >>=
-          \case
-            Right fsrc -> collect <$> for foreigns \(name, ffiType) ->
-              fmap ((name,) . foreignPrimPoly name ffiType) <$>
-                loadForeignImpl fsrc (unpackIdent $ nameIdent name)
-              where collect (partitionEithers -> (errs, primMap))
-                      | null errs = Right
-                        (fsrc, foldr (uncurry bindVarDirect) env primMap)
-                      | otherwise = Left errs
-            Left err -> pure $ Left [err]
-        -- We don't handle in-memory modules for now
-        InMem _ _ -> evalPanic "evalForeignDecls"
-          ["Can't find foreign source of in-memory module"]
+#endif
+
+-- | Find all the foreign declarations in the module and return their names and
+-- FFIFunTypes.
+findForeignDecls :: Module -> [(Name, FFIFunType)]
+findForeignDecls = mapMaybe getForeign . mDecls
   where getForeign (NonRecursive Decl { dName, dDefinition = DForeign ffiType })
           = Just (dName, ffiType)
+        -- Recursive DeclGroups can't have foreign decls
         getForeign _ = Nothing
+
+#ifdef FFI_ENABLED
+
+-- | Add the given foreign declarations to the environment, loading their
+-- implementations from the given 'ForeignSrc'. This is a separate pass from the
+-- main evaluation functions in "Cryptol.Eval" since it only works for the
+-- Concrete backend.
+evalForeignDecls :: ForeignSrc -> [(Name, FFIFunType)] -> EvalEnv ->
+  Eval (Either [FFILoadError] EvalEnv)
+evalForeignDecls fsrc decls env = io do
+  ePrims <- for decls \(name, ffiType) ->
+    fmap ((name,) . foreignPrimPoly name ffiType) <$>
+      loadForeignImpl fsrc (unpackIdent $ nameIdent name)
+  pure case partitionEithers ePrims of
+    ([], prims) -> Right $ foldr (uncurry bindVarDirect) env prims
+    (errs, _)   -> Left errs
 
 -- | Generate a 'Prim' value representing the given foreign function, containing
 -- all the code necessary to marshal arguments and return values and do the
@@ -274,8 +269,8 @@ withWordType FFIWord64 f = f $ Proxy @Word64
 
 -- | Dummy implementation for when FFI is disabled. Does not add anything to
 -- the environment.
-evalForeignDecls :: ModulePath -> Module -> EvalEnv ->
-  Eval (Either [FFILoadError] (ForeignSrc, EvalEnv))
-evalForeignDecls _ _ _ = pure $ Left []
+evalForeignDecls :: ForeignSrc -> [(Name, FFIFunType)] -> EvalEnv ->
+  Eval (Either [FFILoadError] EvalEnv)
+evalForeignDecls _ _ env = pure $ Right env
 
 #endif
