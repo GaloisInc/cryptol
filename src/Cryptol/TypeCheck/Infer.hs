@@ -1055,108 +1055,39 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
         withTParams as $ do
           asmps1 <- applySubstPreds asmps0
           t1     <- applySubst t0
-          -- Checking each guarded case is the same as checking a DExpr, except
-          -- that the guarding assumptions are added first.
-          let checkPropGuardCase :: ([P.Prop Name], P.Expr Name) -> InferM ([Prop], Expr)
-              checkPropGuardCase (guards0, e0) = do
-                mb_rng <- case P.bSignature b of
-                  Just (P.Forall _ _ _ mb_rng) -> pure mb_rng
-                  _ -> panic "checkSigB"
-                    [ "Used constraint guards without a signature, dumbwit, at "
-                    , show . pp $ P.bName b ]
-                -- check guards
-                (guards1, goals) <-
-                  second concat . unzip <$>
-                  checkPropGuard mb_rng `traverse` guards0
-                -- try to prove all goals
-                su <- proveImplication True (Just name) as (asmps1 <> guards1) goals
-                extendSubst su
-                -- Preprends the goals to the constraints, because these must be
-                -- checked first before the rest of the constraints (during
-                -- evaluation) to ensure well-definedness, since some
-                -- constraints make use of partial functions e.g. `a - b`
-                -- requires `a >= b`.
-                let guards2 = (goal <$> goals) <> concatMap pSplitAnd (apSubst su guards1)
-                (_t, guards3, e1) <- checkBindDefExpr asmps1 guards2 e0
-                e2 <- applySubst e1
-                pure (guards3, e2)
+          cases1 <- mapM (checkPropGuardCase name asmps1) cases0
 
-          cases1 <- mapM checkPropGuardCase cases0
+          let
+            toGoal :: Prop -> Goal
+            toGoal prop =
+              Goal
+                { goalSource = CtPropGuardsExhaustive name
+                , goalRange = srcRange $ P.bName b
+                , goal = prop }
 
-          -- Here, `props` is a conjunction of multiple constraints, and so the
-          -- negation is the disjunction of the negation of each conjunct i.e.
-          -- "not (A and B and C) <=> (not A) or (not B) or (not C)". This is
-          -- one of DeMorgan's laws of boolean logic. Since there are no
-          -- constraint disjunctions, we encode a disjunction of conjunctions as
-          -- `[[Prop]]`. For exhaustive checking, each disjunct will need to be
-          -- checked independently, and all must pass in order to be considered
-          -- exhaustive.
+            canProve :: [Prop] -> [Goal] -> InferM Bool
+            canProve asmps goals = isRight <$>
+              tryProveImplication (Just name) as asmps goals
 
-          let negateSimpleNumProp :: Prop -> Maybe [Prop]
-              negateSimpleNumProp prop = case prop of
-                TCon tcon tys -> case tcon of
-                  PC pc -> case pc of
-                    -- not x == y  <=>  x /= y
-                    PEqual -> pure [TCon (PC PNeq) tys]
-                    -- not x /= y  <=>  x == y
-                    PNeq -> pure [TCon (PC PEqual) tys]
-                    -- not x >= y  <=>  x /= y and y >= x
-                    PGeq -> pure [TCon (PC PNeq) tys, TCon (PC PGeq) (reverse tys)]
-                    -- not fin x  <=>  x == Inf
-                    PFin | [ty] <- tys -> pure [TCon (PC PEqual) [ty, tInf]]
-                         | otherwise -> panicInvalid
-                    -- not True  <=>  0 == 1
-                    PTrue -> pure [TCon (PC PEqual) [tZero, tOne]]
-                    _ -> mempty
-                  TC _tc -> panicInvalid
-                  TF _tf -> panicInvalid
-                  TError _ki -> panicInvalid -- TODO: where does this come from?
-                TUser _na _tys ty -> negateSimpleNumProp ty
-                _ -> panicInvalid
-                where
-                  panicInvalid = tcPanic "checkSigB"
-                    [ "This type shouldn't be a valid type constraint: " ++
-                      "`" ++ pretty prop ++ "`"]
-
-              negateSimpleNumProps :: [Prop] -> [[Prop]]
-              negateSimpleNumProps props = do
-                prop <- props
-                maybe mempty pure (negateSimpleNumProp prop)
-
-              toGoal :: Prop -> Goal
-              toGoal prop =
-                Goal
-                  { goalSource = CtPropGuardsExhaustive name
-                  , goalRange = srcRange $ P.bName b
-                  , goal = prop }
-
-              canProve :: [Prop] -> [Goal] -> InferM Bool
-              canProve asmps goals = isRight <$>
-                tryProveImplication (Just name) as asmps goals
-
-              -- Try to prove that the first guard will be satisfied. If cannot,
-              -- then assume it is false (via `negateSimpleNumProps`) and try to
-              -- prove that the second guard will be satisfied. If cannot, then
-              -- assume it is false, and so on. If the last guard cannot be
-              -- proven in this way, then issue a `NonExhaustivePropGuards`
-              -- warning. Note that when assuming that a conjunction of multiple
-              -- constraints is false, this results in a disjunction, and so
-              -- must check exhaustive under assumption that each disjunct is
-              -- false independently. 
-              -- 
-              -- TODO: do I have to check all combinations of false/true
-              -- disjuncts? Or is it satisfactory to just check setting each one
-              -- to false seperately.
-              checkExhaustive :: [Prop] -> [[Prop]] -> InferM Bool
-              checkExhaustive _asmps [] = pure False -- empty GuardProps
-              checkExhaustive asmps [guard] = do
-                canProve asmps (toGoal <$> guard)
-              checkExhaustive asmps (guard : guards) =
-                canProve asmps (toGoal <$> guard) >>= \case
-                  True -> pure True
-                  False -> and <$> mapM
-                    (\asmps' -> checkExhaustive (asmps <> asmps') guards)
-                    (negateSimpleNumProps guard)
+            -- Try to prove that the first guard will be satisfied. If cannot,
+            -- then assume it is false (via `negateSimpleNumProps`) and try to
+            -- prove that the second guard will be satisfied. If cannot, then
+            -- assume it is false, and so on. If the last guard cannot be proven
+            -- in this way, then issue a `NonExhaustivePropGuards` warning. Note
+            -- that when assuming that a conjunction of constraints is false,
+            -- this results in a disjunction, and so must check exhaustive under
+            -- assumption that each disjunct is false independently i.e.
+            -- `checkExhaustive` branches on conjunctions.
+            checkExhaustive :: [Prop] -> [[Prop]] -> InferM Bool
+            checkExhaustive _asmps [] = pure False -- empty GuardProps
+            checkExhaustive asmps [guard] = do
+              canProve asmps (toGoal <$> guard)
+            checkExhaustive asmps (guard : guards) =
+              canProve asmps (toGoal <$> guard) >>= \case
+                True -> pure True
+                False -> and <$> mapM
+                  (\asmps' -> checkExhaustive (asmps <> asmps') guards)
+                  (negateSimpleNumProps guard)
 
           checkExhaustive asmps1 (fst <$> cases1) >>= \case
             True ->
@@ -1174,7 +1105,10 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
             , dSignature  = schema
             , dDefinition = DExpr
                               (foldr ETAbs
-                              (foldr EProofAbs (EPropGuards cases1 schema) asmps1) as)
+                                (foldr EProofAbs
+                                  (EPropGuards cases1 schema)
+                                asmps1)
+                              as)
             , dPragmas    = P.bPragmas b
             , dInfix      = P.bInfix b
             , dFixity     = P.bFixity b
@@ -1223,6 +1157,32 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
       e2     <- applySubst e1
 
       pure (t, asmps, e2)
+
+    -- Checking each guarded case is the same as checking a DExpr, except
+    -- that the guarding assumptions are added first.
+    checkPropGuardCase :: Name -> [Prop] -> ([P.Prop Name], P.Expr Name) -> InferM ([Prop], Expr)
+    checkPropGuardCase name asmps1 (guards0, e0) = do
+      mb_rng <- case P.bSignature b of
+        Just (P.Forall _ _ _ mb_rng) -> pure mb_rng
+        _ -> panic "checkSigB"
+          [ "Used constraint guards without a signature, dumbwit, at "
+          , show . pp $ P.bName b ]
+      -- check guards
+      (guards1, goals) <-
+        second concat . unzip <$>
+        checkPropGuard mb_rng `traverse` guards0
+      -- try to prove all goals
+      su <- proveImplication True (Just name) as (asmps1 <> guards1) goals
+      extendSubst su
+      -- Preprends the goals to the constraints, because these must be
+      -- checked first before the rest of the constraints (during
+      -- evaluation) to ensure well-definedness, since some
+      -- constraints make use of partial functions e.g. `a - b`
+      -- requires `a >= b`.
+      let guards2 = (goal <$> goals) <> concatMap pSplitAnd (apSubst su guards1)
+      (_t, guards3, e1) <- checkBindDefExpr asmps1 guards2 e0
+      e2 <- applySubst e1
+      pure (guards3, e2)
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------

@@ -888,9 +888,62 @@ instance FVS Schema where
       Set.difference (Set.union (fvs ps) (fvs t)) bound
     where bound = Set.fromList (map tpVar as)
 
+-- Negation --------------------------------------------------------------------
 
+{-|
+`negateSimpleNumProps` negates a simple prop over numeric type vars. Results in
+`Just _` if the input is simple and can be negated, otherwise `Nothing`.
 
+The only simple props are: @(x == y), (x /= y), (x >= y), (fin x), True@, and
+any type constraint synonym applications where the type constraint synonym is
+defined in terms of only simple props.
 
+The negation of a conjunction of props should result in a disjunction via
+DeMorgan's laws. e.g. `(x == y, x == z)  =>  (x /= y) or (x /= z)`. However,
+Cryptol currently doesn't support disjunctions in type constraints, so instead
+`negateSimpleNumProps` results in a list of lists of props that is understood to
+be a disjunction of conjunctions.
+-}
+{-|
+Examples:
+@
+  [(x == y)]          =>  Just [[(x /= y)]]
+  [(fin x)]           =>  Just [[(x == inf)]]
+  [(x <= y)]          =>  Just [[(x >= y), (x /= y)]]
+  [(x == y, x == z)]  =>  Just [[(x /= y)], [(x /= z)]]
+@
+-}
+negateSimpleNumProps :: [Prop] -> [[Prop]]
+negateSimpleNumProps props = do
+  prop <- props
+  maybe mempty pure (negateSimpleNumProp prop)
+
+negateSimpleNumProp :: Prop -> Maybe [Prop]
+negateSimpleNumProp prop = case prop of
+  TCon tcon tys -> case tcon of
+    PC pc -> case pc of
+      -- not x == y  <=>  x /= y
+      PEqual -> pure [TCon (PC PNeq) tys]
+      -- not x /= y  <=>  x == y
+      PNeq -> pure [TCon (PC PEqual) tys]
+      -- not x >= y  <=>  x /= y and y >= x
+      PGeq -> pure [TCon (PC PNeq) tys, TCon (PC PGeq) (reverse tys)]
+      -- not fin x  <=>  x == Inf
+      PFin | [ty] <- tys -> pure [TCon (PC PEqual) [ty, tInf]]
+           | otherwise -> panicInvalid
+      -- not True  <=>  0 == 1
+      PTrue -> pure [TCon (PC PEqual) [tZero, tOne]]
+      -- not simple enough
+      _ -> mempty
+    TC _tc -> panicInvalid
+    TF _tf -> panicInvalid
+    TError _ki -> Just [prop] -- propogates `TError`
+  TUser _na _tys ty -> negateSimpleNumProp ty
+  _ -> panicInvalid
+  where
+    panicInvalid = panic "negateSimpleNumProp"
+      [ "This type shouldn't be a valid type constraint: " ++
+        "`" ++ pretty prop ++ "`"]
 
 -- Pretty Printing -------------------------------------------------------------
 
