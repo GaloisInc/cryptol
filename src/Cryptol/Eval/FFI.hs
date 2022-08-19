@@ -28,6 +28,7 @@ import           Cryptol.TypeCheck.FFI.FFIType
 #ifdef FFI_ENABLED
 
 import           Data.Either
+import           Data.Foldable
 import           Data.IORef
 import           Data.Proxy
 import           Data.Traversable
@@ -157,15 +158,13 @@ foreignPrim name FFIFunType {..} impl tenv = buildFun ffiArgTypes []
         allocaArray (fromInteger $ product sizes) \ptr -> do
           -- Traverse the nested sequences and write the elements to the array
           -- in order
-          let write (n:ns) (v:vs) nvss !i = do
-                vs' <- traverse (runEval stk) $ enumerateSeqMap n $ fromVSeq v
-                write ns vs' ((n, vs):nvss) i
-              write [] (v:vs) nvss !i = do
+          let write (n:ns) !i v = do
+                vs <- traverse (runEval stk) $ enumerateSeqMap n $ fromVSeq v
+                foldlM (write ns) i vs
+              write [] !i v = do
                 runEval stk (m v) >>= pokeElemOff ptr i
-                write [] vs nvss (i + 1)
-              write ns [] ((n, vs):nvss) !i = write (n:ns) vs nvss i
-              write _ _ [] _ = pure ()
-          write sizes [val] [] 0
+                pure (i + 1)
+          _ <- write sizes 0 val
           runEval stk $ f [SomeFFIArg ptr]
   marshalArg (FFITuple types) val f = do
     vals <- sequence $ fromVTuple val
