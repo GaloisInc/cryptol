@@ -1194,14 +1194,8 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
         addGoals validSchema
         () <- simplifyAllConstraints  -- XXX: using `asmps` also?
         return e1
-
-      -- pure $! unsafePerformIO $ putStrLn $ "[*] asmpsSign = " ++ show (pp <$> asmpsSign) -- DEBUG
-      -- pure $! unsafePerformIO $ putStrLn $ "[*] asmps1    = " ++ show (pp <$> asmps1) -- DEBUG
-
       asmps2 <- applySubstPreds asmps1
       cs     <- applySubstGoals cs0
-
-      -- pure $! unsafePerformIO $ putStrLn $ "[*] asmps2    = " ++ show (pp <$> asmps2) -- DEBUG
 
       let findKeep vs keep todo =
             let stays (_,cvs)    = not $ Set.null $ Set.intersection vs cvs
@@ -1227,8 +1221,6 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
       let asmps  = concatMap pSplitAnd (apSubst su asmps2)
       t      <- applySubst t0
       e2     <- applySubst e1
-
-      -- pure $! unsafePerformIO $ putStrLn $ "[*] asmps     = " ++ show (pp <$> asmps) -- DEBUG
 
       pure (t, asmps, e2)
 
