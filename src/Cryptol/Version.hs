@@ -7,7 +7,6 @@
 -- Portability :  portable
 
 {-# LANGUAGE CPP  #-}
-{-# LANGUAGE Safe #-}
 
 module Cryptol.Version (
     commitHash

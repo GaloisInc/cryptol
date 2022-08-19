@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric  #-}
+{-# LANGUAGE Trustworthy #-}
 
 -- | This module defines a nicer intermediate representation of Cryptol types
 -- allowed for the FFI, which the typechecker generates then stores in the AST.

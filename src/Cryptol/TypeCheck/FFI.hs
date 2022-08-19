@@ -1,6 +1,7 @@
 {-# LANGUAGE BlockArguments  #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns    #-}
+{-# LANGUAGE Safe    #-}
 
 -- | Checking and conversion of 'Type's to 'FFIType's.
 module Cryptol.TypeCheck.FFI
