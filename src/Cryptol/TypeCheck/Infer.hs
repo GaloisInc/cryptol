@@ -57,7 +57,7 @@ import           Cryptol.TypeCheck.FFI.FFIType
 import           Cryptol.Utils.Ident
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.RecordMap
-import           Cryptol.Utils.PP (pp, pretty)
+import           Cryptol.Utils.PP (pp)
 
 import qualified Data.Map as Map
 import           Data.Map (Map)
@@ -1106,7 +1106,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
             , dDefinition = DExpr
                               (foldr ETAbs
                                 (foldr EProofAbs
-                                  (EPropGuards cases1 schema)
+                                  (EPropGuards cases1 t1)
                                 asmps1)
                               as)
             , dPragmas    = P.bPragmas b

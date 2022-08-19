@@ -44,7 +44,7 @@ fastTypeOf tyenv expr =
                         Just (_, t) -> t
                         Nothing     -> panic "Cryptol.TypeCheck.TypeOf.fastTypeOf"
                                          [ "EApp with non-function operator" ]
-    EPropGuards _guards Forall {sType} -> sType
+    EPropGuards _guards sType -> sType
     -- Polymorphic fragment
     EVar      {}  -> polymorphic
     ETAbs     {}  -> polymorphic
@@ -115,10 +115,9 @@ fastSchemaOf tyenv expr =
     EAbs   {}      -> monomorphic
 
     -- PropGuards
-    EPropGuards [] schema -> schema
-    EPropGuards _ schema -> schema
+    EPropGuards _ t -> Forall {sVars = [], sProps = [], sType = t}
   where
-    monomorphic = Forall [] [] (fastTypeOf tyenv expr)
+    monomorphic = Forall {sVars = [], sProps = [], sType = fastTypeOf tyenv expr}
 
 -- | Apply a substitution to a type *without* simplifying
 -- constraints like @Arith [n]a@ to @Arith a@. (This is in contrast to

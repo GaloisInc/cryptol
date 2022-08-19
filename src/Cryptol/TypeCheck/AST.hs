@@ -150,7 +150,7 @@ data Expr   = EList [Expr] Type         -- ^ List value (with type of elements)
 
             | EWhere Expr [DeclGroup]
 
-            | EPropGuards [([Prop], Expr)] Schema
+            | EPropGuards [([Prop], Expr)] Type
 
               deriving (Show, Generic, NFData)
 
