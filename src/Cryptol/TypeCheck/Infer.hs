@@ -1057,39 +1057,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
           t1     <- applySubst t0
           cases1 <- mapM (checkPropGuardCase name asmps1) cases0
 
-          let
-            toGoal :: Prop -> Goal
-            toGoal prop =
-              Goal
-                { goalSource = CtPropGuardsExhaustive name
-                , goalRange = srcRange $ P.bName b
-                , goal = prop }
-
-            canProve :: [Prop] -> [Goal] -> InferM Bool
-            canProve asmps goals = isRight <$>
-              tryProveImplication (Just name) as asmps goals
-
-            -- Try to prove that the first guard will be satisfied. If cannot,
-            -- then assume it is false (via `pNegNumeric`) and try to
-            -- prove that the second guard will be satisfied. If cannot, then
-            -- assume it is false, and so on. If the last guard cannot be proven
-            -- in this way, then issue a `NonExhaustivePropGuards` warning. Note
-            -- that when assuming that a conjunction of constraints is false,
-            -- this results in a disjunction, and so must check exhaustive under
-            -- assumption that each disjunct is false independently i.e.
-            -- `checkExhaustive` branches on conjunctions.
-            checkExhaustive :: [Prop] -> [[Prop]] -> InferM Bool
-            checkExhaustive _asmps [] = pure False -- empty GuardProps
-            checkExhaustive asmps [guard] = do
-              canProve asmps (toGoal <$> guard)
-            checkExhaustive asmps (guard : guards) =
-              canProve asmps (toGoal <$> guard) >>= \case
-                True -> pure True
-                False -> and <$> mapM
-                  (\asmps' -> checkExhaustive (asmps <> asmps') guards)
-                  (pNegNumeric guard)
-
-          checkExhaustive asmps1 (fst <$> cases1) >>= \case
+          checkExhaustive name asmps1 (fst <$> cases1) >>= \case
             True ->
               -- proved exhaustive
               pure ()
@@ -1183,6 +1151,40 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
       (_t, guards3, e1) <- checkBindDefExpr asmps1 guards2 e0
       e2 <- applySubst e1
       pure (guards3, e2)
+
+    -- Try to prove that the first guard will be satisfied. If cannot,
+    -- then assume it is false (via `pNegNumeric`) and try to
+    -- prove that the second guard will be satisfied. If cannot, then
+    -- assume it is false, and so on. If the last guard cannot be proven
+    -- in this way, then issue a `NonExhaustivePropGuards` warning. Note
+    -- that when assuming that a conjunction of constraints is false,
+    -- this results in a disjunction, and so must check exhaustive under
+    -- assumption that each disjunct is false independently i.e.
+    -- `checkExhaustive` branches on conjunctions.
+    checkExhaustive :: Name -> [Prop] -> [[Prop]] -> InferM Bool
+    checkExhaustive _name _asmps [] = pure False -- empty GuardProps
+    -- checkExhaustive asmps [guard] = do
+    --   canProve asmps (toGoal <$> guard)
+    checkExhaustive name asmps (guard : guards) =
+      if null guards then
+        canProve asmps (toGoal <$> guard)
+      else 
+        canProve asmps (toGoal <$> guard) >>= \case
+          True -> pure True
+          False -> and <$> mapM
+            (\asmps' -> checkExhaustive name (asmps <> asmps') guards)
+            (pNegNumeric guard)
+      where
+        toGoal :: Prop -> Goal
+        toGoal prop =
+          Goal
+            { goalSource = CtPropGuardsExhaustive name
+            , goalRange = srcRange $ P.bName b
+            , goal = prop }
+
+        canProve :: [Prop] -> [Goal] -> InferM Bool
+        canProve asmps' goals = isRight <$>
+          tryProveImplication (Just name) as asmps' goals
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
