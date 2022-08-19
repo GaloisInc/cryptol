@@ -1070,7 +1070,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
               tryProveImplication (Just name) as asmps goals
 
             -- Try to prove that the first guard will be satisfied. If cannot,
-            -- then assume it is false (via `negateSimpleNumProps`) and try to
+            -- then assume it is false (via `pNegNumeric`) and try to
             -- prove that the second guard will be satisfied. If cannot, then
             -- assume it is false, and so on. If the last guard cannot be proven
             -- in this way, then issue a `NonExhaustivePropGuards` warning. Note
@@ -1087,7 +1087,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
                 True -> pure True
                 False -> and <$> mapM
                   (\asmps' -> checkExhaustive (asmps <> asmps') guards)
-                  (negateSimpleNumProps guard)
+                  (pNegNumeric guard)
 
           checkExhaustive asmps1 (fst <$> cases1) >>= \case
             True ->
