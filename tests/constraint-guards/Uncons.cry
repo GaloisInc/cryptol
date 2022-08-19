@@ -1,0 +1,3 @@
+tail : {n, a} (fin n) => [n]a -> [(max n 1) - 1]a
+tail xs | n == 0 => xs
+        | n >= 1 => drop `{1} xs
