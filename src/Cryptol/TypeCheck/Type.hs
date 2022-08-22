@@ -876,10 +876,10 @@ Examples:
 pNegNumeric :: [Prop] -> [[Prop]]
 pNegNumeric props = do
   prop <- props
-  maybe mempty pure (pNegNumeric' prop)
+  maybe mempty pure (go prop)
   where
-    pNegNumeric' :: Prop -> Maybe [Prop]
-    pNegNumeric' prop = case prop of
+    go :: Prop -> Maybe [Prop]
+    go prop = case prop of
       TCon tcon tys -> case tcon of
         PC pc -> case pc of
           -- not x == y  <=>  x /= y
@@ -898,10 +898,10 @@ pNegNumeric props = do
         TC _tc -> panicInvalid
         TF _tf -> panicInvalid
         TError _ki -> Just [prop] -- propogates `TError`
-      TUser _na _tys ty -> pNegNumeric' ty
+      TUser _na _tys ty -> go ty
       _ -> panicInvalid
       where
-        panicInvalid = panic "pNegNumeric'"
+        panicInvalid = panic "pNegNumeric"
           [ "This type shouldn't be a valid type constraint: " ++
             "`" ++ pretty prop ++ "`"]
 
