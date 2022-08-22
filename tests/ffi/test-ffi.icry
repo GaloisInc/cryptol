@@ -32,3 +32,5 @@ sumPoly [1..10]
 sumPoly [1..10000]
 inits [1..5]
 zipMul3 [1, 2, 3] [3, 4, 5, 6] [6, 7, 8, 9, 10]
+
+nestedSeq [split`{4} x | x <- split`{2} [1..24]]

@@ -116,3 +116,9 @@ void zipMul3(size_t n, size_t m, size_t p, float *xs, float *ys, float *zs,
     out[i] = xs[i] * ys[i] * zs[i];
   }
 }
+
+void nestedSeq(size_t n, size_t m, size_t p, uint8_t *in, uint8_t *out) {
+  for (unsigned i = 0; i < n * m * p; ++i) {
+    out[i] = in[i];
+  }
+}

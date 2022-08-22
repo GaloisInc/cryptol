@@ -27,21 +27,20 @@ data FFIFunType = FFIFunType
 data FFIType
   = FFIBool
   | FFIBasic FFIBasicType
-  | FFIArray
-      Type -- ^ Size (should be of kind @\#@)
-      FFIBasicType -- ^ Element type
+  -- | [n][m][p]T --> FFIArray [n, m, p] T
+  | FFIArray [Type] FFIBasicType
   | FFITuple [FFIType]
   | FFIRecord (RecordMap Ident FFIType)
   deriving (Show, Generic, NFData)
 
--- | Types which can be elements of FFI sequences.
+-- | Types which can be elements of FFI arrays.
 data FFIBasicType
   = FFIWord
-      Integer -- ^ The size of the Cryptol type
+      Integer     -- ^ The size of the Cryptol type
       FFIWordSize -- ^ The machine word size that it corresponds to
   | FFIFloat
-      Integer -- ^ Exponent
-      Integer -- ^ Precision
+      Integer      -- ^ Exponent
+      Integer      -- ^ Precision
       FFIFloatSize -- ^ The machine float size that it corresponds to
   deriving (Show, Generic, NFData)
 

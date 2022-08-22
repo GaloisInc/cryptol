@@ -303,13 +303,14 @@ Other sizes of floating points are not supported.</p>
 </section>
 <section id="sequences">
 <h3>Sequences<a class="headerlink" href="#sequences" title="Permalink to this heading"></a></h3>
-<p>Let <code class="docutils literal notranslate"><span class="pre">n</span> <span class="pre">:</span> <span class="pre">#</span></code> be a Cryptol type, possibly containing type variables, that
-satisfies <code class="docutils literal notranslate"><span class="pre">fin</span> <span class="pre">n</span></code>, and <code class="docutils literal notranslate"><span class="pre">T</span></code> be one of the above Cryptol <em>integral types</em> or
-<em>floating point types</em>. Let <code class="docutils literal notranslate"><span class="pre">U</span></code> be the C type that <code class="docutils literal notranslate"><span class="pre">T</span></code> corresponds to.</p>
+<p>Let <code class="docutils literal notranslate"><span class="pre">n1,</span> <span class="pre">n2,</span> <span class="pre">...,</span> <span class="pre">nk</span> <span class="pre">:</span> <span class="pre">#</span></code> be Cryptol types (with <code class="docutils literal notranslate"><span class="pre">k</span> <span class="pre">&gt;=</span> <span class="pre">1</span></code>), possibly
+containing type variables, that satisfy <code class="docutils literal notranslate"><span class="pre">fin</span> <span class="pre">n1,</span> <span class="pre">fin</span> <span class="pre">n2,</span> <span class="pre">...,</span> <span class="pre">fin</span> <span class="pre">nk</span></code>, and
+<code class="docutils literal notranslate"><span class="pre">T</span></code> be one of the above Cryptol <em>integral types</em> or <em>floating point types</em>.
+Let <code class="docutils literal notranslate"><span class="pre">U</span></code> be the C type that <code class="docutils literal notranslate"><span class="pre">T</span></code> corresponds to.</p>
 <table class="docutils align-default">
 <colgroup>
-<col style="width: 52%" />
-<col style="width: 48%" />
+<col style="width: 65%" />
+<col style="width: 35%" />
 </colgroup>
 <thead>
 <tr class="row-odd"><th class="head"><p>Cryptol type</p></th>
@@ -317,15 +318,17 @@ satisfies <code class="docutils literal notranslate"><span class="pre">fin</span
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">[n]T</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">[n1][n2]...[nk]T</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">U*</span></code></p></td>
 </tr>
 </tbody>
 </table>
-<p>The C pointer points to an array of <code class="docutils literal notranslate"><span class="pre">n</span></code> elements of type <code class="docutils literal notranslate"><span class="pre">U</span></code>. Note that,
-while the length of the array itself is not explicitly passed along with the
-pointer, any type arguments contained in the size are passed as C <code class="docutils literal notranslate"><span class="pre">size_t</span></code>’s
-earlier, so the C code can always know the length of the array.</p>
+<p>The C pointer points to an array of <code class="docutils literal notranslate"><span class="pre">n1</span> <span class="pre">*</span> <span class="pre">n2</span> <span class="pre">*</span> <span class="pre">...</span> <span class="pre">*</span> <span class="pre">nk</span></code> elements of type
+<code class="docutils literal notranslate"><span class="pre">U</span></code>. If the sequence is multidimensional, it is flattened and stored
+contiguously, similar to the representation of multidimensional arrays in C.
+Note that, while the dimensions of the array itself are not explicitly passed
+along with the pointer, any type arguments contained in the size are passed as C
+<code class="docutils literal notranslate"><span class="pre">size_t</span></code>’s earlier, so the C code can always know the dimensions of the array.</p>
 </section>
 <section id="tuples-and-records">
 <h3>Tuples and records<a class="headerlink" href="#tuples-and-records" title="Permalink to this heading"></a></h3>
@@ -432,7 +435,7 @@ input versions are the same type, because it is already a pointer.</p>
 <td><p><code class="docutils literal notranslate"><span class="pre">double</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">double*</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">[n]T</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">[n1][n2]...[nk]T</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">U*</span></code></p></td>
 <td><p>N/A</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">U*</span></code></p></td>
@@ -449,7 +452,7 @@ input versions are the same type, because it is already a pointer.</p>
 </tr>
 </tbody>
 </table>
-<p>where <code class="docutils literal notranslate"><span class="pre">K</span></code> is a constant number, <code class="docutils literal notranslate"><span class="pre">n</span></code> is a variable number, <code class="docutils literal notranslate"><span class="pre">Ti</span></code> is a type,
+<p>where <code class="docutils literal notranslate"><span class="pre">K</span></code> is a constant number, <code class="docutils literal notranslate"><span class="pre">ni</span></code> are variable numbers, <code class="docutils literal notranslate"><span class="pre">Ti</span></code> is a type,
 <code class="docutils literal notranslate"><span class="pre">Ui</span></code> is its C argument type, and <code class="docutils literal notranslate"><span class="pre">Vi</span></code> is its C output argument type.</p>
 </section>
 </section>

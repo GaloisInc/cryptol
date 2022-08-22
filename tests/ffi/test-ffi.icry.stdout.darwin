@@ -2,7 +2,7 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module Float
 Loading module Main
-Loading dynamic library test-ffi.so
+Loading dynamic library test-ffi.dylib
 0x03
 0x15b4
 0x3a0f1880

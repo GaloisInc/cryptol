@@ -188,20 +188,23 @@ Other sizes of floating points are not supported.
 Sequences
 ~~~~~~~~~
 
-Let ``n : #`` be a Cryptol type, possibly containing type variables, that
-satisfies ``fin n``, and ``T`` be one of the above Cryptol *integral types* or
-*floating point types*. Let ``U`` be the C type that ``T`` corresponds to.
+Let ``n1, n2, ..., nk : #`` be Cryptol types (with ``k >= 1``), possibly
+containing type variables, that satisfy ``fin n1, fin n2, ..., fin nk``, and
+``T`` be one of the above Cryptol *integral types* or *floating point types*.
+Let ``U`` be the C type that ``T`` corresponds to.
 
-============  ===========
-Cryptol type  C type
-============  ===========
-``[n]T``      ``U*``
-============  ===========
+====================  ===========
+Cryptol type          C type
+====================  ===========
+``[n1][n2]...[nk]T``  ``U*``
+====================  ===========
 
-The C pointer points to an array of ``n`` elements of type ``U``. Note that,
-while the length of the array itself is not explicitly passed along with the
-pointer, any type arguments contained in the size are passed as C ``size_t``'s
-earlier, so the C code can always know the length of the array.
+The C pointer points to an array of ``n1 * n2 * ... * nk`` elements of type
+``U``. If the sequence is multidimensional, it is flattened and stored
+contiguously, similar to the representation of multidimensional arrays in C.
+Note that, while the dimensions of the array itself are not explicitly passed
+along with the pointer, any type arguments contained in the size are passed as C
+``size_t``'s earlier, so the C code can always know the dimensions of the array.
 
 Tuples and records
 ~~~~~~~~~~~~~~~~~~
@@ -258,12 +261,12 @@ Cryptol type (or kind)              C argument type(s)   C return type  C output
 ``[K]Bit`` where ``32 <  K <= 64``  ``uint64_t``         ``uint64_t``   ``uint64_t*``
 ``Float32``                         ``float``            ``float``      ``float*``
 ``Float64``                         ``double``           ``double``     ``double*``
-``[n]T``                            ``U*``               N/A            ``U*``
+``[n1][n2]...[nk]T``                ``U*``               N/A            ``U*``
 ``(T1, T2, ..., Tn)``               ``U1, U2, ..., Un``  N/A            ``V1, V2, ..., Vn``
 ``{f1: T1, f2: T2, ..., fn: Tn}``   ``U1, U2, ..., Un``  N/A            ``V1, V2, ..., Vn``
 ==================================  ===================  =============  =========================
 
-where ``K`` is a constant number, ``n`` is a variable number, ``Ti`` is a type,
+where ``K`` is a constant number, ``ni`` are variable numbers, ``Ti`` is a type,
 ``Ui`` is its C argument type, and ``Vi`` is its C output argument type.
 
 Memory

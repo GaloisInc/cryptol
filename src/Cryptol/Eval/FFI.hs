@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE BlockArguments      #-}
 {-# LANGUAGE CPP                 #-}
 {-# LANGUAGE LambdaCase          #-}
@@ -12,29 +13,31 @@
 
 -- | Evaluation of foreign functions.
 module Cryptol.Eval.FFI
-  ( evalForeignDecls
+  ( findForeignDecls
+  , evalForeignDecls
   ) where
+
+import           Data.Maybe
 
 import           Cryptol.Backend.FFI
 import           Cryptol.Backend.FFI.Error
 import           Cryptol.Eval
-import           Cryptol.ModuleSystem.Env
 import           Cryptol.TypeCheck.AST
+import           Cryptol.TypeCheck.FFI.FFIType
 
 #ifdef FFI_ENABLED
 
 import           Data.Either
+import           Data.Foldable
 import           Data.IORef
-import           Data.Maybe
 import           Data.Proxy
 import           Data.Traversable
 import           Data.Word
 import           Foreign
 import           Foreign.C.Types
 import           GHC.Float
-import           LibBF                           (bfFromDouble, bfToDouble,
-                                                  pattern NearEven)
-import           System.Directory
+import           LibBF                         (bfFromDouble, bfToDouble,
+                                                pattern NearEven)
 
 import           Cryptol.Backend.Concrete
 import           Cryptol.Backend.FloatHelpers
@@ -45,41 +48,35 @@ import           Cryptol.Eval.Prims
 import           Cryptol.Eval.Type
 import           Cryptol.Eval.Value
 import           Cryptol.ModuleSystem.Name
-import           Cryptol.TypeCheck.FFI.FFIType
 import           Cryptol.Utils.Ident
 import           Cryptol.Utils.RecordMap
 
--- | Find all the foreign declarations in the module and add them to the
--- environment. This is a separate pass from the main evaluation functions in
--- "Cryptol.Eval" since it only works for the Concrete backend.
---
--- Note: 'Right' is only returned if we successfully loaded some foreign
--- functions and the environment was modified. If there were no foreign
--- declarations at all then @Left []@ is returned, so 'Left' does not
--- necessarily indicate an error.
-evalForeignDecls :: ModulePath -> Module -> EvalEnv ->
-  Eval (Either [FFILoadError] (ForeignSrc, EvalEnv))
-evalForeignDecls path m env = io
-  case mapMaybe getForeign $ mDecls m of
-    [] -> pure $ Left []
-    foreigns ->
-      case path of
-        InFile p -> canonicalizePath p >>= loadForeignSrc >>=
-          \case
-            Right fsrc -> collect <$> for foreigns \(name, ffiType) ->
-              fmap ((name,) . foreignPrimPoly name ffiType) <$>
-                loadForeignImpl fsrc (unpackIdent $ nameIdent name)
-              where collect (partitionEithers -> (errs, primMap))
-                      | null errs = Right
-                        (fsrc, foldr (uncurry bindVarDirect) env primMap)
-                      | otherwise = Left errs
-            Left err -> pure $ Left [err]
-        -- We don't handle in-memory modules for now
-        InMem _ _ -> evalPanic "evalForeignDecls"
-          ["Can't find foreign source of in-memory module"]
+#endif
+
+-- | Find all the foreign declarations in the module and return their names and
+-- FFIFunTypes.
+findForeignDecls :: Module -> [(Name, FFIFunType)]
+findForeignDecls = mapMaybe getForeign . mDecls
   where getForeign (NonRecursive Decl { dName, dDefinition = DForeign ffiType })
           = Just (dName, ffiType)
+        -- Recursive DeclGroups can't have foreign decls
         getForeign _ = Nothing
+
+#ifdef FFI_ENABLED
+
+-- | Add the given foreign declarations to the environment, loading their
+-- implementations from the given 'ForeignSrc'. This is a separate pass from the
+-- main evaluation functions in "Cryptol.Eval" since it only works for the
+-- Concrete backend.
+evalForeignDecls :: ForeignSrc -> [(Name, FFIFunType)] -> EvalEnv ->
+  Eval (Either [FFILoadError] EvalEnv)
+evalForeignDecls fsrc decls env = io do
+  ePrims <- for decls \(name, ffiType) ->
+    fmap ((name,) . foreignPrimPoly name ffiType) <$>
+      loadForeignImpl fsrc (unpackIdent $ nameIdent name)
+  pure case partitionEithers ePrims of
+    ([], prims) -> Right $ foldr (uncurry bindVarDirect) env prims
+    (errs, _)   -> Left errs
 
 -- | Generate a 'Prim' value representing the given foreign function, containing
 -- all the code necessary to marshal arguments and return values and do the
@@ -153,13 +150,21 @@ foreignPrim name FFIFunType {..} impl tenv = buildFun ffiArgTypes []
   marshalArg (FFIBasic t) val f = getMarshalBasicArg t \m -> do
     arg <- m val
     f [SomeFFIArg arg]
-  marshalArg (FFIArray (evalFinType -> n) t) val f =
-    getMarshalBasicArg t \m -> do
-      args <- traverse (>>= m) $ enumerateSeqMap n $ fromVSeq val
-      -- Since we need to do an Eval action in an IO callback, we need to
-      -- manually unwrap and wrap the Eval datatype
+  marshalArg (FFIArray (map evalFinType -> sizes) t) val f =
+    getMarshalBasicArg t \m ->
+      -- Since we need to do Eval actions in an IO callback, we need to manually
+      -- unwrap and wrap the Eval datatype
       Eval \stk ->
-        withArray args \ptr ->
+        allocaArray (fromInteger $ product sizes) \ptr -> do
+          -- Traverse the nested sequences and write the elements to the array
+          -- in order
+          let write (n:ns) !i v = do
+                vs <- traverse (runEval stk) $ enumerateSeqMap n $ fromVSeq v
+                foldlM (write ns) i vs
+              write [] !i v = do
+                runEval stk (m v) >>= pokeElemOff ptr i
+                pure (i + 1)
+          _ <- write sizes 0 val
           runEval stk $ f [SomeFFIArg ptr]
   marshalArg (FFITuple types) val f = do
     vals <- sequence $ fromVTuple val
@@ -177,17 +182,26 @@ foreignPrim name FFIFunType {..} impl tenv = buildFun ffiArgTypes []
           go ((t, v):tvs) prevArgs = marshalArg t v \currArgs ->
             go tvs (prevArgs ++ currArgs)
 
-  -- Given a FFIType and a GetRet, obtain a return value and convert it to a
+  -- Given an FFIType and a GetRet, obtain a return value and convert it to a
   -- Cryptol value. The return value is obtained differently depending on the
   -- FFIType.
   marshalRet :: FFIType -> GetRet -> Eval (GenValue Concrete)
   marshalRet FFIBool gr = VBit . toBool <$> io (getRetAsValue gr @Word8)
   marshalRet (FFIBasic t) gr = getMarshalBasicRet t (io (getRetAsValue gr) >>=)
-  marshalRet (FFIArray (evalFinType -> n) t) gr = getMarshalBasicRet t \m ->
-    fmap (VSeq n . finiteSeqMap Concrete . map m) $
-      io $ allocaArray (fromInteger n) \ptr -> do
-        getRetAsOutArgs gr [SomeFFIArg ptr]
-        peekArray (fromInteger n) ptr
+  marshalRet (FFIArray (map evalFinType -> sizes) t) gr =
+    getMarshalBasicRet t \m ->
+      Eval \stk ->
+        allocaArray (fromInteger $ product sizes) \ptr -> do
+          getRetAsOutArgs gr [SomeFFIArg ptr]
+          let build (n:ns) !i = do
+                -- We need to be careful to actually run this here and not just
+                -- stick the IO action into the sequence with io, or else we
+                -- will read from the array after it is deallocated.
+                vs <- for [0 .. fromInteger n - 1] \j ->
+                  build ns (i * fromInteger n + j)
+                pure $ VSeq n $ finiteSeqMap Concrete $ map pure vs
+              build [] !i = peekElemOff ptr i >>= runEval stk . m
+          build sizes 0
   marshalRet (FFITuple types) gr = VTuple <$> marshalMultiRet types gr
   marshalRet (FFIRecord typeMap) gr =
     VRecord . recordFromFields . zip (displayOrder typeMap) <$>
@@ -274,8 +288,8 @@ withWordType FFIWord64 f = f $ Proxy @Word64
 
 -- | Dummy implementation for when FFI is disabled. Does not add anything to
 -- the environment.
-evalForeignDecls :: ModulePath -> Module -> EvalEnv ->
-  Eval (Either [FFILoadError] (ForeignSrc, EvalEnv))
-evalForeignDecls _ _ _ = pure $ Left []
+evalForeignDecls :: ForeignSrc -> [(Name, FFIFunType)] -> EvalEnv ->
+  Eval (Either [FFILoadError] EvalEnv)
+evalForeignDecls _ _ env = pure $ Right env
 
 #endif
