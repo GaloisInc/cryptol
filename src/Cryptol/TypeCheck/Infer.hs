@@ -71,6 +71,7 @@ import           Data.Function(on)
 import           Control.Monad(zipWithM, unless, foldM, forM_, mplus, zipWithM,
                                unless, foldM, forM_, mplus, when)
 import           Data.Bifunctor (Bifunctor(second))
+import qualified Data.List as List
 
 
 
@@ -1152,28 +1153,60 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
       e2 <- applySubst e1
       pure (guards3, e2)
 
-    -- Try to prove that the first guard will be satisfied. If cannot,
-    -- then assume it is false (via `pNegNumeric`) and try to
-    -- prove that the second guard will be satisfied. If cannot, then
-    -- assume it is false, and so on. If the last guard cannot be proven
-    -- in this way, then issue a `NonExhaustivePropGuards` warning. Note
-    -- that when assuming that a conjunction of constraints is false,
-    -- this results in a disjunction, and so must check exhaustive under
-    -- assumption that each disjunct is false independently i.e.
-    -- `checkExhaustive` branches on conjunctions.
+    {-
+    Given a DPropGuards of the form
+
+    @
+    f : {...} A
+    f | (B1, B2) => ... 
+      | (C1, C2, C2) => ... 
+    @
+
+    we check that it is exhaustive by trying to prove the following
+    implications:
+
+    @
+      A /\ ~B1 => C1 /\ C2 /\ C3
+      A /\ ~B2 => C1 /\ C2 /\ C3 
+    @
+
+    The implications were derive by the following general algorithm:
+    - Find that @(C1, C2, C3)@ is the guard that has the most conjuncts, so we
+      will keep it on the RHS of the generated implications in order to minimize
+      the number of implications we need to check.
+    - Negate @(B1, B2)@ which yields @(~B1) \/ (~B2)@. This is a disjunction, so
+      we need to consider a branch for each disjunct --- one branch gets the
+      assumption @~B1@ and another branch gets the assumption @~B2@. Each
+      branch's implications need to be proven independently.
+
+    -}
     checkExhaustive :: Name -> [Prop] -> [[Prop]] -> InferM Bool
-    checkExhaustive _name _asmps [] = pure False -- empty GuardProps
-    -- checkExhaustive asmps [guard] = do
-    --   canProve asmps (toGoal <$> guard)
-    checkExhaustive name asmps (guard : guards) =
-      if null guards then
-        canProve asmps (toGoal <$> guard)
-      else 
-        canProve asmps (toGoal <$> guard) >>= \case
-          True -> pure True
-          False -> and <$> mapM
-            (\asmps' -> checkExhaustive name (asmps <> asmps') guards)
-            (pNegNumeric guard)
+    checkExhaustive name asmps guards = 
+      -- sort in decreasing order of number of conjuncts
+      let c props1 props2 = 
+            -- reversed, so that sorting is in decreasing order
+            compare (length props2) (length props1)
+      in
+      case sortBy c guards of
+        [] -> pure False -- empty PropGuards 
+        -- singleton
+        [props] -> canProve asmps (toGoal <$> props)
+        (props : guards) -> 
+          -- Keep `props` on the RHS of implication. Negate each of `guards` and
+          -- move to RHS. For each negation of a conjunction, a disjunction is
+          -- yielded, which multiplies the number of implications that we need
+          -- to check. So that's why we chose the guard with the largest
+          -- conjunction to stay on RHS.
+          let 
+            goals = toGoal <$> props
+            impls = go asmps guards
+              where 
+                go asmps [] = pure $ canProve asmps goals
+                go asmps (guard : guards) = do
+                  neg_guard <- pNegNumeric guard
+                  go (asmps <> neg_guard) guards
+          in
+            and <$> sequence impls
       where
         toGoal :: Prop -> Goal
         toGoal prop =
@@ -1185,6 +1218,8 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
         canProve :: [Prop] -> [Goal] -> InferM Bool
         canProve asmps' goals = isRight <$>
           tryProveImplication (Just name) as asmps' goals
+      
+
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
