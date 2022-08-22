@@ -867,9 +867,9 @@ disjunction of conjunctions.
 {-|
 Examples:
 @
-  [(x == y)]          =>  Just [[(x /= y)]]
-  [(fin x)]           =>  Just [[(x == inf)]]
-  [(x <= y)]          =>  Just [[(x >= y), (x /= y)]]
+  [(x == y)]            =>  Just [[(x /= y)]]
+  [(fin x)]             =>  Just [[(x == inf)]]
+  [(x <= y)]            =>  Just [[(x >= y), (x /= y)]]
   [(x == y), (x == z)]  =>  Just [[(x /= y)], [(x /= z)]]
 @
 -}
