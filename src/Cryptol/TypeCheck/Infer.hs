@@ -1057,7 +1057,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
           t1     <- applySubst t0
           cases1 <- mapM (checkPropGuardCase name asmps1) cases0
 
-          checkExhaustive name asmps1 (fst <$> cases1) >>= \case
+          checkExhaustive name asmps1 [ props | (props, _) <- cases1 ] >>= \case
             True ->
               -- proved exhaustive
               pure ()
