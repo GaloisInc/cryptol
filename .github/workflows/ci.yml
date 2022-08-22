@@ -160,7 +160,7 @@ jobs:
       - if: runner.os == 'Windows'
         run: .github/wix.ps1
 
-      - if: runner.os == 'Windows'
+      - if: runner.os == 'Windows' && github.event.pull_request.head.repo.fork == false
         shell: bash
         env:
           SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
@@ -183,7 +183,8 @@ jobs:
         env:
           OS_TAG: ${{ matrix.os }}
 
-      - shell: bash
+      - if: github.event.pull_request.head.repo.fork == false
+        shell: bash
         env:
           SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
