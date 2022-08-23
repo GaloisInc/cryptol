@@ -244,6 +244,9 @@ sample solcons = do
                 )
             `traverse` (vars `V.zip` as)
 
+    -- In theory, this should work with dependencies correctly, since if
+    -- sampling something depends on sampling something else first, then if will
+    -- trigger a statefull sampling which does that.
     vals <- sampleVar `traverse` vars
     pure vals
   -- sample all the vars
