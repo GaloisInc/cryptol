@@ -45,7 +45,13 @@ data Range
     EqualAndUpperBounded (Exp Nat') [Exp Nat']
   | -- already sampled
     Fixed Nat'
-  deriving (Show)
+
+instance Show Range where 
+  show = \case 
+    UpperBounded exps -> "UpperBounded " ++ show exps
+    EqualAndUpperBounded exp exps -> "EqualAndUpperBounded (" ++ show exp ++ ")" ++ " " ++ show exps
+    Fixed na -> "Fixed (" ++ show na ++ ")"
+
 
 {-
 Sample solved constraints
@@ -67,14 +73,13 @@ Sample solved constraints
 sample :: SolvedConstraints Nat' -> SamplingM (Vector Integer)
 sample solcons = do
   debug $ "breakpoint Numeric.Sampling.Sampling:1"
-  let nVars = SolCons.countVars solcons
-      vars = V.generate nVars Var
+  let vars = V.generate (SolCons.nVars solcons) Var
 
-  debug $ "nVars = " ++ show nVars
+  debug $ "nVars = " ++ show (SolCons.nVars solcons)
 
   let solsys = SolCons.solsys solcons
 
-  let initRanges = V.replicate nVars (UpperBounded [Exp.fromConstant nVars Inf])
+  let initRanges = V.replicate (SolCons.nVars solcons) (UpperBounded [Exp.fromConstant (SolCons.nVars solcons) Inf])
 
   vals <- flip evalStateT initRanges do
     let getRange :: Var -> StateT (Vector Range) SamplingM Range
@@ -156,9 +161,11 @@ sample solcons = do
                     lift $ debug' 2 $ "i' = " ++ show i
                     lift $ debug' 2 $ "ai' = " ++ show ai'
                     lift $ debug' 2 $ "bs = " ++ show bs
-                    lift $ debug' 2 $ "upper-bounding " ++ show i' ++ " by " ++ show (fmap (`divNat'` ai') <$> bs)
-                    addUpperBounds i' (fmap (`divNat'` ai') <$> bs)
-                    pure $ fmap (+ negate (Exp.extractTerm i' e)) bs
+                    let bs' = fmap (`divNat'` ai') <$> bs
+                    lift $ debug' 2 $ "upper-bounding " ++ show i' ++ " by " ++ show bs'
+                    addUpperBounds i' bs'
+                    let bs'' = fmap (Exp.// [(i', 0)]) bs
+                    pure bs''
                 )
                 bs
                 iPtvs
@@ -166,47 +173,20 @@ sample solcons = do
               foldM_
                 ( \e' i' -> do
                     let ai' = e Exp.! i'
-                    lift $ debug' 2 $ "upper-bounding " ++ show i' ++ " by " ++ show ((`divNat'` ai') <$> e')
-                    addUpperBounds i' [(`divNat'` ai') <$> e']
-                    pure $ e' - Exp.single nVars ai' i'
+                    e' <- pure $ (Exp.// [(i', 0)]) . fmap (`divNat'` ai') $ e'
+                    lift $ debug' 2 $ "upper-bounding " ++ show i' ++ " by " ++ show e'
+                    addUpperBounds i' [e']
+                    pure e'
                 )
                 e
                 iNegs
-              -- addd equality
+              -- add equality
               setEqual i e
-            -- OLD
-            {-
-              rs <- pure $ setEqual i e rs
-              let iNegs = Var <$> V.findIndices (< 0) as -- vars in neg terms
-              -- e' starts off with only pos non-0 terms, then bounds each
-              -- neg term iteratively by subtracting from e' e.g. an example
-              -- sequence of iterations:
-              --    e  = x + y - z - w
-              --    e' := x + y
-              --    z <= e' = x + y
-              --    e' <- x + y - z
-              --    w <= e' = x + y - z
-              let e' = (\a -> if a > 0 then a else 0) <$> e
-              pure . snd $
-                foldr
-                  ( \i' (e', rs) ->
-                      ( -- re-include negative term of var i'
-                        e' Exp.// [(i', e Exp.! i')],
-                        -- upper bound var i' by current e'
-                        -- TODO: doesn't account for coeff of xi', need to divide by that
-                        addUpperBound i' e' rs
-                      )
-                  )
-                  (e', rs)
-                  iNegs
-            -- if variable is free, then just upper bounded by inf by
-            -- default
-            -}
             Nothing -> pure ()
       )
-      (V.generate nVars Var `V.zip` solsys)
+      (V.generate (SolCons.nVars solcons) Var `V.zip` solsys)
 
-    do
+    void do
       rs <- get
       lift $ debug' 1 $ "rs =\n" ++ unlines (("  " ++) . show <$> V.toList rs)
       throwError $ SamplingError "sample" "BREAK"
