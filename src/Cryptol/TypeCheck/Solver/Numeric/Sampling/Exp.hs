@@ -60,7 +60,7 @@ extendN m (Exp as c) = Exp (as <> V.replicate m 0) c
 
 -- Exp n a -> Exp m a
 pad :: Num a => Int -> Exp a -> Exp a
-pad m e@(Exp as c)
+pad m e@(Exp as _)
   | n <- V.length as, n <= m = extendN (m - n) e
   | otherwise = error "tried to pad an `Exp` that is larger than the padding"
 

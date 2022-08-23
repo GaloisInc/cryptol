@@ -59,8 +59,11 @@ overSystem k cons = do
 data Tc a = Tc TcName (Exp a)
   deriving (Show, Functor)
 
-overTcExp :: Monad m => (Exp a -> m (Exp b)) -> (Tc a -> m (Tc b))
-overTcExp k (Tc tcName e) = Tc tcName <$> k e
+overTcExp :: (Exp a -> Exp b) -> (Tc a -> Tc b)
+overTcExp k (Tc tcName e) = Tc tcName (k e)
+
+overTcExpM :: Monad m => (Exp a -> m (Exp b)) -> (Tc a -> m (Tc b))
+overTcExpM k (Tc tcName e) = Tc tcName <$> k e
 
 expFromTc :: Tc a -> Maybe (Exp a)
 expFromTc (Tc _ e) = Just e
@@ -101,7 +104,7 @@ asExp f (Equ e) = f e
 overExp :: (Exp a -> Exp b) -> (Equ a -> Equ b)
 overExp f (Equ e) = Equ (f e)
 
-data TcName = FinTc | PrimTc
+data TcName = FinTc | PrimeTc
   deriving (Show)
 
 -- | toConstraints

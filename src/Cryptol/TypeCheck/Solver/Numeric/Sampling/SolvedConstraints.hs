@@ -24,6 +24,7 @@ import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.System as Sys
 import Cryptol.TypeCheck.Type (TParam)
 import Cryptol.Utils.PP (pp, ppList)
 import Data.Bifunctor (Bifunctor (first))
+import qualified Data.List as L
 import Data.Vector (Vector)
 import qualified Data.Vector as V
 import GHC.Real
@@ -33,11 +34,12 @@ data SolvedConstraints a = SolvedConstraints
   { solsys :: SolvedSystem a,
     tcs :: [Tc a],
     tparams :: Vector TParam,
-    nVars :: Int
+    nVars :: Int,
+    depOrder :: Vector Var
   }
 
 instance Show a => Show (SolvedConstraints a) where
-  show solcons@SolvedConstraints {..} =
+  show SolvedConstraints {..} =
     unlines
       [ "SolvedConstraints:",
         "  solsys:\n"
@@ -46,7 +48,7 @@ instance Show a => Show (SolvedConstraints a) where
                 ( ("    " ++)
                     . (\(i, s) -> "x{" ++ show i ++ "} = " ++ s)
                 )
-                . V.zip (V.generate (countVars solcons) id)
+                . V.zip (V.generate nVars id)
                 . fmap (maybe "free" show)
                 $ solsys
             ),
@@ -54,10 +56,6 @@ instance Show a => Show (SolvedConstraints a) where
         "  tparams: " ++ show (ppList (V.toList (pp <$> tparams))),
         "  nVars:  " ++ show nVars
       ]
-
--- includes generated vars
-countVars :: SolvedConstraints a -> Int
-countVars solcons = V.length (solsys solcons)
 
 toSolvedConstraints :: (Num a, Eq a) => Constraints a -> SamplingM (SolvedConstraints a)
 toSolvedConstraints cons@Cons.Constraints {..} = do
@@ -67,8 +65,56 @@ toSolvedConstraints cons@Cons.Constraints {..} = do
       { solsys = solsys,
         tcs = tcs,
         tparams = tparams,
-        nVars = nVars
+        nVars = nVars,
+        depOrder = inferDepOrd solsys
       }
+
+-- |
+-- Infers the dependency order on a system of solved equations. For example,
+-- consider the following system of equations over the variables @<x,y,z,w>@.
+-- @
+--   x = z + 1
+--   y = z + 2
+--   w = x + 4
+-- @
+-- Then the dependency order is
+-- @
+--   z -> y -> x -> w
+-- @
+-- since @z@ determined @y@ and @x@, and @x@ determines @w@. Since @x@ doesn't
+-- depend on @y@ and visa versa, and permutation of @x@ and @y@ is a valid
+-- dependency order. This result is encoded by the vector
+-- @
+--   <z,y,x,w>
+-- @
+inferDepOrd :: forall a. (Eq a, Num a) => SolvedSystem a -> Vector Var
+inferDepOrd solsys = go deps V.empty
+  where
+    go :: Vector (Vector Var) -> Vector Var -> Vector Var
+    go deps depOrd =
+      -- collect vars that depend only on `depOrd`
+      -- partition vars by whether they depend only on `depOrd`
+      let vs = Var <$> V.findIndices (`depOnly` depOrd) deps
+       in if V.null deps
+            then if V.null vs then error "impossible" else depOrd
+            else go (removeVarDeps vs deps) (depOrd <> vs)
+
+    deps :: Vector (Vector Var)
+    deps = maybe V.empty inferDeps <$> solsys
+
+    -- whether `xs` depends only on `ys`
+    depOnly :: Vector Var -> Vector Var -> Bool
+    depOnly xs ys = all (`elem` ys) xs
+
+    inferDeps :: Exp a -> Vector Var
+    inferDeps (Exp as _) = Var <$> V.findIndices (0 /=) as
+
+    removeVarDeps :: Vector Var -> Vector (Vector Var) -> Vector (Vector Var)
+    removeVarDeps is deps =
+      fst $
+        V.partitionWith
+          (\(i, deps) -> if i `elem` is then Left deps else Right ())
+          (V.zipWith (,) (V.generate (V.length deps) Var) deps)
 
 freshFreeVar :: Num a => SolvedConstraints a -> (SolvedConstraints a, Var)
 freshFreeVar cons@SolvedConstraints {..} =
@@ -134,10 +180,10 @@ toSolvedSystem nVars sys = do
             Just i
               | e Exp.! i == 1 -> pure $ Just (i, Exp.solveFor i e)
               | otherwise ->
-                  throwSamplingError $
-                    SamplingError
-                      "toSolvedSystem"
-                      "A leftmost non-0 coeff in row is not 1"
+                throwSamplingError $
+                  SamplingError
+                    "toSolvedSystem"
+                    "A leftmost non-0 coeff in row is not 1"
             Nothing -> pure Nothing
 
 -- | SolvedSystem n -> SolvedSystem (n + m)
@@ -179,17 +225,15 @@ extendN m sys = fmap (Exp.extendN m) <$> sys
 elimDens :: SolvedConstraints Q -> SamplingM (SolvedConstraints Nat')
 elimDens solcons = do
   -- elim dens
-  solcons <- foldM fold solcons (Var <$> [0 .. n - 1])
+  solcons <- foldM fold solcons (Var <$> [0 .. nVars solcons - 1])
   -- cast to Nat'
   solcons <- do
     solsys <- mapM (maybe (pure Nothing) (fmap pure . cast_ExpQ_ExpNat')) (solsys solcons)
-    tcs <- mapM (Cons.overTcExp cast_ExpQ_ExpNat') (tcs solcons)
+    tcs <- Cons.overTcExpM cast_ExpQ_ExpNat' `traverse` tcs solcons
+    -- mapM (Cons.overTcExp cast_ExpQ_ExpNat') (tcs solcons)
     pure solcons {solsys = solsys, tcs = tcs}
   pure solcons
   where
-    n = countVars solcons
-
-    -- TODO: also need to eliminate dens in tcs
     fold ::
       SolvedConstraints Q ->
       Var ->
@@ -216,25 +260,42 @@ elimDens solcons = do
             where
               dens = fromInteger . denom <$> coeffs
 
-      solcons <- case solsys solcons ! j of
-        Nothing -> do
-          -- intro fresh free var `xk`
-          (solcons, k) <- pure $ freshFreeVar solcons
-          -- set equ `xj = a*xk`
-          solcons <- pure $ setEquation solcons j (Just $ Exp.single (nVars solcons) a k)
-          -- TODO: replace all appearances of `b*xj` with `(a*b)xk`
-          --
-          pure solcons
-        Just e -> do
-          -- intro fresh free var `xk`
-          (solcons, k) <- pure $ freshFreeVar solcons
-          -- set equ `xk = e/a`
-          solcons <- pure $ setEquation solcons k (Just $ (/ a) <$> e)
-          -- set equ `xj = a*xk`
-          solcons <- pure $ setEquation solcons j (Just $ Exp.single (nVars solcons) a k)
-          -- TODO: replace all appearances of `b*xj` with `(a*b)xk`
-          --
-          pure solcons
+      solcons <-
+        if a /= 1
+          then do
+            -- intro fresh free var `xk`
+            (solcons, k) <- pure $ freshFreeVar solcons
+            debug' 1 $ "in order to elim den of " ++ show j ++ ", intro fresh var " ++ show k
+
+            -- set equ `xk = ...`
+            solcons <- case solsys solcons ! j of
+              Nothing -> do
+                -- set equ `xk = free` if we had `xj = free`
+                pure solcons
+              Just e -> do
+                -- set equ `xk = e/a` if we had `xj = e`
+                pure $ setEquation solcons k (Just $ (/ a) <$> e)
+
+            -- set equ `xj = a*xk`
+            solcons <- pure $ setEquation solcons j (Just $ Exp.single (nVars solcons) a k)
+
+            -- substitute appearances of `b*xj` with `(a*b)xk`
+            solcons <- do
+              let subst e =
+                    if b /= 0
+                      then e Exp.// [(j, 0), (k, a * b)]
+                      else e
+                    where
+                      b = e Exp.! j
+              pure
+                solcons
+                  { solsys = fmap subst <$> solsys solcons,
+                    tcs = Cons.overTcExp subst <$> tcs solcons
+                  }
+
+            --
+            pure solcons
+          else pure solcons
 
       --
       pure solcons

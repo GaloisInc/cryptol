@@ -161,14 +161,14 @@ fromProps tps props = do
 -}
 normalizePreconstraints :: Preconstraints -> SamplingM Preconstraints
 normalizePreconstraints precons = do
-  ((preprops', preprops''), i) <-
+  ((preprops', preprops''), nVars) <-
     flip runStateT (nVars precons) . runWriterT $
       normPProp `traverse` preprops precons
   pure
     precons
       { preprops = preprops' <> preprops'',
         -- , params = params precons <> V.generate i SPFresh
-        nVars = nVars precons + i
+        nVars = nVars
       }
   where
     normPProp :: PProp -> WriterT [PProp] (StateT Int SamplingM) PProp
