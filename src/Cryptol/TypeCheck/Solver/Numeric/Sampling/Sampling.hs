@@ -189,7 +189,7 @@ sample solcons = do
     void do
       rs <- get
       lift $ debug' 1 $ "rs =\n" ++ unlines (("  " ++) . show <$> V.toList rs)
-      throwError $ SamplingError "sample" "BREAK"
+      -- throwError $ SamplingError "sample" "BREAK"
 
     -- sample all the vars
     let liftR :: (TFGen -> (a, TFGen)) -> StateT (Vector Range) SamplingM a
