@@ -21,8 +21,13 @@ runSamplingM m = do
   flip evalStateT g . runExceptT $ m
 
 debug :: String -> SamplingM ()
-debug = liftIO . putStrLn
+-- debug = liftIO . putStrLn
+debug = const (pure ())
 
+debug' :: Int -> String -> SamplingM ()
+debug' lvl 
+  | lvl <= 2 = liftIO . putStrLn
+  | otherwise = const (pure ())
 
 throwSamplingError :: SamplingError -> SamplingM a
 throwSamplingError = throwError

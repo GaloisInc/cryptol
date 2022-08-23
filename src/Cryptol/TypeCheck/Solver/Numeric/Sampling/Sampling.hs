@@ -8,19 +8,24 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Redundant pure" #-}
 
 module Cryptol.TypeCheck.Solver.Numeric.Sampling.Sampling where
 
 import Control.Monad
+import Control.Monad.Except (MonadError (throwError), ExceptT)
 import Control.Monad.State as State
 import Cryptol.Testing.Random (Gen)
 import Cryptol.TypeCheck.Solver.InfNat
 import qualified Cryptol.TypeCheck.Solver.InfNat as Nat'
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Constraints as Cons
-import Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp (Exp(..), Var(..))
 import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp as Exp
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Q
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.SolvedConstraints (SolvedConstraints)
+import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.SolvedConstraints as SolCons
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.System as Sys
 import Cryptol.TypeCheck.Type
 import qualified Data.List as L
@@ -30,22 +35,31 @@ import qualified Data.Vector as V
 import GHC.Real
 import System.Random.TF.Gen (TFGen)
 import System.Random.TF.Instances (Random (randomR))
-import Cryptol.TypeCheck.Solver.Numeric.Sampling.SolvedConstraints (SolvedConstraints)
-import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.SolvedConstraints as SolCons
+import Cryptol.TypeCheck.PP (pretty)
 
-data Range = UpperBounds [Exp Nat'] | Single (Exp Nat')
+data Range
+  = -- upper-bounded by expressions
+    UpperBounded [Exp Nat']
+  | -- equal to an expression, and upper-bounded by expressions
+    EqualAndUpperBounded (Exp Nat') [Exp Nat']
+  | -- already sampled
+    Fixed Nat'
+  deriving (Show)
 
 {-
 Sample solved constraints
 1. Collect upper bounds on each var
 2. Sampling procedure:
   1. Sample each var in order, statefully keeping track of samplings so far
-  2. To sample a var: If it's `Range` is `Single` then the variable's value is
-    equal to the sampling of the one expression, so sample that expression. If
-    it's `Range` is `UpperBounds` then sample each upper-bounding expression
+  2. To sample a var: If it's `Range` is `EqualAndUpperBounded` then the variable's value is
+    equal to the sampling of the one expression, so sample that expression.
+
+    -- TODO: talk about how EqualAndUpperBounded can be upperbounded too
+
+    If it's `Range` is `UpperBounded` then sample each upper-bounding expression
     then sample a value (TODO: how to weight choice) between `0` and the minimum
     of the sampled upper-bounding values. Then update the variable's `Range` to
-    be `Single` of the value just sampled for it.
+    be `EqualAndUpperBounded` of the value just sampled for it.
 -}
 
 -- TODO: make use of `fin` type constraint
@@ -59,28 +73,107 @@ sample solcons = do
 
   let solsys = SolCons.solsys solcons
 
-  -- collect the range of each var
-  rngs <- do
-    let getRange :: Var -> Vector Range -> Range
-        getRange i rngs = rngs V.! unVar i
+  let initRanges = V.replicate nVars (UpperBounded [Exp.fromConstant nVars Inf])
 
-        setSingle :: Var -> Exp Nat' -> Vector Range -> Vector Range
-        setSingle i e = (V.// [(unVar i, Single e)])
+  vals <- flip evalStateT initRanges do
+    let getRange :: Var -> StateT (Vector Range) SamplingM Range
+        getRange i = gets (V.! unVar i)
 
-        addUpperBound :: Var -> Exp Nat' -> Vector Range -> Vector Range
-        addUpperBound i e rngs = case getRange i rngs of
-          UpperBounds bnds -> rngs V.// [(unVar i, UpperBounds (e : bnds))]
-          Single _ -> rngs -- upper bounding an equality is a nullop
-    V.foldM
-      ( \rngs (i, mb_e) -> do
-          debug $ "breakpoint Numeric.Sampling.Sampling:2"
-          debug $ "i   = " ++ show i
-          debug $ "mb_e = " ++ show mb_e
+    let setEqual :: Var -> Exp Nat' -> StateT (Vector Range) SamplingM ()
+        -- setEqual i e = (V.// [(unVar i, EqualAndUpperBounded e [])])
+        setEqual i e = getRange i >>= \case
+          UpperBounded bs -> modify (V.// [(unVar i, EqualAndUpperBounded e bs)])
+          EqualAndUpperBounded _ _ -> throwError $ SamplingError "sample" "A variable was solved for more than once, which should never result from Gaussian elimination."
+          Fixed _ -> throwError $ SamplingError "sample" "Attempted to `setEqual` a `Fixed` range variable"
+
+    let addUpperBounds :: Var -> [Exp Nat'] -> StateT (Vector Range) SamplingM ()
+        addUpperBounds i bs' =
+          getRange i >>= \case
+            UpperBounded bs -> modify (V.// [(unVar i, UpperBounded (bs <> bs'))])
+            -- FIX: if x = y and x is bounded by 3, then this will ignore that
+            -- bound, and so y can be assigned to 10 and then x will also be 10
+            EqualAndUpperBounded e bs -> modify (V.// [(unVar i, EqualAndUpperBounded e (bs <> bs'))])
+            -- can't upper-bound something that's already fixed...
+            -- TODO: this shouldn't happen!
+            -- TODO: should this be an error?
+            Fixed _ -> pure ()
+
+    let setFixed :: Var -> Nat' -> StateT (Vector Range) SamplingM ()
+        setFixed i n' = modify (V.// [(unVar i, Fixed n')])
+
+        divNat' :: Nat' -> Nat' -> Nat'
+        Inf `divNat'` Inf = Nat 1
+        Inf `divNat'` Nat n | n > 0 = Inf
+        Inf `divNat'` Nat n | n < 0 = error "Attempted to divide Inf by a negative."
+        Inf `divNat'` Nat n = error "Attempted to divide Inf by zero."
+        Nat n `divNat'` Inf = Nat 0
+        Nat n1 `divNat'` Nat n2 = Nat (n1 `div` n2)
+
+    -- accumulate ranges
+    V.mapM_
+      ( \(i, mb_e) -> do
+          -- debug $ "breakpoint Numeric.Sampling.Sampling:2"
+          -- debug $ "i   = " ++ show i
+          -- debug $ "mb_e = " ++ show mb_e
           case mb_e of
-            -- register equ for `xi = e` if there are subtractions in `e`,
-            -- then register those upper bounds
             Just e@(Exp as c) -> do
-              rngs <- pure $ setSingle i e rngs
+              -- We need to account for the upper bounds on `xi` when
+              -- determining the upper bounds on the positive terms in `e`.
+              bs <- getRange i >>= \case
+                UpperBounded bs -> pure bs
+                EqualAndUpperBounded _ _ -> throwError $ SamplingError "sample" "A variable has a `EqualAndUpperBounded` range before handling its equation during the upper-bounding pass."
+                Fixed _ -> throwError $ SamplingError "sample" "A variable has a `Fixed` range during the upper-bounding pass."
+              --
+              -- positive-coefficient and negative-coefficient variables
+              let iPtvs = Var <$> V.findIndices (0 <) as
+                  iNegs = Var <$> V.findIndices (0 >) as
+              -- 
+              -- Suppose we have
+              -- 
+              --   x = 2y + 3z + (-4)u + (-5)v <= 10
+              -- 
+              -- First, upper-bound all of the positive-coefficient variables
+              -- like so:
+              -- 
+              --    y <= 10/2
+              --    z <= (10 - 2y)/3
+              -- 
+              -- Second, upper-bound all of the negative-coefficient variables
+              -- like so:
+              -- 
+              --    u <= (2y + 3z)/4
+              --    v <= (2y + 3z - 4u)/5
+              -- 
+              -- upper-bound ptv-coeff vars
+              -- 
+              lift $ debug' 2 $ "as = " ++ show (V.toList as)
+              foldM_
+                ( \bs i' -> do
+                    let ai' = e Exp.! i'
+                    lift $ debug' 2 $ "i' = " ++ show i
+                    lift $ debug' 2 $ "ai' = " ++ show ai'
+                    lift $ debug' 2 $ "bs = " ++ show bs
+                    lift $ debug' 2 $ "upper-bounding " ++ show i' ++ " by " ++ show (fmap (`divNat'` ai') <$> bs)
+                    addUpperBounds i' (fmap (`divNat'` ai') <$> bs)
+                    pure $ fmap (+ negate (Exp.extractTerm i' e)) bs
+                )
+                bs
+                iPtvs
+              -- upper-bound neg-coeff vars
+              foldM_
+                ( \e' i' -> do
+                    let ai' = e Exp.! i'
+                    lift $ debug' 2 $ "upper-bounding " ++ show i' ++ " by " ++ show ((`divNat'` ai') <$> e')
+                    addUpperBounds i' [(`divNat'` ai') <$> e']
+                    pure $ e' - Exp.single nVars ai' i'
+                )
+                e
+                iNegs
+              -- addd equality
+              setEqual i e
+            -- OLD
+            {-
+              rs <- pure $ setEqual i e rs
               let iNegs = Var <$> V.findIndices (< 0) as -- vars in neg terms
               -- e' starts off with only pos non-0 terms, then bounds each
               -- neg term iteratively by subtracting from e' e.g. an example
@@ -93,51 +186,71 @@ sample solcons = do
               let e' = (\a -> if a > 0 then a else 0) <$> e
               pure . snd $
                 foldr
-                  ( \i' (e', rngs) ->
+                  ( \i' (e', rs) ->
                       ( -- re-include negative term of var i'
                         e' Exp.// [(i', e Exp.! i')],
                         -- upper bound var i' by current e'
-                        addUpperBound i' e' rngs
+                        -- TODO: doesn't account for coeff of xi', need to divide by that
+                        addUpperBound i' e' rs
                       )
                   )
-                  (e', rngs)
+                  (e', rs)
                   iNegs
             -- if variable is free, then just upper bounded by inf by
             -- default
-            Nothing -> pure rngs
+            -}
+            Nothing -> pure ()
       )
-      (V.replicate nVars (UpperBounds [Exp.fromConstant nVars Inf]))
       (V.generate nVars Var `V.zip` solsys)
 
-  -- sample all the vars
-  do
-    let liftR :: (TFGen -> (a, TFGen)) -> SamplingM a
-        liftR = undefined
-      
-        getRange :: Var -> StateT (Vector Range) SamplingM Range
-        getRange i = gets (V.! unVar i)
+    do
+      rs <- get
+      lift $ debug' 1 $ "rs =\n" ++ unlines (("  " ++) . show <$> V.toList rs)
+      throwError $ SamplingError "sample" "BREAK"
 
-        sampleNat' :: Nat' -> SamplingM Nat'
+    -- sample all the vars
+    let liftR :: (TFGen -> (a, TFGen)) -> StateT (Vector Range) SamplingM a
+        liftR k = do
+          (a, g) <- lift $ gets k
+          lift $ put g
+          pure a
+
+    let sampleNat' :: Nat' -> StateT (Vector Range) SamplingM Nat'
         sampleNat' Inf = Nat <$> liftR (randomR (0, 10)) -- TODO: actually, sample exp dist up to MAX_INT
         sampleNat' (Nat n) = Nat <$> liftR (randomR (0, n))
 
+        minimumUpperBound :: [Exp Nat'] -> StateT (Vector Range) SamplingM Nat'
+        minimumUpperBound [] = pure Inf
+        minimumUpperBound bs = minimum <$> (sampleExp Inf `traverse` bs)
+
         sampleVar :: Var -> StateT (Vector Range) SamplingM Nat'
         sampleVar i = do
+          lift . debug' 1 $ "sampling var: " ++ show i
           range <- getRange i
+          lift . debug' 1 $ "       range: " ++ show range
           -- sample from `Range`
           val <- case range of
-            UpperBounds es -> do
+            UpperBounded bs -> do
               -- upper bound
-              n <- minimum <$> sampleExp `traverse` es
-              lift $ sampleNat' n -- TODO: weight choices
-            Single e -> sampleExp e
-          -- update `Range` to be `xi = val`
-          modify (V.// [(unVar i, Single $ fromConstant nVars val)])
+              n <- minimumUpperBound bs
+              -- TODO: weight choices
+              sampleNat' n
+            EqualAndUpperBounded e bs -> do
+              -- upper bound
+              n <- minimumUpperBound bs
+              -- TODO: weight choices
+              sampleExp n e
+            Fixed n -> pure n
+          -- set xi := val
+          setFixed i val
+          lift . debug' 1 $ "               ==>" ++ show val
           --
           pure val
 
-        sampleExp :: Exp Nat' -> StateT (Vector Range) SamplingM Nat'
-        sampleExp (Exp as c) =
+        -- sample an expression that is upper bounded by a constant
+        sampleExp :: Nat' -> Exp Nat' -> StateT (Vector Range) SamplingM Nat'
+        sampleExp n (Exp as c) = do
+          lift . debug' 1 $ "sampling exp: " ++ show (Exp as c)
           -- only sampleuates terms that have non-0 coeff
           (c +) . V.sum
             <$> ( \(i, a) ->
@@ -147,14 +260,15 @@ sample solcons = do
                 )
             `traverse` (vars `V.zip` as)
 
-    -- sample all the vars
-    vals <- evalStateT (sampleVar `traverse` vars) rngs
-    debug $ "breakpoint Numeric.Sampling.Sampling:3"
-    
+    vals <- sampleVar `traverse` vars
+    pure vals
+  -- sample all the vars
+  -- vals <- evalStateT (sampleVar `traverse` vars) rs
+  debug $ "breakpoint Numeric.Sampling.Sampling:3"
 
-    -- cast to Integer
-    let fromNat' :: Nat' -> Integer
-        fromNat' Inf = integer_max
-        fromNat' (Nat n) = n
-    debug $ "breakpoint Numeric.Sampling.Sampling:4"
-    pure $ fromNat' <$> vals
+  -- cast to Integer
+  let fromNat' :: Nat' -> Integer
+      fromNat' Inf = integer_max
+      fromNat' (Nat n) = n
+  debug $ "breakpoint Numeric.Sampling.Sampling:4"
+  pure $ fromNat' <$> vals

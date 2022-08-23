@@ -46,6 +46,10 @@ fromConstant n = Exp (V.replicate n 0)
 single :: Num a => Int -> a -> Var -> Exp a
 single n a i = fromConstant n 0 // [(i, a)]
 
+-- ... + a*xi + ... => a*xi
+extractTerm :: Num a => Var -> Exp a -> Exp a
+extractTerm i e = single (countVars e) (e ! i) i
+
 -- Exp a -> Exp (n + 1) a
 extend :: Num a => Exp a -> Exp a
 extend (Exp as c) = Exp (V.snoc as 0) c
@@ -59,7 +63,6 @@ pad :: Num a => Int -> Exp a -> Exp a
 pad m e@(Exp as c) 
   | n <- V.length as, n <= m = extendN (m - n) e
   | otherwise = error "tried to pad an `Exp` that is larger than the padding"
-
 
 (!) :: Exp a -> Var -> a
 Exp as _ ! i = as V.! unVar i

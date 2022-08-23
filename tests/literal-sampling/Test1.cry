@@ -1,4 +1,9 @@
 module Test1 where
 
-test : {n} [n] -> Bit
+// test : {n} (n == 1) => [n] -> Bit
+// test x = True
+test : {n} (2 >= n) => [n] -> Bit
 test x = True
+
+test' : [1] -> Bit
+test' x' = True

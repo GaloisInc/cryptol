@@ -48,6 +48,7 @@ import           Data.Maybe(listToMaybe,fromMaybe)
 import System.Random.TF (newTFGen)
 import Cryptol.TypeCheck.Solver.Numeric.Sampling (sample, applySample)
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base (runSamplingM)
+import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling as Sampling
 
 
 
@@ -159,7 +160,7 @@ addIncompatible g i =
 -- substituted variables are omitted). If there are no polymorphic literals,
 -- then Nothing.
 -- TODO: explain sampling distributions
-sampleLiterals :: Schema -> Int -> IO (Maybe [Schema])
+sampleLiterals :: Schema -> Int -> IO (Maybe [(Sampling.Sample, Schema)])
 sampleLiterals schema@Forall {sVars, sProps} nLiteralSamples = do
   -- let (literalVars, otherVars) = partition ((KNum ==) . tpKind) sVars
   let literalVars = filter ((KNum ==) . tpKind) sVars
@@ -167,17 +168,17 @@ sampleLiterals schema@Forall {sVars, sProps} nLiteralSamples = do
     -- there are no literal vars to sample
     pure Nothing
   else Just <$> do
-    putStrLn "breakpoint Solve:1"
+    debugIO "breakpoint Solve:1"
     -- there are some literal vars to sample
     -- each sample in `samples` is a type var subst
     res <- runSamplingM (sample literalVars sProps nLiteralSamples)
-    putStrLn "breakpoint Solve:2"
+    debugIO "breakpoint Solve:2"
     case res of
       Left err -> do
         putStrLn $ "Error while sampling literals: " ++ show err
         pure []
-      Right samples ->
-        pure $ flip applySample schema <$> samples
+      Right samples -> do
+        pure $ (\sample' -> (sample', applySample sample' schema)) <$> samples
 
 defaultReplExpr :: Solver -> Expr -> Schema ->
                     IO (Maybe ([(TParam,Type)], Expr))
@@ -417,3 +418,9 @@ buildSolverCtxt ps0 =
      NoChange -> as
      InvalidInterval {} -> as -- XXX: say something
      NewIntervals bs -> Map.union bs as
+
+
+-- tmp
+
+debugIO :: String -> IO ()
+debugIO = putStrLn . ("[debug.Solve] " ++)

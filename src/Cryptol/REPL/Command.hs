@@ -10,6 +10,7 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
@@ -139,6 +140,8 @@ import Prelude ()
 import Prelude.Compat
 
 import qualified Data.SBV.Internals as SBV (showTDiff)
+import Cryptol.TypeCheck.Solver.Numeric.Sampling (Sample)
+import Data.Bifunctor (Bifunctor(bimap, first))
 
 -- Commands --------------------------------------------------------------------
 
@@ -415,54 +418,107 @@ qcCmd qcMode str pos fnm = do
           let schema = M.ifDeclSig d
           nd <- M.mctxNameDisp <$> getFocusedEnv
           let doc = fixNameDisp nd (pp texpr)
-          -- void (qcExpr qcMode doc texpr schema)
-          go doc texpr schema
+          go doc Nothing texpr schema
     _ -> do
       expr <- replParseExpr str pos fnm
       (_,texpr,schema) <- replCheckExpr expr
       nd <- M.mctxNameDisp <$> getFocusedEnv
       let doc = fixNameDisp nd (ppPrec 3 expr) -- function application has precedence 3
-      -- void (qcExpr qcMode doc texpr schema)
-      go doc texpr schema
+      go doc (Just expr) texpr schema
   where
-    go doc texpr schema = case qcMode of
+    go :: Doc -> Maybe (P.Expr P.PName) -> T.Expr -> T.Schema -> REPL ()
+    go doc mb_expr texpr schema = case qcMode of
       QCExhaust -> do
         testNum <- (toInteger :: Int -> Integer) <$> getKnownUser "tests"
-        void (qcExpr qcMode doc texpr schema testNum)
+        (val, ty) <- replEvalCheckedExpr' texpr schema
+        void (qcExpr qcMode doc texpr schema testNum val ty)
       QCRandom -> do
         testNum <- (toInteger :: Int -> Integer) <$> getKnownUser "tests"
         useLitSampling <- getKnownUser "literalSampling" :: REPL Bool
-        if useLitSampling then do
-          -- do this many tests per sample, until out of tests
-          litBin <- (toInteger :: Int -> Integer) <$> getKnownUser "literalSamplingBin"
-          let litSamplesNum = testNum `div` litBin
-          io (sampleLiterals schema (fromInteger litSamplesNum)) >>= \case
-            Just schemas -> do
-              rPutStrLn "Using literal sampling."
-              (\schema' -> do
-                rPutStrLn $ "qcMode = " ++ show qcMode
-                rPutStrLn $ "doc = " ++ show doc
-                rPutStrLn $ "texpr = " ++ show (pp texpr)
-                rPutStrLn $ "schema' = " ++ show (pp schema')
-                rPutStrLn $ "litBin = " ++ show litBin
-                -- TODO: also need to substitute the sampled solution into the
-                -- expression being checked, since the typechecked expression
-                -- will have type-abstractions for the polymorphic literals that
-                -- I have already substituted away via the sampling. But, as far
-                -- as I can see the `texpr` isn't actually the expression
-                -- itself, but a reference by name or something to the defined
-                -- expression being checked... so how do I substitute only the
-                -- specific type abstractions that I handled via sampling?
-                -- Apparently there is a syntax for doing type applications by
-                -- name e.g. `f {A = [8], B = Bit}`, so maybe I can take
-                -- advtange of that?
-                qcExpr qcMode doc texpr schema' litBin)
-                `mapM_` take (fromInteger $ testNum `div` litBin) schemas
+        if  useLitSampling &&
+            not (null (T.sVars schema)) &&
+            all ((T.KNum ==) . T.tpKind) (T.sVars schema)
+          then do
+          case mb_expr of
             Nothing -> do
-              rPutStrLn "Invalid attempt to use literal sampling, so instead using default literal solution."
-              void (qcExpr qcMode doc texpr schema testNum)
-        else
-          void (qcExpr qcMode doc texpr schema testNum)
+              (val, ty) <- replEvalCheckedExpr' texpr schema
+              void (qcExpr qcMode doc texpr schema testNum val ty)
+            Just expr -> do
+              -- do this many tests per sample, until out of tests
+              litBin <- (toInteger :: Int -> Integer) <$> getKnownUser "literalSamplingBin"
+              let litSamplesNum = testNum `div` litBin
+              io (sampleLiterals schema (fromInteger litSamplesNum)) >>= \case
+                Just samples_schemas -> do
+                  rPutStrLn "Using literal sampling."
+                  debugREPL $ "samples_schemas = " ++ unlines (show . fmap (first pp) . fst <$> samples_schemas)
+
+                  (\(sample, schema') -> do
+                    debugREPL "==[ BEGIN step over sampled schemas ]=="
+                    debugREPL $ "qcMode = " ++ show qcMode
+                    debugREPL $ "doc = " ++ show doc
+                    debugREPL $ "expr = " ++ show (pp expr)
+                    debugREPL $ "schema' = " ++ show (pp schema')
+                    debugREPL $ "litBin = " ++ show litBin
+
+                    -- TODO: also need to substitute the sampled solution into the
+                    -- expression being checked, since the typechecked expression
+                    -- will have type-abstractions for the polymorphic literals that
+                    -- I have already substituted away via the sampling. But, as far
+                    -- as I can see the `texpr` isn't actually the expression
+                    -- itself, but a reference by name or something to the defined
+                    -- expression being checked... so how do I substitute only the
+                    -- specific type abstractions that I handled via sampling?
+                    -- Apparently there is a syntax for doing type applications by
+                    -- name e.g. `f {A = [8], B = Bit}`, so maybe I can take
+                    -- advtange of that?
+
+                    -- this generates a new expression that has the appropriate
+                    -- type arguments given to it according to the sampling,
+                    -- which is then typechecked and evaluated again
+                    let
+                      applySampleToTExpr :: Sample -> P.Expr P.PName -> P.Expr P.PName
+                      applySampleToTExpr sample e = P.EAppT e $ f <$> sample
+                        where
+                          f :: (T.TParam, Integer) -> P.TypeInst P.PName
+                          f (tparam, v) = P.NamedInst $ P.Named
+                            { name = fromTParamToNamedIdent tparam
+                            , value = P.TNum v }
+
+                          fromTParamToNamedIdent :: T.TParam -> P.Located P.Ident
+                          fromTParamToNamedIdent tparam = case T.tvarDesc . T.tpInfo $ tparam of
+                            T.TVFromSignature name -> P.Located {
+                              thing = M.nameIdent name,
+                              srcRange = M.nameLoc name
+                            }
+                            -- TODO: handle other TVar sources??
+                            _ -> undefined
+
+                    expr <- pure $ applySampleToTExpr sample expr
+
+                    debugREPL $ "expr = " ++ pretty expr
+
+                    (_, texpr, schema') <- replCheckExpr expr
+
+                    debugREPL $ "texpr = " ++ pretty texpr
+                    debugREPL $ "schema' = " ++ pretty schema'
+
+                    (val, ty) <- replEvalCheckedExpr' texpr schema'
+
+                    debugREPL $ "val = " ++ show val
+                    debugREPL $ "ty  = " ++ pretty ty
+
+                    qcExpr qcMode doc texpr schema' litBin val ty
+                    )
+                      `mapM_`
+                        take (fromInteger $ testNum `div` litBin) samples_schemas
+                  debugREPL "==[ END step over sampled schemas ]=="
+                Nothing -> do
+                  rPutStrLn "Failed to use literal sampling, so using default literal solution instead."
+                  (val, ty) <- replEvalCheckedExpr' texpr schema
+                  void (qcExpr qcMode doc texpr schema testNum val ty)
+        else do
+          (val, ty) <- replEvalCheckedExpr' texpr schema
+          void (qcExpr qcMode doc texpr schema testNum val ty)
 
 {- OLD
 qcCmd qcMode "" _pos _fnm =
@@ -494,31 +550,45 @@ data TestReport = TestReport
   , reportTestsPossible :: Maybe Integer
   }
 
+replEvalCheckedExpr' :: T.Expr -> T.Schema -> REPL (Concrete.Value, T.Type)
+replEvalCheckedExpr' texpr schema =
+  replEvalCheckedExpr texpr schema >>= \case
+    Just res -> pure res
+       -- If instance is not found, doesn't necessarily mean that there is no
+       -- instance. And due to nondeterminism in result from the solver (for
+       -- finding solution to numeric type constraints), `:check` can get to
+       -- this exception sometimes, but successfully find an instance and test
+       -- with it other times.
+    Nothing -> raise (InstantiationsNotFound schema)
+
 qcExpr ::
   QCMode ->
   Doc ->
   T.Expr ->
   T.Schema ->
   Integer ->
+  Concrete.Value ->
+  T.Type ->
   REPL TestReport
-qcExpr qcMode exprDoc texpr schema testNum =
-  do (val,ty) <- replEvalCheckedExpr texpr schema >>= \case
-       Just res -> pure res
-       -- If instance is not found, doesn't necessarily mean that there is no
-       -- instance. And due to nondeterminism in result from the solver (for
-       -- finding solution to numeric type constraints), `:check` can get to
-       -- this exception sometimes, but successfully find an instance and test
-       -- with it other times.
-       Nothing -> raise (InstantiationsNotFound schema)
-     -- pulled out as param of `qcExpr`
-     -- testNum <- (toInteger :: Int -> Integer) <$> getKnownUser "tests"
-
-     io . putStrLn $ "val = " ++ show val ++ "\n"
-     io . putStrLn $ "ty = " ++ show ty ++ "\n"
+qcExpr qcMode exprDoc texpr schema testNum val ty =
+  -- do (val,ty) <- replEvalCheckedExpr texpr schema >>= \case
+  --      Just res -> pure res
+  --      -- If instance is not found, doesn't necessarily mean that there is no
+  --      -- instance. And due to nondeterminism in result from the solver (for
+  --      -- finding solution to numeric type constraints), `:check` can get to
+  --      -- this exception sometimes, but successfully find an instance and test
+  --      -- with it other times.
+  --      Nothing -> raise (InstantiationsNotFound schema)
+  --    -- pulled out as param of `qcExpr`
+  --    -- testNum <- (toInteger :: Int -> Integer) <$> getKnownUser "tests"
+  do debugREPL $ "val = " ++ show val
+     debugREPL $ "ty = " ++ show ty
 
      tenv <- E.envTypes . M.deEnv <$> getDynEnv
      let tyv = E.evalValType tenv ty
-     io . putStrLn $ "tyv = " ++ show tyv ++ "\n"
+
+     debugREPL $ "tyv = " ++ show tyv
+
      -- tv has already had polymorphism instantiated 
      percentRef <- io $ newIORef Nothing
      testsRef <- io $ newIORef 0
@@ -1653,13 +1723,13 @@ replEvalExpr expr =
 
 replEvalCheckedExpr :: T.Expr -> T.Schema -> REPL (Maybe (Concrete.Value, T.Type))
 replEvalCheckedExpr def sig =
-  do io $ putStrLn $ "replEvalCheckedExpr (" ++ pretty def ++") (" ++ pretty sig ++ ")"
+  do debugREPL $ "replEvalCheckedExpr (" ++ pretty def ++") (" ++ pretty sig ++ ")"
      validEvalContext def
      validEvalContext sig
 
      s <- getTCSolver
-     io $ putStrLn $ "def = " ++ pretty def
-     io $ putStrLn $ "sig = " ++ pretty sig
+     debugREPL $ "def = " ++ pretty def
+     debugREPL $ "sig = " ++ pretty sig
      mbDef <- io (defaultReplExpr s def sig)
 
      case mbDef of
@@ -1872,3 +1942,9 @@ parseCommand findCmd line = do
         '"':rest  -> Just $ quoted '"' rest
         _         -> let (a,b) = break isSpace ipt in
                      if null a then Nothing else Just (length a, a, b)
+
+
+-- tmp
+
+debugREPL :: String -> REPL ()
+debugREPL = rPutStrLn . ("[debug.Command] " ++)

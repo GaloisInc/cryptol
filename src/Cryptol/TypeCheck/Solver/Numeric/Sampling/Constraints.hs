@@ -15,7 +15,7 @@ import Control.Monad.Writer (MonadWriter (tell), WriterT (WriterT, runWriterT), 
 import Cryptol.TypeCheck.PP (pp, ppList)
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp
-import Cryptol.TypeCheck.Solver.Numeric.Sampling.Preconstraints (Preconstraints, SamplingParam)
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.Preconstraints (Preconstraints)
 import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.Preconstraints as PC
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Q
 import Cryptol.TypeCheck.Type (TParam)
@@ -23,6 +23,7 @@ import qualified Data.List as L
 import Data.Maybe (fromMaybe)
 import Data.Vector (Vector)
 import qualified Data.Vector as V
+import Control.Monad.Except (MonadError(throwError))
 
 -- | Constraints
 --
@@ -34,16 +35,20 @@ import qualified Data.Vector as V
 data Constraints a = Constraints
   { sys :: System a,
     tcs :: [Tc a],
-    params :: Vector SamplingParam
+    -- params :: Vector SamplingParam
+    toVar :: TParam -> Var,
+    nVars :: Int
   }
 
 instance Show a => Show (Constraints a) where
   show Constraints {..} =
     unlines
-      [ "Constraints:",
-        "  sys:\n" ++ unlines (fmap (("    " ++) . show) sys),
-        "  tcs:    " ++ show tcs,
-        "  params: " ++ show (ppList (V.toList (pp <$> params)))
+      [ "Constraints:"
+      , "  sys:\n" ++ unlines (fmap (("    " ++) . show) sys)
+      , "  tcs:    " ++ show tcs
+        -- "  params: " ++ show (ppList (V.toList (pp <$> params)))
+      , "  toVar:  " ++ "<function :: TParam -> Var>"
+      , "  nVars:  " ++ show nVars
       ]
 
 overSystem ::
@@ -103,16 +108,14 @@ data TcName = FinTc | PrimTc
   deriving (Show)
 
 countVars :: Constraints a -> Int
-countVars cons = V.length (params cons)
+-- countVars cons = V.length (params cons)
+countVars = nVars
 
 -- | toConstraints
 --
 -- Preserves order of the `[SamplingParam]` in `Preconstraints`.
 toConstraints :: Preconstraints -> SamplingM (Constraints Q)
 toConstraints precons = do
-  debug $
-    "precons.params = "
-      ++ show (ppList . fmap pp . V.toList $ PC.params precons)
   -- extract sys and tcs from preprops
   (sys, tcs) <- extractSysTcs (PC.preprops precons)
   -- pad all exps to the number of params
@@ -121,7 +124,9 @@ toConstraints precons = do
     Constraints
       { sys = sys,
         tcs = tcs,
-        params = PC.params precons
+        -- params = PC.params precons
+        toVar = PC.toVar precons,
+        nVars = PC.nVars precons
       }
   where
     extractSysTcs :: [PC.PProp] -> SamplingM (System Q, [Tc Q])
@@ -142,7 +147,9 @@ toConstraints precons = do
             e <- lift . lift $ extractExp pe
             tellTc [Tc FinTc e]
           -- not supported, or should have been filtered out in Preconstraints
-          _ -> undefined
+          pprop -> throwError $ SamplingError "toConstraints.extractSysTcs" $
+            "This PProp is not supported by literal literal sampling: " ++ 
+            "`" ++ show pprop ++ "`"
 
         tellEqu = tell
         tellTc = lift . tell

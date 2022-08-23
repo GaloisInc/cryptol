@@ -32,10 +32,10 @@ newtype IxEqu = IxEqu {unIxEqu :: Int}
 getEqu :: IxEqu -> System a -> Equ a
 getEqu i sys = sys !! unIxEqu i
 
-countVars :: System a -> Int
-countVars sys = case L.uncons sys of
-  Just (e, _) -> Cons.asExp Exp.countVars e
-  Nothing -> error "countVars mempty"
+-- countVars :: System a -> Int
+-- countVars sys = case L.uncons sys of
+--   Just (e, _) -> Cons.asExp Exp.countVars e
+--   Nothing -> error "System.countVars mempty"
 
 countEqus :: System a -> Int
 countEqus = Prelude.length
@@ -63,39 +63,35 @@ extendN m sys = Exp.extendN m <$> sys
 -- will have to embed it yourself.
 --
 -- solveGauss :: System n -> System n
-solveGauss :: System Q -> SamplingM (System Q)
-solveGauss sys = go 0 sys
+solveGauss :: Int -> System Q -> SamplingM (System Q)
+solveGauss nVars sys = go 0 sys
   where
     go :: Var -> System Q -> SamplingM (System Q)
-    go (Var j) sys | j >= countVars sys || null sys = pure sys
+    go (Var j) sys | j >= nVars || null sys = pure sys
     go j sys = do
-      liftIO $ putStrLn "breakpoint Numeric.Sampling.System:1"
-      liftIO $ putStrLn $ "j   = " ++ show j
-      liftIO $ putStrLn $ "sys = " ++ show sys
+      debug $ "j   = " ++ show j
+      debug $ "sys = " ++ show sys
       case extractSolvedEqu j sys of
-        -- e is removed from sys
-        Just (e, sys') -> do
-          liftIO $ putStrLn "breakpoint Numeric.Sampling.System:2"
+        -- eq is removed from sys
+        Just (eq, sys') -> do
+          debug $ "extractSolvedEqu (" ++ show j ++ ") sys = Just (" ++ show eq ++ ", "++ show sys' ++ ")" 
           -- divide e by coeff of var j to make coeff of var j be 1
-          let aj = Cons.asExp (Exp.! j) e
-          e <- pure $ (/ aj) <$> e
+          let aj = Cons.asExp (Exp.! j) eq
+          eq <- pure $ (/aj) <$> eq
           -- eliminate var j from rest of sys by sub appropriate multiple of e
           sys' <-
             pure $
-              -- OLD: before Equ
-              -- ( \e' ->
-              --     let aj' = Cons.asExp (Exp.! j) e'
-              --      in e' - (((aj' / aj) *) <$> e)
-              -- )
-              ( Cons.overExp \exp' ->
-                  flip Cons.asExp e \exp ->
-                    let aj' = exp' Exp.! j
-                     in exp' - (((aj' / aj) *) <$> exp)
+              ( Cons.overExp \e' ->
+                  flip Cons.asExp eq \e ->
+                    let aj' = e' Exp.! j
+                    in e' - ((aj' *) <$> e)
               )
                 <$> sys'
+          -- 
           -- solve rest of sys' without e, then re-append e
-          (e :) <$> go (j + 1) sys'
-        Nothing ->
+          (eq :) <$> go (j + 1) sys'
+        Nothing -> do
+          debug $ "could not extract equation for `j = " ++ show j ++ "`"
           -- skip solving for var j
           go (j + 1) sys
 
@@ -109,4 +105,5 @@ solveGauss sys = go 0 sys
           second (e :) <$> extractSolvedEqu j sys
 
 countLeadingZeros :: (Num a, Eq a) => Exp a -> Maybe Int
-countLeadingZeros (Exp as _) = L.elemIndex 0 (V.toList as)
+countLeadingZeros (Exp as _) = V.findIndex (0 /=) as
+  -- L.elemIndex 0 (V.toList as)

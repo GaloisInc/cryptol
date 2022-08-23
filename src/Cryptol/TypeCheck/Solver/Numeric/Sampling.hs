@@ -18,17 +18,17 @@ import Cryptol.Utils.Panic (panic)
 import Cryptol.TypeCheck.Solver.InfNat
 import Cryptol.TypeCheck.Subst
 import Control.Monad.Trans
-import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base
-import Cryptol.TypeCheck.Solver.Numeric.Sampling.Preconstraints
-import Cryptol.TypeCheck.Solver.Numeric.Sampling.Constraints
-import Cryptol.TypeCheck.Solver.Numeric.Sampling.System
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base as Base
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.Preconstraints as Precons
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.Constraints as Cons
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.System as Sys
 import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp as Exp
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Q
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Sampling as Sampling
 import Data.Vector.Primitive (Vector(Vector))
 import qualified Data.Vector as V
 import Control.Monad
-import Data.Bifunctor (Bifunctor(first))
+import Data.Bifunctor (Bifunctor(first, bimap))
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.SolvedConstraints (toSolvedConstraints, elimDens)
 
 -- Tries to make a sampler of type `[(TParam, Nat')]` if the input is in the
@@ -48,7 +48,7 @@ Steps:
       - if it's not been evaluated and it's assigned to an expression 
 -}
 
-type Sample = [(TParam, Type)]
+type Sample = [(TParam, Integer)]
 
 sample ::
   [TParam] ->
@@ -56,47 +56,43 @@ sample ::
   Int ->
   SamplingM [Sample]
 sample tparams props nLiteralSamples = do
-  debug $ "breakpoint Numeric.Sampling:1"
   liftIO (runSamplingM m) >>= \case
     Left err -> panic "sample" ["Error during sampling literals: " ++ show err]
     Right sampling -> pure sampling
   where
     m :: SamplingM [Sample]
     m = do
-      debug $ "breakpoint Numeric.Sampling:2"
       precons <- fromProps tparams props
-      debug $ "breakpoint Numeric.Sampling:3"
+      debug' 0 $ "precons = " ++ show precons
       cons <- toConstraints precons
-      debug $ "cons <- toConstraints precons"
-      debug $ "cons = " ++ show cons
+      debug' 0 $ "cons <- toConstraints precons"
+      debug' 0 $ "cons = " ++ show cons
       -- solve constraints system
-      solcons <- do 
-        debug $ "breakpoint Numeric.Sampling:5"
+      solcons <- do
         -- gaussian elimination
-        cons <- overSystem solveGauss cons
-        debug $ "cons <- overSystem solveGauss cons"
-        debug $ "cons = " ++ show cons
+        cons <- overSystem (solveGauss (Cons.countVars cons)) cons
+        debug' 0 $ "cons <- overSystem solveGauss cons"
+        debug' 0 $ "cons = " ++ show cons
         -- verify gaussian-eliminated form
         solcons <- toSolvedConstraints cons
-        debug $ "solcons <- toSolvedConstraints cons"
-        debug $ "solcons = " ++ show solcons
+        debug' 0 $ "solcons <- toSolvedConstraints cons"
+        debug' 0 $ "solcons = " ++ show solcons
         -- eliminate denomenators
         solcons <- elimDens solcons
-        debug $ "solcons <- elimDens solcons"
-        debug $ "solcons = " ++ show solcons
+        debug' 0 $ "solcons <- elimDens solcons"
+        debug' 0 $ "solcons = " ++ show solcons
         --
         pure solcons
       -- 
       -- sample `nLiteralSamples` number of times
-      debug $ "breakpoint Numeric.Sampling:9"
       replicateM nLiteralSamples do
-        debug $ "breakpoint Numeric.Sampling:10"
         vals <- V.toList <$> Sampling.sample solcons
-        debug $ "breakpoint Numeric.Sampling:11"
-        pure (tparams `zip` ((\v -> TCon (TC (TCNum v)) []) <$> vals))
+        debug' 0 $ "vals = " ++ show vals
+        -- pure (tparams `zip` ((\v -> TCon (TC (TCNum v)) []) <$> vals))
+        pure (tparams `zip` vals)
 
 applySample :: Sample -> Schema -> Schema
-applySample sample Forall {sVars, sProps, sType} = 
+applySample sample Forall {sVars, sProps, sType} =
   Forall {
     -- only keep vars that are not substituted by sample
     sVars = filter (not . (`elem` (fst <$> sample))) sVars,
@@ -104,4 +100,4 @@ applySample sample Forall {sVars, sProps, sType} =
     sType = apSubst subst sType
   }
   where
-    subst = listSubst $ first TVBound <$> sample
+    subst = listSubst $ bimap TVBound (\n -> TCon (TC (TCNum n)) []) <$> sample
