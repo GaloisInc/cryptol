@@ -1,27 +1,33 @@
-CFLAGS += -O3 -Wall -Wextra -Werror
+SHELL = /bin/bash
+CFLAGS = -O3 -Wall -Wextra -Werror
 
 .PHONY: clean
 
 ifeq ($(shell uname -m),x86_64)
 
+ifdef PORTABLE
 CFLAGS += -maes -mssse3
+else
+CFLAGS += -march=native
+endif
 
 endif
 
 ifeq ($(shell uname),Darwin)
 
-SuiteB_FFI.dylib: SuiteB_FFI.c
-	$(CC) $(CFLAGS) -dynamiclib $< -o $@
+SO = SuiteB_FFI.dylib
 
-clean:
-	rm SuiteB_FFI.dylib
+$(SO): SuiteB_FFI.c
+	$(CC) $(CFLAGS) -dynamiclib $< -o $@
 
 else
 
-SuiteB_FFI.so: SuiteB_FFI.c
+SO = SuiteB_FFI.so
+
+$(SO): SuiteB_FFI.c
 	$(CC) $(CFLAGS) -fPIC -shared $< -o $@
 
-clean:
-	rm SuiteB_FFI.so
-
 endif
+
+clean:
+	rm $(SO)

@@ -49,7 +49,10 @@ aes128EncryptSchedule =
  *   See FIPS 197, sections 5.2 and 5.3.5.
  */
 aes128DecryptSchedule : [128] -> AESDecryptKeySchedule AES128
-aes128DecryptSchedule = SB::aes128DecryptSchedule
+aes128DecryptSchedule =
+  if aesniSupported
+    then \key -> aesniExpandDecrypt128 (split key)
+    else SB::aes128DecryptSchedule
 
 /**
  * Encryption and decryption key schedules for AES-128.
@@ -58,7 +61,10 @@ aes128DecryptSchedule = SB::aes128DecryptSchedule
  *   See FIPS 197, sections 5.2 and 5.3.5.
  */
 aes128Schedules : [128] -> (AESEncryptKeySchedule AES128, AESDecryptKeySchedule AES128)
-aes128Schedules = SB::aes128Schedules
+aes128Schedules =
+  if aesniSupported
+    then \key -> aesniExpandEncryptDecrypt128 (split key)
+    else SB::aes128Schedules
 
 /**
  * Encryption key expansion for AES-192.
@@ -75,7 +81,10 @@ aes192EncryptSchedule =
  *   See FIPS 197, sections 5.2 and 5.3.5.
  */
 aes192DecryptSchedule : [192] -> AESDecryptKeySchedule AES192
-aes192DecryptSchedule = SB::aes192DecryptSchedule
+aes192DecryptSchedule =
+  if aesniSupported
+    then \key -> aesniExpandDecrypt192 (split key)
+    else SB::aes192DecryptSchedule
 
 /**
  * Encryption and decryption key schedules for AES-192.
@@ -84,7 +93,10 @@ aes192DecryptSchedule = SB::aes192DecryptSchedule
  *   See FIPS 197, sections 5.2 and 5.3.5.
  */
 aes192Schedules : [192] -> (AESEncryptKeySchedule AES192, AESDecryptKeySchedule AES192)
-aes192Schedules = SB::aes192Schedules
+aes192Schedules =
+  if aesniSupported
+    then \key -> aesniExpandEncryptDecrypt192 (split key)
+    else SB::aes192Schedules
 
 
 /**
@@ -102,7 +114,10 @@ aes256EncryptSchedule =
  *   See FIPS 197, sections 5.2 and 5.3.5.
  */
 aes256DecryptSchedule : [256] -> AESDecryptKeySchedule AES256
-aes256DecryptSchedule = SB::aes256DecryptSchedule
+aes256DecryptSchedule =
+  if aesniSupported
+    then \key -> aesniExpandDecrypt256 (split key)
+    else SB::aes256DecryptSchedule
 
 /**
  * Encryption and decryption key schedules for AES-256.
@@ -111,7 +126,10 @@ aes256DecryptSchedule = SB::aes256DecryptSchedule
  *   See FIPS 197, sections 5.2 and 5.3.5.
  */
 aes256Schedules : [256] -> (AESEncryptKeySchedule AES256, AESDecryptKeySchedule AES256)
-aes256Schedules = SB::aes256Schedules
+aes256Schedules =
+  if aesniSupported
+    then \key -> aesniExpandEncryptDecrypt256 (split key)
+    else SB::aes256Schedules
 
 /**
  * AES block encryption algorithm.
@@ -128,16 +146,29 @@ aesEncryptBlock =
  *   See FIPS 197, section 5.3.5.
  */
 aesDecryptBlock : {k} (fin k) => AESDecryptKeySchedule k -> [128] -> [128]
-aesDecryptBlock = SB::aesDecryptBlock
+aesDecryptBlock =
+  if aesniSupported
+    then \schedule ciphertext -> join (aesniDecryptBlock schedule (split ciphertext))
+    else SB::aesDecryptBlock
 
 private
-    foreign checkAESNISupported : () -> Bit
-    foreign aesniExpandEncrypt128 : [16][8] -> AESEncryptKeySchedule AES128
-    foreign aesniExpandEncrypt192 : [24][8] -> AESEncryptKeySchedule AES192
-    foreign aesniExpandEncrypt256 : [32][8] -> AESEncryptKeySchedule AES256
-    foreign aesniEncryptBlock : {k} (fin k) => AESEncryptKeySchedule k -> [16][8] -> [16][8]
+  foreign checkAESNISupported : () -> Bit
+  foreign aesniExpandEncrypt128 : [16][8] -> AESEncryptKeySchedule AES128
+  foreign aesniExpandDecrypt128 : [16][8] -> AESDecryptKeySchedule AES128
+  foreign aesniExpandEncryptDecrypt128 : [16][8]
+    -> (AESEncryptKeySchedule AES128, AESDecryptKeySchedule AES128)
+  foreign aesniExpandEncrypt192 : [24][8] -> AESEncryptKeySchedule AES192
+  foreign aesniExpandDecrypt192 : [24][8] -> AESDecryptKeySchedule AES192
+  foreign aesniExpandEncryptDecrypt192 : [24][8]
+    -> (AESEncryptKeySchedule AES192, AESDecryptKeySchedule AES192)
+  foreign aesniExpandEncrypt256 : [32][8] -> AESEncryptKeySchedule AES256
+  foreign aesniExpandDecrypt256 : [32][8] -> AESDecryptKeySchedule AES256
+  foreign aesniExpandEncryptDecrypt256 : [32][8]
+    -> (AESEncryptKeySchedule AES256, AESDecryptKeySchedule AES256)
+  foreign aesniEncryptBlock : {k} (fin k) => AESEncryptKeySchedule k -> [16][8] -> [16][8]
+  foreign aesniDecryptBlock : {k} (fin k) => AESDecryptKeySchedule k -> [16][8] -> [16][8]
 
-    aesniSupported = checkAESNISupported ()
+  aesniSupported = checkAESNISupported ()
 
 
 /***** SHA2 *****/
