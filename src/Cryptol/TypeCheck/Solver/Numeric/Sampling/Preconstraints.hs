@@ -167,7 +167,6 @@ normalizePreconstraints precons = do
   pure
     precons
       { preprops = preprops' <> preprops'',
-        -- , params = params precons <> V.generate i SPFresh
         nVars = nVars
       }
   where
