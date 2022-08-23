@@ -1947,4 +1947,5 @@ parseCommand findCmd line = do
 -- tmp
 
 debugREPL :: String -> REPL ()
-debugREPL = rPutStrLn . ("[debug.Command] " ++)
+-- debugREPL = rPutStrLn . ("[debug.Command] " ++)
+debugREPL = const (pure ())

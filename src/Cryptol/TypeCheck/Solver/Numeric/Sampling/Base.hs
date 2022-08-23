@@ -25,9 +25,12 @@ debug :: String -> SamplingM ()
 -- debug = liftIO . putStrLn
 debug = const (pure ())
 
+debugLevel :: Int
+debugLevel = 0
+
 debug' :: Int -> String -> SamplingM ()
 debug' lvl
-  | lvl <= 2 = liftIO . putStrLn
+  | lvl <= debugLevel = liftIO . putStrLn
   | otherwise = const (pure ())
 
 throwSamplingError :: SamplingError -> SamplingM a

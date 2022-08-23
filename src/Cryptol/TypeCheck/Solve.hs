@@ -49,6 +49,7 @@ import System.Random.TF (newTFGen)
 import Cryptol.TypeCheck.Solver.Numeric.Sampling (sample, applySample)
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base (runSamplingM)
 import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling as Sampling
+import Data.Bifunctor (Bifunctor(first))
 
 
 
@@ -168,16 +169,15 @@ sampleLiterals schema@Forall {sVars, sProps} nLiteralSamples = do
     -- there are no literal vars to sample
     pure Nothing
   else Just <$> do
-    debugIO "breakpoint Solve:1"
     -- there are some literal vars to sample
     -- each sample in `samples` is a type var subst
     res <- runSamplingM (sample literalVars sProps nLiteralSamples)
-    debugIO "breakpoint Solve:2"
     case res of
       Left err -> do
         putStrLn $ "Error while sampling literals: " ++ show err
         pure []
       Right samples -> do
+        debugIO $ "samples = \n" ++ unlines (("  " ++) . show <$> (fmap (first pretty) <$> samples))
         pure $ (\sample' -> (sample', applySample sample' schema)) <$> samples
 
 defaultReplExpr :: Solver -> Expr -> Schema ->

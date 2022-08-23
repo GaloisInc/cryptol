@@ -94,6 +94,7 @@ fromProps tps props = do
           PFin -> proc1 PPFin ts
           PTrue -> pure precons -- trivial
           _ -> undefined -- bad
+        TUser _ _ prop -> fold precons prop
         prop ->
           throwError $
             SamplingError "fromProps" $
@@ -117,7 +118,7 @@ fromProps tps props = do
           -- type constants
           TC tc -> case tc of
             TCNum n -> pure . PEConst $ toQ n
-            -- TCInf -> pure . PEConst $ Inf -- TODO: how to handle constant inf?
+            -- TCInf -> pure . PEConst $ Inf -- TODO: how to handle constant inf? need to use Q' everywhere rather than Q
             TCAbstract _ut -> undefined -- TODO: support user-defined type constraints
             _ -> undefined -- unsupported type function
             -- type functions
@@ -135,7 +136,7 @@ fromProps tps props = do
                 _ -> undefined -- bad num of args
           _ -> undefined -- unsupported type
         TVar tv -> pure $ PETerm 1 (iTVar tv)
-        TUser _na _tys _ty -> undefined -- TODO: support user-defined types
+        TUser _ _ prop -> toPExp prop
         TNewtype _new _tys -> undefined -- TODO: support user-defined newtypes
         _ -> undefined -- unsupported type function
       debug' 0 $ "fromProps.toPExp (" ++ pretty typ ++ ") = (" ++ show pe ++ ")"
