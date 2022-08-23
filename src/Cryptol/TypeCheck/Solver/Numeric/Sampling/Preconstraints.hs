@@ -4,6 +4,7 @@
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Cryptol.TypeCheck.Solver.Numeric.Sampling.Preconstraints where
 
@@ -11,7 +12,7 @@ import Control.Monad
 import Control.Monad.Except (MonadError (throwError))
 import Control.Monad.State (StateT (runStateT), evalStateT, gets, modify)
 import Control.Monad.Writer (MonadWriter (tell), WriterT (runWriterT))
-import Cryptol.TypeCheck.PP (PP (ppPrec), pp, pretty, text)
+import Cryptol.TypeCheck.PP (PP (ppPrec), pp, pretty, text, ppList)
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp (Exp (..), Var (..))
 import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp as Exp
@@ -30,26 +31,13 @@ data Preconstraints = Preconstraints
   }
 
 instance Show Preconstraints where
-  show precons =
-    unwords
-      [ "Preconstraints {",
-        "preprops = " ++ show (preprops precons),
-        "toVar = <function :: TParam -> Var>",
-        "nVars = " ++ show (nVars precons),
-        "}"
+  show Preconstraints{..} =
+    unlines
+      [ "Preconstraints:",
+        "  preprops = " ++ show preprops,
+        "  tparams  = " ++ show (ppList (V.toList (pp <$> tparams))),
+        "  nVars    = " ++ show nVars
       ]
-
--- data SamplingParam = SPTParam TParam | SPFresh Int
-
--- instance Show SamplingParam where
---   show = \case
---     SPTParam tp -> "SPTParam " ++ pretty tp
---     SPFresh n -> "SPFresh " ++ show n
-
--- instance PP SamplingParam where
---   ppPrec i = \case
---     SPTParam tparam -> pp tparam
---     SPFresh n -> text $ "fresh(" ++ show n ++ ")"
 
 emptyPreconstraints :: Vector TParam -> Preconstraints
 emptyPreconstraints tps =
@@ -58,10 +46,6 @@ emptyPreconstraints tps =
       tparams = tps,
       nVars = V.length tps
     }
-
-countVars :: Preconstraints -> Int
--- countVars precons = V.length (params precons)
-countVars = nVars
 
 addPProps :: [PProp] -> Preconstraints -> Preconstraints
 addPProps preprops_ precons = precons {preprops = preprops_ <> preprops precons}
@@ -177,10 +161,8 @@ fromProps tps props = do
 -}
 normalizePreconstraints :: Preconstraints -> SamplingM Preconstraints
 normalizePreconstraints precons = do
-  -- TODO: the state's final value is the number of fresh variables introduced
-  -- via `mod` and perhaps other kinds of expansions
   ((preprops', preprops''), i) <-
-    flip runStateT (countVars precons) . runWriterT $
+    flip runStateT (nVars precons) . runWriterT $
       normPProp `traverse` preprops precons
   pure
     precons
@@ -193,7 +175,7 @@ normalizePreconstraints precons = do
     normPProp = \case
       PPEqual pe1 pe2 -> PPEqual <$> normPExp pe1 <*> normPExp pe2
       PPNeq _a _b -> do
-        undefined -- not sure how to handle Neq
+        error "not sure how to handle Neq"
       PPGeq a b -> do
         -- a >= b ~~> a = b + c, where c is fresh
         c <- freshVar

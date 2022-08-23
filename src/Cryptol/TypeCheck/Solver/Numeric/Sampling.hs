@@ -69,7 +69,7 @@ sample tparams props nLiteralSamples = do
       -- solve constraints system
       solcons <- do
         -- gaussian elimination
-        cons <- overSystem (solveGauss (Cons.countVars cons)) cons
+        cons <- overSystem (solveGauss (Cons.nVars cons)) cons
         debug' 0 $ "cons <- overSystem solveGauss cons"
         debug' 0 $ "cons = " ++ show cons
         -- verify gaussian-eliminated form

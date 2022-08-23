@@ -30,8 +30,7 @@ import qualified Data.Vector as V
 -- Encodes the following:
 -- - `sys`: a system of equations
 -- - `tcs`: a list of non-arithmetic typeclass constraints
--- - `params`: a vectro of sampling parameters, both given by the user and
---    generated during sampling
+-- - `tparams`: a vector of the numeric type parameters from a signature
 data Constraints a = Constraints
   { sys :: System a,
     tcs :: [Tc a],
@@ -44,10 +43,9 @@ instance Show a => Show (Constraints a) where
     unlines
       [ "Constraints:",
         "  sys:\n" ++ unlines (fmap (("    " ++) . show) sys),
-        "  tcs:    " ++ show tcs,
-        -- "  params: " ++ show (ppList (V.toList (pp <$> params)))
-        "  toVar:  " ++ "<function :: TParam -> Var>",
-        "  nVars:  " ++ show nVars
+        "  tcs     = " ++ show tcs,
+        "  tparams = " ++ show (ppList (V.toList (pp <$> tparams))),
+        "  nVars   = " ++ show nVars
       ]
 
 overSystem ::
@@ -106,10 +104,6 @@ overExp f (Equ e) = Equ (f e)
 data TcName = FinTc | PrimTc
   deriving (Show)
 
-countVars :: Constraints a -> Int
--- countVars cons = V.length (params cons)
-countVars = nVars
-
 -- | toConstraints
 --
 -- Preserves order of the `[SamplingParam]` in `Preconstraints`.
@@ -131,7 +125,7 @@ toConstraints precons = do
     extractSysTcs pprops = do
       runWriterT . execWriterT . (`traverse` pprops) $ go
       where
-        nParams = PC.countVars precons
+        nParams = PC.nVars precons
 
         go :: PC.PProp -> WriterT (System Q) (WriterT [Tc Q] SamplingM) ()
         go = \case

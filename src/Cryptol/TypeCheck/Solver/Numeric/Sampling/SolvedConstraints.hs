@@ -50,10 +50,9 @@ instance Show a => Show (SolvedConstraints a) where
                 . fmap (maybe "free" show)
                 $ solsys
             ),
-        "  tcs:    " ++ show tcs,
-        -- "  params: " ++ show (ppList (V.toList (pp <$> params)))
-        "  toVar: " ++ "<function :: TParam -> Var>",
-        "  nVars: " ++ show nVars
+        "  tcs:     " ++ show tcs,
+        "  tparams: " ++ show (ppList (V.toList (pp <$> tparams))),
+        "  nVars:  " ++ show nVars
       ]
 
 -- includes generated vars
