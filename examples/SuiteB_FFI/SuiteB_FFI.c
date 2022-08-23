@@ -30,7 +30,7 @@ uint32_t *decFinalKey) {
   __m128i bswap32 = BSWAP32_128;
   __m128i *encRoundKeys128 = (__m128i *) encRoundKeys;
   __m128i *decRoundKeys128 = (__m128i *) decRoundKeys;
-  memcpy(decInitialKey, encFinalKey, 128);
+  memcpy(decInitialKey, encFinalKey, 16);
   for (unsigned int i = 0; i < roundKeysLength; ++i) {
     tmp = _mm_loadu_si128(encRoundKeys128 + roundKeysLength - 1 - i);
     tmp = _mm_shuffle_epi8(tmp, bswap32);
@@ -38,7 +38,7 @@ uint32_t *decFinalKey) {
     tmp = _mm_shuffle_epi8(tmp, bswap32);
     _mm_storeu_si128(decRoundKeys128 + i, tmp);
   }
-  memcpy(decFinalKey, encInitialKey, 128);
+  memcpy(decFinalKey, encInitialKey, 16);
 }
 
 static inline __m128i prepare_roundkey_128(__m128i tmp1, __m128i tmp2) {
