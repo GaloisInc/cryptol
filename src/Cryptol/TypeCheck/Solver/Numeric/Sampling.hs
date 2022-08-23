@@ -1,35 +1,34 @@
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE LambdaCase #-}
+{-# HLINT ignore "Redundant pure" #-}
+{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-{-# HLINT ignore "Redundant pure" #-}
-{-# LANGUAGE NamedFieldPuns #-}
-
 
 module Cryptol.TypeCheck.Solver.Numeric.Sampling where
 
+import Control.Monad
+import Control.Monad.Trans
 import Cryptol.Testing.Random
 import Cryptol.TypeCheck.AST
-import Cryptol.TypeCheck.TCon
-import System.Random.TF.Gen (RandomGen)
-import Cryptol.Utils.Panic (panic)
 import Cryptol.TypeCheck.Solver.InfNat
-import Cryptol.TypeCheck.Subst
-import Control.Monad.Trans
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base as Base
-import Cryptol.TypeCheck.Solver.Numeric.Sampling.Preconstraints as Precons
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Constraints as Cons
-import Cryptol.TypeCheck.Solver.Numeric.Sampling.System as Sys
 import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp as Exp
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.Preconstraints as Precons
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Q
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Sampling as Sampling
-import Data.Vector.Primitive (Vector(Vector))
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.SolvedConstraints (elimDens, toSolvedConstraints)
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.System as Sys
+import Cryptol.TypeCheck.Subst
+import Cryptol.TypeCheck.TCon
+import Cryptol.Utils.Panic (panic)
+import Data.Bifunctor (Bifunctor (bimap, first))
 import qualified Data.Vector as V
-import Control.Monad
-import Data.Bifunctor (Bifunctor(first, bimap))
-import Cryptol.TypeCheck.Solver.Numeric.Sampling.SolvedConstraints (toSolvedConstraints, elimDens)
+import Data.Vector.Primitive (Vector (Vector))
+import System.Random.TF.Gen (RandomGen)
 
 -- Tries to make a sampler of type `[(TParam, Nat')]` if the input is in the
 -- handled domain and a solution is found by the algorithm.
@@ -45,7 +44,7 @@ Steps:
     1. Evaluate each var in order, statefully keeping track of evaluations so far
     2. To evaluate a var:
       - if it's already been evaluated, use that value
-      - if it's not been evaluated and it's assigned to an expression 
+      - if it's not been evaluated and it's assigned to an expression
 -}
 
 type Sample = [(TParam, Integer)]
@@ -83,7 +82,7 @@ sample tparams props nLiteralSamples = do
         debug' 0 $ "solcons = " ++ show solcons
         --
         pure solcons
-      -- 
+      --
       -- sample `nLiteralSamples` number of times
       replicateM nLiteralSamples do
         vals <- V.toList <$> Sampling.sample solcons
@@ -93,11 +92,11 @@ sample tparams props nLiteralSamples = do
 
 applySample :: Sample -> Schema -> Schema
 applySample sample Forall {sVars, sProps, sType} =
-  Forall {
-    -- only keep vars that are not substituted by sample
-    sVars = filter (not . (`elem` (fst <$> sample))) sVars,
-    sProps = apSubst subst sProps,
-    sType = apSubst subst sType
-  }
+  Forall
+    { -- only keep vars that are not substituted by sample
+      sVars = filter (not . (`elem` (fst <$> sample))) sVars,
+      sProps = apSubst subst sProps,
+      sType = apSubst subst sType
+    }
   where
     subst = listSubst $ bimap TVBound (\n -> TCon (TC (TCNum n)) []) <$> sample

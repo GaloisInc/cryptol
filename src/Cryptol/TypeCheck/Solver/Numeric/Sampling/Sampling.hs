@@ -9,19 +9,21 @@
 {-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
 {-# HLINT ignore "Redundant pure" #-}
 
 module Cryptol.TypeCheck.Solver.Numeric.Sampling.Sampling where
 
 import Control.Monad
-import Control.Monad.Except (MonadError (throwError), ExceptT)
+import Control.Monad.Except (ExceptT, MonadError (throwError))
 import Control.Monad.State as State
 import Cryptol.Testing.Random (Gen)
+import Cryptol.TypeCheck.PP (pretty)
 import Cryptol.TypeCheck.Solver.InfNat
 import qualified Cryptol.TypeCheck.Solver.InfNat as Nat'
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Constraints as Cons
-import Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp (Exp(..), Var(..))
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp (Exp (..), Var (..))
 import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp as Exp
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Q
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.SolvedConstraints (SolvedConstraints)
@@ -35,7 +37,6 @@ import qualified Data.Vector as V
 import GHC.Real
 import System.Random.TF.Gen (TFGen)
 import System.Random.TF.Instances (Random (randomR))
-import Cryptol.TypeCheck.PP (pretty)
 
 data Range
   = -- upper-bounded by expressions
@@ -81,10 +82,11 @@ sample solcons = do
 
     let setEqual :: Var -> Exp Nat' -> StateT (Vector Range) SamplingM ()
         -- setEqual i e = (V.// [(unVar i, EqualAndUpperBounded e [])])
-        setEqual i e = getRange i >>= \case
-          UpperBounded bs -> modify (V.// [(unVar i, EqualAndUpperBounded e bs)])
-          EqualAndUpperBounded _ _ -> throwError $ SamplingError "sample" "A variable was solved for more than once, which should never result from Gaussian elimination."
-          Fixed _ -> throwError $ SamplingError "sample" "Attempted to `setEqual` a `Fixed` range variable"
+        setEqual i e =
+          getRange i >>= \case
+            UpperBounded bs -> modify (V.// [(unVar i, EqualAndUpperBounded e bs)])
+            EqualAndUpperBounded _ _ -> throwError $ SamplingError "sample" "A variable was solved for more than once, which should never result from Gaussian elimination."
+            Fixed _ -> throwError $ SamplingError "sample" "Attempted to `setEqual` a `Fixed` range variable"
 
     let addUpperBounds :: Var -> [Exp Nat'] -> StateT (Vector Range) SamplingM ()
         addUpperBounds i bs' =
@@ -119,33 +121,34 @@ sample solcons = do
             Just e@(Exp as c) -> do
               -- We need to account for the upper bounds on `xi` when
               -- determining the upper bounds on the positive terms in `e`.
-              bs <- getRange i >>= \case
-                UpperBounded bs -> pure bs
-                EqualAndUpperBounded _ _ -> throwError $ SamplingError "sample" "A variable has a `EqualAndUpperBounded` range before handling its equation during the upper-bounding pass."
-                Fixed _ -> throwError $ SamplingError "sample" "A variable has a `Fixed` range during the upper-bounding pass."
+              bs <-
+                getRange i >>= \case
+                  UpperBounded bs -> pure bs
+                  EqualAndUpperBounded _ _ -> throwError $ SamplingError "sample" "A variable has a `EqualAndUpperBounded` range before handling its equation during the upper-bounding pass."
+                  Fixed _ -> throwError $ SamplingError "sample" "A variable has a `Fixed` range during the upper-bounding pass."
               --
               -- positive-coefficient and negative-coefficient variables
               let iPtvs = Var <$> V.findIndices (0 <) as
                   iNegs = Var <$> V.findIndices (0 >) as
-              -- 
+              --
               -- Suppose we have
-              -- 
+              --
               --   x = 2y + 3z + (-4)u + (-5)v <= 10
-              -- 
+              --
               -- First, upper-bound all of the positive-coefficient variables
               -- like so:
-              -- 
+              --
               --    y <= 10/2
               --    z <= (10 - 2y)/3
-              -- 
+              --
               -- Second, upper-bound all of the negative-coefficient variables
               -- like so:
-              -- 
+              --
               --    u <= (2y + 3z)/4
               --    v <= (2y + 3z - 4u)/5
-              -- 
+              --
               -- upper-bound ptv-coeff vars
-              -- 
+              --
               lift $ debug' 2 $ "as = " ++ show (V.toList as)
               foldM_
                 ( \bs i' -> do
@@ -252,7 +255,8 @@ sample solcons = do
         sampleExp n (Exp as c) = do
           lift . debug' 1 $ "sampling exp: " ++ show (Exp as c)
           -- only sampleuates terms that have non-0 coeff
-          (c +) . V.sum
+          (c +)
+            . V.sum
             <$> ( \(i, a) ->
                     if a /= 0
                       then sampleVar i

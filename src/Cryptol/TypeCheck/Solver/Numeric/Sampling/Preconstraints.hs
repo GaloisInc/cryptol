@@ -8,62 +8,60 @@
 module Cryptol.TypeCheck.Solver.Numeric.Sampling.Preconstraints where
 
 import Control.Monad
-import Control.Monad.State (StateT (runStateT), gets, modify, evalStateT)
-import Control.Monad.Writer (MonadWriter (tell), WriterT(runWriterT))
+import Control.Monad.Except (MonadError (throwError))
+import Control.Monad.State (StateT (runStateT), evalStateT, gets, modify)
+import Control.Monad.Writer (MonadWriter (tell), WriterT (runWriterT))
+import Cryptol.TypeCheck.PP (PP (ppPrec), pp, pretty, text)
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base
-import Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp (Exp(..), Var(..))
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp (Exp (..), Var (..))
 import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp as Exp
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Q
 import Cryptol.TypeCheck.TCon
 import Cryptol.TypeCheck.Type
+import Data.List (elemIndex)
 import Data.Vector (Vector)
 import qualified Data.Vector as V
-import Data.List (elemIndex)
-import Cryptol.TypeCheck.PP (PP (ppPrec), pp, text, pretty)
-import Control.Monad.Except (MonadError(throwError))
 
 -- | Preconstraints
 data Preconstraints = Preconstraints
   { preprops :: [PProp],
-    -- params :: Vector SamplingParam,
-    toVar :: TParam -> Var,
+    tparams :: Vector TParam,
     nVars :: Int
   }
 
 instance Show Preconstraints where
-  show precons = unwords  
-    [ "Preconstraints {"
-    , "preprops = " ++ show (preprops precons) 
-    , "toVar = <function :: TParam -> Var>"
-    , "nVars = " ++ show (nVars precons)
-    , "}"
-    ]
+  show precons =
+    unwords
+      [ "Preconstraints {",
+        "preprops = " ++ show (preprops precons),
+        "toVar = <function :: TParam -> Var>",
+        "nVars = " ++ show (nVars precons),
+        "}"
+      ]
 
 -- data SamplingParam = SPTParam TParam | SPFresh Int
 
--- instance Show SamplingParam where 
---   show = \case 
+-- instance Show SamplingParam where
+--   show = \case
 --     SPTParam tp -> "SPTParam " ++ pretty tp
 --     SPFresh n -> "SPFresh " ++ show n
 
--- instance PP SamplingParam where 
+-- instance PP SamplingParam where
 --   ppPrec i = \case
 --     SPTParam tparam -> pp tparam
 --     SPFresh n -> text $ "fresh(" ++ show n ++ ")"
 
 emptyPreconstraints :: Vector TParam -> Preconstraints
-emptyPreconstraints tparams =
+emptyPreconstraints tps =
   Preconstraints
-    { preprops = []
-      -- params = SPTParam <$> tparams
-    , toVar = \tparam -> error $ "could not find type parameter `" ++ pretty tparam ++ "`"
-    , nVars = 0
+    { preprops = [],
+      tparams = tps,
+      nVars = V.length tps
     }
 
 countVars :: Preconstraints -> Int
 -- countVars precons = V.length (params precons)
 countVars = nVars
-
 
 addPProps :: [PProp] -> Preconstraints -> Preconstraints
 addPProps preprops_ precons = precons {preprops = preprops_ <> preprops precons}
@@ -92,8 +90,8 @@ fromProps ::
   [TParam] ->
   [Prop] ->
   SamplingM Preconstraints
-fromProps tparams props = do
-  pprops <- foldM fold (emptyPreconstraints $ V.fromList tparams) props
+fromProps tps props = do
+  pprops <- foldM fold (emptyPreconstraints $ V.fromList tps) props
   debug' 0 $ "pprops = " ++ show pprops
   pprops <- normalizePreconstraints pprops
   debug' 0 $ "pprops <- normalizePreconstraints pprops"
@@ -112,8 +110,10 @@ fromProps tparams props = do
           PFin -> proc1 PPFin ts
           PTrue -> pure precons -- trivial
           _ -> undefined -- bad
-        prop -> throwError $ SamplingError "fromProps" $
-          "cannot handle prop of the form: `" ++ show prop ++ "`"
+        prop ->
+          throwError $
+            SamplingError "fromProps" $
+              "cannot handle prop of the form: `" ++ show prop ++ "`"
       where
         proc2 con ts =
           toPExp `traverse` ts >>= \case
@@ -126,7 +126,6 @@ fromProps tparams props = do
           toPExp `traverse` ts >>= \case
             [e] -> pure $ addPProps [con e] precons
             _ -> undefined -- bad number of args
-
     toPExp :: Type -> SamplingM PExp
     toPExp typ = do
       pe <- case typ of
@@ -162,7 +161,7 @@ fromProps tparams props = do
         iTVar = \case
           TVFree {} -> undefined -- shouldn't be dealing with free vars here
           TVBound tparam ->
-            maybe undefined Var (elemIndex tparam tparams)
+            maybe undefined Var (elemIndex tparam tps)
 
 {-
 - Check that all `a mod n` have `n` a constant
@@ -183,80 +182,78 @@ normalizePreconstraints precons = do
   ((preprops', preprops''), i) <-
     flip runStateT (countVars precons) . runWriterT $
       normPProp `traverse` preprops precons
-  pure precons 
-    { preprops = preprops' <> preprops'' 
-    -- , params = params precons <> V.generate i SPFresh
-    , nVars = nVars precons + i
-    }
+  pure
+    precons
+      { preprops = preprops' <> preprops'',
+        -- , params = params precons <> V.generate i SPFresh
+        nVars = nVars precons + i
+      }
   where
+    normPProp :: PProp -> WriterT [PProp] (StateT Int SamplingM) PProp
+    normPProp = \case
+      PPEqual pe1 pe2 -> PPEqual <$> normPExp pe1 <*> normPExp pe2
+      PPNeq _a _b -> do
+        undefined -- not sure how to handle Neq
+      PPGeq a b -> do
+        -- a >= b ~~> a = b + c, where c is fresh
+        c <- freshVar
+        normPProp $ PPEqual a (PEOp2 PAdd b (PETerm 1 c))
+      PPFin pe -> pure $ PPFin pe -- don't need to normalize this
+    normPExp :: PExp -> WriterT [PProp] (StateT Int SamplingM) PExp
+    normPExp pe =
+      step pe >>= \case
+        Just pe' -> normPExp pe'
+        Nothing -> pure pe
+      where
+        -- writes the new equations generated from expanding mod
+        step :: PExp -> WriterT [PProp] (StateT Int SamplingM) (Maybe PExp)
+        step = \case
+          -- PEConst
+          PEConst _ -> pure Nothing
+          -- PETerm
+          PETerm 0 _ -> pure . Just $ PEConst 0
+          PETerm _ _ -> pure Nothing
+          -- PEOp2
+          PEOp2 po pe1 pe2 -> do
+            pe1' <- normPExp pe1
+            pe2' <- normPExp pe2
+            case po of
+              -- combine constants
+              PAdd | PEConst n1 <- pe1', PEConst n2 <- pe2' -> pure . Just . PEConst $ n1 + n2
+              PMul | PEConst n1 <- pe1', PEConst n2 <- pe2' -> pure . Just . PEConst $ n1 * n2
+              PDiv | PEConst n1 <- pe1', PEConst n2 <- pe2' -> pure . Just . PEConst $ n1 / n2
+              -- `m mod n` where both `m`, `n` are constant
+              PMod
+                | PEConst n1 <- pe1',
+                  PEConst n2 <- pe2',
+                  Just z1 <- (fromQ n1 :: Maybe Int),
+                  Just z2 <- (fromQ n2 :: Maybe Int) ->
+                    pure . Just . PEConst . toQ $ z1 `mod` z2
+              -- `m ^^ n` requires that `m`, `n` are constant
+              PPow
+                | PEConst n1 <- pe1',
+                  PEConst n2 <- pe2',
+                  Just z2 <- (fromQ n2 :: Maybe Int) ->
+                    pure . Just . PEConst $ n1 ^^ z2
+              -- `a mod n` where only `n` is constant
+              PMod | PEConst n <- pe2' -> do
+                -- `a mod n` is replaced by `b` such that `b = a - n*c`
+                -- where `b` and `c` are fresh
+                let a = pe2'
+                b <- freshVar
+                c <- freshVar
+                tell [PPEqual (PETerm 1 b) (PEOp2 PAdd a (PETerm n c))]
+                pure . Just $ PETerm 1 b
+              -- a - b ~~> a + (-b)
+              PSub -> pure . Just $ PEOp2 PAdd pe1' (PEOp2 PMul (PEConst (-1)) pe2')
+              --
+              -- TODO: specify exception cases
+              --
+              -- only expressions that are already normalized should get here
+              _ -> pure Nothing
 
-  normPProp :: PProp -> WriterT [PProp] (StateT Int SamplingM) PProp
-  normPProp = \case
-    PPEqual pe1 pe2 -> PPEqual <$> normPExp pe1 <*> normPExp pe2
-    PPNeq _a _b -> do
-      undefined -- not sure how to handle Neq
-    PPGeq a b -> do
-      -- a >= b ~~> a = b + c, where c is fresh
-      c <- freshVar
-      normPProp $ PPEqual a (PEOp2 PAdd b (PETerm 1 c))
-    PPFin pe -> pure $ PPFin pe -- don't need to normalize this
-
-  normPExp :: PExp -> WriterT [PProp] (StateT Int SamplingM) PExp
-  normPExp pe =
-    step pe >>= \case
-      Just pe' -> normPExp pe'
-      Nothing -> pure pe
-    where
-      -- writes the new equations generated from expanding mod
-      step :: PExp -> WriterT [PProp] (StateT Int SamplingM) (Maybe PExp)
-      step = \case
-        -- PEConst
-        PEConst _ -> pure Nothing
-        -- PETerm
-        PETerm 0 _ -> pure . Just $ PEConst 0
-        PETerm _ _ -> pure Nothing
-        -- PEOp2
-        PEOp2 po pe1 pe2 -> do
-          pe1' <- normPExp pe1
-          pe2' <- normPExp pe2
-          case po of
-            -- combine constants
-            PAdd | PEConst n1 <- pe1', PEConst n2 <- pe2' -> pure . Just . PEConst $ n1 + n2
-            PMul | PEConst n1 <- pe1', PEConst n2 <- pe2' -> pure . Just . PEConst $ n1 * n2
-            PDiv | PEConst n1 <- pe1', PEConst n2 <- pe2' -> pure . Just . PEConst $ n1 / n2
-            -- `m mod n` where both `m`, `n` are constant
-            PMod
-              | PEConst n1 <- pe1',
-                PEConst n2 <- pe2',
-                Just z1 <- (fromQ n1 :: Maybe Int),
-                Just z2 <- (fromQ n2 :: Maybe Int) ->
-                pure . Just . PEConst . toQ $ z1 `mod` z2
-            -- `m ^^ n` requires that `m`, `n` are constant
-            PPow
-              | PEConst n1 <- pe1',
-                PEConst n2 <- pe2',
-                Just z2 <- (fromQ n2 :: Maybe Int) ->
-                pure . Just . PEConst $ n1 ^^ z2
-            -- `a mod n` where only `n` is constant
-            PMod | PEConst n <- pe2' -> do
-              -- `a mod n` is replaced by `b` such that `b = a - n*c`
-              -- where `b` and `c` are fresh
-              let a = pe2'
-              b <- freshVar
-              c <- freshVar
-              tell [PPEqual (PETerm 1 b) (PEOp2 PAdd a (PETerm n c))]
-              pure . Just $ PETerm 1 b
-            -- a - b ~~> a + (-b)
-            PSub -> pure . Just $ PEOp2 PAdd pe1' (PEOp2 PMul (PEConst (-1)) pe2')
-            -- 
-            -- TODO: specify exception cases
-            --
-            -- only expressions that are already normalized should get here
-            _ -> pure Nothing
-
-  freshVar :: WriterT [PProp] (StateT Int SamplingM) Var
-  freshVar = do
-    var <- gets Var
-    modify (+1)
-    pure var
-
+    freshVar :: WriterT [PProp] (StateT Int SamplingM) Var
+    freshVar = do
+      var <- gets Var
+      modify (+ 1)
+      pure var

@@ -1,13 +1,14 @@
-{-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# OPTIONS_GHC -Wno-name-shadowing #-}
+
 module Cryptol.TypeCheck.Solver.Numeric.Sampling.Base where
 
 import Control.Monad.Except
-import Control.Monad.State (StateT, MonadState (get, put), gets, State, runState, evalStateT)
-import Cryptol.TypeCheck.Solver.InfNat (Nat')
-import System.Random.TF.Gen (RandomGen, TFGen)
+import Control.Monad.State (MonadState (get, put), State, StateT, evalStateT, gets, runState)
 import Cryptol.Testing.Random (Gen)
+import Cryptol.TypeCheck.Solver.InfNat (Nat')
 import System.Random.TF (newTFGen)
+import System.Random.TF.Gen (RandomGen, TFGen)
 
 -- | SamplingM
 type SamplingM = ExceptT SamplingError (StateT TFGen IO)
@@ -25,7 +26,7 @@ debug :: String -> SamplingM ()
 debug = const (pure ())
 
 debug' :: Int -> String -> SamplingM ()
-debug' lvl 
+debug' lvl
   | lvl <= 2 = liftIO . putStrLn
   | otherwise = const (pure ())
 
@@ -53,7 +54,6 @@ toGenM m = do
 
 genWeightedFromList :: RandomGen g => [(Int, Nat')] -> GenM g Nat'
 genWeightedFromList = undefined -- TODO: also, use this in the correct place
-
 
 -- Generate a random `Nat'` that is less than or equal to the given bound,
 -- chosen uniformly at random. If the bound is `Inf`, then `Inf` is chosen with

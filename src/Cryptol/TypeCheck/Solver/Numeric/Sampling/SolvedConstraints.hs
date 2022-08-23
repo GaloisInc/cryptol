@@ -32,8 +32,7 @@ import GHC.Real
 data SolvedConstraints a = SolvedConstraints
   { solsys :: SolvedSystem a,
     tcs :: [Tc a],
-    -- , params :: Vector SamplingParam
-    toVar :: TParam -> Var,
+    tparams :: Vector TParam,
     nVars :: Int
   }
 
@@ -68,8 +67,7 @@ toSolvedConstraints cons@Cons.Constraints {..} = do
     SolvedConstraints
       { solsys = solsys,
         tcs = tcs,
-        -- , params = params
-        toVar = toVar,
+        tparams = tparams,
         nVars = nVars
       }
 
@@ -238,7 +236,7 @@ elimDens solcons = do
           -- TODO: replace all appearances of `b*xj` with `(a*b)xk`
           --
           pure solcons
-      
+
       --
       pure solcons
 

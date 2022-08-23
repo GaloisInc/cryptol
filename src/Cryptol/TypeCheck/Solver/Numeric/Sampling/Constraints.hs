@@ -10,6 +10,7 @@
 
 module Cryptol.TypeCheck.Solver.Numeric.Sampling.Constraints where
 
+import Control.Monad.Except (MonadError (throwError))
 import Control.Monad.State (MonadTrans (lift), StateT (runStateT))
 import Control.Monad.Writer (MonadWriter (tell), WriterT (WriterT, runWriterT), execWriterT)
 import Cryptol.TypeCheck.PP (pp, ppList)
@@ -23,7 +24,6 @@ import qualified Data.List as L
 import Data.Maybe (fromMaybe)
 import Data.Vector (Vector)
 import qualified Data.Vector as V
-import Control.Monad.Except (MonadError(throwError))
 
 -- | Constraints
 --
@@ -35,20 +35,19 @@ import Control.Monad.Except (MonadError(throwError))
 data Constraints a = Constraints
   { sys :: System a,
     tcs :: [Tc a],
-    -- params :: Vector SamplingParam
-    toVar :: TParam -> Var,
+    tparams :: Vector TParam,
     nVars :: Int
   }
 
 instance Show a => Show (Constraints a) where
   show Constraints {..} =
     unlines
-      [ "Constraints:"
-      , "  sys:\n" ++ unlines (fmap (("    " ++) . show) sys)
-      , "  tcs:    " ++ show tcs
+      [ "Constraints:",
+        "  sys:\n" ++ unlines (fmap (("    " ++) . show) sys),
+        "  tcs:    " ++ show tcs,
         -- "  params: " ++ show (ppList (V.toList (pp <$> params)))
-      , "  toVar:  " ++ "<function :: TParam -> Var>"
-      , "  nVars:  " ++ show nVars
+        "  toVar:  " ++ "<function :: TParam -> Var>",
+        "  nVars:  " ++ show nVars
       ]
 
 overSystem ::
@@ -92,11 +91,11 @@ instance Show a => Show (Equ a) where
 
 -- a*x + b*y = n  ~~>  a*x + b*y - n = 0
 fromEqu :: Num a => Equ a -> Exp a
-fromEqu (Equ (Exp as c)) = Exp as (- c)
+fromEqu (Equ (Exp as c)) = Exp as (-c)
 
 -- a*x + b*y + n = 0  ~~>  a*x + b*y = -n
 toEqu :: Num a => Exp a -> Equ a
-toEqu (Exp as c) = Equ $ Exp as (- c)
+toEqu (Exp as c) = Equ $ Exp as (-c)
 
 asExp :: (Exp a -> b) -> Equ a -> b
 asExp f (Equ e) = f e
@@ -124,8 +123,7 @@ toConstraints precons = do
     Constraints
       { sys = sys,
         tcs = tcs,
-        -- params = PC.params precons
-        toVar = PC.toVar precons,
+        tparams = PC.tparams precons,
         nVars = PC.nVars precons
       }
   where
@@ -147,9 +145,13 @@ toConstraints precons = do
             e <- lift . lift $ extractExp pe
             tellTc [Tc FinTc e]
           -- not supported, or should have been filtered out in Preconstraints
-          pprop -> throwError $ SamplingError "toConstraints.extractSysTcs" $
-            "This PProp is not supported by literal literal sampling: " ++ 
-            "`" ++ show pprop ++ "`"
+          pprop ->
+            throwError $
+              SamplingError "toConstraints.extractSysTcs" $
+                "This PProp is not supported by literal literal sampling: "
+                  ++ "`"
+                  ++ show pprop
+                  ++ "`"
 
         tellEqu = tell
         tellTc = lift . tell

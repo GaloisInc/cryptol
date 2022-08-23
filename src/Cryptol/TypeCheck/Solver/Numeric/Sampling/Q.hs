@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 module Cryptol.TypeCheck.Solver.Numeric.Sampling.Q where
 
 import Control.Monad (guard)
@@ -16,13 +17,12 @@ denom (Q r) = denominator r
 numer :: Q -> Integer
 numer (Q r) = numerator r
 
-
 instance Show Q where
   show (Q r)
     | denominator r == 1 = show (numerator r)
     | otherwise =
-      concat
-        ["(", show (numerator r), "/", show (denominator r), ")"]
+        concat
+          ["(", show (numerator r), "/", show (denominator r), ")"]
 
 instance Num Q where
   Q r1 + Q r2 = Q (r1 + r2)

@@ -74,20 +74,20 @@ solveGauss nVars sys = go 0 sys
       case extractSolvedEqu j sys of
         -- eq is removed from sys
         Just (eq, sys') -> do
-          debug $ "extractSolvedEqu (" ++ show j ++ ") sys = Just (" ++ show eq ++ ", "++ show sys' ++ ")" 
+          debug $ "extractSolvedEqu (" ++ show j ++ ") sys = Just (" ++ show eq ++ ", " ++ show sys' ++ ")"
           -- divide e by coeff of var j to make coeff of var j be 1
           let aj = Cons.asExp (Exp.! j) eq
-          eq <- pure $ (/aj) <$> eq
+          eq <- pure $ (/ aj) <$> eq
           -- eliminate var j from rest of sys by sub appropriate multiple of e
           sys' <-
             pure $
               ( Cons.overExp \e' ->
                   flip Cons.asExp eq \e ->
                     let aj' = e' Exp.! j
-                    in e' - ((aj' *) <$> e)
+                     in e' - ((aj' *) <$> e)
               )
                 <$> sys'
-          -- 
+          --
           -- solve rest of sys' without e, then re-append e
           (eq :) <$> go (j + 1) sys'
         Nothing -> do
@@ -106,4 +106,5 @@ solveGauss nVars sys = go 0 sys
 
 countLeadingZeros :: (Num a, Eq a) => Exp a -> Maybe Int
 countLeadingZeros (Exp as _) = V.findIndex (0 /=) as
-  -- L.elemIndex 0 (V.toList as)
+
+-- L.elemIndex 0 (V.toList as)

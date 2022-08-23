@@ -59,8 +59,8 @@ extendN :: Num a => Int -> Exp a -> Exp a
 extendN m (Exp as c) = Exp (as <> V.replicate m 0) c
 
 -- Exp n a -> Exp m a
-pad :: Num a => Int -> Exp a -> Exp a 
-pad m e@(Exp as c) 
+pad :: Num a => Int -> Exp a -> Exp a
+pad m e@(Exp as c)
   | n <- V.length as, n <= m = extendN (m - n) e
   | otherwise = error "tried to pad an `Exp` that is larger than the padding"
 
@@ -73,7 +73,7 @@ Exp as c // mods = Exp (as V.// (first unVar <$> mods)) c
 solveFor :: Num a => Var -> Exp a -> Exp a
 solveFor i (Exp as c) =
   Exp
-    ( (\(i', a) -> if i == i' then 0 else - a)
+    ( (\(i', a) -> if i == i' then 0 else -a)
         <$> V.zip (V.generate (V.length as) Var) as
     )
     c
