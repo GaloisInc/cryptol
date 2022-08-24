@@ -14,7 +14,7 @@ instance Show Z' where
     | i == 1 && z == 0 = "i"
     | i == -1 && z == 0 = "-i"
     | i == 0 = show z
-    | otherwise = "(Z' " ++ show z ++ " " ++ show i ++ ") is malformed"
+    | otherwise = "{malformed}(Z' " ++ show z ++ " " ++ show i ++ ")"
 
 toZ' :: Integer -> Z'
 toZ' z = Z' {z, i = 0}
@@ -29,10 +29,10 @@ normZ' Z' {..} = Z' {z, i = signum i}
 
 instance Num Z' where
   Z' z1 i1 + Z' z2 i2
-    | signum i1 == signum i2 = normZ' (Z' (z1 + z2) (i1 + i2))
+    | signum i1 == signum i2 = normZ' $ Z' (z1 + z2) (i1 + i2)
     | otherwise = toZ' 0
 
-  Z' z1 i1 * Z' z2 i2 = normZ' (Z' (z1 + z2) (i1 + i2))
+  Z' z1 i1 * Z' z2 i2 = normZ' $ Z' (z1 + z2) (i1 + i2)
 
   abs Z' {..}
     | i == 0 = toZ' $ abs z

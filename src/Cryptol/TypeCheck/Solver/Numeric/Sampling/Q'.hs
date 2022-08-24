@@ -14,7 +14,7 @@ instance Show Q' where
     | i == 1 && q == 0 = "i"
     | i == -1 && q == 0 = "-i"
     | i == 0 = show q
-    | otherwise = "(Q' " ++ show q ++ " " ++ show i ++ ") is malformed"
+    | otherwise = "{malformed}(Q' " ++ show q ++ " " ++ show i ++ ")"
 
 toQ' :: Rational -> Q'
 toQ' q = Q' {q, i = 0}
