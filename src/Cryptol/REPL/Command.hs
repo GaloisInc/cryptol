@@ -536,15 +536,15 @@ qcExpr qcMode exprDoc texpr schema testNum val ty mb_sampleInfo =
 
      case mb_sampleInfo of
       Just SampleBinInfo{..} -> do
-        rPutStr ""
-        rPutStr $ unwords 
-          [ "Bin:", show binIndex, "/", show bins ]
-        rPutStr . unwords $ 
+        rPutStrLn ""
+        rPutStrLn $ unwords 
+          [ "Bin:", show (binIndex + 1), "/", show bins ]
+        rPutStrLn . unwords $ 
           [ "Sample:"
           , List.intercalate ", " 
               [ pretty (fromJust $ T.tpName tp) ++ " = " ++ show i 
               | (tp, i) <- sample
-              , isJust (T.tpName tp) ] ++ "\n" ]
+              , isJust (T.tpName tp) ] ]
           
       Nothing -> pure ()
 
