@@ -1,0 +1,24 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module SuiteB
+Loading module SuiteB_FFI
+Loading dynamic library SuiteB_FFI.dylib
+Loading module Main
+property aes128_MCT_vectors_encrypt_correct Using exhaustive testing.
+Testing... Passed 1 tests.
+Q.E.D.
+property aes128_MCT_vectors_decrypt_correct Using exhaustive testing.
+Testing... Passed 1 tests.
+Q.E.D.
+property aes192_MCT_vectors_encrypt_correct Using exhaustive testing.
+Testing... Passed 1 tests.
+Q.E.D.
+property aes192_MCT_vectors_decrypt_correct Using exhaustive testing.
+Testing... Passed 1 tests.
+Q.E.D.
+property aes256_MCT_vectors_encrypt_correct Using exhaustive testing.
+Testing... Passed 1 tests.
+Q.E.D.
+property aes256_MCT_vectors_decrypt_correct Using exhaustive testing.
+Testing... Passed 1 tests.
+Q.E.D.
