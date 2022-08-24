@@ -513,11 +513,11 @@ replEvalCheckedExpr' :: T.Expr -> T.Schema -> REPL (Concrete.Value, T.Type)
 replEvalCheckedExpr' texpr schema =
   replEvalCheckedExpr texpr schema >>= \case
     Just res -> pure res
-       -- If instance is not found, doesn't necessarily mean that there is no
-       -- instance. And due to nondeterminism in result from the solver (for
-       -- finding solution to numeric type constraints), `:check` can get to
-       -- this exception sometimes, but successfully find an instance and test
-       -- with it other times.
+    -- If instance is not found, doesn't necessarily mean that there is no
+    -- instance. And due to nondeterminism in result from the solver (for
+    -- finding solution to numeric type constraints), `:check` can get to
+    -- this exception sometimes, but successfully find an instance and test
+    -- with it other times.
     Nothing -> raise (InstantiationsNotFound schema)
 
 qcExpr ::
