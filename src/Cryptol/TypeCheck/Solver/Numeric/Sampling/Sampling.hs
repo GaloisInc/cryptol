@@ -14,27 +14,28 @@
 
 module Cryptol.TypeCheck.Solver.Numeric.Sampling.Sampling where
 
-import Control.Monad
-import Control.Monad.Except (ExceptT, MonadError (throwError))
+import Control.Monad ( foldM_, void )
+import Control.Monad.Except (MonadError (throwError))
 import Control.Monad.State as State
-import Cryptol.Testing.Random (Gen)
-import Cryptol.TypeCheck.PP (pretty)
-import Cryptol.TypeCheck.Solver.InfNat
-import qualified Cryptol.TypeCheck.Solver.InfNat as Nat'
+    ( StateT,
+      MonadTrans(lift),
+      gets,
+      modify,
+      evalStateT,
+      MonadState(put, get) )
+import Cryptol.TypeCheck.Solver.InfNat ( Nat'(..) )
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base
-import Cryptol.TypeCheck.Solver.Numeric.Sampling.Constraints as Cons
+    ( debug,
+      debug',
+      integer_max,
+      SamplingError(SamplingError),
+      SamplingM )
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp (Exp (..), Var (..))
 import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp as Exp
-import Cryptol.TypeCheck.Solver.Numeric.Sampling.Q
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.SolvedConstraints (SolvedConstraints)
 import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.SolvedConstraints as SolCons
-import Cryptol.TypeCheck.Solver.Numeric.Sampling.System as Sys
-import Cryptol.TypeCheck.Type
-import qualified Data.List as L
-import Data.Maybe
 import Data.Vector (Vector)
 import qualified Data.Vector as V
-import GHC.Real
 import System.Random.TF.Gen (TFGen)
 import System.Random.TF.Instances (Random (randomR))
 
@@ -46,12 +47,11 @@ data Range
   | -- already sampled
     Fixed Nat'
 
-instance Show Range where 
-  show = \case 
+instance Show Range where
+  show = \case
     UpperBounded exps -> "UpperBounded " ++ show exps
     EqualAndUpperBounded exp exps -> "EqualAndUpperBounded (" ++ show exp ++ ")" ++ " " ++ show exps
     Fixed na -> "Fixed (" ++ show na ++ ")"
-
 
 {-
 Sample solved constraints
@@ -72,7 +72,6 @@ Sample solved constraints
 -- TODO: make use of `fin` type constraint
 sample :: SolvedConstraints Nat' -> SamplingM (Vector Integer)
 sample solcons = do
-  debug $ "breakpoint Numeric.Sampling.Sampling:1"
   let vars = V.generate (SolCons.nVars solcons) Var
 
   debug $ "nVars = " ++ show (SolCons.nVars solcons)
@@ -119,9 +118,6 @@ sample solcons = do
     -- accumulate ranges
     V.mapM_
       ( \(i, mb_e) -> do
-          -- debug $ "breakpoint Numeric.Sampling.Sampling:2"
-          -- debug $ "i   = " ++ show i
-          -- debug $ "mb_e = " ++ show mb_e
           case mb_e of
             Just e@(Exp as c) -> do
               -- We need to account for the upper bounds on `xi` when
@@ -173,7 +169,7 @@ sample solcons = do
               foldM_
                 ( \e' i' -> do
                     let ai' = e Exp.! i'
-                    e' <- pure $ (Exp.// [(i', 0)]) . fmap (`divNat'` ai') $ e'
+                    e' <- pure $ (Exp.// [(i', 0)]) . fmap (`divNat'` abs ai') $ e'
                     lift $ debug' 2 $ "upper-bounding " ++ show i' ++ " by " ++ show e'
                     addUpperBounds i' [e']
                     pure e'
@@ -189,7 +185,7 @@ sample solcons = do
     void do
       rs <- get
       lift $ debug' 1 $ "rs =\n" ++ unlines (("  " ++) . show <$> V.toList rs)
-      -- throwError $ SamplingError "sample" "BREAK"
+    -- throwError $ SamplingError "sample" "BREAK"
 
     -- sample all the vars
     let liftR :: (TFGen -> (a, TFGen)) -> StateT (Vector Range) SamplingM a
@@ -199,7 +195,7 @@ sample solcons = do
           pure a
 
     let sampleNat' :: Nat' -> StateT (Vector Range) SamplingM Nat'
-        sampleNat' Inf = Nat <$> liftR (randomR (0, 10)) -- TODO: actually, sample exp dist up to MAX_INT
+        sampleNat' Inf = Nat <$> liftR (randomR (0, 100)) -- TODO: actually, sample exp dist up to MAX_INT
         sampleNat' (Nat n) = Nat <$> liftR (randomR (0, n))
 
         minimumUpperBound :: [Exp Nat'] -> StateT (Vector Range) SamplingM Nat'
@@ -226,23 +222,26 @@ sample solcons = do
             Fixed n -> pure n
           -- set xi := val
           setFixed i val
-          lift . debug' 1 $ "               ==>" ++ show val
+          lift . debug' 1 $ show i ++ " ==> " ++ show val
           --
           pure val
 
         -- sample an expression that is upper bounded by a constant
         sampleExp :: Nat' -> Exp Nat' -> StateT (Vector Range) SamplingM Nat'
-        sampleExp n (Exp as c) = do
+        sampleExp n e@(Exp as c) = do
           lift . debug' 1 $ "sampling exp: " ++ show (Exp as c)
           -- only sampleuates terms that have non-0 coeff
-          (c +)
-            . V.sum
-            <$> ( \(i, a) ->
-                    if a /= 0
-                      then sampleVar i
-                      else pure 0
-                )
-            `traverse` (vars `V.zip` as)
+          n <-
+            (c +)
+              . V.sum
+              <$> ( \(i, a) ->
+                      if a /= 0
+                        then (a *) <$> sampleVar i
+                        else pure 0
+                  )
+              `traverse` (vars `V.zip` as)
+          lift . debug' 1 $ show e ++ " ==> " ++ show n
+          pure n
 
     -- In theory, this should work with dependencies correctly, since if
     -- sampling something depends on sampling something else first, then if will
@@ -251,11 +250,9 @@ sample solcons = do
     pure vals
   -- sample all the vars
   -- vals <- evalStateT (sampleVar `traverse` vars) rs
-  debug $ "breakpoint Numeric.Sampling.Sampling:3"
 
   -- cast to Integer
   let fromNat' :: Nat' -> Integer
       fromNat' Inf = integer_max
       fromNat' (Nat n) = n
-  debug $ "breakpoint Numeric.Sampling.Sampling:4"
   pure $ fromNat' <$> vals

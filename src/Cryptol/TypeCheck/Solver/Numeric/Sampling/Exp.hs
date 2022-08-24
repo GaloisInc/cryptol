@@ -4,6 +4,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp where
 
@@ -26,7 +27,10 @@ instance Show a => Show (Exp a) where
         <> pure (show c)
 
 newtype Var = Var {unVar :: Int}
-  deriving (Eq, Ord, Num, Show)
+  deriving (Eq, Ord, Num)
+
+instance Show Var where 
+  show Var{..} = "x{" ++ show unVar ++ "}"
 
 instance Num a => Num (Exp a) where
   Exp as1 c1 + Exp as2 c2 = Exp (V.zipWith (+) as1 as2) (c1 + c2)
