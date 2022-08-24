@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Type Declarations &mdash; Cryptol 2.11.0 documentation</title>
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/jquery.js"></script>
+        <script src="_static/underscore.js"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="_static/doctools.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Modules" href="Modules.html" />
+    <link rel="prev" title="Overloaded Operations" href="OverloadedOperations.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="RefMan.html" class="icon icon-home"> Cryptol
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Cryptol Reference Manual</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="BasicSyntax.html">Basic Syntax</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Expressions.html">Expressions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="BasicTypes.html">Basic Types</a></li>
+<li class="toctree-l1"><a class="reference internal" href="OverloadedOperations.html">Overloaded Operations</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Type Declarations</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#type-synonyms">Type Synonyms</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#newtypes">Newtypes</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="Modules.html">Modules</a></li>
+<li class="toctree-l1"><a class="reference internal" href="FFI.html">Foreign Function Interface</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="RefMan.html">Cryptol</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="RefMan.html" class="icon icon-home"></a> &raquo;</li>
+      <li>Type Declarations</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/TypeDeclarations.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="type-declarations">
+<h1>Type Declarations<a class="headerlink" href="#type-declarations" title="Permalink to this heading"></a></h1>
+<section id="type-synonyms">
+<h2>Type Synonyms<a class="headerlink" href="#type-synonyms" title="Permalink to this heading"></a></h2>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">type</span><span class="w"> </span><span class="kt">T</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="p">[</span><span class="n">a</span><span class="p">]</span><span class="w"> </span><span class="n">b</span><span class="w"></span>
+</pre></div>
+</div>
+<p>A <code class="docutils literal notranslate"><span class="pre">type</span></code> declaration creates a synonym for a
+pre-existing type expression, which may optionally have
+arguments. A type synonym is transparently unfolded at
+use sites and is treated as though the user had instead
+written the body of the type synonym in line.
+Type synonyms may mention other synonyms, but it is not
+allowed to create a recursive collection of type synonyms.</p>
+</section>
+<section id="newtypes">
+<h2>Newtypes<a class="headerlink" href="#newtypes" title="Permalink to this heading"></a></h2>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">newtype</span><span class="w"> </span><span class="kt">NewT</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nb">seq</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="n">a</span><span class="p">]</span><span class="n">b</span><span class="w"> </span><span class="p">}</span><span class="w"></span>
+</pre></div>
+</div>
+<p>A <code class="docutils literal notranslate"><span class="pre">newtype</span></code> declaration declares a new named type which is defined by
+a record body.  Unlike type synonyms, each named <code class="docutils literal notranslate"><span class="pre">newtype</span></code> is treated
+as a distinct type by the type checker, even if they have the same
+bodies. Moreover, types created by a <code class="docutils literal notranslate"><span class="pre">newtype</span></code> declaration will not be
+members of any typeclasses, even if the record defining their body
+would be.  For the purposes of typechecking, two newtypes are
+considered equal only if all their arguments are equal, even if the
+arguments do not appear in the body of the newtype, or are otherwise
+irrelevant.  Just like type synonyms, newtypes are not allowed to form
+recursive groups.</p>
+<p>Every <code class="docutils literal notranslate"><span class="pre">newtype</span></code> declaration brings into scope a new function with the
+same name as the type which can be used to create values of the
+newtype.</p>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="kt">NewT</span><span class="w"> </span><span class="mi">3</span><span class="w"> </span><span class="kt">Integer</span><span class="w"></span>
+<span class="nf">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kt">NewT</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nb">seq</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">]</span><span class="w"> </span><span class="p">}</span><span class="w"></span>
+</pre></div>
+</div>
+<p>Just as with records, field projections can be used directly on values
+of newtypes to extract the values in the body of the type.</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>&gt; sum x.seq
+6
+</pre></div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="OverloadedOperations.html" class="btn btn-neutral float-left" title="Overloaded Operations" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="Modules.html" class="btn btn-neutral float-right" title="Modules" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2021, The Cryptol Team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

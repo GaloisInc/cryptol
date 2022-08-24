@@ -64,8 +64,9 @@ findModule n env = runModuleM env (Base.findModule n)
 
 -- | Load the module contained in the given file.
 loadModuleByPath :: FilePath -> ModuleCmd (ModulePath,T.Module)
-loadModuleByPath path minp =
-  runModuleM minp{ minpModuleEnv = resetModuleEnv (minpModuleEnv minp) } $ do
+loadModuleByPath path minp = do
+  moduleEnv' <- resetModuleEnv $ minpModuleEnv minp
+  runModuleM minp{ minpModuleEnv = moduleEnv' } $ do
     unloadModule ((InFile path ==) . lmFilePath)
     m <- Base.loadModuleByPath path
     setFocusedModule (T.mName m)
@@ -73,8 +74,9 @@ loadModuleByPath path minp =
 
 -- | Load the given parsed module.
 loadModuleByName :: P.ModName -> ModuleCmd (ModulePath,T.Module)
-loadModuleByName n minp =
-  runModuleM minp{ minpModuleEnv = resetModuleEnv (minpModuleEnv minp) } $ do
+loadModuleByName n minp = do
+  moduleEnv' <- resetModuleEnv $ minpModuleEnv minp
+  runModuleM minp{ minpModuleEnv = moduleEnv' } $ do
     unloadModule ((n ==) . lmName)
     (path,m') <- Base.loadModuleFrom False (FromModule n)
     setFocusedModule (T.mName m')

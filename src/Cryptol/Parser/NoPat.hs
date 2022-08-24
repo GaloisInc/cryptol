@@ -219,6 +219,11 @@ noMatchB b =
           | otherwise        -> panic "NoPat" [ "noMatchB: primitive with params"
                                               , show b ]
 
+    DForeign
+      | null (bParams b) -> return b
+      | otherwise        -> panic "NoPat" [ "noMatchB: foreign with params"
+                                          , show b ]
+
     DExpr e ->
       do e' <- noPatFun (Just (thing (bName b))) 0 (bParams b) e
          return b { bParams = [], bDef = DExpr e' <$ bDef b }

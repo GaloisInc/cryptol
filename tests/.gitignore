@@ -1,1 +1,3 @@
 output
+*.so
+*.dylib

@@ -13,12 +13,13 @@ import Data.List((\\),sortBy,groupBy,partition)
 import Data.Function(on)
 
 import qualified Cryptol.Parser.AST as P
-import Cryptol.Parser.Position(Located(..), Range(..))
+import Cryptol.Parser.Position(Located(..), Range(..), rangeWithin)
 import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.Type
 import Cryptol.TypeCheck.InferTypes
 import Cryptol.TypeCheck.Subst
 import Cryptol.TypeCheck.Unify(Path,isRootPath)
+import Cryptol.TypeCheck.FFI.Error
 import Cryptol.ModuleSystem.Name(Name)
 import Cryptol.Utils.Ident(Ident)
 import Cryptol.Utils.RecordMap
@@ -56,6 +57,8 @@ cleanupErrors = dropErrorsFromSameLoc
 -- | Should the first error suppress the next one.
 subsumes :: (Range,Error) -> (Range,Error) -> Bool
 subsumes (_,NotForAll _ _ x _) (_,NotForAll _ _ y _) = x == y
+subsumes (r1,UnexpectedTypeWildCard) (r2,UnsupportedFFIType{}) =
+  r1 `rangeWithin` r2
 subsumes (r1,KindMismatch {}) (r2,err) =
   case err of
     KindMismatch {} -> r1 == r2
@@ -143,6 +146,11 @@ data Error    = KindMismatch (Maybe TypeSource) Kind Kind
               | MissingModTParam (Located Ident)
               | MissingModVParam (Located Ident)
 
+              | UnsupportedFFIKind TypeSource TParam Kind
+                -- ^ Kind is not supported for FFI
+              | UnsupportedFFIType TypeSource FFITypeError
+                -- ^ Type is not supported for FFI
+
               | TemporaryError Doc
                 -- ^ This is for errors that don't fit other cateogories.
                 -- We should not use it much, and is generally to be used
@@ -199,7 +207,9 @@ errorImportance err =
 
     AmbiguousSize {}                                 -> 2
 
-
+    UnsupportedFFIKind {}                            -> 10
+    UnsupportedFFIType {}                            -> 7
+    -- less than UnexpectedTypeWildCard
 
 
 instance TVars Warning where
@@ -249,6 +259,9 @@ instance TVars Error where
       MissingModTParam {}  -> err
       MissingModVParam {}  -> err
 
+      UnsupportedFFIKind {}    -> err
+      UnsupportedFFIType src e -> UnsupportedFFIType src !$ apSubst su e
+
       TemporaryError {} -> err
 
 
@@ -283,6 +296,9 @@ instance FVS Error where
       TypeShadowing {}     -> Set.empty
       MissingModTParam {}  -> Set.empty
       MissingModVParam {}  -> Set.empty
+
+      UnsupportedFFIKind {}  -> Set.empty
+      UnsupportedFFIType _ t -> fvs t
 
       TemporaryError {} -> Set.empty
 
@@ -322,7 +338,7 @@ instance PP (WithNames Error) where
       UnexpectedTypeWildCard ->
         addTVarsDescsAfter names err $
         nested "Wild card types are not allowed in this context"
-          "(e.g., they cannot be used in type synonyms)."
+          "(e.g., they cannot be used in type synonyms or FFI declarations)."
 
       KindMismatch mbsrc k1 k2 ->
         addTVarsDescsAfter names err $
@@ -456,6 +472,17 @@ instance PP (WithNames Error) where
         "Missing definition for type parameter" <+> quotes (pp (thing x))
       MissingModVParam x ->
         "Missing definition for value parameter" <+> quotes (pp (thing x))
+
+      UnsupportedFFIKind src param k ->
+        nested "Kind of type variable unsupported for FFI: " $
+        vcat
+          [ pp param <+> colon <+> pp k
+          , "Only type variables of kind" <+> pp KNum <+> "are supported"
+          , "When checking" <+> pp src ]
+
+      UnsupportedFFIType src t -> vcat
+        [ ppWithNames names t
+        , "When checking" <+> pp src ]
 
       TemporaryError doc -> doc
     where

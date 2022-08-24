@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Overloaded Operations &mdash; Cryptol 2.11.0 documentation</title>
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/jquery.js"></script>
+        <script src="_static/underscore.js"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="_static/doctools.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Type Declarations" href="TypeDeclarations.html" />
+    <link rel="prev" title="Basic Types" href="BasicTypes.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="RefMan.html" class="icon icon-home"> Cryptol
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Cryptol Reference Manual</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="BasicSyntax.html">Basic Syntax</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Expressions.html">Expressions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="BasicTypes.html">Basic Types</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Overloaded Operations</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#equality">Equality</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#comparisons">Comparisons</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#signed-comparisons">Signed Comparisons</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#zero">Zero</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#logical-operations">Logical Operations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#basic-arithmetic">Basic Arithmetic</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#integral-operations">Integral Operations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#division">Division</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#rounding">Rounding</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="TypeDeclarations.html">Type Declarations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Modules.html">Modules</a></li>
+<li class="toctree-l1"><a class="reference internal" href="FFI.html">Foreign Function Interface</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="RefMan.html">Cryptol</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="RefMan.html" class="icon icon-home"></a> &raquo;</li>
+      <li>Overloaded Operations</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/OverloadedOperations.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="overloaded-operations">
+<h1>Overloaded Operations<a class="headerlink" href="#overloaded-operations" title="Permalink to this heading"></a></h1>
+<section id="equality">
+<h2>Equality<a class="headerlink" href="#equality" title="Permalink to this heading"></a></h2>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kt">Eq</span><span class="w"></span>
+<span class="w">  </span><span class="p">(</span><span class="o">==</span><span class="p">)</span><span class="w">        </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w">    </span><span class="p">(</span><span class="kt">Eq</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kr">Bit</span><span class="w"></span>
+<span class="w">  </span><span class="p">(</span><span class="o">!=</span><span class="p">)</span><span class="w">        </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w">    </span><span class="p">(</span><span class="kt">Eq</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kr">Bit</span><span class="w"></span>
+<span class="w">  </span><span class="p">(</span><span class="o">===</span><span class="p">)</span><span class="w">       </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">Eq</span><span class="w"> </span><span class="n">b</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="p">(</span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">b</span><span class="p">)</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="p">(</span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">b</span><span class="p">)</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="p">(</span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kr">Bit</span><span class="p">)</span><span class="w"></span>
+<span class="w">  </span><span class="p">(</span><span class="o">!==</span><span class="p">)</span><span class="w">       </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">Eq</span><span class="w"> </span><span class="n">b</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="p">(</span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">b</span><span class="p">)</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="p">(</span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">b</span><span class="p">)</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="p">(</span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kr">Bit</span><span class="p">)</span><span class="w"></span>
+</pre></div>
+</div>
+</section>
+<section id="comparisons">
+<h2>Comparisons<a class="headerlink" href="#comparisons" title="Permalink to this heading"></a></h2>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">Cmp</span><span class="w"></span>
+<span class="w">  </span><span class="p">(</span><span class="o">&lt;</span><span class="p">)</span><span class="w">         </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kr">Cmp</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kr">Bit</span><span class="w"></span>
+<span class="w">  </span><span class="p">(</span><span class="o">&gt;</span><span class="p">)</span><span class="w">         </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kr">Cmp</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kr">Bit</span><span class="w"></span>
+<span class="w">  </span><span class="p">(</span><span class="o">&lt;=</span><span class="p">)</span><span class="w">        </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kr">Cmp</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kr">Bit</span><span class="w"></span>
+<span class="w">  </span><span class="p">(</span><span class="o">&gt;=</span><span class="p">)</span><span class="w">        </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kr">Cmp</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kr">Bit</span><span class="w"></span>
+<span class="w">  </span><span class="kr">min</span><span class="w">         </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kr">Cmp</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"></span>
+<span class="w">  </span><span class="kr">max</span><span class="w">         </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kr">Cmp</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"></span>
+<span class="w">  </span><span class="n">abs</span><span class="w">         </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kr">Cmp</span><span class="w"> </span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="kt">Ring</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"></span>
+</pre></div>
+</div>
+</section>
+<section id="signed-comparisons">
+<h2>Signed Comparisons<a class="headerlink" href="#signed-comparisons" title="Permalink to this heading"></a></h2>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kt">SignedCmp</span><span class="w"></span>
+<span class="w">  </span><span class="p">(</span><span class="o">&lt;$</span><span class="p">)</span><span class="w">        </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">SignedCmp</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kr">Bit</span><span class="w"></span>
+<span class="w">  </span><span class="p">(</span><span class="o">&gt;$</span><span class="p">)</span><span class="w">        </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">SignedCmp</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kr">Bit</span><span class="w"></span>
+<span class="w">  </span><span class="p">(</span><span class="o">&lt;=$</span><span class="p">)</span><span class="w">       </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">SignedCmp</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kr">Bit</span><span class="w"></span>
+<span class="w">  </span><span class="p">(</span><span class="o">&gt;=$</span><span class="p">)</span><span class="w">       </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">SignedCmp</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kr">Bit</span><span class="w"></span>
+</pre></div>
+</div>
+</section>
+<section id="zero">
+<h2>Zero<a class="headerlink" href="#zero" title="Permalink to this heading"></a></h2>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kt">Zero</span><span class="w"></span>
+<span class="w">  </span><span class="n">zero</span><span class="w">        </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">Zero</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"></span>
+</pre></div>
+</div>
+</section>
+<section id="logical-operations">
+<h2>Logical Operations<a class="headerlink" href="#logical-operations" title="Permalink to this heading"></a></h2>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kt">Logic</span><span class="w"></span>
+<span class="w">  </span><span class="p">(</span><span class="o">&amp;&amp;</span><span class="p">)</span><span class="w">        </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">Logic</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"></span>
+<span class="w">  </span><span class="p">(</span><span class="o">||</span><span class="p">)</span><span class="w">        </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">Logic</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"></span>
+<span class="w">  </span><span class="p">(</span><span class="o">^</span><span class="p">)</span><span class="w">         </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">Logic</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"></span>
+<span class="w">  </span><span class="n">complement</span><span class="w">  </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">Logic</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"></span>
+</pre></div>
+</div>
+</section>
+<section id="basic-arithmetic">
+<h2>Basic Arithmetic<a class="headerlink" href="#basic-arithmetic" title="Permalink to this heading"></a></h2>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kt">Ring</span><span class="w"></span>
+<span class="w">  </span><span class="n">fromInteger</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">Ring</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="kt">Integer</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"></span>
+<span class="w">  </span><span class="p">(</span><span class="o">+</span><span class="p">)</span><span class="w">         </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">Ring</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"></span>
+<span class="w">  </span><span class="p">(</span><span class="o">-</span><span class="p">)</span><span class="w">         </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">Ring</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"></span>
+<span class="w">  </span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w">         </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">Ring</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"></span>
+<span class="w">  </span><span class="n">negate</span><span class="w">      </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">Ring</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"></span>
+<span class="w">  </span><span class="p">(</span><span class="o">^^</span><span class="p">)</span><span class="w">        </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">e</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">Ring</span><span class="w"> </span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="kt">Integral</span><span class="w"> </span><span class="n">e</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"></span>
+</pre></div>
+</div>
+</section>
+<section id="integral-operations">
+<h2>Integral Operations<a class="headerlink" href="#integral-operations" title="Permalink to this heading"></a></h2>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kt">Integral</span><span class="w"></span>
+<span class="w">  </span><span class="p">(</span><span class="o">/</span><span class="p">)</span><span class="w">         </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">Integral</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"></span>
+<span class="w">  </span><span class="p">(</span><span class="o">%</span><span class="p">)</span><span class="w">         </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">Integral</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"></span>
+<span class="w">  </span><span class="p">(</span><span class="o">^^</span><span class="p">)</span><span class="w">        </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">e</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">Ring</span><span class="w"> </span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="kt">Integral</span><span class="w"> </span><span class="n">e</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"></span>
+<span class="w">  </span><span class="n">toInteger</span><span class="w">   </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">Integral</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kt">Integer</span><span class="w"></span>
+<span class="w">  </span><span class="n">infFrom</span><span class="w">     </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">Integral</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="p">[</span><span class="kr">inf</span><span class="p">]</span><span class="n">a</span><span class="w"></span>
+<span class="w">  </span><span class="n">infFromThen</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">Integral</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="p">[</span><span class="kr">inf</span><span class="p">]</span><span class="n">a</span><span class="w"></span>
+</pre></div>
+</div>
+</section>
+<section id="division">
+<h2>Division<a class="headerlink" href="#division" title="Permalink to this heading"></a></h2>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kt">Field</span><span class="w"></span>
+<span class="w">  </span><span class="n">recip</span><span class="w">       </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">Field</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"></span>
+<span class="w">  </span><span class="p">(</span><span class="o">/.</span><span class="p">)</span><span class="w">        </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">Field</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"></span>
+</pre></div>
+</div>
+</section>
+<section id="rounding">
+<h2>Rounding<a class="headerlink" href="#rounding" title="Permalink to this heading"></a></h2>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kt">Round</span><span class="w"></span>
+<span class="w">  </span><span class="n">ceiling</span><span class="w">     </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">Round</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kt">Integer</span><span class="w"></span>
+<span class="w">  </span><span class="n">floor</span><span class="w">       </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">Round</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kt">Integer</span><span class="w"></span>
+<span class="w">  </span><span class="n">trunc</span><span class="w">       </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">Round</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kt">Integer</span><span class="w"></span>
+<span class="w">  </span><span class="n">roundAway</span><span class="w">   </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">Round</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kt">Integer</span><span class="w"></span>
+<span class="w">  </span><span class="n">roundToEven</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">Round</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kt">Integer</span><span class="w"></span>
+</pre></div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="BasicTypes.html" class="btn btn-neutral float-left" title="Basic Types" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="TypeDeclarations.html" class="btn btn-neutral float-right" title="Type Declarations" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2021, The Cryptol Team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

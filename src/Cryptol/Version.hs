@@ -6,7 +6,8 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE Trustworthy #-}
+{-# LANGUAGE CPP  #-}
+{-# LANGUAGE Safe #-}
 
 module Cryptol.Version (
     commitHash
@@ -39,6 +40,9 @@ displayVersion putLn = do
     putLn ("Cryptol " ++ ver)
     putLn ("Git commit " ++ commitHash)
     putLn ("    branch " ++ commitBranch ++ dirtyLab)
+#ifdef FFI_ENABLED
+    putLn "FFI enabled"
+#endif
       where
       dirtyLab | commitDirty = " (non-committed files present during build)"
                | otherwise   = ""

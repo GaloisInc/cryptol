@@ -1,0 +1,36 @@
+:! make -s test-ffi
+:l test-ffi.cry
+
+add8 1 2
+sub16 12345 6789
+mul32 123456 7890
+div64 12345678901234567890 987654321
+
+extendInput 7
+maskOutput 255
+noBits 0
+
+not True
+
+addFloat32 12.34 56.78
+subFloat64 1234.5678 9012.3456
+specialFloats 0
+specialFloats 1
+specialFloats 2
+specialFloats 3
+
+usesTypeSynonym 42 42
+
+sum10 [1..10]
+reverse5 [0x1.23, -0x3.45, 0x6.78, -0x9.0a, 0xb.cd]
+
+compoundTypes (0x12345678, {y = [10, 20, 30], x = 300}) {z = [40, 50, 60, 70, 80]}
+
+typeToValue`{0x12345678deadbeef} ()
+sumPoly []
+sumPoly [1..10]
+sumPoly [1..10000]
+inits [1..5]
+zipMul3 [1, 2, 3] [3, 4, 5, 6] [6, 7, 8, 9, 10]
+
+nestedSeq [split`{4} x | x <- split`{2} [1..24]]

@@ -11,6 +11,7 @@
 
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ImplicitParams #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -49,9 +50,11 @@ import Cryptol.ModuleSystem.Env (lookupModule
                                 , meCoreLint, CoreLint(..)
                                 , ModContext(..)
                                 , ModulePath(..), modulePathLabel)
+import           Cryptol.Backend.FFI
 import qualified Cryptol.Eval                 as E
 import qualified Cryptol.Eval.Concrete as Concrete
 import           Cryptol.Eval.Concrete (Concrete(..))
+import           Cryptol.Eval.FFI
 import qualified Cryptol.ModuleSystem.NamingEnv as R
 import qualified Cryptol.ModuleSystem.Renamer as R
 import qualified Cryptol.Parser               as P
@@ -237,8 +240,12 @@ doLoadModule quiet isrc path fp pm0 =
      let ?evalPrim = \i -> Right <$> Map.lookup i tbl
      callStacks <- getCallStacks
      let ?callStacks = callStacks
-     unless (T.isParametrizedModule tcm) $ modifyEvalEnv (E.moduleEnv Concrete tcm)
-     loadedModule path fp nameEnv tcm
+     foreignSrc <- if T.isParametrizedModule tcm
+       then pure Nothing
+       else evalForeign tcm
+     unless (T.isParametrizedModule tcm) $
+       modifyEvalEnv (E.moduleEnv Concrete tcm)
+     loadedModule path fp nameEnv foreignSrc tcm
 
      return tcm
   where
@@ -251,7 +258,25 @@ doLoadModule quiet isrc path fp pm0 =
       else notAParameterizedModule (T.mName tcm)
     | otherwise = return tcm
 
-
+  evalForeign tcm
+    | null foreigns = pure Nothing
+    | otherwise = case path of
+      InFile p -> io (canonicalizePath p >>= loadForeignSrc) >>=
+        \case
+          Right fsrc -> do
+            unless quiet $
+              case getForeignSrcPath fsrc of
+                Just fpath -> withLogger logPutStrLn $
+                  "Loading dynamic library " ++ takeFileName fpath
+                Nothing -> pure ()
+            modifyEvalEnvM (evalForeignDecls fsrc foreigns) >>=
+              \case
+                Right () -> pure $ Just fsrc
+                Left errs -> ffiLoadErrors (T.mName tcm) errs
+          Left err -> ffiLoadErrors (T.mName tcm) [err]
+      InMem m _ -> panic "doLoadModule"
+        ["Can't find foreign source of in-memory module", m]
+    where foreigns = findForeignDecls tcm
 
 
 
