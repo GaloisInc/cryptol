@@ -1,7 +1,7 @@
 SHELL = /bin/bash
 CFLAGS = -O3 -Wall -Wextra -Werror
 
-.PHONY: test clean
+.PHONY: test perf clean
 
 ifeq ($(shell uname -m),x86_64)
 
@@ -34,6 +34,10 @@ endif
 test: $(SO)
 	diff tests/aes-vectors.icry$(TEST_OUT_EXT) <(cryptol -b tests/aes-vectors.icry)
 	diff tests/aes-mct-ecb.icry$(TEST_OUT_EXT) <(cryptol -b tests/aes-mct-ecb.icry)
+
+perf: $(SO)
+	time cryptol -b tests/aes-mct-ecb.icry
+	time cryptol -b ../../tests/suiteb/aes-mct-ecb.icry
 
 clean:
 	rm $(SO)
