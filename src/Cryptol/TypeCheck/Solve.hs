@@ -162,23 +162,22 @@ addIncompatible g i =
 -- substituted variables are omitted). If there are no polymorphic literals,
 -- then Nothing.
 -- TODO: explain sampling distributions
-sampleLiterals :: Schema -> Int -> IO (Maybe [(Sampling.Sample, Schema)])
+sampleLiterals :: Schema -> Int -> IO (Either String [(Sampling.Sample, Schema)])
 sampleLiterals schema@Forall {sVars, sProps} nLiteralSamples = do
   -- let (literalVars, otherVars) = partition ((KNum ==) . tpKind) sVars
   let literalVars = filter ((KNum ==) . tpKind) sVars
   if null literalVars then
     -- there are no literal vars to sample
-    pure Nothing
-  else Just <$> do
+    pure . Left $ "The schema is not polymorphic in any numeric type variables."
+  else do
     -- there are some literal vars to sample
     -- each sample in `samples` is a type var subst
     res <- runSamplingM (sample literalVars sProps nLiteralSamples)
     case res of
       Left err -> do
-        putStrLn $ "Error while sampling literals: " ++ show err
-        pure []
+        pure . Left $ show err
       Right samples -> do
-        pure $ (\sample' -> (sample', applySample sample' schema)) <$> samples
+        pure . pure $ (\sample' -> (sample', applySample sample' schema)) <$> samples
 
 defaultReplExpr :: Solver -> Expr -> Schema ->
                     IO (Maybe ([(TParam,Type)], Expr))
@@ -420,9 +419,3 @@ buildSolverCtxt ps0 =
      NoChange -> as
      InvalidInterval {} -> as -- XXX: say something
      NewIntervals bs -> Map.union bs as
-
-
--- tmp
-
-debugIO :: String -> IO ()
-debugIO = putStrLn . ("[debug.Solve] " ++)

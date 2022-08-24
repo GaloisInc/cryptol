@@ -448,37 +448,16 @@ qcCmd qcMode str pos fnm = do
               -- do this many tests per sample, until out of tests
               litBin <- (toInteger :: Int -> Integer) <$> getKnownUser "literalSamplingBin"
               let litSamplesNum = testNum `div` litBin
+
+
+
               io (sampleLiterals schema (fromInteger litSamplesNum)) >>= \case
-                Just samples_schemas -> do
+                Right samples_schemas -> do
                   rPutStrLn "Using literal sampling."
-                  -- DEBUG
-                  rPutStrLn $ "samples_schemas = " ++ unlines (show . fmap (first pp) . fst <$> samples_schemas)
-                  debugREPL $ "samples_schemas = " ++ unlines (show . fmap (first pp) . fst <$> samples_schemas)
 
-                  (\(sample, schema') -> do
-                    debugREPL "==[ BEGIN step over sampled schemas ]=="
-                    debugREPL $ "qcMode = " ++ show qcMode
-                    debugREPL $ "doc = " ++ show doc
-                    debugREPL $ "expr = " ++ show (pp expr)
-                    debugREPL $ "schema' = " ++ show (pp schema')
-                    debugREPL $ "litBin = " ++ show litBin
-
-                    -- TODO: also need to substitute the sampled solution into the
-                    -- expression being checked, since the typechecked expression
-                    -- will have type-abstractions for the polymorphic literals that
-                    -- I have already substituted away via the sampling. But, as far
-                    -- as I can see the `texpr` isn't actually the expression
-                    -- itself, but a reference by name or something to the defined
-                    -- expression being checked... so how do I substitute only the
-                    -- specific type abstractions that I handled via sampling?
-                    -- Apparently there is a syntax for doing type applications by
-                    -- name e.g. `f {A = [8], B = Bit}`, so maybe I can take
-                    -- advtange of that?
-
-                    -- this generates a new expression that has the appropriate
-                    -- type arguments given to it according to the sampling,
-                    -- which is then typechecked and evaluated again
-                    let
+                  let -- this generates a new expression that has the appropriate
+                      -- type arguments given to it according to the sampling,
+                      -- which is then typechecked and evaluated again
                       applySampleToTExpr :: Sample -> P.Expr P.PName -> P.Expr P.PName
                       applySampleToTExpr sample e = P.EAppT e $ f <$> sample
                         where
@@ -493,58 +472,25 @@ qcCmd qcMode str pos fnm = do
                               thing = M.nameIdent name,
                               srcRange = M.nameLoc name
                             }
-                            -- TODO: handle other TVar sources??
-                            _ -> undefined
+                            -- TODO: handle other TypeSourceVar sources
+                            varDesc -> panic "qcCmd" ["umplemented handling of TypeSource source: " ++ show varDesc]
+                    
+                      qcSampleSchema (sample, schema) = do
+                        expr <- pure $ applySampleToTExpr sample expr
+                        (_, texpr, schema') <- replCheckExpr expr
+                        (val, ty) <- replEvalCheckedExpr' texpr schema'
+                        qcExpr qcMode doc texpr schema' litBin val ty (Just sample)
 
-                    expr <- pure $ applySampleToTExpr sample expr
+                  qcSampleSchema `mapM_` take (fromInteger $ testNum `div` litBin) samples_schemas
 
-                    debugREPL $ "expr = " ++ pretty expr
-
-                    (_, texpr, schema') <- replCheckExpr expr
-
-                    debugREPL $ "texpr = " ++ pretty texpr
-                    debugREPL $ "schema' = " ++ pretty schema'
-
-                    (val, ty) <- replEvalCheckedExpr' texpr schema'
-
-                    debugREPL $ "val = " ++ show val
-                    debugREPL $ "ty  = " ++ pretty ty
-
-                    qcExpr qcMode doc texpr schema' litBin val ty (Just sample)
-                    )
-                      `mapM_`
-                        take (fromInteger $ testNum `div` litBin) samples_schemas
-                  debugREPL "==[ END step over sampled schemas ]=="
-                Nothing -> do
-                  rPutStrLn "Failed to use literal sampling, so using default literal solution instead."
+                Left err -> do
+                  rPutStrLn $ "Failed to use liteal sampling: " ++ err
+                  rPutStrLn "Using default literal solution instead."
                   (val, ty) <- replEvalCheckedExpr' texpr schema
                   void (qcExpr qcMode doc texpr schema testNum val ty Nothing)
         else do
           (val, ty) <- replEvalCheckedExpr' texpr schema
           void (qcExpr qcMode doc texpr schema testNum val ty Nothing)
-
-{- OLD
-qcCmd qcMode "" _pos _fnm =
-  do (xs,disp) <- getPropertyNames
-     let nameStr x = show (fixNameDisp disp (pp x))
-     if null xs
-        then rPutStrLn "There are no properties in scope."
-        else forM_ xs $ \(x,d) ->
-               do let str = nameStr x
-                  rPutStr $ "property " ++ str ++ " "
-                  let texpr = T.EVar x
-                  let schema = M.ifDeclSig d
-                  nd <- M.mctxNameDisp <$> getFocusedEnv
-                  let doc = fixNameDisp nd (pp texpr)
-                  void (qcExpr qcMode doc texpr schema)
-
-qcCmd qcMode str pos fnm =
-  do expr <- replParseExpr str pos fnm
-     (_,texpr,schema) <- replCheckExpr expr
-     nd <- M.mctxNameDisp <$> getFocusedEnv
-     let doc = fixNameDisp nd (ppPrec 3 expr) -- function application has precedence 3
-     void (qcExpr qcMode doc texpr schema)
--}
 
 data TestReport = TestReport
   { reportExpr :: Doc
@@ -585,13 +531,8 @@ qcExpr qcMode exprDoc texpr schema testNum val ty mb_sample =
   --      Nothing -> raise (InstantiationsNotFound schema)
   --    -- pulled out as param of `qcExpr`
   --    -- testNum <- (toInteger :: Int -> Integer) <$> getKnownUser "tests"
-  do -- debugREPL $ "val = " ++ show val
-     -- debugREPL $ "ty = " ++ show ty
-
-     tenv <- E.envTypes . M.deEnv <$> getDynEnv
+  do tenv <- E.envTypes . M.deEnv <$> getDynEnv
      let tyv = E.evalValType tenv ty
-
-     --  debugREPL $ "tyv = " ++ show tyv
 
      case mb_sample of
       Just sample -> do
@@ -1738,13 +1679,10 @@ replEvalExpr expr =
 
 replEvalCheckedExpr :: T.Expr -> T.Schema -> REPL (Maybe (Concrete.Value, T.Type))
 replEvalCheckedExpr def sig =
-  do debugREPL $ "replEvalCheckedExpr (" ++ pretty def ++") (" ++ pretty sig ++ ")"
-     validEvalContext def
+  do validEvalContext def
      validEvalContext sig
 
      s <- getTCSolver
-     debugREPL $ "def = " ++ pretty def
-     debugREPL $ "sig = " ++ pretty sig
      mbDef <- io (defaultReplExpr s def sig)
 
      case mbDef of
@@ -1958,9 +1896,3 @@ parseCommand findCmd line = do
         _         -> let (a,b) = break isSpace ipt in
                      if null a then Nothing else Just (length a, a, b)
 
-
--- tmp
-
-debugREPL :: String -> REPL ()
--- debugREPL = rPutStrLn . ("[debug.Command] " ++)
-debugREPL = const (pure ())
