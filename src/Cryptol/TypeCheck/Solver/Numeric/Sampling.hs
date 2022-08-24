@@ -86,8 +86,6 @@ sample tparams props nLiteralSamples = do
       -- sample `nLiteralSamples` number of times
       replicateM nLiteralSamples do
         vals <- V.toList <$> Sampling.sample solcons
-        debug' 0 $ "vals = " ++ show vals
-        -- pure (tparams `zip` ((\v -> TCon (TC (TCNum v)) []) <$> vals))
         pure (tparams `zip` vals)
 
 applySample :: Sample -> Schema -> Schema

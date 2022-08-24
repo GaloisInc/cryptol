@@ -163,4 +163,5 @@ toConstraints precons = do
             pe1 <- extractExp pe1
             pe2 <- extractExp pe2
             pure $ pe1 + pe2
-          _ -> undefined -- not in normal form
+          pexp -> throwError . SamplingError "toConstraints" $
+            "This PExp is not in normal form: " ++ show pexp

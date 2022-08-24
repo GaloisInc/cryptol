@@ -5,6 +5,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC "-fmax-pmcheck-models=1000" #-}
 
 module Cryptol.TypeCheck.Solver.Numeric.Sampling.Preconstraints where
 
@@ -76,7 +77,8 @@ fromProps ::
   SamplingM Preconstraints
 fromProps tps props = do
   pprops <- foldM fold (emptyPreconstraints $ V.fromList tps) props
-  debug' 0 $ "pprops = " ++ show pprops
+  debug' 0 $ ""
+  debug' 0 $ "pprops = " ++ show pprops 
   pprops <- normalizePreconstraints pprops
   debug' 0 $ "pprops <- normalizePreconstraints pprops"
   debug' 0 $ "pprops = " ++ show pprops
@@ -199,39 +201,61 @@ normalizePreconstraints precons = do
           PEOp2 po pe1 pe2 -> do
             pe1' <- normPExp pe1
             pe2' <- normPExp pe2
+            let pe_ = PEOp2 po pe1' pe2'
+            let abnormal = throwError . SamplingError "normPExp" $ "liteal sampling only handles linear constraints, but the following non-linear expression appeared while normalizing a constraint: " <> show pe_
             case po of
+              -- a*x * b*y [abnormal]
+              PMul | PETerm _ _ <- pe1', PETerm _ _ <- pe2' -> abnormal
+              -- a*x / b*y [abnormal]
+              PDiv | PETerm _ _ <- pe1', PETerm _ _ <- pe2' -> abnormal
+              -- a*x % b*y [abnormal]
+              PMod | PETerm _ _ <- pe1', PETerm _ _ <- pe2' -> abnormal
+              -- a*x ^ b*y [abnormal]
+              PPow | PETerm _ _ <- pe1', PETerm _ _ <- pe2' -> abnormal
+
+              -- commutativity -- move PEConst left, move PETerm right
+              PAdd | PETerm a x <- pe1', PEConst n <- pe2' -> pure . Just $ PEOp2 PAdd (PEConst n) (PETerm a x)
+              PMul | PETerm a x <- pe1', PEConst n <- pe2' -> pure . Just $ PEOp2 PMul (PEConst n) (PETerm a x)
+              
               -- combine constants
-              PAdd | PEConst n1 <- pe1', PEConst n2 <- pe2' -> pure . Just . PEConst $ n1 + n2
-              PMul | PEConst n1 <- pe1', PEConst n2 <- pe2' -> pure . Just . PEConst $ n1 * n2
-              PDiv | PEConst n1 <- pe1', PEConst n2 <- pe2' -> pure . Just . PEConst $ n1 / n2
-              -- `m mod n` where both `m`, `n` are constant
+              PAdd | PEConst n1 <- pe1', PEConst n2 <- pe2' -> pure . Just $ PEConst (n1 + n2)
+              PMul | PEConst n1 <- pe1', PEConst n2 <- pe2' -> pure . Just $ PEConst (n1 * n2)
+              PDiv | PEConst n1 <- pe1', PEConst n2 <- pe2' -> pure . Just $ PEConst (n1 / n2)
+              
+              -- a*x + b*x = (a + b)*x
+              PAdd | PETerm a x <- pe1', PETerm b y <- pe2', x == y -> pure . Just $ PETerm (a + b) x
+              -- a*x * n = (a * n)*x
+              PMul | PEConst n <- pe1', PETerm a x <- pe2' -> pure . Just $ PETerm (a * n) x
+              
+              -- `m % n` where both `m`, `n` are constant
               PMod
                 | PEConst n1 <- pe1',
                   PEConst n2 <- pe2',
                   Just z1 <- (fromQ n1 :: Maybe Int),
                   Just z2 <- (fromQ n2 :: Maybe Int) ->
                     pure . Just . PEConst . toQ $ z1 `mod` z2
+              
               -- `m ^^ n` requires that `m`, `n` are constant
               PPow
                 | PEConst n1 <- pe1',
                   PEConst n2 <- pe2',
                   Just z2 <- (fromQ n2 :: Maybe Int) ->
                     pure . Just . PEConst $ n1 ^^ z2
-              -- `a mod n` where only `n` is constant
+              
+              -- `a % n` where only `n` is constant
               PMod | PEConst n <- pe2' -> do
-                -- `a mod n` is replaced by `b` such that `b = a - n*c`
+                -- `a % n` is replaced by `b` such that `b = a - n*c`
                 -- where `b` and `c` are fresh
                 let a = pe2'
                 b <- freshVar
                 c <- freshVar
                 tell [PPEqual (PETerm 1 b) (PEOp2 PAdd a (PETerm n c))]
                 pure . Just $ PETerm 1 b
+              
               -- a - b ~~> a + (-b)
               PSub -> pure . Just $ PEOp2 PAdd pe1' (PEOp2 PMul (PEConst (-1)) pe2')
-              --
-              -- TODO: specify exception cases
-              --
-              -- only expressions that are already normalized should get here
+              
+              -- normal
               _ -> pure Nothing
 
     freshVar :: WriterT [PProp] (StateT Int SamplingM) Var

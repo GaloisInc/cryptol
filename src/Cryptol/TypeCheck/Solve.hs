@@ -178,7 +178,6 @@ sampleLiterals schema@Forall {sVars, sProps} nLiteralSamples = do
         putStrLn $ "Error while sampling literals: " ++ show err
         pure []
       Right samples -> do
-        debugIO $ "samples = \n" ++ unlines (("  " ++) . show <$> (fmap (first pretty) <$> samples))
         pure $ (\sample' -> (sample', applySample sample' schema)) <$> samples
 
 defaultReplExpr :: Solver -> Expr -> Schema ->

@@ -115,7 +115,7 @@ import Data.Bits (shiftL, (.&.), (.|.))
 import Data.Char (isSpace,isPunctuation,isSymbol,isAlphaNum,isAscii)
 import Data.Function (on)
 import Data.List (intercalate, nub, isPrefixOf,intersperse)
-import Data.Maybe (fromMaybe,mapMaybe,isNothing)
+import Data.Maybe (fromMaybe,mapMaybe,isNothing, isJust, fromJust)
 import System.Environment (lookupEnv)
 import System.Exit (ExitCode(ExitSuccess))
 import System.Process (shell,createProcess,waitForProcess)
@@ -142,6 +142,7 @@ import Prelude.Compat
 import qualified Data.SBV.Internals as SBV (showTDiff)
 import Cryptol.TypeCheck.Solver.Numeric.Sampling (Sample)
 import Data.Bifunctor (Bifunctor(bimap, first))
+import qualified Data.List as List
 
 -- Commands --------------------------------------------------------------------
 
@@ -431,7 +432,7 @@ qcCmd qcMode str pos fnm = do
       QCExhaust -> do
         testNum <- (toInteger :: Int -> Integer) <$> getKnownUser "tests"
         (val, ty) <- replEvalCheckedExpr' texpr schema
-        void (qcExpr qcMode doc texpr schema testNum val ty)
+        void (qcExpr qcMode doc texpr schema testNum val ty Nothing)
       QCRandom -> do
         testNum <- (toInteger :: Int -> Integer) <$> getKnownUser "tests"
         useLitSampling <- getKnownUser "literalSampling" :: REPL Bool
@@ -442,7 +443,7 @@ qcCmd qcMode str pos fnm = do
           case mb_expr of
             Nothing -> do
               (val, ty) <- replEvalCheckedExpr' texpr schema
-              void (qcExpr qcMode doc texpr schema testNum val ty)
+              void (qcExpr qcMode doc texpr schema testNum val ty Nothing)
             Just expr -> do
               -- do this many tests per sample, until out of tests
               litBin <- (toInteger :: Int -> Integer) <$> getKnownUser "literalSamplingBin"
@@ -450,6 +451,8 @@ qcCmd qcMode str pos fnm = do
               io (sampleLiterals schema (fromInteger litSamplesNum)) >>= \case
                 Just samples_schemas -> do
                   rPutStrLn "Using literal sampling."
+                  -- DEBUG
+                  rPutStrLn $ "samples_schemas = " ++ unlines (show . fmap (first pp) . fst <$> samples_schemas)
                   debugREPL $ "samples_schemas = " ++ unlines (show . fmap (first pp) . fst <$> samples_schemas)
 
                   (\(sample, schema') -> do
@@ -507,7 +510,7 @@ qcCmd qcMode str pos fnm = do
                     debugREPL $ "val = " ++ show val
                     debugREPL $ "ty  = " ++ pretty ty
 
-                    qcExpr qcMode doc texpr schema' litBin val ty
+                    qcExpr qcMode doc texpr schema' litBin val ty (Just sample)
                     )
                       `mapM_`
                         take (fromInteger $ testNum `div` litBin) samples_schemas
@@ -515,10 +518,10 @@ qcCmd qcMode str pos fnm = do
                 Nothing -> do
                   rPutStrLn "Failed to use literal sampling, so using default literal solution instead."
                   (val, ty) <- replEvalCheckedExpr' texpr schema
-                  void (qcExpr qcMode doc texpr schema testNum val ty)
+                  void (qcExpr qcMode doc texpr schema testNum val ty Nothing)
         else do
           (val, ty) <- replEvalCheckedExpr' texpr schema
-          void (qcExpr qcMode doc texpr schema testNum val ty)
+          void (qcExpr qcMode doc texpr schema testNum val ty Nothing)
 
 {- OLD
 qcCmd qcMode "" _pos _fnm =
@@ -582,13 +585,24 @@ qcExpr qcMode exprDoc texpr schema testNum val ty mb_sample =
   --      Nothing -> raise (InstantiationsNotFound schema)
   --    -- pulled out as param of `qcExpr`
   --    -- testNum <- (toInteger :: Int -> Integer) <$> getKnownUser "tests"
-  do debugREPL $ "val = " ++ show val
-     debugREPL $ "ty = " ++ show ty
+  do -- debugREPL $ "val = " ++ show val
+     -- debugREPL $ "ty = " ++ show ty
 
      tenv <- E.envTypes . M.deEnv <$> getDynEnv
      let tyv = E.evalValType tenv ty
 
-     debugREPL $ "tyv = " ++ show tyv
+     --  debugREPL $ "tyv = " ++ show tyv
+
+     case mb_sample of
+      Just sample -> do
+        rPutStr . unwords $ 
+          [ "\nSample:"
+          , List.intercalate ", " 
+              [ pretty (fromJust $ T.tpName tp) ++ " = " ++ show i 
+              | (tp, i) <- sample
+              , isJust (T.tpName tp) ] ++ "\n" ]
+          
+      Nothing -> pure ()
 
      -- tv has already had polymorphism instantiated 
      percentRef <- io $ newIORef Nothing

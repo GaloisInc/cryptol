@@ -22,11 +22,11 @@ runSamplingM m = do
   flip evalStateT g . runExceptT $ m
 
 debug :: String -> SamplingM ()
--- debug = liftIO . putStrLn
-debug = const (pure ())
+debug = liftIO . putStrLn
+-- debug = const (pure ())
 
 debugLevel :: Int
-debugLevel = 0
+debugLevel = 2
 
 debug' :: Int -> String -> SamplingM ()
 debug' lvl

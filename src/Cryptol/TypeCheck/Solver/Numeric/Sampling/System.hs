@@ -8,21 +8,14 @@
 
 module Cryptol.TypeCheck.Solver.Numeric.Sampling.System where
 
-import Control.Monad
-import Control.Monad.Trans
-import Cryptol.TypeCheck.Solver.InfNat (Nat')
-import qualified Cryptol.TypeCheck.Solver.InfNat as Nat'
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base
-import Cryptol.TypeCheck.Solver.Numeric.Sampling.Constraints (Constraints, Equ, System)
 import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.Constraints as Cons
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp (Exp (..), Var (..))
 import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp as Exp
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Q
-import Data.Bifunctor (Bifunctor (bimap, second))
-import qualified Data.List as L
-import Data.Maybe
+import Data.Bifunctor (Bifunctor (second))
 import qualified Data.Vector as V
-import GHC.Real
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.Constraints (System, Equ)
 
 -- | IxEqu
 -- Index of an equation in the system.
@@ -88,8 +81,8 @@ solveGauss nVars sys = go 0 sys
               )
                 <$> sys'
           --
-          -- solve rest of sys' without e, then re-append e
-          (eq :) <$> go (j + 1) sys'
+          -- solve rest of sys' for var `j + 1`
+          go (j + 1) (eq : sys')
         Nothing -> do
           debug $ "could not extract equation for `j = " ++ show j ++ "`"
           -- skip solving for var j
