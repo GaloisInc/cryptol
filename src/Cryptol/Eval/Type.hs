@@ -6,7 +6,7 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE Trustworthy, PatternGuards #-}
+{-# LANGUAGE Safe, PatternGuards #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 module Cryptol.Eval.Type where

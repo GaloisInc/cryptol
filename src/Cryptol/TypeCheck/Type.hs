@@ -1,4 +1,4 @@
-{-# Language Trustworthy, DeriveGeneric, DeriveAnyClass, RecordWildCards #-}
+{-# Language Safe, DeriveGeneric, DeriveAnyClass, RecordWildCards #-}
 {-# Language FlexibleInstances, FlexibleContexts #-}
 {-# Language PatternGuards #-}
 {-# Language OverloadedStrings #-}

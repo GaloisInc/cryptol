@@ -6,7 +6,7 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE Trustworthy #-}
+{-# LANGUAGE Safe #-}
 {-# LANGUAGE PatternGuards, ViewPatterns #-}
 {-# LANGUAGE DeriveFunctor, DeriveGeneric, DeriveAnyClass #-}
 {-# LANGUAGE BlockArguments, OverloadedStrings #-}

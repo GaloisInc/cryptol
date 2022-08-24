@@ -569,8 +569,9 @@ qcExpr ::
   Integer ->
   Concrete.Value ->
   T.Type ->
+  Maybe Sample -> -- if some num type vars were instantiated via literal sampling
   REPL TestReport
-qcExpr qcMode exprDoc texpr schema testNum val ty =
+qcExpr qcMode exprDoc texpr schema testNum val ty mb_sample =
   -- do (val,ty) <- replEvalCheckedExpr texpr schema >>= \case
   --      Just res -> pure res
   --      -- If instance is not found, doesn't necessarily mean that there is no

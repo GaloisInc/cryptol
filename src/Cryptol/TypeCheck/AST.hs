@@ -6,8 +6,7 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE Trustworthy                                #-}
-
+{-# LANGUAGE Safe                                #-}
 {-# LANGUAGE RecordWildCards                     #-}
 {-# LANGUAGE PatternGuards                       #-}
 {-# LANGUAGE FlexibleInstances, FlexibleContexts #-}

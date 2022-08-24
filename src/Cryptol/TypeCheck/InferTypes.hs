@@ -8,8 +8,7 @@
 --
 -- This module contains types used during type inference.
 
-{-# LANGUAGE Trustworthy #-}
-
+{-# LANGUAGE Safe #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
