@@ -305,6 +305,8 @@ benchmark cryptol-bench
       ld-options: -static -pthread
       ghc-options: -optl-fuse-ld=bfd
   build-depends:       base
+                     , bytestring
+                     , containers
                      , criterion
                      , cryptol
                      , deepseq

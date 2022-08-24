@@ -18,7 +18,8 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE ViewPatterns #-}
 module Cryptol.Eval.SBV
-  ( primTable
+  ( Value
+  , primTable
   ) where
 
 import qualified Control.Exception as X

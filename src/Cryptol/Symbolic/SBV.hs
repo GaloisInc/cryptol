@@ -20,7 +20,9 @@
 module Cryptol.Symbolic.SBV
  ( SBVProverConfig
  , defaultProver
+ , doSBVEval
  , proverNames
+ , runProver
  , setupProver
  , satProve
  , satProveOffline
