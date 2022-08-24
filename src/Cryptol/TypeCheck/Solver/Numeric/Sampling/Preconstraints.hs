@@ -5,7 +5,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# OPTIONS_GHC "-fmax-pmcheck-models=1000" #-}
 
 module Cryptol.TypeCheck.Solver.Numeric.Sampling.Preconstraints where
 
