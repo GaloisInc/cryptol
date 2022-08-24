@@ -97,15 +97,13 @@ fromProps tps props = do
           _ -> undefined -- bad
         TUser _ _ prop -> fold precons prop
         prop ->
-          throwError $
-            SamplingError "fromProps" $
-              "cannot handle prop of the form: `" ++ show prop ++ "`"
+          throwError . SamplingError "Preconstraints.fromProps" $ 
+            "The following type constraint is not supported: " ++ pretty prop
       where
         proc2 con ts =
           toPExp `traverse` ts >>= \case
             [e1, e2] -> do
               let pprop = con e1 e2
-              debug' 0 $ "fromProps.fold.proc2 (" ++ pretty prop ++ ") = (" ++ show pprop ++ ")"
               pure $ addPProps [pprop] precons
             _ -> undefined -- bad number of args
         proc1 con ts =
@@ -114,14 +112,13 @@ fromProps tps props = do
             _ -> undefined -- bad number of args
     toPExp :: Type -> SamplingM PExp
     toPExp typ = do
-      pe <- case typ of
+      case typ of
         TCon tcon ts -> case tcon of
           -- type constants
           TC tc -> case tc of
             TCNum n -> pure . PEConst $ toQ n
-            -- TCInf -> pure . PEConst $ Inf -- TODO: how to handle constant inf? need to use Q' everywhere rather than Q
-            TCAbstract _ut -> undefined -- TODO: support user-defined type constraints
-            _ -> undefined -- unsupported type function
+            TCInf -> pure . PEConst $ error "TODO: use Q' instead of Q"
+            _ -> unsupported
             -- type functions
           TF tf -> case tf of
             TCAdd -> proc2 (PEOp2 PAdd) ts
@@ -130,19 +127,18 @@ fromProps tps props = do
             TCDiv -> proc2 (PEOp2 PDiv) ts
             TCMod -> proc2 (PEOp2 PMod) ts
             TCExp -> proc2 (PEOp2 PPow) ts
-            _ -> undefined -- unsupported type function
+            _ -> unsupported
             where
-              proc2 con = \case
-                [t1, t2] -> con <$> toPExp t1 <*> toPExp t2
-                _ -> undefined -- bad num of args
-          _ -> undefined -- unsupported type
+              proc2 con [t1, t2] = con <$> toPExp t1 <*> toPExp t2
+          _ -> unsupported
         TVar tv -> pure $ PETerm 1 (iTVar tv)
         TUser _ _ prop -> toPExp prop
-        TNewtype _new _tys -> undefined -- TODO: support user-defined newtypes
-        _ -> undefined -- unsupported type function
-      debug' 0 $ "fromProps.toPExp (" ++ pretty typ ++ ") = (" ++ show pe ++ ")"
-      pure pe
+        TNewtype _new _tys -> unsupported
+        _ -> unsupported
       where
+        unsupported = throwError . SamplingError "Preconstraints.fromProps" $ 
+          "The following numeric type is not supported: " ++ pretty typ
+
         iTVar :: TVar -> Var
         iTVar = \case
           TVFree {} -> undefined -- shouldn't be dealing with free vars here

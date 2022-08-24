@@ -19,6 +19,7 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Use camelCase" #-}
+{-# LANGUAGE NamedFieldPuns #-}
 module Cryptol.REPL.Command (
     -- * Commands
     Command(..), CommandDescr(..), CommandBody(..), CommandExitCode(..)
@@ -397,6 +398,13 @@ dumpTestsCmd outFile str pos fnm =
 
 data QCMode = QCRandom | QCExhaust deriving (Eq, Show)
 
+data SampleBinInfo = SampleBinInfo
+  { sample :: Sample -- the sample used for this bin
+  , binIndex :: Integer -- the index of this bin among all bins
+  , bins :: Integer -- the number of total bins
+  , binSize :: Integer -- the number of tests for this bin
+  }
+
 
 -- | Randomly test a property, or exhaustively check it if the number
 -- of values in the type under test is smaller than the @tests@
@@ -446,12 +454,12 @@ qcCmd qcMode str pos fnm = do
               void (qcExpr qcMode doc texpr schema testNum val ty Nothing)
             Just expr -> do
               -- do this many tests per sample, until out of tests
-              litBin <- (toInteger :: Int -> Integer) <$> getKnownUser "literalSamplingBin"
-              let litSamplesNum = testNum `div` litBin
+              binSize <- (toInteger :: Int -> Integer) <$> getKnownUser "literalSamplingBin"
+              let bins = testNum `div` binSize
 
 
 
-              io (sampleLiterals schema (fromInteger litSamplesNum)) >>= \case
+              io (sampleLiterals schema (fromInteger bins)) >>= \case
                 Right samples_schemas -> do
                   rPutStrLn "Using literal sampling."
 
@@ -475,13 +483,15 @@ qcCmd qcMode str pos fnm = do
                             -- TODO: handle other TypeSourceVar sources
                             varDesc -> panic "qcCmd" ["umplemented handling of TypeSource source: " ++ show varDesc]
                     
-                      qcSampleSchema (sample, schema) = do
+                      qcSampleSchema ((sample, schema), binIndex) = do
                         expr <- pure $ applySampleToTExpr sample expr
                         (_, texpr, schema') <- replCheckExpr expr
                         (val, ty) <- replEvalCheckedExpr' texpr schema'
-                        qcExpr qcMode doc texpr schema' litBin val ty (Just sample)
+                        qcExpr qcMode doc texpr schema' binSize val ty 
+                          (Just SampleBinInfo
+                            { sample, bins, binIndex, binSize })
 
-                  qcSampleSchema `mapM_` take (fromInteger $ testNum `div` litBin) samples_schemas
+                  qcSampleSchema `mapM_` (take (fromInteger $ testNum `div` binSize) samples_schemas `zip` [0..])
 
                 Left err -> do
                   rPutStrLn $ "Failed to use liteal sampling: " ++ err
@@ -518,26 +528,19 @@ qcExpr ::
   Integer ->
   Concrete.Value ->
   T.Type ->
-  Maybe Sample -> -- if some num type vars were instantiated via literal sampling
+  Maybe SampleBinInfo -> -- if using literal sampling
   REPL TestReport
-qcExpr qcMode exprDoc texpr schema testNum val ty mb_sample =
-  -- do (val,ty) <- replEvalCheckedExpr texpr schema >>= \case
-  --      Just res -> pure res
-  --      -- If instance is not found, doesn't necessarily mean that there is no
-  --      -- instance. And due to nondeterminism in result from the solver (for
-  --      -- finding solution to numeric type constraints), `:check` can get to
-  --      -- this exception sometimes, but successfully find an instance and test
-  --      -- with it other times.
-  --      Nothing -> raise (InstantiationsNotFound schema)
-  --    -- pulled out as param of `qcExpr`
-  --    -- testNum <- (toInteger :: Int -> Integer) <$> getKnownUser "tests"
+qcExpr qcMode exprDoc texpr schema testNum val ty mb_sampleInfo =
   do tenv <- E.envTypes . M.deEnv <$> getDynEnv
      let tyv = E.evalValType tenv ty
 
-     case mb_sample of
-      Just sample -> do
+     case mb_sampleInfo of
+      Just SampleBinInfo{..} -> do
+        rPutStr ""
+        rPutStr $ unwords 
+          [ "Bin:", show binIndex, "/", show bins ]
         rPutStr . unwords $ 
-          [ "\nSample:"
+          [ "Sample:"
           , List.intercalate ", " 
               [ pretty (fromJust $ T.tpName tp) ++ " = " ++ show i 
               | (tp, i) <- sample
