@@ -55,38 +55,32 @@ sample ::
   Int ->
   SamplingM [Sample]
 sample tparams props nLiteralSamples = do
-  liftIO (runSamplingM m) >>= \case
-    Left err -> panic "sample" ["Error during sampling literals: " ++ show err]
-    Right sampling -> pure sampling
-  where
-    m :: SamplingM [Sample]
-    m = do
-      precons <- fromProps tparams props
-      debug' 0 $ "precons = " ++ show precons
-      cons <- toConstraints precons
-      debug' 0 $ "cons <- toConstraints precons"
-      debug' 0 $ "cons = " ++ show cons
-      -- solve constraints system
-      solcons <- do
-        -- gaussian elimination
-        cons <- overSystem (solveGauss (Cons.nVars cons)) cons
-        debug' 0 $ "cons <- overSystem solveGauss cons"
-        debug' 0 $ "cons = " ++ show cons
-        -- verify gaussian-eliminated form
-        solcons <- toSolvedConstraints cons
-        debug' 0 $ "solcons <- toSolvedConstraints cons"
-        debug' 0 $ "solcons = " ++ show solcons
-        -- eliminate denomenators
-        solcons <- elimDens solcons
-        debug' 0 $ "solcons <- elimDens solcons"
-        debug' 0 $ "solcons = " ++ show solcons
-        --
-        pure solcons
-      --
-      -- sample `nLiteralSamples` number of times
-      replicateM nLiteralSamples do
-        vals <- V.toList <$> Sampling.sample solcons
-        pure (tparams `zip` vals)
+  precons <- fromProps tparams props
+  debug' 0 $ "precons = " ++ show precons
+  cons <- toConstraints precons
+  debug' 0 $ "cons <- toConstraints precons"
+  debug' 0 $ "cons = " ++ show cons
+  -- solve constraints system
+  solcons <- do
+    -- gaussian elimination
+    cons <- overSystem (solveGauss (Cons.nVars cons)) cons
+    debug' 0 $ "cons <- overSystem solveGauss cons"
+    debug' 0 $ "cons = " ++ show cons
+    -- verify gaussian-eliminated form
+    solcons <- toSolvedConstraints cons
+    debug' 0 $ "solcons <- toSolvedConstraints cons"
+    debug' 0 $ "solcons = " ++ show solcons
+    -- eliminate denomenators
+    solcons <- elimDens solcons
+    debug' 0 $ "solcons <- elimDens solcons"
+    debug' 0 $ "solcons = " ++ show solcons
+    --
+    pure solcons
+  --
+  -- sample `nLiteralSamples` number of times
+  replicateM nLiteralSamples do
+    vals <- V.toList <$> Sampling.sample solcons
+    pure (tparams `zip` vals)
 
 applySample :: Sample -> Schema -> Schema
 applySample sample Forall {sVars, sProps, sType} =

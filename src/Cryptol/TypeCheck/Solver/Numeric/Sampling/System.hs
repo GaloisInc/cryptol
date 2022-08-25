@@ -9,13 +9,13 @@
 module Cryptol.TypeCheck.Solver.Numeric.Sampling.System where
 
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.Constraints (Equ, System)
 import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.Constraints as Cons
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp (Exp (..), Var (..))
 import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp as Exp
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Q
 import Data.Bifunctor (Bifunctor (second))
 import qualified Data.Vector as V
-import Cryptol.TypeCheck.Solver.Numeric.Sampling.Constraints (System, Equ)
 
 -- | IxEqu
 -- Index of an equation in the system.
@@ -62,12 +62,12 @@ solveGauss nVars sys = go 0 sys
     go :: Var -> System Q -> SamplingM (System Q)
     go (Var j) sys | j >= nVars || null sys = pure sys
     go j sys = do
-      debug $ "j   = " ++ show j
-      debug $ "sys = " ++ show sys
+      debug' 1 $ "j   = " ++ show j
+      debug' 1 $ "sys = " ++ show sys
       case extractSolvedEqu j sys of
         -- eq is removed from sys
         Just (eq, sys') -> do
-          debug $ "extractSolvedEqu (" ++ show j ++ ") sys = Just (" ++ show eq ++ ", " ++ show sys' ++ ")"
+          debug' 1 $ "extractSolvedEqu (" ++ show j ++ ") sys = Just (" ++ show eq ++ ", " ++ show sys' ++ ")"
           -- divide e by coeff of var j to make coeff of var j be 1
           let aj = Cons.asExp (Exp.! j) eq
           eq <- pure $ (/ aj) <$> eq
@@ -84,7 +84,7 @@ solveGauss nVars sys = go 0 sys
           -- solve rest of sys' for var `j + 1`
           go (j + 1) (eq : sys')
         Nothing -> do
-          debug $ "could not extract equation for `j = " ++ show j ++ "`"
+          debug' 1 $ "could not extract equation for `j = " ++ show j ++ "`"
           -- skip solving for var j
           go (j + 1) sys
 

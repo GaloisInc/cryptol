@@ -14,7 +14,9 @@ import System.Random.TF.Gen (RandomGen, TFGen)
 type SamplingM = ExceptT SamplingError (StateT TFGen IO)
 
 data SamplingError = SamplingError String String
-  deriving (Show) -- TODO
+
+instance Show SamplingError where 
+  show (SamplingError title msg) = "[" ++ title ++ "] " ++ msg
 
 runSamplingM :: SamplingM a -> IO (Either SamplingError a)
 runSamplingM m = do
@@ -23,14 +25,13 @@ runSamplingM m = do
 
 debug :: String -> SamplingM ()
 debug = liftIO . putStrLn
--- debug = const (pure ())
 
 debugLevel :: Int
-debugLevel = 2
+debugLevel = -1
 
 debug' :: Int -> String -> SamplingM ()
 debug' lvl
-  | lvl <= debugLevel = liftIO . putStrLn
+  | lvl <= debugLevel = debug
   | otherwise = const (pure ())
 
 throwSamplingError :: SamplingError -> SamplingM a

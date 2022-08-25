@@ -74,7 +74,7 @@ sample :: SolvedConstraints Nat' -> SamplingM (Vector Integer)
 sample solcons = do
   let vars = V.generate (SolCons.nVars solcons) Var
 
-  debug $ "nVars = " ++ show (SolCons.nVars solcons)
+  debug' 1 $ "nVars = " ++ show (SolCons.nVars solcons)
 
   let solsys = SolCons.solsys solcons
 
