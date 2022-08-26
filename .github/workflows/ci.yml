@@ -59,11 +59,8 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-22.04, macos-12, windows-2019]
-        ghc-version: ["8.8.4", "8.10.7", "9.0.2", "9.2.4"]
+        ghc-version: ["8.10.7", "9.0.2", "9.2.4"]
         exclude:
-          # https://gitlab.haskell.org/ghc/ghc/-/issues/18550
-          - os: windows-2019
-            ghc-version: 8.10.7
           - os: windows-2019
             ghc-version: 9.0.2
           - os: windows-2019
@@ -72,7 +69,7 @@ jobs:
           # We include one job from an older Ubuntu LTS release to increase our
           # coverage of possible Linux configurations.
           - os: ubuntu-22.04
-            ghc-version: 8.8.4
+            ghc-version: 8.10.7
     outputs:
       test-lib-json: ${{ steps.test-lib.outputs.targets-json }}
     env:
@@ -206,13 +203,13 @@ jobs:
           if-no-files-found: error
           retention-days: ${{ needs.config.outputs.retention-days }}
 
-      - if: matrix.ghc-version == '8.8.4'
+      - if: matrix.ghc-version == '8.10.7'
         uses: actions/upload-artifact@v2
         with:
           path: dist/bin
           name: ${{ runner.os }}-dist-bin
 
-      - if: matrix.ghc-version == '8.8.4'
+      - if: matrix.ghc-version == '8.10.7'
         uses: actions/upload-artifact@v2
         with:
           path: bin

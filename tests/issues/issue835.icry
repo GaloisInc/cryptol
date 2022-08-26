@@ -1,2 +1,2 @@
 :m Float
-:t (zero : Float 5 11) <$ zero
+:t number`{1, Float _ _}
