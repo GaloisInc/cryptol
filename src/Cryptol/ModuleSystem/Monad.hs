@@ -192,7 +192,7 @@ instance PP ModuleError where
     ModuleNameMismatch expected found ->
       hang (text "[error]" <+> pp (P.srcRange found) <.> char ':')
          4 (vcat [ text "File name does not match module name:"
-                 , text "Saw:"      <+> pp (P.thing found)
+                 , text "  Actual:" <+> pp (P.thing found)
                  , text "Expected:" <+> pp expected
                  ])
 
