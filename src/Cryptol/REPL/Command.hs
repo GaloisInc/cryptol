@@ -142,8 +142,8 @@ import Prelude.Compat
 
 import qualified Data.SBV.Internals as SBV (showTDiff)
 import Cryptol.TypeCheck.Solver.Numeric.Sampling (Sample)
-import Data.Bifunctor (Bifunctor(bimap, first))
 import qualified Data.List as List
+import Cryptol.TypeCheck.Solver.InfNat (Nat' (..))
 
 -- Commands --------------------------------------------------------------------
 
@@ -454,25 +454,24 @@ qcCmd qcMode str pos fnm = do
               void (qcExpr qcMode doc texpr schema testNum val ty Nothing)
             Just expr -> do
               -- do this many tests per sample, until out of tests
-              binSize <- (toInteger :: Int -> Integer) <$> getKnownUser "literalSamplingBin"
+              binSize <- (toInteger :: Int -> Integer) <$> getKnownUser "literalSamplingBinSize"
               let bins = testNum `div` binSize
-
-
-
               io (sampleLiterals schema (fromInteger bins)) >>= \case
                 Right samples_schemas -> do
                   rPutStrLn "Using literal sampling."
-
                   let -- this generates a new expression that has the appropriate
                       -- type arguments given to it according to the sampling,
                       -- which is then typechecked and evaluated again
                       applySampleToTExpr :: Sample -> P.Expr P.PName -> P.Expr P.PName
                       applySampleToTExpr sample e = P.EAppT e $ f <$> sample
                         where
-                          f :: (T.TParam, Integer) -> P.TypeInst P.PName
+                          f :: (T.TParam, Nat') -> P.TypeInst P.PName
                           f (tparam, v) = P.NamedInst $ P.Named
                             { name = fromTParamToNamedIdent tparam
-                            , value = P.TNum v }
+                            -- , value = P.TNum v }
+                            , value = case v of 
+                                Nat n -> P.TNum n
+                                Inf -> P.TUser (P.UnQual (M.mkIdent (T.pack "inf"))) []}
 
                           fromTParamToNamedIdent :: T.TParam -> P.Located P.Ident
                           fromTParamToNamedIdent tparam = case T.tvarDesc . T.tpInfo $ tparam of
@@ -482,12 +481,12 @@ qcCmd qcMode str pos fnm = do
                             }
                             -- TODO: handle other TypeSourceVar sources
                             varDesc -> panic "qcCmd" ["umplemented handling of TypeSource source: " ++ show varDesc]
-                    
+
                       qcSampleSchema ((sample, schema), binIndex) = do
                         expr <- pure $ applySampleToTExpr sample expr
                         (_, texpr, schema') <- replCheckExpr expr
                         (val, ty) <- replEvalCheckedExpr' texpr schema'
-                        qcExpr qcMode doc texpr schema' binSize val ty 
+                        qcExpr qcMode doc texpr schema' binSize val ty
                           (Just SampleBinInfo
                             { sample, bins, binIndex, binSize })
 
@@ -537,15 +536,15 @@ qcExpr qcMode exprDoc texpr schema testNum val ty mb_sampleInfo =
      case mb_sampleInfo of
       Just SampleBinInfo{..} -> do
         rPutStrLn ""
-        rPutStrLn $ unwords 
+        rPutStrLn $ unwords
           [ "Bin:", show (binIndex + 1), "/", show bins ]
-        rPutStrLn . unwords $ 
+        rPutStrLn . unwords $
           [ "Sample:"
-          , List.intercalate ", " 
-              [ pretty (fromJust $ T.tpName tp) ++ " = " ++ show i 
+          , List.intercalate ", "
+              [ pretty (fromJust $ T.tpName tp) ++ " = " ++ show i
               | (tp, i) <- sample
               , isJust (T.tpName tp) ] ]
-          
+
       Nothing -> pure ()
 
      -- tv has already had polymorphism instantiated 

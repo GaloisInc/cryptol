@@ -892,7 +892,7 @@ userOptions  = mkOptionMap
     "The number of random tests to try with ':check'."
   , simpleOpt "literalSampling" [] (EnvBool True) noCheck
     "Whether or not to use literal sampling during random testing."
-  , simpleOpt "literalSamplingBin" [] (EnvNum 10) noCheck
+  , simpleOpt "literalSamplingBinSize" [] (EnvNum 10) noCheck
     "How many tests to run for each sampling of literals during random testing."
   , simpleOpt "satNum" ["sat-num"] (EnvString "1") checkSatNum
     "The maximum number of :sat solutions to display (\"all\" for no limit)."

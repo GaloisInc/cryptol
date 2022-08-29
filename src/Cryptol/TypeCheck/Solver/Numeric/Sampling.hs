@@ -47,7 +47,7 @@ Steps:
       - if it's not been evaluated and it's assigned to an expression
 -}
 
-type Sample = [(TParam, Integer)]
+type Sample = [(TParam, Nat')]
 
 sample ::
   [TParam] ->
@@ -91,4 +91,4 @@ applySample sample Forall {sVars, sProps, sType} =
       sType = apSubst subst sType
     }
   where
-    subst = listSubst $ bimap TVBound (\n -> TCon (TC (TCNum n)) []) <$> sample
+    subst = listSubst $ bimap TVBound tNat' <$> sample

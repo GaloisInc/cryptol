@@ -11,6 +11,7 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 {-# HLINT ignore "Redundant pure" #-}
+{-# HLINT ignore "Use camelCase" #-}
 
 module Cryptol.TypeCheck.Solver.Numeric.Sampling.Sampling where
 
@@ -25,18 +26,13 @@ import Control.Monad.State as State
     modify,
   )
 import Cryptol.TypeCheck.Solver.InfNat (Nat' (..))
-import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base
-  ( SamplingError (SamplingError),
-    SamplingM,
-    debug,
-    debug',
-    integer_max,
-  )
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base (SamplingError (SamplingError), SamplingM, debug, debug')
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp (Exp (..), Var (..))
 import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp as Exp
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.SolvedConstraints (SolvedConstraints)
 import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.SolvedConstraints as SolCons
 import qualified Data.List as List
+import Data.Maybe (fromMaybe)
 import Data.Vector (Vector)
 import qualified Data.Vector as V
 import System.Random.TF.Gen (TFGen)
@@ -52,7 +48,7 @@ type WeightedRange = [WeightedRangeItem]
 
 data WeightedRangeItem = WeightedRangeItem
   { weightWRI :: Integer,
-    valueWRI :: Integer
+    valueWRI :: Nat'
   }
 
 totalWeight :: WeightedRange -> Integer
@@ -60,65 +56,65 @@ totalWeight = sum . fmap weightWRI
 
 weightedRangeLinSkewSmall :: Integer -> WeightedRange
 weightedRangeLinSkewSmall max =
-  ( \n ->
-      WeightedRangeItem
-        { weightWRI = max - n + 1,
-          valueWRI = n
-        }
-  )
-    <$> [0 .. max]
+  -- 0 is given a small weight, since its usually results in a trivial type
+  -- `[0]`
+  WeightedRangeItem {weightWRI = 1, valueWRI = 0} :
+  fmap
+    ( \n ->
+        WeightedRangeItem
+          { weightWRI = n + 1,
+            valueWRI = Nat n
+          }
+    )
+    [1 .. max]
 
--- OLD
--- -- samples an integer with a linear skew towards smaller values
--- sampleLinSkewSmall :: (Integer, Integer) -> SamplingM Integer
--- sampleLinSkewSmall (lo, hi)
---   | hi < lo = error "sampleLinSkewSmall of empty range"
---   | otherwise = do
---     let n = hi - lo
---     let rng = weightedRangeLinSkewSmall n
---     i <- liftR $ randomR (0, weightWRI $ last rng)
---     Just (n', _) <- pure $ List.find (\(_, i') -> i <= i') rng
---     pure $ lo + n'
+weightedRangeUniform :: Integer -> WeightedRange
+weightedRangeUniform max =
+  WeightedRangeItem {weightWRI = 1, valueWRI = Nat 0} :
+  fmap (\n -> WeightedRangeItem {weightWRI = 4, valueWRI = Nat n}) [1 .. max]
 
 maxInteger :: Integer
 maxInteger = 128
 
-weightInf :: Integer
-weightInf = 10 -- TODO
+-- Pick Inf as value for variables bounded above by Inf in this ratio of
+-- samples.
+weightRatioForInf :: Rational
+weightRatioForInf = 0.1 -- TODO: justify
 
--- statically compute for efficiency
-weightedRangeQuadSkewSmallUpToMaxInteger :: WeightedRange
-weightedRangeQuadSkewSmallUpToMaxInteger =
-  ( \n ->
-      WeightedRangeItem
-        { weightWRI = (maxInteger - n + 1) ^ 2,
-          valueWRI = n
-        }
-  )
-    <$> [0 .. maxInteger]
+exponentPowSkew :: Integer
+exponentPowSkew = 12 -- TODO: justify
 
--- statically compute for efficiency
-totalWeight_weightedRangeQuadSkewSmallUpToMaxInteger :: Integer
-totalWeight_weightedRangeQuadSkewSmallUpToMaxInteger = totalWeight weightedRangeQuadSkewSmallUpToMaxInteger
+-- precompute for efficiency
+totalWeight_weightedRangePowSkewSmallUpToMaxInteger :: Integer
+weightedRangePowSkewSmallUpToMaxInteger :: [WeightedRangeItem]
+(weightedRangePowSkewSmallUpToMaxInteger, totalWeight_weightedRangePowSkewSmallUpToMaxInteger) =
+  let wr =
+        -- 0 is given a small weight, since its usually results in a trivial
+        -- type `[0]`
+        WeightedRangeItem {weightWRI = 1, valueWRI = 0} :
+          [ WeightedRangeItem
+              { weightWRI = n ^ exponentPowSkew,
+                -- I think this should be just `n` instead of `maxInteger - n`,
+                -- but not sure why it gets complemented again somewhere else?
+                valueWRI = Nat (maxInteger - n)
+              }
+            | n <- [0 .. maxInteger - 1]
+          ]
+      tw = totalWeight wr
+      {-
+        r = weightRatioForInf
 
--- OLD
--- -- [(n, i)]
--- weightedRangeQuadSkewSmallUpToMaxInteger :: WeightedRange
--- weightedRangeQuadSkewSmallUpToMaxInteger = f 0 0
---   where
---     f :: Integer -> Integer -> [(Integer, Integer)]
---     f n i
---       | n > maxInteger = []
---       | otherwise = (maxInteger - n, i) : f (n + 1) (i + ((n + 1) ^ (2 :: Integer)))
-
--- OLD
--- -- samples an integer with an quadratic skew towards smaller values
--- sampleQuadSkewSmallUpToMaxInteger :: SamplingM Integer
--- sampleQuadSkewSmallUpToMaxInteger = do
---   let rng = weightedRangeQuadSkewSmallUpToMaxInteger
---   i <- liftR $ randomR (0, snd $ last rng)
---   Just (n, _) <- pure $ List.find (\(_, i') -> i < i') rng
---   pure n
+        w/(tw + w) = r
+        w          = r*tw + r*w
+        w - r*w    = r*tw
+        w*(1 - r)  = r*tw
+        w          = r*tw / (1 - r)
+      -}
+      w :: Integer
+      w = floor $ (weightRatioForInf * toRational tw) / (1 - weightRatioForInf)
+      wr' = WeightedRangeItem {weightWRI = w, valueWRI = Inf} : wr
+      tw' = tw + w
+   in (wr', tw')
 
 -- find the first `a` that satisfies `f a b = Nothing`, where `b` is accumulated
 -- over the `a'` such that `f a' b = Just b'`
@@ -128,18 +124,20 @@ foldFind f b (a : as) = case f a b of
   Just b' -> foldFind f b' as
   Nothing -> Just a
 
-sampleWeightedRange :: WeightedRange -> Integer -> SamplingM Integer
-sampleWeightedRange wr totalWeight_ = do
-  i <- liftR $ randomR (0, totalWeight_)
+-- tw = totalWeight wr
+sampleWeightedRange :: WeightedRange -> Maybe Integer -> SamplingM Nat'
+sampleWeightedRange wr mb_tw = do
+  let tw = fromMaybe (totalWeight wr) mb_tw
+  i <- liftR $ randomR (0, tw)
   let Just wri =
         foldFind
-          ( \wri accumWeight ->
-              let accumWeight' = weightWRI wri + accumWeight
-               in if accumWeight' >= i
-                    then Nothing -- found sample
-                    else Just accumWeight'
+          ( \wri i ->
+              let i' = i - weightWRI wri
+               in if i' <= 0
+                    then Nothing
+                    else Just i'
           )
-          (0 :: Integer)
+          i
           wr
   pure $ valueWRI wri
 
@@ -174,7 +172,7 @@ Sample solved constraints
 -}
 
 -- TODO: make use of `fin` type constraint
-sample :: SolvedConstraints Nat' -> SamplingM (Vector Integer)
+sample :: SolvedConstraints Nat' -> SamplingM (Vector Nat')
 sample solcons = do
   let vars = V.generate (SolCons.nVars solcons) Var
 
@@ -308,9 +306,10 @@ sample solcons = do
     --        in (x, g)
 
     let sampleNat' :: Nat' -> StateT (Vector Range) SamplingM Nat'
-        sampleNat' Inf = Nat <$> lift (sampleWeightedRange weightedRangeQuadSkewSmallUpToMaxInteger totalWeight_weightedRangeQuadSkewSmallUpToMaxInteger)
-        sampleNat' (Nat n) = Nat <$> lift (let wr = weightedRangeLinSkewSmall n in sampleWeightedRange wr (totalWeight wr))
-        
+        sampleNat' Inf = lift (sampleWeightedRange weightedRangePowSkewSmallUpToMaxInteger (Just totalWeight_weightedRangePowSkewSmallUpToMaxInteger))
+        -- sampleNat' (Nat n) = lift (sampleWeightedRange (weightedRangeLinSkewSmall n) Nothing)
+        sampleNat' (Nat n) = lift (sampleWeightedRange (weightedRangeUniform n) Nothing)
+
         minimumUpperBound :: [Exp Nat'] -> StateT (Vector Range) SamplingM Nat'
         minimumUpperBound [] = pure Inf
         minimumUpperBound bs = minimum <$> (sampleExp Inf `traverse` bs)
@@ -325,12 +324,10 @@ sample solcons = do
             UpperBounded bs -> do
               -- upper bound
               n <- minimumUpperBound bs
-              -- TODO: weightWRI choices
               sampleNat' n
             EqualAndUpperBounded e bs -> do
               -- upper bound
               n <- minimumUpperBound bs
-              -- TODO: weightWRI choices
               sampleExp n e
             Fixed n -> pure n
           -- set xi := val
@@ -364,8 +361,8 @@ sample solcons = do
   -- sample all the vars
   -- vals <- evalStateT (sampleVar `traverse` vars) rs
 
-  -- cast to Integer
-  let fromNat' :: Nat' -> Integer
-      fromNat' Inf = integer_max
-      fromNat' (Nat n) = n
-  pure $ fromNat' <$> vals
+  -- -- cast to Integer
+  -- let fromNat' :: Nat' -> Integer
+  --     fromNat' Inf = maxInteger
+  --     fromNat' (Nat n) = n
+  pure vals
