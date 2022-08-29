@@ -5,17 +5,17 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wno-name-shadowing #-}
 
 module Cryptol.TypeCheck.Solver.Numeric.Sampling.Preconstraints where
 
 import Control.Monad
 import Control.Monad.Except (MonadError (throwError))
-import Control.Monad.State (StateT (runStateT), evalStateT, gets, modify)
+import Control.Monad.State (StateT (runStateT), gets, modify)
 import Control.Monad.Writer (MonadWriter (tell), WriterT (runWriterT))
-import Cryptol.TypeCheck.PP (PP (ppPrec), pp, pretty, text, ppList)
+import Cryptol.Utils.PP ( pp, ppList, pretty )
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base
-import Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp (Exp (..), Var (..))
-import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp as Exp
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp (Var (..))
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Q
 import Cryptol.TypeCheck.TCon
 import Cryptol.TypeCheck.Type
@@ -95,8 +95,8 @@ fromProps tps props = do
           PFin -> proc1 PPFin ts
           PTrue -> pure precons -- trivial
           _ -> undefined -- bad
-        TUser _ _ prop -> fold precons prop
-        prop ->
+        TUser _ _ prop' -> fold precons prop'
+        _ ->
           throwError . SamplingError "Preconstraints.fromProps" $ 
             "The following type constraint is not supported: " ++ pretty prop
       where
@@ -130,6 +130,7 @@ fromProps tps props = do
             _ -> unsupported
             where
               proc2 con [t1, t2] = con <$> toPExp t1 <*> toPExp t2
+              proc2 _ _ = error "impossible"
           _ -> unsupported
         TVar tv -> pure $ PETerm 1 (iTVar tv)
         TUser _ _ prop -> toPExp prop

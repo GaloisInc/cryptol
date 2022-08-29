@@ -10,25 +10,17 @@
 module Cryptol.TypeCheck.Solver.Numeric.Sampling where
 
 import Control.Monad
-import Control.Monad.Trans
-import Cryptol.Testing.Random
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base as Base
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Constraints as Cons
-import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp as Exp
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Preconstraints as Precons
-import Cryptol.TypeCheck.Solver.Numeric.Sampling.Q
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Sampling as Sampling
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.SolvedConstraints (elimDens, toSolvedConstraints)
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.System as Sys
 import Cryptol.TypeCheck.Subst
-import Cryptol.TypeCheck.TCon
-import Cryptol.Utils.Panic (panic)
-import Data.Bifunctor (Bifunctor (bimap, first))
+import Data.Bifunctor (Bifunctor (bimap))
 import qualified Data.Vector as V
-import Data.Vector.Primitive (Vector (Vector))
-import System.Random.TF.Gen (RandomGen)
 
 -- Tries to make a sampler of type `[(TParam, Nat')]` if the input is in the
 -- handled domain and a solution is found by the algorithm.

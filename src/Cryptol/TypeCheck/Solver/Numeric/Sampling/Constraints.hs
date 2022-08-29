@@ -5,23 +5,21 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE StandaloneDeriving #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 
 module Cryptol.TypeCheck.Solver.Numeric.Sampling.Constraints where
 
 import Control.Monad.Except (MonadError (throwError))
-import Control.Monad.State (MonadTrans (lift), StateT (runStateT))
-import Control.Monad.Writer (MonadWriter (tell), WriterT (WriterT, runWriterT), execWriterT)
-import Cryptol.TypeCheck.PP (pp, ppList)
+import Control.Monad.Trans (MonadTrans (lift))
+import Control.Monad.Writer (MonadWriter (tell), WriterT (runWriterT), execWriterT)
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Preconstraints (Preconstraints)
 import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.Preconstraints as PC
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Q
 import Cryptol.TypeCheck.Type (TParam)
+import Cryptol.Utils.PP (pp, ppList)
 import qualified Data.List as L
-import Data.Maybe (fromMaybe)
 import Data.Vector (Vector)
 import qualified Data.Vector as V
 
@@ -92,11 +90,11 @@ instance Show a => Show (Equ a) where
 
 -- a*x + b*y = n  ~~>  a*x + b*y - n = 0
 fromEqu :: Num a => Equ a -> Exp a
-fromEqu (Equ (Exp as c)) = Exp as (-c)
+fromEqu (Equ (Exp as c)) = Exp as (- c)
 
 -- a*x + b*y + n = 0  ~~>  a*x + b*y = -n
 toEqu :: Num a => Exp a -> Equ a
-toEqu (Exp as c) = Equ $ Exp as (-c)
+toEqu (Exp as c) = Equ $ Exp as (- c)
 
 asExp :: (Exp a -> b) -> Equ a -> b
 asExp f (Equ e) = f e
@@ -163,5 +161,6 @@ toConstraints precons = do
             pe1 <- extractExp pe1
             pe2 <- extractExp pe2
             pure $ pe1 + pe2
-          pexp -> throwError . SamplingError "toConstraints" $
-            "This PExp is not in normal form: " ++ show pexp
+          pexp ->
+            throwError . SamplingError "toConstraints" $
+              "This PExp is not in normal form: " ++ show pexp

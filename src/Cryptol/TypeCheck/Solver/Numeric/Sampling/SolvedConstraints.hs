@@ -1,12 +1,9 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE KindSignatures #-}
-{-# HLINT ignore "Redundant pure" #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 
 module Cryptol.TypeCheck.Solver.Numeric.Sampling.SolvedConstraints where
@@ -20,14 +17,11 @@ import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.Constraints as Cons
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp (Exp (..), Var (..))
 import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp as Exp
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Q
-import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.System as Sys
 import Cryptol.TypeCheck.Type (TParam)
 import Cryptol.Utils.PP (pp, ppList)
 import Data.Bifunctor (Bifunctor (first))
-import qualified Data.List as L
 import Data.Vector (Vector)
 import qualified Data.Vector as V
-import GHC.Real
 
 -- | SolvedConstraints
 data SolvedConstraints a = SolvedConstraints

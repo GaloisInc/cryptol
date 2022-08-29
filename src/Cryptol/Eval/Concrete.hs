@@ -57,7 +57,6 @@ import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.Ident (PrimIdent,prelPrim,floatPrim,suiteBPrim,primeECPrim)
 import Cryptol.Utils.PP
 import Cryptol.Utils.RecordMap
-import Cryptol.TypeCheck.Solver.Numeric.Sampling (Sample)
 
 type Value = GenValue Concrete
 

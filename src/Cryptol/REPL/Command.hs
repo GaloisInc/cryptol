@@ -20,6 +20,7 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Use camelCase" #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# OPTIONS_GHC -Wno-name-shadowing #-}
 module Cryptol.REPL.Command (
     -- * Commands
     Command(..), CommandDescr(..), CommandBody(..), CommandExitCode(..)
@@ -469,7 +470,7 @@ qcCmd qcMode str pos fnm = do
                           f (tparam, v) = P.NamedInst $ P.Named
                             { name = fromTParamToNamedIdent tparam
                             -- , value = P.TNum v }
-                            , value = case v of 
+                            , value = case v of
                                 Nat n -> P.TNum n
                                 Inf -> P.TUser (P.UnQual (M.mkIdent (T.pack "inf"))) []}
 
@@ -479,10 +480,9 @@ qcCmd qcMode str pos fnm = do
                               thing = M.nameIdent name,
                               srcRange = M.nameLoc name
                             }
-                            -- TODO: handle other TypeSourceVar sources
-                            varDesc -> panic "qcCmd" ["umplemented handling of TypeSource source: " ++ show varDesc]
+                            varDesc -> panic "qcCmd" ["cannot substitute type var with TypeSource: " ++ show varDesc]
 
-                      qcSampleSchema ((sample, schema), binIndex) = do
+                      qcSampleSchema ((sample, _schema), binIndex) = do
                         expr <- pure $ applySampleToTExpr sample expr
                         (_, texpr, schema') <- replCheckExpr expr
                         (val, ty) <- replEvalCheckedExpr' texpr schema'
@@ -529,7 +529,7 @@ qcExpr ::
   T.Type ->
   Maybe SampleBinInfo -> -- if using literal sampling
   REPL TestReport
-qcExpr qcMode exprDoc texpr schema testNum val ty mb_sampleInfo =
+qcExpr qcMode exprDoc _texpr _schema testNum val ty mb_sampleInfo =
   do tenv <- E.envTypes . M.deEnv <$> getDynEnv
      let tyv = E.evalValType tenv ty
 
@@ -600,7 +600,7 @@ qcExpr qcMode exprDoc texpr schema testNum val ty mb_sampleInfo =
   testingMsg = "Testing... "
 
   interruptedExhaust testNum sz =
-     let percent = (100.0 :: Double) * (fromInteger testNum) / fromInteger sz
+     let percent = (100.0 :: Double) * fromInteger testNum / fromInteger sz
          showValNum
             | sz > 2 ^ (20::Integer) =
               "2^^" ++ show (lg2 sz)

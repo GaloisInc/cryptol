@@ -46,14 +46,9 @@ import           Data.Set ( Set )
 import qualified Data.Set as Set
 import           Data.List(partition)
 import           Data.Maybe(listToMaybe,fromMaybe)
-import System.Random.TF (newTFGen)
 import Cryptol.TypeCheck.Solver.Numeric.Sampling (sample, applySample)
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base (runSamplingM)
 import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling as Sampling
-import Data.Bifunctor (Bifunctor(first))
-
-
-
 
 
 quickSolverIO :: Ctxt -> [Goal] -> IO (Either Error (Subst,[Goal]))

@@ -1,12 +1,8 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
@@ -26,12 +22,11 @@ import Control.Monad.State as State
     modify,
   )
 import Cryptol.TypeCheck.Solver.InfNat (Nat' (..))
-import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base (SamplingError (SamplingError), SamplingM, debug, debug')
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base (SamplingError (SamplingError), SamplingM, debug')
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp (Exp (..), Var (..))
 import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp as Exp
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.SolvedConstraints (SolvedConstraints)
 import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.SolvedConstraints as SolCons
-import qualified Data.List as List
 import Data.Maybe (fromMaybe)
 import Data.Vector (Vector)
 import qualified Data.Vector as V
@@ -213,15 +208,15 @@ sample solcons = do
         Inf `divNat'` Inf = Nat 1
         Inf `divNat'` Nat n | n > 0 = Inf
         Inf `divNat'` Nat n | n < 0 = error "Attempted to divide Inf by a negative."
-        Inf `divNat'` Nat n = error "Attempted to divide Inf by zero."
-        Nat n `divNat'` Inf = Nat 0
+        Inf `divNat'` Nat _ = error "Attempted to divide Inf by zero."
+        Nat _ `divNat'` Inf = Nat 0
         Nat n1 `divNat'` Nat n2 = Nat (n1 `div` n2)
 
     -- accumulate ranges
     V.mapM_
       ( \(i, mb_e) -> do
           case mb_e of
-            Just e@(Exp as c) -> do
+            Just e@(Exp as _) -> do
               -- We need to account for the upper bounds on `xi` when
               -- determining the upper bounds on the positive terms in `e`.
               bs <-
@@ -312,7 +307,7 @@ sample solcons = do
 
         minimumUpperBound :: [Exp Nat'] -> StateT (Vector Range) SamplingM Nat'
         minimumUpperBound [] = pure Inf
-        minimumUpperBound bs = minimum <$> (sampleExp Inf `traverse` bs)
+        minimumUpperBound bs = minimum <$> (sampleExp `traverse` bs)
 
         sampleVar :: Var -> StateT (Vector Range) SamplingM Nat'
         sampleVar i = do
@@ -327,8 +322,8 @@ sample solcons = do
               sampleNat' n
             EqualAndUpperBounded e bs -> do
               -- upper bound
-              n <- minimumUpperBound bs
-              sampleExp n e
+              void $ minimumUpperBound bs
+              sampleExp e
             Fixed n -> pure n
           -- set xi := val
           setFixed i val
@@ -337,8 +332,8 @@ sample solcons = do
           pure val
 
         -- sample an expression that is upper bounded by a constant
-        sampleExp :: Nat' -> Exp Nat' -> StateT (Vector Range) SamplingM Nat'
-        sampleExp n e@(Exp as c) = do
+        sampleExp :: Exp Nat' -> StateT (Vector Range) SamplingM Nat'
+        sampleExp e@(Exp as c) = do
           lift . debug' 1 $ "sampling exp: " ++ show (Exp as c)
           -- only sampleuates terms that have non-0 coeff
           n <-
