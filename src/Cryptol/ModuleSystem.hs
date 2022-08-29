@@ -99,8 +99,9 @@ checkExpr e env = runModuleM env (interactive (Base.checkExpr e))
 evalExpr :: T.Expr -> ModuleCmd Concrete.Value
 evalExpr e env = runModuleM env (interactive (Base.evalExpr e))
 
-benchmarkExpr :: T.Expr -> ModuleCmd BenchmarkStats
-benchmarkExpr e env = runModuleM env (interactive (Base.benchmarkExpr e))
+benchmarkExpr :: Double -> T.Expr -> ModuleCmd BenchmarkStats
+benchmarkExpr period e env =
+  runModuleM env (interactive (Base.benchmarkExpr period e))
 
 -- | Typecheck top-level declarations.
 checkDecls :: [P.TopDecl PName] -> ModuleCmd (R.NamingEnv,[T.DeclGroup], Map Name T.TySyn)

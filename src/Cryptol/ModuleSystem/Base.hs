@@ -612,8 +612,8 @@ evalExpr e = do
 
   io $ E.runEval mempty (E.evalExpr Concrete (env <> deEnv denv) e)
 
-benchmarkExpr :: T.Expr -> ModuleM BenchmarkStats
-benchmarkExpr e = do
+benchmarkExpr :: Double -> T.Expr -> ModuleM BenchmarkStats
+benchmarkExpr period e = do
   env <- getEvalEnv
   denv <- getDynEnv
   evopts <- getEvalOptsAction
@@ -626,7 +626,7 @@ benchmarkExpr e = do
 
   let eval expr = E.runEval mempty $
         E.evalExpr Concrete env' expr >>= E.forceValue
-  io $ benchmark eval e
+  io $ benchmark period eval e
 
 evalDecls :: [T.DeclGroup] -> ModuleM ()
 evalDecls dgs = do

@@ -16,9 +16,9 @@ data BenchmarkStats = BenchmarkStats
   , benchAvgCycles  :: !Int64
   } deriving Show
 
-benchmark :: (a -> IO b) -> a -> IO BenchmarkStats
-benchmark f x = do
-  (meas, _) <- runBenchmark (whnfAppIO f x) 10
+benchmark :: Double -> (a -> IO b) -> a -> IO BenchmarkStats
+benchmark period f x = do
+  (meas, _) <- runBenchmark (whnfAppIO f x) period
   let len = length meas
       meas' = rescale <$> V.filter ((>= threshold) . measTime) meas
       sumMeasure sel = U.sum $ measure sel meas'

@@ -1005,13 +1005,14 @@ typeOfCmd str pos fnm = do
 
 timeCmd :: String -> (Int, Int) -> Maybe FilePath -> REPL ()
 timeCmd str pos fnm = do
+  period <- getKnownUser "timeMeasurementPeriod" :: REPL Int
   pExpr <- replParseExpr str pos fnm
   (_, def, sig) <- replCheckExpr pExpr
   replPrepareCheckedExpr def sig >>= \case
     Nothing -> raise (EvalPolyError sig)
     Just (_, expr) -> do
-      Bench.BenchmarkStats {..} <-
-        liftModuleCmd (rethrowEvalError . M.benchmarkExpr expr)
+      Bench.BenchmarkStats {..} <- liftModuleCmd
+        (rethrowEvalError . M.benchmarkExpr (fromIntegral period) expr)
       rPutStrLn $ "Avg time: " ++ Bench.secs benchAvgTime
            ++ "    Avg CPU time: " ++ Bench.secs benchAvgCpuTime
            ++ "    Avg cycles: " ++ show benchAvgCycles
