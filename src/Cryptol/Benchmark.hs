@@ -19,8 +19,8 @@ data BenchmarkStats = BenchmarkStats
 benchmark :: Double -> (a -> IO b) -> a -> IO BenchmarkStats
 benchmark period f x = do
   (meas, _) <- runBenchmark (whnfAppIO f x) period
-  let len = length meas
-      meas' = rescale <$> V.filter ((>= threshold) . measTime) meas
+  let meas' = rescale <$> V.filter ((>= threshold) . measTime) meas
+      len = length meas'
       sumMeasure sel = U.sum $ measure sel meas'
   pure BenchmarkStats
     { benchAvgTime = sumMeasure measTime / fromIntegral len
