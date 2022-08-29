@@ -117,7 +117,7 @@ fromProps tps props = do
           -- type constants
           TC tc -> case tc of
             TCNum n -> pure . PEConst $ toQ n
-            TCInf -> pure . PEConst $ error "TODO: use Q' instead of Q"
+            -- TODO: `TCInf -> ...` is possible but I need to use Q' instead of Q
             _ -> unsupported
             -- type functions
           TF tf -> case tf of
