@@ -1013,8 +1013,8 @@ timeCmd str pos fnm = do
       Bench.BenchmarkStats {..} <-
         liftModuleCmd (rethrowEvalError . M.benchmarkExpr expr)
       rPutStrLn $ "Avg time: " ++ Bench.secs benchAvgTime
-               ++ "\tAvg CPU time: " ++ Bench.secs benchAvgCpuTime
-               ++ "\tAvg cycles: " ++ show benchAvgCycles
+           ++ "    Avg CPU time: " ++ Bench.secs benchAvgCpuTime
+           ++ "    Avg cycles: " ++ show benchAvgCycles
 
 readFileCmd :: FilePath -> REPL ()
 readFileCmd fp = do
