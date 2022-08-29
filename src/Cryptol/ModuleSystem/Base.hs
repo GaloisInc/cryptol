@@ -51,6 +51,7 @@ import Cryptol.ModuleSystem.Env (lookupModule
                                 , ModContext(..)
                                 , ModulePath(..), modulePathLabel)
 import           Cryptol.Backend.FFI
+import           Cryptol.Benchmark
 import qualified Cryptol.Eval                 as E
 import qualified Cryptol.Eval.Concrete as Concrete
 import           Cryptol.Eval.Concrete (Concrete(..))
@@ -610,6 +611,22 @@ evalExpr e = do
   let ?callStacks = callStacks
 
   io $ E.runEval mempty (E.evalExpr Concrete (env <> deEnv denv) e)
+
+benchmarkExpr :: T.Expr -> ModuleM BenchmarkStats
+benchmarkExpr e = do
+  env <- getEvalEnv
+  denv <- getDynEnv
+  evopts <- getEvalOptsAction
+  let env' = env <> deEnv denv
+  let tbl = Concrete.primTable evopts
+  let ?evalPrim = \i -> Right <$> Map.lookup i tbl
+  let ?range = emptyRange
+  callStacks <- getCallStacks
+  let ?callStacks = callStacks
+
+  let eval expr = E.runEval mempty $
+        E.evalExpr Concrete env' expr >>= E.forceValue
+  io $ benchmark eval e
 
 evalDecls :: [T.DeclGroup] -> ModuleM ()
 evalDecls dgs = do

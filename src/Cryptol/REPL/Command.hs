@@ -70,6 +70,7 @@ import qualified Cryptol.ModuleSystem.Env as M
 
 import qualified Cryptol.Backend.Monad as E
 import qualified Cryptol.Backend.SeqMap as E
+import qualified Cryptol.Benchmark as Bench
 import           Cryptol.Eval.Concrete( Concrete(..) )
 import qualified Cryptol.Eval.Concrete as Concrete
 import qualified Cryptol.Eval.Env as E
@@ -251,6 +252,9 @@ nbCommandList  =
     ""
   , CommandDescr [ ":extract-coq" ] [] (NoArg allTerms)
     "Print out the post-typechecked AST of all currently defined terms,\nin a Coq-parseable format."
+    ""
+  , CommandDescr [ ":time" ] ["EXPR"] (ExprArg timeCmd)
+    "Measure the time it takes to evaluate the given expression."
     ""
   ]
 
@@ -999,6 +1003,19 @@ typeOfCmd str pos fnm = do
   rPrint $ runDoc fDisp $ group $ hang
     (ppPrec 2 expr <+> text ":") 2 (pp sig)
 
+timeCmd :: String -> (Int, Int) -> Maybe FilePath -> REPL ()
+timeCmd str pos fnm = do
+  pExpr <- replParseExpr str pos fnm
+  (_, def, sig) <- replCheckExpr pExpr
+  replPrepareCheckedExpr def sig >>= \case
+    Nothing -> raise (EvalPolyError sig)
+    Just (_, expr) -> do
+      Bench.BenchmarkStats {..} <-
+        liftModuleCmd (rethrowEvalError . M.benchmarkExpr expr)
+      rPutStrLn $ "Avg time: " ++ Bench.secs benchAvgTime
+               ++ "\tAvg CPU time: " ++ Bench.secs benchAvgCpuTime
+               ++ "\tAvg cycles: " ++ show benchAvgCycles
+
 readFileCmd :: FilePath -> REPL ()
 readFileCmd fp = do
   bytes <- replReadFile fp (\err -> rPutStrLn (show err) >> return Nothing)
@@ -1569,39 +1586,47 @@ replSpecExpr e = liftModuleCmd $ S.specialize e
 replEvalExpr :: P.Expr P.PName -> REPL (Concrete.Value, T.Type)
 replEvalExpr expr =
   do (_,def,sig) <- replCheckExpr expr
-     replEvalCheckedExpr def sig >>= \mb_res -> case mb_res of
+     replEvalCheckedExpr def sig >>= \case
        Just res -> pure res
        Nothing -> raise (EvalPolyError sig)
 
 replEvalCheckedExpr :: T.Expr -> T.Schema -> REPL (Maybe (Concrete.Value, T.Type))
 replEvalCheckedExpr def sig =
-  do validEvalContext def
-     validEvalContext sig
+  replPrepareCheckedExpr def sig >>=
+    traverse \(tys, def1) -> do
+      let su = T.listParamSubst tys
+      let ty = T.apSubst su (T.sType sig)
+      whenDebug (rPutStrLn (dump def1))
 
-     s <- getTCSolver
-     mbDef <- io (defaultReplExpr s def sig)
+      tenv <- E.envTypes . M.deEnv <$> getDynEnv
+      let tyv = E.evalValType tenv ty
 
-     case mbDef of
-       Nothing -> pure Nothing
-       Just (tys, def1) ->
-           do warnDefaults tys
-              let su = T.listParamSubst tys
-              let ty = T.apSubst su (T.sType sig)
-              whenDebug (rPutStrLn (dump def1))
+      -- add "it" to the namespace via a new declaration
+      itVar <- bindItVariable tyv def1
 
-              tenv <- E.envTypes . M.deEnv <$> getDynEnv
-              let tyv = E.evalValType tenv ty
+      let itExpr = case getLoc def of
+                      Nothing  -> T.EVar itVar
+                      Just rng -> T.ELocated rng (T.EVar itVar)
 
-              -- add "it" to the namespace via a new declaration
-              itVar <- bindItVariable tyv def1
+      -- evaluate the it variable
+      val <- liftModuleCmd (rethrowEvalError . M.evalExpr itExpr)
+      return (val,ty)
 
-              let itExpr = case getLoc def of
-                              Nothing  -> T.EVar itVar
-                              Just rng -> T.ELocated rng (T.EVar itVar)
+-- | Check that we are in a valid evaluation context and apply defaulting.
+replPrepareCheckedExpr :: T.Expr -> T.Schema ->
+  REPL (Maybe ([(T.TParam, T.Type)], T.Expr))
+replPrepareCheckedExpr def sig = do
+  validEvalContext def
+  validEvalContext sig
 
-              -- evaluate the it variable
-              val <- liftModuleCmd (rethrowEvalError . M.evalExpr itExpr)
-              return $ Just (val,ty)
+  s <- getTCSolver
+  mbDef <- io (defaultReplExpr s def sig)
+
+  case mbDef of
+    Nothing -> pure Nothing
+    Just (tys, def1) -> do
+      warnDefaults tys
+      pure $ Just (tys, def1)
   where
   warnDefaults ts =
     case ts of

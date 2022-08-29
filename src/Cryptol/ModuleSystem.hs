@@ -20,6 +20,7 @@ module Cryptol.ModuleSystem (
   , loadModuleByName
   , checkExpr
   , evalExpr
+  , benchmarkExpr
   , checkDecls
   , evalDecls
   , noPat
@@ -35,6 +36,7 @@ module Cryptol.ModuleSystem (
 
 import Data.Map (Map)
 
+import           Cryptol.Benchmark (BenchmarkStats)
 import qualified Cryptol.Eval.Concrete as Concrete
 import           Cryptol.ModuleSystem.Env
 import           Cryptol.ModuleSystem.Interface
@@ -96,6 +98,9 @@ checkExpr e env = runModuleM env (interactive (Base.checkExpr e))
 -- | Evaluate an expression.
 evalExpr :: T.Expr -> ModuleCmd Concrete.Value
 evalExpr e env = runModuleM env (interactive (Base.evalExpr e))
+
+benchmarkExpr :: T.Expr -> ModuleCmd BenchmarkStats
+benchmarkExpr e env = runModuleM env (interactive (Base.benchmarkExpr e))
 
 -- | Typecheck top-level declarations.
 checkDecls :: [P.TopDecl PName] -> ModuleCmd (R.NamingEnv,[T.DeclGroup], Map Name T.TySyn)
