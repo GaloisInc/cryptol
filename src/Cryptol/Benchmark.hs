@@ -14,7 +14,7 @@ data BenchmarkStats = BenchmarkStats
   { benchAvgTime    :: !Double
   , benchAvgCpuTime :: !Double
   , benchAvgCycles  :: !Int64
-  }
+  } deriving Show
 
 benchmark :: (a -> IO b) -> a -> IO BenchmarkStats
 benchmark f x = do
