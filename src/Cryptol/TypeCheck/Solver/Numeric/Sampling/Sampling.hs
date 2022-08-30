@@ -124,16 +124,21 @@ sampleWeightedRange :: WeightedRange -> Maybe Integer -> SamplingM Nat'
 sampleWeightedRange wr mb_tw = do
   let tw = fromMaybe (totalWeight wr) mb_tw
   i <- liftR $ randomR (0, tw)
-  let Just wri =
-        foldFind
-          ( \wri i ->
-              let i' = i - weightWRI wri
-               in if i' <= 0
-                    then Nothing
-                    else Just i'
-          )
-          i
-          wr
+  wri <- case foldFind
+    ( \wri i ->
+        let i' = i - weightWRI wri
+         in if i' <= 0
+              then Nothing
+              else Just i'
+    )
+    i
+    wr of
+    Just wri -> pure wri
+    Nothing ->
+      throwError $
+        SamplingError
+          "sampleWeightRange"
+          "could not find a weighted range item specified by sample"
   pure $ valueWRI wri
 
 data Range

@@ -6,6 +6,7 @@ module Cryptol.TypeCheck.Solver.Numeric.Sampling.Base where
 import Control.Monad.Except (ExceptT, MonadError (throwError), runExceptT)
 import Control.Monad.State (StateT, evalStateT)
 import Control.Monad.Trans (liftIO)
+import Data.Ratio (denominator, numerator)
 import System.Random.TF (TFGen, newTFGen)
 
 -- | SamplingM
@@ -34,3 +35,8 @@ debug' lvl
 
 throwSamplingError :: SamplingError -> SamplingM a
 throwSamplingError = throwError
+
+fromRationalToInt :: Rational -> Maybe Int
+fromRationalToInt q
+  | denominator q == 1 = Just . fromIntegral . numerator $ q
+  | otherwise = Nothing

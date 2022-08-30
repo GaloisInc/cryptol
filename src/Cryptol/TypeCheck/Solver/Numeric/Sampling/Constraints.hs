@@ -16,7 +16,6 @@ import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Preconstraints (Preconstraints)
 import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.Preconstraints as PC
-import Cryptol.TypeCheck.Solver.Numeric.Sampling.Q
 import Cryptol.TypeCheck.Type (TParam)
 import Cryptol.Utils.PP (pp, ppList)
 import qualified Data.List as L
@@ -108,7 +107,7 @@ data TcName = FinTc | PrimeTc
 -- | toConstraints
 --
 -- Preserves order of the `[SamplingParam]` in `Preconstraints`.
-toConstraints :: Preconstraints -> SamplingM (Constraints Q)
+toConstraints :: Preconstraints -> SamplingM (Constraints Rational)
 toConstraints precons = do
   -- extract sys and tcs from preprops
   (sys, tcs) <- extractSysTcs (PC.preprops precons)
@@ -122,13 +121,13 @@ toConstraints precons = do
         nVars = PC.nVars precons
       }
   where
-    extractSysTcs :: [PC.PProp] -> SamplingM (System Q, [Tc Q])
+    extractSysTcs :: [PC.PProp] -> SamplingM (System Rational, [Tc Rational])
     extractSysTcs pprops = do
       runWriterT . execWriterT . (`traverse` pprops) $ go
       where
         nParams = PC.nVars precons
 
-        go :: PC.PProp -> WriterT (System Q) (WriterT [Tc Q] SamplingM) ()
+        go :: PC.PProp -> WriterT (System Rational) (WriterT [Tc Rational] SamplingM) ()
         go = \case
           PC.PPEqual pe1 pe2 -> do
             -- resulting expression of the form `Exp [x,y,z] q` represents
@@ -152,7 +151,7 @@ toConstraints precons = do
         tellTc = lift . tell
 
         -- extractExp :: PC.PExp -> WriterT (System Q) (WriterT [Tc Q] (SamplingM)) (Exp Q)
-        extractExp :: PC.PExp -> SamplingM (Exp Q)
+        extractExp :: PC.PExp -> SamplingM (Exp Rational)
         extractExp = \case
           PC.PEConst q -> pure $ fromConstant nParams q
           PC.PETerm q i -> do

@@ -12,7 +12,6 @@ import Cryptol.TypeCheck.Solver.Numeric.Sampling.Constraints (Equ, System)
 import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.Constraints as Cons
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp (Exp (..), Var (..))
 import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp as Exp
-import Cryptol.TypeCheck.Solver.Numeric.Sampling.Q
 import Data.Bifunctor (Bifunctor (second))
 import qualified Data.Vector as V
 
@@ -55,10 +54,10 @@ extendN m sys = Exp.extendN m <$> sys
 -- will have to embed it yourself.
 --
 -- solveGauss :: System n -> System n
-solveGauss :: Int -> System Q -> SamplingM (System Q)
+solveGauss :: Int -> System Rational -> SamplingM (System Rational)
 solveGauss nVars sys = go 0 sys
   where
-    go :: Var -> System Q -> SamplingM (System Q)
+    go :: Var -> System Rational -> SamplingM (System Rational)
     go (Var j) sys | j >= nVars || null sys = pure sys
     go j sys = do
       debug' 1 $ "j   = " ++ show j

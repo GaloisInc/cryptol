@@ -5,6 +5,8 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Redundant pure" #-}
 
 module Cryptol.TypeCheck.Solver.Numeric.Sampling.SolvedConstraints where
 
@@ -16,12 +18,12 @@ import Cryptol.TypeCheck.Solver.Numeric.Sampling.Constraints (Constraints, Equ (
 import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.Constraints as Cons
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp (Exp (..), Var (..))
 import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp as Exp
-import Cryptol.TypeCheck.Solver.Numeric.Sampling.Q
 import Cryptol.TypeCheck.Type (TParam)
 import Cryptol.Utils.PP (pp, ppList)
 import Data.Bifunctor (Bifunctor (first))
 import Data.Vector (Vector)
 import qualified Data.Vector as V
+import Data.Ratio (denominator)
 
 -- | SolvedConstraints
 data SolvedConstraints a = SolvedConstraints
@@ -216,7 +218,7 @@ extendN m sys = fmap (Exp.extendN m) <$> sys
 -- a system of `n + n` variables.
 --
 -- elimDens :: SolvedSystem n -> SolvedSystem (n + n)
-elimDens :: SolvedConstraints Q -> SamplingM (SolvedConstraints Nat')
+elimDens :: SolvedConstraints Rational -> SamplingM (SolvedConstraints Nat')
 elimDens solcons = do
   -- elim dens
   solcons <- foldM fold solcons (Var <$> [0 .. nVars solcons - 1])
@@ -229,12 +231,12 @@ elimDens solcons = do
   pure solcons
   where
     fold ::
-      SolvedConstraints Q ->
+      SolvedConstraints Rational ->
       Var ->
-      SamplingM (SolvedConstraints Q)
+      SamplingM (SolvedConstraints Rational)
     fold solcons j = do
       let -- collect coeffs of `xj` in `solsys`, excluding coeffs 0, 1
-          coeffs :: Vector Q
+          coeffs :: Vector Rational
           coeffs =
             -- ignore Nothing, Just 0, and Just 1
             foldMap
@@ -249,10 +251,10 @@ elimDens solcons = do
                   V.fromList (fmap (Exp.! j) . Cons.expFromTc <$> tcs solcons)
                 ]
           -- compute lcm of denoms of coeffs
-          a :: Q
-          a = toQ $ foldr lcm (1 :: Int) dens
+          a :: Rational
+          a = toRational $ foldr lcm (1 :: Int) dens
             where
-              dens = fromInteger . denom <$> coeffs
+              dens = fromInteger . denominator <$> coeffs
 
       solcons <-
         if a /= 1
@@ -295,12 +297,12 @@ elimDens solcons = do
       pure solcons
 
     -- preserves number of vars
-    cast_ExpQ_ExpNat' :: Exp Q -> SamplingM (Exp Nat')
+    cast_ExpQ_ExpNat' :: Exp Rational -> SamplingM (Exp Nat')
     cast_ExpQ_ExpNat' e = mapM cast_Q_Nat' e
 
-    cast_Q_Nat' :: Q -> SamplingM Nat'
-    cast_Q_Nat' q = case fromQ q of
-      Just n -> pure . Nat'.Nat $ n
+    cast_Q_Nat' :: Rational -> SamplingM Nat'
+    cast_Q_Nat' q = case fromRationalToInt q of
+      Just n -> pure . Nat'.Nat $ fromIntegral n
       Nothing -> throwSamplingError (SamplingError "elimDens" "After eliminating denomenators, there are still some nonintegral values left in equations.")
 
 {-

@@ -16,7 +16,6 @@ import Control.Monad.Writer (MonadWriter (tell), WriterT (runWriterT))
 import Cryptol.Utils.PP ( pp, ppList, pretty )
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp (Var (..))
-import Cryptol.TypeCheck.Solver.Numeric.Sampling.Q
 import Cryptol.TypeCheck.TCon
 import Cryptol.TypeCheck.Type
 import Data.List (elemIndex)
@@ -59,8 +58,8 @@ data PProp
   deriving (Show)
 
 data PExp
-  = PEConst Q
-  | PETerm Q Var
+  = PEConst Rational
+  | PETerm Rational Var
   | PEOp2 POp2 PExp PExp
   deriving (Show)
 
@@ -77,7 +76,7 @@ fromProps ::
 fromProps tps props = do
   pprops <- foldM fold (emptyPreconstraints $ V.fromList tps) props
   debug' 0 $ ""
-  debug' 0 $ "pprops = " ++ show pprops 
+  debug' 0 $ "pprops = " ++ show pprops
   pprops <- normalizePreconstraints pprops
   debug' 0 $ "pprops <- normalizePreconstraints pprops"
   debug' 0 $ "pprops = " ++ show pprops
@@ -97,7 +96,7 @@ fromProps tps props = do
           _ -> undefined -- bad
         TUser _ _ prop' -> fold precons prop'
         _ ->
-          throwError . SamplingError "Preconstraints.fromProps" $ 
+          throwError . SamplingError "Preconstraints.fromProps" $
             "The following type constraint is not supported: " ++ pretty prop
       where
         proc2 con ts =
@@ -116,7 +115,7 @@ fromProps tps props = do
         TCon tcon ts -> case tcon of
           -- type constants
           TC tc -> case tc of
-            TCNum n -> pure . PEConst $ toQ n
+            TCNum n -> pure . PEConst $ toRational n
             -- TODO: `TCInf -> ...` is possible but I need to use Q' instead of Q
             _ -> unsupported
             -- type functions
@@ -137,7 +136,7 @@ fromProps tps props = do
         TNewtype _new _tys -> unsupported
         _ -> unsupported
       where
-        unsupported = throwError . SamplingError "Preconstraints.fromProps" $ 
+        unsupported = throwError . SamplingError "Preconstraints.fromProps" $
           "The following numeric type is not supported: " ++ pretty typ
 
         iTVar :: TVar -> Var
@@ -212,32 +211,32 @@ normalizePreconstraints precons = do
               -- commutativity -- move PEConst left, move PETerm right
               PAdd | PETerm a x <- pe1', PEConst n <- pe2' -> pure . Just $ PEOp2 PAdd (PEConst n) (PETerm a x)
               PMul | PETerm a x <- pe1', PEConst n <- pe2' -> pure . Just $ PEOp2 PMul (PEConst n) (PETerm a x)
-              
+
               -- combine constants
               PAdd | PEConst n1 <- pe1', PEConst n2 <- pe2' -> pure . Just $ PEConst (n1 + n2)
               PMul | PEConst n1 <- pe1', PEConst n2 <- pe2' -> pure . Just $ PEConst (n1 * n2)
               PDiv | PEConst n1 <- pe1', PEConst n2 <- pe2' -> pure . Just $ PEConst (n1 / n2)
-              
+
               -- a*x + b*x = (a + b)*x
               PAdd | PETerm a x <- pe1', PETerm b y <- pe2', x == y -> pure . Just $ PETerm (a + b) x
               -- a*x * n = (a * n)*x
               PMul | PEConst n <- pe1', PETerm a x <- pe2' -> pure . Just $ PETerm (a * n) x
-              
+
               -- `m % n` where both `m`, `n` are constant
               PMod
                 | PEConst n1 <- pe1',
                   PEConst n2 <- pe2',
-                  Just z1 <- (fromQ n1 :: Maybe Int),
-                  Just z2 <- (fromQ n2 :: Maybe Int) ->
-                    pure . Just . PEConst . toQ $ z1 `mod` z2
-              
+                  Just z1 <- fromRationalToInt n1,
+                  Just z2 <- fromRationalToInt n2 ->
+                    pure . Just . PEConst . toRational $ z1 `mod` z2
+
               -- `m ^^ n` requires that `m`, `n` are constant
               PPow
                 | PEConst n1 <- pe1',
                   PEConst n2 <- pe2',
-                  Just z2 <- (fromQ n2 :: Maybe Int) ->
+                  Just z2 <- (fromRationalToInt n2 :: Maybe Int) ->
                     pure . Just . PEConst $ n1 ^^ z2
-              
+
               -- `a % n` where only `n` is constant
               PMod | PEConst n <- pe2' -> do
                 -- `a % n` is replaced by `b` such that `b = a - n*c`
@@ -247,10 +246,10 @@ normalizePreconstraints precons = do
                 c <- freshVar
                 tell [PPEqual (PETerm 1 b) (PEOp2 PAdd a (PETerm n c))]
                 pure . Just $ PETerm 1 b
-              
+
               -- a - b ~~> a + (-b)
               PSub -> pure . Just $ PEOp2 PAdd pe1' (PEOp2 PMul (PEConst (-1)) pe2')
-              
+
               -- normal
               _ -> pure Nothing
 

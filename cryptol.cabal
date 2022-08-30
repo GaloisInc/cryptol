@@ -183,7 +183,6 @@ library
                        Cryptol.TypeCheck.Solver.Numeric.Sampling.Constraints,
                        Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp,
                        Cryptol.TypeCheck.Solver.Numeric.Sampling.Preconstraints,
-                       Cryptol.TypeCheck.Solver.Numeric.Sampling.Q,
                        Cryptol.TypeCheck.Solver.Numeric.Sampling.Sampling,
                        Cryptol.TypeCheck.Solver.Numeric.Sampling.SolvedConstraints,
                        Cryptol.TypeCheck.Solver.Numeric.Sampling.System,
