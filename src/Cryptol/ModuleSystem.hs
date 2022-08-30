@@ -99,6 +99,7 @@ checkExpr e env = runModuleM env (interactive (Base.checkExpr e))
 evalExpr :: T.Expr -> ModuleCmd Concrete.Value
 evalExpr e env = runModuleM env (interactive (Base.evalExpr e))
 
+-- | Benchmark an expression.
 benchmarkExpr :: Double -> T.Expr -> ModuleCmd BenchmarkStats
 benchmarkExpr period e env =
   runModuleM env (interactive (Base.benchmarkExpr period e))
