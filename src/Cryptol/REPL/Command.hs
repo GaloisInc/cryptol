@@ -1009,6 +1009,7 @@ typeOfCmd str pos fnm = do
 timeCmd :: String -> (Int, Int) -> Maybe FilePath -> REPL ()
 timeCmd str pos fnm = do
   period <- getKnownUser "timeMeasurementPeriod" :: REPL Int
+  rPutStrLn $ "Measuring for " ++ show period ++ " seconds"
   pExpr <- replParseExpr str pos fnm
   (_, def, sig) <- replCheckExpr pExpr
   replPrepareCheckedExpr def sig >>= \case
