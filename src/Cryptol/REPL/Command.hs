@@ -448,7 +448,7 @@ qcCmdNoLitSampling :: QCMode -> Doc -> T.Expr -> T.Schema -> REPL ()
 qcCmdNoLitSampling qcMode doc texpr schema = do 
   testNum <- toInteger @Int <$> getKnownUser "tests" :: REPL Integer
   (val, ty) <- replEvalCheckedExpr' texpr schema
-  void (qcExpr qcMode doc texpr schema testNum val ty Nothing)
+  void (qcExpr qcMode doc testNum val ty Nothing)
 
 
 qcCmdRandomLitSampling :: Doc -> P.Expr P.PName -> T.Expr -> T.Schema -> REPL ()
@@ -499,7 +499,7 @@ qcSampleSchema doc expr bins binSize (binIndex, (sample, _schema)) = do
   expr <- pure $ applySampleToTExpr sample expr
   (_, texpr, schema') <- replCheckExpr expr
   (val, ty) <- replEvalCheckedExpr' texpr schema'
-  qcExpr QCRandom doc texpr schema' binSize val ty
+  qcExpr QCRandom doc binSize val ty
     (Just SampleBinInfo { sample, bins, binIndex, binSize })
 
 
@@ -522,17 +522,21 @@ replEvalCheckedExpr' texpr schema =
     Nothing -> raise (InstantiationsNotFound schema)
 
 
+-- | Randomly test an expression (if it has a testable type), or exhaustively
+-- check it if the number of values in the type under test is smaller than the
+-- @test@ environment variable, or we specify exhaustive testing. Prints
+-- relevant information to the testing run, but nothng about the TestReport. If
+-- this run was spawned under literal sampling, then a SampleBinInfo is provided
+-- that indicates its status among the spawned runs.
 qcExpr ::
   QCMode ->
   Doc ->
-  T.Expr ->
-  T.Schema ->
   Integer ->
   Concrete.Value ->
   T.Type ->
   Maybe SampleBinInfo -> -- if using literal sampling
   REPL TestReport
-qcExpr qcMode exprDoc _texpr _schema testNum val ty mb_sampleInfo =
+qcExpr qcMode exprDoc testNum val ty mb_sampleInfo =
   do tenv <- E.envTypes . M.deEnv <$> getDynEnv
      let tyv = E.evalValType tenv ty
 
