@@ -3,6 +3,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE LambdaCase #-}
 
 -- |
 -- Module      :  Cryptol.Parser.PropGuards
@@ -89,7 +90,13 @@ instance ExpandPropGuards [Bind PName] where
               goGuard (props', e) = do
                 bName' <- newName (bName bind) props'
                 -- call to generated function
-                let e' = foldr EApp (EVar $ thing bName') (patternToExpr <$> bParams bind)
+                tParams <- case bSignature bind of
+                  Just (Forall tps _ _ _) -> pure tps
+                  Nothing -> Left $ NoSignature (bName bind)
+                typeInsts <-
+                  (\(TParam n _ _) -> Right . PosInst $ TUser n [])
+                    `traverse` tParams
+                let e' = foldl EApp (EAppT (EVar $ thing bName') typeInsts) (patternToExpr <$> bParams bind)
                 pure
                   ( (props', e'),
                     bind
