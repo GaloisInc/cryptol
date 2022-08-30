@@ -258,6 +258,10 @@ nbCommandList  =
     "Measure the time it takes to evaluate the given expression."
     (unlines
       [ "The expression will be evaluated many times to get accurate results."
+      , "Note that the first evaluation of a binding may take longer due to"
+      , "  laziness, and this may affect the reported time. If this is not"
+      , "  desired then make sure to evaluate the expression once first before"
+      , "  running :time."
       , "The amount of time to spend collecting measurements can be changed"
       , "  with the timeMeasurementPeriod option."
       , "Reports the average wall clock time, CPU time, and cycles."
