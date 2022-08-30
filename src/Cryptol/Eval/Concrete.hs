@@ -520,9 +520,3 @@ updateBack_word (Nat n) _eltTy bs (Left idx) val = do
 updateBack_word (Nat n) _eltTy bs (Right w) val = do
   idx <- bvVal <$> asWordVal Concrete w
   updateWordValue Concrete bs (n - idx - 1) (fromVBit <$> val)
-
--- FIX: remove this
--- applySampleToValue :: Sample -> Value -> Value
--- applySampleToValue sample = \case
---   VNumPoly cs f -> _
---   val -> val
