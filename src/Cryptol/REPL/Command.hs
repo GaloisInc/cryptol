@@ -68,6 +68,7 @@ import qualified Cryptol.ModuleSystem.Renamer as M
 import qualified Cryptol.Utils.Ident as M
 import qualified Cryptol.ModuleSystem.Env as M
 
+import           Cryptol.Backend.FloatHelpers as FP
 import qualified Cryptol.Backend.Monad as E
 import qualified Cryptol.Backend.SeqMap as E
 import           Cryptol.Eval.Concrete( Concrete(..) )
@@ -260,7 +261,11 @@ nbCommandList  =
       , "The amount of time to spend collecting measurements can be changed"
       , "  with the timeMeasurementPeriod option."
       , "Reports the average wall clock time, CPU time, and cycles."
-      , "(Cycles are in unspecified units that may be CPU cycles.)"])
+      , "  (Cycles are in unspecified units that may be CPU cycles.)"
+      , "Binds the result to"
+      , "  it : { avgTime : Float64"
+      , "       , avgCpuTime : Float64"
+      , "       , avgCycles : Integer }" ])
   ]
 
 commandList :: [CommandDescr]
@@ -1022,6 +1027,14 @@ timeCmd str pos fnm = do
       rPutStrLn $ "Avg time: " ++ Bench.secs benchAvgTime
            ++ "    Avg CPU time: " ++ Bench.secs benchAvgCpuTime
            ++ "    Avg cycles: " ++ show benchAvgCycles
+      let mkStatsRec time cpuTime cycles = recordFromFields
+            [("avgTime", time), ("avgCpuTime", cpuTime), ("avgCycles", cycles)]
+          itType = E.TVRec $ mkStatsRec E.tvFloat64 E.tvFloat64 E.TVInteger
+          itVal = E.VRecord $ mkStatsRec
+            (pure $ E.VFloat $ FP.floatFromDouble benchAvgTime)
+            (pure $ E.VFloat $ FP.floatFromDouble benchAvgCpuTime)
+            (pure $ E.VInteger $ toInteger benchAvgCycles)
+      bindItVariableVal itType itVal
 
 readFileCmd :: FilePath -> REPL ()
 readFileCmd fp = do

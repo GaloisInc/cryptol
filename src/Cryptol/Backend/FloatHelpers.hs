@@ -8,6 +8,7 @@ import LibBF
 
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
+import Cryptol.Utils.Types
 import Cryptol.Backend.Monad( EvalError(..) )
 
 
@@ -176,3 +177,8 @@ floatFromBits e p bv = BF { bfValue = bfFromBits (fpOpts e p NearEven) bv
 -- (most significant bit in the significand is set, the rest of it is 0)
 floatToBits :: Integer -> Integer -> BigFloat -> Integer
 floatToBits e p bf = bfToBits (fpOpts e p NearEven) bf
+
+
+-- | Create a 64-bit IEEE-754 float.
+floatFromDouble :: Double -> BF
+floatFromDouble = uncurry BF float64ExpPrec . bfFromDouble

@@ -119,6 +119,7 @@ library
                        Cryptol.Utils.Patterns,
                        Cryptol.Utils.Logger,
                        Cryptol.Utils.Benchmark,
+                       Cryptol.Utils.Types,
                        Cryptol.Version,
 
                        Cryptol.ModuleSystem,
