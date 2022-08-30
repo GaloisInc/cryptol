@@ -51,7 +51,6 @@ import Cryptol.ModuleSystem.Env (lookupModule
                                 , ModContext(..)
                                 , ModulePath(..), modulePathLabel)
 import           Cryptol.Backend.FFI
-import           Cryptol.Benchmark
 import qualified Cryptol.Eval                 as E
 import qualified Cryptol.Eval.Concrete as Concrete
 import           Cryptol.Eval.Concrete (Concrete(..))
@@ -76,6 +75,7 @@ import Cryptol.Utils.Ident ( preludeName, floatName, arrayName, suiteBName, prim
 import Cryptol.Utils.PP (pretty)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.Logger(logPutStrLn, logPrint)
+import Cryptol.Utils.Benchmark
 
 import Cryptol.Prelude ( preludeContents, floatContents, arrayContents
                        , suiteBContents, primeECContents, preludeReferenceContents )

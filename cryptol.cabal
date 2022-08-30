@@ -118,6 +118,7 @@ library
                        Cryptol.Utils.Misc,
                        Cryptol.Utils.Patterns,
                        Cryptol.Utils.Logger,
+                       Cryptol.Utils.Benchmark,
                        Cryptol.Version,
 
                        Cryptol.ModuleSystem,
@@ -218,9 +219,7 @@ library
                        Cryptol.REPL.Command,
                        Cryptol.REPL.Browse,
                        Cryptol.REPL.Monad,
-                       Cryptol.REPL.Trie,
-
-                       Cryptol.Benchmark
+                       Cryptol.REPL.Trie
 
   Other-modules:       Cryptol.Parser.LexerUtils,
                        Cryptol.Parser.ParserUtils,

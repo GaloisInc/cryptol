@@ -1,5 +1,5 @@
 -- | Simple benchmarking of IO functions.
-module Cryptol.Benchmark
+module Cryptol.Utils.Benchmark
   ( BenchmarkStats (..)
   , benchmark
   , secs

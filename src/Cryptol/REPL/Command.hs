@@ -70,7 +70,6 @@ import qualified Cryptol.ModuleSystem.Env as M
 
 import qualified Cryptol.Backend.Monad as E
 import qualified Cryptol.Backend.SeqMap as E
-import qualified Cryptol.Benchmark as Bench
 import           Cryptol.Eval.Concrete( Concrete(..) )
 import qualified Cryptol.Eval.Concrete as Concrete
 import qualified Cryptol.Eval.Env as E
@@ -89,6 +88,7 @@ import qualified Cryptol.TypeCheck.Parseable as T
 import qualified Cryptol.TypeCheck.Subst as T
 import           Cryptol.TypeCheck.Solve(defaultReplExpr)
 import           Cryptol.TypeCheck.PP (dump,ppWithNames,emptyNameMap)
+import qualified Cryptol.Utils.Benchmark as Bench
 import           Cryptol.Utils.PP hiding ((</>))
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.RecordMap

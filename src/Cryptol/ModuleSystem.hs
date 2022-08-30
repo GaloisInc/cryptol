@@ -36,7 +36,6 @@ module Cryptol.ModuleSystem (
 
 import Data.Map (Map)
 
-import           Cryptol.Benchmark (BenchmarkStats)
 import qualified Cryptol.Eval.Concrete as Concrete
 import           Cryptol.ModuleSystem.Env
 import           Cryptol.ModuleSystem.Interface
@@ -49,6 +48,7 @@ import           Cryptol.Parser.Name (PName)
 import           Cryptol.Parser.NoPat (RemovePatterns)
 import qualified Cryptol.TypeCheck.AST     as T
 import qualified Cryptol.TypeCheck.Interface as T
+import           Cryptol.Utils.Benchmark (BenchmarkStats)
 import qualified Cryptol.Utils.Ident as M
 
 -- Public Interface ------------------------------------------------------------
