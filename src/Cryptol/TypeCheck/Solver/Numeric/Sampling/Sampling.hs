@@ -72,12 +72,20 @@ maxInteger :: Integer
 maxInteger = 128
 
 -- Pick Inf as value for variables bounded above by Inf in this ratio of
--- samples.
+-- samples. Justification for `0.1`: by default the number of literal sampling
+-- bins is 1000/100 = 10, so this ensures that `inf` is chosen ~1 times for a
+-- single `:check` run (if its a valid value to sampel, of course).
 weightRatioForInf :: Rational
-weightRatioForInf = 0.1 -- TODO: justify
+weightRatioForInf = 0.1
 
+-- Exponent in exponential drop-off of probability of sampling higher values in
+-- the `PowSkewSmallUpToMaxInteger` distribution. The weight of sampling `n` is
+-- `(maxInteger - n) ^ exponentPowSkew`. Justification for `8`: the average
+-- value sampled is 10, which seems like a reasonable list size because, if your
+-- type var isn't bounded above, then you probably want to test sizes above
+-- 0,1,2.
 exponentPowSkew :: Integer
-exponentPowSkew = 12 -- TODO: justify
+exponentPowSkew = 8
 
 -- precompute for efficiency
 totalWeight_weightedRangePowSkewSmallUpToMaxInteger :: Integer
@@ -158,20 +166,16 @@ instance Show Range where
 {-
 Sample solved constraints
 1. Collect upper bounds on each var
-2. Sampling procedure:
-  1. Sample each var in order, statefully keeping track of samplings so far
-  2. To sample a var: If it's `Range` is `EqualAndUpperBounded` then the variable's value is
-    equal to the sampling of the one expression, so sample that expression.
-
-    -- TODO: talk about how EqualAndUpperBounded can be upperbounded too
-
-    If it's `Range` is `UpperBounded` then sample each upper-bounding expression
-    then sample a value (TODO: how to weightWRI choice) between `0` and the minimum
-    of the sampled upper-bounding values. Then update the variable's `Range` to
-    be `EqualAndUpperBounded` of the value just sampled for it.
+2. Sampling procedure: Sample each var in order, statefully keeping track of
+   samplings so far. To sample a var, if the var's `Range` is...
+   - `EqualAndUpperBounded`, then the var's value is equal to the sampling of
+     the one expression, so sample that expression
+   - `UpperBounded` then sample all the upper bounds and then set this var's
+    value to the min of them
+   - `Fixed`, then sample the expression, then set this var's value to the
+     result
 -}
 
--- TODO: make use of `fin` type constraint
 sample :: SolvedConstraints Nat' -> SamplingM (Vector Nat')
 sample solcons = do
   let vars = V.generate (SolCons.nVars solcons) Var
@@ -198,12 +202,7 @@ sample solcons = do
         addUpperBounds i bs' =
           getRange i >>= \case
             UpperBounded bs -> modify (V.// [(unVar i, UpperBounded (bs <> bs'))])
-            -- FIX: if x = y and x is bounded by 3, then this will ignore that
-            -- bound, and so y can be assigned to 10 and then x will also be 10
             EqualAndUpperBounded e bs -> modify (V.// [(unVar i, EqualAndUpperBounded e (bs <> bs'))])
-            -- can't upper-bound something that's already fixed...
-            -- TODO: this shouldn't happen!
-            -- TODO: should this be an error?
             Fixed _ -> pure ()
 
     let setFixed :: Var -> Nat' -> StateT (Vector Range) SamplingM ()
@@ -290,21 +289,6 @@ sample solcons = do
 
     -- sample all the vars
 
-    -- TMP
-    -- let randomWeightedR :: (Integer -> Integer) -> (Integer, Integer) -> TFGen -> (Integer, TFGen)
-    --     randomWeightedR _ (lo, hi) g | hi - lo <= 0 = error "randomWeightedR of empty range"
-    --     randomWeightedR weightWRI (lo, hi) g =
-    --       let xs = [lo .. hi]
-    --           weights = weightWRI <$> [lo .. hi]
-    --           (y, g) = randomR (0, sum weights) g
-    --           findSample _ [] = error "randomWeightedR: impossible"
-    --           findSample acc ((x, w) : xs_ws)
-    --             | y >= acc = x
-    --             | null xs_ws = x
-    --             | otherwise = findSample (acc + w) xs_ws
-    --           x = findSample 0 (xs `zip` weights)
-    --        in (x, g)
-
     let sampleNat' :: Nat' -> StateT (Vector Range) SamplingM Nat'
         sampleNat' Inf = lift (sampleWeightedRange weightedRangePowSkewSmallUpToMaxInteger (Just totalWeight_weightedRangePowSkewSmallUpToMaxInteger))
         -- sampleNat' (Nat n) = lift (sampleWeightedRange (weightedRangeLinSkewSmall n) Nothing)
@@ -358,11 +342,5 @@ sample solcons = do
     -- trigger a statefull sampling which does that.
     vals <- sampleVar `traverse` vars
     pure vals
-  -- sample all the vars
-  -- vals <- evalStateT (sampleVar `traverse` vars) rs
 
-  -- -- cast to Integer
-  -- let fromNat' :: Nat' -> Integer
-  --     fromNat' Inf = maxInteger
-  --     fromNat' (Nat n) = n
   pure vals
