@@ -992,6 +992,9 @@ userOptions  = mkOptionMap
     , "This is a lower bound and the actual time taken might be higher if the"
     , "  evaluation takes a long time."
     ]
+
+  , simpleOpt "timeQuiet" ["time-quiet"] (EnvBool False) noCheck
+    "Suppress output of :time command and only bind result to `it`."
   ]
 
 

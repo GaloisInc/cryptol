@@ -1016,7 +1016,9 @@ typeOfCmd str pos fnm = do
 timeCmd :: String -> (Int, Int) -> Maybe FilePath -> REPL ()
 timeCmd str pos fnm = do
   period <- getKnownUser "timeMeasurementPeriod" :: REPL Int
-  rPutStrLn $ "Measuring for " ++ show period ++ " seconds"
+  quiet <- getKnownUser "timeQuiet"
+  unless quiet $
+    rPutStrLn $ "Measuring for " ++ show period ++ " seconds"
   pExpr <- replParseExpr str pos fnm
   (_, def, sig) <- replCheckExpr pExpr
   replPrepareCheckedExpr def sig >>= \case
@@ -1024,9 +1026,10 @@ timeCmd str pos fnm = do
     Just (_, expr) -> do
       Bench.BenchmarkStats {..} <- liftModuleCmd
         (rethrowEvalError . M.benchmarkExpr (fromIntegral period) expr)
-      rPutStrLn $ "Avg time: " ++ Bench.secs benchAvgTime
-           ++ "    Avg CPU time: " ++ Bench.secs benchAvgCpuTime
-           ++ "    Avg cycles: " ++ show benchAvgCycles
+      unless quiet $
+        rPutStrLn $ "Avg time: " ++ Bench.secs benchAvgTime
+             ++ "    Avg CPU time: " ++ Bench.secs benchAvgCpuTime
+             ++ "    Avg cycles: " ++ show benchAvgCycles
       let mkStatsRec time cpuTime cycles = recordFromFields
             [("avgTime", time), ("avgCpuTime", cpuTime), ("avgCycles", cycles)]
           itType = E.TVRec $ mkStatsRec E.tvFloat64 E.tvFloat64 E.TVInteger
