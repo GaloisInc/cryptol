@@ -8,7 +8,8 @@
 
 * The unary `-` operator now has the same precedence as binary `-`, meaning
   expressions like `-x^^2` will now parse as `-(x^^2)` instead of `(-x)^^2`.
-  **This is a breaking change.**
+  **This is a breaking change.** A warning has been added in cases where the
+  behavior has changed, and can be disabled with `:set warnPrefixAssoc=off`.
 
 * Infix operators are now allowed in import lists: `import M ((<+>))` will
   import only the operator `<+>` from module `M`.
