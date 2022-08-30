@@ -1,0 +1,14 @@
+:l SuiteB_FFI.cry
+:! echo "AES-NI AES-128 key expansion:"
+aes128EncryptSchedule 0x1234567890abcdef1234567890abcdef
+:time aes128EncryptSchedule 0x1234567890abcdef1234567890abcdef
+:! echo "Cryptol AES-128 key expansion:"
+SB::aes128EncryptSchedule 0x1234567890abcdef1234567890abcdef
+:time SB::aes128EncryptSchedule 0x1234567890abcdef1234567890abcdef
+let s = it
+:! echo "AES-NI AES-128 encrypt:"
+aesEncryptBlock s 0x9876543210abcdef9876543210abcdef
+:time aesEncryptBlock s 0x9876543210abcdef9876543210abcdef
+:! echo "Cryptol AES-128 encrypt:"
+SB::aesEncryptBlock s 0x9876543210abcdef9876543210abcdef
+:time SB::aesEncryptBlock s 0x9876543210abcdef9876543210abcdef
