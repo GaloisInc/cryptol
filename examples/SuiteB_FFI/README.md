@@ -54,3 +54,5 @@ Run `make perf-bench` to test the performance of the individual AES-128
 functions with Cryptol's `:time` benchmarking command. This prints out the
 benchmarked time for the key expansion and encryption functions for both
 implementations, and the speedup in both cases.
+
+Run `make clean` to delete generated files.
