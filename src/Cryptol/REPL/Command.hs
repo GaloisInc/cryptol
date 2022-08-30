@@ -258,7 +258,9 @@ nbCommandList  =
     (unlines
       [ "The expression will be evaluated many times to get accurate results."
       , "The amount of time to spend collecting measurements can be changed"
-      , "  with the timeMeasurementPeriod option." ])
+      , "  with the timeMeasurementPeriod option."
+      , "Reports the average wall clock time, CPU time, and cycles."
+      , "(Cycles are in unspecified units that may be CPU cycles.)"])
   ]
 
 commandList :: [CommandDescr]
