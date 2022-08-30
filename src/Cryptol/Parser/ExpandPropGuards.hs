@@ -1,3 +1,9 @@
+{-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+
 -- |
 -- Module      :  Cryptol.Parser.PropGuards
 -- Copyright   :  (c) 2022 Galois, Inc.
@@ -9,30 +15,23 @@
 -- Expands PropGuards into a top-level definition for each case, and rewrites
 -- the body of each case to be an appropriate call to the respectively generated
 -- function.
---
-
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DeriveAnyClass #-}
-
 module Cryptol.Parser.ExpandPropGuards where
 
-import Cryptol.Parser.AST
 -- import Cryptol.Parser.Position (Range(..), emptyRange, start, at)
 -- import Cryptol.Parser.Names (namesP)
-import Cryptol.Utils.PP
+
 -- import Cryptol.Utils.Ident (mkIdent)
-import Cryptol.Utils.Panic (panic)
+
 -- import Cryptol.Utils.RecordMap
 
-import           Data.Text (pack)
-
-import GHC.Generics (Generic)
 import Control.DeepSeq
+import Cryptol.Parser.AST
+import Cryptol.Utils.PP
+import Cryptol.Utils.Panic (panic)
+import Data.Text (pack)
+import GHC.Generics (Generic)
 
 -- | Monad
-
 type ExpandPropGuardsM a = Either Error a
 
 runExpandPropGuardsM :: ExpandPropGuardsM a -> Either Error a
@@ -44,68 +43,67 @@ class ExpandPropGuards a where
 
 -- | Error
 data Error = NoSignature (Located PName)
-  deriving (Show,Generic, NFData)
+  deriving (Show, Generic, NFData)
 
 instance PP Error where
   ppPrec _ err = case err of
-    NoSignature x -> 
-      text "At" <+> pp (srcRange x) <.> colon <+>
-      text "Declarations using constraint guards currently require an explicit type signature."
+    NoSignature x ->
+      text "At" <+> pp (srcRange x) <.> colon
+        <+> text "Declarations using constraint guards currently require an explicit type signature."
 
 -- | Instances
-
 instance ExpandPropGuards (Program PName) where
   expandPropGuards (Program decls) = Program <$> expandPropGuards decls
 
 instance ExpandPropGuards (Module PName) where
   expandPropGuards m = do
     mDecls' <- expandPropGuards (mDecls m)
-    pure m { mDecls = mDecls' }
+    pure m {mDecls = mDecls'}
 
 instance ExpandPropGuards [TopDecl PName] where
-  expandPropGuards topDecls = concat <$> traverse f topDecls 
-    where 
-      f :: TopDecl PName -> ExpandPropGuardsM [TopDecl PName]
-      f (Decl topLevelDecl) = fmap mu <$> expandPropGuards [tlValue topLevelDecl]
-        where mu decl = Decl $ topLevelDecl { tlValue = decl }
-      f topDecl = pure [topDecl]
+  expandPropGuards topDecls = concat <$> traverse goTopDecl topDecls
+    where
+      goTopDecl :: TopDecl PName -> ExpandPropGuardsM [TopDecl PName]
+      goTopDecl (Decl topLevelDecl) = fmap mu <$> expandPropGuards [tlValue topLevelDecl]
+        where
+          mu decl = Decl $ topLevelDecl {tlValue = decl}
+      goTopDecl topDecl = pure [topDecl]
 
-instance ExpandPropGuards [Decl PName] where 
-  expandPropGuards decls = concat <$> traverse f decls 
-    where 
-      f (DBind bind) = fmap DBind <$> expandPropGuards [bind]
-      f decl = pure [decl]
+instance ExpandPropGuards [Decl PName] where
+  expandPropGuards decls = concat <$> traverse goDBind decls
+    where
+      goDBind (DBind bind) = fmap DBind <$> expandPropGuards [bind]
+      goDBind decl = pure [decl]
 
 instance ExpandPropGuards [Bind PName] where
-  expandPropGuards binds = concat <$> traverse f binds
-    where 
-      f :: Bind PName -> Either Error [Bind PName]
-      f bind = case thing $ bDef bind of 
+  expandPropGuards binds = concat <$> traverse goPName binds
+    where
+      goPName :: Bind PName -> Either Error [Bind PName]
+      goPName bind = case thing $ bDef bind of
         DPropGuards guards -> do
           Forall params props t rng <-
             case bSignature bind of
-              Just schema -> pure schema 
+              Just schema -> pure schema
               Nothing -> Left . NoSignature $ bName bind
-          let
-            g :: ([Prop PName], Expr PName) -> ExpandPropGuardsM (([Prop PName], Expr PName), Bind PName)
-            g (props', e) = do
-              bName' <- newName (bName bind) props'
-              -- call to generated function
-              let e' = foldr EApp (EVar $ thing bName') (patternToExpr <$> bParams bind)
-              pure 
-                ( (props', e') 
-                , bind
-                    { bName = bName'
-                      -- include guarded props in signature
-                    , bSignature = Just $ Forall params (props <> props') t rng
-                      -- keeps same location at original bind 
-                      -- i.e. "on top of" original bind
-                    , bDef = (bDef bind) {thing = DExpr e}
-                    }
-                )
+          let g :: ([Prop PName], Expr PName) -> ExpandPropGuardsM (([Prop PName], Expr PName), Bind PName)
+              g (props', e) = do
+                bName' <- newName (bName bind) props'
+                -- call to generated function
+                let e' = foldr EApp (EVar $ thing bName') (patternToExpr <$> bParams bind)
+                pure
+                  ( (props', e'),
+                    bind
+                      { bName = bName',
+                        -- include guarded props in signature
+                        bSignature = Just $ Forall params (props <> props') t rng,
+                        -- keeps same location at original bind
+                        -- i.e. "on top of" original bind
+                        bDef = (bDef bind) {thing = DExpr e}
+                      }
+                  )
           (guards', binds') <- unzip <$> mapM g guards
-          pure $ 
-            bind { bDef = const (DPropGuards guards') <$> bDef bind } :
+          pure $
+            bind {bDef = DPropGuards guards' <$ bDef bind} :
             binds'
         _ -> pure [bind]
 
@@ -115,13 +113,13 @@ patternToExpr _ = panic "patternToExpr" ["Unimplemented: patternToExpr of anythi
 
 newName :: Located PName -> [Prop PName] -> ExpandPropGuardsM (Located PName)
 newName locName props =
-  case thing locName of 
-    Qual modName ident -> do
-      let txt  = identText ident
+  pure case thing locName of
+    Qual modName ident ->
+      let txt = identText ident
           txt' = pack $ show $ pp props
-      pure $ const (Qual modName (mkIdent $ txt <> txt')) <$> locName
-    UnQual ident -> do
-      let txt  = identText ident
+       in Qual modName (mkIdent $ txt <> txt') <$ locName
+    UnQual ident ->
+      let txt = identText ident
           txt' = pack $ show $ pp props
-      pure $ const (UnQual (mkIdent $ txt <> txt')) <$> locName 
+       in UnQual (mkIdent $ txt <> txt') <$ locName
     NewName _ _ -> panic "mkName" ["During expanding prop guards, tried to make new name from NewName case of PName"]
