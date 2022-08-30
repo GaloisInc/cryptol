@@ -50,7 +50,7 @@ instance PP Error where
   ppPrec _ err = case err of
     NoSignature x -> 
       text "At" <+> pp (srcRange x) <.> colon <+>
-      text "No signature provided for declaration that uses PROPGUARDS."
+      text "Declarations using constraint guards currently require an explicit type signature."
 
 -- | Instances
 
