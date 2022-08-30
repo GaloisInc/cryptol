@@ -611,7 +611,7 @@ mkIndexedDecl f (ps, ixs) e =
     rhs = mkGenerate (reverse ixs) e
 
 -- NOTE: The lists of patterns are reversed!
-mkIndexedPropGuardsDecl ::
+mkIndexedPropGuardsDecl ::  
   LPName -> ([Pattern PName], [Pattern PName]) -> [([Prop PName], Expr PName)] -> Decl PName
 mkIndexedPropGuardsDecl f (ps, ixs) guards =
   DBind Bind { bName       = f
@@ -627,6 +627,11 @@ mkIndexedPropGuardsDecl f (ps, ixs) guards =
              }
   where
     guards' = second (mkGenerate (reverse ixs)) <$> guards
+
+mkIndexedConstantPropGuardsDecl :: 
+  LPName -> [([Prop PName], Expr PName)] -> Decl PName
+mkIndexedConstantPropGuardsDecl f guards =
+  mkIndexedPropGuardsDecl f ([], []) guards
 
 -- NOTE: The lists of patterns are reversed!
 mkIndexedExpr :: ([Pattern PName], [Pattern PName]) -> Expr PName -> Expr PName

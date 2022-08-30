@@ -318,6 +318,8 @@ decl                    :: { Decl PName }
   | '(' op ')' '=' expr    { at ($1,$5) $ DPatBind (PVar $2) $5             }
   | var apats_indices propguards_cases
                            { mkIndexedPropGuardsDecl $1 $2 $3 }
+  | var propguards_cases
+                           { mkIndexedConstantPropGuardsDecl $1 $2 }
   | var apats_indices '=' expr
                            { at ($1,$4) $ mkIndexedDecl $1 $2 $4 }
 
