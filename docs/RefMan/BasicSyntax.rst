@@ -24,7 +24,7 @@ Numeric Constraint Guards
 
 A declaration with a signature can use numeric constraint guards, which are like
 normal guards (such as in a multi-branch `if`` expression) except that the
-guarding conditions can be numeric constraints. For example:
+guarding conditions are numeric constraints. For example:
 
 .. code-block:: cryptol
 
