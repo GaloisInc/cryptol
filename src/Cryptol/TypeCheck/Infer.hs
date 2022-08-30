@@ -71,7 +71,6 @@ import           Data.Function(on)
 import           Control.Monad(zipWithM, unless, foldM, forM_, mplus, zipWithM,
                                unless, foldM, forM_, mplus, when)
 import           Data.Bifunctor (Bifunctor(second))
-import qualified Data.List as List
 
 
 
@@ -1191,7 +1190,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
         [] -> pure False -- empty PropGuards 
         -- singleton
         [props] -> canProve asmps (toGoal <$> props)
-        (props : guards) -> 
+        (props : guards') -> 
           -- Keep `props` on the RHS of implication. Negate each of `guards` and
           -- move to RHS. For each negation of a conjunction, a disjunction is
           -- yielded, which multiplies the number of implications that we need
@@ -1199,12 +1198,12 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
           -- conjunction to stay on RHS.
           let 
             goals = toGoal <$> props
-            impls = go asmps guards
+            impls = go asmps guards'
               where 
-                go asmps [] = pure $ canProve asmps goals
-                go asmps (guard : guards) = do
+                go asmps' [] = pure $ canProve asmps' goals
+                go asmps' (guard : guards'') = do
                   neg_guard <- pNegNumeric guard
-                  go (asmps <> neg_guard) guards
+                  go (asmps' <> neg_guard) guards''
           in
             and <$> sequence impls
       where
