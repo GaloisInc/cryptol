@@ -255,7 +255,10 @@ nbCommandList  =
     ""
   , CommandDescr [ ":time" ] ["EXPR"] (ExprArg timeCmd)
     "Measure the time it takes to evaluate the given expression."
-    ""
+    (unlines
+      [ "The expression will be evaluated many times to get accurate results."
+      , "The amount of time to spend collecting measurements can be changed"
+      , "  with the timeMeasurementPeriod option." ])
   ]
 
 commandList :: [CommandDescr]
