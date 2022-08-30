@@ -1,10 +1,36 @@
-isZero : {n} Bit
+isZero : {n : #} Bit
 isZero | n == 0 => True
        | ()     => False
 
-isFin : {n} Bit
+property isZero_correct =
+  ~isZero `{inf} &&
+   isZero `{  0}   &&
+  ~isZero `{  1}   &&
+  ~isZero `{  2}   &&
+  ~isZero `{  4}   &&
+  ~isZero `{  8}   &&
+  ~isZero `{ 16}
+
+isFin : {n : #} Bit
 isFin | fin n => True
       | ()    => False
 
-idTypeNum : {n} Integer 
+property isFin_correct =
+  ~isFin `{inf} &&
+   isFin `{  0}   &&
+   isFin `{  1}   &&
+   isFin `{  2}   &&
+   isFin `{  4}   &&
+   isFin `{  8}   &&
+   isFin `{ 16}
+
+idTypeNum : {n : #} Integer 
 idTypeNum | fin n => `n
+
+property idTypeNum_correct =
+  (idTypeNum `{ 0}  ==  0) &&
+  (idTypeNum `{ 1}  ==  1) &&
+  (idTypeNum `{ 2}  ==  2) &&
+  (idTypeNum `{ 4}  ==  4) &&
+  (idTypeNum `{ 8}  ==  8) &&
+  (idTypeNum `{16}  == 16)
