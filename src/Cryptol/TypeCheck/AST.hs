@@ -198,6 +198,13 @@ eError prims t str =
   EApp (ETApp (ETApp (ePrim prims (prelPrim "error")) t)
               (tNum (length str))) (eString prims str)
 
+-- | Make an expression that is @error@ pre-applied a message (but not a also
+-- type, like @eError@).
+eError' :: PrimMap -> String -> Expr
+eError' prims str =
+  EApp (ETApp (ePrim prims (prelPrim "error"))
+              (tNum (length str))) (eString prims str)
+
 eString :: PrimMap -> String -> Expr
 eString prims str = EList (map (eChar prims) str) tChar
 

@@ -27,6 +27,8 @@ import Data.Maybe (catMaybes)
 import qualified Data.List as List
 
 import MonadLib hiding (mapM)
+import Cryptol.ModuleSystem.Base (getPrimMap)
+
 
 -- Specializer Monad -----------------------------------------------------------
 
@@ -110,7 +112,10 @@ specializeExpr expr =
     EPropGuards guards _schema -> 
       case List.find (all checkProp . fst) guards of
         Just (_, e) -> specializeExpr e
-        Nothing -> undefined -- TODO: emit expression `error`
+        Nothing -> do
+          pm <- liftSpecT getPrimMap
+          pure $ eError' pm "no constraint guard was satisfied"
+
 
 specializeMatch :: Match -> SpecM Match
 specializeMatch (From qn l t e) = From qn l t <$> specializeExpr e
