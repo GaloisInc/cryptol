@@ -1,11 +1,10 @@
 isZero : {n} Bit
-isZero
-  | n == 0 => True
-  | ()     => False
+isZero | n == 0 => True
+       | ()     => False
 
 isFin : {n} Bit
 isFin | fin n => True
-      | () => False
+      | ()    => False
 
 idTypeNum : {n} Integer 
 idTypeNum | fin n => `n
