@@ -76,17 +76,17 @@ instance ExpandPropGuards [Decl PName] where
       goDBind decl = pure [decl]
 
 instance ExpandPropGuards [Bind PName] where
-  expandPropGuards binds = concat <$> traverse goPName binds
+  expandPropGuards binds = concat <$> traverse goBind binds
     where
-      goPName :: Bind PName -> Either Error [Bind PName]
-      goPName bind = case thing $ bDef bind of
+      goBind :: Bind PName -> Either Error [Bind PName]
+      goBind bind = case thing $ bDef bind of
         DPropGuards guards -> do
           Forall params props t rng <-
             case bSignature bind of
               Just schema -> pure schema
               Nothing -> Left . NoSignature $ bName bind
-          let g :: ([Prop PName], Expr PName) -> ExpandPropGuardsM (([Prop PName], Expr PName), Bind PName)
-              g (props', e) = do
+          let goGuard :: ([Prop PName], Expr PName) -> ExpandPropGuardsM (([Prop PName], Expr PName), Bind PName)
+              goGuard (props', e) = do
                 bName' <- newName (bName bind) props'
                 -- call to generated function
                 let e' = foldr EApp (EVar $ thing bName') (patternToExpr <$> bParams bind)
@@ -101,7 +101,7 @@ instance ExpandPropGuards [Bind PName] where
                         bDef = (bDef bind) {thing = DExpr e}
                       }
                   )
-          (guards', binds') <- unzip <$> mapM g guards
+          (guards', binds') <- unzip <$> mapM goGuard guards
           pure $
             bind {bDef = DPropGuards guards' <$ bDef bind} :
             binds'
