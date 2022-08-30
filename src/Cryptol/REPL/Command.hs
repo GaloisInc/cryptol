@@ -21,6 +21,7 @@
 {-# HLINT ignore "Use camelCase" #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
+{-# LANGUAGE TypeApplications #-}
 module Cryptol.REPL.Command (
     -- * Commands
     Command(..), CommandDescr(..), CommandBody(..), CommandExitCode(..)
@@ -399,6 +400,7 @@ dumpTestsCmd outFile str pos fnm =
 
 data QCMode = QCRandom | QCExhaust deriving (Eq, Show)
 
+
 data SampleBinInfo = SampleBinInfo
   { sample :: Sample -- the sample used for this bin
   , binIndex :: Integer -- the index of this bin among all bins
@@ -414,11 +416,12 @@ qcCmd :: QCMode -> String -> (Int,Int) -> Maybe FilePath -> REPL ()
 qcCmd qcMode str pos fnm = do
   -- (qcMde, doc, texpr, schema) <- case str of 
   case str of
+    -- `:check` without an argument
     "" -> do
       (xs,disp) <- getPropertyNames
       let nameStr x = show (fixNameDisp disp (pp x))
       if null xs
-      then do
+      then
         rPutStrLn "There are no properties in scope."
       else
         forM_ xs $ \(x,d) -> do
@@ -428,78 +431,77 @@ qcCmd qcMode str pos fnm = do
           let schema = M.ifDeclSig d
           nd <- M.mctxNameDisp <$> getFocusedEnv
           let doc = fixNameDisp nd (pp texpr)
-          go doc Nothing texpr schema
+          qcCmdNoLitSampling qcMode doc texpr schema
+    -- `:check e`, where `e` is an expression
     _ -> do
       expr <- replParseExpr str pos fnm
       (_,texpr,schema) <- replCheckExpr expr
       nd <- M.mctxNameDisp <$> getFocusedEnv
       let doc = fixNameDisp nd (ppPrec 3 expr) -- function application has precedence 3
-      go doc (Just expr) texpr schema
+      litSampling <- getKnownUser "literalSampling" :: REPL Bool
+      if litSampling
+        then qcCmdRandomLitSampling doc expr texpr schema
+        else qcCmdNoLitSampling qcMode doc texpr schema
+
+
+qcCmdNoLitSampling :: QCMode -> Doc -> T.Expr -> T.Schema -> REPL ()
+qcCmdNoLitSampling qcMode doc texpr schema = do 
+  testNum <- toInteger @Int <$> getKnownUser "tests" :: REPL Integer
+  (val, ty) <- replEvalCheckedExpr' texpr schema
+  void (qcExpr qcMode doc texpr schema testNum val ty Nothing)
+
+
+qcCmdRandomLitSampling :: Doc -> P.Expr P.PName -> T.Expr -> T.Schema -> REPL ()
+qcCmdRandomLitSampling doc expr texpr schema = do 
+  testNum <- toInteger @Int <$> getKnownUser "tests" :: REPL Integer
+  -- do this many tests per sample, until out of tests
+  binSize <- toInteger @Int <$> getKnownUser "literalSamplingBinSize" :: REPL Integer
+  let bins = testNum `div` binSize
+  io (sampleLiterals schema (fromInteger bins)) >>= \case
+    Right samples_schemas -> do
+      rPutStrLn "Using literal sampling."
+      qcSampleSchema doc expr bins binSize `mapM_` 
+        zip [0..] (take (fromInteger $ testNum `div` binSize) samples_schemas)
+    Left err -> do
+      rPutStrLn $ "Failed to use literal sampling: " ++ err
+      rPutStrLn "Using a single default solution instead."
+      qcCmdNoLitSampling QCRandom doc texpr schema
+
+
+-- this generates a new expression that has the appropriate
+-- type arguments given to it according to the sampling,
+-- which is then typechecked and evaluated again
+applySampleToTExpr :: Sample -> P.Expr P.PName -> P.Expr P.PName
+applySampleToTExpr sample e = P.EAppT e $ go <$> sample
   where
-    go :: Doc -> Maybe (P.Expr P.PName) -> T.Expr -> T.Schema -> REPL ()
-    go doc mb_expr texpr schema = case qcMode of
-      QCExhaust -> do
-        testNum <- (toInteger :: Int -> Integer) <$> getKnownUser "tests"
-        (val, ty) <- replEvalCheckedExpr' texpr schema
-        void (qcExpr qcMode doc texpr schema testNum val ty Nothing)
-      QCRandom -> do
-        testNum <- (toInteger :: Int -> Integer) <$> getKnownUser "tests"
-        useLitSampling <- getKnownUser "literalSampling" :: REPL Bool
-        if  useLitSampling &&
-            not (null (T.sVars schema)) &&
-            all ((T.KNum ==) . T.tpKind) (T.sVars schema)
-          then do
-          case mb_expr of
-            Nothing -> do
-              (val, ty) <- replEvalCheckedExpr' texpr schema
-              void (qcExpr qcMode doc texpr schema testNum val ty Nothing)
-            Just expr -> do
-              -- do this many tests per sample, until out of tests
-              binSize <- (toInteger :: Int -> Integer) <$> getKnownUser "literalSamplingBinSize"
-              let bins = testNum `div` binSize
-              io (sampleLiterals schema (fromInteger bins)) >>= \case
-                Right samples_schemas -> do
-                  rPutStrLn "Using literal sampling."
-                  let -- this generates a new expression that has the appropriate
-                      -- type arguments given to it according to the sampling,
-                      -- which is then typechecked and evaluated again
-                      applySampleToTExpr :: Sample -> P.Expr P.PName -> P.Expr P.PName
-                      applySampleToTExpr sample e = P.EAppT e $ f <$> sample
-                        where
-                          f :: (T.TParam, Nat') -> P.TypeInst P.PName
-                          f (tparam, v) = P.NamedInst $ P.Named
-                            { name = fromTParamToNamedIdent tparam
-                            -- , value = P.TNum v }
-                            , value = case v of
-                                Nat n -> P.TNum n
-                                Inf -> P.TUser (P.UnQual (M.mkIdent (T.pack "inf"))) []}
+    go :: (T.TParam, Nat') -> P.TypeInst P.PName
+    go (tparam, v) = P.NamedInst $ P.Named
+      { name = fromTParamToNamedIdent tparam
+      , value = case v of
+          Nat n -> P.TNum n
+          Inf -> P.TUser (P.UnQual (M.mkIdent (T.pack "inf"))) []
+      }
 
-                          fromTParamToNamedIdent :: T.TParam -> P.Located P.Ident
-                          fromTParamToNamedIdent tparam = case T.tvarDesc . T.tpInfo $ tparam of
-                            T.TVFromSignature name -> P.Located {
-                              thing = M.nameIdent name,
-                              srcRange = M.nameLoc name
-                            }
-                            varDesc -> panic "qcCmd" ["cannot substitute type var with TypeSource: " ++ show varDesc]
+    fromTParamToNamedIdent :: T.TParam -> P.Located P.Ident
+    fromTParamToNamedIdent tparam = case T.tvarDesc . T.tpInfo $ tparam of
+      T.TVFromSignature name -> P.Located {
+        thing = M.nameIdent name,
+        srcRange = M.nameLoc name
+      }
+      varDesc -> panic "qcCmd" ["cannot substitute type var with TypeSource: " ++ show varDesc]
 
-                      qcSampleSchema ((sample, _schema), binIndex) = do
-                        expr <- pure $ applySampleToTExpr sample expr
-                        (_, texpr, schema') <- replCheckExpr expr
-                        (val, ty) <- replEvalCheckedExpr' texpr schema'
-                        qcExpr qcMode doc texpr schema' binSize val ty
-                          (Just SampleBinInfo
-                            { sample, bins, binIndex, binSize })
 
-                  qcSampleSchema `mapM_` (take (fromInteger $ testNum `div` binSize) samples_schemas `zip` [0..])
+qcSampleSchema :: 
+  Doc -> P.Expr P.PName -> 
+  Integer -> Integer -> (Integer, (Sample, b)) -> 
+  REPL TestReport
+qcSampleSchema doc expr bins binSize (binIndex, (sample, _schema)) = do
+  expr <- pure $ applySampleToTExpr sample expr
+  (_, texpr, schema') <- replCheckExpr expr
+  (val, ty) <- replEvalCheckedExpr' texpr schema'
+  qcExpr QCRandom doc texpr schema' binSize val ty
+    (Just SampleBinInfo { sample, bins, binIndex, binSize })
 
-                Left err -> do
-                  rPutStrLn $ "Failed to use liteal sampling: " ++ err
-                  rPutStrLn "Using default literal solution instead."
-                  (val, ty) <- replEvalCheckedExpr' texpr schema
-                  void (qcExpr qcMode doc texpr schema testNum val ty Nothing)
-        else do
-          (val, ty) <- replEvalCheckedExpr' texpr schema
-          void (qcExpr qcMode doc texpr schema testNum val ty Nothing)
 
 data TestReport = TestReport
   { reportExpr :: Doc
@@ -518,6 +520,7 @@ replEvalCheckedExpr' texpr schema =
     -- this exception sometimes, but successfully find an instance and test
     -- with it other times.
     Nothing -> raise (InstantiationsNotFound schema)
+
 
 qcExpr ::
   QCMode ->
