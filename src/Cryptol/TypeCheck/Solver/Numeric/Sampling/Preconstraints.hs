@@ -116,7 +116,6 @@ fromProps tps props = do
           -- type constants
           TC tc -> case tc of
             TCNum n -> pure . PEConst $ toRational n
-            -- TODO: `TCInf -> ...` is possible but I need to use Q' instead of Q
             _ -> unsupported
             -- type functions
           TF tf -> case tf of
