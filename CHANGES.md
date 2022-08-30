@@ -1,5 +1,18 @@
 # next
 
+## Language changes
+
+* The foreign function interface (FFI) has been added, which allows Cryptol to
+  call functions written in C. See the [manual section](https://galoisinc.github.io/cryptol/RefMan/_build/html/FFI.html)
+  for more information.
+
+* The unary `-` operator now has the same precedence as binary `-`, meaning
+  expressions like `-x^^2` will now parse as `-(x^^2)` instead of `(-x)^^2`.
+  **This is a breaking change.**
+
+* Infix operators are now allowed in import lists: `import M ((<+>))` will
+  import only the operator `<+>` from module `M`.
+
 ## Bug fixes
 
 * Fix a bug in the What4 backend that could cause applications of `(@)` with
