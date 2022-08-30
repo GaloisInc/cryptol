@@ -222,7 +222,7 @@ evalExpr sym env expr = case expr of
     let checkedGuards = [ e | (ps,e) <- guards, all (checkProp . evalProp env) ps ]
     case checkedGuards of
       (e:_) -> eval e
-      [] -> raiseError sym (NoMatchingPropGuardCase $ "Available prop guards: `" ++ show (fmap pp . fst <$> guards) ++ "`")
+      [] -> raiseError sym (NoMatchingPropGuardCase $ "Among constraint guards: " ++ show (fmap pp . fst <$> guards))
 
   where
 

@@ -444,7 +444,7 @@ instance PP EvalError where
     BadRoundingMode r -> "invalid rounding mode" <+> integer r
     BadValue x -> "invalid input for" <+> backticks (text x)
     NoPrim x -> text "unimplemented primitive:" <+> pp x
-    NoMatchingPropGuardCase msg -> text $ "No matching prop guard case; " ++ msg
+    NoMatchingPropGuardCase msg -> text $ "No matching constraint guard; " ++ msg
     FFINotSupported x -> vcat
       [ text "cannot call foreign function" <+> pp x
       , text "FFI calls are not supported in this context"
