@@ -1,14 +1,30 @@
-:l SuiteB_FFI.cry
+:l perf-bench.cry
+:set fpBase=10
+
 :! echo "AES-NI AES-128 key expansion:"
-aes128EncryptSchedule 0x1234567890abcdef1234567890abcdef
-:time aes128EncryptSchedule 0x1234567890abcdef1234567890abcdef
+FFI::aes128EncryptSchedule 0x1234567890abcdef1234567890abcdef
+:time FFI::aes128EncryptSchedule 0x1234567890abcdef1234567890abcdef
+let ffiTime = it.avgCpuTime
+
 :! echo "Cryptol AES-128 key expansion:"
 SB::aes128EncryptSchedule 0x1234567890abcdef1234567890abcdef
 :time SB::aes128EncryptSchedule 0x1234567890abcdef1234567890abcdef
-let s = it
+let sbTime = it.avgCpuTime
+
+:! echo "AES-128 key expansion speedup:"
+fpDiv rne sbTime ffiTime
+
+let s = SB::aes128EncryptSchedule 0x1234567890abcdef1234567890abcdef
+
 :! echo "AES-NI AES-128 encrypt:"
-aesEncryptBlock s 0x9876543210abcdef9876543210abcdef
-:time aesEncryptBlock s 0x9876543210abcdef9876543210abcdef
+FFI::aesEncryptBlock s 0x9876543210abcdef9876543210abcdef
+:time FFI::aesEncryptBlock s 0x9876543210abcdef9876543210abcdef
+let ffiTime = it.avgCpuTime
+
 :! echo "Cryptol AES-128 encrypt:"
 SB::aesEncryptBlock s 0x9876543210abcdef9876543210abcdef
 :time SB::aesEncryptBlock s 0x9876543210abcdef9876543210abcdef
+let sbTime = it.avgCpuTime
+
+:! echo "AES-128 encrypt speedup:"
+fpDiv rne sbTime ffiTime
