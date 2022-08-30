@@ -983,7 +983,7 @@ checkMonoB b t =
 
     P.DPropGuards _ ->
       tcPanic "checkMonoB"
-        [ "Used constraint guards without a signature, dumbwit, at "
+        [ "Used constraint guards without a signature at "
         , show . pp $ P.bName b ]
 
 -- XXX: Do we really need to do the defaulting business in two different places?
