@@ -271,9 +271,10 @@ instance PP (WithNames Expr) where
                          ]
       
       EPropGuards guards _ -> 
-        parens (text "propguard" <+> hsep (ppGuard <$> guards))
-        where ppGuard (props, e) = 
-                pipe <+> commaSep (pp <$> props) <+> text "=>" <+> pp e
+        parens (text "propguards" <+> vsep (ppGuard <$> guards))
+        where ppGuard (props, e) = indent 1
+                                 $ pipe <+> commaSep (pp <$> props) 
+                               <+> text "=>" <+> pp e
 
     where
     ppW x   = ppWithNames nm x
