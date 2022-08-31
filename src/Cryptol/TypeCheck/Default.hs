@@ -207,9 +207,6 @@ the given type.  This is useful when we do evaluation at the REPL.
 The resulting types should satisfy the constraints of the schema.
 The parameters should be all of numeric kind, and the props should als
 be numeric -}
--- TODO: I think this also needs to return a generator for solutions, since we
--- are going to sample multiple times, not just once like was previously
--- implemented
 defaultReplExpr' :: Solver -> [TParam] -> [Prop] -> IO (Maybe [ (TParam,Type) ])
 defaultReplExpr' sol as props =
   do let params = map tpVar as
@@ -217,8 +214,6 @@ defaultReplExpr' sol as props =
      case mb of
        Nothing -> return Nothing
        Just mdl0 -> do
-        -- TODO: here is where the literal sampler will be invoked
-        -- uses the smt solver first to check that there is a solution
         mdl <- shrinkModel sol params props mdl0
         let su = listSubst [ (x, tNat' n) | (x,n) <- mdl ]
         return $ do
