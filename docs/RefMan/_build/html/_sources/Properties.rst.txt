@@ -1,0 +1,112 @@
+
+Properties
+==========
+
+
+Testing
+-------
+
+The user can check whether a property holds using exhaustive and random testing,
+where a _property_ is a Cryptol value of the form
+
+.. code-block:: cryptol
+
+  {A1, ..., AL} (C1, ..., CM) => T1 -> ... -> TN -> Bit
+
+
+where `L, M, N >= 0`.
+
+To test a property `prop`, the user enters the following command into the
+Cryptol REPL:
+
+.. code-block::sh
+
+  Cryptol> :check prop
+
+By default, this command performs the following: 
+
+#. Check the type of `prop`. For each type variable of kind `*`, choose a
+   default type that satisfies all its constraints. For the type numeric type
+   variables (of kind `#`), use numeric literal sampling to gather a collection
+   of type assignment, each of which is tested seperately. If numeric literal
+   sampling fails, then try to use a default assignment provided by the SMT
+   solver instead (this is likely to be a trivial solution).
+#. If `prop` is a valid property, compute the size of its input space, otherwise
+   fail. If the size is at most equal to the environment variable `tests`, then
+   use exhaustive checking, otherwise use random testing.
+#. If using exhaustive checking, then evaluate `prop` on every input. If using
+   random testing, evaluate `prop` on randomly sampled inputs.
+
+The user can indicate that a declaration is meant to be checked by prefixing is
+with the `property` keyword. When `:check` is run with no arguments, then all
+`property`-prefixed declarations are checked.
+
+
+Numeric Literal Sampling
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+Numeric literal sampling uses the following algorithm, defined in the submodules
+of `Cryptol.TypeCheck.Solver.Numeric.Sampling`, to attempt to find a
+well-distributed sampling of type assignments that satisfy a set of numeric type
+constriants.
+
+#. Check that the user's constraints fall into the domain of constraints handled
+   by this algorithm. Relations and operations handled by this algorithm are:
+  - TODO
+#. Convert the constraints into a system of linear equations and a set of
+   typeclass constraints (such as `fin`).
+  - `e1 <= e2` converts to `e1 + n = e2` where `n` is a fresh numeric type
+    variable.
+  - `... e % n ...` converts to `(... m ..., n*l + m = e)` where `l` and `n` are
+    fresh numeric type variable.
+#. Solve the system using gaussian elimination.
+#. Eliminate the denomenators of coefficients in the system.
+  - If the denomenators of the coefficients of variable `n` have least common
+    multiple `d`, then replace each appearance of `a*n` with `a*d*n'` and
+    introduce a new variable `n'` to the system, and replace the solution for
+    `n` in the system with the equation `n = d*n`. If `n` was not free but was
+    solved for by `n = e`, then add the equation `n' = e/d`.
+  - The denomenators of variables are eliminated in order of dependency, which
+    is guaranteed to be acyclic by gaussian elimination.
+#. Sample values of free variables in the system.
+  - First, collect the upper bounds on variables. 
+    - If a variable is constrained by `fin n`, then the upper bound is the
+      largest finite value to test. 
+    - For an equation such as `n = 1*m + 2*l - 3*k - 4*j + 10`, the following
+      upper bounds are inferred: `m <= inf`, `l <= inf`, `k <= (1*m + 2*l)/3`, `j
+      <= (1*m + 2*l - 3*k + 10)/4`.
+  - Sample each variable: if a variale is upper-bounded by `inf` then sample
+    along an exponential distribution up to the maximum value to test and
+    additionally with some probability `inf`, if a variable is upper-bounded by
+    a finite value `c` then sample uniformly over the interval `[0, c]`.
+
+
+Configuration
+^^^^^^^^^^^^^
+
+The following environment variables configure testing:
+
+- `tests`: the total number of tests to do for a single `:check`
+- `literalSampling`: whether to try to use literal sampling
+- `literalSamplingBinSize`: number of tests to run for each sampling
+
+
+Proving
+-------
+
+The user can try to prove that a property holds by querying an SMT solver with
+the corresponding proposition. To try to prove a property `prop`, the user
+enters the following command into the Cryptol REPL:
+
+.. code:: sh
+
+  Cryptol> :prove prop
+
+Configuration
+^^^^^^^^^^^^^
+
+The following environment variables configure testing:
+
+- `tests`: the total number of tests to do for a single `:check`
+- `literalSampling`: whether to try to use literal sampling
+- `literalSamplingBinSize`: number of tests to run for each sampling

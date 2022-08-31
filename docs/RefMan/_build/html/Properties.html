@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Properties &mdash; Cryptol 2.11.0 documentation</title>
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/jquery.js"></script>
+        <script src="_static/underscore.js"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="_static/doctools.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Foreign Function Interface" href="FFI.html" />
+    <link rel="prev" title="Modules" href="Modules.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="RefMan.html" class="icon icon-home"> Cryptol
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Cryptol Reference Manual</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="BasicSyntax.html">Basic Syntax</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Expressions.html">Expressions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="BasicTypes.html">Basic Types</a></li>
+<li class="toctree-l1"><a class="reference internal" href="OverloadedOperations.html">Overloaded Operations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="TypeDeclarations.html">Type Declarations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Modules.html">Modules</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Properties</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#testing">Testing</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#numeric-literal-sampling">Numeric Literal Sampling</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#configuration">Configuration</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#proving">Proving</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id1">Configuration</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="FFI.html">Foreign Function Interface</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="RefMan.html">Cryptol</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="RefMan.html" class="icon icon-home"></a> &raquo;</li>
+      <li>Properties</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/Properties.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="properties">
+<h1>Properties<a class="headerlink" href="#properties" title="Permalink to this heading"></a></h1>
+<section id="testing">
+<h2>Testing<a class="headerlink" href="#testing" title="Permalink to this heading"></a></h2>
+<p>The user can check whether a property holds using exhaustive and random testing,
+where a _property_ is a Cryptol value of the form</p>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="p">{</span><span class="kt">A1</span><span class="p">,</span><span class="w"> </span><span class="o">...</span><span class="p">,</span><span class="w"> </span><span class="kt">AL</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">C1</span><span class="p">,</span><span class="w"> </span><span class="o">...</span><span class="p">,</span><span class="w"> </span><span class="kt">CM</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="kt">T1</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="o">...</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kt">TN</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kr">Bit</span><span class="w"></span>
+</pre></div>
+</div>
+<p>where <cite>L, M, N &gt;= 0</cite>.</p>
+<p>To test a property <cite>prop</cite>, the user enters the following command into the
+Cryptol REPL:</p>
+<p>By default, this command performs the following:</p>
+<ol class="arabic simple">
+<li><p>Check the type of <cite>prop</cite>. For each type variable of kind <cite>*</cite>, choose a
+default type that satisfies all its constraints. For the type numeric type
+variables (of kind <cite>#</cite>), use numeric literal sampling to gather a collection
+of type assignment, each of which is tested seperately. If numeric literal
+sampling fails, then try to use a default assignment provided by the SMT
+solver instead (this is likely to be a trivial solution).</p></li>
+<li><p>If <cite>prop</cite> is a valid property, compute the size of its input space, otherwise
+fail. If the size is at most equal to the environment variable <cite>tests</cite>, then
+use exhaustive checking, otherwise use random testing.</p></li>
+<li><p>If using exhaustive checking, then evaluate <cite>prop</cite> on every input. If using
+random testing, evaluate <cite>prop</cite> on randomly sampled inputs.</p></li>
+</ol>
+<p>The user can indicate that a declaration is meant to be checked by prefixing is
+with the <cite>property</cite> keyword. When <cite>:check</cite> is run with no arguments, then all
+<cite>property</cite>-prefixed declarations are checked.</p>
+<section id="numeric-literal-sampling">
+<h3>Numeric Literal Sampling<a class="headerlink" href="#numeric-literal-sampling" title="Permalink to this heading"></a></h3>
+<p>Numeric literal sampling uses the following algorithm, defined in the submodules
+of <cite>Cryptol.TypeCheck.Solver.Numeric.Sampling</cite>, to attempt to find a
+well-distributed sampling of type assignments that satisfy a set of numeric type
+constriants.</p>
+<ol class="arabic simple">
+<li><p>Check that the user’s constraints fall into the domain of constraints handled
+by this algorithm. Relations and operations handled by this algorithm are:</p></li>
+</ol>
+<blockquote>
+<div><ul class="simple">
+<li><p>TODO</p></li>
+</ul>
+</div></blockquote>
+<ol class="arabic simple">
+<li><p>Convert the constraints into a system of linear equations and a set of
+typeclass constraints (such as <cite>fin</cite>).</p></li>
+</ol>
+<blockquote>
+<div><ul class="simple">
+<li><p><cite>e1 &lt;= e2</cite> converts to <cite>e1 + n = e2</cite> where <cite>n</cite> is a fresh numeric type
+variable.</p></li>
+<li><p><cite>… e % n …</cite> converts to <cite>(… m …, n*l + m = e)</cite> where <cite>l</cite> and <cite>n</cite> are
+fresh numeric type variable.</p></li>
+</ul>
+</div></blockquote>
+<ol class="arabic simple">
+<li><p>Solve the system using gaussian elimination.</p></li>
+<li><p>Eliminate the denomenators of coefficients in the system.</p></li>
+</ol>
+<blockquote>
+<div><ul class="simple">
+<li><p>If the denomenators of the coefficients of variable <cite>n</cite> have least common
+multiple <cite>d</cite>, then replace each appearance of <cite>a*n</cite> with <cite>a*d*n’</cite> and
+introduce a new variable <cite>n’</cite> to the system, and replace the solution for
+<cite>n</cite> in the system with the equation <cite>n = d*n</cite>. If <cite>n</cite> was not free but was
+solved for by <cite>n = e</cite>, then add the equation <cite>n’ = e/d</cite>.</p></li>
+<li><p>The denomenators of variables are eliminated in order of dependency, which
+is guaranteed to be acyclic by gaussian elimination.</p></li>
+</ul>
+</div></blockquote>
+<ol class="arabic simple">
+<li><p>Sample values of free variables in the system.</p></li>
+</ol>
+<blockquote>
+<div><ul>
+<li><p>First, collect the upper bounds on variables.
+- If a variable is constrained by <cite>fin n</cite>, then the upper bound is the</p>
+<blockquote>
+<div><p>largest finite value to test.</p>
+</div></blockquote>
+<ul class="simple">
+<li><p>For an equation such as <cite>n = 1*m + 2*l - 3*k - 4*j + 10</cite>, the following
+upper bounds are inferred: <cite>m &lt;= inf</cite>, <cite>l &lt;= inf</cite>, <cite>k &lt;= (1*m + 2*l)/3</cite>, <cite>j
+&lt;= (1*m + 2*l - 3*k + 10)/4</cite>.</p></li>
+</ul>
+</li>
+<li><p>Sample each variable: if a variale is upper-bounded by <cite>inf</cite> then sample
+along an exponential distribution up to the maximum value to test and
+additionally with some probability <cite>inf</cite>, if a variable is upper-bounded by
+a finite value <cite>c</cite> then sample uniformly over the interval <cite>[0, c]</cite>.</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="configuration">
+<h3>Configuration<a class="headerlink" href="#configuration" title="Permalink to this heading"></a></h3>
+<p>The following environment variables configure testing:</p>
+<ul class="simple">
+<li><p><cite>tests</cite>: the total number of tests to do for a single <cite>:check</cite></p></li>
+<li><p><cite>literalSampling</cite>: whether to try to use literal sampling</p></li>
+<li><p><cite>literalSamplingBinSize</cite>: number of tests to run for each sampling</p></li>
+</ul>
+</section>
+</section>
+<section id="proving">
+<h2>Proving<a class="headerlink" href="#proving" title="Permalink to this heading"></a></h2>
+<p>The user can try to prove that a property holds by querying an SMT solver with
+the corresponding proposition. To try to prove a property <cite>prop</cite>, the user
+enters the following command into the Cryptol REPL:</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span>Cryptol&gt; :prove prop
+</pre></div>
+</div>
+<section id="id1">
+<h3>Configuration<a class="headerlink" href="#id1" title="Permalink to this heading"></a></h3>
+<p>The following environment variables configure testing:</p>
+<ul class="simple">
+<li><p><cite>tests</cite>: the total number of tests to do for a single <cite>:check</cite></p></li>
+<li><p><cite>literalSampling</cite>: whether to try to use literal sampling</p></li>
+<li><p><cite>literalSamplingBinSize</cite>: number of tests to run for each sampling</p></li>
+</ul>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="Modules.html" class="btn btn-neutral float-left" title="Modules" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="FFI.html" class="btn btn-neutral float-right" title="Foreign Function Interface" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2021, The Cryptol Team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
