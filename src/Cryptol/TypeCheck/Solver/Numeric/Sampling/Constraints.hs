@@ -131,7 +131,7 @@ toConstraints precons = do
             -- equality `a*x + b*y + c*z = q`
             e1 <- lift . lift $ extractExp pe1
             e2 <- lift . lift $ extractExp pe2
-            tellEqu [toEqu $ e1 - e2]
+            tellEqu [toEqu $ e1 `sub` e2]
           PC.PPFin pe -> do
             e <- lift . lift $ extractExp pe
             tellTc [Tc FinTc e]
@@ -150,5 +150,5 @@ toConstraints precons = do
           PC.PEOp2 PC.PAdd pe1 pe2 -> do
             pe1 <- extractExp pe1
             pe2 <- extractExp pe2
-            pure $ pe1 + pe2
+            pure $ pe1 `add` pe2
           pexp -> throwError . InternalError "toConstraints" $ "This PExp is not in normal form: " ++ show pexp

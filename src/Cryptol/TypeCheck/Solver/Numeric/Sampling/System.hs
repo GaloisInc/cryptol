@@ -23,11 +23,6 @@ newtype IxEqu = IxEqu {unIxEqu :: Int}
 getEqu :: IxEqu -> System a -> Equ a
 getEqu i sys = sys !! unIxEqu i
 
--- countVars :: System a -> Int
--- countVars sys = case L.uncons sys of
---   Just (e, _) -> Cons.asExp Exp.countVars e
---   Nothing -> error "System.countVars mempty"
-
 countEqus :: System a -> Int
 countEqus = Prelude.length
 
@@ -75,7 +70,7 @@ solveGauss nVars sys = go 0 sys
               ( Cons.overExp \e' ->
                   flip Cons.asExp eq \e ->
                     let aj' = e' Exp.! j
-                     in e' - ((aj' *) <$> e)
+                     in e' `Exp.sub` ((aj' *) <$> e)
               )
                 <$> sys'
           --
@@ -97,5 +92,3 @@ solveGauss nVars sys = go 0 sys
 
 countLeadingZeros :: (Num a, Eq a) => Exp a -> Maybe Int
 countLeadingZeros (Exp as _) = V.findIndex (0 /=) as
-
--- L.elemIndex 0 (V.toList as)

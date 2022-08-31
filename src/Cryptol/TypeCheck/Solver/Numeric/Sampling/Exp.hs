@@ -30,14 +30,11 @@ newtype Var = Var {unVar :: Int}
 instance Show Var where 
   show Var{..} = "x{" ++ show unVar ++ "}"
 
-instance Num a => Num (Exp a) where
-  Exp as1 c1 + Exp as2 c2 = Exp (V.zipWith (+) as1 as2) (c1 + c2)
-  abs = fmap abs
-  negate = fmap negate
+add :: Num a => Exp a -> Exp a -> Exp a
+Exp as1 c1 `add` Exp as2 c2 = Exp (V.zipWith (+) as1 as2) (c1 + c2)
 
-  (*) = undefined
-  signum = undefined
-  fromInteger = undefined
+sub :: Num a => Exp a -> Exp a -> Exp a
+Exp as1 c1 `sub` Exp as2 c2 = Exp (V.zipWith (-) as1 as2) (c1 - c2)
 
 countVars :: Exp a -> Int
 countVars (Exp as _) = V.length as

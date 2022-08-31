@@ -153,6 +153,7 @@ fromProps tps props = do
 - Apply commutativity of addition to combine terms in a sum of products
 - Evaluate operations over constants
 -}
+-- TODO: replace errors wiht panics, or proper throwError
 normalizePreconstraints :: Preconstraints -> SamplingM Preconstraints
 normalizePreconstraints precons = do
   ((preprops', preprops''), nVars) <-
