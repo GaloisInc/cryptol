@@ -158,14 +158,10 @@ addIncompatible g i =
 -- polymorphic literals, then `Left err` where `err` is the reason why.
 sampleLiterals :: Schema -> Int -> IO (Either SamplingError [(Sampling.Sample, Schema)])
 sampleLiterals schema@Forall {sVars, sProps} nLiteralSamples = do
-  -- let (literalVars, otherVars) = partition ((KNum ==) . tpKind) sVars
   let literalVars = filter ((KNum ==) . tpKind) sVars
   if null literalVars then
-    -- there are no literal vars to sample
     pure . Left $ NoNumericTypeVariables
   else do
-    -- there are some literal vars to sample
-    -- each sample in `samples` is a type var subst
     res <- runSamplingM (sample literalVars sProps nLiteralSamples)
     case res of
       Left err -> do
