@@ -13,14 +13,7 @@ module Cryptol.TypeCheck.Solver.Numeric.Sampling.Sampling where
 
 import Control.Monad (foldM_, void)
 import Control.Monad.Except (MonadError (throwError))
-import Control.Monad.State as State
-  ( MonadState (get, put),
-    MonadTrans (lift),
-    StateT,
-    evalStateT,
-    gets,
-    modify,
-  )
+import Control.Monad.State as State (MonadState (get, put), MonadTrans (lift), StateT, evalStateT, gets, modify)
 import Cryptol.TypeCheck.Solver.InfNat (Nat' (..))
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base (SamplingError (SamplingError), SamplingM, debug')
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp (Exp (..), Var (..))
