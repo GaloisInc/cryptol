@@ -49,8 +49,10 @@ instance Num Nat' where
 
   fromInteger = Nat
 
-  negate (Nat i) = Nat (negate i)
-  negate Inf = error "cannot negate Inf"
+  l - m = case nSub l m of 
+    Just n -> n
+    Nothing -> panic "Nat.(-)" 
+      ["Invalid arithmetic over `Nat'`: " ++ show l ++ " - " ++ show m]
 
 --------------------------------------------------------------------------------
 
