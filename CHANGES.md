@@ -5,6 +5,10 @@
 * Fix a bug in the What4 backend that could cause applications of `(@)` with
   symbolic `Integer` indices to become out of bounds (#1359).
 
+## New features
+
+* Add a `:time` command to benchmark the evaluation time of expressions.
+
 # 2.13.0
 
 ## Language changes
