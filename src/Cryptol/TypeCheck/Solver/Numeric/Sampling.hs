@@ -22,22 +22,38 @@ import Cryptol.TypeCheck.Subst
 import Data.Bifunctor (Bifunctor (bimap))
 import qualified Data.Vector as V
 
--- Tries to make a sampler of type `[(TParam, Nat')]` if the input is in the
--- handled domain and a solution is found by the algorithm.
 {-
-Steps:
-1. Translate Prop -> Preconstraints
-2. Solve system of equations and cast from domain Q to Int
-  1. Solve system
-  2. Cast everything from Q to Nat'
-3. Sample constraints
-  1. Collect upper bounds on each var
-  2. Sampling procedure:
-    1. Evaluate each var in order, statefully keeping track of evaluations so far
-    2. To evaluate a var:
-      - if it's already been evaluated, use that value
-      - if it's not been evaluated and it's assigned to an expression
+High-level description of numeric literal sampling algorithm:
+1. Preconstraints
+  - Processes typechecked type constraints into `Preconstraints`. (viz.
+    `fromProps`)
+    - Project type constraints into `PProp`s, which is the domain of type
+      constraints that are handled.
+    - Normalize the `PProp`s by simplifying arithmetic terms and eliminating
+      modulus (by generating additional `PProp`s).
+    - Remember and assign each `TParam` to an `Int`.
+2. Constraints
+  - Convert `PExp`s to `Exp`s which are standardized to know about the number of
+    `TParam`s available. (viz. `extractExp`)
+  - Extract a linear system of equations over `Rational` and a set of typeclass
+    constraints (e.g. `fin`) from `PProp`s. (viz. `extractSysTcs`)
+  - Use gaussian elimination to solve the system into a partition of dependent
+    and independent variables, where the dependent variables are not mutually
+    dependent. (viz. `solveGauss`)
+  - Package up the result into a `Constraints`.
+3. Solvedconstraints
+  - Re-encode the gaussian-solved system of linear equations as a `SolvedSystem
+    Rational = Vector (Maybe (Exp Rational))`. (viz. `toSolvedconstraints`)
+  - Eliminate the denomenators of rational coefficients, by introducing new
+    equations where needed (preserving non-mutual dependency), yielding a
+    `SolvedSystem Nat'`. (viz. `elimDens`)
+4. Sampling
+  - Collect upper bounds on each variable.
+  - Statefully sample each variable in order, which can spawn other samplings,
+    which ensured to be performed in a valid acyclic order due to the
+    preservation of non-mutual dependency among dependent variables.
 -}
+
 
 type Sample = [(TParam, Nat')]
 
