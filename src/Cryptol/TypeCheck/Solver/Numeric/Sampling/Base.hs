@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Cryptol.TypeCheck.Solver.Numeric.Sampling.Base where
 
@@ -12,10 +13,16 @@ import System.Random.TF (TFGen, newTFGen)
 -- | SamplingM
 type SamplingM = ExceptT SamplingError (StateT TFGen IO)
 
-data SamplingError = SamplingError String String
+data SamplingError
+  = InternalError String String
+  | NoNumericTypeVariables
+  | InvalidTypeConstraints String
 
 instance Show SamplingError where
-  show (SamplingError title msg) = "[" ++ title ++ "] " ++ msg
+  show = \case
+    InternalError title msg -> title ++ ": " ++ msg
+    NoNumericTypeVariables -> "no numeric type variables"
+    InvalidTypeConstraints msg -> "invalid type constraints: " ++ msg
 
 runSamplingM :: SamplingM a -> IO (Either SamplingError a)
 runSamplingM m = do

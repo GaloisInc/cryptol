@@ -47,7 +47,7 @@ import qualified Data.Set as Set
 import           Data.List(partition)
 import           Data.Maybe(listToMaybe,fromMaybe)
 import Cryptol.TypeCheck.Solver.Numeric.Sampling (sample, applySample)
-import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base (runSamplingM)
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base (runSamplingM, SamplingError (NoNumericTypeVariables))
 import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling as Sampling
 
 
@@ -156,20 +156,20 @@ addIncompatible g i =
 -- solution's substituion is applied to the `Schema` and the params that
 -- corresponded to the substituted variables are omitted). If there are no
 -- polymorphic literals, then `Left err` where `err` is the reason why.
-sampleLiterals :: Schema -> Int -> IO (Either String [(Sampling.Sample, Schema)])
+sampleLiterals :: Schema -> Int -> IO (Either SamplingError [(Sampling.Sample, Schema)])
 sampleLiterals schema@Forall {sVars, sProps} nLiteralSamples = do
   -- let (literalVars, otherVars) = partition ((KNum ==) . tpKind) sVars
   let literalVars = filter ((KNum ==) . tpKind) sVars
   if null literalVars then
     -- there are no literal vars to sample
-    pure . Left $ "The schema is not polymorphic in any numeric type variables."
+    pure . Left $ NoNumericTypeVariables
   else do
     -- there are some literal vars to sample
     -- each sample in `samples` is a type var subst
     res <- runSamplingM (sample literalVars sProps nLiteralSamples)
     case res of
       Left err -> do
-        pure . Left $ show err
+        pure . Left $ err
       Right samples -> do
         pure . pure $ (\sample' -> (sample', applySample sample' schema)) <$> samples
 

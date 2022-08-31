@@ -6,6 +6,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
 {-# HLINT ignore "Redundant pure" #-}
 
 module Cryptol.TypeCheck.Solver.Numeric.Sampling.SolvedConstraints where
@@ -21,9 +22,9 @@ import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp as Exp
 import Cryptol.TypeCheck.Type (TParam)
 import Cryptol.Utils.PP (pp, ppList)
 import Data.Bifunctor (Bifunctor (first))
+import Data.Ratio (denominator)
 import Data.Vector (Vector)
 import qualified Data.Vector as V
-import Data.Ratio (denominator)
 
 -- | SolvedConstraints
 data SolvedConstraints a = SolvedConstraints
@@ -175,11 +176,7 @@ toSolvedSystem nVars sys = do
           case Var <$> V.findIndex (0 /=) as of
             Just i
               | e Exp.! i == 1 -> pure $ Just (i, Exp.solveFor i e)
-              | otherwise ->
-                throwSamplingError $
-                  SamplingError
-                    "toSolvedSystem"
-                    "A leftmost non-0 coeff in row is not 1"
+              | otherwise -> throwSamplingError $ InternalError "toSolvedSystem" "A leftmost non-0 coeff in row is not 1"
             Nothing -> pure Nothing
 
 -- | SolvedSystem n -> SolvedSystem (n + m)
@@ -303,7 +300,7 @@ elimDens solcons = do
     cast_Q_Nat' :: Rational -> SamplingM Nat'
     cast_Q_Nat' q = case fromRationalToInt q of
       Just n -> pure . Nat'.Nat $ fromIntegral n
-      Nothing -> throwSamplingError (SamplingError "elimDens" "After eliminating denomenators, there are still some nonintegral values left in equations.")
+      Nothing -> throwSamplingError (InternalError "elimDens" "After eliminating denomenators, there are still some nonintegral values left in equations.")
 
 {-
 example

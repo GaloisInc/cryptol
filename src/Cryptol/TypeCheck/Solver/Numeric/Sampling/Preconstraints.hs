@@ -3,8 +3,8 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 
 module Cryptol.TypeCheck.Solver.Numeric.Sampling.Preconstraints where
@@ -13,11 +13,11 @@ import Control.Monad
 import Control.Monad.Except (MonadError (throwError))
 import Control.Monad.State (StateT (runStateT), gets, modify)
 import Control.Monad.Writer (MonadWriter (tell), WriterT (runWriterT))
-import Cryptol.Utils.PP ( pp, ppList, pretty )
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp (Var (..))
 import Cryptol.TypeCheck.TCon
 import Cryptol.TypeCheck.Type
+import Cryptol.Utils.PP (pp, ppList, pretty)
 import Data.List (elemIndex)
 import Data.Vector (Vector)
 import qualified Data.Vector as V
@@ -30,7 +30,7 @@ data Preconstraints = Preconstraints
   }
 
 instance Show Preconstraints where
-  show Preconstraints{..} =
+  show Preconstraints {..} =
     unlines
       [ "Preconstraints:",
         "  preprops = " ++ show preprops,
@@ -95,9 +95,7 @@ fromProps tps props = do
           PTrue -> pure precons -- trivial
           _ -> undefined -- bad
         TUser _ _ prop' -> fold precons prop'
-        _ ->
-          throwError . SamplingError "Preconstraints.fromProps" $
-            "The following type constraint is not supported: " ++ pretty prop
+        _ -> throwError . InvalidTypeConstraints $ "The following type constraint is not supported: " ++ pretty prop
       where
         proc2 con ts =
           toPExp `traverse` ts >>= \case
@@ -117,7 +115,7 @@ fromProps tps props = do
           TC tc -> case tc of
             TCNum n -> pure . PEConst $ toRational n
             _ -> unsupported
-            -- type functions
+          -- type functions
           TF tf -> case tf of
             TCAdd -> proc2 (PEOp2 PAdd) ts
             TCSub -> proc2 (PEOp2 PSub) ts
@@ -135,8 +133,7 @@ fromProps tps props = do
         TNewtype _new _tys -> unsupported
         _ -> unsupported
       where
-        unsupported = throwError . SamplingError "Preconstraints.fromProps" $
-          "The following numeric type is not supported: " ++ pretty typ
+        unsupported = throwError . InvalidTypeConstraints $ "The following numeric type is not supported: " ++ pretty typ
 
         iTVar :: TVar -> Var
         iTVar = \case
@@ -196,7 +193,7 @@ normalizePreconstraints precons = do
             pe1' <- normPExp pe1
             pe2' <- normPExp pe2
             let pe_ = PEOp2 po pe1' pe2'
-            let abnormal = throwError . SamplingError "normPExp" $ "liteal sampling only handles linear constraints, but the following non-linear expression appeared while normalizing a constraint: " <> show pe_
+            let abnormal = throwError . InvalidTypeConstraints $ "literal sampling only handles linear constraints, but the following non-linear expression appeared while normalizing a constraint: " <> show pe_
             case po of
               -- a*x * b*y [abnormal]
               PMul | PETerm _ _ <- pe1', PETerm _ _ <- pe2' -> abnormal
@@ -206,36 +203,30 @@ normalizePreconstraints precons = do
               PMod | PETerm _ _ <- pe1', PETerm _ _ <- pe2' -> abnormal
               -- a*x ^ b*y [abnormal]
               PPow | PETerm _ _ <- pe1', PETerm _ _ <- pe2' -> abnormal
-
               -- commutativity -- move PEConst left, move PETerm right
               PAdd | PETerm a x <- pe1', PEConst n <- pe2' -> pure . Just $ PEOp2 PAdd (PEConst n) (PETerm a x)
               PMul | PETerm a x <- pe1', PEConst n <- pe2' -> pure . Just $ PEOp2 PMul (PEConst n) (PETerm a x)
-
               -- combine constants
               PAdd | PEConst n1 <- pe1', PEConst n2 <- pe2' -> pure . Just $ PEConst (n1 + n2)
               PMul | PEConst n1 <- pe1', PEConst n2 <- pe2' -> pure . Just $ PEConst (n1 * n2)
               PDiv | PEConst n1 <- pe1', PEConst n2 <- pe2' -> pure . Just $ PEConst (n1 / n2)
-
               -- a*x + b*x = (a + b)*x
               PAdd | PETerm a x <- pe1', PETerm b y <- pe2', x == y -> pure . Just $ PETerm (a + b) x
               -- a*x * n = (a * n)*x
               PMul | PEConst n <- pe1', PETerm a x <- pe2' -> pure . Just $ PETerm (a * n) x
-
               -- `m % n` where both `m`, `n` are constant
               PMod
                 | PEConst n1 <- pe1',
                   PEConst n2 <- pe2',
                   Just z1 <- fromRationalToInt n1,
                   Just z2 <- fromRationalToInt n2 ->
-                    pure . Just . PEConst . toRational $ z1 `mod` z2
-
+                  pure . Just . PEConst . toRational $ z1 `mod` z2
               -- `m ^^ n` requires that `m`, `n` are constant
               PPow
                 | PEConst n1 <- pe1',
                   PEConst n2 <- pe2',
                   Just z2 <- (fromRationalToInt n2 :: Maybe Int) ->
-                    pure . Just . PEConst $ n1 ^^ z2
-
+                  pure . Just . PEConst $ n1 ^^ z2
               -- `a % n` where only `n` is constant
               PMod | PEConst n <- pe2' -> do
                 -- `a % n` is replaced by `b` such that `b = a - n*c`
@@ -248,7 +239,6 @@ normalizePreconstraints precons = do
 
               -- a - b ~~> a + (-b)
               PSub -> pure . Just $ PEOp2 PAdd pe1' (PEOp2 PMul (PEConst (-1)) pe2')
-
               -- normal
               _ -> pure Nothing
 

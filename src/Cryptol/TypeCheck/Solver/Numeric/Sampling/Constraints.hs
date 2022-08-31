@@ -136,11 +136,7 @@ toConstraints precons = do
             e <- lift . lift $ extractExp pe
             tellTc [Tc FinTc e]
           -- not supported, or should have been filtered out in Preconstraints
-          pprop ->
-            throwError $
-              SamplingError "toConstraints.extractSysTcs" $
-                "This PProp is not supported by literal literal sampling: "
-                  ++ ("`" ++ show pprop ++ "`")
+          pprop -> throwError $ InternalError "toConstraints.extractSysTcs" $ "This PProp is not supported by literal literal sampling: " ++ ("`" ++ show pprop ++ "`")
 
         tellEqu = tell
         tellTc = lift . tell
@@ -155,6 +151,4 @@ toConstraints precons = do
             pe1 <- extractExp pe1
             pe2 <- extractExp pe2
             pure $ pe1 + pe2
-          pexp ->
-            throwError . SamplingError "toConstraints" $
-              "This PExp is not in normal form: " ++ show pexp
+          pexp -> throwError . InternalError "toConstraints" $ "This PExp is not in normal form: " ++ show pexp

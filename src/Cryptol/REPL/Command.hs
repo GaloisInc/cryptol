@@ -144,8 +144,10 @@ import Prelude.Compat
 
 import qualified Data.SBV.Internals as SBV (showTDiff)
 import Cryptol.TypeCheck.Solver.Numeric.Sampling (Sample)
+import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.Base as Sampling
 import qualified Data.List as List
 import Cryptol.TypeCheck.Solver.InfNat (Nat' (..))
+
 
 -- Commands --------------------------------------------------------------------
 
@@ -440,7 +442,7 @@ qcCmd qcMode str pos fnm = do
       let doc = fixNameDisp nd (ppPrec 3 expr) -- function application has precedence 3
       litSampling <- getKnownUser "literalSampling" :: REPL Bool
       if litSampling
-        then qcCmdRandomLitSampling doc expr texpr schema
+        then qcCmdLitSampling qcMode doc expr texpr schema
         else qcCmdNoLitSampling qcMode doc texpr schema
 
 
@@ -451,8 +453,8 @@ qcCmdNoLitSampling qcMode doc texpr schema = do
   void (qcExpr qcMode doc testNum val ty Nothing)
 
 
-qcCmdRandomLitSampling :: Doc -> P.Expr P.PName -> T.Expr -> T.Schema -> REPL ()
-qcCmdRandomLitSampling doc expr texpr schema = do 
+qcCmdLitSampling :: QCMode -> Doc -> P.Expr P.PName -> T.Expr -> T.Schema -> REPL ()
+qcCmdLitSampling qcMode doc expr texpr schema = do 
   testNum <- toInteger @Int <$> getKnownUser "tests" :: REPL Integer
   -- do this many tests per sample, until out of tests
   binSize <- toInteger @Int <$> getKnownUser "literalSamplingBinSize" :: REPL Integer
@@ -460,12 +462,16 @@ qcCmdRandomLitSampling doc expr texpr schema = do
   io (sampleLiterals schema (fromInteger bins)) >>= \case
     Right samples_schemas -> do
       rPutStrLn "Using literal sampling."
-      qcSampleSchema doc expr bins binSize `mapM_` 
+      qcSampleSchema qcMode doc expr bins binSize `mapM_` 
         zip [0..] (take (fromInteger $ testNum `div` binSize) samples_schemas)
     Left err -> do
-      rPutStrLn $ "Failed to use literal sampling: " ++ err
-      rPutStrLn "Using a single default solution instead."
-      qcCmdNoLitSampling QCRandom doc texpr schema
+      case err of
+        Sampling.InternalError _ _ -> do
+          rPutStrLn $ "Failed to use literal sampling. " ++ show err
+          rPutStrLn "Using a single default solution instead."
+        Sampling.NoNumericTypeVariables -> pure ()
+        Sampling.InvalidTypeConstraints _ -> pure ()
+      qcCmdNoLitSampling qcMode doc texpr schema
 
 
 -- this generates a new expression that has the appropriate
@@ -492,14 +498,14 @@ applySampleToTExpr sample e = P.EAppT e $ go <$> sample
 
 
 qcSampleSchema :: 
-  Doc -> P.Expr P.PName -> 
+  QCMode -> Doc -> P.Expr P.PName -> 
   Integer -> Integer -> (Integer, (Sample, b)) -> 
   REPL TestReport
-qcSampleSchema doc expr bins binSize (binIndex, (sample, _schema)) = do
+qcSampleSchema qcMode doc expr bins binSize (binIndex, (sample, _schema)) = do
   expr <- pure $ applySampleToTExpr sample expr
   (_, texpr, schema') <- replCheckExpr expr
   (val, ty) <- replEvalCheckedExpr' texpr schema'
-  qcExpr QCRandom doc binSize val ty
+  qcExpr qcMode doc binSize val ty
     (Just SampleBinInfo { sample, bins, binIndex, binSize })
 
 

@@ -15,7 +15,7 @@ import Control.Monad (foldM_, void)
 import Control.Monad.Except (MonadError (throwError))
 import Control.Monad.State as State (MonadState (get, put), MonadTrans (lift), StateT, evalStateT, gets, modify)
 import Cryptol.TypeCheck.Solver.InfNat (Nat' (..))
-import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base (SamplingError (SamplingError), SamplingM, debug')
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base (SamplingM, SamplingError(..), debug')
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp (Exp (..), Var (..))
 import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp as Exp
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.SolvedConstraints (SolvedConstraints)
@@ -135,11 +135,7 @@ sampleWeightedRange wr mb_tw = do
     i
     wr of
     Just wri -> pure wri
-    Nothing ->
-      throwError $
-        SamplingError
-          "sampleWeightRange"
-          "could not find a weighted range item specified by sample"
+    Nothing -> throwError $ InternalError "sampleWeightRange" "could not find a weighted range item specified by sample"
   pure $ valueWRI wri
 
 data Range
@@ -188,8 +184,8 @@ sample solcons = do
         setEqual i e =
           getRange i >>= \case
             UpperBounded bs -> modify (V.// [(unVar i, EqualAndUpperBounded e bs)])
-            EqualAndUpperBounded _ _ -> throwError $ SamplingError "sample" "A variable was solved for more than once, which should never result from Gaussian elimination."
-            Fixed _ -> throwError $ SamplingError "sample" "Attempted to `setEqual` a `Fixed` range variable"
+            EqualAndUpperBounded _ _ -> throwError $ InternalError "sample" "A variable was solved for more than once, which should never result from Gaussian elimination."
+            Fixed _ -> throwError $ InternalError "sample" "Attempted to `setEqual` a `Fixed` range variable"
 
     let addUpperBounds :: Var -> [Exp Nat'] -> StateT (Vector Range) SamplingM ()
         addUpperBounds i bs' =
@@ -219,8 +215,8 @@ sample solcons = do
               bs <-
                 getRange i >>= \case
                   UpperBounded bs -> pure bs
-                  EqualAndUpperBounded _ _ -> throwError $ SamplingError "sample" "A variable has a `EqualAndUpperBounded` range before handling its equation during the upper-bounding pass."
-                  Fixed _ -> throwError $ SamplingError "sample" "A variable has a `Fixed` range during the upper-bounding pass."
+                  EqualAndUpperBounded _ _ -> throwError $ InternalError "sample" "A variable has a `EqualAndUpperBounded` range before handling its equation during the upper-bounding pass."
+                  Fixed _ -> throwError $ InternalError "sample" "A variable has a `Fixed` range during the upper-bounding pass."
               --
               -- positive-coefficient and negative-coefficient variables
               let iPtvs = Var <$> V.findIndices (0 <) as
