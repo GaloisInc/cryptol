@@ -140,9 +140,7 @@ toConstraints precons = do
             throwError $
               SamplingError "toConstraints.extractSysTcs" $
                 "This PProp is not supported by literal literal sampling: "
-                  ++ "`"
-                  ++ show pprop
-                  ++ "`"
+                  ++ ("`" ++ show pprop ++ "`")
 
         tellEqu = tell
         tellTc = lift . tell
