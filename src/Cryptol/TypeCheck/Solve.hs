@@ -151,12 +151,11 @@ addIncompatible g i =
 --------------------------------------------------------------------------------
 
 -- For the polymorphic literals in a schema, uses a custom constraint-solver to
--- sample over the solution space. Returns a list of Schemas, where each Schema
--- corresponds to a sampled solution applied to that Schema (i.e. the solution's
--- substituion is applied to the Schema and the params that corresponded to the
--- substituted variables are omitted). If there are no polymorphic literals,
--- then Nothing.
--- TODO: explain sampling distributions
+-- sample over the solution space. Returns a list of `Schemas`, where each
+-- `Schema` corresponds to a sampled solution applied to that `Schema` (i.e. the
+-- solution's substituion is applied to the `Schema` and the params that
+-- corresponded to the substituted variables are omitted). If there are no
+-- polymorphic literals, then `Left err` where `err` is the reason why.
 sampleLiterals :: Schema -> Int -> IO (Either String [(Sampling.Sample, Schema)])
 sampleLiterals schema@Forall {sVars, sProps} nLiteralSamples = do
   -- let (literalVars, otherVars) = partition ((KNum ==) . tpKind) sVars
