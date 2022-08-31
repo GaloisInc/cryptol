@@ -104,9 +104,6 @@ overExp f (Equ e) = Equ (f e)
 data TcName = FinTc | PrimeTc
   deriving (Show)
 
--- | toConstraints
---
--- Preserves order of the `[SamplingParam]` in `Preconstraints`.
 toConstraints :: Preconstraints -> SamplingM (Constraints Rational)
 toConstraints precons = do
   -- extract sys and tcs from preprops
