@@ -109,12 +109,12 @@ specializeExpr expr =
     -- The type should be monomorphic, and the guarded expressions should
     -- already be normalized, so we just need to choose the first expression
     -- that's true.
-    EPropGuards guards _schema -> 
+    EPropGuards guards ty -> 
       case List.find (all checkProp . fst) guards of
         Just (_, e) -> specializeExpr e
         Nothing -> do
           pm <- liftSpecT getPrimMap
-          pure $ eError' pm "no constraint guard was satisfied"
+          pure $ eError pm ty "no constraint guard was satisfied"
 
 
 specializeMatch :: Match -> SpecM Match
