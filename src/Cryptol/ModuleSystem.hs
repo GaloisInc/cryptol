@@ -20,6 +20,7 @@ module Cryptol.ModuleSystem (
   , loadModuleByName
   , checkExpr
   , evalExpr
+  , benchmarkExpr
   , checkDecls
   , evalDecls
   , noPat
@@ -47,6 +48,7 @@ import           Cryptol.Parser.Name (PName)
 import           Cryptol.Parser.NoPat (RemovePatterns)
 import qualified Cryptol.TypeCheck.AST     as T
 import qualified Cryptol.TypeCheck.Interface as T
+import           Cryptol.Utils.Benchmark (BenchmarkStats)
 import qualified Cryptol.Utils.Ident as M
 
 -- Public Interface ------------------------------------------------------------
@@ -96,6 +98,11 @@ checkExpr e env = runModuleM env (interactive (Base.checkExpr e))
 -- | Evaluate an expression.
 evalExpr :: T.Expr -> ModuleCmd Concrete.Value
 evalExpr e env = runModuleM env (interactive (Base.evalExpr e))
+
+-- | Benchmark an expression.
+benchmarkExpr :: Double -> T.Expr -> ModuleCmd BenchmarkStats
+benchmarkExpr period e env =
+  runModuleM env (interactive (Base.benchmarkExpr period e))
 
 -- | Typecheck top-level declarations.
 checkDecls :: [P.TopDecl PName] -> ModuleCmd (R.NamingEnv,[T.DeclGroup], Map Name T.TySyn)

@@ -1,0 +1,8 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Foo
+
+[error] .\issue1253b.cry:1:8--1:11:
+    File name does not match module name:
+      Actual: Foo
+    Expected: issue1253b

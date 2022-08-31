@@ -78,6 +78,7 @@ import Cryptol.Utils.Ident ( preludeName, floatName, arrayName, suiteBName, prim
 import Cryptol.Utils.PP (pretty)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.Logger(logPutStrLn, logPrint)
+import Cryptol.Utils.Benchmark
 
 import Cryptol.Prelude ( preludeContents, floatContents, arrayContents
                        , suiteBContents, primeECContents, preludeReferenceContents )
@@ -624,6 +625,22 @@ evalExpr e = do
   let ?callStacks = callStacks
 
   io $ E.runEval mempty (E.evalExpr Concrete (env <> deEnv denv) e)
+
+benchmarkExpr :: Double -> T.Expr -> ModuleM BenchmarkStats
+benchmarkExpr period e = do
+  env <- getEvalEnv
+  denv <- getDynEnv
+  evopts <- getEvalOptsAction
+  let env' = env <> deEnv denv
+  let tbl = Concrete.primTable evopts
+  let ?evalPrim = \i -> Right <$> Map.lookup i tbl
+  let ?range = emptyRange
+  callStacks <- getCallStacks
+  let ?callStacks = callStacks
+
+  let eval expr = E.runEval mempty $
+        E.evalExpr Concrete env' expr >>= E.forceValue
+  io $ benchmark period eval e
 
 evalDecls :: [T.DeclGroup] -> ModuleM ()
 evalDecls dgs = do

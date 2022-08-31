@@ -68,6 +68,7 @@ import qualified Cryptol.ModuleSystem.Renamer as M
 import qualified Cryptol.Utils.Ident as M
 import qualified Cryptol.ModuleSystem.Env as M
 
+import           Cryptol.Backend.FloatHelpers as FP
 import qualified Cryptol.Backend.Monad as E
 import qualified Cryptol.Backend.SeqMap as E
 import           Cryptol.Eval.Concrete( Concrete(..) )
@@ -88,6 +89,7 @@ import qualified Cryptol.TypeCheck.Parseable as T
 import qualified Cryptol.TypeCheck.Subst as T
 import           Cryptol.TypeCheck.Solve(defaultReplExpr)
 import           Cryptol.TypeCheck.PP (dump,ppWithNames,emptyNameMap)
+import qualified Cryptol.Utils.Benchmark as Bench
 import           Cryptol.Utils.PP hiding ((</>))
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.RecordMap
@@ -252,6 +254,22 @@ nbCommandList  =
   , CommandDescr [ ":extract-coq" ] [] (NoArg allTerms)
     "Print out the post-typechecked AST of all currently defined terms,\nin a Coq-parseable format."
     ""
+  , CommandDescr [ ":time" ] ["EXPR"] (ExprArg timeCmd)
+    "Measure the time it takes to evaluate the given expression."
+    (unlines
+      [ "The expression will be evaluated many times to get accurate results."
+      , "Note that the first evaluation of a binding may take longer due to"
+      , "  laziness, and this may affect the reported time. If this is not"
+      , "  desired then make sure to evaluate the expression once first before"
+      , "  running :time."
+      , "The amount of time to spend collecting measurements can be changed"
+      , "  with the timeMeasurementPeriod option."
+      , "Reports the average wall clock time, CPU time, and cycles."
+      , "  (Cycles are in unspecified units that may be CPU cycles.)"
+      , "Binds the result to"
+      , "  it : { avgTime : Float64"
+      , "       , avgCpuTime : Float64"
+      , "       , avgCycles : Integer }" ])
   ]
 
 commandList :: [CommandDescr]
@@ -999,6 +1017,32 @@ typeOfCmd str pos fnm = do
   rPrint $ runDoc fDisp $ group $ hang
     (ppPrec 2 expr <+> text ":") 2 (pp sig)
 
+timeCmd :: String -> (Int, Int) -> Maybe FilePath -> REPL ()
+timeCmd str pos fnm = do
+  period <- getKnownUser "timeMeasurementPeriod" :: REPL Int
+  quiet <- getKnownUser "timeQuiet"
+  unless quiet $
+    rPutStrLn $ "Measuring for " ++ show period ++ " seconds"
+  pExpr <- replParseExpr str pos fnm
+  (_, def, sig) <- replCheckExpr pExpr
+  replPrepareCheckedExpr def sig >>= \case
+    Nothing -> raise (EvalPolyError sig)
+    Just (_, expr) -> do
+      Bench.BenchmarkStats {..} <- liftModuleCmd
+        (rethrowEvalError . M.benchmarkExpr (fromIntegral period) expr)
+      unless quiet $
+        rPutStrLn $ "Avg time: " ++ Bench.secs benchAvgTime
+             ++ "    Avg CPU time: " ++ Bench.secs benchAvgCpuTime
+             ++ "    Avg cycles: " ++ show benchAvgCycles
+      let mkStatsRec time cpuTime cycles = recordFromFields
+            [("avgTime", time), ("avgCpuTime", cpuTime), ("avgCycles", cycles)]
+          itType = E.TVRec $ mkStatsRec E.tvFloat64 E.tvFloat64 E.TVInteger
+          itVal = E.VRecord $ mkStatsRec
+            (pure $ E.VFloat $ FP.floatFromDouble benchAvgTime)
+            (pure $ E.VFloat $ FP.floatFromDouble benchAvgCpuTime)
+            (pure $ E.VInteger $ toInteger benchAvgCycles)
+      bindItVariableVal itType itVal
+
 readFileCmd :: FilePath -> REPL ()
 readFileCmd fp = do
   bytes <- replReadFile fp (\err -> rPutStrLn (show err) >> return Nothing)
@@ -1576,39 +1620,47 @@ replSpecExpr e = liftModuleCmd $ S.specialize e
 replEvalExpr :: P.Expr P.PName -> REPL (Concrete.Value, T.Type)
 replEvalExpr expr =
   do (_,def,sig) <- replCheckExpr expr
-     replEvalCheckedExpr def sig >>= \mb_res -> case mb_res of
+     replEvalCheckedExpr def sig >>= \case
        Just res -> pure res
        Nothing -> raise (EvalPolyError sig)
 
 replEvalCheckedExpr :: T.Expr -> T.Schema -> REPL (Maybe (Concrete.Value, T.Type))
 replEvalCheckedExpr def sig =
-  do validEvalContext def
-     validEvalContext sig
+  replPrepareCheckedExpr def sig >>=
+    traverse \(tys, def1) -> do
+      let su = T.listParamSubst tys
+      let ty = T.apSubst su (T.sType sig)
+      whenDebug (rPutStrLn (dump def1))
 
-     s <- getTCSolver
-     mbDef <- io (defaultReplExpr s def sig)
+      tenv <- E.envTypes . M.deEnv <$> getDynEnv
+      let tyv = E.evalValType tenv ty
 
-     case mbDef of
-       Nothing -> pure Nothing
-       Just (tys, def1) ->
-           do warnDefaults tys
-              let su = T.listParamSubst tys
-              let ty = T.apSubst su (T.sType sig)
-              whenDebug (rPutStrLn (dump def1))
+      -- add "it" to the namespace via a new declaration
+      itVar <- bindItVariable tyv def1
 
-              tenv <- E.envTypes . M.deEnv <$> getDynEnv
-              let tyv = E.evalValType tenv ty
+      let itExpr = case getLoc def of
+                      Nothing  -> T.EVar itVar
+                      Just rng -> T.ELocated rng (T.EVar itVar)
 
-              -- add "it" to the namespace via a new declaration
-              itVar <- bindItVariable tyv def1
+      -- evaluate the it variable
+      val <- liftModuleCmd (rethrowEvalError . M.evalExpr itExpr)
+      return (val,ty)
 
-              let itExpr = case getLoc def of
-                              Nothing  -> T.EVar itVar
-                              Just rng -> T.ELocated rng (T.EVar itVar)
+-- | Check that we are in a valid evaluation context and apply defaulting.
+replPrepareCheckedExpr :: T.Expr -> T.Schema ->
+  REPL (Maybe ([(T.TParam, T.Type)], T.Expr))
+replPrepareCheckedExpr def sig = do
+  validEvalContext def
+  validEvalContext sig
 
-              -- evaluate the it variable
-              val <- liftModuleCmd (rethrowEvalError . M.evalExpr itExpr)
-              return $ Just (val,ty)
+  s <- getTCSolver
+  mbDef <- io (defaultReplExpr s def sig)
+
+  case mbDef of
+    Nothing -> pure Nothing
+    Just (tys, def1) -> do
+      warnDefaults tys
+      pure $ Just (tys, def1)
   where
   warnDefaults ts =
     case ts of
