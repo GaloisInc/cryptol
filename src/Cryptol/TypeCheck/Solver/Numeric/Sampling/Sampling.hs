@@ -58,8 +58,8 @@ weightedRangeLinSkewSmall max =
 
 weightedRangeUniform :: Integer -> WeightedRange
 weightedRangeUniform max =
-  WeightedRangeItem {weightWRI = 1, valueWRI = Nat 0} :
-  fmap (\n -> WeightedRangeItem {weightWRI = 4, valueWRI = Nat n}) [1 .. max]
+  WeightedRangeItem {weightWRI = 1, valueWRI = 0} :
+  fmap (\n -> WeightedRangeItem {weightWRI = 4, valueWRI = fromIntegral n}) [1 .. max]
 
 maxInteger :: Integer
 maxInteger = 128
