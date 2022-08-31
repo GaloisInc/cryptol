@@ -201,7 +201,7 @@ rewE rews = go
       EWhere e dgs    -> EWhere      <$> go e <*> inLocal
                                                   (mapM (rewDeclGroup rews) dgs)
 
-      EPropGuards guards schema -> EPropGuards <$> (\(props, e) -> (,) <$> pure props <*> go e) `traverse` guards <*> pure schema 
+      EPropGuards guards ty -> EPropGuards <$> (\(props, e) -> (,) <$> pure props <*> go e) `traverse` guards <*> pure ty
 
 
 rewM :: RewMap -> Match -> M Match

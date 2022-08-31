@@ -219,7 +219,7 @@ instance Inst Expr where
 
         -- TODO: this doesn't exist in the new module system, so it will have to
         -- be implemented differently there anyway
-        EPropGuards _guards _schema -> panic "inst" ["This is not implemented for EPropGuards yet."]
+        EPropGuards _guards _ty -> panic "inst" ["This is not implemented for EPropGuards yet."]
 
 
 instance Inst DeclGroup where

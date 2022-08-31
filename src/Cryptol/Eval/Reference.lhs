@@ -338,7 +338,7 @@ assigns values to those variables.
 >     EProofApp e    -> evalExpr env e
 >     EWhere e dgs   -> evalExpr (foldl evalDeclGroup env dgs) e
 >
->     EPropGuards guards _schema -> 
+>     EPropGuards guards _ty -> 
 >       case List.find (all (checkProp . evalProp env) . fst) guards of
 >         Just (_, e) -> evalExpr env e
 >         Nothing -> evalPanic "fromVBit" ["No guard constraint was satisfied"]
