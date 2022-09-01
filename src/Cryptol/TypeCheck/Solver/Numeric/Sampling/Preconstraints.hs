@@ -18,6 +18,7 @@ import Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp (Var (..))
 import Cryptol.TypeCheck.TCon
 import Cryptol.TypeCheck.Type
 import Cryptol.Utils.PP (pp, ppList, pretty)
+import Cryptol.Utils.Panic (panic)
 import Data.List (elemIndex)
 import Data.Vector (Vector)
 import qualified Data.Vector as V
@@ -93,7 +94,7 @@ fromProps tps props = do
           PGeq -> proc2 PPGeq ts
           PFin -> proc1 PPFin ts
           PTrue -> pure precons -- trivial
-          _ -> undefined -- bad
+          pc -> throwError $ InvalidTypeConstraints $ "The following type predicate is not supported: " <> pretty prop
         TUser _ _ prop' -> fold precons prop'
         _ -> throwError . InvalidTypeConstraints $ "The following type constraint is not supported: " ++ pretty prop
       where
@@ -102,11 +103,11 @@ fromProps tps props = do
             [e1, e2] -> do
               let pprop = con e1 e2
               pure $ addPProps [pprop] precons
-            _ -> undefined -- bad number of args
+            _ -> panic "fromProps" ["for `proc2`, bad number of args: " ++ show (pp <$> ts)]
         proc1 con ts =
           toPExp `traverse` ts >>= \case
             [e] -> pure $ addPProps [con e] precons
-            _ -> undefined -- bad number of args
+            _ -> panic "fromProps" ["for `proc1`, bad number of args: " ++ show (pp <$> ts)]
     toPExp :: Type -> SamplingM PExp
     toPExp typ = do
       case typ of
@@ -137,9 +138,10 @@ fromProps tps props = do
 
         iTVar :: TVar -> Var
         iTVar = \case
-          TVFree {} -> undefined -- shouldn't be dealing with free vars here
-          TVBound tparam ->
-            maybe undefined Var (elemIndex tparam tps)
+          tv@TVFree {} -> panic "iTVar" ["shouldn't have a `TVFree` here: " <> pretty tv]
+          TVBound tparam -> 
+            maybe (panic "iTVar" ["expected `TVBound` to be in the vector: " ++ pretty tparam]) 
+              Var (elemIndex tparam tps)
 
 {-
 - Check that all `a mod n` have `n` a constant

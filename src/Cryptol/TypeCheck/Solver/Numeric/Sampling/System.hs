@@ -26,8 +26,10 @@ getEqu i sys = sys !! unIxEqu i
 countEqus :: System a -> Int
 countEqus = Prelude.length
 
-isSolvable :: System a -> Bool
-isSolvable = undefined
+-- A system is solvable if every equation with a 0 constant also has 0
+-- coefficients for all variables
+isSolvable :: (Eq a, Num a) => System a -> Bool
+isSolvable = all (\(Cons.Equ (Exp as c)) -> c /= 0 || all (0 ==) as)
 
 -- extend :: Exp n -> Exp (n + 1)
 extend :: (Functor f, Num a) => f (Exp a) -> f (Exp a)

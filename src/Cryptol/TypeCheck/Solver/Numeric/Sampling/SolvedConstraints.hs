@@ -25,6 +25,7 @@ import Data.Bifunctor (Bifunctor (first))
 import Data.Ratio (denominator)
 import Data.Vector (Vector)
 import qualified Data.Vector as V
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.System (isSolvable)
 
 -- | SolvedConstraints
 data SolvedConstraints a = SolvedConstraints
@@ -153,7 +154,7 @@ solsys // mods = solsys V.// (first unVar <$> mods)
 -- invalid form, then throws error.
 toSolvedSystem :: forall a. (Num a, Eq a) => Int -> System a -> SamplingM (SolvedSystem a)
 toSolvedSystem nVars sys = do
-  if null sys
+  if isSolvable sys || null sys
     then pure $ V.fromList []
     else foldM fold (V.replicate nVars Nothing) sys
   where
