@@ -21,7 +21,7 @@ import Cryptol.Utils.Panic (panic)
 import Data.List (elemIndex)
 import Data.Vector (Vector)
 import qualified Data.Vector as V
-import Control.Monad.Error (MonadError(throwError))
+import Control.Monad.Except (MonadError(throwError))
 
 -- | Preconstraints
 data Preconstraints = Preconstraints
@@ -234,6 +234,9 @@ normalizePreconstraints precons = do
           PAdd | PETerm a x <- pe1', PETerm b y <- pe2', x == y -> normPExp' $ PETerm (a + b) x
           -- n * a*x = (a * n)*x
           PMul | PEConst n <- pe1', PETerm a x <- pe2' -> normPExp' $ PETerm (n * a) x
+          -- e / n = (1/n) * e
+          PDiv | PEConst 0 <- pe2' -> abnormal
+          PDiv | PEConst n <- pe2' -> normPExp' $ PEOp2 PMul (PEConst (recip n)) pe1'
           -- `m % n` where both `m`, `n` are constant
           PMod
             | PEConst n1 <- pe1',
