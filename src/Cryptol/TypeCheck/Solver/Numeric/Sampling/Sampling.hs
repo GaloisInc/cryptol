@@ -15,7 +15,8 @@ import Control.Monad (foldM_, void)
 import Control.Monad.Except (MonadError (throwError))
 import Control.Monad.State as State (MonadState (get, put), MonadTrans (lift), StateT, evalStateT, gets, modify)
 import Cryptol.TypeCheck.Solver.InfNat (Nat' (..))
-import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base (SamplingM, SamplingError(..), debug')
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base (SamplingError (..), SamplingM, debug')
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.Constraints as Cons
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp (Exp (..), Var (..))
 import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp as Exp
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.SolvedConstraints (SolvedConstraints)
@@ -204,6 +205,29 @@ sample solcons = do
         Inf `divNat'` Nat _ = error "Attempted to divide Inf by zero."
         Nat _ `divNat'` Inf = Nat 0
         Nat n1 `divNat'` Nat n2 = Nat (n1 `div` n2)
+
+    -- accumulate ranges from typeclass constraints
+    mapM_
+      ( \case
+          Cons.Tc tn (Exp.Exp as _) -> case tn of
+            FinTc ->
+              V.mapM_
+                ( \(x, a) ->
+                    if a /= 0
+                      then addUpperBounds x [Exp.fromConstant (SolCons.nVars solcons) (Nat maxInteger)]
+                      else pure ()
+                )
+                (V.generate (SolCons.nVars solcons) Var `V.zip` as)
+            PrimeTc ->
+              V.mapM_
+                ( \(x, a) ->
+                    if a /= 0
+                      then addUpperBounds x [Exp.fromConstant (SolCons.nVars solcons) (Nat maxInteger)]
+                      else pure ()
+                )
+                (V.generate (SolCons.nVars solcons) Var `V.zip` as)
+      )
+      (SolCons.tcs solcons)
 
     -- accumulate ranges from system
     V.mapM_
