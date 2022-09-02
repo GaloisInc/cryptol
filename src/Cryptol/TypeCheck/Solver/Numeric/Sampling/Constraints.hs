@@ -80,7 +80,7 @@ instance Show a => Show (Equ a) where
   show (Equ (Exp as c)) =
     unwords
       [ L.intercalate " + " . V.toList $
-          ( (\(i, a) -> show a ++ "*" ++ "x{" ++ show i ++ "}")
+          ( (\(i, a) -> "(" ++ show a ++ ")" ++ "*" ++ "x{" ++ show i ++ "}")
               <$> V.zip (V.generate (V.length as) id) as
           ),
         "=",
@@ -106,6 +106,7 @@ data TcName = FinTc | PrimeTc
 
 toConstraints :: Preconstraints -> SamplingM (Constraints Rational)
 toConstraints precons = do
+  debug $ "precons = " ++ show precons
   -- extract sys and tcs from preprops
   (sys, tcs) <- extractSysTcs (PC.preprops precons)
   -- pad all exps to the number of params
@@ -136,12 +137,11 @@ toConstraints precons = do
             e <- lift . lift $ extractExp pe
             tellTc [Tc FinTc e]
           -- not supported, or should have been filtered out in Preconstraints
-          pprop -> throwError $ InternalError "toConstraints.extractSysTcs" $ "This PProp is not supported by literal literal sampling: " ++ ("`" ++ show pprop ++ "`")
+          pprop -> throwError $ InternalError "toConstraints.extractSysTcs" $ "This PProp is not supported by literal literal sampling: " ++ "`" ++ show pprop ++ "`"
 
         tellEqu = tell
         tellTc = lift . tell
 
-        -- extractExp :: PC.PExp -> WriterT (System Q) (WriterT [Tc Q] (SamplingM)) (Exp Q)
         extractExp :: PC.PExp -> SamplingM (Exp Rational)
         extractExp = \case
           PC.PEConst q -> pure $ fromConstant nParams q

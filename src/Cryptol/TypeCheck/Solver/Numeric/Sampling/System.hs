@@ -77,7 +77,7 @@ solveGauss nVars sys = go 0 sys
                 <$> sys'
           --
           -- solve rest of sys' for var `j + 1`
-          go (j + 1) (eq : sys')
+          (eq :) <$> go (j + 1) sys'
         Nothing -> do
           debug' 1 $ "could not extract equation for `j = " ++ show j ++ "`"
           -- skip solving for var j

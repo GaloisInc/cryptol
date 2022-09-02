@@ -33,7 +33,7 @@ debug :: String -> SamplingM ()
 debug = liftIO . putStrLn
 
 debugLevel :: Int
-debugLevel = -1
+debugLevel = 2
 
 debug' :: Int -> String -> SamplingM ()
 debug' lvl
