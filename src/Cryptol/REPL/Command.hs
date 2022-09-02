@@ -471,6 +471,9 @@ qcCmdLitSampling qcMode doc expr texpr schema = do
           rPutStrLn "Using a single default solution instead."
         Sampling.NoNumericTypeVariables -> pure ()
         Sampling.InvalidTypeConstraints _ -> pure ()
+        Sampling.NoSolution -> do
+          rPutStrLn $ "Failed to use literal sampling. Coonstraints have no solution."
+          rPutStrLn "Using a single default solution instead."
       qcCmdNoLitSampling qcMode doc texpr schema
 
 

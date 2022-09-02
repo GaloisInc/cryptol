@@ -19,16 +19,16 @@ data Exp a = Exp (Vector a) a -- a1*x1 + ... + aN*xN + c
 instance Show a => Show (Exp a) where
   show (Exp as c) =
     L.intercalate " + " . V.toList $
-      ( (\(i, a) -> show a ++ "*" ++ "x{" ++ show i ++ "}")
+      ( (\(i, a) -> "(" ++ show a ++ ")" ++ "*" ++ "x{" ++ show i ++ "}")
           <$> V.zip (V.generate (V.length as) id) as
       )
-        <> pure (show c)
+        <> pure ("(" ++ show c ++ ")")
 
 newtype Var = Var {unVar :: Int}
   deriving (Eq, Ord, Num)
 
-instance Show Var where 
-  show Var{..} = "x{" ++ show unVar ++ "}"
+instance Show Var where
+  show Var {..} = "x{" ++ show unVar ++ "}"
 
 add :: Num a => Exp a -> Exp a -> Exp a
 Exp as1 c1 `add` Exp as2 c2 = Exp (V.zipWith (+) as1 as2) (c1 + c2)
@@ -72,7 +72,7 @@ Exp as c // mods = Exp (as V.// (first unVar <$> mods)) c
 solveFor :: Num a => Var -> Exp a -> Exp a
 solveFor i (Exp as c) =
   Exp
-    ( (\(i', a) -> if i == i' then 0 else -a)
+    ( (\(i', a) -> if i == i' then 0 else - a)
         <$> V.zip (V.generate (V.length as) Var) as
     )
     c

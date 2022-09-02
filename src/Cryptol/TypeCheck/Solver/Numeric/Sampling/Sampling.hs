@@ -205,7 +205,7 @@ sample solcons = do
         Nat _ `divNat'` Inf = Nat 0
         Nat n1 `divNat'` Nat n2 = Nat (n1 `div` n2)
 
-    -- accumulate ranges
+    -- accumulate ranges from system
     V.mapM_
       ( \(i, mb_e) -> do
           case mb_e of

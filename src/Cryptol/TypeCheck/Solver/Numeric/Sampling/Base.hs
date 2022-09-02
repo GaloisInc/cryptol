@@ -17,12 +17,14 @@ data SamplingError
   = InternalError String String
   | NoNumericTypeVariables
   | InvalidTypeConstraints String
+  | NoSolution
 
 instance Show SamplingError where
   show = \case
     InternalError title msg -> title ++ ": " ++ msg
     NoNumericTypeVariables -> "no numeric type variables"
     InvalidTypeConstraints msg -> "invalid type constraints: " ++ msg
+    NoSolution -> "constraints have no solution"
 
 runSamplingM :: SamplingM a -> IO (Either SamplingError a)
 runSamplingM m = do
@@ -30,14 +32,14 @@ runSamplingM m = do
   flip evalStateT g . runExceptT $ m
 
 debug :: String -> SamplingM ()
-debug = liftIO . putStrLn
+debug str = liftIO . putStrLn $ "[>>>] " ++ str
 
 debugLevel :: Int
-debugLevel = -1
+debugLevel = 2
 
 debug' :: Int -> String -> SamplingM ()
 debug' lvl
-  | lvl <= debugLevel = debug
+  | lvl <= debugLevel = liftIO . putStrLn
   | otherwise = const (pure ())
 
 throwSamplingError :: SamplingError -> SamplingM a

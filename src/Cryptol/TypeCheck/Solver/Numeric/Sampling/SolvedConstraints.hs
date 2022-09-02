@@ -12,6 +12,7 @@
 module Cryptol.TypeCheck.Solver.Numeric.Sampling.SolvedConstraints where
 
 import Control.Monad
+import Control.Monad.Except (MonadError (throwError))
 import Cryptol.TypeCheck.Solver.InfNat (Nat')
 import qualified Cryptol.TypeCheck.Solver.InfNat as Nat'
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base
@@ -19,13 +20,13 @@ import Cryptol.TypeCheck.Solver.Numeric.Sampling.Constraints (Constraints, Equ (
 import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.Constraints as Cons
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp (Exp (..), Var (..))
 import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.Exp as Exp
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.System (isSolvable)
 import Cryptol.TypeCheck.Type (TParam)
 import Cryptol.Utils.PP (pp, ppList)
 import Data.Bifunctor (Bifunctor (first))
 import Data.Ratio (denominator)
 import Data.Vector (Vector)
 import qualified Data.Vector as V
-import Cryptol.TypeCheck.Solver.Numeric.Sampling.System (isSolvable)
 
 -- | SolvedConstraints
 data SolvedConstraints a = SolvedConstraints
@@ -117,7 +118,8 @@ inferDepOrd solsys = go deps V.empty
 freshFreeVar :: Num a => SolvedConstraints a -> (SolvedConstraints a, Var)
 freshFreeVar cons@SolvedConstraints {..} =
   ( cons
-      { solsys = V.snoc (extendN (nVars + 1) solsys) Nothing,
+      { solsys = V.snoc (extendN 1 solsys) Nothing,
+        tcs = Cons.overTcExp (Exp.extendN 1) <$> tcs,
         nVars = nVars + 1
       },
     Var nVars
@@ -153,10 +155,10 @@ solsys // mods = solsys V.// (first unVar <$> mods)
 -- A valid `System` is converted to a `SolvedSystem`. If the `System` is in an
 -- invalid form, then throws error.
 toSolvedSystem :: forall a. (Num a, Eq a) => Int -> System a -> SamplingM (SolvedSystem a)
-toSolvedSystem nVars sys = do
-  if not (isSolvable sys) || null sys
-    then pure $ V.fromList []
-    else foldM fold (V.replicate nVars Nothing) sys
+toSolvedSystem nVars sys
+  | null sys = pure $ V.fromList []
+  | not (isSolvable sys) = throwError NoSolution
+  | otherwise = foldM fold (V.replicate nVars Nothing) sys
   where
     fold :: SolvedSystem a -> Equ a -> SamplingM (SolvedSystem a)
     fold solsys e = do
@@ -274,6 +276,7 @@ elimDens solcons = do
             solcons <- pure $ setEquation solcons j (Just $ Exp.single (nVars solcons) a k)
 
             -- substitute appearances of `b*xj` with `(a*b)xk`
+            debug $ "here 1; solcons = " ++ show solcons
             solcons <- do
               let subst e =
                     if b /= 0
@@ -286,7 +289,7 @@ elimDens solcons = do
                   { solsys = fmap subst <$> solsys solcons,
                     tcs = Cons.overTcExp subst <$> tcs solcons
                   }
-
+            debug $ "here 2; solcons = " ++ show solcons
             --
             pure solcons
           else pure solcons

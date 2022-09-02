@@ -106,7 +106,6 @@ data TcName = FinTc | PrimeTc
 
 toConstraints :: Preconstraints -> SamplingM (Constraints Rational)
 toConstraints precons = do
-  debug $ "precons = " ++ show precons
   -- extract sys and tcs from preprops
   (sys, tcs) <- extractSysTcs (PC.preprops precons)
   -- pad all exps to the number of params
