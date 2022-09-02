@@ -32,3 +32,4 @@ equation_3var = True
 
 equation_3var_2equ : {l, m, n} (fin l, fin m, fin n, l == m + n, m == 2*n) => Bit
 equation_3var_2equ = True
+
