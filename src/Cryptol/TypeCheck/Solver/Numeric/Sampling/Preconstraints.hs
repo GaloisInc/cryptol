@@ -171,7 +171,7 @@ normalizePreconstraints precons = do
     normPProp = \case
       PPEqual pe1 pe2 -> PPEqual <$> normPExp pe1 <*> normPExp pe2
       PPNeq _a _b -> do
-        error "not sure how to handle Neq"
+        throwError $ InternalError "normPProp" "PPNeq is not yet supported"
       PPGeq a b -> do
         -- a >= b ~~> a = b + c, where c is fresh
         c <- freshVar
@@ -215,8 +215,8 @@ normalizePreconstraints precons = do
               PDiv | PEConst n1 <- pe1', PEConst n2 <- pe2' -> pure . Just $ PEConst (n1 / n2)
               -- a*x + b*x = (a + b)*x
               PAdd | PETerm a x <- pe1', PETerm b y <- pe2', x == y -> pure . Just $ PETerm (a + b) x
-              -- a*x * n = (a * n)*x
-              PMul | PEConst n <- pe1', PETerm a x <- pe2' -> pure . Just $ PETerm (a * n) x
+              -- n * a*x = (a * n)*x
+              PMul | PEConst n <- pe1', PETerm a x <- pe2' -> pure . Just $ PETerm (n * a) x
               -- `m % n` where both `m`, `n` are constant
               PMod
                 | PEConst n1 <- pe1',
