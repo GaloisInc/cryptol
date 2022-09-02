@@ -96,9 +96,7 @@ fromProps ::
 fromProps tps props = do
   precons <- foldM fold (emptyPreconstraints $ V.fromList tps) props
   debug' 0 $ "precons = " ++ show precons
-  debug $ "before normalize: " ++ show precons
   precons <- normalizePreconstraints precons
-  debug $ "after normalize: " ++ show precons
   debug' 0 $ "precons <- normalizePreconstraints precons"
   debug' 0 $ "precons = " ++ show precons
   pure precons
@@ -182,7 +180,6 @@ normalizePreconstraints precons = do
   ((preprops', preprops''), nVars) <-
     flip runStateT (nVars precons) . runWriterT $
       normPProp `traverse` preprops precons
-  debug $ "preprops = " ++ show (preprops' <> preprops'')
   pure
     precons
       { preprops = preprops' <> preprops'',
