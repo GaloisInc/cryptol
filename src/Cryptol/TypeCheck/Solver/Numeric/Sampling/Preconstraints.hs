@@ -10,7 +10,6 @@
 module Cryptol.TypeCheck.Solver.Numeric.Sampling.Preconstraints where
 
 import Control.Monad
-import Control.Monad.Except (MonadError (throwError), MonadTrans (lift))
 import Control.Monad.State (StateT (runStateT), gets, modify)
 import Control.Monad.Writer (MonadWriter (tell), WriterT (runWriterT))
 import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base
@@ -22,6 +21,7 @@ import Cryptol.Utils.Panic (panic)
 import Data.List (elemIndex)
 import Data.Vector (Vector)
 import qualified Data.Vector as V
+import Control.Monad.Error (MonadError(throwError))
 
 -- | Preconstraints
 data Preconstraints = Preconstraints
