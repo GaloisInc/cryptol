@@ -154,7 +154,7 @@ solsys // mods = solsys V.// (first unVar <$> mods)
 -- invalid form, then throws error.
 toSolvedSystem :: forall a. (Num a, Eq a) => Int -> System a -> SamplingM (SolvedSystem a)
 toSolvedSystem nVars sys = do
-  if isSolvable sys || null sys
+  if not (isSolvable sys) || null sys
     then pure $ V.fromList []
     else foldM fold (V.replicate nVars Nothing) sys
   where
