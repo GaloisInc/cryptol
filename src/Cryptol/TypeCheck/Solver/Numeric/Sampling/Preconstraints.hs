@@ -127,7 +127,7 @@ fromProps tps props = do
             _ -> unsupported
             where
               proc2 con [t1, t2] = con <$> toPExp t1 <*> toPExp t2
-              proc2 _ _ = error "impossible"
+              proc2 _ _ = throwError $ InternalError "toPExp" "impossible"
           _ -> unsupported
         TVar tv -> pure $ PETerm 1 (iTVar tv)
         TUser _ _ prop -> toPExp prop
