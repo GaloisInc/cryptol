@@ -18,13 +18,6 @@
 -- function.
 module Cryptol.Parser.ExpandPropGuards where
 
--- import Cryptol.Parser.Position (Range(..), emptyRange, start, at)
--- import Cryptol.Parser.Names (namesP)
-
--- import Cryptol.Utils.Ident (mkIdent)
-
--- import Cryptol.Utils.RecordMap
-
 import Control.DeepSeq
 import Cryptol.Parser.AST
 import Cryptol.Utils.PP
