@@ -60,6 +60,7 @@ module Cryptol.Parser.AST
   , ParameterType(..)
   , ParameterFun(..)
   , NestedModule(..)
+  , PropGuardCase(..)
 
     -- * Interactive
   , ReplInput(..)
@@ -281,8 +282,14 @@ type LBindDef = Located (BindDef PName)
 data BindDef name = DPrim
                   | DForeign
                   | DExpr (Expr name)
-                  | DPropGuards [([Prop name], Expr name)]
+                  | DPropGuards [PropGuardCase name]
                     deriving (Eq, Show, Generic, NFData, Functor)
+
+data PropGuardCase name = PropGuardCase
+  { pgcProps :: [Located (Prop name)]
+  , pgcExpr  :: Expr name
+  }
+  deriving (Eq,Generic,NFData,Functor,Show)
 
 data Pragma   = PragmaNote String
               | PragmaProperty

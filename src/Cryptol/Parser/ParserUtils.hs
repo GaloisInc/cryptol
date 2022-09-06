@@ -27,7 +27,6 @@ import           Data.Text(Text)
 import qualified Data.Text as T
 import qualified Data.Map as Map
 import Text.Read(readMaybe)
-import Data.Bifunctor(second)
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
@@ -611,27 +610,33 @@ mkIndexedDecl f (ps, ixs) e =
     rhs = mkGenerate (reverse ixs) e
 
 -- NOTE: The lists of patterns are reversed!
-mkIndexedPropGuardsDecl ::  
-  LPName -> ([Pattern PName], [Pattern PName]) -> [([Prop PName], Expr PName)] -> Decl PName
-mkIndexedPropGuardsDecl f (ps, ixs) guards =
-  DBind Bind { bName       = f
-             , bParams     = reverse ps
-             , bDef        = at f $ Located emptyRange (DPropGuards guards')
-             , bSignature  = Nothing
-             , bPragmas    = []
-             , bMono       = False
-             , bInfix      = False
-             , bFixity     = Nothing
-             , bDoc        = Nothing
-             , bExport     = Public
-             }
-  where
-    guards' = second (mkGenerate (reverse ixs)) <$> guards
+mkPropGuardsDecl ::
+  LPName ->
+  ([Pattern PName], [Pattern PName]) ->
+  [PropGuardCase PName] ->
+  ParseM (Decl PName)
+mkPropGuardsDecl f (ps, ixs) guards =
+  do unless (null ixs) $
+      errorMessage (srcRange f)
+                  ["Indexed sequence definitions may not use constraint guards"]
+     let gs  = reverse guards
+     pure $
+       DBind Bind { bName       = f
+                  , bParams     = reverse ps
+                  , bDef        = Located (srcRange f) (DPropGuards gs)
+                  , bSignature  = Nothing
+                  , bPragmas    = []
+                  , bMono       = False
+                  , bInfix      = False
+                  , bFixity     = Nothing
+                  , bDoc        = Nothing
+                  , bExport     = Public
+                  }
 
-mkIndexedConstantPropGuardsDecl :: 
-  LPName -> [([Prop PName], Expr PName)] -> Decl PName
-mkIndexedConstantPropGuardsDecl f guards =
-  mkIndexedPropGuardsDecl f ([], []) guards
+mkConstantPropGuardsDecl ::
+  LPName -> [PropGuardCase PName] -> ParseM (Decl PName)
+mkConstantPropGuardsDecl f guards =
+  mkPropGuardsDecl f ([],[]) guards
 
 -- NOTE: The lists of patterns are reversed!
 mkIndexedExpr :: ([Pattern PName], [Pattern PName]) -> Expr PName -> Expr PName
@@ -792,6 +797,10 @@ distrLoc :: Located [a] -> [Located a]
 distrLoc x = [ Located { srcRange = r, thing = a } | a <- thing x ]
   where r = srcRange x
 
+mkPropGuards :: Type PName -> ParseM [Located (Prop PName)]
+mkPropGuards ty =
+  do lp <- mkProp ty
+     pure [ lp { thing = p } | p <- thing lp ]
 
 mkProp :: Type PName -> ParseM (Located [Prop PName])
 mkProp ty =

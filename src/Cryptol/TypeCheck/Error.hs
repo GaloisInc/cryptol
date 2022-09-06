@@ -152,6 +152,13 @@ data Error    = KindMismatch (Maybe TypeSource) Kind Kind
               | UnsupportedFFIType TypeSource FFITypeError
                 -- ^ Type is not supported for FFI
 
+              | NestedConstraintGuard Ident
+                -- ^ Constraint guards may only apper at the top-level
+
+              | DeclarationRequiresSignatureCtrGrd Ident
+                -- ^ All declarataions in a recursive group involving
+                -- constraint guards should have signatures
+
               | TemporaryError Doc
                 -- ^ This is for errors that don't fit other cateogories.
                 -- We should not use it much, and is generally to be used
@@ -212,6 +219,9 @@ errorImportance err =
     UnsupportedFFIType {}                            -> 7
     -- less than UnexpectedTypeWildCard
 
+    NestedConstraintGuard {}                         -> 10
+    DeclarationRequiresSignatureCtrGrd {}            -> 9
+
 
 instance TVars Warning where
   apSubst su warn =
@@ -265,6 +275,9 @@ instance TVars Error where
       UnsupportedFFIKind {}    -> err
       UnsupportedFFIType src e -> UnsupportedFFIType src !$ apSubst su e
 
+      NestedConstraintGuard {} -> err
+      DeclarationRequiresSignatureCtrGrd {} -> err
+
       TemporaryError {} -> err
 
 
@@ -302,6 +315,9 @@ instance FVS Error where
 
       UnsupportedFFIKind {}  -> Set.empty
       UnsupportedFFIType _ t -> fvs t
+
+      NestedConstraintGuard {} -> Set.empty
+      DeclarationRequiresSignatureCtrGrd {} -> Set.empty
 
       TemporaryError {} -> Set.empty
 
@@ -344,8 +360,13 @@ instance PP (WithNames Error) where
 
       UnexpectedTypeWildCard ->
         addTVarsDescsAfter names err $
-        nested "Wild card types are not allowed in this context"
-          "(e.g., they cannot be used in type synonyms or FFI declarations)."
+        nested "Wild card types are not allowed in this context" $
+          vcat [ "They cannot be used in:"
+               , bullets [ "type synonyms"
+                         , "FFI declarations"
+                         , "declarations with constraint guards"
+                         ]
+               ]
 
       KindMismatch mbsrc k1 k2 ->
         addTVarsDescsAfter names err $
@@ -490,6 +511,18 @@ instance PP (WithNames Error) where
       UnsupportedFFIType src t -> vcat
         [ ppWithNames names t
         , "When checking" <+> pp src ]
+
+      NestedConstraintGuard d ->
+        vcat [ "Local declaration" <+> backticks (pp d)
+                                   <+> "may not use constraint guards."
+             , "Constraint guards may only appear at the top-level of a module."
+             ]
+
+      DeclarationRequiresSignatureCtrGrd d ->
+        vcat [ "The declaration of" <+> backticks (pp d) <+>
+                                            "requires a full type signature,"
+             , "because it is part of a recursive group with constraint guards."
+             ]
 
       TemporaryError doc -> doc
     where

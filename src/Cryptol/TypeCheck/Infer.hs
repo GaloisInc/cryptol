@@ -34,7 +34,7 @@ import Data.Text(Text)
 import qualified Data.Text as Text
 
 
-import           Cryptol.ModuleSystem.Name (lookupPrimDecl,nameLoc)
+import           Cryptol.ModuleSystem.Name (lookupPrimDecl,nameLoc, nameIdent)
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
 import qualified Cryptol.ModuleSystem.Exports as P
@@ -740,15 +740,18 @@ inferCArm armNum (m : ms) =
      newGoals CtComprehension [ pFin n' ]
      return (m1 : ms', Map.insertWith (\_ old -> old) x t ds, tMul n n')
 
--- | @inferBinds isTopLevel isRec binds@ performs inference for a
--- strongly-connected component of 'P.Bind's.
--- If any of the members of the recursive group are already marked
--- as monomorphic, then we don't do generalization.
--- If @isTopLevel@ is true,
--- any bindings without type signatures will be generalized. If it is
--- false, and the mono-binds flag is enabled, no bindings without type
--- signatures will be generalized, but bindings with signatures will
--- be unaffected.
+{- | @inferBinds isTopLevel isRec binds@ performs inference for a
+strongly-connected component of 'P.Bind's.
+If any of the members of the recursive group are already marked
+as monomorphic, then we don't do generalization.
+If @isTopLevel@ is true,
+any bindings without type signatures will be generalized. If it is
+false, and the mono-binds flag is enabled, no bindings without type
+signatures will be generalized, but bindings with signatures will
+be unaffected.
+
+-}
+
 inferBinds :: Bool -> Bool -> [P.Bind Name] -> InferM [Decl]
 inferBinds isTopLevel isRec binds =
   do -- when mono-binds is enabled, and we're not checking top-level
@@ -796,6 +799,8 @@ inferBinds isTopLevel isRec binds =
                      genCs     <- generalize bs1 cs
                      return (done,genCs)
 
+     checkNumericConstraintGuardsOK isTopLevel sigs noSigs
+
      rec
        let exprMap = Map.fromList (map monoUse genBs)
        (doneBs, genBs) <- check exprMap
@@ -823,6 +828,37 @@ inferBinds isTopLevel isRec binds =
     withQs   = foldl' appP withTys  qs
 
 
+{-
+Here we also check that:
+  * Numeric constraint guards appear only at the top level
+  * All definitions in a recursive groups with numberic constraint guards
+    have signatures
+
+The reason is to avoid interference between local constraints coming
+from the guards and type inference.  It might be possible to
+relex these requirements, but this requires some more careful thought on
+the interaction between the two, and the effects on pricniple types.
+-}
+checkNumericConstraintGuardsOK ::
+  Bool -> [P.Bind Name] -> [P.Bind Name] -> InferM ()
+checkNumericConstraintGuardsOK isTopLevel haveSig noSig =
+  do unless isTopLevel
+            (mapM_ (mkErr NestedConstraintGuard) withGuards)
+     unless (null withGuards)
+            (mapM_ (mkErr DeclarationRequiresSignatureCtrGrd) noSig)
+  where
+  mkErr f b =
+    do let nm = P.bName b
+       inRange (srcRange nm) (recordError (f (nameIdent (thing nm))))
+
+  withGuards = filter hasConstraintGuards haveSig
+  -- When desugaring constraint guards we check that they have signatures,
+  -- so no need to look at noSig
+
+  hasConstraintGuards b =
+    case thing (P.bDef b) of
+      P.DPropGuards {} -> True
+      _                -> False
 
 
 
@@ -1057,11 +1093,8 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
           t1     <- applySubst t0
           cases1 <- mapM (checkPropGuardCase name asmps1) cases0
 
-          checkExhaustive name asmps1 [ props | (props, _) <- cases1 ] >>= \case
-            True ->
-              -- proved exhaustive
-              pure ()
-            False ->
+          exh <- checkExhaustive name asmps1 [ props | (props, _) <- cases1 ]
+          unless exh $
               -- didn't prove exhaustive i.e. none of the guarding props
               -- necessarily hold
               recordWarning (NonExhaustivePropGuards name)
@@ -1086,7 +1119,8 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
 
   where
 
-    checkBindDefExpr :: [Prop] -> [Prop] -> P.Expr Name -> InferM (Type, [Prop], Expr)
+    checkBindDefExpr ::
+      [Prop] -> [Prop] -> P.Expr Name -> InferM (Type, [Prop], Expr)
     checkBindDefExpr asmpsSign asmps1 e0 = do
 
       (e1,cs0) <- collectGoals $ do
@@ -1128,8 +1162,12 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
 
     -- Checking each guarded case is the same as checking a DExpr, except
     -- that the guarding assumptions are added first.
-    checkPropGuardCase :: Name -> [Prop] -> ([P.Prop Name], P.Expr Name) -> InferM ([Prop], Expr)
-    checkPropGuardCase name asmps1 (guards0, e0) = do
+    checkPropGuardCase ::
+      Name ->
+      [Prop] ->
+      P.PropGuardCase Name ->
+      InferM ([Prop], Expr)
+    checkPropGuardCase name asmps1 (P.PropGuardCase guards0 e0) = do
       mb_rng <- case P.bSignature b of
         Just (P.Forall _ _ _ mb_rng) -> pure mb_rng
         _ -> panic "checkSigB"

@@ -66,8 +66,8 @@ checkSchema withWild (P.Forall xs ps t mb) =
           Just r  -> inRange r
 
 -- | Validate a parsed proposition that appears in the guard of a PropGuard.
--- Returns the validated proposition as well as any inferred goal propisitions.
-checkPropGuard :: Maybe Range -> P.Prop Name -> InferM (Type, [Goal])
+-- Returns the validated proposition as well as any inferred goal propositions.
+checkPropGuard :: Maybe Range -> Located (P.Prop Name) -> InferM (Prop, [Goal])
 checkPropGuard mb_rng prop = do
   ((_, t), goals) <-
     collectGoals $
@@ -75,7 +75,7 @@ checkPropGuard mb_rng prop = do
     -- not really doing anything here, since we don't want to introduce any new
     -- type vars into scope
     withTParams NoWildCards schemaParam [] $
-    checkProp prop
+    checkProp (thing prop)
   pure (t, goals)
   where
     rng = maybe id inRange mb_rng

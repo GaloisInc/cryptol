@@ -79,9 +79,11 @@ instance ExpandPropGuards [Bind PName] where
             case bSignature bind of
               Just schema -> pure schema
               Nothing -> Left . NoSignature $ bName bind
-          let goGuard :: ([Prop PName], Expr PName) -> ExpandPropGuardsM (([Prop PName], Expr PName), Bind PName)
-              goGuard (props', e) = do
-                bName' <- newName (bName bind) props'
+          let goGuard ::
+                PropGuardCase PName ->
+                ExpandPropGuardsM (PropGuardCase PName, Bind PName)
+              goGuard (PropGuardCase props' e) = do
+                bName' <- newName (bName bind) (thing <$> props')
                 -- call to generated function
                 tParams <- case bSignature bind of
                   Just (Forall tps _ _ _) -> pure tps
@@ -91,11 +93,13 @@ instance ExpandPropGuards [Bind PName] where
                     `traverse` tParams
                 let e' = foldl EApp (EAppT (EVar $ thing bName') typeInsts) (patternToExpr <$> bParams bind)
                 pure
-                  ( (props', e'),
+                  ( PropGuardCase props' e',
                     bind
                       { bName = bName',
                         -- include guarded props in signature
-                        bSignature = Just $ Forall params (props <> props') t rng,
+                        bSignature = Just (Forall params
+                                             (props <> map thing props')
+                                             t rng),
                         -- keeps same location at original bind
                         -- i.e. "on top of" original bind
                         bDef = (bDef bind) {thing = DExpr e}
@@ -122,4 +126,8 @@ newName locName props =
       let txt = identText ident
           txt' = pack $ show $ pp props
        in UnQual (mkIdent $ txt <> txt') <$ locName
-    NewName _ _ -> panic "mkName" ["During expanding prop guards, tried to make new name from NewName case of PName"]
+    NewName _ _ ->
+      panic "mkName"
+        [ "During expanding prop guards"
+        , "tried to make new name from NewName case of PName"
+        ]
