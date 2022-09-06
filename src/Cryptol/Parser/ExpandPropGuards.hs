@@ -43,7 +43,7 @@ instance PP Error where
   ppPrec _ err = case err of
     NoSignature x ->
       text "At" <+> pp (srcRange x) <.> colon
-        <+> text "Declarations using constraint guards currently require an explicit type signature."
+        <+> text "Declarations using constraint guards require an explicit type signature."
 
 -- | Instances
 instance ExpandPropGuards (Program PName) where
