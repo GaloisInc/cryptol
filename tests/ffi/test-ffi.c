@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#include "test-ffi.h"
+
 uint8_t add8(uint8_t x, uint8_t y) {
   return x + y;
 }
