@@ -180,8 +180,9 @@ parseModule path = do
 -- Modules ---------------------------------------------------------------------
 
 -- | Load a module by its path.
-loadModuleByPath :: FilePath -> ModuleM T.Module
-loadModuleByPath path = withPrependedSearchPath [ takeDirectory path ] $ do
+loadModuleByPath :: Bool {- ^ evaluate declarations in the module -} ->
+  FilePath -> ModuleM (ModulePath, T.Module)
+loadModuleByPath eval path = withPrependedSearchPath [ takeDirectory path ] $ do
   let fileName = takeFileName path
   foundPath <- findFile fileName
   (fp, pm) <- parseModule (InFile foundPath)
@@ -195,9 +196,11 @@ loadModuleByPath path = withPrependedSearchPath [ takeDirectory path ] $ do
 
   case lookupModule n env of
     -- loadModule will calculate the canonical path again
-    Nothing -> doLoadModule False (FromModule n) (InFile foundPath) fp pm
+    Nothing -> do
+      m <- doLoadModule eval False (FromModule n) (InFile foundPath) fp pm
+      pure (InFile foundPath, m)
     Just lm
-     | path' == loaded -> return (lmModule lm)
+     | path' == loaded -> return (lmFilePath lm, lmModule lm)
      | otherwise       -> duplicateModuleName n path' loaded
      where loaded = lmModuleId lm
 
@@ -213,18 +216,19 @@ loadModuleFrom quiet isrc =
          do path <- findModule n
             errorInFile path $
               do (fp, pm) <- parseModule path
-                 m        <- doLoadModule quiet isrc path fp pm
+                 m        <- doLoadModule True quiet isrc path fp pm
                  return (path,m)
 
 -- | Load dependencies, typecheck, and add to the eval environment.
 doLoadModule ::
+  Bool {- ^ evaluate declarations in the module -} ->
   Bool {- ^ quiet mode: true suppresses the "loading module" message -} ->
   ImportSource ->
   ModulePath ->
   Fingerprint ->
   P.Module PName ->
   ModuleM T.Module
-doLoadModule quiet isrc path fp pm0 =
+doLoadModule eval quiet isrc path fp pm0 =
   loading isrc $
   do let pm = addPrelude pm0
      loadDeps pm
@@ -241,10 +245,9 @@ doLoadModule quiet isrc path fp pm0 =
      let ?evalPrim = \i -> Right <$> Map.lookup i tbl
      callStacks <- getCallStacks
      let ?callStacks = callStacks
-     foreignSrc <- if T.isParametrizedModule tcm
-       then pure Nothing
-       else evalForeign tcm
-     unless (T.isParametrizedModule tcm) $
+     let shouldEval = eval && not (T.isParametrizedModule tcm)
+     foreignSrc <- if shouldEval then evalForeign tcm else pure Nothing
+     when shouldEval $
        modifyEvalEnv (E.moduleEnv Concrete tcm)
      loadedModule path fp nameEnv foreignSrc tcm
 
