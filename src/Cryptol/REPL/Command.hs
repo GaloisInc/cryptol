@@ -312,8 +312,11 @@ commandList  =
              ])
     ""
   , CommandDescr [ ":generate-foreign-header" ] ["FILE"] (FilenameArg genHeaderCmd)
-    ""
-    ""
+    "Generate a C header file from foreign declarations in a Cryptol file."
+    (unlines
+      [ "Converts all foreign declarations in the given Cryptol file into C"
+      , "function declarations, and writes them to a file with the same name"
+      , "but with a .h extension." ])
   ]
 
 genHelp :: [CommandDescr] -> [String]
