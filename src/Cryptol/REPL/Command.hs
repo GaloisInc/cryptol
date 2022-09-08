@@ -1241,8 +1241,10 @@ genHeaderCmd path
       else do
         let header = generateForeignHeader decls
         case mPath of
-          M.InFile p ->
-            replWriteFileString (p -<.> "h") header (rPutStrLn . show)
+          M.InFile p -> do
+            let hPath = p -<.> "h"
+            rPutStrLn $ "Writing header to " ++ hPath
+            replWriteFileString hPath header (rPutStrLn . show)
           M.InMem _ _ -> rPutStrLn header
 
 versionCmd :: REPL ()
