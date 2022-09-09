@@ -11,6 +11,7 @@ module Cryptol.Eval.FFI.GenHeader
 import           Control.Monad.Writer.Strict
 import           Data.Bifunctor
 import           Data.Functor
+import           Data.List
 import           Data.Set                      (Set)
 import qualified Data.Set                      as Set
 import           Language.C99.Pretty           as C
@@ -53,7 +54,7 @@ data ConvertResult
 
 -- | Convert a Cryptol foreign declaration into a C function declaration.
 convertFun :: (Name, FFIFunType) -> GenHeaderM C.Decln
-convertFun (name, FFIFunType {..}) = do
+convertFun (fName, FFIFunType {..}) = do
   typeParams <- traverse convertTypeParam ffiTParams
   -- Name the input args in0, in1, etc
   let inPrefixes =
@@ -66,13 +67,13 @@ convertFun (name, FFIFunType {..}) = do
       Direct u  -> (u, [])
       -- Name the output arg out
       Params ps -> (C.TypeSpec C.Void, map (prefixParam "out") ps)
-  let typeParamNames = map paramName typeParams
-      -- Avoid possible name collisions with type parameters by renaming value
-      -- parameters (we want to preserve type param names)
-      valParams = until (not . any ((`elem` typeParamNames) . paramName))
-        (map (prefixParam "cry_")) (inParams ++ outParams)
-  pure $ C.FunDecln Nothing retType (unpackIdent $ nameIdent name) $
-    typeParams ++ valParams
+  let renameParam names (C.Param u name) =
+        (Set.insert name' names, C.Param u name')
+        where name' = until (`Set.notMember` names) (++ "_") name
+      -- Avoid possible name collisions
+      params = snd $ mapAccumL renameParam Set.empty $
+        typeParams ++ inParams ++ outParams
+  pure $ C.FunDecln Nothing retType (unpackIdent $ nameIdent fName) params
 
 -- | Convert a Cryptol type parameter to a C value parameter.
 convertTypeParam :: TParam -> GenHeaderM C.Param
@@ -119,9 +120,6 @@ convertBasicType (FFIFloat _ _ s) =
   case s of
     FFIFloat32 -> pure $ C.TypeSpec C.Float
     FFIFloat64 -> pure $ C.TypeSpec C.Double
-
-paramName :: C.Param -> C.Ident
-paramName (C.Param _ name) = name
 
 prefixParam :: C.Ident -> C.Param -> C.Param
 prefixParam pre (C.Param u name) = C.Param u (pre ++ name)
