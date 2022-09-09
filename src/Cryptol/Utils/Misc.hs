@@ -6,7 +6,7 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE Safe, FlexibleContexts #-}
+{-# LANGUAGE Trustworthy, FlexibleContexts #-}
 module Cryptol.Utils.Misc where
 
 import MonadLib

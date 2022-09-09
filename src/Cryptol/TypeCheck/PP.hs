@@ -6,7 +6,7 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE Safe #-}
+{-# LANGUAGE Trustworthy #-}
 {-# LANGUAGE FlexibleInstances, FlexibleContexts #-}
 module Cryptol.TypeCheck.PP
   ( NameMap, WithNames(..)

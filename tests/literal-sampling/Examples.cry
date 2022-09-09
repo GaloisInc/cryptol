@@ -1,0 +1,35 @@
+module Examples where
+
+// upper bound
+
+upperBound_1var : {n} (n <= 10) => Bit
+upperBound_1var = True
+
+upperBound_2var : {m, n} (m + 2*n <= 4) => Bit
+upperBound_2var = True
+
+// lower bound
+
+lowerBound_1var : {n} (n >= 10) => Bit
+lowerBound_1var = True
+
+lowerBound_2var : {m, n} (2*m + n >= 4) => Bit
+lowerBound_2var = True
+
+// equation
+
+equation_1var : {n} (n == 42) => Bit
+equation_1var = True
+
+equation_2var : {m, n} (fin m, fin n) => (m == n + 2) => Bit
+equation_2var = True
+
+equation_2var' : {m, n} (fin m, fin n) => (m == n/2) => Bit
+equation_2var' = True
+
+equation_3var : {l, m, n} (fin l, fin m, fin n, l == m + n) => Bit
+equation_3var = True
+
+equation_3var_2equ : {l, m, n} (fin l, fin m, fin n, l == m + n, m == 2*n) => Bit
+equation_3var_2equ = True
+

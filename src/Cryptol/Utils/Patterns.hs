@@ -1,4 +1,4 @@
-{-# Language Safe, RankNTypes, MultiParamTypeClasses #-}
+{-# LANGUAGE Trustworthy, RankNTypes, MultiParamTypeClasses #-}
 {-# Language FunctionalDependencies #-}
 {-# Language FlexibleInstances #-}
 {-# Language TypeFamilies, UndecidableInstances #-}

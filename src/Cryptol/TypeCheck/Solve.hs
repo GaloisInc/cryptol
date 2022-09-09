@@ -7,13 +7,15 @@
 -- Portability :  portable
 
 {-# LANGUAGE PatternGuards, BangPatterns, RecordWildCards #-}
-{-# LANGUAGE Safe #-}
+{-# LANGUAGE Trustworthy #-}
+{-# LANGUAGE NamedFieldPuns #-}
 module Cryptol.TypeCheck.Solve
   ( simplifyAllConstraints
   , proveImplication
   , proveModuleTopLevel
   , defaultAndSimplify
   , defaultReplExpr
+  , sampleLiterals
   ) where
 
 import           Cryptol.Parser.Position(thing,emptyRange)
@@ -44,9 +46,9 @@ import           Data.Set ( Set )
 import qualified Data.Set as Set
 import           Data.List(partition)
 import           Data.Maybe(listToMaybe,fromMaybe)
-
-
-
+import Cryptol.TypeCheck.Solver.Numeric.Sampling (sample, applySample)
+import Cryptol.TypeCheck.Solver.Numeric.Sampling.Base (runSamplingM, SamplingError (NoNumericTypeVariables))
+import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling as Sampling
 
 
 quickSolverIO :: Ctxt -> [Goal] -> IO (Either Error (Subst,[Goal]))
@@ -148,6 +150,24 @@ addIncompatible g i =
 
 --------------------------------------------------------------------------------
 
+-- For the polymorphic literals in a schema, uses a custom constraint-solver to
+-- sample over the solution space. Returns a list of `Schemas`, where each
+-- `Schema` corresponds to a sampled solution applied to that `Schema` (i.e. the
+-- solution's substituion is applied to the `Schema` and the params that
+-- corresponded to the substituted variables are omitted). If there are no
+-- polymorphic literals, then `Left err` where `err` is the reason why.
+sampleLiterals :: Schema -> Int -> IO (Either SamplingError [(Sampling.Sample, Schema)])
+sampleLiterals schema@Forall {sVars, sProps} nLiteralSamples = do
+  let literalVars = filter ((KNum ==) . tpKind) sVars
+  if null literalVars then
+    pure . Left $ NoNumericTypeVariables
+  else do
+    res <- runSamplingM (sample literalVars sProps nLiteralSamples)
+    case res of
+      Left err -> do
+        pure . Left $ err
+      Right samples -> do
+        pure . pure $ (\sample' -> (sample', applySample sample' schema)) <$> samples
 
 defaultReplExpr :: Solver -> Expr -> Schema ->
                     IO (Maybe ([(TParam,Type)], Expr))

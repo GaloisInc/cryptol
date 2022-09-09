@@ -10,12 +10,18 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
 -- See Note [-Wincomplete-uni-patterns and irrefutable patterns] in Cryptol.TypeCheck.TypePat
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Use camelCase" #-}
+{-# LANGUAGE NamedFieldPuns #-}
+{-# OPTIONS_GHC -Wno-name-shadowing #-}
+{-# LANGUAGE TypeApplications #-}
 module Cryptol.REPL.Command (
     -- * Commands
     Command(..), CommandDescr(..), CommandBody(..), CommandExitCode(..)
@@ -87,7 +93,7 @@ import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck.Error as T
 import qualified Cryptol.TypeCheck.Parseable as T
 import qualified Cryptol.TypeCheck.Subst as T
-import           Cryptol.TypeCheck.Solve(defaultReplExpr)
+import           Cryptol.TypeCheck.Solve(defaultReplExpr,sampleLiterals)
 import           Cryptol.TypeCheck.PP (dump,ppWithNames,emptyNameMap)
 import qualified Cryptol.Utils.Benchmark as Bench
 import           Cryptol.Utils.PP hiding ((</>))
@@ -114,7 +120,7 @@ import Data.Bits (shiftL, (.&.), (.|.))
 import Data.Char (isSpace,isPunctuation,isSymbol,isAlphaNum,isAscii)
 import Data.Function (on)
 import Data.List (intercalate, nub, isPrefixOf,intersperse)
-import Data.Maybe (fromMaybe,mapMaybe,isNothing)
+import Data.Maybe (fromMaybe,mapMaybe,isNothing, isJust, fromJust)
 import System.Environment (lookupEnv)
 import System.Exit (ExitCode(ExitSuccess))
 import System.Process (shell,createProcess,waitForProcess)
@@ -139,6 +145,11 @@ import Prelude ()
 import Prelude.Compat
 
 import qualified Data.SBV.Internals as SBV (showTDiff)
+import Cryptol.TypeCheck.Solver.Numeric.Sampling (Sample)
+import qualified Cryptol.TypeCheck.Solver.Numeric.Sampling.Base as Sampling
+import qualified Data.List as List
+import Cryptol.TypeCheck.Solver.InfNat (Nat' (..))
+
 
 -- Commands --------------------------------------------------------------------
 
@@ -410,30 +421,113 @@ dumpTestsCmd outFile str pos fnm =
 data QCMode = QCRandom | QCExhaust deriving (Eq, Show)
 
 
+data SampleBinInfo = SampleBinInfo
+  { sample :: Sample -- the sample used for this bin
+  , binIndex :: Integer -- the index of this bin among all bins
+  , bins :: Integer -- the number of total bins
+  , binSize :: Integer -- the number of tests for this bin
+  }
+
+
 -- | Randomly test a property, or exhaustively check it if the number
 -- of values in the type under test is smaller than the @tests@
 -- environment variable, or we specify exhaustive testing.
 qcCmd :: QCMode -> String -> (Int,Int) -> Maybe FilePath -> REPL ()
-qcCmd qcMode "" _pos _fnm =
-  do (xs,disp) <- getPropertyNames
-     let nameStr x = show (fixNameDisp disp (pp x))
-     if null xs
-        then rPutStrLn "There are no properties in scope."
-        else forM_ xs $ \(x,d) ->
-               do let str = nameStr x
-                  rPutStr $ "property " ++ str ++ " "
-                  let texpr = T.EVar x
-                  let schema = M.ifDeclSig d
-                  nd <- M.mctxNameDisp <$> getFocusedEnv
-                  let doc = fixNameDisp nd (pp texpr)
-                  void (qcExpr qcMode doc texpr schema)
+qcCmd qcMode str pos fnm = do
+  -- (qcMde, doc, texpr, schema) <- case str of 
+  case str of
+    -- `:check` without an argument
+    "" -> do
+      (xs,disp) <- getPropertyNames
+      let nameStr x = show (fixNameDisp disp (pp x))
+      if null xs
+      then
+        rPutStrLn "There are no properties in scope."
+      else
+        forM_ xs $ \(x,d) -> do
+          let str = nameStr x
+          rPutStr $ "property " ++ str ++ " "
+          let texpr = T.EVar x
+          let schema = M.ifDeclSig d
+          nd <- M.mctxNameDisp <$> getFocusedEnv
+          let doc = fixNameDisp nd (pp texpr)
+          qcCmdNoLitSampling qcMode doc texpr schema
+    -- `:check e`, where `e` is an expression
+    _ -> do
+      expr <- replParseExpr str pos fnm
+      (_,texpr,schema) <- replCheckExpr expr
+      nd <- M.mctxNameDisp <$> getFocusedEnv
+      let doc = fixNameDisp nd (ppPrec 3 expr) -- function application has precedence 3
+      litSampling <- getKnownUser "literalSampling" :: REPL Bool
+      if litSampling
+        then qcCmdLitSampling qcMode doc expr texpr schema
+        else qcCmdNoLitSampling qcMode doc texpr schema
 
-qcCmd qcMode str pos fnm =
-  do expr <- replParseExpr str pos fnm
-     (_,texpr,schema) <- replCheckExpr expr
-     nd <- M.mctxNameDisp <$> getFocusedEnv
-     let doc = fixNameDisp nd (ppPrec 3 expr) -- function application has precedence 3
-     void (qcExpr qcMode doc texpr schema)
+
+qcCmdNoLitSampling :: QCMode -> Doc -> T.Expr -> T.Schema -> REPL ()
+qcCmdNoLitSampling qcMode doc texpr schema = do 
+  testNum <- toInteger @Int <$> getKnownUser "tests" :: REPL Integer
+  (val, ty) <- replEvalCheckedExpr' texpr schema
+  void (qcExpr qcMode doc testNum val ty Nothing)
+
+
+qcCmdLitSampling :: QCMode -> Doc -> P.Expr P.PName -> T.Expr -> T.Schema -> REPL ()
+qcCmdLitSampling qcMode doc expr texpr schema = do 
+  testNum <- toInteger @Int <$> getKnownUser "tests" :: REPL Integer
+  -- do this many tests per sample, until out of tests
+  binSize <- toInteger @Int <$> getKnownUser "literalSamplingBinSize" :: REPL Integer
+  let bins = testNum `div` binSize
+  io (sampleLiterals schema (fromInteger bins)) >>= \case
+    Right samples_schemas -> do
+      rPutStrLn "Using literal sampling."
+      qcSampleSchema qcMode doc expr bins binSize `mapM_` 
+        zip [0..] (take (fromInteger $ testNum `div` binSize) samples_schemas)
+    Left err -> do
+      case err of
+        Sampling.InternalError _ _ -> do
+          rPutStrLn $ "Failed to use literal sampling. " ++ show err
+          rPutStrLn "Using a single default solution instead."
+        Sampling.NoNumericTypeVariables -> pure ()
+        Sampling.InvalidTypeConstraints _ -> pure ()
+        Sampling.NoSolution -> do
+          rPutStrLn $ "Failed to use literal sampling. Coonstraints have no solution."
+          rPutStrLn "Using a single default solution instead."
+      qcCmdNoLitSampling qcMode doc texpr schema
+
+
+-- this generates a new expression that has the appropriate
+-- type arguments given to it according to the sampling,
+-- which is then typechecked and evaluated again
+applySampleToTExpr :: Sample -> P.Expr P.PName -> P.Expr P.PName
+applySampleToTExpr sample e = P.EAppT e $ go <$> sample
+  where
+    go :: (T.TParam, Nat') -> P.TypeInst P.PName
+    go (tparam, v) = P.NamedInst $ P.Named
+      { name = fromTParamToNamedIdent tparam
+      , value = case v of
+          Nat n -> P.TNum n
+          Inf -> P.TUser (P.UnQual (M.mkIdent (T.pack "inf"))) []
+      }
+
+    fromTParamToNamedIdent :: T.TParam -> P.Located P.Ident
+    fromTParamToNamedIdent tparam = case T.tvarDesc . T.tpInfo $ tparam of
+      T.TVFromSignature name -> P.Located {
+        thing = M.nameIdent name,
+        srcRange = M.nameLoc name
+      }
+      varDesc -> panic "qcCmd" ["cannot substitute type var with TypeSource: " ++ show varDesc]
+
+
+qcSampleSchema :: 
+  QCMode -> Doc -> P.Expr P.PName -> 
+  Integer -> Integer -> (Integer, (Sample, b)) -> 
+  REPL TestReport
+qcSampleSchema qcMode doc expr bins binSize (binIndex, (sample, _schema)) = do
+  expr <- pure $ applySampleToTExpr sample expr
+  (_, texpr, schema') <- replCheckExpr expr
+  (val, ty) <- replEvalCheckedExpr' texpr schema'
+  qcExpr qcMode doc binSize val ty
+    (Just SampleBinInfo { sample, bins, binIndex, binSize })
 
 
 data TestReport = TestReport
@@ -443,26 +537,54 @@ data TestReport = TestReport
   , reportTestsPossible :: Maybe Integer
   }
 
+replEvalCheckedExpr' :: T.Expr -> T.Schema -> REPL (Concrete.Value, T.Type)
+replEvalCheckedExpr' texpr schema =
+  replEvalCheckedExpr texpr schema >>= \case
+    Just res -> pure res
+    -- If instance is not found, doesn't necessarily mean that there is no
+    -- instance. And due to nondeterminism in result from the solver (for
+    -- finding solution to numeric type constraints), `:check` can get to
+    -- this exception sometimes, but successfully find an instance and test
+    -- with it other times.
+    Nothing -> raise (InstantiationsNotFound schema)
+
+
+-- | Randomly test an expression (if it has a testable type), or exhaustively
+-- check it if the number of values in the type under test is smaller than the
+-- @test@ environment variable, or we specify exhaustive testing. Prints
+-- relevant information to the testing run, but nothng about the TestReport. If
+-- this run was spawned under literal sampling, then a SampleBinInfo is provided
+-- that indicates its status among the spawned runs.
 qcExpr ::
   QCMode ->
   Doc ->
-  T.Expr ->
-  T.Schema ->
+  Integer ->
+  Concrete.Value ->
+  T.Type ->
+  Maybe SampleBinInfo -> -- if using literal sampling
   REPL TestReport
-qcExpr qcMode exprDoc texpr schema =
-  do (val,ty) <- replEvalCheckedExpr texpr schema >>= \mb_res -> case mb_res of
-       Just res -> pure res
-       -- If instance is not found, doesn't necessarily mean that there is no instance.
-       -- And due to nondeterminism in result from the solver (for finding solution to 
-       -- numeric type constraints), `:check` can get to this exception sometimes, but
-       -- successfully find an instance and test with it other times.
-       Nothing -> raise (InstantiationsNotFound schema)
-     testNum <- (toInteger :: Int -> Integer) <$> getKnownUser "tests"
-     tenv <- E.envTypes . M.deEnv <$> getDynEnv
+qcExpr qcMode exprDoc testNum val ty mb_sampleInfo =
+  do tenv <- E.envTypes . M.deEnv <$> getDynEnv
      let tyv = E.evalValType tenv ty
+
+     case mb_sampleInfo of
+      Just SampleBinInfo{..} -> do
+        rPutStrLn ""
+        rPutStrLn $ unwords
+          [ "Bin:", show (binIndex + 1), "/", show bins ]
+        rPutStrLn . unwords $
+          [ "Sample:"
+          , List.intercalate ", "
+              [ pretty (fromJust $ T.tpName tp) ++ " = " ++ show i
+              | (tp, i) <- sample
+              , isJust (T.tpName tp) ] ]
+
+      Nothing -> pure ()
+
      -- tv has already had polymorphism instantiated 
      percentRef <- io $ newIORef Nothing
      testsRef <- io $ newIORef 0
+
 
      case testableType tyv of
        Just (Just sz,tys,vss,_gens) | qcMode == QCExhaust || sz <= testNum -> do
@@ -512,7 +634,7 @@ qcExpr qcMode exprDoc texpr schema =
   testingMsg = "Testing... "
 
   interruptedExhaust testNum sz =
-     let percent = (100.0 :: Double) * (fromInteger testNum) / fromInteger sz
+     let percent = (100.0 :: Double) * fromInteger testNum / fromInteger sz
          showValNum
             | sz > 2 ^ (20::Integer) =
               "2^^" ++ show (lg2 sz)
@@ -827,7 +949,7 @@ proveSatExpr isSat rng exprDoc texpr schema = do
 printSafetyViolation :: T.Expr -> T.Schema -> [E.GenValue Concrete] -> REPL ()
 printSafetyViolation texpr schema vs =
     catch
-      (do fn <- replEvalCheckedExpr texpr schema >>= \mb_res -> case mb_res of 
+      (do fn <- replEvalCheckedExpr texpr schema >>= \mb_res -> case mb_res of
             Just (fn, _) -> pure fn
             Nothing -> raise (EvalPolyError schema)
           rEval (E.forceValue =<< foldM (\f v -> E.fromVFun Concrete f (pure v)) fn vs))
@@ -1843,3 +1965,4 @@ parseCommand findCmd line = do
         '"':rest  -> Just $ quoted '"' rest
         _         -> let (a,b) = break isSpace ipt in
                      if null a then Nothing else Just (length a, a, b)
+

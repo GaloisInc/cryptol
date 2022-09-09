@@ -7,7 +7,6 @@
 -- Portability :  portable
 
 {-# LANGUAGE Safe #-}
-
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveTraversable #-}

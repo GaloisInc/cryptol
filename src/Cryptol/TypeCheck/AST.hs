@@ -7,7 +7,6 @@
 -- Portability :  portable
 
 {-# LANGUAGE Safe                                #-}
-
 {-# LANGUAGE RecordWildCards                     #-}
 {-# LANGUAGE PatternGuards                       #-}
 {-# LANGUAGE FlexibleInstances, FlexibleContexts #-}

@@ -10,6 +10,7 @@
 -- from previous Cryptol versions.
 
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE Safe #-}
 
 module Cryptol.Parser.Utils
   ( translateExprToNumT

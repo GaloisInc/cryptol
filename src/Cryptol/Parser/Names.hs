@@ -9,6 +9,8 @@
 -- This module defines the scoping rules for value- and type-level
 -- names in Cryptol.
 
+{-# LANGUAGE Safe #-}
+
 module Cryptol.Parser.Names
   ( tnamesNT
   , tnamesT

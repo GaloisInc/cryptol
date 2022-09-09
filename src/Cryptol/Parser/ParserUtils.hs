@@ -7,7 +7,6 @@
 -- Portability :  portable
 
 {-# LANGUAGE Safe #-}
-
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}

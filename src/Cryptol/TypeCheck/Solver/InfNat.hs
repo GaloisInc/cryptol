@@ -9,10 +9,11 @@
 -- This module defines natural numbers with an additional infinity
 -- element, and various arithmetic operators on them.
 
-{-# LANGUAGE Safe #-}
+{-# LANGUAGE Trustworthy #-}
 
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE LambdaCase #-}
 module Cryptol.TypeCheck.Solver.InfNat where
 
 import Data.Bits
@@ -23,7 +24,12 @@ import Control.DeepSeq
 
 -- | Natural numbers with an infinity element
 data Nat' = Nat Integer | Inf
-            deriving (Show, Eq, Ord, Generic, NFData)
+            deriving (Eq, Ord, Generic, NFData)
+
+instance Show Nat' where 
+  show = \case
+    Nat n -> show n
+    Inf -> "inf"
 
 fromNat :: Nat' -> Maybe Integer
 fromNat n' =
@@ -31,8 +37,22 @@ fromNat n' =
     Nat i -> Just i
     _     -> Nothing
 
+instance Num Nat' where
+  (+) = nAdd
+  (*) = nMul
 
+  abs (Nat i) = Nat (abs i)
+  abs Inf = Inf
 
+  signum (Nat i) = Nat (signum i)
+  signum Inf = Nat 1
+
+  fromInteger = Nat
+
+  l - m = case nSub l m of 
+    Just n -> n
+    Nothing -> panic "Nat.(-)" 
+      ["Invalid arithmetic over `Nat'`: " ++ show l ++ " - " ++ show m]
 
 --------------------------------------------------------------------------------
 
