@@ -67,12 +67,12 @@ convertFun (fName, FFIFunType {..}) = do
       Direct u  -> (u, [])
       -- Name the output arg out
       Params ps -> (C.TypeSpec C.Void, map (prefixParam "out") ps)
-  let renameParam names (C.Param u name) =
+  -- Avoid possible name collisions
+  let params = snd $ mapAccumL renameParam Set.empty $
+        typeParams ++ inParams ++ outParams
+      renameParam names (C.Param u name) =
         (Set.insert name' names, C.Param u name')
         where name' = until (`Set.notMember` names) (++ "_") name
-      -- Avoid possible name collisions
-      params = snd $ mapAccumL renameParam Set.empty $
-        typeParams ++ inParams ++ outParams
   pure $ C.FunDecln Nothing retType (unpackIdent $ nameIdent fName) params
 
 -- | Convert a Cryptol type parameter to a C value parameter.
