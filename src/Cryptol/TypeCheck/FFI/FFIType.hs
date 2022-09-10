@@ -38,6 +38,7 @@ data FFIBasicType
   | FFIBasicRef FFIBasicRefType
   deriving (Show, Generic, NFData)
 
+-- | Basic type which is passed and returned directly by value.
 data FFIBasicValType
   = FFIWord
       Integer     -- ^ The size of the Cryptol type
@@ -60,6 +61,7 @@ data FFIFloatSize
   | FFIFloat64
   deriving (Show, Generic, NFData)
 
+-- | Basic type which is passed and returned by reference through a parameter.
 data FFIBasicRefType
   = FFIInteger
       (Maybe Type) -- ^ Modulus (Just for Z, Nothing for Integer)

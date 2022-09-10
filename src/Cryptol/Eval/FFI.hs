@@ -107,9 +107,14 @@ data GetRet = GetRet
   { getRetAsValue   :: forall a. FFIRet a => IO a
   , getRetAsOutArgs :: [SomeFFIArg] -> IO () }
 
+-- | Operations needed for returning a basic reference type.
 data BasicRefRet a = BasicRefRet
-  { initBasicRefRet    :: Ptr a -> IO ()
+  { -- | Initialize the object before passing to foreign function.
+    initBasicRefRet    :: Ptr a -> IO ()
+    -- | Free the object after returning from foreign function and obtaining
+    -- return value.
   , clearBasicRefRet   :: Ptr a -> IO ()
+    -- | Convert the object to a Cryptol value.
   , marshalBasicRefRet :: a -> Eval (GenValue Concrete) }
 
 -- | Generate the monomorphic part of the foreign 'Prim', given a 'TypeEnv'
@@ -274,6 +279,7 @@ foreignPrim name FFIFunType {..} impl tenv = buildFun ffiArgTypes []
     go types []
     map pure <$> readIORef vals
 
+  -- | Call the callback with a 'BasicRefRet' for the given type.
   getBasicRefRet :: FFIBasicRefType ->
     (forall a. Storable a => BasicRefRet a -> b) -> b
   getBasicRefRet (FFIInteger mbMod) f = f BasicRefRet
@@ -348,6 +354,9 @@ withWordType FFIWord16 f = f $ Proxy @Word16
 withWordType FFIWord32 f = f $ Proxy @Word32
 withWordType FFIWord64 f = f $ Proxy @Word64
 
+-- | Given a 'FFIBasicRefType', call the callback with a marshalling function
+-- that takes a Cryptol value and calls its callback with the 'Storable' type
+-- corresponding to the 'FFIBasicRefType'.
 getMarshalBasicRefArg :: FFIBasicRefType ->
   (forall a. Storable a =>
     (GenValue Concrete -> (a -> IO b) -> IO b) -> c) -> c
