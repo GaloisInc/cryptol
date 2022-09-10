@@ -27,6 +27,7 @@ import           Cryptol.TypeCheck.FFI.FFIType
 
 #ifdef FFI_ENABLED
 
+import           Control.Exception
 import           Data.Either
 import           Data.Foldable
 import           Data.IORef
@@ -38,6 +39,8 @@ import           Foreign.C.Types
 import           GHC.Float
 import           LibBF                         (bfFromDouble, bfToDouble,
                                                 pattern NearEven)
+import           Numeric.GMP.Raw.Unsafe
+import           Numeric.GMP.Utils
 
 import           Cryptol.Backend.Concrete
 import           Cryptol.Backend.FloatHelpers
@@ -102,6 +105,11 @@ data GetRet = GetRet
   { getRetAsValue   :: forall a. FFIRet a => IO a
   , getRetAsOutArgs :: [SomeFFIArg] -> IO () }
 
+data BasicRefRet a = BasicRefRet
+  { initBasicRefRet    :: Ptr a -> IO ()
+  , clearBasicRefRet   :: Ptr a -> IO ()
+  , marshalBasicRefRet :: a -> IO (GenValue Concrete) }
+
 -- | Generate the monomorphic part of the foreign 'Prim', given a 'TypeEnv'
 -- containing all the type arguments we have already received.
 foreignPrim :: Name -> FFIFunType -> ForeignImpl -> TypeEnv -> Prim Concrete
@@ -147,25 +155,46 @@ foreignPrim name FFIFunType {..} impl tenv = buildFun ffiArgTypes []
   marshalArg :: FFIType -> GenValue Concrete ->
     ([SomeFFIArg] -> Eval a) -> Eval a
   marshalArg FFIBool val f = f [SomeFFIArg @Word8 $ fromBool $ fromVBit val]
-  marshalArg (FFIBasic t) val f = getMarshalBasicArg t \m -> do
+  marshalArg (FFIBasic (FFIBasicVal t)) val f = getMarshalBasicValArg t \m -> do
     arg <- m val
     f [SomeFFIArg arg]
-  marshalArg (FFIArray (map evalFinType -> sizes) t) val f =
-    getMarshalBasicArg t \m ->
-      -- Since we need to do Eval actions in an IO callback, we need to manually
-      -- unwrap and wrap the Eval datatype
-      Eval \stk ->
-        allocaArray (fromInteger $ product sizes) \ptr -> do
-          -- Traverse the nested sequences and write the elements to the array
-          -- in order
-          let write (n:ns) !i v = do
-                vs <- traverse (runEval stk) $ enumerateSeqMap n $ fromVSeq v
-                foldlM (write ns) i vs
-              write [] !i v = do
-                runEval stk (m v) >>= pokeElemOff ptr i
-                pure (i + 1)
-          _ <- write sizes 0 val
+  marshalArg (FFIBasic (FFIBasicRef t)) val f = getMarshalBasicRefArg t \m ->
+    -- Since we need to do Eval actions in an IO callback, we need to manually
+    -- unwrap and wrap the Eval datatype
+    Eval \stk ->
+      m val \x ->
+        with x \ptr ->
           runEval stk $ f [SomeFFIArg ptr]
+  marshalArg (FFIArray (map evalFinType -> sizes) bt) val f =
+    case bt of
+      FFIBasicVal t -> getMarshalBasicValArg t \m ->
+        Eval \stk ->
+          marshalArrayArg stk \v g ->
+            runEval stk (m v) >>= g
+      FFIBasicRef t -> Eval \stk ->
+        getMarshalBasicRefArg t $ marshalArrayArg stk
+    where marshalArrayArg stk m =
+            allocaArray (fromInteger $ product sizes) \ptr -> do
+              -- Traverse the nested sequences and write the elements to the
+              -- array in order.
+              -- ns is the dimensions of the values we are currently
+              -- processing.
+              -- vs is the values we are currently processing.
+              -- nvss is the stack of previous ns and vs that we keep track of
+              -- that we push onto when we start processing a nested sequence
+              -- and pop off when we finish processing the current ones.
+              -- i is the index into the array.
+              let write (n:ns) (v:vs) nvss !i = do
+                    vs' <- traverse (runEval stk) $
+                      enumerateSeqMap n $ fromVSeq v
+                    write ns vs' ((n, vs):nvss) i
+                  write [] (v:vs) nvss !i = m v \x -> do
+                    pokeElemOff ptr i x
+                    write [] vs nvss (i + 1)
+                  write ns [] ((n, vs):nvss) !i = write (n:ns) vs nvss i
+                  write _ _ [] _ = pure ()
+              write sizes [val] [] 0
+              runEval stk $ f [SomeFFIArg ptr]
   marshalArg (FFITuple types) val f = do
     vals <- sequence $ fromVTuple val
     marshalArgs (zip types vals) f
@@ -187,21 +216,37 @@ foreignPrim name FFIFunType {..} impl tenv = buildFun ffiArgTypes []
   -- FFIType.
   marshalRet :: FFIType -> GetRet -> Eval (GenValue Concrete)
   marshalRet FFIBool gr = VBit . toBool <$> io (getRetAsValue gr @Word8)
-  marshalRet (FFIBasic t) gr = getMarshalBasicRet t (io (getRetAsValue gr) >>=)
-  marshalRet (FFIArray (map evalFinType -> sizes) t) gr =
-    getMarshalBasicRet t \m ->
-      Eval \stk ->
-        allocaArray (fromInteger $ product sizes) \ptr -> do
+  marshalRet (FFIBasic (FFIBasicVal t)) gr =
+    getMarshalBasicValRet t (io (getRetAsValue gr) >>=)
+  marshalRet (FFIBasic (FFIBasicRef t)) gr = io $
+    getBasicRefRet t \BasicRefRet {..} ->
+      alloca \ptr ->
+        bracket_ (initBasicRefRet ptr) (clearBasicRefRet ptr) do
           getRetAsOutArgs gr [SomeFFIArg ptr]
-          let build (n:ns) !i = do
-                -- We need to be careful to actually run this here and not just
-                -- stick the IO action into the sequence with io, or else we
-                -- will read from the array after it is deallocated.
-                vs <- for [0 .. fromInteger n - 1] \j ->
-                  build ns (i * fromInteger n + j)
-                pure $ VSeq n $ finiteSeqMap Concrete $ map pure vs
-              build [] !i = peekElemOff ptr i >>= runEval stk . m
-          build sizes 0
+          peek ptr >>= marshalBasicRefRet
+  marshalRet (FFIArray (map evalFinType -> sizes) bt) gr =
+    case bt of
+      FFIBasicVal t -> getMarshalBasicValRet t \m ->
+        Eval \stk ->
+          allocaArray totalSize $ getResult $ runEval stk . m
+      FFIBasicRef t -> io $
+        getBasicRefRet t \BasicRefRet {..} ->
+          allocaArray totalSize \ptr -> do
+            let forEach f = for_ [0 .. totalSize - 1] $ f . advancePtr ptr
+            bracket_ (forEach initBasicRefRet) (forEach clearBasicRefRet) $
+              getResult marshalBasicRefRet ptr
+    where totalSize = fromInteger $ product sizes
+          getResult marshal ptr = do
+            getRetAsOutArgs gr [SomeFFIArg ptr]
+            let build (n:ns) !i = do
+                  -- We need to be careful to actually run this here and not
+                  -- just stick the IO action into the sequence with io, or else
+                  -- we will read from the array after it is deallocated.
+                  vs <- for [0 .. fromInteger n - 1] \j ->
+                    build ns (i * fromInteger n + j)
+                  pure $ VSeq n $ finiteSeqMap Concrete $ map pure vs
+                build [] !i = peekElemOff ptr i >>= marshal
+            build sizes 0
   marshalRet (FFITuple types) gr = VTuple <$> marshalMultiRet types gr
   marshalRet (FFIRecord typeMap) gr =
     VRecord . recordFromFields . zip (displayOrder typeMap) <$>
@@ -244,15 +289,15 @@ getRetFromAsOutArgs f = GetRet
       peek ptr
   , getRetAsOutArgs = f }
 
--- | Given a 'FFIBasicType', call the callback with a marshalling function that
--- marshals values to the 'FFIArg' type corresponding to the 'FFIBasicType'.
--- The callback must be able to handle marshalling functions that marshal to any
--- 'FFIArg' type.
-getMarshalBasicArg :: FFIBasicType ->
+-- | Given a 'FFIBasicValType', call the callback with a marshalling function
+-- that marshals values to the 'FFIArg' type corresponding to the
+-- 'FFIBasicValType'. The callback must be able to handle marshalling functions
+-- that marshal to any 'FFIArg' type.
+getMarshalBasicValArg :: FFIBasicValType ->
   (forall a. FFIArg a => (GenValue Concrete -> Eval a) -> b) -> b
-getMarshalBasicArg (FFIWord _ s) f = withWordType s \(_ :: p t) ->
-  f @t $ fmap (fromInteger . bvVal) . fromVWord Concrete "getMarshalBasicArg"
-getMarshalBasicArg (FFIFloat _ _ s) f =
+getMarshalBasicValArg (FFIWord _ s) f = withWordType s \(_ :: p t) ->
+  f @t $ fmap (fromInteger . bvVal) . fromVWord Concrete "getMarshalBasicValArg"
+getMarshalBasicValArg (FFIFloat _ _ s) f =
   case s of
     -- LibBF can only convert to 'Double' directly, so we do that first then
     -- convert to 'Float', which should not result in any loss of precision if
@@ -261,15 +306,15 @@ getMarshalBasicArg (FFIFloat _ _ s) f =
     FFIFloat64 -> f $ pure . CDouble . toDouble
   where toDouble = fst . bfToDouble NearEven . bfValue . fromVFloat
 
--- | Given a 'FFIBasicType', call the callback with an unmarshalling function
--- from the 'FFIRet' type corresponding to the 'FFIBasicType' to Cryptol values.
--- The callback must be able to handle unmarshalling functions from any 'FFIRet'
--- type.
-getMarshalBasicRet :: FFIBasicType ->
+-- | Given a 'FFIBasicValType', call the callback with an unmarshalling function
+-- from the 'FFIRet' type corresponding to the 'FFIBasicValType' to Cryptol
+-- values. The callback must be able to handle unmarshalling functions from any
+-- 'FFIRet' type.
+getMarshalBasicValRet :: FFIBasicValType ->
   (forall a. FFIRet a => (a -> Eval (GenValue Concrete)) -> b) -> b
-getMarshalBasicRet (FFIWord n s) f = withWordType s \(_ :: p t) ->
+getMarshalBasicValRet (FFIWord n s) f = withWordType s \(_ :: p t) ->
   f @t $ word Concrete n . toInteger
-getMarshalBasicRet (FFIFloat e p s) f =
+getMarshalBasicValRet (FFIFloat e p s) f =
   case s of
     FFIFloat32 -> f $ toValue . \case CFloat x -> float2Double x
     FFIFloat64 -> f $ toValue . \case CDouble x -> x
@@ -283,6 +328,19 @@ withWordType FFIWord8  f = f $ Proxy @Word8
 withWordType FFIWord16 f = f $ Proxy @Word16
 withWordType FFIWord32 f = f $ Proxy @Word32
 withWordType FFIWord64 f = f $ Proxy @Word64
+
+getMarshalBasicRefArg :: FFIBasicRefType ->
+  (forall a. Storable a =>
+    (GenValue Concrete -> (a -> IO b) -> IO b) -> c) -> c
+getMarshalBasicRefArg FFIInteger f = f \val g ->
+  withInInteger' (fromVInteger val) g
+
+getBasicRefRet :: FFIBasicRefType ->
+  (forall a. Storable a => BasicRefRet a -> b) -> b
+getBasicRefRet FFIInteger f = f BasicRefRet
+  { initBasicRefRet = mpz_init
+  , clearBasicRefRet = mpz_clear
+  , marshalBasicRefRet = fmap VInteger . peekInteger' }
 
 #else
 

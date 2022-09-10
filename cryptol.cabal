@@ -88,7 +88,8 @@ library
     build-depends:     integer-gmp       >= 1.0 && < 1.1
 
   if flag(ffi)
-    build-depends:     libffi            >= 0.2,
+    build-depends:     hgmp,
+                       libffi            >= 0.2,
                        unix
     cpp-options:       -DFFI_ENABLED
 
