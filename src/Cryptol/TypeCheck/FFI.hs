@@ -103,6 +103,7 @@ toFFIBasicType t =
       where float = Just . Right . FFIBasicVal . FFIFloat e p
     TCon (TC TCInteger) [] -> integer Nothing
     TCon (TC TCIntMod) [n] -> integer $ Just n
+    TCon (TC TCRational) [] -> Just $ Right $ FFIBasicRef FFIRational
     _ -> Nothing
   where integer = Just . Right . FFIBasicRef . FFIInteger
 
