@@ -101,10 +101,10 @@ toFFIBasicType t =
       | (e, p) == float64ExpPrec -> float FFIFloat64
       | otherwise -> Just $ Left $ FFITypeError t FFIBadFloatSize
       where float = Just . Right . FFIBasicVal . FFIFloat e p
-    TCon (TC TCInteger) [] -> integer
-    -- TCon (TC TCIntMod) [_] -> integer
+    TCon (TC TCInteger) [] -> integer Nothing
+    TCon (TC TCIntMod) [n] -> integer $ Just n
     _ -> Nothing
-  where integer = Just $ Right $ FFIBasicRef FFIInteger
+  where integer = Just . Right . FFIBasicRef . FFIInteger
 
 fin :: Type -> Prop
 fin t = TCon (PC PFin) [t]

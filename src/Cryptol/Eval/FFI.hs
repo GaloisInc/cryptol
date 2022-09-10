@@ -108,7 +108,7 @@ data GetRet = GetRet
 data BasicRefRet a = BasicRefRet
   { initBasicRefRet    :: Ptr a -> IO ()
   , clearBasicRefRet   :: Ptr a -> IO ()
-  , marshalBasicRefRet :: a -> IO (GenValue Concrete) }
+  , marshalBasicRefRet :: a -> Eval (GenValue Concrete) }
 
 -- | Generate the monomorphic part of the foreign 'Prim', given a 'TypeEnv'
 -- containing all the type arguments we have already received.
@@ -218,35 +218,34 @@ foreignPrim name FFIFunType {..} impl tenv = buildFun ffiArgTypes []
   marshalRet FFIBool gr = VBit . toBool <$> io (getRetAsValue gr @Word8)
   marshalRet (FFIBasic (FFIBasicVal t)) gr =
     getMarshalBasicValRet t (io (getRetAsValue gr) >>=)
-  marshalRet (FFIBasic (FFIBasicRef t)) gr = io $
+  marshalRet (FFIBasic (FFIBasicRef t)) gr =
     getBasicRefRet t \BasicRefRet {..} ->
-      alloca \ptr ->
-        bracket_ (initBasicRefRet ptr) (clearBasicRefRet ptr) do
+      Eval \stk ->
+        alloca \ptr ->
+          bracket_ (initBasicRefRet ptr) (clearBasicRefRet ptr) do
+            getRetAsOutArgs gr [SomeFFIArg ptr]
+            peek ptr >>= runEval stk . marshalBasicRefRet
+  marshalRet (FFIArray (map evalFinType -> sizes) bt) gr = Eval \stk -> do
+    let totalSize = fromInteger $ product sizes
+        getResult marshal ptr = do
           getRetAsOutArgs gr [SomeFFIArg ptr]
-          peek ptr >>= marshalBasicRefRet
-  marshalRet (FFIArray (map evalFinType -> sizes) bt) gr =
+          let build (n:ns) !i = do
+                -- We need to be careful to actually run this here and not just
+                -- stick the IO action into the sequence with io, or else we
+                -- will read from the array after it is deallocated.
+                vs <- for [0 .. fromInteger n - 1] \j ->
+                  build ns (i * fromInteger n + j)
+                pure $ VSeq n $ finiteSeqMap Concrete $ map pure vs
+              build [] !i = peekElemOff ptr i >>= runEval stk . marshal
+          build sizes 0
     case bt of
       FFIBasicVal t -> getMarshalBasicValRet t \m ->
-        Eval \stk ->
-          allocaArray totalSize $ getResult $ runEval stk . m
-      FFIBasicRef t -> io $
-        getBasicRefRet t \BasicRefRet {..} ->
-          allocaArray totalSize \ptr -> do
-            let forEach f = for_ [0 .. totalSize - 1] $ f . advancePtr ptr
-            bracket_ (forEach initBasicRefRet) (forEach clearBasicRefRet) $
-              getResult marshalBasicRefRet ptr
-    where totalSize = fromInteger $ product sizes
-          getResult marshal ptr = do
-            getRetAsOutArgs gr [SomeFFIArg ptr]
-            let build (n:ns) !i = do
-                  -- We need to be careful to actually run this here and not
-                  -- just stick the IO action into the sequence with io, or else
-                  -- we will read from the array after it is deallocated.
-                  vs <- for [0 .. fromInteger n - 1] \j ->
-                    build ns (i * fromInteger n + j)
-                  pure $ VSeq n $ finiteSeqMap Concrete $ map pure vs
-                build [] !i = peekElemOff ptr i >>= marshal
-            build sizes 0
+        allocaArray totalSize $ getResult m
+      FFIBasicRef t -> getBasicRefRet t \BasicRefRet {..} ->
+        allocaArray totalSize \ptr -> do
+          let forEach f = for_ [0 .. totalSize - 1] $ f . advancePtr ptr
+          bracket_ (forEach initBasicRefRet) (forEach clearBasicRefRet) $
+            getResult marshalBasicRefRet ptr
   marshalRet (FFITuple types) gr = VTuple <$> marshalMultiRet types gr
   marshalRet (FFIRecord typeMap) gr =
     VRecord . recordFromFields . zip (displayOrder typeMap) <$>
@@ -272,6 +271,18 @@ foreignPrim name FFIFunType {..} impl tenv = buildFun ffiArgTypes []
           modifyIORef' vals (val :)
     go types []
     map pure <$> readIORef vals
+
+  getBasicRefRet :: FFIBasicRefType ->
+    (forall a. Storable a => BasicRefRet a -> b) -> b
+  getBasicRefRet (FFIInteger mbMod) f = f BasicRefRet
+    { initBasicRefRet = mpz_init
+    , clearBasicRefRet = mpz_clear
+    , marshalBasicRefRet = \mpz -> do
+        n <- io $ peekInteger' mpz
+        VInteger <$>
+          case mbMod of
+            Nothing -> pure n
+            Just m  -> intToZn Concrete (evalFinType m) n }
 
   -- Evaluate a finite numeric type expression.
   evalFinType :: Type -> Integer
@@ -332,15 +343,8 @@ withWordType FFIWord64 f = f $ Proxy @Word64
 getMarshalBasicRefArg :: FFIBasicRefType ->
   (forall a. Storable a =>
     (GenValue Concrete -> (a -> IO b) -> IO b) -> c) -> c
-getMarshalBasicRefArg FFIInteger f = f \val g ->
+getMarshalBasicRefArg (FFIInteger _) f = f \val g ->
   withInInteger' (fromVInteger val) g
-
-getBasicRefRet :: FFIBasicRefType ->
-  (forall a. Storable a => BasicRefRet a -> b) -> b
-getBasicRefRet FFIInteger f = f BasicRefRet
-  { initBasicRefRet = mpz_init
-  , clearBasicRefRet = mpz_clear
-  , marshalBasicRefRet = fmap VInteger . peekInteger' }
 
 #else
 
