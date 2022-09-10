@@ -76,6 +76,7 @@ instance PP (WithNames FFITypeErrorReason) where
       FFIBadComponentTypes errs ->
         indent 2 $ vcat $ map (ppWithNames names) errs
       FFIBadType -> vcat
-        [ "Only Bit, words, floats, sequences, or structs or tuples"
-        , "of the above are supported as FFI argument or return types" ]
+        [ "Only Bit, words, floats, Integer, Z, Rational, sequences, or structs"
+        , "or tuples of the above are supported as FFI argument or return types"
+        ]
       FFINotFunction -> "FFI binding must be a function"
