@@ -7,6 +7,7 @@
 -- Portability :  portable
 
 {-# LANGUAGE RecursiveDo #-}
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE Safe #-}
 -- See Note [-Wincomplete-uni-patterns and irrefutable patterns] in Cryptol.TypeCheck.TypePat
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
@@ -19,7 +20,7 @@ module Cryptol.TypeCheck.Kind
   , checkPropSyn
   , checkParameterType
   , checkParameterConstraints
-  , checkPropGuard
+  , checkPropGuards
   ) where
 
 import qualified Cryptol.Parser.AST as P
@@ -65,20 +66,24 @@ checkSchema withWild (P.Forall xs ps t mb) =
           Nothing -> id
           Just r  -> inRange r
 
--- | Validate a parsed proposition that appears in the guard of a PropGuard.
--- Returns the validated proposition as well as any inferred goal propositions.
-checkPropGuard :: Maybe Range -> Located (P.Prop Name) -> InferM (Prop, [Goal])
-checkPropGuard mb_rng prop = do
-  ((_, t), goals) <-
-    collectGoals $
-    rng $
-    -- not really doing anything here, since we don't want to introduce any new
-    -- type vars into scope
-    withTParams NoWildCards schemaParam [] $
-    checkProp (thing prop)
-  pure (t, goals)
+{- | Validate parsed propositions that appear in the guard of a PropGuard.
+
+  * Note that we don't validate the well-formedness constraints here---instead,
+    they'd be validated when the signature for the auto generated
+    function corresponding guard is checked.
+
+  * We also check that there are no wild-cards in the constraints.
+-}
+checkPropGuards :: [Located (P.Prop Name)] -> InferM [Prop]
+checkPropGuards props =
+  do (newPs,_gs) <- collectGoals (mapM check props)
+     pure newPs
   where
-    rng = maybe id inRange mb_rng
+  check lp =
+    inRange (srcRange lp)
+    do (_,ps) <- withTParams NoWildCards schemaParam [] (checkProp (thing lp))
+       pure ps
+
 
 -- | Check a module parameter declarations.  Nothing much to check,
 -- we just translate from one syntax to another.

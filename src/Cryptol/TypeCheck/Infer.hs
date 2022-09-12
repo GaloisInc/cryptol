@@ -48,7 +48,7 @@ import           Cryptol.TypeCheck.Kind(checkType,checkSchema,checkTySyn,
                                         checkParameterType,
                                         checkPrimType,
                                         checkParameterConstraints,
-                                        checkPropGuard)
+                                        checkPropGuards)
 import           Cryptol.TypeCheck.Instantiate
 import           Cryptol.TypeCheck.Subst (listSubst,apSubst,(@@),isEmptySubst)
 import           Cryptol.TypeCheck.Unify(rootPath)
@@ -70,9 +70,9 @@ import           Data.Traversable(forM)
 import           Data.Function(on)
 import           Control.Monad(zipWithM, unless, foldM, forM_, mplus, zipWithM,
                                unless, foldM, forM_, mplus, when)
-import           Data.Bifunctor (Bifunctor(second))
 
-
+-- import Debug.Trace
+-- import Cryptol.TypeCheck.PP
 
 inferModule :: P.Module Name -> InferM Module
 inferModule m =
@@ -1091,9 +1091,9 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
         withTParams as $ do
           asmps1 <- applySubstPreds asmps0
           t1     <- applySubst t0
-          cases1 <- mapM (checkPropGuardCase name asmps1) cases0
+          cases1 <- mapM checkPropGuardCase cases0
 
-          exh <- checkExhaustive name asmps1 [ props | (props, _) <- cases1 ]
+          exh <- checkExhaustive name asmps1 (map fst cases1)
           unless exh $
               -- didn't prove exhaustive i.e. none of the guarding props
               -- necessarily hold
@@ -1160,36 +1160,6 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
 
       pure (t, asmps, e2)
 
-    -- Checking each guarded case is the same as checking a DExpr, except
-    -- that the guarding assumptions are added first.
-    checkPropGuardCase ::
-      Name ->
-      [Prop] ->
-      P.PropGuardCase Name ->
-      InferM ([Prop], Expr)
-    checkPropGuardCase name asmps1 (P.PropGuardCase guards0 e0) = do
-      mb_rng <- case P.bSignature b of
-        Just (P.Forall _ _ _ mb_rng) -> pure mb_rng
-        _ -> panic "checkSigB"
-          [ "Used constraint guards without a signature, dumbwit, at "
-          , show . pp $ P.bName b ]
-      -- check guards
-      (guards1, goals) <-
-        second concat . unzip <$>
-        checkPropGuard mb_rng `traverse` guards0
-      -- try to prove all goals
-      su <- proveImplication True (Just name) as (asmps1 <> guards1) goals
-      extendSubst su
-      -- Preprends the goals to the constraints, because these must be
-      -- checked first before the rest of the constraints (during
-      -- evaluation) to ensure well-definedness, since some
-      -- constraints make use of partial functions e.g. `a - b`
-      -- requires `a >= b`.
-      let guards2 = (goal <$> goals) <> concatMap pSplitAnd (apSubst su guards1)
-      (_t, guards3, e1) <- checkBindDefExpr asmps1 guards2 e0
-      e2 <- applySubst e1
-      pure (guards3, e2)
-
     {-
     Given a DPropGuards of the form
 
@@ -1218,6 +1188,14 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
 
     -}
     checkExhaustive :: Name -> [Prop] -> [[Prop]] -> InferM Bool
+{-
+    checkExhaustive name asmps guards
+      | trace (unlines [ "CHECK EXHAUSTIVE:"
+                       , show (vcat (map pp asmps))
+                       , "---"
+                       , show (vcat [ "GUARD: " <+> hsep (map pp ps) | ps <- guards ] )
+                       ]) False = undefined
+-}
     checkExhaustive name asmps guards = 
       -- sort in decreasing order of number of conjuncts
       let c props1 props2 = 
@@ -1255,8 +1233,39 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
         canProve :: [Prop] -> [Goal] -> InferM Bool
         canProve asmps' goals = isRight <$>
           tryProveImplication (Just name) as asmps' goals
-      
 
+{- | This function does not validate anything---it just translates into
+the type-checkd syntax.  The actual validation of the guard will happen
+when the (automatically generated) function corresponding to the guard is
+checked, assuming 'ExpandpropGuards' did its job correctly.
+
+-}
+checkPropGuardCase :: P.PropGuardCase Name -> InferM ([Prop],Expr)
+checkPropGuardCase (P.PropGuardCase guards e0) =
+  do ps <- checkPropGuards guards
+     tys <- mapM (`checkType` Nothing) ts
+     let rhsTs = foldl ETApp                  (getV eV) tys
+         rhsPs = foldl (\e _p -> EProofApp e) rhsTs     ps
+         rhs   = foldl EApp                   rhsPs     (map getV es)
+     pure (ps,rhs)
+
+  where
+  (e1,es) = P.asEApps e0
+  (eV,ts) = case e1 of
+              P.EAppT ex1 tis -> (ex1, map getT tis)
+              _               -> (e1, [])
+
+  getV ex =
+    case ex of
+      P.EVar x -> EVar x
+      _        -> bad "Expression is not a variable."
+
+  getT ti =
+    case ti of
+      P.PosInst t    -> t
+      P.NamedInst {} -> bad "Unexpeceted NamedInst"
+
+  bad msg = panic "checkPropGuardCase" [msg]
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------

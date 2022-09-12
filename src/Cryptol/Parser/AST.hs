@@ -78,6 +78,7 @@ module Cryptol.Parser.AST
   , emptyFunDesc
   , PrefixOp(..)
   , prefixFixity
+  , asEApps
 
     -- * Positions
   , Located(..)
