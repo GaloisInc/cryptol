@@ -31,10 +31,6 @@ type ExpandPropGuardsM a = Either Error a
 runExpandPropGuardsM :: ExpandPropGuardsM a -> Either Error a
 runExpandPropGuardsM m = m
 
--- | Class
-class ExpandPropGuards a where
-  expandPropGuards :: a -> ExpandPropGuardsM a
-
 -- | Error
 data Error = NoSignature (Located PName)
   deriving (Show, Generic, NFData)
@@ -45,75 +41,76 @@ instance PP Error where
       text "At" <+> pp (srcRange x) <.> colon
         <+> text "Declarations using constraint guards require an explicit type signature."
 
--- | Instances
-instance ExpandPropGuards (Program PName) where
-  expandPropGuards (Program decls) = Program <$> expandPropGuards decls
+expandPropGuards :: ModuleG m PName -> ExpandPropGuardsM (ModuleG m PName)
+expandPropGuards m =
+  do mDecls' <- mapM expandTopDecl (mDecls m)
+     pure m {mDecls = concat mDecls' }
 
-instance ExpandPropGuards (Module PName) where
-  expandPropGuards m = do
-    mDecls' <- expandPropGuards (mDecls m)
-    pure m {mDecls = mDecls'}
+expandTopDecl :: TopDecl PName -> ExpandPropGuardsM [TopDecl PName]
+expandTopDecl topDecl =
+  case topDecl of
+    Decl topLevelDecl ->
+      do ds <- expandDecl (tlValue topLevelDecl)
+         pure [ Decl topLevelDecl { tlValue = d } | d <- ds ]
 
-instance ExpandPropGuards [TopDecl PName] where
-  expandPropGuards topDecls = concat <$> traverse goTopDecl topDecls
-    where
-      goTopDecl :: TopDecl PName -> ExpandPropGuardsM [TopDecl PName]
-      goTopDecl (Decl topLevelDecl) = fmap mu <$> expandPropGuards [tlValue topLevelDecl]
-        where
-          mu decl = Decl $ topLevelDecl {tlValue = decl}
-      goTopDecl topDecl = pure [topDecl]
+    DModule tl | NestedModule m <- tlValue tl ->
+      do m1 <- expandPropGuards m
+         pure [DModule tl { tlValue = NestedModule m1 }]
 
-instance ExpandPropGuards [Decl PName] where
-  expandPropGuards decls = concat <$> traverse goDBind decls
-    where
-      goDBind (DBind bind) = fmap DBind <$> expandPropGuards [bind]
-      goDBind decl = pure [decl]
+    _ -> pure [topDecl]
 
-instance ExpandPropGuards [Bind PName] where
-  expandPropGuards binds = concat <$> traverse goBind binds
-    where
-      goBind :: Bind PName -> Either Error [Bind PName]
-      goBind bind = case thing $ bDef bind of
-        DPropGuards guards -> do
-          Forall params props t rng <-
-            case bSignature bind of
-              Just schema -> pure schema
-              Nothing -> Left . NoSignature $ bName bind
-          let goGuard ::
-                PropGuardCase PName ->
-                ExpandPropGuardsM (PropGuardCase PName, Bind PName)
-              goGuard (PropGuardCase props' e) = do
-                bName' <- newName (bName bind) (thing <$> props')
-                -- call to generated function
-                tParams <- case bSignature bind of
-                  Just (Forall tps _ _ _) -> pure tps
-                  Nothing -> Left $ NoSignature (bName bind)
-                typeInsts <-
-                  (\(TParam n _ _) -> Right . PosInst $ TUser n [])
-                    `traverse` tParams
-                let e' = foldl EApp (EAppT (EVar $ thing bName') typeInsts) (patternToExpr <$> bParams bind)
-                pure
-                  ( PropGuardCase props' e',
-                    bind
-                      { bName = bName',
-                        -- include guarded props in signature
-                        bSignature = Just (Forall params
-                                             (props <> map thing props')
-                                             t rng),
-                        -- keeps same location at original bind
-                        -- i.e. "on top of" original bind
-                        bDef = (bDef bind) {thing = DExpr e}
-                      }
-                  )
-          (guards', binds') <- unzip <$> mapM goGuard guards
-          pure $
-            bind {bDef = DPropGuards guards' <$ bDef bind} :
-            binds'
-        _ -> pure [bind]
+expandDecl :: Decl PName -> ExpandPropGuardsM [Decl PName]
+expandDecl decl =
+  case decl of
+    DBind bind -> do bs <- expandBind bind
+                     pure (map DBind bs)
+    _          -> pure [decl]
+
+expandBind :: Bind PName -> ExpandPropGuardsM [Bind PName]
+expandBind bind =
+  case thing (bDef bind) of
+    DPropGuards guards -> do
+      Forall params props t rng <-
+        case bSignature bind of
+          Just schema -> pure schema
+          Nothing -> Left . NoSignature $ bName bind
+      let goGuard ::
+            PropGuardCase PName ->
+            ExpandPropGuardsM (PropGuardCase PName, Bind PName)
+          goGuard (PropGuardCase props' e) = do
+            bName' <- newName (bName bind) (thing <$> props')
+            -- call to generated function
+            tParams <- case bSignature bind of
+              Just (Forall tps _ _ _) -> pure tps
+              Nothing -> Left $ NoSignature (bName bind)
+            typeInsts <-
+              (\(TParam n _ _) -> Right . PosInst $ TUser n [])
+                `traverse` tParams
+            let e' = foldl EApp (EAppT (EVar $ thing bName') typeInsts) (patternToExpr <$> bParams bind)
+            pure
+              ( PropGuardCase props' e',
+                bind
+                  { bName = bName',
+                    -- include guarded props in signature
+                    bSignature = Just (Forall params
+                                         (props <> map thing props')
+                                         t rng),
+                    -- keeps same location at original bind
+                    -- i.e. "on top of" original bind
+                    bDef = (bDef bind) {thing = DExpr e}
+                  }
+              )
+      (guards', binds') <- unzip <$> mapM goGuard guards
+      pure $
+        bind {bDef = DPropGuards guards' <$ bDef bind} :
+        binds'
+    _ -> pure [bind]
 
 patternToExpr :: Pattern PName -> Expr PName
 patternToExpr (PVar locName) = EVar (thing locName)
-patternToExpr _ = panic "patternToExpr" ["Unimplemented: patternToExpr of anything other than PVar"]
+patternToExpr _ =
+  panic "patternToExpr"
+    ["Unimplemented: patternToExpr of anything other than PVar"]
 
 newName :: Located PName -> [Prop PName] -> ExpandPropGuardsM (Located PName)
 newName locName props =
