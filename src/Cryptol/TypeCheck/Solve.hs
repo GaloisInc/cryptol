@@ -294,8 +294,7 @@ proveImplication dedupErrs lnam as ps gs =
 -- proved, then returns `Left (m_err :: InferM ())`, which records all errors
 -- invoked during proving.
 tryProveImplication :: 
-  Maybe Name -> [TParam] -> [Prop] -> [Goal] ->
-  InferM (Either (InferM ()) (InferM Subst))
+  Maybe Name -> [TParam] -> [Prop] -> [Goal] -> InferM Bool
 tryProveImplication lnam as ps gs =
   do evars <- varsWithAsmps
      solver <- getSolver
@@ -303,14 +302,11 @@ tryProveImplication lnam as ps gs =
      extraAs <- (map mtpParam . Map.elems) <$> getParamTypes
      extra   <- map thing <$> getParamConstraints
 
-     (mbErr,su) <- io (proveImplicationIO solver False lnam evars
+     (mbErr,_su) <- io (proveImplicationIO solver False lnam evars
                             (extraAs ++ as) (extra ++ ps) gs)
      case mbErr of
-       Left errs -> pure . Left $ do
-         mapM_ recordError errs
-       Right ws  -> pure . Right $ do
-         mapM_ recordWarning ws
-         return su
+       Left {}  -> pure False
+       Right {} -> pure True
 
 proveImplicationIO :: Solver
                    -> Bool     -- ^ Whether to remove duplicate goals in errors

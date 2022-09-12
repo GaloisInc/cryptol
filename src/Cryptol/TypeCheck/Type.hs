@@ -849,61 +849,47 @@ pPrime ty =
 
 -- Negation --------------------------------------------------------------------
 
-{-|
-`pNegNumeric` negates a simple prop over numeric type vars. Results in `Just _`
-if the input is simple and can be negated, otherwise `Nothing`. The input list
-is understood as a conjunction.
+{-| `pNegNumeric` negates a simple (i.e., not And, not prime, etc) prop
+over numeric type vars.  The result is a conjunction of properties.  -}
+pNegNumeric :: Prop -> [Prop]
+pNegNumeric prop =
+  case tNoUser prop of
+    TCon tcon tys ->
+      case tcon of
+        PC pc ->
+          case pc of
 
-The only simple props are: @(x == y), (x /= y), (x >= y), (fin x), True@, and
-any type constraint synonym applications where the type constraint synonym is
-defined in terms of only simple props.
+            -- not (x == y)  <=>  x /= y
+            PEqual -> [TCon (PC PNeq) tys]
 
-The negation of a conjunction of props should result in a disjunction via
-DeMorgan's laws. e.g. `(x == y, x == z)  =>  (x /= y) or (x /= z)`. However,
-Cryptol currently doesn't support disjunctions in type constraints, so instead
-`pNegNumeric` results in a list of lists of props that is understood to be a
-disjunction of conjunctions.
--}
-{-|
-Examples:
-@
-  [(x == y)]            =>  Just [[(x /= y)]]
-  [(fin x)]             =>  Just [[(x == inf)]]
-  [(x <= y)]            =>  Just [[(x >= y), (x /= y)]]
-  [(x == y), (x == z)]  =>  Just [[(x /= y)], [(x /= z)]]
-@
--}
-pNegNumeric :: [Prop] -> [[Prop]]
-pNegNumeric props = do
-  prop <- props
-  maybe mempty pure (go prop)
+            -- not (x /= y)  <=>  x == y
+            PNeq -> [TCon (PC PEqual) tys]
+
+            -- not (x >= y)  <=>  x /= y and y >= x
+            PGeq -> [TCon (PC PNeq) tys, TCon (PC PGeq) (reverse tys)]
+
+            -- not (fin x)  <=>  x == Inf
+            PFin | [ty] <- tys -> [ty =#= tInf]
+                 | otherwise -> bad
+
+            -- not True  <=>  0 == 1
+            PTrue -> [TCon (PC PEqual) [tZero, tOne]]
+
+            _ -> bad
+
+        TError _ki -> [prop] -- propogates `TError`
+
+        TC _tc -> bad
+        TF _tf -> bad
+
+    _ -> bad
+
   where
-    go :: Prop -> Maybe [Prop]
-    go prop = case prop of
-      TCon tcon tys -> case tcon of
-        PC pc -> case pc of
-          -- not x == y  <=>  x /= y
-          PEqual -> pure [TCon (PC PNeq) tys]
-          -- not x /= y  <=>  x == y
-          PNeq -> pure [TCon (PC PEqual) tys]
-          -- not x >= y  <=>  x /= y and y >= x
-          PGeq -> pure [TCon (PC PNeq) tys, TCon (PC PGeq) (reverse tys)]
-          -- not fin x  <=>  x == Inf
-          PFin | [ty] <- tys -> pure [TCon (PC PEqual) [ty, tInf]]
-              | otherwise -> panicInvalid
-          -- not True  <=>  0 == 1
-          PTrue -> pure [TCon (PC PEqual) [tZero, tOne]]
-          -- not simple enough
-          _ -> mempty
-        TC _tc -> panicInvalid
-        TF _tf -> panicInvalid
-        TError _ki -> Just [prop] -- propogates `TError`
-      TUser _na _tys ty -> go ty
-      _ -> panicInvalid
-      where
-        panicInvalid = panic "pNegNumeric"
-          [ "This type shouldn't be a valid type constraint: " ++
-            "`" ++ pretty prop ++ "`"]
+  bad = panic "pNegNumeric"
+          [ "Unexpeceted numeric constraint:"
+          , pretty prop
+          ]
+
 
 --------------------------------------------------------------------------------
 

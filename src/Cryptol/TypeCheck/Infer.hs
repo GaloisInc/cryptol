@@ -15,6 +15,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE Safe #-}
+-- {-# LANGUAGE Trustworthy #-}
 -- See Note [-Wincomplete-uni-patterns and irrefutable patterns] in Cryptol.TypeCheck.TypePat
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# LANGUAGE LambdaCase #-}
@@ -63,7 +64,7 @@ import qualified Data.Map as Map
 import           Data.Map (Map)
 import qualified Data.Set as Set
 import           Data.List(foldl', sortBy, groupBy, partition)
-import           Data.Either(partitionEithers, isRight)
+import           Data.Either(partitionEithers)
 import           Data.Maybe(isJust, fromMaybe, mapMaybe)
 import           Data.Ratio(numerator,denominator)
 import           Data.Traversable(forM)
@@ -1093,7 +1094,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
           t1     <- applySubst t0
           cases1 <- mapM checkPropGuardCase cases0
 
-          exh <- checkExhaustive name asmps1 (map fst cases1)
+          exh <- checkExhaustive (P.bName b) as asmps1 (map fst cases1)
           unless exh $
               -- didn't prove exhaustive i.e. none of the guarding props
               -- necessarily hold
@@ -1160,79 +1161,76 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
 
       pure (t, asmps, e2)
 
-    {-
-    Given a DPropGuards of the form
 
-    @
-    f : {...} A
-    f | (B1, B2) => ... 
-      | (C1, C2, C2) => ... 
-    @
 
-    we check that it is exhaustive by trying to prove the following
-    implications:
+{- |
+Given a DPropGuards of the form
 
-    @
-      A /\ ~B1 => C1 /\ C2 /\ C3
-      A /\ ~B2 => C1 /\ C2 /\ C3 
-    @
+@
+f : {...} A
+f | (B1, B2) => ... 
+  | (C1, C2, C2) => ... 
+@
 
-    The implications were derive by the following general algorithm:
-    - Find that @(C1, C2, C3)@ is the guard that has the most conjuncts, so we
-      will keep it on the RHS of the generated implications in order to minimize
-      the number of implications we need to check.
-    - Negate @(B1, B2)@ which yields @(~B1) \/ (~B2)@. This is a disjunction, so
-      we need to consider a branch for each disjunct --- one branch gets the
-      assumption @~B1@ and another branch gets the assumption @~B2@. Each
-      branch's implications need to be proven independently.
+we check that it is exhaustive by trying to prove the following
+implications:
 
-    -}
-    checkExhaustive :: Name -> [Prop] -> [[Prop]] -> InferM Bool
-{-
-    checkExhaustive name asmps guards
-      | trace (unlines [ "CHECK EXHAUSTIVE:"
-                       , show (vcat (map pp asmps))
-                       , "---"
-                       , show (vcat [ "GUARD: " <+> hsep (map pp ps) | ps <- guards ] )
-                       ]) False = undefined
+@
+  A /\ ~B1 => C1 /\ C2 /\ C3
+  A /\ ~B2 => C1 /\ C2 /\ C3
+@
+
+The implications were derive by the following general algorithm:
+- Find that @(C1, C2, C3)@ is the guard that has the most conjuncts, so we
+  will keep it on the RHS of the generated implications in order to minimize
+  the number of implications we need to check.
+- Negate @(B1, B2)@ which yields @(~B1) \/ (~B2)@. This is a disjunction, so
+  we need to consider a branch for each disjunct --- one branch gets the
+  assumption @~B1@ and another branch gets the assumption @~B2@. Each
+  branch's implications need to be proven independently.
+
 -}
-    checkExhaustive name asmps guards = 
-      -- sort in decreasing order of number of conjuncts
-      let c props1 props2 = 
-            -- reversed, so that sorting is in decreasing order
-            compare (length props2) (length props1)
-      in
-      case sortBy c guards of
-        [] -> pure False -- empty PropGuards 
-        -- singleton
-        [props] -> canProve asmps (toGoal <$> props)
-        (props : guards') -> 
-          -- Keep `props` on the RHS of implication. Negate each of `guards` and
-          -- move to RHS. For each negation of a conjunction, a disjunction is
-          -- yielded, which multiplies the number of implications that we need
-          -- to check. So that's why we chose the guard with the largest
-          -- conjunction to stay on RHS.
-          let 
-            goals = toGoal <$> props
-            impls = go asmps guards'
-              where 
-                go asmps' [] = pure $ canProve asmps' goals
-                go asmps' (guard : guards'') = do
-                  neg_guard <- pNegNumeric guard
-                  go (asmps' <> neg_guard) guards''
-          in
-            and <$> sequence impls
-      where
-        toGoal :: Prop -> Goal
-        toGoal prop =
-          Goal
-            { goalSource = CtPropGuardsExhaustive name
-            , goalRange = srcRange $ P.bName b
-            , goal = prop }
+checkExhaustive :: Located Name -> [TParam] -> [Prop] -> [[Prop]] -> InferM Bool
+checkExhaustive name as asmps guards =
+  case sortBy cmpByLonger guards of
+    [] -> pure False -- XXX: we should check the asmps are unsatisfiable
+    longest : rest -> doGoals (theAlts rest) (map toGoal longest)
 
-        canProve :: [Prop] -> [Goal] -> InferM Bool
-        canProve asmps' goals = isRight <$>
-          tryProveImplication (Just name) as asmps' goals
+  where
+  cmpByLonger props1 props2 = compare (length props2) (length props1)
+                                          -- reversed, so that longets is first
+
+  theAlts :: [[Prop]] -> [[Prop]]
+  theAlts = map concat . sequence . map chooseNeg
+
+  -- Choose one of the things to negate
+  chooseNeg ps =
+    case ps of
+      []     -> []
+      p : qs -> (pNegNumeric p ++ qs) : [ p : alts | alts <- chooseNeg qs ]
+
+
+
+  -- Try to validate all cases
+  doGoals todo gs =
+    case todo of
+      []     -> pure True
+      alt : more ->
+        do ok <- canProve (asmps ++ alt) gs
+           if ok then doGoals more gs
+                 else pure False
+
+  toGoal :: Prop -> Goal
+  toGoal prop =
+    Goal
+      { goalSource = CtPropGuardsExhaustive (thing name)
+      , goalRange  = srcRange name
+      , goal       = prop
+      }
+
+  canProve :: [Prop] -> [Goal] -> InferM Bool
+  canProve asmps' goals =
+    tryProveImplication (Just (thing name)) as asmps' goals
 
 {- | This function does not validate anything---it just translates into
 the type-checkd syntax.  The actual validation of the guard will happen
