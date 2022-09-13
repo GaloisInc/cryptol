@@ -159,6 +159,9 @@ data Error    = KindMismatch (Maybe TypeSource) Kind Kind
                 -- ^ All declarataions in a recursive group involving
                 -- constraint guards should have signatures
 
+              | InvalidConstraintGuard Prop
+                -- ^ The given constraint may not be used as a constraint guard
+
               | TemporaryError Doc
                 -- ^ This is for errors that don't fit other cateogories.
                 -- We should not use it much, and is generally to be used
@@ -221,6 +224,7 @@ errorImportance err =
 
     NestedConstraintGuard {}                         -> 10
     DeclarationRequiresSignatureCtrGrd {}            -> 9
+    InvalidConstraintGuard {}                        -> 5
 
 
 instance TVars Warning where
@@ -277,6 +281,7 @@ instance TVars Error where
 
       NestedConstraintGuard {} -> err
       DeclarationRequiresSignatureCtrGrd {} -> err
+      InvalidConstraintGuard p -> InvalidConstraintGuard $! apSubst su p
 
       TemporaryError {} -> err
 
@@ -318,6 +323,7 @@ instance FVS Error where
 
       NestedConstraintGuard {} -> Set.empty
       DeclarationRequiresSignatureCtrGrd {} -> Set.empty
+      InvalidConstraintGuard p -> fvs p
 
       TemporaryError {} -> Set.empty
 
@@ -522,6 +528,15 @@ instance PP (WithNames Error) where
         vcat [ "The declaration of" <+> backticks (pp d) <+>
                                             "requires a full type signature,"
              , "because it is part of a recursive group with constraint guards."
+             ]
+
+      InvalidConstraintGuard p ->
+        let d = case tNoUser p of
+                  TCon tc _ -> pp tc
+                  _         -> ppWithNames names p
+        in
+        vcat [ backticks d <+> "may not be used in a constraint guard."
+             , "Constraint guards support only numeric comparisons and `fin`."
              ]
 
       TemporaryError doc -> doc

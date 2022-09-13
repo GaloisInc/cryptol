@@ -81,8 +81,13 @@ checkPropGuards props =
   where
   check lp =
     inRange (srcRange lp)
-    do (_,ps) <- withTParams NoWildCards schemaParam [] (checkProp (thing lp))
+    do let p = thing lp
+       (_,ps) <- withTParams NoWildCards schemaParam [] (checkProp p)
+       case tNoUser ps of
+         TCon (PC x) _ | x `elem` [PEqual,PNeq,PGeq,PFin,PTrue] -> pure ()
+         _ -> recordError (InvalidConstraintGuard ps)
        pure ps
+
 
 
 -- | Check a module parameter declarations.  Nothing much to check,
@@ -417,7 +422,7 @@ doCheckType ty k =
 
 -- | Validate a parsed proposition.
 checkProp :: P.Prop Name      -- ^ Proposition that need to be checked
-          -> KindM Type       -- ^ Checked representation
+          -> KindM Prop -- ^ Checked representation
 checkProp (P.CType t) = doCheckType t (Just KProp)
 
 
