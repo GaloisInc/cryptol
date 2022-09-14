@@ -2,6 +2,11 @@
 
 ## Language changes
 
+* Declarations may now use *numeric constraint guards*.   This is a feature
+  that allows a function to behave differently depending on its numeric
+  type parameters.  See the [manual section](https://galoisinc.github.io/cryptol/RefMan/_build/html/BasicSyntax.html#numeric-constraint-guards))
+  for more information.
+
 * The foreign function interface (FFI) has been added, which allows Cryptol to
   call functions written in C. See the [manual section](https://galoisinc.github.io/cryptol/RefMan/_build/html/FFI.html)
   for more information.

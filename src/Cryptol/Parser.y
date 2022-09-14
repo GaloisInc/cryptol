@@ -302,11 +302,14 @@ mbDoc                   :: { Maybe (Located Text) }
   : doc                    { Just $1 }
   | {- empty -}            { Nothing }
 
-
 decl                    :: { Decl PName }
   : vars_comma ':' schema  { at (head $1,$3) $ DSignature (reverse $1) $3   }
   | ipat '=' expr          { at ($1,$3) $ DPatBind $1 $3                    }
   | '(' op ')' '=' expr    { at ($1,$5) $ DPatBind (PVar $2) $5             }
+  | var apats_indices propguards_cases
+                           {% mkPropGuardsDecl $1 $2 $3 }
+  | var propguards_cases
+                           {% mkConstantPropGuardsDecl $1 $2 }
   | var apats_indices '=' expr
                            { at ($1,$4) $ mkIndexedDecl $1 $2 $4 }
 
@@ -383,6 +386,19 @@ let_decl                :: { Decl PName }
   | 'infixl' NUM ops       {% mkFixity LeftAssoc  $2 (reverse $3) }
   | 'infixr' NUM ops       {% mkFixity RightAssoc $2 (reverse $3) }
   | 'infix'  NUM ops       {% mkFixity NonAssoc   $2 (reverse $3) }
+
+
+
+
+propguards_cases                   :: { [PropGuardCase PName] }
+  : propguards_cases propguards_case  { $2 : $1 }
+  | propguards_case                   { [$1] }
+
+propguards_case                    :: { PropGuardCase PName }
+  : '|' propguards_quals '=>' expr    { PropGuardCase $2 $4 }
+
+propguards_quals                   :: { [Located (Prop PName)] }
+  : type                              {% mkPropGuards $1 }
 
 
 newtype                 :: { Newtype PName }

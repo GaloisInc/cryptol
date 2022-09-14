@@ -1,0 +1,194 @@
+module SuiteB_FFI where
+
+import SuiteB as SB
+
+/***** AES ******/
+
+/**
+ * Key schedule parameter setting for AES-128
+ */
+type AES128 = SB::AES128
+
+/**
+ * Key schedule parameter setting for AES-192
+ */
+type AES192 = SB::AES192
+
+/**
+ * Key schedule parameter setting for AES-256
+ */
+type AES256 = SB::AES256
+
+/**
+ * Element of an AES key schedule for use in a particular round
+ */
+type AESRoundKey = SB::AESRoundKey
+
+/**
+ * Expanded encryption key schedule for AES
+ */
+type AESEncryptKeySchedule k = SB::AESEncryptKeySchedule k
+
+/**
+ * Expanded decryption key schedule for AES
+ */
+type AESDecryptKeySchedule k = SB::AESDecryptKeySchedule k
+
+/**
+ * Encryption key expansion for AES-128.
+ *   See FIPS 197, section 5.2.
+ */
+aes128EncryptSchedule : [128] -> AESEncryptKeySchedule AES128
+aes128EncryptSchedule =
+  if aesniSupported
+    then \key -> aesniExpandEncrypt128 (split key)
+    else SB::aes128EncryptSchedule
+
+/**
+ * Decryption key expansion for AES-128, for use in the "equivalent inverse cypher".
+ *   See FIPS 197, sections 5.2 and 5.3.5.
+ */
+aes128DecryptSchedule : [128] -> AESDecryptKeySchedule AES128
+aes128DecryptSchedule =
+  if aesniSupported
+    then \key -> aesniExpandDecrypt128 (split key)
+    else SB::aes128DecryptSchedule
+
+/**
+ * Encryption and decryption key schedules for AES-128.
+ * If you will need both schedules, it is slightly more efficient
+ * to call this function than to compute the two schedules separately.
+ *   See FIPS 197, sections 5.2 and 5.3.5.
+ */
+aes128Schedules : [128] -> (AESEncryptKeySchedule AES128, AESDecryptKeySchedule AES128)
+aes128Schedules =
+  if aesniSupported
+    then \key -> aesniExpandEncryptDecrypt128 (split key)
+    else SB::aes128Schedules
+
+/**
+ * Encryption key expansion for AES-192.
+ *   See FIPS 197, section 5.2.
+ */
+aes192EncryptSchedule : [192] -> AESEncryptKeySchedule AES192
+aes192EncryptSchedule =
+  if aesniSupported
+    then \key -> aesniExpandEncrypt192 (split key)
+    else SB::aes192EncryptSchedule
+
+/**
+ * Decryption key expansion for AES-192, for use in the "equivalent inverse cypher".
+ *   See FIPS 197, sections 5.2 and 5.3.5.
+ */
+aes192DecryptSchedule : [192] -> AESDecryptKeySchedule AES192
+aes192DecryptSchedule =
+  if aesniSupported
+    then \key -> aesniExpandDecrypt192 (split key)
+    else SB::aes192DecryptSchedule
+
+/**
+ * Encryption and decryption key schedules for AES-192.
+ * If you will need both schedules, it is slightly more efficient
+ * to call this function than to compute the two schedules separately.
+ *   See FIPS 197, sections 5.2 and 5.3.5.
+ */
+aes192Schedules : [192] -> (AESEncryptKeySchedule AES192, AESDecryptKeySchedule AES192)
+aes192Schedules =
+  if aesniSupported
+    then \key -> aesniExpandEncryptDecrypt192 (split key)
+    else SB::aes192Schedules
+
+
+/**
+ * Encryption key expansion for AES-256.
+ *   See FIPS 197, section 5.2
+ */
+aes256EncryptSchedule : [256] -> AESEncryptKeySchedule AES256
+aes256EncryptSchedule =
+  if aesniSupported
+    then \key -> aesniExpandEncrypt256 (split key)
+    else SB::aes256EncryptSchedule
+
+/**
+ * Decryption key expansion for AES-256, for use in the "equivalent inverse cypher".
+ *   See FIPS 197, sections 5.2 and 5.3.5.
+ */
+aes256DecryptSchedule : [256] -> AESDecryptKeySchedule AES256
+aes256DecryptSchedule =
+  if aesniSupported
+    then \key -> aesniExpandDecrypt256 (split key)
+    else SB::aes256DecryptSchedule
+
+/**
+ * Encryption and decryption key schedules for AES-256.
+ * If you will need both schedules, it is slightly more efficient
+ * to call this function than to compute the two schedules separately.
+ *   See FIPS 197, sections 5.2 and 5.3.5.
+ */
+aes256Schedules : [256] -> (AESEncryptKeySchedule AES256, AESDecryptKeySchedule AES256)
+aes256Schedules =
+  if aesniSupported
+    then \key -> aesniExpandEncryptDecrypt256 (split key)
+    else SB::aes256Schedules
+
+/**
+ * AES block encryption algorithm.
+ *   See FIPS 197, section 5.1.
+ */
+aesEncryptBlock : {k} (fin k) => AESEncryptKeySchedule k -> [128] -> [128]
+aesEncryptBlock =
+  if aesniSupported
+    then \schedule plaintext -> join (aesniEncryptBlock schedule (split plaintext))
+    else SB::aesEncryptBlock
+
+/**
+ * AES block decryption algorithm, via the "equivalent inverse cypher".
+ *   See FIPS 197, section 5.3.5.
+ */
+aesDecryptBlock : {k} (fin k) => AESDecryptKeySchedule k -> [128] -> [128]
+aesDecryptBlock =
+  if aesniSupported
+    then \schedule ciphertext -> join (aesniDecryptBlock schedule (split ciphertext))
+    else SB::aesDecryptBlock
+
+private
+  foreign checkAESNISupported : () -> Bit
+  foreign aesniExpandEncrypt128 : [16][8] -> AESEncryptKeySchedule AES128
+  foreign aesniExpandDecrypt128 : [16][8] -> AESDecryptKeySchedule AES128
+  foreign aesniExpandEncryptDecrypt128 : [16][8]
+    -> (AESEncryptKeySchedule AES128, AESDecryptKeySchedule AES128)
+  foreign aesniExpandEncrypt192 : [24][8] -> AESEncryptKeySchedule AES192
+  foreign aesniExpandDecrypt192 : [24][8] -> AESDecryptKeySchedule AES192
+  foreign aesniExpandEncryptDecrypt192 : [24][8]
+    -> (AESEncryptKeySchedule AES192, AESDecryptKeySchedule AES192)
+  foreign aesniExpandEncrypt256 : [32][8] -> AESEncryptKeySchedule AES256
+  foreign aesniExpandDecrypt256 : [32][8] -> AESDecryptKeySchedule AES256
+  foreign aesniExpandEncryptDecrypt256 : [32][8]
+    -> (AESEncryptKeySchedule AES256, AESDecryptKeySchedule AES256)
+  foreign aesniEncryptBlock : {k} (fin k) => AESEncryptKeySchedule k -> [16][8] -> [16][8]
+  foreign aesniDecryptBlock : {k} (fin k) => AESDecryptKeySchedule k -> [16][8] -> [16][8]
+
+  aesniSupported = checkAESNISupported ()
+
+
+/***** SHA2 *****/
+
+/**
+ * The SHA-224 secure hash algorithm.  See FIPS 180-4, section 6.3.
+ */
+sha224 = SB::sha224
+
+/**
+ * The SHA-256 secure hash algorithm.  See FIPS 180-4, section 6.2.2.
+ */
+sha256 = SB::sha256
+
+/**
+ * The SHA-384 secure hash algorithm.  See FIPS 180-4, section 6.5.
+ */
+sha384 = SB::sha384
+
+/**
+ * The SHA-512 secure hash algorithm.  See FIPS 180-4, section 6.4.
+ */
+sha512 = SB::sha512

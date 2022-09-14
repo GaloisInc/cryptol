@@ -1561,23 +1561,16 @@ liftModuleCmd cmd =
                 }
      moduleCmdResult =<< io (cmd minp)
 
+-- TODO: add filter for my exhaustie prop guards warning here
+
 moduleCmdResult :: M.ModuleRes a -> REPL a
 moduleCmdResult (res,ws0) = do
   warnDefaulting  <- getKnownUser "warnDefaulting"
   warnShadowing   <- getKnownUser "warnShadowing"
   warnPrefixAssoc <- getKnownUser "warnPrefixAssoc"
+  warnNonExhConGrds <- getKnownUser "warnNonExhaustiveConstraintGuards"
   -- XXX: let's generalize this pattern
-  let isDefaultWarn (T.DefaultingTo _ _) = True
-      isDefaultWarn _ = False
-
-      filterDefaults w | warnDefaulting = Just w
-      filterDefaults (M.TypeCheckWarnings nameMap xs) =
-        case filter (not . isDefaultWarn . snd) xs of
-          [] -> Nothing
-          ys -> Just (M.TypeCheckWarnings nameMap ys)
-      filterDefaults w = Just w
-
-      isShadowWarn (M.SymbolShadowed {}) = True
+  let isShadowWarn (M.SymbolShadowed {}) = True
       isShadowWarn _                     = False
 
       isPrefixAssocWarn (M.PrefixAssocChanged {}) = True
@@ -1590,9 +1583,23 @@ moduleCmdResult (res,ws0) = do
           ys -> Just (M.RenamerWarnings ys)
       filterRenamer _ _ w = Just w
 
-  let ws = mapMaybe filterDefaults
-         . mapMaybe (filterRenamer warnShadowing isShadowWarn)
+      -- ignore certain warnings during typechecking
+      filterTypecheck :: M.ModuleWarning -> Maybe M.ModuleWarning
+      filterTypecheck (M.TypeCheckWarnings nameMap xs) = 
+        case filter (allow . snd) xs of 
+          [] -> Nothing
+          ys -> Just (M.TypeCheckWarnings nameMap ys)
+          where
+            allow :: T.Warning -> Bool 
+            allow = \case
+              T.DefaultingTo _ _ | not warnDefaulting -> False
+              T.NonExhaustivePropGuards _ | not warnNonExhConGrds -> False
+              _ -> True
+      filterTypecheck w = Just w
+
+  let ws = mapMaybe (filterRenamer warnShadowing isShadowWarn)
          . mapMaybe (filterRenamer warnPrefixAssoc isPrefixAssocWarn)
+         . mapMaybe filterTypecheck
          $ ws0
   names <- M.mctxNameDisp <$> getFocusedEnv
   mapM_ (rPrint . runDoc names . pp) ws

@@ -1,0 +1,17 @@
+len : {n,a} (fin n) => [n] a -> Integer
+len x
+  | (n == 0) => 0
+  | (n >  0) => 1 + len (drop`{1} x)
+
+
+property 
+  len_correct = and
+    [ len l == length l where l = []
+    , len l == length l where l = [1]
+    , len l == length l where l = [1,2]
+    , len l == length l where l = [1,2,3]
+    , len l == length l where l = [1,2,3,4,5]
+    , len l == length l where l = [1,2,3,4,5,6]
+    , len l == length l where l = [1,2,3,4,5,6,7]
+    , len l == length l where l = [1,2,3,4,5,6,7,8]
+    ]

@@ -9,6 +9,7 @@
 {-# LANGUAGE Safe                                #-}
 {-# LANGUAGE ViewPatterns                        #-}
 {-# LANGUAGE PatternGuards                       #-}
+{-# LANGUAGE NamedFieldPuns                      #-}
 module Cryptol.TypeCheck.TypeOf
   ( fastTypeOf
   , fastSchemaOf
@@ -43,6 +44,7 @@ fastTypeOf tyenv expr =
                         Just (_, t) -> t
                         Nothing     -> panic "Cryptol.TypeCheck.TypeOf.fastTypeOf"
                                          [ "EApp with non-function operator" ]
+    EPropGuards _guards sType -> sType
     -- Polymorphic fragment
     EVar      {}  -> polymorphic
     ETAbs     {}  -> polymorphic
@@ -111,8 +113,11 @@ fastSchemaOf tyenv expr =
     EComp  {}      -> monomorphic
     EApp   {}      -> monomorphic
     EAbs   {}      -> monomorphic
+
+    -- PropGuards
+    EPropGuards _ t -> Forall {sVars = [], sProps = [], sType = t}
   where
-    monomorphic = Forall [] [] (fastTypeOf tyenv expr)
+    monomorphic = Forall {sVars = [], sProps = [], sType = fastTypeOf tyenv expr}
 
 -- | Apply a substitution to a type *without* simplifying
 -- constraints like @Arith [n]a@ to @Arith a@. (This is in contrast to

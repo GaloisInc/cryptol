@@ -1,0 +1,8 @@
+
+f : {n} _
+f x = ()
+  where
+  nested : Bit
+  nested
+    | n == 0 => True
+    | ()     => False

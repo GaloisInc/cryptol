@@ -107,6 +107,7 @@ library
                        Cryptol.Parser.Names,
                        Cryptol.Parser.Name,
                        Cryptol.Parser.NoPat,
+                       Cryptol.Parser.ExpandPropGuards,
                        Cryptol.Parser.NoInclude,
                        Cryptol.Parser.Selector,
                        Cryptol.Parser.Utils,

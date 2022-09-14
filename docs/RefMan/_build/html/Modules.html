@@ -14,7 +14,6 @@
         <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
         <script src="_static/jquery.js"></script>
         <script src="_static/underscore.js"></script>
-        <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="_static/doctools.js"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
@@ -100,7 +99,7 @@
            <div itemprop="articleBody">
              
   <section id="modules">
-<h1>Modules<a class="headerlink" href="#modules" title="Permalink to this heading"></a></h1>
+<h1>Modules<a class="headerlink" href="#modules" title="Permalink to this headline"></a></h1>
 <p>A <em>module</em> is used to group some related definitions.  Each file may
 contain at most one top-level module.</p>
 <div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span><span class="w"> </span><span class="nn">M</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
@@ -112,7 +111,7 @@ contain at most one top-level module.</p>
 </pre></div>
 </div>
 <section id="hierarchical-module-names">
-<h2>Hierarchical Module Names<a class="headerlink" href="#hierarchical-module-names" title="Permalink to this heading"></a></h2>
+<h2>Hierarchical Module Names<a class="headerlink" href="#hierarchical-module-names" title="Permalink to this headline"></a></h2>
 <p>Module may have either simple or <em>hierarchical</em> names.
 Hierarchical names are constructed by gluing together ordinary
 identifiers using the symbol <code class="docutils literal notranslate"><span class="pre">::</span></code>.</p>
@@ -129,7 +128,7 @@ will look for a file named <code class="docutils literal notranslate"><span clas
 <code class="docutils literal notranslate"><span class="pre">Hash</span></code>, contained in one of the directories specified by <code class="docutils literal notranslate"><span class="pre">CRYPTOLPATH</span></code>.</p>
 </section>
 <section id="module-imports">
-<h2>Module Imports<a class="headerlink" href="#module-imports" title="Permalink to this heading"></a></h2>
+<h2>Module Imports<a class="headerlink" href="#module-imports" title="Permalink to this headline"></a></h2>
 <p>To use the definitions from one module in another module, we use
 <code class="docutils literal notranslate"><span class="pre">import</span></code> declarations:</p>
 <div class="literal-block-wrapper docutils container" id="id1">
@@ -154,7 +153,7 @@ will look for a file named <code class="docutils literal notranslate"><span clas
 </div>
 </div>
 <section id="import-lists">
-<h3>Import Lists<a class="headerlink" href="#import-lists" title="Permalink to this heading"></a></h3>
+<h3>Import Lists<a class="headerlink" href="#import-lists" title="Permalink to this headline"></a></h3>
 <p>Sometimes, we may want to import only some of the definitions
 from a module.  To do so, we use an import declaration with
 an <em>import list</em>.</p>
@@ -177,7 +176,7 @@ It also tends to make code easier to understand,  because
 it makes it easy to see the source of definitions.</p>
 </section>
 <section id="hiding-imports">
-<h3>Hiding Imports<a class="headerlink" href="#hiding-imports" title="Permalink to this heading"></a></h3>
+<h3>Hiding Imports<a class="headerlink" href="#hiding-imports" title="Permalink to this headline"></a></h3>
 <p>Sometimes a module may provide many definitions, and we want to use
 most of them but with a few exceptions (e.g., because those would
 result to a name clash).   In such situations it is convenient
@@ -204,7 +203,7 @@ to use a <em>hiding</em> import:</p>
 </div>
 </section>
 <section id="qualified-module-imports">
-<h3>Qualified Module Imports<a class="headerlink" href="#qualified-module-imports" title="Permalink to this heading"></a></h3>
+<h3>Qualified Module Imports<a class="headerlink" href="#qualified-module-imports" title="Permalink to this headline"></a></h3>
 <p>Another way to avoid name collisions is by using a
 <em>qualified</em> import.</p>
 <div class="literal-block-wrapper docutils container" id="id5">
@@ -253,7 +252,7 @@ but to use them, you would have to qualify using the prefix <code class="docutil
 </section>
 </section>
 <section id="private-blocks">
-<h2>Private Blocks<a class="headerlink" href="#private-blocks" title="Permalink to this heading"></a></h2>
+<h2>Private Blocks<a class="headerlink" href="#private-blocks" title="Permalink to this headline"></a></h2>
 <p>In some cases, definitions in a module might use helper
 functions that are not intended to be used outside the module.
 It is good practice to place such declarations in <em>private blocks</em>:</p>
@@ -318,7 +317,7 @@ is equivalent to the previous one:</p>
 </div>
 </section>
 <section id="nested-modules">
-<h2>Nested Modules<a class="headerlink" href="#nested-modules" title="Permalink to this heading"></a></h2>
+<h2>Nested Modules<a class="headerlink" href="#nested-modules" title="Permalink to this headline"></a></h2>
 <p>Module may be declared withing other modules, using the <code class="docutils literal notranslate"><span class="pre">submodule</span></code> keword.</p>
 <div class="literal-block-wrapper docutils container" id="id12">
 <div class="code-block-caption"><span class="caption-text">Declaring a nested module called N</span><a class="headerlink" href="#id12" title="Permalink to this code"></a></div>
@@ -355,7 +354,7 @@ to the name of a submodule.</p>
 So, in the previous example, it would be an error if <code class="docutils literal notranslate"><span class="pre">y</span></code> was
 to try to use <code class="docutils literal notranslate"><span class="pre">z</span></code> in its definition.</p>
 <section id="implicit-imports">
-<h3>Implicit Imports<a class="headerlink" href="#implicit-imports" title="Permalink to this heading"></a></h3>
+<h3>Implicit Imports<a class="headerlink" href="#implicit-imports" title="Permalink to this headline"></a></h3>
 <p>For convenience, we add an implicit qualified submodule import for
 each locally defined submodules.</p>
 <div class="literal-block-wrapper docutils container" id="id14">
@@ -375,7 +374,7 @@ each locally defined submodules.</p>
 an implicit import <code class="docutils literal notranslate"><span class="pre">import</span> <span class="pre">submoulde</span> <span class="pre">N</span> <span class="pre">as</span> <span class="pre">N</span></code>.</p>
 </section>
 <section id="managing-module-names">
-<h3>Managing Module Names<a class="headerlink" href="#managing-module-names" title="Permalink to this heading"></a></h3>
+<h3>Managing Module Names<a class="headerlink" href="#managing-module-names" title="Permalink to this headline"></a></h3>
 <p>The names of nested modules are managed by the module system just
 like the name of any other declaration in Cryptol.  Thus, nested
 modules may declared in the public or private sections of their
@@ -407,14 +406,14 @@ another top-level module <code class="docutils literal notranslate"><span class=
 </section>
 </section>
 <section id="parameterized-modules">
-<h2>Parameterized Modules<a class="headerlink" href="#parameterized-modules" title="Permalink to this heading"></a></h2>
+<h2>Parameterized Modules<a class="headerlink" href="#parameterized-modules" title="Permalink to this headline"></a></h2>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
 <p>The documentation in this section is for the upcoming variant of
 the feature, which is not yet part of main line Cryptol.</p>
 </div>
 <section id="interface-modules">
-<h3>Interface Modules<a class="headerlink" href="#interface-modules" title="Permalink to this heading"></a></h3>
+<h3>Interface Modules<a class="headerlink" href="#interface-modules" title="Permalink to this headline"></a></h3>
 <p>An <em>interface module</em> describes the content of a module
 without providing a concrete implementation.</p>
 <div class="literal-block-wrapper docutils container" id="id16">
@@ -449,7 +448,7 @@ other modules:</p>
 </div>
 </section>
 <section id="importing-an-interface-module">
-<h3>Importing an Interface Module<a class="headerlink" href="#importing-an-interface-module" title="Permalink to this heading"></a></h3>
+<h3>Importing an Interface Module<a class="headerlink" href="#importing-an-interface-module" title="Permalink to this headline"></a></h3>
 <p>A module may be parameterized by importing an interface,
 instead of a concrete module</p>
 <div class="literal-block-wrapper docutils container" id="id18">
@@ -498,7 +497,7 @@ module, as described in <a class="reference internal" href="#instantiating-modul
 </div>
 </section>
 <section id="interface-constraints">
-<h3>Interface Constraints<a class="headerlink" href="#interface-constraints" title="Permalink to this heading"></a></h3>
+<h3>Interface Constraints<a class="headerlink" href="#interface-constraints" title="Permalink to this headline"></a></h3>
 <p>When working with multiple interfaces, it is to useful
 to be able to impose additional constraints on the
 types imported from the interface.</p>
@@ -527,7 +526,7 @@ same.  Note that, of course, the two instantiations
 may provide different values for <code class="docutils literal notranslate"><span class="pre">x</span></code>.</p>
 </section>
 <section id="instantiating-a-parameterized-module">
-<span id="instantiating-modules"></span><h3>Instantiating a Parameterized Module<a class="headerlink" href="#instantiating-a-parameterized-module" title="Permalink to this heading"></a></h3>
+<span id="instantiating-modules"></span><h3>Instantiating a Parameterized Module<a class="headerlink" href="#instantiating-a-parameterized-module" title="Permalink to this headline"></a></h3>
 <p>To use a parameterized module we need to provide concrete
 implementations for the interfaces that it uses, and provide
 a name for the resulting module.  This is done as follows:</p>
@@ -622,7 +621,7 @@ use <code class="docutils literal notranslate"><span class="pre">submodule</span
 </div>
 </section>
 <section id="anonymous-interface-modules">
-<h3>Anonymous Interface Modules<a class="headerlink" href="#anonymous-interface-modules" title="Permalink to this heading"></a></h3>
+<h3>Anonymous Interface Modules<a class="headerlink" href="#anonymous-interface-modules" title="Permalink to this headline"></a></h3>
 <p>If we need to just parameterize a module by a couple of types/values,
 it is quite cumbersome to have to define a whole separate interface module.
 To make this more convenient we provide the following notation for defining
@@ -646,7 +645,7 @@ Note that the parameters may not use things defined in <code class="docutils lit
 the interface is declared outside of <code class="docutils literal notranslate"><span class="pre">M</span></code>.</p>
 </section>
 <section id="anonymous-instantiation-arguments">
-<h3>Anonymous Instantiation Arguments<a class="headerlink" href="#anonymous-instantiation-arguments" title="Permalink to this heading"></a></h3>
+<h3>Anonymous Instantiation Arguments<a class="headerlink" href="#anonymous-instantiation-arguments" title="Permalink to this headline"></a></h3>
 <p>Sometimes it is also a bit cumbersome to have to define a whole
 separate module just to pass it as an argument to some parameterized
 module.   To make this more convenient we support the following notion
@@ -678,7 +677,7 @@ definition of an anonymous module which is passed as the argument
 to parameterized module <code class="docutils literal notranslate"><span class="pre">M</span></code>.</p>
 </section>
 <section id="anonymous-import-instantiations">
-<h3>Anonymous Import Instantiations<a class="headerlink" href="#anonymous-import-instantiations" title="Permalink to this heading"></a></h3>
+<h3>Anonymous Import Instantiations<a class="headerlink" href="#anonymous-import-instantiations" title="Permalink to this headline"></a></h3>
 <p>We provide syntactic sugar for importing and instantiating a functor
 at the same time:</p>
 <div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">submodule</span><span class="w"> </span><span class="kt">F</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
@@ -729,7 +728,7 @@ to the following declarations:</p>
 </div>
 </section>
 <section id="passing-through-module-parameters">
-<h3>Passing Through Module Parameters<a class="headerlink" href="#passing-through-module-parameters" title="Permalink to this heading"></a></h3>
+<h3>Passing Through Module Parameters<a class="headerlink" href="#passing-through-module-parameters" title="Permalink to this headline"></a></h3>
 <p>Occasionally it is useful to define a functor that instantiates <em>another</em>
 functor using the same parameters as the functor being defined
 (i.e., a functor parameter is passed on to another functor).  This can
