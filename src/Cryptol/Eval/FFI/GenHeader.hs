@@ -9,8 +9,8 @@ module Cryptol.Eval.FFI.GenHeader
   ) where
 
 import           Control.Monad.Writer.Strict
-import           Data.Bifunctor
 import           Data.Functor
+import           Data.Char(isAlphaNum)
 import           Data.List
 import           Data.Set                      (Set)
 import qualified Data.Set                      as Set
@@ -55,7 +55,8 @@ data ConvertResult
 -- | Convert a Cryptol foreign declaration into a C function declaration.
 convertFun :: (Name, FFIFunType) -> GenHeaderM C.Decln
 convertFun (fName, FFIFunType {..}) = do
-  typeParams <- traverse convertTypeParam ffiTParams
+  let tpIdent = fmap nameIdent . tpName
+  typeParams <- traverse convertTypeParam (pickNames (map tpIdent ffiTParams))
   -- Name the input args in0, in1, etc
   let inPrefixes =
         case ffiArgTypes of
@@ -75,12 +76,10 @@ convertFun (fName, FFIFunType {..}) = do
         where name' = until (`Set.notMember` names) (++ "_") name
   pure $ C.FunDecln Nothing retType (unpackIdent $ nameIdent fName) params
 
+
 -- | Convert a Cryptol type parameter to a C value parameter.
-convertTypeParam :: TParam -> GenHeaderM C.Param
-convertTypeParam tp = (`C.Param` name) <$> sizeT
-  where -- We use the name of the type parameter, which should always exist
-        -- since signatures are required
-        name = maybe "" (unpackIdent . nameIdent) $ tpName tp
+convertTypeParam :: String -> GenHeaderM C.Param
+convertTypeParam name = (`C.Param` name) <$> sizeT
 
 -- | Convert a Cryptol parameter or return type to C.
 convertType :: ParamDir -> FFIType -> GenHeaderM ConvertResult
@@ -92,8 +91,11 @@ convertType _ (FFIArray _ t) = do
 convertType dir (FFITuple ts) = Params <$> convertMultiType dir
   -- We name the tuple components using their indices
   (zip (map (componentSuffix . show @Integer) [0..]) ts)
-convertType dir (FFIRecord tMap) = Params <$> convertMultiType dir
-  (map (first (componentSuffix . unpackIdent)) $ displayFields tMap)
+convertType dir (FFIRecord tMap) =
+  Params <$> convertMultiType dir (zip names ts)
+  where
+  (fs,ts) = unzip (displayFields tMap)
+  names   = map componentSuffix (pickNames (map Just fs))
 
 -- | Convert many Cryptol types, each associated with a prefix, to C parameters
 -- named with their prefixes.
@@ -144,3 +146,21 @@ typedefFromInclude :: Include -> C.Ident -> GenHeaderM C.Type
 typedefFromInclude inc u = do
   tell $ Set.singleton inc
   pure $ C.TypeSpec $ C.TypedefName u
+
+-- | Given some Cryptol identifiers (normal ones, not operators)
+-- pick suitable unique C names for them
+pickNames :: [Maybe Ident] -> [String]
+pickNames xs = snd (mapAccumL add Set.empty xs)
+  where
+  add known x =
+    let y      = simplify x
+        ys     = y : [ y ++ show i | i <- [ 0 :: Int .. ] ]
+        y' : _ = dropWhile (`Set.member` known) ys
+    in (Set.insert y' known, y')
+
+  simplify x = case x of
+                 Just i | let y = filter ok (unpackIdent i), not (null y) -> y
+                 _ -> "zz"
+
+  ok x     = x == '_' || isAlphaNum x
+
