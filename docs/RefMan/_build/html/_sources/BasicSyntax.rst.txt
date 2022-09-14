@@ -19,6 +19,54 @@ Type Signatures
   f,g : {a,b} (fin a) => [a] b
 
 
+Numeric Constraint Guards
+-------------------------
+
+A declaration with a signature can use *numeric constraint guards*,
+which are used to change the behavior of a functoin depending on its
+numeric type parameters.  For example:
+
+.. code-block:: cryptol
+
+  len : {n} (fin n) => [n]a -> Integer
+  len xs | n == 0 => 0
+         | n >  0 => 1 + len (drop `{1} xs)
+
+Each behavior starts with ``|`` and lists some constraints on the numeric
+parameters to a declaration.  When applied, the function will use the first
+definition that satisfies the provided numeric parameters.
+
+Numeric constraint guards are quite similar to an ``if`` expression,
+except that decisions are based on *types* rather than values.  There
+is also an important difference to simply using demotion and an
+actual ``if`` statement:
+
+.. code-block:: cryptol
+  
+  len' : {n} (fin n) => [n]a -> Integer
+  len' xs = if `n == 0 => 0
+             | `n >  0 => 1 + len (drop `{1} xs)
+
+The definition of ``len'`` is rejected, because the *value based* ``if``
+expression does provide the *type based* fact ``n >= 1`` which is
+required by ``drop `{1} xs``, while in ``len``, the type-checker
+locally-assumes the constraint ``n > 0`` in that constraint-guarded branch
+and so it can in fact determine that ``n >= 1``.
+
+Requirements:
+  - Numeric constraint guards only support constraints over numeric literals,
+    such as ``fin``, ``<=``, ``==``, etc.
+    Type constraint aliases can also be used as long as they only constrain
+    numeric literals.
+  - The numeric constraint guards of a declaration should be exhaustive. The
+    type-checker will attempt to prove that the set of constraint guards is
+    exhaustive, but if it can't then it will issue a non-exhaustive constraint
+    guards warning. This warning is controlled by the environmental option
+    ``warnNonExhaustiveConstraintGuards``.
+  - Each constraint guard is checked *independently* of the others, and there
+    are no implict assumptions that the previous behaviors do not match---
+    instead the programmer needs to specify all constraints explicitly
+    in the guard.
 
 Layout
 ------

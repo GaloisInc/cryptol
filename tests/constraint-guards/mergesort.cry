@@ -1,0 +1,28 @@
+sort : {n,a} Cmp a => (fin n) => [n]a -> [n]a
+sort xs
+  | n <= 1 => xs
+  | ()     => merge (sort left) (sort right)
+              where (left : [n/2] _) # right = xs
+
+merge : {m,n,a} Cmp a => [m]a -> [n]a -> [m+n]a
+merge xs ys
+  | m == 0  => ys
+  | n == 0  => xs
+  | (m > 0, n > 0) => if x <= y 
+                        then [x] # merge restX ys
+                        else [y] # merge xs restY
+                      where
+                      [x] # restX = xs
+                      [y] # restY = ys
+
+
+property sort_correct =
+  (sort [] == []) &&
+  (sort [0] == [0]) &&
+  (sort [-6, 1, 9, -3, -9, 2, 4] == [-9, -6, -3, 1, 2, 4, 9]) &&
+  (sort [4, -8, -1, -7, -5, 9, 8, 8] == [-8, -7, -5, -1, 4, 8, 8, 9]) &&
+  (sort [1, -1, -2, -3, -2, 7, 5] == [-3, -2, -2, -1, 1, 5, 7]) &&
+  (sort [9, 9, 8, -3, 1, 1, -6, -6, -8] == [-8, -6, -6, -3, 1, 1, 8, 9, 9]) &&
+  (sort [9, 1, 5, 0] == [0, 1, 5, 9]) &&
+  (sort [8, 3, 3] == [3, 3, 8]) &&
+  (sort [-7, 8] == [-7, 8])

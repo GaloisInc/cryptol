@@ -8,6 +8,7 @@
 
 {-# LANGUAGE DeriveGeneric, OverloadedStrings #-}
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE Safe #-}
 
 module Cryptol.Utils.Ident
   ( -- * Module names

@@ -228,6 +228,20 @@ noMatchB b =
       do e' <- noPatFun (Just (thing (bName b))) 0 (bParams b) e
          return b { bParams = [], bDef = DExpr e' <$ bDef b }
 
+    DPropGuards guards ->
+      do let nm = thing (bName b)
+             ps = bParams b
+         gs <- mapM (noPatPropGuardCase nm ps) guards
+         pure b { bParams = [], bDef = DPropGuards gs <$ bDef b }
+
+noPatPropGuardCase ::
+  PName ->
+  [Pattern PName] ->
+  PropGuardCase PName -> NoPatM (PropGuardCase PName)
+noPatPropGuardCase f xs pc =
+  do e <- noPatFun (Just f) 0 xs (pgcExpr pc)
+     pure pc { pgcExpr = e }
+
 noMatchD :: Decl PName -> NoPatM [Decl PName]
 noMatchD decl =
   case decl of

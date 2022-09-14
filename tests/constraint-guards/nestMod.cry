@@ -1,0 +1,9 @@
+
+submodule A where
+
+  f : {n} Bool
+  f | n == 0 => True
+    | n > 0  => False
+
+x : {n} Bool
+x = A::f`{n}

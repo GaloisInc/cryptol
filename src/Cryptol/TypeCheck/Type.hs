@@ -696,7 +696,7 @@ tFun     :: Type -> Type -> Type
 tFun a b  = TCon (TC TCFun) [a,b]
 
 -- | Eliminate outermost type synonyms.
-tNoUser  :: Type -> Type
+tNoUser :: Type -> Type
 tNoUser t = case t of
               TUser _ _ a -> tNoUser a
               _           -> t
@@ -847,6 +847,49 @@ pPrime ty =
   where
   prop = TCon (PC PPrime) [ty]
 
+-- Negation --------------------------------------------------------------------
+
+{-| `pNegNumeric` negates a simple (i.e., not And, not prime, etc) prop
+over numeric type vars.  The result is a conjunction of properties.  -}
+pNegNumeric :: Prop -> [Prop]
+pNegNumeric prop =
+  case tNoUser prop of
+    TCon tcon tys ->
+      case tcon of
+        PC pc ->
+          case pc of
+
+            -- not (x == y)  <=>  x /= y
+            PEqual -> [TCon (PC PNeq) tys]
+
+            -- not (x /= y)  <=>  x == y
+            PNeq -> [TCon (PC PEqual) tys]
+
+            -- not (x >= y)  <=>  x /= y and y >= x
+            PGeq -> [TCon (PC PNeq) tys, TCon (PC PGeq) (reverse tys)]
+
+            -- not (fin x)  <=>  x == Inf
+            PFin | [ty] <- tys -> [ty =#= tInf]
+                 | otherwise -> bad
+
+            -- not True  <=>  0 == 1
+            PTrue -> [TCon (PC PEqual) [tZero, tOne]]
+
+            _ -> bad
+
+        TError _ki -> [prop] -- propogates `TError`
+
+        TC _tc -> bad
+        TF _tf -> bad
+
+    _ -> bad
+
+  where
+  bad = panic "pNegNumeric"
+          [ "Unexpeceted numeric constraint:"
+          , pretty prop
+          ]
+
 
 --------------------------------------------------------------------------------
 
@@ -887,10 +930,6 @@ instance FVS Schema where
   fvs (Forall as ps t) =
       Set.difference (Set.union (fvs ps) (fvs t)) bound
     where bound = Set.fromList (map tpVar as)
-
-
-
-
 
 -- Pretty Printing -------------------------------------------------------------
 

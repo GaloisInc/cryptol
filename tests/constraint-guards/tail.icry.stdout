@@ -1,0 +1,8 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+Showing a specific instance of polymorphic result:
+  * Using 'Integer' for type of sequence member
+Using exhaustive testing.
+Testing... Passed 1 tests.
+Q.E.D.

@@ -421,10 +421,11 @@ data EvalError
   | NoPrim Name                          -- ^ Primitive with no implementation
   | BadRoundingMode Integer              -- ^ Invalid rounding mode
   | BadValue String                      -- ^ Value outside the domain of a partial function.
+  | NoMatchingPropGuardCase String    -- ^ No prop guard holds for the given type variables.
   | FFINotSupported Name                 -- ^ Foreign function cannot be called
   | FFITypeNumTooBig Name TParam Integer -- ^ Number passed to foreign function
                                          --   as a type argument is too large
-    deriving Typeable
+  deriving Typeable
 
 instance PP EvalError where
   ppPrec _ e = case e of
@@ -443,6 +444,7 @@ instance PP EvalError where
     BadRoundingMode r -> "invalid rounding mode" <+> integer r
     BadValue x -> "invalid input for" <+> backticks (text x)
     NoPrim x -> text "unimplemented primitive:" <+> pp x
+    NoMatchingPropGuardCase msg -> text $ "No matching constraint guard; " ++ msg
     FFINotSupported x -> vcat
       [ text "cannot call foreign function" <+> pp x
       , text "FFI calls are not supported in this context"

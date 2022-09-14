@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric  #-}
+{-# LANGUAGE Safe  #-}
 
 -- | Errors from dynamic loading of shared libraries for FFI.
 module Cryptol.Backend.FFI.Error where

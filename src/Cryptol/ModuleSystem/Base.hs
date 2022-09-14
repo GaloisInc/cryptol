@@ -61,6 +61,8 @@ import qualified Cryptol.Parser               as P
 import qualified Cryptol.Parser.Unlit         as P
 import Cryptol.Parser.AST as P
 import Cryptol.Parser.NoPat (RemovePatterns(removePatterns))
+import qualified Cryptol.Parser.ExpandPropGuards as ExpandPropGuards 
+  ( expandPropGuards, runExpandPropGuardsM )
 import Cryptol.Parser.NoInclude (removeIncludesModule)
 import Cryptol.Parser.Position (HasLoc(..), Range, emptyRange)
 import qualified Cryptol.TypeCheck     as T
@@ -118,6 +120,14 @@ noPat a = do
   unless (null errs) (noPatErrors errs)
   return a'
 
+-- ExpandPropGuards ------------------------------------------------------------
+
+-- | Run the expandPropGuards pass.
+expandPropGuards :: Module PName -> ModuleM (Module PName)
+expandPropGuards a =
+  case ExpandPropGuards.runExpandPropGuardsM $ ExpandPropGuards.expandPropGuards a of
+    Left err -> expandPropGuardsError err
+    Right a' -> pure a'
 
 -- Parsing ---------------------------------------------------------------------
 
@@ -468,8 +478,11 @@ checkSingleModule how isrc m = do
   -- remove pattern bindings
   npm <- noPat m
 
+  -- run expandPropGuards
+  epgm <- expandPropGuards npm
+
   -- rename everything
-  renMod <- renameModule npm
+  renMod <- renameModule epgm
 
   -- when generating the prim map for the typechecker, if we're checking the
   -- prelude, we have to generate the map from the renaming environment, as we

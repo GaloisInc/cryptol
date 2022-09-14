@@ -337,6 +337,8 @@ comma  = liftPP PP.comma
 colon :: Doc
 colon  = liftPP PP.colon
 
+pipe :: Doc
+pipe = liftPP PP.pipe
 instance PP T.Text where
   ppPrec _ str = text (T.unpack str)
 

@@ -79,6 +79,11 @@ cryptolError modErr warns =
         (20710, [ ("source", jsonPretty src)
                 , ("errors", jsonList (map jsonPretty errs))
                 ])
+      ExpandPropGuardsError src err ->
+        (20711, [ ("source", jsonPretty src)
+                , ("errors", jsonPretty err)
+                ])
+        
       NoIncludeErrors src errs ->
         -- TODO: structured error here
         (20720, [ ("source", jsonPretty src)

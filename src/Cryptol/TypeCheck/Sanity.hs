@@ -270,6 +270,9 @@ exprSchema expr =
       in go dgs
 
 
+    EPropGuards _guards typ -> 
+      pure Forall {sVars = [], sProps = [], sType = typ}
+
 checkHas :: Type -> Selector -> TcM Type
 checkHas t sel =
   case sel of

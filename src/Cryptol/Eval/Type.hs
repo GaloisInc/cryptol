@@ -28,7 +28,7 @@ import Control.DeepSeq
 -- | An evaluated type of kind *.
 -- These types do not contain type variables, type synonyms, or type functions.
 data TValue
-  = TVBit                     -- ^ @ Bit @
+  = TVBit                     -- ^ @ Bit @  
   | TVInteger                 -- ^ @ Integer @
   | TVFloat Integer Integer   -- ^ @ Float e p @
   | TVIntMod Integer          -- ^ @ Z n @
@@ -105,6 +105,7 @@ finNat' n' =
 newtype TypeEnv =
   TypeEnv
   { envTypeMap  :: IntMap.IntMap (Either Nat' TValue) }
+  deriving (Show)
 
 instance Monoid TypeEnv where
   mempty = TypeEnv mempty
