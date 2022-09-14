@@ -17,6 +17,7 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 module Cryptol.Parser.ParserUtils where
 
+import Data.Char(isAlphaNum)
 import Data.Maybe(fromMaybe)
 import Data.Bits(testBit,setBit)
 import Data.List.NonEmpty ( NonEmpty(..) )
@@ -40,7 +41,7 @@ import Cryptol.Parser.Lexer
 import Cryptol.Parser.Token(SelectorType(..))
 import Cryptol.Parser.Position
 import Cryptol.Parser.Utils (translateExprToNumT,widthIdent)
-import Cryptol.Utils.Ident(packModName,packIdent,modNameChunks)
+import Cryptol.Utils.Ident(packModName,packIdent,modNameChunks,unpackIdent)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic
 import Cryptol.Utils.RecordMap
@@ -656,8 +657,18 @@ mkIf ifThens theElse = foldr addIfThen theElse ifThens
 mkPrimDecl :: Maybe (Located Text) -> LPName -> Schema PName -> [TopDecl PName]
 mkPrimDecl = mkNoImplDecl DPrim
 
-mkForeignDecl :: Maybe (Located Text) -> LPName -> Schema PName -> [TopDecl PName]
-mkForeignDecl = mkNoImplDecl DForeign
+mkForeignDecl ::
+  Maybe (Located Text) -> LPName -> Schema PName -> ParseM [TopDecl PName]
+mkForeignDecl mbDoc nm ty =
+  do let txt = unpackIdent (getIdent (thing nm))
+     unless (all isOk txt)
+       (errorMessage (srcRange nm)
+            [ "`" ++ txt ++ "` is not a valid foreign name."
+            , "The name should contain only alpha-numeric characters or '_'."
+            ])
+     pure (mkNoImplDecl DForeign mbDoc nm ty)
+  where
+  isOk c = c == '_' || isAlphaNum c
 
 -- | Generate a signature and a binding for value declarations with no
 -- implementation (i.e. primitive or foreign declarations).  The reason for
