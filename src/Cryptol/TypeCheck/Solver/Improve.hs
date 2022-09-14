@@ -89,7 +89,7 @@ improveEq impSkol fins prop =
 
   rewriteSym this other =
 
-    -- (a >= 2, fin a, a ^ x == b ^ y) -> x = y
+    -- (a >= 2, fin a, a ^ x == a ^ y) -> x = y
     do (a,x) <- matches this  ((|^|), __, __)
        (b,y) <- matches other ((|^|), __, __)
        guard (a == b)
