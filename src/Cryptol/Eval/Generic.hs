@@ -1452,12 +1452,12 @@ fromToV sym =
   PNumPoly \first ->
   PNumPoly \lst ->
   PTyPoly  \ty ->
-  PVal
+  PPrim
     let !f = mkLit sym ty in
     case (first, lst) of
       (Nat first', Nat lst') ->
         let len = 1 + (lst' - first')
-        in VSeq len $ indexSeqMap $ \i -> f (first' + i)
+        in mkSeq sym (Nat len) ty $ indexSeqMap $ \i -> f (first' + i)
       _ -> evalPanic "fromToV" ["invalid arguments"]
 
 {-# INLINE fromThenToV #-}
@@ -1469,12 +1469,12 @@ fromThenToV sym =
   PNumPoly \lst   ->
   PTyPoly  \ty    ->
   PNumPoly \len   ->
-  PVal
+  PPrim
     let !f = mkLit sym ty in
     case (first, next, lst, len) of
       (Nat first', Nat next', Nat _lst', Nat len') ->
         let diff = next' - first'
-        in VSeq len' $ indexSeqMap $ \i -> f (first' + i*diff)
+        in mkSeq sym (Nat len') ty $ indexSeqMap $ \i -> f (first' + i*diff)
       _ -> evalPanic "fromThenToV" ["invalid arguments"]
 
 {-# INLINE fromToLessThanV #-}
@@ -1484,12 +1484,12 @@ fromToLessThanV sym =
   PFinPoly \first ->
   PNumPoly \bound ->
   PTyPoly  \ty ->
-  PVal
+  PPrim
     let !f = mkLit sym ty
         ss = indexSeqMap $ \i -> f (first + i)
     in case bound of
-         Inf        -> VStream ss
-         Nat bound' -> VSeq (bound' - first) ss
+         Inf        -> return $ VStream ss
+         Nat bound' -> mkSeq sym (Nat (bound' - first)) ty ss
 
 {-# INLINE fromToByV #-}
 -- @[ 0 .. 10 by 2 ]@
@@ -1499,10 +1499,10 @@ fromToByV sym =
   PFinPoly \lst ->
   PFinPoly \stride ->
   PTyPoly  \ty ->
-  PVal
+  PPrim
     let !f = mkLit sym ty
         ss = indexSeqMap $ \i -> f (first + i*stride)
-     in VSeq (1 + ((lst - first) `div` stride)) ss
+     in mkSeq sym (Nat (1 + ((lst - first) `div` stride))) ty ss
 
 {-# INLINE fromToByLessThanV #-}
 -- @[ 0 .. <10 by 2 ]@
@@ -1512,12 +1512,12 @@ fromToByLessThanV sym =
   PNumPoly \bound ->
   PFinPoly \stride ->
   PTyPoly  \ty ->
-  PVal
+  PPrim
     let !f = mkLit sym ty
         ss = indexSeqMap $ \i -> f (first + i*stride)
      in case bound of
-          Inf -> VStream ss
-          Nat bound' -> VSeq ((bound' - first + stride - 1) `div` stride) ss
+          Inf -> return $ VStream ss
+          Nat bound' -> mkSeq sym (Nat ((bound' - first + stride - 1) `div` stride)) ty ss
 
 
 {-# INLINE fromToDownByV #-}
@@ -1528,10 +1528,10 @@ fromToDownByV sym =
   PFinPoly \lst ->
   PFinPoly \stride ->
   PTyPoly  \ty ->
-  PVal
+  PPrim
     let !f = mkLit sym ty
         ss = indexSeqMap $ \i -> f (first - i*stride)
-     in VSeq (1 + ((first - lst) `div` stride)) ss
+     in mkSeq sym (Nat (1 + ((first - lst) `div` stride))) ty ss
 
 {-# INLINE fromToDownByGreaterThanV #-}
 -- @[ 10 .. >0 down by 2 ]@
@@ -1541,10 +1541,10 @@ fromToDownByGreaterThanV sym =
   PFinPoly \bound ->
   PFinPoly \stride ->
   PTyPoly  \ty ->
-  PVal
+  PPrim
     let !f = mkLit sym ty
         ss = indexSeqMap $ \i -> f (first - i*stride)
-     in VSeq ((first - bound + stride - 1) `div` stride) ss
+     in mkSeq sym (Nat ((first - bound + stride - 1) `div` stride)) ty ss
 
 {-# INLINE infFromV #-}
 infFromV :: Backend sym => sym -> Prim sym
