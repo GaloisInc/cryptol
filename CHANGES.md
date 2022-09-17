@@ -28,6 +28,9 @@
 * Fix a bug in the What4 backend that could cause applications of `(@)` with
   symbolic `Integer` indices to become out of bounds (#1359).
 
+* Fix a bug that caused finite bitvector enumerations to panic when used in
+  combination with `(#)` (e.g., `[0..1] # 0`).
+
 # 2.13.0
 
 ## Language changes
