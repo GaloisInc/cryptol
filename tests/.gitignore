@@ -1,3 +1,4 @@
 output
 *.so
 *.dylib
+*.dll

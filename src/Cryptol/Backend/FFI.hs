@@ -9,7 +9,7 @@
 {-# LANGUAGE TypeApplications          #-}
 
 -- | The implementation of loading and calling external functions from shared
--- libraries. Currently works on Unix only.
+-- libraries.
 module Cryptol.Backend.FFI
   ( ForeignSrc
   , getForeignSrcPath
@@ -43,7 +43,12 @@ import           Foreign.Concurrent
 import           Foreign.LibFFI
 import           System.FilePath            ((-<.>))
 import           System.IO.Error
+
+#if defined(mingw32_HOST_OS)
+import           System.Win32.DLL
+#else
 import           System.Posix.DynamicLinker
+#endif
 
 import           Cryptol.Utils.Panic
 
@@ -90,7 +95,10 @@ loadForeignSrc = loadForeignLib >=> traverse \(foreignSrcPath, ptr) -> do
   pure ForeignSrc {..}
 
 loadForeignLib :: FilePath -> IO (Either FFILoadError (FilePath, Ptr ()))
-#ifdef darwin_HOST_OS
+#if defined(mingw32_HOST_OS)
+loadForeignLib path =
+  tryLoad (CantLoadFFISrc path) $ open "dll"
+#elif defined(darwin_HOST_OS)
 -- On Darwin, try loading .dylib first, and if that fails try .so
 loadForeignLib path =
   (Right <$> open "dylib") `catchIOError` \e1 ->
@@ -104,9 +112,13 @@ loadForeignLib path =
 #endif
   where open ext = do
           let libPath = path -<.> ext
+#if defined(mingw32_HOST_OS)
+          ptr <- loadLibrary libPath
+#else
           -- RTLD_NOW so we can make sure that the symbols actually exist at
           -- module loading time
           ptr <- undl <$> dlopen libPath [RTLD_NOW]
+#endif
           pure (libPath, ptr)
 
 -- | Explicitly unload a 'ForeignSrc' immediately instead of waiting for the
@@ -125,7 +137,11 @@ unloadForeignSrc' loaded lib = modifyMVar_ loaded \l -> do
   pure False
 
 unloadForeignLib :: Ptr () -> IO ()
+#if defined(mingw32_HOST_OS)
+unloadForeignLib = freeLibrary
+#else
 unloadForeignLib = dlclose . DLHandle
+#endif
 
 withForeignSrc :: ForeignSrc -> (Ptr () -> IO a) -> IO a
 withForeignSrc ForeignSrc {..} f = withMVar foreignSrcLoaded
@@ -152,7 +168,13 @@ loadForeignImpl foreignImplSrc name =
       pure ForeignImpl {..}
 
 loadForeignFunPtr :: Ptr () -> String -> IO (FunPtr ())
+#if defined(mingw32_HOST_OS)
+loadForeignFunPtr source symbol = do
+  addr <- getProcAddress source symbol
+  pure $ castPtrToFunPtr addr
+#else
 loadForeignFunPtr = dlsym . DLHandle
+#endif
 
 tryLoad :: (String -> FFILoadError) -> IO a -> IO (Either FFILoadError a)
 tryLoad err = fmap (first $ err . displayException) . tryIOError

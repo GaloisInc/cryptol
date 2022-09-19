@@ -1,9 +1,21 @@
-:! echo '#include <stdint.h>\nuint8_t test() { return 0; }' > ffi-reload.c
+// Double quotes must be used to make the command below work on Windows.
+// This is because Windows treats <triangle brackets> specially in scripts
+// under most circumstances, and single quotes aren't enough to escape the
+// special triangle bracket treatment. We also use printf rather than echo
+// to avoid including the double quotes in the file contents.
+:! printf "#include <stdint.h>\nuint8_t test() { return 0; }" > ffi-reload.c
 :! make -s ffi-reload
 :l ffi-reload.cry
 test ()
 :! sleep 1
 :! sed -i.bak 's/return 0/return 1/' ffi-reload.c
+// Very confusingly, the ffi-reload.dll file that this script creates on
+// Windows will not have the permissions you expect it to, which will cause
+// 'Permission denied' errors when trying to overwrite it later in the script.
+// The simplest workaround that I have found is to delete the file and then
+// recompile it. (Yes, you have the permissions to delete it, but not to
+// overwrite it. I have no idea why.)
+:! rm -f ffi-reload.so ffi-reload.dylib ffi-reload.dll
 :! make -s ffi-reload
 :r
 test ()
