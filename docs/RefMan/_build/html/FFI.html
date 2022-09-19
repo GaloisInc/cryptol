@@ -103,14 +103,27 @@ systems (macOS and Linux).</p>
 </section>
 <section id="basic-usage">
 <h2>Basic usage<a class="headerlink" href="#basic-usage" title="Permalink to this headline"></a></h2>
-<p>Suppose we want to call the following C function:</p>
+<p>Suppose we want to implement the following function in C:</p>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">add</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">32</span><span class="p">]</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="p">[</span><span class="mi">32</span><span class="p">]</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="p">[</span><span class="mi">32</span><span class="p">]</span><span class="w"></span>
+</pre></div>
+</div>
+<p>In our Cryptol file, we declare it as a <code class="docutils literal notranslate"><span class="pre">foreign</span></code> function with no body:</p>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">foreign</span><span class="w"> </span><span class="n">add</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">32</span><span class="p">]</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="p">[</span><span class="mi">32</span><span class="p">]</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="p">[</span><span class="mi">32</span><span class="p">]</span><span class="w"></span>
+</pre></div>
+</div>
+<p>Then we write the following C function:</p>
 <div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="kt">uint32_t</span><span class="w"> </span><span class="nf">add</span><span class="p">(</span><span class="kt">uint32_t</span><span class="w"> </span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="kt">uint32_t</span><span class="w"> </span><span class="n">y</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">y</span><span class="p">;</span><span class="w"></span>
 <span class="p">}</span><span class="w"></span>
 </pre></div>
 </div>
-<p>In our Cryptol file, we write a <code class="docutils literal notranslate"><span class="pre">foreign</span></code> declaration with no body:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">foreign</span><span class="w"> </span><span class="n">add</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">32</span><span class="p">]</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="p">[</span><span class="mi">32</span><span class="p">]</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="p">[</span><span class="mi">32</span><span class="p">]</span><span class="w"></span>
+<p>Cryptol can generate a C header file containing the appropriate function
+prototypes given the corresponding Cryptol <code class="docutils literal notranslate"><span class="pre">foreign</span></code> declarations with the
+<code class="docutils literal notranslate"><span class="pre">:generate-foreign-header</span></code> command. You can then <code class="docutils literal notranslate"><span class="pre">#include</span></code> the generated
+header file in your C file to help write the C implementation.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">Cryptol</span><span class="o">&gt;</span> <span class="p">:</span><span class="n">generate</span><span class="o">-</span><span class="n">foreign</span><span class="o">-</span><span class="n">header</span> <span class="n">Example</span><span class="o">.</span><span class="n">cry</span>
+<span class="n">Loading</span> <span class="n">module</span> <span class="n">Example</span>
+<span class="n">Writing</span> <span class="n">header</span> <span class="n">to</span> <span class="n">Example</span><span class="o">.</span><span class="n">h</span>
 </pre></div>
 </div>
 <p>The C code must first be compiled into a dynamically loaded shared library. When
@@ -143,9 +156,9 @@ Main&gt; add 1 2
 </div>
 <p>Note: Since Cryptol currently only accesses the compiled binary and not the C
 source, it has no way of checking that the Cryptol function type you declare in
-your Cryptol code actually matches the type of the C function. <strong>It is your
-responsibility to make sure the types match up</strong>. If they do not then there may
-be undefined behavior.</p>
+your Cryptol code actually matches the type of the C function. It can generate
+the correct C headers but if the actual implementation does not match it there
+may be undefined behavior.</p>
 </section>
 <section id="compiling-c-code">
 <h2>Compiling C code<a class="headerlink" href="#compiling-c-code" title="Permalink to this headline"></a></h2>
@@ -161,6 +174,9 @@ simple usages, you can do this manually with the following commands:</p>
 <p>This section describes how a given Cryptol function signature maps to a C
 function prototype. The FFI only supports a limited set of Cryptol types which
 have a clear translation into C.</p>
+<p>This mapping can now be done automatically with the <code class="docutils literal notranslate"><span class="pre">:generate-foreign-header</span></code>
+command mentioned above; however, this section is still worth reading to
+understand the supported types and what the resulting C parameters mean.</p>
 <section id="overall-structure">
 <h3>Overall structure<a class="headerlink" href="#overall-structure" title="Permalink to this headline"></a></h3>
 <p>Cryptol <code class="docutils literal notranslate"><span class="pre">foreign</span></code> bindings must be functions. These functions may have
@@ -481,8 +497,8 @@ from it. It must write to the memory the value it is returning.</p>
 </pre></div>
 </div>
 <p>corresponds to the C signature</p>
-<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="kt">void</span><span class="w"> </span><span class="nf">f</span><span class="p">(</span><span class="kt">size_t</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="kt">uint16_t</span><span class="w"> </span><span class="o">*</span><span class="n">in0</span><span class="p">,</span><span class="w"> </span><span class="kt">uint8_t</span><span class="w"> </span><span class="n">in1</span><span class="p">,</span><span class="w"> </span><span class="kt">uint64_t</span><span class="w"> </span><span class="n">in2</span><span class="p">,</span><span class="w"></span>
-<span class="w">       </span><span class="kt">double</span><span class="w"> </span><span class="o">*</span><span class="n">out0</span><span class="p">,</span><span class="w"> </span><span class="kt">uint32_t</span><span class="w"> </span><span class="o">*</span><span class="n">out1</span><span class="p">);</span><span class="w"></span>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="kt">void</span><span class="w"> </span><span class="nf">f</span><span class="p">(</span><span class="kt">size_t</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="kt">uint16_t</span><span class="w"> </span><span class="o">*</span><span class="n">in0</span><span class="p">,</span><span class="w"> </span><span class="kt">uint8_t</span><span class="w"> </span><span class="n">in1_a</span><span class="p">,</span><span class="w"> </span><span class="kt">uint64_t</span><span class="w"> </span><span class="n">in1_b</span><span class="p">,</span><span class="w"></span>
+<span class="w">       </span><span class="kt">double</span><span class="w"> </span><span class="o">*</span><span class="n">out_0</span><span class="p">,</span><span class="w"> </span><span class="kt">uint32_t</span><span class="w"> </span><span class="o">*</span><span class="n">out_1</span><span class="p">);</span><span class="w"></span>
 </pre></div>
 </div>
 </section>
