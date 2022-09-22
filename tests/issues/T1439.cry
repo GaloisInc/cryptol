@@ -1,0 +1,35 @@
+module T where
+  // sanity check: functions outside submodule each load
+  f : {n} [1][n] -> [n]
+  f [x] = x
+
+  p : {a,b} (a,b) -> a
+  p (x,_) = x
+
+  interface submodule I where
+    type n : #
+
+  submodule F where
+    import interface submodule I
+
+    h : [1][n] -> [n]
+    h [x] = x
+
+    g : {m} [1][m] -> [m]
+    g [x] = x
+
+    q, q1, q2 : {b} (b,_) -> b
+    q (x,_) = x
+
+    q1 x = x.0
+    q2 x = y
+      where
+      (y,z) = x
+
+  submodule P1 where
+    type n = 1
+
+  submodule S = submodule F { submodule P1 }
+
+  import submodule S
+

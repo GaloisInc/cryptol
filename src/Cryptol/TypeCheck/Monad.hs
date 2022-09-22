@@ -123,15 +123,16 @@ bumpCounter = do RO { .. } <- IM ask
                  io $ modifyIORef' iSolveCounter (+1)
 
 runInferM :: TVars a => InferInput -> InferM a -> IO (InferOutput a)
-runInferM info (IM m) =
-  do counter <- newIORef 0
+runInferM info m0 =
+  do let IM m = selectorScope m0
+     counter <- newIORef 0
      let allPs = allParamNames (inpParams info)
 
      let env = Map.map ExtVar (inpVars info)
             <> Map.map (ExtVar . newtypeConType) (inpNewtypes info)
             <> Map.map (ExtVar . mvpType) (mpnFuns allPs)
 
-     rec ro <- return RO { iRange     = inpRange info
+     let ro =         RO { iRange     = inpRange info
                          , iVars      = env
                          , iExtModules = inpTopModules info
                          , iExtSignatures = inpTopSignatures info
@@ -146,7 +147,7 @@ runInferM info (IM m) =
                              }
 
                          , iTVars         = []
-                         , iSolvedHasLazy = iSolvedHas finalRW     -- RECURSION
+                         , iSolvedHasLazy = Map.empty
                          , iMonoBinds     = inpMonoBinds info
                          , iCallStacks    = inpCallStacks info
                          , iSolver        = inpSolver info
@@ -154,29 +155,30 @@ runInferM info (IM m) =
                          , iSolveCounter  = counter
                          }
 
-         (result, finalRW) <- runStateT rw
-                            $ runReaderT ro m  -- RECURSION
+     mb <- runExceptionT (runStateT rw (runReaderT ro m))
+     case mb of
+       Left errs -> inferFailed [] errs
+       Right (result, finalRW) ->
+         do let theSu    = iSubst finalRW
+                defSu    = defaultingSubst theSu
+                warns    = fmap' (fmap' (apSubst theSu)) (iWarnings finalRW)
 
-     let theSu    = iSubst finalRW
-         defSu    = defaultingSubst theSu
-         warns    = fmap' (fmap' (apSubst theSu)) (iWarnings finalRW)
+            case iErrors finalRW of
+              [] ->
+                case iCts finalRW of
+                  cts
+                    | nullGoals cts -> inferOk warns
+                                         (iNameSeeds finalRW)
+                                         (iSupply finalRW)
+                                         (apSubst defSu result)
+                  cts ->
+                     inferFailed warns
+                       [ ( goalRange g
+                         , UnsolvedGoals [apSubst theSu g]
+                         ) | g <- fromGoals cts
+                       ]
 
-     case iErrors finalRW of
-       [] ->
-         case (iCts finalRW, iHasCts finalRW) of
-           (cts,[])
-             | nullGoals cts -> inferOk warns
-                                  (iNameSeeds finalRW)
-                                  (iSupply finalRW)
-                                  (apSubst defSu result)
-           (cts,has) ->
-              inferFailed warns
-                [ ( goalRange g
-                  , UnsolvedGoals [apSubst theSu g]
-                  ) | g <- fromGoals cts ++ map hasGoal has
-                ]
-
-       errs -> inferFailed warns [(r,apSubst theSu e) | (r,e) <- errs]
+              errs -> inferFailed warns [(r,apSubst theSu e) | (r,e) <- errs]
 
   where
   inferOk ws a b c  = pure (InferOK (computeFreeVarNames ws []) ws a b c)
@@ -202,13 +204,63 @@ runInferM info (IM m) =
           , iBindTypes  = mempty
           }
 
+{- | This introduces a new "selector scope" which is currently a module.
+I think that it might be possible to have selectors scopes be groups
+of recursive declarations instead, as we are not going to learn anything
+additional once we are done with the recursive group that generated
+the selectors constraints.   We do it at the module level because this
+allows us to report more errors at once.
+
+A selector scope does the following:
+  * Keep track of the Has constraints generated in this scope
+  * Keep track of the solutions for discharged selector constraints:
+    - this uses a laziness trick where we build up a map containing the
+      solutions for the Has constraints in the state
+    - the *final* value for this map (i.e., at the value the end of the scope)
+      is passed in as thunk in the reader component of the moment
+    - as we type check expressions when we need the solution for a Has
+      constraint we look it up from the reader environment; note that
+      since the map is not yet built up we just get back a thunk, so we have
+      to be carefule to not force it until *after* we've solved the goals
+    - all of this happens in the `rec` block below
+  * At the end of a selector scope we make sure that all Has constraints were
+    discharged.  If not, we *abort* further type checking.  The reason for
+    aborting rather than just recording an error is that the expression
+    which produce contains thunks that will lead to non-termination if forced,
+    and some type-checking operations (e.g., instantiation a functor)
+    require us to traverse the expressions.
+-}
+selectorScope :: InferM a -> InferM a
+selectorScope (IM m1) = IM
+  do ro <- ask
+     rw <- get
+     mb <- inBase
+           do rec let ro1 = ro { iSolvedHasLazy = solved }
+                      rw1 = rw { iHasCts = [] : iHasCts rw }
+                  mb <- runExceptionT (runStateT rw1 (runReaderT ro1 m1))
+                  let solved = case mb of
+                                 Left {} -> Map.empty
+                                 Right (_,rw2) -> iSolvedHas rw2
+              pure mb
+     case mb of
+       Left err      -> raise err
+       Right (a,rw1) ->
+         case iHasCts rw1 of
+           us : cs ->
+             do let errs = [ (goalRange g, UnsolvedGoals [g])
+                           | g <- map hasGoal us ]
+                set rw1 { iErrors = errs ++ iErrors rw1, iHasCts = cs }
+                unIM (abortIfErrors)
+                pure a
+           [] -> panic "selectorScope" ["No selector scope"]
 
 
 
-
-
-
-newtype InferM a = IM { unIM :: ReaderT RO (StateT RW IO) a }
+newtype InferM a = IM { unIM :: ReaderT RO
+                              ( StateT  RW
+                              ( ExceptionT [(Range,Error)]
+                                IO
+                              )) a }
 
 
 data ScopeName = ExternalScope
@@ -295,13 +347,13 @@ data RW = RW
 
   -- Constraints that need solving
   , iCts      :: !Goals                -- ^ Ordinary constraints
-  , iHasCts   :: ![HasGoal]
+  , iHasCts   :: ![[HasGoal]]
     {- ^ Tuple/record projection constraints.  These are separate from
        the other constraints because solving them results in actual elaboration
        of the term, indicating how to do the projection.  The modification
        of the term is done using lazyness, by looking up a thunk ahead of time
        (@iSolvedHasLazy@ in RO), which is filled in when the constrait is
-       solved (@iSolvedHas@). for ellaboration.
+       solved (@iSolvedHas@).  See also `selectorScope`.
     -}
 
   , iScope :: ![ModuleG ScopeName]
@@ -343,6 +395,7 @@ instance FreshM InferM where
 io :: IO a -> InferM a
 io m = IM $ inBase m
 
+
 -- | The monadic computation is about the given range of source code.
 -- This is useful for error reporting.
 inRange :: Range -> InferM a -> InferM a
@@ -371,7 +424,17 @@ recordErrorLoc rng e =
      IM $ sets_ $ \s -> s { iErrors = (r,e) : iErrors s }
 
 
-
+-- | If there are any recoded errors than abort firther type-checking.
+abortIfErrors :: InferM ()
+abortIfErrors =
+  do rw <- IM get
+     case iErrors rw of
+       [] -> pure ()
+       es ->
+         do es1 <- forM es \(l,e) ->
+                      do e1 <- applySubst e
+                         pure (l,e1)
+            IM (raise es1)
 
 recordWarning :: Warning -> InferM ()
 recordWarning w =
@@ -469,22 +532,30 @@ newHasGoal :: P.Selector -> Type -> Type -> InferM HasGoalSln
 newHasGoal l ty f =
   do goalName <- newGoalName
      g        <- newGoal CtSelector (pHas l ty f)
-     IM $ sets_ $ \s -> s { iHasCts = HasGoal goalName g : iHasCts s }
+     IM $ sets_ \s -> case iHasCts s of
+                        cs : more ->
+                          s { iHasCts = (HasGoal goalName g : cs) : more }
+                        [] -> panic "newHasGoal" ["no selector scope"]
      solns    <- IM $ fmap iSolvedHasLazy ask
      return $ case Map.lookup goalName solns of
                 Just e1 -> e1
                 Nothing -> panic "newHasGoal" ["Unsolved has goal in result"]
 
 
--- | Add a previously generate has constrained
+-- | Add a previously generated @Has@ constraint
 addHasGoal :: HasGoal -> InferM ()
-addHasGoal g = IM $ sets_ $ \s -> s { iHasCts = g : iHasCts s }
+addHasGoal g = IM $ sets_ \s -> case iHasCts s of
+                                  cs : more -> s { iHasCts = (g : cs) : more }
+                                  [] -> panic "addHasGoal" ["No selector scope"]
 
 -- | Get the @Has@ constraints.  Each of this should either be solved,
 -- or added back using 'addHasGoal'.
 getHasGoals :: InferM [HasGoal]
-getHasGoals = do gs <- IM $ sets $ \s -> (iHasCts s, s { iHasCts = [] })
-                 applySubst gs
+getHasGoals =
+  do gs <- IM $ sets \s -> case iHasCts s of
+                             cs : more -> (cs, s { iHasCts = [] : more })
+                             [] -> panic "getHasGoals" ["No selector scope"]
+     applySubst gs
 
 -- | Specify the solution (@Expr -> Expr@) for the given constraint ('Int').
 solveHasGoal :: Int -> HasGoalSln -> InferM ()
@@ -661,7 +732,8 @@ varsWithAsmps =
                   case v of
                     ExtVar sch  -> getVars sch
                     CurSCC _ t  -> getVars t
-     sels <- IM $ fmap (map (goal . hasGoal) . iHasCts) get
+     hasCts <- IM (iHasCts <$> get)
+     let sels = map (goal . hasGoal) (concat hasCts)
      fromSels <- mapM getVars sels
      fromEx   <- (getVars . concatMap Map.elems) =<< IM (fmap iExistTVars get)
      return (Set.unions fromEnv `Set.union` Set.unions fromSels

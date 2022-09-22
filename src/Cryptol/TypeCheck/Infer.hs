@@ -1121,6 +1121,7 @@ checkTopDecls = mapM_ checkTopDecl
            addParameterConstraints cs1
 
       P.DModule tl ->
+         selectorScope
          case P.mDef m of
 
            P.NormalModule ds ->
