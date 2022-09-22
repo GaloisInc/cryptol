@@ -124,3 +124,18 @@ void nestedSeq(size_t n, size_t m, size_t p, uint8_t *in, uint8_t *out) {
     out[i] = in[i];
   }
 }
+
+void i2Q(mpz_t in, mpq_t out) {
+  mpq_set_num(out, in);
+}
+
+void i2Qs(mpz_t in, mpq_t *out) {
+  mpq_set_num(out[0], in);
+  mpq_inv(out[1], out[0]);
+}
+
+void iQ2Qi(mpz_t in_0, mpq_t in_1, mpq_t out_0, mpz_t out_1) {
+  mpz_set(out_1, in_0);
+  mpq_set(out_0, in_1);
+}
+
