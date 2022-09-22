@@ -1,0 +1,10 @@
+tail : {n, a} (fin n) => [n]a -> [(max n 1) - 1]a
+tail xs | n == 0 => xs
+        | n >= 1 => drop `{1} xs
+
+property tail_correct =
+  (tail [] == []) &&
+  (tail [1] == []) &&
+  (tail [1,2] == [2]) &&
+  (tail [1,2,3] == [2,3]) &&
+  (tail [1,2,3,4] == [2,3,4])

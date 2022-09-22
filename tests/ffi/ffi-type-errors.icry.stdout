@@ -86,4 +86,7 @@ Loading module Main
         at ffi-type-errors.cry:10:9--10:34
 [error] at ffi-type-errors.cry:11:48--11:49:
   Wild card types are not allowed in this context
-    (e.g., they cannot be used in type synonyms or FFI declarations).
+    They cannot be used in:
+    • type synonyms
+    • FFI declarations
+    • declarations with constraint guards

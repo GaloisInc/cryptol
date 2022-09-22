@@ -1,0 +1,4 @@
+:! cp test-ffi.cry test-ffi2.cry
+:generate-foreign-header test-ffi2.cry
+:! diff test-ffi2.h test-ffi.h
+:! rm test-ffi2.*

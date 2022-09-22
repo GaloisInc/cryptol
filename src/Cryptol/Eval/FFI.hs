@@ -76,8 +76,8 @@ findForeignDecls = mapMaybe getForeign . mDecls
 evalForeignDecls :: ForeignSrc -> [(Name, FFIFunType)] -> EvalEnv ->
   Eval (Either [FFILoadError] EvalEnv)
 evalForeignDecls fsrc decls env = io do
-  ePrims <- for decls \(name, ffiType) ->
-    fmap ((name,) . foreignPrimPoly name ffiType) <$>
+  ePrims <- for decls \(name, ffiFunType) ->
+    fmap ((name,) . foreignPrimPoly name ffiFunType) <$>
       loadForeignImpl fsrc (unpackIdent $ nameIdent name)
   pure case partitionEithers ePrims of
     ([], prims) -> Right $ foldr (uncurry bindVarDirect) env prims

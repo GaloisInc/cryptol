@@ -2,6 +2,11 @@
 
 ## Language changes
 
+* Declarations may now use *numeric constraint guards*.   This is a feature
+  that allows a function to behave differently depending on its numeric
+  type parameters.  See the [manual section](https://galoisinc.github.io/cryptol/RefMan/_build/html/BasicSyntax.html#numeric-constraint-guards))
+  for more information.
+
 * The foreign function interface (FFI) has been added, which allows Cryptol to
   call functions written in C. See the [manual section](https://galoisinc.github.io/cryptol/RefMan/_build/html/FFI.html)
   for more information.
@@ -22,6 +27,9 @@
 
 * Fix a bug in the What4 backend that could cause applications of `(@)` with
   symbolic `Integer` indices to become out of bounds (#1359).
+
+* Fix a bug that caused finite bitvector enumerations to panic when used in
+  combination with `(#)` (e.g., `[0..1] # 0`).
 
 # 2.13.0
 

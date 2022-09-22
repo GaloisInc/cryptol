@@ -10,6 +10,7 @@ dist-newstyle
 .ghc.environment.*
 cabal.project.freeze
 cabal.project.local*
+.vscode/
 
 # don't check in generated documentation
 #docs/CryptolPrims.pdf
@@ -38,3 +39,6 @@ allfiles.wxs
 cryptol.msi
 cryptol.wixobj
 cryptol.wixpdb
+
+# happy-generated files
+src/Cryptol/Parser.hs

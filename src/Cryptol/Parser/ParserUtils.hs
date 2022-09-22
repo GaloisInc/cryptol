@@ -17,6 +17,7 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 module Cryptol.Parser.ParserUtils where
 
+import Data.Char(isAlphaNum)
 import Data.Maybe(fromMaybe)
 import Data.Bits(testBit,setBit)
 import Data.List.NonEmpty ( NonEmpty(..) )
@@ -40,7 +41,7 @@ import Cryptol.Parser.Lexer
 import Cryptol.Parser.Token(SelectorType(..))
 import Cryptol.Parser.Position
 import Cryptol.Parser.Utils (translateExprToNumT,widthIdent)
-import Cryptol.Utils.Ident(packModName,packIdent,modNameChunks)
+import Cryptol.Utils.Ident(packModName,packIdent,modNameChunks,unpackIdent)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic
 import Cryptol.Utils.RecordMap
@@ -610,6 +611,35 @@ mkIndexedDecl f (ps, ixs) e =
     rhs = mkGenerate (reverse ixs) e
 
 -- NOTE: The lists of patterns are reversed!
+mkPropGuardsDecl ::
+  LPName ->
+  ([Pattern PName], [Pattern PName]) ->
+  [PropGuardCase PName] ->
+  ParseM (Decl PName)
+mkPropGuardsDecl f (ps, ixs) guards =
+  do unless (null ixs) $
+      errorMessage (srcRange f)
+                  ["Indexed sequence definitions may not use constraint guards"]
+     let gs  = reverse guards
+     pure $
+       DBind Bind { bName       = f
+                  , bParams     = reverse ps
+                  , bDef        = Located (srcRange f) (DPropGuards gs)
+                  , bSignature  = Nothing
+                  , bPragmas    = []
+                  , bMono       = False
+                  , bInfix      = False
+                  , bFixity     = Nothing
+                  , bDoc        = Nothing
+                  , bExport     = Public
+                  }
+
+mkConstantPropGuardsDecl ::
+  LPName -> [PropGuardCase PName] -> ParseM (Decl PName)
+mkConstantPropGuardsDecl f guards =
+  mkPropGuardsDecl f ([],[]) guards
+
+-- NOTE: The lists of patterns are reversed!
 mkIndexedExpr :: ([Pattern PName], [Pattern PName]) -> Expr PName -> Expr PName
 mkIndexedExpr (ps, ixs) body
   | null ps = mkGenerate (reverse ixs) body
@@ -627,8 +657,18 @@ mkIf ifThens theElse = foldr addIfThen theElse ifThens
 mkPrimDecl :: Maybe (Located Text) -> LPName -> Schema PName -> [TopDecl PName]
 mkPrimDecl = mkNoImplDecl DPrim
 
-mkForeignDecl :: Maybe (Located Text) -> LPName -> Schema PName -> [TopDecl PName]
-mkForeignDecl = mkNoImplDecl DForeign
+mkForeignDecl ::
+  Maybe (Located Text) -> LPName -> Schema PName -> ParseM [TopDecl PName]
+mkForeignDecl mbDoc nm ty =
+  do let txt = unpackIdent (getIdent (thing nm))
+     unless (all isOk txt)
+       (errorMessage (srcRange nm)
+            [ "`" ++ txt ++ "` is not a valid foreign name."
+            , "The name should contain only alpha-numeric characters or '_'."
+            ])
+     pure (mkNoImplDecl DForeign mbDoc nm ty)
+  where
+  isOk c = c == '_' || isAlphaNum c
 
 -- | Generate a signature and a binding for value declarations with no
 -- implementation (i.e. primitive or foreign declarations).  The reason for
@@ -768,6 +808,10 @@ distrLoc :: Located [a] -> [Located a]
 distrLoc x = [ Located { srcRange = r, thing = a } | a <- thing x ]
   where r = srcRange x
 
+mkPropGuards :: Type PName -> ParseM [Located (Prop PName)]
+mkPropGuards ty =
+  do lp <- mkProp ty
+     pure [ lp { thing = p } | p <- thing lp ]
 
 mkProp :: Type PName -> ParseM (Located [Prop PName])
 mkProp ty =

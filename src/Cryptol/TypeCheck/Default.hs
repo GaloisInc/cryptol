@@ -1,3 +1,5 @@
+{-# LANGUAGE Safe #-}
+
 module Cryptol.TypeCheck.Default where
 
 import qualified Data.Set as Set

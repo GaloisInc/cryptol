@@ -13,7 +13,19 @@ systems (macOS and Linux).
 Basic usage
 -----------
 
-Suppose we want to call the following C function:
+Suppose we want to implement the following function in C:
+
+.. code-block:: cryptol
+
+  add : [32] -> [32] -> [32]
+
+In our Cryptol file, we declare it as a ``foreign`` function with no body:
+
+.. code-block:: cryptol
+
+  foreign add : [32] -> [32] -> [32]
+
+Then we write the following C function:
 
 .. code-block:: c
 
@@ -21,11 +33,16 @@ Suppose we want to call the following C function:
     return x + y;
   }
 
-In our Cryptol file, we write a ``foreign`` declaration with no body:
+Cryptol can generate a C header file containing the appropriate function
+prototypes given the corresponding Cryptol ``foreign`` declarations with the
+``:generate-foreign-header`` command. You can then ``#include`` the generated
+header file in your C file to help write the C implementation.
 
-.. code-block:: cryptol
+.. code-block::
 
-  foreign add : [32] -> [32] -> [32]
+  Cryptol> :generate-foreign-header Example.cry
+  Loading module Example
+  Writing header to Example.h
 
 The C code must first be compiled into a dynamically loaded shared library. When
 Cryptol loads the module containing the ``foreign`` declaration, it will look
@@ -61,9 +78,9 @@ The whole process would look something like this:
 
 Note: Since Cryptol currently only accesses the compiled binary and not the C
 source, it has no way of checking that the Cryptol function type you declare in
-your Cryptol code actually matches the type of the C function. **It is your
-responsibility to make sure the types match up**. If they do not then there may
-be undefined behavior.
+your Cryptol code actually matches the type of the C function. It can generate
+the correct C headers but if the actual implementation does not match it there
+may be undefined behavior.
 
 Compiling C code
 ----------------
@@ -80,6 +97,10 @@ Converting between Cryptol and C types
 This section describes how a given Cryptol function signature maps to a C
 function prototype. The FFI only supports a limited set of Cryptol types which
 have a clear translation into C.
+
+This mapping can now be done automatically with the ``:generate-foreign-header``
+command mentioned above; however, this section is still worth reading to
+understand the supported types and what the resulting C parameters mean.
 
 Overall structure
 ~~~~~~~~~~~~~~~~~
@@ -305,5 +326,5 @@ corresponds to the C signature
 
 .. code-block:: c
 
-  void f(size_t n, uint16_t *in0, uint8_t in1, uint64_t in2,
-         double *out0, uint32_t *out1);
+  void f(size_t n, uint16_t *in0, uint8_t in1_a, uint64_t in1_b,
+         double *out_0, uint32_t *out_1);

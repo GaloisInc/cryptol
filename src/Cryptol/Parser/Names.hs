@@ -9,6 +9,8 @@
 -- This module defines the scoping rules for value- and type-level
 -- names in Cryptol.
 
+{-# LANGUAGE Safe #-}
+
 module Cryptol.Parser.Names
   ( tnamesNT
   , tnamesT
@@ -65,6 +67,7 @@ namesDef :: Ord name => BindDef name -> Set name
 namesDef DPrim     = Set.empty
 namesDef DForeign  = Set.empty
 namesDef (DExpr e) = namesE e
+namesDef (DPropGuards guards) = Set.unions (map (namesE . pgcExpr) guards)
 
 
 -- | The names used by an expression.
@@ -186,6 +189,11 @@ tnamesDef :: Ord name => BindDef name -> Set name
 tnamesDef DPrim     = Set.empty
 tnamesDef DForeign  = Set.empty
 tnamesDef (DExpr e) = tnamesE e
+tnamesDef (DPropGuards guards) = Set.unions (map tnamesPropGuardCase guards)
+
+tnamesPropGuardCase :: Ord name => PropGuardCase name -> Set name
+tnamesPropGuardCase c =
+  Set.unions (tnamesE (pgcExpr c) : map (tnamesC . thing) (pgcProps c))
 
 -- | The type names used by an expression.
 tnamesE :: Ord name => Expr name -> Set name

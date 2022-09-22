@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE Safe #-}
 module Cryptol.ModuleSystem.Exports where
 
 import Data.Set(Set)

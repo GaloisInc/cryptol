@@ -14,7 +14,6 @@
         <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
         <script src="_static/jquery.js"></script>
         <script src="_static/underscore.js"></script>
-        <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="_static/doctools.js"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
@@ -85,9 +84,9 @@
            <div itemprop="articleBody">
              
   <section id="overloaded-operations">
-<h1>Overloaded Operations<a class="headerlink" href="#overloaded-operations" title="Permalink to this heading"></a></h1>
+<h1>Overloaded Operations<a class="headerlink" href="#overloaded-operations" title="Permalink to this headline"></a></h1>
 <section id="equality">
-<h2>Equality<a class="headerlink" href="#equality" title="Permalink to this heading"></a></h2>
+<h2>Equality<a class="headerlink" href="#equality" title="Permalink to this headline"></a></h2>
 <div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kt">Eq</span><span class="w"></span>
 <span class="w">  </span><span class="p">(</span><span class="o">==</span><span class="p">)</span><span class="w">        </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w">    </span><span class="p">(</span><span class="kt">Eq</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kr">Bit</span><span class="w"></span>
 <span class="w">  </span><span class="p">(</span><span class="o">!=</span><span class="p">)</span><span class="w">        </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w">    </span><span class="p">(</span><span class="kt">Eq</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kr">Bit</span><span class="w"></span>
@@ -97,7 +96,7 @@
 </div>
 </section>
 <section id="comparisons">
-<h2>Comparisons<a class="headerlink" href="#comparisons" title="Permalink to this heading"></a></h2>
+<h2>Comparisons<a class="headerlink" href="#comparisons" title="Permalink to this headline"></a></h2>
 <div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">Cmp</span><span class="w"></span>
 <span class="w">  </span><span class="p">(</span><span class="o">&lt;</span><span class="p">)</span><span class="w">         </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kr">Cmp</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kr">Bit</span><span class="w"></span>
 <span class="w">  </span><span class="p">(</span><span class="o">&gt;</span><span class="p">)</span><span class="w">         </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kr">Cmp</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kr">Bit</span><span class="w"></span>
@@ -110,7 +109,7 @@
 </div>
 </section>
 <section id="signed-comparisons">
-<h2>Signed Comparisons<a class="headerlink" href="#signed-comparisons" title="Permalink to this heading"></a></h2>
+<h2>Signed Comparisons<a class="headerlink" href="#signed-comparisons" title="Permalink to this headline"></a></h2>
 <div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kt">SignedCmp</span><span class="w"></span>
 <span class="w">  </span><span class="p">(</span><span class="o">&lt;$</span><span class="p">)</span><span class="w">        </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">SignedCmp</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kr">Bit</span><span class="w"></span>
 <span class="w">  </span><span class="p">(</span><span class="o">&gt;$</span><span class="p">)</span><span class="w">        </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">SignedCmp</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kr">Bit</span><span class="w"></span>
@@ -120,14 +119,14 @@
 </div>
 </section>
 <section id="zero">
-<h2>Zero<a class="headerlink" href="#zero" title="Permalink to this heading"></a></h2>
+<h2>Zero<a class="headerlink" href="#zero" title="Permalink to this headline"></a></h2>
 <div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kt">Zero</span><span class="w"></span>
 <span class="w">  </span><span class="n">zero</span><span class="w">        </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">Zero</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"></span>
 </pre></div>
 </div>
 </section>
 <section id="logical-operations">
-<h2>Logical Operations<a class="headerlink" href="#logical-operations" title="Permalink to this heading"></a></h2>
+<h2>Logical Operations<a class="headerlink" href="#logical-operations" title="Permalink to this headline"></a></h2>
 <div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kt">Logic</span><span class="w"></span>
 <span class="w">  </span><span class="p">(</span><span class="o">&amp;&amp;</span><span class="p">)</span><span class="w">        </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">Logic</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"></span>
 <span class="w">  </span><span class="p">(</span><span class="o">||</span><span class="p">)</span><span class="w">        </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">Logic</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"></span>
@@ -137,7 +136,7 @@
 </div>
 </section>
 <section id="basic-arithmetic">
-<h2>Basic Arithmetic<a class="headerlink" href="#basic-arithmetic" title="Permalink to this heading"></a></h2>
+<h2>Basic Arithmetic<a class="headerlink" href="#basic-arithmetic" title="Permalink to this headline"></a></h2>
 <div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kt">Ring</span><span class="w"></span>
 <span class="w">  </span><span class="n">fromInteger</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">Ring</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="kt">Integer</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"></span>
 <span class="w">  </span><span class="p">(</span><span class="o">+</span><span class="p">)</span><span class="w">         </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">Ring</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"></span>
@@ -149,7 +148,7 @@
 </div>
 </section>
 <section id="integral-operations">
-<h2>Integral Operations<a class="headerlink" href="#integral-operations" title="Permalink to this heading"></a></h2>
+<h2>Integral Operations<a class="headerlink" href="#integral-operations" title="Permalink to this headline"></a></h2>
 <div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kt">Integral</span><span class="w"></span>
 <span class="w">  </span><span class="p">(</span><span class="o">/</span><span class="p">)</span><span class="w">         </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">Integral</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"></span>
 <span class="w">  </span><span class="p">(</span><span class="o">%</span><span class="p">)</span><span class="w">         </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">Integral</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"></span>
@@ -161,7 +160,7 @@
 </div>
 </section>
 <section id="division">
-<h2>Division<a class="headerlink" href="#division" title="Permalink to this heading"></a></h2>
+<h2>Division<a class="headerlink" href="#division" title="Permalink to this headline"></a></h2>
 <div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kt">Field</span><span class="w"></span>
 <span class="w">  </span><span class="n">recip</span><span class="w">       </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">Field</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"></span>
 <span class="w">  </span><span class="p">(</span><span class="o">/.</span><span class="p">)</span><span class="w">        </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">Field</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"></span>
@@ -169,7 +168,7 @@
 </div>
 </section>
 <section id="rounding">
-<h2>Rounding<a class="headerlink" href="#rounding" title="Permalink to this heading"></a></h2>
+<h2>Rounding<a class="headerlink" href="#rounding" title="Permalink to this headline"></a></h2>
 <div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kt">Round</span><span class="w"></span>
 <span class="w">  </span><span class="n">ceiling</span><span class="w">     </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">Round</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kt">Integer</span><span class="w"></span>
 <span class="w">  </span><span class="n">floor</span><span class="w">       </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">Round</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kt">Integer</span><span class="w"></span>

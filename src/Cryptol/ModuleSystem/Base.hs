@@ -61,6 +61,8 @@ import qualified Cryptol.Parser               as P
 import qualified Cryptol.Parser.Unlit         as P
 import Cryptol.Parser.AST as P
 import Cryptol.Parser.NoPat (RemovePatterns(removePatterns))
+import qualified Cryptol.Parser.ExpandPropGuards as ExpandPropGuards 
+  ( expandPropGuards, runExpandPropGuardsM )
 import Cryptol.Parser.NoInclude (removeIncludesModule)
 import Cryptol.Parser.Position (HasLoc(..), Range, emptyRange)
 import qualified Cryptol.TypeCheck     as T
@@ -118,6 +120,14 @@ noPat a = do
   unless (null errs) (noPatErrors errs)
   return a'
 
+-- ExpandPropGuards ------------------------------------------------------------
+
+-- | Run the expandPropGuards pass.
+expandPropGuards :: Module PName -> ModuleM (Module PName)
+expandPropGuards a =
+  case ExpandPropGuards.runExpandPropGuardsM $ ExpandPropGuards.expandPropGuards a of
+    Left err -> expandPropGuardsError err
+    Right a' -> pure a'
 
 -- Parsing ---------------------------------------------------------------------
 
@@ -180,8 +190,9 @@ parseModule path = do
 -- Modules ---------------------------------------------------------------------
 
 -- | Load a module by its path.
-loadModuleByPath :: FilePath -> ModuleM T.Module
-loadModuleByPath path = withPrependedSearchPath [ takeDirectory path ] $ do
+loadModuleByPath :: Bool {- ^ evaluate declarations in the module -} ->
+  FilePath -> ModuleM (ModulePath, T.Module)
+loadModuleByPath eval path = withPrependedSearchPath [ takeDirectory path ] $ do
   let fileName = takeFileName path
   foundPath <- findFile fileName
   (fp, pm) <- parseModule (InFile foundPath)
@@ -195,9 +206,11 @@ loadModuleByPath path = withPrependedSearchPath [ takeDirectory path ] $ do
 
   case lookupModule n env of
     -- loadModule will calculate the canonical path again
-    Nothing -> doLoadModule False (FromModule n) (InFile foundPath) fp pm
+    Nothing -> do
+      m <- doLoadModule eval False (FromModule n) (InFile foundPath) fp pm
+      pure (InFile foundPath, m)
     Just lm
-     | path' == loaded -> return (lmModule lm)
+     | path' == loaded -> return (lmFilePath lm, lmModule lm)
      | otherwise       -> duplicateModuleName n path' loaded
      where loaded = lmModuleId lm
 
@@ -213,18 +226,19 @@ loadModuleFrom quiet isrc =
          do path <- findModule n
             errorInFile path $
               do (fp, pm) <- parseModule path
-                 m        <- doLoadModule quiet isrc path fp pm
+                 m        <- doLoadModule True quiet isrc path fp pm
                  return (path,m)
 
 -- | Load dependencies, typecheck, and add to the eval environment.
 doLoadModule ::
+  Bool {- ^ evaluate declarations in the module -} ->
   Bool {- ^ quiet mode: true suppresses the "loading module" message -} ->
   ImportSource ->
   ModulePath ->
   Fingerprint ->
   P.Module PName ->
   ModuleM T.Module
-doLoadModule quiet isrc path fp pm0 =
+doLoadModule eval quiet isrc path fp pm0 =
   loading isrc $
   do let pm = addPrelude pm0
      loadDeps pm
@@ -241,10 +255,9 @@ doLoadModule quiet isrc path fp pm0 =
      let ?evalPrim = \i -> Right <$> Map.lookup i tbl
      callStacks <- getCallStacks
      let ?callStacks = callStacks
-     foreignSrc <- if T.isParametrizedModule tcm
-       then pure Nothing
-       else evalForeign tcm
-     unless (T.isParametrizedModule tcm) $
+     let shouldEval = eval && not (T.isParametrizedModule tcm)
+     foreignSrc <- if shouldEval then evalForeign tcm else pure Nothing
+     when shouldEval $
        modifyEvalEnv (E.moduleEnv Concrete tcm)
      loadedModule path fp nameEnv foreignSrc tcm
 
@@ -468,8 +481,11 @@ checkSingleModule how isrc m = do
   -- remove pattern bindings
   npm <- noPat m
 
+  -- run expandPropGuards
+  epgm <- expandPropGuards npm
+
   -- rename everything
-  renMod <- renameModule npm
+  renMod <- renameModule epgm
 
   -- when generating the prim map for the typechecker, if we're checking the
   -- prelude, we have to generate the map from the renaming environment, as we

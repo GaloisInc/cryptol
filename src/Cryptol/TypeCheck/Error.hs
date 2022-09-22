@@ -68,6 +68,7 @@ subsumes _ _ = False
 data Warning  = DefaultingKind (P.TParam Name) P.Kind
               | DefaultingWildType P.Kind
               | DefaultingTo !TVarInfo Type
+              | NonExhaustivePropGuards Name
                 deriving (Show, Generic, NFData)
 
 -- | Various errors that might happen during type checking/inference
@@ -151,6 +152,16 @@ data Error    = KindMismatch (Maybe TypeSource) Kind Kind
               | UnsupportedFFIType TypeSource FFITypeError
                 -- ^ Type is not supported for FFI
 
+              | NestedConstraintGuard Ident
+                -- ^ Constraint guards may only apper at the top-level
+
+              | DeclarationRequiresSignatureCtrGrd Ident
+                -- ^ All declarataions in a recursive group involving
+                -- constraint guards should have signatures
+
+              | InvalidConstraintGuard Prop
+                -- ^ The given constraint may not be used as a constraint guard
+
               | TemporaryError Doc
                 -- ^ This is for errors that don't fit other cateogories.
                 -- We should not use it much, and is generally to be used
@@ -211,6 +222,10 @@ errorImportance err =
     UnsupportedFFIType {}                            -> 7
     -- less than UnexpectedTypeWildCard
 
+    NestedConstraintGuard {}                         -> 10
+    DeclarationRequiresSignatureCtrGrd {}            -> 9
+    InvalidConstraintGuard {}                        -> 5
+
 
 instance TVars Warning where
   apSubst su warn =
@@ -218,6 +233,7 @@ instance TVars Warning where
       DefaultingKind {}     -> warn
       DefaultingWildType {} -> warn
       DefaultingTo d ty     -> DefaultingTo d $! (apSubst su ty)
+      NonExhaustivePropGuards {} -> warn
 
 instance FVS Warning where
   fvs warn =
@@ -225,6 +241,7 @@ instance FVS Warning where
       DefaultingKind {}     -> Set.empty
       DefaultingWildType {} -> Set.empty
       DefaultingTo _ ty     -> fvs ty
+      NonExhaustivePropGuards {} -> Set.empty
 
 instance TVars Error where
   apSubst su err =
@@ -261,6 +278,10 @@ instance TVars Error where
 
       UnsupportedFFIKind {}    -> err
       UnsupportedFFIType src e -> UnsupportedFFIType src !$ apSubst su e
+
+      NestedConstraintGuard {} -> err
+      DeclarationRequiresSignatureCtrGrd {} -> err
+      InvalidConstraintGuard p -> InvalidConstraintGuard $! apSubst su p
 
       TemporaryError {} -> err
 
@@ -300,6 +321,10 @@ instance FVS Error where
       UnsupportedFFIKind {}  -> Set.empty
       UnsupportedFFIType _ t -> fvs t
 
+      NestedConstraintGuard {} -> Set.empty
+      DeclarationRequiresSignatureCtrGrd {} -> Set.empty
+      InvalidConstraintGuard p -> fvs p
+
       TemporaryError {} -> Set.empty
 
 instance PP Warning where
@@ -323,6 +348,10 @@ instance PP (WithNames Warning) where
         text "Defaulting" <+> pp (tvarDesc d) <+> text "to"
                                               <+> ppWithNames names ty
 
+      NonExhaustivePropGuards n ->
+        text "Could not prove that the constraint guards used in defining" <+> 
+        pp n <+> text "were exhaustive."
+
 instance PP (WithNames Error) where
   ppPrec _ (WithNames err names) =
     case err of
@@ -337,8 +366,13 @@ instance PP (WithNames Error) where
 
       UnexpectedTypeWildCard ->
         addTVarsDescsAfter names err $
-        nested "Wild card types are not allowed in this context"
-          "(e.g., they cannot be used in type synonyms or FFI declarations)."
+        nested "Wild card types are not allowed in this context" $
+          vcat [ "They cannot be used in:"
+               , bullets [ "type synonyms"
+                         , "FFI declarations"
+                         , "declarations with constraint guards"
+                         ]
+               ]
 
       KindMismatch mbsrc k1 k2 ->
         addTVarsDescsAfter names err $
@@ -483,6 +517,27 @@ instance PP (WithNames Error) where
       UnsupportedFFIType src t -> vcat
         [ ppWithNames names t
         , "When checking" <+> pp src ]
+
+      NestedConstraintGuard d ->
+        vcat [ "Local declaration" <+> backticks (pp d)
+                                   <+> "may not use constraint guards."
+             , "Constraint guards may only appear at the top-level of a module."
+             ]
+
+      DeclarationRequiresSignatureCtrGrd d ->
+        vcat [ "The declaration of" <+> backticks (pp d) <+>
+                                            "requires a full type signature,"
+             , "because it is part of a recursive group with constraint guards."
+             ]
+
+      InvalidConstraintGuard p ->
+        let d = case tNoUser p of
+                  TCon tc _ -> pp tc
+                  _         -> ppWithNames names p
+        in
+        vcat [ backticks d <+> "may not be used in a constraint guard."
+             , "Constraint guards support only numeric comparisons and `fin`."
+             ]
 
       TemporaryError doc -> doc
     where

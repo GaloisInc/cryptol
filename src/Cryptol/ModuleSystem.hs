@@ -18,6 +18,7 @@ module Cryptol.ModuleSystem (
   , findModule
   , loadModuleByPath
   , loadModuleByName
+  , checkModuleByPath
   , checkExpr
   , evalExpr
   , benchmarkExpr
@@ -70,9 +71,9 @@ loadModuleByPath path minp = do
   moduleEnv' <- resetModuleEnv $ minpModuleEnv minp
   runModuleM minp{ minpModuleEnv = moduleEnv' } $ do
     unloadModule ((InFile path ==) . lmFilePath)
-    m <- Base.loadModuleByPath path
+    (mPath, m) <- Base.loadModuleByPath True path
     setFocusedModule (T.mName m)
-    return (InFile path,m)
+    return (mPath,m)
 
 -- | Load the given parsed module.
 loadModuleByName :: P.ModName -> ModuleCmd (ModulePath,T.Module)
@@ -83,6 +84,13 @@ loadModuleByName n minp = do
     (path,m') <- Base.loadModuleFrom False (FromModule n)
     setFocusedModule (T.mName m')
     return (path,m')
+
+-- | Parse and typecheck a module, but don't evaluate or change the environment.
+checkModuleByPath :: FilePath -> ModuleCmd (ModulePath, T.Module)
+checkModuleByPath path minp = do
+  (res, warns) <- runModuleM minp $ Base.loadModuleByPath False path
+  -- restore the old environment
+  pure (fmap (minpModuleEnv minp <$) res, warns)
 
 -- Extended Environments -------------------------------------------------------
 

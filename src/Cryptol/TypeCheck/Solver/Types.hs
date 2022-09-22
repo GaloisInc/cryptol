@@ -1,4 +1,5 @@
 {-# Language OverloadedStrings, DeriveGeneric, DeriveAnyClass #-}
+{-# LANGUAGE Safe #-}
 module Cryptol.TypeCheck.Solver.Types where
 
 import Data.Map(Map)

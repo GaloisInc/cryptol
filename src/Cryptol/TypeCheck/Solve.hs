@@ -11,6 +11,7 @@
 module Cryptol.TypeCheck.Solve
   ( simplifyAllConstraints
   , proveImplication
+  , tryProveImplication
   , proveModuleTopLevel
   , defaultAndSimplify
   , defaultReplExpr
@@ -287,6 +288,25 @@ proveImplication dedupErrs lnam as ps gs =
        Left errs -> mapM_ recordError errs
      return su
 
+-- | Tries to prove an implication. If proved, then returns `Right (m_su ::
+-- InferM Subst)` where `m_su` is an `InferM` computation that results in the
+-- solution substitution, and records any warning invoked during proving. If not
+-- proved, then returns `Left (m_err :: InferM ())`, which records all errors
+-- invoked during proving.
+tryProveImplication :: 
+  Maybe Name -> [TParam] -> [Prop] -> [Goal] -> InferM Bool
+tryProveImplication lnam as ps gs =
+  do evars <- varsWithAsmps
+     solver <- getSolver
+
+     extraAs <- (map mtpParam . Map.elems) <$> getParamTypes
+     extra   <- map thing <$> getParamConstraints
+
+     (mbErr,_su) <- io (proveImplicationIO solver False lnam evars
+                            (extraAs ++ as) (extra ++ ps) gs)
+     case mbErr of
+       Left {}  -> pure False
+       Right {} -> pure True
 
 proveImplicationIO :: Solver
                    -> Bool     -- ^ Whether to remove duplicate goals in errors

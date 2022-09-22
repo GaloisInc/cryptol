@@ -10,6 +10,7 @@
 
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE Safe #-}
 
 module Cryptol.TypeCheck.Solver.Numeric.Interval where
 

@@ -17,6 +17,7 @@ import Cryptol.ModuleSystem.Name(toParamInstName,asParamName,nameIdent
                                 ,paramModRecParam)
 import Cryptol.Utils.Ident(paramInstModName)
 import Cryptol.Utils.RecordMap(recordFromFields)
+import Data.Bifunctor (Bifunctor(second))
 
 {-
 Note that we have to be careful when doing this transformation on
@@ -258,6 +259,7 @@ instance Inst Expr where
          _ -> EProofApp (inst ps e1)
 
      EWhere e dgs  -> EWhere (inst ps e) (inst ps dgs)
+     EPropGuards guards ty -> EPropGuards (second (inst ps) <$> guards) ty
 
 
 instance Inst Match where
