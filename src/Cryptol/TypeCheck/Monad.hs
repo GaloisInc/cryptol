@@ -997,13 +997,6 @@ endModule =
         )
       _ -> panic "endModule" [ "Not a single top module" ]
 
-endModuleInstance :: InferM ()
-endModuleInstance =
-  IM $ sets_ \rw ->
-    case iScope rw of
-      [ x ] | MTopModule _ <- mName x -> rw { iScope = [] }
-      _ -> panic "endModuleInstance" [ "Not single top module" ]
-
 endSignature :: InferM ()
 endSignature =
   IM $ sets_ \rw ->
