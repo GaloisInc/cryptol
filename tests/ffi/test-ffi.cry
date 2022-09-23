@@ -42,3 +42,12 @@ foreign zipMul3 : {n, m, p} (fin n, fin m, fin p) =>
 // Nested sequences
 foreign nestedSeq : {n, m, p} (fin n, fin m, fin p, n * m * p == 4 * 3 * 2) =>
   [n][m][p][8] -> [4][3][2][8]
+
+// Integers, Rationals, Z
+foreign i2Q   : Integer -> Rational
+foreign i2Qs  : Integer -> [2]Rational
+foreign iQ2Qi : (Integer,Rational) -> (Rational,Integer)
+foreign i2Z5  : Integer -> Z 5
+foreign i2Z   : {n} (fin n, n >= 1) => Integer -> Z n
+
+

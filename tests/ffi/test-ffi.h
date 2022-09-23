@@ -1,3 +1,4 @@
+#include <gmp.h>
 #include <stddef.h>
 #include <stdint.h>
 uint8_t add8(uint8_t in0, uint8_t in1);
@@ -20,3 +21,8 @@ uint32_t sumPoly(size_t n, uint32_t * in);
 void inits(size_t n, uint8_t * in, uint8_t * out);
 void zipMul3(size_t n, size_t m, size_t p, float * in0, float * in1, float * in2, float * out);
 void nestedSeq(size_t n, size_t m, size_t p, uint8_t * in, uint8_t * out);
+void i2Q(mpz_t in, mpq_t out);
+void i2Qs(mpz_t in, mpq_t * out);
+void iQ2Qi(mpz_t in_0, mpq_t in_1, mpq_t out_0, mpz_t out_1);
+void i2Z5(mpz_t in, mpz_t out);
+void i2Z(size_t n, mpz_t in, mpz_t out);

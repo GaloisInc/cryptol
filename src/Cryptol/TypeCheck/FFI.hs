@@ -96,13 +96,17 @@ toFFIBasicType t =
       | n <= 32 -> word FFIWord32
       | n <= 64 -> word FFIWord64
       | otherwise -> Just $ Left $ FFITypeError t FFIBadWordSize
-      where word = Just . Right . FFIWord n
+      where word = Just . Right . FFIBasicVal . FFIWord n
     TCon (TC TCFloat) [TCon (TC (TCNum e)) [], TCon (TC (TCNum p)) []]
       | (e, p) == float32ExpPrec -> float FFIFloat32
       | (e, p) == float64ExpPrec -> float FFIFloat64
       | otherwise -> Just $ Left $ FFITypeError t FFIBadFloatSize
-      where float = Just . Right . FFIFloat e p
+      where float = Just . Right . FFIBasicVal . FFIFloat e p
+    TCon (TC TCInteger) [] -> integer Nothing
+    TCon (TC TCIntMod) [n] -> integer $ Just n
+    TCon (TC TCRational) [] -> Just $ Right $ FFIBasicRef FFIRational
     _ -> Nothing
+  where integer = Just . Right . FFIBasicRef . FFIInteger
 
 fin :: Type -> Prop
 fin t = TCon (PC PFin) [t]

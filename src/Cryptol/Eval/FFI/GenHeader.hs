@@ -84,9 +84,9 @@ convertTypeParam name = (`C.Param` name) <$> sizeT
 -- | Convert a Cryptol parameter or return type to C.
 convertType :: ParamDir -> FFIType -> GenHeaderM ConvertResult
 convertType _ FFIBool = Direct <$> uint8T
-convertType _ (FFIBasic t) = Direct <$> convertBasicType t
+convertType _ (FFIBasic t) = convertBasicType t
 convertType _ (FFIArray _ t) = do
-  u <- convertBasicType t
+  u <- convertBasicTypeInArray t
   pure $ Params [C.Param (C.Ptr u) ""]
 convertType dir (FFITuple ts) = Params <$> convertMultiType dir
   -- We name the tuple components using their indices
@@ -110,18 +110,44 @@ convertMultiType dir = fmap concat . traverse \(prefix, t) ->
                 Out -> C.Ptr u
       Params ps -> map (prefixParam prefix) ps
 
+{- | Convert a basic Cryptol FFI type to a C type with its corresponding
+calling convention.  At present all value types use the same calling
+convention no matter if they are inputs or outputs, so we don't
+need the 'ParamDir'. -}
+convertBasicType :: FFIBasicType -> GenHeaderM ConvertResult
+convertBasicType bt =
+  case bt of
+    FFIBasicVal bvt -> Direct <$> convertBasicValType bvt
+    FFIBasicRef brt -> do t <- convertBasicRefType brt
+                          pure (Params [C.Param t ""])
+
 -- | Convert a basic Cryptol FFI type to a C type.
-convertBasicType :: FFIBasicType -> GenHeaderM C.Type
-convertBasicType (FFIWord _ s) =
+-- This is used when the type is stored in array.
+convertBasicTypeInArray :: FFIBasicType -> GenHeaderM C.Type
+convertBasicTypeInArray bt =
+  case bt of
+    FFIBasicVal bvt -> convertBasicValType bvt
+    FFIBasicRef brt -> convertBasicRefType brt
+
+-- | Convert a basic Cryptol FFI type to a value C type.
+convertBasicValType :: FFIBasicValType -> GenHeaderM C.Type
+convertBasicValType (FFIWord _ s) =
   case s of
     FFIWord8  -> uint8T
     FFIWord16 -> uint16T
     FFIWord32 -> uint32T
     FFIWord64 -> uint64T
-convertBasicType (FFIFloat _ _ s) =
+convertBasicValType (FFIFloat _ _ s) =
   case s of
     FFIFloat32 -> pure $ C.TypeSpec C.Float
     FFIFloat64 -> pure $ C.TypeSpec C.Double
+
+-- | Convert a basic Cryptol FFI type to a reference C type.
+convertBasicRefType :: FFIBasicRefType -> GenHeaderM C.Type
+convertBasicRefType brt =
+  case brt of
+    FFIInteger {} -> mpzT
+    FFIRational   -> mpqT
 
 prefixParam :: C.Ident -> C.Param -> C.Param
 prefixParam pre (C.Param u name) = C.Param u (pre ++ name)
@@ -130,16 +156,20 @@ prefixParam pre (C.Param u name) = C.Param u (pre ++ name)
 componentSuffix :: String -> C.Ident
 componentSuffix = ('_' :)
 
-sizeT, uint8T, uint16T, uint32T, uint64T :: GenHeaderM C.Type
+sizeT, uint8T, uint16T, uint32T, uint64T, mpzT, mpqT :: GenHeaderM C.Type
 sizeT = typedefFromInclude stddefH "size_t"
 uint8T = typedefFromInclude stdintH "uint8_t"
 uint16T = typedefFromInclude stdintH "uint16_t"
 uint32T = typedefFromInclude stdintH "uint32_t"
 uint64T = typedefFromInclude stdintH "uint64_t"
+mpzT = typedefFromInclude gmpH "mpz_t"
+mpqT = typedefFromInclude gmpH "mpq_t"
 
-stddefH, stdintH :: Include
+stddefH, stdintH, gmpH :: Include
 stddefH = Include "stddef.h"
 stdintH = Include "stdint.h"
+gmpH = Include "gmp.h"
+
 
 -- | Return a type with the given name, included from some header file.
 typedefFromInclude :: Include -> C.Ident -> GenHeaderM C.Type

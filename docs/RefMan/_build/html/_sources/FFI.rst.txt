@@ -167,8 +167,8 @@ When converting to C, ``True`` is converted to ``1`` and ``False`` to ``0``.
 When converting to Cryptol, any nonzero number is converted to ``True`` and
 ``0`` is converted to ``False``.
 
-Integral types
-~~~~~~~~~~~~~~
+Bit Vector Types
+~~~~~~~~~~~~~~~~
 
 Let ``K : #`` be a Cryptol type. Note ``K`` must be an actual fixed numeric type
 and not a type variable.
@@ -188,7 +188,7 @@ are ignored. For instance, for the Cryptol type ``[4]``, the Cryptol value ``0xf
 : [4]`` is converted to the C value ``uint8_t`` ``0x0f``, and the C ``uint8_t``
 ``0xaf`` is converted to the Cryptol value ``0xf : [4]``.
 
-Note that words larger than 64 bits are not supported, since there is no
+Note that bit vectors larger than 64 bits are not supported, since there is no
 standard C integral type for that. You can split it into a sequence of smaller
 words first in Cryptol, then use the FFI conversion for sequences of words to
 handle it in C as an array.
@@ -206,13 +206,37 @@ Cryptol type  C type
 Note: the Cryptol ``Float`` types are defined in the built-in module ``Float``.
 Other sizes of floating points are not supported.
 
+Math Types
+~~~~~~~~~~
+
+Values of high precision types and ``Z`` are represented using the GMP library.
+
+============  ==========
+Cryptol type  C type
+============  ==========
+``Integer``   ``mpz_t``
+``Rational``  ``mpq_t``
+``Z n``       ``mpz_t``
+============  ==========
+
+Results of these types are returned in *output* parameters,
+but since both ``mpz_t`` and ``mpz_q`` are already reference
+types there is no need for an extra pointer in the result.
+For example, a Cryptol function ``f : Integer -> Rational``
+would correspond to a C function ``f(mpz_t in, mpq_t out)``.
+
+All parameters passed to the C function (no matter if
+input or output) are managed by Cryptol, which takes care
+to call ``init`` before their use and ``clear`` after.
+
+
 Sequences
 ~~~~~~~~~
 
 Let ``n1, n2, ..., nk : #`` be Cryptol types (with ``k >= 1``), possibly
 containing type variables, that satisfy ``fin n1, fin n2, ..., fin nk``, and
-``T`` be one of the above Cryptol *integral types* or *floating point types*.
-Let ``U`` be the C type that ``T`` corresponds to.
+``T`` be one of the above Cryptol *bit vector types*, *floating point types*, or
+*math types*.  Let ``U`` be the C type that ``T`` corresponds to.
 
 ====================  ===========
 Cryptol type          C type
@@ -256,17 +280,18 @@ type synonyms in ``foreign`` declarations to improve readability.
 Return values
 ~~~~~~~~~~~~~
 
-If the Cryptol return type is ``Bit`` or one of the above *integral types* or
+If the Cryptol return type is ``Bit`` or one of the above *bit vector types* or
 *floating point types*, the value is returned directly from the C function. In
 that case, the return type of the C function will be the C type corresponding to
 the Cryptol type, and no extra arguments are added.
 
-If the Cryptol return type is a sequence, tuple, or record, then the value is
-returned using output arguments, and the return type of the C function will be
-``void``. For tuples and records, each component is recursively returned as
+If the Cryptol return type is one of the *math types*, a sequence, tuple,
+or record, then the value is returned using output arguments,
+and the return type of the C function will be ``void``.
+For tuples and records, each component is recursively returned as
 output arguments. When treated as an output argument, each C type ``U`` will be
-a pointer ``U*`` instead, except in the case of sequences, where the output and
-input versions are the same type, because it is already a pointer.
+a pointer ``U*`` instead, except in the case of *math types* and sequences,
+where the output and input versions are the same type, because it is already a pointer.
 
 Quick reference
 ~~~~~~~~~~~~~~~
@@ -282,6 +307,9 @@ Cryptol type (or kind)              C argument type(s)   C return type  C output
 ``[K]Bit`` where ``32 <  K <= 64``  ``uint64_t``         ``uint64_t``   ``uint64_t*``
 ``Float32``                         ``float``            ``float``      ``float*``
 ``Float64``                         ``double``           ``double``     ``double*``
+``Integer``                         ``mpz_t``            N/A            ``mpz_t``
+``Rational``                        ``mpq_t``            N/A            ``mpq_t``
+``Z n``                             ``mpz_t``            N/A            ``mpz_t``
 ``[n1][n2]...[nk]T``                ``U*``               N/A            ``U*``
 ``(T1, T2, ..., Tn)``               ``U1, U2, ..., Un``  N/A            ``V1, V2, ..., Vn``
 ``{f1: T1, f2: T2, ..., fn: Tn}``   ``U1, U2, ..., Un``  N/A            ``V1, V2, ..., Vn``
@@ -296,6 +324,8 @@ Memory
 When pointers are involved, namely in the cases of sequences and output
 arguments, they point to memory. This memory is always allocated and deallocated
 by Cryptol; the C code does not need to manage this memory.
+
+For GMP types, Cryptol will call ``init`` and ``clear`` as needed.
 
 In the case of sequences, the pointer will point to an array. In the case of an
 output argument for a non-sequence type, the pointer will point to a piece of

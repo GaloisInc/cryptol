@@ -35,6 +35,12 @@ data FFIType
 
 -- | Types which can be elements of FFI arrays.
 data FFIBasicType
+  = FFIBasicVal FFIBasicValType
+  | FFIBasicRef FFIBasicRefType
+  deriving (Show, Generic, NFData)
+
+-- | Basic type which is passed and returned directly by value.
+data FFIBasicValType
   = FFIWord
       Integer     -- ^ The size of the Cryptol type
       FFIWordSize -- ^ The machine word size that it corresponds to
@@ -54,4 +60,11 @@ data FFIWordSize
 data FFIFloatSize
   = FFIFloat32
   | FFIFloat64
+  deriving (Show, Generic, NFData)
+
+-- | Basic type which is passed and returned by reference through a parameter.
+data FFIBasicRefType
+  = FFIInteger
+      (Maybe Type) -- ^ Modulus (Just for Z, Nothing for Integer)
+  | FFIRational
   deriving (Show, Generic, NFData)

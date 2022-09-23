@@ -57,49 +57,34 @@ Loading module Main
         Only words or floats are supported as the element type of
         (possibly multidimensional) sequences
   When checking the type of 'Main::badArrayTypes'
-[error] at ffi-type-errors.cry:7:9--7:34:
-  Type unsupported for FFI:
-    Integer -> Z 3
-    Due to:
-      Type unsupported for FFI:
-        Integer
-        Due to:
-        Only Bit, words, floats, sequences, or structs or tuples
-        of the above are supported as FFI argument or return types
-      Type unsupported for FFI:
-        Z 3
-        Due to:
-        Only Bit, words, floats, sequences, or structs or tuples
-        of the above are supported as FFI argument or return types
-  When checking the type of 'Main::badTypes'
-[error] at ffi-type-errors.cry:8:9--8:27:
+[error] at ffi-type-errors.cry:7:9--7:27:
   Type unsupported for FFI:
     [32]
     Due to:
     FFI binding must be a function
   When checking the type of 'Main::notFunction'
-[error] at ffi-type-errors.cry:9:9--9:32:
+[error] at ffi-type-errors.cry:8:9--8:32:
   Kind of type variable unsupported for FFI: 
     t`970 : *
     Only type variables of kind # are supported
     When checking the type of 'Main::badKind'
-[error] at ffi-type-errors.cry:10:9--10:43:
+[error] at ffi-type-errors.cry:9:9--9:43:
   Failed to validate user-specified signature.
-    in the definition of 'Main::noFin', at ffi-type-errors.cry:10:9--10:14,
+    in the definition of 'Main::noFin', at ffi-type-errors.cry:9:9--9:14,
     we need to show that
       for any type n
       the following constraints hold:
         • fin n
             arising from
             declaration of foreign function Main::noFin
-            at ffi-type-errors.cry:10:9--10:43
-[error] at ffi-type-errors.cry:11:9--11:34:
+            at ffi-type-errors.cry:9:9--9:43
+[error] at ffi-type-errors.cry:10:9--10:34:
   • Unsolvable constraint:
       fin inf
         arising from
         declaration of foreign function Main::infSeq
-        at ffi-type-errors.cry:11:9--11:34
-[error] at ffi-type-errors.cry:12:48--12:49:
+        at ffi-type-errors.cry:10:9--10:34
+[error] at ffi-type-errors.cry:11:48--11:49:
   Wild card types are not allowed in this context
     They cannot be used in:
     • type synonyms

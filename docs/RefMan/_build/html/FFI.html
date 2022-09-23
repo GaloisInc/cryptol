@@ -52,8 +52,9 @@
 <li class="toctree-l3"><a class="reference internal" href="#overall-structure">Overall structure</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#type-parameters">Type parameters</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#bit">Bit</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#integral-types">Integral types</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#bit-vector-types">Bit Vector Types</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#floating-point-types">Floating point types</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#math-types">Math Types</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#sequences">Sequences</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#tuples-and-records">Tuples and records</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#type-synonyms">Type synonyms</a></li>
@@ -253,8 +254,8 @@ cumbersome.)</p>
 When converting to Cryptol, any nonzero number is converted to <code class="docutils literal notranslate"><span class="pre">True</span></code> and
 <code class="docutils literal notranslate"><span class="pre">0</span></code> is converted to <code class="docutils literal notranslate"><span class="pre">False</span></code>.</p>
 </section>
-<section id="integral-types">
-<h3>Integral types<a class="headerlink" href="#integral-types" title="Permalink to this headline"></a></h3>
+<section id="bit-vector-types">
+<h3>Bit Vector Types<a class="headerlink" href="#bit-vector-types" title="Permalink to this headline"></a></h3>
 <p>Let <code class="docutils literal notranslate"><span class="pre">K</span> <span class="pre">:</span> <span class="pre">#</span></code> be a Cryptol type. Note <code class="docutils literal notranslate"><span class="pre">K</span></code> must be an actual fixed numeric type
 and not a type variable.</p>
 <table class="docutils align-default">
@@ -287,7 +288,7 @@ value is padded with zero bits, and when converting to Cryptol the extra bits
 are ignored. For instance, for the Cryptol type <code class="docutils literal notranslate"><span class="pre">[4]</span></code>, the Cryptol value <code class="docutils literal notranslate"><span class="pre">0xf</span>
 <span class="pre">:</span> <span class="pre">[4]</span></code> is converted to the C value <code class="docutils literal notranslate"><span class="pre">uint8_t</span></code> <code class="docutils literal notranslate"><span class="pre">0x0f</span></code>, and the C <code class="docutils literal notranslate"><span class="pre">uint8_t</span></code>
 <code class="docutils literal notranslate"><span class="pre">0xaf</span></code> is converted to the Cryptol value <code class="docutils literal notranslate"><span class="pre">0xf</span> <span class="pre">:</span> <span class="pre">[4]</span></code>.</p>
-<p>Note that words larger than 64 bits are not supported, since there is no
+<p>Note that bit vectors larger than 64 bits are not supported, since there is no
 standard C integral type for that. You can split it into a sequence of smaller
 words first in Cryptol, then use the FFI conversion for sequences of words to
 handle it in C as an array.</p>
@@ -316,12 +317,46 @@ handle it in C as an array.</p>
 <p>Note: the Cryptol <code class="docutils literal notranslate"><span class="pre">Float</span></code> types are defined in the built-in module <code class="docutils literal notranslate"><span class="pre">Float</span></code>.
 Other sizes of floating points are not supported.</p>
 </section>
+<section id="math-types">
+<h3>Math Types<a class="headerlink" href="#math-types" title="Permalink to this headline"></a></h3>
+<p>Values of high precision types and <code class="docutils literal notranslate"><span class="pre">Z</span></code> are represented using the GMP library.</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 55%" />
+<col style="width: 45%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Cryptol type</p></th>
+<th class="head"><p>C type</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">Integer</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">mpz_t</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">Rational</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">mpq_t</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">Z</span> <span class="pre">n</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">mpz_t</span></code></p></td>
+</tr>
+</tbody>
+</table>
+<p>Results of these types are returned in <em>output</em> parameters,
+but since both <code class="docutils literal notranslate"><span class="pre">mpz_t</span></code> and <code class="docutils literal notranslate"><span class="pre">mpz_q</span></code> are already reference
+types there is no need for an extra pointer in the result.
+For example, a Cryptol function <code class="docutils literal notranslate"><span class="pre">f</span> <span class="pre">:</span> <span class="pre">Integer</span> <span class="pre">-&gt;</span> <span class="pre">Rational</span></code>
+would correspond to a C function <code class="docutils literal notranslate"><span class="pre">f(mpz_t</span> <span class="pre">in,</span> <span class="pre">mpq_t</span> <span class="pre">out)</span></code>.</p>
+<p>All parameters passed to the C function (no matter if
+input or output) are managed by Cryptol, which takes care
+to call <code class="docutils literal notranslate"><span class="pre">init</span></code> before their use and <code class="docutils literal notranslate"><span class="pre">clear</span></code> after.</p>
+</section>
 <section id="sequences">
 <h3>Sequences<a class="headerlink" href="#sequences" title="Permalink to this headline"></a></h3>
 <p>Let <code class="docutils literal notranslate"><span class="pre">n1,</span> <span class="pre">n2,</span> <span class="pre">...,</span> <span class="pre">nk</span> <span class="pre">:</span> <span class="pre">#</span></code> be Cryptol types (with <code class="docutils literal notranslate"><span class="pre">k</span> <span class="pre">&gt;=</span> <span class="pre">1</span></code>), possibly
 containing type variables, that satisfy <code class="docutils literal notranslate"><span class="pre">fin</span> <span class="pre">n1,</span> <span class="pre">fin</span> <span class="pre">n2,</span> <span class="pre">...,</span> <span class="pre">fin</span> <span class="pre">nk</span></code>, and
-<code class="docutils literal notranslate"><span class="pre">T</span></code> be one of the above Cryptol <em>integral types</em> or <em>floating point types</em>.
-Let <code class="docutils literal notranslate"><span class="pre">U</span></code> be the C type that <code class="docutils literal notranslate"><span class="pre">T</span></code> corresponds to.</p>
+<code class="docutils literal notranslate"><span class="pre">T</span></code> be one of the above Cryptol <em>bit vector types</em>, <em>floating point types</em>, or
+<em>math types</em>.  Let <code class="docutils literal notranslate"><span class="pre">U</span></code> be the C type that <code class="docutils literal notranslate"><span class="pre">T</span></code> corresponds to.</p>
 <table class="docutils align-default">
 <colgroup>
 <col style="width: 65%" />
@@ -382,16 +417,17 @@ type synonyms in <code class="docutils literal notranslate"><span class="pre">fo
 </section>
 <section id="return-values">
 <h3>Return values<a class="headerlink" href="#return-values" title="Permalink to this headline"></a></h3>
-<p>If the Cryptol return type is <code class="docutils literal notranslate"><span class="pre">Bit</span></code> or one of the above <em>integral types</em> or
+<p>If the Cryptol return type is <code class="docutils literal notranslate"><span class="pre">Bit</span></code> or one of the above <em>bit vector types</em> or
 <em>floating point types</em>, the value is returned directly from the C function. In
 that case, the return type of the C function will be the C type corresponding to
 the Cryptol type, and no extra arguments are added.</p>
-<p>If the Cryptol return type is a sequence, tuple, or record, then the value is
-returned using output arguments, and the return type of the C function will be
-<code class="docutils literal notranslate"><span class="pre">void</span></code>. For tuples and records, each component is recursively returned as
+<p>If the Cryptol return type is one of the <em>math types</em>, a sequence, tuple,
+or record, then the value is returned using output arguments,
+and the return type of the C function will be <code class="docutils literal notranslate"><span class="pre">void</span></code>.
+For tuples and records, each component is recursively returned as
 output arguments. When treated as an output argument, each C type <code class="docutils literal notranslate"><span class="pre">U</span></code> will be
-a pointer <code class="docutils literal notranslate"><span class="pre">U*</span></code> instead, except in the case of sequences, where the output and
-input versions are the same type, because it is already a pointer.</p>
+a pointer <code class="docutils literal notranslate"><span class="pre">U*</span></code> instead, except in the case of <em>math types</em> and sequences,
+where the output and input versions are the same type, because it is already a pointer.</p>
 </section>
 <section id="quick-reference">
 <h3>Quick reference<a class="headerlink" href="#quick-reference" title="Permalink to this headline"></a></h3>
@@ -450,17 +486,32 @@ input versions are the same type, because it is already a pointer.</p>
 <td><p><code class="docutils literal notranslate"><span class="pre">double</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">double*</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">[n1][n2]...[nk]T</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">Integer</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">mpz_t</span></code></p></td>
+<td><p>N/A</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">mpz_t</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">Rational</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">mpq_t</span></code></p></td>
+<td><p>N/A</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">mpq_t</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">Z</span> <span class="pre">n</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">mpz_t</span></code></p></td>
+<td><p>N/A</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">mpz_t</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">[n1][n2]...[nk]T</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">U*</span></code></p></td>
 <td><p>N/A</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">U*</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">(T1,</span> <span class="pre">T2,</span> <span class="pre">...,</span> <span class="pre">Tn)</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">(T1,</span> <span class="pre">T2,</span> <span class="pre">...,</span> <span class="pre">Tn)</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">U1,</span> <span class="pre">U2,</span> <span class="pre">...,</span> <span class="pre">Un</span></code></p></td>
 <td><p>N/A</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">V1,</span> <span class="pre">V2,</span> <span class="pre">...,</span> <span class="pre">Vn</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">{f1:</span> <span class="pre">T1,</span> <span class="pre">f2:</span> <span class="pre">T2,</span> <span class="pre">...,</span> <span class="pre">fn:</span> <span class="pre">Tn}</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">{f1:</span> <span class="pre">T1,</span> <span class="pre">f2:</span> <span class="pre">T2,</span> <span class="pre">...,</span> <span class="pre">fn:</span> <span class="pre">Tn}</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">U1,</span> <span class="pre">U2,</span> <span class="pre">...,</span> <span class="pre">Un</span></code></p></td>
 <td><p>N/A</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">V1,</span> <span class="pre">V2,</span> <span class="pre">...,</span> <span class="pre">Vn</span></code></p></td>
@@ -476,6 +527,7 @@ input versions are the same type, because it is already a pointer.</p>
 <p>When pointers are involved, namely in the cases of sequences and output
 arguments, they point to memory. This memory is always allocated and deallocated
 by Cryptol; the C code does not need to manage this memory.</p>
+<p>For GMP types, Cryptol will call <code class="docutils literal notranslate"><span class="pre">init</span></code> and <code class="docutils literal notranslate"><span class="pre">clear</span></code> as needed.</p>
 <p>In the case of sequences, the pointer will point to an array. In the case of an
 output argument for a non-sequence type, the pointer will point to a piece of
 memory large enough to hold the given C type, and you should not try to access
