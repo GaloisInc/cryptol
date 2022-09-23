@@ -129,6 +129,14 @@ void i2Q(mpz_t in, mpq_t out) {
   mpq_set_num(out, in);
 }
 
+void i2Z5(mpz_t in, mpz_t out) {
+  mpz_set(out, in);
+}
+
+void i2Z(size_t s, mpz_t in, mpz_t out) {
+  mpz_set_ui(out, s+1);
+}
+
 void i2Qs(mpz_t in, mpq_t *out) {
   mpq_set_num(out[0], in);
   mpq_inv(out[1], out[0]);
