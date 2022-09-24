@@ -1,0 +1,6 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+
+[error] at T1440.cry:1:28--1:29
+    Module not in scope: X

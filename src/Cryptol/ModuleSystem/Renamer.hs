@@ -579,24 +579,29 @@ doModParam mp =
      withLoc loc
        do me <- getCurMod
 
-          sigName' <-
+          (sigName',isFake) <-
              case thing sigName of
-               ImpTop t -> pure (ImpTop t)
+               ImpTop t -> pure (ImpTop t, False)
                 -- XXX: should we record a dpendency here?
-                -- Not sure what the dependencies are for..
                 -- Not sure what the dependencies are for..
 
                ImpNested n ->
-                 do nm <- resolveName NameUse NSModule n
+                 do mb <- resolveNameMaybe NameUse NSModule n
+                    (nm,isFake) <- case mb of
+                                     Just rnm -> pure (rnm,False)
+                                     Nothing ->
+                                       do rnm <- reportUnboundName NSModule n
+                                          pure (rnm,True)
                     case modPathCommon me (nameModPath nm) of
                       Just (_,[],_) ->
                         recordError
                            (InvalidDependency [ModPath me, NamedThing nm])
                       _ -> pure ()
-                    pure (ImpNested nm)
+                    pure (ImpNested nm, isFake)
 
-          checkIsModule (srcRange sigName) sigName' ASignature
-          sigEnv <- lookupDefines sigName'
+          unless isFake
+            (checkIsModule (srcRange sigName) sigName' ASignature)
+          sigEnv <- if isFake then pure mempty else lookupDefines sigName'
 
           let newP x = do y <- lift (newModParam me (mpName mp) loc x)
                           sets_ (Map.insert y x)
@@ -835,27 +840,32 @@ resolveNameMaybe nt expected qn =
 
        Nothing -> pure Nothing
 
+reportUnboundName :: Namespace -> PName -> RenameM Name
+reportUnboundName expected qn =
+  do ro <- RenameM ask
+     let lkpIn here = Map.lookup qn (namespaceMap here (roNames ro))
+         others     = [ ns | ns <- allNamespaces
+                           , ns /= expected
+                           , Just _ <- [lkpIn ns] ]
+     nm <- located qn
+     case others of
+       -- name exists in a different namespace
+       actual : _ -> recordError (WrongNamespace expected actual nm)
+
+       -- the value is just missing
+       [] -> recordError (UnboundName expected nm)
+
+     mkFakeName expected qn
+
+
+
 -- | Resolve a name, and report error on failure
 resolveName :: NameType -> Namespace -> PName -> RenameM Name
 resolveName nt expected qn =
   do mb <- resolveNameMaybe nt expected qn
      case mb of
        Just n -> pure n
-       Nothing ->
-         do ro <- RenameM ask
-            let lkpIn here = Map.lookup qn (namespaceMap here (roNames ro))
-                others     = [ ns | ns <- allNamespaces
-                                  , ns /= expected
-                                  , Just _ <- [lkpIn ns] ]
-            nm <- located qn
-            case others of
-              -- name exists in a different namespace
-              actual : _ -> recordError (WrongNamespace expected actual nm)
-
-              -- the value is just missing
-              [] -> recordError (UnboundName expected nm)
-
-            mkFakeName expected qn
+       Nothing -> reportUnboundName expected qn
 
 
 renameVar :: NameType -> PName -> RenameM Name
