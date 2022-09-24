@@ -85,7 +85,7 @@ The type parameter helps us distinguish between two types of resolved modules:
      parameter is @imps@ is ()
 
   2. Resolved modules that are *outputs* of the algorithm (i.e., they
-     defined within the current module).  For such modules the type
+     are defined within the current module).  For such modules the type
      parameter @imps@ contains the naming environment for things
      that came in through the import.
 

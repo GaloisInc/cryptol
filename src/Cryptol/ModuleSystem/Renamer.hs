@@ -89,17 +89,17 @@ The Renamer Algorithm
 3. Resolve imports and instantiations (see "Cryptol.ModuleSystem.Imports")
   - Resolves names in submodule imports
   - Resolves functor instantiations:
-    * generate new nemaes for delcarations in the functions.
-    * this includes any nested modules, and things nested withing them.
-  - At this point we have enough information to know what's exported by 
-    each module
+    * generate new names for delcarations in the functors.
+    * this includes any nested modules, and things nested within them.
+  - At this point we have enough information to know what's exported by
+    each module.
 
 4. Do the renaming (this module)
   - Using step 3 we compute the scoping environment for each module/signature
   - We traverse all declarations and replace the parser names with the
     corresponding names in scope:
     * Here we detect ambiguity and undefined errors
-    * During this pass is also where we keep track of infromation of what
+    * During this pass is also where we keep track of information of what
       names are used by declarations:
       - this is used to compute the dependencies between declarations
       - which are in turn used to order the declarations in dependency order
