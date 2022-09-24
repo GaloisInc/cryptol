@@ -7,8 +7,9 @@ C (or other languages that use the C calling convention).
 Platform support
 ----------------
 
-The FFI is currently **not supported on Windows**, and only works on Unix-like
-systems (macOS and Linux).
+The FFI is built on top of the C ``libffi`` library, and as such, it should be
+portable across many operating systems. We have tested it to work on Linux,
+macOS, and Windows.
 
 Basic usage
 -----------
@@ -52,6 +53,7 @@ extension it uses is platform-specific:
 
 * On Linux, it looks for the extension ``.so``.
 * On macOS, it looks for the extension ``.dylib``.
+* On Windows, it looks for the extension ``.dll``.
 
 For example, if you are on Linux and your ``foreign`` declaration is in
 ``Foo.cry``, Cryptol will dynamically load ``Foo.so``. Then for each ``foreign``
@@ -90,6 +92,7 @@ simple usages, you can do this manually with the following commands:
 
 * Linux: ``cc -fPIC -shared Foo.c -o Foo.so``
 * macOS: ``cc -dynamiclib Foo.c -o Foo.dylib``
+* Windows: ``cc -fPIC -shared Foo.c -o Foo.dll``
 
 Converting between Cryptol and C types
 --------------------------------------

@@ -263,6 +263,19 @@ jobs:
         with:
           ghc-version: '8.10.7'
 
+      - name: Install dependencies (Windows)
+        uses: msys2/setup-msys2@v2
+        with:
+          update: true
+          msystem: MINGW64
+          # These are needed for the ffi tests on Windows
+          install: |
+            diffutils
+            make
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-gmp
+        if: matrix.suite == 'test-lib' && runner.os == 'Windows'
+
       - if: matrix.suite == 'rpc'
         uses: actions/setup-python@v2
         with:
@@ -301,8 +314,18 @@ jobs:
           cp cabal.GHC-"$ghc_ver".config cabal.project.freeze
           cabal v2-update
 
-      - if: matrix.suite == 'test-lib'
+      - if: matrix.suite == 'test-lib' && runner.os != 'Windows'
         shell: bash
+        continue-on-error: ${{ matrix.continue-on-error }}
+        name: test-lib ${{ matrix.target }}
+        run: |
+          export PATH=$PWD/bin:$PWD/dist/bin:$PATH
+          if ${{ matrix.target != 'ffi' }} || dist/bin/cryptol -v | grep -q 'FFI enabled'; then
+            ./bin/test-runner --ext=.icry -F -b --exe=dist/bin/cryptol ./tests/${{ matrix.target }}
+          fi
+
+      - if: matrix.suite == 'test-lib' && runner.os == 'Windows'
+        shell: msys2 {0}
         continue-on-error: ${{ matrix.continue-on-error }}
         name: test-lib ${{ matrix.target }}
         run: |

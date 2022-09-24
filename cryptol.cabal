@@ -92,8 +92,11 @@ library
 
   if flag(ffi)
     build-depends:     hgmp,
-                       libffi            >= 0.2,
-                       unix
+                       libffi            >= 0.2
+    if os(windows)
+      build-depends:   Win32
+    else
+      build-depends:   unix
     cpp-options:       -DFFI_ENABLED
 
   Build-tool-depends:  alex:alex, happy:happy
