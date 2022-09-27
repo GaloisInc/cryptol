@@ -1,6 +1,7 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Main
+Loading dynamic library ffi-runtime-errors.so
 
 numeric type argument to foreign function is too large: 18446744073709551616
 in type parameter n`899 of function Main::f

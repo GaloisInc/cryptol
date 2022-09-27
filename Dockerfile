@@ -1,21 +1,36 @@
-FROM haskell:8.8.4 AS build
+FROM ubuntu:22.04 AS build
 
-RUN apt-get update && apt-get install -y libncurses-dev unzip
+RUN apt-get update && \
+    apt-get install -y \
+      # ghcup requirements
+      build-essential curl libffi-dev libffi8 libgmp-dev libgmp10 libncurses-dev libncurses6 libtinfo6 \
+      # Cryptol dependencies
+      zlib1g-dev \
+      # Miscellaneous
+      unzip
 RUN useradd -m cryptol
 COPY --chown=cryptol:cryptol . /cryptol
 USER cryptol
 WORKDIR /cryptol
 RUN mkdir -p rootfs/usr/local/bin
 WORKDIR /cryptol/rootfs/usr/local/bin
-RUN curl -o solvers.zip -sL "https://github.com/GaloisInc/what4-solvers/releases/download/snapshot-20220114/ubuntu-18.04-bin.zip"
+RUN curl -o solvers.zip -sL "https://github.com/GaloisInc/what4-solvers/releases/download/snapshot-20220812/ubuntu-22.04-bin.zip"
 RUN unzip solvers.zip && rm solvers.zip && chmod +x *
 WORKDIR /cryptol
-ENV PATH=/cryptol/rootfs/usr/local/bin:$PATH
+ENV PATH=/cryptol/rootfs/usr/local/bin:/home/cryptol/.local/bin:/home/cryptol/.ghcup/bin:$PATH
 RUN z3 --version
 ARG CRYPTOLPATH="/cryptol/.cryptol"
 ENV LANG=C.UTF-8 \
     LC_ALL=C.UTF-8
-COPY cabal.GHC-8.8.4.config cabal.project.freeze
+COPY cabal.GHC-8.10.7.config cabal.project.freeze
+RUN mkdir -p /home/cryptol/.local/bin && \
+    curl -L https://downloads.haskell.org/~ghcup/0.1.17.7/x86_64-linux-ghcup-0.1.17.7 -o /home/cryptol/.local/bin/ghcup && \
+    chmod +x /home/cryptol/.local/bin/ghcup
+RUN mkdir -p /home/cryptol/.ghcup && \
+    ghcup --version && \
+    ghcup install cabal 3.6.2.0 && \
+    ghcup install ghc 8.10.7 && \
+    ghcup set ghc 8.10.7
 RUN cabal v2-update && \
     cabal v2-build -j cryptol:exe:cryptol && \
     cp $(cabal v2-exec which cryptol) rootfs/usr/local/bin && \
@@ -33,9 +48,9 @@ RUN mkdir -p rootfs/"${CRYPTOLPATH}" \
 USER root
 RUN chown -R root:root /cryptol/rootfs
 
-FROM debian:buster-20210511-slim
+FROM ubuntu:22.04
 RUN apt-get update \
-    && apt-get install -y libgmp10 libgomp1 libffi6 libncurses6 libtinfo6 libreadline7 \
+    && apt-get install -y libgmp10 libgomp1 libffi8 libncurses6 libtinfo6 libreadline8 \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 RUN useradd -m cryptol && chown -R cryptol:cryptol /home/cryptol
 COPY --from=build /cryptol/rootfs /

@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE BlockArguments      #-}
 {-# LANGUAGE CPP                 #-}
 {-# LANGUAGE LambdaCase          #-}
@@ -12,30 +13,37 @@
 
 -- | Evaluation of foreign functions.
 module Cryptol.Eval.FFI
-  ( evalForeignDecls
+  ( findForeignDecls
+  , evalForeignDecls
   ) where
+
+import           Data.Maybe
 
 import           Cryptol.Backend.FFI
 import           Cryptol.Backend.FFI.Error
 import           Cryptol.Eval
-import           Cryptol.ModuleSystem.Env
 import           Cryptol.TypeCheck.AST
+import           Cryptol.TypeCheck.FFI.FFIType
 
 #ifdef FFI_ENABLED
 
+import           Control.Exception(bracket_)
 import           Data.Either
+import           Data.Foldable
 import           Data.IORef
-import           Data.Maybe
 import           Data.Proxy
+import           Data.Ratio
 import           Data.Traversable
 import           Data.Word
 import           Foreign
 import           Foreign.C.Types
 import           GHC.Float
-import           LibBF                           (bfFromDouble, bfToDouble,
-                                                  pattern NearEven)
-import           System.Directory
+import           LibBF                         (bfFromDouble, bfToDouble,
+                                                pattern NearEven)
+import           Numeric.GMP.Raw.Unsafe
+import           Numeric.GMP.Utils
 
+import           Cryptol.Backend
 import           Cryptol.Backend.Concrete
 import           Cryptol.Backend.FloatHelpers
 import           Cryptol.Backend.Monad
@@ -45,41 +53,35 @@ import           Cryptol.Eval.Prims
 import           Cryptol.Eval.Type
 import           Cryptol.Eval.Value
 import           Cryptol.ModuleSystem.Name
-import           Cryptol.TypeCheck.FFI.FFIType
 import           Cryptol.Utils.Ident
 import           Cryptol.Utils.RecordMap
 
--- | Find all the foreign declarations in the module and add them to the
--- environment. This is a separate pass from the main evaluation functions in
--- "Cryptol.Eval" since it only works for the Concrete backend.
---
--- Note: 'Right' is only returned if we successfully loaded some foreign
--- functions and the environment was modified. If there were no foreign
--- declarations at all then @Left []@ is returned, so 'Left' does not
--- necessarily indicate an error.
-evalForeignDecls :: ModulePath -> Module -> EvalEnv ->
-  Eval (Either [FFILoadError] (ForeignSrc, EvalEnv))
-evalForeignDecls path m env = io
-  case mapMaybe getForeign $ mDecls m of
-    [] -> pure $ Left []
-    foreigns ->
-      case path of
-        InFile p -> canonicalizePath p >>= loadForeignSrc >>=
-          \case
-            Right fsrc -> collect <$> for foreigns \(name, ffiType) ->
-              fmap ((name,) . foreignPrimPoly name ffiType) <$>
-                loadForeignImpl fsrc (unpackIdent $ nameIdent name)
-              where collect (partitionEithers -> (errs, primMap))
-                      | null errs = Right
-                        (fsrc, foldr (uncurry bindVarDirect) env primMap)
-                      | otherwise = Left errs
-            Left err -> pure $ Left [err]
-        -- We don't handle in-memory modules for now
-        InMem _ _ -> evalPanic "evalForeignDecls"
-          ["Can't find foreign source of in-memory module"]
+#endif
+
+-- | Find all the foreign declarations in the module and return their names and
+-- FFIFunTypes.
+findForeignDecls :: Module -> [(Name, FFIFunType)]
+findForeignDecls = mapMaybe getForeign . mDecls
   where getForeign (NonRecursive Decl { dName, dDefinition = DForeign ffiType })
           = Just (dName, ffiType)
+        -- Recursive DeclGroups can't have foreign decls
         getForeign _ = Nothing
+
+#ifdef FFI_ENABLED
+
+-- | Add the given foreign declarations to the environment, loading their
+-- implementations from the given 'ForeignSrc'. This is a separate pass from the
+-- main evaluation functions in "Cryptol.Eval" since it only works for the
+-- Concrete backend.
+evalForeignDecls :: ForeignSrc -> [(Name, FFIFunType)] -> EvalEnv ->
+  Eval (Either [FFILoadError] EvalEnv)
+evalForeignDecls fsrc decls env = io do
+  ePrims <- for decls \(name, ffiFunType) ->
+    fmap ((name,) . foreignPrimPoly name ffiFunType) <$>
+      loadForeignImpl fsrc (unpackIdent $ nameIdent name)
+  pure case partitionEithers ePrims of
+    ([], prims) -> Right $ foldr (uncurry bindVarDirect) env prims
+    (errs, _)   -> Left errs
 
 -- | Generate a 'Prim' value representing the given foreign function, containing
 -- all the code necessary to marshal arguments and return values and do the
@@ -104,6 +106,16 @@ foreignPrimPoly name fft impl = buildNumPoly (ffiTParams fft) mempty
 data GetRet = GetRet
   { getRetAsValue   :: forall a. FFIRet a => IO a
   , getRetAsOutArgs :: [SomeFFIArg] -> IO () }
+
+-- | Operations needed for returning a basic reference type.
+data BasicRefRet a = BasicRefRet
+  { -- | Initialize the object before passing to foreign function.
+    initBasicRefRet    :: Ptr a -> IO ()
+    -- | Free the object after returning from foreign function and obtaining
+    -- return value.
+  , clearBasicRefRet   :: Ptr a -> IO ()
+    -- | Convert the object to a Cryptol value.
+  , marshalBasicRefRet :: a -> Eval (GenValue Concrete) }
 
 -- | Generate the monomorphic part of the foreign 'Prim', given a 'TypeEnv'
 -- containing all the type arguments we have already received.
@@ -147,48 +159,154 @@ foreignPrim name FFIFunType {..} impl tenv = buildFun ffiArgTypes []
   --
   -- NOTE: the result must be used only in the callback since it may have a
   -- limited lifetime (e.g. pointer returned by alloca).
-  marshalArg :: FFIType -> GenValue Concrete ->
-    ([SomeFFIArg] -> Eval a) -> Eval a
-  marshalArg FFIBool val f = f [SomeFFIArg @Word8 $ fromBool $ fromVBit val]
-  marshalArg (FFIBasic t) val f = getMarshalBasicArg t \m -> do
-    arg <- m val
-    f [SomeFFIArg arg]
-  marshalArg (FFIArray (evalFinType -> n) t) val f =
-    getMarshalBasicArg t \m -> do
-      args <- traverse (>>= m) $ enumerateSeqMap n $ fromVSeq val
-      -- Since we need to do an Eval action in an IO callback, we need to
-      -- manually unwrap and wrap the Eval datatype
-      Eval \stk ->
-        withArray args \ptr ->
-          runEval stk $ f [SomeFFIArg ptr]
-  marshalArg (FFITuple types) val f = do
-    vals <- sequence $ fromVTuple val
-    marshalArgs (zip types vals) f
-  marshalArg (FFIRecord typeMap) val f = do
-    vals <- traverse (`lookupRecord` val) $ displayOrder typeMap
-    marshalArgs (zip (displayElements typeMap) vals) f
+  marshalArg ::
+    FFIType ->
+    GenValue Concrete ->
+    ([SomeFFIArg] -> Eval a) ->
+    Eval a
+
+  marshalArg FFIBool val f = f [SomeFFIArg @Word8 (fromBool (fromVBit val))]
+
+  marshalArg (FFIBasic (FFIBasicVal t)) val f =
+    getMarshalBasicValArg t \doExport ->
+    do arg <- doExport val
+       f [SomeFFIArg arg]
+
+  marshalArg (FFIBasic (FFIBasicRef t)) val f =
+    getMarshalBasicRefArg t \doExport  ->
+    -- Since we need to do Eval actions in an IO callback, we need to manually
+    -- unwrap and wrap the Eval datatype
+    Eval \stk ->
+      doExport val \arg ->
+        with arg \ptr ->
+          runEval stk (f [SomeFFIArg ptr])
+
+  marshalArg (FFIArray (map evalFinType -> sizes) bt) val f =
+    case bt of
+
+      FFIBasicVal t ->
+        getMarshalBasicValArg t \doExport  ->
+          -- Since we need to do Eval actions in an IO callback,
+          -- we need to manually unwrap and wrap the Eval datatype
+          Eval \stk ->
+            marshalArrayArg stk \v k ->
+              k =<< runEval stk (doExport v)
+
+      FFIBasicRef t -> Eval \stk ->
+        getMarshalBasicRefArg t \doExport ->
+        marshalArrayArg stk doExport
+
+    where marshalArrayArg stk doExport =
+            allocaArray (fromInteger (product sizes)) \ptr -> do
+              -- Traverse the nested sequences and write the elements to the
+              -- array in order.
+              -- ns is the dimensions of the values we are currently
+              -- processing.
+              -- vs is the values we are currently processing.
+              -- nvss is the stack of previous ns and vs that we keep track of
+              -- that we push onto when we start processing a nested sequence
+              -- and pop off when we finish processing the current ones.
+              -- i is the index into the array.
+
+              let
+                  -- write next element of multi-dimensional array
+                  write (n:ns) (v:vs) nvss !i =
+                    do vs' <- traverse (runEval stk)
+                                       (enumerateSeqMap n (fromVSeq v))
+                       write ns vs' ((n, vs):nvss) i
+
+                  -- write next element in flat array
+                  write [] (v:vs) nvss !i =
+                    doExport v \rep ->
+                      do pokeElemOff ptr i rep
+                         write [] vs nvss (i + 1)
+
+                  -- finished with flat array, do next element of multi-d array
+                  write ns [] ((n, vs):nvss) !i = write (n:ns) vs nvss i
+
+                  -- done
+                  write _ _ [] _ = pure ()
+
+
+              write sizes [val] [] 0
+              runEval stk $ f [SomeFFIArg ptr]
+
+  marshalArg (FFITuple types) val f =
+    do vals <- sequence (fromVTuple val)
+       marshalArgs (types `zip` vals) f
+
+  marshalArg (FFIRecord typeMap) val f =
+    do vals <- traverse (`lookupRecord` val) (displayOrder typeMap)
+       marshalArgs (displayElements typeMap `zip` vals) f
 
   -- Call marshalArg on a bunch of arguments and collect the results together
   -- (in the order of the arguments).
-  marshalArgs :: [(FFIType, GenValue Concrete)] ->
-    ([SomeFFIArg] -> Eval a) -> Eval a
+  marshalArgs ::
+    [(FFIType, GenValue Concrete)] ->
+    ([SomeFFIArg] -> Eval a) ->
+    Eval a
   marshalArgs typesAndVals f = go typesAndVals []
-    where go [] args = f args
-          go ((t, v):tvs) prevArgs = marshalArg t v \currArgs ->
-            go tvs (prevArgs ++ currArgs)
+    where
+    go [] args = f (concat (reverse args))
+    go ((t, v):tvs) prevArgs =
+      marshalArg t v \currArgs ->
+      go tvs (currArgs : prevArgs)
 
-  -- Given a FFIType and a GetRet, obtain a return value and convert it to a
+  -- Given an FFIType and a GetRet, obtain a return value and convert it to a
   -- Cryptol value. The return value is obtained differently depending on the
   -- FFIType.
   marshalRet :: FFIType -> GetRet -> Eval (GenValue Concrete)
-  marshalRet FFIBool gr = VBit . toBool <$> io (getRetAsValue gr @Word8)
-  marshalRet (FFIBasic t) gr = getMarshalBasicRet t (io (getRetAsValue gr) >>=)
-  marshalRet (FFIArray (evalFinType -> n) t) gr = getMarshalBasicRet t \m ->
-    fmap (VSeq n . finiteSeqMap Concrete . map m) $
-      io $ allocaArray (fromInteger n) \ptr -> do
-        getRetAsOutArgs gr [SomeFFIArg ptr]
-        peekArray (fromInteger n) ptr
+  marshalRet FFIBool gr =
+    do rep <- io (getRetAsValue gr @Word8)
+       pure (VBit (toBool rep))
+
+  marshalRet (FFIBasic (FFIBasicVal t)) gr =
+    getMarshalBasicValRet t \doImport ->
+      do rep <- io (getRetAsValue gr)
+         doImport rep
+
+  marshalRet (FFIBasic (FFIBasicRef t)) gr =
+    getBasicRefRet t \how ->
+    Eval             \stk ->
+    alloca           \ptr ->
+    bracket_ (initBasicRefRet how ptr) (clearBasicRefRet how ptr)
+      do getRetAsOutArgs gr [SomeFFIArg ptr]
+         rep <- peek ptr
+         runEval stk (marshalBasicRefRet how rep)
+
+  marshalRet (FFIArray (map evalFinType -> sizes) bt) gr =
+    Eval \stk -> do
+    let totalSize = fromInteger (product sizes)
+        getResult marshal ptr = do
+          getRetAsOutArgs gr [SomeFFIArg ptr]
+
+          let build (n:ns) !i = do
+                -- We need to be careful to actually run this here and not just
+                -- stick the IO action into the sequence with io, or else we
+                -- will read from the array after it is deallocated.
+                vs <- for [0 .. fromInteger n - 1] \j ->
+                  build ns (i * fromInteger n + j)
+                pure (VSeq n (finiteSeqMap Concrete (map pure vs)))
+              build [] !i = peekElemOff ptr i >>= runEval stk . marshal
+
+          build sizes 0
+
+    case bt of
+
+      FFIBasicVal t ->
+        getMarshalBasicValRet t \doImport ->
+        allocaArray totalSize (getResult doImport)
+
+      FFIBasicRef t ->
+        getBasicRefRet t      \how ->
+        allocaArray totalSize \ptr ->
+          do let forEach f = for_ [0 .. totalSize - 1] (f . advancePtr ptr)
+             bracket_ (forEach (initBasicRefRet how))
+                      (forEach (clearBasicRefRet how))
+                      (getResult (marshalBasicRefRet how) ptr)
+
   marshalRet (FFITuple types) gr = VTuple <$> marshalMultiRet types gr
+
   marshalRet (FFIRecord typeMap) gr =
     VRecord . recordFromFields . zip (displayOrder typeMap) <$>
       marshalMultiRet (displayElements typeMap) gr
@@ -214,6 +332,25 @@ foreignPrim name FFIFunType {..} impl tenv = buildFun ffiArgTypes []
     go types []
     map pure <$> readIORef vals
 
+  -- | Call the callback with a 'BasicRefRet' for the given type.
+  getBasicRefRet :: FFIBasicRefType ->
+    (forall a. Storable a => BasicRefRet a -> b) -> b
+  getBasicRefRet (FFIInteger mbMod) f = f BasicRefRet
+    { initBasicRefRet = mpz_init
+    , clearBasicRefRet = mpz_clear
+    , marshalBasicRefRet = \mpz -> do
+        n <- io $ peekInteger' mpz
+        VInteger <$>
+          case mbMod of
+            Nothing -> pure n
+            Just m  -> intToZn Concrete (evalFinType m) n }
+  getBasicRefRet FFIRational f = f BasicRefRet
+    { initBasicRefRet = mpq_init
+    , clearBasicRefRet = mpq_clear
+    , marshalBasicRefRet = \mpq -> do
+        r <- io $ peekRational' mpq
+        pure $ VRational $ SRational (numerator r) (denominator r) }
+
   -- Evaluate a finite numeric type expression.
   evalFinType :: Type -> Integer
   evalFinType = finNat' . evalNumType tenv
@@ -230,32 +367,40 @@ getRetFromAsOutArgs f = GetRet
       peek ptr
   , getRetAsOutArgs = f }
 
--- | Given a 'FFIBasicType', call the callback with a marshalling function that
--- marshals values to the 'FFIArg' type corresponding to the 'FFIBasicType'.
--- The callback must be able to handle marshalling functions that marshal to any
--- 'FFIArg' type.
-getMarshalBasicArg :: FFIBasicType ->
-  (forall a. FFIArg a => (GenValue Concrete -> Eval a) -> b) -> b
-getMarshalBasicArg (FFIWord _ s) f = withWordType s \(_ :: p t) ->
-  f @t $ fmap (fromInteger . bvVal) . fromVWord Concrete "getMarshalBasicArg"
-getMarshalBasicArg (FFIFloat _ _ s) f =
+-- | Given a 'FFIBasicValType', call the callback with a marshalling function
+-- that marshals values to the 'FFIArg' type corresponding to the
+-- 'FFIBasicValType'. The callback must be able to handle marshalling functions
+-- that marshal to any 'FFIArg' type.
+getMarshalBasicValArg ::
+  FFIBasicValType ->
+  (forall rep.
+      FFIArg rep =>
+      (GenValue Concrete -> Eval rep) ->
+      result) ->
+  result
+
+getMarshalBasicValArg (FFIWord _ s) f = withWordType s \(_ :: p t) ->
+  f @t $ fmap (fromInteger . bvVal) . fromVWord Concrete "getMarshalBasicValArg"
+
+getMarshalBasicValArg (FFIFloat _ _ s) f =
   case s of
     -- LibBF can only convert to 'Double' directly, so we do that first then
     -- convert to 'Float', which should not result in any loss of precision if
     -- the original data was 32-bit anyways.
     FFIFloat32 -> f $ pure . CFloat . double2Float . toDouble
     FFIFloat64 -> f $ pure . CDouble . toDouble
-  where toDouble = fst . bfToDouble NearEven . bfValue . fromVFloat
+  where
+  toDouble = fst . bfToDouble NearEven . bfValue . fromVFloat
 
--- | Given a 'FFIBasicType', call the callback with an unmarshalling function
--- from the 'FFIRet' type corresponding to the 'FFIBasicType' to Cryptol values.
--- The callback must be able to handle unmarshalling functions from any 'FFIRet'
--- type.
-getMarshalBasicRet :: FFIBasicType ->
+-- | Given a 'FFIBasicValType', call the callback with an unmarshalling function
+-- from the 'FFIRet' type corresponding to the 'FFIBasicValType' to Cryptol
+-- values. The callback must be able to handle unmarshalling functions from any
+-- 'FFIRet' type.
+getMarshalBasicValRet :: FFIBasicValType ->
   (forall a. FFIRet a => (a -> Eval (GenValue Concrete)) -> b) -> b
-getMarshalBasicRet (FFIWord n s) f = withWordType s \(_ :: p t) ->
+getMarshalBasicValRet (FFIWord n s) f = withWordType s \(_ :: p t) ->
   f @t $ word Concrete n . toInteger
-getMarshalBasicRet (FFIFloat e p s) f =
+getMarshalBasicValRet (FFIFloat e p s) f =
   case s of
     FFIFloat32 -> f $ toValue . \case CFloat x -> float2Double x
     FFIFloat64 -> f $ toValue . \case CDouble x -> x
@@ -270,12 +415,27 @@ withWordType FFIWord16 f = f $ Proxy @Word16
 withWordType FFIWord32 f = f $ Proxy @Word32
 withWordType FFIWord64 f = f $ Proxy @Word64
 
+-- | Given a 'FFIBasicRefType', call the callback with a marshalling function
+-- that takes a Cryptol value and calls its callback with the 'Storable' type
+-- corresponding to the 'FFIBasicRefType'.
+getMarshalBasicRefArg :: FFIBasicRefType ->
+  (forall rep.
+      Storable rep =>
+      (GenValue Concrete -> (rep -> IO val) -> IO val) ->
+      result) ->
+  result
+getMarshalBasicRefArg (FFIInteger _) f = f \val g ->
+  withInInteger' (fromVInteger val) g
+getMarshalBasicRefArg FFIRational f = f \val g -> do
+  let SRational {..} = fromVRational val
+  withInRational' (sNum % sDenom) g
+
 #else
 
 -- | Dummy implementation for when FFI is disabled. Does not add anything to
 -- the environment.
-evalForeignDecls :: ModulePath -> Module -> EvalEnv ->
-  Eval (Either [FFILoadError] (ForeignSrc, EvalEnv))
-evalForeignDecls _ _ _ = pure $ Left []
+evalForeignDecls :: ForeignSrc -> [(Name, FFIFunType)] -> EvalEnv ->
+  Eval (Either [FFILoadError] EvalEnv)
+evalForeignDecls _ _ env = pure $ Right env
 
 #endif

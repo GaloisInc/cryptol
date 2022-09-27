@@ -1,10 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Main
-[warning] at issue845.cry:1:9--1:24:
-  Assuming  n to have a numeric type
-[warning] at issue845.cry:1:9--1:24:
-  Assuming  m to have a numeric type
 
 [error] at issue845.cry:2:1--2:37:
   Failed to validate user-specified signature.

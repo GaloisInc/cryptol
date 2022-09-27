@@ -18,6 +18,7 @@ import Cryptol.TypeCheck.Solver.InfNat
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.Ident (Ident)
 import Cryptol.Utils.RecordMap
+import Cryptol.Utils.Types
 
 import Data.Maybe(fromMaybe)
 import qualified Data.IntMap.Strict as IntMap
@@ -27,7 +28,7 @@ import Control.DeepSeq
 -- | An evaluated type of kind *.
 -- These types do not contain type variables, type synonyms, or type functions.
 data TValue
-  = TVBit                     -- ^ @ Bit @
+  = TVBit                     -- ^ @ Bit @  
   | TVInteger                 -- ^ @ Integer @
   | TVFloat Integer Integer   -- ^ @ Float e p @
   | TVIntMod Integer          -- ^ @ Z n @
@@ -86,6 +87,10 @@ tvSeq :: Nat' -> TValue -> TValue
 tvSeq (Nat n) t = TVSeq n t
 tvSeq Inf     t = TVStream t
 
+-- | The Cryptol @Float64@ type.
+tvFloat64 :: TValue
+tvFloat64 = uncurry TVFloat float64ExpPrec
+
 -- | Coerce an extended natural into an integer,
 --   for values known to be finite
 finNat' :: Nat' -> Integer
@@ -100,6 +105,7 @@ finNat' n' =
 newtype TypeEnv =
   TypeEnv
   { envTypeMap  :: IntMap.IntMap (Either Nat' TValue) }
+  deriving (Show)
 
 instance Monoid TypeEnv where
   mempty = TypeEnv mempty

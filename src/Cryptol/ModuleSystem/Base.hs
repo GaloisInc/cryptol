@@ -51,6 +51,7 @@ import Cryptol.ModuleSystem.Env ( lookupModule
                                 , meCoreLint, CoreLint(..)
                                 , ModContext(..)
                                 , ModulePath(..), modulePathLabel)
+import           Cryptol.Backend.FFI
 import qualified Cryptol.Eval                 as E
 import qualified Cryptol.Eval.Concrete as Concrete
 import           Cryptol.Eval.Concrete (Concrete(..))
@@ -61,6 +62,8 @@ import qualified Cryptol.Parser               as P
 import qualified Cryptol.Parser.Unlit         as P
 import Cryptol.Parser.AST as P
 import Cryptol.Parser.NoPat (RemovePatterns(removePatterns))
+import qualified Cryptol.Parser.ExpandPropGuards as ExpandPropGuards 
+  ( expandPropGuards, runExpandPropGuardsM )
 import Cryptol.Parser.NoInclude (removeIncludesModule)
 import Cryptol.Parser.Position (HasLoc(..), Range, emptyRange)
 import qualified Cryptol.TypeCheck     as T
@@ -74,6 +77,7 @@ import Cryptol.Utils.Ident ( preludeName, floatName, arrayName, suiteBName, prim
 import Cryptol.Utils.PP (pretty)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.Logger(logPutStrLn, logPrint)
+import Cryptol.Utils.Benchmark
 
 import Cryptol.Prelude ( preludeContents, floatContents, arrayContents
                        , suiteBContents, primeECContents, preludeReferenceContents )
@@ -116,6 +120,14 @@ noPat a = do
   unless (null errs) (noPatErrors errs)
   return a'
 
+-- ExpandPropGuards ------------------------------------------------------------
+
+-- | Run the expandPropGuards pass.
+expandPropGuards :: Module PName -> ModuleM (Module PName)
+expandPropGuards a =
+  case ExpandPropGuards.runExpandPropGuardsM $ ExpandPropGuards.expandPropGuards a of
+    Left err -> expandPropGuardsError err
+    Right a' -> pure a'
 
 -- Parsing ---------------------------------------------------------------------
 
@@ -179,8 +191,10 @@ parseModule path = do
 -- Top Level Modules and Signatures ----------------------------------------------
 
 -- | Load a module by its path.
-loadModuleByPath :: FilePath -> ModuleM T.TCTopEntity
-loadModuleByPath path = withPrependedSearchPath [ takeDirectory path ] $ do
+loadModuleByPath ::
+  Bool {- ^ evaluate declarations in the module -} ->
+  FilePath -> ModuleM T.TCTopEntity
+loadModuleByPath eval path = withPrependedSearchPath [ takeDirectory path ] $ do
   let fileName = takeFileName path
   foundPath <- findFile fileName
   (fp, pms) <- parseModule (InFile foundPath)
@@ -197,7 +211,8 @@ loadModuleByPath path = withPrependedSearchPath [ takeDirectory path ] $ do
 
        case lookupTCEntity n env of
          -- loadModule will calculate the canonical path again
-         Nothing -> doLoadModule False (FromModule n) (InFile foundPath) fp pm
+         Nothing ->
+           doLoadModule eval False (FromModule n) (InFile foundPath) fp pm
          Just lm
           | path' == loaded -> return (lmData lm)
           | otherwise       -> duplicateModuleName n path' loaded
@@ -216,18 +231,19 @@ loadModuleFrom quiet isrc =
          do path <- findModule n
             errorInFile path $
               do (fp, pms) <- parseModule path
-                 ms        <- mapM (doLoadModule quiet isrc path fp) pms
+                 ms        <- mapM (doLoadModule True quiet isrc path fp) pms
                  return (path,last ms)
 
 -- | Load dependencies, typecheck, and add to the eval environment.
 doLoadModule ::
+  Bool {- ^ evaluate declarations in the module -} ->
   Bool {- ^ quiet mode: true suppresses the "loading module" message -} ->
   ImportSource ->
   ModulePath ->
   Fingerprint ->
   P.Module PName ->
   ModuleM T.TCTopEntity
-doLoadModule quiet isrc path fp pm0 =
+doLoadModule eval quiet isrc path fp pm0 =
   loading isrc $
   do let pm = addPrelude pm0
      loadDeps pm
@@ -247,28 +263,42 @@ doLoadModule quiet isrc path fp pm0 =
      let ?evalPrim = \i -> Right <$> Map.lookup i tbl
      callStacks <- getCallStacks
      let ?callStacks = callStacks
-     fsrc <- case tcm of
-               T.TCTopModule m | not (T.isParametrizedModule m) ->
-                 do (getForeign,_) <-
-                      modifyEvalEnvM \env ->
-                        do res <- evalForeignDecls path m env
-                           pure
-                             case res of
-                               Left []   -> (pure Nothing, env)
-                               Left errs ->
-                                 (ffiLoadErrors (T.mName m) errs, env)
-                               Right (foreignSrc,newEnv) ->
-                                 (pure (Just foreignSrc), newEnv)
-                    fsrc <- getForeign
-                    modifyEvalEnv (E.moduleEnv Concrete m)
-                    pure fsrc
+     let shouldEval =
+           case tcm of
+             T.TCTopModule m | eval && not (T.isParametrizedModule m) -> Just m
+             _ -> Nothing
 
-               _ -> pure Nothing
-     loadedModule path fp nameEnv fsrc tcm
+     foreignSrc <- case shouldEval of
+                      Just m ->
+                        do fsrc <- evalForeign m
+                           modifyEvalEnv (E.moduleEnv Concrete m)
+                           pure fsrc
+                      Nothing -> pure Nothing
+
+     loadedModule path fp nameEnv foreignSrc tcm
 
      return tcm
 
-
+  where
+  evalForeign tcm
+    | null foreigns = pure Nothing
+    | otherwise = case path of
+      InFile p -> io (canonicalizePath p >>= loadForeignSrc) >>=
+        \case
+          Right fsrc -> do
+            unless quiet $
+              case getForeignSrcPath fsrc of
+                Just fpath -> withLogger logPutStrLn $
+                  "Loading dynamic library " ++ takeFileName fpath
+                Nothing -> pure ()
+            modifyEvalEnvM (evalForeignDecls fsrc foreigns) >>=
+              \case
+                Right () -> pure $ Just fsrc
+                Left errs -> ffiLoadErrors (T.mName tcm) errs
+          Left err -> ffiLoadErrors (T.mName tcm) [err]
+      InMem m _ -> panic "doLoadModule"
+        ["Can't find foreign source of in-memory module", m]
+    where foreigns = findForeignDecls tcm
 
 
 
@@ -478,8 +508,11 @@ checkModule isrc m = do
   -- remove pattern bindings
   npm <- noPat m
 
+  -- run expandPropGuards
+  epgm <- expandPropGuards npm
+
   -- rename everything
-  renMod <- renameModule npm
+  renMod <- renameModule epgm
 
 
 {-
@@ -644,6 +677,22 @@ evalExpr e = do
   let ?callStacks = callStacks
 
   io $ E.runEval mempty (E.evalExpr Concrete (env <> deEnv denv) e)
+
+benchmarkExpr :: Double -> T.Expr -> ModuleM BenchmarkStats
+benchmarkExpr period e = do
+  env <- getEvalEnv
+  denv <- getDynEnv
+  evopts <- getEvalOptsAction
+  let env' = env <> deEnv denv
+  let tbl = Concrete.primTable evopts
+  let ?evalPrim = \i -> Right <$> Map.lookup i tbl
+  let ?range = emptyRange
+  callStacks <- getCallStacks
+  let ?callStacks = callStacks
+
+  let eval expr = E.runEval mempty $
+        E.evalExpr Concrete env' expr >>= E.forceValue
+  io $ benchmark period eval e
 
 evalDecls :: [T.DeclGroup] -> ModuleM ()
 evalDecls dgs = do

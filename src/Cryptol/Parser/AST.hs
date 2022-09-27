@@ -17,6 +17,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE FlexibleInstances #-}
 module Cryptol.Parser.AST
   ( -- * Names
     Ident, mkIdent, mkInfix, isInfixIdent, nullIdent, identText
@@ -75,6 +76,7 @@ module Cryptol.Parser.AST
   , Signature(..)
   , ModParam(..)
   , ParamDecl(..)
+  , PropGuardCase(..)
 
     -- * Interactive
   , ReplInput(..)
@@ -92,6 +94,7 @@ module Cryptol.Parser.AST
   , emptyFunDesc
   , PrefixOp(..)
   , prefixFixity
+  , asEApps
 
     -- * Positions
   , Located(..)
@@ -429,7 +432,14 @@ type LBindDef = Located (BindDef PName)
 data BindDef name = DPrim
                   | DForeign
                   | DExpr (Expr name)
+                  | DPropGuards [PropGuardCase name]
                     deriving (Eq, Show, Generic, NFData, Functor)
+
+data PropGuardCase name = PropGuardCase
+  { pgcProps :: [Located (Prop name)]
+  , pgcExpr  :: Expr name
+  }
+  deriving (Eq,Generic,NFData,Functor,Show)
 
 data Pragma   = PragmaNote String
               | PragmaProperty
@@ -976,6 +986,7 @@ instance (Show name, PPName name) => PP (BindDef name) where
   ppPrec _ DPrim     = text "<primitive>"
   ppPrec _ DForeign  = text "<foreign>"
   ppPrec p (DExpr e) = ppPrec p e
+  ppPrec _p (DPropGuards _guards) = text "propguards"
 
 
 instance PPName name => PP (TySyn name) where
@@ -1239,6 +1250,8 @@ instance PPName name => PP (Type name) where
 instance PPName name => PP (Prop name) where
   ppPrec n (CType t) = ppPrec n t
 
+instance PPName name => PP [Prop name] where
+  ppPrec n props = parens . commaSep . fmap (ppPrec n) $ props
 
 --------------------------------------------------------------------------------
 -- Drop all position information, so equality reflects program structure

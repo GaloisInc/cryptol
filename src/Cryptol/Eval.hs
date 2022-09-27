@@ -15,6 +15,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
 module Cryptol.Eval (
     moduleEnv
@@ -35,6 +36,7 @@ module Cryptol.Eval (
   , Unsupported(..)
   , WordTooWide(..)
   , forceValue
+  , checkProp
   ) where
 
 import Cryptol.Backend
@@ -63,6 +65,7 @@ import           Data.Maybe
 import qualified Data.IntMap.Strict as IntMap
 import qualified Data.Map.Strict as Map
 import           Data.Semigroup
+import           Control.Applicative
 
 import Prelude ()
 import Prelude.Compat
@@ -216,12 +219,52 @@ evalExpr sym env expr = case expr of
      env' <- evalDecls sym ds env
      evalExpr sym env' e
 
+  EPropGuards guards _ -> {-# SCC "evalExpr->EPropGuards" #-} do
+    let checkedGuards = [ e | (ps,e) <- guards, all (checkProp . evalProp env) ps ]
+    case checkedGuards of
+      (e:_) -> eval e
+      [] -> raiseError sym (NoMatchingPropGuardCase $ "Among constraint guards: " ++ show (fmap pp . fst <$> guards))
+
   where
 
   {-# INLINE eval #-}
   eval = evalExpr sym env
   ppV = ppValue sym defaultPPOpts
 
+-- | Checks whether an evaluated `Prop` holds
+checkProp :: Prop -> Bool
+checkProp = \case
+  TCon tcon ts ->
+    let ns = toNat' <$> ts in
+    case tcon of
+      PC PEqual | [n1, n2] <- ns -> n1 == n2
+      PC PNeq | [n1, n2] <- ns -> n1 /= n2
+      PC PGeq | [n1, n2] <- ns -> n1 >= n2
+      PC PFin | [n] <- ns -> n /= Inf
+      -- TODO: instantiate UniqueFactorization for Nat'?
+      -- PC PPrime | [n] <- ns -> isJust (isPrime n) 
+      PC PTrue -> True
+      _ -> evalPanic "evalProp" ["cannot use this as a guarding constraint: ", show . pp $ TCon tcon ts ]
+  prop -> evalPanic "evalProp" ["cannot use this as a guarding constraint: ", show . pp $ prop ]
+  where
+    toNat' :: Type -> Nat'
+    toNat' = \case
+      TCon (TC (TCNum n)) [] -> Nat n
+      TCon (TC TCInf) [] -> Inf
+      prop -> panic "checkProp" ["Expected `" ++ pretty prop ++ "` to be an evaluated numeric type"]
+
+
+-- | Evaluates a `Prop` in an `EvalEnv` by substituting all variables according
+-- to `envTypes` and expanding all type synonyms via `tNoUser`.
+evalProp :: GenEvalEnv sym -> Prop -> Prop
+evalProp env@EvalEnv { envTypes } = \case
+  TCon tc tys -> TCon tc (toType . evalType envTypes <$> tys)
+  TVar tv | Just (toType -> ty) <- lookupTypeVar tv envTypes -> ty
+  prop@TUser {} -> evalProp env (tNoUser prop)
+  TVar tv | Nothing <- lookupTypeVar tv envTypes -> panic "evalProp" ["Could not find type variable `" ++ pretty tv ++ "` in the type evaluation environment"]
+  prop -> panic "evalProp" ["Cannot use the following as a type constraint: `" ++ pretty prop ++ "`"]
+  where
+    toType = either tNumTy tValTy
 
 -- | Capure the current call stack from the evaluation monad and
 --   annotate function values.  When arguments are later applied
@@ -410,8 +453,10 @@ evalDecl ::
   GenEvalEnv sym  {- ^ An evaluation environment to extend with the given declaration -} ->
   Decl            {- ^ The declaration to evaluate -} ->
   SEval sym (GenEvalEnv sym)
-evalDecl sym renv env d =
-  let ?range = nameLoc (dName d) in
+-- evalDecl sym renv env d =
+--   let ?range = nameLoc (dName d) in
+evalDecl sym renv env d = do
+  let ?range = nameLoc (dName d)
   case dDefinition d of
     DPrim ->
       case ?evalPrim =<< asPrim (dName d) of

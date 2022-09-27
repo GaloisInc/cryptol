@@ -1,9 +1,35 @@
 # next
 
+## Language changes
+
+* Declarations may now use *numeric constraint guards*.   This is a feature
+  that allows a function to behave differently depending on its numeric
+  type parameters.  See the [manual section](https://galoisinc.github.io/cryptol/RefMan/_build/html/BasicSyntax.html#numeric-constraint-guards))
+  for more information.
+
+* The foreign function interface (FFI) has been added, which allows Cryptol to
+  call functions written in C. See the [manual section](https://galoisinc.github.io/cryptol/RefMan/_build/html/FFI.html)
+  for more information.
+
+* The unary `-` operator now has the same precedence as binary `-`, meaning
+  expressions like `-x^^2` will now parse as `-(x^^2)` instead of `(-x)^^2`.
+  **This is a breaking change.** A warning has been added in cases where the
+  behavior has changed, and can be disabled with `:set warnPrefixAssoc=off`.
+
+* Infix operators are now allowed in import lists: `import M ((<+>))` will
+  import only the operator `<+>` from module `M`.
+
+## New features
+
+* Add a `:time` command to benchmark the evaluation time of expressions.
+
 ## Bug fixes
 
 * Fix a bug in the What4 backend that could cause applications of `(@)` with
   symbolic `Integer` indices to become out of bounds (#1359).
+
+* Fix a bug that caused finite bitvector enumerations to panic when used in
+  combination with `(#)` (e.g., `[0..1] # 0`).
 
 # 2.13.0
 

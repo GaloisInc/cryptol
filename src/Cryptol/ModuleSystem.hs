@@ -18,8 +18,10 @@ module Cryptol.ModuleSystem (
   , findModule
   , loadModuleByPath
   , loadModuleByName
+  , checkModuleByPath
   , checkExpr
   , evalExpr
+  , benchmarkExpr
   , checkDecls
   , evalDecls
   , noPat
@@ -46,6 +48,7 @@ import           Cryptol.Parser.Name (PName)
 import           Cryptol.Parser.NoPat (RemovePatterns)
 import qualified Cryptol.TypeCheck.AST     as T
 import qualified Cryptol.TypeCheck.Interface as T
+import           Cryptol.Utils.Benchmark (BenchmarkStats)
 import qualified Cryptol.Utils.Ident as M
 
 -- Public Interface ------------------------------------------------------------
@@ -67,7 +70,7 @@ loadModuleByPath path minp = do
   moduleEnv' <- resetModuleEnv $ minpModuleEnv minp
   runModuleM minp{ minpModuleEnv = moduleEnv' } $ do
     unloadModule ((InFile path ==) . lmFilePath)
-    m <- Base.loadModuleByPath path
+    m <- Base.loadModuleByPath True path
     setFocusedModule (T.tcTopEntitytName m)
     return (InFile path,m)
 
@@ -80,6 +83,15 @@ loadModuleByName n minp = do
     (path,m') <- Base.loadModuleFrom False (FromModule n)
     setFocusedModule (T.tcTopEntitytName m')
     return (path,m')
+
+-- | Parse and typecheck a module, but don't evaluate or change the environment.
+checkModuleByPath :: FilePath -> ModuleCmd (ModulePath, T.TCTopEntity)
+checkModuleByPath path minp = do
+  (res, warns) <- runModuleM minp $ Base.loadModuleByPath False path
+  -- restore the old environment
+  let res1 = do (x,_newEnv) <- res
+                pure ((InFile path, x), minpModuleEnv minp)
+  pure (res1, warns)
 
 -- Extended Environments -------------------------------------------------------
 
@@ -95,6 +107,11 @@ checkExpr e env = runModuleM env (interactive (Base.checkExpr e))
 -- | Evaluate an expression.
 evalExpr :: T.Expr -> ModuleCmd Concrete.Value
 evalExpr e env = runModuleM env (interactive (Base.evalExpr e))
+
+-- | Benchmark an expression.
+benchmarkExpr :: Double -> T.Expr -> ModuleCmd BenchmarkStats
+benchmarkExpr period e env =
+  runModuleM env (interactive (Base.benchmarkExpr period e))
 
 -- | Typecheck top-level declarations.
 checkDecls :: [P.TopDecl PName] -> ModuleCmd (R.NamingEnv,[T.DeclGroup], Map Name T.TySyn)

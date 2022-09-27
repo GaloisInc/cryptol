@@ -1,0 +1,2 @@
+:l mergesort.cry
+:check sort_correct

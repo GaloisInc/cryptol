@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric  #-}
+{-# LANGUAGE Safe #-}
 
 -- | This module defines a nicer intermediate representation of Cryptol types
 -- allowed for the FFI, which the typechecker generates then stores in the AST.
@@ -26,21 +27,26 @@ data FFIFunType = FFIFunType
 data FFIType
   = FFIBool
   | FFIBasic FFIBasicType
-  | FFIArray
-      Type -- ^ Size (should be of kind @\#@)
-      FFIBasicType -- ^ Element type
+  -- | [n][m][p]T --> FFIArray [n, m, p] T
+  | FFIArray [Type] FFIBasicType
   | FFITuple [FFIType]
   | FFIRecord (RecordMap Ident FFIType)
   deriving (Show, Generic, NFData)
 
--- | Types which can be elements of FFI sequences.
+-- | Types which can be elements of FFI arrays.
 data FFIBasicType
+  = FFIBasicVal FFIBasicValType
+  | FFIBasicRef FFIBasicRefType
+  deriving (Show, Generic, NFData)
+
+-- | Basic type which is passed and returned directly by value.
+data FFIBasicValType
   = FFIWord
-      Integer -- ^ The size of the Cryptol type
+      Integer     -- ^ The size of the Cryptol type
       FFIWordSize -- ^ The machine word size that it corresponds to
   | FFIFloat
-      Integer -- ^ Exponent
-      Integer -- ^ Precision
+      Integer      -- ^ Exponent
+      Integer      -- ^ Precision
       FFIFloatSize -- ^ The machine float size that it corresponds to
   deriving (Show, Generic, NFData)
 
@@ -54,4 +60,11 @@ data FFIWordSize
 data FFIFloatSize
   = FFIFloat32
   | FFIFloat64
+  deriving (Show, Generic, NFData)
+
+-- | Basic type which is passed and returned by reference through a parameter.
+data FFIBasicRefType
+  = FFIInteger
+      (Maybe Type) -- ^ Modulus (Just for Z, Nothing for Integer)
+  | FFIRational
   deriving (Show, Generic, NFData)

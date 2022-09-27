@@ -1,3 +1,5 @@
+{-# LANGUAGE Safe #-}
+
 module Cryptol.TypeCheck.Interface where
 
 import qualified Data.Map as Map

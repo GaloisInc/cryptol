@@ -10,6 +10,8 @@
 > {-# LANGUAGE BlockArguments #-}
 > {-# LANGUAGE PatternGuards #-}
 > {-# LANGUAGE LambdaCase #-}
+> {-# LANGUAGE NamedFieldPuns #-}
+> {-# LANGUAGE ViewPatterns #-}
 >
 > module Cryptol.Eval.Reference
 >   ( Value(..)
@@ -32,6 +34,7 @@
 > import LibBF (BigFloat)
 > import qualified LibBF as FP
 > import qualified GHC.Num.Compat as Integer
+> import qualified Data.List as List
 >
 > import Cryptol.ModuleSystem.Name (asPrim)
 > import Cryptol.TypeCheck.Solver.InfNat (Nat'(..), nAdd, nMin, nMul)
@@ -46,6 +49,8 @@
 > import Cryptol.Utils.Panic (panic)
 > import Cryptol.Utils.PP
 > import Cryptol.Utils.RecordMap
+> import Cryptol.Eval (checkProp)
+> import Cryptol.Eval.Type (evalType, lookupTypeVar, tNumTy, tValTy)
 >
 > import qualified Cryptol.ModuleSystem as M
 > import qualified Cryptol.ModuleSystem.Env as M (loadedModules,loadedNewtypes)
@@ -332,10 +337,26 @@ assigns values to those variables.
 >     EProofAbs _ e  -> evalExpr env e
 >     EProofApp e    -> evalExpr env e
 >     EWhere e dgs   -> evalExpr (foldl evalDeclGroup env dgs) e
-
+>
+>     EPropGuards guards _ty -> 
+>       case List.find (all (checkProp . evalProp env) . fst) guards of
+>         Just (_, e) -> evalExpr env e
+>         Nothing -> evalPanic "fromVBit" ["No guard constraint was satisfied"]
 
 > appFun :: E Value -> E Value -> E Value
 > appFun f v = f >>= \f' -> fromVFun f' v
+
+> -- | Evaluates a `Prop` in an `EvalEnv` by substituting all variables 
+> -- according to `envTypes` and expanding all type synonyms via `tNoUser`.
+> evalProp :: Env -> Prop -> Prop
+> evalProp env@Env { envTypes } = \case
+>   TCon tc tys -> TCon tc (toType . evalType envTypes <$> tys)
+>   TVar tv | Just (toType -> ty) <- lookupTypeVar tv envTypes -> ty
+>   prop@TUser {} -> evalProp env (tNoUser prop)
+>   TVar tv | Nothing <- lookupTypeVar tv envTypes -> panic "evalProp" ["Could not find type variable `" ++ pretty tv ++ "` in the type evaluation environment"]
+>   prop -> panic "evalProp" ["Cannot use the following as a type constraint: `" ++ pretty prop ++ "`"]
+>   where 
+>     toType = either tNumTy tValTy
 
 
 Selectors

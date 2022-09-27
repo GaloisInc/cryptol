@@ -909,6 +909,8 @@ userOptions  = mkOptionMap
     "Choose whether to display warnings when expression association has changed due to new prefix operator fixities."
   , simpleOpt "warnUninterp" ["warn-uninterp"] (EnvBool True) noCheck
     "Choose whether to issue a warning when uninterpreted functions are used to implement primitives in the symbolic simulator."
+  , simpleOpt "warnNonExhaustiveConstraintGuards" ["warn-nonexhaustive-constraintguards"] (EnvBool True) noCheck
+    "Choose whether to issue a warning when a use of constraint guards is not determined to be exhaustive."
   , simpleOpt "smtFile" ["smt-file"] (EnvString "-") noCheck
     "The file to use for SMT-Lib scripts (for debugging or offline proving).\nUse \"-\" for stdout."
   , OptionDescr "path" [] (EnvString "") noCheck
@@ -990,6 +992,18 @@ userOptions  = mkOptionMap
     , "  * display      try to match the order they were written in the source code"
     , "  * canonical    use a predictable, canonical order"
     ]
+
+  , simpleOpt "timeMeasurementPeriod" ["time-measurement-period"] (EnvNum 10)
+    checkTimeMeasurementPeriod
+    $ unlines
+    [ "The period of time in seconds to spend collecting measurements when"
+    , "  running :time."
+    , "This is a lower bound and the actual time taken might be higher if the"
+    , "  evaluation takes a long time."
+    ]
+
+  , simpleOpt "timeQuiet" ["time-quiet"] (EnvBool False) noCheck
+    "Suppress output of :time command and only bind result to `it`."
   ]
 
 
@@ -1084,6 +1098,14 @@ getUserSatNum = do
     _ | Just n <- readMaybe s -> return (SomeSat n)
     _                         -> panic "REPL.Monad.getUserSatNum"
                                    [ "invalid satNum option" ]
+
+checkTimeMeasurementPeriod :: Checker
+checkTimeMeasurementPeriod (EnvNum n)
+  | n >= 1 = noWarns Nothing
+  | otherwise = noWarns $
+    Just "timeMeasurementPeriod must be a positive integer"
+checkTimeMeasurementPeriod _ = noWarns $
+  Just "unable to parse value for timeMeasurementPeriod"
 
 -- Environment Utilities -------------------------------------------------------
 

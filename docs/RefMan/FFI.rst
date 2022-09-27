@@ -7,13 +7,26 @@ C (or other languages that use the C calling convention).
 Platform support
 ----------------
 
-The FFI is currently **not supported on Windows**, and only works on Unix-like
-systems (macOS and Linux).
+The FFI is built on top of the C ``libffi`` library, and as such, it should be
+portable across many operating systems. We have tested it to work on Linux,
+macOS, and Windows.
 
 Basic usage
 -----------
 
-Suppose we want to call the following C function:
+Suppose we want to implement the following function in C:
+
+.. code-block:: cryptol
+
+  add : [32] -> [32] -> [32]
+
+In our Cryptol file, we declare it as a ``foreign`` function with no body:
+
+.. code-block:: cryptol
+
+  foreign add : [32] -> [32] -> [32]
+
+Then we write the following C function:
 
 .. code-block:: c
 
@@ -21,11 +34,16 @@ Suppose we want to call the following C function:
     return x + y;
   }
 
-In our Cryptol file, we write a ``foreign`` declaration with no body:
+Cryptol can generate a C header file containing the appropriate function
+prototypes given the corresponding Cryptol ``foreign`` declarations with the
+``:generate-foreign-header`` command. You can then ``#include`` the generated
+header file in your C file to help write the C implementation.
 
-.. code-block:: cryptol
+.. code-block::
 
-  foreign add : [32] -> [32] -> [32]
+  Cryptol> :generate-foreign-header Example.cry
+  Loading module Example
+  Writing header to Example.h
 
 The C code must first be compiled into a dynamically loaded shared library. When
 Cryptol loads the module containing the ``foreign`` declaration, it will look
@@ -35,6 +53,7 @@ extension it uses is platform-specific:
 
 * On Linux, it looks for the extension ``.so``.
 * On macOS, it looks for the extension ``.dylib``.
+* On Windows, it looks for the extension ``.dll``.
 
 For example, if you are on Linux and your ``foreign`` declaration is in
 ``Foo.cry``, Cryptol will dynamically load ``Foo.so``. Then for each ``foreign``
@@ -61,9 +80,9 @@ The whole process would look something like this:
 
 Note: Since Cryptol currently only accesses the compiled binary and not the C
 source, it has no way of checking that the Cryptol function type you declare in
-your Cryptol code actually matches the type of the C function. **It is your
-responsibility to make sure the types match up**. If they do not then there may
-be undefined behavior.
+your Cryptol code actually matches the type of the C function. It can generate
+the correct C headers but if the actual implementation does not match it there
+may be undefined behavior.
 
 Compiling C code
 ----------------
@@ -73,6 +92,7 @@ simple usages, you can do this manually with the following commands:
 
 * Linux: ``cc -fPIC -shared Foo.c -o Foo.so``
 * macOS: ``cc -dynamiclib Foo.c -o Foo.dylib``
+* Windows: ``cc -fPIC -shared Foo.c -o Foo.dll``
 
 Converting between Cryptol and C types
 --------------------------------------
@@ -80,6 +100,10 @@ Converting between Cryptol and C types
 This section describes how a given Cryptol function signature maps to a C
 function prototype. The FFI only supports a limited set of Cryptol types which
 have a clear translation into C.
+
+This mapping can now be done automatically with the ``:generate-foreign-header``
+command mentioned above; however, this section is still worth reading to
+understand the supported types and what the resulting C parameters mean.
 
 Overall structure
 ~~~~~~~~~~~~~~~~~
@@ -146,8 +170,8 @@ When converting to C, ``True`` is converted to ``1`` and ``False`` to ``0``.
 When converting to Cryptol, any nonzero number is converted to ``True`` and
 ``0`` is converted to ``False``.
 
-Integral types
-~~~~~~~~~~~~~~
+Bit Vector Types
+~~~~~~~~~~~~~~~~
 
 Let ``K : #`` be a Cryptol type. Note ``K`` must be an actual fixed numeric type
 and not a type variable.
@@ -167,7 +191,7 @@ are ignored. For instance, for the Cryptol type ``[4]``, the Cryptol value ``0xf
 : [4]`` is converted to the C value ``uint8_t`` ``0x0f``, and the C ``uint8_t``
 ``0xaf`` is converted to the Cryptol value ``0xf : [4]``.
 
-Note that words larger than 64 bits are not supported, since there is no
+Note that bit vectors larger than 64 bits are not supported, since there is no
 standard C integral type for that. You can split it into a sequence of smaller
 words first in Cryptol, then use the FFI conversion for sequences of words to
 handle it in C as an array.
@@ -185,23 +209,50 @@ Cryptol type  C type
 Note: the Cryptol ``Float`` types are defined in the built-in module ``Float``.
 Other sizes of floating points are not supported.
 
+Math Types
+~~~~~~~~~~
+
+Values of high precision types and ``Z`` are represented using the GMP library.
+
+============  ==========
+Cryptol type  C type
+============  ==========
+``Integer``   ``mpz_t``
+``Rational``  ``mpq_t``
+``Z n``       ``mpz_t``
+============  ==========
+
+Results of these types are returned in *output* parameters,
+but since both ``mpz_t`` and ``mpz_q`` are already reference
+types there is no need for an extra pointer in the result.
+For example, a Cryptol function ``f : Integer -> Rational``
+would correspond to a C function ``f(mpz_t in, mpq_t out)``.
+
+All parameters passed to the C function (no matter if
+input or output) are managed by Cryptol, which takes care
+to call ``init`` before their use and ``clear`` after.
+
+
 Sequences
 ~~~~~~~~~
 
-Let ``n : #`` be a Cryptol type, possibly containing type variables, that
-satisfies ``fin n``, and ``T`` be one of the above Cryptol *integral types* or
-*floating point types*. Let ``U`` be the C type that ``T`` corresponds to.
+Let ``n1, n2, ..., nk : #`` be Cryptol types (with ``k >= 1``), possibly
+containing type variables, that satisfy ``fin n1, fin n2, ..., fin nk``, and
+``T`` be one of the above Cryptol *bit vector types*, *floating point types*, or
+*math types*.  Let ``U`` be the C type that ``T`` corresponds to.
 
-============  ===========
-Cryptol type  C type
-============  ===========
-``[n]T``      ``U*``
-============  ===========
+====================  ===========
+Cryptol type          C type
+====================  ===========
+``[n1][n2]...[nk]T``  ``U*``
+====================  ===========
 
-The C pointer points to an array of ``n`` elements of type ``U``. Note that,
-while the length of the array itself is not explicitly passed along with the
-pointer, any type arguments contained in the size are passed as C ``size_t``'s
-earlier, so the C code can always know the length of the array.
+The C pointer points to an array of ``n1 * n2 * ... * nk`` elements of type
+``U``. If the sequence is multidimensional, it is flattened and stored
+contiguously, similar to the representation of multidimensional arrays in C.
+Note that, while the dimensions of the array itself are not explicitly passed
+along with the pointer, any type arguments contained in the size are passed as C
+``size_t``'s earlier, so the C code can always know the dimensions of the array.
 
 Tuples and records
 ~~~~~~~~~~~~~~~~~~
@@ -232,17 +283,18 @@ type synonyms in ``foreign`` declarations to improve readability.
 Return values
 ~~~~~~~~~~~~~
 
-If the Cryptol return type is ``Bit`` or one of the above *integral types* or
+If the Cryptol return type is ``Bit`` or one of the above *bit vector types* or
 *floating point types*, the value is returned directly from the C function. In
 that case, the return type of the C function will be the C type corresponding to
 the Cryptol type, and no extra arguments are added.
 
-If the Cryptol return type is a sequence, tuple, or record, then the value is
-returned using output arguments, and the return type of the C function will be
-``void``. For tuples and records, each component is recursively returned as
+If the Cryptol return type is one of the *math types*, a sequence, tuple,
+or record, then the value is returned using output arguments,
+and the return type of the C function will be ``void``.
+For tuples and records, each component is recursively returned as
 output arguments. When treated as an output argument, each C type ``U`` will be
-a pointer ``U*`` instead, except in the case of sequences, where the output and
-input versions are the same type, because it is already a pointer.
+a pointer ``U*`` instead, except in the case of *math types* and sequences,
+where the output and input versions are the same type, because it is already a pointer.
 
 Quick reference
 ~~~~~~~~~~~~~~~
@@ -258,12 +310,15 @@ Cryptol type (or kind)              C argument type(s)   C return type  C output
 ``[K]Bit`` where ``32 <  K <= 64``  ``uint64_t``         ``uint64_t``   ``uint64_t*``
 ``Float32``                         ``float``            ``float``      ``float*``
 ``Float64``                         ``double``           ``double``     ``double*``
-``[n]T``                            ``U*``               N/A            ``U*``
+``Integer``                         ``mpz_t``            N/A            ``mpz_t``
+``Rational``                        ``mpq_t``            N/A            ``mpq_t``
+``Z n``                             ``mpz_t``            N/A            ``mpz_t``
+``[n1][n2]...[nk]T``                ``U*``               N/A            ``U*``
 ``(T1, T2, ..., Tn)``               ``U1, U2, ..., Un``  N/A            ``V1, V2, ..., Vn``
 ``{f1: T1, f2: T2, ..., fn: Tn}``   ``U1, U2, ..., Un``  N/A            ``V1, V2, ..., Vn``
 ==================================  ===================  =============  =========================
 
-where ``K`` is a constant number, ``n`` is a variable number, ``Ti`` is a type,
+where ``K`` is a constant number, ``ni`` are variable numbers, ``Ti`` is a type,
 ``Ui`` is its C argument type, and ``Vi`` is its C output argument type.
 
 Memory
@@ -272,6 +327,8 @@ Memory
 When pointers are involved, namely in the cases of sequences and output
 arguments, they point to memory. This memory is always allocated and deallocated
 by Cryptol; the C code does not need to manage this memory.
+
+For GMP types, Cryptol will call ``init`` and ``clear`` as needed.
 
 In the case of sequences, the pointer will point to an array. In the case of an
 output argument for a non-sequence type, the pointer will point to a piece of
@@ -302,5 +359,5 @@ corresponds to the C signature
 
 .. code-block:: c
 
-  void f(size_t n, uint16_t *in0, uint8_t in1, uint64_t in2,
-         double *out0, uint32_t *out1);
+  void f(size_t n, uint16_t *in0, uint8_t in1_a, uint64_t in1_b,
+         double *out_0, uint32_t *out_1);

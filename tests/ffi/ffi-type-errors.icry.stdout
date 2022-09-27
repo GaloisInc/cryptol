@@ -33,43 +33,30 @@ Loading module Main
         Unsupported Float format
         Only Float32 and Float64 are supported
   When checking the type of 'Main::badFloatSizes'
-[error] at ffi-type-errors.cry:5:9--5:78:
+[error] at ffi-type-errors.cry:5:9--6:59:
   Type unsupported for FFI:
-    [n`969] -> [n`969]([16], [16]) -> [n`969][4][8]
+    [n`969] -> [n`969]([16], [16]) -> [n`969][4][8]{a : [n`969],
+     b : [2]}
     Due to:
       Type unsupported for FFI:
         [n`969]
         Due to:
         Unsupported sequence element type
-        Only words or floats are supported as the element type of sequences
+        Only words or floats are supported as the element type of
+        (possibly multidimensional) sequences
       Type unsupported for FFI:
         [n`969]([16], [16])
         Due to:
         Unsupported sequence element type
-        Only words or floats are supported as the element type of sequences
+        Only words or floats are supported as the element type of
+        (possibly multidimensional) sequences
       Type unsupported for FFI:
-        [n`969][4][8]
+        [n`969][4][8]{a : [n`969], b : [2]}
         Due to:
         Unsupported sequence element type
-        Only words or floats are supported as the element type of sequences
+        Only words or floats are supported as the element type of
+        (possibly multidimensional) sequences
   When checking the type of 'Main::badArrayTypes'
-[error] at ffi-type-errors.cry:6:9--6:34:
-  Type unsupported for FFI:
-    Integer -> Z 3
-    Due to:
-      Type unsupported for FFI:
-        Integer
-        Due to:
-        Only Bit, words, floats, sequences of words or floats,
-        or structs or tuples of the above are supported as FFI
-        argument or return types
-      Type unsupported for FFI:
-        Z 3
-        Due to:
-        Only Bit, words, floats, sequences of words or floats,
-        or structs or tuples of the above are supported as FFI
-        argument or return types
-  When checking the type of 'Main::badTypes'
 [error] at ffi-type-errors.cry:7:9--7:27:
   Type unsupported for FFI:
     [32]
@@ -99,4 +86,7 @@ Loading module Main
         at ffi-type-errors.cry:10:9--10:34
 [error] at ffi-type-errors.cry:11:48--11:49:
   Wild card types are not allowed in this context
-    (e.g., they cannot be used in type synonyms or FFI declarations).
+    They cannot be used in:
+    • type synonyms
+    • FFI declarations
+    • declarations with constraint guards

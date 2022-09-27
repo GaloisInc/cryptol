@@ -1,0 +1,3 @@
+:set timeQuiet=on
+:time 0x1 + 0x2
+:t it

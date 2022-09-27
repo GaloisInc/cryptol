@@ -1,0 +1,4 @@
+module issue1253a where
+
+import issue1253b
+

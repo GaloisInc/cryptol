@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 env:
-  SOLVER_PKG_VERSION: "snapshot-20220721"
+  SOLVER_PKG_VERSION: "snapshot-20220812"
   # The CACHE_VERSION can be updated to force the use of a new cache if
   # the current cache contents become corrupted/invalid.  This can
   # sometimes happen when (for example) the OS version is changed but
@@ -20,7 +20,7 @@ env:
 
 jobs:
   config:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     outputs:
       name: ${{ steps.config.outputs.name }}
       version: ${{ steps.config.outputs.version }}
@@ -58,21 +58,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-20.04, macos-12, windows-2019]
-        ghc-version: ["8.8.4", "8.10.7", "9.0.2", "9.2.2"]
+        os: [ubuntu-22.04, macos-12, windows-2019]
+        ghc-version: ["8.10.7", "9.0.2", "9.2.4"]
         exclude:
-          # https://gitlab.haskell.org/ghc/ghc/-/issues/18550
-          - os: windows-2019
-            ghc-version: 8.10.7
           - os: windows-2019
             ghc-version: 9.0.2
           - os: windows-2019
-            ghc-version: 9.2.2
+            ghc-version: 9.2.4
         include:
           # We include one job from an older Ubuntu LTS release to increase our
           # coverage of possible Linux configurations.
-          - os: ubuntu-18.04
-            ghc-version: 8.8.4
+          - os: ubuntu-22.04
+            ghc-version: 8.10.7
     outputs:
       test-lib-json: ${{ steps.test-lib.outputs.targets-json }}
     env:
@@ -95,6 +92,14 @@ jobs:
         id: setup-haskell
         with:
           ghc-version: ${{ matrix.ghc-version }}
+
+      - name: Post-GHC installation fixups on Windows
+        shell: bash
+        if: runner.os == 'Windows'
+        run: |
+          # A workaround for https://github.com/Mistuke/CabalChoco/issues/5
+          cabal user-config update -a "extra-include-dirs: \"\""
+          cabal user-config update -a "extra-lib-dirs: \"\""
 
       - uses: actions/cache@v2
         name: Cache cabal store
@@ -147,6 +152,8 @@ jobs:
           cmd="cat \$1.stdout"
           if ${{ runner.os == 'Windows' }}; then
               cmd="cat \$1.stdout.mingw32 2>/dev/null || $cmd"
+          elif ${{ runner.os == 'macOS' }}; then
+              cmd="cat \$1.stdout.darwin 2>/dev/null || $cmd"
           fi
           ./bin/test-runner --ext=.icry -r ./output --exe=$(which bash) -F -c -F "$cmd" -F -- ./tests
           TARGETS_JSON=$(echo -n "$(ls -1 ./output/tests)" | jq -Rsc 'split("\n")')
@@ -158,7 +165,7 @@ jobs:
       - if: runner.os == 'Windows'
         run: .github/wix.ps1
 
-      - if: runner.os == 'Windows'
+      - if: runner.os == 'Windows' && github.event.pull_request.head.repo.fork == false
         shell: bash
         env:
           SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
@@ -181,7 +188,8 @@ jobs:
         env:
           OS_TAG: ${{ matrix.os }}
 
-      - shell: bash
+      - if: github.event.pull_request.head.repo.fork == false
+        shell: bash
         env:
           SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
@@ -203,13 +211,13 @@ jobs:
           if-no-files-found: error
           retention-days: ${{ needs.config.outputs.retention-days }}
 
-      - if: matrix.ghc-version == '8.8.4'
+      - if: matrix.ghc-version == '8.10.7'
         uses: actions/upload-artifact@v2
         with:
           path: dist/bin
           name: ${{ runner.os }}-dist-bin
 
-      - if: matrix.ghc-version == '8.8.4'
+      - if: matrix.ghc-version == '8.10.7'
         uses: actions/upload-artifact@v2
         with:
           path: bin
@@ -231,12 +239,12 @@ jobs:
       matrix:
         suite: [test-lib]
         target: ${{ fromJson(needs.build.outputs.test-lib-json) }}
-        os: [ubuntu-20.04, macos-12, windows-2019]
+        os: [ubuntu-22.04, macos-12, windows-2019]
         continue-on-error: [false]
         include:
           - suite: rpc
             target: ''
-            os: ubuntu-20.04
+            os: ubuntu-22.04
             continue-on-error: false
           #- suite: rpc
           #  target: ''
@@ -254,6 +262,19 @@ jobs:
       - uses: haskell/actions/setup@v1
         with:
           ghc-version: '8.10.7'
+
+      - name: Install dependencies (Windows)
+        uses: msys2/setup-msys2@v2
+        with:
+          update: true
+          msystem: MINGW64
+          # These are needed for the ffi tests on Windows
+          install: |
+            diffutils
+            make
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-gmp
+        if: matrix.suite == 'test-lib' && runner.os == 'Windows'
 
       - if: matrix.suite == 'rpc'
         uses: actions/setup-python@v2
@@ -293,8 +314,18 @@ jobs:
           cp cabal.GHC-"$ghc_ver".config cabal.project.freeze
           cabal v2-update
 
-      - if: matrix.suite == 'test-lib'
+      - if: matrix.suite == 'test-lib' && runner.os != 'Windows'
         shell: bash
+        continue-on-error: ${{ matrix.continue-on-error }}
+        name: test-lib ${{ matrix.target }}
+        run: |
+          export PATH=$PWD/bin:$PWD/dist/bin:$PATH
+          if ${{ matrix.target != 'ffi' }} || dist/bin/cryptol -v | grep -q 'FFI enabled'; then
+            ./bin/test-runner --ext=.icry -F -b --exe=dist/bin/cryptol ./tests/${{ matrix.target }}
+          fi
+
+      - if: matrix.suite == 'test-lib' && runner.os == 'Windows'
+        shell: msys2 {0}
         continue-on-error: ${{ matrix.continue-on-error }}
         name: test-lib ${{ matrix.target }}
         run: |
@@ -311,7 +342,7 @@ jobs:
           cryptol-remote-api/run_rpc_tests.sh
 
   build-push-image:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: [config]
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.config.outputs.release == 'true'
     strategy:

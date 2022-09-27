@@ -7,6 +7,7 @@
 -- Portability :  portable
 
 {-# LANGUAGE RecursiveDo #-}
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE Safe #-}
 -- See Note [-Wincomplete-uni-patterns and irrefutable patterns] in Cryptol.TypeCheck.TypePat
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
@@ -19,6 +20,7 @@ module Cryptol.TypeCheck.Kind
   , checkPropSyn
   , checkParameterType
   , checkParameterConstraints
+  , checkPropGuards
   ) where
 
 import qualified Cryptol.Parser.AST as P
@@ -39,8 +41,6 @@ import           Data.Maybe(fromMaybe)
 import           Data.Function(on)
 import           Data.Text (Text)
 import           Control.Monad(unless,when)
-
-
 
 -- | Check a type signature.  Returns validated schema, and any implicit
 -- constraints that we inferred.
@@ -65,6 +65,30 @@ checkSchema withWild (P.Forall xs ps t mb) =
   rng = case mb of
           Nothing -> id
           Just r  -> inRange r
+
+{- | Validate parsed propositions that appear in the guard of a PropGuard.
+
+  * Note that we don't validate the well-formedness constraints here---instead,
+    they'd be validated when the signature for the auto generated
+    function corresponding guard is checked.
+
+  * We also check that there are no wild-cards in the constraints.
+-}
+checkPropGuards :: [Located (P.Prop Name)] -> InferM [Prop]
+checkPropGuards props =
+  do (newPs,_gs) <- collectGoals (mapM check props)
+     pure newPs
+  where
+  check lp =
+    inRange (srcRange lp)
+    do let p = thing lp
+       (_,ps) <- withTParams NoWildCards schemaParam [] (checkProp p)
+       case tNoUser ps of
+         TCon (PC x) _ | x `elem` [PEqual,PNeq,PGeq,PFin,PTrue] -> pure ()
+         _ -> recordError (InvalidConstraintGuard ps)
+       pure ps
+
+
 
 -- | Check a module parameter declarations.  Nothing much to check,
 -- we just translate from one syntax to another.
@@ -398,7 +422,7 @@ doCheckType ty k =
 
 -- | Validate a parsed proposition.
 checkProp :: P.Prop Name      -- ^ Proposition that need to be checked
-          -> KindM Type       -- ^ Checked representation
+          -> KindM Prop -- ^ Checked representation
 checkProp (P.CType t) = doCheckType t (Just KProp)
 
 
@@ -411,5 +435,3 @@ checkKind _ (Just k1) k2
   | k1 /= k2    = do kRecordError (KindMismatch Nothing k1 k2)
                      kNewType TypeErrorPlaceHolder k1
 checkKind t _ _ = return t
-
-

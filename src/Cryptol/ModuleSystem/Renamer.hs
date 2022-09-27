@@ -977,6 +977,11 @@ instance Rename BindDef where
   rename DPrim     = return DPrim
   rename DForeign  = return DForeign
   rename (DExpr e) = DExpr <$> rename e
+  rename (DPropGuards cases) = DPropGuards <$> traverse rename cases
+
+instance Rename PropGuardCase where
+  rename g = PropGuardCase <$> traverse (rnLocated rename) (pgcProps g)
+                           <*> rename (pgcExpr g)
 
 -- NOTE: this only renames types within the pattern.
 instance Rename Pattern where

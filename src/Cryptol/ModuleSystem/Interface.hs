@@ -11,6 +11,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE Safe #-}
 module Cryptol.ModuleSystem.Interface (
     Iface
   , IfaceG(..)

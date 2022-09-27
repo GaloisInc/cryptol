@@ -9,9 +9,10 @@
 {-# LANGUAGE TypeApplications          #-}
 
 -- | The implementation of loading and calling external functions from shared
--- libraries. Currently works on Unix only.
+-- libraries.
 module Cryptol.Backend.FFI
   ( ForeignSrc
+  , getForeignSrcPath
   , loadForeignSrc
   , unloadForeignSrc
 #ifdef FFI_ENABLED
@@ -42,7 +43,12 @@ import           Foreign.Concurrent
 import           Foreign.LibFFI
 import           System.FilePath            ((-<.>))
 import           System.IO.Error
+
+#if defined(mingw32_HOST_OS)
+import           System.Win32.DLL
+#else
 import           System.Posix.DynamicLinker
+#endif
 
 import           Cryptol.Utils.Panic
 
@@ -56,12 +62,14 @@ import           GHC.Generics
 
 -- | A source from which we can retrieve implementations of foreign functions.
 data ForeignSrc = ForeignSrc
-  { -- | The 'ForeignPtr' wraps the pointer returned by 'dlopen', where the
+  { -- | The file path of the 'ForeignSrc'.
+    foreignSrcPath   :: FilePath
+    -- | The 'ForeignPtr' wraps the pointer returned by 'dlopen', where the
     -- finalizer calls 'dlclose' when the library is no longer needed. We keep
     -- references to the 'ForeignPtr' in each foreign function that is in the
     -- evaluation environment, so that the shared library will stay open as long
     -- as there are references to it.
-    foreignSrcFPtr   :: ForeignPtr ()
+  , foreignSrcFPtr   :: ForeignPtr ()
     -- | We support explicit unloading of the shared library so we keep track of
     -- if it has already been unloaded, and if so the finalizer does nothing.
     -- This is updated atomically when the library is unloaded.
@@ -73,17 +81,24 @@ instance Show ForeignSrc where
 instance NFData ForeignSrc where
   rnf ForeignSrc {..} = foreignSrcFPtr `seq` foreignSrcLoaded `deepseq` ()
 
+-- | Get the file path of the 'ForeignSrc'.
+getForeignSrcPath :: ForeignSrc -> Maybe FilePath
+getForeignSrcPath = Just . foreignSrcPath
+
 -- | Load a 'ForeignSrc' for the given __Cryptol__ file path. The file path of
 -- the shared library that we try to load is the same as the Cryptol file path
 -- except with a platform specific extension.
 loadForeignSrc :: FilePath -> IO (Either FFILoadError ForeignSrc)
-loadForeignSrc = loadForeignLib >=> traverse \ptr -> do
+loadForeignSrc = loadForeignLib >=> traverse \(foreignSrcPath, ptr) -> do
   foreignSrcLoaded <- newMVar True
   foreignSrcFPtr <- newForeignPtr ptr (unloadForeignSrc' foreignSrcLoaded ptr)
   pure ForeignSrc {..}
 
-loadForeignLib :: FilePath -> IO (Either FFILoadError (Ptr ()))
-#ifdef darwin_HOST_OS
+loadForeignLib :: FilePath -> IO (Either FFILoadError (FilePath, Ptr ()))
+#if defined(mingw32_HOST_OS)
+loadForeignLib path =
+  tryLoad (CantLoadFFISrc path) $ open "dll"
+#elif defined(darwin_HOST_OS)
 -- On Darwin, try loading .dylib first, and if that fails try .so
 loadForeignLib path =
   (Right <$> open "dylib") `catchIOError` \e1 ->
@@ -95,9 +110,16 @@ loadForeignLib path =
 loadForeignLib path =
   tryLoad (CantLoadFFISrc path) $ open "so"
 #endif
-  where -- RTLD_NOW so we can make sure that the symbols actually exist at
-        -- module loading time
-        open ext = undl <$> dlopen (path -<.> ext) [RTLD_NOW]
+  where open ext = do
+          let libPath = path -<.> ext
+#if defined(mingw32_HOST_OS)
+          ptr <- loadLibrary libPath
+#else
+          -- RTLD_NOW so we can make sure that the symbols actually exist at
+          -- module loading time
+          ptr <- undl <$> dlopen libPath [RTLD_NOW]
+#endif
+          pure (libPath, ptr)
 
 -- | Explicitly unload a 'ForeignSrc' immediately instead of waiting for the
 -- garbage collector to do it. This can be useful if you want to immediately
@@ -115,7 +137,11 @@ unloadForeignSrc' loaded lib = modifyMVar_ loaded \l -> do
   pure False
 
 unloadForeignLib :: Ptr () -> IO ()
+#if defined(mingw32_HOST_OS)
+unloadForeignLib = freeLibrary
+#else
 unloadForeignLib = dlclose . DLHandle
+#endif
 
 withForeignSrc :: ForeignSrc -> (Ptr () -> IO a) -> IO a
 withForeignSrc ForeignSrc {..} f = withMVar foreignSrcLoaded
@@ -142,7 +168,13 @@ loadForeignImpl foreignImplSrc name =
       pure ForeignImpl {..}
 
 loadForeignFunPtr :: Ptr () -> String -> IO (FunPtr ())
+#if defined(mingw32_HOST_OS)
+loadForeignFunPtr source symbol = do
+  addr <- getProcAddress source symbol
+  pure $ castPtrToFunPtr addr
+#else
 loadForeignFunPtr = dlsym . DLHandle
+#endif
 
 tryLoad :: (String -> FFILoadError) -> IO a -> IO (Either FFILoadError a)
 tryLoad err = fmap (first $ err . displayException) . tryIOError
@@ -217,6 +249,9 @@ callForeignImpl ForeignImpl {..} xs = withForeignSrc foreignImplSrc \_ ->
 #else
 
 data ForeignSrc = ForeignSrc deriving (Show, Generic, NFData)
+
+getForeignSrcPath :: ForeignSrc -> Maybe FilePath
+getForeignSrcPath _ = Nothing
 
 loadForeignSrc :: FilePath -> IO (Either FFILoadError ForeignSrc)
 loadForeignSrc _ = pure $ Right ForeignSrc

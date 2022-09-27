@@ -1,3 +1,5 @@
+{-# LANGUAGE Safe #-}
+
 -- | Look for opportunity to solve goals by instantiating variables.
 module Cryptol.TypeCheck.Solver.Improve where
 

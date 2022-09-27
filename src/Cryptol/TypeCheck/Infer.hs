@@ -15,8 +15,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE Safe #-}
+-- {-# LANGUAGE Trustworthy #-}
 -- See Note [-Wincomplete-uni-patterns and irrefutable patterns] in Cryptol.TypeCheck.TypePat
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+{-# LANGUAGE LambdaCase #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Redundant <$>" #-}
+{-# HLINT ignore "Redundant <&>" #-}
 module Cryptol.TypeCheck.Infer
   ( checkE
   , checkSigB
@@ -30,7 +35,7 @@ import Data.Text(Text)
 import qualified Data.Text as Text
 
 
-import           Cryptol.ModuleSystem.Name (lookupPrimDecl,nameLoc)
+import           Cryptol.ModuleSystem.Name (lookupPrimDecl,nameLoc, nameIdent)
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
 import qualified Cryptol.ModuleSystem.Exports as P
@@ -43,7 +48,8 @@ import           Cryptol.TypeCheck.Kind(checkType,checkSchema,checkTySyn,
                                         checkPropSyn,checkNewtype,
                                         checkParameterType,
                                         checkPrimType,
-                                        checkParameterConstraints)
+                                        checkParameterConstraints,
+                                        checkPropGuards)
 import           Cryptol.TypeCheck.Instantiate
 import           Cryptol.TypeCheck.Subst (listSubst,apSubst,(@@),isEmptySubst)
 import           Cryptol.TypeCheck.Unify(rootPath)
@@ -54,20 +60,22 @@ import           Cryptol.Utils.Ident
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.RecordMap
 import           Cryptol.IR.TraverseNames(mapNames)
+import           Cryptol.Utils.PP (pp)
 
 import qualified Data.Map as Map
 import           Data.Map (Map)
 import qualified Data.Set as Set
-import           Data.List(foldl',sortBy,groupBy)
+import           Data.List(foldl', sortBy, groupBy, partition)
 import           Data.Either(partitionEithers)
 import           Data.Maybe(isJust, fromMaybe, mapMaybe)
-import           Data.List(partition)
 import           Data.Ratio(numerator,denominator)
 import           Data.Traversable(forM)
 import           Data.Function(on)
-import           Control.Monad(zipWithM,unless,foldM,forM_,mplus,when)
+import           Control.Monad(zipWithM, unless, foldM, forM_, mplus, zipWithM,
+                               unless, foldM, forM_, mplus, when)
 
-
+-- import Debug.Trace
+-- import Cryptol.TypeCheck.PP
 
 inferTopModule :: P.Module Name -> InferM TCTopEntity
 inferTopModule m =
@@ -751,15 +759,18 @@ inferCArm armNum (m : ms) =
      newGoals CtComprehension [ pFin n' ]
      return (m1 : ms', Map.insertWith (\_ old -> old) x t ds, tMul n n')
 
--- | @inferBinds isTopLevel isRec binds@ performs inference for a
--- strongly-connected component of 'P.Bind's.
--- If any of the members of the recursive group are already marked
--- as monomorphic, then we don't do generalization.
--- If @isTopLevel@ is true,
--- any bindings without type signatures will be generalized. If it is
--- false, and the mono-binds flag is enabled, no bindings without type
--- signatures will be generalized, but bindings with signatures will
--- be unaffected.
+{- | @inferBinds isTopLevel isRec binds@ performs inference for a
+strongly-connected component of 'P.Bind's.
+If any of the members of the recursive group are already marked
+as monomorphic, then we don't do generalization.
+If @isTopLevel@ is true,
+any bindings without type signatures will be generalized. If it is
+false, and the mono-binds flag is enabled, no bindings without type
+signatures will be generalized, but bindings with signatures will
+be unaffected.
+
+-}
+
 inferBinds :: Bool -> Bool -> [P.Bind Name] -> InferM [Decl]
 inferBinds isTopLevel isRec binds =
   do -- when mono-binds is enabled, and we're not checking top-level
@@ -807,6 +818,8 @@ inferBinds isTopLevel isRec binds =
                      genCs     <- generalize bs1 cs
                      return (done,genCs)
 
+     checkNumericConstraintGuardsOK isTopLevel sigs noSigs
+
      rec
        let exprMap = Map.fromList (map monoUse genBs)
        (doneBs, genBs) <- check exprMap
@@ -834,6 +847,37 @@ inferBinds isTopLevel isRec binds =
     withQs   = foldl' appP withTys  qs
 
 
+{-
+Here we also check that:
+  * Numeric constraint guards appear only at the top level
+  * All definitions in a recursive groups with numberic constraint guards
+    have signatures
+
+The reason is to avoid interference between local constraints coming
+from the guards and type inference.  It might be possible to
+relex these requirements, but this requires some more careful thought on
+the interaction between the two, and the effects on pricniple types.
+-}
+checkNumericConstraintGuardsOK ::
+  Bool -> [P.Bind Name] -> [P.Bind Name] -> InferM ()
+checkNumericConstraintGuardsOK isTopLevel haveSig noSig =
+  do unless isTopLevel
+            (mapM_ (mkErr NestedConstraintGuard) withGuards)
+     unless (null withGuards)
+            (mapM_ (mkErr DeclarationRequiresSignatureCtrGrd) noSig)
+  where
+  mkErr f b =
+    do let nm = P.bName b
+       inRange (srcRange nm) (recordError (f (nameIdent (thing nm))))
+
+  withGuards = filter hasConstraintGuards haveSig
+  -- When desugaring constraint guards we check that they have signatures,
+  -- so no need to look at noSig
+
+  hasConstraintGuards b =
+    case thing (P.bDef b) of
+      P.DPropGuards {} -> True
+      _                -> False
 
 
 
@@ -854,9 +898,10 @@ guessType exprMap b@(P.Bind { .. }) =
 
     Just s ->
       do let wildOk = case thing bDef of
-                        P.DForeign {} -> NoWildCards
-                        P.DPrim       -> NoWildCards
-                        P.DExpr {}    -> AllowWildCards
+                        P.DForeign {}    -> NoWildCards
+                        P.DPrim          -> NoWildCards
+                        P.DExpr {}       -> AllowWildCards
+                        P.DPropGuards {} -> NoWildCards
          s1 <- checkSchema wildOk s
          return ((name, ExtVar (fst s1)), Left (checkSigB b s1))
 
@@ -991,25 +1036,33 @@ checkMonoB b t =
                      , dDoc = P.bDoc b
                      }
 
+    P.DPropGuards _ ->
+      tcPanic "checkMonoB"
+        [ "Used constraint guards without a signature at "
+        , show . pp $ P.bName b ]
+
 -- XXX: Do we really need to do the defaulting business in two different places?
 checkSigB :: P.Bind Name -> (Schema,[Goal]) -> InferM Decl
-checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
+checkSigB b (Forall as asmps0 t0, validSchema) =
+  let name = thing (P.bName b) in
+  case thing (P.bDef b) of
 
- -- XXX what should we do with validSchema in this case?
- P.DPrim ->
-   do return Decl { dName       = thing (P.bName b)
-                  , dSignature  = Forall as asmps0 t0
-                  , dDefinition = DPrim
-                  , dPragmas    = P.bPragmas b
-                  , dInfix      = P.bInfix b
-                  , dFixity     = P.bFixity b
-                  , dDoc        = P.bDoc b
-                  }
+    -- XXX what should we do with validSchema in this case?
+    P.DPrim ->
+      return Decl
+        { dName       = name
+        , dSignature  = Forall as asmps0 t0
+        , dDefinition = DPrim
+        , dPragmas    = P.bPragmas b
+        , dInfix      = P.bInfix b
+        , dFixity     = P.bFixity b
+        , dDoc        = P.bDoc b
+        }
 
- P.DForeign ->
-   do let loc = getLoc b
-          name = thing $ P.bName b
-          src = DefinitionOf name
+    P.DForeign -> do
+      let loc = getLoc b
+          name' = thing $ P.bName b
+          src = DefinitionOf name'
       inRangeMb loc do
         -- Ensure all type params are of kind #
         forM_ as \a ->
@@ -1019,8 +1072,8 @@ checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
           ffiFunType <-
             case toFFIFunType (Forall as asmps0 t0) of
               Right (props, ffiFunType) -> ffiFunType <$ do
-                ffiGoals <- traverse (newGoal (CtFFI name)) props
-                proveImplication True (Just name) as asmps0 $
+                ffiGoals <- traverse (newGoal (CtFFI name')) props
+                proveImplication True (Just name') as asmps0 $
                   validSchema ++ ffiGoals
               Left err -> do
                 recordErrorLoc loc $ UnsupportedFFIType src err
@@ -1037,54 +1090,198 @@ checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
                     , dDoc        = P.bDoc b
                     }
 
- P.DExpr e0 ->
-  inRangeMb (getLoc b) $
-  withTParams as $
-  do (e1,cs0) <- collectGoals $
-                do let nm = thing (P.bName b)
-                       tGoal = WithSource t0 (DefinitionOf nm) (getLoc b)
-                   e1 <- checkFun (P.FunDesc (Just nm) 0) (P.bParams b) e0 tGoal
-                   addGoals validSchema
-                   () <- simplifyAllConstraints  -- XXX: using `asmps` also?
-                   return e1
+    P.DExpr e0 ->
+      inRangeMb (getLoc b) $
+      withTParams as $ do
+        (t, asmps, e2) <- checkBindDefExpr [] asmps0 e0
 
-     asmps1 <- applySubstPreds asmps0
-     cs     <- applySubstGoals cs0
+        return Decl
+          { dName       = name
+          , dSignature  = Forall as asmps t
+          , dDefinition = DExpr (foldr ETAbs (foldr EProofAbs e2 asmps) as)
+          , dPragmas    = P.bPragmas b
+          , dInfix      = P.bInfix b
+          , dFixity     = P.bFixity b
+          , dDoc        = P.bDoc b
+          }
 
-     let findKeep vs keep todo =
-          let stays (_,cvs)    = not $ Set.null $ Set.intersection vs cvs
-              (yes,perhaps)    = partition stays todo
-              (stayPs,newVars) = unzip yes
-          in case stayPs of
-               [] -> (keep,map fst todo)
-               _  -> findKeep (Set.unions (vs:newVars)) (stayPs ++ keep) perhaps
+    P.DPropGuards cases0 ->
+      inRangeMb (getLoc b) $
+        withTParams as $ do
+          asmps1 <- applySubstPreds asmps0
+          t1     <- applySubst t0
+          cases1 <- mapM checkPropGuardCase cases0
 
-     let -- if a goal mentions any of these variables, we'll commit to
-         -- solving it now.
-         stickyVars = Set.fromList (map tpVar as) `Set.union` fvs asmps1
-         (stay,leave) = findKeep stickyVars []
-                            [ (c, fvs c) | c <- cs ]
+          exh <- checkExhaustive (P.bName b) as asmps1 (map fst cases1)
+          unless exh $
+              -- didn't prove exhaustive i.e. none of the guarding props
+              -- necessarily hold
+              recordWarning (NonExhaustivePropGuards name)
 
-     addGoals leave
+          let schema = Forall as asmps1 t1
+
+          return Decl
+            { dName       = name
+            , dSignature  = schema
+            , dDefinition = DExpr
+                              (foldr ETAbs
+                                (foldr EProofAbs
+                                  (EPropGuards cases1 t1)
+                                asmps1)
+                              as)
+            , dPragmas    = P.bPragmas b
+            , dInfix      = P.bInfix b
+            , dFixity     = P.bFixity b
+            , dDoc        = P.bDoc b
+            }
 
 
-     su <- proveImplication False (Just (thing (P.bName b))) as asmps1 stay
-     extendSubst su
+  where
 
-     let asmps  = concatMap pSplitAnd (apSubst su asmps1)
-     t      <- applySubst t0
-     e2     <- applySubst e1
+    checkBindDefExpr ::
+      [Prop] -> [Prop] -> P.Expr Name -> InferM (Type, [Prop], Expr)
+    checkBindDefExpr asmpsSign asmps1 e0 = do
 
-     return Decl
-        { dName       = thing (P.bName b)
-        , dSignature  = Forall as asmps t
-        , dDefinition = DExpr (foldr ETAbs (foldr EProofAbs e2 asmps) as)
-        , dPragmas    = P.bPragmas b
-        , dInfix      = P.bInfix b
-        , dFixity     = P.bFixity b
-        , dDoc        = P.bDoc b
-        }
+      (e1,cs0) <- collectGoals $ do
+        let nm = thing (P.bName b)
+            tGoal = WithSource t0 (DefinitionOf nm) (getLoc b)
+        e1 <- checkFun (P.FunDesc (Just nm) 0) (P.bParams b) e0 tGoal
+        addGoals validSchema
+        () <- simplifyAllConstraints  -- XXX: using `asmps` also?
+        return e1
+      asmps2 <- applySubstPreds asmps1
+      cs     <- applySubstGoals cs0
 
+      let findKeep vs keep todo =
+            let stays (_,cvs)    = not $ Set.null $ Set.intersection vs cvs
+                (yes,perhaps)    = partition stays todo
+                (stayPs,newVars) = unzip yes
+            in case stayPs of
+                [] -> (keep,map fst todo)
+                _  -> findKeep (Set.unions (vs:newVars)) (stayPs ++ keep) perhaps
+
+      let -- if a goal mentions any of these variables, we'll commit to
+          -- solving it now.
+          stickyVars = Set.fromList (map tpVar as) `Set.union` fvs asmps2
+          (stay,leave) = findKeep stickyVars []
+                              [ (c, fvs c) | c <- cs ]
+
+      addGoals leave
+
+      -- includes asmpsSign for the sake of implication, but doesn't actually
+      -- include them in the resulting asmps
+      su <- proveImplication True (Just (thing (P.bName b))) as (asmpsSign <> asmps2) stay
+      extendSubst su
+
+      let asmps  = concatMap pSplitAnd (apSubst su asmps2)
+      t      <- applySubst t0
+      e2     <- applySubst e1
+
+      pure (t, asmps, e2)
+
+
+
+{- |
+Given a DPropGuards of the form
+
+@
+f : {...} A
+f | (B1, B2) => ... 
+  | (C1, C2, C2) => ... 
+@
+
+we check that it is exhaustive by trying to prove the following
+implications:
+
+@
+  A /\ ~B1 => C1 /\ C2 /\ C3
+  A /\ ~B2 => C1 /\ C2 /\ C3
+@
+
+The implications were derive by the following general algorithm:
+- Find that @(C1, C2, C3)@ is the guard that has the most conjuncts, so we
+  will keep it on the RHS of the generated implications in order to minimize
+  the number of implications we need to check.
+- Negate @(B1, B2)@ which yields @(~B1) \/ (~B2)@. This is a disjunction, so
+  we need to consider a branch for each disjunct --- one branch gets the
+  assumption @~B1@ and another branch gets the assumption @~B2@. Each
+  branch's implications need to be proven independently.
+
+-}
+checkExhaustive :: Located Name -> [TParam] -> [Prop] -> [[Prop]] -> InferM Bool
+checkExhaustive name as asmps guards =
+  case sortBy cmpByLonger guards of
+    [] -> pure False -- XXX: we should check the asmps are unsatisfiable
+    longest : rest -> doGoals (theAlts rest) (map toGoal longest)
+
+  where
+  cmpByLonger props1 props2 = compare (length props2) (length props1)
+                                          -- reversed, so that longets is first
+
+  theAlts :: [[Prop]] -> [[Prop]]
+  theAlts = map concat . sequence . map chooseNeg
+
+  -- Choose one of the things to negate
+  chooseNeg ps =
+    case ps of
+      []     -> []
+      p : qs -> (pNegNumeric p ++ qs) : [ p : alts | alts <- chooseNeg qs ]
+
+
+
+  -- Try to validate all cases
+  doGoals todo gs =
+    case todo of
+      []     -> pure True
+      alt : more ->
+        do ok <- canProve (asmps ++ alt) gs
+           if ok then doGoals more gs
+                 else pure False
+
+  toGoal :: Prop -> Goal
+  toGoal prop =
+    Goal
+      { goalSource = CtPropGuardsExhaustive (thing name)
+      , goalRange  = srcRange name
+      , goal       = prop
+      }
+
+  canProve :: [Prop] -> [Goal] -> InferM Bool
+  canProve asmps' goals =
+    tryProveImplication (Just (thing name)) as asmps' goals
+
+{- | This function does not validate anything---it just translates into
+the type-checkd syntax.  The actual validation of the guard will happen
+when the (automatically generated) function corresponding to the guard is
+checked, assuming 'ExpandpropGuards' did its job correctly.
+
+-}
+checkPropGuardCase :: P.PropGuardCase Name -> InferM ([Prop],Expr)
+checkPropGuardCase (P.PropGuardCase guards e0) =
+  do ps <- checkPropGuards guards
+     tys <- mapM (`checkType` Nothing) ts
+     let rhsTs = foldl ETApp                  (getV eV) tys
+         rhsPs = foldl (\e _p -> EProofApp e) rhsTs     ps
+         rhs   = foldl EApp                   rhsPs     (map getV es)
+     pure (ps,rhs)
+
+  where
+  (e1,es) = P.asEApps e0
+  (eV,ts) = case e1 of
+              P.EAppT ex1 tis -> (ex1, map getT tis)
+              _               -> (e1, [])
+
+  getV ex =
+    case ex of
+      P.EVar x -> EVar x
+      _        -> bad "Expression is not a variable."
+
+  getT ti =
+    case ti of
+      P.PosInst t    -> t
+      P.NamedInst {} -> bad "Unexpeceted NamedInst"
+
+  bad msg = panic "checkPropGuardCase" [msg]
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
