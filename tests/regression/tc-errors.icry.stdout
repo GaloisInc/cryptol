@@ -72,8 +72,6 @@ Loading module Main
             at tc-errors-3.cry:2:5--2:6
 Loading module Cryptol
 Loading module Main
-[warning] at tc-errors-4.cry:1:10--1:11:
-  Assuming _ to have a numeric type
 
 [error] at tc-errors-4.cry:1:10--1:11:
   Wild card types are not allowed in this context
