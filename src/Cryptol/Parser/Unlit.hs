@@ -8,7 +8,7 @@
 --
 -- Convert a literate source file into an ordinary source file.
 
-{-# LANGUAGE OverloadedStrings, Safe, PatternGuards #-}
+{-# LANGUAGE OverloadedStrings, PatternGuards #-}
 module Cryptol.Parser.Unlit
   ( unLit, PreProc(..), guessPreProc, knownExts
   ) where
@@ -20,7 +20,7 @@ import           System.FilePath(takeExtension)
 
 import           Cryptol.Utils.Panic
 
-data PreProc = None | Markdown | LaTeX
+data PreProc = None | Markdown | LaTeX | RST
 
 knownExts :: [String]
 knownExts  =
@@ -28,6 +28,7 @@ knownExts  =
   , "tex"
   , "markdown"
   , "md"
+  , "rst"
   ]
 
 guessPreProc :: FilePath -> PreProc
@@ -35,6 +36,7 @@ guessPreProc file = case takeExtension file of
                       ".tex"      -> LaTeX
                       ".markdown" -> Markdown
                       ".md"       -> Markdown
+                      ".rst"      -> RST
                       _           -> None
 
 unLit :: PreProc -> Text -> Text
@@ -47,6 +49,7 @@ preProc p =
     None     -> return . Code
     Markdown -> markdown
     LaTeX    -> latex
+    RST      -> rst
 
 
 data Block = Code [Text] | Comment [Text]
@@ -134,6 +137,34 @@ latex = comment []
   isBeginCode l = "\\begin{code}" `Text.isPrefixOf` l
   isEndCode l   = "\\end{code}"   `Text.isPrefixOf` l
 
+rst :: [Text] -> [Block]
+rst = comment []
+  where
+  isBeginCode l = case filter (not . Text.null) (Text.splitOn " " l) of
+                    ["..", "code::", "cryptol"] -> True
+                    _ -> False
 
+  isEmpty       = Text.all isSpace
+  isCode l      = case Text.uncons l of
+                    Just (c, _) -> isSpace c
+                    Nothing     -> True
+
+  comment acc ls =
+    case ls of
+      [] -> mk Comment acc
+      l : ls1 | isBeginCode l -> codeOptoins (l : acc) ls1
+              | otherwise     -> comment (l : acc) ls1
+
+  codeOptoins acc ls =
+    case ls of
+      [] -> mk Comment acc
+      l : ls1 | isEmpty l -> mk Comment (l : acc) ++ code [] ls1
+              | otherwise -> codeOptoins (l : acc) ls1
+
+  code acc ls =
+    case ls of
+      [] -> mk Code acc
+      l : ls1 | isCode l   -> code (l : acc) ls1
+              | otherwise  -> mk Code acc ++ comment [] ls
 
 
