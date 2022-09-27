@@ -1,8 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Main
-[warning] at noNested.cry:2:5--2:10:
-  Assuming  n to have a numeric type
 
 [error] at noNested.cry:6:3--6:9:
   Local declaration `nested` may not use constraint guards.
