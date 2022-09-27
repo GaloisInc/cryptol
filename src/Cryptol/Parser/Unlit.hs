@@ -8,7 +8,7 @@
 --
 -- Convert a literate source file into an ordinary source file.
 
-{-# LANGUAGE OverloadedStrings, PatternGuards #-}
+{-# LANGUAGE OverloadedStrings, Safe, PatternGuards #-}
 module Cryptol.Parser.Unlit
   ( unLit, PreProc(..), guessPreProc, knownExts
   ) where
@@ -140,8 +140,9 @@ latex = comment []
 rst :: [Text] -> [Block]
 rst = comment []
   where
-  isBeginCode l = case filter (not . Text.null) (Text.splitOn " " l) of
-                    ["..", "code::", "cryptol"] -> True
+  isBeginCode l = case filter (not . Text.null) (Text.split isSpace l) of
+                    ["..", dir, "cryptol"] -> dir == "code-block::" ||
+                                              dir == "sourcecode::"
                     _ -> False
 
   isEmpty       = Text.all isSpace
@@ -152,14 +153,14 @@ rst = comment []
   comment acc ls =
     case ls of
       [] -> mk Comment acc
-      l : ls1 | isBeginCode l -> codeOptoins (l : acc) ls1
+      l : ls1 | isBeginCode l -> codeOptions (l : acc) ls1
               | otherwise     -> comment (l : acc) ls1
 
-  codeOptoins acc ls =
+  codeOptions acc ls =
     case ls of
       [] -> mk Comment acc
       l : ls1 | isEmpty l -> mk Comment (l : acc) ++ code [] ls1
-              | otherwise -> codeOptoins (l : acc) ls1
+              | otherwise -> codeOptions (l : acc) ls1
 
   code acc ls =
     case ls of
