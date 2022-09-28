@@ -1,0 +1,10 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+
+[error] at issue1441_b.rst:28:14--28:18:
+  Type mismatch:
+    Expected type: 4
+    Inferred type: 8
+    Context: [ERROR] _
+    When checking type of function argument

@@ -23,6 +23,10 @@
 
 * Add a `:time` command to benchmark the evaluation time of expressions.
 
+* Add support for literate Cryptol using reStructuredText.  Cryptol code
+  is extracted from `.. code-block:: cryptol` and `.. sourcecode:: cryptol`
+  directives.
+
 ## Bug fixes
 
 * Fix a bug in the What4 backend that could cause applications of `(@)` with
