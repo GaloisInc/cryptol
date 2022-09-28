@@ -21,6 +21,8 @@ module Cryptol.ModuleSystem.Base where
 import qualified Control.Exception as X
 import Control.Monad (unless,forM)
 import Data.Maybe (fromMaybe)
+import Data.List(sortBy,groupBy)
+import Data.Function(on)
 import Data.Monoid ((<>))
 import Data.Text.Encoding (decodeUtf8')
 import System.Directory (doesFileExist, canonicalizePath)
@@ -44,7 +46,7 @@ import Cryptol.ModuleSystem.Env (DynamicEnv(..))
 import Cryptol.ModuleSystem.Fingerprint
 import Cryptol.ModuleSystem.Interface
 import Cryptol.ModuleSystem.Monad
-import Cryptol.ModuleSystem.Name (Name,liftSupply,PrimMap,ModPath(..))
+import Cryptol.ModuleSystem.Name (Name,liftSupply,PrimMap,ModPath(..),nameIdent)
 import Cryptol.ModuleSystem.Env ( lookupModule
                                 , lookupTCEntity
                                 , LoadedModuleG(..), lmInterface
@@ -70,6 +72,7 @@ import qualified Cryptol.TypeCheck     as T
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck.PP as T
 import qualified Cryptol.TypeCheck.Sanity as TcSanity
+import qualified Cryptol.Backend.FFI.Error as FFI
 
 import Cryptol.Utils.Ident ( preludeName, floatName, arrayName, suiteBName, primeECName
                            , preludeReferenceName, interactiveName, modNameChunks
@@ -281,6 +284,8 @@ doLoadModule eval quiet isrc path fp pm0 =
 
   where
   evalForeign tcm
+    | not (null foreignFs) = ffiLoadErrors (T.mName tcm) (map FFI.FFIInFunctor foreignFs)
+    | not (null dups)      = ffiLoadErrors (T.mName tcm) (map FFI.FFIDuplicates dups)
     | null foreigns = pure Nothing
     | otherwise = case path of
       InFile p -> io (canonicalizePath p >>= loadForeignSrc) >>=
@@ -298,8 +303,11 @@ doLoadModule eval quiet isrc path fp pm0 =
           Left err -> ffiLoadErrors (T.mName tcm) [err]
       InMem m _ -> panic "doLoadModule"
         ["Can't find foreign source of in-memory module", m]
-    where foreigns = findForeignDecls tcm
-
+    where foreigns  = findForeignDecls tcm
+          foreignFs = T.findForeignDeclsInFunctors tcm
+          dups      = [ d | d@(_ : _ : _) <- groupBy ((==) `on` nameIdent)
+                                           $ sortBy (compare `on` nameIdent)
+                                           $ map fst foreigns ]
 
 
 -- | Rewrite an import declaration to be of the form:

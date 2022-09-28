@@ -1,0 +1,7 @@
+
+submodule A where
+  parameter
+    type n : #
+
+  foreign f : (fin n) => [n][8] -> [8]
+

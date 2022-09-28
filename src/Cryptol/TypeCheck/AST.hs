@@ -13,6 +13,7 @@
 {-# LANGUAGE FlexibleInstances, FlexibleContexts #-}
 {-# LANGUAGE DeriveAnyClass, DeriveGeneric       #-}
 {-# LANGUAGE OverloadedStrings                   #-}
+{-# LANGUAGE NamedFieldPuns                      #-}
 module Cryptol.TypeCheck.AST
   ( module Cryptol.TypeCheck.AST
   , Name()
@@ -27,6 +28,8 @@ module Cryptol.TypeCheck.AST
   , PrimMap(..)
   , module Cryptol.TypeCheck.Type
   ) where
+
+import Data.Maybe(mapMaybe)
 
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.Ident (Ident,isInfixIdent,ModName,PrimIdent,prelPrim)
@@ -131,6 +134,24 @@ emptyModule nm =
     , mSubmodules       = mempty
     , mSignatures       = mempty
     }
+
+-- | Find all the foreign declarations in the module and return their names and FFIFunTypes.
+findForeignDecls :: ModuleG mname -> [(Name, FFIFunType)]
+findForeignDecls = mapMaybe getForeign . mDecls
+  where getForeign (NonRecursive Decl { dName, dDefinition = DForeign ffiType })
+          = Just (dName, ffiType)
+        -- Recursive DeclGroups can't have foreign decls
+        getForeign _ = Nothing
+
+-- | Find all the foreign declarations that are in functors.
+-- This is used to report an error
+findForeignDeclsInFunctors :: ModuleG mname -> [Name]
+findForeignDeclsInFunctors = concatMap fromM . Map.elems . mFunctors
+  where
+  fromM m = map fst (findForeignDecls m) ++ findForeignDeclsInFunctors m
+
+
+
 
 type Module = ModuleG ModName
 

@@ -50,4 +50,9 @@ foreign iQ2Qi : (Integer,Rational) -> (Rational,Integer)
 foreign i2Z5  : Integer -> Z 5
 foreign i2Z   : {n} (fin n, n >= 1) => Integer -> Z n
 
+// In a nested module
+submodule A where
+  foreign nested : () -> [8]
+
+
 

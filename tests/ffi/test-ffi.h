@@ -1,6 +1,7 @@
 #include <gmp.h>
 #include <stddef.h>
 #include <stdint.h>
+uint8_t nested(void);
 uint8_t add8(uint8_t in0, uint8_t in1);
 uint16_t sub16(uint16_t in0, uint16_t in1);
 uint32_t mul32(uint32_t in0, uint32_t in1);
