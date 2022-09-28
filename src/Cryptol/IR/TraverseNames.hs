@@ -79,6 +79,9 @@ instance TraverseNames Expr where
       EProofApp e       -> EProofApp <$> traverseNamesIP e
       EWhere e ds       -> EWhere <$> traverseNamesIP e <*> traverseNamesIP ds
 
+      EPropGuards gs t  -> EPropGuards <$> traverse doG gs <*> traverseNamesIP t
+        where doG (xs, e) = (,) <$> traverseNamesIP xs <*> traverseNamesIP e
+
 instance TraverseNames Match where
   traverseNamesIP mat =
     case mat of
