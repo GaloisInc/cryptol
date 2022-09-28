@@ -244,6 +244,7 @@ checkProp = \case
       -- TODO: instantiate UniqueFactorization for Nat'?
       -- PC PPrime | [n] <- ns -> isJust (isPrime n) 
       PC PTrue -> True
+      TError {} -> False
       _ -> evalPanic "evalProp" ["cannot use this as a guarding constraint: ", show . pp $ TCon tcon ts ]
   prop -> evalPanic "evalProp" ["cannot use this as a guarding constraint: ", show . pp $ prop ]
   where
@@ -258,7 +259,12 @@ checkProp = \case
 -- to `envTypes` and expanding all type synonyms via `tNoUser`.
 evalProp :: GenEvalEnv sym -> Prop -> Prop
 evalProp env@EvalEnv { envTypes } = \case
-  TCon tc tys -> TCon tc (toType . evalType envTypes <$> tys)
+  TCon tc tys
+    | TError KProp <- tc, [p] <- tys ->
+      case evalProp env p of
+        x@(TCon (TError KProp) _) -> x
+        _                         -> TCon (TError KProp) [evalProp env p]
+    | otherwise -> TCon tc (toType . evalType envTypes <$> tys)
   TVar tv | Just (toType -> ty) <- lookupTypeVar tv envTypes -> ty
   prop@TUser {} -> evalProp env (tNoUser prop)
   TVar tv | Nothing <- lookupTypeVar tv envTypes -> panic "evalProp" ["Could not find type variable `" ++ pretty tv ++ "` in the type evaluation environment"]
