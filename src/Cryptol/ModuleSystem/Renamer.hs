@@ -681,7 +681,7 @@ renI :: Located (ImportG (ImpName PName)) ->
 renI li =
   withLoc (srcRange li)
   do m <- rename (iModule i)
-     recordImport (srcRange li) m
+     unless (isFakeName m) (recordImport (srcRange li) m)
      pure li { thing = i { iModule = m } }
   where
   i = thing li

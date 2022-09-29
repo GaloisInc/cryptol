@@ -1,5 +1,7 @@
 import interface submodule X
 
+import submodule Y
+
 interface submodule I where
   type n : #
 
