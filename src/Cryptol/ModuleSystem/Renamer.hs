@@ -52,7 +52,8 @@ import Cryptol.Parser.AST
 import Cryptol.Parser.Selector(selName)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.RecordMap
-import Cryptol.Utils.Ident(allNamespaces,OrigName(..),modPathCommon,preludeName)
+import Cryptol.Utils.Ident(allNamespaces,OrigName(..),modPathCommon,
+                              undefinedModName)
 import Cryptol.Utils.PP
 
 import Cryptol.ModuleSystem.Interface
@@ -275,12 +276,16 @@ checkFunctorArgs args =
 
   checkArg l =
       case thing l of
-        ModuleArg m -> checkIsModule (srcRange l) m AModule
+        ModuleArg m
+          | isFakeName m -> pure ()
+          | otherwise    -> checkIsModule (srcRange l) m AModule
         ParameterArg {} -> pure () -- we check these in the type checker
 
 mkInstMap :: Maybe Range -> Map Name Name -> ImpName Name -> ImpName Name ->
   RenameM (Map Name Name)
-mkInstMap checkFun acc0 ogname iname =
+mkInstMap checkFun acc0 ogname iname
+  | isFakeName ogname = pure Map.empty
+  | otherwise =
   do case checkFun of
        Nothing -> pure ()
        Just r  -> checkIsModule r ogname AFunctor
@@ -857,6 +862,14 @@ reportUnboundName expected qn =
 
      mkFakeName expected qn
 
+isFakeName :: ImpName Name -> Bool
+isFakeName m =
+  case m of
+    ImpTop x -> x == undefinedModName
+    ImpNested x ->
+      case nameTopModuleMaybe x of
+        Just y  -> y == undefinedModName
+        Nothing -> False
 
 
 -- | Resolve a name, and report error on failure
@@ -881,8 +894,8 @@ renameType nt = resolveName nt NSType
 mkFakeName :: Namespace -> PName -> RenameM Name
 mkFakeName ns pn =
   do ro <- RenameM ask
-     liftSupply (mkDeclared ns (TopModule preludeName) SystemName (getIdent pn)
-                                                       Nothing (roLoc ro))
+     liftSupply (mkDeclared ns (TopModule undefinedModName)
+                               SystemName (getIdent pn) Nothing (roLoc ro))
 
 -- | Rename a schema, assuming that none of its type variables are already in
 -- scope.

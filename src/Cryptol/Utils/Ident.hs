@@ -26,6 +26,7 @@ module Cryptol.Utils.Ident
   , packModName
   , preludeName
   , preludeReferenceName
+  , undefinedModName
   , floatName
   , suiteBName
   , arrayName
@@ -203,6 +204,9 @@ modSep  = "::"
 
 preludeName :: ModName
 preludeName  = packModName ["Cryptol"]
+
+undefinedModName :: ModName
+undefinedModName = packModName ["Undefined module"]
 
 preludeReferenceName :: ModName
 preludeReferenceName = packModName ["Cryptol","Reference"]

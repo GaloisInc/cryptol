@@ -4,3 +4,7 @@ Loading module Main
 
 [error] at T1440.cry:1:28--1:29
     Module not in scope: X
+[error] at T1440.cry:12:40--12:42
+    Module not in scope: U1
+[error] at T1440.cry:13:26--13:28
+    Module not in scope: U2
