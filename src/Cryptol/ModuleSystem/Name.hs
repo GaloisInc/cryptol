@@ -45,6 +45,7 @@ module Cryptol.ModuleSystem.Name (
     -- ** Creation
   , mkDeclared
   , mkLocal
+  , asLocal
   , mkModParam
 
     -- ** Unique Supply
@@ -377,6 +378,15 @@ mkLocal ns ident loc s = (name, s')
                  , nFixity = Nothing
                  , nInfo   = LocalName ns ident
                  }
+
+{- | Make a local name derived from the given name.
+This is a bit questionable,
+but it is used by the translation to SAW Core -}
+asLocal :: Namespace -> Name -> Name
+asLocal ns x =
+  case nameInfo x of
+    GlobalName _ og -> x { nInfo = LocalName ns (ogName og) }
+    LocalName {}    -> x
 
 mkModParam ::
   ModPath {- ^ Module containing the parameter -} ->
