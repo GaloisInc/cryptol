@@ -46,7 +46,6 @@ module Cryptol.ModuleSystem.Name (
   , mkDeclared
   , mkLocal
   , mkModParam
-  , paramModRecParam
 
     -- ** Unique Supply
   , FreshM(..), nextUniqueM
@@ -73,7 +72,7 @@ import           Data.Char(isAlpha,toUpper)
 
 
 
-import           Cryptol.Parser.Position (Range,Located(..),emptyRange)
+import           Cryptol.Parser.Position (Range,Located(..))
 import           Cryptol.Utils.Fixity
 import           Cryptol.Utils.Ident
 import           Cryptol.Utils.Panic
@@ -337,8 +336,8 @@ data Supply = Supply !Int
 emptySupply :: Supply
 emptySupply  = Supply 0x1000
 -- For one such name, see paramModRecParam
--- XXX: perhaps we should simply not have such things, but that's the way
--- for now.
+-- XXX: perhaps we should simply not have such things
+-- XXX: do we have these anymore?
 
 nextUnique :: Supply -> (Int,Supply)
 nextUnique (Supply n) = s' `seq` (n,s')
@@ -400,14 +399,6 @@ mkModParam own pname rng n s = (name, s')
               , nFixity = nFixity n
               , nLoc    = rng
               }
-
-paramModRecParam :: Name
-paramModRecParam = Name { nInfo   = LocalName NSValue (packIdent "$modParams")
-                        , nFixity = Nothing
-                        , nLoc    = emptyRange
-                        , nUnique = 0x01
-                        }
-
 
 -- | This is used when instantiating functors
 freshNameFor :: ModPath -> Name -> Supply -> (Name,Supply)
