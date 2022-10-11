@@ -23,6 +23,7 @@ module Cryptol.Utils.Ident
   , modNameToText
   , textToModName
   , modNameChunks
+  , modNameChunksText
   , packModName
   , preludeName
   , preludeReferenceName
@@ -182,16 +183,21 @@ modNameIsNormal (ModName _ fl) = isNormal fl
 textToModName :: T.Text -> ModName
 textToModName txt = ModName txt NormalName
 
-modNameChunks :: ModName -> [String]
-modNameChunks (ModName x fl) = unfoldr step x
+-- | Break up a module name on the separators, `Text` version.
+modNameChunksText :: ModName -> [T.Text]
+modNameChunksText (ModName x fl) = unfoldr step x
   where
   step str
     | T.null str = Nothing
     | otherwise  =
       case T.breakOn modSep str of
         (a,b)
-          | T.null b  -> Just (T.unpack (maybeAnonText fl str), b)
-          | otherwise -> Just (T.unpack a,T.drop (T.length modSep) b)
+          | T.null b  -> Just (maybeAnonText fl str, b)
+          | otherwise -> Just (a,T.drop (T.length modSep) b)
+
+-- | Break up a module name on the separators, `String` version
+modNameChunks :: ModName -> [String]
+modNameChunks = map T.unpack . modNameChunksText
 
 packModName :: [T.Text] -> ModName
 packModName strs = textToModName (T.intercalate modSep (map trim strs))
