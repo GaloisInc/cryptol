@@ -520,7 +520,8 @@ exprLinter = TCLinter
       case TcSanity.tcExpr i e' of
         Left err     -> Left err
         Right (s1,os)
-          | TcSanity.same s s1  -> Right os
+          | TcSanity.SameIf os' <- TcSanity.same s s1 ->
+                                        Right (map T.tMono os' ++ os)
           | otherwise -> Left ( fromMaybe emptyRange (getLoc e')
                               , TcSanity.TypeMismatch "exprLinter" s s1
                               )
@@ -573,7 +574,7 @@ typecheck act i params env = do
            CoreLint   -> case lintCheck (tcLinter act) o input of
                            Right as ->
                              let ppIt l = mapM_ (logPrint l . T.pp)
-                             in withLogger ppIt as
+                             in withLogger ppIt (TcSanity.onlyNonTrivial as)
                            Left (loc,err) ->
                             panic "Core lint failed:"
                               [ "Location: " ++ show (T.pp loc)
