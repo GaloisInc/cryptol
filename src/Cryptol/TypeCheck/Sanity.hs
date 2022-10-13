@@ -710,7 +710,7 @@ instance PP Error where
         ppErr "Bad instantiation" []
 
       Captured x ->
-        ppErr "Captured typed variable"
+        ppErr "Captured type variable"
           [ "Variable:" <+> pp x ]
 
       BadProofNoAbs ->
