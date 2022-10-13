@@ -5,6 +5,7 @@
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
+{-# Language OverloadedStrings #-}
 module Cryptol.TypeCheck.Sanity
   ( tcExpr
   , tcDecls
@@ -19,8 +20,10 @@ import Cryptol.Parser.Position(thing,Range,emptyRange)
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Subst (apSubst, singleTParamSubst)
 import Cryptol.TypeCheck.Monad(InferInput(..))
+import Cryptol.ModuleSystem.Name(nameLoc)
 import Cryptol.Utils.Ident
 import Cryptol.Utils.RecordMap
+import Cryptol.Utils.PP
 
 import Data.List (sort)
 import qualified Data.Set as Set
@@ -410,7 +413,11 @@ checkDecl checkSig d =
          when checkSig $ checkSchema s
          s1 <- exprSchema e
          unless (same s s1) $
-           reportError $ TypeMismatch "DExpr" s s1
+           let nm = dName d
+               loc = "definition of " ++ show (pp nm) ++
+                              ", at " ++ show (pp (nameLoc nm))
+           in reportError $ TypeMismatch loc s s1
+  
          return (dName d, s)
 
 checkDeclGroup :: DeclGroup -> TcM [(Name, Schema)]
@@ -586,3 +593,114 @@ lookupVar x =
      case Map.lookup x (roVars ro) of
        Just s -> return s
        Nothing -> reportError $ UndefinedVariable x
+
+
+instance PP Error where
+  ppPrec _ err =
+    case err of
+
+      TypeMismatch what expected actual ->
+        ppErr ("Type mismatch in" <+> text what)
+          [ "Expected:" <+> pp expected
+          , "Actual  :" <+> pp actual
+          ]
+
+      ExpectedMono s ->
+        ppErr "Not a monomorphic type"
+          [ pp s ]
+
+      TupleSelectorOutOfRange sel sz ->
+        ppErr "Tuple selector out of range"
+          [ "Selector:" <+> int sel
+          , "Size    :" <+> int sz
+          ]
+
+      MissingField f fs ->
+        ppErr "Invalid record selector"
+          [ "Field: " <+> pp f
+          , "Fields:" <+> commaSep (map pp fs)
+          ]
+
+      UnexpectedTupleShape expected actual ->
+        ppErr "Unexpected tuple shape"
+          [ "Expected:" <+> int expected
+          , "Actual  :" <+> int actual
+          ]
+
+      UnexpectedRecordShape expected actual ->
+        ppErr "Unexpected record shape"
+          [ "Expected:" <+> commaSep (map pp expected)
+          , "Actual  :" <+> commaSep (map pp actual)
+          ]
+
+      UnexpectedSequenceShape n t ->
+        ppErr "Unexpected sequence shape"
+          [ "Expected:" <+> int n
+          , "Actual  :" <+> pp t
+          ]
+
+      BadSelector sel t ->
+        ppErr "Bad selector"
+          [ "Selector:" <+> pp sel
+          , "Type    :" <+> pp t
+          ]
+
+      BadInstantiation ->
+        ppErr "Bad instantiation" []
+
+      Captured x ->
+        ppErr "Captured typed variable"
+          [ "Variable:" <+> pp x ]
+
+      BadProofNoAbs ->
+        ppErr "Proof application without a proof abstraction" []
+
+      BadProofTyVars xs ->
+        ppErr "Proof application with type abstraction"
+          [ "Type parameter:" <+> pp x | x <- xs ]
+
+      KindMismatch expected actual ->
+        ppErr "Kind mismatch"
+          [ "Expected:" <+> pp expected
+          , "Actual  :" <+> pp actual
+          ]
+
+      NotEnoughArgumentsInKind k ->
+        ppErr "Not enough arguments in kind" [ pp k ]
+
+      BadApplication t1 t2 ->
+        ppErr "Bad application"
+          [ "Function:" <+> pp t1
+          , "Argument:" <+> pp t2
+          ]
+
+      FreeTypeVariable x ->
+        ppErr "Free type variable"
+          [ "Variable:" <+> pp x ]
+
+      BadTypeApplication kf ka ->
+        ppErr "Bad type application"
+          [ "Function :" <+> pp kf
+          , "Arguments:" <+> commaSep (map pp ka)
+          ]
+
+      RepeatedVariableInForall x ->
+        ppErr "Repeated variable in forall"
+          [ "Variable:" <+> pp x ]
+
+      BadMatch t ->
+        ppErr "Bad match"
+          [ "Type:" <+> pp t ]
+
+      EmptyArm -> ppErr "Empty comprehension arm" []
+
+      UndefinedTypeVaraible x ->
+        ppErr "Undefined type variable"
+          [ "Variable:" <+> pp x ]
+
+      UndefinedVariable x ->
+        ppErr "Undefined variable"
+          [ "Variable:" <+> pp x ]
+
+    where
+    ppErr x ys = hang x 2 (vcat [ "•" <+> y | y <- ys ])

@@ -574,7 +574,11 @@ typecheck act i params env = do
                            Right as ->
                              let ppIt l = mapM_ (logPrint l . T.pp)
                              in withLogger ppIt as
-                           Left err -> panic "Core lint failed:" [show err]
+                           Left (loc,err) ->
+                            panic "Core lint failed:"
+                              [ "Location: " ++ show (T.pp loc)
+                              , show (T.pp err)
+                              ]
          return o
 
     T.InferFailed nameMap warns errs ->
