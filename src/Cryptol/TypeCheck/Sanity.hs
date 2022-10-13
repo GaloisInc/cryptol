@@ -11,6 +11,7 @@ module Cryptol.TypeCheck.Sanity
   , tcDecls
   , tcModule
   , ProofObligation
+  , onlyNonTrivial
   , Error(..)
   , AreSame(..)
   , same
@@ -51,6 +52,20 @@ tcModule env m = case runTcM env check of
         k1    = foldr withAsmp k2 (map thing (mParamConstraints m))
         k2    = withVars (Map.toList (fmap mvpType (mParamFuns m)))
               $ checkDecls (mDecls m)
+
+onlyNonTrivial :: [ProofObligation] -> [ProofObligation]
+onlyNonTrivial = filter (not . trivialProofObligation)
+
+-- | Identify proof obligations that are obviously true.
+-- We can filter these to avoid clutter
+trivialProofObligation :: ProofObligation -> Bool
+trivialProofObligation oblig = pIsTrue goal || simpleEq || goal `elem` asmps
+  where
+  goal  = sType oblig
+  asmps = sProps oblig
+  simpleEq = case pIsEqual goal of
+               Just (t1,t2) -> t1 == t2
+               Nothing      -> False
 
 
 --------------------------------------------------------------------------------

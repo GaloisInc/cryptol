@@ -574,7 +574,7 @@ typecheck act i params env = do
            CoreLint   -> case lintCheck (tcLinter act) o input of
                            Right as ->
                              let ppIt l = mapM_ (logPrint l . T.pp)
-                             in withLogger ppIt as
+                             in withLogger ppIt (TcSanity.onlyNonTrivial as)
                            Left (loc,err) ->
                             panic "Core lint failed:"
                               [ "Location: " ++ show (T.pp loc)
