@@ -12,6 +12,7 @@ module Cryptol.TypeCheck.Sanity
   , tcModule
   , ProofObligation
   , Error(..)
+  , AreSame(..)
   , same
   ) where
 
@@ -110,23 +111,68 @@ checkSchema (Forall as ps t) = foldr withTVar check as
   where check = do mapM_ (checkTypeIs KProp) ps
                    checkTypeIs KType t
 
+data AreSame = SameIf [Prop]
+             | NotSame
+
+areSame :: AreSame
+areSame = SameIf []
+
+sameAnd :: AreSame -> AreSame -> AreSame
+sameAnd x y =
+  case (x,y) of
+    (SameIf xs, SameIf ys) -> SameIf (xs ++ ys)
+    _                      -> NotSame
+
+sameBool :: Bool -> AreSame
+sameBool b = if b then areSame else NotSame
+
+sameTypes :: String -> Type -> Type -> TcM ()
+sameTypes msg x y = sameSchemas msg (tMono x) (tMono y)
+
+sameSchemas :: String -> Schema -> Schema -> TcM ()
+sameSchemas msg x y =
+  case same x y of
+    NotSame   -> reportError (TypeMismatch msg x y)
+    SameIf ps -> mapM_ proofObligation ps
+
+
+
 
 class Same a where
-  same :: a -> a -> Bool
+  same :: a -> a -> AreSame
 
 instance Same a => Same [a] where
-  same [] [] = True
-  same (x : xs) (y : ys) = same x y && same xs ys
-  same _ _ = False
+  same [] [] = areSame
+  same (x : xs) (y : ys) = same x y `sameAnd` same xs ys
+  same _ _ = NotSame
+
+data Field a b = Field a b
+
+instance (Eq a, Same b) => Same (Field a b) where
+  same (Field x a) (Field y b) = sameBool (x == y) `sameAnd` same a b
 
 instance Same Type where
-  same t1 t2 = tNoUser t1 == tNoUser t2
+  same t1 t2
+    | k1 /= k2    = NotSame
+    | k1 == KNum  = if t1 == t2 then SameIf [] else SameIf [ t1 =#= t2 ]
+    | otherwise   =
+      case (tNoUser t1, tNoUser t2) of
+        (TVar x, TVar y)               -> sameBool (x == y)
+        (TRec x, TRec y)               -> same (mkRec x) (mkRec y)
+        (TNewtype x xs, TNewtype y ys) -> same (Field x xs) (Field y ys)
+        (TCon x xs, TCon y ys)         -> same (Field x xs) (Field y ys)
+        _                              -> NotSame
+      where
+      k1 = kindOf t1
+      k2 = kindOf t2
+      mkRec r = [ Field x y | (x,y) <- canonicalFields r ]
 
 instance Same Schema where
-  same (Forall xs ps s) (Forall ys qs t) = same xs ys && same ps qs && same s t
+  same (Forall xs ps s) (Forall ys qs t) =
+    same xs ys `sameAnd` same ps qs `sameAnd` same s t
 
 instance Same TParam where
-  same x y = tpName x == tpName y && tpKind x == tpKind y
+  same x y = sameBool (tpName x == tpName y && tpKind x == tpKind y)
 
 
 
@@ -156,8 +202,7 @@ exprSchema expr =
       do checkTypeIs KType t
          forM_ es $ \e ->
            do t1 <- exprType e
-              unless (same t1 t) $
-                reportError $ TypeMismatch "EList" (tMono t) (tMono t1)
+              sameTypes "EList" t1 t
 
          return $ tMono $ tSeq (tNum (length es)) t
 
@@ -172,9 +217,7 @@ exprSchema expr =
        do ty  <- exprType e
           expe <- checkHas ty x
           has <- exprType v
-          unless (same expe has) $
-             reportError $
-               TypeMismatch "ESet" (tMono expe) (tMono has)
+          sameTypes "ESet" expe has
           return (tMono ty)
 
     ESel e sel -> do ty <- exprType e
@@ -183,13 +226,11 @@ exprSchema expr =
 
     EIf e1 e2 e3 ->
       do ty <- exprType e1
-         unless (same tBit ty) $
-           reportError $ TypeMismatch "EIf_condition" (tMono tBit) (tMono ty)
+         sameTypes "EIf_condition" tBit ty
 
          t1 <- exprType e2
          t2 <- exprType e3
-         unless (same t1 t2) $
-           reportError $ TypeMismatch "EIf_arms" (tMono t1) (tMono t2)
+         sameTypes "EIf_arms" t1 t2
 
          return $ tMono t1
 
@@ -241,7 +282,9 @@ exprSchema expr =
 
          case tNoUser t1 of
            TCon (TC TCFun) [ a, b ]
-              | same a t2 -> return (tMono b)
+              | SameIf ps <- same a t2 ->
+                do mapM_ proofObligation ps
+                   return (tMono b)
            tf -> reportError (BadApplication tf t1)
 
 
@@ -412,12 +455,11 @@ checkDecl checkSig d =
       do let s = dSignature d
          when checkSig $ checkSchema s
          s1 <- exprSchema e
-         unless (same s s1) $
-           let nm = dName d
-               loc = "definition of " ++ show (pp nm) ++
-                              ", at " ++ show (pp (nameLoc nm))
-           in reportError $ TypeMismatch loc s s1
-  
+         let nm = dName d
+             loc = "definition of " ++ show (pp nm) ++
+                            ", at " ++ show (pp (nameLoc nm))
+         sameSchemas loc s s1
+
          return (dName d, s)
 
 checkDeclGroup :: DeclGroup -> TcM [(Name, Schema)]
@@ -441,7 +483,9 @@ checkMatch ma =
          t1 <- exprType e
          case tNoUser t1 of
            TCon (TC TCSeq) [ l, el ]
-             | same elt el -> return ((x, tMono elt), l)
+             | SameIf ps <- same elt el ->
+               do mapM_ proofObligation ps
+                  return ((x, tMono elt), l)
              | otherwise -> reportError $ TypeMismatch "From" (tMono elt) (tMono el)
 
 
