@@ -372,7 +372,7 @@ instance PP REPLException where
     SBVException e       -> text "SBV exception:" $$ text (show e)
     SBVPortfolioException e -> text "SBV exception:" $$ text (show e)
     W4Exception e        -> text "What4 exception:" $$ text (show e)
-    CannotLoadASignature -> "Cannot load signatures"
+    CannotLoadASignature -> "Cannot load interfaces"
 
 -- | Raise an exception.
 raise :: REPLException -> REPL a
