@@ -193,10 +193,15 @@ hasParamModules = not . null . lmLoadedParamModules . meLoadedModules
 allDeclGroups :: ModuleEnv -> [T.DeclGroup]
 allDeclGroups = concatMap T.mDecls . loadedNonParamModules
 
+data ModContextParams =
+    InterfaceParams T.ModParamNames
+  | FunctorParams T.FunctorParams
+  | NoParams
+
 -- | Contains enough information to browse what's in scope,
 -- or type check new expressions.
 data ModContext = ModContext
-  { mctxParams          :: T.FunctorParams
+  { mctxParams          :: ModContextParams -- T.FunctorParams
   , mctxExported        :: Set Name
   , mctxDecls           :: IfaceDecls
     -- ^ Should contain at least names in NamingEnv, but may have more
@@ -208,7 +213,7 @@ data ModContext = ModContext
 -- This instance is a bit bogus.  It is mostly used to add the dynamic
 -- environemnt to an existing module, and it makes sense for that use case.
 instance Semigroup ModContext where
-  x <> y = ModContext { mctxParams   = mctxParams x <> mctxParams y
+  x <> y = ModContext { mctxParams   = jnPs (mctxParams x) (mctxParams y)
                       , mctxExported = mctxExported x <> mctxExported y
                       , mctxDecls    = mctxDecls x  <> mctxDecls  y
                       , mctxNames    = names
@@ -217,9 +222,15 @@ instance Semigroup ModContext where
 
       where
       names = mctxNames x `R.shadowing` mctxNames y
+      jnPs as bs =
+        case (as,bs) of
+          (NoParams,_) -> bs
+          (_,NoParams) -> as
+          (FunctorParams xs, FunctorParams ys) -> FunctorParams (xs <> ys)
+          _ -> panic "(<>) @ ModContext" ["Can't combine parameters"]
 
 instance Monoid ModContext where
-  mempty = ModContext { mctxParams   = mempty
+  mempty = ModContext { mctxParams   = NoParams
                       , mctxDecls    = mempty
                       , mctxExported = mempty
                       , mctxNames    = mempty
@@ -237,13 +248,31 @@ modContextOf mname me =
          -- XXX: do we want only public ones here?
          loadedDecls = map (ifDefines . lmInterface)
                      $ getLoadedModules (meLoadedModules me)
+
+         params = ifParams localIface
      pure ModContext
-       { mctxParams   = ifParams localIface
+       { mctxParams   = if Map.null params then NoParams
+                                           else FunctorParams params
        , mctxExported = ifsPublic (ifNames localIface)
        , mctxDecls    = mconcat (ifDefines localIface : loadedDecls)
        , mctxNames    = localNames
        , mctxNameDisp = R.toNameDisp localNames
        }
+  `mplus`
+  do lm <- lookupSignature mname me
+     let localNames  = lmNamingEnv lm
+         -- XXX: do we want only public ones here?
+         loadedDecls = map (ifDefines . lmInterface)
+                     $ getLoadedModules (meLoadedModules me)
+     pure ModContext
+       { mctxParams   = InterfaceParams (lmData lm)
+       , mctxExported = Set.empty
+       , mctxDecls    = mconcat loadedDecls
+       , mctxNames    = localNames
+       , mctxNameDisp = R.toNameDisp localNames
+       }
+
+
 
 dynModContext :: ModuleEnv -> ModContext
 dynModContext me = mempty { mctxNames    = dynNames
@@ -395,6 +424,10 @@ isLoaded mn lm = mn `Set.member` getLoadedNames lm
 -- | Is this a loaded parameterized module.
 isLoadedParamMod :: ModName -> LoadedModules -> Bool
 isLoadedParamMod mn ln = any ((mn ==) . lmName) (lmLoadedParamModules ln)
+
+-- | Is this a loaded interface module.
+isLoadedInterface :: ModName -> LoadedModules -> Bool
+isLoadedInterface mn ln = any ((mn ==) . lmName) (lmLoadedSignatures ln)
 
 
 

@@ -75,7 +75,7 @@ data InferInput = InferInput
     -- When typechecking a module these start off empty.
     -- We need them when type-checking an expression at the command
     -- line, for example.
-  , inpParams :: !(FunctorParams)
+  , inpParams :: !ModParamNames
 
   , inpNameSeeds :: NameSeeds         -- ^ Private state of type-checker
   , inpMonoBinds :: Bool              -- ^ Should local bindings without
@@ -126,7 +126,7 @@ runInferM :: TVars a => InferInput -> InferM a -> IO (InferOutput a)
 runInferM info m0 =
   do let IM m = selectorScope m0
      counter <- newIORef 0
-     let allPs = allParamNames (inpParams info)
+     let allPs = inpParams info
 
      let env = Map.map ExtVar (inpVars info)
             <> Map.map (ExtVar . newtypeConType) (inpNewtypes info)

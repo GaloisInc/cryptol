@@ -1286,24 +1286,22 @@ instance PP TypeSource where
       FunApp                -> "function call"
       TypeErrorPlaceHolder  -> "type error place-holder"
 
-instance PP (WithNames ModParamNames) where
-  ppPrec _ (WithNames ps ns) =
+instance PP ModParamNames where
+  ppPrec _ ps =
     let tps = Map.elems (mpnTypes ps)
     in
     vcat $ map pp tps ++
           if null (mpnConstraints ps) then [] else
             [ "type constraint" <+>
-                parens (commaSep (map (ppWithNames ns . thing)
-                                      (mpnConstraints ps)))
+                parens (commaSep (map (pp . thing) (mpnConstraints ps)))
             ] ++
-           map (ppWithNames ns) (Map.elems (mpnFuns ps))
+           map pp (Map.elems (mpnFuns ps))
 
 instance PP ModTParam where
   ppPrec _ p =
     "type" <+> pp (mtpName p) <+> ":" <+> pp (mtpKind p)
 
-instance PP (WithNames ModVParam) where
-  ppPrec _ (WithNames p ns) =
-    pp (mvpName p) <+> ":" <+> ppWithNames ns (mvpType p)
+instance PP ModVParam where
+  ppPrec _ p = pp (mvpName p) <+> ":" <+> pp (mvpType p)
 
 

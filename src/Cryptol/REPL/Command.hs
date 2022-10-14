@@ -1214,13 +1214,10 @@ loadHelper :: M.ModuleCmd (M.ModulePath,T.TCTopEntity) -> REPL ()
 loadHelper how =
   do clearLoadedMod
      (path,ent) <- liftModuleCmd how
-     m <- case ent of
-            T.TCTopModule mo -> pure mo
-            T.TCTopSignature {} -> raise CannotLoadASignature
 
-     whenDebug (rPutStrLn (dump m))
+     whenDebug (rPutStrLn (dump ent))
      setLoadedMod LoadedModule
-        { lName = Just (T.mName m)
+        { lName = Just (T.tcTopEntitytName ent)
         , lPath = path
         }
      -- after a successful load, the current module becomes the edit target

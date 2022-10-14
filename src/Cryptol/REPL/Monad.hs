@@ -225,10 +225,11 @@ mkPrompt rw
     case lName =<< eLoadedMod rw of
       Nothing -> show (pp I.preludeName)
       Just m
-        | M.isLoadedParamMod m (M.meLoadedModules (eModuleEnv rw)) ->
-                 modName ++ "(parameterized)"
+        | M.isLoadedParamMod m loaded -> modName ++ "(parameterized)"
+        | M.isLoadedInterface m loaded -> modName ++ "(interface)"
         | otherwise -> modName
         where modName = pretty m
+              loaded = M.meLoadedModules (eModuleEnv rw)
 
   withFocus =
     case eLoadedMod rw of
@@ -329,7 +330,6 @@ data REPLException
   | TooWide WordTooWide
   | Unsupported Unsupported
   | ModuleSystemError NameDisp M.ModuleError
-  | CannotLoadASignature
   | EvalPolyError T.Schema
   | InstantiationsNotFound T.Schema
   | TypeNotTestable T.Type
@@ -372,7 +372,6 @@ instance PP REPLException where
     SBVException e       -> text "SBV exception:" $$ text (show e)
     SBVPortfolioException e -> text "SBV exception:" $$ text (show e)
     W4Exception e        -> text "What4 exception:" $$ text (show e)
-    CannotLoadASignature -> "Cannot load interfaces"
 
 -- | Raise an exception.
 raise :: REPLException -> REPL a
@@ -565,6 +564,7 @@ validEvalContext a =
              -- XXX: Changes if focusing on nested modules
              M.GlobalName _ I.OrigName { ogModule = I.TopModule m }
                | M.isLoadedParamMod m (M.meLoadedModules me) -> Set.insert nm bs
+               | M.isLoadedInterface m (M.meLoadedModules me) -> Set.insert nm bs
 
              _ -> bs
 

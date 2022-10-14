@@ -51,7 +51,7 @@ import Cryptol.ModuleSystem.Env ( lookupModule
                                 , lookupTCEntity
                                 , LoadedModuleG(..), lmInterface
                                 , meCoreLint, CoreLint(..)
-                                , ModContext(..)
+                                , ModContext(..), ModContextParams(..)
                                 , ModulePath(..), modulePathLabel)
 import           Cryptol.Backend.FFI
 import qualified Cryptol.Eval                 as E
@@ -544,7 +544,7 @@ checkModule isrc m = do
                      , tcPrims  = prims }
 
 
-  tcm <- typecheck act (R.rmModule renMod) mempty (R.rmImported renMod)
+  tcm <- typecheck act (R.rmModule renMod) NoParams (R.rmImported renMod)
 
   rewMod <- case tcm of
               T.TCTopModule mo -> T.TCTopModule <$> liftSupply (`rewModule` mo)
@@ -611,7 +611,7 @@ data TCAction i o = TCAction
 
 typecheck ::
   (Show i, Show o, HasLoc i) =>
-  TCAction i o -> i -> T.FunctorParams -> IfaceDecls -> ModuleM o
+  TCAction i o -> i -> ModContextParams -> IfaceDecls -> ModuleM o
 typecheck act i params env = do
 
   let range = fromMaybe emptyRange (getLoc i)
@@ -643,7 +643,7 @@ typecheck act i params env = do
          typeCheckingFailed nameMap errs
 
 -- | Generate input for the typechecker.
-genInferInput :: Range -> PrimMap -> T.FunctorParams -> IfaceDecls ->
+genInferInput :: Range -> PrimMap -> ModContextParams -> IfaceDecls ->
                                                           ModuleM T.InferInput
 genInferInput r prims params env = do
   seeds <- getNameSeeds
@@ -668,7 +668,10 @@ genInferInput r prims params env = do
     , T.inpCallStacks       = callStacks
     , T.inpSearchPath       = searchPath
     , T.inpSupply           = supply
-    , T.inpParams           = params
+    , T.inpParams           = case params of
+                                NoParams -> T.allParamNames mempty
+                                FunctorParams ps -> T.allParamNames ps
+                                InterfaceParams ps -> ps
     , T.inpPrimNames        = prims
     , T.inpSolver           = solver
     , T.inpTopModules       = topMods

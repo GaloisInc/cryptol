@@ -560,7 +560,7 @@ runTcM env (TcM m) =
     (Left err, _) -> Left err
     (Right a, s)  -> Right (a, woProofObligations s)
   where
-  allPs = allParamNames (inpParams env)
+  allPs = inpParams env
 
   ro = RO { roTVars = Map.fromList [ (tpUnique x, x)
                                       | tp <- Map.elems (mpnTypes allPs)

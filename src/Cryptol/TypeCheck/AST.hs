@@ -459,4 +459,4 @@ instance PP (WithNames TCTopEntity) where
     case ent of
      TCTopModule m -> ppWithNames nm m
      TCTopSignature n ps ->
-        hang ("interface module" <+> pp n <+> "where") 2 (ppWithNames nm ps)
+        hang ("interface module" <+> pp n <+> "where") 2 (pp ps)

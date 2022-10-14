@@ -15,7 +15,7 @@ import qualified Cryptol.TypeCheck.Type as T
 import Cryptol.Utils.PP
 import Cryptol.Utils.Ident (OrigName(..), modPathIsNormal, identIsNormal)
 
-import Cryptol.ModuleSystem.Env(ModContext(..))
+import Cryptol.ModuleSystem.Env(ModContext(..),ModContextParams(..))
 import Cryptol.ModuleSystem.NamingEnv(namingEnvNames)
 import Cryptol.ModuleSystem.Name
 import Cryptol.ModuleSystem.Interface
@@ -54,10 +54,11 @@ data DispInfo = DispInfo { dispHow :: BrowseHow, env :: NameDisp }
 --------------------------------------------------------------------------------
 
 
-browseMParams :: NameDisp -> T.FunctorParams -> [Doc]
-browseMParams disp params
-  | Map.null params = []
-  | otherwise =
+browseMParams :: NameDisp -> ModContextParams -> [Doc]
+browseMParams disp pars =
+  case pars of
+    NoParams -> []
+    FunctorParams params ->
       ppSectionHeading "Module Parameters"
       $ [ "parameter" <+> pp (T.mpName p) <+> ":" <+>
           "interface" <+> pp (T.mpSignature p) $$
@@ -69,6 +70,7 @@ browseMParams disp params
         , let names = T.mpParameters p
         ] ++
         ["   "]
+    InterfaceParams ps -> [pp ps] -- XXX
   where
   ppParamTy p = nest 2 (sep ["type", pp (T.mtpName p) <+> ":", pp (T.mtpKind p)])
   ppParamFu p = nest 2 (sep [pp (T.mvpName p) <+> ":", pp (T.mvpType p)])

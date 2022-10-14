@@ -226,8 +226,9 @@ showSummary k name doc info =
 
 
 
-showTypeHelp :: T.FunctorParams -> M.IfaceDecls -> NameDisp -> T.Name -> REPL ()
-showTypeHelp fparams env nameEnv name =
+showTypeHelp ::
+  M.ModContextParams -> M.IfaceDecls -> NameDisp -> T.Name -> REPL ()
+showTypeHelp ctxparams env nameEnv name =
   fromMaybe (noInfo nameEnv name) $
   msum [ fromTySyn, fromPrimType, fromNewtype, fromTyParam ]
 
@@ -263,15 +264,21 @@ showTypeHelp fparams env nameEnv name =
                  doShowDocString (T.atDoc a)
 
   allParamNames =
-    Map.unions
-      [ (\x -> (p,x)) <$> T.mpnTypes (T.mpParameters ps)
-      | (p, ps) <- Map.toList fparams
-      ]
+    case ctxparams of
+      M.NoParams -> mempty
+      M.FunctorParams fparams ->
+        Map.unions
+          [ (\x -> (Just p,x)) <$> T.mpnTypes (T.mpParameters ps)
+          | (p, ps) <- Map.toList fparams
+          ]
+      M.InterfaceParams ps -> (\x -> (Nothing ,x)) <$> T.mpnTypes ps
 
   fromTyParam =
     do (x,p) <- Map.lookup name allParamNames
        pure do rPutStrLn ""
-               doShowParameterSource x
+               case x of
+                  Just src -> doShowParameterSource src
+                  Nothing  -> pure ()
                let ty = "type" <+> pp name <+> ":" <+> pp (T.mtpKind p)
                rPrint (runDoc nameEnv (indent 4 ty))
                doShowDocString (T.mtpDoc p)
@@ -286,9 +293,9 @@ doShowTyHelp nameEnv decl doc =
 
 
 showValHelp ::
-  T.FunctorParams -> M.IfaceDecls -> NameDisp -> P.PName -> T.Name -> REPL ()
+  M.ModContextParams -> M.IfaceDecls -> NameDisp -> P.PName -> T.Name -> REPL ()
 
-showValHelp fparams env nameEnv qname name =
+showValHelp ctxparams env nameEnv qname name =
   fromMaybe (noInfo nameEnv name)
             (msum [ fromDecl, fromNewtype, fromParameter ])
   where
@@ -316,15 +323,21 @@ showValHelp fparams env nameEnv qname name =
        return $ return ()
 
   allParamNames =
-    Map.unions
-      [ (\x -> (p,x)) <$> T.mpnFuns (T.mpParameters ps)
-      | (p, ps) <- Map.toList fparams
-      ]
+    case ctxparams of
+      M.NoParams -> mempty
+      M.FunctorParams fparams ->
+        Map.unions
+          [ (\x -> (Just p,x)) <$> T.mpnFuns (T.mpParameters ps)
+          | (p, ps) <- Map.toList fparams
+          ]
+      M.InterfaceParams ps -> (\x -> (Nothing,x)) <$> T.mpnFuns ps
 
   fromParameter =
     do (x,p) <- Map.lookup name allParamNames
        pure do rPutStrLn ""
-               doShowParameterSource x
+               case x of
+                 Just src -> doShowParameterSource src
+                 Nothing -> pure ()
                let ty = pp name <+> ":" <+> pp (T.mvpType p)
                rPrint (runDoc nameEnv (indent 4 ty))
                doShowFix (T.mvpFixity p)
