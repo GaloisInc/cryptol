@@ -1,0 +1,3 @@
+:set coreLint=on
+:load T029.cry
+M::f

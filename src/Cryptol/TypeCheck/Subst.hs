@@ -375,7 +375,16 @@ that variable scopes will be properly preserved. -}
 
 instance TVars Schema where
   apSubst su (Forall xs ps t) =
-    Forall xs !$ (concatMap pSplitAnd (apSubst su ps)) !$ (apSubst su t)
+    Forall xs !$ (map doProp ps) !$ (apSubst su t)
+    where
+    doProp = pAnd . pSplitAnd . apSubst su
+    {- NOTE: when applying a substitution to the predicates of a schema
+       we preserve the number of predicate, even if some of them became
+       "True" or and "And".  This is to accomodate applying substitution
+       to already type checked code (e.g., when instantiating a functor)
+       where the predictes in the schema need to match the corresponding
+       EProofAbs in the term.
+    -}
 
 instance TVars Expr where
   apSubst su = go
