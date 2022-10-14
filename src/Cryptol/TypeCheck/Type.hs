@@ -25,7 +25,7 @@ import qualified Data.Set as Set
 import           Data.Text (Text)
 
 import Cryptol.Parser.Selector
-import Cryptol.Parser.Position(Located,Range,emptyRange)
+import Cryptol.Parser.Position(Located,thing,Range,emptyRange)
 import Cryptol.Parser.AST(ImpName(..))
 import Cryptol.ModuleSystem.Name
 import Cryptol.Utils.Ident (Ident, isInfixIdent, exprModName, ogModule)
@@ -1285,3 +1285,25 @@ instance PP TypeSource where
       GeneratorOfListComp    -> "generator in a list comprehension"
       FunApp                -> "function call"
       TypeErrorPlaceHolder  -> "type error place-holder"
+
+instance PP (WithNames ModParamNames) where
+  ppPrec _ (WithNames ps ns) =
+    let tps = Map.elems (mpnTypes ps)
+    in
+    vcat $ map pp tps ++
+          if null (mpnConstraints ps) then [] else
+            [ "type constraint" <+>
+                parens (commaSep (map (ppWithNames ns . thing)
+                                      (mpnConstraints ps)))
+            ] ++
+           map (ppWithNames ns) (Map.elems (mpnFuns ps))
+
+instance PP ModTParam where
+  ppPrec _ p =
+    "type" <+> pp (mtpName p) <+> ":" <+> pp (mtpKind p)
+
+instance PP (WithNames ModVParam) where
+  ppPrec _ (WithNames p ns) =
+    pp (mvpName p) <+> ":" <+> ppWithNames ns (mvpType p)
+
+

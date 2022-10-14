@@ -453,3 +453,10 @@ instance PP n => PP (WithNames (ModuleG n)) where
     -- XXX: Print abstarct types/functions
     vcat (map (ppWithNames (addTNames mps nm)) mDecls)
     where mps = map mtpParam (Map.elems mParamTypes)
+
+instance PP (WithNames TCTopEntity) where
+  ppPrec _ (WithNames ent nm) =
+    case ent of
+     TCTopModule m -> ppWithNames nm m
+     TCTopSignature n ps ->
+        hang ("interface module" <+> pp n <+> "where") 2 (ppWithNames nm ps)
