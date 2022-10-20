@@ -333,7 +333,7 @@ data REPLException
   | EvalPolyError T.Schema
   | InstantiationsNotFound T.Schema
   | TypeNotTestable T.Type
-  | EvalInParamModule [M.Name]
+  | EvalInParamModule [T.TParam] [M.Name]
   | SBVError String
   | SBVException SBVException
   | SBVPortfolioException SBVPortfolioException
@@ -365,8 +365,9 @@ instance PP REPLException where
                              $$ text "Type:" <+> pp s
     TypeNotTestable t    -> text "The expression is not of a testable type."
                          $$ text "Type:" <+> pp t
-    EvalInParamModule xs -> nest 2 $ vsep $
+    EvalInParamModule as xs -> nest 2 $ vsep $
       [ text "Expression depends on definitions from a parameterized module:" ]
+      ++ map pp as
       ++ map pp xs
     SBVError s           -> text "SBV error:" $$ text s
     SBVException e       -> text "SBV exception:" $$ text (show e)
@@ -557,6 +558,7 @@ validEvalContext a =
      let ds      = T.freeVars a
          badVals = foldr badName Set.empty (T.valDeps ds)
          bad     = foldr badName badVals (T.tyDeps ds)
+         badTs   = T.tyParams ds
 
          badName nm bs =
            case M.nameInfo nm of
@@ -568,10 +570,8 @@ validEvalContext a =
 
              _ -> bs
 
-     unless (Set.null bad) $
-       raise (EvalInParamModule (Set.toList bad))
-
-
+     unless (Set.null bad && Set.null badTs) $
+       raise (EvalInParamModule (Set.toList badTs) (Set.toList bad))
 
 -- | Update the title
 updateREPLTitle :: REPL ()
