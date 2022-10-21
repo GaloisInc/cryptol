@@ -57,10 +57,13 @@ data IfaceG name = Iface
                                       -- (includes nested definitions)
   } deriving (Show, Generic, NFData)
 
+-- | Remove the name of a module.  This is useful for dealing with collections
+-- of modules, as in `Map (ImpName Name) (IfaceG ())`.
 ifaceForgetName :: IfaceG name -> IfaceG ()
 ifaceForgetName i = i { ifNames = newNames }
   where newNames = (ifNames i) { ifsName = () }
 
+-- | Access the name of a module.
 ifModName :: IfaceG name -> name
 ifModName = ifsName . ifNames
 

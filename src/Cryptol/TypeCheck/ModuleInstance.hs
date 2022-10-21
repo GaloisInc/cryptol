@@ -157,7 +157,7 @@ instance ModuleInstance ModVParam where
 instance ModuleInstance ModParam where
   moduleInstance p =
     ModParam { mpName        = mpName p
-             , mpSignature   = moduleInstance (mpSignature p)
+             , mpIface       = moduleInstance (mpIface p)
              , mpParameters  = moduleInstance (mpParameters p)
              }
 

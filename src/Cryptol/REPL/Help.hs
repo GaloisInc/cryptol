@@ -133,7 +133,7 @@ showFunctorHelp _env _nameEnv name info =
   where
   ns      = M.ifNames info
   summary = (ifaceSummary (M.ifDefines info) ns)
-                { msParams = [ (T.mpName p, T.mpSignature p)
+                { msParams = [ (T.mpName p, T.mpIface p)
                              | p <- Map.elems (M.ifParams info)
                              ]
                 }

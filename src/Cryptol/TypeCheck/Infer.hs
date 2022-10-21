@@ -1362,7 +1362,7 @@ checkTopDecls = mapM_ checkTopDecl
                param =
                  ModParam
                    { mpName = P.mpName p
-                   , mpSignature = thing (P.mpSignature p)
+                   , mpIface = thing (P.mpSignature p)
                    , mpParameters =
                         ModParamNames
                           { mpnTypes = Map.fromList [ (mtpName tp, tp)

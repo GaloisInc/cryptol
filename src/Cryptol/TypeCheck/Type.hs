@@ -63,20 +63,32 @@ allParamNames mps =
 -- A single module parameter can bring multiple things in scope.
 data ModParam = ModParam
   { mpName        :: Ident
-  , mpSignature   :: ImpName Name
+    -- ^ The name of a functor parameter.
+
+  , mpIface       :: ImpName Name
+    -- ^ The interface corresponding to this parameter.
+    -- This is thing in `import interface`
+
   , mpParameters  :: ModParamNames
-    {- ^ These are the actual parameters, not the ones in the signature
-      For example if the same signature is used for multiple parameters
+    {- ^ These are the actual parameters, not the ones in the interface
+      For example if the same interface is used for multiple parameters
       the `ifmpParameters` would all be different. -}
   } deriving (Show, Generic, NFData)
 
--- | Information about the names brought in through a "signature import".
--- This is also used to keep information about signatures.
+-- | Information about the names brought in through an "interface import".
+-- This is also used to keep information about.
 data ModParamNames = ModParamNames
   { mpnTypes       :: Map Name ModTParam
-  , mpnConstraints :: [Located Prop] -- ^ Constraints on param. types
+    -- ^ Type parameters
+
+  , mpnConstraints :: [Located Prop]
+    -- ^ Constraints on param. types
+
   , mpnFuns        :: Map.Map Name ModVParam
+    -- ^ Value parameters
+
   , mpnDoc         :: !(Maybe Text)
+    -- ^ Documentation about the interface.
   } deriving (Show, Generic, NFData)
 
 -- | A type parameter of a module.

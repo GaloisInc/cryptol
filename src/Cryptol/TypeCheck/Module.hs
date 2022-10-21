@@ -77,7 +77,13 @@ doFunctorInst m f as inst doc =
 
 
 
--- | Validate a functor application, just checking the argument names
+{- | Validate a functor application, just checking the argument names.
+The result associates a module parameter with the concrete way it should
+be instantiated, which could be:
+
+  * `Left` instanciate using another parameter that is in scope
+  * `Right` instanciate using a module, with the given interface
+-}
 checkArity ::
   Range             {- ^ Location for reporting errors -} ->
   ModuleG ()        {- ^ The functor being instantiated -} ->
@@ -132,6 +138,15 @@ checkArity r mf args =
                checkArgs done ps more
 
 
+{- | Check the argument to a functor parameter.
+Returns:
+
+  * A substitution which will replace the parameter types with
+    the concrete types that were provided
+
+  * Some declarations that define the parameters in terms of the provided
+    values.
+-}
 checkArg ::
   (Range, ModParam, Either ModParam (IfaceG ())) -> InferM (Subst, [Decl])
 checkArg (r,expect,actual') =

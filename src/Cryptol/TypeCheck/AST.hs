@@ -89,7 +89,7 @@ data ModuleG mname =
                      , mParamFuns        :: Map Name ModVParam
                      , mParamConstraints :: [Located Prop]
 
-                     , mParams           :: Map Ident ModParam
+                     , mParams           :: FunctorParams
                        -- ^ Parameters grouped by "import".
 
                      , mFunctors         :: Map Name (ModuleG Name)
@@ -99,7 +99,7 @@ data ModuleG mname =
 
 
                      , mNested           :: !(Set Name)
-                       -- ^ Submodules, functors, and signature nested directly
+                       -- ^ Submodules, functors, and interfaces nested directly
                        -- in this module
 
                       -- These have everything from this module and all submodules

@@ -358,6 +358,7 @@ data RW = RW
 
   , iScope :: ![ModuleG ScopeName]
     -- ^ Nested scopes we are currently checking, most nested first.
+    -- These are basically partially built modules.
 
   , iBindTypes :: !(Map Name Schema)
     -- ^ Types of variables that we know about.  We don't worry about scoping

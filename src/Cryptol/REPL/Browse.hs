@@ -61,7 +61,7 @@ browseMParams disp pars =
     FunctorParams params ->
       ppSectionHeading "Module Parameters"
       $ [ "parameter" <+> pp (T.mpName p) <+> ":" <+>
-          "interface" <+> pp (T.mpSignature p) $$
+          "interface" <+> pp (T.mpIface p) $$
            indent 2 (vcat $
             map ppParamTy (sortByName disp (Map.toList (T.mpnTypes names))) ++
             map ppParamFu (sortByName disp (Map.toList (T.mpnFuns  names)))
