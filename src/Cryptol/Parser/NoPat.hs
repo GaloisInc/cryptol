@@ -8,8 +8,8 @@
 --
 -- The purpose of this module is to convert all patterns to variable
 -- patterns.  It also eliminates pattern bindings by de-sugaring them
--- into `Bind`.  Furthermore, here we associate signatures and pragmas
--- with the names to which they belong.
+-- into `Bind`.  Furthermore, here we associate signatures, fixities,
+-- and pragmas with the names to which they belong.
 
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}

@@ -145,7 +145,15 @@ type Rec e = RecordMap Ident (Range, e)
 newtype Program name = Program [TopDecl name]
                        deriving (Show)
 
--- | A parsed module.
+{- | A module for the pre-typechecker phasese. The two parameters are:
+
+  * @mname@ the type of module names. This is because top-level and nested
+    modules use differnt types to identify a module.
+
+  * @name@ the type of identifiers used by declarations.
+    In the parser this starts off as `PName` and after resolving names
+    in the renamer, this becomes `Name`.
+-}
 data ModuleG mname name = Module
   { mName     :: Located mname              -- ^ Name of the module
   , mDef      :: ModuleDefinition name
@@ -234,7 +242,7 @@ data TopDecl name =
     Decl (TopLevel (Decl name))
   | DPrimType (TopLevel (PrimType name))
   | TDNewtype (TopLevel (Newtype name)) -- ^ @newtype T as = t
-  | Include (Located FilePath)          -- ^ @include File@ (until NoPat)
+  | Include (Located FilePath)          -- ^ @include File@ (until NoInclude)
 
   | DParamDecl Range (Signature name)   -- ^ @parameter ...@ (parser only)
 
@@ -292,15 +300,36 @@ data ImpName name =
 -- | A simple declaration.  Generally these are things that can appear
 -- both at the top-level of a module and in `where` clauses.
 data Decl name = DSignature [Located name] (Schema name)
+                 -- ^ A type signature.  Eliminated in NoPat--after NoPat
+                 -- signatures are in their associated Bind
+
                | DFixity !Fixity [Located name]
+                 -- ^ A fixity declaration. Eliminated in NoPat---after NoPat
+                 -- fixities are in their associated Bind
+
                | DPragma [Located name] Pragma
+                 -- ^ A pragma declaration. Eliminated in NoPat---after NoPat
+                 -- fixities are in their associated Bind
+
                | DBind (Bind name)
+                -- ^ A non-recursive binding.
+
                | DRec [Bind name]
-                 -- ^ A group of recursive bindings, introduced by the renamer.
+                 -- ^ A group of recursive bindings. Introduced by the renamer.
+
                | DPatBind (Pattern name) (Expr name)
+                 -- ^ A pattern binding. Eliminated in NoPat---after NoPat
+                 -- fixities are in their associated Bind
+
                | DType (TySyn name)
+                 -- ^ A type synonym.
+
                | DProp (PropSyn name)
+                 -- ^ A constraint synonym.
+
                | DLocated (Decl name) Range
+                 -- ^ Keeps track of the location of a declaration.
+
                  deriving (Eq, Show, Generic, NFData, Functor)
 
 
