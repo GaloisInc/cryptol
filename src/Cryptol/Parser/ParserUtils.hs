@@ -1109,8 +1109,11 @@ desugarMod mo =
     FunctorInstance f as _ | DefaultInstAnonArg lds <- as ->
       do (ms,lds') <- desugarTopDs (mName mo) lds
          case ms of
-           m : _ | InterfaceModule {} <- mDef m ->
-              errorMessage (srcRange (mName mo))
+           m : _ | InterfaceModule si <- mDef m
+                 , l : _ <- map (srcRange . ptName) (sigTypeParams si) ++
+                            map (srcRange . pfName) (sigFunParams si) ++
+                            [ srcRange (mName mo) ] ->
+              errorMessage l
                 [ "Instantiation of a parameterized module may not itself be "
                   ++ "parameterized" ]
            _ -> pure ()
