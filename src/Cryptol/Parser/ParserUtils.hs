@@ -915,10 +915,10 @@ mkParDecls ds = DParamDecl loc (mkInterface [] ds)
 mkInterface :: [Located (ImportG (ImpName PName))] ->
              [ParamDecl PName] -> Signature PName
 mkInterface is =
-  rev .
   foldl' add
   Signature { sigImports     = is
             , sigTypeParams  = []
+            , sigDecls       = []
             , sigConstraints = []
             , sigFunParams   = []
             }
@@ -926,17 +926,17 @@ mkInterface is =
   where
   add s d =
     case d of
-      DParameterType pt -> s { sigTypeParams = pt : sigTypeParams s }
-      DParameterConstraint ps -> s { sigConstraints = ps : sigConstraints s }
-      DParameterFun pf -> s { sigFunParams = pf : sigFunParams s }
-  rev x = x { sigConstraints = reverse (sigConstraints x) }
+      DParameterType pt       -> s { sigTypeParams  = pt  : sigTypeParams s  }
+      DParameterConstraint ps -> s { sigConstraints = ps ++ sigConstraints s }
+      DParameterDecl pd       -> s { sigDecls       = pd  : sigDecls s       }
+      DParameterFun pf        -> s { sigFunParams   = pf  : sigFunParams s   }
 
 mkIfacePropSyn :: Maybe Text -> Decl PName -> ParamDecl PName
 mkIfacePropSyn mbDoc d =
   case d of
     DLocated d1 _ -> mkIfacePropSyn mbDoc d1
-    DType ts    -> DParameterConstraint (SigTySyn ts mbDoc)
-    DProp ps    -> DParameterConstraint (SigPropSyn ps mbDoc)
+    DType ts    -> DParameterDecl (SigTySyn ts mbDoc)
+    DProp ps    -> DParameterDecl (SigPropSyn ps mbDoc)
     _ -> panic "mkIfacePropSyn" [ "Unexpected declaration", show (pp d) ]
 
 
@@ -1144,12 +1144,14 @@ desugarTopDs ownerName = go emptySig
   emptySig = Signature
     { sigImports      = []
     , sigTypeParams   = []
+    , sigDecls        = []
     , sigConstraints  = []
     , sigFunParams    = []
     }
 
   jnSig s1 s2 = Signature { sigImports      = j sigImports
                           , sigTypeParams   = j sigTypeParams
+                          , sigDecls        = j sigDecls
                           , sigConstraints  = j sigConstraints
                           , sigFunParams    = j sigFunParams
                           }

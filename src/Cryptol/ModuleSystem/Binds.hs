@@ -240,7 +240,7 @@ signatureDefs :: ModPath -> Signature PName -> BuildNamingEnv
 signatureDefs m sig =
      mconcat [ namingEnv (InModule loc p) | p <- sigTypeParams sig ]
   <> mconcat [ namingEnv (InModule loc p) | p <- sigFunParams sig ]
-  <> mconcat [ namingEnv (InModule loc p) | p <- sigConstraints sig ]
+  <> mconcat [ namingEnv (InModule loc p) | p <- sigDecls sig ]
   where
   loc = Just m
 --------------------------------------------------------------------------------
@@ -399,7 +399,6 @@ instance BindsNames (InModule (Decl PName)) where
 instance BindsNames (InModule (SigDecl PName)) where
   namingEnv (InModule m d) =
     case d of
-      SigConstraint {} -> mempty
       SigTySyn ts _    -> namingEnv (InModule m (DType ts))
       SigPropSyn ps _  -> namingEnv (InModule m (DProp ps))
 

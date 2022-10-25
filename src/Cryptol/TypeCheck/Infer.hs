@@ -1398,7 +1398,10 @@ checkSignature sig =
   do forM_ (P.sigTypeParams sig) \pt ->
        addParamType =<< checkParameterType pt
 
-     mapM_ checkSigDecl (P.sigConstraints sig)
+     mapM_ checkSigDecl (P.sigDecls sig)
+
+     addParameterConstraints =<<
+        checkParameterConstraints (P.sigConstraints sig)
 
      forM_ (P.sigFunParams sig) \f ->
        addParamFun =<< checkParameterFun f
@@ -1408,9 +1411,6 @@ checkSignature sig =
 checkSigDecl :: P.SigDecl Name -> InferM ()
 checkSigDecl decl =
   case decl of
-
-    P.SigConstraint cs ->
-     addParameterConstraints =<< checkParameterConstraints cs
 
     P.SigTySyn ts mbD ->
       addTySyn =<< checkTySyn ts mbD
