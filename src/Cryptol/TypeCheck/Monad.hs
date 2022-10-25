@@ -137,7 +137,8 @@ runInferM info m0 =
                          , iExtModules = inpTopModules info
                          , iExtSignatures = inpTopSignatures info
                          , iExtScope = (emptyModule ExternalScope)
-                             { mTySyns           = inpTSyns info
+                             { mTySyns           = inpTSyns info <>
+                                                   mpnTySyn allPs
                              , mNewtypes         = inpNewtypes info
                              , mPrimTypes        = inpAbstractTypes info
                              , mParamTypes       = mpnTypes allPs
@@ -1082,6 +1083,7 @@ endSignature =
                 { mpnTypes       = mParamTypes x
                 , mpnConstraints = mParamConstraints x
                 , mpnFuns        = mParamFuns x
+                , mpnTySyn       = mTySyns x
                 , mpnDoc         = doc
                 }
       _ -> panic "endSignature" [ "Not a signature scope" ]
@@ -1095,6 +1097,7 @@ endTopSignature =
                              { mpnTypes       = mParamTypes x
                              , mpnConstraints = mParamConstraints x
                              , mpnFuns        = mParamFuns x
+                             , mpnTySyn       = mTySyns x
                              , mpnDoc         = Nothing
                              }
         , rw { iScope = [] }

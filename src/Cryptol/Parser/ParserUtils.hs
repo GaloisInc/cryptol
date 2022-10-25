@@ -915,6 +915,7 @@ mkParDecls ds = DParamDecl loc (mkInterface [] ds)
 mkInterface :: [Located (ImportG (ImpName PName))] ->
              [ParamDecl PName] -> Signature PName
 mkInterface is =
+  rev .
   foldl' add
   Signature { sigImports     = is
             , sigTypeParams  = []
@@ -926,8 +927,17 @@ mkInterface is =
   add s d =
     case d of
       DParameterType pt -> s { sigTypeParams = pt : sigTypeParams s }
-      DParameterConstraint ps -> s { sigConstraints = ps ++ sigConstraints s }
+      DParameterConstraint ps -> s { sigConstraints = ps : sigConstraints s }
       DParameterFun pf -> s { sigFunParams = pf : sigFunParams s }
+  rev x = x { sigConstraints = reverse (sigConstraints x) }
+
+mkIfacePropSyn :: Maybe Text -> Decl PName -> ParamDecl PName
+mkIfacePropSyn mbDoc d =
+  case d of
+    DLocated d1 _ -> mkIfacePropSyn mbDoc d1
+    DType ts    -> DParameterConstraint (SigTySyn ts mbDoc)
+    DProp ps    -> DParameterConstraint (SigPropSyn ps mbDoc)
+    _ -> panic "mkIfacePropSyn" [ "Unexpected declaration", show (pp d) ]
 
 
 -- | Make an unnamed module---gets the name @Main@.
@@ -1099,11 +1109,8 @@ desugarMod mo =
     FunctorInstance f as _ | DefaultInstAnonArg lds <- as ->
       do (ms,lds') <- desugarTopDs (mName mo) lds
          case ms of
-           m : _ | InterfaceModule si <- mDef m
-                 , l : _ <- map (srcRange . ptName) (sigTypeParams si) ++
-                            map (srcRange . pfName) (sigFunParams si) ++
-                            map srcRange (sigConstraints si) ->
-              errorMessage l
+           m : _ | InterfaceModule {} <- mDef m ->
+              errorMessage (srcRange (mName mo))
                 [ "Instantiation of a parameterized module may not itself be "
                   ++ "parameterized" ]
            _ -> pure ()

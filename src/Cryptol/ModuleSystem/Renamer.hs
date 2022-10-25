@@ -608,6 +608,9 @@ doModParam mp =
             (checkIsModule (srcRange sigName) sigName' ASignature)
           sigEnv <- if isFake then pure mempty else lookupDefines sigName'
 
+
+          -- XXX: It seems a bit odd to use "newModParam" for the names to be used
+          -- for the instaciated type synonyms, but what other name could we use?
           let newP x = do y <- lift (newModParam me (mpName mp) loc x)
                           sets_ (Map.insert y x)
                           pure y
@@ -716,7 +719,7 @@ renameIfaceModule nm sig =
            -- that declare only types, and so appear "unused".
            forM_ tps \tp -> recordUse (thing (ptName tp))
 
-           cts <- traverse (traverse rename) (sigConstraints sig)
+           cts <- traverse rename (sigConstraints sig)
            fun <- traverse rename (sigFunParams sig)
            pure Signature
                   { sigImports = imps
@@ -788,6 +791,13 @@ instance Rename ParameterFun where
        depsOf (NamedThing (thing n'))
          do sig' <- renameSchema (pfSchema a)
             return a { pfName = n', pfSchema = snd sig' }
+
+instance Rename SigDecl where
+  rename decl =
+    case decl of
+      SigConstraint ps -> SigConstraint <$> traverse (rnLocated rename) ps
+      SigTySyn ts mb   -> SigTySyn      <$> rename ts <*> pure mb
+      SigPropSyn ps mb -> SigPropSyn    <$> rename ps <*> pure mb
 
 instance Rename Decl where
   rename d      = case d of

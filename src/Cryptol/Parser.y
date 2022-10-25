@@ -342,8 +342,15 @@ par_decls                            :: { [ParamDecl PName] }
 par_decl                         :: { ParamDecl PName }
   : mbDoc        name ':' schema    { mkParFun $1 $2 $4 }
   | mbDoc 'type' name ':' kind      {% mkParType $1 $3 $5 }
-  | mbDoc 'type' 'constraint' type  {% fmap (DParameterConstraint . distrLoc)
-                                            (mkProp $4) }
+  | mbDoc 'type' 'constraint' '(' type ')'
+                                    {% fmap (DParameterConstraint .
+                                              SigConstraint . distrLoc) (mkProp $5)}
+  | mbDoc 'type' 'constraint' '(' tuple_types ')'
+                                    {% fmap (DParameterConstraint .
+                                              SigConstraint . distrLoc)
+                                        (mkProp (at ($4,$6) (TTuple $5))) }
+
+  | mbDoc typeOrPropSyn             { mkIfacePropSyn (thing `fmap` $1) $2 }
 
 
 doc                     :: { Located Text }
@@ -421,7 +428,16 @@ let_decl                :: { Decl PName }
 
   | 'let' vars_comma ':' schema  { at (head $2,$4) $ DSignature (reverse $2) $4   }
 
-  | 'type' name '=' type   {% at ($1,$4) `fmap` mkTySyn $2 [] $4 }
+  | typeOrPropSyn          { $1 }
+
+  | 'infixl' NUM ops       {% mkFixity LeftAssoc  $2 (reverse $3) }
+  | 'infixr' NUM ops       {% mkFixity RightAssoc $2 (reverse $3) }
+  | 'infix'  NUM ops       {% mkFixity NonAssoc   $2 (reverse $3) }
+
+
+
+typeOrPropSyn           :: { Decl PName }
+  : 'type' name '=' type   {% at ($1,$4) `fmap` mkTySyn $2 [] $4 }
   | 'type' name tysyn_params '=' type
                            {% at ($1,$5) `fmap` mkTySyn $2 (reverse $3) $5  }
   | 'type' tysyn_param op tysyn_param '=' type
@@ -433,10 +449,6 @@ let_decl                :: { Decl PName }
                            {% at ($2,$6) `fmap` mkPropSyn $3 (reverse $4) $6 }
   | 'type' 'constraint' tysyn_param op tysyn_param '=' type
                            {% at ($2,$7) `fmap` mkPropSyn $4 [$3, $5] $7 }
-
-  | 'infixl' NUM ops       {% mkFixity LeftAssoc  $2 (reverse $3) }
-  | 'infixr' NUM ops       {% mkFixity RightAssoc $2 (reverse $3) }
-  | 'infix'  NUM ops       {% mkFixity NonAssoc   $2 (reverse $3) }
 
 
 

@@ -165,7 +165,7 @@ sigToMod mp sig =
               , modInstances = mempty
               , modMods      = mempty
               , modDefines   = env
-              , modPublic    = mempty -- unused
+              , modPublic    = namingEnvNames env
               , modState     = ()
               }
 
@@ -240,6 +240,7 @@ signatureDefs :: ModPath -> Signature PName -> BuildNamingEnv
 signatureDefs m sig =
      mconcat [ namingEnv (InModule loc p) | p <- sigTypeParams sig ]
   <> mconcat [ namingEnv (InModule loc p) | p <- sigFunParams sig ]
+  <> mconcat [ namingEnv (InModule loc p) | p <- sigConstraints sig ]
   where
   loc = Just m
 --------------------------------------------------------------------------------
@@ -394,6 +395,14 @@ instance BindsNames (InModule (Decl PName)) where
     qualType ln f = BuildNamingEnv $
       do n <- mkName NSType ln f
          return (singletonNS NSType (thing ln) n)
+
+instance BindsNames (InModule (SigDecl PName)) where
+  namingEnv (InModule m d) =
+    case d of
+      SigConstraint {} -> mempty
+      SigTySyn ts _    -> namingEnv (InModule m (DType ts))
+      SigPropSyn ps _  -> namingEnv (InModule m (DProp ps))
+
 
 
 

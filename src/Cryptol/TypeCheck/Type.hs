@@ -53,6 +53,7 @@ allParamNames mps =
     { mpnTypes       = Map.unions (map mpnTypes ps)
     , mpnConstraints = concatMap mpnConstraints ps
     , mpnFuns        = Map.unions (map mpnFuns ps)
+    , mpnTySyn       = Map.unions (map mpnTySyn ps)
     , mpnDoc         = Nothing
     }
   where
@@ -81,8 +82,12 @@ data ModParamNames = ModParamNames
   { mpnTypes       :: Map Name ModTParam
     -- ^ Type parameters
 
+  , mpnTySyn      :: !(Map Name TySyn)
+    -- ^ Type synonyms
+
   , mpnConstraints :: [Located Prop]
     -- ^ Constraints on param. types
+
 
   , mpnFuns        :: Map.Map Name ModVParam
     -- ^ Value parameters
@@ -1307,6 +1312,7 @@ instance PP ModParamNames where
             [ "type constraint" <+>
                 parens (commaSep (map (pp . thing) (mpnConstraints ps)))
             ] ++
+           [ pp t | t <- Map.elems (mpnTySyn ps) ] ++
            map pp (Map.elems (mpnFuns ps))
 
 instance PP ModTParam where

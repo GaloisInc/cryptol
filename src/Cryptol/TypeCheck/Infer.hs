@@ -1354,6 +1354,9 @@ checkTopDecls = mapM_ checkTopDecl
            ips <- lookupSignature (thing (P.mpSignature p))
            let actualTys  = [ mapNames actualName mp
                             | mp <- Map.elems (mpnTypes ips) ]
+               actualTS   = [ mapNames actualName ts
+                            | ts <- Map.elems (mpnTySyn ips)
+                            ]
                actualCtrs = [ mapNames actualName prop
                             | prop <- mpnConstraints ips ]
                actualVals = [ mapNames actualName vp
@@ -1367,7 +1370,8 @@ checkTopDecls = mapM_ checkTopDecl
                         ModParamNames
                           { mpnTypes = Map.fromList [ (mtpName tp, tp)
                                                     | tp <- actualTys ]
-
+                          , mpnTySyn = Map.fromList [ (tsName ts, ts)
+                                                    | ts <- actualTS ]
                           , mpnConstraints = actualCtrs
                           , mpnFuns = Map.fromList [ (mvpName vp, vp)
                                                    | vp <- actualVals ]
@@ -1378,6 +1382,7 @@ checkTopDecls = mapM_ checkTopDecl
            mapM_ addParamType actualTys
            addParameterConstraints actualCtrs
            mapM_ addParamFun actualVals
+           mapM_ addTySyn actualTS
            addModParam param
 
       P.DImport {}        -> pure ()
@@ -1393,13 +1398,25 @@ checkSignature sig =
   do forM_ (P.sigTypeParams sig) \pt ->
        addParamType =<< checkParameterType pt
 
-     addParameterConstraints =<<
-       checkParameterConstraints (P.sigConstraints sig)
+     mapM_ checkSigDecl (P.sigConstraints sig)
 
      forM_ (P.sigFunParams sig) \f ->
        addParamFun =<< checkParameterFun f
 
      proveModuleTopLevel
+
+checkSigDecl :: P.SigDecl Name -> InferM ()
+checkSigDecl decl =
+  case decl of
+
+    P.SigConstraint cs ->
+     addParameterConstraints =<< checkParameterConstraints cs
+
+    P.SigTySyn ts mbD ->
+      addTySyn =<< checkTySyn ts mbD
+
+    P.SigPropSyn ps mbD ->
+      addTySyn =<< checkPropSyn ps mbD
 
 
 

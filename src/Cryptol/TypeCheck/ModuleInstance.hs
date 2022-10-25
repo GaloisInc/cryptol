@@ -136,6 +136,7 @@ instance ModuleInstance ModParamNames where
     ModParamNames { mpnTypes       = doMap (mpnTypes si)
                   , mpnConstraints = moduleInstance (mpnConstraints si)
                   , mpnFuns        = doMap (mpnFuns si)
+                  , mpnTySyn       = doMap (mpnTySyn si)
                   , mpnDoc         = mpnDoc si
                   }
 
