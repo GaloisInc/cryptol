@@ -1,0 +1,5 @@
+:load T030.cry
+:help W
+:t 1 : X
+f
+g
