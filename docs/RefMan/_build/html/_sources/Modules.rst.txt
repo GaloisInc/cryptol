@@ -370,6 +370,24 @@ other modules:
 
       x : [n]         // A declarations of a constant
 
+Interface module may contain ``type`` or ``type constraint`` synonyms:
+
+.. code-block:: cryptol
+  :caption: A nested interface module
+
+  interface module I where
+
+    type n : #      // `n` is a numeric type
+
+    type W = [n]    // A type synonym, available when the interface is imported
+
+    type constraint (fin n, n >= 1)
+                    // Assumptions about the declared numeric type
+
+    x : W           // A declarations of a constant;  uses type synonym.
+
+
+
 
 Importing an Interface Module
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -582,7 +600,8 @@ an anonymous interface and using it straight away:
 
 The ``parameter`` block defines an interface module and uses it.
 Note that the parameters may not use things defined in ``M`` as
-the interface is declared outside of ``M``.
+the interface is declared outside of ``M``.  The ``parameter``
+may contain the same sort of declarations that may appear in interfaces.
 
 
 Anonymous Instantiation Arguments
