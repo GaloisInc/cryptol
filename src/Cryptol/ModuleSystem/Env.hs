@@ -198,6 +198,13 @@ data ModContextParams =
   | FunctorParams T.FunctorParams
   | NoParams
 
+modContextParamNames :: ModContextParams -> T.ModParamNames
+modContextParamNames mp =
+  case mp of
+    InterfaceParams ps -> ps
+    FunctorParams ps   -> T.allParamNames ps
+    NoParams           -> T.allParamNames mempty
+
 -- | Contains enough information to browse what's in scope,
 -- or type check new expressions.
 data ModContext = ModContext
