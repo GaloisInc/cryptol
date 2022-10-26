@@ -441,13 +441,29 @@ other modules:</p>
 </pre></div>
 </div>
 </div>
+<p>Interface module may contain <code class="docutils literal notranslate"><span class="pre">type</span></code> or <code class="docutils literal notranslate"><span class="pre">type</span> <span class="pre">constraint</span></code> synonyms:</p>
+<div class="literal-block-wrapper docutils container" id="id18">
+<div class="code-block-caption"><span class="caption-text">A nested interface module</span><a class="headerlink" href="#id18" title="Permalink to this code"></a></div>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">interface</span><span class="w"> </span><span class="kr">module</span><span class="w"> </span><span class="nn">I</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
+
+<span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="o">#</span><span class="w">      </span><span class="c1">// `n` is a numeric type</span><span class="w"></span>
+
+<span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="kt">W</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="w">    </span><span class="c1">// A type synonym, available when the interface is imported</span><span class="w"></span>
+
+<span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="n">constraint</span><span class="w"> </span><span class="p">(</span><span class="kr">fin</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"></span>
+<span class="w">                  </span><span class="c1">// Assumptions about the declared numeric type</span><span class="w"></span>
+
+<span class="w">  </span><span class="n">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="kt">W</span><span class="w">           </span><span class="c1">// A declarations of a constant;  uses type synonym.</span><span class="w"></span>
+</pre></div>
+</div>
+</div>
 </section>
 <section id="importing-an-interface-module">
 <h3>Importing an Interface Module<a class="headerlink" href="#importing-an-interface-module" title="Permalink to this headline"></a></h3>
 <p>A module may be parameterized by importing an interface,
 instead of a concrete module</p>
-<div class="literal-block-wrapper docutils container" id="id18">
-<div class="code-block-caption"><span class="caption-text">A parameterized module</span><a class="headerlink" href="#id18" title="Permalink to this code"></a></div>
+<div class="literal-block-wrapper docutils container" id="id19">
+<div class="code-block-caption"><span class="caption-text">A parameterized module</span><a class="headerlink" href="#id19" title="Permalink to this code"></a></div>
 <div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="c1">// The interface desribes the parmaeters</span><span class="w"></span>
 <span class="nf">interface</span><span class="w"> </span><span class="kr">module</span><span class="w"> </span><span class="nn">I</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
 <span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="o">#</span><span class="w"></span>
@@ -470,8 +486,8 @@ and make sure that <code class="docutils literal notranslate"><span class="pre">
 or the same interface module more than once.   Each import
 of an interface module maybe be linked to a different concrete
 module, as described in <a class="reference internal" href="#instantiating-modules"><span class="std std-ref">Instantiating a Parameterized Module</span></a>.</p>
-<div class="literal-block-wrapper docutils container" id="id19">
-<div class="code-block-caption"><span class="caption-text">Multiple interface parameters</span><a class="headerlink" href="#id19" title="Permalink to this code"></a></div>
+<div class="literal-block-wrapper docutils container" id="id20">
+<div class="code-block-caption"><span class="caption-text">Multiple interface parameters</span><a class="headerlink" href="#id20" title="Permalink to this code"></a></div>
 <div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">interface</span><span class="w"> </span><span class="kr">module</span><span class="w"> </span><span class="nn">I</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
 <span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="o">#</span><span class="w"></span>
 <span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="n">constraint</span><span class="w"> </span><span class="p">(</span><span class="kr">fin</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"></span>
@@ -496,8 +512,8 @@ module, as described in <a class="reference internal" href="#instantiating-modul
 <p>When working with multiple interfaces, it is to useful
 to be able to impose additional constraints on the
 types imported from the interface.</p>
-<div class="literal-block-wrapper docutils container" id="id20">
-<div class="code-block-caption"><span class="caption-text">Adding constraints to interface parameters</span><a class="headerlink" href="#id20" title="Permalink to this code"></a></div>
+<div class="literal-block-wrapper docutils container" id="id21">
+<div class="code-block-caption"><span class="caption-text">Adding constraints to interface parameters</span><a class="headerlink" href="#id21" title="Permalink to this code"></a></div>
 <div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">interface</span><span class="w"> </span><span class="kr">module</span><span class="w"> </span><span class="nn">I</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
 <span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="o">#</span><span class="w"></span>
 <span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="n">constraint</span><span class="w"> </span><span class="p">(</span><span class="kr">fin</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"></span>
@@ -525,8 +541,8 @@ may provide different values for <code class="docutils literal notranslate"><spa
 <p>To use a parameterized module we need to provide concrete
 implementations for the interfaces that it uses, and provide
 a name for the resulting module.  This is done as follows:</p>
-<div class="literal-block-wrapper docutils container" id="id21">
-<div class="code-block-caption"><span class="caption-text">Instantiating a parameterized module using a single interface.</span><a class="headerlink" href="#id21" title="Permalink to this code"></a></div>
+<div class="literal-block-wrapper docutils container" id="id22">
+<div class="code-block-caption"><span class="caption-text">Instantiating a parameterized module using a single interface.</span><a class="headerlink" href="#id22" title="Permalink to this code"></a></div>
 <div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">interface</span><span class="w"> </span><span class="kr">module</span><span class="w"> </span><span class="nn">I</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
 <span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="o">#</span><span class="w"></span>
 <span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="n">constraint</span><span class="w"> </span><span class="p">(</span><span class="kr">fin</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"></span>
@@ -552,8 +568,8 @@ used by <code class="docutils literal notranslate"><span class="pre">F</span></c
 <p>If a module is parameterized my multiple interfaces
 we need to provide an implementation module for each
 interface, using a slight variation on the previous notation.</p>
-<div class="literal-block-wrapper docutils container" id="id22">
-<div class="code-block-caption"><span class="caption-text">Instantiating a parameterized module by name.</span><a class="headerlink" href="#id22" title="Permalink to this code"></a></div>
+<div class="literal-block-wrapper docutils container" id="id23">
+<div class="code-block-caption"><span class="caption-text">Instantiating a parameterized module by name.</span><a class="headerlink" href="#id23" title="Permalink to this code"></a></div>
 <div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="c1">// I is defined as above</span><span class="w"></span>
 
 <span class="kr">module</span><span class="w"> </span><span class="nn">F</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
@@ -586,8 +602,8 @@ the name of the interface itself.</p>
 order in which they are provided is not important.</p>
 <p>Modules defined by instantiation may be nested,
 just like any other module:</p>
-<div class="literal-block-wrapper docutils container" id="id23">
-<div class="code-block-caption"><span class="caption-text">Nested module instantiation.</span><a class="headerlink" href="#id23" title="Permalink to this code"></a></div>
+<div class="literal-block-wrapper docutils container" id="id24">
+<div class="code-block-caption"><span class="caption-text">Nested module instantiation.</span><a class="headerlink" href="#id24" title="Permalink to this code"></a></div>
 <div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span><span class="w"> </span><span class="nn">M</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
 
 <span class="w">  </span><span class="kr">import</span><span class="w"> </span><span class="nn">Somewhere</span><span class="w"> </span><span class="c1">// defines G</span><span class="w"></span>
@@ -604,8 +620,8 @@ Note that in this case the argument to the instantiation
 preceded by the <code class="docutils literal notranslate"><span class="pre">submodule</span></code> keyword.</p>
 <p>To pass a nested module as the argument of a function,
 use <code class="docutils literal notranslate"><span class="pre">submodule</span> <span class="pre">I</span></code> like this:</p>
-<div class="literal-block-wrapper docutils container" id="id24">
-<div class="code-block-caption"><span class="caption-text">Nested module instantiation.</span><a class="headerlink" href="#id24" title="Permalink to this code"></a></div>
+<div class="literal-block-wrapper docutils container" id="id25">
+<div class="code-block-caption"><span class="caption-text">Nested module instantiation.</span><a class="headerlink" href="#id25" title="Permalink to this code"></a></div>
 <div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span><span class="w"> </span><span class="nn">M</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
 
 <span class="w">  </span><span class="kr">import</span><span class="w"> </span><span class="nn">Somewhere</span><span class="w"> </span><span class="c1">// defines G and I</span><span class="w"></span>
@@ -621,8 +637,8 @@ use <code class="docutils literal notranslate"><span class="pre">submodule</span
 it is quite cumbersome to have to define a whole separate interface module.
 To make this more convenient we provide the following notation for defining
 an anonymous interface and using it straight away:</p>
-<div class="literal-block-wrapper docutils container" id="id25">
-<div class="code-block-caption"><span class="caption-text">Simple parameterized module.</span><a class="headerlink" href="#id25" title="Permalink to this code"></a></div>
+<div class="literal-block-wrapper docutils container" id="id26">
+<div class="code-block-caption"><span class="caption-text">Simple parameterized module.</span><a class="headerlink" href="#id26" title="Permalink to this code"></a></div>
 <div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span><span class="w"> </span><span class="nn">M</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
 
 <span class="w">  </span><span class="n">parameter</span><span class="w"></span>
@@ -637,7 +653,8 @@ an anonymous interface and using it straight away:</p>
 </div>
 <p>The <code class="docutils literal notranslate"><span class="pre">parameter</span></code> block defines an interface module and uses it.
 Note that the parameters may not use things defined in <code class="docutils literal notranslate"><span class="pre">M</span></code> as
-the interface is declared outside of <code class="docutils literal notranslate"><span class="pre">M</span></code>.</p>
+the interface is declared outside of <code class="docutils literal notranslate"><span class="pre">M</span></code>.  The <code class="docutils literal notranslate"><span class="pre">parameter</span></code>
+may contain the same sort of declarations that may appear in interfaces.</p>
 </section>
 <section id="anonymous-instantiation-arguments">
 <h3>Anonymous Instantiation Arguments<a class="headerlink" href="#anonymous-instantiation-arguments" title="Permalink to this headline"></a></h3>

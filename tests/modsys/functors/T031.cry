@@ -1,0 +1,3 @@
+import T030 where
+  type n = 8
+  f = 11

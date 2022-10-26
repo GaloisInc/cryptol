@@ -74,6 +74,7 @@ module Cryptol.Parser.AST
   , ParameterFun(..)
   , NestedModule(..)
   , Signature(..)
+  , SigDecl(..)
   , ModParam(..)
   , ParamDecl(..)
   , PropGuardCase(..)
@@ -262,8 +263,11 @@ data ParamDecl name =
   | DParameterFun  (ParameterFun name)  -- ^ @parameter someVal : [256]@
                                         -- (parser only)
 
+  | DParameterDecl (SigDecl name)       -- ^ A delcaration in an interface
+
   | DParameterConstraint [Located (Prop name)]
     -- ^ @parameter type constraint (fin T)@
+
     deriving (Show, Generic, NFData)
 
 
@@ -354,7 +358,7 @@ data ParameterFun name = ParameterFun
 {- | Interface Modules (aka types of functor arguments)
 
 IMPORTANT: Interface Modules are a language construct and are different from
-the notion of "interface" in the Cyrptol implementation.
+the notion of "interface" in the Cryptol implementation.
 
 Note that the names *defined* in an interface module are only really used in the
 other members of the interface module.  When an interface module  is "imported"
@@ -364,9 +368,18 @@ data Signature name = Signature
   { sigImports      :: ![Located (ImportG (ImpName name))]
     -- ^ Add things in scope
   , sigTypeParams   :: [ParameterType name]     -- ^ Type parameters
-  , sigConstraints  :: [Located (Prop name)]    -- ^ Constraints on type params
+  , sigConstraints  :: [Located (Prop name)]
+    -- ^ Constraints on the type parameters and type synonyms.
+  , sigDecls        :: [SigDecl name]
+    -- ^ Type and constraint synonyms
   , sigFunParams    :: [ParameterFun name]      -- ^ Value parameters
   } deriving (Show,Generic,NFData)
+
+-- | A constraint or type synonym declared in an interface.
+data SigDecl name =
+    SigTySyn (TySyn name) (Maybe Text)
+  | SigPropSyn (PropSyn name) (Maybe Text)
+    deriving (Show,Generic,NFData)
 
 {- | A module parameter declaration.
 
@@ -742,7 +755,14 @@ instance HasLoc (ParamDecl name) where
     case pd of
       DParameterType d -> getLoc d
       DParameterFun d  -> getLoc d
+      DParameterDecl d -> getLoc d
       DParameterConstraint d -> getLoc d
+
+instance HasLoc (SigDecl name) where
+  getLoc decl =
+    case decl of
+      SigTySyn ts _    -> getLoc ts
+      SigPropSyn ps _  -> getLoc ps
 
 instance HasLoc (ModParam name) where
   getLoc mp = getLoc (mpSignature mp)
@@ -775,6 +795,13 @@ instance HasLoc (Newtype name) where
     | otherwise = Just (rCombs locs)
     where
     locs = catMaybes ([ getLoc (nName n)] ++ map (Just . fst . snd) (displayFields (nBody n)))
+
+instance HasLoc (TySyn name) where
+  getLoc (TySyn x _ _ _) = getLoc x
+
+instance HasLoc (PropSyn name) where
+  getLoc (PropSyn x _ _ _) = getLoc x
+
 
 
 --------------------------------------------------------------------------------
@@ -874,22 +901,28 @@ instance (Show name, PPName name) => PP (ParamDecl name) where
     case pd of
       DParameterFun d -> pp d
       DParameterType d -> pp d
-      DParameterConstraint d -> "type" <+> "constraint" <+> prop
-        where prop = case map (pp . thing) d of
-                       [x] -> x
-                       []  -> "()"
-                       xs  -> nest 1 (parens (commaSepFill xs))
+      DParameterDecl d -> pp d
+      DParameterConstraint d ->
+        "type constraint" <+> parens (commaSep (map (pp . thing) d))
 
 ppInterface :: (Show name, PPName name) => Doc -> Signature name -> Doc
 ppInterface kw sig = kw $$ indent 2 (vcat (is ++ ds))
     where
     is = map pp (sigImports sig)
+    cs = case cs of
+           [] -> []
+           _  -> ["type constraint" <+>
+                      parens (commaSep (map (pp . thing) (sigConstraints sig)))]
     ds = map pp (sigTypeParams sig)
-      ++ case map (pp . thing) (sigConstraints sig) of
-           [x] -> ["type constraint" <+> x]
-           []  -> []
-           xs  -> ["type constraint" <+> parens (commaSep xs)]
+      ++ map pp (sigDecls sig)
+      ++ cs
       ++ map pp (sigFunParams sig)
+
+instance (Show name, PPName name) => PP (SigDecl name) where
+  ppPrec p decl =
+    case decl of
+      SigTySyn ts _   -> ppPrec p ts
+      SigPropSyn ps _ -> ppPrec p ps
 
 
 instance (Show name, PPName name) => PP (ModParam name) where
@@ -1352,14 +1385,22 @@ instance NoPos (ParamDecl name) where
     case pd of
       DParameterFun d  -> DParameterFun (noPos d)
       DParameterType d -> DParameterType (noPos d)
+      DParameterDecl d -> DParameterDecl (noPos d)
       DParameterConstraint d -> DParameterConstraint (noPos d)
 
 instance NoPos (Signature name) where
   noPos sig = Signature { sigImports = sigImports sig
                         , sigTypeParams = map noPos (sigTypeParams sig)
+                        , sigDecls = map noPos (sigDecls sig)
                         , sigConstraints = map noPos (sigConstraints sig)
                         , sigFunParams = map noPos (sigFunParams sig)
                         }
+
+instance NoPos (SigDecl name) where
+  noPos decl =
+    case decl of
+      SigTySyn ts mb   -> SigTySyn (noPos ts) mb
+      SigPropSyn ps mb -> SigPropSyn (noPos ps) mb
 
 instance NoPos (ModParam name) where
   noPos mp = ModParam { mpSignature = noPos (mpSignature mp)

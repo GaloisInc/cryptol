@@ -249,4 +249,17 @@ instance TraverseNames FFIType where
       FFITuple ts   -> FFITuple  <$> traverseNamesIP ts
       FFIRecord mp  -> FFIRecord <$> traverseRecordMap
                                                 (\_ -> traverseNamesIP) mp
+instance TraverseNames TySyn where
+  traverseNamesIP ts = mk <$> traverseNamesIP (tsName ts)
+                          <*> traverseNamesIP (tsParams ts)
+                          <*> traverseNamesIP (tsConstraints ts)
+                          <*> traverseNamesIP (tsDef ts)
+    where mk n ps cs t =
+            TySyn  { tsName        = n
+                   , tsParams      = ps
+                   , tsConstraints = cs
+                   , tsDef         = t
+                   , tsDoc         = tsDoc ts
+                   }
+
 

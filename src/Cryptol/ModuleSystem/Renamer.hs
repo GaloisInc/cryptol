@@ -90,7 +90,7 @@ The Renamer Algorithm
 3. Resolve imports and instantiations (see "Cryptol.ModuleSystem.Imports")
   - Resolves names in submodule imports
   - Resolves functor instantiations:
-    * generate new names for delcarations in the functors.
+    * generate new names for declarations in the functors.
     * this includes any nested modules, and things nested within them.
   - At this point we have enough information to know what's exported by
     each module.
@@ -176,7 +176,7 @@ renameTopDecls ::
   ModName -> [TopDecl PName] -> RenameM (NamingEnv,[TopDecl Name])
 renameTopDecls m ds0 =
 
-  do -- Step 1: add implicit importgs
+  do -- Step 1: add implicit imports
      let ds = addImplicitNestedImports ds0
 
      -- Step 2: compute what's defined
@@ -205,7 +205,7 @@ renameTopDecls m ds0 =
          pure (env,ds1)
 
 --------------------------------------------------------------------------------
--- Stuff below is related to Step 4 of the algorighm.
+-- Stuff below is related to Step 4 of the algorithm.
 
 
 class Rename f where
@@ -302,7 +302,6 @@ mkInstMap checkFun acc0 ogname iname
 
 
 
-
 -- | This is used to rename local declarations (e.g. `where`)
 renameDecls :: [Decl PName] -> RenameM [Decl Name]
 renameDecls ds =
@@ -324,6 +323,29 @@ renameDecls ds =
                       do checkSameModule xs
                          pure [DRec bs]
      concat <$> mapM fromSCC ordered
+
+-- | Rename declarations in a signature (i.e., type/prop synonyms)
+renameSigDecls :: [SigDecl PName] -> RenameM [SigDecl Name]
+renameSigDecls ds =
+  do (ds1,deps) <- depGroup (traverse rename ds)
+     let toNode d = let nm = case d of
+                               SigTySyn ts _   -> thing (tsName ts)
+                               SigPropSyn ps _ -> thing (psName ps)
+                        x = NamedThing nm
+                    in ((d,x), x, map NamedThing
+                            $ Set.toList
+                            $ Map.findWithDefault Set.empty x deps)
+         ordered = toList (stronglyConnComp (map toNode ds1))
+         fromSCC x =
+           case x of
+             AcyclicSCC (d,_) -> pure [d]
+             CyclicSCC ds_xs ->
+               do let (rds,xs) = unzip ds_xs
+                  recordError (InvalidDependency xs)
+                  pure rds
+
+     concat <$> mapM fromSCC ordered
+
 
 
 validRecursiveD :: Decl name -> Maybe (Bind name)
@@ -347,7 +369,7 @@ checkSameModule xs =
 
 
 
-{- NOTE: Dependincies on Top Level Constraints
+{- NOTE: Dependencies on Top Level Constraints
    ===========================================
 
 For the new module system, things using a parameter depend on the parameter
@@ -356,7 +378,7 @@ so dependencies on constraints in there should be OK.
 
 However, we'd like to have a mechanism for declaring top level constraints in
 a functor, that can impose constraints across types from *different*
-parameters.  For the moment, we reuse `parameter type constrint C` for this.
+parameters.  For the moment, we reuse `parameter type constraint C` for this.
 
 Such constraints need to be:
   1. After the signature import
@@ -411,7 +433,7 @@ renameTopDecls' ds =
          ctrs = [ nm | (_,nm@(ConstratintAt {})) <- nameDs ]
 
 
-         {- See [NOTE: Dependincies on Top Level Constraints] -}
+         {- See [NOTE: Dependencies on Top Level Constraints] -}
          addCtr nm ctr =
             case nm of
               NamedThing x
@@ -482,16 +504,18 @@ renameTopDecls' ds =
   where
 
   -- This indicates if a declaration might depend on the constraints in scope.
-  -- Since uses of contraints are not implicitly named, value declarations
+  -- Since uses of constraints are not implicitly named, value declarations
   -- are assumed to potentially use the constraints.
 
-  -- XXX: This is inacurate, and *I think* it amounts to checking that something
+  -- XXX: This is inaccurate, and *I think* it amounts to checking that something
   -- is in the value namespace.   Perhaps the rule should be that a value
-  -- depends on a parameter constraint if it mentiones at least one
+  -- depends on a parameter constraint if it mentions at least one
   -- type parameter somewhere.
 
   -- XXX: Besides, types might need constraints for well-formedness...
   -- This is just bogus
+  -- Although not that type/prop synonyms may be defined wherever as they
+  -- keep the validity constraints they need and emit them at the *use* sites.
   usesCtrs td =
     case td of
       Decl tl                 -> isValDecl (tlValue tl)
@@ -568,7 +592,7 @@ topDeclName topDecl =
 
 
 {- | Compute the names introduced by a module parameter.
-This should be run in a context containg everything that's in scope
+This should be run in a context containing everything that's in scope
 except for the module parameters.  We don't need to compute a fixed point here
 because the signatures (and hence module parameters) cannot contain signatures.
 
@@ -587,7 +611,7 @@ doModParam mp =
           (sigName',isFake) <-
              case thing sigName of
                ImpTop t -> pure (ImpTop t, False)
-                -- XXX: should we record a dpendency here?
+                -- XXX: should we record a dependency here?
                 -- Not sure what the dependencies are for..
 
                ImpNested n ->
@@ -608,6 +632,10 @@ doModParam mp =
             (checkIsModule (srcRange sigName) sigName' ASignature)
           sigEnv <- if isFake then pure mempty else lookupDefines sigName'
 
+
+          {- XXX: It seems a bit odd to use "newModParam" for the names to
+             be used for the instantiated type synonyms,
+             but what other name could we use? -}
           let newP x = do y <- lift (newModParam me (mpName mp) loc x)
                           sets_ (Map.insert y x)
                           pure y
@@ -693,13 +721,14 @@ instance Rename ModParam where
        depsOf (ModParamName (srcRange (mpSignature mp)) (mpName mp))
          do ren <- renModParamInstance <$> getModParam (mpName mp)
 
-            {- Here we add 2 "uses" to all type-level names intorduced,
+            {- Here we add 2 "uses" to all type-level names introduced,
                so that we don't get unused warnings for type parameters.
              -}
             mapM_ recordUse [ s | t <- Map.keys ren, nameNamespace t == NSType
                                 , s <- [t,t] ]
 
             pure mp { mpSignature = x, mpRenaming = ren }
+
 
 renameIfaceModule :: ImpName Name -> Signature PName -> RenameM (Signature Name)
 renameIfaceModule nm sig =
@@ -712,17 +741,23 @@ renameIfaceModule nm sig =
         do imps <- traverse renI (sigImports sig)
            tps <- traverse rename (sigTypeParams sig)
 
+           ds  <- renameSigDecls (sigDecls sig)
+           cts <- traverse (rnLocated rename) (sigConstraints sig)
+           fun <- traverse rename (sigFunParams sig)
+
            -- we record a use here to avoid getting a warning in interfaces
            -- that declare only types, and so appear "unused".
            forM_ tps \tp -> recordUse (thing (ptName tp))
+           forM_ ds  \d  -> recordUse $ case d of
+                                          SigTySyn ts _ -> thing (tsName ts)
+                                          SigPropSyn ps _ -> thing (psName ps)
 
-           cts <- traverse (traverse rename) (sigConstraints sig)
-           fun <- traverse rename (sigFunParams sig)
            pure Signature
-                  { sigImports = imps
-                  , sigTypeParams = tps
-                  , sigConstraints = cts
-                  , sigFunParams = fun
+                  { sigImports      = imps
+                  , sigTypeParams   = tps
+                  , sigDecls        = ds
+                  , sigConstraints  = cts
+                  , sigFunParams    = fun
                   }
 
 instance Rename ImpName where
@@ -755,7 +790,7 @@ instance Rename NestedModule where
            nm             = thing lnm
        n   <- resolveName NameBind NSModule nm
        depsOf (NamedThing n)
-         do -- XXX: we should store in scope somehwere if we want to browse
+         do -- XXX: we should store in scope somewhere if we want to browse
             -- nested modules properly
             let m' = m { mName = ImpNested <$> mName m }
             (_inScope,m1) <- renameModule' (ImpNested n) m'
@@ -771,7 +806,7 @@ instance Rename PrimType where
 
             -- Record an additional use for each parameter since we checked
             -- earlier that all the parameters are used exactly once in the
-            -- body of the signature.  This prevents incorret warnings
+            -- body of the signature.  This prevents incorrect warnings
             -- about unused names.
             mapM_ (recordUse . tpName) (fst cts)
 
@@ -788,6 +823,12 @@ instance Rename ParameterFun where
        depsOf (NamedThing (thing n'))
          do sig' <- renameSchema (pfSchema a)
             return a { pfName = n', pfSchema = snd sig' }
+
+instance Rename SigDecl where
+  rename decl =
+    case decl of
+      SigTySyn ts mb   -> SigTySyn      <$> rename ts <*> pure mb
+      SigPropSyn ps mb -> SigPropSyn    <$> rename ps <*> pure mb
 
 instance Rename Decl where
   rename d      = case d of

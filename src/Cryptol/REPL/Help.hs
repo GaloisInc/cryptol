@@ -234,7 +234,10 @@ showTypeHelp ctxparams env nameEnv name =
 
   where
   fromTySyn =
-    do ts <- Map.lookup name (M.ifTySyns env)
+    do ts <- msum [ Map.lookup name (M.ifTySyns env)
+                  , Map.lookup name
+                      (T.mpnTySyn (M.modContextParamNames ctxparams))
+                  ]
        return (doShowTyHelp nameEnv (pp ts) (T.tsDoc ts))
 
   fromNewtype =

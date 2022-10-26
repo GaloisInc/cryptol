@@ -236,7 +236,8 @@ modParamsNamingEnv :: T.ModParamNames -> NamingEnv
 modParamsNamingEnv T.ModParamNames { .. } =
   NamingEnv $ Map.fromList
     [ (NSValue, Map.fromList $ map fromFu $ Map.keys mpnFuns)
-    , (NSType,  Map.fromList $ map fromTy $ Map.elems mpnTypes)
+    , (NSType,  Map.fromList $ map fromTS (Map.elems mpnTySyn) ++
+                               map fromTy (Map.elems mpnTypes))
     ]
   where
   toPName n = mkUnqual (nameIdent n)
@@ -245,6 +246,8 @@ modParamsNamingEnv T.ModParamNames { .. } =
               in (toPName nm, One nm)
 
   fromFu f  = (toPName f, One f)
+
+  fromTS ts = (toPName (T.tsName ts), One (T.tsName ts))
 
 
 -- | Generate a naming environment from a declaration interface, where none of
