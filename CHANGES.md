@@ -27,6 +27,9 @@
   is extracted from `.. code-block:: cryptol` and `.. sourcecode:: cryptol`
   directives.
 
+* Add a syntax highlight file for Vim,
+  available in `syntax-highlight/daedalus.vim`
+
 ## Bug fixes
 
 * Fix a bug in the What4 backend that could cause applications of `(@)` with
