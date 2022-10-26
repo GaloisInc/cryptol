@@ -98,7 +98,6 @@ $white+                   { emit $ White Space }
 
 -- Please update the docs, if you add new entries.
 "else"                    { emit $ KW KW_else }
-"extern"                  { emit $ KW KW_extern }
 "if"                      { emit $ KW KW_if }
 "private"                 { emit $ KW KW_private }
 "include"                 { emit $ KW KW_include }
@@ -115,7 +114,6 @@ $white+                   { emit $ White Space }
 "import"                  { emit $ KW KW_import }
 "as"                      { emit $ KW KW_as }
 "hiding"                  { emit $ KW KW_hiding }
-"newtype"                 { emit $ KW KW_newtype }
 "down"                    { emit $ KW KW_down }
 "by"                      { emit $ KW KW_by }
 
