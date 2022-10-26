@@ -28,7 +28,7 @@
   directives.
 
 * Add a syntax highlight file for Vim,
-  available in `syntax-highlight/daedalus.vim`
+  available in `syntax-highlight/cryptol.vim`
 
 ## Bug fixes
 
