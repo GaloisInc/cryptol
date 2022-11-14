@@ -103,16 +103,17 @@ returnTests :: RandomGen g
          -> [Gen g Concrete] -- ^ Generators for the function arguments
          -> Value -- ^ The function itself
          -> Int -- ^ How many tests?
-         -> IO [([Value], Value)] -- ^ A list of pairs of random arguments and computed outputs
+         -> IO ([([Value], Value)], g) -- ^ A list of pairs of random arguments and computed outputs
+                                       --   as well as the new state of the RNG
 returnTests g gens fun num = go gens g 0
   where
     go args g0 n
-      | n >= num = return []
+      | n >= num = return ([], g0)
       | otherwise =
         do let sz = toInteger (div (100 * (1 + n)) num)
            (inputs, output, g1) <- returnOneTest fun args sz g0
-           more <- go args g1 (n + 1)
-           return ((inputs, output) : more)
+           (more, g2) <- go args g1 (n + 1)
+           return ((inputs, output) : more, g2)
 
 {- | Given a (function) type, compute generators for the function's
 arguments. -}
@@ -446,15 +447,15 @@ randomTests :: (MonadIO m, RandomGen g) =>
   Value {- ^ function under test -} ->
   [Gen g Concrete] {- ^ input value generators -} ->
   g {- ^ Inital random generator -} ->
-  m (TestResult, Integer)
+  m ((TestResult, Integer), g)
 randomTests ppProgress maxTests val gens = go 0
   where
   go !testNum g
-    | testNum >= maxTests = return (Pass, testNum)
+    | testNum >= maxTests = return ((Pass, testNum), g)
     | otherwise =
       do ppProgress testNum
          let sz' = div (100 * (1 + testNum)) maxTests
          (res, g') <- liftIO (runOneTest val gens sz' g)
          case res of
            Pass -> go (testNum+1) g'
-           failure -> return (failure, testNum)
+           failure -> return ((failure, testNum), g)

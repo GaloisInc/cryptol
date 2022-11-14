@@ -109,6 +109,8 @@ import qualified Control.Exception as X
 import Control.Monad hiding (mapM, mapM)
 import qualified Control.Monad.Catch as Ex
 import Control.Monad.IO.Class(liftIO)
+import Text.Read (readMaybe)
+import Control.Applicative ((<|>))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS8
@@ -130,7 +132,8 @@ import qualified Data.Set as Set
 import System.IO
          (Handle,hFlush,stdout,openTempFile,hClose,openFile
          ,IOMode(..),hGetContents,hSeek,SeekMode(..))
-import System.Random.TF(newTFGen)
+import qualified System.Random.TF as TF
+import qualified System.Random.TF.Instances as TFI
 import Numeric (showFFloat)
 import qualified Data.Text as T
 import Data.IORef(newIORef,readIORef,writeIORef)
@@ -141,6 +144,8 @@ import Prelude ()
 import Prelude.Compat
 
 import qualified Data.SBV.Internals as SBV (showTDiff)
+
+
 
 -- Commands --------------------------------------------------------------------
 
@@ -272,6 +277,17 @@ nbCommandList  =
       , "  it : { avgTime : Float64"
       , "       , avgCpuTime : Float64"
       , "       , avgCycles : Integer }" ])
+
+  , CommandDescr [ ":set-seed" ] ["SEED"] (OptionArg seedCmd)
+      "Seed the random number generator for operations using randomness"
+      (unlines
+        [ "A seed takes the form of either a single integer or a 4-tuple"
+        , "of unsigned 64-bit integers.  Examples of commands using randomness"
+        , "are dumpTests and check."
+        ])
+  , CommandDescr [ ":new-seed"] [] (NoArg newSeedCmd)
+      "Randomly generate and set a new seed for the random number generator"
+      ""
   ]
 
 commandList :: [CommandDescr]
@@ -317,6 +333,8 @@ commandList  =
       [ "Converts all foreign declarations in the given Cryptol file into C"
       , "function declarations, and writes them to a file with the same name"
       , "but with a .h extension." ])
+
+
   ]
 
 genHelp :: [CommandDescr] -> [String]
@@ -395,14 +413,13 @@ dumpTestsCmd outFile str pos fnm =
      (val, ty) <- replEvalExpr expr
      ppopts <- getPPValOpts
      testNum <- getKnownUser "tests" :: REPL Int
-     g <- io newTFGen
      tenv <- E.envTypes . M.deEnv <$> getDynEnv
      let tyv = E.evalValType tenv ty
      gens <-
        case TestR.dumpableType tyv of
          Nothing -> raise (TypeNotTestable ty)
          Just gens -> return gens
-     tests <- io $ TestR.returnTests g gens val testNum
+     tests <- withRandomGen (\g -> io $ TestR.returnTests g gens val testNum)
      out <- forM tests $
             \(args, x) ->
               do argOut <- mapM (rEval . E.ppValue Concrete ppopts) args
@@ -494,11 +511,11 @@ qcExpr qcMode exprDoc texpr schema =
        Just (sz,tys,_,gens) | qcMode == QCRandom -> do
             rPutStrLn "Using random testing."
             prt testingMsg
-            g <- io newTFGen
             (res,num) <-
-                  Ex.catch (randomTests (\n -> ppProgress percentRef testsRef n testNum)
-                                        testNum val gens g)
-                         (\ex -> do rPutStrLn "\nTest interrupted..."
+              withRandomGen
+                (randomTests (\n -> ppProgress percentRef testsRef n testNum)
+                                      testNum val gens)
+              `Ex.catch` (\ex -> do rPutStrLn "\nTest interrupted..."
                                     num <- io $ readIORef testsRef
                                     let report = TestReport exprDoc Pass num sz
                                     ppReport tys False report
@@ -1783,6 +1800,31 @@ replEdit file = do
 
 type CommandMap = Trie CommandDescr
 
+newSeedCmd :: REPL ()
+newSeedCmd =
+  do  seed <- createAndSetSeed
+      rPutStrLn "Seed initialized to:"
+      rPutStrLn (show seed)
+  where
+    createAndSetSeed =
+      withRandomGen $ \g0 ->
+        let (s1, g1) = TFI.random g0
+            (s2, g2) = TFI.random g1
+            (s3, g3) = TFI.random g2
+            (s4, _)  = TFI.random g3
+            seed = (s1, s2, s3, s4)
+        in  pure (seed, TF.seedTFGen seed)
+
+seedCmd :: String -> REPL ()
+seedCmd s =
+  case mbGen of
+    Nothing -> rPutStrLn "Could not parse seed argument - expecting an integer or 4-tuple of integers."
+    Just gen -> setRandomGen gen
+
+  where
+    mbGen =
+          (TF.mkTFGen <$> readMaybe s)
+      <|> (TF.seedTFGen <$> readMaybe s)
 
 -- Command Parsing -------------------------------------------------------------
 
