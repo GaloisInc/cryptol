@@ -909,10 +909,10 @@ ppInterface :: (Show name, PPName name) => Doc -> Signature name -> Doc
 ppInterface kw sig = kw $$ indent 2 (vcat (is ++ ds))
     where
     is = map pp (sigImports sig)
-    cs = case cs of
-           [] -> []
-           _  -> ["type constraint" <+>
-                      parens (commaSep (map (pp . thing) (sigConstraints sig)))]
+    cs = case sigConstraints sig of
+           []  -> []
+           cs' -> ["type constraint" <+>
+                       parens (commaSep (map (pp . thing) cs'))]
     ds = map pp (sigTypeParams sig)
       ++ map pp (sigDecls sig)
       ++ cs
