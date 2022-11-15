@@ -419,7 +419,7 @@ dumpTestsCmd outFile str pos fnm =
        case TestR.dumpableType tyv of
          Nothing -> raise (TypeNotTestable ty)
          Just gens -> return gens
-     tests <- withRandomGen (\g -> io $ TestR.returnTests g gens val testNum)
+     tests <- withRandomGen (\g -> io $ TestR.returnTests' g gens val testNum)
      out <- forM tests $
             \(args, x) ->
               do argOut <- mapM (rEval . E.ppValue Concrete ppopts) args
@@ -513,7 +513,7 @@ qcExpr qcMode exprDoc texpr schema =
             prt testingMsg
             (res,num) <-
               withRandomGen
-                (randomTests (\n -> ppProgress percentRef testsRef n testNum)
+                (randomTests' (\n -> ppProgress percentRef testsRef n testNum)
                                       testNum val gens)
               `Ex.catch` (\ex -> do rPutStrLn "\nTest interrupted..."
                                     num <- io $ readIORef testsRef

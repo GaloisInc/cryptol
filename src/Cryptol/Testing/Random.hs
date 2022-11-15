@@ -23,8 +23,10 @@ module Cryptol.Testing.Random
 , TestResult(..)
 , isPass
 , returnTests
+, returnTests'
 , exhaustiveTests
 , randomTests
+, randomTests'
 ) where
 
 import qualified Control.Exception as X
@@ -96,16 +98,24 @@ returnOneTest fun argGens sz g0 =
      go _ (_ : _) = panic "Cryptol.Testing.Random" ["Too many arguments to function while generating tests"]
      go v [] = return v
 
+returnTests :: RandomGen g
+         => g -- ^ The random generator state
+         -> [Gen g Concrete] -- ^ Generators for the function arguments
+         -> Value -- ^ The function itself
+         -> Int -- ^ How many tests?
+         -> IO [([Value], Value)] -- ^ A list of pairs of random arguments and computed outputs
+                                       --   as well as the new state of the RNG
+returnTests g gens fun num = fst <$> returnTests' g gens fun num
 
 -- | Return a collection of random tests.
-returnTests :: RandomGen g
+returnTests' :: RandomGen g
          => g -- ^ The random generator state
          -> [Gen g Concrete] -- ^ Generators for the function arguments
          -> Value -- ^ The function itself
          -> Int -- ^ How many tests?
          -> IO ([([Value], Value)], g) -- ^ A list of pairs of random arguments and computed outputs
                                        --   as well as the new state of the RNG
-returnTests g gens fun num = go gens g 0
+returnTests' g gens fun num = go gens g 0
   where
     go args g0 n
       | n >= num = return ([], g0)
@@ -447,8 +457,17 @@ randomTests :: (MonadIO m, RandomGen g) =>
   Value {- ^ function under test -} ->
   [Gen g Concrete] {- ^ input value generators -} ->
   g {- ^ Inital random generator -} ->
+  m (TestResult, Integer)
+randomTests ppProgress maxTests val gens g = fst <$> randomTests' ppProgress maxTests val gens g
+
+randomTests' :: (MonadIO m, RandomGen g) =>
+  (Integer -> m ()) {- ^ progress callback -} ->
+  Integer {- ^ Maximum number of tests to run -} ->
+  Value {- ^ function under test -} ->
+  [Gen g Concrete] {- ^ input value generators -} ->
+  g {- ^ Inital random generator -} ->
   m ((TestResult, Integer), g)
-randomTests ppProgress maxTests val gens = go 0
+randomTests' ppProgress maxTests val gens = go 0
   where
   go !testNum g
     | testNum >= maxTests = return ((Pass, testNum), g)
