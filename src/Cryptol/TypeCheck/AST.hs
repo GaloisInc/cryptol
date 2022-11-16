@@ -262,6 +262,13 @@ eChar prims c = ETApp (ETApp (ePrim prims (prelPrim "number")) (tNum v)) (tWord 
   where v = fromEnum c
         w = 8 :: Int
 
+instance PP TCTopEntity where
+  ppPrec _ te =
+    case te of
+      TCTopModule m -> pp m
+      TCTopSignature x p ->
+        ("interface" <+> pp x <+> "where") $$ nest 2 (pp p)
+
 
 instance PP (WithNames Expr) where
   ppPrec prec (WithNames expr nm) =
@@ -446,13 +453,16 @@ instance PP n => PP (ModuleG n) where
 
 instance PP n => PP (WithNames (ModuleG n)) where
   ppPrec _ (WithNames Module { .. } nm) =
-    text "module" <+> pp mName $$
-    -- XXX: Print exports?
-    vcat (map pp mImports) $$
-    -- XXX: Print tysyns
-    -- XXX: Print abstarct types/functions
-    vcat (map (ppWithNames (addTNames mps nm)) mDecls)
+    vcat [ text "module" <+> pp mName
+         -- XXX: Print exports?
+         , vcat (map pp mImports)
+         , vcat (map pp' (Map.elems mTySyns))
+         -- XXX: Print abstarct types/functions
+         , vcat (map pp' mDecls)
+         ]
     where mps = map mtpParam (Map.elems mParamTypes)
+          pp' :: PP (WithNames a) => a -> Doc
+          pp' = ppWithNames (addTNames mps nm)
 
 instance PP (WithNames TCTopEntity) where
   ppPrec _ (WithNames ent nm) =
