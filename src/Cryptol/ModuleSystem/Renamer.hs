@@ -228,41 +228,60 @@ renameModule' mname m =
       ImpNested r -> Nested (nameModPath r) (nameIdent r)
 
   do resolved <- lookupResolved mname
-     let env = rmodDefines resolved
+     shadowNames' CheckNone (rmodImports resolved)
 
+       case mDef m of
 
-     (inScope,newDef) <-
-        shadowNames' CheckNone (rmodImports resolved)
-        do (paramEnv,params) <-
-                      shadowNames' CheckNone env (doModParams (mModParams m))
+         NormalModule ds ->
+            do let env = rmodDefines resolved
+               (paramEnv,params) <-
+                   shadowNames' CheckNone env
+                      (doModParams (mModParams m))
 
-           shadowNames' CheckOverlap (env <> paramEnv) $
-            -- we check that defined names and ones that came from parameters
-            -- do not clash, as this would be very confusing.
+               -- we check that defined names and ones that came
+               -- from parameters do not clash, as this would be
+               -- very confusing.
+               shadowNames' CheckOverlap (env <> paramEnv) $
+                  setModParams params
+                  do ds1 <- renameTopDecls' ds
+                     let exports = exportedDecls ds1
+                     mapM_ recordUse (exported NSType exports)
+                     inScope <- getNamingEnv
+                     pure (inScope, m { mDef = NormalModule ds1 })
 
-             setModParams params
-             do inScope <- getNamingEnv
-                newDef <- case mDef m of
-                            NormalModule ds ->
-                              do ds1 <- renameTopDecls' ds
-                                 let exports = exportedDecls ds1
-                                 mapM_ recordUse (exported NSType exports)
-                                 pure (NormalModule ds1)
+         -- The things defined by this module are the *results*
+         -- of the instantiation, so we should *not* add them
+         -- in scope when resolving.
+         FunctorInstance f as _ ->
+           do f'  <- rnLocated rename f
+              as' <- rename as
+              checkFunctorArgs as'
 
-                            FunctorInstance f as _ ->
-                              do f'  <- rnLocated rename f
-                                 as' <- rename as
-                                 checkFunctorArgs as'
+              let l = Just (srcRange f')
+              imap <- mkInstMap l mempty (thing f') mname
 
-                                 let l = Just (srcRange f')
-                                 imap <- mkInstMap l mempty (thing f') mname
-                                 pure (FunctorInstance f' as' imap)
+              {- Now we need to compute what's "in scope" of the instantiated
+              module.  This is used when the module is loaded at the command
+              line and users want to evalute things in the context of the
+              module -}
+              fuEnv <- lookupDefines (thing f')
+              let ren x = Map.findWithDefault x x imap
 
-                            InterfaceModule s ->
-                              InterfaceModule <$> renameIfaceModule mname s
+              -- XXX: This is not quite right as it only considers the things
+              -- defined in the module to be in scope.  It misses things
+              -- *imported* by the functor, in particular the Cryptol library
+              -- is missing.  See #1455.
+              inScope <- shadowNames' CheckNone (mapNamingEnv ren fuEnv)
+                         getNamingEnv
 
-                pure (inScope, newDef)
-     return (inScope, m { mDef = newDef })
+              pure (inScope, m { mDef = FunctorInstance f' as' imap })
+
+         InterfaceModule s ->
+           shadowNames' CheckNone (rmodDefines resolved)
+             do d <- InterfaceModule <$> renameIfaceModule mname s
+                inScope <- getNamingEnv
+                pure (inScope, m { mDef = d })
+
 
 checkFunctorArgs :: ModuleInstanceArgs Name -> RenameM ()
 checkFunctorArgs args =
