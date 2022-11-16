@@ -10,6 +10,7 @@ Loading module test05
 module test05
 import Cryptol
   
+
 /* Not recursive */
 test05::foo : [10]
 test05::foo = Cryptol::number 10 [10] <>

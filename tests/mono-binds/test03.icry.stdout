@@ -4,6 +4,7 @@ Loading module test03
 module test03
 import Cryptol
   
+
 /* Not recursive */
 test03::test : {a} (fin a, a >= width a) => [a]
 test03::test =
@@ -20,6 +21,7 @@ Loading module test03
 module test03
 import Cryptol
   
+
 /* Not recursive */
 test03::test : {a} (fin a, a >= width a) => [a]
 test03::test =
