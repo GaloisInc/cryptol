@@ -1,0 +1,4 @@
+interface module T032::I where
+  type n : #
+  type constraint (fin n, n >= 1)
+  type W = [n]

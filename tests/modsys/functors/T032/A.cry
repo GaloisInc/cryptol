@@ -1,0 +1,5 @@
+module T032::A where
+  import interface T032::I as J
+  // This defines a synonym with the same
+  // name as the one imported from `I`
+  type W = J::W
