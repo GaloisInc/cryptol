@@ -264,7 +264,9 @@ renameModule' mname m =
               module.  This is used when the module is loaded at the command
               line and users want to evalute things in the context of the
               module -}
-              fuEnv <- lookupDefines (thing f')
+              fuEnv <- if isFakeName (thing f')
+                          then pure mempty
+                          else lookupDefines (thing f')
               let ren x = Map.findWithDefault x x imap
 
               -- XXX: This is not quite right as it only considers the things
