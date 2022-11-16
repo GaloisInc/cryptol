@@ -441,7 +441,7 @@ doInstantiateByName ::
   Bool
   {- ^ This indicates if the result is a functor or not.  When instantiating
     a functor applied to some arguments the result is not a functor.  However,
-    if we are instantiating a functor nested withing some functor that's being
+    if we are instantiating a functor nested within some functor that's being
     instantiated, then the result is still a functor. -} ->
   ModPath {- ^ Path for instantiated names -} ->
   ImpName Name {- ^ Name of the functor/module being instantiated -} ->
