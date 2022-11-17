@@ -339,11 +339,21 @@ primitive complement : {a} (Logic a) => a -> a
 primitive type Ring : * -> Prop
 
 /**
- * Converts an unbounded integer to a value in a Ring. When converting
- * to the bitvector type [n], the value is reduced modulo 2^^n. Likewise,
- * when converting to Z n, the value is reduced modulo n.  When converting
- * to a floating-point value, the value is rounded to the nearest
- * representable value.
+ * Converts an unbounded integer to a value in a Ring using the following rules:
+ *   * to bitvector type [n]:
+ *     the value is reduced modulo 2^^n,
+ *   * to Z n:
+ *     the value is reduced modulo n,
+ *   * floating point types:
+ *     the value is rounded to the nearest representable value,
+ *   * sequences other than bitvectors:
+ *     elements are computed by using `fromInteger` pointwise
+ *     Example: (fromInteger 2 : [3][8]) === [ 0x02, 0x02, 0x02 ]
+ *   * tuples and records:
+ *     elements are computed by using `fromInteger` pointwise
+ *     Example: (fromInteger 2 : (Integer,[3][8])) === (2, [ 0x2, 0x2, 0x2 ])
+ *   * functions:
+ *     a constant function returning `fromInteger` on the result type
  */
 primitive fromInteger : {a} (Ring a) => Integer -> a
 
