@@ -102,7 +102,6 @@ bundle_files() {
   cp docs/*pdf $doc
   mkdir -p $lib
   cp -r lib/* $lib
-  cp -r syntax-highlight $lib
 
   # Copy the two interesting examples over
   cp docs/ProgrammingCryptol/{aes/AES,enigma/Enigma}.cry $doc/examples/
