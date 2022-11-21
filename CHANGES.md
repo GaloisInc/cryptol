@@ -38,6 +38,8 @@
 * Fix a bug that caused finite bitvector enumerations to panic when used in
   combination with `(#)` (e.g., `[0..1] # 0`).
 
+* Improve documentation for `fromInteger` (#1465)
+
 # 2.13.0
 
 ## Language changes
