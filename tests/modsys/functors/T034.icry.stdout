@@ -1,0 +1,7 @@
+Loading module Cryptol
+Loading module T034
+
+[error] at T034.cry:1:25--1:26
+    Module not in scope: X
+[error] at T034.cry:1:39--1:40
+    Module not in scope: Y

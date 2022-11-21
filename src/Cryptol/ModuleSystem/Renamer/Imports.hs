@@ -148,8 +148,7 @@ resolveImports ext def su =
 
          case tryInstanceMaybe s (ImpTop m) (f,as) of
            Just (r,newS) -> add m r newS
-           Nothing -> panic  "resolveImports"
-                          [ "Failed to finish a top-level instantiation" ]
+           Nothing -> (Map.singleton (ImpTop m) forceResolveInst, su)
 
   where
   toNest m = Map.fromList [ (ImpNested k, v) | (k,v) <- Map.toList m ]
