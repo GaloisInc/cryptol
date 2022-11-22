@@ -58,6 +58,9 @@ module Cryptol.REPL.Monad (
   , validEvalContext
   , updateREPLTitle
   , setUpdateREPLTitle
+  , withRandomGen
+  , setRandomGen
+  , getRandomGen
 
     -- ** Config Options
   , EnvVal(..)
@@ -132,6 +135,7 @@ import qualified Data.Set as Set
 import Text.Read (readMaybe)
 
 import Data.SBV (SBVException)
+import qualified System.Random.TF as TF
 
 import Prelude ()
 import Prelude.Compat
@@ -187,6 +191,9 @@ data RW = RW
     -- Used as a kind of id for the current solver, which helps avoid
     -- a race condition where the callback of a dead solver runs after
     -- a new one has been started.
+
+  , eRandomGen :: TF.TFGen
+    -- ^ Random number generator for things like QC and dumpTests
   }
 
 
@@ -194,6 +201,7 @@ data RW = RW
 defaultRW :: Bool -> Bool -> Logger -> IO RW
 defaultRW isBatch callStacks l = do
   env <- M.initialModuleEnv
+  rng <- TF.newTFGen
   let searchPath = M.meSearchPath env
   let solverConfig = T.defaultSolverConfig searchPath
   return RW
@@ -210,6 +218,7 @@ defaultRW isBatch callStacks l = do
     , eTCConfig    = solverConfig
     , eTCSolver    = Nothing
     , eTCSolverRestarts = 0
+    , eRandomGen = rng
     }
 
 -- | Build up the prompt for the REPL.
@@ -658,6 +667,18 @@ setDynEnv denv = do
   me <- getModuleEnv
   setModuleEnv (me { M.meDynEnv = denv })
 
+getRandomGen :: REPL TF.TFGen
+getRandomGen = eRandomGen <$> getRW
+
+setRandomGen :: TF.TFGen -> REPL ()
+setRandomGen rng = modifyRW_ (\s -> s { eRandomGen = rng })
+
+withRandomGen :: (TF.TFGen -> REPL (a, TF.TFGen)) -> REPL a
+withRandomGen repl =
+  do  g <- getRandomGen
+      (result, g') <- repl g
+      setRandomGen g'
+      pure result
 
 -- | Given an existing qualified name, prefix it with a
 -- relatively-unique string. We make it unique by prefixing with a

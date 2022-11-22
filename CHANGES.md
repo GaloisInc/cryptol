@@ -27,6 +27,13 @@
   is extracted from `.. code-block:: cryptol` and `.. sourcecode:: cryptol`
   directives.
 
+* Add a syntax highlight file for Vim,
+  available in `syntax-highlight/cryptol.vim`
+
+* Add `:new-seed` and `:set-seed` commands to the REPL. 
+  These affect random test generation,
+  and help write reproducable Cryptol scripts.
+
 ## Bug fixes
 
 * Fix a bug in the What4 backend that could cause applications of `(@)` with
@@ -34,6 +41,8 @@
 
 * Fix a bug that caused finite bitvector enumerations to panic when used in
   combination with `(#)` (e.g., `[0..1] # 0`).
+
+* Improve documentation for `fromInteger` (#1465)
 
 # 2.13.0
 

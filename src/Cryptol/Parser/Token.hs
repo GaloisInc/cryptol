@@ -21,7 +21,6 @@ data TokenW   = BlockComment | LineComment | Space | DocStr
                 deriving (Eq, Show, Generic, NFData)
 
 data TokenKW  = KW_else
-              | KW_extern
               | KW_fin
               | KW_if
               | KW_private
