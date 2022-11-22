@@ -20,6 +20,8 @@ module Cryptol.ModuleSystem.Base where
 
 import qualified Control.Exception as X
 import Control.Monad (unless,forM)
+import Data.Set(Set)
+import qualified Data.Set as Set
 import Data.Maybe (fromMaybe)
 import Data.List(sortBy,groupBy)
 import Data.Function(on)
@@ -135,7 +137,10 @@ expandPropGuards a =
 -- Parsing ---------------------------------------------------------------------
 
 -- | Parse a module and expand includes
-parseModule :: ModulePath -> ModuleM (Fingerprint, [P.Module PName])
+-- Returns a fingerprint of the module, and a set of dependencies due
+-- to `include` directives.
+parseModule ::
+  ModulePath -> ModuleM (Fingerprint, Set FilePath, [P.Module PName])
 parseModule path = do
   getBytes <- getByteReader
 
@@ -169,24 +174,27 @@ parseModule path = do
   case P.parseModule cfg txt of
     Right pms ->
       do let fp = fingerprint bytes
-         pm1 <- case path of
-                  InFile p ->
-                    do r <- getByteReader
-                       forM pms \pm ->
-                         do mb <- io (removeIncludesModule r p pm)
-                            case mb of
-                              Right ok -> pure ok
-                              Left err -> noIncludeErrors err
+         (pm1,deps) <-
+           case path of
+             InFile p ->
+               do r <- getByteReader
+                  (mo,d) <- unzip <$>
+                    forM pms \pm ->
+                    do mb <- io (removeIncludesModule r p pm)
+                       case mb of
+                         Right ok -> pure ok
+                         Left err -> noIncludeErrors err
+                  pure (mo, Set.unions d)
 
-                  {- We don't do "include" resolution for in-memory files
-                     because at the moment the include resolution pass requires
-                     the path to the file to be known---this is used when
-                     looking for other inlcude files.  This could be
-                     generalized, but we can do it once we have a concrete use
-                     case as it would help guide the design. -}
-                  InMem {} -> pure pms
+             {- We don't do "include" resolution for in-memory files
+                because at the moment the include resolution pass requires
+                the path to the file to be known---this is used when
+                looking for other inlcude files.  This could be
+                generalized, but we can do it once we have a concrete use
+                case as it would help guide the design. -}
+             InMem {} -> pure (pms, Set.empty)
 
-         fp `seq` return (fp, pm1)
+         fp `seq` return (fp, deps, pm1)
 
     Left err -> moduleParseError path err
 
@@ -200,7 +208,7 @@ loadModuleByPath ::
 loadModuleByPath eval path = withPrependedSearchPath [ takeDirectory path ] $ do
   let fileName = takeFileName path
   foundPath <- findFile fileName
-  (fp, pms) <- parseModule (InFile foundPath)
+  (fp, deps, pms) <- parseModule (InFile foundPath)
   last <$>
     forM pms \pm ->
     do let n = thing (P.mName pm)
@@ -215,7 +223,7 @@ loadModuleByPath eval path = withPrependedSearchPath [ takeDirectory path ] $ do
        case lookupTCEntity n env of
          -- loadModule will calculate the canonical path again
          Nothing ->
-           doLoadModule eval False (FromModule n) (InFile foundPath) fp pm
+           doLoadModule eval False (FromModule n) (InFile foundPath) fp deps pm
          Just lm
           | path' == loaded -> return (lmData lm)
           | otherwise       -> duplicateModuleName n path' loaded
@@ -233,8 +241,8 @@ loadModuleFrom quiet isrc =
        Nothing ->
          do path <- findModule n
             errorInFile path $
-              do (fp, pms) <- parseModule path
-                 ms        <- mapM (doLoadModule True quiet isrc path fp) pms
+              do (fp, deps, pms) <- parseModule path
+                 ms <- mapM (doLoadModule True quiet isrc path fp deps) pms
                  return (path,last ms)
 
 -- | Load dependencies, typecheck, and add to the eval environment.
@@ -244,9 +252,10 @@ doLoadModule ::
   ImportSource ->
   ModulePath ->
   Fingerprint ->
+  Set FilePath {- ^ `include` dependencies -} ->
   P.Module PName ->
   ModuleM T.TCTopEntity
-doLoadModule eval quiet isrc path fp pm0 =
+doLoadModule eval quiet isrc path fp deps pm0 =
   loading isrc $
   do let pm = addPrelude pm0
      loadDeps pm
@@ -380,7 +389,8 @@ addPrelude m
     case mDef m of
       NormalModule ds -> NormalModule (P.DImport prel : ds)
       FunctorInstance f as ins -> FunctorInstance f as ins
-      InterfaceModule s -> InterfaceModule s { sigImports = prel : sigImports s }
+      InterfaceModule s -> InterfaceModule s { sigImports = prel
+                                             : sigImports s }
 
   importedMods  = map (P.iModule . P.thing) (P.mImports m)
   prel = P.Located
@@ -510,7 +520,8 @@ checkModule isrc m = do
 
   -- check that the name of the module matches expectations
   let nm = importedModule isrc
-  unless (modNameToNormalModName nm == modNameToNormalModName (thing (P.mName m)))
+  unless (modNameToNormalModName nm ==
+                                  modNameToNormalModName (thing (P.mName m)))
          (moduleNameMismatch nm (mName m))
 
   -- remove pattern bindings
