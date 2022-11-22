@@ -59,8 +59,8 @@ doFunctorInst m f as inst doc =
      newGoals CtModuleInstance (map thing (mParamConstraints m1))
 
      case thing m of
-       P.ImpTop mn    -> newModuleScope mn (mImports m2) (mExports m2)
-       P.ImpNested mn -> newSubmoduleScope mn doc (mImports m2) (mExports m2)
+       P.ImpTop mn    -> newModuleScope mn (mExports m2)
+       P.ImpNested mn -> newSubmoduleScope mn doc (mExports m2)
 
      mapM_ addTySyn     (Map.elems (mTySyns m2))
      mapM_ addNewtype   (Map.elems (mNewtypes m2))

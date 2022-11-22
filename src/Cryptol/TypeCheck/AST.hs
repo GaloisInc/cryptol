@@ -82,7 +82,6 @@ data ModuleG mname =
               Module { mName             :: !mname
                      , mDoc              :: !(Maybe Text)
                      , mExports          :: ExportSpec Name
-                     , mImports          :: [Import]
 
                      -- Functors:
                      , mParamTypes       :: Map Name ModTParam
@@ -117,7 +116,6 @@ emptyModule nm =
     { mName             = nm
     , mDoc              = Nothing
     , mExports          = mempty
-    , mImports          = []
 
     , mParams           = mempty
     , mParamTypes       = mempty
@@ -455,7 +453,6 @@ instance PP n => PP (WithNames (ModuleG n)) where
   ppPrec _ (WithNames Module { .. } nm) =
     vcat [ text "module" <+> pp mName
          -- XXX: Print exports?
-         , vcat (map pp mImports)
          , vcat (map pp' (Map.elems mTySyns))
          -- XXX: Print abstarct types/functions
          , vcat (map pp' mDecls)

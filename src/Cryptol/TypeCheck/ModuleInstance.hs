@@ -63,7 +63,6 @@ instance ModuleInstance (ModuleG name) where
     Module { mName             = mName m
            , mDoc              = Nothing
            , mExports          = doVInst (mExports m)
-           , mImports          = mImports m
            , mParamTypes       = doMap (mParamTypes m)
            , mParamFuns        = doMap (mParamFuns m)
            , mParamConstraints = moduleInstance (mParamConstraints m)
