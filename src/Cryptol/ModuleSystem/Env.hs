@@ -410,11 +410,7 @@ data LoadedModuleG a = LoadedModule
   , lmNamingEnv         :: !R.NamingEnv
     -- ^ What's in scope in this module
 
-  , lmFingerprint       :: Fingerprint
-
-  , lmIncludeDeps       :: !(Set FilePath)    -- ^ Files that were included
-  , lmImportDeps        :: !(Set ModulePath)  -- ^ Files that were imported
-  , lmForeignDeps       :: !(Set FilePath)    -- ^ Foreign libraries
+  , lmFileInfo          :: !FileInfo
 
   , lmData              :: a
   } deriving (Show, Generic, NFData)
@@ -475,11 +471,11 @@ lookupSignature mn me =
 
 addLoadedSignature ::
   ModulePath -> String ->
-  Fingerprint -> Set FilePath -> Set ModulePath ->
+  FileInfo ->
   R.NamingEnv ->
   ModName -> T.ModParamNames ->
   LoadedModules -> LoadedModules
-addLoadedSignature path ident fp incDeps impDeps nameEnv nm si lm
+addLoadedSignature path ident fi nameEnv nm si lm
   | isLoaded nm lm = lm
   | otherwise = lm { lmLoadedSignatures = loaded : lmLoadedSignatures lm }
   where
@@ -489,10 +485,7 @@ addLoadedSignature path ident fp incDeps impDeps nameEnv nm si lm
             , lmModuleId    = ident
             , lmNamingEnv   = nameEnv
             , lmData        = si
-            , lmFingerprint = fp
-            , lmIncludeDeps = incDeps
-            , lmImportDeps  = impDeps
-            , lmForeignDeps = Set.empty
+            , lmFileInfo    = fi
             }
 
 -- | Add a freshly loaded module.  If it was previously loaded, then
@@ -500,13 +493,11 @@ addLoadedSignature path ident fp incDeps impDeps nameEnv nm si lm
 addLoadedModule ::
   ModulePath ->
   String ->
-  Fingerprint ->
-  Set FilePath ->
-  Set ModulePath ->
+  FileInfo ->
   R.NamingEnv ->
   Maybe ForeignSrc ->
   T.Module -> LoadedModules -> LoadedModules
-addLoadedModule path ident fp incDeps impDeps nameEnv fsrc tm lm
+addLoadedModule path ident fi nameEnv fsrc tm lm
   | isLoaded (T.mName tm) lm  = lm
   | T.isParametrizedModule tm = lm { lmLoadedParamModules = loaded :
                                                 lmLoadedParamModules lm }
@@ -523,12 +514,7 @@ addLoadedModule path ident fp incDeps impDeps nameEnv fsrc tm lm
                              , lmdModule    = tm
                              , lmForeignSrc = fsrc
                              }
-    , lmFingerprint     = fp
-    , lmIncludeDeps     = incDeps
-    , lmImportDeps      = impDeps
-    , lmForeignDeps     = fromMaybe Set.empty
-                          do fs <- fsrc
-                             Set.singleton <$> getForeignSrcPath fs
+    , lmFileInfo        = fi
     }
 
 -- | Remove a previously loaded module.
@@ -542,6 +528,33 @@ removeLoadedModule rm lm =
     , lmLoadedParamModules  = filter (not . rm) (lmLoadedParamModules lm)
     , lmLoadedSignatures    = filter (not . rm) (lmLoadedSignatures lm)
     }
+
+-- FileInfo --------------------------------------------------------------------
+
+data FileInfo = FileInfo
+  { fiFingerprint :: Fingerprint
+  , fiIncludeDeps :: Set FilePath
+  , fiImportDeps  :: Set ModName
+  , fiForeignDeps :: Set FilePath
+  } deriving (Show,Generic,NFData)
+
+
+fileInfo ::
+  Fingerprint ->
+  Set FilePath ->
+  Set ModName ->
+  Maybe ForeignSrc ->
+  FileInfo
+fileInfo fp incDeps impDeps fsrc =
+  FileInfo
+    { fiFingerprint = fp
+    , fiIncludeDeps = incDeps
+    , fiImportDeps  = impDeps
+    , fiForeignDeps = fromMaybe Set.empty
+                      do src <- fsrc
+                         Set.singleton <$> getForeignSrcPath src
+    }
+
 
 -- Dynamic Environments --------------------------------------------------------
 

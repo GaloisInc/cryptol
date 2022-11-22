@@ -44,7 +44,7 @@ import Prelude.Compat hiding ( (<>) )
 
 
 
-import Cryptol.ModuleSystem.Env (DynamicEnv(..))
+import Cryptol.ModuleSystem.Env (DynamicEnv(..),fileInfo)
 import Cryptol.ModuleSystem.Fingerprint
 import Cryptol.ModuleSystem.Interface
 import Cryptol.ModuleSystem.Monad
@@ -287,7 +287,8 @@ doLoadModule eval quiet isrc path fp incDeps pm0 =
                            pure fsrc
                       Nothing -> pure Nothing
 
-     loadedModule path fp nameEnv incDeps impDeps foreignSrc tcm
+     let fi = fileInfo fp incDeps impDeps foreignSrc
+     loadedModule path fi nameEnv foreignSrc tcm
 
      return tcm
 
@@ -411,7 +412,7 @@ addPrelude m
     }
 
 -- | Load the dependencies of a module into the environment.
-loadDeps :: P.ModuleG mname name -> ModuleM (Set ModulePath)
+loadDeps :: P.ModuleG mname name -> ModuleM (Set ModName)
 loadDeps m =
   case mDef m of
     NormalModule ds -> Set.unions <$> mapM depsOfDecl ds
@@ -425,7 +426,8 @@ loadDeps m =
          pure (Set.union fds ads)
     InterfaceModule s -> Set.unions <$> mapM loadImpD (sigImports s)
   where
-  loadI i = Set.singleton . fst <$> loadModuleFrom False i
+  loadI i = do _ <- loadModuleFrom False i
+               pure (Set.singleton (importedModule i))
 
   loadImpName src l =
     case thing l of
