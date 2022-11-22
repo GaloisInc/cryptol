@@ -255,10 +255,10 @@ doLoadModule ::
   Set FilePath {- ^ `include` dependencies -} ->
   P.Module PName ->
   ModuleM T.TCTopEntity
-doLoadModule eval quiet isrc path fp deps pm0 =
+doLoadModule eval quiet isrc path fp incDeps pm0 =
   loading isrc $
   do let pm = addPrelude pm0
-     loadDeps pm
+     impDeps <- loadDeps pm
 
      let what = case P.mDef pm of
                   P.InterfaceModule {} -> "interface module"
@@ -287,31 +287,38 @@ doLoadModule eval quiet isrc path fp deps pm0 =
                            pure fsrc
                       Nothing -> pure Nothing
 
-     loadedModule path fp nameEnv foreignSrc tcm
+     loadedModule path fp nameEnv incDeps impDeps foreignSrc tcm
 
      return tcm
 
   where
   evalForeign tcm
-    | not (null foreignFs) = ffiLoadErrors (T.mName tcm) (map FFI.FFIInFunctor foreignFs)
-    | not (null dups)      = ffiLoadErrors (T.mName tcm) (map FFI.FFIDuplicates dups)
+    | not (null foreignFs) =
+      ffiLoadErrors (T.mName tcm) (map FFI.FFIInFunctor foreignFs)
+    | not (null dups) =
+      ffiLoadErrors (T.mName tcm) (map FFI.FFIDuplicates dups)
     | null foreigns = pure Nothing
-    | otherwise = case path of
-      InFile p -> io (canonicalizePath p >>= loadForeignSrc) >>=
-        \case
-          Right fsrc -> do
-            unless quiet $
-              case getForeignSrcPath fsrc of
-                Just fpath -> withLogger logPutStrLn $
-                  "Loading dynamic library " ++ takeFileName fpath
-                Nothing -> pure ()
-            modifyEvalEnvM (evalForeignDecls fsrc foreigns) >>=
-              \case
-                Right () -> pure $ Just fsrc
-                Left errs -> ffiLoadErrors (T.mName tcm) errs
-          Left err -> ffiLoadErrors (T.mName tcm) [err]
-      InMem m _ -> panic "doLoadModule"
-        ["Can't find foreign source of in-memory module", m]
+    | otherwise =
+      case path of
+        InFile p -> io (canonicalizePath p >>= loadForeignSrc) >>=
+          \case
+
+            Right fsrc -> do
+              unless quiet $
+                case getForeignSrcPath fsrc of
+                  Just fpath -> withLogger logPutStrLn $
+                    "Loading dynamic library " ++ takeFileName fpath
+                  Nothing -> pure ()
+              modifyEvalEnvM (evalForeignDecls fsrc foreigns) >>=
+                \case
+                  Right () -> pure $ Just fsrc
+                  Left errs -> ffiLoadErrors (T.mName tcm) errs
+
+            Left err -> ffiLoadErrors (T.mName tcm) [err]
+
+        InMem m _ -> panic "doLoadModule"
+          ["Can't find foreign source of in-memory module", m]
+
     where foreigns  = findForeignDecls tcm
           foreignFs = T.findForeignDeclsInFunctors tcm
           dups      = [ d | d@(_ : _ : _) <- groupBy ((==) `on` nameIdent)
@@ -404,25 +411,26 @@ addPrelude m
     }
 
 -- | Load the dependencies of a module into the environment.
-loadDeps :: P.ModuleG mname name -> ModuleM ()
+loadDeps :: P.ModuleG mname name -> ModuleM (Set ModulePath)
 loadDeps m =
   case mDef m of
-    NormalModule ds -> mapM_ depsOfDecl ds
+    NormalModule ds -> Set.unions <$> mapM depsOfDecl ds
     FunctorInstance f as _ ->
-      do loadImpName FromModuleInstance f
-         case as of
-           DefaultInstArg a      -> loadInstArg a
-           DefaultInstAnonArg ds -> mapM_ depsOfDecl ds
-           NamedInstArgs args -> mapM_ loadNamedInstArg args
-    InterfaceModule s -> mapM_ loadImpD (sigImports s)
+      do fds <- loadImpName FromModuleInstance f
+         ads <- case as of
+                  DefaultInstArg a      -> loadInstArg a
+                  DefaultInstAnonArg ds -> Set.unions <$> mapM depsOfDecl ds
+                  NamedInstArgs args ->
+                    Set.unions <$> mapM loadNamedInstArg args
+         pure (Set.union fds ads)
+    InterfaceModule s -> Set.unions <$> mapM loadImpD (sigImports s)
   where
-  loadI i = do _ <- loadModuleFrom False i
-               pure ()
+  loadI i = Set.singleton . fst <$> loadModuleFrom False i
 
   loadImpName src l =
     case thing l of
       ImpTop f -> loadI (src l { thing = f })
-      _        -> pure ()
+      _        -> pure Set.empty
 
   loadImpD li = loadImpName (FromImport . new) (iModule <$> li)
     where new i = i { thing = (thing li) { iModule = thing i } }
@@ -431,7 +439,7 @@ loadDeps m =
   loadInstArg f =
     case thing f of
       ModuleArg mo -> loadImpName FromModuleInstance f { thing = mo }
-      _            -> pure ()
+      _            -> pure Set.empty
 
   depsOfDecl d =
     case d of
@@ -442,7 +450,7 @@ loadDeps m =
       DModParam mo -> loadImpName FromSigImport s
         where s = mpSignature mo
 
-      _ -> pure ()
+      _ -> pure Set.empty
 
 
 

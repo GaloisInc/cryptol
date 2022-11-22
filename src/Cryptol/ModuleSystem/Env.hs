@@ -7,6 +7,7 @@
 -- Portability :  portable
 
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE PatternGuards #-}
@@ -19,7 +20,7 @@ module Cryptol.ModuleSystem.Env where
 import Paths_cryptol (getDataDir)
 #endif
 
-import Cryptol.Backend.FFI (ForeignSrc, unloadForeignSrc)
+import Cryptol.Backend.FFI (ForeignSrc, unloadForeignSrc, getForeignSrcPath)
 import Cryptol.Eval (EvalEnv)
 import Cryptol.ModuleSystem.Fingerprint
 import Cryptol.ModuleSystem.Interface
@@ -40,6 +41,7 @@ import qualified Data.Set as Set
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Semigroup
+import Data.Maybe(fromMaybe)
 import System.Directory (getAppUserDataDirectory, getCurrentDirectory)
 import System.Environment(getExecutablePath)
 import System.FilePath ((</>), normalise, joinPath, splitPath, takeDirectory)
@@ -319,6 +321,17 @@ instance Eq ModulePath where
       (InMem a _, InMem b _) -> a == b
       _ -> False
 
+-- | In-memory things are compared by label.
+instance Ord ModulePath where
+  compare p1 p2 =
+    case (p1,p2) of
+      (InFile x, InFile y)   -> compare x y
+      (InMem a _, InMem b _) -> compare a b
+      (InMem {}, InFile {})  -> LT
+      (InFile {}, InMem {})  -> GT
+
+
+
 instance PP ModulePath where
   ppPrec _ e =
     case e of
@@ -399,6 +412,10 @@ data LoadedModuleG a = LoadedModule
 
   , lmFingerprint       :: Fingerprint
 
+  , lmIncludeDeps       :: !(Set FilePath)    -- ^ Files that were included
+  , lmImportDeps        :: !(Set ModulePath)  -- ^ Files that were imported
+  , lmForeignDeps       :: !(Set FilePath)    -- ^ Foreign libraries
+
   , lmData              :: a
   } deriving (Show, Generic, NFData)
 
@@ -457,10 +474,12 @@ lookupSignature mn me =
   List.find ((mn ==) . lmName) (lmLoadedSignatures (meLoadedModules me))
 
 addLoadedSignature ::
-  ModulePath -> String -> Fingerprint -> R.NamingEnv ->
+  ModulePath -> String ->
+  Fingerprint -> Set FilePath -> Set ModulePath ->
+  R.NamingEnv ->
   ModName -> T.ModParamNames ->
   LoadedModules -> LoadedModules
-addLoadedSignature path ident fp nameEnv nm si lm
+addLoadedSignature path ident fp incDeps impDeps nameEnv nm si lm
   | isLoaded nm lm = lm
   | otherwise = lm { lmLoadedSignatures = loaded : lmLoadedSignatures lm }
   where
@@ -471,14 +490,23 @@ addLoadedSignature path ident fp nameEnv nm si lm
             , lmNamingEnv   = nameEnv
             , lmData        = si
             , lmFingerprint = fp
+            , lmIncludeDeps = incDeps
+            , lmImportDeps  = impDeps
+            , lmForeignDeps = Set.empty
             }
 
 -- | Add a freshly loaded module.  If it was previously loaded, then
 -- the new version is ignored.
 addLoadedModule ::
-  ModulePath -> String -> Fingerprint -> R.NamingEnv -> Maybe ForeignSrc ->
+  ModulePath ->
+  String ->
+  Fingerprint ->
+  Set FilePath ->
+  Set ModulePath ->
+  R.NamingEnv ->
+  Maybe ForeignSrc ->
   T.Module -> LoadedModules -> LoadedModules
-addLoadedModule path ident fp nameEnv fsrc tm lm
+addLoadedModule path ident fp incDeps impDeps nameEnv fsrc tm lm
   | isLoaded (T.mName tm) lm  = lm
   | T.isParametrizedModule tm = lm { lmLoadedParamModules = loaded :
                                                 lmLoadedParamModules lm }
@@ -496,6 +524,11 @@ addLoadedModule path ident fp nameEnv fsrc tm lm
                              , lmForeignSrc = fsrc
                              }
     , lmFingerprint     = fp
+    , lmIncludeDeps     = incDeps
+    , lmImportDeps      = impDeps
+    , lmForeignDeps     = fromMaybe Set.empty
+                          do fs <- fsrc
+                             Set.singleton <$> getForeignSrcPath fs
     }
 
 -- | Remove a previously loaded module.

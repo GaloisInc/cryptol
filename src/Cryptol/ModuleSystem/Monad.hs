@@ -14,6 +14,8 @@
 {-# LANGUAGE BlockArguments #-}
 module Cryptol.ModuleSystem.Monad where
 
+import Data.Set(Set)
+
 import           Cryptol.Eval (EvalEnv,EvalOpts(..))
 
 import           Cryptol.Backend.FFI (ForeignSrc)
@@ -530,9 +532,15 @@ unloadModule rm = ModuleT $ do
   set $! env { meLoadedModules = removeLoadedModule rm (meLoadedModules env) }
 
 loadedModule ::
-  ModulePath -> Fingerprint -> NamingEnv -> Maybe ForeignSrc -> T.TCTopEntity ->
+  ModulePath ->
+  Fingerprint ->
+  NamingEnv ->
+  Set FilePath    {- ^ includes -} ->
+  Set ModulePath  {- ^ imports -} ->
+  Maybe ForeignSrc ->
+  T.TCTopEntity ->
   ModuleM ()
-loadedModule path fp nameEnv fsrc m = ModuleT $ do
+loadedModule path fp nameEnv incDeps impDeps fsrc m = ModuleT $ do
   env <- get
   ident <- case path of
              InFile p  -> unModuleT $ io (canonicalizePath p)
@@ -540,8 +548,10 @@ loadedModule path fp nameEnv fsrc m = ModuleT $ do
 
   let newLM =
         case m of
-          T.TCTopModule mo -> addLoadedModule path ident fp nameEnv fsrc mo
-          T.TCTopSignature x s -> addLoadedSignature path ident fp nameEnv x s
+          T.TCTopModule mo ->
+            addLoadedModule path ident fp incDeps impDeps nameEnv fsrc mo
+          T.TCTopSignature x s ->
+            addLoadedSignature path ident fp incDeps impDeps nameEnv x s
 
   set $! env { meLoadedModules = newLM (meLoadedModules env) }
 
