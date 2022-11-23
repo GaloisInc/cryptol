@@ -13,8 +13,8 @@ flag static
   description: Create a statically-linked binary
 
 flag NotThreaded
-  default: false
-  manual: true
+  default: False
+  manual: True
   description: Omit the -threaded ghc flag
 
 common warnings
