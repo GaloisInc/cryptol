@@ -10,12 +10,14 @@ module CryptolServer.Exceptions
   , proverError
   , cryptolParseErr
   , cryptolError
+  , moduleNotLoaded
   ) where
 
 import qualified Data.Aeson as JSON
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 
+import Cryptol.Parser.AST(ModName)
 import Cryptol.ModuleSystem (ModuleError(..), ModuleWarning(..))
 import Cryptol.ModuleSystem.Name as CM
 import Cryptol.Utils.PP (pretty, PP)
@@ -206,3 +208,10 @@ jsonTypeAndString ty =
   fromListKM
     [ "type" .= JSONSchema (TC.Forall [] [] ty)
     , "type string" .= pretty ty ]
+
+moduleNotLoaded :: ModName -> JSONRPCException
+moduleNotLoaded m =
+  makeJSONRPCException
+    20100 "Module not loaded"
+    (Just (JSON.object ["error" .= show (pretty m)]))
+

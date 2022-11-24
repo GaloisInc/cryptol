@@ -75,12 +75,21 @@ class CryptolLoadFile(argo.Command):
     def process_result(self, res : Any) -> Any:
         return res
 
+class CryptolFileDeps(argo.Command):
+  def __init__(self, connection : HasProtocolState, mod_name : str, timeout: Optional[float]) -> None:
+    super(CryptolFileDeps, self).__init__('file deps', {'module name': mod_name}, connection, timeout=timeout)
+
+  def process_result(self, res : Any) -> Any:
+      return res
+
 class CryptolExtendSearchPath(argo.Command):
     def __init__(self, connection : HasProtocolState, dirs : List[str], timeout: Optional[float]) -> None:
         super(CryptolExtendSearchPath, self).__init__('extend search path', {'paths': dirs}, connection, timeout=timeout)
 
     def process_result(self, res : Any) -> Any:
         return res
+
+
 
 
 class CryptolEvalExprRaw(argo.Command):
