@@ -388,10 +388,10 @@ No return fields
 
 
 
-file deps (command)
+file-deps (command)
 ~~~~~~~~~~~~~~~~~~~
 
-Get information about the dependencies of a loaded top-level module.The dependencies include the dependencies of modules nested in this one.
+Get information about the dependencies of a loaded top-level module. The dependencies include the dependencies of modules nested in this one.
 
 Parameter fields
 ++++++++++++++++
@@ -407,7 +407,7 @@ Return fields
 
 
 ``source``
-  File containing the module.For internal modules this is an object { internal: LABEL }
+  File containing the module. For internal modules this is an object { internal: "LABEL" }.
   
   
 
@@ -417,17 +417,17 @@ Return fields
   
 
 ``includes``
-  Files included in this module
+  Files included in this module.
   
   
 
 ``imports``
-  Modules imported by this module
+  Modules imported by this module.
   
   
 
 ``foreign``
-  Foreign libraries loaded by this module
+  Foreign libraries loaded by this module.
   
   
 

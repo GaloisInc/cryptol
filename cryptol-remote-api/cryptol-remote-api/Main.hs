@@ -93,7 +93,7 @@ cryptolMethods =
      loadFileDescr
      loadFile
   , command
-     "file deps"
+     "file-deps"
      fileDepsDescr
      fileDeps
   , command

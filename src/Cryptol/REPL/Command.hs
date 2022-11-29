@@ -337,7 +337,7 @@ commandList  =
       , "but with a .h extension." ])
 
 
-  , CommandDescr [ ":module-info" ] [ "[MODULE]" ] (FilenameArg moduleInfoCmd)
+  , CommandDescr [ ":file-deps" ] [ "[MODULE]" ] (FilenameArg moduleInfoCmd)
     "Show information about the source of a loaded module."
     (unlines
       [ "If the module name is not specified,"
@@ -1832,7 +1832,7 @@ moduleInfoCmd modString
          M.InMem l _ -> rPutStrLn ("{ \"internal\": " ++ show l ++ " }")
 
        let fi = M.lmFileInfo lm
-       rPutStrLn (tab (", \"fingerprint\":\" 0x" ++
+       rPutStrLn (tab (", \"fingerprint\": \"0x" ++
                        fingerprintHexString (M.fiFingerprint fi) ++ "\""))
 
 

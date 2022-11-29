@@ -34,6 +34,10 @@
   These affect random test generation,
   and help write reproducable Cryptol scripts.
 
+* Add `:file-deps` commnads ro the REPL and Python API.
+  It shows information about the source files and dependencies of
+  loaded modules.
+
 ## Bug fixes
 
 * Fix a bug in the What4 backend that could cause applications of `(@)` with

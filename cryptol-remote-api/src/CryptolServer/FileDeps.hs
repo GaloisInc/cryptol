@@ -48,7 +48,7 @@ fileDeps (FileDepsOfModule m) =
 fileDepsDescr :: Doc.Block
 fileDepsDescr =
   txt [ "Get information about the dependencies of a loaded top-level module."
-      , "The dependencies include the dependencies of modules nested in this one."
+      , " The dependencies include the dependencies of modules nested in this one."
       ]
 
 txt :: [Text] -> Doc.Block
@@ -88,12 +88,12 @@ instance Doc.DescribedMethod FileDepsParams FileDeps where
 
   resultFieldDescription =
     [ ("source",      txt [ "File containing the module."
-                          , "For internal modules this is an object { internal: LABEL }"
+                          , " For internal modules this is an object { internal: \"LABEL\" }."
                           ])
     , ("fingerprint", txt ["A hash of the module content."])
-    , ("includes",    txt ["Files included in this module"])
-    , ("imports",     txt ["Modules imported by this module"])
-    , ("foreign",     txt ["Foreign libraries loaded by this module"])
+    , ("includes",    txt ["Files included in this module."])
+    , ("imports",     txt ["Modules imported by this module."])
+    , ("foreign",     txt ["Foreign libraries loaded by this module."])
     ]
 
 
