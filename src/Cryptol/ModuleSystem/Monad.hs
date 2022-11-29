@@ -22,7 +22,6 @@ import qualified Cryptol.Backend.Monad           as E
 
 import           Cryptol.ModuleSystem.Env
 import qualified Cryptol.ModuleSystem.Env as MEnv
-import           Cryptol.ModuleSystem.Fingerprint
 import           Cryptol.ModuleSystem.Interface
 import           Cryptol.ModuleSystem.Name (FreshM(..),Supply)
 import           Cryptol.ModuleSystem.Renamer (RenamerError(),RenamerWarning())
@@ -530,9 +529,13 @@ unloadModule rm = ModuleT $ do
   set $! env { meLoadedModules = removeLoadedModule rm (meLoadedModules env) }
 
 loadedModule ::
-  ModulePath -> Fingerprint -> NamingEnv -> Maybe ForeignSrc -> T.TCTopEntity ->
+  ModulePath ->
+  FileInfo ->
+  NamingEnv ->
+  Maybe ForeignSrc ->
+  T.TCTopEntity ->
   ModuleM ()
-loadedModule path fp nameEnv fsrc m = ModuleT $ do
+loadedModule path fi nameEnv fsrc m = ModuleT $ do
   env <- get
   ident <- case path of
              InFile p  -> unModuleT $ io (canonicalizePath p)
@@ -540,8 +543,8 @@ loadedModule path fp nameEnv fsrc m = ModuleT $ do
 
   let newLM =
         case m of
-          T.TCTopModule mo -> addLoadedModule path ident fp nameEnv fsrc mo
-          T.TCTopSignature x s -> addLoadedSignature path ident fp nameEnv x s
+          T.TCTopModule mo -> addLoadedModule path ident fi nameEnv fsrc mo
+          T.TCTopSignature x s -> addLoadedSignature path ident fi nameEnv x s
 
   set $! env { meLoadedModules = newLM (meLoadedModules env) }
 

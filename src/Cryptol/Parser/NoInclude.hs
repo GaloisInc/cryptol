@@ -9,6 +9,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE BlockArguments #-}
 module Cryptol.Parser.NoInclude
   ( removeIncludesModule
   , IncludeError(..), ppIncludeError
@@ -19,6 +20,8 @@ import Control.DeepSeq
 import qualified Control.Exception as X
 import qualified Control.Monad.Fail as Fail
 
+import Data.Set(Set)
+import qualified Data.Set as Set
 import Data.ByteString (ByteString)
 import Data.Either (partitionEithers)
 import Data.Text(Text)
@@ -40,8 +43,9 @@ removeIncludesModule ::
   (FilePath -> IO ByteString) ->
   FilePath ->
   Module PName ->
-  IO (Either [IncludeError] (Module PName))
-removeIncludesModule reader modPath m = runNoIncM reader modPath (noIncludeModule m)
+  IO (Either [IncludeError] (Module PName, Set FilePath))
+removeIncludesModule reader modPath m =
+  runNoIncM reader modPath (noIncludeModule m)
 
 data IncludeError
   = IncludeFailed (Located FilePath)
@@ -72,20 +76,40 @@ ppIncludeError ie = case ie of
 
 
 newtype NoIncM a = M
-  { unM :: ReaderT Env (ExceptionT [IncludeError] IO) a }
+  { unM :: ReaderT Env
+         ( ExceptionT [IncludeError]
+         ( StateT Deps
+           IO
+         )) a }
+
+type Deps = Set FilePath
 
 data Env = Env { envSeen       :: [Located FilePath]
                  -- ^ Files that have been loaded
+
                , envIncPath    :: FilePath
                  -- ^ The path that includes are relative to
+
                , envFileReader :: FilePath -> IO ByteString
                  -- ^ How to load files
                }
 
-runNoIncM :: (FilePath -> IO ByteString) -> FilePath -> NoIncM a -> IO (Either [IncludeError] a)
+
+runNoIncM ::
+  (FilePath -> IO ByteString) ->
+  FilePath ->
+  NoIncM a -> IO (Either [IncludeError] (a,Deps))
 runNoIncM reader sourcePath m =
   do incPath <- getIncPath sourcePath
-     runM (unM m) Env { envSeen = [], envIncPath = incPath, envFileReader = reader }
+     (mb,s) <- runM (unM m)
+                  Env { envSeen = []
+                      , envIncPath = incPath
+                      , envFileReader = reader
+                      }
+                  Set.empty
+     pure
+       do ok <- mb
+          pure (ok,s)
 
 tryNoIncM :: NoIncM a -> NoIncM (Either [IncludeError] a)
 tryNoIncM m = M (try (unM m))
@@ -107,9 +131,15 @@ withIncPath path (M body) = M $
 fromIncPath :: FilePath -> NoIncM FilePath
 fromIncPath path
   | isAbsolute path = return path
-  | otherwise       = M $
+  | otherwise       = M
     do Env { .. } <- ask
        return (envIncPath </> path)
+
+addDep :: FilePath -> NoIncM ()
+addDep path = M
+  do s <- get
+     let s1 = Set.insert path s
+     s1 `seq` set s1
 
 
 instance Functor NoIncM where
@@ -198,7 +228,10 @@ noIncTopDecl td = case td of
 resolveInclude :: Located FilePath -> NoIncM [TopDecl PName]
 resolveInclude lf = pushPath lf $ do
   source <- readInclude lf
-  case parseProgramWith (defaultConfig { cfgSource = thing lf, cfgPreProc = guessPreProc (thing lf) }) source of
+  let cfg = defaultConfig { cfgSource = thing lf
+                          , cfgPreProc = guessPreProc (thing lf)
+                          }
+  case parseProgramWith cfg source of
 
     Right prog -> do
       Program ds <-
@@ -211,8 +244,9 @@ resolveInclude lf = pushPath lf $ do
 -- | Read a file referenced by an include.
 readInclude :: Located FilePath -> NoIncM Text
 readInclude path = do
-  readBytes    <- envFileReader <$> M ask
+  readBytes   <- envFileReader <$> M ask
   file        <- fromIncPath (thing path)
+  addDep file
   sourceBytes <- readBytes file `failsWith` handler
   sourceText  <- X.evaluate (T.decodeUtf8' sourceBytes) `failsWith` handler
   case sourceText of

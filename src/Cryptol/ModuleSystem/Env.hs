@@ -7,6 +7,7 @@
 -- Portability :  portable
 
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE PatternGuards #-}
@@ -19,7 +20,7 @@ module Cryptol.ModuleSystem.Env where
 import Paths_cryptol (getDataDir)
 #endif
 
-import Cryptol.Backend.FFI (ForeignSrc, unloadForeignSrc)
+import Cryptol.Backend.FFI (ForeignSrc, unloadForeignSrc, getForeignSrcPath)
 import Cryptol.Eval (EvalEnv)
 import Cryptol.ModuleSystem.Fingerprint
 import Cryptol.ModuleSystem.Interface
@@ -40,6 +41,7 @@ import qualified Data.Set as Set
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Semigroup
+import Data.Maybe(fromMaybe)
 import System.Directory (getAppUserDataDirectory, getCurrentDirectory)
 import System.Environment(getExecutablePath)
 import System.FilePath ((</>), normalise, joinPath, splitPath, takeDirectory)
@@ -319,6 +321,17 @@ instance Eq ModulePath where
       (InMem a _, InMem b _) -> a == b
       _ -> False
 
+-- | In-memory things are compared by label.
+instance Ord ModulePath where
+  compare p1 p2 =
+    case (p1,p2) of
+      (InFile x, InFile y)   -> compare x y
+      (InMem a _, InMem b _) -> compare a b
+      (InMem {}, InFile {})  -> LT
+      (InFile {}, InMem {})  -> GT
+
+
+
 instance PP ModulePath where
   ppPrec _ e =
     case e of
@@ -397,7 +410,7 @@ data LoadedModuleG a = LoadedModule
   , lmNamingEnv         :: !R.NamingEnv
     -- ^ What's in scope in this module
 
-  , lmFingerprint       :: Fingerprint
+  , lmFileInfo          :: !FileInfo
 
   , lmData              :: a
   } deriving (Show, Generic, NFData)
@@ -457,10 +470,12 @@ lookupSignature mn me =
   List.find ((mn ==) . lmName) (lmLoadedSignatures (meLoadedModules me))
 
 addLoadedSignature ::
-  ModulePath -> String -> Fingerprint -> R.NamingEnv ->
+  ModulePath -> String ->
+  FileInfo ->
+  R.NamingEnv ->
   ModName -> T.ModParamNames ->
   LoadedModules -> LoadedModules
-addLoadedSignature path ident fp nameEnv nm si lm
+addLoadedSignature path ident fi nameEnv nm si lm
   | isLoaded nm lm = lm
   | otherwise = lm { lmLoadedSignatures = loaded : lmLoadedSignatures lm }
   where
@@ -470,15 +485,19 @@ addLoadedSignature path ident fp nameEnv nm si lm
             , lmModuleId    = ident
             , lmNamingEnv   = nameEnv
             , lmData        = si
-            , lmFingerprint = fp
+            , lmFileInfo    = fi
             }
 
 -- | Add a freshly loaded module.  If it was previously loaded, then
 -- the new version is ignored.
 addLoadedModule ::
-  ModulePath -> String -> Fingerprint -> R.NamingEnv -> Maybe ForeignSrc ->
+  ModulePath ->
+  String ->
+  FileInfo ->
+  R.NamingEnv ->
+  Maybe ForeignSrc ->
   T.Module -> LoadedModules -> LoadedModules
-addLoadedModule path ident fp nameEnv fsrc tm lm
+addLoadedModule path ident fi nameEnv fsrc tm lm
   | isLoaded (T.mName tm) lm  = lm
   | T.isParametrizedModule tm = lm { lmLoadedParamModules = loaded :
                                                 lmLoadedParamModules lm }
@@ -495,7 +514,7 @@ addLoadedModule path ident fp nameEnv fsrc tm lm
                              , lmdModule    = tm
                              , lmForeignSrc = fsrc
                              }
-    , lmFingerprint     = fp
+    , lmFileInfo        = fi
     }
 
 -- | Remove a previously loaded module.
@@ -509,6 +528,33 @@ removeLoadedModule rm lm =
     , lmLoadedParamModules  = filter (not . rm) (lmLoadedParamModules lm)
     , lmLoadedSignatures    = filter (not . rm) (lmLoadedSignatures lm)
     }
+
+-- FileInfo --------------------------------------------------------------------
+
+data FileInfo = FileInfo
+  { fiFingerprint :: Fingerprint
+  , fiIncludeDeps :: Set FilePath
+  , fiImportDeps  :: Set ModName
+  , fiForeignDeps :: Set FilePath
+  } deriving (Show,Generic,NFData)
+
+
+fileInfo ::
+  Fingerprint ->
+  Set FilePath ->
+  Set ModName ->
+  Maybe ForeignSrc ->
+  FileInfo
+fileInfo fp incDeps impDeps fsrc =
+  FileInfo
+    { fiFingerprint = fp
+    , fiIncludeDeps = incDeps
+    , fiImportDeps  = impDeps
+    , fiForeignDeps = fromMaybe Set.empty
+                      do src <- fsrc
+                         Set.singleton <$> getForeignSrcPath src
+    }
+
 
 -- Dynamic Environments --------------------------------------------------------
 

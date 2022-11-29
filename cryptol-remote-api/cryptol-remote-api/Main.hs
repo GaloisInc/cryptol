@@ -33,6 +33,7 @@ import CryptolServer.LoadModule
 import CryptolServer.Names ( visibleNames, visibleNamesDescr )
 import CryptolServer.Sat ( proveSat, proveSatDescr )
 import CryptolServer.TypeCheck ( checkType, checkTypeDescr )
+import CryptolServer.FileDeps( fileDeps, fileDepsDescr )
 
 main :: IO ()
 main =
@@ -91,6 +92,10 @@ cryptolMethods =
      "load file"
      loadFileDescr
      loadFile
+  , command
+     "file-deps"
+     fileDepsDescr
+     fileDeps
   , command
      "focused module"
      focusedModuleDescr

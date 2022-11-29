@@ -15,7 +15,7 @@ import Data.Text (Text)
 import Cryptol.Eval (EvalOpts(..))
 import Cryptol.ModuleSystem (ModuleCmd, ModuleEnv(..), ModuleInput(..))
 import Cryptol.ModuleSystem.Env
-  (getLoadedModules, lmFilePath, lmFingerprint,
+  (getLoadedModules, lmFilePath, lmFileInfo, fiFingerprint,
    initialModuleEnv, ModulePath(..))
 import Cryptol.ModuleSystem.Name (FreshM(..))
 import Cryptol.ModuleSystem.Fingerprint ( fingerprintFile )
@@ -180,6 +180,6 @@ validateServerState =
         InMem{} -> continue
         InFile file ->
           do fp <- fingerprintFile file
-             if fp == Just (lmFingerprint lm)
+             if fp == Just (fiFingerprint (lmFileInfo lm))
                then continue
                else return False

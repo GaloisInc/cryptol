@@ -180,7 +180,7 @@ Or a server URL can be specified directly in the script, e.g.:
 cryptol.connect(url=URL)
 ```
 
-where `URL` is a URL for a running Cryptol server in HTTP mode.
+There is a step-by-step example [here](GettingStarted.md).
 
 ## Running Cryptol Scripts from a clean server state
 
