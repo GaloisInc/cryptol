@@ -2,8 +2,6 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module test04
 module test04
-import Cryptol
-  
 
 /* Not recursive */
 test04::test : {a, b} (Literal 10 b) => a -> ((a, ()), (a, b))

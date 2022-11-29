@@ -2,8 +2,6 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module test01
 module test01
-import Cryptol
-  
 
 /* Not recursive */
 test01::a : {n, a} (fin n) => [n]a -> [2 * n]a
@@ -19,8 +17,6 @@ test01::a =
 Loading module Cryptol
 Loading module test01
 module test01
-import Cryptol
-  
 
 /* Not recursive */
 test01::a : {n, a} (fin n) => [n]a -> [2 * n]a

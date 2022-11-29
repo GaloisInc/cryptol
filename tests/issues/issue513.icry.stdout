@@ -4,8 +4,6 @@ Loading module Main
 [warning] at issue513.cry:1:8--1:15:
   Assuming  a to have a numeric type
 module Main
-import Cryptol
-  
 
 /* Recursive */
 Main::test : {a} [1 + a]
