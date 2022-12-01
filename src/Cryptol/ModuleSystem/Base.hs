@@ -25,7 +25,7 @@ import qualified Data.Set as Set
 import Data.Maybe (fromMaybe)
 import Data.List(sortBy,groupBy)
 import Data.Function(on)
-import Data.Monoid ((<>))
+import Data.Monoid ((<>),Endo(..), Any(..))
 import Data.Text.Encoding (decodeUtf8')
 import System.Directory (doesFileExist, canonicalizePath)
 import System.FilePath ( addExtension
@@ -44,7 +44,7 @@ import Prelude.Compat hiding ( (<>) )
 
 
 
-import Cryptol.ModuleSystem.Env (DynamicEnv(..),fileInfo)
+import Cryptol.ModuleSystem.Env (DynamicEnv(..),FileInfo(..),fileInfo)
 import Cryptol.ModuleSystem.Fingerprint
 import Cryptol.ModuleSystem.Interface
 import Cryptol.ModuleSystem.Monad
@@ -199,7 +199,8 @@ parseModule path = do
     Left err -> moduleParseError path err
 
 
--- Top Level Modules and Signatures ----------------------------------------------
+-- Top Level Modules and Signatures --------------------------------------------
+
 
 -- | Load a module by its path.
 loadModuleByPath ::
@@ -414,25 +415,68 @@ addPrelude m
 -- | Load the dependencies of a module into the environment.
 loadDeps :: P.ModuleG mname name -> ModuleM (Set ModName)
 loadDeps m =
+  do let ds = findDeps m
+     mapM_ (loadModuleFrom False) ds
+     pure (Set.fromList (map importedModule ds))
+
+-- | Find all imports in a module.
+findDeps :: P.ModuleG mname name -> [ImportSource]
+findDeps m = appEndo (snd (findDeps' m)) []
+
+findDepsOfFile :: FilePath -> ModuleM (FilePath, FileInfo)
+findDepsOfFile file =
+  do can <- io (canonicalizePath file)
+     (fp, incs, ms) <- parseModule (InFile can)
+     let (anyF,imps) = mconcat (map findDeps' ms)
+     fpath <- if getAny anyF
+                then do mb <- io (foreignLibPath can)
+                        pure case mb of
+                               Nothing -> Set.empty
+                               Just f  -> Set.singleton f
+                else pure Set.empty
+     pure
+       ( can
+       , FileInfo
+           { fiFingerprint = fp
+           , fiIncludeDeps = incs
+           , fiImportDeps  = Set.fromList (map importedModule (appEndo imps []))
+           , fiForeignDeps = fpath
+           }
+       )
+
+findDepsOfModule :: ModName -> ModuleM (Maybe (FilePath,FileInfo))
+findDepsOfModule mo = findDepsOfModPath =<< findModule mo
+
+findDepsOfModPath :: ModulePath -> ModuleM (Maybe (FilePath,FileInfo))
+findDepsOfModPath mo =
+  case mo of
+    InFile f -> Just <$> findDepsOfFile f
+    InMem {} -> pure Nothing
+
+-- | Find the set of top-level modules imported by a module.
+findModuleDeps :: P.ModuleG mname name -> Set P.ModName
+findModuleDeps = Set.fromList . map importedModule . findDeps
+
+-- | A helper `findDeps` and `findModuleDeps` that actually does the searching.
+findDeps' :: P.ModuleG mname name -> (Any, Endo [ImportSource])
+findDeps' m =
   case mDef m of
-    NormalModule ds -> Set.unions <$> mapM depsOfDecl ds
+    NormalModule ds -> mconcat (map depsOfDecl ds)
     FunctorInstance f as _ ->
-      do fds <- loadImpName FromModuleInstance f
-         ads <- case as of
-                  DefaultInstArg a      -> loadInstArg a
-                  DefaultInstAnonArg ds -> Set.unions <$> mapM depsOfDecl ds
-                  NamedInstArgs args ->
-                    Set.unions <$> mapM loadNamedInstArg args
-         pure (Set.union fds ads)
-    InterfaceModule s -> Set.unions <$> mapM loadImpD (sigImports s)
+      let fds = loadImpName FromModuleInstance f
+          ads = case as of
+                  DefaultInstArg a -> loadInstArg a
+                  DefaultInstAnonArg ds -> mconcat (map depsOfDecl ds)
+                  NamedInstArgs args -> mconcat (map loadNamedInstArg args)
+      in fds <> ads
+    InterfaceModule s -> mconcat (map loadImpD (sigImports s))
   where
-  loadI i = do _ <- loadModuleFrom False i
-               pure (Set.singleton (importedModule i))
+  loadI i = (mempty, Endo (i:))
 
   loadImpName src l =
     case thing l of
       ImpTop f -> loadI (src l { thing = f })
-      _        -> pure Set.empty
+      _        -> mempty
 
   loadImpD li = loadImpName (FromImport . new) (iModule <$> li)
     where new i = i { thing = (thing li) { iModule = thing i } }
@@ -441,18 +485,30 @@ loadDeps m =
   loadInstArg f =
     case thing f of
       ModuleArg mo -> loadImpName FromModuleInstance f { thing = mo }
-      _            -> pure Set.empty
+      _            -> mempty
 
   depsOfDecl d =
     case d of
       DImport li -> loadImpD li
 
-      DModule TopLevel { tlValue = NestedModule nm } -> loadDeps nm
+      DModule TopLevel { tlValue = NestedModule nm } -> findDeps' nm
 
       DModParam mo -> loadImpName FromSigImport s
         where s = mpSignature mo
 
-      _ -> pure Set.empty
+      Decl dd -> depsOfDecl' (tlValue dd)
+
+      _ -> mempty
+
+  depsOfDecl' d =
+    case d of
+      DLocated d' _ -> depsOfDecl' d'
+      DBind b ->
+        case thing (bDef b) of
+          DForeign {} -> (Any True, mempty)
+          _ -> mempty
+      _ -> mempty
+
 
 
 

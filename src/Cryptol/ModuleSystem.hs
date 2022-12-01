@@ -7,6 +7,7 @@
 -- Portability :  portable
 
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE BlockArguments #-}
 
 module Cryptol.ModuleSystem (
     -- * Module System
@@ -32,6 +33,11 @@ module Cryptol.ModuleSystem (
 
     -- * Interfaces
   , Iface, IfaceG(..), IfaceDecls(..), T.genIface, IfaceDecl(..)
+
+    -- * Dependencies
+  , M.ModName
+  , getFileDependencies
+  , getModuleDependencies
   ) where
 
 import Data.Map (Map)
@@ -137,3 +143,18 @@ renameVar names n env = runModuleM env $ interactive $
 renameType :: R.NamingEnv -> PName -> ModuleCmd Name
 renameType names n env = runModuleM env $ interactive $
   Base.rename M.interactiveName names (R.renameType R.NameUse n)
+
+--------------------------------------------------------------------------------
+-- Dependencies
+
+
+-- | Get information about the dependencies of a module.
+getFileDependencies :: FilePath -> ModuleCmd (FilePath, FileInfo)
+getFileDependencies path env = runModuleM env (Base.findDepsOfFile path)
+
+-- | Get information about the dependencies of a module.
+-- May return 'Nothing' if this is an `InMem` module
+getModuleDependencies :: M.ModName -> ModuleCmd (Maybe (FilePath, FileInfo))
+getModuleDependencies m env = runModuleM env (Base.findDepsOfModule m)
+
+
