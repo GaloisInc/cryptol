@@ -1,4 +1,4 @@
-def nestedFileDeps(getDeps, name : str, isFile : bool) -> Any:
+def nestedFileDeps(getDeps, name, isFile):
   done  = {}
   start = getDeps(name, isFile)
   todo  = start["imports"].copy()
