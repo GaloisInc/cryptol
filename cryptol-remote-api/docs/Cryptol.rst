@@ -391,14 +391,19 @@ No return fields
 file-deps (command)
 ~~~~~~~~~~~~~~~~~~~
 
-Get information about the dependencies of a loaded top-level module. The dependencies include the dependencies of modules nested in this one.
+Get information about the dependencies of a file or module. The dependencies include the dependencies of modules nested in this one.
 
 Parameter fields
 ++++++++++++++++
 
 
-``module name``
-  Get information about this loaded module.
+``name``
+  Get information about this entity.
+  
+  
+
+``is-file``
+  Indicates if the name is a file (true) or module (false)
   
   
 

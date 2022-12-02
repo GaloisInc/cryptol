@@ -35,7 +35,6 @@ module Cryptol.ModuleSystem (
   , Iface, IfaceG(..), IfaceDecls(..), T.genIface, IfaceDecl(..)
 
     -- * Dependencies
-  , M.ModName
   , getFileDependencies
   , getModuleDependencies
   ) where
@@ -148,13 +147,11 @@ renameType names n env = runModuleM env $ interactive $
 -- Dependencies
 
 
--- | Get information about the dependencies of a module.
-getFileDependencies :: FilePath -> ModuleCmd (FilePath, FileInfo)
-getFileDependencies path env = runModuleM env (Base.findDepsOfFile path)
+-- | Get information about the dependencies of a file.
+getFileDependencies :: FilePath -> ModuleCmd (ModulePath, FileInfo)
+getFileDependencies f env = runModuleM env (Base.findDepsOf (InFile f))
 
 -- | Get information about the dependencies of a module.
--- May return 'Nothing' if this is an `InMem` module
-getModuleDependencies :: M.ModName -> ModuleCmd (Maybe (FilePath, FileInfo))
+getModuleDependencies :: M.ModName -> ModuleCmd (ModulePath, FileInfo)
 getModuleDependencies m env = runModuleM env (Base.findDepsOfModule m)
-
 

@@ -423,19 +423,28 @@ loadDeps m =
 findDeps :: P.ModuleG mname name -> [ImportSource]
 findDeps m = appEndo (snd (findDeps' m)) []
 
-findDepsOfFile :: FilePath -> ModuleM (FilePath, FileInfo)
-findDepsOfFile file =
-  do can <- io (canonicalizePath file)
-     (fp, incs, ms) <- parseModule (InFile can)
-     let (anyF,imps) = mconcat (map findDeps' ms)
+findDepsOfModule :: ModName -> ModuleM (ModulePath, FileInfo)
+findDepsOfModule m =
+  do mpath <- findModule m
+     findDepsOf mpath
+
+findDepsOf :: ModulePath -> ModuleM (ModulePath, FileInfo)
+findDepsOf mpath' =
+  do mpath <- case mpath' of
+                InFile file -> InFile <$> io (canonicalizePath file)
+                InMem {}    -> pure mpath'
+     (fp, incs, ms) <- parseModule mpath
+     let (anyF,imps) = mconcat (map (findDeps' . addPrelude) ms)
      fpath <- if getAny anyF
-                then do mb <- io (foreignLibPath can)
+                then do mb <- io case mpath of
+                                   InFile can -> foreignLibPath can
+                                   InMem {}   -> pure Nothing
                         pure case mb of
                                Nothing -> Set.empty
                                Just f  -> Set.singleton f
                 else pure Set.empty
      pure
-       ( can
+       ( mpath
        , FileInfo
            { fiFingerprint = fp
            , fiIncludeDeps = incs
@@ -443,15 +452,6 @@ findDepsOfFile file =
            , fiForeignDeps = fpath
            }
        )
-
-findDepsOfModule :: ModName -> ModuleM (Maybe (FilePath,FileInfo))
-findDepsOfModule mo = findDepsOfModPath =<< findModule mo
-
-findDepsOfModPath :: ModulePath -> ModuleM (Maybe (FilePath,FileInfo))
-findDepsOfModPath mo =
-  case mo of
-    InFile f -> Just <$> findDepsOfFile f
-    InMem {} -> pure Nothing
 
 -- | Find the set of top-level modules imported by a module.
 findModuleDeps :: P.ModuleG mname name -> Set P.ModName

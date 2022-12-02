@@ -76,8 +76,16 @@ class CryptolLoadFile(argo.Command):
         return res
 
 class CryptolFileDeps(argo.Command):
-  def __init__(self, connection : HasProtocolState, mod_name : str, timeout: Optional[float]) -> None:
-    super(CryptolFileDeps, self).__init__('file-deps', {'module name': mod_name}, connection, timeout=timeout)
+  def __init__( self
+              , connection : HasProtocolState
+              , name : str, isFile : bool
+              , timeout: Optional[float]
+              ) -> None:
+    super(CryptolFileDeps, self).__init__('file-deps'
+                                         , {'name': name, 'is-file': isFile }
+                                         , connection
+                                         , timeout=timeout
+                                         )
 
   def process_result(self, res : Any) -> Any:
       return res

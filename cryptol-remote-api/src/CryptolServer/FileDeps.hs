@@ -7,10 +7,7 @@ module CryptolServer.FileDeps
   ) where
 
 import Data.Text (Text)
-import qualified Data.Text as Text
 import qualified Data.Set as Set
-import Control.Monad.IO.Class(liftIO)
-import System.Directory(canonicalizePath)
 
 import qualified Data.Aeson as JSON
 import Data.Aeson (FromJSON(..),ToJSON(..),(.=),(.:))
@@ -18,15 +15,15 @@ import qualified Argo.Doc as Doc
 
 import Cryptol.Parser.AST (ModName)
 import Cryptol.Parser (parseModName)
-import Cryptol.ModuleSystem.Env
-  (LoadedModuleG(..), FileInfo(..), lookupTCEntity, ModulePath(..))
+import Cryptol.ModuleSystem(getFileDependencies,getModuleDependencies)
+import Cryptol.ModuleSystem.Env (FileInfo(..), ModulePath(..))
 import Cryptol.ModuleSystem.Fingerprint(fingerprintHexString)
 import Cryptol.Utils.PP(pp)
 
 import CryptolServer
-import CryptolServer.Exceptions(moduleNotLoaded)
 
 data FileDepsParams = FileDepsOfModule ModName
+                    | FileDepsOfFile FilePath
 
 data FileDeps = FileDeps
   { fdSource :: ModulePath
@@ -34,20 +31,15 @@ data FileDeps = FileDeps
   }
 
 fileDeps :: FileDepsParams -> CryptolCommand FileDeps
-fileDeps (FileDepsOfModule m) =
-  do env <- getModuleEnv
-     case lookupTCEntity m env of
-       Nothing -> raise (moduleNotLoaded m)
-       Just lm ->
-         do src <- case lmFilePath lm of
-                     InFile f' -> InFile <$> liftIO (canonicalizePath f')
-                     InMem l x -> pure (InMem l x)
-            pure FileDeps { fdSource = src, fdInfo = lmFileInfo lm }
-
+fileDeps param =
+  do (p,fi) <- case param of
+                 FileDepsOfFile f   -> liftModuleCmd (getFileDependencies f)
+                 FileDepsOfModule m -> liftModuleCmd (getModuleDependencies m)
+     pure FileDeps { fdSource = p, fdInfo = fi }
 
 fileDepsDescr :: Doc.Block
 fileDepsDescr =
-  txt [ "Get information about the dependencies of a loaded top-level module."
+  txt [ "Get information about the dependencies of a file or module."
       , " The dependencies include the dependencies of modules nested in this one."
       ]
 
@@ -57,14 +49,15 @@ txt xs = Doc.Paragraph (map Doc.Text xs)
 instance FromJSON FileDepsParams where
   parseJSON =
     JSON.withObject "params for \"file deps\"" $
-    \o -> do val <- o .: "module name"
-             JSON.withText
-                "module name"
-                (\str ->
-                    case parseModName (Text.unpack str) of
+    \o -> do name   <- o .: "name"
+             isFile <- o .: "is-file"
+             if isFile
+               then pure (FileDepsOfFile name)
+               else case parseModName name of
                       Nothing -> mempty
-                      Just n  -> return (FileDepsOfModule n))
-                val
+                      Just n  -> return (FileDepsOfModule n)
+
+
 
 instance ToJSON FileDeps where
   toJSON fd =
@@ -83,7 +76,8 @@ instance ToJSON FileDeps where
 
 instance Doc.DescribedMethod FileDepsParams FileDeps where
   parameterFieldDescription =
-    [ ("module name", txt ["Get information about this loaded module."])
+    [ ("name", txt ["Get information about this entity."])
+    , ("is-file", txt ["Indicates if the name is a file (true) or module (false)"])
     ]
 
   resultFieldDescription =
