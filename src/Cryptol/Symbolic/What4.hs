@@ -37,7 +37,7 @@ import Control.Concurrent.MVar
 import Control.Monad.IO.Class
 import Control.Monad (when, foldM, forM_, void)
 import qualified Control.Exception as X
-import System.IO (Handle)
+import System.IO (Handle, IOMode(..), withFile)
 import Data.Time
 import Data.IORef
 import Data.List (intercalate, tails, inits)
@@ -373,7 +373,7 @@ satProve ::
   ProverCommand ->
   M.ModuleCmd (Maybe String, ProverResult)
 
-satProve solverCfg hashConsing warnUninterp ProverCommand {..} =
+satProve solverCfg hashConsing warnUninterp pc@ProverCommand {..} =
   protectStack proverError \modIn ->
   M.runModuleM modIn
   do w4sym   <- liftIO makeSym
@@ -414,13 +414,13 @@ satProve solverCfg hashConsing warnUninterp ProverCommand {..} =
       Right (ts,args,safety,query) ->
         case pcQueryType of
           ProveQuery ->
-            singleQuery sym solverCfg primMap logData ts args (Just safety) query
+            singleQuery sym solverCfg pc primMap logData ts args (Just safety) query
 
           SafetyQuery ->
-            singleQuery sym solverCfg primMap logData ts args (Just safety) query
+            singleQuery sym solverCfg pc primMap logData ts args (Just safety) query
 
           SatQuery num ->
-            multiSATQuery sym solverCfg primMap logData ts args query num
+            multiSATQuery sym solverCfg pc primMap logData ts args query num
 
 printUninterpWarn :: Logger -> Set Text -> IO ()
 printUninterpWarn lg uninterpWarns =
@@ -477,6 +477,7 @@ multiSATQuery :: forall sym t fm.
   sym ~ W4.ExprBuilder t CryptolState fm =>
   What4 sym ->
   W4ProverConfig ->
+  ProverCommand ->
   PrimMap ->
   W4.LogData ->
   [FinType] ->
@@ -485,23 +486,24 @@ multiSATQuery :: forall sym t fm.
   SatNum ->
   IO (Maybe String, ProverResult)
 
-multiSATQuery sym solverCfg primMap logData ts args query (SomeSat n) | n <= 1 =
-  singleQuery sym solverCfg primMap logData ts args Nothing query
+multiSATQuery sym solverCfg pc primMap logData ts args query (SomeSat n) | n <= 1 =
+  singleQuery sym solverCfg pc primMap logData ts args Nothing query
 
-multiSATQuery _sym W4OfflineConfig _primMap _logData _ts _args _query _satNum =
+multiSATQuery _sym W4OfflineConfig _pc _primMap _logData _ts _args _query _satNum =
   fail "What4 offline solver cannot be used for multi-SAT queries"
 
-multiSATQuery _sym (W4Portfolio _) _primMap _logData _ts _args _query _satNum =
+multiSATQuery _sym (W4Portfolio _) _pc _primMap _logData _ts _args _query _satNum =
   fail "What4 portfolio solver cannot be used for multi-SAT queries"
 
-multiSATQuery _sym (W4ProverConfig (AnAdapter adpt)) _primMap _logData _ts _args _query _satNum =
+multiSATQuery _sym (W4ProverConfig (AnAdapter adpt)) _pc _primMap _logData _ts _args _query _satNum =
   fail ("Solver " ++ solver_adapter_name adpt ++ " does not support incremental solving and " ++
         "cannot be used for multi-SAT queries.")
 
 multiSATQuery sym (W4ProverConfig (AnOnlineAdapter nm fs _opts (_ :: Proxy s)))
-               primMap _logData ts args query satNum0 =
+               ProverCommand{..} primMap _logData ts args query satNum0 =
+    withMaybeFile pcSmtFile WriteMode $ \smtFileHdl ->
     X.bracket
-      (W4.startSolverProcess fs Nothing (w4 sym))
+      (W4.startSolverProcess fs smtFileHdl (w4 sym))
       (void . W4.shutdownSolverProcess)
       (\ (proc :: W4.SolverProcess t s) ->
         do W4.assume (W4.solverConn proc) query
@@ -627,6 +629,7 @@ singleQuery ::
   sym ~ W4.ExprBuilder t CryptolState fm =>
   What4 sym ->
   W4ProverConfig ->
+  ProverCommand ->
   PrimMap ->
   W4.LogData ->
   [FinType] ->
@@ -635,12 +638,12 @@ singleQuery ::
   W4.Pred sym ->
   IO (Maybe String, ProverResult)
 
-singleQuery _ W4OfflineConfig _primMap _logData _ts _args _msafe _query =
+singleQuery _ W4OfflineConfig _pc _primMap _logData _ts _args _msafe _query =
   -- this shouldn't happen...
   fail "What4 offline solver cannot be used for direct queries"
 
-singleQuery sym (W4Portfolio ps) primMap logData ts args msafe query =
-  do as <- mapM async [ singleQuery sym (W4ProverConfig p) primMap logData ts args msafe query
+singleQuery sym (W4Portfolio ps) pc primMap logData ts args msafe query =
+  do as <- mapM async [ singleQuery sym (W4ProverConfig p) pc primMap logData ts args msafe query
                       | p <- NE.toList ps
                       ]
      waitForResults [] as
@@ -659,7 +662,7 @@ singleQuery sym (W4Portfolio ps) primMap logData ts args msafe query =
           do forM_ others (\a -> X.throwTo (asyncThreadId a) ExitSuccess)
              return r
 
-singleQuery sym (W4ProverConfig (AnAdapter adpt)) primMap logData ts args msafe query =
+singleQuery sym (W4ProverConfig (AnAdapter adpt)) _pc primMap logData ts args msafe query =
   do pres <- W4.solver_adapter_check_sat adpt (w4 sym) logData [query] $ \res ->
          case res of
            W4.Unknown -> return (ProverError "Solver returned UNKNOWN")
@@ -677,9 +680,10 @@ singleQuery sym (W4ProverConfig (AnAdapter adpt)) primMap logData ts args msafe 
      return (Just (W4.solver_adapter_name adpt), pres)
 
 singleQuery sym (W4ProverConfig (AnOnlineAdapter nm fs _opts (_ :: Proxy s)))
-              primMap _logData ts args msafe query =
+              ProverCommand{..} primMap _logData ts args msafe query =
+  withMaybeFile pcSmtFile WriteMode $ \smtFileHdl ->
   X.bracket
-    (W4.startSolverProcess fs Nothing (w4 sym))
+    (W4.startSolverProcess fs smtFileHdl (w4 sym))
     (void . W4.shutdownSolverProcess)
     (\ (proc :: W4.SolverProcess t s) ->
         do W4.assume (W4.solverConn proc) query
@@ -698,6 +702,13 @@ singleQuery sym (W4ProverConfig (AnOnlineAdapter nm fs _opts (_ :: Proxy s)))
                     Nothing -> return (Just nm, AllSatResult [ model ])
     )
 
+
+-- | Like 'withFile', but lifted to work over 'Maybe'.
+withMaybeFile :: Maybe FilePath -> IOMode -> (Maybe Handle -> IO r) -> IO r
+withMaybeFile mbFP mode action =
+  case mbFP of
+    Just fp -> withFile fp mode (action . Just)
+    Nothing -> action Nothing
 
 computeModelPred ::
   sym ~ W4.ExprBuilder t CryptolState fm =>
