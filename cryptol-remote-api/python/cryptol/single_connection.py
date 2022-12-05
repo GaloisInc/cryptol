@@ -243,8 +243,8 @@ def logging(on : bool, *, dest : TextIO = sys.stderr) -> None:
     """Whether to log received and transmitted JSON."""
     __get_designated_connection().logging(on=on,dest=dest)
 
-def file_deps(m : str, timeout:Optional[float] = None) -> Any:
-    """Get information about a loaded module."""
-    return __get_designated_connection().file_deps(m,timeout=timeout)
+def file_deps(m : str, isFile:bool, timeout:Optional[float] = None) -> Any:
+    """Get information about a module or a file."""
+    return __get_designated_connection().file_deps(m,isFile,timeout=timeout)
 
 

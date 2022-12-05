@@ -114,7 +114,6 @@ import Control.Monad.IO.Class(liftIO)
 import Text.Read (readMaybe)
 import Control.Applicative ((<|>))
 import qualified Data.Set as Set
-import qualified Data.Map as Map
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS8
@@ -130,7 +129,7 @@ import qualified System.Process as Process(runCommand)
 import System.FilePath((</>), (-<.>), isPathSeparator)
 import System.Directory(getHomeDirectory,setCurrentDirectory,doesDirectoryExist
                        ,getTemporaryDirectory,setPermissions,removeFile
-                       ,emptyPermissions,setOwnerReadable,canonicalizePath)
+                       ,emptyPermissions,setOwnerReadable)
 import System.IO
          (Handle,hFlush,stdout,openTempFile,hClose,openFile
          ,IOMode(..),hGetContents,hSeek,SeekMode(..))
@@ -337,12 +336,15 @@ commandList  =
       , "but with a .h extension." ])
 
 
-  , CommandDescr [ ":file-deps" ] [ "[MODULE]" ] (FilenameArg moduleInfoCmd)
-    "Show information about the source of a loaded module."
-    (unlines
-      [ "If the module name is not specified,"
-      , "then show information for all loaded modules."
-      ])
+  , CommandDescr [ ":file-deps" ] [ "FILE" ]
+    (FilenameArg (moduleInfoCmd True))
+    "Show information about the dependencies of a file"
+    ""
+
+  , CommandDescr [ ":module-deps" ] [ "MODULE" ]
+    (ModNameArg (moduleInfoCmd False))
+    "Show information about the dependencies of a module"
+    ""
   ]
 
 genHelp :: [CommandDescr] -> [String]
@@ -1791,66 +1793,39 @@ parseCommand findCmd line = do
 
 
 
-moduleInfoCmd :: String -> REPL ()
-moduleInfoCmd modString
-  | null modString =
-    do env <- getModuleEnv
-       let es = Map.toList (M.getLoadedEntities (M.meLoadedModules env))
-       case es of
-         [] -> rPutStrLn "[]"
-         i : is ->
-           do showInfoEither "[ " i
-              mapM_ (showInfoEither (", ")) is
-              rPutStrLn "]"
-
+moduleInfoCmd :: Bool -> String -> REPL ()
+moduleInfoCmd isFile name
+  | isFile = showInfo =<< liftModuleCmd (M.getFileDependencies name)
   | otherwise =
-    case parseModName modString of
-      Just m ->
-        do env <- getModuleEnv
-           case M.lookupTCEntity m env of
-             Nothing -> rPutStrLn "Module is not leaded."
-             Just lm -> showInfo "" lm
-
+    case parseModName name of
+      Just m  -> showInfo =<< liftModuleCmd (M.getModuleDependencies m)
       Nothing -> rPutStrLn "Invalid module name."
 
   where
-  showInfoEither pref (k,x) =
-    do rPutStrLn (pref ++ show (show (pp k)) ++ ":")
-       let newPref = replicate (length pref + 2) ' '
-       case x of
-         Left a  -> showInfo newPref a
-         Right a -> showInfo newPref a
-
-  showInfo pref lm =
-    do rPutStr (pref ++ "{ \"source\": ")
-       let n = length pref
-           tab x = replicate n ' ' ++ x
-       case M.lmFilePath lm of
-         M.InFile f' ->
-            do f <- io (canonicalizePath f')
-               rPutStrLn (show f)
+  showInfo (p,fi) =
+    do rPutStr "{ \"source\": "
+       case p of
+         M.InFile f  -> rPutStrLn (show f)
          M.InMem l _ -> rPutStrLn ("{ \"internal\": " ++ show l ++ " }")
 
-       let fi = M.lmFileInfo lm
-       rPutStrLn (tab (", \"fingerprint\": \"0x" ++
-                       fingerprintHexString (M.fiFingerprint fi) ++ "\""))
-
+       rPutStrLn (", \"fingerprint\": \"0x" ++
+                       fingerprintHexString (M.fiFingerprint fi) ++ "\"")
 
        let depList f x ys =
-             do rPutStr (tab (", " ++ show (x :: String) ++ ":"))
+             do rPutStr (", " ++ show (x :: String) ++ ":")
                 case ys of
                   [] -> rPutStrLn " []"
                   i : is ->
                     do rPutStrLn ""
-                       rPutStrLn (tab ("     [ " ++ f i))
-                       mapM_ (\j -> rPutStrLn (tab ("   , " ++ f j))) is
-                       rPutStrLn (tab "     ]")
+                       rPutStrLn ("     [ " ++ f i)
+                       mapM_ (\j -> rPutStrLn ("     , " ++ f j)) is
+                       rPutStrLn "     ]"
 
        depList show               "includes" (Set.toList (M.fiIncludeDeps fi))
        depList (show . show . pp) "imports"  (Set.toList (M.fiImportDeps  fi))
        depList show               "foreign"  (Set.toList (M.fiForeignDeps fi))
 
-       rPutStrLn (tab "}")
+       rPutStrLn "}"
 
 
 

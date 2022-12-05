@@ -36,7 +36,7 @@
 
 * Add `:file-deps` commnads ro the REPL and Python API.
   It shows information about the source files and dependencies of
-  loaded modules.
+  modules or Cryptol files.
 
 ## Bug fixes
 

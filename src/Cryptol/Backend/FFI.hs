@@ -15,6 +15,7 @@ module Cryptol.Backend.FFI
   , getForeignSrcPath
   , loadForeignSrc
   , unloadForeignSrc
+  , foreignLibPath
 #ifdef FFI_ENABLED
   , ForeignImpl
   , loadForeignImpl
@@ -42,7 +43,9 @@ import           Foreign.C.Types
 import           Foreign.Concurrent
 import           Foreign.LibFFI
 import           System.FilePath            ((-<.>))
+import           System.Directory(doesFileExist)
 import           System.IO.Error
+import           System.Info(os)
 
 #if defined(mingw32_HOST_OS)
 import           System.Win32.DLL
@@ -94,24 +97,35 @@ loadForeignSrc = loadForeignLib >=> traverse \(foreignSrcPath, ptr) -> do
   foreignSrcFPtr <- newForeignPtr ptr (unloadForeignSrc' foreignSrcLoaded ptr)
   pure ForeignSrc {..}
 
+
+-- | Given the path to a Cryptol module, compute the location of
+-- the shared library we'd like to load.
+foreignLibPath :: FilePath -> IO (Maybe FilePath)
+foreignLibPath path =
+  search
+    case os of
+      "mingw32" -> ["dll"]
+      "darwin"  -> ["dylib","so"]
+      _         -> ["so"]
+
+  where
+  search es =
+    case es of
+      [] -> pure Nothing
+      e : more ->
+        do let p = path -<.> e
+           yes <- doesFileExist p
+           if yes then pure (Just p) else search more
+
+
 loadForeignLib :: FilePath -> IO (Either FFILoadError (FilePath, Ptr ()))
-#if defined(mingw32_HOST_OS)
 loadForeignLib path =
-  tryLoad (CantLoadFFISrc path) $ open "dll"
-#elif defined(darwin_HOST_OS)
--- On Darwin, try loading .dylib first, and if that fails try .so
-loadForeignLib path =
-  (Right <$> open "dylib") `catchIOError` \e1 ->
-    (Right <$> open "so") `catchIOError` \e2 ->
-      pure $ Left $ CantLoadFFISrc path $
-        displayException e1 ++ "\n" ++ displayException e2
-#else
--- On other platforms, use .so
-loadForeignLib path =
-  tryLoad (CantLoadFFISrc path) $ open "so"
-#endif
-  where open ext = do
-          let libPath = path -<.> ext
+  do mb <- foreignLibPath path
+     case mb of
+       Nothing      -> pure (Left (CantLoadFFISrc path "File not found"))
+       Just libPath -> tryLoad (CantLoadFFISrc path) (open libPath)
+
+  where open libPath = do
 #if defined(mingw32_HOST_OS)
           ptr <- loadLibrary libPath
 #else
