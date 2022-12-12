@@ -281,6 +281,10 @@ data ModuleInstanceArgs name =
     -- (parser only)
 
   | NamedInstArgs  [ModuleInstanceNamedArg name]
+
+  | BacktickInstnace
+    -- ^ The module instance is computed by adding the functor arguments
+    -- as explicit parameters to all declarations
     deriving (Show, Generic, NFData)
 
 -- | A named argument in a functor instantiation
@@ -863,6 +867,7 @@ instance (Show name, PPName name) => PP (ModuleInstanceArgs name) where
       DefaultInstArg x -> braces (pp (thing x))
       DefaultInstAnonArg ds -> "where" $$ indent 2 (vcat (map pp ds))
       NamedInstArgs xs -> braces (commaSep (map pp xs))
+      BacktickInstnace -> "{}"
 
 instance (Show name, PPName name) => PP (ModuleInstanceNamedArg name) where
   ppPrec _ (ModuleInstanceNamedArg x y) = pp (thing x) <+> "=" <+> pp (thing y)
@@ -1358,6 +1363,7 @@ instance NoPos (ModuleInstanceArgs name) where
       DefaultInstArg a      -> DefaultInstArg (noPos a)
       DefaultInstAnonArg ds -> DefaultInstAnonArg (noPos ds)
       NamedInstArgs xs      -> NamedInstArgs (noPos xs)
+      BacktickInstnace      -> BacktickInstnace
 
 instance NoPos (ModuleInstanceNamedArg name) where
   noPos (ModuleInstanceNamedArg x y) =
