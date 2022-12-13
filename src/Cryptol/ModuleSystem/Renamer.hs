@@ -292,7 +292,7 @@ checkFunctorArgs args =
       panic "checkFunctorArgs" ["Nested DefaultInstAnonArg"]
     DefaultInstArg l -> checkArg l
     NamedInstArgs as -> mapM_ checkNamedArg as
-    BacktickInstnace -> pure ()
+    BacktickInstance -> pure ()
   where
   checkNamedArg (ModuleInstanceNamedArg _ l) = checkArg l
 
@@ -481,7 +481,7 @@ renameTopDecls' ds =
                   DefaultInstArg arg -> depsOfArg arg
                   NamedInstArgs args -> concatMap depsOfNamedArg args
                   DefaultInstAnonArg {} -> []
-                  BacktickInstnace -> []
+                  BacktickInstance -> []
 
                where depsOfNamedArg (ModuleInstanceNamedArg _ a) = depsOfArg a
                      depsOfArg a = case thing a of
@@ -795,7 +795,7 @@ instance Rename ModuleInstanceArgs where
       DefaultInstArg a -> DefaultInstArg <$> rnLocated rename a
       NamedInstArgs xs -> NamedInstArgs  <$> traverse rename xs
       DefaultInstAnonArg {} -> panic "rename" ["DefaultInstAnonArg"]
-      BacktickInstnace -> pure BacktickInstnace
+      BacktickInstance -> pure BacktickInstance
 
 instance Rename ModuleInstanceNamedArg where
   rename (ModuleInstanceNamedArg x m) =

@@ -468,7 +468,7 @@ findDeps' m =
                   DefaultInstArg a -> loadInstArg a
                   DefaultInstAnonArg ds -> mconcat (map depsOfDecl ds)
                   NamedInstArgs args -> mconcat (map loadNamedInstArg args)
-                  BacktickInstnace -> mempty
+                  BacktickInstance -> mempty
       in fds <> ads
     InterfaceModule s -> mconcat (map loadImpD (sigImports s))
   where

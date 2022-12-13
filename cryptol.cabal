@@ -177,6 +177,7 @@ library
                        Cryptol.TypeCheck.FFI.FFIType,
                        Cryptol.TypeCheck.Module,
                        Cryptol.TypeCheck.ModuleInstance,
+                       Cryptol.TypeCheck.ModuleBacktickInstance,
 
                        Cryptol.TypeCheck.Solver.Types,
                        Cryptol.TypeCheck.Solver.SMT,

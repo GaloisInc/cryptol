@@ -24,6 +24,7 @@ import Cryptol.TypeCheck.Solve(proveImplication)
 import Cryptol.TypeCheck.Monad
 import Cryptol.TypeCheck.Instantiate(instantiateWith)
 import Cryptol.TypeCheck.ModuleInstance
+import Cryptol.TypeCheck.ModuleBacktickInstance(doBacktickInstance)
 
 doFunctorInst ::
   Located (P.ImpName Name)    {- ^ Name for the new module -} ->
@@ -39,24 +40,25 @@ doFunctorInst m f as inst doc =
   inRange (srcRange m)
   do mf    <- lookupFunctor (thing f)
      argIs <- checkArity (srcRange f) mf as
-     (tySus,decls) <- unzip <$> mapM checkArg argIs
+     m2 <- case argIs of
+             UseArgs ais ->
+               do (tySus,decls) <- unzip <$> mapM checkArg ais
+                  let ?tSu = mergeDistinctSubst tySus
+                      ?vSu = inst
+                  let m1   = moduleInstance mf
+                      m2   = m1 { mName             = m
+                                , mDoc              = Nothing
+                                , mParamTypes       = mempty
+                                , mParamFuns        = mempty
+                                , mParamConstraints = mempty
+                                , mParams           = mempty
+                                , mDecls = map NonRecursive (concat decls) ++
+                                          mDecls m1
+                                }
+                  newGoals CtModuleInstance (map thing (mParamConstraints m1))
+                  pure m2
 
-
-     let ?tSu = mergeDistinctSubst tySus
-         ?vSu = inst
-     let m1   = moduleInstance mf
-         m2   = m1 { mName             = m
-                   , mDoc              = Nothing
-                   , mParamTypes       = mempty
-                   , mParamFuns        = mempty
-                   , mParamConstraints = mempty
-                   , mParams           = mempty
-                   -- XXX: Should we modify `mImports` to record dependencies
-                   -- on parameters?
-                   , mDecls = map NonRecursive (concat decls) ++ mDecls m1
-                   }
-
-     newGoals CtModuleInstance (map thing (mParamConstraints m1))
+             AddParamsToDecls -> doBacktickInstance m mf inst
 
      case thing m of
        P.ImpTop mn    -> newModuleScope mn (mExports m2)
@@ -75,6 +77,15 @@ doFunctorInst m f as inst doc =
        P.ImpNested {} -> endSubmodule >> pure Nothing
 
 
+  
+data ActualArg =
+    UseParameter ModParam     -- ^ Instantiate using this parameter
+  | UseModule (IfaceG ())     -- ^ Instantiate using this module
+
+data ActualArgs =
+    UseArgs [(Range, ModParam, ActualArg)]
+  | AddParamsToDecls
+
 
 
 {- | Validate a functor application, just checking the argument names.
@@ -88,7 +99,7 @@ checkArity ::
   Range             {- ^ Location for reporting errors -} ->
   ModuleG ()        {- ^ The functor being instantiated -} ->
   P.ModuleInstanceArgs Name {- ^ The arguments -} ->
-  InferM [ (Range, ModParam, Either ModParam (IfaceG ())) ]
+  InferM ActualArgs
   {- ^ Associates functor parameters with the interfaces of the
        instantiating modules -}
 checkArity r mf args =
@@ -102,8 +113,9 @@ checkArity r mf args =
 
     P.NamedInstArgs as -> checkArgs [] ps0 as
 
-    P.DefaultInstAnonArg {} -> panic "checkArity" [ "DefaultInstAnonArg" ]
+    P.BacktickInstance -> pure AddParamsToDecls
 
+    P.DefaultInstAnonArg {} -> panic "checkArity" [ "DefaultInstAnonArg" ]
   where
   ps0 = mParams mf
 
@@ -112,13 +124,13 @@ checkArity r mf args =
 
       [] -> do forM_ (Map.keys ps) \p ->
                  recordErrorLoc (Just r) (FunctorInstanceMissingArgument p)
-               pure done
+               pure (UseArgs done)
 
       P.ModuleInstanceNamedArg ll lm : more ->
         case Map.lookup (thing ll) ps of
           Just i ->
             do arg <- case thing lm of
-                        P.ModuleArg m -> Just . Right <$> lookupModule m
+                        P.ModuleArg m -> Just . UseModule <$> lookupModule m
                         P.ParameterArg p ->
                            do mb <- lookupModParam p
                               case mb of
@@ -126,7 +138,7 @@ checkArity r mf args =
                                    do inRange (srcRange lm)
                                               (recordError (MissingModParam p))
                                       pure Nothing
-                                Just a -> pure (Just (Left a))
+                                Just a -> pure (Just (UseParameter a))
                let next = case arg of
                             Nothing -> done
                             Just a  -> (srcRange lm, i, a) : done
@@ -148,7 +160,7 @@ Returns:
     values.
 -}
 checkArg ::
-  (Range, ModParam, Either ModParam (IfaceG ())) -> InferM (Subst, [Decl])
+  (Range, ModParam, ActualArg) -> InferM (Subst, [Decl])
 checkArg (r,expect,actual') =
   do tRens <- mapM (checkParamType r tyMap) (Map.toList (mpnTypes params))
      let renSu = listParamSubst (concat tRens)
@@ -175,15 +187,16 @@ checkArg (r,expect,actual') =
   vMap  :: Map Ident (Name, Schema)
   (tyMap,vMap) =
     case actual' of
-      Left mp -> ( nameMapToIdentMap fromTP (mpnTypes ps)
-                 , nameMapToIdentMap fromVP (mpnFuns ps)
-                 )
+      UseParameter mp ->
+        ( nameMapToIdentMap fromTP (mpnTypes ps)
+        , nameMapToIdentMap fromVP (mpnFuns ps)
+        )
         where
         ps        = mpParameters mp
         fromTP tp = (mtpKind tp, TVar (TVBound (mtpParam tp)))
         fromVP vp = (mvpName vp, mvpType vp)
 
-      Right actual ->
+      UseModule actual ->
         ( Map.unions [ nameMapToIdentMap fromTS      (ifTySyns decls)
                      , nameMapToIdentMap fromNewtype (ifNewtypes decls)
                      , nameMapToIdentMap fromPrimT   (ifAbstractTypes decls)
