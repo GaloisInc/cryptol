@@ -292,7 +292,6 @@ checkFunctorArgs args =
       panic "checkFunctorArgs" ["Nested DefaultInstAnonArg"]
     DefaultInstArg l -> checkArg l
     NamedInstArgs as -> mapM_ checkNamedArg as
-    BacktickInstance -> pure ()
   where
   checkNamedArg (ModuleInstanceNamedArg _ l) = checkArg l
 
@@ -302,6 +301,7 @@ checkFunctorArgs args =
           | isFakeName m -> pure ()
           | otherwise    -> checkIsModule (srcRange l) m AModule
         ParameterArg {} -> pure () -- we check these in the type checker
+        AddParams -> pure ()
 
 mkInstMap :: Maybe Range -> Map Name Name -> ImpName Name -> ImpName Name ->
   RenameM (Map Name Name)
@@ -481,10 +481,10 @@ renameTopDecls' ds =
                   DefaultInstArg arg -> depsOfArg arg
                   NamedInstArgs args -> concatMap depsOfNamedArg args
                   DefaultInstAnonArg {} -> []
-                  BacktickInstance -> []
 
                where depsOfNamedArg (ModuleInstanceNamedArg _ a) = depsOfArg a
                      depsOfArg a = case thing a of
+                                     AddParams -> []
                                      ModuleArg {} -> []
                                      ParameterArg p ->
                                        case Map.lookup p localParams of
@@ -795,7 +795,6 @@ instance Rename ModuleInstanceArgs where
       DefaultInstArg a -> DefaultInstArg <$> rnLocated rename a
       NamedInstArgs xs -> NamedInstArgs  <$> traverse rename xs
       DefaultInstAnonArg {} -> panic "rename" ["DefaultInstAnonArg"]
-      BacktickInstance -> pure BacktickInstance
 
 instance Rename ModuleInstanceNamedArg where
   rename (ModuleInstanceNamedArg x m) =
@@ -806,7 +805,7 @@ instance Rename ModuleInstanceArg where
     case arg of
       ModuleArg m -> ModuleArg <$> rename m
       ParameterArg a -> pure (ParameterArg a)
- 
+      AddParams -> pure AddParams
 
 instance Rename NestedModule where
   rename (NestedModule m) =

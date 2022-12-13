@@ -155,6 +155,8 @@ data Error    = KindMismatch (Maybe TypeSource) Kind Kind
               | FunctorInstanceMissingArgument Ident
               | FunctorInstanceBadArgument Ident
               | FunctorInstanceMissingName Namespace Ident
+              | FunctorInstanceBadBacktickArgument Ident Ident
+                -- ^ Name of functor argument, name of bad value
 
               | UnsupportedFFIKind TypeSource TParam Kind
                 -- ^ Kind is not supported for FFI
@@ -191,6 +193,7 @@ errorImportance err =
     MissingModParam {}                                -> 10
     FunctorInstanceBadArgument {}                     -> 10
     FunctorInstanceMissingName {}                     ->  9
+    FunctorInstanceBadBacktickArgument {}             ->  9
 
 
     KindMismatch {}                                  -> 10
@@ -297,6 +300,7 @@ instance TVars Error where
       FunctorInstanceMissingArgument {} -> err
       FunctorInstanceBadArgument {} -> err
       FunctorInstanceMissingName {} -> err
+      FunctorInstanceBadBacktickArgument {} -> err
 
       UnsupportedFFIKind {}    -> err
       UnsupportedFFIType src e -> UnsupportedFFIType src !$ apSubst su e
@@ -345,6 +349,7 @@ instance FVS Error where
       FunctorInstanceMissingArgument {} -> Set.empty
       FunctorInstanceBadArgument {} -> Set.empty
       FunctorInstanceMissingName {} -> Set.empty
+      FunctorInstanceBadBacktickArgument {} -> Set.empty
 
       UnsupportedFFIKind {}  -> Set.empty
       UnsupportedFFIType _ t -> fvs t
@@ -561,6 +566,15 @@ instance PP (WithNames Error) where
               NSValue     -> "value"
               NSType      -> "type"
               NSModule    -> "module"
+
+      FunctorInstanceBadBacktickArgument i x ->
+        nested "Value parameter may not have a polymorphic type:" $
+          vcat
+            [ "Module parameter:" <+> pp i
+            , "Value parameter:" <+> pp x
+            , "When instantiatiating a functor using parameterization,"
+            , "the value parameters need to have a simple type."
+            ]
 
       UnsupportedFFIKind src param k ->
         nested "Kind of type variable unsupported for FFI: " $

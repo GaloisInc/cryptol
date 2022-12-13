@@ -8,9 +8,12 @@ import qualified Cryptol.Parser.AST as P
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Monad
 
+-- | Rewrite declarations to add the given module parameters.
+-- Assumes the renaming due to the instantiation has already happened.
 doBacktickInstance ::
-  Located (P.ImpName Name)    {- ^ Name for the new module -} ->
-  ModuleG ()                  {- ^ The functor -} ->
-  Map Name Name {- ^ The instantiation: functor name -> instance name -} ->
-  InferM (ModuleG (Located (P.ImpName Name)))
-doBacktickInstance m mf inst = undefined
+  [TParam] ->
+  [Prop] ->
+  Map Name Type ->
+  ModuleG name ->
+  InferM (ModuleG name)
+doBacktickInstance = undefined

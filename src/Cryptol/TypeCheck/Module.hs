@@ -1,9 +1,11 @@
 {-# Language BlockArguments, ImplicitParams #-}
 module Cryptol.TypeCheck.Module (doFunctorInst) where
 
+import Data.List(partition)
 import Data.Text(Text)
 import Data.Map(Map)
 import qualified Data.Map as Map
+import Data.Set (Set)
 import qualified Data.Set as Set
 import Control.Monad(unless,forM_)
 
@@ -40,25 +42,34 @@ doFunctorInst m f as inst doc =
   inRange (srcRange m)
   do mf    <- lookupFunctor (thing f)
      argIs <- checkArity (srcRange f) mf as
-     m2 <- case argIs of
-             UseArgs ais ->
-               do (tySus,decls) <- unzip <$> mapM checkArg ais
-                  let ?tSu = mergeDistinctSubst tySus
-                      ?vSu = inst
-                  let m1   = moduleInstance mf
-                      m2   = m1 { mName             = m
-                                , mDoc              = Nothing
-                                , mParamTypes       = mempty
-                                , mParamFuns        = mempty
-                                , mParamConstraints = mempty
-                                , mParams           = mempty
-                                , mDecls = map NonRecursive (concat decls) ++
-                                          mDecls m1
-                                }
-                  newGoals CtModuleInstance (map thing (mParamConstraints m1))
-                  pure m2
+     m2 <- do as2 <- mapM checkArg argIs
+              let (tySus,decls) = unzip [ (su,ds) | DefinedInst su ds <- as2 ]
+              let ?tSu = mergeDistinctSubst tySus
+                  ?vSu = inst
+              let m1   = moduleInstance mf
+                  m2   = m1 { mName             = m
+                            , mDoc              = Nothing
+                            , mParamTypes       = mempty
+                            , mParamFuns        = mempty
+                            , mParamConstraints = mempty
+                            , mParams           = mempty
+                            , mDecls = map NonRecursive (concat decls) ++
+                                      mDecls m1
+                            }
+              let (tps,tcs,vps) =
+                      unzip3 [ (xs,cs,fs) | ParamInst xs cs fs <- as2 ]
+                  tpSet = Set.unions tps
+                  emit p = Set.null (freeParams p `Set.intersection` tpSet)
 
-             AddParamsToDecls -> doBacktickInstance m mf inst
+                  (emitPs,delayPs) =
+                          partition emit (map thing (mParamConstraints m1))
+
+              newGoals CtModuleInstance emitPs
+
+              doBacktickInstance (Set.toList tpSet)
+                                 (delayPs ++ concat tcs)
+                                 (Map.unions vps)
+                                 m2
 
      case thing m of
        P.ImpTop mn    -> newModuleScope mn (mExports m2)
@@ -77,14 +88,11 @@ doFunctorInst m f as inst doc =
        P.ImpNested {} -> endSubmodule >> pure Nothing
 
 
-  
 data ActualArg =
     UseParameter ModParam     -- ^ Instantiate using this parameter
   | UseModule (IfaceG ())     -- ^ Instantiate using this module
+  | AddDeclParams             -- ^ Instantiate by adding parameters
 
-data ActualArgs =
-    UseArgs [(Range, ModParam, ActualArg)]
-  | AddParamsToDecls
 
 
 
@@ -99,7 +107,7 @@ checkArity ::
   Range             {- ^ Location for reporting errors -} ->
   ModuleG ()        {- ^ The functor being instantiated -} ->
   P.ModuleInstanceArgs Name {- ^ The arguments -} ->
-  InferM ActualArgs
+  InferM [(Range, ModParam, ActualArg)]
   {- ^ Associates functor parameters with the interfaces of the
        instantiating modules -}
 checkArity r mf args =
@@ -113,8 +121,6 @@ checkArity r mf args =
 
     P.NamedInstArgs as -> checkArgs [] ps0 as
 
-    P.BacktickInstance -> pure AddParamsToDecls
-
     P.DefaultInstAnonArg {} -> panic "checkArity" [ "DefaultInstAnonArg" ]
   where
   ps0 = mParams mf
@@ -124,7 +130,7 @@ checkArity r mf args =
 
       [] -> do forM_ (Map.keys ps) \p ->
                  recordErrorLoc (Just r) (FunctorInstanceMissingArgument p)
-               pure (UseArgs done)
+               pure done
 
       P.ModuleInstanceNamedArg ll lm : more ->
         case Map.lookup (thing ll) ps of
@@ -139,6 +145,7 @@ checkArity r mf args =
                                               (recordError (MissingModParam p))
                                       pure Nothing
                                 Just a -> pure (Just (UseParameter a))
+                        P.AddParams -> pure (Just AddDeclParams)
                let next = case arg of
                             Nothing -> done
                             Just a  -> (srcRange lm, i, a) : done
@@ -150,6 +157,13 @@ checkArity r mf args =
                checkArgs done ps more
 
 
+data ArgInst = DefinedInst Subst [Decl] -- ^ Argument that defines the params
+             | ParamInst (Set TParam) [Prop] (Map Name Type)
+               -- ^ Argument that add parameters
+               -- The type parameters are in their module type parameter
+               -- form (i.e., tpFlav is TPModParam)
+
+
 {- | Check the argument to a functor parameter.
 Returns:
 
@@ -158,31 +172,45 @@ Returns:
 
   * Some declarations that define the parameters in terms of the provided
     values.
+
+  * XXX: Extra parameters for instantiation by adding params
 -}
 checkArg ::
-  (Range, ModParam, ActualArg) -> InferM (Subst, [Decl])
+  (Range, ModParam, ActualArg) -> InferM ArgInst
 checkArg (r,expect,actual') =
-  do tRens <- mapM (checkParamType r tyMap) (Map.toList (mpnTypes params))
-     let renSu = listParamSubst (concat tRens)
-
-     {- Note: the constraints from the signature are already added to the
-        constraints for the functor and they are checked all at once in
-        doFunctorInst -}
-
-
-     vDecls <- concat <$>
-                mapM (checkParamValue r vMap)
-                     [ s { mvpType = apSubst renSu (mvpType s) }
-                     | s <- Map.elems (mpnFuns params) ]
-
-     pure (renSu, vDecls)
-
-
-
+  case actual' of
+    AddDeclParams   -> paramInst
+    UseParameter {} -> definedInst
+    UseModule {}    -> definedInst
 
   where
+  paramInst =
+    do let as = Set.fromList (map mtpParam (Map.elems (mpnTypes params)))
+           cs = map thing (mpnConstraints params)
+           check = checkSimpleParameterValue r (mpName expect)
+       fs <- Map.mapMaybeWithKey (\_ v -> v) <$> mapM check (mpnFuns params)
+       pure (ParamInst as cs fs)
+
+  definedInst =
+    do tRens <- mapM (checkParamType r tyMap) (Map.toList (mpnTypes params))
+       let renSu = listParamSubst (concat tRens)
+
+       {- Note: the constraints from the signature are already added to the
+          constraints for the functor and they are checked all at once in
+          doFunctorInst -}
+
+
+       vDecls <- concat <$>
+                  mapM (checkParamValue r vMap)
+                       [ s { mvpType = apSubst renSu (mvpType s) }
+                       | s <- Map.elems (mpnFuns params) ]
+
+       pure (DefinedInst renSu vDecls)
+
+
   params = mpParameters expect
 
+  -- Things provided by the argument module
   tyMap :: Map Ident (Kind, Type)
   vMap  :: Map Ident (Name, Schema)
   (tyMap,vMap) =
@@ -209,12 +237,15 @@ checkArg (r,expect,actual') =
         localNames      = ifsPublic (ifNames actual)
         isLocal x       = x `Set.member` localNames
 
+        -- Things defined by the argument module
         decls           = filterIfaceDecls isLocal (ifDefines actual)
 
         fromD d         = (ifDeclName d, ifDeclSig d)
         fromTS ts       = (kindOf ts, tsDef ts)
         fromNewtype nt  = (kindOf nt, TNewtype nt [])
         fromPrimT pt    = (kindOf pt, TCon (abstractTypeTC pt) [])
+
+      AddDeclParams -> panic "checkArg" ["AddDeclParams"]
 
 
 
@@ -272,6 +303,24 @@ checkParamValue r vMap mp =
                          }
 
             pure [d]
+
+
+
+checkSimpleParameterValue ::
+  Range                       {- ^ Location for error reporting -} ->
+  Ident                       {- ^ Name of functor parameter -} ->
+  ModVParam                   {- ^ Module parameter -} ->
+  InferM (Maybe Type)  {- ^ Type to add to things, `Nothing` on err -}
+checkSimpleParameterValue r i mp =
+  case (sVars sch, sProps sch) of
+    ([],[]) -> pure (Just (sType sch))
+    _ ->
+      do recordErrorLoc (Just r)
+            (FunctorInstanceBadBacktickArgument i (nameIdent (mvpName mp)))
+         pure Nothing
+  where
+  sch = mvpType mp
+
 
 {- | Make an "adaptor" that instantiates the paramter into the form expected
 by the functor.  If the actual type is:

@@ -282,9 +282,6 @@ data ModuleInstanceArgs name =
 
   | NamedInstArgs  [ModuleInstanceNamedArg name]
 
-  | BacktickInstance
-    -- ^ The module instance is computed by adding the functor arguments
-    -- as explicit parameters to all declarations.
     deriving (Show, Generic, NFData)
 
 -- | A named argument in a functor instantiation
@@ -296,6 +293,8 @@ data ModuleInstanceNamedArg name =
 data ModuleInstanceArg name =
     ModuleArg (ImpName name)  -- ^ An argument that is a module
   | ParameterArg Ident        -- ^ An argument that is a parameter
+  | AddParams                 -- ^ Arguments adds extra parameters to decls.
+                              -- ("backtick" import)
     deriving (Show, Generic, NFData)
 
 
@@ -867,7 +866,6 @@ instance (Show name, PPName name) => PP (ModuleInstanceArgs name) where
       DefaultInstArg x -> braces (pp (thing x))
       DefaultInstAnonArg ds -> "where" $$ indent 2 (vcat (map pp ds))
       NamedInstArgs xs -> braces (commaSep (map pp xs))
-      BacktickInstance -> "{}"
 
 instance (Show name, PPName name) => PP (ModuleInstanceNamedArg name) where
   ppPrec _ (ModuleInstanceNamedArg x y) = pp (thing x) <+> "=" <+> pp (thing y)
@@ -876,8 +874,9 @@ instance (Show name, PPName name) => PP (ModuleInstanceNamedArg name) where
 instance (Show name, PPName name) => PP (ModuleInstanceArg name) where
   ppPrec _ arg =
     case arg of
-      ModuleArg x -> pp x
+      ModuleArg x    -> pp x
       ParameterArg i -> "parameter" <+> pp i
+      AddParams      -> "{}"
 
 
 instance (Show name, PPName name) => PP (Program name) where
@@ -1363,7 +1362,6 @@ instance NoPos (ModuleInstanceArgs name) where
       DefaultInstArg a      -> DefaultInstArg (noPos a)
       DefaultInstAnonArg ds -> DefaultInstAnonArg (noPos ds)
       NamedInstArgs xs      -> NamedInstArgs (noPos xs)
-      BacktickInstance      -> BacktickInstance
 
 instance NoPos (ModuleInstanceNamedArg name) where
   noPos (ModuleInstanceNamedArg x y) =
