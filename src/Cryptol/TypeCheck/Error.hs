@@ -155,8 +155,7 @@ data Error    = KindMismatch (Maybe TypeSource) Kind Kind
               | FunctorInstanceMissingArgument Ident
               | FunctorInstanceBadArgument Ident
               | FunctorInstanceMissingName Namespace Ident
-              | FunctorInstanceBadBacktickArgument Ident Ident
-                -- ^ Name of functor argument, name of bad value
+              | FunctorInstanceBadBacktick BadBacktickInstance
 
               | UnsupportedFFIKind TypeSource TParam Kind
                 -- ^ Kind is not supported for FFI
@@ -180,6 +179,14 @@ data Error    = KindMismatch (Maybe TypeSource) Kind Kind
                 -- implementation.
                 deriving (Show, Generic, NFData)
 
+data BadBacktickInstance =
+    BIPolymorphicArgument Ident Ident
+  | BINested [(BIWhat, Name)]
+    deriving (Show, Generic, NFData)
+
+data BIWhat = BIFunctor | BIInterface | BIPrimitive | BIForeign | BIAbstractType
+    deriving (Show, Generic, NFData)
+
 -- | When we have multiple errors on the same location, we show only the
 -- ones with the has highest rating according to this function.
 errorImportance :: Error -> Int
@@ -193,7 +200,7 @@ errorImportance err =
     MissingModParam {}                                -> 10
     FunctorInstanceBadArgument {}                     -> 10
     FunctorInstanceMissingName {}                     ->  9
-    FunctorInstanceBadBacktickArgument {}             ->  9
+    FunctorInstanceBadBacktick {}                     ->  9
 
 
     KindMismatch {}                                  -> 10
@@ -300,7 +307,7 @@ instance TVars Error where
       FunctorInstanceMissingArgument {} -> err
       FunctorInstanceBadArgument {} -> err
       FunctorInstanceMissingName {} -> err
-      FunctorInstanceBadBacktickArgument {} -> err
+      FunctorInstanceBadBacktick {} -> err
 
       UnsupportedFFIKind {}    -> err
       UnsupportedFFIType src e -> UnsupportedFFIType src !$ apSubst su e
@@ -349,7 +356,7 @@ instance FVS Error where
       FunctorInstanceMissingArgument {} -> Set.empty
       FunctorInstanceBadArgument {} -> Set.empty
       FunctorInstanceMissingName {} -> Set.empty
-      FunctorInstanceBadBacktickArgument {} -> Set.empty
+      FunctorInstanceBadBacktick {} -> Set.empty
 
       UnsupportedFFIKind {}  -> Set.empty
       UnsupportedFFIType _ t -> fvs t
@@ -567,14 +574,32 @@ instance PP (WithNames Error) where
               NSType      -> "type"
               NSModule    -> "module"
 
-      FunctorInstanceBadBacktickArgument i x ->
-        nested "Value parameter may not have a polymorphic type:" $
-          vcat
-            [ "Module parameter:" <+> pp i
-            , "Value parameter:" <+> pp x
-            , "When instantiatiating a functor using parameterization,"
-            , "the value parameters need to have a simple type."
-            ]
+      FunctorInstanceBadBacktick bad ->
+        case bad of
+          BIPolymorphicArgument i x ->
+            nested "Value parameter may not have a polymorphic type:" $
+              bullets
+                [ "Module parameter:" <+> pp i
+                , "Value parameter:" <+> pp x
+                , "When instantiatiating a functor using parameterization,"
+                  $$ "the value parameters need to have a simple type."
+                ]
+
+          BINested what ->
+            nested "Invalid declarations in parameterized instantiation:" $
+              bullets $
+                [ it <+> pp n
+                | (w,n) <- what
+                , let it = case w of
+                             BIFunctor -> "functor"
+                             BIInterface -> "interface"
+                             BIPrimitive -> "primitive"
+                             BIAbstractType -> "abstract type"
+                             BIForeign -> "foreign import"
+                ] ++
+                [ "A functor instantiated using parameterization," $$
+                  "may not contain nested functors, interfaces, or primitives."
+                ]
 
       UnsupportedFFIKind src param k ->
         nested "Kind of type variable unsupported for FFI: " $

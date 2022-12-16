@@ -196,6 +196,8 @@ namedModInstParam          :: { ModuleInstanceNamedArg PName }
 modInstParam               :: { Located (ModuleInstanceArg PName) }
   : impName                   { fmap ModuleArg $1 }
   | 'interface' ident         { fmap ParameterArg $2 }
+  | '_'                       { Located { thing    = AddParams
+                                        , srcRange = $1 } }
 
 vmod_body                  :: { [TopDecl PName] }
   : vtop_decls                { reverse $1 }

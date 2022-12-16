@@ -39,7 +39,7 @@ import           Control.DeepSeq
 import           MonadLib hiding (mapM)
 
 import           Cryptol.ModuleSystem.Name
-                    (FreshM(..),Supply,mkLocal
+                    (FreshM(..),Supply,mkLocal,asLocal
                     , nameInfo, NameInfo(..),NameSource(..), nameTopModule)
 import qualified Cryptol.ModuleSystem.Interface as If
 import           Cryptol.Parser.Position
@@ -605,7 +605,7 @@ checkParamKind :: TParam -> TPFlavor -> Kind -> InferM ()
 
 checkParamKind tp flav k =
     case flav of
-      TPModParam _     -> return () -- All kinds allowed as module parameters
+      TPModParam _     -> starOrHash
       TPPropSynParam _ -> starOrHashOrProp
       TPTySynParam _   -> starOrHash
       TPSchemaParam _  -> starOrHash
@@ -645,6 +645,19 @@ newTParam nm flav k =
 
      checkParamKind tp flav k
      return tp
+
+-- | Generate a new version of a type parameter.  We use this when
+-- instantiating module parameters (the "backtick" imports)
+freshTParam :: (Name -> TPFlavor) -> TParam -> InferM TParam
+freshTParam mkF tp = newName \s ->
+  let u = seedTVar s
+  in ( tp { tpUnique = u
+          , tpFlav   = case tpName tp of
+                         Just n -> mkF (asLocal NSType n)
+                         Nothing -> tpFlav tp -- shouldn't happen?
+          }
+     , s  { seedTVar = u + 1 }
+     )
 
 
 -- | Generate an unknown type.  The doc is a note about what is this type about.

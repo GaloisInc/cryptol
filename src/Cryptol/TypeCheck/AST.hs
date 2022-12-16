@@ -19,7 +19,7 @@ module Cryptol.TypeCheck.AST
   , Name()
   , TFun(..)
   , Selector(..)
-  , Import, ImportG(..)
+  , Import, ImportG(..), ImpName(..)
   , ImportSpec(..)
   , ExportType(..)
   , ExportSpec(..), isExportedBind, isExportedType, isExported
@@ -41,7 +41,9 @@ import Cryptol.ModuleSystem.Exports(ExportSpec(..)
 import Cryptol.Parser.AST ( Selector(..),Pragma(..)
                           , Import
                           , ImportG(..), ImportSpec(..), ExportType(..)
-                          , Fixity(..))
+                          , Fixity(..)
+                          , ImpName(..)
+                          )
 import Cryptol.Utils.RecordMap
 import Cryptol.TypeCheck.FFI.FFIType
 import Cryptol.TypeCheck.PP

@@ -30,7 +30,7 @@ import Cryptol.TypeCheck.ModuleBacktickInstance(doBacktickInstance)
 
 doFunctorInst ::
   Located (P.ImpName Name)    {- ^ Name for the new module -} ->
-  Located (P.ImpName Name)    {- ^ Functor being instantiation -} ->
+  Located (P.ImpName Name)    {- ^ Functor being instantiated -} ->
   P.ModuleInstanceArgs Name   {- ^ Instance arguments -} ->
   Map Name Name
   {- ^ Instantitation.  These is the renaming for the functor that arises from
@@ -316,7 +316,8 @@ checkSimpleParameterValue r i mp =
     ([],[]) -> pure (Just (sType sch))
     _ ->
       do recordErrorLoc (Just r)
-            (FunctorInstanceBadBacktickArgument i (nameIdent (mvpName mp)))
+            (FunctorInstanceBadBacktick
+               (BIPolymorphicArgument i (nameIdent (mvpName mp))))
          pure Nothing
   where
   sch = mvpType mp

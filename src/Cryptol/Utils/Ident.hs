@@ -15,6 +15,7 @@ module Cryptol.Utils.Ident
     ModPath(..)
   , apPathRoot
   , modPathCommon
+  , modPathIsOrContains
   , topModuleFor
   , modPathSplit
   , modPathIsNormal
@@ -126,6 +127,14 @@ modPathCommon p1 p2
     case (xs,ys) of
       (x:xs',y:ys') | x == y -> findCommon (Nested com x) xs' ys'
       _                      -> (com, xs, ys)
+
+-- | Does the first module path contain the second?
+-- This returns true if the paths are the same.
+modPathIsOrContains :: ModPath -> ModPath -> Bool
+modPathIsOrContains p1 p2 =
+  case modPathCommon p1 p2 of
+    Just (_,[],_) -> True
+    _ -> False
 
 modPathSplit :: ModPath -> (ModName, [Ident])
 modPathSplit p0 = (top,reverse xs)
