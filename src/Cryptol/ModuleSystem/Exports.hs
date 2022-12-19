@@ -11,7 +11,7 @@ import Control.DeepSeq(NFData)
 import GHC.Generics (Generic)
 
 import Cryptol.Parser.AST
-import Cryptol.Parser.Names(namesD,tnamesD,tnamesNT)
+import Cryptol.Parser.Names(namesD,tnamesD,namesNT,tnamesNT)
 import Cryptol.ModuleSystem.Name
 
 exportedDecls :: Ord name => [TopDecl name] -> ExportSpec name
@@ -23,7 +23,8 @@ exportedNames decl =
       Decl td -> map exportBind  (names  namesD td)
               ++ map exportType (names tnamesD td)
       DPrimType t -> [ exportType (thing . primTName <$> t) ]
-      TDNewtype nt -> map exportType (names tnamesNT nt)
+      TDNewtype nt -> map exportType (names tnamesNT nt) ++
+                      map exportBind (names namesNT nt)
       Include {}  -> []
       DImport {} -> []
       DParamDecl {} -> []

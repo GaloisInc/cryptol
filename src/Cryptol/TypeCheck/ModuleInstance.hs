@@ -9,7 +9,6 @@ import qualified Data.Set as Set
 import Cryptol.Parser.Position(Located)
 import Cryptol.ModuleSystem.Interface(IfaceNames(..))
 import Cryptol.IR.TraverseNames(TraverseNames,mapNames)
-import Cryptol.Parser.AST(ImpName(..))
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Subst(Subst,TVars,apSubst)
 
@@ -97,6 +96,7 @@ instance ModuleInstance Newtype where
     Newtype { ntName        = moduleInstance (ntName nt)
             , ntParams      = ntParams nt
             , ntConstraints = moduleInstance (ntConstraints nt)
+            , ntConName     = moduleInstance (ntConName nt)
             , ntFields      = moduleInstance <$> ntFields nt
             , ntDoc         = ntDoc nt
             }

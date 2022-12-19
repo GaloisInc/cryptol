@@ -490,10 +490,12 @@ data Pragma   = PragmaNote String
               | PragmaProperty
                 deriving (Eq, Show, Generic, NFData)
 
-data Newtype name = Newtype { nName   :: Located name        -- ^ Type name
-                            , nParams :: [TParam name]       -- ^ Type params
-                            , nBody   :: Rec (Type name)     -- ^ Body
-                            } deriving (Eq, Show, Generic, NFData)
+data Newtype name = Newtype
+  { nName     :: Located name        -- ^ Type name
+  , nParams   :: [TParam name]       -- ^ Type params
+  , nConName  :: !name               -- ^ Constructor function name
+  , nBody     :: Rec (Type name)     -- ^ Body
+  } deriving (Eq, Show, Generic, NFData)
 
 -- | A declaration for a type with no implementation.
 data PrimType name = PrimType { primTName :: Located name
@@ -1440,9 +1442,10 @@ instance NoPos (Decl name) where
       DLocated   x _   -> noPos x
 
 instance NoPos (Newtype name) where
-  noPos n = Newtype { nName   = noPos (nName n)
-                    , nParams = nParams n
-                    , nBody   = fmap noPos (nBody n)
+  noPos n = Newtype { nName     = noPos (nName n)
+                    , nParams   = nParams n
+                    , nConName  = nConName n
+                    , nBody     = fmap noPos (nBody n)
                     }
 
 instance NoPos (Bind name) where

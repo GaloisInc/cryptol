@@ -873,11 +873,14 @@ instance Rename Decl where
 instance Rename Newtype where
   rename n      =
     shadowNames (nParams n) $
-    do name' <- rnLocated (renameType NameBind) (nName n)
-       depsOf (NamedThing (thing name')) $
+    do nameT <- rnLocated (renameType NameBind) (nName n)
+       nameC <- renameVar  NameBind (nConName n)
+
+       depsOf (NamedThing (thing nameT)) $
          do ps'   <- traverse rename (nParams n)
             body' <- traverse (traverse rename) (nBody n)
-            return Newtype { nName   = name'
+            return Newtype { nName   = nameT
+                           , nConName = nameC
                            , nParams = ps'
                            , nBody   = body' }
 

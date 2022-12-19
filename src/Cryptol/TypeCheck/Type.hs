@@ -315,6 +315,7 @@ data TySyn  = TySyn { tsName        :: Name       -- ^ Name
 data Newtype  = Newtype { ntName   :: Name
                         , ntParams :: [TParam]
                         , ntConstraints :: [Prop]
+                        , ntConName :: !Name
                         , ntFields :: RecordMap Ident Type
                         , ntDoc :: Maybe Text
                         } deriving (Show, Generic, NFData)

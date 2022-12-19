@@ -467,9 +467,9 @@ propguards_quals                   :: { [Located (Prop PName)] }
 
 newtype                 :: { Newtype PName }
   : 'newtype' qname '=' newtype_body
-                           { Newtype $2 [] (thing $4) }
+                           { Newtype $2 [] (thing $2) (thing $4) }
   | 'newtype' qname tysyn_params '=' newtype_body
-                           { Newtype $2 (reverse $3) (thing $5) }
+                           { Newtype $2 (reverse $3) (thing $2) (thing $5) }
 
 newtype_body            :: { Located (RecordMap Ident (Range, Type PName)) }
   : '{' '}'                {% mkRecord (rComb $1 $2) (Located emptyRange) [] }

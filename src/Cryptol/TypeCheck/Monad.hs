@@ -56,7 +56,7 @@ import           Cryptol.TypeCheck.Error( Warning(..),Error(..)
 import qualified Cryptol.TypeCheck.SimpleSolver as Simple
 import qualified Cryptol.TypeCheck.Solver.SMT as SMT
 import           Cryptol.TypeCheck.PP(NameMap)
-import           Cryptol.Utils.PP(pp, (<+>), text,commaSep,brackets)
+import           Cryptol.Utils.PP(pp, (<+>), text,commaSep,brackets,debugShowUniques)
 import           Cryptol.Utils.Ident(Ident,Namespace(..),ModName)
 import           Cryptol.Utils.Panic(panic)
 
@@ -129,7 +129,10 @@ runInferM info m0 =
      let allPs = inpParams info
 
      let env = Map.map ExtVar (inpVars info)
-            <> Map.map (ExtVar . newtypeConType) (inpNewtypes info)
+            <> Map.fromList
+              [ (ntConName nt, ExtVar (newtypeConType nt))
+              | nt <- Map.elems (inpNewtypes info)
+              ]
             <> Map.map (ExtVar . mvpType) (mpnFuns allPs)
 
      let ro =         RO { iRange     = inpRange info
@@ -774,7 +777,7 @@ lookupVar x =
                    panic "lookupVar" $ [ "Undefined vairable"
                                      , show x
                                      , "IVARS"
-                                     ] ++ map (show . pp) (Map.keys mp)
+                                     ] ++ map (show . debugShowUniques . pp) (Map.keys mp)
 
 -- | Lookup a type variable.  Return `Nothing` if there is no such variable
 -- in scope, in which case we must be dealing with a type constant.
@@ -1150,7 +1153,7 @@ addTySyn t =
 addNewtype :: Newtype -> InferM ()
 addNewtype t =
   do updScope \r -> r { mNewtypes = Map.insert (ntName t) t (mNewtypes r) }
-     IM $ sets_ \rw -> rw { iBindTypes = Map.insert (ntName t)
+     IM $ sets_ \rw -> rw { iBindTypes = Map.insert (ntConName t)
                                                     (newtypeConType t)
                                                     (iBindTypes rw) }
 
