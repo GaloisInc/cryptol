@@ -1040,6 +1040,17 @@ mkSelector tok =
     Selector (RecordSelectorTok t) -> RecordSel (mkIdent t) Nothing
     _ -> panic "mkSelector" [ "Unexpected selector token", show tok ]
 
+mkBacktickImport ::
+  Range ->
+  Located (ImpName PName) ->
+  Maybe (Located ModName) ->
+  Maybe (Located ImportSpec) ->
+  ParseM (Located (ImportG (ImpName PName)))
+mkBacktickImport loc impName mbAs mbImportSpec =
+  mkImport loc impName (Just inst) mbAs mbImportSpec Nothing
+  where
+  inst = DefaultInstArg (fmap (const AddParams) impName)
+
 
 mkImport ::
   Range ->

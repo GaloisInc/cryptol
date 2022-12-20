@@ -215,6 +215,7 @@ imports1                  :: { [ Located (ImportG (ImpName PName)) ] }
 import                          :: { Located (ImportG (ImpName PName)) }
   : 'import' impName optInst mbAs mbImportSpec optImportWhere
                               {% mkImport $1 $2 $3 $4 $5 $6 }
+  | 'import' impNameBT mbAs mbImportSpec {% mkBacktickImport $1 $2 $3 $4 }
 
 optImportWhere             :: { Maybe (Located [Decl PName]) }
   : 'where' whereClause       { Just $2 }
@@ -224,9 +225,16 @@ optInst                    :: { Maybe (ModuleInstanceArgs PName) }
   : '{' modInstParams '}'     { Just $2 }
   | {- empty -}               { Nothing }
 
+
 impName                    :: { Located (ImpName PName) }
   : 'submodule' qname         { ImpNested `fmap` $2 }
   | modName                   { ImpTop `fmap` $1 }
+
+impNameBT                  :: { Located (ImpName PName) }
+  : 'submodule' '`' qname     { ImpNested `fmap` $3 }
+  | '`' modName               { ImpTop `fmap` $2 }
+
+
 
 
 mbAs                       :: { Maybe (Located ModName) }
@@ -880,8 +888,6 @@ smodName                       :: { Located ModName }
 modName                        :: { Located ModName }
   : smodName                      { $1 }
   | 'module' smodName             { $2 }
-  | '`' smodName                  {% errorMessage $1 ["Backtick module imports are no longer supported."] }
-
 
 qname                          :: { Located PName }
   : name                          { $1 }
