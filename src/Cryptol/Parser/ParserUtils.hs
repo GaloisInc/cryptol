@@ -909,20 +909,32 @@ mkInterfaceConstraint mbDoc ty =
      pure [DInterfaceConstraint (thing <$> mbDoc) ps]
 
 mkParDecls :: [ParamDecl PName] -> TopDecl PName
-mkParDecls ds = DParamDecl loc (mkInterface [] ds)
+mkParDecls ds = DParamDecl loc (mkInterface' [] ds)
   where loc = rCombs (mapMaybe getLoc ds)
 
-mkInterface :: [Located (ImportG (ImpName PName))] ->
-             [ParamDecl PName] -> Signature PName
-mkInterface is =
-  foldl' add
-  Signature { sigImports     = is
-            , sigTypeParams  = []
-            , sigDecls       = []
-            , sigConstraints = []
-            , sigFunParams   = []
-            }
+onlySimpleImports :: [Located (ImportG (ImpName PName))] -> ParseM ()
+onlySimpleImports = mapM_ check
+  where
+  check i =
+    case iInst (thing i) of
+      Nothing -> pure ()
+      Just _  ->
+        errorMessage (srcRange i)
+          [ "Functor instantiations are not supported in this context."
+          , "The imported entity needs to be just the name of a module."
+          , "A workaround would be to do the instantion in the outer context."
+          ]
 
+mkInterface' :: [Located (ImportG (ImpName PName))] ->
+             [ParamDecl PName] -> Signature PName
+mkInterface' is =
+  foldl' add
+    Signature { sigImports     = is
+              , sigTypeParams  = []
+              , sigDecls       = []
+              , sigConstraints = []
+              , sigFunParams   = []
+              }
   where
   add s d =
     case d of
@@ -930,6 +942,14 @@ mkInterface is =
       DParameterConstraint ps -> s { sigConstraints = ps ++ sigConstraints s }
       DParameterDecl pd       -> s { sigDecls       = pd  : sigDecls s       }
       DParameterFun pf        -> s { sigFunParams   = pf  : sigFunParams s   }
+
+
+
+mkInterface :: [Located (ImportG (ImpName PName))] ->
+             [ParamDecl PName] -> ParseM (Signature PName)
+mkInterface is ps =
+  do onlySimpleImports is
+     pure (mkInterface' is ps)
 
 mkIfacePropSyn :: Maybe Text -> Decl PName -> ParamDecl PName
 mkIfacePropSyn mbDoc d =
