@@ -1,0 +1,6 @@
+module T036 where
+
+import T036_B
+
+x = T { x = 0 }
+
