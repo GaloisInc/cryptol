@@ -7,7 +7,6 @@
 -- Portability :  portable
 
 {-# LANGUAGE PatternGuards, BangPatterns, RecordWildCards #-}
-{-# LANGUAGE Safe #-}
 module Cryptol.TypeCheck.Solve
   ( simplifyAllConstraints
   , proveImplication
