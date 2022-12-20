@@ -857,7 +857,7 @@ lookupModule iname =
       do localMods <- getScope mSubmodules
          case Map.lookup m localMods of
            Just names ->
-              do n <- genIfaceWithNames names <$> getCurScope
+              do n <- genIfaceWithNames names <$> getCurDecls
                  pure (If.ifaceForgetName n)
 
            Nothing ->
@@ -1128,12 +1128,38 @@ getScope f =
      rw <- IM get
      pure (sconcat (f (iExtScope ro) :| map f (iScope rw)))
 
-getCurScope :: InferM (ModuleG ScopeName)
-getCurScope =
-  do rw <- IM get
-     case iScope rw of
-       m : _ -> pure m
-       []    -> panic "getCurScope" ["No current scope."]
+getCurDecls :: InferM (ModuleG ())
+getCurDecls =
+  do ro <- IM ask
+     rw <- IM get
+     pure (foldr (\m1 m2 -> mergeDecls (forget m1) m2)
+                (forget (iExtScope ro)) (iScope rw))
+
+  where
+  forget m = m { mName = () }
+
+  mergeDecls m1 m2 =
+    Module
+      { mName             = ()
+      , mDoc              = Nothing
+      , mExports          = mempty
+      , mParams           = mempty
+      , mParamTypes       = mempty
+      , mParamConstraints = mempty
+      , mParamFuns        = mempty
+      , mNested           = mempty
+
+      , mTySyns           = uni mTySyns
+      , mNewtypes         = uni mNewtypes
+      , mPrimTypes        = uni mPrimTypes
+      , mDecls            = uni mDecls
+      , mSubmodules       = uni mSubmodules
+      , mFunctors         = uni mFunctors
+      , mSignatures       = uni mSignatures
+      }
+    where
+    uni f = f m1 <> f m2
+
 
 addDecls :: DeclGroup -> InferM ()
 addDecls ds =
