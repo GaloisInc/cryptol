@@ -364,7 +364,7 @@ mkParamDef r (pname,wantedS) (arg,actualS) =
      let res  = foldr ETAbs     res1            (sVars wantedS)
          res1 = foldr EProofAbs (apSubst su e)  (sProps wantedS)
 
-     pure res
+     applySubst res
 
 
 
