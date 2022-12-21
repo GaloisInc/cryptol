@@ -3,16 +3,18 @@
 {-# Language RecursiveDo #-}
 {-# Language BlockArguments #-}
 {-# Language RankNTypes #-}
+{-# Language OverloadedStrings #-}
 module Cryptol.TypeCheck.ModuleBacktickInstance where
 
 import Data.Map(Map)
 import qualified Data.Map as Map
 import MonadLib
 
-import Cryptol.Utils.Ident(ModPath(..), modPathIsOrContains,Namespace(..))
+import Cryptol.Utils.Ident(ModPath(..), modPathIsOrContains,Namespace(..),
+                                                                    mkIdent)
 import Cryptol.Utils.PP(pp)
 import Cryptol.Utils.Panic(panic)
-import Cryptol.Utils.RecordMap(RecordMap)
+import Cryptol.Utils.RecordMap(RecordMap,recordFromFields,recordFromFieldsErr)
 import Cryptol.Parser.Position
 import Cryptol.ModuleSystem.Name(nameModPath, nameModPathMaybe, nameIdent)
 import Cryptol.TypeCheck.AST
@@ -40,7 +42,7 @@ doBacktickInstance as ps mp m
                             Just y  -> ourPath `modPathIsOrContains` y
          , tparams = as
          , constraints = ps
-         , vparams = Map.toList mp
+         , vparams = mp
          , newNewtypes = Map.empty
          }
 
@@ -82,7 +84,7 @@ data RO = RO
   { isOurs       :: Name -> Bool
   , tparams      :: [TParam]
   , constraints  :: [Prop]
-  , vparams      :: [(Name,Type)]
+  , vparams      :: Map Name Type
   , newNewtypes  :: Map Name Newtype
   }
 
@@ -164,6 +166,13 @@ data Params decl use = Params
   , pSubst  :: Map decl use
   }
 
+noParams :: Params decl use
+noParams = Params
+  { pDecl   = []
+  , pUse    = []
+  , pSubst  = Map.empty
+  }
+
 type TypeParams = Params TParam Type
 type ValParams  = Params Name   Expr
 
@@ -177,22 +186,38 @@ newTypeParams flav =
      cs <- rewTypeM ps (constraints ro)
      pure (ps,cs)
 
+-- Note: we pass all value parameters as a record
 newValParams :: TypeParams -> RewM (ValParams, [(Name,Type)])
 newValParams tps =
   do ro <- ask
-     (xs,ys,ts) <-
-       unzip3 <$>
-         forM (vparams ro) \(x,t) ->
-           do y <- lift (TC.newLocalName NSValue (nameIdent x))
-              t1 <- rewTypeM tps t
-              pure (x,y,t1)
-     let us = map EVar ys
-         ps = Params { pDecl  = ys
-                     , pUse   = us
-                     , pSubst = Map.fromList (zip xs us)
-                     }
-     pure (ps, zip ys ts)
+     let vps = vparams ro
+     if Map.null vps
+       then pure (noParams, [])
+       else do xts <- forM (Map.toList vps) \(x,t) ->
+                        do t1 <- rewTypeM tps t
+                           pure (x,t1)
+               let (xs,ts) = unzip xts
+                   ls      = map nameIdent xs
+                   fs      = zip ls ts
+                   sel x   = RecordSel (nameIdent x) (Just ls)
 
+               t <- case recordFromFieldsErr fs of
+                      Right ok -> pure (TRec ok)
+                      Left (x,_) ->
+                        do recordError (FunctorInstanceBadBacktick
+                                          (BIMultipleParams x))
+                           pure (TRec (recordFromFields fs))
+
+               r <- lift (TC.newLocalName NSValue (mkIdent "params"))
+               let e = EVar r
+               pure
+                 ( Params
+                     { pDecl  = [r]
+                     , pUse   = [e]
+                     , pSubst = Map.fromList [ (x,ESel e (sel x)) | x <- xs ]
+                     }
+                 , [ (r,t) ]
+                 )
 
 liftRew ::
   ((?isOurs :: Name -> Bool, ?newNewtypes :: Map Name Newtype) => a) ->

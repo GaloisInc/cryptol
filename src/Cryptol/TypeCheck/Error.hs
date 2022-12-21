@@ -182,6 +182,7 @@ data Error    = KindMismatch (Maybe TypeSource) Kind Kind
 data BadBacktickInstance =
     BIPolymorphicArgument Ident Ident
   | BINested [(BIWhat, Name)]
+  | BIMultipleParams Ident
     deriving (Show, Generic, NFData)
 
 data BIWhat = BIFunctor | BIInterface | BIPrimitive | BIForeign | BIAbstractType
@@ -600,6 +601,13 @@ instance PP (WithNames Error) where
                 [ "A functor instantiated using parameterization," $$
                   "may not contain nested functors, interfaces, or primitives."
                 ]
+          BIMultipleParams x ->
+            nested "Repeated parameter name in parameterized instantiation:" $
+              bullets
+                [ "Parameter name:" <+> pp x
+                , "Parameterized instantiation requires distinct parameter names"
+                ]
+                
 
       UnsupportedFFIKind src param k ->
         nested "Kind of type variable unsupported for FFI: " $

@@ -1,0 +1,7 @@
+module T9::Main where
+
+import `T9::A
+
+main = f { x = 0x10 }
+
+

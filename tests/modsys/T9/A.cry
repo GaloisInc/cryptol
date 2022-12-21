@@ -1,0 +1,10 @@
+module T9::A where
+
+parameter
+  type n : #
+  type constraint (fin n)
+  x : [n]
+
+f : [n+n]
+f = x # x
+
