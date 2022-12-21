@@ -9,6 +9,8 @@ module Cryptol.TypeCheck.ModuleBacktickInstance where
 import Data.Map(Map)
 import qualified Data.Map as Map
 import MonadLib
+import Data.List(group,sort)
+import Data.Maybe(mapMaybe)
 
 import Cryptol.Utils.Ident(ModPath(..), modPathIsOrContains,Namespace(..),
                                                                     mkIdent)
@@ -181,6 +183,12 @@ newTypeParams :: (Name -> TPFlavor) -> RewM (TypeParams,[Prop])
 newTypeParams flav =
   do ro <- ask
      as <- lift (mapM (TC.freshTParam flav) (tparams ro))
+     let bad = [ x
+               | x : _ : _ <- group (sort (map nameIdent (mapMaybe tpName as)))
+               ]
+     forM_ bad \i ->
+       recordError (FunctorInstanceBadBacktick (BIMultipleParams i))
+
      let ts = map (TVar . TVBound) as
          su = Map.fromList (zip (tparams ro) ts)
          ps = Params { pDecl = as, pUse = ts, pSubst = su }
