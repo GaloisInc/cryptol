@@ -137,6 +137,7 @@ instance AddParams Decl where
            let s = dSignature d
 
            ty1 <- rewTypeM tps (sType s)
+           ps1 <- rewTypeM tps (sProps s)
            let ty2 = foldr tFun ty1 (map snd bs)
 
            e1 <- rewValM tps (length cs) vps e
@@ -148,7 +149,7 @@ instance AddParams Decl where
 
                s1 = Forall
                       { sVars  = pDecl tps ++ sVars s
-                      , sProps = cs ++ sProps s
+                      , sProps = cs ++ ps1
                       , sType  = ty2
                       }
 
