@@ -209,14 +209,16 @@ instance TraverseNames Newtype where
   traverseNamesIP nt = mk <$> traverseNamesIP (ntName nt)
                           <*> traverseNamesIP (ntParams nt)
                           <*> traverseNamesIP (ntConstraints nt)
+                          <*> traverseNamesIP (ntConName nt)
                           <*> traverseRecordMap (\_ -> traverseNamesIP)
                                                 (ntFields nt)
     where
-    mk a b c d = nt { ntName = a
-                    , ntParams = b
-                    , ntConstraints = c
-                    , ntFields = d
-                    }
+    mk a b c d e = nt { ntName = a
+                      , ntParams = b
+                      , ntConstraints = c
+                      , ntConName = d
+                      , ntFields = e
+                      }
 
 instance TraverseNames ModTParam where
   traverseNamesIP nt = mk <$> traverseNamesIP (mtpName nt)

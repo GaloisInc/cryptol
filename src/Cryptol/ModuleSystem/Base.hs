@@ -194,6 +194,11 @@ parseModule path = do
                 case as it would help guide the design. -}
              InMem {} -> pure (pms, Set.empty)
 
+{-
+         case path of
+           InFile {} -> io $ print (T.vcat (map T.pp pm1))
+           InMem {} -> pure ()
+--}
          fp `seq` return (fp, deps, pm1)
 
     Left err -> moduleParseError path err

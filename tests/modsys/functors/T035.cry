@@ -1,0 +1,23 @@
+
+submodule A where
+  newtype T = { x : Integer }
+
+submodule F where
+  parameter
+    type n : #
+    type constraint (fin n)
+
+  newtype X = { x : [n] }
+  f : X -> X
+  f x = x
+
+submodule M = submodule F { _ }
+submodule N = submodule F { _ }
+
+import submodule M as M
+import submodule N as N
+
+// This is a type error because currently F's instantiation is generative
+// If we make it applicative, then we should change this test
+x = M::f (N::X { x = 0 })
+

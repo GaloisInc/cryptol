@@ -196,6 +196,8 @@ namedModInstParam          :: { ModuleInstanceNamedArg PName }
 modInstParam               :: { Located (ModuleInstanceArg PName) }
   : impName                   { fmap ModuleArg $1 }
   | 'interface' ident         { fmap ParameterArg $2 }
+  | '_'                       { Located { thing    = AddParams
+                                        , srcRange = $1 } }
 
 vmod_body                  :: { [TopDecl PName] }
   : vtop_decls                { reverse $1 }
@@ -213,6 +215,7 @@ imports1                  :: { [ Located (ImportG (ImpName PName)) ] }
 import                          :: { Located (ImportG (ImpName PName)) }
   : 'import' impName optInst mbAs mbImportSpec optImportWhere
                               {% mkImport $1 $2 $3 $4 $5 $6 }
+  | 'import' impNameBT mbAs mbImportSpec {% mkBacktickImport $1 $2 $3 $4 }
 
 optImportWhere             :: { Maybe (Located [Decl PName]) }
   : 'where' whereClause       { Just $2 }
@@ -222,9 +225,16 @@ optInst                    :: { Maybe (ModuleInstanceArgs PName) }
   : '{' modInstParams '}'     { Just $2 }
   | {- empty -}               { Nothing }
 
+
 impName                    :: { Located (ImpName PName) }
   : 'submodule' qname         { ImpNested `fmap` $2 }
   | modName                   { ImpTop `fmap` $1 }
+
+impNameBT                  :: { Located (ImpName PName) }
+  : 'submodule' '`' qname     { ImpNested `fmap` $3 }
+  | '`' modName               { ImpTop `fmap` $2 }
+
+
 
 
 mbAs                       :: { Maybe (Located ModName) }
@@ -295,9 +305,9 @@ sig_def ::                 { (Located PName, Signature PName) }
                            { ($3, $6) }
 
 sig_body                 :: { Signature PName }
-  : par_decls               { mkInterface [] $1 }
-  | imports1 'v;' par_decls { mkInterface (reverse $1) $3 }
-  | imports1 ';'  par_decls { mkInterface (reverse $1) $3 }
+  : par_decls               {% mkInterface [] $1 }
+  | imports1 'v;' par_decls {% mkInterface (reverse $1) $3 }
+  | imports1 ';'  par_decls {% mkInterface (reverse $1) $3 }
 
 
 mod_param_decl ::          { ModParam PName }
@@ -465,9 +475,9 @@ propguards_quals                   :: { [Located (Prop PName)] }
 
 newtype                 :: { Newtype PName }
   : 'newtype' qname '=' newtype_body
-                           { Newtype $2 [] (thing $4) }
+                           { Newtype $2 [] (thing $2) (thing $4) }
   | 'newtype' qname tysyn_params '=' newtype_body
-                           { Newtype $2 (reverse $3) (thing $5) }
+                           { Newtype $2 (reverse $3) (thing $2) (thing $5) }
 
 newtype_body            :: { Located (RecordMap Ident (Range, Type PName)) }
   : '{' '}'                {% mkRecord (rComb $1 $2) (Located emptyRange) [] }
@@ -878,8 +888,6 @@ smodName                       :: { Located ModName }
 modName                        :: { Located ModName }
   : smodName                      { $1 }
   | 'module' smodName             { $2 }
-  | '`' smodName                  {% errorMessage $1 ["Backtick module imports are no longer supported."] }
-
 
 qname                          :: { Located PName }
   : name                          { $1 }

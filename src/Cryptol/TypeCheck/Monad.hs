@@ -5,7 +5,6 @@
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
-{-# LANGUAGE Safe #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
@@ -39,7 +38,7 @@ import           Control.DeepSeq
 import           MonadLib hiding (mapM)
 
 import           Cryptol.ModuleSystem.Name
-                    (FreshM(..),Supply,mkLocal
+                    (FreshM(..),Supply,mkLocal,asLocal
                     , nameInfo, NameInfo(..),NameSource(..), nameTopModule)
 import qualified Cryptol.ModuleSystem.Interface as If
 import           Cryptol.Parser.Position
@@ -56,7 +55,7 @@ import           Cryptol.TypeCheck.Error( Warning(..),Error(..)
 import qualified Cryptol.TypeCheck.SimpleSolver as Simple
 import qualified Cryptol.TypeCheck.Solver.SMT as SMT
 import           Cryptol.TypeCheck.PP(NameMap)
-import           Cryptol.Utils.PP(pp, (<+>), text,commaSep,brackets)
+import           Cryptol.Utils.PP(pp, (<+>), text,commaSep,brackets,debugShowUniques)
 import           Cryptol.Utils.Ident(Ident,Namespace(..),ModName)
 import           Cryptol.Utils.Panic(panic)
 
@@ -129,7 +128,10 @@ runInferM info m0 =
      let allPs = inpParams info
 
      let env = Map.map ExtVar (inpVars info)
-            <> Map.map (ExtVar . newtypeConType) (inpNewtypes info)
+            <> Map.fromList
+              [ (ntConName nt, ExtVar (newtypeConType nt))
+              | nt <- Map.elems (inpNewtypes info)
+              ]
             <> Map.map (ExtVar . mvpType) (mpnFuns allPs)
 
      let ro =         RO { iRange     = inpRange info
@@ -605,7 +607,7 @@ checkParamKind :: TParam -> TPFlavor -> Kind -> InferM ()
 
 checkParamKind tp flav k =
     case flav of
-      TPModParam _     -> return () -- All kinds allowed as module parameters
+      TPModParam _     -> starOrHash
       TPPropSynParam _ -> starOrHashOrProp
       TPTySynParam _   -> starOrHash
       TPSchemaParam _  -> starOrHash
@@ -645,6 +647,19 @@ newTParam nm flav k =
 
      checkParamKind tp flav k
      return tp
+
+-- | Generate a new version of a type parameter.  We use this when
+-- instantiating module parameters (the "backtick" imports)
+freshTParam :: (Name -> TPFlavor) -> TParam -> InferM TParam
+freshTParam mkF tp = newName \s ->
+  let u = seedTVar s
+  in ( tp { tpUnique = u
+          , tpFlav   = case tpName tp of
+                         Just n -> mkF (asLocal NSType n)
+                         Nothing -> tpFlav tp -- shouldn't happen?
+          }
+     , s  { seedTVar = u + 1 }
+     )
 
 
 -- | Generate an unknown type.  The doc is a note about what is this type about.
@@ -761,7 +776,7 @@ lookupVar x =
                    panic "lookupVar" $ [ "Undefined vairable"
                                      , show x
                                      , "IVARS"
-                                     ] ++ map (show . pp) (Map.keys mp)
+                                     ] ++ map (show . debugShowUniques . pp) (Map.keys mp)
 
 -- | Lookup a type variable.  Return `Nothing` if there is no such variable
 -- in scope, in which case we must be dealing with a type constant.
@@ -841,7 +856,7 @@ lookupModule iname =
       do localMods <- getScope mSubmodules
          case Map.lookup m localMods of
            Just names ->
-              do n <- genIfaceWithNames names <$> getCurScope
+              do n <- genIfaceWithNames names <$> getCurDecls
                  pure (If.ifaceForgetName n)
 
            Nothing ->
@@ -1112,12 +1127,38 @@ getScope f =
      rw <- IM get
      pure (sconcat (f (iExtScope ro) :| map f (iScope rw)))
 
-getCurScope :: InferM (ModuleG ScopeName)
-getCurScope =
-  do rw <- IM get
-     case iScope rw of
-       m : _ -> pure m
-       []    -> panic "getCurScope" ["No current scope."]
+getCurDecls :: InferM (ModuleG ())
+getCurDecls =
+  do ro <- IM ask
+     rw <- IM get
+     pure (foldr (\m1 m2 -> mergeDecls (forget m1) m2)
+                (forget (iExtScope ro)) (iScope rw))
+
+  where
+  forget m = m { mName = () }
+
+  mergeDecls m1 m2 =
+    Module
+      { mName             = ()
+      , mDoc              = Nothing
+      , mExports          = mempty
+      , mParams           = mempty
+      , mParamTypes       = mempty
+      , mParamConstraints = mempty
+      , mParamFuns        = mempty
+      , mNested           = mempty
+
+      , mTySyns           = uni mTySyns
+      , mNewtypes         = uni mNewtypes
+      , mPrimTypes        = uni mPrimTypes
+      , mDecls            = uni mDecls
+      , mSubmodules       = uni mSubmodules
+      , mFunctors         = uni mFunctors
+      , mSignatures       = uni mSignatures
+      }
+    where
+    uni f = f m1 <> f m2
+
 
 addDecls :: DeclGroup -> InferM ()
 addDecls ds =
@@ -1137,7 +1178,7 @@ addTySyn t =
 addNewtype :: Newtype -> InferM ()
 addNewtype t =
   do updScope \r -> r { mNewtypes = Map.insert (ntName t) t (mNewtypes r) }
-     IM $ sets_ \rw -> rw { iBindTypes = Map.insert (ntName t)
+     IM $ sets_ \rw -> rw { iBindTypes = Map.insert (ntConName t)
                                                     (newtypeConType t)
                                                     (iBindTypes rw) }
 

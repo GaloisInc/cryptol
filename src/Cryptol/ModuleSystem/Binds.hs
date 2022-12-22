@@ -359,15 +359,13 @@ instance BindsNames (InModule (ParameterType PName)) where
        ntName <- newTop NSType ns thing Nothing srcRange
        return (singletonNS NSType thing ntName)
 
--- NOTE: we use the same name at the type and expression level, as there's only
--- ever one name introduced in the declaration. The names are only ever used in
--- different namespaces, so there's no ambiguity.
 instance BindsNames (InModule (Newtype PName)) where
   namingEnv (InModule ~(Just ns) Newtype { .. }) = BuildNamingEnv $
     do let Located { .. } = nName
-       ntName <- newTop NSType ns thing Nothing srcRange
-       -- XXX: the name reuse here is sketchy
-       return (singletonNS NSType thing ntName `mappend` singletonNS NSValue thing ntName)
+       ntName    <- newTop NSType  ns thing Nothing srcRange
+       ntConName <- newTop NSValue ns thing Nothing srcRange
+       return (singletonNS NSType thing ntName `mappend`
+               singletonNS NSValue thing ntConName)
 
 -- | The naming environment for a single declaration.
 instance BindsNames (InModule (Decl PName)) where

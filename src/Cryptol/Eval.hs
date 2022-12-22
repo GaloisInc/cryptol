@@ -319,7 +319,7 @@ evalNewtypeDecl ::
   Newtype ->
   GenEvalEnv sym ->
   SEval sym (GenEvalEnv sym)
-evalNewtypeDecl _sym nt = pure . bindVarDirect (ntName nt) (foldr tabs con (ntParams nt))
+evalNewtypeDecl _sym nt = pure . bindVarDirect (ntConName nt) (foldr tabs con (ntParams nt))
   where
   con           = PFun PPrim
 

@@ -14,8 +14,6 @@
 {-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE Safe #-}
--- {-# LANGUAGE Trustworthy #-}
 -- See Note [-Wincomplete-uni-patterns and irrefutable patterns] in Cryptol.TypeCheck.TypePat
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# LANGUAGE LambdaCase #-}
@@ -1364,6 +1362,7 @@ checkTopDecls = mapM_ checkTopDecl
                  ModParam
                    { mpName = P.mpName p
                    , mpIface = thing (P.mpSignature p)
+                   , mpQual = P.mpAs p
                    , mpParameters =
                         ModParamNames
                           { mpnTypes = Map.fromList [ (mtpName tp, tp)

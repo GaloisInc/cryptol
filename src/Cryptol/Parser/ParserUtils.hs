@@ -909,20 +909,32 @@ mkInterfaceConstraint mbDoc ty =
      pure [DInterfaceConstraint (thing <$> mbDoc) ps]
 
 mkParDecls :: [ParamDecl PName] -> TopDecl PName
-mkParDecls ds = DParamDecl loc (mkInterface [] ds)
+mkParDecls ds = DParamDecl loc (mkInterface' [] ds)
   where loc = rCombs (mapMaybe getLoc ds)
 
-mkInterface :: [Located (ImportG (ImpName PName))] ->
-             [ParamDecl PName] -> Signature PName
-mkInterface is =
-  foldl' add
-  Signature { sigImports     = is
-            , sigTypeParams  = []
-            , sigDecls       = []
-            , sigConstraints = []
-            , sigFunParams   = []
-            }
+onlySimpleImports :: [Located (ImportG (ImpName PName))] -> ParseM ()
+onlySimpleImports = mapM_ check
+  where
+  check i =
+    case iInst (thing i) of
+      Nothing -> pure ()
+      Just _  ->
+        errorMessage (srcRange i)
+          [ "Functor instantiations are not supported in this context."
+          , "The imported entity needs to be just the name of a module."
+          , "A workaround would be to do the instantion in the outer context."
+          ]
 
+mkInterface' :: [Located (ImportG (ImpName PName))] ->
+             [ParamDecl PName] -> Signature PName
+mkInterface' is =
+  foldl' add
+    Signature { sigImports     = is
+              , sigTypeParams  = []
+              , sigDecls       = []
+              , sigConstraints = []
+              , sigFunParams   = []
+              }
   where
   add s d =
     case d of
@@ -930,6 +942,14 @@ mkInterface is =
       DParameterConstraint ps -> s { sigConstraints = ps ++ sigConstraints s }
       DParameterDecl pd       -> s { sigDecls       = pd  : sigDecls s       }
       DParameterFun pf        -> s { sigFunParams   = pf  : sigFunParams s   }
+
+
+
+mkInterface :: [Located (ImportG (ImpName PName))] ->
+             [ParamDecl PName] -> ParseM (Signature PName)
+mkInterface is ps =
+  do onlySimpleImports is
+     pure (mkInterface' is ps)
 
 mkIfacePropSyn :: Maybe Text -> Decl PName -> ParamDecl PName
 mkIfacePropSyn mbDoc d =
@@ -1019,6 +1039,17 @@ mkSelector tok =
     Selector (TupleSelectorTok n) -> TupleSel n Nothing
     Selector (RecordSelectorTok t) -> RecordSel (mkIdent t) Nothing
     _ -> panic "mkSelector" [ "Unexpected selector token", show tok ]
+
+mkBacktickImport ::
+  Range ->
+  Located (ImpName PName) ->
+  Maybe (Located ModName) ->
+  Maybe (Located ImportSpec) ->
+  ParseM (Located (ImportG (ImpName PName)))
+mkBacktickImport loc impName mbAs mbImportSpec =
+  mkImport loc impName (Just inst) mbAs mbImportSpec Nothing
+  where
+  inst = DefaultInstArg (fmap (const AddParams) impName)
 
 
 mkImport ::

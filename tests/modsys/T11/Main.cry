@@ -1,0 +1,9 @@
+module T11::Main where
+
+import `T11::A as X
+
+
+f : X::T 1 2 -> [1]
+f = X::f
+
+

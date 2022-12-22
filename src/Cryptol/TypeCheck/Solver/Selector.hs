@@ -5,7 +5,7 @@
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
-{-# LANGUAGE PatternGuards, Safe #-}
+{-# LANGUAGE PatternGuards #-}
 module Cryptol.TypeCheck.Solver.Selector (tryHasGoal) where
 
 import Cryptol.Parser.Position(Range)

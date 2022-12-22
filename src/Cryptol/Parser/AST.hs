@@ -281,6 +281,7 @@ data ModuleInstanceArgs name =
     -- (parser only)
 
   | NamedInstArgs  [ModuleInstanceNamedArg name]
+
     deriving (Show, Generic, NFData)
 
 -- | A named argument in a functor instantiation
@@ -292,6 +293,8 @@ data ModuleInstanceNamedArg name =
 data ModuleInstanceArg name =
     ModuleArg (ImpName name)  -- ^ An argument that is a module
   | ParameterArg Ident        -- ^ An argument that is a parameter
+  | AddParams                 -- ^ Arguments adds extra parameters to decls.
+                              -- ("backtick" import)
     deriving (Show, Generic, NFData)
 
 
@@ -487,10 +490,12 @@ data Pragma   = PragmaNote String
               | PragmaProperty
                 deriving (Eq, Show, Generic, NFData)
 
-data Newtype name = Newtype { nName   :: Located name        -- ^ Type name
-                            , nParams :: [TParam name]       -- ^ Type params
-                            , nBody   :: Rec (Type name)     -- ^ Body
-                            } deriving (Eq, Show, Generic, NFData)
+data Newtype name = Newtype
+  { nName     :: Located name        -- ^ Type name
+  , nParams   :: [TParam name]       -- ^ Type params
+  , nConName  :: !name               -- ^ Constructor function name
+  , nBody     :: Rec (Type name)     -- ^ Body
+  } deriving (Eq, Show, Generic, NFData)
 
 -- | A declaration for a type with no implementation.
 data PrimType name = PrimType { primTName :: Located name
@@ -871,8 +876,9 @@ instance (Show name, PPName name) => PP (ModuleInstanceNamedArg name) where
 instance (Show name, PPName name) => PP (ModuleInstanceArg name) where
   ppPrec _ arg =
     case arg of
-      ModuleArg x -> pp x
+      ModuleArg x    -> pp x
       ParameterArg i -> "parameter" <+> pp i
+      AddParams      -> "{}"
 
 
 instance (Show name, PPName name) => PP (Program name) where
@@ -1436,9 +1442,10 @@ instance NoPos (Decl name) where
       DLocated   x _   -> noPos x
 
 instance NoPos (Newtype name) where
-  noPos n = Newtype { nName   = noPos (nName n)
-                    , nParams = nParams n
-                    , nBody   = fmap noPos (nBody n)
+  noPos n = Newtype { nName     = noPos (nName n)
+                    , nParams   = nParams n
+                    , nConName  = nConName n
+                    , nBody     = fmap noPos (nBody n)
                     }
 
 instance NoPos (Bind name) where

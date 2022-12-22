@@ -1,4 +1,8 @@
 Loading module Cryptol
+Loading module Cryptol
+Loading module T
+Loading module I
 
-Parse error at issue565/I.cry:3:8--3:9
-  Backtick module imports are no longer supported.
+[error] at issue565/I.cry:3:1--3:10
+    • Expected a functor
+    • `T` is a module

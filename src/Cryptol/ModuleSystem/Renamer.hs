@@ -301,6 +301,7 @@ checkFunctorArgs args =
           | isFakeName m -> pure ()
           | otherwise    -> checkIsModule (srcRange l) m AModule
         ParameterArg {} -> pure () -- we check these in the type checker
+        AddParams -> pure ()
 
 mkInstMap :: Maybe Range -> Map Name Name -> ImpName Name -> ImpName Name ->
   RenameM (Map Name Name)
@@ -483,6 +484,7 @@ renameTopDecls' ds =
 
                where depsOfNamedArg (ModuleInstanceNamedArg _ a) = depsOfArg a
                      depsOfArg a = case thing a of
+                                     AddParams -> []
                                      ModuleArg {} -> []
                                      ParameterArg p ->
                                        case Map.lookup p localParams of
@@ -803,7 +805,7 @@ instance Rename ModuleInstanceArg where
     case arg of
       ModuleArg m -> ModuleArg <$> rename m
       ParameterArg a -> pure (ParameterArg a)
- 
+      AddParams -> pure AddParams
 
 instance Rename NestedModule where
   rename (NestedModule m) =
@@ -871,11 +873,14 @@ instance Rename Decl where
 instance Rename Newtype where
   rename n      =
     shadowNames (nParams n) $
-    do name' <- rnLocated (renameType NameBind) (nName n)
-       depsOf (NamedThing (thing name')) $
+    do nameT <- rnLocated (renameType NameBind) (nName n)
+       nameC <- renameVar  NameBind (nConName n)
+
+       depsOf (NamedThing (thing nameT)) $
          do ps'   <- traverse rename (nParams n)
             body' <- traverse (traverse rename) (nBody n)
-            return Newtype { nName   = name'
+            return Newtype { nName   = nameT
+                           , nConName = nameC
                            , nParams = ps'
                            , nBody   = body' }
 

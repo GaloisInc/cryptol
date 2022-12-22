@@ -27,6 +27,7 @@ module Cryptol.ModuleSystem.Name (
   , NameSource(..)
   , nameUnique
   , nameIdent
+  , mapNameIdent
   , nameInfo
   , nameLoc
   , nameFixity
@@ -209,6 +210,14 @@ nameIdent :: Name -> Ident
 nameIdent n = case nInfo n of
                 GlobalName _ og -> ogName og
                 LocalName _ i   -> i
+
+mapNameIdent :: (Ident -> Ident) -> Name -> Name
+mapNameIdent f n =
+  n { nInfo =
+        case nInfo n of
+          GlobalName x og -> GlobalName x og { ogName = f (ogName og) }
+          LocalName x i   -> LocalName x (f i)
+    }
 
 nameNamespace :: Name -> Namespace
 nameNamespace n = case nInfo n of

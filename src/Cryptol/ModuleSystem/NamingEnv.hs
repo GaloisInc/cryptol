@@ -264,8 +264,14 @@ unqualifiedEnv IfaceDecls { .. } =
   tySyns  = mconcat [ singletonNS NSType (toPName n) n
                     | n <- Map.keys ifTySyns ]
 
-  ntTypes = mconcat [ singletonNS NSType (toPName n) n
-                    | n <- Map.keys ifNewtypes ]
+  ntTypes = mconcat [ n
+                    | nt <- Map.elems ifNewtypes
+                    , let tname = T.ntName nt
+                          cname = T.ntConName nt
+                    , n  <- [ singletonNS NSType (toPName tname) tname
+                            , singletonNS NSValue (toPName cname) cname
+                            ]
+                    ]
 
   absTys  = mconcat [ singletonNS NSType (toPName n) n
                     | n <- Map.keys ifAbstractTypes ]

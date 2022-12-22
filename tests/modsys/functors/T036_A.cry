@@ -1,0 +1,8 @@
+module T036_A where
+  parameter
+    type n : #
+    type constraint (fin n)
+
+  newtype T = { x : [n] }
+
+
