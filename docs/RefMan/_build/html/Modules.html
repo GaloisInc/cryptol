@@ -67,6 +67,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#anonymous-instantiation-arguments">Anonymous Instantiation Arguments</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#anonymous-import-instantiations">Anonymous Import Instantiations</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#passing-through-module-parameters">Passing Through Module Parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#instantiation-by-parametrizing-declarations">Instantiation by Parametrizing Declarations</a></li>
 </ul>
 </li>
 </ul>
@@ -768,6 +769,98 @@ in an instantiation.  Here is an example:</p>
 <span class="c1">//                          = 11</span><span class="w"></span>
 <span class="kr">import</span><span class="w"> </span><span class="nn">submodule</span><span class="w"> </span><span class="kt">F</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
 <span class="w">  </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">5</span><span class="w"></span>
+</pre></div>
+</div>
+</section>
+<section id="instantiation-by-parametrizing-declarations">
+<h3>Instantiation by Parametrizing Declarations<a class="headerlink" href="#instantiation-by-parametrizing-declarations" title="Permalink to this headline"></a></h3>
+<p>It is also possible to instantiate a functor parameter <em>without</em> providing
+an implementation module.  Instead, the declarations in the instantiated
+module all get additional parameters corresponding to the functor’s parameters.
+This is done by providing <code class="docutils literal notranslate"><span class="pre">_</span></code> as the parameter to a functor:</p>
+<div class="literal-block-wrapper docutils container" id="id27">
+<div class="code-block-caption"><span class="caption-text">Instantiation by Parametrizing Declarations</span><a class="headerlink" href="#id27" title="Permalink to this code"></a></div>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">submodule</span><span class="w"> </span><span class="kt">F</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
+<span class="w">  </span><span class="n">parameter</span><span class="w"></span>
+<span class="w">    </span><span class="kr">type</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="o">#</span><span class="w"></span>
+<span class="w">    </span><span class="n">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="w"></span>
+
+<span class="w">  </span><span class="n">f</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">(</span><span class="kr">fin</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="w"></span>
+<span class="w">  </span><span class="n">f</span><span class="w"> </span><span class="n">v</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">v</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">x</span><span class="w"></span>
+
+<span class="nf">submodule</span><span class="w"> </span><span class="kt">M</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">submodule</span><span class="w"> </span><span class="kt">F</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="p">}</span><span class="w"></span>
+<span class="kr">import</span><span class="w"> </span><span class="nn">submodule</span><span class="w"> </span><span class="kt">M</span><span class="w"> </span><span class="n">as</span><span class="w"> </span><span class="kt">M</span><span class="w"></span>
+</pre></div>
+</div>
+</div>
+<p>This example defines module <code class="docutils literal notranslate"><span class="pre">M</span></code> by instantiating <code class="docutils literal notranslate"><span class="pre">F</span></code> without
+a parameter.  Here is the resulting type of <code class="docutils literal notranslate"><span class="pre">f</span></code>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">Main</span><span class="o">&gt;</span> <span class="p">:</span><span class="n">t</span> <span class="n">M</span><span class="p">::</span><span class="n">f</span>
+<span class="n">M</span><span class="p">::</span><span class="n">f</span> <span class="p">:</span> <span class="p">{</span><span class="n">n</span><span class="p">}</span> <span class="p">(</span><span class="n">fin</span> <span class="n">n</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span><span class="n">x</span> <span class="p">:</span> <span class="p">[</span><span class="n">n</span><span class="p">]}</span> <span class="o">-&gt;</span> <span class="p">[</span><span class="n">n</span><span class="p">]</span> <span class="o">-&gt;</span> <span class="p">[</span><span class="n">n</span><span class="p">]</span>
+</pre></div>
+</div>
+<p>Note that <code class="docutils literal notranslate"><span class="pre">f</span></code> has a new type parameter <code class="docutils literal notranslate"><span class="pre">n</span></code>, and a new value parameter
+of a record type.  The type parameter <code class="docutils literal notranslate"><span class="pre">n</span></code> corresponds to the functor’s
+type parameter while the record parameter has one field for each value
+parameter of the functor.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>The order in which type parameters are added to a declaration is not
+specified, so you’d have to use a <em>named</em> type application to apply
+a type explicitly.</p>
+</div>
+<p>Functors with multiple parameters may use <code class="docutils literal notranslate"><span class="pre">_</span></code> as argument for more
+than one parameter, and may also provide implementations for some of
+the parameters and use <code class="docutils literal notranslate"><span class="pre">_</span></code> for others.</p>
+<p><strong>[Parameter Names]</strong> The names of the parameters in the declarations
+are the same as the names that are in scope, unless a parameter came
+in through a qualified interface import (i.e., the interface import
+uses the <code class="docutils literal notranslate"><span class="pre">as</span></code> clause).  In the case the name of the parameter is
+computed by replacing the <code class="docutils literal notranslate"><span class="pre">::</span></code> with <code class="docutils literal notranslate"><span class="pre">'</span></code> because <code class="docutils literal notranslate"><span class="pre">::</span></code> may not appear
+in type parameters or record fields.  For example, if a module had
+a parameter <code class="docutils literal notranslate"><span class="pre">I::x</span></code>, then its <code class="docutils literal notranslate"><span class="pre">_</span></code> instantiation will use a
+record with a field named <code class="docutils literal notranslate"><span class="pre">I'x</span></code>.</p>
+<p><strong>[Restrictions]</strong> There are some restrictions on functor parameters
+that can be defined with <code class="docutils literal notranslate"><span class="pre">_</span></code>:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>The functor should not contain other functors nested in it.
+This is because it is unclear how to parameterize the parameters of
+nested functors.</p></li>
+<li><p>All values coming through <code class="docutils literal notranslate"><span class="pre">_</span></code> parameters should have simple
+(i.e., non-polymorphic) types.  This is because Cryptol does not
+support records with polymorphic fields.</p></li>
+<li><p>All types and values coming through <code class="docutils literal notranslate"><span class="pre">_</span></code> parameters should have
+distinct names.  This is because the fields in the record and
+type names use labels derived. Generally this should not be a
+problem unless a functor defined some parameters that have
+<code class="docutils literal notranslate"><span class="pre">'</span></code> in the middle.</p></li>
+</ul>
+</div></blockquote>
+<p><strong>[Backtick Imports]</strong> For backward compatibility, we also provide
+syntactic sugar for importing a functor with a single interface parameter
+and instantiating it:</p>
+<div class="literal-block-wrapper docutils container" id="id28">
+<div class="code-block-caption"><span class="caption-text">Backtick Import</span><a class="headerlink" href="#id28" title="Permalink to this code"></a></div>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">submodule</span><span class="w"> </span><span class="kt">F</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
+<span class="w">  </span><span class="n">parameter</span><span class="w"></span>
+<span class="w">    </span><span class="kr">type</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="o">#</span><span class="w"></span>
+<span class="w">    </span><span class="n">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="w"></span>
+
+<span class="w">  </span><span class="n">f</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">(</span><span class="kr">fin</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="w"></span>
+<span class="w">  </span><span class="n">f</span><span class="w"> </span><span class="n">v</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">v</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">x</span><span class="w"></span>
+
+<span class="kr">import</span><span class="w"> </span><span class="nn">submodule</span><span class="w"> </span><span class="p">`</span><span class="kt">F</span><span class="w"></span>
+</pre></div>
+</div>
+</div>
+<p>This is equivalent to writing:</p>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">import</span><span class="w"> </span><span class="nn">submodule</span><span class="w"> </span><span class="kt">F</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="p">}</span><span class="w"></span>
+</pre></div>
+</div>
+<p>This, in turn, is syntactic sugar for creating an anonymous module:</p>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">submodule</span><span class="w"> </span><span class="kt">M</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kt">F</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="p">}</span><span class="w"></span>
+<span class="kr">import</span><span class="w"> </span><span class="nn">submodule</span><span class="w"> </span><span class="kt">M</span><span class="w"></span>
 </pre></div>
 </div>
 </section>

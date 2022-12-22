@@ -735,6 +735,109 @@ in an instantiation.  Here is an example:
     x = 5
 
 
+Instantiation by Parametrizing Declarations
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+It is also possible to instantiate a functor parameter *without* providing
+an implementation module.  Instead, the declarations in the instantiated
+module all get additional parameters corresponding to the functor's parameters.
+This is done by providing ``_`` as the parameter to a functor:
+
+.. code-block:: cryptol
+  :caption: Instantiation by Parametrizing Declarations
+
+  submodule F where
+    parameter
+      type n : #
+      x : [n]
+
+    f : (fin n) => [n] -> [n]
+    f v = v + x
+
+  submodule M = submodule F { _ }
+  import submodule M as M
+
+This example defines module ``M`` by instantiating ``F`` without
+a parameter.  Here is the resulting type of ``f``:
+
+.. code-block::
+
+  Main> :t M::f
+  M::f : {n} (fin n) => {x : [n]} -> [n] -> [n]
+
+Note that ``f`` has a new type parameter ``n``, and a new value parameter
+of a record type.  The type parameter ``n`` corresponds to the functor's
+type parameter while the record parameter has one field for each value
+parameter of the functor.
+
+.. warning::
+
+  The order in which type parameters are added to a declaration is not
+  specified, so you'd have to use a *named* type application to apply
+  a type explicitly.
+
+Functors with multiple parameters may use ``_`` as argument for more
+than one parameter, and may also provide implementations for some of
+the parameters and use ``_`` for others.
+
+**[Parameter Names]** The names of the parameters in the declarations
+are the same as the names that are in scope, unless a parameter came
+in through a qualified interface import (i.e., the interface import
+uses the ``as`` clause).  In the case the name of the parameter is
+computed by replacing the ``::`` with ``'`` because ``::`` may not appear
+in type parameters or record fields.  For example, if a module had
+a parameter ``I::x``, then its ``_`` instantiation will use a
+record with a field named ``I'x``.
+
+**[Restrictions]** There are some restrictions on functor parameters
+that can be defined with ``_``:
+
+  * The functor should not contain other functors nested in it.
+    This is because it is unclear how to parameterize the parameters of
+    nested functors.
+
+  * All values coming through ``_`` parameters should have simple
+    (i.e., non-polymorphic) types.  This is because Cryptol does not
+    support records with polymorphic fields.
+
+  * All types and values coming through ``_`` parameters should have
+    distinct names.  This is because the fields in the record and
+    type names use labels derived. Generally this should not be a
+    problem unless a functor defined some parameters that have
+    ``'`` in the middle.
+
+
+**[Backtick Imports]** For backward compatibility, we also provide
+syntactic sugar for importing a functor with a single interface parameter
+and instantiating it:
+
+.. code-block:: cryptol
+  :caption: Backtick Import
+
+  submodule F where
+    parameter
+      type n : #
+      x : [n]
+
+    f : (fin n) => [n] -> [n]
+    f v = v + x
+
+  import submodule `F
+
+This is equivalent to writing:
+
+.. code-block:: cryptol
+
+  import submodule F { _ }
+
+This, in turn, is syntactic sugar for creating an anonymous module:
+
+.. code-block:: cryptol
+
+  submodule M = F { _ }
+  import submodule M
+
+
 
 
 
