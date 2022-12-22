@@ -28,7 +28,7 @@ import Cryptol.Parser.Selector
 import Cryptol.Parser.Position(Located,thing,Range,emptyRange)
 import Cryptol.Parser.AST(ImpName(..))
 import Cryptol.ModuleSystem.Name
-import Cryptol.Utils.Ident (Ident, isInfixIdent, exprModName, ogModule)
+import Cryptol.Utils.Ident (Ident, isInfixIdent, exprModName, ogModule, ModName)
 import Cryptol.TypeCheck.TCon
 import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.Solver.InfNat
@@ -65,6 +65,10 @@ allParamNames mps =
 data ModParam = ModParam
   { mpName        :: Ident
     -- ^ The name of a functor parameter.
+
+  , mpQual        :: !(Maybe ModName)
+    -- ^ This is the qualifier for the parameter.  We use it to
+    -- derive parameter names when doing `_` imports.
 
   , mpIface       :: ImpName Name
     -- ^ The interface corresponding to this parameter.

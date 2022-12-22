@@ -159,6 +159,7 @@ instance ModuleInstance ModParam where
     ModParam { mpName        = mpName p
              , mpIface       = moduleInstance (mpIface p)
              , mpParameters  = moduleInstance (mpParameters p)
+             , mpQual        = mpQual p
              }
 
 
