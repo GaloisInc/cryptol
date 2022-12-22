@@ -4,24 +4,35 @@
 {-# Language BlockArguments #-}
 {-# Language RankNTypes #-}
 {-# Language OverloadedStrings #-}
-module Cryptol.TypeCheck.ModuleBacktickInstance where
+module Cryptol.TypeCheck.ModuleBacktickInstance
+  ( MBQual
+  , doBacktickInstance
+  ) where
 
+import Data.Set(Set)
+import qualified Data.Set as Set
 import Data.Map(Map)
 import qualified Data.Map as Map
 import MonadLib
 import Data.List(group,sort)
 import Data.Maybe(mapMaybe)
+import qualified Data.Text as Text
 
-import Cryptol.Utils.Ident(ModPath(..), modPathIsOrContains,Namespace(..),
-                                                                    mkIdent)
+import Cryptol.Utils.Ident(ModPath(..), modPathIsOrContains,Namespace(..)
+                          , Ident, mkIdent, identText
+                          , ModName, modNameChunksText )
 import Cryptol.Utils.PP(pp)
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.RecordMap(RecordMap,recordFromFields,recordFromFieldsErr)
 import Cryptol.Parser.Position
-import Cryptol.ModuleSystem.Name(nameModPath, nameModPathMaybe, nameIdent)
+import Cryptol.ModuleSystem.Name(
+  nameModPath, nameModPathMaybe, nameIdent, mapNameIdent)
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Error
 import qualified Cryptol.TypeCheck.Monad as TC
+
+
+type MBQual a = (Maybe ModName, a)
 
 {- | Rewrite declarations to add the given module parameters.
 Assumes the renaming due to the instantiation has already happened.
@@ -30,9 +41,9 @@ The module being rewritten should not contain any nested functors
 how to parameterize the parameters.
 -}
 doBacktickInstance ::
-  [TParam] ->
+  Set (MBQual TParam) ->
   [Prop] ->
-  Map Name Type ->
+  Map (MBQual Name) Type ->
   ModuleG (Located (ImpName Name)) ->
   TC.InferM (ModuleG (Located (ImpName Name)))
 doBacktickInstance as ps mp m
@@ -42,7 +53,7 @@ doBacktickInstance as ps mp m
       RO { isOurs = \x -> case nameModPathMaybe x of
                             Nothing -> False
                             Just y  -> ourPath `modPathIsOrContains` y
-         , tparams = as
+         , tparams = Set.toList as
          , constraints = ps
          , vparams = mp
          , newNewtypes = Map.empty
@@ -84,9 +95,9 @@ recordError e = lift (TC.recordError e)
 
 data RO = RO
   { isOurs       :: Name -> Bool
-  , tparams      :: [TParam]
+  , tparams      :: [MBQual TParam]
   , constraints  :: [Prop]
-  , vparams      :: Map Name Type
+  , vparams      :: Map (MBQual Name) Type
   , newNewtypes  :: Map Name Newtype
   }
 
@@ -176,13 +187,23 @@ noParams = Params
   , pSubst  = Map.empty
   }
 
+qualLabel :: Maybe ModName -> Ident -> Ident
+qualLabel mb i =
+  case mb of
+    Nothing -> i
+    Just mn ->
+      let txt = Text.intercalate "'" (modNameChunksText mn ++ [identText i])
+      in mkIdent txt
+
+
 type TypeParams = Params TParam Type
 type ValParams  = Params Name   Expr
 
 newTypeParams :: (Name -> TPFlavor) -> RewM (TypeParams,[Prop])
 newTypeParams flav =
   do ro <- ask
-     as <- lift (mapM (TC.freshTParam flav) (tparams ro))
+     let newFlaf q = flav . mapNameIdent (qualLabel q)
+     as <- lift (forM (tparams ro) \(q,a) -> TC.freshTParam (newFlaf q) a)
      let bad = [ x
                | x : _ : _ <- group (sort (map nameIdent (mapMaybe tpName as)))
                ]
@@ -190,7 +211,7 @@ newTypeParams flav =
        recordError (FunctorInstanceBadBacktick (BIMultipleParams i))
 
      let ts = map (TVar . TVBound) as
-         su = Map.fromList (zip (tparams ro) ts)
+         su = Map.fromList (zip (map snd (tparams ro)) ts)
          ps = Params { pDecl = as, pUse = ts, pSubst = su }
      cs <- rewTypeM ps (constraints ro)
      pure (ps,cs)
@@ -202,13 +223,13 @@ newValParams tps =
      let vps = vparams ro
      if Map.null vps
        then pure (noParams, [])
-       else do xts <- forM (Map.toList vps) \(x,t) ->
+       else do xts <- forM (Map.toList vps) \((q,x),t) ->
                         do t1 <- rewTypeM tps t
-                           pure (x,t1)
-               let (xs,ts) = unzip xts
-                   ls      = map nameIdent xs
+                           let l = qualLabel q (nameIdent x)
+                           pure (x, l, t1)
+               let (xs,ls,ts) = unzip3 xts
                    fs      = zip ls ts
-                   sel x   = RecordSel (nameIdent x) (Just ls)
+                   sel l   = RecordSel l (Just ls)
 
                t <- case recordFromFieldsErr fs of
                       Right ok -> pure (TRec ok)
@@ -223,7 +244,8 @@ newValParams tps =
                  ( Params
                      { pDecl  = [r]
                      , pUse   = [e]
-                     , pSubst = Map.fromList [ (x,ESel e (sel x)) | x <- xs ]
+                     , pSubst = Map.fromList [ (x,ESel e (sel l))
+                                             | (x,l) <- zip xs ls ]
                      }
                  , [ (r,t) ]
                  )

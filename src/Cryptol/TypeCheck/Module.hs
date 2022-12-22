@@ -26,7 +26,7 @@ import Cryptol.TypeCheck.Solve(proveImplication)
 import Cryptol.TypeCheck.Monad
 import Cryptol.TypeCheck.Instantiate(instantiateWith)
 import Cryptol.TypeCheck.ModuleInstance
-import Cryptol.TypeCheck.ModuleBacktickInstance(doBacktickInstance)
+import Cryptol.TypeCheck.ModuleBacktickInstance(MBQual, doBacktickInstance)
 
 doFunctorInst ::
   Located (P.ImpName Name)    {- ^ Name for the new module -} ->
@@ -58,15 +58,16 @@ doFunctorInst m f as inst doc =
                             }
               let (tps,tcs,vps) =
                       unzip3 [ (xs,cs,fs) | ParamInst xs cs fs <- as2 ]
-                  tpSet = Set.unions tps
-                  emit p = Set.null (freeParams p `Set.intersection` tpSet)
+                  tpSet  = Set.unions tps
+                  tpSet' = Set.map snd (Set.unions tps)
+                  emit p = Set.null (freeParams p `Set.intersection` tpSet')
 
                   (emitPs,delayPs) =
                           partition emit (map thing (mParamConstraints m1))
 
               newGoals CtModuleInstance emitPs
 
-              doBacktickInstance (Set.toList tpSet)
+              doBacktickInstance tpSet
                                  (delayPs ++ concat tcs)
                                  (Map.unions vps)
                                  m2
@@ -158,10 +159,11 @@ checkArity r mf args =
 
 
 data ArgInst = DefinedInst Subst [Decl] -- ^ Argument that defines the params
-             | ParamInst (Set TParam) [Prop] (Map Name Type)
+             | ParamInst (Set (MBQual TParam)) [Prop] (Map (MBQual Name) Type)
                -- ^ Argument that add parameters
                -- The type parameters are in their module type parameter
                -- form (i.e., tpFlav is TPModParam)
+
 
 
 {- | Check the argument to a functor parameter.
@@ -185,11 +187,13 @@ checkArg (r,expect,actual') =
 
   where
   paramInst =
-    do let as = Set.fromList (map mtpParam (Map.elems (mpnTypes params)))
+    do let as = Set.fromList
+                   (map (qual . mtpParam) (Map.elems (mpnTypes params)))
            cs = map thing (mpnConstraints params)
            check = checkSimpleParameterValue r (mpName expect)
+           qual a = (mpQual expect, a)
        fs <- Map.mapMaybeWithKey (\_ v -> v) <$> mapM check (mpnFuns params)
-       pure (ParamInst as cs fs)
+       pure (ParamInst as cs (Map.mapKeys qual fs))
 
   definedInst =
     do tRens <- mapM (checkParamType r tyMap) (Map.toList (mpnTypes params))
