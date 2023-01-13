@@ -271,7 +271,8 @@ renameModule' mname m =
 
               -- XXX: This is not quite right as it only considers the things
               -- defined in the module to be in scope.  It misses things
-              -- *imported* by the functor, in particular the Cryptol library
+              -- that are *imported* by the functor, in particular the Cryptol
+              -- library
               -- is missing.  See #1455.
               inScope <- shadowNames' CheckNone (mapNamingEnv ren fuEnv)
                          getNamingEnv
