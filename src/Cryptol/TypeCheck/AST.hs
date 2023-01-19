@@ -14,6 +14,7 @@
 {-# LANGUAGE DeriveAnyClass, DeriveGeneric       #-}
 {-# LANGUAGE OverloadedStrings                   #-}
 {-# LANGUAGE NamedFieldPuns                      #-}
+{-# LANGUAGE ViewPatterns                        #-}
 module Cryptol.TypeCheck.AST
   ( module Cryptol.TypeCheck.AST
   , Name()
@@ -369,24 +370,38 @@ splitWhile f e = case f e of
                    Just (x,e1) -> let (xs,e2) = splitWhile f e1
                                   in (x:xs,e2)
 
+splitLoc :: Expr -> Maybe (Range, Expr)
+splitLoc expr =
+  case expr of
+    ELocated r e -> Just (r,e)
+    _            -> Nothing
+
+-- | Remove outermost locations
+dropLocs :: Expr -> Expr
+dropLocs = snd . splitWhile splitLoc
+
 splitAbs :: Expr -> Maybe ((Name,Type), Expr)
-splitAbs (EAbs x t e)         = Just ((x,t), e)
-splitAbs _                    = Nothing
+splitAbs (dropLocs -> EAbs x t e) = Just ((x,t), e)
+splitAbs _                        = Nothing
+
+splitApp :: Expr -> Maybe (Expr,Expr)
+splitApp (dropLocs -> EApp f a) = Just (a, f)
+splitApp _                      = Nothing
 
 splitTAbs :: Expr -> Maybe (TParam, Expr)
-splitTAbs (ETAbs t e)         = Just (t, e)
-splitTAbs _                   = Nothing
+splitTAbs (dropLocs -> ETAbs t e)   = Just (t, e)
+splitTAbs _                         = Nothing
 
 splitProofAbs :: Expr -> Maybe (Prop, Expr)
-splitProofAbs (EProofAbs p e) = Just (p,e)
-splitProofAbs _               = Nothing
+splitProofAbs (dropLocs -> EProofAbs p e) = Just (p,e)
+splitProofAbs _                           = Nothing
 
 splitTApp :: Expr -> Maybe (Type,Expr)
-splitTApp (ETApp e t) = Just (t, e)
-splitTApp _           = Nothing
+splitTApp (dropLocs -> ETApp e t) = Just (t, e)
+splitTApp _                       = Nothing
 
 splitProofApp :: Expr -> Maybe ((), Expr)
-splitProofApp (EProofApp e) = Just ((), e)
+splitProofApp (dropLocs -> EProofApp e) = Just ((), e)
 splitProofApp _ = Nothing
 
 -- | Deconstruct an expression, typically polymorphic, into
