@@ -40,22 +40,22 @@ common errors
 
 common deps
   build-depends:
-    base                 >=4.11.1.0 && <4.17,
+    base                 >=4.11.1.0 && <4.18,
     argo,
-    aeson                >= 1.4.2 && < 2.1,
+    aeson                >= 1.4.2 && < 2.2,
     base64-bytestring    >= 1.0,
     bytestring           >= 0.10.8 && < 0.12,
     containers           >=0.6.0.1 && <0.7,
     cryptol              >= 2.9.0,
     directory,
     filepath             ^>= 1.4,
-    lens                 >= 4.17 && < 5.2,
+    lens                 >= 4.17 && < 5.3,
     mtl                  ^>= 2.2,
     scientific           ^>= 0.3,
-    text                 ^>= 1.2.3,
+    text                 >= 1.2.3 && < 2.1,
     tf-random,
     unordered-containers ^>= 0.2,
-    vector               ^>= 0.12,
+    vector               ^>= 0.13,
 
   default-language:    Haskell2010
 
