@@ -13,14 +13,14 @@ include = [
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.7.0,<4"
+python = ">=3.8.0,<4"
 requests = "^2.25.1"
 BitVector = "^3.4.9"
-argo-client = "0.0.10"
+argo-client = "0.0.11"
 typing-extensions = "^4.1.1"
 
 [tool.poetry.dev-dependencies]
-mypy = "^0.812"
+mypy = "^0.991"
 
 [build-system]
 requires = ["poetry>=1.1.4", "setuptools>=40.8.0"]

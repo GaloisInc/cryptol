@@ -27,7 +27,7 @@ poetry update
 poetry install
 
 echo "Typechecking code with mypy..."
-run_test poetry run mypy cryptol/ tests/
+run_test poetry run mypy --install-types --non-interactive cryptol/ tests/
 
 get_server cryptol-remote-api
 echo "Running cryptol-remote-api tests..."
