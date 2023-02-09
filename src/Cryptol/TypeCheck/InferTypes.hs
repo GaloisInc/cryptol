@@ -220,7 +220,7 @@ data ConstraintSource
   | CtPartialTypeFun Name -- ^ Use of a partial type function.
   | CtImprovement
   | CtPattern TypeSource  -- ^ Constraints arising from type-checking patterns
-  | CtModuleInstance      -- ^ Instantiating a parametrized module
+  | CtModuleInstance Range -- ^ Instantiating a parametrized module
   | CtPropGuardsExhaustive Name -- ^ Checking that a use of prop guards is exhastive
   | CtFFI Name            -- ^ Constraints on a foreign declaration required
                           --   by the FFI (e.g. sequences must be finite)
@@ -250,7 +250,7 @@ instance TVars ConstraintSource where
       CtPartialTypeFun _ -> src
       CtImprovement    -> src
       CtPattern _      -> src
-      CtModuleInstance -> src
+      CtModuleInstance _ -> src
       CtPropGuardsExhaustive _ -> src
       CtFFI _          -> src
 
@@ -358,7 +358,7 @@ instance PP ConstraintSource where
       CtPartialTypeFun f -> "use of partial type function" <+> pp f
       CtImprovement   -> "examination of collected goals"
       CtPattern ad    -> "checking a pattern:" <+> pp ad
-      CtModuleInstance -> "module instantiation"
+      CtModuleInstance r -> "module instantiation at" <+> pp r
       CtPropGuardsExhaustive n -> "exhaustion check for prop guards used in defining" <+> pp n
       CtFFI f         -> "declaration of foreign function" <+> pp f
 

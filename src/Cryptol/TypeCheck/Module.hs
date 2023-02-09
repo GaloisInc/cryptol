@@ -60,15 +60,16 @@ doFunctorInst m f as inst doc =
                       unzip3 [ (xs,cs,fs) | ParamInst xs cs fs <- as2 ]
                   tpSet  = Set.unions tps
                   tpSet' = Set.map snd (Set.unions tps)
-                  emit p = Set.null (freeParams p `Set.intersection` tpSet')
+                  emit p = Set.null (freeParams (thing p)
+                                                `Set.intersection` tpSet')
 
-                  (emitPs,delayPs) =
-                          partition emit (map thing (mParamConstraints m1))
+                  (emitPs,delayPs) = partition emit (mParamConstraints m1)
 
-              newGoals CtModuleInstance emitPs
+              forM_ emitPs \lp ->
+                newGoals (CtModuleInstance (srcRange lp)) [thing lp]
 
               doBacktickInstance tpSet
-                                 (delayPs ++ concat tcs)
+                                 (map thing delayPs ++ concat tcs)
                                  (Map.unions vps)
                                  m2
 
@@ -358,7 +359,7 @@ mkParamDef r (pname,wantedS) (arg,actualS) =
                                          , twsRange  = Just r
                                          }
                         t
-               newGoals CtModuleInstance props
+               newGoals (CtModuleInstance r) props
                pure e
      su <- proveImplication False
                             (Just pname)
