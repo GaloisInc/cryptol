@@ -352,14 +352,8 @@ par_decls                            :: { [ParamDecl PName] }
 par_decl                         :: { ParamDecl PName }
   : mbDoc        name ':' schema    { mkParFun $1 $2 $4 }
   | mbDoc 'type' name ':' kind      {% mkParType $1 $3 $5 }
-  | mbDoc 'type' 'constraint' '(' type ')'
-                                    {% fmap (DParameterConstraint . distrLoc)
-                                            (mkProp $5)}
-  | mbDoc 'type' 'constraint' '(' tuple_types ')'
-                                    {% fmap (DParameterConstraint .  distrLoc)
-                                            (mkProp (at ($4,$6) (TTuple $5))) }
-
   | mbDoc typeOrPropSyn             { mkIfacePropSyn (thing `fmap` $1) $2 }
+  | mbDoc topTypeConstraint         { DParameterConstraint (distrLoc $2) }
 
 
 doc                     :: { Located Text }
@@ -394,18 +388,7 @@ decl                    :: { Decl PName }
                                           , bExport    = Public
                                           } }
 
-  | 'type' name '=' type   {% at ($1,$4) `fmap` mkTySyn $2 [] $4 }
-  | 'type' name tysyn_params '=' type
-                           {% at ($1,$5) `fmap` mkTySyn $2 (reverse $3) $5  }
-  | 'type' tysyn_param op tysyn_param '=' type
-                           {% at ($1,$6) `fmap` mkTySyn $3 [$2, $4] $6 }
-
-  | 'type' 'constraint' name '=' type
-                           {% at ($2,$5) `fmap` mkPropSyn $3 [] $5 }
-  | 'type' 'constraint' name tysyn_params '=' type
-                           {% at ($2,$6) `fmap` mkPropSyn $3 (reverse $4) $6 }
-  | 'type' 'constraint' tysyn_param op tysyn_param '=' type
-                           {% at ($2,$7) `fmap` mkPropSyn $4 [$3, $5] $7 }
+  | typeOrPropSyn          { $1 }
 
   | 'infixl' NUM ops       {% mkFixity LeftAssoc  $2 (reverse $3) }
   | 'infixr' NUM ops       {% mkFixity RightAssoc $2 (reverse $3) }
@@ -444,22 +427,12 @@ let_decl                :: { Decl PName }
   | 'infix'  NUM ops       {% mkFixity NonAssoc   $2 (reverse $3) }
 
 
+typeOrPropSyn                      :: { Decl PName }
+  : 'type' 'constraint' type '=' type {% mkPropSyn $3 $5 }
+  | 'type'              type '=' type {% mkTySyn   $2 $4 }
 
-typeOrPropSyn           :: { Decl PName }
-  : 'type' name '=' type   {% at ($1,$4) `fmap` mkTySyn $2 [] $4 }
-  | 'type' name tysyn_params '=' type
-                           {% at ($1,$5) `fmap` mkTySyn $2 (reverse $3) $5  }
-  | 'type' tysyn_param op tysyn_param '=' type
-                           {% at ($1,$6) `fmap` mkTySyn $3 [$2, $4] $6 }
-
-  | 'type' 'constraint' name '=' type
-                           {% at ($2,$5) `fmap` mkPropSyn $3 [] $5 }
-  | 'type' 'constraint' name tysyn_params '=' type
-                           {% at ($2,$6) `fmap` mkPropSyn $3 (reverse $4) $6 }
-  | 'type' 'constraint' tysyn_param op tysyn_param '=' type
-                           {% at ($2,$7) `fmap` mkPropSyn $4 [$3, $5] $7 }
-
-
+topTypeConstraint                  :: { Located [Prop PName] }
+  : 'type' 'constraint' type          {% mkProp $3 }
 
 
 propguards_cases                   :: { [PropGuardCase PName] }
@@ -473,11 +446,8 @@ propguards_quals                   :: { [Located (Prop PName)] }
   : type                              {% mkPropGuards $1 }
 
 
-newtype                 :: { Newtype PName }
-  : 'newtype' qname '=' newtype_body
-                           { Newtype $2 [] (thing $2) (thing $4) }
-  | 'newtype' qname tysyn_params '=' newtype_body
-                           { Newtype $2 (reverse $3) (thing $2) (thing $5) }
+newtype                            :: { Newtype PName }
+  : 'newtype' type '=' newtype_body   {% mkNewtype $2 $4 }
 
 newtype_body            :: { Located (RecordMap Ident (Range, Type PName)) }
   : '{' '}'                {% mkRecord (rComb $1 $2) (Located emptyRange) [] }
@@ -812,14 +782,6 @@ schema_params                    :: { [TParam PName] }
   : schema_param                    { [$1] }
   | schema_params ',' schema_param  { $3 : $1 }
 
-tysyn_param                   :: { TParam PName }
-  : ident                        {% mkTParam $1 Nothing }
-  | '(' ident ':' kind ')'       {% mkTParam (at ($1,$5) $2) (Just (thing $4)) }
-
-tysyn_params                  :: { [TParam PName]  }
-  : tysyn_param                  { [$1]      }
-  | tysyn_params tysyn_param     { $2 : $1   }
-
 type                           :: { Type PName              }
   : infix_type '->' type          { at ($1,$3) $ TFun $1 $3 }
   | infix_type                    { $1                      }
@@ -840,12 +802,16 @@ atype                          :: { Type PName }
   | NUM                           { at $1 $ TNum  (getNum $1)          }
   | CHARLIT                       { at $1 $ TChar (getChr $1)          }
   | '[' type ']'                  { at ($1,$3) $ TSeq $2 TBit          }
-  | '(' type ')'                  { at ($1,$3) $ TParens $2            }
+  | '(' ktype ')'                 { at ($1,$3) $2                      }
   | '(' ')'                       { at ($1,$2) $ TTuple []             }
   | '(' tuple_types ')'           { at ($1,$3) $ TTuple  (reverse $2)  }
   | '{' '}'                       {% mkRecord (rComb $1 $2) TRecord [] }
   | '{' field_types '}'           {% mkRecord (rComb $1 $3) TRecord $2 }
   | '_'                           { at $1 TWild                        }
+
+ktype                          :: { Type PName }
+  : type ':' kind                 { TParens $1 (Just (thing $3)) }
+  | type                          { TParens $1 Nothing }
 
 atypes                         :: { [ Type PName ] }
   : atype                         { [ $1 ]    }

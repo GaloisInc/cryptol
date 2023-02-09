@@ -304,7 +304,9 @@ validDemotedType rng ty =
     TWild        -> bad "Wildcard types"
     TUser {}     -> ok
 
-    TParens t    -> validDemotedType rng t
+    TParens t mb -> case mb of
+                      Nothing -> validDemotedType rng t
+                      Just _  -> bad "kind annotation"
     TInfix{}     -> ok
 
   where bad x = errorMessage rng [x ++ " cannot be demoted."]
@@ -565,21 +567,98 @@ mkTParam Located { srcRange = rng, thing = n } k
   | n == widthIdent = errorMessage rng ["`width` is not a valid type parameter name."]
   | otherwise       = return (TParam (mkUnqual n) k (Just rng))
 
-mkTySyn :: Located PName -> [TParam PName] -> Type PName -> ParseM (Decl PName)
-mkTySyn ln ps b
-  | getIdent (thing ln) == widthIdent =
-    errorMessage (srcRange ln) ["`width` is not a valid type synonym name."]
 
-  | otherwise =
-    return $ DType $ TySyn ln Nothing ps b
+mkTySyn :: Type PName -> Type PName -> ParseM (Decl PName)
+mkTySyn thead tdef =
+  do (nm,params) <- typeToDecl thead
+     pure (DType (TySyn nm Nothing params tdef))
 
-mkPropSyn :: Located PName -> [TParam PName] -> Type PName -> ParseM (Decl PName)
-mkPropSyn ln ps b
-  | getIdent (thing ln) == widthIdent =
-    errorMessage (srcRange ln) ["`width` is not a valid constraint synonym name."]
+mkPropSyn :: Type PName -> Type PName -> ParseM (Decl PName)
+mkPropSyn thead tdef =
+  do (nm,params) <- typeToDecl thead
+     ps          <- thing <$> mkProp tdef
+     pure (DProp (PropSyn nm Nothing params ps))
 
-  | otherwise =
-    DProp . PropSyn ln Nothing ps . thing <$> mkProp b
+mkNewtype ::
+  Type PName ->
+  Located (RecordMap Ident (Range, Type PName)) ->
+  ParseM (Newtype PName)
+mkNewtype thead def =
+  do (nm,params) <- typeToDecl thead
+     pure (Newtype nm params (thing nm) (thing def))
+
+typeToDecl :: Type PName -> ParseM (Located PName, [TParam PName])
+typeToDecl ty0 =
+  case ty0 of
+    TLocated ty loc -> goD loc ty
+    _ -> panic "typeToDecl" ["Type location is missing."]
+
+  where
+  bad loc  = errorMessage loc ["Invalid type declaration"]
+  badP loc = errorMessage loc ["Invalid declaration parameter"]
+
+
+  goN loc n =
+    case n of
+      UnQual {} -> pure ()
+      _         -> errorMessage loc ["Invalid declaration name"]
+
+  goP loc ty =
+    case ty of
+      TLocated ty1 loc1 -> goP loc1 ty1
+
+      TUser f [] ->
+        do goN loc f
+           pure TParam { tpName = f, tpKind = Nothing, tpRange = Just loc }
+
+      TParens t mb ->
+        case mb of
+          Nothing -> badP loc
+          Just k  ->
+            do p <- goP loc t
+               case tpKind p of
+                 Nothing -> pure p { tpKind = Just k }
+                 Just {} -> badP loc
+
+      TInfix {}     -> badP loc
+      TUser {}      -> badP loc
+      TFun {}       -> badP loc
+      TSeq {}       -> badP loc
+      TBit {}       -> badP loc
+      TNum {}       -> badP loc
+      TChar {}      -> badP loc
+      TRecord {}    -> badP loc
+      TWild {}      -> badP loc
+      TTyApp {}     -> badP loc
+      TTuple {}     -> badP loc
+
+
+  goD loc ty =
+    case ty of
+
+      TLocated ty1 loc1 -> goD loc1 ty1
+
+      TUser f ts ->
+        do goN loc f
+           ps <- mapM (goP loc) ts
+           pure (Located { thing = f, srcRange = loc },ps)
+
+      TInfix l f _ r ->
+        do goN (srcRange f) (thing f)
+           a  <- goP loc l
+           b  <- goP loc r
+           pure (f,[a,b])
+
+      TFun {}       -> bad loc
+      TSeq {}       -> bad loc
+      TBit {}       -> bad loc
+      TNum {}       -> bad loc
+      TChar {}      -> bad loc
+      TRecord {}    -> bad loc
+      TWild {}      -> bad loc
+      TTyApp {}     -> bad loc
+      TTuple {}     -> bad loc
+      TParens {}    -> bad loc
 
 polyTerm :: Range -> Integer -> Integer -> ParseM (Bool, Integer)
 polyTerm rng k p
@@ -860,7 +939,10 @@ mkProp ty =
       TInfix{}       -> return [CType t]
       TUser{}        -> return [CType t]
       TTuple ts      -> concat `fmap` mapM (props r) ts
-      TParens t'     -> props r  t'
+      TParens t' mb  -> case mb of
+                          Nothing -> props r t'
+                          Just _  -> err
+
       TLocated t' r' -> props r' t'
 
       TFun{}    -> err

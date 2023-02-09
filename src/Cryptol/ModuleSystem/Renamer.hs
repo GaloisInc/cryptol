@@ -1012,7 +1012,7 @@ instance Rename Type where
       TTuple fs      -> TTuple   <$> traverse rename fs
       TWild          -> return TWild
       TLocated t' r  -> withLoc r (TLocated <$> rename t' <*> pure r)
-      TParens t'     -> TParens <$> rename t'
+      TParens t' k   -> (`TParens` k) <$> rename t'
       TInfix a o _ b -> do o' <- renameTypeOp o
                            a' <- rename a
                            b' <- rename b
@@ -1371,7 +1371,7 @@ patternEnv  = go
   typeEnv (TTuple ts)       = bindTypes ts
   typeEnv TWild             = return mempty
   typeEnv (TLocated ty loc) = withLoc loc (typeEnv ty)
-  typeEnv (TParens ty)      = typeEnv ty
+  typeEnv (TParens ty _)    = typeEnv ty
   typeEnv (TInfix a _ _ b)  = bindTypes [a,b]
 
   bindTypes [] = return mempty

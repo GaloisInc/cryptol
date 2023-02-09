@@ -658,7 +658,7 @@ data Type n = TFun (Type n) (Type n)  -- ^ @[8] -> [8]@
             | TTuple [Type n]         -- ^ @([8], [32])@
             | TWild                   -- ^ @_@, just some type.
             | TLocated (Type n) Range -- ^ Location information
-            | TParens (Type n)        -- ^ @ (ty) @
+            | TParens (Type n) (Maybe Kind)       -- ^ @ (ty) @
             | TInfix (Type n) (Located n) Fixity (Type n) -- ^ @ ty + ty @
               deriving (Eq, Show, Generic, NFData, Functor)
 
@@ -1309,7 +1309,10 @@ instance PPName name => PP (Type name) where
 
       TLocated t _   -> ppPrec n t
 
-      TParens t      -> parens (pp t)
+      TParens t mb   -> parens
+                          case mb of
+                            Nothing -> pp t
+                            Just k  -> pp t <+> ":" <+> pp k
 
       TInfix t1 o _ t2 -> optParens (n > 2)
                         $ sep [ppPrec 2 t1 <+> ppInfixName o, ppPrec 3 t2]
@@ -1549,7 +1552,7 @@ instance NoPos (Type name) where
       TNum n        -> TNum n
       TChar n       -> TChar n
       TLocated x _  -> noPos x
-      TParens x     -> TParens (noPos x)
+      TParens x k   -> TParens (noPos x) k
       TInfix x y f z-> TInfix (noPos x) y f (noPos z)
 
 instance NoPos (Prop name) where

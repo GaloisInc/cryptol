@@ -289,6 +289,6 @@ tnamesT ty =
     TTyApp fs     -> Set.unions (map (tnamesT . value) fs)
     TLocated t _  -> tnamesT t
     TUser x ts    -> Set.insert x (Set.unions (map tnamesT ts))
-    TParens t     -> tnamesT t
+    TParens t _   -> tnamesT t
     TInfix a x _ c-> Set.insert (thing x)
                                 (Set.union (tnamesT a) (tnamesT c))

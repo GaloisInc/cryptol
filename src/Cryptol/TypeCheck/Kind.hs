@@ -39,7 +39,7 @@ import           Data.List(sortBy,groupBy)
 import           Data.Maybe(fromMaybe)
 import           Data.Function(on)
 import           Data.Text (Text)
-import           Control.Monad(unless,when)
+import           Control.Monad(unless,when,mplus)
 
 -- | Check a type signature.  Returns validated schema, and any implicit
 -- constraints that we inferred.
@@ -410,7 +410,15 @@ doCheckType ty k =
 
     P.TUser x ts    -> checkTUser x ts k
 
-    P.TParens t     -> doCheckType t k
+    P.TParens t mb  ->
+      do newK <- case (k, cvtK <$> mb) of
+                   (Just a, Just b) ->
+                      do unless (a == b)
+                           (kRecordError (KindMismatch Nothing a b))
+                         pure (Just b)
+                   (a,b) -> pure (mplus a b)
+
+         doCheckType t newK
 
     P.TInfix t x _ u-> doCheckType (P.TUser (thing x) [t, u]) k
 
