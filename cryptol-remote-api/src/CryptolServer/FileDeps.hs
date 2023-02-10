@@ -66,7 +66,7 @@ instance ToJSON FileDeps where
                            InFile f  -> toJSON f
                            InMem l _ -> JSON.object [ "internal" .= l ]
       , "fingerprint" .= fingerprintHexString (fiFingerprint fi)
-      , "includes"    .= Set.toList (fiForeignDeps fi)
+      , "includes"    .= Set.toList (fiIncludeDeps fi)
       , "imports"     .= map (show . pp) (Set.toList (fiImportDeps fi))
       , "foreign"     .= Set.toList (fiForeignDeps fi)
       ]
