@@ -16,6 +16,7 @@ module Cryptol.TypeCheck.Solver.Numeric.Interval where
 
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat
+import Cryptol.TypeCheck.PP(NameMap,ppWithNames)
 import Cryptol.Utils.PP hiding (int)
 
 import           Data.Map ( Map )
@@ -163,6 +164,14 @@ ppIntervals :: Map TVar Interval -> Doc
 ppIntervals  = vcat . map ppr . Map.toList
   where
   ppr (var,i) = pp var <.> char ':' <+> ppInterval i
+
+ppIntervalsWithNames :: NameMap -> Map TVar Interval -> Doc
+ppIntervalsWithNames nms = vcat . map ppr . Map.toList
+  where
+  ppr :: (TVar,Interval) -> Doc
+  ppr (var,i) = ppWithNames nms var <.> char ':' <+> ppInterval i
+
+
 
 ppInterval :: Interval -> Doc
 ppInterval x = brackets (hsep [ ppr (iLower x)
