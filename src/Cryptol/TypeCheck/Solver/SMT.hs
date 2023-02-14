@@ -10,7 +10,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# Language FlexibleInstances #-}
 {-# LANGUAGE PatternGuards #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 
 module Cryptol.TypeCheck.Solver.SMT
   ( -- * Setup
@@ -31,6 +30,7 @@ module Cryptol.TypeCheck.Solver.SMT
   , checkUnsolvable
   , tryGetModel
   , shrinkModel
+  , examineProps
   ) where
 
 import           SimpleSMT (SExpr)
@@ -187,7 +187,20 @@ instance DebugLog Subst where
 --------------------------------------------------------------------------------
 
 
-
+-- | Assume some properties (may only use the given variable).
+-- The continuation is given a callback that will determine if
+-- the additional assumptions are *incompatable* with the original onles.
+examineProps :: Solver -> [TParam] -> [Prop] ->
+  (([Prop] -> IO Bool) -> IO a) -> IO a
+examineProps sol xs ps k =
+  do push sol
+     let vs      = [ TVBound v | v <- xs, kindOf v == KNum ]
+         numAsmp = filter isNumeric ps
+     tvars <- Map.fromList <$> zipWithM (declareVar sol) [ 0 .. ] vs
+     mapM_ (assume sol tvars) numAsmp
+     a <- k (unsolvable sol tvars)
+     pop sol
+     pure a
 
 
 -- | Returns goals that were not proved
