@@ -30,7 +30,9 @@ module Cryptol.TypeCheck.Solver.SMT
   , checkUnsolvable
   , tryGetModel
   , shrinkModel
-  , examineProps
+
+    -- * Lower level interactions
+  , inNewFrame, TVars, declareVars, assume, unsolvable
   ) where
 
 import           SimpleSMT (SExpr)
@@ -187,22 +189,6 @@ instance DebugLog Subst where
 --------------------------------------------------------------------------------
 
 
--- | Assume some properties (may only use the given variable).
--- The continuation is given a callback that will determine if
--- the additional assumptions are *incompatable* with the original onles.
-examineProps :: Solver -> [TParam] -> [Prop] ->
-  (([Prop] -> IO Bool) -> IO a) -> IO a
-examineProps sol xs ps k =
-  do push sol
-     let vs      = [ TVBound v | v <- xs, kindOf v == KNum ]
-         numAsmp = filter isNumeric ps
-     tvars <- Map.fromList <$> zipWithM (declareVar sol) [ 0 .. ] vs
-     mapM_ (assume sol tvars) numAsmp
-     a <- k (unsolvable sol tvars)
-     pop sol
-     pure a
-
-
 -- | Returns goals that were not proved
 proveImp :: Solver -> [Prop] -> [Goal] -> IO [Goal]
 proveImp sol ps gs0 =
@@ -301,6 +287,13 @@ push sol = SMT.push (solver sol)
 pop :: Solver -> IO ()
 pop sol = SMT.pop (solver sol)
 
+inNewFrame :: Solver -> IO a -> IO a
+inNewFrame sol m =
+  do push sol
+     a <- m
+     pop sol
+     pure a
+
 
 declareVar :: Solver -> Int -> TVar -> IO (TVar, SExpr)
 declareVar s x v =
@@ -308,6 +301,12 @@ declareVar s x v =
      e <- SMT.declare (solver s) name cryInfNat
      SMT.assert (solver s) (SMT.fun "cryVar" [ e ])
      return (v,e)
+
+
+declareVars :: Solver -> [TVar] -> IO TVars
+declareVars sol vs =
+  Map.fromList <$> zipWithM (declareVar sol) [ 0 .. ]
+                                             [ v | v <- vs, kindOf v == KNum ]
 
 assume :: Solver -> TVars -> Prop -> IO ()
 assume s tvs p = SMT.assert (solver s) (SMT.fun "cryAssume" [ toSMT tvs p ])
