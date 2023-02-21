@@ -105,7 +105,7 @@ markdown = blanks []
 
   isOpenFence l
     | "```" `Text.isPrefixOf` l' =
-      Just $ case Text.drop 3 l' of
+      Just $ case Text.strip (Text.drop 3 l') of
                l'' | "cryptol" `Text.isPrefixOf` l'' -> Code
                    | isBlank l''                     -> Code
                    | otherwise                       -> Comment
