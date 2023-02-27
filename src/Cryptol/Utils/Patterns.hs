@@ -2,6 +2,7 @@
 {-# Language FunctionalDependencies #-}
 {-# Language FlexibleInstances #-}
 {-# Language TypeFamilies, UndecidableInstances #-}
+{-# Language TypeOperators #-}
 module Cryptol.Utils.Patterns where
 
 import Control.Monad(liftM,liftM2,ap,MonadPlus(..),guard)

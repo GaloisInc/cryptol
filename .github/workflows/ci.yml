@@ -59,14 +59,15 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-22.04, macos-12, windows-2019]
-        ghc-version: ["8.10.7", "9.0.2", "9.2.4"]
+        ghc-version: ["8.10.7", "9.2.4", "9.4.4"]
+        cabal: [ '3.8.1.0' ]
         run-tests: [true]
         exclude:
           - os: windows-2019
-            ghc-version: 9.0.2
+            ghc-version: 9.2.4
             run-tests: true
           - os: windows-2019
-            ghc-version: 9.2.4
+            ghc-version: 9.4.4
             run-tests: true
         include:
           # We include one job from an older Ubuntu LTS release to increase our
@@ -97,6 +98,7 @@ jobs:
         id: setup-haskell
         with:
           ghc-version: ${{ matrix.ghc-version }}
+          cabal-version: ${{ matrix.cabal }}
 
       - name: Post-GHC installation fixups on Windows
         shell: bash
