@@ -73,7 +73,7 @@ library
                        pretty,
                        prettyprinter     >= 1.7.0,
                        process           >= 1.2,
-                       sbv               >= 8.10 && < 9.1,
+                       sbv               >= 9.1 && < 9.3,
                        simple-smt        >= 0.9.7,
                        stm               >= 2.4,
                        strict,

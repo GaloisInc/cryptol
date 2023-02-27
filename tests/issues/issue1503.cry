@@ -1,0 +1,4 @@
+add_mul_lemma : Integer -> Integer -> Integer -> Integer -> Bit
+add_mul_lemma m n p q =
+  (0 <= m /\ 0 <= n /\ 0 <= p /\ 0 <= q /\ n < q /\ p < m) ==>
+  (m * n + p < m * q)

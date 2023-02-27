@@ -30,9 +30,13 @@
 * Add a syntax highlight file for Vim,
   available in `syntax-highlight/cryptol.vim`
 
-* Add `:new-seed` and `:set-seed` commands to the REPL. 
+* Add `:new-seed` and `:set-seed` commands to the REPL.
   These affect random test generation,
   and help write reproducable Cryptol scripts.
+
+* Add support for the CVC5 solver, which can be selected with
+  `:set prover=cvc5`. If you want to specify a What4 or SBV backend, you can
+  use `:set prover=w4-cvc5` or `:set prover=sbv-cvc5`, respectively.
 
 ## Bug fixes
 
