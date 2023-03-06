@@ -11,6 +11,7 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ViewPatterns #-}
 module Cryptol.Backend.What4 where
 
