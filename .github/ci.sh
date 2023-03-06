@@ -77,7 +77,7 @@ install_system_deps() {
   cp $BIN/yices_smt2$EXT $BIN/yices-smt2$EXT
   export PATH=$BIN:$PATH
   echo "$BIN" >> "$GITHUB_PATH"
-  is_exe "$BIN" z3 && is_exe "$BIN" cvc4 && is_exe "$BIN" yices
+  is_exe "$BIN" z3 && is_exe "$BIN" cvc4 && is_exe "$BIN" cvc5 && is_exe "$BIN" yices
 }
 
 check_docs() {
@@ -132,6 +132,7 @@ zip_dist_with_solvers() {
   sname="${name}-with-solvers"
   cp "$(which abc)"        dist/bin/
   cp "$(which cvc4)"       dist/bin/
+  cp "$(which cvc5)"       dist/bin/
   cp "$(which yices)"      dist/bin/
   cp "$(which yices-smt2)" dist/bin/
   cp "$(which z3)"         dist/bin/
