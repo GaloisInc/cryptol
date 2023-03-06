@@ -36,7 +36,9 @@
 
 * Add support for the CVC5 solver, which can be selected with
   `:set prover=cvc5`. If you want to specify a What4 or SBV backend, you can
-  use `:set prover=w4-cvc5` or `:set prover=sbv-cvc5`, respectively.
+  use `:set prover=w4-cvc5` or `:set prover=sbv-cvc5`, respectively. (Note that
+  `sbv-cvc5` is non-functional on Windows at this time due to a downstream issue
+  with CVC5 1.0.4 and earlier.)
 
 ## Bug fixes
 
