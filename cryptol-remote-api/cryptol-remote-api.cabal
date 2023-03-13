@@ -55,7 +55,7 @@ common deps
     text                 >= 1.2.3 && < 2.1,
     tf-random,
     unordered-containers ^>= 0.2,
-    vector               ^>= 0.13,
+    vector               >= 0.12 && < 0.14,
 
   default-language:    Haskell2010
 
