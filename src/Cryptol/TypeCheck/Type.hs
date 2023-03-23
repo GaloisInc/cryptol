@@ -1054,6 +1054,17 @@ ppNewtypeShort nt =
   ps  = ntParams nt
   nm = addTNames ps emptyNameMap
 
+ppNewtypeFull :: Newtype -> Doc
+ppNewtypeFull nt =
+  text "newtype" <+> pp (ntName nt) <+> hsep (map (ppWithNamesPrec nm 9) ps)
+  $$ nest 2 (cs $$ ("=" <+> pp (ntConName nt) $$ nest 2 fs))
+  where
+  ps = ntParams nt
+  nm = addTNames ps emptyNameMap
+  fs = vcat [ pp f <.> ":" <+> pp t | (f,t) <- canonicalFields (ntFields nt) ]
+  cs = vcat (map pp (ntConstraints nt))
+
+
 
 instance PP Schema where
   ppPrec = ppWithNamesPrec IntMap.empty
