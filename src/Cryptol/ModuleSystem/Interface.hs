@@ -159,7 +159,7 @@ instance Monoid IfaceDecls where
                   , ifFunctors = mempty
                   , ifSignatures = mempty
                   }
-  mappend l r = l <> r
+  mappend = (<>)
   mconcat ds  = IfaceDecls
     { ifTySyns   = Map.unions (map ifTySyns   ds)
     , ifNewtypes = Map.unions (map ifNewtypes ds)
