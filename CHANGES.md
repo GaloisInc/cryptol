@@ -34,7 +34,7 @@
   These affect random test generation,
   and help write reproducable Cryptol scripts.
 
-* Add `:file-deps` commnads ro the REPL and Python API.
+* Add `:file-deps` commands to the REPL and Python API.
   It shows information about the source files and dependencies of
   modules or Cryptol files.
 
