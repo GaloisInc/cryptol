@@ -432,7 +432,7 @@ instance TVars DeclGroup where
 
 instance TVars Decl where
   apSubst su d =
-    let !sig' = id $! apSubst su (dSignature d)
+    let !sig' = apSubst su (dSignature d)
         !def' = apSubst su (dDefinition d)
     in d { dSignature = sig', dDefinition = def' }
 
