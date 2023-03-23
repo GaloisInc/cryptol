@@ -262,7 +262,15 @@ apSubstMaybe su ty =
          Just (TUser f ts1 t1)
 
     TRec fs -> TRec `fmap` (anyJust (apSubstMaybe su) fs)
-    TNewtype nt ts -> TNewtype nt `fmap` anyJust (apSubstMaybe su) ts
+
+    {- We apply the substitution to the newtype as well, because it might
+    contain module parameters, which need to be substituted when
+    instantiating a functor. -}
+    TNewtype nt ts ->
+      uncurry TNewtype <$> anyJust2 (applySubstToNewtype su)
+                                    (anyJust (apSubstMaybe su))
+                                    (nt,ts)
+
     TVar x -> applySubstToVar su x
 
 lookupSubst :: TVar -> Subst -> Maybe Type
@@ -283,6 +291,16 @@ applySubstToVar su x =
     Nothing
       | suDefaulting su -> Just $! defaultFreeVar x
       | otherwise       -> Nothing
+
+
+applySubstToNewtype :: Subst -> Newtype -> Maybe Newtype
+applySubstToNewtype su nt =
+  do (cs,fs) <- anyJust2
+                  (anyJust (apSubstMaybe su))
+                  (anyJust (apSubstMaybe su))
+                  (ntConstraints nt, ntFields nt)
+     pure nt { ntConstraints = cs, ntFields = fs }
+
 
 class TVars t where
   apSubst :: Subst -> t -> t
