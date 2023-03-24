@@ -1,0 +1,17 @@
+
+submodule F where
+  parameter
+    type T : *
+
+  newtype NT = { field : T -> () }
+
+  nt : NT
+  nt = NT { field = \_ -> () }
+
+import submodule F where
+  type T = [32]
+
+
+x = nt.field 10
+
+

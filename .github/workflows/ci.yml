@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 env:
-  SOLVER_PKG_VERSION: "snapshot-20220812"
+  SOLVER_PKG_VERSION: "snapshot-20221212"
   # The CACHE_VERSION can be updated to force the use of a new cache if
   # the current cache contents become corrupted/invalid.  This can
   # sometimes happen when (for example) the OS version is changed but
@@ -315,6 +315,7 @@ jobs:
           .github/ci.sh install_system_deps
           .github/ci.sh deps bin/abc*
           .github/ci.sh deps bin/cvc4*
+          .github/ci.sh deps bin/cvc5*
           .github/ci.sh deps bin/yices-smt2*
           .github/ci.sh deps bin/z3*
           ghc_ver="$(ghc --numeric-version)"
