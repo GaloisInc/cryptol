@@ -40,7 +40,7 @@
   `sbv-cvc5` is non-functional on Windows at this time due to a downstream issue
   with CVC5 1.0.4 and earlier.)
 
-* Add `:file-deps` commnads ro the REPL and Python API.
+* Add `:file-deps` commands to the REPL and Python API.
   It shows information about the source files and dependencies of
   modules or Cryptol files.
 
