@@ -25,7 +25,7 @@ predicates written in Cryptol against randomly-generated test vectors
 (in the style of
 [QuickCheck](http://hackage.haskell.org/package/QuickCheck)). There is
 also a `:prove` command, which calls out to SMT solvers, such as
-Yices, Z3, or CVC4, to prove predicates for all possible inputs.
+Yices, Z3, CVC4, or CVC5, to prove predicates for all possible inputs.
 
 # Getting Cryptol Binaries
 
@@ -46,7 +46,7 @@ Cryptol currently uses Microsoft Research's [Z3 SMT
 solver](https://github.com/Z3Prover/z3) by default to solve constraints
 during type checking, and as the default solver for the `:sat` and
 `:prove` commands.  Cryptol generally requires the most recent version
-of Z3, but you can see the specific version tested in CI by looking [here](https://github.com/GaloisInc/what4-solvers/releases/tag/snapshot-20220812).
+of Z3, but you can see the specific version tested in CI by looking [here](https://github.com/GaloisInc/what4-solvers/releases/tag/snapshot-20221212).
 
 You can download Z3 binaries for a variety of platforms from their
 [releases page](https://github.com/Z3Prover/z3/releases). If you

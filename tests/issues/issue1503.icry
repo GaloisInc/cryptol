@@ -1,0 +1,11 @@
+:l issue1503.cry
+
+:set prover=w4-cvc5
+:prove add_mul_lemma
+
+// We avoid testing sbv-cvc5 for now, as using CVC5 with SBV on Windows will go
+// likely go into an infinite loop.
+// See https://github.com/LeventErkok/sbv/issues/644.
+//
+// :set prover=sbv-cvc5
+// :prove add_mul_lemma

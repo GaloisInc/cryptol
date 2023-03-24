@@ -81,6 +81,7 @@ doSBVEval m =
 proverConfigs :: [(String, SBV.SMTConfig)]
 proverConfigs =
   [ ("cvc4"     , SBV.cvc4     )
+  , ("cvc5"     , SBV.cvc5     )
   , ("yices"    , SBV.yices    )
   , ("z3"       , SBV.z3       )
   , ("boolector", SBV.boolector)
@@ -90,6 +91,7 @@ proverConfigs =
   , ("any"      , SBV.defaultSMTCfg )
 
   , ("sbv-cvc4"     , SBV.cvc4     )
+  , ("sbv-cvc5"     , SBV.cvc5     )
   , ("sbv-yices"    , SBV.yices    )
   , ("sbv-z3"       , SBV.z3       )
   , ("sbv-boolector", SBV.boolector)
