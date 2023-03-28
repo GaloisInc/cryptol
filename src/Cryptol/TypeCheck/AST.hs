@@ -473,6 +473,8 @@ instance PP n => PP (WithNames (ModuleG n)) where
          , vcat (map pp' (Map.elems mTySyns))
          -- XXX: Print abstarct types/functions
          , vcat (map pp' mDecls)
+
+         , vcat (map pp (Map.elems mFunctors))
          ]
     where mps = map mtpParam (Map.elems mParamTypes)
           pp' :: PP (WithNames a) => a -> Doc
