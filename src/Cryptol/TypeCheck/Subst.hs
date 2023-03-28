@@ -457,10 +457,11 @@ instance TVars DeclDef where
   apSubst _  (DForeign t) = DForeign t
 
 -- WARNING: This applies the substitution only to the declarations.
-instance TVars Module where
+instance TVars (ModuleG names) where
   apSubst su m =
     let !decls' = apSubst su (mDecls m)
-    in m { mDecls = decls' }
+        !funs'  = apSubst su <$> mFunctors m
+    in m { mDecls = decls', mFunctors = funs' }
 
 -- WARNING: This applies the substitution only to the declarations in modules.
 instance TVars TCTopEntity where
