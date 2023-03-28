@@ -1,0 +1,7 @@
+module Issue1510_T where
+
+import Issue1510_F where
+  type n = 1
+
+import submodule S where
+  type m = 1

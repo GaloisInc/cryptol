@@ -1,0 +1,13 @@
+module Issue1510_F where
+
+parameter
+  type n: #
+
+submodule S where
+  parameter
+    type m: #
+
+  x : Integer
+  x = 0 ^^ 1  // crashes
+  // x = 0 ^^ (1 : Integer)  // works
+
