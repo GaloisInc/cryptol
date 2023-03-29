@@ -453,8 +453,16 @@ renameTopDecls' ds =
 
 
          (noNameDs,nameDs) = partitionEithers (map topDeclName ds1)
-         ctrs = [ nm | (_,nm@(ConstratintAt {})) <- nameDs ]
-
+         ctrs = [ nm | (_,nm@(ConstratintAt {}),_) <- nameDs ]
+         indirect = Map.fromList [ (y,x)
+                                 | (_,x,ys) <- nameDs, y <- ys ]
+         mkDepName x = case Map.lookup x fromParams of
+                         Just dn -> dn
+                         Nothing -> NamedThing x
+         depsFor x =
+           [ Map.findWithDefault (mkDepName y) (NamedThing y) indirect
+           | y <- Set.toList (Map.findWithDefault Set.empty x deps)
+           ]
 
          {- See [NOTE: Dependencies on Top Level Constraints] -}
          addCtr nm ctr =
@@ -493,15 +501,9 @@ renameTopDecls' ds =
                                          Nothing -> []
              _ -> []
 
-         mkDepName x = case Map.lookup x fromParams of
-                         Just dn -> dn
-                         Nothing -> NamedThing x
-
-         toNode (d,x) = ((d,x),x, addCtrs (d,x) ++
-                                  addModParams d ++
-                               map mkDepName
-                             ( Set.toList
-                             ( Map.findWithDefault Set.empty x deps) ))
+         toNode (d,x,_) = ((d,x),x, addCtrs (d,x) ++
+                                    addModParams d ++
+                                    depsFor x)
 
          ordered = stronglyConnComp (map toNode nameDs)
          fromSCC x =
@@ -588,28 +590,32 @@ declName decl =
   where
   bad x = panic "declName" [x]
 
-topDeclName :: TopDecl Name -> Either (TopDecl Name) (TopDecl Name, DepName)
+topDeclName ::
+  TopDecl Name ->
+  Either (TopDecl Name) (TopDecl Name, DepName, [DepName])
 topDeclName topDecl =
   case topDecl of
     Decl d                  -> hasName (declName (tlValue d))
     DPrimType d             -> hasName (thing (primTName (tlValue d)))
-    TDNewtype d             -> hasName (thing (nName (tlValue d)))
+    TDNewtype d             -> hasName' (thing (nName (tlValue d)))
+                                        [ nConName (tlValue d) ]
     DModule d               -> hasName (thing (mName m))
       where NestedModule m = tlValue d
 
-    DInterfaceConstraint _ ds -> Right (topDecl, ConstratintAt (srcRange ds))
+    DInterfaceConstraint _ ds -> special (ConstratintAt (srcRange ds))
 
     DImport {}              -> noName
 
-    DModParam m             -> Right ( topDecl
-                                     , ModParamName (srcRange (mpSignature m))
-                                                    (mpName m))
+    DModParam m             -> special (ModParamName (srcRange (mpSignature m))
+                                                     (mpName m))
 
     Include {}              -> bad "Include"
     DParamDecl {}           -> bad "DParamDecl"
   where
   noName    = Left topDecl
-  hasName n = Right (topDecl, NamedThing n)
+  hasName n = hasName' n []
+  hasName' n ms = Right (topDecl, NamedThing n, map NamedThing ms)
+  special x = Right (topDecl, x, [])
   bad x     = panic "topDeclName" [x]
 
 
@@ -876,6 +882,8 @@ instance Rename Newtype where
     shadowNames (nParams n) $
     do nameT <- rnLocated (renameType NameBind) (nName n)
        nameC <- renameVar  NameBind (nConName n)
+
+       depsOf (NamedThing nameC) (addDep (thing nameT))
 
        depsOf (NamedThing (thing nameT)) $
          do ps'   <- traverse rename (nParams n)

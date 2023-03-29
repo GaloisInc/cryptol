@@ -1,0 +1,11 @@
+module M where
+
+v: [1]
+v = MOOD.SAD.value
+
+newtype MOOD_t = { value: [1] }
+
+MOOD = { HAPPY = MOOD_t { value = 0b1 }
+       , SAD   = MOOD_t { value = 0b0 }
+       }
+
