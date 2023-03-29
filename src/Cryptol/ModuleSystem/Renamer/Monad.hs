@@ -290,7 +290,7 @@ depsOf x (RenameM m) = RenameM
      pure a
 
 -- | This is used when renaming a group of things.  The result contains
--- dependencies between names defines and the group, and is intended to
+-- dependencies between names defined in the group, and is intended to
 -- be used to order the group members in dependency order.
 depGroup :: RenameM a -> RenameM (a, Map DepName (Set Name))
 depGroup (RenameM m) = RenameM

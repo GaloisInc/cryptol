@@ -66,9 +66,11 @@ data RenamerError
 
 
 {- | We use this to name dependencies.
-In addition to normla names we have a way to refer to module parameters
+In addition to normal names we have a way to refer to module parameters
 and top-level module constraints, which have no explicit names -}
 data DepName = NamedThing Name
+               -- ^ Something with a name
+
              | ModPath ModPath
                -- ^ The module at this path
 
