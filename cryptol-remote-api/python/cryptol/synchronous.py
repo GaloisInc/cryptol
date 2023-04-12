@@ -355,6 +355,15 @@ class CryptolSyncConnection:
         else:
             raise ValueError("Panic! Result of `names()` is malformed: " + str(res))
 
+    def property_names(self, *, timeout:Optional[float] = None) -> List[Dict[str,Any]]:
+        """Discover the list of property names currently in scope in the current context.
+        The result is a subset of the list returned by `names`."""
+        res = self.connection.property_names(timeout=timeout).result()
+        if isinstance(res, list) and all(isinstance(d, dict) and all(isinstance(k, str) for k in d.keys()) for d in res):
+            return res
+        else:
+            raise ValueError("Panic! Result of `property_names()` is malformed: " + str(res))
+
     def focused_module(self, *, timeout:Optional[float] = None) -> Dict[str,Any]:
         """Returns the name and other information about the currently-focused module."""
         res = self.connection.focused_module(timeout=timeout).result()

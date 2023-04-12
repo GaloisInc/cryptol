@@ -222,6 +222,11 @@ def names(*, timeout:Optional[float] = None) -> List[Dict[str,Any]]:
     """Discover the list of names currently in scope in the current context."""
     return __get_designated_connection().names(timeout=timeout)
 
+def property_names(*, timeout:Optional[float] = None) -> List[Dict[str,Any]]:
+    """Discover the list of property names currently in scope in the current context.
+    The result is a subset of the list returned by `names`."""
+    return __get_designated_connection().property_names(timeout=timeout)
+
 def focused_module(*, timeout:Optional[float] = None) -> Dict[str,Any]:
     """Returns the name and other information about the currently-focused module."""
     return __get_designated_connection().focused_module(timeout=timeout)
