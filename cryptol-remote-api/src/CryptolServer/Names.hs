@@ -55,23 +55,29 @@ instance Doc.DescribedMethod VisibleNamesParams [NameInfo] where
     , ("module",
       Doc.Paragraph [Doc.Text "A human-readable representation of the module from which the name originates"])
     , ("parameter",
-      Doc.Paragraph [Doc.Text "An optional field which is present and True iff the name is a module parameter"])
+      Doc.Paragraph [ Doc.Text "An optional field which is present and ",
+                      Doc.Literal "True", Doc.Text " iff the name is a module parameter" ])
     , ("infix",
-      Doc.Paragraph [Doc.Text "An optional field which is present and True iff the name is an infix operator"])
+      Doc.Paragraph [ Doc.Text "An optional field which is present and ",
+                      Doc.Literal "True", Doc.Text " iff the name is an infix operator" ])
     , ("infix associativity",
-      Doc.Paragraph [ Doc.Text "An optional field containing one of the strings \"left-associative\", "
-                    , Doc.Text "\"right-associative\", or \"non-associative\", if the name is an infix operator"])
+      Doc.Paragraph [ Doc.Text "An optional field containing one of the strings ",
+                      Doc.Literal "left-associative", Doc.Text ", ",
+                      Doc.Literal "right-associative", Doc.Text ", or ",
+                      Doc.Literal "non-associative", Doc.Text " if the name is an infix operator" ])
     , ("infix level",
-      Doc.Paragraph [ Doc.Text "An optional field containing the name's precedence level, if the name is an infix operator"])
+      Doc.Paragraph [ Doc.Text "An optional field containing the name's precedence level, ",
+                      Doc.Text "if the name is an infix operator" ])
     , ("pragmas",
-      Doc.Paragraph [Doc.Text "An optional field containing a list of the name's pragmas (e.g. \"property\"), if it has any"])
+      Doc.Paragraph [ Doc.Text "An optional field containing a list of the name's pragmas (e.g. ",
+                      Doc.Literal "property", Doc.Text "), if it has any"])
     , ("documentation",
       Doc.Paragraph [Doc.Text "An optional field containing documentation string for the name, if it is documented"])
     ]
 
 visibleNamesDescr :: Doc.Block
 visibleNamesDescr =
-  Doc.Paragraph [Doc.Text "List the currently visible (i.e., in scope) names."]
+  Doc.Paragraph [Doc.Text "List the currently visible (i.e., in scope) term names."]
 
 visibleNames :: VisibleNamesParams -> CryptolCommand [NameInfo]
 visibleNames _ =
