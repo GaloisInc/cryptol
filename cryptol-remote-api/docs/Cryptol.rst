@@ -490,7 +490,7 @@ Return fields
 visible names (command)
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-List the currently visible (i.e., in scope) names.
+List the currently visible (i.e., in scope) term names.
 
 Parameter fields
 ++++++++++++++++
@@ -514,6 +514,36 @@ Return fields
 
 ``type``
    A:ref:`JSON Cryptol type <JSONSchema>`
+  
+  
+
+``module``
+  A human-readable representation of the module from which the name originates
+  
+  
+
+``parameter``
+  An optional field which is present and ``True`` iff the name is a module parameter
+  
+  
+
+``infix``
+  An optional field which is present and ``True`` iff the name is an infix operator
+  
+  
+
+``infix associativity``
+  An optional field containing one of the strings ``left-associative``, ``right-associative``, or ``non-associative`` if the name is an infix operator
+  
+  
+
+``infix level``
+  An optional field containing the name's precedence level, if the name is an infix operator
+  
+  
+
+``pragmas``
+  An optional field containing a list of the name's pragmas (e.g. ``property``), if it has any
   
   
 
