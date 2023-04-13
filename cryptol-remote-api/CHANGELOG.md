@@ -1,6 +1,6 @@
 # Revision history for `cryptol-remote-api` and `cryptol-eval-server`
 
-## 2.13.2 -- YYYY-MM-DD
+## NEXT -- YYYY-MM-DD
 
 * Add more fields (such as `pragmas`, `parameter`, `module`, and `infix`) to
   the response to the RPC `visible names` method.

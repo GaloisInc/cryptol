@@ -55,19 +55,15 @@ instance Doc.DescribedMethod VisibleNamesParams [NameInfo] where
     , ("module",
       Doc.Paragraph [Doc.Text "A human-readable representation of the module from which the name originates"])
     , ("parameter",
-      Doc.Paragraph [ Doc.Text "An optional field which is present and ",
-                      Doc.Literal "True", Doc.Text " iff the name is a module parameter" ])
+      Doc.Paragraph [ Doc.Text "An optional field which is present iff the name is a module parameter" ])
     , ("infix",
-      Doc.Paragraph [ Doc.Text "An optional field which is present and ",
-                      Doc.Literal "True", Doc.Text " iff the name is an infix operator" ])
-    , ("infix associativity",
-      Doc.Paragraph [ Doc.Text "An optional field containing one of the strings ",
+      Doc.Paragraph [ Doc.Text "An optional field which is present iff the name is an infix operator. ",
+                      Doc.Text "If present, it contains an object with two fields. One field is ",
+                      Doc.Literal "associativity", Doc.Text ", containing one of the strings ",
                       Doc.Literal "left-associative", Doc.Text ", ",
                       Doc.Literal "right-associative", Doc.Text ", or ",
-                      Doc.Literal "non-associative", Doc.Text " if the name is an infix operator" ])
-    , ("infix level",
-      Doc.Paragraph [ Doc.Text "An optional field containing the name's precedence level, ",
-                      Doc.Text "if the name is an infix operator" ])
+                      Doc.Literal "non-associative", Doc.Text ", and the other is ",
+                      Doc.Literal "level", Doc.Text ", containing the name's precedence level." ])
     , ("pragmas",
       Doc.Paragraph [ Doc.Text "An optional field containing a list of the name's pragmas (e.g. ",
                       Doc.Literal "property", Doc.Text "), if it has any"])
@@ -122,10 +118,10 @@ instance JSON.ToJSON NameInfo where
     , "type" .= JSONSchema schema
     , "module" .= modl
     ] ++
-    (if isParam then ["parameter" .= isParam] else []) ++
+    (if isParam then ["parameter" .= ()] else []) ++
     maybe [] (\(assoc, lvl) ->
-              [ "infix" .= True
-              , "infix associativity" .= assoc
-              , "infix level" .= lvl ]) fixity ++
+              ["infix" .= JSON.object
+                          [ "associativity" .= assoc
+                          , "level" .= lvl ]]) fixity ++
     (if null pragmas then [] else ["pragmas" .= pragmas]) ++
     maybe [] (\d -> ["documentation" .= d]) nameDocs

@@ -523,22 +523,12 @@ Return fields
   
 
 ``parameter``
-  An optional field which is present and ``True`` iff the name is a module parameter
+  An optional field which is present iff the name is a module parameter
   
   
 
 ``infix``
-  An optional field which is present and ``True`` iff the name is an infix operator
-  
-  
-
-``infix associativity``
-  An optional field containing one of the strings ``left-associative``, ``right-associative``, or ``non-associative`` if the name is an infix operator
-  
-  
-
-``infix level``
-  An optional field containing the name's precedence level, if the name is an infix operator
+  An optional field which is present iff the name is an infix operator. If present, it contains an object with two fields. One field is ``associativity``, containing one of the strings ``left-associative``, ``right-associative``, or ``non-associative``, and the other is ``level``, containing the name's precedence level.
   
   
 

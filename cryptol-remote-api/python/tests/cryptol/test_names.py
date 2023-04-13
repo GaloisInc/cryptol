@@ -15,11 +15,11 @@ class TestNames(unittest.TestCase):
         # names()
 
         expected_names = [
-            {'module': 'Names', 'name': 'key', 'parameter': True },
+            {'module': 'Names', 'name': 'key', 'parameter': [] },
             {'module': 'Names', 'name': 'enc' },
             {'module': 'Names', 'name': 'enc_correct', 'pragmas': ['property'] },
             {'module': 'Names', 'name': 'prim' },
-            {'module': 'Names', 'name': '(-!)', 'infix': True, 'infix associativity': 'left-associative', 'infix level': 100 }
+            {'module': 'Names', 'name': '(-!)', 'infix': {'associativity': 'left-associative', 'level': 100} }
         ]
 
         names_to_check = filter_names(names(), module="Names", fields_to_exclude=["type", "type string"])

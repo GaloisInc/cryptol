@@ -1,6 +1,6 @@
 # Revision history for `cryptol` Python package
 
-## 2.13.2 -- YYYY-MM-DD
+## NEXT -- YYYY-MM-DD
 
 * Add `property_names` and `parameter_names` commands, used to get only those
   loaded names which are properties or module parameters, respectively.
