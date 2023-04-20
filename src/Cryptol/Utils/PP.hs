@@ -377,6 +377,8 @@ colon  = liftPP PP.colon
 
 pipe :: Doc
 pipe = liftPP PP.pipe
+
+
 instance PP T.Text where
   ppPrec _ str = text (T.unpack str)
 
@@ -385,7 +387,6 @@ instance PP Ident where
 
 instance PP ModName where
   ppPrec _   = text . T.unpack . modNameToText
-
 
 instance PP Assoc where
   ppPrec _ LeftAssoc  = text "left-associative"
@@ -426,3 +427,6 @@ instance PP Namespace where
       NSValue     -> "/*value*/"
       NSType      -> "/*type*/"
       NSModule    -> "/*module*/"
+
+instance PP PrimIdent where
+  ppPrec _ (PrimIdent m t) = pp m <.> text (T.unpack t)
