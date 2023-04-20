@@ -11,7 +11,7 @@ from .opaque import OpaqueValue
 import typing
 from typing import cast, Any, Dict, Iterable, List, NoReturn, Optional, TypeVar, Union
 import typing_extensions
-from typing_extensions import Protocol, runtime_checkable
+from typing_extensions import Protocol, runtime_checkable, TypedDict, NotRequired
 
 A = TypeVar('A')
 
@@ -476,3 +476,70 @@ def argument_types(obj : Union[CryptolTypeSchema, CryptolType]) -> List[CryptolT
         return [arg1] + args
     else:
         return []
+
+
+# -----------------------------------------------------------
+# Cryptol Name Info
+# -----------------------------------------------------------
+
+CryptolInfixInfo = TypedDict("CryptolInfixInfo",
+    { "associativity": Union[typing_extensions.Literal["left-associative"],
+                             typing_extensions.Literal["right-associative"],
+                             typing_extensions.Literal["non-associative"]]
+    , "level": int
+    })
+
+CryptolNameInfo = TypedDict("CryptolNameInfo",
+    { "module": str
+    , "name": str
+    , "type": CryptolTypeSchema
+    , "type string": str
+    , "documentation": NotRequired[str]
+    , "pragmas": NotRequired[List[str]]
+    , "parameter": NotRequired[typing.Tuple[()]]
+    , "infix": NotRequired[CryptolInfixInfo]
+    })
+
+def check_dict(d : Any, required_keys : Dict[str, Any], optional_keys : Dict[str, Any] = {}) -> bool:
+    return isinstance(d, dict) and all(k in d for k in required_keys) and \
+           all(k in required_keys and isinstance(d[k], required_keys[k]) or
+               k in optional_keys and isinstance(d[k], optional_keys[k]) for k in d)
+
+def to_cryptol_name_info(d : Any) -> CryptolNameInfo:
+    req_keys = {"module": str, "name": str, "type": Dict, "type string": str}
+    opt_keys = {"documentation": str, "pragmas": List, "parameter": List, "infix": Dict}
+    infix_req_keys = {"associativity": str, "level": int}
+    if check_dict(d, req_keys, opt_keys) and ("infix" not in d or check_dict(d["infix"], infix_req_keys)):
+        d["type"] = to_schema(d["type"])
+        if "parameter" in d: d["parameter"] = ()
+        # the calls to check_dict and the above ensure this cast is OK
+        return cast(CryptolNameInfo, d)
+    else:
+        raise ValueError("Cryptol name info is malformed: " + str(d))
+
+
+# -----------------------------------------------------------
+# Cryptol Module Info
+# -----------------------------------------------------------
+
+CryptolFocusedModuleInfo = TypedDict("CryptolFocusedModuleInfo",
+    { "module": str
+    , "parameterized": bool
+    })
+
+CryptolNoModuleInfo = TypedDict("CryptolNoModuleInfo",
+    { "module": None
+    })
+
+CryptolModuleInfo = Union[CryptolFocusedModuleInfo, CryptolNoModuleInfo]
+
+def to_cryptol_module_info(d : Any) -> CryptolModuleInfo:
+    if check_dict(d, {"module": str, "parameterized": bool}):
+        # the call to check_dict ensures this cast is OK
+        return cast(CryptolFocusedModuleInfo, d)
+    elif check_dict(d, {"module": type(None)}):
+        # the call to check_dict ensures this cast is OK
+        return cast(CryptolNoModuleInfo, d)
+    else:
+        raise ValueError("Cryptol module info is malformed: " + str(d))
+

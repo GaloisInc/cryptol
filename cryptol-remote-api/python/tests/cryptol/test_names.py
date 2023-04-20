@@ -15,7 +15,7 @@ class TestNames(unittest.TestCase):
         # names()
 
         expected_names = [
-            {'module': 'Names', 'name': 'key', 'parameter': [] },
+            {'module': 'Names', 'name': 'key', 'parameter': () },
             {'module': 'Names', 'name': 'enc' },
             {'module': 'Names', 'name': 'enc_correct', 'pragmas': ['property'] },
             {'module': 'Names', 'name': 'prim' },

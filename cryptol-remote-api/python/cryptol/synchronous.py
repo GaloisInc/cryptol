@@ -347,39 +347,35 @@ class CryptolSyncConnection:
         else:
             raise ValueError("Unknown solver type: " + str(solver))
 
-    def names(self, *, timeout:Optional[float] = None) -> List[Dict[str,Any]]:
+    def names(self, *, timeout:Optional[float] = None) -> List[cryptoltypes.CryptolNameInfo]:
         """Discover the list of term names currently in scope in the current context."""
         res = self.connection.names(timeout=timeout).result()
-        if isinstance(res, list) and all(isinstance(d, dict) and all(isinstance(k, str) for k in d.keys()) for d in res):
-            return res
+        if isinstance(res, list):
+            return [ cryptoltypes.to_cryptol_name_info(entry) for entry in res ]
         else:
-            raise ValueError("Panic! Result of `names()` is malformed: " + str(res))
+            raise ValueError("Result of `names()` is not a list: " + str(res))
 
-    def parameter_names(self, *, timeout:Optional[float] = None) -> List[Dict[str,Any]]:
+    def parameter_names(self, *, timeout:Optional[float] = None) -> List[cryptoltypes.CryptolNameInfo]:
         """Discover the list of module parameter names currently in scope in the current context.
         The result is a subset of the list returned by `names`."""
         res = self.connection.parameter_names(timeout=timeout).result()
-        if isinstance(res, list) and all(isinstance(d, dict) and all(isinstance(k, str) for k in d.keys()) for d in res):
-            return res
+        if isinstance(res, list):
+            return [ cryptoltypes.to_cryptol_name_info(entry) for entry in res ]
         else:
-            raise ValueError("Panic! Result of `parameter_names()` is malformed: " + str(res))
+            raise ValueError("Result of `parameter_names()` is not a list: " + str(res))
 
-    def property_names(self, *, timeout:Optional[float] = None) -> List[Dict[str,Any]]:
+    def property_names(self, *, timeout:Optional[float] = None) -> List[cryptoltypes.CryptolNameInfo]:
         """Discover the list of property names currently in scope in the current context.
         The result is a subset of the list returned by `names`."""
         res = self.connection.property_names(timeout=timeout).result()
-        if isinstance(res, list) and all(isinstance(d, dict) and all(isinstance(k, str) for k in d.keys()) for d in res):
-            return res
+        if isinstance(res, list):
+            return [ cryptoltypes.to_cryptol_name_info(entry) for entry in res ]
         else:
-            raise ValueError("Panic! Result of `property_names()` is malformed: " + str(res))
+            raise ValueError("Result of `property_names()` is not a list: " + str(res))
 
-    def focused_module(self, *, timeout:Optional[float] = None) -> Dict[str,Any]:
+    def focused_module(self, *, timeout:Optional[float] = None) -> cryptoltypes.CryptolModuleInfo:
         """Returns the name and other information about the currently-focused module."""
-        res = self.connection.focused_module(timeout=timeout).result()
-        if isinstance(res, dict) and all(isinstance(k, str) for k in res.keys()):
-            return res
-        else:
-            raise ValueError("Panic! Result of `focused_module()` is malformed: " + str(res))
+        return cryptoltypes.to_cryptol_module_info(self.connection.focused_module(timeout=timeout).result())
 
     def reset(self) -> None:
         """Resets the connection, causing its unique state on the server to be freed (if applicable).
