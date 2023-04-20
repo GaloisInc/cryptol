@@ -270,6 +270,16 @@ class CryptolNames(argo.Command):
     def process_result(self, res : Any) -> Any:
         return res
 
+class CryptolParameterNames(CryptolNames):
+    def process_result(self, res : Any) -> Any:
+        res = super(CryptolParameterNames, self).process_result(res)
+        return [ n for n in res if "parameter" in n ]
+
+class CryptolPropertyNames(CryptolNames):
+    def process_result(self, res : Any) -> Any:
+        res = super(CryptolPropertyNames, self).process_result(res)
+        return [ n for n in res if "pragmas" in n and "property" in n["pragmas"] ]
+
 
 class CryptolFocusedModule(argo.Command):
     def __init__(self, connection : HasProtocolState, timeout: Optional[float]) -> None:

@@ -1,0 +1,33 @@
+module Names where
+
+// Examples of names included in `names()` (term names)
+
+parameter
+  key : [64]
+
+enc : [64] -> [64]
+enc x = x ^ key
+
+enc_correct : [64] -> Bit
+property enc_correct x =
+  x == enc (enc x)
+
+primitive prim : [64] -> [64]
+
+(-!) : [64] -> [64] -> [64]
+x -! y = if y > x then 0 else x - y
+
+// Examples of names not included in `names()` (type and module names)
+
+parameter
+  type a : #
+
+type b = a
+
+type constraint fin_b = fin b
+
+primitive type c : *
+
+newtype d = { un_d : c }
+
+submodule M where

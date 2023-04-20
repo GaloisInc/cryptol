@@ -379,11 +379,29 @@ class CryptolConnection:
         return self.most_recent_result
 
     def names(self, *, timeout:Optional[float] = None) -> argo.Command:
-        """Discover the list of names currently in scope in the current context.
+        """Discover the list of term names currently in scope in the current context.
 
         :param timeout: Optional timeout for this request (in seconds)."""
         timeout = timeout if timeout is not None else self.timeout
         self.most_recent_result = CryptolNames(self, timeout)
+        return self.most_recent_result
+
+    def parameter_names(self, *, timeout:Optional[float] = None) -> argo.Command:
+        """Discover the list of module parameter names currently in scope in the current context.
+        The result is a subset of the list returned by `names`.
+
+        :param timeout: Optional timeout for this request (in seconds)."""
+        timeout = timeout if timeout is not None else self.timeout
+        self.most_recent_result = CryptolParameterNames(self, timeout)
+        return self.most_recent_result
+
+    def property_names(self, *, timeout:Optional[float] = None) -> argo.Command:
+        """Discover the list of property names currently in scope in the current context.
+        The result is a subset of the list returned by `names`.
+
+        :param timeout: Optional timeout for this request (in seconds)."""
+        timeout = timeout if timeout is not None else self.timeout
+        self.most_recent_result = CryptolPropertyNames(self, timeout)
         return self.most_recent_result
 
     def focused_module(self, *, timeout:Optional[float] = None) -> argo.Command:
