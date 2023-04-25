@@ -106,7 +106,7 @@ instance JSON.ToJSON JSONType where
           (other, otherArgs) ->
             [ "type" .= T.pack "unknown"
             , "constructor" .= show other
-            , "arguments" .= show otherArgs
+            , "arguments" .= map (JSONType ns) otherArgs
             ]
       convert (TCon (TF tf) args) =
         JSON.object
@@ -204,7 +204,7 @@ instance JSON.ToJSON JSONType where
           (pc', args') ->
             [ "prop" .= T.pack "unknown"
             , "constructor" .= show pc'
-            , "arguments" .= show args'
+            , "arguments" .= map (JSONType ns) args'
             ]
       convert (TVar v) =
         JSON.object

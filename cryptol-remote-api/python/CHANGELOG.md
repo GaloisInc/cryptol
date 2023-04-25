@@ -1,7 +1,15 @@
 # Revision history for `cryptol` Python package
 
+## NEXT -- YYYY-MM-DD
 
-## 2.13.0 -- YYYY-MM-DD
+* Add `property_names` and `parameter_names` commands, used to get only those
+  loaded names which are properties or module parameters, respectively.
+* Add more fields (such as `pragmas`, `parameter`, `module`, and `infix`) to
+  the result of `names` (see `cryptol-remote-api` `CHANGELOG`).
+* Do not hang if `names` is called when a parameterized module is loaded
+  (see `cryptol-remote-api` `CHANGELOG`).
+
+## 2.13.0 -- 2022-05-17
 
 * v2.13.0 release in tandem with the Cryptol 2.13.0 release. See the Cryptol
   2.13.0 release notes for relevant Cryptol changes. No notable changes to the

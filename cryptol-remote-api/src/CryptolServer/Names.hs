@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications #-}
@@ -15,17 +16,20 @@ import Data.Aeson ((.=))
 import qualified Data.Map as Map
 import Data.Map (Map)
 import Data.Text (unpack)
-import Data.Maybe(maybeToList)
 import Data.Typeable (Proxy(..), typeRep)
+import Data.Maybe (fromMaybe, mapMaybe, isJust)
 
 import Cryptol.Parser.Name (PName(..))
-import Cryptol.ModuleSystem.Env (ModContext(..), ModuleEnv(..), DynamicEnv(..), focusedEnv)
+import Cryptol.Parser.AST (Pragma)
+import Cryptol.ModuleSystem.Env (ModContext(..), ModuleEnv(..), DynamicEnv(..)
+                                , focusedEnv, modContextParamNames)
 import Cryptol.ModuleSystem.Interface (IfaceDecl(..), IfaceDecls(..))
 import Cryptol.ModuleSystem.Name (Name)
+import qualified Cryptol.ModuleSystem.Name as N (nameInfo,NameInfo(..))
 import Cryptol.ModuleSystem.NamingEnv
-                  (NamingEnv, namespaceMap, lookupNS, shadowing)
-import Cryptol.ModuleSystem.Names(namesToList)
-import Cryptol.TypeCheck.Type (Schema(..))
+                  (NamingEnv, namespaceMap, lookupListNS, shadowing)
+import Cryptol.TypeCheck.Type (Schema(..), ModVParam(..), mpnFuns)
+import Cryptol.Utils.Fixity(Fixity(..), defaultFixity)
 import Cryptol.Utils.PP (pp)
 import Cryptol.Utils.Ident(Namespace(..))
 
@@ -49,46 +53,80 @@ instance Doc.DescribedMethod VisibleNamesParams [NameInfo] where
       Doc.Paragraph [ Doc.Text " A"
                     , Doc.Link (Doc.TypeDesc (typeRep (Proxy @JSONSchema))) "JSON Cryptol type"
                     ])
+    , ("module",
+      Doc.Paragraph [Doc.Text "A human-readable representation of the module from which the name originates"])
+    , ("parameter",
+      Doc.Paragraph [ Doc.Text "An optional field which is present iff the name is a module parameter" ])
+    , ("infix",
+      Doc.Paragraph [ Doc.Text "An optional field which is present iff the name is an infix operator. ",
+                      Doc.Text "If present, it contains an object with two fields. One field is ",
+                      Doc.Literal "associativity", Doc.Text ", containing one of the strings ",
+                      Doc.Literal "left-associative", Doc.Text ", ",
+                      Doc.Literal "right-associative", Doc.Text ", or ",
+                      Doc.Literal "non-associative", Doc.Text ", and the other is ",
+                      Doc.Literal "level", Doc.Text ", containing the name's precedence level." ])
+    , ("pragmas",
+      Doc.Paragraph [ Doc.Text "An optional field containing a list of the name's pragmas (e.g. ",
+                      Doc.Literal "property", Doc.Text "), if it has any"])
     , ("documentation",
       Doc.Paragraph [Doc.Text "An optional field containing documentation string for the name, if it is documented"])
     ]
 
 visibleNamesDescr :: Doc.Block
 visibleNamesDescr =
-  Doc.Paragraph [Doc.Text "List the currently visible (i.e., in scope) names."]
+  Doc.Paragraph [Doc.Text "List the currently visible (i.e., in scope) term names."]
 
 visibleNames :: VisibleNamesParams -> CryptolCommand [NameInfo]
 visibleNames _ =
   do me <- getModuleEnv
      let DEnv { deNames = dyNames } = meDynEnv me
-     let ModContext { mctxDecls = fDecls, mctxNames = fNames} = focusedEnv me
+     let ModContext { mctxParams = fparams
+                    , mctxDecls = fDecls
+                    , mctxNames = fNames
+                    } = focusedEnv me
      let inScope = Map.keys (namespaceMap NSValue $ dyNames `shadowing` fNames)
-     return $ concatMap (getInfo fNames (ifDecls fDecls)) inScope
+         params = mpnFuns (modContextParamNames fparams)
+     return $ concatMap (getInfo fNames params (ifDecls fDecls)) inScope
 
-getInfo :: NamingEnv -> Map Name IfaceDecl -> PName -> [NameInfo]
-getInfo rnEnv info n' =
-  [ case Map.lookup n info of
-       Nothing -> error $ "Name not found, but should have been: " ++ show n
-       Just i ->
-         let ty = ifDeclSig i
-             nameDocs = ifDeclDoc i
-         in NameInfo (show (pp n')) (show (pp ty)) ty (unpack <$> nameDocs)
-  | ns <- maybeToList (lookupNS NSValue n' rnEnv), n <- namesToList ns
-  ]
+getInfo :: NamingEnv -> Map Name ModVParam -> Map Name IfaceDecl -> PName -> [NameInfo]
+getInfo rnEnv params decls n' =
+  flip mapMaybe (lookupListNS NSValue n' rnEnv) $ \n ->
+    case (N.nameInfo n, Map.lookup n params, Map.lookup n decls) of
+      (N.GlobalName _ m, Just (ModVParam _ ty nameDocs fx), _) ->
+        Just $ mkNameInfo True ty m (isJust fx) fx ([]::[Pragma]) nameDocs
+      (N.GlobalName _ m, _, Just (IfaceDecl _ ty prags ifx fx nameDocs)) ->
+        Just $ mkNameInfo False ty m ifx fx prags nameDocs
+      _ -> Nothing
+  where mkNameInfo param ty m ifx fx prags nameDocs = 
+          let fxy = if not ifx then Nothing else case fromMaybe defaultFixity fx of
+                      Fixity assoc lvl -> Just (show (pp assoc), lvl)
+           in NameInfo (show (pp n')) (show (pp ty)) ty (show (pp m)) param
+                       fxy (show . pp <$> prags) (unpack <$> nameDocs)
 
 data NameInfo =
   NameInfo
   { name     :: String
   , typeSig  :: String
   , schema   :: Schema
+  , modl     :: String
+  , isParam  :: Bool
+  , fixity   :: Maybe (String, Int)
+  , pragmas  :: [String]
   , nameDocs :: Maybe String
   }
 
 instance JSON.ToJSON NameInfo where
-  toJSON (NameInfo{name, typeSig, schema, nameDocs}) =
+  toJSON (NameInfo{..}) =
     JSON.object $
     [ "name" .= name
     , "type string" .= typeSig
-    , "type" .= JSON.toJSON (JSONSchema schema)
+    , "type" .= JSONSchema schema
+    , "module" .= modl
     ] ++
+    (if isParam then ["parameter" .= ()] else []) ++
+    maybe [] (\(assoc, lvl) ->
+              ["infix" .= JSON.object
+                          [ "associativity" .= assoc
+                          , "level" .= lvl ]]) fixity ++
+    (if null pragmas then [] else ["pragmas" .= pragmas]) ++
     maybe [] (\d -> ["documentation" .= d]) nameDocs
