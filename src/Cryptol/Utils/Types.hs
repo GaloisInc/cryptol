@@ -1,3 +1,4 @@
+{-# LANGUAGE Safe #-}
 -- | Useful information about various types.
 module Cryptol.Utils.Types where
 
