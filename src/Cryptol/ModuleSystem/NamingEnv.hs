@@ -184,7 +184,7 @@ travNamingEnv f (NamingEnv mp) =
   NamingEnv <$> traverse (traverse (traverse f)) mp
 
 
-{- | Do somethign in context.  If `Nothing` than we are working with
+{- | Do something in context.  If `Nothing` than we are working with
 a local declaration. Otherwise we are at the top-level of the
 given module. -}
 data InModule a = InModule (Maybe ModPath) a
