@@ -92,7 +92,7 @@ jobs:
 
       - uses: abatilo/actions-poetry@v2.0.0
         with:
-          poetry-version: 1.1.6
+          poetry-version: 1.4.2
 
       - uses: haskell/actions/setup@v1
         id: setup-haskell
@@ -291,7 +291,7 @@ jobs:
       - if: matrix.suite == 'rpc'
         uses: abatilo/actions-poetry@v2.1.2
         with:
-          poetry-version: 1.1.6
+          poetry-version: 1.4.2
 
       - uses: actions/download-artifact@v2
         with:
@@ -427,7 +427,7 @@ jobs:
       - if: matrix.image == 'ghcr.io/galoisinc/cryptol-remote-api'
         uses: abatilo/actions-poetry@v2.1.2
         with:
-          poetry-version: 1.1.6
+          poetry-version: 1.4.2
 
       - if: matrix.image == 'ghcr.io/galoisinc/cryptol-remote-api'
         name: Test cryptol-remote-api
