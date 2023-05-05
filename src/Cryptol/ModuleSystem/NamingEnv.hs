@@ -229,7 +229,6 @@ isEmptyNamingEnv (NamingEnv mp) = Map.null mp
 -- we've been doing it everywhere.
 
 
-
 -- | Compute an unqualified naming environment, containing the various module
 -- parameters.
 modParamsNamingEnv :: T.ModParamNames -> NamingEnv

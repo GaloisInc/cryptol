@@ -426,7 +426,7 @@ If `Nothing` than we are working with a local declaration.
 Otherwise we are at the top-level of the given module.
 
 By wrapping types with this, we can pass the module path
-to methdods that need the extra information. -}
+to methods that need the extra information. -}
 data InModule a = InModule (Maybe ModPath) a
                   deriving (Functor,Traversable,Foldable,Show)
 
