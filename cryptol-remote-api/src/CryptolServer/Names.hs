@@ -31,7 +31,7 @@ import Cryptol.ModuleSystem.NamingEnv
 import Cryptol.TypeCheck.Type (Schema(..), ModVParam(..), mpnFuns)
 import Cryptol.Utils.Fixity(Fixity(..), defaultFixity)
 import Cryptol.Utils.PP (pp)
-import Cryptol.Utils.Ident(Namespace(..))
+import Cryptol.Utils.Ident(Namespace(..),ogModule)
 
 import CryptolServer
 import CryptolServer.Data.Type
@@ -92,16 +92,28 @@ getInfo :: NamingEnv -> Map Name ModVParam -> Map Name IfaceDecl -> PName -> [Na
 getInfo rnEnv params decls n' =
   flip mapMaybe (lookupListNS NSValue n' rnEnv) $ \n ->
     case (N.nameInfo n, Map.lookup n params, Map.lookup n decls) of
-      (N.GlobalName _ m, Just (ModVParam _ ty nameDocs fx), _) ->
-        Just $ mkNameInfo True ty m (isJust fx) fx ([]::[Pragma]) nameDocs
-      (N.GlobalName _ m, _, Just (IfaceDecl _ ty prags ifx fx nameDocs)) ->
-        Just $ mkNameInfo False ty m ifx fx prags nameDocs
+      (N.GlobalName _ og, Just (ModVParam _ ty nameDocs fx), _) ->
+        Just $ mkNameInfo True ty og (isJust fx) fx ([]::[Pragma]) nameDocs
+      (N.GlobalName _ og, _, Just (IfaceDecl _ ty prags ifx fx nameDocs)) ->
+        Just $ mkNameInfo False ty og ifx fx prags nameDocs
       _ -> Nothing
-  where mkNameInfo param ty m ifx fx prags nameDocs = 
-          let fxy = if not ifx then Nothing else case fromMaybe defaultFixity fx of
-                      Fixity assoc lvl -> Just (show (pp assoc), lvl)
-           in NameInfo (show (pp n')) (show (pp ty)) ty (show (pp m)) param
-                       fxy (show . pp <$> prags) (unpack <$> nameDocs)
+  where mkNameInfo param ty og ifx fx prags nameDocs = 
+          let fxy
+                | not ifx = Nothing
+                | otherwise =
+                  case fromMaybe defaultFixity fx of
+                    Fixity assoc lvl -> Just (show (pp assoc), lvl)
+
+           in NameInfo
+                { name      = show (pp n')
+                , typeSig   = show (pp ty)
+                , schema    = ty
+                , modl      = show (pp (ogModule og))
+                , isParam   = param
+                , fixity    = fxy
+                , pragmas   = show . pp <$> prags
+                , nameDocs  = unpack <$> nameDocs
+                }
 
 data NameInfo =
   NameInfo
