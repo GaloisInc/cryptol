@@ -94,7 +94,7 @@ getInfo rnEnv params decls n' =
     case (N.nameInfo n, Map.lookup n params, Map.lookup n decls) of
       (N.GlobalName _ og, Just (ModVParam _ ty nameDocs fx), _) ->
         Just $ mkNameInfo True ty og (isJust fx) fx ([]::[Pragma]) nameDocs
-      (N.GlobalName _ og, _, Just (IfaceDecl _ ty prags ifx fx nameDocs)) ->
+      (N.GlobalName _ og, _, Just (IfaceDecl _ ty _ prags ifx fx nameDocs)) ->
         Just $ mkNameInfo False ty og ifx fx prags nameDocs
       _ -> Nothing
   where mkNameInfo param ty og ifx fx prags nameDocs = 
