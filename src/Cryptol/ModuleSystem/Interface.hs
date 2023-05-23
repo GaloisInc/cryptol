@@ -173,6 +173,7 @@ instance Monoid IfaceDecls where
 data IfaceDecl = IfaceDecl
   { ifDeclName    :: !Name          -- ^ Name of thing
   , ifDeclSig     :: Schema         -- ^ Type
+  , ifDeclIsPrim   :: !Bool
   , ifDeclPragmas :: [Pragma]       -- ^ Pragmas
   , ifDeclInfix   :: Bool           -- ^ Is this an infix thing
   , ifDeclFixity  :: Maybe Fixity   -- ^ Fixity information
@@ -188,8 +189,8 @@ ifacePrimMap = ifaceDeclsPrimMap . ifDefines
 
 ifaceDeclsPrimMap :: IfaceDecls -> PrimMap
 ifaceDeclsPrimMap IfaceDecls { .. } =
-  PrimMap { primDecls = Map.fromList (newtypes ++ exprs)
-          , primTypes = Map.fromList (newtypes ++ types)
+  PrimMap { primDecls = Map.fromList exprs
+          , primTypes = Map.fromList types
           }
   where
   entry n = case asPrim n of
@@ -199,6 +200,7 @@ ifaceDeclsPrimMap IfaceDecls { .. } =
                           [ "Top level name not declared in a module?"
                           , show n ]
 
-  exprs    = map entry (Map.keys ifDecls)
-  newtypes = map entry (Map.keys ifNewtypes)
-  types    = map entry (Map.keys ifTySyns)
+  exprs    = [ entry x | (x,d) <- Map.toList ifDecls, ifDeclIsPrim d ]
+  types    = map entry (Map.keys ifAbstractTypes)
+
+

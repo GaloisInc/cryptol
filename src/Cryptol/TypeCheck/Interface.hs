@@ -16,6 +16,9 @@ mkIfaceDecl :: Decl -> IfaceDecl
 mkIfaceDecl d = IfaceDecl
   { ifDeclName    = dName d
   , ifDeclSig     = dSignature d
+  , ifDeclIsPrim  = case dDefinition d of
+                      DPrim {} -> True
+                      _        -> False
   , ifDeclPragmas = dPragmas d
   , ifDeclInfix   = dInfix d
   , ifDeclFixity  = dFixity d
