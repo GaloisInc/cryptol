@@ -12,6 +12,28 @@ Equality
     (===)       : {a, b} (Eq b) => (a -> b) -> (a -> b) -> (a -> Bit)
     (!==)       : {a, b} (Eq b) => (a -> b) -> (a -> b) -> (a -> Bit)
 
+
+.. list-table:: Instances
+
+  * - Type
+    - Condition
+  * - ``Bit``
+    -
+  * - ``Integer``
+    -
+  * - ``Rational``
+    -
+  * - ``Z n``
+    - ``fin n``, ``n >= 1``
+  * - ``Float e p``
+    - ``ValidFloat e p``
+  * - ``[n] a``
+    - ``fin n``, ``Eq a``
+  * - ``(a,b)``
+    - ``Eq a``, ``Eq b``
+
+
+
 Comparisons
 -----------
 
@@ -27,6 +49,27 @@ Comparisons
     abs         : {a} (Cmp a, Ring a) => a -> a
 
 
+.. list-table:: Instances
+
+  * - Type
+    - Condition
+  * - ``Bit``
+    -
+  * - ``Integer``
+    -
+  * - ``Rational``
+    -
+  * - ``Float e p``
+    - ``ValidFloat e p``
+  * - ``[n] a``
+    - ``fin n``, ``Cmp a``
+  * - ``(a,b)``
+    - ``Cmp a``, ``Cmp b``
+
+
+
+
+
 Signed Comparisons
 ------------------
 
@@ -38,6 +81,17 @@ Signed Comparisons
     (<=$)       : {a} (SignedCmp a) => a -> a -> Bit
     (>=$)       : {a} (SignedCmp a) => a -> a -> Bit
 
+.. list-table:: Instances
+
+  * - Type
+    - Condition
+  * - ``[n] Bit``
+    - ``fin n``, ``n >= 1``
+  * - ``[n] a``
+    - ``fin n``, ``SignedCmp a``, ``a /= Bit``
+  * - ``(a,b)``
+    - ``SignedCmp a``, ``SignedCmp b``
+
 
 Zero
 ----
@@ -46,6 +100,27 @@ Zero
 
   Zero
     zero        : {a} (Zero a) => a
+
+.. list-table:: Instances
+
+  * - Type
+    - Condition
+  * - ``Bit``
+    -
+  * - ``Integer``
+    -
+  * - ``Rational``
+    -
+  * - ``Z n``
+    - ``fin n``, ``n >= 1``
+  * - ``Float e p``
+    - ``ValidFloat e p``
+  * - ``[n] a``
+    - ``Zero a``
+  * - ``a -> b``
+    - ``Zero b``
+  * - ``(a,b)``
+    - ``Zero a``, ``Zero b``
 
 Logical Operations
 ------------------
@@ -57,6 +132,21 @@ Logical Operations
     (||)        : {a} (Logic a) => a -> a -> a
     (^)         : {a} (Logic a) => a -> a -> a
     complement  : {a} (Logic a) => a -> a
+
+.. list-table:: Instances
+
+  * - Type
+    - Condition
+  * - ``Bit``
+    -
+  * - ``[n] a``
+    - ``Logic a``
+  * - ``a -> b``
+    - ``Logic b``
+  * - ``(a,b)``
+    - ``Logic a``, ``Logic b``
+
+
 
 Basic Arithmetic
 ----------------
@@ -71,6 +161,29 @@ Basic Arithmetic
     negate      : {a} (Ring a) => a -> a
     (^^)        : {a, e} (Ring a, Integral e) => a -> e -> a
 
+.. list-table:: Instances
+
+  * - Type
+    - Condition
+  * - ``Integer``
+    -
+  * - ``Rational``
+    -
+  * - ``Z n``
+    - ``fin n``, ``n >= 1``
+  * - ``Float e p``
+    - ``ValidFloat e p``
+  * - ``[n] Bit``
+    - ``fin n``
+  * - ``[n] a``
+    - ``Ring a``, ``a /=  Bit``
+  * - ``a -> b``
+    - ``Ring b``
+  * - ``(a,b)``
+    - ``Ring a``, ``Ring b``
+
+
+
 Integral Operations
 -------------------
 
@@ -84,6 +197,18 @@ Integral Operations
     infFrom     : {a} (Integral a) => a -> [inf]a
     infFromThen : {a} (Integral a) => a -> a -> [inf]a
 
+.. list-table:: Instances
+
+  * - Type
+    - Condition
+  * - ``Integer``
+    -
+  * - ``[n] Bit``
+    - ``fin n``
+
+
+
+
 
 Division
 --------
@@ -93,6 +218,20 @@ Division
   Field
     recip       : {a} (Field a) => a -> a
     (/.)        : {a} (Field a) => a -> a -> a
+
+
+.. list-table:: Instances
+
+  * - Type
+    - Condition
+  * - ``Rational``
+    -
+  * - ``Z n``
+    - ``prime n``
+  * - ``Float e p``
+    - ``ValidFloat e p``
+
+
 
 Rounding
 --------
@@ -105,3 +244,13 @@ Rounding
     trunc       : {a} (Round a) => a -> Integer
     roundAway   : {a} (Round a) => a -> Integer
     roundToEven : {a} (Round a) => a -> Integer
+
+
+.. list-table:: Instances
+
+  * - Type
+    - Condition
+  * - ``Float e p``
+    - ``ValidFloat e p``
+
+
