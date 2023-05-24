@@ -7,6 +7,7 @@
 -- Portability :  portable
 --
 -- Solving class constraints.
+-- If you make changes to this file, please update the documenation in RefMan.md
 
 {-# LANGUAGE PatternGuards #-}
 module Cryptol.TypeCheck.Solver.Class
