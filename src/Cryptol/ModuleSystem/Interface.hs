@@ -184,13 +184,17 @@ data IfaceDecl = IfaceDecl
 -- | Produce a PrimMap from an interface.
 --
 -- NOTE: the map will expose /both/ public and private names.
+-- NOTE: this is a bit misnamed, as it is used to resolve known names
+-- that Cryptol introduces (e.g., during type checking).  These
+-- names need not be primitives.   A better way to do this in the future
+-- might be to use original names instead (see #1522).
 ifacePrimMap :: Iface -> PrimMap
 ifacePrimMap = ifaceDeclsPrimMap . ifDefines
 
 ifaceDeclsPrimMap :: IfaceDecls -> PrimMap
 ifaceDeclsPrimMap IfaceDecls { .. } =
-  PrimMap { primDecls = Map.fromList exprs
-          , primTypes = Map.fromList types
+  PrimMap { primDecls = Map.fromList (newtypes ++ exprs)
+          , primTypes = Map.fromList (newtypes ++ types)
           }
   where
   entry n = case asPrim n of
@@ -200,7 +204,19 @@ ifaceDeclsPrimMap IfaceDecls { .. } =
                           [ "Top level name not declared in a module?"
                           , show n ]
 
-  exprs    = [ entry x | (x,d) <- Map.toList ifDecls, ifDeclIsPrim d ]
-  types    = map entry (Map.keys ifAbstractTypes)
+  newtypes = map entry (Map.keys ifNewtypes)
+  exprs    = map entry (Map.keys ifDecls)
+  types    = map entry (Map.keys ifTySyns)
+
+
+
+
+
+
+
+
+
+
+
 
 
