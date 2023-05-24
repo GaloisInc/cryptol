@@ -9,7 +9,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE Safe #-}
 module Cryptol.ModuleSystem.Interface (
@@ -26,10 +25,12 @@ module Cryptol.ModuleSystem.Interface (
   , ifaceIsFunctor
   , filterIfaceDecls
   , ifaceDeclsNames
+  , ifaceOrigNameMap
   ) where
 
 import           Data.Set(Set)
 import qualified Data.Set as Set
+import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Semigroup
 import           Data.Text (Text)
@@ -41,7 +42,7 @@ import Prelude ()
 import Prelude.Compat
 
 import Cryptol.ModuleSystem.Name
-import Cryptol.Utils.Ident (ModName)
+import Cryptol.Utils.Ident (ModName, OrigName(..))
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.Fixity(Fixity)
 import Cryptol.Parser.AST(Pragma)
@@ -209,10 +210,27 @@ ifaceDeclsPrimMap IfaceDecls { .. } =
   types    = map entry (Map.keys ifTySyns)
 
 
+-- | Given an interface computing a map from original names to actual names,
+-- grouped by namespace.
+ifaceOrigNameMap :: IfaceG name -> Map Namespace (Map OrigName Name)
+ifaceOrigNameMap ifa = Map.unionsWith Map.union (here : nested)
+  where
+  here        = Map.fromList $
+                  [ (NSValue, toMap vaNames) | not (Set.null vaNames) ] ++
+                  [ (NSType,  toMap tyNames) | not (Set.null tyNames) ] ++
+                  [ (NSValue, toMap moNames) | not (Set.null moNames) ]
 
+  nested      = map ifaceOrigNameMap (Map.elems (ifFunctors decls))
 
+  toMap names = Map.fromList
+                  [ (og,x) | x <- Set.toList names, Just og <- [ asOrigName x ] ]
 
-
+  decls       = ifDefines ifa
+  from f      = Map.keysSet (f decls)
+  tyNames     = Set.unions [ from ifTySyns, from ifNewtypes, from ifAbstractTypes ]
+  moNames     = Set.unions [ from ifModules, from ifSignatures, from ifFunctors ]
+  vaNames     = Set.unions [ newtypeCons, from ifDecls ]
+  newtypeCons = Set.fromList (map ntConName (Map.elems (ifNewtypes decls)))
 
 
 
