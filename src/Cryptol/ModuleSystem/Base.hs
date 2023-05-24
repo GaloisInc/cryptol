@@ -44,12 +44,12 @@ import Prelude.Compat hiding ( (<>) )
 
 
 
-import Cryptol.ModuleSystem.Env (DynamicEnv(..),FileInfo(..),fileInfo)
 import Cryptol.ModuleSystem.Fingerprint
 import Cryptol.ModuleSystem.Interface
 import Cryptol.ModuleSystem.Monad
 import Cryptol.ModuleSystem.Name (Name,liftSupply,PrimMap,ModPath(..),nameIdent)
-import Cryptol.ModuleSystem.Env ( lookupModule
+import Cryptol.ModuleSystem.Env ( DynamicEnv(..),FileInfo(..),fileInfo
+                                , lookupModule
                                 , lookupTCEntity
                                 , LoadedModuleG(..), lmInterface
                                 , meCoreLint, CoreLint(..)
