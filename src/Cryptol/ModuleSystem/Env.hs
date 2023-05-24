@@ -362,12 +362,17 @@ data LoadedModules = LoadedModules
 
   } deriving (Show, Generic, NFData)
 
+data LoadedEntity =
+    ALoadedModule LoadedModule
+  | ALoadedFunctor LoadedModule
+  | ALoadedInterface LoadedSignature
+
 getLoadedEntities ::
-  LoadedModules -> Map ModName (Either LoadedSignature LoadedModule)
+  LoadedModules -> Map ModName LoadedEntity
 getLoadedEntities lm =
-  Map.fromList $ [ (lmName x, Right x) | x <- lmLoadedModules lm ] ++
-                 [ (lmName x, Right x) | x <- lmLoadedParamModules lm ] ++
-                 [ (lmName x, Left x)  | x <- lmLoadedSignatures lm ]
+  Map.fromList $ [ (lmName x, ALoadedModule x) | x <- lmLoadedModules lm ] ++
+                 [ (lmName x, ALoadedFunctor x) | x <- lmLoadedParamModules lm ] ++
+                 [ (lmName x, ALoadedInterface x) | x <- lmLoadedSignatures lm ]
 
 getLoadedModules :: LoadedModules -> [LoadedModule]
 getLoadedModules x = lmLoadedParamModules x ++ lmLoadedModules x

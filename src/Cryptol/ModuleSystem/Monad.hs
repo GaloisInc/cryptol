@@ -28,7 +28,6 @@ import           Cryptol.ModuleSystem.Renamer (RenamerError(),RenamerWarning())
 import           Cryptol.ModuleSystem.NamingEnv(NamingEnv)
 import qualified Cryptol.Parser     as Parser
 import qualified Cryptol.Parser.AST as P
-import           Cryptol.Parser.Position (Located)
 import           Cryptol.Utils.Panic (panic)
 import qualified Cryptol.Parser.NoPat as NoPat
 import qualified Cryptol.Parser.ExpandPropGuards as ExpandPropGuards
@@ -37,7 +36,7 @@ import qualified Cryptol.TypeCheck as T
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck.Solver.SMT as SMT
 
-import           Cryptol.Parser.Position (Range)
+import           Cryptol.Parser.Position (Range, Located)
 import           Cryptol.Utils.Ident (interactiveName, noModuleName)
 import           Cryptol.Utils.PP
 import           Cryptol.Utils.Logger(Logger)
@@ -475,8 +474,9 @@ getIfaces = toMap <$> ModuleT get
 
   cvt ent =
     case ent of
-      Left sig -> Left (lmData sig)
-      Right mo -> Right (lmdInterface (lmData mo))
+      ALoadedInterface ifa -> Left (lmData ifa)
+      ALoadedFunctor mo -> Right (lmdInterface (lmData mo))
+      ALoadedModule mo -> Right (lmdInterface (lmData mo))
 
 getLoaded :: P.ModName -> ModuleM T.Module
 getLoaded mn = ModuleT $
