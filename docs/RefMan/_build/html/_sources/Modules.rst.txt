@@ -1,7 +1,7 @@
 Modules
 =======
 
-A *module* is used to group some related definitions.  Each file may
+A *module* is used to group related definitions.  Each file may
 contain at most one top-level module.
 
 .. code-block:: cryptol
@@ -17,7 +17,7 @@ contain at most one top-level module.
 Hierarchical Module Names
 -------------------------
 
-Module may have either simple or *hierarchical* names.
+Modules may have either simple or *hierarchical* names.
 Hierarchical names are constructed by gluing together ordinary
 identifiers using the symbol ``::``.
 
@@ -28,8 +28,8 @@ identifiers using the symbol ``::``.
   sha256 = ...
 
 The structure in the name may be used to group together related
-modules.  Also, the Cryptol implementation uses the structure of the
-name to locate the file containing the definition of the module.
+modules. The Cryptol implementation uses the structure of the
+name to locate the file containing the module definition.
 For example, when searching for module ``Hash::SHA256``, Cryptol
 will look for a file named ``SHA256.cry`` in a directory called
 ``Hash``, contained in one of the directories specified by ``CRYPTOLPATH``.
@@ -241,7 +241,7 @@ is equivalent to the previous one:
 Nested Modules
 --------------
 
-Module may be declared withing other modules, using the ``submodule`` keword.
+Module may be declared within other modules, using the ``submodule`` keword.
 
 .. code-block:: cryptol
   :caption: Declaring a nested module called N
@@ -308,8 +308,8 @@ Managing Module Names
 
 The names of nested modules are managed by the module system just
 like the name of any other declaration in Cryptol.  Thus, nested
-modules may declared in the public or private sections of their
-containing module, and need to be imported before they can be used.
+modules may be declared in the public or private sections of their
+containing module, and must be imported before they can be used.
 Thus, to use a submodule defined in top-level module ``A`` into
 another top-level module ``B`` requires two steps:
 
@@ -353,7 +353,7 @@ without providing a concrete implementation.
 
     x : [n]         // A declarations of a constant
 
-Like other modules, interfaces modules may be nested in
+Like other modules, interface modules may be nested in
 other modules:
 
 .. code-block:: cryptol
@@ -370,7 +370,7 @@ other modules:
 
       x : [n]         // A declarations of a constant
 
-Interface module may contain ``type`` or ``type constraint`` synonyms:
+Interface modules may contain ``type`` or ``type constraint`` synonyms:
 
 .. code-block:: cryptol
   :caption: A nested interface module
@@ -416,7 +416,7 @@ To import a nested interface use ``import interface sumbodule I``
 and make sure that ``I`` is in scope.
 
 It is also possible to import multiple interface modules,
-or the same interface module more than once.   Each import
+or the same interface module more than once. Each import
 of an interface module maybe be linked to a different concrete
 module, as described in :ref:`instantiating_modules`.
 
@@ -440,7 +440,11 @@ module, as described in :ref:`instantiating_modules`.
     z : [J::n]
     z = J::x + 1
 
+A parameterized module is also called a *functor*, in the tradition
+of module parameterization in languages like Standard ML and OCaml.
 
+
+    
 Interface Constraints
 ~~~~~~~~~~~~~~~~~~~~~
 
@@ -609,8 +613,8 @@ Anonymous Instantiation Arguments
 
 Sometimes it is also a bit cumbersome to have to define a whole
 separate module just to pass it as an argument to some parameterized
-module.   To make this more convenient we support the following notion
-for instantiation a module:
+module.   To make this more convenient we support the following notation
+for instantiating a module:
 
 .. code-block:: cryptol
 
@@ -660,7 +664,7 @@ The ``where`` block may is the same as the ``where`` block in
 expressions:  you may define type synonyms and values, but nothing else
 (e.g., no ``newtype``).
 
-It is also possible to import and instantiate using an existing module
+It is also possible to import and instantiate a functor with an existing module
 like this:
 
 .. code-block:: cryptol
@@ -677,7 +681,7 @@ like this:
 
 
 Semantically, instantiating imports declare a local nested module and
-import it.  For example, the ``where`` import from above is equivalent
+import it.  For example, the ``where`` import above is equivalent
 to the following declarations:
 
 .. code-block:: cryptol

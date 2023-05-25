@@ -1,20 +1,19 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Basic Syntax &mdash; Cryptol 2.11.0 documentation</title>
       <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
-  <!--[if lt IE 9]>
-    <script src="_static/js/html5shiv.min.js"></script>
-  <![endif]-->
   
         <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
         <script src="_static/jquery.js"></script>
         <script src="_static/underscore.js"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="_static/doctools.js"></script>
+        <script src="_static/sphinx_highlight.js"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -27,11 +26,15 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="RefMan.html" class="icon icon-home"> Cryptol
+
+          
+          
+          <a href="RefMan.html" class="icon icon-home">
+            Cryptol
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -72,8 +75,8 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="RefMan.html" class="icon icon-home"></a> &raquo;</li>
-      <li>Basic Syntax</li>
+      <li><a href="RefMan.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Basic Syntax</li>
       <li class="wy-breadcrumbs-aside">
             <a href="_sources/BasicSyntax.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -84,27 +87,27 @@
            <div itemprop="articleBody">
              
   <section id="basic-syntax">
-<h1>Basic Syntax<a class="headerlink" href="#basic-syntax" title="Permalink to this headline"></a></h1>
+<h1>Basic Syntax<a class="headerlink" href="#basic-syntax" title="Permalink to this heading"></a></h1>
 <section id="declarations">
-<h2>Declarations<a class="headerlink" href="#declarations" title="Permalink to this headline"></a></h2>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">f</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">z</span><span class="w"></span>
+<h2>Declarations<a class="headerlink" href="#declarations" title="Permalink to this heading"></a></h2>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">f</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">z</span>
 </pre></div>
 </div>
 </section>
 <section id="type-signatures">
-<h2>Type Signatures<a class="headerlink" href="#type-signatures" title="Permalink to this headline"></a></h2>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">f</span><span class="p">,</span><span class="n">g</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">,</span><span class="n">b</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kr">fin</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="p">[</span><span class="n">a</span><span class="p">]</span><span class="w"> </span><span class="n">b</span><span class="w"></span>
+<h2>Type Signatures<a class="headerlink" href="#type-signatures" title="Permalink to this heading"></a></h2>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">f</span><span class="p">,</span><span class="n">g</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">,</span><span class="n">b</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kr">fin</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="p">[</span><span class="n">a</span><span class="p">]</span><span class="w"> </span><span class="n">b</span>
 </pre></div>
 </div>
 </section>
 <section id="numeric-constraint-guards">
-<h2>Numeric Constraint Guards<a class="headerlink" href="#numeric-constraint-guards" title="Permalink to this headline"></a></h2>
+<h2>Numeric Constraint Guards<a class="headerlink" href="#numeric-constraint-guards" title="Permalink to this heading"></a></h2>
 <p>A declaration with a signature can use <em>numeric constraint guards</em>,
 which are used to change the behavior of a functoin depending on its
 numeric type parameters.  For example:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">len</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">n</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kr">fin</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kt">Integer</span><span class="w"></span>
-<span class="nf">len</span><span class="w"> </span><span class="n">xs</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"></span>
-<span class="w">       </span><span class="o">|</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">&gt;</span><span class="w">  </span><span class="mi">0</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">len</span><span class="w"> </span><span class="p">(</span><span class="n">drop</span><span class="w"> </span><span class="p">`{</span><span class="mi">1</span><span class="p">}</span><span class="w"> </span><span class="n">xs</span><span class="p">)</span><span class="w"></span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">len</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">n</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kr">fin</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kt">Integer</span>
+<span class="nf">len</span><span class="w"> </span><span class="n">xs</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="mi">0</span>
+<span class="w">       </span><span class="o">|</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">&gt;</span><span class="w">  </span><span class="mi">0</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">len</span><span class="w"> </span><span class="p">(</span><span class="n">drop</span><span class="w"> </span><span class="p">`{</span><span class="mi">1</span><span class="p">}</span><span class="w"> </span><span class="n">xs</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>Each behavior starts with <code class="docutils literal notranslate"><span class="pre">|</span></code> and lists some constraints on the numeric
@@ -114,9 +117,9 @@ definition that satisfies the provided numeric parameters.</p>
 except that decisions are based on <em>types</em> rather than values.  There
 is also an important difference to simply using demotion and an
 actual <code class="docutils literal notranslate"><span class="pre">if</span></code> statement:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">len&#39;</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">n</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kr">fin</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kt">Integer</span><span class="w"></span>
-<span class="nf">len&#39;</span><span class="w"> </span><span class="n">xs</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kr">if</span><span class="w"> </span><span class="p">`</span><span class="n">n</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"></span>
-<span class="w">           </span><span class="o">|</span><span class="w"> </span><span class="p">`</span><span class="n">n</span><span class="w"> </span><span class="o">&gt;</span><span class="w">  </span><span class="mi">0</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">len</span><span class="w"> </span><span class="p">(</span><span class="n">drop</span><span class="w"> </span><span class="p">`{</span><span class="mi">1</span><span class="p">}</span><span class="w"> </span><span class="n">xs</span><span class="p">)</span><span class="w"></span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">len&#39;</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">n</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kr">fin</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kt">Integer</span>
+<span class="nf">len&#39;</span><span class="w"> </span><span class="n">xs</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kr">if</span><span class="w"> </span><span class="p">`</span><span class="n">n</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="mi">0</span>
+<span class="w">           </span><span class="o">|</span><span class="w"> </span><span class="p">`</span><span class="n">n</span><span class="w"> </span><span class="o">&gt;</span><span class="w">  </span><span class="mi">0</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">len</span><span class="w"> </span><span class="p">(</span><span class="n">drop</span><span class="w"> </span><span class="p">`{</span><span class="mi">1</span><span class="p">}</span><span class="w"> </span><span class="n">xs</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>The definition of <code class="docutils literal notranslate"><span class="pre">len'</span></code> is rejected, because the <em>value based</em> <code class="docutils literal notranslate"><span class="pre">if</span></code>
@@ -144,19 +147,19 @@ in the guard.</p></li>
 </dl>
 </section>
 <section id="layout">
-<h2>Layout<a class="headerlink" href="#layout" title="Permalink to this headline"></a></h2>
+<h2>Layout<a class="headerlink" href="#layout" title="Permalink to this heading"></a></h2>
 <p>Groups of declarations are organized based on indentation.
 Declarations with the same indentation belong to the same group.
 Lines of text that are indented more than the beginning of a
 declaration belong to that declaration, while lines of text that are
 indented less terminate a group of declarations.  Consider, for example,
 the following Cryptol declarations:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">f</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">z</span><span class="w"></span>
-<span class="w">  </span><span class="kr">where</span><span class="w"></span>
-<span class="w">  </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">x</span><span class="w"></span>
-<span class="w">  </span><span class="n">z</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">y</span><span class="w"></span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">f</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">z</span>
+<span class="w">  </span><span class="kr">where</span>
+<span class="w">  </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">x</span>
+<span class="w">  </span><span class="n">z</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">y</span>
 
-<span class="nf">g</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">y</span><span class="w"></span>
+<span class="nf">g</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">y</span>
 </pre></div>
 </div>
 <p>This group has two declarations, one for <cite>f</cite> and one for <cite>g</cite>.  All the
@@ -165,13 +168,13 @@ lines between <cite>f</cite> and <cite>g</cite> that are indented more than <cit
 of <cite>f</cite>, which defines two more local names, <cite>y</cite> and <cite>z</cite>.</p>
 </section>
 <section id="comments">
-<h2>Comments<a class="headerlink" href="#comments" title="Permalink to this headline"></a></h2>
+<h2>Comments<a class="headerlink" href="#comments" title="Permalink to this heading"></a></h2>
 <p>Cryptol supports block comments, which start with <code class="docutils literal notranslate"><span class="pre">/*</span></code> and end with
 <code class="docutils literal notranslate"><span class="pre">*/</span></code>, and line comments, which start with <code class="docutils literal notranslate"><span class="pre">//</span></code> and terminate at the
 end of the line.  Block comments may be nested arbitrarily.</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="cm">/* This is a block comment */</span><span class="w"></span>
-<span class="c1">// This is a line comment</span><span class="w"></span>
-<span class="cm">/* This is a /* Nested */ block comment */</span><span class="w"></span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="cm">/* This is a block comment */</span>
+<span class="c1">// This is a line comment</span>
+<span class="cm">/* This is a /* Nested */ block comment */</span>
 </pre></div>
 </div>
 <div class="admonition-todo admonition" id="id1">
@@ -180,7 +183,7 @@ end of the line.  Block comments may be nested arbitrarily.</p>
 </div>
 </section>
 <section id="identifiers">
-<h2>Identifiers<a class="headerlink" href="#identifiers" title="Permalink to this headline"></a></h2>
+<h2>Identifiers<a class="headerlink" href="#identifiers" title="Permalink to this heading"></a></h2>
 <p>Cryptol identifiers consist of one or more characters.  The first
 character must be either an English letter or underscore (<code class="docutils literal notranslate"><span class="pre">_</span></code>).  The
 following characters may be an English letter, a decimal digit,
@@ -189,14 +192,14 @@ meaning in the language, so they may not be used in programmer-defined
 names (see <a class="reference internal" href="#keywords-and-built-in-operators">Keywords and Built-in Operators</a>).</p>
 <div class="literal-block-wrapper docutils container" id="id2">
 <div class="code-block-caption"><span class="caption-text">Examples of identifiers</span><a class="headerlink" href="#id2" title="Permalink to this code"></a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">name</span><span class="w">    </span><span class="n">name1</span><span class="w">    </span><span class="n">name&#39;</span><span class="w">    </span><span class="n">longer_name</span><span class="w"></span>
-<span class="kt">Name</span><span class="w">    </span><span class="kt">Name2</span><span class="w">    </span><span class="kt">Name&#39;&#39;</span><span class="w">   </span><span class="n">longerName</span><span class="w"></span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">name</span><span class="w">    </span><span class="n">name1</span><span class="w">    </span><span class="n">name&#39;</span><span class="w">    </span><span class="n">longer_name</span>
+<span class="kt">Name</span><span class="w">    </span><span class="kt">Name2</span><span class="w">    </span><span class="kt">Name&#39;&#39;</span><span class="w">   </span><span class="n">longerName</span>
 </pre></div>
 </div>
 </div>
 </section>
 <section id="keywords-and-built-in-operators">
-<h2>Keywords and Built-in Operators<a class="headerlink" href="#keywords-and-built-in-operators" title="Permalink to this headline"></a></h2>
+<h2>Keywords and Built-in Operators<a class="headerlink" href="#keywords-and-built-in-operators" title="Permalink to this heading"></a></h2>
 <p>The following identifiers have special meanings in Cryptol, and may
 not be used for programmer defined names:</p>
 <div class="literal-block-wrapper docutils container" id="id3">
@@ -213,10 +216,6 @@ associativity with lowest precedence operators first, and highest
 precedence last.</p>
 <table class="docutils align-default" id="id4">
 <caption><span class="caption-text">Operator precedences</span><a class="headerlink" href="#id4" title="Permalink to this table"></a></caption>
-<colgroup>
-<col style="width: 71%" />
-<col style="width: 29%" />
-</colgroup>
 <thead>
 <tr class="row-odd"><th class="head"><p>Operator</p></th>
 <th class="head"><p>Associativity</p></th>
@@ -273,15 +272,11 @@ precedence last.</p>
 </table>
 </section>
 <section id="built-in-type-level-operators">
-<h2>Built-in Type-level Operators<a class="headerlink" href="#built-in-type-level-operators" title="Permalink to this headline"></a></h2>
+<h2>Built-in Type-level Operators<a class="headerlink" href="#built-in-type-level-operators" title="Permalink to this heading"></a></h2>
 <p>Cryptol includes a variety of operators that allow computations on
 the numeric types used to specify the sizes of sequences.</p>
 <table class="docutils align-default" id="id5">
 <caption><span class="caption-text">Type-level operators</span><a class="headerlink" href="#id5" title="Permalink to this table"></a></caption>
-<colgroup>
-<col style="width: 23%" />
-<col style="width: 77%" />
-</colgroup>
 <thead>
 <tr class="row-odd"><th class="head"><p>Operator</p></th>
 <th class="head"><p>Meaning</p></th>
@@ -328,19 +323,19 @@ the numeric types used to specify the sizes of sequences.</p>
 </table>
 </section>
 <section id="numeric-literals">
-<h2>Numeric Literals<a class="headerlink" href="#numeric-literals" title="Permalink to this headline"></a></h2>
+<h2>Numeric Literals<a class="headerlink" href="#numeric-literals" title="Permalink to this heading"></a></h2>
 <p>Numeric literals may be written in binary, octal, decimal, or
 hexadecimal notation. The base of a literal is determined by its prefix:
 <code class="docutils literal notranslate"><span class="pre">0b</span></code> for binary, <code class="docutils literal notranslate"><span class="pre">0o</span></code> for octal, no special prefix for
 decimal, and <code class="docutils literal notranslate"><span class="pre">0x</span></code> for hexadecimal.</p>
 <div class="literal-block-wrapper docutils container" id="id6">
 <div class="code-block-caption"><span class="caption-text">Examples of literals</span><a class="headerlink" href="#id6" title="Permalink to this code"></a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="mi">254</span><span class="w">                 </span><span class="c1">// Decimal literal</span><span class="w"></span>
-<span class="mi">0254</span><span class="w">                </span><span class="c1">// Decimal literal</span><span class="w"></span>
-<span class="mi">0</span><span class="n">b11111110</span><span class="w">          </span><span class="c1">// Binary literal</span><span class="w"></span>
-<span class="mo">0o376</span><span class="w">               </span><span class="c1">// Octal literal</span><span class="w"></span>
-<span class="mh">0xFE</span><span class="w">                </span><span class="c1">// Hexadecimal literal</span><span class="w"></span>
-<span class="mh">0xfe</span><span class="w">                </span><span class="c1">// Hexadecimal literal</span><span class="w"></span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="mi">254</span><span class="w">                 </span><span class="c1">// Decimal literal</span>
+<span class="mi">0254</span><span class="w">                </span><span class="c1">// Decimal literal</span>
+<span class="mi">0</span><span class="n">b11111110</span><span class="w">          </span><span class="c1">// Binary literal</span>
+<span class="mo">0o376</span><span class="w">               </span><span class="c1">// Octal literal</span>
+<span class="mh">0xFE</span><span class="w">                </span><span class="c1">// Hexadecimal literal</span>
+<span class="mh">0xfe</span><span class="w">                </span><span class="c1">// Hexadecimal literal</span>
 </pre></div>
 </div>
 </div>
@@ -351,12 +346,12 @@ of digits in the literal. Decimal literals are overloaded, and so the
 type is inferred from context in which the literal is used. Examples:</p>
 <div class="literal-block-wrapper docutils container" id="id7">
 <div class="code-block-caption"><span class="caption-text">Literals and their types</span><a class="headerlink" href="#id7" title="Permalink to this code"></a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="mi">0</span><span class="n">b1010</span><span class="w">              </span><span class="c1">// : [4],   1 * number of digits</span><span class="w"></span>
-<span class="mo">0o1234</span><span class="w">              </span><span class="c1">// : [12],  3 * number of digits</span><span class="w"></span>
-<span class="mh">0x1234</span><span class="w">              </span><span class="c1">// : [16],  4 * number of digits</span><span class="w"></span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="mi">0</span><span class="n">b1010</span><span class="w">              </span><span class="c1">// : [4],   1 * number of digits</span>
+<span class="mo">0o1234</span><span class="w">              </span><span class="c1">// : [12],  3 * number of digits</span>
+<span class="mh">0x1234</span><span class="w">              </span><span class="c1">// : [16],  4 * number of digits</span>
 
-<span class="mi">10</span><span class="w">                  </span><span class="c1">// : {a}. (Literal 10 a) =&gt; a</span><span class="w"></span>
-<span class="w">                    </span><span class="c1">// a = Integer or [n] where n &gt;= width 10</span><span class="w"></span>
+<span class="mi">10</span><span class="w">                  </span><span class="c1">// : {a}. (Literal 10 a) =&gt; a</span>
+<span class="w">                    </span><span class="c1">// a = Integer or [n] where n &gt;= width 10</span>
 </pre></div>
 </div>
 </div>
@@ -366,8 +361,8 @@ Numeric literals in polynomial notation result in bit sequences of length
 one more than the degree of the polynomial.  Examples:</p>
 <div class="literal-block-wrapper docutils container" id="id8">
 <div class="code-block-caption"><span class="caption-text">Polynomial literals</span><a class="headerlink" href="#id8" title="Permalink to this code"></a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="o">&lt;|</span><span class="w"> </span><span class="n">x</span><span class="o">^^</span><span class="mi">6</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">x</span><span class="o">^^</span><span class="mi">4</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">x</span><span class="o">^^</span><span class="mi">2</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">x</span><span class="o">^^</span><span class="mi">1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">|&gt;</span><span class="w">  </span><span class="c1">// : [7], equal to 0b1010111</span><span class="w"></span>
-<span class="o">&lt;|</span><span class="w"> </span><span class="n">x</span><span class="o">^^</span><span class="mi">4</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">x</span><span class="o">^^</span><span class="mi">3</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">|&gt;</span><span class="w">                </span><span class="c1">// : [5], equal to 0b11010</span><span class="w"></span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="o">&lt;|</span><span class="w"> </span><span class="n">x</span><span class="o">^^</span><span class="mi">6</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">x</span><span class="o">^^</span><span class="mi">4</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">x</span><span class="o">^^</span><span class="mi">2</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">x</span><span class="o">^^</span><span class="mi">1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">|&gt;</span><span class="w">  </span><span class="c1">// : [7], equal to 0b1010111</span>
+<span class="o">&lt;|</span><span class="w"> </span><span class="n">x</span><span class="o">^^</span><span class="mi">4</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">x</span><span class="o">^^</span><span class="mi">3</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">|&gt;</span><span class="w">                </span><span class="c1">// : [5], equal to 0b11010</span>
 </pre></div>
 </div>
 </div>
@@ -380,10 +375,10 @@ Decimal fractional literals use exponent base 10, and the symbol <code class="do
 Examples:</p>
 <div class="literal-block-wrapper docutils container" id="id9">
 <div class="code-block-caption"><span class="caption-text">Fractional literals</span><a class="headerlink" href="#id9" title="Permalink to this code"></a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="mf">10.2</span><span class="w"></span>
-<span class="mf">10.2e3</span><span class="w">            </span><span class="c1">// 10.2 * 10^3</span><span class="w"></span>
-<span class="mh">0x30</span><span class="o">.</span><span class="mi">1</span><span class="w">            </span><span class="c1">// 3 * 64 + 1/16</span><span class="w"></span>
-<span class="mh">0x30</span><span class="o">.</span><span class="mi">1</span><span class="n">p4</span><span class="w">          </span><span class="c1">// (3 * 64 + 1/16) * 2^4</span><span class="w"></span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="mf">10.2</span>
+<span class="mf">10.2e3</span><span class="w">            </span><span class="c1">// 10.2 * 10^3</span>
+<span class="mh">0x30</span><span class="o">.</span><span class="mi">1</span><span class="w">            </span><span class="c1">// 3 * 64 + 1/16</span>
+<span class="mh">0x30</span><span class="o">.</span><span class="mi">1</span><span class="n">p4</span><span class="w">          </span><span class="c1">// (3 * 64 + 1/16) * 2^4</span>
 </pre></div>
 </div>
 </div>
@@ -397,8 +392,8 @@ to the closest representable even number.</p>
 literal value but may be used to improve readability.  Here are some examples:</p>
 <div class="literal-block-wrapper docutils container" id="id10">
 <div class="code-block-caption"><span class="caption-text">Using _</span><a class="headerlink" href="#id10" title="Permalink to this code"></a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="mi">0</span><span class="n">b_0000_0010</span><span class="w"></span>
-<span class="mi">0</span><span class="n">x_FFFF_FFEA</span><span class="w"></span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="mi">0</span><span class="n">b_0000_0010</span>
+<span class="mi">0</span><span class="n">x_FFFF_FFEA</span>
 </pre></div>
 </div>
 </div>

@@ -1,20 +1,19 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Type Declarations &mdash; Cryptol 2.11.0 documentation</title>
       <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
-  <!--[if lt IE 9]>
-    <script src="_static/js/html5shiv.min.js"></script>
-  <![endif]-->
   
         <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
         <script src="_static/jquery.js"></script>
         <script src="_static/underscore.js"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="_static/doctools.js"></script>
+        <script src="_static/sphinx_highlight.js"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -27,11 +26,15 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="RefMan.html" class="icon icon-home"> Cryptol
+
+          
+          
+          <a href="RefMan.html" class="icon icon-home">
+            Cryptol
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -65,8 +68,8 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="RefMan.html" class="icon icon-home"></a> &raquo;</li>
-      <li>Type Declarations</li>
+      <li><a href="RefMan.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Type Declarations</li>
       <li class="wy-breadcrumbs-aside">
             <a href="_sources/TypeDeclarations.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -77,10 +80,10 @@
            <div itemprop="articleBody">
              
   <section id="type-declarations">
-<h1>Type Declarations<a class="headerlink" href="#type-declarations" title="Permalink to this headline"></a></h1>
+<h1>Type Declarations<a class="headerlink" href="#type-declarations" title="Permalink to this heading"></a></h1>
 <section id="type-synonyms">
-<h2>Type Synonyms<a class="headerlink" href="#type-synonyms" title="Permalink to this headline"></a></h2>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">type</span><span class="w"> </span><span class="kt">T</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="p">[</span><span class="n">a</span><span class="p">]</span><span class="w"> </span><span class="n">b</span><span class="w"></span>
+<h2>Type Synonyms<a class="headerlink" href="#type-synonyms" title="Permalink to this heading"></a></h2>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">type</span><span class="w"> </span><span class="kt">T</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="p">[</span><span class="n">a</span><span class="p">]</span><span class="w"> </span><span class="n">b</span>
 </pre></div>
 </div>
 <p>A <code class="docutils literal notranslate"><span class="pre">type</span></code> declaration creates a synonym for a
@@ -92,8 +95,8 @@ Type synonyms may mention other synonyms, but it is not
 allowed to create a recursive collection of type synonyms.</p>
 </section>
 <section id="newtypes">
-<h2>Newtypes<a class="headerlink" href="#newtypes" title="Permalink to this headline"></a></h2>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">newtype</span><span class="w"> </span><span class="kt">NewT</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nb">seq</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="n">a</span><span class="p">]</span><span class="n">b</span><span class="w"> </span><span class="p">}</span><span class="w"></span>
+<h2>Newtypes<a class="headerlink" href="#newtypes" title="Permalink to this heading"></a></h2>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">newtype</span><span class="w"> </span><span class="kt">NewT</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nb">seq</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="n">a</span><span class="p">]</span><span class="n">b</span><span class="w"> </span><span class="p">}</span>
 </pre></div>
 </div>
 <p>A <code class="docutils literal notranslate"><span class="pre">newtype</span></code> declaration declares a new named type which is defined by
@@ -109,8 +112,8 @@ recursive groups.</p>
 <p>Every <code class="docutils literal notranslate"><span class="pre">newtype</span></code> declaration brings into scope a new function with the
 same name as the type which can be used to create values of the
 newtype.</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="kt">NewT</span><span class="w"> </span><span class="mi">3</span><span class="w"> </span><span class="kt">Integer</span><span class="w"></span>
-<span class="nf">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kt">NewT</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nb">seq</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">]</span><span class="w"> </span><span class="p">}</span><span class="w"></span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="kt">NewT</span><span class="w"> </span><span class="mi">3</span><span class="w"> </span><span class="kt">Integer</span>
+<span class="nf">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kt">NewT</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nb">seq</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">]</span><span class="w"> </span><span class="p">}</span>
 </pre></div>
 </div>
 <p>Just as with records, field projections can be used directly on values
