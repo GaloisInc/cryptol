@@ -411,7 +411,10 @@ processResults ProverCommand{..} ts results =
 
        -- otherwise something is wrong
        _ -> return $ ProverError (rshow results)
-#if MIN_VERSION_sbv(8,8,0)
+#if MIN_VERSION_sbv(10,0,0)
+              where rshow | isSat = show . (SBV.AllSatResult False False False)
+                    -- sbv-10.0.0 removes the `allSatHasPrefixExistentials` field
+#elif MIN_VERSION_sbv(8,8,0)
               where rshow | isSat = show . (SBV.AllSatResult False False False False)
 #else
               where rshow | isSat = show .  SBV.AllSatResult . (False,False,False,)
@@ -466,11 +469,19 @@ satProveOffline _proverCfg pc@ProverCommand {..} =
               ProveQuery -> False
               SafetyQuery -> False
               SatQuery _ -> True
+
+#if MIN_VERSION_sbv(10,0,0)
+            generateSMTBenchmark
+              | isSat     = SBV.generateSMTBenchmarkSat
+              | otherwise = SBV.generateSMTBenchmarkProof
+#else
+            generateSMTBenchmark = SBV.generateSMTBenchmark isSat
+#endif
         evo <- liftIO (M.minpEvalOpts minp)
 
         prepareQuery evo pc >>= \case
           Left msg -> return (Left msg)
-          Right (_ts, q) -> Right <$> M.io (SBV.generateSMTBenchmark isSat q)
+          Right (_ts, q) -> Right <$> M.io (generateSMTBenchmark q)
 
 protectStack :: (String -> M.ModuleCmd a)
              -> M.ModuleCmd a
