@@ -14,6 +14,7 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE LambdaCase #-}
 -- See Note [-Wincomplete-uni-patterns and irrefutable patterns] in Cryptol.TypeCheck.TypePat
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 module Cryptol.Parser.ParserUtils where
@@ -31,6 +32,7 @@ import           Data.Text(Text)
 import qualified Data.Text as T
 import qualified Data.Map as Map
 import Text.Read(readMaybe)
+import Data.Foldable (for_)
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
@@ -1206,13 +1208,21 @@ mkIfacePropSyn mbDoc d =
 -- | Make an unnamed module---gets the name @Main@.
 mkAnonymousModule :: [TopDecl PName] -> ParseM [Module PName]
 mkAnonymousModule ds =
-  do src <- cfgSource <$> askConfig
+  do for_ ds \case
+       DParamDecl l _            -> mainParamError l
+       DModParam p               -> mainParamError (srcRange (mpSignature p))
+       DInterfaceConstraint _ ps -> mainParamError (srcRange ps)
+       _                         -> pure ()
+     src <- cfgSource <$> askConfig
      mkTopMods Nothing $
-     mkModule Located
-       { srcRange = emptyRange
-       , thing    = mainModName src
-       }
-       ds
+        mkModule Located
+          { srcRange = emptyRange
+          , thing    = mainModName src
+          }
+                          ds
+  where
+  mainParamError l = errorMessage l
+    ["Main module cannot be parameterized"]
 
 -- | Make a module which defines a functor instance.
 mkModuleInstanceAnon :: Located ModName ->
