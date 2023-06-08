@@ -1,4 +1,4 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module Main
+Loading module [issue78.cry]
 unique : {a, b} (fin a, fin b, a >= 1) => [a][b] -> Bit

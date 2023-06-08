@@ -1,6 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module Main
+Loading module [primes.cry]
 property recip_correct_17 Using exhaustive testing.
 Testing... Passed 17 tests.
 Q.E.D.

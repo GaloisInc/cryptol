@@ -1,6 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module Main
+Loading module [word-update.cry]
 property wordUpdate Using random testing.
 Testing... Passed 10000 tests.
 Expected test coverage: 0.03% (9999 of 2^^25 values)

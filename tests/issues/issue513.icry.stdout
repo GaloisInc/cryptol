@@ -1,25 +1,25 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module Main
+Loading module [issue513.cry]
 [warning] at issue513.cry:1:8--1:15:
   Assuming  a to have a numeric type
-module Main
+module [issue513.cry]
 
 /* Recursive */
-Main::test : {a} [1 + a]
-Main::test =
+[issue513.cry]::test : {a} [1 + a]
+[issue513.cry]::test =
   \{a} ->
-    Main::$mono
+    [issue513.cry]::$mono
     where
       /* Recursive */
-      Main::$mono : [1 + a]
-      Main::$mono =
+      [issue513.cry]::$mono : [1 + a]
+      [issue513.cry]::$mono =
         (Cryptol::#) 1 a Bit <> [Cryptol::False] [y | i <- Cryptol::zero [a] <>
-                                                    | y <- Main::$mono]
+                                                    | y <- [issue513.cry]::$mono]
 
 
 
-Main::test
+[issue513.cry]::test
 test : {a} [1 + a]
-Main::test 8
+[issue513.cry]::test 8
 0x000

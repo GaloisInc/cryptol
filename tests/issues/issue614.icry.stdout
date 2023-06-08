@@ -1,6 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module Main
+Loading module [issue614.cry]
 
 [error] at issue614.cry:1:18--1:20 and issue614.cry:1:31--1:33
     The fixities of

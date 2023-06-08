@@ -1,6 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module Main
+Loading module [noNested.cry]
 
 At noNested.cry:6:3--6:9:
   Local declaration `nested` may not use constraint guards.

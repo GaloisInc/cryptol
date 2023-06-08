@@ -12,11 +12,11 @@ Parse error at issue962.icry:3:1--3:11
   Explicit type applications can only be applied to named values.
   Unexpected: number`{3}
 Loading module Cryptol
-Loading module Main
+Loading module [issue962a.cry]
 i : {a} (fin a) => [a] -> [a]
 j : {a} (fin a) => [a]{fld : Integer} -> [a]Integer
 Loading module Cryptol
-Loading module Main
+Loading module [issue962b.cry]
 
 [error] at issue962b.cry:32:16--32:25:
   Unexpected bare type application.

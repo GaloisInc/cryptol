@@ -1,6 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module Main
+Loading module [inits.cry]
 Showing a specific instance of polymorphic result:
   * Using 'Integer' for type of sequence member
 Using exhaustive testing.

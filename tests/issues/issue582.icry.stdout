@@ -30,11 +30,11 @@ Loading module Cryptol
         use of partial type function (%^)
         at issue582.icry:6:1--6:16
 Loading module Cryptol
-Loading module Main
+Loading module [issue582.cry]
 
 [error] at issue582.cry:2:1--2:11:
   Failed to validate user-specified signature.
-    in the definition of 'Main::foo', at issue582.cry:2:1--2:4,
+    in the definition of '[issue582.cry]::foo', at issue582.cry:2:1--2:4,
     we need to show that
       for any type i, j
       the following constraints hold:
@@ -48,7 +48,7 @@ Loading module Main
             at issue582.cry:1:7--1:21
 [error] at issue582.cry:5:1--5:11:
   Failed to validate user-specified signature.
-    in the definition of 'Main::bar', at issue582.cry:5:1--5:4,
+    in the definition of '[issue582.cry]::bar', at issue582.cry:5:1--5:4,
     we need to show that
       for any type i, j
       the following constraints hold:

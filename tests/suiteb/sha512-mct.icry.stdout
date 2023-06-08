@@ -1,7 +1,7 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module SuiteB
-Loading module Main
+Loading module [sha512-mct.cry]
 property sha512_mct_correct Using exhaustive testing.
 Testing... Passed 1 tests.
 Q.E.D.

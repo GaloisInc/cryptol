@@ -1,6 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module Main
+Loading module [issue1441_b.rst]
 
 [error] at issue1441_b.rst:28:14--28:18:
   Type mismatch:

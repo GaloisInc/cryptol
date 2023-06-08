@@ -1,7 +1,7 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Cryptol::Reference
-Loading module Main
+Loading module [reference.cry]
 property foldl_eq Using random testing.
 Testing... Passed 1000 tests.
 property scanl_eq Using random testing.

@@ -1,6 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module Main
+Loading module [issue894.cry]
 [warning] at issue894.cry:1:10--1:11
     Unused name: n
 [warning] at issue894.cry:1:6--1:11:

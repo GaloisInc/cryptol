@@ -1,6 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module Main
+Loading module [issue851.cry]
 Using exhaustive testing.
 Testing... Counterexample
 problem 0x01 = False

@@ -1,6 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module Main
+Loading module [rational_properties.cry]
 property QaddUnit Using random testing.
 Testing... Passed 100 tests.
 property QaddComm Using random testing.

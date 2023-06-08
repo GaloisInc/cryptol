@@ -1,4 +1,4 @@
 Loading module Cryptol
 Loading module Float
-Loading module Main
+Loading module [test-ffi2.cry]
 Writing header to test-ffi2.h

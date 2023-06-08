@@ -1,7 +1,7 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Cryptol::Reference
-Loading module Main
+Loading module [f2polytest.cry]
 property mult3_9 Using random testing.
 Testing... Passed 2000 tests.
 Expected test coverage: 11.49% (1883 of 16384 values)

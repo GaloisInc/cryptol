@@ -1,6 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module Main
+Loading module [issue662.cry]
 property divRoundsDown Using random testing.
 Testing... Passed 1000 tests.
 property divEuclidean Using random testing.

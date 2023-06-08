@@ -1,6 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module Main
+Loading module [rec-update.cry]
 [{x = 0x02, y = True}, {x = 0x03, y = True},
  {x = 0x04, y = False}, {x = 0x05, y = False}]
 [{x = 0x07, y = True}, {x = 0x08, y = True},

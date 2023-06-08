@@ -1,9 +1,9 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module Main
+Loading module [ffi-reload.cry]
 Loading dynamic library ffi-reload.so
 False
 Loading module Cryptol
-Loading module Main
+Loading module [ffi-reload.cry]
 Loading dynamic library ffi-reload.so
 True

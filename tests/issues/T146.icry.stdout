@@ -1,18 +1,18 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module Main
+Loading module [T146.cry]
 
 [error] at T146.cry:11:10--11:12:
   The type ?b is not sufficiently polymorphic.
     It cannot depend on quantified variables: fv`895
     When checking signature variable 'fv'
   where
-  ?b is type argument 'fv' of 'Main::ec_v2' at T146.cry:5:19--5:24
-  fv`895 is signature variable 'fv' at T146.cry:11:10--11:12
+  ?b is type argument 'fv' of '[T146.cry]::ec_v2' at T146.cry:5:19--5:24
+  fv`902 is signature variable 'fv' at T146.cry:11:10--11:12
 [error] at T146.cry:12:11--12:21:
   The type ?a is not sufficiently polymorphic.
     It cannot depend on quantified variables: fv`895
     When checking type of field 'v0'
   where
-  ?a is type argument 'fv' of 'Main::ec_v1' at T146.cry:4:19--4:24
-  fv`895 is signature variable 'fv' at T146.cry:11:10--11:12
+  ?a is type argument 'fv' of '[T146.cry]::ec_v1' at T146.cry:4:19--4:24
+  fv`902 is signature variable 'fv' at T146.cry:11:10--11:12

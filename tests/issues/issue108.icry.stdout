@@ -1,13 +1,13 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module Main
+Loading module [issue108.cry]
 Showing a specific instance of polymorphic result:
-  * Using '0' for type argument 'b' of 'Main::sum'
+  * Using '0' for type argument 'b' of '[issue108.cry]::sum'
 0x0
 Showing a specific instance of polymorphic result:
-  * Using '2' for type argument 'b' of 'Main::sum'
+  * Using '2' for type argument 'b' of '[issue108.cry]::sum'
 0x2
 Showing a specific instance of polymorphic result:
-  * Using '4' for type argument 'b' of 'Main::sum'
+  * Using '4' for type argument 'b' of '[issue108.cry]::sum'
 0x7
 0x37

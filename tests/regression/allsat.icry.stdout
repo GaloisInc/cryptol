@@ -1,6 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module Main
+Loading module [allsat.cry]
 Satisfiable
 Models found: 3375
 Satisfiable

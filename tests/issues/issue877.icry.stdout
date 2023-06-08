@@ -12,7 +12,7 @@ Showing a specific instance of polymorphic result:
   * Using 'Bit' for type of sequence member
 []
 Loading module Cryptol
-Loading module Main
+Loading module [issue877.cry]
 a : {a} [0]a
 Showing a specific instance of polymorphic result:
   * Using 'Integer' for type of sequence member

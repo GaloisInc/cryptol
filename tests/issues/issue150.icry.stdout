@@ -1,4 +1,4 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module Main
+Loading module [issue150.cry]
 maxSeq' : {n, a} (Cmp a, Literal 0 a) => [n]a -> [1 + n]a

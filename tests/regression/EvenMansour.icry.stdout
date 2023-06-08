@@ -1,6 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module Main
+Loading module [../../examples/contrib/EvenMansour.cry]
 Using exhaustive testing.
 Testing... Passed 1 tests.
 Q.E.D.
