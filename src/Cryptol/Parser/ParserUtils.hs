@@ -1222,7 +1222,7 @@ mkAnonymousModule ds =
                           ds
   where
   mainParamError l = errorMessage l
-    ["Main module cannot be parameterized"]
+    ["Unnamed module cannot be parameterized"]
 
 -- | Make a module which defines a functor instance.
 mkModuleInstanceAnon :: Located ModName ->
