@@ -1,7 +1,7 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module Main
+Loading module [T013.cry]
 
 [error] at T013.cry:6:30--6:31
     • Expected an interface
-    • `submodule Main::A` is a module
+    • `submodule [T013.cry]::A` is a module

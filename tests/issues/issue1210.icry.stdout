@@ -1,6 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module Main
+Loading module [issue1210.cry]
 property mwe Using exhaustive testing.
 Testing... Passed 16 tests.
 Q.E.D.

@@ -1,6 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module Main
+Loading module [issue723.cry]
 
 [error] at issue723.cry:7:5--7:19:
   Failed to validate user-specified signature.

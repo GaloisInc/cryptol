@@ -1,6 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module Main
+Loading module [check14.cry]
 Showing a specific instance of polymorphic result:
   * Using 'Integer' for type of sequence member
 [[3, 2, 1, 0], [7, 6, 5, 4]]

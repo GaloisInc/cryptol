@@ -1,7 +1,7 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module SuiteB
-Loading module Main
+Loading module [sha224-vectors-long.cry]
 property sha224_long611 Using exhaustive testing.
 Testing... Passed 1 tests.
 Q.E.D.

@@ -1,7 +1,7 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module SuiteB
-Loading module Main
+Loading module [aes-vectors.cry]
 property aes128_GFSBox_encrypt_correct Using exhaustive testing.
 Testing... Passed 1 tests.
 Q.E.D.

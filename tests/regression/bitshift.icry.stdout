@@ -1,6 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module Main
+Loading module [bitshift.cry]
 Using exhaustive testing.
 Testing... Passed 32 tests.
 Q.E.D.

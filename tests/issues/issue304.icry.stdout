@@ -1,6 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module Main
+Loading module [issue304.cry]
 x : [64]
 a : [16]
 b : [48]

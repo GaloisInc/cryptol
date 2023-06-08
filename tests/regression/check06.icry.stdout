@@ -1,8 +1,8 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module Main
+Loading module [check06.cry]
 Showing a specific instance of polymorphic result:
-  * Using 'Integer' for 1st type argument of 'Main::onesytwosy'
+  * Using 'Integer' for 1st type argument of '[check06.cry]::onesytwosy'
 [[1, 2], [2, 1], [1, 2], [2, 1], [1, 2], [2, 1], [1, 2], [2, 1],
  [1, 2], [2, 1], [1, 2]]
 True

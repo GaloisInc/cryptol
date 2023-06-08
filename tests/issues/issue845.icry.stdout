@@ -1,10 +1,10 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module Main
+Loading module [issue845.cry]
 
 [error] at issue845.cry:2:1--2:37:
   Failed to validate user-specified signature.
-    in the definition of 'Main::rfrac', at issue845.cry:2:1--2:6,
+    in the definition of '[issue845.cry]::rfrac', at issue845.cry:2:1--2:6,
     we need to show that
       for any type m, n
       the following constraints hold:

@@ -1,12 +1,12 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module Main
+Loading module [constant.cry]
 [warning] at constant.cry:1:11--1:16
     Unused name: n
 [warning] at constant.cry:14:10--14:15
     Unused name: n
 [warning] at constant.cry:28:1--28:10:
-  Could not prove that the constraint guards used in defining Main::idTypeNum were exhaustive.
+  Could not prove that the constraint guards used in defining [constant.cry]::idTypeNum were exhaustive.
 property isZero_correct Using exhaustive testing.
 Testing... Passed 1 tests.
 Q.E.D.

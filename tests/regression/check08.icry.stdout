@@ -1,6 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module Main
+Loading module [check08.cry]
 [0x00000001, 0x00000002, 0x00000005, 0x0000000c, 0x0000001b]
 True
 Q.E.D.

@@ -1,8 +1,8 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module Main
+Loading module [ffi-no-dup.cry]
 
-[error] Failed to load foreign implementations for module Main:
+[error] Failed to load foreign implementations for module [ffi-no-dup.cry]:
     Multiple foreign declarations with the same name:
         `f` defined at ffi-no-dup.cry:6:11--6:12
                        ffi-no-dup.cry:3:9--3:10

@@ -1,6 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module Main
+Loading module [issue133.cry]
 Using exhaustive testing.
 Testing... Passed 256 tests.
 Q.E.D.

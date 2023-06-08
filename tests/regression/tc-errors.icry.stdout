@@ -43,22 +43,22 @@ Parse error at tc-errors.icry:7:1--7:10
     Inferred type: Bit
     When checking user annotation
 Loading module Cryptol
-Loading module Main
+Loading module [tc-errors-1.cry]
 
 [error] at tc-errors-1.cry:1:9--1:12:
   Malformed type.
     Type variables cannot be applied to parameters.
 Loading module Cryptol
-Loading module Main
+Loading module [tc-errors-2.cry]
 
-[error] Invalid self dependency:
-    • type Main::T, defined at 1:6--1:7
+[error] Invalid recursive dependency:
+    • type [tc-errors-2.cry]::T, defined at 1:6--1:7
 Loading module Cryptol
-Loading module Main
+Loading module [tc-errors-3.cry]
 
 [error] at tc-errors-3.cry:2:1--2:6:
   Failed to validate user-specified signature.
-    in the definition of 'Main::f', at tc-errors-3.cry:2:1--2:2,
+    in the definition of '[tc-errors-3.cry]::f', at tc-errors-3.cry:2:1--2:2,
     we need to show that
       for any type a
       the following constraints hold:
@@ -71,7 +71,7 @@ Loading module Main
             use of literal or demoted expression
             at tc-errors-3.cry:2:5--2:6
 Loading module Cryptol
-Loading module Main
+Loading module [tc-errors-4.cry]
 
 [error] at tc-errors-4.cry:1:10--1:11:
   Wild card types are not allowed in this context
@@ -80,18 +80,18 @@ Loading module Main
     • FFI declarations
     • declarations with constraint guards
 Loading module Cryptol
-Loading module Main
+Loading module [tc-errors-5.cry]
 
 [error] at tc-errors-5.cry:2:1--2:7:
   Inferred type is not sufficiently polymorphic.
     Quantified variable: a`892
     cannot match type: [0]?a
-    When checking the type of 'Main::f'
+    When checking the type of '[tc-errors-5.cry]::f'
   where
   ?a is type of sequence member at tc-errors-5.cry:2:5--2:7
   a`892 is signature variable 'a' at tc-errors-5.cry:1:6--1:7
 Loading module Cryptol
-Loading module Main
+Loading module [tc-errors-6.cry]
 
 [error] at tc-errors-6.cry:4:3--4:8:
   The type ?a is not sufficiently polymorphic.
