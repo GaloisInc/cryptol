@@ -269,6 +269,7 @@ jobs:
       - uses: haskell/actions/setup@v1
         with:
           ghc-version: '8.10.7'
+          cabal-version: '3.10.1.1'
 
       - name: Install dependencies (Windows)
         uses: msys2/setup-msys2@v2
