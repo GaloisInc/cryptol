@@ -60,7 +60,7 @@ jobs:
       matrix:
         os: [ubuntu-22.04, macos-12, windows-2019]
         ghc-version: ["8.10.7", "9.2.4", "9.4.4"]
-        cabal: [ '3.10.1.1' ]
+        cabal: [ '3.10.1.0' ]
         run-tests: [true]
         exclude:
           - os: windows-2019
@@ -269,7 +269,7 @@ jobs:
       - uses: haskell/actions/setup@v1
         with:
           ghc-version: '8.10.7'
-          cabal-version: '3.10.1.1'
+          cabal-version: '3.10.1.0'
 
       - name: Install dependencies (Windows)
         uses: msys2/setup-msys2@v2
