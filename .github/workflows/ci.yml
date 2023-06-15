@@ -94,7 +94,7 @@ jobs:
         with:
           poetry-version: 1.4.2
 
-      - uses: haskell/actions/setup@v1
+      - uses: haskell/actions/setup@v2
         id: setup-haskell
         with:
           ghc-version: ${{ matrix.ghc-version }}
@@ -266,7 +266,7 @@ jobs:
         with:
           submodules: true
 
-      - uses: haskell/actions/setup@v1
+      - uses: haskell/actions/setup@v2
         with:
           ghc-version: '8.10.7'
 
