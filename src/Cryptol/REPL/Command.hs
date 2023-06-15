@@ -55,6 +55,7 @@ module Cryptol.REPL.Command (
   , handleCtrlC
   , sanitize
   , withRWTempFile
+  , printModuleWarnings
 
     -- To support Notebook interface (might need to refactor)
   , replParse
@@ -1587,25 +1588,12 @@ getPrimMap :: REPL M.PrimMap
 getPrimMap  = liftModuleCmd M.getPrimMap
 
 liftModuleCmd :: M.ModuleCmd a -> REPL a
-liftModuleCmd cmd =
-  do evo <- getEvalOptsAction
-     env <- getModuleEnv
-     callStacks <- getCallStacks
-     tcSolver <- getTCSolver
-     let minp =
-             M.ModuleInput
-                { minpCallStacks = callStacks
-                , minpEvalOpts   = evo
-                , minpByteReader = BS.readFile
-                , minpModuleEnv  = env
-                , minpTCSolver   = tcSolver
-                }
-     moduleCmdResult =<< io (cmd minp)
+liftModuleCmd cmd = moduleCmdResult =<< io . cmd =<< getModuleInput
 
 -- TODO: add filter for my exhaustie prop guards warning here
 
-moduleCmdResult :: M.ModuleRes a -> REPL a
-moduleCmdResult (res,ws0) = do
+printModuleWarnings :: [M.ModuleWarning] -> REPL ()
+printModuleWarnings ws0 = do
   warnDefaulting  <- getKnownUser "warnDefaulting"
   warnShadowing   <- getKnownUser "warnShadowing"
   warnPrefixAssoc <- getKnownUser "warnPrefixAssoc"
@@ -1644,6 +1632,10 @@ moduleCmdResult (res,ws0) = do
          $ ws0
   names <- M.mctxNameDisp <$> getFocusedEnv
   mapM_ (rPrint . runDoc names . pp) ws
+
+moduleCmdResult :: M.ModuleRes a -> REPL a
+moduleCmdResult (res,ws) = do
+  printModuleWarnings ws
   case res of
     Right (a,me') -> setModuleEnv me' >> return a
     Left err      ->
@@ -1655,6 +1647,7 @@ moduleCmdResult (res,ws0) = do
                   do setEditPath file
                      return e
                 _ -> return err
+         names <- M.mctxNameDisp <$> getFocusedEnv
          raise (ModuleSystemError names e)
 
 
