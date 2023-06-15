@@ -46,6 +46,7 @@ library
   Default-language:
     Haskell2010
   Build-depends:       base              >= 4.9 && < 5,
+                       aeson,
                        arithmoi          >= 0.12,
                        async             >= 2.2 && < 2.3,
                        base-compat       >= 0.6 && < 0.13,
@@ -85,7 +86,8 @@ library
                        mtl               >= 2.2.1,
                        time              >= 1.6.0.1,
                        panic             >= 0.3,
-                       what4             >= 1.4 && < 1.7
+                       what4             >= 1.4 && < 1.7,
+                       yaml              >= 0.11.11 && < 0.12
 
   if impl(ghc >= 9.0)
     build-depends:     ghc-bignum        >= 1.0 && < 1.4
@@ -238,7 +240,9 @@ library
                        Cryptol.REPL.Help,
                        Cryptol.REPL.Browse,
                        Cryptol.REPL.Monad,
-                       Cryptol.REPL.Trie
+                       Cryptol.REPL.Trie,
+
+                       Cryptol.Project
 
   Other-modules:       Cryptol.Parser.LexerUtils,
                        Cryptol.Parser.ParserUtils,
