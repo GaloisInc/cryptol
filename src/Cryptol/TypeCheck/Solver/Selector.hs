@@ -5,7 +5,7 @@
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
-{-# LANGUAGE PatternGuards, Safe #-}
+{-# LANGUAGE PatternGuards #-}
 module Cryptol.TypeCheck.Solver.Selector (tryHasGoal) where
 
 import Cryptol.Parser.Position(Range)
@@ -13,7 +13,7 @@ import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.InferTypes
 import Cryptol.TypeCheck.Monad( InferM, unify, newGoals
                               , newType, applySubst, solveHasGoal
-                              , newParamName
+                              , newLocalName
                               )
 import Cryptol.TypeCheck.Subst (listParamSubst, apSubst)
 import Cryptol.Utils.Ident (Ident, packIdent,Namespace(..))
@@ -166,9 +166,9 @@ mkSelSln s outerT innerT =
   -- xs.s             ~~> [ x.s           | x <- xs ]
   -- { xs | s = ys }  ~~> [ { x | s = y } | x <- xs | y <- ys ]
   liftSeq len el =
-    do x1 <- newParamName NSValue (packIdent "x")
-       x2 <- newParamName NSValue (packIdent "x")
-       y2 <- newParamName NSValue (packIdent "y")
+    do x1 <- newLocalName NSValue (packIdent "x")
+       x2 <- newLocalName NSValue (packIdent "x")
+       y2 <- newLocalName NSValue (packIdent "y")
        case tNoUser innerT of
          TCon _ [_,eli] ->
            do d <- mkSelSln s el eli
@@ -190,8 +190,8 @@ mkSelSln s outerT innerT =
   -- f.s            ~~> \x -> (f x).s
   -- { f | s = g }  ~~> \x -> { f x | s = g x }
   liftFun t1 t2 =
-    do x1 <- newParamName NSValue (packIdent "x")
-       x2 <- newParamName NSValue (packIdent "x")
+    do x1 <- newLocalName NSValue (packIdent "x")
+       x2 <- newLocalName NSValue (packIdent "x")
        case tNoUser innerT of
          TCon _ [_,inT] ->
            do d <- mkSelSln s t2 inT

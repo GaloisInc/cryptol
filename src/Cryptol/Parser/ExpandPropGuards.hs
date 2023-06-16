@@ -41,10 +41,17 @@ instance PP Error where
       text "At" <+> pp (srcRange x) <.> colon
         <+> text "Declarations using constraint guards require an explicit type signature."
 
-expandPropGuards :: ModuleG m PName -> ExpandPropGuardsM (ModuleG m PName)
+expandPropGuards :: ModuleG mname PName -> ExpandPropGuardsM (ModuleG mname PName)
 expandPropGuards m =
-  do mDecls' <- mapM expandTopDecl (mDecls m)
-     pure m {mDecls = concat mDecls' }
+  do def <- expandModuleDef (mDef m)
+     pure m { mDef = def }
+
+expandModuleDef :: ModuleDefinition PName -> ExpandPropGuardsM (ModuleDefinition PName)
+expandModuleDef m =
+  case m of
+    NormalModule ds    -> NormalModule . concat <$> mapM expandTopDecl ds
+    FunctorInstance {} -> pure m
+    InterfaceModule {} -> pure m
 
 expandTopDecl :: TopDecl PName -> ExpandPropGuardsM [TopDecl PName]
 expandTopDecl topDecl =

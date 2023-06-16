@@ -560,13 +560,15 @@ runTcM env (TcM m) =
     (Left err, _) -> Left err
     (Right a, s)  -> Right (a, woProofObligations s)
   where
+  allPs = inpParams env
+
   ro = RO { roTVars = Map.fromList [ (tpUnique x, x)
-                                      | tp <- Map.elems (inpParamTypes env)
+                                      | tp <- Map.elems (mpnTypes allPs)
                                       , let x = mtpParam tp ]
-          , roAsmps = map thing (inpParamConstraints env)
+          , roAsmps = map thing (mpnConstraints allPs)
           , roRange = emptyRange
           , roVars  = Map.union
-                        (fmap mvpType (inpParamFuns env))
+                        (fmap mvpType (mpnFuns allPs))
                         (inpVars env)
           }
   rw = RW { woProofObligations = [] }

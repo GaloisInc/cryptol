@@ -8,16 +8,10 @@
 
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE Rank2Types #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE ViewPatterns #-}
 module Cryptol.Eval.Concrete
   ( module Cryptol.Backend.Concrete
   , Value
@@ -87,7 +81,7 @@ toExpr prims t0 v0 = findOne (go t0 v0)
            case res of
              Left _ -> mismatch -- different fields
              Right efs ->
-               let f = foldl (\x t -> ETApp x (tNumValTy t)) (EVar (ntName nt)) ts
+               let f = foldl (\x t -> ETApp x (tNumValTy t)) (EVar (ntConName nt)) ts
                 in pure (EApp f (ERec efs))
 
       (TVTuple ts, VTuple tvs) ->

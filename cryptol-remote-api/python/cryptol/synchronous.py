@@ -393,3 +393,9 @@ class CryptolSyncConnection:
     def logging(self, on : bool, *, dest : TextIO = sys.stderr) -> None:
         """Whether to log received and transmitted JSON."""
         self.connection.server_connection.logging(on=on,dest=dest)
+
+    def file_deps( self
+                 , m : str, isFile:bool
+                 , timeout:Optional[float] = None) -> Any:
+        """Get information about a module or a file."""
+        return self.connection.file_deps(m,isFile,timeout=timeout).result()

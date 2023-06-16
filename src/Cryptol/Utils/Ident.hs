@@ -6,25 +6,29 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE DeriveGeneric, OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE Safe #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Cryptol.Utils.Ident
   ( -- * Module names
     ModPath(..)
   , apPathRoot
   , modPathCommon
+  , modPathIsOrContains
   , topModuleFor
   , modPathSplit
+  , modPathIsNormal
 
   , ModName
   , modNameToText
   , textToModName
   , modNameChunks
+  , modNameChunksText
   , packModName
   , preludeName
   , preludeReferenceName
+  , undefinedModName
   , floatName
   , suiteBName
   , arrayName
@@ -32,10 +36,10 @@ module Cryptol.Utils.Ident
   , interactiveName
   , noModuleName
   , exprModName
-
-  , isParamInstModName
-  , paramInstModName
-  , notParamInstModName
+  , modNameArg
+  , modNameIfaceMod
+  , modNameToNormalModName
+  , modNameIsNormal
 
     -- * Identifiers
   , Ident
@@ -48,6 +52,9 @@ module Cryptol.Utils.Ident
   , nullIdent
   , identText
   , modParamIdent
+  , identAnonArg
+  , identAnonIfaceMod
+  , identIsNormal
 
     -- * Namespaces
   , Namespace(..)
@@ -55,6 +62,8 @@ module Cryptol.Utils.Ident
 
     -- * Original names
   , OrigName(..)
+  , OrigSource(..)
+  , ogFromModParam
 
     -- * Identifiers for primitives
   , PrimIdent(..)
@@ -68,9 +77,12 @@ module Cryptol.Utils.Ident
 import           Control.DeepSeq (NFData)
 import           Data.Char (isSpace)
 import           Data.List (unfoldr)
+import           Data.Text (Text)
 import qualified Data.Text as T
 import           Data.String (IsString(..))
 import           GHC.Generics (Generic)
+
+import Cryptol.Utils.Panic(panic)
 
 
 --------------------------------------------------------------------------------
@@ -116,6 +128,14 @@ modPathCommon p1 p2
       (x:xs',y:ys') | x == y -> findCommon (Nested com x) xs' ys'
       _                      -> (com, xs, ys)
 
+-- | Does the first module path contain the second?
+-- This returns true if the paths are the same.
+modPathIsOrContains :: ModPath -> ModPath -> Bool
+modPathIsOrContains p1 p2 =
+  case modPathCommon p1 p2 of
+    Just (_,[],_) -> True
+    _ -> False
+
 modPathSplit :: ModPath -> (ModName, [Ident])
 modPathSplit p0 = (top,reverse xs)
   where
@@ -126,47 +146,67 @@ modPathSplit p0 = (top,reverse xs)
       Nested b i  -> (a, i:bs)
         where (a,bs) = go b
 
-
+modPathIsNormal :: ModPath -> Bool
+modPathIsNormal p = modNameIsNormal m && all identIsNormal is
+  where (m,is) = modPathSplit p
 
 
 --------------------------------------------------------------------------------
 -- | Top-level Module names are just text.
-data ModName = ModName T.Text
+data ModName = ModName Text MaybeAnon
   deriving (Eq,Ord,Show,Generic)
 
 instance NFData ModName
 
-modNameToText :: ModName -> T.Text
-modNameToText (ModName x) = x
+-- | Change a normal module name to a module name to be used for an
+-- anonnymous argument.
+modNameArg :: ModName -> ModName
+modNameArg (ModName m fl) =
+  case fl of
+    NormalName        -> ModName m AnonModArgName
+    AnonModArgName    -> panic "modNameArg" ["Name is not normal"]
+    AnonIfaceModName  -> panic "modNameArg" ["Name is not normal"]
 
+-- | Change a normal module name to a module name to be used for an
+-- anonnymous interface.
+modNameIfaceMod :: ModName -> ModName
+modNameIfaceMod (ModName m fl) =
+  case fl of
+    NormalName        -> ModName m AnonIfaceModName
+    AnonModArgName    -> panic "modNameIfaceMod" ["Name is not normal"]
+    AnonIfaceModName  -> panic "modNameIfaceMod" ["Name is not normal"]
+
+-- | This is used when we check that the name of a module matches the
+-- file where it is defined.
+modNameToNormalModName :: ModName -> ModName
+modNameToNormalModName (ModName t _) = ModName t NormalName
+
+modNameToText :: ModName -> Text
+modNameToText (ModName x fl) = maybeAnonText fl x
+
+-- | This is useful when we want to hide anonymous modules.
+modNameIsNormal :: ModName -> Bool
+modNameIsNormal (ModName _ fl) = isNormal fl
+
+-- | Make a normal module name out of text.
 textToModName :: T.Text -> ModName
-textToModName = ModName
+textToModName txt = ModName txt NormalName
 
-modNameChunks :: ModName -> [String]
-modNameChunks  = unfoldr step . modNameToText . notParamInstModName
+-- | Break up a module name on the separators, `Text` version.
+modNameChunksText :: ModName -> [T.Text]
+modNameChunksText (ModName x fl) = unfoldr step x
   where
   step str
     | T.null str = Nothing
-    | otherwise  = case T.breakOn modSep str of
-                     (a,b) -> Just (T.unpack a,T.drop (T.length modSep) b)
+    | otherwise  =
+      case T.breakOn modSep str of
+        (a,b)
+          | T.null b  -> Just (maybeAnonText fl str, b)
+          | otherwise -> Just (a,T.drop (T.length modSep) b)
 
-isParamInstModName :: ModName -> Bool
-isParamInstModName (ModName x) = modInstPref `T.isPrefixOf` x
-
--- | Convert a parameterized module's name to the name of the module
--- containing the same definitions but with explicit parameters on each
--- definition.
-paramInstModName :: ModName -> ModName
-paramInstModName (ModName x)
-  | modInstPref `T.isPrefixOf` x = ModName x
-  | otherwise = ModName (T.append modInstPref x)
-
-
-notParamInstModName :: ModName -> ModName
-notParamInstModName (ModName x)
-  | modInstPref `T.isPrefixOf` x = ModName (T.drop (T.length modInstPref) x)
-  | otherwise = ModName x
-
+-- | Break up a module name on the separators, `String` version
+modNameChunks :: ModName -> [String]
+modNameChunks = map T.unpack . modNameChunksText
 
 packModName :: [T.Text] -> ModName
 packModName strs = textToModName (T.intercalate modSep (map trim strs))
@@ -177,12 +217,11 @@ packModName strs = textToModName (T.intercalate modSep (map trim strs))
 modSep :: T.Text
 modSep  = "::"
 
-modInstPref :: T.Text
-modInstPref = "`"
-
-
 preludeName :: ModName
 preludeName  = packModName ["Cryptol"]
+
+undefinedModName :: ModName
+undefinedModName = packModName ["Undefined module"]
 
 preludeReferenceName :: ModName
 preludeReferenceName = packModName ["Cryptol","Reference"]
@@ -214,16 +253,32 @@ exprModName = packModName ["<expr>"]
 data OrigName = OrigName
   { ogNamespace :: Namespace
   , ogModule    :: ModPath
+  , ogSource    :: OrigSource
   , ogName      :: Ident
   } deriving (Eq,Ord,Show,Generic,NFData)
+
+-- | Describes where a top-level name came from
+data OrigSource =
+    FromDefinition
+  | FromFunctorInst
+  | FromModParam Ident
+    deriving (Eq,Ord,Show,Generic,NFData)
+
+-- | Returns true iff the 'ogSource' of the given 'OrigName' is 'FromModParam'
+ogFromModParam :: OrigName -> Bool
+ogFromModParam og = case ogSource og of
+                      FromModParam _ -> True
+                      _ -> False
 
 
 --------------------------------------------------------------------------------
 
--- | Identifiers, along with a flag that indicates whether or not they're infix
--- operators. The boolean is present just as cached information from the lexer,
--- and never used during comparisons.
-data Ident = Ident Bool T.Text
+{- | The type of identifiers.
+  * The boolean flag indicates whether or not they're infix operators.
+    The boolean is present just as cached information from the lexer,
+    and never used during comparisons.
+  * The MaybeAnon indicates if this is an anonymous name  -}
+data Ident = Ident Bool MaybeAnon T.Text
              deriving (Show,Generic)
 
 instance Eq Ident where
@@ -231,39 +286,82 @@ instance Eq Ident where
   a /= b = compare a b /= EQ
 
 instance Ord Ident where
-  compare (Ident _ i1) (Ident _ i2) = compare i1 i2
+  compare (Ident _ mb1 i1) (Ident _ mb2 i2) = compare (mb1,i1) (mb2,i2)
 
 instance IsString Ident where
   fromString str = mkIdent (T.pack str)
 
 instance NFData Ident
 
+-- | Make a normal (i.e., not anonymous) identifier
 packIdent :: String -> Ident
 packIdent  = mkIdent . T.pack
 
+-- | Make a normal (i.e., not anonymous) identifier
 packInfix :: String -> Ident
 packInfix  = mkInfix . T.pack
 
 unpackIdent :: Ident -> String
 unpackIdent  = T.unpack . identText
 
+-- | Make a normal (i.e., not anonymous) identifier
 mkIdent :: T.Text -> Ident
-mkIdent  = Ident False
+mkIdent  = Ident False NormalName
 
 mkInfix :: T.Text -> Ident
-mkInfix  = Ident True
+mkInfix  = Ident True NormalName
 
 isInfixIdent :: Ident -> Bool
-isInfixIdent (Ident b _) = b
+isInfixIdent (Ident b _ _) = b
 
 nullIdent :: Ident -> Bool
-nullIdent (Ident _ t) = T.null t
+nullIdent = T.null . identText
 
 identText :: Ident -> T.Text
-identText (Ident _ t) = t
+identText (Ident _ mb t) = maybeAnonText mb t
 
 modParamIdent :: Ident -> Ident
-modParamIdent (Ident x t) = Ident x (T.append (T.pack "module parameter ") t)
+modParamIdent (Ident x a t) =
+  Ident x a (T.append (T.pack "module parameter ") t)
+
+-- | Make an anonymous identifier for the module corresponding to
+-- a `where` block in a functor instantiation.
+identAnonArg :: Ident -> Ident
+identAnonArg (Ident b _ txt) = Ident b AnonModArgName txt
+
+-- | Make an anonymous identifier for the interface corresponding to
+-- a `parameter` declaration.
+identAnonIfaceMod :: Ident -> Ident
+identAnonIfaceMod (Ident b _ txt) = Ident b AnonIfaceModName txt
+
+identIsNormal :: Ident -> Bool
+identIsNormal (Ident _ mb _) = isNormal mb
+
+--------------------------------------------------------------------------------
+
+-- | Information about anonymous names.
+data MaybeAnon = NormalName       -- ^ Not an anonymous name.
+               | AnonModArgName   -- ^ Anonymous module (from `where`)
+               | AnonIfaceModName -- ^ Anonymous interface (from `parameter`)
+  deriving (Eq,Ord,Show,Generic)
+
+instance NFData MaybeAnon
+
+-- | Modify a name, if it is a nonymous
+maybeAnonText :: MaybeAnon -> Text -> Text
+maybeAnonText mb txt =
+  case mb of
+    NormalName       -> txt
+    AnonModArgName   -> "`where` argument of " <> txt
+    AnonIfaceModName -> "`parameter` interface of " <> txt
+
+isNormal :: MaybeAnon -> Bool
+isNormal mb =
+  case mb of
+    NormalName -> True
+    _          -> False
+
+
 
 
 --------------------------------------------------------------------------------

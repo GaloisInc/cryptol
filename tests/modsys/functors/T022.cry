@@ -1,0 +1,14 @@
+
+interface submodule S where
+  type n : #
+  type constraint (fin n)
+  x : [n]
+
+submodule F where
+  import interface submodule S as A
+
+  z = A::x + A::x
+
+import submodule F where
+  type n = 8
+  x = 2

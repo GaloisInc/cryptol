@@ -1,0 +1,14 @@
+module T023 where
+
+submodule F where
+  parameter
+    x : [8]
+
+  y = x + 1
+
+submodule G where
+  x = 2
+
+import submodule F { submodule G }
+  where z = 2
+

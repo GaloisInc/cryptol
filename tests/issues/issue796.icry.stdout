@@ -1,4 +1,4 @@
 Loading module Cryptol
-Loading module Cryptol
-Loading module Issue796_Sig
-Loading module Issue796
+
+Parse error at Issue796.cry:4:8--4:10
+  Instantiation of a parameterized module may not itself be parameterized

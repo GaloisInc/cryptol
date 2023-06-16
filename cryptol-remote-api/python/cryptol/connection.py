@@ -213,6 +213,15 @@ class CryptolConnection:
         self.most_recent_result = CryptolLoadModule(self, module_name, timeout)
         return self.most_recent_result
 
+    def file_deps(self, name : str, isFile : bool, *, timeout:Optional[float] = None) -> argo.Command:
+        """Get information about a module or a file.
+
+        :param timeout: Optional timeout for this request (in seconds).
+        """
+        timeout = timeout if timeout is not None else self.timeout
+        self.most_recent_result = CryptolFileDeps(self, name, isFile, timeout)
+        return self.most_recent_result
+
     def eval_raw(self, expression : Any, *, timeout:Optional[float] = None) -> argo.Command:
         """Like the member method ``eval``, but does not call
         ``from_cryptol_arg`` on the ``.result()``.

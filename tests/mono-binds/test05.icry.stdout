@@ -8,7 +8,7 @@ Loading module test05
     This binding for `foo` shadows the existing binding at
     test05.cry:9:3--9:6
 module test05
-import Cryptol
+
 /* Not recursive */
 test05::foo : [10]
 test05::foo = Cryptol::number 10 [10] <>
@@ -38,6 +38,7 @@ test05::test =
             bar =
               \{i} (fin i) ->
                 (Cryptol::#) i n b <> (Cryptol::zero ([i]b) <>) foo
+
 
 
 

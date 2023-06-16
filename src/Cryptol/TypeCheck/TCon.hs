@@ -40,7 +40,7 @@ infixPrimTy = \tc -> Map.lookup tc mp
 builtInType :: M.Name -> Maybe TCon
 builtInType nm =
   case M.nameInfo nm of
-    M.Declared m _
+    M.GlobalName _ OrigName { ogModule = m }
       | m == M.TopModule preludeName -> Map.lookup (M.nameIdent nm) builtInTypes
       | m == M.TopModule floatName   -> Map.lookup (M.nameIdent nm) builtInFloat
       | m == M.TopModule arrayName   -> Map.lookup (M.nameIdent nm) builtInArray

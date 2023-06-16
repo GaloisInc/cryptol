@@ -388,6 +388,55 @@ No return fields
 
 
 
+file-deps (command)
+~~~~~~~~~~~~~~~~~~~
+
+Get information about the dependencies of a file or module. The dependencies include the dependencies of modules nested in this one.
+
+Parameter fields
+++++++++++++++++
+
+
+``name``
+  Get information about this entity.
+  
+  
+
+``is-file``
+  Indicates if the name is a file (true) or module (false)
+  
+  
+
+Return fields
++++++++++++++
+
+
+``source``
+  File containing the module. For internal modules this is an object { internal: "LABEL" }.
+  
+  
+
+``fingerprint``
+  A hash of the module content.
+  
+  
+
+``includes``
+  Files included in this module.
+  
+  
+
+``imports``
+  Modules imported by this module.
+  
+  
+
+``foreign``
+  Foreign libraries loaded by this module.
+  
+  
+
+
 focused module (command)
 ~~~~~~~~~~~~~~~~~~~~~~~~
 

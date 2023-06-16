@@ -13,7 +13,9 @@ import Cryptol.Parser.AST(Pragma(..))
 import qualified Cryptol.TypeCheck.Type as T
 
 import Cryptol.Utils.PP
-import Cryptol.ModuleSystem.Env(ModContext(..))
+import Cryptol.Utils.Ident (OrigName(..), modPathIsNormal, identIsNormal)
+
+import Cryptol.ModuleSystem.Env(ModContext(..),ModContextParams(..))
 import Cryptol.ModuleSystem.NamingEnv(namingEnvNames)
 import Cryptol.ModuleSystem.Name
 import Cryptol.ModuleSystem.Interface
@@ -21,11 +23,14 @@ import Cryptol.ModuleSystem.Interface
 data BrowseHow = BrowseExported | BrowseInScope
 
 browseModContext :: BrowseHow -> ModContext -> PP.Doc Void
-browseModContext how mc = runDoc (env disp) (vcat sections)
+browseModContext how mc =
+  runDoc (env disp) (vcat sections)
   where
   sections = concat
     [ browseMParams (env disp) (mctxParams mc)
+    , browseSignatures disp decls
     , browseMods disp decls
+    , browseFunctors disp decls
     , browseTSyns disp decls
     , browsePrimTys disp decls
     , browseNewtypes disp decls
@@ -35,7 +40,12 @@ browseModContext how mc = runDoc (env disp) (vcat sections)
   disp     = DispInfo { dispHow = how, env = mctxNameDisp mc }
   decls    = filterIfaceDecls (`Set.member` visNames) (mctxDecls mc)
   allNames = namingEnvNames (mctxNames mc)
-  visNames = case how of
+  notAnon nm = identIsNormal (nameIdent nm) &&
+               case nameModPathMaybe nm of
+                  Just p -> modPathIsNormal p
+                  _      -> True    -- shouldn't happen?
+  visNames = Set.filter notAnon
+             case how of
                BrowseInScope  -> allNames
                BrowseExported -> mctxExported mc
 
@@ -44,31 +54,50 @@ data DispInfo = DispInfo { dispHow :: BrowseHow, env :: NameDisp }
 --------------------------------------------------------------------------------
 
 
-browseMParams :: NameDisp -> IfaceParams -> [Doc]
-browseMParams disp params =
-  ppSectionHeading "Module Parameters"
-  $ addEmpty
-  $ map ppParamTy (sortByName disp (Map.toList (ifParamTypes params))) ++
-    map ppParamFu (sortByName disp (Map.toList (ifParamFuns  params)))
+browseMParams :: NameDisp -> ModContextParams -> [Doc]
+browseMParams disp pars =
+  case pars of
+    NoParams -> []
+    FunctorParams params ->
+      ppSectionHeading "Module Parameters"
+      $ [ "parameter" <+> pp (T.mpName p) <+> ":" <+>
+          "interface" <+> pp (T.mpIface p) $$
+           indent 2 (vcat $
+            map ppParamTy (sortByName disp (Map.toList (T.mpnTypes names))) ++
+            map ppParamFu (sortByName disp (Map.toList (T.mpnFuns  names)))
+           )
+        | p <- Map.elems params
+        , let names = T.mpParameters p
+        ] ++
+        ["   "]
+    InterfaceParams ps -> [pp ps] -- XXX
   where
   ppParamTy p = nest 2 (sep ["type", pp (T.mtpName p) <+> ":", pp (T.mtpKind p)])
   ppParamFu p = nest 2 (sep [pp (T.mvpName p) <+> ":", pp (T.mvpType p)])
   -- XXX: should we print the constraints somewhere too?
 
-  addEmpty xs = case xs of
-                  [] -> []
-                  _  -> xs ++ ["    "]
-
 
 browseMods :: DispInfo -> IfaceDecls -> [Doc]
 browseMods disp decls =
-  ppSection disp "Modules" ppM (ifModules decls)
+  ppSection disp "Submodules" ppM (ifModules decls)
   where
-  ppM m = "submodule" <+> pp (ifModName m)
-  -- XXX: can print a lot more information about the moduels, but
-  -- might be better to do that with a separate command
+  ppM m = pp (ifsName m)
+
+browseFunctors :: DispInfo -> IfaceDecls -> [Doc]
+browseFunctors disp decls =
+  ppSection disp "Parameterized Submodules" ppM (ifFunctors decls)
+  where
+  ppM m = pp (ifModName m)
 
 
+
+
+browseSignatures :: DispInfo -> IfaceDecls -> [Doc]
+browseSignatures disp decls =
+  ppSection disp "Interface Submodules"
+    ppS (Map.mapWithKey (,) (ifSignatures decls))
+  where
+  ppS (x,s) = pp x
 
 
 browseTSyns :: DispInfo -> IfaceDecls -> [Doc]
@@ -142,8 +171,8 @@ groupDecls disp = Map.toList
   where
   toEntry (n,a) =
     case nameInfo n of
-      Declared m _ -> Just (m,[(n,a)])
-      _            -> Nothing
+      GlobalName _ og -> Just (ogModule og,[(n,a)])
+      _               -> Nothing
 
 
 sortByName :: NameDisp -> [(Name,a)] -> [a]

@@ -17,8 +17,6 @@ module Cryptol.Eval.FFI
   , evalForeignDecls
   ) where
 
-import           Data.Maybe
-
 import           Cryptol.Backend.FFI
 import           Cryptol.Backend.FFI.Error
 import           Cryptol.Eval
@@ -57,15 +55,6 @@ import           Cryptol.Utils.Ident
 import           Cryptol.Utils.RecordMap
 
 #endif
-
--- | Find all the foreign declarations in the module and return their names and
--- FFIFunTypes.
-findForeignDecls :: Module -> [(Name, FFIFunType)]
-findForeignDecls = mapMaybe getForeign . mDecls
-  where getForeign (NonRecursive Decl { dName, dDefinition = DForeign ffiType })
-          = Just (dName, ffiType)
-        -- Recursive DeclGroups can't have foreign decls
-        getForeign _ = Nothing
 
 #ifdef FFI_ENABLED
 

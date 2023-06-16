@@ -1,0 +1,16 @@
+import interface submodule X
+
+import submodule Y
+
+interface submodule I where
+  type n : #
+
+submodule M where
+  import interface submodule I
+
+submodule N where
+  x = 2
+
+submodule M1 = submodule M { submodule U1 }
+submodule M2 = submodule U2 { submodule N }
+

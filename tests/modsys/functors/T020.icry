@@ -1,0 +1,5 @@
+// a fixed version of test/modsys/T5 with all parameterized modules and
+// anonymous instantiations desugared
+:module T020::Main
+:t main
+main

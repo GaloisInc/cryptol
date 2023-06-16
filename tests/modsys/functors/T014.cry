@@ -1,0 +1,6 @@
+
+interface submodule A where
+  type T : #
+
+import submodule A
+

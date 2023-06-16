@@ -6,7 +6,6 @@
 -- Stability   :  provisional
 -- Portability :  portable
 {-# Language OverloadedStrings #-}
-{-# Language Safe #-}
 module Cryptol.TypeCheck.Instantiate
   ( instantiateWith
   , TypeArg(..)

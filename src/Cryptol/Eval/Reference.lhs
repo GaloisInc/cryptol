@@ -545,7 +545,7 @@ newtypes is thus basically just an identity function
 that consumes and ignores its type arguments.
 
 > evalNewtypeDecl :: Env -> Newtype -> Env
-> evalNewtypeDecl env nt = bindVar (ntName nt, pure val) env
+> evalNewtypeDecl env nt = bindVar (ntConName nt, pure val) env
 >   where
 >     val = foldr tabs con (ntParams nt)
 >     con = VFun (\x -> x)

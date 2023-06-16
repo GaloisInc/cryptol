@@ -1,0 +1,9 @@
+
+parameter
+  type n : #
+  type constraint P = (fin n, n > 0)
+  type constraint P
+
+
+f : [n]
+f = 1

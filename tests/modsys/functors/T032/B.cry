@@ -1,0 +1,4 @@
+module T032::B = module T032::A where
+  type n = 8
+
+

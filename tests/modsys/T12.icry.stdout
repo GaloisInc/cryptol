@@ -1,4 +1,4 @@
 Loading module Cryptol
-Loading module Cryptol
-Loading module T12::A
-Loading module T12::Main
+
+Parse error at T12/Main.cry:4:8--4:9
+  Instantiation of a parameterized module may not itself be parameterized

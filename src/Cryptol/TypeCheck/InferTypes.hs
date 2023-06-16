@@ -27,7 +27,7 @@ import           Cryptol.TypeCheck.PP
 import           Cryptol.TypeCheck.Subst
 import           Cryptol.TypeCheck.TypePat
 import           Cryptol.TypeCheck.SimpType(tMax)
-import           Cryptol.Utils.Ident (ModName, PrimIdent(..), preludeName)
+import           Cryptol.Utils.Ident (PrimIdent(..), preludeName)
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.Misc(anyJust)
 
@@ -182,7 +182,8 @@ instance Ord Goal where
   compare x y = compare (goal x) (goal y)
 
 data HasGoal = HasGoal
-  { hasName :: !Int
+  { hasName :: !Int -- ^ This is the "name" of the constraint,
+                    -- used to find the solution for ellaboration.
   , hasGoal :: Goal
   } deriving Show
 
@@ -219,7 +220,7 @@ data ConstraintSource
   | CtPartialTypeFun Name -- ^ Use of a partial type function.
   | CtImprovement
   | CtPattern TypeSource  -- ^ Constraints arising from type-checking patterns
-  | CtModuleInstance ModName -- ^ Instantiating a parametrized module
+  | CtModuleInstance Range -- ^ Instantiating a parametrized module
   | CtPropGuardsExhaustive Name -- ^ Checking that a use of prop guards is exhastive
   | CtFFI Name            -- ^ Constraints on a foreign declaration required
                           --   by the FFI (e.g. sequences must be finite)
@@ -357,7 +358,7 @@ instance PP ConstraintSource where
       CtPartialTypeFun f -> "use of partial type function" <+> pp f
       CtImprovement   -> "examination of collected goals"
       CtPattern ad    -> "checking a pattern:" <+> pp ad
-      CtModuleInstance n -> "module instantiation" <+> pp n
+      CtModuleInstance r -> "module instantiation at" <+> pp r
       CtPropGuardsExhaustive n -> "exhaustion check for prop guards used in defining" <+> pp n
       CtFFI f         -> "declaration of foreign function" <+> pp f
 

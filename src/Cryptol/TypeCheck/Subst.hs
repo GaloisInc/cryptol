@@ -7,10 +7,7 @@
 -- Portability :  portable
 
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -35,6 +32,7 @@ module Cryptol.TypeCheck.Subst
   , applySubstToVar
   , substToList
   , fmap', (!$), (.$)
+  , mergeDistinctSubst
   ) where
 
 import           Data.Maybe
@@ -84,6 +82,29 @@ emptySubst =
     , suBoundMap = IntMap.empty
     , suDefaulting = False
     }
+
+mergeDistinctSubst :: [Subst] -> Subst
+mergeDistinctSubst sus =
+  case sus of
+    [] -> emptySubst
+    _  -> foldr1 merge sus
+
+  where
+  merge s1 s2 = S { suFreeMap     = jn suFreeMap s1 s2
+                  , suBoundMap    = jn suBoundMap s1 s2
+                  , suDefaulting  = if suDefaulting s1 || suDefaulting s2
+                                      then err
+                                      else False
+                  }
+
+  err       = panic "mergeDistinctSubst" [ "Not distinct" ]
+  bad _ _   = err
+  jn f x y  = IntMap.unionWith bad (f x) (f y)
+
+
+
+
+
 
 -- | Reasons to reject a single-variable substitution.
 data SubstError
@@ -241,7 +262,15 @@ apSubstMaybe su ty =
          Just (TUser f ts1 t1)
 
     TRec fs -> TRec `fmap` (anyJust (apSubstMaybe su) fs)
-    TNewtype nt ts -> TNewtype nt `fmap` anyJust (apSubstMaybe su) ts
+
+    {- We apply the substitution to the newtype as well, because it might
+    contain module parameters, which need to be substituted when
+    instantiating a functor. -}
+    TNewtype nt ts ->
+      uncurry TNewtype <$> anyJust2 (applySubstToNewtype su)
+                                    (anyJust (apSubstMaybe su))
+                                    (nt,ts)
+
     TVar x -> applySubstToVar su x
 
 lookupSubst :: TVar -> Subst -> Maybe Type
@@ -262,6 +291,16 @@ applySubstToVar su x =
     Nothing
       | suDefaulting su -> Just $! defaultFreeVar x
       | otherwise       -> Nothing
+
+
+applySubstToNewtype :: Subst -> Newtype -> Maybe Newtype
+applySubstToNewtype su nt =
+  do (cs,fs) <- anyJust2
+                  (anyJust (apSubstMaybe su))
+                  (anyJust (apSubstMaybe su))
+                  (ntConstraints nt, ntFields nt)
+     pure nt { ntConstraints = cs, ntFields = fs }
+
 
 class TVars t where
   apSubst :: Subst -> t -> t
@@ -351,7 +390,16 @@ that variable scopes will be properly preserved. -}
 
 instance TVars Schema where
   apSubst su (Forall xs ps t) =
-    Forall xs !$ (concatMap pSplitAnd (apSubst su ps)) !$ (apSubst su t)
+    Forall xs !$ (map doProp ps) !$ (apSubst su t)
+    where
+    doProp = pAnd . pSplitAnd . apSubst su
+    {- NOTE: when applying a substitution to the predicates of a schema
+       we preserve the number of predicate, even if some of them became
+       "True" or and "And".  This is to accomodate applying substitution
+       to already type checked code (e.g., when instantiating a functor)
+       where the predictes in the schema need to match the corresponding
+       EProofAbs in the term.
+    -}
 
 instance TVars Expr where
   apSubst su = go
@@ -363,19 +411,15 @@ instance TVars Expr where
         EAbs x t e1   -> EAbs x !$ (apSubst su t) !$ (go e1)
         ETAbs a e     -> ETAbs a !$ (go e)
         ETApp e t     -> ETApp !$ (go e) !$ (apSubst su t)
-        EProofAbs p e -> EProofAbs !$ hmm !$ (go e)
-          where hmm = case pSplitAnd (apSubst su p) of
-                        [p1] -> p1
-                        res -> panic "apSubst@EProofAbs"
-                                [ "Predicate split or disappeared after"
-                                , "we applied a substitution."
-                                , "Predicate:"
-                                , show (pp p)
-                                , "Became:"
-                                , show (map pp res)
-                                , "subst:"
-                                , show (pp su)
-                                ]
+        EProofAbs p e -> EProofAbs !$ p' !$ (go e)
+          where p' = pAnd (pSplitAnd (apSubst su p))
+          {- NOTE: we used to panic if `pSplitAnd` didn't return a single result.
+          It is useful to avoid the panic if applying the substitution to
+          already type checked code (e.g., when we are instantitaing a
+          functor).  In that case, we don't have the option to modify the
+          `EProofAbs` because we'd have to change all call sites, but things might
+          simplify because of the extra info in the substitution. -}
+
 
         EProofApp e   -> EProofApp !$ (go e)
 
@@ -403,7 +447,7 @@ instance TVars DeclGroup where
 
 instance TVars Decl where
   apSubst su d =
-    let !sig' = id $! apSubst su (dSignature d)
+    let !sig' = apSubst su (dSignature d)
         !def' = apSubst su (dDefinition d)
     in d { dSignature = sig', dDefinition = def' }
 
@@ -412,7 +456,16 @@ instance TVars DeclDef where
   apSubst _  DPrim        = DPrim
   apSubst _  (DForeign t) = DForeign t
 
-instance TVars Module where
+-- WARNING: This applies the substitution only to the declarations.
+instance TVars (ModuleG names) where
   apSubst su m =
     let !decls' = apSubst su (mDecls m)
-    in m { mDecls = decls' }
+        !funs'  = apSubst su <$> mFunctors m
+    in m { mDecls = decls', mFunctors = funs' }
+
+-- WARNING: This applies the substitution only to the declarations in modules.
+instance TVars TCTopEntity where
+  apSubst su ent =
+    case ent of
+      TCTopModule m -> TCTopModule (apSubst su m)
+      TCTopSignature {} -> ent

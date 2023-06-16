@@ -1,5 +1,11 @@
 Loading module Cryptol
 Loading module Cryptol
+Loading interface module `parameter` interface of T3::A
 Loading module T3::A
+Loading module T3::Main
 
-[error] Import of a non-instantiated parameterized module: T3::A
+[error] at T3/Main.cry:5:8--5:15
+    Value not in scope: X::main
+[error] at T3/Main.cry:3:1--3:18
+    • Expected a module
+    • `T3::A` is a functor

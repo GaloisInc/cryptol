@@ -2,7 +2,7 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module test06
 module test06
-import Cryptol
+
 /* Not recursive */
 test06::test : {a} (Zero a) => a -> a
 test06::test =
@@ -16,12 +16,13 @@ test06::test =
       /* Not recursive */
       bar : a
       bar = foo
+
 
 
 Loading module Cryptol
 Loading module test06
 module test06
-import Cryptol
+
 /* Not recursive */
 test06::test : {a} (Zero a) => a -> a
 test06::test =
@@ -35,5 +36,6 @@ test06::test =
       /* Not recursive */
       bar : a
       bar = foo
+
 
 

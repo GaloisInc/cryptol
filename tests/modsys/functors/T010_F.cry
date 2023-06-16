@@ -1,0 +1,7 @@
+module T010_F where
+
+import T010_S
+import interface submodule A
+
+y = x + 3
+

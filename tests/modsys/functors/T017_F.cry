@@ -1,0 +1,6 @@
+module T017_F where
+
+parameter
+  x : [8]
+
+y = x + x

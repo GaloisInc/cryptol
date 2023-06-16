@@ -1,0 +1,7 @@
+module T020::Main where
+
+submodule BInst = T020::B where
+  z = 7
+import submodule BInst as B
+
+main = B::main

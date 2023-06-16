@@ -1,5 +1,7 @@
 Loading module Cryptol
 Loading module Cryptol
+Loading module `where` argument of T2::Main
+Loading interface module `parameter` interface of T2::A
 Loading module T2::A
 Loading module T2::Main
 0x00

@@ -3,6 +3,6 @@ Loading module Cryptol
 Loading module Main
 [warning] at issue894.cry:1:10--1:11
     Unused name: n
-[warning] at issue894.cry:1:6--1:9:
+[warning] at issue894.cry:1:6--1:11:
   Assuming  n to have a numeric type
 foo 0x1 : Int 4

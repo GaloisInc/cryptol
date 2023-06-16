@@ -1,0 +1,16 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading interface module T030_I
+Loading module T030
+
+type W = X
+
+This is W's doc
+
+(1 : X) : X
+
+Expression depends on definitions from a parameterized module:
+  T030::T030_I::f
+
+Expression depends on definitions from a parameterized module:
+  T030::g

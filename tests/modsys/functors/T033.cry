@@ -1,0 +1,14 @@
+interface submodule I where
+  type n : #
+
+submodule F where
+  import interface submodule I as J
+  submodule P where
+    z = 0x02
+
+submodule P where
+  type n = 8
+
+submodule B = submodule F { submodule P }
+
+

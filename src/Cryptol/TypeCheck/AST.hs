@@ -13,12 +13,14 @@
 {-# LANGUAGE FlexibleInstances, FlexibleContexts #-}
 {-# LANGUAGE DeriveAnyClass, DeriveGeneric       #-}
 {-# LANGUAGE OverloadedStrings                   #-}
+{-# LANGUAGE NamedFieldPuns                      #-}
+{-# LANGUAGE ViewPatterns                        #-}
 module Cryptol.TypeCheck.AST
   ( module Cryptol.TypeCheck.AST
   , Name()
   , TFun(..)
   , Selector(..)
-  , Import, ImportG(..)
+  , Import, ImportG(..), ImpName(..)
   , ImportSpec(..)
   , ExportType(..)
   , ExportSpec(..), isExportedBind, isExportedType, isExported
@@ -28,6 +30,10 @@ module Cryptol.TypeCheck.AST
   , module Cryptol.TypeCheck.Type
   ) where
 
+import Data.Maybe(mapMaybe)
+
+import Cryptol.Utils.Panic(panic)
+import Cryptol.Utils.Ident (Ident,isInfixIdent,ModName,PrimIdent,prelPrim)
 import Cryptol.Parser.Position(Located,Range,HasLoc(..))
 import Cryptol.ModuleSystem.Name
 import Cryptol.ModuleSystem.Interface
@@ -36,8 +42,9 @@ import Cryptol.ModuleSystem.Exports(ExportSpec(..)
 import Cryptol.Parser.AST ( Selector(..),Pragma(..)
                           , Import
                           , ImportG(..), ImportSpec(..), ExportType(..)
-                          , Fixity(..))
-import Cryptol.Utils.Ident (Ident,isInfixIdent,ModName,PrimIdent,prelPrim)
+                          , Fixity(..)
+                          , ImpName(..)
+                          )
 import Cryptol.Utils.RecordMap
 import Cryptol.TypeCheck.FFI.FFIType
 import Cryptol.TypeCheck.PP
@@ -46,63 +53,113 @@ import Cryptol.TypeCheck.Type
 import GHC.Generics (Generic)
 import Control.DeepSeq
 
+
+import           Data.Set    (Set)
 import           Data.Map    (Map)
 import qualified Data.Map    as Map
 import qualified Data.IntMap as IntMap
 import           Data.Text (Text)
 
 
+data TCTopEntity =
+    TCTopModule (ModuleG ModName)
+  | TCTopSignature ModName ModParamNames
+    deriving (Show, Generic, NFData)
+
+tcTopEntitytName :: TCTopEntity -> ModName
+tcTopEntitytName ent =
+  case ent of
+    TCTopModule m -> mName m
+    TCTopSignature m _ -> m
+
+-- | Panics if the entity is not a module
+tcTopEntityToModule :: TCTopEntity -> Module
+tcTopEntityToModule ent =
+  case ent of
+    TCTopModule m -> m
+    TCTopSignature {} -> panic "tcTopEntityToModule" [ "Not a module" ]
+
+
 -- | A Cryptol module.
 data ModuleG mname =
               Module { mName             :: !mname
+                     , mDoc              :: !(Maybe Text)
                      , mExports          :: ExportSpec Name
-                     , mImports          :: [Import]
 
-                       {-| Interfaces of submodules, including functors.
-                           This is only the directly nested modules.
-                           Info about more nested modules is in the
-                           corresponding interface. -}
-                     , mSubModules       :: Map Name (IfaceG Name)
-
-                     -- params, if functor
+                     -- Functors:
                      , mParamTypes       :: Map Name ModTParam
-                     , mParamConstraints :: [Located Prop]
                      , mParamFuns        :: Map Name ModVParam
+                     , mParamConstraints :: [Located Prop]
+
+                     , mParams           :: FunctorParams
+                       -- ^ Parameters grouped by "import".
+
+                     , mFunctors         :: Map Name (ModuleG Name)
+                       -- ^ Functors directly nested in this module.
+                       -- Things further nested are in the modules in the
+                       -- elements of the map.
 
 
-                      -- Declarations, including everything from non-functor
-                      -- submodules
+                     , mNested           :: !(Set Name)
+                       -- ^ Submodules, functors, and interfaces nested directly
+                       -- in this module
+
+                      -- These have everything from this module and all submodules
                      , mTySyns           :: Map Name TySyn
                      , mNewtypes         :: Map Name Newtype
                      , mPrimTypes        :: Map Name AbstractType
                      , mDecls            :: [DeclGroup]
-                     , mFunctors         :: Map Name (ModuleG Name)
+                     , mSubmodules       :: Map Name (IfaceNames Name)
+                     , mSignatures       :: !(Map Name ModParamNames)
                      } deriving (Show, Generic, NFData)
 
 emptyModule :: mname -> ModuleG mname
 emptyModule nm =
   Module
     { mName             = nm
+    , mDoc              = Nothing
     , mExports          = mempty
-    , mImports          = []
-    , mSubModules       = mempty
 
+    , mParams           = mempty
     , mParamTypes       = mempty
     , mParamConstraints = mempty
     , mParamFuns        = mempty
+
+    , mNested           = mempty
 
     , mTySyns           = mempty
     , mNewtypes         = mempty
     , mPrimTypes        = mempty
     , mDecls            = mempty
     , mFunctors         = mempty
+    , mSubmodules       = mempty
+    , mSignatures       = mempty
     }
+
+-- | Find all the foreign declarations in the module and return their names and FFIFunTypes.
+findForeignDecls :: ModuleG mname -> [(Name, FFIFunType)]
+findForeignDecls = mapMaybe getForeign . mDecls
+  where getForeign (NonRecursive Decl { dName, dDefinition = DForeign ffiType })
+          = Just (dName, ffiType)
+        -- Recursive DeclGroups can't have foreign decls
+        getForeign _ = Nothing
+
+-- | Find all the foreign declarations that are in functors.
+-- This is used to report an error
+findForeignDeclsInFunctors :: ModuleG mname -> [Name]
+findForeignDeclsInFunctors = concatMap fromM . Map.elems . mFunctors
+  where
+  fromM m = map fst (findForeignDecls m) ++ findForeignDeclsInFunctors m
+
+
+
 
 type Module = ModuleG ModName
 
 -- | Is this a parameterized module?
 isParametrizedModule :: ModuleG mname -> Bool
-isParametrizedModule m = not (null (mParamTypes m) &&
+isParametrizedModule m = not (null (mParams m) &&
+                              null (mParamTypes m) &&
                               null (mParamConstraints m) &&
                               null (mParamFuns m))
 
@@ -206,6 +263,13 @@ eChar prims c = ETApp (ETApp (ePrim prims (prelPrim "number")) (tNum v)) (tWord 
   where v = fromEnum c
         w = 8 :: Int
 
+instance PP TCTopEntity where
+  ppPrec _ te =
+    case te of
+      TCTopModule m -> pp m
+      TCTopSignature x p ->
+        ("interface" <+> pp x <+> "where") $$ nest 2 (pp p)
+
 
 instance PP (WithNames Expr) where
   ppPrec prec (WithNames expr nm) =
@@ -306,24 +370,38 @@ splitWhile f e = case f e of
                    Just (x,e1) -> let (xs,e2) = splitWhile f e1
                                   in (x:xs,e2)
 
+splitLoc :: Expr -> Maybe (Range, Expr)
+splitLoc expr =
+  case expr of
+    ELocated r e -> Just (r,e)
+    _            -> Nothing
+
+-- | Remove outermost locations
+dropLocs :: Expr -> Expr
+dropLocs = snd . splitWhile splitLoc
+
 splitAbs :: Expr -> Maybe ((Name,Type), Expr)
-splitAbs (EAbs x t e)         = Just ((x,t), e)
-splitAbs _                    = Nothing
+splitAbs (dropLocs -> EAbs x t e) = Just ((x,t), e)
+splitAbs _                        = Nothing
+
+splitApp :: Expr -> Maybe (Expr,Expr)
+splitApp (dropLocs -> EApp f a) = Just (a, f)
+splitApp _                      = Nothing
 
 splitTAbs :: Expr -> Maybe (TParam, Expr)
-splitTAbs (ETAbs t e)         = Just (t, e)
-splitTAbs _                   = Nothing
+splitTAbs (dropLocs -> ETAbs t e)   = Just (t, e)
+splitTAbs _                         = Nothing
 
 splitProofAbs :: Expr -> Maybe (Prop, Expr)
-splitProofAbs (EProofAbs p e) = Just (p,e)
-splitProofAbs _               = Nothing
+splitProofAbs (dropLocs -> EProofAbs p e) = Just (p,e)
+splitProofAbs _                           = Nothing
 
 splitTApp :: Expr -> Maybe (Type,Expr)
-splitTApp (ETApp e t) = Just (t, e)
-splitTApp _           = Nothing
+splitTApp (dropLocs -> ETApp e t) = Just (t, e)
+splitTApp _                       = Nothing
 
 splitProofApp :: Expr -> Maybe ((), Expr)
-splitProofApp (EProofApp e) = Just ((), e)
+splitProofApp (dropLocs -> EProofApp e) = Just ((), e)
 splitProofApp _ = Nothing
 
 -- | Deconstruct an expression, typically polymorphic, into
@@ -390,10 +468,21 @@ instance PP n => PP (ModuleG n) where
 
 instance PP n => PP (WithNames (ModuleG n)) where
   ppPrec _ (WithNames Module { .. } nm) =
-    text "module" <+> pp mName $$
-    -- XXX: Print exports?
-    vcat (map pp mImports) $$
-    -- XXX: Print tysyns
-    -- XXX: Print abstarct types/functions
-    vcat (map (ppWithNames (addTNames mps nm)) mDecls)
+    vcat [ text "module" <+> pp mName
+         -- XXX: Print exports?
+         , vcat (map pp' (Map.elems mTySyns))
+         -- XXX: Print abstarct types/functions
+         , vcat (map pp' mDecls)
+
+         , vcat (map pp (Map.elems mFunctors))
+         ]
     where mps = map mtpParam (Map.elems mParamTypes)
+          pp' :: PP (WithNames a) => a -> Doc
+          pp' = ppWithNames (addTNames mps nm)
+
+instance PP (WithNames TCTopEntity) where
+  ppPrec _ (WithNames ent nm) =
+    case ent of
+     TCTopModule m -> ppWithNames nm m
+     TCTopSignature n ps ->
+        hang ("interface module" <+> pp n <+> "where") 2 (pp ps)

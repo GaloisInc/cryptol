@@ -10,12 +10,14 @@ module CryptolServer.Exceptions
   , proverError
   , cryptolParseErr
   , cryptolError
+  , moduleNotLoaded
   ) where
 
 import qualified Data.Aeson as JSON
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 
+import Cryptol.Parser.AST(ModName)
 import Cryptol.ModuleSystem (ModuleError(..), ModuleWarning(..))
 import Cryptol.ModuleSystem.Name as CM
 import Cryptol.Utils.PP (pretty, PP)
@@ -101,16 +103,6 @@ cryptolError modErr warns =
       DuplicateModuleName name path1 path2 ->
         (20610, [ ("name", jsonPretty name)
                 , ("paths", jsonList [jsonString path1, jsonString path2])
-                ])
-      ImportedParamModule x ->
-        (20630, [ ("module", jsonPretty x)
-                ])
-      FailedToParameterizeModDefs x xs ->
-        (20640, [ ("module", jsonPretty x)
-                , ("parameters", jsonList (map (jsonString . pretty) xs))
-                ])
-      NotAParameterizedModule x ->
-        (20650, [ ("module", jsonPretty x)
                 ])
       FFILoadErrors x errs ->
         (20660, [ ("module", jsonPretty x)
@@ -216,3 +208,10 @@ jsonTypeAndString ty =
   fromListKM
     [ "type" .= JSONSchema (TC.Forall [] [] ty)
     , "type string" .= pretty ty ]
+
+moduleNotLoaded :: ModName -> JSONRPCException
+moduleNotLoaded m =
+  makeJSONRPCException
+    20100 "Module not loaded"
+    (Just (JSON.object ["error" .= show (pretty m)]))
+

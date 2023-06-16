@@ -1,0 +1,21 @@
+module T038 where
+
+interface submodule I where
+  x : [8]
+
+submodule F where
+  import interface submodule I
+  y = x + 1
+
+submodule P where
+  import submodule F { submodule Q }
+  x = 11
+
+submodule Q where
+  x = 11
+
+interface submodule J where
+  import submodule F { submodule P }
+  x : [8]
+
+

@@ -10,6 +10,8 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE BlockArguments #-}
 module Cryptol.ModuleSystem.Monad where
 
 import           Cryptol.Eval (EvalEnv,EvalOpts(..))
@@ -19,14 +21,13 @@ import           Cryptol.Backend.FFI.Error
 import qualified Cryptol.Backend.Monad           as E
 
 import           Cryptol.ModuleSystem.Env
-import           Cryptol.ModuleSystem.Fingerprint
+import qualified Cryptol.ModuleSystem.Env as MEnv
 import           Cryptol.ModuleSystem.Interface
 import           Cryptol.ModuleSystem.Name (FreshM(..),Supply)
 import           Cryptol.ModuleSystem.Renamer (RenamerError(),RenamerWarning())
 import           Cryptol.ModuleSystem.NamingEnv(NamingEnv)
 import qualified Cryptol.Parser     as Parser
 import qualified Cryptol.Parser.AST as P
-import           Cryptol.Parser.Position (Located)
 import           Cryptol.Utils.Panic (panic)
 import qualified Cryptol.Parser.NoPat as NoPat
 import qualified Cryptol.Parser.ExpandPropGuards as ExpandPropGuards
@@ -35,7 +36,7 @@ import qualified Cryptol.TypeCheck as T
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck.Solver.SMT as SMT
 
-import           Cryptol.Parser.Position (Range)
+import           Cryptol.Parser.Position (Range, Located)
 import           Cryptol.Utils.Ident (interactiveName, noModuleName)
 import           Cryptol.Utils.PP
 import           Cryptol.Utils.Logger(Logger)
@@ -47,7 +48,6 @@ import Data.ByteString (ByteString)
 import Data.Function (on)
 import Data.Functor.Identity
 import Data.Map (Map)
-import Data.Maybe (isJust)
 import Data.Text.Encoding.Error (UnicodeException)
 import Data.Traversable
 import MonadLib
@@ -65,6 +65,7 @@ import Prelude.Compat
 data ImportSource
   = FromModule P.ModName
   | FromImport (Located P.Import)
+  | FromSigImport (Located P.ModName)
   | FromModuleInstance (Located P.ModName)
     deriving (Show, Generic, NFData)
 
@@ -75,6 +76,7 @@ instance PP ImportSource where
   ppPrec _ is = case is of
     FromModule n  -> text "module name" <+> pp n
     FromImport li -> text "import of module" <+> pp (P.iModule (P.thing li))
+    FromSigImport l -> text "import of interface" <+> pp (P.thing l)
     FromModuleInstance l ->
       text "instantiation of module" <+> pp (P.thing l)
 
@@ -84,6 +86,7 @@ importedModule is =
     FromModule n          -> n
     FromImport li         -> P.iModule (P.thing li)
     FromModuleInstance l  -> P.thing l
+    FromSigImport l       -> P.thing l
 
 
 data ModuleError
@@ -115,11 +118,6 @@ data ModuleError
     -- ^ Module loaded by 'import' statement has the wrong module name
   | DuplicateModuleName P.ModName FilePath FilePath
     -- ^ Two modules loaded from different files have the same module name
-  | ImportedParamModule P.ModName
-    -- ^ Attempt to import a parametrized module that was not instantiated.
-  | FailedToParameterizeModDefs P.ModName [T.Name]
-    -- ^ Failed to add the module parameters to all definitions in a module.
-  | NotAParameterizedModule P.ModName
   | FFILoadErrors P.ModName [FFILoadError]
     -- ^ Errors loading foreign function implementations
 
@@ -148,9 +146,6 @@ instance NFData ModuleError where
     DuplicateModuleName name path1 path2 ->
       name `deepseq` path1 `deepseq` path2 `deepseq` ()
     OtherFailure x                       -> x `deepseq` ()
-    ImportedParamModule x                -> x `deepseq` ()
-    FailedToParameterizeModDefs x xs     -> x `deepseq` xs `deepseq` ()
-    NotAParameterizedModule x            -> x `deepseq` ()
     FFILoadErrors x errs                 -> x `deepseq` errs `deepseq` ()
     ErrorInFile x y                      -> x `deepseq` y `deepseq` ()
 
@@ -208,17 +203,6 @@ instance PP ModuleError where
          4 (vcat [text path1, text path2])
 
     OtherFailure x -> text x
-
-    ImportedParamModule p ->
-      text "[error] Import of a non-instantiated parameterized module:" <+> pp p
-
-    FailedToParameterizeModDefs x xs ->
-      hang (text "[error] Parameterized module" <+> pp x <+>
-            text "has polymorphic parameters:")
-         4 (commaSep (map pp xs))
-
-    NotAParameterizedModule x ->
-      text "[error] Module" <+> pp x <+> text "does not have parameters."
 
     FFILoadErrors x errs ->
       hang (text "[error] Failed to load foreign implementations for module"
@@ -278,16 +262,6 @@ moduleNameMismatch expected found =
 duplicateModuleName :: P.ModName -> FilePath -> FilePath -> ModuleM a
 duplicateModuleName name path1 path2 =
   ModuleT (raise (DuplicateModuleName name path1 path2))
-
-importParamModule :: P.ModName -> ModuleM a
-importParamModule x = ModuleT (raise (ImportedParamModule x))
-
-failedToParameterizeModDefs :: P.ModName -> [T.Name] -> ModuleM a
-failedToParameterizeModDefs x xs =
-  ModuleT (raise (FailedToParameterizeModDefs x xs))
-
-notAParameterizedModule :: P.ModName -> ModuleM a
-notAParameterizedModule x = ModuleT (raise (NotAParameterizedModule x))
 
 ffiLoadErrors :: P.ModName -> [FFILoadError] -> ModuleM a
 ffiLoadErrors x errs = ModuleT (raise (FFILoadErrors x errs))
@@ -449,13 +423,17 @@ modifyModuleEnv f = ModuleT $ do
   env <- get
   set $! f env
 
-getLoadedMaybe :: P.ModName -> ModuleM (Maybe LoadedModule)
+getLoadedMaybe :: P.ModName -> ModuleM (Maybe (LoadedModuleG T.TCTopEntity))
 getLoadedMaybe mn = ModuleT $
   do env <- get
-     return (lookupModule mn env)
+     return (lookupTCEntity mn env)
 
+-- | This checks if the given name is loaded---it might refer to either
+-- a module or a signature.
 isLoaded :: P.ModName -> ModuleM Bool
-isLoaded mn = isJust <$> getLoadedMaybe mn
+isLoaded mn =
+  do env <- ModuleT get
+     pure (MEnv.isLoaded mn (meLoadedModules env))
 
 loadingImport :: Located P.Import -> ModuleM a -> ModuleM a
 loadingImport  = loading . FromImport
@@ -474,12 +452,12 @@ interactive  = loadingModule interactiveName
 loading :: ImportSource -> ModuleM a -> ModuleM a
 loading src m = ModuleT $ do
   ro <- ask
-  let ro'  = ro { roLoading = src : roLoading ro }
+  let new = src : roLoading ro
 
   -- check for recursive modules
-  when (src `elem` roLoading ro) (raise (RecursiveModules (roLoading ro')))
+  when (src `elem` roLoading ro) (raise (RecursiveModules new))
 
-  local ro' (unModuleT m)
+  local ro { roLoading = new } (unModuleT m)
 
 -- | Get the currently focused import source.
 getImportSource :: ModuleM ImportSource
@@ -489,16 +467,16 @@ getImportSource  = ModuleT $ do
     is : _ -> return is
     _      -> return (FromModule noModuleName)
 
-getIface :: P.ModName -> ModuleM Iface
-getIface mn = ($ mn) <$> getIfaces
-
-getIfaces :: ModuleM (P.ModName -> Iface)
-getIfaces = doLookup <$> ModuleT get
+getIfaces :: ModuleM (Map P.ModName (Either T.ModParamNames Iface))
+getIfaces = toMap <$> ModuleT get
   where
-  doLookup env mn =
-    case lookupModule mn env of
-      Just lm -> lmInterface lm
-      Nothing -> panic "ModuleSystem" ["Interface not available", show (pp mn)]
+  toMap env = cvt <$> getLoadedEntities (meLoadedModules env)
+
+  cvt ent =
+    case ent of
+      ALoadedInterface ifa -> Left (lmData ifa)
+      ALoadedFunctor mo -> Right (lmdInterface (lmData mo))
+      ALoadedModule mo -> Right (lmdInterface (lmData mo))
 
 getLoaded :: P.ModName -> ModuleM T.Module
 getLoaded mn = ModuleT $
@@ -506,6 +484,20 @@ getLoaded mn = ModuleT $
      case lookupModule mn env of
        Just lm -> return (lmModule lm)
        Nothing -> panic "ModuleSystem" ["Module not available", show (pp mn) ]
+
+getAllLoaded :: ModuleM (P.ModName -> Maybe (T.ModuleG (), IfaceG ()))
+getAllLoaded = ModuleT
+  do env <- get
+     pure \nm -> do lm <- lookupModule nm env
+                    pure ( (lmModule lm) { T.mName = () }
+                         , ifaceForgetName (lmInterface lm)
+                         )
+
+getAllLoadedSignatures :: ModuleM (P.ModName -> Maybe T.ModParamNames)
+getAllLoadedSignatures = ModuleT
+  do env <- get
+     pure \nm -> lmData <$> lookupSignature nm env
+
 
 getNameSeeds :: ModuleM T.NameSeeds
 getNameSeeds  = ModuleT (meNameSeeds `fmap` get)
@@ -531,30 +523,39 @@ setSupply supply = ModuleT $
   do env <- get
      set $! env { meSupply = supply }
 
-unloadModule :: (LoadedModule -> Bool) -> ModuleM ()
+unloadModule :: (forall a. LoadedModuleG a -> Bool) -> ModuleM ()
 unloadModule rm = ModuleT $ do
   env <- get
   set $! env { meLoadedModules = removeLoadedModule rm (meLoadedModules env) }
 
 loadedModule ::
-  ModulePath -> Fingerprint -> NamingEnv -> Maybe ForeignSrc -> T.Module ->
+  ModulePath ->
+  FileInfo ->
+  NamingEnv ->
+  Maybe ForeignSrc ->
+  T.TCTopEntity ->
   ModuleM ()
-loadedModule path fp nameEnv fsrc m = ModuleT $ do
+loadedModule path fi nameEnv fsrc m = ModuleT $ do
   env <- get
   ident <- case path of
              InFile p  -> unModuleT $ io (canonicalizePath p)
              InMem l _ -> pure l
 
-  set $! env { meLoadedModules = addLoadedModule path ident fp nameEnv fsrc m
-                                                        (meLoadedModules env) }
+  let newLM =
+        case m of
+          T.TCTopModule mo -> addLoadedModule path ident fi nameEnv fsrc mo
+          T.TCTopSignature x s -> addLoadedSignature path ident fi nameEnv x s
+
+  set $! env { meLoadedModules = newLM (meLoadedModules env) }
+
 
 modifyEvalEnvM :: Traversable t =>
   (EvalEnv -> E.Eval (t EvalEnv)) -> ModuleM (t ())
 modifyEvalEnvM f = ModuleT $ do
   env <- get
   let evalEnv = meEvalEnv env
-  inBase (E.runEval mempty (f evalEnv))
-    >>= traverse (\evalEnv' -> set $! env { meEvalEnv = evalEnv' })
+  tenv <- inBase (E.runEval mempty (f evalEnv))
+  traverse (\evalEnv' -> set $! env { meEvalEnv = evalEnv' }) tenv
 
 modifyEvalEnv :: (EvalEnv -> E.Eval EvalEnv) -> ModuleM ()
 modifyEvalEnv = fmap runIdentity . modifyEvalEnvM . (fmap Identity .)

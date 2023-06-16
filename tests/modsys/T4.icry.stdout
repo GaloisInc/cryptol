@@ -1,5 +1,7 @@
 Loading module Cryptol
 Loading module Cryptol
+Loading module `where` argument of T4::Main
+Loading interface module `parameter` interface of T4::A
 Loading module T4::A
 Loading module T4::Main
 main : [8]

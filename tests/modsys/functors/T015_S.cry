@@ -1,0 +1,7 @@
+interface module T015_S where
+
+type n : *
+
+type constraint (Literal 0 n)
+
+

@@ -1,0 +1,10 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+
+[error] at T001.cry:16:11--16:12:
+  • Unsolvable constraint:
+      0 >= 1
+        arising from
+        module instantiation at T001.cry:3:19--3:34
+        at T001.cry:16:11--16:12

@@ -1,38 +1,47 @@
 module AES where
 
-import `AES::Algorithm as AES
-import `AES::ExpandKey
+import AES::Algorithm as AES where
+  type Mode = m
+  encRound = AESRound
+  decRound = AESInvRound
+
+import AES::ExpandKey where
+  type Nk = AES::Nk
+  type Nr = AES::Nr
+
 import AES::TBox
 
-type constraint ValidKey k m = (k == 128 + m * 64, 2 >= m)
+parameter
+  /** 0: AES128, 1: AES192, 2: AES256 */
+  type m : #
+  type k : #
+  type constraint (k == 128 + m * 64, 2 >= m)
 
-type EncKey m = AES::KeySchedule m
-type DecKey m = AES::KeySchedule m
+type EncKey = AES::KeySchedule
+type DecKey = AES::KeySchedule
 
 
-encrypt : {k,m} ValidKey k m => [k] -> [128] -> [128]
+encrypt : [k] -> [128] -> [128]
 encrypt k = encryptWithSchedule (expandKeyEnc k)
 
-decrypt : {k,m} ValidKey k m => [k] -> [128] -> [128]
+decrypt : [k] -> [128] -> [128]
 decrypt k = decryptWithSchedule (expandKeyDec k)
 
 
-expandKeyEnc : {k,m} ValidKey k m => [k] -> EncKey m
-expandKeyEnc = expandKey`{Nk = AES::Nk m, Nr = AES::Nr m}
+expandKeyEnc : [k] -> EncKey
+expandKeyEnc = expandKey
 
-encryptWithSchedule : {k,m} ValidKey k m => EncKey m -> [128] -> [128]
-encryptWithSchedule = AES::encrypt params
-
-
-
-expandKeyDec : {k,m} ValidKey k m => [k] -> EncKey m
-expandKeyDec k = makeDecKey (expandKey`{Nk = AES::Nk m, Nr = AES::Nr m} k)
-
-decryptWithSchedule : {k,m} ValidKey k m => DecKey m -> [128] -> [128]
-decryptWithSchedule = AES::decrypt params
+encryptWithSchedule : EncKey -> [128] -> [128]
+encryptWithSchedule = AES::encrypt
 
 
-params = { encRound = AESRound, decRound = AESInvRound }
+
+expandKeyDec : [k] -> EncKey
+expandKeyDec k = makeDecKey (expandKey k)
+
+decryptWithSchedule : DecKey -> [128] -> [128]
+decryptWithSchedule = AES::decrypt
+
 
 property test k pt = decrypt k (encrypt k pt) == pt
 

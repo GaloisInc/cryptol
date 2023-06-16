@@ -12,17 +12,21 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE OverloadedStrings #-}
 -- See Note [-Wincomplete-uni-patterns and irrefutable patterns] in Cryptol.TypeCheck.TypePat
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 module Cryptol.Parser.ParserUtils where
 
+import qualified Data.Text as Text
 import Data.Char(isAlphaNum)
 import Data.Maybe(fromMaybe)
 import Data.Bits(testBit,setBit)
+import Data.Maybe(mapMaybe)
+import Data.List(foldl')
 import Data.List.NonEmpty ( NonEmpty(..) )
 import qualified Data.List.NonEmpty as NE
-import Control.Monad(liftM,ap,unless,guard)
+import Control.Monad(liftM,ap,unless,guard,msum)
 import qualified Control.Monad.Fail as Fail
 import           Data.Text(Text)
 import qualified Data.Text as T
@@ -41,7 +45,13 @@ import Cryptol.Parser.Lexer
 import Cryptol.Parser.Token(SelectorType(..))
 import Cryptol.Parser.Position
 import Cryptol.Parser.Utils (translateExprToNumT,widthIdent)
-import Cryptol.Utils.Ident(packModName,packIdent,modNameChunks,unpackIdent)
+import Cryptol.Utils.Ident( packModName,packIdent,modNameChunks
+                          , identAnonArg, identAnonIfaceMod
+                          , modNameArg, modNameIfaceMod
+                          , modNameToText, modNameIsNormal
+                          , modNameToNormalModName
+                          , unpackIdent
+                          )
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic
 import Cryptol.Utils.RecordMap
@@ -194,6 +204,27 @@ expected x = P $ \cfg _ s ->
 mkModName :: [Text] -> ModName
 mkModName = packModName
 
+-- | This is how we derive the name of a module parameter from the
+-- @import source@ declaration.
+mkModParamName :: Located (ImpName PName) -> Maybe (Located ModName) -> Ident
+mkModParamName lsig qual =
+  case qual of
+    Nothing ->
+      case thing lsig of
+        ImpTop t
+          | modNameIsNormal t -> packIdent (last (modNameChunks t))
+          | otherwise         -> identAnonIfaceMod
+                               $ packIdent
+                               $ last
+                               $ modNameChunks
+                               $ modNameToNormalModName t
+        ImpNested nm ->
+          case nm of
+            UnQual i -> i
+            Qual _ i -> i
+            NewName {} -> panic "mkModParamName" ["Unexpected NewName",show lsig]
+    Just m -> packIdent (last (modNameChunks (thing m)))
+
 -- Note that type variables are not resolved at this point: they are tcons.
 mkSchema :: [TParam PName] -> [Prop PName] -> Type PName -> Schema PName
 mkSchema xs ps t = Forall xs ps t Nothing
@@ -273,7 +304,9 @@ validDemotedType rng ty =
     TWild        -> bad "Wildcard types"
     TUser {}     -> ok
 
-    TParens t    -> validDemotedType rng t
+    TParens t mb -> case mb of
+                      Nothing -> validDemotedType rng t
+                      Just _  -> bad "kind annotation"
     TInfix{}     -> ok
 
   where bad x = errorMessage rng [x ++ " cannot be demoted."]
@@ -487,7 +520,7 @@ exportModule mbDoc m = DModule TopLevel { tlExport = Public
 mkParFun :: Maybe (Located Text) ->
             Located PName ->
             Schema PName ->
-            TopDecl PName
+            ParamDecl PName
 mkParFun mbDoc n s = DParameterFun ParameterFun { pfName = n
                                                 , pfSchema = s
                                                 , pfDoc = thing <$> mbDoc
@@ -497,7 +530,7 @@ mkParFun mbDoc n s = DParameterFun ParameterFun { pfName = n
 mkParType :: Maybe (Located Text) ->
              Located PName ->
              Located Kind ->
-             ParseM (TopDecl PName)
+             ParseM (ParamDecl PName)
 mkParType mbDoc n k =
   do num <- P $ \_ _ s -> let nu = sNextTyParamNum s
                           in Right (nu, s { sNextTyParamNum = nu + 1 })
@@ -512,16 +545,17 @@ mkParType mbDoc n k =
 changeExport :: ExportType -> [TopDecl PName] -> [TopDecl PName]
 changeExport e = map change
   where
-  change (Decl d)      = Decl      d { tlExport = e }
-  change (DPrimType t) = DPrimType t { tlExport = e }
-  change (TDNewtype n) = TDNewtype n { tlExport = e }
-  change (DModule m)   = DModule   m { tlExport = e }
-  change td@Include{}  = td
-  change td@DImport{}  = td
-  change (DParameterType {}) = panic "changeExport" ["private type parameter?"]
-  change (DParameterFun {})  = panic "changeExport" ["private value parameter?"]
-  change (DParameterConstraint {}) =
-    panic "changeExport" ["private type constraint parameter?"]
+  change decl =
+    case decl of
+      Decl d                  -> Decl      d { tlExport = e }
+      DPrimType t             -> DPrimType t { tlExport = e }
+      TDNewtype n             -> TDNewtype n { tlExport = e }
+      DModule m               -> DModule   m { tlExport = e }
+      DModParam {}            -> decl
+      Include{}               -> decl
+      DImport{}               -> decl
+      DParamDecl{}            -> decl
+      DInterfaceConstraint {} -> decl
 
 mkTypeInst :: Named (Type PName) -> TypeInst PName
 mkTypeInst x | nullIdent (thing (name x)) = PosInst (value x)
@@ -533,21 +567,98 @@ mkTParam Located { srcRange = rng, thing = n } k
   | n == widthIdent = errorMessage rng ["`width` is not a valid type parameter name."]
   | otherwise       = return (TParam (mkUnqual n) k (Just rng))
 
-mkTySyn :: Located PName -> [TParam PName] -> Type PName -> ParseM (Decl PName)
-mkTySyn ln ps b
-  | getIdent (thing ln) == widthIdent =
-    errorMessage (srcRange ln) ["`width` is not a valid type synonym name."]
 
-  | otherwise =
-    return $ DType $ TySyn ln Nothing ps b
+mkTySyn :: Type PName -> Type PName -> ParseM (Decl PName)
+mkTySyn thead tdef =
+  do (nm,params) <- typeToDecl thead
+     pure (DType (TySyn nm Nothing params tdef))
 
-mkPropSyn :: Located PName -> [TParam PName] -> Type PName -> ParseM (Decl PName)
-mkPropSyn ln ps b
-  | getIdent (thing ln) == widthIdent =
-    errorMessage (srcRange ln) ["`width` is not a valid constraint synonym name."]
+mkPropSyn :: Type PName -> Type PName -> ParseM (Decl PName)
+mkPropSyn thead tdef =
+  do (nm,params) <- typeToDecl thead
+     ps          <- thing <$> mkProp tdef
+     pure (DProp (PropSyn nm Nothing params ps))
 
-  | otherwise =
-    DProp . PropSyn ln Nothing ps . thing <$> mkProp b
+mkNewtype ::
+  Type PName ->
+  Located (RecordMap Ident (Range, Type PName)) ->
+  ParseM (Newtype PName)
+mkNewtype thead def =
+  do (nm,params) <- typeToDecl thead
+     pure (Newtype nm params (thing nm) (thing def))
+
+typeToDecl :: Type PName -> ParseM (Located PName, [TParam PName])
+typeToDecl ty0 =
+  case ty0 of
+    TLocated ty loc -> goD loc ty
+    _ -> panic "typeToDecl" ["Type location is missing."]
+
+  where
+  bad loc  = errorMessage loc ["Invalid type declaration"]
+  badP loc = errorMessage loc ["Invalid declaration parameter"]
+
+
+  goN loc n =
+    case n of
+      UnQual {} -> pure ()
+      _         -> errorMessage loc ["Invalid declaration name"]
+
+  goP loc ty =
+    case ty of
+      TLocated ty1 loc1 -> goP loc1 ty1
+
+      TUser f [] ->
+        do goN loc f
+           pure TParam { tpName = f, tpKind = Nothing, tpRange = Just loc }
+
+      TParens t mb ->
+        case mb of
+          Nothing -> badP loc
+          Just k  ->
+            do p <- goP loc t
+               case tpKind p of
+                 Nothing -> pure p { tpKind = Just k }
+                 Just {} -> badP loc
+
+      TInfix {}     -> badP loc
+      TUser {}      -> badP loc
+      TFun {}       -> badP loc
+      TSeq {}       -> badP loc
+      TBit {}       -> badP loc
+      TNum {}       -> badP loc
+      TChar {}      -> badP loc
+      TRecord {}    -> badP loc
+      TWild {}      -> badP loc
+      TTyApp {}     -> badP loc
+      TTuple {}     -> badP loc
+
+
+  goD loc ty =
+    case ty of
+
+      TLocated ty1 loc1 -> goD loc1 ty1
+
+      TUser f ts ->
+        do goN loc f
+           ps <- mapM (goP loc) ts
+           pure (Located { thing = f, srcRange = loc },ps)
+
+      TInfix l f _ r ->
+        do goN (srcRange f) (thing f)
+           a  <- goP loc l
+           b  <- goP loc r
+           pure (f,[a,b])
+
+      TFun {}       -> bad loc
+      TSeq {}       -> bad loc
+      TBit {}       -> bad loc
+      TNum {}       -> bad loc
+      TChar {}      -> bad loc
+      TRecord {}    -> bad loc
+      TWild {}      -> bad loc
+      TTyApp {}     -> bad loc
+      TTuple {}     -> bad loc
+      TParens {}    -> bad loc
 
 polyTerm :: Range -> Integer -> Integer -> ParseM (Bool, Integer)
 polyTerm rng k p
@@ -828,7 +939,10 @@ mkProp ty =
       TInfix{}       -> return [CType t]
       TUser{}        -> return [CType t]
       TTuple ts      -> concat `fmap` mapM (props r) ts
-      TParens t'     -> props r  t'
+      TParens t' mb  -> case mb of
+                          Nothing -> props r t'
+                          Just _  -> err
+
       TLocated t' r' -> props r' t'
 
       TFun{}    -> err
@@ -846,8 +960,7 @@ mkProp ty =
 -- | Make an ordinary module
 mkModule :: Located ModName -> [TopDecl PName] -> Module PName
 mkModule nm ds = Module { mName = nm
-                        , mInstance = Nothing
-                        , mDecls = ds
+                        , mDef = NormalModule ds
                         }
 
 mkNested :: Module PName -> ParseM (NestedModule PName)
@@ -860,22 +973,102 @@ mkNested m =
   nm = mName m
   r = srcRange nm
 
+mkSigDecl :: Maybe (Located Text) -> (Located PName,Signature PName) -> TopDecl PName
+mkSigDecl doc (nm,sig) =
+  DModule
+  TopLevel { tlExport = Public
+           , tlDoc    = doc
+           , tlValue  = NestedModule
+                        Module { mName = nm
+                               , mDef  = InterfaceModule sig
+                               }
+           }
+
+mkInterfaceConstraint ::
+  Maybe (Located Text) -> Type PName -> ParseM [TopDecl PName]
+mkInterfaceConstraint mbDoc ty =
+  do ps <- mkProp ty
+     pure [DInterfaceConstraint (thing <$> mbDoc) ps]
+
+mkParDecls :: [ParamDecl PName] -> TopDecl PName
+mkParDecls ds = DParamDecl loc (mkInterface' [] ds)
+  where loc = rCombs (mapMaybe getLoc ds)
+
+onlySimpleImports :: [Located (ImportG (ImpName PName))] -> ParseM ()
+onlySimpleImports = mapM_ check
+  where
+  check i =
+    case iInst (thing i) of
+      Nothing -> pure ()
+      Just _  ->
+        errorMessage (srcRange i)
+          [ "Functor instantiations are not supported in this context."
+          , "The imported entity needs to be just the name of a module."
+          , "A workaround would be to do the instantion in the outer context."
+          ]
+
+mkInterface' :: [Located (ImportG (ImpName PName))] ->
+             [ParamDecl PName] -> Signature PName
+mkInterface' is =
+  foldl' add
+    Signature { sigImports     = is
+              , sigTypeParams  = []
+              , sigDecls       = []
+              , sigConstraints = []
+              , sigFunParams   = []
+              }
+  where
+  add s d =
+    case d of
+      DParameterType pt       -> s { sigTypeParams  = pt  : sigTypeParams s  }
+      DParameterConstraint ps -> s { sigConstraints = ps ++ sigConstraints s }
+      DParameterDecl pd       -> s { sigDecls       = pd  : sigDecls s       }
+      DParameterFun pf        -> s { sigFunParams   = pf  : sigFunParams s   }
+
+
+
+mkInterface :: [Located (ImportG (ImpName PName))] ->
+             [ParamDecl PName] -> ParseM (Signature PName)
+mkInterface is ps =
+  do onlySimpleImports is
+     pure (mkInterface' is ps)
+
+mkIfacePropSyn :: Maybe Text -> Decl PName -> ParamDecl PName
+mkIfacePropSyn mbDoc d =
+  case d of
+    DLocated d1 _ -> mkIfacePropSyn mbDoc d1
+    DType ts    -> DParameterDecl (SigTySyn ts mbDoc)
+    DProp ps    -> DParameterDecl (SigPropSyn ps mbDoc)
+    _ -> panic "mkIfacePropSyn" [ "Unexpected declaration", show (pp d) ]
+
+
 -- | Make an unnamed module---gets the name @Main@.
-mkAnonymousModule :: [TopDecl PName] -> Module PName
-mkAnonymousModule = mkModule Located { srcRange = emptyRange
+mkAnonymousModule :: [TopDecl PName] -> ParseM [Module PName]
+mkAnonymousModule = mkTopMods
+                  . mkModule Located { srcRange = emptyRange
                                      , thing    = mkModName [T.pack "Main"]
                                      }
 
 -- | Make a module which defines a functor instance.
-mkModuleInstance :: Located ModName ->
-                    Located ModName ->
-                    [TopDecl PName] ->
-                    Module PName
-mkModuleInstance nm fun ds =
-  Module { mName     = nm
-         , mInstance = Just fun
-         , mDecls    = ds
+mkModuleInstanceAnon :: Located ModName ->
+                      Located (ImpName PName) ->
+                      [TopDecl PName] ->
+                      Module PName
+mkModuleInstanceAnon nm fun ds =
+  Module { mName  = nm
+         , mDef   = FunctorInstance fun (DefaultInstAnonArg ds) mempty
          }
+
+mkModuleInstance ::
+  Located ModName ->
+  Located (ImpName PName) ->
+  ModuleInstanceArgs PName ->
+  Module PName
+mkModuleInstance m f as =
+  Module { mName = m
+         , mDef  = FunctorInstance f as emptyModuleInstance
+         }
+
 
 ufToNamed :: UpdField PName -> ParseM (Named (Expr PName))
 ufToNamed (UpdField h ls e) =
@@ -927,5 +1120,237 @@ mkSelector tok =
   case tokenType tok of
     Selector (TupleSelectorTok n) -> TupleSel n Nothing
     Selector (RecordSelectorTok t) -> RecordSel (mkIdent t) Nothing
-    _ -> panic "mkSelector"
-          [ "Unexpected selector token", show tok ]
+    _ -> panic "mkSelector" [ "Unexpected selector token", show tok ]
+
+mkBacktickImport ::
+  Range ->
+  Located (ImpName PName) ->
+  Maybe (Located ModName) ->
+  Maybe (Located ImportSpec) ->
+  ParseM (Located (ImportG (ImpName PName)))
+mkBacktickImport loc impName mbAs mbImportSpec =
+  mkImport loc impName (Just inst) mbAs mbImportSpec Nothing
+  where
+  inst = DefaultInstArg (fmap (const AddParams) impName)
+
+
+mkImport ::
+  Range ->
+  Located (ImpName PName) ->
+  Maybe (ModuleInstanceArgs PName) ->
+  Maybe (Located ModName) ->
+  Maybe (Located ImportSpec) ->
+  Maybe (Located [Decl PName]) ->
+  ParseM (Located (ImportG (ImpName PName)))
+
+mkImport loc impName optInst mbAs mbImportSpec optImportWhere =
+  do i <- getInst
+     let end = fromMaybe (srcRange impName)
+             $ msum [ srcRange <$> optImportWhere
+                    , srcRange <$> mbImportSpec
+                    , srcRange <$> mbAs
+                    ]
+
+     pure Located { srcRange = rComb loc end
+                  , thing    = Import
+                                 { iModule    = thing impName
+                                 , iAs        = thing <$> mbAs
+                                 , iSpec      = thing <$> mbImportSpec
+                                 , iInst      = i
+                                 }
+                  }
+  where
+  getInst =
+    case (optInst,optImportWhere) of
+      (Just _, Just _) ->
+         errorMessage loc [ "Invalid instantiating import."
+                          , "Import should have at most one of:"
+                          , "  * { } instantiation, or"
+                          , "  * where instantiation"
+                          ]
+      (Just a, Nothing)  -> pure (Just a)
+      (Nothing, Just a)  ->
+        pure (Just (DefaultInstAnonArg (map instTop (thing a))))
+         where
+         instTop d = Decl TopLevel
+                            { tlExport = Public
+                            , tlDoc    = Nothing
+                            , tlValue  = d
+                            }
+      (Nothing, Nothing) -> pure Nothing
+
+
+
+
+
+mkTopMods :: Module PName -> ParseM [Module PName]
+mkTopMods = desugarMod
+
+mkTopSig :: Located ModName -> Signature PName -> [Module PName]
+mkTopSig nm sig =
+  [ Module { mName = nm
+           , mDef  = InterfaceModule sig
+           }
+  ]
+
+
+class MkAnon t where
+  mkAnon    :: AnonThing -> t -> t
+  toImpName :: t -> ImpName PName
+
+data AnonThing = AnonArg | AnonIfaceMod
+
+instance MkAnon ModName where
+  mkAnon what   = case what of
+                    AnonArg      -> modNameArg
+                    AnonIfaceMod -> modNameIfaceMod
+  toImpName     = ImpTop
+
+instance MkAnon PName where
+  mkAnon what   = mkUnqual
+                . case what of
+                    AnonArg      -> identAnonArg
+                    AnonIfaceMod -> identAnonIfaceMod
+                . getIdent
+  toImpName     = ImpNested
+
+
+desugarMod :: MkAnon name => ModuleG name PName -> ParseM [ModuleG name PName]
+desugarMod mo =
+  case mDef mo of
+
+    FunctorInstance f as _ | DefaultInstAnonArg lds <- as ->
+      do (ms,lds') <- desugarTopDs (mName mo) lds
+         case ms of
+           m : _ | InterfaceModule si <- mDef m
+                 , l : _ <- map (srcRange . ptName) (sigTypeParams si) ++
+                            map (srcRange . pfName) (sigFunParams si) ++
+                            [ srcRange (mName mo) ] ->
+              errorMessage l
+                [ "Instantiation of a parameterized module may not itself be "
+                  ++ "parameterized" ]
+           _ -> pure ()
+         let i      = mkAnon AnonArg (thing (mName mo))
+             nm     = Located { srcRange = srcRange (mName mo), thing = i }
+             as'    = DefaultInstArg (ModuleArg . toImpName <$> nm)
+         pure [ Module { mName = nm, mDef  = NormalModule lds' }
+              , mo { mDef = FunctorInstance f as' mempty }
+              ]
+
+    NormalModule ds ->
+      do (newMs, newDs) <- desugarTopDs (mName mo) ds
+         pure (newMs ++ [ mo { mDef = NormalModule newDs } ])
+
+    _ -> pure [mo]
+
+
+desugarTopDs ::
+  MkAnon name =>
+  Located name ->
+  [TopDecl PName] ->
+  ParseM ([ModuleG name PName], [TopDecl PName])
+desugarTopDs ownerName = go emptySig
+  where
+  isEmpty s =
+    null (sigTypeParams s) && null (sigConstraints s) && null (sigFunParams s)
+
+  emptySig = Signature
+    { sigImports      = []
+    , sigTypeParams   = []
+    , sigDecls        = []
+    , sigConstraints  = []
+    , sigFunParams    = []
+    }
+
+  jnSig s1 s2 = Signature { sigImports      = j sigImports
+                          , sigTypeParams   = j sigTypeParams
+                          , sigDecls        = j sigDecls
+                          , sigConstraints  = j sigConstraints
+                          , sigFunParams    = j sigFunParams
+                          }
+
+      where
+      j f = f s1 ++ f s2
+
+  addI i s = s { sigImports = i : sigImports s }
+
+  go sig ds =
+    case ds of
+
+      []
+        | isEmpty sig -> pure ([],[])
+        | otherwise ->
+          do let nm = mkAnon AnonIfaceMod <$> ownerName
+             pure ( [ Module { mName = nm
+                             , mDef = InterfaceModule sig
+                             }
+                     ]
+                  , [ DModParam
+                      ModParam
+                        { mpSignature = toImpName <$> nm
+                        , mpAs        = Nothing
+                        , mpName      = mkModParamName (toImpName <$> nm)
+                                                                        Nothing
+                        , mpDoc       = Nothing
+                        , mpRenaming  = mempty
+                        }
+                      ]
+                  )
+
+      d : more ->
+        let cont emit sig' =
+              do (ms,ds') <- go sig' more
+                 pure (ms, emit ++ ds')
+        in
+        case d of
+
+          DImport i | ImpTop _ <- iModule (thing i)
+                    , Nothing  <- iInst (thing i) ->
+            cont [d] (addI i sig)
+
+          DImport i | Just inst <- iInst (thing i) ->
+            do newDs <- desugarInstImport i inst
+               cont newDs sig
+
+          DParamDecl _ ds' -> cont [] (jnSig ds' sig)
+
+          DModule tl | NestedModule mo <- tlValue tl ->
+            do ms <- desugarMod mo
+               cont [ DModule tl { tlValue = NestedModule m } | m <- ms ] sig
+
+          _ -> cont [d] sig
+
+desugarInstImport ::
+  Located (ImportG (ImpName PName)) {- ^ The import -} ->
+  ModuleInstanceArgs PName          {- ^ The insantiation -} ->
+  ParseM [TopDecl PName]
+desugarInstImport i inst =
+  do ms <- desugarMod
+           Module { mName = i { thing = iname }
+                  , mDef  = FunctorInstance
+                              (iModule <$> i) inst emptyModuleInstance
+                  }
+     pure (DImport (newImp <$> i) : map modTop ms)
+
+  where
+  imp = thing i
+  iname = mkUnqual
+        $ mkIdent
+        $ "import of " <> nm <> " at " <> Text.pack (show (pp (srcRange i)))
+    where
+    nm = case iModule imp of
+           ImpTop f    -> modNameToText f
+           ImpNested n -> "submodule " <> Text.pack (show (pp n))
+
+  newImp d = d { iModule = ImpNested iname
+               , iInst   = Nothing
+               }
+
+  modTop m = DModule TopLevel
+                       { tlExport = Private
+                       , tlDoc    = Nothing
+                       , tlValue  = NestedModule m
+                       }
+
+
+

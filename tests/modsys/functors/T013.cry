@@ -1,0 +1,6 @@
+
+submodule A where
+  x = 2
+
+submodule F where
+  import interface submodule A

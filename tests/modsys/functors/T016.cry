@@ -1,0 +1,15 @@
+
+interface submodule S where
+  x : [8]
+
+submodule F where
+  import interface submodule S
+
+  y = x
+
+submodule I where
+  private
+    x = 2
+
+submodule M = submodule F { submodule I }
+

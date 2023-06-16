@@ -12,6 +12,7 @@ import GHC.Generics(Generic)
 import Data.List((\\),sortBy,groupBy,partition)
 import Data.Function(on)
 
+import Cryptol.Utils.Ident(Ident,Namespace(..))
 import qualified Cryptol.Parser.AST as P
 import Cryptol.Parser.Position(Located(..), Range(..), rangeWithin)
 import Cryptol.TypeCheck.PP
@@ -21,7 +22,6 @@ import Cryptol.TypeCheck.Subst
 import Cryptol.TypeCheck.Unify(Path,isRootPath)
 import Cryptol.TypeCheck.FFI.Error
 import Cryptol.ModuleSystem.Name(Name)
-import Cryptol.Utils.Ident(Ident)
 import Cryptol.Utils.RecordMap
 
 cleanupErrors :: [(Range,Error)] -> [(Range,Error)]
@@ -94,6 +94,10 @@ data Error    = KindMismatch (Maybe TypeSource) Kind Kind
               | TypeMismatch TypeSource Path Type Type
                 -- ^ Expected type, inferred type
 
+              | SchemaMismatch Ident Schema Schema
+                -- ^ Name of module parameter, expected scehema, actual schema.
+                -- This may happen when instantiating modules.
+
               | RecursiveType TypeSource Path Type Type
                 -- ^ Unification results in a recursive type
 
@@ -146,6 +150,12 @@ data Error    = KindMismatch (Maybe TypeSource) Kind Kind
               | TypeShadowing String Name String
               | MissingModTParam (Located Ident)
               | MissingModVParam (Located Ident)
+              | MissingModParam Ident
+
+              | FunctorInstanceMissingArgument Ident
+              | FunctorInstanceBadArgument Ident
+              | FunctorInstanceMissingName Namespace Ident
+              | FunctorInstanceBadBacktick BadBacktickInstance
 
               | UnsupportedFFIKind TypeSource TParam Kind
                 -- ^ Kind is not supported for FFI
@@ -169,6 +179,15 @@ data Error    = KindMismatch (Maybe TypeSource) Kind Kind
                 -- implementation.
                 deriving (Show, Generic, NFData)
 
+data BadBacktickInstance =
+    BIPolymorphicArgument Ident Ident
+  | BINested [(BIWhat, Name)]
+  | BIMultipleParams Ident
+    deriving (Show, Generic, NFData)
+
+data BIWhat = BIFunctor | BIInterface | BIPrimitive | BIForeign | BIAbstractType
+    deriving (Show, Generic, NFData)
+
 -- | When we have multiple errors on the same location, we show only the
 -- ones with the has highest rating according to this function.
 errorImportance :: Error -> Int
@@ -178,10 +197,17 @@ errorImportance err =
     TemporaryError {}                                -> 11
     -- show these as usually means the user used something that doesn't work
 
+    FunctorInstanceMissingArgument {}                 -> 10
+    MissingModParam {}                                -> 10
+    FunctorInstanceBadArgument {}                     -> 10
+    FunctorInstanceMissingName {}                     ->  9
+    FunctorInstanceBadBacktick {}                     ->  9
+
 
     KindMismatch {}                                  -> 10
     TyVarWithParams {}                               -> 9
     TypeMismatch {}                                  -> 8
+    SchemaMismatch {}                                -> 7
     RecursiveType {}                                 -> 7
     NotForAll {}                                     -> 6
     TypeVariableEscaped {}                           -> 5
@@ -252,6 +278,8 @@ instance TVars Error where
       TooManyTySynParams {}     -> err
       TooFewTyParams {}         -> err
       RecursiveTypeDecls {}     -> err
+      SchemaMismatch i t1 t2  ->
+        SchemaMismatch i !$ (apSubst su t1) !$ (apSubst su t2)
       TypeMismatch src pa t1 t2 -> TypeMismatch src pa !$ (apSubst su t1) !$ (apSubst su t2)
       RecursiveType src pa t1 t2   -> RecursiveType src pa !$ (apSubst su t1) !$ (apSubst su t2)
       UnsolvedGoals gs          -> UnsolvedGoals !$ apSubst su gs
@@ -275,6 +303,12 @@ instance TVars Error where
       TypeShadowing {}     -> err
       MissingModTParam {}  -> err
       MissingModVParam {}  -> err
+      MissingModParam {}   -> err
+
+      FunctorInstanceMissingArgument {} -> err
+      FunctorInstanceBadArgument {} -> err
+      FunctorInstanceMissingName {} -> err
+      FunctorInstanceBadBacktick {} -> err
 
       UnsupportedFFIKind {}    -> err
       UnsupportedFFIType src e -> UnsupportedFFIType src !$ apSubst su e
@@ -295,6 +329,7 @@ instance FVS Error where
       TooManyTySynParams {}     -> Set.empty
       TooFewTyParams {}         -> Set.empty
       RecursiveTypeDecls {}     -> Set.empty
+      SchemaMismatch _ t1 t2    -> fvs (t1,t2)
       TypeMismatch _ _ t1 t2    -> fvs (t1,t2)
       RecursiveType _ _ t1 t2   -> fvs (t1,t2)
       UnsolvedGoals gs          -> fvs gs
@@ -317,6 +352,12 @@ instance FVS Error where
       TypeShadowing {}     -> Set.empty
       MissingModTParam {}  -> Set.empty
       MissingModVParam {}  -> Set.empty
+      MissingModParam {}   -> Set.empty
+
+      FunctorInstanceMissingArgument {} -> Set.empty
+      FunctorInstanceBadArgument {} -> Set.empty
+      FunctorInstanceMissingName {} -> Set.empty
+      FunctorInstanceBadBacktick {} -> Set.empty
 
       UnsupportedFFIKind {}  -> Set.empty
       UnsupportedFFIType _ t -> fvs t
@@ -420,6 +461,14 @@ instance PP (WithNames Error) where
             ++ ppCtxt pa
             ++ ["When checking" <+> pp src]
 
+      SchemaMismatch i t1 t2 ->
+          addTVarsDescsAfter names err $
+          nested ("Type mismatch in module parameter" <+> quotes (pp i)) $
+          vcat $
+            [ "Expected type:" <+> ppWithNames names t1
+            , "Actual type:"   <+> ppWithNames names t2
+            ]
+
       UnsolvableGoals gs -> explainUnsolvable names gs
 
       UnsolvedGoals gs
@@ -506,6 +555,59 @@ instance PP (WithNames Error) where
         "Missing definition for type parameter" <+> quotes (pp (thing x))
       MissingModVParam x ->
         "Missing definition for value parameter" <+> quotes (pp (thing x))
+
+      MissingModParam x ->
+        "Missing module parameter" <+> quotes (pp x)
+
+      FunctorInstanceMissingArgument i ->
+        "Missing functor argument" <+> quotes (pp i)
+
+      FunctorInstanceBadArgument i ->
+        "Functor does not have parameter" <+> quotes (pp i)
+
+      FunctorInstanceMissingName ns i ->
+        "Functor argument does not define" <+> sayNS <+> "parameter" <+>
+            quotes (pp i)
+        where
+        sayNS =
+          case ns of
+              NSValue     -> "value"
+              NSType      -> "type"
+              NSModule    -> "module"
+
+      FunctorInstanceBadBacktick bad ->
+        case bad of
+          BIPolymorphicArgument i x ->
+            nested "Value parameter may not have a polymorphic type:" $
+              bullets
+                [ "Module parameter:" <+> pp i
+                , "Value parameter:" <+> pp x
+                , "When instantiatiating a functor using parameterization,"
+                  $$ "the value parameters need to have a simple type."
+                ]
+
+          BINested what ->
+            nested "Invalid declarations in parameterized instantiation:" $
+              bullets $
+                [ it <+> pp n
+                | (w,n) <- what
+                , let it = case w of
+                             BIFunctor -> "functor"
+                             BIInterface -> "interface"
+                             BIPrimitive -> "primitive"
+                             BIAbstractType -> "abstract type"
+                             BIForeign -> "foreign import"
+                ] ++
+                [ "A functor instantiated using parameterization," $$
+                  "may not contain nested functors, interfaces, or primitives."
+                ]
+          BIMultipleParams x ->
+            nested "Repeated parameter name in parameterized instantiation:" $
+              bullets
+                [ "Parameter name:" <+> pp x
+                , "Parameterized instantiation requires distinct parameter names"
+                ]
+                
 
       UnsupportedFFIKind src param k ->
         nested "Kind of type variable unsupported for FFI: " $

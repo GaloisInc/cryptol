@@ -10,7 +10,9 @@ https://tools.ietf.org/html/draft-irtf-cfrg-gcmsiv-06
 
 module Common::AES_GCM_SIV where
 
-import AES as AES
+import AES as AES where
+  type m = (2 * Mode)
+  type k = K
 
 parameter
   /** 0: use AES128, 1: use AES256 */
@@ -22,7 +24,7 @@ parameter
 
 
 type K  = 128 + 128 * Mode
-type KS = AES::EncKey (2 * Mode)
+type KS = AES::EncKey
 
 
 /** Note the weird byte-swapping business (also in `blockify` and `unblockify`)

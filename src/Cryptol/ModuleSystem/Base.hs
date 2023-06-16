@@ -14,15 +14,19 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BlockArguments #-}
 
 module Cryptol.ModuleSystem.Base where
 
 import qualified Control.Exception as X
-import Control.Monad (unless,when)
+import Control.Monad (unless,forM)
+import Data.Set(Set)
+import qualified Data.Set as Set
 import Data.Maybe (fromMaybe)
-import Data.Monoid ((<>))
+import Data.List(sortBy,groupBy)
+import Data.Function(on)
+import Data.Monoid ((<>),Endo(..), Any(..))
 import Data.Text.Encoding (decodeUtf8')
-import Data.IORef(newIORef,readIORef)
 import System.Directory (doesFileExist, canonicalizePath)
 import System.FilePath ( addExtension
                        , isAbsolute
@@ -40,15 +44,16 @@ import Prelude.Compat hiding ( (<>) )
 
 
 
-import Cryptol.ModuleSystem.Env (DynamicEnv(..))
 import Cryptol.ModuleSystem.Fingerprint
 import Cryptol.ModuleSystem.Interface
 import Cryptol.ModuleSystem.Monad
-import Cryptol.ModuleSystem.Name (Name,liftSupply,PrimMap,ModPath(..))
-import Cryptol.ModuleSystem.Env (lookupModule
-                                , LoadedModule(..)
+import Cryptol.ModuleSystem.Name (Name,liftSupply,PrimMap,ModPath(..),nameIdent)
+import Cryptol.ModuleSystem.Env ( DynamicEnv(..),FileInfo(..),fileInfo
+                                , lookupModule
+                                , lookupTCEntity
+                                , LoadedModuleG(..), lmInterface
                                 , meCoreLint, CoreLint(..)
-                                , ModContext(..)
+                                , ModContext(..), ModContextParams(..)
                                 , ModulePath(..), modulePathLabel)
 import           Cryptol.Backend.FFI
 import qualified Cryptol.Eval                 as E
@@ -69,11 +74,11 @@ import qualified Cryptol.TypeCheck     as T
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck.PP as T
 import qualified Cryptol.TypeCheck.Sanity as TcSanity
+import qualified Cryptol.Backend.FFI.Error as FFI
 
-import Cryptol.Transform.AddModParams (addModParams)
 import Cryptol.Utils.Ident ( preludeName, floatName, arrayName, suiteBName, primeECName
                            , preludeReferenceName, interactiveName, modNameChunks
-                           , notParamInstModName, isParamInstModName )
+                           , modNameToNormalModName )
 import Cryptol.Utils.PP (pretty)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.Logger(logPutStrLn, logPrint)
@@ -132,7 +137,10 @@ expandPropGuards a =
 -- Parsing ---------------------------------------------------------------------
 
 -- | Parse a module and expand includes
-parseModule :: ModulePath -> ModuleM (Fingerprint, P.Module PName)
+-- Returns a fingerprint of the module, and a set of dependencies due
+-- to `include` directives.
+parseModule ::
+  ModulePath -> ModuleM (Fingerprint, Set FilePath, [P.Module PName])
 parseModule path = do
   getBytes <- getByteReader
 
@@ -164,70 +172,84 @@ parseModule path = do
               }
 
   case P.parseModule cfg txt of
-    Right pm ->
+    Right pms ->
       do let fp = fingerprint bytes
-         pm1 <- case path of
-                  InFile p ->
-                    do r <- getByteReader
-                       mb <- io (removeIncludesModule r p pm)
+         (pm1,deps) <-
+           case path of
+             InFile p ->
+               do r <- getByteReader
+                  (mo,d) <- unzip <$>
+                    forM pms \pm ->
+                    do mb <- io (removeIncludesModule r p pm)
                        case mb of
                          Right ok -> pure ok
                          Left err -> noIncludeErrors err
+                  pure (mo, Set.unions d)
 
-                  {- We don't do "include" resolution for in-memory files
-                     because at the moment the include resolution pass requires
-                     the path to the file to be known---this is used when
-                     looking for other inlcude files.  This could be
-                     generalized, but we can do it once we have a concrete use
-                     case as it would help guide the design. -}
-                  InMem {} -> pure pm
+             {- We don't do "include" resolution for in-memory files
+                because at the moment the include resolution pass requires
+                the path to the file to be known---this is used when
+                looking for other inlcude files.  This could be
+                generalized, but we can do it once we have a concrete use
+                case as it would help guide the design. -}
+             InMem {} -> pure (pms, Set.empty)
 
-         fp `seq` return (fp, pm1)
+{-
+         case path of
+           InFile {} -> io $ print (T.vcat (map T.pp pm1))
+           InMem {} -> pure ()
+--}
+         fp `seq` return (fp, deps, pm1)
 
     Left err -> moduleParseError path err
 
 
--- Modules ---------------------------------------------------------------------
+-- Top Level Modules and Signatures --------------------------------------------
+
 
 -- | Load a module by its path.
-loadModuleByPath :: Bool {- ^ evaluate declarations in the module -} ->
-  FilePath -> ModuleM (ModulePath, T.Module)
+loadModuleByPath ::
+  Bool {- ^ evaluate declarations in the module -} ->
+  FilePath -> ModuleM T.TCTopEntity
 loadModuleByPath eval path = withPrependedSearchPath [ takeDirectory path ] $ do
   let fileName = takeFileName path
   foundPath <- findFile fileName
-  (fp, pm) <- parseModule (InFile foundPath)
-  let n = thing (P.mName pm)
+  (fp, deps, pms) <- parseModule (InFile foundPath)
+  last <$>
+    forM pms \pm ->
+    do let n = thing (P.mName pm)
 
-  -- Check whether this module name has already been loaded from a different file
-  env <- getModuleEnv
-  -- path' is the resolved, absolute path, used only for checking
-  -- whether it's already been loaded
-  path' <- io (canonicalizePath foundPath)
+       -- Check whether this module name has already been loaded from a
+       -- different file
+       env <- getModuleEnv
+       -- path' is the resolved, absolute path, used only for checking
+       -- whether it's already been loaded
+       path' <- io (canonicalizePath foundPath)
 
-  case lookupModule n env of
-    -- loadModule will calculate the canonical path again
-    Nothing -> do
-      m <- doLoadModule eval False (FromModule n) (InFile foundPath) fp pm
-      pure (InFile foundPath, m)
-    Just lm
-     | path' == loaded -> return (lmFilePath lm, lmModule lm)
-     | otherwise       -> duplicateModuleName n path' loaded
-     where loaded = lmModuleId lm
+       case lookupTCEntity n env of
+         -- loadModule will calculate the canonical path again
+         Nothing ->
+           doLoadModule eval False (FromModule n) (InFile foundPath) fp deps pm
+         Just lm
+          | path' == loaded -> return (lmData lm)
+          | otherwise       -> duplicateModuleName n path' loaded
+          where loaded = lmModuleId lm
 
 
 -- | Load a module, unless it was previously loaded.
-loadModuleFrom :: Bool {- ^ quiet mode -} -> ImportSource -> ModuleM (ModulePath,T.Module)
+loadModuleFrom ::
+  Bool {- ^ quiet mode -} -> ImportSource -> ModuleM (ModulePath,T.TCTopEntity)
 loadModuleFrom quiet isrc =
   do let n = importedModule isrc
      mb <- getLoadedMaybe n
      case mb of
-       Just m -> return (lmFilePath m, lmModule m)
+       Just m -> return (lmFilePath m, lmData m)
        Nothing ->
          do path <- findModule n
             errorInFile path $
-              do (fp, pm) <- parseModule path
-                 m        <- doLoadModule True quiet isrc path fp pm
-                 return (path,m)
+              do (fp, deps, pms) <- parseModule path
+                 ms <- mapM (doLoadModule True quiet isrc path fp deps) pms
+                 return (path,last ms)
 
 -- | Load dependencies, typecheck, and add to the eval environment.
 doLoadModule ::
@@ -236,62 +258,79 @@ doLoadModule ::
   ImportSource ->
   ModulePath ->
   Fingerprint ->
+  Set FilePath {- ^ `include` dependencies -} ->
   P.Module PName ->
-  ModuleM T.Module
-doLoadModule eval quiet isrc path fp pm0 =
+  ModuleM T.TCTopEntity
+doLoadModule eval quiet isrc path fp incDeps pm0 =
   loading isrc $
   do let pm = addPrelude pm0
-     loadDeps pm
+     impDeps <- loadDeps pm
+
+     let what = case P.mDef pm of
+                  P.InterfaceModule {} -> "interface module"
+                  _                    -> "module"
 
      unless quiet $ withLogger logPutStrLn
-       ("Loading module " ++ pretty (P.thing (P.mName pm)))
+       ("Loading " ++ what ++ " " ++ pretty (P.thing (P.mName pm)))
 
 
-     (nameEnv,tcmod) <- checkModule isrc pm
-     tcm <- optionalInstantiate tcmod
+     (nameEnv,tcm) <- checkModule isrc pm
 
      -- extend the eval env, unless a functor.
      tbl <- Concrete.primTable <$> getEvalOptsAction
      let ?evalPrim = \i -> Right <$> Map.lookup i tbl
      callStacks <- getCallStacks
      let ?callStacks = callStacks
-     let shouldEval = eval && not (T.isParametrizedModule tcm)
-     foreignSrc <- if shouldEval then evalForeign tcm else pure Nothing
-     when shouldEval $
-       modifyEvalEnv (E.moduleEnv Concrete tcm)
-     loadedModule path fp nameEnv foreignSrc tcm
+     let shouldEval =
+           case tcm of
+             T.TCTopModule m | eval && not (T.isParametrizedModule m) -> Just m
+             _ -> Nothing
+
+     foreignSrc <- case shouldEval of
+                      Just m ->
+                        do fsrc <- evalForeign m
+                           modifyEvalEnv (E.moduleEnv Concrete m)
+                           pure fsrc
+                      Nothing -> pure Nothing
+
+     let fi = fileInfo fp incDeps impDeps foreignSrc
+     loadedModule path fi nameEnv foreignSrc tcm
 
      return tcm
+
   where
-  optionalInstantiate tcm
-    | isParamInstModName (importedModule isrc) =
-      if T.isParametrizedModule tcm then
-        case addModParams tcm of
-          Right tcm1 -> return tcm1
-          Left xs    -> failedToParameterizeModDefs (T.mName tcm) xs
-      else notAParameterizedModule (T.mName tcm)
-    | otherwise = return tcm
-
   evalForeign tcm
+    | not (null foreignFs) =
+      ffiLoadErrors (T.mName tcm) (map FFI.FFIInFunctor foreignFs)
+    | not (null dups) =
+      ffiLoadErrors (T.mName tcm) (map FFI.FFIDuplicates dups)
     | null foreigns = pure Nothing
-    | otherwise = case path of
-      InFile p -> io (canonicalizePath p >>= loadForeignSrc) >>=
-        \case
-          Right fsrc -> do
-            unless quiet $
-              case getForeignSrcPath fsrc of
-                Just fpath -> withLogger logPutStrLn $
-                  "Loading dynamic library " ++ takeFileName fpath
-                Nothing -> pure ()
-            modifyEvalEnvM (evalForeignDecls fsrc foreigns) >>=
-              \case
-                Right () -> pure $ Just fsrc
-                Left errs -> ffiLoadErrors (T.mName tcm) errs
-          Left err -> ffiLoadErrors (T.mName tcm) [err]
-      InMem m _ -> panic "doLoadModule"
-        ["Can't find foreign source of in-memory module", m]
-    where foreigns = findForeignDecls tcm
+    | otherwise =
+      case path of
+        InFile p -> io (canonicalizePath p >>= loadForeignSrc) >>=
+          \case
 
+            Right fsrc -> do
+              unless quiet $
+                case getForeignSrcPath fsrc of
+                  Just fpath -> withLogger logPutStrLn $
+                    "Loading dynamic library " ++ takeFileName fpath
+                  Nothing -> pure ()
+              modifyEvalEnvM (evalForeignDecls fsrc foreigns) >>=
+                \case
+                  Right () -> pure $ Just fsrc
+                  Left errs -> ffiLoadErrors (T.mName tcm) errs
+
+            Left err -> ffiLoadErrors (T.mName tcm) [err]
+
+        InMem m _ -> panic "doLoadModule"
+          ["Can't find foreign source of in-memory module", m]
+
+    where foreigns  = findForeignDecls tcm
+          foreignFs = T.findForeignDeclsInFunctors tcm
+          dups      = [ d | d@(_ : _ : _) <- groupBy ((==) `on` nameIdent)
+                                           $ sortBy (compare `on` nameIdent)
+                                           $ map fst foreigns ]
 
 
 -- | Rewrite an import declaration to be of the form:
@@ -337,48 +376,146 @@ findModule n = do
 -- | Discover a file. This is distinct from 'findModule' in that we
 -- assume we've already been given a particular file name.
 findFile :: FilePath -> ModuleM FilePath
-findFile path | isAbsolute path = do
-  -- No search path checking for absolute paths
-  b <- io (doesFileExist path)
-  if b then return path else cantFindFile path
-findFile path = do
-  paths <- getSearchPath
-  loop (possibleFiles paths)
-  where
-  loop paths = case paths of
-    path':rest -> do
-      b <- io (doesFileExist path')
-      if b then return (normalise path') else loop rest
-    [] -> cantFindFile path
-  possibleFiles paths = map (</> path) paths
+findFile path
+  | isAbsolute path =
+    do -- No search path checking for absolute paths
+       b <- io (doesFileExist path)
+       if b then return path else cantFindFile path
+  | otherwise =
+    do paths <- getSearchPath
+       loop (possibleFiles paths)
+       where
+       loop paths = case paths of
+                      path' : rest ->
+                        do b <- io (doesFileExist path')
+                           if b then return (normalise path') else loop rest
+                      [] -> cantFindFile path
+       possibleFiles paths = map (</> path) paths
 
 -- | Add the prelude to the import list if it's not already mentioned.
 addPrelude :: P.Module PName -> P.Module PName
 addPrelude m
   | preludeName == P.thing (P.mName m) = m
   | preludeName `elem` importedMods    = m
-  | otherwise                          = m { mDecls = importPrelude : mDecls m }
+  | otherwise                          = m { mDef = newDef }
   where
+  newDef =
+    case mDef m of
+      NormalModule ds -> NormalModule (P.DImport prel : ds)
+      FunctorInstance f as ins -> FunctorInstance f as ins
+      InterfaceModule s -> InterfaceModule s { sigImports = prel
+                                             : sigImports s }
+
   importedMods  = map (P.iModule . P.thing) (P.mImports m)
-  importPrelude = P.DImport P.Located
+  prel = P.Located
     { P.srcRange = emptyRange
     , P.thing    = P.Import
-      { iModule    = P.ImpTop preludeName
-      , iAs        = Nothing
-      , iSpec      = Nothing
+      { iModule  = P.ImpTop preludeName
+      , iAs      = Nothing
+      , iSpec    = Nothing
+      , iInst    = Nothing
       }
     }
 
 -- | Load the dependencies of a module into the environment.
-loadDeps :: P.Module name -> ModuleM ()
+loadDeps :: P.ModuleG mname name -> ModuleM (Set ModName)
 loadDeps m =
-  do mapM_ loadI (P.mImports m)
-     mapM_ loadF (P.mInstance m)
+  do let ds = findDeps m
+     mapM_ (loadModuleFrom False) ds
+     pure (Set.fromList (map importedModule ds))
+
+-- | Find all imports in a module.
+findDeps :: P.ModuleG mname name -> [ImportSource]
+findDeps m = appEndo (snd (findDeps' m)) []
+
+findDepsOfModule :: ModName -> ModuleM (ModulePath, FileInfo)
+findDepsOfModule m =
+  do mpath <- findModule m
+     findDepsOf mpath
+
+findDepsOf :: ModulePath -> ModuleM (ModulePath, FileInfo)
+findDepsOf mpath' =
+  do mpath <- case mpath' of
+                InFile file -> InFile <$> io (canonicalizePath file)
+                InMem {}    -> pure mpath'
+     (fp, incs, ms) <- parseModule mpath
+     let (anyF,imps) = mconcat (map (findDeps' . addPrelude) ms)
+     fpath <- if getAny anyF
+                then do mb <- io case mpath of
+                                   InFile can -> foreignLibPath can
+                                   InMem {}   -> pure Nothing
+                        pure case mb of
+                               Nothing -> Set.empty
+                               Just f  -> Set.singleton f
+                else pure Set.empty
+     pure
+       ( mpath
+       , FileInfo
+           { fiFingerprint = fp
+           , fiIncludeDeps = incs
+           , fiImportDeps  = Set.fromList (map importedModule (appEndo imps []))
+           , fiForeignDeps = fpath
+           }
+       )
+
+-- | Find the set of top-level modules imported by a module.
+findModuleDeps :: P.ModuleG mname name -> Set P.ModName
+findModuleDeps = Set.fromList . map importedModule . findDeps
+
+-- | A helper `findDeps` and `findModuleDeps` that actually does the searching.
+findDeps' :: P.ModuleG mname name -> (Any, Endo [ImportSource])
+findDeps' m =
+  case mDef m of
+    NormalModule ds -> mconcat (map depsOfDecl ds)
+    FunctorInstance f as _ ->
+      let fds = loadImpName FromModuleInstance f
+          ads = case as of
+                  DefaultInstArg a -> loadInstArg a
+                  DefaultInstAnonArg ds -> mconcat (map depsOfDecl ds)
+                  NamedInstArgs args -> mconcat (map loadNamedInstArg args)
+      in fds <> ads
+    InterfaceModule s -> mconcat (map loadImpD (sigImports s))
   where
-  loadI i = do (_,m1)  <- loadModuleFrom False (FromImport i)
-               when (T.isParametrizedModule m1) $ importParamModule $ T.mName m1
-  loadF f = do _ <- loadModuleFrom False (FromModuleInstance f)
-               return ()
+  loadI i = (mempty, Endo (i:))
+
+  loadImpName src l =
+    case thing l of
+      ImpTop f -> loadI (src l { thing = f })
+      _        -> mempty
+
+  loadImpD li = loadImpName (FromImport . new) (iModule <$> li)
+    where new i = i { thing = (thing li) { iModule = thing i } }
+
+  loadNamedInstArg (ModuleInstanceNamedArg _ f) = loadInstArg f
+  loadInstArg f =
+    case thing f of
+      ModuleArg mo -> loadImpName FromModuleInstance f { thing = mo }
+      _            -> mempty
+
+  depsOfDecl d =
+    case d of
+      DImport li -> loadImpD li
+
+      DModule TopLevel { tlValue = NestedModule nm } -> findDeps' nm
+
+      DModParam mo -> loadImpName FromSigImport s
+        where s = mpSignature mo
+
+      Decl dd -> depsOfDecl' (tlValue dd)
+
+      _ -> mempty
+
+  depsOfDecl' d =
+    case d of
+      DLocated d' _ -> depsOfDecl' d'
+      DBind b ->
+        case thing (bDef b) of
+          DForeign {} -> (Any True, mempty)
+          _ -> mempty
+      _ -> mempty
+
+
+
 
 
 
@@ -444,38 +581,18 @@ getPrimMap  =
        Nothing -> panic "Cryptol.ModuleSystem.Base.getPrimMap"
                   [ "Unable to find the prelude" ]
 
--- | Load a module, be it a normal module or a functor instantiation.
-checkModule :: ImportSource -> P.Module PName -> ModuleM (R.NamingEnv, T.Module)
-checkModule isrc m =
-  case P.mInstance m of
-    Nothing -> checkSingleModule T.tcModule isrc m
-    Just fmName ->
-      do mbtf <- getLoadedMaybe (thing fmName)
-         case mbtf of
-           Just tf ->
-             do renThis <- io $ newIORef (lmNamingEnv tf)
-                let how = T.tcModuleInst renThis (lmModule tf)
-                (_,m') <- checkSingleModule how isrc m
-                newEnv <- io $ readIORef renThis
-                pure (newEnv,m')
-           Nothing -> panic "checkModule"
-                        [ "Functor of module instantiation not loaded" ]
-
-
--- | Typecheck a single module.  If the module is an instantiation
--- of a functor, then this just type-checks the instantiating parameters.
--- See 'checkModule'
+-- | Typecheck a single module.
 -- Note: we assume that @include@s have already been processed
-checkSingleModule ::
-  Act (P.Module Name) T.Module {- ^ how to check -} ->
-  ImportSource                 {- ^ why are we loading this -} ->
-  P.Module PName               {- ^ module to check -} ->
-  ModuleM (R.NamingEnv,T.Module)
-checkSingleModule how isrc m = do
+checkModule ::
+  ImportSource                      {- ^ why are we loading this -} ->
+  P.Module PName                    {- ^ module to check -} ->
+  ModuleM (R.NamingEnv,T.TCTopEntity)
+checkModule isrc m = do
 
   -- check that the name of the module matches expectations
   let nm = importedModule isrc
-  unless (notParamInstModName nm == thing (P.mName m))
+  unless (modNameToNormalModName nm ==
+                                  modNameToNormalModName (thing (P.mName m)))
          (moduleNameMismatch nm (mName m))
 
   -- remove pattern bindings
@@ -487,6 +604,15 @@ checkSingleModule how isrc m = do
   -- rename everything
   renMod <- renameModule epgm
 
+
+{-
+  -- dump renamed
+  unless (thing (mName (R.rmModule renMod)) == preludeName)
+       do (io $ print (T.pp renMod))
+          -- io $ exitSuccess
+--}
+
+
   -- when generating the prim map for the typechecker, if we're checking the
   -- prelude, we have to generate the map from the renaming environment, as we
   -- don't have the interface yet.
@@ -495,21 +621,22 @@ checkSingleModule how isrc m = do
               else getPrimMap
 
   -- typecheck
-  let act = TCAction { tcAction = how
-                     , tcLinter = moduleLinter (P.thing (P.mName m))
+  let act = TCAction { tcAction = T.tcModule
+                     , tcLinter = tcTopEntitytLinter (P.thing (P.mName m))
                      , tcPrims  = prims }
 
 
-  tcm0 <- typecheck act (R.rmModule renMod) noIfaceParams (R.rmImported renMod)
+  tcm <- typecheck act (R.rmModule renMod) NoParams (R.rmImported renMod)
 
-  let tcm = tcm0 -- fromMaybe tcm0 (addModParams tcm0)
-
-  rewMod <- liftSupply (`rewModule` tcm)
+  rewMod <- case tcm of
+              T.TCTopModule mo -> T.TCTopModule <$> liftSupply (`rewModule` mo)
+              T.TCTopSignature {} -> pure tcm
   pure (R.rmInScope renMod,rewMod)
 
 data TCLinter o = TCLinter
   { lintCheck ::
-      o -> T.InferInput -> Either (Range, TcSanity.Error) [TcSanity.ProofObligation]
+      o -> T.InferInput ->
+                    Either (Range, TcSanity.Error) [TcSanity.ProofObligation]
   , lintModule :: Maybe P.ModName
   }
 
@@ -545,6 +672,17 @@ moduleLinter m = TCLinter
   , lintModule  = Just m
   }
 
+tcTopEntitytLinter :: P.ModName -> TCLinter T.TCTopEntity
+tcTopEntitytLinter m = TCLinter
+  { lintCheck   = \m' i -> case m' of
+                             T.TCTopModule mo ->
+                               lintCheck (moduleLinter m) mo i
+                             T.TCTopSignature {} -> Right []
+                                -- XXX: what can we lint about module interfaces
+  , lintModule  = Just m
+  }
+
+
 type Act i o = i -> T.InferInput -> IO (T.InferOutput o)
 
 data TCAction i o = TCAction
@@ -554,8 +692,8 @@ data TCAction i o = TCAction
   }
 
 typecheck ::
-  (Show i, Show o, HasLoc i) => TCAction i o -> i ->
-                                  IfaceParams -> IfaceDecls -> ModuleM o
+  (Show i, Show o, HasLoc i) =>
+  TCAction i o -> i -> ModContextParams -> IfaceDecls -> ModuleM o
 typecheck act i params env = do
 
   let range = fromMaybe emptyRange (getLoc i)
@@ -587,8 +725,9 @@ typecheck act i params env = do
          typeCheckingFailed nameMap errs
 
 -- | Generate input for the typechecker.
-genInferInput :: Range -> PrimMap -> IfaceParams -> IfaceDecls -> ModuleM T.InferInput
-genInferInput r prims params env' = do
+genInferInput :: Range -> PrimMap -> ModContextParams -> IfaceDecls ->
+                                                          ModuleM T.InferInput
+genInferInput r prims params env = do
   seeds <- getNameSeeds
   monoBinds <- getMonoBinds
   solver <- getTCSolver
@@ -596,25 +735,29 @@ genInferInput r prims params env' = do
   searchPath <- getSearchPath
   callStacks <- getCallStacks
 
-  -- TODO: include the environment needed by the module
-  let env = flatPublicDecls env'
-            -- XXX: we should really just pass this directly
+  topMods <- getAllLoaded
+  topSigs <- getAllLoadedSignatures
+
   return T.InferInput
-    { T.inpRange     = r
-    , T.inpVars      = Map.map ifDeclSig (ifDecls env)
-    , T.inpTSyns     = ifTySyns env
-    , T.inpNewtypes  = ifNewtypes env
-    , T.inpAbstractTypes = ifAbstractTypes env
-    , T.inpNameSeeds = seeds
-    , T.inpMonoBinds = monoBinds
-    , T.inpCallStacks = callStacks
-    , T.inpSearchPath = searchPath
-    , T.inpSupply    = supply
-    , T.inpPrimNames = prims
-    , T.inpParamTypes       = ifParamTypes params
-    , T.inpParamConstraints = ifParamConstraints params
-    , T.inpParamFuns        = ifParamFuns params
+    { T.inpRange            = r
+    , T.inpVars             = Map.map ifDeclSig (ifDecls env)
+    , T.inpTSyns            = ifTySyns env
+    , T.inpNewtypes         = ifNewtypes env
+    , T.inpAbstractTypes    = ifAbstractTypes env
+    , T.inpSignatures       = ifSignatures env
+    , T.inpNameSeeds        = seeds
+    , T.inpMonoBinds        = monoBinds
+    , T.inpCallStacks       = callStacks
+    , T.inpSearchPath       = searchPath
+    , T.inpSupply           = supply
+    , T.inpParams           = case params of
+                                NoParams -> T.allParamNames mempty
+                                FunctorParams ps -> T.allParamNames ps
+                                InterfaceParams ps -> ps
+    , T.inpPrimNames        = prims
     , T.inpSolver           = solver
+    , T.inpTopModules       = topMods
+    , T.inpTopSignatures    = topSigs
     }
 
 

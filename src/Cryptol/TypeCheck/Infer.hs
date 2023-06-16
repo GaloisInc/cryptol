@@ -14,8 +14,6 @@
 {-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE Safe #-}
--- {-# LANGUAGE Trustworthy #-}
 -- See Note [-Wincomplete-uni-patterns and irrefutable patterns] in Cryptol.TypeCheck.TypePat
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# LANGUAGE LambdaCase #-}
@@ -25,7 +23,7 @@
 module Cryptol.TypeCheck.Infer
   ( checkE
   , checkSigB
-  , inferModule
+  , inferTopModule
   , inferBinds
   , checkTopDecls
   )
@@ -53,11 +51,13 @@ import           Cryptol.TypeCheck.Kind(checkType,checkSchema,checkTySyn,
 import           Cryptol.TypeCheck.Instantiate
 import           Cryptol.TypeCheck.Subst (listSubst,apSubst,(@@),isEmptySubst)
 import           Cryptol.TypeCheck.Unify(rootPath)
+import           Cryptol.TypeCheck.Module
 import           Cryptol.TypeCheck.FFI
 import           Cryptol.TypeCheck.FFI.FFIType
 import           Cryptol.Utils.Ident
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.RecordMap
+import           Cryptol.IR.TraverseNames(mapNames)
 import           Cryptol.Utils.PP (pp)
 
 import qualified Data.Map as Map
@@ -75,13 +75,28 @@ import           Control.Monad(zipWithM, unless, foldM, forM_, mplus, zipWithM,
 -- import Debug.Trace
 -- import Cryptol.TypeCheck.PP
 
-inferModule :: P.Module Name -> InferM Module
-inferModule m =
-  do newModuleScope (thing (P.mName m)) (map thing (P.mImports m))
-                                        (P.modExports m)
-     checkTopDecls (P.mDecls m)
-     proveModuleTopLevel
-     endModule
+inferTopModule :: P.Module Name -> InferM TCTopEntity
+inferTopModule m =
+  case P.mDef m of
+    P.NormalModule ds ->
+      do newModuleScope (thing (P.mName m)) (P.exportedDecls ds)
+         checkTopDecls ds
+         proveModuleTopLevel
+         endModule
+
+    P.FunctorInstance f as inst ->
+      do mb <- doFunctorInst (P.ImpTop <$> P.mName m) f as inst Nothing
+         case mb of
+           Just mo -> pure mo
+           Nothing -> panic "inferModule" ["Didnt' get a module"]
+
+    P.InterfaceModule sig ->
+      do newTopSignatureScope (thing (P.mName m))
+         checkSignature sig
+         endTopSignature
+
+
+
 
 -- | Construct a Prelude primitive in the parsed AST.
 mkPrim :: String -> InferM (P.Expr Name)
@@ -471,7 +486,7 @@ checkRecUpd mb fs tGoal =
 
     -- { _ | fs } ~~>  \r -> { r | fs }
     Nothing ->
-      do r <- newParamName NSValue (packIdent "r")
+      do r <- newLocalName NSValue (packIdent "r")
          let p  = P.PVar Located { srcRange = nameLoc r, thing = r }
              fe = P.EFun P.emptyFunDesc [p] (P.EUpd (Just (P.EVar r)) fs)
          checkE fe tGoal
@@ -497,7 +512,7 @@ checkRecUpd mb fs tGoal =
                 v1 <- checkE v (WithSource (tFun ft ft) src eloc)
                 -- XXX: ^ may be used a different src?
                 d  <- newHasGoal s (twsType tGoal) ft
-                tmp <- newParamName NSValue (packIdent "rf")
+                tmp <- newLocalName NSValue (packIdent "rf")
                 let e' = EVar tmp
                 pure ( hasDoSet d e' (EApp v1 (hasDoSelect d e'))
                        `EWhere`
@@ -1293,27 +1308,113 @@ checkTopDecls = mapM_ checkTopDecl
         do t <- checkPrimType (P.tlValue tl) (thing <$> P.tlDoc tl)
            addPrimType t
 
-      P.DParameterType ty ->
-        do t <- checkParameterType ty (P.ptDoc ty)
-           addParamType t
 
-      P.DParameterConstraint cs ->
-        do cs1 <- checkParameterConstraints cs
+      P.DInterfaceConstraint _ cs ->
+        inRange (srcRange cs)
+        do cs1 <- checkParameterConstraints [ cs { thing = c } | c <- thing cs ]
            addParameterConstraints cs1
 
-      P.DParameterFun pf ->
-        do x <- checkParameterFun pf
-           addParamFun x
-
       P.DModule tl ->
-         do let P.NestedModule m = P.tlValue tl
-            newSubmoduleScope (thing (P.mName m)) (map thing (P.mImports m))
-                                                  (P.modExports m)
-            checkTopDecls (P.mDecls m)
-            endSubmodule
+         selectorScope
+         case P.mDef m of
 
-      P.DImport {} -> pure ()
-      P.Include {} -> panic "checkTopDecl" [ "Unexpected `inlude`" ]
+           P.NormalModule ds ->
+             do newSubmoduleScope (thing (P.mName m))
+                                  (thing <$> P.tlDoc tl)
+                                  (P.exportedDecls ds)
+                checkTopDecls ds
+                proveModuleTopLevel
+                endSubmodule
+
+           P.FunctorInstance f as inst ->
+             do let doc = thing <$> P.tlDoc tl
+                _ <- doFunctorInst (P.ImpNested <$> P.mName m) f as inst doc
+                pure ()
+
+           P.InterfaceModule sig ->
+              do let doc = P.thing <$> P.tlDoc tl
+                 inRange (srcRange (P.mName m))
+                   do newSignatureScope (thing (P.mName m)) doc
+                      checkSignature sig
+                      endSignature
+
+
+        where P.NestedModule m = P.tlValue tl
+
+      P.DModParam p ->
+        inRange (srcRange (P.mpSignature p))
+        do let binds = P.mpRenaming p
+               suMap = Map.fromList [ (y,x) | (x,y) <- Map.toList binds ]
+               actualName x = Map.findWithDefault x x suMap
+
+           ips <- lookupSignature (thing (P.mpSignature p))
+           let actualTys  = [ mapNames actualName mp
+                            | mp <- Map.elems (mpnTypes ips) ]
+               actualTS   = [ mapNames actualName ts
+                            | ts <- Map.elems (mpnTySyn ips)
+                            ]
+               actualCtrs = [ mapNames actualName prop
+                            | prop <- mpnConstraints ips ]
+               actualVals = [ mapNames actualName vp
+                            | vp <- Map.elems (mpnFuns ips) ]
+
+               param =
+                 ModParam
+                   { mpName = P.mpName p
+                   , mpIface = thing (P.mpSignature p)
+                   , mpQual = P.mpAs p
+                   , mpParameters =
+                        ModParamNames
+                          { mpnTypes = Map.fromList [ (mtpName tp, tp)
+                                                    | tp <- actualTys ]
+                          , mpnTySyn = Map.fromList [ (tsName ts, ts)
+                                                    | ts <- actualTS ]
+                          , mpnConstraints = actualCtrs
+                          , mpnFuns = Map.fromList [ (mvpName vp, vp)
+                                                   | vp <- actualVals ]
+                          , mpnDoc = thing <$> P.mpDoc p
+                          }
+                   }
+
+           mapM_ addParamType actualTys
+           addParameterConstraints actualCtrs
+           mapM_ addParamFun actualVals
+           mapM_ addTySyn actualTS
+           addModParam param
+
+      P.DImport {}        -> pure ()
+      P.Include {}        -> bad "Include"
+      P.DParamDecl {}     -> bad "DParamDecl"
+
+
+  bad x = panic "checkTopDecl" [ x ]
+
+
+checkSignature :: P.Signature Name -> InferM ()
+checkSignature sig =
+  do forM_ (P.sigTypeParams sig) \pt ->
+       addParamType =<< checkParameterType pt
+
+     mapM_ checkSigDecl (P.sigDecls sig)
+
+     addParameterConstraints =<<
+        checkParameterConstraints (P.sigConstraints sig)
+
+     forM_ (P.sigFunParams sig) \f ->
+       addParamFun =<< checkParameterFun f
+
+     proveModuleTopLevel
+
+checkSigDecl :: P.SigDecl Name -> InferM ()
+checkSigDecl decl =
+  case decl of
+
+    P.SigTySyn ts mbD ->
+      addTySyn =<< checkTySyn ts mbD
+
+    P.SigPropSyn ps mbD ->
+      addTySyn =<< checkPropSyn ps mbD
+
 
 
 checkDecl :: Bool -> P.Decl Name -> Maybe Text -> InferM ()

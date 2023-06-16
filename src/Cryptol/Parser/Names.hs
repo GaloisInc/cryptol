@@ -20,6 +20,7 @@ module Cryptol.Parser.Names
   , tnamesD
   , namesB
   , namesP
+  , namesNT
 
   , boundNames
   , boundNamesSet
@@ -34,6 +35,9 @@ import qualified Data.Set as Set
 -- | The names defined by a newtype.
 tnamesNT :: Newtype name -> ([Located name], ())
 tnamesNT x = ([ nName x ], ())
+
+namesNT :: Newtype name -> ([Located name], ())
+namesNT x = ([ (nName x) { thing = nConName x } ], ())
 
 -- | The names defined and used by a group of mutually recursive declarations.
 namesDs :: Ord name => [Decl name] -> ([Located name], Set name)
@@ -285,6 +289,6 @@ tnamesT ty =
     TTyApp fs     -> Set.unions (map (tnamesT . value) fs)
     TLocated t _  -> tnamesT t
     TUser x ts    -> Set.insert x (Set.unions (map tnamesT ts))
-    TParens t     -> tnamesT t
+    TParens t _   -> tnamesT t
     TInfix a x _ c-> Set.insert (thing x)
                                 (Set.union (tnamesT a) (tnamesT c))

@@ -21,16 +21,17 @@ import Data.Maybe (fromMaybe, mapMaybe, isJust)
 
 import Cryptol.Parser.Name (PName(..))
 import Cryptol.Parser.AST (Pragma)
-import Cryptol.ModuleSystem.Env (ModContext(..), ModuleEnv(..), DynamicEnv(..), focusedEnv)
-import Cryptol.ModuleSystem.Interface (IfaceParams(..), IfaceDecl(..), IfaceDecls(..))
+import Cryptol.ModuleSystem.Env (ModContext(..), ModuleEnv(..), DynamicEnv(..)
+                                , focusedEnv, modContextParamNames)
+import Cryptol.ModuleSystem.Interface (IfaceDecl(..), IfaceDecls(..))
 import Cryptol.ModuleSystem.Name (Name)
-import qualified Cryptol.ModuleSystem.Name as N (nameInfo, NameInfo(Declared))
+import qualified Cryptol.ModuleSystem.Name as N (nameInfo,NameInfo(..))
 import Cryptol.ModuleSystem.NamingEnv
-                  (NamingEnv, namespaceMap, lookupValNames, shadowing)
-import Cryptol.TypeCheck.Type (Schema(..), ModVParam(..))
+                  (NamingEnv, namespaceMap, lookupListNS, shadowing)
+import Cryptol.TypeCheck.Type (Schema(..), ModVParam(..), mpnFuns)
 import Cryptol.Utils.Fixity(Fixity(..), defaultFixity)
 import Cryptol.Utils.PP (pp)
-import Cryptol.Utils.Ident(Namespace(..))
+import Cryptol.Utils.Ident(Namespace(..),ogModule)
 
 import CryptolServer
 import CryptolServer.Data.Type
@@ -79,24 +80,40 @@ visibleNames :: VisibleNamesParams -> CryptolCommand [NameInfo]
 visibleNames _ =
   do me <- getModuleEnv
      let DEnv { deNames = dyNames } = meDynEnv me
-     let ModContext { mctxParams = fparams, mctxDecls = fDecls, mctxNames = fNames} = focusedEnv me
+     let ModContext { mctxParams = fparams
+                    , mctxDecls = fDecls
+                    , mctxNames = fNames
+                    } = focusedEnv me
      let inScope = Map.keys (namespaceMap NSValue $ dyNames `shadowing` fNames)
-     return $ concatMap (getInfo fNames (ifParamFuns fparams) (ifDecls fDecls)) inScope
+         params = mpnFuns (modContextParamNames fparams)
+     return $ concatMap (getInfo fNames params (ifDecls fDecls)) inScope
 
 getInfo :: NamingEnv -> Map Name ModVParam -> Map Name IfaceDecl -> PName -> [NameInfo]
 getInfo rnEnv params decls n' =
-  flip mapMaybe (lookupValNames n' rnEnv) $ \n ->
+  flip mapMaybe (lookupListNS NSValue n' rnEnv) $ \n ->
     case (N.nameInfo n, Map.lookup n params, Map.lookup n decls) of
-      (N.Declared m _, Just (ModVParam _ ty nameDocs fx), _) ->
-        Just $ mkNameInfo True ty m (isJust fx) fx ([]::[Pragma]) nameDocs
-      (N.Declared m _, _, Just (IfaceDecl _ ty prags ifx fx nameDocs)) ->
-        Just $ mkNameInfo False ty m ifx fx prags nameDocs
+      (N.GlobalName _ og, Just (ModVParam _ ty nameDocs fx), _) ->
+        Just $ mkNameInfo True ty og (isJust fx) fx ([]::[Pragma]) nameDocs
+      (N.GlobalName _ og, _, Just (IfaceDecl _ ty _ prags ifx fx nameDocs)) ->
+        Just $ mkNameInfo False ty og ifx fx prags nameDocs
       _ -> Nothing
-  where mkNameInfo param ty m ifx fx prags nameDocs = 
-          let fxy = if not ifx then Nothing else case fromMaybe defaultFixity fx of
-                      Fixity assoc lvl -> Just (show (pp assoc), lvl)
-           in NameInfo (show (pp n')) (show (pp ty)) ty (show (pp m)) param
-                       fxy (show . pp <$> prags) (unpack <$> nameDocs)
+  where mkNameInfo param ty og ifx fx prags nameDocs = 
+          let fxy
+                | not ifx = Nothing
+                | otherwise =
+                  case fromMaybe defaultFixity fx of
+                    Fixity assoc lvl -> Just (show (pp assoc), lvl)
+
+           in NameInfo
+                { name      = show (pp n')
+                , typeSig   = show (pp ty)
+                , schema    = ty
+                , modl      = show (pp (ogModule og))
+                , isParam   = param
+                , fixity    = fxy
+                , pragmas   = show . pp <$> prags
+                , nameDocs  = unpack <$> nameDocs
+                }
 
 data NameInfo =
   NameInfo

@@ -300,9 +300,11 @@ prepareQuery ::
   ProverCommand ->
   M.ModuleT IO (Either String ([FinType], SBV.Symbolic SBV.SVal))
 prepareQuery evo ProverCommand{..} =
-  do ds <- do (_mp, m) <- M.loadModuleFrom True (M.FromModule preludeReferenceName)
+  do ds <- do (_mp, ent) <- M.loadModuleFrom True (M.FromModule preludeReferenceName)
+              let m = tcTopEntityToModule ent
+
               let decls = mDecls m
-              let nms = fst <$> Map.toList (M.ifDecls (M.ifPublic (M.genIface m)))
+              let nms = fst <$> Map.toList (M.ifDecls (M.ifDefines (M.genIface m)))
               let ds = Map.fromList [ (prelPrim (identText (M.nameIdent nm)), EWhere (EVar nm) decls) | nm <- nms ]
               pure ds
 

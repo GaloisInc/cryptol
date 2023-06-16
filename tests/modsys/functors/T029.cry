@@ -1,0 +1,11 @@
+submodule F where
+  parameter
+    type n : #
+
+  f : (2 < n) => ()
+  f = ()
+
+submodule M = submodule F where
+  type n = 8
+
+import submodule M as M

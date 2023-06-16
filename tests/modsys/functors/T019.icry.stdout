@@ -1,0 +1,11 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading interface module T019::J
+Loading module `where` argument of T019::B
+Loading interface module T019::I
+Loading module T019::A
+Loading module T019::B
+
+[error] at ./T019/B.cry:1:8--1:15
+    • Expected a module
+    • ``where` argument of T019::B` is a functor

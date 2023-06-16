@@ -1,0 +1,6 @@
+module T019::B = T019::A where
+
+import interface T019::J
+
+x = z
+y = 10

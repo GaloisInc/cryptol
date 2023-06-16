@@ -1,9 +1,0 @@
-module T10::Main where
-
-parameter
-  type T : *
-  x : T
-
-f : T
-f = x
-

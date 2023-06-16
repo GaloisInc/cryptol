@@ -1,8 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Main
-[warning] at noPrim.cry:3:1--3:2:
-  Could not prove that the constraint guards used in defining Main::f were exhaustive.
 
 [error] at noPrim.cry:3:7--3:14:
   `prime` may not be used in a constraint guard.

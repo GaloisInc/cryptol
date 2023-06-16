@@ -19,6 +19,7 @@ import qualified Cryptol.ModuleSystem as M
 import qualified Cryptol.ModuleSystem.Env as M
 import qualified Cryptol.ModuleSystem.Monad as M
 import Cryptol.ModuleSystem.Name
+import Cryptol.Utils.Ident(OrigName(..))
 import Cryptol.Eval (checkProp)
 
 import           Data.Map (Map)
@@ -260,8 +261,8 @@ destETAbs = go []
 freshName :: Name -> [Type] -> SpecM Name
 freshName n _ =
   case nameInfo n of
-    Declared m s  -> liftSupply (mkDeclared ns m s ident fx loc)
-    Parameter     -> liftSupply (mkParameter ns ident loc)
+    GlobalName s og -> liftSupply (mkDeclared ns (ogModule og) s ident fx loc)
+    LocalName {}    -> liftSupply (mkLocal ns ident loc)
   where
   ns    = nameNamespace n
   fx    = nameFixity n

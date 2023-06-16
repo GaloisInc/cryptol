@@ -2,7 +2,7 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module test01
 module test01
-import Cryptol
+
 /* Not recursive */
 test01::a : {n, a} (fin n) => [n]a -> [2 * n]a
 test01::a =
@@ -14,10 +14,11 @@ test01::a =
       f = \{m} (y : [m]a) -> (Cryptol::#) n m a <> x y
 
 
+
 Loading module Cryptol
 Loading module test01
 module test01
-import Cryptol
+
 /* Not recursive */
 test01::a : {n, a} (fin n) => [n]a -> [2 * n]a
 test01::a =
@@ -27,5 +28,6 @@ test01::a =
       /* Not recursive */
       f : [n]a -> [2 * n]a
       f = \(y : [n]a) -> (Cryptol::#) n n a <> x y
+
 
 

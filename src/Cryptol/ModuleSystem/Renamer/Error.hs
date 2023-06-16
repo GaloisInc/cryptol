@@ -10,11 +10,14 @@
 {-# Language OverloadedStrings #-}
 module Cryptol.ModuleSystem.Renamer.Error where
 
+import Data.List(intersperse)
+
 import Cryptol.ModuleSystem.Name
 import Cryptol.Parser.AST
 import Cryptol.Parser.Position
 import Cryptol.Parser.Selector(ppNestedSels)
 import Cryptol.Utils.PP
+import Cryptol.Utils.Ident(modPathSplit)
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
@@ -41,33 +44,63 @@ data RenamerError
   | FixityError (Located Name) Fixity (Located Name) Fixity
     -- ^ When the fixity of two operators conflict
 
-  | InvalidConstraint (Type PName)
-    -- ^ When it's not possible to produce a Prop from a Type.
-
-  | MalformedBuiltin (Type PName) PName
-    -- ^ When a builtin type/type-function is used incorrectly.
-
-  | BoundReservedType PName (Maybe Range) Doc
-    -- ^ When a builtin type is named in a binder.
-
   | OverlappingRecordUpdate (Located [Selector]) (Located [Selector])
     -- ^ When record updates overlap (e.g., @{ r | x = e1, x.y = e2 }@)
 
   | InvalidDependency [DepName]
-    deriving (Show, Generic, NFData)
+    -- ^ Things that can't depend on each other
+
+  | MultipleModParams Ident [Range]
+    -- ^ Module parameters with the same name
+
+  | InvalidFunctorImport (ImpName Name)
+    -- ^ Can't import functors directly
+
+  | UnexpectedNest Range PName
+    -- ^ Nested modules were not supposed to appear here
+
+  | ModuleKindMismatch Range (ImpName Name) ModKind ModKind
+    -- ^ Exepcted one kind (first one) but found the other (second one)
+
+    deriving (Show, Generic, NFData, Eq, Ord)
 
 
--- We use this because parameter constrstaints have no names
+{- | We use this to name dependencies.
+In addition to normal names we have a way to refer to module parameters
+and top-level module constraints, which have no explicit names -}
 data DepName = NamedThing Name
-             | ConstratintAt Range -- ^ identifed by location in source
+               -- ^ Something with a name
+
+             | ModPath ModPath
+               -- ^ The module at this path
+
+             | ModParamName Range Ident
+               {- ^ Note that the range is important not just for error
+                    reporting but to distinguish module parameters with
+                    the same name (e.g., in nested functors) -}
+             | ConstratintAt Range
+               -- ^ Identifed by location in source
                deriving (Eq,Ord,Show,Generic,NFData)
 
-depNameLoc :: DepName -> Range
+depNameLoc :: DepName -> Maybe Range
 depNameLoc x =
   case x of
-    NamedThing n -> nameLoc n
-    ConstratintAt r -> r
-  
+    NamedThing n -> Just (nameLoc n)
+    ConstratintAt r -> Just r
+    ModParamName r _ -> Just r
+    ModPath {} -> Nothing
+
+
+data ModKind = AFunctor | ASignature | AModule
+    deriving (Show, Generic, NFData, Eq, Ord)
+
+instance PP ModKind where
+  ppPrec _ e =
+    case e of
+      AFunctor   -> "a functor"
+      ASignature -> "an interface"
+      AModule    -> "a module"
+
 
 
 instance PP RenamerError where
@@ -119,19 +152,6 @@ instance PP RenamerError where
                  , text "are not compatible."
                  , text "You may use explicit parentheses to disambiguate." ])
 
-    InvalidConstraint ty ->
-      hang (hsep $ [text "[error]"] ++ maybe [] (\r -> [text "at" <+> pp r]) (getLoc ty))
-         4 (fsep [ pp ty, text "is not a valid constraint" ])
-
-    MalformedBuiltin ty pn ->
-      hang (hsep $ [text "[error]"] ++ maybe [] (\r -> [text "at" <+> pp r]) (getLoc ty))
-         4 (fsep [ text "invalid use of built-in type", pp pn
-                 , text "in type", pp ty ])
-
-    BoundReservedType n loc src ->
-      hang (hsep $ [text "[error]"] ++ maybe [] (\r -> [text "at" <+> pp r]) loc)
-         4 (fsep [ text "built-in type", quotes (pp n), text "shadowed in", src ])
-
     OverlappingRecordUpdate xs ys ->
       hang "[error] Overlapping record updates:"
          4 (vcat [ ppLab xs, ppLab ys ])
@@ -140,9 +160,31 @@ instance PP RenamerError where
 
     InvalidDependency ds ->
       hang "[error] Invalid recursive dependency:"
-         4 (vcat [ "•" <+> pp x <.> ", defined at" <+> ppR (depNameLoc x)
+         4 (vcat [ "•" <+> pp x <.>
+                    case depNameLoc x of
+                      Just r -> ", defined at" <+> ppR r
+                      Nothing -> mempty
                  | x <- ds ])
       where ppR r = pp (from r) <.> "--" <.> pp (to r)
+
+    MultipleModParams x rs ->
+      hang ("[error] Multiple parameters with name" <+> backticks (pp x))
+         4 (vcat [ "•" <+> pp r | r <- rs ])
+
+    InvalidFunctorImport x ->
+      hang ("[error] Invalid import of functor" <+> backticks (pp x))
+        4 "• Functors need to be instantiated before they can be imported."
+
+    UnexpectedNest s x ->
+      hang ("[error] at" <+> pp s)
+        4 ("submodule" <+> backticks (pp x) <+> "may not be defined here.")
+
+    ModuleKindMismatch r x expected actual ->
+      hang ("[error] at" <+> pp r)
+        4 (vcat [ "• Expected" <+> pp expected
+                , "•" <+> backticks (pp x) <+> "is" <+> pp actual
+                ])
+
 
 instance PP DepName where
   ppPrec _ d =
@@ -153,6 +195,11 @@ instance PP DepName where
           NSModule -> "submodule" <+> pp n
           NSType   -> "type" <+> pp n
           NSValue  -> pp n
+      ModParamName _r i -> "module parameter" <+> pp i
+      ModPath mp ->
+        case modPathSplit mp of
+          (m,[]) -> "module" <+> pp m
+          (_,is) -> "submodule" <+> hcat (intersperse "::" (map pp is))
 
 
 

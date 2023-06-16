@@ -1,0 +1,6 @@
+Loading module Cryptol
+
+Parse error at T038.cry:18:3--18:21
+  Functor instantiations are not supported in this context.
+  The imported entity needs to be just the name of a module.
+  A workaround would be to do the instantion in the outer context.

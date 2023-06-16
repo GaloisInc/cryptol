@@ -1,0 +1,21 @@
+interface submodule S where
+  x : [8]
+
+submodule G where
+  import interface submodule S
+  y = x + 1
+
+submodule F where
+  import interface submodule S as A
+
+  submodule H where
+    import submodule G { interface A }
+    z = A::x + y
+
+import submodule F where
+  x = 5
+
+import submodule H
+
+
+

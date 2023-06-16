@@ -1,0 +1,17 @@
+
+submodule F where
+  parameter
+    type n : #
+    type constraint (fin n, n >= 2)
+
+  x : [n]
+  x = 2
+
+
+submodule M = submodule F where
+  type n = 2
+
+import submodule M as M
+
+
+

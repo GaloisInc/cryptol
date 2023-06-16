@@ -6,16 +6,15 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE Trustworthy #-}
-
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE RankNTypes #-}
 -- for the instances of RunM and BaseM
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -25,12 +24,17 @@ module Cryptol.ModuleSystem.Name (
   , NameSource(..)
   , nameUnique
   , nameIdent
+  , mapNameIdent
   , nameInfo
   , nameLoc
   , nameFixity
   , nameNamespace
   , asPrim
   , asOrigName
+  , nameModPath
+  , nameModPathMaybe
+  , nameTopModule
+  , nameTopModuleMaybe
   , ppLocName
   , Namespace(..)
   , ModPath(..)
@@ -38,15 +42,15 @@ module Cryptol.ModuleSystem.Name (
 
     -- ** Creation
   , mkDeclared
-  , mkParameter
-  , toParamInstName
-  , asParamName
-  , paramModRecParam
+  , mkLocal
+  , asLocal
+  , mkModParam
 
     -- ** Unique Supply
   , FreshM(..), nextUniqueM
-  , SupplyT(), runSupplyT
+  , SupplyT(), runSupplyT, runSupply
   , Supply(), emptySupply, nextUnique
+  , freshNameFor
 
     -- ** PrimMap
   , PrimMap(..)
@@ -57,6 +61,7 @@ module Cryptol.ModuleSystem.Name (
 import           Control.DeepSeq
 import qualified Data.Map as Map
 import qualified Data.Monoid as M
+import           Data.Functor.Identity(runIdentity)
 import           GHC.Generics (Generic)
 import           MonadLib
 import           Prelude ()
@@ -66,35 +71,23 @@ import           Data.Char(isAlpha,toUpper)
 
 
 
-import           Cryptol.Parser.Position (Range,Located(..),emptyRange)
+import           Cryptol.Parser.Position (Range,Located(..))
 import           Cryptol.Utils.Fixity
 import           Cryptol.Utils.Ident
 import           Cryptol.Utils.Panic
 import           Cryptol.Utils.PP
 
-
+data NameInfo = GlobalName NameSource OrigName
+              | LocalName Namespace Ident
+                deriving (Generic, NFData, Show)
 
 -- Names -----------------------------------------------------------------------
--- | Information about the binding site of the name.
-data NameInfo = Declared !ModPath !NameSource
-                -- ^ This name refers to a declaration from this module
-              | Parameter
-                -- ^ This name is a parameter (function or type)
-                deriving (Eq, Show, Generic, NFData)
-
-
 data Name = Name { nUnique :: {-# UNPACK #-} !Int
                    -- ^ INVARIANT: this field uniquely identifies a name for one
                    -- session with the Cryptol library. Names are unique to
                    -- their binding site.
 
                  , nInfo :: !NameInfo
-                   -- ^ Information about the origin of this name.
-
-                 , nNamespace :: !Namespace
-
-                 , nIdent :: !Ident
-                   -- ^ The name of the identifier
 
                  , nFixity :: !(Maybe Fixity)
                    -- ^ The associativity and precedence level of
@@ -150,7 +143,12 @@ cmpNameDisplay disp l r =
   fmtPref og = case getNameFormat og disp of
                  UnQualified -> ""
                  Qualified q -> modNameToText q
-                 NotInScope  -> Text.pack $ show $ pp (ogModule og)
+                 NotInScope  ->
+                    let m = Text.pack (show (pp (ogModule og)))
+                    in
+                    case ogSource og of
+                      FromModParam q  -> m <> "::" <> Text.pack (show (pp q))
+                      _ -> m
 
   -- Note that this assumes that `xs` is `l` and `ys` is `r`
   cmpText xs ys =
@@ -173,10 +171,13 @@ cmpNameDisplay disp l r =
 -- the need for parentheses.
 ppName :: Name -> Doc
 ppName nm =
-  case asOrigName nm of
-    Just og -> pp og
-    Nothing -> pp (nameIdent nm)
-
+  case nInfo nm of
+    GlobalName _ og -> pp og
+    LocalName _ i   -> pp i
+  <.>
+  withPPCfg \cfg ->
+    if ppcfgShowNameUniques cfg then "_" <.> int (nameUnique nm)
+                                else mempty
 
 instance PP Name where
   ppPrec _ = ppPrefixName
@@ -184,12 +185,12 @@ instance PP Name where
 instance PPName Name where
   ppNameFixity n = nameFixity n
 
-  ppInfixName n@Name { .. }
-    | isInfixIdent nIdent = ppName n
+  ppInfixName n
+    | isInfixIdent (nameIdent n) = ppName n
     | otherwise           = panic "Name" [ "Non-infix name used infix"
-                                         , show nIdent ]
+                                         , show (nameIdent n) ]
 
-  ppPrefixName n@Name { .. } = optParens (isInfixIdent nIdent) (ppName n)
+  ppPrefixName n = optParens (isInfixIdent (nameIdent n)) (ppName n)
 
 
 -- | Pretty-print a name with its source location information.
@@ -199,14 +200,26 @@ ppLocName n = pp Located { srcRange = nameLoc n, thing = n }
 nameUnique :: Name -> Int
 nameUnique  = nUnique
 
+nameInfo :: Name -> NameInfo
+nameInfo = nInfo
+
 nameIdent :: Name -> Ident
-nameIdent  = nIdent
+nameIdent n = case nInfo n of
+                GlobalName _ og -> ogName og
+                LocalName _ i   -> i
+
+mapNameIdent :: (Ident -> Ident) -> Name -> Name
+mapNameIdent f n =
+  n { nInfo =
+        case nInfo n of
+          GlobalName x og -> GlobalName x og { ogName = f (ogName og) }
+          LocalName x i   -> LocalName x (f i)
+    }
 
 nameNamespace :: Name -> Namespace
-nameNamespace = nNamespace
-
-nameInfo :: Name -> NameInfo
-nameInfo  = nInfo
+nameNamespace n = case nInfo n of
+                    GlobalName _ og -> ogNamespace og
+                    LocalName ns _  -> ns
 
 nameLoc :: Name -> Range
 nameLoc  = nLoc
@@ -216,29 +229,41 @@ nameFixity = nFixity
 
 -- | Primtiives must be in a top level module, at least for now.
 asPrim :: Name -> Maybe PrimIdent
-asPrim Name { .. } =
-  case nInfo of
-    Declared (TopModule m) _ -> Just $ PrimIdent m $ identText nIdent
-    _                        -> Nothing
-
-toParamInstName :: Name -> Name
-toParamInstName n =
+asPrim n =
   case nInfo n of
-    Declared m s -> n { nInfo = Declared (apPathRoot paramInstModName m) s }
-    Parameter   -> n
+    GlobalName _ og
+      | TopModule m <- ogModule og, not (ogFromModParam og) ->
+        Just $ PrimIdent m $ identText $ ogName og
 
-asParamName :: Name -> Name
-asParamName n = n { nInfo = Parameter }
+    _ -> Nothing
 
 asOrigName :: Name -> Maybe OrigName
-asOrigName nm =
-  case nInfo nm of
-    Declared p _ ->
-      Just OrigName { ogModule    = apPathRoot notParamInstModName  p
-                    , ogNamespace = nNamespace nm
-                    , ogName      = nIdent nm
-                    }
-    Parameter    -> Nothing
+asOrigName n =
+  case nInfo n of
+    GlobalName _ og -> Just og
+    LocalName {}    -> Nothing
+
+-- | Get the module path for the given name.
+nameModPathMaybe :: Name -> Maybe ModPath
+nameModPathMaybe n = ogModule <$> asOrigName n
+
+-- | Get the module path for the given name.
+-- The name should be a top-level name.
+nameModPath :: Name -> ModPath
+nameModPath n =
+  case nameModPathMaybe n of
+    Just p  -> p
+    Nothing -> panic "nameModPath" [ "Not a top-level name: ", show n ]
+
+
+-- | Get the name of the top-level module that introduced this name.
+nameTopModuleMaybe :: Name -> Maybe ModName
+nameTopModuleMaybe = fmap topModuleFor . nameModPathMaybe
+
+-- | Get the name of the top-level module that introduced this name.
+-- Works only for top-level names (i.e., that have original names)
+nameTopModule :: Name -> ModName
+nameTopModule = topModuleFor . nameModPath
 
 
 -- Name Supply -----------------------------------------------------------------
@@ -270,6 +295,9 @@ newtype SupplyT m a = SupplyT { unSupply :: StateT Supply m a }
 
 runSupplyT :: Monad m => Supply -> SupplyT m a -> m (a,Supply)
 runSupplyT s (SupplyT m) = runStateT s m
+
+runSupply :: Supply -> (forall m. FreshM m => m a) -> (a,Supply)
+runSupply s m = runIdentity (runSupplyT s m)
 
 instance Monad m => Functor (SupplyT m) where
   fmap f (SupplyT m) = SupplyT (fmap f m)
@@ -315,8 +343,8 @@ data Supply = Supply !Int
 emptySupply :: Supply
 emptySupply  = Supply 0x1000
 -- For one such name, see paramModRecParam
--- XXX: perhaps we should simply not have such things, but that's the way
--- for now.
+-- XXX: perhaps we should simply not have such things
+-- XXX: do we have these anymore?
 
 nextUnique :: Supply -> (Int,Supply)
 nextUnique (Supply n) = s' `seq` (n,s')
@@ -330,26 +358,77 @@ nextUnique (Supply n) = s' `seq` (n,s')
 mkDeclared ::
   Namespace -> ModPath -> NameSource -> Ident -> Maybe Fixity -> Range ->
   Supply -> (Name,Supply)
-mkDeclared nNamespace m sys nIdent nFixity nLoc s =
-  let (nUnique,s') = nextUnique s
-      nInfo        = Declared m sys
-   in (Name { .. }, s')
+mkDeclared ns m sys ident fixity loc s = (name, s')
+  where
+  (u,s') = nextUnique s
+  name = Name { nUnique   = u
+              , nFixity   = fixity
+              , nLoc      = loc
+              , nInfo     = GlobalName
+                              sys
+                              OrigName
+                                { ogNamespace = ns
+                                , ogModule    = m
+                                , ogName      = ident
+                                , ogSource    = FromDefinition
+                                }
+              }
 
 -- | Make a new parameter name.
-mkParameter :: Namespace -> Ident -> Range -> Supply -> (Name,Supply)
-mkParameter nNamespace nIdent nLoc s =
-  let (nUnique,s') = nextUnique s
-      nFixity      = Nothing
-   in (Name { nInfo = Parameter, .. }, s')
+mkLocal :: Namespace -> Ident -> Range -> Supply -> (Name,Supply)
+mkLocal ns ident loc s = (name, s')
+  where
+  (u,s')  = nextUnique s
+  name    = Name { nUnique = u
+                 , nLoc    = loc
+                 , nFixity = Nothing
+                 , nInfo   = LocalName ns ident
+                 }
 
-paramModRecParam :: Name
-paramModRecParam = Name { nInfo = Parameter
-                        , nFixity = Nothing
-                        , nIdent  = packIdent "$modParams"
-                        , nLoc    = emptyRange
-                        , nUnique = 0x01
-                        , nNamespace = NSValue
-                        }
+{- | Make a local name derived from the given name.
+This is a bit questionable,
+but it is used by the translation to SAW Core -}
+asLocal :: Namespace -> Name -> Name
+asLocal ns x =
+  case nameInfo x of
+    GlobalName _ og -> x { nInfo = LocalName ns (ogName og) }
+    LocalName {}    -> x
+
+mkModParam ::
+  ModPath {- ^ Module containing the parameter -} ->
+  Ident   {- ^ Name of the module parameter    -} ->
+  Range   {- ^ Location                        -} ->
+  Name    {- ^ Name in the signature           -} ->
+  Supply -> (Name, Supply)
+mkModParam own pname rng n s = (name, s')
+  where
+  (u,s') = nextUnique s
+  name = Name { nUnique = u
+              , nInfo   = GlobalName
+                            UserName
+                            OrigName
+                              { ogModule    = own
+                              , ogName      = nameIdent n
+                              , ogNamespace = nameNamespace n
+                              , ogSource    = FromModParam pname
+                              }
+              , nFixity = nFixity n
+              , nLoc    = rng
+              }
+
+-- | This is used when instantiating functors
+freshNameFor :: ModPath -> Name -> Supply -> (Name,Supply)
+freshNameFor mpath x s = (newName, s1)
+  where
+  (u,s1) = nextUnique s
+  newName =
+    x { nUnique = u
+      , nInfo =
+          case nInfo x of
+            GlobalName src og -> GlobalName src og { ogModule = mpath
+                                                   , ogSource = FromFunctorInst }
+            LocalName {} -> panic "freshNameFor" ["Unexpected local",show x]
+      }
 
 -- Prim Maps -------------------------------------------------------------------
 

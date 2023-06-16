@@ -1,0 +1,9 @@
+module M where
+
+submodule N where
+  type n = 7
+
+submodule B = A { submodule N }
+import submodule B
+
+type MyT = T

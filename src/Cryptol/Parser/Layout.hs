@@ -64,7 +64,11 @@ layout isMod ts0
   | let t         = head ts0
         rng       = srcRange t
         blockCol  = max 1 (col (from rng)) -- see startImplicitBlock
-  , isMod && tokenType (thing t) /= KW KW_module =
+        implictMod = case map (tokenType . thing) ts0 of
+                       KW KW_module : _                   -> False
+                       KW KW_interface : KW KW_module : _ -> False
+                       _                                  -> True
+  , isMod && implictMod =
     virt rng VCurlyL : go [ Virtual blockCol ] blockCol True ts0
 
   | otherwise =

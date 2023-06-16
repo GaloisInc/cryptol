@@ -1,0 +1,19 @@
+
+
+submodule F where
+  parameter
+    type n : #
+    x      : [n]
+    type constraint (fin n, n >= 4)
+
+  y : [n]
+  y = x + 11
+
+
+submodule I where
+  type n = 8
+  x = 2
+
+submodule M = submodule F { submodule I }
+
+import submodule M as M

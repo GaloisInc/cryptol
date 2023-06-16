@@ -1,8 +1,10 @@
-import `Common::AES_GCM_SIV
 
+import Common::AES_GCM_SIV as AES_GCM_SIV_0_56 where
+  type Mode = 0
+  type AAD = 56
 
 property test0 =
-  aes_gcm_siv
+  AES_GCM_SIV_0_56::aes_gcm_siv
     { key   = 0xee8e1ed9ff2540ae8f2ba9f50bc2f27c
     , nonce = 0x752abad3e0afb5f434dc4310
     , aad   = join "example"
@@ -12,8 +14,13 @@ property test0 =
   0x5d349ead175ef6b1def6fd #
   0x4fbcdeb7e4793f4a1d7e4faa70100af1
 
+
+import Common::AES_GCM_SIV as AES_GCM_SIV_0_0 where
+  type Mode = 0
+  type AAD = 0
+
 property test1 =
-  aes_gcm_siv
+  AES_GCM_SIV_0_0::aes_gcm_siv
     { key   = 0x01000000000000000000000000000000
     , nonce = 0x030000000000000000000000
     , aad   = []
@@ -23,7 +30,7 @@ property test1 =
   0xdc20e2d83f25705bb49e439eca56de25
 
 property test2 =
-  aes_gcm_siv
+  AES_GCM_SIV_0_0::aes_gcm_siv
     { key   = 0x01000000000000000000000000000000
     , nonce = 0x030000000000000000000000
     , aad   = []
@@ -34,7 +41,7 @@ property test2 =
   0x5b287c22493a364c
 
 property test3 =
-  aes_gcm_siv
+  AES_GCM_SIV_0_0::aes_gcm_siv
     { key   = 0x01000000000000000000000000000000
     , nonce = 0x030000000000000000000000
     , aad   = []
@@ -45,7 +52,7 @@ property test3 =
   0x57391a0bc4fdec8b0d106639
 
 property test4 =
-  aes_gcm_siv
+  AES_GCM_SIV_0_0::aes_gcm_siv
     { key   = 0x01000000000000000000000000000000
     , nonce = 0x030000000000000000000000
     , aad   = []
@@ -56,7 +63,7 @@ property test4 =
   0x303aaf90f6fe21199c6068577437a0c4
 
 property test5 =
-  aes_gcm_siv
+  AES_GCM_SIV_0_0::aes_gcm_siv
     { key   = 0x01000000000000000000000000000000
     , nonce = 0x030000000000000000000000
     , aad   = []
@@ -69,7 +76,7 @@ property test5 =
   0x1a8e45dcd4578c667cd86847bf6155ff
 
 property test6 =
-  aes_gcm_siv
+  AES_GCM_SIV_0_0::aes_gcm_siv
     { key   = 0x01000000000000000000000000000000
     , nonce = 0x030000000000000000000000
     , aad   = []
@@ -84,7 +91,7 @@ property test6 =
   0x5e6e311dbf395d35b0fe39c2714388f8
 
 property test7 =
-  aes_gcm_siv
+  AES_GCM_SIV_0_0::aes_gcm_siv
     { key   = 0x01000000000000000000000000000000
     , nonce = 0x030000000000000000000000
     , aad   = []
@@ -100,8 +107,13 @@ property test7 =
   0x36697f25b4cd169c6590d1dd39566d3f #
   0x8a263dd317aa88d56bdf3936dba75bb8
 
+
+import Common::AES_GCM_SIV as AES_GCM_SIV_0_8 where
+  type Mode = 0
+  type AAD = 8
+
 property test8 =
- aes_gcm_siv
+ AES_GCM_SIV_0_8::aes_gcm_siv
     { key   = 0x01000000000000000000000000000000
     , nonce = 0x030000000000000000000000
     , aad   = 0x01
@@ -112,7 +124,7 @@ property test8 =
   0x790d99759abd1508
 
 property test9 =
-  aes_gcm_siv
+  AES_GCM_SIV_0_8::aes_gcm_siv
     { key   = 0x01000000000000000000000000000000
     , nonce = 0x030000000000000000000000
     , aad   = 0x01
@@ -123,7 +135,7 @@ property test9 =
   0x02745aaa3a0c469fad9e075a
 
 property test10 =
-  aes_gcm_siv
+  AES_GCM_SIV_0_8::aes_gcm_siv
     { key   = 0x01000000000000000000000000000000
     , nonce = 0x030000000000000000000000
     , aad   = 0x01
@@ -134,7 +146,7 @@ property test10 =
   0x8f8936ec039e4e4bb97ebd8c4457441f
 
 property test11 =
-  aes_gcm_siv
+  AES_GCM_SIV_0_8::aes_gcm_siv
     { key   = 0x01000000000000000000000000000000
     , nonce = 0x030000000000000000000000
     , aad   = 0x01
@@ -147,7 +159,7 @@ property test11 =
   0xe6af6a7f87287da059a71684ed3498e1
 
 property test12 =
-  aes_gcm_siv
+  AES_GCM_SIV_0_8::aes_gcm_siv
     { key   = 0x01000000000000000000000000000000
     , nonce = 0x030000000000000000000000
     , aad   = 0x01
@@ -162,7 +174,7 @@ property test12 =
   0x6a8cc3865f76897c2e4b245cf31c51f2
 
 property test13 =
-  aes_gcm_siv
+  AES_GCM_SIV_0_8::aes_gcm_siv
     { key   = 0x01000000000000000000000000000000
     , nonce = 0x030000000000000000000000
     , aad   = 0x01
@@ -179,8 +191,12 @@ property test13 =
   0xcdc46ae475563de037001ef84ae21744
 
 
+import Common::AES_GCM_SIV as AES_GCM_SIV_0_96 where
+  type Mode = 0
+  type AAD = 96
+
 property test14 =
-  aes_gcm_siv
+  AES_GCM_SIV_0_96::aes_gcm_siv
     { msg = 0x02000000
     , aad = 0x010000000000000000000000
     , key = 0x01000000000000000000000000000000
@@ -190,8 +206,13 @@ property test14 =
   0xa8fe3e8707eb1f84fb28f8cb73de8e99 #
   0xe2f48a14
 
+
+import Common::AES_GCM_SIV as AES_GCM_SIV_0_144 where
+  type Mode = 0
+  type AAD = 144
+
 property test15 =
-  aes_gcm_siv
+  AES_GCM_SIV_0_144::aes_gcm_siv
     { msg = 0x03000000000000000000000000000000 #
             0x04000000
     , aad = 0x01000000000000000000000000000000 #
@@ -205,8 +226,12 @@ property test15 =
   0xfe106514
 
 
+import Common::AES_GCM_SIV as AES_GCM_SIV_0_160 where
+  type Mode = 0
+  type AAD = 160
+
 property test16 =
-  aes_gcm_siv
+  AES_GCM_SIV_0_160::aes_gcm_siv
     { msg =   0x03000000000000000000000000000000 #
               0x0400
     , aad   = 0x01000000000000000000000000000000 #
@@ -219,8 +244,9 @@ property test16 =
   0x2adabff9b2ef00fb47920cc72a0c0f13 #
   0xb9fd
 
+
 property test16' =
-  aes_gcm_siv
+  AES_GCM_SIV_0_0::aes_gcm_siv
    { msg = []
    , aad = []
    , key = 0xe66021d5eb8e4f4066d4adb9c33560e4
@@ -228,8 +254,13 @@ property test16' =
    }
    == 0xa4194b79071b01a87d65f706e3949578
 
+
+import Common::AES_GCM_SIV as AES_GCM_SIV_0_40 where
+  type Mode = 0
+  type AAD = 40
+
 property test17 =
-  aes_gcm_siv
+  AES_GCM_SIV_0_40::aes_gcm_siv
    { msg = 0x7a806c
    , aad = 0x46bb91c3c5
    , key = 0x36864200e0eaf5284d884a0e77d31646
@@ -239,8 +270,12 @@ property test17 =
       0xa428a8
 
 
+import Common::AES_GCM_SIV as AES_GCM_SIV_0_80 where
+  type Mode = 0
+  type AAD = 80
+
 property test18 =
-  aes_gcm_siv
+  AES_GCM_SIV_0_80::aes_gcm_siv
    { msg = 0xbdc66f146545
    , aad = 0xfc880c94a95198874296
    , key = 0xaedb64a6c590bc84d1a5e269e4b47801
@@ -250,8 +285,12 @@ property test18 =
       0x743dba20f966
 
 
+import Common::AES_GCM_SIV as AES_GCM_SIV_0_120 where
+  type Mode = 0
+  type AAD = 120
+
 property test19 =
-  aes_gcm_siv
+  AES_GCM_SIV_0_120::aes_gcm_siv
    { msg = 0x1177441f195495860f
    , aad = 0x046787f3ea22c127aaf195d1894728
    , key = 0xd5cc1fd161320b6920ce07787f86743b
@@ -262,7 +301,7 @@ property test19 =
 
 
 property test20 =
-  aes_gcm_siv
+  AES_GCM_SIV_0_160::aes_gcm_siv
    { msg = 0x9f572c614b4745914474e7c7
    , aad = 0xc9882e5386fd9f92ec489c8fde2be2cf #
            0x97e74e93
@@ -272,8 +311,13 @@ property test20 =
    == 0xf54673c5ddf710c745641c8bc1dc2f87 #
       0x1fb7561da1286e655e24b7b0
 
+
+import Common::AES_GCM_SIV as AES_GCM_SIV_0_200 where
+  type Mode = 0
+  type AAD = 200
+
 property test21 =
-  aes_gcm_siv
+  AES_GCM_SIV_0_200::aes_gcm_siv
    { msg = 0x0d8c8451178082355c9e940fea2f58
    , aad = 0x2950a70d5a1db2316fd568378da107b5 #
            0x2b0da55210cc1c1b0a
@@ -284,8 +328,12 @@ property test21 =
            0xb3449b9f39552de99dc214a1190b0b
 
 
+import Common::AES_GCM_SIV as AES_GCM_SIV_0_240 where
+  type Mode = 0
+  type AAD = 240
+
 property test22 =
-  aes_gcm_siv
+  AES_GCM_SIV_0_240::aes_gcm_siv
    { msg = 0x6b3db4da3d57aa94842b9803a96e07fb #
            0x6de7
    , aad = 0x1860f762ebfbd08284e421702de0de18 #
@@ -298,8 +346,12 @@ property test22 =
            0xdb84
 
 
+import Common::AES_GCM_SIV as AES_GCM_SIV_0_280 where
+  type Mode = 0
+  type AAD = 280
+
 property test23 =
-  aes_gcm_siv
+  AES_GCM_SIV_0_280::aes_gcm_siv
    { msg = 0xe42a3c02c25b64869e146d7b233987bd #
            0xdfc240871d
    , aad = 0x7576f7028ec6eb5ea7e298342a94d4b2 #
@@ -312,8 +364,13 @@ property test23 =
       0xb3ee197d052d15506c84a9edd65e13e9 #
       0xd24a2a6e70
 
+
+import Common::AES_GCM_SIV as AES_GCM_SIV_1_0 where
+  type Mode = 1
+  type AAD = 0
+
 property test24 =
-  aes_gcm_siv
+  AES_GCM_SIV_1_0::aes_gcm_siv
    { msg = []
    , aad = []
    , key = 0x01000000000000000000000000000000 #
@@ -322,9 +379,8 @@ property test24 =
    }
    == 0x07f5f4169bbf55a8400cd47ea6fd400f
 
-
 property test25 =
-  aes_gcm_siv
+  AES_GCM_SIV_1_0::aes_gcm_siv
    { msg = 0x0100000000000000
    , aad = []
    , key = 0x01000000000000000000000000000000 #
@@ -335,7 +391,7 @@ property test25 =
       0x61e0b97427e3df28
 
 property test26 =
-  aes_gcm_siv
+  AES_GCM_SIV_1_0::aes_gcm_siv
    { msg = 0x010000000000000000000000
    , aad = []
    , key = 0x01000000000000000000000000000000 #
@@ -346,7 +402,7 @@ property test26 =
       0xae6559e48fd10f6e5c9ca17e
 
 property test27 =
-  aes_gcm_siv
+  AES_GCM_SIV_1_0::aes_gcm_siv
    { msg = 0x01000000000000000000000000000000
    , aad = []
    , key = 0x01000000000000000000000000000000 #
@@ -356,9 +412,8 @@ property test27 =
    == 0x85a01b63025ba19b7fd3ddfc033b3e76 #
       0xc9eac6fa700942702e90862383c6c366
 
-
 property test28 =
-  aes_gcm_siv
+  AES_GCM_SIV_1_0::aes_gcm_siv
    { msg = 0x01000000000000000000000000000000 #
            0x02000000000000000000000000000000
    , aad = []
@@ -370,9 +425,8 @@ property test28 =
       0x21ec9cf850948a7c86c68ac7539d027f #
       0xe819e63abcd020b006a976397632eb5d
 
-
 property test29 =
-  aes_gcm_siv
+  AES_GCM_SIV_1_0::aes_gcm_siv
    { msg = 0x01000000000000000000000000000000 #
            0x02000000000000000000000000000000 #
            0x03000000000000000000000000000000
@@ -387,9 +441,8 @@ property test29 =
       0x9cf6c748837b61f6ee3adcee17534ed5 #
       0x790bc96880a99ba804bd12c0e6a22cc4
 
-
 property test30 =
-  aes_gcm_siv
+  AES_GCM_SIV_1_0::aes_gcm_siv
    { msg = 0x01000000000000000000000000000000 #
            0x02000000000000000000000000000000 #
            0x03000000000000000000000000000000 #
@@ -406,8 +459,12 @@ property test30 =
       0x112864c269fc0d9d88c61fa47e39aa08
 
 
+import Common::AES_GCM_SIV as AES_GCM_SIV_1_8 where
+  type Mode = 1
+  type AAD = 8
+
 property test31 =
-  aes_gcm_siv
+  AES_GCM_SIV_1_8::aes_gcm_siv
    { msg = 0x0200000000000000
    , aad = 0x01
    , key = 0x01000000000000000000000000000000 #
@@ -417,9 +474,8 @@ property test31 =
    == 0x1de22967237a813291213f267e3b452f #
       0x02d01ae33e4ec854
 
-
 property test32 =
-  aes_gcm_siv
+  AES_GCM_SIV_1_8::aes_gcm_siv
    { msg = 0x020000000000000000000000
    , aad = 0x01
    , key = 0x01000000000000000000000000000000 #
@@ -429,9 +485,8 @@ property test32 =
    == 0x163d6f9cc1b346cd453a2e4cc1a4a19a #
       0xe800941ccdc57cc8413c277f
 
-
 property test33 =
-  aes_gcm_siv
+  AES_GCM_SIV_1_8::aes_gcm_siv
    { msg = 0x02000000000000000000000000000000
    , aad = 0x01
    , key = 0x01000000000000000000000000000000 #
@@ -441,9 +496,8 @@ property test33 =
    == 0xc91545823cc24f17dbb0e9e807d5ec17 #
       0xb292d28ff61189e8e49f3875ef91aff7
 
-
 property test34 =
-  aes_gcm_siv
+  AES_GCM_SIV_1_8::aes_gcm_siv
    { msg = 0x02000000000000000000000000000000 #
            0x03000000000000000000000000000000
    , aad = 0x01
@@ -455,9 +509,8 @@ property test34 =
       0x6f255510aa654f920ac81b94e8bad365 #
       0xaea1bad12702e1965604374aab96dbbc
 
-
 property test35 =
-  aes_gcm_siv
+  AES_GCM_SIV_1_8::aes_gcm_siv
    { msg = 0x02000000000000000000000000000000 #
            0x03000000000000000000000000000000 #
            0x04000000000000000000000000000000
@@ -471,9 +524,8 @@ property test35 =
       0xfbca3b5f749cdf564527f2314f42fe25 #
       0x03332742b228c647173616cfd44c54eb
 
-
 property test36 =
-  aes_gcm_siv
+  AES_GCM_SIV_1_8::aes_gcm_siv
    { msg = 0x02000000000000000000000000000000 #
            0x03000000000000000000000000000000 #
            0x04000000000000000000000000000000 #
@@ -490,8 +542,12 @@ property test36 =
       0x5bde0285037c5de81e5b570a049b62a0
 
 
+import Common::AES_GCM_SIV as AES_GCM_SIV_1_96 where
+  type Mode = 1
+  type AAD = 96
+
 property test37 =
-  aes_gcm_siv
+  AES_GCM_SIV_1_96::aes_gcm_siv
    { msg = 0x02000000
    , aad = 0x010000000000000000000000
    , key = 0x01000000000000000000000000000000 #
@@ -502,8 +558,12 @@ property test37 =
       0x661b74cf
 
 
+import Common::AES_GCM_SIV as AES_GCM_SIV_1_144 where
+  type Mode = 1
+  type AAD = 144
+
 property test38 =
-  aes_gcm_siv
+  AES_GCM_SIV_1_144::aes_gcm_siv
    { msg = 0x03000000000000000000000000000000 #
            0x04000000
    , aad = 0x01000000000000000000000000000000 #
@@ -517,8 +577,12 @@ property test38 =
       0xcabfe307
 
 
+import Common::AES_GCM_SIV as AES_GCM_SIV_1_160 where
+  type Mode = 1
+  type AAD = 160
+
 property test39 =
-  aes_gcm_siv
+  AES_GCM_SIV_1_160::aes_gcm_siv
    { msg = 0x03000000000000000000000000000000 #
            0x0400
    , aad = 0x01000000000000000000000000000000 #
@@ -531,8 +595,9 @@ property test39 =
       0xa075cfcdf5042112aa29685c912fc205 #
       0x6543
 
+
 property test40 =
-  aes_gcm_siv
+  AES_GCM_SIV_1_0::aes_gcm_siv
    { msg = []
    , aad = []
    , key = 0xe66021d5eb8e4f4066d4adb9c33560e4 #
@@ -542,8 +607,12 @@ property test40 =
    == 0x169fbb2fbf389a995f6390af22228a62
 
 
+import Common::AES_GCM_SIV as AES_GCM_SIV_1_40 where
+  type Mode = 1
+  type AAD = 40
+
 property test41 =
-  aes_gcm_siv
+  AES_GCM_SIV_1_40::aes_gcm_siv
    { msg = 0x671fdd
    , aad = 0x4fbdc66f14
    , key = 0xbae8e37fc83441b16034566b7a806c46 #
@@ -554,8 +623,12 @@ property test41 =
       0x19719d
 
 
+import Common::AES_GCM_SIV as AES_GCM_SIV_1_80 where
+  type Mode = 1
+  type AAD = 80
+
 property test42 =
-  aes_gcm_siv
+  AES_GCM_SIV_1_80::aes_gcm_siv
    { msg = 0x195495860f04
    , aad = 0x6787f3ea22c127aaf195
    , key = 0x6545fc880c94a95198874296d5cc1fd1 #
@@ -566,8 +639,12 @@ property test42 =
       0xc12020ec8c2c
 
 
+import Common::AES_GCM_SIV as AES_GCM_SIV_1_120 where
+  type Mode = 1
+  type AAD = 120
+
 property test43 =
-  aes_gcm_siv
+  AES_GCM_SIV_1_120::aes_gcm_siv
    { msg = 0xc9882e5386fd9f92ec
    , aad = 0x489c8fde2be2cf97e74e932d4ed87d
    , key = 0xd1894728b3fed1473c528b8426a58299 #
@@ -579,7 +656,7 @@ property test43 =
 
 
 property test44 =
-  aes_gcm_siv
+  AES_GCM_SIV_1_160::aes_gcm_siv
    { msg = 0x1db2316fd568378da107b52b
    , aad = 0x0da55210cc1c1b0abde3b2f204d1e9f8 #
            0xb06bc47f
@@ -591,8 +668,12 @@ property test44 =
       0x587f64979f21826706d497d5
 
 
+import Common::AES_GCM_SIV as AES_GCM_SIV_1_200 where
+  type Mode = 1
+  type AAD = 200
+
 property test45 =
-  aes_gcm_siv
+  AES_GCM_SIV_1_200::aes_gcm_siv
    { msg = 0x21702de0de18baa9c9596291b08466
    , aad = 0xf37de21c7ff901cfe8a69615a93fdf7a #
            0x98cad481796245709f
@@ -604,8 +685,12 @@ property test45 =
       0x080d28f6ebb5d3648ce97bd5ba67fd
 
 
+import Common::AES_GCM_SIV as AES_GCM_SIV_1_240 where
+  type Mode = 1
+  type AAD = 240
+
 property test46 =
-  aes_gcm_siv
+  AES_GCM_SIV_1_240::aes_gcm_siv
    { msg = 0xb202b370ef9768ec6561c4fe6b7e7296 #
            0xfa85
    , aad = 0x9c2159058b1f0fe91433a5bdc20e214e #
@@ -619,8 +704,12 @@ property test46 =
       0x0a49
 
 
+import Common::AES_GCM_SIV as AES_GCM_SIV_1_280 where
+  type Mode = 1
+  type AAD = 280
+
 property test47 =
-  aes_gcm_siv
+  AES_GCM_SIV_1_280::aes_gcm_siv
    { msg = 0xced532ce4159b035277d4dfbb7db6296 #
            0x8b13cd4eec
    , aad = 0x734320ccc9d9bbbb19cb81b2af4ecbc3 #
@@ -636,7 +725,7 @@ property test47 =
 
 
 property test48 =
-  aes_gcm_siv
+  AES_GCM_SIV_1_0::aes_gcm_siv
    { msg = 0x00000000000000000000000000000000 #
            0x4db923dc793ee6497c76dcc03a98e108
    , aad = []
@@ -648,9 +737,8 @@ property test48 =
       0xc537703b5ba70324a6793a7bf218d3ea #
       0xffffffff000000000000000000000000
 
-
 property test49 =
-  aes_gcm_siv
+  AES_GCM_SIV_1_0::aes_gcm_siv
    { msg = 0xeb3640277c7ffd1303c7a542d02d3e4c #
            0x0000000000000000
    , aad = []
@@ -665,7 +753,7 @@ property test49 =
 
 
 property test50 =
-  aes_gcm_siv
+  AES_GCM_SIV_0_0::aes_gcm_siv
     { msg = 0x01000000000000000000000000000000 #
             0x02000000000000000000000000000000 #
             0x03000000000000000000000000000000 #

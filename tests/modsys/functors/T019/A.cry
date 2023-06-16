@@ -1,0 +1,5 @@
+module T019::A where
+
+import interface T019::I
+  
+main = x + y

@@ -349,7 +349,7 @@ varToExpr prims = go
          in case res of
               Left _ -> mismatch -- different fields
               Right efs ->
-                let f = foldl (\x t -> ETApp x (tNumValTy t)) (EVar (ntName nt)) ts
+                let f = foldl (\x t -> ETApp x (tNumValTy t)) (EVar (ntConName nt)) ts
                  in EApp f (ERec efs)
 
       (FTRecord tfs, VarRecord vfs) ->

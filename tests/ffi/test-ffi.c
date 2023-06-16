@@ -147,3 +147,4 @@ void iQ2Qi(mpz_t in_0, mpq_t in_1, mpq_t out_0, mpz_t out_1) {
   mpq_set(out_0, in_1);
 }
 
+uint8_t nested() { return 72; }

@@ -47,7 +47,7 @@ import qualified Cryptol.ModuleSystem.Base as Base
 import qualified Cryptol.ModuleSystem.Renamer as R
 import Cryptol.ModuleSystem.Name
   (Name, mkDeclared, NameSource( UserName ), liftSupply, nameIdent)
-import Cryptol.ModuleSystem.NamingEnv (singletonE, shadowing, namespaceMap)
+import Cryptol.ModuleSystem.NamingEnv (singletonNS, shadowing, namespaceMap)
 
 import qualified Cryptol.Parser as CP
 import qualified Cryptol.Parser.AST as CP
@@ -649,7 +649,7 @@ bindValToFreshName nameBase ty val = do
       liftModuleCmd (evalDecls [TC.NonRecursive decl])
       modifyModuleEnv $ \me ->
         let denv = meDynEnv me
-        in me {meDynEnv = denv { deNames = singletonE (CP.UnQual (mkIdent txt)) name `shadowing` deNames denv }}
+        in me {meDynEnv = denv { deNames = singletonNS NSValue (CP.UnQual (mkIdent txt)) name `shadowing` deNames denv }}
       return $ Just txt
   where
     genFresh :: CryptolCommand (Text, Name)
@@ -660,7 +660,7 @@ bindValToFreshName nameBase ty val = do
           mpath = TopModule interactiveName
       name <- liftSupply (mkDeclared NSValue mpath UserName ident Nothing emptyRange)
       pure (txt, name)
-      where nextNewName ::  Map CP.PName [Name] -> Int -> Text
+      where nextNewName ::  Map CP.PName a -> Int -> Text
             nextNewName ns n =
               let txt = "CryptolServer'" <> nameBase <> (T.pack $ show n)
                   pname = CP.UnQual (mkIdent txt)

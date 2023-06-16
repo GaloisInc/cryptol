@@ -1,12 +1,27 @@
 module GCM_AES_Tests where
 
-import `Common::GCM as GCM
-import AES as AES
+import AES as AES128 where
+  type m = 0
+  type k = 128
 
-gcmEncrypt = GCM::encrypt { E = AES::encrypt }
+import AES as AES192 where
+  type m = 1
+  type k = 192
+
+import AES as AES256 where
+  type m = 2
+  type k = 256
+
+
+import Common::GCM as GCM_128_96_0_128 where
+  type K = 128
+  type IV = 96
+  type AAD = 0
+  type T = 128
+  E = AES128::encrypt
 
 property test1 =
-  gcmEncrypt
+  GCM_128_96_0_128::encrypt
     { key = 0x00000000000000000000000000000000
     , pt  = []
     , iv  = 0x000000000000000000000000
@@ -18,7 +33,7 @@ property test1 =
   }
 
 property test2 =
-  gcmEncrypt
+  GCM_128_96_0_128::encrypt
     { key = 0x00000000000000000000000000000000
     , pt  = 0x00000000000000000000000000000000
     , iv  = 0x000000000000000000000000
@@ -29,9 +44,8 @@ property test2 =
   , tag = 0xab6e47d42cec13bdf53a67b21257bddf
   }
 
-
 property test3 =
-  gcmEncrypt
+  GCM_128_96_0_128::encrypt
     { key = 0xfeffe9928665731c6d6a8f9467308308
     , pt  = 0xd9313225f88406e5a55909c5aff5269a #
             0x86a7a9531534f7da2e4c303d8a318a72 #
@@ -49,8 +63,15 @@ property test3 =
   }
 
 
+import Common::GCM as GCM_128_96_160_128 where
+  type K = 128
+  type IV = 96
+  type AAD = 160
+  type T = 128
+  E = AES128::encrypt
+
 property test4 =
-  gcmEncrypt
+  GCM_128_96_160_128::encrypt
     { key = 0xfeffe9928665731c6d6a8f9467308308
     , pt  = 0xd9313225f88406e5a55909c5aff5269a #
             0x86a7a9531534f7da2e4c303d8a318a72 #
@@ -68,8 +89,16 @@ property test4 =
   , tag = 0x5bc94fbc3221a5db94fae95ae7121a47
   }
 
+
+import Common::GCM as GCM_128_64_160_128 where
+  type K = 128
+  type IV = 64
+  type AAD = 160
+  type T = 128
+  E = AES128::encrypt
+
 property test5 =
-  gcmEncrypt
+  GCM_128_64_160_128::encrypt
     { key = 0xfeffe9928665731c6d6a8f9467308308
     , pt  = 0xd9313225f88406e5a55909c5aff5269a #
             0x86a7a9531534f7da2e4c303d8a318a72 #
@@ -87,8 +116,16 @@ property test5 =
   , tag = 0x3612d2e79e3b0785561be14aaca2fccb
   }
 
+
+import Common::GCM as GCM_128_480_160_128 where
+  type K = 128
+  type IV = 480
+  type AAD = 160
+  type T = 128
+  E = AES128::encrypt
+
 property test6 =
-  gcmEncrypt
+  GCM_128_480_160_128::encrypt
     { key = 0xfeffe9928665731c6d6a8f9467308308
     , pt  = 0xd9313225f88406e5a55909c5aff5269a #
             0x86a7a9531534f7da2e4c303d8a318a72 #
@@ -109,8 +146,16 @@ property test6 =
   , tag = 0x619cc5aefffe0bfa462af43c1699d050
   }
 
+
+import Common::GCM as GCM_192_96_0_128 where
+  type K = 192
+  type IV = 96
+  type AAD = 0
+  type T = 128
+  E = AES192::encrypt
+
 property test7 =
-  gcmEncrypt
+  GCM_192_96_0_128::encrypt
     { key = 0x00000000000000000000000000000000 #
             0x0000000000000000
     , pt  = []
@@ -123,7 +168,7 @@ property test7 =
   }
 
 property test8 =
-  gcmEncrypt
+  GCM_192_96_0_128::encrypt
     { key = 0x00000000000000000000000000000000 #
             0x0000000000000000
     , pt  = 0x00000000000000000000000000000000
@@ -136,7 +181,7 @@ property test8 =
   }
 
 property test9 =
-  gcmEncrypt
+  GCM_192_96_0_128::encrypt
     { key = 0xfeffe9928665731c6d6a8f9467308308 #
             0xfeffe9928665731c
     , pt  = 0xd9313225f88406e5a55909c5aff5269a #
@@ -154,8 +199,16 @@ property test9 =
   , tag = 0x9924a7c8587336bfb118024db8674a14
   }
 
+
+import Common::GCM as GCM_192_96_160_128 where
+  type K = 192
+  type IV = 96
+  type AAD = 160
+  type T = 128
+  E = AES192::encrypt
+
 property test10 =
-  gcmEncrypt
+  GCM_192_96_160_128::encrypt
     { key = 0xfeffe9928665731c6d6a8f9467308308 #
             0xfeffe9928665731c
     , pt  = 0xd9313225f88406e5a55909c5aff5269a #
@@ -174,8 +227,16 @@ property test10 =
   , tag = 0x2519498e80f1478f37ba55bd6d27618c
   }
 
+
+import Common::GCM as GCM_192_64_160_128 where
+  type K = 192
+  type IV = 64
+  type AAD = 160
+  type T = 128
+  E = AES192::encrypt
+
 property test11 =
-  gcmEncrypt
+  GCM_192_64_160_128::encrypt
     { key = 0xfeffe9928665731c6d6a8f9467308308 #
             0xfeffe9928665731c
     , pt  = 0xd9313225f88406e5a55909c5aff5269a #
@@ -194,8 +255,16 @@ property test11 =
   , tag = 0x65dcc57fcf623a24094fcca40d3533f8
   }
 
+
+import Common::GCM as GCM_192_480_160_128 where
+  type K = 192
+  type IV = 480
+  type AAD = 160
+  type T = 128
+  E = AES192::encrypt
+
 property test12 =
-  gcmEncrypt
+  GCM_192_480_160_128::encrypt
     { key = 0xfeffe9928665731c6d6a8f9467308308 #
             0xfeffe9928665731c
     , pt  = 0xd9313225f88406e5a55909c5aff5269a #
@@ -217,8 +286,16 @@ property test12 =
   , tag = 0xdcf566ff291c25bbb8568fc3d376a6d9
   }
 
+
+import Common::GCM as GCM_256_96_0_128 where
+  type K = 256
+  type IV = 96
+  type AAD = 0
+  type T = 128
+  E = AES256::encrypt
+
 property test13 =
-  gcmEncrypt
+  GCM_256_96_0_128::encrypt
     { key = 0x00000000000000000000000000000000 #
             0x00000000000000000000000000000000
     , pt  = []
@@ -231,7 +308,7 @@ property test13 =
   }
 
 property test14 =
-  gcmEncrypt
+  GCM_256_96_0_128::encrypt
     { key = 0x00000000000000000000000000000000 #
             0x00000000000000000000000000000000
     , pt  = 0x00000000000000000000000000000000
@@ -244,7 +321,7 @@ property test14 =
   }
 
 property test15 =
-  gcmEncrypt
+  GCM_256_96_0_128::encrypt
     { key = 0xfeffe9928665731c6d6a8f9467308308 #
             0xfeffe9928665731c6d6a8f9467308308
     , pt  = 0xd9313225f88406e5a55909c5aff5269a #
@@ -262,8 +339,16 @@ property test15 =
   , tag = 0xb094dac5d93471bdec1a502270e3cc6c
   }
 
+
+import Common::GCM as GCM_256_96_160_128 where
+  type K = 256
+  type IV = 96
+  type AAD = 160
+  type T = 128
+  E = AES256::encrypt
+
 property test16 =
-  gcmEncrypt
+  GCM_256_96_160_128::encrypt
     { key = 0xfeffe9928665731c6d6a8f9467308308 #
             0xfeffe9928665731c6d6a8f9467308308
     , pt  = 0xd9313225f88406e5a55909c5aff5269a #
@@ -282,8 +367,16 @@ property test16 =
   , tag = 0x76fc6ece0f4e1768cddf8853bb2d551b
   }
 
+
+import Common::GCM as GCM_256_64_160_128 where
+  type K = 256
+  type IV = 64
+  type AAD = 160
+  type T = 128
+  E = AES256::encrypt
+
 property test17 =
-  gcmEncrypt
+  GCM_256_64_160_128::encrypt
     { key = 0xfeffe9928665731c6d6a8f9467308308 #
             0xfeffe9928665731c6d6a8f9467308308
     , pt  = 0xd9313225f88406e5a55909c5aff5269a #
@@ -302,8 +395,16 @@ property test17 =
   , tag = 0x3a337dbf46a792c45e454913fe2ea8f2
   }
 
+
+import Common::GCM as GCM_256_480_160_128 where
+  type K = 256
+  type IV = 480
+  type AAD = 160
+  type T = 128
+  E = AES256::encrypt
+
 property test18 =
-  gcmEncrypt
+  GCM_256_480_160_128::encrypt
     { key = 0xfeffe9928665731c6d6a8f9467308308 #
             0xfeffe9928665731c6d6a8f9467308308
     , pt  = 0xd9313225f88406e5a55909c5aff5269a #

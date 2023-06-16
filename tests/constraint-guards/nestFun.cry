@@ -1,0 +1,17 @@
+
+submodule A where
+
+  parameter
+    type n : #
+
+  f : Bool
+  f | n == 0 => True
+    | n > 0  => False
+
+import submodule A as Two where
+  type n = 2
+
+import submodule A as Zero where
+  type n = 0
+
+

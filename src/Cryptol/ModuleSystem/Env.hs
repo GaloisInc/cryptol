@@ -7,18 +7,20 @@
 -- Portability :  portable
 
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 module Cryptol.ModuleSystem.Env where
 
 #ifndef RELOCATABLE
 import Paths_cryptol (getDataDir)
 #endif
 
-import Cryptol.Backend.FFI (ForeignSrc, unloadForeignSrc)
+import Cryptol.Backend.FFI (ForeignSrc, unloadForeignSrc, getForeignSrcPath)
 import Cryptol.Eval (EvalEnv)
 import Cryptol.ModuleSystem.Fingerprint
 import Cryptol.ModuleSystem.Interface
@@ -35,9 +37,11 @@ import Control.Monad (guard,mplus)
 import qualified Control.Exception as X
 import Data.Function (on)
 import Data.Set(Set)
+import qualified Data.Set as Set
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Semigroup
+import Data.Maybe(fromMaybe)
 import System.Directory (getAppUserDataDirectory, getCurrentDirectory)
 import System.Environment(getExecutablePath)
 import System.FilePath ((</>), normalise, joinPath, splitPath, takeDirectory)
@@ -104,7 +108,7 @@ data CoreLint = NoCoreLint        -- ^ Don't run core lint
 resetModuleEnv :: ModuleEnv -> IO ModuleEnv
 resetModuleEnv env = do
   for_ (getLoadedModules $ meLoadedModules env) $ \lm ->
-    case lmForeignSrc lm of
+    case lmForeignSrc (lmData lm) of
       Just fsrc -> unloadForeignSrc fsrc
       _         -> pure ()
   pure env
@@ -178,9 +182,9 @@ loadedModules = map lmModule . getLoadedModules . meLoadedModules
 loadedNonParamModules :: ModuleEnv -> [T.Module]
 loadedNonParamModules = map lmModule . lmLoadedModules . meLoadedModules
 
-loadedNewtypes :: ModuleEnv -> Map Name IfaceNewtype
+loadedNewtypes :: ModuleEnv -> Map Name T.Newtype
 loadedNewtypes menv = Map.unions
-   [ ifNewtypes (ifPublic i) <> ifNewtypes (ifPrivate i)
+   [ ifNewtypes (ifDefines i) <> ifNewtypes (ifDefines i)
    | i <- map lmInterface (getLoadedModules (meLoadedModules menv))
    ]
 
@@ -191,10 +195,22 @@ hasParamModules = not . null . lmLoadedParamModules . meLoadedModules
 allDeclGroups :: ModuleEnv -> [T.DeclGroup]
 allDeclGroups = concatMap T.mDecls . loadedNonParamModules
 
+data ModContextParams =
+    InterfaceParams T.ModParamNames
+  | FunctorParams T.FunctorParams
+  | NoParams
+
+modContextParamNames :: ModContextParams -> T.ModParamNames
+modContextParamNames mp =
+  case mp of
+    InterfaceParams ps -> ps
+    FunctorParams ps   -> T.allParamNames ps
+    NoParams           -> T.allParamNames mempty
+
 -- | Contains enough information to browse what's in scope,
 -- or type check new expressions.
 data ModContext = ModContext
-  { mctxParams          :: IfaceParams
+  { mctxParams          :: ModContextParams -- T.FunctorParams
   , mctxExported        :: Set Name
   , mctxDecls           :: IfaceDecls
     -- ^ Should contain at least names in NamingEnv, but may have more
@@ -206,7 +222,7 @@ data ModContext = ModContext
 -- This instance is a bit bogus.  It is mostly used to add the dynamic
 -- environemnt to an existing module, and it makes sense for that use case.
 instance Semigroup ModContext where
-  x <> y = ModContext { mctxParams   = jnParams (mctxParams x) (mctxParams y)
+  x <> y = ModContext { mctxParams   = jnPs (mctxParams x) (mctxParams y)
                       , mctxExported = mctxExported x <> mctxExported y
                       , mctxDecls    = mctxDecls x  <> mctxDecls  y
                       , mctxNames    = names
@@ -215,14 +231,15 @@ instance Semigroup ModContext where
 
       where
       names = mctxNames x `R.shadowing` mctxNames y
-      jnParams a b
-        | isEmptyIfaceParams a = b
-        | isEmptyIfaceParams b = a
-        | otherwise =
-          panic "ModContext" [ "Cannot combined 2 parameterized contexts" ]
+      jnPs as bs =
+        case (as,bs) of
+          (NoParams,_) -> bs
+          (_,NoParams) -> as
+          (FunctorParams xs, FunctorParams ys) -> FunctorParams (xs <> ys)
+          _ -> panic "(<>) @ ModContext" ["Can't combine parameters"]
 
 instance Monoid ModContext where
-  mempty = ModContext { mctxParams   = noIfaceParams
+  mempty = ModContext { mctxParams   = NoParams
                       , mctxDecls    = mempty
                       , mctxExported = mempty
                       , mctxNames    = mempty
@@ -236,15 +253,35 @@ modContextOf mname me =
   do lm <- lookupModule mname me
      let localIface  = lmInterface lm
          localNames  = lmNamingEnv lm
-         loadedDecls = map (ifPublic . lmInterface)
+
+         -- XXX: do we want only public ones here?
+         loadedDecls = map (ifDefines . lmInterface)
                      $ getLoadedModules (meLoadedModules me)
+
+         params = ifParams localIface
      pure ModContext
-       { mctxParams   = ifParams localIface
-       , mctxExported = ifaceDeclsNames (ifPublic localIface)
-       , mctxDecls    = mconcat (ifPrivate localIface : loadedDecls)
+       { mctxParams   = if Map.null params then NoParams
+                                           else FunctorParams params
+       , mctxExported = ifsPublic (ifNames localIface)
+       , mctxDecls    = mconcat (ifDefines localIface : loadedDecls)
        , mctxNames    = localNames
        , mctxNameDisp = R.toNameDisp localNames
        }
+  `mplus`
+  do lm <- lookupSignature mname me
+     let localNames  = lmNamingEnv lm
+         -- XXX: do we want only public ones here?
+         loadedDecls = map (ifDefines . lmInterface)
+                     $ getLoadedModules (meLoadedModules me)
+     pure ModContext
+       { mctxParams   = InterfaceParams (lmData lm)
+       , mctxExported = Set.empty
+       , mctxDecls    = mconcat loadedDecls
+       , mctxNames    = localNames
+       , mctxNameDisp = R.toNameDisp localNames
+       }
+
+
 
 dynModContext :: ModuleEnv -> ModContext
 dynModContext me = mempty { mctxNames    = dynNames
@@ -284,6 +321,17 @@ instance Eq ModulePath where
       (InMem a _, InMem b _) -> a == b
       _ -> False
 
+-- | In-memory things are compared by label.
+instance Ord ModulePath where
+  compare p1 p2 =
+    case (p1,p2) of
+      (InFile x, InFile y)   -> compare x y
+      (InMem a _, InMem b _) -> compare a b
+      (InMem {}, InFile {})  -> LT
+      (InFile {}, InMem {})  -> GT
+
+
+
 instance PP ModulePath where
   ppPrec _ e =
     case e of
@@ -310,24 +358,49 @@ data LoadedModules = LoadedModules
   , lmLoadedParamModules :: [LoadedModule]
     -- ^ Loaded parameterized modules.
 
+  , lmLoadedSignatures :: ![LoadedSignature]
+
   } deriving (Show, Generic, NFData)
+
+data LoadedEntity =
+    ALoadedModule LoadedModule
+  | ALoadedFunctor LoadedModule
+  | ALoadedInterface LoadedSignature
+
+getLoadedEntities ::
+  LoadedModules -> Map ModName LoadedEntity
+getLoadedEntities lm =
+  Map.fromList $ [ (lmName x, ALoadedModule x) | x <- lmLoadedModules lm ] ++
+                 [ (lmName x, ALoadedFunctor x) | x <- lmLoadedParamModules lm ] ++
+                 [ (lmName x, ALoadedInterface x) | x <- lmLoadedSignatures lm ]
 
 getLoadedModules :: LoadedModules -> [LoadedModule]
 getLoadedModules x = lmLoadedParamModules x ++ lmLoadedModules x
+
+getLoadedNames :: LoadedModules -> Set ModName
+getLoadedNames lm = Set.fromList
+                  $ map lmName (lmLoadedModules lm)
+                 ++ map lmName (lmLoadedParamModules lm)
+                 ++ map lmName (lmLoadedSignatures lm)
 
 instance Semigroup LoadedModules where
   l <> r = LoadedModules
     { lmLoadedModules = List.unionBy ((==) `on` lmName)
                                       (lmLoadedModules l) (lmLoadedModules r)
-    , lmLoadedParamModules = lmLoadedParamModules l ++ lmLoadedParamModules r }
+    , lmLoadedParamModules = lmLoadedParamModules l ++ lmLoadedParamModules r
+    , lmLoadedSignatures   = lmLoadedSignatures l ++ lmLoadedSignatures r
+    }
 
 instance Monoid LoadedModules where
   mempty = LoadedModules { lmLoadedModules = []
                          , lmLoadedParamModules = []
+                         , lmLoadedSignatures = []
                          }
   mappend = (<>)
 
-data LoadedModule = LoadedModule
+-- | A generic type for loaded things.
+-- The things can be either modules or signatures.
+data LoadedModuleG a = LoadedModule
   { lmName              :: ModName
     -- ^ The name of this module.  Should match what's in 'lmModule'
 
@@ -342,25 +415,54 @@ data LoadedModule = LoadedModule
   , lmNamingEnv         :: !R.NamingEnv
     -- ^ What's in scope in this module
 
-  , lmInterface         :: Iface
+  , lmFileInfo          :: !FileInfo
+
+  , lmData              :: a
+  } deriving (Show, Generic, NFData)
+
+type LoadedModule = LoadedModuleG LoadedModuleData
+
+lmModule :: LoadedModule -> T.Module
+lmModule = lmdModule . lmData
+
+lmInterface :: LoadedModule -> Iface
+lmInterface = lmdInterface . lmData
+
+data LoadedModuleData = LoadedModuleData
+  { lmdInterface         :: Iface
     -- ^ The module's interface.
 
-  , lmModule            :: T.Module
+  , lmdModule            :: T.Module
     -- ^ The actual type-checked module
-
-  , lmFingerprint       :: Fingerprint
 
   , lmForeignSrc        :: Maybe ForeignSrc
     -- ^ The dynamically loaded source for any foreign functions in the module
   } deriving (Show, Generic, NFData)
 
+type LoadedSignature = LoadedModuleG T.ModParamNames
+
+
 -- | Has this module been loaded already.
 isLoaded :: ModName -> LoadedModules -> Bool
-isLoaded mn lm = any ((mn ==) . lmName) (getLoadedModules lm)
+isLoaded mn lm = mn `Set.member` getLoadedNames lm
 
 -- | Is this a loaded parameterized module.
 isLoadedParamMod :: ModName -> LoadedModules -> Bool
 isLoadedParamMod mn ln = any ((mn ==) . lmName) (lmLoadedParamModules ln)
+
+-- | Is this a loaded interface module.
+isLoadedInterface :: ModName -> LoadedModules -> Bool
+isLoadedInterface mn ln = any ((mn ==) . lmName) (lmLoadedSignatures ln)
+
+
+
+lookupTCEntity :: ModName -> ModuleEnv -> Maybe (LoadedModuleG T.TCTopEntity)
+lookupTCEntity m env =
+  case lookupModule m env of
+    Just lm -> pure lm { lmData = T.TCTopModule (lmModule lm) }
+    Nothing ->
+      do lm <- lookupSignature m env
+         pure lm { lmData = T.TCTopSignature m (lmData lm) }
 
 -- | Try to find a previously loaded module
 lookupModule :: ModName -> ModuleEnv -> Maybe LoadedModule
@@ -368,13 +470,39 @@ lookupModule mn me = search lmLoadedModules `mplus` search lmLoadedParamModules
   where
   search how = List.find ((mn ==) . lmName) (how (meLoadedModules me))
 
+lookupSignature :: ModName -> ModuleEnv -> Maybe LoadedSignature
+lookupSignature mn me =
+  List.find ((mn ==) . lmName) (lmLoadedSignatures (meLoadedModules me))
+
+addLoadedSignature ::
+  ModulePath -> String ->
+  FileInfo ->
+  R.NamingEnv ->
+  ModName -> T.ModParamNames ->
+  LoadedModules -> LoadedModules
+addLoadedSignature path ident fi nameEnv nm si lm
+  | isLoaded nm lm = lm
+  | otherwise = lm { lmLoadedSignatures = loaded : lmLoadedSignatures lm }
+  where
+  loaded = LoadedModule
+            { lmName        = nm
+            , lmFilePath    = path
+            , lmModuleId    = ident
+            , lmNamingEnv   = nameEnv
+            , lmData        = si
+            , lmFileInfo    = fi
+            }
 
 -- | Add a freshly loaded module.  If it was previously loaded, then
 -- the new version is ignored.
 addLoadedModule ::
-  ModulePath -> String -> Fingerprint -> R.NamingEnv -> Maybe ForeignSrc ->
+  ModulePath ->
+  String ->
+  FileInfo ->
+  R.NamingEnv ->
+  Maybe ForeignSrc ->
   T.Module -> LoadedModules -> LoadedModules
-addLoadedModule path ident fp nameEnv fsrc tm lm
+addLoadedModule path ident fi nameEnv fsrc tm lm
   | isLoaded (T.mName tm) lm  = lm
   | T.isParametrizedModule tm = lm { lmLoadedParamModules = loaded :
                                                 lmLoadedParamModules lm }
@@ -386,21 +514,52 @@ addLoadedModule path ident fp nameEnv fsrc tm lm
     , lmFilePath        = path
     , lmModuleId        = ident
     , lmNamingEnv       = nameEnv
-    , lmInterface       = T.genIface tm
-    , lmModule          = tm
-    , lmFingerprint     = fp
-    , lmForeignSrc      = fsrc
+    , lmData            = LoadedModuleData
+                             { lmdInterface = T.genIface tm
+                             , lmdModule    = tm
+                             , lmForeignSrc = fsrc
+                             }
+    , lmFileInfo        = fi
     }
 
 -- | Remove a previously loaded module.
 -- Note that this removes exactly the modules specified by the predicate.
 -- One should be carfule to preserve the invariant on 'LoadedModules'.
-removeLoadedModule :: (LoadedModule -> Bool) -> LoadedModules -> LoadedModules
+removeLoadedModule ::
+  (forall a. LoadedModuleG a -> Bool) -> LoadedModules -> LoadedModules
 removeLoadedModule rm lm =
   LoadedModules
-    { lmLoadedModules = filter (not . rm) (lmLoadedModules lm)
-    , lmLoadedParamModules = filter (not . rm) (lmLoadedParamModules lm)
+    { lmLoadedModules       = filter (not . rm) (lmLoadedModules lm)
+    , lmLoadedParamModules  = filter (not . rm) (lmLoadedParamModules lm)
+    , lmLoadedSignatures    = filter (not . rm) (lmLoadedSignatures lm)
     }
+
+-- FileInfo --------------------------------------------------------------------
+
+data FileInfo = FileInfo
+  { fiFingerprint :: Fingerprint
+  , fiIncludeDeps :: Set FilePath
+  , fiImportDeps  :: Set ModName
+  , fiForeignDeps :: Set FilePath
+  } deriving (Show,Generic,NFData)
+
+
+fileInfo ::
+  Fingerprint ->
+  Set FilePath ->
+  Set ModName ->
+  Maybe ForeignSrc ->
+  FileInfo
+fileInfo fp incDeps impDeps fsrc =
+  FileInfo
+    { fiFingerprint = fp
+    , fiIncludeDeps = incDeps
+    , fiImportDeps  = impDeps
+    , fiForeignDeps = fromMaybe Set.empty
+                      do src <- fsrc
+                         Set.singleton <$> getForeignSrcPath src
+    }
+
 
 -- Dynamic Environments --------------------------------------------------------
 
@@ -444,6 +603,8 @@ deIfaceDecls DEnv { deDecls = dgs, deTySyns = tySyns } =
                , ifAbstractTypes = Map.empty
                , ifDecls = decls
                , ifModules = Map.empty
+               , ifFunctors = Map.empty
+               , ifSignatures = Map.empty
                }
   where
     decls = mconcat

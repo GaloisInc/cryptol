@@ -1,7 +1,7 @@
 Modules
 =======
 
-A *module* is used to group some related definitions.  Each file may
+A *module* is used to group related definitions.  Each file may
 contain at most one top-level module.
 
 .. code-block:: cryptol
@@ -17,7 +17,7 @@ contain at most one top-level module.
 Hierarchical Module Names
 -------------------------
 
-Module may have either simple or *hierarchical* names.
+Modules may have either simple or *hierarchical* names.
 Hierarchical names are constructed by gluing together ordinary
 identifiers using the symbol ``::``.
 
@@ -28,8 +28,8 @@ identifiers using the symbol ``::``.
   sha256 = ...
 
 The structure in the name may be used to group together related
-modules.  Also, the Cryptol implementation uses the structure of the
-name to locate the file containing the definition of the module.
+modules. The Cryptol implementation uses the structure of the
+name to locate the file containing the module definition.
 For example, when searching for module ``Hash::SHA256``, Cryptol
 will look for a file named ``SHA256.cry`` in a directory called
 ``Hash``, contained in one of the directories specified by ``CRYPTOLPATH``.
@@ -241,7 +241,7 @@ is equivalent to the previous one:
 Nested Modules
 --------------
 
-Module may be declared withing other modules, using the ``submodule`` keword.
+Module may be declared within other modules, using the ``submodule`` keword.
 
 .. code-block:: cryptol
   :caption: Declaring a nested module called N
@@ -308,8 +308,8 @@ Managing Module Names
 
 The names of nested modules are managed by the module system just
 like the name of any other declaration in Cryptol.  Thus, nested
-modules may declared in the public or private sections of their
-containing module, and need to be imported before they can be used.
+modules may be declared in the public or private sections of their
+containing module, and must be imported before they can be used.
 Thus, to use a submodule defined in top-level module ``A`` into
 another top-level module ``B`` requires two steps:
 
@@ -335,11 +335,6 @@ another top-level module ``B`` requires two steps:
 Parameterized Modules
 ---------------------
 
-.. warning::
-  The documentation in this section is for the upcoming variant of
-  the feature, which is not yet part of main line Cryptol.
-
-
 Interface Modules
 ~~~~~~~~~~~~~~~~~
 
@@ -358,7 +353,7 @@ without providing a concrete implementation.
 
     x : [n]         // A declarations of a constant
 
-Like other modules, interfaces modules may be nested in
+Like other modules, interface modules may be nested in
 other modules:
 
 .. code-block:: cryptol
@@ -374,6 +369,24 @@ other modules:
                       // Assumptions about the declared numeric type
 
       x : [n]         // A declarations of a constant
+
+Interface modules may contain ``type`` or ``type constraint`` synonyms:
+
+.. code-block:: cryptol
+  :caption: A nested interface module
+
+  interface module I where
+
+    type n : #      // `n` is a numeric type
+
+    type W = [n]    // A type synonym, available when the interface is imported
+
+    type constraint (fin n, n >= 1)
+                    // Assumptions about the declared numeric type
+
+    x : W           // A declarations of a constant;  uses type synonym.
+
+
 
 
 Importing an Interface Module
@@ -403,7 +416,7 @@ To import a nested interface use ``import interface sumbodule I``
 and make sure that ``I`` is in scope.
 
 It is also possible to import multiple interface modules,
-or the same interface module more than once.   Each import
+or the same interface module more than once. Each import
 of an interface module maybe be linked to a different concrete
 module, as described in :ref:`instantiating_modules`.
 
@@ -427,7 +440,11 @@ module, as described in :ref:`instantiating_modules`.
     z : [J::n]
     z = J::x + 1
 
+A parameterized module is also called a *functor*, in the tradition
+of module parameterization in languages like Standard ML and OCaml.
 
+
+    
 Interface Constraints
 ~~~~~~~~~~~~~~~~~~~~~
 
@@ -587,7 +604,8 @@ an anonymous interface and using it straight away:
 
 The ``parameter`` block defines an interface module and uses it.
 Note that the parameters may not use things defined in ``M`` as
-the interface is declared outside of ``M``.
+the interface is declared outside of ``M``.  The ``parameter``
+may contain the same sort of declarations that may appear in interfaces.
 
 
 Anonymous Instantiation Arguments
@@ -595,8 +613,8 @@ Anonymous Instantiation Arguments
 
 Sometimes it is also a bit cumbersome to have to define a whole
 separate module just to pass it as an argument to some parameterized
-module.   To make this more convenient we support the following notion
-for instantiation a module:
+module.   To make this more convenient we support the following notation
+for instantiating a module:
 
 .. code-block:: cryptol
 
@@ -646,7 +664,7 @@ The ``where`` block may is the same as the ``where`` block in
 expressions:  you may define type synonyms and values, but nothing else
 (e.g., no ``newtype``).
 
-It is also possible to import and instantiate using an existing module
+It is also possible to import and instantiate a functor with an existing module
 like this:
 
 .. code-block:: cryptol
@@ -663,7 +681,7 @@ like this:
 
 
 Semantically, instantiating imports declare a local nested module and
-import it.  For example, the ``where`` import from above is equivalent
+import it.  For example, the ``where`` import above is equivalent
 to the following declarations:
 
 .. code-block:: cryptol
@@ -719,6 +737,109 @@ in an instantiation.  Here is an example:
   //                          = 11
   import submodule F where
     x = 5
+
+
+Instantiation by Parametrizing Declarations
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+It is also possible to instantiate a functor parameter *without* providing
+an implementation module.  Instead, the declarations in the instantiated
+module all get additional parameters corresponding to the functor's parameters.
+This is done by providing ``_`` as the parameter to a functor:
+
+.. code-block:: cryptol
+  :caption: Instantiation by Parametrizing Declarations
+
+  submodule F where
+    parameter
+      type n : #
+      x : [n]
+
+    f : (fin n) => [n] -> [n]
+    f v = v + x
+
+  submodule M = submodule F { _ }
+  import submodule M as M
+
+This example defines module ``M`` by instantiating ``F`` without
+a parameter.  Here is the resulting type of ``f``:
+
+.. code-block::
+
+  Main> :t M::f
+  M::f : {n} (fin n) => {x : [n]} -> [n] -> [n]
+
+Note that ``f`` has a new type parameter ``n``, and a new value parameter
+of a record type.  The type parameter ``n`` corresponds to the functor's
+type parameter while the record parameter has one field for each value
+parameter of the functor.
+
+.. warning::
+
+  The order in which type parameters are added to a declaration is not
+  specified, so you'd have to use a *named* type application to apply
+  a type explicitly.
+
+Functors with multiple parameters may use ``_`` as argument for more
+than one parameter, and may also provide implementations for some of
+the parameters and use ``_`` for others.
+
+**[Parameter Names]** The names of the parameters in the declarations
+are the same as the names that are in scope, unless a parameter came
+in through a qualified interface import (i.e., the interface import
+uses the ``as`` clause).  In the case the name of the parameter is
+computed by replacing the ``::`` with ``'`` because ``::`` may not appear
+in type parameters or record fields.  For example, if a module had
+a parameter ``I::x``, then its ``_`` instantiation will use a
+record with a field named ``I'x``.
+
+**[Restrictions]** There are some restrictions on functor parameters
+that can be defined with ``_``:
+
+  * The functor should not contain other functors nested in it.
+    This is because it is unclear how to parameterize the parameters of
+    nested functors.
+
+  * All values coming through ``_`` parameters should have simple
+    (i.e., non-polymorphic) types.  This is because Cryptol does not
+    support records with polymorphic fields.
+
+  * All types and values coming through ``_`` parameters should have
+    distinct names.  This is because the fields in the record and
+    type names use labels derived. Generally this should not be a
+    problem unless a functor defined some parameters that have
+    ``'`` in the middle.
+
+
+**[Backtick Imports]** For backward compatibility, we also provide
+syntactic sugar for importing a functor with a single interface parameter
+and instantiating it:
+
+.. code-block:: cryptol
+  :caption: Backtick Import
+
+  submodule F where
+    parameter
+      type n : #
+      x : [n]
+
+    f : (fin n) => [n] -> [n]
+    f v = v + x
+
+  import submodule `F
+
+This is equivalent to writing:
+
+.. code-block:: cryptol
+
+  import submodule F { _ }
+
+This, in turn, is syntactic sugar for creating an anonymous module:
+
+.. code-block:: cryptol
+
+  submodule M = F { _ }
+  import submodule M
 
 
 

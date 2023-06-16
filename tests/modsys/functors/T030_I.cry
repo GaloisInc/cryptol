@@ -1,0 +1,10 @@
+interface module T030_I where
+  type n : #
+
+  /** This is W's doc */
+  type W = X
+  type X = [n]
+  type constraint P = fin n
+  type constraint (P, n >= 1)
+  f : X
+

@@ -8,7 +8,6 @@
 
 {-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE Safe #-}
 -- See Note [-Wincomplete-uni-patterns and irrefutable patterns] in Cryptol.TypeCheck.TypePat
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 module Cryptol.TypeCheck.Kind
@@ -40,7 +39,7 @@ import           Data.List(sortBy,groupBy)
 import           Data.Maybe(fromMaybe)
 import           Data.Function(on)
 import           Data.Text (Text)
-import           Control.Monad(unless,when)
+import           Control.Monad(unless,when,mplus)
 
 -- | Check a type signature.  Returns validated schema, and any implicit
 -- constraints that we inferred.
@@ -92,12 +91,12 @@ checkPropGuards props =
 
 -- | Check a module parameter declarations.  Nothing much to check,
 -- we just translate from one syntax to another.
-checkParameterType :: P.ParameterType Name -> Maybe Text -> InferM ModTParam
-checkParameterType a mbDoc =
-  do let k = cvtK (P.ptKind a)
+checkParameterType :: P.ParameterType Name -> InferM ModTParam
+checkParameterType a =
+  do let mbDoc = P.ptDoc a
+         k = cvtK (P.ptKind a)
          n = thing (P.ptName a)
-     return ModTParam { mtpKind = k, mtpName = n, mtpDoc = mbDoc
-                      , mtpNumber = P.ptNumber a }
+     return ModTParam { mtpKind = k, mtpName = n, mtpDoc = mbDoc }
 
 
 -- | Check a type-synonym declaration.
@@ -135,7 +134,7 @@ checkPropSyn (P.PropSyn x _ as ps) mbD =
 -- | Check a newtype declaration.
 -- XXX: Do something with constraints.
 checkNewtype :: P.Newtype Name -> Maybe Text -> InferM Newtype
-checkNewtype (P.Newtype x as fs) mbD =
+checkNewtype (P.Newtype x as con fs) mbD =
   do ((as1,fs1),gs) <- collectGoals $
        inRange (srcRange x) $
        do r <- withTParams NoWildCards newtypeParam as $
@@ -147,6 +146,7 @@ checkNewtype (P.Newtype x as fs) mbD =
      return Newtype { ntName   = thing x
                     , ntParams = as1
                     , ntConstraints = map goal gs
+                    , ntConName = con
                     , ntFields = fs1
                     , ntDoc = mbD
                     }
@@ -410,7 +410,15 @@ doCheckType ty k =
 
     P.TUser x ts    -> checkTUser x ts k
 
-    P.TParens t     -> doCheckType t k
+    P.TParens t mb  ->
+      do newK <- case (k, cvtK <$> mb) of
+                   (Just a, Just b) ->
+                      do unless (a == b)
+                           (kRecordError (KindMismatch Nothing a b))
+                         pure (Just b)
+                   (a,b) -> pure (mplus a b)
+
+         doCheckType t newK
 
     P.TInfix t x _ u-> doCheckType (P.TUser (thing x) [t, u]) k
 

@@ -15,6 +15,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Cryptol.REPL.Monad (
     -- * REPL Monad
@@ -233,10 +234,11 @@ mkPrompt rw
     case lName =<< eLoadedMod rw of
       Nothing -> show (pp I.preludeName)
       Just m
-        | M.isLoadedParamMod m (M.meLoadedModules (eModuleEnv rw)) ->
-                 modName ++ "(parameterized)"
+        | M.isLoadedParamMod m loaded -> modName ++ "(parameterized)"
+        | M.isLoadedInterface m loaded -> modName ++ "(interface)"
         | otherwise -> modName
         where modName = pretty m
+              loaded = M.meLoadedModules (eModuleEnv rw)
 
   withFocus =
     case eLoadedMod rw of
@@ -340,7 +342,7 @@ data REPLException
   | EvalPolyError T.Schema
   | InstantiationsNotFound T.Schema
   | TypeNotTestable T.Type
-  | EvalInParamModule [M.Name]
+  | EvalInParamModule [T.TParam] [M.Name]
   | SBVError String
   | SBVException SBVException
   | SBVPortfolioException SBVPortfolioException
@@ -372,8 +374,9 @@ instance PP REPLException where
                              $$ text "Type:" <+> pp s
     TypeNotTestable t    -> text "The expression is not of a testable type."
                          $$ text "Type:" <+> pp t
-    EvalInParamModule xs -> nest 2 $ vsep $
+    EvalInParamModule as xs -> nest 2 $ vsep $
       [ text "Expression depends on definitions from a parameterized module:" ]
+      ++ map pp as
       ++ map pp xs
     SBVError s           -> text "SBV error:" $$ text s
     SBVException e       -> text "SBV exception:" $$ text (show e)
@@ -564,17 +567,20 @@ validEvalContext a =
      let ds      = T.freeVars a
          badVals = foldr badName Set.empty (T.valDeps ds)
          bad     = foldr badName badVals (T.tyDeps ds)
+         badTs   = T.tyParams ds
 
          badName nm bs =
            case M.nameInfo nm of
-             M.Declared (M.TopModule m) _   -- XXX: can we focus nested modules?
+
+             -- XXX: Changes if focusing on nested modules
+             M.GlobalName _ I.OrigName { ogModule = I.TopModule m }
                | M.isLoadedParamMod m (M.meLoadedModules me) -> Set.insert nm bs
+               | M.isLoadedInterface m (M.meLoadedModules me) -> Set.insert nm bs
+
              _ -> bs
 
-     unless (Set.null bad) $
-       raise (EvalInParamModule (Set.toList bad))
-
-
+     unless (Set.null bad && Set.null badTs) $
+       raise (EvalInParamModule (Set.toList badTs) (Set.toList bad))
 
 -- | Update the title
 updateREPLTitle :: REPL ()
@@ -681,11 +687,12 @@ uniqify :: M.Name -> REPL M.Name
 
 uniqify name =
   case M.nameInfo name of
-    M.Declared ns s ->
+    M.GlobalName s og ->
       M.liftSupply (M.mkDeclared (M.nameNamespace name)
-                  ns s (M.nameIdent name) (M.nameFixity name) (M.nameLoc name))
+                  (I.ogModule og) s
+                  (M.nameIdent name) (M.nameFixity name) (M.nameLoc name))
 
-    M.Parameter ->
+    M.LocalName {} ->
       panic "[REPL] uniqify" ["tried to uniqify a parameter: " ++ pretty name]
 
 

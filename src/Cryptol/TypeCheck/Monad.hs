@@ -5,7 +5,6 @@
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
-{-# LANGUAGE Safe #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
@@ -22,6 +21,7 @@ module Cryptol.TypeCheck.Monad
 import qualified Control.Applicative as A
 import qualified Control.Monad.Fail as Fail
 import           Control.Monad.Fix(MonadFix(..))
+import           Data.Text(Text)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import           Data.Map (Map)
@@ -38,13 +38,14 @@ import           Control.DeepSeq
 import           MonadLib hiding (mapM)
 
 import           Cryptol.ModuleSystem.Name
-                    (FreshM(..),Supply,mkParameter
-                    , nameInfo, NameInfo(..),NameSource(..))
+                    (FreshM(..),Supply,mkLocal,asLocal
+                    , nameInfo, NameInfo(..),NameSource(..), nameTopModule)
+import qualified Cryptol.ModuleSystem.Interface as If
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Subst
-import           Cryptol.TypeCheck.Interface(genIface)
+import           Cryptol.TypeCheck.Interface(genIfaceWithNames,genIfaceNames)
 import           Cryptol.TypeCheck.Unify(doMGU, runResult, UnificationError(..)
                                         , Path, rootPath)
 import           Cryptol.TypeCheck.InferTypes
@@ -54,8 +55,8 @@ import           Cryptol.TypeCheck.Error( Warning(..),Error(..)
 import qualified Cryptol.TypeCheck.SimpleSolver as Simple
 import qualified Cryptol.TypeCheck.Solver.SMT as SMT
 import           Cryptol.TypeCheck.PP(NameMap)
-import           Cryptol.Utils.PP(pp, (<+>), text,commaSep,brackets)
-import           Cryptol.Utils.Ident(Ident,Namespace(..))
+import           Cryptol.Utils.PP(pp, (<+>), text,commaSep,brackets,debugShowUniques)
+import           Cryptol.Utils.Ident(Ident,Namespace(..),ModName)
 import           Cryptol.Utils.Panic(panic)
 
 -- | Information needed for type inference.
@@ -64,15 +65,16 @@ data InferInput = InferInput
   , inpVars      :: Map Name Schema   -- ^ Variables that are in scope
   , inpTSyns     :: Map Name TySyn    -- ^ Type synonyms that are in scope
   , inpNewtypes  :: Map Name Newtype  -- ^ Newtypes in scope
-  , inpAbstractTypes :: Map Name AbstractType -- ^ Abstract types in scope
+  , inpAbstractTypes :: Map Name AbstractType   -- ^ Abstract types in scope
+  , inpSignatures :: !(Map Name ModParamNames)  -- ^ Signatures in scope
+
+  , inpTopModules    :: ModName -> Maybe (ModuleG (), If.IfaceG ())
+  , inpTopSignatures :: ModName -> Maybe ModParamNames
 
     -- When typechecking a module these start off empty.
     -- We need them when type-checking an expression at the command
     -- line, for example.
-  , inpParamTypes       :: !(Map Name ModTParam)  -- ^ Type parameters
-  , inpParamConstraints :: !([Located Prop])      -- ^ Constraints on parameters
-  , inpParamFuns        :: !(Map Name ModVParam)  -- ^ Value parameters
-
+  , inpParams :: !ModParamNames
 
   , inpNameSeeds :: NameSeeds         -- ^ Private state of type-checker
   , inpMonoBinds :: Bool              -- ^ Should local bindings without
@@ -120,24 +122,35 @@ bumpCounter = do RO { .. } <- IM ask
                  io $ modifyIORef' iSolveCounter (+1)
 
 runInferM :: TVars a => InferInput -> InferM a -> IO (InferOutput a)
-runInferM info (IM m) =
-  do counter <- newIORef 0
-     let env = Map.map ExtVar (inpVars info)
-            <> Map.map (ExtVar . newtypeConType) (inpNewtypes info)
+runInferM info m0 =
+  do let IM m = selectorScope m0
+     counter <- newIORef 0
+     let allPs = inpParams info
 
-     rec ro <- return RO { iRange     = inpRange info
+     let env = Map.map ExtVar (inpVars info)
+            <> Map.fromList
+              [ (ntConName nt, ExtVar (newtypeConType nt))
+              | nt <- Map.elems (inpNewtypes info)
+              ]
+            <> Map.map (ExtVar . mvpType) (mpnFuns allPs)
+
+     let ro =         RO { iRange     = inpRange info
                          , iVars      = env
+                         , iExtModules = inpTopModules info
+                         , iExtSignatures = inpTopSignatures info
                          , iExtScope = (emptyModule ExternalScope)
-                             { mTySyns           = inpTSyns info
+                             { mTySyns           = inpTSyns info <>
+                                                   mpnTySyn allPs
                              , mNewtypes         = inpNewtypes info
                              , mPrimTypes        = inpAbstractTypes info
-                             , mParamTypes       = inpParamTypes info
-                             , mParamFuns        = inpParamFuns info
-                             , mParamConstraints = inpParamConstraints info
+                             , mParamTypes       = mpnTypes allPs
+                             , mParamFuns        = mpnFuns  allPs
+                             , mParamConstraints = mpnConstraints allPs
+                             , mSignatures       = inpSignatures info
                              }
 
                          , iTVars         = []
-                         , iSolvedHasLazy = iSolvedHas finalRW     -- RECURSION
+                         , iSolvedHasLazy = Map.empty
                          , iMonoBinds     = inpMonoBinds info
                          , iCallStacks    = inpCallStacks info
                          , iSolver        = inpSolver info
@@ -145,29 +158,30 @@ runInferM info (IM m) =
                          , iSolveCounter  = counter
                          }
 
-         (result, finalRW) <- runStateT rw
-                            $ runReaderT ro m  -- RECURSION
+     mb <- runExceptionT (runStateT rw (runReaderT ro m))
+     case mb of
+       Left errs -> inferFailed [] errs
+       Right (result, finalRW) ->
+         do let theSu    = iSubst finalRW
+                defSu    = defaultingSubst theSu
+                warns    = fmap' (fmap' (apSubst theSu)) (iWarnings finalRW)
 
-     let theSu    = iSubst finalRW
-         defSu    = defaultingSubst theSu
-         warns    = fmap' (fmap' (apSubst theSu)) (iWarnings finalRW)
+            case iErrors finalRW of
+              [] ->
+                case iCts finalRW of
+                  cts
+                    | nullGoals cts -> inferOk warns
+                                         (iNameSeeds finalRW)
+                                         (iSupply finalRW)
+                                         (apSubst defSu result)
+                  cts ->
+                     inferFailed warns
+                       [ ( goalRange g
+                         , UnsolvedGoals [apSubst theSu g]
+                         ) | g <- fromGoals cts
+                       ]
 
-     case iErrors finalRW of
-       [] ->
-         case (iCts finalRW, iHasCts finalRW) of
-           (cts,[])
-             | nullGoals cts -> inferOk warns
-                                  (iNameSeeds finalRW)
-                                  (iSupply finalRW)
-                                  (apSubst defSu result)
-           (cts,has) ->
-              inferFailed warns
-                [ ( goalRange g
-                  , UnsolvedGoals [apSubst theSu g]
-                  ) | g <- fromGoals cts ++ map hasGoal has
-                ]
-
-       errs -> inferFailed warns [(r,apSubst theSu e) | (r,e) <- errs]
+              errs -> inferFailed warns [(r,apSubst theSu e) | (r,e) <- errs]
 
   where
   inferOk ws a b c  = pure (InferOK (computeFreeVarNames ws []) ws a b c)
@@ -193,18 +207,70 @@ runInferM info (IM m) =
           , iBindTypes  = mempty
           }
 
+{- | This introduces a new "selector scope" which is currently a module.
+I think that it might be possible to have selectors scopes be groups
+of recursive declarations instead, as we are not going to learn anything
+additional once we are done with the recursive group that generated
+the selectors constraints.   We do it at the module level because this
+allows us to report more errors at once.
+
+A selector scope does the following:
+  * Keep track of the Has constraints generated in this scope
+  * Keep track of the solutions for discharged selector constraints:
+    - this uses a laziness trick where we build up a map containing the
+      solutions for the Has constraints in the state
+    - the *final* value for this map (i.e., at the value the end of the scope)
+      is passed in as thunk in the reader component of the moment
+    - as we type check expressions when we need the solution for a Has
+      constraint we look it up from the reader environment; note that
+      since the map is not yet built up we just get back a thunk, so we have
+      to be carefule to not force it until *after* we've solved the goals
+    - all of this happens in the `rec` block below
+  * At the end of a selector scope we make sure that all Has constraints were
+    discharged.  If not, we *abort* further type checking.  The reason for
+    aborting rather than just recording an error is that the expression
+    which produce contains thunks that will lead to non-termination if forced,
+    and some type-checking operations (e.g., instantiation a functor)
+    require us to traverse the expressions.
+-}
+selectorScope :: InferM a -> InferM a
+selectorScope (IM m1) = IM
+  do ro <- ask
+     rw <- get
+     mb <- inBase
+           do rec let ro1 = ro { iSolvedHasLazy = solved }
+                      rw1 = rw { iHasCts = [] : iHasCts rw }
+                  mb <- runExceptionT (runStateT rw1 (runReaderT ro1 m1))
+                  let solved = case mb of
+                                 Left {} -> Map.empty
+                                 Right (_,rw2) -> iSolvedHas rw2
+              pure mb
+     case mb of
+       Left err      -> raise err
+       Right (a,rw1) ->
+         case iHasCts rw1 of
+           us : cs ->
+             do let errs = [ (goalRange g, UnsolvedGoals [g])
+                           | g <- map hasGoal us ]
+                set rw1 { iErrors = errs ++ iErrors rw1, iHasCts = cs }
+                unIM (abortIfErrors)
+                pure a
+           [] -> panic "selectorScope" ["No selector scope"]
 
 
 
-
-
-
-newtype InferM a = IM { unIM :: ReaderT RO (StateT RW IO) a }
+newtype InferM a = IM { unIM :: ReaderT RO
+                              ( StateT  RW
+                              ( ExceptionT [(Range,Error)]
+                                IO
+                              )) a }
 
 
 data ScopeName = ExternalScope
                | LocalScope
                | SubModule Name
+               | SignatureScope Name (Maybe Text) -- ^ The Text is docs
+               | TopSignatureScope P.ModName
                | MTopModule P.ModName
 
 -- | Read-only component of the monad.
@@ -219,10 +285,20 @@ data RO = RO
 
   , iTVars    :: [TParam]    -- ^ Type variable that are in scope
 
+  , iExtModules :: ModName -> Maybe (ModuleG (), If.IfaceG ())
+    -- ^ An exteral top-level module.
+    -- We need the actual module when we instantiate functors,
+    -- because currently the type-checker desugars such modules.
+
+  , iExtSignatures :: ModName -> Maybe ModParamNames
+    -- ^ External top-level signatures.
+
   , iExtScope :: ModuleG ScopeName
     -- ^ These are things we know about, but are not part of the
     -- modules we are currently constructing.
     -- XXX: this sould probably be an interface
+    -- NOTE: External functors should be looked up in `iExtModules`
+    -- and not here, as they may be top-level modules.
 
   , iSolvedHasLazy :: Map Int HasGoalSln
     -- ^ NOTE: This field is lazy in an important way!  It is the
@@ -274,12 +350,18 @@ data RW = RW
 
   -- Constraints that need solving
   , iCts      :: !Goals                -- ^ Ordinary constraints
-  , iHasCts   :: ![HasGoal]
-    {- ^ Tuple/record projection constraints.  The 'Int' is the "name"
-         of the constraint, used so that we can name its solution properly. -}
+  , iHasCts   :: ![[HasGoal]]
+    {- ^ Tuple/record projection constraints.  These are separate from
+       the other constraints because solving them results in actual elaboration
+       of the term, indicating how to do the projection.  The modification
+       of the term is done using lazyness, by looking up a thunk ahead of time
+       (@iSolvedHasLazy@ in RO), which is filled in when the constrait is
+       solved (@iSolvedHas@).  See also `selectorScope`.
+    -}
 
   , iScope :: ![ModuleG ScopeName]
     -- ^ Nested scopes we are currently checking, most nested first.
+    -- These are basically partially built modules.
 
   , iBindTypes :: !(Map Name Schema)
     -- ^ Types of variables that we know about.  We don't worry about scoping
@@ -317,6 +399,7 @@ instance FreshM InferM where
 io :: IO a -> InferM a
 io m = IM $ inBase m
 
+
 -- | The monadic computation is about the given range of source code.
 -- This is useful for error reporting.
 inRange :: Range -> InferM a -> InferM a
@@ -345,7 +428,17 @@ recordErrorLoc rng e =
      IM $ sets_ $ \s -> s { iErrors = (r,e) : iErrors s }
 
 
-
+-- | If there are any recoded errors than abort firther type-checking.
+abortIfErrors :: InferM ()
+abortIfErrors =
+  do rw <- IM get
+     case iErrors rw of
+       [] -> pure ()
+       es ->
+         do es1 <- forM es \(l,e) ->
+                      do e1 <- applySubst e
+                         pure (l,e1)
+            IM (raise es1)
 
 recordWarning :: Warning -> InferM ()
 recordWarning w =
@@ -358,7 +451,7 @@ recordWarning w =
   ignore
     | DefaultingTo d _ <- w
     , Just n <- tvSourceName (tvarDesc d)
-    , Declared _ SystemName <- nameInfo n
+    , GlobalName SystemName _ <- nameInfo n
       = True
     | otherwise = False
 
@@ -443,22 +536,30 @@ newHasGoal :: P.Selector -> Type -> Type -> InferM HasGoalSln
 newHasGoal l ty f =
   do goalName <- newGoalName
      g        <- newGoal CtSelector (pHas l ty f)
-     IM $ sets_ $ \s -> s { iHasCts = HasGoal goalName g : iHasCts s }
+     IM $ sets_ \s -> case iHasCts s of
+                        cs : more ->
+                          s { iHasCts = (HasGoal goalName g : cs) : more }
+                        [] -> panic "newHasGoal" ["no selector scope"]
      solns    <- IM $ fmap iSolvedHasLazy ask
      return $ case Map.lookup goalName solns of
                 Just e1 -> e1
                 Nothing -> panic "newHasGoal" ["Unsolved has goal in result"]
 
 
--- | Add a previously generate has constrained
+-- | Add a previously generated @Has@ constraint
 addHasGoal :: HasGoal -> InferM ()
-addHasGoal g = IM $ sets_ $ \s -> s { iHasCts = g : iHasCts s }
+addHasGoal g = IM $ sets_ \s -> case iHasCts s of
+                                  cs : more -> s { iHasCts = (g : cs) : more }
+                                  [] -> panic "addHasGoal" ["No selector scope"]
 
 -- | Get the @Has@ constraints.  Each of this should either be solved,
 -- or added back using 'addHasGoal'.
 getHasGoals :: InferM [HasGoal]
-getHasGoals = do gs <- IM $ sets $ \s -> (iHasCts s, s { iHasCts = [] })
-                 applySubst gs
+getHasGoals =
+  do gs <- IM $ sets \s -> case iHasCts s of
+                             cs : more -> (cs, s { iHasCts = [] : more })
+                             [] -> panic "getHasGoals" ["No selector scope"]
+     applySubst gs
 
 -- | Specify the solution (@Expr -> Expr@) for the given constraint ('Int').
 solveHasGoal :: Int -> HasGoalSln -> InferM ()
@@ -469,10 +570,10 @@ solveHasGoal n e =
 --------------------------------------------------------------------------------
 
 -- | Generate a fresh variable name to be used in a local binding.
-newParamName :: Namespace -> Ident -> InferM Name
-newParamName ns x =
+newLocalName :: Namespace -> Ident -> InferM Name
+newLocalName ns x =
   do r <- curRange
-     liftSupply (mkParameter ns x r)
+     liftSupply (mkLocal ns x r)
 
 newName :: (NameSeeds -> (a , NameSeeds)) -> InferM a
 newName upd = IM $ sets $ \s -> let (x,seeds) = upd (iNameSeeds s)
@@ -506,7 +607,7 @@ checkParamKind :: TParam -> TPFlavor -> Kind -> InferM ()
 
 checkParamKind tp flav k =
     case flav of
-      TPModParam _     -> return () -- All kinds allowed as module parameters
+      TPModParam _     -> starOrHash
       TPPropSynParam _ -> starOrHashOrProp
       TPTySynParam _   -> starOrHash
       TPSchemaParam _  -> starOrHash
@@ -546,6 +647,19 @@ newTParam nm flav k =
 
      checkParamKind tp flav k
      return tp
+
+-- | Generate a new version of a type parameter.  We use this when
+-- instantiating module parameters (the "backtick" imports)
+freshTParam :: (Name -> TPFlavor) -> TParam -> InferM TParam
+freshTParam mkF tp = newName \s ->
+  let u = seedTVar s
+  in ( tp { tpUnique = u
+          , tpFlav   = case tpName tp of
+                         Just n -> mkF (asLocal NSType n)
+                         Nothing -> tpFlav tp -- shouldn't happen?
+          }
+     , s  { seedTVar = u + 1 }
+     )
 
 
 -- | Generate an unknown type.  The doc is a note about what is this type about.
@@ -635,7 +749,8 @@ varsWithAsmps =
                   case v of
                     ExtVar sch  -> getVars sch
                     CurSCC _ t  -> getVars t
-     sels <- IM $ fmap (map (goal . hasGoal) . iHasCts) get
+     hasCts <- IM (iHasCts <$> get)
+     let sels = map (goal . hasGoal) (concat hasCts)
      fromSels <- mapM getVars sels
      fromEx   <- (getVars . concatMap Map.elems) =<< IM (fmap iExistTVars get)
      return (Set.unions fromEnv `Set.union` Set.unions fromSels
@@ -656,8 +771,12 @@ lookupVar x =
          do mb1 <- Map.lookup x . iBindTypes <$> IM get
             case mb1 of
               Just a -> pure (ExtVar a)
-              Nothing -> panic "lookupVar" [ "Undefined vairable"
-                                           , show x ]
+              Nothing ->
+                do mp <- IM $ asks iVars
+                   panic "lookupVar" $ [ "Undefined vairable"
+                                     , show x
+                                     , "IVARS"
+                                     ] ++ map (show . debugShowUniques . pp) (Map.keys mp)
 
 -- | Lookup a type variable.  Return `Nothing` if there is no such variable
 -- in scope, in which case we must be dealing with a type constant.
@@ -680,9 +799,88 @@ lookupAbstractType x = Map.lookup x <$> getAbstractTypes
 lookupParamType :: Name -> InferM (Maybe ModTParam)
 lookupParamType x = Map.lookup x <$> getParamTypes
 
--- | Lookup the schema for a parameter function.
-lookupParamFun :: Name -> InferM (Maybe ModVParam)
-lookupParamFun x = Map.lookup x <$> getParamFuns
+lookupSignature :: P.ImpName Name -> InferM ModParamNames
+lookupSignature nx =
+  case nx of
+    -- XXX: top
+    P.ImpNested x ->
+      do sigs <- getSignatures
+         case Map.lookup x sigs of
+           Just ips -> pure ips
+           Nothing  -> panic "lookupSignature"
+                        [ "Missing signature", show x ]
+
+    P.ImpTop t ->
+      do loaded <- iExtSignatures <$> IM ask
+         case loaded t of
+           Just ps -> pure ps
+           Nothing -> panic "lookupSignature"
+                        [ "Top level signature is not loaded", show (pp nx) ]
+
+-- | Lookup an external (i.e., previously loaded) top module.
+lookupTopModule :: ModName -> InferM (Maybe (ModuleG (), If.IfaceG ()))
+lookupTopModule m =
+  do ms <- iExtModules <$> IM ask
+     pure (ms m)
+
+lookupFunctor :: P.ImpName Name -> InferM (ModuleG ())
+lookupFunctor iname =
+  case iname of
+    P.ImpTop m -> fst . fromMb <$> lookupTopModule m
+    P.ImpNested m ->
+      do localFuns <- getScope mFunctors
+         case Map.lookup m localFuns of
+           Just a -> pure a { mName = () }
+           Nothing ->
+             do mbTop <- lookupTopModule (nameTopModule m)
+                pure (fromMb do a <- fst <$> mbTop
+                                b <- Map.lookup m (mFunctors a)
+                                pure b { mName = () })
+  where
+  fromMb mb = case mb of
+                Just a -> a
+                Nothing -> panic "lookupFunctor"
+                                  [ "Missing functor", show iname ]
+
+
+{- | Get information about the things defined in the module.
+Note that, in general, the interface may contain *more* than just the
+definitions in the module, however the `ifNames` should indicate which
+ones are part of the module.
+-}
+lookupModule :: P.ImpName Name -> InferM (If.IfaceG ())
+lookupModule iname =
+  case iname of
+    P.ImpTop m -> snd . fromMb <$> lookupTopModule m
+    P.ImpNested m ->
+      do localMods <- getScope mSubmodules
+         case Map.lookup m localMods of
+           Just names ->
+              do n <- genIfaceWithNames names <$> getCurDecls
+                 pure (If.ifaceForgetName n)
+
+           Nothing ->
+             do mb <- lookupTopModule (nameTopModule m)
+                pure (fromMb
+                         do iface <- snd <$> mb
+                            names <- Map.lookup m
+                                        (If.ifModules (If.ifDefines iface))
+                            pure iface
+                                   { If.ifNames = names { If.ifsName = () } })
+
+  where
+  fromMb mb = case mb of
+                Just a -> a
+                Nothing -> panic "lookupModule"
+                                  [ "Missing module", show iname ]
+
+
+
+lookupModParam :: P.Ident -> InferM (Maybe ModParam)
+lookupModParam p =
+  do scope <- getScope mParams
+     pure (Map.lookup p scope)
+
 
 -- | Check if we already have a name for this existential type variable and,
 -- if so, return the definition.  If not, try to create a new definition,
@@ -717,10 +915,6 @@ getNewtypes = getScope mNewtypes
 getAbstractTypes :: InferM (Map Name AbstractType)
 getAbstractTypes = getScope mPrimTypes
 
--- | Returns the parameter functions declarations
-getParamFuns :: InferM (Map Name ModVParam)
-getParamFuns = getScope mParamFuns
-
 -- | Returns the abstract function declarations
 getParamTypes :: InferM (Map Name ModTParam)
 getParamTypes = getScope mParamTypes
@@ -747,6 +941,11 @@ getMonoBinds  = IM (asks iMonoBinds)
 
 getCallStacks :: InferM Bool
 getCallStacks = IM (asks iCallStacks)
+
+getSignatures :: InferM (Map Name ModParamNames)
+getSignatures = getScope mSignatures
+
+
 
 {- | We disallow shadowing between type synonyms and type variables
 because it is confusing.  As a bonus, in the implementation we don't
@@ -795,15 +994,28 @@ newScope nm = IM $ sets_ \rw -> rw { iScope = emptyModule nm : iScope rw }
 newLocalScope :: InferM ()
 newLocalScope = newScope LocalScope
 
-newSubmoduleScope :: Name -> [Import] -> ExportSpec Name -> InferM ()
-newSubmoduleScope x is e =
-  do newScope (SubModule x)
-     updScope \m -> m { mImports = is, mExports = e }
+newSignatureScope :: Name -> Maybe Text -> InferM ()
+newSignatureScope x doc =
+  do updScope \o -> o { mNested = Set.insert x (mNested o) }
+     newScope (SignatureScope x doc)
 
-newModuleScope :: P.ModName -> [Import] -> ExportSpec Name -> InferM ()
-newModuleScope x is e =
+newTopSignatureScope :: ModName -> InferM ()
+newTopSignatureScope x = newScope (TopSignatureScope x)
+
+{- | Start a new submodule scope.  The imports and exports are just used
+to initialize an empty module.  As we type check declarations they are
+added to this module's scope. -}
+newSubmoduleScope ::
+  Name -> Maybe Text -> ExportSpec Name -> InferM ()
+newSubmoduleScope x docs e =
+  do updScope \o -> o { mNested = Set.insert x (mNested o) }
+     newScope (SubModule x)
+     updScope \m -> m { mDoc = docs, mExports = e }
+
+newModuleScope :: P.ModName -> ExportSpec Name -> InferM ()
+newModuleScope x e =
   do newScope (MTopModule x)
-     updScope \m -> m { mImports = is, mExports = e }
+     updScope \m -> m { mDoc = Nothing, mExports = e }
 
 -- | Update the current scope (first in the list). Assumes there is one.
 updScope :: (ModuleG ScopeName -> ModuleG ScopeName) -> InferM ()
@@ -829,38 +1041,83 @@ endSubmodule =
        case iScope rw of
          x@Module { mName = SubModule m } : y : more -> rw { iScope = z : more }
            where
-           x1    = x { mName = m }
-           iface = genIface x1
-           me = if isParametrizedModule x1 then Map.singleton m x1 else mempty
-           z = y { mImports     = mImports x ++ mImports y -- just for deps
-                 , mSubModules  = Map.insert m iface (mSubModules y)
+           x1    = x { mName = m, mDecls = reverse (mDecls x) }
 
-                 , mTySyns      = mTySyns x <> mTySyns y
-                 , mNewtypes    = mNewtypes x <> mNewtypes y
-                 , mPrimTypes   = mPrimTypes x <> mPrimTypes y
-                 , mDecls       = mDecls x <> mDecls y
-                 , mFunctors    = me <> mFunctors x <> mFunctors y
+           isFun = isParametrizedModule x1
+
+           add :: Monoid a => (ModuleG ScopeName -> a) -> a
+           add f = if isFun then f y else f x <> f y
+
+           z = Module
+                 { mName             = mName y
+                 , mDoc              = mDoc y
+                 , mExports          = mExports y
+                 , mParamTypes       = mParamTypes y
+                 , mParamFuns        = mParamFuns  y
+                 , mParamConstraints = mParamConstraints y
+                 , mParams           = mParams y
+                 , mNested           = mNested y
+
+                 , mTySyns      = add mTySyns
+                 , mNewtypes    = add mNewtypes
+                 , mPrimTypes   = add mPrimTypes
+                 , mDecls       = add mDecls
+                 , mSignatures  = add mSignatures
+                 , mSubmodules  = if isFun
+                                    then mSubmodules y
+                                    else Map.insert m (genIfaceNames x1)
+                                               (mSubmodules x <> mSubmodules y)
+                 , mFunctors    = if isFun
+                                    then Map.insert m x1 (mFunctors y)
+                                    else mFunctors x <> mFunctors y
                  }
 
          _ -> panic "endSubmodule" [ "Not a submodule" ]
 
 
-endModule :: InferM Module
+endModule :: InferM TCTopEntity
 endModule =
   IM $ sets \rw ->
     case iScope rw of
       [ x ] | MTopModule m <- mName x ->
-        ( x { mName = m, mDecls = reverse (mDecls x) }
+        ( TCTopModule x { mName = m, mDecls = reverse (mDecls x) }
         , rw { iScope = [] }
         )
       _ -> panic "endModule" [ "Not a single top module" ]
 
-endModuleInstance :: InferM ()
-endModuleInstance =
+endSignature :: InferM ()
+endSignature =
   IM $ sets_ \rw ->
     case iScope rw of
-      [ x ] | MTopModule _ <- mName x -> rw { iScope = [] }
-      _ -> panic "endModuleInstance" [ "Not single top module" ]
+      x@Module { mName = SignatureScope m doc } : y : more ->
+        rw { iScope = z : more }
+        where
+        z   = y { mSignatures = Map.insert m sig (mSignatures y) }
+        sig = ModParamNames
+                { mpnTypes       = mParamTypes x
+                , mpnConstraints = mParamConstraints x
+                , mpnFuns        = mParamFuns x
+                , mpnTySyn       = mTySyns x
+                , mpnDoc         = doc
+                }
+      _ -> panic "endSignature" [ "Not a signature scope" ]
+
+endTopSignature :: InferM TCTopEntity
+endTopSignature =
+  IM $ sets \rw ->
+    case iScope rw of
+      [ x ] | TopSignatureScope m <- mName x ->
+        ( TCTopSignature m ModParamNames
+                             { mpnTypes       = mParamTypes x
+                             , mpnConstraints = mParamConstraints x
+                             , mpnFuns        = mParamFuns x
+                             , mpnTySyn       = mTySyns x
+                             , mpnDoc         = Nothing
+                             }
+        , rw { iScope = [] }
+        )
+      _ -> panic "endTopSignature" [ "Not a top-level signature" ]
+
 
 
 -- | Get an environment combining all nested scopes.
@@ -869,6 +1126,39 @@ getScope f =
   do ro <- IM ask
      rw <- IM get
      pure (sconcat (f (iExtScope ro) :| map f (iScope rw)))
+
+getCurDecls :: InferM (ModuleG ())
+getCurDecls =
+  do ro <- IM ask
+     rw <- IM get
+     pure (foldr (\m1 m2 -> mergeDecls (forget m1) m2)
+                (forget (iExtScope ro)) (iScope rw))
+
+  where
+  forget m = m { mName = () }
+
+  mergeDecls m1 m2 =
+    Module
+      { mName             = ()
+      , mDoc              = Nothing
+      , mExports          = mempty
+      , mParams           = mempty
+      , mParamTypes       = mempty
+      , mParamConstraints = mempty
+      , mParamFuns        = mempty
+      , mNested           = mempty
+
+      , mTySyns           = uni mTySyns
+      , mNewtypes         = uni mNewtypes
+      , mPrimTypes        = uni mPrimTypes
+      , mDecls            = uni mDecls
+      , mSubmodules       = uni mSubmodules
+      , mFunctors         = uni mFunctors
+      , mSignatures       = uni mSignatures
+      }
+    where
+    uni f = f m1 <> f m2
+
 
 addDecls :: DeclGroup -> InferM ()
 addDecls ds =
@@ -888,7 +1178,7 @@ addTySyn t =
 addNewtype :: Newtype -> InferM ()
 addNewtype t =
   do updScope \r -> r { mNewtypes = Map.insert (ntName t) t (mNewtypes r) }
-     IM $ sets_ \rw -> rw { iBindTypes = Map.insert (ntName t)
+     IM $ sets_ \rw -> rw { iBindTypes = Map.insert (ntConName t)
                                                     (newtypeConType t)
                                                     (iBindTypes rw) }
 
@@ -897,9 +1187,25 @@ addPrimType t =
   updScope \r ->
     r { mPrimTypes = Map.insert (atName t) t (mPrimTypes r) }
 
+
 addParamType :: ModTParam -> InferM ()
 addParamType a =
   updScope \r -> r { mParamTypes = Map.insert (mtpName a) a (mParamTypes r) }
+
+addSignatures :: Map Name ModParamNames -> InferM ()
+addSignatures mp =
+  updScope \r -> r { mSignatures = Map.union mp (mSignatures r) }
+
+addSubmodules :: Map Name (If.IfaceNames Name) -> InferM ()
+addSubmodules mp =
+  updScope \r -> r { mSubmodules = Map.union mp (mSubmodules r) }
+
+addFunctors :: Map Name (ModuleG Name) -> InferM ()
+addFunctors mp =
+  updScope \r -> r { mFunctors = Map.union mp (mFunctors r) }
+
+
+
 
 -- | The sub-computation is performed with the given abstract function in scope.
 addParamFun :: ModVParam -> InferM ()
@@ -912,6 +1218,10 @@ addParamFun x =
 addParameterConstraints :: [Located Prop] -> InferM ()
 addParameterConstraints ps =
   updScope \r -> r { mParamConstraints = ps ++ mParamConstraints r }
+
+addModParam :: ModParam -> InferM ()
+addModParam p =
+  updScope \r -> r { mParams = Map.insert (mpName p) p (mParams r) }
 
 
 

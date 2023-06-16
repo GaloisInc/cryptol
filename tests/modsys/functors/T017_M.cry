@@ -1,0 +1,4 @@
+module T017_M where
+
+x : [8]
+x = 2

@@ -16,14 +16,18 @@ parameter
   type constraint (fin p, fin n, n >= tagAmount)
 
   // Process a single block using this key and tweak
-  tweak_cipher : K -> Tweak -> [n] -> [n]
+  tweak_cipher : K -> { nonce : [n], state : A, z : [64] } -> [n] -> [n]
 
   // Cost for using the tweak
-  Cost : Int
+  Cost : [64]
 
-  Enc : K -> Tweak -> Node -> Node
-  Dec : K -> Tweak -> Node -> Node
-  Tag : K -> Tweak -> State -> [n]
+  Enc : K -> { nonce : [n], state : A, z : [64] }
+          -> { message : [p*n], state : [p*n] }
+          -> { message : [p*n], state : [p*n] }
+  Dec : K -> { nonce : [n], state : A, z : [64] }
+          -> { message : [p*n], state : [p*n] }
+          -> { message : [p*n], state : [p*n] }
+  Tag : K -> { nonce : [n], state : A, z : [64] } -> [p*n] -> [n]
 
 // The unit at which `Enc` operates
 type Node       = { message : WorkBlock, state : State }
