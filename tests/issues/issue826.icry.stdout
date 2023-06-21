@@ -1,6 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module [issue826.cry]
+Loading module Main
 
 [error] at issue826.cry:3:6--3:11:
   Incorrect type form.

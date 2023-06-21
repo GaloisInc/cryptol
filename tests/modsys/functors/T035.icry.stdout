@@ -1,15 +1,15 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module [T035.cry]
+Loading module Main
 [warning] at T035.cry:12:5--12:6
     This binding for `x` shadows the existing binding at
     T035.cry:22:1--22:2
 
 [error] at T035.cry:22:11--22:15:
   Type mismatch:
-    Expected type: [T035.cry]::M::X ?m
-    Inferred type: [T035.cry]::N::X 0
+    Expected type: Main::M::X ?m
+    Inferred type: Main::N::X 0
     Context: _ -> ERROR
     When checking function call
   where
-  ?m is type argument 'n' of '[T035.cry]::M::f' at T035.cry:22:5--22:9
+  ?m is type argument 'n' of 'Main::M::f' at T035.cry:22:5--22:9

@@ -1,6 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module [issue364.cry]
+Loading module Main
 property x_eval Using exhaustive testing.
 Testing... Passed 1 tests.
 Q.E.D.

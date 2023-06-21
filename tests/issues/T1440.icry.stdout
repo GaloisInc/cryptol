@@ -1,12 +1,12 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module T1440
+Loading module Main
 
-[error] at T1440.cry:3:28--3:29
+[error] at T1440.cry:1:28--1:29
     Module not in scope: X
-[error] at T1440.cry:5:1--5:19
+[error] at T1440.cry:3:1--3:19
     Module not in scope: Y
-[error] at T1440.cry:16:40--16:42
+[error] at T1440.cry:14:40--14:42
     Module not in scope: U1
-[error] at T1440.cry:17:26--17:28
+[error] at T1440.cry:15:26--15:28
     Module not in scope: U2

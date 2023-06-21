@@ -1,7 +1,7 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module [check05.cry]
+Loading module Main
 Showing a specific instance of polymorphic result:
-  * Using 'Integer' for 1st type argument of '[check05.cry]::twoones'
+  * Using 'Integer' for 1st type argument of 'Main::twoones'
 [2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2]
 True

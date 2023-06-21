@@ -1,6 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module [noPrim.cry]
+Loading module Main
 
 [error] at noPrim.cry:3:7--3:14:
   `prime` may not be used in a constraint guard.

@@ -1,6 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module [T001.cry]
+Loading module Main
 
 [error] at T001.cry:16:11--16:12:
   • Unsolvable constraint:

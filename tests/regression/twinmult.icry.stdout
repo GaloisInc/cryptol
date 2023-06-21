@@ -1,7 +1,7 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module PrimeEC
-Loading module [twinmult.cry]
+Loading module Main
 property twin_mult_zro Using exhaustive testing.
 Testing... Passed 49 tests.
 Q.E.D.

@@ -1,7 +1,7 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module SuiteB
-Loading module [aes-mct-ecb.cry]
+Loading module Main
 property aes128_MCT_vectors_encrypt_correct Using exhaustive testing.
 Testing... Passed 1 tests.
 Q.E.D.

@@ -1,7 +1,7 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Float
-Loading module [test-ffi.cry]
+Loading module Main
 Loading dynamic library test-ffi.so
 0x03
 0x15b4

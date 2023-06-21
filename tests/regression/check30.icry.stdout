@@ -1,8 +1,8 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module [check30.cry]
+Loading module Main
 [warning] at check30.cry:2:13--2:14
     This binding for `x` shadows the existing binding at
     check30.cry:1:1--1:2
 Loading module Cryptol
-Loading module [check30.cry]
+Loading module Main

@@ -1,5 +1,5 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module [issue670.cry]
+Loading module Main
 g : [6 +++ 2 +++ 1]
 h : [6 +++ (2 +++ 1)]

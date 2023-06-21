@@ -1,10 +1,10 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module [issue1324.cry]
+Loading module Main
 
 [error] at issue1324.cry:8:1--8:6:
   Type mismatch:
     Expected type: 16
     Inferred type: 8
     Context: {a : [ERROR] _, …} -> _
-    When checking the type of '[issue1324.cry]::g'
+    When checking the type of 'Main::g'

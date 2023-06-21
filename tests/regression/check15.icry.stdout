@@ -1,6 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module [check15.cry]
+Loading module Main
 False
 0xabcd
 True

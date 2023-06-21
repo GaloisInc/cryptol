@@ -1,6 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module [issue093.cry]
+Loading module Main
 property t0 Using exhaustive testing.
 Testing... Passed 1 tests.
 Q.E.D.
