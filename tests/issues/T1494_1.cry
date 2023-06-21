@@ -1,3 +1,4 @@
+module T1494_1 where
 
 parameter
   type n : #
