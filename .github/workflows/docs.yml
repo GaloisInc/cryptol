@@ -112,15 +112,16 @@ jobs:
           git -C ${REFREPO} fetch --all
           for X in $(seq 0 $(( $(cat pulls.json | nix run nixpkgs#jq -- length) - 1))) ; do
             prnum=$(cat pulls.json | nix run nixpkgs#jq -- .[${X}].number)
-            prbr=$(cat pulls.json | nix run nixpkgs#jq -- -r .[${X}].head.ref)
+            prref=$(cat pulls.json | nix run nixpkgs#jq -- -r .[${X}].merge_commit_sha)
             tgt=${TGTBASE}/PR_${prnum}
-            echo "Checkout Pull Request ${prbr} into PR_${prnum}"
+            echo "Checkout Pull Request ${prnum} at ${prref} into PR_${prnum}"
             mkdir $tgt
             # n.b. the switch here is important to make sure the branch is
             # present in the clone.
-            git -C ${REFREPO} switch --discard-changes ${prbr}
+            git -C ${REFREPO} fetch origin ${prref}
+            git -C ${REFREPO} checkout ${prref}
             git clone ${REFREPO} ${tgt}
-            git -C ${tgt} switch --discard-changes ${prbr}
+            git -C ${tgt} checkout ${prref}
             if [ ! -d ${tgt}/docs/RefMan ] ; then
               echo "Removing ${tgt}: no RefMan docs in this version"
               rm -rf ${tgt}
