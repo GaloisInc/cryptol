@@ -202,7 +202,7 @@ modNamesMatch _ _ = False
 
 modNameToText :: ModName -> Text
 modNameToText (ModName x fl) = maybeAnonText fl x
-modNameToText (ModMain f) = "[" <> T.pack f <> "]"
+modNameToText (ModMain _) = "Main"
 
 -- | This is useful when we want to hide anonymous modules.
 modNameIsNormal :: ModName -> Bool
