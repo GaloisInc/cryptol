@@ -109,18 +109,30 @@ jobs:
           mkdir ${TGTBASE}
           gh repo clone ${{ github.repositoryURL }} ${REFREPO}
           git -C ${REFREPO} switch --discard-changes master
+          echo local branches
+          git -C ${REFREPO} branch -l
+          echo remote branches
+          git -C ${REFREPO} branch -l -r
           for X in $(seq 0 $(( $(cat pulls.json | nix run nixpkgs#jq -- length) - 1))) ; do
             prnum=$(cat pulls.json | nix run nixpkgs#jq -- .[${X}].number)
             prbr=$(cat pulls.json | nix run nixpkgs#jq -- -r .[${X}].head.ref)
             tgt=${TGTBASE}/PR_${prnum}
             echo "Checkout Pull Request ${prbr} into PR_${prnum}"
-            mkdir $tgt
-            git clone ${REFREPO} ${tgt}
-            git -C ${tgt} switch --discard-changes ${prbr}
-            if [ ! -d ${tgt}/docs/RefMan ] ; then
-              echo "Removing ${tgt}: no RefMan docs in this version"
-              rm -rf ${tgt}
-            fi
+            (set -x
+             mkdir $tgt
+             git clone -b ${prbr} --single-branch ${REFREPO} ${tgt}
+             ls -a ${tgt}
+             echo lbr
+             git -C ${tgt} branch -l
+             echo rbr
+             git -C ${tgt} branch -l -r
+             echo switch
+             git -C ${tgt} switch --discard-changes ${prbr}
+             if [ ! -d ${tgt}/docs/RefMan ] ; then
+               echo "Removing ${tgt}: no RefMan docs in this version"
+               rm -rf ${tgt}
+             fi
+            )
           done
           for X in $(seq 0 $(( $(cat tags.json | nix run nixpkgs#jq -- length) - 1))) ; do
             tagname=$(cat tags.json | nix run nixpkgs#jq -- -r .[${X}].name)
