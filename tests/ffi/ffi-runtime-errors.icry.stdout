@@ -1,29 +1,29 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module [ffi-runtime-errors.cry]
+Loading module Main
 Loading dynamic library ffi-runtime-errors.so
 
 numeric type argument to foreign function is too large: 18446744073709551616
-in type parameter n`899 of function [ffi-runtime-errors.cry]::f
+in type parameter n`899 of function Main::f
 type arguments must fit in a C `size_t`
 -- Backtrace --
-[ffi-runtime-errors.cry]::f called at ffi-runtime-errors.icry:4:1--4:2
+Main::f called at ffi-runtime-errors.icry:4:1--4:2
 
-cannot call foreign function [ffi-runtime-errors.cry]::g
+cannot call foreign function Main::g
 FFI calls are not supported in this context
 If you are trying to evaluate an expression, try rebuilding
   Cryptol with FFI support enabled.
 
-cannot call foreign function [ffi-runtime-errors.cry]::g
+cannot call foreign function Main::g
 FFI calls are not supported in this context
 If you are trying to evaluate an expression, try rebuilding
   Cryptol with FFI support enabled.
 
-cannot call foreign function [ffi-runtime-errors.cry]::g
+cannot call foreign function Main::g
 FFI calls are not supported in this context
 If you are trying to evaluate an expression, try rebuilding
   Cryptol with FFI support enabled.
-cannot call foreign function [ffi-runtime-errors.cry]::g
+cannot call foreign function Main::g
 FFI calls are not supported in this context
 If you are trying to evaluate an expression, try rebuilding
   Cryptol with FFI support enabled.

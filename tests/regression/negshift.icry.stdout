@@ -1,6 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module [negshift.cry]
+Loading module Main
 property nls1 Using random testing.
 Testing... Passed 1000 tests.
 property nls2 Using random testing.

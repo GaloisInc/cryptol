@@ -1,7 +1,7 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module [ffi-no-functor.cry]
+Loading module Main
 
-[error] Failed to load foreign implementations for module [ffi-no-functor.cry]:
+[error] Failed to load foreign implementations for module Main:
     ffi-no-functor.cry:6:11--6:12:
         Foreign declaration `f` may not appear in a parameterized module.

@@ -1,6 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module [cplx.cry]
+Loading module Main
 {real = (ratio 420 1), imag = (ratio 0 1)}
 {real = (ratio 10 1), imag = (ratio 10 1)}
 {real = (ratio 43 1), imag = (ratio 1 1)}
@@ -18,7 +18,7 @@ Testing... Passed 100 tests.
 :prove cplxMulDistrib
 	Q.E.D.
 Loading module Cryptol
-Loading module [cplxbroken.cry]
+Loading module Main
 property cplxAddAssoc Using random testing.
 Testing... Passed 100 tests.
 property cplxMulAssoc Using random testing.

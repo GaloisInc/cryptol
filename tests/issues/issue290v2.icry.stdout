@@ -1,10 +1,10 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module [issue290v2.cry]
+Loading module Main
 
 [error] at issue290v2.cry:2:1--2:19:
   Failed to validate user-specified signature.
-    in the definition of '[issue290v2.cry]::minMax', at issue290v2.cry:2:1--2:7,
+    in the definition of 'Main::minMax', at issue290v2.cry:2:1--2:7,
     we need to show that
       for any type n, a
       assuming
@@ -19,7 +19,7 @@ Loading module [issue290v2.cry]
   Unsolved constraints:
     • n`892 == 1
         arising from
-        checking a pattern: type of 1st argument of [issue290v2.cry]::minMax
+        checking a pattern: type of 1st argument of Main::minMax
         at issue290v2.cry:2:8--2:11
   where
   n`892 is signature variable 'n' at issue290v2.cry:1:11--1:12

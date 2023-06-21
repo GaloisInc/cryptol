@@ -1,4 +1,4 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module [issue494.cry]
+Loading module Main
 gt_words' : {n, m, a} (Cmp a, fin (min (1 + n) (1 + m))) => [n]a -> [m]a -> Bit

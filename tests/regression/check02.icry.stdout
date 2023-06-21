@@ -1,7 +1,7 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module [check02.cry]
+Loading module Main
 Showing a specific instance of polymorphic result:
-  * Using 'Integer' for 1st type argument of '[check02.cry]::ones'
+  * Using 'Integer' for 1st type argument of 'Main::ones'
 [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 True

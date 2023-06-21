@@ -1,6 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module [poly.cry]
+Loading module Main
 {coeffs = [0, 2]}
 {coeffs = [0, 0, 1]}
 property polySquare Using random testing.

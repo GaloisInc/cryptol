@@ -1,6 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module [unary-2.cry]
+Loading module Main
 Showing a specific instance of polymorphic result:
   * Using '[2]' for type argument 'a' of 'Cryptol::min'
 True

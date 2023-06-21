@@ -1,6 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module [issue1024a.cry]
+Loading module Main
 [warning] at issue1024a.cry:1:13--1:14
     Unused name: f
 [warning] at issue1024a.cry:2:15--2:16
@@ -28,5 +28,5 @@ Loading module [issue1024a.cry]
   where
   f`895 is signature variable 'f' at issue1024a.cry:4:22--4:32
 Loading module Cryptol
-Loading module [issue1024b.cry]
+Loading module Main
 0xffff

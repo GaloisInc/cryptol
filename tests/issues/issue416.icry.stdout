@@ -1,10 +1,10 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module [issue416.cry]
+Loading module Main
 
 [error] at issue416.cry:2:1--2:16:
   Failed to validate user-specified signature.
-    in the definition of '[issue416.cry]::f', at issue416.cry:2:1--2:2,
+    in the definition of 'Main::f', at issue416.cry:2:1--2:2,
     we need to show that
       for any type n
       assuming
@@ -17,7 +17,7 @@ Loading module [issue416.cry]
             at issue416.cry:2:5--2:16
 [error] at issue416.cry:5:1--5:16:
   Failed to validate user-specified signature.
-    in the definition of '[issue416.cry]::g', at issue416.cry:5:1--5:2,
+    in the definition of 'Main::g', at issue416.cry:5:1--5:2,
     we need to show that
       for any type n
       assuming

@@ -1,6 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module [issue171.cry]
+Loading module Main
 :prove b
 	Q.E.D.
 :prove a
