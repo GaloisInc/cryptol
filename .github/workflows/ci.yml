@@ -138,18 +138,6 @@ jobs:
         run: .github/ci.sh check_rpc_docs
         if: runner.os != 'Windows'
 
-      - if: runner.os == 'Linux'
-        uses: docker://pandoc/latex:2.9.2
-        with:
-          args: >-
-            sh -c
-            "
-            apk add make &&
-            tlmgr install subfigure lastpage preprint adjustbox nag collectbox sectsty todonotes palatino mathpazo &&
-            cd docs &&
-            make
-            "
-
       - shell: bash
         name: Partition test-lib tests
         id: test-lib
