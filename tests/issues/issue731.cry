@@ -1,3 +1,5 @@
+module issue731 where
+
 type constraint T n = (fin n, n >= 1)
 
 type constraint Both p q = (p, q)
