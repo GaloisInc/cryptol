@@ -2,6 +2,24 @@
 
 ## Language changes
 
+* Cryptol now includes a redesigned module system that is significantly more
+  expressive than in previous releases. The new module system includes the
+  following features:
+
+  * Nested modules: Modules may now be defined within other modules.
+
+  * Named interfaces: An interface specifies the parameters to a module.
+    Separating the interface from the parameter declarations makes it possible
+    to have different parameters that use the same interface.
+
+  * Top-level module constraints: These are useful to specify constraints
+    between different module parameters (i.e., ones that come from different
+    interfaces or multiple copies of the same interface).
+
+  See the
+  [manual section](https://galoisinc.github.io/cryptol/master/Modules.html#instantiation-by-parametrizing-declarations)
+  for more information.
+
 * Declarations may now use *numeric constraint guards*.   This is a feature
   that allows a function to behave differently depending on its numeric
   type parameters.  See the [manual section](https://galoisinc.github.io/cryptol/master/BasicSyntax.html#numeric-constraint-guards))
