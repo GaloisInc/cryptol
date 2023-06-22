@@ -59,8 +59,9 @@ jobs:
     # from those individual builds, but building the docs is relatively fast, so
     # it's simpler to do it here).  A top-level index file is created that allows
     # switching between the various versions of the documentation.  Then the
-    # final results are committed to the gh-pages branch so that the
-    # https://cryptol.github.io/ is useable to browse that documentation.
+    # final results are committed to the gh-pages branch so that
+    # https://galoisinc.github.io/cryptol is useable to browse that
+    # documentation.
     #
     # In order to accomplish the above, various clones of the repository must be
     # created that are switched to different branches/tags.  The github
