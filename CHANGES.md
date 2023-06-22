@@ -57,6 +57,10 @@
 * Fix a bug that caused finite bitvector enumerations to panic when used in
   combination with `(#)` (e.g., `[0..1] # 0`).
 
+* Cryptol's markdown parser is slightly more permissive and will now parse code
+  blocks with whitespace in between the backticks and `cryptol`. This sort of
+  whitespace is often inserted by markdown generation tools such as `pandoc`.
+
 * Improve documentation for `fromInteger` (#1465)
 
 # 2.13.0
