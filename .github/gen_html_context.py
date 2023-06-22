@@ -14,7 +14,14 @@ html_context={'current_version': sys.argv[2],
 
 if not os.path.isdir('_templates'):
     # Older versions of the repo do not have this file present as it was only
-    # added in the global gh_pages support, so manually generate it here.
+    # added in the global gh_pages support, so manually generate it here.  This
+    # is a duplicate of the existing _templates/versions.html.  Having it as an
+    # explicit HTML file will be easier to find and work with in the future,
+    # which is why this generator isn't the sole location of this HTML, at the
+    # cost of duplication.
+    #
+    # Once there are no pull requests that originated from before the latter file
+    # was part of master, this duplication here can be removed.
     os.mkdir('_templates')
     open('_templates/versions.html', 'w').write('''
 <div class="rst-versions" data-toggle="rst-versions" role="note" aria-label="{{ _('Versions') }}">
