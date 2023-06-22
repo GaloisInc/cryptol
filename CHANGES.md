@@ -19,6 +19,11 @@
 * Infix operators are now allowed in import lists: `import M ((<+>))` will
   import only the operator `<+>` from module `M`.
 
+* `lib/Array.cry` now contains an `arrayEq` primitive. Like the other
+  array-related primitives, this has no computational interpretation (and
+  therefore cannot be used in the Cryptol interpreter), but it is useful for
+  stating specifications that are used in SAW.
+
 ## New features
 
 * Add a `:time` command to benchmark the evaluation time of expressions.
