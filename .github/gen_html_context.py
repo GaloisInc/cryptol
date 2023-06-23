@@ -9,8 +9,8 @@ d = os.listdir('../../..')
 bldtgt = lambda n: os.path.join('/', sys.argv[1].split('/')[1], n, 'RefMan.html')
 
 html_context={'current_version': sys.argv[2],
-              'versions':[(v, bldtgt(v)) for v in d if not v.startswith('PR_')],
-              'pull_reqs':[(v, bldtgt(v)) for v in d if v.startswith('PR_')]}
+              'versions':sorted([(v, bldtgt(v)) for v in d if not v.startswith('PR_')]),
+              'pull_reqs':sorted([(v, bldtgt(v)) for v in d if v.startswith('PR_')])}
 
 if not os.path.isdir('_templates'):
     # Older versions of the repo do not have this file present as it was only
