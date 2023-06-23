@@ -6,13 +6,13 @@
     <div class="rst-other-versions">
       <dl>
         <dt>{{ _('Versions') }}</dt>
-        {% for slug, url in versions %}
+        {% for slug, url in versions|dictsort %}
         <dd><a href="{{ url }}">{{ slug }}</a></dd>
         {% endfor %}
       </dl>
       <dl>
         <dt>{{ _('Pull Requests') }}</dt>
-        {% for slug, url in pull_reqs %}
+        {% for slug, url in pull_reqs|dictsort %}
         <dd><a href="{{ url }}">{{ slug }}</a></dd>
         {% endfor %}
       </dl>
