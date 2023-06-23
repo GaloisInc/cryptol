@@ -1,0 +1,178 @@
+name: Cryptol Docs
+on:
+  push:
+    tags: ["[0-9]+.[0-9]+(.[0-9]+)?"]
+    branches: [master, "release-**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  # Only run one of these at a time because they update the global pages.  Don't
+  # cancel existing runs
+  group: "cryptoldoc"
+  cancel-in-progress: false
+
+jobs:
+  # There are two jobs: building docs for this branch, and then
+  # building a full set of docs for and update the public interface.
+  build-branch-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: false
+          fetch-depth: 0
+      - uses: cachix/install-nix-action@v20
+        with:
+          nix_path: nixpkgs=channel:nixos-23.05
+      - name: build PDF docs
+        if: github.event.pull_request.head.repo.fork == false
+        uses: docker://pandoc/latex:2.9.2
+        with:
+          args: >-
+            sh -c
+            "
+            apk add make;
+            tlmgr install subfigure lastpage preprint adjustbox nag collectbox sectsty todonotes palatino mathpazo;
+            cd docs;
+            make
+            "
+      - name: build HTML docs
+        # This builds the docs for the current checked-out branch to verify they
+        # are buildable.
+        shell: bash
+        run: |
+          cd docs/RefMan
+          nix-shell \
+            -p 'python3.withPackages (pp: [pp.sphinx pp.sphinx_rtd_theme])' \
+            --run 'make html'
+  build-pages-docs:
+    runs-on: ubuntu-latest
+    # The public interface should then allow the user to browse the cryptol
+    # documentation at the master branch, but also the documentation associated
+    # with each pull request and each tag (where a tag typically represents a
+    # released version).
+    #
+    # The general process is to checkout a version of the repository at each
+    # pull-request branch and each tag.  Then the html documentation is generated
+    # for each (a more complicate scheme would access artifacts of the doc builds
+    # from those individual builds, but building the docs is relatively fast, so
+    # it's simpler to do it here).  A top-level index file is created that allows
+    # switching between the various versions of the documentation.  Then the
+    # final results are committed to the gh-pages branch so that
+    # https://galoisinc.github.io/cryptol is useable to browse that
+    # documentation.
+    #
+    # In order to accomplish the above, various clones of the repository must be
+    # created that are switched to different branches/tags.  The github
+    # action/checkout unfortunately is not useable for this, and it does not
+    # leave the repository it checked out in a state that it can be used for this
+    # (it removes branch references and authentication).  The solution here then
+    # uses the GH_TOKEN and the `gh` API tool to interact with github to get a
+    # full reference checkout from which it can then create these ref-specific
+    # checkouts.
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    env:
+      # TGTBASE is used below as the working location to checkout and generate
+      # documentation.  Can be changed for convenience.
+      TGTBASE: docs/ci_build_out
+      REFREPO: docs/ci_build_out/master
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: false
+          fetch-depth: 0
+      - uses: cachix/install-nix-action@v20
+        with:
+          nix_path: nixpkgs=channel:nixos-23.05
+      - name: tags and pull requests
+        shell: bash
+        run: |
+          curl ${{ github.api_url }}/repos/${{ github.repository }}/pulls > pulls.json
+          curl ${{ github.api_url }}/repos/${{ github.repository }}/tags > tags.json
+      - name: checkout all doc versions
+        shell: bash
+        # Would like to clone from what we've already checked out, but
+        # actions/checkout seems to remove a lot of the critical
+        # references. [Side note: why is actions/checkout so complicated?  There
+        # are some controls, but it's a bunch of typescript that compiles to over
+        # 18,000 lines of JS that gets executed by nodejs to run a couple of
+        # shell commands!]  I think we can make this easier here
+        run: |
+          rm -rf ${TGTBASE}
+          mkdir ${TGTBASE}
+          # n.b. do not use github.repositoryURL for checkout: it is
+          # git:/github.com/owner/repo but that will fail in the context of
+          # github workflows; use an https reference instead:
+          git -c protocol.version=2 clone ${{ github.server_url }}/${{ github.repository }} ${REFREPO}
+          git -C ${REFREPO} fetch --all
+          for X in $(seq 0 $(( $(cat pulls.json | nix run nixpkgs#jq -- length) - 1))) ; do
+            prnum=$(cat pulls.json | nix run nixpkgs#jq -- .[${X}].number)
+            prref=$(cat pulls.json | nix run nixpkgs#jq -- -r .[${X}].merge_commit_sha)
+            tgt=${TGTBASE}/PR_${prnum}
+            echo "Checkout Pull Request ${prnum} at ${prref} into PR_${prnum}"
+            mkdir $tgt
+            # n.b. the switch here is important to make sure the branch is
+            # present in the clone.
+            git -C ${REFREPO} fetch origin ${prref}
+            git -C ${REFREPO} checkout ${prref}
+            git clone ${REFREPO} ${tgt}
+            git -C ${tgt} checkout ${prref}
+            if [ ! -d ${tgt}/docs/RefMan ] ; then
+              echo "Removing ${tgt}: no RefMan docs in this version"
+              rm -rf ${tgt}
+            fi
+          done
+          for X in $(seq 0 $(( $(cat tags.json | nix run nixpkgs#jq -- length) - 1))) ; do
+            tagname=$(cat tags.json | nix run nixpkgs#jq -- -r .[${X}].name)
+            tgt=${TGTBASE}/${tagname}
+            echo "Checkout Release Tag ${tagname} into ${tagname}"
+            git -C ${REFREPO} checkout ${tagname}
+            git clone ${REFREPO} ${tgt}
+            git -C ${tgt} checkout ${tagname}
+            if [ ! -d ${tgt}/docs/RefMan ] ; then
+              echo "Removing ${tgt}: no RefMan docs in this version"
+              rm -rf ${tgt}
+            fi
+          done
+          git -C ${REFREPO} switch --discard-changes master
+      - name: sphinx version config for each doc directory
+        shell: bash
+        run: |
+          topdir=$(pwd)
+          for tgt in ${TGTBASE}/* ; do
+            echo "Setting RefMan config in ${tgt}"
+            (cd ${tgt}/docs/RefMan
+             nix run nixpkgs#python3 -- ${topdir}/.github/gen_html_context.py ${{ github.repository }} $(basename ${tgt}) >> conf.py
+            )
+          done
+      - name: docs for each tag and pull request
+        shell: bash
+        # Do not fail if a particular set of docs doesn't build, just echo an
+        # error message placeholder for that set.
+        run: |
+          for tgt in ${TGTBASE}/* ; do
+            (cd ${tgt}/docs/RefMan;
+             echo Building HTML docs in ${tgt}/docs/RefMan
+             nix-shell \
+               -p 'python3.withPackages (pp: [pp.sphinx pp.sphinx_rtd_theme])' \
+               --run 'make html'
+            ) || (
+             echo "Unable to generate documentation for this release" > ${tgt}/docs/RefMan/_build/html/RefMan.html
+            )
+            mv ${tgt}/docs/RefMan/_build/html docs/RefMan/_build/$(basename ${tgt})
+          done
+          cp docs/index.html docs/RefMan/_build/index.html
+      - name: upload pages artifact
+        uses: actions/upload-pages-artifact@v1
+        with:
+          path: 'docs/RefMan/_build'
+      - name: Deploy to github pages
+        id: deployment
+        uses: actions/deploy-pages@v2
+
