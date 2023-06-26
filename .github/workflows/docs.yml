@@ -94,7 +94,11 @@ jobs:
         shell: bash
         run: |
           curl ${{ github.api_url }}/repos/${{ github.repository }}/pulls > pulls.json
+          head -n30 pulls.json
+          echo There are $(cat pulls.json | nix run nixpkgs#jq -- length) pull requests
           curl ${{ github.api_url }}/repos/${{ github.repository }}/tags > tags.json
+          head -n30 tags.json
+          echo There are $(cat tags.json | nix run nixpkgs#jq -- length) tags
       - name: checkout all doc versions
         shell: bash
         # Would like to clone from what we've already checked out, but
@@ -112,6 +116,7 @@ jobs:
           git -c protocol.version=2 clone ${{ github.server_url }}/${{ github.repository }} ${REFREPO}
           git -C ${REFREPO} fetch --all
           for X in $(seq 0 $(( $(cat pulls.json | nix run nixpkgs#jq -- length) - 1))) ; do
+            echo Handling Pull Request number ${X}
             prnum=$(cat pulls.json | nix run nixpkgs#jq -- .[${X}].number)
             prref=$(cat pulls.json | nix run nixpkgs#jq -- -r .[${X}].merge_commit_sha)
             tgt=${TGTBASE}/PR_${prnum}
@@ -128,7 +133,9 @@ jobs:
               rm -rf ${tgt}
             fi
           done
+          echo Acquiring tagged repositories
           for X in $(seq 0 $(( $(cat tags.json | nix run nixpkgs#jq -- length) - 1))) ; do
+            echo Handling Tag number ${X}
             tagname=$(cat tags.json | nix run nixpkgs#jq -- -r .[${X}].name)
             tgt=${TGTBASE}/${tagname}
             echo "Checkout Release Tag ${tagname} into ${tagname}"
