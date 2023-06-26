@@ -1,7 +1,9 @@
 # Revision history for `cryptol` Python package
 
-## NEXT -- YYYY-MM-DD
+## 3.0.0 -- 2023-06-26
 
+* The v3.0.0 release is made in tandem with the Cryptol 3.0.0 release. See the
+  Cryptol 3.0.0 release notes for relevant Cryptol changes.
 * Add `property_names` and `parameter_names` commands, used to get only those
   loaded names which are properties or module parameters, respectively.
 * Add more fields (such as `pragmas`, `parameter`, `module`, and `infix`) to

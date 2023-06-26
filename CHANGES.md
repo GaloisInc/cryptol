@@ -1,6 +1,24 @@
-# next
+# 3.0.0 -- 2023-06-26
 
 ## Language changes
+
+* Cryptol now includes a redesigned module system that is significantly more
+  expressive than in previous releases. The new module system includes the
+  following features:
+
+  * Nested modules: Modules may now be defined within other modules.
+
+  * Named interfaces: An interface specifies the parameters to a module.
+    Separating the interface from the parameter declarations makes it possible
+    to have different parameters that use the same interface.
+
+  * Top-level module constraints: These are useful to specify constraints
+    between different module parameters (i.e., ones that come from different
+    interfaces or multiple copies of the same interface).
+
+  See the
+  [manual section](https://galoisinc.github.io/cryptol/master/Modules.html#instantiation-by-parametrizing-declarations)
+  for more information.
 
 * Declarations may now use *numeric constraint guards*.   This is a feature
   that allows a function to behave differently depending on its numeric
@@ -18,6 +36,11 @@
 
 * Infix operators are now allowed in import lists: `import M ((<+>))` will
   import only the operator `<+>` from module `M`.
+
+* `lib/Array.cry` now contains an `arrayEq` primitive. Like the other
+  array-related primitives, this has no computational interpretation (and
+  therefore cannot be used in the Cryptol interpreter), but it is useful for
+  stating specifications that are used in SAW.
 
 ## New features
 
@@ -52,7 +75,28 @@
 * Fix a bug that caused finite bitvector enumerations to panic when used in
   combination with `(#)` (e.g., `[0..1] # 0`).
 
+* Cryptol's markdown parser is slightly more permissive and will now parse code
+  blocks with whitespace in between the backticks and `cryptol`. This sort of
+  whitespace is often inserted by markdown generation tools such as `pandoc`.
+
 * Improve documentation for `fromInteger` (#1465)
+
+* Closed issues #812, #977, #1090, #1140, #1147, #1253, #1322, #1324, #1329,
+  #1344, #1347, #1351, #1354, #1355, #1359, #1366, #1368, #1370, #1371, #1372,
+  #1373, #1378, #1383, #1385, #1386, #1391, #1394, #1395, #1396, #1398, #1399,
+  #1404, #1415, #1423, #1435, #1439, #1440, #1441, #1442, #1444, #1445, #1448,
+  #1449, #1450, #1451, #1452, #1456, #1457, #1458, #1462, #1465, #1466, #1470,
+  #1475, #1480, #1483, #1484, #1485, #1487, #1488, #1491, #1496, #1497, #1501,
+  #1503, #1510, #1511, #1513, and #1514.
+
+* Merged pull requests #1184, #1205, #1279, #1356, #1357, #1358, #1361, #1363,
+  #1365, #1367, #1376, #1379, #1380, #1384, #1387, #1388, #1393, #1401, #1402,
+  #1403, #1406, #1408, #1409, #1410, #1411, #1412, #1413, #1414, #1416, #1417,
+  #1418, #1419, #1420, #1422, #1424, #1429, #1430, #1431, #1432, #1436, #1438,
+  #1443, #1447, #1453, #1454, #1459, #1460, #1461, #1463, #1464, #1467, #1468,
+  #1472, #1473, #1474, #1476, #1477, #1478, #1481, #1493, #1499, #1502, #1504,
+  #1506, #1509, #1512, #1516, #1518, #1519, #1520, #1521, #1523, #1527, and
+  #1528.
 
 # 2.13.0
 

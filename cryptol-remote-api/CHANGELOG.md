@@ -1,7 +1,9 @@
 # Revision history for `cryptol-remote-api` and `cryptol-eval-server`
 
-## NEXT -- YYYY-MM-DD
+## 3.0.0 -- 2023-06-26
 
+* The v3.0.0 release is made in tandem with the Cryptol 3.0.0 release. See the
+  Cryptol 3.0.0 release notes for relevant Cryptol changes.
 * Add more fields (such as `pragmas`, `parameter`, `module`, and `infix`) to
   the response to the RPC `visible names` method.
 * Do not error if `visible names` is called when a parameterized module is
