@@ -22,11 +22,11 @@
 
 * Declarations may now use *numeric constraint guards*.   This is a feature
   that allows a function to behave differently depending on its numeric
-  type parameters.  See the [manual section](https://galoisinc.github.io/cryptol/master/BasicSyntax.html#numeric-constraint-guards))
+  type parameters.  See this [manual section](https://galoisinc.github.io/cryptol/master/BasicSyntax.html#numeric-constraint-guards)
   for more information.
 
 * The foreign function interface (FFI) has been added, which allows Cryptol to
-  call functions written in C. See the [manual section](https://galoisinc.github.io/cryptol/master/FFI.html)
+  call functions written in C. See this [manual section](https://galoisinc.github.io/cryptol/master/FFI.html)
   for more information.
 
 * The unary `-` operator now has the same precedence as binary `-`, meaning
