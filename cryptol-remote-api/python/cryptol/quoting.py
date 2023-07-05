@@ -29,7 +29,8 @@ def to_cryptol_str(val : Union[CryptolValue, str, CryptolJSON]) -> str:
     elif isinstance(val, OpaqueValue):
         return str(val)
     elif isinstance(val, str):
-        return f'"{val}"'
+        val_san = val.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n')
+        return f'"{val_san}"'
     elif hasattr(val, '__to_cryptol_str__'):
         return parenthesize(val.__to_cryptol_str__())
     else:

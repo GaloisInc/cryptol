@@ -33,6 +33,9 @@ class TestQuoting(unittest.TestCase):
         self.assertEqual(cry_f('id {5:#x}'),    cry('id "0x5"'))
         self.assertEqual(cry_f('id {BV(4,5)}'), cry('id 0x5'))
 
+        s = '" \ \n'
+        self.assertEqual(cry_f('{s}'), cry('"\\" \\\\ \\n"'))
+
         # Only here to check backwards compatability, the above syntax is preferred
         y = cry('g')(cry_f('{x}'))
         z = cry('h')(cry_f('{y}'))
