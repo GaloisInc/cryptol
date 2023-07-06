@@ -80,6 +80,7 @@ library
     CryptolServer.Names
     CryptolServer.Sat
     CryptolServer.TypeCheck
+    CryptolServer.Version
     CryptolServer.FileDeps
 
   other-modules:

@@ -78,6 +78,15 @@ class Unsatisfiable:
     def __nonzero__(self) -> Literal[False]:
         return False
 
+@dataclass
+class CryptolVersionInfo:
+    """Class containing version information about the Cryptol server."""
+    version: str
+    commit_hash: str
+    commit_branch: str
+    commit_dirty: bool
+    ffi_enabled: bool 
+
 
 def connect(command : Optional[str]=None,
             *,
@@ -376,6 +385,17 @@ class CryptolSyncConnection:
     def focused_module(self, *, timeout:Optional[float] = None) -> cryptoltypes.CryptolModuleInfo:
         """Returns the name and other information about the currently-focused module."""
         return cryptoltypes.to_cryptol_module_info(self.connection.focused_module(timeout=timeout).result())
+
+    def version(self, *, timeout:Optional[float] = None) -> CryptolVersionInfo:
+        """Returns version information about the Cryptol server."""
+        res = self.connection.version(timeout=timeout).result()
+        return CryptolVersionInfo(
+                version       = res['version'],
+                commit_hash   = res['commit hash'],
+                commit_branch = res['commit branch'],
+                commit_dirty  = res['commit dirty'],
+                ffi_enabled   = res['FFI enabled']
+                )
 
     def reset(self) -> None:
         """Resets the connection, causing its unique state on the server to be freed (if applicable).

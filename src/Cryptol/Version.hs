@@ -13,6 +13,7 @@ module Cryptol.Version (
   , commitShortHash
   , commitBranch
   , commitDirty
+  , ffiEnabled
   , version
   , displayVersion
   ) where
@@ -33,15 +34,21 @@ commitBranch = GitRev.branch
 commitDirty :: Bool
 commitDirty = GitRev.dirty
 
+ffiEnabled :: Bool
+#ifdef FFI_ENABLED
+ffiEnabled = True
+#else
+ffiEnabled = False
+#endif
+
 displayVersion :: Monad m => (String -> m ()) -> m ()
 displayVersion putLn = do
     let ver = showVersion version
     putLn ("Cryptol " ++ ver)
     putLn ("Git commit " ++ commitHash)
     putLn ("    branch " ++ commitBranch ++ dirtyLab)
-#ifdef FFI_ENABLED
-    putLn "FFI enabled"
-#endif
+    if ffiEnabled then putLn "FFI enabled"
+                  else return ()
       where
       dirtyLab | commitDirty = " (non-committed files present during build)"
                | otherwise   = ""
