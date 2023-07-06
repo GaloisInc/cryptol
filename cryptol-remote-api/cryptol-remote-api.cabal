@@ -85,6 +85,7 @@ library
 
   other-modules:
     CryptolServer.AesonCompat
+    Paths_cryptol_remote_api
 
 executable cryptol-remote-api
   import:              deps, warnings, errors

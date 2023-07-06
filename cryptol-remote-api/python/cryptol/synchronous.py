@@ -80,7 +80,17 @@ class Unsatisfiable:
 
 @dataclass
 class CryptolVersionInfo:
-    """Class containing version information about the Cryptol server."""
+    """
+    Class containing version information about the Cryptol server.
+
+    :param rpc_version: The cryptol-remote-api version string.
+    :param version: The Cryptol version string.
+    :param commit_hash: The string of the git commit hash during the build of Cryptol.
+    :param commit_branch: The string of the git commit branch during the build of Cryptol.
+    :param commit_dirty: True iff non-committed files were present during the build of Cryptol.
+    :param ffi_enabled: True iff the FFI is enabled.
+    """
+    rpc_version: str
     version: str
     commit_hash: str
     commit_branch: str
@@ -390,6 +400,7 @@ class CryptolSyncConnection:
         """Returns version information about the Cryptol server."""
         res = self.connection.version(timeout=timeout).result()
         return CryptolVersionInfo(
+                rpc_version   = res['RPC server version'],
                 version       = res['version'],
                 commit_hash   = res['commit hash'],
                 commit_branch = res['commit branch'],
