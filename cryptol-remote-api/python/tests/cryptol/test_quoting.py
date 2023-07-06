@@ -29,12 +29,12 @@ class TestQuoting(unittest.TestCase):
         self.assertEqual(cry_f('{{a = {x}, b = {x}}}'), cry('{a = 0x01, b = 0x01}'))
 
         self.assertEqual(cry_f('id {5}'),       cry('id 5'))
-        self.assertEqual(cry_f('id {5!s}'),     cry('id "5"'))
-        self.assertEqual(cry_f('id {5:#x}'),    cry('id "0x5"'))
+        self.assertEqual(cry_f('id {5!s}'),     cry('id ([53] : [1][8])')) # id "5"
+        self.assertEqual(cry_f('id {5:#x}'),    cry('id ([48, 120, 53] : [3][8])')) # id "0x5"
         self.assertEqual(cry_f('id {BV(4,5)}'), cry('id 0x5'))
 
-        s = '" \ \n'
-        self.assertEqual(cry_f('{s}'), cry('"\\" \\\\ \\n"'))
+        s = '" \n ÿ \\'
+        self.assertEqual(cry_f('{s}'), cry('([34, 32, 10, 32, 255, 32, 92] : [7][8])')) # "\" \n ÿ \\"
 
         # Only here to check backwards compatability, the above syntax is preferred
         y = cry('g')(cry_f('{x}'))

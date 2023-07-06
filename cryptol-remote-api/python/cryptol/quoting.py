@@ -29,9 +29,8 @@ def to_cryptol_str(val : Union[CryptolValue, str, CryptolJSON]) -> str:
     elif isinstance(val, OpaqueValue):
         return str(val)
     elif isinstance(val, str):
-        # Sanitizing strings for Cryptol - see <string> of src/Cryptol/Parser/Lexer.x
-        val_san = val.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n')
-        return f'"{val_san}"'
+        chars = list(val.encode('latin-1'))
+        return f'({to_cryptol_str(chars)} : [{len(chars)}][8])'
     elif hasattr(val, '__to_cryptol_str__'):
         return parenthesize(val.__to_cryptol_str__())
     else:
