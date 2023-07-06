@@ -2,7 +2,7 @@
 [![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/GaloisInc/cryptol)
 
 
-# Cryptol, version 2
+# Cryptol, version 3
 
     This version of Cryptol is (C) 2013-2020 Galois, Inc., and
     distributed under a standard, three-clause BSD license. Please see
@@ -19,7 +19,7 @@ Unlike current specification mechanisms, Cryptol is fully executable,
 allowing designers to experiment with their programs incrementally as
 their designs evolve.
 
-This release is an interpreter for version 2 of the Cryptol
+This release is an interpreter for version 3 of the Cryptol
 language. The interpreter includes a `:check` command, which tests
 predicates written in Cryptol against randomly-generated test vectors
 (in the style of
