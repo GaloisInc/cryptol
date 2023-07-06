@@ -14,6 +14,8 @@ def to_cryptol_str(val : Union[CryptolValue, str, CryptolJSON]) -> str:
     if isinstance(val, bool):
         return 'True' if val else 'False'
     elif isinstance(val, tuple):
+        if len(val) == 1:
+            raise TypeError("Unable to convert 1-tuple to Cryptol syntax: " + str(val))
         return '(' + ', '.join(to_cryptol_str(x) for x in val) + ')'
     elif isinstance(val, dict):
         return '{' + ', '.join(f'{k} = {to_cryptol_str(v)}' for k,v in val.items()) + '}'
@@ -22,14 +24,15 @@ def to_cryptol_str(val : Union[CryptolValue, str, CryptolJSON]) -> str:
     elif isinstance(val, list):
         return '[' + ', '.join(to_cryptol_str(x) for x in val) + ']'
     elif isinstance(val, BV):
-        if val.size() % 4 == 0:
+        if val.size() > 0 and val.size() % 4 == 0:
             return val.hex()
         else:
             return f'({val.to_signed_int()} : [{val.size()}])'
     elif isinstance(val, OpaqueValue):
         return str(val)
     elif isinstance(val, str):
-        return f'"{val}"'
+        chars = list(val.encode('latin-1'))
+        return f'({to_cryptol_str(chars)} : [{len(chars)}][8])'
     elif hasattr(val, '__to_cryptol_str__'):
         return parenthesize(val.__to_cryptol_str__())
     else:

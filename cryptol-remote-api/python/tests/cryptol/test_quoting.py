@@ -24,14 +24,25 @@ class TestQuoting(unittest.TestCase):
 
         self.assertEqual(cry_f('id {BV(size=7, value=1)}'), cry('id (1 : [7])'))
         self.assertEqual(cry_eval_f('id {BV(size=7, value=1)}'), BV(size=7, value=1))
+        self.assertEqual(cry_f('id {BV(size=0, value=0)}'), cry('id (0 : [0])'))
+        self.assertEqual(cry_eval_f('id {BV(size=0, value=0)}'), BV(size=0, value=0))
 
         self.assertEqual(cry_f('{ {"a": x, "b": x} }'), cry('{a = 0x01, b = 0x01}'))
         self.assertEqual(cry_f('{{a = {x}, b = {x}}}'), cry('{a = 0x01, b = 0x01}'))
 
+        with self.assertRaises(TypeError):
+            cry_f('{(0,)}') # Cryptol does not have 1-tuples
+
         self.assertEqual(cry_f('id {5}'),       cry('id 5'))
-        self.assertEqual(cry_f('id {5!s}'),     cry('id "5"'))
-        self.assertEqual(cry_f('id {5:#x}'),    cry('id "0x5"'))
+        self.assertEqual(cry_f('id {5!s}'),     cry('id ([53] : [1][8])')) # id "5"
+        self.assertEqual(cry_f('id {5:#x}'),    cry('id ([48, 120, 53] : [3][8])')) # id "0x5"
         self.assertEqual(cry_f('id {BV(4,5)}'), cry('id 0x5'))
+
+        s = '" \n ÿ \\'
+        self.assertEqual(cry_f('{s}'), cry('([34, 32, 10, 32, 255, 32, 92] : [7][8])')) # "\" \n ÿ \\"
+        self.assertEqual(cry_eval_f('{s}'), [BV(8,c) for c in [34, 32, 10, 32, 255, 32, 92]])
+        with self.assertRaises(UnicodeEncodeError):
+            cry_f('{"π"}') # 'latin-1' codec can't encode character (960 >= 256)
 
         # Only here to check backwards compatability, the above syntax is preferred
         y = cry('g')(cry_f('{x}'))
