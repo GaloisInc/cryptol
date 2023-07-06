@@ -2,9 +2,9 @@
 [![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/GaloisInc/cryptol)
 
 
-# Cryptol, version 2
+# Cryptol, version 3
 
-    This version of Cryptol is (C) 2013-2020 Galois, Inc., and
+    This version of Cryptol is (C) 2013-2023 Galois, Inc., and
     distributed under a standard, three-clause BSD license. Please see
     the file LICENSE, distributed with this software, for specific
     terms and conditions.
@@ -19,7 +19,7 @@ Unlike current specification mechanisms, Cryptol is fully executable,
 allowing designers to experiment with their programs incrementally as
 their designs evolve.
 
-This release is an interpreter for version 2 of the Cryptol
+This release is an interpreter for version 3 of the Cryptol
 language. The interpreter includes a `:check` command, which tests
 predicates written in Cryptol against randomly-generated test vectors
 (in the style of
@@ -205,20 +205,20 @@ and by cryptographers to
 ## Acknowledgements
 
 Cryptol has been under development for over a decade with many people
-contributing to its design and implementation. Those people include (but
-are not limited to) Aaron Tomb, Adam Foltzer, Adam Wick, Alexander
-Bakst, Andrew Kent, Andrei Stefanescu, Andrey Chudnov, Andy Gill,
-Benjamin Barenblat, Ben Jones, Ben Selfridge, Brett Boston, Brian
-Huffman, Brian Ledger, Chris Phifer, Daniel Wagner, David Thrane
-Christiansen, David Lazar, Dylan McNamee, Eddy Westbrook, Edward Yang,
-Eric Mertens, Eric Mullen, Fergus Henderson, Iavor Diatchki, Jared
-Weakly, Jeff Lewis, Jim Teisher, Joe Hendrix, Joe Hurd, Joe Kiniry, Joel
-Stanley, Joey Dodds, John Launchbury, John Matthews, Jonathan Daugherty,
-Kenneth Foner, Kevin Quick, Kyle Carter, Ledah Casburn, Lee Pike, Levent
-Erkök, Lisanna Dettwyler, Magnus Carlsson, Mark Shields, Mark Tullsen,
-Matt Sottile, Nathan Collins, Philip Weaver, Robert Dockins, Ryan Scott,
-Sally Browning, Sam Anklesaria, Sigbjørn Finne, Stephen Magill, Thomas
-Nordin, Trevor Elliott, and Tristan Ravitch.
+contributing to its design and implementation. Those people include (but are
+not limited to) Aaron Tomb, Adam Foltzer, Adam Wick, Alexander Bakst, Andrew
+Kent, Andrei Stefanescu, Andrey Chudnov, Andy Gill, Benjamin Barenblat, Ben
+Jones, Ben Selfridge, Brett Boston, Bretton Chen, Brian Huffman, Brian Ledger,
+Chris Phifer, Daniel Wagner, David Thrane Christiansen, David Lazar, Dylan
+McNamee, Eddy Westbrook, Edward Yang, Eric Mertens, Eric Mullen, Fergus
+Henderson, Hazel Weakly, Henry Blanchette, Iavor Diatchki, Jeff Lewis, Jim
+Teisher, Joe Hendrix, Joe Hurd, Joe Kiniry, Joel Stanley, Joey Dodds, John
+Launchbury, John Matthews, Jonathan Daugherty, Kenneth Foner, Kevin Quick, Kyle
+Carter, Ledah Casburn, Lee Pike, Levent Erkök, Lisanna Dettwyler, Magnus
+Carlsson, Mark Shields, Mark Tullsen, Matt Sottile, Matthew Yacavone, Nathan
+Collins, Philip Weaver, Robert Dockins, Ryan Scott, Sally Browning, Sam
+Anklesaria, Sigbjørn Finne, Stephen Magill, Thomas Nordin, Trevor Elliott, and
+Tristan Ravitch.
 
 Much of the work on Cryptol has been funded by, and lots of design input
 was provided by, the team at the [NSA's Laboratory for Advanced Cybersecurity

@@ -3,7 +3,7 @@ name = "cryptol"
 version = "3.0.0.99"
 readme = "README.md"
 keywords = ["cryptography", "verification"]
-description = "Cryptol client for the Cryptol 2.13 RPC server"
+description = "Cryptol client for the Cryptol RPC server"
 authors = ["Galois, Inc. <cryptol-team@galois.com>"]
 
 license = "BSD License"
