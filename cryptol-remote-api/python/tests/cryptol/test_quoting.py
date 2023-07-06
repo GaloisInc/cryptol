@@ -24,9 +24,14 @@ class TestQuoting(unittest.TestCase):
 
         self.assertEqual(cry_f('id {BV(size=7, value=1)}'), cry('id (1 : [7])'))
         self.assertEqual(cry_eval_f('id {BV(size=7, value=1)}'), BV(size=7, value=1))
+        self.assertEqual(cry_f('id {BV(size=0, value=0)}'), cry('id (0 : [0])'))
+        self.assertEqual(cry_eval_f('id {BV(size=0, value=0)}'), BV(size=0, value=0))
 
         self.assertEqual(cry_f('{ {"a": x, "b": x} }'), cry('{a = 0x01, b = 0x01}'))
         self.assertEqual(cry_f('{{a = {x}, b = {x}}}'), cry('{a = 0x01, b = 0x01}'))
+
+        with self.assertRaises(TypeError):
+            cry_f('{(0,)}') # Cryptol does not have 1-tuples
 
         self.assertEqual(cry_f('id {5}'),       cry('id 5'))
         self.assertEqual(cry_f('id {5!s}'),     cry('id ([53] : [1][8])')) # id "5"

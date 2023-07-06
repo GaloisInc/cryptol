@@ -149,7 +149,7 @@ class BV:
 
     def to_signed_int(self) -> int:
         """Return the signed (i.e., two's complement) integer the ``BV`` represents."""
-        if not self.msb():
+        if self.__size == 0 or not self.msb():
             n = self.__value
         else:
             n = 0 - ((2 ** self.__size) - self.__value)
