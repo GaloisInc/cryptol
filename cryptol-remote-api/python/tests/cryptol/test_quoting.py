@@ -35,6 +35,9 @@ class TestQuoting(unittest.TestCase):
 
         s = '" \n ÿ \\'
         self.assertEqual(cry_f('{s}'), cry('([34, 32, 10, 32, 255, 32, 92] : [7][8])')) # "\" \n ÿ \\"
+        self.assertEqual(cry_eval_f('{s}'), [BV(8,c) for c in [34, 32, 10, 32, 255, 32, 92]])
+        with self.assertRaises(UnicodeEncodeError):
+            cry_f('{"π"}') # 'latin-1' codec can't encode character (960 >= 256)
 
         # Only here to check backwards compatability, the above syntax is preferred
         y = cry('g')(cry_f('{x}'))
