@@ -21,6 +21,7 @@ module Cryptol.Version (
 import Paths_cryptol
 import qualified GitRev
 import Data.Version (showVersion)
+import Control.Monad (when)
 
 commitHash :: String
 commitHash = GitRev.hash
@@ -47,8 +48,7 @@ displayVersion putLn = do
     putLn ("Cryptol " ++ ver)
     putLn ("Git commit " ++ commitHash)
     putLn ("    branch " ++ commitBranch ++ dirtyLab)
-    if ffiEnabled then putLn "FFI enabled"
-                  else return ()
+    when ffiEnabled $ putLn "FFI enabled"
       where
       dirtyLab | commitDirty = " (non-committed files present during build)"
                | otherwise   = ""
