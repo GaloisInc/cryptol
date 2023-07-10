@@ -33,6 +33,7 @@ import CryptolServer.LoadModule
 import CryptolServer.Names ( visibleNames, visibleNamesDescr )
 import CryptolServer.Sat ( proveSat, proveSatDescr )
 import CryptolServer.TypeCheck ( checkType, checkTypeDescr )
+import CryptolServer.Version ( version, versionDescr )
 import CryptolServer.FileDeps( fileDeps, fileDepsDescr )
 
 main :: IO ()
@@ -69,6 +70,10 @@ getSearchPaths =
 cryptolMethods :: [AppMethod ServerState]
 cryptolMethods =
   [ command
+    "version"
+    versionDescr
+    version
+  , command
     "check"
     checkDescr
     check

@@ -237,6 +237,52 @@ JSON representations of types are type schemas. A type schema has three fields:
 Methods
 -------
 
+version (command)
+~~~~~~~~~~~~~~~~~
+
+Version information about this Cryptol server.
+
+Parameter fields
+++++++++++++++++
+
+No parameters
+
+
+Return fields
++++++++++++++
+
+
+``RPC server version``
+  The cryptol-remote-api version string.
+  
+  
+
+``version``
+  The Cryptol version string.
+  
+  
+
+``commit hash``
+  The string of the git commit hash during the build of Cryptol.
+  
+  
+
+``commit branch``
+  The string of the git commit branch during the build of Cryptol.
+  
+  
+
+``commit dirty``
+  True iff non-committed files were present during the build of Cryptol.
+  
+  
+
+``FFI enabled``
+  True iff the FFI is enabled.
+  
+  
+
+
 check (command)
 ~~~~~~~~~~~~~~~
 

@@ -1,5 +1,15 @@
 # Revision history for `cryptol` Python package
 
+## 3.0.2 -- YYYY-MM-DD
+
+*  NEW CHANGELOG ENTRIES SINCE 3.0.1 GO HERE
+
+## 3.0.1 -- 2023-07-10
+
+* Update `cry_f` to property handle strings, length-0 `BV`s, and 1-tuples
+* Add `version` command for fetching Cryptol/`cryptol-remote-api` version
+  information
+
 ## 3.0.0 -- 2023-06-26
 
 * The v3.0.0 release is made in tandem with the Cryptol 3.0.0 release. See the

@@ -311,6 +311,18 @@ class CryptolFocusedModule(argo.Command):
         return res
 
 
+class CryptolVersion(argo.Command):
+    def __init__(self, connection : HasProtocolState, timeout: Optional[float]) -> None:
+        super(CryptolVersion, self).__init__(
+            'version',
+            {},
+            connection,
+            timeout=timeout)
+
+    def process_result(self, res : Any) -> Any:
+        return res
+
+
 class CryptolReset(argo.Notification):
     def __init__(self, connection : HasProtocolState) -> None:
         super(CryptolReset, self).__init__(

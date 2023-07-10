@@ -421,6 +421,14 @@ class CryptolConnection:
         self.most_recent_result = CryptolFocusedModule(self, timeout)
         return self.most_recent_result
 
+    def version(self, *, timeout:Optional[float] = None) -> argo.Command:
+        """Returns version information about the Cryptol server.
+
+        :param timeout: Optional timeout for this request (in seconds)."""
+        timeout = timeout if timeout is not None else self.timeout
+        self.most_recent_result = CryptolVersion(self, timeout)
+        return self.most_recent_result
+
     def reset(self) -> None:
         """Resets the connection, causing its unique state on the server to be freed (if applicable).
 

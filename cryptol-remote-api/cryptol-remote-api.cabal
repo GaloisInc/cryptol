@@ -1,6 +1,6 @@
 cabal-version:       2.4
 name:                cryptol-remote-api
-version:             3.0.0.99
+version:             3.0.1.99
 license:             BSD-3-Clause
 license-file:        LICENSE
 author:              Galois, Inc.
@@ -80,10 +80,12 @@ library
     CryptolServer.Names
     CryptolServer.Sat
     CryptolServer.TypeCheck
+    CryptolServer.Version
     CryptolServer.FileDeps
 
   other-modules:
     CryptolServer.AesonCompat
+    Paths_cryptol_remote_api
 
 executable cryptol-remote-api
   import:              deps, warnings, errors

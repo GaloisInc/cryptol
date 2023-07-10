@@ -11,7 +11,7 @@ from .quoting import *
 from .solver import OfflineSmtQuery, Solver, OnlineSolver, OfflineSolver, Z3
 from .connection import CryptolValue, CheckReport
 from . import synchronous
-from .synchronous import Qed, Safe, Counterexample, Satisfiable, Unsatisfiable
+from .synchronous import Qed, Safe, Counterexample, Satisfiable, Unsatisfiable, CryptolVersionInfo
 from . import cryptoltypes
 
 
@@ -235,6 +235,10 @@ def property_names(*, timeout:Optional[float] = None) -> List[cryptoltypes.Crypt
 def focused_module(*, timeout:Optional[float] = None) -> cryptoltypes.CryptolModuleInfo:
     """Returns the name and other information about the currently-focused module."""
     return __get_designated_connection().focused_module(timeout=timeout)
+
+def version(*, timeout:Optional[float] = None) -> CryptolVersionInfo:
+    """Returns version information about the Cryptol server."""
+    return __get_designated_connection().version(timeout=timeout)
 
 def reset() -> None:
     """Resets the connection, causing its unique state on the server to be freed (if applicable).
