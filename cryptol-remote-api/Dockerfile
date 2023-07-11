@@ -64,6 +64,8 @@ ENV PATH=/usr/local/bin:/cryptol/rootfs/usr/local/bin:$PATH
 RUN mkdir -p rootfs/"${CRYPTOLPATH}" \
     && cp -r lib/* rootfs/"${CRYPTOLPATH}"
 WORKDIR /cryptol/rootfs/usr/local/bin
+# The URL here is based on the same logic used to specify BIN_ZIP_FILE in
+# `.github/workflow/ci.yml`, but specialized to x86-64 Ubuntu.
 RUN curl -sL -o solvers.zip "https://github.com/GaloisInc/what4-solvers/releases/download/snapshot-20230711/ubuntu-22.04-X64-bin.zip" && \
     unzip solvers.zip && rm solvers.zip && chmod +x *
 USER root
