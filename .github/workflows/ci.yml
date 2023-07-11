@@ -9,7 +9,13 @@ on:
   workflow_dispatch:
 
 env:
-  SOLVER_PKG_VERSION: "snapshot-20221212"
+  # The solver package snapshot date. If you update this, make sure to also
+  # update it in the following locations:
+  #
+  # - Dockerfile
+  # - cryptol-remote-api/Dockerfile
+  # - README.md
+  SOLVER_PKG_VERSION: "snapshot-20230711"
   # The CACHE_VERSION can be updated to force the use of a new cache if
   # the current cache contents become corrupted/invalid.  This can
   # sometimes happen when (for example) the OS version is changed but
@@ -121,7 +127,13 @@ jobs:
       - shell: bash
         run: .github/ci.sh install_system_deps
         env:
-          BIN_ZIP_FILE: ${{ matrix.os }}-bin.zip
+          # The full zip file name for a what4-solvers bindist. If you update
+          # this, make sure to also update it in the following locations:
+          #
+          # - The other BIN_ZIP_FILE in the `test` job
+          # - Dockerfile
+          # - cryptol-remote-api/Dockerfile
+          BIN_ZIP_FILE: ${{ matrix.os }}-${{ runner.arch }}-bin.zip
 
       - shell: bash
         env:
@@ -293,7 +305,13 @@ jobs:
 
       - shell: bash
         env:
-          BIN_ZIP_FILE: ${{ matrix.os }}-bin.zip
+          # The full zip file name for a what4-solvers bindist. If you update
+          # this, make sure to also update it in the following locations:
+          #
+          # - The other BIN_ZIP_FILE in the `build` job
+          # - Dockerfile
+          # - cryptol-remote-api/Dockerfile
+          BIN_ZIP_FILE: ${{ matrix.os }}-${{ runner.arch }}-bin.zip
         run: |
           set -x
           chmod +x dist/bin/cryptol
