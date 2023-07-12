@@ -1,8 +1,8 @@
 diff --git a/configure.ac b/configure.ac
-index 6eac557b93..fd87983730 100644
+index 31dd8a89b2..03835037fc 100644
 --- a/configure.ac
 +++ b/configure.ac
-@@ -922,7 +922,7 @@ dnl    off_t, because it will affect the result of that test.
+@@ -943,7 +943,7 @@ dnl    off_t, because it will affect the result of that test.
  AC_SYS_LARGEFILE
  
  dnl ** check for specific header (.h) files that we are interested in
@@ -11,9 +11,9 @@ index 6eac557b93..fd87983730 100644
  
  dnl sys/cpuset.h needs sys/param.h to be included first on FreeBSD 9.1; #7708
  AC_CHECK_HEADERS([sys/cpuset.h], [], [],
-@@ -1230,10 +1230,6 @@ AC_LINK_IFELSE([
-   AC_MSG_RESULT(no)
- )
+@@ -1166,10 +1166,6 @@ AC_LINK_IFELSE([AC_LANG_CALL([], [printf\$LDBLStub])],
+ 
+ FP_CHECK_PTHREADS
  
 -dnl ** check for eventfd which is needed by the I/O manager
 -AC_CHECK_HEADERS([sys/eventfd.h])
@@ -23,7 +23,7 @@ index 6eac557b93..fd87983730 100644
  AC_MSG_CHECKING(for __thread support)
  AC_COMPILE_IFELSE(
 diff --git a/libraries/base/configure.ac b/libraries/base/configure.ac
-index 716e46cc05..694bf6aa81 100644
+index 68295563af..2d7683c27b 100644
 --- a/libraries/base/configure.ac
 +++ b/libraries/base/configure.ac
 @@ -23,7 +23,7 @@ AC_MSG_RESULT($WINDOWS)
@@ -35,12 +35,12 @@ index 716e46cc05..694bf6aa81 100644
  
  # Enable large file support. Do this before testing the types ino_t, off_t, and
  # rlim_t, because it will affect the result of that test.
-@@ -40,7 +40,7 @@ AC_CHECK_FUNCS([clock_gettime])
- AC_CHECK_FUNCS([getclock getrusage times])
- AC_CHECK_FUNCS([_chsize ftruncate])
- 
+@@ -46,7 +46,7 @@ AC_CHECK_FUNCS([_chsize ftruncate])
+ # to keep kqueue/poll in line with HAVE_EPOLL and possible other additions in the future. You
+ # should be aware of this peculiarity if you try to simulate not having kqueue or poll by
+ # moving away header files (see also https://gitlab.haskell.org/ghc/ghc/-/issues/9283)
 -AC_CHECK_FUNCS([epoll_ctl eventfd kevent kevent64 kqueue poll])
 +AC_CHECK_FUNCS([epoll_ctl kevent kevent64 kqueue poll])
  
- # event-related fun
- 
+ if test "$ac_cv_header_sys_epoll_h" = yes && test "$ac_cv_func_epoll_ctl" = yes; then
+   AC_DEFINE([HAVE_EPOLL], [1], [Define if you have epoll support.])

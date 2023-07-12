@@ -24,15 +24,15 @@ RUN z3 --version
 ARG CRYPTOLPATH="/cryptol/.cryptol"
 ENV LANG=C.UTF-8 \
     LC_ALL=C.UTF-8
-COPY cabal.GHC-8.10.7.config cabal.project.freeze
+COPY cabal.GHC-9.2.8.config cabal.project.freeze
 RUN mkdir -p /home/cryptol/.local/bin && \
-    curl -L https://downloads.haskell.org/~ghcup/0.1.17.7/x86_64-linux-ghcup-0.1.17.7 -o /home/cryptol/.local/bin/ghcup && \
+    curl -L https://downloads.haskell.org/~ghcup/0.1.19.4/x86_64-linux-ghcup-0.1.19.4 -o /home/cryptol/.local/bin/ghcup && \
     chmod +x /home/cryptol/.local/bin/ghcup
 RUN mkdir -p /home/cryptol/.ghcup && \
     ghcup --version && \
     ghcup install cabal 3.6.2.0 && \
-    ghcup install ghc 8.10.7 && \
-    ghcup set ghc 8.10.7
+    ghcup install ghc 9.2.8 && \
+    ghcup set ghc 9.2.8
 RUN cabal v2-update && \
     cabal v2-build -j cryptol:exe:cryptol && \
     cp $(cabal v2-exec which cryptol) rootfs/usr/local/bin && \

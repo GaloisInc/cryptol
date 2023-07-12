@@ -70,7 +70,7 @@ jobs:
         run-tests: [true]
         exclude:
           - os: windows-2019
-            ghc-version: 9.2.8
+            ghc-version: 8.10.7
             run-tests: true
           - os: windows-2019
             ghc-version: 9.4.5
@@ -80,7 +80,7 @@ jobs:
           # coverage of possible Linux configurations. Since we already run the
           # tests with the newest LTS release, we won't bother testing this one.
           - os: ubuntu-20.04
-            ghc-version: 8.10.7
+            ghc-version: 9.2.8
             run-tests: false
     outputs:
       test-lib-json: ${{ steps.test-lib.outputs.targets-json }}
@@ -218,13 +218,13 @@ jobs:
           if-no-files-found: error
           retention-days: ${{ needs.config.outputs.retention-days }}
 
-      - if: matrix.ghc-version == '8.10.7' && matrix.run-tests
+      - if: matrix.ghc-version == '9.2.8' && matrix.run-tests
         uses: actions/upload-artifact@v2
         with:
           path: dist/bin
           name: ${{ runner.os }}-dist-bin
 
-      - if: matrix.ghc-version == '8.10.7' && matrix.run-tests
+      - if: matrix.ghc-version == '9.2.8' && matrix.run-tests
         uses: actions/upload-artifact@v2
         with:
           path: bin
@@ -268,7 +268,7 @@ jobs:
 
       - uses: haskell/actions/setup@v2
         with:
-          ghc-version: '8.10.7'
+          ghc-version: '9.2.8'
 
       - name: Install dependencies (Windows)
         uses: msys2/setup-msys2@v2

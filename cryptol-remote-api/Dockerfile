@@ -1,4 +1,4 @@
-ARG GHCVER="8.10.7"
+ARG GHCVER="9.2.8"
 ARG GHCVER_BOOTSTRAP="8.10.2"
 FROM ubuntu:22.04 AS toolchain
 ARG PORTABILITY=false
@@ -14,7 +14,7 @@ RUN apt-get update && \
       unzip
 ENV GHCUP_INSTALL_BASE_PREFIX=/opt \
     PATH=/opt/.ghcup/bin:$PATH
-RUN curl -o /usr/local/bin/ghcup "https://downloads.haskell.org/~ghcup/0.1.17.7/x86_64-linux-ghcup-0.1.17.7" && \
+RUN curl -o /usr/local/bin/ghcup "https://downloads.haskell.org/~ghcup/0.1.19.4/x86_64-linux-ghcup-0.1.19.4" && \
     chmod +x /usr/local/bin/ghcup
 RUN ghcup install cabal --set
 ENV PATH=/root/.cabal/bin:$PATH
@@ -25,7 +25,7 @@ RUN if ${PORTABILITY}; then \
         ghcup install ghc ${GHCVER_BOOTSTRAP} && \
         ghcup set ghc ${GHCVER_BOOTSTRAP} && \
         cabal v2-update && \
-        cabal v2-install alex happy-1.19.12 && \
+        cabal v2-install alex happy-1.20.1.1 && \
         git clone --recurse-submodules --depth 1 --branch ghc-${GHCVER}-release https://gitlab.haskell.org/ghc/ghc.git && \
         cd ./ghc && \
         git apply ../ghc-portability.patch && \
