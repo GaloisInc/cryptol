@@ -9,6 +9,7 @@ module CryptolServer.FileDeps
 import Data.Text (Text)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import qualified Data.Map.Strict as Map
 
 import qualified Data.Aeson as JSON
 import Data.Aeson (FromJSON(..),ToJSON(..),(.=),(.:))
@@ -67,7 +68,7 @@ instance ToJSON FileDeps where
                            InFile f  -> toJSON f
                            InMem l _ -> JSON.object [ "internal" .= l ]
       , "fingerprint" .= fingerprintHexString (fiFingerprint fi)
-      , "includes"    .= Set.toList (fiIncludeDeps fi)
+      , "includes"    .= Map.keys (fiIncludeDeps fi)
       , "imports"     .= map (show . pp) (Set.toList (fiImportDeps fi))
       , "foreign"     .= Map.toList (fiForeignDeps fi)
       ]

@@ -435,6 +435,11 @@ isLoaded mn =
   do env <- ModuleT get
      pure (MEnv.isLoaded (T.ImpTop mn) (meLoadedModules env))
 
+isLoadedStrict :: P.ModName -> ModulePath -> ModuleM Bool
+isLoadedStrict mn mpath =
+  do env <- ModuleT get
+     pure (MEnv.isLoadedStrict (T.ImpTop mn) (modulePathLabel mpath) (meLoadedModules env))
+
 loadingImport :: Located P.Import -> ModuleM a -> ModuleM a
 loadingImport  = loading . FromImport
 

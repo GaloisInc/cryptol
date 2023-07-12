@@ -190,8 +190,7 @@ modNameIfaceMod (ModMain _) = panic "modNameIfaceMod" ["Name is not normal"]
 
 modNameToNormalModName :: ModName -> ModName
 modNameToNormalModName (ModName t _) = ModName t NormalName
-modNameToNormalModName (ModMain _) =
-  panic "modNameToNormalModName" ["Main module has no normal name"]
+modNameToNormalModName (ModMain p) = ModMain p
 
 -- | This is used when we check that the name of a module matches the
 -- file where it is defined.
