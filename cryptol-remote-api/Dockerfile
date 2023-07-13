@@ -12,6 +12,8 @@ RUN apt-get update && \
       $(if ${PORTABILITY}; then echo git autoconf python3 libnuma-dev; fi) \
       # Miscellaneous
       unzip
+ENV LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8
 ENV GHCUP_INSTALL_BASE_PREFIX=/opt \
     PATH=/opt/.ghcup/bin:$PATH
 RUN curl -o /usr/local/bin/ghcup "https://downloads.haskell.org/~ghcup/0.1.19.4/x86_64-linux-ghcup-0.1.19.4" && \
