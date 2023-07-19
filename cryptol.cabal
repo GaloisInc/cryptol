@@ -46,7 +46,6 @@ library
   Default-language:
     Haskell2010
   Build-depends:       base              >= 4.9 && < 5,
-                       aeson,
                        arithmoi          >= 0.12,
                        async             >= 2.2 && < 2.3,
                        base-compat       >= 0.6 && < 0.13,
@@ -64,6 +63,8 @@ library
                        gitrev            >= 1.0,
                        ghc-prim,
                        GraphSCC          >= 1.0.4,
+                       heredoc           >= 0.2,
+                       HsYAML,
                        language-c99,
                        language-c99-simple,
                        libBF             >= 0.6 && < 0.7,
@@ -86,8 +87,7 @@ library
                        mtl               >= 2.2.1,
                        time              >= 1.6.0.1,
                        panic             >= 0.3,
-                       what4             >= 1.4 && < 1.7,
-                       yaml              >= 0.11.11 && < 0.12
+                       what4             >= 1.4 && < 1.7
 
   if impl(ghc >= 9.0)
     build-depends:     ghc-bignum        >= 1.0 && < 1.4
