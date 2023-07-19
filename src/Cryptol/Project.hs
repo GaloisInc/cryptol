@@ -1,14 +1,9 @@
 {-# LANGUAGE BlockArguments    #-}
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes        #-}
 {-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE TypeApplications  #-}
-{-# LANGUAGE TypeFamilies      #-}
 
 module Cryptol.Project
   ( Config
@@ -16,20 +11,20 @@ module Cryptol.Project
   , run
   ) where
 
-import           Control.Monad (unless)
-import           Control.Monad.Except
+import           Control.Monad (unless, void)
 import           Control.Monad.State
-import           Data.Aeson
+import           Data.Bifunctor
+import qualified Data.ByteString                  as BS.Strict
+import qualified Data.ByteString.Lazy             as BS.Lazy
 import           Data.Foldable
-import           Data.Functor
 import           Data.Map.Strict                  (Map)
 import qualified Data.Map.Strict                  as Map
 import           Data.Maybe
 import           Data.Set                         (Set)
 import qualified Data.Set                         as Set
+import qualified Data.Text                        as Text
 import           Data.Traversable
-import           Data.Yaml
-import           GHC.Generics
+import           Data.YAML
 import           System.Directory
 import           System.FilePath                  as FP
 import           System.IO.Error
@@ -46,52 +41,46 @@ import           Cryptol.Utils.Ident
 import           Cryptol.Utils.Logger
 import           Cryptol.Utils.PP                 as PP
 
-type family MaybeIf (opt :: Bool) t where
-  MaybeIf 'True t = Maybe t
-  MaybeIf 'False t = t
+data Config = Config
+  { root    :: FilePath
+  , modules :: [FilePath] }
 
-data GenericConfig (opt :: Bool) = Config
-  { root    :: MaybeIf opt FilePath
-  , modules :: MaybeIf opt [FilePath] }
-  deriving Generic
-
-type ParsedConfig = GenericConfig 'True
-type Config = GenericConfig 'False
-
-instance FromJSON ParsedConfig where
-  parseJSON = genericParseJSON defaultOptions { rejectUnknownFields = True }
+instance FromYAML Config where
+  parseYAML = withMap "Config" \m -> do
+    root <- Text.unpack <$> m .:? "root" .!= "."
+    modules <- map Text.unpack <$> m .:? "modules" .!= ["."]
+    pure Config {..}
 
 data ConfigLoadError = ConfigLoadError FilePath ConfigLoadErrorInfo
 
 data ConfigLoadErrorInfo
-  = ConfigParseError ParseException
+  = ConfigParseError BS.Lazy.ByteString (Pos, String)
   | SetRootFailed IOError
 
 instance PP ConfigLoadError where
   ppPrec _ (ConfigLoadError path info) =
-    hang ("Error loading project configuration" <+> text path PP.<.> ":")
-       4 (pp info)
-
-instance PP ConfigLoadErrorInfo where
-  ppPrec _ (ConfigParseError exn) =
-    text (prettyPrintParseException exn)
-  ppPrec _ (SetRootFailed ioe) =
-    hang "Failed to set project root:"
-       4 (text (show ioe))
+    case info of
+      ConfigParseError file (pos, err) -> text $
+        show topMsg ++ prettyPosWithSource pos file "\nParse error:" ++ err
+      SetRootFailed ioe ->
+        hang topMsg
+           4 (hang "Failed to set project root:"
+                 4 (text (show ioe)))
+    where
+    topMsg = "Error loading project configuration" <+> text path PP.<.> ":"
 
 loadConfig :: FilePath -> IO (Either ConfigLoadError Config)
 loadConfig path = do
   isDir <- doesDirectoryExist path
   let filePath = if isDir then path FP.</> "cryproject.yaml" else path
-  runExceptT $ withExceptT (ConfigLoadError filePath) do
-    Config {..} <- withExceptT ConfigParseError do
-      ExceptT (decodeFileEither @ParsedConfig filePath)
-        <&> \Config {..} -> Config
-          { root = fromMaybe "." root
-          , modules = fromMaybe ["."] modules } :: Config
-    withExceptT SetRootFailed $ ExceptT $ tryIOError $
-      setCurrentDirectory (takeDirectory filePath FP.</> root)
-    pure Config {..}
+  -- Use strict IO since we are writing to the same file later
+  file <- BS.Lazy.fromStrict <$> BS.Strict.readFile filePath
+  first (ConfigLoadError filePath) <$>
+    case decode1 file of
+      Left (pos, err) -> pure $ Left $ ConfigParseError file (pos, err)
+      Right config -> first SetRootFailed <$> tryIOError do
+        setCurrentDirectory (takeDirectory filePath FP.</> root config)
+        pure config
 
 data FullFingerprint = FullFingerprint
   { moduleFingerprint   :: Fingerprint
