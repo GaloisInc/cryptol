@@ -35,9 +35,10 @@ jobs:
       release: ${{ steps.config.outputs.release }}
       retention-days: ${{ steps.config.outputs.retention-days }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: config
         id: config
@@ -88,9 +89,10 @@ jobs:
       VERSION: ${{ needs.config.outputs.version }}
       RELEASE: ${{ needs.config.outputs.release }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: true
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - uses: actions/setup-python@v2
         with:
@@ -262,9 +264,10 @@ jobs:
           #  os: windows-2019
           #  continue-on-error: true  # TODO: get Python client to work on Windows
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: true
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - uses: haskell/actions/setup@v2
         with:
@@ -423,7 +426,9 @@ jobs:
           cache-to: type=registry,ref=${{ matrix.cache }}:cache-${{ steps.common-tag.outputs.common-tag }},mode=max
 
       - if: matrix.image == 'ghcr.io/galoisinc/cryptol-remote-api'
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - if: matrix.image == 'ghcr.io/galoisinc/cryptol-remote-api'
         uses: actions/setup-python@v2
