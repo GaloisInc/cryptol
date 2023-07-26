@@ -345,6 +345,14 @@ Evaluation
 
 All Cryptol arguments are fully evaluated when a foreign function is called.
 
+The FFI is intended to be used with pure functions that do not perform side
+effects such as mutating global state, printing to the screen, interacting with
+the file system, etc. Cryptol does not enforce this convention, however, so it
+is possible to use impure functions from the FFI if you wish. Cryptol does not
+make any guarantees about the order in which side effects will be executed, nor
+does it make any guarantees about preserving any global state between
+invocations of impure FFI functions.
+
 Example
 -------
 
