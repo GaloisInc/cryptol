@@ -37,7 +37,8 @@ module Cryptol.Utils.RecordMap
   ) where
 
 import           Control.DeepSeq
-import           Control.Monad.Except
+import           Control.Monad.Except (ExceptT, MonadError(..), runExceptT)
+import           Control.Monad.Trans (MonadTrans(..))
 import           Data.Functor.Identity
 import           Data.Set (Set)
 import           Data.Map (Map)
