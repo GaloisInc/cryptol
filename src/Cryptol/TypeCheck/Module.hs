@@ -15,6 +15,7 @@ import Cryptol.Utils.Ident(Ident,Namespace(..),isInfixIdent)
 import Cryptol.Parser.Position (Range,Located(..), thing)
 import qualified Cryptol.Parser.AST as P
 import Cryptol.ModuleSystem.Name(nameIdent)
+import Cryptol.ModuleSystem.NamingEnv (NamingEnv(..), shadowing)
 import Cryptol.ModuleSystem.Interface
           ( IfaceG(..), IfaceDecls(..), IfaceNames(..), IfaceDecl(..)
           , filterIfaceDecls
@@ -36,9 +37,11 @@ doFunctorInst ::
   {- ^ Instantitation.  These is the renaming for the functor that arises from
        generativity (i.e., it is something that will make the names "fresh").
   -} ->
+  NamingEnv
+  {- ^ Names in the enclosing scope of the instantiated module -} ->
   Maybe Text                  {- ^ Documentation -} ->
   InferM (Maybe TCTopEntity)
-doFunctorInst m f as inst doc =
+doFunctorInst m f as inst enclosingInScope doc =
   inRange (srcRange m)
   do mf    <- lookupFunctor (thing f)
      argIs <- checkArity (srcRange f) mf as
@@ -73,9 +76,10 @@ doFunctorInst m f as inst doc =
                                  (Map.unions vps)
                                  m2
 
+     let inScope = mInScope m2 `shadowing` enclosingInScope
      case thing m of
-       P.ImpTop mn    -> newModuleScope mn (mExports m2)
-       P.ImpNested mn -> newSubmoduleScope mn doc (mExports m2)
+       P.ImpTop mn    -> newModuleScope mn (mExports m2) inScope
+       P.ImpNested mn -> newSubmoduleScope mn doc (mExports m2) inScope
 
      mapM_ addTySyn     (Map.elems (mTySyns m2))
      mapM_ addNewtype   (Map.elems (mNewtypes m2))

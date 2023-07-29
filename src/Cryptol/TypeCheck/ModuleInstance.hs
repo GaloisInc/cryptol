@@ -8,6 +8,7 @@ import qualified Data.Set as Set
 
 import Cryptol.Parser.Position(Located)
 import Cryptol.ModuleSystem.Interface(IfaceNames(..))
+import Cryptol.ModuleSystem.NamingEnv(NamingEnv,mapNamingEnv)
 import Cryptol.IR.TraverseNames(TraverseNames,mapNames)
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Subst(Subst,TVars,apSubst)
@@ -51,6 +52,9 @@ instance ModuleInstance a => ModuleInstance (Located a) where
 instance ModuleInstance Name where
   moduleInstance = doVInst
 
+instance ModuleInstance NamingEnv where
+  moduleInstance = mapNamingEnv doVInst
+
 instance ModuleInstance name => ModuleInstance (ImpName name) where
   moduleInstance x =
     case x of
@@ -74,6 +78,7 @@ instance ModuleInstance (ModuleG name) where
            , mDecls            = moduleInstance (mDecls m)
            , mSubmodules       = doMap (mSubmodules m)
            , mSignatures       = doMap (mSignatures m)
+           , mInScope          = moduleInstance (mInScope m)
            }
 
 instance ModuleInstance Type where
@@ -127,6 +132,7 @@ instance ModuleInstance name => ModuleInstance (IfaceNames name) where
                , ifsNested   = doSet (ifsNested ns)
                , ifsDefines  = doSet (ifsDefines ns)
                , ifsPublic   = doSet (ifsPublic ns)
+               , ifsInScope  = moduleInstance (ifsInScope ns)
                , ifsDoc      = ifsDoc ns
                }
 

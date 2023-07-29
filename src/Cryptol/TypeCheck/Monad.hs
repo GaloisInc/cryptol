@@ -40,6 +40,7 @@ import           MonadLib hiding (mapM)
 import           Cryptol.ModuleSystem.Name
                     (FreshM(..),Supply,mkLocal,asLocal
                     , nameInfo, NameInfo(..),NameSource(..), nameTopModule)
+import           Cryptol.ModuleSystem.NamingEnv.Types
 import qualified Cryptol.ModuleSystem.Interface as If
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
@@ -1006,16 +1007,16 @@ newTopSignatureScope x = newScope (TopSignatureScope x)
 to initialize an empty module.  As we type check declarations they are
 added to this module's scope. -}
 newSubmoduleScope ::
-  Name -> Maybe Text -> ExportSpec Name -> InferM ()
-newSubmoduleScope x docs e =
+  Name -> Maybe Text -> ExportSpec Name -> NamingEnv -> InferM ()
+newSubmoduleScope x docs e inScope =
   do updScope \o -> o { mNested = Set.insert x (mNested o) }
      newScope (SubModule x)
-     updScope \m -> m { mDoc = docs, mExports = e }
+     updScope \m -> m { mDoc = docs, mExports = e, mInScope = inScope }
 
-newModuleScope :: P.ModName -> ExportSpec Name -> InferM ()
-newModuleScope x e =
+newModuleScope :: P.ModName -> ExportSpec Name -> NamingEnv -> InferM ()
+newModuleScope x e inScope =
   do newScope (MTopModule x)
-     updScope \m -> m { mDoc = Nothing, mExports = e }
+     updScope \m -> m { mDoc = Nothing, mExports = e, mInScope = inScope }
 
 -- | Update the current scope (first in the list). Assumes there is one.
 updScope :: (ModuleG ScopeName -> ModuleG ScopeName) -> InferM ()
@@ -1057,6 +1058,7 @@ endSubmodule =
                  , mParamConstraints = mParamConstraints y
                  , mParams           = mParams y
                  , mNested           = mNested y
+                 , mInScope          = mInScope y
 
                  , mTySyns      = add mTySyns
                  , mNewtypes    = add mNewtypes
@@ -1155,6 +1157,8 @@ getCurDecls =
       , mSubmodules       = uni mSubmodules
       , mFunctors         = uni mFunctors
       , mSignatures       = uni mSignatures
+
+      , mInScope          = uni mInScope
       }
     where
     uni f = f m1 <> f m2

@@ -79,13 +79,14 @@ inferTopModule :: P.Module Name -> InferM TCTopEntity
 inferTopModule m =
   case P.mDef m of
     P.NormalModule ds ->
-      do newModuleScope (thing (P.mName m)) (P.exportedDecls ds)
+      do newModuleScope (thing (P.mName m)) (P.exportedDecls ds) (P.mInScope m)
          checkTopDecls ds
          proveModuleTopLevel
          endModule
 
     P.FunctorInstance f as inst ->
-      do mb <- doFunctorInst (P.ImpTop <$> P.mName m) f as inst Nothing
+      do mb <- doFunctorInst
+           (P.ImpTop <$> P.mName m) f as inst (P.mInScope m) Nothing
          case mb of
            Just mo -> pure mo
            Nothing -> panic "inferModule" ["Didnt' get a module"]
@@ -1322,13 +1323,15 @@ checkTopDecls = mapM_ checkTopDecl
              do newSubmoduleScope (thing (P.mName m))
                                   (thing <$> P.tlDoc tl)
                                   (P.exportedDecls ds)
+                                  (P.mInScope m)
                 checkTopDecls ds
                 proveModuleTopLevel
                 endSubmodule
 
            P.FunctorInstance f as inst ->
              do let doc = thing <$> P.tlDoc tl
-                _ <- doFunctorInst (P.ImpNested <$> P.mName m) f as inst doc
+                _ <- doFunctorInst
+                  (P.ImpNested <$> P.mName m) f as inst (P.mInScope m) doc
                 pure ()
 
            P.InterfaceModule sig ->

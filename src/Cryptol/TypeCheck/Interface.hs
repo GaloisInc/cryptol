@@ -32,6 +32,7 @@ genIfaceNames m = IfaceNames
   , ifsNested   = mNested m
   , ifsDefines  = genModDefines m
   , ifsPublic   = allExported (mExports m)
+  , ifsInScope  = mInScope m
   , ifsDoc      = mDoc m
   }
 

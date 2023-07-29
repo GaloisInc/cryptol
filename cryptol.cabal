@@ -141,6 +141,7 @@ library
                        Cryptol.ModuleSystem.Name,
                        Cryptol.ModuleSystem.Names,
                        Cryptol.ModuleSystem.NamingEnv,
+                       Cryptol.ModuleSystem.NamingEnv.Types,
                        Cryptol.ModuleSystem.Binds
                        Cryptol.ModuleSystem.Exports,
                        Cryptol.ModuleSystem.Renamer,
