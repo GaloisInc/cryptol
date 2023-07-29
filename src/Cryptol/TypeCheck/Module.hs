@@ -76,7 +76,16 @@ doFunctorInst m f as inst enclosingInScope doc =
                                  (Map.unions vps)
                                  m2
 
+     -- An instantiation doesn't really have anything "in scope" per se, but
+     -- here we compute what would be in scope as if you hand wrote the
+     -- instantiation by copy-pasting the functor then substituting the
+     -- parameters. That is, it would be whatever is in scope in the functor,
+     -- together with any names in the enclosing scope if this is a nested
+     -- module, with the functor's names taking precedence. This is used to
+     -- determine what is in scope at the REPL when the instantiation is loaded
+     -- and focused.
      let inScope = mInScope m2 `shadowing` enclosingInScope
+
      case thing m of
        P.ImpTop mn    -> newModuleScope mn (mExports m2) inScope
        P.ImpNested mn -> newSubmoduleScope mn doc (mExports m2) inScope
