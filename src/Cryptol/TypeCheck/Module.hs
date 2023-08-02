@@ -7,14 +7,15 @@ import Data.Map(Map)
 import qualified Data.Map as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
-import Control.Monad(unless,forM_)
+import Control.Monad(unless,forM_,mapAndUnzipM)
 
 
 import Cryptol.Utils.Panic(panic)
-import Cryptol.Utils.Ident(Ident,Namespace(..),isInfixIdent)
+import Cryptol.Utils.Ident(Ident,Namespace(..),ModPath,isInfixIdent)
 import Cryptol.Parser.Position (Range,Located(..), thing)
 import qualified Cryptol.Parser.AST as P
-import Cryptol.ModuleSystem.Name(nameIdent)
+import Cryptol.ModuleSystem.Binds(newModParam)
+import Cryptol.ModuleSystem.Name(nameIdent, nameLoc)
 import Cryptol.ModuleSystem.NamingEnv (NamingEnv(..), shadowing)
 import Cryptol.ModuleSystem.Interface
           ( IfaceG(..), IfaceDecls(..), IfaceNames(..), IfaceDecl(..)
@@ -41,14 +42,16 @@ doFunctorInst ::
   {- ^ Names in the enclosing scope of the instantiated module -} ->
   Maybe Text                  {- ^ Documentation -} ->
   InferM (Maybe TCTopEntity)
-doFunctorInst m f as inst enclosingInScope doc =
+doFunctorInst m f as instMap enclosingInScope doc =
   inRange (srcRange m)
   do mf    <- lookupFunctor (thing f)
      argIs <- checkArity (srcRange f) mf as
-     m2 <- do as2 <- mapM checkArg argIs
-              let (tySus,decls) = unzip [ (su,ds) | DefinedInst su ds <- as2 ]
+     m2 <- do let mpath = P.impNameModPath (thing m)
+              as2 <- mapM (checkArg mpath) argIs
+              let (tySus,decls,paramInstMaps) =
+                    unzip3 [ (su,ds,im) | DefinedInst su ds im <- as2 ]
               let ?tSu = mergeDistinctSubst tySus
-                  ?vSu = inst
+                  ?vSu = instMap <> mconcat paramInstMaps
               let m1   = moduleInstance mf
                   m2   = m1 { mName             = m
                             , mDoc              = Nothing
@@ -113,10 +116,7 @@ data ActualArg =
 
 {- | Validate a functor application, just checking the argument names.
 The result associates a module parameter with the concrete way it should
-be instantiated, which could be:
-
-  * `Left` instanciate using another parameter that is in scope
-  * `Right` instanciate using a module, with the given interface
+be instantiated.
 -}
 checkArity ::
   Range             {- ^ Location for reporting errors -} ->
@@ -172,7 +172,10 @@ checkArity r mf args =
                checkArgs done ps more
 
 
-data ArgInst = DefinedInst Subst [Decl] -- ^ Argument that defines the params
+data ArgInst = DefinedInst Subst [Decl] (Map Name Name)
+               -- ^ Argument that defines the params
+               --   The map is for mapping the functor's names to the new names
+               --   created for the instantiation
              | ParamInst (Set (MBQual TParam)) [Prop] (Map (MBQual Name) Type)
                -- ^ Argument that add parameters
                -- The type parameters are in their module type parameter
@@ -192,8 +195,8 @@ Returns:
   * XXX: Extra parameters for instantiation by adding params
 -}
 checkArg ::
-  (Range, ModParam, ActualArg) -> InferM ArgInst
-checkArg (r,expect,actual') =
+  ModPath -> (Range, ModParam, ActualArg) -> InferM ArgInst
+checkArg mpath (r,expect,actual') =
   case actual' of
     AddDeclParams   -> paramInst
     UseParameter {} -> definedInst
@@ -204,7 +207,7 @@ checkArg (r,expect,actual') =
     do let as = Set.fromList
                    (map (qual . mtpParam) (Map.elems (mpnTypes params)))
            cs = map thing (mpnConstraints params)
-           check = checkSimpleParameterValue r (mpName expect)
+           check = checkSimpleParameterValue r paramName
            qual a = (mpQual expect, a)
        fs <- Map.mapMaybeWithKey (\_ v -> v) <$> mapM check (mpnFuns params)
        pure (ParamInst as cs (Map.mapKeys qual fs))
@@ -218,15 +221,16 @@ checkArg (r,expect,actual') =
           doFunctorInst -}
 
 
-       vDecls <- concat <$>
-                  mapM (checkParamValue r vMap)
-                       [ s { mvpType = apSubst renSu (mvpType s) }
-                       | s <- Map.elems (mpnFuns params) ]
+       (vDeclss, vInstMaps) <-
+         mapAndUnzipM (checkParamValue mpath r paramName vMap)
+           [ s { mvpType = apSubst renSu (mvpType s) }
+           | s <- Map.elems (mpnFuns params) ]
 
-       pure (DefinedInst renSu vDecls)
+       pure (DefinedInst renSu (concat vDeclss) (mconcat vInstMaps))
 
 
   params = mpParameters expect
+  paramName = mpName expect
 
   -- Things provided by the argument module
   tyMap :: Map Ident (Kind, Type)
@@ -297,30 +301,36 @@ checkParamType r tyMap (name,mp) =
 
 -- | Check a value parameter to a module.
 checkParamValue ::
+  ModPath                 {- ^ The module we are instantiating -} ->
   Range                   {- ^ Location for error reporting -} ->
+  Ident                   {- ^ Name of the _module_ parameter (not value) -} ->
   Map Ident (Name,Schema) {- ^ Actual values -} ->
   ModVParam               {- ^ The parameter we are checking -} ->
-  InferM [Decl]           {- ^ Mapping from parameter name to definition -}
-checkParamValue r vMap mp =
+  InferM ([Decl], Map Name Name)
+  {- ^ Decl mapping a new name to the actual value,
+       and a map from the value param name in the functor to the new name
+         (for instantiation) -}
+checkParamValue mpath r paramName vMap mp =
   let name     = mvpName mp
       i        = nameIdent name
       expectT  = mvpType mp
   in case Map.lookup i vMap of
        Nothing ->
          do recordErrorLoc (Just r) (FunctorInstanceMissingName NSValue i)
-            pure []
+            pure ([], Map.empty)
        Just actual ->
          do e <- mkParamDef r (name,expectT) actual
-            let d = Decl { dName        = name
+            name' <- newModParam mpath paramName (nameLoc (fst actual)) name
+            let d = Decl { dName        = name'
                          , dSignature   = expectT
                          , dDefinition  = DExpr e
                          , dPragmas     = []
-                         , dInfix       = isInfixIdent (nameIdent name)
+                         , dInfix       = isInfixIdent (nameIdent name')
                          , dFixity      = mvpFixity mp
                          , dDoc         = mvpDoc mp
                          }
 
-            pure [d]
+            pure ([d], Map.singleton name name')
 
 
 

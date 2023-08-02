@@ -67,7 +67,7 @@ module Cryptol.Parser.AST
   , Pragma(..)
   , ExportType(..)
   , TopLevel(..)
-  , Import, ImportG(..), ImportSpec(..), ImpName(..)
+  , Import, ImportG(..), ImportSpec(..), ImpName(..), impNameModPath
   , Newtype(..)
   , PrimType(..)
   , ParameterType(..)
@@ -106,6 +106,7 @@ module Cryptol.Parser.AST
   , cppKind, ppSelector
   ) where
 
+import Cryptol.ModuleSystem.Name (Name, nameModPath, nameIdent)
 import Cryptol.ModuleSystem.NamingEnv.Types
 import Cryptol.Parser.Name
 import Cryptol.Parser.Position
@@ -309,6 +310,10 @@ data ImpName name =
     ImpTop    ModName           -- ^ A top-level module
   | ImpNested name              -- ^ The module in scope with the given name
     deriving (Show, Generic, NFData, Eq, Ord)
+
+impNameModPath :: ImpName Name -> ModPath
+impNameModPath (ImpTop mn) = TopModule mn
+impNameModPath (ImpNested n) = Nested (nameModPath n) (nameIdent n)
 
 -- | A simple declaration.  Generally these are things that can appear
 -- both at the top-level of a module and in `where` clauses.

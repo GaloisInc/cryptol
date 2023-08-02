@@ -18,15 +18,15 @@ import Data.List(group,sort)
 import Data.Maybe(mapMaybe)
 import qualified Data.Text as Text
 
-import Cryptol.Utils.Ident(ModPath(..), modPathIsOrContains,Namespace(..)
+import Cryptol.Utils.Ident(modPathIsOrContains,Namespace(..)
                           , Ident, mkIdent, identText
                           , ModName, modNameChunksText )
 import Cryptol.Utils.PP(pp)
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.RecordMap(RecordMap,recordFromFields,recordFromFieldsErr)
+import Cryptol.Parser.AST(impNameModPath)
 import Cryptol.Parser.Position
-import Cryptol.ModuleSystem.Name(
-  nameModPath, nameModPathMaybe, nameIdent, mapNameIdent)
+import Cryptol.ModuleSystem.Name(nameModPathMaybe, nameIdent, mapNameIdent)
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Error
 import qualified Cryptol.TypeCheck.Monad as TC
@@ -80,9 +80,7 @@ doBacktickInstance as ps mp m
 
     mkBad sel a = [ (a,k) | k <- Map.keys (sel m) ]
 
-    ourPath = case thing (mName m) of
-                ImpTop mo    -> TopModule mo
-                ImpNested mo -> Nested (nameModPath mo) (nameIdent mo)
+    ourPath = impNameModPath (thing (mName m))
 
     doAddParams nt sel =
       mapReader (\ro -> ro { newNewtypes = nt }) (addParams (sel m))

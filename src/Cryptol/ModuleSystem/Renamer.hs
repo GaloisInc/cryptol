@@ -220,10 +220,7 @@ renameModule' ::
   ModuleG mname PName ->
   RenameM (ModuleG mname Name)
 renameModule' mname m =
-  setCurMod
-    case mname of
-      ImpTop r    -> TopModule r
-      ImpNested r -> Nested (nameModPath r) (nameIdent r)
+  setCurMod (impNameModPath mname)
 
   do resolved <- lookupResolved mname
      shadowNames' CheckNone (rmodImports resolved)
