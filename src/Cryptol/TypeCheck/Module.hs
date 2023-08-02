@@ -310,7 +310,7 @@ checkParamValue ::
   {- ^ Decl mapping a new name to the actual value,
        and a map from the value param name in the functor to the new name
          (for instantiation) -}
-checkParamValue mpath r paramName vMap mp =
+checkParamValue mpath r modParamName vMap mp =
   let name     = mvpName mp
       i        = nameIdent name
       expectT  = mvpType mp
@@ -320,7 +320,7 @@ checkParamValue mpath r paramName vMap mp =
             pure ([], Map.empty)
        Just actual ->
          do e <- mkParamDef r (name,expectT) actual
-            name' <- newModParam mpath paramName (nameLoc (fst actual)) name
+            name' <- newModParam mpath modParamName (nameLoc (fst actual)) name
             let d = Decl { dName        = name'
                          , dSignature   = expectT
                          , dDefinition  = DExpr e
