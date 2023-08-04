@@ -16,7 +16,8 @@ import Cryptol.Parser.Position (Range,Located(..), thing)
 import qualified Cryptol.Parser.AST as P
 import Cryptol.ModuleSystem.Binds(newModParam)
 import Cryptol.ModuleSystem.Name(nameIdent, nameLoc)
-import Cryptol.ModuleSystem.NamingEnv (NamingEnv(..), shadowing)
+import Cryptol.ModuleSystem.NamingEnv
+          (NamingEnv(..), modParamNamingEnv, shadowing, without)
 import Cryptol.ModuleSystem.Interface
           ( IfaceG(..), IfaceDecls(..), IfaceNames(..), IfaceDecl(..)
           , filterIfaceDecls
@@ -88,7 +89,12 @@ doFunctorInst m f as instMap enclosingInScope doc =
      -- module, with the functor's names taking precedence. This is used to
      -- determine what is in scope at the REPL when the instantiation is loaded
      -- and focused.
-     let inScope = mInScope m2 `shadowing` enclosingInScope
+     --
+     -- The exception is when instantiating with _, in which case we must delete
+     -- the module parameters from the naming environment.
+     let inScope0 = mInScope m2 `without`
+           mconcat [ modParamNamingEnv mp | (_, mp, AddDeclParams) <- argIs ]
+         inScope = inScope0 `shadowing` enclosingInScope
 
      case thing m of
        P.ImpTop mn    -> newModuleScope mn (mExports m2) inScope

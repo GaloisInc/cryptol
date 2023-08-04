@@ -211,8 +211,8 @@ isEmptyNamingEnv (NamingEnv mp) = Map.null mp
 
 -- | Compute an unqualified naming environment, containing the various module
 -- parameters.
-modParamsNamingEnv :: T.ModParamNames -> NamingEnv
-modParamsNamingEnv T.ModParamNames { .. } =
+modParamNamesNamingEnv :: T.ModParamNames -> NamingEnv
+modParamNamesNamingEnv T.ModParamNames { .. } =
   NamingEnv $ Map.fromList
     [ (NSValue, Map.fromList $ map fromFu $ Map.keys mpnFuns)
     , (NSType,  Map.fromList $ map fromTS (Map.elems mpnTySyn) ++
@@ -228,6 +228,11 @@ modParamsNamingEnv T.ModParamNames { .. } =
 
   fromTS ts = (toPName (T.tsName ts), One (T.tsName ts))
 
+-- | Compute a naming environment from a module parameter, qualifying it
+-- according to 'mpQual'.
+modParamNamingEnv :: T.ModParam -> NamingEnv
+modParamNamingEnv mp = maybe id qualify (T.mpQual mp) $
+  modParamNamesNamingEnv (T.mpParameters mp)
 
 -- | Generate a naming environment from a declaration interface, where none of
 -- the names are qualified.

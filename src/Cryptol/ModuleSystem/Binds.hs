@@ -125,7 +125,7 @@ ifaceSigToMod ps = Mod
   , modState     = ()
   }
   where
-  env = modParamsNamingEnv ps
+  env = modParamNamesNamingEnv ps
 
 
 
