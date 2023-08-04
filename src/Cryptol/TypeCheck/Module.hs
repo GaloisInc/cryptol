@@ -1,7 +1,7 @@
 {-# Language BlockArguments, ImplicitParams #-}
 module Cryptol.TypeCheck.Module (doFunctorInst) where
 
-import Data.List(partition)
+import Data.List(partition,unzip4)
 import Data.Text(Text)
 import Data.Map(Map)
 import qualified Data.Map as Map
@@ -48,8 +48,8 @@ doFunctorInst m f as instMap enclosingInScope doc =
      argIs <- checkArity (srcRange f) mf as
      m2 <- do let mpath = P.impNameModPath (thing m)
               as2 <- mapM (checkArg mpath) argIs
-              let (tySus,decls,paramInstMaps) =
-                    unzip3 [ (su,ds,im) | DefinedInst su ds im <- as2 ]
+              let (tySus,paramTySyns,decls,paramInstMaps) =
+                    unzip4 [ (su,ts,ds,im) | DefinedInst su ts ds im <- as2 ]
               let ?tSu = mergeDistinctSubst tySus
                   ?vSu = instMap <> mconcat paramInstMaps
               let m1   = moduleInstance mf
@@ -59,6 +59,7 @@ doFunctorInst m f as instMap enclosingInScope doc =
                             , mParamFuns        = mempty
                             , mParamConstraints = mempty
                             , mParams           = mempty
+                            , mTySyns = mconcat paramTySyns <> mTySyns m1
                             , mDecls = map NonRecursive (concat decls) ++
                                       mDecls m1
                             }
@@ -172,10 +173,16 @@ checkArity r mf args =
                checkArgs done ps more
 
 
-data ArgInst = DefinedInst Subst [Decl] (Map Name Name)
-               -- ^ Argument that defines the params
-               --   The map is for mapping the functor's names to the new names
-               --   created for the instantiation
+data ArgInst = -- | Argument that defines the params
+               DefinedInst Subst
+                 (Map Name TySyn)
+                 -- ^ Type synonyms created from the functor's type parameters
+                 [Decl]
+                 -- ^ Bindings for value parameters
+                 (Map Name Name)
+                 -- ^ Map from the functor's parameter names to the new names
+                 --   created for the instantiation
+
              | ParamInst (Set (MBQual TParam)) [Prop] (Map (MBQual Name) Type)
                -- ^ Argument that add parameters
                -- The type parameters are in their module type parameter
@@ -213,7 +220,8 @@ checkArg mpath (r,expect,actual') =
        pure (ParamInst as cs (Map.mapKeys qual fs))
 
   definedInst =
-    do tRens <- mapM (checkParamType r tyMap) (Map.toList (mpnTypes params))
+    do (tRens, tSyns, tInstMaps) <- unzip3 <$> mapM
+         (checkParamType mpath r paramName tyMap) (Map.toList (mpnTypes params))
        let renSu = listParamSubst (concat tRens)
 
        {- Note: the constraints from the signature are already added to the
@@ -221,19 +229,20 @@ checkArg mpath (r,expect,actual') =
           doFunctorInst -}
 
 
-       (vDeclss, vInstMaps) <-
+       (vDecls, vInstMaps) <-
          mapAndUnzipM (checkParamValue mpath r paramName vMap)
            [ s { mvpType = apSubst renSu (mvpType s) }
            | s <- Map.elems (mpnFuns params) ]
 
-       pure (DefinedInst renSu (concat vDeclss) (mconcat vInstMaps))
+       pure $ DefinedInst renSu (mconcat tSyns)
+         (concat vDecls) (mconcat tInstMaps <> mconcat vInstMaps)
 
 
   params = mpParameters expect
   paramName = mpName expect
 
   -- Things provided by the argument module
-  tyMap :: Map Ident (Kind, Type)
+  tyMap :: Map Ident (Name, Kind, Type)
   vMap  :: Map Ident (Name, Schema)
   (tyMap,vMap) =
     case actual' of
@@ -243,7 +252,7 @@ checkArg mpath (r,expect,actual') =
         )
         where
         ps        = mpParameters mp
-        fromTP tp = (mtpKind tp, TVar (TVBound (mtpParam tp)))
+        fromTP tp = (mtpName tp, mtpKind tp, TVar (TVBound (mtpParam tp)))
         fromVP vp = (mvpName vp, mvpType vp)
 
       UseModule actual ->
@@ -263,9 +272,9 @@ checkArg mpath (r,expect,actual') =
         decls           = filterIfaceDecls isLocal (ifDefines actual)
 
         fromD d         = (ifDeclName d, ifDeclSig d)
-        fromTS ts       = (kindOf ts, tsDef ts)
-        fromNewtype nt  = (kindOf nt, TNewtype nt [])
-        fromPrimT pt    = (kindOf pt, TCon (abstractTypeTC pt) [])
+        fromTS ts       = (tsName ts, kindOf ts, tsDef ts)
+        fromNewtype nt  = (ntName nt, kindOf nt, TNewtype nt [])
+        fromPrimT pt    = (atName pt, kindOf pt, TCon (abstractTypeTC pt) [])
 
       AddDeclParams -> panic "checkArg" ["AddDeclParams"]
 
@@ -280,28 +289,46 @@ nameMapToIdentMap f m =
 
 -- | Check a type parameter to a module.
 checkParamType ::
-  Range                 {- ^ Location for error reporting -} ->
-  Map Ident (Kind,Type) {- ^ Actual types -} ->
-  (Name,ModTParam)      {- ^ Type parameter -} ->
-  InferM [(TParam,Type)]  {- ^ Mapping from parameter name to actual type -}
-checkParamType r tyMap (name,mp) =
+  ModPath                    {- ^ The new module we are creating -} ->
+  Range                      {- ^ Location for error reporting -} ->
+  Ident                      {- ^ Name of the _module_ parameter
+                                  (not value) -} ->
+  Map Ident (Name,Kind,Type) {- ^ Actual types -} ->
+  (Name,ModTParam)           {- ^ Type parameter -} ->
+  InferM ([(TParam,Type)], Map Name TySyn, Map Name Name)
+    {- ^ Mapping from parameter name to actual type (for type substitution),
+         type synonym map from a fresh type name to the actual type
+           (only so that the type can be referred to in the REPL;
+            type synonyms are fully inlined into types at this point),
+         and a map from the old type name to the fresh type name
+           (for instantiation) -}
+checkParamType mpath r modParamName tyMap (name,mp) =
   let i       = nameIdent name
       expectK = mtpKind mp
   in
   case Map.lookup i tyMap of
     Nothing ->
       do recordErrorLoc (Just r) (FunctorInstanceMissingName NSType i)
-         pure []
-    Just (actualK,actualT) ->
+         pure ([], Map.empty, Map.empty)
+    Just (actualName,actualK,actualT) ->
       do unless (expectK == actualK)
            (recordErrorLoc (Just r)
                            (KindMismatch (Just (TVFromModParam name))
                                                   expectK actualK))
-         pure [(mtpParam mp, actualT)]
+         name' <- newModParam mpath modParamName (nameLoc actualName) name
+         let tySyn = TySyn { tsName = name'
+                           , tsParams = []
+                           , tsConstraints = []
+                           , tsDef = actualT
+                           , tsDoc = mtpDoc mp }
+         pure ( [(mtpParam mp, actualT)]
+              , Map.singleton name' tySyn
+              , Map.singleton name name'
+              )
 
 -- | Check a value parameter to a module.
 checkParamValue ::
-  ModPath                 {- ^ The module we are instantiating -} ->
+  ModPath                 {- ^ The new module we are creating -} ->
   Range                   {- ^ Location for error reporting -} ->
   Ident                   {- ^ Name of the _module_ parameter (not value) -} ->
   Map Ident (Name,Schema) {- ^ Actual values -} ->

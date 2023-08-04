@@ -28,7 +28,7 @@ doTInst = apSubst ?tSu
 
 -- | Has both value names and types.
 doTVInst :: (Su, TVars a, TraverseNames a) => a -> a
-doTVInst = apSubst ?tSu . doVInst
+doTVInst = doVInst . doTInst
 
 doMap :: (Su, ModuleInstance a) => Map Name a -> Map Name a
 doMap mp =
