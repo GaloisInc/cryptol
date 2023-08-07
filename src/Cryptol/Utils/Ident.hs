@@ -26,6 +26,7 @@ module Cryptol.Utils.Ident
   , modNameChunks
   , modNameChunksText
   , packModName
+  , identToModName
   , preludeName
   , preludeReferenceName
   , undefinedModName
@@ -213,6 +214,9 @@ packModName strs = textToModName (T.intercalate modSep (map trim strs))
   where
   -- trim space off of the start and end of the string
   trim str = T.dropWhile isSpace (T.dropWhileEnd isSpace str)
+
+identToModName :: Ident -> ModName
+identToModName (Ident _ anon txt) = ModName txt anon
 
 modSep :: T.Text
 modSep  = "::"

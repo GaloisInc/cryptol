@@ -29,6 +29,7 @@ module Cryptol.ModuleSystem.Name (
   , nameLoc
   , nameFixity
   , nameNamespace
+  , asPName
   , asPrim
   , asOrigName
   , nameModPath
@@ -70,7 +71,8 @@ import qualified Data.Text as Text
 import           Data.Char(isAlpha,toUpper)
 
 
-
+import           Cryptol.Parser.Name (PName)
+import qualified Cryptol.Parser.Name as PName
 import           Cryptol.Parser.Position (Range,Located(..))
 import           Cryptol.Utils.Fixity
 import           Cryptol.Utils.Ident
@@ -226,6 +228,14 @@ nameLoc  = nLoc
 
 nameFixity :: Name -> Maybe Fixity
 nameFixity = nFixity
+
+-- | We only qualify the 'PName' with the interface name from 'FromModParam' in
+-- 'ogSource', if any. We don't qualify with the 'ModPath'.
+asPName :: Name -> PName
+asPName n =
+  case nInfo n of
+    GlobalName _ og -> PName.fromOrigName og
+    LocalName _ txt -> PName.mkUnqual txt
 
 -- | Primtiives must be in a top level module, at least for now.
 asPrim :: Name -> Maybe PrimIdent
