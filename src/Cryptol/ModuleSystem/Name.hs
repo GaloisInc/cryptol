@@ -148,9 +148,9 @@ cmpNameDisplay disp l r =
                  NotInScope  ->
                     let m = Text.pack (show (pp (ogModule og)))
                     in
-                    case ogSource og of
-                      FromModParam q  -> m <> "::" <> Text.pack (show (pp q))
-                      _ -> m
+                    case ogFromParam og of
+                      Just q  -> m <> "::" <> Text.pack (show (pp q))
+                      Nothing -> m
 
   -- Note that this assumes that `xs` is `l` and `ys` is `r`
   cmpText xs ys =
@@ -229,8 +229,8 @@ nameLoc  = nLoc
 nameFixity :: Name -> Maybe Fixity
 nameFixity = nFixity
 
--- | We only qualify the 'PName' with the interface name from 'FromModParam' in
--- 'ogSource', if any. We don't qualify with the 'ModPath'.
+-- | We only qualify the 'PName' with the interface name from 'ogFromParam'. We
+-- don't qualify with the 'ogModule'.
 asPName :: Name -> PName
 asPName n =
   case nInfo n of
@@ -242,7 +242,7 @@ asPrim :: Name -> Maybe PrimIdent
 asPrim n =
   case nInfo n of
     GlobalName _ og
-      | TopModule m <- ogModule og, not (ogFromModParam og) ->
+      | TopModule m <- ogModule og, not (ogIsModParam og) ->
         Just $ PrimIdent m $ identText $ ogName og
 
     _ -> Nothing
@@ -381,6 +381,7 @@ mkDeclared ns m sys ident fixity loc s = (name, s')
                                 , ogModule    = m
                                 , ogName      = ident
                                 , ogSource    = FromDefinition
+                                , ogFromParam = Nothing
                                 }
               }
 
@@ -420,7 +421,8 @@ mkModParam own pname rng n s = (name, s')
                               { ogModule    = own
                               , ogName      = nameIdent n
                               , ogNamespace = nameNamespace n
-                              , ogSource    = FromModParam pname
+                              , ogSource    = FromModParam
+                              , ogFromParam = Just pname
                               }
               , nFixity = nFixity n
               , nLoc    = rng

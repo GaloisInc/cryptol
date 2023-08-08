@@ -410,16 +410,16 @@ instance PP OrigName where
         UnQualified -> pp (ogName og)
         Qualified m -> ppQual (TopModule m) (pp (ogName og))
         NotInScope  -> ppQual (ogModule og)
-                       case ogSource og of
-                         FromModParam x -> pp x <.> "::" <.> pp (ogName og)
-                         _ -> pp (ogName og)
+                       case ogFromParam og of
+                         Just x  -> pp x <.> "::" <.> pp (ogName og)
+                         Nothing -> pp (ogName og)
     where
-   ppQual mo x =
-    case mo of
-      TopModule m
-        | m == exprModName -> x
-        | otherwise -> pp m <.> "::" <.> x
-      Nested m y -> ppQual m (pp y <.> "::" <.> x)
+    ppQual mo x =
+      case mo of
+        TopModule m
+          | m == exprModName -> x
+          | otherwise -> pp m <.> "::" <.> x
+        Nested m y -> ppQual m (pp y <.> "::" <.> x)
 
 instance PP Namespace where
   ppPrec _ ns =

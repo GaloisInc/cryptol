@@ -73,8 +73,8 @@ namingEnvNames (NamingEnv xs) =
 
 -- | Get a naming environment for the given names
 --
--- We only qualify the PNames with the interface name from 'FromModParam' in
--- 'ogSource', if any. We don't qualify with the 'ModPath'.
+-- We only qualify the PNames with the interface name from 'ogFromParam'. We
+-- don't qualify with the 'ogModule'.
 namingEnvFromNames :: Set Name -> NamingEnv
 namingEnvFromNames xs = NamingEnv (foldl' add mempty xs)
   where

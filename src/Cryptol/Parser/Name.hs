@@ -46,16 +46,15 @@ mkUnqual  = UnQual
 mkQual :: ModName -> Ident -> PName
 mkQual  = Qual
 
--- | We only qualify the 'PName' with the interface name from 'FromModParam' in
--- 'ogSource', if any. We don't qualify with the 'ModPath'.
+-- | We only qualify the 'PName' with the interface name from 'ogFromParam'. We
+-- don't qualify with the 'ogModule'.
 fromOrigName :: OrigName -> PName
 fromOrigName og = toPName (ogName og)
   where
   toPName =
-    case ogSource og of
-      FromDefinition -> UnQual
-      FromFunctorInst -> UnQual
-      FromModParam sig -> Qual (identToModName sig)
+    case ogFromParam og of
+      Nothing -> UnQual
+      Just sig -> Qual (identToModName sig)
 
 getModName :: PName -> Maybe ModName
 getModName (Qual ns _) = Just ns
