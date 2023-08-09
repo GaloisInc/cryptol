@@ -29,7 +29,7 @@ module Cryptol.ModuleSystem.Name (
   , nameLoc
   , nameFixity
   , nameNamespace
-  , asPName
+  , nameToDefPName
   , asPrim
   , asOrigName
   , nameModPath
@@ -229,12 +229,13 @@ nameLoc  = nLoc
 nameFixity :: Name -> Maybe Fixity
 nameFixity = nFixity
 
--- | We only qualify the 'PName' with the interface name from 'ogFromParam'. We
--- don't qualify with the 'ogModule'.
-asPName :: Name -> PName
-asPName n =
+-- | Compute a `PName` for the definition site corresponding to the given
+-- `Name`.   Usually this is an unqualified name, but names that come
+-- from module parameters are qualified with the corresponding parameter name.
+nameToDefPName :: Name -> PName
+nameToDefPName n =
   case nInfo n of
-    GlobalName _ og -> PName.fromOrigName og
+    GlobalName _ og -> PName.origNameToDefPName og
     LocalName _ txt -> PName.mkUnqual txt
 
 -- | Primtiives must be in a top level module, at least for now.

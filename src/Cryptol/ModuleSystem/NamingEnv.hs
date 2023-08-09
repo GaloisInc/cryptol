@@ -71,16 +71,16 @@ namingEnvNames (NamingEnv xs) =
     Just (One x) -> Set.singleton x
     Just (Ambig as) -> as
 
--- | Get a naming environment for the given names
---
--- We only qualify the PNames with the interface name from 'ogFromParam'. We
--- don't qualify with the 'ogModule'.
+-- | Get a naming environment for the given names.  The `PName`s correspond
+-- to the definition sites of the corresponding `Name`s, so typically they
+-- will be unqualified.  The exception is for names that comre from parameters,
+-- which are qualified with the relevant parameter.
 namingEnvFromNames :: Set Name -> NamingEnv
 namingEnvFromNames xs = NamingEnv (foldl' add mempty xs)
   where
   add mp x = let ns = nameNamespace x
              in Map.insertWith (Map.unionWith (<>))
-                               ns (Map.singleton (asPName x) (One x))
+                               ns (Map.singleton (nameToDefPName x) (One x))
                                mp
 
 

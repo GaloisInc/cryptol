@@ -46,10 +46,11 @@ mkUnqual  = UnQual
 mkQual :: ModName -> Ident -> PName
 mkQual  = Qual
 
--- | We only qualify the 'PName' with the interface name from 'ogFromParam'. We
--- don't qualify with the 'ogModule'.
-fromOrigName :: OrigName -> PName
-fromOrigName og = toPName (ogName og)
+-- | Compute a `PName` for the definition site corresponding to the given
+-- `OrigName`.   Usually this is an unqualified name, but names that come
+-- from module parameters are qualified with the corresponding parameter name.
+origNameToDefPName :: OrigName -> PName
+origNameToDefPName og = toPName (ogName og)
   where
   toPName =
     case ogFromParam og of
