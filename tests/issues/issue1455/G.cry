@@ -1,0 +1,7 @@
+module G where
+
+import interface I
+
+import F { interface I }
+
+c = y + b

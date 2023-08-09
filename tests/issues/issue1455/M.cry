@@ -1,0 +1,6 @@
+module M where
+
+type n = 4
+
+x = 3
+y = 5

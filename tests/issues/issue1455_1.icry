@@ -1,0 +1,13 @@
+:l issue1455/Inst1.cry
+`n : Integer
+`m : Integer
+x
+y
+:t x
+:t y
+a
+b
+:t a
+:t b
+a + 2
+:browse

@@ -1,0 +1,259 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading interface module I
+Loading module F
+Loading module M
+Loading module Inst1
+4
+8
+0x3
+0x05
+x : [4]
+y : [8]
+0x4
+0x06
+a : [4]
+b : [m]
+0x6
+Type Synonyms
+=============
+    
+  From Cryptol
+  ------------
+       
+    type Bool = Bit
+    type Char = [8]
+    type lg2 n = width (max 1 n - 1)
+    type String n = [n]Char
+    type Word n = [n]
+     
+  From Inst1
+  ----------
+       
+    type m = 8
+    type n = 4
+     
+Constraint Synonyms
+===================
+    
+  From Cryptol
+  ------------
+       
+    type constraint i < j = j >= 1 + i
+    type constraint i <= j = j >= i
+    type constraint i > j = i >= 1 + j
+     
+Primitive Types
+===============
+    
+  From Cryptol
+  ------------
+       
+    (!=) : # -> # -> Prop
+    (==) : # -> # -> Prop
+    (>=) : # -> # -> Prop
+    (+) : # -> # -> #
+    (-) : # -> # -> #
+    (%) : # -> # -> #
+    (%^) : # -> # -> #
+    (*) : # -> # -> #
+    (/) : # -> # -> #
+    (/^) : # -> # -> #
+    (^^) : # -> # -> #
+    Bit : *
+    Cmp : * -> Prop
+    Eq : * -> Prop
+    FLiteral : # -> # -> # -> * -> Prop
+    Field : * -> Prop
+    fin : # -> Prop
+    Integer : *
+    Integral : * -> Prop
+    inf : #
+    Literal : # -> * -> Prop
+    LiteralLessThan : # -> * -> Prop
+    Logic : * -> Prop
+    lengthFromThenTo : # -> # -> # -> #
+    max : # -> # -> #
+    min : # -> # -> #
+    prime : # -> Prop
+    Rational : *
+    Ring : * -> Prop
+    Round : * -> Prop
+    SignedCmp : * -> Prop
+    width : # -> #
+    Z : # -> *
+    Zero : * -> Prop
+     
+Symbols
+=======
+    
+  From <interactive>
+  ------------------
+       
+    it : [4]
+     
+  From Cryptol
+  ------------
+       
+    (/.) : {a} (Field a) => a -> a -> a
+    (==>) : Bit -> Bit -> Bit
+    (\/) : Bit -> Bit -> Bit
+    (/\) : Bit -> Bit -> Bit
+    (!=) : {a} (Eq a) => a -> a -> Bit
+    (!==) : {a, b} (Eq b) => (a -> b) -> (a -> b) -> a -> Bit
+    (==) : {a} (Eq a) => a -> a -> Bit
+    (===) : {a, b} (Eq b) => (a -> b) -> (a -> b) -> a -> Bit
+    (<) : {a} (Cmp a) => a -> a -> Bit
+    (<$) : {a} (SignedCmp a) => a -> a -> Bit
+    (<=) : {a} (Cmp a) => a -> a -> Bit
+    (<=$) : {a} (SignedCmp a) => a -> a -> Bit
+    (>) : {a} (Cmp a) => a -> a -> Bit
+    (>$) : {a} (SignedCmp a) => a -> a -> Bit
+    (>=) : {a} (Cmp a) => a -> a -> Bit
+    (>=$) : {a} (SignedCmp a) => a -> a -> Bit
+    (||) : {a} (Logic a) => a -> a -> a
+    (^) : {a} (Logic a) => a -> a -> a
+    (&&) : {a} (Logic a) => a -> a -> a
+    (#) : {front, back, a} (fin front) => [front]a -> [back]a -> [front + back]a
+    (<<) : {n, ix, a} (Integral ix, Zero a) => [n]a -> ix -> [n]a
+    (<<<) : {n, ix, a} (fin n, Integral ix) => [n]a -> ix -> [n]a
+    (>>) : {n, ix, a} (Integral ix, Zero a) => [n]a -> ix -> [n]a
+    (>>$) : {n, ix} (fin n, n >= 1, Integral ix) => [n] -> ix -> [n]
+    (>>>) : {n, ix, a} (fin n, Integral ix) => [n]a -> ix -> [n]a
+    (+) : {a} (Ring a) => a -> a -> a
+    (-) : {a} (Ring a) => a -> a -> a
+    (%) : {a} (Integral a) => a -> a -> a
+    (%$) : {n} (fin n, n >= 1) => [n] -> [n] -> [n]
+    (*) : {a} (Ring a) => a -> a -> a
+    (/) : {a} (Integral a) => a -> a -> a
+    (/$) : {n} (fin n, n >= 1) => [n] -> [n] -> [n]
+    (^^) : {a, e} (Ring a, Integral e) => a -> e -> a
+    (!) : {n, a, ix} (fin n, Integral ix) => [n]a -> ix -> a
+    (!!) : {n, k, ix, a} (fin n, Integral ix) => [n]a -> [k]ix -> [k]a
+    (@) : {n, a, ix} (Integral ix) => [n]a -> ix -> a
+    (@@) : {n, k, ix, a} (Integral ix) => [n]a -> [k]ix -> [k]a
+    abs : {a} (Cmp a, Ring a) => a -> a
+    all : {n, a} (fin n) => (a -> Bit) -> [n]a -> Bit
+    and : {n} (fin n) => [n] -> Bit
+    any : {n, a} (fin n) => (a -> Bit) -> [n]a -> Bit
+    assert : {a, n} (fin n) => Bit -> String n -> a -> a
+    carry : {n} (fin n) => [n] -> [n] -> Bit
+    ceiling : {a} (Round a) => a -> Integer
+    complement : {a} (Logic a) => a -> a
+    curry : {a, b, c} ((a, b) -> c) -> a -> b -> c
+    deepseq : {a, b} (Eq a) => a -> b -> b
+    demote : {val, rep} (Literal val rep) => rep
+    drop : {front, back, a} (fin front) => [front + back]a -> [back]a
+    elem : {n, a} (fin n, Eq a) => a -> [n]a -> Bit
+    error : {a, n} (fin n) => String n -> a
+    False : Bit
+    floor : {a} (Round a) => a -> Integer
+    foldl : {n, a, b} (fin n) => (a -> b -> a) -> a -> [n]b -> a
+    foldl' : {n, a, b} (fin n, Eq a) => (a -> b -> a) -> a -> [n]b -> a
+    foldr : {n, a, b} (fin n) => (a -> b -> b) -> b -> [n]a -> b
+    foldr' : {n, a, b} (fin n, Eq b) => (a -> b -> b) -> b -> [n]a -> b
+    fraction : {m, n, r, a} (FLiteral m n r a) => a
+    fromInteger : {a} (Ring a) => Integer -> a
+    fromThenTo :
+      {first, next, last, a, len}
+        (fin first, fin next, fin last, Literal first a, Literal next a,
+         Literal last a, first != next,
+         lengthFromThenTo first next last == len) =>
+        [len]a
+    fromTo :
+      {first, last, a}
+        (fin last, last >= first, Literal last a) =>
+        [1 + (last - first)]a
+    fromToBy :
+      {first, last, stride, a}
+        (fin last, fin stride, stride >= 1, last >= first, Literal last a) =>
+        [1 + (last - first) / stride]a
+    fromToByLessThan :
+      {first, bound, stride, a}
+        (fin first, fin stride, stride >= 1, bound >= first,
+         LiteralLessThan bound a) =>
+        [(bound - first) /^ stride]a
+    fromToDownBy :
+      {first, last, stride, a}
+        (fin first, fin stride, stride >= 1, first >= last, Literal first a) =>
+        [1 + (first - last) / stride]a
+    fromToDownByGreaterThan :
+      {first, bound, stride, a}
+        (fin first, fin stride, stride >= 1, first >= bound, Literal first a) =>
+        [(first - bound) /^ stride]a
+    fromToLessThan :
+      {first, bound, a}
+        (fin first, bound >= first, LiteralLessThan bound a) =>
+        [bound - first]a
+    fromZ : {n} (fin n, n >= 1) => Z n -> Integer
+    generate :
+      {n, a, ix} (Integral ix, LiteralLessThan n ix) => (ix -> a) -> [n]a
+    groupBy : {each, parts, a} (fin each) => [each * parts]a -> [parts][each]a
+    head : {n, a} [1 + n]a -> a
+    infFrom : {a} (Integral a) => a -> [inf]a
+    infFromThen : {a} (Integral a) => a -> a -> [inf]a
+    iterate : {a} (a -> a) -> a -> [inf]a
+    join : {parts, each, a} (fin each) => [parts][each]a -> [parts * each]a
+    last : {n, a} (fin n) => [1 + n]a -> a
+    length : {n, a, b} (fin n, Literal n b) => [n]a -> b
+    lg2 : {n} (fin n) => [n] -> [n]
+    map : {n, a, b} (a -> b) -> [n]a -> [n]b
+    max : {a} (Cmp a) => a -> a -> a
+    min : {a} (Cmp a) => a -> a -> a
+    negate : {a} (Ring a) => a -> a
+    number : {val, rep} (Literal val rep) => rep
+    or : {n} (fin n) => [n] -> Bit
+    parmap : {a, b, n} (Eq b, fin n) => (a -> b) -> [n]a -> [n]b
+    pdiv : {u, v} (fin u, fin v) => [u] -> [v] -> [u]
+    pmod : {u, v} (fin u, fin v) => [u] -> [1 + v] -> [v]
+    pmult : {u, v} (fin u, fin v) => [1 + u] -> [1 + v] -> [1 + (u + v)]
+    product : {n, a} (fin n, Eq a, Ring a) => [n]a -> a
+    random : {a} [256] -> a
+    ratio : Integer -> Integer -> Rational
+    recip : {a} (Field a) => a -> a
+    repeat : {n, a} a -> [n]a
+    reverse : {n, a} (fin n) => [n]a -> [n]a
+    rnf : {a} (Eq a) => a -> a
+    roundAway : {a} (Round a) => a -> Integer
+    roundToEven : {a} (Round a) => a -> Integer
+    sborrow : {n} (fin n, n >= 1) => [n] -> [n] -> Bit
+    scanl : {n, a, b} (a -> b -> a) -> a -> [n]b -> [1 + n]a
+    scanr : {n, a, b} (fin n) => (a -> b -> b) -> b -> [n]a -> [1 + n]b
+    scarry : {n} (fin n, n >= 1) => [n] -> [n] -> Bit
+    sext : {m, n} (fin m, m >= n, n >= 1) => [n] -> [m]
+    sort : {a, n} (Cmp a, fin n) => [n]a -> [n]a
+    sortBy : {a, n} (fin n) => (a -> a -> Bit) -> [n]a -> [n]a
+    split : {parts, each, a} (fin each) => [parts * each]a -> [parts][each]a
+    splitAt :
+      {front, back, a} (fin front) => [front + back]a -> ([front]a, [back]a)
+    sum : {n, a} (fin n, Eq a, Ring a) => [n]a -> a
+    True : Bit
+    tail : {n, a} [1 + n]a -> [n]a
+    take : {front, back, a} [front + back]a -> [front]a
+    toInteger : {a} (Integral a) => a -> Integer
+    toSignedInteger : {n} (fin n, n >= 1) => [n] -> Integer
+    trace : {n, a, b} (fin n) => String n -> a -> b -> b
+    traceVal : {n, a} (fin n) => String n -> a -> a
+    transpose : {rows, cols, a} [rows][cols]a -> [cols][rows]a
+    trunc : {a} (Round a) => a -> Integer
+    uncurry : {a, b, c} (a -> b -> c) -> (a, b) -> c
+    undefined : {a} a
+    update : {n, a, ix} (Integral ix) => [n]a -> ix -> a -> [n]a
+    updateEnd : {n, a, ix} (fin n, Integral ix) => [n]a -> ix -> a -> [n]a
+    updates :
+      {n, k, ix, a} (Integral ix, fin k) => [n]a -> [k]ix -> [k]a -> [n]a
+    updatesEnd :
+      {n, k, ix, a} (fin n, Integral ix, fin k) => [n]a -> [k]ix -> [k]a -> [n]a
+    zero : {a} (Zero a) => a
+    zext : {m, n} (fin m, m >= n) => [n] -> [m]
+    zip : {n, a, b} [n]a -> [n]b -> [n](a, b)
+    zipWith : {n, a, b, c} (a -> b -> c) -> [n]a -> [n]b -> [n]c
+     
+  From Inst1
+  ----------
+       
+    a : [4]
+    b : [m]
+    x : [4]
+    y : [8]
+     
