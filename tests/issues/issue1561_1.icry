@@ -1,0 +1,23 @@
+:l issue1561/Inst1.cry
+`n : Integer
+`m : Integer
+`J::n : Integer
+`J::m : Integer
+x
+y
+J::x
+J::y
+:t x
+:t y
+:t J::x
+:t J::y
+a
+b
+ja
+jb
+:t a
+:t b
+:t ja
+:t jb
+a + 2
+:browse

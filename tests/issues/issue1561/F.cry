@@ -1,0 +1,10 @@
+module F where
+
+import interface I
+import interface I as J
+
+a = x + 1
+b = y + 2
+
+ja = J::x + 1
+jb = J::y + 2

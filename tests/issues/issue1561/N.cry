@@ -1,0 +1,6 @@
+module N where
+
+type n = 3
+
+x = 5
+y = 20
