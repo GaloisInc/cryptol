@@ -132,7 +132,6 @@ instance ModuleInstance name => ModuleInstance (IfaceNames name) where
                , ifsNested   = doSet (ifsNested ns)
                , ifsDefines  = doSet (ifsDefines ns)
                , ifsPublic   = doSet (ifsPublic ns)
-               , ifsInScope  = moduleInstance (ifsInScope ns)
                , ifsDoc      = ifsDoc ns
                }
 

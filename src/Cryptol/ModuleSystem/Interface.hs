@@ -42,7 +42,6 @@ import Prelude ()
 import Prelude.Compat
 
 import Cryptol.ModuleSystem.Name
-import Cryptol.ModuleSystem.NamingEnv.Types
 import Cryptol.Utils.Ident (ModName, OrigName(..))
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.Fixity(Fixity)
@@ -75,7 +74,6 @@ data IfaceNames name = IfaceNames
   , ifsNested   :: Set Name   -- ^ Things nested in this module
   , ifsDefines  :: Set Name   -- ^ Things defined in this module
   , ifsPublic   :: Set Name   -- ^ Subset of `ifsDefines` that is public
-  , ifsInScope  :: NamingEnv  -- ^ Things in scope in this module
   , ifsDoc      :: !(Maybe Text) -- ^ Documentation
   } deriving (Show, Generic, NFData)
 
@@ -89,7 +87,6 @@ emptyIface nm = Iface
                            , ifsDefines = mempty
                            , ifsPublic  = mempty
                            , ifsNested  = mempty
-                           , ifsInScope = mempty
                            , ifsDoc     = Nothing
                            }
   , ifParams  = mempty
