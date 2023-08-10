@@ -5,6 +5,7 @@ import Data.List(partition,unzip4)
 import Data.Text(Text)
 import Data.Map(Map)
 import qualified Data.Map as Map
+import qualified Data.Map.Merge.Strict as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Control.Monad(unless,forM_,mapAndUnzipM)
@@ -43,7 +44,7 @@ doFunctorInst ::
   {- ^ Names in the enclosing scope of the instantiated module -} ->
   Maybe Text                  {- ^ Documentation -} ->
   InferM (Maybe TCTopEntity)
-doFunctorInst m f as instMap enclosingInScope doc =
+doFunctorInst m f as instMap0 enclosingInScope doc =
   inRange (srcRange m)
   do mf    <- lookupFunctor (thing f)
      argIs <- checkArity (srcRange f) mf as
@@ -51,6 +52,7 @@ doFunctorInst m f as instMap enclosingInScope doc =
               as2 <- mapM (checkArg mpath) argIs
               let (tySus,paramTySyns,decls,paramInstMaps) =
                     unzip4 [ (su,ts,ds,im) | DefinedInst su ts ds im <- as2 ]
+              instMap <- addMissingTySyns mpath mf instMap0
               let ?tSu = mergeDistinctSubst tySus
                   ?vSu = instMap <> mconcat paramInstMaps
               let m1   = moduleInstance mf
@@ -424,5 +426,21 @@ mkParamDef r (pname,wantedS) (arg,actualS) =
      applySubst res
 
 
-
-
+-- | The instMap we get from the renamer will not contain the fresh names for
+-- certain things in the functor generated in the typechecking stage, if we are
+-- instantiating a functor that is in the same file, since renaming and
+-- typechecking happens together with the instantiation. In particular, if the
+-- functor's interface has type synonyms, they will only get copied over into
+-- the functor in the typechecker, so the renamer will not see them. Here we
+-- make the fresh names for those missing type synonyms and add them to the
+-- instMap.
+addMissingTySyns ::
+  ModPath                  {- ^ The new module we are creating -} ->
+  ModuleG ()               {- ^ The functor -} ->
+  Map Name Name            {- ^ instMap we get from renamer -} ->
+  InferM (Map Name Name)   {- ^ the complete instMap -}
+addMissingTySyns mpath f = Map.mergeA
+  (Map.traverseMissing \name _ -> newFunctorInst mpath name)
+  Map.preserveMissing
+  (Map.zipWithMatched \_ _ name' -> name')
+  (mTySyns f)
