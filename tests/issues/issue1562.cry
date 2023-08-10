@@ -1,0 +1,13 @@
+interface submodule I where
+  type Zp = [8]
+
+submodule F where
+  import interface submodule I
+
+submodule M where
+  // this is unused, but just here because syntactically we cannot have an empty
+  // module
+  type Empty = Bit
+
+submodule F1 = submodule F { submodule M }
+submodule F2 = submodule F { submodule M }
