@@ -1,20 +1,24 @@
 {-# Language BlockArguments, ImplicitParams #-}
 module Cryptol.TypeCheck.Module (doFunctorInst) where
 
-import Data.List(partition)
+import Data.List(partition,unzip4)
 import Data.Text(Text)
 import Data.Map(Map)
 import qualified Data.Map as Map
+import qualified Data.Map.Merge.Strict as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
-import Control.Monad(unless,forM_)
+import Control.Monad(unless,forM_,mapAndUnzipM)
 
 
 import Cryptol.Utils.Panic(panic)
-import Cryptol.Utils.Ident(Ident,Namespace(..),isInfixIdent)
+import Cryptol.Utils.Ident(Ident,Namespace(..),ModPath,isInfixIdent)
 import Cryptol.Parser.Position (Range,Located(..), thing)
 import qualified Cryptol.Parser.AST as P
+import Cryptol.ModuleSystem.Binds(newFunctorInst)
 import Cryptol.ModuleSystem.Name(nameIdent)
+import Cryptol.ModuleSystem.NamingEnv
+          (NamingEnv(..), modParamNamingEnv, shadowing, without)
 import Cryptol.ModuleSystem.Interface
           ( IfaceG(..), IfaceDecls(..), IfaceNames(..), IfaceDecl(..)
           , filterIfaceDecls
@@ -36,16 +40,21 @@ doFunctorInst ::
   {- ^ Instantitation.  These is the renaming for the functor that arises from
        generativity (i.e., it is something that will make the names "fresh").
   -} ->
+  NamingEnv
+  {- ^ Names in the enclosing scope of the instantiated module -} ->
   Maybe Text                  {- ^ Documentation -} ->
   InferM (Maybe TCTopEntity)
-doFunctorInst m f as inst doc =
+doFunctorInst m f as instMap0 enclosingInScope doc =
   inRange (srcRange m)
   do mf    <- lookupFunctor (thing f)
      argIs <- checkArity (srcRange f) mf as
-     m2 <- do as2 <- mapM checkArg argIs
-              let (tySus,decls) = unzip [ (su,ds) | DefinedInst su ds <- as2 ]
+     m2 <- do let mpath = P.impNameModPath (thing m)
+              as2 <- mapM (checkArg mpath) argIs
+              let (tySus,paramTySyns,decls,paramInstMaps) =
+                    unzip4 [ (su,ts,ds,im) | DefinedInst su ts ds im <- as2 ]
+              instMap <- addMissingTySyns mpath mf instMap0
               let ?tSu = mergeDistinctSubst tySus
-                  ?vSu = inst
+                  ?vSu = instMap <> mconcat paramInstMaps
               let m1   = moduleInstance mf
                   m2   = m1 { mName             = m
                             , mDoc              = Nothing
@@ -53,6 +62,7 @@ doFunctorInst m f as inst doc =
                             , mParamFuns        = mempty
                             , mParamConstraints = mempty
                             , mParams           = mempty
+                            , mTySyns = mconcat paramTySyns <> mTySyns m1
                             , mDecls = map NonRecursive (concat decls) ++
                                       mDecls m1
                             }
@@ -73,9 +83,24 @@ doFunctorInst m f as inst doc =
                                  (Map.unions vps)
                                  m2
 
+     -- An instantiation doesn't really have anything "in scope" per se, but
+     -- here we compute what would be in scope as if you hand wrote the
+     -- instantiation by copy-pasting the functor then substituting the
+     -- parameters. That is, it would be whatever is in scope in the functor,
+     -- together with any names in the enclosing scope if this is a nested
+     -- module, with the functor's names taking precedence. This is used to
+     -- determine what is in scope at the REPL when the instantiation is loaded
+     -- and focused.
+     --
+     -- The exception is when instantiating with _, in which case we must delete
+     -- the module parameters from the naming environment.
+     let inScope0 = mInScope m2 `without`
+           mconcat [ modParamNamingEnv mp | (_, mp, AddDeclParams) <- argIs ]
+         inScope = inScope0 `shadowing` enclosingInScope
+
      case thing m of
-       P.ImpTop mn    -> newModuleScope mn (mExports m2)
-       P.ImpNested mn -> newSubmoduleScope mn doc (mExports m2)
+       P.ImpTop mn    -> newModuleScope mn (mExports m2) inScope
+       P.ImpNested mn -> newSubmoduleScope mn doc (mExports m2) inScope
 
      mapM_ addTySyn     (Map.elems (mTySyns m2))
      mapM_ addNewtype   (Map.elems (mNewtypes m2))
@@ -100,10 +125,7 @@ data ActualArg =
 
 {- | Validate a functor application, just checking the argument names.
 The result associates a module parameter with the concrete way it should
-be instantiated, which could be:
-
-  * `Left` instanciate using another parameter that is in scope
-  * `Right` instanciate using a module, with the given interface
+be instantiated.
 -}
 checkArity ::
   Range             {- ^ Location for reporting errors -} ->
@@ -159,7 +181,16 @@ checkArity r mf args =
                checkArgs done ps more
 
 
-data ArgInst = DefinedInst Subst [Decl] -- ^ Argument that defines the params
+data ArgInst = -- | Argument that defines the params
+               DefinedInst Subst
+                 (Map Name TySyn)
+                 -- ^ Type synonyms created from the functor's type parameters
+                 [Decl]
+                 -- ^ Bindings for value parameters
+                 (Map Name Name)
+                 -- ^ Map from the functor's parameter names to the new names
+                 --   created for the instantiation
+
              | ParamInst (Set (MBQual TParam)) [Prop] (Map (MBQual Name) Type)
                -- ^ Argument that add parameters
                -- The type parameters are in their module type parameter
@@ -179,8 +210,8 @@ Returns:
   * XXX: Extra parameters for instantiation by adding params
 -}
 checkArg ::
-  (Range, ModParam, ActualArg) -> InferM ArgInst
-checkArg (r,expect,actual') =
+  ModPath -> (Range, ModParam, ActualArg) -> InferM ArgInst
+checkArg mpath (r,expect,actual') =
   case actual' of
     AddDeclParams   -> paramInst
     UseParameter {} -> definedInst
@@ -197,7 +228,8 @@ checkArg (r,expect,actual') =
        pure (ParamInst as cs (Map.mapKeys qual fs))
 
   definedInst =
-    do tRens <- mapM (checkParamType r tyMap) (Map.toList (mpnTypes params))
+    do (tRens, tSyns, tInstMaps) <- unzip3 <$>
+         mapM (checkParamType mpath r tyMap) (Map.toList (mpnTypes params))
        let renSu = listParamSubst (concat tRens)
 
        {- Note: the constraints from the signature are already added to the
@@ -205,12 +237,13 @@ checkArg (r,expect,actual') =
           doFunctorInst -}
 
 
-       vDecls <- concat <$>
-                  mapM (checkParamValue r vMap)
-                       [ s { mvpType = apSubst renSu (mvpType s) }
-                       | s <- Map.elems (mpnFuns params) ]
+       (vDecls, vInstMaps) <-
+         mapAndUnzipM (checkParamValue mpath r vMap)
+           [ s { mvpType = apSubst renSu (mvpType s) }
+           | s <- Map.elems (mpnFuns params) ]
 
-       pure (DefinedInst renSu vDecls)
+       pure $ DefinedInst renSu (mconcat tSyns)
+         (concat vDecls) (mconcat tInstMaps <> mconcat vInstMaps)
 
 
   params = mpParameters expect
@@ -263,51 +296,72 @@ nameMapToIdentMap f m =
 
 -- | Check a type parameter to a module.
 checkParamType ::
-  Range                 {- ^ Location for error reporting -} ->
-  Map Ident (Kind,Type) {- ^ Actual types -} ->
-  (Name,ModTParam)      {- ^ Type parameter -} ->
-  InferM [(TParam,Type)]  {- ^ Mapping from parameter name to actual type -}
-checkParamType r tyMap (name,mp) =
+  ModPath                    {- ^ The new module we are creating -} ->
+  Range                      {- ^ Location for error reporting -} ->
+  Map Ident (Kind,Type)      {- ^ Actual types -} ->
+  (Name,ModTParam)           {- ^ Type parameter -} ->
+  InferM ([(TParam,Type)], Map Name TySyn, Map Name Name)
+    {- ^ Mapping from parameter name to actual type (for type substitution),
+         type synonym map from a fresh type name to the actual type
+           (only so that the type can be referred to in the REPL;
+            type synonyms are fully inlined into types at this point),
+         and a map from the old type name to the fresh type name
+           (for instantiation) -}
+checkParamType mpath r tyMap (name,mp) =
   let i       = nameIdent name
       expectK = mtpKind mp
   in
   case Map.lookup i tyMap of
     Nothing ->
       do recordErrorLoc (Just r) (FunctorInstanceMissingName NSType i)
-         pure []
+         pure ([], Map.empty, Map.empty)
     Just (actualK,actualT) ->
       do unless (expectK == actualK)
            (recordErrorLoc (Just r)
                            (KindMismatch (Just (TVFromModParam name))
                                                   expectK actualK))
-         pure [(mtpParam mp, actualT)]
+         name' <- newFunctorInst mpath name
+         let tySyn = TySyn { tsName = name'
+                           , tsParams = []
+                           , tsConstraints = []
+                           , tsDef = actualT
+                           , tsDoc = mtpDoc mp }
+         pure ( [(mtpParam mp, actualT)]
+              , Map.singleton name' tySyn
+              , Map.singleton name name'
+              )
 
 -- | Check a value parameter to a module.
 checkParamValue ::
+  ModPath                 {- ^ The new module we are creating -} ->
   Range                   {- ^ Location for error reporting -} ->
   Map Ident (Name,Schema) {- ^ Actual values -} ->
   ModVParam               {- ^ The parameter we are checking -} ->
-  InferM [Decl]           {- ^ Mapping from parameter name to definition -}
-checkParamValue r vMap mp =
+  InferM ([Decl], Map Name Name)
+  {- ^ Decl mapping a new name to the actual value,
+       and a map from the value param name in the functor to the new name
+         (for instantiation) -}
+checkParamValue mpath r vMap mp =
   let name     = mvpName mp
       i        = nameIdent name
       expectT  = mvpType mp
   in case Map.lookup i vMap of
        Nothing ->
          do recordErrorLoc (Just r) (FunctorInstanceMissingName NSValue i)
-            pure []
+            pure ([], Map.empty)
        Just actual ->
          do e <- mkParamDef r (name,expectT) actual
-            let d = Decl { dName        = name
+            name' <- newFunctorInst mpath name
+            let d = Decl { dName        = name'
                          , dSignature   = expectT
                          , dDefinition  = DExpr e
                          , dPragmas     = []
-                         , dInfix       = isInfixIdent (nameIdent name)
+                         , dInfix       = isInfixIdent (nameIdent name')
                          , dFixity      = mvpFixity mp
                          , dDoc         = mvpDoc mp
                          }
 
-            pure [d]
+            pure ([d], Map.singleton name name')
 
 
 
@@ -372,5 +426,21 @@ mkParamDef r (pname,wantedS) (arg,actualS) =
      applySubst res
 
 
-
-
+-- | The instMap we get from the renamer will not contain the fresh names for
+-- certain things in the functor generated in the typechecking stage, if we are
+-- instantiating a functor that is in the same file, since renaming and
+-- typechecking happens together with the instantiation. In particular, if the
+-- functor's interface has type synonyms, they will only get copied over into
+-- the functor in the typechecker, so the renamer will not see them. Here we
+-- make the fresh names for those missing type synonyms and add them to the
+-- instMap.
+addMissingTySyns ::
+  ModPath                  {- ^ The new module we are creating -} ->
+  ModuleG ()               {- ^ The functor -} ->
+  Map Name Name            {- ^ instMap we get from renamer -} ->
+  InferM (Map Name Name)   {- ^ the complete instMap -}
+addMissingTySyns mpath f = Map.mergeA
+  (Map.traverseMissing \name _ -> newFunctorInst mpath name)
+  Map.preserveMissing
+  (Map.zipWithMatched \_ _ name' -> name')
+  (mTySyns f)

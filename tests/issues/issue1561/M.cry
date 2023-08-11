@@ -1,0 +1,6 @@
+module M where
+
+type n = 2
+
+x = 3
+y = 15

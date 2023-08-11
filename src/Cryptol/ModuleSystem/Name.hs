@@ -29,6 +29,7 @@ module Cryptol.ModuleSystem.Name (
   , nameLoc
   , nameFixity
   , nameNamespace
+  , nameToDefPName
   , asPrim
   , asOrigName
   , nameModPath
@@ -70,7 +71,8 @@ import qualified Data.Text as Text
 import           Data.Char(isAlpha,toUpper)
 
 
-
+import           Cryptol.Parser.Name (PName)
+import qualified Cryptol.Parser.Name as PName
 import           Cryptol.Parser.Position (Range,Located(..))
 import           Cryptol.Utils.Fixity
 import           Cryptol.Utils.Ident
@@ -146,9 +148,9 @@ cmpNameDisplay disp l r =
                  NotInScope  ->
                     let m = Text.pack (show (pp (ogModule og)))
                     in
-                    case ogSource og of
-                      FromModParam q  -> m <> "::" <> Text.pack (show (pp q))
-                      _ -> m
+                    case ogFromParam og of
+                      Just q  -> m <> "::" <> Text.pack (show (pp q))
+                      Nothing -> m
 
   -- Note that this assumes that `xs` is `l` and `ys` is `r`
   cmpText xs ys =
@@ -227,12 +229,21 @@ nameLoc  = nLoc
 nameFixity :: Name -> Maybe Fixity
 nameFixity = nFixity
 
+-- | Compute a `PName` for the definition site corresponding to the given
+-- `Name`.   Usually this is an unqualified name, but names that come
+-- from module parameters are qualified with the corresponding parameter name.
+nameToDefPName :: Name -> PName
+nameToDefPName n =
+  case nInfo n of
+    GlobalName _ og -> PName.origNameToDefPName og
+    LocalName _ txt -> PName.mkUnqual txt
+
 -- | Primtiives must be in a top level module, at least for now.
 asPrim :: Name -> Maybe PrimIdent
 asPrim n =
   case nInfo n of
     GlobalName _ og
-      | TopModule m <- ogModule og, not (ogFromModParam og) ->
+      | TopModule m <- ogModule og, not (ogIsModParam og) ->
         Just $ PrimIdent m $ identText $ ogName og
 
     _ -> Nothing
@@ -371,6 +382,7 @@ mkDeclared ns m sys ident fixity loc s = (name, s')
                                 , ogModule    = m
                                 , ogName      = ident
                                 , ogSource    = FromDefinition
+                                , ogFromParam = Nothing
                                 }
               }
 
@@ -410,7 +422,8 @@ mkModParam own pname rng n s = (name, s')
                               { ogModule    = own
                               , ogName      = nameIdent n
                               , ogNamespace = nameNamespace n
-                              , ogSource    = FromModParam pname
+                              , ogSource    = FromModParam
+                              , ogFromParam = Just pname
                               }
               , nFixity = nFixity n
               , nLoc    = rng

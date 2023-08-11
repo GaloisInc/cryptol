@@ -1,0 +1,9 @@
+:l issue1455/Inst2.cry
+`n
+`(m 3) : Integer
+x
+y
+:t a
+:t b
+1 + 1 : Integer
+:browse

@@ -1,3 +1,11 @@
+# UNRELEASED
+
+* Fixed #1556, #1237, and #1561.
+* Fixed #1455, making anything in scope of the functor in scope at the REPL as
+  well when an instantiation of the functor is loaded and focused,
+  design choice (3) on the ticket.  In particular, the prelude will be in scope.
+
+
 # 3.0.0 -- 2023-06-26
 
 ## Language changes

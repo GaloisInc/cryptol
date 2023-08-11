@@ -8,6 +8,7 @@ import qualified Data.Set as Set
 
 import Cryptol.Parser.Position(Located)
 import Cryptol.ModuleSystem.Interface(IfaceNames(..))
+import Cryptol.ModuleSystem.NamingEnv(NamingEnv,mapNamingEnv)
 import Cryptol.IR.TraverseNames(TraverseNames,mapNames)
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Subst(Subst,TVars,apSubst)
@@ -27,7 +28,7 @@ doTInst = apSubst ?tSu
 
 -- | Has both value names and types.
 doTVInst :: (Su, TVars a, TraverseNames a) => a -> a
-doTVInst = apSubst ?tSu . doVInst
+doTVInst = doVInst . doTInst
 
 doMap :: (Su, ModuleInstance a) => Map Name a -> Map Name a
 doMap mp =
@@ -50,6 +51,9 @@ instance ModuleInstance a => ModuleInstance (Located a) where
 
 instance ModuleInstance Name where
   moduleInstance = doVInst
+
+instance ModuleInstance NamingEnv where
+  moduleInstance = mapNamingEnv doVInst
 
 instance ModuleInstance name => ModuleInstance (ImpName name) where
   moduleInstance x =
@@ -74,6 +78,7 @@ instance ModuleInstance (ModuleG name) where
            , mDecls            = moduleInstance (mDecls m)
            , mSubmodules       = doMap (mSubmodules m)
            , mSignatures       = doMap (mSignatures m)
+           , mInScope          = moduleInstance (mInScope m)
            }
 
 instance ModuleInstance Type where

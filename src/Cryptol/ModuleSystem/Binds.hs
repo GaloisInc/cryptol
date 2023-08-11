@@ -13,6 +13,7 @@ module Cryptol.ModuleSystem.Binds
   , topModuleDefs
   , topDeclsDefs
   , newModParam
+  , newFunctorInst
   , InModule(..)
   , ifaceToMod
   , ifaceSigToMod
@@ -125,7 +126,7 @@ ifaceSigToMod ps = Mod
   , modState     = ()
   }
   where
-  env = modParamsNamingEnv ps
+  env = modParamNamesNamingEnv ps
 
 
 
@@ -419,6 +420,13 @@ newLocal ns thing rng = liftSupply (mkLocal ns (getIdent thing) rng)
 -- to the signature.
 newModParam :: FreshM m => ModPath -> Ident -> Range -> Name -> m Name
 newModParam m i rng n = liftSupply (mkModParam m i rng n)
+
+-- | Given a name in a functor, make a fresh name for the corresponding thing in
+-- the instantiation.
+--
+-- The 'ModPath' should be the instantiation not the functor.
+newFunctorInst :: FreshM m => ModPath -> Name -> m Name
+newFunctorInst m n = liftSupply (freshNameFor m n)
 
 
 {- | Do something in the context of a module.

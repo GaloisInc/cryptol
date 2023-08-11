@@ -67,7 +67,7 @@ module Cryptol.Parser.AST
   , Pragma(..)
   , ExportType(..)
   , TopLevel(..)
-  , Import, ImportG(..), ImportSpec(..), ImpName(..)
+  , Import, ImportG(..), ImportSpec(..), ImpName(..), impNameModPath
   , Newtype(..)
   , PrimType(..)
   , ParameterType(..)
@@ -106,6 +106,8 @@ module Cryptol.Parser.AST
   , cppKind, ppSelector
   ) where
 
+import Cryptol.ModuleSystem.Name (Name, nameModPath, nameIdent)
+import Cryptol.ModuleSystem.NamingEnv.Types
 import Cryptol.Parser.Name
 import Cryptol.Parser.Position
 import Cryptol.Parser.Selector
@@ -158,6 +160,11 @@ newtype Program name = Program [TopDecl name]
 data ModuleG mname name = Module
   { mName     :: Located mname              -- ^ Name of the module
   , mDef      :: ModuleDefinition name
+  , mInScope  :: NamingEnv
+    -- ^ Names in scope inside this module, filled in by the renamer.
+    --   Also, for the 'FunctorInstance' case this is not the final result of
+    --   the names in scope. The typechecker adds in the names in scope in the
+    --   functor, so this will just contain the names in the enclosing scope.
   } deriving (Show, Generic, NFData)
 
 
@@ -303,6 +310,10 @@ data ImpName name =
     ImpTop    ModName           -- ^ A top-level module
   | ImpNested name              -- ^ The module in scope with the given name
     deriving (Show, Generic, NFData, Eq, Ord)
+
+impNameModPath :: ImpName Name -> ModPath
+impNameModPath (ImpTop mn) = TopModule mn
+impNameModPath (ImpNested n) = Nested (nameModPath n) (nameIdent n)
 
 -- | A simple declaration.  Generally these are things that can appear
 -- both at the top-level of a module and in `where` clauses.
@@ -839,6 +850,7 @@ instance (Show name, PPName name) => PP (NestedModule name) where
 ppModule :: (Show name, PPName mname, PPName name) =>
   Doc -> ModuleG mname name -> Doc
 ppModule kw m = kw' <+> ppL (mName m) <+> pp (mDef m)
+  $$ indent 2 (vcat ["/* In scope:", indent 2 (pp (mInScope m)), " */"])
   where
   kw' = case mDef m of
           InterfaceModule {} -> "interface" <+> kw
@@ -1352,6 +1364,7 @@ instance NoPos (Program name) where
 instance NoPos (ModuleG mname name) where
   noPos m = Module { mName      = mName m
                    , mDef       = noPos (mDef m)
+                   , mInScope   = mInScope m
                    }
 
 instance NoPos (ModuleDefinition name) where

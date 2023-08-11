@@ -46,6 +46,17 @@ mkUnqual  = UnQual
 mkQual :: ModName -> Ident -> PName
 mkQual  = Qual
 
+-- | Compute a `PName` for the definition site corresponding to the given
+-- `OrigName`.   Usually this is an unqualified name, but names that come
+-- from module parameters are qualified with the corresponding parameter name.
+origNameToDefPName :: OrigName -> PName
+origNameToDefPName og = toPName (ogName og)
+  where
+  toPName =
+    case ogFromParam og of
+      Nothing -> UnQual
+      Just sig -> Qual (identToModName sig)
+
 getModName :: PName -> Maybe ModName
 getModName (Qual ns _) = Just ns
 getModName _           = Nothing

@@ -1,0 +1,6 @@
+module F where
+
+import interface I
+
+a = x + 1
+b = y + 1

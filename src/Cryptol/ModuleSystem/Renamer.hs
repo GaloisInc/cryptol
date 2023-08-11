@@ -118,7 +118,6 @@ The Renamer Algorithm
 data RenamedModule = RenamedModule
   { rmModule   :: Module Name     -- ^ The renamed module
   , rmDefines  :: NamingEnv       -- ^ What this module defines
-  , rmInScope  :: NamingEnv       -- ^ What's in scope in this module
   , rmImported :: IfaceDecls
     -- ^ Imported declarations.  This provides the types for external
     -- names (used by the type-checker).
@@ -152,12 +151,11 @@ renameModule m0 =
 
      setResolvedLocals resolvedMods $
        setNestedModule pathToName
-       do (ifs,(inScope,m1)) <- collectIfaceDeps (renameModule' mname m)
+       do (ifs,m1) <- collectIfaceDeps (renameModule' mname m)
           env <- rmodDefines <$> lookupResolved mname
           pure RenamedModule
                  { rmModule = m1
                  , rmDefines = env
-                 , rmInScope = inScope
                  , rmImported = ifs
                   -- XXX: maybe we should keep the nested defines too?
                  }
@@ -220,12 +218,9 @@ class Rename f where
 renameModule' ::
   ImpName Name {- ^ Resolved name for this module -} ->
   ModuleG mname PName ->
-  RenameM (NamingEnv, ModuleG mname Name)
+  RenameM (ModuleG mname Name)
 renameModule' mname m =
-  setCurMod
-    case mname of
-      ImpTop r    -> TopModule r
-      ImpNested r -> Nested (nameModPath r) (nameIdent r)
+  setCurMod (impNameModPath mname)
 
   do resolved <- lookupResolved mname
      shadowNames' CheckNone (rmodImports resolved)
@@ -247,7 +242,7 @@ renameModule' mname m =
                      let exports = exportedDecls ds1
                      mapM_ recordUse (exported NSType exports)
                      inScope <- getNamingEnv
-                     pure (inScope, m { mDef = NormalModule ds1 })
+                     pure m { mDef = NormalModule ds1, mInScope = inScope }
 
          -- The things defined by this module are the *results*
          -- of the instantiation, so we should *not* add them
@@ -260,30 +255,20 @@ renameModule' mname m =
               let l = Just (srcRange f')
               imap <- mkInstMap l mempty (thing f') mname
 
-              {- Now we need to compute what's "in scope" of the instantiated
-              module.  This is used when the module is loaded at the command
-              line and users want to evalute things in the context of the
-              module -}
-              fuEnv <- if isFakeName (thing f')
-                          then pure mempty
-                          else lookupDefines (thing f')
-              let ren x = Map.findWithDefault x x imap
+              -- This inScope is incomplete; it only contains names from the
+              -- enclosing scope, but we also want the names in scope from the
+              -- functor, for ease of testing at the command line. We will fix
+              -- this up in doFunctorInst in the typechecker, because right now
+              -- we don't have access yet to the inScope of the functor.
+              inScope <- getNamingEnv
 
-              -- XXX: This is not quite right as it only considers the things
-              -- defined in the module to be in scope.  It misses things
-              -- that are *imported* by the functor, in particular the Cryptol
-              -- library
-              -- is missing.  See #1455.
-              inScope <- shadowNames' CheckNone (mapNamingEnv ren fuEnv)
-                         getNamingEnv
-
-              pure (inScope, m { mDef = FunctorInstance f' as' imap })
+              pure m { mDef = FunctorInstance f' as' imap, mInScope = inScope }
 
          InterfaceModule s ->
            shadowNames' CheckNone (rmodDefines resolved)
              do d <- InterfaceModule <$> renameIfaceModule mname s
                 inScope <- getNamingEnv
-                pure (inScope, m { mDef = d })
+                pure m { mDef = d, mInScope = inScope }
 
 
 checkFunctorArgs :: ModuleInstanceArgs Name -> RenameM ()
@@ -820,10 +805,8 @@ instance Rename NestedModule where
            nm             = thing lnm
        n   <- resolveName NameBind NSModule nm
        depsOf (NamedThing n)
-         do -- XXX: we should store in scope somewhere if we want to browse
-            -- nested modules properly
-            let m' = m { mName = ImpNested <$> mName m }
-            (_inScope,m1) <- renameModule' (ImpNested n) m'
+         do let m' = m { mName = ImpNested <$> mName m }
+            m1 <- renameModule' (ImpNested n) m'
             pure (NestedModule m1 { mName = lnm { thing = n } })
 
 
@@ -1416,8 +1399,6 @@ instance PP RenamedModule where
     doc =
       vcat [ "// --- Defines -----------------------------"
            , pp (rmDefines rn)
-           , "// --- In scope ----------------------------"
-           , pp (rmInScope rn)
            , "// -- Module -------------------------------"
            , pp (rmModule rn)
            , "// -----------------------------------------"

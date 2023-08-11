@@ -631,7 +631,11 @@ checkModule isrc m = do
   rewMod <- case tcm of
               T.TCTopModule mo -> T.TCTopModule <$> liftSupply (`rewModule` mo)
               T.TCTopSignature {} -> pure tcm
-  pure (R.rmInScope renMod,rewMod)
+  let nameEnv = case tcm of
+                  T.TCTopModule mo -> T.mInScope mo
+                  -- Name env for signatures does not change after typechecking
+                  T.TCTopSignature {} -> mInScope (R.rmModule renMod)
+  pure (nameEnv,rewMod)
 
 data TCLinter o = TCLinter
   { lintCheck ::

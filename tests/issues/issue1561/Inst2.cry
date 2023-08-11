@@ -1,0 +1,1 @@
+module Inst2 = G { J = M, K = N }

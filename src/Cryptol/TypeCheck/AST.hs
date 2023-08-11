@@ -36,6 +36,7 @@ import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.Ident (Ident,isInfixIdent,ModName,PrimIdent,prelPrim)
 import Cryptol.Parser.Position(Located,Range,HasLoc(..))
 import Cryptol.ModuleSystem.Name
+import Cryptol.ModuleSystem.NamingEnv.Types
 import Cryptol.ModuleSystem.Interface
 import Cryptol.ModuleSystem.Exports(ExportSpec(..)
                                    , isExportedBind, isExportedType, isExported)
@@ -111,6 +112,10 @@ data ModuleG mname =
                      , mDecls            :: [DeclGroup]
                      , mSubmodules       :: Map Name (IfaceNames Name)
                      , mSignatures       :: !(Map Name ModParamNames)
+
+                     , mInScope          :: NamingEnv
+                       -- ^ Things in scope at the top level.
+                       --   Submodule in-scope information is in 'mSubmodules'.
                      } deriving (Show, Generic, NFData)
 
 emptyModule :: mname -> ModuleG mname
@@ -134,6 +139,8 @@ emptyModule nm =
     , mFunctors         = mempty
     , mSubmodules       = mempty
     , mSignatures       = mempty
+
+    , mInScope          = mempty
     }
 
 -- | Find all the foreign declarations in the module and return their names and FFIFunTypes.

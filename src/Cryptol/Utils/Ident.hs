@@ -26,6 +26,7 @@ module Cryptol.Utils.Ident
   , modNameChunks
   , modNameChunksText
   , packModName
+  , identToModName
   , preludeName
   , preludeReferenceName
   , undefinedModName
@@ -63,7 +64,7 @@ module Cryptol.Utils.Ident
     -- * Original names
   , OrigName(..)
   , OrigSource(..)
-  , ogFromModParam
+  , ogIsModParam
 
     -- * Identifiers for primitives
   , PrimIdent(..)
@@ -214,6 +215,9 @@ packModName strs = textToModName (T.intercalate modSep (map trim strs))
   -- trim space off of the start and end of the string
   trim str = T.dropWhile isSpace (T.dropWhileEnd isSpace str)
 
+identToModName :: Ident -> ModName
+identToModName (Ident _ anon txt) = ModName txt anon
+
 modSep :: T.Text
 modSep  = "::"
 
@@ -255,19 +259,21 @@ data OrigName = OrigName
   , ogModule    :: ModPath
   , ogSource    :: OrigSource
   , ogName      :: Ident
+  , ogFromParam :: !(Maybe Ident)
+    -- ^ Does this name come from a module parameter
   } deriving (Eq,Ord,Show,Generic,NFData)
 
 -- | Describes where a top-level name came from
 data OrigSource =
     FromDefinition
   | FromFunctorInst
-  | FromModParam Ident
+  | FromModParam
     deriving (Eq,Ord,Show,Generic,NFData)
 
 -- | Returns true iff the 'ogSource' of the given 'OrigName' is 'FromModParam'
-ogFromModParam :: OrigName -> Bool
-ogFromModParam og = case ogSource og of
-                      FromModParam _ -> True
+ogIsModParam :: OrigName -> Bool
+ogIsModParam og = case ogSource og of
+                      FromModParam -> True
                       _ -> False
 
 

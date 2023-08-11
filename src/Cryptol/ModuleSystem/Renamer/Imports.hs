@@ -67,10 +67,11 @@ import Cryptol.Utils.Ident(ModName,ModPath(..),Namespace(..),OrigName(..))
 
 import Cryptol.Parser.AST
   ( ImportG(..),PName, ModuleInstanceArgs(..), ImpName(..) )
-import Cryptol.ModuleSystem.Binds (Mod(..), TopDef(..), modNested, ModKind(..))
+import Cryptol.ModuleSystem.Binds
+          ( Mod(..), TopDef(..), modNested, ModKind(..), newFunctorInst )
 import Cryptol.ModuleSystem.Name
-          ( Name, Supply, SupplyT, runSupplyT, liftSupply, freshNameFor
-          , asOrigName, nameIdent, nameTopModule )
+          ( Name, Supply, SupplyT, runSupplyT, asOrigName, nameIdent
+          , nameTopModule )
 import Cryptol.ModuleSystem.Names(Names(..))
 import Cryptol.ModuleSystem.NamingEnv
           ( NamingEnv(..), lookupNS, shadowing, travNamingEnv
@@ -511,7 +512,7 @@ doInstantiate keepArgs mpath def s = (newDef, Set.foldl' doSub newS nestedToDo)
 
   instName :: Name -> SupplyT (M.StateT (Set (Name,Name)) M.Id) Name
   instName x =
-    do y <- liftSupply (freshNameFor mpath x)
+    do y <- newFunctorInst mpath x
        when (x `Set.member` rmodNested def)
             (M.lift (M.sets_ (Set.insert (x,y))))
        pure y
