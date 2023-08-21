@@ -71,7 +71,7 @@ instance (Show a, Ord a, Show b) => Show (RecordMap a b) where
   show = show . displayFields
 
 instance (NFData a, NFData b) => NFData (RecordMap a b) where
-  rnf = rnf . canonicalFields 
+  rnf = rnf . canonicalFields
 
 
 -- | Return the fields in this record as a set.
@@ -116,7 +116,7 @@ displayFields r = map find (displayOrder r)
 recordFromFields :: (Show a, Ord a) => [(a,b)] -> RecordMap a b
 recordFromFields xs =
   case recordFromFieldsErr xs of
-    Left (x,_) -> 
+    Left (x,_) ->
           panic "recordFromFields"
                 ["Repeated field value: " ++ show x]
     Right r -> r
