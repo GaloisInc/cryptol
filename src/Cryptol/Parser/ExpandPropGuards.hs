@@ -76,42 +76,46 @@ expandDecl decl =
 expandBind :: Bind PName -> ExpandPropGuardsM [Bind PName]
 expandBind bind =
   case thing (bDef bind) of
-    DPropGuards guards -> do
-      Forall params props t rng <-
-        case bSignature bind of
-          Just schema -> pure schema
-          Nothing -> Left . NoSignature $ bName bind
-      let goGuard ::
-            PropGuardCase PName ->
-            ExpandPropGuardsM (PropGuardCase PName, Bind PName)
-          goGuard (PropGuardCase props' e) = do
-            bName' <- newName (bName bind) (thing <$> props')
-            -- call to generated function
-            tParams <- case bSignature bind of
-              Just (Forall tps _ _ _) -> pure tps
-              Nothing -> Left $ NoSignature (bName bind)
-            typeInsts <-
-              (\(TParam n _ _) -> Right . PosInst $ TUser n [])
-                `traverse` tParams
-            let e' = foldl EApp (EAppT (EVar $ thing bName') typeInsts) (patternToExpr <$> bParams bind)
-            pure
-              ( PropGuardCase props' e',
-                bind
-                  { bName = bName',
-                    -- include guarded props in signature
-                    bSignature = Just (Forall params
-                                         (props <> map thing props')
-                                         t rng),
-                    -- keeps same location at original bind
-                    -- i.e. "on top of" original bind
-                    bDef = (bDef bind) {thing = DExpr e}
-                  }
-              )
-      (guards', binds') <- unzip <$> mapM goGuard guards
-      pure $
-        bind {bDef = DPropGuards guards' <$ bDef bind} :
-        binds'
+    DImpl (DPropGuards guards) -> expand (DImpl . DPropGuards) guards
+    DForeign (Just (DPropGuards guards)) -> expand (DForeign . Just . DPropGuards) guards
     _ -> pure [bind]
+
+  where
+  expand def guards = do
+    Forall params props t rng <-
+      case bSignature bind of
+        Just schema -> pure schema
+        Nothing -> Left . NoSignature $ bName bind
+    let goGuard ::
+          PropGuardCase PName ->
+          ExpandPropGuardsM (PropGuardCase PName, Bind PName)
+        goGuard (PropGuardCase props' e) = do
+          bName' <- newName (bName bind) (thing <$> props')
+          -- call to generated function
+          tParams <- case bSignature bind of
+            Just (Forall tps _ _ _) -> pure tps
+            Nothing -> Left $ NoSignature (bName bind)
+          typeInsts <-
+            (\(TParam n _ _) -> Right . PosInst $ TUser n [])
+              `traverse` tParams
+          let e' = foldl EApp (EAppT (EVar $ thing bName') typeInsts) (patternToExpr <$> bParams bind)
+          pure
+            ( PropGuardCase props' e',
+              bind
+                { bName = bName',
+                  -- include guarded props in signature
+                  bSignature = Just (Forall params
+                                        (props <> map thing props')
+                                        t rng),
+                  -- keeps same location at original bind
+                  -- i.e. "on top of" original bind
+                  bDef = (bDef bind) {thing = exprDef e}
+                }
+            )
+    (guards', binds') <- unzip <$> mapM goGuard guards
+    pure $
+      bind {bDef = def guards' <$ bDef bind} :
+      binds'
 
 patternToExpr :: Pattern PName -> Expr PName
 patternToExpr (PVar locName) = EVar (thing locName)

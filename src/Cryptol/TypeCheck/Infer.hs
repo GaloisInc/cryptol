@@ -873,9 +873,9 @@ checkNumericConstraintGuardsOK isTopLevel haveSig noSig =
   -- so no need to look at noSig
 
   hasConstraintGuards b =
-    case thing (P.bDef b) of
-      P.DPropGuards {} -> True
-      _                -> False
+    case P.bindImpl b of
+      Just (P.DPropGuards {}) -> True
+      _                       -> False
 
 
 
@@ -896,10 +896,11 @@ guessType exprMap b@(P.Bind { .. }) =
 
     Just s ->
       do let wildOk = case thing bDef of
-                        P.DForeign {}    -> NoWildCards
-                        P.DPrim          -> NoWildCards
-                        P.DExpr {}       -> AllowWildCards
-                        P.DPropGuards {} -> NoWildCards
+                        P.DForeign {}                   -> NoWildCards
+                        P.DPrim                         -> NoWildCards
+                        P.DImpl i -> case i of
+                                       P.DExpr {}       -> AllowWildCards
+                                       P.DPropGuards {} -> NoWildCards
          s1 <- checkSchema wildOk s
          return ((name, ExtVar (fst s1)), Left (checkSigB b s1))
 
@@ -994,9 +995,9 @@ generalize bs0 gs0 =
 
          genE e = foldr ETAbs (foldr EProofAbs (apSubst su e) qs) asPs
          genB d = d { dDefinition = case dDefinition d of
-                                      DExpr e    -> DExpr (genE e)
-                                      DPrim      -> DPrim
-                                      DForeign t -> DForeign t
+                                      DExpr e       -> DExpr (genE e)
+                                      DPrim         -> DPrim
+                                      DForeign t me -> DForeign t (genE <$> me)
                     , dSignature  = Forall asPs qs
                                   $ apSubst su $ sType $ dSignature d
                     }
@@ -1018,31 +1019,33 @@ checkMonoB b t =
 
     P.DPrim -> panic "checkMonoB" ["Primitive with no signature?"]
 
-    P.DForeign -> panic "checkMonoB" ["Foreign with no signature?"]
+    P.DForeign _ -> panic "checkMonoB" ["Foreign with no signature?"]
 
-    P.DExpr e ->
-      do let nm = thing (P.bName b)
-         let tGoal = WithSource t (DefinitionOf nm) (getLoc b)
-         e1 <- checkFun (P.FunDesc (Just nm) 0) (P.bParams b) e tGoal
-         let f = thing (P.bName b)
-         return Decl { dName = f
-                     , dSignature = Forall [] [] t
-                     , dDefinition = DExpr e1
-                     , dPragmas = P.bPragmas b
-                     , dInfix = P.bInfix b
-                     , dFixity = P.bFixity b
-                     , dDoc = P.bDoc b
-                     }
+    P.DImpl i ->
+      case i of
 
-    P.DPropGuards _ ->
-      tcPanic "checkMonoB"
-        [ "Used constraint guards without a signature at "
-        , show . pp $ P.bName b ]
+        P.DExpr e ->
+          do let nm = thing (P.bName b)
+             let tGoal = WithSource t (DefinitionOf nm) (getLoc b)
+             e1 <- checkFun (P.FunDesc (Just nm) 0) (P.bParams b) e tGoal
+             let f = thing (P.bName b)
+             return Decl { dName = f
+                         , dSignature = Forall [] [] t
+                         , dDefinition = DExpr e1
+                         , dPragmas = P.bPragmas b
+                         , dInfix = P.bInfix b
+                         , dFixity = P.bFixity b
+                         , dDoc = P.bDoc b
+                         }
+
+        P.DPropGuards _ ->
+          tcPanic "checkMonoB"
+            [ "Used constraint guards without a signature at "
+            , show . pp $ P.bName b ]
 
 -- XXX: Do we really need to do the defaulting business in two different places?
 checkSigB :: P.Bind Name -> (Schema,[Goal]) -> InferM Decl
 checkSigB b (Forall as asmps0 t0, validSchema) =
-  let name = thing (P.bName b) in
   case thing (P.bDef b) of
 
     -- XXX what should we do with validSchema in this case?
@@ -1057,10 +1060,13 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
         , dDoc        = P.bDoc b
         }
 
-    P.DForeign -> do
+    P.DForeign mi -> do
+      (asmps, t, me) <-
+        case mi of
+          Just i -> fmap Just <$> checkImpl i
+          Nothing -> pure (asmps0, t0, Nothing)
       let loc = getLoc b
-          name' = thing $ P.bName b
-          src = DefinitionOf name'
+          src = DefinitionOf name
       inRangeMb loc do
         -- Ensure all type params are of kind #
         forM_ as \a ->
@@ -1068,10 +1074,10 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
             recordErrorLoc loc $ UnsupportedFFIKind src a $ tpKind a
         withTParams as do
           ffiFunType <-
-            case toFFIFunType (Forall as asmps0 t0) of
+            case toFFIFunType (Forall as asmps t) of
               Right (props, ffiFunType) -> ffiFunType <$ do
-                ffiGoals <- traverse (newGoal (CtFFI name')) props
-                proveImplication True (Just name') as asmps0 $
+                ffiGoals <- traverse (newGoal (CtFFI name)) props
+                proveImplication True (Just name) as asmps $
                   validSchema ++ ffiGoals
               Left err -> do
                 recordErrorLoc loc $ UnsupportedFFIType src err
@@ -1080,32 +1086,44 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
                   { ffiTParams = as, ffiArgTypes = []
                   , ffiRetType = FFITuple [] }
           pure Decl { dName       = thing (P.bName b)
-                    , dSignature  = Forall as asmps0 t0
-                    , dDefinition = DForeign ffiFunType
+                    , dSignature  = Forall as asmps t
+                    , dDefinition = DForeign ffiFunType me
                     , dPragmas    = P.bPragmas b
                     , dInfix      = P.bInfix b
                     , dFixity     = P.bFixity b
                     , dDoc        = P.bDoc b
                     }
 
-    P.DExpr e0 ->
-      inRangeMb (getLoc b) $
-      withTParams as $ do
-        (t, asmps, e2) <- checkBindDefExpr [] asmps0 e0
+    P.DImpl i -> do
+      (asmps, t, expr) <- checkImpl i
+      return Decl
+        { dName       = name
+        , dSignature  = Forall as asmps t
+        , dDefinition = DExpr expr
+        , dPragmas    = P.bPragmas b
+        , dInfix      = P.bInfix b
+        , dFixity     = P.bFixity b
+        , dDoc        = P.bDoc b
+        }
 
-        return Decl
-          { dName       = name
-          , dSignature  = Forall as asmps t
-          , dDefinition = DExpr (foldr ETAbs (foldr EProofAbs e2 asmps) as)
-          , dPragmas    = P.bPragmas b
-          , dInfix      = P.bInfix b
-          , dFixity     = P.bFixity b
-          , dDoc        = P.bDoc b
-          }
+  where
 
-    P.DPropGuards cases0 ->
+    name = thing (P.bName b)
+
+    checkImpl :: P.BindImpl Name -> InferM ([Prop], Type, Expr)
+    checkImpl i =
       inRangeMb (getLoc b) $
-        withTParams as $ do
+      withTParams as $
+      case i of
+
+        P.DExpr e0 -> do
+          (t, asmps, e2) <- checkBindDefExpr [] asmps0 e0
+          pure ( asmps
+               , t
+               , foldr ETAbs (foldr EProofAbs e2 asmps) as
+               )
+
+        P.DPropGuards cases0 -> do
           asmps1 <- applySubstPreds asmps0
           t1     <- applySubst t0
           cases1 <- mapM checkPropGuardCase cases0
@@ -1116,25 +1134,14 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
               -- necessarily hold
               recordWarning (NonExhaustivePropGuards name)
 
-          let schema = Forall as asmps1 t1
-
-          return Decl
-            { dName       = name
-            , dSignature  = schema
-            , dDefinition = DExpr
-                              (foldr ETAbs
-                                (foldr EProofAbs
-                                  (EPropGuards cases1 t1)
-                                asmps1)
-                              as)
-            , dPragmas    = P.bPragmas b
-            , dInfix      = P.bInfix b
-            , dFixity     = P.bFixity b
-            , dDoc        = P.bDoc b
-            }
-
-
-  where
+          pure ( asmps1
+               , t1
+               , foldr ETAbs
+                   (foldr EProofAbs
+                     (EPropGuards cases1 t1)
+                   asmps1)
+                 as
+               )
 
     checkBindDefExpr ::
       [Prop] -> [Prop] -> P.Expr Name -> InferM (Type, [Prop], Expr)

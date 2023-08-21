@@ -378,7 +378,7 @@ decl                    :: { Decl PName }
                            { at ($1,$5) $
                              DBind $ Bind { bName      = $2
                                           , bParams    = [$1,$3]
-                                          , bDef       = at $5 (Located emptyRange (DExpr $5))
+                                          , bDef       = at $5 (Located emptyRange (exprDef $5))
                                           , bSignature = Nothing
                                           , bPragmas   = []
                                           , bMono      = False
@@ -408,7 +408,7 @@ let_decl                :: { Decl PName }
                            { at ($2,$6) $
                              DBind $ Bind { bName      = $3
                                           , bParams    = [$2,$4]
-                                          , bDef       = at $6 (Located emptyRange (DExpr $6))
+                                          , bDef       = at $6 (Located emptyRange (exprDef $6))
                                           , bSignature = Nothing
                                           , bPragmas   = []
                                           , bMono      = False

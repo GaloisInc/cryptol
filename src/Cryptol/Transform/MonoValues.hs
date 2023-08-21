@@ -218,9 +218,9 @@ rewD rews d = do e <- rewDef rews (dDefinition d)
                  return d { dDefinition = e }
 
 rewDef :: RewMap -> DeclDef -> M DeclDef
-rewDef rews (DExpr e)    = DExpr <$> rewE rews e
-rewDef _    DPrim        = return DPrim
-rewDef _    (DForeign t) = return $ DForeign t
+rewDef rews (DExpr e)       = DExpr <$> rewE rews e
+rewDef _    DPrim           = return DPrim
+rewDef rews (DForeign t me) = DForeign t <$> traverse (rewE rews) me
 
 rewDeclGroup :: RewMap -> DeclGroup -> M DeclGroup
 rewDeclGroup rews dg =
@@ -240,12 +240,17 @@ rewDeclGroup rews dg =
 
   consider d   =
     case dDefinition d of
-      DPrim      -> Left d
-      DForeign _ -> Left d
-      DExpr e    -> let (tps,props,e') = splitTParams e
-                    in if not (null tps) && notFun e'
-                        then Right (d, tps, props, e')
-                        else Left d
+      DPrim         -> Left d
+      DForeign _ me -> case me of
+                         Nothing -> Left d
+                         Just e  -> conExpr e
+      DExpr e       -> conExpr e
+    where
+    conExpr e =
+      let (tps,props,e') = splitTParams e
+      in if not (null tps) && notFun e'
+          then Right (d, tps, props, e')
+          else Left d
 
   rewSame ds =
      do new <- forM (NE.toList ds) $ \(d,_,_,e) ->

@@ -146,7 +146,7 @@ emptyModule nm =
 -- | Find all the foreign declarations in the module and return their names and FFIFunTypes.
 findForeignDecls :: ModuleG mname -> [(Name, FFIFunType)]
 findForeignDecls = mapMaybe getForeign . mDecls
-  where getForeign (NonRecursive Decl { dName, dDefinition = DForeign ffiType })
+  where getForeign (NonRecursive Decl { dName, dDefinition = DForeign ffiType _ })
           = Just (dName, ffiType)
         -- Recursive DeclGroups can't have foreign decls
         getForeign _ = Nothing
@@ -245,7 +245,9 @@ data Decl       = Decl { dName        :: !Name
                        } deriving (Generic, NFData, Show)
 
 data DeclDef    = DPrim
-                | DForeign FFIFunType
+                -- | Foreign functions can have an optional cryptol
+                -- implementation
+                | DForeign FFIFunType (Maybe Expr)
                 | DExpr Expr
                   deriving (Show, Generic, NFData)
 
@@ -463,9 +465,12 @@ instance PP (WithNames Decl) where
       ++ [ nest 2 (sep [pp dName <+> text "=", ppWithNames nm dDefinition]) ]
 
 instance PP (WithNames DeclDef) where
-  ppPrec _ (WithNames DPrim _)        = text "<primitive>"
-  ppPrec _ (WithNames (DForeign _) _) = text "<foreign>"
-  ppPrec _ (WithNames (DExpr e) nm)   = ppWithNames nm e
+  ppPrec _ (WithNames DPrim _) = text "<primitive>"
+  ppPrec _ (WithNames (DForeign _ me) nm) =
+    case me of
+      Just e -> text "(foreign)" <+> ppWithNames nm e
+      Nothing -> text "<foreign>"
+  ppPrec _ (WithNames (DExpr e) nm) = ppWithNames nm e
 
 instance PP Decl where
   ppPrec = ppWithNamesPrec IntMap.empty

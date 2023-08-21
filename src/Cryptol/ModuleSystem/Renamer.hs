@@ -1046,8 +1046,11 @@ instance Rename Bind where
                           }
 
 instance Rename BindDef where
-  rename DPrim     = return DPrim
-  rename DForeign  = return DForeign
+  rename DPrim        = return DPrim
+  rename (DForeign i) = DForeign <$> traverse rename i
+  rename (DImpl i)    = DImpl <$> rename i
+
+instance Rename BindImpl where
   rename (DExpr e) = DExpr <$> rename e
   rename (DPropGuards cases) = DPropGuards <$> traverse rename cases
 
