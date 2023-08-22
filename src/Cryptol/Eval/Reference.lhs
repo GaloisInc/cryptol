@@ -531,9 +531,14 @@ the new bindings.
 > evalDecl :: Env -> Decl -> (Name, E Value)
 > evalDecl env d =
 >   case dDefinition d of
->     DPrim        -> (dName d, pure (evalPrim (dName d)))
->     DForeign _ _ -> (dName d, cryError $ FFINotSupported $ dName d)
->     DExpr e      -> (dName d, evalExpr env e)
+>     DPrim         -> (dName d, pure (evalPrim (dName d)))
+>     DForeign _ me -> (dName d, val)
+>       where
+>         val =
+>           case me of
+>             Just e  -> evalExpr env e
+>             Nothing -> cryError $ FFINotSupported $ dName d
+>     DExpr e       -> (dName d, evalExpr env e)
 >
 
 Newtypes
