@@ -325,7 +325,7 @@ doLoadModule eval quiet isrc path fp incDeps pm0 =
                                            $ map fst foreigns ]
           doEvalForeign handleErrs =
             case path of
-              InFile p -> io (canonicalizePath p >>= loadForeignSrc) >>=
+              InFile p -> io (loadForeignSrc p) >>=
                 \case
 
                   Right fsrc -> do
@@ -448,16 +448,13 @@ findDepsOfModule m =
      findDepsOf mpath
 
 findDepsOf :: ModulePath -> ModuleM (ModulePath, FileInfo)
-findDepsOf mpath' =
-  do mpath <- case mpath' of
-                InFile file -> InFile <$> io (canonicalizePath file)
-                InMem {}    -> pure mpath'
-     (fp, incs, ms) <- parseModule mpath
+findDepsOf mpath =
+  do (fp, incs, ms) <- parseModule mpath
      let (anyF,imps) = mconcat (map (findDeps' . addPrelude) ms)
      fpath <- if getAny anyF
                 then do mb <- io case mpath of
-                                   InFile can -> foreignLibPath can
-                                   InMem {}   -> pure Nothing
+                                   InFile path -> foreignLibPath path
+                                   InMem {}    -> pure Nothing
                         pure case mb of
                                Nothing -> Set.empty
                                Just f  -> Set.singleton f
