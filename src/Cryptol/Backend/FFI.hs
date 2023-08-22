@@ -273,4 +273,7 @@ loadForeignSrc _ = pure $ Right ForeignSrc
 unloadForeignSrc :: ForeignSrc -> IO ()
 unloadForeignSrc _ = pure ()
 
+foreignLibPath :: FilePath -> IO (Maybe FilePath)
+foreignLibPath _ = pure Nothing
+
 #endif
