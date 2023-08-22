@@ -323,7 +323,7 @@ doLoadModule eval quiet isrc path fp incDeps pm0 =
           dups      = [ d | d@(_ : _ : _) <- groupBy ((==) `on` nameIdent)
                                            $ sortBy (compare `on` nameIdent)
                                            $ map fst foreigns ]
-          doEvalForeign handleImplErrs =
+          doEvalForeign handleErrs =
             case path of
               InFile p -> io (canonicalizePath p >>= loadForeignSrc) >>=
                 \case
@@ -337,10 +337,12 @@ doLoadModule eval quiet isrc path fp incDeps pm0 =
                     (errs, ()) <-
                       modifyEvalEnvM (evalForeignDecls fsrc foreigns)
                     unless (null errs) $
-                      handleImplErrs errs
+                      handleErrs errs
                     pure $ Just fsrc
 
-                  Left err -> ffiLoadErrors (T.mName tcm) [err]
+                  Left err -> do
+                    handleErrs [err]
+                    pure Nothing
 
               InMem m _ -> panic "doLoadModule"
                 ["Can't find foreign source of in-memory module", m]
