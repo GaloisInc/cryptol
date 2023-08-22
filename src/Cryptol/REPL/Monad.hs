@@ -126,6 +126,7 @@ import Data.IORef
 import Data.List (intercalate, isPrefixOf, unfoldr, sortBy)
 import Data.Maybe (catMaybes)
 import Data.Ord (comparing)
+import Data.Tuple (swap)
 import Data.Typeable (Typeable)
 import System.Directory (findExecutable)
 import System.FilePath (splitSearchPath, searchPathSeparator)
@@ -979,6 +980,26 @@ userOptions  = mkOptionMap
                EnvBool False -> setIt M.NoCoreLint
                _             -> return ()
 
+  , OptionDescr "evalForeign" ["eval-foreign"] defaultEvalForeignOpt
+    checkEvalForeign
+    (unlines
+      [ "How to evaluate 'foreign' bindings:"
+      , "  * always  Always call the foreign implementation with the FFI and"
+      , "            report an error on module load if it is unavailable."
+      , "  * prefer  Call the foreign implementation with the FFI by default,"
+      , "            and when unavailable, fall back to the cryptol"
+      , "            implementation if present and report runtime error"
+      , "            otherwise."
+      , "  * never   Never use the FFI. Always call the cryptol implementation"
+      , "            if present, and report runtime error otherwise."
+      , "Note: changes take effect on module reload."
+      ]) $
+    \case EnvString s
+            | Just p <- lookup s evalForeignOptMap -> do
+              me <- getModuleEnv
+              setModuleEnv me { M.meEvalForeignPolicy = p }
+          _ -> pure ()
+
   , simpleOpt "hashConsing" ["hash-consing"] (EnvBool True) noCheck
     "Enable hash-consing in the What4 symbolic backends."
 
@@ -1119,6 +1140,26 @@ getUserSatNum = do
     _ | Just n <- readMaybe s -> return (SomeSat n)
     _                         -> panic "REPL.Monad.getUserSatNum"
                                    [ "invalid satNum option" ]
+
+checkEvalForeign :: Checker
+checkEvalForeign (EnvString s)
+  | Just _ <- lookup s evalForeignOptMap = noWarns Nothing
+checkEvalForeign _ = noWarns $ Just $ "evalForeign must be one of: "
+  ++ intercalate ", " (map fst evalForeignOptMap)
+
+evalForeignOptMap :: [(String, M.EvalForeignPolicy)]
+evalForeignOptMap =
+  [ ("always", M.AlwaysEvalForeign)
+  , ("prefer", M.PreferEvalForeign)
+  , ("never", M.NeverEvalForeign)
+  ]
+
+defaultEvalForeignOpt :: EnvVal
+defaultEvalForeignOpt =
+  case lookup M.defaultEvalForeignPolicy (map swap evalForeignOptMap) of
+    Just s -> EnvString s
+    Nothing -> panic "defaultEvalForeignOpt"
+      ["cannot find option value matching default EvalForeignPolicy"]
 
 checkTimeMeasurementPeriod :: Checker
 checkTimeMeasurementPeriod (EnvNum n)
