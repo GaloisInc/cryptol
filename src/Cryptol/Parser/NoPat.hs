@@ -9,7 +9,9 @@
 -- The purpose of this module is to convert all patterns to variable
 -- patterns.  It also eliminates pattern bindings by de-sugaring them
 -- into `Bind`.  Furthermore, here we associate signatures, fixities,
--- and pragmas with the names to which they belong.
+-- and pragmas with the names to which they belong.  We also merge
+-- empty 'DForeign' binds with their cryptol implementations, if they
+-- exist.
 
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
@@ -57,7 +59,7 @@ instance RemovePatterns (NestedModule PName) where
 
 simpleBind :: Located PName -> Expr PName -> Bind PName
 simpleBind x e = Bind { bName = x, bParams = []
-                      , bDef = at e (Located emptyRange (DExpr e))
+                      , bDef = at e (Located emptyRange (exprDef e))
                       , bSignature = Nothing, bPragmas = []
                       , bMono = True, bInfix = False, bFixity = Nothing
                       , bDoc = Nothing
@@ -220,20 +222,25 @@ noMatchB b =
           | otherwise        -> panic "NoPat" [ "noMatchB: primitive with params"
                                               , show b ]
 
-    DForeign
+    DForeign Nothing
       | null (bParams b) -> return b
       | otherwise        -> panic "NoPat" [ "noMatchB: foreign with params"
                                           , show b ]
 
-    DExpr e ->
-      do e' <- noPatFun (Just (thing (bName b))) 0 (bParams b) e
-         return b { bParams = [], bDef = DExpr e' <$ bDef b }
+    DForeign (Just i) -> noMatchI (DForeign . Just) i
 
-    DPropGuards guards ->
-      do let nm = thing (bName b)
-             ps = bParams b
-         gs <- mapM (noPatPropGuardCase nm ps) guards
-         pure b { bParams = [], bDef = DPropGuards gs <$ bDef b }
+    DImpl i -> noMatchI DImpl i
+
+  where
+  noMatchI def i =
+    do i' <- case i of
+               DExpr e ->
+                 DExpr <$> noPatFun (Just (thing (bName b))) 0 (bParams b) e
+               DPropGuards guards ->
+                 let nm = thing (bName b)
+                     ps = bParams b
+                 in  DPropGuards <$> mapM (noPatPropGuardCase nm ps) guards
+       pure b { bParams = [], bDef = def i' <$ bDef b }
 
 noPatPropGuardCase ::
   PName ->
@@ -260,7 +267,7 @@ noMatchD decl =
                           let e2 = foldl ETyped e1 ts
                           return $ DBind Bind { bName = x
                                               , bParams = []
-                                              , bDef = at e (Located emptyRange (DExpr e2))
+                                              , bDef = at e (Located emptyRange (exprDef e2))
                                               , bSignature = Nothing
                                               , bPragmas = []
                                               , bMono = False
@@ -280,11 +287,13 @@ noPatDs ds =
   do ds1 <- concat <$> mapM noMatchD ds
      let fixes = Map.fromListWith (++) $ concatMap toFixity ds1
          amap = AnnotMap
-           { annPragmas = Map.fromListWith (++) $ concatMap toPragma ds1
-           , annSigs    = Map.fromListWith (++) $ concatMap toSig ds1
-           , annValueFs = fixes
-           , annTypeFs  = fixes
-           , annDocs    = Map.empty
+           { annPragmas  = Map.fromListWith (++) $ concatMap toPragma ds1
+           , annSigs     = Map.fromListWith (++) $ concatMap toSig ds1
+           , annValueFs  = fixes
+           , annTypeFs   = fixes
+           , annDocs     = Map.empty
+             -- There shouldn't be any foreigns at non-top-level
+           , annForeigns = Map.empty
            }
 
      (ds2, AnnotMap { .. }) <- runStateT amap (annotDs ds1)
@@ -314,11 +323,12 @@ noPatTopDs tds =
          fixes     = Map.fromListWith (++) $ concatMap toFixity allDecls
 
      let ann = AnnotMap
-           { annPragmas = Map.fromListWith (++) $ concatMap toPragma allDecls
-           , annSigs    = Map.fromListWith (++) $ concatMap toSig    allDecls
-           , annValueFs = fixes
-           , annTypeFs  = fixes
-           , annDocs    = Map.fromListWith (++) $ concatMap toDocs $ decls tds
+           { annPragmas  = Map.fromListWith (++) $ concatMap toPragma allDecls
+           , annSigs     = Map.fromListWith (++) $ concatMap toSig    allDecls
+           , annValueFs  = fixes
+           , annTypeFs   = fixes
+           , annDocs     = Map.fromListWith (++) $ concatMap toDocs $ decls tds
+           , annForeigns = Map.fromListWith (<>) $ concatMap toForeigns allDecls
           }
 
      (tds', AnnotMap { .. }) <- runStateT ann (annotTopDs desugared)
@@ -362,12 +372,25 @@ noPatModule m =
 
 --------------------------------------------------------------------------------
 
+-- | For each binding name, does there exist an empty foreign bind, a normal
+-- cryptol bind, or both.
+data AnnForeign = OnlyForeign | OnlyImpl | BothForeignImpl
+
+instance Semigroup AnnForeign where
+  OnlyForeign     <> OnlyImpl        = BothForeignImpl
+  OnlyImpl        <> OnlyForeign     = BothForeignImpl
+  _               <> BothForeignImpl = BothForeignImpl
+  BothForeignImpl <> _               = BothForeignImpl
+  OnlyForeign     <> OnlyForeign     = OnlyForeign
+  OnlyImpl        <> OnlyImpl        = OnlyImpl
+
 data AnnotMap = AnnotMap
   { annPragmas  :: Map.Map PName [Located  Pragma       ]
   , annSigs     :: Map.Map PName [Located (Schema PName)]
   , annValueFs  :: Map.Map PName [Located  Fixity       ]
   , annTypeFs   :: Map.Map PName [Located  Fixity       ]
   , annDocs     :: Map.Map PName [Located  Text         ]
+  , annForeigns :: Map.Map PName AnnForeign
   }
 
 type Annotates a = a -> StateT AnnotMap NoPatM a
@@ -428,7 +451,7 @@ annotDs [] = return []
 annotD :: Decl PName -> ExceptionT () (StateT AnnotMap NoPatM) (Decl PName)
 annotD decl =
   case decl of
-    DBind b       -> DBind <$> lift (annotB b)
+    DBind b       -> DBind <$> annotB b
     DRec {}       -> panic "annotD" [ "DRec" ]
     DSignature {} -> raise ()
     DFixity{}     -> raise ()
@@ -439,7 +462,10 @@ annotD decl =
     DLocated d r  -> (`DLocated` r) <$> annotD d
 
 -- | Add pragma/signature annotations to a binding.
-annotB :: Annotates (Bind PName)
+-- Also perform de-duplication of empty 'DForeign' binds generated by the parser
+-- if there exists a cryptol implementation.
+-- The exception indicates which declarations are no longer needed.
+annotB :: Bind PName -> ExceptionT () (StateT AnnotMap NoPatM) (Bind PName)
 annotB Bind { .. } =
   do AnnotMap { .. } <- get
      let name       = thing bName
@@ -448,9 +474,17 @@ annotB Bind { .. } =
          (thisSigs  , ss') = Map.updateLookupWithKey remove name annSigs
          (thisFixes , fs') = Map.updateLookupWithKey remove name annValueFs
          (thisDocs  , ds') = Map.updateLookupWithKey remove name annDocs
-     s <- lift $ checkSigs name $ jn thisSigs
-     f <- lift $ checkFixs name $ jn thisFixes
-     d <- lift $ checkDocs name $ jn thisDocs
+         thisForeign       = Map.lookup name annForeigns
+     -- Compute the new def before updating the state, since we don't want to
+     -- consume the annotations if we are throwing away an empty foreign def.
+     def' <- case thisForeign of
+               Just BothForeignImpl
+                 | DForeign _ <- thing bDef -> raise ()
+                 | DImpl i    <- thing bDef -> pure (DForeign (Just i) <$ bDef)
+               _ -> pure bDef
+     s <- lift $ lift $ checkSigs name $ jn thisSigs
+     f <- lift $ lift $ checkFixs name $ jn thisFixes
+     d <- lift $ lift $ checkDocs name $ jn thisDocs
      set AnnotMap { annPragmas = ps'
                   , annSigs    = ss'
                   , annValueFs = fs'
@@ -458,6 +492,7 @@ annotB Bind { .. } =
                   , ..
                   }
      return Bind { bSignature = s
+                 , bDef = def'
                  , bPragmas = map thing (jn thisPs) ++ bPragmas
                  , bFixity = f
                  , bDoc = d
@@ -551,6 +586,13 @@ toDocs TopLevel { .. }
       DType _         -> []
       DProp _         -> []
 
+-- | Is this declaration a foreign or regular bind?
+toForeigns :: Decl PName -> [(PName, AnnForeign)]
+toForeigns (DLocated d _) = toForeigns d
+toForeigns (DBind Bind {..})
+  | DForeign Nothing <- thing bDef = [ (thing bName, OnlyForeign) ]
+  | DImpl _          <- thing bDef = [ (thing bName, OnlyImpl) ]
+toForeigns _ = []
 
 --------------------------------------------------------------------------------
 newtype NoPatM a = M { unM :: ReaderT Range (StateT RW Id) a }

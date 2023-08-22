@@ -353,6 +353,22 @@ make any guarantees about the order in which side effects will be executed, nor
 does it make any guarantees about preserving any global state between
 invocations of impure FFI functions.
 
+Cryptol implementation of foreign functions
+-------------------------------------------
+
+``foreign`` declarations can have an optional Cryptol implementation, which by
+default will be called when the foreign implementation cannot be found, or when
+the FFI cannot be used, such as during symbolic evaluation, evaluation with the
+reference interpreter, or if Cryptol was built with FFI support disabled.
+
+.. code-block:: cryptol
+
+  foreign add : [32] -> [32] -> [32]
+  add x y = x + y
+
+The ``:set evalForeign`` REPL option controls which implementation is used; see
+``:help :set evalForeign`` for more details.
+
 Example
 -------
 

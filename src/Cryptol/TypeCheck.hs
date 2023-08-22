@@ -86,7 +86,7 @@ tcExpr e0 inp = runInferM inp
                 [ P.Bind
                     { P.bName      = P.Located { P.srcRange = loc, P.thing = fresh }
                     , P.bParams    = []
-                    , P.bDef       = P.Located (inpRange inp) (P.DExpr expr)
+                    , P.bDef       = P.Located (inpRange inp) (P.exprDef expr)
                     , P.bPragmas   = []
                     , P.bSignature = Nothing
                     , P.bMono      = False

@@ -30,10 +30,12 @@ instance PP FFILoadError where
         hang ("Could not load foreign source for module located at"
               <+> text path <.> colon)
           4 (text msg)
-      CantLoadFFIImpl name msg ->
-        hang ("Could not load foreign implementation for binding"
-              <+> text name <.> colon)
-          4 (text msg)
+      CantLoadFFIImpl name _msg ->
+        "Could not load foreign implementation for binding" <+> text name
+        -- We don't print the OS error message for more consistent test output
+        -- hang ("Could not load foreign implementation for binding"
+        --       <+> text name <.> colon)
+        --   4 (text _msg)
       FFIDuplicates xs ->
         hang "Multiple foreign declarations with the same name:"
            4 (backticks (pp (nameIdent (head xs))) <+>

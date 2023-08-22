@@ -508,6 +508,9 @@ getSupply  = ModuleT (meSupply `fmap` get)
 getMonoBinds :: ModuleM Bool
 getMonoBinds  = ModuleT (meMonoBinds `fmap` get)
 
+getEvalForeignPolicy :: ModuleM EvalForeignPolicy
+getEvalForeignPolicy = ModuleT (meEvalForeignPolicy <$> get)
+
 setMonoBinds :: Bool -> ModuleM ()
 setMonoBinds b = ModuleT $ do
   env <- get

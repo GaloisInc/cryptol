@@ -1,0 +1,76 @@
+:! make -s ffi-fallback
+:set proverStats=off
+:l ffi-fallback.cry
+
+foreignAndCryptol 1                          // should use C
+:eval foreignAndCryptol 1                    // should use cryptol
+:check \x -> foreignAndCryptol x == x + 1    // should use C
+:prove \x -> foreignAndCryptol x == x        // should use cryptol
+
+foreignAndNoCryptol 1                        // should use C
+:eval foreignAndNoCryptol 1                  // should fail
+:check \x -> foreignAndNoCryptol x == x + 2  // should use C
+:prove \x -> foreignAndNoCryptol x == x + 2  // should fail
+
+noForeignAndCryptol 1                        // should use cryptol
+:eval noForeignAndCryptol 1                  // should use cryptol
+:check \x -> noForeignAndCryptol x == x + 3  // should use cryptol
+:prove \x -> noForeignAndCryptol x == x + 3  // should use cryptol
+
+noForeignAndNoCryptol 1                      // should fail
+:eval noForeignAndNoCryptol 1                // should fail
+:check noForeignAndNoCryptol 1 == 1          // should fail
+:prove \x -> noForeignAndNoCryptol x == x    // should fail
+
+:set evalForeign = always
+:r
+
+:set evalForeign = never
+:r
+
+foreignAndCryptol 1                          // should use cryptol
+:eval foreignAndCryptol 1                    // should use cryptol
+:check \x -> foreignAndCryptol x == x        // should use cryptol
+:prove \x -> foreignAndCryptol x == x        // should use cryptol
+
+foreignAndNoCryptol 1                        // should fail
+:eval foreignAndNoCryptol 1                  // should fail
+:check foreignAndNoCryptol 1 == 3            // should fail
+:prove \x -> foreignAndNoCryptol x == x + 2  // should fail
+
+noForeignAndCryptol 1                        // should use cryptol
+:eval noForeignAndCryptol 1                  // should use cryptol
+:check \x -> noForeignAndCryptol x == x + 3  // should use cryptol
+:prove \x -> noForeignAndCryptol x == x + 3  // should use cryptol
+
+noForeignAndNoCryptol 1                      // should fail
+:eval noForeignAndNoCryptol 1                // should fail
+:check noForeignAndNoCryptol 1 == 1          // should fail
+:prove \x -> noForeignAndNoCryptol x == x    // should fail
+
+:set evalForeign = prefer
+:! rm -f ffi-fallback.so ffi-fallback.dylib ffi-fallback.dll
+:r
+
+foreignAndCryptol 1                          // should use cryptol
+:eval foreignAndCryptol 1                    // should use cryptol
+:check \x -> foreignAndCryptol x == x        // should use cryptol
+:prove \x -> foreignAndCryptol x == x        // should use cryptol
+
+foreignAndNoCryptol 1                        // should fail
+:eval foreignAndNoCryptol 1                  // should fail
+:check foreignAndNoCryptol 1 == 3            // should fail
+:prove \x -> foreignAndNoCryptol x == x + 2  // should fail
+
+noForeignAndCryptol 1                        // should use cryptol
+:eval noForeignAndCryptol 1                  // should use cryptol
+:check \x -> noForeignAndCryptol x == x + 3  // should use cryptol
+:prove \x -> noForeignAndCryptol x == x + 3  // should use cryptol
+
+noForeignAndNoCryptol 1                      // should fail
+:eval noForeignAndNoCryptol 1                // should fail
+:check noForeignAndNoCryptol 1 == 1          // should fail
+:prove \x -> noForeignAndNoCryptol x == x    // should fail
+
+:set evalForeign = always
+:r

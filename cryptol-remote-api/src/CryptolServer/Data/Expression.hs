@@ -518,7 +518,7 @@ getCryptolExpr (Let binds body) =
               , CP.bExport = CP.Public
               }) .
       fakeLoc .
-      CP.DExpr <$>
+      CP.exprDef <$>
         getCryptolExpr rhs
 
     fakeLoc = Located emptyRange

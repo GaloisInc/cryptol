@@ -432,11 +432,11 @@ declHole ::
   sym -> Decl -> SEval sym (Name, Schema, SEval sym (GenValue sym), SEval sym (GenValue sym) -> SEval sym ())
 declHole sym d =
   case dDefinition d of
-    DPrim      -> evalPanic "Unexpected primitive declaration in recursive group"
+    DPrim        -> evalPanic "Unexpected primitive declaration in recursive group"
                             [show (ppLocName nm)]
-    DForeign _ -> evalPanic "Unexpected foreign declaration in recursive group"
+    DForeign _ _ -> evalPanic "Unexpected foreign declaration in recursive group"
                             [show (ppLocName nm)]
-    DExpr _    -> do
+    DExpr _      -> do
       (hole, fill) <- sDeclareHole sym msg
       return (nm, sch, hole, fill)
   where
@@ -470,17 +470,22 @@ evalDecl sym renv env d = do
         Just (Left ex) -> bindVar sym (dName d) (evalExpr sym renv ex) env
         Nothing        -> bindVar sym (dName d) (cryNoPrimError sym (dName d)) env
 
-    DForeign _ -> do
+    DForeign _ me -> do
       -- Foreign declarations should have been handled by the previous
       -- Cryptol.Eval.FFI.evalForeignDecls pass already, so they should already
       -- be in the environment. If not, then either Cryptol was not compiled
       -- with FFI support enabled, or we are in a non-Concrete backend. In that
-      -- case, we just bind the name to an error computation which will raise an
-      -- error if we try to evaluate it.
+      -- case, we bind the name to the fallback cryptol implementation if
+      -- present, or otherwise to an error computation which will raise an error
+      -- if we try to evaluate it.
       case lookupVar (dName d) env of
         Just _  -> pure env
-        Nothing -> bindVar sym (dName d)
-          (raiseError sym $ FFINotSupported $ dName d) env
+        Nothing -> bindVar sym (dName d) val env
+          where
+          val =
+            case me of
+              Just e -> evalExpr sym renv e
+              Nothing -> raiseError sym $ FFINotSupported $ dName d
 
     DExpr e -> bindVar sym (dName d) (evalExpr sym renv e) env
 
@@ -755,6 +760,6 @@ evalMatch sym (lsz, lenv) m = seq lsz $ case m of
     where
       f env =
           case dDefinition d of
-            DPrim      -> evalPanic "evalMatch" ["Unexpected local primitive"]
-            DForeign _ -> evalPanic "evalMatch" ["Unexpected local foreign"]
-            DExpr e    -> evalExpr sym env e
+            DPrim        -> evalPanic "evalMatch" ["Unexpected local primitive"]
+            DForeign _ _ -> evalPanic "evalMatch" ["Unexpected local foreign"]
+            DExpr e      -> evalExpr sym env e

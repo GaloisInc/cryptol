@@ -42,10 +42,10 @@ import           Foreign                    hiding (newForeignPtr)
 import           Foreign.C.Types
 import           Foreign.Concurrent
 import           Foreign.LibFFI
+import           System.Directory           (doesFileExist, canonicalizePath)
 import           System.FilePath            ((-<.>))
-import           System.Directory(doesFileExist)
+import           System.Info                (os)
 import           System.IO.Error
-import           System.Info(os)
 
 #if defined(mingw32_HOST_OS)
 import           System.Win32.DLL
@@ -101,22 +101,20 @@ loadForeignSrc = loadForeignLib >=> traverse \(foreignSrcPath, ptr) -> do
 -- | Given the path to a Cryptol module, compute the location of
 -- the shared library we'd like to load.
 foreignLibPath :: FilePath -> IO (Maybe FilePath)
-foreignLibPath path =
+foreignLibPath path = do
+  path' <- canonicalizePath path
+  let search es =
+        case es of
+          [] -> pure Nothing
+          e : more -> do
+            let p = path' -<.> e
+            yes <- doesFileExist p
+            if yes then pure (Just p) else search more
   search
     case os of
       "mingw32" -> ["dll"]
       "darwin"  -> ["dylib","so"]
       _         -> ["so"]
-
-  where
-  search es =
-    case es of
-      [] -> pure Nothing
-      e : more ->
-        do let p = path -<.> e
-           yes <- doesFileExist p
-           if yes then pure (Just p) else search more
-
 
 loadForeignLib :: FilePath -> IO (Either FFILoadError (FilePath, Ptr ()))
 loadForeignLib path =
@@ -272,5 +270,8 @@ loadForeignSrc _ = pure $ Right ForeignSrc
 
 unloadForeignSrc :: ForeignSrc -> IO ()
 unloadForeignSrc _ = pure ()
+
+foreignLibPath :: FilePath -> IO (Maybe FilePath)
+foreignLibPath _ = pure Nothing
 
 #endif

@@ -54,7 +54,8 @@ import Cryptol.ModuleSystem.Env ( DynamicEnv(..),FileInfo(..),fileInfo
                                 , LoadedModuleG(..), lmInterface
                                 , meCoreLint, CoreLint(..)
                                 , ModContext(..), ModContextParams(..)
-                                , ModulePath(..), modulePathLabel)
+                                , ModulePath(..), modulePathLabel
+                                , EvalForeignPolicy (..))
 import           Cryptol.Backend.FFI
 import qualified Cryptol.Eval                 as E
 import qualified Cryptol.Eval.Concrete as Concrete
@@ -79,7 +80,7 @@ import qualified Cryptol.Backend.FFI.Error as FFI
 import Cryptol.Utils.Ident ( preludeName, floatName, arrayName, suiteBName, primeECName
                            , preludeReferenceName, interactiveName, modNameChunks
                            , modNameToNormalModName )
-import Cryptol.Utils.PP (pretty)
+import Cryptol.Utils.PP (pretty, pp, hang, vcat, ($$), (<+>), (<.>), colon)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.Logger(logPutStrLn, logPrint)
 import Cryptol.Utils.Benchmark
@@ -306,32 +307,45 @@ doLoadModule eval quiet isrc path fp incDeps pm0 =
       ffiLoadErrors (T.mName tcm) (map FFI.FFIDuplicates dups)
     | null foreigns = pure Nothing
     | otherwise =
-      case path of
-        InFile p -> io (canonicalizePath p >>= loadForeignSrc) >>=
-          \case
-
-            Right fsrc -> do
-              unless quiet $
-                case getForeignSrcPath fsrc of
-                  Just fpath -> withLogger logPutStrLn $
-                    "Loading dynamic library " ++ takeFileName fpath
-                  Nothing -> pure ()
-              modifyEvalEnvM (evalForeignDecls fsrc foreigns) >>=
-                \case
-                  Right () -> pure $ Just fsrc
-                  Left errs -> ffiLoadErrors (T.mName tcm) errs
-
-            Left err -> ffiLoadErrors (T.mName tcm) [err]
-
-        InMem m _ -> panic "doLoadModule"
-          ["Can't find foreign source of in-memory module", m]
+      getEvalForeignPolicy >>= \case
+        AlwaysEvalForeign -> doEvalForeign (ffiLoadErrors (T.mName tcm))
+        PreferEvalForeign -> doEvalForeign \errs ->
+          withLogger logPrint $
+            hang
+              ("[warning] Could not load all foreign implementations for module"
+                <+> pp (T.mName tcm) <.> colon) 4 $
+              vcat (map pp errs)
+              $$ "Fallback cryptol implementations will be used if available"
+        NeverEvalForeign -> pure Nothing
 
     where foreigns  = findForeignDecls tcm
           foreignFs = T.findForeignDeclsInFunctors tcm
           dups      = [ d | d@(_ : _ : _) <- groupBy ((==) `on` nameIdent)
                                            $ sortBy (compare `on` nameIdent)
                                            $ map fst foreigns ]
+          doEvalForeign handleErrs =
+            case path of
+              InFile p -> io (loadForeignSrc p) >>=
+                \case
 
+                  Right fsrc -> do
+                    unless quiet $
+                      case getForeignSrcPath fsrc of
+                        Just fpath -> withLogger logPutStrLn $
+                          "Loading dynamic library " ++ takeFileName fpath
+                        Nothing -> pure ()
+                    (errs, ()) <-
+                      modifyEvalEnvM (evalForeignDecls fsrc foreigns)
+                    unless (null errs) $
+                      handleErrs errs
+                    pure $ Just fsrc
+
+                  Left err -> do
+                    handleErrs [err]
+                    pure Nothing
+
+              InMem m _ -> panic "doLoadModule"
+                ["Can't find foreign source of in-memory module", m]
 
 -- | Rewrite an import declaration to be of the form:
 --
@@ -434,16 +448,13 @@ findDepsOfModule m =
      findDepsOf mpath
 
 findDepsOf :: ModulePath -> ModuleM (ModulePath, FileInfo)
-findDepsOf mpath' =
-  do mpath <- case mpath' of
-                InFile file -> InFile <$> io (canonicalizePath file)
-                InMem {}    -> pure mpath'
-     (fp, incs, ms) <- parseModule mpath
+findDepsOf mpath =
+  do (fp, incs, ms) <- parseModule mpath
      let (anyF,imps) = mconcat (map (findDeps' . addPrelude) ms)
      fpath <- if getAny anyF
                 then do mb <- io case mpath of
-                                   InFile can -> foreignLibPath can
-                                   InMem {}   -> pure Nothing
+                                   InFile path -> foreignLibPath path
+                                   InMem {}    -> pure Nothing
                         pure case mb of
                                Nothing -> Set.empty
                                Just f  -> Set.singleton f

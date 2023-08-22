@@ -462,20 +462,25 @@ checkDecl checkSig d =
       do when checkSig $ checkSchema $ dSignature d
          return (dName d, dSignature d)
 
-    DForeign _ ->
+    DForeign _ me ->
       do when checkSig $ checkSchema $ dSignature d
+         mapM_ checkExpr me
          return (dName d, dSignature d)
 
     DExpr e ->
       do let s = dSignature d
          when checkSig $ checkSchema s
-         s1 <- exprSchema e
-         let nm = dName d
-             loc = "definition of " ++ show (pp nm) ++
-                            ", at " ++ show (pp (nameLoc nm))
-         sameSchemas loc s s1
-
+         checkExpr e
          return (dName d, s)
+
+  where
+  checkExpr e =
+    do let s = dSignature d
+       s1 <- exprSchema e
+       let nm = dName d
+           loc = "definition of " ++ show (pp nm) ++
+                          ", at " ++ show (pp (nameLoc nm))
+       sameSchemas loc s s1
 
 checkDeclGroup :: DeclGroup -> TcM [(Name, Schema)]
 checkDeclGroup dg =

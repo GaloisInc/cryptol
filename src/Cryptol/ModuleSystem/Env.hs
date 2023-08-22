@@ -61,39 +61,42 @@ import Cryptol.Utils.PP(pp)
 
 -- | This is the current state of the interpreter.
 data ModuleEnv = ModuleEnv
-  { meLoadedModules :: LoadedModules
+  { meLoadedModules     :: LoadedModules
     -- ^ Information about all loaded modules.  See 'LoadedModule'.
     -- Contains information such as the file where the module was loaded
     -- from, as well as the module's interface, used for type checking.
 
-  , meNameSeeds     :: T.NameSeeds
+  , meNameSeeds         :: T.NameSeeds
     -- ^ A source of new names for the type checker.
 
-  , meEvalEnv       :: EvalEnv
+  , meEvalEnv           :: EvalEnv
     -- ^ The evaluation environment.  Contains the values for all loaded
     -- modules, both public and private.
 
-  , meCoreLint      :: CoreLint
+  , meCoreLint          :: CoreLint
     -- ^ Should we run the linter to ensure sanity.
 
-  , meMonoBinds     :: !Bool
+  , meMonoBinds         :: !Bool
     -- ^ Are we assuming that local bindings are monomorphic.
     -- XXX: We should probably remove this flag, and set it to 'True'.
 
 
 
-  , meFocusedModule :: Maybe ModName
+  , meFocusedModule     :: Maybe ModName
     -- ^ The "current" module.  Used to decide how to print names, for example.
 
-  , meSearchPath    :: [FilePath]
+  , meSearchPath        :: [FilePath]
     -- ^ Where we look for things.
 
-  , meDynEnv        :: DynamicEnv
+  , meDynEnv            :: DynamicEnv
     -- ^ This contains additional definitions that were made at the command
     -- line, and so they don't reside in any module.
 
-  , meSupply        :: !Supply
+  , meSupply            :: !Supply
     -- ^ Name source for the renamer
+
+  , meEvalForeignPolicy :: EvalForeignPolicy
+    -- ^ How to evaluate @foreign@ bindings.
 
   } deriving Generic
 
@@ -104,6 +107,26 @@ instance NFData ModuleEnv where
 data CoreLint = NoCoreLint        -- ^ Don't run core lint
               | CoreLint          -- ^ Run core lint
   deriving (Generic, NFData)
+
+-- | How to evaluate @foreign@ bindings.
+data EvalForeignPolicy
+  -- | Use foreign implementation and report an error at module load time if it
+  -- is unavailable.
+  = AlwaysEvalForeign
+  -- | Use foreign implementation by default, and when unavailable, fall back to cryptol implementation if present and report runtime error otherwise.
+  | PreferEvalForeign
+  -- | Always use cryptol implementation if present, and report runtime error
+  -- otherwise.
+  | NeverEvalForeign
+  deriving Eq
+
+defaultEvalForeignPolicy :: EvalForeignPolicy
+defaultEvalForeignPolicy =
+#ifdef FFI_ENABLED
+  PreferEvalForeign
+#else
+  NeverEvalForeign
+#endif
 
 resetModuleEnv :: ModuleEnv -> IO ModuleEnv
 resetModuleEnv env = do
@@ -153,16 +176,17 @@ initialModuleEnv = do
                    ]
 
   return ModuleEnv
-    { meLoadedModules = mempty
-    , meNameSeeds     = T.nameSeeds
-    , meEvalEnv       = mempty
-    , meFocusedModule = Nothing
+    { meLoadedModules     = mempty
+    , meNameSeeds         = T.nameSeeds
+    , meEvalEnv           = mempty
+    , meFocusedModule     = Nothing
       -- we search these in order, taking the first match
-    , meSearchPath    = searchPath
-    , meDynEnv        = mempty
-    , meMonoBinds     = True
-    , meCoreLint      = NoCoreLint
-    , meSupply        = emptySupply
+    , meSearchPath        = searchPath
+    , meDynEnv            = mempty
+    , meMonoBinds         = True
+    , meCoreLint          = NoCoreLint
+    , meSupply            = emptySupply
+    , meEvalForeignPolicy = defaultEvalForeignPolicy
     }
 
 -- | Try to focus a loaded module in the module environment.

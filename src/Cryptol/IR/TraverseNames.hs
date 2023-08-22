@@ -110,7 +110,7 @@ instance TraverseNames DeclDef where
   traverseNamesIP d =
     case d of
       DPrim   -> pure d
-      DForeign t -> DForeign <$> traverseNamesIP t
+      DForeign t me -> DForeign <$> traverseNamesIP t <*> traverseNamesIP me
       DExpr e -> DExpr <$> traverseNamesIP e
 
 instance TraverseNames Schema where

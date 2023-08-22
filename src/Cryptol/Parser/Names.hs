@@ -68,10 +68,13 @@ namesB b =
 
 
 namesDef :: Ord name => BindDef name -> Set name
-namesDef DPrim     = Set.empty
-namesDef DForeign  = Set.empty
-namesDef (DExpr e) = namesE e
-namesDef (DPropGuards guards) = Set.unions (map (namesE . pgcExpr) guards)
+namesDef DPrim         = Set.empty
+namesDef (DForeign mi) = foldMap namesImpl mi
+namesDef (DImpl i)     = namesImpl i
+
+namesImpl :: Ord name => BindImpl name -> Set name
+namesImpl (DExpr e)            = namesE e
+namesImpl (DPropGuards guards) = Set.unions (map (namesE . pgcExpr) guards)
 
 
 -- | The names used by an expression.
@@ -190,10 +193,13 @@ tnamesB b = Set.unions [setS, setP, setE]
     setE = tnamesDef (thing (bDef b))
 
 tnamesDef :: Ord name => BindDef name -> Set name
-tnamesDef DPrim     = Set.empty
-tnamesDef DForeign  = Set.empty
-tnamesDef (DExpr e) = tnamesE e
-tnamesDef (DPropGuards guards) = Set.unions (map tnamesPropGuardCase guards)
+tnamesDef DPrim         = Set.empty
+tnamesDef (DForeign mi) = foldMap tnamesImpl mi
+tnamesDef (DImpl i)     = tnamesImpl i
+
+tnamesImpl :: Ord name => BindImpl name -> Set name
+tnamesImpl (DExpr e)            = tnamesE e
+tnamesImpl (DPropGuards guards) = Set.unions (map tnamesPropGuardCase guards)
 
 tnamesPropGuardCase :: Ord name => PropGuardCase name -> Set name
 tnamesPropGuardCase c =

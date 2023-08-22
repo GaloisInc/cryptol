@@ -64,6 +64,7 @@ module Cryptol.Parser.AST
   , PropSyn(..)
   , Bind(..)
   , BindDef(..), LBindDef
+  , BindImpl(..), bindImpl, exprDef
   , Pragma(..)
   , ExportType(..)
   , TopLevel(..)
@@ -486,10 +487,25 @@ data Bind name = Bind
 type LBindDef = Located (BindDef PName)
 
 data BindDef name = DPrim
-                  | DForeign
-                  | DExpr (Expr name)
-                  | DPropGuards [PropGuardCase name]
+                  -- | Foreign functions can have an optional cryptol
+                  -- implementation
+                  | DForeign (Maybe (BindImpl name))
+                  | DImpl (BindImpl name)
                     deriving (Eq, Show, Generic, NFData, Functor)
+
+bindImpl :: Bind name -> Maybe (BindImpl name)
+bindImpl bind =
+  case thing (bDef bind) of
+    DPrim       -> Nothing
+    DForeign mi -> mi
+    DImpl i     -> Just i
+
+data BindImpl name = DExpr (Expr name)
+                   | DPropGuards [PropGuardCase name]
+                     deriving (Eq, Show, Generic, NFData, Functor)
+
+exprDef :: Expr name -> BindDef name
+exprDef = DImpl . DExpr
 
 data PropGuardCase name = PropGuardCase
   { pgcProps :: [Located (Prop name)]
@@ -1063,8 +1079,13 @@ instance (Show name, PPName name) => PP (Bind name) where
 
 
 instance (Show name, PPName name) => PP (BindDef name) where
-  ppPrec _ DPrim     = text "<primitive>"
-  ppPrec _ DForeign  = text "<foreign>"
+  ppPrec _ DPrim         = text "<primitive>"
+  ppPrec p (DForeign mi) = case mi of
+                             Just i  -> "(foreign)" <+> ppPrec p i
+                             Nothing -> "<foreign>"
+  ppPrec p (DImpl i)     = ppPrec p i
+
+instance (Show name, PPName name) => PP (BindImpl name) where
   ppPrec p (DExpr e) = ppPrec p e
   ppPrec _p (DPropGuards _guards) = text "propguards"
 

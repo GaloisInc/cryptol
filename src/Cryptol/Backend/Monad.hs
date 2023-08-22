@@ -447,9 +447,8 @@ instance PP EvalError where
     NoMatchingPropGuardCase msg -> text $ "No matching constraint guard; " ++ msg
     FFINotSupported x -> vcat
       [ text "cannot call foreign function" <+> pp x
-      , text "FFI calls are not supported in this context"
-      , text "If you are trying to evaluate an expression, try rebuilding"
-      , text "  Cryptol with FFI support enabled."
+      , text "No foreign implementation is loaded,"
+      , text "  or FFI calls are not supported in this context."
       ]
     FFITypeNumTooBig f p n -> vcat
       [ text "numeric type argument to foreign function is too large:"

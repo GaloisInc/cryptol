@@ -59,18 +59,19 @@ import           Cryptol.Utils.RecordMap
 #ifdef FFI_ENABLED
 
 -- | Add the given foreign declarations to the environment, loading their
--- implementations from the given 'ForeignSrc'. This is a separate pass from the
--- main evaluation functions in "Cryptol.Eval" since it only works for the
--- Concrete backend.
+-- implementations from the given 'ForeignSrc'. If some implementations fail to
+-- load then errors are reported for them but any successfully loaded
+-- implementations are still added to the environment.
+--
+-- This is a separate pass from the main evaluation functions in "Cryptol.Eval"
+-- since it only works for the Concrete backend.
 evalForeignDecls :: ForeignSrc -> [(Name, FFIFunType)] -> EvalEnv ->
-  Eval (Either [FFILoadError] EvalEnv)
+  Eval ([FFILoadError], EvalEnv)
 evalForeignDecls fsrc decls env = io do
-  ePrims <- for decls \(name, ffiFunType) ->
+  (errs, prims) <- partitionEithers <$> for decls \(name, ffiFunType) ->
     fmap ((name,) . foreignPrimPoly name ffiFunType) <$>
       loadForeignImpl fsrc (unpackIdent $ nameIdent name)
-  pure case partitionEithers ePrims of
-    ([], prims) -> Right $ foldr (uncurry bindVarDirect) env prims
-    (errs, _)   -> Left errs
+  pure (errs, foldr (uncurry bindVarDirect) env prims)
 
 -- | Generate a 'Prim' value representing the given foreign function, containing
 -- all the code necessary to marshal arguments and return values and do the
@@ -422,9 +423,9 @@ getMarshalBasicRefArg FFIRational f = f \val g -> do
 #else
 
 -- | Dummy implementation for when FFI is disabled. Does not add anything to
--- the environment.
+-- the environment or report any errors.
 evalForeignDecls :: ForeignSrc -> [(Name, FFIFunType)] -> EvalEnv ->
-  Eval (Either [FFILoadError] EvalEnv)
-evalForeignDecls _ _ env = pure $ Right env
+  Eval ([FFILoadError], EvalEnv)
+evalForeignDecls _ _ env = pure ([], env)
 
 #endif

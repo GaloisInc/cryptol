@@ -692,7 +692,7 @@ mkProperty :: LPName -> [Pattern PName] -> Expr PName -> Decl PName
 mkProperty f ps e = at (f,e) $
                     DBind Bind { bName       = f
                                , bParams     = reverse ps
-                               , bDef        = at e (Located emptyRange (DExpr e))
+                               , bDef        = at e (Located emptyRange (exprDef e))
                                , bSignature  = Nothing
                                , bPragmas    = [PragmaProperty]
                                , bMono       = False
@@ -708,7 +708,7 @@ mkIndexedDecl ::
 mkIndexedDecl f (ps, ixs) e =
   DBind Bind { bName       = f
              , bParams     = reverse ps
-             , bDef        = at e (Located emptyRange (DExpr rhs))
+             , bDef        = at e (Located emptyRange (exprDef rhs))
              , bSignature  = Nothing
              , bPragmas    = []
              , bMono       = False
@@ -735,7 +735,7 @@ mkPropGuardsDecl f (ps, ixs) guards =
      pure $
        DBind Bind { bName       = f
                   , bParams     = reverse ps
-                  , bDef        = Located (srcRange f) (DPropGuards gs)
+                  , bDef        = Located (srcRange f) (DImpl (DPropGuards gs))
                   , bSignature  = Nothing
                   , bPragmas    = []
                   , bMono       = False
@@ -777,7 +777,11 @@ mkForeignDecl mbDoc nm ty =
             [ "`" ++ txt ++ "` is not a valid foreign name."
             , "The name should contain only alpha-numeric characters or '_'."
             ])
-     pure (mkNoImplDecl DForeign mbDoc nm ty)
+     -- We do allow optional cryptol implementations of foreign functions, these
+     -- will be merged with this binding in the NoPat pass. In the parser they
+     -- are just treated as a completely separate (non-foreign) binding with the
+     -- same name.
+     pure (mkNoImplDecl (DForeign Nothing) mbDoc nm ty)
   where
   isOk c = c == '_' || isAlphaNum c
 
@@ -791,7 +795,7 @@ mkForeignDecl mbDoc nm ty =
 mkNoImplDecl :: BindDef PName
   -> Maybe (Located Text) -> LPName -> Schema PName -> [TopDecl PName]
 mkNoImplDecl def mbDoc ln sig =
-  [ exportDecl mbDoc Public
+  [ exportDecl Nothing Public
     $ DBind Bind { bName      = ln
                  , bParams    = []
                  , bDef       = at sig (Located emptyRange def)
@@ -803,7 +807,7 @@ mkNoImplDecl def mbDoc ln sig =
                  , bDoc       = Nothing
                  , bExport    = Public
                  }
-  , exportDecl Nothing Public
+  , exportDecl mbDoc Public
     $ DSignature [ln] sig
   ]
 

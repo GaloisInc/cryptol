@@ -1,0 +1,11 @@
+foreign foreignAndCryptol : [8] -> [8]
+// cryptol implementation is intentionally different,
+// so we can test which is being used
+foreignAndCryptol x = x
+
+foreign foreignAndNoCryptol : [8] -> [8]
+
+foreign noForeignAndCryptol : [8] -> [8]
+noForeignAndCryptol x = x + 3
+
+foreign noForeignAndNoCryptol : [8] -> [8]

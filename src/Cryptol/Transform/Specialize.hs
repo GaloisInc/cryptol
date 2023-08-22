@@ -201,11 +201,11 @@ specializeConst e0 = do
                  qname' <- freshName qname ts -- New type instance, record new name
                  sig' <- instantiateSchema ts n (dSignature decl)
                  modifySpecCache (Map.adjust (fmap (insertTM ts (qname', Nothing))) qname)
+                 let spec e = specializeExpr =<< instantiateExpr ts n e
                  rhs' <- case dDefinition decl of
-                           DExpr e    -> do e' <- specializeExpr =<< instantiateExpr ts n e
-                                            return (DExpr e')
-                           DPrim      -> return DPrim
-                           DForeign t -> return $ DForeign t
+                           DExpr e       -> DExpr <$> spec e
+                           DPrim         -> return DPrim
+                           DForeign t me -> DForeign t <$> traverse spec me
                  let decl' = decl { dName = qname', dSignature = sig', dDefinition = rhs' }
                  modifySpecCache (Map.adjust (fmap (insertTM ts (qname', Just decl'))) qname)
                  return (EVar qname')
