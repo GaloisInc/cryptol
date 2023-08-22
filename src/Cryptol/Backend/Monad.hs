@@ -448,7 +448,7 @@ instance PP EvalError where
     FFINotSupported x -> vcat
       [ text "cannot call foreign function" <+> pp x
       , text "No foreign implementation is loaded,"
-      , text "or FFI calls are not supported in this context."
+      , text "  or FFI calls are not supported in this context."
       ]
     FFITypeNumTooBig f p n -> vcat
       [ text "numeric type argument to foreign function is too large:"
