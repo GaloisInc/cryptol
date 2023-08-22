@@ -353,14 +353,13 @@ make any guarantees about the order in which side effects will be executed, nor
 does it make any guarantees about preserving any global state between
 invocations of impure FFI functions.
 
-Fallback Cryptol implementation
--------------------------------
+Cryptol implementation of foreign functions
+-------------------------------------------
 
-``foreign`` declarations can have an optional Cryptol fallback implementation,
-which by default will be called when the foreign implementation cannot be found,
-or when the FFI cannot be used, such as during symbolic evaluation, evaluation
-with the reference interpreter, or if Cryptol was built with FFI support
-disabled.
+``foreign`` declarations can have an optional Cryptol implementation, which by
+default will be called when the foreign implementation cannot be found, or when
+the FFI cannot be used, such as during symbolic evaluation, evaluation with the
+reference interpreter, or if Cryptol was built with FFI support disabled.
 
 .. code-block:: cryptol
 
