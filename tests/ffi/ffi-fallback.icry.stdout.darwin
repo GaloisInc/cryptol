@@ -1,0 +1,151 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+Loading dynamic library ffi-fallback.dylib
+[warning] Could not load all foreign implementations for module Main:
+    Could not load foreign implementation for binding noForeignAndCryptol
+    Could not load foreign implementation for binding noForeignAndNoCryptol
+    Fallback cryptol implementations will be used if available
+0x02
+0x01
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 32.39% (83 of 256 values)
+Q.E.D.
+0x03
+cannot call foreign function Main::foreignAndNoCryptol
+No foreign implementation is loaded,
+  or FFI calls are not supported in this context.
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 32.39% (83 of 256 values)
+
+cannot call foreign function Main::foreignAndNoCryptol
+No foreign implementation is loaded,
+  or FFI calls are not supported in this context.
+0x04
+0x04
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 32.39% (83 of 256 values)
+Q.E.D.
+
+cannot call foreign function Main::noForeignAndNoCryptol
+No foreign implementation is loaded,
+  or FFI calls are not supported in this context.
+cannot call foreign function Main::noForeignAndNoCryptol
+No foreign implementation is loaded,
+  or FFI calls are not supported in this context.
+
+cannot call foreign function Main::noForeignAndNoCryptol
+No foreign implementation is loaded,
+  or FFI calls are not supported in this context.
+
+cannot call foreign function Main::noForeignAndNoCryptol
+No foreign implementation is loaded,
+  or FFI calls are not supported in this context.
+Loading module Cryptol
+Loading module Main
+Loading dynamic library ffi-fallback.dylib
+
+[error] Failed to load foreign implementations for module Main:
+    Could not load foreign implementation for binding noForeignAndCryptol
+    Could not load foreign implementation for binding noForeignAndNoCryptol
+Loading module Cryptol
+Loading module Main
+0x01
+0x01
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 32.39% (83 of 256 values)
+Q.E.D.
+
+cannot call foreign function Main::foreignAndNoCryptol
+No foreign implementation is loaded,
+  or FFI calls are not supported in this context.
+cannot call foreign function Main::foreignAndNoCryptol
+No foreign implementation is loaded,
+  or FFI calls are not supported in this context.
+
+cannot call foreign function Main::foreignAndNoCryptol
+No foreign implementation is loaded,
+  or FFI calls are not supported in this context.
+
+cannot call foreign function Main::foreignAndNoCryptol
+No foreign implementation is loaded,
+  or FFI calls are not supported in this context.
+0x04
+0x04
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 32.39% (83 of 256 values)
+Q.E.D.
+
+cannot call foreign function Main::noForeignAndNoCryptol
+No foreign implementation is loaded,
+  or FFI calls are not supported in this context.
+cannot call foreign function Main::noForeignAndNoCryptol
+No foreign implementation is loaded,
+  or FFI calls are not supported in this context.
+
+cannot call foreign function Main::noForeignAndNoCryptol
+No foreign implementation is loaded,
+  or FFI calls are not supported in this context.
+
+cannot call foreign function Main::noForeignAndNoCryptol
+No foreign implementation is loaded,
+  or FFI calls are not supported in this context.
+Loading module Cryptol
+Loading module Main
+[warning] Could not load all foreign implementations for module Main:
+    Could not load foreign source for module located at ffi-fallback.cry:
+        File not found
+    Fallback cryptol implementations will be used if available
+0x01
+0x01
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 32.39% (83 of 256 values)
+Q.E.D.
+
+cannot call foreign function Main::foreignAndNoCryptol
+No foreign implementation is loaded,
+  or FFI calls are not supported in this context.
+cannot call foreign function Main::foreignAndNoCryptol
+No foreign implementation is loaded,
+  or FFI calls are not supported in this context.
+
+cannot call foreign function Main::foreignAndNoCryptol
+No foreign implementation is loaded,
+  or FFI calls are not supported in this context.
+
+cannot call foreign function Main::foreignAndNoCryptol
+No foreign implementation is loaded,
+  or FFI calls are not supported in this context.
+0x04
+0x04
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 32.39% (83 of 256 values)
+Q.E.D.
+
+cannot call foreign function Main::noForeignAndNoCryptol
+No foreign implementation is loaded,
+  or FFI calls are not supported in this context.
+cannot call foreign function Main::noForeignAndNoCryptol
+No foreign implementation is loaded,
+  or FFI calls are not supported in this context.
+
+cannot call foreign function Main::noForeignAndNoCryptol
+No foreign implementation is loaded,
+  or FFI calls are not supported in this context.
+
+cannot call foreign function Main::noForeignAndNoCryptol
+No foreign implementation is loaded,
+  or FFI calls are not supported in this context.
+Loading module Cryptol
+Loading module Main
+
+[error] Failed to load foreign implementations for module Main:
+    Could not load foreign source for module located at ffi-fallback.cry:
+        File not found
