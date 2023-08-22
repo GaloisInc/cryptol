@@ -1,5 +1,13 @@
 # UNRELEASED
 
+## Language changes
+
+* `foreign` functions can now have an optional Cryptol implementation, which by
+  default is used when the foreign implementation cannot be found, or if the FFI
+  is unavailable. The `:set evalForeign` REPL option controls this behavior.
+
+## Bug fixes
+
 * Fixed #1556, #1237, and #1561.
 * Fixed #1455, making anything in scope of the functor in scope at the REPL as
   well when an instantiation of the functor is loaded and focused,
