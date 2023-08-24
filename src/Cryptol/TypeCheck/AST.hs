@@ -145,11 +145,11 @@ emptyModule nm =
 
 -- | Find all the foreign declarations in the module and return their names and FFIFunTypes.
 findForeignDecls :: ModuleG mname -> [(Name, FFIFunType)]
-findForeignDecls = mapMaybe getForeign . mDecls
-  where getForeign (NonRecursive Decl { dName, dDefinition = DForeign ffiType _ })
-          = Just (dName, ffiType)
-        -- Recursive DeclGroups can't have foreign decls
-        getForeign _ = Nothing
+findForeignDecls = mapMaybe getForeign . concatMap groupDecls . mDecls
+  where getForeign d =
+          case dDefinition d of
+            DForeign ffiType _ -> Just (dName d, ffiType)
+            _                  -> Nothing
 
 -- | Find all the foreign declarations that are in functors, including in the
 -- top-level module itself if it is a functor.
