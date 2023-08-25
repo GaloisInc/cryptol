@@ -368,7 +368,16 @@ evalDeclGroup ::
   SEval sym (GenEvalEnv sym)
 evalDeclGroup sym env dg = do
   case dg of
-    Recursive ds -> do
+    Recursive ds0 -> do
+      let ds = filter shouldEval ds0
+          -- If there are foreign declarations, we should only evaluate them if
+          -- they are not already bound in the environment by the previous
+          -- Cryptol.Eval.FFI.evalForeignDecls pass.
+          shouldEval d =
+            case (dDefinition d, lookupVar (dName d) env) of
+              (DForeign _ _, Just _) -> False
+              _                      -> True
+
       -- declare a "hole" for each declaration
       -- and extend the evaluation environment
       holes <- mapM (declHole sym) ds
@@ -432,14 +441,19 @@ declHole ::
   sym -> Decl -> SEval sym (Name, Schema, SEval sym (GenValue sym), SEval sym (GenValue sym) -> SEval sym ())
 declHole sym d =
   case dDefinition d of
-    DPrim        -> evalPanic "Unexpected primitive declaration in recursive group"
-                            [show (ppLocName nm)]
-    DForeign _ _ -> evalPanic "Unexpected foreign declaration in recursive group"
-                            [show (ppLocName nm)]
-    DExpr _      -> do
-      (hole, fill) <- sDeclareHole sym msg
-      return (nm, sch, hole, fill)
+    DPrim -> evalPanic "Unexpected primitive declaration in recursive group"
+                       [show (ppLocName nm)]
+    DForeign _ me ->
+      case me of
+        Nothing -> evalPanic
+          "Unexpected foreign declaration with no cryptol implementation in recursive group"
+          [show (ppLocName nm)]
+        Just _ -> doHole
+    DExpr _ -> doHole
   where
+  doHole = do
+    (hole, fill) <- sDeclareHole sym msg
+    return (nm, sch, hole, fill)
   nm = dName d
   sch = dSignature d
   msg = unwords ["while evaluating", show (pp nm)]

@@ -1,0 +1,8 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+Loading dynamic library ffi-fallback-rec.dylib
+[warning] Could not load all foreign implementations for module Main:
+    Could not load foreign implementation for binding g
+    Fallback cryptol implementations will be used if available
+False
