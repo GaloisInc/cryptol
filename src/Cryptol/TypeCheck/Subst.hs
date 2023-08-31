@@ -436,7 +436,7 @@ instance TVars Expr where
         EWhere e ds   -> EWhere !$ (go e) !$ (apSubst su ds)
 
         EPropGuards guards ty -> EPropGuards
-          !$ (\(props, e) -> (apSubst su `fmap'` props, apSubst su e)) `fmap'` guards
+          !$ (\(props, e) -> (apSubst su `fmap'` props, go e)) `fmap'` guards
           !$ apSubst su ty
 
 instance TVars Match where
