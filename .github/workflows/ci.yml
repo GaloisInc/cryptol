@@ -65,15 +65,15 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-22.04, macos-12, windows-2019]
-        ghc-version: ["8.10.7", "9.2.8", "9.4.5"]
-        cabal: [ '3.8.1.0' ]
+        ghc-version: ["9.2.8", "9.4.7", "9.6.2"]
+        cabal: [ '3.10.1.0' ]
         run-tests: [true]
         exclude:
           - os: windows-2019
-            ghc-version: 8.10.7
+            ghc-version: 9.4.7
             run-tests: true
           - os: windows-2019
-            ghc-version: 9.4.5
+            ghc-version: 9.6.2
             run-tests: true
         include:
           # We include one job from an older Ubuntu LTS release to increase our
