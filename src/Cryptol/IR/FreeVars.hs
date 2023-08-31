@@ -117,7 +117,8 @@ instance FreeVars Expr where
       EProofAbs p e     -> freeVars p <> freeVars e
       EProofApp e       -> freeVars e
       EWhere e ds       -> foldFree ds <> rmVals (defs ds) (freeVars e)
-      EPropGuards guards _ -> mconcat [ freeVars e | (_, e) <- guards ]
+      EPropGuards guards t -> mconcat [ freeVars e | (_, e) <- guards ]
+                              <> freeVars t
     where
       foldFree :: (FreeVars a, Defs a) => [a] -> Deps
       foldFree = foldr updateFree mempty
