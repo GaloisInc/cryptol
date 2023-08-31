@@ -114,8 +114,8 @@ jobs:
           cabal user-config update -a "extra-include-dirs: \"\""
           cabal user-config update -a "extra-lib-dirs: \"\""
 
-      - uses: actions/cache@v2
-        name: Cache cabal store
+      - uses: actions/cache/restore@v3
+        name: Restore cache store cache
         with:
           path: |
             ${{ steps.setup-haskell.outputs.cabal-store }}
@@ -237,6 +237,16 @@ jobs:
           path: "cryptol.msi*"
           if-no-files-found: error
           retention-days: ${{ needs.config.outputs.retention-days }}
+
+      - uses: actions/cache/save@v3
+        name: Save cache store cache
+        if: always()
+        with:
+          path: |
+            ${{ steps.setup-haskell.outputs.cabal-store }}
+            dist-newstyle
+          key: ${{ env.CACHE_VERSION }}-cabal-${{ matrix.os }}-${{ matrix.ghc-version }}-${{ hashFiles(format('cabal.GHC-{0}.config', matrix.ghc-version)) }}-${{ github.sha }}
+            ${{ env.CACHE_VERSION }}-cabal-${{ matrix.os }}-${{ matrix.ghc-version }}-${{ hashFiles(format('cabal.GHC-{0}.config', matrix.ghc-version)) }}-
 
   test:
     runs-on: ${{ matrix.os }}
