@@ -65,15 +65,15 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-22.04, macos-12, windows-2019]
-        ghc-version: ["8.10.7", "9.2.8", "9.4.5"]
-        cabal: [ '3.8.1.0' ]
+        ghc-version: ["9.2.8", "9.4.7", "9.6.2"]
+        cabal: [ '3.10.1.0' ]
         run-tests: [true]
         exclude:
           - os: windows-2019
-            ghc-version: 8.10.7
+            ghc-version: 9.4.7
             run-tests: true
           - os: windows-2019
-            ghc-version: 9.4.5
+            ghc-version: 9.6.2
             run-tests: true
         include:
           # We include one job from an older Ubuntu LTS release to increase our
@@ -114,8 +114,8 @@ jobs:
           cabal user-config update -a "extra-include-dirs: \"\""
           cabal user-config update -a "extra-lib-dirs: \"\""
 
-      - uses: actions/cache@v2
-        name: Cache cabal store
+      - uses: actions/cache/restore@v3
+        name: Restore cache store cache
         with:
           path: |
             ${{ steps.setup-haskell.outputs.cabal-store }}
@@ -237,6 +237,16 @@ jobs:
           path: "cryptol.msi*"
           if-no-files-found: error
           retention-days: ${{ needs.config.outputs.retention-days }}
+
+      - uses: actions/cache/save@v3
+        name: Save cache store cache
+        if: always()
+        with:
+          path: |
+            ${{ steps.setup-haskell.outputs.cabal-store }}
+            dist-newstyle
+          key: ${{ env.CACHE_VERSION }}-cabal-${{ matrix.os }}-${{ matrix.ghc-version }}-${{ hashFiles(format('cabal.GHC-{0}.config', matrix.ghc-version)) }}-${{ github.sha }}
+            ${{ env.CACHE_VERSION }}-cabal-${{ matrix.os }}-${{ matrix.ghc-version }}-${{ hashFiles(format('cabal.GHC-{0}.config', matrix.ghc-version)) }}-
 
   test:
     runs-on: ${{ matrix.os }}

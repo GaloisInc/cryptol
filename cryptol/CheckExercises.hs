@@ -5,7 +5,8 @@
 
 module Main(main) where
 
-import Control.Monad.State
+import Control.Monad (forM_, when)
+import Control.Monad.State (State, execState, gets, modify, modify')
 import Options.Applicative
 import Data.Char (isSpace, isAlpha)
 import Data.Foldable (traverse_)
