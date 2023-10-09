@@ -121,6 +121,7 @@ import Data.Bits (shiftL, (.&.), (.|.))
 import Data.Char (isSpace,isPunctuation,isSymbol,isAlphaNum,isAscii)
 import Data.Function (on)
 import Data.List (intercalate, nub, isPrefixOf)
+import qualified Data.Map as Map
 import Data.Maybe (fromMaybe,mapMaybe,isNothing)
 import System.Environment (lookupEnv)
 import System.Exit (ExitCode(ExitSuccess))
@@ -1823,7 +1824,7 @@ moduleInfoCmd isFile name
 
        depList show               "includes" (Set.toList (M.fiIncludeDeps fi))
        depList (show . show . pp) "imports"  (Set.toList (M.fiImportDeps  fi))
-       depList show               "foreign"  (Set.toList (M.fiForeignDeps fi))
+       depList show               "foreign"  (Map.toList (M.fiForeignDeps fi))
 
        rPutStrLn "}"
 

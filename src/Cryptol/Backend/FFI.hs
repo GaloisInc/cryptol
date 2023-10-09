@@ -6,6 +6,7 @@
 {-# LANGUAGE LambdaCase                #-}
 {-# LANGUAGE RecordWildCards           #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
+{-# LANGUAGE TupleSections             #-}
 {-# LANGUAGE TypeApplications          #-}
 
 -- | The implementation of loading and calling external functions from shared
@@ -37,12 +38,13 @@ import           Control.Concurrent.MVar
 import           Control.Exception
 import           Control.Monad
 import           Data.Bifunctor
+import           Data.Maybe
 import           Data.Word
 import           Foreign                    hiding (newForeignPtr)
 import           Foreign.C.Types
 import           Foreign.Concurrent
 import           Foreign.LibFFI
-import           System.Directory           (doesFileExist, canonicalizePath)
+import           System.Directory           (canonicalizePath, doesFileExist)
 import           System.FilePath            ((-<.>))
 import           System.Info                (os)
 import           System.IO.Error
@@ -98,19 +100,22 @@ loadForeignSrc = loadForeignLib >=> traverse \(foreignSrcPath, ptr) -> do
   pure ForeignSrc {..}
 
 
--- | Given the path to a Cryptol module, compute the location of
--- the shared library we'd like to load.
-foreignLibPath :: FilePath -> IO (Maybe FilePath)
+-- | Given the path to a Cryptol module, compute the location of the shared
+-- library we'd like to load. If FFI is supported, returns the location and
+-- whether or not it actually exists on disk. Otherwise, returns Nothing.
+foreignLibPath :: FilePath -> IO (Maybe (FilePath, Bool))
 foreignLibPath path = do
   path' <- canonicalizePath path
-  let search es =
-        case es of
-          [] -> pure Nothing
-          e : more -> do
-            let p = path' -<.> e
+  let libPaths = map (path' -<.>) exts
+      search ps =
+        case ps of
+          [] -> pure ((, False) <$> listToMaybe libPaths)
+          p : more -> do
             yes <- doesFileExist p
-            if yes then pure (Just p) else search more
-  search
+            if yes then pure (Just (p, True)) else search more
+  search libPaths
+  where
+  exts =
     case os of
       "mingw32" -> ["dll"]
       "darwin"  -> ["dylib","so"]
@@ -120,8 +125,10 @@ loadForeignLib :: FilePath -> IO (Either FFILoadError (FilePath, Ptr ()))
 loadForeignLib path =
   do mb <- foreignLibPath path
      case mb of
-       Nothing      -> pure (Left (CantLoadFFISrc path "File not found"))
-       Just libPath -> tryLoad (CantLoadFFISrc path) (open libPath)
+       Just (libPath, True) ->
+         tryLoad (CantLoadFFISrc path) (open libPath)
+       _ ->
+         pure (Left (CantLoadFFISrc path "File not found"))
 
   where open libPath = do
 #if defined(mingw32_HOST_OS)
@@ -271,7 +278,7 @@ loadForeignSrc _ = pure $ Right ForeignSrc
 unloadForeignSrc :: ForeignSrc -> IO ()
 unloadForeignSrc _ = pure ()
 
-foreignLibPath :: FilePath -> IO (Maybe FilePath)
+foreignLibPath :: FilePath -> IO (Maybe (FilePath, Bool))
 foreignLibPath _ = pure Nothing
 
 #endif
