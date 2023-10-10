@@ -451,21 +451,22 @@ findDepsOf :: ModulePath -> ModuleM (ModulePath, FileInfo)
 findDepsOf mpath =
   do (fp, incs, ms) <- parseModule mpath
      let (anyF,imps) = mconcat (map (findDeps' . addPrelude) ms)
-     fpath <- if getAny anyF
+     fdeps <- if getAny anyF
                 then do mb <- io case mpath of
                                    InFile path -> foreignLibPath path
                                    InMem {}    -> pure Nothing
                         pure case mb of
-                               Nothing -> Set.empty
-                               Just f  -> Set.singleton f
-                else pure Set.empty
+                               Nothing -> Map.empty
+                               Just (fpath, exists) ->
+                                 Map.singleton fpath exists
+                else pure Map.empty
      pure
        ( mpath
        , FileInfo
            { fiFingerprint = fp
            , fiIncludeDeps = incs
            , fiImportDeps  = Set.fromList (map importedModule (appEndo imps []))
-           , fiForeignDeps = fpath
+           , fiForeignDeps = fdeps
            }
        )
 

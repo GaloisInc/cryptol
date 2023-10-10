@@ -564,7 +564,7 @@ data FileInfo = FileInfo
   { fiFingerprint :: Fingerprint
   , fiIncludeDeps :: Set FilePath
   , fiImportDeps  :: Set ModName
-  , fiForeignDeps :: Set FilePath
+  , fiForeignDeps :: Map FilePath Bool
   } deriving (Show,Generic,NFData)
 
 
@@ -579,9 +579,10 @@ fileInfo fp incDeps impDeps fsrc =
     { fiFingerprint = fp
     , fiIncludeDeps = incDeps
     , fiImportDeps  = impDeps
-    , fiForeignDeps = fromMaybe Set.empty
+    , fiForeignDeps = fromMaybe Map.empty
                       do src <- fsrc
-                         Set.singleton <$> getForeignSrcPath src
+                         fpath <- getForeignSrcPath src
+                         pure $ Map.singleton fpath True
     }
 
 

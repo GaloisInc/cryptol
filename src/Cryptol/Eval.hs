@@ -487,11 +487,11 @@ evalDecl sym renv env d = do
     DForeign _ me -> do
       -- Foreign declarations should have been handled by the previous
       -- Cryptol.Eval.FFI.evalForeignDecls pass already, so they should already
-      -- be in the environment. If not, then either Cryptol was not compiled
-      -- with FFI support enabled, or we are in a non-Concrete backend. In that
-      -- case, we bind the name to the fallback cryptol implementation if
-      -- present, or otherwise to an error computation which will raise an error
-      -- if we try to evaluate it.
+      -- be in the environment. If not, then either the foreign source was
+      -- missing, Cryptol was not compiled with FFI support enabled, or we are
+      -- in a non-Concrete backend. In that case, we bind the name to the
+      -- fallback cryptol implementation if present, or otherwise to an error
+      -- computation which will raise an error if we try to evaluate it.
       case lookupVar (dName d) env of
         Just _  -> pure env
         Nothing -> bindVar sym (dName d) val env
