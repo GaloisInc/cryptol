@@ -1877,22 +1877,23 @@ randomV sym ty seed =
 parmapV :: Backend sym => sym -> Prim sym
 parmapV sym =
   PTyPoly \_a ->
-  PTyPoly \_b ->
-  PFinPoly \_n ->
+  PTyPoly \b ->
+  PFinPoly \n ->
   PFun \f ->
   PFun \xs ->
   PPrim
     do f' <- fromVFun sym <$> f
        xs' <- xs
-       case xs' of
-          VWord n w ->
-            do let m = asBitsMap sym w
-               m' <- sparkParMap sym (\x -> f' (VBit <$> x)) n m
-               VWord n <$> (bitmapWordVal sym n (fromVBit <$> m'))
-          VSeq n m ->
-            VSeq n <$> sparkParMap sym f' n m
+       m <-
+         case xs' of
+           VWord _n w ->
+             let m = asBitsMap sym w in
+             sparkParMap sym (\x -> f' (VBit <$> x)) n m
+           VSeq _n m ->
+             sparkParMap sym f' n m
 
-          _ -> panic "parmapV" ["expected sequence!"]
+           _ -> panic "parmapV" ["expected finite sequence!"]
+       mkSeq sym (Nat n) b m
 
 
 sparkParMap ::
