@@ -72,8 +72,9 @@ data SeqMap sym a
                  !(SeqMap sym a)
   | MemoSeqMap
      !Nat'
-     !(IORef (Map Integer a))
-     !(IORef (Integer -> SEval sym a))
+     !(IORef (Map Integer a, Integer -> SEval sym a))
+     !(Integer -> SEval sym a)
+      -- Use this to overwrite the evaluation function when the cache is full
 
 indexSeqMap :: (Integer -> SEval sym a) -> SeqMap sym a
 indexSeqMap = IndexSeqMap
@@ -84,21 +85,23 @@ lookupSeqMap (UpdateSeqMap m xs) i =
   case Map.lookup i m of
     Just x  -> x
     Nothing -> lookupSeqMap xs i
-lookupSeqMap (MemoSeqMap sz cache eval) i =
-  do mz <- liftIO (Map.lookup i <$> readIORef cache)
-     case mz of
-       Just z  -> return z
+
+lookupSeqMap (MemoSeqMap sz cache_eval evalPanic) i =
+  do (cache,eval) <- liftIO (readIORef cache_eval)
+     case Map.lookup i cache of
+       Just z -> pure z
        Nothing ->
-         do f <- liftIO (readIORef eval)
-            v <- f i
-            msz <- liftIO $ atomicModifyIORef' cache (\m ->
-                        let m' = Map.insert i v m in (m', Map.size m'))
-            -- If we memoize the entire map, overwrite the evaluation closure to let
-            -- the garbage collector reap it
-            when (case sz of Inf -> False; Nat sz' -> toInteger msz >= sz')
-                 (liftIO (writeIORef eval
-                    (\j -> panic "lookupSeqMap" ["Messed up size accounting", show sz, show j])))
-            return v
+        do v <- eval i
+           liftIO $ atomicModifyIORef' cache_eval $ \(oldCache,oldFun) ->
+             let !newCache = Map.insert i v oldCache
+                 -- If we memoize the entire map,
+                 -- overwrite the evaluation closure to let
+                 -- the garbage collector reap it
+                 !newEval =
+                   case sz of
+                     Nat sz' | toInteger (Map.size newCache) >= sz' -> evalPanic
+                     _ -> oldFun
+             in ((newCache, newEval), v)
 
 instance Backend sym => Functor (SeqMap sym) where
   fmap f xs = IndexSeqMap (\i -> f <$> lookupSeqMap xs i)
@@ -173,12 +176,20 @@ memoMap _sym _sz x@(MemoSeqMap{}) = pure x
 
 memoMap sym sz x = do
   stk <- sGetCallStack sym
-  cache <- liftIO $ newIORef $ Map.empty
-  evalRef <- liftIO $ newIORef $ eval stk
-  return (MemoSeqMap sz cache evalRef)
+  cache <- liftIO $ newIORef (Map.empty, eval stk)
+  return (MemoSeqMap sz cache evalPanic)
 
   where
     eval stk i = sWithCallStack sym stk (lookupSeqMap x i)
+
+    -- Not 100% sure that we actually need to do the bounds check here,
+    -- or if we are assuming that the argument would be in bounds, but
+    -- it doesn't really hurt to do it, as if we *did* already do the check
+    -- this code should never run (unless we messed up something).
+    evalPanic i = case sz of
+                    Nat sz' | i < 0 || i >= sz' -> invalidIndex sym i
+                    _ -> panic "lookupSeqMap"
+                            ["Messed up size accounting", show sz, show i]
 
 
 -- | Apply the given evaluation function pointwise to the two given
