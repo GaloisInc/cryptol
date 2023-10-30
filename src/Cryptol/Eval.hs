@@ -746,7 +746,7 @@ evalMatch sym (lsz, lenv) m = seq lsz $ case m of
 
       {- Select from a sequence of infinite length.  Note that only the
          first generator in a sequence of generators may have infinite length,
-         so we can just evaluate it once an forall (i.e., it does not change
+         so we can just evaluate it once an for all (i.e., it does not change
          on each loop iteration, as it may happen in the finite case). -}
       Inf -> do
         let env = EvalEnv (leStatic lenv) (leTypes lenv)
