@@ -53,7 +53,7 @@ import Cryptol.ModuleSystem.Name
 import Cryptol.Parser.Position
 import Cryptol.Parser.Selector(ppSelector)
 import Cryptol.TypeCheck.AST
-import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
+import Cryptol.TypeCheck.Solver.InfNat(Nat'(..),nMul)
 import Cryptol.Utils.Ident
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
@@ -708,23 +708,23 @@ branchEnvs ::
   ListEnv sym ->
   [Match] ->
   SEval sym (ListEnv sym)
-branchEnvs sym env matches = snd <$> foldM (evalMatch sym) (1, env) matches
+branchEnvs sym env matches = snd <$> foldM (evalMatch sym) (Nat 1, env) matches
 
 {-# SPECIALIZE evalMatch ::
   (?range :: Range, ConcPrims) =>
   Concrete ->
-  (Integer, ListEnv Concrete) ->
+  (Nat', ListEnv Concrete) ->
   Match ->
-  SEval Concrete (Integer, ListEnv Concrete)
+  SEval Concrete (Nat', ListEnv Concrete)
   #-}
 
 -- | Turn a match into the list of environments it represents.
 evalMatch ::
   (?range :: Range, EvalPrims sym) =>
   sym ->
-  (Integer, ListEnv sym) ->
+  (Nat', ListEnv sym) ->
   Match ->
-  SEval sym (Integer, ListEnv sym)
+  SEval sym (Nat', ListEnv sym)
 evalMatch sym (lsz, lenv) m = seq lsz $ case m of
 
   -- many envs
@@ -733,7 +733,7 @@ evalMatch sym (lsz, lenv) m = seq lsz $ case m of
       -- Select from a sequence of finite length.  This causes us to 'stutter'
       -- through our previous choices `nLen` times.
       Nat nLen -> do
-        vss <- memoMap sym (Nat lsz) $ indexSeqMap $ \i -> evalExpr sym (evalListEnv lenv i) expr
+        vss <- memoMap sym lsz $ indexSeqMap $ \i -> evalExpr sym (evalListEnv lenv i) expr
         let stutter xs = \i -> xs (i `div` nLen)
         let lenv' = lenv { leVars = fmap stutter (leVars lenv) }
         let vs i = do let (q, r) = i `divMod` nLen
@@ -742,27 +742,21 @@ evalMatch sym (lsz, lenv) m = seq lsz $ case m of
                         VSeq _ xs'  -> lookupSeqMap xs' r
                         VStream xs' -> lookupSeqMap xs' r
                         _           -> evalPanic "evalMatch" ["Not a list value"]
-        return (lsz * nLen, bindVarList n vs lenv')
+        return (nMul lsz len, bindVarList n vs lenv')
 
-      -- Select from a sequence of infinite length.  Note that this means we
-      -- will never need to backtrack into previous branches.  Thus, we can convert
-      -- `leVars` elements of the comprehension environment into `leStatic` elements
-      -- by selecting out the 0th element.
+      {- Select from a sequence of infinite length.  Note that only the
+         first generator in a sequence of generators may have infinite length,
+         so we can just evaluate it once an for all (i.e., it does not change
+         on each loop iteration, as it may happen in the finite case). -}
       Inf -> do
-        let allvars = IntMap.union (fmap (Right . ($ 0)) (leVars lenv)) (leStatic lenv)
-        let lenv' = lenv { leVars   = IntMap.empty
-                         , leStatic = allvars
-                         }
-        let env   = EvalEnv allvars (leTypes lenv)
+        let env = EvalEnv (leStatic lenv) (leTypes lenv)
         xs <- evalExpr sym env expr
         let vs i = case xs of
                      VWord _ w   -> VBit <$> indexWordValue sym w i
                      VSeq _ xs'  -> lookupSeqMap xs' i
                      VStream xs' -> lookupSeqMap xs' i
                      _           -> evalPanic "evalMatch" ["Not a list value"]
-        -- Selecting from an infinite list effectively resets the length of the
-        -- list environment, so return 1 as the length
-        return (1, bindVarList n vs lenv')
+        return (Inf, bindVarList n vs lenv)
 
     where
       len  = evalNumType (leTypes lenv) l
