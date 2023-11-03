@@ -23,7 +23,6 @@ get_server() {
 }
 
 echo "Setting up python environment for remote server clients..."
-poetry update
 poetry install
 
 echo "Typechecking code with mypy..."
