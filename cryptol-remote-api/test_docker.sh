@@ -27,7 +27,6 @@ pushd $DIR/python
 NUM_FAILS=0
 
 echo "Setting up python environment for remote server clients..."
-poetry update
 poetry install
 
 export CRYPTOL_SERVER_URL="$PROTO://localhost:8080/"
