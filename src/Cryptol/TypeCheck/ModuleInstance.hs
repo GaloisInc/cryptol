@@ -82,7 +82,7 @@ instance ModuleInstance (ModuleG name) where
            }
 
 instance ModuleInstance Type where
-  moduleInstance = doTInst
+  moduleInstance = doTVInst
 
 instance ModuleInstance Schema where
   moduleInstance = doTInst
