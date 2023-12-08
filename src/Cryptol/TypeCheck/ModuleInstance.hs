@@ -85,7 +85,7 @@ instance ModuleInstance Type where
   moduleInstance = doTVInst
 
 instance ModuleInstance Schema where
-  moduleInstance = doTInst
+  moduleInstance = doTVInst
 
 instance ModuleInstance TySyn where
   moduleInstance ts =
