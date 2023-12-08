@@ -53,8 +53,8 @@ doFunctorInst m f as instMap0 enclosingInScope doc =
               let (tySus,paramTySyns,decls,paramInstMaps) =
                     unzip4 [ (su,ts,ds,im) | DefinedInst su ts ds im <- as2 ]
               instMap <- addMissingTySyns mpath mf instMap0
-              let ?tSu = mergeDistinctSubst tySus
-                  ?vSu = instMap <> mconcat paramInstMaps
+              let ?tVarSu = mergeDistinctSubst tySus
+                  ?nameSu = instMap <> mconcat paramInstMaps
               let m1   = moduleInstance mf
                   m2   = m1 { mName             = m
                             , mDoc              = Nothing

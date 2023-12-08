@@ -14,21 +14,23 @@ import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Subst(Subst,TVars,apSubst)
 
 
-{- | `?tSu` should be applied to all types.
-     `?vSu` shoudl be applied to all values. -}
-type Su = (?tSu :: Subst, ?vSu :: Map Name Name)
+{- | `?tVarSu` substitutes 'Type's for 'TVar's which are module type parameters.
+     `?nameSu` substitutes fresh 'Name's for the functor's 'Name's
+       (in all namespaces). -}
+type Su = (?tVarSu :: Subst, ?nameSu :: Map Name Name)
 
--- | Has value names but no types.
-doVInst :: (Su, TraverseNames a) => a -> a
-doVInst = mapNames (\x -> Map.findWithDefault x x ?vSu)
+-- | Instantiate something that has 'Name's.
+doNameInst :: (Su, TraverseNames a) => a -> a
+doNameInst = mapNames (\x -> Map.findWithDefault x x ?nameSu)
 
--- | Has types but not values.
-doTInst :: (Su, TVars a) => a -> a
-doTInst = apSubst ?tSu
+-- | Instantiate something that has 'TVar's.
+doTVarInst :: (Su, TVars a) => a -> a
+doTVarInst = apSubst ?tVarSu
 
--- | Has both value names and types.
-doTVInst :: (Su, TVars a, TraverseNames a) => a -> a
-doTVInst = doVInst . doTInst
+-- | Instantiate something that has both 'TVar's and 'Name's.
+-- Order is important here because '?tVarSu' might insert 'Name's.
+doInst :: (Su, TVars a, TraverseNames a) => a -> a
+doInst = doNameInst . doTVarInst
 
 doMap :: (Su, ModuleInstance a) => Map Name a -> Map Name a
 doMap mp =
@@ -50,10 +52,10 @@ instance ModuleInstance a => ModuleInstance (Located a) where
   moduleInstance l = moduleInstance <$> l
 
 instance ModuleInstance Name where
-  moduleInstance = doVInst
+  moduleInstance = doNameInst
 
 instance ModuleInstance NamingEnv where
-  moduleInstance = mapNamingEnv doVInst
+  moduleInstance = mapNamingEnv doNameInst
 
 instance ModuleInstance name => ModuleInstance (ImpName name) where
   moduleInstance x =
@@ -65,7 +67,7 @@ instance ModuleInstance (ModuleG name) where
   moduleInstance m =
     Module { mName             = mName m
            , mDoc              = Nothing
-           , mExports          = doVInst (mExports m)
+           , mExports          = doNameInst (mExports m)
            , mParamTypes       = doMap (mParamTypes m)
            , mParamFuns        = doMap (mParamFuns m)
            , mParamConstraints = moduleInstance (mParamConstraints m)
@@ -82,10 +84,10 @@ instance ModuleInstance (ModuleG name) where
            }
 
 instance ModuleInstance Type where
-  moduleInstance = doTVInst
+  moduleInstance = doInst
 
 instance ModuleInstance Schema where
-  moduleInstance = doTVInst
+  moduleInstance = doInst
 
 instance ModuleInstance TySyn where
   moduleInstance ts =
@@ -123,7 +125,7 @@ instance ModuleInstance DeclGroup where
       NonRecursive d -> NonRecursive (moduleInstance d)
 
 instance ModuleInstance Decl where
-  moduleInstance = doTVInst
+  moduleInstance = doInst
 
 
 instance ModuleInstance name => ModuleInstance (IfaceNames name) where
