@@ -1,0 +1,14 @@
+module Main where
+
+submodule F where
+  parameter
+    x : Bit
+  newtype T = { bit : Bit }
+  type U = T
+
+submodule M = submodule F where x = False
+
+import submodule M
+
+foo : U
+foo = T { bit = True }
