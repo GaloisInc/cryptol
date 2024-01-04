@@ -15,7 +15,7 @@ RUN apt-get update && \
 ENV LANG=C.UTF-8 \
     LC_ALL=C.UTF-8
 ENV GHCUP_INSTALL_BASE_PREFIX=/opt \
-    PATH=/opt/.ghcup/bin:$PATH
+    PATH=/opt/.ghcup/bin:/root/.local/bin:$PATH
 RUN curl -o /usr/local/bin/ghcup "https://downloads.haskell.org/~ghcup/0.1.19.4/x86_64-linux-ghcup-0.1.19.4" && \
     chmod +x /usr/local/bin/ghcup
 RUN ghcup install cabal 3.10.1.0 --set
