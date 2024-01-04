@@ -30,7 +30,7 @@ RUN mkdir -p /home/cryptol/.local/bin && \
     chmod +x /home/cryptol/.local/bin/ghcup
 RUN mkdir -p /home/cryptol/.ghcup && \
     ghcup --version && \
-    ghcup install cabal 3.6.2.0 && \
+    ghcup install cabal 3.10.1.0 && \
     ghcup install ghc 9.2.8 && \
     ghcup set ghc 9.2.8
 RUN cabal v2-update && \

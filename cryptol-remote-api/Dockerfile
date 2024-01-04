@@ -18,7 +18,7 @@ ENV GHCUP_INSTALL_BASE_PREFIX=/opt \
     PATH=/opt/.ghcup/bin:$PATH
 RUN curl -o /usr/local/bin/ghcup "https://downloads.haskell.org/~ghcup/0.1.19.4/x86_64-linux-ghcup-0.1.19.4" && \
     chmod +x /usr/local/bin/ghcup
-RUN ghcup install cabal --set
+RUN ghcup install cabal 3.10.1.0 --set
 ENV PATH=/root/.cabal/bin:$PATH
 ADD ./cryptol-remote-api/ghc-portability.patch .
 ARG GHCVER
