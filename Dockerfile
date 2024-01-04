@@ -1,5 +1,7 @@
 FROM ubuntu:22.04 AS build
 
+ARG GHCVER="9.2.8"
+ARG CABALVER="3.10.1.0"
 RUN apt-get update && \
     apt-get install -y \
       # ghcup requirements
@@ -24,15 +26,15 @@ RUN z3 --version
 ARG CRYPTOLPATH="/cryptol/.cryptol"
 ENV LANG=C.UTF-8 \
     LC_ALL=C.UTF-8
-COPY cabal.GHC-9.2.8.config cabal.project.freeze
+COPY cabal.GHC-${GHCVER}.config cabal.project.freeze
 RUN mkdir -p /home/cryptol/.local/bin && \
     curl -L https://downloads.haskell.org/~ghcup/0.1.19.4/x86_64-linux-ghcup-0.1.19.4 -o /home/cryptol/.local/bin/ghcup && \
     chmod +x /home/cryptol/.local/bin/ghcup
 RUN mkdir -p /home/cryptol/.ghcup && \
     ghcup --version && \
-    ghcup install cabal 3.10.1.0 && \
-    ghcup install ghc 9.2.8 && \
-    ghcup set ghc 9.2.8
+    ghcup install cabal ${CABALVER} && \
+    ghcup install ghc ${GHCVER} && \
+    ghcup set ghc ${GHCVER}
 RUN cabal v2-update && \
     cabal v2-build -j cryptol:exe:cryptol && \
     cp $(cabal v2-exec which cryptol) rootfs/usr/local/bin && \

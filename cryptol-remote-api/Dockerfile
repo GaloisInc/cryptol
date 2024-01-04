@@ -1,4 +1,5 @@
 ARG GHCVER="9.2.8"
+ARG CABALVER="3.10.1.0"
 ARG GHCVER_BOOTSTRAP="8.10.2"
 FROM ubuntu:22.04 AS toolchain
 ARG PORTABILITY=false
@@ -18,7 +19,7 @@ ENV GHCUP_INSTALL_BASE_PREFIX=/opt \
     PATH=/opt/.ghcup/bin:/root/.local/bin:$PATH
 RUN curl -o /usr/local/bin/ghcup "https://downloads.haskell.org/~ghcup/0.1.19.4/x86_64-linux-ghcup-0.1.19.4" && \
     chmod +x /usr/local/bin/ghcup
-RUN ghcup install cabal 3.10.1.0 --set
+RUN ghcup install cabal ${CABALVER} --set
 ENV PATH=/root/.cabal/bin:$PATH
 ADD ./cryptol-remote-api/ghc-portability.patch .
 ARG GHCVER
