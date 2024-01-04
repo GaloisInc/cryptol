@@ -1,6 +1,16 @@
 ARG GHCVER="9.2.8"
 ARG CABALVER="3.10.1.0"
+# This is the version of GHC that we use as part of the process of building a
+# separate copy of GHC from source. The version of GHC that we build from source
+# is determined by the value of GHCVER.
 ARG GHCVER_BOOTSTRAP="8.10.2"
+# We pin specific versions of alex and happy that are necessary to build
+# GHC. In general, we don't want to build the latest versions of each
+# tool, as GHC may not support them (see, for example,
+# https://github.com/GaloisInc/cryptol/issues/1599). If you update GHCVER, you
+# may need to update ALEXVER and HAPPYVER as well.
+ARG ALEXVER="3.4.0.1"
+ARG HAPPYVER="1.20.1.1"
 FROM ubuntu:22.04 AS toolchain
 ARG PORTABILITY=false
 RUN apt-get update && \
@@ -28,11 +38,7 @@ RUN if ${PORTABILITY}; then \
         ghcup install ghc ${GHCVER_BOOTSTRAP} && \
         ghcup set ghc ${GHCVER_BOOTSTRAP} && \
         cabal v2-update && \
-        # We pin specific versions of alex and happy that are necessary to build
-        # GHC. In general, we don't want to build the latest versions of each
-        # tool, as GHC may not support them (see, for example,
-        # https://gitlab.haskell.org/ghc/ghc/-/issues/24302).
-        cabal v2-install alex-3.4.0.1 happy-1.20.1.1 && \
+        cabal v2-install alex-${ALEXVER} happy-${HAPPYVER} && \
         git clone --recurse-submodules --depth 1 --branch ghc-${GHCVER}-release https://gitlab.haskell.org/ghc/ghc.git && \
         cd ./ghc && \
         git apply ../ghc-portability.patch && \
