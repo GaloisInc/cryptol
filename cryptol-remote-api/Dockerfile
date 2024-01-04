@@ -27,7 +27,11 @@ RUN if ${PORTABILITY}; then \
         ghcup install ghc ${GHCVER_BOOTSTRAP} && \
         ghcup set ghc ${GHCVER_BOOTSTRAP} && \
         cabal v2-update && \
-        cabal v2-install alex happy-1.20.1.1 && \
+        # We pin specific versions of alex and happy that are necessary to build
+        # GHC. In general, we don't want to build the latest versions of each
+        # tool, as GHC may not support them (see, for example,
+        # https://gitlab.haskell.org/ghc/ghc/-/issues/24302).
+        cabal v2-install alex-3.4.0.1 happy-1.20.1.1 && \
         git clone --recurse-submodules --depth 1 --branch ghc-${GHCVER}-release https://gitlab.haskell.org/ghc/ghc.git && \
         cd ./ghc && \
         git apply ../ghc-portability.patch && \
