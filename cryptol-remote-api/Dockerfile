@@ -33,7 +33,10 @@ RUN ghcup install cabal ${CABALVER} --set
 ENV PATH=/root/.cabal/bin:$PATH
 ADD ./cryptol-remote-api/ghc-portability.patch .
 ARG GHCVER
+ARG CABALVER
 ARG GHCVER_BOOTSTRAP
+ARG ALEXVER
+ARG HAPPYVER
 RUN if ${PORTABILITY}; then \
         ghcup install ghc ${GHCVER_BOOTSTRAP} && \
         ghcup set ghc ${GHCVER_BOOTSTRAP} && \
