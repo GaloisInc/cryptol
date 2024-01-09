@@ -81,6 +81,7 @@ import qualified What4.SatResult as W4
 import qualified What4.SFloat as W4
 import qualified What4.SWord as SW
 import           What4.Solver
+import qualified What4.Solver.Bitwuzla as W4
 import qualified What4.Solver.Boolector as W4
 import qualified What4.Solver.CVC4 as W4
 import qualified What4.Solver.CVC5 as W4
@@ -165,6 +166,7 @@ proverConfigs =
   , ("w4-cvc5"      , W4ProverConfig cvc5OnlineAdapter)
   , ("w4-yices"     , W4ProverConfig yicesOnlineAdapter)
   , ("w4-z3"        , W4ProverConfig z3OnlineAdapter)
+  , ("w4-bitwuzla"  , W4ProverConfig bitwuzlaOnlineAdapter)
   , ("w4-boolector" , W4ProverConfig boolectorOnlineAdapter)
 
   , ("w4-abc"       , W4ProverConfig (AnAdapter W4.externalABCAdapter))
@@ -193,6 +195,11 @@ cvc5OnlineAdapter =
   AnOnlineAdapter "CVC5" W4.cvc5Features W4.cvc5Options
          (Proxy :: Proxy (W4.Writer W4.CVC5))
 
+bitwuzlaOnlineAdapter :: AnAdapter
+bitwuzlaOnlineAdapter =
+  AnOnlineAdapter "Bitwuzla" W4.bitwuzlaFeatures W4.bitwuzlaOptions
+         (Proxy :: Proxy (W4.Writer W4.Bitwuzla))
+
 boolectorOnlineAdapter :: AnAdapter
 boolectorOnlineAdapter =
   AnOnlineAdapter "Boolector" W4.boolectorFeatures W4.boolectorOptions
@@ -203,6 +210,7 @@ allSolvers = W4Portfolio
   $ z3OnlineAdapter :|
   [ cvc4OnlineAdapter
   , cvc5OnlineAdapter
+  , bitwuzlaOnlineAdapter
   , boolectorOnlineAdapter
   , yicesOnlineAdapter
   , AnAdapter W4.externalABCAdapter

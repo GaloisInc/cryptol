@@ -1,0 +1,7 @@
+:l issue1786.cry
+
+:set prover=w4-bitwuzla
+:prove add_mul_lemma
+
+:set prover=sbv-bitwuzla
+:prove add_mul_lemma
