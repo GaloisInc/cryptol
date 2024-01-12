@@ -617,12 +617,10 @@ checkModule isrc m = do
   renMod <- renameModule epgm
 
 
-{-
   -- dump renamed
   unless (thing (mName (R.rmModule renMod)) == preludeName)
        do (io $ print (T.pp renMod))
           -- io $ exitSuccess
---}
 
 
   -- when generating the prim map for the typechecker, if we're checking the

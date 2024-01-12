@@ -103,10 +103,32 @@ instance ModuleInstance Newtype where
     Newtype { ntName        = moduleInstance (ntName nt)
             , ntParams      = ntParams nt
             , ntConstraints = moduleInstance (ntConstraints nt)
-            , ntConName     = moduleInstance (ntConName nt)
-            , ntFields      = moduleInstance <$> ntFields nt
+            , ntDef         = moduleInstance (ntDef nt)
             , ntDoc         = ntDoc nt
             }
+
+instance ModuleInstance NewtypeDef where
+  moduleInstance def =
+    case def of
+      Struct c -> Struct (moduleInstance c)
+      Enum cs  -> Enum   (moduleInstance cs)
+
+instance ModuleInstance StructCon where
+  moduleInstance c =
+    StructCon
+      { ntConName     = moduleInstance (ntConName c)
+      , ntFields      = moduleInstance <$> ntFields c
+      }
+
+instance ModuleInstance EnumCon where
+  moduleInstance c =
+    EnumCon
+      { ecName        = moduleInstance (ecName c)
+      , ecFields      = moduleInstance (ecFields c)
+      , ecPublic      = ecPublic c
+      , ecDoc         = ecDoc c
+      }
+
 
 instance ModuleInstance AbstractType where
   moduleInstance at =

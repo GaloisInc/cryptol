@@ -99,12 +99,15 @@ $white+                   { emit $ White Space }
 -- Please update the docs, if you add new entries.
 "else"                    { emit $ KW KW_else }
 "if"                      { emit $ KW KW_if }
+"case"                    { emit $ KW KW_case }
+"of"                      { emit $ KW KW_of }
 "private"                 { emit $ KW KW_private }
 "include"                 { emit $ KW KW_include }
 "module"                  { emit $ KW KW_module }
 "submodule"               { emit $ KW KW_submodule }
 "interface"               { emit $ KW KW_interface }
 "newtype"                 { emit $ KW KW_newtype }
+"enum"                    { emit $ KW KW_enum }
 "pragma"                  { emit $ KW KW_pragma }
 "property"                { emit $ KW KW_property }
 "then"                    { emit $ KW KW_then }

@@ -113,12 +113,22 @@ instance AddParams Newtype where
   addParams nt =
     do (tps,cs) <- newTypeParams TPNewtypeParam
        rProps   <- rewTypeM tps (ntConstraints nt)
-       rFields  <- rewTypeM tps (ntFields nt)
+       def <- case ntDef nt of
+                Struct con ->
+                   Struct <$>
+                   do rFields  <- rewTypeM tps (ntFields con)
+                      pure con { ntFields = rFields }
+                Enum cons ->
+                  Enum <$>
+                  forM cons \c ->
+                    do rFileds <- rewTypeM tps (ecFields c)
+                       pure c { ecFields = rFileds }
        pure nt
-         { ntParams       = pDecl tps ++ ntParams nt
-         , ntConstraints  = cs ++ rProps
-         , ntFields       = rFields
+         { ntParams      = pDecl tps ++ ntParams nt
+         , ntConstraints = cs ++ rProps
+         , ntDef         = def
          }
+
 
 instance AddParams TySyn where
   addParams ts =

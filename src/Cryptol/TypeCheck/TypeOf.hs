@@ -147,7 +147,8 @@ typeSelect (TRec fields) (RecordSel n _)
 
 -- Record selector applied to a newtype
 typeSelect (TNewtype nt args) (RecordSel n _)
-  | Just ty <- lookupField n (ntFields nt)
+  | Struct con <- ntDef nt
+  , Just ty <- lookupField n (ntFields con)
   = plainSubst (listParamSubst (zip (ntParams nt) args)) ty
 
 -- List selector applied to a sequence

@@ -41,7 +41,8 @@ genModDefines m =
   Set.unions
     [ Map.keysSet  (mTySyns m)
     , Map.keysSet  (mNewtypes m)
-    , Set.fromList (map ntConName (Map.elems (mNewtypes m)))
+    , Set.fromList (concatMap (map fst . newtypeConTypes)
+                              (Map.elems (mNewtypes m)))
     , Map.keysSet  (mPrimTypes m)
     , Set.fromList (map dName (concatMap groupDecls (mDecls m)))
     , Map.keysSet  (mSubmodules m)

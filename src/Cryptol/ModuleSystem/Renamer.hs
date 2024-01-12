@@ -532,6 +532,7 @@ renameTopDecls' ds =
       Decl tl                 -> isValDecl (tlValue tl)
       DPrimType {}            -> False
       TDNewtype {}            -> False
+      TDEnum {}               -> False
       DParamDecl {}           -> False
       DInterfaceConstraint {} -> False
 
@@ -584,6 +585,9 @@ topDeclName topDecl =
     DPrimType d             -> hasName (thing (primTName (tlValue d)))
     TDNewtype d             -> hasName' (thing (nName (tlValue d)))
                                         [ nConName (tlValue d) ]
+    TDEnum d                -> hasName' (thing (eName (tlValue d)))
+                                        (map (thing . ecName . tlValue)
+                                             (eCons (tlValue d)))
     DModule d               -> hasName (thing (mName m))
       where NestedModule m = tlValue d
 
@@ -681,9 +685,10 @@ doModParams srcParams =
 
      forM_ repeated \ps ->
        case ps of
+         [] -> panic "doModParams" ["[]"]
          [_]      -> pure ()
-         ~(p : _) -> recordError (MultipleModParams (renModParamName p)
-                                                    (map renModParamRange ps))
+         (p : _) -> recordError (MultipleModParams (renModParamName p)
+                                                   (map renModParamRange ps))
 
      pure (mconcat paramEnvs,params)
 
@@ -708,6 +713,7 @@ instance Rename TopDecl where
       Decl d            -> Decl      <$> traverse rename d
       DPrimType d       -> DPrimType <$> traverse rename d
       TDNewtype n       -> TDNewtype <$> traverse rename n
+      TDEnum n          -> TDEnum    <$> traverse rename n
       Include n         -> return (Include n)
       DModule m  -> DModule <$> traverse rename m
       DImport li -> DImport <$> renI li
@@ -876,7 +882,25 @@ instance Rename Newtype where
                            , nParams = ps'
                            , nBody   = body' }
 
-
+instance Rename EnumDecl where
+  rename n =
+    shadowNames (eParams n) $
+    do nameT  <- rnLocated (renameType NameBind) (eName n)
+       nameCs <- forM (eCons n) \tlEc ->
+                   do let con = tlValue tlEc
+                      nameC <- rnLocated (renameVar NameBind) (ecName con)
+                      depsOf (NamedThing (thing nameC)) (addDep (thing nameT))
+                      pure (nameC,tlEc)
+       depsOf (NamedThing (thing nameT)) $
+         do ps' <- traverse rename (eParams n)
+            cons <- forM nameCs \(c,tlEc) ->
+                     do ts' <- traverse rename (ecFields (tlValue tlEc))
+                        let con = EnumCon { ecName = c, ecFields = ts' }
+                        pure tlEc { tlValue = con }
+            pure EnumDecl { eName = nameT
+                          , eParams = ps'
+                          , eCons = cons
+                          }
 
 -- | Try to resolve a name
 resolveNameMaybe :: NameType -> Namespace -> PName -> RenameM (Maybe Name)
@@ -1058,10 +1082,11 @@ instance Rename PropGuardCase where
   rename g = PropGuardCase <$> traverse (rnLocated rename) (pgcProps g)
                            <*> rename (pgcExpr g)
 
--- NOTE: this only renames types within the pattern.
 instance Rename Pattern where
   rename p      = case p of
     PVar lv         -> PVar <$> rnLocated (renameVar NameBind) lv
+    PCon c ps       -> PCon <$> rnLocated (renameVar NameUse)  c
+                            <*> traverse rename ps
     PWild           -> pure PWild
     PTuple ps       -> PTuple   <$> traverse rename ps
     PRecord nps     -> PRecord  <$> traverse (traverse rename) nps
@@ -1139,6 +1164,7 @@ instance Rename Expr where
     EApp f x        -> EApp    <$> rename f  <*> rename x
     EAppT f ti      -> EAppT   <$> rename f  <*> traverse rename ti
     EIf b t f       -> EIf     <$> rename b  <*> rename t  <*> rename f
+    ECase e as      -> ECase   <$> rename e  <*> traverse rename as
     EWhere e' ds    -> shadowNames (map (InModule Nothing) ds) $
                           EWhere <$> rename e' <*> renameDecls ds
     ETyped e' ty    -> ETyped  <$> rename e' <*> rename ty
@@ -1312,7 +1338,7 @@ patternEnv  = go
     do n <- liftSupply (mkLocal NSValue (getIdent thing) srcRange)
        -- XXX: for deps, we should record a use
        return (singletonNS NSValue thing n)
-
+  go (PCon _ ps)      = bindVars ps
   go PWild            = return mempty
   go (PTuple ps)      = bindVars ps
   go (PRecord fs)     = bindVars (fmap snd (recordElements fs))
@@ -1375,6 +1401,8 @@ patternEnv  = go
          do res <- bindTypes ts
             return (env' `mappend` res)
 
+instance Rename CaseAlt where
+  rename (CaseAlt p e) = CaseAlt <$> rename p <*> rename e
 
 instance Rename Match where
   rename m = case m of

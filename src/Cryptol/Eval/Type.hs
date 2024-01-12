@@ -11,7 +11,10 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Cryptol.Eval.Type where
 
+import Data.Map(Map)
+import qualified Data.Map as Map
 import Cryptol.Backend.Monad (evalPanic)
+import Cryptol.ModuleSystem.Name(nameIdent)
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.PP(pp)
 import Cryptol.TypeCheck.Solver.InfNat
@@ -41,8 +44,13 @@ data TValue
   | TVFun TValue TValue       -- ^ @ a -> b @
   | TVNewtype Newtype
               [Either Nat' TValue]
-              (RecordMap Ident TValue)     -- ^ a named newtype
+              TNewtypeValue    -- ^ a named newtype
   | TVAbstract UserTC [Either Nat' TValue] -- ^ an abstract type
+    deriving (Generic, NFData, Eq)
+
+data TNewtypeValue =
+    TVStruct (RecordMap Ident TValue)
+  | TVEnum   (Map Ident [TValue])
     deriving (Generic, NFData, Eq)
 
 -- | Convert a type value back into a regular type
@@ -173,10 +181,16 @@ evalType env ty =
                                   ["Expecting a finite size, but got `inf`"]
 
 -- | Evaluate the body of a newtype, given evaluated arguments
-evalNewtypeBody :: TypeEnv -> Newtype -> [Either Nat' TValue] -> RecordMap Ident TValue
-evalNewtypeBody env0 nt args = fmap (evalValType env') (ntFields nt)
+evalNewtypeBody ::
+  TypeEnv -> Newtype -> [Either Nat' TValue] -> TNewtypeValue
+evalNewtypeBody env0 nt args =
+  case ntDef nt of
+    Struct c -> TVStruct (fmap (evalValType env') (ntFields c))
+    Enum cs  -> TVEnum (Map.fromList (map doEnum cs))
   where
   env' = loop env0 (ntParams nt) args
+
+  doEnum c = (nameIdent (ecName c), map (evalValType env') (ecFields c))
 
   loop env [] [] = env
   loop env (p:ps) (a:as) = loop (bindTypeVar (TVBound p) a env) ps as

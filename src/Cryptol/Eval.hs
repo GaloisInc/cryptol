@@ -319,9 +319,16 @@ evalNewtypeDecl ::
   Newtype ->
   GenEvalEnv sym ->
   SEval sym (GenEvalEnv sym)
-evalNewtypeDecl _sym nt = pure . bindVarDirect (ntConName nt) (foldr tabs con (ntParams nt))
+evalNewtypeDecl _sym nt =
+  case ntDef nt of
+    Struct c ->
+      pure . bindVarDirect (ntConName c) val
+    Enum cs -> pure . foldr (\c f -> enumCon c . f) id cs
   where
-  con           = PFun PPrim
+  con           = PFun PPrim -- XXX: WRONG f
+  val           = foldr tabs con (ntParams nt) 
+
+  enumCon c = bindVarDirect (ecName c) val
 
   tabs tp body =
     case tpKind tp of

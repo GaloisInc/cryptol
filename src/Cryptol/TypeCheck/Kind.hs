@@ -132,7 +132,6 @@ checkPropSyn (P.PropSyn x _ as ps) mbD =
                   }
 
 -- | Check a newtype declaration.
--- XXX: Do something with constraints.
 checkNewtype :: P.Newtype Name -> Maybe Text -> InferM Newtype
 checkNewtype (P.Newtype x as con fs) mbD =
   do ((as1,fs1),gs) <- collectGoals $
@@ -146,8 +145,8 @@ checkNewtype (P.Newtype x as con fs) mbD =
      return Newtype { ntName   = thing x
                     , ntParams = as1
                     , ntConstraints = map goal gs
-                    , ntConName = con
-                    , ntFields = fs1
+                    , ntDef = Struct
+                                StructCon { ntConName = con, ntFields = fs1 }
                     , ntDoc = mbD
                     }
 

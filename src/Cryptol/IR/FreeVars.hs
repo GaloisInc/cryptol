@@ -155,7 +155,19 @@ instance FreeVars TCon where
 
 instance FreeVars Newtype where
   freeVars nt = foldr rmTParam base (ntParams nt)
-    where base = freeVars (ntConstraints nt) <> freeVars (recordElements (ntFields nt))
+    where base = freeVars (ntConstraints nt) <> freeVars (ntDef nt)
+
+instance FreeVars NewtypeDef where
+  freeVars def =
+    case def of
+      Struct c -> freeVars c
+      Enum cs -> freeVars cs
+
+instance FreeVars StructCon where
+  freeVars c = freeVars (recordElements (ntFields c))
+
+instance FreeVars EnumCon where
+  freeVars c = freeVars (ecFields c)
 
 
 --------------------------------------------------------------------------------

@@ -43,7 +43,8 @@
 > import qualified Cryptol.Backend.FloatHelpers as FP
 > import Cryptol.Backend.Monad (EvalError(..))
 > import Cryptol.Eval.Type
->   (TValue(..), isTBit, evalValType, evalNumType, TypeEnv, bindTypeVar)
+>   (TValue(..), TNewtypeValue(..),
+>    isTBit, evalValType, evalNumType, TypeEnv, bindTypeVar)
 > import Cryptol.Eval.Concrete (mkBv, ppBV, lg2)
 > import Cryptol.Utils.Ident (Ident,PrimIdent, prelPrim, floatPrim)
 > import Cryptol.Utils.Panic (panic)
@@ -176,6 +177,7 @@ terms by providing an evaluator to an appropriate `Value` type.
 >   | VList Nat' [E Value]       -- ^ @ [n]a   @ finite or infinite lists
 >   | VTuple [E Value]           -- ^ @ ( .. ) @ tuples
 >   | VRecord [(Ident, E Value)] -- ^ @ { .. } @ records
+>   | VEnum Ident Value          -- ^ @ Just x @, sum types
 >   | VFun (E Value -> E Value)  -- ^ functions
 >   | VPoly (TValue -> E Value)  -- ^ polymorphic values (kind *)
 >   | VNumPoly (Nat' -> E Value) -- ^ polymorphic values (kind #)
@@ -399,7 +401,7 @@ types and on newtypes.
 >   case (tyv, sel) of
 >     (TVTuple ts, TupleSel n _) -> updTupleAt ts n
 >     (TVRec fs, RecordSel n _)  -> updRecAt fs n
->     (TVNewtype _ _ fs, RecordSel n _) -> updRecAt fs n
+>     (TVNewtype _ _ (TVStruct fs), RecordSel n _) -> updRecAt fs n
 >     (TVSeq len _, ListSel n _) -> updSeqAt len n
 >     (_, _) -> evalPanic "evalSet" ["type/selector mismatch", show tyv, show sel]
 >   where
@@ -550,7 +552,10 @@ newtypes is thus basically just an identity function
 that consumes and ignores its type arguments.
 
 > evalNewtypeDecl :: Env -> Newtype -> Env
-> evalNewtypeDecl env nt = bindVar (ntConName nt, pure val) env
+> evalNewtypeDecl env nt =
+>   case ntDef nt of
+>     Struct c -> bindVar (ntConName c, pure val) env
+>     Enum cs  -> undefined   -- XXX
 >   where
 >     val = foldr tabs con (ntParams nt)
 >     con = VFun (\x -> x)

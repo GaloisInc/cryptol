@@ -6,7 +6,7 @@
 -- Stability   :  provisional
 -- Portability :  portable
 --
--- The purpose of this module is to convert all patterns to variable
+-- The purpose of this module is to convert all irrefutable patterns to variable
 -- patterns.  It also eliminates pattern bindings by de-sugaring them
 -- into `Bind`.  Furthermore, here we associate signatures, fixities,
 -- and pragmas with the names to which they belong.  We also merge
@@ -24,7 +24,7 @@ module Cryptol.Parser.NoPat (RemovePatterns(..),Error(..)) where
 
 import Cryptol.Parser.AST
 import Cryptol.Parser.Position(Range(..),emptyRange,start,at)
-import Cryptol.Parser.Names (namesP)
+import Cryptol.Parser.Names (namesP')
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.RecordMap
@@ -79,6 +79,9 @@ noPat pat =
   case pat of
     PVar x -> return (PVar x, [])
 
+    PCon {} -> panic "noPat" [ "Unexpected constructor patter"
+                             , show (pp pat)
+                             ]
     PWild ->
       do x <- newName
          r <- getRange
@@ -168,6 +171,7 @@ noPatE expr =
     EApp e1 e2    -> EApp   <$> noPatE e1 <*> noPatE e2
     EAppT e ts    -> EAppT  <$> noPatE e <*> return ts
     EIf e1 e2 e3  -> EIf    <$> noPatE e1 <*> noPatE e2 <*> noPatE e3
+    ECase e as    -> ECase  <$> noPatE e  <*> traverse noPatAlt as
     EWhere e ds   -> EWhere <$> noPatE e <*> noPatDs ds
     ETyped e t    -> ETyped <$> noPatE e <*> return t
     ETypeVal {}   -> return expr
@@ -179,6 +183,9 @@ noPatE expr =
     EInfix x y f z-> EInfix  <$> noPatE x <*> pure y <*> pure f <*> noPatE z
     EPrefix op e  -> EPrefix op <$> noPatE e
 
+-- Note that we DO NOT remove patterns in cases.
+noPatAlt :: CaseAlt PName -> NoPatM (CaseAlt PName)
+noPatAlt (CaseAlt p e) = CaseAlt p <$> noPatE e
 
 noPatUF :: UpdField PName -> NoPatM (UpdField PName)
 noPatUF (UpdField h ls e) = UpdField h ls <$> noPatE e
@@ -421,8 +428,9 @@ annotTopDs tds =
         DParamDecl {} -> (d :) <$> annotTopDs ds
         DInterfaceConstraint {} -> (d :) <$> annotTopDs ds
 
-        -- XXX: we may want to add pragmas to newtypes?
+        -- XXX: we may want to add pragmas to newtypes and enums?
         TDNewtype {} -> (d :) <$> annotTopDs ds
+        TDEnum {}    -> (d :) <$> annotTopDs ds
         Include {}   -> (d :) <$> annotTopDs ds
 
         DModule m ->
@@ -579,7 +587,7 @@ toDocs TopLevel { .. }
       DBind b         -> [ (thing (bName b), [txt]) ]
       DRec {}         -> panic "toDocs" [ "DRec" ]
       DLocated d _    -> go txt d
-      DPatBind p _    -> [ (thing n, [txt]) | n <- namesP p ]
+      DPatBind p _    -> [ (thing n, [txt]) | n <- namesP' p ]
 
       -- XXX revisit these
       DPragma _ _     -> []

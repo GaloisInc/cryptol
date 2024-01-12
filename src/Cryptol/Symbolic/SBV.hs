@@ -535,7 +535,8 @@ parseValue (FTRecord r) cvs = (VarRecord r', cvs')
         fs         = zip ns vs
         r'         = recordFromFieldsWithDisplay (displayOrder r) fs
 
-parseValue (FTNewtype _ _ r) cvs = parseValue (FTRecord r) cvs
+parseValue (FTNewtype _ _ (FStruct r)) cvs = parseValue (FTRecord r) cvs
+--- XXX: Enum
 
 parseValue (FTFloat e p) cvs =
    (VarFloat FH.BF { FH.bfValue = bfNaN

@@ -46,7 +46,7 @@ import Cryptol.Backend.Concrete
 import Cryptol.Backend.SeqMap (indexSeqMap, finiteSeqMap)
 import Cryptol.Backend.WordValue (wordVal)
 
-import Cryptol.Eval.Type      (TValue(..))
+import Cryptol.Eval.Type      (TValue(..), TNewtypeValue(..))
 import Cryptol.Eval.Value     (GenValue(..), ppValue, defaultPPOpts, fromVFun)
 import Cryptol.TypeCheck.Solver.InfNat (widthInteger)
 import Cryptol.Utils.Ident    (Ident)
@@ -164,9 +164,14 @@ randomValue sym ty =
     TVRec fs ->
          do gs <- traverse (randomValue sym) fs
             return (randomRecord gs)
-    TVNewtype _ _ fs ->
-         do gs <- traverse (randomValue sym) fs
-            return (randomRecord gs)
+
+    TVNewtype _ _ nval ->
+      case nval of
+        TVStruct fs ->
+          do gs <- traverse (randomValue sym) fs
+             return (randomRecord gs)
+    -- XXX: Do random testing on `enum` types
+
     TVArray{} -> Nothing
     TVFun{} -> Nothing
     TVAbstract{} -> Nothing
@@ -399,7 +404,11 @@ typeSize ty = case ty of
   TVRec fs -> product <$> traverse typeSize fs
   TVFun{} -> Nothing
   TVAbstract{} -> Nothing
-  TVNewtype _ _ tbody -> typeSize (TVRec tbody)
+
+  TVNewtype _ _ nv ->
+    case nv of
+      TVStruct tbody -> typeSize (TVRec tbody)
+      -- XXX: enum
 
 {- | Returns all the values in a type.  Returns an empty list of values,
 for types where 'typeSize' returned 'Nothing'. -}
@@ -431,7 +440,10 @@ typeValues ty =
       ]
     TVFun{} -> []
     TVAbstract{} -> []
-    TVNewtype _ _ tbody -> typeValues (TVRec tbody)
+    TVNewtype _ _ nv ->
+      case nv of
+        TVStruct tbody -> typeValues (TVRec tbody)
+        -- XXX: enum
 
 --------------------------------------------------------------------------------
 -- Driver function

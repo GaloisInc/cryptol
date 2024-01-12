@@ -315,14 +315,32 @@ data TySyn  = TySyn { tsName        :: Name       -- ^ Name
 
 
 
--- | Named records
-data Newtype  = Newtype { ntName   :: Name
-                        , ntParams :: [TParam]
-                        , ntConstraints :: [Prop]
-                        , ntConName :: !Name
-                        , ntFields :: RecordMap Ident Type
-                        , ntDoc :: Maybe Text
-                        } deriving (Show, Generic, NFData)
+-- | Nominal types
+data Newtype  = Newtype
+  { ntName        :: Name
+  , ntParams      :: [TParam]
+  , ntConstraints :: [Prop]
+  , ntDef         :: NewtypeDef
+  , ntDoc         :: Maybe Text
+  } deriving (Show, Generic, NFData)
+
+-- | Definition of a nominal type
+data NewtypeDef = Struct StructCon | Enum [EnumCon]
+  deriving (Show, Generic, NFData)
+
+-- | Constructor for a struct (aka newtype)
+data StructCon = StructCon
+  { ntConName     :: !Name
+  , ntFields      :: RecordMap Ident Type
+  } deriving (Show, Generic, NFData)
+
+-- | Constructor for an enumeration
+data EnumCon = EnumCon
+  { ecName        :: Name
+  , ecFields      :: [Type]
+  , ecPublic      :: Bool
+  , ecDoc         :: Maybe Text
+  } deriving (Show,Generic,NFData)
 
 
 instance Eq Newtype where
@@ -333,6 +351,8 @@ instance Ord Newtype where
 
 
 -- | Information about an abstract type.
+-- XXX: This should probably be combined with newtype as just another
+-- kind of "definition".
 data AbstractType = AbstractType
   { atName    :: Name
   , atKind    :: Kind
@@ -454,12 +474,21 @@ superclassSet (TCon (PC p0) [t]) = go p0
 superclassSet _ = mempty
 
 
-newtypeConType :: Newtype -> Schema
-newtypeConType nt =
-  Forall as (ntConstraints nt)
-    $ TRec (ntFields nt) `tFun` TNewtype nt (map (TVar . tpVar) as)
+newtypeConTypes :: Newtype -> [(Name,Schema)]
+newtypeConTypes nt =
+  case ntDef nt of
+    Struct s -> [ ( ntConName s
+                  , Forall as ctrs (TRec (ntFields s) `tFun` resT)
+                  ) ]
+    Enum cs  -> [ ( ecName c
+                  , Forall as ctrs (foldr tFun resT (ecFields c))
+                  )
+                | c <- cs
+                ]
   where
-  as = ntParams nt
+  as    = ntParams nt
+  ctrs  = ntConstraints nt
+  resT  = TNewtype nt (map (TVar . tpVar) as)
 
 
 abstractTypeTC :: AbstractType -> TCon
@@ -1049,20 +1078,36 @@ addTNames as ns = foldr (uncurry IntMap.insert) ns
 
 ppNewtypeShort :: Newtype -> Doc
 ppNewtypeShort nt =
-  text "newtype" <+> pp (ntName nt) <+> hsep (map (ppWithNamesPrec nm 9) ps)
-  where
-  ps  = ntParams nt
-  nm = addTNames ps emptyNameMap
-
-ppNewtypeFull :: Newtype -> Doc
-ppNewtypeFull nt =
-  text "newtype" <+> pp (ntName nt) <+> hsep (map (ppWithNamesPrec nm 9) ps)
-  $$ nest 2 (cs $$ ("=" <+> pp (ntConName nt) $$ nest 2 fs))
+  kw <+> pp (ntName nt) <+> hsep (map (ppWithNamesPrec nm 9) ps)
   where
   ps = ntParams nt
   nm = addTNames ps emptyNameMap
-  fs = vcat [ pp f <.> ":" <+> pp t | (f,t) <- canonicalFields (ntFields nt) ]
+  kw = case ntDef nt of
+         Struct {} -> "newtype"
+         Enum {}   -> "enum"
+
+ppNewtypeFull :: Newtype -> Doc
+ppNewtypeFull nt =
+  (kw <+> pp (ntName nt) <+> hsep (map (ppWithNamesPrec nm 9) ps))
+  $$ nest 2 (cs $$ def)
+  where
+  ps = ntParams nt
   cs = vcat (map pp (ntConstraints nt))
+  nm = addTNames ps emptyNameMap
+  (kw,def) =
+    case ntDef nt of
+      Struct con -> ("newtype", "=" <+> pp (ntConName con) $$ nest 2 fs)
+        where
+        fs = vcat [ pp f <.> ":" <+> pp t
+                  | (f,t) <- canonicalFields (ntFields con) ]
+      Enum cons ->
+        ("enum", vcat
+           [ pref <+> vcat
+               [ pp (ecName con) <+> hsep (map (ppPrec 1) (ecFields con)) ]
+           | (pref,con) <- zip ("=" : repeat "|") cons
+           ]
+        )
+
 
 
 

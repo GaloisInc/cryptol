@@ -206,19 +206,32 @@ instance TraverseNames TVar where
       TVBound x       -> TVBound <$> traverseNamesIP x
 
 instance TraverseNames Newtype where
-  traverseNamesIP nt = mk <$> traverseNamesIP (ntName nt)
-                          <*> traverseNamesIP (ntParams nt)
-                          <*> traverseNamesIP (ntConstraints nt)
-                          <*> traverseNamesIP (ntConName nt)
-                          <*> traverseRecordMap (\_ -> traverseNamesIP)
-                                                (ntFields nt)
-    where
-    mk a b c d e = nt { ntName = a
-                      , ntParams = b
-                      , ntConstraints = c
-                      , ntConName = d
-                      , ntFields = e
-                      }
+  traverseNamesIP nt =
+    Newtype <$> traverseNamesIP (ntName nt)
+            <*> traverseNamesIP (ntParams nt)
+            <*> traverseNamesIP (ntConstraints nt)
+            <*> traverseNamesIP (ntDef nt)
+            <*> pure (ntDoc nt)
+
+instance TraverseNames NewtypeDef where
+  traverseNamesIP def =
+    case def of
+      Struct c -> Struct <$> traverseNamesIP c
+      Enum cs  -> Enum   <$> traverseNamesIP cs
+
+instance TraverseNames StructCon where
+  traverseNamesIP c =
+    StructCon <$> traverseNamesIP (ntConName c)
+              <*> traverseRecordMap (const traverseNamesIP) (ntFields c)
+
+instance TraverseNames EnumCon where
+  traverseNamesIP c =
+    EnumCon <$> traverseNamesIP (ecName c)
+            <*> traverseNamesIP (ecFields c)
+            <*> pure (ecPublic c)
+            <*> pure (ecDoc c)
+
+
 
 instance TraverseNames ModTParam where
   traverseNamesIP nt = mk <$> traverseNamesIP (mtpName nt)

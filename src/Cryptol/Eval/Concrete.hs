@@ -75,14 +75,19 @@ toExpr prims t0 v0 = findOne (go t0 v0)
              Left _ -> mismatch -- different fields
              Right efs -> pure (ERec efs)
 
-      (TVNewtype nt ts tfs, VRecord vfs) ->
+      (TVNewtype nt ts (TVStruct tfs), VRecord vfs) ->
         do -- NB, vfs first argument to keep their display order
            res <- zipRecordsM (\_lbl v t -> go t =<< lift v) vfs tfs
            case res of
              Left _ -> mismatch -- different fields
              Right efs ->
-               let f = foldl (\x t -> ETApp x (tNumValTy t)) (EVar (ntConName nt)) ts
+               let c = case ntDef nt of
+                         Struct co -> ntConName co
+                         Enum {} -> panic "toExpr" ["Enum vs Record"]
+                   f = foldl (\x t -> ETApp x (tNumValTy t)) (EVar c) ts
                 in pure (EApp f (ERec efs))
+      -- XXX: enum types
+      -- (TVNewtype nt ts (TVEnum cs), VEnum) -> ...
 
       (TVTuple ts, VTuple tvs) ->
         do guard (length ts == length tvs)

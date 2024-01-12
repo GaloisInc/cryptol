@@ -230,7 +230,8 @@ ifaceOrigNameMap ifa = Map.unionsWith Map.union (here : nested)
   tyNames     = Set.unions [ from ifTySyns, from ifNewtypes, from ifAbstractTypes ]
   moNames     = Set.unions [ from ifModules, from ifSignatures, from ifFunctors ]
   vaNames     = Set.unions [ newtypeCons, from ifDecls ]
-  newtypeCons = Set.fromList (map ntConName (Map.elems (ifNewtypes decls)))
+  newtypeCons = Set.fromList (concatMap conNames (Map.elems (ifNewtypes decls)))
+    where conNames = map fst . newtypeConTypes
 
 
 

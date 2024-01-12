@@ -252,10 +252,10 @@ unqualifiedEnv IfaceDecls { .. } =
 
   ntTypes = mconcat [ n
                     | nt <- Map.elems ifNewtypes
-                    , let tname = T.ntName nt
-                          cname = T.ntConName nt
-                    , n  <- [ singletonNS NSType (toPName tname) tname
-                            , singletonNS NSValue (toPName cname) cname
+                    , let tname  = T.ntName nt
+                    , n  <- singletonNS NSType (toPName tname) tname
+                          : [ singletonNS NSValue (toPName cname) cname
+                            | cname <-map fst (T.newtypeConTypes nt)
                             ]
                     ]
 

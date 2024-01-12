@@ -130,8 +130,9 @@ runInferM info m0 =
 
      let env = Map.map ExtVar (inpVars info)
             <> Map.fromList
-              [ (ntConName nt, ExtVar (newtypeConType nt))
+              [ (c, ExtVar t)
               | nt <- Map.elems (inpNewtypes info)
+              , (c,t) <- newtypeConTypes nt
               ]
             <> Map.map (ExtVar . mvpType) (mpnFuns allPs)
 
@@ -1182,9 +1183,9 @@ addTySyn t =
 addNewtype :: Newtype -> InferM ()
 addNewtype t =
   do updScope \r -> r { mNewtypes = Map.insert (ntName t) t (mNewtypes r) }
-     IM $ sets_ \rw -> rw { iBindTypes = Map.insert (ntConName t)
-                                                    (newtypeConType t)
-                                                    (iBindTypes rw) }
+     let cons = newtypeConTypes t
+         ins  = uncurry Map.insert
+     IM $ sets_ \rw -> rw { iBindTypes = foldr ins (iBindTypes rw) cons }
 
 addPrimType :: AbstractType -> InferM ()
 addPrimType t =

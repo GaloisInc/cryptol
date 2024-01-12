@@ -295,11 +295,21 @@ applySubstToVar su x =
 
 applySubstToNewtype :: Subst -> Newtype -> Maybe Newtype
 applySubstToNewtype su nt =
-  do (cs,fs) <- anyJust2
-                  (anyJust (apSubstMaybe su))
-                  (anyJust (apSubstMaybe su))
-                  (ntConstraints nt, ntFields nt)
-     pure nt { ntConstraints = cs, ntFields = fs }
+ do (cs,def)  <- anyJust2 (anyJust (apSubstMaybe su)) apSubstDef
+                          (ntConstraints nt, ntDef nt)
+    pure nt { ntConstraints = cs, ntDef = def }
+  where
+  apSubstDef d =
+    case d of
+      Struct c ->
+        do fs <- anyJust (apSubstMaybe su) (ntFields c)
+           pure (Struct c { ntFields = fs })
+      Enum cs -> Enum <$> anyJust apSubstCon cs
+
+  apSubstCon c =
+    do fs <- anyJust (apSubstMaybe su) (ecFields c)
+       pure c { ecFields = fs }
+
 
 
 class TVars t where

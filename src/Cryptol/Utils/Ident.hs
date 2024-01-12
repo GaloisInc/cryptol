@@ -50,6 +50,7 @@ module Cryptol.Utils.Ident
   , mkIdent
   , mkInfix
   , isInfixIdent
+  , isUpperIdent
   , nullIdent
   , identText
   , modParamIdent
@@ -76,7 +77,7 @@ module Cryptol.Utils.Ident
   ) where
 
 import           Control.DeepSeq (NFData)
-import           Data.Char (isSpace)
+import           Data.Char (isSpace,isUpper)
 import           Data.List (unfoldr)
 import           Data.Text (Text)
 import qualified Data.Text as T
@@ -319,6 +320,12 @@ mkInfix  = Ident True NormalName
 
 isInfixIdent :: Ident -> Bool
 isInfixIdent (Ident b _ _) = b
+
+isUpperIdent :: Ident -> Bool
+isUpperIdent (Ident _ mb t) =
+  case mb of
+    NormalName | Just (c,_) <- T.uncons t -> isUpper c
+    _ -> False
 
 nullIdent :: Ident -> Bool
 nullIdent = T.null . identText
