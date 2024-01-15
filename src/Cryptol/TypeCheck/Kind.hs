@@ -14,6 +14,7 @@ module Cryptol.TypeCheck.Kind
   ( checkType
   , checkSchema
   , checkNewtype
+  , checkEnum
   , checkPrimType
   , checkTySyn
   , checkPropSyn
@@ -39,7 +40,7 @@ import           Data.List(sortBy,groupBy)
 import           Data.Maybe(fromMaybe)
 import           Data.Function(on)
 import           Data.Text (Text)
-import           Control.Monad(unless,when,mplus)
+import           Control.Monad(unless,when,mplus,forM)
 
 -- | Check a type signature.  Returns validated schema, and any implicit
 -- constraints that we inferred.
@@ -149,6 +150,32 @@ checkNewtype (P.Newtype x as con fs) mbD =
                                 StructCon { ntConName = con, ntFields = fs1 }
                     , ntDoc = mbD
                     }
+
+checkEnum :: P.EnumDecl Name -> Maybe Text -> InferM Newtype
+checkEnum ed mbD =
+  do let x = P.eName ed
+     ((as1,cons1),gs) <- collectGoals $
+       inRange (srcRange x) $
+       do r <- withTParams NoWildCards newtypeParam (P.eParams ed) $
+               forM (P.eCons ed) \tlC ->
+                 do let con = P.tlValue tlC
+                        cname = P.ecName con
+                    ts <- kInRange (srcRange cname)
+                            (mapM (`doCheckType` Just KType) (P.ecFields con))
+                    pure EnumCon
+                          { ecName   = thing cname
+                          , ecFields = ts
+                          , ecPublic = P.tlExport tlC == P.Public
+                          , ecDoc    = thing <$> P.tlDoc tlC
+                          }
+          simplifyAllConstraints
+          pure r
+     pure Newtype { ntName = thing x
+                  , ntParams = as1
+                  , ntConstraints = map goal gs
+                  , ntDef = Enum cons1
+                  , ntDoc = mbD
+                  }
 
 checkPrimType :: P.PrimType Name -> Maybe Text -> InferM AbstractType
 checkPrimType p mbD =

@@ -36,7 +36,7 @@
 > import qualified GHC.Num.Compat as Integer
 > import qualified Data.List as List
 >
-> import Cryptol.ModuleSystem.Name (asPrim)
+> import Cryptol.ModuleSystem.Name (asPrim,nameIdent)
 > import Cryptol.TypeCheck.Solver.InfNat (Nat'(..), nAdd, nMin, nMul)
 > import Cryptol.TypeCheck.AST
 > import Cryptol.Backend.FloatHelpers (BF(..))
@@ -46,7 +46,7 @@
 >   (TValue(..), TNewtypeValue(..),
 >    isTBit, evalValType, evalNumType, TypeEnv, bindTypeVar)
 > import Cryptol.Eval.Concrete (mkBv, ppBV, lg2)
-> import Cryptol.Utils.Ident (Ident,PrimIdent, prelPrim, floatPrim)
+> import Cryptol.Utils.Ident (Ident,PrimIdent, prelPrim, floatPrim, unpackIdent)
 > import Cryptol.Utils.Panic (panic)
 > import Cryptol.Utils.PP
 > import Cryptol.Utils.RecordMap
@@ -177,7 +177,7 @@ terms by providing an evaluator to an appropriate `Value` type.
 >   | VList Nat' [E Value]       -- ^ @ [n]a   @ finite or infinite lists
 >   | VTuple [E Value]           -- ^ @ ( .. ) @ tuples
 >   | VRecord [(Ident, E Value)] -- ^ @ { .. } @ records
->   | VEnum Ident Value          -- ^ @ Just x @, sum types
+>   | VEnum Ident [E Value]      -- ^ @ Just x @, sum types
 >   | VFun (E Value -> E Value)  -- ^ functions
 >   | VPoly (TValue -> E Value)  -- ^ polymorphic values (kind *)
 >   | VNumPoly (Nat' -> E Value) -- ^ polymorphic values (kind #)
@@ -543,27 +543,39 @@ the new bindings.
 >     DExpr e       -> (dName d, evalExpr env e)
 >
 
-Newtypes
---------
+Nominal Types
+-------------
+
+We have two forms of nominal types: newtypes and enumerations.
 
 At runtime, newtypes values are represented in exactly
 the same way as records.  The constructor function for
 newtypes is thus basically just an identity function
 that consumes and ignores its type arguments.
 
+Enumarations are represented with a tag, which indicates what constructor
+was used to create a value, and the values of stored 
+
 > evalNewtypeDecl :: Env -> Newtype -> Env
 > evalNewtypeDecl env nt =
 >   case ntDef nt of
->     Struct c -> bindVar (ntConName c, pure val) env
->     Enum cs  -> undefined   -- XXX
+>     Struct c -> bindVar (ntConName c, mkCon newtypeCon) env
+>     Enum cs  -> foldr enumCon env cs
 >   where
->     val = foldr tabs con (ntParams nt)
->     con = VFun (\x -> x)
+>     mkCon con  = pure (foldr tabs con (ntParams nt))
+>     newtypeCon = VFun id
+>     enumCon c  =
+>       bindVar (ecName c, mkCon (foldr addField tag (ecFields c) []))
+>       where
+>       tag                 = VEnum (nameIdent (ecName c)) . reverse
+>       addField _t mk args = VFun (\v -> pure (mk (v:args)))
+>
 >     tabs tp body =
 >       case tpKind tp of
 >         KType -> VPoly (\_ -> pure body)
 >         KNum  -> VNumPoly (\_ -> pure body)
->         k -> evalPanic "evalNewtypeDecl" ["illegal newtype parameter kind", show k]
+>         k -> evalPanic "evalNewtypeDecl"
+>                                   ["illegal newtype parameter kind", show k]
 
 Primitives
 ==========
@@ -1809,6 +1821,11 @@ Pretty Printing
 >     VTuple vs  -> ppTuple (map (ppEValue opts) vs)
 >     VRecord fs -> ppRecord (map ppField fs)
 >       where ppField (f,r) = pp f <+> char '=' <+> ppEValue opts r
+>     VEnum tag vs ->
+>       case vs of
+>         [] -> tagT
+>         _  -> parens (tagT <+> hsep (map (ppEValue opts) vs))
+>       where tagT = text (unpackIdent tag)
 >     VFun _     -> text "<function>"
 >     VPoly _    -> text "<polymorphic value>"
 >     VNumPoly _ -> text "<polymorphic value>"

@@ -80,7 +80,7 @@ import Cryptol.Eval.Type
 
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
 
-import Cryptol.Utils.Ident (Ident)
+import Cryptol.Utils.Ident (Ident,unpackIdent)
 import Cryptol.Utils.Logger(Logger)
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.PP
@@ -105,6 +105,7 @@ data EvalOpts = EvalOpts
 data GenValue sym
   = VRecord !(RecordMap Ident (SEval sym (GenValue sym))) -- ^ @ { .. } @
   | VTuple ![SEval sym (GenValue sym)]              -- ^ @ ( .. ) @
+  | VEnum !Ident ![SEval sym (GenValue sym)]    -- ^ @ Just 2 @
   | VBit !(SBit sym)                           -- ^ @ Bit    @
   | VInteger !(SInteger sym)                   -- ^ @ Integer @ or @ Z n @
   | VRational !(SRational sym)                 -- ^ @ Rational @
@@ -124,6 +125,7 @@ forceValue :: Backend sym => GenValue sym -> SEval sym ()
 forceValue v = case v of
   VRecord fs  -> mapM_ (forceValue =<<) fs
   VTuple xs   -> mapM_ (forceValue =<<) xs
+  VEnum _ xs  -> mapM_ (forceValue =<<) xs
   VSeq n xs   -> mapM_ (forceValue =<<) (enumerateSeqMap n xs)
   VBit b      -> seq b (return ())
   VInteger i  -> seq i (return ())
@@ -141,6 +143,7 @@ instance Show (GenValue sym) where
   show v = case v of
     VRecord fs -> "record:" ++ show (displayOrder fs)
     VTuple xs  -> "tuple:" ++ show (length xs)
+    VEnum c _  -> "enum:" ++ unpackIdent c
     VBit _     -> "bit"
     VInteger _ -> "integer"
     VRational _ -> "rational"
@@ -160,23 +163,28 @@ ppValue :: forall sym.
   PPOpts ->
   GenValue sym ->
   SEval sym Doc
-ppValue x opts = loop
+ppValue x opts = loop 0
   where
-  loop :: GenValue sym -> SEval sym Doc
-  loop val = case val of
-    VRecord fs         -> do fs' <- traverse (>>= loop) fs
+  loop :: Int -> GenValue sym -> SEval sym Doc
+  loop prec val = case val of
+    VRecord fs         -> do fs' <- traverse (>>= loop 0) fs
                              return $ ppRecord (map ppField (fields fs'))
       where
       ppField (f,r) = pp f <+> char '=' <+> r
-    VTuple vals        -> do vals' <- traverse (>>=loop) vals
+    VTuple vals        -> do vals' <- traverse (>>=loop 0) vals
                              return $ ppTuple vals'
+    VEnum c vs         -> case vs of
+                            [] -> pure (pp c)
+                            _ -> do vds <- traverse (>>= loop 1) vs
+                                    let d = pp c <+> hsep vds
+                                    pure (if prec > 0 then parens d else d)
     VBit b             -> ppSBit x b
     VInteger i         -> ppSInteger x i
     VRational q        -> ppSRational x q
     VFloat i           -> ppSFloat x opts i
     VSeq sz vals       -> ppWordSeq sz vals
     VWord _ wv         -> ppWordVal wv
-    VStream vals       -> do vals' <- traverse (>>=loop) $ enumerateSeqMap (useInfLength opts) vals
+    VStream vals       -> do vals' <- traverse (>>=loop 0) $ enumerateSeqMap (useInfLength opts) vals
                              return $ ppList ( vals' ++ [text "..."] )
     VFun{}             -> return $ text "<function>"
     VPoly{}            -> return $ text "<polymorphic value>"
@@ -202,7 +210,7 @@ ppValue x opts = loop
                 Just str -> return $ text (show str)
                 _ -> do vs' <- mapM (ppSWord x opts) vs
                         return $ ppList vs'
-      _ -> do ws' <- traverse loop ws
+      _ -> do ws' <- traverse (loop 0) ws
               return $ ppList ws'
 
 ppSBit :: Backend sym => sym -> SBit sym -> SEval sym Doc

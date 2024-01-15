@@ -242,7 +242,10 @@ showTypeHelp ctxparams env nameEnv name =
 
   fromNewtype =
     do nt <- Map.lookup name (M.ifNewtypes env)
-       let decl = pp nt $$ (pp name <+> text ":" <+> pp (T.newtypeConType nt))
+       let decl = pp nt $$
+                  vcat
+                    [ pp x <+> text ":" <+> pp t
+                    | (x,t) <- T.newtypeConTypes nt ]
        return $ doShowTyHelp nameEnv decl (T.ntDoc nt)
 
   fromPrimType =
@@ -321,6 +324,7 @@ showValHelp ctxparams env nameEnv qname name =
 
             doShowDocString ifDeclDoc
 
+  -- XXX: enum constructors
   fromNewtype =
     do _ <- Map.lookup name (M.ifNewtypes env)
        return $ return ()

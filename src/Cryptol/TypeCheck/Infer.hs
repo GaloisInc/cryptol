@@ -43,7 +43,7 @@ import           Cryptol.TypeCheck.Error
 import           Cryptol.TypeCheck.Solve
 import           Cryptol.TypeCheck.SimpType(tMul)
 import           Cryptol.TypeCheck.Kind(checkType,checkSchema,checkTySyn,
-                                        checkPropSyn,checkNewtype,
+                                        checkPropSyn,checkNewtype,checkEnum,
                                         checkParameterType,
                                         checkPrimType,
                                         checkParameterConstraints,
@@ -1310,6 +1310,10 @@ checkTopDecls = mapM_ checkTopDecl
 
       P.TDNewtype tl ->
         do t <- checkNewtype (P.tlValue tl) (thing <$> P.tlDoc tl)
+           addNewtype t
+
+      P.TDEnum tl ->
+        do t <- checkEnum (P.tlValue tl) (thing <$> P.tlDoc tl)
            addNewtype t
 
       P.DPrimType tl ->

@@ -322,19 +322,27 @@ evalNewtypeDecl ::
 evalNewtypeDecl _sym nt =
   case ntDef nt of
     Struct c ->
-      pure . bindVarDirect (ntConName c) val
+      pure . bindVarDirect (ntConName c) (mkCon structCon)
     Enum cs -> pure . foldr (\c f -> enumCon c . f) id cs
   where
-  con           = PFun PPrim -- XXX: WRONG f
-  val           = foldr tabs con (ntParams nt) 
+  structCon = PFun PPrim
+  mkCon c   = foldr tabs c (ntParams nt)
 
-  enumCon c = bindVarDirect (ecName c) val
+  enumCon c =
+    let i           = nameIdent (ecName c)
+        done        = PVal . VEnum i . reverse
+        fu _t f xs  = PFun (\v -> f (v:xs))
+    in
+    bindVarDirect (ecName c) (mkCon (foldr fu done (ecFields c) []))
 
   tabs tp body =
     case tpKind tp of
       KType -> PTyPoly  (\ _ -> body)
       KNum  -> PNumPoly (\ _ -> body)
-      k -> evalPanic "evalNewtypeDecl" ["illegal newtype parameter kind", show (pp k)]
+      k ->
+        evalPanic "evalNewtypeDecl" [ "illegal newtype parameter kind"
+                                    , show (pp k)
+                                    ]
 
 {-# INLINE evalNewtypeDecl #-}
 
