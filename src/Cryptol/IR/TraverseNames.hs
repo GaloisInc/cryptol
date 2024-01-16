@@ -167,6 +167,7 @@ instance TraverseNames TypeSource where
       TypeFromUserAnnotation      -> pure src
       GeneratorOfListComp         -> pure src
       TypeErrorPlaceHolder        -> pure src
+      CasedExpression             -> pure src
 
 instance TraverseNames ArgDescr where
   traverseNamesIP arg = mk <$> traverseNamesIP (argDescrFun arg)

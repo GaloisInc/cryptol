@@ -10,13 +10,11 @@
 
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE PatternGuards #-}
-{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BlockArguments #-}
 -- See Note [-Wincomplete-uni-patterns and irrefutable patterns] in Cryptol.TypeCheck.TypePat
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
-{-# LANGUAGE LambdaCase #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Redundant <$>" #-}
 {-# HLINT ignore "Redundant <&>" #-}
@@ -203,6 +201,7 @@ appTys expr ts tGoal =
     P.EFun      {} -> mono
     P.ESplit    {} -> mono
     P.EPrefix   {} -> mono
+    P.ECase {}     -> mono
 
     P.EParens e       -> appTys e ts tGoal
     P.EInfix a op _ b -> appTys (P.EVar (thing op) `P.EApp` a `P.EApp` b) ts tGoal
@@ -477,8 +476,49 @@ checkE expr tGoal =
            P.PrefixComplement -> "complement"
          checkE (P.EApp prim e) tGoal
 
+    P.ECase e as ->
+     do et <- newType CasedExpression KType
+        alts <- forM as \a -> checkCaseAlt a et tGoal
+        undefined
+
     P.EParens e -> checkE e tGoal
 
+
+checkCaseAlt ::
+  P.CaseAlt Name -> Type -> TypeWithSource -> InferM ()
+checkCaseAlt (P.CaseAlt pat e) srcT resT =
+  case pat of
+    P.PCon c ps ->
+      inRange (srcRange c) $
+      do (tArgs,pArgs,fTs,cresT) <- instantiatePCon (thing c)
+         let have = length ps
+             need = length fTs
+         unless (have == need) (recordError (InvalidConPat have need))
+         let scresT = WithSource
+                        { twsType = cresT
+                        , twsRange = Just (srcRange c)
+                        , twsSource = CasedExpression -- or make a new one?
+                        }
+         newGoals CtExactType =<< unify scresT srcT
+         let xs = [ (thing x, Located rng t)
+                  | (v,t) <- zip ps fTs
+                  , let x = isPVar v
+                  , let rng = srcRange c
+                  ]
+         e1 <- withMonoTypes (Map.fromList xs) (checkE e resT)
+         undefined
+    P.PVar x ->
+      do let rng = fromMaybe (srcRange x) (twsRange srcT)
+             xty = (thing x, Located rng (twsType srcT))
+         e1 <- withMonoType xty (checkE e resT)
+         undefined
+
+    _ -> panic "checkCaseAlt" ["Unexpected pattern"]
+  where
+  isPVar p =
+    case p of
+      P.PVar x -> x
+      _ -> panic "checkCaseAlt" ["Nested pattern is not PVar"]
 
 checkRecUpd ::
   Maybe (P.Expr Name) -> [ P.UpdField Name ] -> TypeWithSource -> InferM Expr

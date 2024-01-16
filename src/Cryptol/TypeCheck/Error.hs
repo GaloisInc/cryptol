@@ -172,6 +172,11 @@ data Error    = KindMismatch (Maybe TypeSource) Kind Kind
               | InvalidConstraintGuard Prop
                 -- ^ The given constraint may not be used as a constraint guard
 
+              | InvalidConPat Int Int
+                -- ^ Bad constructor pattern.
+                -- 1) Number of parameters we have,
+                -- 2) Number of parameters we need.
+
               | TemporaryError Doc
                 -- ^ This is for errors that don't fit other cateogories.
                 -- We should not use it much, and is generally to be used
@@ -208,6 +213,7 @@ errorImportance err =
     TyVarWithParams {}                               -> 9
     TypeMismatch {}                                  -> 8
     SchemaMismatch {}                                -> 7
+    InvalidConPat {}                                 -> 7
     RecursiveType {}                                 -> 7
     NotForAll {}                                     -> 6
     TypeVariableEscaped {}                           -> 5
@@ -281,6 +287,7 @@ instance TVars Error where
       SchemaMismatch i t1 t2  ->
         SchemaMismatch i !$ (apSubst su t1) !$ (apSubst su t2)
       TypeMismatch src pa t1 t2 -> TypeMismatch src pa !$ (apSubst su t1) !$ (apSubst su t2)
+      InvalidConPat {}          -> err
       RecursiveType src pa t1 t2   -> RecursiveType src pa !$ (apSubst su t1) !$ (apSubst su t2)
       UnsolvedGoals gs          -> UnsolvedGoals !$ apSubst su gs
       UnsolvableGoals gs        -> UnsolvableGoals !$ apSubst su gs
@@ -331,6 +338,7 @@ instance FVS Error where
       RecursiveTypeDecls {}     -> Set.empty
       SchemaMismatch _ t1 t2    -> fvs (t1,t2)
       TypeMismatch _ _ t1 t2    -> fvs (t1,t2)
+      InvalidConPat {}          -> Set.empty
       RecursiveType _ _ t1 t2   -> fvs (t1,t2)
       UnsolvedGoals gs          -> fvs gs
       UnsolvableGoals gs        -> fvs gs
@@ -467,6 +475,14 @@ instance PP (WithNames Error) where
           vcat $
             [ "Expected type:" <+> ppWithNames names t1
             , "Actual type:"   <+> ppWithNames names t2
+            ]
+
+      InvalidConPat have need ->
+        addTVarsDescsAfter names err $
+        nested "Invalid constructor pattern" $
+          vcat
+            [ "Expected" <+> int need <+> "parameters,"
+            , "but there are" <+> int have <.> "."
             ]
 
       UnsolvableGoals gs -> explainUnsolvable names gs
