@@ -477,7 +477,7 @@ checkE expr tGoal =
          checkE (P.EApp prim e) tGoal
 
     P.ECase e as ->
-     do et <- newType CasedExpression KType
+     do et   <- newType CasedExpression KType
         alts <- forM as \a -> checkCaseAlt a et tGoal
         undefined
 
@@ -508,8 +508,7 @@ checkCaseAlt (P.CaseAlt pat e) srcT resT =
          e1 <- withMonoTypes (Map.fromList xs) (checkE e resT)
          undefined
     P.PVar x ->
-      do let rng = fromMaybe (srcRange x) (twsRange srcT)
-             xty = (thing x, Located rng (twsType srcT))
+      do let xty = (thing x, Located (srcRange x) srcT)
          e1 <- withMonoType xty (checkE e resT)
          undefined
 
