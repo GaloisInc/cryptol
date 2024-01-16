@@ -324,10 +324,21 @@ showValHelp ctxparams env nameEnv qname name =
 
             doShowDocString ifDeclDoc
 
-  -- XXX: enum constructors
-  fromNewtype =
-    do _ <- Map.lookup name (M.ifNewtypes env)
-       return $ return ()
+  fromNewtype = Map.lookup name allCons
+
+  allCons = foldr addCons mempty (M.ifNewtypes env)
+    where
+    getDocs nt =
+      case T.ntDef nt of
+        T.Struct {} -> [ T.ntDoc nt ]
+        T.Enum cs   -> map T.ecDoc cs
+
+    addCons nt mp = foldr addCon mp
+                      (zip (T.newtypeConTypes nt) (getDocs nt))
+    addCon ((c,t),d) = Map.insert c $
+      do rPutStrLn ""
+         rPrint (runDoc nameEnv $ indent 4 $ hsep [ pp c, ":", pp t ])
+         doShowDocString d
 
   allParamNames =
     case ctxparams of
