@@ -1402,7 +1402,7 @@ patternEnv  = go
             return (env' `mappend` res)
 
 instance Rename CaseAlt where
-  rename (CaseAlt p e) = CaseAlt <$> rename p <*> rename e
+  rename (CaseAlt p e) = shadowNames p (CaseAlt <$> rename p <*> rename e)
 
 instance Rename Match where
   rename m = case m of

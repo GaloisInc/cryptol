@@ -412,6 +412,15 @@ instance BindsNames (InModule (SigDecl PName)) where
       SigTySyn ts _    -> namingEnv (InModule m (DType ts))
       SigPropSyn ps _  -> namingEnv (InModule m (DProp ps))
 
+instance BindsNames (Pattern PName) where
+  namingEnv pat =
+    case pat of
+      PVar x -> BuildNamingEnv (
+        do y <- newLocal NSValue (thing x) (srcRange x)
+           pure (singletonNS NSValue (thing x) y)
+        )
+      PCon _ xs -> mconcat (map namingEnv xs)
+      _ -> panic "namingEnv" ["Unexpected pattern"]
 
 
 
