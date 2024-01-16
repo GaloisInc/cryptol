@@ -90,7 +90,11 @@ import Cryptol.Utils.Panic(panic)
 --------------------------------------------------------------------------------
 
 -- | Namespaces for names
-data Namespace = NSValue | NSType | NSModule
+data Namespace = NSValue
+               | NSConstructor -- ^ This is for enum constructors
+
+               | NSType
+               | NSModule
   deriving (Generic,Show,NFData,Eq,Ord,Enum,Bounded)
 
 allNamespaces :: [Namespace]

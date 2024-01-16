@@ -870,7 +870,7 @@ instance Rename Newtype where
   rename n      =
     shadowNames (nParams n) $
     do nameT <- rnLocated (renameType NameBind) (nName n)
-       nameC <- renameVar  NameBind (nConName n)
+       nameC <- renameCon NameBind (nConName n)
 
        depsOf (NamedThing nameC) (addDep (thing nameT))
 
@@ -888,7 +888,7 @@ instance Rename EnumDecl where
     do nameT  <- rnLocated (renameType NameBind) (eName n)
        nameCs <- forM (eCons n) \tlEc ->
                    do let con = tlValue tlEc
-                      nameC <- rnLocated (renameVar NameBind) (ecName con)
+                      nameC <- rnLocated (renameCon NameBind) (ecName con)
                       depsOf (NamedThing (thing nameC)) (addDep (thing nameT))
                       pure (nameC,tlEc)
        depsOf (NamedThing (thing nameT)) $
@@ -902,7 +902,8 @@ instance Rename EnumDecl where
                           , eCons = cons
                           }
 
--- | Try to resolve a name
+-- | Try to resolve a name.
+-- SPECIAL CASE: if we have a NameUse for NSValue, we also look in NSConstructor
 resolveNameMaybe :: NameType -> Namespace -> PName -> RenameM (Maybe Name)
 resolveNameMaybe nt expected qn =
   do ro <- RenameM ask
@@ -910,7 +911,14 @@ resolveNameMaybe nt expected qn =
          use = case expected of
                  NSType -> recordUse
                  _      -> const (pure ())
-     case lkpIn expected of
+         checkCon = case (nt,expected) of
+                      (NameUse, NSValue) -> lkpIn NSConstructor
+                      _ -> Nothing
+         found = case (lkpIn expected, checkCon) of
+                   (Just a, Just b) -> Just (a <> b)
+                   (Nothing, y)     -> y
+                   (x, Nothing)     -> x
+     case found of
        Just xs ->
          case xs of
           One n ->
@@ -955,7 +963,7 @@ isFakeName m =
         Nothing -> False
 
 
--- | Resolve a name, and report error on failure
+-- | Resolve a name, and report error on failure.
 resolveName :: NameType -> Namespace -> PName -> RenameM Name
 resolveName nt expected qn =
   do mb <- resolveNameMaybe nt expected qn
@@ -966,6 +974,9 @@ resolveName nt expected qn =
 
 renameVar :: NameType -> PName -> RenameM Name
 renameVar nt = resolveName nt NSValue
+
+renameCon :: NameType -> PName -> RenameM Name
+renameCon nt = resolveName nt NSConstructor
 
 renameType :: NameType -> PName -> RenameM Name
 renameType nt = resolveName nt NSType
@@ -1085,7 +1096,7 @@ instance Rename PropGuardCase where
 instance Rename Pattern where
   rename p      = case p of
     PVar lv         -> PVar <$> rnLocated (renameVar NameBind) lv
-    PCon c ps       -> PCon <$> rnLocated (renameVar NameUse)  c
+    PCon c ps       -> PCon <$> rnLocated (renameCon NameUse)  c
                             <*> traverse rename ps
     PWild           -> pure PWild
     PTuple ps       -> PTuple   <$> traverse rename ps

@@ -119,6 +119,7 @@ instance PP RenamerError where
                     NSValue   -> "Value"
                     NSType    -> "Type"
                     NSModule  -> "Module"
+                    NSConstructor -> "Constructor"
 
     OverlappingSyms qns ->
       hang (text "[error]")
@@ -134,6 +135,7 @@ instance PP RenamerError where
         where
         sayNS ns = case ns of
                      NSValue  -> "value"
+                     NSConstructor -> "constructor"
                      NSType   -> "type"
                      NSModule -> "module"
         suggestion =
@@ -141,6 +143,8 @@ instance PP RenamerError where
 
             (NSValue,NSType) ->
                 ["Did you mean `(" <.> pp (thing lqn) <.> text")?"]
+            (NSConstructor,NSValue) ->
+                ["Perhaps the constructor got shadowed?"]
             _ -> []
 
     FixityError o1 f1 o2 f2 ->
@@ -195,6 +199,7 @@ instance PP DepName where
           NSModule -> "submodule" <+> pp n
           NSType   -> "type" <+> pp n
           NSValue  -> pp n
+          NSConstructor -> "constructor" <+> pp n
       ModParamName _r i -> "module parameter" <+> pp i
       ModPath mp ->
         case modPathSplit mp of

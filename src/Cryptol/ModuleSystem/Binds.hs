@@ -364,9 +364,9 @@ instance BindsNames (InModule (Newtype PName)) where
   namingEnv (InModule ~(Just ns) Newtype { .. }) = BuildNamingEnv $
     do let Located { .. } = nName
        ntName    <- newTop NSType  ns thing Nothing srcRange
-       ntConName <- newTop NSValue ns thing Nothing srcRange
+       ntConName <- newTop NSConstructor ns thing Nothing srcRange
        return (singletonNS NSType thing ntName `mappend`
-               singletonNS NSValue thing ntConName)
+               singletonNS NSConstructor thing ntConName)
 
 instance BindsNames (InModule (EnumDecl PName)) where
   namingEnv (InModule (Just ns) EnumDecl { .. }) = BuildNamingEnv $
@@ -374,8 +374,9 @@ instance BindsNames (InModule (EnumDecl PName)) where
        conNames <- forM eCons \topc ->
                       do let c     = ecName (tlValue topc)
                              pname = thing c
-                         cName <- newTop NSValue ns pname Nothing (srcRange c)
-                         pure (singletonNS NSValue pname cName)
+                         cName <- newTop NSConstructor ns pname Nothing
+                                                                  (srcRange c)
+                         pure (singletonNS NSConstructor pname cName)
        pure (mconcat (singletonNS NSType (thing eName) enName : conNames))
   namingEnv _ = panic "namingEnv" ["Unreachable"]
 

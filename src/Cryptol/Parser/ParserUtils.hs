@@ -631,13 +631,20 @@ mkConDecl mbDoc expT ty =
       TLocated t1 r -> go (Just r) t1
       TUser n ts ->
         case n of
-          UnQual i -> pure EnumCon
-                             { ecName = Located (getL mbLoc) (UnQual i)
-                             , ecFields = ts
-                             }
+          UnQual i
+            | isUpperIdent i ->
+              pure EnumCon { ecName = Located (getL mbLoc) (UnQual i)
+                           , ecFields = ts
+                           }
+            | otherwise ->
+              errorMessage (getL mbLoc)
+                 [ "Malformed constructor declaration."
+                 , "The constructor name should start with a capital letter."
+                 ]
+
           _ -> errorMessage (getL mbLoc)
                  [ "Malformed constructor declaration."
-                 , "The constructor name should not be qualified."
+                 , "The constructor name may not be qualified."
                  ]
       _ -> errorMessage (getL mbLoc) [ "Malformed constructor declaration." ]
 
