@@ -57,6 +57,7 @@ module Cryptol.Eval.Value
   , fromVTuple
   , fromVRecord
   , lookupRecord
+  , fromVEnum
     -- ** Pretty printing
   , defaultPPOpts
   , ppValue
@@ -444,6 +445,12 @@ fromVRecord :: GenValue sym -> RecordMap Ident (SEval sym (GenValue sym))
 fromVRecord val = case val of
   VRecord fs -> fs
   _          -> evalPanic "fromVRecord" ["not a record", show val]
+
+fromVEnum :: GenValue sym -> (Ident,[SEval sym (GenValue sym)])
+fromVEnum val =
+  case val of
+    VEnum c xs -> (c,xs)
+    _          -> evalPanic "fromVEnum" ["not an enum", show val]
 
 fromVFloat :: GenValue sym -> SFloat sym
 fromVFloat val =

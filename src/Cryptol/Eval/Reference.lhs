@@ -224,6 +224,11 @@ Operations on Values
 > fromVRecord (VRecord fs) = fs
 > fromVRecord _            = evalPanic "fromVRecord" ["Expected a record"]
 >
+> -- | Destructor for @VEnum@.
+> fromVEnum :: Value -> (Ident,[E Value])
+> fromVEnum (VEnum i fs) = (i,fs)
+> fromVEnum _            = evalPanic "fromVEnum" ["Expected an enum value."]
+>
 > -- | Destructor for @VFun@.
 > fromVFun :: Value -> (E Value -> E Value)
 > fromVFun (VFun f) = f
@@ -311,6 +316,8 @@ assigns values to those variables.
 >
 >     EIf c t f ->
 >       condValue (fromVBit <$> evalExpr env c) (evalExpr env t) (evalExpr env f)
+>
+>     ECase e alts dflt -> evalCase env (evalExpr env e) alts dflt
 >
 >     EComp _n _ty e branches -> evalComp env e branches
 >
@@ -433,6 +440,20 @@ are ignored.
 
 > condValue :: E Bool -> E Value -> E Value -> E Value
 > condValue c l r = c >>= \b -> if b then l else r
+
+> evalCase :: Env -> E Value -> Map Ident CaseAlt -> Maybe CaseAlt -> E Value
+> evalCase env e alts dflt =
+>   do val <- e
+>      let (tag,fields) = fromVEnum val
+>      case Map.lookup tag alts of
+>        Just alt -> evalCaseBranch alt fields
+>        Nothing  ->
+>          case dflt of
+>            Just alt -> evalCaseBranch alt [pure val]
+>            Nothing  -> Err (NoMatchingConstructor (unpackIdent tag))
+>   where
+>   evalCaseBranch (CaseAlt xs k) vs = evalExpr env' k
+>     where env' = foldr bindVar env (zip (map fst xs) vs)
 
 List Comprehensions
 -------------------

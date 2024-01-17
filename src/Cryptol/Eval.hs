@@ -161,6 +161,16 @@ evalExpr sym env expr = case expr of
      b <- fromVBit <$> eval c
      iteValue sym b (eval t) (eval f)
 
+  ECase e as d -> {-# SCC "evalExpr->ECase" #-} do
+    val <- eval e
+    let (con,fs) = fromVEnum val
+    case Map.lookup con as of
+      Just rhs -> evalCase rhs fs
+      Nothing ->
+        case d of
+          Just rhs -> evalCase rhs [pure val]
+          Nothing  -> raiseError sym (NoMatchingConstructor $! unpackIdent con)
+
   EComp n t h gs -> {-# SCC "evalExpr->EComp" #-} do
       let len  = evalNumType (envTypes env) n
       let elty = evalValType (envTypes env) t
@@ -230,6 +240,10 @@ evalExpr sym env expr = case expr of
   {-# INLINE eval #-}
   eval = evalExpr sym env
   ppV = ppValue sym defaultPPOpts
+  evalCase (CaseAlt xs e) vs =
+    do let addVar env' ((x,_),v) = bindVar sym x v env'
+       newEnv <- foldM addVar env (zip xs vs)
+       evalExpr sym newEnv e
 
 -- | Checks whether an evaluated `Prop` holds
 checkProp :: Prop -> Bool
