@@ -263,6 +263,7 @@ data TypeSource = TVFromModParam Name     -- ^ Name of module parameter
                 | TypeFromUserAnnotation
                 | GeneratorOfListComp
                 | CasedExpression
+                | ConPat
                 | TypeErrorPlaceHolder
                   deriving (Show, Generic, NFData)
 
@@ -1316,6 +1317,7 @@ pickTVarName k src uni =
     TypeFromUserAnnotation -> "user"
     TypeErrorPlaceHolder   -> "err"
     CasedExpression        -> "case"
+    ConPat                 -> "conp"
   where
   sh a      = show (pp a)
   using a   = mk (sh a)
@@ -1366,6 +1368,7 @@ instance PP TypeSource where
       FunApp                -> "function call"
       TypeErrorPlaceHolder  -> "type error place-holder"
       CasedExpression       -> "cased expression"
+      ConPat                -> "constructor pattern"
 
 instance PP ModParamNames where
   ppPrec _ ps =

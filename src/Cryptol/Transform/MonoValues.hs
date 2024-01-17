@@ -187,6 +187,8 @@ rewE rews = go
       ESel e s        -> ESel    <$> go e  <*> return s
       ESet ty e s v   -> ESet ty <$> go e  <*> return s <*> go v
       EIf e1 e2 e3    -> EIf     <$> go e1 <*> go e2 <*> go e3
+      ECase e as d    -> ECase   <$> go e  <*> traverse (rewCase rews) as
+                                           <*> traverse (rewCase rews) d
 
       EComp len t e mss -> EComp len t <$> go e  <*> mapM (mapM (rewM rews)) mss
       EVar _          -> return expr
@@ -203,6 +205,9 @@ rewE rews = go
 
       EPropGuards guards ty -> EPropGuards <$> (\(props, e) -> (,) <$> pure props <*> go e) `traverse` guards <*> pure ty
 
+
+rewCase :: RewMap -> CaseAlt -> M CaseAlt
+rewCase rew (CaseAlt xs e) = CaseAlt xs <$> rewE rew e
 
 rewM :: RewMap -> Match -> M Match
 rewM rews ma =

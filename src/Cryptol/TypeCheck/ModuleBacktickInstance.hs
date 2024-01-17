@@ -360,6 +360,7 @@ instance RewVal Expr where
       ESel e l          -> ESel (rew e) l
       ESet t e1 s e2    -> ESet (rewType t) (rew e1) s (rew e2)
       EIf e1 e2 e3      -> EIf (rew e1) (rew e2) (rew e3)
+      ECase e as d      -> ECase (rew e) (rew <$> as) (rew <$> d)
       EComp t1 t2 e mss -> EComp (rewType t1) (rewType t2) (rew e) (rew mss)
       EVar x            -> tryVarApp
                            case Map.lookup x (pSubst ?vparams) of
@@ -387,6 +388,9 @@ instance RewVal Expr where
                evs = foldl EApp eps (pUse ?vparams)
            in evs
         _ -> orElse
+
+instance RewVal CaseAlt where
+  rew (CaseAlt xs e) = CaseAlt xs (rew e)
 
 
 instance RewVal DeclGroup where

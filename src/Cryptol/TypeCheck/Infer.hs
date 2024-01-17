@@ -479,38 +479,56 @@ checkE expr tGoal =
     P.ECase e as ->
      do et   <- newType CasedExpression KType
         alts <- forM as \a -> checkCaseAlt a et tGoal
-        undefined
+        rng  <- curRange
+        e1   <- checkE e (WithSource et CasedExpression (Just rng))
+        let mp1 = Map.fromListWith (++) [ (x,[(r,y)]) | (r,x,y) <- alts ]
+
+        forM_ (Map.toList mp1) \(mb,cs) ->
+          case cs of
+            [_] -> pure ()
+            _   -> recordError (OverlappingPat mb [ r | (r,_) <- cs ])
+
+        -- check that we only have 1 default
+        let dflt = do (_,k) : _ <- Map.lookup Nothing mp1
+                      pure k
+
+        let arms = Map.fromList [ (i,a) | (_,Just i, a) <- alts ]
+        pure (ECase e1 arms dflt)
 
     P.EParens e -> checkE e tGoal
 
 
 checkCaseAlt ::
-  P.CaseAlt Name -> Type -> TypeWithSource -> InferM ()
+  P.CaseAlt Name -> Type -> TypeWithSource ->
+  InferM (Range, Maybe Ident, CaseAlt)
 checkCaseAlt (P.CaseAlt pat e) srcT resT =
   case pat of
     P.PCon c ps ->
       inRange (srcRange c) $
-      do (tArgs,pArgs,fTs,cresT) <- instantiatePCon (thing c)
+      do (_tArgs,_pArgs,fTs,cresT) <- instantiatePCon (thing c)
+         -- XXX: should we store these somewhere?
+
          let have = length ps
              need = length fTs
          unless (have == need) (recordError (InvalidConPat have need))
-         let scresT = WithSource
-                        { twsType = cresT
+         let expect = WithSource
+                        { twsType = srcT
                         , twsRange = Just (srcRange c)
-                        , twsSource = CasedExpression -- or make a new one?
+                        , twsSource = ConPat
                         }
-         newGoals CtExactType =<< unify scresT srcT
+         newGoals CtExactType =<< unify expect cresT
          let xs = [ (thing x, Located rng t)
                   | (v,t) <- zip ps fTs
                   , let x = isPVar v
                   , let rng = srcRange c
                   ]
          e1 <- withMonoTypes (Map.fromList xs) (checkE e resT)
-         undefined
+         pure (srcRange c, Just (nameIdent (thing c)), mkAlt xs e1)
+
     P.PVar x ->
       do let xty = (thing x, Located (srcRange x) srcT)
          e1 <- withMonoType xty (checkE e resT)
-         undefined
+         pure (srcRange x, Nothing, mkAlt [xty] e1)
 
     _ -> panic "checkCaseAlt" ["Unexpected pattern"]
   where
@@ -518,6 +536,8 @@ checkCaseAlt (P.CaseAlt pat e) srcT resT =
     case p of
       P.PVar x -> x
       _ -> panic "checkCaseAlt" ["Nested pattern is not PVar"]
+
+  mkAlt xs = CaseAlt [ (x, thing t) | (x,t) <- xs ]
 
 checkRecUpd ::
   Maybe (P.Expr Name) -> [ P.UpdField Name ] -> TypeWithSource -> InferM Expr

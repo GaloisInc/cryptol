@@ -61,6 +61,9 @@ instance TraverseNames Expr where
       EIf e1 e2 e3      -> EIf <$> traverseNamesIP e1
                                <*> traverseNamesIP e2
                                <*> traverseNamesIP e3
+      ECase e as d      -> ECase <$> traverseNamesIP e
+                                 <*> traverse traverseNamesIP as
+                                 <*> traverse traverseNamesIP d
 
       EComp t1 t2 e mss -> EComp <$> traverseNamesIP t1
                                  <*> traverseNamesIP t2
@@ -81,6 +84,11 @@ instance TraverseNames Expr where
 
       EPropGuards gs t  -> EPropGuards <$> traverse doG gs <*> traverseNamesIP t
         where doG (xs, e) = (,) <$> traverseNamesIP xs <*> traverseNamesIP e
+
+instance TraverseNames CaseAlt where
+  traverseNamesIP (CaseAlt xs e) =
+    CaseAlt <$> traverse doPair xs <*> traverseNamesIP e
+      where doPair (x,y) = (,) <$> traverseNamesIP x <*> traverseNamesIP y
 
 instance TraverseNames Match where
   traverseNamesIP mat =
@@ -168,6 +176,7 @@ instance TraverseNames TypeSource where
       GeneratorOfListComp         -> pure src
       TypeErrorPlaceHolder        -> pure src
       CasedExpression             -> pure src
+      ConPat                      -> pure src
 
 instance TraverseNames ArgDescr where
   traverseNamesIP arg = mk <$> traverseNamesIP (argDescrFun arg)

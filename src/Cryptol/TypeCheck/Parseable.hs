@@ -18,6 +18,7 @@ module Cryptol.TypeCheck.Parseable
   ) where
 
 import Data.Void
+import qualified Data.Map as Map
 import Prettyprinter
 
 import Cryptol.TypeCheck.AST
@@ -52,6 +53,9 @@ instance ShowParseable Expr where
                                 showParseable e <+> showParseable s
                                                 <+> showParseable v)
   showParseable (EIf c t f) = parens (text "EIf" <+> showParseable c $$ showParseable t $$ showParseable f)
+  showParseable (ECase e as d) =
+    parens (text "ECase" <+> showParseable e $$ showParseable (Map.toList as)
+                                             $$ showParseable d)
   showParseable (EComp _ _ e mss) = parens (text "EComp" $$ showParseable e $$ showParseable mss)
   showParseable (EVar n) = parens (text "EVar" <+> showParseable n)
   showParseable (EApp fe ae) = parens (text "EApp" $$ showParseable fe $$ showParseable ae)
@@ -88,6 +92,12 @@ instance ShowParseable Selector where
 instance ShowParseable Match where
   showParseable (From n _ _ e) = parens (text "From" <+> showParseable n <+> showParseable e)
   showParseable (Let d) = parens (text "MLet" <+> showParseable d)
+
+
+instance ShowParseable CaseAlt where
+  showParseable (CaseAlt xs e) =
+    parens (text "CaseAlt" <+> showParseable xs <+> showParseable e)
+
 
 instance ShowParseable Decl where
   showParseable d = parens (text "Decl" <+> showParseable (dName d)

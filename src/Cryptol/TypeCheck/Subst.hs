@@ -442,12 +442,19 @@ instance TVars Expr where
         ESel e s      -> ESel !$ (go e) .$ s
         EComp len t e mss -> EComp !$ (apSubst su len) !$ (apSubst su t) !$ (go e) !$ (apSubst su mss)
         EIf e1 e2 e3  -> EIf !$ (go e1) !$ (go e2) !$ (go e3)
+        ECase e as d  -> ECase !$ go e !$ (apSubst su <$> as)
+                                       !$ (apSubst su <$> d)
 
         EWhere e ds   -> EWhere !$ (go e) !$ (apSubst su ds)
 
         EPropGuards guards ty -> EPropGuards
           !$ (\(props, e) -> (apSubst su `fmap'` props, go e)) `fmap'` guards
           !$ apSubst su ty
+
+instance TVars CaseAlt where
+  apSubst su (CaseAlt xs e) = CaseAlt !$ [(x,apSubst su t) | (x,t) <- xs]
+                                      !$ apSubst su e
+    -- XXX: not as strict as the rest
 
 instance TVars Match where
   apSubst su (From x len t e) = From x !$ (apSubst su len) !$ (apSubst su t) !$ (apSubst su e)

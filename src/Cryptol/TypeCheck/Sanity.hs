@@ -249,6 +249,9 @@ exprSchema expr =
 
          return $ tMono t1
 
+-- XXX
+--    ECase e as d ->
+
     EComp len t e mss ->
       do checkTypeIs KNum len
          checkTypeIs KType t

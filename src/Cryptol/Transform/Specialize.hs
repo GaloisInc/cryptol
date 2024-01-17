@@ -85,6 +85,9 @@ specializeExpr expr =
     ESel e s      -> ESel <$> specializeExpr e <*> pure s
     ESet ty e s v -> ESet ty <$> specializeExpr e <*> pure s <*> specializeExpr v
     EIf e1 e2 e3  -> EIf <$> specializeExpr e1 <*> specializeExpr e2 <*> specializeExpr e3
+    ECase e as d   -> ECase <$> specializeExpr e
+                            <*> traverse specializeCaseAlt as
+                            <*> traverse specializeCaseAlt d
     EComp len t e mss -> EComp len t <$> specializeExpr e <*> traverse (traverse specializeMatch) mss
     -- Bindings within list comprehensions always have monomorphic types.
     EVar {}       -> specializeConst expr
@@ -117,6 +120,8 @@ specializeExpr expr =
           pm <- liftSpecT getPrimMap
           pure $ eError pm ty "no constraint guard was satisfied"
 
+specializeCaseAlt :: CaseAlt -> SpecM CaseAlt
+specializeCaseAlt (CaseAlt xs e) = CaseAlt xs <$> specializeExpr e
 
 specializeMatch :: Match -> SpecM Match
 specializeMatch (From qn l t e) = From qn l t <$> specializeExpr e
