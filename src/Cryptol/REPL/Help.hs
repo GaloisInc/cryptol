@@ -34,18 +34,20 @@ helpForNamed qname =
          rnEnv  = M.mctxNames  fe
          disp   = M.mctxNameDisp fe
 
-         vNames = M.lookupListNS M.NSValue  qname rnEnv
-         tNames = M.lookupListNS M.NSType   qname rnEnv
-         mNames = M.lookupListNS M.NSModule qname rnEnv
+         vNames = M.lookupListNS M.NSValue       qname rnEnv
+         cNames = M.lookupListNS M.NSConstructor qname rnEnv
+         tNames = M.lookupListNS M.NSType        qname rnEnv
+         mNames = M.lookupListNS M.NSModule      qname rnEnv
 
      let helps = map (showTypeHelp params env disp) tNames ++
                  map (showValHelp params env disp qname) vNames ++
+                 map (showConHelp env disp qname) cNames ++
                  map (showModHelp env disp) mNames
 
          separ = rPutStrLn "            ---------"
      sequence_ (intersperse separ helps)
 
-     when (null (vNames ++ tNames ++ mNames)) $
+     when (null (vNames ++ cNames ++ tNames ++ mNames)) $
        rPrint $ "Undefined name:" <+> pp qname
 
 
@@ -245,7 +247,13 @@ showTypeHelp ctxparams env nameEnv name =
        let decl = pp nt $$
                   vcat
                     [ pp x <+> text ":" <+> pp t
-                    | (x,t) <- T.newtypeConTypes nt ]
+                    | case T.ntDef nt of
+                        T.Struct {} -> False
+                         -- Don't show constructor, as it will be shown
+                         -- separately
+                        _ -> True
+                    , (x,t) <- T.newtypeConTypes nt
+                    ]
        return $ doShowTyHelp nameEnv decl (T.ntDoc nt)
 
   fromPrimType =
@@ -296,6 +304,26 @@ doShowTyHelp nameEnv decl doc =
      rPrint (runDoc nameEnv (nest 4 decl))
      doShowDocString doc
 
+showConHelp :: M.IfaceDecls -> NameDisp -> P.PName -> T.Name -> REPL ()
+showConHelp env nameEnv qname name =
+  fromMaybe (noInfo nameEnv name) (Map.lookup name allCons)
+  where
+  allCons = foldr addCons mempty (M.ifNewtypes env)
+    where
+    getDocs nt =
+      case T.ntDef nt of
+        T.Struct {} -> [ T.ntDoc nt ]
+        T.Enum cs   -> map T.ecDoc cs
+
+    addCons nt mp = foldr (addCon nt) mp
+                      (zip (T.newtypeConTypes nt) (getDocs nt))
+    addCon nt ((c,t),d) = Map.insert c $
+      do rPutStrLn ""
+         rPrint (runDoc nameEnv $ vcat
+            [ "Constructor of" <+> pp (T.ntName nt)
+            , indent 4 $ hsep [ pp qname, ":", pp t ]
+            ])
+         doShowDocString d
 
 
 showValHelp ::
@@ -303,7 +331,7 @@ showValHelp ::
 
 showValHelp ctxparams env nameEnv qname name =
   fromMaybe (noInfo nameEnv name)
-            (msum [ fromDecl, fromNewtype, fromParameter ])
+            (msum [ fromDecl, fromParameter ])
   where
   fromDecl =
     do M.IfaceDecl { .. } <- Map.lookup name (M.ifDecls env)
@@ -323,22 +351,6 @@ showValHelp ctxparams env nameEnv qname name =
                         (guard ifDeclInfix >> return P.defaultFixity)
 
             doShowDocString ifDeclDoc
-
-  fromNewtype = Map.lookup name allCons
-
-  allCons = foldr addCons mempty (M.ifNewtypes env)
-    where
-    getDocs nt =
-      case T.ntDef nt of
-        T.Struct {} -> [ T.ntDoc nt ]
-        T.Enum cs   -> map T.ecDoc cs
-
-    addCons nt mp = foldr addCon mp
-                      (zip (T.newtypeConTypes nt) (getDocs nt))
-    addCon ((c,t),d) = Map.insert c $
-      do rPutStrLn ""
-         rPrint (runDoc nameEnv $ indent 4 $ hsep [ pp c, ":", pp t ])
-         doShowDocString d
 
   allParamNames =
     case ctxparams of
