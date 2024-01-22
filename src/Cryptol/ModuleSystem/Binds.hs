@@ -420,7 +420,9 @@ instance BindsNames (Pattern PName) where
         do y <- newLocal NSValue (thing x) (srcRange x)
            pure (singletonNS NSValue (thing x) y)
         )
-      PCon _ xs -> mconcat (map namingEnv xs)
+      PCon _ xs     -> mconcat (map namingEnv xs)
+      PLocated p _r -> namingEnv p
+      PTyped p _t   -> namingEnv p
       _ -> panic "namingEnv" ["Unexpected pattern"]
 
 

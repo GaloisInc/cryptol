@@ -530,6 +530,15 @@ checkCaseAlt (P.CaseAlt pat e) srcT resT =
          e1 <- withMonoType xty (checkE e resT)
          pure (srcRange x, Nothing, mkAlt [xty] e1)
 
+    P.PLocated p r -> inRange r (checkCaseAlt (P.CaseAlt p e) srcT resT)
+
+    P.PTyped p t ->
+      do t1 <- checkType t (Just KType)
+         rng <- curRange
+         newGoals CtExactType =<<
+           unify (WithSource t1 TypeFromUserAnnotation (Just rng)) srcT
+         checkCaseAlt (P.CaseAlt p e) t1 resT
+
     _ -> panic "checkCaseAlt" ["Unexpected pattern"]
   where
   isPVar p =
@@ -538,6 +547,7 @@ checkCaseAlt (P.CaseAlt pat e) srcT resT =
       _ -> panic "checkCaseAlt" ["Nested pattern is not PVar"]
 
   mkAlt xs = CaseAlt [ (x, thing t) | (x,t) <- xs ]
+
 
 checkRecUpd ::
   Maybe (P.Expr Name) -> [ P.UpdField Name ] -> TypeWithSource -> InferM Expr
