@@ -778,8 +778,8 @@ ipat                           :: { Pattern PName }
   : ipat '#' ipat                 { at ($1,$3) $ PSplit $1 $3 }
   | iapat                         { $1                        }
 
-iapat
-  : apat                          {% mkIPat $1 } 
+iapat                          :: { Pattern PName }
+  : apat                          {% mkIPat $1 }
 
 iapats                         :: { [Pattern PName] }
   : iapat                         { [$1] }
