@@ -49,6 +49,7 @@
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Type Declarations</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#type-synonyms">Type Synonyms</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#newtypes">Newtypes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#enumerations">Enumerations</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="Modules.html">Modules</a></li>
@@ -123,6 +124,69 @@ of newtypes to extract the values in the body of the type.</p>
 </pre></div>
 </div>
 </section>
+<section id="enumerations">
+<h2>Enumerations<a class="headerlink" href="#enumerations" title="Permalink to this heading"></a></h2>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">enum</span><span class="w"> </span><span class="kt">Maybe</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kt">Nothing</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="kt">Just</span><span class="w"> </span><span class="n">a</span>
+</pre></div>
+</div>
+<p>An <code class="docutils literal notranslate"><span class="pre">enum</span></code> declaration introduces a new named type, which is defined by
+a collection of <em>constructors</em>.  Each named <code class="docutils literal notranslate"><span class="pre">enum</span></code> type is treated like
+a separate type, even if it has the exact same constructors as another <code class="docutils literal notranslate"><span class="pre">enum</span></code>
+type—in this way <code class="docutils literal notranslate"><span class="pre">enum</span></code> is similar to <code class="docutils literal notranslate"><span class="pre">newtype</span></code> and unlike <code class="docutils literal notranslate"><span class="pre">type</span></code>
+synonyms.</p>
+<p><strong>Constructors.</strong> The only way to create a value of an <code class="docutils literal notranslate"><span class="pre">enum</span></code> type is to
+use one of its constructors.   When used in an expression, the constructors
+behave like an ordinary function, which has one parameter for each field of the
+constructor.  For example, the constructor <code class="docutils literal notranslate"><span class="pre">Just</span></code> has a type like this:</p>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kt">Just:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kt">Maybe</span><span class="w"> </span><span class="n">a</span>
+</pre></div>
+</div>
+<p>Constructors may have 0 or multiple fields, and values created with different
+constructors are always distinct.</p>
+<p><strong>Case Expressions.</strong> The only way to examine a value of an <code class="docutils literal notranslate"><span class="pre">enum</span></code> type is
+with a <code class="docutils literal notranslate"><span class="pre">case</span></code> expression, which are similar to <code class="docutils literal notranslate"><span class="pre">if</span></code> expressions:</p>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">case</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="n">of</span>
+<span class="w">  </span><span class="kt">Nothing</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="mi">0</span>
+<span class="w">  </span><span class="kt">Just</span><span class="w"> </span><span class="n">a</span><span class="w">  </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span>
+</pre></div>
+</div>
+<p>In this example, <code class="docutils literal notranslate"><span class="pre">e</span></code> is an expression of type <code class="docutils literal notranslate"><span class="pre">Maybe</span></code>:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>if it was created with the <code class="docutils literal notranslate"><span class="pre">Nothing</span></code> constructor,
+then we’ll use the first branch of the <code class="docutils literal notranslate"><span class="pre">case</span></code> expression and
+result of the whole expression would be 0;</p></li>
+<li><p>if, <code class="docutils literal notranslate"><span class="pre">e</span></code> was create by applying the <code class="docutils literal notranslate"><span class="pre">Just</span></code> constructor to some
+value (e.g, <code class="docutils literal notranslate"><span class="pre">Just</span> <span class="pre">2</span></code>), then we’ll use the second branch of the <code class="docutils literal notranslate"><span class="pre">case</span></code>
+expression, and the variable <code class="docutils literal notranslate"><span class="pre">a</span></code> will be bound to the value of the field
+(e.g., <code class="docutils literal notranslate"><span class="pre">2</span></code>), and the whole expression will evaluate to <code class="docutils literal notranslate"><span class="pre">a</span> <span class="pre">+</span> <span class="pre">1</span></code>
+(e.g., <code class="docutils literal notranslate"><span class="pre">3</span></code>).</p></li>
+</ul>
+</div></blockquote>
+<p>It is also possible to use just a variable (or <code class="docutils literal notranslate"><span class="pre">_</span></code>) in a case expression
+to define a catch-all clause—if a value does not match any of the previous
+cases, then this branch will be used:</p>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">isNothing</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span>
+<span class="w">  </span><span class="n">case</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="n">of</span>
+<span class="w">    </span><span class="kt">Nothing</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kr">True</span>
+<span class="w">    </span><span class="n">_</span><span class="w">       </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kr">False</span>
+</pre></div>
+</div>
+<p><strong>Upper Case Restriction.</strong>
+The names of the constructors in an <code class="docutils literal notranslate"><span class="pre">enum</span></code> declarations
+need to start with an upper-case letter.  This restriction makes it possible
+to distinguish between constructors and variable
+bindings in <code class="docutils literal notranslate"><span class="pre">case</span></code> patterns (e.g., between <code class="docutils literal notranslate"><span class="pre">Just</span></code> and <code class="docutils literal notranslate"><span class="pre">a</span></code> in the
+previous example).</p>
+<p><strong>Non Recursive.</strong> The fields in a constructor may be of any value type,
+as long as this type does not depend on the type to which the constructor
+belongs.  This means that we do not support defining recursive types,
+such as linked lists.</p>
+<p><strong>No Nested Consturctor Patterns.</strong>  For simplicity, only non-constructor
+patterns may be used in the fields of a constructor pattern.  For example,
+<code class="docutils literal notranslate"><span class="pre">Just</span> <span class="pre">(a,b)</span></code> and <code class="docutils literal notranslate"><span class="pre">Just</span> <span class="pre">(a</span> <span class="pre">#</span> <span class="pre">b)</span></code> are OK, however, <code class="docutils literal notranslate"><span class="pre">Just</span> <span class="pre">(Just</span> <span class="pre">a)</span></code>
+will be rejected.  This is a restriction that we may lift in the future.</p>
+</section>
 </section>
 
 
@@ -149,7 +213,23 @@ of newtypes to extract the values in the body of the type.</p>
       </div>
     </section>
   </div>
-  <script>
+  <div class="rst-versions" data-toggle="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    <span class="fa fa-book">Doc version</span>
+    v: 
+    <span class="fa fa-caret-down"></span>
+    <div class="rst-other-versions">
+      <dl>
+        <dt>Versions</dt>
+        
+      </dl>
+      <dl>
+        <dt>Pull Requests</dt>
+        
+      </dl>
+    </div>
+  </span>
+</div><script>
       jQuery(function () {
           SphinxRtdTheme.Navigation.enable(true);
       });

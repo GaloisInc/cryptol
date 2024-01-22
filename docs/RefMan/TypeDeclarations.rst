@@ -51,3 +51,86 @@ of newtypes to extract the values in the body of the type.
   > sum x.seq
   6
 
+Enumerations
+------------
+
+.. code-block:: cryptol
+
+  enum Maybe a = Nothing | Just a
+
+An ``enum`` declaration introduces a new named type, which is defined by
+a collection of *constructors*.  Each named ``enum`` type is treated like
+a separate type, even if it has the exact same constructors as another ``enum``
+type---in this way ``enum`` is similar to ``newtype`` and unlike ``type``
+synonyms.
+
+**Constructors.** The only way to create a value of an ``enum`` type is to
+use one of its constructors.   When used in an expression, the constructors
+behave like an ordinary function, which has one parameter for each field of the
+constructor.  For example, the constructor ``Just`` has a type like this:
+
+.. code-block:: cryptol
+
+   Just: {a} a -> Maybe a
+
+Constructors may have 0 or multiple fields, and values created with different
+constructors are always distinct.
+
+**Case Expressions.** The only way to examine a value of an ``enum`` type is
+with a ``case`` expression, which are similar to ``if`` expressions:
+
+.. code-block:: cryptol
+
+  case e of
+    Nothing -> 0
+    Just a  -> a + 1
+
+In this example, ``e`` is an expression of type ``Maybe``:
+
+  * if it was created with the ``Nothing`` constructor,
+    then we'll use the first branch of the ``case`` expression and
+    result of the whole expression would be 0;
+
+  * if, ``e`` was create by applying the ``Just`` constructor to some
+    value (e.g, ``Just 2``), then we'll use the second branch of the ``case``
+    expression, and the variable ``a`` will be bound to the value of the field
+    (e.g., ``2``), and the whole expression will evaluate to ``a + 1``
+    (e.g., ``3``).
+
+It is also possible to use just a variable (or ``_``) in a case expression
+to define a catch-all clause---if a value does not match any of the previous
+cases, then this branch will be used:
+
+.. code-block:: cryptol
+
+  isNothing x =
+    case x of
+      Nothing -> True
+      _       -> False
+
+**Upper Case Restriction.**
+The names of the constructors in an ``enum`` declarations
+need to start with an upper-case letter.  This restriction makes it possible
+to distinguish between constructors and variable
+bindings in ``case`` patterns (e.g., between ``Just`` and ``a`` in the
+previous example).
+
+**Non Recursive.** The fields in a constructor may be of any value type,
+as long as this type does not depend on the type to which the constructor
+belongs.  This means that we do not support defining recursive types,
+such as linked lists.
+
+**No Nested Consturctor Patterns.**  For simplicity, only non-constructor
+patterns may be used in the fields of a constructor pattern.  For example,
+``Just (a,b)`` and ``Just (a # b)`` are OK, however, ``Just (Just a)``
+will be rejected.  This is a restriction that we may lift in the future.
+
+
+
+
+
+
+
+
+
+

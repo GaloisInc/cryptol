@@ -336,7 +336,7 @@ is equivalent to the previous one:</p>
 </div>
 <p>Submodules may refer to names in their enclosing scope.
 Declarations in a sub-module will shadow names in the outer scope.</p>
-<p>Declarations in a submdule may be imported with <code class="docutils literal notranslate"><span class="pre">import</span> <span class="pre">submodule</span></code>,
+<p>Declarations in a submodule may be imported with <code class="docutils literal notranslate"><span class="pre">import</span> <span class="pre">submodule</span></code>,
 which works just like an ordinary import except that <code class="docutils literal notranslate"><span class="pre">X</span></code> refers
 to the name of a submodule.</p>
 <div class="literal-block-wrapper docutils container" id="id13">
@@ -375,7 +375,7 @@ each locally defined submodules.</p>
 </div>
 </div>
 <p><code class="docutils literal notranslate"><span class="pre">N::y</span></code> works in the previous example because Cryptol added
-an implicit import <code class="docutils literal notranslate"><span class="pre">import</span> <span class="pre">submoulde</span> <span class="pre">N</span> <span class="pre">as</span> <span class="pre">N</span></code>.</p>
+an implicit import <code class="docutils literal notranslate"><span class="pre">import</span> <span class="pre">submodule</span> <span class="pre">N</span> <span class="pre">as</span> <span class="pre">N</span></code>.</p>
 </section>
 <section id="managing-module-names">
 <h3>Managing Module Names<a class="headerlink" href="#managing-module-names" title="Permalink to this heading"></a></h3>
@@ -387,7 +387,7 @@ Thus, to use a submodule defined in top-level module <code class="docutils liter
 another top-level module <code class="docutils literal notranslate"><span class="pre">B</span></code> requires two steps:</p>
 <blockquote>
 <div><ol class="arabic simple">
-<li><p>First we need to import <code class="docutils literal notranslate"><span class="pre">A</span></code> to bring the name of the submodule in scope</p></li>
+<li><p>First we need to import <code class="docutils literal notranslate"><span class="pre">A</span></code> to bring the name of the submodule in scope,</p></li>
 <li><p>Then we need to import the submodule to bring the names defined in it in scope.</p></li>
 </ol>
 </div></blockquote>
@@ -896,7 +896,23 @@ and instantiating it:</p>
       </div>
     </section>
   </div>
-  <script>
+  <div class="rst-versions" data-toggle="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    <span class="fa fa-book">Doc version</span>
+    v: 
+    <span class="fa fa-caret-down"></span>
+    <div class="rst-other-versions">
+      <dl>
+        <dt>Versions</dt>
+        
+      </dl>
+      <dl>
+        <dt>Pull Requests</dt>
+        
+      </dl>
+    </div>
+  </span>
+</div><script>
       jQuery(function () {
           SphinxRtdTheme.Navigation.enable(true);
       });

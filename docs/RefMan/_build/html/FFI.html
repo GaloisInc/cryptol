@@ -67,6 +67,7 @@
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#memory">Memory</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#evaluation">Evaluation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#cryptol-implementation-of-foreign-functions">Cryptol implementation of foreign functions</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#example">Example</a></li>
 </ul>
 </li>
@@ -512,6 +513,26 @@ from it. It must write to the memory the value it is returning.</p>
 <section id="evaluation">
 <h2>Evaluation<a class="headerlink" href="#evaluation" title="Permalink to this heading"></a></h2>
 <p>All Cryptol arguments are fully evaluated when a foreign function is called.</p>
+<p>The FFI is intended to be used with pure functions that do not perform side
+effects such as mutating global state, printing to the screen, interacting with
+the file system, etc. Cryptol does not enforce this convention, however, so it
+is possible to use impure functions from the FFI if you wish. Cryptol does not
+make any guarantees about the order in which side effects will be executed, nor
+does it make any guarantees about preserving any global state between
+invocations of impure FFI functions.</p>
+</section>
+<section id="cryptol-implementation-of-foreign-functions">
+<h2>Cryptol implementation of foreign functions<a class="headerlink" href="#cryptol-implementation-of-foreign-functions" title="Permalink to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">foreign</span></code> declarations can have an optional Cryptol implementation, which by
+default will be called when the foreign implementation cannot be found, or when
+the FFI cannot be used, such as during symbolic evaluation, evaluation with the
+reference interpreter, or if Cryptol was built with FFI support disabled.</p>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">foreign</span><span class="w"> </span><span class="n">add</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">32</span><span class="p">]</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="p">[</span><span class="mi">32</span><span class="p">]</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="p">[</span><span class="mi">32</span><span class="p">]</span>
+<span class="nf">add</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">y</span>
+</pre></div>
+</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">:set</span> <span class="pre">evalForeign</span></code> REPL option controls which implementation is used; see
+<code class="docutils literal notranslate"><span class="pre">:help</span> <span class="pre">:set</span> <span class="pre">evalForeign</span></code> for more details.</p>
 </section>
 <section id="example">
 <h2>Example<a class="headerlink" href="#example" title="Permalink to this heading"></a></h2>
@@ -551,7 +572,23 @@ from it. It must write to the memory the value it is returning.</p>
       </div>
     </section>
   </div>
-  <script>
+  <div class="rst-versions" data-toggle="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    <span class="fa fa-book">Doc version</span>
+    v: 
+    <span class="fa fa-caret-down"></span>
+    <div class="rst-other-versions">
+      <dl>
+        <dt>Versions</dt>
+        
+      </dl>
+      <dl>
+        <dt>Pull Requests</dt>
+        
+      </dl>
+    </div>
+  </span>
+</div><script>
       jQuery(function () {
           SphinxRtdTheme.Navigation.enable(true);
       });

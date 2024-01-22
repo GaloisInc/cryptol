@@ -86,10 +86,10 @@ const _displayItem = (item, searchTerms, highlightTerms) => {
   linkEl.href = linkUrl + anchor;
   linkEl.dataset.score = score;
   linkEl.innerHTML = title;
-  const rehighlightListItem = () => window.setTimeout(() => {
+  const rehighlightListItem = () => {
     if (SPHINX_HIGHLIGHT_ENABLED)  // set in sphinx_highlight.js
       highlightTerms.forEach((term) => _highlightText(listItem, term, "highlighted"));
-  }, 10);
+  };
   if (descr) {
     listItem.appendChild(document.createElement("span")).innerHTML =
       " (" + descr + ")";
