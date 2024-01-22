@@ -163,13 +163,16 @@ instance PP RenamerError where
       ppLab as = ppNestedSels (thing as) <+> "at" <+> pp (srcRange as)
 
     InvalidDependency ds ->
-      hang "[error] Invalid recursive dependency:"
+      hang ("[error] Invalid" <+> self <+>"dependency:")
          4 (vcat [ "•" <+> pp x <.>
                     case depNameLoc x of
                       Just r -> ", defined at" <+> ppR r
                       Nothing -> mempty
                  | x <- ds ])
       where ppR r = pp (from r) <.> "--" <.> pp (to r)
+            self = case ds of
+                     [_] -> "self"
+                     _   -> "recursive"
 
     MultipleModParams x rs ->
       hang ("[error] Multiple parameters with name" <+> backticks (pp x))
