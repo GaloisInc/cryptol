@@ -91,7 +91,7 @@ import Cryptol.Utils.Panic(panic)
 
 -- | Namespaces for names
 data Namespace = NSValue
-               | NSConstructor -- ^ This is for enum constructors
+               | NSConstructor -- ^ This is for enum and newtype constructors
 
                | NSType
                | NSModule
