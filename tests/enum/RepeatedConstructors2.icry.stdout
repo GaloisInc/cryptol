@@ -1,0 +1,8 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+
+[error]
+    Overlapping symbols defined:
+    (at RepeatedConstructors2.cry:1:14--1:15, Main::X)
+    (at RepeatedConstructors2.cry:2:9--2:10, Main::X)

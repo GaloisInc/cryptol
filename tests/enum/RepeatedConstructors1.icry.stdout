@@ -1,0 +1,5 @@
+Loading module Cryptol
+
+Parse error at RepeatedConstructors1.cry:1:10--1:11
+  Multiple declarations for `X`
+  Other declaration: RepeatedConstructors1.cry:1:14--1:15

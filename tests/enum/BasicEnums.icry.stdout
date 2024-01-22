@@ -1,0 +1,27 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+
+enum E1 
+    A : E1
+    B : E1
+    C : E1
+
+Custom docs fo E1
+
+
+Constructor of N
+    X : {n, a} (n >= 2) => [n] -> N n a
+
+Note that we allow a starting |
+
+c1 : E1 -> [8]
+e1 : {a} M a
+e2 : {n, a} (n - 2 >= 2, n >= 2, fin n) => N n a
+Showing a specific instance of polymorphic result:
+  * Using 'Integer' for type argument 'a' of 'Main::N'
+N
+Showing a specific instance of polymorphic result:
+  * Using 'Integer' for type argument 'a' of 'Main::Y'
+  * Using '4' for type argument 'n' of 'Main::Y'
+Y 0x3

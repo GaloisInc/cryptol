@@ -1,0 +1,8 @@
+:load BasicEnums.cry
+:help E1
+:help X
+:t c1
+:t e1
+:t e2
+e1
+e2

@@ -1,0 +1,13 @@
+
+enum A = X | Y
+
+submodule M where
+  enum B = X | Y
+
+import submodule M
+
+// Local declarations shadow imports
+f x =
+  case x of
+    X -> ()
+    Y -> ()

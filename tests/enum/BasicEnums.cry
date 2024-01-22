@@ -1,0 +1,30 @@
+
+/** Custom docs fo E1 */
+enum E1  = A | B | C
+enum M a = N | J a
+enum N n a =
+  | /** Note that we allow a starting | */ X [n]
+  | Y [n-2]
+  | Z a
+
+
+//  Pattern matching
+
+c1 e =
+  case e of
+    A -> 1 : [8]
+    B -> 2
+    C -> 3
+
+c2 : {n} (n>=2) => N n [n] -> [n]
+c2 e =
+  case e of
+    X a -> a
+    Y b -> zero # b
+    Z a -> a
+
+// Construction
+
+e1 = N
+e2 = Y 3
+
