@@ -517,11 +517,7 @@ checkCaseAlt (P.CaseAlt pat e) srcT resT =
                         , twsSource = ConPat
                         }
          newGoals CtExactType =<< unify expect cresT
-         let xs = [ (thing x, Located rng t)
-                  | (v,t) <- zip ps fTs
-                  , let x = isPVar v
-                  , let rng = srcRange c
-                  ]
+         xs <- zipWithM checkNested ps fTs
          e1 <- withMonoTypes (Map.fromList xs) (checkE e resT)
          pure (srcRange c, Just (nameIdent (thing c)), mkAlt xs e1)
 
@@ -541,10 +537,19 @@ checkCaseAlt (P.CaseAlt pat e) srcT resT =
 
     _ -> panic "checkCaseAlt" ["Unexpected pattern"]
   where
-  isPVar p =
+  checkNested p ty =
     case p of
-      P.PVar x -> x
-      _ -> panic "checkCaseAlt" ["Nested pattern is not PVar"]
+      P.PVar x -> pure (thing x, Located (srcRange x) ty)
+      P.PLocated p1 r -> inRange r (checkNested p1 ty)
+      P.PTyped p1 t ->
+        do t1 <- checkType t (Just KType)
+           rng <- curRange
+           newGoals CtExactType =<<
+             unify (WithSource t1 TypeFromUserAnnotation (Just rng)) ty
+           checkNested p1 t1
+      _ -> panic "checkNested" ["Unexpected pattern"] 
+
+
 
   mkAlt xs = CaseAlt [ (x, thing t) | (x,t) <- xs ]
 

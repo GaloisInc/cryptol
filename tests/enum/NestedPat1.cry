@@ -1,0 +1,16 @@
+enum M a = N | J a
+
+f x = case x of
+        J (a#b) -> a + b
+        N -> zero
+
+
+
+
+
+
+
+
+
+
+
