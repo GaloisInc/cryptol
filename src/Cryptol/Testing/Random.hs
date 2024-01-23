@@ -34,6 +34,8 @@ import Control.Monad          (liftM2)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bits
 import Data.List              (unfoldr, genericTake, genericIndex, genericReplicate)
+import Data.Map(Map)
+import qualified Data.Map as Map
 import qualified Data.Sequence as Seq
 
 import System.Random.TF.Gen
@@ -170,7 +172,9 @@ randomValue sym ty =
         TVStruct fs ->
           do gs <- traverse (randomValue sym) fs
              return (randomRecord gs)
-    -- XXX: Do random testing on `enum` types
+        TVEnum cons ->
+          do gs <- traverse (mapM (randomValue sym)) cons
+             pure (randomCon gs)
 
     TVArray{} -> Nothing
     TVFun{} -> Nothing
@@ -265,6 +269,9 @@ randomTuple gens sz = go [] gens
     in seq v (go (v : els) more g1)
 
 {-# INLINE randomRecord #-}
+
+randomCon :: (Backend sym, RandomGen g) => Map Ident [Gen g sym] -> Gen g sym
+randomCon cons sz g0 = undefined
 
 -- | Generate a random record value.
 randomRecord :: (Backend sym, RandomGen g) => RecordMap Ident (Gen g sym) -> Gen g sym
@@ -408,7 +415,8 @@ typeSize ty = case ty of
   TVNewtype _ _ nv ->
     case nv of
       TVStruct tbody -> typeSize (TVRec tbody)
-      -- XXX: enum
+      TVEnum cons -> sum <$> mapM conSize (Map.elems cons)
+        where conSize = foldr (\t sz -> liftM2 (*) (typeSize t) sz) (Just 1)
 
 {- | Returns all the values in a type.  Returns an empty list of values,
 for types where 'typeSize' returned 'Nothing'. -}
@@ -443,7 +451,11 @@ typeValues ty =
     TVNewtype _ _ nv ->
       case nv of
         TVStruct tbody -> typeValues (TVRec tbody)
-        -- XXX: enum
+        TVEnum cons ->
+          [ VEnum i (map pure vs)
+          | (i,ts) <- Map.toList cons
+          , vs     <- mapM typeValues ts
+          ]
 
 --------------------------------------------------------------------------------
 -- Driver function
