@@ -24,6 +24,7 @@ module Cryptol.Symbolic
  , ProverResult(..)
  , ProverStats
  , CounterExampleType(..)
+ , SymbolicException(..)
    -- * FinType
  , FinType(..)
  , FinNewtype(..)
@@ -44,6 +45,7 @@ module Cryptol.Symbolic
  ) where
 
 
+import qualified Control.Exception as X
 import Control.Monad (foldM)
 import Data.Map(Map)
 import Data.IORef(IORef)
@@ -120,7 +122,13 @@ data ProverResult = AllSatResult [SatResult] -- LAZY
                   | EmptyResult
                   | ProverError  String
 
+data SymbolicException = UnsupportedEnums
 
+instance Show SymbolicException where
+  showsPrec _ UnsupportedEnums =
+    showString "Enums are not currently supported with symbolic evaluation."
+
+instance X.Exception SymbolicException
 
 predArgTypes :: QueryType -> Schema -> Either String [FinType]
 predArgTypes qtype schema@(Forall ts ps ty)
@@ -294,7 +302,7 @@ freshVar fns tp =
     FTNewtype _ _ nv ->
       case nv of
         FStruct fs -> VarRecord <$> traverse (freshVar fns) fs
-        -- XXX: FEnum
+        FEnum{} -> X.throw UnsupportedEnums
 
 computeModel ::
   PrimMap ->
