@@ -61,6 +61,7 @@ module Cryptol.Eval.Value
     -- ** Pretty printing
   , defaultPPOpts
   , ppValue
+  , ppValuePrec
     -- * Merge and if/then/else
   , iteValue
   , mergeValue
@@ -164,7 +165,16 @@ ppValue :: forall sym.
   PPOpts ->
   GenValue sym ->
   SEval sym Doc
-ppValue x opts = loop 0
+ppValue x opts = ppValuePrec x opts 0
+
+ppValuePrec :: forall sym.
+  Backend sym =>
+  sym ->
+  PPOpts ->
+  Int ->
+  GenValue sym ->
+  SEval sym Doc
+ppValuePrec x opts = loop
   where
   loop :: Int -> GenValue sym -> SEval sym Doc
   loop prec val = case val of
