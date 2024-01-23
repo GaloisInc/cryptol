@@ -33,7 +33,8 @@ import qualified Control.Exception as X
 import Control.Monad          (liftM2)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bits
-import Data.List              (unfoldr, genericTake, genericIndex, genericReplicate)
+import Data.List              (unfoldr, genericTake, genericIndex,
+                               genericReplicate, mapAccumL)
 import Data.Map(Map)
 import qualified Data.Map as Map
 import qualified Data.Sequence as Seq
@@ -270,9 +271,6 @@ randomTuple gens sz = go [] gens
 
 {-# INLINE randomRecord #-}
 
-randomCon :: (Backend sym, RandomGen g) => Map Ident [Gen g sym] -> Gen g sym
-randomCon cons sz g0 = undefined
-
 -- | Generate a random record value.
 randomRecord :: (Backend sym, RandomGen g) => RecordMap Ident (Gen g sym) -> Gen g sym
 randomRecord gens sz g0 =
@@ -281,6 +279,64 @@ randomRecord gens sz g0 =
     mk g gen =
       let (v, g') = gen sz g
       in seq v (g', v)
+
+-- | Generate a random constructor value belonging to an enum definition.
+--
+-- For the purposes of random testing, constructors with zero fields (i.e.,
+-- nullary constructors) are less interesting than constructors with at least
+-- one field (i.e., non-nullary constructors). For example, given
+-- @enum Maybe a = Nothing | Just a@, we would like to generate more @Just@
+-- values than @Nothing@ values. To ensure this, we employ the following
+-- approach:
+--
+-- 1. If all constructors are nullary, then randomly pick one of these
+--    constructors, where each constructor has an equal chance of being picked.
+--
+-- 2. If all constructors are non-nullary, then randomly pick one of these
+--    constructors, where each constructor has an equal chance of being picked.
+--    Then pick random values for each field in the constructor.
+--
+-- 3. Otherwise, pick a random number between 1 and 100. If the number is less
+--    than or equal to 25, then randomly pick a nullary constructor. Otherwise,
+--    randomly pick a non-nullary constructor. This biases the results so that
+--    nullary constructors are only picked ~25% of the time.
+randomCon ::
+  forall sym g.
+  (Backend sym, RandomGen g) =>
+  Map Ident [Gen g sym]
+  {- ^ A map from each constructor's 'Ident' to random generators for each of
+       the constructor's fields. -} ->
+  Gen g sym
+randomCon cons
+    -- (1) from the Haddocks
+  | Map.null nonNullaryCons
+  = randomCon' nullaryCons
+
+    -- (2) from the Haddocks
+  | Map.null nullaryCons
+  = randomCon' nonNullaryCons
+
+    -- (3) from the Haddocks
+  | otherwise
+  = \sz g0 ->
+      let (x :: Int, g1) = randomR (1, 100) g0 in
+      if x <= 25
+         then randomCon' nullaryCons sz g1
+         else randomCon' nonNullaryCons sz g1
+  where
+    (nullaryCons, nonNullaryCons) = Map.partition null cons
+
+    randomCon' :: Map Ident [Gen g sym] -> Gen g sym
+    randomCon' cons' sz g0 =
+      let (idx, g1) = randomR (0, Map.size cons' - 1) g0
+          (ident, flds) = Map.elemAt idx cons'
+          (g2, !flds') =
+            mapAccumL
+              (\g gen ->
+                let (v, g') = gen sz g in
+                seq v (g', v))
+              g1 flds in
+      (pure $ VEnum ident flds', g2)
 
 randomFloat ::
   (Backend sym, RandomGen g) =>
