@@ -469,8 +469,6 @@ enum_body                         :: { [TopLevel (EnumCon PName)] }
 enum_con                           :: { TopLevel (EnumCon PName) }
   : app_type                          {% mkConDecl Nothing   Public $1 }
   | doc  app_type                     {% mkConDecl (Just $1) Public $2 }
-  | 'private' 'v{' app_type 'v}'      {% mkConDecl Nothing   Private  $3 }
-  | doc 'private' 'v{' app_type 'v}'  {% mkConDecl (Just $1) Private  $4 }
 
 vars_comma                 :: { [ LPName ]  }
   : var                       { [ $1]      }
