@@ -63,6 +63,8 @@ import Cryptol.Utils.RecordMap
 import           Control.Monad
 import           Data.List
 import           Data.Maybe
+import           Data.Vector(Vector)
+import qualified Data.Vector as Vector
 import qualified Data.IntMap.Strict as IntMap
 import qualified Data.Map.Strict as Map
 import           Data.Semigroup
@@ -345,7 +347,7 @@ evalNewtypeDecl sym nt env0 =
 
   enumCon env c =
     do con <- evalEnumCon sym (nameIdent (ecName c)) (ecNumber c)
-       let done        = PVal . con . reverse
+       let done        = PVal . con . Vector.fromList . reverse
            fu _t f xs  = PFun (\v -> f (v:xs))
        pure (bindVarDirect (ecName c)
                            (mkCon (foldr fu done (ecFields c) [])) env)
@@ -364,11 +366,11 @@ evalNewtypeDecl sym nt env0 =
 -- | Make the function for a known constructor
 evalEnumCon ::
   Backend sym =>
-  sym -> Ident -> Integer ->
-  SEval sym ([SEval sym (GenValue sym)] -> GenValue sym)
+  sym -> Ident -> Int ->
+  SEval sym (Vector (SEval sym (GenValue sym)) -> GenValue sym)
 evalEnumCon sym i n =
-  do tag <- integerLit sym n
-     pure (VEnum tag . Map.singleton n . ConValue i)
+  do tag <- integerLit sym (toInteger n)
+     pure (VEnum tag . IntMap.singleton n . ConInfo i)
 
 
 

@@ -38,6 +38,7 @@ import Data.Traversable(mapAccumL)
 import qualified Data.Map as Map
 import qualified Control.Exception as X
 import System.Exit (ExitCode(ExitSuccess))
+import qualified Data.Vector as Vector
 
 import LibBF(bfNaN)
 
@@ -58,6 +59,7 @@ import qualified Cryptol.Backend.FloatHelpers as FH
 import qualified Cryptol.Eval as Eval
 import qualified Cryptol.Eval.Concrete as Concrete
 import qualified Cryptol.Eval.Value as Eval
+import           Cryptol.Eval.Type
 import           Cryptol.Eval.SBV
 import           Cryptol.Parser.Position (emptyRange)
 import           Cryptol.Symbolic
@@ -542,9 +544,9 @@ parseValue (FTNewtype _ _ nv) cvs =
     FEnum cons ->
       fromMaybe (panic "Cryptol.Symbolic.parseValue" ["no enum"]) $
       do (tag, cvs') <- SBV.genParse SBV.KUnbounded cvs
-         let doCon input (i,ts) =
-               case parseValues ts input of
-                 (vs,input') -> (input', (i,vs))
+         let doCon input con =
+               case parseValues (Vector.toList (conFields con)) input of
+                 (vs,input') -> (input', con { conFields = Vector.fromList vs })
              (input3, conVs) = mapAccumL doCon cvs' cons
          pure (VarEnum tag conVs, input3)
 

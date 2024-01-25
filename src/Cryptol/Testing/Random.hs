@@ -35,9 +35,10 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bits
 import Data.List              (unfoldr, genericTake, genericIndex,
                                genericReplicate, mapAccumL)
-import Data.Map(Map)
-import qualified Data.Map as Map
+import qualified Data.IntMap.Strict as IntMap
 import qualified Data.Sequence as Seq
+import Data.Vector(Vector)
+import qualified Data.Vector as Vector
 
 import System.Random.TF.Gen
 import System.Random.TF.Instances
@@ -50,9 +51,9 @@ import Cryptol.Backend.SeqMap (indexSeqMap, finiteSeqMap)
 import Cryptol.Backend.WordValue (wordVal)
 
 import Cryptol.Eval(evalEnumCon)
-import Cryptol.Eval.Type      (TValue(..), TNewtypeValue(..))
-import Cryptol.Eval.Value     ( GenValue(..), ConValue(..)
-                              , ppValue, defaultPPOpts, fromVFun)
+import Cryptol.Eval.Type      ( TValue(..), TNewtypeValue(..), ConInfo(..)
+                              , isNullaryCon )
+import Cryptol.Eval.Value     ( GenValue(..), ppValue, defaultPPOpts, fromVFun)
 import Cryptol.TypeCheck.Solver.InfNat (widthInteger)
 import Cryptol.Utils.Ident    (Ident)
 import Cryptol.Utils.Panic    (panic)
@@ -175,10 +176,8 @@ randomValue sym ty =
         TVStruct fs ->
           do gs <- traverse (randomValue sym) fs
              return (randomRecord gs)
-        TVEnum cons ->
-          do let getGen (n,vs) = (,) n <$> mapM (randomValue sym) vs
-             gs <- traverse getGen cons
-             pure (randomCon sym gs)
+        TVEnum cons -> randomCon sym <$>
+                          traverse (traverse (randomValue sym)) cons
 
     TVArray{} -> Nothing
     TVFun{} -> Nothing
@@ -307,40 +306,44 @@ randomCon ::
   forall sym g.
   (Backend sym, RandomGen g) =>
   sym ->
-  Map Integer (Ident,[Gen g sym])
-  {- ^ A map from each constructor's 'Ident' to random generators for each of
-       the constructor's fields. -} ->
+  Vector (ConInfo (Gen g sym)) ->
   Gen g sym
 randomCon sym cons
     -- (1) from the Haddocks
-  | Map.null nonNullaryCons
-  = randomCon' nullaryCons
+  | null nonNullaryCons
+  = randomCon' nullaryLen nullaryCons
 
     -- (2) from the Haddocks
-  | Map.null nullaryCons
-  = randomCon' nonNullaryCons
+  | null nullaryCons
+  = randomCon' nonNullaryLen nonNullaryCons
 
     -- (3) from the Haddocks
   | otherwise
   = \sz g0 ->
       let (x :: Int, g1) = randomR (1, 100) g0 in
       if x <= 25
-         then randomCon' nullaryCons sz g1
-         else randomCon' nonNullaryCons sz g1
+         then randomCon' nullaryLen nullaryCons sz g1
+         else randomCon' nonNullaryLen nonNullaryCons sz g1
   where
-    (nullaryCons, nonNullaryCons) = Map.partition (null . snd) cons
+    (nullaryLen,nullaryCons, nonNullaryLen, nonNullaryCons) =
+       let check (!nullLen,nullary,!nonNullLen,nonNullary) i con
+             | isNullaryCon con = ( 1+nullLen,(i,con) : nullary
+                                  , nonNullLen, nonNullary)
+             | otherwise        = (nullLen, nullary
+                                  , 1+nonNullLen, (i,con) : nonNullary)
+        in Vector.ifoldl' check (0,[],0,[]) cons
 
-    randomCon' :: Map Integer (Ident,[Gen g sym]) -> Gen g sym
-    randomCon' cons' sz g0 =
-      let (idx, g1) = randomR (0, Map.size cons' - 1) g0
-          (num, (ident,flds) )= Map.elemAt idx cons'
+    randomCon' :: Int -> [(Int, ConInfo (Gen g sym))] -> Gen g sym
+    randomCon' conLen cons' sz g0 =
+      let (idx, g1) = randomR (0, conLen - 1) g0
+          (num, con) = cons' !! idx
           (g2, !flds') =
             mapAccumL
               (\g gen ->
                 let (v, g') = gen sz g in
                 seq v (g', v))
-              g1 flds in
-      (($ flds') <$> evalEnumCon sym ident num, g2)
+              g1 (conFields con) in
+      (($ flds') <$> evalEnumCon sym (conIdent con) num, g2)
 
 randomFloat ::
   (Backend sym, RandomGen g) =>
@@ -475,9 +478,8 @@ typeSize ty = case ty of
   TVNewtype _ _ nv ->
     case nv of
       TVStruct tbody -> typeSize (TVRec tbody)
-      TVEnum cons -> sum <$> mapM conSize (Map.elems cons)
+      TVEnum cons -> sum <$> mapM (conSize . conFields) cons
         where conSize = foldr (\t sz -> liftM2 (*) (typeSize t) sz) (Just 1)
-                      . snd
 
 {- | Returns all the values in a type.  Returns an empty list of values,
 for types where 'typeSize' returned 'Nothing'. -}
@@ -513,9 +515,10 @@ typeValues ty =
       case nv of
         TVStruct tbody -> typeValues (TVRec tbody)
         TVEnum cons ->
-          [ VEnum tag (Map.singleton tag (ConValue i (map pure vs)))
-          | (tag,(i,ts)) <- Map.toList cons
-          , vs <- mapM typeValues ts
+          [ VEnum (toInteger tag) (IntMap.singleton tag con')
+          | (tag,con) <- zip [0..] (Vector.toList cons)
+          , vs        <- mapM typeValues (conFields con)
+          , let con' = con { conFields = pure <$> vs }
           ]
 
 --------------------------------------------------------------------------------

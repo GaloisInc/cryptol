@@ -25,7 +25,7 @@
 
 module Cryptol.Eval.Value
   ( -- * GenericValue
-    GenValue(..), ConValue(..)
+    GenValue(..), ConValue
   , forceValue
   , Backend(..)
   , asciiMode
@@ -72,6 +72,9 @@ import Data.Ratio
 import Numeric (showIntAtBase)
 import Data.Map(Map)
 import qualified Data.Map as Map
+import Data.IntMap.Strict (IntMap)
+import qualified Data.IntMap.Strict as IMap
+import qualified Data.Vector as Vector
 
 import Cryptol.Backend
 import Cryptol.Backend.SeqMap
@@ -110,7 +113,7 @@ data EvalOpts = EvalOpts
 data GenValue sym
   = VRecord !(RecordMap Ident (SEval sym (GenValue sym))) -- ^ @ { .. } @
   | VTuple ![SEval sym (GenValue sym)]              -- ^ @ ( .. ) @
-  | VEnum !(SInteger sym) !(Map Integer (ConValue sym))
+  | VEnum !(SInteger sym) !(IntMap (ConValue sym))
     -- ^ @Just 2@, the integer is the tag (e.g., `Just`), and the map contains
     -- the fields (e.g., `{ 0 -> ("Just",2) }`.
     -- The map is only really needed to represent symblic values.
@@ -127,8 +130,7 @@ data GenValue sym
   | VNumPoly CallStack (Nat' -> SEval sym (GenValue sym))  -- ^ polymorphic values (kind #)
  deriving Generic
 
-data ConValue sym = ConValue Ident [SEval sym (GenValue sym)]
-  deriving Generic
+type ConValue sym = ConInfo (SEval sym (GenValue sym))
 
 -- | Force the evaluation of a value
 forceValue :: Backend sym => GenValue sym -> SEval sym ()
@@ -148,7 +150,7 @@ forceValue v = case v of
   VNumPoly{}  -> return ()
 
 forceConValue :: Backend sym => ConValue sym -> SEval sym ()
-forceConValue (ConValue i vs) = i `seq` mapM_ (forceValue =<<) vs
+forceConValue (ConInfo i vs) = i `seq` mapM_ (forceValue =<<) vs
 
 instance Show (GenValue sym) where
   show v = case v of
@@ -214,13 +216,13 @@ ppValuePrec x opts = loop
   ppEnumVal prec i mp =
     case integerAsLit x i of
       Just c ->
-        case Map.lookup c mp of
-          Just (ConValue con vs) ->
-            case vs of
-              [] -> pure (pp con)
-              _  -> do vds <- traverse (>>= loop 1) vs
-                       let d = pp con <+> hsep vds
-                       pure (if prec > 0 then parens d else d)
+        case IMap.lookup (fromInteger c) mp of
+          Just con
+            | isNullaryCon con -> pure (pp (conIdent con))
+            | otherwise ->
+              do vds <- traverse (>>= loop 1) (conFields con)
+                 let d = pp (conIdent con) <+> hsep (Vector.toList vds)
+                 pure (if prec > 0 then parens d else d)
           Nothing -> panic "ppEnumVal" ["Malformed enumv value", show c]
       Nothing -> pure (text "[?]")
 
@@ -474,7 +476,7 @@ fromVRecord val = case val of
   VRecord fs -> fs
   _          -> evalPanic "fromVRecord" ["not a record", show val]
 
-fromVEnum :: GenValue sym -> (SInteger sym, Map Integer (ConValue sym))
+fromVEnum :: GenValue sym -> (SInteger sym, IntMap (ConValue sym))
 fromVEnum val =
   case val of
     VEnum c xs -> (c,xs)
@@ -516,18 +518,18 @@ data CaseCont sym = CaseCont
 caseValue :: Backend sym =>
   sym ->
   SInteger sym ->
-  Map Integer (ConValue sym) ->
+  IntMap (ConValue sym) ->
   CaseCont sym ->
   SEval sym (GenValue sym)
 caseValue sym tag alts k
   | Just c <- integerAsLit sym tag =
-    case Map.lookup c alts of
+    case IMap.lookup (fromInteger c) alts of
       Just conV -> doCase conV
       Nothing -> panic "caseValue" ["Missing constructor for tag", show c]
-  | otherwise = foldr doSymCase (doDefault Nothing) (Map.toList alts)
+  | otherwise = foldr doSymCase (doDefault Nothing) (IMap.toList alts)
   where
   doSymCase (n,con) otherOpts =
-    do expect <- integerLit sym n
+    do expect <- integerLit sym (toInteger n)
        yes    <- intEq sym tag expect
        iteValue sym yes (doCase con) otherOpts
 
@@ -536,9 +538,9 @@ caseValue sym tag alts k
       Just yes -> yes
       Nothing  -> raiseError sym (NoMatchingConstructor mb)
 
-  doCase (ConValue con fs) =
+  doCase (ConInfo con fs) =
     case Map.lookup con (caseCon k) of
-      Just yes -> yes fs
+      Just yes -> yes (Vector.toList fs)
       Nothing  -> doDefault (Just $! unpackIdent con)
 
 {-# INLINE mergeValue' #-}
@@ -552,13 +554,7 @@ mergeValue' sym = mergeEval sym (mergeValue sym)
 
 mergeConValue ::
   Backend sym => sym -> SBit sym -> ConValue sym -> ConValue sym -> ConValue sym
-mergeConValue sym c (ConValue c1 fs1) (ConValue c2 fs2)
-  | c1 == c2 = ConValue c1 (zipWith (mergeValue' sym c) fs1 fs2)
-  | otherwise =
-    panic "mergeConValue" [ "Same integer index, different constructors"
-                          , show (pp c1)
-                          , show (pp c2)
-                          ]
+mergeConValue sym c = zipConInfo (mergeValue' sym c)
 
 mergeValue :: Backend sym =>
   sym ->
@@ -576,7 +572,7 @@ mergeValue sym c v1 v2 =
 
     (VEnum c1 fs1, VEnum c2 fs2) ->
       VEnum <$> iteInteger sym c c1 c2
-            <*> pure (Map.unionWith (mergeConValue sym c) fs1 fs2)
+            <*> pure (IMap.unionWith (mergeConValue sym c) fs1 fs2)
 
     (VTuple vs1  , VTuple vs2  ) | length vs1 == length vs2  ->
                                   pure $ VTuple $ zipWith (mergeValue' sym c) vs1 vs2

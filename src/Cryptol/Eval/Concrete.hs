@@ -30,6 +30,8 @@ import qualified Cryptol.F2 as F2
 
 import qualified Data.Map.Strict as Map
 import Data.Map(Map)
+import qualified Data.Vector as Vector
+import qualified Data.IntMap.Strict as IMap
 
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..))
 
@@ -88,14 +90,17 @@ toExpr prims t0 v0 = findOne (go t0 v0)
                          Enum {} -> panic "toExpr" ["Enum vs Record"]
                    f = foldl (\x t -> ETApp x (tNumValTy t)) (EVar c) ts
                 in pure (EApp f (ERec efs))
-      (TVNewtype nt ts (TVEnum tfss), VEnum i vf_map) ->
-        case Map.lookup i tfss of
+      (TVNewtype nt ts (TVEnum tfss), VEnum i' vf_map) ->
+        let i = fromInteger i'
+        in
+        case tfss Vector.!? i of
           Nothing -> mismatch -- enum constructor not found
-          Just (_,tfs) ->
-            do vfs <- case Map.lookup i vf_map of
-                        Just (ConValue _ vs) -> pure vs
-                        Nothing -> panic "toExpr" ["Missing constructor"]
-               guard (length tfs == length vfs)
+          Just conT ->
+            do let tfs = conFields conT
+               vfs <- case IMap.lookup i vf_map of
+                        Just con -> pure (conFields con)
+                        Nothing  -> panic "toExpr" ["Missing constructor"]
+               guard (Vector.length tfs == Vector.length vfs)
                c <- case ntDef nt of
                       Struct {} -> panic "toExpr" ["Enum vs Record"]
                       Enum cons ->
@@ -103,7 +108,9 @@ toExpr prims t0 v0 = findOne (go t0 v0)
                           Just con -> pure (ecName con)
                           Nothing -> mismatch
                let f = foldl' (\x t -> ETApp x (tNumValTy t)) (EVar c) ts
-               foldl' EApp f <$> (zipWithM go tfs =<< lift (sequence vfs))
+               foldl' EApp f <$>
+                  (zipWithM go (Vector.toList tfs) =<<
+                              lift (sequence (Vector.toList vfs)))
 
       (TVTuple ts, VTuple tvs) ->
         do guard (length ts == length tvs)

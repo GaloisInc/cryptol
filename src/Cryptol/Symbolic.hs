@@ -45,11 +45,12 @@ module Cryptol.Symbolic
 
 
 import Control.Monad (foldM)
-import Data.Map(Map)
-import qualified Data.Map as Map
+import qualified Data.IntMap.Strict as IntMap
 import Data.IORef(IORef)
 import Data.List (genericReplicate)
 import Data.Ratio
+import Data.Vector(Vector)
+import qualified Data.Vector as Vector
 import qualified LibBF as FP
 
 
@@ -62,7 +63,8 @@ import qualified Cryptol.Eval.Concrete as Concrete
 import           Cryptol.Eval.Value
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Solver.InfNat
-import           Cryptol.Eval.Type (TValue(..), TNewtypeValue(..), evalType,tValTy,tNumValTy)
+import           Cryptol.Eval.Type
+  (TValue(..), TNewtypeValue(..), evalType,tValTy,tNumValTy,ConInfo(..))
 import           Cryptol.Utils.Ident (Ident,prelPrim,floatPrim)
 import           Cryptol.Utils.RecordMap
 import           Cryptol.Utils.Panic
@@ -154,7 +156,7 @@ data FinType
 
 data FinNewtype =
     FStruct (RecordMap Ident FinType)
-  | FEnum (Map Integer (Ident,[FinType]))
+  | FEnum (Vector (ConInfo FinType))
 
 finType :: TValue -> Maybe FinType
 finType ty =
@@ -170,8 +172,7 @@ finType ty =
     TVNewtype u ts nv  -> FTNewtype u ts <$>
       case nv of
         TVStruct body -> FStruct <$> traverse finType body
-        TVEnum cs     -> FEnum   <$> traverse con cs
-          where con (n,fs) = (,) n <$> traverse finType fs
+        TVEnum cs     -> FEnum   <$> traverse (traverse finType) cs
 
     TVAbstract {}       -> Nothing
     TVArray{}           -> Nothing
@@ -210,8 +211,7 @@ unFinType fty =
     FTNewtype u ts nv -> TVNewtype u ts $
        case nv of
           FStruct fs  -> TVStruct (unFinType <$> fs)
-          FEnum cs    -> TVEnum (con <$> cs)
-            where con (i,fs) = (i, unFinType <$> fs)
+          FEnum cs    -> TVEnum (fmap unFinType <$> cs)
 
 data VarShape sym
   = VarBit (SBit sym)
@@ -222,7 +222,7 @@ data VarShape sym
   | VarFinSeq Integer [VarShape sym]
   | VarTuple [VarShape sym]
   | VarRecord (RecordMap Ident (VarShape sym))
-  | VarEnum (SInteger sym) (Map Integer (Ident, [VarShape sym]))
+  | VarEnum (SInteger sym) (Vector (ConInfo (VarShape sym)))
 
 ppVarShape :: Backend sym => sym -> VarShape sym -> Doc
 ppVarShape _sym (VarBit _b) = text "<bit>"
@@ -258,7 +258,9 @@ flattenShape x tl =
     VarFinSeq _ vs -> flattenShapes vs tl
     VarTuple vs    -> flattenShapes vs tl
     VarRecord fs   -> flattenShapes (recordElements fs) tl
-    VarEnum _ cs   -> x : flattenShapes (concatMap snd (Map.elems cs)) tl
+    VarEnum _ cs   -> x : flattenShapes allCons tl
+      where
+      allCons = concatMap (Vector.toList . conFields) (Vector.toList cs)
 
 varShapeToValue :: Backend sym => sym -> VarShape sym -> GenValue sym
 varShapeToValue sym var =
@@ -271,8 +273,10 @@ varShapeToValue sym var =
     VarFinSeq n vs -> VSeq n (finiteSeqMap sym (map (pure . varShapeToValue sym) vs))
     VarTuple vs  -> VTuple (map (pure . varShapeToValue sym) vs)
     VarRecord fs -> VRecord (fmap (pure . varShapeToValue sym) fs)
-    VarEnum tag cons -> VEnum tag (con <$> cons)
-      where con (i,fs) = ConValue i (pure . varShapeToValue sym <$> fs)
+    VarEnum tag cons ->
+      VEnum tag (IntMap.fromList
+                   (zip [ 0 .. ] [ pure . varShapeToValue sym <$> c
+                                 | c <- Vector.toList cons ]))
 
 data FreshVarFns sym =
   FreshVarFns
@@ -301,12 +305,9 @@ freshVar fns tp =
       case nv of
         FStruct fs -> VarRecord <$> traverse (freshVar fns) fs
         FEnum conTs ->
-          do let maxCon = toInteger (Map.size conTs - 1)
+          do let maxCon = toInteger (Vector.length conTs - 1)
              tag <- freshIntegerVar fns (Just 0) (Just maxCon)
-             let doCon (i,fs) =
-                   do sh <- mapM (freshVar fns) fs
-                      pure (i,sh)
-             cons <- traverse doCon conTs
+             cons <- traverse (traverse (freshVar fns)) conTs
              pure (VarEnum tag cons)
 
 
@@ -366,8 +367,11 @@ varModelPred sym vx =
     (VarEnum vi vcons,  VarEnum i cons) ->
       do tag     <- integerLit sym i
          sameTag <- intEq sym tag vi
-         sameFs  <- case (Map.lookup i vcons, Map.lookup i cons) of
-                      (Just (_,vfs), Just (_,fs)) -> modelPred sym vfs fs
+         let i' = fromInteger i
+             flds = Vector.toList . conFields
+         sameFs  <- case (vcons Vector.!? i', cons Vector.!? i') of
+                      (Just con1, Just con2) ->
+                         modelPred sym (flds con1) (flds con2)
                       _ -> panic "malformed constructor" []
          bitAnd sym sameTag sameFs
 
@@ -397,14 +401,16 @@ varToExpr prims = go
       (FTNewtype nt ts (FEnum cons), VarEnum tag conVs) ->
          foldl EApp conName args
          where
-         args =
-           case (Map.lookup tag cons, Map.lookup tag conVs) of
-             (Just (_,fts), Just (_,fsh)) -> zipWith go fts fsh
-             _ -> panic "varToExpr" ["Malformed constructor"]
+         tag' = fromInteger tag
+         args = case (cons Vector.!? tag', conVs Vector.!? tag') of
+                 (Just conT, Just conV) ->
+                    Vector.toList
+                       (Vector.zipWith go (conFields conT) (conFields conV))
+                 _ -> panic "varToExpr" ["Malformed constructor"]
 
          conName =
            case ntDef nt of
-             Enum cs | c : _ <- filter ((tag ==) . ecNumber ) cs ->
+             Enum cs | c : _ <- filter ((tag' ==) . ecNumber ) cs ->
                 foldl (\x t -> ETApp x (tNumValTy t)) (EVar (ecName c)) ts
 
              _ -> panic "varToExpr" ["Missing constructor"]

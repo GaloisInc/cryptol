@@ -339,7 +339,7 @@ data StructCon = StructCon
 -- | Constructor for an enumeration
 data EnumCon = EnumCon
   { ecName        :: Name
-  , ecNumber      :: !Integer -- ^ Number of constructor in the declaration
+  , ecNumber      :: !Int -- ^ Number of constructor in the declaration
   , ecFields      :: [Type]
   , ecPublic      :: Bool
   , ecDoc         :: Maybe Text

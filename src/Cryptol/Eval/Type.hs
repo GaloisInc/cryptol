@@ -6,13 +6,15 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE Safe, PatternGuards #-}
+{-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveTraversable #-}
 module Cryptol.Eval.Type where
 
-import Data.Map(Map)
-import qualified Data.Map as Map
+import Data.Vector (Vector)
+import qualified Data.Vector as Vector
+import Data.List(sortOn)
 import Cryptol.Backend.Monad (evalPanic)
 import Cryptol.ModuleSystem.Name(nameIdent)
 import Cryptol.TypeCheck.AST
@@ -50,8 +52,26 @@ data TValue
 
 data TNewtypeValue =
     TVStruct (RecordMap Ident TValue)
-  | TVEnum   (Map Integer (Ident,[TValue]))
+  | TVEnum   (Vector (ConInfo TValue))  -- ^ Indexed by constructor number
     deriving (Generic, NFData, Eq)
+
+data ConInfo a = ConInfo
+  { conIdent :: Ident
+  , conFields :: Vector a
+  } deriving (Generic,NFData,Eq,Functor,Foldable,Traversable)
+
+isNullaryCon :: ConInfo a -> Bool
+isNullaryCon = Vector.null . conFields
+
+zipConInfo :: (a -> b -> c) -> ConInfo a -> ConInfo b -> ConInfo c
+zipConInfo f x y
+  | conIdent x == conIdent y =
+    x { conFields = Vector.zipWith f (conFields x) (conFields y) }
+  | otherwise = panic "zipConInfo" [ "Miamatched constructors"
+                                   ,  show (pp (conIdent x))
+                                   ,  show (pp (conIdent y))
+                                   ]
+
 
 -- | Convert a type value back into a regular type
 tValTy :: TValue -> Type
@@ -186,14 +206,12 @@ evalNewtypeBody ::
 evalNewtypeBody env0 nt args =
   case ntDef nt of
     Struct c -> TVStruct (fmap (evalValType env') (ntFields c))
-    Enum cs  -> TVEnum (Map.fromList (map doEnum cs))
+    Enum cs  -> TVEnum (Vector.fromList (map doEnum (sortOn ecNumber cs)))
   where
   env' = loop env0 (ntParams nt) args
 
-  doEnum c = (ecNumber c, ( nameIdent (ecName c)
-                          , map (evalValType env') (ecFields c)
-                          )
-             )
+  doEnum c = ConInfo (nameIdent (ecName c))
+                     (Vector.fromList (map (evalValType env') (ecFields c)))
 
   loop env [] [] = env
   loop env (p:ps) (a:as) = loop (bindTypeVar (TVBound p) a env) ps as
