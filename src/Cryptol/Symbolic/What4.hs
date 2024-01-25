@@ -751,3 +751,7 @@ varShapeToConcrete evalFn v =
       VarTuple <$> mapM (varShapeToConcrete evalFn) vs
     VarRecord fs ->
       VarRecord <$> traverse (varShapeToConcrete evalFn) fs
+    VarEnum tag cons ->
+      VarEnum <$> W4.groundEval evalFn tag <*> traverse doCon cons
+        where
+        doCon (i,ts) = (,) i <$> traverse (varShapeToConcrete evalFn) ts

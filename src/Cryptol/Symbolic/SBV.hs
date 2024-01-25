@@ -34,6 +34,7 @@ import Control.Concurrent.MVar
 import Control.Monad.IO.Class
 import Control.Monad (when, foldM, forM_)
 import Data.Maybe (fromMaybe)
+import Data.Traversable(mapAccumL)
 import qualified Data.Map as Map
 import qualified Control.Exception as X
 import System.Exit (ExitCode(ExitSuccess))
@@ -538,7 +539,14 @@ parseValue (FTRecord r) cvs = (VarRecord r', cvs')
 parseValue (FTNewtype _ _ nv) cvs =
   case nv of
     FStruct r -> parseValue (FTRecord r) cvs
-    FEnum{} -> X.throw UnsupportedEnums
+    FEnum cons ->
+      fromMaybe (panic "Cryptol.Symbolic.parseValue" ["no enum"]) $
+      do (tag, cvs') <- SBV.genParse SBV.KUnbounded cvs
+         let doCon input (i,ts) =
+               case parseValues ts input of
+                 (vs,input') -> (input', (i,vs))
+             (input3, conVs) = mapAccumL doCon cvs' cons
+         pure (VarEnum tag conVs, input3)
 
 parseValue (FTFloat e p) cvs =
    (VarFloat FH.BF { FH.bfValue = bfNaN

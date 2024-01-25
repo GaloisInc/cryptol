@@ -31,6 +31,7 @@ module Cryptol.Eval (
   , evalNewtypeDecls
   , evalSel
   , evalSetSel
+  , evalEnumCon
   , EvalError(..)
   , EvalErrorEx(..)
   , Unsupported(..)
@@ -164,12 +165,13 @@ evalExpr sym env expr = case expr of
   ECase e as d -> {-# SCC "evalExpr->ECase" #-} do
     val <- eval e
     let (con,fs) = fromVEnum val
-    case Map.lookup con as of
-      Just rhs -> evalCase rhs fs
-      Nothing ->
-        case d of
-          Just rhs -> evalCase rhs [pure val]
-          Nothing  -> raiseError sym (NoMatchingConstructor $! unpackIdent con)
+    caseValue sym con fs
+      CaseCont
+        { caseCon = evalCase <$> as
+        , caseDflt =
+            do rhs <- d
+               pure (evalCase rhs [pure val])
+        }
 
   EComp n t h gs -> {-# SCC "evalExpr->EComp" #-} do
       let len  = evalNumType (envTypes env) n
@@ -333,21 +335,20 @@ evalNewtypeDecl ::
   Newtype ->
   GenEvalEnv sym ->
   SEval sym (GenEvalEnv sym)
-evalNewtypeDecl _sym nt =
+evalNewtypeDecl sym nt env0 =
   case ntDef nt of
-    Struct c ->
-      pure . bindVarDirect (ntConName c) (mkCon structCon)
-    Enum cs -> pure . foldr (\c f -> enumCon c . f) id cs
+    Struct c -> pure (bindVarDirect (ntConName c) (mkCon structCon) env0)
+    Enum cs  -> foldM enumCon env0 cs
   where
   structCon = PFun PPrim
   mkCon c   = foldr tabs c (ntParams nt)
 
-  enumCon c =
-    let i           = nameIdent (ecName c)
-        done        = PVal . VEnum i . reverse
-        fu _t f xs  = PFun (\v -> f (v:xs))
-    in
-    bindVarDirect (ecName c) (mkCon (foldr fu done (ecFields c) []))
+  enumCon env c =
+    do con <- evalEnumCon sym (nameIdent (ecName c)) (ecNumber c)
+       let done        = PVal . con . reverse
+           fu _t f xs  = PFun (\v -> f (v:xs))
+       pure (bindVarDirect (ecName c)
+                           (mkCon (foldr fu done (ecFields c) [])) env)
 
   tabs tp body =
     case tpKind tp of
@@ -359,6 +360,16 @@ evalNewtypeDecl _sym nt =
                                     ]
 
 {-# INLINE evalNewtypeDecl #-}
+
+-- | Make the function for a known constructor
+evalEnumCon ::
+  Backend sym =>
+  sym -> Ident -> Integer ->
+  SEval sym ([SEval sym (GenValue sym)] -> GenValue sym)
+evalEnumCon sym i n =
+  do tag <- integerLit sym n
+     pure (VEnum tag . Map.singleton n . ConValue i)
+
 
 
 -- Declarations ----------------------------------------------------------------

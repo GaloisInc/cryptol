@@ -50,7 +50,7 @@ data TValue
 
 data TNewtypeValue =
     TVStruct (RecordMap Ident TValue)
-  | TVEnum   (Map Ident [TValue])
+  | TVEnum   (Map Integer (Ident,[TValue]))
     deriving (Generic, NFData, Eq)
 
 -- | Convert a type value back into a regular type
@@ -190,7 +190,10 @@ evalNewtypeBody env0 nt args =
   where
   env' = loop env0 (ntParams nt) args
 
-  doEnum c = (nameIdent (ecName c), map (evalValType env') (ecFields c))
+  doEnum c = (ecNumber c, ( nameIdent (ecName c)
+                          , map (evalValType env') (ecFields c)
+                          )
+             )
 
   loop env [] [] = env
   loop env (p:ps) (a:as) = loop (bindTypeVar (TVBound p) a env) ps as

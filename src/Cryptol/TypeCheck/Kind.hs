@@ -157,13 +157,14 @@ checkEnum ed mbD =
      ((as1,cons1),gs) <- collectGoals $
        inRange (srcRange x) $
        do r <- withTParams NoWildCards newtypeParam (P.eParams ed) $
-               forM (P.eCons ed) \tlC ->
+               forM (P.eCons ed `zip` [0..]) \(tlC,nu) ->
                  do let con = P.tlValue tlC
                         cname = P.ecName con
                     ts <- kInRange (srcRange cname)
                             (mapM (`doCheckType` Just KType) (P.ecFields con))
                     pure EnumCon
                           { ecName   = thing cname
+                          , ecNumber = nu
                           , ecFields = ts
                           , ecPublic = P.tlExport tlC == P.Public
                           , ecDoc    = thing <$> P.tlDoc tlC

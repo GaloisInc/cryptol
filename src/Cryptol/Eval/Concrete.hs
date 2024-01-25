@@ -88,15 +88,18 @@ toExpr prims t0 v0 = findOne (go t0 v0)
                          Enum {} -> panic "toExpr" ["Enum vs Record"]
                    f = foldl (\x t -> ETApp x (tNumValTy t)) (EVar c) ts
                 in pure (EApp f (ERec efs))
-      (TVNewtype nt ts (TVEnum tfss), VEnum i vfs) ->
+      (TVNewtype nt ts (TVEnum tfss), VEnum i vf_map) ->
         case Map.lookup i tfss of
           Nothing -> mismatch -- enum constructor not found
-          Just tfs ->
-            do guard (length tfs == length vfs)
+          Just (_,tfs) ->
+            do vfs <- case Map.lookup i vf_map of
+                        Just (ConValue _ vs) -> pure vs
+                        Nothing -> panic "toExpr" ["Missing constructor"]
+               guard (length tfs == length vfs)
                c <- case ntDef nt of
                       Struct {} -> panic "toExpr" ["Enum vs Record"]
                       Enum cons ->
-                        case find (\con -> nameIdent (ecName con) == i) cons of
+                        case find (\con -> ecNumber con == i) cons of
                           Just con -> pure (ecName con)
                           Nothing -> mismatch
                let f = foldl' (\x t -> ETApp x (tNumValTy t)) (EVar c) ts

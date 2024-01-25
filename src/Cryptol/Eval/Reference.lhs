@@ -450,7 +450,7 @@ are ignored.
 >        Nothing  ->
 >          case dflt of
 >            Just alt -> evalCaseBranch alt [pure val]
->            Nothing  -> Err (NoMatchingConstructor (unpackIdent tag))
+>            Nothing  -> Err (NoMatchingConstructor (Just (unpackIdent tag)))
 >   where
 >   evalCaseBranch (CaseAlt xs k) vs = evalExpr env' k
 >     where env' = foldr bindVar env (zip (map fst xs) vs)

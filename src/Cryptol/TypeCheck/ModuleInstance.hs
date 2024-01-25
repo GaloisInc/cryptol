@@ -124,6 +124,7 @@ instance ModuleInstance EnumCon where
   moduleInstance c =
     EnumCon
       { ecName        = moduleInstance (ecName c)
+      , ecNumber      = ecNumber c
       , ecFields      = moduleInstance (ecFields c)
       , ecPublic      = ecPublic c
       , ecDoc         = ecDoc c

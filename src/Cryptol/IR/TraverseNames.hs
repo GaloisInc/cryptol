@@ -237,6 +237,7 @@ instance TraverseNames StructCon where
 instance TraverseNames EnumCon where
   traverseNamesIP c =
     EnumCon <$> traverseNamesIP (ecName c)
+            <*> pure (ecNumber c)
             <*> traverseNamesIP (ecFields c)
             <*> pure (ecPublic c)
             <*> pure (ecDoc c)

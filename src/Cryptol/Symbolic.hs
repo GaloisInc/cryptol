@@ -24,7 +24,6 @@ module Cryptol.Symbolic
  , ProverResult(..)
  , ProverStats
  , CounterExampleType(..)
- , SymbolicException(..)
    -- * FinType
  , FinType(..)
  , FinNewtype(..)
@@ -45,9 +44,9 @@ module Cryptol.Symbolic
  ) where
 
 
-import qualified Control.Exception as X
 import Control.Monad (foldM)
 import Data.Map(Map)
+import qualified Data.Map as Map
 import Data.IORef(IORef)
 import Data.List (genericReplicate)
 import Data.Ratio
@@ -122,14 +121,6 @@ data ProverResult = AllSatResult [SatResult] -- LAZY
                   | EmptyResult
                   | ProverError  String
 
-data SymbolicException = UnsupportedEnums
-
-instance Show SymbolicException where
-  showsPrec _ UnsupportedEnums =
-    showString "Enums are not currently supported with symbolic evaluation."
-
-instance X.Exception SymbolicException
-
 predArgTypes :: QueryType -> Schema -> Either String [FinType]
 predArgTypes qtype schema@(Forall ts ps ty)
   | null ts && null ps =
@@ -163,7 +154,7 @@ data FinType
 
 data FinNewtype =
     FStruct (RecordMap Ident FinType)
-  | FEnum (Map Ident [FinType])
+  | FEnum (Map Integer (Ident,[FinType]))
 
 finType :: TValue -> Maybe FinType
 finType ty =
@@ -179,7 +170,8 @@ finType ty =
     TVNewtype u ts nv  -> FTNewtype u ts <$>
       case nv of
         TVStruct body -> FStruct <$> traverse finType body
-        TVEnum cs     -> FEnum   <$> traverse (traverse finType) cs
+        TVEnum cs     -> FEnum   <$> traverse con cs
+          where con (n,fs) = (,) n <$> traverse finType fs
 
     TVAbstract {}       -> Nothing
     TVArray{}           -> Nothing
@@ -218,7 +210,8 @@ unFinType fty =
     FTNewtype u ts nv -> TVNewtype u ts $
        case nv of
           FStruct fs  -> TVStruct (unFinType <$> fs)
-          FEnum cs    -> TVEnum (map unFinType <$> cs)
+          FEnum cs    -> TVEnum (con <$> cs)
+            where con (i,fs) = (i, unFinType <$> fs)
 
 data VarShape sym
   = VarBit (SBit sym)
@@ -229,6 +222,7 @@ data VarShape sym
   | VarFinSeq Integer [VarShape sym]
   | VarTuple [VarShape sym]
   | VarRecord (RecordMap Ident (VarShape sym))
+  | VarEnum (SInteger sym) (Map Integer (Ident, [VarShape sym]))
 
 ppVarShape :: Backend sym => sym -> VarShape sym -> Doc
 ppVarShape _sym (VarBit _b) = text "<bit>"
@@ -244,6 +238,7 @@ ppVarShape sym (VarRecord fs) =
   ppRecord (map ppField (displayFields fs))
  where
   ppField (f,v) = pp f <+> char '=' <+> ppVarShape sym v
+ppVarShape _sym (VarEnum {}) = text "<enum>"
 
 
 -- | Flatten structured shapes (like tuples and sequences), leaving only
@@ -263,6 +258,7 @@ flattenShape x tl =
     VarFinSeq _ vs -> flattenShapes vs tl
     VarTuple vs    -> flattenShapes vs tl
     VarRecord fs   -> flattenShapes (recordElements fs) tl
+    VarEnum _ cs   -> x : flattenShapes (concatMap snd (Map.elems cs)) tl
 
 varShapeToValue :: Backend sym => sym -> VarShape sym -> GenValue sym
 varShapeToValue sym var =
@@ -275,6 +271,8 @@ varShapeToValue sym var =
     VarFinSeq n vs -> VSeq n (finiteSeqMap sym (map (pure . varShapeToValue sym) vs))
     VarTuple vs  -> VTuple (map (pure . varShapeToValue sym) vs)
     VarRecord fs -> VRecord (fmap (pure . varShapeToValue sym) fs)
+    VarEnum tag cons -> VEnum tag (con <$> cons)
+      where con (i,fs) = ConValue i (pure . varShapeToValue sym <$> fs)
 
 data FreshVarFns sym =
   FreshVarFns
@@ -302,7 +300,15 @@ freshVar fns tp =
     FTNewtype _ _ nv ->
       case nv of
         FStruct fs -> VarRecord <$> traverse (freshVar fns) fs
-        FEnum{} -> X.throw UnsupportedEnums
+        FEnum conTs ->
+          do let maxCon = toInteger (Map.size conTs - 1)
+             tag <- freshIntegerVar fns (Just 0) (Just maxCon)
+             let doCon (i,fs) =
+                   do sh <- mapM (freshVar fns) fs
+                      pure (i,sh)
+             cons <- traverse doCon conTs
+             pure (VarEnum tag cons)
+
 
 computeModel ::
   PrimMap ->
@@ -357,6 +363,14 @@ varModelPred sym vx =
     (VarFinSeq _n vs, VarFinSeq _ xs) -> modelPred sym vs xs
     (VarTuple vs, VarTuple xs) -> modelPred sym vs xs
     (VarRecord vs, VarRecord xs) -> modelPred sym (recordElements vs) (recordElements xs)
+    (VarEnum vi vcons,  VarEnum i cons) ->
+      do tag     <- integerLit sym i
+         sameTag <- intEq sym tag vi
+         sameFs  <- case (Map.lookup i vcons, Map.lookup i cons) of
+                      (Just (_,vfs), Just (_,fs)) -> modelPred sym vfs fs
+                      _ -> panic "malformed constructor" []
+         bitAnd sym sameTag sameFs
+
     _ -> panic "varModelPred" ["variable shape mismatch!"]
 
 
@@ -379,6 +393,21 @@ varToExpr prims = go
                             Enum {} -> panic "varToExpr" ["Enum, expectqed Struct"]
                     f = foldl (\x t -> ETApp x (tNumValTy t)) (EVar con) ts
                  in EApp f (ERec efs)
+
+      (FTNewtype nt ts (FEnum cons), VarEnum tag conVs) ->
+         foldl EApp conName args
+         where
+         args =
+           case (Map.lookup tag cons, Map.lookup tag conVs) of
+             (Just (_,fts), Just (_,fsh)) -> zipWith go fts fsh
+             _ -> panic "varToExpr" ["Malformed constructor"]
+
+         conName =
+           case ntDef nt of
+             Enum cs | c : _ <- filter ((tag ==) . ecNumber ) cs ->
+                foldl (\x t -> ETApp x (tNumValTy t)) (EVar (ecName c)) ts
+
+             _ -> panic "varToExpr" ["Missing constructor"]
 
       (FTRecord tfs, VarRecord vfs) ->
         let res = zipRecords (\_lbl v t -> go t v) vfs tfs
