@@ -13,3 +13,19 @@ Expected test coverage: 0.15% (100 of 65539 values)
 property letterRotateProp Using exhaustive testing.
 Testing... Passed 3 tests.
 Q.E.D.
+:prove maybeMapProp
+	Q.E.D.
+:prove eitherMapProp
+	Q.E.D.
+:prove fooMapProp
+	Q.E.D.
+:prove letterRotateProp
+	Q.E.D.
+:prove maybeMapProp
+	Q.E.D.
+:prove eitherMapProp
+	Q.E.D.
+:prove fooMapProp
+	Q.E.D.
+:prove letterRotateProp
+	Q.E.D.
