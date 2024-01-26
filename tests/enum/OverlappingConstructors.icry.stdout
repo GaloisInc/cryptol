@@ -1,0 +1,8 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+
+[error] at OverlappingConstructors.cry:5:3--10:0:
+  Overlapping choices for constructor A:
+    Pattern at OverlappingConstructors.cry:8:5--8:6
+    Pattern at OverlappingConstructors.cry:6:5--6:6

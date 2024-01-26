@@ -1,0 +1,8 @@
+enum Foo = A | B
+
+f : Foo -> ()
+f x =
+  case x of
+    A -> ()
+    B -> ()
+    A -> ()

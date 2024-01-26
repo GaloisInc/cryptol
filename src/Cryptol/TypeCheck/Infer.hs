@@ -481,17 +481,47 @@ checkE expr tGoal =
         alts <- forM as \a -> checkCaseAlt a et tGoal
         rng  <- curRange
         e1   <- checkE e (WithSource et CasedExpression (Just rng))
-        let mp1 = Map.fromListWith (++) [ (x,[(r,y)]) | (r,x,y) <- alts ]
 
+        -- Check for overlapping cases that follow default patterns, e.g.,
+        --
+        --   enum Foo = A | B
+        --   f : Foo -> Bit
+        --   f l =
+        --     case l of
+        --       _ -> True
+        --       B -> False
+        --
+        -- In this example, the `B` case overlaps the catch-all `_` case.
+        let defltAltAndOthers = dropWhile (\(_,x,_) -> isJust x) alts
+        defltAlt <-
+          case defltAltAndOthers of
+            [] ->
+              pure Nothing
+            defltAlt@(_,defltPat,_):otherAlts -> do
+              unless (null otherAlts) $
+                recordError $
+                OverlappingPat defltPat [ r | (r,_,_) <- defltAltAndOthers ]
+              pure (Just defltAlt)
+
+        -- Check that there are no overlapping patterns among the case
+        -- alternatives, e.g.,
+        --
+        --   enum Foo = A | B
+        --   g : Foo -> Bit
+        --   g l =
+        --     case l of
+        --       A -> True
+        --       B -> True
+        --       B -> False
+        --
+        -- In this example, the two `B` cases overlap.
+        let mp1 = Map.fromListWith (++) [ (x,[(r,y)]) | (r,x,y) <- alts ]
         forM_ (Map.toList mp1) \(mb,cs) ->
           case cs of
             [_] -> pure ()
             _   -> recordError (OverlappingPat mb [ r | (r,_) <- cs ])
 
-        -- check that we only have 1 default
-        let dflt = do (_,k) : _ <- Map.lookup Nothing mp1
-                      pure k
-
+        let dflt = fmap (\(_,_,y) -> y) defltAlt
         let arms = Map.fromList [ (i,a) | (_,Just i, a) <- alts ]
         pure (ECase e1 arms dflt)
 
@@ -547,7 +577,7 @@ checkCaseAlt (P.CaseAlt pat e) srcT resT =
            newGoals CtExactType =<<
              unify (WithSource t1 TypeFromUserAnnotation (Just rng)) ty
            checkNested p1 t1
-      _ -> panic "checkNested" ["Unexpected pattern"] 
+      _ -> panic "checkNested" ["Unexpected pattern"]
 
 
 
@@ -1265,8 +1295,8 @@ Given a DPropGuards of the form
 
 @
 f : {...} A
-f | (B1, B2) => ... 
-  | (C1, C2, C2) => ... 
+f | (B1, B2) => ...
+  | (C1, C2, C2) => ...
 @
 
 we check that it is exhaustive by trying to prove the following
