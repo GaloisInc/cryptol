@@ -125,12 +125,28 @@ patterns may be used in the fields of a constructor pattern.  For example,
 ``Just (a,b)`` and ``Just (a # b)`` are OK, however, ``Just (Just a)``
 will be rejected.  This is a restriction that we may lift in the future.
 
+**No Overlapping Patterns.** For simplicity, all patterns in a
+``case`` expression must be disjoint. In particular, this means that:
 
+  * No two patterns in a ``case`` expression can match the same constructor.
+    This means that Cryptol will reject the following example:
 
+    .. code-block:: cryptol
 
+      isNothing x =
+        case x of
+          Nothing -> True
+          Nothing -> False
 
+  * If a ``case`` expression uses a catch-all clause, then that clause must
+    occur last in the expression. It is an error to match on additional
+    patterns after the catch-all clause. For instance, Cryptol will reject the
+    following example:
 
+    .. code-block:: cryptol
 
-
-
-
+      isNothing x =
+        case x of
+          Just _  -> False
+          _       -> True
+          Nothing -> False
