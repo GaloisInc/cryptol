@@ -173,11 +173,13 @@ filterUNames p (NamingEnv env) = NamingEnv (Map.mapMaybe check env)
 -- | Find the ambiguous entries in an environmet.
 -- A name is ambiguous if it might refer to multiple entities.
 findAmbig :: NamingEnv -> [ [Name] ]
-findAmbig (NamingEnv ns) =
+findAmbig env =
   [ Set.toList xs
   | mp <- Map.elems ns
   , Ambig xs <- Map.elems mp
   ]
+  where
+  NamingEnv ns = consToValues env
 
 -- | Get the subset of the first environment that shadows something
 -- in the second one.

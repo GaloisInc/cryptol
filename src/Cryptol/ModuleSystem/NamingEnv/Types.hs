@@ -32,3 +32,12 @@ instance PP NamingEnv where
   ppPrec _ (NamingEnv mps)   = vcat $ map ppNS $ Map.toList mps
     where ppNS (ns,xs) = nest 2 (vcat (pp ns : map ppNm (Map.toList xs)))
           ppNm (x,as)  = pp x <+> "->" <+> commaSep (map pp (namesToList as))
+
+-- | Move names in the constructor namespace to the value namespace.
+-- This is handly when checking for ambiguities.
+consToValues :: NamingEnv -> NamingEnv
+consToValues (NamingEnv mps) =
+  NamingEnv $
+  case Map.updateLookupWithKey (\_ _ -> Nothing) NSConstructor mps of
+    (Nothing, mp1) -> mp1
+    (Just conMap, mp1) -> Map.insertWith (Map.unionWith (<>)) NSValue conMap mp1
