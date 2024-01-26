@@ -51,18 +51,19 @@ of newtypes to extract the values in the body of the type.
   > sum x.seq
   6
 
-Enumerations
-------------
+Enums
+-----
 
 .. code-block:: cryptol
 
   enum Maybe a = Nothing | Just a
 
-An ``enum`` declaration introduces a new named type, which is defined by
-a collection of *constructors*.  Each named ``enum`` type is treated like
-a separate type, even if it has the exact same constructors as another ``enum``
-type---in this way ``enum`` is similar to ``newtype`` and unlike ``type``
-synonyms.
+An ``enum`` declaration introduces a new named type, which is defined by a
+collection of *constructors*. ``enum`` declarations correspond to the notion of
+*algebraic data types*, which are commonly found in other programming
+languages. Each named ``enum`` type is treated like a separate type, even if it
+has the exact same constructors as another ``enum`` type---in this way ``enum``
+is similar to ``newtype`` and unlike ``type`` synonyms.
 
 **Constructors.** The only way to create a value of an ``enum`` type is to
 use one of its constructors.   When used in an expression, the constructors
