@@ -22,7 +22,7 @@ splitVarSummands ty0 = [ (x,t1) | (x,t1) <- go ty0, tNum (0::Int) /= t1 ]
   go ty = case ty of
             TVar x      -> return (x, tNum (0::Int))
             TRec {}     -> []
-            TNewtype{}  -> []
+            TNominal {}  -> []
             TUser _ _ t -> go t
             TCon (TF TCAdd) [t1,t2] ->
               do (a,yes) <- go t1
@@ -46,7 +46,7 @@ splitConstSummand ty =
   case ty of
     TVar {}     -> Nothing
     TRec {}     -> Nothing
-    TNewtype{}  -> Nothing
+    TNominal {} -> Nothing
     TUser _ _ t -> splitConstSummand t
     TCon (TF TCAdd) [t1,t2] ->
       do (k,t1') <- splitConstSummand t1
@@ -65,7 +65,7 @@ splitConstFactor ty =
   case ty of
     TVar {}     -> Nothing
     TRec {}     -> Nothing
-    TNewtype{}  -> Nothing
+    TNominal {} -> Nothing
     TUser _ _ t -> splitConstFactor t
     TCon (TF TCMul) [t1,t2] ->
       do (k,t1') <- splitConstFactor t1

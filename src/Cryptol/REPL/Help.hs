@@ -108,7 +108,7 @@ ifaceSummary env info =
     fromTS = do def <- Map.lookup x (M.ifTySyns env)
                 pure (T.kindOf def, T.tsDoc def)
 
-    fromNT = do def <- Map.lookup x (M.ifNewtypes env)
+    fromNT = do def <- Map.lookup x (M.ifNominalTypes env)
                 pure (T.kindOf def, T.ntDoc def)
 
     fromAT = do def <- Map.lookup x (M.ifAbstractTypes env)
@@ -232,7 +232,7 @@ showTypeHelp ::
   M.ModContextParams -> M.IfaceDecls -> NameDisp -> T.Name -> REPL ()
 showTypeHelp ctxparams env nameEnv name =
   fromMaybe (noInfo nameEnv name) $
-  msum [ fromTySyn, fromPrimType, fromNewtype, fromTyParam ]
+  msum [ fromTySyn, fromPrimType, fromNominal, fromTyParam ]
 
   where
   fromTySyn =
@@ -242,8 +242,8 @@ showTypeHelp ctxparams env nameEnv name =
                   ]
        return (doShowTyHelp nameEnv (pp ts) (T.tsDoc ts))
 
-  fromNewtype =
-    do nt <- Map.lookup name (M.ifNewtypes env)
+  fromNominal =
+    do nt <- Map.lookup name (M.ifNominalTypes env)
        let decl = pp nt $$
                   vcat
                     [ pp x <+> text ":" <+> pp t
@@ -252,7 +252,7 @@ showTypeHelp ctxparams env nameEnv name =
                          -- Don't show constructor, as it will be shown
                          -- separately
                         _ -> True
-                    , (x,t) <- T.newtypeConTypes nt
+                    , (x,t) <- T.nominalTypeConTypes nt
                     ]
        return $ doShowTyHelp nameEnv decl (T.ntDoc nt)
 
@@ -308,7 +308,7 @@ showConHelp :: M.IfaceDecls -> NameDisp -> P.PName -> T.Name -> REPL ()
 showConHelp env nameEnv qname name =
   fromMaybe (noInfo nameEnv name) (Map.lookup name allCons)
   where
-  allCons = foldr addCons mempty (M.ifNewtypes env)
+  allCons = foldr addCons mempty (M.ifNominalTypes env)
     where
     getDocs nt =
       case T.ntDef nt of
@@ -316,7 +316,7 @@ showConHelp env nameEnv qname name =
         T.Enum cs   -> map T.ecDoc cs
 
     addCons nt mp = foldr (addCon nt) mp
-                      (zip (T.newtypeConTypes nt) (getDocs nt))
+                      (zip (T.nominalTypeConTypes nt) (getDocs nt))
     addCon nt ((c,t),d) = Map.insert c $
       do rPutStrLn ""
          rPrint (runDoc nameEnv $ vcat

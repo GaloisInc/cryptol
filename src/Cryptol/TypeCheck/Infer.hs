@@ -1414,11 +1414,11 @@ checkTopDecls = mapM_ checkTopDecl
 
       P.TDNewtype tl ->
         do t <- checkNewtype (P.tlValue tl) (thing <$> P.tlDoc tl)
-           addNewtype t
+           addNominal t
 
       P.TDEnum tl ->
         do t <- checkEnum (P.tlValue tl) (thing <$> P.tlDoc tl)
-           addNewtype t
+           addNominal t
 
       P.DPrimType tl ->
         do t <- checkPrimType (P.tlValue tl) (thing <$> P.tlDoc tl)

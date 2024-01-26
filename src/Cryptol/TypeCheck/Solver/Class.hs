@@ -101,8 +101,8 @@ solveZeroInst ty = case tNoUser ty of
   -- (Zero a, Zero b) => Zero { x1 : a, x2 : b }
   TRec fs -> SolvedIf [ pZero ety | ety <- recordElements fs ]
 
-  -- Zero <newtype> -> fails
-  TNewtype{} -> Unsolvable
+  -- Zero <nominal> -> fails
+  TNominal {} -> Unsolvable
 
   _ -> Unsolved
 
@@ -140,8 +140,8 @@ solveLogicInst ty = case tNoUser ty of
   -- (Logic a, Logic b) => Logic { x1 : a, x2 : b }
   TRec fs -> SolvedIf [ pLogic ety | ety <- recordElements fs ]
 
-  -- Logic <newtype> -> fails
-  TNewtype{} -> Unsolvable
+  -- Logic <nominal> -> fails
+  TNominal {} -> Unsolvable
 
   _ -> Unsolved
 
@@ -180,8 +180,8 @@ solveRingInst ty = case tNoUser ty of
   -- (Ring a, Ring b) => Ring { x1 : a, x2 : b }
   TRec fs -> SolvedIf [ pRing ety | ety <- recordElements fs ]
 
-  -- Ring <newtype> -> fails
-  TNewtype{} -> Unsolvable
+  -- Ring <nominal> -> fails
+  TNominal {} -> Unsolvable
 
   _ -> Unsolved
 
@@ -267,8 +267,8 @@ solveFieldInst ty = case tNoUser ty of
   -- Field {x : a, y : b, ...} fails
   TRec _ -> Unsolvable
 
-  -- Field <newtype> -> fails
-  TNewtype{} -> Unsolvable
+  -- Field <nominal> -> fails
+  TNominal {} -> Unsolvable
 
   _ -> Unsolved
 
@@ -309,8 +309,8 @@ solveRoundInst ty = case tNoUser ty of
   -- Round {x : a, y : b, ...} fails
   TRec _ -> Unsolvable
 
-  -- Round <newtype> -> fails
-  TNewtype{} -> Unsolvable
+  -- Round <nominal> -> fails
+  TNominal {} -> Unsolvable
 
   _ -> Unsolved
 
@@ -350,8 +350,8 @@ solveEqInst ty = case tNoUser ty of
   -- (Eq a, Eq b) => Eq { x:a, y:b }
   TRec fs -> SolvedIf [ pEq e | e <- recordElements fs ]
 
-  -- Eq <newtype> -> fails
-  TNewtype{} -> Unsolvable
+  -- Eq <nominal> -> fails
+  TNominal {} -> Unsolvable
 
   _ -> Unsolved
 
@@ -390,8 +390,8 @@ solveCmpInst ty = case tNoUser ty of
   -- (Cmp a, Cmp b) => Cmp { x:a, y:b }
   TRec fs -> SolvedIf [ pCmp e | e <- recordElements fs ]
 
-  -- Cmp <newtype> -> fails
-  TNewtype{} -> Unsolvable
+  -- Cmp <nominal> -> fails
+  TNominal{} -> Unsolvable
 
   _ -> Unsolved
 
@@ -445,8 +445,8 @@ solveSignedCmpInst ty = case tNoUser ty of
   -- (SignedCmp a, SignedCmp b) => SignedCmp { x:a, y:b }
   TRec fs -> SolvedIf [ pSignedCmp e | e <- recordElements fs ]
 
-  -- SignedCmp <newtype> -> fails
-  TNewtype{} -> Unsolvable
+  -- SignedCmp <nominal> -> fails
+  TNominal{} -> Unsolvable
 
   _ -> Unsolved
 

@@ -43,7 +43,7 @@
 > import qualified Cryptol.Backend.FloatHelpers as FP
 > import Cryptol.Backend.Monad (EvalError(..))
 > import Cryptol.Eval.Type
->   (TValue(..), TNewtypeValue(..),
+>   (TValue(..), TNominalTypeValue(..),
 >    isTBit, evalValType, evalNumType, TypeEnv, bindTypeVar)
 > import Cryptol.Eval.Concrete (mkBv, ppBV, lg2)
 > import Cryptol.Utils.Ident (Ident,PrimIdent, prelPrim, floatPrim, unpackIdent)
@@ -54,7 +54,7 @@
 > import Cryptol.Eval.Type (evalType, lookupTypeVar, tNumTy, tValTy)
 >
 > import qualified Cryptol.ModuleSystem as M
-> import qualified Cryptol.ModuleSystem.Env as M (loadedModules,loadedNewtypes)
+> import qualified Cryptol.ModuleSystem.Env as M (loadedModules,loadedNominalTypes)
 
 Overview
 ========
@@ -408,7 +408,7 @@ types and on newtypes.
 >   case (tyv, sel) of
 >     (TVTuple ts, TupleSel n _) -> updTupleAt ts n
 >     (TVRec fs, RecordSel n _)  -> updRecAt fs n
->     (TVNewtype _ _ (TVStruct fs), RecordSel n _) -> updRecAt fs n
+>     (TVNominal _ _ (TVStruct fs), RecordSel n _) -> updRecAt fs n
 >     (TVSeq len _, ListSel n _) -> updSeqAt len n
 >     (_, _) -> evalPanic "evalSet" ["type/selector mismatch", show tyv, show sel]
 >   where
@@ -567,18 +567,18 @@ the new bindings.
 Nominal Types
 -------------
 
-We have two forms of nominal types: newtypes and enumerations.
+We have two forms of nominal types: newtypes and enums.
 
 At runtime, newtypes values are represented in exactly
 the same way as records.  The constructor function for
 newtypes is thus basically just an identity function
 that consumes and ignores its type arguments.
 
-Enumarations are represented with a tag, which indicates what constructor
+Enums are represented with a tag, which indicates what constructor
 was used to create a value, and the values of stored 
 
-> evalNewtypeDecl :: Env -> Newtype -> Env
-> evalNewtypeDecl env nt =
+> evalNominalDecl :: Env -> NominalType -> Env
+> evalNominalDecl env nt =
 >   case ntDef nt of
 >     Struct c -> bindVar (ntConName c, mkCon newtypeCon) env
 >     Enum cs  -> foldr enumCon env cs
@@ -1060,7 +1060,7 @@ For functions, `zero` returns the constant function that returns
 >                               | (f, fty) <- canonicalFields fields ]
 > zero (TVFun _ bty)  = VFun (\_ -> pure (zero bty))
 > zero (TVAbstract{}) = evalPanic "zero" ["Abstract type not in `Zero`"]
-> zero (TVNewtype{})  = evalPanic "zero" ["Newtype not in `Zero`"]
+> zero (TVNominal {})  = evalPanic "zero" ["Nominal type not in `Zero`"]
 
 Literals
 --------
@@ -1129,7 +1129,7 @@ at the same positions.
 >         TVRational   -> evalPanic "logicUnary" ["Rational not in class Logic"]
 >         TVFloat{}    -> evalPanic "logicUnary" ["Float not in class Logic"]
 >         TVAbstract{} -> evalPanic "logicUnary" ["Abstract type not in `Logic`"]
->         TVNewtype{}  -> evalPanic "logicUnary" ["Newtype not in `Logic`"]
+>         TVNominal {}  -> evalPanic "logicUnary" ["Nominal type not in `Logic`"]
 
 > logicBinary :: (Bool -> Bool -> Bool) -> TValue -> E Value -> E Value -> E Value
 > logicBinary op = go
@@ -1168,7 +1168,7 @@ at the same positions.
 >         TVRational   -> evalPanic "logicBinary" ["Rational not in class Logic"]
 >         TVFloat{}    -> evalPanic "logicBinary" ["Float not in class Logic"]
 >         TVAbstract{} -> evalPanic "logicBinary" ["Abstract type not in `Logic`"]
->         TVNewtype{}  -> evalPanic "logicBinary" ["Newtype not in `Logic`"]
+>         TVNominal {} -> evalPanic "logicBinary" ["Nominal type not in `Logic`"]
 
 
 Ring Arithmetic
@@ -1216,7 +1216,7 @@ False]`, but to `error "foo"`.
 >           pure $ VRecord [ (f, go fty) | (f, fty) <- canonicalFields fs ]
 >         TVAbstract {} ->
 >           evalPanic "arithNullary" ["Abstract type not in `Ring`"]
->         TVNewtype {} ->
+>         TVNominal {} ->
 >           evalPanic "arithNullary" ["Newtype type not in `Ring`"]
 
 > ringUnary ::
@@ -1256,8 +1256,8 @@ False]`, but to `error "foo"`.
 >                             | (f, fty) <- canonicalFields fs ]
 >         TVAbstract {} ->
 >           evalPanic "arithUnary" ["Abstract type not in `Ring`"]
->         TVNewtype {} ->
->           evalPanic "arithUnary" ["Newtype not in `Ring`"]
+>         TVNominal {} ->
+>           evalPanic "arithUnary" ["Nominal type not in `Ring`"]
 
 > ringBinary ::
 >   (Integer -> Integer -> E Integer) ->
@@ -1306,8 +1306,8 @@ False]`, but to `error "foo"`.
 >                | (f, fty) <- canonicalFields fs ]
 >         TVAbstract {} ->
 >           evalPanic "arithBinary" ["Abstract type not in class `Ring`"]
->         TVNewtype {} ->
->           evalPanic "arithBinary" ["Newtype not in class `Ring`"]
+>         TVNominal {} ->
+>           evalPanic "arithBinary" ["Nominal type not in class `Ring`"]
 
 
 Integral
@@ -1486,8 +1486,8 @@ bits to the *left* of that position are equal.
 >          lexList (zipWith3 lexCompare tys ls rs)
 >     TVAbstract {} ->
 >       evalPanic "lexCompare" ["Abstract type not in `Cmp`"]
->     TVNewtype {} ->
->       evalPanic "lexCompare" ["Newtype not in `Cmp`"]
+>     TVNominal {} ->
+>       evalPanic "lexCompare" ["Nominal type not in `Cmp`"]
 >
 > lexList :: [E Ordering] -> E Ordering
 > lexList [] = pure EQ
@@ -1542,8 +1542,8 @@ fields are compared in alphabetical order.
 >          lexList (zipWith3 lexSignedCompare tys ls rs)
 >     TVAbstract {} ->
 >       evalPanic "lexSignedCompare" ["Abstract type not in `Cmp`"]
->     TVNewtype {} ->
->       evalPanic "lexSignedCompare" ["Newtype type not in `Cmp`"]
+>     TVNominal {} ->
+>       evalPanic "lexSignedCompare" ["Nominal type not in `Cmp`"]
 
 
 Sequences
@@ -1863,6 +1863,6 @@ running the reference evaluator on an expression.
 >   where
 >     modEnv = M.minpModuleEnv minp
 >     extDgs = concatMap mDecls (M.loadedModules modEnv) ++ M.deDecls (M.meDynEnv modEnv)
->     nts    = Map.elems (M.loadedNewtypes modEnv)
->     env    = foldl evalDeclGroup (foldl evalNewtypeDecl mempty nts) extDgs
+>     nts    = Map.elems (M.loadedNominalTypes modEnv)
+>     env    = foldl evalDeclGroup (foldl evalNominalDecl mempty nts) extDgs
 >     val    = evalExpr env expr

@@ -212,7 +212,7 @@ data Type   = TCon !TCon ![Type]
             | TRec !(RecordMap Ident Type)
               -- ^ Record type
 
-            | TNewtype !Newtype ![Type]
+            | TNominal !NominalType ![Type]
               -- ^ A newtype
 
               deriving (Show, Generic, NFData)
@@ -318,16 +318,16 @@ data TySyn  = TySyn { tsName        :: Name       -- ^ Name
 
 
 -- | Nominal types
-data Newtype  = Newtype
+data NominalType = NominalType
   { ntName        :: Name
   , ntParams      :: [TParam]
   , ntConstraints :: [Prop]
-  , ntDef         :: NewtypeDef
+  , ntDef         :: NominalTypeDef
   , ntDoc         :: Maybe Text
   } deriving (Show, Generic, NFData)
 
 -- | Definition of a nominal type
-data NewtypeDef = Struct StructCon | Enum [EnumCon]
+data NominalTypeDef = Struct StructCon | Enum [EnumCon]
   deriving (Show, Generic, NFData)
 
 -- | Constructor for a struct (aka newtype)
@@ -346,15 +346,15 @@ data EnumCon = EnumCon
   } deriving (Show,Generic,NFData)
 
 
-instance Eq Newtype where
+instance Eq NominalType where
   x == y = ntName x == ntName y
 
-instance Ord Newtype where
+instance Ord NominalType where
   compare x y = compare (ntName x) (ntName y)
 
 
 -- | Information about an abstract type.
--- XXX: This should probably be combined with newtype as just another
+-- XXX: This should probably be combined with nominal type as just another
 -- kind of "definition".
 data AbstractType = AbstractType
   { atName    :: Name
@@ -383,16 +383,16 @@ instance HasKind Type where
       TCon c ts   -> quickApply (kindOf c) ts
       TUser _ _ t -> kindOf t
       TRec {}     -> KType
-      TNewtype{}  -> KType
+      TNominal {} -> KType
 
 instance HasKind TySyn where
   kindOf ts = foldr (:->) (kindOf (tsDef ts)) (map kindOf (tsParams ts))
 
-instance HasKind Newtype where
+instance HasKind NominalType where
   kindOf nt = foldr (:->) KType (map kindOf (ntParams nt))
 
 instance HasKind TParam where
-  kindOf p = tpKind p
+  kindOf = tpKind
 
 quickApply :: Kind -> [a] -> Kind
 quickApply k []               = k
@@ -414,7 +414,7 @@ instance Eq Type where
   TCon x xs == TCon y ys  = x == y && xs == ys
   TVar x    == TVar y     = x == y
   TRec xs   == TRec ys    = xs == ys
-  TNewtype ntx xs == TNewtype nty ys = ntx == nty && xs == ys
+  TNominal ntx xs == TNominal nty ys = ntx == nty && xs == ys
 
   _         == _          = False
 
@@ -436,7 +436,7 @@ instance Ord Type where
       (TRec{}, _)             -> LT
       (_, TRec{})             -> GT
 
-      (TNewtype x xs, TNewtype y ys) -> compare (x,xs) (y,ys)
+      (TNominal x xs, TNominal y ys) -> compare (x,xs) (y,ys)
 
 instance Eq TParam where
   x == y = tpUnique x == tpUnique y
@@ -445,7 +445,7 @@ instance Ord TParam where
   compare x y = compare (tpUnique x) (tpUnique y)
 
 tpVar :: TParam -> TVar
-tpVar p = TVBound p
+tpVar = TVBound
 
 -- | The type is "simple" (i.e., it contains no type functions).
 type SType  = Type
@@ -477,8 +477,8 @@ superclassSet (TCon (PC p0) [t]) = go p0
 superclassSet _ = mempty
 
 
-newtypeConTypes :: Newtype -> [(Name,Schema)]
-newtypeConTypes nt =
+nominalTypeConTypes :: NominalType -> [(Name,Schema)]
+nominalTypeConTypes nt =
   case ntDef nt of
     Struct s -> [ ( ntConName s
                   , Forall as ctrs (TRec (ntFields s) `tFun` resT)
@@ -491,7 +491,7 @@ newtypeConTypes nt =
   where
   as    = ntParams nt
   ctrs  = ntConstraints nt
-  resT  = TNewtype nt (map (TVar . tpVar) as)
+  resT  = TNominal nt (map (TVar . tpVar) as)
 
 
 abstractTypeTC :: AbstractType -> TCon
@@ -747,8 +747,8 @@ tNat' n'  = case n' of
 tAbstract :: UserTC -> [Type] -> Type
 tAbstract u ts = TCon (TC (TCAbstract u)) ts
 
-tNewtype :: Newtype -> [Type] -> Type
-tNewtype nt ts = TNewtype nt ts
+tNominal :: NominalType -> [Type] -> Type
+tNominal = TNominal
 
 tBit     :: Type
 tBit      = TCon (TC TCBit) []
@@ -1009,7 +1009,7 @@ instance FVS Type where
         TVar x      -> Set.singleton x
         TUser _ _ t -> go t
         TRec fs     -> fvs (recordElements fs)
-        TNewtype _nt ts -> fvs ts
+        TNominal _nt ts -> fvs ts
 
 
 -- | Find the abstract types mentioned in a type.
@@ -1035,7 +1035,7 @@ instance FreeAbstract Type where
       TVar {}         -> Set.empty
       TUser _ _ t     -> freeAbstract t
       TRec fs         -> freeAbstract (recordElements fs)
-      TNewtype _nt ts -> freeAbstract ts
+      TNominal _nt ts -> freeAbstract ts
 
 
 
@@ -1079,8 +1079,8 @@ addTNames as ns = foldr (uncurry IntMap.insert) ns
 
         used    = map snd named ++ IntMap.elems ns
 
-ppNewtypeShort :: Newtype -> Doc
-ppNewtypeShort nt =
+ppNominalShort :: NominalType -> Doc
+ppNominalShort nt =
   kw <+> pp (ntName nt) <+> hsep (map (ppWithNamesPrec nm 9) ps)
   where
   ps = ntParams nt
@@ -1089,8 +1089,8 @@ ppNewtypeShort nt =
          Struct {} -> "newtype"
          Enum {}   -> "enum"
 
-ppNewtypeFull :: Newtype -> Doc
-ppNewtypeFull nt =
+ppNominalFull :: NominalType -> Doc
+ppNominalFull nt =
   (kw <+> pp (ntName nt) <+> hsep (map (ppWithNamesPrec nm 9) ps))
   $$ nest 2 (cs $$ def)
   where
@@ -1154,11 +1154,11 @@ instance PP (WithNames TySyn) where
                   (_, ps) ->
                     [pp n] ++ map (ppWithNames ns1) ps
 
-instance PP Newtype where
+instance PP NominalType where
   ppPrec = ppWithNamesPrec IntMap.empty
 
-instance PP (WithNames Newtype) where
-  ppPrec _  (WithNames nt _) = ppNewtypeShort nt -- XXX: do the full thing?
+instance PP (WithNames NominalType) where
+  ppPrec _  (WithNames nt _) = ppNominalShort nt -- XXX: do the full thing?
 
 
 
@@ -1178,7 +1178,8 @@ instance PP (WithNames Type) where
   ppPrec prec ty0@(WithNames ty nmMap) =
     case ty of
       TVar a  -> ppWithNames nmMap a
-      TNewtype nt ts -> optParens (prec > 3) $ fsep (pp (ntName nt) : map (go 5) ts)
+      TNominal nt ts -> optParens (prec > 3)
+                                  (fsep (pp (ntName nt) : map (go 5) ts))
       TRec fs -> ppRecord
                     [ pp l <+> text ":" <+> go 0 t | (l,t) <- displayFields fs ]
 

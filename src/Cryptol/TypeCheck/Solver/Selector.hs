@@ -68,7 +68,7 @@ solveSelector sel outerT =
     (RecordSel l _, ty) ->
       case ty of
         TRec fs -> return (lookupField l fs)
-        TNewtype nt ts ->
+        TNominal nt ts ->
           case ntDef nt of
             Struct c ->
               case lookupField l (ntFields c) of

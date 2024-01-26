@@ -51,7 +51,7 @@ import Cryptol.Backend.SeqMap (indexSeqMap, finiteSeqMap)
 import Cryptol.Backend.WordValue (wordVal)
 
 import Cryptol.Eval(evalEnumCon)
-import Cryptol.Eval.Type      ( TValue(..), TNewtypeValue(..), ConInfo(..)
+import Cryptol.Eval.Type      ( TValue(..), TNominalTypeValue(..), ConInfo(..)
                               , isNullaryCon )
 import Cryptol.Eval.Value     ( GenValue(..), ppValue, defaultPPOpts, fromVFun)
 import Cryptol.TypeCheck.Solver.InfNat (widthInteger)
@@ -171,7 +171,7 @@ randomValue sym ty =
          do gs <- traverse (randomValue sym) fs
             return (randomRecord gs)
 
-    TVNewtype _ _ nval ->
+    TVNominal _ _ nval ->
       case nval of
         TVStruct fs ->
           do gs <- traverse (randomValue sym) fs
@@ -475,7 +475,7 @@ typeSize ty = case ty of
   TVFun{} -> Nothing
   TVAbstract{} -> Nothing
 
-  TVNewtype _ _ nv ->
+  TVNominal _ _ nv ->
     case nv of
       TVStruct tbody -> typeSize (TVRec tbody)
       TVEnum cons -> sum <$> mapM (conSize . conFields) cons
@@ -511,7 +511,7 @@ typeValues ty =
       ]
     TVFun{} -> []
     TVAbstract{} -> []
-    TVNewtype _ _ nv ->
+    TVNominal _ _ nv ->
       case nv of
         TVStruct tbody -> typeValues (TVRec tbody)
         TVEnum cons ->

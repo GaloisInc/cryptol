@@ -26,7 +26,7 @@ module Cryptol.Symbolic
  , CounterExampleType(..)
    -- * FinType
  , FinType(..)
- , FinNewtype(..)
+ , FinNominalType(..)
  , finType
  , unFinType
  , predArgTypes
@@ -64,7 +64,7 @@ import           Cryptol.Eval.Value
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Solver.InfNat
 import           Cryptol.Eval.Type
-  (TValue(..), TNewtypeValue(..), evalType,tValTy,tNumValTy,ConInfo(..))
+  (TValue(..), TNominalTypeValue(..), evalType,tValTy,tNumValTy,ConInfo(..))
 import           Cryptol.Utils.Ident (Ident,prelPrim,floatPrim)
 import           Cryptol.Utils.RecordMap
 import           Cryptol.Utils.Panic
@@ -152,9 +152,9 @@ data FinType
     | FTSeq Integer FinType
     | FTTuple [FinType]
     | FTRecord (RecordMap Ident FinType)
-    | FTNewtype Newtype [Either Nat' TValue] FinNewtype
+    | FTNominal NominalType [Either Nat' TValue] FinNominalType
 
-data FinNewtype =
+data FinNominalType =
     FStruct (RecordMap Ident FinType)
   | FEnum (Vector (ConInfo FinType))
 
@@ -169,7 +169,7 @@ finType ty =
     TVSeq n t           -> FTSeq n <$> finType t
     TVTuple ts          -> FTTuple <$> traverse finType ts
     TVRec fields        -> FTRecord <$> traverse finType fields
-    TVNewtype u ts nv  -> FTNewtype u ts <$>
+    TVNominal u ts nv   -> FTNominal u ts <$>
       case nv of
         TVStruct body -> FStruct <$> traverse finType body
         TVEnum cs     -> FEnum   <$> traverse (traverse finType) cs
@@ -190,7 +190,7 @@ finTypeToType fty =
     FTSeq l ety       -> tSeq (tNum l) (finTypeToType ety)
     FTTuple ftys      -> tTuple (finTypeToType <$> ftys)
     FTRecord fs       -> tRec (finTypeToType <$> fs)
-    FTNewtype u ts _  -> tNewtype u (map unArg ts)
+    FTNominal u ts _  -> tNominal u (map unArg ts)
  where
   unArg (Left Inf)     = tInf
   unArg (Left (Nat n)) = tNum n
@@ -208,7 +208,7 @@ unFinType fty =
     FTTuple ftys      -> TVTuple (unFinType <$> ftys)
     FTRecord fs       -> TVRec   (unFinType <$> fs)
 
-    FTNewtype u ts nv -> TVNewtype u ts $
+    FTNominal u ts nv -> TVNominal u ts $
        case nv of
           FStruct fs  -> TVStruct (unFinType <$> fs)
           FEnum cs    -> TVEnum (fmap unFinType <$> cs)
@@ -301,7 +301,7 @@ freshVar fns tp =
     FTSeq n t     -> VarFinSeq (toInteger n) <$> sequence (genericReplicate n (freshVar fns t))
     FTTuple ts    -> VarTuple    <$> mapM (freshVar fns) ts
     FTRecord fs   -> VarRecord   <$> traverse (freshVar fns) fs
-    FTNewtype _ _ nv ->
+    FTNominal _ _ nv ->
       case nv of
         FStruct fs -> VarRecord <$> traverse (freshVar fns) fs
         FEnum conTs ->
@@ -387,7 +387,7 @@ varToExpr prims = go
   go :: FinType -> VarShape Concrete.Concrete -> Expr
   go ty val =
     case (ty,val) of
-      (FTNewtype nt ts (FStruct tfs), VarRecord vfs) ->
+      (FTNominal nt ts (FStruct tfs), VarRecord vfs) ->
         let res = zipRecords (\_lbl v t -> go t v) vfs tfs
          in case res of
               Left _ -> mismatch -- different fields
@@ -398,7 +398,7 @@ varToExpr prims = go
                     f = foldl (\x t -> ETApp x (tNumValTy t)) (EVar con) ts
                  in EApp f (ERec efs)
 
-      (FTNewtype nt ts (FEnum cons), VarEnum tag conVs) ->
+      (FTNominal nt ts (FEnum cons), VarEnum tag conVs) ->
          foldl EApp conName args
          where
          tag' = fromInteger tag

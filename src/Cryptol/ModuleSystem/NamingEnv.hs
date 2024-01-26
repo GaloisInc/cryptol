@@ -251,11 +251,11 @@ unqualifiedEnv IfaceDecls { .. } =
                     | n <- Map.keys ifTySyns ]
 
   ntTypes = mconcat [ n
-                    | nt <- Map.elems ifNewtypes
+                    | nt <- Map.elems ifNominalTypes
                     , let tname  = T.ntName nt
                     , n  <- singletonNS NSType (toPName tname) tname
                           : [ singletonNS NSValue (toPName cname) cname
-                            | cname <-map fst (T.newtypeConTypes nt)
+                            | cname <-map fst (T.nominalTypeConTypes nt)
                             ]
                     ]
 
@@ -263,7 +263,7 @@ unqualifiedEnv IfaceDecls { .. } =
                     | n <- Map.keys ifAbstractTypes ]
 
   ntExprs = mconcat [ singletonNS NSValue (toPName n) n
-                    | n <- Map.keys ifNewtypes ]
+                    | n <- Map.keys ifNominalTypes ]
 
   mods    = mconcat [ singletonNS NSModule (toPName n) n
                     | n <- Map.keys ifModules ]

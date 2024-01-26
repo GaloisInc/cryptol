@@ -44,13 +44,13 @@ data TValue
   | TVTuple [TValue]          -- ^ @ (a, b, c )@
   | TVRec (RecordMap Ident TValue) -- ^ @ { x : a, y : b, z : c } @
   | TVFun TValue TValue       -- ^ @ a -> b @
-  | TVNewtype Newtype
+  | TVNominal NominalType
               [Either Nat' TValue]
-              TNewtypeValue    -- ^ a named newtype
+              TNominalTypeValue    -- ^ a named newtype
   | TVAbstract UserTC [Either Nat' TValue] -- ^ an abstract type
     deriving (Generic, NFData, Eq)
 
-data TNewtypeValue =
+data TNominalTypeValue =
     TVStruct (RecordMap Ident TValue)
   | TVEnum   (Vector (ConInfo TValue))  -- ^ Indexed by constructor number
     deriving (Generic, NFData, Eq)
@@ -88,7 +88,7 @@ tValTy tv =
     TVTuple ts  -> tTuple (map tValTy ts)
     TVRec fs    -> tRec (fmap tValTy fs)
     TVFun t1 t2 -> tFun (tValTy t1) (tValTy t2)
-    TVNewtype nt vs _ -> tNewtype nt (map tNumValTy vs)
+    TVNominal nt vs _ -> tNominal nt (map tNumValTy vs)
     TVAbstract u vs -> tAbstract u (map tNumValTy vs)
 
 tNumTy :: Nat' -> Type
@@ -160,7 +160,7 @@ evalType env ty =
     TUser _ _ ty'  -> evalType env ty'
     TRec fields    -> Right $ TVRec (fmap val fields)
 
-    TNewtype nt ts -> Right $ TVNewtype nt tvs $ evalNewtypeBody env nt tvs
+    TNominal nt ts -> Right $ TVNominal nt tvs $ evalNominalTypeBody env nt tvs
         where tvs = map (evalType env) ts
 
     TCon (TC c) ts ->
@@ -201,9 +201,9 @@ evalType env ty =
                                   ["Expecting a finite size, but got `inf`"]
 
 -- | Evaluate the body of a newtype, given evaluated arguments
-evalNewtypeBody ::
-  TypeEnv -> Newtype -> [Either Nat' TValue] -> TNewtypeValue
-evalNewtypeBody env0 nt args =
+evalNominalTypeBody ::
+  TypeEnv -> NominalType -> [Either Nat' TValue] -> TNominalTypeValue
+evalNominalTypeBody env0 nt args =
   case ntDef nt of
     Struct c -> TVStruct (fmap (evalValType env') (ntFields c))
     Enum cs  -> TVEnum (Vector.fromList (map doEnum (sortOn ecNumber cs)))

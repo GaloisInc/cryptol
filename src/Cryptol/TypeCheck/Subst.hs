@@ -263,11 +263,11 @@ apSubstMaybe su ty =
 
     TRec fs -> TRec `fmap` (anyJust (apSubstMaybe su) fs)
 
-    {- We apply the substitution to the newtype as well, because it might
+    {- We apply the substitution to nominal types as well, because it might
     contain module parameters, which need to be substituted when
     instantiating a functor. -}
-    TNewtype nt ts ->
-      uncurry TNewtype <$> anyJust2 (applySubstToNewtype su)
+    TNominal nt ts ->
+      uncurry TNominal <$> anyJust2 (applySubstToNominalType su)
                                     (anyJust (apSubstMaybe su))
                                     (nt,ts)
 
@@ -293,8 +293,8 @@ applySubstToVar su x =
       | otherwise       -> Nothing
 
 
-applySubstToNewtype :: Subst -> Newtype -> Maybe Newtype
-applySubstToNewtype su nt =
+applySubstToNominalType :: Subst -> NominalType -> Maybe NominalType
+applySubstToNominalType su nt =
  do (cs,def)  <- anyJust2 (anyJust (apSubstMaybe su)) apSubstDef
                           (ntConstraints nt, ntDef nt)
     pure nt { ntConstraints = cs, ntDef = def }
@@ -365,7 +365,7 @@ apSubstTypeMapKeys su = go (\_ x -> x) id
     tm' = TM { tvar = Map.fromList   vars
              , tcon = fmap (lgo merge atNode) tcon
              , trec = fmap (lgo merge atNode) trec
-             , tnewtype = fmap (lgo merge atNode) tnewtype
+             , tnominal = fmap (lgo merge atNode) tnominal
              }
 
     -- partition out variables that have been replaced with more specific types
@@ -387,7 +387,7 @@ apSubstTypeMapKeys su = go (\_ x -> x) id
 
 instance TVars a => TVars (Map.Map k a) where
   -- NB, strict map
-  apSubst su m = Map.map (apSubst su) m
+  apSubst su = Map.map (apSubst su)
 
 instance TVars TySyn where
   apSubst su (TySyn nm params props t doc) =

@@ -18,12 +18,12 @@ tRebuild' withUser = go
   go ty =
     case ty of
       TUser x xs t
-        | withUser  -> TUser x xs (go t)
-        | otherwise -> go t
-      TVar _        -> ty
-      TRec xs       -> TRec (fmap go xs)
-      TNewtype nt xs -> TNewtype nt (map go xs)
-      TCon tc ts    -> tCon tc (map go ts)
+        | withUser    -> TUser x xs (go t)
+        | otherwise   -> go t
+      TVar _          -> ty
+      TRec xs         -> TRec (fmap go xs)
+      TNominal nt xs  -> TNominal nt (map go xs)
+      TCon tc ts      -> tCon tc (map go ts)
 
 tRebuild :: Type -> Type
 tRebuild = tRebuild' True

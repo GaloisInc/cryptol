@@ -65,7 +65,7 @@ checkTyParam src k mb =
 -- A) are the instantiations of the type parameters of the constructor
 -- B) is how many proofs we would have if we had dictionaries
 -- C) are the types of the fields of the constructor
--- C) is the type of the result of the constructor (i.e., what we are mathcing)
+-- D) is the type of the result of the constructor (i.e., what we are mathcing)
 instantiatePCon :: Name -> InferM ([Type],Int,[Type],Type)
 instantiatePCon nm =
   do vart <- lookupVar nm

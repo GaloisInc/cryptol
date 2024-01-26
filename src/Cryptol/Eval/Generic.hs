@@ -253,8 +253,8 @@ ringBinary sym opw opi opz opq opfp = loop
     TVAbstract {} ->
       evalPanic "ringBinary" ["Abstract type not in `Ring`"]
 
-    TVNewtype {} ->
-      evalPanic "ringBinary" ["Newtype not in `Ring`"]
+    TVNominal {} ->
+      evalPanic "ringBinary" ["Nominal type not in `Ring`"]
 
 type UnaryWord sym = Integer -> SWord sym -> SEval sym (SWord sym)
 
@@ -332,7 +332,7 @@ ringUnary sym opw opi opz opq opfp = loop
 
     TVAbstract {} -> evalPanic "ringUnary" ["Abstract type not in `Ring`"]
 
-    TVNewtype {} -> evalPanic "ringUnary" ["Newtype not in `Ring`"]
+    TVNominal {} -> evalPanic "ringUnary" ["Nominal type not in `Ring`"]
 
 
 {-# SPECIALIZE ringNullary ::
@@ -401,8 +401,8 @@ ringNullary sym opw opi opz opq opfp = loop
         TVAbstract {} ->
           evalPanic "ringNullary" ["Abstract type not in `Ring`"]
 
-        TVNewtype {} ->
-          evalPanic "ringNullary" ["Newtype not in `Ring`"]
+        TVNominal {} ->
+          evalPanic "ringNullary" ["Nominal type not in `Ring`"]
 
 {-# SPECIALIZE integralBinary :: Concrete -> BinWord Concrete ->
       (SInteger Concrete -> SInteger Concrete -> SEval Concrete (SInteger Concrete)) ->
@@ -780,8 +780,8 @@ cmpValue sym fb fw fi fz fq ff = cmp
         TVAbstract {} -> evalPanic "cmpValue"
                           [ "Abstract type not in `Cmp`" ]
 
-        TVNewtype {} -> evalPanic "cmpValue"
-                          [ "Newtype not in `Cmp`" ]
+        TVNominal {} -> evalPanic "cmpValue"
+                          [ "Nominal type not in `Cmp`" ]
 
     cmpValues (t : ts) (x1 : xs1) (x2 : xs2) k =
       do x1' <- x1
@@ -953,7 +953,7 @@ zeroV sym ty = case ty of
 
   TVAbstract {} -> evalPanic "zeroV" [ "Abstract type not in `Zero`" ]
 
-  TVNewtype {} -> evalPanic "zeroV" [ "Newtype not in `Zero`" ]
+  TVNominal {} -> evalPanic "zeroV" [ "Nominal type not in `Zero`" ]
 
 
 {-# SPECIALIZE joinSeq ::
@@ -1295,8 +1295,8 @@ logicBinary sym opb opw = loop
     TVAbstract {} -> evalPanic "logicBinary"
                         [ "Abstract type not in `Logic`" ]
 
-    TVNewtype {} -> evalPanic "logicBinary"
-                        [ "Newtype not in `Logic`" ]
+    TVNominal {} -> evalPanic "logicBinary"
+                        [ "Nominal type not in `Logic`" ]
 
 {-# SPECIALIZE logicUnary ::
   Concrete ->
@@ -1354,7 +1354,7 @@ logicUnary sym opb opw = loop
 
     TVAbstract {} -> evalPanic "logicUnary" [ "Abstract type not in `Logic`" ]
 
-    TVNewtype {} -> evalPanic "logicUnary" [ "Newtype not in `Logic`" ]
+    TVNominal {} -> evalPanic "logicUnary" [ "Nominal type not in `Logic`" ]
 
 
 {-# INLINE assertIndexInBounds #-}

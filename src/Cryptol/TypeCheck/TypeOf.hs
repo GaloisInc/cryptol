@@ -140,7 +140,7 @@ plainSubst s ty =
     TCon tc ts     -> TCon tc (map (plainSubst s) ts)
     TUser f ts t   -> TUser f (map (plainSubst s) ts) (plainSubst s t)
     TRec fs        -> TRec (fmap (plainSubst s) fs)
-    TNewtype nt ts -> TNewtype nt (map (plainSubst s) ts)
+    TNominal nt ts -> TNominal nt (map (plainSubst s) ts)
     TVar x         -> apSubst s (TVar x)
 
 -- | Yields the return type of the selector on the given argument type.
@@ -158,7 +158,7 @@ typeSelect (TRec fields) (RecordSel n _)
   | Just ty <- lookupField n fields = ty
 
 -- Record selector applied to a newtype
-typeSelect (TNewtype nt args) (RecordSel n _)
+typeSelect (TNominal nt args) (RecordSel n _)
   | Struct con <- ntDef nt
   , Just ty <- lookupField n (ntFields con)
   = plainSubst (listParamSubst (zip (ntParams nt) args)) ty

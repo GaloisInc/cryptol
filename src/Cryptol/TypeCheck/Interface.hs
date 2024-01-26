@@ -40,9 +40,9 @@ genModDefines :: ModuleG name -> Set Name
 genModDefines m =
   Set.unions
     [ Map.keysSet  (mTySyns m)
-    , Map.keysSet  (mNewtypes m)
-    , Set.fromList (concatMap (map fst . newtypeConTypes)
-                              (Map.elems (mNewtypes m)))
+    , Map.keysSet  (mNominalTypes m)
+    , Set.fromList (concatMap (map fst . nominalTypeConTypes)
+                              (Map.elems (mNominalTypes m)))
     , Map.keysSet  (mPrimTypes m)
     , Set.fromList (map dName (concatMap groupDecls (mDecls m)))
     , Map.keysSet  (mSubmodules m)
@@ -66,7 +66,7 @@ genIfaceWithNames names m =
 
   , ifDefines = IfaceDecls
     { ifTySyns          = mTySyns m
-    , ifNewtypes        = mNewtypes m
+    , ifNominalTypes    = mNominalTypes m
     , ifAbstractTypes   = mPrimTypes m
     , ifDecls           = Map.fromList [ (qn,mkIfaceDecl d)
                                        | dg <- mDecls m

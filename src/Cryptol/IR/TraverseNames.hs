@@ -190,8 +190,8 @@ instance TraverseNames Type where
       TUser x ts t  -> TUser <$> traverseNamesIP x
                              <*> traverseNamesIP ts
                              <*> traverseNamesIP t
-      TRec rm       -> TRec <$> traverseRecordMap (\_ -> traverseNamesIP) rm
-      TNewtype nt ts -> TNewtype <$> traverseNamesIP nt <*> traverseNamesIP ts
+      TRec rm       -> TRec <$> traverseRecordMap (const traverseNamesIP) rm
+      TNominal nt ts -> TNominal <$> traverseNamesIP nt <*> traverseNamesIP ts
 
 
 instance TraverseNames TCon where
@@ -215,15 +215,16 @@ instance TraverseNames TVar where
       TVFree x k ys i -> TVFree x k <$> traverseNamesIP ys <*> traverseNamesIP i
       TVBound x       -> TVBound <$> traverseNamesIP x
 
-instance TraverseNames Newtype where
+instance TraverseNames NominalType where
   traverseNamesIP nt =
-    Newtype <$> traverseNamesIP (ntName nt)
-            <*> traverseNamesIP (ntParams nt)
-            <*> traverseNamesIP (ntConstraints nt)
-            <*> traverseNamesIP (ntDef nt)
-            <*> pure (ntDoc nt)
+    NominalType
+      <$> traverseNamesIP (ntName nt)
+      <*> traverseNamesIP (ntParams nt)
+      <*> traverseNamesIP (ntConstraints nt)
+      <*> traverseNamesIP (ntDef nt)
+      <*> pure (ntDoc nt)
 
-instance TraverseNames NewtypeDef where
+instance TraverseNames NominalTypeDef where
   traverseNamesIP def =
     case def of
       Struct c -> Struct <$> traverseNamesIP c

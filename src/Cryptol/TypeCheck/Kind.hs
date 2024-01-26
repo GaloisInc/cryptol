@@ -133,7 +133,7 @@ checkPropSyn (P.PropSyn x _ as ps) mbD =
                   }
 
 -- | Check a newtype declaration.
-checkNewtype :: P.Newtype Name -> Maybe Text -> InferM Newtype
+checkNewtype :: P.Newtype Name -> Maybe Text -> InferM NominalType
 checkNewtype (P.Newtype x as con fs) mbD =
   do ((as1,fs1),gs) <- collectGoals $
        inRange (srcRange x) $
@@ -143,7 +143,8 @@ checkNewtype (P.Newtype x as con fs) mbD =
           simplifyAllConstraints
           return r
 
-     return Newtype { ntName   = thing x
+     return NominalType
+                    { ntName   = thing x
                     , ntParams = as1
                     , ntConstraints = map goal gs
                     , ntDef = Struct
@@ -151,7 +152,7 @@ checkNewtype (P.Newtype x as con fs) mbD =
                     , ntDoc = mbD
                     }
 
-checkEnum :: P.EnumDecl Name -> Maybe Text -> InferM Newtype
+checkEnum :: P.EnumDecl Name -> Maybe Text -> InferM NominalType
 checkEnum ed mbD =
   do let x = P.eName ed
      ((as1,cons1),gs) <- collectGoals $
@@ -171,7 +172,8 @@ checkEnum ed mbD =
                           }
           simplifyAllConstraints
           pure r
-     pure Newtype { ntName = thing x
+     pure NominalType
+                  { ntName = thing x
                   , ntParams = as1
                   , ntConstraints = map goal gs
                   , ntDef = Enum cons1
@@ -297,7 +299,7 @@ checkTUser ::
 checkTUser x ts k =
   mcase kLookupTyVar      checkBoundVarUse $
   mcase kLookupTSyn       checkTySynUse $
-  mcase kLookupNewtype    checkNewTypeUse $
+  mcase kLookupNominal    checkNominalTypeUse $
   mcase kLookupParamType  checkModuleParamUse $
   mcase kLookupAbstractType checkAbstractTypeUse $
   checkScopedVarUse -- none of the above, must be a scoped type variable,
@@ -313,14 +315,14 @@ checkTUser x ts k =
        t1  <- kInstantiateT (tsDef tysyn) su
        checkKind (TUser x ts1 t1) k k1
 
-  checkNewTypeUse nt =
+  checkNominalTypeUse nt =
     do (ts1,k1) <- appTy ts (kindOf nt)
        let as = ntParams nt
        ts2 <- checkParams as ts1
        let su = zip as ts2
        ps1 <- mapM (`kInstantiateT` su) (ntConstraints nt)
        kNewGoals (CtPartialTypeFun (ntName nt)) ps1
-       checkKind (TNewtype nt ts2) k k1
+       checkKind (TNominal nt ts2) k k1
 
   checkAbstractTypeUse absT =
     do let tc   = abstractTypeTC absT

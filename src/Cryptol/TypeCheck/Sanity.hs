@@ -87,7 +87,7 @@ checkType ty =
       do ks <- mapM checkType ts
          checkKind (kindOf tc) ks
 
-    TNewtype nt ts ->
+    TNominal nt ts ->
       do ks <- mapM checkType ts
          checkKind (kindOf nt) ks
 
@@ -174,7 +174,7 @@ instance Same Type where
       case (tNoUser t1, tNoUser t2) of
         (TVar x, TVar y)               -> sameBool (x == y)
         (TRec x, TRec y)               -> same (mkRec x) (mkRec y)
-        (TNewtype x xs, TNewtype y ys) -> same (Field x xs) (Field y ys)
+        (TNominal x xs, TNominal y ys) -> same (Field x xs) (Field y ys)
         (TCon x xs, TCon y ys)         -> same (Field x xs) (Field y ys)
         _                              -> NotSame
       where
@@ -440,9 +440,9 @@ convertible t1 t2 = go t1 t2
                                | tc1 == tc2 -> goMany ts1 ts2
                             _ -> err
 
-         TNewtype nt1 ts1 ->
+         TNominal nt1 ts1 ->
             case other of
-              TNewtype nt2 ts2
+              TNominal nt2 ts2
                 | nt1 == nt2 -> goMany ts1 ts2
               _ -> err
 

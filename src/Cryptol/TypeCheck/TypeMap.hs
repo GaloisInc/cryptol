@@ -118,16 +118,16 @@ type TypesMap = List TypeMap
 data TypeMap a = TM { tvar :: Map TVar a
                     , tcon :: Map TCon    (List TypeMap a)
                     , trec :: Map [Ident] (List TypeMap a)
-                    , tnewtype :: Map Newtype (List TypeMap a)
+                    , tnominal :: Map NominalType (List TypeMap a)
                     } deriving (Functor, Foldable, Traversable)
 
 instance TrieMap TypeMap Type where
-  emptyTM = TM { tvar = emptyTM, tcon = emptyTM, trec = emptyTM, tnewtype = emptyTM }
+  emptyTM = TM { tvar = emptyTM, tcon = emptyTM, trec = emptyTM, tnominal = emptyTM }
 
   nullTM ty = and [ nullTM (tvar ty)
                   , nullTM (tcon ty)
                   , nullTM (trec ty)
-                  , nullTM (tnewtype ty)
+                  , nullTM (tnominal ty)
                   ]
 
   lookupTM ty =
@@ -137,7 +137,7 @@ instance TrieMap TypeMap Type where
       TCon c ts   -> lookupTM ts <=< lookupTM c . tcon
       TRec fs     -> let (xs,ts) = unzip $ canonicalFields fs
                      in lookupTM ts <=< lookupTM xs . trec
-      TNewtype nt ts -> lookupTM ts <=< lookupTM nt . tnewtype
+      TNominal nt ts -> lookupTM ts <=< lookupTM nt . tnominal
 
   alterTM ty f m =
     case ty of
@@ -146,7 +146,7 @@ instance TrieMap TypeMap Type where
       TCon c ts   -> m { tcon = alterTM c (updSub ts f) (tcon m) }
       TRec fs     -> let (xs,ts) = unzip $ canonicalFields fs
                      in m { trec = alterTM xs (updSub ts f) (trec m) }
-      TNewtype nt ts -> m { tnewtype = alterTM nt (updSub ts f) (tnewtype m) }
+      TNominal nt ts -> m { tnominal = alterTM nt (updSub ts f) (tnominal m) }
 
   toListTM m =
     [ (TVar x,           v) | (x,v)   <- toListTM (tvar m) ] ++
@@ -159,14 +159,14 @@ instance TrieMap TypeMap Type where
           | (fs,m1) <- toListTM (trec m)
           , (ts,v)  <- toListTM m1 ] ++
 
-    [ (TNewtype nt ts, v) | (nt,m1) <- toListTM (tnewtype m)
+    [ (TNominal nt ts, v) | (nt,m1) <- toListTM (tnominal m)
                           , (ts,v)  <- toListTM m1
     ]
 
   unionTM f m1 m2 = TM { tvar = unionTM f (tvar m1) (tvar m2)
                        , tcon = unionTM (unionTM f) (tcon m1) (tcon m2)
                        , trec = unionTM (unionTM f) (trec m1) (trec m2)
-                       , tnewtype = unionTM (unionTM f) (tnewtype m1) (tnewtype m2)
+                       , tnominal = unionTM (unionTM f) (tnominal m1) (tnominal m2)
                        }
 
   mapMaybeWithKeyTM f m =
@@ -177,8 +177,8 @@ instance TrieMap TypeMap Type where
                              (\ts a -> f (TRec (recordFromFields (zip fs ts))) a) l) (trec m)
                                -- NB: this step loses 'displayOrder' information.
                                --  It's not clear if we should try to fix this.
-       , tnewtype = mapWithKeyTM (\nt l -> mapMaybeWithKeyTM
-                                 (\ts a -> f (TNewtype nt ts) a) l) (tnewtype m)
+       , tnominal = mapWithKeyTM (\nt l -> mapMaybeWithKeyTM
+                                 (\ts a -> f (TNominal nt ts) a) l) (tnominal m)
        }
 
 

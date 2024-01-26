@@ -56,7 +56,7 @@ doBacktickInstance as ps mp m
          , tparams = Set.toList as
          , constraints = ps
          , vparams = mp
-         , newNewtypes = Map.empty
+         , newNominalTypes = Map.empty
          }
 
     do unless (null bad)
@@ -64,12 +64,12 @@ doBacktickInstance as ps mp m
 
        rec
          ts <- doAddParams nt mTySyns
-         nt <- doAddParams nt mNewtypes
+         nt <- doAddParams nt mNominalTypes
          ds <- doAddParams nt mDecls
 
        pure m
          { mTySyns   = ts
-         , mNewtypes = nt
+         , mNominalTypes = nt
          , mDecls    = ds
          }
 
@@ -83,7 +83,7 @@ doBacktickInstance as ps mp m
     ourPath = impNameModPath (thing (mName m))
 
     doAddParams nt sel =
-      mapReader (\ro -> ro { newNewtypes = nt }) (addParams (sel m))
+      mapReader (\ro -> ro { newNominalTypes = nt }) (addParams (sel m))
 
 
 type RewM = ReaderT RO TC.InferM
@@ -96,7 +96,7 @@ data RO = RO
   , tparams      :: [MBQual TParam]
   , constraints  :: [Prop]
   , vparams      :: Map (MBQual Name) Type
-  , newNewtypes  :: Map Name Newtype
+  , newNominalTypes :: Map Name NominalType
   }
 
 
@@ -109,7 +109,7 @@ instance AddParams a => AddParams (Map Name a) where
 instance AddParams a => AddParams [a] where
   addParams = mapM addParams
 
-instance AddParams Newtype where
+instance AddParams NominalType where
   addParams nt =
     do (tps,cs) <- newTypeParams TPNewtypeParam
        rProps   <- rewTypeM tps (ntConstraints nt)
@@ -259,12 +259,12 @@ newValParams tps =
                  )
 
 liftRew ::
-  ((?isOurs :: Name -> Bool, ?newNewtypes :: Map Name Newtype) => a) ->
+  ((?isOurs :: Name -> Bool, ?newNominalTypes :: Map Name NominalType) => a) ->
   RewM a
 liftRew x =
   do ro <- ask
      let ?isOurs      = isOurs ro
-         ?newNewtypes = newNewtypes ro
+         ?newNominalTypes = newNominalTypes ro
      pure x
 
 rewTypeM :: RewType t => TypeParams -> t -> RewM t
@@ -282,7 +282,7 @@ rewValM ts cs vs x =
 class RewType t where
   rewType ::
     ( ?isOurs      :: Name -> Bool
-    , ?newNewtypes :: Map Name Newtype    -- Lazy
+    , ?newNominalTypes :: Map Name NominalType -- Lazy
     , ?tparams     :: TypeParams
     ) => t -> t
 
@@ -309,12 +309,12 @@ instance RewType Type where
 
       TRec fs -> TRec (rewType fs)
 
-      TNewtype tdef ts
-        | ?isOurs nm -> TNewtype tdef' (pUse ?tparams ++ rewType ts)
-        | otherwise  -> TNewtype tdef (rewType ts)
+      TNominal tdef ts
+        | ?isOurs nm -> TNominal tdef' (pUse ?tparams ++ rewType ts)
+        | otherwise  -> TNominal tdef (rewType ts)
         where
         nm    = ntName tdef
-        tdef' = case Map.lookup nm ?newNewtypes of
+        tdef' = case Map.lookup nm ?newNominalTypes of
                   Just yes -> yes
                   Nothing  -> panic "rewType" [ "Missing recursive newtype"
                                               , show (pp nm) ]
@@ -336,7 +336,7 @@ instance RewType Schema where
 class RewVal t where
   rew ::
     ( ?isOurs      :: Name -> Bool
-    , ?newNewtypes :: Map Name Newtype    -- Lazy
+    , ?newNominalTypes :: Map Name NominalType -- Lazy
     , ?tparams     :: TypeParams
     , ?cparams     :: Int                 -- Number of constraitns
     , ?vparams     :: ValParams

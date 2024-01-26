@@ -148,7 +148,7 @@ instance FreeVars Type where
 
       TUser _ _ t -> freeVars t
       TRec fs     -> freeVars (recordElements fs)
-      TNewtype nt ts -> freeVars nt <> freeVars ts
+      TNominal nt ts -> freeVars nt <> freeVars ts
 
 instance FreeVars TVar where
   freeVars tv = case tv of
@@ -158,11 +158,11 @@ instance FreeVars TVar where
 instance FreeVars TCon where
   freeVars _tc = mempty
 
-instance FreeVars Newtype where
+instance FreeVars NominalType where
   freeVars nt = foldr rmTParam base (ntParams nt)
     where base = freeVars (ntConstraints nt) <> freeVars (ntDef nt)
 
-instance FreeVars NewtypeDef where
+instance FreeVars NominalTypeDef where
   freeVars def =
     case def of
       Struct c -> freeVars c

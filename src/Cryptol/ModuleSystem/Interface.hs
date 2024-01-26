@@ -97,7 +97,7 @@ emptyIface nm = Iface
 -- modules, but not things from nested functors, which are in `ifFunctors`.
 data IfaceDecls = IfaceDecls
   { ifTySyns        :: Map.Map Name TySyn
-  , ifNewtypes      :: Map.Map Name Newtype
+  , ifNominalTypes  :: Map.Map Name NominalType
   , ifAbstractTypes :: Map.Map Name AbstractType
   , ifDecls         :: Map.Map Name IfaceDecl
   , ifModules       :: !(Map.Map Name (IfaceNames Name))
@@ -117,7 +117,7 @@ data IfaceDecls = IfaceDecls
 filterIfaceDecls :: (Name -> Bool) -> IfaceDecls -> IfaceDecls
 filterIfaceDecls p ifs = IfaceDecls
   { ifTySyns        = filterMap (ifTySyns ifs)
-  , ifNewtypes      = filterMap (ifNewtypes ifs)
+  , ifNominalTypes  = filterMap (ifNominalTypes ifs)
   , ifAbstractTypes = filterMap (ifAbstractTypes ifs)
   , ifDecls         = filterMap (ifDecls ifs)
   , ifModules       = filterMap (ifModules ifs)
@@ -130,7 +130,7 @@ filterIfaceDecls p ifs = IfaceDecls
 
 ifaceDeclsNames :: IfaceDecls -> Set Name
 ifaceDeclsNames i = Set.unions [ Map.keysSet (ifTySyns i)
-                               , Map.keysSet (ifNewtypes i)
+                               , Map.keysSet (ifNominalTypes i)
                                , Map.keysSet (ifAbstractTypes i)
                                , Map.keysSet (ifDecls i)
                                , Map.keysSet (ifModules i)
@@ -142,7 +142,7 @@ ifaceDeclsNames i = Set.unions [ Map.keysSet (ifTySyns i)
 instance Semigroup IfaceDecls where
   l <> r = IfaceDecls
     { ifTySyns   = Map.union (ifTySyns l)   (ifTySyns r)
-    , ifNewtypes = Map.union (ifNewtypes l) (ifNewtypes r)
+    , ifNominalTypes = Map.union (ifNominalTypes l) (ifNominalTypes r)
     , ifAbstractTypes = Map.union (ifAbstractTypes l) (ifAbstractTypes r)
     , ifDecls    = Map.union (ifDecls l)    (ifDecls r)
     , ifModules  = Map.union (ifModules l)  (ifModules r)
@@ -153,7 +153,7 @@ instance Semigroup IfaceDecls where
 instance Monoid IfaceDecls where
   mempty      = IfaceDecls
                   { ifTySyns = mempty
-                  , ifNewtypes = mempty
+                  , ifNominalTypes = mempty
                   , ifAbstractTypes = mempty
                   , ifDecls = mempty
                   , ifModules = mempty
@@ -163,7 +163,7 @@ instance Monoid IfaceDecls where
   mappend = (<>)
   mconcat ds  = IfaceDecls
     { ifTySyns   = Map.unions (map ifTySyns   ds)
-    , ifNewtypes = Map.unions (map ifNewtypes ds)
+    , ifNominalTypes = Map.unions (map ifNominalTypes ds)
     , ifAbstractTypes = Map.unions (map ifAbstractTypes ds)
     , ifDecls    = Map.unions (map ifDecls    ds)
     , ifModules  = Map.unions (map ifModules ds)
@@ -194,8 +194,8 @@ ifacePrimMap = ifaceDeclsPrimMap . ifDefines
 
 ifaceDeclsPrimMap :: IfaceDecls -> PrimMap
 ifaceDeclsPrimMap IfaceDecls { .. } =
-  PrimMap { primDecls = Map.fromList (newtypes ++ exprs)
-          , primTypes = Map.fromList (newtypes ++ types)
+  PrimMap { primDecls = Map.fromList (nominalVs ++ exprs)
+          , primTypes = Map.fromList (nominalTs ++ types)
           }
   where
   entry n = case asPrim n of
@@ -205,9 +205,13 @@ ifaceDeclsPrimMap IfaceDecls { .. } =
                           [ "Top level name not declared in a module?"
                           , show n ]
 
-  newtypes = map entry (Map.keys ifNewtypes)
-  exprs    = map entry (Map.keys ifDecls)
-  types    = map entry (Map.keys ifTySyns)
+  nominalTs = map entry (Map.keys ifNominalTypes)
+  nominalVs = [ entry n
+              | nt <- Map.elems ifNominalTypes
+              , (n,_) <- nominalTypeConTypes nt
+              ]
+  exprs     = map entry (Map.keys ifDecls)
+  types     = map entry (Map.keys ifTySyns)
 
 
 -- | Given an interface computing a map from original names to actual names,
@@ -227,11 +231,13 @@ ifaceOrigNameMap ifa = Map.unionsWith Map.union (here : nested)
 
   decls       = ifDefines ifa
   from f      = Map.keysSet (f decls)
-  tyNames     = Set.unions [ from ifTySyns, from ifNewtypes, from ifAbstractTypes ]
+  tyNames     = Set.unions [ from ifTySyns
+                           , from ifNominalTypes, from ifAbstractTypes ]
   moNames     = Set.unions [ from ifModules, from ifSignatures, from ifFunctors ]
   vaNames     = Set.unions [ newtypeCons, from ifDecls ]
-  newtypeCons = Set.fromList (concatMap conNames (Map.elems (ifNewtypes decls)))
-    where conNames = map fst . newtypeConTypes
+  newtypeCons = Set.fromList
+                  (concatMap conNames (Map.elems (ifNominalTypes decls)))
+    where conNames = map fst . nominalTypeConTypes
 
 
 

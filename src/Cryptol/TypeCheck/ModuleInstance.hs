@@ -75,7 +75,7 @@ instance ModuleInstance (ModuleG name) where
            , mFunctors         = doMap (mFunctors m)
            , mNested           = doSet (mNested m)
            , mTySyns           = doMap (mTySyns m)
-           , mNewtypes         = doMap (mNewtypes m)
+           , mNominalTypes     = doMap (mNominalTypes m)
            , mPrimTypes        = doMap (mPrimTypes m)
            , mDecls            = moduleInstance (mDecls m)
            , mSubmodules       = doMap (mSubmodules m)
@@ -98,16 +98,17 @@ instance ModuleInstance TySyn where
           , tsDoc         = tsDoc ts
           }
 
-instance ModuleInstance Newtype where
+instance ModuleInstance NominalType where
   moduleInstance nt =
-    Newtype { ntName        = moduleInstance (ntName nt)
+    NominalType
+            { ntName        = moduleInstance (ntName nt)
             , ntParams      = ntParams nt
             , ntConstraints = moduleInstance (ntConstraints nt)
             , ntDef         = moduleInstance (ntDef nt)
             , ntDoc         = ntDoc nt
             }
 
-instance ModuleInstance NewtypeDef where
+instance ModuleInstance NominalTypeDef where
   moduleInstance def =
     case def of
       Struct c -> Struct (moduleInstance c)

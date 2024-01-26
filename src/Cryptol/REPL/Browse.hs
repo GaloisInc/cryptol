@@ -33,7 +33,7 @@ browseModContext how mc =
     , browseFunctors disp decls
     , browseTSyns disp decls
     , browsePrimTys disp decls
-    , browseNewtypes disp decls
+    , browseNominalTypes disp decls
     , browseVars disp decls
     ]
 
@@ -114,9 +114,9 @@ browsePrimTys disp decls =
   where
   ppA a = nest 2 (sep [pp (T.atName a) <+> ":", pp (T.atKind a)])
 
-browseNewtypes :: DispInfo -> IfaceDecls -> [Doc]
-browseNewtypes disp decls =
-  ppSection disp "Newtypes" T.ppNewtypeShort (ifNewtypes decls)
+browseNominalTypes :: DispInfo -> IfaceDecls -> [Doc]
+browseNominalTypes disp decls =
+  ppSection disp "Nominal Types" T.ppNominalShort (ifNominalTypes decls)
 
 browseVars :: DispInfo -> IfaceDecls -> [Doc]
 browseVars disp decls =

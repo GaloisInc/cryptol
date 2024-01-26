@@ -107,7 +107,7 @@ data ModuleG mname =
 
                       -- These have everything from this module and all submodules
                      , mTySyns           :: Map Name TySyn
-                     , mNewtypes         :: Map Name Newtype
+                     , mNominalTypes     :: Map Name NominalType
                      , mPrimTypes        :: Map Name AbstractType
                      , mDecls            :: [DeclGroup]
                      , mSubmodules       :: Map Name (IfaceNames Name)
@@ -133,7 +133,7 @@ emptyModule nm =
     , mNested           = mempty
 
     , mTySyns           = mempty
-    , mNewtypes         = mempty
+    , mNominalTypes     = mempty
     , mPrimTypes        = mempty
     , mDecls            = mempty
     , mFunctors         = mempty

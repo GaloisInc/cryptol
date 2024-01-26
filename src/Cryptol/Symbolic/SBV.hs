@@ -319,7 +319,7 @@ prepareQuery evo ProverCommand{..} =
 
      getEOpts <- M.getEvalOptsAction
 
-     ntEnv <- M.getNewtypes
+     ntEnv <- M.getNominalTypes
 
      -- The `addAsm` function is used to combine assumptions that
      -- arise from the types of symbolic variables (e.g. Z n values
@@ -354,7 +354,7 @@ prepareQuery evo ProverCommand{..} =
                  -- we apply it to the symbolic inputs.
                  (safety,b) <- doSBVEval $
                      do env <- Eval.evalDecls sym extDgs =<<
-                                 Eval.evalNewtypeDecls sym ntEnv mempty
+                                 Eval.evalNominalDecls sym ntEnv mempty
                         v <- Eval.evalExpr sym env pcExpr
                         appliedVal <- foldM (Eval.fromVFun sym) v args
                         case pcQueryType of
@@ -538,7 +538,7 @@ parseValue (FTRecord r) cvs = (VarRecord r', cvs')
         fs         = zip ns vs
         r'         = recordFromFieldsWithDisplay (displayOrder r) fs
 
-parseValue (FTNewtype _ _ nv) cvs =
+parseValue (FTNominal _ _ nv) cvs =
   case nv of
     FStruct r -> parseValue (FTRecord r) cvs
     FEnum cons ->

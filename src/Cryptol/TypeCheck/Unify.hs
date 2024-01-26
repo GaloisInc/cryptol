@@ -54,7 +54,7 @@ newtype Path = Path [PathElement]
 
 data PathElement =
     TConArg     TC      Int
-  | TNewtypeArg Newtype Int
+  | TNominalArg NominalType Int
   | TRecArg     Ident
   deriving (Show,Generic,NFData)
 
@@ -108,9 +108,9 @@ mgu p (TRec fs1) (TRec fs2)
     let paths = [ extPath p (TRecArg i) | (i,_) <- canonicalFields fs1 ]
     in mguMany p paths (recordElements fs1) (recordElements fs2)
 
-mgu p (TNewtype ntx xs) (TNewtype nty ys)
+mgu p (TNominal ntx xs) (TNominal nty ys)
   | ntx == nty =
-    let paths = [ extPath p (TNewtypeArg ntx i) | i <- [ 0 .. ] ]
+    let paths = [ extPath p (TNominalArg ntx i) | i <- [ 0 .. ] ]
     in mguMany p paths xs ys
 
 mgu p t1 t2
@@ -192,7 +192,7 @@ ppPathEl el prec k =
 
        _ -> justPrefix (kindArity (kindOf tc)) (pp tc) n
 
-    TNewtypeArg nt n ->
+    TNominalArg nt n ->
       justPrefix (length (ntParams nt)) (pp (nameIdent (ntName nt))) n
 
   where
