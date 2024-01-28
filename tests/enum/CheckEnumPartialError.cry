@@ -1,17 +1,5 @@
 enum Maybe a = Nothing | Just a
 
-maybeEqual : {a} (Eq a) => Maybe a -> Maybe a -> Bit
-maybeEqual m1 m2 =
-  case m1 of
-    Just x1 ->
-      case m2 of
-        Just x2 -> x1 == x2
-        Nothing -> False
-    Nothing ->
-      case m2 of
-        Just x2 -> False
-        Nothing -> True
-
 maybeMapBad1 : {a, b} (a -> b) -> Maybe a -> Maybe b
 maybeMapBad1 f m =
   case m of
@@ -22,14 +10,15 @@ maybeMapBad2 f m =
   case m of
     Nothing -> Nothing
 
-maybeMapBad1Prop : Maybe [8] -> Bit
-property maybeMapBad1Prop m =
-  maybeEqual
-    (maybeMapBad1 (\x -> x + 1) (maybeMapBad1 (\x -> x + 1) m))
-    (maybeMapBad1 (\x -> x + 2) m)
+enum Foo = A | B | C
 
-maybeMapBad2Prop : Maybe [8] -> Bit
-property maybeMapBad2Prop m =
-  maybeEqual
-    (maybeMapBad2 (\x -> x + 1) (maybeMapBad2 (\x -> x + 1) m))
-    (maybeMapBad2 (\x -> x + 2) m)
+fooBad1 : Foo -> ()
+fooBad1 f =
+  case f of
+    A -> ()
+
+fooGood : Foo -> ()
+fooGood f =
+  case f of
+    A -> ()
+    _ -> ()

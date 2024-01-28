@@ -94,6 +94,13 @@ data Error    = KindMismatch (Maybe TypeSource) Kind Kind
               | TypeMismatch TypeSource Path Type Type
                 -- ^ Expected type, inferred type
 
+              | EnumTypeMismatch TypeSource Path Type
+                -- ^ Expected an enum type, but inferred the supplied 'Type'
+                --   instead, which is too ambiguous. This corresponds to the
+                --   \"Matched Expression Must Have an Unambiguous Type\"
+                --   restriction for @case@ expressions, as described in the
+                --   Cryptol Reference Manual.
+
               | SchemaMismatch Ident Schema Schema
                 -- ^ Name of module parameter, expected scehema, actual schema.
                 -- This may happen when instantiating modules.
@@ -177,6 +184,10 @@ data Error    = KindMismatch (Maybe TypeSource) Kind Kind
                 -- 1) Number of parameters we have,
                 -- 2) Number of parameters we need.
 
+              | UncoveredConPat [Name]
+                -- ^ A @case@ expression is non-exhaustive and does not cover
+                --   the supplied constructor 'Name's.
+
               | OverlappingPat (Maybe Ident) [Range]
                 -- ^ Overlapping patterns in a case
 
@@ -215,8 +226,10 @@ errorImportance err =
     KindMismatch {}                                  -> 10
     TyVarWithParams {}                               -> 9
     TypeMismatch {}                                  -> 8
+    EnumTypeMismatch {}                              -> 7
     SchemaMismatch {}                                -> 7
     InvalidConPat {}                                 -> 7
+    UncoveredConPat {}                               -> 7
     OverlappingPat {}                                -> 3
     RecursiveType {}                                 -> 7
     NotForAll {}                                     -> 6
@@ -291,7 +304,9 @@ instance TVars Error where
       SchemaMismatch i t1 t2  ->
         SchemaMismatch i !$ (apSubst su t1) !$ (apSubst su t2)
       TypeMismatch src pa t1 t2 -> TypeMismatch src pa !$ (apSubst su t1) !$ (apSubst su t2)
+      EnumTypeMismatch src pa t -> EnumTypeMismatch src pa !$ apSubst su t
       InvalidConPat {}          -> err
+      UncoveredConPat {}        -> err
       OverlappingPat {}         -> err
       RecursiveType src pa t1 t2   -> RecursiveType src pa !$ (apSubst su t1) !$ (apSubst su t2)
       UnsolvedGoals gs          -> UnsolvedGoals !$ apSubst su gs
@@ -343,7 +358,9 @@ instance FVS Error where
       RecursiveTypeDecls {}     -> Set.empty
       SchemaMismatch _ t1 t2    -> fvs (t1,t2)
       TypeMismatch _ _ t1 t2    -> fvs (t1,t2)
+      EnumTypeMismatch _ _ t    -> fvs t
       InvalidConPat {}          -> Set.empty
+      UncoveredConPat {}        -> Set.empty
       OverlappingPat {}         -> Set.empty
       RecursiveType _ _ t1 t2   -> fvs (t1,t2)
       UnsolvedGoals gs          -> fvs gs
@@ -404,7 +421,7 @@ instance PP (WithNames Warning) where
                                               <+> ppWithNames names ty
 
       NonExhaustivePropGuards n ->
-        text "Could not prove that the constraint guards used in defining" <+> 
+        text "Could not prove that the constraint guards used in defining" <+>
         pp n <+> text "were exhaustive."
 
 instance PP (WithNames Error) where
@@ -475,6 +492,17 @@ instance PP (WithNames Error) where
             ++ ppCtxt pa
             ++ ["When checking" <+> pp src]
 
+      EnumTypeMismatch src pa t ->
+        addTVarsDescsAfter names err $
+        nested "Type mismatch:" $
+        vcat $
+          [ "Expected an enum type, but"
+          , "the inferred type" <+> parens (ppWithNames names t) <+>
+            "is ambiguous."
+          , "Try giving the expression an explicit type."
+          ] ++ ppCtxt pa
+            ++ ["When checking" <+> pp src]
+
       SchemaMismatch i t1 t2 ->
           addTVarsDescsAfter names err $
           nested ("Type mismatch in module parameter" <+> quotes (pp i)) $
@@ -490,6 +518,10 @@ instance PP (WithNames Error) where
             [ "Expected" <+> int need <+> "parameters,"
             , "but there are" <+> int have <.> "."
             ]
+
+      UncoveredConPat conNames ->
+        "Case expression does not cover the following patterns:"
+        $$ commaSep (map pp conNames)
 
       OverlappingPat mbCon rs ->
         addTVarsDescsAfter names err $
@@ -639,7 +671,7 @@ instance PP (WithNames Error) where
                 [ "Parameter name:" <+> pp x
                 , "Parameterized instantiation requires distinct parameter names"
                 ]
-                
+
 
       UnsupportedFFIKind src param k ->
         nested "Kind of type variable unsupported for FFI: " $

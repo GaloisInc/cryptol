@@ -121,7 +121,7 @@ as long as this type does not depend on the type to which the constructor
 belongs.  This means that we do not support defining recursive types,
 such as linked lists.
 
-**No Nested Consturctor Patterns.**  For simplicity, only non-constructor
+**No Nested Constructor Patterns.**  For simplicity, only non-constructor
 patterns may be used in the fields of a constructor pattern.  For example,
 ``Just (a,b)`` and ``Just (a # b)`` are OK, however, ``Just (Just a)``
 will be rejected.  This is a restriction that we may lift in the future.
@@ -151,3 +151,35 @@ will be rejected.  This is a restriction that we may lift in the future.
           Just _  -> False
           _       -> True
           Nothing -> False
+
+**Patterns Must Be Exhaustive.** The patterns in a ``case`` expression must
+cover all constructors in the ``enum`` type being matched on. For example,
+Cryptol will reject the following example, as it does not cover the ``Just``
+constructor:
+
+.. code-block:: cryptol
+
+  isNothing x =
+    case x of
+      Nothing -> True
+
+**The Matched Expression Must Have an Unambiguous Type.** Cryptol will reject
+the definition of ``f``, where ``f`` lacks a type signature:
+
+.. code-block:: cryptol
+
+  f x =
+    case x of
+      _ -> ()
+
+This is because it is not clear what the type of ``x`` (the expression being
+matched) should be. The only pattern is a catch-all case, which does not reveal
+anything about the type of ``x``. It would be incorrect to give ``f`` this type:
+
+.. code-block:: cryptol
+
+  f : {a} a -> ()
+
+This is because ``f`` is not really polymorphic in its argument type, as the
+only values that can be matched in a ``case`` expression are those whose type
+was declared as an ``enum``. As such, Cryptol rejects this example.

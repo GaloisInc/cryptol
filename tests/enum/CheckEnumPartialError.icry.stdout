@@ -1,23 +1,13 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Main
-property maybeMapBad1Prop Using random testing.
-Testing... ERROR for the following inputs:
-maybeMapBad1Prop Nothing ~> ERROR
-Missing `case` alternative for constructor `Nothing`.
--- Backtrace --
-Main::maybeMapBad1 called at CheckEnumPartialError.cry:28:34--28:46
-Main::maybeMapBad1 called at CheckEnumPartialError.cry:28:6--28:18
-Main::maybeEqual called at CheckEnumPartialError.cry:27:3--27:13
-Main::maybeMapBad1Prop
-<interactive>::it
-property maybeMapBad2Prop Using random testing.
-Testing... ERROR for the following inputs:
-maybeMapBad2Prop (Just 0xa6) ~> ERROR
-Missing `case` alternative for constructor `Just`.
--- Backtrace --
-Main::maybeMapBad2 called at CheckEnumPartialError.cry:34:34--34:46
-Main::maybeMapBad2 called at CheckEnumPartialError.cry:34:6--34:18
-Main::maybeEqual called at CheckEnumPartialError.cry:33:3--33:13
-Main::maybeMapBad2Prop
-<interactive>::it
+
+[error] at CheckEnumPartialError.cry:5:3--8:1:
+  Case expression does not cover the following patterns:
+  Main::Nothing
+[error] at CheckEnumPartialError.cry:10:3--13:1:
+  Case expression does not cover the following patterns:
+  Main::Just
+[error] at CheckEnumPartialError.cry:17:3--20:1:
+  Case expression does not cover the following patterns:
+  Main::B, Main::C

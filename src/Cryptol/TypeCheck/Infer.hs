@@ -521,6 +521,29 @@ checkE expr tGoal =
             [_] -> pure ()
             _   -> recordError (OverlappingPat mb [ r | (r,_) <- cs ])
 
+        -- Check that the type of the scrutinee is unambiguously an enum.
+        et' <- applySubst et
+        let expect = WithSource
+                       { twsType = et'
+                       , twsRange = Just rng
+                       , twsSource = CasedExpression
+                       }
+        cons <- expectEnum expect
+
+        -- Check that the case expression covers all possible constructors.
+        -- If there is a default case, there is no need to check anything,
+        -- since the default case will catch any constructors that weren't
+        -- explicitly matched on.
+        case defltAlt of
+          Just _ -> pure ()
+          Nothing ->
+            let uncoveredCons =
+                  filter
+                    (\con -> Map.notMember (Just (nameIdent (ecName con))) mp1)
+                    cons in
+            unless (null uncoveredCons) $
+              recordError $ UncoveredConPat $ map ecName uncoveredCons
+
         let dflt = fmap (\(_,_,y) -> y) defltAlt
         let arms = Map.fromList [ (i,a) | (_,Just i, a) <- alts ]
         pure (ECase e1 arms dflt)
@@ -714,6 +737,22 @@ expectRec fs tGoal@(WithSource ty src rng) =
            _ -> recordErrorLoc rng (TypeMismatch src rootPath ty (TRec tys))
          return res
 
+
+-- | Retrieve the constructors from a type that is expected to be unambiguously
+-- an enum, throwing an error if this is not the case.
+expectEnum :: TypeWithSource -> InferM [EnumCon]
+expectEnum (WithSource ty src rng) =
+  case ty of
+    TUser _ _ ty' ->
+      expectEnum (WithSource ty' src rng)
+
+    TNominal nt _
+      |  Enum ecs <- ntDef nt
+      -> pure ecs
+
+    _ -> do
+      recordErrorLoc rng (EnumTypeMismatch src rootPath ty)
+      pure []
 
 expectFin :: Int -> TypeWithSource -> InferM ()
 expectFin n tGoal@(WithSource ty src rng) =
