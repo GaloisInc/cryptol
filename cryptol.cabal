@@ -1,6 +1,6 @@
 Cabal-version:       2.4
 Name:                cryptol
-Version:             3.0.0.99
+Version:             3.1.0
 Synopsis:            Cryptol: The Language of Cryptography
 Description: Cryptol is a domain-specific language for specifying cryptographic algorithms. A Cryptol implementation of an algorithm resembles its mathematical specification more closely than an implementation in a general purpose language. For more, see <http://www.cryptol.net/>.
 License:             BSD-3-Clause
