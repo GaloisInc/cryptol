@@ -244,16 +244,17 @@ showTypeHelp ctxparams env nameEnv name =
 
   fromNominal =
     do nt <- Map.lookup name (M.ifNominalTypes env)
-       let decl = pp nt $$
-                  vcat
-                    [ pp x <+> text ":" <+> pp t
-                    | case T.ntDef nt of
-                        T.Struct {} -> False
-                         -- Don't show constructor, as it will be shown
-                         -- separately
-                        _ -> True
-                    , (x,t) <- T.nominalTypeConTypes nt
-                    ]
+       let kw = case T.ntDef nt of
+                  T.Struct {} -> "newtype"
+                  T.Enum {}   -> "enum"
+       let decl =
+            vcat
+              [ kw <+> pp (T.ntName nt) <.> ":" <+> pp (T.kindOf nt)
+              , ""
+              , "Constructors:" <+>
+                                  commaSep
+                                  (map (pp . fst) (T.nominalTypeConTypes nt))
+              ]
        return $ doShowTyHelp nameEnv decl (T.ntDoc nt)
 
   fromPrimType =
@@ -312,8 +313,8 @@ showConHelp env nameEnv qname name =
     where
     getDocs nt =
       case T.ntDef nt of
-        T.Struct {} -> [ T.ntDoc nt ]
-        T.Enum cs   -> map T.ecDoc cs
+        T.Struct {} -> [ Nothing ]
+        T.Enum cs   -> map (Just . T.ecDoc) cs
 
     addCons nt mp = foldr (addCon nt) mp
                       (zip (T.nominalTypeConTypes nt) (getDocs nt))
@@ -323,7 +324,7 @@ showConHelp env nameEnv qname name =
             [ "Constructor of" <+> pp (T.ntName nt)
             , indent 4 $ hsep [ pp qname, ":", pp t ]
             ])
-         doShowDocString d
+         maybe (pure ()) doShowDocString d
 
 
 showValHelp ::

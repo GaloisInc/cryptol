@@ -2,10 +2,9 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module Main
 
-enum E1 
-    A : E1
-    B : E1
-    C : E1
+enum E1: *
+
+    Constructors: A, B, C
 
 Custom docs fo E1
 
