@@ -1,4 +1,4 @@
-# UNRELEASED
+# 3.1.0
 
 ## Language changes
 
