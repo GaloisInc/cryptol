@@ -523,12 +523,9 @@ checkE expr tGoal =
 
         -- Check that the type of the scrutinee is unambiguously an enum.
         et' <- applySubst et
-        let expect = WithSource
-                       { twsType = et'
-                       , twsRange = Just rng
-                       , twsSource = CasedExpression
-                       }
-        cons <- expectEnum expect
+        cons <- case getLoc e of
+                 Just r -> inRange r (expectEnum et')
+                 Nothing -> expectEnum et'
 
         -- Check that the case expression covers all possible constructors.
         -- If there is a default case, there is no need to check anything,
@@ -740,18 +737,18 @@ expectRec fs tGoal@(WithSource ty src rng) =
 
 -- | Retrieve the constructors from a type that is expected to be unambiguously
 -- an enum, throwing an error if this is not the case.
-expectEnum :: TypeWithSource -> InferM [EnumCon]
-expectEnum (WithSource ty src rng) =
+expectEnum :: Type -> InferM [EnumCon]
+expectEnum ty =
   case ty of
     TUser _ _ ty' ->
-      expectEnum (WithSource ty' src rng)
+      expectEnum ty'
 
     TNominal nt _
       |  Enum ecs <- ntDef nt
       -> pure ecs
 
     _ -> do
-      recordErrorLoc rng (EnumTypeMismatch src rootPath ty)
+      recordError (EnumTypeMismatch ty)
       pure []
 
 expectFin :: Int -> TypeWithSource -> InferM ()

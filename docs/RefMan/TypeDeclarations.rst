@@ -163,8 +163,9 @@ constructor:
     case x of
       Nothing -> True
 
-**The Matched Expression Must Have an Unambiguous Type.** Cryptol will reject
-the definition of ``f``, where ``f`` lacks a type signature:
+**The Matched Expression Must Have a Knwon Enum Type.** Cryptol will reject
+the definition of ``f``, where ``f`` lacks a type signature, or is not not
+an ``enum`` type.
 
 .. code-block:: cryptol
 

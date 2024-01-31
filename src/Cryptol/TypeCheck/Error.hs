@@ -94,10 +94,10 @@ data Error    = KindMismatch (Maybe TypeSource) Kind Kind
               | TypeMismatch TypeSource Path Type Type
                 -- ^ Expected type, inferred type
 
-              | EnumTypeMismatch TypeSource Path Type
+              | EnumTypeMismatch Type
                 -- ^ Expected an enum type, but inferred the supplied 'Type'
-                --   instead, which is too ambiguous. This corresponds to the
-                --   \"Matched Expression Must Have an Unambiguous Type\"
+                --   instead, which is no an enum. This corresponds to the
+                --   \"Matched Expression Must Have a Known Enum Type\"
                 --   restriction for @case@ expressions, as described in the
                 --   Cryptol Reference Manual.
 
@@ -304,7 +304,7 @@ instance TVars Error where
       SchemaMismatch i t1 t2  ->
         SchemaMismatch i !$ (apSubst su t1) !$ (apSubst su t2)
       TypeMismatch src pa t1 t2 -> TypeMismatch src pa !$ (apSubst su t1) !$ (apSubst su t2)
-      EnumTypeMismatch src pa t -> EnumTypeMismatch src pa !$ apSubst su t
+      EnumTypeMismatch t        -> EnumTypeMismatch !$ apSubst su t
       InvalidConPat {}          -> err
       UncoveredConPat {}        -> err
       OverlappingPat {}         -> err
@@ -358,7 +358,7 @@ instance FVS Error where
       RecursiveTypeDecls {}     -> Set.empty
       SchemaMismatch _ t1 t2    -> fvs (t1,t2)
       TypeMismatch _ _ t1 t2    -> fvs (t1,t2)
-      EnumTypeMismatch _ _ t    -> fvs t
+      EnumTypeMismatch t        -> fvs t
       InvalidConPat {}          -> Set.empty
       UncoveredConPat {}        -> Set.empty
       OverlappingPat {}         -> Set.empty
@@ -492,16 +492,18 @@ instance PP (WithNames Error) where
             ++ ppCtxt pa
             ++ ["When checking" <+> pp src]
 
-      EnumTypeMismatch src pa t ->
-        addTVarsDescsAfter names err $
-        nested "Type mismatch:" $
-        vcat $
-          [ "Expected an enum type, but"
-          , "the inferred type" <+> parens (ppWithNames names t) <+>
-            "is ambiguous."
-          , "Try giving the expression an explicit type."
-          ] ++ ppCtxt pa
-            ++ ["When checking" <+> pp src]
+      EnumTypeMismatch t ->
+        case tNoUser t of
+          TVar {} ->
+            nested "Failed to infer the type of cased expression."
+              "Try giving the expression an explicit type annotation."
+          _ ->
+            addTVarsDescsAfter names err $
+            nested "Type mismatch in cased expresson:" $
+              vcat
+                [ "Expected: an `enum` type"
+                , "Inferred:" <+> ppWithNames names t
+                ]
 
       SchemaMismatch i t1 t2 ->
           addTVarsDescsAfter names err $

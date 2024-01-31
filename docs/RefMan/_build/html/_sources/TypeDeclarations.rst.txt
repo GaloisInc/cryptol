@@ -51,18 +51,19 @@ of newtypes to extract the values in the body of the type.
   > sum x.seq
   6
 
-Enumerations
-------------
+Enums
+-----
 
 .. code-block:: cryptol
 
   enum Maybe a = Nothing | Just a
 
-An ``enum`` declaration introduces a new named type, which is defined by
-a collection of *constructors*.  Each named ``enum`` type is treated like
-a separate type, even if it has the exact same constructors as another ``enum``
-type---in this way ``enum`` is similar to ``newtype`` and unlike ``type``
-synonyms.
+An ``enum`` declaration introduces a new named type, which is defined by a
+collection of *constructors*. ``enum`` declarations correspond to the notion of
+*algebraic data types*, which are commonly found in other programming
+languages. Each named ``enum`` type is treated like a separate type, even if it
+has the exact same constructors as another ``enum`` type---in this way ``enum``
+is similar to ``newtype`` and unlike ``type`` synonyms.
 
 **Constructors.** The only way to create a value of an ``enum`` type is to
 use one of its constructors.   When used in an expression, the constructors
@@ -120,17 +121,66 @@ as long as this type does not depend on the type to which the constructor
 belongs.  This means that we do not support defining recursive types,
 such as linked lists.
 
-**No Nested Consturctor Patterns.**  For simplicity, only non-constructor
+**No Nested Constructor Patterns.**  For simplicity, only non-constructor
 patterns may be used in the fields of a constructor pattern.  For example,
 ``Just (a,b)`` and ``Just (a # b)`` are OK, however, ``Just (Just a)``
 will be rejected.  This is a restriction that we may lift in the future.
 
+**No Overlapping Patterns.** For simplicity, all patterns in a
+``case`` expression must be disjoint. In particular, this means that:
 
+  * No two patterns in a ``case`` expression can match the same constructor.
+    This means that Cryptol will reject the following example:
 
+    .. code-block:: cryptol
 
+      isNothing x =
+        case x of
+          Nothing -> True
+          Nothing -> False
 
+  * If a ``case`` expression uses a catch-all clause, then that clause must
+    occur last in the expression. It is an error to match on additional
+    patterns after the catch-all clause. For instance, Cryptol will reject the
+    following example:
 
+    .. code-block:: cryptol
 
+      isNothing x =
+        case x of
+          Just _  -> False
+          _       -> True
+          Nothing -> False
 
+**Patterns Must Be Exhaustive.** The patterns in a ``case`` expression must
+cover all constructors in the ``enum`` type being matched on. For example,
+Cryptol will reject the following example, as it does not cover the ``Just``
+constructor:
 
+.. code-block:: cryptol
 
+  isNothing x =
+    case x of
+      Nothing -> True
+
+**The Matched Expression Must Have a Knwon Enum Type.** Cryptol will reject
+the definition of ``f``, where ``f`` lacks a type signature, or is not not
+an ``enum`` type.
+
+.. code-block:: cryptol
+
+  f x =
+    case x of
+      _ -> ()
+
+This is because it is not clear what the type of ``x`` (the expression being
+matched) should be. The only pattern is a catch-all case, which does not reveal
+anything about the type of ``x``. It would be incorrect to give ``f`` this type:
+
+.. code-block:: cryptol
+
+  f : {a} a -> ()
+
+This is because ``f`` is not really polymorphic in its argument type, as the
+only values that can be matched in a ``case`` expression are those whose type
+was declared as an ``enum``. As such, Cryptol rejects this example.

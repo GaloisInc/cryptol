@@ -49,7 +49,7 @@
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Type Declarations</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#type-synonyms">Type Synonyms</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#newtypes">Newtypes</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#enumerations">Enumerations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#enums">Enums</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="Modules.html">Modules</a></li>
@@ -124,16 +124,17 @@ of newtypes to extract the values in the body of the type.</p>
 </pre></div>
 </div>
 </section>
-<section id="enumerations">
-<h2>Enumerations<a class="headerlink" href="#enumerations" title="Permalink to this heading"></a></h2>
+<section id="enums">
+<h2>Enums<a class="headerlink" href="#enums" title="Permalink to this heading"></a></h2>
 <div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">enum</span><span class="w"> </span><span class="kt">Maybe</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kt">Nothing</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="kt">Just</span><span class="w"> </span><span class="n">a</span>
 </pre></div>
 </div>
-<p>An <code class="docutils literal notranslate"><span class="pre">enum</span></code> declaration introduces a new named type, which is defined by
-a collection of <em>constructors</em>.  Each named <code class="docutils literal notranslate"><span class="pre">enum</span></code> type is treated like
-a separate type, even if it has the exact same constructors as another <code class="docutils literal notranslate"><span class="pre">enum</span></code>
-type—in this way <code class="docutils literal notranslate"><span class="pre">enum</span></code> is similar to <code class="docutils literal notranslate"><span class="pre">newtype</span></code> and unlike <code class="docutils literal notranslate"><span class="pre">type</span></code>
-synonyms.</p>
+<p>An <code class="docutils literal notranslate"><span class="pre">enum</span></code> declaration introduces a new named type, which is defined by a
+collection of <em>constructors</em>. <code class="docutils literal notranslate"><span class="pre">enum</span></code> declarations correspond to the notion of
+<em>algebraic data types</em>, which are commonly found in other programming
+languages. Each named <code class="docutils literal notranslate"><span class="pre">enum</span></code> type is treated like a separate type, even if it
+has the exact same constructors as another <code class="docutils literal notranslate"><span class="pre">enum</span></code> type—in this way <code class="docutils literal notranslate"><span class="pre">enum</span></code>
+is similar to <code class="docutils literal notranslate"><span class="pre">newtype</span></code> and unlike <code class="docutils literal notranslate"><span class="pre">type</span></code> synonyms.</p>
 <p><strong>Constructors.</strong> The only way to create a value of an <code class="docutils literal notranslate"><span class="pre">enum</span></code> type is to
 use one of its constructors.   When used in an expression, the constructors
 behave like an ordinary function, which has one parameter for each field of the
@@ -182,10 +183,63 @@ previous example).</p>
 as long as this type does not depend on the type to which the constructor
 belongs.  This means that we do not support defining recursive types,
 such as linked lists.</p>
-<p><strong>No Nested Consturctor Patterns.</strong>  For simplicity, only non-constructor
+<p><strong>No Nested Constructor Patterns.</strong>  For simplicity, only non-constructor
 patterns may be used in the fields of a constructor pattern.  For example,
 <code class="docutils literal notranslate"><span class="pre">Just</span> <span class="pre">(a,b)</span></code> and <code class="docutils literal notranslate"><span class="pre">Just</span> <span class="pre">(a</span> <span class="pre">#</span> <span class="pre">b)</span></code> are OK, however, <code class="docutils literal notranslate"><span class="pre">Just</span> <span class="pre">(Just</span> <span class="pre">a)</span></code>
 will be rejected.  This is a restriction that we may lift in the future.</p>
+<p><strong>No Overlapping Patterns.</strong> For simplicity, all patterns in a
+<code class="docutils literal notranslate"><span class="pre">case</span></code> expression must be disjoint. In particular, this means that:</p>
+<blockquote>
+<div><ul>
+<li><p>No two patterns in a <code class="docutils literal notranslate"><span class="pre">case</span></code> expression can match the same constructor.
+This means that Cryptol will reject the following example:</p>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">isNothing</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span>
+<span class="w">  </span><span class="n">case</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="n">of</span>
+<span class="w">    </span><span class="kt">Nothing</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kr">True</span>
+<span class="w">    </span><span class="kt">Nothing</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kr">False</span>
+</pre></div>
+</div>
+</li>
+<li><p>If a <code class="docutils literal notranslate"><span class="pre">case</span></code> expression uses a catch-all clause, then that clause must
+occur last in the expression. It is an error to match on additional
+patterns after the catch-all clause. For instance, Cryptol will reject the
+following example:</p>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">isNothing</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span>
+<span class="w">  </span><span class="n">case</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="n">of</span>
+<span class="w">    </span><span class="kt">Just</span><span class="w"> </span><span class="n">_</span><span class="w">  </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kr">False</span>
+<span class="w">    </span><span class="n">_</span><span class="w">       </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kr">True</span>
+<span class="w">    </span><span class="kt">Nothing</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kr">False</span>
+</pre></div>
+</div>
+</li>
+</ul>
+</div></blockquote>
+<p><strong>Patterns Must Be Exhaustive.</strong> The patterns in a <code class="docutils literal notranslate"><span class="pre">case</span></code> expression must
+cover all constructors in the <code class="docutils literal notranslate"><span class="pre">enum</span></code> type being matched on. For example,
+Cryptol will reject the following example, as it does not cover the <code class="docutils literal notranslate"><span class="pre">Just</span></code>
+constructor:</p>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">isNothing</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span>
+<span class="w">  </span><span class="n">case</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="n">of</span>
+<span class="w">    </span><span class="kt">Nothing</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kr">True</span>
+</pre></div>
+</div>
+<p><strong>The Matched Expression Must Have a Knwon Enum Type.</strong> Cryptol will reject
+the definition of <code class="docutils literal notranslate"><span class="pre">f</span></code>, where <code class="docutils literal notranslate"><span class="pre">f</span></code> lacks a type signature, or is not not
+an <code class="docutils literal notranslate"><span class="pre">enum</span></code> type.</p>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">f</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span>
+<span class="w">  </span><span class="n">case</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="n">of</span>
+<span class="w">    </span><span class="n">_</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="nb">()</span>
+</pre></div>
+</div>
+<p>This is because it is not clear what the type of <code class="docutils literal notranslate"><span class="pre">x</span></code> (the expression being
+matched) should be. The only pattern is a catch-all case, which does not reveal
+anything about the type of <code class="docutils literal notranslate"><span class="pre">x</span></code>. It would be incorrect to give <code class="docutils literal notranslate"><span class="pre">f</span></code> this type:</p>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">f</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="nb">()</span>
+</pre></div>
+</div>
+<p>This is because <code class="docutils literal notranslate"><span class="pre">f</span></code> is not really polymorphic in its argument type, as the
+only values that can be matched in a <code class="docutils literal notranslate"><span class="pre">case</span></code> expression are those whose type
+was declared as an <code class="docutils literal notranslate"><span class="pre">enum</span></code>. As such, Cryptol rejects this example.</p>
 </section>
 </section>
 
