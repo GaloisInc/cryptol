@@ -150,7 +150,7 @@ data TPFlavor = TPModParam Name
               | TPSchemaParam Name
               | TPTySynParam Name
               | TPPropSynParam Name
-              | TPNewtypeParam Name
+              | TPNominalParam Name
               | TPPrimParam Name
               deriving (Generic, NFData, Show)
 
@@ -173,8 +173,8 @@ tySynParam = TPTySynParam
 propSynParam :: Name -> TPFlavor
 propSynParam = TPPropSynParam
 
-newtypeParam :: Name -> TPFlavor
-newtypeParam = TPNewtypeParam
+nominalParam :: Name -> TPFlavor
+nominalParam = TPNominalParam
 
 modTyParam :: Name -> TPFlavor
 modTyParam = TPModParam
@@ -188,7 +188,7 @@ tpfName f =
     TPSchemaParam x  -> Just x
     TPTySynParam x   -> Just x
     TPPropSynParam x -> Just x
-    TPNewtypeParam x -> Just x
+    TPNominalParam x -> Just x
     TPPrimParam x    -> Just x
 
 tpName :: TParam -> Maybe Name
@@ -213,7 +213,7 @@ data Type   = TCon !TCon ![Type]
               -- ^ Record type
 
             | TNominal !NominalType ![Type]
-              -- ^ A newtype
+              -- ^ A nominal types
 
               deriving (Show, Generic, NFData)
 
@@ -1282,7 +1282,7 @@ instance PP (WithNames TVar) where
                 TPSchemaParam n  -> declNm n
                 TPTySynParam n   -> declNm n
                 TPPropSynParam n -> declNm n
-                TPNewtypeParam n -> declNm n
+                TPNominalParam n -> declNm n
                 TPPrimParam n    -> declNm n
 
             TVFree x k _ d -> pickTVarName k (tvarDesc d) x

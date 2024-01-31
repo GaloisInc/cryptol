@@ -111,7 +111,7 @@ instance AddParams a => AddParams [a] where
 
 instance AddParams NominalType where
   addParams nt =
-    do (tps,cs) <- newTypeParams TPNewtypeParam
+    do (tps,cs) <- newTypeParams TPNominalParam
        rProps   <- rewTypeM tps (ntConstraints nt)
        def <- case ntDef nt of
                 Struct con ->

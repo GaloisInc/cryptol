@@ -613,7 +613,7 @@ checkParamKind tp flav k =
       TPPropSynParam _ -> starOrHashOrProp
       TPTySynParam _   -> starOrHash
       TPSchemaParam _  -> starOrHash
-      TPNewtypeParam _ -> starOrHash
+      TPNominalParam _ -> starOrHash
       TPPrimParam _    -> starOrHash
       TPUnifyVar       -> starOrHash
 

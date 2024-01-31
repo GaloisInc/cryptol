@@ -137,7 +137,7 @@ checkNewtype :: P.Newtype Name -> Maybe Text -> InferM NominalType
 checkNewtype (P.Newtype x as con fs) mbD =
   do ((as1,fs1),gs) <- collectGoals $
        inRange (srcRange x) $
-       do r <- withTParams NoWildCards newtypeParam as $
+       do r <- withTParams NoWildCards nominalParam as $
                flip traverseRecordMap fs $ \_n (rng,f) ->
                  kInRange rng $ doCheckType f (Just KType)
           simplifyAllConstraints
@@ -157,7 +157,7 @@ checkEnum ed mbD =
   do let x = P.eName ed
      ((as1,cons1),gs) <- collectGoals $
        inRange (srcRange x) $
-       do r <- withTParams NoWildCards newtypeParam (P.eParams ed) $
+       do r <- withTParams NoWildCards nominalParam (P.eParams ed) $
                forM (P.eCons ed `zip` [0..]) \(tlC,nu) ->
                  do let con = P.tlValue tlC
                         cname = P.ecName con

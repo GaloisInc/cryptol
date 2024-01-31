@@ -146,7 +146,7 @@ instance TraverseNames TPFlavor where
       TPSchemaParam x   -> TPSchemaParam  <$> traverseNamesIP x
       TPTySynParam x    -> TPTySynParam   <$> traverseNamesIP x
       TPPropSynParam x  -> TPPropSynParam <$> traverseNamesIP x
-      TPNewtypeParam x  -> TPNewtypeParam <$> traverseNamesIP x
+      TPNominalParam x  -> TPNominalParam <$> traverseNamesIP x
       TPPrimParam x     -> TPPrimParam    <$> traverseNamesIP x
 
 instance TraverseNames TVarInfo where
