@@ -18,22 +18,22 @@ module Cryptol.TypeCheck.Sanity
   ) where
 
 
-import Cryptol.Parser.Position(thing,Range,emptyRange)
-import Cryptol.TypeCheck.AST
-import Cryptol.TypeCheck.Subst (apSubst, singleTParamSubst)
-import Cryptol.TypeCheck.Monad(InferInput(..))
-import Cryptol.ModuleSystem.Name(nameLoc)
-import Cryptol.Utils.Ident
-import Cryptol.Utils.RecordMap
-import Cryptol.Utils.PP
-
+import Data.Maybe(maybeToList)
 import Data.List (sort)
 import qualified Data.Set as Set
 import MonadLib
 import qualified Control.Applicative as A
-
 import           Data.Map ( Map )
 import qualified Data.Map as Map
+
+import Cryptol.Parser.Position(thing,Range,emptyRange)
+import Cryptol.TypeCheck.AST
+import Cryptol.TypeCheck.Subst (apSubst, singleTParamSubst, mergeDistinctSubst)
+import Cryptol.TypeCheck.Monad(InferInput(..))
+import Cryptol.ModuleSystem.Name(nameLoc,nameIdent)
+import Cryptol.Utils.Ident
+import Cryptol.Utils.RecordMap
+import Cryptol.Utils.PP
 
 
 tcExpr :: InferInput -> Expr -> Either (Range, Error) (Schema, [ ProofObligation ])
@@ -153,8 +153,6 @@ sameSchemas msg x y =
     SameIf ps -> mapM_ proofObligation ps
 
 
-
-
 class Same a where
   same :: a -> a -> AreSame
 
@@ -251,8 +249,38 @@ exprSchema expr =
 
          return $ tMono t1
 
--- XXX
---    ECase e as d ->
+    ECase e as d ->
+      do ty <- exprType e
+         case tNoUser ty of
+           TNominal nt targs
+             | Enum cons <- ntDef nt ->
+              do alts <- traverse checkCaseAlt as
+                 dflt <- traverse checkCaseAlt d
+                 let resTypes = map snd (maybeToList dflt ++ Map.elems alts)
+                 resT <- case resTypes of
+                           []     -> reportError (BadCase Nothing)
+                           t : ts ->
+                             do mapM_ (sameTypes "ECase_alt_result" t) ts
+                                pure t
+
+                 let su = mergeDistinctSubst
+                            (zipWith singleTParamSubst (ntParams nt) targs)
+                     conMap = Map.fromList [ (nameIdent (ecName c)
+                                           , apSubst su <$> ecFields c)
+                                           | c <- cons ]
+                     checkCon (c,(ts,_)) =
+                       case Map.lookup c conMap of
+                         Just ts1 | length ts == length ts1 ->
+                                zipWithM_ (sameTypes "ECase_alt_field") ts ts1
+                         _ -> reportError (BadCaseAlt (Just c))
+                 mapM_ checkCon (Map.toList alts)
+                 case dflt of
+                   Nothing -> pure ()
+                   Just ([t],_) -> sameTypes "ECase_default_arg" t ty
+                   _ -> reportError (BadCaseAlt Nothing)
+                 pure (tMono resT)
+
+           _ -> reportError (BadCase (Just ty))
 
     EComp len t e mss ->
       do checkTypeIs KNum len
@@ -338,6 +366,14 @@ exprSchema expr =
 
     EPropGuards _guards typ -> 
       pure Forall {sVars = [], sProps = [], sType = typ}
+
+
+checkCaseAlt :: CaseAlt -> TcM ([Type], Type)
+checkCaseAlt (CaseAlt xs e) =
+  do ty <- foldr addVar (exprType e) xs
+     pure (map snd xs, ty)
+  where
+  addVar (x,t) = withVar x t
 
 checkHas :: Type -> Selector -> TcM Type
 checkHas t sel =
@@ -614,6 +650,8 @@ data Error =
   | EmptyArm
   | UndefinedTypeVaraible TVar
   | UndefinedVariable Name
+  | BadCase (Maybe Type)
+  | BadCaseAlt (Maybe Ident)
     deriving Show
 
 reportError :: Error -> TcM a
@@ -779,6 +817,19 @@ instance PP Error where
       UndefinedVariable x ->
         ppErr "Undefined variable"
           [ "Variable:" <+> pp x ]
+
+      BadCase mbt ->
+        ppErr "Malformed cased expression" $
+        case mbt of
+          Just t  -> [ "Expected: `enum` type", "Actual:" <+> pp t ]
+          Nothing -> [ "Empty alternatives" ]
+
+      BadCaseAlt mbCon ->
+        ppErr "Malformed case alternative" $
+        [ case mbCon of
+            Just c  -> "Alternative for constructor" <+> pp c
+            Nothing -> "Default alternative"
+        ]
 
     where
     ppErr x ys = hang x 2 (vcat [ "•" <+> y | y <- ys ])
