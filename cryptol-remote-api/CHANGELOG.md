@@ -1,6 +1,6 @@
 # Revision history for `cryptol-remote-api` and `cryptol-eval-server`
 
-## 3.1.0 -- YYYY-MM-DD
+## 3.1.0 -- 2024-??-??
 
 * The v3.1.0 release is made in tandem with the Cryptol 3.1.0 release. See the
   Cryptol 3.1.0 release notes for relevant Cryptol changes.
