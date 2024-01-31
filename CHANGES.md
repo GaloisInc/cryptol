@@ -26,13 +26,23 @@
 
 ## Bug fixes
 
-* Fixed #1556, #1237, and #1561.
 * Fixed #1455, making anything in scope of the functor in scope at the REPL as
-  well when an instantiation of the functor is loaded and focused,
-  design choice (3) on the ticket.  In particular, the prelude will be in scope.
+  well when an instantiation of the functor is loaded and focused, design
+  choice (3) on the ticket.  In particular, the prelude will be in scope.
+
 * Fix #1578, which caused `parmap` to crash when evaluated on certain types of
   sequences.
 
+* Closed issues #813, #1237, #1397, #1446, #1486, #1492, #1495, #1537,
+  #1538, #1542, #1544, #1548, #1551, #1552, #1554, #1556, #1561, #1562, #1566,
+  #1567, #1569, #1571, #1584, #1588, #1590, #1598, #1599, #1604, #1605, #1606,
+  #1607, #1609, #1610, #1611, #1612, #1613, #1615, #1616, #1617, #1618, and
+  #1619.
+
+* Merged pull requests #1429, #1512, #1534, #1535, #1536, #1540, #1541, #1543,
+  #1547, #1549, #1550, #1555, #1557, #1558, #1559, #1564, #1565, #1568, #1570,
+  #1572, #1573, #1577, #1579, #1580, #1583, #1585, #1586, #1592, #1600, #1601,
+  and #1602.
 
 # 3.0.0 -- 2023-06-26
 
