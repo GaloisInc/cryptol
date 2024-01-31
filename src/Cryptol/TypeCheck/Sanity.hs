@@ -51,6 +51,8 @@ tcModule env m = case runTcM env check of
   where check = foldr withTVar k1 (map mtpParam (Map.elems (mParamTypes m)))
         k1    = foldr withAsmp k2 (map thing (mParamConstraints m))
         k2    = withVars (Map.toList (fmap mvpType (mParamFuns m)))
+              $ withVars (concatMap nominalTypeConTypes
+                                                (Map.elems (mNominalTypes m)))
               $ checkDecls (mDecls m)
 
 onlyNonTrivial :: [ProofObligation] -> [ProofObligation]
@@ -575,9 +577,16 @@ runTcM env (TcM m) =
                                       , let x = mtpParam tp ]
           , roAsmps = map thing (mpnConstraints allPs)
           , roRange = emptyRange
-          , roVars  = Map.union
-                        (fmap mvpType (mpnFuns allPs))
-                        (inpVars env)
+          , roVars  = Map.unions
+                        [ fmap mvpType (mpnFuns allPs)
+                        , inpVars env
+                        , Map.fromList
+                            [ c
+                            | nt <- Map.elems (inpNominalTypes env)
+                            , c  <- nominalTypeConTypes nt
+                            ]
+                        ]
+
           }
   rw = RW { woProofObligations = [] }
 

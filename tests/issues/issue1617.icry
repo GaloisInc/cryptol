@@ -1,0 +1,2 @@
+:set coreLint=true
+:load issue1617.cry
