@@ -617,7 +617,7 @@ readBack ty val =
         TVTuple{} -> "tuple"
         TVRec{} -> "record"
         TVFun{} -> "fun"
-        TVNewtype nt _ _ -> identText $ nameIdent $ TC.ntName nt
+        TVNominal nt _ _ -> identText $ nameIdent $ TC.ntName nt
         TVAbstract{} -> "abstract"
 
 
