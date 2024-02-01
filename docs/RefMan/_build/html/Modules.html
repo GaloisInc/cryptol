@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Modules &mdash; Cryptol 2.11.0 documentation</title>
@@ -11,9 +11,7 @@
         <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
         <script src="_static/jquery.js"></script>
         <script src="_static/underscore.js"></script>
-        <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="_static/doctools.js"></script>
-        <script src="_static/sphinx_highlight.js"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -26,15 +24,11 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-
-          
-          
-          <a href="RefMan.html" class="icon icon-home">
-            Cryptol
+            <a href="RefMan.html" class="icon icon-home"> Cryptol
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -91,8 +85,8 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="RefMan.html" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">Modules</li>
+      <li><a href="RefMan.html" class="icon icon-home"></a> &raquo;</li>
+      <li>Modules</li>
       <li class="wy-breadcrumbs-aside">
             <a href="_sources/Modules.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -103,25 +97,25 @@
            <div itemprop="articleBody">
              
   <section id="modules">
-<h1>Modules<a class="headerlink" href="#modules" title="Permalink to this heading"></a></h1>
+<h1>Modules<a class="headerlink" href="#modules" title="Permalink to this headline"></a></h1>
 <p>A <em>module</em> is used to group related definitions.  Each file may
 contain at most one top-level module.</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span><span class="w"> </span><span class="nn">M</span><span class="w"> </span><span class="kr">where</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span><span class="w"> </span><span class="nn">M</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
 
-<span class="kr">type</span><span class="w"> </span><span class="kt">T</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span>
+<span class="kr">type</span><span class="w"> </span><span class="kt">T</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span><span class="w"></span>
 
-<span class="nf">f</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span>
-<span class="nf">f</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">10</span>
+<span class="nf">f</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span><span class="w"></span>
+<span class="nf">f</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">10</span><span class="w"></span>
 </pre></div>
 </div>
 <section id="hierarchical-module-names">
-<h2>Hierarchical Module Names<a class="headerlink" href="#hierarchical-module-names" title="Permalink to this heading"></a></h2>
+<h2>Hierarchical Module Names<a class="headerlink" href="#hierarchical-module-names" title="Permalink to this headline"></a></h2>
 <p>Modules may have either simple or <em>hierarchical</em> names.
 Hierarchical names are constructed by gluing together ordinary
 identifiers using the symbol <code class="docutils literal notranslate"><span class="pre">::</span></code>.</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span><span class="w"> </span><span class="nn">Hash</span><span class="ow">::</span><span class="kt">SHA256</span><span class="w"> </span><span class="kr">where</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span><span class="w"> </span><span class="nn">Hash</span><span class="ow">::</span><span class="kt">SHA256</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
 
-<span class="nf">sha256</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="o">...</span>
+<span class="nf">sha256</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="o">...</span><span class="w"></span>
 </pre></div>
 </div>
 <p>The structure in the name may be used to group together related
@@ -132,47 +126,47 @@ will look for a file named <code class="docutils literal notranslate"><span clas
 <code class="docutils literal notranslate"><span class="pre">Hash</span></code>, contained in one of the directories specified by <code class="docutils literal notranslate"><span class="pre">CRYPTOLPATH</span></code>.</p>
 </section>
 <section id="module-imports">
-<h2>Module Imports<a class="headerlink" href="#module-imports" title="Permalink to this heading"></a></h2>
+<h2>Module Imports<a class="headerlink" href="#module-imports" title="Permalink to this headline"></a></h2>
 <p>To use the definitions from one module in another module, we use
 <code class="docutils literal notranslate"><span class="pre">import</span></code> declarations:</p>
 <div class="literal-block-wrapper docutils container" id="id1">
 <div class="code-block-caption"><span class="caption-text">module M</span><a class="headerlink" href="#id1" title="Permalink to this code"></a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="c1">// Provide some definitions</span>
-<span class="kr">module</span><span class="w"> </span><span class="nn">M</span><span class="w"> </span><span class="kr">where</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="c1">// Provide some definitions</span><span class="w"></span>
+<span class="kr">module</span><span class="w"> </span><span class="nn">M</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
 
-<span class="nf">f</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span>
-<span class="nf">f</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">2</span>
+<span class="nf">f</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span><span class="w"></span>
+<span class="nf">f</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">2</span><span class="w"></span>
 </pre></div>
 </div>
 </div>
 <div class="literal-block-wrapper docutils container" id="id2">
 <div class="code-block-caption"><span class="caption-text">module N</span><a class="headerlink" href="#id2" title="Permalink to this code"></a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="c1">// Uses definitions from `M`</span>
-<span class="kr">module</span><span class="w"> </span><span class="nn">N</span><span class="w"> </span><span class="kr">where</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="c1">// Uses definitions from `M`</span><span class="w"></span>
+<span class="kr">module</span><span class="w"> </span><span class="nn">N</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
 
-<span class="kr">import</span><span class="w"> </span><span class="nn">M</span><span class="w">  </span><span class="c1">// import all definitions from `M`</span>
+<span class="kr">import</span><span class="w"> </span><span class="nn">M</span><span class="w">  </span><span class="c1">// import all definitions from `M`</span><span class="w"></span>
 
-<span class="nf">g</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">f</span><span class="w">   </span><span class="c1">// `f` was imported from `M`</span>
+<span class="nf">g</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">f</span><span class="w">   </span><span class="c1">// `f` was imported from `M`</span><span class="w"></span>
 </pre></div>
 </div>
 </div>
 <section id="import-lists">
-<h3>Import Lists<a class="headerlink" href="#import-lists" title="Permalink to this heading"></a></h3>
+<h3>Import Lists<a class="headerlink" href="#import-lists" title="Permalink to this headline"></a></h3>
 <p>Sometimes, we may want to import only some of the definitions
 from a module.  To do so, we use an import declaration with
 an <em>import list</em>.</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span><span class="w"> </span><span class="nn">M</span><span class="w"> </span><span class="kr">where</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span><span class="w"> </span><span class="nn">M</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
 
-<span class="nf">f</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mh">0x02</span>
-<span class="nf">g</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mh">0x03</span>
-<span class="nf">h</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mh">0x04</span>
+<span class="nf">f</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mh">0x02</span><span class="w"></span>
+<span class="nf">g</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mh">0x03</span><span class="w"></span>
+<span class="nf">h</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mh">0x04</span><span class="w"></span>
 </pre></div>
 </div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span><span class="w"> </span><span class="nn">N</span><span class="w"> </span><span class="kr">where</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span><span class="w"> </span><span class="nn">N</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
 
-<span class="kr">import</span><span class="w"> </span><span class="nn">M</span><span class="p">(</span><span class="n">f</span><span class="p">,</span><span class="n">g</span><span class="p">)</span><span class="w">  </span><span class="c1">// Imports only `f` and `g`, but not `h`</span>
+<span class="kr">import</span><span class="w"> </span><span class="nn">M</span><span class="p">(</span><span class="n">f</span><span class="p">,</span><span class="n">g</span><span class="p">)</span><span class="w">  </span><span class="c1">// Imports only `f` and `g`, but not `h`</span><span class="w"></span>
 
-<span class="nf">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">f</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">g</span>
+<span class="nf">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">f</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">g</span><span class="w"></span>
 </pre></div>
 </div>
 <p>Using explicit import lists helps reduce name collisions.
@@ -180,54 +174,54 @@ It also tends to make code easier to understand,  because
 it makes it easy to see the source of definitions.</p>
 </section>
 <section id="hiding-imports">
-<h3>Hiding Imports<a class="headerlink" href="#hiding-imports" title="Permalink to this heading"></a></h3>
+<h3>Hiding Imports<a class="headerlink" href="#hiding-imports" title="Permalink to this headline"></a></h3>
 <p>Sometimes a module may provide many definitions, and we want to use
 most of them but with a few exceptions (e.g., because those would
 result to a name clash).   In such situations it is convenient
 to use a <em>hiding</em> import:</p>
 <div class="literal-block-wrapper docutils container" id="id3">
 <div class="code-block-caption"><span class="caption-text">module M</span><a class="headerlink" href="#id3" title="Permalink to this code"></a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span><span class="w"> </span><span class="nn">M</span><span class="w"> </span><span class="kr">where</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span><span class="w"> </span><span class="nn">M</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
 
-<span class="nf">f</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mh">0x02</span>
-<span class="nf">g</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mh">0x03</span>
-<span class="nf">h</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mh">0x04</span>
+<span class="nf">f</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mh">0x02</span><span class="w"></span>
+<span class="nf">g</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mh">0x03</span><span class="w"></span>
+<span class="nf">h</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mh">0x04</span><span class="w"></span>
 </pre></div>
 </div>
 </div>
 <div class="literal-block-wrapper docutils container" id="id4">
 <div class="code-block-caption"><span class="caption-text">module N</span><a class="headerlink" href="#id4" title="Permalink to this code"></a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span><span class="w"> </span><span class="nn">N</span><span class="w"> </span><span class="kr">where</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span><span class="w"> </span><span class="nn">N</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
 
-<span class="kr">import</span><span class="w"> </span><span class="nn">M</span><span class="w"> </span><span class="k">hiding</span><span class="w"> </span><span class="p">(</span><span class="nf">h</span><span class="p">)</span><span class="w"> </span><span class="c1">// Import everything but `h`</span>
+<span class="kr">import</span><span class="w"> </span><span class="nn">M</span><span class="w"> </span><span class="k">hiding</span><span class="w"> </span><span class="p">(</span><span class="nf">h</span><span class="p">)</span><span class="w"> </span><span class="c1">// Import everything but `h`</span><span class="w"></span>
 
-<span class="nf">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">f</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">g</span>
+<span class="nf">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">f</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">g</span><span class="w"></span>
 </pre></div>
 </div>
 </div>
 </section>
 <section id="qualified-module-imports">
-<h3>Qualified Module Imports<a class="headerlink" href="#qualified-module-imports" title="Permalink to this heading"></a></h3>
+<h3>Qualified Module Imports<a class="headerlink" href="#qualified-module-imports" title="Permalink to this headline"></a></h3>
 <p>Another way to avoid name collisions is by using a
 <em>qualified</em> import.</p>
 <div class="literal-block-wrapper docutils container" id="id5">
 <div class="code-block-caption"><span class="caption-text">module M</span><a class="headerlink" href="#id5" title="Permalink to this code"></a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span><span class="w"> </span><span class="nn">M</span><span class="w"> </span><span class="kr">where</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span><span class="w"> </span><span class="nn">M</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
 
-<span class="nf">f</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span>
-<span class="nf">f</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">2</span>
+<span class="nf">f</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span><span class="w"></span>
+<span class="nf">f</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">2</span><span class="w"></span>
 </pre></div>
 </div>
 </div>
 <div class="literal-block-wrapper docutils container" id="id6">
 <div class="code-block-caption"><span class="caption-text">module N</span><a class="headerlink" href="#id6" title="Permalink to this code"></a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span><span class="w"> </span><span class="nn">N</span><span class="w"> </span><span class="kr">where</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span><span class="w"> </span><span class="nn">N</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
 
-<span class="kr">import</span><span class="w"> </span><span class="nn">M</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">P</span>
+<span class="kr">import</span><span class="w"> </span><span class="nn">M</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">P</span><span class="w"></span>
 
-<span class="nf">g</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kt">P</span><span class="ow">::</span><span class="n">f</span>
-<span class="c1">// `f` was imported from `M`</span>
-<span class="c1">// but when used it needs to be prefixed by the qualifier `P`</span>
+<span class="nf">g</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kt">P</span><span class="ow">::</span><span class="n">f</span><span class="w"></span>
+<span class="c1">// `f` was imported from `M`</span><span class="w"></span>
+<span class="c1">// but when used it needs to be prefixed by the qualifier `P`</span><span class="w"></span>
 </pre></div>
 </div>
 </div>
@@ -236,9 +230,9 @@ that happen to have the same name but are defined in different modules.</p>
 <p>Qualified imports may be combined with import lists or hiding clauses:</p>
 <div class="literal-block-wrapper docutils container" id="id7">
 <div class="code-block-caption"><span class="caption-text">Example</span><a class="headerlink" href="#id7" title="Permalink to this code"></a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">import</span><span class="w"> </span><span class="nn">A</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">B</span><span class="w"> </span><span class="p">(</span><span class="n">f</span><span class="p">)</span><span class="w">         </span><span class="c1">// introduces B::f</span>
-<span class="kr">import</span><span class="w"> </span><span class="nn">X</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">Y</span><span class="w"> </span><span class="n">hiding</span><span class="w"> </span><span class="p">(</span><span class="n">f</span><span class="p">)</span><span class="w">  </span><span class="c1">// introduces everything but `f` from X</span>
-<span class="w">                          </span><span class="c1">// using the prefix `X`</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">import</span><span class="w"> </span><span class="nn">A</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">B</span><span class="w"> </span><span class="p">(</span><span class="n">f</span><span class="p">)</span><span class="w">         </span><span class="c1">// introduces B::f</span><span class="w"></span>
+<span class="kr">import</span><span class="w"> </span><span class="nn">X</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">Y</span><span class="w"> </span><span class="n">hiding</span><span class="w"> </span><span class="p">(</span><span class="n">f</span><span class="p">)</span><span class="w">  </span><span class="c1">// introduces everything but `f` from X</span><span class="w"></span>
+<span class="w">                          </span><span class="c1">// using the prefix `X`</span><span class="w"></span>
 </pre></div>
 </div>
 </div>
@@ -246,8 +240,8 @@ that happen to have the same name but are defined in different modules.</p>
 from different modules.  For example:</p>
 <div class="literal-block-wrapper docutils container" id="id8">
 <div class="code-block-caption"><span class="caption-text">Example</span><a class="headerlink" href="#id8" title="Permalink to this code"></a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">import</span><span class="w"> </span><span class="nn">A</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">B</span>
-<span class="kr">import</span><span class="w"> </span><span class="nn">X</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">B</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">import</span><span class="w"> </span><span class="nn">A</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">B</span><span class="w"></span>
+<span class="kr">import</span><span class="w"> </span><span class="nn">X</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">B</span><span class="w"></span>
 </pre></div>
 </div>
 </div>
@@ -256,24 +250,24 @@ but to use them, you would have to qualify using the prefix <code class="docutil
 </section>
 </section>
 <section id="private-blocks">
-<h2>Private Blocks<a class="headerlink" href="#private-blocks" title="Permalink to this heading"></a></h2>
+<h2>Private Blocks<a class="headerlink" href="#private-blocks" title="Permalink to this headline"></a></h2>
 <p>In some cases, definitions in a module might use helper
 functions that are not intended to be used outside the module.
 It is good practice to place such declarations in <em>private blocks</em>:</p>
 <div class="literal-block-wrapper docutils container" id="id9">
 <div class="code-block-caption"><span class="caption-text">Private blocks</span><a class="headerlink" href="#id9" title="Permalink to this code"></a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span><span class="w"> </span><span class="nn">M</span><span class="w"> </span><span class="kr">where</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span><span class="w"> </span><span class="nn">M</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
 
-<span class="nf">f</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span>
-<span class="nf">f</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mh">0x01</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">helper1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">helper2</span>
+<span class="nf">f</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span><span class="w"></span>
+<span class="nf">f</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mh">0x01</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">helper1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">helper2</span><span class="w"></span>
 
-<span class="nf">private</span>
+<span class="nf">private</span><span class="w"></span>
 
-<span class="w">  </span><span class="n">helper1</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span>
-<span class="w">  </span><span class="n">helper1</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">2</span>
+<span class="w">  </span><span class="n">helper1</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span><span class="w"></span>
+<span class="w">  </span><span class="n">helper1</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">2</span><span class="w"></span>
 
-<span class="w">  </span><span class="n">helper2</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span>
-<span class="w">  </span><span class="n">helper2</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">3</span>
+<span class="w">  </span><span class="n">helper2</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span><span class="w"></span>
+<span class="w">  </span><span class="n">helper2</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">3</span><span class="w"></span>
 </pre></div>
 </div>
 </div>
@@ -283,18 +277,18 @@ private then no additional indentation is needed as the <code class="docutils li
 extend to the end of the module.</p>
 <div class="literal-block-wrapper docutils container" id="id10">
 <div class="code-block-caption"><span class="caption-text">Private blocks</span><a class="headerlink" href="#id10" title="Permalink to this code"></a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span><span class="w"> </span><span class="nn">M</span><span class="w"> </span><span class="kr">where</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span><span class="w"> </span><span class="nn">M</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
 
-<span class="nf">f</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span>
-<span class="nf">f</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mh">0x01</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">helper1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">helper2</span>
+<span class="nf">f</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span><span class="w"></span>
+<span class="nf">f</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mh">0x01</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">helper1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">helper2</span><span class="w"></span>
 
-<span class="nf">private</span>
+<span class="nf">private</span><span class="w"></span>
 
-<span class="nf">helper1</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span>
-<span class="nf">helper1</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">2</span>
+<span class="nf">helper1</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span><span class="w"></span>
+<span class="nf">helper1</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">2</span><span class="w"></span>
 
-<span class="nf">helper2</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span>
-<span class="nf">helper2</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">3</span>
+<span class="nf">helper2</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span><span class="w"></span>
+<span class="nf">helper2</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">3</span><span class="w"></span>
 </pre></div>
 </div>
 </div>
@@ -304,33 +298,33 @@ may contain multiple private blocks.  For example, the following module
 is equivalent to the previous one:</p>
 <div class="literal-block-wrapper docutils container" id="id11">
 <div class="code-block-caption"><span class="caption-text">Private blocks</span><a class="headerlink" href="#id11" title="Permalink to this code"></a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span><span class="w"> </span><span class="nn">M</span><span class="w"> </span><span class="kr">where</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span><span class="w"> </span><span class="nn">M</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
 
-<span class="nf">f</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span>
-<span class="nf">f</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mh">0x01</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">helper1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">helper2</span>
+<span class="nf">f</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span><span class="w"></span>
+<span class="nf">f</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mh">0x01</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">helper1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">helper2</span><span class="w"></span>
 
-<span class="nf">private</span>
-<span class="w">  </span><span class="n">helper1</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span>
-<span class="w">  </span><span class="n">helper1</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">2</span>
+<span class="nf">private</span><span class="w"></span>
+<span class="w">  </span><span class="n">helper1</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span><span class="w"></span>
+<span class="w">  </span><span class="n">helper1</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">2</span><span class="w"></span>
 
-<span class="nf">private</span>
-<span class="w">  </span><span class="n">helper2</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span>
-<span class="w">  </span><span class="n">helper2</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">3</span>
+<span class="nf">private</span><span class="w"></span>
+<span class="w">  </span><span class="n">helper2</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span><span class="w"></span>
+<span class="w">  </span><span class="n">helper2</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">3</span><span class="w"></span>
 </pre></div>
 </div>
 </div>
 </section>
 <section id="nested-modules">
-<h2>Nested Modules<a class="headerlink" href="#nested-modules" title="Permalink to this heading"></a></h2>
+<h2>Nested Modules<a class="headerlink" href="#nested-modules" title="Permalink to this headline"></a></h2>
 <p>Module may be declared within other modules, using the <code class="docutils literal notranslate"><span class="pre">submodule</span></code> keword.</p>
 <div class="literal-block-wrapper docutils container" id="id12">
 <div class="code-block-caption"><span class="caption-text">Declaring a nested module called N</span><a class="headerlink" href="#id12" title="Permalink to this code"></a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span><span class="w"> </span><span class="nn">M</span><span class="w"> </span><span class="kr">where</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span><span class="w"> </span><span class="nn">M</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
 
-<span class="w">  </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mh">0x02</span>
+<span class="w">  </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mh">0x02</span><span class="w"></span>
 
-<span class="w">  </span><span class="n">submodule</span><span class="w"> </span><span class="kt">N</span><span class="w"> </span><span class="kr">where</span>
-<span class="w">    </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">2</span>
+<span class="w">  </span><span class="n">submodule</span><span class="w"> </span><span class="kt">N</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
+<span class="w">    </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">2</span><span class="w"></span>
 </pre></div>
 </div>
 </div>
@@ -341,16 +335,16 @@ which works just like an ordinary import except that <code class="docutils liter
 to the name of a submodule.</p>
 <div class="literal-block-wrapper docutils container" id="id13">
 <div class="code-block-caption"><span class="caption-text">Using declarations from a submodule.</span><a class="headerlink" href="#id13" title="Permalink to this code"></a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span><span class="w"> </span><span class="nn">M</span><span class="w"> </span><span class="kr">where</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span><span class="w"> </span><span class="nn">M</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
 
-<span class="w">  </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mh">0x02</span>
+<span class="w">  </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mh">0x02</span><span class="w"></span>
 
-<span class="w">  </span><span class="n">submodule</span><span class="w"> </span><span class="kt">N</span><span class="w"> </span><span class="kr">where</span>
-<span class="w">    </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">2</span>
+<span class="w">  </span><span class="n">submodule</span><span class="w"> </span><span class="kt">N</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
+<span class="w">    </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">2</span><span class="w"></span>
 
-<span class="w">  </span><span class="kr">import</span><span class="w"> </span><span class="nn">submodule</span><span class="w"> </span><span class="kt">N</span><span class="w"> </span><span class="n">as</span><span class="w"> </span><span class="kt">P</span>
+<span class="w">  </span><span class="kr">import</span><span class="w"> </span><span class="nn">submodule</span><span class="w"> </span><span class="kt">N</span><span class="w"> </span><span class="n">as</span><span class="w"> </span><span class="kt">P</span><span class="w"></span>
 
-<span class="w">  </span><span class="n">z</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="kt">P</span><span class="ow">::</span><span class="n">y</span>
+<span class="w">  </span><span class="n">z</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="kt">P</span><span class="ow">::</span><span class="n">y</span><span class="w"></span>
 </pre></div>
 </div>
 </div>
@@ -358,19 +352,19 @@ to the name of a submodule.</p>
 So, in the previous example, it would be an error if <code class="docutils literal notranslate"><span class="pre">y</span></code> was
 to try to use <code class="docutils literal notranslate"><span class="pre">z</span></code> in its definition.</p>
 <section id="implicit-imports">
-<h3>Implicit Imports<a class="headerlink" href="#implicit-imports" title="Permalink to this heading"></a></h3>
+<h3>Implicit Imports<a class="headerlink" href="#implicit-imports" title="Permalink to this headline"></a></h3>
 <p>For convenience, we add an implicit qualified submodule import for
 each locally defined submodules.</p>
 <div class="literal-block-wrapper docutils container" id="id14">
 <div class="code-block-caption"><span class="caption-text">Making use of the implicit import for a submodule.</span><a class="headerlink" href="#id14" title="Permalink to this code"></a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span><span class="w"> </span><span class="nn">M</span><span class="w"> </span><span class="kr">where</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span><span class="w"> </span><span class="nn">M</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
 
-<span class="w">  </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mh">0x02</span>
+<span class="w">  </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mh">0x02</span><span class="w"></span>
 
-<span class="w">  </span><span class="n">submodule</span><span class="w"> </span><span class="kt">N</span><span class="w"> </span><span class="kr">where</span>
-<span class="w">    </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">2</span>
+<span class="w">  </span><span class="n">submodule</span><span class="w"> </span><span class="kt">N</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
+<span class="w">    </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">2</span><span class="w"></span>
 
-<span class="w">  </span><span class="n">z</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="kt">N</span><span class="ow">::</span><span class="n">y</span>
+<span class="w">  </span><span class="n">z</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="kt">N</span><span class="ow">::</span><span class="n">y</span><span class="w"></span>
 </pre></div>
 </div>
 </div>
@@ -378,7 +372,7 @@ each locally defined submodules.</p>
 an implicit import <code class="docutils literal notranslate"><span class="pre">import</span> <span class="pre">submodule</span> <span class="pre">N</span> <span class="pre">as</span> <span class="pre">N</span></code>.</p>
 </section>
 <section id="managing-module-names">
-<h3>Managing Module Names<a class="headerlink" href="#managing-module-names" title="Permalink to this heading"></a></h3>
+<h3>Managing Module Names<a class="headerlink" href="#managing-module-names" title="Permalink to this headline"></a></h3>
 <p>The names of nested modules are managed by the module system just
 like the name of any other declaration in Cryptol.  Thus, nested
 modules may be declared in the public or private sections of their
@@ -393,38 +387,38 @@ another top-level module <code class="docutils literal notranslate"><span class=
 </div></blockquote>
 <div class="literal-block-wrapper docutils container" id="id15">
 <div class="code-block-caption"><span class="caption-text">Using a nested module from a different top-level module.</span><a class="headerlink" href="#id15" title="Permalink to this code"></a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span><span class="w"> </span><span class="nn">A</span><span class="w"> </span><span class="kr">where</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span><span class="w"> </span><span class="nn">A</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
 
-<span class="w">  </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mh">0x02</span>
+<span class="w">  </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mh">0x02</span><span class="w"></span>
 
-<span class="w">  </span><span class="n">submodule</span><span class="w"> </span><span class="kt">N</span><span class="w"> </span><span class="kr">where</span>
-<span class="w">    </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">2</span>
+<span class="w">  </span><span class="n">submodule</span><span class="w"> </span><span class="kt">N</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
+<span class="w">    </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">2</span><span class="w"></span>
 
-<span class="kr">module</span><span class="w"> </span><span class="nn">B</span><span class="w"> </span><span class="kr">where</span>
-<span class="w">  </span><span class="kr">import</span><span class="w"> </span><span class="nn">A</span><span class="w">            </span><span class="c1">// Brings `N` in scope</span>
-<span class="w">  </span><span class="kr">import</span><span class="w"> </span><span class="nn">submodule</span><span class="w"> </span><span class="kt">N</span><span class="w">  </span><span class="c1">// Brings `y` in scope</span>
-<span class="w">  </span><span class="n">z</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">y</span>
+<span class="kr">module</span><span class="w"> </span><span class="nn">B</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
+<span class="w">  </span><span class="kr">import</span><span class="w"> </span><span class="nn">A</span><span class="w">            </span><span class="c1">// Brings `N` in scope</span><span class="w"></span>
+<span class="w">  </span><span class="kr">import</span><span class="w"> </span><span class="nn">submodule</span><span class="w"> </span><span class="kt">N</span><span class="w">  </span><span class="c1">// Brings `y` in scope</span><span class="w"></span>
+<span class="w">  </span><span class="n">z</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">y</span><span class="w"></span>
 </pre></div>
 </div>
 </div>
 </section>
 </section>
 <section id="parameterized-modules">
-<h2>Parameterized Modules<a class="headerlink" href="#parameterized-modules" title="Permalink to this heading"></a></h2>
+<h2>Parameterized Modules<a class="headerlink" href="#parameterized-modules" title="Permalink to this headline"></a></h2>
 <section id="interface-modules">
-<h3>Interface Modules<a class="headerlink" href="#interface-modules" title="Permalink to this heading"></a></h3>
+<h3>Interface Modules<a class="headerlink" href="#interface-modules" title="Permalink to this headline"></a></h3>
 <p>An <em>interface module</em> describes the content of a module
 without providing a concrete implementation.</p>
 <div class="literal-block-wrapper docutils container" id="id16">
 <div class="code-block-caption"><span class="caption-text">An interface module.</span><a class="headerlink" href="#id16" title="Permalink to this code"></a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">interface</span><span class="w"> </span><span class="kr">module</span><span class="w"> </span><span class="nn">I</span><span class="w"> </span><span class="kr">where</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">interface</span><span class="w"> </span><span class="kr">module</span><span class="w"> </span><span class="nn">I</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
 
-<span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="o">#</span><span class="w">      </span><span class="c1">// `n` is a numeric type</span>
+<span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="o">#</span><span class="w">      </span><span class="c1">// `n` is a numeric type</span><span class="w"></span>
 
-<span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="n">constraint</span><span class="w"> </span><span class="p">(</span><span class="kr">fin</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span>
-<span class="w">                  </span><span class="c1">// Assumptions about the declared numeric type</span>
+<span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="n">constraint</span><span class="w"> </span><span class="p">(</span><span class="kr">fin</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"></span>
+<span class="w">                  </span><span class="c1">// Assumptions about the declared numeric type</span><span class="w"></span>
 
-<span class="w">  </span><span class="n">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="w">         </span><span class="c1">// A declarations of a constant</span>
+<span class="w">  </span><span class="n">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="w">         </span><span class="c1">// A declarations of a constant</span><span class="w"></span>
 </pre></div>
 </div>
 </div>
@@ -432,55 +426,55 @@ without providing a concrete implementation.</p>
 other modules:</p>
 <div class="literal-block-wrapper docutils container" id="id17">
 <div class="code-block-caption"><span class="caption-text">A nested interface module</span><a class="headerlink" href="#id17" title="Permalink to this code"></a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span><span class="w"> </span><span class="nn">M</span><span class="w"> </span><span class="kr">where</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span><span class="w"> </span><span class="nn">M</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
 
-<span class="w">  </span><span class="n">interface</span><span class="w"> </span><span class="n">submodule</span><span class="w"> </span><span class="kt">I</span><span class="w"> </span><span class="kr">where</span>
+<span class="w">  </span><span class="n">interface</span><span class="w"> </span><span class="n">submodule</span><span class="w"> </span><span class="kt">I</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
 
-<span class="w">    </span><span class="kr">type</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="o">#</span><span class="w">      </span><span class="c1">// `n` is a numeric type</span>
+<span class="w">    </span><span class="kr">type</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="o">#</span><span class="w">      </span><span class="c1">// `n` is a numeric type</span><span class="w"></span>
 
-<span class="w">    </span><span class="kr">type</span><span class="w"> </span><span class="n">constraint</span><span class="w"> </span><span class="p">(</span><span class="kr">fin</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span>
-<span class="w">                    </span><span class="c1">// Assumptions about the declared numeric type</span>
+<span class="w">    </span><span class="kr">type</span><span class="w"> </span><span class="n">constraint</span><span class="w"> </span><span class="p">(</span><span class="kr">fin</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"></span>
+<span class="w">                    </span><span class="c1">// Assumptions about the declared numeric type</span><span class="w"></span>
 
-<span class="w">    </span><span class="n">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="w">         </span><span class="c1">// A declarations of a constant</span>
+<span class="w">    </span><span class="n">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="w">         </span><span class="c1">// A declarations of a constant</span><span class="w"></span>
 </pre></div>
 </div>
 </div>
 <p>Interface modules may contain <code class="docutils literal notranslate"><span class="pre">type</span></code> or <code class="docutils literal notranslate"><span class="pre">type</span> <span class="pre">constraint</span></code> synonyms:</p>
 <div class="literal-block-wrapper docutils container" id="id18">
 <div class="code-block-caption"><span class="caption-text">A nested interface module</span><a class="headerlink" href="#id18" title="Permalink to this code"></a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">interface</span><span class="w"> </span><span class="kr">module</span><span class="w"> </span><span class="nn">I</span><span class="w"> </span><span class="kr">where</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">interface</span><span class="w"> </span><span class="kr">module</span><span class="w"> </span><span class="nn">I</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
 
-<span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="o">#</span><span class="w">      </span><span class="c1">// `n` is a numeric type</span>
+<span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="o">#</span><span class="w">      </span><span class="c1">// `n` is a numeric type</span><span class="w"></span>
 
-<span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="kt">W</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="w">    </span><span class="c1">// A type synonym, available when the interface is imported</span>
+<span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="kt">W</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="w">    </span><span class="c1">// A type synonym, available when the interface is imported</span><span class="w"></span>
 
-<span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="n">constraint</span><span class="w"> </span><span class="p">(</span><span class="kr">fin</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span>
-<span class="w">                  </span><span class="c1">// Assumptions about the declared numeric type</span>
+<span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="n">constraint</span><span class="w"> </span><span class="p">(</span><span class="kr">fin</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"></span>
+<span class="w">                  </span><span class="c1">// Assumptions about the declared numeric type</span><span class="w"></span>
 
-<span class="w">  </span><span class="n">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="kt">W</span><span class="w">           </span><span class="c1">// A declarations of a constant;  uses type synonym.</span>
+<span class="w">  </span><span class="n">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="kt">W</span><span class="w">           </span><span class="c1">// A declarations of a constant;  uses type synonym.</span><span class="w"></span>
 </pre></div>
 </div>
 </div>
 </section>
 <section id="importing-an-interface-module">
-<h3>Importing an Interface Module<a class="headerlink" href="#importing-an-interface-module" title="Permalink to this heading"></a></h3>
+<h3>Importing an Interface Module<a class="headerlink" href="#importing-an-interface-module" title="Permalink to this headline"></a></h3>
 <p>A module may be parameterized by importing an interface,
 instead of a concrete module</p>
 <div class="literal-block-wrapper docutils container" id="id19">
 <div class="code-block-caption"><span class="caption-text">A parameterized module</span><a class="headerlink" href="#id19" title="Permalink to this code"></a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="c1">// The interface desribes the parmaeters</span>
-<span class="nf">interface</span><span class="w"> </span><span class="kr">module</span><span class="w"> </span><span class="nn">I</span><span class="w"> </span><span class="kr">where</span>
-<span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="o">#</span>
-<span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="n">constraint</span><span class="w"> </span><span class="p">(</span><span class="kr">fin</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span>
-<span class="w">  </span><span class="n">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="c1">// The interface desribes the parmaeters</span><span class="w"></span>
+<span class="nf">interface</span><span class="w"> </span><span class="kr">module</span><span class="w"> </span><span class="nn">I</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
+<span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="o">#</span><span class="w"></span>
+<span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="n">constraint</span><span class="w"> </span><span class="p">(</span><span class="kr">fin</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"></span>
+<span class="w">  </span><span class="n">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="w"></span>
 
 
-<span class="c1">// This module is parameterized</span>
-<span class="kr">module</span><span class="w"> </span><span class="nn">F</span><span class="w"> </span><span class="kr">where</span>
-<span class="w">  </span><span class="kr">import</span><span class="w"> </span><span class="nn">interface</span><span class="w"> </span><span class="kt">I</span>
+<span class="c1">// This module is parameterized</span><span class="w"></span>
+<span class="kr">module</span><span class="w"> </span><span class="nn">F</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
+<span class="w">  </span><span class="kr">import</span><span class="w"> </span><span class="nn">interface</span><span class="w"> </span><span class="kt">I</span><span class="w"></span>
 
-<span class="w">  </span><span class="n">y</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span>
-<span class="w">  </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span>
+<span class="w">  </span><span class="n">y</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="w"></span>
+<span class="w">  </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="w"></span>
 </pre></div>
 </div>
 </div>
@@ -492,21 +486,21 @@ of an interface module maybe be linked to a different concrete
 module, as described in <a class="reference internal" href="#instantiating-modules"><span class="std std-ref">Instantiating a Parameterized Module</span></a>.</p>
 <div class="literal-block-wrapper docutils container" id="id20">
 <div class="code-block-caption"><span class="caption-text">Multiple interface parameters</span><a class="headerlink" href="#id20" title="Permalink to this code"></a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">interface</span><span class="w"> </span><span class="kr">module</span><span class="w"> </span><span class="nn">I</span><span class="w"> </span><span class="kr">where</span>
-<span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="o">#</span>
-<span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="n">constraint</span><span class="w"> </span><span class="p">(</span><span class="kr">fin</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span>
-<span class="w">  </span><span class="n">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">interface</span><span class="w"> </span><span class="kr">module</span><span class="w"> </span><span class="nn">I</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
+<span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="o">#</span><span class="w"></span>
+<span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="n">constraint</span><span class="w"> </span><span class="p">(</span><span class="kr">fin</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"></span>
+<span class="w">  </span><span class="n">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="w"></span>
 
 
-<span class="kr">module</span><span class="w"> </span><span class="nn">F</span><span class="w"> </span><span class="kr">where</span>
-<span class="w">  </span><span class="kr">import</span><span class="w"> </span><span class="nn">interface</span><span class="w"> </span><span class="kt">I</span><span class="w"> </span><span class="n">as</span><span class="w"> </span><span class="kt">I</span>
-<span class="w">  </span><span class="kr">import</span><span class="w"> </span><span class="nn">interface</span><span class="w"> </span><span class="kt">I</span><span class="w"> </span><span class="n">as</span><span class="w"> </span><span class="kt">J</span>
+<span class="kr">module</span><span class="w"> </span><span class="nn">F</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
+<span class="w">  </span><span class="kr">import</span><span class="w"> </span><span class="nn">interface</span><span class="w"> </span><span class="kt">I</span><span class="w"> </span><span class="n">as</span><span class="w"> </span><span class="kt">I</span><span class="w"></span>
+<span class="w">  </span><span class="kr">import</span><span class="w"> </span><span class="nn">interface</span><span class="w"> </span><span class="kt">I</span><span class="w"> </span><span class="n">as</span><span class="w"> </span><span class="kt">J</span><span class="w"></span>
 
-<span class="w">  </span><span class="n">y</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="kt">I</span><span class="ow">::</span><span class="n">n</span><span class="p">]</span>
-<span class="w">  </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kt">I</span><span class="ow">::</span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span>
+<span class="w">  </span><span class="n">y</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="kt">I</span><span class="ow">::</span><span class="n">n</span><span class="p">]</span><span class="w"></span>
+<span class="w">  </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kt">I</span><span class="ow">::</span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="w"></span>
 
-<span class="w">  </span><span class="n">z</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="kt">J</span><span class="ow">::</span><span class="n">n</span><span class="p">]</span>
-<span class="w">  </span><span class="n">z</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kt">J</span><span class="ow">::</span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span>
+<span class="w">  </span><span class="n">z</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="kt">J</span><span class="ow">::</span><span class="n">n</span><span class="p">]</span><span class="w"></span>
+<span class="w">  </span><span class="n">z</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kt">J</span><span class="ow">::</span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="w"></span>
 </pre></div>
 </div>
 </div>
@@ -514,26 +508,26 @@ module, as described in <a class="reference internal" href="#instantiating-modul
 of module parameterization in languages like Standard ML and OCaml.</p>
 </section>
 <section id="interface-constraints">
-<h3>Interface Constraints<a class="headerlink" href="#interface-constraints" title="Permalink to this heading"></a></h3>
+<h3>Interface Constraints<a class="headerlink" href="#interface-constraints" title="Permalink to this headline"></a></h3>
 <p>When working with multiple interfaces, it is to useful
 to be able to impose additional constraints on the
 types imported from the interface.</p>
 <div class="literal-block-wrapper docutils container" id="id21">
 <div class="code-block-caption"><span class="caption-text">Adding constraints to interface parameters</span><a class="headerlink" href="#id21" title="Permalink to this code"></a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">interface</span><span class="w"> </span><span class="kr">module</span><span class="w"> </span><span class="nn">I</span><span class="w"> </span><span class="kr">where</span>
-<span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="o">#</span>
-<span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="n">constraint</span><span class="w"> </span><span class="p">(</span><span class="kr">fin</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span>
-<span class="w">  </span><span class="n">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">interface</span><span class="w"> </span><span class="kr">module</span><span class="w"> </span><span class="nn">I</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
+<span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="o">#</span><span class="w"></span>
+<span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="n">constraint</span><span class="w"> </span><span class="p">(</span><span class="kr">fin</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"></span>
+<span class="w">  </span><span class="n">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="w"></span>
 
 
-<span class="kr">module</span><span class="w"> </span><span class="nn">F</span><span class="w"> </span><span class="kr">where</span>
-<span class="w">  </span><span class="kr">import</span><span class="w"> </span><span class="nn">interface</span><span class="w"> </span><span class="kt">I</span><span class="w"> </span><span class="n">as</span><span class="w"> </span><span class="kt">I</span>
-<span class="w">  </span><span class="kr">import</span><span class="w"> </span><span class="nn">interface</span><span class="w"> </span><span class="kt">I</span><span class="w"> </span><span class="n">as</span><span class="w"> </span><span class="kt">J</span>
+<span class="kr">module</span><span class="w"> </span><span class="nn">F</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
+<span class="w">  </span><span class="kr">import</span><span class="w"> </span><span class="nn">interface</span><span class="w"> </span><span class="kt">I</span><span class="w"> </span><span class="n">as</span><span class="w"> </span><span class="kt">I</span><span class="w"></span>
+<span class="w">  </span><span class="kr">import</span><span class="w"> </span><span class="nn">interface</span><span class="w"> </span><span class="kt">I</span><span class="w"> </span><span class="n">as</span><span class="w"> </span><span class="kt">J</span><span class="w"></span>
 
-<span class="w">  </span><span class="n">interface</span><span class="w"> </span><span class="n">constraint</span><span class="w"> </span><span class="p">(</span><span class="kt">I</span><span class="ow">::</span><span class="n">n</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kt">J</span><span class="ow">::</span><span class="n">n</span><span class="p">)</span>
+<span class="w">  </span><span class="n">interface</span><span class="w"> </span><span class="n">constraint</span><span class="w"> </span><span class="p">(</span><span class="kt">I</span><span class="ow">::</span><span class="n">n</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kt">J</span><span class="ow">::</span><span class="n">n</span><span class="p">)</span><span class="w"></span>
 
-<span class="w">  </span><span class="n">y</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="kt">I</span><span class="ow">::</span><span class="n">n</span><span class="p">]</span>
-<span class="w">  </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kt">I</span><span class="ow">::</span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="kt">J</span><span class="ow">::</span><span class="n">x</span>
+<span class="w">  </span><span class="n">y</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="kt">I</span><span class="ow">::</span><span class="n">n</span><span class="p">]</span><span class="w"></span>
+<span class="w">  </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kt">I</span><span class="ow">::</span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="kt">J</span><span class="ow">::</span><span class="n">x</span><span class="w"></span>
 </pre></div>
 </div>
 </div>
@@ -543,28 +537,28 @@ same.  Note that, of course, the two instantiations
 may provide different values for <code class="docutils literal notranslate"><span class="pre">x</span></code>.</p>
 </section>
 <section id="instantiating-a-parameterized-module">
-<span id="instantiating-modules"></span><h3>Instantiating a Parameterized Module<a class="headerlink" href="#instantiating-a-parameterized-module" title="Permalink to this heading"></a></h3>
+<span id="instantiating-modules"></span><h3>Instantiating a Parameterized Module<a class="headerlink" href="#instantiating-a-parameterized-module" title="Permalink to this headline"></a></h3>
 <p>To use a parameterized module we need to provide concrete
 implementations for the interfaces that it uses, and provide
 a name for the resulting module.  This is done as follows:</p>
 <div class="literal-block-wrapper docutils container" id="id22">
 <div class="code-block-caption"><span class="caption-text">Instantiating a parameterized module using a single interface.</span><a class="headerlink" href="#id22" title="Permalink to this code"></a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">interface</span><span class="w"> </span><span class="kr">module</span><span class="w"> </span><span class="nn">I</span><span class="w"> </span><span class="kr">where</span>
-<span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="o">#</span>
-<span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="n">constraint</span><span class="w"> </span><span class="p">(</span><span class="kr">fin</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span>
-<span class="w">  </span><span class="n">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">interface</span><span class="w"> </span><span class="kr">module</span><span class="w"> </span><span class="nn">I</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
+<span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="o">#</span><span class="w"></span>
+<span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="n">constraint</span><span class="w"> </span><span class="p">(</span><span class="kr">fin</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"></span>
+<span class="w">  </span><span class="n">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="w"></span>
 
-<span class="kr">module</span><span class="w"> </span><span class="nn">F</span><span class="w"> </span><span class="kr">where</span>
-<span class="w">  </span><span class="kr">import</span><span class="w"> </span><span class="nn">interface</span><span class="w"> </span><span class="kt">I</span>
+<span class="kr">module</span><span class="w"> </span><span class="nn">F</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
+<span class="w">  </span><span class="kr">import</span><span class="w"> </span><span class="nn">interface</span><span class="w"> </span><span class="kt">I</span><span class="w"></span>
 
-<span class="w">  </span><span class="n">y</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span>
-<span class="w">  </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span>
+<span class="w">  </span><span class="n">y</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="w"></span>
+<span class="w">  </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="w"></span>
 
-<span class="kr">module</span><span class="w"> </span><span class="nn">Impl</span><span class="w"> </span><span class="kr">where</span>
-<span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">8</span>
-<span class="w">  </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">26</span>
+<span class="kr">module</span><span class="w"> </span><span class="nn">Impl</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
+<span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">8</span><span class="w"></span>
+<span class="w">  </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">26</span><span class="w"></span>
 
-<span class="kr">module</span><span class="w"> </span><span class="nn">MyF</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kt">F</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="kt">Impl</span><span class="w"> </span><span class="p">}</span>
+<span class="kr">module</span><span class="w"> </span><span class="nn">MyF</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kt">F</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="kt">Impl</span><span class="w"> </span><span class="p">}</span><span class="w"></span>
 </pre></div>
 </div>
 </div>
@@ -576,26 +570,26 @@ we need to provide an implementation module for each
 interface, using a slight variation on the previous notation.</p>
 <div class="literal-block-wrapper docutils container" id="id23">
 <div class="code-block-caption"><span class="caption-text">Instantiating a parameterized module by name.</span><a class="headerlink" href="#id23" title="Permalink to this code"></a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="c1">// I is defined as above</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="c1">// I is defined as above</span><span class="w"></span>
 
-<span class="kr">module</span><span class="w"> </span><span class="nn">F</span><span class="w"> </span><span class="kr">where</span>
-<span class="w">  </span><span class="kr">import</span><span class="w"> </span><span class="nn">interface</span><span class="w"> </span><span class="kt">I</span><span class="w"> </span><span class="n">as</span><span class="w"> </span><span class="kt">I</span>
-<span class="w">  </span><span class="kr">import</span><span class="w"> </span><span class="nn">interface</span><span class="w"> </span><span class="kt">I</span><span class="w"> </span><span class="n">as</span><span class="w"> </span><span class="kt">J</span>
+<span class="kr">module</span><span class="w"> </span><span class="nn">F</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
+<span class="w">  </span><span class="kr">import</span><span class="w"> </span><span class="nn">interface</span><span class="w"> </span><span class="kt">I</span><span class="w"> </span><span class="n">as</span><span class="w"> </span><span class="kt">I</span><span class="w"></span>
+<span class="w">  </span><span class="kr">import</span><span class="w"> </span><span class="nn">interface</span><span class="w"> </span><span class="kt">I</span><span class="w"> </span><span class="n">as</span><span class="w"> </span><span class="kt">J</span><span class="w"></span>
 
-<span class="w">  </span><span class="n">interface</span><span class="w"> </span><span class="n">constraint</span><span class="w"> </span><span class="p">(</span><span class="kt">I</span><span class="ow">::</span><span class="n">n</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kt">J</span><span class="ow">::</span><span class="n">n</span><span class="p">)</span>
+<span class="w">  </span><span class="n">interface</span><span class="w"> </span><span class="n">constraint</span><span class="w"> </span><span class="p">(</span><span class="kt">I</span><span class="ow">::</span><span class="n">n</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kt">J</span><span class="ow">::</span><span class="n">n</span><span class="p">)</span><span class="w"></span>
 
-<span class="w">  </span><span class="n">y</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="kt">I</span><span class="ow">::</span><span class="n">n</span><span class="p">]</span>
-<span class="w">  </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kt">I</span><span class="ow">::</span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="kt">J</span><span class="ow">::</span><span class="n">x</span>
+<span class="w">  </span><span class="n">y</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="kt">I</span><span class="ow">::</span><span class="n">n</span><span class="p">]</span><span class="w"></span>
+<span class="w">  </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kt">I</span><span class="ow">::</span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="kt">J</span><span class="ow">::</span><span class="n">x</span><span class="w"></span>
 
-<span class="kr">module</span><span class="w"> </span><span class="nn">Impl1</span><span class="w"> </span><span class="kr">where</span>
-<span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">8</span>
-<span class="w">  </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">26</span>
+<span class="kr">module</span><span class="w"> </span><span class="nn">Impl1</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
+<span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">8</span><span class="w"></span>
+<span class="w">  </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">26</span><span class="w"></span>
 
-<span class="kr">module</span><span class="w"> </span><span class="nn">Impl2</span><span class="w"> </span><span class="kr">where</span>
-<span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">8</span>
-<span class="w">  </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">30</span>
+<span class="kr">module</span><span class="w"> </span><span class="nn">Impl2</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
+<span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">8</span><span class="w"></span>
+<span class="w">  </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">30</span><span class="w"></span>
 
-<span class="kr">module</span><span class="w"> </span><span class="nn">MyF</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kt">F</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="kt">I</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kt">Impl1</span><span class="p">,</span><span class="w"> </span><span class="kt">J</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kt">Impl</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="p">}</span>
+<span class="kr">module</span><span class="w"> </span><span class="nn">MyF</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kt">F</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="kt">I</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kt">Impl1</span><span class="p">,</span><span class="w"> </span><span class="kt">J</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kt">Impl</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="p">}</span><span class="w"></span>
 </pre></div>
 </div>
 </div>
@@ -610,11 +604,11 @@ order in which they are provided is not important.</p>
 just like any other module:</p>
 <div class="literal-block-wrapper docutils container" id="id24">
 <div class="code-block-caption"><span class="caption-text">Nested module instantiation.</span><a class="headerlink" href="#id24" title="Permalink to this code"></a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span><span class="w"> </span><span class="nn">M</span><span class="w"> </span><span class="kr">where</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span><span class="w"> </span><span class="nn">M</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
 
-<span class="w">  </span><span class="kr">import</span><span class="w"> </span><span class="nn">Somewhere</span><span class="w"> </span><span class="c1">// defines G</span>
+<span class="w">  </span><span class="kr">import</span><span class="w"> </span><span class="nn">Somewhere</span><span class="w"> </span><span class="c1">// defines G</span><span class="w"></span>
 
-<span class="w">  </span><span class="n">submodule</span><span class="w"> </span><span class="kt">F</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">submodule</span><span class="w"> </span><span class="kt">G</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="kt">I</span><span class="w"> </span><span class="p">}</span>
+<span class="w">  </span><span class="n">submodule</span><span class="w"> </span><span class="kt">F</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">submodule</span><span class="w"> </span><span class="kt">G</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="kt">I</span><span class="w"> </span><span class="p">}</span><span class="w"></span>
 </pre></div>
 </div>
 </div>
@@ -628,32 +622,32 @@ preceded by the <code class="docutils literal notranslate"><span class="pre">sub
 use <code class="docutils literal notranslate"><span class="pre">submodule</span> <span class="pre">I</span></code> like this:</p>
 <div class="literal-block-wrapper docutils container" id="id25">
 <div class="code-block-caption"><span class="caption-text">Nested module instantiation.</span><a class="headerlink" href="#id25" title="Permalink to this code"></a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span><span class="w"> </span><span class="nn">M</span><span class="w"> </span><span class="kr">where</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span><span class="w"> </span><span class="nn">M</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
 
-<span class="w">  </span><span class="kr">import</span><span class="w"> </span><span class="nn">Somewhere</span><span class="w"> </span><span class="c1">// defines G and I</span>
+<span class="w">  </span><span class="kr">import</span><span class="w"> </span><span class="nn">Somewhere</span><span class="w"> </span><span class="c1">// defines G and I</span><span class="w"></span>
 
-<span class="w">  </span><span class="n">submodule</span><span class="w"> </span><span class="kt">F</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">submodule</span><span class="w"> </span><span class="kt">G</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">submodule</span><span class="w"> </span><span class="kt">I</span><span class="w"> </span><span class="p">}</span>
+<span class="w">  </span><span class="n">submodule</span><span class="w"> </span><span class="kt">F</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">submodule</span><span class="w"> </span><span class="kt">G</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">submodule</span><span class="w"> </span><span class="kt">I</span><span class="w"> </span><span class="p">}</span><span class="w"></span>
 </pre></div>
 </div>
 </div>
 </section>
 <section id="anonymous-interface-modules">
-<h3>Anonymous Interface Modules<a class="headerlink" href="#anonymous-interface-modules" title="Permalink to this heading"></a></h3>
+<h3>Anonymous Interface Modules<a class="headerlink" href="#anonymous-interface-modules" title="Permalink to this headline"></a></h3>
 <p>If we need to just parameterize a module by a couple of types/values,
 it is quite cumbersome to have to define a whole separate interface module.
 To make this more convenient we provide the following notation for defining
 an anonymous interface and using it straight away:</p>
 <div class="literal-block-wrapper docutils container" id="id26">
 <div class="code-block-caption"><span class="caption-text">Simple parameterized module.</span><a class="headerlink" href="#id26" title="Permalink to this code"></a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span><span class="w"> </span><span class="nn">M</span><span class="w"> </span><span class="kr">where</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">module</span><span class="w"> </span><span class="nn">M</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
 
-<span class="w">  </span><span class="n">parameter</span>
-<span class="w">    </span><span class="kr">type</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="o">#</span>
-<span class="w">    </span><span class="kr">type</span><span class="w"> </span><span class="n">constraint</span><span class="w"> </span><span class="p">(</span><span class="kr">fin</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span>
-<span class="w">    </span><span class="n">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span>
+<span class="w">  </span><span class="n">parameter</span><span class="w"></span>
+<span class="w">    </span><span class="kr">type</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="o">#</span><span class="w"></span>
+<span class="w">    </span><span class="kr">type</span><span class="w"> </span><span class="n">constraint</span><span class="w"> </span><span class="p">(</span><span class="kr">fin</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"></span>
+<span class="w">    </span><span class="n">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="w"></span>
 
-<span class="w">  </span><span class="n">f</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span>
-<span class="w">  </span><span class="n">f</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">x</span>
+<span class="w">  </span><span class="n">f</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="w"></span>
+<span class="w">  </span><span class="n">f</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">x</span><span class="w"></span>
 </pre></div>
 </div>
 </div>
@@ -663,31 +657,31 @@ the interface is declared outside of <code class="docutils literal notranslate">
 may contain the same sort of declarations that may appear in interfaces.</p>
 </section>
 <section id="anonymous-instantiation-arguments">
-<h3>Anonymous Instantiation Arguments<a class="headerlink" href="#anonymous-instantiation-arguments" title="Permalink to this heading"></a></h3>
+<h3>Anonymous Instantiation Arguments<a class="headerlink" href="#anonymous-instantiation-arguments" title="Permalink to this headline"></a></h3>
 <p>Sometimes it is also a bit cumbersome to have to define a whole
 separate module just to pass it as an argument to some parameterized
 module.   To make this more convenient we support the following notation
 for instantiating a module:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="c1">// A parameterized module</span>
-<span class="kr">module</span><span class="w"> </span><span class="nn">M</span><span class="w"> </span><span class="kr">where</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="c1">// A parameterized module</span><span class="w"></span>
+<span class="kr">module</span><span class="w"> </span><span class="nn">M</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
 
-<span class="w">  </span><span class="n">parameter</span>
-<span class="w">    </span><span class="kr">type</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="o">#</span>
-<span class="w">    </span><span class="n">x</span><span class="w">      </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span>
-<span class="w">    </span><span class="n">y</span><span class="w">      </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span>
+<span class="w">  </span><span class="n">parameter</span><span class="w"></span>
+<span class="w">    </span><span class="kr">type</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="o">#</span><span class="w"></span>
+<span class="w">    </span><span class="n">x</span><span class="w">      </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="w"></span>
+<span class="w">    </span><span class="n">y</span><span class="w">      </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="w"></span>
 
-<span class="w">  </span><span class="n">f</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span>
-<span class="w">  </span><span class="n">f</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">y</span>
+<span class="w">  </span><span class="n">f</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="w"></span>
+<span class="w">  </span><span class="n">f</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">y</span><span class="w"></span>
 
 
-<span class="c1">// A module instantiation</span>
-<span class="kr">module</span><span class="w"> </span><span class="nn">N</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kt">M</span>
-<span class="w">  </span><span class="kr">where</span>
-<span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">32</span>
-<span class="w">  </span><span class="n">x</span><span class="w">      </span><span class="ow">=</span><span class="w"> </span><span class="mi">11</span>
-<span class="w">  </span><span class="n">y</span><span class="w">      </span><span class="ow">=</span><span class="w"> </span><span class="n">helper</span>
+<span class="c1">// A module instantiation</span><span class="w"></span>
+<span class="kr">module</span><span class="w"> </span><span class="nn">N</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kt">M</span><span class="w"></span>
+<span class="w">  </span><span class="kr">where</span><span class="w"></span>
+<span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">32</span><span class="w"></span>
+<span class="w">  </span><span class="n">x</span><span class="w">      </span><span class="ow">=</span><span class="w"> </span><span class="mi">11</span><span class="w"></span>
+<span class="w">  </span><span class="n">y</span><span class="w">      </span><span class="ow">=</span><span class="w"> </span><span class="n">helper</span><span class="w"></span>
 
-<span class="w">  </span><span class="n">helper</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">12</span>
+<span class="w">  </span><span class="n">helper</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">12</span><span class="w"></span>
 </pre></div>
 </div>
 <p>The declarations in the <code class="docutils literal notranslate"><span class="pre">where</span></code> block are treated as the
@@ -695,16 +689,16 @@ definition of an anonymous module which is passed as the argument
 to parameterized module <code class="docutils literal notranslate"><span class="pre">M</span></code>.</p>
 </section>
 <section id="anonymous-import-instantiations">
-<h3>Anonymous Import Instantiations<a class="headerlink" href="#anonymous-import-instantiations" title="Permalink to this heading"></a></h3>
+<h3>Anonymous Import Instantiations<a class="headerlink" href="#anonymous-import-instantiations" title="Permalink to this headline"></a></h3>
 <p>We provide syntactic sugar for importing and instantiating a functor
 at the same time:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">submodule</span><span class="w"> </span><span class="kt">F</span><span class="w"> </span><span class="kr">where</span>
-<span class="w">  </span><span class="n">parameter</span>
-<span class="w">    </span><span class="n">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span>
-<span class="w">  </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">submodule</span><span class="w"> </span><span class="kt">F</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
+<span class="w">  </span><span class="n">parameter</span><span class="w"></span>
+<span class="w">    </span><span class="n">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span><span class="w"></span>
+<span class="w">  </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="w"></span>
 
-<span class="kr">import</span><span class="w"> </span><span class="nn">submodule</span><span class="w"> </span><span class="kt">F</span><span class="w"> </span><span class="kr">where</span>
-<span class="w">  </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">2</span>
+<span class="kr">import</span><span class="w"> </span><span class="nn">submodule</span><span class="w"> </span><span class="kt">F</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
+<span class="w">  </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">2</span><span class="w"></span>
 </pre></div>
 </div>
 <p>The <code class="docutils literal notranslate"><span class="pre">where</span></code> block may is the same as the <code class="docutils literal notranslate"><span class="pre">where</span></code> block in
@@ -712,89 +706,89 @@ expressions:  you may define type synonyms and values, but nothing else
 (e.g., no <code class="docutils literal notranslate"><span class="pre">newtype</span></code>).</p>
 <p>It is also possible to import and instantiate a functor with an existing module
 like this:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">submodule</span><span class="w"> </span><span class="kt">F</span><span class="w"> </span><span class="kr">where</span>
-<span class="w">  </span><span class="n">parameter</span>
-<span class="w">    </span><span class="n">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span>
-<span class="w">  </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">submodule</span><span class="w"> </span><span class="kt">F</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
+<span class="w">  </span><span class="n">parameter</span><span class="w"></span>
+<span class="w">    </span><span class="n">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span><span class="w"></span>
+<span class="w">  </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="w"></span>
 
-<span class="nf">submodule</span><span class="w"> </span><span class="kt">G</span><span class="w"> </span><span class="kr">where</span>
-<span class="w">  </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">7</span>
+<span class="nf">submodule</span><span class="w"> </span><span class="kt">G</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
+<span class="w">  </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">7</span><span class="w"></span>
 
-<span class="kr">import</span><span class="w"> </span><span class="nn">submodule</span><span class="w"> </span><span class="kt">F</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">submodule</span><span class="w"> </span><span class="kt">G</span><span class="w"> </span><span class="p">}</span>
+<span class="kr">import</span><span class="w"> </span><span class="nn">submodule</span><span class="w"> </span><span class="kt">F</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">submodule</span><span class="w"> </span><span class="kt">G</span><span class="w"> </span><span class="p">}</span><span class="w"></span>
 </pre></div>
 </div>
 <p>Semantically, instantiating imports declare a local nested module and
 import it.  For example, the <code class="docutils literal notranslate"><span class="pre">where</span></code> import above is equivalent
 to the following declarations:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">submodule</span><span class="w"> </span><span class="kt">F</span><span class="w"> </span><span class="kr">where</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">submodule</span><span class="w"> </span><span class="kt">F</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
 
-<span class="w">  </span><span class="n">parameter</span>
-<span class="w">    </span><span class="n">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span>
+<span class="w">  </span><span class="n">parameter</span><span class="w"></span>
+<span class="w">    </span><span class="n">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span><span class="w"></span>
 
-<span class="w">  </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span>
-
-
-<span class="nf">submodule</span><span class="w"> </span><span class="kt">M</span><span class="w"> </span><span class="kr">where</span>
-<span class="w">  </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">2</span>
+<span class="w">  </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="w"></span>
 
 
-<span class="nf">submodule</span><span class="w"> </span><span class="kt">N</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">submodule</span><span class="w"> </span><span class="kt">F</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">submodule</span><span class="w"> </span><span class="kt">M</span><span class="w"> </span><span class="p">}</span>
+<span class="nf">submodule</span><span class="w"> </span><span class="kt">M</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
+<span class="w">  </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">2</span><span class="w"></span>
 
 
-<span class="kr">import</span><span class="w"> </span><span class="nn">submodule</span><span class="w"> </span><span class="kt">N</span>
+<span class="nf">submodule</span><span class="w"> </span><span class="kt">N</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">submodule</span><span class="w"> </span><span class="kt">F</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">submodule</span><span class="w"> </span><span class="kt">M</span><span class="w"> </span><span class="p">}</span><span class="w"></span>
+
+
+<span class="kr">import</span><span class="w"> </span><span class="nn">submodule</span><span class="w"> </span><span class="kt">N</span><span class="w"></span>
 </pre></div>
 </div>
 </section>
 <section id="passing-through-module-parameters">
-<h3>Passing Through Module Parameters<a class="headerlink" href="#passing-through-module-parameters" title="Permalink to this heading"></a></h3>
+<h3>Passing Through Module Parameters<a class="headerlink" href="#passing-through-module-parameters" title="Permalink to this headline"></a></h3>
 <p>Occasionally it is useful to define a functor that instantiates <em>another</em>
 functor using the same parameters as the functor being defined
 (i.e., a functor parameter is passed on to another functor).  This can
 be done by using the keyword <code class="docutils literal notranslate"><span class="pre">interface</span></code> followed by the name of a parameter
 in an instantiation.  Here is an example:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">interface</span><span class="w"> </span><span class="n">submodule</span><span class="w"> </span><span class="kt">S</span><span class="w"> </span><span class="kr">where</span>
-<span class="w">  </span><span class="n">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">interface</span><span class="w"> </span><span class="n">submodule</span><span class="w"> </span><span class="kt">S</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
+<span class="w">  </span><span class="n">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span><span class="w"></span>
 
-<span class="c1">// A functor, parameterized on S</span>
-<span class="nf">submodule</span><span class="w"> </span><span class="kt">G</span><span class="w"> </span><span class="kr">where</span>
-<span class="w">  </span><span class="kr">import</span><span class="w"> </span><span class="nn">interface</span><span class="w"> </span><span class="n">submodule</span><span class="w"> </span><span class="kt">S</span>
-<span class="w">  </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span>
+<span class="c1">// A functor, parameterized on S</span><span class="w"></span>
+<span class="nf">submodule</span><span class="w"> </span><span class="kt">G</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
+<span class="w">  </span><span class="kr">import</span><span class="w"> </span><span class="nn">interface</span><span class="w"> </span><span class="n">submodule</span><span class="w"> </span><span class="kt">S</span><span class="w"></span>
+<span class="w">  </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="w"></span>
 
-<span class="c1">// Another functor, also parameterize on S</span>
-<span class="nf">submodule</span><span class="w"> </span><span class="kt">F</span><span class="w"> </span><span class="kr">where</span>
-<span class="w">  </span><span class="kr">import</span><span class="w"> </span><span class="nn">interface</span><span class="w"> </span><span class="n">submodule</span><span class="w"> </span><span class="kt">S</span><span class="w"> </span><span class="n">as</span><span class="w"> </span><span class="kt">A</span>
+<span class="c1">// Another functor, also parameterize on S</span><span class="w"></span>
+<span class="nf">submodule</span><span class="w"> </span><span class="kt">F</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
+<span class="w">  </span><span class="kr">import</span><span class="w"> </span><span class="nn">interface</span><span class="w"> </span><span class="n">submodule</span><span class="w"> </span><span class="kt">S</span><span class="w"> </span><span class="n">as</span><span class="w"> </span><span class="kt">A</span><span class="w"></span>
 
-<span class="w">  </span><span class="c1">// Instantiate `G` using parameter `A` of `F`</span>
-<span class="w">  </span><span class="kr">import</span><span class="w"> </span><span class="nn">submodule</span><span class="w"> </span><span class="kt">G</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">interface</span><span class="w"> </span><span class="kt">A</span><span class="w"> </span><span class="p">}</span><span class="w">    </span><span class="c1">// Brings `y` in scope</span>
+<span class="w">  </span><span class="c1">// Instantiate `G` using parameter `A` of `F`</span><span class="w"></span>
+<span class="w">  </span><span class="kr">import</span><span class="w"> </span><span class="nn">submodule</span><span class="w"> </span><span class="kt">G</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">interface</span><span class="w"> </span><span class="kt">A</span><span class="w"> </span><span class="p">}</span><span class="w">    </span><span class="c1">// Brings `y` in scope</span><span class="w"></span>
 
-<span class="w">  </span><span class="n">z</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kt">A</span><span class="ow">::</span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">y</span>
+<span class="w">  </span><span class="n">z</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kt">A</span><span class="ow">::</span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">y</span><span class="w"></span>
 
-<span class="c1">// Brings `z` into scope: z = A::x + y</span>
-<span class="c1">//                          = 5    + (5 + 1)</span>
-<span class="c1">//                          = 11</span>
-<span class="kr">import</span><span class="w"> </span><span class="nn">submodule</span><span class="w"> </span><span class="kt">F</span><span class="w"> </span><span class="kr">where</span>
-<span class="w">  </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">5</span>
+<span class="c1">// Brings `z` into scope: z = A::x + y</span><span class="w"></span>
+<span class="c1">//                          = 5    + (5 + 1)</span><span class="w"></span>
+<span class="c1">//                          = 11</span><span class="w"></span>
+<span class="kr">import</span><span class="w"> </span><span class="nn">submodule</span><span class="w"> </span><span class="kt">F</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
+<span class="w">  </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">5</span><span class="w"></span>
 </pre></div>
 </div>
 </section>
 <section id="instantiation-by-parametrizing-declarations">
-<h3>Instantiation by Parametrizing Declarations<a class="headerlink" href="#instantiation-by-parametrizing-declarations" title="Permalink to this heading"></a></h3>
+<h3>Instantiation by Parametrizing Declarations<a class="headerlink" href="#instantiation-by-parametrizing-declarations" title="Permalink to this headline"></a></h3>
 <p>It is also possible to instantiate a functor parameter <em>without</em> providing
 an implementation module.  Instead, the declarations in the instantiated
 module all get additional parameters corresponding to the functor’s parameters.
 This is done by providing <code class="docutils literal notranslate"><span class="pre">_</span></code> as the parameter to a functor:</p>
 <div class="literal-block-wrapper docutils container" id="id27">
 <div class="code-block-caption"><span class="caption-text">Instantiation by Parametrizing Declarations</span><a class="headerlink" href="#id27" title="Permalink to this code"></a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">submodule</span><span class="w"> </span><span class="kt">F</span><span class="w"> </span><span class="kr">where</span>
-<span class="w">  </span><span class="n">parameter</span>
-<span class="w">    </span><span class="kr">type</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="o">#</span>
-<span class="w">    </span><span class="n">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">submodule</span><span class="w"> </span><span class="kt">F</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
+<span class="w">  </span><span class="n">parameter</span><span class="w"></span>
+<span class="w">    </span><span class="kr">type</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="o">#</span><span class="w"></span>
+<span class="w">    </span><span class="n">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="w"></span>
 
-<span class="w">  </span><span class="n">f</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">(</span><span class="kr">fin</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span>
-<span class="w">  </span><span class="n">f</span><span class="w"> </span><span class="n">v</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">v</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">x</span>
+<span class="w">  </span><span class="n">f</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">(</span><span class="kr">fin</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="w"></span>
+<span class="w">  </span><span class="n">f</span><span class="w"> </span><span class="n">v</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">v</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">x</span><span class="w"></span>
 
-<span class="nf">submodule</span><span class="w"> </span><span class="kt">M</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">submodule</span><span class="w"> </span><span class="kt">F</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="p">}</span>
-<span class="kr">import</span><span class="w"> </span><span class="nn">submodule</span><span class="w"> </span><span class="kt">M</span><span class="w"> </span><span class="n">as</span><span class="w"> </span><span class="kt">M</span>
+<span class="nf">submodule</span><span class="w"> </span><span class="kt">M</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">submodule</span><span class="w"> </span><span class="kt">F</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="p">}</span><span class="w"></span>
+<span class="kr">import</span><span class="w"> </span><span class="nn">submodule</span><span class="w"> </span><span class="kt">M</span><span class="w"> </span><span class="n">as</span><span class="w"> </span><span class="kt">M</span><span class="w"></span>
 </pre></div>
 </div>
 </div>
@@ -847,25 +841,25 @@ syntactic sugar for importing a functor with a single interface parameter
 and instantiating it:</p>
 <div class="literal-block-wrapper docutils container" id="id28">
 <div class="code-block-caption"><span class="caption-text">Backtick Import</span><a class="headerlink" href="#id28" title="Permalink to this code"></a></div>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">submodule</span><span class="w"> </span><span class="kt">F</span><span class="w"> </span><span class="kr">where</span>
-<span class="w">  </span><span class="n">parameter</span>
-<span class="w">    </span><span class="kr">type</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="o">#</span>
-<span class="w">    </span><span class="n">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">submodule</span><span class="w"> </span><span class="kt">F</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
+<span class="w">  </span><span class="n">parameter</span><span class="w"></span>
+<span class="w">    </span><span class="kr">type</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="o">#</span><span class="w"></span>
+<span class="w">    </span><span class="n">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="w"></span>
 
-<span class="w">  </span><span class="n">f</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">(</span><span class="kr">fin</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span>
-<span class="w">  </span><span class="n">f</span><span class="w"> </span><span class="n">v</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">v</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">x</span>
+<span class="w">  </span><span class="n">f</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">(</span><span class="kr">fin</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="w"></span>
+<span class="w">  </span><span class="n">f</span><span class="w"> </span><span class="n">v</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">v</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">x</span><span class="w"></span>
 
-<span class="kr">import</span><span class="w"> </span><span class="nn">submodule</span><span class="w"> </span><span class="p">`</span><span class="kt">F</span>
+<span class="kr">import</span><span class="w"> </span><span class="nn">submodule</span><span class="w"> </span><span class="p">`</span><span class="kt">F</span><span class="w"></span>
 </pre></div>
 </div>
 </div>
 <p>This is equivalent to writing:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">import</span><span class="w"> </span><span class="nn">submodule</span><span class="w"> </span><span class="kt">F</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="p">}</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">import</span><span class="w"> </span><span class="nn">submodule</span><span class="w"> </span><span class="kt">F</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="p">}</span><span class="w"></span>
 </pre></div>
 </div>
 <p>This, in turn, is syntactic sugar for creating an anonymous module:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">submodule</span><span class="w"> </span><span class="kt">M</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kt">F</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="p">}</span>
-<span class="kr">import</span><span class="w"> </span><span class="nn">submodule</span><span class="w"> </span><span class="kt">M</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">submodule</span><span class="w"> </span><span class="kt">M</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kt">F</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="p">}</span><span class="w"></span>
+<span class="kr">import</span><span class="w"> </span><span class="nn">submodule</span><span class="w"> </span><span class="kt">M</span><span class="w"></span>
 </pre></div>
 </div>
 </section>

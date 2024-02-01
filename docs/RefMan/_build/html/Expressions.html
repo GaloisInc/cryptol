@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Expressions &mdash; Cryptol 2.11.0 documentation</title>
@@ -11,9 +11,7 @@
         <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
         <script src="_static/jquery.js"></script>
         <script src="_static/underscore.js"></script>
-        <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="_static/doctools.js"></script>
-        <script src="_static/sphinx_highlight.js"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -26,15 +24,11 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-
-          
-          
-          <a href="RefMan.html" class="icon icon-home">
-            Cryptol
+            <a href="RefMan.html" class="icon icon-home"> Cryptol
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -75,8 +69,8 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="RefMan.html" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">Expressions</li>
+      <li><a href="RefMan.html" class="icon icon-home"></a> &raquo;</li>
+      <li>Expressions</li>
       <li class="wy-breadcrumbs-aside">
             <a href="_sources/Expressions.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -87,52 +81,52 @@
            <div itemprop="articleBody">
              
   <section id="expressions">
-<h1>Expressions<a class="headerlink" href="#expressions" title="Permalink to this heading"></a></h1>
+<h1>Expressions<a class="headerlink" href="#expressions" title="Permalink to this headline"></a></h1>
 <p>This section provides an overview of the Cryptol’s expression syntax.</p>
 <section id="calling-functions">
-<h2>Calling Functions<a class="headerlink" href="#calling-functions" title="Permalink to this heading"></a></h2>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">f</span><span class="w"> </span><span class="mi">2</span><span class="w">             </span><span class="c1">// call `f` with parameter `2`</span>
-<span class="nf">g</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="n">y</span><span class="w">           </span><span class="c1">// call `g` with two parameters: `x` and `y`</span>
-<span class="nf">h</span><span class="w"> </span><span class="p">(</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">)</span><span class="w">         </span><span class="c1">// call `h` with one parameter,  the pair `(x,y)`</span>
+<h2>Calling Functions<a class="headerlink" href="#calling-functions" title="Permalink to this headline"></a></h2>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">f</span><span class="w"> </span><span class="mi">2</span><span class="w">             </span><span class="c1">// call `f` with parameter `2`</span><span class="w"></span>
+<span class="nf">g</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="n">y</span><span class="w">           </span><span class="c1">// call `g` with two parameters: `x` and `y`</span><span class="w"></span>
+<span class="nf">h</span><span class="w"> </span><span class="p">(</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">)</span><span class="w">         </span><span class="c1">// call `h` with one parameter,  the pair `(x,y)`</span><span class="w"></span>
 </pre></div>
 </div>
 </section>
 <section id="prefix-operators">
-<h2>Prefix Operators<a class="headerlink" href="#prefix-operators" title="Permalink to this heading"></a></h2>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="o">-</span><span class="mi">2</span><span class="w">              </span><span class="c1">// call unary `-` with parameter `2`</span>
-<span class="o">-</span><span class="w"> </span><span class="mi">2</span><span class="w">             </span><span class="c1">// call unary `-` with parameter `2`</span>
-<span class="nf">f</span><span class="w"> </span><span class="p">(</span><span class="o">-</span><span class="mi">2</span><span class="p">)</span><span class="w">          </span><span class="c1">// call `f` with one argument: `-2`,  parens are important</span>
-<span class="o">-</span><span class="n">f</span><span class="w"> </span><span class="mi">2</span><span class="w">            </span><span class="c1">// call unary `-` with parameter `f 2`</span>
-<span class="o">-</span><span class="w"> </span><span class="n">f</span><span class="w"> </span><span class="mi">2</span><span class="w">           </span><span class="c1">// call unary `-` with parameter `f 2`</span>
+<h2>Prefix Operators<a class="headerlink" href="#prefix-operators" title="Permalink to this headline"></a></h2>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="o">-</span><span class="mi">2</span><span class="w">              </span><span class="c1">// call unary `-` with parameter `2`</span><span class="w"></span>
+<span class="o">-</span><span class="w"> </span><span class="mi">2</span><span class="w">             </span><span class="c1">// call unary `-` with parameter `2`</span><span class="w"></span>
+<span class="nf">f</span><span class="w"> </span><span class="p">(</span><span class="o">-</span><span class="mi">2</span><span class="p">)</span><span class="w">          </span><span class="c1">// call `f` with one argument: `-2`,  parens are important</span><span class="w"></span>
+<span class="o">-</span><span class="n">f</span><span class="w"> </span><span class="mi">2</span><span class="w">            </span><span class="c1">// call unary `-` with parameter `f 2`</span><span class="w"></span>
+<span class="o">-</span><span class="w"> </span><span class="n">f</span><span class="w"> </span><span class="mi">2</span><span class="w">           </span><span class="c1">// call unary `-` with parameter `f 2`</span><span class="w"></span>
 </pre></div>
 </div>
 </section>
 <section id="infix-functions">
-<h2>Infix Functions<a class="headerlink" href="#infix-functions" title="Permalink to this heading"></a></h2>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="mi">2</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">3</span><span class="w">           </span><span class="c1">// call `+` with two parameters: `2` and `3`</span>
-<span class="mi">2</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">3</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">5</span><span class="w">       </span><span class="c1">// call `+` with two parameters: `2` and `3 * 5`</span>
-<span class="p">(</span><span class="o">+</span><span class="p">)</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="mi">3</span><span class="w">         </span><span class="c1">// call `+` with two parameters: `2` and `3`</span>
-<span class="nf">f</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">g</span><span class="w"> </span><span class="mi">3</span><span class="w">       </span><span class="c1">// call `+` with two parameters: `f 2` and `g 3`</span>
-<span class="o">-</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">3</span><span class="w">       </span><span class="c1">// call `+` with two parameters: `-2` and `-3`</span>
-<span class="o">-</span><span class="w"> </span><span class="n">f</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">g</span><span class="w"> </span><span class="mi">3</span>
+<h2>Infix Functions<a class="headerlink" href="#infix-functions" title="Permalink to this headline"></a></h2>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="mi">2</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">3</span><span class="w">           </span><span class="c1">// call `+` with two parameters: `2` and `3`</span><span class="w"></span>
+<span class="mi">2</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">3</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">5</span><span class="w">       </span><span class="c1">// call `+` with two parameters: `2` and `3 * 5`</span><span class="w"></span>
+<span class="p">(</span><span class="o">+</span><span class="p">)</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="mi">3</span><span class="w">         </span><span class="c1">// call `+` with two parameters: `2` and `3`</span><span class="w"></span>
+<span class="nf">f</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">g</span><span class="w"> </span><span class="mi">3</span><span class="w">       </span><span class="c1">// call `+` with two parameters: `f 2` and `g 3`</span><span class="w"></span>
+<span class="o">-</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">3</span><span class="w">       </span><span class="c1">// call `+` with two parameters: `-2` and `-3`</span><span class="w"></span>
+<span class="o">-</span><span class="w"> </span><span class="n">f</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">g</span><span class="w"> </span><span class="mi">3</span><span class="w"></span>
 </pre></div>
 </div>
 </section>
 <section id="type-annotations">
-<h2>Type Annotations<a class="headerlink" href="#type-annotations" title="Permalink to this heading"></a></h2>
+<h2>Type Annotations<a class="headerlink" href="#type-annotations" title="Permalink to this headline"></a></h2>
 <p>Explicit type annotations may be added on expressions, patterns, and
 in argument definitions.</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="kr">Bit</span><span class="w">         </span><span class="c1">// specify that `x` has type `Bit`</span>
-<span class="nf">f</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="kr">Bit</span><span class="w">       </span><span class="c1">// specify that `f x` has type `Bit`</span>
-<span class="o">-</span><span class="w"> </span><span class="n">f</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span><span class="w">     </span><span class="c1">// specify that `- f x` has type `[8]`</span>
-<span class="mi">2</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">3</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span><span class="w">     </span><span class="c1">// specify that `2 + 3` has type `[8]`</span>
-<span class="nf">\</span><span class="n">x</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span><span class="w">   </span><span class="c1">// type annotation is on `x`, not the function</span>
-<span class="kr">if</span><span class="w"> </span><span class="n">x</span>
-<span class="w">  </span><span class="kr">then</span><span class="w"> </span><span class="n">y</span>
-<span class="w">  </span><span class="kr">else</span><span class="w"> </span><span class="n">z</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="kr">Bit</span><span class="w">  </span><span class="c1">// the type annotation is on `z`, not the whole `if`</span>
-<span class="p">[</span><span class="mi">1</span><span class="o">..</span><span class="mi">9</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]]</span><span class="w">    </span><span class="c1">// specify that elements in `[1..9]` have type `[8]`</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="kr">Bit</span><span class="w">         </span><span class="c1">// specify that `x` has type `Bit`</span><span class="w"></span>
+<span class="nf">f</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="kr">Bit</span><span class="w">       </span><span class="c1">// specify that `f x` has type `Bit`</span><span class="w"></span>
+<span class="o">-</span><span class="w"> </span><span class="n">f</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span><span class="w">     </span><span class="c1">// specify that `- f x` has type `[8]`</span><span class="w"></span>
+<span class="mi">2</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">3</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span><span class="w">     </span><span class="c1">// specify that `2 + 3` has type `[8]`</span><span class="w"></span>
+<span class="nf">\</span><span class="n">x</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span><span class="w">   </span><span class="c1">// type annotation is on `x`, not the function</span><span class="w"></span>
+<span class="kr">if</span><span class="w"> </span><span class="n">x</span><span class="w"></span>
+<span class="w">  </span><span class="kr">then</span><span class="w"> </span><span class="n">y</span><span class="w"></span>
+<span class="w">  </span><span class="kr">else</span><span class="w"> </span><span class="n">z</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="kr">Bit</span><span class="w">  </span><span class="c1">// the type annotation is on `z`, not the whole `if`</span><span class="w"></span>
+<span class="p">[</span><span class="mi">1</span><span class="o">..</span><span class="mi">9</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]]</span><span class="w">    </span><span class="c1">// specify that elements in `[1..9]` have type `[8]`</span><span class="w"></span>
 
-<span class="nf">f</span><span class="w"> </span><span class="p">(</span><span class="n">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">])</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="w">   </span><span class="c1">// type annotation on patterns</span>
+<span class="nf">f</span><span class="w"> </span><span class="p">(</span><span class="n">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">])</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="w">   </span><span class="c1">// type annotation on patterns</span><span class="w"></span>
 </pre></div>
 </div>
 <div class="admonition-todo admonition" id="id1">
@@ -141,73 +135,73 @@ in argument definitions.</p>
 </div>
 </section>
 <section id="explicit-type-instantiation">
-<h2>Explicit Type Instantiation<a class="headerlink" href="#explicit-type-instantiation" title="Permalink to this heading"></a></h2>
+<h2>Explicit Type Instantiation<a class="headerlink" href="#explicit-type-instantiation" title="Permalink to this headline"></a></h2>
 <p>If <code class="docutils literal notranslate"><span class="pre">f</span></code> is a polymorphic value with type:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">f</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">tyParam</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="n">tyParam</span>
-<span class="nf">f</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">zero</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">f</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">tyParam</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="n">tyParam</span><span class="w"></span>
+<span class="nf">f</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">zero</span><span class="w"></span>
 </pre></div>
 </div>
 <p>you can evaluate <code class="docutils literal notranslate"><span class="pre">f</span></code>, passing it a type parameter:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">f</span><span class="w"> </span><span class="p">`{</span><span class="w"> </span><span class="n">tyParam</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">13</span><span class="w"> </span><span class="p">}</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">f</span><span class="w"> </span><span class="p">`{</span><span class="w"> </span><span class="n">tyParam</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">13</span><span class="w"> </span><span class="p">}</span><span class="w"></span>
 </pre></div>
 </div>
 </section>
 <section id="local-declarations">
-<h2>Local Declarations<a class="headerlink" href="#local-declarations" title="Permalink to this heading"></a></h2>
+<h2>Local Declarations<a class="headerlink" href="#local-declarations" title="Permalink to this headline"></a></h2>
 <p>Local declarations have the weakest precedence of all expressions.</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="mi">2</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="kt">T</span><span class="p">]</span>
-<span class="w">  </span><span class="kr">where</span>
-<span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="kt">T</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">8</span>
-<span class="w">  </span><span class="n">x</span><span class="w">      </span><span class="ow">=</span><span class="w"> </span><span class="mi">2</span><span class="w">          </span><span class="c1">// `T` and `x` are in scope of `2 + x : `[T]`</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="mi">2</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="kt">T</span><span class="p">]</span><span class="w"></span>
+<span class="w">  </span><span class="kr">where</span><span class="w"></span>
+<span class="w">  </span><span class="kr">type</span><span class="w"> </span><span class="kt">T</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">8</span><span class="w"></span>
+<span class="w">  </span><span class="n">x</span><span class="w">      </span><span class="ow">=</span><span class="w"> </span><span class="mi">2</span><span class="w">          </span><span class="c1">// `T` and `x` are in scope of `2 + x : `[T]`</span><span class="w"></span>
 
-<span class="kr">if</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="kr">then</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="kr">else</span><span class="w"> </span><span class="mi">2</span>
-<span class="w">  </span><span class="kr">where</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">2</span><span class="w">         </span><span class="c1">// `x` is in scope in the whole `if`</span>
+<span class="kr">if</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="kr">then</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="kr">else</span><span class="w"> </span><span class="mi">2</span><span class="w"></span>
+<span class="w">  </span><span class="kr">where</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">2</span><span class="w">         </span><span class="c1">// `x` is in scope in the whole `if`</span><span class="w"></span>
 
-<span class="nf">\</span><span class="n">y</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">y</span>
-<span class="w">  </span><span class="kr">where</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">2</span><span class="w">         </span><span class="c1">// `y` is not in scope in the defintion of `x`</span>
+<span class="nf">\</span><span class="n">y</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">y</span><span class="w"></span>
+<span class="w">  </span><span class="kr">where</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">2</span><span class="w">         </span><span class="c1">// `y` is not in scope in the defintion of `x`</span><span class="w"></span>
 </pre></div>
 </div>
 </section>
 <section id="block-arguments">
-<h2>Block Arguments<a class="headerlink" href="#block-arguments" title="Permalink to this heading"></a></h2>
+<h2>Block Arguments<a class="headerlink" href="#block-arguments" title="Permalink to this headline"></a></h2>
 <p>When used as the last argument to a function call,
 <code class="docutils literal notranslate"><span class="pre">if</span></code> and lambda expressions do not need parens:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">f</span><span class="w"> </span><span class="nf">\</span><span class="n">x</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">x</span><span class="w">       </span><span class="c1">// call `f` with one argument `x -&gt; x`</span>
-<span class="mi">2</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="kr">if</span><span class="w"> </span><span class="n">x</span>
-<span class="w">      </span><span class="kr">then</span><span class="w"> </span><span class="n">y</span>
-<span class="w">      </span><span class="kr">else</span><span class="w"> </span><span class="n">z</span><span class="w">    </span><span class="c1">// call `+` with two arguments: `2` and `if ...`</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">f</span><span class="w"> </span><span class="nf">\</span><span class="n">x</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">x</span><span class="w">       </span><span class="c1">// call `f` with one argument `x -&gt; x`</span><span class="w"></span>
+<span class="mi">2</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="kr">if</span><span class="w"> </span><span class="n">x</span><span class="w"></span>
+<span class="w">      </span><span class="kr">then</span><span class="w"> </span><span class="n">y</span><span class="w"></span>
+<span class="w">      </span><span class="kr">else</span><span class="w"> </span><span class="n">z</span><span class="w">    </span><span class="c1">// call `+` with two arguments: `2` and `if ...`</span><span class="w"></span>
 </pre></div>
 </div>
 </section>
 <section id="conditionals">
-<h2>Conditionals<a class="headerlink" href="#conditionals" title="Permalink to this heading"></a></h2>
+<h2>Conditionals<a class="headerlink" href="#conditionals" title="Permalink to this headline"></a></h2>
 <p>The <code class="docutils literal notranslate"><span class="pre">if</span> <span class="pre">...</span> <span class="pre">then</span> <span class="pre">...</span> <span class="pre">else</span></code> construct can be used with
 multiple branches. For example:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kr">if</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="kr">then</span><span class="w"> </span><span class="mi">22</span><span class="w"> </span><span class="kr">else</span><span class="w"> </span><span class="mi">33</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kr">if</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="kr">then</span><span class="w"> </span><span class="mi">22</span><span class="w"> </span><span class="kr">else</span><span class="w"> </span><span class="mi">33</span><span class="w"></span>
 
-<span class="nf">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kr">if</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="kr">then</span><span class="w"> </span><span class="mi">1</span>
-<span class="w">     </span><span class="o">|</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">3</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="kr">then</span><span class="w"> </span><span class="mi">2</span>
-<span class="w">     </span><span class="o">|</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">5</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="kr">then</span><span class="w"> </span><span class="mi">3</span>
-<span class="w">     </span><span class="kr">else</span><span class="w"> </span><span class="mi">7</span>
+<span class="nf">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kr">if</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="kr">then</span><span class="w"> </span><span class="mi">1</span><span class="w"></span>
+<span class="w">     </span><span class="o">|</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">3</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="kr">then</span><span class="w"> </span><span class="mi">2</span><span class="w"></span>
+<span class="w">     </span><span class="o">|</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">5</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="kr">then</span><span class="w"> </span><span class="mi">3</span><span class="w"></span>
+<span class="w">     </span><span class="kr">else</span><span class="w"> </span><span class="mi">7</span><span class="w"></span>
 </pre></div>
 </div>
 </section>
 <section id="demoting-numeric-types-to-values">
-<h2>Demoting Numeric Types to Values<a class="headerlink" href="#demoting-numeric-types-to-values" title="Permalink to this heading"></a></h2>
+<h2>Demoting Numeric Types to Values<a class="headerlink" href="#demoting-numeric-types-to-values" title="Permalink to this headline"></a></h2>
 <p>The value corresponding to a numeric type may be accessed using the
 following notation:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="p">`</span><span class="n">t</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="p">`</span><span class="n">t</span><span class="w"></span>
 </pre></div>
 </div>
 <p>Here <cite>t</cite> should be a finite type expression with numeric kind.  The resulting
 expression will be of a numeric base type, which is sufficiently large
 to accommodate the value of the type:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="p">`</span><span class="n">t</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">Literal</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="p">`</span><span class="n">t</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">Literal</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"></span>
 </pre></div>
 </div>
 <p>This backtick notation is syntax sugar for an application of the
 <cite>number</cite> primtive, so the above may be written as:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">number</span><span class="p">`{</span><span class="n">t</span><span class="p">}</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">Literal</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">number</span><span class="p">`{</span><span class="n">t</span><span class="p">}</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kt">Literal</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"></span>
 </pre></div>
 </div>
 <p>If a type cannot be inferred from context, a suitable type will be
