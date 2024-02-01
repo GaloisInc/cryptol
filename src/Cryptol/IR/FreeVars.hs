@@ -167,6 +167,7 @@ instance FreeVars NominalTypeDef where
     case def of
       Struct c -> freeVars c
       Enum cs -> freeVars cs
+      Abstract -> mempty
 
 instance FreeVars StructCon where
   freeVars c = freeVars (recordElements (ntFields c))
