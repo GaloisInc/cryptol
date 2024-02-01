@@ -173,8 +173,8 @@ finType ty =
       case nv of
         TVStruct body -> FStruct <$> traverse finType body
         TVEnum cs     -> FEnum   <$> traverse (traverse finType) cs
+        TVAbstract    -> Nothing
 
-    TVAbstract {}       -> Nothing
     TVArray{}           -> Nothing
     TVStream{}          -> Nothing
     TVFun{}             -> Nothing
@@ -395,6 +395,8 @@ varToExpr prims = go
                 let con = case ntDef nt of
                             Struct c -> ntConName c
                             Enum {} -> panic "varToExpr" ["Enum, expectqed Struct"]
+                            Abstract {} -> panic "varToExpr"
+                              ["Abstract, expected Struct"]
                     f = foldl (\x t -> ETApp x (tNumValTy t)) (EVar con) ts
                  in EApp f (ERec efs)
 

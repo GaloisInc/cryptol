@@ -110,13 +110,15 @@ browseTSyns disp decls =
 
 browsePrimTys :: DispInfo -> IfaceDecls -> [Doc]
 browsePrimTys disp decls =
-  ppSection disp "Primitive Types" ppA (ifAbstractTypes decls)
+  ppSection disp "Primitive Types" ppA ats
   where
-  ppA a = nest 2 (sep [pp (T.atName a) <+> ":", pp (T.atKind a)])
+  ats = Map.filter T.nominalTypeIsAbstract (ifNominalTypes decls)
+  ppA a = nest 2 (sep [pp (T.ntName a) <+> ":", pp (T.kindOf a)])
 
 browseNominalTypes :: DispInfo -> IfaceDecls -> [Doc]
 browseNominalTypes disp decls =
-  ppSection disp "Nominal Types" T.ppNominalShort (ifNominalTypes decls)
+  ppSection disp "Nominal Types" T.ppNominalShort
+    (Map.filter (not . T.nominalTypeIsAbstract) (ifNominalTypes decls))
 
 browseVars :: DispInfo -> IfaceDecls -> [Doc]
 browseVars disp decls =

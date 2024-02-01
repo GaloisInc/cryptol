@@ -88,6 +88,7 @@ toExpr prims t0 v0 = findOne (go t0 v0)
                let c = case ntDef nt of
                          Struct co -> ntConName co
                          Enum {} -> panic "toExpr" ["Enum vs Record"]
+                         Abstract -> panic "toExp" ["Asbtract vs Record"]
                    f = foldl (\x t -> ETApp x (tNumValTy t)) (EVar c) ts
                 in pure (EApp f (ERec efs))
       (TVNominal nt ts (TVEnum tfss), VEnum i' vf_map) ->
@@ -103,6 +104,7 @@ toExpr prims t0 v0 = findOne (go t0 v0)
                guard (Vector.length tfs == Vector.length vfs)
                c <- case ntDef nt of
                       Struct {} -> panic "toExpr" ["Enum vs Record"]
+                      Abstract {} -> panic "toExpr" ["Enum vs Abstract"]
                       Enum cons ->
                         case find (\con -> ecNumber con == i) cons of
                           Just con -> pure (ecName con)

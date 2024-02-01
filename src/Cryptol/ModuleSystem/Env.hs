@@ -625,7 +625,6 @@ deIfaceDecls :: DynamicEnv -> IfaceDecls
 deIfaceDecls DEnv { deDecls = dgs, deTySyns = tySyns } =
     IfaceDecls { ifTySyns = tySyns
                , ifNominalTypes = Map.empty
-               , ifAbstractTypes = Map.empty
                , ifDecls = decls
                , ifModules = Map.empty
                , ifFunctors = Map.empty

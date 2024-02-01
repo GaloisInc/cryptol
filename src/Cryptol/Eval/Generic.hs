@@ -250,9 +250,6 @@ ringBinary sym opw opi opz opq opfp = loop
               (\f fty -> sDelay sym (loop' fty (lookupRecord f l) (lookupRecord f r)))
               fs
 
-    TVAbstract {} ->
-      evalPanic "ringBinary" ["Abstract type not in `Ring`"]
-
     TVNominal {} ->
       evalPanic "ringBinary" ["Nominal type not in `Ring`"]
 
@@ -330,8 +327,6 @@ ringUnary sym opw opi opz opq opfp = loop
           (\f fty -> sDelay sym (loop' fty (lookupRecord f v)))
           fs
 
-    TVAbstract {} -> evalPanic "ringUnary" ["Abstract type not in `Ring`"]
-
     TVNominal {} -> evalPanic "ringUnary" ["Nominal type not in `Ring`"]
 
 
@@ -397,9 +392,6 @@ ringNullary sym opw opi opz opq opfp = loop
         TVRec fs ->
              do xs <- traverse (sDelay sym . loop) fs
                 pure $ VRecord xs
-
-        TVAbstract {} ->
-          evalPanic "ringNullary" ["Abstract type not in `Ring`"]
 
         TVNominal {} ->
           evalPanic "ringNullary" ["Nominal type not in `Ring`"]
@@ -777,8 +769,6 @@ cmpValue sym fb fw fi fz fq ff = cmp
                             (recordElements (fromVRecord v1))
                             (recordElements (fromVRecord v2))
                             k
-        TVAbstract {} -> evalPanic "cmpValue"
-                          [ "Abstract type not in `Cmp`" ]
 
         TVNominal {} -> evalPanic "cmpValue"
                           [ "Nominal type not in `Cmp`" ]
@@ -950,8 +940,6 @@ zeroV sym ty = case ty of
   TVRec fields ->
       do xs <- traverse (sDelay sym . zeroV sym) fields
          pure $ VRecord xs
-
-  TVAbstract {} -> evalPanic "zeroV" [ "Abstract type not in `Zero`" ]
 
   TVNominal {} -> evalPanic "zeroV" [ "Nominal type not in `Zero`" ]
 
@@ -1292,9 +1280,6 @@ logicBinary sym opb opw = loop
           (\f fty -> sDelay sym (loop' fty (lookupRecord f l) (lookupRecord f r)))
           fields
 
-    TVAbstract {} -> evalPanic "logicBinary"
-                        [ "Abstract type not in `Logic`" ]
-
     TVNominal {} -> evalPanic "logicBinary"
                         [ "Nominal type not in `Logic`" ]
 
@@ -1351,8 +1336,6 @@ logicUnary sym opb opw = loop
         traverseRecordMap
           (\f fty -> sDelay sym (loop' fty (lookupRecord f val)))
           fields
-
-    TVAbstract {} -> evalPanic "logicUnary" [ "Abstract type not in `Logic`" ]
 
     TVNominal {} -> evalPanic "logicUnary" [ "Nominal type not in `Logic`" ]
 

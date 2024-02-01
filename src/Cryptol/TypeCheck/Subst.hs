@@ -305,6 +305,7 @@ applySubstToNominalType su nt =
         do fs <- anyJust (apSubstMaybe su) (ntFields c)
            pure (Struct c { ntFields = fs })
       Enum cs -> Enum <$> anyJust apSubstCon cs
+      Abstract -> pure Abstract
 
   apSubstCon c =
     do fs <- anyJust (apSubstMaybe su) (ecFields c)

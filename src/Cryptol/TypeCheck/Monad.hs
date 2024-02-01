@@ -66,7 +66,6 @@ data InferInput = InferInput
   , inpVars      :: Map Name Schema   -- ^ Variables that are in scope
   , inpTSyns     :: Map Name TySyn    -- ^ Type synonyms that are in scope
   , inpNominalTypes :: Map Name NominalType -- ^ Nominal types in scope
-  , inpAbstractTypes :: Map Name AbstractType   -- ^ Abstract types in scope
   , inpSignatures :: !(Map Name ModParamNames)  -- ^ Signatures in scope
 
   , inpTopModules    :: ModName -> Maybe (ModuleG (), If.IfaceG ())
@@ -144,7 +143,6 @@ runInferM info m0 =
                              { mTySyns           = inpTSyns info <>
                                                    mpnTySyn allPs
                              , mNominalTypes     = inpNominalTypes info
-                             , mPrimTypes        = inpAbstractTypes info
                              , mParamTypes       = mpnTypes allPs
                              , mParamFuns        = mpnFuns  allPs
                              , mParamConstraints = mpnConstraints allPs
@@ -631,7 +629,6 @@ checkParamKind tp flav k =
         KType -> return ()
         _ -> recordError (BadParameterKind tp k)
 
-
 -- | Generate a new free type variable.
 newTParam :: P.TParam Name -> TPFlavor -> Kind -> InferM TParam
 newTParam nm flav k =
@@ -794,9 +791,6 @@ lookupTSyn x = Map.lookup x <$> getTSyns
 lookupNominal :: Name -> InferM (Maybe NominalType)
 lookupNominal x = Map.lookup x <$> getNominalTypes
 
-lookupAbstractType :: Name -> InferM (Maybe AbstractType)
-lookupAbstractType x = Map.lookup x <$> getAbstractTypes
-
 -- | Lookup the kind of a parameter type
 lookupParamType :: Name -> InferM (Maybe ModTParam)
 lookupParamType x = Map.lookup x <$> getParamTypes
@@ -912,10 +906,6 @@ getTSyns = getScope mTySyns
 -- | Returns the nominal type declarations that are in scope.
 getNominalTypes :: InferM (Map Name NominalType)
 getNominalTypes = getScope mNominalTypes
-
--- | Returns the abstract type declarations that are in scope.
-getAbstractTypes :: InferM (Map Name AbstractType)
-getAbstractTypes = getScope mPrimTypes
 
 -- | Returns the abstract function declarations
 getParamTypes :: InferM (Map Name ModTParam)
@@ -1063,7 +1053,6 @@ endSubmodule =
 
                  , mTySyns      = add mTySyns
                  , mNominalTypes = add mNominalTypes
-                 , mPrimTypes   = add mPrimTypes
                  , mDecls       = add mDecls
                  , mSignatures  = add mSignatures
                  , mSubmodules  = if isFun
@@ -1153,7 +1142,6 @@ getCurDecls =
 
       , mTySyns           = uni mTySyns
       , mNominalTypes     = uni mNominalTypes
-      , mPrimTypes        = uni mPrimTypes
       , mDecls            = uni mDecls
       , mSubmodules       = uni mSubmodules
       , mFunctors         = uni mFunctors
@@ -1186,12 +1174,6 @@ addNominal t =
      let cons = nominalTypeConTypes t
          ins  = uncurry Map.insert
      IM $ sets_ \rw -> rw { iBindTypes = foldr ins (iBindTypes rw) cons }
-
-addPrimType :: AbstractType -> InferM ()
-addPrimType t =
-  updScope \r ->
-    r { mPrimTypes = Map.insert (atName t) t (mPrimTypes r) }
-
 
 addParamType :: ModTParam -> InferM ()
 addParamType a =
@@ -1365,9 +1347,6 @@ kLookupNominal = kInInferM . lookupNominal
 
 kLookupParamType :: Name -> KindM (Maybe ModTParam)
 kLookupParamType x = kInInferM (lookupParamType x)
-
-kLookupAbstractType :: Name -> KindM (Maybe AbstractType)
-kLookupAbstractType x = kInInferM $ lookupAbstractType x
 
 kExistTVar :: Name -> Kind -> KindM Type
 kExistTVar x k = kInInferM $ existVar x k

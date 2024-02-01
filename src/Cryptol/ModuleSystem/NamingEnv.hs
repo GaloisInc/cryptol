@@ -242,7 +242,7 @@ modParamNamingEnv mp = maybe id qualify (T.mpQual mp) $
 -- the names are qualified.
 unqualifiedEnv :: IfaceDecls -> NamingEnv
 unqualifiedEnv IfaceDecls { .. } =
-  mconcat [ exprs, tySyns, ntTypes, absTys, ntExprs, mods, sigs ]
+  mconcat [ exprs, tySyns, ntTypes, ntExprs, mods, sigs ]
   where
   toPName n = mkUnqual (nameIdent n)
 
@@ -260,9 +260,6 @@ unqualifiedEnv IfaceDecls { .. } =
                             | cname <-map fst (T.nominalTypeConTypes nt)
                             ]
                     ]
-
-  absTys  = mconcat [ singletonNS NSType (toPName n) n
-                    | n <- Map.keys ifAbstractTypes ]
 
   ntExprs = mconcat [ singletonNS NSValue (toPName n) n
                     | n <- Map.keys ifNominalTypes ]

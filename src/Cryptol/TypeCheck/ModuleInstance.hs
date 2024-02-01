@@ -76,7 +76,6 @@ instance ModuleInstance (ModuleG name) where
            , mNested           = doSet (mNested m)
            , mTySyns           = doMap (mTySyns m)
            , mNominalTypes     = doMap (mNominalTypes m)
-           , mPrimTypes        = doMap (mPrimTypes m)
            , mDecls            = moduleInstance (mDecls m)
            , mSubmodules       = doMap (mSubmodules m)
            , mSignatures       = doMap (mSignatures m)
@@ -103,8 +102,10 @@ instance ModuleInstance NominalType where
     NominalType
             { ntName        = moduleInstance (ntName nt)
             , ntParams      = ntParams nt
+            , ntKind        = ntKind nt
             , ntConstraints = moduleInstance (ntConstraints nt)
             , ntDef         = moduleInstance (ntDef nt)
+            , ntFixity      = ntFixity nt
             , ntDoc         = ntDoc nt
             }
 
@@ -113,6 +114,7 @@ instance ModuleInstance NominalTypeDef where
     case def of
       Struct c -> Struct (moduleInstance c)
       Enum cs  -> Enum   (moduleInstance cs)
+      Abstract -> Abstract
 
 instance ModuleInstance StructCon where
   moduleInstance c =
@@ -130,17 +132,6 @@ instance ModuleInstance EnumCon where
       , ecPublic      = ecPublic c
       , ecDoc         = ecDoc c
       }
-
-
-instance ModuleInstance AbstractType where
-  moduleInstance at =
-    AbstractType { atName     = moduleInstance (atName at)
-                 , atKind     = atKind at
-                 , atCtrs     = let (ps,cs) = atCtrs at
-                                in (ps, moduleInstance cs)
-                 , atFixitiy  = atFixitiy at
-                 , atDoc      = atDoc at
-                 }
 
 instance ModuleInstance DeclGroup where
   moduleInstance dg =

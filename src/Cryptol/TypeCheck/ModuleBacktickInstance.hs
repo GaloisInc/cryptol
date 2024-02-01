@@ -78,6 +78,8 @@ doBacktickInstance as ps mp m
        ++ mkBad mPrimTypes BIAbstractType
        ++ mkBad mSignatures BIInterface
 
+    mPrimTypes = Map.filter nominalTypeIsAbstract . mNominalTypes
+
     mkBad sel a = [ (a,k) | k <- Map.keys (sel m) ]
 
     ourPath = impNameModPath (thing (mName m))
@@ -123,6 +125,7 @@ instance AddParams NominalType where
                   forM cons \c ->
                     do rFileds <- rewTypeM tps (ecFields c)
                        pure c { ecFields = rFileds }
+                Abstract -> pure Abstract
        pure nt
          { ntParams      = pDecl tps ++ ntParams nt
          , ntConstraints = cs ++ rProps
@@ -290,10 +293,7 @@ instance RewType Type where
   rewType ty =
     case ty of
 
-      TCon tc ts
-        | TC (TCAbstract (UserTC x _)) <- tc
-        , ?isOurs x  -> TCon tc (pUse ?tparams ++ rewType ts)
-        | otherwise  -> TCon tc (rewType ts)
+      TCon tc ts -> TCon tc (rewType ts)
 
       TVar x ->
         case x of

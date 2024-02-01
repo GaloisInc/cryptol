@@ -86,7 +86,7 @@ ifaceSummary env info =
     foldr addName emptySummary (Set.toList (M.ifsPublic info))
   where
   addName x ns = fromMaybe ns
-               $ msum [ addT <$> msum [fromTS, fromNT, fromAT]
+               $ msum [ addT <$> msum [fromTS, fromNT ]
                       , addV <$> fromD
                       , addM <$> msum [ fromM, fromS, fromF ]
                       ]
@@ -110,9 +110,6 @@ ifaceSummary env info =
 
     fromNT = do def <- Map.lookup x (M.ifNominalTypes env)
                 pure (T.kindOf def, T.ntDoc def)
-
-    fromAT = do def <- Map.lookup x (M.ifAbstractTypes env)
-                pure (T.kindOf def, T.atDoc def)
 
     fromD = do def <- Map.lookup x (M.ifDecls env)
                pure (M.ifDeclSig def, M.ifDeclDoc def, M.ifDeclFixity def)
@@ -232,7 +229,7 @@ showTypeHelp ::
   M.ModContextParams -> M.IfaceDecls -> NameDisp -> T.Name -> REPL ()
 showTypeHelp ctxparams env nameEnv name =
   fromMaybe (noInfo nameEnv name) $
-  msum [ fromTySyn, fromPrimType, fromNominal, fromTyParam ]
+  msum [ fromTySyn, fromNominal, fromTyParam ]
 
   where
   fromTySyn =
@@ -244,39 +241,38 @@ showTypeHelp ctxparams env nameEnv name =
 
   fromNominal =
     do nt <- Map.lookup name (M.ifNominalTypes env)
-       let kw = case T.ntDef nt of
-                  T.Struct {} -> "newtype"
-                  T.Enum {}   -> "enum"
-       let decl =
-            vcat
-              [ kw <+> pp (T.ntName nt) <.> ":" <+> pp (T.kindOf nt)
-              , ""
-              , "Constructors:" <+>
-                                  commaSep
-                                  (map (pp . fst) (T.nominalTypeConTypes nt))
-              ]
-       return $ doShowTyHelp nameEnv decl (T.ntDoc nt)
+       let decl kw =
+             vcat
+               [ kw <+> pp (T.ntName nt) <.> ":" <+> pp (T.kindOf nt)
+               , ""
+               , "Constructors:" <+>
+                                   commaSep
+                                   (map (pp . fst) (T.nominalTypeConTypes nt))
+               ]
+       case T.ntDef nt of
+         T.Struct {} -> pure $ doShowTyHelp nameEnv (decl "newtype") (T.ntDoc nt)
+         T.Enum {}   -> pure $ doShowTyHelp nameEnv (decl "enum") (T.ntDoc nt)
+         T.Abstract  -> pure (primTypeHelp nt)
 
-  fromPrimType =
-    do a <- Map.lookup name (M.ifAbstractTypes env)
-       pure $ do rPutStrLn ""
-                 rPrint $ runDoc nameEnv $ nest 4
-                        $ "primitive type" <+> pp (T.atName a)
-                                   <+> ":" <+> pp (T.atKind a)
+  primTypeHelp nt =
+    do rPutStrLn ""
+       rPrint $ runDoc nameEnv $ nest 4
+              $ "primitive type" <+> pp (T.ntName nt)
+                         <+> ":" <+> pp (T.kindOf nt)
 
-                 let (vs,cs) = T.atCtrs a
-                 unless (null cs) $
-                   do let example = T.TCon (T.abstractTypeTC a)
-                                           (map (T.TVar . T.tpVar) vs)
-                          ns = T.addTNames vs emptyNameMap
-                          rs = [ "•" <+> ppWithNames ns c | c <- cs ]
-                      rPutStrLn ""
-                      rPrint $ runDoc nameEnv $ indent 4 $
-                                  backticks (ppWithNames ns example) <+>
-                                  "requires:" $$ indent 2 (vcat rs)
+       let vs = T.ntParams nt
+       let cs = T.ntConstraints nt
+       unless (null cs) $
+         do let example = T.TNominal nt (map (T.TVar . T.tpVar) vs)
+                ns = T.addTNames vs emptyNameMap
+                rs = [ "•" <+> ppWithNames ns c | c <- cs ]
+            rPutStrLn ""
+            rPrint $ runDoc nameEnv $ indent 4 $
+                        backticks (ppWithNames ns example) <+>
+                        "requires:" $$ indent 2 (vcat rs)
 
-                 doShowFix (T.atFixitiy a)
-                 doShowDocString (T.atDoc a)
+       doShowFix (T.ntFixity nt)
+       doShowDocString (T.ntDoc nt)
 
   allParamNames =
     case ctxparams of
@@ -315,6 +311,7 @@ showConHelp env nameEnv qname name =
       case T.ntDef nt of
         T.Struct {} -> [ Nothing ]
         T.Enum cs   -> map (Just . T.ecDoc) cs
+        T.Abstract  -> []
 
     addCons nt mp = foldr (addCon nt) mp
                       (zip (T.nominalTypeConTypes nt) (getDocs nt))

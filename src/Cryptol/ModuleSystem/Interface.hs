@@ -98,7 +98,6 @@ emptyIface nm = Iface
 data IfaceDecls = IfaceDecls
   { ifTySyns        :: Map.Map Name TySyn
   , ifNominalTypes  :: Map.Map Name NominalType
-  , ifAbstractTypes :: Map.Map Name AbstractType
   , ifDecls         :: Map.Map Name IfaceDecl
   , ifModules       :: !(Map.Map Name (IfaceNames Name))
   , ifSignatures    :: !(Map.Map Name ModParamNames)
@@ -118,7 +117,6 @@ filterIfaceDecls :: (Name -> Bool) -> IfaceDecls -> IfaceDecls
 filterIfaceDecls p ifs = IfaceDecls
   { ifTySyns        = filterMap (ifTySyns ifs)
   , ifNominalTypes  = filterMap (ifNominalTypes ifs)
-  , ifAbstractTypes = filterMap (ifAbstractTypes ifs)
   , ifDecls         = filterMap (ifDecls ifs)
   , ifModules       = filterMap (ifModules ifs)
   , ifFunctors      = filterMap (ifFunctors ifs)
@@ -131,7 +129,6 @@ filterIfaceDecls p ifs = IfaceDecls
 ifaceDeclsNames :: IfaceDecls -> Set Name
 ifaceDeclsNames i = Set.unions [ Map.keysSet (ifTySyns i)
                                , Map.keysSet (ifNominalTypes i)
-                               , Map.keysSet (ifAbstractTypes i)
                                , Map.keysSet (ifDecls i)
                                , Map.keysSet (ifModules i)
                                , Map.keysSet (ifFunctors i)
@@ -143,7 +140,6 @@ instance Semigroup IfaceDecls where
   l <> r = IfaceDecls
     { ifTySyns   = Map.union (ifTySyns l)   (ifTySyns r)
     , ifNominalTypes = Map.union (ifNominalTypes l) (ifNominalTypes r)
-    , ifAbstractTypes = Map.union (ifAbstractTypes l) (ifAbstractTypes r)
     , ifDecls    = Map.union (ifDecls l)    (ifDecls r)
     , ifModules  = Map.union (ifModules l)  (ifModules r)
     , ifFunctors = Map.union (ifFunctors l) (ifFunctors r)
@@ -154,7 +150,6 @@ instance Monoid IfaceDecls where
   mempty      = IfaceDecls
                   { ifTySyns = mempty
                   , ifNominalTypes = mempty
-                  , ifAbstractTypes = mempty
                   , ifDecls = mempty
                   , ifModules = mempty
                   , ifFunctors = mempty
@@ -164,7 +159,6 @@ instance Monoid IfaceDecls where
   mconcat ds  = IfaceDecls
     { ifTySyns   = Map.unions (map ifTySyns   ds)
     , ifNominalTypes = Map.unions (map ifNominalTypes ds)
-    , ifAbstractTypes = Map.unions (map ifAbstractTypes ds)
     , ifDecls    = Map.unions (map ifDecls    ds)
     , ifModules  = Map.unions (map ifModules ds)
     , ifFunctors = Map.unions (map ifFunctors ds)
@@ -231,8 +225,7 @@ ifaceOrigNameMap ifa = Map.unionsWith Map.union (here : nested)
 
   decls       = ifDefines ifa
   from f      = Map.keysSet (f decls)
-  tyNames     = Set.unions [ from ifTySyns
-                           , from ifNominalTypes, from ifAbstractTypes ]
+  tyNames     = Set.unions [ from ifTySyns, from ifNominalTypes ]
   moNames     = Set.unions [ from ifModules, from ifSignatures, from ifFunctors ]
   vaNames     = Set.unions [ newtypeCons, from ifDecls ]
   newtypeCons = Set.fromList

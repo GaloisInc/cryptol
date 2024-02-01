@@ -178,10 +178,10 @@ randomValue sym ty =
              return (randomRecord gs)
         TVEnum cons -> randomCon sym <$>
                           traverse (traverse (randomValue sym)) cons
+        TVAbstract -> Nothing
 
     TVArray{} -> Nothing
     TVFun{} -> Nothing
-    TVAbstract{} -> Nothing
 
 {-# INLINE randomBit #-}
 
@@ -473,13 +473,12 @@ typeSize ty = case ty of
   TVTuple els -> product <$> mapM typeSize els
   TVRec fs -> product <$> traverse typeSize fs
   TVFun{} -> Nothing
-  TVAbstract{} -> Nothing
-
   TVNominal _ _ nv ->
     case nv of
       TVStruct tbody -> typeSize (TVRec tbody)
       TVEnum cons -> sum <$> mapM (conSize . conFields) cons
         where conSize = foldr (\t sz -> liftM2 (*) (typeSize t) sz) (Just 1)
+      TVAbstract -> Nothing
 
 {- | Returns all the values in a type.  Returns an empty list of values,
 for types where 'typeSize' returned 'Nothing'. -}
@@ -510,7 +509,6 @@ typeValues ty =
       | xs <- traverse typeValues fs
       ]
     TVFun{} -> []
-    TVAbstract{} -> []
     TVNominal _ _ nv ->
       case nv of
         TVStruct tbody -> typeValues (TVRec tbody)
@@ -520,6 +518,7 @@ typeValues ty =
           , vs        <- mapM typeValues (conFields con)
           , let con' = con { conFields = pure <$> vs }
           ]
+        TVAbstract -> []
 
 --------------------------------------------------------------------------------
 -- Driver function

@@ -220,6 +220,7 @@ instance JSON.ToJSON JSONType where
         JSON.object [ "type" .= case ntDef nt of
                                   Struct {} -> T.pack "newtype"
                                   Enum {}   -> T.pack "enum"
+                                  Abstract  -> T.pack "primitive"
                     , "name" .= show (pp (ntName nt))
                     , "arguments" .= map (JSONType ns) ts
                     ]

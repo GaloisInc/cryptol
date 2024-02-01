@@ -176,6 +176,9 @@ propSynParam = TPPropSynParam
 nominalParam :: Name -> TPFlavor
 nominalParam = TPNominalParam
 
+primParam :: Name -> TPFlavor
+primParam = TPPrimParam
+
 modTyParam :: Name -> TPFlavor
 modTyParam = TPModParam
 
@@ -321,13 +324,18 @@ data TySyn  = TySyn { tsName        :: Name       -- ^ Name
 data NominalType = NominalType
   { ntName        :: Name
   , ntParams      :: [TParam]
+  , ntKind        :: !Kind             -- ^ Result kind
   , ntConstraints :: [Prop]
   , ntDef         :: NominalTypeDef
+  , ntFixity      :: !(Maybe Fixity)
   , ntDoc         :: Maybe Text
   } deriving (Show, Generic, NFData)
 
 -- | Definition of a nominal type
-data NominalTypeDef = Struct StructCon | Enum [EnumCon]
+data NominalTypeDef =
+    Struct StructCon
+  | Enum [EnumCon]
+  | Abstract
   deriving (Show, Generic, NFData)
 
 -- | Constructor for a struct (aka newtype)
@@ -353,24 +361,7 @@ instance Ord NominalType where
   compare x y = compare (ntName x) (ntName y)
 
 
--- | Information about an abstract type.
--- XXX: This should probably be combined with nominal type as just another
--- kind of "definition".
-data AbstractType = AbstractType
-  { atName    :: Name
-  , atKind    :: Kind
-  , atCtrs    :: ([TParam], [Prop])
-  , atFixitiy :: Maybe Fixity
-  , atDoc     :: Maybe Text
-  } deriving (Show, Generic, NFData)
-
-
-
-
 --------------------------------------------------------------------------------
-
-instance HasKind AbstractType where
-  kindOf at = foldr (:->) (atKind at) (map kindOf (fst (atCtrs at)))
 
 instance HasKind TVar where
   kindOf (TVFree  _ k _ _) = k
@@ -389,7 +380,7 @@ instance HasKind TySyn where
   kindOf ts = foldr (:->) (kindOf (tsDef ts)) (map kindOf (tsParams ts))
 
 instance HasKind NominalType where
-  kindOf nt = foldr (:->) KType (map kindOf (ntParams nt))
+  kindOf nt = foldr (:->) (ntKind nt) (map kindOf (ntParams nt))
 
 instance HasKind TParam where
   kindOf = tpKind
@@ -488,25 +479,17 @@ nominalTypeConTypes nt =
                   )
                 | c <- cs
                 ]
+    Abstract -> []
   where
   as    = ntParams nt
   ctrs  = ntConstraints nt
   resT  = TNominal nt (map (TVar . tpVar) as)
 
-
-abstractTypeTC :: AbstractType -> TCon
-abstractTypeTC at =
-  case builtInType (atName at) of
-    Just tcon
-      | kindOf tcon == atKind at -> tcon
-      | otherwise ->
-        panic "abstractTypeTC"
-          [ "Mismatch between built-in and declared type."
-          , "Name: " ++ pretty (atName at)
-          , "Declared: " ++ pretty (atKind at)
-          , "Built-in: " ++ pretty (kindOf tcon)
-          ]
-    _         -> TC $ TCAbstract $ UserTC (atName at) (atKind at)
+nominalTypeIsAbstract :: NominalType -> Bool
+nominalTypeIsAbstract nt =
+  case ntDef nt of
+    Abstract -> True
+    _        -> False
 
 instance Eq TVar where
   TVBound x       == TVBound y       = x == y
@@ -743,9 +726,6 @@ tNat'    :: Nat' -> Type
 tNat' n'  = case n' of
               Inf   -> tInf
               Nat n -> tNum n
-
-tAbstract :: UserTC -> [Type] -> Type
-tAbstract u ts = TCon (TC (TCAbstract u)) ts
 
 tNominal :: NominalType -> [Type] -> Type
 tNominal = TNominal
@@ -1012,33 +992,6 @@ instance FVS Type where
         TNominal _nt ts -> fvs ts
 
 
--- | Find the abstract types mentioned in a type.
-class FreeAbstract t where
-  freeAbstract :: t -> Set UserTC
-
-instance FreeAbstract a => FreeAbstract [a] where
-  freeAbstract = Set.unions . map freeAbstract
-
-instance (FreeAbstract a, FreeAbstract b) => FreeAbstract (a,b) where
-  freeAbstract (a,b) = Set.union (freeAbstract a) (freeAbstract b)
-
-instance FreeAbstract TCon where
-  freeAbstract tc =
-    case tc of
-      TC (TCAbstract ut) -> Set.singleton ut
-      _                  -> Set.empty
-
-instance FreeAbstract Type where
-  freeAbstract ty =
-    case ty of
-      TCon tc ts      -> freeAbstract (tc,ts)
-      TVar {}         -> Set.empty
-      TUser _ _ t     -> freeAbstract t
-      TRec fs         -> freeAbstract (recordElements fs)
-      TNominal _nt ts -> freeAbstract ts
-
-
-
 instance FVS a => FVS (Maybe a) where
   fvs Nothing  = Set.empty
   fvs (Just x) = fvs x
@@ -1088,29 +1041,40 @@ ppNominalShort nt =
   kw = case ntDef nt of
          Struct {} -> "newtype"
          Enum {}   -> "enum"
+         Abstract {} -> "primitive type"
 
 ppNominalFull :: NominalType -> Doc
 ppNominalFull nt =
-  (kw <+> pp (ntName nt) <+> hsep (map (ppWithNamesPrec nm 9) ps))
-  $$ nest 2 (cs $$ def)
+  case ntDef nt of
+
+    Struct con -> ppKWDef "newtype" ("=" <+> pp (ntConName con) $$ nest 2 fs)
+      where fs = vcat [ pp f <.> ":" <+> pp t
+                      | (f,t) <- canonicalFields (ntFields con) ]
+    Enum cons ->
+      ppKWDef "enum" $
+      vcat [ pref <+> pp (ecName con) <+> hsep (map (ppPrec 1) (ecFields con))
+           | (pref,con) <- zip ("=" : repeat "|") cons
+           ]
+
+    Abstract ->
+      "primitive type" <+> paramBinds <+> ctrs <+> ppTyUse <+>
+                                                        ":" <+> pp (ntKind nt)
+      where
+      paramBinds =
+        case ps of
+          [] -> mempty
+          _  -> braces (commaSep (map ppBind ps))
+      ppBind p = ppWithNamesPrec nm 0 p <+> ":" <+> pp (kindOf p)
+      ppC     = ppWithNamesPrec nm 0
+      ctrs = case ntConstraints nt of
+               [] -> mempty
+               _  -> parens (commaSep (map ppC (ntConstraints nt))) <+> "=>"
   where
   ps = ntParams nt
   cs = vcat (map pp (ntConstraints nt))
   nm = addTNames ps emptyNameMap
-  (kw,def) =
-    case ntDef nt of
-      Struct con -> ("newtype", "=" <+> pp (ntConName con) $$ nest 2 fs)
-        where
-        fs = vcat [ pp f <.> ":" <+> pp t
-                  | (f,t) <- canonicalFields (ntFields con) ]
-      Enum cons ->
-        ("enum", vcat
-           [ pref <+> vcat
-               [ pp (ecName con) <+> hsep (map (ppPrec 1) (ecFields con)) ]
-           | (pref,con) <- zip ("=" : repeat "|") cons
-           ]
-        )
-
+  ppTyUse = pp (ntName nt) <+> hsep (map (ppWithNamesPrec nm 9) ps)
+  ppKWDef kw def = (kw <+> ppTyUse) $$ nest 2 (cs $$ def)
 
 
 

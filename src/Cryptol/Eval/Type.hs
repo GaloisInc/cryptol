@@ -47,12 +47,12 @@ data TValue
   | TVNominal NominalType
               [Either Nat' TValue]
               TNominalTypeValue    -- ^ a named newtype
-  | TVAbstract UserTC [Either Nat' TValue] -- ^ an abstract type
     deriving (Generic, NFData, Eq)
 
 data TNominalTypeValue =
     TVStruct (RecordMap Ident TValue)
   | TVEnum   (Vector (ConInfo TValue))  -- ^ Indexed by constructor number
+  | TVAbstract
     deriving (Generic, NFData, Eq)
 
 data ConInfo a = ConInfo
@@ -89,7 +89,6 @@ tValTy tv =
     TVRec fs    -> tRec (fmap tValTy fs)
     TVFun t1 t2 -> tFun (tValTy t1) (tValTy t2)
     TVNominal nt vs _ -> tNominal nt (map tNumValTy vs)
-    TVAbstract u vs -> tAbstract u (map tNumValTy vs)
 
 tNumTy :: Nat' -> Type
 tNumTy Inf     = tInf
@@ -178,15 +177,6 @@ evalType env ty =
         (TCTuple _, _)  -> Right $ TVTuple (map val ts)
         (TCNum n, [])   -> Left $ Nat n
         (TCInf, [])     -> Left $ Inf
-        (TCAbstract u,vs) ->
-            case kindOf ty of
-              KType -> Right $ TVAbstract u (map (evalType env) vs)
-              k -> evalPanic "evalType"
-                [ "Unsupported"
-                , "*** Abstract type of kind: " ++ show (pp k)
-                , "*** Name: " ++ show (pp u)
-                ]
-
         _ -> evalPanic "evalType" ["not a value type", show ty]
     TCon (TF f) ts      -> Left $ evalTF f (map num ts)
     TCon (PC p) _       -> evalPanic "evalType" ["invalid predicate symbol", show p]
@@ -207,6 +197,7 @@ evalNominalTypeBody env0 nt args =
   case ntDef nt of
     Struct c -> TVStruct (fmap (evalValType env') (ntFields c))
     Enum cs  -> TVEnum (Vector.fromList (map doEnum (sortOn ecNumber cs)))
+    Abstract -> TVAbstract
   where
   env' = loop env0 (ntParams nt) args
 

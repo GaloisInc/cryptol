@@ -341,6 +341,7 @@ evalNominalDecl sym nt env0 =
   case ntDef nt of
     Struct c -> pure (bindVarDirect (ntConName c) (mkCon structCon) env0)
     Enum cs  -> foldM enumCon env0 cs
+    Abstract -> pure env0
   where
   structCon = PFun PPrim
   mkCon c   = foldr tabs c (ntParams nt)

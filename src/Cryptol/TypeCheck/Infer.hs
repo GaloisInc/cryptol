@@ -1458,7 +1458,7 @@ checkTopDecls = mapM_ checkTopDecl
 
       P.DPrimType tl ->
         do t <- checkPrimType (P.tlValue tl) (thing <$> P.tlDoc tl)
-           addPrimType t
+           addNominal t
 
 
       P.DInterfaceConstraint _ cs ->

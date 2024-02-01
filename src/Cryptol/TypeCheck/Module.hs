@@ -104,7 +104,6 @@ doFunctorInst m f as instMap0 enclosingInScope doc =
 
      mapM_ addTySyn     (Map.elems (mTySyns m2))
      mapM_ addNominal   (Map.elems (mNominalTypes m2))
-     mapM_ addPrimType  (Map.elems (mPrimTypes m2))
      addSignatures      (mSignatures m2)
      addSubmodules      (mSubmodules m2)
      addFunctors        (mFunctors m2)
@@ -265,7 +264,6 @@ checkArg mpath (r,expect,actual') =
       UseModule actual ->
         ( Map.unions [ nameMapToIdentMap fromTS      (ifTySyns decls)
                      , nameMapToIdentMap fromNominal (ifNominalTypes decls)
-                     , nameMapToIdentMap fromPrimT   (ifAbstractTypes decls)
                      ]
 
         , nameMapToIdentMap fromD (ifDecls decls)
@@ -281,7 +279,6 @@ checkArg mpath (r,expect,actual') =
         fromD d         = (ifDeclName d, ifDeclSig d)
         fromTS ts       = (kindOf ts, tsDef ts)
         fromNominal nt  = (kindOf nt, TNominal nt [])
-        fromPrimT pt    = (kindOf pt, TCon (abstractTypeTC pt) [])
 
       AddDeclParams -> panic "checkArg" ["AddDeclParams"]
 

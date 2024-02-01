@@ -567,7 +567,7 @@ the new bindings.
 Nominal Types
 -------------
 
-We have two forms of nominal types: newtypes and enums.
+We have three forms of nominal types: newtypes, enums, and abstract types.
 
 At runtime, newtypes values are represented in exactly
 the same way as records.  The constructor function for
@@ -582,6 +582,7 @@ was used to create a value, and the values of stored
 >   case ntDef nt of
 >     Struct c -> bindVar (ntConName c, mkCon newtypeCon) env
 >     Enum cs  -> foldr enumCon env cs
+>     Abstract -> env
 >   where
 >     mkCon con  = pure (foldr tabs con (ntParams nt))
 >     newtypeCon = VFun id
@@ -1059,7 +1060,6 @@ For functions, `zero` returns the constant function that returns
 > zero (TVRec fields) = VRecord [ (f, pure (zero fty))
 >                               | (f, fty) <- canonicalFields fields ]
 > zero (TVFun _ bty)  = VFun (\_ -> pure (zero bty))
-> zero (TVAbstract{}) = evalPanic "zero" ["Abstract type not in `Zero`"]
 > zero (TVNominal {})  = evalPanic "zero" ["Nominal type not in `Zero`"]
 
 Literals
@@ -1128,7 +1128,6 @@ at the same positions.
 >         TVArray{}    -> evalPanic "logicUnary" ["Array not in class Logic"]
 >         TVRational   -> evalPanic "logicUnary" ["Rational not in class Logic"]
 >         TVFloat{}    -> evalPanic "logicUnary" ["Float not in class Logic"]
->         TVAbstract{} -> evalPanic "logicUnary" ["Abstract type not in `Logic`"]
 >         TVNominal {}  -> evalPanic "logicUnary" ["Nominal type not in `Logic`"]
 
 > logicBinary :: (Bool -> Bool -> Bool) -> TValue -> E Value -> E Value -> E Value
@@ -1167,7 +1166,6 @@ at the same positions.
 >         TVArray{}    -> evalPanic "logicBinary" ["Array not in class Logic"]
 >         TVRational   -> evalPanic "logicBinary" ["Rational not in class Logic"]
 >         TVFloat{}    -> evalPanic "logicBinary" ["Float not in class Logic"]
->         TVAbstract{} -> evalPanic "logicBinary" ["Abstract type not in `Logic`"]
 >         TVNominal {} -> evalPanic "logicBinary" ["Nominal type not in `Logic`"]
 
 
@@ -1214,8 +1212,6 @@ False]`, but to `error "foo"`.
 >           pure $ VTuple (map go tys)
 >         TVRec fs ->
 >           pure $ VRecord [ (f, go fty) | (f, fty) <- canonicalFields fs ]
->         TVAbstract {} ->
->           evalPanic "arithNullary" ["Abstract type not in `Ring`"]
 >         TVNominal {} ->
 >           evalPanic "arithNullary" ["Newtype type not in `Ring`"]
 
@@ -1254,8 +1250,6 @@ False]`, but to `error "foo"`.
 >           do val' <- val
 >              pure $ VRecord [ (f, go fty (lookupRecord f val'))
 >                             | (f, fty) <- canonicalFields fs ]
->         TVAbstract {} ->
->           evalPanic "arithUnary" ["Abstract type not in `Ring`"]
 >         TVNominal {} ->
 >           evalPanic "arithUnary" ["Nominal type not in `Ring`"]
 
@@ -1304,8 +1298,6 @@ False]`, but to `error "foo"`.
 >              pure $ VRecord
 >                [ (f, go fty (lookupRecord f l') (lookupRecord f r'))
 >                | (f, fty) <- canonicalFields fs ]
->         TVAbstract {} ->
->           evalPanic "arithBinary" ["Abstract type not in class `Ring`"]
 >         TVNominal {} ->
 >           evalPanic "arithBinary" ["Nominal type not in class `Ring`"]
 
@@ -1484,8 +1476,6 @@ bits to the *left* of that position are equal.
 >          ls <- map snd . sortBy (comparing fst) . fromVRecord <$> l
 >          rs <- map snd . sortBy (comparing fst) . fromVRecord <$> r
 >          lexList (zipWith3 lexCompare tys ls rs)
->     TVAbstract {} ->
->       evalPanic "lexCompare" ["Abstract type not in `Cmp`"]
 >     TVNominal {} ->
 >       evalPanic "lexCompare" ["Nominal type not in `Cmp`"]
 >
@@ -1540,8 +1530,6 @@ fields are compared in alphabetical order.
 >          ls <- map snd . sortBy (comparing fst) . fromVRecord <$> l
 >          rs <- map snd . sortBy (comparing fst) . fromVRecord <$> r
 >          lexList (zipWith3 lexSignedCompare tys ls rs)
->     TVAbstract {} ->
->       evalPanic "lexSignedCompare" ["Abstract type not in `Cmp`"]
 >     TVNominal {} ->
 >       evalPanic "lexSignedCompare" ["Nominal type not in `Cmp`"]
 

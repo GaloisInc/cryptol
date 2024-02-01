@@ -758,7 +758,6 @@ genInferInput r prims params env = do
     , T.inpVars             = Map.map ifDeclSig (ifDecls env)
     , T.inpTSyns            = ifTySyns env
     , T.inpNominalTypes     = ifNominalTypes env
-    , T.inpAbstractTypes    = ifAbstractTypes env
     , T.inpSignatures       = ifSignatures env
     , T.inpNameSeeds        = seeds
     , T.inpMonoBinds        = monoBinds

@@ -618,7 +618,6 @@ readBack ty val =
         TVRec{} -> "record"
         TVFun{} -> "fun"
         TVNominal nt _ _ -> identText $ nameIdent $ TC.ntName nt
-        TVAbstract{} -> "abstract"
 
 
 -- | Given a suggested `name` and a type and value, attempt to bind the value

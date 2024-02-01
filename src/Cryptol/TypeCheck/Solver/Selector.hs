@@ -79,6 +79,7 @@ solveSelector sel outerT =
                        $ apSubst su $ ntConstraints nt
                      return $ Just $ apSubst su t
             Enum {} -> pure Nothing
+            Abstract -> pure Nothing
 
         TCon (TC TCSeq) [len,el] -> liftSeq len el
         TCon (TC TCFun) [t1,t2]  -> liftFun t1 t2

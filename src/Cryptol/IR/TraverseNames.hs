@@ -185,7 +185,7 @@ instance TraverseNames ArgDescr where
 instance TraverseNames Type where
   traverseNamesIP ty =
     case ty of
-      TCon tc ts    -> TCon <$> traverseNamesIP tc <*> traverseNamesIP ts
+      TCon tc ts    -> TCon tc <$> traverseNamesIP ts
       TVar x        -> TVar <$> traverseNamesIP x
       TUser x ts t  -> TUser <$> traverseNamesIP x
                              <*> traverseNamesIP ts
@@ -193,21 +193,6 @@ instance TraverseNames Type where
       TRec rm       -> TRec <$> traverseRecordMap (const traverseNamesIP) rm
       TNominal nt ts -> TNominal <$> traverseNamesIP nt <*> traverseNamesIP ts
 
-
-instance TraverseNames TCon where
-  traverseNamesIP tcon =
-    case tcon of
-      TC tc -> TC <$> traverseNamesIP tc
-      _     -> pure tcon
-
-instance TraverseNames TC where
-  traverseNamesIP tc =
-    case tc of
-      TCAbstract ut -> TCAbstract <$> traverseNamesIP ut
-      _             -> pure tc
-
-instance TraverseNames UserTC where
-  traverseNamesIP (UserTC x k) = UserTC <$> traverseNamesIP x <*> pure k
 
 instance TraverseNames TVar where
   traverseNamesIP tvar =
@@ -220,8 +205,10 @@ instance TraverseNames NominalType where
     NominalType
       <$> traverseNamesIP (ntName nt)
       <*> traverseNamesIP (ntParams nt)
+      <*> pure (ntKind nt)
       <*> traverseNamesIP (ntConstraints nt)
       <*> traverseNamesIP (ntDef nt)
+      <*> pure (ntFixity nt)
       <*> pure (ntDoc nt)
 
 instance TraverseNames NominalTypeDef where
@@ -229,6 +216,7 @@ instance TraverseNames NominalTypeDef where
     case def of
       Struct c -> Struct <$> traverseNamesIP c
       Enum cs  -> Enum   <$> traverseNamesIP cs
+      Abstract -> pure Abstract
 
 instance TraverseNames StructCon where
   traverseNamesIP c =

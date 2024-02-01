@@ -43,7 +43,6 @@ genModDefines m =
     , Map.keysSet  (mNominalTypes m)
     , Set.fromList (concatMap (map fst . nominalTypeConTypes)
                               (Map.elems (mNominalTypes m)))
-    , Map.keysSet  (mPrimTypes m)
     , Set.fromList (map dName (concatMap groupDecls (mDecls m)))
     , Map.keysSet  (mSubmodules m)
     , Map.keysSet  (mFunctors m)
@@ -67,7 +66,6 @@ genIfaceWithNames names m =
   , ifDefines = IfaceDecls
     { ifTySyns          = mTySyns m
     , ifNominalTypes    = mNominalTypes m
-    , ifAbstractTypes   = mPrimTypes m
     , ifDecls           = Map.fromList [ (qn,mkIfaceDecl d)
                                        | dg <- mDecls m
                                        , d  <- groupDecls dg
