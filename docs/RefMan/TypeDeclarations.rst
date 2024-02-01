@@ -109,6 +109,46 @@ cases, then this branch will be used:
       Nothing -> True
       _       -> False
 
+**``Option`` and ``Result``.** Currently, Cryptol defines two ``enum``
+declarations in the Cryptol standard library: ``Option`` and ``Result``:
+
+.. code-block:: cryptol
+
+  enum Option a = None | Some a
+
+  enum Result t e = Ok t | Err e
+
+The ``Option a`` type represents an optional value, which can either be a value
+of type ``a`` (``Some``) or no value at all ``None``. A value of type ``Result
+t e`` can either be a successful value of type ``t`` (``Ok``) or an error value
+of type ``e`` (``Err``).
+
+``Option`` and ``Result`` values are commonly used to model the return type of
+partial functions, i.e., functions that are not defined for all inputs. For
+instance, if a function ``f`` is not defined on the input ``42``, then one
+could model this with ``Option``:
+
+.. code-block:: cryptol
+
+  f : [8] -> Option [8]
+  f x =
+    if x == 42
+       then None
+       else Some (x+1)
+
+One could also model this with ``Result``:
+
+.. code-block:: cryptol
+
+  f : [8] -> Result [8] (String [8])
+  f x =
+    if x == 42
+       then Err "`f 42` not defined"
+       else Ok (x+1)
+
+With either result type, one can gracefully recover from ``f 42`` erroring by
+matching on ``None`` or ``Err`` in a ``case`` expression.
+
 **Upper Case Restriction.**
 The names of the constructors in an ``enum`` declarations
 need to start with an upper-case letter.  This restriction makes it possible
