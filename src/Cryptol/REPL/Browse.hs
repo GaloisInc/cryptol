@@ -97,7 +97,7 @@ browseSignatures disp decls =
   ppSection disp "Interface Submodules"
     ppS (Map.mapWithKey (,) (ifSignatures decls))
   where
-  ppS (x,s) = pp x
+  ppS (x,_s) = pp x
 
 
 browseTSyns :: DispInfo -> IfaceDecls -> [Doc]
@@ -134,7 +134,7 @@ browseVars disp decls =
 
 ppSection :: DispInfo -> String -> (a -> Doc) -> Map Name a -> [Doc]
 ppSection disp heading ppThing mp =
-  ppSectionHeading heading 
+  ppSectionHeading heading
   case dispHow disp of
     BrowseExported | [(_,xs)] <- grouped -> ppThings xs
     _ -> concatMap ppMod grouped
@@ -153,7 +153,7 @@ ppSection disp heading ppThing mp =
 ppSectionHeading :: String -> [Doc] -> [Doc]
 ppSectionHeading heading body
   | null body = []
-  | otherwise = 
+  | otherwise =
      [ text heading
      , text (map (const '=') heading)
      , "    "
