@@ -114,9 +114,10 @@ data GenValue sym
   = VRecord !(RecordMap Ident (SEval sym (GenValue sym))) -- ^ @ { .. } @
   | VTuple ![SEval sym (GenValue sym)]              -- ^ @ ( .. ) @
   | VEnum !(SInteger sym) !(IntMap (ConValue sym))
-    -- ^ @Just 2@, the integer is the tag (e.g., `Just`), and the map contains
-    -- the fields (e.g., `{ 0 -> ("Just",2) }`.
-    -- The map is only really needed to represent symbolic values.
+    -- ^ As an example, consider the enum value @Just ()@. The 'SInteger' is the
+    -- tag (e.g., 'Just' would have the tag @0@), and the 'IntMap' contains the
+    -- fields (e.g., @{ 0 -> ("Just",()) }@. The 'IntMap' is only really needed
+    -- to represent symbolic values.
   | VBit !(SBit sym)                           -- ^ @ Bit    @
   | VInteger !(SInteger sym)                   -- ^ @ Integer @ or @ Z n @
   | VRational !(SRational sym)                 -- ^ @ Rational @

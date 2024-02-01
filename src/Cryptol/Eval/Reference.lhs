@@ -347,7 +347,7 @@ assigns values to those variables.
 >     EProofApp e    -> evalExpr env e
 >     EWhere e dgs   -> evalExpr (foldl evalDeclGroup env dgs) e
 >
->     EPropGuards guards _ty -> 
+>     EPropGuards guards _ty ->
 >       case List.find (all (checkProp . evalProp env) . fst) guards of
 >         Just (_, e) -> evalExpr env e
 >         Nothing -> evalPanic "fromVBit" ["No guard constraint was satisfied"]
@@ -355,7 +355,7 @@ assigns values to those variables.
 > appFun :: E Value -> E Value -> E Value
 > appFun f v = f >>= \f' -> fromVFun f' v
 
-> -- | Evaluates a `Prop` in an `EvalEnv` by substituting all variables 
+> -- | Evaluates a `Prop` in an `EvalEnv` by substituting all variables
 > -- according to `envTypes` and expanding all type synonyms via `tNoUser`.
 > evalProp :: Env -> Prop -> Prop
 > evalProp env@Env { envTypes } = \case
@@ -364,7 +364,7 @@ assigns values to those variables.
 >   prop@TUser {} -> evalProp env (tNoUser prop)
 >   TVar tv | Nothing <- lookupTypeVar tv envTypes -> panic "evalProp" ["Could not find type variable `" ++ pretty tv ++ "` in the type evaluation environment"]
 >   prop -> panic "evalProp" ["Cannot use the following as a type constraint: `" ++ pretty prop ++ "`"]
->   where 
+>   where
 >     toType = either tNumTy tValTy
 
 
@@ -575,7 +575,8 @@ newtypes is thus basically just an identity function
 that consumes and ignores its type arguments.
 
 Enums are represented with a tag, which indicates what constructor
-was used to create a value, and the values of stored 
+was used to create a value, as well as the types of the values stored in the
+constructor.
 
 > evalNominalDecl :: Env -> NominalType -> Env
 > evalNominalDecl env nt =
