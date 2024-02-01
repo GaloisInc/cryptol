@@ -207,6 +207,7 @@ constructor:
 the following definition of ``f``, where ``f`` lacks a type signature:
 
 .. code-block:: cryptol
+
   f x =
     case x of
       _ -> ()
@@ -227,6 +228,7 @@ Cryptol will also reject this definition, where the type of the value
 being matched is not an ``enum`` type:
 
 .. code-block:: cryptol
+
   g : Integer -> ()
   g x =
     case x of
