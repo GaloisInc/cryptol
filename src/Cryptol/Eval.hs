@@ -358,7 +358,7 @@ evalNominalDecl sym nt env0 =
       KType -> PTyPoly  (\ _ -> body)
       KNum  -> PNumPoly (\ _ -> body)
       k ->
-        evalPanic "evalNewtypeDecl" [ "illegal newtype parameter kind"
+        evalPanic "evalNominalDecl" [ "illegal newtype parameter kind"
                                     , show (pp k)
                                     ]
 

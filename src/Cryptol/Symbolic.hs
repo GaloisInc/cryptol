@@ -372,7 +372,7 @@ varModelPred sym vx =
          sameFs  <- case (vcons Vector.!? i', cons Vector.!? i') of
                       (Just con1, Just con2) ->
                          modelPred sym (flds con1) (flds con2)
-                      _ -> panic "malformed constructor" []
+                      _ -> panic "varModelPred" ["malformed constructor"]
          bitAnd sym sameTag sameFs
 
     _ -> panic "varModelPred" ["variable shape mismatch!"]
@@ -394,7 +394,7 @@ varToExpr prims = go
               Right efs ->
                 let con = case ntDef nt of
                             Struct c -> ntConName c
-                            Enum {} -> panic "varToExpr" ["Enum, expectqed Struct"]
+                            Enum {} -> panic "varToExpr" ["Enum, expected Struct"]
                             Abstract {} -> panic "varToExpr"
                               ["Abstract, expected Struct"]
                     f = foldl (\x t -> ETApp x (tNumValTy t)) (EVar con) ts

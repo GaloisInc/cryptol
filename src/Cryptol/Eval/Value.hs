@@ -116,7 +116,7 @@ data GenValue sym
   | VEnum !(SInteger sym) !(IntMap (ConValue sym))
     -- ^ @Just 2@, the integer is the tag (e.g., `Just`), and the map contains
     -- the fields (e.g., `{ 0 -> ("Just",2) }`.
-    -- The map is only really needed to represent symblic values.
+    -- The map is only really needed to represent symbolic values.
   | VBit !(SBit sym)                           -- ^ @ Bit    @
   | VInteger !(SInteger sym)                   -- ^ @ Integer @ or @ Z n @
   | VRational !(SRational sym)                 -- ^ @ Rational @
@@ -223,7 +223,7 @@ ppValuePrec x opts = loop
               do vds <- traverse (>>= loop 1) (conFields con)
                  let d = pp (conIdent con) <+> hsep (Vector.toList vds)
                  pure (if prec > 0 then parens d else d)
-          Nothing -> panic "ppEnumVal" ["Malformed enumv value", show c]
+          Nothing -> panic "ppEnumVal" ["Malformed enum value", show c]
       Nothing -> pure (text "[?]")
 
   ppWordVal :: WordValue sym -> SEval sym Doc

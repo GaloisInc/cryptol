@@ -67,7 +67,7 @@ zipConInfo :: (a -> b -> c) -> ConInfo a -> ConInfo b -> ConInfo c
 zipConInfo f x y
   | conIdent x == conIdent y =
     x { conFields = Vector.zipWith f (conFields x) (conFields y) }
-  | otherwise = panic "zipConInfo" [ "Miamatched constructors"
+  | otherwise = panic "zipConInfo" [ "Mismatched constructors"
                                    ,  show (pp (conIdent x))
                                    ,  show (pp (conIdent y))
                                    ]

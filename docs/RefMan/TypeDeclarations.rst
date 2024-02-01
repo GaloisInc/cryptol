@@ -89,10 +89,10 @@ with a ``case`` expression, which are similar to ``if`` expressions:
 In this example, ``e`` is an expression of type ``Maybe``:
 
   * if it was created with the ``Nothing`` constructor,
-    then we'll use the first branch of the ``case`` expression and
-    result of the whole expression would be 0;
+    then we'll use the first branch of the ``case`` expression, and
+    the result of the whole expression would be 0;
 
-  * if, ``e`` was create by applying the ``Just`` constructor to some
+  * if, ``e`` was created by applying the ``Just`` constructor to some
     value (e.g, ``Just 2``), then we'll use the second branch of the ``case``
     expression, and the variable ``a`` will be bound to the value of the field
     (e.g., ``2``), and the whole expression will evaluate to ``a + 1``
@@ -163,7 +163,7 @@ constructor:
     case x of
       Nothing -> True
 
-**The Matched Expression Must Have a Knwon Enum Type.** Cryptol will reject
+**The Matched Expression Must Have a Known Enum Type.** Cryptol will reject
 the definition of ``f``, where ``f`` lacks a type signature, or is not not
 an ``enum`` type.
 

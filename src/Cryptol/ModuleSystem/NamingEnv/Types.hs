@@ -34,7 +34,7 @@ instance PP NamingEnv where
           ppNm (x,as)  = pp x <+> "->" <+> commaSep (map pp (namesToList as))
 
 -- | Move names in the constructor namespace to the value namespace.
--- This is handly when checking for ambiguities.
+-- This is handy when checking for ambiguities.
 consToValues :: NamingEnv -> NamingEnv
 consToValues (NamingEnv mps) =
   NamingEnv $

@@ -96,7 +96,7 @@ data Error    = KindMismatch (Maybe TypeSource) Kind Kind
 
               | EnumTypeMismatch Type
                 -- ^ Expected an enum type, but inferred the supplied 'Type'
-                --   instead, which is no an enum. This corresponds to the
+                --   instead, which is not an enum. This corresponds to the
                 --   \"Matched Expression Must Have a Known Enum Type\"
                 --   restriction for @case@ expressions, as described in the
                 --   Cryptol Reference Manual.

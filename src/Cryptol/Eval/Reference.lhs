@@ -596,7 +596,7 @@ was used to create a value, and the values of stored
 >       case tpKind tp of
 >         KType -> VPoly (\_ -> pure body)
 >         KNum  -> VNumPoly (\_ -> pure body)
->         k -> evalPanic "evalNewtypeDecl"
+>         k -> evalPanic "evalNominalDecl"
 >                                   ["illegal newtype parameter kind", show k]
 
 Primitives

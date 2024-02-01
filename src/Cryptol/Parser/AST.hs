@@ -671,7 +671,7 @@ data Pattern n = PVar (Located n)              -- ^ @ x @
                | PList [ Pattern n ]           -- ^ @ [ x, y, z ] @
                | PTyped (Pattern n) (Type n)   -- ^ @ x : [8] @
                | PSplit (Pattern n) (Pattern n)-- ^ @ (x # y) @
-               | PCon (Located n) [Pattern n]  -- ^ @ :Just x @
+               | PCon (Located n) [Pattern n]  -- ^ @ Just x @
                | PLocated (Pattern n) Range    -- ^ Location information
                  deriving (Eq, Show, Generic, NFData, Functor)
 
