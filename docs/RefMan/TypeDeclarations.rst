@@ -164,11 +164,9 @@ constructor:
       Nothing -> True
 
 **The Matched Expression Must Have a Known Enum Type.** Cryptol will reject
-the definition of ``f``, where ``f`` lacks a type signature, or is not not
-an ``enum`` type.
+the following definition of ``f``, where ``f`` lacks a type signature:
 
 .. code-block:: cryptol
-
   f x =
     case x of
       _ -> ()
@@ -184,3 +182,12 @@ anything about the type of ``x``. It would be incorrect to give ``f`` this type:
 This is because ``f`` is not really polymorphic in its argument type, as the
 only values that can be matched in a ``case`` expression are those whose type
 was declared as an ``enum``. As such, Cryptol rejects this example.
+
+Cryptol will also reject this definition, where the type of the value
+being matched is not an ``enum`` type:
+
+.. code-block:: cryptol
+  g : Integer -> ()
+  g x =
+    case x of
+      _ -> ()
