@@ -95,6 +95,15 @@ Primitive Types
     Z : # -> *
     Zero : * -> Prop
      
+Nominal Types
+=============
+    
+  From Cryptol
+  ------------
+       
+    enum Option a
+    enum Result t e
+     
 Symbols
 =======
     
