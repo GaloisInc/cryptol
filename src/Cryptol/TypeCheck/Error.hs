@@ -470,7 +470,7 @@ instance PP (WithNames Error) where
         addTVarsDescsAfter names err $
         nested "Malformed type."
           ("Type synonym" <+> nm t <+> "was applied to" <+>
-            pl extra "extra parameters" <.> text ".")
+            pl extra "extra parameter" <.> text ".")
 
       TooFewTyParams t few ->
         addTVarsDescsAfter names err $
