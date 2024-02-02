@@ -3,7 +3,7 @@ Counterexample
 (\x -> assert x "asdf" "asdf") False ~> ERROR
 Run-time error: asdf
 -- Backtrace --
-Cryptol::error called at Cryptol:1051:41--1051:46
+Cryptol::error called at Cryptol:1070:41--1070:46
 Cryptol::assert called at safety.icry:3:14--3:20
 <interactive>::it called at safety.icry:3:7--3:37
 Counterexample

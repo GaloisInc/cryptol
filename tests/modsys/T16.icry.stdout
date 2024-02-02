@@ -5,5 +5,5 @@ Loading module T16::B
 
 [error] at T16/B.cry:5:5--5:11
     Multiple definitions for symbol: update
-    (at Cryptol:909:11--909:17, update)
+    (at Cryptol:928:11--928:17, update)
     (at ./T16/A.cry:3:1--3:7, T16::A::update)
