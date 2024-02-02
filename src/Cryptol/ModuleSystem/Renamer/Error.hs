@@ -119,6 +119,7 @@ instance PP RenamerError where
                     NSValue   -> "Value"
                     NSType    -> "Type"
                     NSModule  -> "Module"
+                    NSConstructor -> "Constructor"
 
     OverlappingSyms qns ->
       hang (text "[error]")
@@ -134,6 +135,7 @@ instance PP RenamerError where
         where
         sayNS ns = case ns of
                      NSValue  -> "value"
+                     NSConstructor -> "constructor"
                      NSType   -> "type"
                      NSModule -> "module"
         suggestion =
@@ -141,6 +143,8 @@ instance PP RenamerError where
 
             (NSValue,NSType) ->
                 ["Did you mean `(" <.> pp (thing lqn) <.> text")?"]
+            (NSConstructor,NSValue) ->
+                ["Perhaps the constructor got shadowed?"]
             _ -> []
 
     FixityError o1 f1 o2 f2 ->
@@ -159,13 +163,16 @@ instance PP RenamerError where
       ppLab as = ppNestedSels (thing as) <+> "at" <+> pp (srcRange as)
 
     InvalidDependency ds ->
-      hang "[error] Invalid recursive dependency:"
+      hang ("[error] Invalid" <+> self <+>"dependency:")
          4 (vcat [ "•" <+> pp x <.>
                     case depNameLoc x of
                       Just r -> ", defined at" <+> ppR r
                       Nothing -> mempty
                  | x <- ds ])
       where ppR r = pp (from r) <.> "--" <.> pp (to r)
+            self = case ds of
+                     [_] -> "self"
+                     _   -> "recursive"
 
     MultipleModParams x rs ->
       hang ("[error] Multiple parameters with name" <+> backticks (pp x))
@@ -195,6 +202,7 @@ instance PP DepName where
           NSModule -> "submodule" <+> pp n
           NSType   -> "type" <+> pp n
           NSValue  -> pp n
+          NSConstructor -> "constructor" <+> pp n
       ModParamName _r i -> "module parameter" <+> pp i
       ModPath mp ->
         case modPathSplit mp of

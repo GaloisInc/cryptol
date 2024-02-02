@@ -20,6 +20,8 @@ module Cryptol.Eval.Concrete
   ) where
 
 import Control.Monad (guard, zipWithM, foldM, mzero)
+import Data.Foldable (foldl')
+import Data.List (find)
 import Data.Ratio(numerator,denominator)
 import Data.Word(Word32, Word64)
 import MonadLib( ChoiceT, findOne, lift )
@@ -28,6 +30,8 @@ import qualified Cryptol.F2 as F2
 
 import qualified Data.Map.Strict as Map
 import Data.Map(Map)
+import qualified Data.Vector as Vector
+import qualified Data.IntMap.Strict as IMap
 
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..))
 
@@ -75,14 +79,40 @@ toExpr prims t0 v0 = findOne (go t0 v0)
              Left _ -> mismatch -- different fields
              Right efs -> pure (ERec efs)
 
-      (TVNewtype nt ts tfs, VRecord vfs) ->
+      (TVNominal nt ts (TVStruct tfs), VRecord vfs) ->
         do -- NB, vfs first argument to keep their display order
            res <- zipRecordsM (\_lbl v t -> go t =<< lift v) vfs tfs
            case res of
              Left _ -> mismatch -- different fields
              Right efs ->
-               let f = foldl (\x t -> ETApp x (tNumValTy t)) (EVar (ntConName nt)) ts
+               let c = case ntDef nt of
+                         Struct co -> ntConName co
+                         Enum {} -> panic "toExpr" ["Enum vs Record"]
+                         Abstract -> panic "toExp" ["Asbtract vs Record"]
+                   f = foldl (\x t -> ETApp x (tNumValTy t)) (EVar c) ts
                 in pure (EApp f (ERec efs))
+      (TVNominal nt ts (TVEnum tfss), VEnum i' vf_map) ->
+        let i = fromInteger i'
+        in
+        case tfss Vector.!? i of
+          Nothing -> mismatch -- enum constructor not found
+          Just conT ->
+            do let tfs = conFields conT
+               vfs <- case IMap.lookup i vf_map of
+                        Just con -> pure (conFields con)
+                        Nothing  -> panic "toExpr" ["Missing constructor"]
+               guard (Vector.length tfs == Vector.length vfs)
+               c <- case ntDef nt of
+                      Struct {} -> panic "toExpr" ["Enum vs Record"]
+                      Abstract {} -> panic "toExpr" ["Enum vs Abstract"]
+                      Enum cons ->
+                        case find (\con -> ecNumber con == i) cons of
+                          Just con -> pure (ecName con)
+                          Nothing -> mismatch
+               let f = foldl' (\x t -> ETApp x (tNumValTy t)) (EVar c) ts
+               foldl' EApp f <$>
+                  (zipWithM go (Vector.toList tfs) =<<
+                              lift (sequence (Vector.toList vfs)))
 
       (TVTuple ts, VTuple tvs) ->
         do guard (length ts == length tvs)

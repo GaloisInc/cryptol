@@ -94,6 +94,13 @@ data Error    = KindMismatch (Maybe TypeSource) Kind Kind
               | TypeMismatch TypeSource Path Type Type
                 -- ^ Expected type, inferred type
 
+              | EnumTypeMismatch Type
+                -- ^ Expected an enum type, but inferred the supplied 'Type'
+                --   instead, which is not an enum. This corresponds to the
+                --   \"Matched Expression Must Have a Known Enum Type\"
+                --   restriction for @case@ expressions, as described in the
+                --   Cryptol Reference Manual.
+
               | SchemaMismatch Ident Schema Schema
                 -- ^ Name of module parameter, expected scehema, actual schema.
                 -- This may happen when instantiating modules.
@@ -172,6 +179,18 @@ data Error    = KindMismatch (Maybe TypeSource) Kind Kind
               | InvalidConstraintGuard Prop
                 -- ^ The given constraint may not be used as a constraint guard
 
+              | InvalidConPat Int Int
+                -- ^ Bad constructor pattern.
+                -- 1) Number of parameters we have,
+                -- 2) Number of parameters we need.
+
+              | UncoveredConPat [Name]
+                -- ^ A @case@ expression is non-exhaustive and does not cover
+                --   the supplied constructor 'Name's.
+
+              | OverlappingPat (Maybe Ident) [Range]
+                -- ^ Overlapping patterns in a case
+
               | TemporaryError Doc
                 -- ^ This is for errors that don't fit other cateogories.
                 -- We should not use it much, and is generally to be used
@@ -207,7 +226,11 @@ errorImportance err =
     KindMismatch {}                                  -> 10
     TyVarWithParams {}                               -> 9
     TypeMismatch {}                                  -> 8
+    EnumTypeMismatch {}                              -> 7
     SchemaMismatch {}                                -> 7
+    InvalidConPat {}                                 -> 7
+    UncoveredConPat {}                               -> 7
+    OverlappingPat {}                                -> 3
     RecursiveType {}                                 -> 7
     NotForAll {}                                     -> 6
     TypeVariableEscaped {}                           -> 5
@@ -281,6 +304,10 @@ instance TVars Error where
       SchemaMismatch i t1 t2  ->
         SchemaMismatch i !$ (apSubst su t1) !$ (apSubst su t2)
       TypeMismatch src pa t1 t2 -> TypeMismatch src pa !$ (apSubst su t1) !$ (apSubst su t2)
+      EnumTypeMismatch t        -> EnumTypeMismatch !$ apSubst su t
+      InvalidConPat {}          -> err
+      UncoveredConPat {}        -> err
+      OverlappingPat {}         -> err
       RecursiveType src pa t1 t2   -> RecursiveType src pa !$ (apSubst su t1) !$ (apSubst su t2)
       UnsolvedGoals gs          -> UnsolvedGoals !$ apSubst su gs
       UnsolvableGoals gs        -> UnsolvableGoals !$ apSubst su gs
@@ -331,6 +358,10 @@ instance FVS Error where
       RecursiveTypeDecls {}     -> Set.empty
       SchemaMismatch _ t1 t2    -> fvs (t1,t2)
       TypeMismatch _ _ t1 t2    -> fvs (t1,t2)
+      EnumTypeMismatch t        -> fvs t
+      InvalidConPat {}          -> Set.empty
+      UncoveredConPat {}        -> Set.empty
+      OverlappingPat {}         -> Set.empty
       RecursiveType _ _ t1 t2   -> fvs (t1,t2)
       UnsolvedGoals gs          -> fvs gs
       UnsolvableGoals gs        -> fvs gs
@@ -390,7 +421,7 @@ instance PP (WithNames Warning) where
                                               <+> ppWithNames names ty
 
       NonExhaustivePropGuards n ->
-        text "Could not prove that the constraint guards used in defining" <+> 
+        text "Could not prove that the constraint guards used in defining" <+>
         pp n <+> text "were exhaustive."
 
 instance PP (WithNames Error) where
@@ -439,7 +470,7 @@ instance PP (WithNames Error) where
         addTVarsDescsAfter names err $
         nested "Malformed type."
           ("Type synonym" <+> nm t <+> "was applied to" <+>
-            pl extra "extra parameters" <.> text ".")
+            pl extra "extra parameter" <.> text ".")
 
       TooFewTyParams t few ->
         addTVarsDescsAfter names err $
@@ -461,6 +492,19 @@ instance PP (WithNames Error) where
             ++ ppCtxt pa
             ++ ["When checking" <+> pp src]
 
+      EnumTypeMismatch t ->
+        case tNoUser t of
+          TVar {} ->
+            nested "Failed to infer the type of cased expression."
+              "Try giving the expression an explicit type annotation."
+          _ ->
+            addTVarsDescsAfter names err $
+            nested "Type mismatch in cased expresson:" $
+              vcat
+                [ "Expected: an `enum` type"
+                , "Inferred:" <+> ppWithNames names t
+                ]
+
       SchemaMismatch i t1 t2 ->
           addTVarsDescsAfter names err $
           nested ("Type mismatch in module parameter" <+> quotes (pp i)) $
@@ -468,6 +512,27 @@ instance PP (WithNames Error) where
             [ "Expected type:" <+> ppWithNames names t1
             , "Actual type:"   <+> ppWithNames names t2
             ]
+
+      InvalidConPat have need ->
+        addTVarsDescsAfter names err $
+        nested "Invalid constructor pattern" $
+          vcat
+            [ "Expected" <+> int need <+> "parameters,"
+            , "but there are" <+> int have <.> "."
+            ]
+
+      UncoveredConPat conNames ->
+        "Case expression does not cover the following patterns:"
+        $$ commaSep (map pp conNames)
+
+      OverlappingPat mbCon rs ->
+        addTVarsDescsAfter names err $
+        nested ("Overlapping choices for" <+> what <.> ":") $
+          vcat [ "Pattern at" <+> pp r | r <- rs ]
+        where
+        what = case mbCon of
+                 Just i  -> "constructor" <+> pp i
+                 Nothing -> "default case"
 
       UnsolvableGoals gs -> explainUnsolvable names gs
 
@@ -574,6 +639,7 @@ instance PP (WithNames Error) where
               NSValue     -> "value"
               NSType      -> "type"
               NSModule    -> "module"
+              NSConstructor -> "constructor"
 
       FunctorInstanceBadBacktick bad ->
         case bad of
@@ -607,7 +673,7 @@ instance PP (WithNames Error) where
                 [ "Parameter name:" <+> pp x
                 , "Parameterized instantiation requires distinct parameter names"
                 ]
-                
+
 
       UnsupportedFFIKind src param k ->
         nested "Kind of type variable unsupported for FFI: " $

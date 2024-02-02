@@ -617,12 +617,11 @@ checkModule isrc m = do
   renMod <- renameModule epgm
 
 
-{-
-  -- dump renamed
+  {- dump renamed
   unless (thing (mName (R.rmModule renMod)) == preludeName)
        do (io $ print (T.pp renMod))
           -- io $ exitSuccess
---}
+  --}
 
 
   -- when generating the prim map for the typechecker, if we're checking the
@@ -758,8 +757,7 @@ genInferInput r prims params env = do
     { T.inpRange            = r
     , T.inpVars             = Map.map ifDeclSig (ifDecls env)
     , T.inpTSyns            = ifTySyns env
-    , T.inpNewtypes         = ifNewtypes env
-    , T.inpAbstractTypes    = ifAbstractTypes env
+    , T.inpNominalTypes     = ifNominalTypes env
     , T.inpSignatures       = ifSignatures env
     , T.inpNameSeeds        = seeds
     , T.inpMonoBinds        = monoBinds

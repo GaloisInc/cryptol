@@ -25,7 +25,7 @@
 
 module Cryptol.Eval.Value
   ( -- * GenericValue
-    GenValue(..)
+    GenValue(..), ConValue
   , forceValue
   , Backend(..)
   , asciiMode
@@ -57,22 +57,30 @@ module Cryptol.Eval.Value
   , fromVTuple
   , fromVRecord
   , lookupRecord
+  , fromVEnum
     -- ** Pretty printing
   , defaultPPOpts
   , ppValue
+  , ppValuePrec
     -- * Merge and if/then/else
   , iteValue
+  , caseValue, CaseCont(..)
   , mergeValue
   ) where
 
 import Data.Ratio
 import Numeric (showIntAtBase)
+import Data.Map(Map)
+import qualified Data.Map as Map
+import Data.IntMap.Strict (IntMap)
+import qualified Data.IntMap.Strict as IMap
+import qualified Data.Vector as Vector
 
 import Cryptol.Backend
 import Cryptol.Backend.SeqMap
 import qualified Cryptol.Backend.Arch as Arch
 import Cryptol.Backend.Monad
-  ( evalPanic, wordTooWide, CallStack, combineCallStacks )
+  ( evalPanic, wordTooWide, CallStack, combineCallStacks,EvalError(..))
 import Cryptol.Backend.FloatHelpers (fpPP)
 import Cryptol.Backend.WordValue
 
@@ -80,7 +88,7 @@ import Cryptol.Eval.Type
 
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
 
-import Cryptol.Utils.Ident (Ident)
+import Cryptol.Utils.Ident (Ident,unpackIdent)
 import Cryptol.Utils.Logger(Logger)
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.PP
@@ -105,6 +113,11 @@ data EvalOpts = EvalOpts
 data GenValue sym
   = VRecord !(RecordMap Ident (SEval sym (GenValue sym))) -- ^ @ { .. } @
   | VTuple ![SEval sym (GenValue sym)]              -- ^ @ ( .. ) @
+  | VEnum !(SInteger sym) !(IntMap (ConValue sym))
+    -- ^ As an example, consider the enum value @Just ()@. The 'SInteger' is the
+    -- tag (e.g., 'Just' would have the tag @0@), and the 'IntMap' contains the
+    -- fields (e.g., @{ 0 -> ("Just",()) }@. The 'IntMap' is only really needed
+    -- to represent symbolic values.
   | VBit !(SBit sym)                           -- ^ @ Bit    @
   | VInteger !(SInteger sym)                   -- ^ @ Integer @ or @ Z n @
   | VRational !(SRational sym)                 -- ^ @ Rational @
@@ -118,12 +131,14 @@ data GenValue sym
   | VNumPoly CallStack (Nat' -> SEval sym (GenValue sym))  -- ^ polymorphic values (kind #)
  deriving Generic
 
+type ConValue sym = ConInfo (SEval sym (GenValue sym))
 
 -- | Force the evaluation of a value
 forceValue :: Backend sym => GenValue sym -> SEval sym ()
 forceValue v = case v of
   VRecord fs  -> mapM_ (forceValue =<<) fs
   VTuple xs   -> mapM_ (forceValue =<<) xs
+  VEnum i xs  -> seq i (mapM_ forceConValue xs)
   VSeq n xs   -> mapM_ (forceValue =<<) (enumerateSeqMap n xs)
   VBit b      -> seq b (return ())
   VInteger i  -> seq i (return ())
@@ -135,12 +150,14 @@ forceValue v = case v of
   VPoly{}     -> return ()
   VNumPoly{}  -> return ()
 
-
+forceConValue :: Backend sym => ConValue sym -> SEval sym ()
+forceConValue (ConInfo i vs) = i `seq` mapM_ (forceValue =<<) vs
 
 instance Show (GenValue sym) where
   show v = case v of
     VRecord fs -> "record:" ++ show (displayOrder fs)
     VTuple xs  -> "tuple:" ++ show (length xs)
+    VEnum _ _  -> "enum"
     VBit _     -> "bit"
     VInteger _ -> "integer"
     VRational _ -> "rational"
@@ -160,23 +177,33 @@ ppValue :: forall sym.
   PPOpts ->
   GenValue sym ->
   SEval sym Doc
-ppValue x opts = loop
+ppValue x opts = ppValuePrec x opts 0
+
+ppValuePrec :: forall sym.
+  Backend sym =>
+  sym ->
+  PPOpts ->
+  Int ->
+  GenValue sym ->
+  SEval sym Doc
+ppValuePrec x opts = loop
   where
-  loop :: GenValue sym -> SEval sym Doc
-  loop val = case val of
-    VRecord fs         -> do fs' <- traverse (>>= loop) fs
+  loop :: Int -> GenValue sym -> SEval sym Doc
+  loop prec val = case val of
+    VRecord fs         -> do fs' <- traverse (>>= loop 0) fs
                              return $ ppRecord (map ppField (fields fs'))
       where
       ppField (f,r) = pp f <+> char '=' <+> r
-    VTuple vals        -> do vals' <- traverse (>>=loop) vals
+    VTuple vals        -> do vals' <- traverse (>>=loop 0) vals
                              return $ ppTuple vals'
+    VEnum c vs         -> ppEnumVal prec c vs
     VBit b             -> ppSBit x b
     VInteger i         -> ppSInteger x i
     VRational q        -> ppSRational x q
     VFloat i           -> ppSFloat x opts i
     VSeq sz vals       -> ppWordSeq sz vals
     VWord _ wv         -> ppWordVal wv
-    VStream vals       -> do vals' <- traverse (>>=loop) $ enumerateSeqMap (useInfLength opts) vals
+    VStream vals       -> do vals' <- traverse (>>=loop 0) $ enumerateSeqMap (useInfLength opts) vals
                              return $ ppList ( vals' ++ [text "..."] )
     VFun{}             -> return $ text "<function>"
     VPoly{}            -> return $ text "<polymorphic value>"
@@ -186,6 +213,19 @@ ppValue x opts = loop
   fields = case useFieldOrder opts of
     DisplayOrder -> displayFields
     CanonicalOrder -> canonicalFields
+
+  ppEnumVal prec i mp =
+    case integerAsLit x i of
+      Just c ->
+        case IMap.lookup (fromInteger c) mp of
+          Just con
+            | isNullaryCon con -> pure (pp (conIdent con))
+            | otherwise ->
+              do vds <- traverse (>>= loop 1) (conFields con)
+                 let d = pp (conIdent con) <+> hsep (Vector.toList vds)
+                 pure (if prec > 0 then parens d else d)
+          Nothing -> panic "ppEnumVal" ["Malformed enum value", show c]
+      Nothing -> pure (text "[?]")
 
   ppWordVal :: WordValue sym -> SEval sym Doc
   ppWordVal w = ppSWord x opts =<< asWordVal x w
@@ -202,7 +242,7 @@ ppValue x opts = loop
                 Just str -> return $ text (show str)
                 _ -> do vs' <- mapM (ppSWord x opts) vs
                         return $ ppList vs'
-      _ -> do ws' <- traverse loop ws
+      _ -> do ws' <- traverse (loop 0) ws
               return $ ppList ws'
 
 ppSBit :: Backend sym => sym -> SBit sym -> SEval sym Doc
@@ -437,6 +477,12 @@ fromVRecord val = case val of
   VRecord fs -> fs
   _          -> evalPanic "fromVRecord" ["not a record", show val]
 
+fromVEnum :: GenValue sym -> (SInteger sym, IntMap (ConValue sym))
+fromVEnum val =
+  case val of
+    VEnum c xs -> (c,xs)
+    _          -> evalPanic "fromVEnum" ["not an enum", show val]
+
 fromVFloat :: GenValue sym -> SFloat sym
 fromVFloat val =
   case val of
@@ -451,7 +497,7 @@ lookupRecord f val =
     Nothing -> evalPanic "lookupRecord" ["malformed record", show val]
 
 
--- Merge and if/then/else
+-- Merge and if/then/else and case
 
 {-# INLINE iteValue #-}
 iteValue :: Backend sym =>
@@ -465,6 +511,39 @@ iteValue sym b x y
   | Just False <- bitAsLit sym b = y
   | otherwise = mergeValue' sym b x y
 
+data CaseCont sym = CaseCont
+  { caseCon  :: Map Ident ([SEval sym (GenValue sym)] -> SEval sym (GenValue sym))
+  , caseDflt :: Maybe (SEval sym (GenValue sym))
+  }
+
+caseValue :: Backend sym =>
+  sym ->
+  SInteger sym ->
+  IntMap (ConValue sym) ->
+  CaseCont sym ->
+  SEval sym (GenValue sym)
+caseValue sym tag alts k
+  | Just c <- integerAsLit sym tag =
+    case IMap.lookup (fromInteger c) alts of
+      Just conV -> doCase conV
+      Nothing -> panic "caseValue" ["Missing constructor for tag", show c]
+  | otherwise = foldr doSymCase (doDefault Nothing) (IMap.toList alts)
+  where
+  doSymCase (n,con) otherOpts =
+    do expect <- integerLit sym (toInteger n)
+       yes    <- intEq sym tag expect
+       iteValue sym yes (doCase con) otherOpts
+
+  doDefault mb =
+    case caseDflt k of
+      Just yes -> yes
+      Nothing  -> raiseError sym (NoMatchingConstructor mb)
+
+  doCase (ConInfo con fs) =
+    case Map.lookup con (caseCon k) of
+      Just yes -> yes (Vector.toList fs)
+      Nothing  -> doDefault (Just $! unpackIdent con)
+
 {-# INLINE mergeValue' #-}
 mergeValue' :: Backend sym =>
   sym ->
@@ -473,6 +552,10 @@ mergeValue' :: Backend sym =>
   SEval sym (GenValue sym) ->
   SEval sym (GenValue sym)
 mergeValue' sym = mergeEval sym (mergeValue sym)
+
+mergeConValue ::
+  Backend sym => sym -> SBit sym -> ConValue sym -> ConValue sym -> ConValue sym
+mergeConValue sym c = zipConInfo (mergeValue' sym c)
 
 mergeValue :: Backend sym =>
   sym ->
@@ -487,6 +570,11 @@ mergeValue sym c v1 v2 =
          case res of
            Left f -> panic "Cryptol.Eval.Value" [ "mergeValue: incompatible record values", show f ]
            Right r -> pure (VRecord r)
+
+    (VEnum c1 fs1, VEnum c2 fs2) ->
+      VEnum <$> iteInteger sym c c1 c2
+            <*> pure (IMap.unionWith (mergeConValue sym c) fs1 fs2)
+
     (VTuple vs1  , VTuple vs2  ) | length vs1 == length vs2  ->
                                   pure $ VTuple $ zipWith (mergeValue' sym c) vs1 vs2
     (VBit b1     , VBit b2     ) -> VBit <$> iteBit sym c b1 b2

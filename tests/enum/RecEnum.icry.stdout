@@ -1,0 +1,6 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+
+[error] Invalid self dependency:
+    • type Main::List, defined at 1:6--1:10

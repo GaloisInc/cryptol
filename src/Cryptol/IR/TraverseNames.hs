@@ -61,6 +61,9 @@ instance TraverseNames Expr where
       EIf e1 e2 e3      -> EIf <$> traverseNamesIP e1
                                <*> traverseNamesIP e2
                                <*> traverseNamesIP e3
+      ECase e as d      -> ECase <$> traverseNamesIP e
+                                 <*> traverse traverseNamesIP as
+                                 <*> traverse traverseNamesIP d
 
       EComp t1 t2 e mss -> EComp <$> traverseNamesIP t1
                                  <*> traverseNamesIP t2
@@ -81,6 +84,11 @@ instance TraverseNames Expr where
 
       EPropGuards gs t  -> EPropGuards <$> traverse doG gs <*> traverseNamesIP t
         where doG (xs, e) = (,) <$> traverseNamesIP xs <*> traverseNamesIP e
+
+instance TraverseNames CaseAlt where
+  traverseNamesIP (CaseAlt xs e) =
+    CaseAlt <$> traverse doPair xs <*> traverseNamesIP e
+      where doPair (x,y) = (,) <$> traverseNamesIP x <*> traverseNamesIP y
 
 instance TraverseNames Match where
   traverseNamesIP mat =
@@ -138,7 +146,7 @@ instance TraverseNames TPFlavor where
       TPSchemaParam x   -> TPSchemaParam  <$> traverseNamesIP x
       TPTySynParam x    -> TPTySynParam   <$> traverseNamesIP x
       TPPropSynParam x  -> TPPropSynParam <$> traverseNamesIP x
-      TPNewtypeParam x  -> TPNewtypeParam <$> traverseNamesIP x
+      TPNominalParam x  -> TPNominalParam <$> traverseNamesIP x
       TPPrimParam x     -> TPPrimParam    <$> traverseNamesIP x
 
 instance TraverseNames TVarInfo where
@@ -167,6 +175,8 @@ instance TraverseNames TypeSource where
       TypeFromUserAnnotation      -> pure src
       GeneratorOfListComp         -> pure src
       TypeErrorPlaceHolder        -> pure src
+      CasedExpression             -> pure src
+      ConPat                      -> pure src
 
 instance TraverseNames ArgDescr where
   traverseNamesIP arg = mk <$> traverseNamesIP (argDescrFun arg)
@@ -175,29 +185,14 @@ instance TraverseNames ArgDescr where
 instance TraverseNames Type where
   traverseNamesIP ty =
     case ty of
-      TCon tc ts    -> TCon <$> traverseNamesIP tc <*> traverseNamesIP ts
+      TCon tc ts    -> TCon tc <$> traverseNamesIP ts
       TVar x        -> TVar <$> traverseNamesIP x
       TUser x ts t  -> TUser <$> traverseNamesIP x
                              <*> traverseNamesIP ts
                              <*> traverseNamesIP t
-      TRec rm       -> TRec <$> traverseRecordMap (\_ -> traverseNamesIP) rm
-      TNewtype nt ts -> TNewtype <$> traverseNamesIP nt <*> traverseNamesIP ts
+      TRec rm       -> TRec <$> traverseRecordMap (const traverseNamesIP) rm
+      TNominal nt ts -> TNominal <$> traverseNamesIP nt <*> traverseNamesIP ts
 
-
-instance TraverseNames TCon where
-  traverseNamesIP tcon =
-    case tcon of
-      TC tc -> TC <$> traverseNamesIP tc
-      _     -> pure tcon
-
-instance TraverseNames TC where
-  traverseNamesIP tc =
-    case tc of
-      TCAbstract ut -> TCAbstract <$> traverseNamesIP ut
-      _             -> pure tc
-
-instance TraverseNames UserTC where
-  traverseNamesIP (UserTC x k) = UserTC <$> traverseNamesIP x <*> pure k
 
 instance TraverseNames TVar where
   traverseNamesIP tvar =
@@ -205,20 +200,38 @@ instance TraverseNames TVar where
       TVFree x k ys i -> TVFree x k <$> traverseNamesIP ys <*> traverseNamesIP i
       TVBound x       -> TVBound <$> traverseNamesIP x
 
-instance TraverseNames Newtype where
-  traverseNamesIP nt = mk <$> traverseNamesIP (ntName nt)
-                          <*> traverseNamesIP (ntParams nt)
-                          <*> traverseNamesIP (ntConstraints nt)
-                          <*> traverseNamesIP (ntConName nt)
-                          <*> traverseRecordMap (\_ -> traverseNamesIP)
-                                                (ntFields nt)
-    where
-    mk a b c d e = nt { ntName = a
-                      , ntParams = b
-                      , ntConstraints = c
-                      , ntConName = d
-                      , ntFields = e
-                      }
+instance TraverseNames NominalType where
+  traverseNamesIP nt =
+    NominalType
+      <$> traverseNamesIP (ntName nt)
+      <*> traverseNamesIP (ntParams nt)
+      <*> pure (ntKind nt)
+      <*> traverseNamesIP (ntConstraints nt)
+      <*> traverseNamesIP (ntDef nt)
+      <*> pure (ntFixity nt)
+      <*> pure (ntDoc nt)
+
+instance TraverseNames NominalTypeDef where
+  traverseNamesIP def =
+    case def of
+      Struct c -> Struct <$> traverseNamesIP c
+      Enum cs  -> Enum   <$> traverseNamesIP cs
+      Abstract -> pure Abstract
+
+instance TraverseNames StructCon where
+  traverseNamesIP c =
+    StructCon <$> traverseNamesIP (ntConName c)
+              <*> traverseRecordMap (const traverseNamesIP) (ntFields c)
+
+instance TraverseNames EnumCon where
+  traverseNamesIP c =
+    EnumCon <$> traverseNamesIP (ecName c)
+            <*> pure (ecNumber c)
+            <*> traverseNamesIP (ecFields c)
+            <*> pure (ecPublic c)
+            <*> pure (ecDoc c)
+
+
 
 instance TraverseNames ModTParam where
   traverseNamesIP nt = mk <$> traverseNamesIP (mtpName nt)

@@ -11,7 +11,8 @@ import Control.DeepSeq(NFData)
 import GHC.Generics (Generic)
 
 import Cryptol.Parser.AST
-import Cryptol.Parser.Names(namesD,tnamesD,namesNT,tnamesNT)
+import Cryptol.Parser.Names
+         (namesD,tnamesD,namesNT,tnamesNT,tnamesEnum,namesEnum)
 import Cryptol.ModuleSystem.Name
 
 exportedDecls :: Ord name => [TopDecl name] -> ExportSpec name
@@ -24,7 +25,9 @@ exportedNames decl =
               ++ map exportType (names tnamesD td)
       DPrimType t -> [ exportType (thing . primTName <$> t) ]
       TDNewtype nt -> map exportType (names tnamesNT nt) ++
-                      map exportBind (names namesNT nt)
+                      map exportCon (names namesNT nt)
+      TDEnum en -> map exportType (names tnamesEnum en)
+                ++ map exportCon (names namesEnum en)
       Include {}  -> []
       DImport {} -> []
       DParamDecl {} -> []
@@ -67,6 +70,10 @@ exported ns (ExportSpec mp) = Map.findWithDefault Set.empty ns mp
 exportBind :: Ord name => TopLevel name -> ExportSpec name
 exportBind = exportName NSValue
 
+-- | Add a constructor name to the export list, if it should be exported.
+exportCon :: Ord name => TopLevel name -> ExportSpec name
+exportCon = exportName NSConstructor
+
 -- | Add a type synonym name to the export list, if it should be exported.
 exportType :: Ord name => TopLevel name -> ExportSpec name
 exportType = exportName NSType
@@ -81,7 +88,7 @@ isExported ns x (ExportSpec s) =
 
 -- | Check to see if a binding is exported.
 isExportedBind :: Ord name => name -> ExportSpec name -> Bool
-isExportedBind = isExported NSValue
+isExportedBind x s = isExported NSValue x s || isExported NSConstructor x s
 
 -- | Check to see if a type synonym is exported.
 isExportedType :: Ord name => name -> ExportSpec name -> Bool

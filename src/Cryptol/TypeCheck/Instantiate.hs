@@ -11,6 +11,7 @@ module Cryptol.TypeCheck.Instantiate
   , TypeArg(..)
   , uncheckedTypeArg
   , MaybeCheckedType(..)
+  , instantiatePCon
   ) where
 
 import Cryptol.ModuleSystem.Name (nameIdent)
@@ -60,7 +61,27 @@ checkTyParam src k mb =
         where k' = kindOf t
     Unchecked t -> checkType t (Just k)
 
-
+-- | Instantiate a pattern constructor.  Returns (A,B,C,D) where:
+-- A) are the instantiations of the type parameters of the constructor
+-- B) is how many proofs we would have if we had dictionaries
+-- C) are the types of the fields of the constructor
+-- D) is the type of the result of the constructor (i.e., what we are mathcing)
+instantiatePCon :: Name -> InferM ([Type],Int,[Type],Type)
+instantiatePCon nm =
+  do vart <- lookupVar nm
+     case vart of
+       CurSCC {} -> panic "instantiatePCon" [ "CurSCC"]
+       ExtVar s ->
+         do (e,t) <- instantiateWith nm (EVar nm) s []
+            let (_, tApps, proofApps) = splitExprInst e
+                (fs,res) = splitFun t
+            pure (tApps, proofApps,fs,res)
+  where
+  splitFun ty =
+    case tIsFun ty of
+      Nothing -> ([], ty)
+      Just (a,b) -> (a:as,c)
+        where (as,c) = splitFun b
 
 instantiateWith :: Name -> Expr -> Schema -> [TypeArg] -> InferM (Expr,Type)
 instantiateWith nm e s ts

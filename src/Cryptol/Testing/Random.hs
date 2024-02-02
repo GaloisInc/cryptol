@@ -33,8 +33,12 @@ import qualified Control.Exception as X
 import Control.Monad          (liftM2)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bits
-import Data.List              (unfoldr, genericTake, genericIndex, genericReplicate)
+import Data.List              (unfoldr, genericTake, genericIndex,
+                               genericReplicate, mapAccumL)
+import qualified Data.IntMap.Strict as IntMap
 import qualified Data.Sequence as Seq
+import Data.Vector(Vector)
+import qualified Data.Vector as Vector
 
 import System.Random.TF.Gen
 import System.Random.TF.Instances
@@ -46,8 +50,10 @@ import Cryptol.Backend.Concrete
 import Cryptol.Backend.SeqMap (indexSeqMap, finiteSeqMap)
 import Cryptol.Backend.WordValue (wordVal)
 
-import Cryptol.Eval.Type      (TValue(..))
-import Cryptol.Eval.Value     (GenValue(..), ppValue, defaultPPOpts, fromVFun)
+import Cryptol.Eval(evalEnumCon)
+import Cryptol.Eval.Type      ( TValue(..), TNominalTypeValue(..), ConInfo(..)
+                              , isNullaryCon )
+import Cryptol.Eval.Value     ( GenValue(..), ppValue, defaultPPOpts, fromVFun)
 import Cryptol.TypeCheck.Solver.InfNat (widthInteger)
 import Cryptol.Utils.Ident    (Ident)
 import Cryptol.Utils.Panic    (panic)
@@ -164,12 +170,18 @@ randomValue sym ty =
     TVRec fs ->
          do gs <- traverse (randomValue sym) fs
             return (randomRecord gs)
-    TVNewtype _ _ fs ->
-         do gs <- traverse (randomValue sym) fs
-            return (randomRecord gs)
+
+    TVNominal _ _ nval ->
+      case nval of
+        TVStruct fs ->
+          do gs <- traverse (randomValue sym) fs
+             return (randomRecord gs)
+        TVEnum cons -> randomCon sym <$>
+                          traverse (traverse (randomValue sym)) cons
+        TVAbstract -> Nothing
+
     TVArray{} -> Nothing
     TVFun{} -> Nothing
-    TVAbstract{} -> Nothing
 
 {-# INLINE randomBit #-}
 
@@ -269,6 +281,69 @@ randomRecord gens sz g0 =
     mk g gen =
       let (v, g') = gen sz g
       in seq v (g', v)
+
+-- | Generate a random constructor value belonging to an enum definition.
+--
+-- For the purposes of random testing, constructors with zero fields (i.e.,
+-- nullary constructors) are less interesting than constructors with at least
+-- one field (i.e., non-nullary constructors). For example, given
+-- @enum Maybe a = Nothing | Just a@, we would like to generate more @Just@
+-- values than @Nothing@ values. To ensure this, we employ the following
+-- approach:
+--
+-- 1. If all constructors are nullary, then randomly pick one of these
+--    constructors, where each constructor has an equal chance of being picked.
+--
+-- 2. If all constructors are non-nullary, then randomly pick one of these
+--    constructors, where each constructor has an equal chance of being picked.
+--    Then pick random values for each field in the constructor.
+--
+-- 3. Otherwise, pick a random number between 1 and 100. If the number is less
+--    than or equal to 25, then randomly pick a nullary constructor. Otherwise,
+--    randomly pick a non-nullary constructor. This biases the results so that
+--    nullary constructors are only picked ~25% of the time.
+randomCon ::
+  forall sym g.
+  (Backend sym, RandomGen g) =>
+  sym ->
+  Vector (ConInfo (Gen g sym)) ->
+  Gen g sym
+randomCon sym cons
+    -- (1) from the Haddocks
+  | null nonNullaryCons
+  = randomCon' nullaryLen nullaryCons
+
+    -- (2) from the Haddocks
+  | null nullaryCons
+  = randomCon' nonNullaryLen nonNullaryCons
+
+    -- (3) from the Haddocks
+  | otherwise
+  = \sz g0 ->
+      let (x :: Int, g1) = randomR (1, 100) g0 in
+      if x <= 25
+         then randomCon' nullaryLen nullaryCons sz g1
+         else randomCon' nonNullaryLen nonNullaryCons sz g1
+  where
+    (nullaryLen,nullaryCons, nonNullaryLen, nonNullaryCons) =
+       let check (!nullLen,nullary,!nonNullLen,nonNullary) i con
+             | isNullaryCon con = ( 1+nullLen,(i,con) : nullary
+                                  , nonNullLen, nonNullary)
+             | otherwise        = (nullLen, nullary
+                                  , 1+nonNullLen, (i,con) : nonNullary)
+        in Vector.ifoldl' check (0,[],0,[]) cons
+
+    randomCon' :: Int -> [(Int, ConInfo (Gen g sym))] -> Gen g sym
+    randomCon' conLen cons' sz g0 =
+      let (idx, g1) = randomR (0, conLen - 1) g0
+          (num, con) = cons' !! idx
+          (g2, !flds') =
+            mapAccumL
+              (\g gen ->
+                let (v, g') = gen sz g in
+                seq v (g', v))
+              g1 (conFields con) in
+      (($ flds') <$> evalEnumCon sym (conIdent con) num, g2)
 
 randomFloat ::
   (Backend sym, RandomGen g) =>
@@ -398,8 +473,12 @@ typeSize ty = case ty of
   TVTuple els -> product <$> mapM typeSize els
   TVRec fs -> product <$> traverse typeSize fs
   TVFun{} -> Nothing
-  TVAbstract{} -> Nothing
-  TVNewtype _ _ tbody -> typeSize (TVRec tbody)
+  TVNominal _ _ nv ->
+    case nv of
+      TVStruct tbody -> typeSize (TVRec tbody)
+      TVEnum cons -> sum <$> mapM (conSize . conFields) cons
+        where conSize = foldr (\t sz -> liftM2 (*) (typeSize t) sz) (Just 1)
+      TVAbstract -> Nothing
 
 {- | Returns all the values in a type.  Returns an empty list of values,
 for types where 'typeSize' returned 'Nothing'. -}
@@ -430,8 +509,16 @@ typeValues ty =
       | xs <- traverse typeValues fs
       ]
     TVFun{} -> []
-    TVAbstract{} -> []
-    TVNewtype _ _ tbody -> typeValues (TVRec tbody)
+    TVNominal _ _ nv ->
+      case nv of
+        TVStruct tbody -> typeValues (TVRec tbody)
+        TVEnum cons ->
+          [ VEnum (toInteger tag) (IntMap.singleton tag con')
+          | (tag,con) <- zip [0..] (Vector.toList cons)
+          , vs        <- mapM typeValues (conFields con)
+          , let con' = con { conFields = pure <$> vs }
+          ]
+        TVAbstract -> []
 
 --------------------------------------------------------------------------------
 -- Driver function

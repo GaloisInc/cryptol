@@ -13,6 +13,7 @@
 
 module Cryptol.Parser.Names
   ( tnamesNT
+  , tnamesEnum
   , tnamesT
   , tnamesC
 
@@ -20,7 +21,9 @@ module Cryptol.Parser.Names
   , tnamesD
   , namesB
   , namesP
+  , namesP'
   , namesNT
+  , namesEnum
 
   , boundNames
   , boundNamesSet
@@ -39,6 +42,12 @@ tnamesNT x = ([ nName x ], ())
 namesNT :: Newtype name -> ([Located name], ())
 namesNT x = ([ (nName x) { thing = nConName x } ], ())
 
+tnamesEnum :: EnumDecl name -> ([Located name],())
+tnamesEnum n = ([ eName n], ())
+
+namesEnum :: EnumDecl name -> ([Located name], ())
+namesEnum n = (map (ecName . tlValue) (eCons n), ())
+
 -- | The names defined and used by a group of mutually recursive declarations.
 namesDs :: Ord name => [Decl name] -> ([Located name], Set name)
 namesDs ds = (defs, boundLNames defs (Set.unions frees))
@@ -53,7 +62,7 @@ namesD decl =
     DBind b       -> namesB b
     DRec bs       -> let (xs,ys) = unzip (map namesB bs)
                      in (concat xs, Set.unions ys)  -- remove binders?
-    DPatBind p e  -> (namesP p, namesE e)
+    DPatBind p e  -> (namesP' p, namesE e)
     DSignature {} -> ([],Set.empty)
     DFixity{}     -> ([],Set.empty)
     DPragma {}    -> ([],Set.empty)
@@ -64,7 +73,7 @@ namesD decl =
 -- | The names defined and used by a single binding.
 namesB :: Ord name => Bind name -> ([Located name], Set name)
 namesB b =
-  ([bName b], boundLNames (namesPs (bParams b)) (namesDef (thing (bDef b))))
+  ([bName b], boundLNames (namesPs' (bParams b)) (namesDef (thing (bDef b))))
 
 
 namesDef :: Ord name => BindDef name -> Set name
@@ -101,11 +110,12 @@ namesE expr =
     EApp e1 e2    -> Set.union (namesE e1) (namesE e2)
     EAppT e _     -> namesE e
     EIf e1 e2 e3  -> Set.union (namesE e1) (Set.union (namesE e2) (namesE e3))
+    ECase e as    -> Set.union (namesE e) (Set.unions (map namesCA as))
     EWhere  e ds  -> let (bs,xs) = namesDs ds
                      in Set.union (boundLNames bs (namesE e)) xs
     ETyped e _    -> namesE e
     ETypeVal _    -> Set.empty
-    EFun _ ps e   -> boundLNames (namesPs ps) (namesE e)
+    EFun _ ps e   -> boundLNames (fst (namesPs ps)) (namesE e) -- no free
     ELocated e _  -> namesE e
 
     ESplit e      -> namesE e
@@ -116,16 +126,31 @@ namesE expr =
 namesUF :: Ord name => UpdField name -> Set name
 namesUF (UpdField _ _ e) = namesE e
 
+namesCA :: Ord name => CaseAlt name -> Set name
+namesCA (CaseAlt p e) = Set.union free (boundLNames defs (namesE e))
+  where
+  (defs,free) = namesP p
+
+namesP' :: Ord name => Pattern name -> [Located name]
+namesP' = fst . namesP
+
+namesPs' :: Ord name => [Pattern name] -> [Located name]
+namesPs' = fst . namesPs
+
 -- | The names defined by a group of patterns.
-namesPs :: [Pattern name] -> [Located name]
-namesPs = concatMap namesP
+namesPs :: Ord name => [Pattern name] -> ([Located name], Set name)
+namesPs ps = (concat defs, Set.unions uses)
+  where
+  (defs, uses) = unzip (map namesP ps)
 
 -- | The names defined by a pattern.  These will always be unqualified names.
-namesP :: Pattern name -> [Located name]
+namesP :: Ord name => Pattern name -> ([Located name], Set name)
 namesP pat =
   case pat of
-    PVar x        -> [x]
-    PWild         -> []
+    PVar x        -> ([x], Set.empty)
+    PCon c ps     -> (def, Set.insert (thing c) free)
+      where (def,free) = namesPs ps
+    PWild         -> ([],Set.empty)
     PTuple ps     -> namesPs ps
     PRecord fs    -> namesPs (map snd (recordElements fs))
     PList ps      -> namesPs ps
@@ -133,9 +158,11 @@ namesP pat =
     PSplit p1 p2  -> namesPs [p1,p2]
     PLocated p _  -> namesP p
 
+
+
 -- | The names defined and used by a match.
 namesM :: Ord name => Match name -> ([Located name], Set name)
-namesM (Match p e)  = (namesP p, namesE e)
+namesM (Match p e)  = (namesP' p, namesE e)
 namesM (MatchLet b) = namesB b
 
 -- | The names defined and used by an arm of alist comprehension.
@@ -231,6 +258,7 @@ tnamesE expr =
     EApp e1 e2      -> Set.union (tnamesE e1) (tnamesE e2)
     EAppT e fs      -> Set.union (tnamesE e) (Set.unions (map tnamesTI fs))
     EIf e1 e2 e3    -> Set.union (tnamesE e1) (Set.union (tnamesE e2) (tnamesE e3))
+    ECase e as      -> Set.union (tnamesE e) (Set.unions (map tnamesCA as))
     EWhere  e ds    -> let (bs,xs) = tnamesDs ds
                        in Set.union (boundLNames bs (tnamesE e)) xs
     ETyped e t      -> Set.union (tnamesE e) (tnamesT t)
@@ -242,6 +270,9 @@ tnamesE expr =
     EParens e       -> tnamesE e
     EInfix a _ _ b  -> Set.union (tnamesE a) (tnamesE b)
     EPrefix _ e     -> tnamesE e
+
+tnamesCA :: Ord name => CaseAlt name -> Set name
+tnamesCA (CaseAlt p e) = Set.union (tnamesP p) (tnamesE e)
 
 tnamesUF :: Ord name => UpdField name -> Set name
 tnamesUF (UpdField _ _ e) = tnamesE e
@@ -255,6 +286,7 @@ tnamesP :: Ord name => Pattern name -> Set name
 tnamesP pat =
   case pat of
     PVar _        -> Set.empty
+    PCon _ ps     -> Set.unions (map tnamesP ps)
     PWild         -> Set.empty
     PTuple ps     -> Set.unions (map tnamesP ps)
     PRecord fs    -> Set.unions (map (tnamesP . snd) (recordElements fs))

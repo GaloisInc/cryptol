@@ -212,6 +212,7 @@ noIncTopDecl td = case td of
   Decl _     -> pure [td]
   DPrimType {} -> pure [td]
   TDNewtype _-> pure [td]
+  TDEnum _-> pure [td]
   DParamDecl {} -> pure [td]
   DInterfaceConstraint {} -> pure [td]
   Include lf -> resolveInclude lf

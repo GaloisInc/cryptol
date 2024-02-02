@@ -1,0 +1,139 @@
+enum Maybe a = Nothing | Just a
+
+maybeEqual : {a} (Eq a) => Maybe a -> Maybe a -> Bit
+maybeEqual m1 m2 =
+  case m1 of
+    Just x1 ->
+      case m2 of
+        Just x2 -> x1 == x2
+        Nothing -> False
+    Nothing ->
+      case m2 of
+        Just x2 -> False
+        Nothing -> True
+
+maybeMap : {a, b} (a -> b) -> Maybe a -> Maybe b
+maybeMap f m =
+  case m of
+    Just x  -> Just (f x)
+    Nothing -> Nothing
+
+maybeMapProp : Maybe [8] -> Bit
+property maybeMapProp m =
+  maybeEqual
+    (maybeMap (\x -> x + 1) (maybeMap (\x -> x + 1) m))
+    (maybeMap (\x -> x + 2) m)
+
+enum Either a b = Left a | Right b
+
+eitherEqual : {a, b} (Eq a, Eq b) => Either a b -> Either a b -> Bit
+eitherEqual e1 e2 =
+  case e1 of
+    Left x1 ->
+      case e2 of
+        Left x2  -> x1 == x2
+        Right y2 -> False
+    Right y1 ->
+      case e2 of
+        Left x2  -> False
+        Right y2 -> y1 == y2
+
+eitherMapLeft : {a, a', b} (a -> a') -> Either a b -> Either a' b
+eitherMapLeft f e =
+  case e of
+    Left x  -> Left (f x)
+    Right y -> Right y
+
+eitherMapRight : {a, b, b'} (b -> b') -> Either a b -> Either a b'
+eitherMapRight g e =
+  case e of
+    Left x  -> Left x
+    Right y -> Right (g y)
+
+eitherMapBoth : {a, a', b, b'} (a -> a') -> (b -> b') -> Either a b -> Either a' b'
+eitherMapBoth f g e =
+  case e of
+    Left x  -> Left (f x)
+    Right y -> Right (g y)
+
+eitherMapProp : Either [8] [8] -> Bit
+property eitherMapProp e =
+  eitherEqual
+    (eitherMapLeft (\x -> x + 1) (eitherMapRight (\y -> y + 1) e))
+    (eitherMapBoth (\x -> x + 1) (\y -> y + 1) e)
+
+enum Foo a = Bar | Baz | Quux | Fred [8] a
+
+fooEqual : {a} (Eq a) => Foo a -> Foo a -> Bit
+fooEqual f1 f2 =
+  case f1 of
+    Bar ->
+      case f2 of
+        Bar        -> True
+        Baz        -> False
+        Quux       -> False
+        Fred y1 y2 -> False
+    Baz ->
+      case f2 of
+        Bar        -> False
+        Baz        -> True
+        Quux       -> False
+        Fred y1 y2 -> False
+    Quux ->
+      case f2 of
+        Bar        -> False
+        Baz        -> False
+        Quux       -> True
+        Fred y1 y2 -> False
+    Fred x1 x2 ->
+      case f2 of
+        Bar        -> False
+        Baz        -> False
+        Quux       -> False
+        Fred y1 y2 -> (x1 == y1) /\ (x2 == y2)
+
+fooMap : {a, b} (a -> b) -> Foo a -> Foo b
+fooMap f ff =
+  case ff of
+    Bar      -> Bar
+    Baz      -> Baz
+    Quux     -> Quux
+    Fred x y -> Fred x (f y)
+
+fooMapProp : Foo [8] -> Bit
+property fooMapProp f =
+  fooEqual
+    (fooMap (\x -> x + 1) (fooMap (\x -> x + 1) f))
+    (fooMap (\x -> x + 2) f)
+
+enum Letter = A | B | C
+
+letterEqual : Letter -> Letter -> Bit
+letterEqual l1 l2 =
+  case l1 of
+    A ->
+      case l2 of
+        A -> True
+        B -> False
+        C -> False
+    B ->
+      case l2 of
+        A -> False
+        B -> True
+        C -> False
+    C ->
+      case l2 of
+        A -> False
+        B -> False
+        C -> True
+
+letterRotate : Letter -> Letter
+letterRotate l =
+  case l of
+    A -> B
+    B -> C
+    C -> A
+
+letterRotateProp : Letter -> Bit
+property letterRotateProp l =
+  letterEqual l (letterRotate (letterRotate (letterRotate l)))

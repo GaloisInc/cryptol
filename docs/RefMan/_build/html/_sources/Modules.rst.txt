@@ -256,7 +256,7 @@ Module may be declared within other modules, using the ``submodule`` keword.
 Submodules may refer to names in their enclosing scope.
 Declarations in a sub-module will shadow names in the outer scope.
 
-Declarations in a submdule may be imported with ``import submodule``,
+Declarations in a submodule may be imported with ``import submodule``,
 which works just like an ordinary import except that ``X`` refers
 to the name of a submodule.
 
@@ -300,7 +300,7 @@ each locally defined submodules.
     z = 2 * N::y
 
 ``N::y`` works in the previous example because Cryptol added
-an implicit import ``import submoulde N as N``.
+an implicit import ``import submodule N as N``.
 
 
 Managing Module Names
@@ -313,7 +313,7 @@ containing module, and must be imported before they can be used.
 Thus, to use a submodule defined in top-level module ``A`` into
 another top-level module ``B`` requires two steps:
 
-  1. First we need to import ``A`` to bring the name of the submodule in scope
+  1. First we need to import ``A`` to bring the name of the submodule in scope,
   2. Then we need to import the submodule to bring the names defined in it in scope.
 
 .. code-block:: cryptol

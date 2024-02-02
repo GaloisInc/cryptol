@@ -23,6 +23,8 @@ data TokenW   = BlockComment | LineComment | Space | DocStr
 data TokenKW  = KW_else
               | KW_fin
               | KW_if
+              | KW_case
+              | KW_of
               | KW_private
               | KW_include
               | KW_inf
@@ -34,6 +36,7 @@ data TokenKW  = KW_else
               | KW_module
               | KW_submodule
               | KW_newtype
+              | KW_enum
               | KW_pragma
               | KW_property
               | KW_then

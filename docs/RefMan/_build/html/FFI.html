@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Foreign Function Interface &mdash; Cryptol 2.11.0 documentation</title>
@@ -11,9 +11,7 @@
         <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
         <script src="_static/jquery.js"></script>
         <script src="_static/underscore.js"></script>
-        <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="_static/doctools.js"></script>
-        <script src="_static/sphinx_highlight.js"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -25,15 +23,11 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-
-          
-          
-          <a href="RefMan.html" class="icon icon-home">
-            Cryptol
+            <a href="RefMan.html" class="icon icon-home"> Cryptol
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -67,6 +61,7 @@
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#memory">Memory</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#evaluation">Evaluation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#cryptol-implementation-of-foreign-functions">Cryptol implementation of foreign functions</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#example">Example</a></li>
 </ul>
 </li>
@@ -85,8 +80,8 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="RefMan.html" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">Foreign Function Interface</li>
+      <li><a href="RefMan.html" class="icon icon-home"></a> &raquo;</li>
+      <li>Foreign Function Interface</li>
       <li class="wy-breadcrumbs-aside">
             <a href="_sources/FFI.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -97,29 +92,29 @@
            <div itemprop="articleBody">
              
   <section id="foreign-function-interface">
-<h1>Foreign Function Interface<a class="headerlink" href="#foreign-function-interface" title="Permalink to this heading"></a></h1>
+<h1>Foreign Function Interface<a class="headerlink" href="#foreign-function-interface" title="Permalink to this headline"></a></h1>
 <p>The foreign function interface (FFI) allows Cryptol to call functions written in
 C (or other languages that use the C calling convention).</p>
 <section id="platform-support">
-<h2>Platform support<a class="headerlink" href="#platform-support" title="Permalink to this heading"></a></h2>
+<h2>Platform support<a class="headerlink" href="#platform-support" title="Permalink to this headline"></a></h2>
 <p>The FFI is built on top of the C <code class="docutils literal notranslate"><span class="pre">libffi</span></code> library, and as such, it should be
 portable across many operating systems. We have tested it to work on Linux,
 macOS, and Windows.</p>
 </section>
 <section id="basic-usage">
-<h2>Basic usage<a class="headerlink" href="#basic-usage" title="Permalink to this heading"></a></h2>
+<h2>Basic usage<a class="headerlink" href="#basic-usage" title="Permalink to this headline"></a></h2>
 <p>Suppose we want to implement the following function in C:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">add</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">32</span><span class="p">]</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="p">[</span><span class="mi">32</span><span class="p">]</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="p">[</span><span class="mi">32</span><span class="p">]</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">add</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">32</span><span class="p">]</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="p">[</span><span class="mi">32</span><span class="p">]</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="p">[</span><span class="mi">32</span><span class="p">]</span><span class="w"></span>
 </pre></div>
 </div>
 <p>In our Cryptol file, we declare it as a <code class="docutils literal notranslate"><span class="pre">foreign</span></code> function with no body:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">foreign</span><span class="w"> </span><span class="n">add</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">32</span><span class="p">]</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="p">[</span><span class="mi">32</span><span class="p">]</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="p">[</span><span class="mi">32</span><span class="p">]</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">foreign</span><span class="w"> </span><span class="n">add</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">32</span><span class="p">]</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="p">[</span><span class="mi">32</span><span class="p">]</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="p">[</span><span class="mi">32</span><span class="p">]</span><span class="w"></span>
 </pre></div>
 </div>
 <p>Then we write the following C function:</p>
-<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="kt">uint32_t</span><span class="w"> </span><span class="nf">add</span><span class="p">(</span><span class="kt">uint32_t</span><span class="w"> </span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="kt">uint32_t</span><span class="w"> </span><span class="n">y</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">y</span><span class="p">;</span>
-<span class="p">}</span>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="kt">uint32_t</span><span class="w"> </span><span class="nf">add</span><span class="p">(</span><span class="kt">uint32_t</span><span class="w"> </span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="kt">uint32_t</span><span class="w"> </span><span class="n">y</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">y</span><span class="p">;</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
 </pre></div>
 </div>
 <p>Cryptol can generate a C header file containing the appropriate function
@@ -167,7 +162,7 @@ the correct C headers but if the actual implementation does not match it there
 may be undefined behavior.</p>
 </section>
 <section id="compiling-c-code">
-<h2>Compiling C code<a class="headerlink" href="#compiling-c-code" title="Permalink to this heading"></a></h2>
+<h2>Compiling C code<a class="headerlink" href="#compiling-c-code" title="Permalink to this headline"></a></h2>
 <p>Cryptol currently does not handle compilation of C code to shared libraries. For
 simple usages, you can do this manually with the following commands:</p>
 <ul class="simple">
@@ -177,7 +172,7 @@ simple usages, you can do this manually with the following commands:</p>
 </ul>
 </section>
 <section id="converting-between-cryptol-and-c-types">
-<h2>Converting between Cryptol and C types<a class="headerlink" href="#converting-between-cryptol-and-c-types" title="Permalink to this heading"></a></h2>
+<h2>Converting between Cryptol and C types<a class="headerlink" href="#converting-between-cryptol-and-c-types" title="Permalink to this headline"></a></h2>
 <p>This section describes how a given Cryptol function signature maps to a C
 function prototype. The FFI only supports a limited set of Cryptol types which
 have a clear translation into C.</p>
@@ -185,12 +180,12 @@ have a clear translation into C.</p>
 command mentioned above; however, this section is still worth reading to
 understand the supported types and what the resulting C parameters mean.</p>
 <section id="overall-structure">
-<h3>Overall structure<a class="headerlink" href="#overall-structure" title="Permalink to this heading"></a></h3>
+<h3>Overall structure<a class="headerlink" href="#overall-structure" title="Permalink to this headline"></a></h3>
 <p>Cryptol <code class="docutils literal notranslate"><span class="pre">foreign</span></code> bindings must be functions. These functions may have
 multiple (curried) arguments; they may also be polymorphic, with certain
 limitations. That is, the general structure of a <code class="docutils literal notranslate"><span class="pre">foreign</span></code> declaration would
 look something like this:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">foreign</span><span class="w"> </span><span class="n">f</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a1</span><span class="p">,</span><span class="w"> </span><span class="o">...</span><span class="p">,</span><span class="w"> </span><span class="n">ak</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="n">c1</span><span class="p">,</span><span class="w"> </span><span class="o">...</span><span class="p">,</span><span class="w"> </span><span class="n">cn</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="kt">T1</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="o">...</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kt">Tm</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kt">Tr</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">foreign</span><span class="w"> </span><span class="n">f</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a1</span><span class="p">,</span><span class="w"> </span><span class="o">...</span><span class="p">,</span><span class="w"> </span><span class="n">ak</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="n">c1</span><span class="p">,</span><span class="w"> </span><span class="o">...</span><span class="p">,</span><span class="w"> </span><span class="n">cn</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="kt">T1</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="o">...</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kt">Tm</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kt">Tr</span><span class="w"></span>
 </pre></div>
 </div>
 <p>Each type argument to the Cryptol function (<code class="docutils literal notranslate"><span class="pre">a1,</span> <span class="pre">...,</span> <span class="pre">ak</span></code> above) corresponds
@@ -212,8 +207,12 @@ Cryptol arguments.</p>
 corresponds to.</p>
 </section>
 <section id="type-parameters">
-<h3>Type parameters<a class="headerlink" href="#type-parameters" title="Permalink to this heading"></a></h3>
+<h3>Type parameters<a class="headerlink" href="#type-parameters" title="Permalink to this headline"></a></h3>
 <table class="docutils align-default">
+<colgroup>
+<col style="width: 55%" />
+<col style="width: 45%" />
+</colgroup>
 <thead>
 <tr class="row-odd"><th class="head"><p>Cryptol kind</p></th>
 <th class="head"><p>C type</p></th>
@@ -235,8 +234,12 @@ satisfy <code class="docutils literal notranslate"><span class="pre">&lt;</span>
 cumbersome.)</p>
 </section>
 <section id="bit">
-<h3>Bit<a class="headerlink" href="#bit" title="Permalink to this heading"></a></h3>
+<h3>Bit<a class="headerlink" href="#bit" title="Permalink to this headline"></a></h3>
 <table class="docutils align-default">
+<colgroup>
+<col style="width: 52%" />
+<col style="width: 48%" />
+</colgroup>
 <thead>
 <tr class="row-odd"><th class="head"><p>Cryptol type</p></th>
 <th class="head"><p>C type</p></th>
@@ -253,10 +256,14 @@ When converting to Cryptol, any nonzero number is converted to <code class="docu
 <code class="docutils literal notranslate"><span class="pre">0</span></code> is converted to <code class="docutils literal notranslate"><span class="pre">False</span></code>.</p>
 </section>
 <section id="bit-vector-types">
-<h3>Bit Vector Types<a class="headerlink" href="#bit-vector-types" title="Permalink to this heading"></a></h3>
+<h3>Bit Vector Types<a class="headerlink" href="#bit-vector-types" title="Permalink to this headline"></a></h3>
 <p>Let <code class="docutils literal notranslate"><span class="pre">K</span> <span class="pre">:</span> <span class="pre">#</span></code> be a Cryptol type. Note <code class="docutils literal notranslate"><span class="pre">K</span></code> must be an actual fixed numeric type
 and not a type variable.</p>
 <table class="docutils align-default">
+<colgroup>
+<col style="width: 74%" />
+<col style="width: 26%" />
+</colgroup>
 <thead>
 <tr class="row-odd"><th class="head"><p>Cryptol type</p></th>
 <th class="head"><p>C type</p></th>
@@ -288,8 +295,12 @@ words first in Cryptol, then use the FFI conversion for sequences of words to
 handle it in C as an array.</p>
 </section>
 <section id="floating-point-types">
-<h3>Floating point types<a class="headerlink" href="#floating-point-types" title="Permalink to this heading"></a></h3>
+<h3>Floating point types<a class="headerlink" href="#floating-point-types" title="Permalink to this headline"></a></h3>
 <table class="docutils align-default">
+<colgroup>
+<col style="width: 55%" />
+<col style="width: 45%" />
+</colgroup>
 <thead>
 <tr class="row-odd"><th class="head"><p>Cryptol type</p></th>
 <th class="head"><p>C type</p></th>
@@ -308,9 +319,13 @@ handle it in C as an array.</p>
 Other sizes of floating points are not supported.</p>
 </section>
 <section id="math-types">
-<h3>Math Types<a class="headerlink" href="#math-types" title="Permalink to this heading"></a></h3>
+<h3>Math Types<a class="headerlink" href="#math-types" title="Permalink to this headline"></a></h3>
 <p>Values of high precision types and <code class="docutils literal notranslate"><span class="pre">Z</span></code> are represented using the GMP library.</p>
 <table class="docutils align-default">
+<colgroup>
+<col style="width: 55%" />
+<col style="width: 45%" />
+</colgroup>
 <thead>
 <tr class="row-odd"><th class="head"><p>Cryptol type</p></th>
 <th class="head"><p>C type</p></th>
@@ -338,12 +353,16 @@ input or output) are managed by Cryptol, which takes care
 to call <code class="docutils literal notranslate"><span class="pre">init</span></code> before their use and <code class="docutils literal notranslate"><span class="pre">clear</span></code> after.</p>
 </section>
 <section id="sequences">
-<h3>Sequences<a class="headerlink" href="#sequences" title="Permalink to this heading"></a></h3>
+<h3>Sequences<a class="headerlink" href="#sequences" title="Permalink to this headline"></a></h3>
 <p>Let <code class="docutils literal notranslate"><span class="pre">n1,</span> <span class="pre">n2,</span> <span class="pre">...,</span> <span class="pre">nk</span> <span class="pre">:</span> <span class="pre">#</span></code> be Cryptol types (with <code class="docutils literal notranslate"><span class="pre">k</span> <span class="pre">&gt;=</span> <span class="pre">1</span></code>), possibly
 containing type variables, that satisfy <code class="docutils literal notranslate"><span class="pre">fin</span> <span class="pre">n1,</span> <span class="pre">fin</span> <span class="pre">n2,</span> <span class="pre">...,</span> <span class="pre">fin</span> <span class="pre">nk</span></code>, and
 <code class="docutils literal notranslate"><span class="pre">T</span></code> be one of the above Cryptol <em>bit vector types</em>, <em>floating point types</em>, or
 <em>math types</em>.  Let <code class="docutils literal notranslate"><span class="pre">U</span></code> be the C type that <code class="docutils literal notranslate"><span class="pre">T</span></code> corresponds to.</p>
 <table class="docutils align-default">
+<colgroup>
+<col style="width: 65%" />
+<col style="width: 35%" />
+</colgroup>
 <thead>
 <tr class="row-odd"><th class="head"><p>Cryptol type</p></th>
 <th class="head"><p>C type</p></th>
@@ -363,12 +382,16 @@ along with the pointer, any type arguments contained in the size are passed as C
 <code class="docutils literal notranslate"><span class="pre">size_t</span></code>’s earlier, so the C code can always know the dimensions of the array.</p>
 </section>
 <section id="tuples-and-records">
-<h3>Tuples and records<a class="headerlink" href="#tuples-and-records" title="Permalink to this heading"></a></h3>
+<h3>Tuples and records<a class="headerlink" href="#tuples-and-records" title="Permalink to this headline"></a></h3>
 <p>Let <code class="docutils literal notranslate"><span class="pre">T1,</span> <span class="pre">T2,</span> <span class="pre">...,</span> <span class="pre">Tn</span></code> be Cryptol types supported by the FFI (which may be any
 of the types mentioned above, or tuples and records themselves). Let
 <code class="docutils literal notranslate"><span class="pre">U1,</span> <span class="pre">U2,</span> <span class="pre">...,</span> <span class="pre">Un</span></code> be the C types that <code class="docutils literal notranslate"><span class="pre">T1,</span> <span class="pre">T2,</span> <span class="pre">...,</span> <span class="pre">Tn</span></code> respectively
 correspond to. Let <code class="docutils literal notranslate"><span class="pre">f1,</span> <span class="pre">f2,</span> <span class="pre">...,</span> <span class="pre">fn</span></code> be arbitrary field names.</p>
 <table class="docutils align-default">
+<colgroup>
+<col style="width: 63%" />
+<col style="width: 37%" />
+</colgroup>
 <thead>
 <tr class="row-odd"><th class="head"><p>Cryptol type</p></th>
 <th class="head"><p>C types</p></th>
@@ -389,12 +412,12 @@ flattening is applied recursively for nested tuples and records. Note that this
 means empty tuples don’t map to any C values at all.</p>
 </section>
 <section id="type-synonyms">
-<h3>Type synonyms<a class="headerlink" href="#type-synonyms" title="Permalink to this heading"></a></h3>
+<h3>Type synonyms<a class="headerlink" href="#type-synonyms" title="Permalink to this headline"></a></h3>
 <p>All type synonyms are expanded before applying the above rules, so you can use
 type synonyms in <code class="docutils literal notranslate"><span class="pre">foreign</span></code> declarations to improve readability.</p>
 </section>
 <section id="return-values">
-<h3>Return values<a class="headerlink" href="#return-values" title="Permalink to this heading"></a></h3>
+<h3>Return values<a class="headerlink" href="#return-values" title="Permalink to this headline"></a></h3>
 <p>If the Cryptol return type is <code class="docutils literal notranslate"><span class="pre">Bit</span></code> or one of the above <em>bit vector types</em> or
 <em>floating point types</em>, the value is returned directly from the C function. In
 that case, the return type of the C function will be the C type corresponding to
@@ -408,8 +431,14 @@ a pointer <code class="docutils literal notranslate"><span class="pre">U*</span>
 where the output and input versions are the same type, because it is already a pointer.</p>
 </section>
 <section id="quick-reference">
-<h3>Quick reference<a class="headerlink" href="#quick-reference" title="Permalink to this heading"></a></h3>
+<h3>Quick reference<a class="headerlink" href="#quick-reference" title="Permalink to this headline"></a></h3>
 <table class="docutils align-default">
+<colgroup>
+<col style="width: 37%" />
+<col style="width: 21%" />
+<col style="width: 14%" />
+<col style="width: 27%" />
+</colgroup>
 <thead>
 <tr class="row-odd"><th class="head"><p>Cryptol type (or kind)</p></th>
 <th class="head"><p>C argument type(s)</p></th>
@@ -495,7 +524,7 @@ where the output and input versions are the same type, because it is already a p
 </section>
 </section>
 <section id="memory">
-<h2>Memory<a class="headerlink" href="#memory" title="Permalink to this heading"></a></h2>
+<h2>Memory<a class="headerlink" href="#memory" title="Permalink to this headline"></a></h2>
 <p>When pointers are involved, namely in the cases of sequences and output
 arguments, they point to memory. This memory is always allocated and deallocated
 by Cryptol; the C code does not need to manage this memory.</p>
@@ -510,19 +539,39 @@ memory may be uninitialized when passed to C, and the C code should not read
 from it. It must write to the memory the value it is returning.</p>
 </section>
 <section id="evaluation">
-<h2>Evaluation<a class="headerlink" href="#evaluation" title="Permalink to this heading"></a></h2>
+<h2>Evaluation<a class="headerlink" href="#evaluation" title="Permalink to this headline"></a></h2>
 <p>All Cryptol arguments are fully evaluated when a foreign function is called.</p>
+<p>The FFI is intended to be used with pure functions that do not perform side
+effects such as mutating global state, printing to the screen, interacting with
+the file system, etc. Cryptol does not enforce this convention, however, so it
+is possible to use impure functions from the FFI if you wish. Cryptol does not
+make any guarantees about the order in which side effects will be executed, nor
+does it make any guarantees about preserving any global state between
+invocations of impure FFI functions.</p>
+</section>
+<section id="cryptol-implementation-of-foreign-functions">
+<h2>Cryptol implementation of foreign functions<a class="headerlink" href="#cryptol-implementation-of-foreign-functions" title="Permalink to this headline"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">foreign</span></code> declarations can have an optional Cryptol implementation, which by
+default will be called when the foreign implementation cannot be found, or when
+the FFI cannot be used, such as during symbolic evaluation, evaluation with the
+reference interpreter, or if Cryptol was built with FFI support disabled.</p>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">foreign</span><span class="w"> </span><span class="n">add</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">32</span><span class="p">]</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="p">[</span><span class="mi">32</span><span class="p">]</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="p">[</span><span class="mi">32</span><span class="p">]</span><span class="w"></span>
+<span class="nf">add</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">y</span><span class="w"></span>
+</pre></div>
+</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">:set</span> <span class="pre">evalForeign</span></code> REPL option controls which implementation is used; see
+<code class="docutils literal notranslate"><span class="pre">:help</span> <span class="pre">:set</span> <span class="pre">evalForeign</span></code> for more details.</p>
 </section>
 <section id="example">
-<h2>Example<a class="headerlink" href="#example" title="Permalink to this heading"></a></h2>
+<h2>Example<a class="headerlink" href="#example" title="Permalink to this headline"></a></h2>
 <p>The Cryptol signature</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">foreign</span><span class="w"> </span><span class="n">f</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">n</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kr">fin</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">][</span><span class="mi">10</span><span class="p">]</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="kr">Bit</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">64</span><span class="p">]}</span>
-<span class="w">                           </span><span class="ow">-&gt;</span><span class="w"> </span><span class="p">(</span><span class="kt">Float64</span><span class="p">,</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">][</span><span class="mi">20</span><span class="p">])</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">foreign</span><span class="w"> </span><span class="n">f</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">n</span><span class="p">}</span><span class="w"> </span><span class="p">(</span><span class="kr">fin</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="ow">=&gt;</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="p">][</span><span class="mi">10</span><span class="p">]</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="kr">Bit</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">64</span><span class="p">]}</span><span class="w"></span>
+<span class="w">                           </span><span class="ow">-&gt;</span><span class="w"> </span><span class="p">(</span><span class="kt">Float64</span><span class="p">,</span><span class="w"> </span><span class="p">[</span><span class="n">n</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">][</span><span class="mi">20</span><span class="p">])</span><span class="w"></span>
 </pre></div>
 </div>
 <p>corresponds to the C signature</p>
-<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="kt">void</span><span class="w"> </span><span class="nf">f</span><span class="p">(</span><span class="kt">size_t</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="kt">uint16_t</span><span class="w"> </span><span class="o">*</span><span class="n">in0</span><span class="p">,</span><span class="w"> </span><span class="kt">uint8_t</span><span class="w"> </span><span class="n">in1_a</span><span class="p">,</span><span class="w"> </span><span class="kt">uint64_t</span><span class="w"> </span><span class="n">in1_b</span><span class="p">,</span>
-<span class="w">       </span><span class="kt">double</span><span class="w"> </span><span class="o">*</span><span class="n">out_0</span><span class="p">,</span><span class="w"> </span><span class="kt">uint32_t</span><span class="w"> </span><span class="o">*</span><span class="n">out_1</span><span class="p">);</span>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="kt">void</span><span class="w"> </span><span class="nf">f</span><span class="p">(</span><span class="kt">size_t</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="kt">uint16_t</span><span class="w"> </span><span class="o">*</span><span class="n">in0</span><span class="p">,</span><span class="w"> </span><span class="kt">uint8_t</span><span class="w"> </span><span class="n">in1_a</span><span class="p">,</span><span class="w"> </span><span class="kt">uint64_t</span><span class="w"> </span><span class="n">in1_b</span><span class="p">,</span><span class="w"></span>
+<span class="w">       </span><span class="kt">double</span><span class="w"> </span><span class="o">*</span><span class="n">out_0</span><span class="p">,</span><span class="w"> </span><span class="kt">uint32_t</span><span class="w"> </span><span class="o">*</span><span class="n">out_1</span><span class="p">);</span><span class="w"></span>
 </pre></div>
 </div>
 </section>
@@ -551,7 +600,23 @@ from it. It must write to the memory the value it is returning.</p>
       </div>
     </section>
   </div>
-  <script>
+  <div class="rst-versions" data-toggle="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    <span class="fa fa-book">Doc version</span>
+    v: 
+    <span class="fa fa-caret-down"></span>
+    <div class="rst-other-versions">
+      <dl>
+        <dt>Versions</dt>
+        
+      </dl>
+      <dl>
+        <dt>Pull Requests</dt>
+        
+      </dl>
+    </div>
+  </span>
+</div><script>
       jQuery(function () {
           SphinxRtdTheme.Navigation.enable(true);
       });

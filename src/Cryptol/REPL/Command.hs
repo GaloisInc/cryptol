@@ -405,7 +405,10 @@ evalCmd str lineNum mbBatch = do
 printCounterexample :: CounterExampleType -> Doc -> [Concrete.Value] -> REPL ()
 printCounterexample cexTy exprDoc vs =
   do ppOpts <- getPPValOpts
-     docs <- mapM (rEval . E.ppValue Concrete ppOpts) vs
+     -- NB: Use a precedence of 1 here, as `vs` will be pretty-printed as
+     -- arguments to the function in `exprDoc`. This ensures that arguments
+     -- are parenthesized as needed.
+     docs <- mapM (rEval . E.ppValuePrec Concrete ppOpts 1) vs
      let cexRes = case cexTy of
            SafetyViolation    -> [text "~> ERROR"]
            PredicateFalsified -> [text "= False"]

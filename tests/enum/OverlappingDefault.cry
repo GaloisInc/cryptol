@@ -1,0 +1,9 @@
+enum Foo = A | B | C | D
+
+f : Foo -> [8]
+f x =
+  case x of
+    A -> 0
+    _ -> 1
+    C -> 2
+    D -> 3

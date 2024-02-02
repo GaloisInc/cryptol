@@ -33,7 +33,7 @@ browseModContext how mc =
     , browseFunctors disp decls
     , browseTSyns disp decls
     , browsePrimTys disp decls
-    , browseNewtypes disp decls
+    , browseNominalTypes disp decls
     , browseVars disp decls
     ]
 
@@ -97,7 +97,7 @@ browseSignatures disp decls =
   ppSection disp "Interface Submodules"
     ppS (Map.mapWithKey (,) (ifSignatures decls))
   where
-  ppS (x,s) = pp x
+  ppS (x,_s) = pp x
 
 
 browseTSyns :: DispInfo -> IfaceDecls -> [Doc]
@@ -110,13 +110,15 @@ browseTSyns disp decls =
 
 browsePrimTys :: DispInfo -> IfaceDecls -> [Doc]
 browsePrimTys disp decls =
-  ppSection disp "Primitive Types" ppA (ifAbstractTypes decls)
+  ppSection disp "Primitive Types" ppA ats
   where
-  ppA a = nest 2 (sep [pp (T.atName a) <+> ":", pp (T.atKind a)])
+  ats = Map.filter T.nominalTypeIsAbstract (ifNominalTypes decls)
+  ppA a = nest 2 (sep [pp (T.ntName a) <+> ":", pp (T.kindOf a)])
 
-browseNewtypes :: DispInfo -> IfaceDecls -> [Doc]
-browseNewtypes disp decls =
-  ppSection disp "Newtypes" T.ppNewtypeShort (ifNewtypes decls)
+browseNominalTypes :: DispInfo -> IfaceDecls -> [Doc]
+browseNominalTypes disp decls =
+  ppSection disp "Nominal Types" T.ppNominalShort
+    (Map.filter (not . T.nominalTypeIsAbstract) (ifNominalTypes decls))
 
 browseVars :: DispInfo -> IfaceDecls -> [Doc]
 browseVars disp decls =
@@ -132,7 +134,7 @@ browseVars disp decls =
 
 ppSection :: DispInfo -> String -> (a -> Doc) -> Map Name a -> [Doc]
 ppSection disp heading ppThing mp =
-  ppSectionHeading heading 
+  ppSectionHeading heading
   case dispHow disp of
     BrowseExported | [(_,xs)] <- grouped -> ppThings xs
     _ -> concatMap ppMod grouped
@@ -151,7 +153,7 @@ ppSection disp heading ppThing mp =
 ppSectionHeading :: String -> [Doc] -> [Doc]
 ppSectionHeading heading body
   | null body = []
-  | otherwise = 
+  | otherwise =
      [ text heading
      , text (map (const '=') heading)
      , "    "

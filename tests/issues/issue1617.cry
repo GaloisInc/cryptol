@@ -1,0 +1,8 @@
+// Bar.cry
+newtype T = { unT : [8] }
+enum M = A | B
+
+f : T
+f = T { unT = 0 }
+
+g = A

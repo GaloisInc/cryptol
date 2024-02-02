@@ -1,7 +1,6 @@
 {-# Language BlockArguments #-}
 {-# Language RecordWildCards #-}
 {-# Language FlexibleInstances #-}
-{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
 module Cryptol.ModuleSystem.Binds
   ( BindsNames
@@ -26,7 +25,7 @@ import qualified Data.Map as Map
 import Data.Set(Set)
 import qualified Data.Set as Set
 import Data.Maybe(fromMaybe)
-import Control.Monad(foldM)
+import Control.Monad(foldM,forM)
 import qualified MonadLib as M
 
 import Cryptol.Utils.Panic (panic)
@@ -324,6 +323,7 @@ instance BindsNames (InModule (TopDecl PName)) where
       Decl d           -> namingEnv (InModule ns (tlValue d))
       DPrimType d      -> namingEnv (InModule ns (tlValue d))
       TDNewtype d      -> namingEnv (InModule ns (tlValue d))
+      TDEnum d         -> namingEnv (InModule ns (tlValue d))
       DParamDecl {}    -> mempty
       Include _        -> mempty
       DImport {}       -> mempty -- see 'openLoop' in the renamer
@@ -364,9 +364,21 @@ instance BindsNames (InModule (Newtype PName)) where
   namingEnv (InModule ~(Just ns) Newtype { .. }) = BuildNamingEnv $
     do let Located { .. } = nName
        ntName    <- newTop NSType  ns thing Nothing srcRange
-       ntConName <- newTop NSValue ns thing Nothing srcRange
+       ntConName <- newTop NSConstructor ns thing Nothing srcRange
        return (singletonNS NSType thing ntName `mappend`
-               singletonNS NSValue thing ntConName)
+               singletonNS NSConstructor thing ntConName)
+
+instance BindsNames (InModule (EnumDecl PName)) where
+  namingEnv (InModule (Just ns) EnumDecl { .. }) = BuildNamingEnv $
+    do enName   <- newTop NSType ns (thing eName) Nothing (srcRange eName)
+       conNames <- forM eCons \topc ->
+                      do let c     = ecName (tlValue topc)
+                             pname = thing c
+                         cName <- newTop NSConstructor ns pname Nothing
+                                                                  (srcRange c)
+                         pure (singletonNS NSConstructor pname cName)
+       pure (mconcat (singletonNS NSType (thing eName) enName : conNames))
+  namingEnv _ = panic "namingEnv" ["Unreachable"]
 
 -- | The naming environment for a single declaration.
 instance BindsNames (InModule (Decl PName)) where
@@ -401,6 +413,17 @@ instance BindsNames (InModule (SigDecl PName)) where
       SigTySyn ts _    -> namingEnv (InModule m (DType ts))
       SigPropSyn ps _  -> namingEnv (InModule m (DProp ps))
 
+instance BindsNames (Pattern PName) where
+  namingEnv pat =
+    case pat of
+      PVar x -> BuildNamingEnv (
+        do y <- newLocal NSValue (thing x) (srcRange x)
+           pure (singletonNS NSValue (thing x) y)
+        )
+      PCon _ xs     -> mconcat (map namingEnv xs)
+      PLocated p _r -> namingEnv p
+      PTyped p _t   -> namingEnv p
+      _ -> panic "namingEnv" ["Unexpected pattern"]
 
 
 

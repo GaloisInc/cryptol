@@ -425,6 +425,7 @@ instance PP Namespace where
   ppPrec _ ns =
     case ns of
       NSValue     -> "/*value*/"
+      NSConstructor -> "/*constructor*/"
       NSType      -> "/*type*/"
       NSModule    -> "/*module*/"
 

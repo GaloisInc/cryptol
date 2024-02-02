@@ -1,0 +1,31 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+property maybeMapProp Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 32.29% (83 of 257 values)
+property eitherMapProp Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 17.76% (91 of 512 values)
+property fooMapProp Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.15% (100 of 65539 values)
+property letterRotateProp Using exhaustive testing.
+Testing... Passed 3 tests.
+Q.E.D.
+:prove maybeMapProp
+	Q.E.D.
+:prove eitherMapProp
+	Q.E.D.
+:prove fooMapProp
+	Q.E.D.
+:prove letterRotateProp
+	Q.E.D.
+:prove maybeMapProp
+	Q.E.D.
+:prove eitherMapProp
+	Q.E.D.
+:prove fooMapProp
+	Q.E.D.
+:prove letterRotateProp
+	Q.E.D.

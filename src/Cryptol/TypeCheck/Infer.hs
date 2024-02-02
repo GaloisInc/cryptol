@@ -10,13 +10,11 @@
 
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE PatternGuards #-}
-{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BlockArguments #-}
 -- See Note [-Wincomplete-uni-patterns and irrefutable patterns] in Cryptol.TypeCheck.TypePat
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
-{-# LANGUAGE LambdaCase #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Redundant <$>" #-}
 {-# HLINT ignore "Redundant <&>" #-}
@@ -43,7 +41,7 @@ import           Cryptol.TypeCheck.Error
 import           Cryptol.TypeCheck.Solve
 import           Cryptol.TypeCheck.SimpType(tMul)
 import           Cryptol.TypeCheck.Kind(checkType,checkSchema,checkTySyn,
-                                        checkPropSyn,checkNewtype,
+                                        checkPropSyn,checkNewtype,checkEnum,
                                         checkParameterType,
                                         checkPrimType,
                                         checkParameterConstraints,
@@ -203,6 +201,7 @@ appTys expr ts tGoal =
     P.EFun      {} -> mono
     P.ESplit    {} -> mono
     P.EPrefix   {} -> mono
+    P.ECase {}     -> mono
 
     P.EParens e       -> appTys e ts tGoal
     P.EInfix a op _ b -> appTys (P.EVar (thing op) `P.EApp` a `P.EApp` b) ts tGoal
@@ -477,7 +476,132 @@ checkE expr tGoal =
            P.PrefixComplement -> "complement"
          checkE (P.EApp prim e) tGoal
 
+    P.ECase e as ->
+     do et   <- newType CasedExpression KType
+        alts <- forM as \a -> checkCaseAlt a et tGoal
+        rng  <- curRange
+        e1   <- checkE e (WithSource et CasedExpression (Just rng))
+
+        -- Check for overlapping cases that follow default patterns, e.g.,
+        --
+        --   enum Foo = A | B
+        --   f : Foo -> Bit
+        --   f l =
+        --     case l of
+        --       _ -> True
+        --       B -> False
+        --
+        -- In this example, the `B` case overlaps the catch-all `_` case.
+        let defltAltAndOthers = dropWhile (\(_,x,_) -> isJust x) alts
+        defltAlt <-
+          case defltAltAndOthers of
+            [] ->
+              pure Nothing
+            defltAlt@(_,defltPat,_):otherAlts -> do
+              unless (null otherAlts) $
+                recordError $
+                OverlappingPat defltPat [ r | (r,_,_) <- defltAltAndOthers ]
+              pure (Just defltAlt)
+
+        -- Check that there are no overlapping patterns among the case
+        -- alternatives, e.g.,
+        --
+        --   enum Foo = A | B
+        --   g : Foo -> Bit
+        --   g l =
+        --     case l of
+        --       A -> True
+        --       B -> True
+        --       B -> False
+        --
+        -- In this example, the two `B` cases overlap.
+        let mp1 = Map.fromListWith (++) [ (x,[(r,y)]) | (r,x,y) <- alts ]
+        forM_ (Map.toList mp1) \(mb,cs) ->
+          case cs of
+            [_] -> pure ()
+            _   -> recordError (OverlappingPat mb [ r | (r,_) <- cs ])
+
+        -- Check that the type of the scrutinee is unambiguously an enum.
+        et' <- applySubst et
+        cons <- case getLoc e of
+                 Just r -> inRange r (expectEnum et')
+                 Nothing -> expectEnum et'
+
+        -- Check that the case expression covers all possible constructors.
+        -- If there is a default case, there is no need to check anything,
+        -- since the default case will catch any constructors that weren't
+        -- explicitly matched on.
+        case defltAlt of
+          Just _ -> pure ()
+          Nothing ->
+            let uncoveredCons =
+                  filter
+                    (\con -> Map.notMember (Just (nameIdent (ecName con))) mp1)
+                    cons in
+            unless (null uncoveredCons) $
+              recordError $ UncoveredConPat $ map ecName uncoveredCons
+
+        let dflt = fmap (\(_,_,y) -> y) defltAlt
+        let arms = Map.fromList [ (i,a) | (_,Just i, a) <- alts ]
+        pure (ECase e1 arms dflt)
+
     P.EParens e -> checkE e tGoal
+
+
+checkCaseAlt ::
+  P.CaseAlt Name -> Type -> TypeWithSource ->
+  InferM (Range, Maybe Ident, CaseAlt)
+checkCaseAlt (P.CaseAlt pat e) srcT resT =
+  case pat of
+    P.PCon c ps ->
+      inRange (srcRange c) $
+      do (_tArgs,_pArgs,fTs,cresT) <- instantiatePCon (thing c)
+         -- XXX: should we store these somewhere?
+
+         let have = length ps
+             need = length fTs
+         unless (have == need) (recordError (InvalidConPat have need))
+         let expect = WithSource
+                        { twsType = srcT
+                        , twsRange = Just (srcRange c)
+                        , twsSource = ConPat
+                        }
+         newGoals CtExactType =<< unify expect cresT
+         xs <- zipWithM checkNested ps fTs
+         e1 <- withMonoTypes (Map.fromList xs) (checkE e resT)
+         pure (srcRange c, Just (nameIdent (thing c)), mkAlt xs e1)
+
+    P.PVar x ->
+      do let xty = (thing x, Located (srcRange x) srcT)
+         e1 <- withMonoType xty (checkE e resT)
+         pure (srcRange x, Nothing, mkAlt [xty] e1)
+
+    P.PLocated p r -> inRange r (checkCaseAlt (P.CaseAlt p e) srcT resT)
+
+    P.PTyped p t ->
+      do t1 <- checkType t (Just KType)
+         rng <- curRange
+         newGoals CtExactType =<<
+           unify (WithSource t1 TypeFromUserAnnotation (Just rng)) srcT
+         checkCaseAlt (P.CaseAlt p e) t1 resT
+
+    _ -> panic "checkCaseAlt" ["Unexpected pattern"]
+  where
+  checkNested p ty =
+    case p of
+      P.PVar x -> pure (thing x, Located (srcRange x) ty)
+      P.PLocated p1 r -> inRange r (checkNested p1 ty)
+      P.PTyped p1 t ->
+        do t1 <- checkType t (Just KType)
+           rng <- curRange
+           newGoals CtExactType =<<
+             unify (WithSource t1 TypeFromUserAnnotation (Just rng)) ty
+           checkNested p1 t1
+      _ -> panic "checkNested" ["Unexpected pattern"]
+
+
+
+  mkAlt xs = CaseAlt [ (x, thing t) | (x,t) <- xs ]
 
 
 checkRecUpd ::
@@ -610,6 +734,22 @@ expectRec fs tGoal@(WithSource ty src rng) =
            _ -> recordErrorLoc rng (TypeMismatch src rootPath ty (TRec tys))
          return res
 
+
+-- | Retrieve the constructors from a type that is expected to be unambiguously
+-- an enum, throwing an error if this is not the case.
+expectEnum :: Type -> InferM [EnumCon]
+expectEnum ty =
+  case ty of
+    TUser _ _ ty' ->
+      expectEnum ty'
+
+    TNominal nt _
+      |  Enum ecs <- ntDef nt
+      -> pure ecs
+
+    _ -> do
+      recordError (EnumTypeMismatch ty)
+      pure []
 
 expectFin :: Int -> TypeWithSource -> InferM ()
 expectFin n tGoal@(WithSource ty src rng) =
@@ -1191,8 +1331,8 @@ Given a DPropGuards of the form
 
 @
 f : {...} A
-f | (B1, B2) => ... 
-  | (C1, C2, C2) => ... 
+f | (B1, B2) => ...
+  | (C1, C2, C2) => ...
 @
 
 we check that it is exhaustive by trying to prove the following
@@ -1310,11 +1450,15 @@ checkTopDecls = mapM_ checkTopDecl
 
       P.TDNewtype tl ->
         do t <- checkNewtype (P.tlValue tl) (thing <$> P.tlDoc tl)
-           addNewtype t
+           addNominal t
+
+      P.TDEnum tl ->
+        do t <- checkEnum (P.tlValue tl) (thing <$> P.tlDoc tl)
+           addNominal t
 
       P.DPrimType tl ->
         do t <- checkPrimType (P.tlValue tl) (thing <$> P.tlDoc tl)
-           addPrimType t
+           addNominal t
 
 
       P.DInterfaceConstraint _ cs ->

@@ -574,8 +574,8 @@ getEvalOpts =
   do act <- getEvalOptsAction
      liftIO act
 
-getNewtypes :: ModuleM (Map T.Name T.Newtype)
-getNewtypes = ModuleT (loadedNewtypes <$> get)
+getNominalTypes :: ModuleM (Map T.Name T.NominalType)
+getNominalTypes = ModuleT (loadedNominalTypes <$> get)
 
 getFocusedModule :: ModuleM (Maybe P.ModName)
 getFocusedModule  = ModuleT (meFocusedModule `fmap` get)

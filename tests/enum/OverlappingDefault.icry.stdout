@@ -1,0 +1,9 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+
+[error] at OverlappingDefault.cry:5:3--11:0:
+  Overlapping choices for default case:
+    Pattern at OverlappingDefault.cry:7:5--7:6
+    Pattern at OverlappingDefault.cry:8:5--8:6
+    Pattern at OverlappingDefault.cry:9:5--9:6

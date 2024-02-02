@@ -20,7 +20,10 @@ import Cryptol.Parser.Position (emptyRange)
 import Cryptol.Parser.Selector (ppSelector)
 import Cryptol.Utils.RecordMap (recordFromFields)
 import Cryptol.TypeCheck.PP (NameMap, emptyNameMap, ppWithNames)
-import Cryptol.TypeCheck.Type (Kind(..), PC(..), TC(..), TCon(..), TFun(..), TParam(..), Type(..), Schema(..), addTNames, kindOf)
+import Cryptol.TypeCheck.Type (Kind(..), PC(..), TC(..), TCon(..),
+          TFun(..), TParam(..), Type(..), Schema(..), addTNames, kindOf,
+          NominalType(..), NominalTypeDef(..)
+          )
 import Cryptol.Utils.Ident (mkIdent)
 import Cryptol.Utils.PP (pp)
 import Cryptol.Utils.RecordMap (canonicalFields)
@@ -213,8 +216,14 @@ instance JSON.ToJSON JSONType where
         , "name" .= show (ppWithNames ns v)
         ]
       convert (TUser _n _args def) = convert def
-      convert (TNewtype _nt _ts) =
-        JSON.object [ "type" .= T.pack "newtype" ]
+      convert (TNominal nt ts) =
+        JSON.object [ "type" .= case ntDef nt of
+                                  Struct {} -> T.pack "newtype"
+                                  Enum {}   -> T.pack "enum"
+                                  Abstract  -> T.pack "primitive"
+                    , "name" .= show (pp (ntName nt))
+                    , "arguments" .= map (JSONType ns) ts
+                    ]
       convert (TRec fields) =
         JSON.object
         [ "type" .= T.pack "record"

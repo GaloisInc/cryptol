@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Type Declarations &mdash; Cryptol 2.11.0 documentation</title>
@@ -11,9 +11,7 @@
         <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
         <script src="_static/jquery.js"></script>
         <script src="_static/underscore.js"></script>
-        <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="_static/doctools.js"></script>
-        <script src="_static/sphinx_highlight.js"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -26,15 +24,11 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-
-          
-          
-          <a href="RefMan.html" class="icon icon-home">
-            Cryptol
+            <a href="RefMan.html" class="icon icon-home"> Cryptol
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -49,6 +43,7 @@
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Type Declarations</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#type-synonyms">Type Synonyms</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#newtypes">Newtypes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#enums">Enums</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="Modules.html">Modules</a></li>
@@ -68,8 +63,8 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="RefMan.html" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">Type Declarations</li>
+      <li><a href="RefMan.html" class="icon icon-home"></a> &raquo;</li>
+      <li>Type Declarations</li>
       <li class="wy-breadcrumbs-aside">
             <a href="_sources/TypeDeclarations.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -80,10 +75,10 @@
            <div itemprop="articleBody">
              
   <section id="type-declarations">
-<h1>Type Declarations<a class="headerlink" href="#type-declarations" title="Permalink to this heading"></a></h1>
+<h1>Type Declarations<a class="headerlink" href="#type-declarations" title="Permalink to this headline"></a></h1>
 <section id="type-synonyms">
-<h2>Type Synonyms<a class="headerlink" href="#type-synonyms" title="Permalink to this heading"></a></h2>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">type</span><span class="w"> </span><span class="kt">T</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="p">[</span><span class="n">a</span><span class="p">]</span><span class="w"> </span><span class="n">b</span>
+<h2>Type Synonyms<a class="headerlink" href="#type-synonyms" title="Permalink to this headline"></a></h2>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">type</span><span class="w"> </span><span class="kt">T</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="p">[</span><span class="n">a</span><span class="p">]</span><span class="w"> </span><span class="n">b</span><span class="w"></span>
 </pre></div>
 </div>
 <p>A <code class="docutils literal notranslate"><span class="pre">type</span></code> declaration creates a synonym for a
@@ -95,8 +90,8 @@ Type synonyms may mention other synonyms, but it is not
 allowed to create a recursive collection of type synonyms.</p>
 </section>
 <section id="newtypes">
-<h2>Newtypes<a class="headerlink" href="#newtypes" title="Permalink to this heading"></a></h2>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">newtype</span><span class="w"> </span><span class="kt">NewT</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nb">seq</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="n">a</span><span class="p">]</span><span class="n">b</span><span class="w"> </span><span class="p">}</span>
+<h2>Newtypes<a class="headerlink" href="#newtypes" title="Permalink to this headline"></a></h2>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">newtype</span><span class="w"> </span><span class="kt">NewT</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nb">seq</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="n">a</span><span class="p">]</span><span class="n">b</span><span class="w"> </span><span class="p">}</span><span class="w"></span>
 </pre></div>
 </div>
 <p>A <code class="docutils literal notranslate"><span class="pre">newtype</span></code> declaration declares a new named type which is defined by
@@ -112,14 +107,170 @@ recursive groups.</p>
 <p>Every <code class="docutils literal notranslate"><span class="pre">newtype</span></code> declaration brings into scope a new function with the
 same name as the type which can be used to create values of the
 newtype.</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="kt">NewT</span><span class="w"> </span><span class="mi">3</span><span class="w"> </span><span class="kt">Integer</span>
-<span class="nf">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kt">NewT</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nb">seq</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">]</span><span class="w"> </span><span class="p">}</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">x</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="kt">NewT</span><span class="w"> </span><span class="mi">3</span><span class="w"> </span><span class="kt">Integer</span><span class="w"></span>
+<span class="nf">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kt">NewT</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nb">seq</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">]</span><span class="w"> </span><span class="p">}</span><span class="w"></span>
 </pre></div>
 </div>
 <p>Just as with records, field projections can be used directly on values
 of newtypes to extract the values in the body of the type.</p>
 <div class="highlight-none notranslate"><div class="highlight"><pre><span></span>&gt; sum x.seq
 6
+</pre></div>
+</div>
+</section>
+<section id="enums">
+<h2>Enums<a class="headerlink" href="#enums" title="Permalink to this headline"></a></h2>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">enum</span><span class="w"> </span><span class="kt">Maybe</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kt">Nothing</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="kt">Just</span><span class="w"> </span><span class="n">a</span><span class="w"></span>
+</pre></div>
+</div>
+<p>An <code class="docutils literal notranslate"><span class="pre">enum</span></code> declaration introduces a new named type, which is defined by a
+collection of <em>constructors</em>. <code class="docutils literal notranslate"><span class="pre">enum</span></code> declarations correspond to the notion of
+<em>algebraic data types</em>, which are commonly found in other programming
+languages. Each named <code class="docutils literal notranslate"><span class="pre">enum</span></code> type is treated like a separate type, even if it
+has the exact same constructors as another <code class="docutils literal notranslate"><span class="pre">enum</span></code> type—in this way <code class="docutils literal notranslate"><span class="pre">enum</span></code>
+is similar to <code class="docutils literal notranslate"><span class="pre">newtype</span></code> and unlike <code class="docutils literal notranslate"><span class="pre">type</span></code> synonyms.</p>
+<p><strong>Constructors.</strong> The only way to create a value of an <code class="docutils literal notranslate"><span class="pre">enum</span></code> type is to
+use one of its constructors.   When used in an expression, the constructors
+behave like an ordinary function, which has one parameter for each field of the
+constructor.  For example, the constructor <code class="docutils literal notranslate"><span class="pre">Just</span></code> has a type like this:</p>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kt">Just:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kt">Maybe</span><span class="w"> </span><span class="n">a</span><span class="w"></span>
+</pre></div>
+</div>
+<p>Constructors may have 0 or multiple fields, and values created with different
+constructors are always distinct.</p>
+<p><strong>Case Expressions.</strong> The only way to examine a value of an <code class="docutils literal notranslate"><span class="pre">enum</span></code> type is
+with a <code class="docutils literal notranslate"><span class="pre">case</span></code> expression, which are similar to <code class="docutils literal notranslate"><span class="pre">if</span></code> expressions:</p>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">case</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="n">of</span><span class="w"></span>
+<span class="w">  </span><span class="kt">Nothing</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"></span>
+<span class="w">  </span><span class="kt">Just</span><span class="w"> </span><span class="n">a</span><span class="w">  </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="w"></span>
+</pre></div>
+</div>
+<p>In this example, <code class="docutils literal notranslate"><span class="pre">e</span></code> is an expression of type <code class="docutils literal notranslate"><span class="pre">Maybe</span></code>:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>if it was created with the <code class="docutils literal notranslate"><span class="pre">Nothing</span></code> constructor,
+then we’ll use the first branch of the <code class="docutils literal notranslate"><span class="pre">case</span></code> expression, and
+the result of the whole expression would be 0;</p></li>
+<li><p>if, <code class="docutils literal notranslate"><span class="pre">e</span></code> was created by applying the <code class="docutils literal notranslate"><span class="pre">Just</span></code> constructor to some
+value (e.g, <code class="docutils literal notranslate"><span class="pre">Just</span> <span class="pre">2</span></code>), then we’ll use the second branch of the <code class="docutils literal notranslate"><span class="pre">case</span></code>
+expression, and the variable <code class="docutils literal notranslate"><span class="pre">a</span></code> will be bound to the value of the field
+(e.g., <code class="docutils literal notranslate"><span class="pre">2</span></code>), and the whole expression will evaluate to <code class="docutils literal notranslate"><span class="pre">a</span> <span class="pre">+</span> <span class="pre">1</span></code>
+(e.g., <code class="docutils literal notranslate"><span class="pre">3</span></code>).</p></li>
+</ul>
+</div></blockquote>
+<p>It is also possible to use just a variable (or <code class="docutils literal notranslate"><span class="pre">_</span></code>) in a case expression
+to define a catch-all clause—if a value does not match any of the previous
+cases, then this branch will be used:</p>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">isNothing</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"></span>
+<span class="w">  </span><span class="n">case</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="n">of</span><span class="w"></span>
+<span class="w">    </span><span class="kt">Nothing</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kr">True</span><span class="w"></span>
+<span class="w">    </span><span class="n">_</span><span class="w">       </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kr">False</span><span class="w"></span>
+</pre></div>
+</div>
+<p><strong>``Option`` and ``Result``.</strong> Currently, Cryptol defines two <code class="docutils literal notranslate"><span class="pre">enum</span></code>
+declarations in the Cryptol standard library: <code class="docutils literal notranslate"><span class="pre">Option</span></code> and <code class="docutils literal notranslate"><span class="pre">Result</span></code>:</p>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">enum</span><span class="w"> </span><span class="kt">Option</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kt">None</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="kt">Some</span><span class="w"> </span><span class="n">a</span><span class="w"></span>
+
+<span class="nf">enum</span><span class="w"> </span><span class="kt">Result</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kt">Ok</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="kt">Err</span><span class="w"> </span><span class="n">e</span><span class="w"></span>
+</pre></div>
+</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">Option</span> <span class="pre">a</span></code> type represents an optional value, which can either be a value
+of type <code class="docutils literal notranslate"><span class="pre">a</span></code> (<code class="docutils literal notranslate"><span class="pre">Some</span></code>) or no value at all <code class="docutils literal notranslate"><span class="pre">None</span></code>. A value of type <code class="docutils literal notranslate"><span class="pre">Result</span>
+<span class="pre">t</span> <span class="pre">e</span></code> can either be a successful value of type <code class="docutils literal notranslate"><span class="pre">t</span></code> (<code class="docutils literal notranslate"><span class="pre">Ok</span></code>) or an error value
+of type <code class="docutils literal notranslate"><span class="pre">e</span></code> (<code class="docutils literal notranslate"><span class="pre">Err</span></code>).</p>
+<p><code class="docutils literal notranslate"><span class="pre">Option</span></code> and <code class="docutils literal notranslate"><span class="pre">Result</span></code> values are commonly used to model the return type of
+partial functions, i.e., functions that are not defined for all inputs. For
+instance, if a function <code class="docutils literal notranslate"><span class="pre">f</span></code> is not defined on the input <code class="docutils literal notranslate"><span class="pre">42</span></code>, then one
+could model this with <code class="docutils literal notranslate"><span class="pre">Option</span></code>:</p>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">f</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kt">Option</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span><span class="w"></span>
+<span class="nf">f</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"></span>
+<span class="w">  </span><span class="kr">if</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">42</span><span class="w"></span>
+<span class="w">     </span><span class="kr">then</span><span class="w"> </span><span class="kt">None</span><span class="w"></span>
+<span class="w">     </span><span class="kr">else</span><span class="w"> </span><span class="kt">Some</span><span class="w"> </span><span class="p">(</span><span class="n">x</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="w"></span>
+</pre></div>
+</div>
+<p>One could also model this with <code class="docutils literal notranslate"><span class="pre">Result</span></code>:</p>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">f</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kt">Result</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span><span class="w"> </span><span class="p">(</span><span class="kt">String</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">])</span><span class="w"></span>
+<span class="nf">f</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"></span>
+<span class="w">  </span><span class="kr">if</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">42</span><span class="w"></span>
+<span class="w">     </span><span class="kr">then</span><span class="w"> </span><span class="kt">Err</span><span class="w"> </span><span class="s">&quot;`f 42` not defined&quot;</span><span class="w"></span>
+<span class="w">     </span><span class="kr">else</span><span class="w"> </span><span class="kt">Ok</span><span class="w"> </span><span class="p">(</span><span class="n">x</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="w"></span>
+</pre></div>
+</div>
+<p>With either result type, one can gracefully recover from <code class="docutils literal notranslate"><span class="pre">f</span> <span class="pre">42</span></code> erroring by
+matching on <code class="docutils literal notranslate"><span class="pre">None</span></code> or <code class="docutils literal notranslate"><span class="pre">Err</span></code> in a <code class="docutils literal notranslate"><span class="pre">case</span></code> expression.</p>
+<p><strong>Upper Case Restriction.</strong>
+The names of the constructors in an <code class="docutils literal notranslate"><span class="pre">enum</span></code> declarations
+need to start with an upper-case letter.  This restriction makes it possible
+to distinguish between constructors and variable
+bindings in <code class="docutils literal notranslate"><span class="pre">case</span></code> patterns (e.g., between <code class="docutils literal notranslate"><span class="pre">Just</span></code> and <code class="docutils literal notranslate"><span class="pre">a</span></code> in the
+previous example).</p>
+<p><strong>Non Recursive.</strong> The fields in a constructor may be of any value type,
+as long as this type does not depend on the type to which the constructor
+belongs.  This means that we do not support defining recursive types,
+such as linked lists.</p>
+<p><strong>No Nested Constructor Patterns.</strong>  For simplicity, only non-constructor
+patterns may be used in the fields of a constructor pattern.  For example,
+<code class="docutils literal notranslate"><span class="pre">Just</span> <span class="pre">(a,b)</span></code> and <code class="docutils literal notranslate"><span class="pre">Just</span> <span class="pre">(a</span> <span class="pre">#</span> <span class="pre">b)</span></code> are OK, however, <code class="docutils literal notranslate"><span class="pre">Just</span> <span class="pre">(Just</span> <span class="pre">a)</span></code>
+will be rejected.  This is a restriction that we may lift in the future.</p>
+<p><strong>No Overlapping Patterns.</strong> For simplicity, all patterns in a
+<code class="docutils literal notranslate"><span class="pre">case</span></code> expression must be disjoint. In particular, this means that:</p>
+<blockquote>
+<div><ul>
+<li><p>No two patterns in a <code class="docutils literal notranslate"><span class="pre">case</span></code> expression can match the same constructor.
+This means that Cryptol will reject the following example:</p>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">isNothing</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"></span>
+<span class="w">  </span><span class="n">case</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="n">of</span><span class="w"></span>
+<span class="w">    </span><span class="kt">Nothing</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kr">True</span><span class="w"></span>
+<span class="w">    </span><span class="kt">Nothing</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kr">False</span><span class="w"></span>
+</pre></div>
+</div>
+</li>
+<li><p>If a <code class="docutils literal notranslate"><span class="pre">case</span></code> expression uses a catch-all clause, then that clause must
+occur last in the expression. It is an error to match on additional
+patterns after the catch-all clause. For instance, Cryptol will reject the
+following example:</p>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">isNothing</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"></span>
+<span class="w">  </span><span class="n">case</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="n">of</span><span class="w"></span>
+<span class="w">    </span><span class="kt">Just</span><span class="w"> </span><span class="n">_</span><span class="w">  </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kr">False</span><span class="w"></span>
+<span class="w">    </span><span class="n">_</span><span class="w">       </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kr">True</span><span class="w"></span>
+<span class="w">    </span><span class="kt">Nothing</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kr">False</span><span class="w"></span>
+</pre></div>
+</div>
+</li>
+</ul>
+</div></blockquote>
+<p><strong>Patterns Must Be Exhaustive.</strong> The patterns in a <code class="docutils literal notranslate"><span class="pre">case</span></code> expression must
+cover all constructors in the <code class="docutils literal notranslate"><span class="pre">enum</span></code> type being matched on. For example,
+Cryptol will reject the following example, as it does not cover the <code class="docutils literal notranslate"><span class="pre">Just</span></code>
+constructor:</p>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">isNothing</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"></span>
+<span class="w">  </span><span class="n">case</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="n">of</span><span class="w"></span>
+<span class="w">    </span><span class="kt">Nothing</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kr">True</span><span class="w"></span>
+</pre></div>
+</div>
+<p><strong>The Matched Expression Must Have a Known Enum Type.</strong> Cryptol will reject
+the following definition of <code class="docutils literal notranslate"><span class="pre">f</span></code>, where <code class="docutils literal notranslate"><span class="pre">f</span></code> lacks a type signature:</p>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">f</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"></span>
+<span class="w">  </span><span class="n">case</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="n">of</span><span class="w"></span>
+<span class="w">    </span><span class="n">_</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="nb">()</span><span class="w"></span>
+</pre></div>
+</div>
+<p>This is because it is not clear what the type of <code class="docutils literal notranslate"><span class="pre">x</span></code> (the expression being
+matched) should be. The only pattern is a catch-all case, which does not reveal
+anything about the type of <code class="docutils literal notranslate"><span class="pre">x</span></code>. It would be incorrect to give <code class="docutils literal notranslate"><span class="pre">f</span></code> this type:</p>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">f</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">{</span><span class="n">a</span><span class="p">}</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="nb">()</span><span class="w"></span>
+</pre></div>
+</div>
+<p>This is because <code class="docutils literal notranslate"><span class="pre">f</span></code> is not really polymorphic in its argument type, as the
+only values that can be matched in a <code class="docutils literal notranslate"><span class="pre">case</span></code> expression are those whose type
+was declared as an <code class="docutils literal notranslate"><span class="pre">enum</span></code>. As such, Cryptol rejects this example.</p>
+<p>Cryptol will also reject this definition, where the type of the value
+being matched is not an <code class="docutils literal notranslate"><span class="pre">enum</span></code> type:</p>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">g</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="kt">Integer</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="nb">()</span><span class="w"></span>
+<span class="nf">g</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"></span>
+<span class="w">  </span><span class="n">case</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="n">of</span><span class="w"></span>
+<span class="w">    </span><span class="n">_</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="nb">()</span><span class="w"></span>
 </pre></div>
 </div>
 </section>
@@ -149,7 +300,23 @@ of newtypes to extract the values in the body of the type.</p>
       </div>
     </section>
   </div>
-  <script>
+  <div class="rst-versions" data-toggle="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    <span class="fa fa-book">Doc version</span>
+    v: 
+    <span class="fa fa-caret-down"></span>
+    <div class="rst-other-versions">
+      <dl>
+        <dt>Versions</dt>
+        
+      </dl>
+      <dl>
+        <dt>Pull Requests</dt>
+        
+      </dl>
+    </div>
+  </span>
+</div><script>
       jQuery(function () {
           SphinxRtdTheme.Navigation.enable(true);
       });

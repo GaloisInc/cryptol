@@ -34,9 +34,11 @@ import Control.Concurrent.MVar
 import Control.Monad.IO.Class
 import Control.Monad (when, foldM, forM_)
 import Data.Maybe (fromMaybe)
+import Data.Traversable(mapAccumL)
 import qualified Data.Map as Map
 import qualified Control.Exception as X
 import System.Exit (ExitCode(ExitSuccess))
+import qualified Data.Vector as Vector
 
 import LibBF(bfNaN)
 
@@ -57,6 +59,7 @@ import qualified Cryptol.Backend.FloatHelpers as FH
 import qualified Cryptol.Eval as Eval
 import qualified Cryptol.Eval.Concrete as Concrete
 import qualified Cryptol.Eval.Value as Eval
+import           Cryptol.Eval.Type
 import           Cryptol.Eval.SBV
 import           Cryptol.Parser.Position (emptyRange)
 import           Cryptol.Symbolic
@@ -316,7 +319,7 @@ prepareQuery evo ProverCommand{..} =
 
      getEOpts <- M.getEvalOptsAction
 
-     ntEnv <- M.getNewtypes
+     ntEnv <- M.getNominalTypes
 
      -- The `addAsm` function is used to combine assumptions that
      -- arise from the types of symbolic variables (e.g. Z n values
@@ -351,7 +354,7 @@ prepareQuery evo ProverCommand{..} =
                  -- we apply it to the symbolic inputs.
                  (safety,b) <- doSBVEval $
                      do env <- Eval.evalDecls sym extDgs =<<
-                                 Eval.evalNewtypeDecls sym ntEnv mempty
+                                 Eval.evalNominalDecls sym ntEnv mempty
                         v <- Eval.evalExpr sym env pcExpr
                         appliedVal <- foldM (Eval.fromVFun sym) v args
                         case pcQueryType of
@@ -535,7 +538,17 @@ parseValue (FTRecord r) cvs = (VarRecord r', cvs')
         fs         = zip ns vs
         r'         = recordFromFieldsWithDisplay (displayOrder r) fs
 
-parseValue (FTNewtype _ _ r) cvs = parseValue (FTRecord r) cvs
+parseValue (FTNominal _ _ nv) cvs =
+  case nv of
+    FStruct r -> parseValue (FTRecord r) cvs
+    FEnum cons ->
+      fromMaybe (panic "Cryptol.Symbolic.parseValue" ["no enum"]) $
+      do (tag, cvs') <- SBV.genParse SBV.KUnbounded cvs
+         let doCon input con =
+               case parseValues (Vector.toList (conFields con)) input of
+                 (vs,input') -> (input', con { conFields = Vector.fromList vs })
+             (input3, conVs) = mapAccumL doCon cvs' cons
+         pure (VarEnum tag conVs, input3)
 
 parseValue (FTFloat e p) cvs =
    (VarFloat FH.BF { FH.bfValue = bfNaN

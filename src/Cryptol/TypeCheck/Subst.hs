@@ -263,11 +263,11 @@ apSubstMaybe su ty =
 
     TRec fs -> TRec `fmap` (anyJust (apSubstMaybe su) fs)
 
-    {- We apply the substitution to the newtype as well, because it might
+    {- We apply the substitution to nominal types as well, because it might
     contain module parameters, which need to be substituted when
     instantiating a functor. -}
-    TNewtype nt ts ->
-      uncurry TNewtype <$> anyJust2 (applySubstToNewtype su)
+    TNominal nt ts ->
+      uncurry TNominal <$> anyJust2 (applySubstToNominalType su)
                                     (anyJust (apSubstMaybe su))
                                     (nt,ts)
 
@@ -293,13 +293,24 @@ applySubstToVar su x =
       | otherwise       -> Nothing
 
 
-applySubstToNewtype :: Subst -> Newtype -> Maybe Newtype
-applySubstToNewtype su nt =
-  do (cs,fs) <- anyJust2
-                  (anyJust (apSubstMaybe su))
-                  (anyJust (apSubstMaybe su))
-                  (ntConstraints nt, ntFields nt)
-     pure nt { ntConstraints = cs, ntFields = fs }
+applySubstToNominalType :: Subst -> NominalType -> Maybe NominalType
+applySubstToNominalType su nt =
+ do (cs,def)  <- anyJust2 (anyJust (apSubstMaybe su)) apSubstDef
+                          (ntConstraints nt, ntDef nt)
+    pure nt { ntConstraints = cs, ntDef = def }
+  where
+  apSubstDef d =
+    case d of
+      Struct c ->
+        do fs <- anyJust (apSubstMaybe su) (ntFields c)
+           pure (Struct c { ntFields = fs })
+      Enum cs -> Enum <$> anyJust apSubstCon cs
+      Abstract -> pure Abstract
+
+  apSubstCon c =
+    do fs <- anyJust (apSubstMaybe su) (ecFields c)
+       pure c { ecFields = fs }
+
 
 
 class TVars t where
@@ -355,7 +366,7 @@ apSubstTypeMapKeys su = go (\_ x -> x) id
     tm' = TM { tvar = Map.fromList   vars
              , tcon = fmap (lgo merge atNode) tcon
              , trec = fmap (lgo merge atNode) trec
-             , tnewtype = fmap (lgo merge atNode) tnewtype
+             , tnominal = fmap (lgo merge atNode) tnominal
              }
 
     -- partition out variables that have been replaced with more specific types
@@ -377,7 +388,7 @@ apSubstTypeMapKeys su = go (\_ x -> x) id
 
 instance TVars a => TVars (Map.Map k a) where
   -- NB, strict map
-  apSubst su m = Map.map (apSubst su) m
+  apSubst su = Map.map (apSubst su)
 
 instance TVars TySyn where
   apSubst su (TySyn nm params props t doc) =
@@ -432,12 +443,19 @@ instance TVars Expr where
         ESel e s      -> ESel !$ (go e) .$ s
         EComp len t e mss -> EComp !$ (apSubst su len) !$ (apSubst su t) !$ (go e) !$ (apSubst su mss)
         EIf e1 e2 e3  -> EIf !$ (go e1) !$ (go e2) !$ (go e3)
+        ECase e as d  -> ECase !$ go e !$ (apSubst su <$> as)
+                                       !$ (apSubst su <$> d)
 
         EWhere e ds   -> EWhere !$ (go e) !$ (apSubst su ds)
 
         EPropGuards guards ty -> EPropGuards
           !$ (\(props, e) -> (apSubst su `fmap'` props, go e)) `fmap'` guards
           !$ apSubst su ty
+
+instance TVars CaseAlt where
+  apSubst su (CaseAlt xs e) = CaseAlt !$ [(x,apSubst su t) | (x,t) <- xs]
+                                      !$ apSubst su e
+    -- XXX: not as strict as the rest
 
 instance TVars Match where
   apSubst su (From x len t e) = From x !$ (apSubst su len) !$ (apSubst su t) !$ (apSubst su e)

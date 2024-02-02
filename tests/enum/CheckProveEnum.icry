@@ -1,0 +1,10 @@
+:l CheckProveEnum.cry
+:set prover-stats=off
+
+:check
+
+:set prover=sbv-z3
+:prove
+
+:set prover=w4-z3
+:prove

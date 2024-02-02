@@ -107,6 +107,8 @@ instance FreeVars Expr where
       ESel e _          -> freeVars e
       ESet ty e _ v     -> freeVars ty <> freeVars [e,v]
       EIf e1 e2 e3      -> freeVars [e1,e2,e3]
+      ECase e as d      -> freeVars e <> freeVars (Map.elems as)
+                                      <> maybe mempty freeVars d
       EComp t1 t2 e mss -> freeVars [t1,t2] <> rmVals (defs mss) (freeVars e)
                                             <> mconcat (map foldFree mss)
       EVar x            -> mempty { valDeps = Set.singleton x }
@@ -123,6 +125,9 @@ instance FreeVars Expr where
       foldFree :: (FreeVars a, Defs a) => [a] -> Deps
       foldFree = foldr updateFree mempty
       updateFree x rest = freeVars x <> rmVals (defs x) rest
+
+instance FreeVars CaseAlt where
+  freeVars (CaseAlt xs e) = foldr (rmVal . fst) (freeVars e) xs
 
 instance FreeVars Match where
   freeVars m = case m of
@@ -143,7 +148,7 @@ instance FreeVars Type where
 
       TUser _ _ t -> freeVars t
       TRec fs     -> freeVars (recordElements fs)
-      TNewtype nt ts -> freeVars nt <> freeVars ts
+      TNominal nt ts -> freeVars nt <> freeVars ts
 
 instance FreeVars TVar where
   freeVars tv = case tv of
@@ -153,9 +158,22 @@ instance FreeVars TVar where
 instance FreeVars TCon where
   freeVars _tc = mempty
 
-instance FreeVars Newtype where
+instance FreeVars NominalType where
   freeVars nt = foldr rmTParam base (ntParams nt)
-    where base = freeVars (ntConstraints nt) <> freeVars (recordElements (ntFields nt))
+    where base = freeVars (ntConstraints nt) <> freeVars (ntDef nt)
+
+instance FreeVars NominalTypeDef where
+  freeVars def =
+    case def of
+      Struct c -> freeVars c
+      Enum cs -> freeVars cs
+      Abstract -> mempty
+
+instance FreeVars StructCon where
+  freeVars c = freeVars (recordElements (ntFields c))
+
+instance FreeVars EnumCon where
+  freeVars c = freeVars (ecFields c)
 
 
 --------------------------------------------------------------------------------

@@ -14,6 +14,7 @@ module Cryptol.TypeCheck.Kind
   ( checkType
   , checkSchema
   , checkNewtype
+  , checkEnum
   , checkPrimType
   , checkTySyn
   , checkPropSyn
@@ -26,12 +27,13 @@ import qualified Cryptol.Parser.AST as P
 import           Cryptol.Parser.Position
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Error
+import           Cryptol.TypeCheck.Subst(listSubst,apSubst)
 import           Cryptol.TypeCheck.Monad hiding (withTParams)
 import           Cryptol.TypeCheck.SimpType(tRebuild)
 import           Cryptol.TypeCheck.SimpleSolver(simplify)
 import           Cryptol.TypeCheck.Solve (simplifyAllConstraints)
-import           Cryptol.TypeCheck.Subst(listSubst,apSubst)
 import           Cryptol.Utils.Panic (panic)
+import           Cryptol.Utils.PP(pp,commaSep)
 import           Cryptol.Utils.RecordMap
 
 import qualified Data.Map as Map
@@ -39,7 +41,7 @@ import           Data.List(sortBy,groupBy)
 import           Data.Maybe(fromMaybe)
 import           Data.Function(on)
 import           Data.Text (Text)
-import           Control.Monad(unless,when,mplus)
+import           Control.Monad(unless,mplus,forM,when)
 
 -- | Check a type signature.  Returns validated schema, and any implicit
 -- constraints that we inferred.
@@ -132,36 +134,85 @@ checkPropSyn (P.PropSyn x _ as ps) mbD =
                   }
 
 -- | Check a newtype declaration.
--- XXX: Do something with constraints.
-checkNewtype :: P.Newtype Name -> Maybe Text -> InferM Newtype
+checkNewtype :: P.Newtype Name -> Maybe Text -> InferM NominalType
 checkNewtype (P.Newtype x as con fs) mbD =
   do ((as1,fs1),gs) <- collectGoals $
        inRange (srcRange x) $
-       do r <- withTParams NoWildCards newtypeParam as $
+       do r <- withTParams NoWildCards nominalParam as $
                flip traverseRecordMap fs $ \_n (rng,f) ->
                  kInRange rng $ doCheckType f (Just KType)
           simplifyAllConstraints
           return r
 
-     return Newtype { ntName   = thing x
+     return NominalType
+                    { ntName   = thing x
+                    , ntKind   = KType
                     , ntParams = as1
                     , ntConstraints = map goal gs
-                    , ntConName = con
-                    , ntFields = fs1
+                    , ntDef = Struct
+                                StructCon { ntConName = con, ntFields = fs1 }
+                    , ntFixity = Nothing
                     , ntDoc = mbD
                     }
 
-checkPrimType :: P.PrimType Name -> Maybe Text -> InferM AbstractType
+checkEnum :: P.EnumDecl Name -> Maybe Text -> InferM NominalType
+checkEnum ed mbD =
+  do let x = P.eName ed
+     ((as1,cons1),gs) <- collectGoals $
+       inRange (srcRange x) $
+       do r <- withTParams NoWildCards nominalParam (P.eParams ed) $
+               forM (P.eCons ed `zip` [0..]) \(tlC,nu) ->
+                 do let con = P.tlValue tlC
+                        cname = P.ecName con
+                    ts <- kInRange (srcRange cname)
+                            (mapM (`doCheckType` Just KType) (P.ecFields con))
+                    pure EnumCon
+                          { ecName   = thing cname
+                          , ecNumber = nu
+                          , ecFields = ts
+                          , ecPublic = P.tlExport tlC == P.Public
+                          , ecDoc    = thing <$> P.tlDoc tlC
+                          }
+          simplifyAllConstraints
+          pure r
+     pure NominalType
+                  { ntName = thing x
+                  , ntParams = as1
+                  , ntKind = KType
+                  , ntConstraints = map goal gs
+                  , ntDef = Enum cons1
+                  , ntFixity = Nothing
+                  , ntDoc = mbD
+                  }
+
+checkPrimType :: P.PrimType Name -> Maybe Text -> InferM NominalType
 checkPrimType p mbD =
   do let (as,cs) = P.primTCts p
-     (as',cs') <- withTParams NoWildCards TPPrimParam as $
-                    mapM checkProp cs
-     pure AbstractType { atName = thing (P.primTName p)
-                       , atKind = cvtK (thing (P.primTKind p))
-                       , atFixitiy = P.primTFixity p
-                       , atCtrs = (as',cs')
-                       , atDoc = mbD
-                       }
+     (as',cs') <- withTParams NoWildCards TPPrimParam as (mapM checkProp cs)
+     let (args,finK) = splitK (cvtK (thing (P.primTKind p)))
+         (declared,others) = splitAt (length as') args
+     unless (and (zipWith (==) (map kindOf as') args)) $
+       panic "checkPrimType"
+         [ "Primtive declaration, kind argument prefix mismach:"
+         , "Expected: " ++ show (commaSep (map (pp . kindOf) as'))
+         , "Actual: " ++ show (commaSep (map pp declared))
+         ]
+     pure NominalType
+            { ntName = thing (P.primTName p)
+            , ntParams = as'
+            , ntKind = foldr (:->) finK others
+            , ntFixity = P.primTFixity p
+            , ntConstraints = cs'
+            , ntDoc = mbD
+            , ntDef = Abstract
+            }
+  where
+  splitK k =
+    case k of
+      k1 :-> k2 -> (k1:ks,r)
+        where (ks,r) = splitK k2
+      _ -> ([], k)
+
 
 checkType :: P.Type Name -> Maybe Kind -> InferM Type
 checkType t k =
@@ -270,9 +321,8 @@ checkTUser ::
 checkTUser x ts k =
   mcase kLookupTyVar      checkBoundVarUse $
   mcase kLookupTSyn       checkTySynUse $
-  mcase kLookupNewtype    checkNewTypeUse $
+  mcase kLookupNominal    checkNominalTypeUse $
   mcase kLookupParamType  checkModuleParamUse $
-  mcase kLookupAbstractType checkAbstractTypeUse $
   checkScopedVarUse -- none of the above, must be a scoped type variable,
                     -- if the renamer did its job correctly.
   where
@@ -286,28 +336,36 @@ checkTUser x ts k =
        t1  <- kInstantiateT (tsDef tysyn) su
        checkKind (TUser x ts1 t1) k k1
 
-  checkNewTypeUse nt =
+  checkNominalTypeUse nt
+    | Abstract <- ntDef nt =
+      do (ts1,k1) <- appTy ts (kindOf nt)
+         let as = ntParams nt
+             ps = ntConstraints nt
+         case as of
+           [] -> pure ()
+           _ -> do let need = length as
+                       have = length ts1
+                   when (need > have) $
+                     kRecordError (TooFewTyParams (ntName nt) (need - have))
+                   let su = listSubst (map tpVar as `zip` ts1)
+                   kNewGoals (CtPartialTypeFun (ntName nt)) (apSubst su <$> ps)
+         let ty =
+               -- We must uphold the invariant that built-in abstract types
+               -- are represented with TCon. User-defined abstract types use
+               -- TNominal instead.
+               case builtInType (ntName nt) of
+                 Just tc -> TCon tc ts1
+                 Nothing -> TNominal nt ts1
+         checkKind ty k k1
+
+    | otherwise =
     do (ts1,k1) <- appTy ts (kindOf nt)
        let as = ntParams nt
        ts2 <- checkParams as ts1
        let su = zip as ts2
        ps1 <- mapM (`kInstantiateT` su) (ntConstraints nt)
        kNewGoals (CtPartialTypeFun (ntName nt)) ps1
-       checkKind (TNewtype nt ts2) k k1
-
-  checkAbstractTypeUse absT =
-    do let tc   = abstractTypeTC absT
-       (ts1,k1) <- appTy ts (kindOf tc)
-       let (as,ps) = atCtrs absT
-       case ps of
-          [] -> pure ()   -- common case
-          _ -> do let need = length as
-                      have = length ts1
-                  when (need > have) $
-                     kRecordError (TooFewTyParams (atName absT) (need - have))
-                  let su = listSubst (map tpVar as `zip` ts1)
-                  kNewGoals (CtPartialTypeFun (atName absT)) (apSubst su <$> ps)
-       checkKind (TCon tc ts1) k k1
+       checkKind (TNominal nt ts2) k k1
 
   checkParams as ts1
     | paramHave == paramNeed = return ts1

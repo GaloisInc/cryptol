@@ -1,0 +1,24 @@
+enum Maybe a = Nothing | Just a
+
+maybeMapBad1 : {a, b} (a -> b) -> Maybe a -> Maybe b
+maybeMapBad1 f m =
+  case m of
+    Just x -> Just (f x)
+
+maybeMapBad2 : {a, b} (a -> b) -> Maybe a -> Maybe b
+maybeMapBad2 f m =
+  case m of
+    Nothing -> Nothing
+
+enum Foo = A | B | C
+
+fooBad1 : Foo -> ()
+fooBad1 f =
+  case f of
+    A -> ()
+
+fooGood : Foo -> ()
+fooGood f =
+  case f of
+    A -> ()
+    _ -> ()

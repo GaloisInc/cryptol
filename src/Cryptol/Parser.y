@@ -76,6 +76,7 @@ import Paths_cryptol
 
   'type'      { Located $$ (Token (KW KW_type   ) _)}
   'newtype'   { Located $$ (Token (KW KW_newtype) _)}
+  'enum'      { Located $$ (Token (KW KW_enum) _)}
   'module'    { Located $$ (Token (KW KW_module ) _)}
   'submodule' { Located $$ (Token (KW KW_submodule ) _)}
   'where'     { Located $$ (Token (KW KW_where  ) _)}
@@ -83,6 +84,8 @@ import Paths_cryptol
   'if'        { Located $$ (Token (KW KW_if     ) _)}
   'then'      { Located $$ (Token (KW KW_then   ) _)}
   'else'      { Located $$ (Token (KW KW_else   ) _)}
+  'case'      { Located $$ (Token (KW KW_case) _)}
+  'of'        { Located $$ (Token (KW KW_of) _)}
   'interface' { Located $$ (Token (KW KW_interface) _)}
   'x'         { Located $$ (Token (KW KW_x)       _)}
   'down'      { Located $$ (Token (KW KW_down)    _)}
@@ -280,11 +283,12 @@ vtop_decl               :: { [TopDecl PName] }
   : decl                   { [exportDecl Nothing   Public $1]                 }
   | doc decl               { [exportDecl (Just $1) Public $2]                 }
   | mbDoc 'include' STRLIT {% (return . Include) `fmap` fromStrLit $3         }
-  | mbDoc 'property' name apats '=' expr
+  | mbDoc 'property' name iapats '=' expr
                            { [exportDecl $1 Public (mkProperty $3 $4 $6)]     }
   | mbDoc 'property' name       '=' expr
                            { [exportDecl $1 Public (mkProperty $3 [] $5)]     }
   | mbDoc newtype          { [exportNewtype Public $1 $2]                     }
+  | mbDoc enum             { [exportEnum Public $1 $2]                        }
   | prim_bind              { $1                                               }
   | foreign_bind           { $1                                               }
   | private_decls          { $1                                               }
@@ -367,14 +371,14 @@ decl                    :: { Decl PName }
   : vars_comma ':' schema  { at (head $1,$3) $ DSignature (reverse $1) $3   }
   | ipat '=' expr          { at ($1,$3) $ DPatBind $1 $3                    }
   | '(' op ')' '=' expr    { at ($1,$5) $ DPatBind (PVar $2) $5             }
-  | var apats_indices propguards_cases
+  | var iapats_indices propguards_cases
                            {% mkPropGuardsDecl $1 $2 $3 }
   | var propguards_cases
                            {% mkConstantPropGuardsDecl $1 $2 }
-  | var apats_indices '=' expr
+  | var iapats_indices '=' expr
                            { at ($1,$4) $ mkIndexedDecl $1 $2 $4 }
 
-  | apat pat_op apat '=' expr
+  | iapat pat_op iapat '=' expr
                            { at ($1,$5) $
                              DBind $ Bind { bName      = $2
                                           , bParams    = [$1,$3]
@@ -402,9 +406,9 @@ let_decls               :: { [Decl PName] }
 
 let_decl                :: { Decl PName }
   : 'let' ipat '=' expr               { at ($2,$4) $ DPatBind $2 $4                    }
-  | 'let' var apats_indices '=' expr  { at ($2,$5) $ mkIndexedDecl $2 $3 $5 }
+  | 'let' var iapats_indices '=' expr  { at ($2,$5) $ mkIndexedDecl $2 $3 $5 }
   | 'let' '(' op ')' '=' expr         { at ($2,$6) $ DPatBind (PVar $3) $6             }
-  | 'let' apat pat_op apat '=' expr
+  | 'let' iapat pat_op iapat '=' expr
                            { at ($2,$6) $
                              DBind $ Bind { bName      = $3
                                           , bParams    = [$2,$4]
@@ -453,6 +457,19 @@ newtype_body            :: { Located (RecordMap Ident (Range, Type PName)) }
   : '{' '}'                {% mkRecord (rComb $1 $2) (Located emptyRange) [] }
   | '{' field_types '}'    {% mkRecord (rComb $1 $3) (Located emptyRange) $2 }
 
+
+enum                              :: { EnumDecl PName }
+  : 'enum' type '=' enum_body        {% mkEnumDecl $2 $4 }
+
+enum_body                         :: { [TopLevel (EnumCon PName)] }
+  :     enum_con                     { [$1] }
+  | '|' enum_con                     { [$2] }
+  | enum_body '|' enum_con           { $3 : $1 }
+
+enum_con                           :: { TopLevel (EnumCon PName) }
+  : app_type                          {% mkConDecl Nothing   Public $1 }
+  | doc  app_type                     {% mkConDecl (Just $1) Public $2 }
+
 vars_comma                 :: { [ LPName ]  }
   : var                       { [ $1]      }
   | vars_comma ',' var        { $3 : $1    }
@@ -460,26 +477,6 @@ vars_comma                 :: { [ LPName ]  }
 var                        :: { LPName }
   : name                      { $1 }
   | '(' op ')'                { $2 }
-
-apats                   :: { [Pattern PName] }
-  : apat                   { [$1] }
-  | apats apat             { $2 : $1 }
-
-indices                 :: { [Pattern PName] }
-  : '@' indices1           { $2 }
-  | {- empty -}            { [] }
-
-indices1                :: { [Pattern PName] }
-  : apat                   { [$1] }
-  | indices1 '@' apat      { $3 : $1 }
-
-apats_indices           :: { ([Pattern PName], [Pattern PName]) }
-  : apats indices          { ($1, $2) }
-  | '@' indices1           { ([], $2) }
-
-opt_apats_indices       :: { ([Pattern PName], [Pattern PName]) }
-  : {- empty -}            { ([],[]) }
-  | apats_indices          { $1 }
 
 decls                   :: { [Decl PName] }
   : decl ';'               { [$1] }
@@ -568,7 +565,10 @@ simpleExpr                     :: { Expr PName }
 -- An expression without an obvious end marker
 longExpr                       :: { Expr PName }
   : 'if' ifBranches 'else' exprNoWhere   { at ($1,$4) $ mkIf (reverse $2) $4 }
-  | '\\' apats '->' exprNoWhere          { at ($1,$4) $ EFun emptyFunDesc (reverse $2) $4 }
+  | '\\' iapats '->' exprNoWhere         { at ($1,$4) $ EFun emptyFunDesc (reverse $2) $4 }
+  | 'case' expr 'of' 'v{' vcaseBranches 'v}' {at ($1,$6) (ECase $2 (reverse $5))}
+  | 'case' expr 'of' '{' caseBranches '}' { at ($1,$6) (ECase $2 (reverse $5)) }
+
 
 ifBranches                     :: { [(Expr PName, Expr PName)] }
   : ifBranch                      { [$1] }
@@ -576,6 +576,17 @@ ifBranches                     :: { [(Expr PName, Expr PName)] }
 
 ifBranch                       :: { (Expr PName, Expr PName) }
   : expr 'then' expr              { ($1, $3) }
+
+vcaseBranches                  :: { [CaseAlt PName] }
+  : caseBranch                    { [$1] }
+  | vcaseBranches 'v;' caseBranch { $3 : $1 }
+
+caseBranches                   :: { [CaseAlt PName] }
+  : caseBranch                    { [$1] }
+  | caseBranches ';' caseBranch   { $3 : $1 }
+
+caseBranch                     :: { CaseAlt PName }
+  : cpat '->' expr                { CaseAlt $1 $3 }
 
 simpleRHS                      :: { Expr PName }
   : '-' simpleApp                 { at ($1,$2) (EPrefix PrefixNeg $2) }
@@ -664,8 +675,8 @@ field_exprs                    :: { [UpdField PName] }
   | field_exprs ',' field_expr    { $3 : $1 }
 
 field_expr                     :: { UpdField PName }
-  : field_path opt_apats_indices
-                field_how expr    { UpdField $3 $1 (mkIndexedExpr $2 $4) }
+  : field_path opt_iapats_indices field_how expr
+                                  { UpdField $3 $1 (mkIndexedExpr $2 $4) }
 
 field_path                     :: { [Located Selector] }
   : aexpr                         {% exprToFieldPath $1 }
@@ -713,20 +724,27 @@ matches                        :: { [Match PName] }
   | matches ',' match             { $3 : $1 }
 
 match                          :: { Match PName }
-  : pat '<-' expr                 { Match $1 $3 }
+  : itpat '<-' expr               { Match $1 $3 }
 
 
 --------------------------------------------------------------------------------
-pat                            :: { Pattern PName }
-  : ipat ':' type                 { at ($1,$3) $ PTyped $1 $3 }
-  | ipat                          { $1                        }
+-- Generic patterns
 
-ipat                           :: { Pattern PName }
-  : ipat '#' ipat                 { at ($1,$3) $ PSplit $1 $3 }
+pat                            :: { Pattern PName }
+  : cpat ':' type                 { at ($1,$3) $ PTyped $1 $3 }
+  | cpat                          { $1                        }
+
+cpat                           :: { Pattern PName }
+  : cpat '#' cpat                 { at ($1,$3) $ PSplit $1 $3 }
+  | qname apats                   { at ($1,$2) $ PCon $1 (reverse $2)   }
   | apat                          { $1                        }
 
+apats                          :: { [Pattern PName] }
+  : apat                          { [$1] }
+  | apats apat                    { $2 : $1 }
+
 apat                           :: { Pattern PName }
-  : name                          { PVar $1                           }
+  : qname                         { at $1 (mkPVar $1) }
   | '_'                           { at $1       $ PWild               }
   | '(' ')'                       { at ($1,$2) $ PTuple []            }
   | '(' pat ')'                   { at ($1,$3)   $2                   }
@@ -747,6 +765,41 @@ field_pat                      :: { Named (Pattern PName) }
 field_pats                     :: { [Named (Pattern PName)] }
   : field_pat                     { [$1]    }
   | field_pats ',' field_pat      { $3 : $1 }
+
+
+-- Irrefutable patterns
+itpat                          :: { Pattern PName }
+  : ipat ':' type                 { at ($1,$3) $ PTyped $1 $3 }
+  | ipat                          { $1                        }
+
+ipat                           :: { Pattern PName }
+  : ipat '#' ipat                 { at ($1,$3) $ PSplit $1 $3 }
+  | iapat                         { $1                        }
+
+iapat                          :: { Pattern PName }
+  : apat                          {% mkIPat $1 }
+
+iapats                         :: { [Pattern PName] }
+  : iapat                         { [$1] }
+  | iapats iapat                  { $2 : $1 }
+
+indices                 :: { [Pattern PName] }
+  : '@' indices1           { $2 }
+  | {- empty -}            { [] }
+
+indices1                :: { [Pattern PName] }
+  : iapat                  { [$1] }
+  | indices1 '@' apat      { $3 : $1 }
+
+iapats_indices          :: { ([Pattern PName], [Pattern PName]) }
+  : iapats indices         { ($1, $2) }
+  | '@' indices1           { ([], $2) }
+
+opt_iapats_indices      :: { ([Pattern PName], [Pattern PName]) }
+  : {- empty -}            { ([],[]) }
+  | iapats_indices         { $1 }
+
+
 
 --------------------------------------------------------------------------------
 

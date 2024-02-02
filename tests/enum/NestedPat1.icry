@@ -1,0 +1,3 @@
+:load NestedPat1.cry
+f N
+f (J 17) : [8]

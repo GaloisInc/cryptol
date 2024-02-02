@@ -36,16 +36,17 @@
 > import qualified GHC.Num.Compat as Integer
 > import qualified Data.List as List
 >
-> import Cryptol.ModuleSystem.Name (asPrim)
+> import Cryptol.ModuleSystem.Name (asPrim,nameIdent)
 > import Cryptol.TypeCheck.Solver.InfNat (Nat'(..), nAdd, nMin, nMul)
 > import Cryptol.TypeCheck.AST
 > import Cryptol.Backend.FloatHelpers (BF(..))
 > import qualified Cryptol.Backend.FloatHelpers as FP
 > import Cryptol.Backend.Monad (EvalError(..))
 > import Cryptol.Eval.Type
->   (TValue(..), isTBit, evalValType, evalNumType, TypeEnv, bindTypeVar)
+>   (TValue(..), TNominalTypeValue(..),
+>    isTBit, evalValType, evalNumType, TypeEnv, bindTypeVar)
 > import Cryptol.Eval.Concrete (mkBv, ppBV, lg2)
-> import Cryptol.Utils.Ident (Ident,PrimIdent, prelPrim, floatPrim)
+> import Cryptol.Utils.Ident (Ident,PrimIdent, prelPrim, floatPrim, unpackIdent)
 > import Cryptol.Utils.Panic (panic)
 > import Cryptol.Utils.PP
 > import Cryptol.Utils.RecordMap
@@ -53,7 +54,7 @@
 > import Cryptol.Eval.Type (evalType, lookupTypeVar, tNumTy, tValTy)
 >
 > import qualified Cryptol.ModuleSystem as M
-> import qualified Cryptol.ModuleSystem.Env as M (loadedModules,loadedNewtypes)
+> import qualified Cryptol.ModuleSystem.Env as M (loadedModules,loadedNominalTypes)
 
 Overview
 ========
@@ -176,6 +177,7 @@ terms by providing an evaluator to an appropriate `Value` type.
 >   | VList Nat' [E Value]       -- ^ @ [n]a   @ finite or infinite lists
 >   | VTuple [E Value]           -- ^ @ ( .. ) @ tuples
 >   | VRecord [(Ident, E Value)] -- ^ @ { .. } @ records
+>   | VEnum Ident [E Value]      -- ^ @ Just x @, sum types
 >   | VFun (E Value -> E Value)  -- ^ functions
 >   | VPoly (TValue -> E Value)  -- ^ polymorphic values (kind *)
 >   | VNumPoly (Nat' -> E Value) -- ^ polymorphic values (kind #)
@@ -221,6 +223,11 @@ Operations on Values
 > fromVRecord :: Value -> [(Ident, E Value)]
 > fromVRecord (VRecord fs) = fs
 > fromVRecord _            = evalPanic "fromVRecord" ["Expected a record"]
+>
+> -- | Destructor for @VEnum@.
+> fromVEnum :: Value -> (Ident,[E Value])
+> fromVEnum (VEnum i fs) = (i,fs)
+> fromVEnum _            = evalPanic "fromVEnum" ["Expected an enum value."]
 >
 > -- | Destructor for @VFun@.
 > fromVFun :: Value -> (E Value -> E Value)
@@ -310,6 +317,8 @@ assigns values to those variables.
 >     EIf c t f ->
 >       condValue (fromVBit <$> evalExpr env c) (evalExpr env t) (evalExpr env f)
 >
+>     ECase e alts dflt -> evalCase env (evalExpr env e) alts dflt
+>
 >     EComp _n _ty e branches -> evalComp env e branches
 >
 >     EVar n ->
@@ -338,7 +347,7 @@ assigns values to those variables.
 >     EProofApp e    -> evalExpr env e
 >     EWhere e dgs   -> evalExpr (foldl evalDeclGroup env dgs) e
 >
->     EPropGuards guards _ty -> 
+>     EPropGuards guards _ty ->
 >       case List.find (all (checkProp . evalProp env) . fst) guards of
 >         Just (_, e) -> evalExpr env e
 >         Nothing -> evalPanic "fromVBit" ["No guard constraint was satisfied"]
@@ -346,7 +355,7 @@ assigns values to those variables.
 > appFun :: E Value -> E Value -> E Value
 > appFun f v = f >>= \f' -> fromVFun f' v
 
-> -- | Evaluates a `Prop` in an `EvalEnv` by substituting all variables 
+> -- | Evaluates a `Prop` in an `EvalEnv` by substituting all variables
 > -- according to `envTypes` and expanding all type synonyms via `tNoUser`.
 > evalProp :: Env -> Prop -> Prop
 > evalProp env@Env { envTypes } = \case
@@ -355,7 +364,7 @@ assigns values to those variables.
 >   prop@TUser {} -> evalProp env (tNoUser prop)
 >   TVar tv | Nothing <- lookupTypeVar tv envTypes -> panic "evalProp" ["Could not find type variable `" ++ pretty tv ++ "` in the type evaluation environment"]
 >   prop -> panic "evalProp" ["Cannot use the following as a type constraint: `" ++ pretty prop ++ "`"]
->   where 
+>   where
 >     toType = either tNumTy tValTy
 
 
@@ -399,7 +408,7 @@ types and on newtypes.
 >   case (tyv, sel) of
 >     (TVTuple ts, TupleSel n _) -> updTupleAt ts n
 >     (TVRec fs, RecordSel n _)  -> updRecAt fs n
->     (TVNewtype _ _ fs, RecordSel n _) -> updRecAt fs n
+>     (TVNominal _ _ (TVStruct fs), RecordSel n _) -> updRecAt fs n
 >     (TVSeq len _, ListSel n _) -> updSeqAt len n
 >     (_, _) -> evalPanic "evalSet" ["type/selector mismatch", show tyv, show sel]
 >   where
@@ -431,6 +440,20 @@ are ignored.
 
 > condValue :: E Bool -> E Value -> E Value -> E Value
 > condValue c l r = c >>= \b -> if b then l else r
+
+> evalCase :: Env -> E Value -> Map Ident CaseAlt -> Maybe CaseAlt -> E Value
+> evalCase env e alts dflt =
+>   do val <- e
+>      let (tag,fields) = fromVEnum val
+>      case Map.lookup tag alts of
+>        Just alt -> evalCaseBranch alt fields
+>        Nothing  ->
+>          case dflt of
+>            Just alt -> evalCaseBranch alt [pure val]
+>            Nothing  -> Err (NoMatchingConstructor (Just (unpackIdent tag)))
+>   where
+>   evalCaseBranch (CaseAlt xs k) vs = evalExpr env' k
+>     where env' = foldr bindVar env (zip (map fst xs) vs)
 
 List Comprehensions
 -------------------
@@ -541,24 +564,41 @@ the new bindings.
 >     DExpr e       -> (dName d, evalExpr env e)
 >
 
-Newtypes
---------
+Nominal Types
+-------------
+
+We have three forms of nominal types: newtypes, enums, and abstract types.
 
 At runtime, newtypes values are represented in exactly
 the same way as records.  The constructor function for
 newtypes is thus basically just an identity function
 that consumes and ignores its type arguments.
 
-> evalNewtypeDecl :: Env -> Newtype -> Env
-> evalNewtypeDecl env nt = bindVar (ntConName nt, pure val) env
+Enums are represented with a tag, which indicates what constructor
+was used to create a value, as well as the types of the values stored in the
+constructor.
+
+> evalNominalDecl :: Env -> NominalType -> Env
+> evalNominalDecl env nt =
+>   case ntDef nt of
+>     Struct c -> bindVar (ntConName c, mkCon newtypeCon) env
+>     Enum cs  -> foldr enumCon env cs
+>     Abstract -> env
 >   where
->     val = foldr tabs con (ntParams nt)
->     con = VFun (\x -> x)
+>     mkCon con  = pure (foldr tabs con (ntParams nt))
+>     newtypeCon = VFun id
+>     enumCon c  =
+>       bindVar (ecName c, mkCon (foldr addField tag (ecFields c) []))
+>       where
+>       tag                 = VEnum (nameIdent (ecName c)) . reverse
+>       addField _t mk args = VFun (\v -> pure (mk (v:args)))
+>
 >     tabs tp body =
 >       case tpKind tp of
 >         KType -> VPoly (\_ -> pure body)
 >         KNum  -> VNumPoly (\_ -> pure body)
->         k -> evalPanic "evalNewtypeDecl" ["illegal newtype parameter kind", show k]
+>         k -> evalPanic "evalNominalDecl"
+>                                   ["illegal newtype parameter kind", show k]
 
 Primitives
 ==========
@@ -1021,8 +1061,7 @@ For functions, `zero` returns the constant function that returns
 > zero (TVRec fields) = VRecord [ (f, pure (zero fty))
 >                               | (f, fty) <- canonicalFields fields ]
 > zero (TVFun _ bty)  = VFun (\_ -> pure (zero bty))
-> zero (TVAbstract{}) = evalPanic "zero" ["Abstract type not in `Zero`"]
-> zero (TVNewtype{})  = evalPanic "zero" ["Newtype not in `Zero`"]
+> zero (TVNominal {})  = evalPanic "zero" ["Nominal type not in `Zero`"]
 
 Literals
 --------
@@ -1090,8 +1129,7 @@ at the same positions.
 >         TVArray{}    -> evalPanic "logicUnary" ["Array not in class Logic"]
 >         TVRational   -> evalPanic "logicUnary" ["Rational not in class Logic"]
 >         TVFloat{}    -> evalPanic "logicUnary" ["Float not in class Logic"]
->         TVAbstract{} -> evalPanic "logicUnary" ["Abstract type not in `Logic`"]
->         TVNewtype{}  -> evalPanic "logicUnary" ["Newtype not in `Logic`"]
+>         TVNominal {}  -> evalPanic "logicUnary" ["Nominal type not in `Logic`"]
 
 > logicBinary :: (Bool -> Bool -> Bool) -> TValue -> E Value -> E Value -> E Value
 > logicBinary op = go
@@ -1129,8 +1167,7 @@ at the same positions.
 >         TVArray{}    -> evalPanic "logicBinary" ["Array not in class Logic"]
 >         TVRational   -> evalPanic "logicBinary" ["Rational not in class Logic"]
 >         TVFloat{}    -> evalPanic "logicBinary" ["Float not in class Logic"]
->         TVAbstract{} -> evalPanic "logicBinary" ["Abstract type not in `Logic`"]
->         TVNewtype{}  -> evalPanic "logicBinary" ["Newtype not in `Logic`"]
+>         TVNominal {} -> evalPanic "logicBinary" ["Nominal type not in `Logic`"]
 
 
 Ring Arithmetic
@@ -1176,9 +1213,7 @@ False]`, but to `error "foo"`.
 >           pure $ VTuple (map go tys)
 >         TVRec fs ->
 >           pure $ VRecord [ (f, go fty) | (f, fty) <- canonicalFields fs ]
->         TVAbstract {} ->
->           evalPanic "arithNullary" ["Abstract type not in `Ring`"]
->         TVNewtype {} ->
+>         TVNominal {} ->
 >           evalPanic "arithNullary" ["Newtype type not in `Ring`"]
 
 > ringUnary ::
@@ -1216,10 +1251,8 @@ False]`, but to `error "foo"`.
 >           do val' <- val
 >              pure $ VRecord [ (f, go fty (lookupRecord f val'))
 >                             | (f, fty) <- canonicalFields fs ]
->         TVAbstract {} ->
->           evalPanic "arithUnary" ["Abstract type not in `Ring`"]
->         TVNewtype {} ->
->           evalPanic "arithUnary" ["Newtype not in `Ring`"]
+>         TVNominal {} ->
+>           evalPanic "arithUnary" ["Nominal type not in `Ring`"]
 
 > ringBinary ::
 >   (Integer -> Integer -> E Integer) ->
@@ -1266,10 +1299,8 @@ False]`, but to `error "foo"`.
 >              pure $ VRecord
 >                [ (f, go fty (lookupRecord f l') (lookupRecord f r'))
 >                | (f, fty) <- canonicalFields fs ]
->         TVAbstract {} ->
->           evalPanic "arithBinary" ["Abstract type not in class `Ring`"]
->         TVNewtype {} ->
->           evalPanic "arithBinary" ["Newtype not in class `Ring`"]
+>         TVNominal {} ->
+>           evalPanic "arithBinary" ["Nominal type not in class `Ring`"]
 
 
 Integral
@@ -1446,10 +1477,8 @@ bits to the *left* of that position are equal.
 >          ls <- map snd . sortBy (comparing fst) . fromVRecord <$> l
 >          rs <- map snd . sortBy (comparing fst) . fromVRecord <$> r
 >          lexList (zipWith3 lexCompare tys ls rs)
->     TVAbstract {} ->
->       evalPanic "lexCompare" ["Abstract type not in `Cmp`"]
->     TVNewtype {} ->
->       evalPanic "lexCompare" ["Newtype not in `Cmp`"]
+>     TVNominal {} ->
+>       evalPanic "lexCompare" ["Nominal type not in `Cmp`"]
 >
 > lexList :: [E Ordering] -> E Ordering
 > lexList [] = pure EQ
@@ -1502,10 +1531,8 @@ fields are compared in alphabetical order.
 >          ls <- map snd . sortBy (comparing fst) . fromVRecord <$> l
 >          rs <- map snd . sortBy (comparing fst) . fromVRecord <$> r
 >          lexList (zipWith3 lexSignedCompare tys ls rs)
->     TVAbstract {} ->
->       evalPanic "lexSignedCompare" ["Abstract type not in `Cmp`"]
->     TVNewtype {} ->
->       evalPanic "lexSignedCompare" ["Newtype type not in `Cmp`"]
+>     TVNominal {} ->
+>       evalPanic "lexSignedCompare" ["Nominal type not in `Cmp`"]
 
 
 Sequences
@@ -1804,6 +1831,11 @@ Pretty Printing
 >     VTuple vs  -> ppTuple (map (ppEValue opts) vs)
 >     VRecord fs -> ppRecord (map ppField fs)
 >       where ppField (f,r) = pp f <+> char '=' <+> ppEValue opts r
+>     VEnum tag vs ->
+>       case vs of
+>         [] -> tagT
+>         _  -> parens (tagT <+> hsep (map (ppEValue opts) vs))
+>       where tagT = text (unpackIdent tag)
 >     VFun _     -> text "<function>"
 >     VPoly _    -> text "<polymorphic value>"
 >     VNumPoly _ -> text "<polymorphic value>"
@@ -1820,6 +1852,6 @@ running the reference evaluator on an expression.
 >   where
 >     modEnv = M.minpModuleEnv minp
 >     extDgs = concatMap mDecls (M.loadedModules modEnv) ++ M.deDecls (M.meDynEnv modEnv)
->     nts    = Map.elems (M.loadedNewtypes modEnv)
->     env    = foldl evalDeclGroup (foldl evalNewtypeDecl mempty nts) extDgs
+>     nts    = Map.elems (M.loadedNominalTypes modEnv)
+>     env    = foldl evalDeclGroup (foldl evalNominalDecl mempty nts) extDgs
 >     val    = evalExpr env expr

@@ -126,9 +126,6 @@ instance HasKind TCon where
   kindOf (TF tf)      = kindOf tf
   kindOf (TError k)   = k
 
-instance HasKind UserTC where
-  kindOf (UserTC _ k) = k
-
 instance HasKind TC where
   kindOf tcon =
     case tcon of
@@ -143,7 +140,6 @@ instance HasKind TC where
       TCSeq     -> KNum :-> KType :-> KType
       TCFun     -> KType :-> KType :-> KType
       TCTuple n -> foldr (:->) KType (replicate n KType)
-      TCAbstract x -> kindOf x
 
 instance HasKind PC where
   kindOf pc =
@@ -238,20 +234,7 @@ data TC     = TCNum Integer            -- ^ Numbers
             | TCSeq                    -- ^ @[_] _@
             | TCFun                    -- ^ @_ -> _@
             | TCTuple Int              -- ^ @(_, _, _)@
-            | TCAbstract UserTC        -- ^ An abstract type
               deriving (Show, Eq, Ord, Generic, NFData)
-
-
-data UserTC = UserTC M.Name Kind
-              deriving (Show, Generic, NFData)
-
-instance Eq UserTC where
-  UserTC x _ == UserTC y _ = x == y
-
-instance Ord UserTC where
-  compare (UserTC x _) (UserTC y _) = compare x y
-
-
 
 
 
@@ -339,10 +322,6 @@ instance PP TC where
       TCTuple 0 -> text "()"
       TCTuple 1 -> text "(one tuple?)"
       TCTuple n -> parens $ hcat $ replicate (n-1) comma
-      TCAbstract u -> pp u
-
-instance PP UserTC where
-  ppPrec p (UserTC x _) = ppPrec p x
 
 instance PP TFun where
   ppPrec _ tcon =

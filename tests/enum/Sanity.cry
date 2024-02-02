@@ -1,0 +1,6 @@
+enum Foo = MkFoo
+
+f : Foo -> ()
+f l =
+  case l of
+    MkFoo -> ()

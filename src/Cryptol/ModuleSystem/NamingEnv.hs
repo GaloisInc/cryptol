@@ -173,11 +173,13 @@ filterUNames p (NamingEnv env) = NamingEnv (Map.mapMaybe check env)
 -- | Find the ambiguous entries in an environmet.
 -- A name is ambiguous if it might refer to multiple entities.
 findAmbig :: NamingEnv -> [ [Name] ]
-findAmbig (NamingEnv ns) =
+findAmbig env =
   [ Set.toList xs
   | mp <- Map.elems ns
   , Ambig xs <- Map.elems mp
   ]
+  where
+  NamingEnv ns = consToValues env
 
 -- | Get the subset of the first environment that shadows something
 -- in the second one.
@@ -240,7 +242,7 @@ modParamNamingEnv mp = maybe id qualify (T.mpQual mp) $
 -- the names are qualified.
 unqualifiedEnv :: IfaceDecls -> NamingEnv
 unqualifiedEnv IfaceDecls { .. } =
-  mconcat [ exprs, tySyns, ntTypes, absTys, ntExprs, mods, sigs ]
+  mconcat [ exprs, tySyns, ntTypes, ntExprs, mods, sigs ]
   where
   toPName n = mkUnqual (nameIdent n)
 
@@ -251,19 +253,16 @@ unqualifiedEnv IfaceDecls { .. } =
                     | n <- Map.keys ifTySyns ]
 
   ntTypes = mconcat [ n
-                    | nt <- Map.elems ifNewtypes
-                    , let tname = T.ntName nt
-                          cname = T.ntConName nt
-                    , n  <- [ singletonNS NSType (toPName tname) tname
-                            , singletonNS NSValue (toPName cname) cname
+                    | nt <- Map.elems ifNominalTypes
+                    , let tname  = T.ntName nt
+                    , n  <- singletonNS NSType (toPName tname) tname
+                          : [ singletonNS NSValue (toPName cname) cname
+                            | cname <-map fst (T.nominalTypeConTypes nt)
                             ]
                     ]
 
-  absTys  = mconcat [ singletonNS NSType (toPName n) n
-                    | n <- Map.keys ifAbstractTypes ]
-
   ntExprs = mconcat [ singletonNS NSValue (toPName n) n
-                    | n <- Map.keys ifNewtypes ]
+                    | n <- Map.keys ifNominalTypes ]
 
   mods    = mconcat [ singletonNS NSModule (toPName n) n
                     | n <- Map.keys ifModules ]

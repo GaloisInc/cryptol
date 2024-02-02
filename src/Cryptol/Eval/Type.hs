@@ -6,12 +6,17 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE Safe, PatternGuards #-}
+{-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveTraversable #-}
 module Cryptol.Eval.Type where
 
+import Data.Vector (Vector)
+import qualified Data.Vector as Vector
+import Data.List(sortOn)
 import Cryptol.Backend.Monad (evalPanic)
+import Cryptol.ModuleSystem.Name(nameIdent)
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.PP(pp)
 import Cryptol.TypeCheck.Solver.InfNat
@@ -39,11 +44,34 @@ data TValue
   | TVTuple [TValue]          -- ^ @ (a, b, c )@
   | TVRec (RecordMap Ident TValue) -- ^ @ { x : a, y : b, z : c } @
   | TVFun TValue TValue       -- ^ @ a -> b @
-  | TVNewtype Newtype
+  | TVNominal NominalType
               [Either Nat' TValue]
-              (RecordMap Ident TValue)     -- ^ a named newtype
-  | TVAbstract UserTC [Either Nat' TValue] -- ^ an abstract type
+              TNominalTypeValue    -- ^ a named newtype
     deriving (Generic, NFData, Eq)
+
+data TNominalTypeValue =
+    TVStruct (RecordMap Ident TValue)
+  | TVEnum   (Vector (ConInfo TValue))  -- ^ Indexed by constructor number
+  | TVAbstract
+    deriving (Generic, NFData, Eq)
+
+data ConInfo a = ConInfo
+  { conIdent :: Ident
+  , conFields :: Vector a
+  } deriving (Generic,NFData,Eq,Functor,Foldable,Traversable)
+
+isNullaryCon :: ConInfo a -> Bool
+isNullaryCon = Vector.null . conFields
+
+zipConInfo :: (a -> b -> c) -> ConInfo a -> ConInfo b -> ConInfo c
+zipConInfo f x y
+  | conIdent x == conIdent y =
+    x { conFields = Vector.zipWith f (conFields x) (conFields y) }
+  | otherwise = panic "zipConInfo" [ "Mismatched constructors"
+                                   ,  show (pp (conIdent x))
+                                   ,  show (pp (conIdent y))
+                                   ]
+
 
 -- | Convert a type value back into a regular type
 tValTy :: TValue -> Type
@@ -60,8 +88,7 @@ tValTy tv =
     TVTuple ts  -> tTuple (map tValTy ts)
     TVRec fs    -> tRec (fmap tValTy fs)
     TVFun t1 t2 -> tFun (tValTy t1) (tValTy t2)
-    TVNewtype nt vs _ -> tNewtype nt (map tNumValTy vs)
-    TVAbstract u vs -> tAbstract u (map tNumValTy vs)
+    TVNominal nt vs _ -> tNominal nt (map tNumValTy vs)
 
 tNumTy :: Nat' -> Type
 tNumTy Inf     = tInf
@@ -132,7 +159,7 @@ evalType env ty =
     TUser _ _ ty'  -> evalType env ty'
     TRec fields    -> Right $ TVRec (fmap val fields)
 
-    TNewtype nt ts -> Right $ TVNewtype nt tvs $ evalNewtypeBody env nt tvs
+    TNominal nt ts -> Right $ TVNominal nt tvs $ evalNominalTypeBody env nt tvs
         where tvs = map (evalType env) ts
 
     TCon (TC c) ts ->
@@ -150,15 +177,6 @@ evalType env ty =
         (TCTuple _, _)  -> Right $ TVTuple (map val ts)
         (TCNum n, [])   -> Left $ Nat n
         (TCInf, [])     -> Left $ Inf
-        (TCAbstract u,vs) ->
-            case kindOf ty of
-              KType -> Right $ TVAbstract u (map (evalType env) vs)
-              k -> evalPanic "evalType"
-                [ "Unsupported"
-                , "*** Abstract type of kind: " ++ show (pp k)
-                , "*** Name: " ++ show (pp u)
-                ]
-
         _ -> evalPanic "evalType" ["not a value type", show ty]
     TCon (TF f) ts      -> Left $ evalTF f (map num ts)
     TCon (PC p) _       -> evalPanic "evalType" ["invalid predicate symbol", show p]
@@ -173,10 +191,18 @@ evalType env ty =
                                   ["Expecting a finite size, but got `inf`"]
 
 -- | Evaluate the body of a newtype, given evaluated arguments
-evalNewtypeBody :: TypeEnv -> Newtype -> [Either Nat' TValue] -> RecordMap Ident TValue
-evalNewtypeBody env0 nt args = fmap (evalValType env') (ntFields nt)
+evalNominalTypeBody ::
+  TypeEnv -> NominalType -> [Either Nat' TValue] -> TNominalTypeValue
+evalNominalTypeBody env0 nt args =
+  case ntDef nt of
+    Struct c -> TVStruct (fmap (evalValType env') (ntFields c))
+    Enum cs  -> TVEnum (Vector.fromList (map doEnum (sortOn ecNumber cs)))
+    Abstract -> TVAbstract
   where
   env' = loop env0 (ntParams nt) args
+
+  doEnum c = ConInfo (nameIdent (ecName c))
+                     (Vector.fromList (map (evalValType env') (ecFields c)))
 
   loop env [] [] = env
   loop env (p:ps) (a:as) = loop (bindTypeVar (TVBound p) a env) ps as

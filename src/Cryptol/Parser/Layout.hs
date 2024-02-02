@@ -197,6 +197,7 @@ startsLayout :: TokenT -> Bool
 startsLayout ty =
   case ty of
     KW KW_where       -> True
+    KW KW_of          -> True
     KW KW_private     -> True
     KW KW_parameter   -> True
     _                 -> False

@@ -38,6 +38,12 @@ fastTypeOf tyenv expr =
     ESel e sel    -> typeSelect (fastTypeOf tyenv e) sel
     ESet ty _ _ _ -> ty
     EIf _ e _     -> fastTypeOf tyenv e
+    ECase _ as d  -> case d of
+                       Just e -> fastTypeOfAlt tyenv e
+                       Nothing ->
+                         case Map.minView as of
+                           Just (e,_) -> fastTypeOfAlt tyenv e
+                           Nothing -> panic "fastTypeOf" ["Empty case"]
     EComp len t _ _ -> tSeq len t
     EAbs x t e    -> tFun t (fastTypeOf (Map.insert x (Forall [] [] t) tyenv) e)
     EApp e _      -> case tIsFun (fastTypeOf tyenv e) of
@@ -62,6 +68,11 @@ fastTypeOf tyenv expr =
                , "with schema:"
                , pretty s
                ]
+
+fastTypeOfAlt :: Map Name Schema -> CaseAlt -> Type
+fastTypeOfAlt tyenv (CaseAlt xs e) = fastTypeOf newEnv e
+  where newEnv = foldr addVar tyenv xs
+        addVar (x,t) = Map.insert x (tMono t)
 
 fastSchemaOf :: Map Name Schema -> Expr -> Schema
 fastSchemaOf tyenv expr =
@@ -110,6 +121,7 @@ fastSchemaOf tyenv expr =
     ESet   {}      -> monomorphic
     ESel   {}      -> monomorphic
     EIf    {}      -> monomorphic
+    ECase  {}      -> monomorphic
     EComp  {}      -> monomorphic
     EApp   {}      -> monomorphic
     EAbs   {}      -> monomorphic
@@ -128,7 +140,7 @@ plainSubst s ty =
     TCon tc ts     -> TCon tc (map (plainSubst s) ts)
     TUser f ts t   -> TUser f (map (plainSubst s) ts) (plainSubst s t)
     TRec fs        -> TRec (fmap (plainSubst s) fs)
-    TNewtype nt ts -> TNewtype nt (map (plainSubst s) ts)
+    TNominal nt ts -> TNominal nt (map (plainSubst s) ts)
     TVar x         -> apSubst s (TVar x)
 
 -- | Yields the return type of the selector on the given argument type.
@@ -146,8 +158,9 @@ typeSelect (TRec fields) (RecordSel n _)
   | Just ty <- lookupField n fields = ty
 
 -- Record selector applied to a newtype
-typeSelect (TNewtype nt args) (RecordSel n _)
-  | Just ty <- lookupField n (ntFields nt)
+typeSelect (TNominal nt args) (RecordSel n _)
+  | Struct con <- ntDef nt
+  , Just ty <- lookupField n (ntFields con)
   = plainSubst (listParamSubst (zip (ntParams nt) args)) ty
 
 -- List selector applied to a sequence

@@ -309,7 +309,7 @@ prepareQuery ::
                        ([FinType],[VarShape (What4 sym)],W4.Pred sym, W4.Pred sym)
                )
 prepareQuery sym ProverCommand { .. } = do
-  ntEnv <- M.getNewtypes
+  ntEnv <- M.getNominalTypes
   case predArgTypes pcQueryType pcSchema of
     Left msg -> pure (Left msg)
     Right ts ->
@@ -362,7 +362,7 @@ prepareQuery sym ProverCommand { .. } = do
 
        doW4Eval (w4 sym)
          do env <- Eval.evalDecls sym extDgs =<<
-                     Eval.evalNewtypeDecls sym ntEnv mempty
+                     Eval.evalNominalDecls sym ntEnv mempty
 
             v   <- Eval.evalExpr  sym env    pcExpr
             appliedVal <-
@@ -751,3 +751,6 @@ varShapeToConcrete evalFn v =
       VarTuple <$> mapM (varShapeToConcrete evalFn) vs
     VarRecord fs ->
       VarRecord <$> traverse (varShapeToConcrete evalFn) fs
+    VarEnum tag cons ->
+      VarEnum <$> W4.groundEval evalFn tag
+              <*> traverse (traverse (varShapeToConcrete evalFn)) cons

@@ -422,6 +422,7 @@ data EvalError
   | BadRoundingMode Integer              -- ^ Invalid rounding mode
   | BadValue String                      -- ^ Value outside the domain of a partial function.
   | NoMatchingPropGuardCase String    -- ^ No prop guard holds for the given type variables.
+  | NoMatchingConstructor (Maybe String) -- ^ Missing `case` alternative
   | FFINotSupported Name                 -- ^ Foreign function cannot be called
   | FFITypeNumTooBig Name TParam Integer -- ^ Number passed to foreign function
                                          --   as a type argument is too large
@@ -455,6 +456,12 @@ instance PP EvalError where
         <+> integer n
       , text "in type parameter" <+> pp p <+> "of function" <+> pp f
       , text "type arguments must fit in a C `size_t`" ]
+    NoMatchingConstructor mbCon -> vcat
+      [ "Missing `case` alternative" <+> con <.> "."
+      ]
+      where con = case mbCon of
+                    Just c -> "for constructor" <+> backticks (text c)
+                    Nothing -> mempty
 
 instance Show EvalError where
   show = show . pp

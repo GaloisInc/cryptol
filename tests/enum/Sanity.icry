@@ -1,0 +1,2 @@
+:set coreLint=true
+:load Sanity.cry

@@ -1,0 +1,10 @@
+
+enum A = X | Y
+
+submodule M where
+  enum B = X | Y
+
+f x =
+  case x of
+    X -> ()
+    Y -> ()

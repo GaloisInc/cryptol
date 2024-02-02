@@ -1,0 +1,8 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+Showing a specific instance of polymorphic result:
+  * Using 'Integer' for 2nd type argument of 'Main::f'
+  * Using '0' for 1st type argument of 'Main::f'
+[]
+0x11

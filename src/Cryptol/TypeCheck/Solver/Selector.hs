@@ -68,14 +68,18 @@ solveSelector sel outerT =
     (RecordSel l _, ty) ->
       case ty of
         TRec fs -> return (lookupField l fs)
-        TNewtype nt ts ->
-          case lookupField l (ntFields nt) of
-            Nothing -> return Nothing
-            Just t ->
-              do let su = listParamSubst (zip (ntParams nt) ts)
-                 newGoals (CtPartialTypeFun (ntName nt))
-                   $ apSubst su $ ntConstraints nt
-                 return $ Just $ apSubst su t
+        TNominal nt ts ->
+          case ntDef nt of
+            Struct c ->
+              case lookupField l (ntFields c) of
+                Nothing -> return Nothing
+                Just t ->
+                  do let su = listParamSubst (zip (ntParams nt) ts)
+                     newGoals (CtPartialTypeFun (ntName nt))
+                       $ apSubst su $ ntConstraints nt
+                     return $ Just $ apSubst su t
+            Enum {} -> pure Nothing
+            Abstract -> pure Nothing
 
         TCon (TC TCSeq) [len,el] -> liftSeq len el
         TCon (TC TCFun) [t1,t2]  -> liftFun t1 t2

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Basic Types &mdash; Cryptol 2.11.0 documentation</title>
@@ -11,9 +11,7 @@
         <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
         <script src="_static/jquery.js"></script>
         <script src="_static/underscore.js"></script>
-        <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="_static/doctools.js"></script>
-        <script src="_static/sphinx_highlight.js"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -26,15 +24,11 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-
-          
-          
-          <a href="RefMan.html" class="icon icon-home">
-            Cryptol
+            <a href="RefMan.html" class="icon icon-home"> Cryptol
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -73,8 +67,8 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="RefMan.html" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">Basic Types</li>
+      <li><a href="RefMan.html" class="icon icon-home"></a> &raquo;</li>
+      <li>Basic Types</li>
       <li class="wy-breadcrumbs-aside">
             <a href="_sources/BasicTypes.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -85,78 +79,78 @@
            <div itemprop="articleBody">
              
   <section id="basic-types">
-<h1>Basic Types<a class="headerlink" href="#basic-types" title="Permalink to this heading"></a></h1>
+<h1>Basic Types<a class="headerlink" href="#basic-types" title="Permalink to this headline"></a></h1>
 <section id="tuples-and-records">
-<h2>Tuples and Records<a class="headerlink" href="#tuples-and-records" title="Permalink to this heading"></a></h2>
+<h2>Tuples and Records<a class="headerlink" href="#tuples-and-records" title="Permalink to this headline"></a></h2>
 <p>Tuples and records are used for packaging multiple values together.
 Tuples are enclosed in parentheses, while records are enclosed in
 curly braces.  The components of both tuples and records are separated by
 commas.  The components of tuples are expressions, while the
 components of records are a label and a value separated by an equal
 sign.  Examples:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">)</span><span class="w">           </span><span class="c1">// A tuple with 3 component</span>
-<span class="nb">()</span><span class="w">                </span><span class="c1">// A tuple with no components</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">)</span><span class="w">           </span><span class="c1">// A tuple with 3 component</span><span class="w"></span>
+<span class="nb">()</span><span class="w">                </span><span class="c1">// A tuple with no components</span><span class="w"></span>
 
-<span class="p">{</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="p">}</span><span class="w">  </span><span class="c1">// A record with two fields, `x` and `y`</span>
-<span class="p">{}</span><span class="w">                </span><span class="c1">// A record with no fields</span>
+<span class="p">{</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="p">}</span><span class="w">  </span><span class="c1">// A record with two fields, `x` and `y`</span><span class="w"></span>
+<span class="p">{}</span><span class="w">                </span><span class="c1">// A record with no fields</span><span class="w"></span>
 </pre></div>
 </div>
 <p>The components of tuples are identified by position, while the
 components of records are identified by their label, and so the
 ordering of record components is not important for most purposes.
 Examples:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="w">           </span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">)</span><span class="w">               </span><span class="c1">// True</span>
-<span class="w">           </span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="p">(</span><span class="mi">2</span><span class="p">,</span><span class="mi">1</span><span class="p">)</span><span class="w">               </span><span class="c1">// False</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="w">           </span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">)</span><span class="w">               </span><span class="c1">// True</span><span class="w"></span>
+<span class="w">           </span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="p">(</span><span class="mi">2</span><span class="p">,</span><span class="mi">1</span><span class="p">)</span><span class="w">               </span><span class="c1">// False</span><span class="w"></span>
 
-<span class="p">{</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="p">}</span><span class="w">    </span><span class="c1">// True</span>
-<span class="p">{</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="p">}</span><span class="w">    </span><span class="c1">// True</span>
+<span class="p">{</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="p">}</span><span class="w">    </span><span class="c1">// True</span><span class="w"></span>
+<span class="p">{</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="p">}</span><span class="w">    </span><span class="c1">// True</span><span class="w"></span>
 </pre></div>
 </div>
 <p>Ordering on tuples and records is defined lexicographically. Tuple
 components are compared in the order they appear, whereas record
 fields are compared in alphabetical order of field names.</p>
 <section id="accessing-fields">
-<h3>Accessing Fields<a class="headerlink" href="#accessing-fields" title="Permalink to this heading"></a></h3>
+<h3>Accessing Fields<a class="headerlink" href="#accessing-fields" title="Permalink to this headline"></a></h3>
 <p>The components of a record or a tuple may be accessed in two ways: via
 pattern matching or by using explicit component selectors.  Explicit
 component selectors are written as follows:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="p">(</span><span class="mi">15</span><span class="p">,</span><span class="w"> </span><span class="mi">20</span><span class="p">)</span><span class="o">.</span><span class="mi">0</span><span class="w">           </span><span class="o">==</span><span class="w"> </span><span class="mi">15</span>
-<span class="p">(</span><span class="mi">15</span><span class="p">,</span><span class="w"> </span><span class="mi">20</span><span class="p">)</span><span class="o">.</span><span class="mi">1</span><span class="w">           </span><span class="o">==</span><span class="w"> </span><span class="mi">20</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="p">(</span><span class="mi">15</span><span class="p">,</span><span class="w"> </span><span class="mi">20</span><span class="p">)</span><span class="o">.</span><span class="mi">0</span><span class="w">           </span><span class="o">==</span><span class="w"> </span><span class="mi">15</span><span class="w"></span>
+<span class="p">(</span><span class="mi">15</span><span class="p">,</span><span class="w"> </span><span class="mi">20</span><span class="p">)</span><span class="o">.</span><span class="mi">1</span><span class="w">           </span><span class="o">==</span><span class="w"> </span><span class="mi">20</span><span class="w"></span>
 
-<span class="p">{</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">15</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">20</span><span class="w"> </span><span class="p">}</span><span class="o">.</span><span class="n">x</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">15</span>
+<span class="p">{</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">15</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">20</span><span class="w"> </span><span class="p">}</span><span class="o">.</span><span class="n">x</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">15</span><span class="w"></span>
 </pre></div>
 </div>
 <p>Explicit record selectors may be used only if the program contains
 sufficient type information to determine the shape of the tuple or
 record.  For example:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">type</span><span class="w"> </span><span class="kt">T</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">sign</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="kr">Bit</span><span class="p">,</span><span class="w"> </span><span class="n">number</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">15</span><span class="p">]</span><span class="w"> </span><span class="p">}</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="kr">type</span><span class="w"> </span><span class="kt">T</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">sign</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="kr">Bit</span><span class="p">,</span><span class="w"> </span><span class="n">number</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="p">[</span><span class="mi">15</span><span class="p">]</span><span class="w"> </span><span class="p">}</span><span class="w"></span>
 
-<span class="c1">// Valid definition:</span>
-<span class="c1">// the type of the record is known.</span>
-<span class="nf">isPositive</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="kt">T</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kr">Bit</span>
-<span class="nf">isPositive</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">x</span><span class="o">.</span><span class="n">sign</span>
+<span class="c1">// Valid definition:</span><span class="w"></span>
+<span class="c1">// the type of the record is known.</span><span class="w"></span>
+<span class="nf">isPositive</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="kt">T</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="kr">Bit</span><span class="w"></span>
+<span class="nf">isPositive</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">x</span><span class="o">.</span><span class="n">sign</span><span class="w"></span>
 
-<span class="c1">// Invalid definition:</span>
-<span class="c1">// insufficient type information.</span>
-<span class="nf">badDef</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">x</span><span class="o">.</span><span class="n">f</span>
+<span class="c1">// Invalid definition:</span><span class="w"></span>
+<span class="c1">// insufficient type information.</span><span class="w"></span>
+<span class="nf">badDef</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">x</span><span class="o">.</span><span class="n">f</span><span class="w"></span>
 </pre></div>
 </div>
 <p>The components of a tuple or a record may also be accessed using
 pattern matching.  Patterns for tuples and records mirror the syntax
 for constructing values: tuple patterns use parentheses, while record
 patterns use braces.  Examples:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">getFst</span><span class="w"> </span><span class="p">(</span><span class="n">x</span><span class="p">,</span><span class="n">_</span><span class="p">)</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">x</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">getFst</span><span class="w"> </span><span class="p">(</span><span class="n">x</span><span class="p">,</span><span class="n">_</span><span class="p">)</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">x</span><span class="w"></span>
 
-<span class="nf">distance2</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">xPos</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">yPos</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">xPos</span><span class="w"> </span><span class="o">^^</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">yPos</span><span class="w"> </span><span class="o">^^</span><span class="w"> </span><span class="mi">2</span>
+<span class="nf">distance2</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">xPos</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">yPos</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">xPos</span><span class="w"> </span><span class="o">^^</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">yPos</span><span class="w"> </span><span class="o">^^</span><span class="w"> </span><span class="mi">2</span><span class="w"></span>
 
-<span class="nf">f</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="kr">where</span>
-<span class="w">    </span><span class="p">(</span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="p">)</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">p</span>
+<span class="nf">f</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="kr">where</span><span class="w"></span>
+<span class="w">    </span><span class="p">(</span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="p">)</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">p</span><span class="w"></span>
 </pre></div>
 </div>
 <p>Selectors are also lifted through sequence and function types, point-wise,
 so that the following equations should hold:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">xs</span><span class="o">.</span><span class="n">l</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="n">x</span><span class="o">.</span><span class="n">l</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">&lt;-</span><span class="w"> </span><span class="n">xs</span><span class="w"> </span><span class="p">]</span><span class="w">     </span><span class="c1">// sequences</span>
-<span class="nf">f</span><span class="o">.</span><span class="n">l</span><span class="w">  </span><span class="o">==</span><span class="w"> </span><span class="nf">\</span><span class="n">x</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="p">(</span><span class="n">f</span><span class="w"> </span><span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">l</span><span class="w">         </span><span class="c1">// functions</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">xs</span><span class="o">.</span><span class="n">l</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="n">x</span><span class="o">.</span><span class="n">l</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">&lt;-</span><span class="w"> </span><span class="n">xs</span><span class="w"> </span><span class="p">]</span><span class="w">     </span><span class="c1">// sequences</span><span class="w"></span>
+<span class="nf">f</span><span class="o">.</span><span class="n">l</span><span class="w">  </span><span class="o">==</span><span class="w"> </span><span class="nf">\</span><span class="n">x</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="p">(</span><span class="n">f</span><span class="w"> </span><span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">l</span><span class="w">         </span><span class="c1">// functions</span><span class="w"></span>
 </pre></div>
 </div>
 <p>Thus, if we have a sequence of tuples, <code class="docutils literal notranslate"><span class="pre">xs</span></code>, then we can quickly obtain a
@@ -167,55 +161,55 @@ entry in the tuple.</p>
 <p>This behavior is quite handy when examining complex data at the REPL.</p>
 </section>
 <section id="updating-fields">
-<h3>Updating Fields<a class="headerlink" href="#updating-fields" title="Permalink to this heading"></a></h3>
+<h3>Updating Fields<a class="headerlink" href="#updating-fields" title="Permalink to this headline"></a></h3>
 <p>The components of a record or a tuple may be updated using the following
 notation:</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="c1">// Example values</span>
-<span class="nf">r</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">15</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">20</span><span class="w"> </span><span class="p">}</span><span class="w">      </span><span class="c1">// a record</span>
-<span class="nf">t</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="p">(</span><span class="kr">True</span><span class="p">,</span><span class="kr">True</span><span class="p">)</span><span class="w">             </span><span class="c1">// a tuple</span>
-<span class="nf">n</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">pt</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">r</span><span class="p">,</span><span class="w"> </span><span class="n">size</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">100</span><span class="w"> </span><span class="p">}</span><span class="w">  </span><span class="c1">// nested record</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="c1">// Example values</span><span class="w"></span>
+<span class="nf">r</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">15</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">20</span><span class="w"> </span><span class="p">}</span><span class="w">      </span><span class="c1">// a record</span><span class="w"></span>
+<span class="nf">t</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="p">(</span><span class="kr">True</span><span class="p">,</span><span class="kr">True</span><span class="p">)</span><span class="w">             </span><span class="c1">// a tuple</span><span class="w"></span>
+<span class="nf">n</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">pt</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">r</span><span class="p">,</span><span class="w"> </span><span class="n">size</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">100</span><span class="w"> </span><span class="p">}</span><span class="w">  </span><span class="c1">// nested record</span><span class="w"></span>
 
-<span class="c1">// Setting fields</span>
-<span class="p">{</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">30</span><span class="w"> </span><span class="p">}</span><span class="w">          </span><span class="o">==</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">30</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">20</span><span class="w"> </span><span class="p">}</span>
-<span class="p">{</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kr">False</span><span class="w"> </span><span class="p">}</span><span class="w">       </span><span class="o">==</span><span class="w"> </span><span class="p">(</span><span class="kr">False</span><span class="p">,</span><span class="kr">True</span><span class="p">)</span>
+<span class="c1">// Setting fields</span><span class="w"></span>
+<span class="p">{</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">30</span><span class="w"> </span><span class="p">}</span><span class="w">          </span><span class="o">==</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">30</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">20</span><span class="w"> </span><span class="p">}</span><span class="w"></span>
+<span class="p">{</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kr">False</span><span class="w"> </span><span class="p">}</span><span class="w">       </span><span class="o">==</span><span class="w"> </span><span class="p">(</span><span class="kr">False</span><span class="p">,</span><span class="kr">True</span><span class="p">)</span><span class="w"></span>
 
-<span class="c1">// Update relative to the old value</span>
-<span class="p">{</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">5</span><span class="w"> </span><span class="p">}</span><span class="w">      </span><span class="o">==</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">20</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">20</span><span class="w"> </span><span class="p">}</span>
+<span class="c1">// Update relative to the old value</span><span class="w"></span>
+<span class="p">{</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">5</span><span class="w"> </span><span class="p">}</span><span class="w">      </span><span class="o">==</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">20</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">20</span><span class="w"> </span><span class="p">}</span><span class="w"></span>
 
-<span class="c1">// Update a nested field</span>
-<span class="p">{</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">pt</span><span class="o">.</span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">10</span><span class="w"> </span><span class="p">}</span><span class="w">       </span><span class="o">==</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">pt</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">10</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">20</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="n">size</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">100</span><span class="w"> </span><span class="p">}</span>
-<span class="p">{</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">pt</span><span class="o">.</span><span class="n">x</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">10</span><span class="w"> </span><span class="p">}</span><span class="w">  </span><span class="o">==</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">pt</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">25</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">20</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="n">size</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">100</span><span class="w"> </span><span class="p">}</span>
+<span class="c1">// Update a nested field</span><span class="w"></span>
+<span class="p">{</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">pt</span><span class="o">.</span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">10</span><span class="w"> </span><span class="p">}</span><span class="w">       </span><span class="o">==</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">pt</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">10</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">20</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="n">size</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">100</span><span class="w"> </span><span class="p">}</span><span class="w"></span>
+<span class="p">{</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">pt</span><span class="o">.</span><span class="n">x</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">10</span><span class="w"> </span><span class="p">}</span><span class="w">  </span><span class="o">==</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">pt</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">25</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">20</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="n">size</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">100</span><span class="w"> </span><span class="p">}</span><span class="w"></span>
 </pre></div>
 </div>
 </section>
 </section>
 <section id="sequences">
-<h2>Sequences<a class="headerlink" href="#sequences" title="Permalink to this heading"></a></h2>
+<h2>Sequences<a class="headerlink" href="#sequences" title="Permalink to this headline"></a></h2>
 <p>A sequence is a fixed-length collection of elements of the same type.
 The type of a finite sequence of length <cite>n</cite>, with elements of type <cite>a</cite>
 is <code class="docutils literal notranslate"><span class="pre">[n]</span> <span class="pre">a</span></code>.  Often, a finite sequence of bits, <code class="docutils literal notranslate"><span class="pre">[n]</span> <span class="pre">Bit</span></code>, is called a
 <em>word</em>.  We may abbreviate the type <code class="docutils literal notranslate"><span class="pre">[n]</span> <span class="pre">Bit</span></code> as <code class="docutils literal notranslate"><span class="pre">[n]</span></code>.  An infinite
 sequence with elements of type <cite>a</cite> has type <code class="docutils literal notranslate"><span class="pre">[inf]</span> <span class="pre">a</span></code>, and <code class="docutils literal notranslate"><span class="pre">[inf]</span></code> is
 an infinite stream of bits.</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="p">[</span><span class="n">e1</span><span class="p">,</span><span class="n">e2</span><span class="p">,</span><span class="n">e3</span><span class="p">]</span><span class="w">            </span><span class="c1">// A sequence with three elements</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="p">[</span><span class="n">e1</span><span class="p">,</span><span class="n">e2</span><span class="p">,</span><span class="n">e3</span><span class="p">]</span><span class="w">            </span><span class="c1">// A sequence with three elements</span><span class="w"></span>
 
-<span class="p">[</span><span class="n">t1</span><span class="w"> </span><span class="o">..</span><span class="w"> </span><span class="n">t2</span><span class="p">]</span><span class="w">            </span><span class="c1">// Enumeration</span>
-<span class="p">[</span><span class="n">t1</span><span class="w"> </span><span class="o">..</span><span class="w"> </span><span class="o">&lt;</span><span class="n">t2</span><span class="p">]</span><span class="w">           </span><span class="c1">// Enumeration (exclusive bound)</span>
-<span class="p">[</span><span class="n">t1</span><span class="w"> </span><span class="o">..</span><span class="w"> </span><span class="n">t2</span><span class="w"> </span><span class="n">by</span><span class="w"> </span><span class="n">n</span><span class="p">]</span><span class="w">       </span><span class="c1">// Enumeration (stride)</span>
-<span class="p">[</span><span class="n">t1</span><span class="w"> </span><span class="o">..</span><span class="w"> </span><span class="o">&lt;</span><span class="n">t2</span><span class="w"> </span><span class="n">by</span><span class="w"> </span><span class="n">n</span><span class="p">]</span><span class="w">      </span><span class="c1">// Enumeration (stride, ex. bound)</span>
-<span class="p">[</span><span class="n">t1</span><span class="w"> </span><span class="o">..</span><span class="w"> </span><span class="n">t2</span><span class="w"> </span><span class="n">down</span><span class="w"> </span><span class="n">by</span><span class="w"> </span><span class="n">n</span><span class="p">]</span><span class="w">  </span><span class="c1">// Enumeration (downward stride)</span>
-<span class="p">[</span><span class="n">t1</span><span class="w"> </span><span class="o">..</span><span class="w"> </span><span class="o">&gt;</span><span class="n">t2</span><span class="w"> </span><span class="n">down</span><span class="w"> </span><span class="n">by</span><span class="w"> </span><span class="n">n</span><span class="p">]</span><span class="w"> </span><span class="c1">// Enumeration (downward stride, ex. bound)</span>
-<span class="p">[</span><span class="n">t1</span><span class="p">,</span><span class="w"> </span><span class="n">t2</span><span class="w"> </span><span class="o">..</span><span class="w"> </span><span class="n">t3</span><span class="p">]</span><span class="w">        </span><span class="c1">// Enumeration (step by t2 - t1)</span>
+<span class="p">[</span><span class="n">t1</span><span class="w"> </span><span class="o">..</span><span class="w"> </span><span class="n">t2</span><span class="p">]</span><span class="w">            </span><span class="c1">// Enumeration</span><span class="w"></span>
+<span class="p">[</span><span class="n">t1</span><span class="w"> </span><span class="o">..</span><span class="w"> </span><span class="o">&lt;</span><span class="n">t2</span><span class="p">]</span><span class="w">           </span><span class="c1">// Enumeration (exclusive bound)</span><span class="w"></span>
+<span class="p">[</span><span class="n">t1</span><span class="w"> </span><span class="o">..</span><span class="w"> </span><span class="n">t2</span><span class="w"> </span><span class="n">by</span><span class="w"> </span><span class="n">n</span><span class="p">]</span><span class="w">       </span><span class="c1">// Enumeration (stride)</span><span class="w"></span>
+<span class="p">[</span><span class="n">t1</span><span class="w"> </span><span class="o">..</span><span class="w"> </span><span class="o">&lt;</span><span class="n">t2</span><span class="w"> </span><span class="n">by</span><span class="w"> </span><span class="n">n</span><span class="p">]</span><span class="w">      </span><span class="c1">// Enumeration (stride, ex. bound)</span><span class="w"></span>
+<span class="p">[</span><span class="n">t1</span><span class="w"> </span><span class="o">..</span><span class="w"> </span><span class="n">t2</span><span class="w"> </span><span class="n">down</span><span class="w"> </span><span class="n">by</span><span class="w"> </span><span class="n">n</span><span class="p">]</span><span class="w">  </span><span class="c1">// Enumeration (downward stride)</span><span class="w"></span>
+<span class="p">[</span><span class="n">t1</span><span class="w"> </span><span class="o">..</span><span class="w"> </span><span class="o">&gt;</span><span class="n">t2</span><span class="w"> </span><span class="n">down</span><span class="w"> </span><span class="n">by</span><span class="w"> </span><span class="n">n</span><span class="p">]</span><span class="w"> </span><span class="c1">// Enumeration (downward stride, ex. bound)</span><span class="w"></span>
+<span class="p">[</span><span class="n">t1</span><span class="p">,</span><span class="w"> </span><span class="n">t2</span><span class="w"> </span><span class="o">..</span><span class="w"> </span><span class="n">t3</span><span class="p">]</span><span class="w">        </span><span class="c1">// Enumeration (step by t2 - t1)</span><span class="w"></span>
 
-<span class="p">[</span><span class="n">e1</span><span class="w"> </span><span class="o">...</span><span class="p">]</span><span class="w">              </span><span class="c1">// Infinite sequence starting at e1</span>
-<span class="p">[</span><span class="n">e1</span><span class="p">,</span><span class="w"> </span><span class="n">e2</span><span class="w"> </span><span class="o">...</span><span class="p">]</span><span class="w">          </span><span class="c1">// Infinite sequence stepping by e2-e1</span>
+<span class="p">[</span><span class="n">e1</span><span class="w"> </span><span class="o">...</span><span class="p">]</span><span class="w">              </span><span class="c1">// Infinite sequence starting at e1</span><span class="w"></span>
+<span class="p">[</span><span class="n">e1</span><span class="p">,</span><span class="w"> </span><span class="n">e2</span><span class="w"> </span><span class="o">...</span><span class="p">]</span><span class="w">          </span><span class="c1">// Infinite sequence stepping by e2-e1</span><span class="w"></span>
 
-<span class="p">[</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">p11</span><span class="w"> </span><span class="ow">&lt;-</span><span class="w"> </span><span class="n">e11</span><span class="p">,</span><span class="w"> </span><span class="n">p12</span><span class="w"> </span><span class="ow">&lt;-</span><span class="w"> </span><span class="n">e12</span><span class="w">    </span><span class="c1">// Sequence comprehensions</span>
-<span class="w">    </span><span class="o">|</span><span class="w"> </span><span class="n">p21</span><span class="w"> </span><span class="ow">&lt;-</span><span class="w"> </span><span class="n">e21</span><span class="p">,</span><span class="w"> </span><span class="n">p22</span><span class="w"> </span><span class="ow">&lt;-</span><span class="w"> </span><span class="n">e22</span><span class="w"> </span><span class="p">]</span>
+<span class="p">[</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">p11</span><span class="w"> </span><span class="ow">&lt;-</span><span class="w"> </span><span class="n">e11</span><span class="p">,</span><span class="w"> </span><span class="n">p12</span><span class="w"> </span><span class="ow">&lt;-</span><span class="w"> </span><span class="n">e12</span><span class="w">    </span><span class="c1">// Sequence comprehensions</span><span class="w"></span>
+<span class="w">    </span><span class="o">|</span><span class="w"> </span><span class="n">p21</span><span class="w"> </span><span class="ow">&lt;-</span><span class="w"> </span><span class="n">e21</span><span class="p">,</span><span class="w"> </span><span class="n">p22</span><span class="w"> </span><span class="ow">&lt;-</span><span class="w"> </span><span class="n">e22</span><span class="w"> </span><span class="p">]</span><span class="w"></span>
 
-<span class="nf">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">generate</span><span class="w"> </span><span class="p">(</span><span class="nf">\</span><span class="n">i</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">e</span><span class="p">)</span><span class="w">    </span><span class="c1">// Sequence from generating function</span>
-<span class="nf">x</span><span class="w"> </span><span class="o">@</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">e</span><span class="w">                 </span><span class="c1">// Sequence with index binding</span>
-<span class="nf">arr</span><span class="w"> </span><span class="o">@</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">@</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">e</span><span class="w">           </span><span class="c1">// Two-dimensional sequence</span>
+<span class="nf">x</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">generate</span><span class="w"> </span><span class="p">(</span><span class="nf">\</span><span class="n">i</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">e</span><span class="p">)</span><span class="w">    </span><span class="c1">// Sequence from generating function</span><span class="w"></span>
+<span class="nf">x</span><span class="w"> </span><span class="o">@</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">e</span><span class="w">                 </span><span class="c1">// Sequence with index binding</span><span class="w"></span>
+<span class="nf">arr</span><span class="w"> </span><span class="o">@</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">@</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">e</span><span class="w">           </span><span class="c1">// Two-dimensional sequence</span><span class="w"></span>
 </pre></div>
 </div>
 <p>Note: the bounds in finite sequences (those with <cite>..</cite>) are type
@@ -223,6 +217,10 @@ expressions, while the bounds in infinite sequences are value
 expressions.</p>
 <table class="docutils align-default" id="id1">
 <caption><span class="caption-text">Sequence operations.</span><a class="headerlink" href="#id1" title="Permalink to this table"></a></caption>
+<colgroup>
+<col style="width: 40%" />
+<col style="width: 60%" />
+</colgroup>
 <thead>
 <tr class="row-odd"><th class="head"><p>Operator</p></th>
 <th class="head"><p>Description</p></th>
@@ -259,15 +257,15 @@ a location
 </tbody>
 </table>
 <p>There are also lifted pointwise operations.</p>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="p">[</span><span class="n">p1</span><span class="p">,</span><span class="w"> </span><span class="n">p2</span><span class="p">,</span><span class="w"> </span><span class="n">p3</span><span class="p">,</span><span class="w"> </span><span class="n">p4</span><span class="p">]</span><span class="w">          </span><span class="c1">// Sequence pattern</span>
-<span class="nf">p1</span><span class="w"> </span><span class="o">#</span><span class="w"> </span><span class="n">p2</span><span class="w">                   </span><span class="c1">// Split sequence pattern</span>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="p">[</span><span class="n">p1</span><span class="p">,</span><span class="w"> </span><span class="n">p2</span><span class="p">,</span><span class="w"> </span><span class="n">p3</span><span class="p">,</span><span class="w"> </span><span class="n">p4</span><span class="p">]</span><span class="w">          </span><span class="c1">// Sequence pattern</span><span class="w"></span>
+<span class="nf">p1</span><span class="w"> </span><span class="o">#</span><span class="w"> </span><span class="n">p2</span><span class="w">                   </span><span class="c1">// Split sequence pattern</span><span class="w"></span>
 </pre></div>
 </div>
 </section>
 <section id="functions">
-<h2>Functions<a class="headerlink" href="#functions" title="Permalink to this heading"></a></h2>
-<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">\</span><span class="n">p1</span><span class="w"> </span><span class="n">p2</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">e</span><span class="w">              </span><span class="c1">// Lambda expression</span>
-<span class="nf">f</span><span class="w"> </span><span class="n">p1</span><span class="w"> </span><span class="n">p2</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">e</span><span class="w">              </span><span class="c1">// Function definition</span>
+<h2>Functions<a class="headerlink" href="#functions" title="Permalink to this headline"></a></h2>
+<div class="highlight-cryptol notranslate"><div class="highlight"><pre><span></span><span class="nf">\</span><span class="n">p1</span><span class="w"> </span><span class="n">p2</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="n">e</span><span class="w">              </span><span class="c1">// Lambda expression</span><span class="w"></span>
+<span class="nf">f</span><span class="w"> </span><span class="n">p1</span><span class="w"> </span><span class="n">p2</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">e</span><span class="w">              </span><span class="c1">// Function definition</span><span class="w"></span>
 </pre></div>
 </div>
 </section>
@@ -297,7 +295,23 @@ a location
       </div>
     </section>
   </div>
-  <script>
+  <div class="rst-versions" data-toggle="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    <span class="fa fa-book">Doc version</span>
+    v: 
+    <span class="fa fa-caret-down"></span>
+    <div class="rst-other-versions">
+      <dl>
+        <dt>Versions</dt>
+        
+      </dl>
+      <dl>
+        <dt>Pull Requests</dt>
+        
+      </dl>
+    </div>
+  </span>
+</div><script>
       jQuery(function () {
           SphinxRtdTheme.Navigation.enable(true);
       });

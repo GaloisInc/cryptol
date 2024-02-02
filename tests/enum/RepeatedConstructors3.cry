@@ -1,0 +1,2 @@
+enum A = X | Y
+enum B = A | X

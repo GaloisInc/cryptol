@@ -75,8 +75,7 @@ instance ModuleInstance (ModuleG name) where
            , mFunctors         = doMap (mFunctors m)
            , mNested           = doSet (mNested m)
            , mTySyns           = doMap (mTySyns m)
-           , mNewtypes         = doMap (mNewtypes m)
-           , mPrimTypes        = doMap (mPrimTypes m)
+           , mNominalTypes     = doMap (mNominalTypes m)
            , mDecls            = moduleInstance (mDecls m)
            , mSubmodules       = doMap (mSubmodules m)
            , mSignatures       = doMap (mSignatures m)
@@ -98,25 +97,41 @@ instance ModuleInstance TySyn where
           , tsDoc         = tsDoc ts
           }
 
-instance ModuleInstance Newtype where
+instance ModuleInstance NominalType where
   moduleInstance nt =
-    Newtype { ntName        = moduleInstance (ntName nt)
+    NominalType
+            { ntName        = moduleInstance (ntName nt)
             , ntParams      = ntParams nt
+            , ntKind        = ntKind nt
             , ntConstraints = moduleInstance (ntConstraints nt)
-            , ntConName     = moduleInstance (ntConName nt)
-            , ntFields      = moduleInstance <$> ntFields nt
+            , ntDef         = moduleInstance (ntDef nt)
+            , ntFixity      = ntFixity nt
             , ntDoc         = ntDoc nt
             }
 
-instance ModuleInstance AbstractType where
-  moduleInstance at =
-    AbstractType { atName     = moduleInstance (atName at)
-                 , atKind     = atKind at
-                 , atCtrs     = let (ps,cs) = atCtrs at
-                                in (ps, moduleInstance cs)
-                 , atFixitiy  = atFixitiy at
-                 , atDoc      = atDoc at
-                 }
+instance ModuleInstance NominalTypeDef where
+  moduleInstance def =
+    case def of
+      Struct c -> Struct (moduleInstance c)
+      Enum cs  -> Enum   (moduleInstance cs)
+      Abstract -> Abstract
+
+instance ModuleInstance StructCon where
+  moduleInstance c =
+    StructCon
+      { ntConName     = moduleInstance (ntConName c)
+      , ntFields      = moduleInstance <$> ntFields c
+      }
+
+instance ModuleInstance EnumCon where
+  moduleInstance c =
+    EnumCon
+      { ecName        = moduleInstance (ecName c)
+      , ecNumber      = ecNumber c
+      , ecFields      = moduleInstance (ecFields c)
+      , ecPublic      = ecPublic c
+      , ecDoc         = ecDoc c
+      }
 
 instance ModuleInstance DeclGroup where
   moduleInstance dg =

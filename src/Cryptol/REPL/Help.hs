@@ -34,18 +34,20 @@ helpForNamed qname =
          rnEnv  = M.mctxNames  fe
          disp   = M.mctxNameDisp fe
 
-         vNames = M.lookupListNS M.NSValue  qname rnEnv
-         tNames = M.lookupListNS M.NSType   qname rnEnv
-         mNames = M.lookupListNS M.NSModule qname rnEnv
+         vNames = M.lookupListNS M.NSValue       qname rnEnv
+         cNames = M.lookupListNS M.NSConstructor qname rnEnv
+         tNames = M.lookupListNS M.NSType        qname rnEnv
+         mNames = M.lookupListNS M.NSModule      qname rnEnv
 
      let helps = map (showTypeHelp params env disp) tNames ++
                  map (showValHelp params env disp qname) vNames ++
+                 map (showConHelp env disp qname) cNames ++
                  map (showModHelp env disp) mNames
 
          separ = rPutStrLn "            ---------"
      sequence_ (intersperse separ helps)
 
-     when (null (vNames ++ tNames ++ mNames)) $
+     when (null (vNames ++ cNames ++ tNames ++ mNames)) $
        rPrint $ "Undefined name:" <+> pp qname
 
 
@@ -84,7 +86,7 @@ ifaceSummary env info =
     foldr addName emptySummary (Set.toList (M.ifsPublic info))
   where
   addName x ns = fromMaybe ns
-               $ msum [ addT <$> msum [fromTS, fromNT, fromAT]
+               $ msum [ addT <$> msum [fromTS, fromNT ]
                       , addV <$> fromD
                       , addM <$> msum [ fromM, fromS, fromF ]
                       ]
@@ -106,11 +108,8 @@ ifaceSummary env info =
     fromTS = do def <- Map.lookup x (M.ifTySyns env)
                 pure (T.kindOf def, T.tsDoc def)
 
-    fromNT = do def <- Map.lookup x (M.ifNewtypes env)
+    fromNT = do def <- Map.lookup x (M.ifNominalTypes env)
                 pure (T.kindOf def, T.ntDoc def)
-
-    fromAT = do def <- Map.lookup x (M.ifAbstractTypes env)
-                pure (T.kindOf def, T.atDoc def)
 
     fromD = do def <- Map.lookup x (M.ifDecls env)
                pure (M.ifDeclSig def, M.ifDeclDoc def, M.ifDeclFixity def)
@@ -230,7 +229,7 @@ showTypeHelp ::
   M.ModContextParams -> M.IfaceDecls -> NameDisp -> T.Name -> REPL ()
 showTypeHelp ctxparams env nameEnv name =
   fromMaybe (noInfo nameEnv name) $
-  msum [ fromTySyn, fromPrimType, fromNewtype, fromTyParam ]
+  msum [ fromTySyn, fromNominal, fromTyParam ]
 
   where
   fromTySyn =
@@ -240,31 +239,40 @@ showTypeHelp ctxparams env nameEnv name =
                   ]
        return (doShowTyHelp nameEnv (pp ts) (T.tsDoc ts))
 
-  fromNewtype =
-    do nt <- Map.lookup name (M.ifNewtypes env)
-       let decl = pp nt $$ (pp name <+> text ":" <+> pp (T.newtypeConType nt))
-       return $ doShowTyHelp nameEnv decl (T.ntDoc nt)
+  fromNominal =
+    do nt <- Map.lookup name (M.ifNominalTypes env)
+       let decl kw =
+             vcat
+               [ kw <+> pp (T.ntName nt) <.> ":" <+> pp (T.kindOf nt)
+               , ""
+               , "Constructors:" <+>
+                                   commaSep
+                                   (map (pp . fst) (T.nominalTypeConTypes nt))
+               ]
+       case T.ntDef nt of
+         T.Struct {} -> pure $ doShowTyHelp nameEnv (decl "newtype") (T.ntDoc nt)
+         T.Enum {}   -> pure $ doShowTyHelp nameEnv (decl "enum") (T.ntDoc nt)
+         T.Abstract  -> pure (primTypeHelp nt)
 
-  fromPrimType =
-    do a <- Map.lookup name (M.ifAbstractTypes env)
-       pure $ do rPutStrLn ""
-                 rPrint $ runDoc nameEnv $ nest 4
-                        $ "primitive type" <+> pp (T.atName a)
-                                   <+> ":" <+> pp (T.atKind a)
+  primTypeHelp nt =
+    do rPutStrLn ""
+       rPrint $ runDoc nameEnv $ nest 4
+              $ "primitive type" <+> pp (T.ntName nt)
+                         <+> ":" <+> pp (T.kindOf nt)
 
-                 let (vs,cs) = T.atCtrs a
-                 unless (null cs) $
-                   do let example = T.TCon (T.abstractTypeTC a)
-                                           (map (T.TVar . T.tpVar) vs)
-                          ns = T.addTNames vs emptyNameMap
-                          rs = [ "•" <+> ppWithNames ns c | c <- cs ]
-                      rPutStrLn ""
-                      rPrint $ runDoc nameEnv $ indent 4 $
-                                  backticks (ppWithNames ns example) <+>
-                                  "requires:" $$ indent 2 (vcat rs)
+       let vs = T.ntParams nt
+       let cs = T.ntConstraints nt
+       unless (null cs) $
+         do let example = T.TNominal nt (map (T.TVar . T.tpVar) vs)
+                ns = T.addTNames vs emptyNameMap
+                rs = [ "•" <+> ppWithNames ns c | c <- cs ]
+            rPutStrLn ""
+            rPrint $ runDoc nameEnv $ indent 4 $
+                        backticks (ppWithNames ns example) <+>
+                        "requires:" $$ indent 2 (vcat rs)
 
-                 doShowFix (T.atFixitiy a)
-                 doShowDocString (T.atDoc a)
+       doShowFix (T.ntFixity nt)
+       doShowDocString (T.ntDoc nt)
 
   allParamNames =
     case ctxparams of
@@ -293,6 +301,27 @@ doShowTyHelp nameEnv decl doc =
      rPrint (runDoc nameEnv (nest 4 decl))
      doShowDocString doc
 
+showConHelp :: M.IfaceDecls -> NameDisp -> P.PName -> T.Name -> REPL ()
+showConHelp env nameEnv qname name =
+  fromMaybe (noInfo nameEnv name) (Map.lookup name allCons)
+  where
+  allCons = foldr addCons mempty (M.ifNominalTypes env)
+    where
+    getDocs nt =
+      case T.ntDef nt of
+        T.Struct {} -> [ Nothing ]
+        T.Enum cs   -> map (Just . T.ecDoc) cs
+        T.Abstract  -> []
+
+    addCons nt mp = foldr (addCon nt) mp
+                      (zip (T.nominalTypeConTypes nt) (getDocs nt))
+    addCon nt ((c,t),d) = Map.insert c $
+      do rPutStrLn ""
+         rPrint (runDoc nameEnv $ vcat
+            [ "Constructor of" <+> pp (T.ntName nt)
+            , indent 4 $ hsep [ pp qname, ":", pp t ]
+            ])
+         maybe (pure ()) doShowDocString d
 
 
 showValHelp ::
@@ -300,7 +329,7 @@ showValHelp ::
 
 showValHelp ctxparams env nameEnv qname name =
   fromMaybe (noInfo nameEnv name)
-            (msum [ fromDecl, fromNewtype, fromParameter ])
+            (msum [ fromDecl, fromParameter ])
   where
   fromDecl =
     do M.IfaceDecl { .. } <- Map.lookup name (M.ifDecls env)
@@ -320,10 +349,6 @@ showValHelp ctxparams env nameEnv qname name =
                         (guard ifDeclInfix >> return P.defaultFixity)
 
             doShowDocString ifDeclDoc
-
-  fromNewtype =
-    do _ <- Map.lookup name (M.ifNewtypes env)
-       return $ return ()
 
   allParamNames =
     case ctxparams of

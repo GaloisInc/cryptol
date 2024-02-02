@@ -633,6 +633,25 @@ x <=$ y = ~(y <$ x)
 (>=$) : {a} (SignedCmp a) => a -> a -> Bit
 x >=$ y = ~(x <$ y)
 
+// The Option and Result types ------------------------------------
+
+/**
+ * The 'Option a' type represents an optional value. Every 'Option a' value is
+ * either 'Some' and contains a value of type 'a', or 'None' and does not. Among
+ * other uses, optional values are useful for modeling return values for partial
+ * functions, i.e., functions that are not defined over their entire input
+ * range. In these situations, 'None' can be used as a placeholder return value.
+ */
+enum Option a = None | Some a
+
+/**
+ * Values of the 'Result t e' type can either be 'Ok', representing success and
+ * containing a value of type 't', or 'Err', representing error and containing
+ * an error value of type 'e'. Functions can return 'Result' whenever errors are
+ * expected and recoverable. For instance, 'e' might be a 'String' with an error
+ * message, or it might be an 'Integer' with an error code.
+ */
+enum Result t e = Ok t | Err e
 
 // Bit specific operations ----------------------------------------
 

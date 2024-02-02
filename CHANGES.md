@@ -2,6 +2,24 @@
 
 ## Language changes
 
+* Cryptol now supports *enum* declarations. An enum is a named typed which is
+  defined by one or more constructors. Enums correspond to the notion of
+  algebraic data types, which are commonly found in other programming
+  languages.  See the [manual
+  section](https://galoisinc.github.io/cryptol/master/TypeDeclarations.html#enums)
+  for more information.
+
+* Add two enum declarations to the Cryptol standard library:
+
+  ```
+  enum Option a = None | Some a
+
+  enum Result t e = Ok t | Err e
+  ```
+
+  These types are useful for representing optional values (`Option`) or values
+  that may fail in some way (`Result`).
+
 * `foreign` functions can now have an optional Cryptol implementation, which by
   default is used when the foreign implementation cannot be found, or if the FFI
   is unavailable. The `:set evalForeign` REPL option controls this behavior.

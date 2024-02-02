@@ -6,7 +6,7 @@
 -- Stability   :  provisional
 -- Portability :  portable
 --
--- The purpose of this module is to convert all patterns to variable
+-- The purpose of this module is to convert all irrefutable patterns to variable
 -- patterns.  It also eliminates pattern bindings by de-sugaring them
 -- into `Bind`.  Furthermore, here we associate signatures, fixities,
 -- and pragmas with the names to which they belong.  We also merge
@@ -24,7 +24,7 @@ module Cryptol.Parser.NoPat (RemovePatterns(..),Error(..)) where
 
 import Cryptol.Parser.AST
 import Cryptol.Parser.Position(Range(..),emptyRange,start,at)
-import Cryptol.Parser.Names (namesP)
+import Cryptol.Parser.Names (namesP')
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.RecordMap
@@ -74,10 +74,21 @@ sel p x s = let (a,ts) = splitSimpleP p
 -- Simple patterns may only contain variables and type annotations.
 
 -- XXX: We can replace the types in the selectors with annotations on the bindings.
-noPat :: Pattern PName -> NoPatM (Pattern PName, [Bind PName])
-noPat pat =
+noPat :: Bool -> Pattern PName -> NoPatM (Pattern PName, [Bind PName])
+noPat conOk pat =
   case pat of
     PVar x -> return (PVar x, [])
+
+    PCon c ps
+      | conOk ->
+        do (as,dss) <- mapAndUnzipM (noPat False) ps
+           pure (PCon c as, concat dss)
+
+      | otherwise ->
+        do let r = srcRange c
+           recordError (InvalidConstructorPattern r)
+           x <- newName
+           pure (pVar r x, [])
 
     PWild ->
       do x <- newName
@@ -85,7 +96,7 @@ noPat pat =
          return (pVar r x, [])
 
     PTuple ps ->
-      do (as,dss) <- unzip `fmap` mapM noPat ps
+      do (as,dss) <- unzip `fmap` mapM (noPat False) ps
          x <- newName
          r <- getRange
          let len      = length ps
@@ -99,7 +110,7 @@ noPat pat =
          return (pTy r x (TSeq (TNum 0) TWild), [])
 
     PList ps ->
-      do (as,dss) <- unzip `fmap` mapM noPat ps
+      do (as,dss) <- unzip `fmap` mapM (noPat False) ps
          x <- newName
          r <- getRange
          let len      = length ps
@@ -109,7 +120,7 @@ noPat pat =
 
     PRecord fs ->
       do let (shape, els) = unzip (canonicalFields fs)
-         (as,dss) <- unzip `fmap` mapM (noPat . snd) els
+         (as,dss) <- unzip `fmap` mapM (noPat False . snd) els
          x <- newName
          r <- getRange
          let ty           = TRecord (fmap (\(rng,_) -> (rng,TWild)) fs)
@@ -117,13 +128,13 @@ noPat pat =
          return (pTy r x ty, zipWith getN as shape ++ concat dss)
 
     PTyped p t ->
-      do (a,ds) <- noPat p
+      do (a,ds) <- noPat conOk p
          return (PTyped a t, ds)
 
     -- XXX: We can do more with type annotations here
     PSplit p1 p2 ->
-      do (a1,ds1) <- noPat p1
-         (a2,ds2) <- noPat p2
+      do (a1,ds1) <- noPat False p1
+         (a2,ds2) <- noPat False p2
          x <- newName
          tmp <- newName
          r <- getRange
@@ -132,11 +143,11 @@ noPat pat =
              b2   = sel a2 tmp (TupleSel 1 (Just 2))
          return (pVar r x, bTmp : b1 : b2 : ds1 ++ ds2)
 
-    PLocated p r1 -> inRange r1 (noPat p)
+    PLocated p r1 -> inRange r1 (noPat conOk p)
 
   where
   pVar r x   = PVar (Located r x)
-  pTy  r x t = PTyped (PVar (Located r x)) t
+  pTy  r x   = PTyped (PVar (Located r x))
 
 
 splitSimpleP :: Pattern PName -> (Located PName, [Type PName])
@@ -168,6 +179,7 @@ noPatE expr =
     EApp e1 e2    -> EApp   <$> noPatE e1 <*> noPatE e2
     EAppT e ts    -> EAppT  <$> noPatE e <*> return ts
     EIf e1 e2 e3  -> EIf    <$> noPatE e1 <*> noPatE e2 <*> noPatE e3
+    ECase e as    -> ECase  <$> noPatE e  <*> traverse noPatAlt as
     EWhere e ds   -> EWhere <$> noPatE e <*> noPatDs ds
     ETyped e t    -> ETyped <$> noPatE e <*> return t
     ETypeVal {}   -> return expr
@@ -179,6 +191,14 @@ noPatE expr =
     EInfix x y f z-> EInfix  <$> noPatE x <*> pure y <*> pure f <*> noPatE z
     EPrefix op e  -> EPrefix op <$> noPatE e
 
+noPatAlt :: CaseAlt PName -> NoPatM (CaseAlt PName)
+noPatAlt (CaseAlt p e) =
+  do (p1,ds) <- noPat True p
+     e1 <- noPatE e
+     let e2 = case ds of
+                [] -> e1
+                _  -> EWhere e1 (map DBind ds)
+     pure (CaseAlt p1 e2)
 
 noPatUF :: UpdField PName -> NoPatM (UpdField PName)
 noPatUF (UpdField h ls e) = UpdField h ls <$> noPatE e
@@ -192,7 +212,7 @@ noPatUF (UpdField h ls e) = UpdField h ls <$> noPatE e
 noPatFun :: Maybe PName -> Int -> [Pattern PName] -> Expr PName -> NoPatM (Expr PName)
 noPatFun _   _      []     e = noPatE e
 noPatFun mnm offset (p:ps) e =
-  do (p',ds) <- noPat p
+  do (p',ds) <- noPat False p
      e' <- noPatFun mnm (offset+1) ps e
      let body = case ds of
                   [] -> e'
@@ -209,7 +229,7 @@ noPatArm ms = concat <$> mapM noPatM ms
 
 noPatM :: Match PName -> NoPatM [Match PName]
 noPatM (Match p e) =
-  do (x,bs) <- noPat p
+  do (x,bs) <- noPat False p
      e1     <- noPatE e
      return (Match x e1 : map MatchLet bs)
 noPatM (MatchLet b) = (return . MatchLet) <$> noMatchB b
@@ -261,7 +281,7 @@ noMatchD decl =
                           return [DBind b1]
     DRec {}         -> panic "noMatchD" [ "DRec" ]
 
-    DPatBind p e    -> do (p',bs) <- noPat p
+    DPatBind p e    -> do (p',bs) <- noPat False p
                           let (x,ts) = splitSimpleP p'
                           e1 <- noPatE e
                           let e2 = foldl ETyped e1 ts
@@ -421,8 +441,9 @@ annotTopDs tds =
         DParamDecl {} -> (d :) <$> annotTopDs ds
         DInterfaceConstraint {} -> (d :) <$> annotTopDs ds
 
-        -- XXX: we may want to add pragmas to newtypes?
+        -- XXX: we may want to add pragmas to newtypes and enums?
         TDNewtype {} -> (d :) <$> annotTopDs ds
+        TDEnum {}    -> (d :) <$> annotTopDs ds
         Include {}   -> (d :) <$> annotTopDs ds
 
         DModule m ->
@@ -579,7 +600,7 @@ toDocs TopLevel { .. }
       DBind b         -> [ (thing (bName b), [txt]) ]
       DRec {}         -> panic "toDocs" [ "DRec" ]
       DLocated d _    -> go txt d
-      DPatBind p _    -> [ (thing n, [txt]) | n <- namesP p ]
+      DPatBind p _    -> [ (thing n, [txt]) | n <- namesP' p ]
 
       -- XXX revisit these
       DPragma _ _     -> []
@@ -605,6 +626,7 @@ data Error  = MultipleSignatures PName [Located (Schema PName)]
             | MultipleFixities PName [Range]
             | FixityNoBind (Located PName)
             | MultipleDocs PName [Range]
+            | InvalidConstructorPattern Range
               deriving (Show,Generic, NFData)
 
 instance Functor NoPatM where fmap = liftM
@@ -647,21 +669,21 @@ instance PP Error where
     case err of
       MultipleSignatures x ss ->
         text "Multiple type signatures for" <+> quotes (pp x)
-        $$ nest 2 (vcat (map pp ss))
+        $$ indent 2 (vcat (map pp ss))
 
       SignatureNoBind x s ->
         text "At" <+> pp (srcRange x) <.> colon <+>
         text "Type signature without a matching binding:"
-         $$ nest 2 (pp (thing x) <+> colon <+> pp s)
+         $$ indent 2 (pp (thing x) <+> colon <+> pp s)
 
       PragmaNoBind x s ->
         text "At" <+> pp (srcRange x) <.> colon <+>
         text "Pragma without a matching binding:"
-         $$ nest 2 (pp s)
+         $$ indent 2 (pp s)
 
       MultipleFixities n locs ->
         text "Multiple fixity declarations for" <+> quotes (pp n)
-        $$ nest 2 (vcat (map pp locs))
+        $$ indent 2 (vcat (map pp locs))
 
       FixityNoBind n ->
         text "At" <+> pp (srcRange n) <.> colon <+>
@@ -670,4 +692,10 @@ instance PP Error where
 
       MultipleDocs n locs ->
         text "Multiple documentation blocks given for:" <+> pp n
-        $$ nest 2 (vcat (map pp locs))
+        $$ indent 2 (vcat (map pp locs))
+
+      InvalidConstructorPattern r ->
+        "At" <+> pp r <.> colon <+> "Invalid constructor pattern"
+         $$ indent 2 "Constructors may appear only at the top level of a case."
+
+

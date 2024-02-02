@@ -70,6 +70,7 @@ module Cryptol.Parser.AST
   , TopLevel(..)
   , Import, ImportG(..), ImportSpec(..), ImpName(..), impNameModPath
   , Newtype(..)
+  , EnumDecl(..), EnumCon(..)
   , PrimType(..)
   , ParameterType(..)
   , ParameterFun(..)
@@ -89,6 +90,7 @@ module Cryptol.Parser.AST
   , Match(..)
   , Pattern(..)
   , Selector(..)
+  , CaseAlt(..)
   , TypeInst(..)
   , UpdField(..)
   , UpdHow(..)
@@ -251,6 +253,7 @@ data TopDecl name =
     Decl (TopLevel (Decl name))
   | DPrimType (TopLevel (PrimType name))
   | TDNewtype (TopLevel (Newtype name)) -- ^ @newtype T as = t
+  | TDEnum (TopLevel (EnumDecl name))   -- ^ @enum T as = cons@
   | Include (Located FilePath)          -- ^ @include File@ (until NoInclude)
 
   | DParamDecl Range (Signature name)   -- ^ @parameter ...@ (parser only)
@@ -524,6 +527,17 @@ data Newtype name = Newtype
   , nBody     :: Rec (Type name)     -- ^ Body
   } deriving (Eq, Show, Generic, NFData)
 
+data EnumDecl name = EnumDecl
+  { eName     :: Located name               -- ^ Type name
+  , eParams   :: [TParam name]              -- ^ Type params
+  , eCons     :: [TopLevel (EnumCon name)]  -- ^ Value constructors
+  } deriving (Show, Generic, NFData)
+
+data EnumCon name = EnumCon
+  { ecName    :: Located name
+  , ecFields  :: [Type name]
+  } deriving (Show, Generic, NFData)
+
 -- | A declaration for a type with no implementation.
 data PrimType name = PrimType { primTName :: Located name
                               , primTKind :: Located Kind
@@ -598,6 +612,7 @@ data Expr n   = EVar n                          -- ^ @ x @
               | EApp (Expr n) (Expr n)          -- ^ @ f x @
               | EAppT (Expr n) [(TypeInst n)]   -- ^ @ f `{x = 8}, f`{8} @
               | EIf (Expr n) (Expr n) (Expr n)  -- ^ @ if ok then e1 else e2 @
+              | ECase (Expr n) [CaseAlt n]      -- ^ @ case e of { P -> e }@
               | EWhere (Expr n) [Decl n]        -- ^ @ 1 + x where { x = 2 } @
               | ETyped (Expr n) (Type n)        -- ^ @ 1 : [8] @
               | ETypeVal (Type n)               -- ^ @ `(x + 1)@, @x@ is a type
@@ -656,8 +671,12 @@ data Pattern n = PVar (Located n)              -- ^ @ x @
                | PList [ Pattern n ]           -- ^ @ [ x, y, z ] @
                | PTyped (Pattern n) (Type n)   -- ^ @ x : [8] @
                | PSplit (Pattern n) (Pattern n)-- ^ @ (x # y) @
+               | PCon (Located n) [Pattern n]  -- ^ @ Just x @
                | PLocated (Pattern n) Range    -- ^ Location information
                  deriving (Eq, Show, Generic, NFData, Functor)
+
+data CaseAlt n = CaseAlt (Pattern n) (Expr n)
+  deriving (Eq, Show, Generic, NFData, Functor)
 
 data Named a = Named { name :: Located Ident, value :: a }
   deriving (Eq, Show, Foldable, Traversable, Generic, NFData, Functor)
@@ -775,6 +794,7 @@ instance HasLoc (TopDecl name) where
       Decl tld    -> getLoc tld
       DPrimType pt -> getLoc pt
       TDNewtype n -> getLoc n
+      TDEnum n -> getLoc n
       Include lfp -> getLoc lfp
       DModule d -> getLoc d
       DImport d -> getLoc d
@@ -827,6 +847,22 @@ instance HasLoc (Newtype name) where
     | otherwise = Just (rCombs locs)
     where
     locs = catMaybes ([ getLoc (nName n)] ++ map (Just . fst . snd) (displayFields (nBody n)))
+
+instance HasLoc (EnumDecl name) where
+  getLoc n
+    | null locs = Nothing
+    | otherwise = Just (rCombs locs)
+    where
+    locs = catMaybes (getLoc (eName n) : map getLoc (eCons n))
+
+instance HasLoc (EnumCon name) where
+  getLoc c
+    | null locs = Nothing
+    | otherwise = Just (rCombs locs)
+    where
+    locs = catMaybes (getLoc (ecName c) : map getLoc (ecFields c))
+
+
 
 instance HasLoc (TySyn name) where
   getLoc (TySyn x _ _ _) = getLoc x
@@ -918,6 +954,7 @@ instance (Show name, PPName name) => PP (TopDecl name) where
       Decl    d   -> pp d
       DPrimType p -> pp p
       TDNewtype n -> pp n
+      TDEnum n -> pp n
       Include l   -> text "include" <+> text (show (thing l))
       DModule d -> pp d
       DImport i -> pp (thing i)
@@ -1016,6 +1053,16 @@ instance PPName name => PP (Newtype name) where
     [ fsep $ [text "newtype", ppL (nName nt)] ++ map pp (nParams nt) ++ [char '=']
     , ppRecord (map (ppNamed' ":") (displayFields (nBody nt)))
     ]
+
+instance (Show name, PPName name) => PP (EnumDecl name) where
+  ppPrec _ ed = nest 2 $ sep
+    [ fsep $ [text "enum", ppL (eName ed)] ++ map pp (eParams ed) ++ [char '=']
+    , vcat [ pre <+> pp con | (pre, con) <- pres `zip` eCons ed ]
+    ]
+    where pres = " " : repeat "|"
+
+instance (Show name, PPName name) => PP (EnumCon name) where
+  ppPrec _ c = pp (ecName c) <+> hsep (map (ppPrec 1) (ecFields c))
 
 instance (PP mname) => PP (ImportG mname) where
   ppPrec _ d = vcat [ text "import" <+> sep ([pp (iModule d)] ++ mbInst ++
@@ -1228,6 +1275,10 @@ instance (Show name, PPName name) => PP (Expr name) where
                                       , text "then" <+> pp e2
                                       , text "else" <+> pp e3 ]
 
+      ECase e as    -> wrap n 0 $ vcat [ "case" <+> pp e <+> "of"
+                                       , nest 2 (vcat (map pp as))
+                                       ]
+
       ETyped e t    -> wrap n 0 (ppPrec 2 e <+> text ":" <+> pp t)
 
       EWhere  e ds  -> wrap n 0 $ align $ vsep
@@ -1263,6 +1314,9 @@ instance (Show name, PPName name) => PP (Expr name) where
    prefixText PrefixNeg        = "-"
    prefixText PrefixComplement = "~"
 
+instance (Show name, PPName name) => PP (CaseAlt name) where
+  ppPrec _ (CaseAlt p e) = vcat [ pp p <+> "->", nest 2 (pp e) ]
+
 instance (Show name, PPName name) => PP (UpdField name) where
   ppPrec _ (UpdField h xs e) = ppNestedSels (map thing xs) <+> pp h <+> pp e
 
@@ -1275,6 +1329,10 @@ instance PPName name => PP (Pattern name) where
   ppPrec n pat =
     case pat of
       PVar x        -> pp (thing x)
+      PCon c ps ->
+        case ps of
+          [] -> pp c
+          _  -> wrap n 1 (pp c <+> hsep (map (ppPrec 1) ps))
       PWild         -> char '_'
       PTuple ps     -> ppTuple (map pp ps)
       PRecord fs    -> ppRecord (map (ppNamed' "=") (displayFields fs))
@@ -1415,6 +1473,7 @@ instance NoPos (TopDecl name) where
       Decl    x   -> Decl     (noPos x)
       DPrimType t -> DPrimType (noPos t)
       TDNewtype n -> TDNewtype(noPos n)
+      TDEnum n -> TDEnum (noPos n)
       Include x   -> Include  (noPos x)
       DModule d -> DModule (noPos d)
       DImport d -> DImport (noPos d)
@@ -1485,6 +1544,15 @@ instance NoPos (Newtype name) where
                     , nBody     = fmap noPos (nBody n)
                     }
 
+instance NoPos (EnumDecl name) where
+  noPos n = EnumDecl { eName    = noPos (eName n)
+                     , eParams  = eParams n
+                     , eCons    = map noPos (eCons n)
+                     }
+
+instance NoPos (EnumCon name) where
+  noPos c = EnumCon { ecName = noPos (ecName c), ecFields = noPos (ecFields c) }
+
 instance NoPos (Bind name) where
   noPos x = Bind { bName      = noPos (bName      x)
                  , bParams    = noPos (bParams    x)
@@ -1542,6 +1610,7 @@ instance NoPos (Expr name) where
       EParens e       -> EParens (noPos e)
       EInfix x y f z  -> EInfix (noPos x) y f (noPos z)
       EPrefix op x    -> EPrefix op (noPos x)
+      ECase x y       -> ECase (noPos x) (noPos y)
 
 instance NoPos (UpdField name) where
   noPos (UpdField h xs e) = UpdField h xs (noPos e)
@@ -1554,6 +1623,9 @@ instance NoPos (Match name) where
   noPos (Match x y)  = Match (noPos x) (noPos y)
   noPos (MatchLet b) = MatchLet (noPos b)
 
+instance NoPos (CaseAlt name) where
+  noPos (CaseAlt p e) = CaseAlt (noPos p) (noPos e)
+
 instance NoPos (Pattern name) where
   noPos pat =
     case pat of
@@ -1565,6 +1637,7 @@ instance NoPos (Pattern name) where
       PTyped x y   -> PTyped  (noPos x) (noPos y)
       PSplit x y   -> PSplit  (noPos x) (noPos y)
       PLocated x _ -> noPos x
+      PCon n ps    -> PCon n (noPos ps)
 
 instance NoPos (Schema name) where
   noPos (Forall x y z _) = Forall (noPos x) (noPos y) (noPos z) Nothing

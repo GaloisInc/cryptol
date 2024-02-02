@@ -11,7 +11,6 @@
 {-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE ParallelListComp #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -28,9 +27,10 @@ module Cryptol.Eval (
   , emptyEnv
   , evalExpr
   , evalDecls
-  , evalNewtypeDecls
+  , evalNominalDecls
   , evalSel
   , evalSetSel
+  , evalEnumCon
   , EvalError(..)
   , EvalErrorEx(..)
   , Unsupported(..)
@@ -62,6 +62,8 @@ import Cryptol.Utils.RecordMap
 import           Control.Monad
 import           Data.List
 import           Data.Maybe
+import           Data.Vector(Vector)
+import qualified Data.Vector as Vector
 import qualified Data.IntMap.Strict as IntMap
 import qualified Data.Map.Strict as Map
 import           Data.Semigroup
@@ -96,7 +98,8 @@ moduleEnv ::
   Module         {- ^ Module containing declarations to evaluate -} ->
   GenEvalEnv sym {- ^ Environment to extend -} ->
   SEval sym (GenEvalEnv sym)
-moduleEnv sym m env = evalDecls sym (mDecls m) =<< evalNewtypeDecls sym (mNewtypes m) env
+moduleEnv sym m env = evalDecls sym (mDecls m) =<<
+                          evalNominalDecls sym (mNominalTypes m) env
 
 {-# SPECIALIZE evalExpr ::
   (?range :: Range, ConcPrims) =>
@@ -160,6 +163,17 @@ evalExpr sym env expr = case expr of
   EIf c t f -> {-# SCC "evalExpr->EIf" #-} do
      b <- fromVBit <$> eval c
      iteValue sym b (eval t) (eval f)
+
+  ECase e as d -> {-# SCC "evalExpr->ECase" #-} do
+    val <- eval e
+    let (con,fs) = fromVEnum val
+    caseValue sym con fs
+      CaseCont
+        { caseCon = evalCase <$> as
+        , caseDflt =
+            do rhs <- d
+               pure (evalCase rhs [pure val])
+        }
 
   EComp n t h gs -> {-# SCC "evalExpr->EComp" #-} do
       let len  = evalNumType (envTypes env) n
@@ -230,6 +244,10 @@ evalExpr sym env expr = case expr of
   {-# INLINE eval #-}
   eval = evalExpr sym env
   ppV = ppValue sym defaultPPOpts
+  evalCase (CaseAlt xs e) vs =
+    do let addVar env' ((x,_),v) = bindVar sym x v env'
+       newEnv <- foldM addVar env (zip xs vs)
+       evalExpr sym newEnv e
 
 -- | Checks whether an evaluated `Prop` holds
 checkProp :: Prop -> Bool
@@ -296,40 +314,65 @@ cacheCallStack sym v = case v of
 
 -- Newtypes --------------------------------------------------------------------
 
-{-# SPECIALIZE evalNewtypeDecls ::
+{-# SPECIALIZE evalNominalDecls ::
   ConcPrims =>
   Concrete ->
-  Map.Map Name Newtype ->
+  Map.Map Name NominalType ->
   GenEvalEnv Concrete ->
   SEval Concrete (GenEvalEnv Concrete)
   #-}
 
-evalNewtypeDecls ::
+evalNominalDecls ::
   EvalPrims sym =>
   sym ->
-  Map.Map Name Newtype ->
+  Map.Map Name NominalType ->
   GenEvalEnv sym ->
   SEval sym (GenEvalEnv sym)
-evalNewtypeDecls sym nts env = foldM (flip (evalNewtypeDecl sym)) env $ Map.elems nts
+evalNominalDecls sym nts env = foldM (flip (evalNominalDecl sym)) env $ Map.elems nts
 
 -- | Introduce the constructor function for a newtype.
-evalNewtypeDecl ::
+evalNominalDecl ::
   EvalPrims sym =>
   sym ->
-  Newtype ->
+  NominalType ->
   GenEvalEnv sym ->
   SEval sym (GenEvalEnv sym)
-evalNewtypeDecl _sym nt = pure . bindVarDirect (ntConName nt) (foldr tabs con (ntParams nt))
+evalNominalDecl sym nt env0 =
+  case ntDef nt of
+    Struct c -> pure (bindVarDirect (ntConName c) (mkCon structCon) env0)
+    Enum cs  -> foldM enumCon env0 cs
+    Abstract -> pure env0
   where
-  con           = PFun PPrim
+  structCon = PFun PPrim
+  mkCon c   = foldr tabs c (ntParams nt)
+
+  enumCon env c =
+    do con <- evalEnumCon sym (nameIdent (ecName c)) (ecNumber c)
+       let done        = PVal . con . Vector.fromList . reverse
+           fu _t f xs  = PFun (\v -> f (v:xs))
+       pure (bindVarDirect (ecName c)
+                           (mkCon (foldr fu done (ecFields c) [])) env)
 
   tabs tp body =
     case tpKind tp of
       KType -> PTyPoly  (\ _ -> body)
       KNum  -> PNumPoly (\ _ -> body)
-      k -> evalPanic "evalNewtypeDecl" ["illegal newtype parameter kind", show (pp k)]
+      k ->
+        evalPanic "evalNominalDecl" [ "illegal newtype parameter kind"
+                                    , show (pp k)
+                                    ]
 
-{-# INLINE evalNewtypeDecl #-}
+{-# INLINE evalNominalDecl #-}
+
+-- | Make the function for a known constructor
+evalEnumCon ::
+  Backend sym =>
+  sym -> Ident -> Int ->
+  SEval sym (Vector (SEval sym (GenValue sym)) -> GenValue sym)
+evalEnumCon sym i n =
+  do tag <- integerLit sym (toInteger n)
+     pure (VEnum tag . IntMap.singleton n . ConInfo i)
+
 
 
 -- Declarations ----------------------------------------------------------------

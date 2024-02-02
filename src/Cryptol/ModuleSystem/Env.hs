@@ -206,9 +206,9 @@ loadedModules = map lmModule . getLoadedModules . meLoadedModules
 loadedNonParamModules :: ModuleEnv -> [T.Module]
 loadedNonParamModules = map lmModule . lmLoadedModules . meLoadedModules
 
-loadedNewtypes :: ModuleEnv -> Map Name T.Newtype
-loadedNewtypes menv = Map.unions
-   [ ifNewtypes (ifDefines i) <> ifNewtypes (ifDefines i)
+loadedNominalTypes :: ModuleEnv -> Map Name T.NominalType
+loadedNominalTypes menv = Map.unions
+   [ ifNominalTypes (ifDefines i) <> ifNominalTypes (ifDefines i)
    | i <- map lmInterface (getLoadedModules (meLoadedModules menv))
    ]
 
@@ -624,8 +624,7 @@ instance Monoid DynamicEnv where
 deIfaceDecls :: DynamicEnv -> IfaceDecls
 deIfaceDecls DEnv { deDecls = dgs, deTySyns = tySyns } =
     IfaceDecls { ifTySyns = tySyns
-               , ifNewtypes = Map.empty
-               , ifAbstractTypes = Map.empty
+               , ifNominalTypes = Map.empty
                , ifDecls = decls
                , ifModules = Map.empty
                , ifFunctors = Map.empty

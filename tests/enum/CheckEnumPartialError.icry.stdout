@@ -1,0 +1,13 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+
+[error] at CheckEnumPartialError.cry:5:3--8:1:
+  Case expression does not cover the following patterns:
+  Main::Nothing
+[error] at CheckEnumPartialError.cry:10:3--13:1:
+  Case expression does not cover the following patterns:
+  Main::Just
+[error] at CheckEnumPartialError.cry:17:3--20:1:
+  Case expression does not cover the following patterns:
+  Main::B, Main::C

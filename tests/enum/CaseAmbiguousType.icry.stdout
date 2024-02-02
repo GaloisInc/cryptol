@@ -1,0 +1,11 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+
+[error] at CaseAmbiguousType.cry:2:8--2:9:
+  Failed to infer the type of cased expression.
+    Try giving the expression an explicit type annotation.
+[error] at CaseAmbiguousType.cry:6:8--6:19:
+  Type mismatch in cased expresson:
+    Expected: an `enum` type
+    Inferred: Integer
