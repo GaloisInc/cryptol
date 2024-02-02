@@ -337,8 +337,8 @@ checkTUser x ts k =
        checkKind (TUser x ts1 t1) k k1
 
   checkNominalTypeUse nt
-    | Abstract <- ntDef nt, Just tc <- builtInType (ntName nt) =
-      do (ts1,k1) <- appTy ts (kindOf tc)
+    | Abstract <- ntDef nt =
+      do (ts1,k1) <- appTy ts (kindOf nt)
          let as = ntParams nt
              ps = ntConstraints nt
          case as of
@@ -349,7 +349,14 @@ checkTUser x ts k =
                      kRecordError (TooFewTyParams (ntName nt) (need - have))
                    let su = listSubst (map tpVar as `zip` ts1)
                    kNewGoals (CtPartialTypeFun (ntName nt)) (apSubst su <$> ps)
-         checkKind (TCon tc ts1) k k1
+         let ty =
+               -- We must uphold the invariant that built-in abstract types
+               -- are represented with TCon. User-defined abstract types use
+               -- TNominal instead.
+               case builtInType (ntName nt) of
+                 Just tc -> TCon tc ts1
+                 Nothing -> TNominal nt ts1
+         checkKind ty k k1
 
     | otherwise =
     do (ts1,k1) <- appTy ts (kindOf nt)

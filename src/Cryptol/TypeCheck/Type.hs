@@ -374,7 +374,11 @@ instance HasKind Type where
       TCon c ts   -> quickApply (kindOf c) ts
       TUser _ _ t -> kindOf t
       TRec {}     -> KType
-      TNominal {} -> KType
+      TNominal nt ts ->
+        case ntDef nt of
+          Struct {} -> KType
+          Enum {}   -> KType
+          Abstract  -> quickApply (kindOf nt) ts
 
 instance HasKind TySyn where
   kindOf ts = foldr (:->) (kindOf (tsDef ts)) (map kindOf (tsParams ts))

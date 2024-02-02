@@ -1,0 +1,3 @@
+primitive type Either : * -> * -> *
+primitive Left : {a, b} a -> Either a b
+primitive Right : {a, b} b -> Either a b
