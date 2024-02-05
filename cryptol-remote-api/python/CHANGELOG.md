@@ -1,8 +1,9 @@
 # Revision history for `cryptol` Python package
 
-## 3.0.2 -- YYYY-MM-DD
+## 3.1.0 -- 2024-??-??
 
-*  NEW CHANGELOG ENTRIES SINCE 3.0.1 GO HERE
+* The v3.1.0 release is made in tandem with the Cryptol 3.1.0 release. See the
+  Cryptol 3.1.0 release notes for relevant Cryptol changes.
 
 ## 3.0.1 -- 2023-07-10
 
