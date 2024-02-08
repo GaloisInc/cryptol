@@ -8,10 +8,9 @@
 --
 -- Compile the prelude into the executable as a last resort
 
-{-# LANGUAGE Safe #-}
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Cryptol.Prelude
   ( preludeContents
@@ -23,28 +22,27 @@ module Cryptol.Prelude
   , cryptolTcContents
   ) where
 
-import Data.ByteString(ByteString)
+import Data.ByteString (ByteString)
+import Data.FileEmbed (embedFileRelative)
 import qualified Data.ByteString.Char8 as B
-import Text.Heredoc (there)
-
 
 preludeContents :: ByteString
-preludeContents = B.pack [there|lib/Cryptol.cry|]
+preludeContents = $(embedFileRelative "lib/Cryptol.cry")
 
 preludeReferenceContents :: ByteString
-preludeReferenceContents = B.pack [there|lib/Cryptol/Reference.cry|]
+preludeReferenceContents = $(embedFileRelative "lib/Cryptol/Reference.cry")
 
 floatContents :: ByteString
-floatContents = B.pack [there|lib/Float.cry|]
+floatContents = $(embedFileRelative "lib/Float.cry")
 
 arrayContents :: ByteString
-arrayContents = B.pack [there|lib/Array.cry|]
+arrayContents = $(embedFileRelative "lib/Array.cry")
 
 suiteBContents :: ByteString
-suiteBContents = B.pack [there|lib/SuiteB.cry|]
+suiteBContents = $(embedFileRelative "lib/SuiteB.cry")
 
 primeECContents :: ByteString
-primeECContents = B.pack [there|lib/PrimeEC.cry|]
+primeECContents = $(embedFileRelative "lib/PrimeEC.cry")
 
 cryptolTcContents :: String
-cryptolTcContents = [there|lib/CryptolTC.z3|]
+cryptolTcContents = B.unpack $(embedFileRelative "lib/CryptolTC.z3")
