@@ -565,21 +565,7 @@ asBatch body = do
 validEvalContext :: T.FreeVars a => a -> REPL ()
 validEvalContext a =
   do me <- eModuleEnv <$> getRW
-     let ds      = T.freeVars a
-         badVals = foldr badName Set.empty (T.valDeps ds)
-         bad     = foldr badName badVals (T.tyDeps ds)
-         badTs   = T.tyParams ds
-
-         badName nm bs =
-           case M.nameInfo nm of
-
-             -- XXX: Changes if focusing on nested modules
-             M.GlobalName _ I.OrigName { ogModule = I.TopModule m }
-               | M.isLoadedParamMod m (M.meLoadedModules me) -> Set.insert nm bs
-               | M.isLoadedInterface m (M.meLoadedModules me) -> Set.insert nm bs
-
-             _ -> bs
-
+     let (badTs, bad) = M.loadedParamModDeps (M.meLoadedModules me) a
      unless (Set.null bad && Set.null badTs) $
        raise (EvalInParamModule (Set.toList badTs) (Set.toList bad))
 
