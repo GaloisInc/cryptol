@@ -1,5 +1,13 @@
 # Revision history for `cryptol-remote-api` and `cryptol-eval-server`
 
+## next -- TBA
+
+* Fix a bug in which the `check`, `prove or satisfy`, and `evaluate expression`
+  commands would fail to check the validity of the expression supplied as an
+  argument. Among other issues, this could cause the remote API to panic when
+  attempting to check an expression that depends on definitions from a
+  parameterized module.
+
 ## 3.1.0 -- 2024-02-05
 
 * The v3.1.0 release is made in tandem with the Cryptol 3.1.0 release. See the

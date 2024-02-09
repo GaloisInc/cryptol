@@ -129,7 +129,7 @@ Evaluation errors (``20200``–``20499``)
    where the JSON object for ``type`` is a
    :ref:`JSON Cryptol type <cryptol-json-type>`.
 -  ``20220``: “Can’t evaluate Cryptol in a parameterized module”
-   ``{ modules: [String] }``
+   ``{ "type parameters": [String], "definitions": [String] }``
 -  ``20230``: “Prover error” ``{ error: String }``
 
 Module errors (``20500``–``20699``)

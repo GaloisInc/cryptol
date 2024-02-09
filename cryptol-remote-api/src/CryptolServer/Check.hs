@@ -37,6 +37,7 @@ import CryptolServer
     ( getTCSolver,
       getModuleEnv,
       liftModuleCmd,
+      validEvalContext,
       CryptolMethod(raise),
       CryptolCommand )
 import CryptolServer.AesonCompat (KeyCompat)
@@ -56,7 +57,8 @@ check :: CheckParams -> CryptolCommand CheckResult
 check (CheckParams jsonExpr cMode) =
   do e <- getExpr jsonExpr
      (_expr, ty, schema) <- liftModuleCmd (CM.checkExpr e)
-     -- TODO? validEvalContext expr, ty, schema
+     validEvalContext ty
+     validEvalContext schema
      s <- getTCSolver
      perhapsDef <- liftIO (defaultReplExpr s ty schema)
      case perhapsDef of

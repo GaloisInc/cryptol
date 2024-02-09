@@ -560,8 +560,8 @@ asBatch body = do
   modifyRW_ $ (\ rw -> rw { eIsBatch = wasBatch })
   return a
 
--- | Is evaluation enabled.  If the currently focused module is
--- parameterized, then we cannot evalute.
+-- | Is evaluation enabled? If the currently focused module is parameterized,
+-- then we cannot evaluate.
 validEvalContext :: T.FreeVars a => a -> REPL ()
 validEvalContext a =
   do me <- eModuleEnv <$> getRW

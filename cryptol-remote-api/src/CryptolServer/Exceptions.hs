@@ -85,7 +85,7 @@ cryptolError modErr warns =
         (20711, [ ("source", jsonPretty src)
                 , ("errors", jsonPretty err')
                 ])
-        
+
       NoIncludeErrors src errs ->
         -- TODO: structured error here
         (20720, [ ("source", jsonPretty src)
@@ -171,11 +171,12 @@ unwantedDefaults defs =
       [ jsonTypeAndString ty <> fromListKM ["parameter" .= pretty param]
       | (param, ty) <- defs ] ]))
 
-evalInParamMod :: [CM.Name] -> JSONRPCException
-evalInParamMod mods =
+evalInParamMod :: [TC.TParam] -> [CM.Name] -> JSONRPCException
+evalInParamMod tyParams defs =
   makeJSONRPCException
     20220 "Can't evaluate Cryptol in a parameterized module."
-    (Just (JSON.object ["modules" .= map pretty mods]))
+    (Just (JSON.object ["type parameters" .= map pretty tyParams
+                       , "definitions" .= map pretty defs ]))
 
 evalPolyErr ::
   TC.Schema {- ^ the type that was too polymorphic -} ->

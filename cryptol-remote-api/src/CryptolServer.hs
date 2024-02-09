@@ -6,16 +6,19 @@
 module CryptolServer (module CryptolServer) where
 
 import Control.Lens
+import Control.Monad (unless)
 import Control.Monad.IO.Class
 import Control.Monad.Reader (ReaderT(ReaderT))
 import qualified Data.Aeson as JSON
 import Data.Containers.ListUtils (nubOrd)
+import qualified Data.Set as Set
 import Data.Text (Text)
 
 import Cryptol.Eval (EvalOpts(..))
+import Cryptol.IR.FreeVars (FreeVars)
 import Cryptol.ModuleSystem (ModuleCmd, ModuleEnv(..), ModuleInput(..))
 import Cryptol.ModuleSystem.Env
-  (getLoadedModules, lmFilePath, lmFileInfo, fiFingerprint,
+  (getLoadedModules, loadedParamModDeps, lmFilePath, lmFileInfo, fiFingerprint,
    initialModuleEnv, ModulePath(..))
 import Cryptol.ModuleSystem.Name (FreshM(..))
 import Cryptol.ModuleSystem.Fingerprint ( fingerprintFile )
@@ -25,7 +28,7 @@ import qualified Cryptol.TypeCheck.Solver.SMT as SMT
 
 import qualified Argo
 import qualified Argo.Doc as Doc
-import CryptolServer.Exceptions ( cryptolError )
+import CryptolServer.Exceptions ( cryptolError, evalInParamMod )
 import CryptolServer.Options
     ( WithOptions(WithOptions), Options(Options, optEvalOpts) )
 
@@ -109,6 +112,18 @@ liftModuleCmd cmd =
            -- successfully?
            do setModuleEnv newEnv
               return x
+
+-- | Is evaluation enabled? If the currently focused module is parameterized,
+-- then we cannot evaluate.
+--
+-- See also the 'validEvalContext' function in @Cryptol.REPL.Monad@, on which
+-- this function is based.
+validEvalContext :: FreeVars a => a -> CryptolCommand ()
+validEvalContext a =
+  do me <- getModuleEnv
+     let (badTs, bad) = loadedParamModDeps (meLoadedModules me) a
+     unless (Set.null bad && Set.null badTs) $
+       raise (evalInParamMod (Set.toList badTs) (Set.toList bad))
 
 data LoadedModule = LoadedModule
   { _loadedName :: Maybe ModName   -- ^ Working on this module.
