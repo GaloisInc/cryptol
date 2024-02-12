@@ -279,14 +279,19 @@ vtop_decls                 :: { [TopDecl PName]  }
   | vtop_decls 'v;' vtop_decl { $3 ++ $1 }
   | vtop_decls ';'  vtop_decl { $3 ++ $1 }
 
+property_pragma   :: { PropertyPragma }
+  : 'property' { DefaultPropertyPragma }
+  -- TODO change this up...
+  | 'property' ':' { DefaultPropertyPragma } 
+
 vtop_decl               :: { [TopDecl PName] }
   : decl                   { [exportDecl Nothing   Public $1]                 }
   | doc decl               { [exportDecl (Just $1) Public $2]                 }
   | mbDoc 'include' STRLIT {% (return . Include) `fmap` fromStrLit $3         }
-  | mbDoc 'property' name iapats '=' expr
-                           { [exportDecl $1 Public (mkProperty $3 $4 $6)]     }
-  | mbDoc 'property' name       '=' expr
-                           { [exportDecl $1 Public (mkProperty $3 [] $5)]     }
+  | mbDoc property_pragma name iapats '=' expr
+                           { [exportDecl $1 Public (mkProperty $3 $4 $6 $2)]     }
+  | mbDoc property_pragma name       '=' expr
+                           { [exportDecl $1 Public (mkProperty $3 [] $5 $2)]     }
   | mbDoc newtype          { [exportNewtype Public $1 $2]                     }
   | mbDoc enum             { [exportEnum Public $1 $2]                        }
   | prim_bind              { $1                                               }

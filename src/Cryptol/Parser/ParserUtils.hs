@@ -755,13 +755,13 @@ mkPoly rng terms
 
 
 -- NOTE: The list of patterns is reversed!
-mkProperty :: LPName -> [Pattern PName] -> Expr PName -> Decl PName
-mkProperty f ps e = at (f,e) $
+mkProperty :: LPName -> [Pattern PName] -> Expr PName -> PropertyPragma -> Decl PName
+mkProperty f ps e pp = at (f,e) $
                     DBind Bind { bName       = f
                                , bParams     = reverse ps
                                , bDef        = at e (Located emptyRange (exprDef e))
                                , bSignature  = Nothing
-                               , bPragmas    = [PragmaProperty]
+                               , bPragmas    = [Property pp]
                                , bMono       = False
                                , bInfix      = False
                                , bFixity     = Nothing

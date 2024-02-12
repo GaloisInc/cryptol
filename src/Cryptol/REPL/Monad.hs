@@ -645,7 +645,7 @@ getPropertyNames =
      let xs = M.ifDecls (M.mctxDecls fe)
          ps = sortBy (comparing (from . M.nameLoc . fst))
               [ (x,d) | (x,d) <- Map.toList xs,
-                    T.PragmaProperty `elem` M.ifDeclPragmas d ]
+                    (T.Property P.DefaultPropertyPragma) `elem` M.ifDeclPragmas d ]
 
      return (ps, M.mctxNameDisp fe)
 

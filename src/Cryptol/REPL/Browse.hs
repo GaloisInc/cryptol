@@ -9,7 +9,7 @@ import Data.List(sortBy)
 import Data.Void (Void)
 import qualified Prettyprinter as PP
 
-import Cryptol.Parser.AST(Pragma(..))
+import Cryptol.Parser.AST(Pragma(..), PropertyPragma (..))
 import qualified Cryptol.TypeCheck.Type as T
 
 import Cryptol.Utils.PP
@@ -125,7 +125,7 @@ browseVars disp decls =
      ppSection disp "Properties" ppVar props
   ++ ppSection disp "Symbols"    ppVar syms
   where
-  isProp p     = PragmaProperty `elem` ifDeclPragmas p
+  isProp p     = (Property DefaultPropertyPragma) `elem` ifDeclPragmas p
   (props,syms) = Map.partition isProp (ifDecls decls)
 
   ppVar d      = nest 2 (sep [pp (ifDeclName d) <+> ":", pp (ifDeclSig d)])
