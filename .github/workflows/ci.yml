@@ -230,13 +230,13 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           path: dist/bin
-          name: ${{ runner.os }}-dist-bin
+          name: ${{ matrix.os }}-dist-bin
 
       - if: matrix.ghc-version == '9.2.8' && matrix.run-tests
         uses: actions/upload-artifact@v2
         with:
           path: bin
-          name: ${{ runner.os }}-bin
+          name: ${{ matrix.os }}-bin
 
       - uses: actions/upload-artifact@v2
         if: runner.os == 'Windows'
@@ -331,12 +331,12 @@ jobs:
 
       - uses: actions/download-artifact@v2
         with:
-          name: "${{ runner.os }}-dist-bin"
+          name: "${{ matrix.os }}-dist-bin"
           path: dist/bin
 
       - uses: actions/download-artifact@v2
         with:
-          name: "${{ runner.os }}-bin"
+          name: "${{ matrix.os }}-bin"
           path: bin
 
       - shell: bash
