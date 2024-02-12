@@ -15,7 +15,7 @@ env:
   # - Dockerfile
   # - cryptol-remote-api/Dockerfile
   # - README.md
-  SOLVER_PKG_VERSION: "snapshot-20230711"
+  SOLVER_PKG_VERSION: "snapshot-20240212"
   # The CACHE_VERSION can be updated to force the use of a new cache if
   # the current cache contents become corrupted/invalid.  This can
   # sometimes happen when (for example) the OS version is changed but
