@@ -70,6 +70,7 @@ import Paths_cryptol
   'private'   { Located $$ (Token (KW KW_private)   _)}
   'parameter' { Located $$ (Token (KW KW_parameter) _)}
   'property'  { Located $$ (Token (KW KW_property)  _)}
+  'check'     { Located $$ (Token (KW KW_check)     _)}
   'infix'     { Located $$ (Token (KW KW_infix)     _)}
   'infixl'    { Located $$ (Token (KW KW_infixl)    _)}
   'infixr'    { Located $$ (Token (KW KW_infixr)    _)}
@@ -282,7 +283,7 @@ vtop_decls                 :: { [TopDecl PName]  }
 property_pragma   :: { PropertyPragma }
   : 'property' { DefaultPropertyPragma }
   -- TODO change this up...
-  | 'property' ':' { DefaultPropertyPragma } 
+  | 'property' ':' 'check' { CheckProperty } 
 
 vtop_decl               :: { [TopDecl PName] }
   : decl                   { [exportDecl Nothing   Public $1]                 }
