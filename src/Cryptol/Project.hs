@@ -78,7 +78,7 @@ scanPath path =
   do isDir <- doIO (doesDirectoryExist path)
      if isDir
        then
-         doIO (tryIOError (getDirectoryContents path)) >>=
+         doIO (tryIOError (listDirectory path)) >>=
          \case
            Left err      -> doModule (otherIOError path err)
            Right entries -> for_ entries \entry -> scanPath (path FP.</> entry)
