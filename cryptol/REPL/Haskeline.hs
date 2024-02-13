@@ -149,13 +149,12 @@ repl cryrc projectConfig replMode callStacks stopOnError begin =
 
   replAction =
     do status <- loadCryRC cryrc
-       if crSuccess status
-         then do
-           begin
-           case projectConfig of
-             Just config -> Project.run config
-             Nothing -> crySession replMode stopOnError
-         else return status
+       if crSuccess status then do
+          begin
+          case projectConfig of
+            Just config -> Project.loadProject config
+            Nothing     -> crySession replMode stopOnError
+       else return status
 
 -- | Try to set the history file.
 setHistoryFile :: Settings REPL -> IO (Settings REPL)
