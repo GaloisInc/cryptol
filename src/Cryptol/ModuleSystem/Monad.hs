@@ -274,6 +274,9 @@ errorInFile file (ModuleT m) = ModuleT (m `handle` h)
                         ErrorInFile {} -> e
                         _              -> ErrorInFile file e
 
+tryModule :: ModuleM a -> ModuleM (Either ModuleError a)
+tryModule (ModuleT m) = ModuleT (handle (Right <$> m) (pure . Left))
+
 -- Warnings --------------------------------------------------------------------
 
 data ModuleWarning
