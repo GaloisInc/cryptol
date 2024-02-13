@@ -59,28 +59,38 @@ loadProjectREPL cfg =
 -- Returns information about the modules that are part of the project.
 loadProject :: Config -> M.ModuleM (Map ModulePath ScanStatus)
 loadProject cfg =
-   do info <- runLoadM cfg (for_ (modules cfg) loadPath)
+   do info <- runLoadM cfg (for_ (modules cfg) scanPath)
       let cache = LoadCache { cacheFingerprints = fst <$> info }
       M.io (saveLoadCache cache)
       pure (snd <$> info)
 
--- | Search for .cry files in the given path.
-loadPath :: FilePath -> LoadM ()
-loadPath path =
+{- NOTE:
+In the functions below:
+  * "scan" refers to processing a module, but not necesserily loading it,
+  * "load" means that we are actually loading the module.
+-}
+
+
+
+-- | Process all .cry files in the given path.
+scanPath :: FilePath -> LoadM ()
+scanPath path =
   do isDir <- doIO (doesDirectoryExist path)
      if isDir
        then
          doIO (tryIOError (getDirectoryContents path)) >>=
          \case
            Left err      -> doModule (otherIOError path err)
-           Right entries -> for_ entries \entry -> loadPath (path FP.</> entry)
+           Right entries -> for_ entries \entry -> scanPath (path FP.</> entry)
        else
+         -- XXX: This should probably handle other extenions
+         -- (literate Cryptol)
          case takeExtension path of
            ".cry" -> scanFromPath path
            _      -> pure ()
 
 
--- | Load a particular file path.
+-- | Process a particular file path.
 scanFromPath :: FilePath -> LoadM ()
 scanFromPath fpath =
   liftCallback (withPrependedSearchPath [takeDirectory fpath])
@@ -89,14 +99,14 @@ scanFromPath fpath =
      void (scan Nothing mpath)
 
 
--- | Scan from a particular import source.
+-- | Process a particular import source.
 scanFromImportSource :: ImportSource -> LoadM ScanStatus
 scanFromImportSource isrc =
   do mpath <- findModule' isrc
      scan (Just isrc) mpath
 
 
--- | This does the actual scanning work.
+-- | Process the given module, and return information about what happened.
 scan :: Maybe ImportSource -> ModulePath -> LoadM ScanStatus
 scan mbIsrc mpath =
   do mbStat <- getStatus mpath
@@ -106,11 +116,12 @@ scan mbIsrc mpath =
          liftCallback (errorInFile mpath)
          do lab <- getModulePathLabel mpath
 
-           -- XXX: Use the logger from REPL?
-            doModule (withLogger logPutStrLn ("Scanning " ++ lab))
-
-            (fi, pmDeps) <- doModule (findDepsOf' mpath)
-            foreignFps <- doModule (getForeignFps (fiForeignDeps fi))
+            (fi, parsed, foreignFps) <-
+               doModule
+               do withLogger logPutStrLn ("Scanning " ++ lab)
+                  (fi, parsed) <- parseWithDeps mpath
+                  foreignFps   <- getForeignFps (fiForeignDeps fi)
+                  pure (fi, parsed, foreignFps)
 
             let newFp =
                   FullFingerprint
@@ -122,19 +133,19 @@ scan mbIsrc mpath =
                 loadChanged =
                   LoadedChanged <$
                     load mbIsrc mpath
-                                  (fiFingerprint fi) (fiIncludeDeps fi) pmDeps
+                                  (fiFingerprint fi) (fiIncludeDeps fi) parsed
 
             mbOldFP <- getCachedFingerprint mpath
             status <-
               case mbOldFP of
                 Just oldFp | oldFp == newFp ->
-                  do let currentModNames = map (thing . mName . fst) pmDeps
+                  do let currentModNames = map (thing . mName . fst) parsed
                      depStatuses <-
                         traverse scanFromImportSource
-                          [ src
-                          | (_,srcs) <- pmDeps
-                          , src      <- srcs
-                          , importedModule src `notElem` currentModNames
+                          [ dep
+                          | (_,deps) <- parsed
+                          , dep      <- deps
+                          , importedModule dep `notElem` currentModNames
                           ]
 
                      if LoadedChanged `elem` depStatuses
@@ -147,6 +158,7 @@ scan mbIsrc mpath =
 
 
 
+-- | Load a module that we have not yet parsed.
 parseAndLoad ::
   ImportSource ->
   ModulePath ->
@@ -162,10 +174,7 @@ parseAndLoad isrc mpath =
 
 
 
-{- | Process stuff we parsed from a file.
-The reason we have a list of modules here, rather than just one,
-is that a single file may contain multiple modules, due to to desugaring
-of various things in the module system. -}
+-- | Load a bunch of parsed modules.
 load ::
   Maybe ImportSource ->
   ModulePath ->
@@ -173,8 +182,8 @@ load ::
   Map FilePath Fingerprint ->
   [(ModuleG ModName PName, [ImportSource])] ->
   LoadM [FileInfo]
-load mbIsrc mpath newModFp newIncFps pmDeps =
-  for pmDeps \(pm, deps) ->
+load mbIsrc mpath newModFp newIncFps mods =
+  for mods \(pm, deps) ->
     do let isrc = fromMaybe (FromModule (thing (mName pm))) mbIsrc
        liftCallback (loading isrc)
         do traverse_ loadFromImportSource deps
@@ -182,6 +191,8 @@ load mbIsrc mpath newModFp newIncFps pmDeps =
              doLoadModule True False isrc mpath newModFp newIncFps pm $
                Set.fromList (map importedModule deps)
 
+
+-- | This does the actual loading of the module (unless it is already loaded).
 loadFromImportSource :: ImportSource -> LoadM ()
 loadFromImportSource isrc =
   do mpath <- findModule' isrc
@@ -206,8 +217,9 @@ loadFromImportSource isrc =
             Nothing ->
               unlessLoaded
               do (newModFp, newIncFps, fis) <- parseAndLoad isrc mpath
-                 foreignFps <- doModule $ getForeignFps $
-                   Map.unionsWith (||) (map fiForeignDeps fis)
+                 foreignFps <-
+                   doModule $ getForeignFps $
+                      Map.unionsWith (||) (map fiForeignDeps fis)
                  let newFp = FullFingerprint
                        { moduleFingerprint = newModFp
                        , includeFingerprints = newIncFps
@@ -219,8 +231,9 @@ loadFromImportSource isrc =
                      Just oldFp | oldFp == newFp -> LoadedNotChanged
                      _                           -> LoadedChanged
 
--- | Fingerprints of foreign declarations
-getForeignFps :: Map FilePath Bool -> M.ModuleM (Set Fingerprint)
+
+-- | Get the fingerprints for external libraries.
+getForeignFps :: Map FilePath Bool -> ModuleM (Set Fingerprint)
 getForeignFps fsrcPaths =
   Set.fromList <$>
     for (Map.keys fsrcPaths) \fsrcPath ->

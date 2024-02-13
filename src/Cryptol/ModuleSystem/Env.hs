@@ -660,7 +660,8 @@ data FileInfo = FileInfo
   { fiFingerprint :: Fingerprint
   , fiIncludeDeps :: Map FilePath Fingerprint
   , fiImportDeps  :: Set ModName
-  , fiForeignDeps :: Map FilePath Bool -- ^ Foreign dependencies and whether or not they currently exist
+  , fiForeignDeps :: Map FilePath Bool
+    -- ^ The bool indicates if the library for the foreign import exists.
   } deriving (Show,Generic,NFData)
 
 
