@@ -12,8 +12,8 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# Language DisambiguateRecordFields #-}
 {-# LANGUAGE BlockArguments #-}
 
 module Cryptol.ModuleSystem.Base where
@@ -487,12 +487,17 @@ findDepsOf mpath' =
   do mpath <- case mpath' of
                 InFile file -> InFile <$> io (canonicalizePath file)
                 InMem {}    -> pure mpath'
-     (fi, _) <- findDepsOf' mpath
+     (fi, _) <- parseWithDeps mpath
      pure (mpath, fi)
 
-findDepsOf' :: ModulePath ->
+{- | Parse the given module path and find its dependencies.
+The reason we return a list here, is that sometime files may
+contain multiple modules (e.g., due to desugaring `parameter` blocks
+in functors. -}
+parseWithDeps ::
+  ModulePath ->
   ModuleM (FileInfo, [(Module PName, [ImportSource])])
-findDepsOf' mpath =
+parseWithDeps mpath =
   do (fp, incs, ms) <- parseModule mpath
      let ms' = map addPrelude ms
          depss = map findDeps' ms'

@@ -102,7 +102,7 @@ insertScanned mpath fp status =
     (modify' \ls -> ls { scanned = Map.insert mpath (fp, status) (scanned ls) })
 
 
--- | Get a lab for the given module path.
+-- | Get a label for the given module path.
 -- Typically used for output.
 getModulePathLabel :: ModulePath -> LoadM String
 getModulePathLabel mpath =
