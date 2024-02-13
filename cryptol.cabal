@@ -243,6 +243,9 @@ library
                        Cryptol.REPL.Trie,
 
                        Cryptol.Project
+                       Cryptol.Project.Config
+                       Cryptol.Project.Monad
+                       Cryptol.Project.Cache
 
   Other-modules:       Cryptol.Parser.LexerUtils,
                        Cryptol.Parser.ParserUtils,
