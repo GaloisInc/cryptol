@@ -1,6 +1,5 @@
 {-# LANGUAGE BlockArguments    #-}
 {-# LANGUAGE LambdaCase        #-}
-
 module Cryptol.Project
   ( Config(..)
   , loadConfig
@@ -28,7 +27,6 @@ import           Cryptol.ModuleSystem.Monad       as M
 import           Cryptol.Parser.AST
 import           Cryptol.REPL.Command
 import           Cryptol.REPL.Monad               as REPL
-import           Cryptol.Utils.Logger
 import           Cryptol.Utils.PP                 as PP
 import           Cryptol.Project.Config
 import           Cryptol.Project.Cache
@@ -63,6 +61,9 @@ loadProject cfg =
       let cache = LoadCache { cacheFingerprints = fst <$> info }
       M.io (saveLoadCache cache)
       pure (snd <$> info)
+
+
+--------------------------------------------------------------------------------
 
 {- NOTE:
 In the functions below:
@@ -115,11 +116,11 @@ scan mbIsrc mpath =
        Nothing ->
          liftCallback (errorInFile mpath)
          do lab <- getModulePathLabel mpath
+            lPutStrLn ("Scanning " ++ lab)
 
             (fi, parsed, foreignFps) <-
                doModule
-               do withLogger logPutStrLn ("Scanning " ++ lab)
-                  (fi, parsed) <- parseWithDeps mpath
+               do (fi, parsed) <- parseWithDeps mpath
                   foreignFps   <- getForeignFps (fiForeignDeps fi)
                   pure (fi, parsed, foreignFps)
 

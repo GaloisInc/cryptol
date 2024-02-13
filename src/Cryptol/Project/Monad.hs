@@ -13,6 +13,7 @@ module Cryptol.Project.Monad
   , getCachedFingerprint
   , findModule'
   , getStatus
+  , lPutStrLn
   ) where
 
 import           Data.Map.Strict                  (Map)
@@ -26,6 +27,7 @@ import           Cryptol.Utils.Ident
 import           Cryptol.ModuleSystem.Base        as M
 import           Cryptol.ModuleSystem.Monad       as M
 import           Cryptol.ModuleSystem.Env
+import           Cryptol.Utils.Logger             (logPutStrLn)
 
 import           Cryptol.Project.Config
 import           Cryptol.Project.Cache
@@ -43,6 +45,7 @@ data ScanStatus
 
   | NotLoadedNotChanged
     -- ^ The module is not loaded and did not change
+
   deriving Eq
 
 data LoadState = LoadState
@@ -71,6 +74,10 @@ doModule m = LoadM (lift (lift m))
 -- | Do an operation in the IO monad
 doIO :: IO a -> LoadM a
 doIO m = doModule (M.io m)
+
+-- | Print a line
+lPutStrLn :: String -> LoadM ()
+lPutStrLn msg = doModule (withLogger logPutStrLn msg)
 
 -- | Lift a module level operation to the LoadM monad.
 liftCallback :: (forall a. ModuleM a -> ModuleM a) -> LoadM b -> LoadM b
