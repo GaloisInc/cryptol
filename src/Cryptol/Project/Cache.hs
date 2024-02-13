@@ -2,6 +2,8 @@ module Cryptol.Project.Cache where
 
 import           Data.Map.Strict                  (Map)
 import qualified Data.Map.Strict                  as Map
+import qualified Data.Text                        as Text
+import qualified Data.Text.IO                     as Text
 import           Data.Set                         (Set)
 import           Data.Maybe                       (fromMaybe)
 import           System.Directory
@@ -38,8 +40,8 @@ emptyLoadCache = LoadCache { cacheFingerprints = Map.empty }
 
 loadLoadCache :: IO LoadCache
 loadLoadCache =
-  do txt <- readFile loadCachePath
-     pure (fromMaybe emptyLoadCache (readMaybe txt))
+  do txt <- Text.readFile loadCachePath
+     pure $! fromMaybe emptyLoadCache (readMaybe (Text.unpack txt))
   `catchIOError` \_ -> pure emptyLoadCache
 
 saveLoadCache :: LoadCache -> IO ()
