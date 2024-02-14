@@ -15,7 +15,7 @@ env:
   # - Dockerfile
   # - cryptol-remote-api/Dockerfile
   # - README.md
-  SOLVER_PKG_VERSION: "snapshot-20230711"
+  SOLVER_PKG_VERSION: "snapshot-20240212"
   # The CACHE_VERSION can be updated to force the use of a new cache if
   # the current cache contents become corrupted/invalid.  This can
   # sometimes happen when (for example) the OS version is changed but
@@ -64,17 +64,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, macos-12, windows-2019]
+        os: [ubuntu-22.04]
         ghc-version: ["9.2.8", "9.4.7", "9.6.2"]
         cabal: [ '3.10.1.0' ]
         run-tests: [true]
-        exclude:
-          - os: windows-2019
-            ghc-version: 9.4.7
-            run-tests: true
-          - os: windows-2019
-            ghc-version: 9.6.2
-            run-tests: true
         include:
           # We include one job from an older Ubuntu LTS release to increase our
           # coverage of possible Linux configurations. Since we already run the
@@ -82,6 +75,19 @@ jobs:
           - os: ubuntu-20.04
             ghc-version: 9.2.8
             run-tests: false
+          # Windows and macOS CI runners are more expensive than Linux runners,
+          # so we only build one particular GHC version to test them on. We
+          # include both an x86-64 macOS runner (macos-12) as well as an AArch64
+          # macOS runner (macos-14).
+          - os: windows-2019
+            ghc-version: 9.2.8
+            run-tests: true
+          - os: macos-12
+            ghc-version: 9.2.8
+            run-tests: true
+          - os: macos-14
+            ghc-version: 9.2.8
+            run-tests: true
     outputs:
       test-lib-json: ${{ steps.test-lib.outputs.targets-json }}
     env:
@@ -181,19 +187,21 @@ jobs:
 
       - shell: bash
         run: |
-          NAME="${{ needs.config.outputs.name }}-${{ matrix.os }}-x86_64"
+          NAME="${{ needs.config.outputs.name }}-${{ matrix.os }}-${{ runner.arch }}"
           echo "NAME=$NAME" >> $GITHUB_ENV
           .github/ci.sh zip_dist $NAME
         env:
           OS_TAG: ${{ matrix.os }}
+          ARCH_TAG: ${{ runner.arch }}
 
       - shell: bash
         run: |
-          NAME="${{ needs.config.outputs.name }}-${{ matrix.os }}-x86_64"
+          NAME="${{ needs.config.outputs.name }}-${{ matrix.os }}-${{ runner.arch }}"
           echo "NAME=$NAME" >> $GITHUB_ENV
           .github/ci.sh zip_dist_with_solvers $NAME
         env:
           OS_TAG: ${{ matrix.os }}
+          ARCH_TAG: ${{ runner.arch }}
 
       - if: github.event.pull_request.head.repo.fork == false
         shell: bash
@@ -222,13 +230,13 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           path: dist/bin
-          name: ${{ runner.os }}-dist-bin
+          name: ${{ matrix.os }}-dist-bin
 
       - if: matrix.ghc-version == '9.2.8' && matrix.run-tests
         uses: actions/upload-artifact@v2
         with:
           path: bin
-          name: ${{ runner.os }}-bin
+          name: ${{ matrix.os }}-bin
 
       - uses: actions/upload-artifact@v2
         if: runner.os == 'Windows'
@@ -256,7 +264,7 @@ jobs:
       matrix:
         suite: [test-lib]
         target: ${{ fromJson(needs.build.outputs.test-lib-json) }}
-        os: [ubuntu-22.04, macos-12, windows-2019]
+        os: [ubuntu-22.04, macos-14, windows-2019]
         continue-on-error: [false]
         include:
           - suite: rpc
@@ -279,6 +287,24 @@ jobs:
       - uses: haskell/actions/setup@v2
         with:
           ghc-version: '9.2.8'
+
+      # Homebrew installs packages in different directories depending on which
+      # macOS architecture you are using:
+      #
+      # * /usr/local (X64)
+      # * /opt/homebrew (ARM64)
+      #
+      # Clang automatically searches in /usr/local without any additional setup,
+      # but it doesn't know about /opt/homebrew. As such, we have to teach Clang
+      # to do so by setting the appropriate environment variables.
+      #
+      # This step is important for the FFI unit tests, which rely on a
+      # Homebrew-provided version of gmp.
+      - name: Teach Clang about Homebrew paths (macOS ARM64)
+        run: |
+          echo "CPATH=/opt/homebrew/include" >> $GITHUB_ENV
+          echo "LIBRARY_PATH=/opt/homebrew/lib" >> $GITHUB_ENV
+        if: matrix.suite == 'test-lib' && runner.os == 'macOS' && runner.arch == 'ARM64'
 
       - name: Install dependencies (Windows)
         uses: msys2/setup-msys2@v2
@@ -305,12 +331,12 @@ jobs:
 
       - uses: actions/download-artifact@v2
         with:
-          name: "${{ runner.os }}-dist-bin"
+          name: "${{ matrix.os }}-dist-bin"
           path: dist/bin
 
       - uses: actions/download-artifact@v2
         with:
-          name: "${{ runner.os }}-bin"
+          name: "${{ matrix.os }}-bin"
           path: bin
 
       - shell: bash

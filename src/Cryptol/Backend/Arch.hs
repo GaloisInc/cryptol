@@ -17,9 +17,9 @@ module Cryptol.Backend.Arch where
 -- experiments show that it's somewhere under 2^37 at least on 64-bit
 -- Mac OS X.
 maxBigIntWidth :: Integer
-#if i386_HOST_ARCH
+#if defined(i386_HOST_ARCH)
 maxBigIntWidth = 2^(32 :: Integer) - 0x1
-#elif x86_64_HOST_ARCH
+#elif defined(x86_64_HOST_ARCH) || defined(aarch64_HOST_ARCH)
 maxBigIntWidth = 2^(37 :: Integer) - 0x100
 #else
 -- Because GHC doesn't seem to define a CPP macro that will portably
