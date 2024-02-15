@@ -357,11 +357,11 @@ instance PP REPLException where
     ParseError e         -> ppError e
     FileNotFound path    -> sep [ text "File"
                                 , text ("`" ++ path ++ "'")
-                                , text"not found"
+                                , text "not found"
                                 ]
     DirectoryNotFound path -> sep [ text "Directory"
                                   , text ("`" ++ path ++ "'")
-                                  , text"not found or not a directory"
+                                  , text "not found or not a directory"
                                   ]
     NoPatError es        -> vcat (map pp es)
     NoIncludeError es    -> vcat (map ppIncludeError es)
@@ -645,7 +645,8 @@ getPropertyNames =
      let xs = M.ifDecls (M.mctxDecls fe)
          ps = sortBy (comparing (from . M.nameLoc . fst))
               [ (x,d) | (x,d) <- Map.toList xs,
-                    (T.Property P.DefaultPropertyPragma) `elem` M.ifDeclPragmas d ]
+                    T.Property P.DefaultPropertyPragma `elem` M.ifDeclPragmas d  ||
+                    T.Property P.CheckProperty `elem` M.ifDeclPragmas d]
 
      return (ps, M.mctxNameDisp fe)
 
@@ -717,21 +718,21 @@ freshName i sys =
 
 parseSearchPath :: String -> [String]
 parseSearchPath path = path'
-#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
-      -- Windows paths search from end to beginning
-      where path' = reverse (splitSearchPath path)
-#else
+
+
+
+
       where path' = splitSearchPath path
-#endif
+
 
 renderSearchPath :: [String] -> String
 renderSearchPath pathSegs = path
-#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
-      -- Windows paths search from end to beginning
-      where path = intercalate [searchPathSeparator] (reverse pathSegs)
-#else
+
+
+
+
       where path = intercalate [searchPathSeparator] pathSegs
-#endif
+
 
 -- User Environment Interaction ------------------------------------------------
 
@@ -1203,3 +1204,5 @@ z3exists = do
   case mPath of
     Nothing -> return (Just Z3NotFound)
     Just _  -> return Nothing
+
+

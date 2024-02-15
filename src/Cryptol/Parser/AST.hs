@@ -1107,6 +1107,7 @@ instance PP a => PP (TopLevel a) where
 instance PP Pragma where
   ppPrec _ (PragmaNote x) = text x
   ppPrec _ (Property DefaultPropertyPragma) = text "property"
+  ppPrec _ (Property CheckProperty) = text "property:check"
 
 ppPragma :: PPName name => [Located name] -> Pragma -> Doc
 ppPragma xs p =
@@ -1575,6 +1576,7 @@ instance NoPos (Bind name) where
 instance NoPos Pragma where
   noPos p@(PragmaNote {})   = p
   noPos p@(Property DefaultPropertyPragma)  = p
+  noPos p@(Property CheckProperty)  = p
 
 
 
