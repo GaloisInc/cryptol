@@ -47,6 +47,7 @@ module Cryptol.REPL.Monad (
   , getExprNames
   , getTypeNames
   , getPropertyNames
+  , getPropertyCheckNames
   , getModNames
   , LoadedModule(..), getLoadedMod, setLoadedMod, clearLoadedMod
   , setEditPath, getEditPath, clearEditPath
@@ -645,9 +646,17 @@ getPropertyNames =
      let xs = M.ifDecls (M.mctxDecls fe)
          ps = sortBy (comparing (from . M.nameLoc . fst))
               [ (x,d) | (x,d) <- Map.toList xs,
-                    T.Property P.DefaultPropertyPragma `elem` M.ifDeclPragmas d  ||
-                    T.Property P.CheckProperty `elem` M.ifDeclPragmas d]
+                    T.Property P.DefaultPropertyPragma `elem` M.ifDeclPragmas d ]
+     return (ps, M.mctxNameDisp fe)
 
+-- | Return a list of property check names, sorted by position in the file.
+getPropertyCheckNames :: REPL ([(M.Name,M.IfaceDecl)],NameDisp)
+getPropertyCheckNames =
+  do fe <- getFocusedEnv
+     let xs = M.ifDecls (M.mctxDecls fe)
+         ps = sortBy (comparing (from . M.nameLoc . fst))
+              [ (x,d) | (x,d) <- Map.toList xs,
+                    T.Property P.CheckProperty `elem` M.ifDeclPragmas d ]
      return (ps, M.mctxNameDisp fe)
 
 getModNames :: REPL [I.ModName]

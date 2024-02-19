@@ -236,6 +236,9 @@ nbCommandList  =
   , CommandDescr [ ":s", ":set" ] ["[ OPTION [ = VALUE ] ]"] (OptionArg setOptionCmd)
     "Set an environmental option (:set on its own displays current values)."
     ""
+  , CommandDescr [ ":prop" ] ["[ EXPR ]"] (ExprArg (propCmd QCRandom))
+    "Use testing described by properties to check that property (default equivalent :check). \n(If no argument, check all properties.)"
+    ""
   , CommandDescr [ ":check" ] ["[ EXPR ]"] (ExprArg (qcCmd QCRandom))
     "Use random testing to check that the argument always returns true.\n(If no argument, check all properties.)"
     ""
@@ -468,6 +471,32 @@ qcCmd qcMode "" _pos _fnm =
                   void (qcExpr qcMode doc texpr schema)
 
 qcCmd qcMode str pos fnm =
+  do expr <- replParseExpr str pos fnm
+     (_,texpr,schema) <- replCheckExpr expr
+     nd <- M.mctxNameDisp <$> getFocusedEnv
+     let doc = fixNameDisp nd (ppPrec 3 expr) -- function application has precedence 3
+     void (qcExpr qcMode doc texpr schema)
+
+
+-- | Randomly test a property, or exhaustively check it if the number
+-- of values in the type under test is smaller than the @tests@
+-- environment variable, or we specify exhaustive testing.
+propCmd :: QCMode -> String -> (Int,Int) -> Maybe FilePath -> REPL ()
+propCmd qcMode "" _pos _fnm =
+  do (xs,disp) <- getPropertyCheckNames
+     let nameStr x = show (fixNameDisp disp (pp x))
+     if null xs
+        then rPutStrLn "There are no properties in scope."
+        else forM_ xs $ \(x,d) ->
+               do let str = nameStr x
+                  rPutStr $ "property " ++ str ++ " "
+                  let texpr = T.EVar x
+                  let schema = M.ifDeclSig d
+                  nd <- M.mctxNameDisp <$> getFocusedEnv
+                  let doc = fixNameDisp nd (pp texpr)
+                  void (qcExpr qcMode doc texpr schema)
+
+propCmd qcMode str pos fnm =
   do expr <- replParseExpr str pos fnm
      (_,texpr,schema) <- replCheckExpr expr
      nd <- M.mctxNameDisp <$> getFocusedEnv

@@ -12,16 +12,12 @@ Testing... Passed 100 tests.
 Expected test coverage: 0.00% (100 of 2^^64 values)
 property f0 Using exhaustive testing.
 Testing... Counterexample
-:prove t0
-	Q.E.D.
 :prove t1
 	Q.E.D.
 :prove t2
 	Q.E.D.
 :prove f0
 	Counterexample
-:sat t0
-	Satisfiable
 :sat t1
 	Satisfiable
 :sat t2
