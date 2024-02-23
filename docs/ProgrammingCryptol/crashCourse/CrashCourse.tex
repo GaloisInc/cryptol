@@ -365,7 +365,7 @@ and integers.
 
 The family of types \texttt{Float e p}\indTheFloatType represent IEEE 754
 floating point numbers with \texttt{e} bits in the exponent and
-\texttt{p-1} bits in the mantissa.  The family is defined in a built-in
+\texttt{p-1} bits in the significand.  The family is defined in a built-in
 module called \texttt{Float} so to use it you'd need to either import
 it in your Cryptol specification or use \texttt{:m Float} on the
 Cryptol REPL.
@@ -3206,7 +3206,7 @@ Bitvectors and integers members of \texttt{Integral}.
 The \texttt{Field} typeclass represents values that, in addition to
 being a \texttt{Ring}, have multiplictive inverses.
 It includes the field division operation \texttt{/.} and the
-\texttt{recip} operation for computing the reciprocol of a value.
+\texttt{recip} operation for computing the reciprocal of a value.
 Currently, only type \texttt{Rational} is a member of this class.
 
 \item
@@ -3598,6 +3598,7 @@ accessing it from \verb+HMAC.cry+ you would need to name the modules
 accordingly:
 
 \begin{verbatim}
+module Hash::SHA3 where
 
 sha3 : {n} (fin n) => [n] -> [512]
 sha3 = error "Stubbed, for demonstration only: sha3-512"
@@ -3606,8 +3607,10 @@ blocksize : {n} (fin n, n >= 10) => [n]
 blocksize = 576
 \end{verbatim}
 
+and
+
 \begin{verbatim}
-module Hash::SHA3 where
+module HMAC where
 import Hash::SHA3
 
 hmac : {keySize, msgSize} (fin keySize, fin msgSize) => [keySize] -> [msgSize] -> [512]
