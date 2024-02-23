@@ -47,6 +47,7 @@ jobs:
             -p 'python3.withPackages (pp: [pp.sphinx pp.sphinx_rtd_theme])' \
             --run 'make html'
   build-pages-docs:
+    if: github.repository == "GaloisInc/cryptol"
     runs-on: ubuntu-latest
     # The public interface should then allow the user to browse the cryptol
     # documentation at the master branch, but also the documentation associated
