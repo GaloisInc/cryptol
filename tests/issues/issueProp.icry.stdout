@@ -4,23 +4,5 @@ Loading module Main
 property t0 Using exhaustive testing.
 Testing... Passed 1 tests.
 Q.E.D.
-property t1 Using random testing.
-Testing... Passed 100 tests.
-Expected test coverage: 0.00% (100 of 2^^32 values)
-property t2 Using random testing.
-Testing... Passed 100 tests.
-Expected test coverage: 0.00% (100 of 2^^64 values)
-property f0 Using exhaustive testing.
-Testing... Counterexample
-:prove t1
-	Q.E.D.
-:prove t2
-	Q.E.D.
-:prove f0
-	Counterexample
-:sat t1
-	Satisfiable
-:sat t2
-	Satisfiable
-:sat f0
-	Unsatisfiable
+property t1 Q.E.D.
+property t2 Satisfiable

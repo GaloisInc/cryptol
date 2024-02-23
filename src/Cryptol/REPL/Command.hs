@@ -146,6 +146,7 @@ import Prelude ()
 import Prelude.Compat
 
 import qualified Data.SBV.Internals as SBV (showTDiff)
+import Cryptol.Parser.AST (PropertyPragma(..))
 
 
 
@@ -236,7 +237,7 @@ nbCommandList  =
   , CommandDescr [ ":s", ":set" ] ["[ OPTION [ = VALUE ] ]"] (OptionArg setOptionCmd)
     "Set an environmental option (:set on its own displays current values)."
     ""
-  , CommandDescr [ ":prop" ] ["[ EXPR ]"] (ExprArg (propCmd QCRandom))
+  , CommandDescr [ ":prop" ] ["[ EXPR ]"] (ExprArg propCmd)
     "Use testing described by properties to check that property (default equivalent :check). \n(If no argument, check all properties.)"
     ""
   , CommandDescr [ ":check" ] ["[ EXPR ]"] (ExprArg (qcCmd QCRandom))
@@ -481,27 +482,45 @@ qcCmd qcMode str pos fnm =
 -- | Randomly test a property, or exhaustively check it if the number
 -- of values in the type under test is smaller than the @tests@
 -- environment variable, or we specify exhaustive testing.
-propCmd :: QCMode -> String -> (Int,Int) -> Maybe FilePath -> REPL ()
-propCmd qcMode "" _pos _fnm =
-  do (xs,disp) <- getPropertyCheckNames
-     let nameStr x = show (fixNameDisp disp (pp x))
-     if null xs
+propCmd :: String -> (Int,Int) -> Maybe FilePath -> REPL ()
+propCmd _ _pos _fnm =
+  do 
+    (checks,dispCheck) <- getPropertiesOfPragma CheckProperty
+    (proves,dispProv) <- getPropertiesOfPragma ProveProperty
+    (sats, dispSats) <- getPropertiesOfPragma SatProperty
+    let nameStrChecks x = show (fixNameDisp dispCheck (pp x))
+    if null checks
         then rPutStrLn "There are no properties in scope."
-        else forM_ xs $ \(x,d) ->
-               do let str = nameStr x
+        else forM_ checks $ \(x,d) ->
+               do let str = nameStrChecks x
                   rPutStr $ "property " ++ str ++ " "
                   let texpr = T.EVar x
                   let schema = M.ifDeclSig d
                   nd <- M.mctxNameDisp <$> getFocusedEnv
                   let doc = fixNameDisp nd (pp texpr)
-                  void (qcExpr qcMode doc texpr schema)
+                  void (qcExpr QCRandom doc texpr schema)
+    
+    let nameStrProves x = show (fixNameDisp dispProv (pp x))
+    if null proves
+        then rPutStrLn "There are no properties in scope."
+        else forM_ proves $ \(x,_) ->
+               do let str = nameStrProves x
+                  rPutStr $ "property " ++ str ++ " "
+                  proveCmd str _pos _fnm
+    let nameStrSats x = show (fixNameDisp dispSats (pp x))
+    if null sats
+        then rPutStrLn "There are no properties in scope."
+        else forM_ sats $ \(x,_) ->
+               do let str = nameStrSats x
+                  rPutStr $ "property " ++ str ++ " "
+                  satCmd str _pos _fnm
 
-propCmd qcMode str pos fnm =
-  do expr <- replParseExpr str pos fnm
-     (_,texpr,schema) <- replCheckExpr expr
-     nd <- M.mctxNameDisp <$> getFocusedEnv
-     let doc = fixNameDisp nd (ppPrec 3 expr) -- function application has precedence 3
-     void (qcExpr qcMode doc texpr schema)
+-- propCmd str pos fnm =
+--   do expr <- replParseExpr str pos fnm
+--      (_,texpr,schema) <- replCheckExpr expr
+--      nd <- M.mctxNameDisp <$> getFocusedEnv
+--      let doc = fixNameDisp nd (ppPrec 3 expr) -- function application has precedence 3
+--      void (qcExpr QCRandom doc texpr schema)
 
 
 data TestReport = TestReport

@@ -519,6 +519,8 @@ data PropGuardCase name = PropGuardCase
 
 data PropertyPragma = DefaultPropertyPragma
                     | CheckProperty
+                    | SatProperty
+                    | ProveProperty
                     deriving (Eq, Show, Generic, NFData)
 
 data Pragma   = PragmaNote String
@@ -1108,6 +1110,8 @@ instance PP Pragma where
   ppPrec _ (PragmaNote x) = text x
   ppPrec _ (Property DefaultPropertyPragma) = text "property"
   ppPrec _ (Property CheckProperty) = text "property:check"
+  ppPrec _ (Property SatProperty) = text "property:sat"
+  ppPrec _ (Property ProveProperty) = text "property:prove"
 
 ppPragma :: PPName name => [Located name] -> Pragma -> Doc
 ppPragma xs p =
@@ -1577,6 +1581,8 @@ instance NoPos Pragma where
   noPos p@(PragmaNote {})   = p
   noPos p@(Property DefaultPropertyPragma)  = p
   noPos p@(Property CheckProperty)  = p
+  noPos p@(Property SatProperty)  = p
+  noPos p@(Property ProveProperty)  = p
 
 
 

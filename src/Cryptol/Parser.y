@@ -71,6 +71,8 @@ import Paths_cryptol
   'parameter' { Located $$ (Token (KW KW_parameter) _)}
   'property'  { Located $$ (Token (KW KW_property)  _)}
   'check'     { Located $$ (Token (KW KW_check)     _)}
+  'prove'     { Located $$ (Token (KW KW_prove)     _)}
+  'sat'       { Located $$ (Token (KW KW_sat)       _)}
   'infix'     { Located $$ (Token (KW KW_infix)     _)}
   'infixl'    { Located $$ (Token (KW KW_infixl)    _)}
   'infixr'    { Located $$ (Token (KW KW_infixr)    _)}
@@ -280,10 +282,19 @@ vtop_decls                 :: { [TopDecl PName]  }
   | vtop_decls 'v;' vtop_decl { $3 ++ $1 }
   | vtop_decls ';'  vtop_decl { $3 ++ $1 }
 
+
+-- TODO - Ask Iavor about Range issue in happy with this.
+
+-- property_type :: { PropertyPragma }
+--   : 'check' { CheckProperty } 
+--   | 'prove' { ProveProperty }
+--   | 'sat'   { SatProperty   }
+
 property_pragma   :: { PropertyPragma }
   : 'property' { DefaultPropertyPragma }
-  -- TODO change this up...
   | 'property' ':' 'check' { CheckProperty } 
+  | 'property' ':' 'prove' { ProveProperty }
+  | 'property' ':' 'sat'   { SatProperty }
 
 vtop_decl               :: { [TopDecl PName] }
   : decl                   { [exportDecl Nothing   Public $1]                 }
