@@ -479,9 +479,7 @@ qcCmd qcMode str pos fnm =
      void (qcExpr qcMode doc texpr schema)
 
 
--- | Randomly test a property, or exhaustively check it if the number
--- of values in the type under test is smaller than the @tests@
--- environment variable, or we specify exhaustive testing.
+--TODO Remove components that are not REPL specific from here.
 propCmd :: String -> (Int,Int) -> Maybe FilePath -> REPL ()
 propCmd _ _pos _fnm =
   do 

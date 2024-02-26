@@ -285,16 +285,15 @@ vtop_decls                 :: { [TopDecl PName]  }
 
 -- TODO - Ask Iavor about Range issue in happy with this.
 
--- property_type :: { PropertyPragma }
---   : 'check' { CheckProperty } 
---   | 'prove' { ProveProperty }
---   | 'sat'   { SatProperty   }
+property_type :: { PropertyPragma }
+  : 'check' { CheckProperty } 
+  | 'prove' { ProveProperty }
+  | 'sat'   { SatProperty   }
 
 property_pragma   :: { PropertyPragma }
   : 'property' { DefaultPropertyPragma }
-  | 'property' ':' 'check' { CheckProperty } 
-  | 'property' ':' 'prove' { ProveProperty }
-  | 'property' ':' 'sat'   { SatProperty }
+  | 'property' ':' property_type { $3 }
+
 
 vtop_decl               :: { [TopDecl PName] }
   : decl                   { [exportDecl Nothing   Public $1]                 }

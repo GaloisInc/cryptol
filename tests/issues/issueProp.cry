@@ -1,4 +1,6 @@
-property:check t0 = True
+property
+    :check 
+    t0 = True
 property:prove t1 = True
 property:sat t2 = True
 
