@@ -181,9 +181,11 @@ parseModule path = do
                        , "Label: " ++ show p
                        , "Exception: " ++ show exn ]
 
+  let fp = fingerprint bytes
   txt <- case decodeUtf8' bytes of
-    Right txt -> return $! (T.replace "\r\n" "\n" txt)
-    Left e    -> badUtf8 path e
+    Right txt -> return txt
+    Left e    -> badUtf8 path fp e
+
 
   let cfg = P.defaultConfig
               { P.cfgSource  = case path of
@@ -194,8 +196,7 @@ parseModule path = do
 
   case P.parseModule cfg txt of
     Right pms ->
-      do let fp = fingerprint bytes
-         (pm1,deps) <-
+      do (pm1,deps) <-
            case path of
              InFile p ->
                do r <- getByteReader
@@ -222,7 +223,7 @@ parseModule path = do
 --}
          fp `seq` return (fp, deps, pm1)
 
-    Left err -> moduleParseError path err
+    Left err -> moduleParseError path fp err
 
 
 -- Top Level Modules and Signatures --------------------------------------------
