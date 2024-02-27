@@ -1,12 +1,11 @@
 {-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE NamedFieldPuns   #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Cryptol.Project.Config where
 
-import qualified Data.Text                        as Text
-import           Data.YAML
-import qualified Data.ByteString                  as BS.Strict
-import qualified Data.ByteString.Lazy             as BS.Lazy
+import           Data.Maybe                       (fromMaybe)
+import qualified Data.Text.IO                     as Text
+import           Toml
+import           Toml.Schema
 import           Data.Bifunctor (first)
 import           System.Directory
 import           System.FilePath                  as FP
@@ -19,23 +18,29 @@ data Config = Config
   , modules :: [FilePath]
   }
 
-instance FromYAML Config where
-  parseYAML = withMap "Config" \m ->
-    do root    <- Text.unpack <$> m .:? "root" .!= "."
-       modules <- map Text.unpack <$> m .:? "modules" .!= ["."]
-       pure Config { root, modules }
+instance FromValue Config where
+  fromValue =
+    parseTableFromValue
+    do mbRoot <- optKey "root"
+       mbModules <- optKey "modules"
+       pure Config
+         { root = fromMaybe "." mbRoot
+         , modules = fromMaybe ["."] mbModules
+         }
 
 data ConfigLoadError = ConfigLoadError FilePath ConfigLoadErrorInfo
 
 data ConfigLoadErrorInfo
-  = ConfigParseError BS.Lazy.ByteString (Pos, String)
+  = ConfigParseError [String]
   | SetRootFailed IOError
 
 instance PP ConfigLoadError where
   ppPrec _ (ConfigLoadError path info) =
     case info of
-      ConfigParseError file (pos, err) -> text $
+      ConfigParseError errs -> text $ unlines errs
+{-
         show topMsg ++ prettyPosWithSource pos file "\nParse error:" ++ err
+-}
       SetRootFailed ioe ->
         hang topMsg
            4 (hang "Failed to set project root:"
@@ -45,18 +50,18 @@ instance PP ConfigLoadError where
 
 -- | Parse project configuration.
 loadConfig :: FilePath -> IO (Either ConfigLoadError Config)
-loadConfig path = do
-  isDir <- doesDirectoryExist path
-  let filePath = if isDir then path FP.</> "cryproject.yaml" else path
-  -- Use strict IO since we are writing to the same file later
-  file <- BS.Lazy.fromStrict <$> BS.Strict.readFile filePath
-  first (ConfigLoadError filePath) <$>
-    case decode1 file of
-      Left (pos, err) -> pure (Left (ConfigParseError file (pos, err)))
-      Right config ->
-        first SetRootFailed <$>
-        tryIOError
-          do setCurrentDirectory (takeDirectory filePath FP.</> root config)
-             pure config
+loadConfig path =
+  do isDir <- doesDirectoryExist path
+     let filePath = if isDir then path FP.</> "cryproject.toml" else path
+     -- Use strict IO since we are writing to the same file later
+     file <- Text.readFile filePath
+     first (ConfigLoadError filePath) <$>
+       case decode file of
+         Failure errs  -> pure (Left (ConfigParseError errs))
+         Success _warns config ->
+           first SetRootFailed <$>
+           tryIOError
+             do setCurrentDirectory (takeDirectory filePath FP.</> root config)
+                pure config
 
 

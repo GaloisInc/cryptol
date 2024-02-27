@@ -1,18 +1,24 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Cryptol.Project.Monad
-  ( LoadM
-  , ScanStatus(..)
+  ( LoadM, Err, NoErr
+  , ScanStatus(..), ChangeStatus(..), InvalidStatus(..), Parsed
+  , ppScanStatus
   , runLoadM
   , doModule
+  , doModuleNonFail
   , doIO
+  , tryLoadM
   , liftCallback
-  , insertScanned
+  , addFingerprint
+  , addScanned
   , getModulePathLabel
   , getCachedFingerprint
   , findModule'
   , getStatus
+  , getFingerprint
   , lPutStrLn
   ) where
 
@@ -20,10 +26,12 @@ import           Data.Map.Strict                  (Map)
 import qualified Data.Map.Strict                  as Map
 import           Control.Monad.Reader
 import           Control.Monad.State
+import           Control.Monad.Except
 import           System.Directory
 import           System.FilePath                  (makeRelative)
 
 import           Cryptol.Utils.Ident
+import           Cryptol.Parser.AST               (Module,PName)
 import           Cryptol.ModuleSystem.Base        as M
 import           Cryptol.ModuleSystem.Monad       as M
 import           Cryptol.ModuleSystem.Env
@@ -32,29 +40,59 @@ import           Cryptol.Utils.Logger             (logPutStrLn)
 import           Cryptol.Project.Config
 import           Cryptol.Project.Cache
 
-newtype LoadM a = LoadM (ReaderT LoadConfig (StateT LoadState ModuleM) a)
+newtype LoadM err a =
+  LoadM (ReaderT LoadConfig (ExceptT ModuleError (StateT LoadState ModuleM)) a)
   deriving (Functor,Applicative,Monad)
 
-data ScanStatus
-  = LoadedChanged
-    -- ^ The module is loaded and has changed
+-- | Computations may raise an error
+data Err
 
-  | LoadedNotChanged
-    -- ^ The module is loaded but did not change
-    -- This may happen because it is a dependency of something the did change
+-- | Computations may not raise errors
+data NoErr
 
-  | NotLoadedNotChanged
-    -- ^ The module is not loaded and did not change
+type Parsed = [ (Module PName, [(ImportSource, ModulePath)]) ]
 
-  deriving Eq
+data ScanStatus =
+    Scanned ChangeStatus FullFingerprint Parsed
+  | Invalid InvalidStatus
+
+data ChangeStatus =
+    Changed       -- ^ The module, or one of its dependencies changed.
+  | Unchanged     -- ^ The module did not change.
+
+data InvalidStatus =
+    InvalidModule ModuleError
+    -- ^ Error in one of the modules in this file
+
+  | InvalidDep ImportSource ModulePath
+    -- ^ Error in one of our dependencies
+
+
+
+ppScanStatus :: ScanStatus -> String
+ppScanStatus status =
+  case status of
+    Scanned ch _ _ ->
+      case ch of
+        Unchanged         -> "[Unchanged]"
+        Changed           -> "[Changed  ]"
+    Invalid reason ->
+      case reason of
+        InvalidModule {}  -> "[Invalid  ]"
+        InvalidDep {}     -> "[InvalidD ]"
+
 
 data LoadState = LoadState
   { findModuleCache :: Map (ModName, [FilePath]) ModulePath
     -- ^ Map (module name, search path) -> module path
 
-  , scanned         :: Map ModulePath (FullFingerprint, ScanStatus)
-    -- ^ Information about the proccessed modules.
+  , fingerprints    :: Map ModulePath FullFingerprint
+    -- ^ Hashes of known things.
+
+  , scanned         :: Map ModulePath ScanStatus
+    -- ^ Information about the proccessed top-level modules.
   }
+
 
 -- | Information about the current project.
 data LoadConfig = LoadConfig
@@ -63,55 +101,80 @@ data LoadConfig = LoadConfig
 
   , loadCache :: LoadCache
     -- ^ The state of the cache before we started loading the project.
-
   }
 
 
 -- | Do an operation in the module monad.
-doModule :: M.ModuleM a ->  LoadM a
-doModule m = LoadM (lift (lift m))
+doModuleNonFail :: M.ModuleM a -> LoadM any a
+doModuleNonFail m =
+  do mb <- LoadM (lift (lift (lift (M.tryModule m))))
+     case mb of
+       Left err -> LoadM (throwError err)
+       Right a  -> pure a
+
+-- | Do an operation in the module monad.
+doModule :: M.ModuleM a -> LoadM Err a
+doModule = doModuleNonFail
 
 -- | Do an operation in the IO monad
-doIO :: IO a -> LoadM a
+doIO :: IO a -> LoadM Err a
 doIO m = doModule (M.io m)
 
+tryLoadM :: LoadM Err a -> LoadM any (Either M.ModuleError a)
+tryLoadM (LoadM m) = LoadM (tryError m)
+
 -- | Print a line
-lPutStrLn :: String -> LoadM ()
-lPutStrLn msg = doModule (withLogger logPutStrLn msg)
+lPutStrLn :: String -> LoadM any ()
+lPutStrLn msg = doModuleNonFail (withLogger logPutStrLn msg)
 
 -- | Lift a module level operation to the LoadM monad.
-liftCallback :: (forall a. ModuleM a -> ModuleM a) -> LoadM b -> LoadM b
+liftCallback :: (forall a. ModuleM a -> ModuleM a) -> LoadM any b -> LoadM Err b
 liftCallback f (LoadM m) =
   do r <- LoadM ask
      s <- LoadM get
-     (a,s1) <- doModule (f (runStateT (runReaderT m r) s))
+     (mb,s1) <- doModule (f (runStateT (runExceptT (runReaderT m r)) s))
      LoadM (put s1)
-     pure a
+     case mb of
+       Left err -> LoadM (throwError err)
+       Right a  -> pure a
 
 -- | Run a LoadM computation using the given configuration.
 runLoadM ::
-  Config -> LoadM () -> M.ModuleM (Map ModulePath (FullFingerprint, ScanStatus))
+  Config ->
+  LoadM NoErr () ->
+  M.ModuleM (Map ModulePath FullFingerprint, Map ModulePath ScanStatus)
 runLoadM cfg (LoadM m) =
   do loadCfg <-
        M.io
          do path  <- canonicalizePath (root cfg)
             cache <- loadLoadCache
-            pure LoadConfig { canonRoot = path, loadCache = cache }
-     let loadState = LoadState { findModuleCache = Map.empty
-                               , scanned = Map.empty
+            pure LoadConfig { canonRoot = path
+                            , loadCache = cache
+                            }
+     let loadState = LoadState { findModuleCache = mempty
+                               , fingerprints = mempty
+                               , scanned = mempty
                                }
-     scanned <$> execStateT (runReaderT m loadCfg) loadState
+     s <- execStateT (runExceptT (runReaderT m loadCfg)) loadState
+     pure (fingerprints s, scanned s)
+
+addFingerprint :: ModulePath -> FullFingerprint -> LoadM any ()
+addFingerprint mpath fp =
+  LoadM
+    (modify' \ls -> ls { fingerprints = Map.insert mpath fp (fingerprints ls) })
+
 
 -- | Add information about the status of a module path.
-insertScanned :: ModulePath -> FullFingerprint -> ScanStatus -> LoadM ()
-insertScanned mpath fp status =
-  LoadM
-    (modify' \ls -> ls { scanned = Map.insert mpath (fp, status) (scanned ls) })
+addScanned :: ModulePath -> ScanStatus -> LoadM any ScanStatus
+addScanned mpath status =
+  do LoadM
+       (modify' \ls -> ls { scanned = Map.insert mpath status (scanned ls) })
+     pure status
 
 
 -- | Get a label for the given module path.
 -- Typically used for output.
-getModulePathLabel :: ModulePath -> LoadM String
+getModulePathLabel :: ModulePath -> LoadM any String
 getModulePathLabel mpath =
   case mpath of
     InFile p  -> LoadM (asks ((`makeRelative` p) . canonRoot))
@@ -119,13 +182,13 @@ getModulePathLabel mpath =
 
 
 -- | Get the fingerprint for the given module path.
-getCachedFingerprint :: ModulePath -> LoadM (Maybe FullFingerprint)
+getCachedFingerprint :: ModulePath -> LoadM any (Maybe FullFingerprint)
 getCachedFingerprint mpath =
   LoadM (asks (Map.lookup mpath . cacheFingerprints . loadCache))
 
 
 -- | Module path for the given import
-findModule' :: ImportSource -> LoadM ModulePath
+findModule' :: ImportSource -> LoadM Err ModulePath
 findModule' isrc =
   do ls <- LoadM get
      let mname = modNameToNormalModName (importedModule isrc)
@@ -142,5 +205,11 @@ findModule' isrc =
             pure mpath
 
 -- | Check if the given file has beein processed.
-getStatus :: ModulePath -> LoadM (Maybe (FullFingerprint, ScanStatus))
+getStatus :: ModulePath -> LoadM any (Maybe ScanStatus)
 getStatus mpath = LoadM (gets (Map.lookup mpath . scanned))
+
+-- | Get the fingerpint for the ginve path, if any.
+getFingerprint :: ModulePath -> LoadM any (Maybe FullFingerprint)
+getFingerprint mpath = LoadM (gets (Map.lookup mpath . fingerprints))
+
+
