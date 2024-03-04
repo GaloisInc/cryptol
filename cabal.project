@@ -3,3 +3,12 @@ packages:
     cryptol-remote-api
     tests
     deps/argo/argo
+
+-- TODO RGS: Remove this when a new version of what4 is published to Hackage
+source-repository-package
+    type: git
+    location: https://github.com/GaloisInc/what4
+    tag: 4a25bc23321400bc89337230c76c40dcd81a7320
+    subdir: what4
+allow-newer:
+    test-lib:base
