@@ -10,7 +10,7 @@ module Cryptol.Eval.FFI.GenHeader
 
 import           Control.Monad.Writer.Strict
 import           Data.Functor
-import           Data.Char(isAlphaNum)
+import           Data.Char                     (isAlphaNum)
 import           Data.List
 import           Data.Set                      (Set)
 import qualified Data.Set                      as Set
