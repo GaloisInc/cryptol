@@ -110,9 +110,6 @@ $white+                   { emit $ White Space }
 "enum"                    { emit $ KW KW_enum }
 "pragma"                  { emit $ KW KW_pragma }
 "property"                { emit $ KW KW_property }
-"check"                   { emit $ KW KW_check }
-"prove"                   { emit $ KW KW_prove }
-"sat"                     { emit $ KW KW_sat }
 "then"                    { emit $ KW KW_then }
 "type"                    { emit $ KW KW_type  }
 "where"                   { emit $ KW KW_where }

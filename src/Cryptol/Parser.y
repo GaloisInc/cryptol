@@ -29,6 +29,7 @@ import           Control.Applicative as A
 import           Data.Maybe(fromMaybe)
 import           Data.List.NonEmpty ( NonEmpty(..), cons )
 import           Data.Text(Text)
+import qualified Data.Map as M
 import qualified Data.Text as T
 import           Control.Monad(liftM2,msum)
 
@@ -70,9 +71,6 @@ import Paths_cryptol
   'private'   { Located $$ (Token (KW KW_private)   _)}
   'parameter' { Located $$ (Token (KW KW_parameter) _)}
   'property'  { Located $$ (Token (KW KW_property)  _)}
-  'check'     { Located $$ (Token (KW KW_check)     _)}
-  'prove'     { Located $$ (Token (KW KW_prove)     _)}
-  'sat'       { Located $$ (Token (KW KW_sat)       _)}
   'infix'     { Located $$ (Token (KW KW_infix)     _)}
   'infixl'    { Located $$ (Token (KW KW_infixl)    _)}
   'infixr'    { Located $$ (Token (KW KW_infixr)    _)}
@@ -282,22 +280,29 @@ vtop_decls                 :: { [TopDecl PName]  }
   | vtop_decls 'v;' vtop_decl { $3 ++ $1 }
   | vtop_decls ';'  vtop_decl { $3 ++ $1 }
 
+property_option :: { (Text, Located Literal) }
+  : ':' ident ident '=' property_value {% (mkPropertyOption $2 $3 $5)}
 
--- TODO - Ask Iavor about Range issue in happy with this.
+property_value :: { Located Literal } 
+  : aexpr {% mkOptionValue $1 }
 
-property_type :: { PropertyPragma }
-  : 'check' { CheckProperty } 
-  | 'prove' { ProveProperty }
-  | 'sat'   { SatProperty   }
+
+property_type :: { PropertyType }
+  : ident {% (mkPropertyType $1)}
+
+property_configuration :: { M.Map Text (Located Literal) }
+  : {- empty -} {mempty}
+  | property_configuration property_option {% addPropertyOption $2 $1 }
 
 property_pragma   :: { PropertyPragma }
   : 'property' { DefaultPropertyPragma }
-  | 'property' ':' property_type { $3 }
+  | 'property' ':' property_type property_configuration { ConfigurableProperty $3 $4}
 
 
 vtop_decl               :: { [TopDecl PName] }
   : decl                   { [exportDecl Nothing   Public $1]                 }
   | doc decl               { [exportDecl (Just $1) Public $2]                 }
+  -- TODO % means that the production of value could fail
   | mbDoc 'include' STRLIT {% (return . Include) `fmap` fromStrLit $3         }
   | mbDoc property_pragma name iapats '=' expr
                            { [exportDecl $1 Public (mkProperty $3 $4 $6 $2)]     }

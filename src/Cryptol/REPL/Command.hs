@@ -480,12 +480,13 @@ qcCmd qcMode str pos fnm =
 
 
 --TODO Remove components that are not REPL specific from here.
+-- We probably want a factor out the results of these into a data structure.
 propCmd :: String -> (Int,Int) -> Maybe FilePath -> REPL ()
-propCmd _ _pos _fnm =
+propCmd _ _pos _fnm = 
   do 
-    (checks,dispCheck) <- getPropertiesOfPragma CheckProperty
-    (proves,dispProv) <- getPropertiesOfPragma ProveProperty
-    (sats, dispSats) <- getPropertiesOfPragma SatProperty
+    (checks,dispCheck) <- getPropertiesOfType P.TestType
+    (proves,dispProv) <- getPropertiesOfType P.ProveType
+    (sats, dispSats) <- getPropertiesOfType P.SatType
     let nameStrChecks x = show (fixNameDisp dispCheck (pp x))
     if null checks
         then rPutStrLn "There are no properties in scope."
@@ -950,6 +951,7 @@ onlineProveSat proverName qtype expr schema mfile = do
   (firstProver, res) <- getProverConfig >>= \case
        Left sbvCfg -> liftModuleCmd $ SBV.satProve sbvCfg cmd
        Right w4Cfg ->
+        -- TODO Look into factoring out all of these getUser out of REPL monad
          do ~(EnvBool hashConsing) <- getUser "hashConsing"
             ~(EnvBool warnUninterp) <- getUser "warnUninterp"
             liftModuleCmd $ W4.satProve w4Cfg hashConsing warnUninterp cmd

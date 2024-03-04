@@ -47,7 +47,7 @@ module Cryptol.REPL.Monad (
   , getExprNames
   , getTypeNames
   , getPropertyNames
-  , getPropertiesOfPragma
+  , getPropertiesOfType
   , getModNames
   , LoadedModule(..), getLoadedMod, setLoadedMod, clearLoadedMod
   , setEditPath, getEditPath, clearEditPath
@@ -141,6 +141,8 @@ import qualified System.Random.TF as TF
 
 import Prelude ()
 import Prelude.Compat
+import Cryptol.Parser.AST (PropertyPragma(ConfigurableProperty))
+import qualified Cryptol.Parser.AST as P
 
 -- REPL Environment ------------------------------------------------------------
 
@@ -650,14 +652,22 @@ getPropertyNames =
      return (ps, M.mctxNameDisp fe)
 
 -- | Return a list of property check names, sorted by position in the file.
-getPropertiesOfPragma :: P.PropertyPragma ->  REPL ([(M.Name,M.IfaceDecl)],NameDisp)
-getPropertiesOfPragma propPragma =
+getPropertiesOfType :: P.PropertyType ->  REPL ([(M.Name,M.IfaceDecl)],NameDisp)
+getPropertiesOfType propType =
   do fe <- getFocusedEnv
      let xs = M.ifDecls (M.mctxDecls fe)
          ps = sortBy (comparing (from . M.nameLoc . fst))
               [ (x,d) | (x,d) <- Map.toList xs,
-               T.Property propPragma `elem` M.ifDeclPragmas d]
+                any (isOfType propType) (M.ifDeclPragmas d)
+              ]
+               --T.Property (ConfigurableProperty propType []) `elem` M.ifDeclPragmas d]
      return (ps, M.mctxNameDisp fe)
+  
+isOfType :: P.PropertyType -> P.Pragma -> Bool
+isOfType P.SatType (T.Property (P.ConfigurableProperty P.SatType _)) = True
+isOfType P.TestType (T.Property (P.ConfigurableProperty P.TestType _)) = True
+isOfType P.ProveType (T.Property (P.ConfigurableProperty P.ProveType _)) = True
+isOfType _ _ = False
 
 getModNames :: REPL [I.ModName]
 getModNames =

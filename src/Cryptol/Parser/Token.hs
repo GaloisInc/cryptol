@@ -39,9 +39,6 @@ data TokenKW  = KW_else
               | KW_enum
               | KW_pragma
               | KW_property
-              | KW_check
-              | KW_prove
-              | KW_sat
               | KW_then
               | KW_type
               | KW_where

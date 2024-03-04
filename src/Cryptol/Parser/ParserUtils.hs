@@ -270,6 +270,11 @@ fracLit tok =
     _ -> panic "[Parser] fracLit" [ "Invalid fraction", show tok ]
 
 
+strVal :: Located Token -> ParseM String
+strVal l = case thing l of
+             Token (StrLit x) _ -> return x
+             _         -> errorMessage (srcRange l) ["Expected a String"]
+
 intVal :: Located Token -> ParseM Integer
 intVal tok =
   case tokenType (thing tok) of
@@ -753,6 +758,42 @@ mkPoly rng terms
                        ["Polynomial contains multiple terms with exponent " ++ show n]
     | otherwise     = mk (setBit res n) ns
 
+mkPropertyType :: LIdent -> ParseM PropertyType
+mkPropertyType propIdent =
+  case identText (thing propIdent) of
+     "test" -> pure TestType
+     "prove" -> pure ProveType
+     "sat" -> pure SatType
+     _ -> errorMessage (srcRange propIdent) ["Invalid property type.", "Valid options are `test`, `prove`, or `sat`."]
+
+mkOptionValue :: Expr PName -> ParseM (Located Literal)
+mkOptionValue = checkLoc Nothing
+   where 
+     checkLoc :: Maybe Range -> Expr PName -> ParseM (Located Literal)
+     checkLoc mbLoc expr = 
+      case expr of
+        ELocated e r -> checkLoc (Just r) e
+        ELit lit -> case mbLoc of 
+                      Just loc -> pure Located{srcRange = loc, thing = lit}
+                      Nothing -> expected "Literal"
+        _ -> 
+          case mbLoc of 
+            Just loc -> errorMessage loc ["Invalid property option." , "Expected a literal"]
+            Nothing -> expected "Literal"
+
+
+mkPropertyOption :: Located Ident -> Located Ident -> Located Literal -> ParseM (Text, Located Literal)
+mkPropertyOption setIdent settingIdent v = 
+   case identText (thing setIdent) of
+    "set" -> pure (identText (thing settingIdent), v)
+    _ -> errorMessage (srcRange setIdent) ["Invalid property option." , "To set a property option use `:set name = value`"]
+
+addPropertyOption :: (Text, Located Literal) -> Map.Map Text (Located Literal)  -> ParseM (Map.Map Text (Located Literal))
+addPropertyOption (t,ll) m = 
+  let (mbV, nMap) = Map.insertLookupWithKey (\ _ _ v -> v) t ll m in
+    case mbV of
+      Nothing -> pure nMap
+      Just _ -> errorMessage (srcRange ll) ["Invalid property option." , "This property option has already been set."]
 
 -- NOTE: The list of patterns is reversed!
 mkProperty :: LPName -> [Pattern PName] -> Expr PName -> PropertyPragma -> Decl PName

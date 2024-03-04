@@ -1,6 +1,6 @@
-property
-    :check 
-    t0 = True
+// TODO Move this into Regression tests.
+
+property:test t0 = True
 property:prove t1 = True
 property:sat t2 = True
 
