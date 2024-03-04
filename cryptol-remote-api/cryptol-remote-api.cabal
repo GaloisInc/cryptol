@@ -40,11 +40,11 @@ common errors
 
 common deps
   build-depends:
-    base                 >=4.11.1.0 && <4.19,
+    base                 >=4.11.1.0 && <4.20,
     argo,
     aeson                >= 1.4.2 && < 2.3,
     base64-bytestring    >= 1.0,
-    bytestring           >= 0.10.8 && < 0.12,
+    bytestring           >= 0.10.8 && < 0.13,
     containers           >=0.6.0.1 && <0.7,
     cryptol              >= 2.9.0,
     directory,
@@ -52,7 +52,7 @@ common deps
     lens                 >= 4.17 && < 5.3,
     mtl                  >= 2.2 && < 2.4,
     scientific           ^>= 0.3,
-    text                 >= 1.2.3 && < 2.1,
+    text                 >= 1.2.3 && < 2.2,
     tf-random,
     unordered-containers ^>= 0.2,
     vector               >= 0.12 && < 0.14,

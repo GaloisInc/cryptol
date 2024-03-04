@@ -9,9 +9,9 @@ module Cryptol.Eval.FFI.GenHeader
   ) where
 
 import           Control.Monad.Writer.Strict
-import           Data.Functor
+import           Data.Functor                  ((<&>))
 import           Data.Char                     (isAlphaNum)
-import           Data.List
+import           Data.List                     (mapAccumL)
 import           Data.Set                      (Set)
 import qualified Data.Set                      as Set
 import           Language.C99.Pretty           as C
