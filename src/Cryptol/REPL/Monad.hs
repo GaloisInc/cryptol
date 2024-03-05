@@ -660,15 +660,15 @@ getPropertiesOfType propType =
   do fe <- getFocusedEnv
      let xs = M.ifDecls (M.mctxDecls fe)
          zipped =  [(x,d, getOptions l) | ((x,d),l) <- zip (Map.toList xs)   
-                                         (map (map (isOfType propType)) (map M.ifDeclPragmas (Map.elems xs))),
+                                                            (getListOfOptions xs),
                                         any fst l
                    ]
          
      return (zipped, M.mctxNameDisp fe)
-  where getOptions :: [(Bool, P.PropertyOptions)] -> P.PropertyOptions
-        getOptions xs = case find (fst) xs of
+  where getOptions xs = case find fst xs of
                           Just (_,ops) -> ops
                           Nothing -> mempty
+        getListOfOptions xs = (map (map (isOfType propType)) (map M.ifDeclPragmas (Map.elems xs)))
 
 isOfType :: P.PropertyType -> P.Pragma -> (Bool, Map.Map Text.Text (P.Located P.Literal))
 isOfType P.SatType (T.Property (P.ConfigurableProperty P.SatType options)) = (True, options)

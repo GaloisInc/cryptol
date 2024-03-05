@@ -492,7 +492,7 @@ propCmd _ _pos _fnm =
         then rPutStrLn "There are no properties in scope."
         else forM_ checks $ \(x,d,ops) ->
                do let str = nameStrChecks x
-                  rPutStr $ "property " ++ str ++ " "
+                  rPutStr $ "property " ++ str ++ " options " ++ propOptsShow ops ++ " "
                   let texpr = T.EVar x
                   let schema = M.ifDeclSig d
                   nd <- M.mctxNameDisp <$> getFocusedEnv
@@ -504,15 +504,20 @@ propCmd _ _pos _fnm =
         then rPutStrLn "There are no properties in scope."
         else forM_ proves $ \(x,_,ops) ->
                do let str = nameStrProves x
-                  rPutStr $ "property " ++ str ++ " "
+                  rPutStr $ "property " ++ str ++ " options " ++ propOptsShow ops ++ " "
                   proveCmd str _pos _fnm
     let nameStrSats x = show (fixNameDisp dispSats (pp x))
     if null sats
         then rPutStrLn "There are no properties in scope."
         else forM_ sats $ \(x,_,ops) ->
                do let str = nameStrSats x
-                  rPutStr $ "property " ++ str ++ " "
+                  rPutStr $ "property " ++ str ++ " options " ++ propOptsShow ops ++ " "
                   satCmd str _pos _fnm
+  where
+    propOptsShow :: P.PropertyOptions -> String
+    propOptsShow opts = show [(optionName, P.thing ov) |(optionName, ov) <- Map.toList opts]
+    
+
 
 
 data TestReport = TestReport

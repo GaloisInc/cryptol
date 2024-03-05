@@ -1,6 +1,10 @@
 // TODO Move this into Regression tests.
 
-property:test t0 = True
-property:prove t1 = True
+property
+        :test
+        :set tests=100
+        t0 = True
+property:prove 
+        t1 = True
 property:sat t2 = True
 

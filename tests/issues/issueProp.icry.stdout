@@ -1,8 +1,8 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Main
-property t0 Using exhaustive testing.
+property t0 options [("tests",ECNum 100 (DecLit "100"))] Using exhaustive testing.
 Testing... Passed 1 tests.
 Q.E.D.
-property t1 Q.E.D.
-property t2 Satisfiable
+property t1 options [] Q.E.D.
+property t2 options [] Satisfiable
