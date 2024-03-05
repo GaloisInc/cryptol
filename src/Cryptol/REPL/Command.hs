@@ -480,17 +480,17 @@ qcCmd qcMode str pos fnm =
 
 
 --TODO Remove components that are not REPL specific from here.
--- We probably want a factor out the results of these into a data structure.
+-- TODO We probably want a factor out the results of these into a data structure.
 propCmd :: String -> (Int,Int) -> Maybe FilePath -> REPL ()
 propCmd _ _pos _fnm = 
   do 
-    (checks,dispCheck) <- getPropertiesOfType P.TestType
-    (proves,dispProv) <- getPropertiesOfType P.ProveType
+    (checks, dispCheck) <- getPropertiesOfType P.TestType
+    (proves, dispProv) <- getPropertiesOfType P.ProveType
     (sats, dispSats) <- getPropertiesOfType P.SatType
     let nameStrChecks x = show (fixNameDisp dispCheck (pp x))
     if null checks
         then rPutStrLn "There are no properties in scope."
-        else forM_ checks $ \(x,d) ->
+        else forM_ checks $ \(x,d,ops) ->
                do let str = nameStrChecks x
                   rPutStr $ "property " ++ str ++ " "
                   let texpr = T.EVar x
@@ -502,24 +502,17 @@ propCmd _ _pos _fnm =
     let nameStrProves x = show (fixNameDisp dispProv (pp x))
     if null proves
         then rPutStrLn "There are no properties in scope."
-        else forM_ proves $ \(x,_) ->
+        else forM_ proves $ \(x,_,ops) ->
                do let str = nameStrProves x
                   rPutStr $ "property " ++ str ++ " "
                   proveCmd str _pos _fnm
     let nameStrSats x = show (fixNameDisp dispSats (pp x))
     if null sats
         then rPutStrLn "There are no properties in scope."
-        else forM_ sats $ \(x,_) ->
+        else forM_ sats $ \(x,_,ops) ->
                do let str = nameStrSats x
                   rPutStr $ "property " ++ str ++ " "
                   satCmd str _pos _fnm
-
--- propCmd str pos fnm =
---   do expr <- replParseExpr str pos fnm
---      (_,texpr,schema) <- replCheckExpr expr
---      nd <- M.mctxNameDisp <$> getFocusedEnv
---      let doc = fixNameDisp nd (ppPrec 3 expr) -- function application has precedence 3
---      void (qcExpr QCRandom doc texpr schema)
 
 
 data TestReport = TestReport

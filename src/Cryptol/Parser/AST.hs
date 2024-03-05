@@ -68,6 +68,7 @@ module Cryptol.Parser.AST
   , Pragma(..)
   , PropertyPragma(..)
   , PropertyType(..)
+  , PropertyOptions
   , ExportType(..)
   , TopLevel(..)
   , Import, ImportG(..), ImportSpec(..), ImpName(..), impNameModPath
@@ -523,8 +524,9 @@ data PropertyType = TestType
                   | SatType
   deriving (Eq, Show, Generic, NFData)
 
+type PropertyOptions = Map Text (Located Literal)
 data PropertyPragma = DefaultPropertyPragma
-                    | ConfigurableProperty PropertyType (Map Text (Located Literal))
+                    | ConfigurableProperty PropertyType PropertyOptions
                     deriving (Eq, Show, Generic, NFData)
 
 data Pragma   = PragmaNote String

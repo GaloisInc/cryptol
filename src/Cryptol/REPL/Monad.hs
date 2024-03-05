@@ -124,7 +124,7 @@ import Control.Monad.Trans.Control
 import Data.Char (isSpace, toLower)
 import Data.IORef
     (IORef,newIORef,readIORef,atomicModifyIORef)
-import Data.List (intercalate, isPrefixOf, unfoldr, sortBy)
+import Data.List (intercalate, isPrefixOf, unfoldr, sortBy, mapAccumL, find)
 import Data.Maybe (catMaybes)
 import Data.Ord (comparing)
 import Data.Tuple (swap)
@@ -143,6 +143,7 @@ import Prelude ()
 import Prelude.Compat
 import Cryptol.Parser.AST (PropertyPragma(ConfigurableProperty))
 import qualified Cryptol.Parser.AST as P
+import qualified Data.Text as Text
 
 -- REPL Environment ------------------------------------------------------------
 
@@ -651,23 +652,29 @@ getPropertyNames =
                     T.Property P.DefaultPropertyPragma `elem` M.ifDeclPragmas d ]
      return (ps, M.mctxNameDisp fe)
 
--- | Return a list of property check names, sorted by position in the file.
-getPropertiesOfType :: P.PropertyType ->  REPL ([(M.Name,M.IfaceDecl)],NameDisp)
+-- | Return a list of property check names of type, sorted by position in the file.
+
+--TODO Refactor
+getPropertiesOfType :: P.PropertyType ->  REPL ([(M.Name,M.IfaceDecl, P.PropertyOptions)],NameDisp)
 getPropertiesOfType propType =
   do fe <- getFocusedEnv
      let xs = M.ifDecls (M.mctxDecls fe)
-         ps = sortBy (comparing (from . M.nameLoc . fst))
-              [ (x,d) | (x,d) <- Map.toList xs,
-                any (isOfType propType) (M.ifDeclPragmas d)
-              ]
-               --T.Property (ConfigurableProperty propType []) `elem` M.ifDeclPragmas d]
-     return (ps, M.mctxNameDisp fe)
-  
-isOfType :: P.PropertyType -> P.Pragma -> Bool
-isOfType P.SatType (T.Property (P.ConfigurableProperty P.SatType _)) = True
-isOfType P.TestType (T.Property (P.ConfigurableProperty P.TestType _)) = True
-isOfType P.ProveType (T.Property (P.ConfigurableProperty P.ProveType _)) = True
-isOfType _ _ = False
+         zipped =  [(x,d, getOptions l) | ((x,d),l) <- zip (Map.toList xs)   
+                                         (map (map (isOfType propType)) (map M.ifDeclPragmas (Map.elems xs))),
+                                        any fst l
+                   ]
+         
+     return (zipped, M.mctxNameDisp fe)
+  where getOptions :: [(Bool, P.PropertyOptions)] -> P.PropertyOptions
+        getOptions xs = case find (fst) xs of
+                          Just (_,ops) -> ops
+                          Nothing -> mempty
+
+isOfType :: P.PropertyType -> P.Pragma -> (Bool, Map.Map Text.Text (P.Located P.Literal))
+isOfType P.SatType (T.Property (P.ConfigurableProperty P.SatType options)) = (True, options)
+isOfType P.TestType (T.Property (P.ConfigurableProperty P.TestType options)) = (True, options)
+isOfType P.ProveType (T.Property (P.ConfigurableProperty P.ProveType options)) = (True, options)
+isOfType _ _ = (False, mempty)
 
 getModNames :: REPL [I.ModName]
 getModNames =
@@ -1223,5 +1230,6 @@ z3exists = do
   case mPath of
     Nothing -> return (Just Z3NotFound)
     Just _  -> return Nothing
+
 
 
