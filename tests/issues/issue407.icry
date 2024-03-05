@@ -1,10 +1,10 @@
 :set prover-stats = off
 transpose [0x0, 1 ...]
-:pro (\(x:[4]) -> (transpose [x ...])@0@0 == False)
+:prove (\(x:[4]) -> (transpose [x ...])@0@0 == False)
 
-:pro (\(x:[4]) -> (transpose [x ...])@0@0 == x@0)
-:pro (\(x:[4]) -> (transpose [x ...])@1@0 == x@1)
-:pro (\(x:[4]) -> (transpose [x ...])@2@0 == x@2)
-:pro (\(x:[4]) -> (transpose [x ...])@3@0 == x@3)
+:prove (\(x:[4]) -> (transpose [x ...])@0@0 == x@0)
+:prove (\(x:[4]) -> (transpose [x ...])@1@0 == x@1)
+:prove (\(x:[4]) -> (transpose [x ...])@2@0 == x@2)
+:prove (\(x:[4]) -> (transpose [x ...])@3@0 == x@3)
 
-:pro (\(x:[4]) -> (transpose [x ...])@3@1 == ~(x@3))
+:prove (\(x:[4]) -> (transpose [x ...])@3@1 == ~(x@3))
