@@ -143,6 +143,7 @@ import Prelude ()
 import Prelude.Compat
 import Cryptol.Parser.AST (PropertyPragma(ConfigurableProperty))
 import qualified Cryptol.Parser.AST as P
+--import qualified Cryptol.Validation.Monad as V
 import qualified Data.Text as Text
 
 -- REPL Environment ------------------------------------------------------------
@@ -659,9 +660,9 @@ getPropertiesOfType :: P.PropertyType ->  REPL ([(M.Name,M.IfaceDecl, P.Property
 getPropertiesOfType propType =
   do fe <- getFocusedEnv
      let xs = M.ifDecls (M.mctxDecls fe)
-         zipped =  [(x,d, getOptions l) | ((x,d),l) <- zip (Map.toList xs)   
-                                                            (getListOfOptions xs),
-                                        any fst l
+         zipped =  [(x,d, getOptions l) 
+                      | ((x,d),l) <- zip (Map.toList xs) (getListOfOptions xs),
+                       any fst l
                    ]
          
      return (zipped, M.mctxNameDisp fe)
