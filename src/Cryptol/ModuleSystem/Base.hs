@@ -23,7 +23,9 @@ import Control.Monad (unless,forM)
 import Data.Set(Set)
 import qualified Data.Set as Set
 import Data.Maybe (fromMaybe)
-import Data.List(sortBy,groupBy)
+import Data.List(sortBy)
+import qualified Data.List.NonEmpty as NE
+import Data.List.NonEmpty (NonEmpty(..))
 import Data.Function(on)
 import Data.Monoid ((<>),Endo(..), Any(..))
 import Data.Text.Encoding (decodeUtf8')
@@ -67,7 +69,7 @@ import qualified Cryptol.Parser               as P
 import qualified Cryptol.Parser.Unlit         as P
 import Cryptol.Parser.AST as P
 import Cryptol.Parser.NoPat (RemovePatterns(removePatterns))
-import qualified Cryptol.Parser.ExpandPropGuards as ExpandPropGuards 
+import qualified Cryptol.Parser.ExpandPropGuards as ExpandPropGuards
   ( expandPropGuards, runExpandPropGuardsM )
 import Cryptol.Parser.NoInclude (removeIncludesModule)
 import Cryptol.Parser.Position (HasLoc(..), Range, emptyRange)
@@ -320,9 +322,9 @@ doLoadModule eval quiet isrc path fp incDeps pm0 =
 
     where foreigns  = findForeignDecls tcm
           foreignFs = T.findForeignDeclsInFunctors tcm
-          dups      = [ d | d@(_ : _ : _) <- groupBy ((==) `on` nameIdent)
-                                           $ sortBy (compare `on` nameIdent)
-                                           $ map fst foreigns ]
+          dups      = [ d | d@(_ :| _ : _) <- NE.groupBy ((==) `on` nameIdent)
+                                            $ sortBy (compare `on` nameIdent)
+                                            $ map fst foreigns ]
           doEvalForeign handleErrs =
             case path of
               InFile p -> io (loadForeignSrc p) >>=

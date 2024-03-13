@@ -1178,9 +1178,15 @@ ufToNamed (UpdField h ls e) =
   case (h,ls) of
     (UpdSet, [l]) | RecordSel i Nothing <- thing l ->
       pure Named { name = l { thing = i }, value = e }
-    _ -> errorMessage (srcRange (head ls))
+    _ -> errorMessage (srcRange lab)
             ["Invalid record field.  Perhaps you meant to update a record?"]
+  where
+    -- The list of field updates in an UpdField should always be non-empty.
+    lab = case ls of
+            lab':_ -> lab'
+            [] -> panic "ufToNamed" ["UpdField with empty labels"]
 
+-- | The returned list of 'Selector's will be non-empty.
 exprToFieldPath :: Expr PName -> ParseM [Located Selector]
 exprToFieldPath e0 = reverse <$> go noLoc e0
   where
@@ -1190,7 +1196,11 @@ exprToFieldPath e0 = reverse <$> go noLoc e0
       ELocated e1 r -> go r e1
       ESel e2 s ->
         do ls <- go loc e2
-           let rng = loc { from = to (srcRange (head ls)) }
+           let l =
+                 case ls of
+                   l':_ -> l'
+                   [] -> panic "exprToFieldPath" ["empty list of selectors"]
+           let rng = loc { from = to (srcRange l) }
            pure (Located { thing = s, srcRange = rng } : ls)
       EVar (UnQual l) ->
         pure [ Located { thing = RecordSel l Nothing, srcRange = loc } ]

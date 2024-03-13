@@ -61,7 +61,9 @@ layout :: Bool -> [Located Token] -> [Located Token]
 layout isMod ts0
 
   -- Star an implicit layout block at the top of the module
-  | let t         = head ts0
+  | let t         = case ts0 of
+                      t':_ -> t'
+                      [] -> panic "layout" ["Unexpected empty list of tokens"]
         rng       = srcRange t
         blockCol  = max 1 (col (from rng)) -- see startImplicitBlock
         implictMod = case map (tokenType . thing) ts0 of
@@ -159,7 +161,11 @@ layout isMod ts0
 
 
     startImplicitBlock =
-      let nextRng  = srcRange (head advanceTokens)
+      let curAdvanceTok =
+            case advanceTokens of
+              curAdvanceTok':_ -> curAdvanceTok'
+              [] -> panic "layout" ["Unexpected empty list of advanceTokens"]
+          nextRng  = srcRange curAdvanceTok
           nextLoc  = from nextRng
           blockCol = max 1 (col nextLoc)
           -- the `max` ensuraes that indentation is always at least 1,
