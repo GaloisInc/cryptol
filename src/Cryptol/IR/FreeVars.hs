@@ -11,6 +11,7 @@ import           Data.Map ( Map )
 import qualified Data.Map as Map
 
 import Cryptol.TypeCheck.AST
+import Cryptol.Utils.Panic ( panic )
 import Cryptol.Utils.RecordMap
 
 data Deps = Deps { valDeps  :: Set Name
@@ -52,9 +53,10 @@ rmVals p x = x { valDeps = Set.difference (valDeps x) p }
 -- | Compute the transitive closure of the given dependencies.
 transDeps :: Map Name Deps -> Map Name Deps
 transDeps mp0 = fst
-              $ head
+              $ headInfList
               $ dropWhile (uncurry (/=))
-              $ zip steps (tail steps)
+              $ zip steps
+              $ drop 1 steps
   where
   step1 mp d = mconcat [ Map.findWithDefault
                             mempty { valDeps = Set.singleton x }
@@ -62,6 +64,15 @@ transDeps mp0 = fst
   step mp = fmap (step1 mp) mp
 
   steps = iterate step mp0
+
+  -- The only call site for this function is on the result of an invocation
+  -- of `iterate`, which returns an infinite list. As such, it is safe to call
+  -- `head` on it. Alternatively, we could depend on a library such as
+  -- `infinite-list`, but this is likely overkill for this one use site.
+  headInfList l =
+    case l of
+      x:_ -> x
+      [] -> panic "transDeps" ["`iterate` returned empty list"]
 
 -- | Dependencies of top-level declarations in a module.
 -- These are dependencies on module parameters or things

@@ -7,6 +7,8 @@
 module Cryptol.Backend.FFI.Error where
 
 import           Control.DeepSeq
+import qualified Data.List.NonEmpty as NE
+import           Data.List.NonEmpty (NonEmpty)
 import           GHC.Generics
 
 import           Cryptol.Utils.PP
@@ -19,7 +21,7 @@ data FFILoadError
   | CantLoadFFIImpl
     String   -- ^ Function name
     String   -- ^ Error message
-  | FFIDuplicates [Name]
+  | FFIDuplicates (NonEmpty Name)
   | FFIInFunctor  Name
   deriving (Show, Generic, NFData)
 
@@ -38,8 +40,8 @@ instance PP FFILoadError where
         --   4 (text _msg)
       FFIDuplicates xs ->
         hang "Multiple foreign declarations with the same name:"
-           4 (backticks (pp (nameIdent (head xs))) <+>
-                 "defined at" <+> align (vcat (map (pp . nameLoc) xs)))
+           4 (backticks (pp (nameIdent (NE.head xs))) <+>
+                 "defined at" <+> align (vcat (map (pp . nameLoc) (NE.toList xs))))
       FFIInFunctor x ->
         hang (pp (nameLoc x) <.> ":")
           4 "Foreign declaration" <+> backticks (pp (nameIdent x)) <+>

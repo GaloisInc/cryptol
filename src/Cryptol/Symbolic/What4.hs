@@ -41,7 +41,7 @@ import qualified Control.Exception as X
 import System.IO (Handle, IOMode(..), withFile)
 import Data.Time
 import Data.IORef
-import Data.List (intercalate, tails, inits)
+import Data.List (intercalate, inits)
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.Proxy
 import qualified Data.Map as Map
@@ -631,7 +631,7 @@ computeSplits vs cs = reverse
   | prefix <- inits (zip vs cs)
   | v      <- vs
   | c      <- cs
-  | tl     <- tail (tails vs)
+  | tl     <- NE.tail (NE.tails vs)
   ]
 -- == END Support operations for multi-SAT ==
 

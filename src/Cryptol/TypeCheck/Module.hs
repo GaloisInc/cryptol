@@ -137,8 +137,11 @@ checkArity r mf args =
   case args of
 
     P.DefaultInstArg arg ->
-      let i = Located { srcRange = srcRange arg
-                      , thing    = head (Map.keys ps0)
+      let p0 = case Map.keys ps0 of
+                 p':_ -> p'
+                 [] -> panic "checkArity" ["functor with no parameters"]
+          i = Located { srcRange = srcRange arg
+                      , thing    = p0
                       }
       in checkArgs [] ps0 [ P.ModuleInstanceNamedArg i arg ]
 
