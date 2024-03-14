@@ -278,8 +278,7 @@ modContextOf mname me =
      let localIface  = lmInterface lm
          localNames  = lmNamingEnv lm
 
-         -- XXX: do we want only public ones here?
-         loadedDecls = map (ifDefines . lmInterface)
+         loadedPublicDecls = map getPublicDecls
                      $ getLoadedModules (meLoadedModules me)
 
          params = ifParams localIface
@@ -287,14 +286,13 @@ modContextOf mname me =
        { mctxParams   = if Map.null params then NoParams
                                            else FunctorParams params
        , mctxExported = ifsPublic (ifNames localIface)
-       , mctxDecls    = mconcat (ifDefines localIface : loadedDecls)
+       , mctxDecls    = mconcat (ifDefines localIface : loadedPublicDecls)
        , mctxNames    = localNames
        , mctxNameDisp = R.toNameDisp localNames
        }
   `mplus`
   do lm <- lookupSignature mname me
      let localNames  = lmNamingEnv lm
-         -- XXX: do we want only public ones here?
          loadedDecls = map (ifDefines . lmInterface)
                      $ getLoadedModules (meLoadedModules me)
      pure ModContext
@@ -304,6 +302,12 @@ modContextOf mname me =
        , mctxNames    = localNames
        , mctxNameDisp = R.toNameDisp localNames
        }
+  where getPublicDecls :: LoadedModule -> IfaceDecls
+        getPublicDecls lm = 
+          do let allDecls = ifDefines (lmInterface lm)
+                 publicNames = ifsPublic (ifNames (lmInterface lm))
+                 publicDecls = filterIfaceDecls (`Set.member` publicNames) allDecls
+             publicDecls
 
 
 

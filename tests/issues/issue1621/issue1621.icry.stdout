@@ -1,0 +1,17 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module a
+True
+Loading module Cryptol
+Loading module a
+Loading module b
+
+[error] at issue1621.icry:4:1--4:2
+    Value not in scope: x
+
+[error] at issue1621.icry:5:8--5:9
+    Value not in scope: x
+
+[error] at issue1621.icry:6:8--6:12
+    Value not in scope: a::x
+There are no properties in scope.
