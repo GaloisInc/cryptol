@@ -14,10 +14,16 @@ include = [
 
 [tool.poetry.dependencies]
 python = ">=3.8.0,<4"
-requests = "^2.31.0"
 BitVector = "^3.4.9"
 argo-client = "0.0.11"
 typing-extensions = "^4.1.1"
+
+# cryptol does not directly depend on these but mypy does depend on these.
+# These not being locked caused CI to fail due to these updating automatically, see https://github.com/GaloisInc/cryptol/issues/1643.
+# We will want to unlock these at some point, see https://github.com/GaloisInc/cryptol/issues/1645.
+requests = "<2.31.0.20240310"
+urllib3 = "<2.2.0"
+types-requests = "<2.31.0.20240310"
 
 [tool.poetry.dev-dependencies]
 mypy = "^0.991"
