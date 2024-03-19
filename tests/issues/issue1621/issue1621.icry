@@ -1,0 +1,7 @@
+:m a
+x
+:m b
+x
+:check x
+:check a::x
+:check
