@@ -1,0 +1,3 @@
+:set show-examples=false
+:l issueProp.cry
+:prop

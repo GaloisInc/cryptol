@@ -29,6 +29,7 @@ import           Control.Applicative as A
 import           Data.Maybe(fromMaybe)
 import           Data.List.NonEmpty ( NonEmpty(..), cons )
 import           Data.Text(Text)
+import qualified Data.Map as M
 import qualified Data.Text as T
 import           Control.Monad(liftM2,msum)
 
@@ -279,14 +280,34 @@ vtop_decls                 :: { [TopDecl PName]  }
   | vtop_decls 'v;' vtop_decl { $3 ++ $1 }
   | vtop_decls ';'  vtop_decl { $3 ++ $1 }
 
+property_option :: { (Text, Located Literal) }
+  : ':' ident ident '=' property_value {% (mkPropertyOption $2 $3 $5)}
+
+property_value :: { Located Literal } 
+  : aexpr {% mkOptionValue $1 }
+
+
+property_type :: { PropertyType }
+  : ident {% (mkPropertyType $1)}
+
+property_configuration :: { M.Map Text (Located Literal) }
+  : {- empty -} {mempty}
+  | property_configuration property_option {% addPropertyOption $2 $1 }
+
+property_pragma   :: { PropertyPragma }
+  : 'property' { DefaultPropertyPragma }
+  | 'property' ':' property_type property_configuration { ConfigurableProperty $3 $4}
+
+
 vtop_decl               :: { [TopDecl PName] }
   : decl                   { [exportDecl Nothing   Public $1]                 }
   | doc decl               { [exportDecl (Just $1) Public $2]                 }
+  -- TODO % means that the production of value could fail
   | mbDoc 'include' STRLIT {% (return . Include) `fmap` fromStrLit $3         }
-  | mbDoc 'property' name iapats '=' expr
-                           { [exportDecl $1 Public (mkProperty $3 $4 $6)]     }
-  | mbDoc 'property' name       '=' expr
-                           { [exportDecl $1 Public (mkProperty $3 [] $5)]     }
+  | mbDoc property_pragma name iapats '=' expr
+                           { [exportDecl $1 Public (mkProperty $3 $4 $6 $2)]     }
+  | mbDoc property_pragma name       '=' expr
+                           { [exportDecl $1 Public (mkProperty $3 [] $5 $2)]     }
   | mbDoc newtype          { [exportNewtype Public $1 $2]                     }
   | mbDoc enum             { [exportEnum Public $1 $2]                        }
   | prim_bind              { $1                                               }

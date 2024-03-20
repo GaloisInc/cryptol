@@ -337,7 +337,7 @@ showValHelp ctxparams env nameEnv qname name =
          do rPutStrLn ""
 
             let property 
-                  | P.PragmaProperty `elem` ifDeclPragmas = [text "property"]
+                  | (P.Property P.DefaultPropertyPragma) `elem` ifDeclPragmas = [text "property"]
                   | otherwise                             = []
             rPrint $ runDoc nameEnv
                    $ indent 4

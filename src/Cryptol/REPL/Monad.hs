@@ -47,6 +47,7 @@ module Cryptol.REPL.Monad (
   , getExprNames
   , getTypeNames
   , getPropertyNames
+  , getPropertiesOfType
   , getModNames
   , LoadedModule(..), getLoadedMod, setLoadedMod, clearLoadedMod
   , setEditPath, getEditPath, clearEditPath
@@ -123,7 +124,7 @@ import Control.Monad.Trans.Control
 import Data.Char (isSpace, toLower)
 import Data.IORef
     (IORef,newIORef,readIORef,atomicModifyIORef)
-import Data.List (intercalate, isPrefixOf, unfoldr, sortBy)
+import Data.List (intercalate, isPrefixOf, unfoldr, sortBy, mapAccumL, find)
 import Data.Maybe (catMaybes)
 import Data.Ord (comparing)
 import Data.Tuple (swap)
@@ -140,6 +141,10 @@ import qualified System.Random.TF as TF
 
 import Prelude ()
 import Prelude.Compat
+import Cryptol.Parser.AST (PropertyPragma(ConfigurableProperty))
+import qualified Cryptol.Parser.AST as P
+--import qualified Cryptol.Validation.Monad as V
+import qualified Data.Text as Text
 
 -- REPL Environment ------------------------------------------------------------
 
@@ -357,11 +362,11 @@ instance PP REPLException where
     ParseError e         -> ppError e
     FileNotFound path    -> sep [ text "File"
                                 , text ("`" ++ path ++ "'")
-                                , text"not found"
+                                , text "not found"
                                 ]
     DirectoryNotFound path -> sep [ text "Directory"
                                   , text ("`" ++ path ++ "'")
-                                  , text"not found or not a directory"
+                                  , text "not found or not a directory"
                                   ]
     NoPatError es        -> vcat (map pp es)
     NoIncludeError es    -> vcat (map ppIncludeError es)
@@ -645,9 +650,32 @@ getPropertyNames =
      let xs = M.ifDecls (M.mctxDecls fe)
          ps = sortBy (comparing (from . M.nameLoc . fst))
               [ (x,d) | (x,d) <- Map.toList xs,
-                    T.PragmaProperty `elem` M.ifDeclPragmas d ]
-
+                    T.Property P.DefaultPropertyPragma `elem` M.ifDeclPragmas d ]
      return (ps, M.mctxNameDisp fe)
+
+-- | Return a list of property check names of type, sorted by position in the file.
+
+--TODO Refactor
+getPropertiesOfType :: P.PropertyType ->  REPL ([(M.Name,M.IfaceDecl, P.PropertyOptions)],NameDisp)
+getPropertiesOfType propType =
+  do fe <- getFocusedEnv
+     let xs = M.ifDecls (M.mctxDecls fe)
+         zipped =  [(x,d, getOptions l) 
+                      | ((x,d),l) <- zip (Map.toList xs) (getListOfOptions xs),
+                       any fst l
+                   ]
+         
+     return (zipped, M.mctxNameDisp fe)
+  where getOptions xs = case find fst xs of
+                          Just (_,ops) -> ops
+                          Nothing -> mempty
+        getListOfOptions xs = (map (map (isOfType propType)) (map M.ifDeclPragmas (Map.elems xs)))
+
+isOfType :: P.PropertyType -> P.Pragma -> (Bool, Map.Map Text.Text (P.Located P.Literal))
+isOfType P.SatType (T.Property (P.ConfigurableProperty P.SatType options)) = (True, options)
+isOfType P.TestType (T.Property (P.ConfigurableProperty P.TestType options)) = (True, options)
+isOfType P.ProveType (T.Property (P.ConfigurableProperty P.ProveType options)) = (True, options)
+isOfType _ _ = (False, mempty)
 
 getModNames :: REPL [I.ModName]
 getModNames =
@@ -717,21 +745,21 @@ freshName i sys =
 
 parseSearchPath :: String -> [String]
 parseSearchPath path = path'
-#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
-      -- Windows paths search from end to beginning
-      where path' = reverse (splitSearchPath path)
-#else
+
+
+
+
       where path' = splitSearchPath path
-#endif
+
 
 renderSearchPath :: [String] -> String
 renderSearchPath pathSegs = path
-#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
-      -- Windows paths search from end to beginning
-      where path = intercalate [searchPathSeparator] (reverse pathSegs)
-#else
+
+
+
+
       where path = intercalate [searchPathSeparator] pathSegs
-#endif
+
 
 -- User Environment Interaction ------------------------------------------------
 
@@ -1203,3 +1231,6 @@ z3exists = do
   case mPath of
     Nothing -> return (Just Z3NotFound)
     Just _  -> return Nothing
+
+
+

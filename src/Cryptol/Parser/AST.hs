@@ -66,6 +66,9 @@ module Cryptol.Parser.AST
   , BindDef(..), LBindDef
   , BindImpl(..), bindImpl, exprDef
   , Pragma(..)
+  , PropertyPragma(..)
+  , PropertyType(..)
+  , PropertyOptions
   , ExportType(..)
   , TopLevel(..)
   , Import, ImportG(..), ImportSpec(..), ImpName(..), impNameModPath
@@ -516,8 +519,19 @@ data PropGuardCase name = PropGuardCase
   }
   deriving (Eq,Generic,NFData,Functor,Show)
 
+data PropertyType = TestType
+                  | ProveType
+                  | SatType
+  deriving (Eq, Show, Generic, NFData)
+
+type PropertyOptions = Map Text (Located Literal)
+data PropertyPragma = DefaultPropertyPragma
+                    | ConfigurableProperty PropertyType PropertyOptions
+                    deriving (Eq, Show, Generic, NFData)
+
 data Pragma   = PragmaNote String
-              | PragmaProperty
+              | Property PropertyPragma
+
                 deriving (Eq, Show, Generic, NFData)
 
 data Newtype name = Newtype
@@ -1100,7 +1114,7 @@ instance PP a => PP (TopLevel a) where
 
 instance PP Pragma where
   ppPrec _ (PragmaNote x) = text x
-  ppPrec _ PragmaProperty = text "property"
+  ppPrec _ (Property DefaultPropertyPragma) = text "property"
 
 ppPragma :: PPName name => [Located name] -> Pragma -> Doc
 ppPragma xs p =
@@ -1568,7 +1582,7 @@ instance NoPos (Bind name) where
 
 instance NoPos Pragma where
   noPos p@(PragmaNote {})   = p
-  noPos p@(PragmaProperty)  = p
+  noPos p@(Property DefaultPropertyPragma)  = p
 
 
 

@@ -146,6 +146,7 @@ import Prelude ()
 import Prelude.Compat
 
 import qualified Data.SBV.Internals as SBV (showTDiff)
+import Cryptol.Parser.AST (PropertyPragma(..))
 
 
 
@@ -235,6 +236,9 @@ nbCommandList  =
       , " * :set-able options (e.g. :help :set base)" ])
   , CommandDescr [ ":s", ":set" ] ["[ OPTION [ = VALUE ] ]"] (OptionArg setOptionCmd)
     "Set an environmental option (:set on its own displays current values)."
+    ""
+  , CommandDescr [ ":prop" ] ["[ EXPR ]"] (ExprArg propCmd)
+    "Use testing described by properties to check that property (default equivalent :check). \n(If no argument, check all properties.)"
     ""
   , CommandDescr [ ":check" ] ["[ EXPR ]"] (ExprArg (qcCmd QCRandom))
     "Use random testing to check that the argument always returns true.\n(If no argument, check all properties.)"
@@ -473,6 +477,47 @@ qcCmd qcMode str pos fnm =
      nd <- M.mctxNameDisp <$> getFocusedEnv
      let doc = fixNameDisp nd (ppPrec 3 expr) -- function application has precedence 3
      void (qcExpr qcMode doc texpr schema)
+
+
+--TODO Remove components that are not REPL specific from here.
+-- TODO We probably want a factor out the results of these into a data structure.
+propCmd :: String -> (Int,Int) -> Maybe FilePath -> REPL ()
+propCmd _ _pos _fnm = 
+  do 
+    (checks, dispCheck) <- getPropertiesOfType P.TestType
+    (proves, dispProv) <- getPropertiesOfType P.ProveType
+    (sats, dispSats) <- getPropertiesOfType P.SatType
+    let nameStrChecks x = show (fixNameDisp dispCheck (pp x))
+    if null checks
+        then rPutStrLn "There are no properties in scope."
+        else forM_ checks $ \(x,d,ops) ->
+               do let str = nameStrChecks x
+                  rPutStr $ "property " ++ str ++ " options " ++ propOptsShow ops ++ " "
+                  let texpr = T.EVar x
+                  let schema = M.ifDeclSig d
+                  nd <- M.mctxNameDisp <$> getFocusedEnv
+                  let doc = fixNameDisp nd (pp texpr)
+                  void (qcExpr QCRandom doc texpr schema)
+    
+    let nameStrProves x = show (fixNameDisp dispProv (pp x))
+    if null proves
+        then rPutStrLn "There are no properties in scope."
+        else forM_ proves $ \(x,_,ops) ->
+               do let str = nameStrProves x
+                  rPutStr $ "property " ++ str ++ " options " ++ propOptsShow ops ++ " "
+                  proveCmd str _pos _fnm
+    let nameStrSats x = show (fixNameDisp dispSats (pp x))
+    if null sats
+        then rPutStrLn "There are no properties in scope."
+        else forM_ sats $ \(x,_,ops) ->
+               do let str = nameStrSats x
+                  rPutStr $ "property " ++ str ++ " options " ++ propOptsShow ops ++ " "
+                  satCmd str _pos _fnm
+  where
+    propOptsShow :: P.PropertyOptions -> String
+    propOptsShow opts = show [(optionName, P.thing ov) |(optionName, ov) <- Map.toList opts]
+    
+
 
 
 data TestReport = TestReport
@@ -904,6 +949,7 @@ onlineProveSat proverName qtype expr schema mfile = do
   (firstProver, res) <- getProverConfig >>= \case
        Left sbvCfg -> liftModuleCmd $ SBV.satProve sbvCfg cmd
        Right w4Cfg ->
+        -- TODO Look into factoring out all of these getUser out of REPL monad
          do ~(EnvBool hashConsing) <- getUser "hashConsing"
             ~(EnvBool warnUninterp) <- getUser "warnUninterp"
             liftModuleCmd $ W4.satProve w4Cfg hashConsing warnUninterp cmd
