@@ -42,9 +42,8 @@ evalExpression (EvalExprParams jsonExpr) =
 evalExpression' :: P.Expr P.PName -> CryptolCommand JSON.Value
 evalExpression' e = do
   (_expr, ty, schema) <- liftModuleCmd (checkExpr e)
-  -- TODO: see Cryptol REPL for how to check whether we
-  -- can actually evaluate things, which we can't do in
-  -- a parameterized module
+  validEvalContext ty
+  validEvalContext schema
   s <- getTCSolver
   perhapsDef <- liftIO (defaultReplExpr s ty schema)
   case perhapsDef of

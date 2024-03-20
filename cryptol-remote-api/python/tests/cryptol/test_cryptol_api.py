@@ -9,6 +9,7 @@ import signal
 from distutils.spawn import find_executable
 import cryptol
 import argo_client.connection as argo
+from argo_client.interaction import ArgoException
 import cryptol.cryptoltypes
 from cryptol.single_connection import *
 from cryptol import solver
@@ -285,6 +286,28 @@ class TLSConnectionTests(unittest.TestCase):
             x_val1 = cry_eval("x")
             x_val2 = cry_eval("Id::id x")
             self.assertEqual(x_val1, x_val2)
+
+
+class CryptolParamModTests(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(self):
+        connect(verify=False)
+        load_file(str(Path('tests','cryptol','test-files', 'Param.cry')))
+
+    def test_param_mod(self):
+        with self.assertRaises(ArgoException) as res:
+            check('foo')
+        e = res.exception
+        self.assertEqual(e.data['type parameters'], [])
+        self.assertEqual(e.data['definitions'], ['Param::foo'])
+
+        with self.assertRaises(ArgoException) as res:
+            check('`(w)')
+        e = res.exception
+        self.assertEqual(e.data['type parameters'], ['Param::`parameter` interface of Param::w'])
+        self.assertEqual(e.data['definitions'], [])
+
 
 if __name__ == "__main__":
     unittest.main()

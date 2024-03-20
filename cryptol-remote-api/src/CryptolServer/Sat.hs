@@ -55,7 +55,8 @@ proveSat :: ProveSatParams -> CryptolCommand ProveSatResult
 proveSat (ProveSatParams queryType (ProverName proverName) jsonExpr hConsing) = do
   e <- getExpr jsonExpr
   (_expr, ty, schema) <- liftModuleCmd (checkExpr e)
-  -- TODO validEvalContext expr, ty, schema
+  validEvalContext ty
+  validEvalContext schema
   decls <- deDecls . meDynEnv <$> getModuleEnv
   s <- getTCSolver
   perhapsDef <- liftIO (defaultReplExpr s ty schema)
