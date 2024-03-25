@@ -3,5 +3,5 @@
 // verifies each guard in the numeric constraint guard definition contains two
 // proof applications, which is a smoke test for testing that the bug is fixed.
 // Full validation of the fix requires SAW, however.
-:set debug=on
+:set coreLint=on
 :l type-sig-constraint.cry
