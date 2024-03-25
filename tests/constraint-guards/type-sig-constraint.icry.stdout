@@ -1,0 +1,23 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+module Main
+
+/* Not recursive */
+Main::bar(n == 1) : {n, a} (Zero a, n == 1) => [n]a
+Main::bar(n == 1) =
+  \{n, a} (Zero a, n == 1) -> Cryptol::zero ([n]a) <>
+
+/* Not recursive */
+Main::bar(n != 1) : {n, a} (Zero a, n != 1) => [n]a
+Main::bar(n != 1) =
+  \{n, a} (Zero a, n != 1) -> Cryptol::zero ([n]a) <>
+
+/* Not recursive */
+Main::bar : {n, a} (Zero a) => [n]a
+Main::bar =
+  \{n, a} (Zero a) ->
+    (propguards  | n == 1 => Main::bar(n == 1) n a <> <>
+     | n != 1 => Main::bar(n != 1) n a <> <>)
+
+
