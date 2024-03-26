@@ -38,6 +38,7 @@ import System.FilePath ( addExtension
                        )
 import qualified System.IO.Error as IOE
 import qualified Data.Map as Map
+import qualified Data.Map.Strict as MapS
 
 import Prelude ()
 import Prelude.Compat hiding ( (<>) )
@@ -79,7 +80,7 @@ import qualified Cryptol.Backend.FFI.Error as FFI
 
 import Cryptol.Utils.Ident ( preludeName, floatName, arrayName, suiteBName, primeECName
                            , preludeReferenceName, interactiveName, modNameChunks
-                           , modNameToNormalModName )
+                           , modNamesMatch )
 import Cryptol.Utils.PP (pretty, pp, hang, vcat, ($$), (<+>), (<.>), colon)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.Logger(logPutStrLn, logPrint)
@@ -141,7 +142,8 @@ expandPropGuards a =
 -- Returns a fingerprint of the module, and a set of dependencies due
 -- to `include` directives.
 parseModule ::
-  ModulePath -> ModuleM (Fingerprint, Set FilePath, [P.Module PName])
+  ModulePath ->
+  ModuleM (Fingerprint, MapS.Map FilePath Fingerprint, [P.Module PName])
 parseModule path = do
   getBytes <- getByteReader
 
@@ -185,7 +187,7 @@ parseModule path = do
                        case mb of
                          Right ok -> pure ok
                          Left err -> noIncludeErrors err
-                  pure (mo, Set.unions d)
+                  pure (mo, MapS.unions d)
 
              {- We don't do "include" resolution for in-memory files
                 because at the moment the include resolution pass requires
@@ -193,7 +195,7 @@ parseModule path = do
                 looking for other inlcude files.  This could be
                 generalized, but we can do it once we have a concrete use
                 case as it would help guide the design. -}
-             InMem {} -> pure (pms, Set.empty)
+             InMem {} -> pure (pms, MapS.empty)
 
 {-
          case path of
@@ -230,7 +232,8 @@ loadModuleByPath eval path = withPrependedSearchPath [ takeDirectory path ] $ do
        case lookupTCEntity n env of
          -- loadModule will calculate the canonical path again
          Nothing ->
-           doLoadModule eval False (FromModule n) (InFile foundPath) fp deps pm
+           loadModuleAndDeps eval False
+             (FromModule n) (InFile foundPath) fp deps pm
          Just lm
           | path' == loaded -> return (lmData lm)
           | otherwise       -> duplicateModuleName n path' loaded
@@ -249,25 +252,38 @@ loadModuleFrom quiet isrc =
          do path <- findModule n
             errorInFile path $
               do (fp, deps, pms) <- parseModule path
-                 ms <- mapM (doLoadModule True quiet isrc path fp deps) pms
+                 ms <- mapM (loadModuleAndDeps True quiet isrc path fp deps) pms
                  return (path,last ms)
 
 -- | Load dependencies, typecheck, and add to the eval environment.
+loadModuleAndDeps ::
+  Bool {- ^ evaluate declarations in the module -} ->
+  Bool {- ^ quiet mode: true suppresses the "loading module" message -} ->
+  ImportSource ->
+  ModulePath ->
+  Fingerprint ->
+  MapS.Map FilePath Fingerprint {- ^ `include` dependencies -} ->
+  P.Module PName ->
+  ModuleM T.TCTopEntity
+loadModuleAndDeps eval quiet isrc path fp incDeps pm0 =
+  loading isrc $
+  do let pm = addPrelude pm0
+     impDeps <- loadDeps pm
+     fst <$> doLoadModule eval quiet isrc path fp incDeps pm impDeps
+
+-- | Typecheck and add to the eval environment.
 doLoadModule ::
   Bool {- ^ evaluate declarations in the module -} ->
   Bool {- ^ quiet mode: true suppresses the "loading module" message -} ->
   ImportSource ->
   ModulePath ->
   Fingerprint ->
-  Set FilePath {- ^ `include` dependencies -} ->
+  MapS.Map FilePath Fingerprint {- ^ `include` dependencies -} ->
   P.Module PName ->
-  ModuleM T.TCTopEntity
-doLoadModule eval quiet isrc path fp incDeps pm0 =
-  loading isrc $
-  do let pm = addPrelude pm0
-     impDeps <- loadDeps pm
-
-     let what = case P.mDef pm of
+  Set ModName ->
+  ModuleM (T.TCTopEntity, FileInfo)
+doLoadModule eval quiet isrc path fp incDeps pm impDeps =
+  do let what = case P.mDef pm of
                   P.InterfaceModule {} -> "interface module"
                   _                    -> "module"
 
@@ -297,7 +313,7 @@ doLoadModule eval quiet isrc path fp incDeps pm0 =
      let fi = fileInfo fp incDeps impDeps foreignSrc
      loadedModule path fi nameEnv foreignSrc tcm
 
-     return tcm
+     return (tcm, fi)
 
   where
   evalForeign tcm
@@ -448,9 +464,20 @@ findDepsOfModule m =
      findDepsOf mpath
 
 findDepsOf :: ModulePath -> ModuleM (ModulePath, FileInfo)
-findDepsOf mpath =
+findDepsOf mpath' =
+  do mpath <- case mpath' of
+                InFile file -> InFile <$> io (canonicalizePath file)
+                InMem {}    -> pure mpath'
+     (fi, _) <- findDepsOf' mpath
+     pure (mpath, fi)
+
+findDepsOf' :: ModulePath ->
+  ModuleM (FileInfo, [(Module PName, [ImportSource])])
+findDepsOf' mpath =
   do (fp, incs, ms) <- parseModule mpath
-     let (anyF,imps) = mconcat (map (findDeps' . addPrelude) ms)
+     let ms' = map addPrelude ms
+         depss = map findDeps' ms'
+     let (anyF,imps) = mconcat depss
      fdeps <- if getAny anyF
                 then do mb <- io case mpath of
                                    InFile path -> foreignLibPath path
@@ -461,13 +488,13 @@ findDepsOf mpath =
                                  Map.singleton fpath exists
                 else pure Map.empty
      pure
-       ( mpath
-       , FileInfo
+       ( FileInfo
            { fiFingerprint = fp
            , fiIncludeDeps = incs
            , fiImportDeps  = Set.fromList (map importedModule (appEndo imps []))
            , fiForeignDeps = fdeps
            }
+       , zip ms' $ map ((`appEndo` []) . snd) depss
        )
 
 -- | Find the set of top-level modules imported by a module.
@@ -603,8 +630,7 @@ checkModule isrc m = do
 
   -- check that the name of the module matches expectations
   let nm = importedModule isrc
-  unless (modNameToNormalModName nm ==
-                                  modNameToNormalModName (thing (P.mName m)))
+  unless (modNamesMatch nm (thing (P.mName m)))
          (moduleNameMismatch nm (mName m))
 
   -- remove pattern bindings

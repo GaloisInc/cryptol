@@ -13,6 +13,7 @@ module Cryptol.ModuleSystem.Fingerprint
   , fingerprintHexString
   ) where
 
+import Control.Monad            ((<$!>))
 import Control.DeepSeq          (NFData (rnf))
 import Crypto.Hash.SHA1         (hash)
 import Data.ByteString          (ByteString)
@@ -21,7 +22,7 @@ import qualified Data.ByteString as B
 import qualified Data.Vector as Vector
 
 newtype Fingerprint = Fingerprint ByteString
-  deriving (Eq, Show)
+  deriving (Eq, Ord, Show, Read)
 
 instance NFData Fingerprint where
   rnf (Fingerprint fp) = rnf fp
@@ -31,14 +32,11 @@ fingerprint :: ByteString -> Fingerprint
 fingerprint = Fingerprint . hash
 
 -- | Attempt to compute the fingerprint of the file at the given path.
--- Returns 'Nothing' in the case of an error.
-fingerprintFile :: FilePath -> IO (Maybe Fingerprint)
+-- Returns 'Left' in the case of an error.
+fingerprintFile :: FilePath -> IO (Either IOError Fingerprint)
 fingerprintFile path =
   do res <- try (B.readFile path)
-     return $!
-       case res :: Either IOError ByteString of
-         Left{}  -> Nothing
-         Right b -> Just $! fingerprint b
+     return $! fingerprint <$!> (res :: Either IOError ByteString)
 
 fingerprintHexString :: Fingerprint -> String
 fingerprintHexString (Fingerprint bs) = B.foldr hex "" bs

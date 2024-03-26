@@ -63,6 +63,8 @@ library
                        gitrev            >= 1.0,
                        ghc-prim,
                        GraphSCC          >= 1.0.4,
+                       heredoc           >= 0.2,
+                       HsYAML,
                        language-c99,
                        language-c99-simple,
                        libBF             >= 0.6 && < 0.7,
@@ -238,7 +240,9 @@ library
                        Cryptol.REPL.Help,
                        Cryptol.REPL.Browse,
                        Cryptol.REPL.Monad,
-                       Cryptol.REPL.Trie
+                       Cryptol.REPL.Trie,
+
+                       Cryptol.Project
 
   Other-modules:       Cryptol.Parser.LexerUtils,
                        Cryptol.Parser.ParserUtils,

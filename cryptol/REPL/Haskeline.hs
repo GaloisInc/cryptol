@@ -13,6 +13,7 @@
 
 module REPL.Haskeline where
 
+import qualified Cryptol.Project as Project
 import           Cryptol.REPL.Command
 import           Cryptol.REPL.Monad
 import           Cryptol.REPL.Trie
@@ -130,22 +131,31 @@ loadCryRC cryrc =
                            _         -> return status
 
 -- | Haskeline-specific repl implementation.
-repl :: Cryptolrc -> ReplMode -> Bool -> Bool -> REPL () -> IO CommandExitCode
-repl cryrc replMode callStacks stopOnError begin =
+repl :: Cryptolrc -> Maybe Project.Config -> ReplMode ->
+  Bool -> Bool -> REPL () -> IO CommandExitCode
+repl cryrc projectConfig replMode callStacks stopOnError begin =
   runREPL isBatch callStacks stdoutLogger replAction
 
  where
   -- this flag is used to suppress the logo and prompts
-  isBatch = case replMode of
-              InteractiveRepl -> False
-              Batch _ -> True
-              InteractiveBatch _ -> True
+  isBatch =
+    case projectConfig of
+      Just _ -> True
+      Nothing ->
+        case replMode of
+          InteractiveRepl -> False
+          Batch _ -> True
+          InteractiveBatch _ -> True
 
   replAction =
     do status <- loadCryRC cryrc
        case status of
-         CommandOk -> begin >> crySession replMode stopOnError
-         _         -> return status
+         CommandOk -> do
+          begin
+          case projectConfig of
+            Just config -> CommandOk <$ Project.loadProject config
+            Nothing     -> crySession replMode stopOnError
+         _ -> return status
 
 -- | Try to set the history file.
 setHistoryFile :: Settings REPL -> IO (Settings REPL)
