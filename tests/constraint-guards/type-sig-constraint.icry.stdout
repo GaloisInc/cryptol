@@ -1,0 +1,10 @@
+Loading module Cryptol
+Loading module Cryptol
+{n, a, b, c} n == min n n
+{a, n} (fin n) => inf == inf * (1 * (1 * 1))
+{a, n} (fin n) => n / 2 == n - n /^ 2
+{n, a, b} n == min n n
+{n} (n >= 1, fin n) => (fin n, n >= 1)
+Loading module Main
+{n, a} (Zero a) => n != 1
+{n, a} (Zero a) => n == 1

@@ -1,0 +1,3 @@
+bar : {n, a} (Zero a) => [n]a
+bar | n == 1 => zero
+    | n != 1 => zero

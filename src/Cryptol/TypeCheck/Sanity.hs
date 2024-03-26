@@ -364,8 +364,12 @@ exprSchema expr =
       in go dgs
 
 
-    EPropGuards _guards typ -> 
-      pure Forall {sVars = [], sProps = [], sType = typ}
+    EPropGuards guards typ ->
+      do forM_ guards $ \(prop, e) ->
+           do mapM_ (checkTypeIs KProp) prop
+              eTyp <- exprType e
+              sameTypes "EPropGuards" typ eTyp
+         pure (tMono typ)
 
 
 checkCaseAlt :: CaseAlt -> TcM ([Type], Type)

@@ -1266,7 +1266,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
         P.DPropGuards cases0 -> do
           asmps1 <- applySubstPreds asmps0
           t1     <- applySubst t0
-          cases1 <- mapM checkPropGuardCase cases0
+          cases1 <- mapM (checkPropGuardCase asmps1) cases0
 
           exh <- checkExhaustive (P.bName b) as asmps1 (map fst cases1)
           unless exh $
@@ -1395,19 +1395,62 @@ checkExhaustive name as asmps guards =
   canProve asmps' goals =
     tryProveImplication (Just (thing name)) as asmps' goals
 
-{- | This function does not validate anything---it just translates into
-the type-checkd syntax.  The actual validation of the guard will happen
-when the (automatically generated) function corresponding to the guard is
-checked, assuming 'ExpandpropGuards' did its job correctly.
+{- | Generate type-checked syntax for the code in a PropGuard. For example,
+consider the following (pre–type-checked) syntax for a guard:
 
+@
+f : {n, a} (Zero a) => [n]a
+f | n == 1 => f(n == 1)
+  | ...
+
+f(n == 2) : {n, a} (Zero a, n == 1) => [n] a
+f(n == 2) = ...
+@
+
+This function will type-check the `n == 1` constraint in the guard as well
+as the f(n == 1) application on the right-hand side of the guard. This function
+is responsible for ensuring that f(n == 1) is applied to the appropriate number
+of type and proof arguments, so the type-checked syntax will look something
+like:
+
+@
+f : {n, a} (Zero a) => [n]a
+f | n == 1 => f(n == 1)`{n, a} <Zero a> <n == 1>
+  | ...
+@
+
+Note that 'checkPropGuardCase' does not validate anything about the
+(automatically generated) functions corresponding to guards (e.g., f(n == 1)).
+These guard functions will be validated when the bodies of these functions are
+type-checked, assuming "Cryptol.Parser.ExpandPropGuards" did its job correctly.
 -}
-checkPropGuardCase :: P.PropGuardCase Name -> InferM ([Prop],Expr)
-checkPropGuardCase (P.PropGuardCase guards e0) =
-  do ps <- checkPropGuards guards
+checkPropGuardCase ::
+  [Prop]
+    {- ^ The constraints from the type signature. -} ->
+  P.PropGuardCase Name
+    {- ^ The guard itself. -} ->
+  InferM ([Prop],Expr)
+    {- ^ The type-checked guard constraints and right-hand side expression. -}
+checkPropGuardCase asmps (P.PropGuardCase guards e0) =
+  do -- First, validate the constraints in the guard.
+     ps <- checkPropGuards guards
+     -- Next, take the application of the guard function on the right-hand side
+     -- and decompose it into the name of the function `eV`, the type arguments
+     -- `ts`, and the value arguments `es`.
+     --
+     -- To do this, we kind-check all of the type arguments...
      tys <- mapM (`checkType` Nothing) ts
-     let rhsTs = foldl ETApp                  (getV eV) tys
-         rhsPs = foldl (\e _p -> EProofApp e) rhsTs     ps
-         rhs   = foldl EApp                   rhsPs     (map getV es)
+     let -- ...then apply the guard function to the kind-checked types...
+         rhsTs = foldl ETApp (getV eV) tys
+         -- ...then apply that to the constraints from the type signature
+         -- (`asmps`) and the constraints in the guard (`ps`). Note that `asmps`
+         -- is guaranteed to contain all of the non-guard constraints in scope,
+         -- as numeric constraint guards can only be used in top-level (i.e.,
+         -- non-local) functions...
+         rhsPs = foldl (\e _p -> EProofApp e) rhsTs (asmps ++ ps)
+         -- ...finally, apply that to the value arguments. If `ExpandPropGuards`
+         -- did its job correctly, all value arguments should be variables.
+         rhs = foldl EApp rhsPs (map getV es)
      pure (ps,rhs)
 
   where
