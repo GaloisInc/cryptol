@@ -1,0 +1,9 @@
+// BFunctor.cry
+module BFunctor where
+
+import interface BInterface as BI
+
+type BTy = BI::BTy
+
+b : BTy -> ()
+b _ = ()

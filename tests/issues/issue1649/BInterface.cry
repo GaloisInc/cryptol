@@ -1,0 +1,4 @@
+// BInterface.cry
+interface module BInterface where
+
+type BTy : *
