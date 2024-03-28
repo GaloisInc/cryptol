@@ -1,0 +1,5 @@
+// A.cry
+module A where
+
+submodule B = BFunctor where
+  type BTy = ()

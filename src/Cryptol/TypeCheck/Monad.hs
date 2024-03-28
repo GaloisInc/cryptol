@@ -772,7 +772,7 @@ lookupVar x =
               Just a -> pure (ExtVar a)
               Nothing ->
                 do mp <- IM $ asks iVars
-                   panic "lookupVar" $ [ "Undefined vairable"
+                   panic "lookupVar" $ [ "Undefined variable"
                                      , show x
                                      , "IVARS"
                                      ] ++ map (show . debugShowUniques . pp) (Map.keys mp)
