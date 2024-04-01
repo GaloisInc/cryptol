@@ -1,0 +1,5 @@
+// Test.cry
+module Test where
+
+import A as A
+import submodule A::B as B
