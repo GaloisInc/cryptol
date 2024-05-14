@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import os
 import sys
-from distutils.spawn import find_executable
+from shutil import which
 from typing import Any, List, Optional, Union, TextIO
 from typing_extensions import Literal
 
@@ -77,7 +77,7 @@ def connect(command : Optional[str]=None,
     if c is None:
         command = os.getenv('CRYPTOL_SERVER')
         if command is not None:
-            command = find_executable(command)
+            command = which(command)
             if command is not None:
                 c = CryptolConnection(command+" socket", cryptol_path=cryptol_path, log_dest=log_dest, timeout=timeout)
     # Check `CRYPTOL_SERVER_URL` env var if no connection identified yet
@@ -87,7 +87,7 @@ def connect(command : Optional[str]=None,
             c = CryptolConnection(ServerConnection(HttpProcess(url,verify=verify)), cryptol_path, log_dest=log_dest, timeout=timeout)
     # Check if `cryptol-remote-api` is in the PATH if no connection identified yet
     if c is None:
-        command = find_executable('cryptol-remote-api')
+        command = which('cryptol-remote-api')
         if command is not None:
             c = CryptolConnection(command+" socket", cryptol_path=cryptol_path, log_dest=log_dest, timeout=timeout)
     # Raise an error if still no connection identified yet
