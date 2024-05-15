@@ -6,7 +6,7 @@ import base64
 import os
 from enum import Enum
 from dataclasses import dataclass
-from distutils.spawn import find_executable
+from shutil import which
 from typing import Any, List, NoReturn, Optional, Union
 from typing_extensions import Literal
 

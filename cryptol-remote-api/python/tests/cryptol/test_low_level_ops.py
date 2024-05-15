@@ -7,7 +7,7 @@ import unittest
 
 import argo_client.connection as argo
 import cryptol
-from distutils.spawn import find_executable
+from shutil import which
 
 # cryptol_path = dir_path.joinpath('data')
 
@@ -39,7 +39,7 @@ class LowLevelCryptolApiTests(unittest.TestCase):
     def setUpClass(self):
         server = os.getenv('CRYPTOL_SERVER')
         if server:
-            server = find_executable(server)
+            server = which(server)
             if server:
                 self.c = argo.ServerConnection(argo.DynamicSocketProcess(server + " socket"))
             else:
@@ -49,7 +49,7 @@ class LowLevelCryptolApiTests(unittest.TestCase):
             if server:
                 self.c = argo.ServerConnection(argo.HttpProcess(server, verify=False))
             else:
-                server = find_executable('cryptol-remote-api')
+                server = which('cryptol-remote-api')
                 if server:
                     self.c = argo.ServerConnection(argo.StdIOProcess(server + " stdio"))
                 else:
@@ -236,7 +236,7 @@ if __name__ == "__main__":
 #         env = os.environ.copy()
 #         env['CRYPTOLPATH'] = cryptol_path
 
-#         if find_executable("cryptol-remote-api"):
+#         if which("cryptol-remote-api"):
 #             p = subprocess.Popen(
 #                 ["cryptol-remote-api", "socket", "--port", "50005"],
 #                 stdout=subprocess.DEVNULL,

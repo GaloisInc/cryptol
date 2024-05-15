@@ -194,3 +194,8 @@ cryptol.connect(url="http://localhost:8080/", reset_server=True)
 
 will connect to a Cryptol server running at `http://localhost:8080/` and will
 guarantee any previous state on the server is cleared.
+
+
+## Supported Python Versions
+
+Currently, `cryptol-remote-api` officially supports python `3.12`. The `cryptol-remote-api` Docker image currently uses Python 3.10 and will be updated in issue #1661.

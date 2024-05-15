@@ -5,7 +5,7 @@ import unittest
 import io
 import os
 import time
-from distutils.spawn import find_executable
+from shutil import which
 import cryptol
 import cryptol.cryptoltypes
 from cryptol.single_connection import *
@@ -71,7 +71,7 @@ class BasicServerTests(unittest.TestCase):
 
     def test_interrupt(self):
         # Check if this test is using a local server, if not we assume it's a remote HTTP server
-        if os.getenv('CRYPTOL_SERVER') is not None or find_executable('cryptol-remote-api'):
+        if os.getenv('CRYPTOL_SERVER') is not None or which('cryptol-remote-api'):
             c = self.c
             c.load_file(str(Path('tests','cryptol','test-files', 'examples','AES.cry')))
 

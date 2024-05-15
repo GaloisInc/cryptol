@@ -4,7 +4,7 @@ import signal
 import subprocess
 import time
 import unittest
-from distutils.spawn import find_executable
+from shutil import which
 import cryptol
 from cryptol.bitvector import BV
 
@@ -61,9 +61,9 @@ class HttpMultiConnectionTests(unittest.TestCase):
         dir_path = Path(os.path.dirname(os.path.realpath(__file__)), "test-files")
         server = os.getenv('CRYPTOL_SERVER')
         if server is not None:
-            server = find_executable(server)
+            server = which(server)
         if server is None:
-            server = find_executable('cryptol-eval-server')
+            server = which('cryptol-eval-server')
         if server is not None:
             new_env = os.environ.copy()
             new_env["CRYPTOLPATH"] = str(dir_path)

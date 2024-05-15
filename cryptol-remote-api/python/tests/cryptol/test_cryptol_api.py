@@ -6,7 +6,7 @@ import subprocess
 import time
 import unittest
 import signal
-from distutils.spawn import find_executable
+from shutil import which
 import cryptol
 import argo_client.connection as argo
 import cryptol.cryptoltypes
@@ -186,9 +186,9 @@ class HttpMultiConnectionTests(unittest.TestCase):
         else:
             server = os.getenv('CRYPTOL_SERVER')
             if server is not None:
-                server = find_executable(server)
+                server = which(server)
             if server is None:
-                server = find_executable('cryptol-remote-api')
+                server = which('cryptol-remote-api')
             if server is not None:
                 self.p = subprocess.Popen(
                     [server, "http", "/", "--port", "8080"],
@@ -248,9 +248,9 @@ class TLSConnectionTests(unittest.TestCase):
         os.system('openssl x509 -req -days 365 -in server.csr -signkey server.key -out server.crt')
         server = os.getenv('CRYPTOL_SERVER')
         if server is not None:
-            server = find_executable(server)
+            server = which(server)
         if server is None:
-            server = find_executable('cryptol-remote-api')
+            server = which('cryptol-remote-api')
         if server is not None:
             self.p = subprocess.Popen(
                 [server, "http", "/", "--port", "8081", "--tls"],
