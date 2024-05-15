@@ -2,18 +2,19 @@
 
 [[package]]
 name = "argo-client"
-version = "0.0.11"
+version = "0.0.12"
 description = "A JSON RPC client library."
 optional = false
-python-versions = ">=3.8.0,<4"
+python-versions = "<4,>=3.8.0"
 files = [
-    {file = "argo-client-0.0.11.tar.gz", hash = "sha256:a4be33fab731d03b8d9fc9d997a5ba611feb66648e978b192ec43e560f916931"},
-    {file = "argo_client-0.0.11-py3-none-any.whl", hash = "sha256:85f54ec3b1303d12b86442ea6d77487e51590a983505a947ebeee48a2546914f"},
+    {file = "argo_client-0.0.12-py3-none-any.whl", hash = "sha256:6986b79f03d6592cdcc87cb228a0829cedf12852134c3af9083a322fa28bdc4a"},
+    {file = "argo_client-0.0.12.tar.gz", hash = "sha256:97f5b2db3caa4598c5cdcb1e9c80b5d330bdc5ecae08e36198e4dab217af4b97"},
 ]
 
 [package.dependencies]
-requests = ">=2.26.0,<3.0.0"
-urllib3 = ">=1.26.5"
+requests = ">=2.31.0"
+types-requests = ">=2.31.0"
+urllib3 = ">=2.2.0"
 
 [[package]]
 name = "bitvector"
@@ -281,4 +282,4 @@ zstd = ["zstandard (>=0.18.0)"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8.0,<4"
-content-hash = "fa4bc31dd07bcb7d16f5a1d346f2e4fb2db32fd5a50a05b024764be692de210c"
+content-hash = "79eb7e6a2b0a2e765d5b699665389a58e1919bf4f7afe811cfdb60271b2e94d4"
