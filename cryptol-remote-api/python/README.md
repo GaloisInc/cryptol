@@ -198,4 +198,4 @@ guarantee any previous state on the server is cleared.
 
 ## Supported Python Versions
 
-Currently `cryptol-remote-api supports` python `3.12` and is untested on other versions.
+Currently `cryptol-remote-api` supports python `3.12`. The `cryptol-remote-api` currently uses the default ubuntu 22.04 version and will be updated in issue #1661.
