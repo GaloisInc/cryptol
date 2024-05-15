@@ -100,7 +100,7 @@ jobs:
 
       - uses: actions/setup-python@v2
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       - uses: abatilo/actions-poetry@v2.0.0
         with:
@@ -322,7 +322,7 @@ jobs:
       - if: matrix.suite == 'rpc'
         uses: actions/setup-python@v2
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       - if: matrix.suite == 'rpc'
         uses: abatilo/actions-poetry@v2.1.2
@@ -464,7 +464,7 @@ jobs:
       - if: matrix.image == 'ghcr.io/galoisinc/cryptol-remote-api'
         uses: actions/setup-python@v2
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       - if: matrix.image == 'ghcr.io/galoisinc/cryptol-remote-api'
         uses: abatilo/actions-poetry@v2.1.2
