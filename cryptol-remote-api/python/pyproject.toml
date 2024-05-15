@@ -23,7 +23,7 @@ urllib3 = ">=2.2.0"
 types-requests = ">=2.31.0"
 
 [tool.poetry.dev-dependencies]
-mypy = "^0.991"
+mypy = "^1.10"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
