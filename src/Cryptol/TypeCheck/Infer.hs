@@ -1175,7 +1175,7 @@ checkMonoB b t =
                          , dPragmas = P.bPragmas b
                          , dInfix = P.bInfix b
                          , dFixity = P.bFixity b
-                         , dDoc = P.bDoc b
+                         , dDoc = thing <$> P.bDoc b
                          }
 
         P.DPropGuards _ ->
@@ -1197,7 +1197,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
         , dPragmas    = P.bPragmas b
         , dInfix      = P.bInfix b
         , dFixity     = P.bFixity b
-        , dDoc        = P.bDoc b
+        , dDoc        = thing <$> P.bDoc b
         }
 
     P.DForeign mi -> do
@@ -1231,7 +1231,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
                     , dPragmas    = P.bPragmas b
                     , dInfix      = P.bInfix b
                     , dFixity     = P.bFixity b
-                    , dDoc        = P.bDoc b
+                    , dDoc        = thing <$> P.bDoc b
                     }
 
     P.DImpl i -> do
@@ -1243,7 +1243,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
         , dPragmas    = P.bPragmas b
         , dInfix      = P.bInfix b
         , dFixity     = P.bFixity b
-        , dDoc        = P.bDoc b
+        , dDoc        = thing <$> P.bDoc b
         }
 
   where
@@ -1529,7 +1529,7 @@ checkTopDecls = mapM_ checkTopDecl
                 pure ()
 
            P.InterfaceModule sig ->
-              do let doc = P.thing <$> P.tlDoc tl
+              do let doc = thing <$> P.tlDoc tl
                  inRange (srcRange (P.mName m))
                    do newSignatureScope (thing (P.mName m)) doc
                       checkSignature sig
@@ -1655,7 +1655,7 @@ checkParameterFun x =
      let n = thing (P.pfName x)
      return ModVParam { mvpName = n
                       , mvpType = s
-                      , mvpDoc  = P.pfDoc x
+                      , mvpDoc  = thing <$> P.pfDoc x
                       , mvpFixity = P.pfFixity x
                       }
 

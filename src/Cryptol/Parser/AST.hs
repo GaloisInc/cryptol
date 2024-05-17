@@ -74,6 +74,7 @@ module Cryptol.Parser.AST
   , PrimType(..)
   , ParameterType(..)
   , ParameterFun(..)
+  , ParameterConstraint(..)
   , NestedModule(..)
   , Signature(..)
   , SigDecl(..)
@@ -254,14 +255,14 @@ data TopDecl name =
   | DPrimType (TopLevel (PrimType name))
   | TDNewtype (TopLevel (Newtype name)) -- ^ @newtype T as = t
   | TDEnum (TopLevel (EnumDecl name))   -- ^ @enum T as = cons@
-  | Include (Located FilePath)          -- ^ @include File@ (until NoInclude)
+  | Include (Maybe (Located Text)) (Located FilePath) -- ^ @include File@ (until NoInclude)
 
   | DParamDecl Range (Signature name)   -- ^ @parameter ...@ (parser only)
 
   | DModule (TopLevel (NestedModule name))      -- ^ @submodule M where ...@
   | DImport (Located (ImportG (ImpName name)))  -- ^ @import X@
   | DModParam (ModParam name)                   -- ^ @import interface X ...@
-  | DInterfaceConstraint (Maybe Text) (Located [Prop name])
+  | DInterfaceConstraint (Maybe (Located Text)) (Located [Prop name])
     -- ^ @interface constraint@
     deriving (Show, Generic, NFData)
 
@@ -276,7 +277,7 @@ data ParamDecl name =
 
   | DParameterDecl (SigDecl name)       -- ^ A delcaration in an interface
 
-  | DParameterConstraint [Located (Prop name)]
+  | DParameterConstraint (ParameterConstraint name)
     -- ^ @parameter type constraint (fin T)@
 
     deriving (Show, Generic, NFData)
@@ -359,7 +360,7 @@ data Decl name = DSignature [Located name] (Schema name)
 data ParameterType name = ParameterType
   { ptName    :: Located name     -- ^ name of type parameter
   , ptKind    :: Kind             -- ^ kind of parameter
-  , ptDoc     :: Maybe Text       -- ^ optional documentation
+  , ptDoc     :: Maybe (Located Text) -- ^ optional documentation
   , ptFixity  :: Maybe Fixity     -- ^ info for infix use
   , ptNumber  :: !Int             -- ^ number of the parameter
   } deriving (Eq,Show,Generic,NFData)
@@ -368,10 +369,14 @@ data ParameterType name = ParameterType
 data ParameterFun name = ParameterFun
   { pfName   :: Located name      -- ^ name of value parameter
   , pfSchema :: Schema name       -- ^ schema for parameter
-  , pfDoc    :: Maybe Text        -- ^ optional documentation
+  , pfDoc    :: Maybe (Located Text) -- ^ optional documentation
   , pfFixity :: Maybe Fixity      -- ^ info for infix use
   } deriving (Eq,Show,Generic,NFData)
 
+data ParameterConstraint name = ParameterConstraint
+  { pcProps  :: [Located (Prop name)] -- ^ constraints
+  , pcDoc    :: Maybe (Located Text)  -- ^ optional documentation
+  } deriving (Eq,Show,Generic,NFData)
 
 {- | Interface Modules (aka types of functor arguments)
 
@@ -433,6 +438,7 @@ data ImportG mname = Import
   , iSpec      :: Maybe ImportSpec
   , iInst      :: !(Maybe (ModuleInstanceArgs PName))
     -- ^ `iInst' exists only during parsing
+  , iDoc       :: Maybe (Located Text) -- ^ optional documentation
   } deriving (Show, Generic, NFData)
 
 type Import = ImportG ModName
@@ -483,7 +489,7 @@ data Bind name = Bind
   , bFixity    :: Maybe Fixity            -- ^ Optional fixity info
   , bPragmas   :: [Pragma]                -- ^ Optional pragmas
   , bMono      :: Bool                    -- ^ Is this a monomorphic binding
-  , bDoc       :: Maybe Text              -- ^ Optional doc string
+  , bDoc       :: Maybe (Located Text)    -- ^ Optional doc string
   , bExport    :: !ExportType
   } deriving (Eq, Generic, NFData, Functor, Show)
 
@@ -795,7 +801,7 @@ instance HasLoc (TopDecl name) where
       DPrimType pt -> getLoc pt
       TDNewtype n -> getLoc n
       TDEnum n -> getLoc n
-      Include lfp -> getLoc lfp
+      Include _ lfp -> getLoc lfp
       DModule d -> getLoc d
       DImport d -> getLoc d
       DModParam d -> getLoc d
@@ -827,6 +833,9 @@ instance HasLoc (ParameterType name) where
 
 instance HasLoc (ParameterFun name) where
   getLoc a = getLoc (pfName a)
+
+instance HasLoc (ParameterConstraint name) where
+  getLoc a = getLoc (pcProps a)
 
 instance HasLoc (ModuleG mname name) where
   getLoc m
@@ -955,7 +964,7 @@ instance (Show name, PPName name) => PP (TopDecl name) where
       DPrimType p -> pp p
       TDNewtype n -> pp n
       TDEnum n -> pp n
-      Include l   -> text "include" <+> text (show (thing l))
+      Include _ l   -> text "include" <+> text (show (thing l))
       DModule d -> pp d
       DImport i -> pp (thing i)
       DModParam s -> pp s
@@ -973,8 +982,7 @@ instance (Show name, PPName name) => PP (ParamDecl name) where
       DParameterFun d -> pp d
       DParameterType d -> pp d
       DParameterDecl d -> pp d
-      DParameterConstraint d ->
-        "type constraint" <+> parens (commaSep (map (pp . thing) d))
+      DParameterConstraint d -> pp d
 
 ppInterface :: (Show name, PPName name) => Doc -> Signature name -> Doc
 ppInterface kw sig = kw $$ indent 2 (vcat (is ++ ds))
@@ -1029,6 +1037,8 @@ instance (Show name, PPName name) => PP (ParameterFun name) where
   ppPrec _ a = ppPrefixName (pfName a) <+> text ":"
                   <+> pp (pfSchema a)
 
+instance (Show name, PPName name) => PP (ParameterConstraint name) where
+  ppPrec _ a = "type constraint" <+> parens (commaSep (map (pp . thing) (pcProps a)))
 
 instance (Show name, PPName name) => PP (Decl name) where
   ppPrec n decl =
@@ -1474,9 +1484,9 @@ instance NoPos (TopDecl name) where
       DPrimType t -> DPrimType (noPos t)
       TDNewtype n -> TDNewtype(noPos n)
       TDEnum n -> TDEnum (noPos n)
-      Include x   -> Include  (noPos x)
+      Include d x -> Include d (noPos x)
       DModule d -> DModule (noPos d)
-      DImport d -> DImport (noPos d)
+      DImport x -> DImport (noPos x)
       DModParam d -> DModParam (noPos d)
       DParamDecl _ ds -> DParamDecl rng (noPos ds)
         where rng = Range { from = Position 0 0, to = Position 0 0, source = "" }
@@ -1508,7 +1518,7 @@ instance NoPos (ModParam name) where
   noPos mp = ModParam { mpSignature = noPos (mpSignature mp)
                       , mpAs        = mpAs mp
                       , mpName      = mpName mp
-                      , mpDoc       = noPos <$> mpDoc mp
+                      , mpDoc       = mpDoc mp
                       , mpRenaming  = mpRenaming mp
                       }
 
@@ -1520,6 +1530,9 @@ instance NoPos (ParameterType name) where
 
 instance NoPos (ParameterFun x) where
   noPos x = x { pfSchema = noPos (pfSchema x) }
+
+instance NoPos (ParameterConstraint x) where
+  noPos x = x { pcProps = noPos (pcProps x) }
 
 instance NoPos a => NoPos (TopLevel a) where
   noPos tl = tl { tlValue = noPos (tlValue tl) }

@@ -215,10 +215,10 @@ imports1                  :: { [ Located (ImportG (ImpName PName)) ] }
   | import                   { [$1] }
 
 
-import                          :: { Located (ImportG (ImpName PName)) }
-  : 'import' impName optInst mbAs mbImportSpec optImportWhere
-                              {% mkImport $1 $2 $3 $4 $5 $6 }
-  | 'import' impNameBT mbAs mbImportSpec {% mkBacktickImport $1 $2 $3 $4 }
+import                     :: { Located (ImportG (ImpName PName)) }
+  : mbDoc 'import' impName optInst mbAs mbImportSpec optImportWhere
+                              {% mkImport $2 $3 $4 $5 $6 $7 $1 }
+  | mbDoc 'import' impNameBT mbAs mbImportSpec {% mkBacktickImport $2 $3 $4 $5 $1 }
 
 optImportWhere             :: { Maybe (Located [Decl PName]) }
   : 'where' whereClause       { Just $2 }
@@ -282,7 +282,7 @@ vtop_decls                 :: { [TopDecl PName]  }
 vtop_decl               :: { [TopDecl PName] }
   : decl                   { [exportDecl Nothing   Public $1]                 }
   | doc decl               { [exportDecl (Just $1) Public $2]                 }
-  | mbDoc 'include' STRLIT {% (return . Include) `fmap` fromStrLit $3         }
+  | mbDoc 'include' STRLIT {% (return . Include $1) `fmap` fromStrLit $3 }
   | mbDoc 'property' name iapats '=' expr
                            { [exportDecl $1 Public (mkProperty $3 $4 $6)]     }
   | mbDoc 'property' name       '=' expr
@@ -299,9 +299,7 @@ vtop_decl               :: { [TopDecl PName] }
 
   | mbDoc sig_def          { [mkSigDecl $1 $2]  }
   | mod_param_decl         { [DModParam $1] }
-  | mbDoc import           { [DImport $2] }
-    -- we allow for documentation here to avoid conflicts with module paramaters
-    -- currently that odcumentation is just discarded
+  | import                 { [DImport $1] }
 
 
 sig_def ::                 { (Located PName, Signature PName) }
@@ -326,14 +324,14 @@ mod_param_decl ::          { ModParam PName }
 
 top_decl                :: { [TopDecl PName] }
   : decl                   { [Decl (TopLevel {tlExport = Public, tlValue = $1 })] }
-  | 'include' STRLIT       {% (return . Include) `fmap` fromStrLit $2             }
+  | 'include' STRLIT       {% (return . Include Nothing) `fmap` fromStrLit $2     }
   | prim_bind              { $1                                                   }
 
 private_decls           :: { [TopDecl PName] }
   : 'private' 'v{' vtop_decls 'v}'
-                           { changeExport Private (reverse $3)                }
+                           { changeExport Private (reverse $3) }
   | doc 'private' 'v{' vtop_decls 'v}'
-                           { changeExport Private (reverse $4)                }
+                           {% privateDocedDecl $1 $4 }
 
 prim_bind               :: { [TopDecl PName] }
   : mbDoc 'primitive' name  ':' schema       { mkPrimDecl $1 $3 $5 }
@@ -343,9 +341,8 @@ prim_bind               :: { [TopDecl PName] }
 foreign_bind            :: { [TopDecl PName] }
   : mbDoc 'foreign' name ':' schema          {% mkForeignDecl $1 $3 $5 }
 
-parameter_decls                      :: { TopDecl PName }
-  :     'parameter' 'v{' par_decls 'v}' { mkParDecls (reverse $3) }
-  | doc 'parameter' 'v{' par_decls 'v}' { mkParDecls (reverse $4) }
+parameter_decls         :: { TopDecl PName }
+  : 'parameter' 'v{' par_decls 'v}' { mkParDecls (reverse $3) }
 
 -- Reversed
 par_decls                            :: { [ParamDecl PName] }
@@ -357,7 +354,7 @@ par_decl                         :: { ParamDecl PName }
   : mbDoc        name ':' schema    { mkParFun $1 $2 $4 }
   | mbDoc 'type' name ':' kind      {% mkParType $1 $3 $5 }
   | mbDoc typeOrPropSyn             { mkIfacePropSyn (thing `fmap` $1) $2 }
-  | mbDoc topTypeConstraint         { DParameterConstraint (distrLoc $2) }
+  | mbDoc topTypeConstraint         { DParameterConstraint (ParameterConstraint (distrLoc $2) $1) }
 
 
 doc                     :: { Located Text }
@@ -957,7 +954,7 @@ parseHelpName txt =
 addImplicitIncludes :: Config -> Program PName -> Program PName
 addImplicitIncludes cfg (Program ds) =
   Program $ map path (cfgAutoInclude cfg) ++ ds
-  where path p = Include Located { srcRange = rng, thing = p }
+  where path p = Include Nothing Located { srcRange = rng, thing = p }
         rng    = Range { source = cfgSource cfg, from = start, to = start }
 
 

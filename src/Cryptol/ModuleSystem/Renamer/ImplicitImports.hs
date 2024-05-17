@@ -107,6 +107,7 @@ mkImp loc xs =
                      , iAs     = Just (isToQual xs)
                      , iSpec   = Nothing
                      , iInst   = Nothing
+                     , iDoc    = Nothing
                      }
       }
 

@@ -563,11 +563,11 @@ checkFixs f fs@(x:_) = do recordError $ MultipleFixities f $ map srcRange fs
                           return (Just (thing x))
 
 
-checkDocs :: PName -> [Located Text] -> NoPatM (Maybe Text)
+checkDocs :: PName -> [Located Text] -> NoPatM (Maybe (Located Text))
 checkDocs _ []       = return Nothing
-checkDocs _ [d]      = return (Just (thing d))
+checkDocs _ [d]      = return (Just d)
 checkDocs f ds@(d:_) = do recordError $ MultipleDocs f (map srcRange ds)
-                          return (Just (thing d))
+                          return (Just d)
 
 
 -- | Does this declaration provide some signatures?
