@@ -65,28 +65,28 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-22.04]
-        ghc-version: ["9.2.8", "9.4.7", "9.6.2"]
-        cabal: [ '3.10.1.0' ]
+        ghc-version: ["9.4.8", "9.6.5", "9.8.2"]
+        cabal: [ '3.10.3.0' ]
         run-tests: [true]
         include:
           # We include one job from an older Ubuntu LTS release to increase our
           # coverage of possible Linux configurations. Since we already run the
           # tests with the newest LTS release, we won't bother testing this one.
           - os: ubuntu-20.04
-            ghc-version: 9.2.8
+            ghc-version: 9.4.8
             run-tests: false
           # Windows and macOS CI runners are more expensive than Linux runners,
           # so we only build one particular GHC version to test them on. We
           # include both an x86-64 macOS runner (macos-12) as well as an AArch64
           # macOS runner (macos-14).
           - os: windows-2019
-            ghc-version: 9.2.8
+            ghc-version: 9.4.8
             run-tests: true
           - os: macos-12
-            ghc-version: 9.2.8
+            ghc-version: 9.4.8
             run-tests: true
           - os: macos-14
-            ghc-version: 9.2.8
+            ghc-version: 9.4.8
             run-tests: true
     outputs:
       test-lib-json: ${{ steps.test-lib.outputs.targets-json }}
@@ -227,13 +227,13 @@ jobs:
           if-no-files-found: error
           retention-days: ${{ needs.config.outputs.retention-days }}
 
-      - if: matrix.ghc-version == '9.2.8' && matrix.run-tests
+      - if: matrix.ghc-version == '9.4.8' && matrix.run-tests
         uses: actions/upload-artifact@v2
         with:
           path: dist/bin
           name: ${{ matrix.os }}-dist-bin
 
-      - if: matrix.ghc-version == '9.2.8' && matrix.run-tests
+      - if: matrix.ghc-version == '9.4.8' && matrix.run-tests
         uses: actions/upload-artifact@v2
         with:
           path: bin
@@ -287,7 +287,7 @@ jobs:
 
       - uses: haskell/actions/setup@v2
         with:
-          ghc-version: '9.2.8'
+          ghc-version: '9.4.8'
 
       # Homebrew installs packages in different directories depending on which
       # macOS architecture you are using:

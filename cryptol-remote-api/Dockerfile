@@ -1,9 +1,9 @@
-ARG GHCVER="9.2.8"
-ARG CABALVER="3.10.1.0"
+ARG GHCVER="9.4.8"
+ARG CABALVER="3.10.3.0"
 # This is the version of GHC that we use as part of the process of building a
 # separate copy of GHC from source. The version of GHC that we build from source
 # is determined by the value of GHCVER.
-ARG GHCVER_BOOTSTRAP="8.10.2"
+ARG GHCVER_BOOTSTRAP="9.0.2"
 # We pin specific versions of alex and happy that are necessary to build
 # GHC. In general, we don't want to build the latest versions of each
 # tool, as GHC may not support them (see, for example,
@@ -27,7 +27,7 @@ ENV LANG=C.UTF-8 \
     LC_ALL=C.UTF-8
 ENV GHCUP_INSTALL_BASE_PREFIX=/opt \
     PATH=/opt/.ghcup/bin:/root/.local/bin:$PATH
-RUN curl -o /usr/local/bin/ghcup "https://downloads.haskell.org/~ghcup/0.1.19.4/x86_64-linux-ghcup-0.1.19.4" && \
+RUN curl -o /usr/local/bin/ghcup "https://downloads.haskell.org/~ghcup/0.1.22.0/x86_64-linux-ghcup-0.1.22.0" && \
     chmod +x /usr/local/bin/ghcup
 RUN ghcup install cabal ${CABALVER} --set
 ENV PATH=/root/.cabal/bin:$PATH

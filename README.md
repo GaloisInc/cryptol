@@ -82,8 +82,8 @@ Windows. We regularly build and test it in the following environments:
 ## Prerequisites
 
 Cryptol is regularly built and tested with the three most recent
-versions of GHC, which at the time of this writing are 9.2.8, 9.4.7, and
-9.6.2. The easiest way to install an appropriate version of GHC is
+versions of GHC, which at the time of this writing are 9.4.8, 9.6.2, and
+9.8.2. The easiest way to install an appropriate version of GHC is
 with [ghcup](https://www.haskell.org/ghcup/).
 
 Some supporting non-Haskell libraries are required to build
