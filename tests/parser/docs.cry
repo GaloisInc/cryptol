@@ -29,12 +29,12 @@ infixl 5 ++
 x ++ _ = x
 
 /**
- * Test that doc strings are ignored on private declarations
+ * Test that doc strings are preserved on private declarations
  */
 private test5 = ()
 
 
 /**
- * Test that doc strings are ignored on type synonyms
+ * Test that doc strings are preserved on type synonyms
  */
 type Foo = ()

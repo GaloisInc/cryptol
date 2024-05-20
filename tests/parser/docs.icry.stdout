@@ -28,3 +28,13 @@ Precedence 5, associates to the left.
 
 Test that doc strings work on fixity declarations
 
+
+    test5 : ()
+
+Test that doc strings are preserved on private declarations
+
+
+type Foo = ()
+
+Test that doc strings are preserved on type synonyms
+
