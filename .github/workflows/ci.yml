@@ -311,13 +311,16 @@ jobs:
         uses: msys2/setup-msys2@v2
         with:
           update: true
-          msystem: MINGW64
+          # NB: Use CLANG64 here, not MINGW64. GHC 9.4 and later bundle a
+          # Clang-based C toolchain on Windows, and the FFI-related tests work
+          # best when the DLLs are compiled with Clang as well.
+          msystem: CLANG64
           # These are needed for the ffi tests on Windows
           install: |
             diffutils
             make
-            mingw-w64-x86_64-gcc
-            mingw-w64-x86_64-gmp
+            mingw-w64-clang-x86_64-gcc
+            mingw-w64-clang-x86_64-gmp
         if: matrix.suite == 'test-lib' && runner.os == 'Windows'
 
       - if: matrix.suite == 'rpc'
