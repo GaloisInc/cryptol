@@ -6,10 +6,11 @@
 module Cryptol.TypeCheck.Error where
 
 import qualified Data.IntMap as IntMap
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Set as Set
 import Control.DeepSeq(NFData)
 import GHC.Generics(Generic)
-import Data.List((\\),sortBy,groupBy,partition)
+import Data.List((\\),sortBy,partition)
 import Data.Function(on)
 
 import Cryptol.Utils.Ident(Ident,Namespace(..))
@@ -32,14 +33,15 @@ cleanupErrors = dropErrorsFromSameLoc
 
   -- pick shortest error from each location.
   dropErrorsFromSameLoc = concatMap chooseBestError
-                        . groupBy ((==)    `on` fst)
+                        . NE.groupBy ((==)    `on` fst)
 
   addErrorRating (r,e) = (errorImportance e, (r,e))
-  chooseBestError    = map snd
-                     . head
-                     . groupBy ((==) `on` fst)
-                     . sortBy (flip compare `on` fst)
-                     . map addErrorRating
+  chooseBestError    = NE.toList
+                     . fmap snd
+                     . NE.head
+                     . NE.groupBy1 ((==) `on` fst)
+                     . NE.sortBy (flip compare `on` fst)
+                     . fmap addErrorRating
 
 
   cmpR r  = ( source r    -- First by file

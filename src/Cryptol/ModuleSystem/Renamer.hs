@@ -929,10 +929,14 @@ resolveNameMaybe nt expected qn =
                return (Just n)
           Ambig symSet ->
             do let syms = Set.toList symSet
+                   headSym =
+                     case syms of
+                       sym:_ -> sym
+                       [] -> panic "resolveNameMaybe" ["Ambig with no names"]
                mapM_ use syms    -- mark as used to avoid unused warnings
                n <- located qn
                recordError (MultipleSyms n syms)
-               return (Just (head syms))
+               return (Just headSym)
 
        Nothing -> pure Nothing
 
@@ -1221,8 +1225,13 @@ checkLabels = foldM_ check [] . map labs
       (RecordSel a _, RecordSel b _) -> a == b
       _                              -> False
 
-  reLoc xs = (head xs) { thing = map thing xs }
-
+  -- The input comes from UpdField, and as such, it is expected to be a
+  -- non-empty list.
+  reLoc xs = x { thing = map thing xs }
+    where
+      x = case xs of
+            x':_ -> x'
+            [] -> panic "checkLabels" ["UpdFields with no labels"]
 
 mkEInfix :: Expr Name             -- ^ May contain infix expressions
          -> (Located Name,Fixity) -- ^ The operator to use

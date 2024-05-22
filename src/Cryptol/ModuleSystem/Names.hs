@@ -16,6 +16,7 @@ import Cryptol.ModuleSystem.Name
 data Names = One Name | Ambig (Set Name) -- ^ Non-empty
   deriving (Show,Generic,NFData)
 
+-- | The returned list of names will be non-empty.
 namesToList :: Names -> [Name]
 namesToList xs =
   case xs of
@@ -23,7 +24,14 @@ namesToList xs =
     Ambig ns -> Set.toList ns
 
 anyOne :: Names -> Name
-anyOne = head . namesToList
+anyOne xs =
+  case xs of
+    One x -> x
+    Ambig ns
+      |  Set.null ns
+      -> panic "anyOne" ["Ambig with no names"]
+      |  otherwise
+      -> Set.elemAt 0 ns
 
 instance Semigroup Names where
   xs <> ys =

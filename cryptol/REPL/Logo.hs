@@ -9,6 +9,7 @@
 module REPL.Logo where
 
 import Cryptol.REPL.Monad
+import Cryptol.Utils.Panic (panic)
 import Paths_cryptol (version)
 
 import Cryptol.Version (commitShortHash,commitDirty)
@@ -22,6 +23,7 @@ type Version = String
 
 type Logo = [String]
 
+-- | The list of 'String's returned by the @mk@ function should be non-empty.
 logo :: Bool -> (String -> [String]) -> Logo
 logo useColor mk =
      [ sgr [SetColor Foreground Dull  White] ++ l | l <- ws ]
@@ -43,7 +45,10 @@ logo useColor mk =
   slen      = length ls `div` 3
   (ws,rest) = splitAt slen ls
   (vs,ds)   = splitAt slen rest
-  lineLen   = length (head ls)
+  line      = case ls of
+                line':_ -> line'
+                [] -> panic "logo" ["empty lines"]
+  lineLen   = length line
 
 displayLogo :: Bool -> Bool -> REPL ()
 displayLogo useColor useUnicode =

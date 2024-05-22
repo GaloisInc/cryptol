@@ -415,16 +415,16 @@ processResults ProverCommand{..} ts results =
        [] -> return $ ThmResult (unFinType <$> ts)
 
        -- otherwise something is wrong
-       _ -> return $ ProverError (rshow results)
+       resultsHead:_ -> return $ ProverError res
 #if MIN_VERSION_sbv(10,0,0)
-              where rshow | isSat = show . (SBV.AllSatResult False False False)
+              where res | isSat = show $ SBV.AllSatResult False False False results
                     -- sbv-10.0.0 removes the `allSatHasPrefixExistentials` field
 #elif MIN_VERSION_sbv(8,8,0)
-              where rshow | isSat = show . (SBV.AllSatResult False False False False)
+              where res | isSat = show $ SBV.AllSatResult False False False False results
 #else
-              where rshow | isSat = show .  SBV.AllSatResult . (False,False,False,)
+              where res | isSat = show $ SBV.AllSatResult (False,False,False,results)
 #endif
-                          | otherwise = show . SBV.ThmResult . head
+                        | otherwise = show $ SBV.ThmResult resultsHead
 
   where
   mkTevs prims result = do
