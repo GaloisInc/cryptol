@@ -285,10 +285,6 @@ jobs:
         with:
           submodules: true
 
-      - uses: haskell/actions/setup@v2
-        with:
-          ghc-version: '9.4.8'
-
       # Homebrew installs packages in different directories depending on which
       # macOS architecture you are using:
       #
@@ -365,9 +361,6 @@ jobs:
           .github/ci.sh deps bin/cvc5*
           .github/ci.sh deps bin/yices-smt2*
           .github/ci.sh deps bin/z3*
-          ghc_ver="$(ghc --numeric-version)"
-          cp cabal.GHC-"$ghc_ver".config cabal.project.freeze
-          cabal v2-update
 
       - if: matrix.suite == 'test-lib' && runner.os != 'Windows'
         shell: bash
