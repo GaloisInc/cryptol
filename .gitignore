@@ -11,6 +11,7 @@ dist-newstyle
 cabal.project.freeze
 cabal.project.local*
 .vscode/
+dev_setup.log
 
 # don't check in generated documentation
 #docs/CryptolPrims.pdf
