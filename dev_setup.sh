@@ -15,8 +15,13 @@ set -e
 HERE=$(cd `dirname $0`; pwd)
 LOG=$HERE/dev_setup.log
 
+WHAT4_SOLVERS_SNAPSHOT="snapshot-20240212"
+WHAT4_SOLVERS_URL="https://github.com/GaloisInc/what4-solvers/releases/download/$WHAT4_SOLVERS_SNAPSHOT/"
+WHAT4_SOLVERS_MACOS_12="macos-12-X64-bin.zip"
+WHAT4_SOLVERS_MACOS_14="macos-14-ARM64-bin.zip"
+
 function notice {
-    echo "[NOTICE] $*"
+    echo -e "[NOTICE] $*"
 }
 
 # Requires: LOG set to log file path.
@@ -37,6 +42,7 @@ function logged {
 }
 
 function update_submodules {
+    # todo: change names here
     cd $HERE
     notice "Updating submodules"
     git submodule update --init
@@ -55,45 +61,61 @@ function install_ghcup {
 
 }
 
+function is_macos {
+    [ "$OSTYPE" = "darwin"* ]
+}
+
 # Indicate whether this is running macOS on the Apple M series hardware.
 function is_macos_aarch {
     # Is it running macOS?
-    if [[ "$OSTYPE" != "darwin"* ]]; then
-        notice "dev setup does not currently support your OS / hardware"
-        exit 1 
+    if [ ! is_macos ]; then
+        return 1
     fi
 
     # Does it use an M-series chip?
+    # Actually this command apparently doesn't exist in macOS 12, so this will fail the wrong way
     chip=$(system_profiler SPHardwareDataType | grep Chip)
-    [[ $chip == *M1* || $chip == *M2* || $chip == *M3* ]]
+    [ $chip == *M1* || $chip == *M2* || $chip == *M3* ]
 }
 
 function install_gmp {
-    if is_macos_aarch; then
-        notice "Installing gmp via Homebrew, if it's not already installed"
-        logged brew list gmp || brew install gmp
+    if [ is_macos ]; then
+        notice "Installing GMP via Homebrew, if it's not already installed"
+        logged brew install gmp
 
-        # on macOS 12 (x86_64), I think homebrew uses different locations
+        # `brew --prefix` is different on macOS 12 and macOS 14
         notice "You may need to add the following environment variables to your '.profile': \n"\
-            "export CPATH=/opt/homebrew/include\n"\
-            "export LIBRARY_PATH=/opt/homebrew/lib\n"
+            "export CPATH=$(brew --prefix)/include\n"\
+            "export LIBRARY_PATH=$(brew --prefix)/lib\n"
+    else
+        notice "Did not install GMP. This script only supports macOS 12 and 14"
     fi
 }
 
+# Installs the two solvers required to run the test suite for the repo.
+# Users may want to install other solvers, and indeed the what4 solvers repo
+# includes a half dozen other solvers that are compatible with cryptol. 
 function install_what4_solvers {
     if ! cvc4 --version &> /dev/null || ! cvc5 --version &> /dev/null; then
         notice "Installing cvc4 and/or cvc5 solvers"
 
-        # There are different URLs for other supported platforms
-        if is_macos_aarch; then
-            what4_solvers_url="https://github.com/GaloisInc/what4-solvers/releases/download/snapshot-20240212/macos-14-ARM64-bin.zip"
+        if [ ! is_macos ]; then
+            notice "Did not install what4 solvers. This script only supports macOS 12 and 14"
+            return
+        fi
+
+        if [ is_macos_aarch ]; then
+            solvers_version=$WHAT4_SOLVERS_MACOS_14
+        else
+            # This assumes that developers have read the docs and only run this
+            # script if they're on 12 or 14. This might bork on older versions.
+            solvers_version=$WHAT4_SOLVERS_MACOS_12
         fi
 
         solvers_dir=$(mktemp -d)
-        curl --proto '=https' --tlsv1.2 -sSfL $what4_solvers_url > "$solvers_dir/solvers.bin.zip"
+        curl --proto '=https' --tlsv1.2 -sSfL "$WHAT4_SOLVERS_URL$solvers_version" > "$solvers_dir/solvers.bin.zip"
         cd $solvers_dir
         logged unzip solvers.bin.zip
-        rm solvers.bin.zip
         
         # If we want to install more solvers by default, we can do so here,
         # although we might need a different check than `--version`
