@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 
 # cryptol setup script
 #
@@ -14,6 +14,8 @@ set -e
 
 HERE=$(cd `dirname $0`; pwd)
 LOG=$HERE/dev_setup.log
+ROOT=$HERE
+ENV=$ROOT/env.sh
 
 WHAT4_SOLVERS_SNAPSHOT="snapshot-20240212"
 WHAT4_SOLVERS_URL="https://github.com/GaloisInc/what4-solvers/releases/download/$WHAT4_SOLVERS_SNAPSHOT/"
@@ -21,7 +23,7 @@ WHAT4_SOLVERS_MACOS_12="macos-12-X64-bin.zip"
 WHAT4_SOLVERS_MACOS_14="macos-14-ARM64-bin.zip"
 
 function notice {
-    echo -e "[NOTICE] $*"
+    echo "[NOTICE] $*"
 }
 
 # Requires: LOG set to log file path.
@@ -29,8 +31,8 @@ function logged {
     if ! [ -z "$LOG" ]
     then
         mkdir -p `dirname $LOG`
-        echo $* >>$LOG
-        if ! $* >>$LOG 2>&1
+        echo "$@" >>$LOG
+        if ! "$@" >>$LOG 2>&1
         then
             echo
             echo "An error occurred; please see $LOG"
@@ -42,18 +44,18 @@ function logged {
 }
 
 function update_submodules {
-    # todo: change names here
-    cd $HERE
+    cd $ROOT
     notice "Updating submodules"
-    git submodule update --init
+    logged git submodule update --init
 }
 
 function install_ghcup {
     if ! ghcup --version &> /dev/null
     then
         notice "Installing ghcup, GHC, and cabal"
-        # technically the installation only requires cabal, but it's 
-        # recommended to get the whole GCH shebang in one package
+        # Technically the installation only requires cabal, but it's
+        # recommended to get the whole GCH shebang in one package.
+        # The output is not routed to log because the installer is interactive.
         curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
     else
         notice "Using existing ghcup installation"
@@ -84,9 +86,10 @@ function install_gmp {
         logged brew install gmp
 
         # `brew --prefix` is different on macOS 12 and macOS 14
-        notice "You may need to add the following environment variables to your '.profile': \n"\
-            "export CPATH=$(brew --prefix)/include\n"\
-            "export LIBRARY_PATH=$(brew --prefix)/lib\n"
+        echo "export CPATH=$(brew --prefix)/include" >> $ENV
+        echo "export LIBRARY_PATH=$(brew --prefix)/lib" >> $ENV
+        notice "You may need to source new environment variables added here:\n" \
+            "\$ source $ENV"
     else
         notice "Did not install GMP. This script only supports macOS 12 and 14"
     fi
@@ -126,6 +129,10 @@ function install_what4_solvers {
                 sudo mv $solver /usr/local/bin
             fi
         done
+
+        rm -r $solvers_dir
+    else
+        notice "Not installing cvc4 or cvc5 solvers because they already exist"
     fi
 }
 
