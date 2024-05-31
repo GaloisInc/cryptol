@@ -726,7 +726,7 @@ by corresponding type classes:
 >                      (eitherToE . FP.floatToInteger "trunc" FP.ToZero))
 >
 >   , "roundAway"  ~> unary (roundUnary roundAwayRat
->                      (eitherToE . FP.floatToInteger "roundAway" FP.Away))
+>                      (eitherToE . FP.floatToInteger "roundAway" FP.NearAway))
 >
 >   , "roundToEven"~> unary (roundUnary round
 >                      (eitherToE . FP.floatToInteger "roundToEven" FP.NearEven))

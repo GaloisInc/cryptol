@@ -1,0 +1,12 @@
+:module Float
+let x = 3.5 : Float32
+:eval floor x
+floor x
+:eval ceiling x
+ceiling x
+:eval trunc x
+trunc x
+:eval roundToEven x
+roundToEven x
+:eval roundAway x
+roundAway x
