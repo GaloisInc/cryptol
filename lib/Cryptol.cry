@@ -725,16 +725,16 @@ scarry : {n} (fin n, n >= 1) => [n] -> [n] -> Bit
 scarry x y = (sx == sy) && (sx != sz)
   where
     z  = x + y
-    sx = x@0
-    sy = y@0
-    sz = z@0
+    sx = head x
+    sy = head y
+    sz = head z
 
 /**
  * Signed borrow.  Returns true if the 2's complement signed subtraction of the
  * given bitvector arguments would result in a signed overflow.
  */
 sborrow : {n} (fin n, n >= 1) => [n] -> [n] -> Bit
-sborrow x y = ( x <$ (x-y) ) ^ y@0
+sborrow x y = ( x <$ (x-y) ) ^ head y
 
 /**
  * Zero extension of a bitvector.
@@ -747,7 +747,7 @@ zext x = zero # x
  */
 sext : {m, n} (fin m, m >= n, n >= 1) => [n] -> [m]
 sext x = newbits # x
-  where newbits = if x@0 then ~zero else zero
+  where newbits = if head x then ~zero else zero
 
 /**
  * 2's complement signed (arithmetic) right shift.  The first argument
@@ -850,13 +850,13 @@ tail xs = drop`{1} xs
  * Return the first (left-most) element of a sequence.
  */
 head : {n, a} [1 + n]a -> a
-head xs = xs @ 0
+head xs = xs @ (0 : [64])
 
 /**
  * Return the right-most element of a sequence.
  */
 last : {n, a} (fin n) => [1 + n]a -> a
-last xs = xs ! 0
+last xs = xs ! (0 : [64])
 
 /**
  * Same as 'split', but with a different type argument order.
@@ -985,13 +985,13 @@ sort = sortBy (<=)
 sortBy : {a, n} (fin n) => (a -> a -> Bit) -> [n]a -> [n]a
 sortBy le ((xs : [n/2]a) # (ys : [n/^2]a)) = take zs.0
   where
-    xs' = if `(n/2)  == 1 then xs else sortBy le xs
-    ys' = if `(n/^2) == 1 then ys else sortBy le ys
+    xs' = if `(n/2)  == (1 : Integer) then xs else sortBy le xs
+    ys' = if `(n/^2) == (1 : Integer) then ys else sortBy le ys
     zs  = [ if i == `(n/2)        then (ys'@j, i  , j+1)
              | j == `(n/^2)       then (xs'@i, i+1, j  )
              | le (xs'@i) (ys'@j) then (xs'@i, i+1, j  )
             else                       (ys'@j, i  , j+1)
-          | (_, i, j) <- [ (undefined, 0, 0) ] # zs
+          | (_, i , j) <- [ (undefined, 0 : Integer, 0 : Integer) ] # zs
           ]
 
 // GF_2^n polynomial computations -------------------------------------------
