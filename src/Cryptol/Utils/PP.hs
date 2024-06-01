@@ -430,4 +430,4 @@ instance PP Namespace where
       NSModule    -> "/*module*/"
 
 instance PP PrimIdent where
-  ppPrec _ (PrimIdent m t) = pp m <.> text (T.unpack t)
+  ppPrec _ (PrimIdent m t) = pp m <.> "::" <.> text (T.unpack t)
