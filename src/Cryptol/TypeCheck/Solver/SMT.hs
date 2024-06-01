@@ -33,6 +33,7 @@ module Cryptol.TypeCheck.Solver.SMT
 
     -- * Lower level interactions
   , inNewFrame, TVars, declareVars, assume, unsolvable
+  , push, pop
   ) where
 
 import           SimpleSMT (SExpr)
