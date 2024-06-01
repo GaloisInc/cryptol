@@ -35,23 +35,23 @@ Loading module Main
   When checking the type of 'Main::badFloatSizes'
 [error] at ffi-type-errors.cry:5:9--6:59:
   Type unsupported for FFI:
-    [n`972] -> [n`972]([16], [16]) -> [n`972][4][8]{a : [n`972],
+    [n`962] -> [n`962]([16], [16]) -> [n`962][4][8]{a : [n`962],
      b : [2]}
     Due to:
       Type unsupported for FFI:
-        [n`972]
+        [n`962]
         Due to:
         Unsupported sequence element type
         Only words or floats are supported as the element type of
         (possibly multidimensional) sequences
       Type unsupported for FFI:
-        [n`972]([16], [16])
+        [n`962]([16], [16])
         Due to:
         Unsupported sequence element type
         Only words or floats are supported as the element type of
         (possibly multidimensional) sequences
       Type unsupported for FFI:
-        [n`972][4][8]{a : [n`972], b : [2]}
+        [n`962][4][8]{a : [n`962], b : [2]}
         Due to:
         Unsupported sequence element type
         Only words or floats are supported as the element type of
@@ -65,7 +65,7 @@ Loading module Main
   When checking the type of 'Main::notFunction'
 [error] at ffi-type-errors.cry:8:9--8:32:
   Kind of type variable unsupported for FFI: 
-    t`973 : *
+    t`963 : *
     Only type variables of kind # are supported
     When checking the type of 'Main::badKind'
 [error] at ffi-type-errors.cry:9:9--9:43:
