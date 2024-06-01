@@ -44,25 +44,17 @@ case $COMMAND in
     # XXX: This is a workaround the fact that currently Cabal
     # will not rebuild this file, even though it has TH code, that
     # depends on the environment.  For now, we temporarily modify the
-    # file, then build, then revert it back after build.
+    # file, then build, then revert it back, then build once more.
 
     dirty_string="-- Last build $(date)"
     echo "$dirty_string" >> src/GitRev.hs
-
-    if [[ -n "$RELEASE" ]]; then
-      sed -i.bak -e 's/^commitShortHash = .*$/commitShortHash = "UNKNOWN"/' \
-        -e 's/^commitHash = .*$/commitHash = "UNKNOWN"/' \
-        -e 's/^commitBranch = .*$/commitBranch = "UNKNOWN"/' \
-        -e 's/^commitDirty = .*$/commitDirty = False/' \
-        -e '/import qualified GitRev/d' \
-        src/Cryptol/Version.hs
-      rm -f src/Cryptol/Version.hs.bak
-    fi
 
     cabal v2-build "$@" exe:cryptol
 
     sed -i.bak "/^-- Last build/d" src/GitRev.hs
     rm -f src/GitRev.hs.bak
+
+    cabal v2-build "$@" exe:cryptol
     ;;
 
   haddock) echo Building Haddock documentation && cabal v2-haddock ;;
