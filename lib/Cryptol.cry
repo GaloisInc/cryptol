@@ -850,13 +850,13 @@ tail xs = drop`{1} xs
  * Return the first (left-most) element of a sequence.
  */
 head : {n, a} [1 + n]a -> a
-head xs = xs @ (0 : [64])
+head xs = xs @ (0 : Integer)
 
 /**
  * Return the right-most element of a sequence.
  */
 last : {n, a} (fin n) => [1 + n]a -> a
-last xs = xs ! (0 : [64])
+last xs = xs ! (0 : Integer)
 
 /**
  * Same as 'split', but with a different type argument order.
