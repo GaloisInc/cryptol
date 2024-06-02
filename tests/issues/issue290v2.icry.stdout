@@ -17,9 +17,9 @@ Loading module Main
             at issue290v2.cry:2:1--2:19
 [error] at issue290v2.cry:2:8--2:11:
   Unsolved constraints:
-    • n`902 == 1
+    • n`892 == 1
         arising from
         checking a pattern: type of 1st argument of Main::minMax
         at issue290v2.cry:2:8--2:11
   where
-  n`902 is signature variable 'n' at issue290v2.cry:1:11--1:12
+  n`892 is signature variable 'n' at issue290v2.cry:1:11--1:12
