@@ -4,7 +4,7 @@ Loading module Main
 Loading dynamic library ffi-runtime-errors.dylib
 
 numeric type argument to foreign function is too large: 18446744073709551616
-in type parameter n`902 of function Main::f
+in type parameter n`892 of function Main::f
 type arguments must fit in a C `size_t`
 -- Backtrace --
 Main::f called at ffi-runtime-errors.icry:4:1--4:2
