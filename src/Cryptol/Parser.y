@@ -282,7 +282,7 @@ vtop_decls                 :: { [TopDecl PName]  }
 vtop_decl               :: { [TopDecl PName] }
   : decl                   { [exportDecl Nothing   Public $1]                 }
   | doc decl               { [exportDecl (Just $1) Public $2]                 }
-  | mbDoc 'include' STRLIT {% (return . Include $1) `fmap` fromStrLit $3 }
+  | 'include' STRLIT       {% (return . Include) `fmap` fromStrLit $2         }
   | mbDoc 'property' name iapats '=' expr
                            { [exportDecl $1 Public (mkProperty $3 $4 $6)]     }
   | mbDoc 'property' name       '=' expr
@@ -324,7 +324,7 @@ mod_param_decl ::          { ModParam PName }
 
 top_decl                :: { [TopDecl PName] }
   : decl                   { [Decl (TopLevel {tlExport = Public, tlValue = $1 })] }
-  | 'include' STRLIT       {% (return . Include Nothing) `fmap` fromStrLit $2     }
+  | 'include' STRLIT       {% (return . Include) `fmap` fromStrLit $2             }
   | prim_bind              { $1                                                   }
 
 private_decls           :: { [TopDecl PName] }
@@ -954,7 +954,7 @@ parseHelpName txt =
 addImplicitIncludes :: Config -> Program PName -> Program PName
 addImplicitIncludes cfg (Program ds) =
   Program $ map path (cfgAutoInclude cfg) ++ ds
-  where path p = Include Nothing Located { srcRange = rng, thing = p }
+  where path p = Include Located { srcRange = rng, thing = p }
         rng    = Range { source = cfgSource cfg, from = start, to = start }
 
 

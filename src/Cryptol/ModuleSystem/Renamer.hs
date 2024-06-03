@@ -714,7 +714,7 @@ instance Rename TopDecl where
       DPrimType d       -> DPrimType <$> traverse rename d
       TDNewtype n       -> TDNewtype <$> traverse rename n
       TDEnum n          -> TDEnum    <$> traverse rename n
-      Include d n       -> return (Include d n)
+      Include n         -> return (Include n)
       DModule m  -> DModule <$> traverse rename m
       DImport li -> DImport <$> renI li
       DModParam mp -> DModParam <$> rename mp

@@ -215,7 +215,7 @@ noIncTopDecl td = case td of
   TDEnum _-> pure [td]
   DParamDecl {} -> pure [td]
   DInterfaceConstraint {} -> pure [td]
-  Include _ lf -> resolveInclude lf
+  Include lf -> resolveInclude lf
   DModule tl ->
     case tlValue tl of
       NestedModule m ->

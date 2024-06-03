@@ -573,8 +573,7 @@ addDeclDocstring doc decl =
     TDEnum n -> TDEnum <$> topLevel n
     DModule m -> DModule <$> topLevel m
     DModParam p -> pure (DModParam p { mpDoc = Just doc })
-    Include Nothing i -> pure (Include (Just doc) i)
-    Include Just{} _ -> failure "Overlapping docstring"
+    Include _ -> failure "Docstring on include"
     DImport i -> DImport <$> traverse imp i
     DInterfaceConstraint Nothing x -> pure (DInterfaceConstraint (Just doc) x)
     DInterfaceConstraint Just{} _ -> failure "Overlapping docstring"
