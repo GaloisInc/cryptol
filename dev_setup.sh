@@ -9,18 +9,45 @@
 # environment for cryptol. Any new environment requirements should be
 # added to this script.
 #
+# There is some half-baked support for macOS 12 (x86_64), but it hasn't been
+# tested.
+#
 
 set -e
 
 HERE=$(cd `dirname $0`; pwd)
 LOG=$HERE/dev_setup.log
 ROOT=$HERE
-ENV=$ROOT/env.sh
+
+# Create a new, empty file for environment variables
+VAR_FILE=$ROOT/env.sh
+truncate -s 0 $VAR_FILE
+echo "# Generated environment variables. Manual changes will get clobbered by dev_setup.sh" >> $VAR_FILE
 
 WHAT4_SOLVERS_SNAPSHOT="snapshot-20240212"
 WHAT4_SOLVERS_URL="https://github.com/GaloisInc/what4-solvers/releases/download/$WHAT4_SOLVERS_SNAPSHOT/"
 WHAT4_SOLVERS_MACOS_12="macos-12-X64-bin.zip"
 WHAT4_SOLVERS_MACOS_14="macos-14-ARM64-bin.zip"
+
+MACOS14="macos14"
+MACOS12="macos12"
+# Make sure we're running on a supported platform
+case $(uname -s) in
+    Darwin)
+        if [ $(uname -m) = "arm64" ]; then
+            CRYPTOL_PLATFORM=$MACOS14
+        # This is how we'd support macOS 12. Since this hasn't been tested yet,
+        # we withhold official support.
+        # This might bork on something running macOS <12, since we're basing
+        # the it on the hardware, not the specific version.
+        elif [ $(uname -m) = "x86_64" ]; then
+            CRYPTOL_PLATFORM=$MACOS12
+            echo "Unsupported platform" 2>&1; exit 1;
+        else
+            echo "Unsupported platform" 2>&1; exit 1;
+        fi;;
+    *) echo "Unsupported platform" 2>&1; exit 1;;
+esac
 
 function notice {
     echo "[NOTICE] $*"
@@ -30,6 +57,7 @@ function notice {
 function logged {
     if ! [ -z "$LOG" ]
     then
+        # This may or may not be the same directory that this script lives in.
         mkdir -p `dirname $LOG`
         echo "$@" >>$LOG
         if ! "$@" >>$LOG 2>&1
@@ -63,35 +91,18 @@ function install_ghcup {
 
 }
 
-function is_macos {
-    [ "$OSTYPE" = "darwin"* ]
-}
-
-# Indicate whether this is running macOS on the Apple M series hardware.
-function is_macos_aarch {
-    # Is it running macOS?
-    if [ ! is_macos ]; then
-        return 1
-    fi
-
-    # Does it use an M-series chip?
-    # Actually this command apparently doesn't exist in macOS 12, so this will fail the wrong way
-    chip=$(system_profiler SPHardwareDataType | grep Chip)
-    [ $chip == *M1* || $chip == *M2* || $chip == *M3* ]
-}
-
 function install_gmp {
-    if [ is_macos ]; then
+    if [ $CRYPTOL_PLATFORM = $MACOS12 ] || [ $CRYPTOL_PLATFORM = $MACOS14 ]; then
         notice "Installing GMP via Homebrew, if it's not already installed"
         logged brew install gmp
 
         # `brew --prefix` is different on macOS 12 and macOS 14
-        echo "export CPATH=$(brew --prefix)/include" >> $ENV
-        echo "export LIBRARY_PATH=$(brew --prefix)/lib" >> $ENV
+        echo "export CPATH=$(brew --prefix)/include" >> $VAR_FILE
+        echo "export LIBRARY_PATH=$(brew --prefix)/lib" >> $VAR_FILE
         notice "You may need to source new environment variables added here:\n" \
-            "\$ source $ENV"
+            "\$ source $VAR_FILE"
     else
-        notice "Did not install GMP. This script only supports macOS 12 and 14"
+        notice "Did not install GMP. This script only supports macOS 14"
     fi
 }
 
@@ -102,21 +113,14 @@ function install_what4_solvers {
     if ! cvc4 --version &> /dev/null || ! cvc5 --version &> /dev/null; then
         notice "Installing cvc4 and/or cvc5 solvers"
 
-        if [ ! is_macos ]; then
-            notice "Did not install what4 solvers. This script only supports macOS 12 and 14"
-            return
-        fi
-
-        if [ is_macos_aarch ]; then
+        if [ $CRYPTOL_PLATFORM = $MACOS14 ]; then
             solvers_version=$WHAT4_SOLVERS_MACOS_14
-        else
-            # This assumes that developers have read the docs and only run this
-            # script if they're on 12 or 14. This might bork on older versions.
+        elif [ $CRYPTOL_PLATFORM = $MACOS12 ]; then
             solvers_version=$WHAT4_SOLVERS_MACOS_12
         fi
 
         solvers_dir=$(mktemp -d)
-        curl --proto '=https' --tlsv1.2 -sSfL "$WHAT4_SOLVERS_URL$solvers_version" > "$solvers_dir/solvers.bin.zip"
+        logged curl --proto '=https' --tlsv1.2 -sSfL -o "$solvers_dir/solvers.bin.zip" "$WHAT4_SOLVERS_URL$solvers_version"
         cd $solvers_dir
         logged unzip solvers.bin.zip
         
@@ -133,6 +137,15 @@ function install_what4_solvers {
         rm -r $solvers_dir
     else
         notice "Not installing cvc4 or cvc5 solvers because they already exist"
+
+        if ! (grep -q "version 1.8" <<< "$(cvc4 --version)"); then
+            notice "Your version of cvc4 is incorrect; expected 1.8"
+            notice "Got: $(grep "cvc4 version" <<< "$(cvc4 --version)")"
+        fi
+        if ! (grep -q "version 1.1.1" <<< "$(cvc5 --version)" ); then
+            notice "Your version of cvc5 is incorrect; expected 1.1.1"
+            notice "Got: $(grep "cvc5 version" <<< "$(cvc5 --version)")"
+        fi
     fi
 }
 
