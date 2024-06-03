@@ -28,29 +28,40 @@ WHAT4_SOLVERS_SNAPSHOT="snapshot-20240212"
 WHAT4_SOLVERS_URL="https://github.com/GaloisInc/what4-solvers/releases/download/$WHAT4_SOLVERS_SNAPSHOT/"
 WHAT4_SOLVERS_MACOS_12="macos-12-X64-bin.zip"
 WHAT4_SOLVERS_MACOS_14="macos-14-ARM64-bin.zip"
+WHAT4_CVC4_VERSION="version 1.8"
+WHAT4_CVC5_VERSION="version 1.1.1"
 
+# Set of supported platforms:
 MACOS14="macos14"
-MACOS12="macos12"
-# Make sure we're running on a supported platform
-case $(uname -s) in
-    Darwin)
-        if [ $(uname -m) = "arm64" ]; then
-            CRYPTOL_PLATFORM=$MACOS14
-        # This is how we'd support macOS 12. Since this hasn't been tested yet,
-        # we withhold official support.
-        # This might bork on something running macOS <12, since we're basing
-        # the it on the hardware, not the specific version.
-        elif [ $(uname -m) = "x86_64" ]; then
-            CRYPTOL_PLATFORM=$MACOS12
-            echo "Unsupported platform" 2>&1; exit 1;
-        else
-            echo "Unsupported platform" 2>&1; exit 1;
-        fi;;
-    *) echo "Unsupported platform" 2>&1; exit 1;;
-esac
+MACOS12="macos12" # actually, this isn't supported yet
 
+# Returns a string indicating the platform (from the set above), or empty if
+# a supported platform is not detected.
+function supported_platform {
+    # Make sure we're running on a supported platform
+    case $(uname -s) in
+        Darwin)
+            if [ $(uname -m) = "arm64" ]; then
+                echo $MACOS14
+            # This is how we'd support macOS 12. Since this hasn't been tested yet,
+            # we withhold official support.
+            # This might bork on something running macOS <12, since we're basing
+            # the it on the hardware, not the specific version.
+            elif [ $(uname -m) = "x86_64" ]; then
+                # CRYPTOL_PLATFORM=$MACOS12
+                echo ""
+            fi;;
+        *) echo ""
+    esac
+}
+
+RED="\033[0;31m"
 function notice {
     echo "[NOTICE] $*"
+}
+
+function is_installed {
+    command -v $* >/dev/null 2>&1
 }
 
 # Requires: LOG set to log file path.
@@ -63,9 +74,10 @@ function logged {
         if ! "$@" >>$LOG 2>&1
         then
             echo
-            echo "An error occurred; please see $LOG"
-            echo "Here are the last 50 lines:"
             tail -n 50 $LOG
+            echo
+            echo "[ERROR] An error occurred; please see $LOG"
+            echo "[ERROR] The last 50 lines are printed above for convenience"
             exit 1
         fi
     fi
@@ -78,13 +90,24 @@ function update_submodules {
 }
 
 function install_ghcup {
-    if ! ghcup --version &> /dev/null
+    if ! is_installed ghcup
     then
-        notice "Installing ghcup, GHC, and cabal"
+        ghcup_url="https://get-ghcup.haskell.org"
+        notice "ghcup not found; do you want to install from $ghcup_url"
+        read -p "Press Enter to continue or 'n' to skip: " consent
+        case $consent in
+            [Nn]* ) notice "Skipping ghcup installation"; return;;
+            * ) notice "Installing ghcup";;
+        esac
+
         # Technically the installation only requires cabal, but it's
         # recommended to get the whole GCH shebang in one package.
         # The output is not routed to log because the installer is interactive.
-        curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
+        ghc_dir=$(mktemp -d)
+        logged curl --proto '=https' --tlsv1.2 -sSf -o "$ghc_dir/ghcup.bin" $ghcup_url
+        cd $ghc_dir
+        sh ghcup.bin
+        rm -r $ghc_dir
     else
         notice "Using existing ghcup installation"
     fi
@@ -110,8 +133,8 @@ function install_gmp {
 # Users may want to install other solvers, and indeed the what4 solvers repo
 # includes a half dozen other solvers that are compatible with cryptol. 
 function install_what4_solvers {
-    if ! cvc4 --version &> /dev/null || ! cvc5 --version &> /dev/null; then
-        notice "Installing cvc4 and/or cvc5 solvers"
+    if ! is_installed cvc4 || ! is_installed cvc5; then
+        notice "Installing cvc4 and/or cvc5 solvers from $WHAT4_SOLVERS_URL"
 
         if [ $CRYPTOL_PLATFORM = $MACOS14 ]; then
             solvers_version=$WHAT4_SOLVERS_MACOS_14
@@ -124,10 +147,9 @@ function install_what4_solvers {
         cd $solvers_dir
         logged unzip solvers.bin.zip
         
-        # If we want to install more solvers by default, we can do so here,
-        # although we might need a different check than `--version`
+        # If we want to install more solvers by default, we can do so here
         for solver in cvc4 cvc5; do
-            if ! $solver --version &> /dev/null; then 
+            if ! is_installed $solver ; then
                 notice "Installing $solver"
                 chmod u+x $solver
                 sudo mv $solver /usr/local/bin
@@ -138,16 +160,28 @@ function install_what4_solvers {
     else
         notice "Not installing cvc4 or cvc5 solvers because they already exist"
 
-        if ! (grep -q "version 1.8" <<< "$(cvc4 --version)"); then
-            notice "Your version of cvc4 is incorrect; expected 1.8"
+        if ! (grep -q $WHAT4_CVC4_VERSION <<< "$(cvc4 --version)"); then
+            notice "Your version of cvc4 is unexpected; expected $WHAT4_CVC4_VERSION"
             notice "Got: $(grep "cvc4 version" <<< "$(cvc4 --version)")"
+            notice "To ensure compatibility, you might want to uninstall the "\
+                "existing version and re-run this script."
         fi
-        if ! (grep -q "version 1.1.1" <<< "$(cvc5 --version)" ); then
-            notice "Your version of cvc5 is incorrect; expected 1.1.1"
+        if ! (grep -q $WHAT4_CVC5_VERSION <<< "$(cvc5 --version)" ); then
+            notice "Your version of cvc5 is unexpected; expected $WHAT5_CVC5_VERSION"
             notice "Got: $(grep "cvc5 version" <<< "$(cvc5 --version)")"
+            notice "To ensure compatibility, you might want to uninstall the "\
+                "existing version and re-run this script."
         fi
     fi
 }
+
+
+# Make sure script is running on a supported platform
+CRYPTOL_PLATFORM=$(supported_platform)
+if [ -z "$CRYPTOL_PLATFORM" ]; then
+    echo "Unsupported platform"
+    exit 1
+fi
 
 update_submodules
 install_ghcup
