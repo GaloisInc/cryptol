@@ -325,7 +325,7 @@ instance BindsNames (InModule (TopDecl PName)) where
       TDNewtype d      -> namingEnv (InModule ns (tlValue d))
       TDEnum d         -> namingEnv (InModule ns (tlValue d))
       DParamDecl {}    -> mempty
-      Include _        -> mempty
+      Include {}       -> mempty
       DImport {}       -> mempty -- see 'openLoop' in the renamer
       DModule m        -> namingEnv (InModule ns (tlValue m))
       DModParam {}     -> mempty -- shouldn't happen

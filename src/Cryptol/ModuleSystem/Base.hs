@@ -430,6 +430,7 @@ addPrelude m
       , iAs      = Nothing
       , iSpec    = Nothing
       , iInst    = Nothing
+      , iDoc     = Nothing
       }
     }
 

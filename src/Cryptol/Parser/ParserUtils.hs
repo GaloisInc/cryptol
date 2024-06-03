@@ -529,7 +529,7 @@ mkParFun :: Maybe (Located Text) ->
             ParamDecl PName
 mkParFun mbDoc n s = DParameterFun ParameterFun { pfName = n
                                                 , pfSchema = s
-                                                , pfDoc = thing <$> mbDoc
+                                                , pfDoc = mbDoc
                                                 , pfFixity = Nothing
                                                 }
 
@@ -543,7 +543,7 @@ mkParType mbDoc n k =
      return (DParameterType
              ParameterType { ptName    = n
                            , ptKind    = thing k
-                           , ptDoc     = thing <$> mbDoc
+                           , ptDoc     = mbDoc
                            , ptFixity  = Nothing
                            , ptNumber  = num
                            })
@@ -563,6 +563,36 @@ changeExport e = map change
       DImport{}               -> decl
       DParamDecl{}            -> decl
       DInterfaceConstraint {} -> decl
+
+addDeclDocstring :: Located Text -> TopDecl name -> ParseM (TopDecl name)
+addDeclDocstring doc decl =
+  case decl of
+    Decl d -> Decl  <$> topLevel d
+    DPrimType t -> DPrimType <$> topLevel t
+    TDNewtype n -> TDNewtype <$> topLevel n
+    TDEnum n -> TDEnum <$> topLevel n
+    DModule m -> DModule <$> topLevel m
+    DModParam p -> pure (DModParam p { mpDoc = Just doc })
+    Include _ -> failure "Docstring on include"
+    DImport i -> DImport <$> traverse imp i
+    DInterfaceConstraint Nothing x -> pure (DInterfaceConstraint (Just doc) x)
+    DInterfaceConstraint Just{} _ -> failure "Overlapping docstring"
+    DParamDecl{} -> failure "Docstring on parameter declarations"
+  where
+    failure e = errorMessage (fromMaybe emptyRange (getLoc decl)) [e]
+    imp i =
+      case iDoc i of
+        Nothing -> pure i { iDoc = Just doc }
+        Just{}  -> failure "Overlapping docstring"
+    topLevel x =
+      case tlDoc x of
+        Just _ -> failure "Overlapping docstring"
+        Nothing -> pure x { tlDoc = Just doc }
+
+privateDocedDecl :: Located Text -> [TopDecl PName] -> ParseM [TopDecl PName]
+privateDocedDecl doc [decl] = traverse (addDeclDocstring doc) [decl]
+privateDocedDecl doc _ =
+  errorMessage (srcRange doc) ["Docstring on private requires since declaration"]
 
 mkTypeInst :: Named (Type PName) -> TypeInst PName
 mkTypeInst x | nullIdent (thing (name x)) = PosInst (value x)
@@ -1089,7 +1119,7 @@ mkInterfaceConstraint ::
   Maybe (Located Text) -> Type PName -> ParseM [TopDecl PName]
 mkInterfaceConstraint mbDoc ty =
   do ps <- mkProp ty
-     pure [DInterfaceConstraint (thing <$> mbDoc) ps]
+     pure [DInterfaceConstraint mbDoc ps]
 
 mkParDecls :: [ParamDecl PName] -> TopDecl PName
 mkParDecls ds = DParamDecl loc (mkInterface' [] ds)
@@ -1122,7 +1152,7 @@ mkInterface' is =
   add s d =
     case d of
       DParameterType pt       -> s { sigTypeParams  = pt  : sigTypeParams s  }
-      DParameterConstraint ps -> s { sigConstraints = ps ++ sigConstraints s }
+      DParameterConstraint ps -> s { sigConstraints = pcProps ps ++ sigConstraints s }
       DParameterDecl pd       -> s { sigDecls       = pd  : sigDecls s       }
       DParameterFun pf        -> s { sigFunParams   = pf  : sigFunParams s   }
 
@@ -1240,6 +1270,7 @@ mkBacktickImport ::
   Located (ImpName PName) ->
   Maybe (Located ModName) ->
   Maybe (Located ImportSpec) ->
+  Maybe (Located Text) ->
   ParseM (Located (ImportG (ImpName PName)))
 mkBacktickImport loc impName mbAs mbImportSpec =
   mkImport loc impName (Just inst) mbAs mbImportSpec Nothing
@@ -1254,9 +1285,10 @@ mkImport ::
   Maybe (Located ModName) ->
   Maybe (Located ImportSpec) ->
   Maybe (Located [Decl PName]) ->
+  Maybe (Located Text) ->
   ParseM (Located (ImportG (ImpName PName)))
 
-mkImport loc impName optInst mbAs mbImportSpec optImportWhere =
+mkImport loc impName optInst mbAs mbImportSpec optImportWhere doc =
   do i <- getInst
      let end = fromMaybe (srcRange impName)
              $ msum [ srcRange <$> optImportWhere
@@ -1270,6 +1302,7 @@ mkImport loc impName optInst mbAs mbImportSpec optImportWhere =
                                  , iAs        = thing <$> mbAs
                                  , iSpec      = thing <$> mbImportSpec
                                  , iInst      = i
+                                 , iDoc       = doc
                                  }
                   }
   where
@@ -1420,11 +1453,13 @@ desugarTopDs ownerName = go emptySig
         in
         case d of
 
-          DImport i | ImpTop _ <- iModule (thing i)
-                    , Nothing  <- iInst (thing i) ->
+          DImport i
+            | ImpTop _ <- iModule (thing i)
+            , Nothing  <- iInst (thing i) ->
             cont [d] (addI i sig)
 
-          DImport i | Just inst <- iInst (thing i) ->
+          DImport i
+            | Just inst <- iInst (thing i) ->
             do newDs <- desugarInstImport i inst
                cont newDs sig
 

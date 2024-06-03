@@ -98,7 +98,7 @@ checkParameterType a =
   do let mbDoc = P.ptDoc a
          k = cvtK (P.ptKind a)
          n = thing (P.ptName a)
-     return ModTParam { mtpKind = k, mtpName = n, mtpDoc = mbDoc }
+     return ModTParam { mtpKind = k, mtpName = n, mtpDoc = thing <$> mbDoc }
 
 
 -- | Check a type-synonym declaration.
