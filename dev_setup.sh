@@ -7,7 +7,8 @@
 #
 # This script installs everything needed to get a working development
 # environment for cryptol. Any new environment requirements should be
-# added to this script.
+# added to this script. This script is not interactive but it may define
+# some environment variables that need to be loaded after it runs.
 #
 # There is some half-baked support for macOS 12 (x86_64), but it hasn't been
 # tested.
@@ -35,6 +36,8 @@ WHAT4_CVC5_VERSION="version 1.1.1"
 MACOS14="macos14"
 MACOS12="macos12" # actually, this isn't supported yet
 
+USED_BREW=false
+
 # Returns a string indicating the platform (from the set above), or empty if
 # a supported platform is not detected.
 function supported_platform {
@@ -48,7 +51,6 @@ function supported_platform {
             # This might bork on something running macOS <12, since we're basing
             # the it on the hardware, not the specific version.
             elif [ $(uname -m) = "x86_64" ]; then
-                # CRYPTOL_PLATFORM=$MACOS12
                 echo ""
             fi;;
         *) echo ""
@@ -61,7 +63,7 @@ function notice {
 }
 
 function is_installed {
-    command -v $* >/dev/null 2>&1
+    command -v "$@" >/dev/null 2>&1
 }
 
 # Requires: LOG set to log file path.
@@ -90,26 +92,25 @@ function update_submodules {
 }
 
 function install_ghcup {
-    if ! is_installed ghcup
-    then
-        ghcup_url="https://get-ghcup.haskell.org"
-        notice "ghcup not found; do you want to install from $ghcup_url"
-        read -p "Press Enter to continue or 'n' to skip: " consent
-        case $consent in
-            [Nn]* ) notice "Skipping ghcup installation"; return;;
-            * ) notice "Installing ghcup";;
-        esac
+    if ! is_installed ghcup; then
+        notice "Installing GHC toolchain via GHCup"
+        # Manually install Haskel toolchain. If this doesn't work, try
+        # using the install script at https://www.haskell.org/ghcup/
+        if [ $CRYPTOL_PLATFORM = $MACOS12 ] || [ $CRYPTOL_PLATFORM = $MACOS14 ]; then
+            logged brew install ghcup
+            USED_BREW=true
+        else
+            notice "Did not install GHCup. This script only supports macOS 14"
+        fi
 
-        # Technically the installation only requires cabal, but it's
-        # recommended to get the whole GCH shebang in one package.
-        # The output is not routed to log because the installer is interactive.
-        ghc_dir=$(mktemp -d)
-        logged curl --proto '=https' --tlsv1.2 -sSf -o "$ghc_dir/ghcup.bin" $ghcup_url
-        cd $ghc_dir
-        sh ghcup.bin
-        rm -r $ghc_dir
+        logged ghcup install ghc --set recommended
+        logged ghcup install cabal --set recommended
+        logged ghcup install stack --set recommended
+        logged ghcup install hls --set recommended
+        logged cabal update
     else
-        notice "Using existing ghcup installation"
+        notice "Using existing GHCup installation, and assuming that if you"\
+            "have GHCup, you also have the rest of the Haskell toolchain"
     fi
 
 }
@@ -118,12 +119,7 @@ function install_gmp {
     if [ $CRYPTOL_PLATFORM = $MACOS12 ] || [ $CRYPTOL_PLATFORM = $MACOS14 ]; then
         notice "Installing GMP via Homebrew, if it's not already installed"
         logged brew install gmp
-
-        # `brew --prefix` is different on macOS 12 and macOS 14
-        echo "export CPATH=$(brew --prefix)/include" >> $VAR_FILE
-        echo "export LIBRARY_PATH=$(brew --prefix)/lib" >> $VAR_FILE
-        notice "You may need to source new environment variables added here:\n" \
-            "\$ source $VAR_FILE"
+        USED_BREW=true
     else
         notice "Did not install GMP. This script only supports macOS 14"
     fi
@@ -132,7 +128,16 @@ function install_gmp {
 # Installs the two solvers required to run the test suite for the repo.
 # Users may want to install other solvers, and indeed the what4 solvers repo
 # includes a half dozen other solvers that are compatible with cryptol. 
-function install_what4_solvers {
+function install_solvers {
+
+    # Install the latest z3
+    if ! is_installed z3; then
+        notice "Installing z3 solver via Homebrew"
+        logged brew install z3
+        USED_BREW=true
+    fi
+
+    # Install other solvers using the cryptol-approved set of binaries
     if ! is_installed cvc4 || ! is_installed cvc5; then
         notice "Installing cvc4 and/or cvc5 solvers from $WHAT4_SOLVERS_URL"
 
@@ -156,22 +161,37 @@ function install_what4_solvers {
             fi
         done
 
+        cd $HERE
         rm -r $solvers_dir
     else
         notice "Not installing cvc4 or cvc5 solvers because they already exist"
 
-        if ! (grep -q $WHAT4_CVC4_VERSION <<< "$(cvc4 --version)"); then
+        # Make sure the installed versions are the versions that have been tested
+        version_file=$(mktemp)
+        cvc4 --version > $version_file
+        if ! (grep -q "$WHAT4_CVC4_VERSION" $version_file); then
             notice "Your version of cvc4 is unexpected; expected $WHAT4_CVC4_VERSION"
-            notice "Got: $(grep "cvc4 version" <<< "$(cvc4 --version)")"
+            notice "Got: $(grep 'cvc4 version' $version_file)"
             notice "To ensure compatibility, you might want to uninstall the "\
                 "existing version and re-run this script."
         fi
-        if ! (grep -q $WHAT4_CVC5_VERSION <<< "$(cvc5 --version)" ); then
-            notice "Your version of cvc5 is unexpected; expected $WHAT5_CVC5_VERSION"
-            notice "Got: $(grep "cvc5 version" <<< "$(cvc5 --version)")"
+        cvc5 --version > $version_file
+        if ! (grep -q "$WHAT4_CVC5_VERSION" $version_file); then
+            notice "Your version of cvc5 is unexpected; expected $WHAT4_CVC5_VERSION"
+            notice "Got: $(grep "cvc5 version" $version_file)"
             notice "To ensure compatibility, you might want to uninstall the "\
                 "existing version and re-run this script."
         fi
+    fi
+}
+
+function put_brew_in_path {
+    if $USED_BREW; then
+        # `brew --prefix` is different on macOS 12 and macOS 14
+        echo "export CPATH=$(brew --prefix)/include" >> $VAR_FILE
+        echo "export LIBRARY_PATH=$(brew --prefix)/lib" >> $VAR_FILE
+        notice "You may need to source new environment variables added here:\n" \
+            "\$ source $VAR_FILE"
     fi
 }
 
@@ -186,4 +206,5 @@ fi
 update_submodules
 install_ghcup
 install_gmp
-install_what4_solvers
+install_solvers
+put_brew_in_path
