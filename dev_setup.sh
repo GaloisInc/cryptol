@@ -25,6 +25,9 @@ VAR_FILE=$ROOT/env.sh
 truncate -s 0 $VAR_FILE
 echo "# Generated environment variables. Manual changes will get clobbered by dev_setup.sh" >> $VAR_FILE
 
+GHC_VERSION="9.4.8"
+CABAL_VERSION="3.10.3.0"
+
 WHAT4_SOLVERS_SNAPSHOT="snapshot-20240212"
 WHAT4_SOLVERS_URL="https://github.com/GaloisInc/what4-solvers/releases/download/$WHAT4_SOLVERS_SNAPSHOT/"
 WHAT4_SOLVERS_MACOS_12="macos-12-X64-bin.zip"
@@ -93,7 +96,7 @@ function update_submodules {
 
 function install_ghcup {
     if ! is_installed ghcup; then
-        notice "Installing GHC toolchain via GHCup"
+        notice "Installing GHCup via Homebrew"
         # Manually install Haskel toolchain. If this doesn't work, try
         # using the install script at https://www.haskell.org/ghcup/
         if [ $CRYPTOL_PLATFORM = $MACOS12 ] || [ $CRYPTOL_PLATFORM = $MACOS14 ]; then
@@ -102,15 +105,17 @@ function install_ghcup {
         else
             notice "Did not install GHCup. This script only supports macOS 14"
         fi
-
-        logged ghcup install ghc --set recommended
-        logged ghcup install cabal --set recommended
-        logged ghcup install stack --set recommended
-        logged ghcup install hls --set recommended
-        logged cabal update
     else
-        notice "Using existing GHCup installation, and assuming that if you"\
-            "have GHCup, you also have the rest of the Haskell toolchain"
+        notice "Using existing GHCup installation"
+    fi
+
+    notice "Installing ghc and cabal via GHCup"
+    logged ghcup install ghc $GHC_VERSION
+    logged ghcup install cabal $CABAL_VERSION
+    logged ~/.ghcup/bin/cabal-$CABAL_VERSION update
+
+    if ! is_installed ghc || ! is_installed cabal; then
+        echo "export PATH=$PATH:~/.ghcup/bin" >> $VAR_FILE
     fi
 
 }
@@ -190,8 +195,6 @@ function put_brew_in_path {
         # `brew --prefix` is different on macOS 12 and macOS 14
         echo "export CPATH=$(brew --prefix)/include" >> $VAR_FILE
         echo "export LIBRARY_PATH=$(brew --prefix)/lib" >> $VAR_FILE
-        notice "You may need to source new environment variables added here:\n" \
-            "\$ source $VAR_FILE"
     fi
 }
 
@@ -208,3 +211,6 @@ install_ghcup
 install_gmp
 install_solvers
 put_brew_in_path
+
+notice "You may need to source new environment variables added here:\n" \
+    "\$ source $VAR_FILE"
