@@ -12,6 +12,10 @@ cabal.project.freeze
 cabal.project.local*
 .vscode/
 
+# artifacts of the setup script
+dev_setup.log
+env.sh
+
 # don't check in generated documentation
 #docs/CryptolPrims.pdf
 #docs/ProgrammingCryptol.pdf
