@@ -26,7 +26,7 @@ import Cryptol.TypeCheck.PP(emptyNameMap,ppWithNames)
 
 import Cryptol.REPL.Monad
 
-helpForNamed :: P.PName -> REPL ()
+helpForNamed :: P.PName -> REPL Bool
 helpForNamed qname =
   do fe <- getFocusedEnv
      let params = M.mctxParams fe
@@ -47,8 +47,11 @@ helpForNamed qname =
          separ = rPutStrLn "            ---------"
      sequence_ (intersperse separ helps)
 
-     when (null (vNames ++ cNames ++ tNames ++ mNames)) $
+     let failure = null (vNames ++ cNames ++ tNames ++ mNames)
+     when failure $
        rPrint $ "Undefined name:" <+> pp qname
+    
+     pure (not failure)
 
 
 noInfo :: NameDisp -> M.Name -> REPL ()
