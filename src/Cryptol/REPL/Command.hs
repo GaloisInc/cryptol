@@ -139,7 +139,7 @@ import qualified System.Random.TF as TF
 import qualified System.Random.TF.Instances as TFI
 import Numeric (showFFloat)
 import qualified Data.Text as T
-import Data.IORef(newIORef,readIORef,writeIORef)
+import Data.IORef(newIORef, readIORef, writeIORef, modifyIORef)
 
 import GHC.Float (log1p, expm1)
 
@@ -147,6 +147,7 @@ import Prelude ()
 import Prelude.Compat
 
 import qualified Data.SBV.Internals as SBV (showTDiff)
+import Data.Foldable (foldl')
 
 
 
@@ -191,9 +192,10 @@ data CommandBody
 
 data CommandResult = CommandResult
   { crType :: Maybe String -- ^ type output for relevant commands
-  , crValue :: Maybe String -- ^ value output for relevan commands 
+  , crValue :: Maybe String -- ^ value output for relevant commands
   , crSuccess :: Bool -- ^ indicator that command successfully performed its task
   }
+  deriving (Show)
 
 emptyCommandResult :: CommandResult
 emptyCommandResult = CommandResult
@@ -298,6 +300,9 @@ nbCommandList  =
         ])
   , CommandDescr [ ":new-seed"] [] (NoArg newSeedCmd)
       "Randomly generate and set a new seed for the random number generator"
+      ""
+  , CommandDescr [ ":check-docstrings" ] [] (ModNameArg checkDocStringsCmd)
+      "Run the REPL code blocks in the module's docstring comments"
       ""
   ]
 
@@ -420,6 +425,12 @@ evalCmd str lineNum mbBatch = do
       -- comment or empty input does nothing
       pure emptyCommandResult
 
+  -- parsing and evaluating expressions can fail in many different ways
+  `catch` \e -> do
+      rPutStrLn ""
+      rPrint (pp e)
+      pure emptyCommandResult { crSuccess = False }
+
 printCounterexample :: CounterExampleType -> Doc -> [Concrete.Value] -> REPL ()
 printCounterexample cexTy exprDoc vs =
   do ppOpts <- getPPValOpts
@@ -518,14 +529,14 @@ qcExpr qcMode exprDoc texpr schema =
   do (val,ty) <- replEvalCheckedExpr texpr schema >>= \mb_res -> case mb_res of
        Just res -> pure res
        -- If instance is not found, doesn't necessarily mean that there is no instance.
-       -- And due to nondeterminism in result from the solver (for finding solution to 
+       -- And due to nondeterminism in result from the solver (for finding solution to
        -- numeric type constraints), `:check` can get to this exception sometimes, but
        -- successfully find an instance and test with it other times.
        Nothing -> raise (InstantiationsNotFound schema)
      testNum <- (toInteger :: Int -> Integer) <$> getKnownUser "tests"
      tenv <- E.envTypes . M.deEnv <$> getDynEnv
      let tyv = E.evalValType tenv ty
-     -- tv has already had polymorphism instantiated 
+     -- tv has already had polymorphism instantiated
      percentRef <- io $ newIORef Nothing
      testsRef <- io $ newIORef 0
 
@@ -813,7 +824,7 @@ cmdProveSat isSat "" _pos _fnm =
                 pure $! acc && success
           success <- foldM check True xs
           pure emptyCommandResult { crSuccess = success }
-     
+
 
 cmdProveSat isSat str pos fnm = do
   pexpr <- replParseExpr str pos fnm
@@ -913,7 +924,7 @@ proveSatExpr isSat rng exprDoc texpr schema = do
 printSafetyViolation :: T.Expr -> T.Schema -> [E.GenValue Concrete] -> REPL ()
 printSafetyViolation texpr schema vs =
     catch
-      (do fn <- replEvalCheckedExpr texpr schema >>= \mb_res -> case mb_res of 
+      (do fn <- replEvalCheckedExpr texpr schema >>= \mb_res -> case mb_res of
             Just (fn, _) -> pure fn
             Nothing -> raise (EvalPolyError schema)
           rEval (E.forceValue =<< foldM (\f v -> E.fromVFun Concrete f (pure v)) fn vs))
@@ -1110,7 +1121,7 @@ typeOfCmd str pos fnm = do
   -- type annotation ':' has precedence 2
   let output = show $ runDoc fDisp $ group $ hang
                  (ppPrec 2 expr <+> text ":") 2 (pp sig)
-  
+
   rPutStrLn output
   pure emptyCommandResult { crType = Just output }
 
@@ -1565,12 +1576,12 @@ moduleCmdResult (res,ws0) = do
 
       -- ignore certain warnings during typechecking
       filterTypecheck :: M.ModuleWarning -> Maybe M.ModuleWarning
-      filterTypecheck (M.TypeCheckWarnings nameMap xs) = 
-        case filter (allow . snd) xs of 
+      filterTypecheck (M.TypeCheckWarnings nameMap xs) =
+        case filter (allow . snd) xs of
           [] -> Nothing
           ys -> Just (M.TypeCheckWarnings nameMap ys)
           where
-            allow :: T.Warning -> Bool 
+            allow :: T.Warning -> Bool
             allow = \case
               T.DefaultingTo _ _ | not warnDefaulting -> False
               T.NonExhaustivePropGuards _ | not warnNonExhConGrds -> False
@@ -1933,5 +1944,178 @@ moduleInfoCmd isFile name
        rPutStrLn "}"
        pure emptyCommandResult
 
+-- | Extract the code blocks from the body of a docstring.
+--
+-- A single code block starts with at least 3 backticks followed by an
+-- optional language specifier of "cryptol". This allowed other kinds
+-- of code blocks to be included (and ignored) in docstrings. Longer
+-- backtick sequences can be used when a code block needs to be able to
+-- contain backtick sequences.
+--
+-- @
+-- /**
+--  * A docstring example
+--  *
+--  * ```cryptol
+--  * :check example
+--  * ```
+--  */
+-- @
+extractCodeBlocks :: T.Text -> Either String [[T.Text]]
+extractCodeBlocks raw = go [] (T.lines raw)
+  where
+    go finished [] = Right (reverse finished)
+    go finished (x:xs)
+      | (ticks, lang) <- T.span ('`' ==) x
+      , 3 <= T.length ticks
+      = if lang `elem` ["", "repl"]
+        then keep finished ticks [] xs
+        else skip finished ticks xs
+      | otherwise = go finished xs
 
+    -- process a code block that we're keeping
+    keep _ _ _ [] = Left "Unclosed code block"
+    keep finished close acc (x:xs)
+      | close == x = go (reverse acc : finished) xs
+      | otherwise = keep finished close (x : acc) xs
 
+    -- process a code block that we're skipping
+    skip _ _ [] = Left "Unclosed code block"
+    skip finished close (x:xs)
+      | close == x = go finished xs
+      | otherwise = skip finished close xs
+
+data SubcommandResult = SubcommandResult
+  { srInput :: T.Text
+  , srResult :: CommandResult
+  , srLog :: String
+  }
+
+-- | Check a single code block from inside a docstring.
+--
+-- The result will contain the results of processing the commands up to
+-- the first failure.
+--
+-- Execution of the commands is run in an isolated REPL environment.
+checkBlock ::
+  [T.Text] {- ^ lines of the code block -} ->
+  REPL [SubcommandResult]
+checkBlock = isolated . go
+  where
+    go [] = pure []
+    go (line:block) =
+      case parseCommand (findNbCommand True) (T.unpack line) of
+        Nothing -> do
+          pure [SubcommandResult
+            { srInput = line
+            , srLog = "Failed to parse command"
+            , srResult = emptyCommandResult { crSuccess = False }
+            }]
+        Just Ambiguous{} -> do
+          pure [SubcommandResult
+            { srInput = line
+            , srLog = "Ambiguous command"
+            , srResult = emptyCommandResult { crSuccess = False }
+            }]
+        Just Unknown{} -> do
+          pure [SubcommandResult
+            { srInput = line
+            , srLog = "Unknown command"
+            , srResult = emptyCommandResult { crSuccess = False }
+            }]
+        Just (Command cmd) -> do
+          (logtxt, result) <- captureLog (cmd 0 Nothing)
+          results <- checkBlock block
+          let subresult = SubcommandResult
+                { srInput = line
+                , srLog = logtxt
+                , srResult = result
+                }
+          pure (subresult : results)
+
+captureLog :: REPL a -> REPL (String, a)
+captureLog m = do
+  previousLogger <- getLogger
+  outputsRef <- io (newIORef [])
+  setPutStr (\str -> modifyIORef outputsRef (str:))
+  result <- m `finally` setLogger previousLogger
+  outputs <- io (readIORef outputsRef)
+  let output = concat (reverse outputs)
+  pure (output, result)
+
+-- | Check all the code blocks in a given docstring.
+checkDocString :: T.Text -> REPL [[SubcommandResult]]
+checkDocString str =
+  case extractCodeBlocks str of
+    Left e -> do
+      pure [[SubcommandResult
+        { srInput = T.empty
+        , srResult = emptyCommandResult { crSuccess = False }
+        , srLog = e
+        }]]
+    Right bs -> do
+      traverse checkBlock bs
+
+-- | Check all of the docstrings in the given module.
+--
+-- The outer list elements correspond to the code blocks from the
+-- docstrings in file order. Each inner list corresponds to the
+-- REPL commands inside each of the docstrings.
+checkDocStrings :: M.LoadedModule -> REPL [[SubcommandResult]]
+checkDocStrings m = do
+  let dat = M.lmdModule (M.lmData m)
+  let ds = T.gatherModuleDocstrings dat
+  concat <$> traverse checkDocString ds
+
+-- | Evaluate all the docstrings in the specified module.
+--
+-- This command succeeds when:
+-- * the module can be found
+-- * the docstrings can be parsed for code blocks
+-- * all of the commands in the docstrings succeed
+checkDocStringsCmd ::
+  String {- ^ module name -} ->
+  REPL CommandResult
+checkDocStringsCmd input
+  | null input = do
+    mb <- getLoadedMod
+    case lName =<< mb of
+      Nothing -> do
+        rPutStrLn "No current module"
+        pure emptyCommandResult { crSuccess = False }
+      Just mn -> checkModName mn
+  | otherwise =
+    case parseModName input of
+      Nothing -> do
+        rPutStrLn "Invalid module name"
+        pure emptyCommandResult { crSuccess = False }
+      Just mn -> checkModName mn
+
+  where
+
+    countOutcomes :: [SubcommandResult] -> (Int, Int)
+    countOutcomes = foldl' countOutcomes' (0, 0)
+      where
+        countOutcomes' (successes, failures) result
+          | crSuccess (srResult result) = (successes + 1, failures)
+          | otherwise = (successes, failures + 1)
+
+    checkModName :: P.ModName -> REPL CommandResult
+    checkModName mn = do
+        mb <- M.lookupModule mn <$> getModuleEnv
+        case mb of
+          Nothing -> do
+            rPutStrLn ("Module " ++ show input ++ " is not loaded")
+            pure emptyCommandResult { crSuccess = False }
+
+          Just fe -> do
+            results <- checkDocStrings fe
+            let (successes, failures) = countOutcomes (concat results)
+
+            forM_ results $ \result ->
+              forM_ result $ \line -> do
+                rPutStrLn (T.unpack (srInput line))
+                rPutStr (srLog line)
+            rPutStrLn ("Successes: " ++ show successes ++ " Failures: " ++ show failures)
+
+            pure emptyCommandResult { crSuccess = failures == 0 }

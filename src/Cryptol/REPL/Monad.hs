@@ -57,6 +57,7 @@ module Cryptol.REPL.Monad (
   , asBatch
   , validEvalContext
   , updateREPLTitle
+  , isolated
   , setUpdateREPLTitle
   , withRandomGen
   , setRandomGen
@@ -79,6 +80,7 @@ module Cryptol.REPL.Monad (
     -- ** Configurable Output
   , getPutStr
   , getLogger
+  , setLogger
   , setPutStr
 
     -- ** Smoke Test
@@ -560,6 +562,11 @@ asBatch body = do
   modifyRW_ $ (\ rw -> rw { eIsBatch = wasBatch })
   return a
 
+isolated :: REPL a -> REPL a
+isolated body = do
+  rw <- getRW
+  body `finally` modifyRW_ (const rw)
+
 -- | Is evaluation enabled? If the currently focused module is parameterized,
 -- then we cannot evaluate.
 validEvalContext :: T.FreeVars a => a -> REPL ()
@@ -592,6 +599,8 @@ getPutStr =
 getLogger :: REPL Logger
 getLogger = eLogger <$> getRW
 
+setLogger :: Logger -> REPL ()
+setLogger logger = modifyRW_ $ \rw -> rw { eLogger = logger }
 
 -- | Use the configured output action to print a string
 rPutStr :: String -> REPL ()
