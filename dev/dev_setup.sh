@@ -86,9 +86,12 @@ supported_platform() {
     esac
 }
 
-RED="\033[0;31m"
 notice() {
     echo "[NOTICE] $*"
+}
+unreachable() {
+    RED="\033[0;31m"
+    echo "${RED}[ERROR] $*"
 }
 
 is_installed() {
@@ -121,7 +124,7 @@ update_submodules() {
         case $CRYPTOL_PLATFORM in
             $UBUNTU20 | $UBUNTU22) logged apt-get install -y git;;
             $MACOS12 | $MACOS14) logged brew install git && USED_BREW=true;;
-            *) notice "Unsupported platform"; return;;
+            *) unreachable "Unsupported platform; did not install git"; return;;
         esac
     fi
     notice "Updating submodules"
@@ -145,7 +148,7 @@ install_ghcup() {
 
                 chmod u+x ghcup
                 mv ghcup /usr/local/bin/;;
-            *) notice "Unsupported platform; did not install GHCup"; return;;
+            *) unreachable "Unsupported platform; did not install GHCup"; return;;
         esac
     else
         notice "Using existing GHCup installation"
@@ -172,7 +175,7 @@ install_gmp() {
         $UBUNTU20 | $UBUNTU22)
             notice "Installing GMP via apt-get, if it's not already installed"
             logged apt-get install -y libgmp-dev libgmp10;;
-        *) notice "Unsupported platform; did not install GMP";;
+        *) unreachable "Unsupported platform; did not install GMP";;
     esac
 }
 
@@ -184,7 +187,7 @@ install_zlib() {
         $UBUNTU20 | $UBUNTU22)
             notice "Installing zlib via apt-get, if it's not already installed"
             logged apt-get install -y zlib1g-dev;;
-        *) notice "Unsupported platform; did not install zlib";;
+        *) unreachable "Unsupported platform; did not install zlib";;
     esac
 
 }
@@ -202,7 +205,7 @@ install_solvers() {
             $MACOS14) solvers_version=$WHAT4_SOLVERS_MACOS_14;;
             $UBUNTU20) solvers_version=$WHAT4_SOLVERS_UBUNTU_20;;
             $UBUNTU22) solvers_version=$WHAT4_SOLVERS_UBUNTU_22;;
-            *) echo "Unsupported platform"; return;;
+            *) unreachable "Unsupported platform; did not install solvers"; return;;
         esac
 
         solvers_dir=$(mktemp -d)
@@ -217,7 +220,7 @@ install_solvers() {
                 $UBUNTU20 | $UBUNTU22)
                     notice "Installing unzip via apt-get"
                     logged apt-get install -y unzip;;
-                *) notice "Unsupported platform; did not install unzip";;
+                *) unreachable "Unsupported platform; did not install unzip"; return;;
             esac
         fi
         logged unzip solvers.bin.zip
@@ -240,30 +243,30 @@ install_solvers() {
     fi
 
     # Make sure the installed versions are the versions that have been tested
+    check_version cvc4 $WHAT4_CVC4_VERSION
+    check_version cvc5 $WHAT4_CVC5_VERSION
+    check_version z3 $WHAT4_Z3_VERSION
+}
+
+# Checks the version of the given command
+# Usage: check_version <command> <expected version>
+#
+# Assumes that the command can be called with `--version`
+check_version() {
+    cmd="$1"
+    expected="$@"
     version_file=$(mktemp)
-    cvc4 --version > $version_file
-    if ! (grep -q "$WHAT4_CVC4_VERSION" $version_file); then
-        notice "Your version of cvc4 is unexpected; expected $WHAT4_CVC4_VERSION"
-        notice "Got: $(grep 'cvc4 version' $version_file)"
-        notice "To ensure compatibility, you might want to uninstall the "\
-            "existing version and re-run this script."
-    fi
-    cvc5 --version > $version_file
-    if ! (grep -q "$WHAT4_CVC5_VERSION" $version_file); then
-        notice "Your version of cvc5 is unexpected; expected $WHAT4_CVC5_VERSION"
-        notice "Got: $(grep 'cvc5 version' $version_file)"
-        notice "To ensure compatibility, you might want to uninstall the "\
-            "existing version and re-run this script."
-    fi
-    z3 --version > $version_file
-    if ! (grep -q "$WHAT4_Z3_VERSION" $version_file); then
-        notice "Your version of z3 is unexpected; expected $WHAT4_Z3_VERSION"
-        notice "Got: $(grep 'Z3 version' $version_file)"
-        notice "To ensure compatibility, you might want to uninstall the "\
+    $cmd --version > $version_file
+    if ! (grep -iq "$expected" $version_file); then
+        actual_version=$(grep -i -m 1 "version" $version_file)
+        notice "Your version of $cmd is unexpected; expected $expected"
+        notice "    Got: $actual_version"
+        notice "    To ensure compatibility, you might want to uninstall the "\
             "existing version and re-run this script."
     fi
     rm $version_file
 }
+
 
 put_brew_in_path() {
     if $USED_BREW; then
