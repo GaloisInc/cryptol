@@ -5,13 +5,16 @@
 # Supported distribution(s):
 #  * macOS 14 (AArch64)
 #  * Ubuntu 20.04 (x86_64)
+#  * Ubuntu 22.04 (x86_64)
 #
 # This script installs everything needed to get a working development
 # environment for cryptol. Any new environment requirements should be
 # added to this script. This script is not interactive but it may define
 # some environment variables that need to be loaded after it runs.
+# Assumptions:
+# - In Ubuntu, we assume that the system has already run `apt-get update`
 #
-# There is some half-baked support for macOS 12 (x86_64) and Ubuntu 22.04,
+# There is some half-baked support for macOS 12 (x86_64),
 # but it hasn't been tested.
 #
 
@@ -36,6 +39,7 @@ WHAT4_SOLVERS_URL="https://github.com/GaloisInc/what4-solvers/releases/download/
 WHAT4_SOLVERS_MACOS_12="macos-12-X64-bin.zip"
 WHAT4_SOLVERS_MACOS_14="macos-14-ARM64-bin.zip"
 WHAT4_SOLVERS_UBUNTU_20="ubuntu-20.04-X64-bin.zip"
+WHAT4_SOLVERS_UBUNTU_22="ubuntu-22.04-X64-bin.zip"
 WHAT4_CVC4_VERSION="version 1.8"
 WHAT4_CVC5_VERSION="version 1.1.1"
 WHAT4_Z3_VERSION="version 4.8.14"
@@ -44,7 +48,7 @@ WHAT4_Z3_VERSION="version 4.8.14"
 MACOS14="macos14"
 MACOS12="macos12" # actually, this isn't supported yet
 UBUNTU20="ubuntu-20.04"
-UBUNTU22="ubuntu-22.04" # actually, this isn't supported yet
+UBUNTU22="ubuntu-22.04"
 
 USED_BREW=false
 
@@ -66,17 +70,14 @@ supported_platform() {
         Linux)
             # Install lsb-release if not available to determine version
             if ! is_installed lsb_release; then
-                logged apt-get update && logged apt-get install -y lsb-release
+                logged apt-get install -y lsb-release
             fi
             version_file=$(mktemp)
             lsb_release -d > $version_file
             if $(grep -q "Ubuntu 20.04" $version_file); then
                 echo $UBUNTU20
             elif $(grep -q "Ubuntu 22.04" $version_file); then
-                # This is how we'd support Ubuntu 22.04. Since this hasn't been
-                # tested yet, we withhold official support.
-                #echo $UBUNTU22
-                echo ""
+                echo $UBUNTU22
             else
                 echo ""
             fi
@@ -144,7 +145,7 @@ install_ghcup() {
 
                 chmod u+x ghcup
                 mv ghcup /usr/local/bin/;;
-            *) notice "Did not install GHCup. This script only supports Ubuntu 20.04 and macOS 14"; return;;
+            *) notice "Unsupported platform; did not install GHCup"; return;;
         esac
     else
         notice "Using existing GHCup installation"
@@ -171,7 +172,7 @@ install_gmp() {
         $UBUNTU20 | $UBUNTU22)
             notice "Installing GMP via apt-get, if it's not already installed"
             logged apt-get install -y libgmp-dev libgmp10;;
-        *) notice "Did not install GMP. This script only supports Ubuntu 20.04 and macOS 14";;
+        *) notice "Unsupported platform; did not install GMP";;
     esac
 }
 
@@ -183,7 +184,7 @@ install_zlib() {
         $UBUNTU20 | $UBUNTU22)
             notice "Installing zlib via apt-get, if it's not already installed"
             logged apt-get install -y zlib1g-dev;;
-        *) notice "Did not install zlib. This script only supports Ubuntu 20.04 and macOS 14";;
+        *) notice "Unsupported platform; did not install zlib";;
     esac
 
 }
@@ -200,6 +201,7 @@ install_solvers() {
             $MACOS12) solvers_version=$WHAT4_SOLVERS_MACOS_12;;
             $MACOS14) solvers_version=$WHAT4_SOLVERS_MACOS_14;;
             $UBUNTU20) solvers_version=$WHAT4_SOLVERS_UBUNTU_20;;
+            $UBUNTU22) solvers_version=$WHAT4_SOLVERS_UBUNTU_22;;
             *) echo "Unsupported platform"; return;;
         esac
 
@@ -215,7 +217,7 @@ install_solvers() {
                 $UBUNTU20 | $UBUNTU22)
                     notice "Installing unzip via apt-get"
                     logged apt-get install -y unzip;;
-                *) notice "Did not install unzip. This script only supports Ubuntu 20.04 and macOS 14";;
+                *) notice "Unsupported platform; did not install unzip";;
             esac
         fi
         logged unzip solvers.bin.zip
@@ -285,7 +287,7 @@ set_ubuntu_language_encoding() {
 notice "Checking whether platform is supported"
 CRYPTOL_PLATFORM=$(supported_platform)
 if [ -z "$CRYPTOL_PLATFORM" ]; then
-    echo "Unsupported platform"
+    echo "Unsupported platform; this script supports Ubuntu 20.04, Ubuntu 22.04, and macOS 14"
     exit 1
 fi
 
