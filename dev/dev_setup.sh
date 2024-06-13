@@ -11,8 +11,11 @@
 # environment for cryptol. Any new environment requirements should be
 # added to this script. This script is not interactive but it may define
 # some environment variables that need to be loaded after it runs.
+# For a list of the setup operations performed by this script, see the
+# "Main Operations" section near the end of this file.
 # Assumptions:
 # - In Ubuntu, we assume that the system has already run `apt-get update`
+# - In macOS, we assume the system has `brew` installed and on the path
 #
 # There is some half-baked support for macOS 12 (x86_64),
 # but it hasn't been tested.
@@ -55,7 +58,6 @@ USED_BREW=false
 # Returns a string indicating the platform (from the set above), or empty if
 # a supported platform is not detected.
 supported_platform() {
-    # Make sure we're running on a supported platform
     case $(uname -s) in
         Darwin)
             if [ $(uname -m) = "arm64" ]; then
@@ -68,20 +70,25 @@ supported_platform() {
                 echo ""
             fi;;
         Linux)
-            # Install lsb-release if not available to determine version
-            if ! is_installed lsb_release; then
-                logged apt-get install -y lsb-release
-            fi
-            version_file=$(mktemp)
-            lsb_release -d > $version_file
-            if $(grep -q "Ubuntu 20.04" $version_file); then
-                echo $UBUNTU20
-            elif $(grep -q "Ubuntu 22.04" $version_file); then
-                echo $UBUNTU22
-            else
+            # If there's no apt-get, then this isn't running Ubuntu
+            if ! is_installed apt-get; then
                 echo ""
-            fi
-            rm $version_file;;
+            else
+                # Install lsb-release if not available to determine version
+                if ! is_installed lsb_release; then
+                    logged apt-get install -y lsb-release
+                fi
+                version_file=$(mktemp)
+                lsb_release -d > $version_file
+                if $(grep -q "Ubuntu 20.04" $version_file); then
+                    echo $UBUNTU20
+                elif $(grep -q "Ubuntu 22.04" $version_file); then
+                    echo $UBUNTU22
+                else
+                    echo ""
+                fi
+                rm $version_file
+            fi;;
         *) echo ""
     esac
 }
@@ -267,8 +274,9 @@ check_version() {
     rm $version_file
 }
 
-
-put_brew_in_path() {
+# Ensure that, if we used brew to install any libraries / headers, they will
+# be available on the user's path. This is particularly needed for GMP.
+put_brew_packages_in_path() {
     if $USED_BREW; then
         # `brew --prefix` is different on macOS 12 and macOS 14
         echo "export CPATH=$(brew --prefix)/include" >> $VAR_FILE
@@ -279,12 +287,19 @@ put_brew_in_path() {
 set_ubuntu_language_encoding() {
     case $CRYPTOL_PLATFORM in
         $UBUNTU20 | $UBUNTU22)
-            notice "Adding language environment variables to $VAR_FILE"
-            echo "export LANG=C.UTF-8" >> $VAR_FILE
-            echo "export LC_ALL=C.UTF-8" >> $VAR_FILE;;
-        *) ;;
+            if $LANG!= *"UTF-8"* || $LANG != *"utf-8"*; then
+                notice "Language environment variables are not set as expected."
+                notice "    You may need to set them to UTF-8."
+                notice "    Uncomment the LANG var in $VAR_FILE before sourcing to do so"
+                echo "# uncomment the following lines to fix decoding errors e.g. hGetContents" >> $VAR_FILE
+                echo "# export LANG=C.UTF-8" >> $VAR_FILE
+            fi;;
+        *) return;;
     esac
 }
+
+
+# Main Operations
 
 # Make sure script is running on a supported platform
 notice "Checking whether platform is supported"
@@ -299,7 +314,7 @@ install_ghcup
 install_gmp
 install_zlib
 install_solvers
-put_brew_in_path
+put_brew_packages_in_path
 set_ubuntu_language_encoding
 
 notice "You may need to source new environment variables added here:\n" \
