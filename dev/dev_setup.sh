@@ -287,11 +287,11 @@ put_brew_packages_in_path() {
 set_ubuntu_language_encoding() {
     case $CRYPTOL_PLATFORM in
         $UBUNTU20 | $UBUNTU22)
-            if $LANG!= *"UTF-8"* || $LANG != *"utf-8"*; then
+            if $LANG != *"UTF-8"* || $LANG != *"utf-8"*; then
                 notice "Language environment variables are not set as expected."
                 notice "    You may need to set them to UTF-8."
                 notice "    Uncomment the LANG var in $VAR_FILE before sourcing to do so"
-                echo "# uncomment the following lines to fix decoding errors e.g. hGetContents" >> $VAR_FILE
+                echo "# uncomment the following line to fix decoding errors e.g. hGetContents" >> $VAR_FILE
                 echo "# export LANG=C.UTF-8" >> $VAR_FILE
             fi;;
         *) return;;

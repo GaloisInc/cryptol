@@ -7,8 +7,6 @@
 FROM ubuntu:20.04
 WORKDIR /home/
 
-ENV LANG="C.UTF-8" LC_ALL="C.UTF-8"
-
 RUN apt-get -y upgrade \
     && apt-get -y update \
     && apt-get install -y \
@@ -18,5 +16,8 @@ RUN ["git", "clone", "https://github.com/GaloisInc/cryptol.git"]
 
 WORKDIR /home/cryptol
 RUN ["dev/dev_setup.sh"]
-RUN ["source", "dev/env.sh"]
-CMD ["/bin/sh"]
+
+# Hardcode the environment variables we're going to need
+ENV LANG="C.UTF-8" LC_ALL="C.UTF-8" PATH=$PATH:/root/.ghcup/bin
+
+CMD ["/bin/bash"]
