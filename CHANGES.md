@@ -1,3 +1,10 @@
+# next -- TBA
+
+## Bug fixes
+
+* Fix #1685, which caused Cryptol to panic when given a local definition without
+  a type signature that uses numeric constraint guards.
+
 # 3.1.0 -- 2024-02-05
 
 ## Language changes

@@ -1,0 +1,5 @@
+// A regression test for #1685.
+f : ()
+f = g
+  where
+    g | 0 == 0 => ()

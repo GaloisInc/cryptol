@@ -171,13 +171,6 @@ data Error    = KindMismatch (Maybe TypeSource) Kind Kind
               | UnsupportedFFIType TypeSource FFITypeError
                 -- ^ Type is not supported for FFI
 
-              | NestedConstraintGuard Ident
-                -- ^ Constraint guards may only apper at the top-level
-
-              | DeclarationRequiresSignatureCtrGrd Ident
-                -- ^ All declarataions in a recursive group involving
-                -- constraint guards should have signatures
-
               | InvalidConstraintGuard Prop
                 -- ^ The given constraint may not be used as a constraint guard
 
@@ -273,8 +266,6 @@ errorImportance err =
     UnsupportedFFIType {}                            -> 7
     -- less than UnexpectedTypeWildCard
 
-    NestedConstraintGuard {}                         -> 10
-    DeclarationRequiresSignatureCtrGrd {}            -> 9
     InvalidConstraintGuard {}                        -> 5
 
 
@@ -342,8 +333,6 @@ instance TVars Error where
       UnsupportedFFIKind {}    -> err
       UnsupportedFFIType src e -> UnsupportedFFIType src !$ apSubst su e
 
-      NestedConstraintGuard {} -> err
-      DeclarationRequiresSignatureCtrGrd {} -> err
       InvalidConstraintGuard p -> InvalidConstraintGuard $! apSubst su p
 
       TemporaryError {} -> err
@@ -395,8 +384,6 @@ instance FVS Error where
       UnsupportedFFIKind {}  -> Set.empty
       UnsupportedFFIType _ t -> fvs t
 
-      NestedConstraintGuard {} -> Set.empty
-      DeclarationRequiresSignatureCtrGrd {} -> Set.empty
       InvalidConstraintGuard p -> fvs p
 
       TemporaryError {} -> Set.empty
@@ -687,18 +674,6 @@ instance PP (WithNames Error) where
       UnsupportedFFIType src t -> vcat
         [ ppWithNames names t
         , "When checking" <+> pp src ]
-
-      NestedConstraintGuard d ->
-        vcat [ "Local declaration" <+> backticks (pp d)
-                                   <+> "may not use constraint guards."
-             , "Constraint guards may only appear at the top-level of a module."
-             ]
-
-      DeclarationRequiresSignatureCtrGrd d ->
-        vcat [ "The declaration of" <+> backticks (pp d) <+>
-                                            "requires a full type signature,"
-             , "because it is part of a recursive group with constraint guards."
-             ]
 
       InvalidConstraintGuard p ->
         let d = case tNoUser p of
