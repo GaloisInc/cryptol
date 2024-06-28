@@ -33,6 +33,7 @@ module Cryptol.ModuleSystem.Renamer.ImplicitImports
 
 import Data.List(partition)
 
+import Cryptol.Utils.Ident(identIsNormal)
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Parser.Position(Range)
 import Cryptol.Utils.Ident(packModName)
@@ -65,6 +66,7 @@ processModule dcl =
           loc             = srcRange (mName m1)
       in
       case mDef m1 of
+        _ | not (identIsNormal mname) -> ([dcl],[])
         NormalModule ds ->
           let (childExs, ds1) = addImplicitNestedImports' ds
               imps            = map (mname :) ([] : childExs) -- this & nested
@@ -113,6 +115,5 @@ mkImp loc xs =
                      , iDoc    = Nothing
                      }
       }
-
 
 

@@ -1487,6 +1487,7 @@ desugarInstImport i inst =
   where
   imp = thing i
   iname = mkUnqual
+        $ identAnonIfaceMod
         $ mkIdent
         $ "import of " <> nm <> " at " <> Text.pack (show (pp (srcRange i)))
     where
