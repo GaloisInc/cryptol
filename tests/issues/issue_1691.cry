@@ -1,0 +1,11 @@
+
+submodule A where
+  x = 2
+
+submodule F where
+  parameter
+    a: Integer
+
+  z = a + 2
+
+submodule B = submodule F where a = 3
