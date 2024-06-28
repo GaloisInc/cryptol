@@ -30,11 +30,9 @@ module Cryptol.TypeCheck.AST
   , module Cryptol.TypeCheck.Type
   ) where
 
-import Data.Maybe(mapMaybe)
-
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.Ident (Ident,isInfixIdent,ModName,PrimIdent,prelPrim)
-import Cryptol.Parser.Position(Located,Range,HasLoc(..))
+import Cryptol.Parser.Position(Located,Range,HasLoc(..), Position, start, from)
 import Cryptol.ModuleSystem.Name
 import Cryptol.ModuleSystem.NamingEnv.Types
 import Cryptol.ModuleSystem.Interface
@@ -55,11 +53,14 @@ import GHC.Generics (Generic)
 import Control.DeepSeq
 
 
-import           Data.Set    (Set)
+import qualified Data.IntMap as IntMap
+import           Data.List   (sortBy)
 import           Data.Map    (Map)
 import qualified Data.Map    as Map
-import qualified Data.IntMap as IntMap
-import           Data.Text (Text)
+import           Data.Maybe  (mapMaybe)
+import           Data.Ord    (comparing)
+import           Data.Set    (Set)
+import           Data.Text   (Text)
 
 
 data TCTopEntity =
@@ -522,3 +523,30 @@ instance PP (WithNames TCTopEntity) where
      TCTopModule m -> ppWithNames nm m
      TCTopSignature n ps ->
         hang ("interface module" <+> pp n <+> "where") 2 (pp ps)
+
+gatherModuleDocstrings :: Module -> [Text]
+gatherModuleDocstrings m =
+  map snd $
+  sortBy (comparing fst) $
+  gatherModuleDocstrings' m { mName = start }
+
+gatherModuleDocstrings' :: ModuleG Position -> [(Position, Text)]
+gatherModuleDocstrings' m =
+  cat [(mName m, mDoc m)] ++
+  cat [(mName m, mpnDoc (mpParameters param)) | (_, param) <- Map.assocs (mParams m)] ++
+  cat [(pos n, mtpDoc param) | (n, param) <- Map.assocs (mParamTypes m)] ++
+  cat [(pos n, mvpDoc param) | (n, param) <- Map.assocs (mParamFuns m)] ++
+  cat [(pos n, tsDoc t) | (n, t) <- Map.assocs (mTySyns m)] ++
+  cat [(pos n, ntDoc t) | (n, t) <- Map.assocs (mNominalTypes m)] ++
+  cat [(pos (dName d), dDoc d) | g <- mDecls m, d <- groupDecls g] ++
+  cat [(pos n, ifsDoc s) | (n, s) <- Map.assocs (mSubmodules m)] ++
+  cat [(pos n, mpnDoc s) | (n, s) <- Map.assocs (mSignatures m)] ++
+  [doc | m' <- Map.elems (mFunctors m), doc <- gatherModuleDocstrings' (mapModName pos m')]
+  -- functor parameters don't have a *name*, so we associate them with their module for now
+  where
+    pos = from . nameLoc
+
+    mapModName f md = md { mName = f (mName md) }
+
+    cat :: [(Position, Maybe Text)] -> [(Position, Text)]
+    cat entries = [(p, d) | (p, Just d) <- entries]

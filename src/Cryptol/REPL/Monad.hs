@@ -57,6 +57,7 @@ module Cryptol.REPL.Monad (
   , asBatch
   , validEvalContext
   , updateREPLTitle
+  , isolated
   , setUpdateREPLTitle
   , withRandomGen
   , setRandomGen
@@ -79,6 +80,7 @@ module Cryptol.REPL.Monad (
     -- ** Configurable Output
   , getPutStr
   , getLogger
+  , setLogger
   , setPutStr
 
     -- ** Smoke Test
@@ -560,6 +562,11 @@ asBatch body = do
   modifyRW_ $ (\ rw -> rw { eIsBatch = wasBatch })
   return a
 
+isolated :: REPL a -> REPL a
+isolated body = do
+  rw <- getRW
+  body `finally` modifyRW_ (const rw)
+
 -- | Is evaluation enabled.  If the currently focused module is
 -- parameterized, then we cannot evalute.
 validEvalContext :: T.FreeVars a => a -> REPL ()
@@ -606,6 +613,8 @@ getPutStr =
 getLogger :: REPL Logger
 getLogger = eLogger <$> getRW
 
+setLogger :: Logger -> REPL ()
+setLogger logger = modifyRW_ $ \rw -> rw { eLogger = logger }
 
 -- | Use the configured output action to print a string
 rPutStr :: String -> REPL ()
@@ -752,12 +761,13 @@ mkUserEnv opts = Map.fromList $ do
   return (optName opt, optDefault opt)
 
 -- | Set a user option.
-setUser :: String -> String -> REPL ()
+-- Returns 'True' on success
+setUser :: String -> String -> REPL Bool
 setUser name val = case lookupTrieExact name userOptionsWithAliases of
 
   [opt] -> setUserOpt opt
-  []    -> rPutStrLn ("Unknown env value `" ++ name ++ "`")
-  _     -> rPutStrLn ("Ambiguous env value `" ++ name ++ "`")
+  []    -> False <$ rPutStrLn ("Unknown env value `" ++ name ++ "`")
+  _     -> False <$ rPutStrLn ("Ambiguous env value `" ++ name ++ "`")
 
   where
   setUserOpt opt = case optDefault opt of
@@ -766,25 +776,26 @@ setUser name val = case lookupTrieExact name userOptionsWithAliases of
     EnvProg _ _ ->
       case splitOptArgs val of
         prog:args -> doCheck (EnvProg prog args)
-        [] -> rPutStrLn ("Failed to parse command for field, `" ++ name ++ "`")
+        [] -> False <$ rPutStrLn ("Failed to parse command for field, `" ++ name ++ "`")
 
     EnvNum _ -> case reads val of
       [(x,_)] -> doCheck (EnvNum x)
-      _ -> rPutStrLn ("Failed to parse number for field, `" ++ name ++ "`")
+      _ -> False <$ rPutStrLn ("Failed to parse number for field, `" ++ name ++ "`")
 
     EnvBool _
       | any (`isPrefixOf` val) ["enable", "on", "yes", "true"] ->
-        writeEnv (EnvBool True)
+        True <$ writeEnv (EnvBool True)
       | any (`isPrefixOf` val) ["disable", "off", "no", "false"] ->
-        writeEnv (EnvBool False)
+        True <$ writeEnv (EnvBool False)
       | otherwise ->
-        rPutStrLn ("Failed to parse boolean for field, `" ++ name ++ "`")
+        False <$ rPutStrLn ("Failed to parse boolean for field, `" ++ name ++ "`")
     where
     doCheck v = do (r,ws) <- optCheck opt v
                    case r of
-                     Just err -> rPutStrLn err
+                     Just err -> False <$ rPutStrLn err
                      Nothing  -> do mapM_ rPutStrLn ws
                                     writeEnv v
+                                    pure True
     writeEnv ev =
       do optEff opt ev
          modifyRW_ (\rw -> rw { eUserEnv = Map.insert (optName opt) ev (eUserEnv rw) })
