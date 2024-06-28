@@ -33,6 +33,7 @@ module Cryptol.ModuleSystem.Renamer.ImplicitImports
 
 import Data.List(partition)
 
+import Cryptol.Utils.Panic(panic)
 import Cryptol.Parser.Position(Range)
 import Cryptol.Utils.Ident(packModName)
 import Cryptol.Parser.AST
@@ -56,25 +57,27 @@ addImplicitNestedImports' decls =
 
 
 processModule :: TopDecl PName -> ([TopDecl PName], [[Ident]])
-processModule ~dcl@(DModule m) =
-  let NestedModule m1 = tlValue m
-  in
-  case mDef m1 of
-    NormalModule ds ->
-      let (childExs, ds1) = addImplicitNestedImports' ds
+processModule dcl =
+  case dcl of
+    DModule m ->
+      let NestedModule m1 = tlValue m
           mname           = getIdent (thing (mName m1))
-          imps            = map (mname :) ([] : childExs) -- this & nested
           loc             = srcRange (mName m1)
-      in ( DModule m { tlValue = NestedModule m1 { mDef = NormalModule ds1 } }
-         : map (mkImp loc) imps
-         , case tlExport m of
-             Public  -> imps
-             Private -> []
-         )
+      in
+      case mDef m1 of
+        NormalModule ds ->
+          let (childExs, ds1) = addImplicitNestedImports' ds
+              imps            = map (mname :) ([] : childExs) -- this & nested
+          in ( DModule m { tlValue = NestedModule m1 { mDef = NormalModule ds1 } }
+             : map (mkImp loc) imps
+             , case tlExport m of
+                 Public  -> imps
+                 Private -> []
+             )
 
-    FunctorInstance {} -> ([dcl], [])
-    InterfaceModule {} -> ([dcl], [])
-
+        FunctorInstance {} -> ([dcl, mkImp loc [mname]], [])
+        InterfaceModule {} -> ([dcl], [])
+    _ -> panic "processModule" ["Not a module"]
 
 
 
