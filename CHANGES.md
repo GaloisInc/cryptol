@@ -1,6 +1,6 @@
 # next -- TBA
 
-## Language chnages
+## Language changes
 
 * Add implicit imports for non-anonymous modules defined by functor
   instantiation.   For details, see #1691.
