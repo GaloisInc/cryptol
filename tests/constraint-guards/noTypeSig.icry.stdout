@@ -1,0 +1,7 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+
+At noTypeSig.cry:1:1--1:2:
+  Declaration `f` lacks a type signature.
+  Declarations using constraint guards require an explicit type signature.

@@ -956,8 +956,6 @@ inferBinds isTopLevel isRec binds =
                      genCs     <- generalize bs1 cs
                      return (done,genCs)
 
-     checkNumericConstraintGuardsOK isTopLevel sigs noSigs
-
      rec
        let exprMap = Map.fromList (map monoUse genBs)
        (doneBs, genBs) <- check exprMap
@@ -983,40 +981,6 @@ inferBinds isTopLevel isRec binds =
 
     withTys  = foldl' appT (EVar x) as
     withQs   = foldl' appP withTys  qs
-
-
-{-
-Here we also check that:
-  * Numeric constraint guards appear only at the top level
-  * All definitions in a recursive groups with numberic constraint guards
-    have signatures
-
-The reason is to avoid interference between local constraints coming
-from the guards and type inference.  It might be possible to
-relex these requirements, but this requires some more careful thought on
-the interaction between the two, and the effects on pricniple types.
--}
-checkNumericConstraintGuardsOK ::
-  Bool -> [P.Bind Name] -> [P.Bind Name] -> InferM ()
-checkNumericConstraintGuardsOK isTopLevel haveSig noSig =
-  do unless isTopLevel
-            (mapM_ (mkErr NestedConstraintGuard) withGuards)
-     unless (null withGuards)
-            (mapM_ (mkErr DeclarationRequiresSignatureCtrGrd) noSig)
-  where
-  mkErr f b =
-    do let nm = P.bName b
-       inRange (srcRange nm) (recordError (f (nameIdent (thing nm))))
-
-  withGuards = filter hasConstraintGuards haveSig
-  -- When desugaring constraint guards we check that they have signatures,
-  -- so no need to look at noSig
-
-  hasConstraintGuards b =
-    case P.bindImpl b of
-      Just (P.DPropGuards {}) -> True
-      _                       -> False
-
 
 
 {- | Come up with a type for recursive calls to a function, and decide
@@ -1178,6 +1142,9 @@ checkMonoB b t =
                          , dDoc = thing <$> P.bDoc b
                          }
 
+        -- The pass in Cryptol.Parser.ExpandPropGuards ensures that by the time
+        -- we reach this code, all definitions that use constraint guards will
+        -- have a type signature, so this case should be unreachable.
         P.DPropGuards _ ->
           tcPanic "checkMonoB"
             [ "Used constraint guards without a signature at "
