@@ -33,10 +33,9 @@ module Cryptol.ModuleSystem.Renamer.ImplicitImports
 
 import Data.List(partition)
 
-import Cryptol.Utils.Ident(identIsNormal)
+import Cryptol.Utils.Ident(identIsNormal, packModName)
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Parser.Position(Range)
-import Cryptol.Utils.Ident(packModName)
 import Cryptol.Parser.AST
 
 {- | Add additional imports for modules nested withing this one -}
