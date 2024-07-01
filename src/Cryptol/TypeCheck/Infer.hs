@@ -1434,7 +1434,7 @@ checkPropGuardCase asmps (P.PropGuardCase guards e0) =
   getT ti =
     case ti of
       P.PosInst t    -> t
-      P.NamedInst {} -> bad "Unexpeceted NamedInst"
+      P.NamedInst {} -> bad "Unexpected NamedInst"
 
   bad msg = panic "checkPropGuardCase" [msg]
 
