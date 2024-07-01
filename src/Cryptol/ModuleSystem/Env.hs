@@ -22,14 +22,16 @@ import Paths_cryptol (getDataDir)
 
 import Cryptol.Backend.FFI (ForeignSrc, unloadForeignSrc, getForeignSrcPath)
 import Cryptol.Eval (EvalEnv)
+import qualified Cryptol.IR.FreeVars as T
 import Cryptol.ModuleSystem.Fingerprint
 import Cryptol.ModuleSystem.Interface
-import Cryptol.ModuleSystem.Name (Name,Supply,emptySupply)
+import Cryptol.ModuleSystem.Name (Name,NameInfo(..),Supply,emptySupply,nameInfo)
 import qualified Cryptol.ModuleSystem.NamingEnv as R
 import Cryptol.Parser.AST
 import qualified Cryptol.TypeCheck as T
 import qualified Cryptol.TypeCheck.Interface as T
 import qualified Cryptol.TypeCheck.AST as T
+import qualified Cryptol.Utils.Ident as I
 import Cryptol.Utils.PP (PP(..),text,parens,NameDisp)
 
 import Data.ByteString(ByteString)
@@ -478,6 +480,30 @@ isLoadedParamMod mn ln = any ((mn ==) . lmName) (lmLoadedParamModules ln)
 isLoadedInterface :: ModName -> LoadedModules -> Bool
 isLoadedInterface mn ln = any ((mn ==) . lmName) (lmLoadedSignatures ln)
 
+-- | Return the set of type parameters (@'Set' 'T.TParam'@) and definitions
+-- (@'Set' 'Name'@) from the supplied 'LoadedModules' value that another
+-- definition (of type @a@) depends on.
+loadedParamModDeps ::
+  T.FreeVars a =>
+  LoadedModules ->
+  a ->
+  (Set T.TParam, Set Name)
+loadedParamModDeps lm a = (badTs, bad)
+  where
+    ds      = T.freeVars a
+    badVals = foldr badName Set.empty (T.valDeps ds)
+    bad     = foldr badName badVals (T.tyDeps ds)
+    badTs   = T.tyParams ds
+
+    badName nm bs =
+      case nameInfo nm of
+
+        -- XXX: Changes if focusing on nested modules
+        GlobalName _ I.OrigName { ogModule = I.TopModule m }
+          | isLoadedParamMod m lm -> Set.insert nm bs
+          | isLoadedInterface m lm -> Set.insert nm bs
+
+        _ -> bs
 
 
 lookupTCEntity :: ModName -> ModuleEnv -> Maybe (LoadedModuleG T.TCTopEntity)
