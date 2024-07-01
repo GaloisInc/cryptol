@@ -1234,6 +1234,11 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
           asmps1 <- applySubstPreds asmps0
           t1     <- applySubst t0
           cases1 <- mapM (checkPropGuardCase asmps1) cases0
+          -- If we recorded any errors when type-checking the constraint guards,
+          -- then abort early. We don't want to check exhaustivity if there are
+          -- malformed constraints, as these can cause panics elsewhere during
+          -- exhaustivity checking (see the `issue{1593,1693}` test cases).
+          abortIfErrors
 
           exh <- checkExhaustive (P.bName b) as asmps1 (map fst cases1)
           unless exh $
