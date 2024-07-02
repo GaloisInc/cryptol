@@ -1,0 +1,18 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+
+[error] at issue_1696.cry:3:1--3:13:
+  Failed to infer the following types:
+    • ?m, type argument 'back' of 'take' at issue_1696.cry:3:5--3:9
+  while validating user-specified signature
+    in the definition of 'Main::f', at issue_1696.cry:3:1--3:2,
+    we need to show that
+      for any type m, n
+      assuming
+        • m >= n
+      the following constraints hold:
+        • m == ?m + n
+            arising from
+            matching types
+            at issue_1696.cry:3:5--3:9
