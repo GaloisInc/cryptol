@@ -18,14 +18,6 @@ a : [4]
 b : [8]
 c : [m]
 0x0d
-Submodules
-==========
-    
-  From Inst3
-  ----------
-       
-    import of F at issue1455/G.cry:5:1--5:9
-     
 Type Synonyms
 =============
     
@@ -275,10 +267,4 @@ Symbols
     c : [m]
     x : [4]
     y : [8]
-     
-  From Inst3::import of F at issue1455/G.cry:5:1--5:9
-  ---------------------------------------------------
-       
-    a : [4]
-    b : [8]
      

@@ -56,6 +56,7 @@ module Cryptol.Utils.Ident
   , modParamIdent
   , identAnonArg
   , identAnonIfaceMod
+  , identAnontInstImport
   , identIsNormal
 
     -- * Namespaces
@@ -169,9 +170,9 @@ instance NFData ModName
 modNameArg :: ModName -> ModName
 modNameArg (ModName m fl) =
   case fl of
-    NormalName        -> ModName m AnonModArgName
-    AnonModArgName    -> panic "modNameArg" ["Name is not normal"]
-    AnonIfaceModName  -> panic "modNameArg" ["Name is not normal"]
+    NormalName  -> ModName m AnonModArgName
+    _           -> panic "modNameArg" ["Name is not normal"]
+
 
 -- | Change a normal module name to a module name to be used for an
 -- anonnymous interface.
@@ -179,8 +180,7 @@ modNameIfaceMod :: ModName -> ModName
 modNameIfaceMod (ModName m fl) =
   case fl of
     NormalName        -> ModName m AnonIfaceModName
-    AnonModArgName    -> panic "modNameIfaceMod" ["Name is not normal"]
-    AnonIfaceModName  -> panic "modNameIfaceMod" ["Name is not normal"]
+    _                 -> panic "modNameIfaceMod" ["Name is not normal"]
 
 -- | This is used when we check that the name of a module matches the
 -- file where it is defined.
@@ -351,6 +351,10 @@ identAnonArg (Ident b _ txt) = Ident b AnonModArgName txt
 identAnonIfaceMod :: Ident -> Ident
 identAnonIfaceMod (Ident b _ txt) = Ident b AnonIfaceModName txt
 
+-- | Make an anonymous identifier for an instantiation in an import.
+identAnontInstImport :: Ident -> Ident
+identAnontInstImport (Ident b _ txt) = Ident b AnonInstImport txt
+
 identIsNormal :: Ident -> Bool
 identIsNormal (Ident _ mb _) = isNormal mb
 
@@ -360,6 +364,7 @@ identIsNormal (Ident _ mb _) = isNormal mb
 data MaybeAnon = NormalName       -- ^ Not an anonymous name.
                | AnonModArgName   -- ^ Anonymous module (from `where`)
                | AnonIfaceModName -- ^ Anonymous interface (from `parameter`)
+               | AnonInstImport   -- ^ Anonymous instance import
   deriving (Eq,Ord,Show,Generic)
 
 instance NFData MaybeAnon
@@ -371,6 +376,7 @@ maybeAnonText mb txt =
     NormalName       -> txt
     AnonModArgName   -> "`where` argument of " <> txt
     AnonIfaceModName -> "`parameter` interface of " <> txt
+    AnonInstImport   -> txt
 
 isNormal :: MaybeAnon -> Bool
 isNormal mb =
