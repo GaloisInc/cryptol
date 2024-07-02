@@ -10,6 +10,10 @@
 
 * Fix #1685, which caused Cryptol to panic when given a local definition without
   a type signature that uses numeric constraint guards.
+
+* Fix #1696, which corrected an incorrect simplification rule, leading to
+  panics.
+
 # 3.1.0 -- 2024-02-05
 
 ## Language changes
