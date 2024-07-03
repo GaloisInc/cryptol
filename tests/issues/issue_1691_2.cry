@@ -1,0 +1,12 @@
+
+
+submodule F where
+  parameter x: Integer
+  y = x + 1
+
+submodule B = submodule F where x = 2
+
+submodule M where
+  submodule A where
+    a = 2
+  submodule B = submodule F where x = 2
