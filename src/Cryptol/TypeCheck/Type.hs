@@ -965,7 +965,7 @@ pNegNumeric prop =
 
   where
   bad = panic "pNegNumeric"
-          [ "Unexpeceted numeric constraint:"
+          [ "Unexpected numeric constraint:"
           , pretty prop
           ]
 
