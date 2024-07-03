@@ -11,6 +11,9 @@
 * Fix #1685, which caused Cryptol to panic when given a local definition without
   a type signature that uses numeric constraint guards.
 
+* Fix #1593 and #1693, two related bugs that would cause Cryptol to panic when
+  checking ill-typed constraint guards for exhaustivity.
+
 * Fix #1696, which corrected an incorrect simplification rule, leading to
   panics.
 
