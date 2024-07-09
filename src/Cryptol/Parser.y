@@ -19,6 +19,7 @@ module Cryptol.Parser
   , parseRepl, parseReplWith
   , parseSchema, parseSchemaWith
   , parseModName, parseHelpName
+  , parseImpName
   , ParseError(..), ppError
   , Layout(..)
   , Config(..), defaultConfig
@@ -155,6 +156,7 @@ import Paths_cryptol
 %name repl    repl
 %name schema  schema
 %name modName modName
+%name impName impName
 %name helpName help_name
 %tokentype { Located Token }
 %monad { ParseM }
@@ -942,6 +944,12 @@ field_ty_vals                  :: { [Named (Type PName)] }
 parseModName :: String -> Maybe ModName
 parseModName txt =
   case parseString defaultConfig { cfgModuleScope = False } modName txt of
+    Right a -> Just (thing a)
+    Left _  -> Nothing
+
+parseImpName :: String -> Maybe (ImpName PName)
+parseImpName txt =
+  case parseString defaultConfig { cfgModuleScope = False } impName txt of
     Right a -> Just (thing a)
     Left _  -> Nothing
 

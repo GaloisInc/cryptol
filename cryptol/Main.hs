@@ -292,7 +292,7 @@ setupREPL opts = do
              -- we tried, instead of the Prelude
              REPL.setEditPath l
              REPL.setLoadedMod REPL.LoadedModule
-               { REPL.lName = Nothing
+               { REPL.lFocus = Nothing
                , REPL.lPath = InFile l
                }
     _   -> io $ putStrLn "Only one file may be loaded at the command line."

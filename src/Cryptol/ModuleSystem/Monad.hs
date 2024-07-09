@@ -577,13 +577,16 @@ getEvalOpts =
 getNominalTypes :: ModuleM (Map T.Name T.NominalType)
 getNominalTypes = ModuleT (loadedNominalTypes <$> get)
 
-getFocusedModule :: ModuleM (Maybe P.ModName)
+getFocusedModule :: ModuleM (Maybe (P.ImpName T.Name))
 getFocusedModule  = ModuleT (meFocusedModule `fmap` get)
 
-setFocusedModule :: P.ModName -> ModuleM ()
-setFocusedModule n = ModuleT $ do
+setFocusedModule :: P.ImpName T.Name -> ModuleM ()
+setFocusedModule = setMaybeFocusedModule . Just
+
+setMaybeFocusedModule :: Maybe (P.ImpName T.Name) -> ModuleM ()
+setMaybeFocusedModule mb = ModuleT $ do
   me <- get
-  set $! me { meFocusedModule = Just n }
+  set $! me { meFocusedModule = mb }
 
 getSearchPath :: ModuleM [FilePath]
 getSearchPath  = ModuleT (meSearchPath `fmap` get)

@@ -81,7 +81,7 @@ import qualified Cryptol.Backend.FFI.Error as FFI
 
 import Cryptol.Utils.Ident ( preludeName, floatName, arrayName, suiteBName, primeECName
                            , preludeReferenceName, interactiveName, modNameChunks
-                           , modNameToNormalModName )
+                           , modNameToNormalModName, Namespace(NSModule) )
 import Cryptol.Utils.PP (pretty, pp, hang, vcat, ($$), (<+>), (<.>), colon)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.Logger(logPutStrLn, logPrint)
@@ -118,6 +118,21 @@ rename modName env m = do
 renameModule :: P.Module PName -> ModuleM R.RenamedModule
 renameModule m = rename (thing (mName m)) mempty (R.renameModule m)
 
+renameImpNameInCurrentEnv :: P.ImpName PName -> ModuleM (P.ImpName Name)
+renameImpNameInCurrentEnv (P.ImpTop top) =
+ do ok <- isLoaded top
+    if ok then
+      pure (P.ImpTop top)
+    else
+      fail ("Top-level module not loaded: " ++ show (pp top))
+renameImpNameInCurrentEnv (P.ImpNested pname) =
+ do env <- getFocusedEnv
+    case R.lookupListNS NSModule pname (mctxNames env) of
+      [] -> do
+        fail ("Undefined submodule name: " ++ show (pp pname))
+      _:_:_ -> do
+        fail ("Ambiguous submodule name: " ++ show (pp pname))
+      [name] -> pure (P.ImpNested name)
 
 -- NoPat -----------------------------------------------------------------------
 

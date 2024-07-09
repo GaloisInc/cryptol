@@ -852,7 +852,7 @@ lookupModule iname =
       do localMods <- getScope mSubmodules
          case Map.lookup m localMods of
            Just names ->
-              do n <- genIfaceWithNames names <$> getCurDecls
+              do n <- genIfaceWithNames (smIface names) <$> getCurDecls
                  pure (If.ifaceForgetName n)
 
            Nothing ->
@@ -1057,7 +1057,10 @@ endSubmodule =
                  , mSignatures  = add mSignatures
                  , mSubmodules  = if isFun
                                     then mSubmodules y
-                                    else Map.insert m (genIfaceNames x1)
+                                    else let sm = Submodule
+                                                    { smIface = genIfaceNames x1
+                                                    , smInScope = mInScope x }
+                                         in Map.insert m sm
                                                (mSubmodules x <> mSubmodules y)
                  , mFunctors    = if isFun
                                     then Map.insert m x1 (mFunctors y)
@@ -1183,7 +1186,7 @@ addSignatures :: Map Name ModParamNames -> InferM ()
 addSignatures mp =
   updScope \r -> r { mSignatures = Map.union mp (mSignatures r) }
 
-addSubmodules :: Map Name (If.IfaceNames Name) -> InferM ()
+addSubmodules :: Map Name Submodule -> InferM ()
 addSubmodules mp =
   updScope \r -> r { mSubmodules = Map.union mp (mSubmodules r) }
 

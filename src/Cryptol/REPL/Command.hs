@@ -63,6 +63,8 @@ import Cryptol.REPL.Browse
 import Cryptol.REPL.Help
 
 import qualified Cryptol.ModuleSystem as M
+import qualified Cryptol.ModuleSystem.Interface as M
+import qualified Cryptol.ModuleSystem.Monad as M
 import qualified Cryptol.ModuleSystem.Name as M
 import qualified Cryptol.ModuleSystem.NamingEnv as M
 import qualified Cryptol.ModuleSystem.Renamer as M
@@ -74,7 +76,7 @@ import Cryptol.ModuleSystem.Fingerprint(fingerprintHexString)
 import           Cryptol.Backend.FloatHelpers as FP
 import qualified Cryptol.Backend.Monad as E
 import qualified Cryptol.Backend.SeqMap as E
-import           Cryptol.Eval.Concrete( Concrete(..) )
+import Cryptol.Backend.Concrete ( Concrete(..) )
 import qualified Cryptol.Eval.Concrete as Concrete
 import qualified Cryptol.Eval.Env as E
 import           Cryptol.Eval.FFI
@@ -86,7 +88,7 @@ import Cryptol.Testing.Random
 import qualified Cryptol.Testing.Random  as TestR
 import Cryptol.Parser
     (parseExprWith,parseReplWith,ParseError(),Config(..),defaultConfig
-    ,parseModName,parseHelpName)
+    ,parseModName,parseHelpName,parseImpName)
 import           Cryptol.Parser.Position (Position(..),Range(..),HasLoc(..))
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck.Error as T
@@ -329,6 +331,9 @@ commandList  =
     ""
   , CommandDescr [ ":m", ":module" ] ["[ MODULE ]"] (FilenameArg moduleCmd)
     "Load a module by its name."
+    ""
+  , CommandDescr [ ":f", ":focus" ] ["[ MODULE ]"] (ModNameArg focusCmd)
+    "Focus name scope inside a loaded module."
     ""
   , CommandDescr [ ":w", ":writeByteArray" ] ["FILE", "EXPR"] (FileExprArg writeFileCmd)
     "Write data of type 'fin n => [n][8]' to a file."
@@ -1241,7 +1246,7 @@ editCmd path =
      mbL <- getLoadedMod
      if not (null path)
         then do when (isNothing mbL)
-                  $ setLoadedMod LoadedModule { lName = Nothing
+                  $ setLoadedMod LoadedModule { lFocus = Nothing
                                               , lPath = M.InFile path }
                 doEdit path
         else case msum [ M.InFile <$> mbE, lPath <$> mbL ] of
@@ -1301,12 +1306,48 @@ moduleCmd modString
            case mpath of
              M.InFile file ->
                do setEditPath file
-                  setLoadedMod LoadedModule { lName = Just m, lPath = mpath }
+                  setLoadedMod LoadedModule { lFocus = Just (P.ImpTop m), lPath = mpath }
                   loadHelper (M.loadModuleByPath file)
              M.InMem {} -> loadHelper (M.loadModuleByName m)
       Nothing ->
         do rPutStrLn "Invalid module name."
            pure emptyCommandResult { crSuccess = False }
+
+
+focusCmd :: String -> REPL CommandResult
+focusCmd modString
+  | null modString =
+   do mb <- getLoadedMod
+      case mb of
+        Nothing -> pure ()
+        Just lm ->
+          case lName lm of
+            Nothing -> pure ()
+            Just name -> do
+              let top = P.ImpTop name
+              liftModuleCmd (`M.runModuleM` M.setFocusedModule top)
+              setLoadedMod lm { lFocus = Just top }
+      pure emptyCommandResult
+
+  | otherwise =
+    case parseImpName modString of
+      Nothing ->
+        do rPutStrLn "Invalid module name."
+           pure emptyCommandResult { crSuccess = False }
+    
+      Just pimpName -> do
+        impName <- liftModuleCmd (setFocusedModuleCmd pimpName)
+        mb <- getLoadedMod
+        case mb of
+          Nothing -> pure ()
+          Just lm -> setLoadedMod lm { lFocus = Just impName }
+        pure emptyCommandResult
+
+setFocusedModuleCmd :: P.ImpName P.PName -> M.ModuleCmd (P.ImpName T.Name)
+setFocusedModuleCmd pimpName i = M.runModuleM i $
+ do impName <- M.renameImpNameInCurrentEnv pimpName
+    M.setFocusedModule impName
+    pure impName
 
 loadPrelude :: REPL ()
 loadPrelude  = void $ moduleCmd $ show $ pp M.preludeName
@@ -1317,7 +1358,7 @@ loadCmd path
 
   -- when `:load`, the edit and focused paths become the parameter
   | otherwise = do setEditPath path
-                   setLoadedMod LoadedModule { lName = Nothing
+                   setLoadedMod LoadedModule { lFocus = Nothing
                                              , lPath = M.InFile path
                                              }
                    loadHelper (M.loadModuleByPath path)
@@ -1329,7 +1370,7 @@ loadHelper how =
 
      whenDebug (rPutStrLn (dump ent))
      setLoadedMod LoadedModule
-        { lName = Just (T.tcTopEntitytName ent)
+        { lFocus = Just (P.ImpTop (T.tcTopEntitytName ent))
         , lPath = path
         }
      -- after a successful load, the current module becomes the edit target
@@ -1379,12 +1420,13 @@ browseCmd input
        rPrint (browseModContext BrowseInScope fe)
        pure emptyCommandResult
   | otherwise =
-    case parseModName input of
+    case parseImpName input of
       Nothing -> do
         rPutStrLn "Invalid module name"
         pure emptyCommandResult { crSuccess = False }
-      Just m -> do
-        mb <- M.modContextOf m <$> getModuleEnv
+      Just pimpName -> do
+        impName <- liftModuleCmd (`M.runModuleM` M.renameImpNameInCurrentEnv pimpName)
+        mb <- M.modContextOf impName <$> getModuleEnv
         case mb of
           Nothing -> do
             rPutStrLn ("Module " ++ show input ++ " is not loaded")
@@ -2044,8 +2086,8 @@ captureLog m = do
   pure (output, result)
 
 -- | Check all the code blocks in a given docstring.
-checkDocString :: T.Text -> REPL [[SubcommandResult]]
-checkDocString str =
+checkDocString :: P.ImpName T.Name -> T.Text -> REPL [[SubcommandResult]]
+checkDocString impName str =
   case extractCodeBlocks str of
     Left e -> do
       pure [[SubcommandResult
@@ -2053,8 +2095,11 @@ checkDocString str =
         , srResult = emptyCommandResult { crSuccess = False }
         , srLog = e
         }]]
-    Right bs -> do
-      traverse checkBlock bs
+    Right bs ->
+      Ex.bracket
+        (liftModuleCmd (`M.runModuleM` (M.getFocusedModule <* M.setFocusedModule impName)))
+        (\mb -> liftModuleCmd (`M.runModuleM` M.setMaybeFocusedModule mb))
+        (\_ -> traverse checkBlock bs)
 
 -- | Check all of the docstrings in the given module.
 --
@@ -2064,8 +2109,8 @@ checkDocString str =
 checkDocStrings :: M.LoadedModule -> REPL [[SubcommandResult]]
 checkDocStrings m = do
   let dat = M.lmdModule (M.lmData m)
-  let ds = T.gatherModuleDocstrings dat
-  concat <$> traverse checkDocString ds
+  let ds = T.gatherModuleDocstrings (M.ifaceNameToModuleMap (M.lmInterface m)) dat
+  concat <$> traverse (uncurry checkDocString) ds
 
 -- | Evaluate all the docstrings in the specified module.
 --
@@ -2114,8 +2159,11 @@ checkDocStringsCmd input
 
             forM_ results $ \result ->
               forM_ result $ \line -> do
+                rPutStrLn ""
                 rPutStrLn (T.unpack (srInput line))
                 rPutStr (srLog line)
-            rPutStrLn ("Successes: " ++ show successes ++ " Failures: " ++ show failures)
+            
+            rPutStrLn ""
+            rPutStrLn ("Successes: " ++ show successes ++ ", Failures: " ++ show failures)
 
             pure emptyCommandResult { crSuccess = failures == 0 }

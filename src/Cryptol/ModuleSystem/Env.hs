@@ -25,7 +25,7 @@ import Cryptol.Eval (EvalEnv)
 import qualified Cryptol.IR.FreeVars as T
 import Cryptol.ModuleSystem.Fingerprint
 import Cryptol.ModuleSystem.Interface
-import Cryptol.ModuleSystem.Name (Name,NameInfo(..),Supply,emptySupply,nameInfo)
+import Cryptol.ModuleSystem.Name (Name,NameInfo(..),Supply,emptySupply,nameInfo,nameTopModuleMaybe)
 import qualified Cryptol.ModuleSystem.NamingEnv as R
 import Cryptol.Parser.AST
 import qualified Cryptol.TypeCheck as T
@@ -58,6 +58,7 @@ import Prelude.Compat
 
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.PP(pp)
+import Cryptol.TypeCheck.AST (Submodule(smIface))
 
 -- Module Environment ----------------------------------------------------------
 
@@ -84,7 +85,7 @@ data ModuleEnv = ModuleEnv
 
 
 
-  , meFocusedModule     :: Maybe ModName
+  , meFocusedModule     :: Maybe (ImpName Name)
     -- ^ The "current" module.  Used to decide how to print names, for example.
 
   , meSearchPath        :: [FilePath]
@@ -195,7 +196,7 @@ initialModuleEnv = do
 focusModule :: ModName -> ModuleEnv -> Maybe ModuleEnv
 focusModule n me = do
   guard (isLoaded n (meLoadedModules me))
-  return me { meFocusedModule = Just n }
+  return me { meFocusedModule = Just (ImpTop n) }
 
 -- | Get a list of all the loaded modules. Each module in the
 -- resulting list depends only on other modules that precede it.
@@ -273,9 +274,28 @@ instance Monoid ModContext where
                       }
 
 
+modContextOf :: ImpName Name -> ModuleEnv -> Maybe ModContext
+modContextOf (ImpNested name) me =
+  do mname <- nameTopModuleMaybe name
+     lm <- lookupModule mname me
+     sm <- Map.lookup name (T.mSubmodules (lmModule lm)) -- TODO: support uninstantiated functors
+     let 
+         localNames  = T.smInScope sm
 
-modContextOf :: ModName -> ModuleEnv -> Maybe ModContext
-modContextOf mname me =
+         -- XXX: do we want only public ones here?
+         loadedDecls = map (ifDefines . lmInterface)
+                     $ getLoadedModules (meLoadedModules me)
+
+     pure ModContext
+       { mctxParams   = NoParams
+       , mctxExported = ifsPublic (smIface sm)
+       , mctxDecls    = mconcat (ifDefines (lmInterface lm) : loadedDecls)
+       , mctxNames    = localNames
+       , mctxNameDisp = R.toNameDisp localNames
+       }
+  -- TODO: support focusing inside a submodule signature to support browsing?
+
+modContextOf (ImpTop mname) me =
   do lm <- lookupModule mname me
      let localIface  = lmInterface lm
          localNames  = lmNamingEnv lm

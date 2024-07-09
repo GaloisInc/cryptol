@@ -77,7 +77,7 @@ main = customMain initMod initMod initMod initMod description buildApp
               case res of
                 Left err -> die err
                 Right (m, menv') ->
-                  do res' <- fst <$> runModuleM minp{ minpModuleEnv = menv' } (setFocusedModule (tcTopEntitytName (snd m)))
+                  do res' <- fst <$> runModuleM minp{ minpModuleEnv = menv' } (setFocusedModule (P.ImpTop (tcTopEntitytName (snd m))))
                      case res' of
                        Left err -> die err
                        Right (_, menv'') -> pure menv''

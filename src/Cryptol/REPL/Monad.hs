@@ -48,7 +48,7 @@ module Cryptol.REPL.Monad (
   , getTypeNames
   , getPropertyNames
   , getModNames
-  , LoadedModule(..), getLoadedMod, setLoadedMod, clearLoadedMod
+  , LoadedModule(..), lName, getLoadedMod, setLoadedMod, clearLoadedMod
   , setEditPath, getEditPath, clearEditPath
   , setSearchPath, prependSearchPath
   , getPrompt
@@ -147,9 +147,12 @@ import Prelude.Compat
 
 -- | This indicates what the user would like to work on.
 data LoadedModule = LoadedModule
-  { lName :: Maybe P.ModName  -- ^ Working on this module.
-  , lPath :: M.ModulePath     -- ^ Working on this file.
+  { lFocus :: Maybe (P.ImpName T.Name) -- ^ Working on this module.
+  , lPath :: M.ModulePath -- ^ Working on this file.
   }
+
+lName :: LoadedModule -> Maybe P.ModName
+lName lm = M.impNameTopModule <$> lFocus lm
 
 -- | REPL RW Environment.
 data RW = RW
@@ -234,14 +237,16 @@ mkPrompt rw
   detailedPrompt = id False
 
   modLn   =
-    case lName =<< eLoadedMod rw of
+    case lFocus =<< eLoadedMod rw of
       Nothing -> show (pp I.preludeName)
       Just m
-        | M.isLoadedParamMod m loaded -> modName ++ "(parameterized)"
-        | M.isLoadedInterface m loaded -> modName ++ "(interface)"
+        | M.isLoadedParamMod top loaded -> modName ++ "(parameterized)"
+        | M.isLoadedInterface top loaded -> modName ++ "(interface)"
         | otherwise -> modName
-        where modName = pretty m
-              loaded = M.meLoadedModules (eModuleEnv rw)
+        where 
+          top = M.impNameTopModule m
+          modName = pretty m
+          loaded = M.meLoadedModules (eModuleEnv rw)
 
   withFocus =
     case eLoadedMod rw of
@@ -501,7 +506,7 @@ getEvalOptsAction = REPL $ \rwRef -> pure $
 clearLoadedMod :: REPL ()
 clearLoadedMod = do modifyRW_ (\rw -> rw { eLoadedMod = upd <$> eLoadedMod rw })
                     updateREPLTitle
-  where upd x = x { lName = Nothing }
+  where upd x = x { lFocus = Nothing }
 
 -- | Set the name of the currently focused file, loaded via @:r@.
 setLoadedMod :: LoadedModule -> REPL ()
