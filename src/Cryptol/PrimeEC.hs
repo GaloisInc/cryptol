@@ -294,7 +294,7 @@ ec_mult p d s
   | BN.bigNatIsZero (pz s) = zro
   | otherwise =
       case m of
-        0# -> panic "ec_mult" ["modulus too large", show (BN.bigNatToInteger (primeMod p))]
+        0# -> panic "ec_mult" ["integer with 0 width", show h]
         _  -> go m zro
 
  where
