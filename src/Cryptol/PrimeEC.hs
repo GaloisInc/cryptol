@@ -202,7 +202,7 @@ ec_add p s t
 ec_sub :: PrimeModulus -> ProjectivePoint -> ProjectivePoint -> ProjectivePoint
 ec_sub p s t = ec_add p s u
   where u = case BN.bigNatSub (primeMod p) (py t) of
-              (# | y' #)    -> t{ py = y' }
+              (# | y' #)    -> t{ py = BN.modBigNat y' (primeMod p) }
               (# (# #) | #) -> panic "ec_sub" ["cooridnate not in reduced form!", show (BN.bigNatToInteger (py t))]
 {-# INLINE ec_sub #-}
 

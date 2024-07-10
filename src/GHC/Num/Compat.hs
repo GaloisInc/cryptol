@@ -24,6 +24,7 @@ module GHC.Num.Compat
   , bigNatSqr
   , bigNatSub
   , bigNatSubUnsafe
+  , modBigNat
   , oneBigNat
   , recipModBigNat
   , shiftLBigNat
@@ -72,6 +73,9 @@ oneBigNat _ = BN.bigNatFromWord# 1##
 
 recipModBigNat :: BigNat# -> BigNat# -> BigNat#
 recipModBigNat = BN.sbignat_recip_mod 0#
+
+modBigNat :: BigNat# -> BigNat# -> BigNat#
+modBigNat x y = BN.bigNatPowMod x (integerToBigNat 1) y
 
 shiftLBigNat :: BigNat# -> Int# -> BigNat#
 shiftLBigNat bn i = BN.bigNatShiftL# bn (int2Word# i)
