@@ -11,6 +11,7 @@ import Data.Aeson as JSON
 
 import Cryptol.ModuleSystem (meFocusedModule, meLoadedModules)
 import Cryptol.ModuleSystem.Env (isLoadedParamMod)
+import qualified Cryptol.TypeCheck.AST as T
 import Cryptol.Utils.PP
 
 import CryptolServer
@@ -27,7 +28,10 @@ focusedModule _ =
        Nothing ->
          return $ JSON.object [ "module" .= JSON.Null ]
        Just name ->
-         do let parameterized = isLoadedParamMod name (meLoadedModules me)
+         do let parameterized =
+                  case name of
+                    T.ImpTop top -> isLoadedParamMod top (meLoadedModules me)
+                    _ -> False
             return $ JSON.object [ "module" .= pretty name
                                  , "parameterized" .= parameterized
                                  ]

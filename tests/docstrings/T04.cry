@@ -1,0 +1,11 @@
+module T03 where
+
+/**
+ * Only a subset of REPL commands work in docstrings
+ *
+ * ```repl
+ * :load AFile.cry
+ * ```
+ */
+a : Bit
+a = True
