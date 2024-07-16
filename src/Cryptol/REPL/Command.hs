@@ -2004,8 +2004,10 @@ moduleInfoCmd isFile name
 --  */
 -- @
 extractCodeBlocks :: T.Text -> Either String [[T.Text]]
-extractCodeBlocks raw = go [] (T.lines raw)
+extractCodeBlocks raw = go [] cleanLines
   where
+    cleanLines = T.dropWhile isSpace <$> T.lines raw
+
     go finished [] = Right (reverse finished)
     go finished (x:xs)
       | (ticks, lang) <- T.span ('`' ==) x

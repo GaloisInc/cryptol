@@ -1,0 +1,17 @@
+module T01 where
+
+submodule Sub where
+  /**
+   * This verifies that pp shadows the outer definition
+   * ```
+   * :check pp
+   * ```
+   */
+  pp = True
+
+/**
+ * ```
+ * :check ~ pp
+ * ```
+ */
+pp = False

@@ -4,7 +4,7 @@ set -e
 
 BIN=bin
 
-QUICKTESTS="tests/issues tests/modsys tests/mono-binds tests/parser tests/regression tests/renamer"
+QUICKTESTS="tests/docstrings tests/issues tests/modsys tests/mono-binds tests/parser tests/regression tests/renamer"
 
 function setup_external_tools() {
   [[ -x "$BIN/test-runner" || -x "$BIN/test-runner.exe" ]] && return

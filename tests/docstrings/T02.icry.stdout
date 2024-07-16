@@ -1,0 +1,17 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module T02
+
+:exhaust p
+Using exhaustive testing.
+Testing... Passed 7 tests.
+Q.E.D.
+
+let y = 20
+
+:check f 10 == 20
+Using exhaustive testing.
+Testing... Passed 1 tests.
+Q.E.D.
+
+Successes: 3, Failures: 0

@@ -1,0 +1,20 @@
+module T03 where
+
+/**
+ *
+ * Each code block is meant to be independent
+ *
+ * ```repl
+ * let x = 1
+ * :check x == 1
+ * ```
+ *
+ * The x defined in the previous block shouldn't be in scope for this next test
+ *
+ * ```repl
+ * :check x == 1
+ * ```
+ *
+ */
+a : Bit
+a = True
