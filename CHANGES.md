@@ -14,6 +14,16 @@
 * Fix #1593 and #1693, two related bugs that would cause Cryptol to panic when
   checking ill-typed constraint guards for exhaustivity.
 
+## New features
+
+* New REPL command :focus enables specifying a submodule scope for evaluating
+  expressions.
+
+* New REPL command :check-docstrings extracts code-blocks from docstring
+  comments from a module. Code blocks can be delimited with three-or-more
+  backticks. "repl" and unlabeled code blocks are evaluated in a local
+  REPL context and checked to pass.
+
 # 3.1.0 -- 2024-02-05
 
 ## Language changes
