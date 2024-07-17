@@ -342,10 +342,7 @@ alexGetByte i =
   do (c,rest) <- T.uncons (input i)
      let i' = i { alexPos = move (alexPos i) c, input = rest }
          b  = byteForChar c
-     -- treat \r\n as \n
-     case (b, alexGetByte i') of
-       (13, skip@(Just (10, _))) -> skip
-       _ -> pure (b, i')
+     pure (b, i')
 
 data Layout = Layout | NoLayout
 

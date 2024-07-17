@@ -28,6 +28,7 @@ import qualified Data.List.NonEmpty as NE
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.Function(on)
 import Data.Monoid ((<>),Endo(..), Any(..))
+import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8')
 import System.Directory (doesFileExist, canonicalizePath)
 import System.FilePath ( addExtension
@@ -179,7 +180,7 @@ parseModule path = do
                        , "Exception: " ++ show exn ]
 
   txt <- case decodeUtf8' bytes of
-    Right txt -> return txt
+    Right txt -> return $! (T.replace "\r\n" "\n" txt)
     Left e    -> badUtf8 path e
 
   let cfg = P.defaultConfig
