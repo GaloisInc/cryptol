@@ -1,5 +1,12 @@
 module T01 where
 
+/**
+ * docstrings on submodules get run inside the scope of the submodule
+ *
+ * ```repl
+ * :exhaust pp && pp
+ * ```
+ */
 submodule Sub where
   /**
    * This verifies that pp shadows the outer definition
