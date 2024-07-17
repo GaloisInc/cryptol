@@ -1094,9 +1094,7 @@ result (5 $\times$ 2), but the input has 12.
   comprehension fits the bill:\indComp
 \restartrepl
 \begin{replinVerb}
-  [ split level1 : [4][10][8]
-  | level1 <- split ([1 .. 120] : [120][8]) : [3][40][8]
-  ]
+  [ split level1 : [4][10][8] | level1 <- split ([1 .. 120] : [120][8]) : [3][40][8] ]
 \end{replinVerb}
 (Note again that you can enter the above in the command line all in
 one line, or by putting the line continuation character
@@ -2076,14 +2074,15 @@ the second, we can take \texttt{parts=3}, \texttt{each=4}, and
 \texttt{a=[4]}. The third expression does not type-check. Cryptol
 tells us:
 \restartrepl
-\begin{replinVerb}
+\begin{replPrompt}
   Cryptol> split`{3} [1..10] : [3][2][8]
   [error] at <interactive>:1:11--1:18:
     Type mismatch:
       Expected type: 6
       Inferred type: 10
+      Context: [ERROR] _
       When checking type of function argument
-\end{replinVerb}
+\end{replPrompt}
 In this case, we are telling Cryptol that \texttt{parts = 3},
 \texttt{each = 2}, and \texttt{a = [8]} by providing the explicit type
 signature.\indSignature Using this information, Cryptol must ensure
