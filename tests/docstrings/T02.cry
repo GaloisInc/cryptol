@@ -11,9 +11,10 @@ submodule F where
     c = 1
 
   /**
-   * ```
+   * Longer code block delimiters are supported
+   * ````repl
    * :exhaust p
-   * ```
+   * ````
    */
   p x = c + x == x + c
 
@@ -21,7 +22,7 @@ submodule F7 = submodule F where
   type n = 7
 
 /**
- * ```
+ * ```repl
  * let y = 20
  * :check f 10 == 20
  * ```

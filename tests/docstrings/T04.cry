@@ -6,6 +6,11 @@ module T03 where
  * ```repl
  * :load AFile.cry
  * ```
+ *
+ * Stuff not marked repl is ignored
+ * ```
+ * garbage
+ * ```
  */
 a : Bit
 a = True

@@ -3,14 +3,14 @@ module T01 where
 submodule Sub where
   /**
    * This verifies that pp shadows the outer definition
-   * ```
+   * ```repl
    * :check pp
    * ```
    */
   pp = True
 
 /**
- * ```
+ * ```repl
  * :check ~ pp
  * ```
  */

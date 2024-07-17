@@ -11,7 +11,6 @@ import Data.Aeson as JSON
 
 import Cryptol.ModuleSystem (meFocusedModule, meLoadedModules)
 import Cryptol.ModuleSystem.Env (isLoadedParamMod)
-import qualified Cryptol.TypeCheck.AST as T
 import Cryptol.Utils.PP
 
 import CryptolServer
