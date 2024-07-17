@@ -240,11 +240,10 @@ mkPrompt rw
     case lFocus =<< eLoadedMod rw of
       Nothing -> show (pp I.preludeName)
       Just m
-        | M.isLoadedParamMod top loaded -> modName ++ "(parameterized)"
-        | M.isLoadedInterface top loaded -> modName ++ "(interface)"
+        | M.isLoadedParamMod m loaded -> modName ++ "(parameterized)"
+        | M.isLoadedInterface m loaded -> modName ++ "(interface)"
         | otherwise -> modName
         where 
-          top = M.impNameTopModule m
           modName = pretty m
           loaded = M.meLoadedModules (eModuleEnv rw)
 

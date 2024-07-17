@@ -433,7 +433,7 @@ getLoadedMaybe mn = ModuleT $
 isLoaded :: P.ModName -> ModuleM Bool
 isLoaded mn =
   do env <- ModuleT get
-     pure (MEnv.isLoaded mn (meLoadedModules env))
+     pure (MEnv.isLoaded (T.ImpTop mn) (meLoadedModules env))
 
 loadingImport :: Located P.Import -> ModuleM a -> ModuleM a
 loadingImport  = loading . FromImport

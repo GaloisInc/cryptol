@@ -28,10 +28,7 @@ focusedModule _ =
        Nothing ->
          return $ JSON.object [ "module" .= JSON.Null ]
        Just name ->
-         do let parameterized =
-                  case name of
-                    T.ImpTop top -> isLoadedParamMod top (meLoadedModules me)
-                    _ -> False
+         do let parameterized = isLoadedParamMod name (meLoadedModules me)
             return $ JSON.object [ "module" .= pretty name
                                  , "parameterized" .= parameterized
                                  ]
