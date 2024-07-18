@@ -58,7 +58,6 @@ import Prelude.Compat
 
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.PP(pp)
-import Cryptol.TypeCheck.AST (Submodule(smIface))
 
 -- Module Environment ----------------------------------------------------------
 
@@ -273,22 +272,26 @@ instance Monoid ModContext where
                       , mctxNameDisp = R.toNameDisp mempty
                       }
 
+findEnv :: Name -> Iface -> T.ModuleG a -> Maybe (R.NamingEnv, Set Name)
+findEnv n iface m
+  | Just sm <- Map.lookup n (T.mSubmodules m) = Just (T.smInScope sm, ifsPublic (T.smIface sm))
+  | Just fn <- Map.lookup n (T.mFunctors m) =
+      case Map.lookup n (ifFunctors (ifDefines iface)) of
+        Nothing -> panic "findEnv" ["Submodule functor not present in interface"]
+        Just d -> Just (T.mInScope fn, ifsPublic (ifNames d))
+  | otherwise = asum (fmap (findEnv n iface) (Map.elems (T.mFunctors m)))
 
 modContextOf :: ImpName Name -> ModuleEnv -> Maybe ModContext
 modContextOf (ImpNested name) me =
   do mname <- nameTopModuleMaybe name
      lm <- lookupModule mname me
-     sm <- Map.lookup name (T.mSubmodules (lmModule lm)) -- TODO: support uninstantiated functors
-     let 
-         localNames  = T.smInScope sm
-
-         -- XXX: do we want only public ones here?
+     (localNames, exported) <- findEnv name (lmInterface lm) (lmModule lm)
+     let -- XXX: do we want only public ones here?
          loadedDecls = map (ifDefines . lmInterface)
                      $ getLoadedModules (meLoadedModules me)
-
      pure ModContext
        { mctxParams   = NoParams
-       , mctxExported = ifsPublic (smIface sm)
+       , mctxExported = exported
        , mctxDecls    = mconcat (ifDefines (lmInterface lm) : loadedDecls)
        , mctxNames    = localNames
        , mctxNameDisp = R.toNameDisp localNames
@@ -510,7 +513,7 @@ isLoadedParamMod (ImpNested n) lm =
     -- We haven't crossed into a parameterized functor yet
     check1 m = Map.member n (T.mFunctors m)
             || any check2 (T.mFunctors m)
-    
+
     -- We're inside a parameterized module and are finished as soon as we have containment
     check2 :: T.ModuleG a -> Bool
     check2 m =
