@@ -28,6 +28,7 @@ import qualified Data.List.NonEmpty as NE
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.Function(on)
 import Data.Monoid ((<>),Endo(..), Any(..))
+import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8')
 import System.Directory (doesFileExist, canonicalizePath)
 import System.FilePath ( addExtension
@@ -81,7 +82,7 @@ import qualified Cryptol.Backend.FFI.Error as FFI
 
 import Cryptol.Utils.Ident ( preludeName, floatName, arrayName, suiteBName, primeECName
                            , preludeReferenceName, interactiveName, modNameChunks
-                           , modNameToNormalModName )
+                           , modNameToNormalModName, Namespace(NSModule) )
 import Cryptol.Utils.PP (pretty, pp, hang, vcat, ($$), (<+>), (<.>), colon)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.Logger(logPutStrLn, logPrint)
@@ -118,6 +119,21 @@ rename modName env m = do
 renameModule :: P.Module PName -> ModuleM R.RenamedModule
 renameModule m = rename (thing (mName m)) mempty (R.renameModule m)
 
+renameImpNameInCurrentEnv :: P.ImpName PName -> ModuleM (P.ImpName Name)
+renameImpNameInCurrentEnv (P.ImpTop top) =
+ do ok <- isLoaded top
+    if ok then
+      pure (P.ImpTop top)
+    else
+      fail ("Top-level module not loaded: " ++ show (pp top))
+renameImpNameInCurrentEnv (P.ImpNested pname) =
+ do env <- getFocusedEnv
+    case R.lookupListNS NSModule pname (mctxNames env) of
+      [] -> do
+        fail ("Undefined submodule name: " ++ show (pp pname))
+      _:_:_ -> do
+        fail ("Ambiguous submodule name: " ++ show (pp pname))
+      [name] -> pure (P.ImpNested name)
 
 -- NoPat -----------------------------------------------------------------------
 
@@ -164,7 +180,7 @@ parseModule path = do
                        , "Exception: " ++ show exn ]
 
   txt <- case decodeUtf8' bytes of
-    Right txt -> return txt
+    Right txt -> return $! (T.replace "\r\n" "\n" txt)
     Left e    -> badUtf8 path e
 
   let cfg = P.defaultConfig

@@ -276,7 +276,6 @@ nameTopModuleMaybe = fmap topModuleFor . nameModPathMaybe
 nameTopModule :: Name -> ModName
 nameTopModule = topModuleFor . nameModPath
 
-
 -- Name Supply -----------------------------------------------------------------
 
 class Monad m => FreshM m where

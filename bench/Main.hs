@@ -138,7 +138,7 @@ ceval cd name path expr =
         menv <- M.initialModuleEnv
         (eres, _) <-  M.runModuleM (evOpts,menv) $ withLib $ do
           m <- M.loadModuleByPath path
-          M.setFocusedModule (T.mName m)
+          M.setFocusedModule (P.ImpTop (T.mName m))
           let Right pexpr = P.parseExpr expr
           (_, texpr, _) <- M.checkExpr pexpr
           return texpr
@@ -160,7 +160,7 @@ seval cd name path expr =
         menv <- M.initialModuleEnv
         (eres, _) <-  M.runModuleM (evOpts,menv) $ withLib $ do
           m <- M.loadModuleByPath path
-          M.setFocusedModule (T.mName m)
+          M.setFocusedModule (P.ImpTop (T.mName m))
           let Right pexpr = P.parseExpr expr
           (_, texpr, _) <- M.checkExpr pexpr
           return texpr

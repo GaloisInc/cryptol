@@ -1,0 +1,6 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module T03
+
+[error] at <interactive>:0:8--0:9
+    Value not in scope: x

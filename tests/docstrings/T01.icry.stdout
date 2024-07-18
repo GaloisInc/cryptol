@@ -1,0 +1,20 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module T01
+
+:check pp
+Using exhaustive testing.
+Testing... Passed 1 tests.
+Q.E.D.
+
+:check ~ pp
+Using exhaustive testing.
+Testing... Passed 1 tests.
+Q.E.D.
+
+:exhaust pp && pp
+Using exhaustive testing.
+Testing... Passed 1 tests.
+Q.E.D.
+
+Successes: 3, Failures: 0

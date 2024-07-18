@@ -9,6 +9,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE BangPatterns #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module REPL.Haskeline where
@@ -52,10 +53,10 @@ data ReplMode
  deriving (Show, Eq)
 
 -- | One REPL invocation, either from a file or from the terminal.
-crySession :: ReplMode -> Bool -> REPL CommandExitCode
+crySession :: ReplMode -> Bool -> REPL CommandResult
 crySession replMode stopOnError =
   do settings <- io (setHistoryFile (replSettings isBatch))
-     let act = runInputTBehavior behavior settings (withInterrupt (loop 1))
+     let act = runInputTBehavior behavior settings (withInterrupt (loop True 1))
      if isBatch then asBatch act else act
   where
   (isBatch,behavior) = case replMode of
@@ -63,17 +64,17 @@ crySession replMode stopOnError =
     Batch path            -> (True,  useFile path)
     InteractiveBatch path -> (False, useFile path)
 
-  loop :: Int -> InputT REPL CommandExitCode
-  loop lineNum =
+  loop :: Bool -> Int -> InputT REPL CommandResult
+  loop !success !lineNum =
     do ln <- getInputLines =<< MTL.lift getPrompt
        case ln of
-         NoMoreLines -> return CommandOk
+         NoMoreLines -> return emptyCommandResult { crSuccess = success }
          Interrupted
-           | isBatch && stopOnError -> return CommandError
-           | otherwise -> loop lineNum
+           | isBatch && stopOnError -> return emptyCommandResult { crSuccess = False }
+           | otherwise -> loop success lineNum
          NextLine ls
-           | all (all isSpace) ls -> loop (lineNum + length ls)
-           | otherwise            -> doCommand lineNum ls
+           | all (all isSpace) ls -> loop success (lineNum + length ls)
+           | otherwise            -> doCommand success lineNum ls
 
   run lineNum cmd =
     case replMode of
@@ -81,16 +82,16 @@ crySession replMode stopOnError =
       InteractiveBatch _ -> runCommand lineNum Nothing cmd
       Batch path         -> runCommand lineNum (Just path) cmd
 
-  doCommand lineNum txt =
+  doCommand success lineNum txt =
     case parseCommand findCommandExact (unlines txt) of
-      Nothing | isBatch && stopOnError -> return CommandError
-              | otherwise -> loop (lineNum + length txt)  -- say somtething?
+      Nothing | isBatch && stopOnError -> return emptyCommandResult { crSuccess = False }
+              | otherwise -> loop False (lineNum + length txt)  -- say somtething?
       Just cmd -> join $ MTL.lift $
-        do status <- handleInterrupt (handleCtrlC CommandError) (run lineNum cmd)
-           case status of
-             CommandError | isBatch && stopOnError -> return (return status)
+        do status <- handleInterrupt (handleCtrlC emptyCommandResult { crSuccess = False }) (run lineNum cmd)
+           case crSuccess status of
+             False | isBatch && stopOnError -> return (return status)
              _ -> do goOn <- shouldContinue
-                     return (if goOn then loop (lineNum + length txt) else return status)
+                     return (if goOn then loop (crSuccess status && success) (lineNum + length txt) else return status)
 
 
 data NextLine = NextLine [String] | NoMoreLines | Interrupted
@@ -107,14 +108,14 @@ getInputLines = handleInterrupt (MTL.lift (handleCtrlC Interrupted)) . loop []
            | not (null l) && last l == '\\' -> loop (init l : ls) newPropmpt
            | otherwise -> return $ NextLine $ reverse $ l : ls
 
-loadCryRC :: Cryptolrc -> REPL CommandExitCode
+loadCryRC :: Cryptolrc -> REPL CommandResult
 loadCryRC cryrc =
   case cryrc of
-    CryrcDisabled   -> return CommandOk
+    CryrcDisabled   -> return emptyCommandResult
     CryrcDefault    -> check [ getCurrentDirectory, getHomeDirectory ]
     CryrcFiles opts -> loadMany opts
   where
-  check [] = return CommandOk
+  check [] = return emptyCommandResult
   check (place : others) =
     do dir <- io place
        let file = dir </> ".cryptolrc"
@@ -123,14 +124,14 @@ loadCryRC cryrc =
          then crySession (Batch file) True
          else check others
 
-  loadMany []       = return CommandOk
+  loadMany []       = return emptyCommandResult
   loadMany (f : fs) = do status <- crySession (Batch f) True
-                         case status of
-                           CommandOk -> loadMany fs
-                           _         -> return status
+                         if crSuccess status
+                           then loadMany fs
+                           else return status
 
 -- | Haskeline-specific repl implementation.
-repl :: Cryptolrc -> ReplMode -> Bool -> Bool -> REPL () -> IO CommandExitCode
+repl :: Cryptolrc -> ReplMode -> Bool -> Bool -> REPL () -> IO CommandResult
 repl cryrc replMode callStacks stopOnError begin =
   runREPL isBatch callStacks stdoutLogger replAction
 
@@ -143,9 +144,9 @@ repl cryrc replMode callStacks stopOnError begin =
 
   replAction =
     do status <- loadCryRC cryrc
-       case status of
-         CommandOk -> begin >> crySession replMode stopOnError
-         _         -> return status
+       if crSuccess status
+         then begin >> crySession replMode stopOnError
+         else return status
 
 -- | Try to set the history file.
 setHistoryFile :: Settings REPL -> IO (Settings REPL)

@@ -26,7 +26,7 @@ import CryptolServer.Interrupt
     ( interruptServer, interruptServerDescr )
 import Cryptol.ModuleSystem (ModuleInput(..), loadModuleByPath, loadModuleByName)
 import Cryptol.ModuleSystem.Monad (runModuleM, setFocusedModule)
-import Cryptol.TypeCheck.AST (tcTopEntitytName)
+import Cryptol.TypeCheck.AST (tcTopEntitytName, ImpName(..))
 import Cryptol.Utils.Ident (ModName, modNameToText, textToModName, preludeName)
 import Cryptol.Utils.Logger (quietLogger)
 
@@ -77,7 +77,7 @@ main = customMain initMod initMod initMod initMod description buildApp
               case res of
                 Left err -> die err
                 Right (m, menv') ->
-                  do res' <- fst <$> runModuleM minp{ minpModuleEnv = menv' } (setFocusedModule (tcTopEntitytName (snd m)))
+                  do res' <- fst <$> runModuleM minp{ minpModuleEnv = menv' } (setFocusedModule (ImpTop (tcTopEntitytName (snd m))))
                      case res' of
                        Left err -> die err
                        Right (_, menv'') -> pure menv''

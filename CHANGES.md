@@ -5,7 +5,6 @@
 * Add implicit imports for non-anonymous modules defined by functor
   instantiation.   For details, see #1691.
 
-
 ## Bug fixes
 
 * Fix #1685, which caused Cryptol to panic when given a local definition without
@@ -13,6 +12,31 @@
 
 * Fix #1593 and #1693, two related bugs that would cause Cryptol to panic when
   checking ill-typed constraint guards for exhaustivity.
+
+## New features
+
+* New REPL command :focus enables specifying a submodule scope for evaluating
+  expressions.
+
+  ```repl
+  :focus submodule M
+  :browse
+  ```
+
+* New REPL command :check-docstrings extracts code-blocks from docstring
+  comments from a module. Code blocks can be delimited with three-or-more
+  backticks using the language "repl". Code blocks are evaluated in a local
+  REPL context and checked to pass.
+
+  ````cryptol
+  /**
+   * ```repl
+   * :exhaust f
+   * ```
+   */
+  f : [8] -> Bool
+  f x = x + 1 - 1 == x
+  ````
 
 # 3.1.0 -- 2024-02-05
 

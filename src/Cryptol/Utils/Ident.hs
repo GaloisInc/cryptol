@@ -101,7 +101,7 @@ data Namespace = NSValue
 allNamespaces :: [Namespace]
 allNamespaces = [ minBound .. maxBound ]
 
--- | Idnetifies a possibly nested module
+-- | Identifies a possibly nested module
 data ModPath  = TopModule ModName
               | Nested ModPath Ident
                 deriving (Eq,Ord,Show,Generic,NFData)

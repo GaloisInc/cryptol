@@ -30,6 +30,9 @@ module Cryptol.ModuleSystem (
   , getPrimMap
   , renameVar
   , renameType
+  , setFocusedModule
+  , Base.renameImpNameInCurrentEnv
+  , impNameTopModule
 
     -- * Interfaces
   , Iface, IfaceG(..), IfaceDecls(..), T.genIface, IfaceDecl(..)
@@ -45,7 +48,7 @@ import qualified Cryptol.Eval.Concrete as Concrete
 import           Cryptol.ModuleSystem.Env
 import           Cryptol.ModuleSystem.Interface
 import           Cryptol.ModuleSystem.Monad
-import           Cryptol.ModuleSystem.Name (Name,PrimMap)
+import           Cryptol.ModuleSystem.Name (Name,PrimMap,nameTopModule)
 import qualified Cryptol.ModuleSystem.Renamer as R
 import qualified Cryptol.ModuleSystem.Base as Base
 import qualified Cryptol.Parser.AST        as P
@@ -76,7 +79,7 @@ loadModuleByPath path minp = do
   runModuleM minp{ minpModuleEnv = moduleEnv' } $ do
     unloadModule ((InFile path ==) . lmFilePath)
     m <- Base.loadModuleByPath True path
-    setFocusedModule (T.tcTopEntitytName m)
+    setFocusedModule (P.ImpTop (T.tcTopEntitytName m))
     return (InFile path,m)
 
 -- | Load the given parsed module.
@@ -86,7 +89,7 @@ loadModuleByName n minp = do
   runModuleM minp{ minpModuleEnv = moduleEnv' } $ do
     unloadModule ((n ==) . lmName)
     (path,m') <- Base.loadModuleFrom False (FromModule n)
-    setFocusedModule (T.tcTopEntitytName m')
+    setFocusedModule (P.ImpTop (T.tcTopEntitytName m'))
     return (path,m')
 
 -- | Parse and typecheck a module, but don't evaluate or change the environment.
@@ -155,3 +158,11 @@ getFileDependencies f env = runModuleM env (Base.findDepsOf (InFile f))
 getModuleDependencies :: M.ModName -> ModuleCmd (ModulePath, FileInfo)
 getModuleDependencies m env = runModuleM env (Base.findDepsOfModule m)
 
+--------------------------------------------------------------------------------
+-- ImpName utilities
+
+impNameTopModule :: P.ImpName Name -> M.ModName
+impNameTopModule impName =
+    case impName of
+      P.ImpTop m -> m
+      P.ImpNested n -> nameTopModule n

@@ -1,0 +1,31 @@
+
+module T02 where
+
+submodule F where
+  parameter
+    type n : #
+    type constraint (fin n, n >= 2)
+
+  private
+    c : Z n
+    c = 1
+
+  /**
+   * Longer code block delimiters are supported
+   * ````repl
+   * :exhaust p
+   * ````
+   */
+  p x = c + x == x + c
+
+submodule F7 = submodule F where
+  type n = 7
+
+/**
+ * ```repl
+ * let y = 20
+ * :check f 10 == 20
+ * ```
+ */
+f : Integer -> Integer
+f x = x + x

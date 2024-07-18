@@ -13,7 +13,7 @@ module Main where
 
 import OptParser
 
-import Cryptol.REPL.Command (loadCmd,loadPrelude,CommandExitCode(..))
+import Cryptol.REPL.Command (loadCmd,loadPrelude,CommandResult(..))
 import Cryptol.REPL.Monad (REPL,updateREPLTitle,setUpdateREPLTitle,
                    io,prependSearchPath,setSearchPath,parseSearchPath)
 import qualified Cryptol.REPL.Monad as REPL
@@ -25,7 +25,7 @@ import REPL.Logo
 import Cryptol.Utils.PP
 import Cryptol.Version (displayVersion)
 
-import Control.Monad (when)
+import Control.Monad (when, void)
 import GHC.IO.Encoding (setLocaleEncoding, utf8)
 import System.Console.GetOpt
     (OptDescr(..),ArgOrder(..),ArgDescr(..),getOpt,usageInfo)
@@ -234,9 +234,9 @@ main  = do
             Nothing -> return ()
             Just cmdFile -> removeFile cmdFile
 
-          case status of
-            CommandError -> exitFailure
-            CommandOk    -> exitSuccess
+          if crSuccess status
+            then exitSuccess
+            else exitFailure
 
 setupCmdScript :: Options -> IO (Options, Maybe FilePath)
 setupCmdScript opts =
@@ -283,7 +283,7 @@ setupREPL opts = do
 
   case optLoad opts of
     []  -> loadPrelude `REPL.catch` \x -> io $ print $ pp x
-    [l] -> loadCmd l `REPL.catch` \x -> do
+    [l] -> void (loadCmd l) `REPL.catch` \x -> do
              io $ print $ pp x
              -- If the requested file fails to load, load the prelude instead...
              loadPrelude `REPL.catch` \y -> do
@@ -292,7 +292,7 @@ setupREPL opts = do
              -- we tried, instead of the Prelude
              REPL.setEditPath l
              REPL.setLoadedMod REPL.LoadedModule
-               { REPL.lName = Nothing
+               { REPL.lFocus = Nothing
                , REPL.lPath = InFile l
                }
     _   -> io $ putStrLn "Only one file may be loaded at the command line."

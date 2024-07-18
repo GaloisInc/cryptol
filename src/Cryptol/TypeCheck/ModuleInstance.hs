@@ -63,6 +63,12 @@ instance ModuleInstance name => ModuleInstance (ImpName name) where
       ImpTop t -> ImpTop t
       ImpNested n -> ImpNested (moduleInstance n)
 
+instance ModuleInstance Submodule where
+  moduleInstance x = Submodule
+    { smInScope = moduleInstance (smInScope x)
+    , smIface = moduleInstance (smIface x)
+    }
+
 instance ModuleInstance (ModuleG name) where
   moduleInstance m =
     Module { mName             = mName m

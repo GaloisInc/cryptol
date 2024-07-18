@@ -30,11 +30,9 @@ module Cryptol.TypeCheck.AST
   , module Cryptol.TypeCheck.Type
   ) where
 
-import Data.Maybe(mapMaybe)
-
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.Ident (Ident,isInfixIdent,ModName,PrimIdent,prelPrim)
-import Cryptol.Parser.Position(Located,Range,HasLoc(..))
+import Cryptol.Parser.Position(Located,Range,HasLoc(..), Position, start, from)
 import Cryptol.ModuleSystem.Name
 import Cryptol.ModuleSystem.NamingEnv.Types
 import Cryptol.ModuleSystem.Interface
@@ -55,11 +53,14 @@ import GHC.Generics (Generic)
 import Control.DeepSeq
 
 
-import           Data.Set    (Set)
+import qualified Data.IntMap as IntMap
+import           Data.List   (sortBy)
 import           Data.Map    (Map)
 import qualified Data.Map    as Map
-import qualified Data.IntMap as IntMap
-import           Data.Text (Text)
+import           Data.Maybe  (mapMaybe)
+import           Data.Ord    (comparing)
+import           Data.Set    (Set)
+import           Data.Text   (Text)
 
 
 data TCTopEntity =
@@ -109,13 +110,18 @@ data ModuleG mname =
                      , mTySyns           :: Map Name TySyn
                      , mNominalTypes     :: Map Name NominalType
                      , mDecls            :: [DeclGroup]
-                     , mSubmodules       :: Map Name (IfaceNames Name)
+                     , mSubmodules       :: Map Name Submodule
                      , mSignatures       :: !(Map Name ModParamNames)
 
                      , mInScope          :: NamingEnv
                        -- ^ Things in scope at the top level.
                        --   Submodule in-scope information is in 'mSubmodules'.
                      } deriving (Show, Generic, NFData)
+
+data Submodule = Submodule
+  { smIface :: IfaceNames Name
+  , smInScope :: NamingEnv
+  } deriving (Show, Generic, NFData)
 
 emptyModule :: mname -> ModuleG mname
 emptyModule nm =
@@ -522,3 +528,26 @@ instance PP (WithNames TCTopEntity) where
      TCTopModule m -> ppWithNames nm m
      TCTopSignature n ps ->
         hang ("interface module" <+> pp n <+> "where") 2 (pp ps)
+
+gatherModuleDocstrings ::
+  Map Name (ImpName Name) ->
+  Module ->
+  [(ImpName Name, Text)]
+gatherModuleDocstrings nameToModule m =
+  cat [(ImpTop (mName m), mDoc m)] ++
+  -- mParams m
+  -- mParamTypes m
+  -- mParamFuns m
+  cat [(lookupModuleName n, tsDoc t) | (n, t) <- Map.assocs (mTySyns m)] ++
+  cat [(lookupModuleName n, ntDoc t) | (n, t) <- Map.assocs (mNominalTypes m)] ++
+  cat [(lookupModuleName (dName d), dDoc d) | g <- mDecls m, d <- groupDecls g] ++
+  cat [(ImpNested n, ifsDoc (smIface s)) | (n, s) <- Map.assocs (mSubmodules m)] ++
+  cat [(ImpTop (mName m), mpnDoc s) | s <- Map.elems (mSignatures m)]
+  where
+    cat :: [(a, Maybe Text)] -> [(a, Text)]
+    cat entries = [(p, d) | (p, Just d) <- entries]
+
+    lookupModuleName n =
+      case Map.lookup n nameToModule of
+        Just x -> x
+        Nothing -> panic "gatherModuleDocstrings" ["No owning module for name:", show (pp n)]

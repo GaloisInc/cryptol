@@ -25,7 +25,7 @@ import Cryptol.Eval (EvalEnv)
 import qualified Cryptol.IR.FreeVars as T
 import Cryptol.ModuleSystem.Fingerprint
 import Cryptol.ModuleSystem.Interface
-import Cryptol.ModuleSystem.Name (Name,NameInfo(..),Supply,emptySupply,nameInfo)
+import Cryptol.ModuleSystem.Name (Name,NameInfo(..),Supply,emptySupply,nameInfo,nameTopModuleMaybe)
 import qualified Cryptol.ModuleSystem.NamingEnv as R
 import Cryptol.Parser.AST
 import qualified Cryptol.TypeCheck as T
@@ -84,7 +84,7 @@ data ModuleEnv = ModuleEnv
 
 
 
-  , meFocusedModule     :: Maybe ModName
+  , meFocusedModule     :: Maybe (ImpName Name)
     -- ^ The "current" module.  Used to decide how to print names, for example.
 
   , meSearchPath        :: [FilePath]
@@ -194,8 +194,8 @@ initialModuleEnv = do
 -- | Try to focus a loaded module in the module environment.
 focusModule :: ModName -> ModuleEnv -> Maybe ModuleEnv
 focusModule n me = do
-  guard (isLoaded n (meLoadedModules me))
-  return me { meFocusedModule = Just n }
+  guard (isLoaded (ImpTop n) (meLoadedModules me))
+  return me { meFocusedModule = Just (ImpTop n) }
 
 -- | Get a list of all the loaded modules. Each module in the
 -- resulting list depends only on other modules that precede it.
@@ -272,10 +272,33 @@ instance Monoid ModContext where
                       , mctxNameDisp = R.toNameDisp mempty
                       }
 
+findEnv :: Name -> Iface -> T.ModuleG a -> Maybe (R.NamingEnv, Set Name)
+findEnv n iface m
+  | Just sm <- Map.lookup n (T.mSubmodules m) = Just (T.smInScope sm, ifsPublic (T.smIface sm))
+  | Just fn <- Map.lookup n (T.mFunctors m) =
+      case Map.lookup n (ifFunctors (ifDefines iface)) of
+        Nothing -> panic "findEnv" ["Submodule functor not present in interface"]
+        Just d -> Just (T.mInScope fn, ifsPublic (ifNames d))
+  | otherwise = asum (fmap (findEnv n iface) (Map.elems (T.mFunctors m)))
 
+modContextOf :: ImpName Name -> ModuleEnv -> Maybe ModContext
+modContextOf (ImpNested name) me =
+  do mname <- nameTopModuleMaybe name
+     lm <- lookupModule mname me
+     (localNames, exported) <- findEnv name (lmInterface lm) (lmModule lm)
+     let -- XXX: do we want only public ones here?
+         loadedDecls = map (ifDefines . lmInterface)
+                     $ getLoadedModules (meLoadedModules me)
+     pure ModContext
+       { mctxParams   = NoParams
+       , mctxExported = exported
+       , mctxDecls    = mconcat (ifDefines (lmInterface lm) : loadedDecls)
+       , mctxNames    = localNames
+       , mctxNameDisp = R.toNameDisp localNames
+       }
+  -- TODO: support focusing inside a submodule signature to support browsing?
 
-modContextOf :: ModName -> ModuleEnv -> Maybe ModContext
-modContextOf mname me =
+modContextOf (ImpTop mname) me =
   do lm <- lookupModule mname me
      let localIface  = lmInterface lm
          localNames  = lmNamingEnv lm
@@ -469,16 +492,45 @@ type LoadedSignature = LoadedModuleG T.ModParamNames
 
 
 -- | Has this module been loaded already.
-isLoaded :: ModName -> LoadedModules -> Bool
-isLoaded mn lm = mn `Set.member` getLoadedNames lm
+isLoaded :: ImpName Name -> LoadedModules -> Bool
+isLoaded (ImpTop mn) lm = mn `Set.member` getLoadedNames lm
+isLoaded (ImpNested nn) lm = any (check . lmModule) (getLoadedModules lm)
+  where
+    check :: T.ModuleG a -> Bool
+    check m =
+      Map.member nn (T.mSubmodules m) ||
+      Map.member nn (T.mSignatures m) ||
+      Map.member nn (T.mSubmodules m) ||
+      any check (T.mFunctors m)
 
 -- | Is this a loaded parameterized module.
-isLoadedParamMod :: ModName -> LoadedModules -> Bool
-isLoadedParamMod mn ln = any ((mn ==) . lmName) (lmLoadedParamModules ln)
+isLoadedParamMod :: ImpName Name -> LoadedModules -> Bool
+isLoadedParamMod (ImpTop mn) lm = any ((mn ==) . lmName) (lmLoadedParamModules lm)
+isLoadedParamMod (ImpNested n) lm =
+  any (check1 . lmModule) (lmLoadedModules lm) ||
+  any (check2 . lmModule) (lmLoadedParamModules lm)
+  where
+    -- We haven't crossed into a parameterized functor yet
+    check1 m = Map.member n (T.mFunctors m)
+            || any check2 (T.mFunctors m)
+
+    -- We're inside a parameterized module and are finished as soon as we have containment
+    check2 :: T.ModuleG a -> Bool
+    check2 m =
+      Map.member n (T.mSubmodules m) ||
+      Map.member n (T.mSignatures m) ||
+      Map.member n (T.mFunctors m) ||
+      any check2 (T.mFunctors m)
 
 -- | Is this a loaded interface module.
-isLoadedInterface :: ModName -> LoadedModules -> Bool
-isLoadedInterface mn ln = any ((mn ==) . lmName) (lmLoadedSignatures ln)
+isLoadedInterface :: ImpName Name -> LoadedModules -> Bool
+isLoadedInterface (ImpTop mn) ln = any ((mn ==) . lmName) (lmLoadedSignatures ln)
+isLoadedInterface (ImpNested nn) ln = any (check . lmModule) (getLoadedModules ln)
+  where
+    check :: T.ModuleG a -> Bool
+    check m =
+      Map.member nn (T.mSignatures m) ||
+      any check (T.mFunctors m)
 
 -- | Return the set of type parameters (@'Set' 'T.TParam'@) and definitions
 -- (@'Set' 'Name'@) from the supplied 'LoadedModules' value that another
@@ -500,8 +552,8 @@ loadedParamModDeps lm a = (badTs, bad)
 
         -- XXX: Changes if focusing on nested modules
         GlobalName _ I.OrigName { ogModule = I.TopModule m }
-          | isLoadedParamMod m lm -> Set.insert nm bs
-          | isLoadedInterface m lm -> Set.insert nm bs
+          | isLoadedParamMod (ImpTop m) lm -> Set.insert nm bs
+          | isLoadedInterface (ImpTop m) lm -> Set.insert nm bs
 
         _ -> bs
 
@@ -531,7 +583,7 @@ addLoadedSignature ::
   ModName -> T.ModParamNames ->
   LoadedModules -> LoadedModules
 addLoadedSignature path ident fi nameEnv nm si lm
-  | isLoaded nm lm = lm
+  | isLoaded (ImpTop nm) lm = lm
   | otherwise = lm { lmLoadedSignatures = loaded : lmLoadedSignatures lm }
   where
   loaded = LoadedModule
@@ -553,7 +605,7 @@ addLoadedModule ::
   Maybe ForeignSrc ->
   T.Module -> LoadedModules -> LoadedModules
 addLoadedModule path ident fi nameEnv fsrc tm lm
-  | isLoaded (T.mName tm) lm  = lm
+  | isLoaded (ImpTop (T.mName tm)) lm  = lm
   | T.isParametrizedModule tm = lm { lmLoadedParamModules = loaded :
                                                 lmLoadedParamModules lm }
   | otherwise                = lm { lmLoadedModules =

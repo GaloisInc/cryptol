@@ -10,6 +10,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE Safe #-}
 module Cryptol.ModuleSystem.Interface (
     Iface
@@ -26,6 +27,7 @@ module Cryptol.ModuleSystem.Interface (
   , filterIfaceDecls
   , ifaceDeclsNames
   , ifaceOrigNameMap
+  , ifaceNameToModuleMap
   ) where
 
 import           Data.Set(Set)
@@ -45,8 +47,9 @@ import Cryptol.ModuleSystem.Name
 import Cryptol.Utils.Ident (ModName, OrigName(..))
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.Fixity(Fixity)
-import Cryptol.Parser.AST(Pragma)
+import Cryptol.Parser.AST(Pragma, ImpName(..))
 import Cryptol.TypeCheck.Type
+import Data.Maybe (maybeToList)
 
 type Iface = IfaceG ModName
 
@@ -56,7 +59,7 @@ data IfaceG name = Iface
   , ifParams    :: FunctorParams      -- ^ Module parameters, if any
   , ifDefines   :: IfaceDecls         -- ^ All things defines in the module
                                       -- (includes nested definitions)
-  } deriving (Show, Generic, NFData)
+  } deriving (Show, Generic, NFData, Functor)
 
 -- | Remove the name of a module.  This is useful for dealing with collections
 -- of modules, as in `Map (ImpName Name) (IfaceG ())`.
@@ -75,7 +78,7 @@ data IfaceNames name = IfaceNames
   , ifsDefines  :: Set Name   -- ^ Things defined in this module
   , ifsPublic   :: Set Name   -- ^ Subset of `ifsDefines` that is public
   , ifsDoc      :: !(Maybe Text) -- ^ Documentation
-  } deriving (Show, Generic, NFData)
+  } deriving (Show, Generic, NFData, Functor)
 
 -- | Is this interface for a functor.
 ifaceIsFunctor :: IfaceG name -> Bool
@@ -232,9 +235,18 @@ ifaceOrigNameMap ifa = Map.unionsWith Map.union (here : nested)
                   (concatMap conNames (Map.elems (ifNominalTypes decls)))
     where conNames = map fst . nominalTypeConTypes
 
+-- | For every name in the interface compute the direct module that defines it.
+-- This does not traverse into functors or interfaces.
+ifaceNameToModuleMap :: Iface -> Map Name (ImpName Name)
+ifaceNameToModuleMap iface = go (ImpTop <$> ifNames iface)
+  where
+    theModules = ifModules (ifDefines iface)
 
-
-
-
-
-
+    go :: IfaceNames (ImpName Name) -> Map Name (ImpName Name)
+    go names =
+      Map.fromSet (\_ -> ifsName names) (ifsDefines names) <>
+      Map.unions
+        [ go (ImpNested <$> modu)
+        | childName <- Set.toList (ifsNested names)
+        , modu <- maybeToList (Map.lookup childName theModules)
+        ]
