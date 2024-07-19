@@ -4,7 +4,7 @@
 
 # Cryptol, version 3
 
-    This version of Cryptol is (C) 2013-2023 Galois, Inc., and
+    This version of Cryptol is (C) 2013-2024 Galois, Inc., and
     distributed under a standard, three-clause BSD license. Please see
     the file LICENSE, distributed with this software, for specific
     terms and conditions.
