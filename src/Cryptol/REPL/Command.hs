@@ -2004,15 +2004,13 @@ moduleInfoCmd isFile name
 --  */
 -- @
 extractCodeBlocks :: T.Text -> Either String [[T.Text]]
-extractCodeBlocks raw = go [] cleanLines
+extractCodeBlocks raw = go [] (T.lines raw)
   where
-    cleanLines = T.dropWhile isSpace <$> T.lines raw
-
     go finished [] = Right (reverse finished)
     go finished (x:xs)
       | (ticks, lang) <- T.span ('`' ==) x
       , 3 <= T.length ticks
-      = if lang == "repl"
+      = if lang `elem` ["", "repl"]
         then keep finished ticks [] xs
         else skip finished ticks xs
       | otherwise = go finished xs
@@ -2068,14 +2066,23 @@ checkBlock = isolated . go
             , srResult = emptyCommandResult { crSuccess = False }
             }]
         Just (Command cmd) -> do
-          (logtxt, result) <- captureLog (cmd 0 Nothing)
-          results <- checkBlock block
-          let subresult = SubcommandResult
-                { srInput = line
-                , srLog = logtxt
-                , srResult = result
-                }
-          pure (subresult : results)
+          (logtxt, eresult) <- captureLog (Cryptol.REPL.Monad.try (cmd 0 Nothing))
+          case eresult of
+            Left e -> do
+              let result = SubcommandResult
+                    { srInput = line
+                    , srLog = logtxt ++ show (pp e) ++ "\n"
+                    , srResult = emptyCommandResult { crSuccess = False }
+                    }
+              pure [result]
+            Right result -> do
+              let subresult = SubcommandResult
+                    { srInput = line
+                    , srLog = logtxt
+                    , srResult = result
+                    }
+              subresults <- checkBlock block
+              pure (subresult : subresults)
 
 captureLog :: REPL a -> REPL (String, a)
 captureLog m = do

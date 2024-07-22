@@ -2,5 +2,15 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module T03
 
+let x = 1
+
+:check x == 1
+Using exhaustive testing.
+Testing... Passed 1 tests.
+Q.E.D.
+
+:check x == 1
 [error] at <interactive>:0:8--0:9
     Value not in scope: x
+
+Successes: 2, Failures: 1

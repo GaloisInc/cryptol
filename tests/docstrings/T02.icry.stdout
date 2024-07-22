@@ -2,6 +2,11 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module T02
 
+:check c == 1
+Using exhaustive testing.
+Testing... Passed 1 tests.
+Q.E.D.
+
 :exhaust p
 Using exhaustive testing.
 Testing... Passed 7 tests.
@@ -14,4 +19,4 @@ Using exhaustive testing.
 Testing... Passed 1 tests.
 Q.E.D.
 
-Successes: 3, Failures: 0
+Successes: 4, Failures: 0

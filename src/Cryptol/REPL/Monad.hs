@@ -24,6 +24,7 @@ module Cryptol.REPL.Monad (
   , raise
   , stop
   , catch
+  , try
   , finally
   , rPutStrLn
   , rPutStr
@@ -397,6 +398,9 @@ raise exn = io (X.throwIO exn)
 
 catch :: REPL a -> (REPLException -> REPL a) -> REPL a
 catch m k = REPL (\ ref -> rethrowEvalError (unREPL m ref) `X.catch` \ e -> unREPL (k e) ref)
+
+try :: REPL a -> REPL (Either REPLException a)
+try m = REPL (X.try . rethrowEvalError . unREPL m)
 
 finally :: REPL a -> REPL b -> REPL a
 finally m1 m2 = REPL (\ref -> unREPL m1 ref `X.finally` unREPL m2 ref)

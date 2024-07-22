@@ -20,9 +20,8 @@ module Cryptol.Parser.ParserUtils where
 
 import qualified Data.Text as Text
 import Data.Char(isAlphaNum)
-import Data.Maybe(fromMaybe)
+import Data.Maybe(fromMaybe, mapMaybe)
 import Data.Bits(testBit,setBit)
-import Data.Maybe(mapMaybe)
 import Data.List(foldl')
 import Data.List.NonEmpty ( NonEmpty(..) )
 import qualified Data.List.NonEmpty as NE
@@ -590,9 +589,8 @@ addDeclDocstring doc decl =
         Nothing -> pure x { tlDoc = Just doc }
 
 privateDocedDecl :: Located Text -> [TopDecl PName] -> ParseM [TopDecl PName]
-privateDocedDecl doc [decl] = traverse (addDeclDocstring doc) [decl]
-privateDocedDecl doc _ =
-  errorMessage (srcRange doc) ["Docstring on private requires since declaration"]
+privateDocedDecl doc (decl:decls) = fmap (: decls) (addDeclDocstring doc decl)
+privateDocedDecl doc [] = errorMessage (srcRange doc) ["Docstring on empty private section"]
 
 mkTypeInst :: Named (Type PName) -> TypeInst PName
 mkTypeInst x | nullIdent (thing (name x)) = PosInst (value x)
@@ -1010,39 +1008,73 @@ mkDoc ltxt = ltxt { thing = docStr }
   where
 
   docStr = T.unlines
-         $ dropPrefix
-         $ trimFront
+         $ handlePrefixes
          $ T.lines
          $ T.dropWhileEnd commentChar
          $ thing ltxt
 
   commentChar :: Char -> Bool
-  commentChar x = x `elem` ("/* \r\n\t" :: String)
+  commentChar x = x `elem` ("/* \t" :: String)
 
-  prefixDroppable x = x `elem` ("* \r\n\t" :: String)
+  prefixDroppable :: Char -> Bool
+  prefixDroppable x = x `elem` ("* \t" :: String)
 
   whitespaceChar :: Char -> Bool
-  whitespaceChar x = x `elem` (" \r\n\t" :: String)
+  whitespaceChar x = x `elem` (" \t" :: String)
 
-  trimFront []                     = []
-  trimFront (l:ls)
-    | T.all commentChar l = ls
-    | otherwise           = T.dropWhile commentChar l : ls
+  -- Prefix dropping with a special case for the first line and common
+  -- prefix dropping for the following lines. The first line and following
+  -- lines are treated independently
+  handlePrefixes :: [Text] -> [Text]
+  handlePrefixes [] = []
+  handlePrefixes (l:ls)
+    | T.all commentChar l = ls'
+    | otherwise           = T.dropWhile commentChar l : ls'
+    where ls' = dropPrefix ls
 
-  dropPrefix []        = []
-  dropPrefix [t]       = [T.dropWhile commentChar t]
-  dropPrefix ts@(l:ls) =
+  dropPrefix :: [Text] -> [Text]
+  dropPrefix ts =
+    case startDropPrefixChar ts of
+      Nothing -> ts -- done dropping
+      Just ts' -> dropPrefix ts' -- keep dropping
+
+  -- At the beginning of a prefix stripping operation we check the
+  -- first character of the first line. If that first character is
+  -- droppable we use it as the prefix to check for, otherwise we
+  -- continue searching for whitespace. Return Nothing if there
+  -- was no prefix to drop.
+  startDropPrefixChar :: [Text] -> Maybe [Text]
+  startDropPrefixChar [] = Nothing
+  startDropPrefixChar (l:ls) =
     case T.uncons l of
-      Just (c,_) | prefixDroppable c &&
-                   all (commonPrefix c) ls -> dropPrefix (map (T.drop 1) ts)
-      _                                    -> ts
+      Nothing -> (l:) <$> searchWhitePrefixChar ls
+      Just (c, l')
+        | prefixDroppable c -> (l':) <$> checkPrefixChar c ls
+        | otherwise -> Nothing
 
-    where
-    commonPrefix c t =
-      case T.uncons t of
-        Just (c',_) -> c == c'
-        Nothing     -> whitespaceChar c -- end-of-line matches any whitespace
+  -- So far we've only seen empty lines, so we accept empty
+  -- lines and lines starting with whitespace.
+  searchWhitePrefixChar :: [Text] -> Maybe [Text]
+  searchWhitePrefixChar [] = Just []
+  searchWhitePrefixChar (l:ls) =
+    case T.uncons l of
+      Nothing -> (l:) <$> searchWhitePrefixChar ls
+      Just (c, l')
+        | whitespaceChar c -> (l':) <$> checkPrefixChar c ls
+        | otherwise -> Nothing
 
+  -- So far we've seen a non-empty line and we know what character
+  -- we're looking for. If that character is whitespace then we also
+  -- will accept empty lines as matching the prefix
+  checkPrefixChar :: Char -> [Text] -> Maybe [Text]
+  checkPrefixChar _ [] = Just []
+  checkPrefixChar p (l:ls) =
+    case T.uncons l of
+      Nothing
+        | whitespaceChar p -> (l:) <$> checkPrefixChar p ls
+      Just (c,l')
+        | c == p -> (l':) <$> checkPrefixChar p ls
+      _ -> Nothing
 
 distrLoc :: Located [a] -> [Located a]
 distrLoc x = [ Located { srcRange = r, thing = a } | a <- thing x ]

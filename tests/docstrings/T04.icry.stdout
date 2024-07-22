@@ -4,4 +4,9 @@ Loading module T03
 
 :load AFile.cry
 Unknown command
-Successes: 0, Failures: 1
+garbage
+
+[error] at <interactive>:0:1--0:8
+    Value not in scope: garbage
+
+Successes: 0, Failures: 2
