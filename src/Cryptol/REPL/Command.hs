@@ -2010,7 +2010,7 @@ extractCodeBlocks raw = go [] (T.lines raw)
     go finished (x:xs)
       | (ticks, lang) <- T.span ('`' ==) x
       , 3 <= T.length ticks
-      = if lang `elem` ["", "repl"]
+      = if lang `elem` ["", "repl"] -- supported languages "unlabeled" and repl
         then keep finished ticks [] xs
         else skip finished ticks xs
       | otherwise = go finished xs
