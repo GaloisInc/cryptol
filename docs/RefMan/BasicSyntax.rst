@@ -122,6 +122,7 @@ end-of-line can be dropped without affecting prefix detection.
 
 .. code-block:: cryptol
   :caption: Examples of docstrings
+
   /** Example documentation for x */
   x = 1
 
@@ -137,17 +138,28 @@ end-of-line can be dropped without affecting prefix detection.
   z = 1
 
 Test cases can be included in docstring comments that will be checked
-by the `:check-docstrings` command in the form of code blocks that are
-unlabeled or labeled with the `repl` language. This cases should be
+by the ``:check-docstrings`` command in the form of code blocks that are
+unlabeled or labeled with the ``repl`` language. This cases should be
 in the form of REPL commands. Success of the test is defined to be the
 success of all the REPL commands.
 
 .. code-block:: cryptol
   :caption: Example docstring with checked test
+
   /** This function 
    *
    * ```repl
    * :check f 10 == 20
+   * ```
+   *
+   * Also checked
+   * ```
+   * :safe f
+   * ```
+   *
+   * Not checked
+   * ```cpp
+   * int main() {}
    * ```
    */
   f : [8] -> [8]
