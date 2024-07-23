@@ -19,7 +19,7 @@
 module Cryptol.Parser.ParserUtils where
 
 import qualified Data.Text as Text
-import Data.Char(isAlphaNum)
+import Data.Char(isAlphaNum, isSpace)
 import Data.Maybe(fromMaybe, mapMaybe)
 import Data.Bits(testBit,setBit)
 import Data.List(foldl')
@@ -1014,13 +1014,7 @@ mkDoc ltxt = ltxt { thing = docStr }
          $ thing ltxt
 
   commentChar :: Char -> Bool
-  commentChar x = x `elem` ("/* \t" :: String)
-
-  prefixDroppable :: Char -> Bool
-  prefixDroppable x = x `elem` ("* \t" :: String)
-
-  whitespaceChar :: Char -> Bool
-  whitespaceChar x = x `elem` (" \t" :: String)
+  commentChar x = x `elem` ("/*" :: String) || isSpace x
 
   -- Prefix dropping with a special case for the first line and common
   -- prefix dropping for the following lines. The first line and following
@@ -1049,7 +1043,7 @@ mkDoc ltxt = ltxt { thing = docStr }
     case T.uncons l of
       Nothing -> (l:) <$> searchWhitePrefixChar ls
       Just (c, l')
-        | prefixDroppable c -> (l':) <$> checkPrefixChar c ls
+        | c == '*' || isSpace c -> (l':) <$> checkPrefixChar c ls
         | otherwise -> Nothing
 
   -- So far we've only seen empty lines, so we accept empty
@@ -1060,7 +1054,7 @@ mkDoc ltxt = ltxt { thing = docStr }
     case T.uncons l of
       Nothing -> (l:) <$> searchWhitePrefixChar ls
       Just (c, l')
-        | whitespaceChar c -> (l':) <$> checkPrefixChar c ls
+        | isSpace c -> (l':) <$> checkPrefixChar c ls
         | otherwise -> Nothing
 
   -- So far we've seen a non-empty line and we know what character
@@ -1071,7 +1065,7 @@ mkDoc ltxt = ltxt { thing = docStr }
   checkPrefixChar p (l:ls) =
     case T.uncons l of
       Nothing
-        | whitespaceChar p -> (l:) <$> checkPrefixChar p ls
+        | isSpace p -> (l:) <$> checkPrefixChar p ls
       Just (c,l')
         | c == p -> (l':) <$> checkPrefixChar p ls
       _ -> Nothing
