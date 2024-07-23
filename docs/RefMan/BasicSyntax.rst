@@ -112,10 +112,10 @@ Documentation Comments
 
 Declarations in Cryptol can have documentation attached to them using special
 *docstring* comments. These attached comments are accessible in the REPL
-using the `:help` command.
+using the ``:help`` command.
 
 Syntactically, docstring comments are block comments that start with exactly
-two `*` characters: `/** ... */`. For lines after the first line a common
+two ``*`` characters: ``/** ... */``. For lines after the first line a common
 prefix of whitespace and asterisks will be stripped in order to support
 stylistic blocks. Whitespace between the last asterisk on a line and the
 end-of-line can be dropped without affecting prefix detection.
