@@ -7,9 +7,14 @@ module T03 where
  * :load AFile.cry
  * ```
  *
- * Stuff not marked repl is ignored
+ * Stuff not marked repl is processed
  * ```
  * garbage
+ * ```
+ *
+ * Stuff marked otherwise is ignored
+ * ```cryptol
+ * ignored = 1
  * ```
  */
 a : Bit

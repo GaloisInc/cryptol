@@ -8,13 +8,14 @@ module T01 where
  * ```
  */
 submodule Sub where
-  /**
-   * This verifies that pp shadows the outer definition
+  // this docstring starts with some text and that private is OK
+  /** This verifies that pp shadows the outer definition
+   *
    * ```repl
    * :check pp
    * ```
    */
-  pp = True
+  private pp = True
 
 /**
  * ```repl
