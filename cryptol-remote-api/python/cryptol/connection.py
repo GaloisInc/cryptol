@@ -203,6 +203,15 @@ class CryptolConnection:
         timeout = timeout if timeout is not None else self.timeout
         self.most_recent_result = CryptolLoadFile(self, filename, timeout)
         return self.most_recent_result
+    
+    def check_docstrings(self, timeout: Optional[float] = None) -> argo.Command:
+        """Check docstrings
+        
+        :param timeout: Optional timeout for this request (in seconds).
+        """
+        timeout = timeout if timeout is not None else self.timeout
+        self.most_recent_result = CryptolCheckDocstrings(self, timeout)
+        return self.most_recent_result
 
     def load_module(self, module_name : str, *, timeout:Optional[float] = None) -> argo.Command:
         """Load a Cryptol module, like ``:module`` at the Cryptol REPL.

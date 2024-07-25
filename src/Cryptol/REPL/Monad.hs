@@ -88,6 +88,10 @@ module Cryptol.REPL.Monad (
   , smokeTest
   , Smoke(..)
 
+  , RW(..)
+  , defaultRW
+  , mkUserEnv
+
   ) where
 
 import Cryptol.REPL.Trie

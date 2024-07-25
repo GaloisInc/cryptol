@@ -46,6 +46,10 @@ module Cryptol.REPL.Command (
   , onlineProveSat
   , offlineProveSat
 
+    -- Check docstrings
+  , checkDocStrings
+  , SubcommandResult(..)
+
     -- Misc utilities
   , handleCtrlC
   , sanitize

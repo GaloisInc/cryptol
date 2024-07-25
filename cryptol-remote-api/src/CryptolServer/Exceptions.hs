@@ -11,6 +11,7 @@ module CryptolServer.Exceptions
   , cryptolParseErr
   , cryptolError
   , moduleNotLoaded
+  , noModule
   ) where
 
 import qualified Data.Aeson as JSON
@@ -215,4 +216,10 @@ moduleNotLoaded m =
   makeJSONRPCException
     20100 "Module not loaded"
     (Just (JSON.object ["error" .= show (pretty m)]))
+
+noModule :: JSONRPCException
+noModule =
+  makeJSONRPCException
+    20110 "No module"
+    (Nothing :: Maybe JSON.Value)
 
