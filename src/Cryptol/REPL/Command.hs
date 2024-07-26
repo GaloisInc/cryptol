@@ -2012,18 +2012,32 @@ extractCodeBlocks raw = go [] (T.lines raw)
   where
     go finished [] = Right (reverse finished)
     go finished (x:xs)
-      | (ticks, lang) <- T.span ('`' ==) x
+      | (spaces, x1) <- T.span (' ' ==) x
+      , (ticks, x2) <- T.span ('`' ==) x1
       , 3 <= T.length ticks
-      = if lang `elem` ["", "repl"] -- supported languages "unlabeled" and repl
-        then keep finished ticks [] xs
+      , not (T.elem '`' x2)
+      , let info = T.strip x2
+      = if info `elem` ["", "repl"] -- supported languages "unlabeled" and repl
+        then keep finished (T.length spaces) (T.length ticks) [] xs
         else skip finished ticks xs
       | otherwise = go finished xs
 
     -- process a code block that we're keeping
-    keep _ _ _ [] = Left "Unclosed code block"
-    keep finished close acc (x:xs)
-      | close == x = go (reverse acc : finished) xs
-      | otherwise = keep finished close (x : acc) xs
+    keep finished _ _ acc [] = go (reverse acc : finished) [] -- unterminated code fences are defined to be terminated by github
+    keep finished indentLen ticksLen acc (x:xs)
+      | x1 <- T.dropWhile (' ' ==) x
+      , (ticks, x2) <- T.span ('`' ==) x1
+      , ticksLen <= T.length ticks
+      , T.all (' ' ==) x2
+      = go (reverse acc : finished) xs
+
+      | otherwise =
+        let x' =
+              case T.span (' ' ==) x of
+                (spaces, x1)
+                  | T.length spaces <= indentLen -> x1
+                  | otherwise -> T.drop indentLen x
+        in keep finished indentLen ticksLen (x' : acc) xs
 
     -- process a code block that we're skipping
     skip _ _ [] = Left "Unclosed code block"

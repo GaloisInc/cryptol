@@ -1,0 +1,15 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module T05
+
+:exhaust p
+Using exhaustive testing.
+Testing... Passed 1 tests.
+Q.E.D.
+
+:check p
+Using exhaustive testing.
+Testing... Passed 1 tests.
+Q.E.D.
+
+Successes: 2, Failures: 0
