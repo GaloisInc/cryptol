@@ -26,6 +26,8 @@ import Cryptol.Parser.AST (ImpName(..))
 import qualified System.Random.TF as TF
 import qualified Cryptol.Symbolic.SBV as SBV
 import Cryptol.REPL.Monad (mkUserEnv, userOptions)
+import Cryptol.TypeCheck.AST (Name)
+import Cryptol.Utils.PP (pp)
 
 checkDocstringsDescr :: Doc.Block
 checkDocstringsDescr =
@@ -63,10 +65,16 @@ checkDocstrings CheckDocstringsParams = do
         }
       REPL.unREPL (CheckDocstringsResult <$> checkDocStrings m) rwRef
 
-newtype CheckDocstringsResult = CheckDocstringsResult [[SubcommandResult]]
+newtype CheckDocstringsResult = CheckDocstringsResult [(ImpName Name, [[SubcommandResult]])]
 
 instance ToJSON CheckDocstringsResult where
-  toJSON (CheckDocstringsResult r) = JSON.object ["results" .= r]
+  toJSON (CheckDocstringsResult r) =
+    JSON.object ["results" .=
+      [ JSON.object
+          [ "name" .= show (pp n)
+          , "fences" .= xs
+        ] | (n, xs) <- r
+      ]]
 
 instance ToJSON SubcommandResult where
   toJSON r = JSON.object

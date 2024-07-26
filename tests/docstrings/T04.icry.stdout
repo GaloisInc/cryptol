@@ -2,6 +2,10 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module T03
 
+Checking T03
+
+Checking submodule T03::a
+
 :load AFile.cry
 Unknown command
 garbage
@@ -9,4 +13,4 @@ garbage
 [error] at <interactive>:0:1--0:8
     Value not in scope: garbage
 
-Successes: 0, Failures: 2
+Successes: 0, No fences: 1, Failures: 2

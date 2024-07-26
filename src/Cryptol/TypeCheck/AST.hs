@@ -32,7 +32,7 @@ module Cryptol.TypeCheck.AST
 
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.Ident (Ident,isInfixIdent,ModName,PrimIdent,prelPrim)
-import Cryptol.Parser.Position(Located,Range,HasLoc(..), Position, start, from)
+import Cryptol.Parser.Position(Located, HasLoc(..), Range)
 import Cryptol.ModuleSystem.Name
 import Cryptol.ModuleSystem.NamingEnv.Types
 import Cryptol.ModuleSystem.Interface
@@ -54,11 +54,9 @@ import Control.DeepSeq
 
 
 import qualified Data.IntMap as IntMap
-import           Data.List   (sortBy)
 import           Data.Map    (Map)
 import qualified Data.Map    as Map
 import           Data.Maybe  (mapMaybe)
-import           Data.Ord    (comparing)
 import           Data.Set    (Set)
 import           Data.Text   (Text)
 
@@ -369,7 +367,7 @@ instance PP (WithNames Expr) where
                          , hang "where" 2 (vcat (map ppW ds))
                          ]
 
-      EPropGuards guards _ -> 
+      EPropGuards guards _ ->
         parens (text "propguards" <+> vsep (ppGuard <$> guards))
         where ppGuard (props, e) = indent 1
                                  $ pipe <+> commaSep (ppW <$> props)
@@ -529,24 +527,52 @@ instance PP (WithNames TCTopEntity) where
      TCTopSignature n ps ->
         hang ("interface module" <+> pp n <+> "where") 2 (pp ps)
 
+data DocItem = DocItem
+  { docModContext :: ImpName Name -- ^ The module scope to run repl commands in
+  , docFor  :: ImpName Name -- ^ The name the documentation is attached to
+  , docText :: Maybe Text -- ^ The text of the attached docstring, if any
+  }
+
 gatherModuleDocstrings ::
   Map Name (ImpName Name) ->
   Module ->
-  [(ImpName Name, Text)]
+  [DocItem]
 gatherModuleDocstrings nameToModule m =
-  cat [(ImpTop (mName m), mDoc m)] ++
+  [DocItem
+    { docModContext = ImpTop (mName m)
+    , docFor = ImpTop (mName m)
+    , docText = mDoc m
+    }
+  ] ++
   -- mParams m
   -- mParamTypes m
   -- mParamFuns m
-  cat [(lookupModuleName n, tsDoc t) | (n, t) <- Map.assocs (mTySyns m)] ++
-  cat [(lookupModuleName n, ntDoc t) | (n, t) <- Map.assocs (mNominalTypes m)] ++
-  cat [(lookupModuleName (dName d), dDoc d) | g <- mDecls m, d <- groupDecls g] ++
-  cat [(ImpNested n, ifsDoc (smIface s)) | (n, s) <- Map.assocs (mSubmodules m)] ++
-  cat [(ImpTop (mName m), mpnDoc s) | s <- Map.elems (mSignatures m)]
+  [DocItem
+    { docModContext = lookupModuleName n
+    , docFor = ImpNested n
+    , docText = tsDoc t
+    } | (n, t) <- Map.assocs (mTySyns m)] ++
+  [DocItem
+    { docModContext = lookupModuleName n
+    , docFor = ImpNested n
+    , docText = ntDoc t
+    } | (n, t) <- Map.assocs (mNominalTypes m)] ++
+  [DocItem
+    { docModContext = lookupModuleName (dName d)
+    , docFor = ImpNested (dName d)
+    , docText = dDoc d
+    } | g <- mDecls m, d <- groupDecls g] ++
+  [DocItem
+    { docModContext = ImpNested n
+    , docFor = ImpNested n
+    , docText = ifsDoc (smIface s)
+    } | (n, s) <- Map.assocs (mSubmodules m)] ++
+  [DocItem
+    { docModContext = ImpTop (mName m)
+    , docFor = ImpNested n
+    , docText = mpnDoc s
+    } | (n, s) <- Map.assocs (mSignatures m)]
   where
-    cat :: [(a, Maybe Text)] -> [(a, Text)]
-    cat entries = [(p, d) | (p, Just d) <- entries]
-
     lookupModuleName n =
       case Map.lookup n nameToModule of
         Just x -> x

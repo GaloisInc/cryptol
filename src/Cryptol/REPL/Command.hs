@@ -2109,35 +2109,44 @@ captureLog m = do
   setPutStr (\str -> modifyIORef outputsRef (str:))
   result <- m `finally` setLogger previousLogger
   outputs <- io (readIORef outputsRef)
-  let output = concat (reverse outputs)
+  let output = interpretControls (concat (reverse outputs))
   pure (output, result)
 
+-- | Apply control character semantics to the result of the logger
+interpretControls :: String -> String
+interpretControls ('\b' : xs) = interpretControls xs
+interpretControls (_ : '\b' : xs) = interpretControls xs
+interpretControls (x : xs) = x : interpretControls xs
+interpretControls [] = []
+
 -- | Check all the code blocks in a given docstring.
-checkDocString :: P.ImpName T.Name -> T.Text -> REPL [[SubcommandResult]]
-checkDocString impName str =
-  case extractCodeBlocks str of
-    Left e -> do
-      pure [[SubcommandResult
-        { srInput = T.empty
-        , srResult = emptyCommandResult { crSuccess = False }
-        , srLog = e
-        }]]
-    Right bs ->
-      Ex.bracket
-        (liftModuleCmd (`M.runModuleM` (M.getFocusedModule <* M.setFocusedModule impName)))
-        (\mb -> liftModuleCmd (`M.runModuleM` M.setMaybeFocusedModule mb))
-        (\_ -> traverse checkBlock bs)
+checkDocItem :: T.DocItem -> REPL (P.ImpName T.Name, [[SubcommandResult]])
+checkDocItem item =
+ do xs <- case extractCodeBlocks (fromMaybe "" (T.docText item)) of
+            Left e -> do
+              pure [[SubcommandResult
+                { srInput = T.empty
+                , srResult = emptyCommandResult { crSuccess = False }
+                , srLog = e
+                }]]
+            Right [] -> pure [] -- optimization
+            Right bs ->
+              Ex.bracket
+                (liftModuleCmd (`M.runModuleM` (M.getFocusedModule <* M.setFocusedModule (T.docModContext item))))
+                (\mb -> liftModuleCmd (`M.runModuleM` M.setMaybeFocusedModule mb))
+                (\_ -> traverse checkBlock bs)
+    pure (T.docFor item, xs)
 
 -- | Check all of the docstrings in the given module.
 --
 -- The outer list elements correspond to the code blocks from the
 -- docstrings in file order. Each inner list corresponds to the
 -- REPL commands inside each of the docstrings.
-checkDocStrings :: M.LoadedModule -> REPL [[SubcommandResult]]
+checkDocStrings :: M.LoadedModule -> REPL [(P.ImpName T.Name, [[SubcommandResult]])]
 checkDocStrings m = do
   let dat = M.lmdModule (M.lmData m)
   let ds = T.gatherModuleDocstrings (M.ifaceNameToModuleMap (M.lmInterface m)) dat
-  concat <$> traverse (uncurry checkDocString) ds
+  traverse checkDocItem ds
 
 -- | Evaluate all the docstrings in the specified module.
 --
@@ -2165,12 +2174,17 @@ checkDocStringsCmd input
 
   where
 
-    countOutcomes :: [SubcommandResult] -> (Int, Int)
-    countOutcomes = foldl' countOutcomes' (0, 0)
+    countOutcomes :: [[SubcommandResult]] -> (Int, Int, Int)
+    countOutcomes = foldl' countOutcomes1 (0, 0, 0)
       where
-        countOutcomes' (successes, failures) result
-          | crSuccess (srResult result) = (successes + 1, failures)
-          | otherwise = (successes, failures + 1)
+        countOutcomes1 (successes, nofences, failures) []
+          = (successes, nofences + 1, failures)
+        countOutcomes1 acc result = foldl' countOutcomes2 acc result
+
+        countOutcomes2 (successes, nofences, failures) result
+          | crSuccess (srResult result) = (successes + 1, nofences, failures)
+          | otherwise = (successes, nofences, failures + 1)
+
 
     checkModName :: P.ModName -> REPL CommandResult
     checkModName mn = do
@@ -2182,15 +2196,18 @@ checkDocStringsCmd input
 
           Just fe -> do
             results <- checkDocStrings fe
-            let (successes, failures) = countOutcomes (concat results)
+            let (successes, nofences, failures) = countOutcomes [concat rs | (_, rs) <- results]
 
-            forM_ results $ \result ->
-              forM_ result $ \line -> do
-                rPutStrLn ""
-                rPutStrLn (T.unpack (srInput line))
-                rPutStr (srLog line)
+            forM_ results $ \(n, fences) ->
+             do rPutStrLn ""
+                rPutStrLn ("Checking " ++ show (pp n))
+                forM_ fences $ \fence ->
+                  forM_ fence $ \line -> do
+                    rPutStrLn ""
+                    rPutStrLn (T.unpack (srInput line))
+                    rPutStr (srLog line)
             
             rPutStrLn ""
-            rPutStrLn ("Successes: " ++ show successes ++ ", Failures: " ++ show failures)
+            rPutStrLn ("Successes: " ++ show successes ++ ", No fences: " ++ show nofences ++ ", Failures: " ++ show failures)
 
             pure emptyCommandResult { crSuccess = failures == 0 }
