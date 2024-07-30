@@ -48,6 +48,7 @@ cryIsEqual ctxt t1 t2 =
     <|> tryCancelVar ctxt (=#=) t1 t2
     <|> tryLinearSolution t1 t2
     <|> tryLinearSolution t2 t1
+    <|> tryEqMulExp t1 t2
     <|> tryEqExp t1 t2
 
 -- | Try to solve @t1 /= t2@
@@ -237,8 +238,8 @@ tryCancelVar ctxt p t1 t2 =
 
 
 -- if (x >= 2) && x^a*x^b = x^c => a+b = c
-tryEqExp :: Type -> Type -> Match Solved
-tryEqExp x y = check x y <|> check y x
+tryEqMulExp :: Type -> Type -> Match Solved
+tryEqMulExp x y = check x y <|> check y x
   where 
     check i j =
       do  (m1,m2) <- aMul i
@@ -249,6 +250,19 @@ tryEqExp x y = check x y <|> check y x
           n <- aNat x_1
           guard (n >= 2)
           return $ SolvedIf [ tAdd a b =#= c ]
+
+-- if (x >= 2) && x^a = x^b => a = b
+tryEqExp :: Type -> Type -> Match Solved
+tryEqExp x y = check x y <|> check y x
+  where 
+    check i j =
+      do  
+          (x_1, a) <- (|^|) i
+          (x_2, b) <- (|^|) j
+          guard (x_1 == x_2)
+          n <- aNat x_1
+          guard (n >= 2)
+          return $ SolvedIf [ a =#= b ]
   
 -- min t1 t2 = t1 ~> t1 <= t2
 tryEqMin :: Type -> Type -> Match Solved
