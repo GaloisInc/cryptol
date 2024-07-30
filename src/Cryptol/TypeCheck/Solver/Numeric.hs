@@ -48,7 +48,6 @@ cryIsEqual ctxt t1 t2 =
     <|> tryCancelVar ctxt (=#=) t1 t2
     <|> tryLinearSolution t1 t2
     <|> tryLinearSolution t2 t1
-    <|> tryEqMulExp t1 t2
     <|> tryEqExp t1 t2
 
 -- | Try to solve @t1 /= t2@
@@ -140,14 +139,14 @@ tryGeqThanK _ t (Nat k) =
   -- XXX: K1 ^^ n >= K2
 
 
--- (x >= 2 && x^a >= x^b) => a >= b
+-- (K >= 2 && K^a >= K^b) => a >= b
 tryGeqExp :: Ctxt -> Type -> Type -> Match Solved
 tryGeqExp _ x y = 
-      do  (x_1, a) <- (|^|) x
-          (x_2, b) <- (|^|) y
-          guard (x_1 == x_2)
-          n <- aNat x_1
+      do  (k_1, a) <- (|^|) x
+          n <- aNat k_1
           guard (n >= 2)
+          (k_2, b) <- (|^|) y
+          guard (k_1 == k_2)
           return $ SolvedIf [ a >== b ]
 
 
@@ -237,31 +236,17 @@ tryCancelVar ctxt p t1 t2 =
 
 
 
--- if (x >= 2) && x^a*x^b = x^c => a+b = c
-tryEqMulExp :: Type -> Type -> Match Solved
-tryEqMulExp x y = check x y <|> check y x
-  where 
-    check i j =
-      do  (m1,m2) <- aMul i
-          (x_1, a) <- (|^|) m1
-          (x_2, b) <- (|^|) m2
-          (x_3, c) <- (|^|) j
-          guard (x_1 == x_2 && x_2 == x_3)
-          n <- aNat x_1
-          guard (n >= 2)
-          return $ SolvedIf [ tAdd a b =#= c ]
-
--- if (x >= 2) && x^a = x^b => a = b
+-- if (K >= 2) && K^a = K^b => a = b
 tryEqExp :: Type -> Type -> Match Solved
 tryEqExp x y = check x y <|> check y x
   where 
     check i j =
       do  
-          (x_1, a) <- (|^|) i
-          (x_2, b) <- (|^|) j
-          guard (x_1 == x_2)
-          n <- aNat x_1
+          (k_1, a) <- (|^|) i
+          n <- aNat k_1
           guard (n >= 2)
+          (k_2, b) <- (|^|) j
+          guard (k_1 == k_2)
           return $ SolvedIf [ a =#= b ]
   
 -- min t1 t2 = t1 ~> t1 <= t2

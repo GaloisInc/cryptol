@@ -142,7 +142,8 @@ tMul x y
   | Just n <- tIsNum x  = mulK n y
   | Just n <- tIsNum y  = mulK n x
   | Just v <- matchMaybe swapVars = v
-  | otherwise           = tf2 TCMul x y
+  | otherwise = checkExpMul x y
+  
   where
   mulK 0 _ = tNum (0 :: Int)
   mulK 1 t = t
@@ -158,7 +159,7 @@ tMul x y
            | TCon (TF TCExp) [a,b] <- t'
            , Just n' <- tIsNum a
            , n == n' = tf2 TCExp a (tAdd (tNum (1::Int)) b)
-
+           -- c^x * c^y = c ^ (y + x)
            | otherwise = tf2 TCMul (tNum n) t
     where t' = tNoUser t
 
@@ -166,6 +167,14 @@ tMul x y
                 b <- aTVar y
                 guard (b < a)
                 return (tf2 TCMul y x)
+  
+  -- Check if (K^a * K^b) => K^(a + b) otherwise default to standard mul
+  checkExpMul s t | TCon (TF TCExp) [a,aExp] <- s
+                  , Just a' <- tIsNum a
+                  , TCon (TF TCExp) [b,bExp] <- t
+                  , Just b' <- tIsNum b
+                  , (a' >= 2 && a' == b') = tf2 TCExp a (tAdd aExp bExp)
+                  | otherwise = tf2 TCMul x y
 
 
 
