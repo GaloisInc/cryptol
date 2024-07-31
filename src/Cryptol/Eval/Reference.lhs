@@ -1073,6 +1073,7 @@ Given a literal integer, construct a value of a type that can represent that lit
 >   where
 >    go TVInteger  = pure (VInteger i)
 >    go TVRational = pure (VRational (fromInteger i))
+>    go (TVFloat e p) = pure (VFloat (fpToBF e p (FP.bfFromInteger i)))
 >    go (TVIntMod n)
 >         | i < n = pure (VInteger i)
 >         | otherwise = evalPanic "literal"

@@ -117,3 +117,47 @@ fpToRational (2.5 : Float64)
 // fpToRational
 fpFromRational rne (ratio 5 2) : Float64
 :eval fpFromRational rne (ratio 5 2) : Float64
+
+// Literal instance
+1 : Float64
+:eval 1 : Float64
+
+// FLiteral instance
+1.5 : Float64
+:eval 1.5 : Float64
+
+// Eq instance
+(1.5 : Float64) == 1.5
+:eval (1.5 : Float64) == 1.5
+(fpPosZero : Float64) == fpNegZero
+:eval (fpPosZero : Float64) == fpNegZero
+(fpNaN : Float64) == fpNaN
+:eval (fpNaN : Float64) == fpNaN
+
+// Cmp instance
+(1.5 : Float64) < 2.5
+:eval (1.5 : Float64) < 2.5
+(2.5 : Float64) < 1.5
+:eval (2.5 : Float64) < 1.5
+(fpPosZero : Float64) < fpNegZero
+:eval (fpPosZero : Float64) < fpNegZero
+(fpNegZero : Float64) < fpPosZero
+:eval (fpNegZero : Float64) < fpPosZero
+(fpNaN : Float64) < fpNaN
+:eval (fpNaN : Float64) < fpNaN
+
+// Zero instance
+zero : Float64
+:eval zero : Float64
+
+// Ring instance
+fromInteger 25 : Float64
+:eval fromInteger 25 : Float64
+
+// Field instance
+recip 2.0 : Float64
+:eval recip 2.0 : Float64
+
+// Round instance
+ceiling (2.5 : Float64)
+:eval ceiling (2.5 : Float64)
