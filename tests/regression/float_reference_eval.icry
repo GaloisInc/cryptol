@@ -1,0 +1,119 @@
+// A test case that ensures that the reference evaluator achieves parity with
+// other Cryptol backends in terms of floating-point operations.
+
+:module Float
+:set fp-base=10
+
+// fpNaN
+fpNaN : Float64
+:eval fpNaN : Float64
+
+// fpPosInf
+fpPosInf : Float64
+:eval fpPosInf : Float64
+
+// fpNegInf
+fpNegInf : Float64
+:eval fpNegInf : Float64
+
+// fpPosZero
+fpPosZero : Float64
+:eval fpPosZero : Float64
+
+// fpNegZero
+fpNegZero : Float64
+:eval fpNegZero : Float64
+
+// fpFromBits
+fpFromBits 0x40D03A98FB4D2934 : Float64
+:eval fpFromBits 0x40D03A98FB4D2934 : Float64
+
+// fpToBits
+fpToBits (16618.390338220823 : Float64)
+:eval fpToBits (16618.390338220823 : Float64)
+
+// (=.=)
+(25.0 : Float64) =.= 25.0
+:eval (25.0 : Float64) =.= 25.0
+(fpNaN : Float64) =.= fpNaN
+:eval (fpNaN : Float64) =.= fpNaN
+(fpPosZero : Float64) =.= fpNegZero
+:eval (fpPosZero : Float64) =.= fpNegZero
+
+// fpIsNaN
+fpIsNaN (fpNaN : Float64)
+:eval fpIsNaN (fpNaN : Float64)
+fpIsNaN (25.0 : Float64)
+:eval fpIsNaN (25.0 : Float64)
+
+// fpIsInf
+fpIsInf (fpPosInf : Float64)
+:eval fpIsInf (fpPosInf : Float64)
+fpIsInf (25.0 : Float64)
+:eval fpIsInf (25.0 : Float64)
+
+// fpIsFinite
+fpIsFinite (25.0 : Float64)
+:eval fpIsFinite (25.0 : Float64)
+fpIsFinite (fpPosInf : Float64)
+:eval fpIsFinite (fpPosInf : Float64)
+
+// fpIsZero
+fpIsZero (fpPosZero : Float64)
+:eval fpIsZero (fpPosZero : Float64)
+fpIsZero (25.0 : Float64)
+:eval fpIsZero (25.0 : Float64)
+
+// fpIsNeg
+fpIsNeg (-25.0 : Float64)
+:eval fpIsNeg (-25.0 : Float64)
+fpIsNeg (25.0 : Float64)
+:eval fpIsNeg (25.0 : Float64)
+
+// fpIsNormal
+fpIsNormal (25.0 : Float64)
+:eval fpIsNormal (25.0 : Float64)
+fpIsNormal (4.9406564584124654e-324 : Float64)
+:eval fpIsNormal (4.9406564584124654e-324 : Float64)
+
+// fpIsSubnormal
+fpIsSubnormal (4.9406564584124654e-324 : Float64)
+:eval fpIsSubnormal (4.9406564584124654e-324 : Float64)
+fpIsSubnormal (25.0 : Float64)
+:eval fpIsSubnormal (25.0 : Float64)
+
+// fpAdd
+fpAdd rne (2.5 : Float64) 3.0
+:eval fpAdd rne (2.5 : Float64) 3.0
+
+// fpSub
+fpSub rne (2.5 : Float64) 3.0
+:eval fpSub rne (2.5 : Float64) 3.0
+
+// fpMul
+fpMul rne (2.5 : Float64) 3.0
+:eval fpMul rne (2.5 : Float64) 3.0
+
+// fpDiv
+fpDiv rne (2.5 : Float64) 3.0
+:eval fpDiv rne (2.5 : Float64) 3.0
+
+// fpFMA
+fpFMA rne (2.5 : Float64) 3.0 3.5
+:eval fpFMA rne (2.5 : Float64) 3.0 3.5
+
+// fpAbs
+fpAbs (-25.0 : Float64)
+:eval fpAbs (-25.0 : Float64)
+
+// fpSqrt
+fpSqrt rne (25.0 : Float64)
+:eval fpSqrt rne (25.0 : Float64)
+
+// fpToRational
+fpToRational (2.5 : Float64)
+:eval fpToRational (2.5 : Float64)
+
+// fpToRational
+fpFromRational rne (ratio 5 2) : Float64
+:eval fpFromRational rne (ratio 5 2) : Float64

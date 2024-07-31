@@ -1707,13 +1707,23 @@ and integers.
 These functions capture the interactions with rationals.
 
 
-This just captures a common pattern for binary floating point primitives.
+These just capture common patterns for unary, binary, and ternary floating
+point primitives.
 
+> fpUn :: (FP.BFOpts -> BigFloat -> (BigFloat,FP.Status)) ->
+>         FP.RoundMode -> Integer -> Integer ->
+>         BigFloat -> E BigFloat
+> fpUn f r e p x = pure (FP.fpCheckStatus (f (FP.fpOpts e p r) x))
+>
 > fpBin :: (FP.BFOpts -> BigFloat -> BigFloat -> (BigFloat,FP.Status)) ->
 >          FP.RoundMode -> Integer -> Integer ->
 >          BigFloat -> BigFloat -> E BigFloat
 > fpBin f r e p x y = pure (FP.fpCheckStatus (f (FP.fpOpts e p r) x y))
-
+>
+> fpTern :: (FP.BFOpts -> BigFloat -> BigFloat -> BigFloat -> (BigFloat,FP.Status)) ->
+>           FP.RoundMode -> Integer -> Integer ->
+>           BigFloat -> BigFloat -> BigFloat -> E BigFloat
+> fpTern f r e p x y z = pure (FP.fpCheckStatus (f (FP.fpOpts e p r) x y z))
 
 Computes the reciprocal of a floating point number via division.
 This assumes that 1 can be represented exactly, which should be
@@ -1752,16 +1762,55 @@ true for all supported precisions.
 >                           y <- fromVFloat <$> yv
 >                           pure (VBit (FP.bfCompare x y == EQ))
 >
->    , "fpIsFinite" ~> vFinPoly \_ -> pure $
->                      vFinPoly \_ -> pure $
+>    , "fpIsNaN"     ~> vFinPoly \_ -> pure $
+>                       vFinPoly \_ -> pure $
+>                       VFun \xv ->
+>                         do x <- fromVFloat <$> xv
+>                            pure (VBit (FP.bfIsNaN x))
+>
+>    , "fpIsInf"     ~> vFinPoly \_ -> pure $
+>                       vFinPoly \_ -> pure $
+>                       VFun \xv ->
+>                         do x <- fromVFloat <$> xv
+>                            pure (VBit (FP.bfIsInf x))
+>
+>    , "fpIsZero"    ~> vFinPoly \_ -> pure $
+>                       vFinPoly \_ -> pure $
+>                       VFun \xv ->
+>                         do x <- fromVFloat <$> xv
+>                            pure (VBit (FP.bfIsZero x))
+>
+>    , "fpIsNeg"     ~> vFinPoly \_ -> pure $
+>                       vFinPoly \_ -> pure $
+>                       VFun \xv ->
+>                         do x <- fromVFloat <$> xv
+>                            pure (VBit (FP.bfIsNeg x))
+>
+>    , "fpIsNormal"  ~> vFinPoly \e -> pure $
+>                       vFinPoly \p -> pure $
+>                       VFun \xv ->
+>                         do x <- fromVFloat <$> xv
+>                            let opts = FP.fpOpts e p fpImplicitRound
+>                            pure (VBit (FP.bfIsNormal opts x))
+>
+>    , "fpIsSubnormal" ~> vFinPoly \e -> pure $
+>                         vFinPoly \p -> pure $
+>                         VFun \xv ->
+>                           do x <- fromVFloat <$> xv
+>                              let opts = FP.fpOpts e p fpImplicitRound
+>                              pure (VBit (FP.bfIsSubnormal opts x))
+>
+>    , "fpAdd"      ~> fpBinArith FP.bfAdd
+>    , "fpSub"      ~> fpBinArith FP.bfSub
+>    , "fpMul"      ~> fpBinArith FP.bfMul
+>    , "fpDiv"      ~> fpBinArith FP.bfDiv
+>    , "fpFMA"      ~> fpTernArith FP.bfFMA
+>    , "fpAbs"      ~> vFinPoly \e -> pure $
+>                      vFinPoly \p -> pure $
 >                      VFun \xv ->
 >                        do x <- fromVFloat <$> xv
->                           pure (VBit (FP.bfIsFinite x))
->
->    , "fpAdd"      ~> fpArith FP.bfAdd
->    , "fpSub"      ~> fpArith FP.bfSub
->    , "fpMul"      ~> fpArith FP.bfMul
->    , "fpDiv"      ~> fpArith FP.bfDiv
+>                           pure (VFloat (fpToBF e p (FP.bfAbs x)))
+>    , "fpSqrt"     ~> fpUnArith FP.bfSqrt
 >
 >    , "fpToRational" ~>
 >       vFinPoly \_ -> pure $
@@ -1780,16 +1829,38 @@ true for all supported precisions.
 >           pure (VFloat (FP.floatFromRational e p rm' rat))
 >    ]
 >   where
->   fpArith f = vFinPoly \e -> pure $
->               vFinPoly \p -> pure $
->               VFun \vr -> pure $
->               VFun \xv -> pure $
->               VFun \yv ->
->                 do r <- fromVWord =<< vr
->                    rnd <- eitherToE (FP.fpRound r)
->                    x <- fromVFloat <$> xv
->                    y <- fromVFloat <$> yv
->                    VFloat . fpToBF e p <$> fpBin f rnd e p x y
+>   fpUnArith f = vFinPoly \e -> pure $
+>                 vFinPoly \p -> pure $
+>                 VFun \vr -> pure $
+>                 VFun \xv ->
+>                   do r <- fromVWord =<< vr
+>                      rnd <- eitherToE (FP.fpRound r)
+>                      x <- fromVFloat <$> xv
+>                      VFloat . fpToBF e p <$> fpUn f rnd e p x
+>
+>   fpBinArith f = vFinPoly \e -> pure $
+>                  vFinPoly \p -> pure $
+>                  VFun \vr -> pure $
+>                  VFun \xv -> pure $
+>                  VFun \yv ->
+>                    do r <- fromVWord =<< vr
+>                       rnd <- eitherToE (FP.fpRound r)
+>                       x <- fromVFloat <$> xv
+>                       y <- fromVFloat <$> yv
+>                       VFloat . fpToBF e p <$> fpBin f rnd e p x y
+>
+>   fpTernArith f = vFinPoly \e -> pure $
+>                   vFinPoly \p -> pure $
+>                   VFun \vr -> pure $
+>                   VFun \xv -> pure $
+>                   VFun \yv -> pure $
+>                   VFun \zv ->
+>                     do r <- fromVWord =<< vr
+>                        rnd <- eitherToE (FP.fpRound r)
+>                        x <- fromVFloat <$> xv
+>                        y <- fromVFloat <$> yv
+>                        z <- fromVFloat <$> zv
+>                        VFloat . fpToBF e p <$> fpTern f rnd e p x y z
 
 
 Error Handling
