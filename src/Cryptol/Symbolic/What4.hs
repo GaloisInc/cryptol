@@ -261,6 +261,7 @@ setupProver nm =
     test =
       do sym <- W4.newExprBuilder W4.FloatIEEERepr CryptolState globalNonceGenerator
          W4.extendConfig opts (W4.getConfiguration sym)
+
          (proc :: W4.SolverProcess GlobalNonceGenerator s) <- W4.startSolverProcess fs Nothing sym
          res <- W4.checkSatisfiable proc "smoke test" (W4.falsePred sym)
          case res of
@@ -380,10 +381,11 @@ satProve ::
   W4ProverConfig ->
   Bool {- ^ hash consing -} ->
   Bool {- ^ warn on uninterpreted functions -} ->
+  Int {- ^ timeout milliseconds -} ->
   ProverCommand ->
   M.ModuleCmd (Maybe String, ProverResult)
 
-satProve solverCfg hashConsing warnUninterp pc@ProverCommand {..} =
+satProve solverCfg hashConsing warnUninterp timeoutMs pc@ProverCommand {..} =
   protectStack proverError \modIn ->
   M.runModuleM modIn
   do w4sym   <- liftIO makeSym
@@ -409,6 +411,7 @@ satProve solverCfg hashConsing warnUninterp pc@ProverCommand {..} =
                                   globalNonceGenerator
        setupAdapterOptions solverCfg w4sym
        when hashConsing (W4.startCaching w4sym)
+       when (timeoutMs > 0) (setTimeout (fromIntegral timeoutMs) w4sym)
        pure w4sym
 
   doLog lg () =
@@ -470,7 +473,7 @@ satProveOffline hashConsing warnUninterp ProverCommand{ .. } outputContinuation 
   makeSym =
     do sym <- W4.newExprBuilder W4.FloatIEEERepr CryptolState globalNonceGenerator
        W4.extendConfig W4.z3Options (W4.getConfiguration sym)
-       when hashConsing  (W4.startCaching sym)
+       when hashConsing (W4.startCaching sym)
        pure sym
 
   onError msg minp = pure (Right (Just msg, M.minpModuleEnv minp), [])
@@ -754,3 +757,18 @@ varShapeToConcrete evalFn v =
     VarEnum tag cons ->
       VarEnum <$> W4.groundEval evalFn tag
               <*> traverse (traverse (varShapeToConcrete evalFn)) cons
+
+symCfg :: (W4.IsExprBuilder sym, W4.Opt t a) => sym -> W4.ConfigOption t -> a -> IO ()
+symCfg sym x y =
+ do opt <- W4.getOptionSetting x (W4.getConfiguration sym)
+    _   <- W4.trySetOpt opt y
+    pure ()
+
+setTimeout :: W4.IsExprBuilder sym => Integer -> sym -> IO ()
+setTimeout s sym =
+ do symCfg sym W4.z3Timeout (1000 * s)
+    symCfg sym W4.cvc4Timeout (1000 * s)
+    symCfg sym W4.cvc5Timeout (1000 * s)
+    symCfg sym W4.boolectorTimeout (1000 * s)
+    symCfg sym W4.yicesGoalTimeout s -- N.B. yices takes seconds
+    pure ()

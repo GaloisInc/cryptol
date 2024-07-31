@@ -956,6 +956,7 @@ onlineProveSat proverName qtype expr schema mfile = do
   decls <- fmap M.deDecls getDynEnv
   timing <- io (newIORef 0)
   ~(EnvBool ignoreSafety) <- getUser "ignoreSafety"
+  ~(EnvNum timeoutSec) <- getUser "proverTimeout"
   let cmd = ProverCommand {
           pcQueryType    = qtype
         , pcProverName   = proverName
@@ -969,11 +970,11 @@ onlineProveSat proverName qtype expr schema mfile = do
         , pcIgnoreSafety = ignoreSafety
         }
   (firstProver, res) <- getProverConfig >>= \case
-       Left sbvCfg -> liftModuleCmd $ SBV.satProve sbvCfg cmd
+       Left sbvCfg -> liftModuleCmd $ SBV.satProve sbvCfg timeoutSec cmd
        Right w4Cfg ->
          do ~(EnvBool hashConsing) <- getUser "hashConsing"
             ~(EnvBool warnUninterp) <- getUser "warnUninterp"
-            liftModuleCmd $ W4.satProve w4Cfg hashConsing warnUninterp cmd
+            liftModuleCmd $ W4.satProve w4Cfg hashConsing warnUninterp timeoutSec cmd
 
   stas <- io (readIORef timing)
   return (firstProver,res,stas)

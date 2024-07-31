@@ -79,7 +79,7 @@ proveSat (ProveSatParams queryType (ProverName proverName) jsonExpr hConsing) = 
             }
       res <- if proverName `elem` ["offline","sbv-offline","w4-offline"]
              then offlineProveSat proverName cmd hConsing
-             else onlineProveSat  proverName cmd hConsing
+             else onlineProveSat  proverName cmd hConsing 0
       _stats <- liftIO (readIORef timing)
       pure res
 
@@ -141,17 +141,18 @@ onlineProveSat ::
   ProverCommand ->
   -- | Type of expression sat is being called for.
   Bool ->
+  Int {- ^ timeout in seconds -} -> 
   CryptolCommand ProveSatResult
-onlineProveSat proverName cmd hConsing = do
+onlineProveSat proverName cmd hConsing timeout = do
   res <-
     getProverConfig proverName >>= \case
       Left sbvCfg -> do
-        (_firstProver, res) <- liftModuleCmd $ SBV.satProve sbvCfg cmd
+        (_firstProver, res) <- liftModuleCmd $ SBV.satProve sbvCfg 0 cmd
         _stats <- liftIO (readIORef (pcProverStats cmd))
         pure res
       Right w4Cfg -> do
         (_firstProver, res) <-
-          liftModuleCmd $ W4.satProve w4Cfg hConsing False {- warn uninterp fns -} cmd
+          liftModuleCmd $ W4.satProve w4Cfg hConsing False {- warn uninterp fns -} timeout cmd
         _stats <- liftIO (readIORef (pcProverStats cmd))
         pure res
   case res of
