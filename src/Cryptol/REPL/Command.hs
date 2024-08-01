@@ -2207,7 +2207,7 @@ checkDocStringsCmd input
 
           Just fe -> do
             results <- checkDocStrings fe
-            let (successes, nofences, failures) = countOutcomes (concatMap drFences results)
+            let (successes, nofences, failures) = countOutcomes [concat (drFences r) | r <- results]
 
             forM_ results $ \dr ->
              do rPutStrLn ""
