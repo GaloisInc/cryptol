@@ -2,6 +2,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
+{-# LANGUAGE InstanceSigs #-}
 module CryptolServer.CheckDocstrings
   ( checkDocstrings
   , checkDocstringsDescr
@@ -26,8 +27,9 @@ import Cryptol.Parser.AST (ImpName(..))
 import qualified System.Random.TF as TF
 import qualified Cryptol.Symbolic.SBV as SBV
 import Cryptol.REPL.Monad (mkUserEnv, userOptions)
-import Cryptol.TypeCheck.AST (Name)
 import Cryptol.Utils.PP (pp)
+import Data.Proxy (Proxy(Proxy))
+import Data.Typeable (typeRep)
 
 checkDocstringsDescr :: Doc.Block
 checkDocstringsDescr =
@@ -65,16 +67,13 @@ checkDocstrings CheckDocstringsParams = do
         }
       REPL.unREPL (CheckDocstringsResult <$> checkDocStrings m) rwRef
 
-newtype CheckDocstringsResult = CheckDocstringsResult [(ImpName Name, [[SubcommandResult]])]
+newtype CheckDocstringsResult = CheckDocstringsResult [DocstringResult]
 
 instance ToJSON CheckDocstringsResult where
-  toJSON (CheckDocstringsResult r) =
-    JSON.object ["results" .=
-      [ JSON.object
-          [ "name" .= show (pp n)
-          , "fences" .= xs
-        ] | (n, xs) <- r
-      ]]
+  toJSON (CheckDocstringsResult r) = JSON.object ["results" .= r]
+
+instance ToJSON DocstringResult where
+  toJSON dr = JSON.object ["name" .= show (pp (drName dr)), "fences" .= drFences dr]
 
 instance ToJSON SubcommandResult where
   toJSON r = JSON.object
@@ -99,8 +98,46 @@ instance FromJSON CheckDocstringsParams where
 
 
 instance Doc.DescribedMethod CheckDocstringsParams CheckDocstringsResult where
-  parameterFieldDescription =
-    []
+  parameterFieldDescription = []
 
   resultFieldDescription =
-    []
+    [("results",
+        Doc.Paragraph
+            [ Doc.Text "A list of "
+            , Doc.Link (Doc.TypeDesc (typeRep (Proxy :: Proxy DocstringResult))) "docstring results"
+            , Doc.Text " correspoding to each definition in the current module."
+            ]
+        
+        )]
+    
+instance Doc.Described DocstringResult where
+  typeName = "DocstringResult"
+  description =
+    [ Doc.Paragraph [Doc.Text "The result of evaluating the code fences in a docstring"]
+    , Doc.DescriptionList
+        [ ( pure (Doc.Literal "name")
+          , Doc.Paragraph[Doc.Text "The definition assocated with the docstring"]
+          )
+        , ( pure (Doc.Literal "fences")
+          , Doc.Paragraph[Doc.Text "An array code fences each containing an array of individual "
+          , Doc.Link (Doc.TypeDesc (typeRep (Proxy :: Proxy CommandResult))) "command results"]
+          )
+        ]
+    ]
+
+instance Doc.Described CommandResult where
+  typeName = "CommandResult"
+  description =
+    [ Doc.Paragraph [Doc.Text "The result of executing a single REPL command."]
+    , Doc.DescriptionList
+        [ ( pure (Doc.Literal "success")
+          , Doc.Paragraph [Doc.Text "Boolean indicating successful execution of the command"]
+          )
+        , ( pure (Doc.Literal "type")
+          , Doc.Paragraph[Doc.Text "The string representation of the type returned or null"]
+          )
+        , ( pure (Doc.Literal "value")
+          , Doc.Paragraph[Doc.Text "The string representation of the value returned or null"]
+          )
+        ]
+    ]

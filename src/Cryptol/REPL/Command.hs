@@ -49,6 +49,7 @@ module Cryptol.REPL.Command (
     -- Check docstrings
   , checkDocStrings
   , SubcommandResult(..)
+  , DocstringResult(..)
 
     -- Misc utilities
   , handleCtrlC
@@ -2120,8 +2121,14 @@ interpretControls (_ : '\b' : xs) = interpretControls xs
 interpretControls (x : xs) = x : interpretControls xs
 interpretControls [] = []
 
+-- | The result of running a docstring as attached to a definition
+data DocstringResult = DocstringResult
+  { drName :: P.ImpName T.Name -- ^ The associated definition of the docstring
+  , drFences :: [[SubcommandResult]] -- ^ list of fences in this definition's docstring
+  }
+
 -- | Check all the code blocks in a given docstring.
-checkDocItem :: T.DocItem -> REPL (P.ImpName T.Name, [[SubcommandResult]])
+checkDocItem :: T.DocItem -> REPL DocstringResult
 checkDocItem item =
  do xs <- case extractCodeBlocks (fromMaybe "" (T.docText item)) of
             Left e -> do
@@ -2136,14 +2143,17 @@ checkDocItem item =
                 (liftModuleCmd (`M.runModuleM` (M.getFocusedModule <* M.setFocusedModule (T.docModContext item))))
                 (\mb -> liftModuleCmd (`M.runModuleM` M.setMaybeFocusedModule mb))
                 (\_ -> traverse checkBlock bs)
-    pure (T.docFor item, xs)
+    pure DocstringResult
+      { drName = T.docFor item
+      , drFences = xs
+      }
 
 -- | Check all of the docstrings in the given module.
 --
 -- The outer list elements correspond to the code blocks from the
 -- docstrings in file order. Each inner list corresponds to the
 -- REPL commands inside each of the docstrings.
-checkDocStrings :: M.LoadedModule -> REPL [(P.ImpName T.Name, [[SubcommandResult]])]
+checkDocStrings :: M.LoadedModule -> REPL [DocstringResult]
 checkDocStrings m = do
   let dat = M.lmdModule (M.lmData m)
   let ds = T.gatherModuleDocstrings (M.ifaceNameToModuleMap (M.lmInterface m)) dat
@@ -2197,12 +2207,12 @@ checkDocStringsCmd input
 
           Just fe -> do
             results <- checkDocStrings fe
-            let (successes, nofences, failures) = countOutcomes [concat rs | (_, rs) <- results]
+            let (successes, nofences, failures) = countOutcomes (concatMap drFences results)
 
-            forM_ results $ \(n, fences) ->
+            forM_ results $ \dr ->
              do rPutStrLn ""
-                rPutStrLn ("Checking " ++ show (pp n))
-                forM_ fences $ \fence ->
+                rPutStrLn ("Checking " ++ show (pp (drName dr)))
+                forM_ (drFences dr) $ \fence ->
                   forM_ fence $ \line -> do
                     rPutStrLn ""
                     rPutStrLn (T.unpack (srInput line))

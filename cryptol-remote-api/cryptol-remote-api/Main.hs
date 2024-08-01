@@ -36,6 +36,7 @@ import CryptolServer.Sat ( proveSat, proveSatDescr )
 import CryptolServer.TypeCheck ( checkType, checkTypeDescr )
 import CryptolServer.Version ( version, versionDescr )
 import CryptolServer.FileDeps( fileDeps, fileDepsDescr )
+import Cryptol.REPL.Command (CommandResult, DocstringResult)
 
 main :: IO ()
 main =
@@ -57,7 +58,9 @@ serverDocs =
      Doc.Text " that supports type checking and evaluation of Cryptol code via the methods documented below."]]
   , Doc.Section "Terms and Types"
     [Doc.datatype @Expression,
-     Doc.datatype @JSONSchema]
+     Doc.datatype @JSONSchema,
+     Doc.datatype @DocstringResult,
+     Doc.datatype @CommandResult]
   ]
 
 description :: String
