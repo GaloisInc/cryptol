@@ -1194,7 +1194,9 @@ addFunctors :: Map Name (ModuleG Name) -> InferM ()
 addFunctors mp =
   updScope \r -> r { mFunctors = Map.union mp (mFunctors r) }
 
-
+setNested :: Set Name -> InferM ()
+setNested names =
+  updScope \r -> r { mNested = names }
 
 
 -- | The sub-computation is performed with the given abstract function in scope.

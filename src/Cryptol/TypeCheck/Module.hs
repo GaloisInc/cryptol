@@ -106,6 +106,7 @@ doFunctorInst m f as instMap0 enclosingInScope doc =
      mapM_ addNominal   (Map.elems (mNominalTypes m2))
      addSignatures      (mSignatures m2)
      addSubmodules      (mSubmodules m2)
+     setNested          (mNested m2)
      addFunctors        (mFunctors m2)
      mapM_ addDecls     (mDecls m2)
 
