@@ -4,6 +4,9 @@ Loading module T01
 
 Checking T01
 
+pp
+False
+
 Checking submodule T01::Sub::pp
 
 :check pp
@@ -25,4 +28,4 @@ Using exhaustive testing.
 Testing... Passed 1 tests.
 Q.E.D.
 
-Successes: 3, No fences: 1, Failures: 0
+Successes: 4, No fences: 0, Failures: 0

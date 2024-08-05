@@ -1004,10 +1004,10 @@ newSubmoduleScope x docs e inScope =
      newScope (SubModule x)
      updScope \m -> m { mDoc = docs, mExports = e, mInScope = inScope }
 
-newModuleScope :: P.ModName -> ExportSpec Name -> NamingEnv -> InferM ()
-newModuleScope x e inScope =
+newModuleScope :: Maybe Text -> P.ModName -> ExportSpec Name -> NamingEnv -> InferM ()
+newModuleScope doc x e inScope =
   do newScope (MTopModule x)
-     updScope \m -> m { mDoc = Nothing, mExports = e, mInScope = inScope }
+     updScope \m -> m { mDoc = doc, mExports = e, mInScope = inScope }
 
 -- | Update the current scope (first in the list). Assumes there is one.
 updScope :: (ModuleG ScopeName -> ModuleG ScopeName) -> InferM ()

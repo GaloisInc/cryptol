@@ -1,3 +1,9 @@
+/**
+docstrings on modules get run in the module itself
+``` repl
+pp
+```
+*/
 module T01 where
 
 /**

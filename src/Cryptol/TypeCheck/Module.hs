@@ -99,7 +99,7 @@ doFunctorInst m f as instMap0 enclosingInScope doc =
          inScope = inScope0 `shadowing` enclosingInScope
 
      case thing m of
-       P.ImpTop mn    -> newModuleScope mn (mExports m2) inScope
+       P.ImpTop mn    -> newModuleScope (mDoc mf) mn (mExports m2) inScope
        P.ImpNested mn -> newSubmoduleScope mn doc (mExports m2) inScope
 
      mapM_ addTySyn     (Map.elems (mTySyns m2))
