@@ -58,7 +58,7 @@ The precise structure of states is considered an implementation detail that coul
 Summary
 -------
 
-An RCP server for `Cryptol <https://https://cryptol.net/>`_ that supports type checking and evaluation of Cryptol code via the methods documented below.
+An RPC server for `Cryptol <https://https://cryptol.net/>`_ that supports type checking and evaluation of Cryptol code via the methods documented below.
 
 
 Terms and Types
@@ -230,6 +230,45 @@ JSON representations of types are type schemas. A type schema has three fields:
 
 ``type``
   The type in which the variables from ``forall`` are in scope and the constraints in ``propositions`` are in effect.
+  
+  
+
+.. _DocstringResult:
+DocstringResult
+~~~~~~~~~~~~~~~
+
+The result of evaluating the code fences in a docstring
+
+
+``name``
+  The definition assocated with the docstring
+  
+  
+
+``fences``
+  An array code fences each containing an array of individual :ref:`command results <CommandResult>`
+  
+  
+
+.. _CommandResult:
+CommandResult
+~~~~~~~~~~~~~
+
+The result of executing a single REPL command.
+
+
+``success``
+  Boolean indicating successful execution of the command
+  
+  
+
+``type``
+  The string representation of the type returned or null
+  
+  
+
+``value``
+  The string representation of the value returned or null
   
   
 
@@ -722,6 +761,27 @@ Return fields
 
 ``query``
   Only used if the ``result`` is ``offline``. The raw textual contents of the requested SMT query which can inspected or manually given to an SMT solver.
+  
+  
+
+
+check docstrings (command)
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Check docstrings
+
+Parameter fields
+++++++++++++++++
+
+No parameters
+
+
+Return fields
++++++++++++++
+
+
+``results``
+  A list of :ref:`docstring results <DocstringResult>` correspoding to each definition in the current module.
   
   
 

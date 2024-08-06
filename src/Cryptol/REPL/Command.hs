@@ -46,6 +46,11 @@ module Cryptol.REPL.Command (
   , onlineProveSat
   , offlineProveSat
 
+    -- Check docstrings
+  , checkDocStrings
+  , SubcommandResult(..)
+  , DocstringResult(..)
+
     -- Misc utilities
   , handleCtrlC
   , sanitize
@@ -952,6 +957,7 @@ onlineProveSat proverName qtype expr schema mfile = do
   decls <- fmap M.deDecls getDynEnv
   timing <- io (newIORef 0)
   ~(EnvBool ignoreSafety) <- getUser "ignoreSafety"
+  ~(EnvNum timeoutSec) <- getUser "proverTimeout"
   let cmd = ProverCommand {
           pcQueryType    = qtype
         , pcProverName   = proverName
@@ -965,11 +971,11 @@ onlineProveSat proverName qtype expr schema mfile = do
         , pcIgnoreSafety = ignoreSafety
         }
   (firstProver, res) <- getProverConfig >>= \case
-       Left sbvCfg -> liftModuleCmd $ SBV.satProve sbvCfg cmd
+       Left sbvCfg -> liftModuleCmd $ SBV.satProve sbvCfg timeoutSec cmd
        Right w4Cfg ->
          do ~(EnvBool hashConsing) <- getUser "hashConsing"
             ~(EnvBool warnUninterp) <- getUser "warnUninterp"
-            liftModuleCmd $ W4.satProve w4Cfg hashConsing warnUninterp cmd
+            liftModuleCmd $ W4.satProve w4Cfg hashConsing warnUninterp timeoutSec cmd
 
   stas <- io (readIORef timing)
   return (firstProver,res,stas)
@@ -2008,18 +2014,32 @@ extractCodeBlocks raw = go [] (T.lines raw)
   where
     go finished [] = Right (reverse finished)
     go finished (x:xs)
-      | (ticks, lang) <- T.span ('`' ==) x
+      | (spaces, x1) <- T.span (' ' ==) x
+      , (ticks, x2) <- T.span ('`' ==) x1
       , 3 <= T.length ticks
-      = if lang `elem` ["", "repl"] -- supported languages "unlabeled" and repl
-        then keep finished ticks [] xs
+      , not (T.elem '`' x2)
+      , let info = T.strip x2
+      = if info `elem` ["", "repl"] -- supported languages "unlabeled" and repl
+        then keep finished (T.length spaces) (T.length ticks) [] xs
         else skip finished ticks xs
       | otherwise = go finished xs
 
     -- process a code block that we're keeping
-    keep _ _ _ [] = Left "Unclosed code block"
-    keep finished close acc (x:xs)
-      | close == x = go (reverse acc : finished) xs
-      | otherwise = keep finished close (x : acc) xs
+    keep finished _ _ acc [] = go (reverse acc : finished) [] -- unterminated code fences are defined to be terminated by github
+    keep finished indentLen ticksLen acc (x:xs)
+      | x1 <- T.dropWhile (' ' ==) x
+      , (ticks, x2) <- T.span ('`' ==) x1
+      , ticksLen <= T.length ticks
+      , T.all (' ' ==) x2
+      = go (reverse acc : finished) xs
+
+      | otherwise =
+        let x' =
+              case T.span (' ' ==) x of
+                (spaces, x1)
+                  | T.length spaces <= indentLen -> x1
+                  | otherwise -> T.drop indentLen x
+        in keep finished indentLen ticksLen (x' : acc) xs
 
     -- process a code block that we're skipping
     skip _ _ [] = Left "Unclosed code block"
@@ -2091,35 +2111,53 @@ captureLog m = do
   setPutStr (\str -> modifyIORef outputsRef (str:))
   result <- m `finally` setLogger previousLogger
   outputs <- io (readIORef outputsRef)
-  let output = concat (reverse outputs)
+  let output = interpretControls (concat (reverse outputs))
   pure (output, result)
 
+-- | Apply control character semantics to the result of the logger
+interpretControls :: String -> String
+interpretControls ('\b' : xs) = interpretControls xs
+interpretControls (_ : '\b' : xs) = interpretControls xs
+interpretControls (x : xs) = x : interpretControls xs
+interpretControls [] = []
+
+-- | The result of running a docstring as attached to a definition
+data DocstringResult = DocstringResult
+  { drName :: P.ImpName T.Name -- ^ The associated definition of the docstring
+  , drFences :: [[SubcommandResult]] -- ^ list of fences in this definition's docstring
+  }
+
 -- | Check all the code blocks in a given docstring.
-checkDocString :: P.ImpName T.Name -> T.Text -> REPL [[SubcommandResult]]
-checkDocString impName str =
-  case extractCodeBlocks str of
-    Left e -> do
-      pure [[SubcommandResult
-        { srInput = T.empty
-        , srResult = emptyCommandResult { crSuccess = False }
-        , srLog = e
-        }]]
-    Right bs ->
-      Ex.bracket
-        (liftModuleCmd (`M.runModuleM` (M.getFocusedModule <* M.setFocusedModule impName)))
-        (\mb -> liftModuleCmd (`M.runModuleM` M.setMaybeFocusedModule mb))
-        (\_ -> traverse checkBlock bs)
+checkDocItem :: T.DocItem -> REPL DocstringResult
+checkDocItem item =
+ do xs <- case extractCodeBlocks (fromMaybe "" (T.docText item)) of
+            Left e -> do
+              pure [[SubcommandResult
+                { srInput = T.empty
+                , srResult = emptyCommandResult { crSuccess = False }
+                , srLog = e
+                }]]
+            Right [] -> pure [] -- optimization
+            Right bs ->
+              Ex.bracket
+                (liftModuleCmd (`M.runModuleM` (M.getFocusedModule <* M.setFocusedModule (T.docModContext item))))
+                (\mb -> liftModuleCmd (`M.runModuleM` M.setMaybeFocusedModule mb))
+                (\_ -> traverse checkBlock bs)
+    pure DocstringResult
+      { drName = T.docFor item
+      , drFences = xs
+      }
 
 -- | Check all of the docstrings in the given module.
 --
 -- The outer list elements correspond to the code blocks from the
 -- docstrings in file order. Each inner list corresponds to the
 -- REPL commands inside each of the docstrings.
-checkDocStrings :: M.LoadedModule -> REPL [[SubcommandResult]]
+checkDocStrings :: M.LoadedModule -> REPL [DocstringResult]
 checkDocStrings m = do
   let dat = M.lmdModule (M.lmData m)
   let ds = T.gatherModuleDocstrings (M.ifaceNameToModuleMap (M.lmInterface m)) dat
-  concat <$> traverse (uncurry checkDocString) ds
+  traverse checkDocItem ds
 
 -- | Evaluate all the docstrings in the specified module.
 --
@@ -2147,12 +2185,17 @@ checkDocStringsCmd input
 
   where
 
-    countOutcomes :: [SubcommandResult] -> (Int, Int)
-    countOutcomes = foldl' countOutcomes' (0, 0)
+    countOutcomes :: [[SubcommandResult]] -> (Int, Int, Int)
+    countOutcomes = foldl' countOutcomes1 (0, 0, 0)
       where
-        countOutcomes' (successes, failures) result
-          | crSuccess (srResult result) = (successes + 1, failures)
-          | otherwise = (successes, failures + 1)
+        countOutcomes1 (successes, nofences, failures) []
+          = (successes, nofences + 1, failures)
+        countOutcomes1 acc result = foldl' countOutcomes2 acc result
+
+        countOutcomes2 (successes, nofences, failures) result
+          | crSuccess (srResult result) = (successes + 1, nofences, failures)
+          | otherwise = (successes, nofences, failures + 1)
+
 
     checkModName :: P.ModName -> REPL CommandResult
     checkModName mn = do
@@ -2164,15 +2207,18 @@ checkDocStringsCmd input
 
           Just fe -> do
             results <- checkDocStrings fe
-            let (successes, failures) = countOutcomes (concat results)
+            let (successes, nofences, failures) = countOutcomes [concat (drFences r) | r <- results]
 
-            forM_ results $ \result ->
-              forM_ result $ \line -> do
-                rPutStrLn ""
-                rPutStrLn (T.unpack (srInput line))
-                rPutStr (srLog line)
+            forM_ results $ \dr ->
+             do rPutStrLn ""
+                rPutStrLn ("Checking " ++ show (pp (drName dr)))
+                forM_ (drFences dr) $ \fence ->
+                  forM_ fence $ \line -> do
+                    rPutStrLn ""
+                    rPutStrLn (T.unpack (srInput line))
+                    rPutStr (srLog line)
             
             rPutStrLn ""
-            rPutStrLn ("Successes: " ++ show successes ++ ", Failures: " ++ show failures)
+            rPutStrLn ("Successes: " ++ show successes ++ ", No fences: " ++ show nofences ++ ", Failures: " ++ show failures)
 
             pure emptyCommandResult { crSuccess = failures == 0 }

@@ -2,19 +2,30 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module T01
 
+Checking T01
+
+pp
+False
+
+Checking submodule T01::Sub::pp
+
 :check pp
 Using exhaustive testing.
 Testing... Passed 1 tests.
 Q.E.D.
+
+Checking submodule T01::pp
 
 :check ~ pp
 Using exhaustive testing.
 Testing... Passed 1 tests.
 Q.E.D.
 
+Checking submodule T01::Sub
+
 :exhaust pp && pp
 Using exhaustive testing.
 Testing... Passed 1 tests.
 Q.E.D.
 
-Successes: 3, Failures: 0
+Successes: 4, No fences: 0, Failures: 0

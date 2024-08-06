@@ -77,7 +77,7 @@ inferTopModule :: P.Module Name -> InferM TCTopEntity
 inferTopModule m =
   case P.mDef m of
     P.NormalModule ds ->
-      do newModuleScope (thing (P.mName m)) (P.exportedDecls ds) (P.mInScope m)
+      do newModuleScope (thing <$> P.mDoc m) (thing (P.mName m)) (P.exportedDecls ds) (P.mInScope m)
          checkTopDecls ds
          proveModuleTopLevel
          endModule

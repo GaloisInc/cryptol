@@ -16,6 +16,7 @@ import CryptolServer
     ( command, notification, initialState, extendSearchPath, ServerState )
 import CryptolServer.Call ( call, callDescr )
 import CryptolServer.Check ( check, checkDescr )
+import CryptolServer.CheckDocstrings ( checkDocstrings, checkDocstringsDescr )
 import CryptolServer.ClearState
     ( clearState, clearStateDescr, clearAllStates, clearAllStatesDescr )
 import CryptolServer.Data.Expression ( Expression )
@@ -35,6 +36,7 @@ import CryptolServer.Sat ( proveSat, proveSatDescr )
 import CryptolServer.TypeCheck ( checkType, checkTypeDescr )
 import CryptolServer.Version ( version, versionDescr )
 import CryptolServer.FileDeps( fileDeps, fileDepsDescr )
+import Cryptol.REPL.Command (CommandResult, DocstringResult)
 
 main :: IO ()
 main =
@@ -50,13 +52,15 @@ main =
 
 serverDocs :: [Doc.Block]
 serverDocs =
-  [ Doc.Section "Summary" $ [ Doc.Paragraph
-    [Doc.Text "An RCP server for ",
+  [ Doc.Section "Summary" [ Doc.Paragraph
+    [Doc.Text "An RPC server for ",
      Doc.Link (Doc.URL "https://https://cryptol.net/") "Cryptol",
      Doc.Text " that supports type checking and evaluation of Cryptol code via the methods documented below."]]
   , Doc.Section "Terms and Types"
     [Doc.datatype @Expression,
-     Doc.datatype @JSONSchema]
+     Doc.datatype @JSONSchema,
+     Doc.datatype @DocstringResult,
+     Doc.datatype @CommandResult]
   ]
 
 description :: String
@@ -125,6 +129,10 @@ cryptolMethods =
      "prove or satisfy"
      proveSatDescr
      proveSat
+  , command
+     "check docstrings"
+     checkDocstringsDescr
+     checkDocstrings
   , notification
      "interrupt"
      interruptServerDescr

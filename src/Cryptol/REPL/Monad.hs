@@ -88,6 +88,10 @@ module Cryptol.REPL.Monad (
   , smokeTest
   , Smoke(..)
 
+  , RW(..)
+  , defaultRW
+  , mkUserEnv
+
   ) where
 
 import Cryptol.REPL.Trie
@@ -1011,6 +1015,9 @@ userOptions  = mkOptionMap
   , simpleOpt "proverStats" ["prover-stats"] (EnvBool True) noCheck
     "Enable prover timing statistics."
 
+  , simpleOpt "proverTimeout" ["prover-timeout"] (EnvNum 0) checkTimeout
+    "Specify timeout in seconds for online prover processes."
+
   , simpleOpt "proverValidate" ["prover-validate"] (EnvBool False) noCheck
     "Validate :sat examples and :prove counter-examples for correctness."
 
@@ -1079,6 +1086,14 @@ parseFieldOrder :: String -> Maybe FieldOrder
 parseFieldOrder "canonical" = Just CanonicalOrder
 parseFieldOrder "display" = Just DisplayOrder
 parseFieldOrder _ = Nothing
+
+checkTimeout :: Checker
+checkTimeout val =
+  case val of
+    EnvNum n
+      | n < 0 -> noWarns (Just "timeout should be non-negative")
+      | otherwise -> noWarns Nothing
+    _ -> noWarns (Just "Failed to parse `prover-timeout`")
 
 checkFieldOrder :: Checker
 checkFieldOrder val =

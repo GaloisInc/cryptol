@@ -45,6 +45,7 @@ import LibBF(bfNaN)
 import qualified Data.SBV as SBV (sObserve, symbolicEnv)
 import qualified Data.SBV.Internals as SBV (SBV(..))
 import qualified Data.SBV.Dynamic as SBV
+import qualified Data.SBV.Trans.Control as SBV (SMTOption(..))
 import           Data.SBV (Timing(SaveTiming))
 
 import qualified Cryptol.ModuleSystem as M hiding (getPrimMap)
@@ -103,6 +104,17 @@ proverConfigs =
   , ("sbv-offline"  , SBV.defaultSMTCfg )
   , ("sbv-any"      , SBV.defaultSMTCfg )
   ]
+
+setTimeoutSecs ::
+  Int {- ^ seconds -} ->
+  SBV.SMTConfig -> SBV.SMTConfig
+setTimeoutSecs s cfg = cfg
+  { SBV.solverSetOptions =
+    SBV.OptionKeyword ":timeout" [show (toInteger s * 1000)] :
+    filter (not . isTimeout) (SBV.solverSetOptions cfg) }
+  where
+    isTimeout (SBV.OptionKeyword k _) = k == ":timeout"
+    isTimeout _ = False
 
 newtype SBVPortfolioException
   = SBVPortfolioException [Either X.SomeException (Maybe String,String)]
@@ -239,12 +251,13 @@ runMultiProvers pc lPutStrLn provers callSolver processResult e = do
 -- | Select the appropriate solver or solvers from the given prover command,
 --   and invoke those solvers on the given symbolic value.
 runProver ::
+  Int ->
   SBVProverConfig ->
   ProverCommand ->
   (String -> IO ()) ->
   SBV.Symbolic SBV.SVal ->
   IO (Maybe String, [SBV.SMTResult])
-runProver proverConfig pc@ProverCommand{..} lPutStrLn x =
+runProver timeoutSecs proverConfig pc@ProverCommand{..} lPutStrLn x =
   do let mSatNum = case pcQueryType of
                      SatQuery (SomeSat n) -> Just n
                      SatQuery AllSat -> Nothing
@@ -272,17 +285,20 @@ runProver proverConfig pc@ProverCommand{..} lPutStrLn x =
                    | p <- ps])
 
        SBVProverConfig p ->
-         let p' = p { SBV.transcript = pcSmtFile
+         let p1 = p { SBV.transcript = pcSmtFile
                     , SBV.allSatMaxModelCount = mSatNum
                     , SBV.timing = SaveTiming pcProverStats
                     , SBV.verbose = pcVerbose
                     , SBV.validateModel = pcValidate
-                    } in
+                    }
+             p2 | timeoutSecs > 0 = setTimeoutSecs timeoutSecs p1
+                | otherwise = p1
+          in
           case pcQueryType of
-            ProveQuery  -> runSingleProver pc lPutStrLn p' SBV.proveWith thmSMTResults x
-            SafetyQuery -> runSingleProver pc lPutStrLn p' SBV.proveWith thmSMTResults x
-            SatQuery (SomeSat 1) -> runSingleProver pc lPutStrLn p' SBV.satWith satSMTResults x
-            SatQuery _           -> runSingleProver pc lPutStrLn p' SBV.allSatWith allSatSMTResults x
+            ProveQuery  -> runSingleProver pc lPutStrLn p2 SBV.proveWith thmSMTResults x
+            SafetyQuery -> runSingleProver pc lPutStrLn p2 SBV.proveWith thmSMTResults x
+            SatQuery (SomeSat 1) -> runSingleProver pc lPutStrLn p2 SBV.satWith satSMTResults x
+            SatQuery _           -> runSingleProver pc lPutStrLn p2 SBV.allSatWith allSatSMTResults x
 
 
 -- | Prepare a symbolic query by symbolically simulating the expression found in
@@ -445,8 +461,8 @@ processResults ProverCommand{..} ts results =
 --   This command returns a pair: the first element is the name of the
 --   solver that completes the given query (if any) along with the result
 --   of executing the query.
-satProve :: SBVProverConfig -> ProverCommand -> M.ModuleCmd (Maybe String, ProverResult)
-satProve proverCfg pc =
+satProve :: SBVProverConfig -> Int -> ProverCommand -> M.ModuleCmd (Maybe String, ProverResult)
+satProve proverCfg timeoutSecs pc =
   protectStack proverError $ \minp ->
   M.runModuleM minp $ do
   evo <- liftIO (M.minpEvalOpts minp)
@@ -456,7 +472,7 @@ satProve proverCfg pc =
   prepareQuery evo pc >>= \case
     Left msg -> return (Nothing, ProverError msg)
     Right (ts, q) ->
-      do (firstProver, results) <- M.io (runProver proverCfg pc lPutStrLn q)
+      do (firstProver, results) <- M.io (runProver timeoutSecs proverCfg pc lPutStrLn q)
          esatexprs <- processResults pc ts results
          return (firstProver, esatexprs)
 

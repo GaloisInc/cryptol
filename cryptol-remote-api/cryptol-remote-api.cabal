@@ -67,21 +67,22 @@ library
     CryptolServer
     CryptolServer.Call
     CryptolServer.Check
+    CryptolServer.CheckDocstrings
     CryptolServer.ClearState
     CryptolServer.Data.Expression
     CryptolServer.Data.Type
     CryptolServer.EvalExpr
-    CryptolServer.ExtendSearchPath
     CryptolServer.Exceptions
+    CryptolServer.ExtendSearchPath
+    CryptolServer.FileDeps
     CryptolServer.FocusedModule
     CryptolServer.Interrupt
     CryptolServer.LoadModule
-    CryptolServer.Options
     CryptolServer.Names
+    CryptolServer.Options
     CryptolServer.Sat
     CryptolServer.TypeCheck
     CryptolServer.Version
-    CryptolServer.FileDeps
 
   other-modules:
     CryptolServer.AesonCompat

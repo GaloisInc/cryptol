@@ -81,13 +81,13 @@ markdown = blanks []
   where
   comment current []    = mk Comment current
   comment current (l : ls)
-    | Just op <- isOpenFence l = mk Comment (l : current) ++ fenced op [] ls
+    | Just (fence, op) <- isOpenFence l = mk Comment (l : current) ++ fenced fence op [] ls
     | isBlank l         = blanks (l : current) ls
     | otherwise         = comment (l : current) ls
 
   blanks current []     = mk Comment current
   blanks current (l : ls)
-    | Just op <- isOpenFence l = mk Comment (l : current) ++ fenced op [] ls
+    | Just (fence, op) <- isOpenFence l = mk Comment (l : current) ++ fenced fence op [] ls
     | isCodeLine l             = mk Comment current ++ code [l] ls
     | isBlank l                = blanks  (l : current) ls
     | otherwise                = comment (l : current) ls
@@ -97,24 +97,39 @@ markdown = blanks []
     | isCodeLine l      = code (l : current) ls
     | otherwise         = mk Code current ++ comment [] (l : ls)
 
-  fenced op current []     = mk op current  -- XXX should this be an error?
-  fenced op current (l : ls)
-    | isCloseFence l    = mk op current ++ comment [l] ls
-    | otherwise         = fenced op (l : current) ls
+  fenced _ op current [] = mk op current  -- XXX should this be an error?
+  fenced fence op current (l : ls)
+    | isCloseFence fence l = mk op current ++ comment [l] ls
+    | otherwise         = fenced fence op (l : current) ls
 
 
   isOpenFence l
-    | "```" `Text.isPrefixOf` l' =
-      Just $ case Text.dropWhile isSpace (Text.drop 3 l') of
-               l'' | "cryptol" `Text.isPrefixOf` l'' -> Code
-                   | isBlank l''                     -> Code
-                   | otherwise                       -> Comment
+    | (spaces, l1) <- Text.span (' ' ==) l
+    , (ticks,  l2) <- Text.span('`' ==) l1
+    , 3 <= Text.length ticks
+    , not (Text.elem '`' l2)
+    , let info = Text.strip l2
+    , let n = Text.length spaces
+    = Just (Text.length ticks, case info of
+              "cryptol" -> Code . map (trimIndent n)
+              ""        -> Code . map (trimIndent n)
+              _         -> Comment)
 
     | otherwise = Nothing
     where
-    l' = Text.dropWhile isSpace l
+      trimIndent n t =
+        case Text.span (' ' ==) t of
+          (prefix, suffix)
+            | Text.length prefix <= n -> suffix
+            | otherwise -> Text.drop n prefix <> suffix
+  
+  isCloseFence fence l =
+    fence <= Text.length ticks &&
+    Text.all (' ' ==) l2
+    where
+      l1 = Text.dropWhile (' ' ==) l
+      (ticks, l2) = Text.span ('`' ==) l1
 
-  isCloseFence l = "```" `Text.isPrefixOf` Text.dropWhile isSpace l
   isBlank l      = Text.all isSpace l
   isCodeLine l   = "\t" `Text.isPrefixOf` l || "    " `Text.isPrefixOf` l
 

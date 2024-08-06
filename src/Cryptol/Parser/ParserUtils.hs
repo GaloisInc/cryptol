@@ -1117,6 +1117,7 @@ mkModule :: Located ModName -> [TopDecl PName] -> Module PName
 mkModule nm ds = Module { mName = nm
                         , mDef = NormalModule ds
                         , mInScope = mempty
+                        , mDoc = Nothing
                         }
 
 mkNested :: Module PName -> ParseM (NestedModule PName)
@@ -1138,6 +1139,7 @@ mkSigDecl doc (nm,sig) =
                         Module { mName    = nm
                                , mDef     = InterfaceModule sig
                                , mInScope = mempty
+                               , mDoc     = Nothing
                                }
            }
 
@@ -1201,7 +1203,7 @@ mkIfacePropSyn mbDoc d =
 
 -- | Make an unnamed module---gets the name @Main@.
 mkAnonymousModule :: [TopDecl PName] -> ParseM [Module PName]
-mkAnonymousModule = mkTopMods
+mkAnonymousModule = mkTopMods Nothing
                   . mkModule Located { srcRange = emptyRange
                                      , thing    = mkModName [T.pack "Main"]
                                      }
@@ -1215,6 +1217,7 @@ mkModuleInstanceAnon nm fun ds =
   Module { mName    = nm
          , mDef     = FunctorInstance fun (DefaultInstAnonArg ds) mempty
          , mInScope = mempty
+         , mDoc     = Nothing
          }
 
 mkModuleInstance ::
@@ -1226,6 +1229,7 @@ mkModuleInstance m f as =
   Module { mName    = m
          , mDef     = FunctorInstance f as emptyModuleInstance
          , mInScope = mempty
+         , mDoc     = Nothing
          }
 
 
@@ -1355,14 +1359,15 @@ mkImport loc impName optInst mbAs mbImportSpec optImportWhere doc =
 
 
 
-mkTopMods :: Module PName -> ParseM [Module PName]
-mkTopMods = desugarMod
+mkTopMods :: Maybe (Located Text) -> Module PName -> ParseM [Module PName]
+mkTopMods doc m = desugarMod m { mDoc = doc }
 
 mkTopSig :: Located ModName -> Signature PName -> [Module PName]
 mkTopSig nm sig =
   [ Module { mName    = nm
            , mDef     = InterfaceModule sig
            , mInScope = mempty
+           , mDoc     = Nothing
            }
   ]
 
@@ -1407,7 +1412,7 @@ desugarMod mo =
              nm     = Located { srcRange = srcRange (mName mo), thing = i }
              as'    = DefaultInstArg (ModuleArg . toImpName <$> nm)
          pure [ Module
-                  { mName = nm, mDef  = NormalModule lds', mInScope = mempty }
+                  { mName = nm, mDef  = NormalModule lds', mInScope = mempty, mDoc = mDoc mo }
               , mo { mDef = FunctorInstance f as' mempty }
               ]
 
@@ -1458,6 +1463,7 @@ desugarTopDs ownerName = go emptySig
              pure ( [ Module { mName = nm
                              , mDef = InterfaceModule sig
                              , mInScope = mempty
+                             , mDoc = Nothing
                              }
                      ]
                   , [ DModParam
@@ -1507,6 +1513,7 @@ desugarInstImport i inst =
                   , mDef     = FunctorInstance
                                  (iModule <$> i) inst emptyModuleInstance
                   , mInScope = mempty
+                  , mDoc     = Nothing
                   }
      pure (DImport (newImp <$> i) : map modTop ms)
 

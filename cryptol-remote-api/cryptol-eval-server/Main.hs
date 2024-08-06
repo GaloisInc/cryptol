@@ -19,6 +19,7 @@ import Options.Applicative
       value )
 
 import CryptolServer.Check ( check, checkDescr )
+import CryptolServer.CheckDocstrings ( checkDocstrings, checkDocstringsDescr )
 import CryptolServer.ClearState
     ( clearState, clearStateDescr, clearAllStates, clearAllStatesDescr)
 import Cryptol.Eval (EvalOpts(..), defaultPPOpts)
@@ -49,6 +50,7 @@ import CryptolServer.FocusedModule
 import CryptolServer.Names ( visibleNamesDescr, visibleNames )
 import CryptolServer.TypeCheck ( checkType )
 import CryptolServer.Sat ( proveSatDescr, proveSat )
+import Cryptol.REPL.Command (CommandResult, DocstringResult)
 
 main :: IO ()
 main = customMain initMod initMod initMod initMod description buildApp
@@ -97,7 +99,9 @@ evalServerDocs =
      Doc.Text " that supports only type checking and evaluation of Cryptol code."]]
   , Doc.Section "Terms and Types"
     [Doc.datatype @Expression,
-     Doc.datatype @JSONSchema]
+     Doc.datatype @JSONSchema,
+     Doc.datatype @DocstringResult,
+     Doc.datatype @CommandResult]
   ]
 
 description :: String
@@ -168,6 +172,10 @@ cryptolEvalMethods =
     "clear all states"
     clearAllStatesDescr
     clearAllStates
+  , command
+     "check docstrings"
+     checkDocstringsDescr
+     checkDocstrings
   , notification
      "interrupt"
      interruptServerDescr
