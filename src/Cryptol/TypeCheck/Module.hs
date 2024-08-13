@@ -4,6 +4,7 @@ module Cryptol.TypeCheck.Module (doFunctorInst) where
 import Data.List(partition,unzip4)
 import Data.Text(Text)
 import Data.Map(Map)
+import Data.Maybe (maybeToList)
 import qualified Data.Map as Map
 import qualified Data.Map.Merge.Strict as Map
 import Data.Set (Set)
@@ -42,7 +43,7 @@ doFunctorInst ::
   -} ->
   NamingEnv
   {- ^ Names in the enclosing scope of the instantiated module -} ->
-  Maybe Text                  {- ^ Documentation -} ->
+  Maybe Text                  {- ^ Documentation for the module being generated -} ->
   InferM (Maybe TCTopEntity)
 doFunctorInst m f as instMap0 enclosingInScope doc =
   inRange (srcRange m)
@@ -57,7 +58,7 @@ doFunctorInst m f as instMap0 enclosingInScope doc =
                   ?nameSu = instMap <> mconcat paramInstMaps
               let m1   = moduleInstance mf
                   m2   = m1 { mName             = m
-                            , mDoc              = Nothing
+                            , mDoc              = mempty
                             , mParamTypes       = mempty
                             , mParamFuns        = mempty
                             , mParamConstraints = mempty
@@ -98,9 +99,14 @@ doFunctorInst m f as instMap0 enclosingInScope doc =
            mconcat [ modParamNamingEnv mp | (_, mp, AddDeclParams) <- argIs ]
          inScope = inScope0 `shadowing` enclosingInScope
 
+     -- Combine the docstrings of:
+     -- * The functor being instantiated
+     -- * The module being generated
+     let newDoc = maybeToList doc <> mDoc mf
+
      case thing m of
-       P.ImpTop mn    -> newModuleScope (mDoc mf) mn (mExports m2) inScope
-       P.ImpNested mn -> newSubmoduleScope mn doc (mExports m2) inScope
+       P.ImpTop mn    -> newModuleScope newDoc mn (mExports m2) inScope
+       P.ImpNested mn -> newSubmoduleScope mn newDoc (mExports m2) inScope
 
      mapM_ addTySyn     (Map.elems (mTySyns m2))
      mapM_ addNominal   (Map.elems (mNominalTypes m2))

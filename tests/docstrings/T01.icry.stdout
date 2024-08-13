@@ -7,14 +7,14 @@ Checking T01
 pp
 False
 
-Checking submodule T01::Sub::pp
+Checking T01::Sub::pp
 
 :check pp
 Using exhaustive testing.
 Testing... Passed 1 tests.
 Q.E.D.
 
-Checking submodule T01::pp
+Checking T01::pp
 
 :check ~ pp
 Using exhaustive testing.

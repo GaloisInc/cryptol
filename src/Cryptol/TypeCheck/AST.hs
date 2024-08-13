@@ -28,6 +28,7 @@ module Cryptol.TypeCheck.AST
   , Fixity(..)
   , PrimMap(..)
   , module Cryptol.TypeCheck.Type
+  , DocFor(..)
   ) where
 
 import Cryptol.Utils.Panic(panic)
@@ -56,7 +57,7 @@ import Control.DeepSeq
 import qualified Data.IntMap as IntMap
 import           Data.Map    (Map)
 import qualified Data.Map    as Map
-import           Data.Maybe  (mapMaybe)
+import           Data.Maybe  (mapMaybe, maybeToList)
 import           Data.Set    (Set)
 import           Data.Text   (Text)
 
@@ -83,7 +84,7 @@ tcTopEntityToModule ent =
 -- | A Cryptol module.
 data ModuleG mname =
               Module { mName             :: !mname
-                     , mDoc              :: !(Maybe Text)
+                     , mDoc              :: ![Text]
                      , mExports          :: ExportSpec Name
 
                      -- Functors:
@@ -125,7 +126,7 @@ emptyModule :: mname -> ModuleG mname
 emptyModule nm =
   Module
     { mName             = nm
-    , mDoc              = Nothing
+    , mDoc              = mempty
     , mExports          = mempty
 
     , mParams           = mempty
@@ -529,9 +530,20 @@ instance PP (WithNames TCTopEntity) where
 
 data DocItem = DocItem
   { docModContext :: ImpName Name -- ^ The module scope to run repl commands in
-  , docFor  :: ImpName Name -- ^ The name the documentation is attached to
-  , docText :: Maybe Text -- ^ The text of the attached docstring, if any
+  , docFor        :: DocFor -- ^ The name the documentation is attached to
+  , docText       :: [Text] -- ^ The text of the attached docstring, if any
   }
+
+data DocFor
+  = DocForMod (ImpName Name)
+  | DocForDef Name -- definitions that aren't modules
+
+instance PP DocFor where
+  ppPrec p x =
+    case x of
+      DocForMod m -> ppPrec p m
+      DocForDef n -> ppPrec p n 
+
 
 gatherModuleDocstrings ::
   Map Name (ImpName Name) ->
@@ -540,7 +552,7 @@ gatherModuleDocstrings ::
 gatherModuleDocstrings nameToModule m =
   [DocItem
     { docModContext = ImpTop (mName m)
-    , docFor = ImpTop (mName m)
+    , docFor = DocForMod (ImpTop (mName m))
     , docText = mDoc m
     }
   ] ++
@@ -549,28 +561,28 @@ gatherModuleDocstrings nameToModule m =
   -- mParamFuns m
   [DocItem
     { docModContext = lookupModuleName n
-    , docFor = ImpNested n
-    , docText = tsDoc t
+    , docFor = DocForDef n
+    , docText = maybeToList (tsDoc t)
     } | (n, t) <- Map.assocs (mTySyns m)] ++
   [DocItem
     { docModContext = lookupModuleName n
-    , docFor = ImpNested n
-    , docText = ntDoc t
+    , docFor = DocForDef n
+    , docText = maybeToList (ntDoc t)
     } | (n, t) <- Map.assocs (mNominalTypes m)] ++
   [DocItem
     { docModContext = lookupModuleName (dName d)
-    , docFor = ImpNested (dName d)
-    , docText = dDoc d
+    , docFor = DocForDef (dName d)
+    , docText = maybeToList (dDoc d)
     } | g <- mDecls m, d <- groupDecls g] ++
   [DocItem
     { docModContext = ImpNested n
-    , docFor = ImpNested n
+    , docFor = DocForMod (ImpNested n)
     , docText = ifsDoc (smIface s)
     } | (n, s) <- Map.assocs (mSubmodules m)] ++
   [DocItem
     { docModContext = ImpTop (mName m)
-    , docFor = ImpNested n
-    , docText = mpnDoc s
+    , docFor = DocForMod (ImpNested n)
+    , docText = maybeToList (mpnDoc s)
     } | (n, s) <- Map.assocs (mSignatures m)]
   where
     lookupModuleName n =

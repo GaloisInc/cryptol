@@ -1,0 +1,23 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+
+Checking Main
+
+Checking Main::`where` argument of M::n
+
+Checking Main::M::`parameter` interface of F::n
+
+Checking submodule Main::`where` argument of M
+
+Checking submodule Main::M
+
+"M"
+[0x4d]
+
+"F"
+[0x46]
+
+Checking submodule Main::`parameter` interface of F
+
+Successes: 2, No fences: 5, Failures: 0

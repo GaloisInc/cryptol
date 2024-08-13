@@ -169,7 +169,8 @@ data ModuleG mname name = Module
     --   Also, for the 'FunctorInstance' case this is not the final result of
     --   the names in scope. The typechecker adds in the names in scope in the
     --   functor, so this will just contain the names in the enclosing scope.
-  , mDoc      :: Maybe (Located Text)
+  , mDocTop   :: Maybe (Located Text)
+  -- ^ only used for top-level modules
   } deriving (Show, Generic, NFData)
 
 
@@ -1455,7 +1456,7 @@ instance NoPos (ModuleG mname name) where
   noPos m = Module { mName      = mName m
                    , mDef       = noPos (mDef m)
                    , mInScope   = mInScope m
-                   , mDoc       = noPos (mDoc m)
+                   , mDocTop    = noPos (mDocTop m)
                    }
 
 instance NoPos (ModuleDefinition name) where

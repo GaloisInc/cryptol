@@ -4,13 +4,13 @@ Loading module T06
 
 Checking T06
 
-Checking submodule T06::N1::N
+Checking T06::N1::N
 
-Checking submodule T06::A::I::N
+Checking T06::A::I::N
 
-Checking submodule T06::A::I::N
+Checking T06::A::I::N
 
-Checking submodule T06::A::C_::lost
+Checking T06::A::C_::lost
 
 let x = lost
 

@@ -72,7 +72,7 @@ instance ModuleInstance Submodule where
 instance ModuleInstance (ModuleG name) where
   moduleInstance m =
     Module { mName             = mName m
-           , mDoc              = Nothing
+           , mDoc              = mempty
            , mExports          = doNameInst (mExports m)
            , mParamTypes       = doMap (mParamTypes m)
            , mParamFuns        = doMap (mParamFuns m)
