@@ -24,6 +24,7 @@ import CryptolServer.Exceptions (noModule, moduleNotLoaded)
 import qualified Cryptol.REPL.Monad as REPL
 import Cryptol.Utils.Logger (quietLogger)
 import Cryptol.Parser.AST (ImpName(..))
+import qualified Cryptol.TypeCheck.AST as T
 import qualified System.Random.TF as TF
 import qualified Cryptol.Symbolic.SBV as SBV
 import Cryptol.REPL.Monad (mkUserEnv, userOptions)
@@ -45,27 +46,31 @@ checkDocstrings CheckDocstringsParams = do
   m <- case M.lookupModule ln env of
          Nothing -> raise (moduleNotLoaded ln)
          Just m -> pure m
-  solver <- getTCSolver
-  cfg <- getTCSolverConfig
-  liftIO $
-   do rng <- TF.newTFGen
-      rwRef <- newIORef REPL.RW
-        { REPL.eLoadedMod        = Nothing
-        , REPL.eEditFile         = Nothing
-        , REPL.eContinue         = True
-        , REPL.eIsBatch          = False
-        , REPL.eModuleEnv        = env
-        , REPL.eUserEnv          = mkUserEnv userOptions
-        , REPL.eLogger           = quietLogger
-        , REPL.eCallStacks       = False
-        , REPL.eUpdateTitle      = return ()
-        , REPL.eProverConfig     = Left SBV.defaultProver
-        , REPL.eTCConfig         = cfg
-        , REPL.eTCSolver         = Just solver
-        , REPL.eTCSolverRestarts = 0
-        , REPL.eRandomGen        = rng
-        }
-      REPL.unREPL (CheckDocstringsResult <$> checkDocStrings m) rwRef
+  
+  if T.isParametrizedModule (M.lmdModule (M.lmData m)) then
+    pure (CheckDocstringsResult [])
+  else do
+    solver <- getTCSolver
+    cfg <- getTCSolverConfig
+    liftIO $
+     do rng <- TF.newTFGen
+        rwRef <- newIORef REPL.RW
+          { REPL.eLoadedMod        = Nothing
+          , REPL.eEditFile         = Nothing
+          , REPL.eContinue         = True
+          , REPL.eIsBatch          = False
+          , REPL.eModuleEnv        = env
+          , REPL.eUserEnv          = mkUserEnv userOptions
+          , REPL.eLogger           = quietLogger
+          , REPL.eCallStacks       = False
+          , REPL.eUpdateTitle      = return ()
+          , REPL.eProverConfig     = Left SBV.defaultProver
+          , REPL.eTCConfig         = cfg
+          , REPL.eTCSolver         = Just solver
+          , REPL.eTCSolverRestarts = 0
+          , REPL.eRandomGen        = rng
+          }
+        REPL.unREPL (CheckDocstringsResult <$> checkDocStrings m) rwRef
 
 newtype CheckDocstringsResult = CheckDocstringsResult [DocstringResult]
 
