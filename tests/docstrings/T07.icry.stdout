@@ -5,11 +5,10 @@ Loading interface module `parameter` interface of T07F
 Loading module T07F
 Loading module T07
 
+
 Checking T07
 
 42 : [N]
 0x2a
-
-Checking submodule T07::`parameter` interface of T07F::N
 
 Successes: 1, No fences: 1, Failures: 0

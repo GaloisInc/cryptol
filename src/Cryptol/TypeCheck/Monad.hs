@@ -998,16 +998,16 @@ newTopSignatureScope x = newScope (TopSignatureScope x)
 to initialize an empty module.  As we type check declarations they are
 added to this module's scope. -}
 newSubmoduleScope ::
-  Name -> Maybe Text -> ExportSpec Name -> NamingEnv -> InferM ()
+  Name -> [Text] -> ExportSpec Name -> NamingEnv -> InferM ()
 newSubmoduleScope x docs e inScope =
   do updScope \o -> o { mNested = Set.insert x (mNested o) }
      newScope (SubModule x)
      updScope \m -> m { mDoc = docs, mExports = e, mInScope = inScope }
 
-newModuleScope :: Maybe Text -> P.ModName -> ExportSpec Name -> NamingEnv -> InferM ()
-newModuleScope doc x e inScope =
+newModuleScope :: [Text] -> P.ModName -> ExportSpec Name -> NamingEnv -> InferM ()
+newModuleScope docs x e inScope =
   do newScope (MTopModule x)
-     updScope \m -> m { mDoc = doc, mExports = e, mInScope = inScope }
+     updScope \m -> m { mDoc = docs, mExports = e, mInScope = inScope }
 
 -- | Update the current scope (first in the list). Assumes there is one.
 updScope :: (ModuleG ScopeName -> ModuleG ScopeName) -> InferM ()
@@ -1135,7 +1135,7 @@ getCurDecls =
   mergeDecls m1 m2 =
     Module
       { mName             = ()
-      , mDoc              = Nothing
+      , mDoc              = mempty
       , mExports          = mempty
       , mParams           = mempty
       , mParamTypes       = mempty

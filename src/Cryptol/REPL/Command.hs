@@ -2123,14 +2123,14 @@ interpretControls [] = []
 
 -- | The result of running a docstring as attached to a definition
 data DocstringResult = DocstringResult
-  { drName :: P.ImpName T.Name -- ^ The associated definition of the docstring
+  { drName   :: T.DocFor -- ^ The associated definition of the docstring
   , drFences :: [[SubcommandResult]] -- ^ list of fences in this definition's docstring
   }
 
 -- | Check all the code blocks in a given docstring.
 checkDocItem :: T.DocItem -> REPL DocstringResult
 checkDocItem item =
- do xs <- case extractCodeBlocks (fromMaybe "" (T.docText item)) of
+ do xs <- case traverse extractCodeBlocks (T.docText item) of
             Left e -> do
               pure [[SubcommandResult
                 { srInput = T.empty
@@ -2142,7 +2142,7 @@ checkDocItem item =
               Ex.bracket
                 (liftModuleCmd (`M.runModuleM` (M.getFocusedModule <* M.setFocusedModule (T.docModContext item))))
                 (\mb -> liftModuleCmd (`M.runModuleM` M.setMaybeFocusedModule mb))
-                (\_ -> traverse checkBlock bs)
+                (\_ -> traverse checkBlock (concat bs))
     pure DocstringResult
       { drName = T.docFor item
       , drFences = xs
@@ -2210,14 +2210,15 @@ checkDocStringsCmd input
             let (successes, nofences, failures) = countOutcomes [concat (drFences r) | r <- results]
 
             forM_ results $ \dr ->
-             do rPutStrLn ""
-                rPutStrLn ("Checking " ++ show (pp (drName dr)))
-                forM_ (drFences dr) $ \fence ->
-                  forM_ fence $ \line -> do
-                    rPutStrLn ""
-                    rPutStrLn (T.unpack (srInput line))
-                    rPutStr (srLog line)
-            
+              unless (null (drFences dr)) $
+               do rPutStrLn ""
+                  rPutStrLn ("\nChecking " ++ show (pp (drName dr)))
+                  forM_ (drFences dr) $ \fence ->
+                    forM_ fence $ \line -> do
+                      rPutStrLn ""
+                      rPutStrLn (T.unpack (srInput line))
+                      rPutStr (srLog line)
+
             rPutStrLn ""
             rPutStrLn ("Successes: " ++ show successes ++ ", No fences: " ++ show nofences ++ ", Failures: " ++ show failures)
 

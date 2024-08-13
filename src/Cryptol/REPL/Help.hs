@@ -8,8 +8,9 @@ import qualified Data.Text as Text
 import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Data.Maybe(fromMaybe)
+import Data.Maybe(fromMaybe, maybeToList)
 import Data.List(intersperse)
+import Data.Foldable (for_)
 import Control.Monad(when,guard,unless,msum,mplus)
 
 import Cryptol.Utils.PP
@@ -93,7 +94,7 @@ ifaceSummary env info =
                       , addV <$> fromD
                       , addM <$> msum [ fromM, fromS, fromF ]
                       ]
-    where
+    where 
     addT (k,d) = ns { msTypes = T.ModTParam { T.mtpName = x
                                             , T.mtpKind = k
                                             , T.mtpDoc  = d
@@ -124,7 +125,7 @@ ifaceSummary env info =
                pure (M.AFunctor, M.ifsDoc (M.ifNames def))
 
     fromS = do def <- Map.lookup x (M.ifSignatures env)
-               pure (M.ASignature, T.mpnDoc def)
+               pure (M.ASignature, maybeToList (T.mpnDoc def))
 
 
 
@@ -144,7 +145,7 @@ showFunctorHelp _env _nameEnv name info =
 showSigHelp ::
   M.IfaceDecls -> NameDisp -> M.Name -> T.ModParamNames -> REPL ()
 showSigHelp _env _nameEnv name info =
-  showSummary M.ASignature name (T.mpnDoc info)
+  showSummary M.ASignature name (maybeToList (T.mpnDoc info))
     emptySummary
       { msTypes = Map.elems (T.mpnTypes info)
       , msVals  = Map.elems (T.mpnFuns info)
@@ -157,7 +158,7 @@ data ModSummary = ModSummary
   , msConstraints :: [T.Prop]
   , msTypes       :: [T.ModTParam]
   , msVals        :: [T.ModVParam]
-  , msMods        :: [ (M.Name, M.ModKind, Maybe Text) ]
+  , msMods        :: [ (M.Name, M.ModKind, [Text]) ]
   }
 
 emptySummary :: ModSummary
@@ -169,7 +170,7 @@ emptySummary = ModSummary
   , msMods        = []
   }
 
-showSummary :: M.ModKind -> M.Name -> Maybe Text -> ModSummary -> REPL ()
+showSummary :: M.ModKind -> M.Name -> [Text] -> ModSummary -> REPL ()
 showSummary k name doc info =
   do rPutStrLn ""
 
@@ -385,11 +386,10 @@ doShowParameterSource i =
     | otherwise       = "Provided by `parameters` declaration."
 
 
-doShowDocString :: Maybe Text -> REPL ()
+doShowDocString :: Foldable f => f Text -> REPL ()
 doShowDocString doc =
-  case doc of
-    Nothing -> pure ()
-    Just d  -> rPutStrLn ('\n' : Text.unpack d)
+  for_ doc $ \d ->
+    rPutStrLn ('\n' : Text.unpack d)
 
 ppFixity :: T.Fixity -> String
 ppFixity f = "Precedence " ++ show (P.fLevel f) ++ ", " ++

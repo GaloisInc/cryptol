@@ -63,7 +63,7 @@ import           Data.Map (Map)
 import qualified Data.Set as Set
 import           Data.List(foldl', sortBy, groupBy, partition)
 import           Data.Either(partitionEithers)
-import           Data.Maybe(isJust, fromMaybe, mapMaybe)
+import           Data.Maybe(isJust, fromMaybe, mapMaybe, maybeToList)
 import           Data.Ratio(numerator,denominator)
 import           Data.Traversable(forM)
 import           Data.Function(on)
@@ -77,14 +77,14 @@ inferTopModule :: P.Module Name -> InferM TCTopEntity
 inferTopModule m =
   case P.mDef m of
     P.NormalModule ds ->
-      do newModuleScope (thing <$> P.mDoc m) (thing (P.mName m)) (P.exportedDecls ds) (P.mInScope m)
+      do newModuleScope (maybeToList (thing <$> P.mDocTop m)) (thing (P.mName m)) (P.exportedDecls ds) (P.mInScope m)
          checkTopDecls ds
          proveModuleTopLevel
          endModule
 
     P.FunctorInstance f as inst ->
       do mb <- doFunctorInst
-           (P.ImpTop <$> P.mName m) f as inst (P.mInScope m) Nothing
+           (P.ImpTop <$> P.mName m) f as inst (P.mInScope m) (thing <$> P.mDocTop m)
          case mb of
            Just mo -> pure mo
            Nothing -> panic "inferModule" ["Didnt' get a module"]
@@ -1487,7 +1487,7 @@ checkTopDecls = mapM_ checkTopDecl
 
            P.NormalModule ds ->
              do newSubmoduleScope (thing (P.mName m))
-                                  (thing <$> P.tlDoc tl)
+                                  (maybeToList (thing <$> P.tlDoc tl))
                                   (P.exportedDecls ds)
                                   (P.mInScope m)
                 checkTopDecls ds

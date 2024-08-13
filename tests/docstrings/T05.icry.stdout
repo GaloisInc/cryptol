@@ -2,9 +2,8 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module T05
 
-Checking T05
 
-Checking submodule T05::p
+Checking T05::p
 
 :exhaust p
 Using exhaustive testing.

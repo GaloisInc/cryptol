@@ -1,0 +1,14 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+
+
+Checking submodule Main::M
+
+"M"
+[0x4d]
+
+"F"
+[0x46]
+
+Successes: 2, No fences: 5, Failures: 0

@@ -296,8 +296,8 @@ vtop_decl               :: { [TopDecl PName] }
   | private_decls          { $1                                               }
   | mbDoc 'interface' 'constraint' type {% mkInterfaceConstraint $1 $4 }
   | parameter_decls        { [ $1 ]                                       }
-  | mbDoc 'submodule'
-    module_def             {% ((:[]) . exportModule $1) `fmap` mkNested $3 }
+  | mbDoc 'submodule' module_def
+                           {% ((:[]) . exportModule $1) `fmap` mkNested $3 }
 
   | mbDoc sig_def          { [mkSigDecl $1 $2]  }
   | mod_param_decl         { [DModParam $1] }
