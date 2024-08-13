@@ -2,24 +2,9 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module T06
 
-Checking T06
-
-Checking T06::N1::N
-
-Checking T06::A::I::N
-
-Checking T06::A::I::N
 
 Checking T06::A::C_::lost
 
 let x = lost
-
-Checking submodule T06::N1
-
-Checking submodule T06::A
-
-Checking submodule T06::A::C_
-
-Checking submodule T06::I
 
 Successes: 1, No fences: 8, Failures: 0

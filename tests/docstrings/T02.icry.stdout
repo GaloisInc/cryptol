@@ -2,11 +2,6 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module T02
 
-Checking T02
-
-Checking T02::`where` argument of F7::n
-
-Checking T02::F7::`parameter` interface of F::n
 
 Checking T02::F7::c
 
@@ -15,12 +10,14 @@ Using exhaustive testing.
 Testing... Passed 1 tests.
 Q.E.D.
 
+
 Checking T02::F7::p
 
 :exhaust p
 Using exhaustive testing.
 Testing... Passed 7 tests.
 Q.E.D.
+
 
 Checking T02::f
 
@@ -30,11 +27,5 @@ let y = 20
 Using exhaustive testing.
 Testing... Passed 1 tests.
 Q.E.D.
-
-Checking submodule T02::`where` argument of F7
-
-Checking submodule T02::F7
-
-Checking submodule T02::`parameter` interface of F
 
 Successes: 4, No fences: 6, Failures: 0

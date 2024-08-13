@@ -2,10 +2,12 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module T01
 
+
 Checking T01
 
 pp
 False
+
 
 Checking T01::Sub::pp
 
@@ -14,12 +16,14 @@ Using exhaustive testing.
 Testing... Passed 1 tests.
 Q.E.D.
 
+
 Checking T01::pp
 
 :check ~ pp
 Using exhaustive testing.
 Testing... Passed 1 tests.
 Q.E.D.
+
 
 Checking submodule T01::Sub
 

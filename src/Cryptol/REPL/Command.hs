@@ -1340,7 +1340,7 @@ focusCmd modString
       Nothing ->
         do rPutStrLn "Invalid module name."
            pure emptyCommandResult { crSuccess = False }
-
+    
       Just pimpName -> do
         impName <- liftModuleCmd (setFocusedModuleCmd pimpName)
         mb <- getLoadedMod
@@ -2210,13 +2210,14 @@ checkDocStringsCmd input
             let (successes, nofences, failures) = countOutcomes [concat (drFences r) | r <- results]
 
             forM_ results $ \dr ->
-             do rPutStrLn ""
-                rPutStrLn ("Checking " ++ show (pp (drName dr)))
-                forM_ (drFences dr) $ \fence ->
-                  forM_ fence $ \line -> do
-                    rPutStrLn ""
-                    rPutStrLn (T.unpack (srInput line))
-                    rPutStr (srLog line)
+              unless (null (drFences dr)) $
+               do rPutStrLn ""
+                  rPutStrLn ("\nChecking " ++ show (pp (drName dr)))
+                  forM_ (drFences dr) $ \fence ->
+                    forM_ fence $ \line -> do
+                      rPutStrLn ""
+                      rPutStrLn (T.unpack (srInput line))
+                      rPutStr (srLog line)
 
             rPutStrLn ""
             rPutStrLn ("Successes: " ++ show successes ++ ", No fences: " ++ show nofences ++ ", Failures: " ++ show failures)
