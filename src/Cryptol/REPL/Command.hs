@@ -2009,10 +2009,10 @@ moduleInfoCmd isFile name
 --  * ```
 --  */
 -- @
-extractCodeBlocks :: T.Text -> Either String [[T.Text]]
+extractCodeBlocks :: T.Text -> [[T.Text]]
 extractCodeBlocks raw = go [] (T.lines raw)
   where
-    go finished [] = Right (reverse finished)
+    go finished [] = reverse finished
     go finished (x:xs)
       | (spaces, x1) <- T.span (' ' ==) x
       , (ticks, x2) <- T.span ('`' ==) x1
@@ -2042,7 +2042,7 @@ extractCodeBlocks raw = go [] (T.lines raw)
         in keep finished indentLen ticksLen (x' : acc) xs
 
     -- process a code block that we're skipping
-    skip _ _ [] = Left "Unclosed code block"
+    skip finished _ [] = go finished []
     skip finished close (x:xs)
       | close == x = go finished xs
       | otherwise = skip finished close xs
@@ -2131,14 +2131,8 @@ data DocstringResult = DocstringResult
 checkDocItem :: T.DocItem -> REPL DocstringResult
 checkDocItem item =
  do xs <- case traverse extractCodeBlocks (T.docText item) of
-            Left e -> do
-              pure [[SubcommandResult
-                { srInput = T.empty
-                , srResult = emptyCommandResult { crSuccess = False }
-                , srLog = e
-                }]]
-            Right [] -> pure [] -- optimization
-            Right bs ->
+            [] -> pure [] -- optimization
+            bs ->
               Ex.bracket
                 (liftModuleCmd (`M.runModuleM` (M.getFocusedModule <* M.setFocusedModule (T.docModContext item))))
                 (\mb -> liftModuleCmd (`M.runModuleM` M.setMaybeFocusedModule mb))
