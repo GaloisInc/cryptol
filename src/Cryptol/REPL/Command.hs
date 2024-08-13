@@ -2199,21 +2199,26 @@ checkDocStringsCmd input
             rPutStrLn ("Module " ++ show input ++ " is not loaded")
             pure emptyCommandResult { crSuccess = False }
 
-          Just fe -> do
-            results <- checkDocStrings fe
-            let (successes, nofences, failures) = countOutcomes [concat (drFences r) | r <- results]
+          Just fe
+            | T.isParametrizedModule (M.lmdModule (M.lmData fe)) -> do
+              rPutStrLn "Skipping docstrings on parameterized module"
+              pure emptyCommandResult
 
-            forM_ results $ \dr ->
-              unless (null (drFences dr)) $
-               do rPutStrLn ""
-                  rPutStrLn ("\nChecking " ++ show (pp (drName dr)))
-                  forM_ (drFences dr) $ \fence ->
-                    forM_ fence $ \line -> do
-                      rPutStrLn ""
-                      rPutStrLn (T.unpack (srInput line))
-                      rPutStr (srLog line)
+            | otherwise -> do
+              results <- checkDocStrings fe
+              let (successes, nofences, failures) = countOutcomes [concat (drFences r) | r <- results]
 
-            rPutStrLn ""
-            rPutStrLn ("Successes: " ++ show successes ++ ", No fences: " ++ show nofences ++ ", Failures: " ++ show failures)
+              forM_ results $ \dr ->
+                unless (null (drFences dr)) $
+                 do rPutStrLn ""
+                    rPutStrLn ("\nChecking " ++ show (pp (drName dr)))
+                    forM_ (drFences dr) $ \fence ->
+                      forM_ fence $ \line -> do
+                        rPutStrLn ""
+                        rPutStrLn (T.unpack (srInput line))
+                        rPutStr (srLog line)
 
-            pure emptyCommandResult { crSuccess = failures == 0 }
+              rPutStrLn ""
+              rPutStrLn ("Successes: " ++ show successes ++ ", No fences: " ++ show nofences ++ ", Failures: " ++ show failures)
+
+              pure emptyCommandResult { crSuccess = failures == 0 }
