@@ -505,7 +505,7 @@ qcCmd qcMode "" _pos _fnm =
                do let str = nameStr x
                   rPutStr $ "property " ++ str ++ " "
                   let texpr = T.EVar x
-                  let schema = M.ifDeclSig d
+                  let schema = T.dSignature d
                   nd <- M.mctxNameDisp <$> getFocusedEnv
                   let doc = fixNameDisp nd (pp texpr)
                   testReport <- qcExpr qcMode doc texpr schema
@@ -827,7 +827,7 @@ cmdProveSat isSat "" _pos _fnm =
                   then rPutStr $ ":sat "   ++ str ++ "\n\t"
                   else rPutStr $ ":prove " ++ str ++ "\n\t"
                 let texpr = T.EVar x
-                let schema = M.ifDeclSig d
+                let schema = T.dSignature d
                 nd <- M.mctxNameDisp <$> getFocusedEnv
                 let doc = fixNameDisp nd (pp texpr)
                 success <- proveSatExpr isSat (M.nameLoc x) doc texpr schema
