@@ -739,11 +739,8 @@ expectRec fs tGoal@(WithSource ty src rng) =
 -- an enum, throwing an error if this is not the case.
 expectEnum :: Type -> InferM [EnumCon]
 expectEnum ty =
-  case ty of
-    TUser _ _ ty' ->
-      expectEnum ty'
-
-    TNominal nt _
+  case tIsNominal ty of
+    Just (nt, _)
       |  Enum ecs <- ntDef nt
       -> pure ecs
 
