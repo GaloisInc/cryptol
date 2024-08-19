@@ -43,34 +43,36 @@ checkDocstrings CheckDocstringsParams = do
   ln <- case M.meFocusedModule env of
           Just (ImpTop n) -> pure n
           _ -> raise noModule
-  m <- case M.lookupModule ln env of
-         Nothing -> raise (moduleNotLoaded ln)
-         Just m -> pure m
-  
-  if T.isParametrizedModule (M.lmdModule (M.lmData m)) then
-    pure (CheckDocstringsResult [])
-  else do
-    solver <- getTCSolver
-    cfg <- getTCSolverConfig
-    liftIO $
-     do rng <- TF.newTFGen
-        rwRef <- newIORef REPL.RW
-          { REPL.eLoadedMod        = Nothing
-          , REPL.eEditFile         = Nothing
-          , REPL.eContinue         = True
-          , REPL.eIsBatch          = False
-          , REPL.eModuleEnv        = env
-          , REPL.eUserEnv          = mkUserEnv userOptions
-          , REPL.eLogger           = quietLogger
-          , REPL.eCallStacks       = False
-          , REPL.eUpdateTitle      = return ()
-          , REPL.eProverConfig     = Left SBV.defaultProver
-          , REPL.eTCConfig         = cfg
-          , REPL.eTCSolver         = Just solver
-          , REPL.eTCSolverRestarts = 0
-          , REPL.eRandomGen        = rng
-          }
-        REPL.unREPL (CheckDocstringsResult <$> checkDocStrings m) rwRef
+  case M.lookupModule ln env of
+    Nothing ->
+      case M.lookupSignature ln env of
+        Nothing -> raise (moduleNotLoaded ln)
+        Just{} -> pure (CheckDocstringsResult []) -- can't be checked directly
+    Just m ->
+      if T.isParametrizedModule (M.lmdModule (M.lmData m)) then
+        pure (CheckDocstringsResult []) -- can't be checked directly
+      else do
+        solver <- getTCSolver
+        cfg <- getTCSolverConfig
+        liftIO $
+         do rng <- TF.newTFGen
+            rwRef <- newIORef REPL.RW
+              { REPL.eLoadedMod        = Nothing
+              , REPL.eEditFile         = Nothing
+              , REPL.eContinue         = True
+              , REPL.eIsBatch          = False
+              , REPL.eModuleEnv        = env
+              , REPL.eUserEnv          = mkUserEnv userOptions
+              , REPL.eLogger           = quietLogger
+              , REPL.eCallStacks       = False
+              , REPL.eUpdateTitle      = return ()
+              , REPL.eProverConfig     = Left SBV.defaultProver
+              , REPL.eTCConfig         = cfg
+              , REPL.eTCSolver         = Just solver
+              , REPL.eTCSolverRestarts = 0
+              , REPL.eRandomGen        = rng
+              }
+            REPL.unREPL (CheckDocstringsResult <$> checkDocStrings m) rwRef
 
 newtype CheckDocstringsResult = CheckDocstringsResult [DocstringResult]
 

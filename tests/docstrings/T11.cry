@@ -1,0 +1,11 @@
+interface module I where
+
+/** Interfaces don't contain definitions. We'll need to wait to check
+ * them when they are paired up with a module in the context of a
+ * functor instantiation.
+ *
+ * ```repl
+ * :check \x y z -> add x (add y z) == add (add x y) z
+ * ```
+ */
+add : [8] -> [8] -> [8]
