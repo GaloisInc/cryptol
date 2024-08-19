@@ -599,6 +599,14 @@ tIsRec ty = case tNoUser ty of
               TRec fs -> Just fs
               _       -> Nothing
 
+-- | If the supplied 'Type' is a 'TNominal' type, then return @'Just' (nt, ts)@,
+-- where @nt@ and @ts@ are the underlying 'NominalType' and 'Type' arguments.
+-- Otherwise, return 'Nothing'.
+tIsNominal :: Type -> Maybe (NominalType, [Type])
+tIsNominal ty = case tNoUser ty of
+                  TNominal nm ts -> Just (nm, ts)
+                  _              -> Nothing
+
 tIsBinFun :: TFun -> Type -> Maybe (Type,Type)
 tIsBinFun f ty = case tNoUser ty of
                    TCon (TF g) [a,b] | f == g -> Just (a,b)
