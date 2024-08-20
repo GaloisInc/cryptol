@@ -2,6 +2,14 @@
 
 ## Language changes
 
+## Bug fixes
+
+## New features
+
+# 3.2.0 -- 2024-08-20
+
+## Language changes
+
 * Add implicit imports for non-anonymous modules defined by functor
   instantiation.   For details, see #1691.
 
@@ -12,6 +20,10 @@
 
 * Fix #1593 and #1693, two related bugs that would cause Cryptol to panic when
   checking ill-typed constraint guards for exhaustivity.
+
+* Fix #1675, which could cause `PrimeEC` to produce incorrect results.
+
+* Fix #1489, which allows for the type checker to reason about exponents.
 
 ## New features
 

@@ -22,13 +22,13 @@ import sphinx_rtd_theme
 # -- Project information -----------------------------------------------------
 
 project = 'Cryptol'
-copyright = '2021, The Cryptol Team'
+copyright = '2024, The Cryptol Team'
 author = 'The Cryptol Team'
 
 # The short X.Y version
 version = ''
 # The full version, including alpha/beta/rc tags
-release = '2.11.0'
+release = '3.2.0'
 
 
 # -- General configuration ---------------------------------------------------
