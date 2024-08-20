@@ -27,7 +27,7 @@ source-repository this
   type:     git
   location: https://github.com/GaloisInc/cryptol.git
   -- add a tag on release branches
-  -- tag:
+  tag: 3.2.0
 
 
 flag static
