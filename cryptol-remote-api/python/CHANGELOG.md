@@ -1,5 +1,7 @@
 # Revision history for `cryptol` Python package
 
+## next -- TBA
+
 ## 3.2.0 -- 2024-08-20
 
 * The v3.2.0 release is made in tandem with the Cryptol 3.2.0 release. See the

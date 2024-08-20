@@ -1,3 +1,11 @@
+# next -- TBA
+
+## Language changes
+
+## Bug fixes
+
+## New features
+
 # 3.2.0 -- 2024-08-20
 
 ## Language changes
