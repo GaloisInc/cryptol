@@ -2192,12 +2192,17 @@ checkDocStringsCmd input
 
 
     checkModName :: P.ModName -> REPL CommandResult
-    checkModName mn = do
-        mb <- M.lookupModule mn <$> getModuleEnv
-        case mb of
-          Nothing -> do
-            rPutStrLn ("Module " ++ show input ++ " is not loaded")
-            pure emptyCommandResult { crSuccess = False }
+    checkModName mn =
+     do env <- getModuleEnv
+        case M.lookupModule mn env of
+          Nothing ->
+            case M.lookupSignature mn env of
+              Nothing ->
+               do rPutStrLn ("Module " ++ show input ++ " is not loaded")
+                  pure emptyCommandResult { crSuccess = False }
+              Just{} ->
+               do rPutStrLn "Skipping docstrings on interface module"
+                  pure emptyCommandResult
 
           Just fe
             | T.isParametrizedModule (M.lmdModule (M.lmData fe)) -> do
