@@ -203,6 +203,7 @@ library
                        Cryptol.Backend.Concrete,
                        Cryptol.Backend.FFI,
                        Cryptol.Backend.FFI.Error,
+                       Cryptol.Backend.FFI.Export,
                        Cryptol.Backend.FloatHelpers,
                        Cryptol.Backend.Monad,
                        Cryptol.Backend.SeqMap,
