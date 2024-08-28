@@ -14,9 +14,9 @@ Category:            Language
 Build-type:          Simple
 extra-source-files:  bench/data/*.cry
                      CHANGES.md
-                     lib/*.cry lib/*.z3
+                     lib/*.cry lib/*.z3 lib/*.h
 
-data-files:          **/*.cry **/*.z3
+data-files:          **/*.cry **/*.z3 **/*.h
 data-dir:            lib
 
 source-repository head
@@ -73,6 +73,7 @@ library
                        pretty,
                        prettyprinter     >= 1.7.0,
                        pretty-show,
+                       primitive,
                        process           >= 1.2,
                        sbv               >= 9.1 && < 10.11,
                        simple-smt        >= 0.9.7,
@@ -85,7 +86,7 @@ library
                        mtl               >= 2.2.1,
                        time              >= 1.6.0.1,
                        panic             >= 0.3,
-                       what4             >= 1.4 && < 1.7
+                       what4             >= 1.4 && < 1.7,
 
   if impl(ghc >= 9.0)
     build-depends:     ghc-bignum        >= 1.0 && < 1.4
@@ -95,6 +96,7 @@ library
   if flag(ffi)
     build-depends:     hgmp,
                        libffi            >= 0.2
+    include-dirs:      ./lib
     if os(windows)
       build-depends:   Win32
     else
