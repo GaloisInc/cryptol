@@ -10,14 +10,17 @@ struct CryValueBuilder {
   /** Make a boolean value: 0: false, > 0: true */
   void      (*send_bool)(void*, uint8_t);
 
-  /** Make an Integer, which fits in uint64_t */
-  void      (*send_small_int)(void*, uint64_t);
+  /** Make an unsigned Integer, which fits in uint64_t */
+  void      (*send_small_uint)(void*, uint64_t);
+
+  /** Make an signed Integer, which fits in int64_t */
+  void      (*send_small_sint)(void*, int64_t);
 
   /** Start building a sum type,
       the argument is the number of the constructor */
   void      (*send_tag)(void*, size_t);
 
-  /** Start building an Integer, which does not fit in uint64_t.
+  /** Start building an Integer, which does not fit in int64_t.
       The argument is the number of uint64_t digits we need.
       The result is a buffer where the digits should be placed,
       least significant first.

@@ -288,11 +288,18 @@ cry_bool b = modifyState (haveValue $! v)
   where
   v = if b == 0 then pure (VBit False) else pure (VBit True)
 
--- | Receive an integer that fits in 64-bits
-cry_small_int :: Export Word64
-cry_small_int i = modifyState (haveValue $! v)
+-- | Receive a small unsigned integer that fits in 64-bits
+cry_small_uint :: Export Word64
+cry_small_uint i = modifyState (haveValue $! v)
   where
   v = pure $! VInteger $! toInteger i
+
+-- | Receive a small signed integer that fits in 64-bits
+cry_small_sint :: Export Int64
+cry_small_sint i = modifyState (haveValue $! v)
+  where
+  v = pure $! VInteger $! toInteger i
+
 
 -- | Receive an integer that's larger than 64-bits.
 -- This is part 1 of a 2 step process.

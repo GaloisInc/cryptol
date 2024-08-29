@@ -15,8 +15,11 @@ import Cryptol.Backend.FFI.ValImport
 foreign export ccall cry_bool :: Export Word8
 foreign import ccall "&cry_bool" cry_bool_addr :: FunPtr (Export Word8)
 
-foreign export ccall cry_small_int :: Export Word64
-foreign import ccall "&cry_small_int" cry_small_int_addr :: FunPtr (Export Word64)
+foreign export ccall cry_small_uint :: Export Word64
+foreign import ccall "&cry_small_uint" cry_small_uint_addr :: FunPtr (Export Word64)
+
+foreign export ccall cry_small_sint :: Export Int64
+foreign import ccall "&cry_small_sint" cry_small_sint_addr :: FunPtr (Export Int64)
 
 foreign export ccall cry_large_int :: LargeIntFun
 foreign import ccall "&cry_large_int" cry_large_int_addr :: FunPtr LargeIntFun
@@ -35,12 +38,13 @@ runBuilder ::
 runBuilder ty k =
   allocaBytes #{size struct CryValueBuilder} $ \obj ->
   do self <- cryNewValueBuilder ty 
-     #{poke struct CryValueBuilder, self}           obj self
-     #{poke struct CryValueBuilder, send_bool}      obj cry_bool_addr
-     #{poke struct CryValueBuilder, send_small_int} obj cry_small_int_addr
-     #{poke struct CryValueBuilder, send_tag}       obj cry_tag_addr
-     #{poke struct CryValueBuilder, new_large_int}  obj cry_large_int_addr
-     #{poke struct CryValueBuilder, send_sign}      obj cry_sign_addr
+     #{poke struct CryValueBuilder, self}            obj self
+     #{poke struct CryValueBuilder, send_bool}       obj cry_bool_addr
+     #{poke struct CryValueBuilder, send_small_uint} obj cry_small_uint_addr
+     #{poke struct CryValueBuilder, send_small_sint} obj cry_small_sint_addr
+     #{poke struct CryValueBuilder, send_tag}        obj cry_tag_addr
+     #{poke struct CryValueBuilder, new_large_int}   obj cry_large_int_addr
+     #{poke struct CryValueBuilder, send_sign}       obj cry_sign_addr
      k obj
      cryFinishBuilder self
 
