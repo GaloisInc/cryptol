@@ -2,7 +2,7 @@
 {-# Language BlockArguments #-}
 {-# Language LambdaCase #-}
 -- | Export builders for Cryptols values
-module Cryptol.Backend.FFI.Builder where
+module Cryptol.Backend.FFI.ValImport where
 
 import Data.Text(Text)
 import qualified Data.IntMap as IntMap
@@ -27,6 +27,8 @@ import Cryptol.Backend.Monad
 import Cryptol.Backend.Concrete
 import Cryptol.Backend.SeqMap
 
+import Cryptol.Backend
+
 data BuilderErrorMessage =
     ProtocolMismatch Thing Thing  -- ^ Expected, got
   | PartialValue
@@ -34,6 +36,7 @@ data BuilderErrorMessage =
   | TagOutOfBounds Int
   | Unsupported Text
   | BadWordValue
+  | BadRationalValue
   | FFINotEnabled
     deriving Show
 
@@ -148,14 +151,23 @@ needValue tval fs =
     TVBit      -> Building (NeedVal : fs)
     TVInteger  -> Building (NeedVal : fs)
     TVIntMod _ -> Building (NeedVal : fs)
-    TVRational -> Building (NeedVal : fs)
     TVFloat {} -> Building (NeedVal : fs)
+
+    TVRational -> 
+      Building (NeedVal : NeedMany (Mk 10 ppV mkV) [] [TVInteger] : fs)
+        where
+        ppV xs = "Rational" <+> hsep xs
+        mkV xs =
+          case xs of
+            [Ready (VInteger i), Ready (VInteger j)] ->
+              Right (VRational <$> ratio Concrete i j)
+            _ -> Left BadRationalValue
 
     TVSeq len elT ->
       case elT of
         TVBit -> Building (NeedVal : NeedMany (Mk 10 ppV mkV) [] [] : fs)
           where
-          ppV _ = "Word" <+> integer len <+> "_"
+          ppV xs = "Word" <+> integer len <+> hsep xs
           mkV xs =
             case xs of
               [Ready (VInteger i)] -> Right (word Concrete len i)

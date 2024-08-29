@@ -9,7 +9,7 @@ module Cryptol.Backend.FFI.Export where
 import Foreign
 import Foreign.C.Types(CSize(..))
 import Cryptol.Eval.Type(TValue)
-import Cryptol.Backend.FFI.Builder
+import Cryptol.Backend.FFI.ValImport
 
 
 foreign export ccall cry_bool :: Export Word8
