@@ -29,7 +29,7 @@ import Cryptol.Backend.SeqMap
 
 import Cryptol.Backend
 
-data BuilderErrorMessage =
+data ImportErrorMessage =
     ProtocolMismatch Thing Thing  -- ^ Expected, got
   | PartialValue
   | UnexpectedData
@@ -45,20 +45,20 @@ data Thing = AValue | ATag | ASign
 
 type Value = SEval Concrete (GenValue Concrete)
 
--- | State of building a value (aka "context")
-data Builder =
+-- | Imported of Cryptol values (aka "context")
+data Importer =
     Building [Frame]    -- ^ A partial value
   | Done Value          -- ^ Fully built value
-  | Error BuilderErrorMessage
+  | Error ImportErrorMessage
     -- ^ Something went wrong
     -- XXX: It'd be nice to store the [Frame] here as well,
     -- but that's a bit of a pain because of missing `Show` instances...
 
-instance Exception BuilderErrorMessage
+instance Exception ImportErrorMessage
 
 data Mk =
   Mk { mkPrec :: Int, mkPP :: [Doc] -> Doc
-     , mkVal :: [Value] -> Either BuilderErrorMessage Value
+     , mkVal :: [Value] -> Either ImportErrorMessage Value
      }
 
 -- | Describes what we are missing
@@ -83,7 +83,7 @@ data Frame =
     -- ^ Sum type value, which needs a constructor tag to proceed.
 
 -- | Fill the "hole" with the given value.
-haveValue :: Value -> [Frame] -> Builder
+haveValue :: Value -> [Frame] -> Importer
 haveValue v fs =
   case fs of
     [] -> Done v
@@ -101,7 +101,7 @@ haveValue v fs =
         NeedSign {} -> Error (ProtocolMismatch ASign AValue)
 
 -- | Provide a constructor tag  
-haveTag :: Int -> [Frame] -> Builder
+haveTag :: Int -> [Frame] -> Importer
 haveTag n fs0 =
   case fs0 of
     [] -> Error UnexpectedData
@@ -128,7 +128,7 @@ haveTag n fs0 =
                                   ci { conFields = Vector.fromList vs }))
 
 
-haveSign :: Bool -> [Frame] -> IO Builder
+haveSign :: Bool -> [Frame] -> IO Importer
 haveSign isPos fs0 =
   case fs0 of
     [] -> pure (Error UnexpectedData)
@@ -145,7 +145,7 @@ haveSign isPos fs0 =
   mismatch x = pure (Error (ProtocolMismatch x ASign))         
 
 -- | Make a "hole" of the given type.
-needValue :: TValue -> [Frame] -> Builder
+needValue :: TValue -> [Frame] -> Importer
 needValue tval fs =
   case tval of
     TVBit      -> Building (NeedVal : fs)
@@ -235,14 +235,14 @@ instance PP Frame where
 
 --------------------------------------------------------------------------------
 
-cryNewValueBuilder :: TValue -> IO (StablePtr (IORef Builder))
-cryNewValueBuilder ty =
+cryStartImport :: TValue -> IO (StablePtr (IORef Importer))
+cryStartImport ty =
   do ref <- newIORef (needValue ty [])
      newStablePtr ref
 
-cryFinishBuilder ::
-  StablePtr (IORef Builder) -> IO (Either BuilderErrorMessage Value)
-cryFinishBuilder ptr =
+cryFinishImport ::
+  StablePtr (IORef Importer) -> IO (Either ImportErrorMessage Value)
+cryFinishImport ptr =
   do ref <- deRefStablePtr ptr
      freeStablePtr ptr
      builder <- readIORef ref
@@ -258,10 +258,10 @@ cryFinishBuilder ptr =
 
 
 
-modifyState :: ([Frame] -> Builder) -> Ptr () -> IO ()
+modifyState :: ([Frame] -> Importer) -> Ptr () -> IO ()
 modifyState how ptr =
   do ref <- deRefStablePtr (castPtrToStablePtr ptr)
-     modifyIORef ref \case
+     modifyIORef' ref \case
        Error err    -> Error err
        Done _       -> Error UnexpectedData
        Building fs  -> how fs
@@ -269,15 +269,16 @@ modifyState how ptr =
 
 -- | This function assumes that we are the only ones modifying the
 -- builder state, so we don't need to worry about race conditions.
-modifyStateIO :: ([Frame] -> IO Builder) -> Ptr () -> IO ()
+modifyStateIO :: ([Frame] -> IO Importer) -> Ptr () -> IO ()
 modifyStateIO how ptr =
   do ref <- deRefStablePtr (castPtrToStablePtr ptr)
      builder <- readIORef ref
-     writeIORef ref =<<
-       case builder of
-         Error err    -> pure (Error err)
-         Done _       -> pure (Error UnexpectedData)
-         Building fs  -> how fs
+     newS <- case builder of
+               Error err    -> pure (Error err)
+               Done _       -> pure (Error UnexpectedData)
+               Building fs  -> how fs
+     newS `seq` writeIORef ref newS
+       
 
 
 type Export a = a -> Ptr () -> IO ()

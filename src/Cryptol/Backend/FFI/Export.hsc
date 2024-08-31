@@ -10,6 +10,7 @@ import Foreign
 import Foreign.C.Types(CSize(..))
 import Cryptol.Eval.Type(TValue)
 import Cryptol.Backend.FFI.ValImport
+import Cryptol.Backend.FFI.ValExport
 
 
 foreign export ccall cry_bool :: Export Word8
@@ -31,20 +32,20 @@ foreign export ccall cry_tag :: Export CSize
 foreign import ccall "&cry_tag" cry_tag_addr :: FunPtr (Export CSize)
 
 
-runBuilder ::
+runImporter ::
   TValue ->
-  (Ptr cryValBuilder -> IO ()) ->
-  IO (Either BuilderErrorMessage Value)
+  (Ptr cryValImporter -> IO ()) ->
+  IO (Either ImporterErrorMessage Value)
 runBuilder ty k =
-  allocaBytes #{size struct CryValueBuilder} $ \obj ->
+  allocaBytes #{size struct CryValImporter } $ \obj ->
   do self <- cryNewValueBuilder ty 
-     #{poke struct CryValueBuilder, self}            obj self
-     #{poke struct CryValueBuilder, send_bool}       obj cry_bool_addr
-     #{poke struct CryValueBuilder, send_small_uint} obj cry_small_uint_addr
-     #{poke struct CryValueBuilder, send_small_sint} obj cry_small_sint_addr
-     #{poke struct CryValueBuilder, send_tag}        obj cry_tag_addr
-     #{poke struct CryValueBuilder, new_large_int}   obj cry_large_int_addr
-     #{poke struct CryValueBuilder, send_sign}       obj cry_sign_addr
+     #{poke struct CryValImporter, self}               obj self
+     #{poke struct CryValImporter, send_bool}          obj cry_bool_addr
+     #{poke struct CryValImporter, send_small_uint}    obj cry_small_uint_addr
+     #{poke struct CryValImporter, send_small_sint}    obj cry_small_sint_addr
+     #{poke struct CryValImporter, send_tag}           obj cry_tag_addr
+     #{poke struct CryValImporter, send_new_large_int} obj cry_large_int_addr
+     #{poke struct CryValImporter, send_sign}          obj cry_sign_addr
      k obj
      cryFinishBuilder self
 
@@ -53,7 +54,7 @@ runBuilder ty k =
 runBuilder ::
   TValue ->
   (Ptr cryValBuilder -> IO ()) ->
-  IO (Either BuilderErrorMessage Value)
+  IO (Either ImporterErrorMessage Value)
 runBuilder _ty _k = pure (Left FFINotEnabled)
 
 #endif
