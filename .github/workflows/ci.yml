@@ -244,7 +244,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: runner.os == 'Windows'
         with:
-          name: ${{ env.NAME }} (GHC ${{ matrix.ghc-version }})
+          name: Windows MSI installer (GHC ${{ matrix.ghc-version }})
           path: "cryptol.msi*"
           if-no-files-found: error
           retention-days: ${{ needs.config.outputs.retention-days }}
