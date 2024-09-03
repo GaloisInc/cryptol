@@ -113,6 +113,7 @@ tSub :: Type -> Type -> Type
 tSub x y
   | Just t <- tOp TCSub (op2 nSub) [x,y] = t
   | tIsInf y  = tError (tf2 TCSub x y)
+  | tIsInf x = x
   | Just 0 <- yNum = x
   | Just k <- yNum
   , TCon (TF TCAdd) [a,b] <- tNoUser x
