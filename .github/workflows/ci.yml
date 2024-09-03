@@ -333,12 +333,12 @@ jobs:
         with:
           poetry-version: 1.4.2
 
-      - uses: actions/download-artifact@v2
+      - uses: actions/download-artifact@v4.1.7
         with:
           name: "${{ matrix.os }}-dist-bin"
           path: dist/bin
 
-      - uses: actions/download-artifact@v2
+      - uses: actions/download-artifact@v4.1.7
         with:
           name: "${{ matrix.os }}-bin"
           path: bin
