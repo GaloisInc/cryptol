@@ -116,7 +116,7 @@ tSub x y
 
   | tIsInf x = x
     {- This assumes that `y` is finite and not error.  The first should
-       follow from the typing on `tSub`, which asserts that the second argumet
+       follow from the typing on `tSub`, which asserts that the second argument
        is finite and less than the first;  the second should have been handleed
        by the first equation above `tOp`. -}
 
