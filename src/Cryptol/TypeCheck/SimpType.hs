@@ -113,6 +113,13 @@ tSub :: Type -> Type -> Type
 tSub x y
   | Just t <- tOp TCSub (op2 nSub) [x,y] = t
   | tIsInf y  = tError (tf2 TCSub x y)
+
+  | tIsInf x = x
+    {- This assumes that `y` is finite and not error.  The first should
+       follow from the typing on `tSub`, which asserts that the second argument
+       is finite and less than the first;  the second should have been handled
+       by the first equation above, see `tOp`. -}
+
   | Just 0 <- yNum = x
   | Just k <- yNum
   , TCon (TF TCAdd) [a,b] <- tNoUser x
