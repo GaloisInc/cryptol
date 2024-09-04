@@ -118,7 +118,7 @@ tSub x y
     {- This assumes that `y` is finite and not error.  The first should
        follow from the typing on `tSub`, which asserts that the second argument
        is finite and less than the first;  the second should have been handled
-       by the first equation above `tOp`. -}
+       by the first equation above, see `tOp`. -}
 
   | Just 0 <- yNum = x
   | Just k <- yNum
