@@ -215,14 +215,14 @@ jobs:
           .github/ci.sh sign ${NAME}.tar.gz
           .github/ci.sh sign ${NAME}-with-solvers.tar.gz
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{ env.NAME }} (GHC ${{ matrix.ghc-version }})
           path: "${{ env.NAME }}.tar.gz*"
           if-no-files-found: error
           retention-days: ${{ needs.config.outputs.retention-days }}
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{ env.NAME }}-with-solvers (GHC ${{ matrix.ghc-version }})
           path: "${{ env.NAME }}-with-solvers.tar.gz*"
@@ -230,21 +230,21 @@ jobs:
           retention-days: ${{ needs.config.outputs.retention-days }}
 
       - if: matrix.ghc-version == '9.4.8' && matrix.run-tests
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           path: dist/bin
           name: ${{ matrix.os }}-dist-bin
 
       - if: matrix.ghc-version == '9.4.8' && matrix.run-tests
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           path: bin
           name: ${{ matrix.os }}-bin
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         if: runner.os == 'Windows'
         with:
-          name: ${{ env.NAME }} (GHC ${{ matrix.ghc-version }})
+          name: Windows MSI installer (GHC ${{ matrix.ghc-version }})
           path: "cryptol.msi*"
           if-no-files-found: error
           retention-days: ${{ needs.config.outputs.retention-days }}
@@ -333,12 +333,12 @@ jobs:
         with:
           poetry-version: 1.4.2
 
-      - uses: actions/download-artifact@v2
+      - uses: actions/download-artifact@v4.1.7
         with:
           name: "${{ matrix.os }}-dist-bin"
           path: dist/bin
 
-      - uses: actions/download-artifact@v2
+      - uses: actions/download-artifact@v4.1.7
         with:
           name: "${{ matrix.os }}-bin"
           path: bin
