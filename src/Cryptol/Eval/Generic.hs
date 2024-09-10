@@ -1065,31 +1065,34 @@ splitV :: Backend sym =>
   SEval sym (GenValue sym) ->
   SEval sym (GenValue sym)
 splitV sym parts each a val =
-    case (parts, each) of
-       (Nat p, e) | isTBit a -> do
-          val' <- sDelay sym (fromWordVal "splitV" <$> val)
+  case parts of
+    Nat p
+     | isTBit a ->
+       do val' <- sDelay sym (fromWordVal "splitV" <$> val)
           return $ VSeq p $ indexSeqMap $ \i ->
-            VWord <$> (extractWordVal sym e ((p-i-1)*e) =<< val')
-       (Inf, e) | isTBit a -> do
-          val' <- sDelay sym (fromSeq "splitV" =<< val)
-          return $ VStream $ indexSeqMap $ \i ->
-            VWord <$> bitmapWordVal sym e (indexSeqMap $ \j ->
-              let idx = i*e + toInteger j
-               in idx `seq` do
-                      xs <- val'
-                      fromVBit <$> lookupSeqMap xs idx)
-       (Nat p, e) -> do
-          val' <- sDelay sym (fromSeq "splitV" =<< val)
+            VWord <$> (extractWordVal sym each ((p-i-1)*each) =<< val')
+     | otherwise ->
+       do val' <- sDelay sym (fromSeq "splitV" =<< val)
           return $ VSeq p $ indexSeqMap $ \i ->
-            return $ VSeq e $ indexSeqMap $ \j -> do
+            return $ VSeq each $ indexSeqMap $ \j -> do
               xs <- val'
-              lookupSeqMap xs (e * i + j)
-       (Inf  , e) -> do
-          val' <- sDelay sym (fromSeq "splitV" =<< val)
-          return $ VStream $ indexSeqMap $ \i ->
-            return $ VSeq e $ indexSeqMap $ \j -> do
-              xs <- val'
-              lookupSeqMap xs (e * i + j)
+              lookupSeqMap xs (each * i + j)
+
+    Inf
+      | isTBit a ->
+        do val' <- sDelay sym (fromSeq "splitV" =<< val)
+           return $ VStream $ indexSeqMap $ \i ->
+             VWord <$> bitmapWordVal sym each (indexSeqMap $ \j ->
+               let idx = i*each + toInteger j
+                in idx `seq` do
+                       xs <- val'
+                       fromVBit <$> lookupSeqMap xs idx)
+      | otherwise ->
+        do val' <- sDelay sym (fromSeq "splitV" =<< val)
+           return $ VStream $ indexSeqMap $ \i ->
+             return $ VSeq each $ indexSeqMap $ \j -> do
+               xs <- val'
+               lookupSeqMap xs (each * i + j)
 
 
 {-# INLINE reverseV #-}
