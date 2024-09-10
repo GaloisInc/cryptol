@@ -1079,7 +1079,9 @@ splitV sym parts each a val =
               lookupSeqMap xs (each * i + j)
 
     Inf
-      | isTBit a ->
+      -- The return type is [inf][each], (where each is non-zero) and `val` is
+      -- of type [inf * each], or [inf]. Therefore, `val` is a stream.
+      | isTBit a, each /= 0 ->
         do val' <- sDelay sym (fromSeq "splitV" =<< val)
            return $ VStream $ indexSeqMap $ \i ->
              VWord <$> bitmapWordVal sym each (indexSeqMap $ \j ->
@@ -1087,6 +1089,17 @@ splitV sym parts each a val =
                 in idx `seq` do
                        xs <- val'
                        fromVBit <$> lookupSeqMap xs idx)
+      -- The return type is [inf][0], and `val` is of type [inf * 0], or [0].
+      -- Therefore, `val` is a word. We need to special-case this, because the
+      -- case directly above this one will panic if `val` is not a stream due to
+      -- the use of `fromSeq` (#1749).
+      --
+      -- Because `val` is an empty sequence, there is no need to split it apart.
+      -- Instead, we can just return a stream with infinite copies of `val`.
+      | isTBit a, each == 0 ->
+        return $ VStream $ indexSeqMap $ \_i -> val
+      -- If `a` is not `Bit`, then `val` must be a sequence or a stream (and not
+      -- a word).
       | otherwise ->
         do val' <- sDelay sym (fromSeq "splitV" =<< val)
            return $ VStream $ indexSeqMap $ \i ->
