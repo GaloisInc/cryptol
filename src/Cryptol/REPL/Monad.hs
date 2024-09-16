@@ -248,7 +248,7 @@ mkPrompt rw
         | M.isLoadedParamMod m loaded -> modName ++ "(parameterized)"
         | M.isLoadedInterface m loaded -> modName ++ "(interface)"
         | otherwise -> modName
-        where 
+        where
           modName = pretty m
           loaded = M.meLoadedModules (eModuleEnv rw)
 
@@ -646,15 +646,29 @@ getTypeNames  =
      return (map (show . pp) (Map.keys (M.namespaceMap M.NSType fNames)))
 
 -- | Return a list of property names, sorted by position in the file.
-getPropertyNames :: REPL ([(M.Name,M.IfaceDecl)],NameDisp)
+-- Only properties defined in the current module are returned, including
+-- private properties in the current module. Imported properties are not
+-- returned.
+getPropertyNames :: REPL ([(M.Name, T.Decl)], NameDisp)
 getPropertyNames =
-  do fe <- getFocusedEnv
-     let xs = M.ifDecls (M.mctxDecls fe)
-         ps = sortBy (comparing (from . M.nameLoc . fst))
-              [ (x,d) | (x,d) <- Map.toList xs,
-                    T.PragmaProperty `elem` M.ifDeclPragmas d ]
+ do fe <- getFocusedEnv
+    let nd = M.mctxNameDisp fe
+    mblm <- fmap (lName =<<) getLoadedMod
+    case mblm of
+      Nothing -> pure ([], nd)
+      Just mn ->
+       do mb <- M.lookupModule mn <$> getModuleEnv
+          case mb of
+            Nothing -> pure ([], nd)
+            Just lm -> pure (ps, nd)
+              where
+                ps =
+                  sortBy (comparing (from . M.nameLoc . fst))
+                    [ (T.dName d,d)
+                    | d <- T.groupDecls =<< T.mDecls (M.lmdModule (M.lmData lm))
+                    , T.PragmaProperty `elem` T.dPragmas d
+                    ]
 
-     return (ps, M.mctxNameDisp fe)
 
 getModNames :: REPL [I.ModName]
 getModNames =

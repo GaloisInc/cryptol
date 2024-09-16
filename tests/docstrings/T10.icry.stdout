@@ -1,0 +1,25 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module T10
+
+
+Checking T10
+
+:check
+property p Using exhaustive testing.
+Testing... Passed 1 tests.
+Q.E.D.
+property M::q Using exhaustive testing.
+Testing... Passed 1 tests.
+Q.E.D.
+property T10::M::r Using exhaustive testing.
+Testing... Passed 1 tests.
+Q.E.D.
+property F1::s Using exhaustive testing.
+Testing... Passed 1 tests.
+Q.E.D.
+property T10::F1::t Using exhaustive testing.
+Testing... Passed 1 tests.
+Q.E.D.
+
+Successes: 1, No fences: 11, Failures: 0

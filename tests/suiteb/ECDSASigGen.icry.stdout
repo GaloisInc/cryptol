@@ -2,12 +2,7 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module PrimeEC
 Loading module NISTCurves
-Loading module SuiteB
-Loading module Main
 property p192_valid_curve Using exhaustive testing.
-Testing... Passed 1 tests.
-Q.E.D.
-property p224_sha224_siggen Using exhaustive testing.
 Testing... Passed 1 tests.
 Q.E.D.
 property p224_valid_curve Using exhaustive testing.
@@ -20,6 +15,14 @@ property p384_valid_curve Using exhaustive testing.
 Testing... Passed 1 tests.
 Q.E.D.
 property p521_valid_curve Using exhaustive testing.
+Testing... Passed 1 tests.
+Q.E.D.
+Loading module Cryptol
+Loading module PrimeEC
+Loading module NISTCurves
+Loading module SuiteB
+Loading module Main
+property p224_sha224_siggen Using exhaustive testing.
 Testing... Passed 1 tests.
 Q.E.D.
 property p224_sha256_siggen Using exhaustive testing.
