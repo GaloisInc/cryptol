@@ -454,7 +454,7 @@ toWord32 sym nm ss i =
        _ -> panic nm ["Unexpected word size", show (SW.bvWidth x)]
 
 fromWord32 :: W4.IsSymExprBuilder sym => W4.SymBV sym 32 -> SEval (What4 sym) (Value sym)
-fromWord32 = pure . VWord 32 . wordVal . SW.DBV
+fromWord32 = pure . VWord . wordVal . SW.DBV
 
 toWord64 :: W4.IsSymExprBuilder sym =>
   What4 sym -> String -> SeqMap (What4 sym) (GenValue (What4 sym)) -> Integer -> SEval (What4 sym) (W4.SymBV sym 64)
@@ -465,7 +465,7 @@ toWord64 sym nm ss i =
        _ -> panic nm ["Unexpected word size", show (SW.bvWidth x)]
 
 fromWord64 :: W4.IsSymExprBuilder sym => W4.SymBV sym 64 -> SEval (What4 sym) (Value sym)
-fromWord64 = pure . VWord 64 . wordVal . SW.DBV
+fromWord64 = pure . VWord . wordVal . SW.DBV
 
 
 

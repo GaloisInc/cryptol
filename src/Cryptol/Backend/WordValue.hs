@@ -25,6 +25,7 @@ module Cryptol.Backend.WordValue
   ( -- * WordValue
     WordValue
   , wordVal
+  , wordValWidth
   , bitmapWordVal
   , asWordList
   , asWordVal
@@ -59,6 +60,7 @@ module Cryptol.Backend.WordValue
 
 import Control.Monad (unless)
 import Data.Bits
+import Data.Proxy(Proxy(..))
 import GHC.Generics (Generic)
 
 import Cryptol.Backend
@@ -96,6 +98,14 @@ data WordValue sym
        !(SEval sym (SWord sym)) -- ^ Thunk for packing the word
        !(SeqMap sym (SBit sym)) -- ^
  deriving (Generic)
+
+wordValWidth :: forall sym. Backend sym => WordValue sym -> Integer
+wordValWidth val =
+  case val of
+    ThunkWordVal n _ -> n
+    WordVal sv -> wordLen' (Proxy :: Proxy sym) sv
+    BitmapVal n _ _ -> n
+{-# INLINE wordValWidth #-}
 
 wordVal :: SWord sym -> WordValue sym
 wordVal = WordVal
