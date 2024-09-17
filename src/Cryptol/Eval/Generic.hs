@@ -1734,7 +1734,7 @@ errorV sym _ty msg =
 --   and return the associated character, if it is concrete.
 --   Otherwise, return a '?' character
 valueToChar :: Backend sym => sym -> GenValue sym -> SEval sym Char
-valueToChar sym (VWord wval) =
+valueToChar sym (VWord wval) | wordValWidth wval == 8 =
   do w <- asWordVal sym wval
      pure $! fromMaybe '?' (wordAsChar sym w)
 valueToChar _ _ = evalPanic "valueToChar" ["Not an 8-bit bitvector"]
