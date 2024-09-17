@@ -60,6 +60,7 @@ module Cryptol.Backend.WordValue
 
 import Control.Monad (unless)
 import Data.Bits
+import Data.Proxy(Proxy(..))
 import GHC.Generics (Generic)
 
 import Cryptol.Backend
@@ -102,7 +103,7 @@ wordValWidth :: forall sym. Backend sym => WordValue sym -> Integer
 wordValWidth val =
   case val of
     ThunkWordVal n _ -> n
-    WordVal sv -> wordLen' (Nothing :: Maybe sym) sv
+    WordVal sv -> wordLen' (Proxy :: Proxy sym) sv
     BitmapVal n _ _ -> n
 {-# INLINE wordValWidth #-}
 
