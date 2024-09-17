@@ -5,7 +5,7 @@
 ## Bug fixes
 
   * Fix #1740, removes duplicated width from word values.
-    Note that since thins changes the types, it may require changes to
+    Note that since this changes the types, it may require changes to
     libraries depending on Cryptol.
 
 ## New features
