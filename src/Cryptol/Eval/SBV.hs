@@ -81,7 +81,7 @@ indexFront sym mblen a xs _ix idx
        asWordList sym wvs >>= \case
          Just ws ->
            do z <- wordLit sym wlen 0
-              return $ VWord wlen $ wordVal $ SBV.svSelect ws z idx
+              return $ VWord $ wordVal $ SBV.svSelect ws z idx
          Nothing -> folded'
 
   | otherwise = folded'

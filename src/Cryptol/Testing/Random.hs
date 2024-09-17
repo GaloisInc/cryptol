@@ -237,7 +237,7 @@ randomRational sym w g =
 randomWord :: (Backend sym, RandomGen g) => sym -> Integer -> Gen g sym
 randomWord sym w _sz g =
    let (val, g1) = randomR (0,2^w-1) g
-   in (VWord w . wordVal <$> wordLit sym w val, g1)
+   in (VWord . wordVal <$> wordLit sym w val, g1)
 
 {-# INLINE randomStream #-}
 
@@ -493,7 +493,7 @@ typeValues ty =
     TVArray{}   -> []
     TVStream{}  -> []
     TVSeq n TVBit ->
-      [ VWord n (wordVal (BV n x))
+      [ VWord (wordVal (BV n x))
       | x <- [ 0 .. 2^n - 1 ]
       ]
     TVSeq n el ->

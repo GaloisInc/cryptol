@@ -124,7 +124,7 @@ data GenValue sym
   | VFloat !(SFloat sym)
   | VSeq !Integer !(SeqMap sym (GenValue sym)) -- ^ @ [n]a   @
                                                --   Invariant: VSeq is never a sequence of bits
-  | VWord !Integer !(WordValue sym)            -- ^ @ [n]Bit @
+  | VWord !(WordValue sym)                     -- ^ @ [n]Bit @
   | VStream !(SeqMap sym (GenValue sym))       -- ^ @ [inf]a @
   | VFun  CallStack (SEval sym (GenValue sym) -> SEval sym (GenValue sym)) -- ^ functions
   | VPoly CallStack (TValue -> SEval sym (GenValue sym))   -- ^ polymorphic values (kind *)
@@ -144,7 +144,7 @@ forceValue v = case v of
   VInteger i  -> seq i (return ())
   VRational q -> seq q (return ())
   VFloat f    -> seq f (return ())
-  VWord _ wv  -> forceWordValue wv
+  VWord wv    -> forceWordValue wv
   VStream _   -> return ()
   VFun{}      -> return ()
   VPoly{}     -> return ()
@@ -153,7 +153,7 @@ forceValue v = case v of
 forceConValue :: Backend sym => ConValue sym -> SEval sym ()
 forceConValue (ConInfo i vs) = i `seq` mapM_ (forceValue =<<) vs
 
-instance Show (GenValue sym) where
+instance Backend sym => Show (GenValue sym) where
   show v = case v of
     VRecord fs -> "record:" ++ show (displayOrder fs)
     VTuple xs  -> "tuple:" ++ show (length xs)
@@ -163,7 +163,7 @@ instance Show (GenValue sym) where
     VRational _ -> "rational"
     VFloat _   -> "float"
     VSeq n _   -> "seq:" ++ show n
-    VWord n _  -> "word:"  ++ show n
+    VWord wv    -> "word:"  ++ show (wordValWidth wv)
     VStream _  -> "stream"
     VFun{}     -> "fun"
     VPoly{}    -> "poly"
@@ -202,7 +202,7 @@ ppValuePrec x opts = loop
     VRational q        -> ppSRational x q
     VFloat i           -> ppSFloat x opts i
     VSeq sz vals       -> ppWordSeq sz vals
-    VWord _ wv         -> ppWordVal wv
+    VWord wv           -> ppWordVal wv
     VStream vals       -> do vals' <- traverse (>>=loop 0) $ enumerateSeqMap (useInfLength opts) vals
                              return $ ppList ( vals' ++ [text "..."] )
     VFun{}             -> return $ text "<function>"
@@ -342,7 +342,7 @@ ppSWord sym opts bv
 word :: Backend sym => sym -> Integer -> Integer -> SEval sym (GenValue sym)
 word sym n i
   | n >= Arch.maxBigIntWidth = wordTooWide n
-  | otherwise                = VWord n . wordVal <$> wordLit sym n i
+  | otherwise                = VWord . wordVal <$> wordLit sym n i
 
 
 -- | Construct a function value
@@ -374,7 +374,7 @@ ilam sym f =
 mkSeq :: Backend sym => sym -> Nat' -> TValue -> SeqMap sym (GenValue sym) -> SEval sym (GenValue sym)
 mkSeq sym len elty vals = case len of
   Nat n
-    | isTBit elty -> VWord n <$> bitmapWordVal sym n (fromVBit <$> vals)
+    | isTBit elty -> VWord <$> bitmapWordVal sym n (fromVBit <$> vals)
     | otherwise   -> pure $ VSeq n vals
   Inf             -> pure $ VStream vals
 
@@ -382,25 +382,25 @@ mkSeq sym len elty vals = case len of
 -- Value Destructors -----------------------------------------------------------
 
 -- | Extract a bit value.
-fromVBit :: GenValue sym -> SBit sym
+fromVBit :: Backend sym => GenValue sym -> SBit sym
 fromVBit val = case val of
   VBit b -> b
   _      -> evalPanic "fromVBit" ["not a Bit", show val]
 
 -- | Extract an integer value.
-fromVInteger :: GenValue sym -> SInteger sym
+fromVInteger :: Backend sym => GenValue sym -> SInteger sym
 fromVInteger val = case val of
   VInteger i -> i
   _      -> evalPanic "fromVInteger" ["not an Integer", show val]
 
 -- | Extract a rational value.
-fromVRational :: GenValue sym -> SRational sym
+fromVRational :: Backend sym => GenValue sym -> SRational sym
 fromVRational val = case val of
   VRational q -> q
   _      -> evalPanic "fromVRational" ["not a Rational", show val]
 
 -- | Extract a finite sequence value.
-fromVSeq :: GenValue sym -> SeqMap sym (GenValue sym)
+fromVSeq :: Backend sym => GenValue sym -> SeqMap sym (GenValue sym)
 fromVSeq val = case val of
   VSeq _ vs -> vs
   _         -> evalPanic "fromVSeq" ["not a sequence", show val]
@@ -413,24 +413,24 @@ fromSeq msg val = case val of
   _           -> evalPanic "fromSeq" ["not a sequence", msg, show val]
 
 fromWordVal :: Backend sym => String -> GenValue sym -> WordValue sym
-fromWordVal _msg (VWord _ wval) = wval
+fromWordVal _msg (VWord wval) = wval
 fromWordVal msg val = evalPanic "fromWordVal" ["not a word value", msg, show val]
 
 asIndex :: Backend sym =>
   sym -> String -> TValue -> GenValue sym -> Either (SInteger sym) (WordValue sym)
 asIndex _sym _msg TVInteger (VInteger i) = Left i
-asIndex _sym _msg _ (VWord _ wval) = Right wval
+asIndex _sym _msg _ (VWord wval) = Right wval
 asIndex _sym  msg _ val = evalPanic "asIndex" ["not an index value", msg, show val]
 
 -- | Extract a packed word.
 fromVWord :: Backend sym => sym -> String -> GenValue sym -> SEval sym (SWord sym)
-fromVWord sym _msg (VWord _ wval) = asWordVal sym wval
+fromVWord sym _msg (VWord wval) = asWordVal sym wval
 fromVWord _ msg val = evalPanic "fromVWord" ["not a word", msg, show val]
 
 vWordLen :: Backend sym => GenValue sym -> Maybe Integer
 vWordLen val = case val of
-  VWord n _wv              -> Just n
-  _                        -> Nothing
+  VWord wv              -> Just (wordValWidth wv)
+  _                     -> Nothing
 
 -- | If the given list of values are all fully-evaluated thunks
 --   containing bits, return a packed word built from the same bits.
@@ -466,31 +466,31 @@ fromVNumPoly sym val = case val of
   _  -> evalPanic "fromVNumPoly" ["not a polymorphic value", show val]
 
 -- | Extract a tuple from a value.
-fromVTuple :: GenValue sym -> [SEval sym (GenValue sym)]
+fromVTuple :: Backend sym => GenValue sym -> [SEval sym (GenValue sym)]
 fromVTuple val = case val of
   VTuple vs -> vs
   _         -> evalPanic "fromVTuple" ["not a tuple", show val]
 
 -- | Extract a record from a value.
-fromVRecord :: GenValue sym -> RecordMap Ident (SEval sym (GenValue sym))
+fromVRecord :: Backend sym => GenValue sym -> RecordMap Ident (SEval sym (GenValue sym))
 fromVRecord val = case val of
   VRecord fs -> fs
   _          -> evalPanic "fromVRecord" ["not a record", show val]
 
-fromVEnum :: GenValue sym -> (SInteger sym, IntMap (ConValue sym))
+fromVEnum :: Backend sym => GenValue sym -> (SInteger sym, IntMap (ConValue sym))
 fromVEnum val =
   case val of
     VEnum c xs -> (c,xs)
     _          -> evalPanic "fromVEnum" ["not an enum", show val]
 
-fromVFloat :: GenValue sym -> SFloat sym
+fromVFloat :: Backend sym => GenValue sym -> SFloat sym
 fromVFloat val =
   case val of
     VFloat x -> x
     _        -> evalPanic "fromVFloat" ["not a Float", show val]
 
 -- | Lookup a field in a record.
-lookupRecord :: Ident -> GenValue sym -> SEval sym (GenValue sym)
+lookupRecord :: Backend sym => Ident -> GenValue sym -> SEval sym (GenValue sym)
 lookupRecord f val =
   case lookupField f (fromVRecord val) of
     Just x  -> x
@@ -581,7 +581,7 @@ mergeValue sym c v1 v2 =
     (VInteger i1 , VInteger i2 ) -> VInteger <$> iteInteger sym c i1 i2
     (VRational q1, VRational q2) -> VRational <$> iteRational sym c q1 q2
     (VFloat f1   , VFloat f2)    -> VFloat <$> iteFloat sym c f1 f2
-    (VWord n1 w1 , VWord n2 w2 ) | n1 == n2 -> VWord n1 <$> mergeWord sym c w1 w2
+    (VWord w1    , VWord w2 ) | wordValWidth w1 == wordValWidth w2 -> VWord <$> mergeWord sym c w1 w2
     (VSeq n1 vs1 , VSeq n2 vs2 ) | n1 == n2 -> VSeq n1 <$> memoMap sym (Nat n1) (mergeSeqMapVal sym c vs1 vs2)
     (VStream vs1 , VStream vs2 ) -> VStream <$> memoMap sym Inf (mergeSeqMapVal sym c vs1 vs2)
     (f1@VFun{}   , f2@VFun{}   ) -> lam sym $ \x -> mergeValue' sym c (fromVFun sym f1 x) (fromVFun sym f2 x)
