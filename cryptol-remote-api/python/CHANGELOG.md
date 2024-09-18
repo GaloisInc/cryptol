@@ -2,6 +2,9 @@
 
 ## next -- TBA
 
+* Require building with `argo-client-0.0.13` or later. `argo-client-0.0.13` uses
+  blocking IO, which should reduce CPU load when receiving replies.
+
 ## 3.2.0 -- 2024-08-20
 
 * The v3.2.0 release is made in tandem with the Cryptol 3.2.0 release. See the

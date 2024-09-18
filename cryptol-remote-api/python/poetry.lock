@@ -2,13 +2,13 @@
 
 [[package]]
 name = "argo-client"
-version = "0.0.12"
+version = "0.0.13"
 description = "A JSON RPC client library."
 optional = false
 python-versions = "<4,>=3.8.0"
 files = [
-    {file = "argo_client-0.0.12-py3-none-any.whl", hash = "sha256:6986b79f03d6592cdcc87cb228a0829cedf12852134c3af9083a322fa28bdc4a"},
-    {file = "argo_client-0.0.12.tar.gz", hash = "sha256:97f5b2db3caa4598c5cdcb1e9c80b5d330bdc5ecae08e36198e4dab217af4b97"},
+    {file = "argo_client-0.0.13-py3-none-any.whl", hash = "sha256:dd7fdab6b0aecc04c10cfb0ce2989289ebd8f9ae03d9bded16fb6ff8d5c400cb"},
+    {file = "argo_client-0.0.13.tar.gz", hash = "sha256:2cbacdfaa801a89889536145ea46c63d42fa34ae0354bb4f05c39f46074939b4"},
 ]
 
 [package.dependencies]
@@ -282,4 +282,4 @@ zstd = ["zstandard (>=0.18.0)"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8.0,<4"
-content-hash = "79eb7e6a2b0a2e765d5b699665389a58e1919bf4f7afe811cfdb60271b2e94d4"
+content-hash = "483c7256fb805aeed18a9471d6beedd295b41aebf2b7dc3421f4c950a428cbd8"

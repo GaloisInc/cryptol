@@ -15,7 +15,7 @@ include = [
 [tool.poetry.dependencies]
 python = ">=3.8.0,<4"
 BitVector = "^3.4.9"
-argo-client = "0.0.12"
+argo-client = ">=0.0.13"
 typing-extensions = "^4.1.1"
 
 requests = ">=2.31.0"
