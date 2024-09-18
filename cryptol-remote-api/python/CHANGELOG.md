@@ -1,6 +1,9 @@
 # Revision history for `cryptol` Python package
 
-## next -- TBA
+## 3.2.1 -- 2024-08-18
+
+* Require building with `argo-client-0.0.13` or later. `argo-client-0.0.13` uses
+  blocking IO, which should reduce CPU load when receiving replies.
 
 ## 3.2.0 -- 2024-08-20
 
