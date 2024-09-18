@@ -1065,31 +1065,47 @@ splitV :: Backend sym =>
   SEval sym (GenValue sym) ->
   SEval sym (GenValue sym)
 splitV sym parts each a val =
-    case (parts, each) of
-       (Nat p, e) | isTBit a -> do
-          val' <- sDelay sym (fromWordVal "splitV" <$> val)
+  case parts of
+    Nat p
+     | isTBit a ->
+       do val' <- sDelay sym (fromWordVal "splitV" <$> val)
           return $ VSeq p $ indexSeqMap $ \i ->
-            VWord <$> (extractWordVal sym e ((p-i-1)*e) =<< val')
-       (Inf, e) | isTBit a -> do
-          val' <- sDelay sym (fromSeq "splitV" =<< val)
-          return $ VStream $ indexSeqMap $ \i ->
-            VWord <$> bitmapWordVal sym e (indexSeqMap $ \j ->
-              let idx = i*e + toInteger j
-               in idx `seq` do
-                      xs <- val'
-                      fromVBit <$> lookupSeqMap xs idx)
-       (Nat p, e) -> do
-          val' <- sDelay sym (fromSeq "splitV" =<< val)
+            VWord <$> (extractWordVal sym each ((p-i-1)*each) =<< val')
+     | otherwise ->
+       do val' <- sDelay sym (fromSeq "splitV" =<< val)
           return $ VSeq p $ indexSeqMap $ \i ->
-            return $ VSeq e $ indexSeqMap $ \j -> do
+            return $ VSeq each $ indexSeqMap $ \j -> do
               xs <- val'
-              lookupSeqMap xs (e * i + j)
-       (Inf  , e) -> do
-          val' <- sDelay sym (fromSeq "splitV" =<< val)
-          return $ VStream $ indexSeqMap $ \i ->
-            return $ VSeq e $ indexSeqMap $ \j -> do
-              xs <- val'
-              lookupSeqMap xs (e * i + j)
+              lookupSeqMap xs (each * i + j)
+
+    Inf
+      -- The return type is [inf][each], (where each is non-zero) and `val` is
+      -- of type [inf * each], or [inf]. Therefore, `val` is a stream.
+      | isTBit a, each /= 0 ->
+        do val' <- sDelay sym (fromSeq "splitV" =<< val)
+           return $ VStream $ indexSeqMap $ \i ->
+             VWord <$> bitmapWordVal sym each (indexSeqMap $ \j ->
+               let idx = i*each + toInteger j
+                in idx `seq` do
+                       xs <- val'
+                       fromVBit <$> lookupSeqMap xs idx)
+      -- The return type is [inf][0], and `val` is of type [inf * 0], or [0].
+      -- Therefore, `val` is a word. We need to special-case this, because the
+      -- case directly above this one will panic if `val` is not a stream due to
+      -- the use of `fromSeq` (#1749).
+      --
+      -- Because `val` is an empty sequence, there is no need to split it apart.
+      -- Instead, we can just return a stream with infinite copies of `val`.
+      | isTBit a, each == 0 ->
+        return $ VStream $ indexSeqMap $ \_i -> val
+      -- If `a` is not `Bit`, then `val` must be a sequence or a stream (and not
+      -- a word).
+      | otherwise ->
+        do val' <- sDelay sym (fromSeq "splitV" =<< val)
+           return $ VStream $ indexSeqMap $ \i ->
+             return $ VSeq each $ indexSeqMap $ \j -> do
+               xs <- val'
+               lookupSeqMap xs (each * i + j)
 
 
 {-# INLINE reverseV #-}

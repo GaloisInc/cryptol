@@ -4,9 +4,12 @@
 
 ## Bug fixes
 
-  * Fix #1740, removes duplicated width from word values.
-    Note that since this changes the types, it may require changes to
-    libraries depending on Cryptol.
+* Fix #1740, removes duplicated width from word values.
+  Note that since this changes the types, it may require changes to libraries
+  depending on Cryptol.
+
+* Fix a bug in which splitting a `[0]` value into type `[inf][0]` would panic.
+  ([#1749](https://github.com/GaloisInc/cryptol/issues/1749))
 
 ## New features
 
