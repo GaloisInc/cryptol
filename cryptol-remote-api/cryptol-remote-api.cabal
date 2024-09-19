@@ -78,6 +78,7 @@ library
     CryptolServer.FocusedModule
     CryptolServer.Interrupt
     CryptolServer.LoadModule
+    CryptolServer.Modules
     CryptolServer.Names
     CryptolServer.Options
     CryptolServer.Sat

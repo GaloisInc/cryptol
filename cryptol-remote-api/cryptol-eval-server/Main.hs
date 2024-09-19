@@ -48,6 +48,7 @@ import CryptolServer.ExtendSearchPath
 import CryptolServer.FocusedModule
     ( focusedModuleDescr, focusedModule )
 import CryptolServer.Names ( visibleNamesDescr, visibleNames )
+import CryptolServer.Modules ( visibleModulesDescr, visibleModules )
 import CryptolServer.TypeCheck ( checkType )
 import CryptolServer.Sat ( proveSatDescr, proveSat )
 import Cryptol.REPL.Command (CommandResult, DocstringResult)
@@ -156,6 +157,10 @@ cryptolEvalMethods =
      "visible names"
      visibleNamesDescr
      visibleNames
+  , command
+     "visible modules"
+     visibleModulesDescr
+     visibleModules
   , command
      "check type"
      (Doc.Paragraph [Doc.Text "Check and return the type of the given expression."])
