@@ -677,6 +677,32 @@ Return fields
   
 
 
+visible modules (command)
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+List the currently visible (i.e., in scope) module names.
+
+Parameter fields
+++++++++++++++++
+
+No parameters
+
+
+Return fields
++++++++++++++
+
+
+``name``
+  A human-readable representation of the name
+  
+  
+
+``documentation``
+  An optional field containing documentation string for the name, if it is documented
+  
+  
+
+
 check type (command)
 ~~~~~~~~~~~~~~~~~~~~
 
