@@ -1,5 +1,10 @@
 # Revision history for `cryptol` Python package
 
+## next
+
+* Add `modules` command to return the modules, submodules and associated
+  documentation for them.
+
 ## 3.2.1 -- 2024-08-18
 
 * Require building with `argo-client-0.0.13` or later. `argo-client-0.0.13` uses
