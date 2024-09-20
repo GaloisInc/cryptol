@@ -34,10 +34,10 @@ instance Doc.DescribedMethod VisibleModulesParams [VisibleModuleInfo] where
     [ ("module",
       Doc.Paragraph [ Doc.Text "A human-readable representation of the module's name"])
     , ("documentation",
-      Doc.Paragraph [ Doc.Text "An optional field containing documentation strings for the module,"
+      Doc.Paragraph [ Doc.Text "An optional field containing documentation strings for the module, "
                     , Doc.Text "if it is documented"])
     , ("parameterized",
-      Doc.Paragraph [ Doc.Text "A Boolean value indicating whether the focused module is"
+      Doc.Paragraph [ Doc.Text "A Boolean value indicating whether the focused module is "
                     , Doc.Text "parameterized"
                     ])
     ]

@@ -698,12 +698,12 @@ Return fields
   
 
 ``documentation``
-  An optional field containing documentation strings for the module,if it is documented
+  An optional field containing documentation strings for the module, if it is documented
   
   
 
 ``parameterized``
-  A Boolean value indicating whether the focused module isparameterized
+  A Boolean value indicating whether the focused module is parameterized
   
   
 
