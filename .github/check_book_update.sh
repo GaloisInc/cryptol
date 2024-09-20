@@ -2,6 +2,13 @@
 #
 # Indicates whether the Programming Cryptol book PDF needs to be updated.
 #
+# Usage
+# This is primarily for use in CI. You can run it locally using the following:
+# > bash check_book_update.sh $(git diff --name-only --diff-filter ACDMRT master)
+#
+# If you are merging to a branch other than `master`, use that branch name
+# instead.
+#
 
 TEX_CHANGED=0
 PDF_CHANGED=0

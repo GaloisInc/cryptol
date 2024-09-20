@@ -1,11 +1,10 @@
 #
 # Checks that the PDF version of the Programming Cryptol book was updated
-# if any of its consitituent files were changed.
+# if and only if the constituent source files were changed.
 #
 
 name: Programming Cryptol PDF Update
 on: [pull_request]
-
 
 jobs:
     update_needed:
@@ -20,4 +19,3 @@ jobs:
                 changed_files=$(git diff --name-only --diff-filter ACDMRT ${{ github.event.pull_request.base.sha }} ${{ github.sha }})
                 # This will fail if any files have spaces in the names.
                 bash .github/check_book_update.sh $changed_files
-
