@@ -366,6 +366,14 @@ class CryptolSyncConnection:
         else:
             raise ValueError("Unknown solver type: " + str(solver))
 
+    def modules(self, *, timeout:Optional[float] = None) -> List[cryptoltypes.CryptolVisibleModuleInfo]:
+        """Discover the list of term names currently in scope in the current context."""
+        res = self.connection.modules(timeout=timeout).result()
+        if isinstance(res, list):
+            return [ cryptoltypes.to_cryptol_visible_module_info(entry) for entry in res ]
+        else:
+            raise ValueError("Result of `modules()` is not a list: " + str(res))
+
     def names(self, *, timeout:Optional[float] = None) -> List[cryptoltypes.CryptolNameInfo]:
         """Discover the list of term names currently in scope in the current context."""
         res = self.connection.names(timeout=timeout).result()

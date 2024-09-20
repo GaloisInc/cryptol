@@ -692,13 +692,18 @@ Return fields
 +++++++++++++
 
 
-``name``
-  A human-readable representation of the name
+``module``
+  A human-readable representation of the module's name
   
   
 
 ``documentation``
-  An optional field containing documentation string for the name, if it is documented
+  An optional field containing documentation strings for the module,if it is documented
+  
+  
+
+``parameterized``
+  A Boolean value indicating whether the focused module isparameterized
   
   
 

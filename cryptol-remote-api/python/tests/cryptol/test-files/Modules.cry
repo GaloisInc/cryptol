@@ -1,0 +1,18 @@
+/**
+ * A top-level
+ * docstring
+ */
+module Modules where
+
+/** A functor docstring */
+submodule F where
+  parameter
+    type N : #
+  
+  /** A submodule in a functor docstring */
+  submodule Q where
+    q = ()
+
+/** A submodule docstring */
+submodule M = submodule F where
+  type N = 0
