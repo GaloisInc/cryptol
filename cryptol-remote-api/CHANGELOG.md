@@ -2,6 +2,8 @@
 
 ## next -- TBA
 
+* Add `visible modules` command to return the modules, submodules and associated
+  documentation for them.
 
 ## 3.2.0 -- 2024-08-20
 

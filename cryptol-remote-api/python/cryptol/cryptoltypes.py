@@ -476,7 +476,23 @@ def argument_types(obj : Union[CryptolTypeSchema, CryptolType]) -> List[CryptolT
         return [arg1] + args
     else:
         return []
+    
+# -----------------------------------------------------------
+# Cryptol Module Info
+# -----------------------------------------------------------
 
+CryptolVisibleModuleInfo = TypedDict("CryptolVisibleModuleInfo",
+    { "module": str
+    , "parameterized": bool
+    , "documentation": Optional[List[str]]
+    })
+
+def to_cryptol_visible_module_info(d : Any) -> CryptolVisibleModuleInfo:
+    if check_dict(d, required_keys={"module": str, "parameterized": bool}, optional_keys={"documentation": List}):
+        # the call to check_dict ensures this cast is OK
+        return cast(CryptolVisibleModuleInfo, d)
+    else:
+        raise ValueError("Cryptol visible module info is malformed: " + str(d))
 
 # -----------------------------------------------------------
 # Cryptol Name Info

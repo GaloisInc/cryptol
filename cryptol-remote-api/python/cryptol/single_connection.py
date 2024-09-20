@@ -218,6 +218,10 @@ def safe(expr : Any, solver : Solver = Z3, *, timeout:Optional[float] = None) ->
     """
     return __get_designated_connection().safe(expr, solver, timeout=timeout)
 
+def modules(*, timeout:Optional[float] = None) -> List[cryptoltypes.CryptolVisibleModuleInfo]:
+    """Discover the list of modules currently in scope in the current context."""
+    return __get_designated_connection().modules(timeout=timeout)
+
 def names(*, timeout:Optional[float] = None) -> List[cryptoltypes.CryptolNameInfo]:
     """Discover the list of term names currently in scope in the current context."""
     return __get_designated_connection().names(timeout=timeout)

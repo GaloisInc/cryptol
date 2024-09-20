@@ -170,11 +170,11 @@ class CryptolConnection:
     def get_default_timeout(self) -> Optional[float]:
         """Get the value of the optional default timeout for methods (in seconds)."""
         return self.timeout
-    
+
     def set_default_timeout(self, timeout : Optional[float]) -> None:
         """Set the value of the optional default timeout for methods (in seconds)."""
         self.timeout = timeout
-    
+
     # Currently disabled in (overly?) conservative effort to not accidentally
     # duplicate and share mutable state.
 
@@ -203,10 +203,10 @@ class CryptolConnection:
         timeout = timeout if timeout is not None else self.timeout
         self.most_recent_result = CryptolLoadFile(self, filename, timeout)
         return self.most_recent_result
-    
+
     def check_docstrings(self, timeout: Optional[float] = None) -> argo.Command:
         """Check docstrings
-        
+
         :param timeout: Optional timeout for this request (in seconds).
         """
         timeout = timeout if timeout is not None else self.timeout
@@ -394,6 +394,14 @@ class CryptolConnection:
         """
         timeout = timeout if timeout is not None else self.timeout
         self.most_recent_result = CryptolSafe(self, expr, solver, timeout)
+        return self.most_recent_result
+
+    def modules(self, *, timeout:Optional[float] = None) -> argo.Command:
+        """Discover the list of modules and submodules currently in scope in the current context.
+
+        :param timeout: Optional timeout for this request (in seconds)."""
+        timeout = timeout if timeout is not None else self.timeout
+        self.most_recent_result = CryptolModules(self, timeout)
         return self.most_recent_result
 
     def names(self, *, timeout:Optional[float] = None) -> argo.Command:

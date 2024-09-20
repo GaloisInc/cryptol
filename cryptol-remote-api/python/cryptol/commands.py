@@ -278,7 +278,13 @@ class CryptolSafeRaw(CryptolProveSatRaw):
 class CryptolSafe(CryptolProveSat):
     def __init__(self, connection : HasProtocolState, expr : Any, solver : Solver, timeout: Optional[float]) -> None:
         super(CryptolSafe, self).__init__(connection, SmtQueryType.SAFE, expr, solver, 1, timeout=timeout)
+ 
+class CryptolModules(argo.Command):
+    def __init__(self, connection : HasProtocolState, timeout: Optional[float]) -> None:
+        super(CryptolModules, self).__init__('visible modules', {}, connection, timeout=timeout)
 
+    def process_result(self, res : Any) -> Any:
+        return res
 
 class CryptolNames(argo.Command):
     def __init__(self, connection : HasProtocolState, timeout: Optional[float]) -> None:
