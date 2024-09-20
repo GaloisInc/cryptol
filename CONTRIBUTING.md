@@ -12,7 +12,7 @@ It describes our methods and practices for:
 - Testing and continuous integration
 - Organizing, branching, and merging this repository
 - Producing and publishing release artifacts
-- **TODO**: documentation
+- Documentation
 - **TODO**: feature/release planning, ticket assignment, etc
 
 This is a living document that is not (and possibly cannot be)
@@ -252,3 +252,47 @@ The release process is:
     - <cryptol-team@lists.galois.com>
     - <cryptol-users@community.galois.com>
     - @galois on Twitter (for major releases)
+
+# Documentation
+
+There are several overlapping forms of documentation for users of Cryptol:
+- the Programming Cryptol book;
+- the reference manual; and
+- other miscellaneous design docs and changelogs.
+
+These all live in the `docs/` directory.
+Some of these forms of documentation, including the book and some of the
+design docs, are housed here both in source (LaTeX source code, markdown
+files) and compiled (PDF) formats.
+
+Contributors should update the relevant documentation when they modify or
+extend user-facing features. Updates should be included in with pull requests
+that change the relevant feature. Contributors should re-build any PDFs or
+other artifacts when changing the corresponding source code.
+
+## Programming Cryptol
+The book lives in `docs/ProgrammingCryptol/`. There's a `Makefile` to build
+it. The compiled artifact lives in `docs/ProgrammingCryptol.pdf`; the
+`Makefile` does not build to that location, so updated artifacts need to be
+copied over. The CI aims to check whether the source and the artifact were
+updated in tandem (see `.github/workflows/book.yml`).
+
+## RefMan
+The reference manual lives in `docs/RefMan/`. There's a `Makefile` to build
+it locally. It's also built by the CI on pull request and deployed to the
+website (see `.github/workflows/docs.yml`), which allows users to browse
+manual versions corresponding to the `master` branch, any release, and any open
+PR. There are no artifacts that need to be manually maintained by contributors.
+
+## Other documentation
+There is a variety of other documentation, such as
+- The Cryptol preliminaries document (`docs/CryptolPrims.pdf`);
+- The Cryptol syntax guide (`docs/Syntax.pdf`);
+- The parameterized module guide (`docs/ParameterizedModules/`); and
+- other design docs and guides in `docs/`.
+
+Many of these are overlapping with or subsumed by the reference manual and the
+book. We recommend that contributors do not build on these documents and
+instead focus their efforts on the reference manual and the book. However, if
+the source for these is updated, the corresponding PDFs should also be updated
+using `pandoc` (see `docs/ParameterizedModules/Makefile` for an example).
