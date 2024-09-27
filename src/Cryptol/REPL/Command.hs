@@ -2062,10 +2062,12 @@ data SubcommandResult = SubcommandResult
 checkBlock ::
   [T.Text] {- ^ lines of the code block -} ->
   REPL [SubcommandResult]
-checkBlock = isolated . go
+checkBlock = isolated . go . continuedLines
   where
     go [] = pure []
-    go (line:block) =
+    go (line:block)
+      | T.all isSpace line = go block
+      | otherwise =
       case parseCommand (findNbCommand True) (T.unpack line) of
         Nothing -> do
           pure [SubcommandResult
@@ -2103,6 +2105,19 @@ checkBlock = isolated . go
                     }
               subresults <- checkBlock block
               pure (subresult : subresults)
+
+-- | Combine lines ending in a backslash with the next line.
+continuedLines :: [T.Text] -> [T.Text]
+continuedLines xs =
+  case span ("\\" `T.isSuffixOf`) xs of
+    ([], []) -> []
+    (a, []) -> [concat' (map T.init a)] -- permissive
+    (a, b:bs) -> concat' (map T.init a ++ [b]) : continuedLines bs
+  where
+    -- concat that eats leading whitespace between elements
+    concat' [] = T.empty
+    concat' (y:ys) = T.concat (y : map (T.dropWhile isSpace) ys)
+
 
 captureLog :: REPL a -> REPL (String, a)
 captureLog m = do
