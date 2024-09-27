@@ -31,6 +31,7 @@ submodule F7 = submodule F where
 /**
  ** ```repl
  ** let y = 20
+ **
  ** :check f 10 \
  **          == 20
  ** ``` */

@@ -2065,7 +2065,9 @@ checkBlock ::
 checkBlock = isolated . go . continuedLines
   where
     go [] = pure []
-    go (line:block) =
+    go (line:block)
+      | T.all isSpace line = go block
+      | otherwise =
       case parseCommand (findNbCommand True) (T.unpack line) of
         Nothing -> do
           pure [SubcommandResult
@@ -2109,8 +2111,13 @@ continuedLines :: [T.Text] -> [T.Text]
 continuedLines xs =
   case span ("\\" `T.isSuffixOf`) xs of
     ([], []) -> []
-    (a, []) -> [foldMap T.init a] -- permissive
-    (a, b:bs) -> T.concat (map T.init a ++ [b]) : continuedLines bs
+    (a, []) -> [concat' (map T.init a)] -- permissive
+    (a, b:bs) -> concat' (map T.init a ++ [b]) : continuedLines bs
+  where
+    -- concat that eats leading whitespace between elements
+    concat' [] = T.empty
+    concat' (y:ys) = T.concat (y : map (T.dropWhile isSpace) ys)
+
 
 captureLog :: REPL a -> REPL (String, a)
 captureLog m = do
