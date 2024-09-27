@@ -2062,7 +2062,7 @@ data SubcommandResult = SubcommandResult
 checkBlock ::
   [T.Text] {- ^ lines of the code block -} ->
   REPL [SubcommandResult]
-checkBlock = isolated . go
+checkBlock = isolated . go . continuedLines
   where
     go [] = pure []
     go (line:block) =
@@ -2103,6 +2103,14 @@ checkBlock = isolated . go
                     }
               subresults <- checkBlock block
               pure (subresult : subresults)
+
+-- | Combine lines ending in a backslash with the next line.
+continuedLines :: [T.Text] -> [T.Text]
+continuedLines xs =
+  case span ("\\" `T.isSuffixOf`) xs of
+    ([], []) -> []
+    (a, []) -> [foldMap T.init a] -- permissive
+    (a, b:bs) -> T.concat (map T.init a ++ [b]) : continuedLines bs
 
 captureLog :: REPL a -> REPL (String, a)
 captureLog m = do

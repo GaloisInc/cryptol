@@ -23,7 +23,7 @@ Checking T02::f
 
 let y = 20
 
-:check f 10 == 20
+:check f 10          == 20
 Using exhaustive testing.
 Testing... Passed 1 tests.
 Q.E.D.
