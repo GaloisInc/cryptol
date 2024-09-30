@@ -1187,7 +1187,7 @@ instance PP (WithNames Type) where
                               $ brackets (go 0 t1) <.> go 4 t2
 
           (TCFun,   [t1,t2])  -> optParens (prec > 1)
-                              $ go 2 t1 <+> text "->" <+> go 1 t2
+                              $ go 2 t1 <+> text "->" </> go 1 t2
 
           (TCTuple _, fs)     -> ppTuple $ map (go 0) fs
 
