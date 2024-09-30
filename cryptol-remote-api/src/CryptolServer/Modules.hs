@@ -47,11 +47,12 @@ visibleModulesDescr =
   Doc.Paragraph [Doc.Text "List the currently visible (i.e., in scope) module names."]
 
 visibleModules :: VisibleModulesParams -> CryptolCommand [VisibleModuleInfo]
-visibleModules _ = concatMap (moduleToInfos False) . loadedModules <$> getModuleEnv
+visibleModules _ = concatMap moduleToInfos . loadedModules <$> getModuleEnv
 
 
-moduleToInfos :: PP a => Bool -> T.ModuleG a -> [VisibleModuleInfo]
-moduleToInfos p m =
+moduleToInfos :: PP a => T.ModuleG a -> [VisibleModuleInfo]
+moduleToInfos m =
+  let p = isParametrizedModule m in
   ModuleInfo
   { name = show (pp (T.mName m))
   , parameterized = p
@@ -66,7 +67,7 @@ moduleToInfos p m =
   ] ++
   [ x
     | v <- Map.elems (T.mFunctors m)
-    , x <- moduleToInfos True v
+    , x <- moduleToInfos v
   ]
 
 data VisibleModuleInfo =
