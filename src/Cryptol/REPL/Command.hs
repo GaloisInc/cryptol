@@ -351,6 +351,7 @@ commandList  =
              , "expression into a file. The first column in each line is"
              , "the expected output, and the remainder are the inputs. The"
              , "number of tests is determined by the \"tests\" option."
+             , "Use filename \"-\" to write tests to stdout."
              ])
     ""
   , CommandDescr [ ":generate-foreign-header" ] ["FILE"] (FilenameArg genHeaderCmd)
@@ -473,12 +474,13 @@ dumpTestsCmd outFile str pos fnm =
          Nothing -> raise (TypeNotTestable ty)
          Just gens -> return gens
      tests <- withRandomGen (\g -> io $ TestR.returnTests' g gens val testNum)
-     out <- forM tests $
+     outs <- forM tests $
             \(args, x) ->
               do argOut <- mapM (rEval . E.ppValue Concrete ppopts) args
                  resOut <- rEval (E.ppValue Concrete ppopts x)
                  return (renderOneLine resOut ++ "\t" ++ intercalate "\t" (map renderOneLine argOut) ++ "\n")
-     writeResult <- io $ X.try (writeFile outFile (concat out))
+     let out = concat outs
+     writeResult <- io (X.try (if outFile == "-" then putStr out else writeFile outFile out))
      case writeResult of
        Right{} -> pure emptyCommandResult
        Left e ->
