@@ -175,6 +175,51 @@ that will be true precisely when the given test case succeeds.
   parameter) works.}
 
 %~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\subsection{Generating test vectors}
+\label{sec:gentestvec}
+
+Cryptol has the ability to generate test vectors for simple function types using the \texttt{:dumptests} REPL command.
+When \texttt{:dumptests} is given a file to dump the output and a function in scope, it will randomly generate inputs for the function and run them for you.
+The output will contain a tab delimited file in which the first column contains the output, and each column after contains the inputs to the function.
+The command \texttt{:dumptests} uses the same settings as \texttt{:check} \ref{sec:quickcheck}, this means you can set the number of tests you want using the \texttt{:set tests=100} command.
+
+The following is an example using \href{https://github.com/GaloisInc/cryptol-specs/blob/7468d170f5e9e3913cd12e29c76d8c041ef99dd0/Primitive/Keyless/Hash/SHA2/Instantiations/SHA256.cry}{SHA2-256 implemntation} in \href{https://github.com/GaloisInc/cryptol-specs}{cryptol-specs}.
+The output file was modified slightly by putting the input on the next line tabbed in. 
+\begin{Verbatim}
+Cryptol> :load Primitive/Keyless/Hash/SHA2/Instantiations/SHA256.cry
+Loading module Cryptol
+Loading module `where` argument of Primitive::Keyless::Hash::SHA2::Instantiations::SHA256
+Loading interface module `parameter` interface of 
+  Primitive::Keyless::Hash::SHA2::Specification
+Loading module Primitive::Keyless::Hash::SHA2::Specification
+Loading module Primitive::Keyless::Hash::SHA2::Instantiations::SHA256
+Primitive::Keyless::Hash::SHA2::Instantiations::SHA256> :dumptests output.txt hash`{256}
+Primitive::Keyless::Hash::SHA2::Instantiations::SHA256> :quit
+% head output.txt                                                        
+0x6055ba8ba7ae5a07b972f621b0a1953e8769a8fba9e767b70016fe00b8173c61
+  0x49e27d1e5be42afd7e48e78fc3133789376f3f5b14b712bf9f1b89e0a55ed4e7
+0xf457465cfe89b634d3ccbe7b0e8671ecc8a02108b14f3d9847d9b2f1867b56e2
+  0xb89fa0030b4bcb8fb05ade0ce21811995cf2d284a703e2263511b9c83f732acf
+0x0ea5dbd2b3c2563008e3059ad1a85baa518a62d665f082f494ce2b4e6a6a6d9c
+  0xc5bda3e97b96d3f2f72deec8e84e192a9130fbff9e77f82f866f2dd85b064ef3
+0x9135e2fc9a6a8198bda8b5c22b791ce53e4221e047869f0c8dc80d65d03ff68e
+  0x1d8a51245e39533af8c627b22c5a80fafc37710e40fda01a381abf04d913a945
+0x21fbd5917a0824945a8f063f09fb648fbf1a6b6b766fbe4bf431adbb3e255354
+  0xd7cc5b5c8f847b22db392631c0c0fa7a442e326c7708d96664c6097eba265671
+0x3145d5381d91ba57b2a003bb28fff4ba17dc967fd428d4bfa19bcfa84dfe8f55
+  0x83b38cfd665c4c73b0b0e284ceff3e9c7b45052ae414570658844bc9eec83847
+0xad7755c148344f7cd40f823d7cdae6572888051da324ce43aa11c910344b8cee
+  0xc3b7611ad29286aaedda565c0a5c4aff2b28afb62bebc310bcb7e87260351a51
+0x0ba711d34a2e560a6649c30ae7f48f86dc6134d94ac03c2f34f2e9816ace7bed
+  0x84fc8a7fca63821541b7f0bd3d637763eb914bcd37c9b3583d6411b1fdbfdb4f
+0x2ac9cc5903aa65bfae08a20baf5209b94de588ea136bf96ec1708bf9f30d28b2
+  0x7fda970c107a9e0e21e38cada68402734b9aad3ac5b2602518e36830d4673600
+0x891f22fa71c6652e859996fbaac4b1561a19e9021afe301f4462bd52400981dd
+  0xb99e3e2b8f00885080194c98480f04ca03afb8f8a08ae3c21c425cacb37337bc
+\end{Verbatim}
+
+
+%~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 \subsection{Polymorphic properties}
 \label{sec:polythm}
 
