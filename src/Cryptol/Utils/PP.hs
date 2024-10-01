@@ -174,7 +174,11 @@ instance IsString Doc where
   fromString = text
 
 renderOneLine :: Doc -> String
-renderOneLine d = PP.renderString (PP.layoutCompact (runDocWith defaultPPCfg d))
+renderOneLine d = PP.renderString (PP.layoutPretty opts (runDocWith defaultPPCfg d))
+  where
+    opts = PP.LayoutOptions
+      { PP.layoutPageWidth = PP.Unbounded
+      }
 
 class PP a where
   ppPrec :: Int -> a -> Doc
