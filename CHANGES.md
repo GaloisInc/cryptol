@@ -13,6 +13,10 @@
 
 ## New features
 
+* REPL command `:dumptests <FILE> <EXPR>` updated to write to stdout when
+  invoked as `:dumptests - <EXPR>` allowing for easier experimentation and
+  testing.
+
 # 3.2.0 -- 2024-08-20
 
 ## Language changes
