@@ -11,6 +11,8 @@ dist-newstyle
 cabal.project.freeze
 cabal.project.local*
 .vscode/
+_darcs/
+.boring
 
 # artifacts of the setup script
 dev_setup.log
