@@ -2,8 +2,6 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module PrimeEC
 Loading module NISTCurves
-Loading module SuiteB
-Loading module Main
 property p192_valid_curve Using exhaustive testing.
 Testing... Passed 1 tests.
 Q.E.D.
