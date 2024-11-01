@@ -14,6 +14,7 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE LambdaCase #-}
 -- See Note [-Wincomplete-uni-patterns and irrefutable patterns] in Cryptol.TypeCheck.TypePat
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 module Cryptol.Parser.ParserUtils where
@@ -31,6 +32,7 @@ import           Data.Text(Text)
 import qualified Data.Text as T
 import qualified Data.Map as Map
 import Text.Read(readMaybe)
+import Data.Foldable (for_)
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
@@ -47,7 +49,7 @@ import Cryptol.Parser.Utils (translateExprToNumT,widthIdent)
 import Cryptol.Utils.Ident( packModName,packIdent,modNameChunks
                           , identAnonArg, identAnonIfaceMod
                           , modNameArg, modNameIfaceMod
-                          , modNameToText, modNameIsNormal
+                          , modNameToText, mainModName, modNameIsNormal
                           , modNameToNormalModName
                           , unpackIdent, isUpperIdent
                           )
@@ -73,6 +75,8 @@ parse cfg p cs    = case unP p cfg eofPos S { sPrevTok = Nothing
 newtype ParseM a =
   P { unP :: Config -> Position -> S -> Either ParseError (a,S) }
 
+askConfig :: ParseM Config
+askConfig = P \cfg _ s -> Right (cfg, s)
 
 lexerP :: (Located Token -> ParseM a) -> ParseM a
 lexerP k = P $ \cfg p s ->
@@ -1203,10 +1207,22 @@ mkIfacePropSyn mbDoc d =
 
 -- | Make an unnamed module---gets the name @Main@.
 mkAnonymousModule :: [TopDecl PName] -> ParseM [Module PName]
-mkAnonymousModule = mkTopMods Nothing
-                  . mkModule Located { srcRange = emptyRange
-                                     , thing    = mkModName [T.pack "Main"]
-                                     }
+mkAnonymousModule ds =
+  do for_ ds \case
+       DParamDecl l _            -> mainParamError l
+       DModParam p               -> mainParamError (srcRange (mpSignature p))
+       DInterfaceConstraint _ ps -> mainParamError (srcRange ps)
+       _                         -> pure ()
+     src <- cfgSource <$> askConfig
+     mkTopMods Nothing $
+        mkModule Located
+          { srcRange = emptyRange
+          , thing    = mainModName src
+          }
+                          ds
+  where
+  mainParamError l = errorMessage l
+    ["Unnamed module cannot be parameterized"]
 
 -- | Make a module which defines a functor instance.
 mkModuleInstanceAnon :: Located ModName ->
