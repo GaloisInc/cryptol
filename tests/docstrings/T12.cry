@@ -1,0 +1,9 @@
+/** Doc strings on interfaces apply to the interface context.
+ *
+ * ```repl
+ * :check \x y z -> add x (add y z) == add (add x y) z
+ * ```
+ */
+interface module I where
+
+add : [8] -> [8] -> [8]
