@@ -122,10 +122,10 @@ jobs:
             prnum=$(cat pulls.json | nix run nixpkgs#jq -- .[${X}].number)
             prref=$(cat pulls.json | nix run nixpkgs#jq -- -r .[${X}].merge_commit_sha)
             tgt=${TGTBASE}/PR_${prnum}
-            # if [ "X$prref" == "Xnull" ] ; then
-            #   echo Skipping PR ${X}: probable unresolved merge conflict
-            #   continue
-            # fi
+            if [ "X$prref" == "Xnull" ] ; then
+              echo Skipping PR ${X}: probable unresolved merge conflict
+              continue
+            fi
             echo "Checkout Pull Request ${prnum} at ${prref} into PR_${prnum}"
             mkdir $tgt
             # n.b. the switch here is important to make sure the branch is
