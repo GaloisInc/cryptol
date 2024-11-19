@@ -15,7 +15,8 @@ env:
   # - Dockerfile
   # - cryptol-remote-api/Dockerfile
   # - README.md
-  SOLVER_PKG_VERSION: "snapshot-20240212"
+  # - dev/dev_setup.sh
+  SOLVER_PKG_VERSION: "snapshot-20241119"
   # The CACHE_VERSION can be updated to force the use of a new cache if
   # the current cache contents become corrupted/invalid.  This can
   # sometimes happen when (for example) the OS version is changed but
@@ -78,12 +79,12 @@ jobs:
             run-tests: false
           # Windows and macOS CI runners are more expensive than Linux runners,
           # so we only build one particular GHC version to test them on. We
-          # include both an x86-64 macOS runner (macos-12) as well as an AArch64
+          # include both an x86-64 macOS runner (macos-13) as well as an AArch64
           # macOS runner (macos-14).
           - os: windows-2019
             ghc-version: 9.4.8
             run-tests: true
-          - os: macos-12
+          - os: macos-13
             ghc-version: 9.4.8
             run-tests: true
           - os: macos-14
@@ -276,7 +277,7 @@ jobs:
             continue-on-error: false
           #- suite: rpc
           #  target: ''
-          #  os: macos-12
+          #  os: macos-13
           #  continue-on-error: false
           #- suite: rpc
           #  target: ''
