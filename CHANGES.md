@@ -11,6 +11,10 @@
 * Fix a bug in which splitting a `[0]` value into type `[inf][0]` would panic.
   ([#1749](https://github.com/GaloisInc/cryptol/issues/1749))
 
+* Fix a bug in which the free variables of types mentioning newtypes or enums
+  were incorrectly computed.
+  ([#1773](https://github.com/GaloisInc/cryptol/issues/1773))
+
 ## New features
 
 * REPL command `:dumptests <FILE> <EXPR>` updated to write to stdout when
