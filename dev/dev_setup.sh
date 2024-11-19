@@ -17,7 +17,7 @@
 # - In Ubuntu, we assume that the system has already run `apt-get update`
 # - In macOS, we assume the system has `brew` installed and on the path
 #
-# There is some half-baked support for macOS 12 (x86_64),
+# There is some half-baked support for macOS 13 (x86_64),
 # but it hasn't been tested.
 #
 
@@ -37,9 +37,9 @@ GHCUP_URL="https://downloads.haskell.org/~ghcup"
 GHC_VERSION="9.4.8"
 CABAL_VERSION="3.10.3.0"
 
-WHAT4_SOLVERS_SNAPSHOT="snapshot-20240212"
+WHAT4_SOLVERS_SNAPSHOT="snapshot-20241119"
 WHAT4_SOLVERS_URL="https://github.com/GaloisInc/what4-solvers/releases/download/$WHAT4_SOLVERS_SNAPSHOT"
-WHAT4_SOLVERS_MACOS_12="macos-12-X64-bin.zip"
+WHAT4_SOLVERS_MACOS_13="macos-13-X64-bin.zip"
 WHAT4_SOLVERS_MACOS_14="macos-14-ARM64-bin.zip"
 WHAT4_SOLVERS_UBUNTU_20="ubuntu-20.04-X64-bin.zip"
 WHAT4_SOLVERS_UBUNTU_22="ubuntu-22.04-X64-bin.zip"
@@ -49,7 +49,7 @@ WHAT4_Z3_VERSION="version 4.8.14"
 
 # Set of supported platforms:
 MACOS14="macos14"
-MACOS12="macos12" # actually, this isn't supported yet
+MACOS13="macos13" # actually, this isn't supported yet
 UBUNTU20="ubuntu-20.04"
 UBUNTU22="ubuntu-22.04"
 
@@ -62,9 +62,9 @@ supported_platform() {
         Darwin)
             if [ $(uname -m) = "arm64" ]; then
                 echo $MACOS14
-            # This is how we'd support macOS 12. Since this hasn't been tested yet,
+            # This is how we'd support macOS 13. Since this hasn't been tested yet,
             # we withhold official support.
-            # This might bork on something running macOS <12, since we're basing
+            # This might bork on something running macOS <13, since we're basing
             # the it on the hardware, not the specific version.
             elif [ $(uname -m) = "x86_64" ]; then
                 echo ""
@@ -208,7 +208,7 @@ install_solvers() {
         notice "Installing cvc4, cvc5, and/or z3 solvers via direct download"
 
         case $CRYPTOL_PLATFORM in
-            $MACOS12) solvers_version=$WHAT4_SOLVERS_MACOS_12;;
+            $MACOS13) solvers_version=$WHAT4_SOLVERS_MACOS_13;;
             $MACOS14) solvers_version=$WHAT4_SOLVERS_MACOS_14;;
             $UBUNTU20) solvers_version=$WHAT4_SOLVERS_UBUNTU_20;;
             $UBUNTU22) solvers_version=$WHAT4_SOLVERS_UBUNTU_22;;
@@ -278,7 +278,7 @@ check_version() {
 # be available on the user's path. This is particularly needed for GMP.
 put_brew_packages_in_path() {
     if $USED_BREW; then
-        # `brew --prefix` is different on macOS 12 and macOS 14
+        # `brew --prefix` is different on macOS 13 and macOS 14
         echo "export CPATH=$(brew --prefix)/include" >> $VAR_FILE
         echo "export LIBRARY_PATH=$(brew --prefix)/lib" >> $VAR_FILE
     fi
