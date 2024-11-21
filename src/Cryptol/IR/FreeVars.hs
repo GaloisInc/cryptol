@@ -159,7 +159,8 @@ instance FreeVars Type where
 
       TUser _ _ t -> freeVars t
       TRec fs     -> freeVars (recordElements fs)
-      TNominal nt ts -> freeVars nt <> freeVars ts
+      TNominal nt ts -> mempty { tyDeps = Set.singleton (ntName nt) }
+                        <> freeVars ts
 
 instance FreeVars TVar where
   freeVars tv = case tv of
