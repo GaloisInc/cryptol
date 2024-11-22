@@ -177,7 +177,7 @@ parseModule path = do
           | IOE.isDoesNotExistError exn -> cantFindFile p
           | otherwise                   -> otherIOError p exn
         InMem p _ -> panic "parseModule"
-                       [ "IOError for in-memory contetns???"
+                       [ "IOError for in-memory contents???"
                        , "Label: " ++ show p
                        , "Exception: " ++ show exn ]
 

@@ -1,24 +1,88 @@
+{-# Language OverloadedStrings, BlockArguments #-}
 module Cryptol.Project.Cache where
 
 import           Data.Map.Strict                  (Map)
 import qualified Data.Map.Strict                  as Map
-import qualified Data.Text                        as Text
+import qualified Data.Set                         as Set
 import qualified Data.Text.IO                     as Text
 import           Data.Set                         (Set)
-import           Data.Maybe                       (fromMaybe)
 import           System.Directory
 import           System.FilePath                  as FP
 import           System.IO.Error
-import           Text.Read                        (readMaybe)
-
+import qualified Toml
+import qualified Toml.Schema                      as Toml
+import           Cryptol.ModuleSystem.Fingerprint ( Fingerprint )
 import           Cryptol.ModuleSystem.Env
-import           Cryptol.ModuleSystem.Fingerprint
 
 -- | The load cache. This is what persists across invocations.
 newtype LoadCache = LoadCache
-  { cacheFingerprints :: Map ModulePath FullFingerprint
+  { cacheFingerprints :: Map CacheModulePath FullFingerprint
   }
   deriving (Show, Read)
+
+toCacheModulePath :: ModulePath -> CacheModulePath
+toCacheModulePath mpath =
+  case mpath of
+    InMem x _ -> CacheInMem x
+    InFile x -> CacheInFile x
+
+data CacheModulePath
+  = CacheInMem String -- ^ module name
+  | CacheInFile FilePath -- ^ absolute file path
+  deriving (Show, Read, Ord, Eq)
+
+instance Toml.ToValue LoadCache where
+  toValue = Toml.defaultTableToValue
+
+instance Toml.ToTable LoadCache where
+  toTable x = Toml.table [
+    "modules" Toml..= [
+      Toml.table $ [
+        case k of
+          CacheInFile a -> "file" Toml..= a
+          CacheInMem a -> "memory" Toml..= a,
+        "fingerprint" Toml..= moduleFingerprint v,
+        "foreign_fingerprints" Toml..= Set.toList (foreignFingerprints v),
+        "include_fingerprints" Toml..= [
+          Toml.table [
+            "file" Toml..= k1,
+            "fingerprint" Toml..= v1
+          ]
+          | (k1, v1) <- Map.assocs (includeFingerprints v)
+        ]
+      ] ++
+      [ "docstring_result" Toml..= result
+        | Just result <- [moduleDoctestResult v]
+      ]
+      | (k,v) <- Map.assocs (cacheFingerprints x)
+    ]]
+
+instance Toml.FromValue LoadCache where
+  fromValue = Toml.parseTableFromValue
+   do kvs <- Toml.reqKeyOf "modules"
+           $ Toml.listOf \ _ix ->
+             Toml.parseTableFromValue
+             do k <- Toml.pickKey [
+                    Toml.Key "memory" (fmap CacheInMem . Toml.fromValue),
+                    Toml.Key "file" (fmap CacheInFile . Toml.fromValue)
+                  ]
+                fp <- Toml.reqKey "fingerprint"
+                foreigns <- Toml.reqKey "foreign_fingerprints"
+                includes <- Toml.reqKeyOf "include_fingerprints"
+                          $ Toml.listOf \ _ix ->
+                            Toml.parseTableFromValue
+                          $ (,) <$> Toml.reqKey "file"
+                                <*> Toml.reqKey "fingerprint"
+                checkResult <- Toml.optKey "doctest_result"
+                pure (k, FullFingerprint
+                  { moduleFingerprint = fp
+                  , foreignFingerprints = Set.fromList foreigns
+                  , includeFingerprints = Map.fromList includes
+                  , moduleDoctestResult = checkResult
+                  })
+      pure LoadCache {
+        cacheFingerprints = Map.fromList kvs
+        }
 
 
 -- | The full fingerprint hashes the module, but
@@ -27,6 +91,7 @@ data FullFingerprint = FullFingerprint
   { moduleFingerprint   :: Fingerprint
   , includeFingerprints :: Map FilePath Fingerprint
   , foreignFingerprints :: Set Fingerprint
+  , moduleDoctestResult :: Maybe Bool -- ^ unknown, passed, failed
   }
   deriving (Eq, Show, Read)
 
@@ -40,13 +105,13 @@ emptyLoadCache = LoadCache { cacheFingerprints = Map.empty }
 
 loadLoadCache :: IO LoadCache
 loadLoadCache =
-  do txt <- Text.readFile loadCachePath
-     pure $! fromMaybe emptyLoadCache (readMaybe (Text.unpack txt))
+ do txt <- Text.readFile loadCachePath
+    case Toml.decode txt of
+      Toml.Success _ c -> pure c
+      Toml.Failure _ -> pure emptyLoadCache
   `catchIOError` \_ -> pure emptyLoadCache
 
 saveLoadCache :: LoadCache -> IO ()
 saveLoadCache cache =
   do createDirectoryIfMissing False metaDir
-     writeFile loadCachePath (show cache)
-
-
+     writeFile loadCachePath (show (Toml.encode cache))

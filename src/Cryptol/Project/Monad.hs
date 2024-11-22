@@ -5,7 +5,6 @@
 module Cryptol.Project.Monad
   ( LoadM, Err, NoErr
   , ScanStatus(..), ChangeStatus(..), InvalidStatus(..), Parsed
-  , ppScanStatus
   , runLoadM
   , doModule
   , doModuleNonFail
@@ -55,10 +54,12 @@ type Parsed = [ (Module PName, [(ImportSource, ModulePath)]) ]
 data ScanStatus =
     Scanned ChangeStatus FullFingerprint Parsed
   | Invalid InvalidStatus
+  deriving Show
 
 data ChangeStatus =
     Changed       -- ^ The module, or one of its dependencies changed.
   | Unchanged     -- ^ The module did not change.
+  deriving Show
 
 data InvalidStatus =
     InvalidModule ModuleError
@@ -66,27 +67,14 @@ data InvalidStatus =
 
   | InvalidDep ImportSource ModulePath
     -- ^ Error in one of our dependencies
-
-
-
-ppScanStatus :: ScanStatus -> String
-ppScanStatus status =
-  case status of
-    Scanned ch _ _ ->
-      case ch of
-        Unchanged         -> "[Unchanged]"
-        Changed           -> "[Changed  ]"
-    Invalid reason ->
-      case reason of
-        InvalidModule {}  -> "[Invalid  ]"
-        InvalidDep {}     -> "[InvalidD ]"
+  deriving Show
 
 
 data LoadState = LoadState
   { findModuleCache :: Map (ModName, [FilePath]) ModulePath
     -- ^ Map (module name, search path) -> module path
 
-  , fingerprints    :: Map ModulePath FullFingerprint
+  , fingerprints    :: Map CacheModulePath FullFingerprint
     -- ^ Hashes of known things.
 
   , scanned         :: Map ModulePath ScanStatus
@@ -142,7 +130,7 @@ liftCallback f (LoadM m) =
 runLoadM ::
   Config ->
   LoadM NoErr () ->
-  M.ModuleM (Map ModulePath FullFingerprint, Map ModulePath ScanStatus)
+  M.ModuleM (Map CacheModulePath FullFingerprint, Map ModulePath ScanStatus)
 runLoadM cfg (LoadM m) =
   do loadCfg <-
        M.io
@@ -161,7 +149,7 @@ runLoadM cfg (LoadM m) =
 addFingerprint :: ModulePath -> FullFingerprint -> LoadM any ()
 addFingerprint mpath fp =
   LoadM
-    (modify' \ls -> ls { fingerprints = Map.insert mpath fp (fingerprints ls) })
+    (modify' \ls -> ls { fingerprints = Map.insert (toCacheModulePath mpath) fp (fingerprints ls) })
 
 
 -- | Add information about the status of a module path.
@@ -184,7 +172,7 @@ getModulePathLabel mpath =
 -- | Get the fingerprint for the given module path.
 getCachedFingerprint :: ModulePath -> LoadM any (Maybe FullFingerprint)
 getCachedFingerprint mpath =
-  LoadM (asks (Map.lookup mpath . cacheFingerprints . loadCache))
+  LoadM (asks (Map.lookup (toCacheModulePath mpath) . cacheFingerprints . loadCache))
 
 
 -- | Module path for the given import
@@ -210,6 +198,6 @@ getStatus mpath = LoadM (gets (Map.lookup mpath . scanned))
 
 -- | Get the fingerpint for the ginve path, if any.
 getFingerprint :: ModulePath -> LoadM any (Maybe FullFingerprint)
-getFingerprint mpath = LoadM (gets (Map.lookup mpath . fingerprints))
+getFingerprint mpath = LoadM (gets (Map.lookup (toCacheModulePath mpath) . fingerprints))
 
 
