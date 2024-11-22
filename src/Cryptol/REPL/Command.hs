@@ -61,6 +61,8 @@ module Cryptol.REPL.Command (
   , replParse
   , liftModuleCmd
   , moduleCmdResult
+
+  , loadProjectREPL
   ) where
 
 import Cryptol.REPL.Monad
@@ -107,6 +109,7 @@ import           Cryptol.Utils.PP hiding ((</>))
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.RecordMap
 import qualified Cryptol.Parser.AST as P
+import qualified Cryptol.Project as Proj
 import qualified Cryptol.Transform.Specialize as S
 import Cryptol.Symbolic
   ( ProverCommand(..), QueryType(..)
@@ -156,6 +159,7 @@ import Prelude.Compat
 
 import qualified Data.SBV.Internals as SBV (showTDiff)
 import Data.Foldable (foldl')
+import qualified Cryptol.Project.Cache as Proj
 
 
 
@@ -2187,53 +2191,89 @@ checkDocStringsCmd input
         pure emptyCommandResult { crSuccess = False }
       Just mn -> checkModName mn
 
+countOutcomes :: [[SubcommandResult]] -> (Int, Int, Int)
+countOutcomes = foldl' countOutcomes1 (0, 0, 0)
   where
+    countOutcomes1 (successes, nofences, failures) []
+      = (successes, nofences + 1, failures)
+    countOutcomes1 acc result = foldl' countOutcomes2 acc result
 
-    countOutcomes :: [[SubcommandResult]] -> (Int, Int, Int)
-    countOutcomes = foldl' countOutcomes1 (0, 0, 0)
-      where
-        countOutcomes1 (successes, nofences, failures) []
-          = (successes, nofences + 1, failures)
-        countOutcomes1 acc result = foldl' countOutcomes2 acc result
-
-        countOutcomes2 (successes, nofences, failures) result
-          | crSuccess (srResult result) = (successes + 1, nofences, failures)
-          | otherwise = (successes, nofences, failures + 1)
+    countOutcomes2 (successes, nofences, failures) result
+      | crSuccess (srResult result) = (successes + 1, nofences, failures)
+      | otherwise = (successes, nofences, failures + 1)
 
 
-    checkModName :: P.ModName -> REPL CommandResult
-    checkModName mn =
-     do env <- getModuleEnv
-        case M.lookupModule mn env of
+checkModName :: P.ModName -> REPL CommandResult
+checkModName mn =
+ do env <- getModuleEnv
+    case M.lookupModule mn env of
+      Nothing ->
+        case M.lookupSignature mn env of
           Nothing ->
-            case M.lookupSignature mn env of
-              Nothing ->
-               do rPutStrLn ("Module " ++ show input ++ " is not loaded")
-                  pure emptyCommandResult { crSuccess = False }
-              Just{} ->
-               do rPutStrLn "Skipping docstrings on interface module"
-                  pure emptyCommandResult
-
-          Just fe
-            | T.isParametrizedModule (M.lmdModule (M.lmData fe)) -> do
-              rPutStrLn "Skipping docstrings on parameterized module"
+           do rPutStrLn ("Module " ++ show mn ++ " is not loaded")
+              pure emptyCommandResult { crSuccess = False }
+          Just{} ->
+           do rPutStrLn "Skipping docstrings on interface module"
               pure emptyCommandResult
+      Just fe
+        | T.isParametrizedModule (M.lmdModule (M.lmData fe)) -> do
+          rPutStrLn "Skipping docstrings on parameterized module"
+          pure emptyCommandResult
+        | otherwise -> do
+          results <- checkDocStrings fe
+          let (successes, nofences, failures) = countOutcomes [concat (drFences r) | r <- results]
+          forM_ results $ \dr ->
+            unless (null (drFences dr)) $
+             do rPutStrLn ""
+                rPutStrLn ("\nChecking " ++ show (pp (drName dr)))
+                forM_ (drFences dr) $ \fence ->
+                  forM_ fence $ \line -> do
+                    rPutStrLn ""
+                    rPutStrLn (T.unpack (srInput line))
+                    rPutStr (srLog line)
+          rPutStrLn ""
+          rPutStrLn ("Successes: " ++ show successes ++ ", No fences: " ++ show nofences ++ ", Failures: " ++ show failures)
+          pure emptyCommandResult { crSuccess = failures == 0 }
 
-            | otherwise -> do
-              results <- checkDocStrings fe
-              let (successes, nofences, failures) = countOutcomes [concat (drFences r) | r <- results]
+-- | Load a project.
+-- Note that this does not update the Cryptol environment, it only updates
+-- the project cache.
+-- XXX: Probably should move this in REPL
+loadProjectREPL :: Proj.Config -> REPL CommandResult
+loadProjectREPL cfg =
+ do minp <- getModuleInput
+    (res, warnings) <- io $ M.runModuleM minp $ Proj.loadProject cfg
+    printModuleWarnings warnings
+    case res of
+      Left err ->
+       do names <- M.mctxNameDisp <$> getFocusedEnv
+          rPrint (pp (ModuleSystemError names err))
+          pure emptyCommandResult { crSuccess = False }
 
-              forM_ results $ \dr ->
-                unless (null (drFences dr)) $
-                 do rPutStrLn ""
-                    rPutStrLn ("\nChecking " ++ show (pp (drName dr)))
-                    forM_ (drFences dr) $ \fence ->
-                      forM_ fence $ \line -> do
-                        rPutStrLn ""
-                        rPutStrLn (T.unpack (srInput line))
-                        rPutStr (srLog line)
+      Right ((fps, mp),env) ->
+       do setModuleEnv env
 
-              rPutStrLn ""
-              rPutStrLn ("Successes: " ++ show successes ++ ", No fences: " ++ show nofences ++ ", Failures: " ++ show failures)
+          let needcheck = [(k, P.thing (P.mName m)) | (M.InFile k, Proj.Scanned Proj.Changed _ ((m,_):_)) <- Map.assocs mp]
 
-              pure emptyCommandResult { crSuccess = failures == 0 }
+          fps' <-
+            foldM (\acc (path, name) ->
+             do rPutStrLn ("Checking: " ++ show (pp name))
+                checkRes <- checkModName name
+                let acc' = Map.adjust (\fp -> fp { Proj.moduleDoctestResult = Just (crSuccess checkRes) }) (Proj.CacheInFile path) acc
+                pure acc')
+              fps needcheck
+
+          io (Proj.saveLoadCache (Proj.LoadCache fps'))
+          pure emptyCommandResult
+
+ppScanStatus :: Proj.ScanStatus -> String
+ppScanStatus status =
+  case status of
+    Proj.Scanned ch _ _ ->
+      case ch of
+        Proj.Unchanged         -> "[Unchanged]"
+        Proj.Changed           -> "[Changed  ]"
+    Proj.Invalid reason ->
+      case reason of
+        Proj.InvalidModule {}  -> "[Invalid  ]"
+        Proj.InvalidDep {}     -> "[InvalidD ]"

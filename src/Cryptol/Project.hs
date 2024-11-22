@@ -4,8 +4,11 @@ module Cryptol.Project
   ( Config(..)
   , loadConfig
   , ScanStatus(..)
+  , ChangeStatus(..)
+  , InvalidStatus(..)
+  , Parsed
   , loadProject
-  , loadProjectREPL
+  , depMap
   ) where
 
 import           Control.Monad                    (void)
@@ -22,45 +25,43 @@ import           Cryptol.ModuleSystem.Base        as M
 import           Cryptol.ModuleSystem.Env
 import           Cryptol.ModuleSystem.Fingerprint
 import           Cryptol.ModuleSystem.Monad       as M
-import           Cryptol.REPL.Command
-import           Cryptol.REPL.Monad               as REPL
-import           Cryptol.Utils.PP                 as PP
 import           Cryptol.Project.Config
 import           Cryptol.Project.Cache
 import           Cryptol.Project.Monad
-
-
--- | Load a project.
--- Note that this does not update the Cryptol environment, it only updates
--- the project cache.
--- XXX: Probably should move this in REPL
-loadProjectREPL :: Config -> REPL CommandResult
-loadProjectREPL cfg =
-  do minp <- getModuleInput
-     (res, warnings) <- REPL.io $ runModuleM minp $ loadProject cfg
-     printModuleWarnings warnings
-     case res of
-       Left err ->
-         do names <- mctxNameDisp <$> REPL.getFocusedEnv
-            rPrint (pp (ModuleSystemError names err))
-            pure emptyCommandResult { crSuccess = False }
-
-       Right (mp,_) -> do
-         -- rPutStrLn "all loaded!"
-        rPutStrLn $ unlines
-          [ ppScanStatus v ++ " " ++ show (pp k)
-          | (k,v) <- Map.toList mp
-          ]
-        pure emptyCommandResult
+import qualified Cryptol.Parser.AST as P
+import Cryptol.Parser.Position (Located(..))
 
 -- | Load a project.
 -- Returns information about the modules that are part of the project.
-loadProject :: Config -> M.ModuleM (Map ModulePath ScanStatus)
+loadProject :: Config -> M.ModuleM (Map CacheModulePath FullFingerprint, Map ModulePath ScanStatus)
 loadProject cfg =
-   do (fps, status) <- runLoadM cfg (for_ (modules cfg) scanPath)
+   do (fps, statuses) <- runLoadM cfg (for_ (modules cfg) scanPath)
       let cache = LoadCache { cacheFingerprints = fps }
+      let deps = depMap [p | Scanned _ _ ps <- Map.elems statuses, p <- ps]
+
+      let needLoad = [thing (P.mName m) | Scanned Changed _ ps <- Map.elems statuses, (m, _) <- ps]
+
+      let order = loadOrder deps needLoad
+
+      let modDetails = Map.fromList [(thing (P.mName m), (m, mp, fp)) | (mp, Scanned _ fp ps) <- Map.assocs statuses, (m, _) <- ps]
+
+      let fingerprints = Map.fromList [(path, moduleFingerprint ffp) | (CacheInFile path, ffp) <- Map.assocs fps]
+
+      for_ order \name ->
+        let (m, path, fp) = modDetails Map.! name in
+        -- XXX: catch modules that don't load?
+        doLoadModule
+          True {- eval -}
+          False {- quiet -}
+          (FromModule name)
+          path
+          (moduleFingerprint fp)
+          fingerprints
+          m
+          (deps Map.! name)
+
       M.io (saveLoadCache cache)
-      pure status
+      pure (fps, statuses)
 
 
 --------------------------------------------------------------------------------
@@ -147,6 +148,7 @@ doParse mpath =
                     { moduleFingerprint   = fiFingerprint fi
                     , includeFingerprints = fiIncludeDeps fi
                     , foreignFingerprints = foreignFps
+                    , moduleDoctestResult = Nothing
                     }
                  )
      addFingerprint mpath newFp
@@ -159,11 +161,12 @@ doParse mpath =
 getForeignFps :: Map FilePath Bool -> ModuleM (Set Fingerprint)
 getForeignFps fsrcPaths =
   Set.fromList <$>
-    for (Map.keys fsrcPaths) \fsrcPath ->
+    let foundFiles = Map.keys (Map.filter id fsrcPaths) in
+    for foundFiles \fsrcPath ->
       M.io (fingerprintFile fsrcPath) >>=
         \case
-           Left ioe -> otherIOError fsrcPath ioe
-           Right fp -> pure fp
+          Left ioe -> otherIOError fsrcPath ioe
+          Right fp -> pure fp
 
 -- | Scan the dependencies of a module.
 checkDeps ::
@@ -186,3 +189,18 @@ checkDeps shouldLoad ds =
                Changed   -> checkDeps True more
                Unchanged -> checkDeps shouldLoad more
 
+
+depMap :: Parsed -> Map P.ModName (Set P.ModName)
+depMap xs = Map.fromList [(thing (P.mName k), Set.fromList [importedModule i | (i, _) <- v]) | (k, v) <- xs]
+
+loadOrder :: Map P.ModName (Set P.ModName) -> [P.ModName] -> [P.ModName]
+loadOrder deps roots0 = snd (go Set.empty roots0) []
+  where
+    go seen mms =
+      case mms of
+        [] -> (seen, id)
+        m : ms
+          | Set.member m seen -> go seen ms
+          | (seen1, out1) <- go (Set.insert m seen) (Set.toList (deps Map.! m))
+          , (seen2, out2) <- go seen1 ms
+          -> (seen2, out1 . (m:) . out2)

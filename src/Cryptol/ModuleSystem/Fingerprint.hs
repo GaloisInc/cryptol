@@ -13,13 +13,15 @@ module Cryptol.ModuleSystem.Fingerprint
   , fingerprintHexString
   ) where
 
-import Control.Monad            ((<$!>))
 import Control.DeepSeq          (NFData (rnf))
-import Crypto.Hash.SHA1         (hash)
-import Data.ByteString          (ByteString)
 import Control.Exception        (try)
+import Control.Monad            ((<$!>))
+import Crypto.Hash.SHA256       (hash)
+import Data.ByteString          (ByteString)
+import Data.Char (intToDigit, digitToInt, isHexDigit)
 import qualified Data.ByteString as B
-import qualified Data.Vector as Vector
+import qualified Toml
+import qualified Toml.Schema as Toml
 
 newtype Fingerprint = Fingerprint ByteString
   deriving (Eq, Ord, Show, Read)
@@ -41,9 +43,25 @@ fingerprintFile path =
 fingerprintHexString :: Fingerprint -> String
 fingerprintHexString (Fingerprint bs) = B.foldr hex "" bs
   where
-  digits   = Vector.fromList "0123456789ABCDEF"
-  digit x  = digits Vector.! fromIntegral x
-  hex b cs = let (x,y) = divMod b 16
-             in digit x : digit y : cs
+  hex b cs = let (x,y) = divMod (fromIntegral b) 16
+             in intToDigit x : intToDigit y : cs
 
+fingerprintFromHexString :: String -> Maybe Fingerprint
+fingerprintFromHexString str = Fingerprint . B.pack <$> go str
+  where
+    go [] = Just []
+    go (x:y:z)
+      | isHexDigit x
+      , isHexDigit y
+      = (fromIntegral (digitToInt x * 16 + digitToInt y):) <$> go z
+    go _ = Nothing
 
+instance Toml.ToValue Fingerprint where
+  toValue = Toml.toValue . fingerprintHexString
+
+instance Toml.FromValue Fingerprint where
+  fromValue x =
+   do str <- Toml.fromValue x
+      case fingerprintFromHexString str of
+        Nothing -> Toml.failAt (Toml.valueAnn x) "malformed fingerprint hex-string"
+        Just fp -> pure fp

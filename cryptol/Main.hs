@@ -86,7 +86,7 @@ options  =
 
   , Option "p" ["project"] (ReqArg setProject "CRYPROJECT")
     ("Load and verify a Cryptol project using the provided project "
-      ++ "configuration file or directory containing 'cryproject.yaml'")
+      ++ "configuration file or directory containing 'cryproject.toml'")
 
   , Option "e" ["stop-on-error"] (NoArg setStopOnError)
     "stop script execution as soon as an error occurs."

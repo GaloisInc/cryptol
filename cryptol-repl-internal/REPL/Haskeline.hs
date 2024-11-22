@@ -152,7 +152,7 @@ repl cryrc projectConfig replMode callStacks stopOnError begin =
        if crSuccess status then do
           begin
           case projectConfig of
-            Just config -> Project.loadProjectREPL config
+            Just config -> loadProjectREPL config
             Nothing     -> crySession replMode stopOnError
        else return status
 
