@@ -173,8 +173,8 @@ import Paths_cryptol
 top_module :: { [Module PName] }
   : mbDoc 'module' module_def {% mkTopMods $1 $3 }
   | 'v{' vmod_body 'v}'       {% mkAnonymousModule $2 }
-  | 'interface' 'module' modName 'where' 'v{' sig_body 'v}'
-                              { mkTopSig $3 $6 }
+  | mbDoc 'interface' 'module' modName 'where' 'v{' sig_body 'v}'
+                              { mkTopSig $1 $4 $7 }
 
 module_def :: { Module PName }
 

@@ -1364,12 +1364,12 @@ mkTopMods doc m =
  do (m', ms) <- desugarMod m { mDocTop = doc }
     pure (ms ++ [m'])
 
-mkTopSig :: Located ModName -> Signature PName -> [Module PName]
-mkTopSig nm sig =
+mkTopSig :: Maybe (Located Text) -> Located ModName -> Signature PName -> [Module PName]
+mkTopSig doc nm sig =
   [ Module { mName    = nm
            , mDef     = InterfaceModule sig
            , mInScope = mempty
-           , mDocTop  = Nothing
+           , mDocTop  = doc
            }
   ]
 
