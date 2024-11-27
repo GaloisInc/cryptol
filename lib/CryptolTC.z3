@@ -75,6 +75,15 @@
   (cryBool true)
 )
 
+
+(declare-fun cryPrimeUnknown (Int) Bool)
+
+(define-fun cryPrime ((x InfNat)) MaybeBool
+  (ite (isErr x) cryErrProp
+    (cryBool (and (isFin x) (cryPrimeUnknown (value x)))))
+)
+
+
 ; ------------------------------------------------------------------------------
 ; Basic Cryptol assume/assert
 
@@ -327,14 +336,14 @@
 
 ; (declare-fun L () InfNat)
 ; (declare-fun w () InfNat)
-; 
+;
 ; (assert (cryVar L))
 ; (assert (cryVar w))
-; 
+;
 ; (assert (cryAssume (cryFin w)))
 ; (assert (cryAssume (cryGeq w (cryNat 1))))
 ; (assert (cryAssume (cryGeq (cryMul (cryNat 2) w) (cryWidth L))))
-; 
+;
 ; (assert (cryProve
 ;   (cryGeq
 ;     (cryMul
@@ -343,7 +352,7 @@
 ;         (cryMul (cryNat 16) w))
 ;       (cryMul (cryNat 16) w))
 ;     (cryAdd (cryNat 1) (cryAdd L (cryMul (cryNat 2) w))))))
-; 
+;
 ; (check-sat)
 
 
