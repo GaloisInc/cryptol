@@ -348,7 +348,8 @@ flatGoal g = [ g { goal = p } | p <- pSplitAnd (goal g) ]
 
 -- | Assumes no 'And'
 isNumeric :: Prop -> Bool
-isNumeric ty = matchDefault False $ msum [ is (|=|), is (|/=|), is (|>=|), is aFin ]
+isNumeric ty = matchDefault False $ msum [ is (|=|), is (|/=|), is (|>=|)
+                                         , is aFin, is aPrime ]
   where
   is f = f ty >> return True
 
@@ -368,6 +369,7 @@ toSMT tvs ty = matchDefault (panic "toSMT" [ "Unexpected type", show ty ])
   , aNat            ~> "cryNat"
 
   , aFin            ~> "cryFin"
+  , aPrime          ~> "cryPrime"
   , (|=|)           ~> "cryEq"
   , (|/=|)          ~> "cryNeq"
   , (|>=|)          ~> "cryGeq"

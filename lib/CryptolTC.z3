@@ -75,6 +75,23 @@
   (cryBool true)
 )
 
+
+(declare-fun cryPrimeUnknown (Int) Bool)
+
+(define-fun cryPrimeTable ((x Int)) Bool
+  (or (= x 2)
+  (or (= x 3)
+  (or (= x 5)
+  (or (= x 7)
+  (cryPrimeUnknown x)))))
+)
+
+(define-fun cryPrime ((x InfNat)) MaybeBool
+  (ite (isErr x) cryErrProp
+    (cryBool (and (isFin x) (cryPrimeTable (value x)))))
+)
+
+
 ; ------------------------------------------------------------------------------
 ; Basic Cryptol assume/assert
 
