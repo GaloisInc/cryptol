@@ -48,3 +48,6 @@ cryptol.wixpdb
 
 # happy-generated files
 src/Cryptol/Parser.hs
+
+# tempfile used for CVE checks:
+cryptol-remote-api/python/tmp-requirements.txt
