@@ -223,21 +223,31 @@ canDisplayColor = io (hSupportsANSI stdout)
 cryptolCommand :: CompletionFunc REPL
 cryptolCommand cursor@(l,r)
   | ":" `isPrefixOf` l'
-  , Just (_,cmd,rest) <- splitCommand l' = case nub (findCommand cmd) of
-
-      [c] | null rest && not (any isSpace l') -> do
-            return (l, cmdComp cmd c)
-          | otherwise -> do
-            (rest',cs) <- cmdArgument (cBody c) (reverse (sanitize rest),r)
-            return (unwords [rest', reverse cmd],cs)
-
-      cmds ->
-        return (l, concat [ cmdComp l' c | c <- cmds ])
+  , Just (_,cmd,rest) <- splitCommand l' =
+    case (findCommandExact cmd, findCommand cmd) of
+      -- If we find a single command that matches the input exactly, use that.
+      -- We make this a special case because if the user types :check, then we
+      -- specifically want to complete the :check command, and /not/ the
+      -- :check-docstrings command (for which :check is a prefix). Without this
+      -- special case, there would be ambiguity about which command to complete.
+      ([c], _)  -> completeCommand cmd rest c
+      -- Otherwise, look for commands that are a prefix of the input.
+      (_, [c])  -> completeCommand cmd rest c
+      (_, cmds) -> return (l, concat [ cmdComp l' c | c <- cmds ])
   -- Complete all : commands when the line is just a :
   | ":" == l' = return (l, concat [ cmdComp l' c | c <- nub (findCommand ":") ])
   | otherwise = completeExpr cursor
   where
   l' = sanitize (reverse l)
+
+  completeCommand ::
+    String -> String -> CommandDescr -> REPL (String, [Completion])
+  completeCommand cmd rest c
+    | null rest && not (any isSpace l') = do
+      return (l, cmdComp cmd c)
+    | otherwise = do
+      (rest',cs) <- cmdArgument (cBody c) (reverse (sanitize rest),r)
+      return (unwords [rest', reverse cmd],cs)
 
 -- | Generate completions from a REPL command definition.
 cmdComp :: String -> CommandDescr -> [Completion]
