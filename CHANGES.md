@@ -21,6 +21,9 @@
   invoked as `:dumptests - <EXPR>` allowing for easier experimentation and
   testing.
 
+* The REPL properly supports tab completion for the `:t` and `:check` commands.
+  ([#1780](https://github.com/GaloisInc/cryptol/issues/1780))
+
 # 3.2.0 -- 2024-08-20
 
 ## Language changes
