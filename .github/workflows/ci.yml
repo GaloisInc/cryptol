@@ -151,7 +151,12 @@ jobs:
         run: .github/ci.sh build
 
       - shell: bash
+        name: Extract Cryptol executables to dist/bin/
         run: .github/ci.sh setup_dist_bins
+
+      - shell: bash
+        name: Extract Cryptol API test suite executable to bin/
+        run: .github/ci.sh extract_exe "test:cryptol-api-tests" "bin"
 
       - shell: bash
         run: .github/ci.sh check_docs
@@ -271,6 +276,10 @@ jobs:
         os: [ubuntu-22.04, macos-14, windows-2019]
         continue-on-error: [false]
         include:
+          - suite: api-tests
+            target: ''
+            os: ubuntu-22.04
+            continue-on-error: false
           - suite: rpc
             target: ''
             os: ubuntu-22.04
@@ -358,6 +367,7 @@ jobs:
           chmod +x dist/bin/cryptol
           chmod +x dist/bin/cryptol-remote-api
           chmod +x dist/bin/cryptol-eval-server
+          chmod +x bin/cryptol-api-tests
           chmod +x bin/test-runner
           .github/ci.sh install_system_deps
           .github/ci.sh deps bin/abc*
@@ -392,6 +402,13 @@ jobs:
         run: |
           export PATH=$PWD/bin:$PWD/dist/bin:$PATH
           cryptol-remote-api/run_rpc_tests.sh
+
+      - if: matrix.suite == 'api-tests'
+        shell: bash
+        continue-on-error: ${{ matrix.continue-on-error }}
+        run: |
+          export PATH=$PWD/bin:$PWD/dist/bin:$PATH
+          ./bin/cryptol-api-tests
 
   build-push-image:
     runs-on: ubuntu-22.04
