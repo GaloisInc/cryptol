@@ -21,6 +21,9 @@
   invoked as `:dumptests - <EXPR>` allowing for easier experimentation and
   testing.
 
+* Add a REPL option `tcSmtFile` that allows writing typechecker-related SMT
+  solver interactions to a file.
+
 # 3.2.0 -- 2024-08-20
 
 ## Language changes

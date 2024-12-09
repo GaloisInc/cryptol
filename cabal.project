@@ -3,3 +3,10 @@ packages:
     cryptol-remote-api
     tests
     deps/argo/argo
+
+-- TODO RGS: Remove this once the changes from
+-- https://github.com/yav/simple-smt/pull/27 are released to Hackage
+source-repository-package
+  type: git
+  location: https://github.com/RyanGlScott/simple-smt
+  tag: 519d76a51c3c992120c69532f76311d7ac16718c

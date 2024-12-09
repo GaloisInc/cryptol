@@ -45,6 +45,9 @@ data SolverConfig = SolverConfig
   , solverVerbose :: Int        -- ^ How verbose to be when type-checking
   , solverPreludePath :: [FilePath]
     -- ^ Look for the solver prelude in these locations.
+  , solverSmtFile :: Maybe FilePath
+    -- ^ The optional file to record SMT solver interactions in the type
+    -- checker. If 'Nothing', this will print to @stdout@ instead.
   } deriving (Show, Generic, NFData)
 
 
@@ -58,6 +61,7 @@ defaultSolverConfig searchPath =
   , solverArgs = [ "-smt2", "-in" ]
   , solverVerbose = 0
   , solverPreludePath = searchPath
+  , solverSmtFile = Nothing
   }
 
 -- | The types of variables in the environment.
@@ -389,7 +393,7 @@ instance PP (WithNames DelayedCt) where
   ppPrec _ (WithNames d names) =
     sig $$
     hang "we need to show that"
-       2 (vcat ( vars ++ asmps ++ 
+       2 (vcat ( vars ++ asmps ++
                [ hang "the following constraints hold:"
                     2 (vcat
                        $ bullets
