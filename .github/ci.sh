@@ -25,7 +25,7 @@ deps() {
 # Finds the cabal-built '$1' executable and copies it to the '$2'
 # directory.
 extract_exe() {
-  exe="$(cabal v2-exec which "$1$EXT")"
+  exe="$(cabal list-bin -v0 "$1")"
   name="$(basename "$exe")"
   echo "Copying $name to $2"
   mkdir -p "$2"
@@ -53,10 +53,10 @@ retry() {
 }
 
 setup_dist_bins() {
-  extract_exe "cryptol" "dist/bin"
-  extract_exe "cryptol-html" "dist/bin"
-  extract_exe "cryptol-remote-api" "dist/bin"
-  extract_exe "cryptol-eval-server" "dist/bin"
+  extract_exe "exe:cryptol" "dist/bin"
+  extract_exe "exe:cryptol-html" "dist/bin"
+  extract_exe "exe:cryptol-remote-api" "dist/bin"
+  extract_exe "exe:cryptol-eval-server" "dist/bin"
   strip dist/bin/cryptol* || echo "Strip failed: Ignoring harmless error"
 }
 
@@ -64,11 +64,12 @@ build() {
   ghc_ver="$(ghc --numeric-version)"
   cp cabal.GHC-"$ghc_ver".config cabal.project.freeze
   cabal v2-update
-  cabal v2-configure -j2 --minimize-conflict-set
+  cabal v2-configure -j2 --minimize-conflict-set --enable-tests
   git status --porcelain
   retry ./cry build exe:cryptol-html "$@" # retry due to flakiness with windows builds
   retry ./cry build exe:cryptol-remote-api "$@"
   retry ./cry build exe:cryptol-eval-server "$@"
+  retry ./cry build test:cryptol-api-tests "$@"
 }
 
 install_system_deps() {
