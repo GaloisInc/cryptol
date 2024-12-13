@@ -223,31 +223,53 @@ canDisplayColor = io (hSupportsANSI stdout)
 cryptolCommand :: CompletionFunc REPL
 cryptolCommand cursor@(l,r)
   | ":" `isPrefixOf` l'
-  , Just (_,cmd,rest) <- splitCommand l' =
-    case (findCommandExact cmd, findCommand cmd) of
-      -- If we find a single command that matches the input exactly, use that.
-      -- We make this a special case because if the user types :check, then we
-      -- specifically want to complete the :check command, and /not/ the
-      -- :check-docstrings command (for which :check is a prefix). Without this
-      -- special case, there would be ambiguity about which command to complete.
-      ([c], _)  -> completeCommand cmd rest c
-      -- Otherwise, look for commands that are a prefix of the input.
-      (_, [c])  -> completeCommand cmd rest c
-      (_, cmds) -> return (l, concat [ cmdComp l' c | c <- cmds ])
+  , Just (_,cmd,rest) <- splitCommand l' = case nub (findCommand cmd) of
+
+      [c] | cursorRightAfterCmd rest ->
+            return (l, cmdComp cmd c)
+          | otherwise ->
+            completeCmdArgument cmd rest c
+
+      cmds
+        -- If the command name is a prefix of multiple commands, then as a
+        -- special case, check if (1) the name matches one command exactly, and
+        -- (2) there is already some input for an argument. If so, proceed to
+        -- tab-complete that argument. This ensures that something like
+        -- `:check rev` will complete to `:check reverse`, even though the
+        -- command name `:check` is a prefix for both the `:check` and
+        -- `:check-docstrings` commands (#1781).
+        | [c] <- nub (findCommandExact cmd)
+        , not (cursorRightAfterCmd rest) ->
+          completeCmdArgument cmd rest c
+
+        | otherwise ->
+          return (l, concat [ cmdComp l' c | c <- cmds ])
   -- Complete all : commands when the line is just a :
   | ":" == l' = return (l, concat [ cmdComp l' c | c <- nub (findCommand ":") ])
   | otherwise = completeExpr cursor
   where
   l' = sanitize (reverse l)
 
-  completeCommand ::
-    String -> String -> CommandDescr -> REPL (String, [Completion])
-  completeCommand cmd rest c
-    | null rest && not (any isSpace l') = do
-      return (l, cmdComp cmd c)
-    | otherwise = do
-      (rest',cs) <- cmdArgument (cBody c) (reverse (sanitize rest),r)
-      return (unwords [rest', reverse cmd],cs)
+  -- Check if the cursor is positioned immediately after the input for the
+  -- command, without any command arguments typed in after the command's name.
+  cursorRightAfterCmd ::
+    String
+      {- The rest of the input after the command. -} ->
+    Bool
+  cursorRightAfterCmd rest = null rest && not (any isSpace l')
+
+  -- Perform tab completion for a single argument to a command.
+  completeCmdArgument ::
+    String
+      {- The name of the command as a String. -} ->
+    String
+      {- The rest of the input after the command. -} ->
+    CommandDescr
+      {- The description of the command. -} ->
+    REPL (String, [Completion])
+  completeCmdArgument cmd rest c =
+    do (rest',cs) <- cmdArgument (cBody c) (reverse (sanitize rest),r)
+       return (unwords [rest', reverse cmd],cs)
 
 -- | Generate completions from a REPL command definition.
 cmdComp :: String -> CommandDescr -> [Completion]
