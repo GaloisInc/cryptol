@@ -254,18 +254,22 @@ library
   if flag(relocatable)
       cpp-options: -DRELOCATABLE
 
-executable cryptol
-  Default-language:
-    Haskell2010
-  Main-is:             Main.hs
-  hs-source-dirs:      cryptol
+-- The portions of the Cryptol REPL that are specific to the Cryptol executable.
+-- We factor this out into a separate internal library because (1) it has some
+-- dependencies (e.g., ansi-terminal and haskeline) that the Cryptol library
+-- does not need to depend on, and (2) we want to be able to test this code in
+-- the cryptol-api-tests test suite.
+library cryptol-repl-internal
+  exposed-modules:     REPL.Haskeline
+                       REPL.Logo
   Autogen-modules:     Paths_cryptol
-
-  Other-modules:       OptParser,
-                       REPL.Haskeline,
-                       REPL.Logo,
-                       Paths_cryptol
-
+  Other-modules:       Paths_cryptol
+  hs-source-dirs:      cryptol-repl-internal
+  default-language:    Haskell2010
+  GHC-options:         -Wall -O2
+  if os(linux) && flag(static)
+      ld-options: -static -pthread
+      ghc-options: -optl-fuse-ld=bfd
   build-depends:       ansi-terminal
                      , base
                      , base-compat
@@ -278,6 +282,19 @@ executable cryptol
                      , monad-control
                      , text
                      , transformers
+
+executable cryptol
+  Default-language:
+    Haskell2010
+  Main-is:             Main.hs
+  hs-source-dirs:      cryptol
+  Other-modules:       OptParser
+  build-depends:       base
+                     , base-compat
+                     , cryptol
+                     , cryptol-repl-internal
+                     , directory
+                     , filepath
   GHC-options:         -Wall -threaded -rtsopts "-with-rtsopts=-N1 -A64m" -O2
   if impl(ghc >= 8.0.1)
      ghc-options: -Wno-redundant-constraints
@@ -315,6 +332,26 @@ executable check-exercises
                      , temporary
                      , text
   GHC-options: -Wall
+
+-- Test cases that require the use of the Cryptol API to test effectively. Most
+-- other test cases should be added to the integration tests (which only require
+-- the Cryptol executable and/or the REPL) under tests/.
+test-suite cryptol-api-tests
+  type:                exitcode-stdio-1.0
+  main-is:             Main.hs
+  hs-source-dirs:      api-tests
+  default-language:    Haskell2010
+  GHC-options:         -Wall -threaded -rtsopts "-with-rtsopts=-N1 -A64m" -O2
+  if os(linux) && flag(static)
+      ld-options: -static -pthread
+      ghc-options: -optl-fuse-ld=bfd
+  build-depends:       base
+                     , cryptol
+                     , cryptol-repl-internal
+                     , haskeline
+                     , tasty
+                     , tasty-hunit
+
 benchmark cryptol-bench
   type:                exitcode-stdio-1.0
   main-is:             Main.hs

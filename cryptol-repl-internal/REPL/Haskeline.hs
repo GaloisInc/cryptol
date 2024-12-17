@@ -225,19 +225,51 @@ cryptolCommand cursor@(l,r)
   | ":" `isPrefixOf` l'
   , Just (_,cmd,rest) <- splitCommand l' = case nub (findCommand cmd) of
 
-      [c] | null rest && not (any isSpace l') -> do
+      [c] | cursorRightAfterCmd rest ->
             return (l, cmdComp cmd c)
-          | otherwise -> do
-            (rest',cs) <- cmdArgument (cBody c) (reverse (sanitize rest),r)
-            return (unwords [rest', reverse cmd],cs)
+          | otherwise ->
+            completeCmdArgument cmd rest c
 
-      cmds ->
-        return (l, concat [ cmdComp l' c | c <- cmds ])
+      cmds
+        -- If the command name is a prefix of multiple commands, then as a
+        -- special case, check if (1) the name matches one command exactly, and
+        -- (2) there is already some input for an argument. If so, proceed to
+        -- tab-complete that argument. This ensures that something like
+        -- `:check rev` will complete to `:check reverse`, even though the
+        -- command name `:check` is a prefix for both the `:check` and
+        -- `:check-docstrings` commands (#1781).
+        | [c] <- nub (findCommandExact cmd)
+        , not (cursorRightAfterCmd rest) ->
+          completeCmdArgument cmd rest c
+
+        | otherwise ->
+          return (l, concat [ cmdComp l' c | c <- cmds ])
   -- Complete all : commands when the line is just a :
   | ":" == l' = return (l, concat [ cmdComp l' c | c <- nub (findCommand ":") ])
   | otherwise = completeExpr cursor
   where
   l' = sanitize (reverse l)
+
+  -- Check if the cursor is positioned immediately after the input for the
+  -- command, without any command arguments typed in after the command's name.
+  cursorRightAfterCmd ::
+    String
+      {- The rest of the input after the command. -} ->
+    Bool
+  cursorRightAfterCmd rest = null rest && not (any isSpace l')
+
+  -- Perform tab completion for a single argument to a command.
+  completeCmdArgument ::
+    String
+      {- The name of the command as a String. -} ->
+    String
+      {- The rest of the input after the command. -} ->
+    CommandDescr
+      {- The description of the command. -} ->
+    REPL (String, [Completion])
+  completeCmdArgument cmd rest c =
+    do (rest',cs) <- cmdArgument (cBody c) (reverse (sanitize rest),r)
+       return (unwords [rest', reverse cmd],cs)
 
 -- | Generate completions from a REPL command definition.
 cmdComp :: String -> CommandDescr -> [Completion]
