@@ -26,7 +26,7 @@ import           Data.Map.Strict                  (Map)
 import qualified Data.Map.Strict                  as Map
 import           Control.Monad.Reader
 import           Control.Monad.State
-import           Control.Monad.Except
+import           Control.Monad.Except hiding (tryError)
 import           System.Directory
 import           System.FilePath                  (makeRelative)
 
@@ -111,6 +111,10 @@ doIO m = doModule (M.io m)
 
 tryLoadM :: LoadM Err a -> LoadM any (Either M.ModuleError a)
 tryLoadM (LoadM m) = LoadM (tryError m)
+
+-- Introduced in mtl-2.3.1 which we can't rely upon yet
+tryError :: MonadError e m => m a -> m (Either e a)
+tryError action = (Right <$> action) `catchError` (pure . Left)
 
 -- | Print a line
 lPutStrLn :: String -> LoadM any ()

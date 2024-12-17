@@ -84,7 +84,7 @@ library
                        toml-parser       >= 2.0 && <2.1,
                        transformers-base >= 0.4,
                        vector,
-                       mtl               >= 2.3.1,
+                       mtl               >= 2.2.1,
                        time              >= 1.6.0.1,
                        panic             >= 0.3,
                        what4             >= 1.4 && < 1.7
