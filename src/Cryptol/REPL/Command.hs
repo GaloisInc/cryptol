@@ -2238,7 +2238,6 @@ checkModName mn =
 -- | Load a project.
 -- Note that this does not update the Cryptol environment, it only updates
 -- the project cache.
--- XXX: Probably should move this in REPL
 loadProjectREPL :: Proj.Config -> REPL CommandResult
 loadProjectREPL cfg =
  do minp <- getModuleInput
@@ -2250,30 +2249,52 @@ loadProjectREPL cfg =
           rPrint (pp (ModuleSystemError names err))
           pure emptyCommandResult { crSuccess = False }
 
-      Right ((fps, mp),env) ->
+      Right ((fps, mp, docstringResults),env) ->
        do setModuleEnv env
+          let cache0 = fmap (\fp -> Proj.CacheEntry { cacheDocstringResult = Nothing, cacheFingerprint = fp }) fps
+          (cache, success) <-
+            foldM (\(fpAcc, success) (k, v) -> 
+              case k of
+                M.InMem{} -> pure (fpAcc, success)
+                M.InFile path ->
+                  case v of
+                    Proj.Invalid e ->
+                     do rPutStrLn ("Failed to process module: " ++ path ++ ":\n" ++ ppInvalidStatus e)
+                        pure (fpAcc, False) -- report failure
+                    Proj.Scanned Proj.Unchanged _ ((m,_):_) ->
+                     do let name = P.thing (P.mName m)
+                        rPutStrLn ("Skipping unmodified module: " ++ show (pp name))
+                        let prevResult = join (Map.lookup (Proj.CacheInFile path) docstringResults)
+                        let fpAcc' = Map.adjust (\e -> e{ Proj.cacheDocstringResult = prevResult }) (Proj.CacheInFile path) fpAcc
+                        pure (fpAcc', success) -- preserve success
+                    Proj.Scanned Proj.Changed _ ((m,_):_) ->
+                     do let name = P.thing (P.mName m)
+                        rPutStrLn ("Checking docstrings on changed module: " ++ show (pp name))
+                        checkRes <- checkModName name
+                        let fpAcc' = Map.adjust (\fp -> fp { Proj.cacheDocstringResult = Just (crSuccess checkRes) }) (Proj.CacheInFile path) fpAcc
+                        pure (fpAcc', success && crSuccess checkRes)
+                    Proj.Scanned _ _ [] -> panic "Cryptol.REPL.Command" ["malformed change entry"]
 
-          let needcheck = [(k, P.thing (P.mName m)) | (M.InFile k, Proj.Scanned Proj.Changed _ ((m,_):_)) <- Map.assocs mp]
+              ) (cache0, True) (Map.assocs mp)
 
-          fps' <-
-            foldM (\acc (path, name) ->
-             do rPutStrLn ("Checking: " ++ show (pp name))
-                checkRes <- checkModName name
-                let acc' = Map.adjust (\fp -> fp { Proj.moduleDoctestResult = Just (crSuccess checkRes) }) (Proj.CacheInFile path) acc
-                pure acc')
-              fps needcheck
+          let (passing, failing, missing) =
+                foldl
+                  (\(a,b,c) x ->
+                    case Proj.cacheDocstringResult x of
+                      Nothing -> (a,b,c+1)
+                      Just True -> (a+1,b,c)
+                      Just False -> (a,b+1,c))
+                  (0::Int,0::Int,0::Int) (Map.elems cache)
 
-          io (Proj.saveLoadCache (Proj.LoadCache fps'))
-          pure emptyCommandResult
+          rPutStrLn ("Passing: " ++ show passing ++ " Failing: " ++ show failing ++ " Missing: " ++ show missing)
 
-ppScanStatus :: Proj.ScanStatus -> String
-ppScanStatus status =
-  case status of
-    Proj.Scanned ch _ _ ->
-      case ch of
-        Proj.Unchanged         -> "[Unchanged]"
-        Proj.Changed           -> "[Changed  ]"
-    Proj.Invalid reason ->
-      case reason of
-        Proj.InvalidModule {}  -> "[Invalid  ]"
-        Proj.InvalidDep {}     -> "[InvalidD ]"
+          io (Proj.saveLoadCache (Proj.LoadCache cache))
+          pure emptyCommandResult { crSuccess = success }
+
+ppInvalidStatus :: Proj.InvalidStatus -> String
+ppInvalidStatus = \case
+    Proj.InvalidModule modErr -> indentStr (show (pp modErr))
+    Proj.InvalidDep d _ -> indentStr ("Error in dependency: " ++ show (pp d))
+
+indentStr :: String -> String
+indentStr = unlines . map ("    "++) . lines

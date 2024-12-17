@@ -33,14 +33,11 @@ import Cryptol.Parser.Position (Located(..))
 
 -- | Load a project.
 -- Returns information about the modules that are part of the project.
-loadProject :: Config -> M.ModuleM (Map CacheModulePath FullFingerprint, Map ModulePath ScanStatus)
+loadProject :: Config -> M.ModuleM (Map CacheModulePath FullFingerprint, Map ModulePath ScanStatus, Map CacheModulePath (Maybe Bool))
 loadProject cfg =
-   do (fps, statuses) <- runLoadM cfg (for_ (modules cfg) scanPath)
-      let cache = LoadCache { cacheFingerprints = fps }
+   do (fps, statuses, out) <- runLoadM cfg (for_ (modules cfg) scanPath >> getOldDocstringResults)
       let deps = depMap [p | Scanned _ _ ps <- Map.elems statuses, p <- ps]
-
       let needLoad = [thing (P.mName m) | Scanned Changed _ ps <- Map.elems statuses, (m, _) <- ps]
-
       let order = loadOrder deps needLoad
 
       let modDetails = Map.fromList [(thing (P.mName m), (m, mp, fp)) | (mp, Scanned _ fp ps) <- Map.assocs statuses, (m, _) <- ps]
@@ -58,10 +55,13 @@ loadProject cfg =
           (moduleFingerprint fp)
           fingerprints
           m
-          (deps Map.! name)
+          (Map.findWithDefault mempty name deps)
 
-      M.io (saveLoadCache cache)
-      pure (fps, statuses)
+      let oldResults =
+            case out of
+              Left{} -> mempty
+              Right x -> x
+      pure (fps, statuses, oldResults)
 
 
 --------------------------------------------------------------------------------
@@ -148,7 +148,6 @@ doParse mpath =
                     { moduleFingerprint   = fiFingerprint fi
                     , includeFingerprints = fiIncludeDeps fi
                     , foreignFingerprints = foreignFps
-                    , moduleDoctestResult = Nothing
                     }
                  )
      addFingerprint mpath newFp
@@ -201,6 +200,6 @@ loadOrder deps roots0 = snd (go Set.empty roots0) []
         [] -> (seen, id)
         m : ms
           | Set.member m seen -> go seen ms
-          | (seen1, out1) <- go (Set.insert m seen) (Set.toList (deps Map.! m))
+          | (seen1, out1) <- go (Set.insert m seen) (Set.toList (Map.findWithDefault mempty m deps))
           , (seen2, out2) <- go seen1 ms
           -> (seen2, out1 . (m:) . out2)

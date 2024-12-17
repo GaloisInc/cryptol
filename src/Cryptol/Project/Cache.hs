@@ -16,7 +16,7 @@ import           Cryptol.ModuleSystem.Env
 
 -- | The load cache. This is what persists across invocations.
 newtype LoadCache = LoadCache
-  { cacheFingerprints :: Map CacheModulePath FullFingerprint
+  { cacheModules :: Map CacheModulePath CacheEntry
   }
   deriving (Show, Read)
 
@@ -41,20 +41,21 @@ instance Toml.ToTable LoadCache where
         case k of
           CacheInFile a -> "file" Toml..= a
           CacheInMem a -> "memory" Toml..= a,
-        "fingerprint" Toml..= moduleFingerprint v,
-        "foreign_fingerprints" Toml..= Set.toList (foreignFingerprints v),
+        "fingerprint" Toml..= moduleFingerprint fp,
+        "foreign_fingerprints" Toml..= Set.toList (foreignFingerprints fp),
         "include_fingerprints" Toml..= [
           Toml.table [
             "file" Toml..= k1,
             "fingerprint" Toml..= v1
           ]
-          | (k1, v1) <- Map.assocs (includeFingerprints v)
+          | (k1, v1) <- Map.assocs (includeFingerprints fp)
         ]
       ] ++
       [ "docstring_result" Toml..= result
-        | Just result <- [moduleDoctestResult v]
+        | Just result <- [cacheDocstringResult v]
       ]
-      | (k,v) <- Map.assocs (cacheFingerprints x)
+      | (k,v) <- Map.assocs (cacheModules x)
+      , let fp = cacheFingerprint v
     ]]
 
 instance Toml.FromValue LoadCache where
@@ -73,17 +74,24 @@ instance Toml.FromValue LoadCache where
                             Toml.parseTableFromValue
                           $ (,) <$> Toml.reqKey "file"
                                 <*> Toml.reqKey "fingerprint"
-                checkResult <- Toml.optKey "doctest_result"
-                pure (k, FullFingerprint
-                  { moduleFingerprint = fp
-                  , foreignFingerprints = Set.fromList foreigns
-                  , includeFingerprints = Map.fromList includes
-                  , moduleDoctestResult = checkResult
+                checkResult <- Toml.optKey "docstring_result"
+                pure (k, CacheEntry
+                  { cacheFingerprint = FullFingerprint
+                      { moduleFingerprint = fp
+                      , foreignFingerprints = Set.fromList foreigns
+                      , includeFingerprints = Map.fromList includes
+                      }
+                  , cacheDocstringResult = checkResult
                   })
       pure LoadCache {
-        cacheFingerprints = Map.fromList kvs
+        cacheModules = Map.fromList kvs
         }
 
+data CacheEntry = CacheEntry
+  { cacheFingerprint :: FullFingerprint
+  , cacheDocstringResult :: Maybe Bool
+  }
+  deriving (Show, Read)
 
 -- | The full fingerprint hashes the module, but
 -- also the contents of included files and foreign libraries.
@@ -91,7 +99,6 @@ data FullFingerprint = FullFingerprint
   { moduleFingerprint   :: Fingerprint
   , includeFingerprints :: Map FilePath Fingerprint
   , foreignFingerprints :: Set Fingerprint
-  , moduleDoctestResult :: Maybe Bool -- ^ unknown, passed, failed
   }
   deriving (Eq, Show, Read)
 
@@ -101,7 +108,7 @@ metaDir = ".cryproject"
 loadCachePath = metaDir FP.</> "loadcache"
 
 emptyLoadCache :: LoadCache
-emptyLoadCache = LoadCache { cacheFingerprints = Map.empty }
+emptyLoadCache = LoadCache { cacheModules = mempty }
 
 loadLoadCache :: IO LoadCache
 loadLoadCache =

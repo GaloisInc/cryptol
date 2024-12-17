@@ -54,7 +54,7 @@ library
                        array             >= 0.4,
                        containers        >= 0.5,
                        criterion-measurement,
-                       cryptohash-sha1   >= 0.11 && < 0.12,
+                       cryptohash-sha256 >= 0.11 && < 0.12,
                        deepseq           >= 1.3,
                        directory         >= 1.2.2.0,
                        exceptions,

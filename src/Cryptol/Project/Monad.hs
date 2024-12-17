@@ -19,6 +19,7 @@ module Cryptol.Project.Monad
   , getStatus
   , getFingerprint
   , lPutStrLn
+  , getOldDocstringResults
   ) where
 
 import           Data.Map.Strict                  (Map)
@@ -129,8 +130,8 @@ liftCallback f (LoadM m) =
 -- | Run a LoadM computation using the given configuration.
 runLoadM ::
   Config ->
-  LoadM NoErr () ->
-  M.ModuleM (Map CacheModulePath FullFingerprint, Map ModulePath ScanStatus)
+  LoadM NoErr a ->
+  M.ModuleM (Map CacheModulePath FullFingerprint, Map ModulePath ScanStatus, Either ModuleError a)
 runLoadM cfg (LoadM m) =
   do loadCfg <-
        M.io
@@ -143,8 +144,8 @@ runLoadM cfg (LoadM m) =
                                , fingerprints = mempty
                                , scanned = mempty
                                }
-     s <- execStateT (runExceptT (runReaderT m loadCfg)) loadState
-     pure (fingerprints s, scanned s)
+     (result, s) <- runStateT (runExceptT (runReaderT m loadCfg)) loadState
+     pure (fingerprints s, scanned s, result)
 
 addFingerprint :: ModulePath -> FullFingerprint -> LoadM any ()
 addFingerprint mpath fp =
@@ -172,7 +173,7 @@ getModulePathLabel mpath =
 -- | Get the fingerprint for the given module path.
 getCachedFingerprint :: ModulePath -> LoadM any (Maybe FullFingerprint)
 getCachedFingerprint mpath =
-  LoadM (asks (Map.lookup (toCacheModulePath mpath) . cacheFingerprints . loadCache))
+  LoadM (asks (fmap cacheFingerprint . Map.lookup (toCacheModulePath mpath) . cacheModules . loadCache))
 
 
 -- | Module path for the given import
@@ -200,4 +201,6 @@ getStatus mpath = LoadM (gets (Map.lookup mpath . scanned))
 getFingerprint :: ModulePath -> LoadM any (Maybe FullFingerprint)
 getFingerprint mpath = LoadM (gets (Map.lookup (toCacheModulePath mpath) . fingerprints))
 
-
+getOldDocstringResults :: LoadM any (Map CacheModulePath (Maybe Bool))
+getOldDocstringResults =
+  LoadM (asks (fmap cacheDocstringResult . cacheModules . loadCache))
