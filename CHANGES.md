@@ -24,6 +24,9 @@
 * The REPL properly supports tab completion for the `:t` and `:check` commands.
   ([#1780](https://github.com/GaloisInc/cryptol/issues/1780))
 
+* Add a REPL option `tcSmtFile` that allows writing typechecker-related SMT
+  solver interactions to a file.
+
 # 3.2.0 -- 2024-08-20
 
 ## Language changes
