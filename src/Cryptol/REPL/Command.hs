@@ -2259,7 +2259,8 @@ loadProjectREPL cfg =
                 M.InFile path ->
                   case v of
                     Proj.Invalid e ->
-                     do rPrint ("Failed to process module: " <> text path <> ":" $$ ppInvalidStatus e)
+                     do rPrint ("Failed to process module:" <+> (text path <> ":") $$
+                                 indent 2 (ppInvalidStatus e))
                         pure (fpAcc, False) -- report failure
                     Proj.Scanned Proj.Unchanged _ ((m,_):_) ->
                      do let name = P.thing (P.mName m)

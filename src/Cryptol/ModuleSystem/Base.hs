@@ -28,7 +28,6 @@ import qualified Data.List.NonEmpty as NE
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.Function(on)
 import Data.Monoid ((<>),Endo(..), Any(..))
-import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8')
 import System.Directory (doesFileExist, canonicalizePath)
 import System.FilePath ( addExtension
@@ -134,7 +133,7 @@ renameImpNameInCurrentEnv (P.ImpNested pname) =
         fail ("Undefined submodule name: " ++ show (pp pname))
       _:_:_ -> do
         fail ("Ambiguous submodule name: " ++ show (pp pname))
-      [name] -> pure (P.ImpNested name)
+      [n] -> pure (P.ImpNested n)
 
 -- NoPat -----------------------------------------------------------------------
 
