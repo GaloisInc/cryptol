@@ -1594,7 +1594,7 @@ getPrimMap  = liftModuleCmd M.getPrimMap
 liftModuleCmd :: M.ModuleCmd a -> REPL a
 liftModuleCmd cmd = moduleCmdResult =<< io . cmd =<< getModuleInput
 
--- TODO: add filter for my exhaustie prop guards warning here
+-- TODO: add filter for my exhaustive prop guards warning here
 
 printModuleWarnings :: [M.ModuleWarning] -> REPL ()
 printModuleWarnings ws0 = do
@@ -2259,17 +2259,17 @@ loadProjectREPL cfg =
                 M.InFile path ->
                   case v of
                     Proj.Invalid e ->
-                     do rPutStrLn ("Failed to process module: " ++ path ++ ":\n" ++ ppInvalidStatus e)
+                     do rPrint ("Failed to process module: " <> text path <> ":" $$ ppInvalidStatus e)
                         pure (fpAcc, False) -- report failure
                     Proj.Scanned Proj.Unchanged _ ((m,_):_) ->
                      do let name = P.thing (P.mName m)
-                        rPutStrLn ("Skipping unmodified module: " ++ show (pp name))
+                        rPrint ("Skipping unmodified module: " <> pp name)
                         let prevResult = join (Map.lookup (Proj.CacheInFile path) docstringResults)
                         let fpAcc' = Map.adjust (\e -> e{ Proj.cacheDocstringResult = prevResult }) (Proj.CacheInFile path) fpAcc
                         pure (fpAcc', success) -- preserve success
                     Proj.Scanned Proj.Changed _ ((m,_):_) ->
                      do let name = P.thing (P.mName m)
-                        rPutStrLn ("Checking docstrings on changed module: " ++ show (pp name))
+                        rPrint ("Checking docstrings on changed module: " <> pp name)
                         checkRes <- checkModName name
                         let fpAcc' = Map.adjust (\fp -> fp { Proj.cacheDocstringResult = Just (crSuccess checkRes) }) (Proj.CacheInFile path) fpAcc
                         pure (fpAcc', success && crSuccess checkRes)
@@ -2291,10 +2291,7 @@ loadProjectREPL cfg =
           io (Proj.saveLoadCache (Proj.LoadCache cache))
           pure emptyCommandResult { crSuccess = success }
 
-ppInvalidStatus :: Proj.InvalidStatus -> String
+ppInvalidStatus :: Proj.InvalidStatus -> Doc
 ppInvalidStatus = \case
-    Proj.InvalidModule modErr -> indentStr (show (pp modErr))
-    Proj.InvalidDep d _ -> indentStr ("Error in dependency: " ++ show (pp d))
-
-indentStr :: String -> String
-indentStr = unlines . map ("    "++) . lines
+    Proj.InvalidModule modErr -> pp modErr
+    Proj.InvalidDep d _ -> "Error in dependency: " <> pp d

@@ -105,7 +105,7 @@ data FullFingerprint = FullFingerprint
 -- XXX: This should probably be a parameter
 metaDir, loadCachePath :: FilePath
 metaDir = ".cryproject"
-loadCachePath = metaDir FP.</> "loadcache"
+loadCachePath = metaDir FP.</> "loadcache.toml"
 
 emptyLoadCache :: LoadCache
 emptyLoadCache = LoadCache { cacheModules = mempty }

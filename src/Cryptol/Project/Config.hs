@@ -37,10 +37,7 @@ data ConfigLoadErrorInfo
 instance PP ConfigLoadError where
   ppPrec _ (ConfigLoadError path info) =
     case info of
-      ConfigParseError errs -> text $ unlines errs
-{-
-        show topMsg ++ prettyPosWithSource pos file "\nParse error:" ++ err
--}
+      ConfigParseError errs -> text (unlines errs)
       SetRootFailed ioe ->
         hang topMsg
            4 (hang "Failed to set project root:"
@@ -63,5 +60,3 @@ loadConfig path =
            tryIOError
              do setCurrentDirectory (takeDirectory filePath FP.</> root config)
                 pure config
-
-
