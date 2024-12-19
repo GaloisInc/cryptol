@@ -33,9 +33,9 @@ import Cryptol.Parser.Position (Located(..))
 
 -- | Load a project.
 -- Returns information about the modules that are part of the project.
-loadProject :: Config -> M.ModuleM (Map CacheModulePath FullFingerprint, Map ModulePath ScanStatus, Map CacheModulePath (Maybe Bool))
-loadProject cfg =
-   do (fps, statuses, out) <- runLoadM cfg (for_ (modules cfg) scanPath >> getOldDocstringResults)
+loadProject :: Bool -> Config -> M.ModuleM (Map CacheModulePath FullFingerprint, Map ModulePath ScanStatus, Map CacheModulePath (Maybe Bool))
+loadProject refresh cfg =
+   do (fps, statuses, out) <- runLoadM refresh cfg (for_ (modules cfg) scanPath >> getOldDocstringResults)
       let deps = depMap [p | Scanned _ _ ps <- Map.elems statuses, p <- ps]
       let needLoad = [thing (P.mName m) | Scanned Changed _ ps <- Map.elems statuses, (m, _) <- ps]
       let order = loadOrder deps needLoad

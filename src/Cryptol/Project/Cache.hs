@@ -36,6 +36,7 @@ instance Toml.ToValue LoadCache where
 
 instance Toml.ToTable LoadCache where
   toTable x = Toml.table [
+    "version" Toml..= (1 :: Int), -- increase this to invalidate old files
     "modules" Toml..= [
       Toml.table $ [
         case k of
@@ -60,7 +61,8 @@ instance Toml.ToTable LoadCache where
 
 instance Toml.FromValue LoadCache where
   fromValue = Toml.parseTableFromValue
-   do kvs <- Toml.reqKeyOf "modules"
+   do 1 <- Toml.reqKey "version" :: Toml.ParseTable l Int
+      kvs <- Toml.reqKeyOf "modules"
            $ Toml.listOf \ _ix ->
              Toml.parseTableFromValue
              do k <- Toml.pickKey [

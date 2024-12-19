@@ -51,6 +51,7 @@ data Options = Options
   , optHelp            :: Bool
   , optBatch           :: ReplMode
   , optProject         :: Maybe FilePath
+  , optProjectRefresh  :: Bool
   , optCallStacks      :: Bool
   , optCommands        :: [String]
   , optColorMode       :: ColorMode
@@ -67,6 +68,7 @@ defaultOptions  = Options
   , optHelp            = False
   , optBatch           = InteractiveRepl
   , optProject         = Nothing
+  , optProjectRefresh  = False
   , optCallStacks      = True
   , optCommands        = []
   , optColorMode       = AutoColor
@@ -87,6 +89,9 @@ options  =
   , Option "p" ["project"] (ReqArg setProject "CRYPROJECT")
     ("Load and verify a Cryptol project using the provided project "
       ++ "configuration file or directory containing 'cryproject.toml'")
+  
+  , Option "" ["refresh-project"] (NoArg setProjectRefresh)
+    "Ignore a pre-existing cache file when loading a project."
 
   , Option "e" ["stop-on-error"] (NoArg setStopOnError)
     "stop script execution as soon as an error occurs."
@@ -148,6 +153,9 @@ setInteractiveBatchScript path = modify $ \ opts -> opts { optBatch = Interactiv
 
 setProject :: String -> OptParser Options
 setProject path = modify $ \opts -> opts { optProject = Just path }
+
+setProjectRefresh :: OptParser Options
+setProjectRefresh = modify $ \opts -> opts { optProjectRefresh = True }
 
 -- | Set the color mode of the terminal output.
 setColorMode :: String -> OptParser Options
@@ -240,6 +248,7 @@ main  = do
           (opts'', mConfig) <- setupProject opts'
           status <- repl (optCryptolrc opts'')
                          mConfig
+                         (optProjectRefresh opts'')
                          (optBatch opts'')
                          (optCallStacks opts'')
                          (optStopOnError opts'')

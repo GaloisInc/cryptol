@@ -2238,10 +2238,10 @@ checkModName mn =
 -- | Load a project.
 -- Note that this does not update the Cryptol environment, it only updates
 -- the project cache.
-loadProjectREPL :: Proj.Config -> REPL CommandResult
-loadProjectREPL cfg =
+loadProjectREPL :: Bool -> Proj.Config -> REPL CommandResult
+loadProjectREPL refresh cfg =
  do minp <- getModuleInput
-    (res, warnings) <- io $ M.runModuleM minp $ Proj.loadProject cfg
+    (res, warnings) <- io $ M.runModuleM minp $ Proj.loadProject refresh cfg
     printModuleWarnings warnings
     case res of
       Left err ->

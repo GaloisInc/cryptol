@@ -132,8 +132,12 @@ loadCryRC cryrc =
                            else return status
 
 -- | Haskeline-specific repl implementation.
-repl :: Cryptolrc -> Maybe Project.Config -> ReplMode -> Bool -> Bool -> REPL () -> IO CommandResult
-repl cryrc projectConfig replMode callStacks stopOnError begin =
+repl ::
+  Cryptolrc ->
+  Maybe Project.Config ->
+  Bool {- ^ refresh project -} ->
+  ReplMode -> Bool -> Bool -> REPL () -> IO CommandResult
+repl cryrc projectConfig projectRefresh replMode callStacks stopOnError begin =
   runREPL isBatch callStacks stdoutLogger replAction
 
  where
@@ -152,7 +156,7 @@ repl cryrc projectConfig replMode callStacks stopOnError begin =
        if crSuccess status then do
           begin
           case projectConfig of
-            Just config -> loadProjectREPL config
+            Just config -> loadProjectREPL projectRefresh config
             Nothing     -> crySession replMode stopOnError
        else return status
 

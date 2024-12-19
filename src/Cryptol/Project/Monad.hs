@@ -133,14 +133,15 @@ liftCallback f (LoadM m) =
 
 -- | Run a LoadM computation using the given configuration.
 runLoadM ::
+  Bool {- ^ force a refresh -} ->
   Config ->
   LoadM NoErr a ->
   M.ModuleM (Map CacheModulePath FullFingerprint, Map ModulePath ScanStatus, Either ModuleError a)
-runLoadM cfg (LoadM m) =
+runLoadM refresh cfg (LoadM m) =
   do loadCfg <-
        M.io
          do path  <- canonicalizePath (root cfg)
-            cache <- loadLoadCache
+            cache <- if refresh then pure emptyLoadCache else loadLoadCache
             pure LoadConfig { canonRoot = path
                             , loadCache = cache
                             }
