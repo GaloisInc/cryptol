@@ -20,8 +20,8 @@ import Control.DeepSeq
 import qualified Control.Exception as X
 import qualified Control.Monad.Fail as Fail
 
-import Data.Set(Set)
-import qualified Data.Set as Set
+import Data.Map.Strict(Map)
+import qualified Data.Map.Strict as Map
 import Data.ByteString (ByteString)
 import Data.Either (partitionEithers)
 import Data.Text(Text)
@@ -38,12 +38,13 @@ import Cryptol.Parser.AST
 import Cryptol.Parser.LexerUtils (Config(..),defaultConfig)
 import Cryptol.Parser.ParserUtils
 import Cryptol.Parser.Unlit (guessPreProc)
+import Cryptol.ModuleSystem.Fingerprint
 
 removeIncludesModule ::
   (FilePath -> IO ByteString) ->
   FilePath ->
   Module PName ->
-  IO (Either [IncludeError] (Module PName, Set FilePath))
+  IO (Either [IncludeError] (Module PName, Map FilePath Fingerprint))
 removeIncludesModule reader modPath m =
   runNoIncM reader modPath (noIncludeModule m)
 
@@ -82,7 +83,7 @@ newtype NoIncM a = M
            IO
          )) a }
 
-type Deps = Set FilePath
+type Deps = Map FilePath Fingerprint
 
 data Env = Env { envSeen       :: [Located FilePath]
                  -- ^ Files that have been loaded
@@ -106,7 +107,7 @@ runNoIncM reader sourcePath m =
                       , envIncPath = incPath
                       , envFileReader = reader
                       }
-                  Set.empty
+                  Map.empty
      pure
        do ok <- mb
           pure (ok,s)
@@ -135,10 +136,10 @@ fromIncPath path
     do Env { .. } <- ask
        return (envIncPath </> path)
 
-addDep :: FilePath -> NoIncM ()
-addDep path = M
+addDep :: FilePath -> Fingerprint -> NoIncM ()
+addDep path fp = M
   do s <- get
-     let s1 = Set.insert path s
+     let s1 = Map.insert path fp s
      s1 `seq` set s1
 
 
@@ -247,12 +248,13 @@ readInclude :: Located FilePath -> NoIncM Text
 readInclude path = do
   readBytes   <- envFileReader <$> M ask
   file        <- fromIncPath (thing path)
-  addDep file
   sourceBytes <- readBytes file `failsWith` handler
   sourceText  <- X.evaluate (T.decodeUtf8' sourceBytes) `failsWith` handler
   case sourceText of
     Left encodingErr -> M (raise [IncludeDecodeFailed path encodingErr])
-    Right txt -> return txt
+    Right txt -> do
+      addDep file (fingerprint sourceBytes)
+      return txt
   where
   handler :: X.IOException -> NoIncM a
   handler _ = includeFailed path

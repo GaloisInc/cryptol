@@ -57,17 +57,19 @@ cryptolError modErr warns =
       CantFindFile path ->
         (20050, [ ("path", jsonString path)
                 ])
-      BadUtf8 path ue ->
+      BadUtf8 path fp ue ->
         (20010, [ ("path", jsonShow path)
                 , ("error", jsonShow ue)
+                , ("fingerprint", jsonShow fp)
                 ])
       OtherIOError path exn ->
         (20060, [ ("path", jsonString path)
                 , ("error", jsonShow exn)
                 ])
-      ModuleParseError source message ->
+      ModuleParseError source fp message ->
         (20540, [ ("source", jsonShow source)
                 , ("error", jsonShow message)
+                , ("fingerprint", jsonShow fp)
                 ])
       RecursiveModules mods ->
         (20550, [ ("modules", jsonList (reverse (map jsonPretty mods)))

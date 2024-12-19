@@ -63,6 +63,7 @@ module Cryptol.REPL.Monad (
   , withRandomGen
   , setRandomGen
   , getRandomGen
+  , getModuleInput
 
     -- ** Config Options
   , EnvVal(..)
@@ -127,6 +128,7 @@ import Control.Monad.Base
 import qualified Control.Monad.Catch as Ex
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Control
+import qualified Data.ByteString as BS
 import Data.Char (isSpace, toLower)
 import Data.IORef
     (IORef,newIORef,readIORef,atomicModifyIORef)
@@ -701,6 +703,20 @@ withRandomGen repl =
       (result, g') <- repl g
       setRandomGen g'
       pure result
+
+getModuleInput :: REPL (M.ModuleInput IO)
+getModuleInput = do
+  evo <- getEvalOptsAction
+  env <- getModuleEnv
+  callStacks <- getCallStacks
+  tcSolver <- getTCSolver
+  pure M.ModuleInput
+    { minpCallStacks = callStacks
+    , minpEvalOpts   = evo
+    , minpByteReader = BS.readFile
+    , minpModuleEnv  = env
+    , minpTCSolver   = tcSolver
+    }
 
 -- | Given an existing qualified name, prefix it with a
 -- relatively-unique string. We make it unique by prefixing with a

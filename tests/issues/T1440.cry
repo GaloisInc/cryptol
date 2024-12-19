@@ -1,3 +1,5 @@
+module T1440 where
+
 import interface submodule X
 
 import submodule Y

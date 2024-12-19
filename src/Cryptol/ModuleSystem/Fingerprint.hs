@@ -14,14 +14,17 @@ module Cryptol.ModuleSystem.Fingerprint
   ) where
 
 import Control.DeepSeq          (NFData (rnf))
-import Crypto.Hash.SHA1         (hash)
-import Data.ByteString          (ByteString)
 import Control.Exception        (try)
+import Control.Monad            ((<$!>))
+import Crypto.Hash.SHA256       (hash)
+import Data.ByteString          (ByteString)
+import Data.Char (intToDigit, digitToInt, isHexDigit)
 import qualified Data.ByteString as B
-import qualified Data.Vector as Vector
+import qualified Toml
+import qualified Toml.Schema as Toml
 
 newtype Fingerprint = Fingerprint ByteString
-  deriving (Eq, Show)
+  deriving (Eq, Ord, Show, Read)
 
 instance NFData Fingerprint where
   rnf (Fingerprint fp) = rnf fp
@@ -31,21 +34,34 @@ fingerprint :: ByteString -> Fingerprint
 fingerprint = Fingerprint . hash
 
 -- | Attempt to compute the fingerprint of the file at the given path.
--- Returns 'Nothing' in the case of an error.
-fingerprintFile :: FilePath -> IO (Maybe Fingerprint)
+-- Returns 'Left' in the case of an error.
+fingerprintFile :: FilePath -> IO (Either IOError Fingerprint)
 fingerprintFile path =
   do res <- try (B.readFile path)
-     return $!
-       case res :: Either IOError ByteString of
-         Left{}  -> Nothing
-         Right b -> Just $! fingerprint b
+     return $! fingerprint <$!> (res :: Either IOError ByteString)
 
 fingerprintHexString :: Fingerprint -> String
 fingerprintHexString (Fingerprint bs) = B.foldr hex "" bs
   where
-  digits   = Vector.fromList "0123456789ABCDEF"
-  digit x  = digits Vector.! fromIntegral x
-  hex b cs = let (x,y) = divMod b 16
-             in digit x : digit y : cs
+  hex b cs = let (x,y) = divMod (fromIntegral b) 16
+             in intToDigit x : intToDigit y : cs
 
+fingerprintFromHexString :: String -> Maybe Fingerprint
+fingerprintFromHexString str = Fingerprint . B.pack <$> go str
+  where
+    go [] = Just []
+    go (x:y:z)
+      | isHexDigit x
+      , isHexDigit y
+      = (fromIntegral (digitToInt x * 16 + digitToInt y):) <$> go z
+    go _ = Nothing
 
+instance Toml.ToValue Fingerprint where
+  toValue = Toml.toValue . fingerprintHexString
+
+instance Toml.FromValue Fingerprint where
+  fromValue x =
+   do str <- Toml.fromValue x
+      case fingerprintFromHexString str of
+        Nothing -> Toml.failAt (Toml.valueAnn x) "malformed fingerprint hex-string"
+        Just fp -> pure fp

@@ -195,6 +195,6 @@ validateServerState =
         InMem{} -> continue
         InFile file ->
           do fp <- fingerprintFile file
-             if fp == Just (fiFingerprint (lmFileInfo lm))
+             if fp == Right (fiFingerprint (lmFileInfo lm))
                then continue
                else return False
