@@ -758,6 +758,10 @@ by corresponding type classes:
 >   , "lg2"        ~> vFinPoly $ \n -> pure $
 >                     VFun $ \v ->
 >                       vWord n <$> appOp1 lg2Wrap (fromVWord =<< v)
+>   , "toSignedInteger"
+>                  ~> vFinPoly $ \_n -> pure $
+>                     VFun $ \x ->
+>                     VInteger <$> (fromSignedVWord =<< x)
 >   -- Rational
 >   , "ratio"      ~> VFun $ \l -> pure $
 >                     VFun $ \r ->
