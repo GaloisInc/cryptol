@@ -247,7 +247,28 @@ Operations on Values
 >   where
 >     g (Nat n) = f n
 >     g Inf     = evalPanic "vFinPoly" ["Expected finite numeric type"]
-
+>
+> -- | Reduce a value to normal form.
+> forceValue :: Value -> E ()
+> forceValue v =
+>   case v of
+>     -- Values where the field is already is normal form
+>     VBit{}       -> pure ()
+>     VInteger{}   -> pure ()
+>     VRational{}  -> pure ()
+>     VFloat{}     -> pure ()
+>     -- Values with fields containing other values to reduce to normal form
+>     VList _ xs   -> forceValues xs
+>     VTuple xs    -> forceValues xs
+>     VRecord fs   -> forceValues $ map snd fs
+>     VEnum _ xs   -> forceValues xs
+>     -- Lambdas and other abstractions are already in normal form
+>     VFun{}       -> pure ()
+>     VPoly{}      -> pure ()
+>     VNumPoly{}   -> pure ()
+>   where
+>     forceValues :: [E Value] -> E ()
+>     forceValues = mapM_ (\x -> forceValue =<< x)
 
 Environments
 ------------
@@ -947,6 +968,13 @@ by corresponding type classes:
 >                           -- Note: the reference implementation simply
 >                           -- executes parmap sequentially
 >                           pure $ VList n (map f' xs')
+>
+>   , "deepseq"    ~> VPoly $ \_a -> pure $
+>                     VPoly $ \_b -> pure $
+>                     VFun $ \x -> pure $
+>                     VFun $ \y ->
+>                       do forceValue =<< x
+>                          y
 >
 >   , "error"      ~> VPoly $ \_a -> pure $
 >                     VNumPoly $ \_ -> pure $
