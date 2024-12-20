@@ -5,6 +5,7 @@ Implementation of the algorithms from the paper
   "Automated Analysis and Synthesis of Authenticated Encryption Schemes"
   by Viet Tung Hoang, Jonathan Katz, and Alex J. Malozemoff
 */
+module AE where
 
 parameter
   type A : *          // State type

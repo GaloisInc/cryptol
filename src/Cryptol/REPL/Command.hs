@@ -55,11 +55,14 @@ module Cryptol.REPL.Command (
   , handleCtrlC
   , sanitize
   , withRWTempFile
+  , printModuleWarnings
 
     -- To support Notebook interface (might need to refactor)
   , replParse
   , liftModuleCmd
   , moduleCmdResult
+
+  , loadProjectREPL
   ) where
 
 import Cryptol.REPL.Monad
@@ -106,6 +109,7 @@ import           Cryptol.Utils.PP hiding ((</>))
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.RecordMap
 import qualified Cryptol.Parser.AST as P
+import qualified Cryptol.Project as Proj
 import qualified Cryptol.Transform.Specialize as S
 import Cryptol.Symbolic
   ( ProverCommand(..), QueryType(..)
@@ -122,6 +126,7 @@ import Control.Monad.IO.Class(liftIO)
 import Text.Read (readMaybe)
 import Control.Applicative ((<|>))
 import qualified Data.Set as Set
+import qualified Data.Map.Strict as Map
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS8
@@ -129,7 +134,6 @@ import Data.Bits (shiftL, (.&.), (.|.))
 import Data.Char (isSpace,isPunctuation,isSymbol,isAlphaNum,isAscii)
 import Data.Function (on)
 import Data.List (intercalate, nub, isPrefixOf)
-import qualified Data.Map as Map
 import Data.Maybe (fromMaybe,mapMaybe,isNothing)
 import System.Environment (lookupEnv)
 import System.Exit (ExitCode(ExitSuccess))
@@ -155,6 +159,7 @@ import Prelude.Compat
 
 import qualified Data.SBV.Internals as SBV (showTDiff)
 import Data.Foldable (foldl')
+import qualified Cryptol.Project.Cache as Proj
 
 
 
@@ -1587,25 +1592,12 @@ getPrimMap :: REPL M.PrimMap
 getPrimMap  = liftModuleCmd M.getPrimMap
 
 liftModuleCmd :: M.ModuleCmd a -> REPL a
-liftModuleCmd cmd =
-  do evo <- getEvalOptsAction
-     env <- getModuleEnv
-     callStacks <- getCallStacks
-     tcSolver <- getTCSolver
-     let minp =
-             M.ModuleInput
-                { minpCallStacks = callStacks
-                , minpEvalOpts   = evo
-                , minpByteReader = BS.readFile
-                , minpModuleEnv  = env
-                , minpTCSolver   = tcSolver
-                }
-     moduleCmdResult =<< io (cmd minp)
+liftModuleCmd cmd = moduleCmdResult =<< io . cmd =<< getModuleInput
 
--- TODO: add filter for my exhaustie prop guards warning here
+-- TODO: add filter for my exhaustive prop guards warning here
 
-moduleCmdResult :: M.ModuleRes a -> REPL a
-moduleCmdResult (res,ws0) = do
+printModuleWarnings :: [M.ModuleWarning] -> REPL ()
+printModuleWarnings ws0 = do
   warnDefaulting  <- getKnownUser "warnDefaulting"
   warnShadowing   <- getKnownUser "warnShadowing"
   warnPrefixAssoc <- getKnownUser "warnPrefixAssoc"
@@ -1644,6 +1636,10 @@ moduleCmdResult (res,ws0) = do
          $ ws0
   names <- M.mctxNameDisp <$> getFocusedEnv
   mapM_ (rPrint . runDoc names . pp) ws
+
+moduleCmdResult :: M.ModuleRes a -> REPL a
+moduleCmdResult (res,ws) = do
+  printModuleWarnings ws
   case res of
     Right (a,me') -> setModuleEnv me' >> return a
     Left err      ->
@@ -1655,6 +1651,7 @@ moduleCmdResult (res,ws0) = do
                   do setEditPath file
                      return e
                 _ -> return err
+         names <- M.mctxNameDisp <$> getFocusedEnv
          raise (ModuleSystemError names e)
 
 
@@ -1987,7 +1984,7 @@ moduleInfoCmd isFile name
                        mapM_ (\j -> rPutStrLn ("     , " ++ f j)) is
                        rPutStrLn "     ]"
 
-       depList show               "includes" (Set.toList (M.fiIncludeDeps fi))
+       depList show               "includes" (Map.keys   (M.fiIncludeDeps fi))
        depList (show . show . pp) "imports"  (Set.toList (M.fiImportDeps  fi))
        depList show               "foreign"  (Map.toList (M.fiForeignDeps fi))
 
@@ -2194,53 +2191,111 @@ checkDocStringsCmd input
         pure emptyCommandResult { crSuccess = False }
       Just mn -> checkModName mn
 
+countOutcomes :: [[SubcommandResult]] -> (Int, Int, Int)
+countOutcomes = foldl' countOutcomes1 (0, 0, 0)
   where
+    countOutcomes1 (successes, nofences, failures) []
+      = (successes, nofences + 1, failures)
+    countOutcomes1 acc result = foldl' countOutcomes2 acc result
 
-    countOutcomes :: [[SubcommandResult]] -> (Int, Int, Int)
-    countOutcomes = foldl' countOutcomes1 (0, 0, 0)
-      where
-        countOutcomes1 (successes, nofences, failures) []
-          = (successes, nofences + 1, failures)
-        countOutcomes1 acc result = foldl' countOutcomes2 acc result
-
-        countOutcomes2 (successes, nofences, failures) result
-          | crSuccess (srResult result) = (successes + 1, nofences, failures)
-          | otherwise = (successes, nofences, failures + 1)
+    countOutcomes2 (successes, nofences, failures) result
+      | crSuccess (srResult result) = (successes + 1, nofences, failures)
+      | otherwise = (successes, nofences, failures + 1)
 
 
-    checkModName :: P.ModName -> REPL CommandResult
-    checkModName mn =
-     do env <- getModuleEnv
-        case M.lookupModule mn env of
+checkModName :: P.ModName -> REPL CommandResult
+checkModName mn =
+ do env <- getModuleEnv
+    case M.lookupModule mn env of
+      Nothing ->
+        case M.lookupSignature mn env of
           Nothing ->
-            case M.lookupSignature mn env of
-              Nothing ->
-               do rPutStrLn ("Module " ++ show input ++ " is not loaded")
-                  pure emptyCommandResult { crSuccess = False }
-              Just{} ->
-               do rPutStrLn "Skipping docstrings on interface module"
-                  pure emptyCommandResult
-
-          Just fe
-            | T.isParametrizedModule (M.lmdModule (M.lmData fe)) -> do
-              rPutStrLn "Skipping docstrings on parameterized module"
+           do rPutStrLn ("Module " ++ show mn ++ " is not loaded")
+              pure emptyCommandResult { crSuccess = False }
+          Just{} ->
+           do rPutStrLn "Skipping docstrings on interface module"
               pure emptyCommandResult
+      Just fe
+        | T.isParametrizedModule (M.lmdModule (M.lmData fe)) -> do
+          rPutStrLn "Skipping docstrings on parameterized module"
+          pure emptyCommandResult
+        | otherwise -> do
+          results <- checkDocStrings fe
+          let (successes, nofences, failures) = countOutcomes [concat (drFences r) | r <- results]
+          forM_ results $ \dr ->
+            unless (null (drFences dr)) $
+             do rPutStrLn ""
+                rPutStrLn ("\nChecking " ++ show (pp (drName dr)))
+                forM_ (drFences dr) $ \fence ->
+                  forM_ fence $ \line -> do
+                    rPutStrLn ""
+                    rPutStrLn (T.unpack (srInput line))
+                    rPutStr (srLog line)
+          rPutStrLn ""
+          rPutStrLn ("Successes: " ++ show successes ++ ", No fences: " ++ show nofences ++ ", Failures: " ++ show failures)
+          pure emptyCommandResult { crSuccess = failures == 0 }
 
-            | otherwise -> do
-              results <- checkDocStrings fe
-              let (successes, nofences, failures) = countOutcomes [concat (drFences r) | r <- results]
+-- | Load a project.
+-- Note that this does not update the Cryptol environment, it only updates
+-- the project cache.
+loadProjectREPL :: Bool -> Proj.Config -> REPL CommandResult
+loadProjectREPL refresh cfg =
+ do minp <- getModuleInput
+    (res, warnings) <- io $ M.runModuleM minp $ Proj.loadProject refresh cfg
+    printModuleWarnings warnings
+    case res of
+      Left err ->
+       do names <- M.mctxNameDisp <$> getFocusedEnv
+          rPrint (pp (ModuleSystemError names err))
+          pure emptyCommandResult { crSuccess = False }
 
-              forM_ results $ \dr ->
-                unless (null (drFences dr)) $
-                 do rPutStrLn ""
-                    rPutStrLn ("\nChecking " ++ show (pp (drName dr)))
-                    forM_ (drFences dr) $ \fence ->
-                      forM_ fence $ \line -> do
-                        rPutStrLn ""
-                        rPutStrLn (T.unpack (srInput line))
-                        rPutStr (srLog line)
+      Right ((fps, mp, docstringResults),env) ->
+       do setModuleEnv env
+          let cache0 = fmap (\fp -> Proj.CacheEntry { cacheDocstringResult = Nothing, cacheFingerprint = fp }) fps
+          (cache, success) <-
+            foldM (\(fpAcc, success) (k, v) -> 
+              case k of
+                M.InMem{} -> pure (fpAcc, success)
+                M.InFile path ->
+                  case v of
+                    Proj.Invalid e ->
+                     do rPrint ("Failed to process module:" <+> (text path <> ":") $$
+                                 indent 2 (ppInvalidStatus e))
+                        pure (fpAcc, False) -- report failure
+                    Proj.Scanned Proj.Unchanged _ ((m,_):_) ->
+                     do let name = P.thing (P.mName m)
+                        let prevResult = join (Map.lookup (Proj.CacheInFile path) docstringResults)
+                        case prevResult of
+                          Just True  -> rPrint ("Skipping unmodified module (tests passed): " <> pp name)
+                          Just False -> rPrint ("Skipping unmodified module (tests failed): " <> pp name)
+                          Nothing    -> rPrint ("Skipping unmodified module: " <> pp name)
+                        let fpAcc' = Map.adjust (\e -> e{ Proj.cacheDocstringResult = prevResult }) (Proj.CacheInFile path) fpAcc
+                        pure (fpAcc', success && prevResult == Just True) -- preserve success
+                    Proj.Scanned Proj.Changed _ ((m,_):_) ->
+                     do let name = P.thing (P.mName m)
+                        rPrint ("Checking docstrings on changed module: " <> pp name)
+                        checkRes <- checkModName name
+                        let fpAcc' = Map.adjust (\fp -> fp { Proj.cacheDocstringResult = Just (crSuccess checkRes) }) (Proj.CacheInFile path) fpAcc
+                        pure (fpAcc', success && crSuccess checkRes)
+                    Proj.Scanned _ _ [] -> panic "Cryptol.REPL.Command" ["malformed change entry"]
 
-              rPutStrLn ""
-              rPutStrLn ("Successes: " ++ show successes ++ ", No fences: " ++ show nofences ++ ", Failures: " ++ show failures)
+              ) (cache0, True) (Map.assocs mp)
 
-              pure emptyCommandResult { crSuccess = failures == 0 }
+          let (passing, failing, missing) =
+                foldl
+                  (\(a,b,c) x ->
+                    case Proj.cacheDocstringResult x of
+                      Nothing -> (a,b,c+1)
+                      Just True -> (a+1,b,c)
+                      Just False -> (a,b+1,c))
+                  (0::Int,0::Int,0::Int) (Map.elems cache)
+
+          rPutStrLn ("Passing: " ++ show passing ++ " Failing: " ++ show failing ++ " Missing: " ++ show missing)
+
+          io (Proj.saveLoadCache (Proj.LoadCache cache))
+          pure emptyCommandResult { crSuccess = success }
+
+ppInvalidStatus :: Proj.InvalidStatus -> Doc
+ppInvalidStatus = \case
+    Proj.InvalidModule modErr -> pp modErr
+    Proj.InvalidDep d _ -> "Error in dependency: " <> pp d

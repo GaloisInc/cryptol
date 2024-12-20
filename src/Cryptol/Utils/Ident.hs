@@ -23,6 +23,7 @@ module Cryptol.Utils.Ident
   , ModName
   , modNameToText
   , textToModName
+  , mainModName
   , modNameChunks
   , modNameChunksText
   , packModName
@@ -40,6 +41,7 @@ module Cryptol.Utils.Ident
   , modNameArg
   , modNameIfaceMod
   , modNameToNormalModName
+  , modNamesMatch
   , modNameIsNormal
 
     -- * Identifiers
@@ -161,6 +163,7 @@ modPathIsNormal p = modNameIsNormal m && all identIsNormal is
 --------------------------------------------------------------------------------
 -- | Top-level Module names are just text.
 data ModName = ModName Text MaybeAnon
+             | ModMain FilePath
   deriving (Eq,Ord,Show,Generic)
 
 instance NFData ModName
@@ -170,9 +173,10 @@ instance NFData ModName
 modNameArg :: ModName -> ModName
 modNameArg (ModName m fl) =
   case fl of
-    NormalName  -> ModName m AnonModArgName
-    _           -> panic "modNameArg" ["Name is not normal"]
-
+    NormalName        -> ModName m AnonModArgName
+    AnonModArgName    -> panic "modNameArg" ["Name is not normal"]
+    AnonIfaceModName  -> panic "modNameArg" ["Name is not normal"]
+modNameArg (ModMain _) = panic "modNameArg" ["Name is not normal"]
 
 -- | Change a normal module name to a module name to be used for an
 -- anonnymous interface.
@@ -180,23 +184,36 @@ modNameIfaceMod :: ModName -> ModName
 modNameIfaceMod (ModName m fl) =
   case fl of
     NormalName        -> ModName m AnonIfaceModName
-    _                 -> panic "modNameIfaceMod" ["Name is not normal"]
+    AnonModArgName    -> panic "modNameIfaceMod" ["Name is not normal"]
+    AnonIfaceModName  -> panic "modNameIfaceMod" ["Name is not normal"]
+modNameIfaceMod (ModMain _) = panic "modNameIfaceMod" ["Name is not normal"]
+
+modNameToNormalModName :: ModName -> ModName
+modNameToNormalModName (ModName t _) = ModName t NormalName
+modNameToNormalModName (ModMain p) = ModMain p
 
 -- | This is used when we check that the name of a module matches the
 -- file where it is defined.
-modNameToNormalModName :: ModName -> ModName
-modNameToNormalModName (ModName t _) = ModName t NormalName
+modNamesMatch :: ModName -> ModName -> Bool
+modNamesMatch (ModName a _) (ModName b _) = a == b
+modNamesMatch (ModMain a) (ModMain b) = a == b
+modNamesMatch _ _ = False
 
 modNameToText :: ModName -> Text
 modNameToText (ModName x fl) = maybeAnonText fl x
+modNameToText (ModMain _) = "Main"
 
 -- | This is useful when we want to hide anonymous modules.
 modNameIsNormal :: ModName -> Bool
 modNameIsNormal (ModName _ fl) = isNormal fl
+modNameIsNormal (ModMain _) = False
 
 -- | Make a normal module name out of text.
 textToModName :: T.Text -> ModName
 textToModName txt = ModName txt NormalName
+
+mainModName :: FilePath -> ModName
+mainModName = ModMain
 
 -- | Break up a module name on the separators, `Text` version.
 modNameChunksText :: ModName -> [T.Text]
@@ -209,6 +226,8 @@ modNameChunksText (ModName x fl) = unfoldr step x
         (a,b)
           | T.null b  -> Just (maybeAnonText fl str, b)
           | otherwise -> Just (a,T.drop (T.length modSep) b)
+modNameChunksText (ModMain _) = panic "modNameChunksText"
+  ["Cannot get chunks of main module name"]
 
 -- | Break up a module name on the separators, `String` version
 modNameChunks :: ModName -> [String]

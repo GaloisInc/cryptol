@@ -10,7 +10,7 @@ class TestFileDeps(unittest.TestCase):
         connect(verify=False)
         path = str(Path('tests','cryptol','test-files','Id.cry'))
         result = file_deps(path,True)
-        self.assertEqual(result['fingerprint'],"8A49C6A461AF276DF56C4FE4279BCFC51D891214")
+        self.assertEqual(result['fingerprint'],"8316fb4e38d33ec3b9f89d355597c058b2e4baf653bf18dc4ead7e166a8a32f8")
         self.assertEqual(result['foreign'],[])
         self.assertEqual(result['imports'],['Cryptol'])
         self.assertEqual(result['includes'],[])
