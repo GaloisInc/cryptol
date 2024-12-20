@@ -24,6 +24,10 @@
 * The REPL properly supports tab completion for the `:t` and `:check` commands.
   ([#1780](https://github.com/GaloisInc/cryptol/issues/1780))
 
+* Add support for incrementally loading projects via cryptol's `--project`
+  flag as documented in the reference manual.
+  ([#1641](https://github.com/GaloisInc/cryptol/issues/1641))
+
 # 3.2.0 -- 2024-08-20
 
 ## Language changes
