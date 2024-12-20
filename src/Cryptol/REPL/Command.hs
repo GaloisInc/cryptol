@@ -2264,10 +2264,13 @@ loadProjectREPL refresh cfg =
                         pure (fpAcc, False) -- report failure
                     Proj.Scanned Proj.Unchanged _ ((m,_):_) ->
                      do let name = P.thing (P.mName m)
-                        rPrint ("Skipping unmodified module: " <> pp name)
                         let prevResult = join (Map.lookup (Proj.CacheInFile path) docstringResults)
+                        case prevResult of
+                          Just True  -> rPrint ("Skipping unmodified module (tests passed): " <> pp name)
+                          Just False -> rPrint ("Skipping unmodified module (tests failed): " <> pp name)
+                          Nothing    -> rPrint ("Skipping unmodified module: " <> pp name)
                         let fpAcc' = Map.adjust (\e -> e{ Proj.cacheDocstringResult = prevResult }) (Proj.CacheInFile path) fpAcc
-                        pure (fpAcc', success) -- preserve success
+                        pure (fpAcc', success && prevResult == Just True) -- preserve success
                     Proj.Scanned Proj.Changed _ ((m,_):_) ->
                      do let name = P.thing (P.mName m)
                         rPrint ("Checking docstrings on changed module: " <> pp name)
