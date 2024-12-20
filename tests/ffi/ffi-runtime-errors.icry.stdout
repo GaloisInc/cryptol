@@ -18,8 +18,8 @@ No foreign implementation is loaded,
   or FFI calls are not supported in this context.
 
 cannot call foreign function Main::g
- No foreign implementation is loaded,
-   or FFI calls are not supported in this context.
+No foreign implementation is loaded,
+  or FFI calls are not supported in this context.
 cannot call foreign function Main::g
 No foreign implementation is loaded,
   or FFI calls are not supported in this context.
