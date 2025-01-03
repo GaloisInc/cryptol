@@ -95,10 +95,12 @@ jobs:
       - name: tags and pull requests
         shell: bash
         run: |
-          curl ${{ github.api_url }}/repos/${{ github.repository }}/pulls > pulls.json
+          curl --header 'authorization: Bearer ${{ secrets.GITHUB_TOKEN }}' \
+            ${{ github.api_url }}/repos/${{ github.repository }}/pulls > pulls.json
           head -n30 pulls.json
           echo There are $(cat pulls.json | nix run nixpkgs#jq -- length) pull requests
-          curl ${{ github.api_url }}/repos/${{ github.repository }}/tags > tags.json
+          curl --header 'authorization: Bearer ${{ secrets.GITHUB_TOKEN }}' \
+            ${{ github.api_url }}/repos/${{ github.repository }}/tags > tags.json
           head -n30 tags.json
           echo There are $(cat tags.json | nix run nixpkgs#jq -- length) tags
       - name: checkout all doc versions
