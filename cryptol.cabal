@@ -76,7 +76,7 @@ library
                        pretty-show,
                        process           >= 1.2,
                        sbv               >= 9.1 && < 10.11,
-                       simple-smt        >= 0.9.7,
+                       simple-smt        >= 0.9.8,
                        stm               >= 2.4,
                        strict,
                        text              >= 1.1,
