@@ -1,0 +1,3 @@
+add_mul_lemma : [64] -> [64] -> [64] -> Bit
+add_mul_lemma m n p =
+  m * (n + p) == (m * n) + (m * p)

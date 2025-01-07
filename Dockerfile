@@ -46,7 +46,8 @@ RUN    ! $(cryptol -c ":s prover=yices" | tail -n +2 | grep -q .) \
     && ! $(cryptol -c ":s prover=cvc4" | tail -n +2 | grep -q .) \
     && ! $(cryptol -c ":s prover=cvc5" | tail -n +2 | grep -q .) \
     && ! $(cryptol -c ":s prover=abc" | tail -n +2 | grep -q .) \
-    # && ! $(cryptol -c ":s prover=boolector" | tail -n +2 | grep -q .) \
+    && ! $(cryptol -c ":s prover=bitwuzla" | tail -n +2 | grep -q .) \
+    && ! $(cryptol -c ":s prover=boolector" | tail -n +2 | grep -q .) \
     && ! $(cryptol -c ":s prover=z3" | tail -n +2 | grep -q .)
 RUN mkdir -p rootfs/"${CRYPTOLPATH}" \
     && cp -r lib/* rootfs/"${CRYPTOLPATH}"

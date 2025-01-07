@@ -28,6 +28,11 @@
   flag as documented in the reference manual.
   ([#1641](https://github.com/GaloisInc/cryptol/issues/1641))
 
+* Add support for the Bitwuzla SMT solver, which can be selected with
+  `:set prover=bitwuzla`. If you want to specify a What4 or SBV backend, you can
+  use `:set prover=w4-bitwuzla` or `:set prover=sbv-bitwuzla`, respectively.
+  ([#1786](https://github.com/GaloisInc/cryptol/issues/1786))
+
 # 3.2.0 -- 2024-08-20
 
 ## Language changes
