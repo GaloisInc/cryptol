@@ -22,7 +22,15 @@ import sphinx_rtd_theme
 # -- Project information -----------------------------------------------------
 
 project = 'Cryptol'
-copyright = '2024, The Cryptol Team'
+
+# n.b. do not use a space or comma after the year in the copyright message:
+# Sphinx + SOURCE_DATE_EPOCH settings (likely to occur in CI docker runners) will
+# cause undocumented replacement of the year; see
+# https://github.com/sphinx-doc/sphinx/blob/74ec2204795481402322e75752547571a553cc4e/sphinx/config.py#L721
+# and
+# https://github.com/sphinx-doc/sphinx/blob/74ec2204795481402322e75752547571a553cc4e/sphinx/config.py#L765-L766
+copyright = '2024: The Cryptol Team'
+
 author = 'The Cryptol Team'
 
 # The short X.Y version
