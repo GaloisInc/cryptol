@@ -15,6 +15,9 @@
   were incorrectly computed.
   ([#1773](https://github.com/GaloisInc/cryptol/issues/1773))
 
+* The reference evaluator now evaluates the `toSignedInteger` and `deepseq`
+  primitives instead of panicking.
+
 ## New features
 
 * REPL command `:dumptests <FILE> <EXPR>` updated to write to stdout when

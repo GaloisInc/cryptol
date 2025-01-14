@@ -1,0 +1,17 @@
+// toSignedInteger
+
+toSignedInteger (0 : [64])
+:eval toSignedInteger (0 : [64])
+toSignedInteger (1 : [64])
+:eval toSignedInteger (1 : [64])
+toSignedInteger (2^^63 - 1 : [64])
+:eval toSignedInteger (2^^63 - 1 : [64])
+toSignedInteger (-1 : [64])
+:eval toSignedInteger (-1 : [64])
+toSignedInteger (-(2^^63) : [64])
+:eval toSignedInteger (-(2^^63) : [64])
+
+// deepseq
+
+deepseq ((), undefined`{()}) True
+:eval deepseq ((), undefined`{()}) True
