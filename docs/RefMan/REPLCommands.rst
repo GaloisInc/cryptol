@@ -89,7 +89,7 @@ Commands
     no argument, check all properties.)
 
     If the expression is successfully proven, the screen will display ``Q.E.D``.
-    If not, the screen will display some counterexamples that return false.
+    If not, the screen will display a counterexample that returns false.
 
 ``:q``, ``:quit``
     Exit the REPL.
@@ -201,11 +201,12 @@ Commands
 ``:set prover``
     **Default value:** ``z3``
 
-    **Valid values:** ``cvc4``, ``cvc5``, ``yices``, ``z3``, ``boolector``, 
-    ``mathsat``, ``abc``, ``offline``, ``any``, ``sbv-cvc4``, ``sbv-cvc5``, 
-    ``sbv-yices``, ``sbv-z3``, ``sbv-boolector``, ``sbv-mathsat``, ``sbv-abc``, 
-    ``sbv-offline``, ``sbv-any``, ``w4-cvc4``, ``w4-cvc5``, ``w4-yices``, 
-    ``w4-z3``, ``w4-boolector``, ``w4-abc``, ``w4-offline``, ``w4-any``
+    **Valid values:** ``cvc4``, ``cvc5``, ``yices``, ``z3``, ``boolector``,
+    ``mathsat``, ``abc``, ``bitwuzla``, ``offline``, ``any``, ``sbv-cvc4``,
+    ``sbv-cvc5``, ``sbv-yices``, ``sbv-z3``, ``sbv-boolector``, ``sbv-mathsat``,
+    ``sbv-abc``, ``sbv-bitwuzla``, ``sbv-offline``, ``sbv-any``, ``w4-cvc4``,
+    ``w4-cvc5``, ``w4-yices``, ``w4-z3``, ``w4-boolector``, ``w4-abc``,
+    ``w4-bitwuzla``, ``w4-offline``, ``w4-any``
 
     The external SMT solver for ``:prove`` and ``:sat``
 
