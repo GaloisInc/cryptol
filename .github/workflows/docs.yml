@@ -184,10 +184,10 @@ jobs:
           done
           cp docs/index.html docs/RefMan/_build/index.html
       - name: upload pages artifact
-        uses: actions/upload-pages-artifact@v1
+        uses: actions/upload-pages-artifact@v3
         with:
           path: 'docs/RefMan/_build'
       - name: Deploy to github pages
         id: deployment
-        uses: actions/deploy-pages@v2
+        uses: actions/deploy-pages@v4
 
