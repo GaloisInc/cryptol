@@ -226,8 +226,7 @@ modNameChunksText (ModName x fl) = unfoldr step x
         (a,b)
           | T.null b  -> Just (maybeAnonText fl str, b)
           | otherwise -> Just (a,T.drop (T.length modSep) b)
-modNameChunksText (ModMain _) = panic "modNameChunksText"
-  ["Cannot get chunks of main module name"]
+modNameChunksText (ModMain _) =  ["Main"]
 
 -- | Break up a module name on the separators, `String` version
 modNameChunks :: ModName -> [String]
