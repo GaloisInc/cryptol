@@ -988,6 +988,17 @@ userOptions  = mkOptionMap
                           setModuleEnv me { M.meMonoBinds = b }
           _         -> return ()
 
+  , OptionDescr "tcSmtFile" ["tc-smt-file"] (EnvString "-") noCheck
+    (unlines
+      [ "The file to record SMT solver interactions in the type checker (for debugging or offline proving)."
+      , "Use \"-\" for stdout." ]) $
+    \case EnvString fileName -> do let mfile = if fileName == "-" then Nothing else Just fileName
+                                   modifyRW_ (\rw -> rw { eTCConfig = (eTCConfig rw)
+                                                                       { T.solverSmtFile = mfile
+                                                                       }})
+                                   resetTCSolver
+          _                  -> return ()
+
   , OptionDescr "tcSolver" ["tc-solver"] (EnvProg "z3" [ "-smt2", "-in" ])
     noCheck  -- TODO: check for the program in the path
     "The solver that will be used by the type checker." $
