@@ -89,7 +89,7 @@ RUN chown -R root:root /cryptol/rootfs
 
 FROM ubuntu:22.04
 RUN apt-get update \
-    && apt-get install -y libgmp10 libgomp1 libffi8 libncurses6 libtinfo6 libreadline8 libnuma-dev openssl \
+    && apt-get install -y libgmp10 libgomp1 libffi8 libncurses6 libtinfo6 libreadline8 libnuma1 openssl \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 RUN useradd -m cryptol && chown -R cryptol:cryptol /home/cryptol
 COPY --from=build /cryptol/rootfs /
