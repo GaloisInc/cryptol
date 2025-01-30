@@ -187,7 +187,7 @@ jobs:
       - if: runner.os == 'Windows'
         run: .github/wix.ps1
 
-      - if: runner.os == 'Windows' && github.event.pull_request.head.repo.fork == false
+      - if: runner.os == 'Windows' && github.event.pull_request.head.repo.fork == false && github.repository_owner == 'GaloisInc'
         shell: bash
         env:
           SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
@@ -212,7 +212,7 @@ jobs:
           OS_TAG: ${{ matrix.os }}
           ARCH_TAG: ${{ runner.arch }}
 
-      - if: github.event.pull_request.head.repo.fork == false
+      - if: github.event.pull_request.head.repo.fork == false && github.repository_owner == 'GaloisInc'
         shell: bash
         env:
           SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
@@ -413,7 +413,7 @@ jobs:
   build-push-image:
     runs-on: ubuntu-22.04
     needs: [config]
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.config.outputs.release == 'true'
+    if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.config.outputs.release == 'true') && github.repository_owner == 'GaloisInc'
     strategy:
       fail-fast: false
       matrix:
