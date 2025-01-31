@@ -14,6 +14,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 -- See Note [-Wincomplete-uni-patterns and irrefutable patterns] in Cryptol.TypeCheck.TypePat
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 module Cryptol.REPL.Command (
@@ -160,6 +161,7 @@ import Prelude.Compat
 import qualified Data.SBV.Internals as SBV (showTDiff)
 import Data.Foldable (foldl')
 import qualified Cryptol.Project.Cache as Proj
+import Cryptol.Project.Monad (LoadProjectMode)
 
 
 
@@ -2165,7 +2167,28 @@ checkDocStrings :: M.LoadedModule -> REPL [DocstringResult]
 checkDocStrings m = do
   let dat = M.lmdModule (M.lmData m)
   let ds = T.gatherModuleDocstrings (M.ifaceNameToModuleMap (M.lmInterface m)) dat
-  traverse checkDocItem ds
+  results <- traverse checkDocItem ds
+  updateDocstringCache m (all checkDocstringResult results)
+  pure results
+
+checkDocstringResult :: DocstringResult -> Bool
+checkDocstringResult r = all (all (crSuccess . srResult)) (drFences r)
+
+updateDocstringCache :: M.LoadedModule -> Bool -> REPL ()
+updateDocstringCache m result =
+ do cache <- io Proj.loadLoadCache
+    case M.lmFilePath m of
+      M.InMem{} -> pure ()
+      M.InFile fp ->
+        case Map.lookup (Proj.CacheInFile fp) (Proj.cacheModules cache) of
+          Nothing -> pure ()
+          Just entry ->
+            if Proj.moduleFingerprint (Proj.cacheFingerprint entry) /= M.fiFingerprint (M.lmFileInfo m)
+              then pure ()
+              else
+                do let entry' = entry { Proj.cacheDocstringResult = Just result }
+                   let cache' = cache { Proj.cacheModules = Map.insert (Proj.CacheInFile fp) entry' (Proj.cacheModules cache) }
+                   io (Proj.saveLoadCache cache')  
 
 -- | Evaluate all the docstrings in the specified module.
 --
@@ -2238,10 +2261,10 @@ checkModName mn =
 -- | Load a project.
 -- Note that this does not update the Cryptol environment, it only updates
 -- the project cache.
-loadProjectREPL :: Bool -> Proj.Config -> REPL CommandResult
-loadProjectREPL refresh cfg =
+loadProjectREPL :: LoadProjectMode -> Proj.Config -> REPL CommandResult
+loadProjectREPL mode cfg =
  do minp <- getModuleInput
-    (res, warnings) <- io $ M.runModuleM minp $ Proj.loadProject refresh cfg
+    (res, warnings) <- io $ M.runModuleM minp $ Proj.loadProject mode cfg
     printModuleWarnings warnings
     case res of
       Left err ->
@@ -2264,13 +2287,24 @@ loadProjectREPL refresh cfg =
                         pure (fpAcc, False) -- report failure
                     Proj.Scanned Proj.Unchanged _ ((m,_):_) ->
                      do let name = P.thing (P.mName m)
-                        let prevResult = join (Map.lookup (Proj.CacheInFile path) docstringResults)
-                        case prevResult of
-                          Just True  -> rPrint ("Skipping unmodified module (tests passed): " <> pp name)
-                          Just False -> rPrint ("Skipping unmodified module (tests failed): " <> pp name)
-                          Nothing    -> rPrint ("Skipping unmodified module: " <> pp name)
-                        let fpAcc' = Map.adjust (\e -> e{ Proj.cacheDocstringResult = prevResult }) (Proj.CacheInFile path) fpAcc
-                        pure (fpAcc', success && prevResult == Just True) -- preserve success
+                        case join (Map.lookup (Proj.CacheInFile path) docstringResults) of
+                          Just True  ->
+                           do rPrint ("Skipping unmodified module (tests passed): " <> pp name)
+                              let fpAcc' = Map.adjust (\e -> e{ Proj.cacheDocstringResult = Just True }) (Proj.CacheInFile path) fpAcc
+                              pure (fpAcc', success) -- preserve success
+
+                          Just False -> 
+                           do rPrint ("Skipping unmodified module (tests failed): " <> pp name) 
+                              let fpAcc' = Map.adjust (\e -> e{ Proj.cacheDocstringResult = Just False }) (Proj.CacheInFile path) fpAcc
+                              pure (fpAcc', False) -- preserve failure
+
+                          Nothing ->
+                           do rPrint ("Checking docstrings on unmodified missing with missing test results: " <> pp name)
+                              checkRes <- checkModName name
+                              let success1 = crSuccess checkRes
+                              let fpAcc' = Map.adjust (\e -> e{ Proj.cacheDocstringResult = Just success1 }) (Proj.CacheInFile path) fpAcc
+                              pure (fpAcc', success && success1)
+
                     Proj.Scanned Proj.Changed _ ((m,_):_) ->
                      do let name = P.thing (P.mName m)
                         rPrint ("Checking docstrings on changed module: " <> pp name)

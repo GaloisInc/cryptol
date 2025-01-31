@@ -208,7 +208,8 @@ modNameIsNormal :: ModName -> Bool
 modNameIsNormal (ModName _ fl) = isNormal fl
 modNameIsNormal (ModMain _) = False
 
--- | Make a normal module name out of text.
+-- | Make a normal module name out of text. This function should not
+-- be used to build a @Main@ module name. See 'mainModName'.
 textToModName :: T.Text -> ModName
 textToModName txt = ModName txt NormalName
 
@@ -216,6 +217,8 @@ mainModName :: FilePath -> ModName
 mainModName = ModMain
 
 -- | Break up a module name on the separators, `Text` version.
+-- For the main module this will forget the filename that
+-- corresponds to this module and will only report @["Main"]@
 modNameChunksText :: ModName -> [T.Text]
 modNameChunksText (ModName x fl) = unfoldr step x
   where

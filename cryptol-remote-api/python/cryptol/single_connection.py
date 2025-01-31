@@ -131,6 +131,16 @@ def load_file(filename : str, *, timeout:Optional[float] = None) -> None:
     """
     __get_designated_connection().load_file(filename, timeout=timeout)
 
+def load_project(path : str, mode: str, *, timeout:Optional[float] = None) -> Any:
+    """Load project. In refresh mode all of the project modules are loaded.
+    Otherwise only the modules affected by a change are loaded.
+    """
+    return __get_designated_connection().load_project(path, mode, timeout=timeout)
+
+def check_docstrings(*, timeout:Optional[float] = None) -> Any:
+    """Check loaded module docstrings."""
+    return __get_designated_connection().check_docstrings(timeout=timeout)
+
 def load_module(module_name : str, *, timeout:Optional[float] = None) -> None:
     """Load a Cryptol module, like ``:module`` at the Cryptol REPL."""
     __get_designated_connection().load_module(module_name, timeout=timeout)
@@ -239,6 +249,10 @@ def property_names(*, timeout:Optional[float] = None) -> List[cryptoltypes.Crypt
 def focused_module(*, timeout:Optional[float] = None) -> cryptoltypes.CryptolModuleInfo:
     """Returns the name and other information about the currently-focused module."""
     return __get_designated_connection().focused_module(timeout=timeout)
+
+def focus_module(name: str, *, timeout:Optional[float] = None) -> None:
+    """Focus on an already loaded module."""
+    __get_designated_connection().focus_module(name, timeout=timeout)
 
 def version(*, timeout:Optional[float] = None) -> CryptolVersionInfo:
     """Returns version information about the Cryptol server."""

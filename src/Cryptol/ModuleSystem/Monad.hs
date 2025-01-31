@@ -41,6 +41,7 @@ import           Cryptol.Parser.Position (Range, Located)
 import           Cryptol.Utils.Ident (interactiveName, noModuleName)
 import           Cryptol.Utils.PP
 import           Cryptol.Utils.Logger(Logger)
+import qualified Cryptol.Project.Config as Proj
 
 import qualified Control.Monad.Fail as Fail
 import Control.Monad.IO.Class
@@ -121,7 +122,7 @@ data ModuleError
     -- ^ Two modules loaded from different files have the same module name
   | FFILoadErrors P.ModName [FFILoadError]
     -- ^ Errors loading foreign function implementations
-
+  | ConfigLoadError Proj.ConfigLoadError
   | ErrorInFile ModulePath ModuleError
     -- ^ This is just a tag on the error, indicating the file containing it.
     -- It is convenient when we had to look for the module, and we'd like
@@ -149,6 +150,7 @@ instance NFData ModuleError where
     OtherFailure x                       -> x `deepseq` ()
     FFILoadErrors x errs                 -> x `deepseq` errs `deepseq` ()
     ErrorInFile x y                      -> x `deepseq` y `deepseq` ()
+    ConfigLoadError x                    -> x `seq` ()
 
 instance PP ModuleError where
   ppPrec prec e = case e of
@@ -209,6 +211,8 @@ instance PP ModuleError where
       hang (text "[error] Failed to load foreign implementations for module"
             <+> pp x <.> colon)
          4 (vcat $ map pp errs)
+      
+    ConfigLoadError err -> pp err
 
     ErrorInFile _ x -> ppPrec prec x
 
