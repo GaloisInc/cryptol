@@ -187,6 +187,10 @@ jobs:
       - if: runner.os == 'Windows'
         run: .github/wix.ps1
 
+      # Do not run this on forks. It isn't sufficient to check the pull
+      # request info because we might also be on master in a fork. It
+      # seems that you can't stop scheduled jobs from also running in
+      # forks. See https://github.com/orgs/community/discussions/16109.
       - if: runner.os == 'Windows' && github.event.pull_request.head.repo.fork == false && github.repository_owner == 'GaloisInc'
         shell: bash
         env:
@@ -212,6 +216,10 @@ jobs:
           OS_TAG: ${{ matrix.os }}
           ARCH_TAG: ${{ runner.arch }}
 
+      # Do not run this on forks. It isn't sufficient to check the pull
+      # request info because we might also be on master in a fork. It
+      # seems that you can't stop scheduled jobs from also running in
+      # forks. See https://github.com/orgs/community/discussions/16109.
       - if: github.event.pull_request.head.repo.fork == false && github.repository_owner == 'GaloisInc'
         shell: bash
         env:
@@ -413,6 +421,9 @@ jobs:
   build-push-image:
     runs-on: ubuntu-22.04
     needs: [config]
+    # Do not run this on forks. It seems that you can't stop scheduled
+    # jobs from also running in forks. See
+    # https://github.com/orgs/community/discussions/16109.
     if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.config.outputs.release == 'true') && github.repository_owner == 'GaloisInc'
     strategy:
       fail-fast: false
