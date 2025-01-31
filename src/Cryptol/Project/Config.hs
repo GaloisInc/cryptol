@@ -18,6 +18,12 @@ data Config = Config
   , modules :: [FilePath]
   }
 
+data LoadProjectMode
+  = RefreshMode  -- load all files
+  | ModifiedMode -- load modified files
+  | UntestedMode -- load files without a successful test result
+  deriving Show
+
 instance FromValue Config where
   fromValue =
     parseTableFromValue
@@ -29,10 +35,12 @@ instance FromValue Config where
          }
 
 data ConfigLoadError = ConfigLoadError FilePath ConfigLoadErrorInfo
+  deriving Show
 
 data ConfigLoadErrorInfo
   = ConfigParseError [String]
   | SetRootFailed IOError
+  deriving Show
 
 instance PP ConfigLoadError where
   ppPrec _ (ConfigLoadError path info) =

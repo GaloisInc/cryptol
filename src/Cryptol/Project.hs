@@ -6,6 +6,7 @@ module Cryptol.Project
   , ScanStatus(..)
   , ChangeStatus(..)
   , InvalidStatus(..)
+  , LoadProjectMode(..)
   , Parsed
   , loadProject
   , depMap
@@ -33,11 +34,21 @@ import Cryptol.Parser.Position (Located(..))
 
 -- | Load a project.
 -- Returns information about the modules that are part of the project.
-loadProject :: Bool -> Config -> M.ModuleM (Map CacheModulePath FullFingerprint, Map ModulePath ScanStatus, Map CacheModulePath (Maybe Bool))
-loadProject refresh cfg =
-   do (fps, statuses, out) <- runLoadM refresh cfg (for_ (modules cfg) scanPath >> getOldDocstringResults)
+loadProject :: LoadProjectMode -> Config -> M.ModuleM (Map CacheModulePath FullFingerprint, Map ModulePath ScanStatus, Map CacheModulePath (Maybe Bool))
+loadProject mode cfg =
+   do (fps, statuses, out) <- runLoadM mode cfg (for_ (modules cfg) scanPath >> getOldDocstringResults)
       let deps = depMap [p | Scanned _ _ ps <- Map.elems statuses, p <- ps]
-      let needLoad = [thing (P.mName m) | Scanned Changed _ ps <- Map.elems statuses, (m, _) <- ps]
+      
+      let untested (InMem{}) = False
+          untested (InFile f) =
+            case out of
+              Left _ -> True
+              Right m -> Map.lookup (CacheInFile f) m /= Just (Just True)
+
+      let needLoad = case mode of
+            RefreshMode  -> [thing (P.mName m) | Scanned _ _ ps <- Map.elems statuses, (m, _) <- ps]
+            ModifiedMode -> [thing (P.mName m) | Scanned Changed _ ps <- Map.elems statuses, (m, _) <- ps]
+            UntestedMode -> [thing (P.mName m) | (k, Scanned ch _ ps) <- Map.assocs statuses, ch == Changed || untested k,  (m, _) <- ps]
       let order = loadOrder deps needLoad
 
       let modDetails = Map.fromList [(thing (P.mName m), (m, mp, fp)) | (mp, Scanned _ fp ps) <- Map.assocs statuses, (m, _) <- ps]

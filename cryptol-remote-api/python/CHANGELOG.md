@@ -5,6 +5,12 @@
 * Add `modules` command to return the modules, submodules and associated
   documentation for them.
 
+* Add `focus module` command to set the current module for evaluation
+  and running tests.
+
+* Add `check docstrings` to run the docstring tests on the currently
+  focused module.
+
 ## 3.2.1 -- 2024-08-18
 
 * Require building with `argo-client-0.0.13` or later. `argo-client-0.0.13` uses

@@ -41,12 +41,10 @@ import CryptolServer
 import CryptolServer.Call ( call )
 import CryptolServer.Data.Expression ( Expression )
 import CryptolServer.Data.Type ( JSONSchema )
-import CryptolServer.EvalExpr
-    ( evalExpressionDescr, evalExpression )
-import CryptolServer.ExtendSearchPath
-    ( extSearchPath, extSearchPathDescr )
-import CryptolServer.FocusedModule
-    ( focusedModuleDescr, focusedModule )
+import CryptolServer.EvalExpr (evalExpressionDescr, evalExpression)
+import CryptolServer.ExtendSearchPath (extSearchPath, extSearchPathDescr)
+import CryptolServer.FocusedModule (focusedModuleDescr, focusedModule)
+import CryptolServer.FocusModule (focusModule, focusModuleDescr)
 import CryptolServer.Names ( visibleNamesDescr, visibleNames )
 import CryptolServer.Modules ( visibleModulesDescr, visibleModules )
 import CryptolServer.TypeCheck ( checkType )
@@ -141,6 +139,10 @@ cryptolEvalMethods =
      "focused module"
      focusedModuleDescr
      focusedModule
+  , command
+     "focus module"
+     focusModuleDescr
+     focusModule
   , command
      "evaluate expression"
      evalExpressionDescr

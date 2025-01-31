@@ -43,6 +43,7 @@ import           System.IO (stdout)
 
 import           Prelude ()
 import           Prelude.Compat
+import Cryptol.Project.Monad (LoadProjectMode)
 
 
 data ReplMode
@@ -135,9 +136,9 @@ loadCryRC cryrc =
 repl ::
   Cryptolrc ->
   Maybe Project.Config ->
-  Bool {- ^ refresh project -} ->
+  LoadProjectMode {- ^ refresh project -} ->
   ReplMode -> Bool -> Bool -> REPL () -> IO CommandResult
-repl cryrc projectConfig projectRefresh replMode callStacks stopOnError begin =
+repl cryrc projectConfig loadProjectMode replMode callStacks stopOnError begin =
   runREPL isBatch callStacks stdoutLogger replAction
 
  where
@@ -156,7 +157,7 @@ repl cryrc projectConfig projectRefresh replMode callStacks stopOnError begin =
        if crSuccess status then do
           begin
           case projectConfig of
-            Just config -> loadProjectREPL projectRefresh config
+            Just config -> loadProjectREPL loadProjectMode config
             Nothing     -> crySession replMode stopOnError
        else return status
 
