@@ -47,7 +47,10 @@ jobs:
             -p 'python3.withPackages (pp: [pp.sphinx pp.sphinx_rtd_theme])' \
             --run 'make html'
   build-pages-docs:
-    # Do not run this on forks:
+    # Do not run this on forks. It isn't sufficient to check the pull
+    # request info because we might also be on master in a fork. It
+    # seems that you can't stop scheduled jobs from also running in
+    # forks. See https://github.com/orgs/community/discussions/16109.
     if: github.event.pull_request.head.repo.fork == false && github.repository_owner == 'GaloisInc'
     runs-on: ubuntu-latest
     # The public interface should then allow the user to browse the cryptol
