@@ -5,17 +5,14 @@ Loading module AE
 Loading module Cryptol
 Loading module AES
 Loading module Cryptol
+Loading module OptionUtils
 Loading module ChaCha20
-[warning] at ChaChaPolyCryptolIETF.md:1984:5--1984:15
-    This binding for `cypherText` shadows the existing binding at
-    ChaChaPolyCryptolIETF.md:1982:24--1982:34
-[warning] at ChaChaPolyCryptolIETF.md:2062:20--2062:27
+[warning] at ChaChaPolyCryptolIETF.md:1998:5--1998:15
+    This binding for `cipherText` shadows the existing binding at
+    ChaChaPolyCryptolIETF.md:1996:24--1996:34
+[warning] at ChaChaPolyCryptolIETF.md:2076:20--2076:27
     This binding for `AeadAAD` shadows the existing binding at
-    ChaChaPolyCryptolIETF.md:1149:1--1149:8
-[warning] at ChaChaPolyCryptolIETF.md:340:32--340:33
-    Unused name: b
-[warning] at ChaChaPolyCryptolIETF.md:2117:20--2117:21
-    Unused name: b
+    ChaChaPolyCryptolIETF.md:1163:1--1163:8
 Loading module Cryptol
 Loading module Cipher
 Loading module Cryptol
