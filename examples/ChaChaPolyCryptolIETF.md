@@ -1,3 +1,15 @@
+<!---
+ - @copyright Galois, Inc.
+ - @author Yoav Nir
+ - @author Adam Langley
+ - @author Dylan McNamee
+ - @editor Ryan Scott <rscott@galois.com>
+ --->
+% (NOTE: This is taken from
+% Primitive::Symmetric::Cipher::Authenticated::ChaChaPolyCryptolIETF in the
+% https://github.com/GaloisInc/cryptol-specs repo. Any changes made to the
+% upstream repo should eventually be migrated over to this copy.)
+%
 % ChaCha20 and Poly1305 for IETF protocols
 % Y. Nir (Check Point),  A. Langley (Google Inc),  D. McNamee (Galois, Inc)
 % July 28, 2014
@@ -88,6 +100,8 @@ The elements in this vector or matrix are 32-bit unsigned integers.
 
 ```cryptol
 module ChaCha20 where
+
+import OptionUtils
 
 type ChaChaState = [16][32]
 ```
@@ -337,7 +351,7 @@ diagonal round needs to have an inverse permutation calculated, which we do
 here:
 
 ```cryptol
-inversePermutation (perms:[a+1]b) = [ indexOf i perms | i <- [ 0 .. a ] ]
+inversePermutation (perms:[a+1]_) = [ indexOf i perms | i <- [ 0 .. a ] ]
 invDiags = inversePermutation diags
 invCols  = inversePermutation columns // which happens to be the same as columns
 
@@ -1100,8 +1114,8 @@ AEAD_CHACHA20_POLY1305_DECRYPT : {m, n} (fin m, fin n
                                  ,64 >= width m, 64 >= width n)
                                  => [256] -> [96]
                                     -> [m+16][8] -> [n][8]
-                                    -> ([m][8], Bit)
-AEAD_CHACHA20_POLY1305_DECRYPT k nonce ct ad = (pt, valid) where
+                                    -> Option ([m][8])
+AEAD_CHACHA20_POLY1305_DECRYPT k nonce ct ad = if valid then Some pt else None where
     inTag = drop`{m}ct
     inCt = take`{m}ct
     PolyKey = GeneratePolyKeyUsingChaCha k nonce 0
@@ -1266,10 +1280,10 @@ property AeadTag_correct = AeadTag == AeadTagTestVector
 
 property AeadConstruction_correct = (AeadConstruction AeadAAD AeadCT) == AeadConstructionTestVector
 
-property AeadDecrypt_correct = ptMatches /\ isValid where
-    (pt,isValid) = AEAD_CHACHA20_POLY1305_DECRYPT AeadKey (AeadIV # AeadC) cypherText AeadAAD
-    cypherText   = (AEAD_CHACHA20_POLY1305 AeadKey (AeadIV # AeadC) AeadPt AeadAAD)
-    ptMatches    = AeadPt == pt
+property AeadDecrypt_correct = ptMatches where
+    opt        = AEAD_CHACHA20_POLY1305_DECRYPT AeadKey (AeadIV # AeadC) cipherText AeadAAD
+    cipherText = (AEAD_CHACHA20_POLY1305 AeadKey (AeadIV # AeadC) AeadPt AeadAAD)
+    ptMatches  = optFold False (\pt -> AeadPt == pt) opt
 
 ```
 
@@ -1593,7 +1607,7 @@ property all_block_tests_correct =
 ## ChaCha20 Encryption
 
 ```cryptol
-ChaCha20_enc_correct key nonce blockcounter plaintext cyphertext = ChaCha20EncryptBytes plaintext key nonce blockcounter == cyphertext
+ChaCha20_enc_correct key nonce blockcounter plaintext ciphertext = ChaCha20EncryptBytes plaintext key nonce blockcounter == ciphertext
 ```
 
 ### Test Vector #1
@@ -1605,13 +1619,13 @@ TV1_enc_BlockCounter = 0
 
 TV1_enc_plaintext = zero:[64][8]
 
-TV1_enc_cyphertext = [
+TV1_enc_ciphertext = [
 	0x76, 0xb8, 0xe0, 0xad, 0xa0, 0xf1, 0x3d, 0x90, 0x40, 0x5d, 0x6a, 0xe5, 0x53, 0x86, 0xbd, 0x28,
 	0xbd, 0xd2, 0x19, 0xb8, 0xa0, 0x8d, 0xed, 0x1a, 0xa8, 0x36, 0xef, 0xcc, 0x8b, 0x77, 0x0d, 0xc7,
 	0xda, 0x41, 0x59, 0x7c, 0x51, 0x57, 0x48, 0x8d, 0x77, 0x24, 0xe0, 0x3f, 0xb8, 0xd8, 0x4a, 0x37,
 	0x6a, 0x43, 0xb8, 0xf4, 0x15, 0x18, 0xa1, 0x1c, 0xc3, 0x87, 0xb6, 0x69, 0xb2, 0xee, 0x65, 0x86]
 
-property TV1_enc_correct = ChaCha20_enc_correct TV1_enc_Key TV1_enc_Nonce TV1_enc_BlockCounter TV1_enc_plaintext TV1_enc_cyphertext
+property TV1_enc_correct = ChaCha20_enc_correct TV1_enc_Key TV1_enc_Nonce TV1_enc_BlockCounter TV1_enc_plaintext TV1_enc_ciphertext
 
 ```
 
@@ -1651,7 +1665,7 @@ IETF_submission_text = [
 TV2_enc_plaintext = IETF_submission_text
 
 
-TV2_enc_cyphertext = [
+TV2_enc_ciphertext = [
 	0xa3, 0xfb, 0xf0, 0x7d, 0xf3, 0xfa, 0x2f, 0xde, 0x4f, 0x37, 0x6c, 0xa2, 0x3e, 0x82, 0x73, 0x70,
 	0x41, 0x60, 0x5d, 0x9f, 0x4f, 0x4f, 0x57, 0xbd, 0x8c, 0xff, 0x2c, 0x1d, 0x4b, 0x79, 0x55, 0xec,
 	0x2a, 0x97, 0x94, 0x8b, 0xd3, 0x72, 0x29, 0x15, 0xc8, 0xf3, 0xd3, 0x37, 0xf7, 0xd3, 0x70, 0x05,
@@ -1677,7 +1691,7 @@ TV2_enc_cyphertext = [
 	0x7a, 0xc6, 0x1d, 0xd2, 0x9c, 0x6f, 0x21, 0xba, 0x5b, 0x86, 0x2f, 0x37, 0x30, 0xe3, 0x7c, 0xfd,
 	0xc4, 0xfd, 0x80, 0x6c, 0x22, 0xf2, 0x21]
 
-property TV2_enc_correct = ChaCha20_enc_correct TV2_enc_Key TV2_enc_Nonce TV2_enc_BlockCounter TV2_enc_plaintext TV2_enc_cyphertext
+property TV2_enc_correct = ChaCha20_enc_correct TV2_enc_Key TV2_enc_Nonce TV2_enc_BlockCounter TV2_enc_plaintext TV2_enc_ciphertext
 
 ```
 
@@ -1703,7 +1717,7 @@ jabberwock_text = [
 TV3_enc_plaintext = jabberwock_text
 
 
-TV3_enc_cyphertext = [
+TV3_enc_ciphertext = [
 	0x62, 0xe6, 0x34, 0x7f, 0x95, 0xed, 0x87, 0xa4, 0x5f, 0xfa, 0xe7, 0x42, 0x6f, 0x27, 0xa1, 0xdf,
 	0x5f, 0xb6, 0x91, 0x10, 0x04, 0x4c, 0x0d, 0x73, 0x11, 0x8e, 0xff, 0xa9, 0x5b, 0x01, 0xe5, 0xcf,
 	0x16, 0x6d, 0x3d, 0xf2, 0xd7, 0x21, 0xca, 0xf9, 0xb2, 0x1e, 0x5f, 0xb1, 0x4c, 0x61, 0x68, 0x71,
@@ -1713,7 +1727,7 @@ TV3_enc_cyphertext = [
 	0x04, 0xc6, 0xa8, 0xd1, 0xbc, 0xd1, 0xbf, 0x4d, 0x50, 0xd6, 0x15, 0x4b, 0x6d, 0xa7, 0x31, 0xb1,
 	0x87, 0xb5, 0x8d, 0xfd, 0x72, 0x8a, 0xfa, 0x36, 0x75, 0x7a, 0x79, 0x7a, 0xc1, 0x88, 0xd1]
 
-property TV3_enc_correct = ChaCha20_enc_correct TV3_enc_Key TV3_enc_Nonce TV3_enc_BlockCounter TV3_enc_plaintext TV3_enc_cyphertext
+property TV3_enc_correct = ChaCha20_enc_correct TV3_enc_Key TV3_enc_Nonce TV3_enc_BlockCounter TV3_enc_plaintext TV3_enc_ciphertext
 
 property all_enc_tests_correct =
 	TV1_enc_correct /\
@@ -1979,10 +1993,10 @@ particular protocol, we’ll assume that there is no padding of the
 plaintext.
 
 ```cryptol
-AEAD_correct key nonce cypherText tag AAD = ptMatches /\ isValid where
-    (pt,isValid) = AEAD_CHACHA20_POLY1305_DECRYPT key nonce cypherText AAD
-    cypherText   = (AEAD_CHACHA20_POLY1305 key nonce AeadPt AAD)
-    ptMatches    = tag == pt
+AEAD_correct key nonce cipherText tag AAD = ptMatches where
+    opt        = AEAD_CHACHA20_POLY1305_DECRYPT key nonce cipherText AAD
+    cipherText = (AEAD_CHACHA20_POLY1305 key nonce AeadPt AAD)
+    ptMatches  = optFold False (\pt -> tag == pt) opt
 ```
 
 ```cryptol
@@ -2005,7 +2019,7 @@ TV1_AEAD_known_otk = join([
 //sent
 TV1_AEAD_tag = [0xee, 0xad, 0x9d, 0x67, 0x89, 0x0c, 0xbb, 0x22, 0x39, 0x23, 0x36, 0xfe, 0xa1, 0x85, 0x1f, 0x38]
 
-TV1_AEAD_cypherText = [
+TV1_AEAD_cipherText = [
 	0x64, 0xa0, 0x86, 0x15, 0x75, 0x86, 0x1a, 0xf4, 0x60, 0xf0, 0x62, 0xc7, 0x9b, 0xe6, 0x43, 0xbd,
 	0x5e, 0x80, 0x5c, 0xfd, 0x34, 0x5c, 0xf3, 0x89, 0xf1, 0x08, 0x67, 0x0a, 0xc7, 0x6c, 0x8c, 0xb2,
 	0x4c, 0x6c, 0xfc, 0x18, 0x75, 0x5d, 0x43, 0xee, 0xa0, 0x9e, 0xe9, 0x4e, 0x38, 0x2d, 0x26, 0xb0,
@@ -2059,15 +2073,15 @@ Next, we construct the AEAD buffer
 
 ```cryptol
 // Helper macros for further properties
-poly_input_correct AeadAAD cypherText result = (AeadConstruction AeadAAD cypherText) == result
+poly_input_correct AeadAAD cipherText result = (AeadConstruction AeadAAD cipherText) == result
 
-property TV1_poly_input_correct = (poly_input_correct TV1_AEAD_AAD TV1_AEAD_cypherText TV1_AEAD_Poly_input)
+property TV1_poly_input_correct = (poly_input_correct TV1_AEAD_AAD TV1_AEAD_cipherText TV1_AEAD_Poly_input)
 ```
 
 We calculate the Poly1305 tag and find that it matches
 
 ```cryptol
-property TV1_tag_correct = poly1305_MAC_correct TV1_AEAD_known_otk (AeadConstruction TV1_AEAD_AAD TV1_AEAD_cypherText) TV1_AEAD_tag
+property TV1_tag_correct = poly1305_MAC_correct TV1_AEAD_known_otk (AeadConstruction TV1_AEAD_AAD TV1_AEAD_cipherText) TV1_AEAD_tag
 ```
 
 ```cryptol
@@ -2091,10 +2105,11 @@ TV1_plaintext = [
 	0x72, 0x65, 0x73, 0x73, 0x2e, 0x2f, 0xe2, 0x80, 0x9d]
 
 
-TV1_calculate_plaintext = AEAD_CHACHA20_POLY1305_DECRYPT TV1_AEAD_key TV1_AEAD_nonce (TV1_AEAD_cypherText # TV1_AEAD_tag) TV1_AEAD_AAD
+TV1_calculate_plaintext = AEAD_CHACHA20_POLY1305_DECRYPT TV1_AEAD_key TV1_AEAD_nonce (TV1_AEAD_cipherText # TV1_AEAD_tag) TV1_AEAD_AAD
 
-property TV1_plaintext_correct = isValid /\ pt == TV1_plaintext where
-	(pt,isValid) = TV1_calculate_plaintext
+property TV1_plaintext_correct = ptMatches where
+	opt       = TV1_calculate_plaintext
+	ptMatches = optFold False (\pt -> pt == TV1_plaintext) opt
 
 property decryption_vector_correct =
 	TV1_plaintext_correct /\
@@ -2114,7 +2129,7 @@ property all_test_vectors_correct =
 # Appendix: Utility functions
 
 ```cryptol
-indexOf e (xs:[a+1]b) = ixs ! 0 where
+indexOf e (xs:[a+1]_) = ixs ! 0 where
     ixs = [ 0 ] #
                  [ if ix == e then j else old
                  | ix <- xs
