@@ -337,7 +337,7 @@ diagonal round needs to have an inverse permutation calculated, which we do
 here:
 
 ```cryptol
-inversePermutation (perms:[a+1]b) = [ indexOf i perms | i <- [ 0 .. a ] ]
+inversePermutation (perms:[a+1]_) = [ indexOf i perms | i <- [ 0 .. a ] ]
 invDiags = inversePermutation diags
 invCols  = inversePermutation columns // which happens to be the same as columns
 
@@ -2114,7 +2114,7 @@ property all_test_vectors_correct =
 # Appendix: Utility functions
 
 ```cryptol
-indexOf e (xs:[a+1]b) = ixs ! 0 where
+indexOf e (xs:[a+1]_) = ixs ! 0 where
     ixs = [ 0 ] #
                  [ if ix == e then j else old
                  | ix <- xs
