@@ -150,7 +150,7 @@ tMul x y
   | Just n <- tIsNum y  = mulK n x
   | Just v <- matchMaybe swapVars = v
   | otherwise = checkExpMul x y
-  
+
   where
   mulK 0 _ = tNum (0 :: Int)
   mulK 1 t = t
@@ -174,7 +174,7 @@ tMul x y
                 b <- aTVar y
                 guard (b < a)
                 return (tf2 TCMul y x)
-  
+
   -- Check if (K^a * K^b) => K^(a + b) otherwise default to standard mul
   checkExpMul s t | TCon (TF TCExp) [a,aExp] <- s
                   , Just a' <- tIsNum a
