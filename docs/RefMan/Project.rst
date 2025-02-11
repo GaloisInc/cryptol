@@ -51,9 +51,11 @@ using the following top-level key-value assignments:
   Cryptol files are located in. Otherwise modules are loaded relative
   to the directory containing the ``cryproject.toml``.
 
-- ``modules`` - *required* - *list of strings* -  is a list of filenames containing the top-level modules in a
-  project. These modules, and all of their dependencies, will be loaded
-  when the project is loaded.
+- ``modules`` - *required* - *list of strings* -  is a list of filenames patterns matching the
+  top-level modules in a project. These modules, and all of their dependencies, will be loaded
+  when the project is loaded. These patterns will match using the common ``*``, ``?``, and
+  character class matching of ``fnmatch`` extended with ``**`` matching for multiple directories
+  as found in the Git format for ``.gitignore``
 
 Example directory structure:
 

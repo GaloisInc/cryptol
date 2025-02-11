@@ -1,5 +1,6 @@
 {-# LANGUAGE BlockArguments    #-}
 {-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Cryptol.Project
   ( Config(..)
   , loadConfig
@@ -29,14 +30,16 @@ import           Cryptol.ModuleSystem.Monad       as M
 import           Cryptol.Project.Config
 import           Cryptol.Project.Cache
 import           Cryptol.Project.Monad
+import           Cryptol.Project.WildMatch
 import qualified Cryptol.Parser.AST as P
 import Cryptol.Parser.Position (Located(..))
+import Control.Exception (try)
 
 -- | Load a project.
 -- Returns information about the modules that are part of the project.
 loadProject :: LoadProjectMode -> Config -> M.ModuleM (Map CacheModulePath FullFingerprint, Map ModulePath ScanStatus, Map CacheModulePath (Maybe Bool))
 loadProject mode cfg =
-   do (fps, statuses, out) <- runLoadM mode cfg (for_ (modules cfg) scanPath >> getOldDocstringResults)
+   do (fps, statuses, out) <- runLoadM mode cfg (loadPatterns (modules cfg) >> getOldDocstringResults)
       let deps = depMap [p | Scanned _ _ ps <- Map.elems statuses, p <- ps]
       
       let untested (InMem{}) = False
@@ -76,6 +79,15 @@ loadProject mode cfg =
 
 
 --------------------------------------------------------------------------------
+
+loadPatterns :: [String] -> LoadM any ()
+loadPatterns patterns =
+ do mb <- tryLoadM (doIO (listDirectoryRecursive "."))
+    case mb of
+      Left{} -> pure ()
+      Right files ->
+       do let files' = filter (\x -> any (`wildmatch` x) patterns) files
+          for_ files' scanPath
 
 -- | Process all .cry files in the given path.
 scanPath :: FilePath -> LoadM any ()
@@ -214,3 +226,14 @@ loadOrder deps roots0 = snd (go Set.empty roots0) []
           | (seen1, out1) <- go (Set.insert m seen) (Set.toList (Map.findWithDefault mempty m deps))
           , (seen2, out2) <- go seen1 ms
           -> (seen2, out1 . (m:) . out2)
+
+-- Similar to listDirectory except directories are expanded
+-- when possible instead of returned in the list
+listDirectoryRecursive :: FilePath -> IO [FilePath]
+listDirectoryRecursive d =
+ do localEntries <- listDirectory d
+    concat <$> for localEntries \x ->
+     do mb <- try (listDirectoryRecursive x)
+        case mb of
+          Left (_ :: IOError) -> pure [x]
+          Right xs -> pure xs
