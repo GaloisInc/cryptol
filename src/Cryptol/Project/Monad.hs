@@ -5,6 +5,7 @@
 module Cryptol.Project.Monad
   ( LoadM, Err, NoErr
   , ScanStatus(..), ChangeStatus(..), InvalidStatus(..), Parsed
+  , LoadProjectMode(..)
   , runLoadM
   , doModule
   , doModuleNonFail
@@ -60,7 +61,7 @@ data ScanStatus =
 data ChangeStatus =
     Changed       -- ^ The module, or one of its dependencies changed.
   | Unchanged     -- ^ The module did not change.
-  deriving Show
+  deriving (Eq, Show)
 
 data InvalidStatus =
     InvalidModule ModuleError
@@ -133,15 +134,18 @@ liftCallback f (LoadM m) =
 
 -- | Run a LoadM computation using the given configuration.
 runLoadM ::
-  Bool {- ^ force a refresh -} ->
+  LoadProjectMode {- ^ force a refresh -} ->
   Config ->
   LoadM NoErr a ->
   M.ModuleM (Map CacheModulePath FullFingerprint, Map ModulePath ScanStatus, Either ModuleError a)
-runLoadM refresh cfg (LoadM m) =
+runLoadM mode cfg (LoadM m) =
   do loadCfg <-
        M.io
          do path  <- canonicalizePath (root cfg)
-            cache <- if refresh then pure emptyLoadCache else loadLoadCache
+            cache <- case mode of
+                       RefreshMode  -> pure emptyLoadCache
+                       UntestedMode -> loadLoadCache
+                       ModifiedMode -> loadLoadCache
             pure LoadConfig { canonRoot = path
                             , loadCache = cache
                             }

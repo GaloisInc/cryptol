@@ -25,12 +25,13 @@ import CryptolServer.EvalExpr
     ( evalExpression, evalExpressionDescr )
 import CryptolServer.ExtendSearchPath
     ( extSearchPath, extSearchPathDescr )
-import CryptolServer.FocusedModule
-    ( focusedModule, focusedModuleDescr )
+import CryptolServer.FocusedModule (focusedModule, focusedModuleDescr)
+import CryptolServer.FocusModule (focusModule, focusModuleDescr)
 import CryptolServer.Interrupt
     ( interruptServer, interruptServerDescr )
 import CryptolServer.LoadModule
     ( loadFile, loadFileDescr, loadModule, loadModuleDescr )
+import CryptolServer.LoadProject ( loadProjectDescr, loadProject )
 import CryptolServer.Names ( visibleNames, visibleNamesDescr )
 import CryptolServer.Modules ( visibleModules, visibleModulesDescr )
 import CryptolServer.Sat ( proveSat, proveSatDescr )
@@ -38,6 +39,7 @@ import CryptolServer.TypeCheck ( checkType, checkTypeDescr )
 import CryptolServer.Version ( version, versionDescr )
 import CryptolServer.FileDeps( fileDeps, fileDepsDescr )
 import Cryptol.REPL.Command (CommandResult, DocstringResult)
+import Cryptol.Project (ScanStatus, LoadProjectMode)
 
 main :: IO ()
 main =
@@ -61,7 +63,9 @@ serverDocs =
     [Doc.datatype @Expression,
      Doc.datatype @JSONSchema,
      Doc.datatype @DocstringResult,
-     Doc.datatype @CommandResult]
+     Doc.datatype @CommandResult,
+     Doc.datatype @ScanStatus,
+     Doc.datatype @LoadProjectMode]
   ]
 
 description :: String
@@ -111,6 +115,10 @@ cryptolMethods =
      focusedModuleDescr
      focusedModule
   , command
+     "focus module"
+     focusModuleDescr
+     focusModule
+  , command
      "evaluate expression"
      evalExpressionDescr
      evalExpression
@@ -138,6 +146,10 @@ cryptolMethods =
      "check docstrings"
      checkDocstringsDescr
      checkDocstrings
+  , command
+     "load project"
+     loadProjectDescr
+     loadProject
   , notification
      "interrupt"
      interruptServerDescr
