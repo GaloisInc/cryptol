@@ -1,0 +1,11 @@
+module Z where
+
+// 2 ^^ (2 ^^ 0)
+type a = 0
+type w = 2 ^^ a
+type b = 2 ^^ w
+
+// (3 ^^ 3) ^^ 3
+type y = 3
+type x = 3 ^^ y
+type z = x ^^ 3

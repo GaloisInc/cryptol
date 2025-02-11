@@ -18,6 +18,10 @@
 * The reference evaluator now evaluates the `toSignedInteger` and `deepseq`
   primitives instead of panicking.
 
+* Fix a bug in which `a ^^ (x ^^ y)` could be incorrectly simplified to
+  `a ^^ (x * y)` at the type level.
+  ([#1799](https://github.com/GaloisInc/cryptol/issues/1799))
+
 ## New features
 
 * REPL command `:dumptests <FILE> <EXPR>` updated to write to stdout when

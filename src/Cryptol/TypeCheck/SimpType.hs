@@ -222,7 +222,9 @@ tExp :: Type -> Type -> Type
 tExp x y
   | Just t <- tOp TCExp (total (op2 nExp)) [x,y] = t
   | Just 0 <- tIsNum y = tNum (1 :: Int)
-  | TCon (TF TCExp) [a,b] <- tNoUser y = tExp x (tMul a b)
+    -- If `x = (a ^^ b)`, then `(a ^^ b) ^^ y` simplifies to `a ^^ (b * y)`.
+    -- This even holds if `a == 0`, given that `0 ^^ 0 == 1` in Cryptol.
+  | TCon (TF TCExp) [a,b] <- tNoUser x = tExp a (tMul b y)
   | otherwise = tf2 TCExp x y
 
 
