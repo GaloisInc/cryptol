@@ -57,7 +57,7 @@ import Control.DeepSeq
 import qualified Data.IntMap as IntMap
 import           Data.Map    (Map)
 import qualified Data.Map    as Map
-import           Data.Maybe  (mapMaybe, maybeToList)
+import           Data.Maybe  (mapMaybe, maybeToList, isJust)
 import           Data.Set    (Set)
 import           Data.Text   (Text)
 
@@ -227,6 +227,8 @@ data Expr   = EList [Expr] Type         -- ^ List value (with type of elements)
 
             | EWhere Expr [DeclGroup]
 
+            {- | Use 'ePropGuards' when constructing to get automatic
+                 simplification of trivial constraints -}
             | EPropGuards [([Prop], Expr)] Type
 
               deriving (Show, Generic, NFData)
@@ -288,6 +290,20 @@ eChar :: PrimMap -> Char -> Expr
 eChar prims c = ETApp (ETApp (ePrim prims (prelPrim "number")) (tNum v)) (tWord (tNum w))
   where v = fromEnum c
         w = 8 :: Int
+
+-- | Construct a prop guard expression simplifying trivial cases.
+ePropGuards :: [([Prop], Expr)] -> Type -> Expr
+ePropGuards guards ty =
+  case check True guards of
+    Left body     -> body
+    Right guards' -> EPropGuards guards' ty
+  where
+    check _ [] = Right []
+    check trivial ((p, e):xs)
+      | trivial, all (null . pSplitAnd) p = Left e
+      | otherwise = ((p,e):) <$> check trivial' xs
+      where
+        trivial' = trivial && any (isJust . tIsError) p
 
 instance PP TCTopEntity where
   ppPrec _ te =
