@@ -1247,7 +1247,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
                , t1
                , foldr ETAbs
                    (foldr EProofAbs
-                     (EPropGuards cases1 t1)
+                     (ePropGuards cases1 t1)
                    asmps1)
                  as
                )
