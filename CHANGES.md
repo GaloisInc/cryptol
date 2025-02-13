@@ -43,6 +43,9 @@
 * Add a REPL option `tcSmtFile` that allows writing typechecker-related SMT
   solver interactions to a file.
 
+* The typechecker can now simplify types of the form `width (2^^n)` to `n + 1`.
+  ([#1802](https://github.com/GaloisInc/cryptol/issues/1802))
+
 # 3.2.0 -- 2024-08-20
 
 ## Language changes

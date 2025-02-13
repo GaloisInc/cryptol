@@ -320,6 +320,10 @@ tWidth x
   , TCon (TF TCExp) [p,q] <- tNoUser a
   , Just 2 <- tIsNum p = q
 
+  -- width (2^n) = n + 1
+  | TCon (TF TCExp) [m,n] <- tNoUser x
+  , Just 2 <- tIsNum m = tf2 TCAdd n (tNum (1 :: Int))
+
   | otherwise = tf1 TCWidth x
 
 tLenFromThenTo :: Type -> Type -> Type -> Type
