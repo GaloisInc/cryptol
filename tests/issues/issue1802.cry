@@ -1,0 +1,12 @@
+// A regression test for #1802.
+module T1802 where
+
+parameter
+  type loglogw : #
+  type constraint (loglogw >= 1, loglogw <= 3)
+
+type logw = 2^^loglogw
+type w = 2^^logw
+
+csum : [32][logw] -> [logw+5]
+csum msg = sum [`w - 1 - zext msgi | msgi <- msg]
