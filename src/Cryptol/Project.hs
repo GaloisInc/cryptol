@@ -41,7 +41,7 @@ loadProject :: LoadProjectMode -> Config -> M.ModuleM (Map CacheModulePath FullF
 loadProject mode cfg =
    do (fps, statuses, out) <- runLoadM mode cfg (loadPatterns (modules cfg) >> getOldDocstringResults)
       let deps = depMap [p | Scanned _ _ ps <- Map.elems statuses, p <- ps]
-      
+
       let untested (InMem{}) = False
           untested (InFile f) =
             case out of
@@ -82,7 +82,7 @@ loadProject mode cfg =
 
 loadPatterns :: [String] -> LoadM any ()
 loadPatterns patterns =
- do mb <- tryLoadM (doIO (listDirectoryRecursive "."))
+ do mb <- tryLoadM (doIO (map flatten <$> listDirectoryRecursive []))
     case mb of
       Left{} -> pure ()
       Right files ->
@@ -229,11 +229,16 @@ loadOrder deps roots0 = snd (go Set.empty roots0) []
 
 -- Similar to listDirectory except directories are expanded
 -- when possible instead of returned in the list
-listDirectoryRecursive :: FilePath -> IO [FilePath]
+listDirectoryRecursive :: [FilePath] -> IO [[FilePath]]
 listDirectoryRecursive d =
- do localEntries <- listDirectory d
+ do localEntries <- listDirectory (flatten d)
     concat <$> for localEntries \x ->
-     do mb <- try (listDirectoryRecursive x)
+     do let x' = d ++ [x]
+        mb <- try (listDirectoryRecursive x')
         case mb of
-          Left (_ :: IOError) -> pure [x]
+          Left (_ :: IOError) -> pure [x']
           Right xs -> pure xs
+
+flatten :: [String] -> String
+flatten [] = "."
+flatten xs = foldr1 (\x y -> x ++ "/" ++ y) xs

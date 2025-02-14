@@ -1349,7 +1349,7 @@ focusCmd modString
       Nothing ->
         do rPutStrLn "Invalid module name."
            pure emptyCommandResult { crSuccess = False }
-    
+
       Just pimpName -> do
         impName <- liftModuleCmd (setFocusedModuleCmd pimpName)
         mb <- getLoadedMod
@@ -2188,7 +2188,7 @@ updateDocstringCache m result =
               else
                 do let entry' = entry { Proj.cacheDocstringResult = Just result }
                    let cache' = cache { Proj.cacheModules = Map.insert (Proj.CacheInFile fp) entry' (Proj.cacheModules cache) }
-                   io (Proj.saveLoadCache cache')  
+                   io (Proj.saveLoadCache cache')
 
 -- | Evaluate all the docstrings in the specified module.
 --
@@ -2276,42 +2276,47 @@ loadProjectREPL mode cfg =
        do setModuleEnv env
           let cache0 = fmap (\fp -> Proj.CacheEntry { cacheDocstringResult = Nothing, cacheFingerprint = fp }) fps
           (cache, success) <-
-            foldM (\(fpAcc, success) (k, v) -> 
+            foldM (\(fpAcc_, success_) (k, v) ->
               case k of
-                M.InMem{} -> pure (fpAcc, success)
+                M.InMem{} -> pure (fpAcc_, success_)
                 M.InFile path ->
                   case v of
                     Proj.Invalid e ->
                      do rPrint ("Failed to process module:" <+> (text path <> ":") $$
                                  indent 2 (ppInvalidStatus e))
-                        pure (fpAcc, False) -- report failure
-                    Proj.Scanned Proj.Unchanged _ ((m,_):_) ->
-                     do let name = P.thing (P.mName m)
-                        case join (Map.lookup (Proj.CacheInFile path) docstringResults) of
-                          Just True  ->
-                           do rPrint ("Skipping unmodified module (tests passed): " <> pp name)
-                              let fpAcc' = Map.adjust (\e -> e{ Proj.cacheDocstringResult = Just True }) (Proj.CacheInFile path) fpAcc
-                              pure (fpAcc', success) -- preserve success
+                        pure (fpAcc_, False) -- report failure
+                    Proj.Scanned Proj.Unchanged _ ms ->
+                      foldM f (fpAcc_, success_) ms
+                      where
+                        f (fpAcc, success) (m, _) =
+                         do let name = P.thing (P.mName m)
+                            case join (Map.lookup (Proj.CacheInFile path) docstringResults) of
+                              Just True  ->
+                               do rPrint ("Skipping unmodified module (tests passed): " <> pp name)
+                                  let fpAcc' = Map.adjust (\e -> e{ Proj.cacheDocstringResult = Just True }) (Proj.CacheInFile path) fpAcc
+                                  pure (fpAcc', success) -- preserve success
 
-                          Just False -> 
-                           do rPrint ("Skipping unmodified module (tests failed): " <> pp name) 
-                              let fpAcc' = Map.adjust (\e -> e{ Proj.cacheDocstringResult = Just False }) (Proj.CacheInFile path) fpAcc
-                              pure (fpAcc', False) -- preserve failure
+                              Just False ->
+                               do rPrint ("Skipping unmodified module (tests failed): " <> pp name)
+                                  let fpAcc' = Map.adjust (\e -> e{ Proj.cacheDocstringResult = Just False }) (Proj.CacheInFile path) fpAcc
+                                  pure (fpAcc', False) -- preserve failure
 
-                          Nothing ->
-                           do rPrint ("Checking docstrings on unmodified missing with missing test results: " <> pp name)
-                              checkRes <- checkModName name
-                              let success1 = crSuccess checkRes
-                              let fpAcc' = Map.adjust (\e -> e{ Proj.cacheDocstringResult = Just success1 }) (Proj.CacheInFile path) fpAcc
-                              pure (fpAcc', success && success1)
+                              Nothing ->
+                               do rPrint ("Checking docstrings on unmodified missing with missing test results: " <> pp name)
+                                  checkRes <- checkModName name
+                                  let success1 = crSuccess checkRes
+                                  let fpAcc' = Map.adjust (\e -> e{ Proj.cacheDocstringResult = Just success1 }) (Proj.CacheInFile path) fpAcc
+                                  pure (fpAcc', success && success1)
 
-                    Proj.Scanned Proj.Changed _ ((m,_):_) ->
-                     do let name = P.thing (P.mName m)
-                        rPrint ("Checking docstrings on changed module: " <> pp name)
-                        checkRes <- checkModName name
-                        let fpAcc' = Map.adjust (\fp -> fp { Proj.cacheDocstringResult = Just (crSuccess checkRes) }) (Proj.CacheInFile path) fpAcc
-                        pure (fpAcc', success && crSuccess checkRes)
-                    Proj.Scanned _ _ [] -> panic "Cryptol.REPL.Command" ["malformed change entry"]
+                    Proj.Scanned Proj.Changed _ ms ->
+                      foldM f (fpAcc_, success_) ms
+                      where
+                        f (fpAcc, success) (m, _) =
+                         do let name = P.thing (P.mName m)
+                            rPrint ("Checking docstrings on changed module: " <> pp name)
+                            checkRes <- checkModName name
+                            let fpAcc' = Map.adjust (\fp -> fp { Proj.cacheDocstringResult = Just (crSuccess checkRes) }) (Proj.CacheInFile path) fpAcc
+                            pure (fpAcc', success && crSuccess checkRes)
 
               ) (cache0, True) (Map.assocs mp)
 
