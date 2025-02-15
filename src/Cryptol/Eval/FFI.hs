@@ -51,6 +51,7 @@ import           Cryptol.Eval.Prims
 import           Cryptol.Eval.Type
 import           Cryptol.Eval.Value
 import           Cryptol.ModuleSystem.Name
+import           Cryptol.TypeCheck.Solver.InfNat
 import           Cryptol.Utils.Ident
 import           Cryptol.Utils.RecordMap
 
@@ -269,6 +270,14 @@ foreignPrim name FFIFunType {..} impl tenv = buildFun ffiArgTypes []
     let totalSize = fromInteger (product sizes)
         getResult marshal ptr = do
           getRetAsOutArgs gr [SomeFFIArg ptr]
+          let tyv = case bt of
+                FFIBasicVal bv -> case bv of
+                  FFIWord len _ -> TVSeq len TVBit
+                  FFIFloat e p _ -> TVFloat e p
+                FFIBasicRef br -> case br of
+                  FFIInteger Nothing -> TVInteger
+                  FFIInteger (Just z) -> TVIntMod $ evalFinType z
+                  FFIRational -> TVRational
 
           let build (n:ns) !i = do
                 -- We need to be careful to actually run this here and not just
@@ -276,8 +285,11 @@ foreignPrim name FFIFunType {..} impl tenv = buildFun ffiArgTypes []
                 -- will read from the array after it is deallocated.
                 vs <- for [0 .. fromInteger n - 1] \j ->
                   build ns (i * fromInteger n + j)
-                pure (VSeq n (finiteSeqMap Concrete (map pure vs)))
-              build [] !i = peekElemOff ptr i >>= runEval stk . marshal
+                runEval stk $ 
+                  mkSeq Concrete (Nat n) tyv (finiteSeqMap Concrete (map pure vs))
+              build [] !i = do
+                e <- peekElemOff ptr i
+                runEval stk (marshal e)
 
           build sizes 0
 
