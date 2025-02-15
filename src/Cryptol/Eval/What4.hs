@@ -177,6 +177,7 @@ suiteBPrims :: W4.IsSymExprBuilder sym => What4 sym -> Map.Map PrimIdent (Prim (
 suiteBPrims sym = Map.fromList $ [ (suiteBPrim n, v) | (n,v) <- prims ]
  where
  (~>) = (,)
+ vSeq n w = mkSeq sym (Nat n) (TVSeq w TVBit) 
 
  prims =
   [ "AESEncRound" ~>
@@ -222,7 +223,7 @@ suiteBPrims sym = Map.fromList $ [ (suiteBPrim n, v) | (n,v) <- prims ]
              fn <- liftIO $ getUninterpFn sym ("AESKeyExpand" <> Text.pack (show k)) args (W4.BaseStructRepr ret)
              z  <- liftIO $ W4.applySymFn (w4 sym) fn ws
              -- compute a sequence that projects the relevant fields from the outout tuple
-             pure $ VSeq (4*(k+7)) $ indexSeqMap $ \i ->
+             vSeq (4*(k+7)) 32 $ indexSeqMap $ \i ->
                case intIndex (fromInteger i) (size ret) of
                  Just (Some idx) | Just W4.Refl <- W4.testEquality (ret!idx) (W4.BaseBVRepr (W4.knownNat @32)) ->
                    fromWord32 =<< liftIO (W4.structField (w4 sym) z idx)
@@ -237,7 +238,7 @@ suiteBPrims sym = Map.fromList $ [ (suiteBPrim n, v) | (n,v) <- prims ]
           addUninterpWarning sym "SHA-224"
           initSt <- liftIO (mkSHA256InitialState sym SHA.initialSHA224State)
           finalSt <- foldM (\st blk -> processSHA256Block sym st =<< blk) initSt blks
-          pure $ VSeq 7 $ indexSeqMap \i ->
+          vSeq 7 32 $ indexSeqMap \i ->
             case intIndex (fromInteger i) (knownSize :: Size SHA256State) of
               Just (Some idx) ->
                 do z <- liftIO $ W4.structField (w4 sym) finalSt idx
@@ -255,7 +256,7 @@ suiteBPrims sym = Map.fromList $ [ (suiteBPrim n, v) | (n,v) <- prims ]
           addUninterpWarning sym "SHA-256"
           initSt <- liftIO (mkSHA256InitialState sym SHA.initialSHA256State)
           finalSt <- foldM (\st blk -> processSHA256Block sym st =<< blk) initSt blks
-          pure $ VSeq 8 $ indexSeqMap \i ->
+          vSeq 8 32 $ indexSeqMap \i ->
             case intIndex (fromInteger i) (knownSize :: Size SHA256State) of
               Just (Some idx) ->
                 do z <- liftIO $ W4.structField (w4 sym) finalSt idx
@@ -273,7 +274,7 @@ suiteBPrims sym = Map.fromList $ [ (suiteBPrim n, v) | (n,v) <- prims ]
           addUninterpWarning sym "SHA-384"
           initSt <- liftIO (mkSHA512InitialState sym SHA.initialSHA384State)
           finalSt <- foldM (\st blk -> processSHA512Block sym st =<< blk) initSt blks
-          pure $ VSeq 6 $ indexSeqMap \i ->
+          vSeq 6 64 $ indexSeqMap \i ->
             case intIndex (fromInteger i) (knownSize :: Size SHA512State) of
               Just (Some idx) ->
                 do z <- liftIO $ W4.structField (w4 sym) finalSt idx
@@ -291,7 +292,7 @@ suiteBPrims sym = Map.fromList $ [ (suiteBPrim n, v) | (n,v) <- prims ]
           addUninterpWarning sym "SHA-512"
           initSt <- liftIO (mkSHA512InitialState sym SHA.initialSHA512State)
           finalSt <- foldM (\st blk -> processSHA512Block sym st =<< blk) initSt blks
-          pure $ VSeq 8 $ indexSeqMap \i ->
+          vSeq 8 64 $ indexSeqMap \i ->
             case intIndex (fromInteger i) (knownSize :: Size SHA512State) of
               Just (Some idx) ->
                 do z <- liftIO $ W4.structField (w4 sym) finalSt idx
@@ -482,7 +483,7 @@ applyAESStateFunc sym funNm x =
      w3 <- toWord32 sym nm ss 3
      fn <- liftIO $ getUninterpFn sym funNm argCtx (W4.BaseStructRepr argCtx)
      z  <- liftIO $ W4.applySymFn (w4 sym) fn (Empty :> w0 :> w1 :> w2 :> w3)
-     pure $ VSeq 4 $ indexSeqMap \i ->
+     mkSeq sym (Nat 4) (TVSeq 32 TVBit) $ indexSeqMap \i ->
        if | i == 0 -> fromWord32 =<< liftIO (W4.structField (w4 sym) z (natIndex @0))
           | i == 1 -> fromWord32 =<< liftIO (W4.structField (w4 sym) z (natIndex @1))
           | i == 2 -> fromWord32 =<< liftIO (W4.structField (w4 sym) z (natIndex @2))

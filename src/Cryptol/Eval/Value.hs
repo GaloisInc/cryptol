@@ -22,10 +22,19 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 module Cryptol.Eval.Value
   ( -- * GenericValue
-    GenValue(..), ConValue
+    GenValue 
+      (VRecord, VTuple
+      , VEnum, VBit
+      , VInteger, VRational
+      , VFloat, VWord
+      , VStream, VFun
+      , VPoly, VNumPoly)
+  , ConValue
+  , pattern VSeq
   , forceValue
   , Backend(..)
   , asciiMode
@@ -39,6 +48,7 @@ module Cryptol.Eval.Value
   , nlam
   , ilam
   , mkSeq
+  , mkFinSeq
     -- ** Value eliminators
   , fromVBit
   , fromVInteger
@@ -122,14 +132,21 @@ data GenValue sym
   | VInteger !(SInteger sym)                   -- ^ @ Integer @ or @ Z n @
   | VRational !(SRational sym)                 -- ^ @ Rational @
   | VFloat !(SFloat sym)
-  | VSeq !Integer !(SeqMap sym (GenValue sym)) -- ^ @ [n]a   @
-                                               --   Invariant: VSeq is never a sequence of bits
+  | VSeqCtor !Integer !(SeqMap sym (GenValue sym)) -- ^ @ [n]a   @
+                                                   --   Invariant: VSeq is never a sequence of bits
   | VWord !(WordValue sym)                     -- ^ @ [n]Bit @
   | VStream !(SeqMap sym (GenValue sym))       -- ^ @ [inf]a @
   | VFun  CallStack (SEval sym (GenValue sym) -> SEval sym (GenValue sym)) -- ^ functions
   | VPoly CallStack (TValue -> SEval sym (GenValue sym))   -- ^ polymorphic values (kind *)
   | VNumPoly CallStack (Nat' -> SEval sym (GenValue sym))  -- ^ polymorphic values (kind #)
  deriving Generic
+
+pattern VSeq :: Integer -> SeqMap sym (GenValue sym) -> GenValue sym
+pattern VSeq len vals <- (VSeqCtor len vals)
+
+{-# COMPLETE VRecord, VTuple, VEnum, VBit, VInteger,
+             VRational, VFloat, VWord, VStream,
+             VFun, VPoly, VNumPoly, VSeq #-}
 
 type ConValue sym = ConInfo (SEval sym (GenValue sym))
 
@@ -375,9 +392,18 @@ mkSeq :: Backend sym => sym -> Nat' -> TValue -> SeqMap sym (GenValue sym) -> SE
 mkSeq sym len elty vals = case len of
   Nat n
     | isTBit elty -> VWord <$> bitmapWordVal sym n (fromVBit <$> vals)
-    | otherwise   -> pure $ VSeq n vals
+    | otherwise   -> pure $ VSeqCtor n vals
   Inf             -> pure $ VStream vals
 
+mkFinSeq :: Backend sym => sym -> Integer -> [GenValue sym] -> GenValue sym
+mkFinSeq sym n xs = 
+  if any isBit xs then
+    panic "mkFinSeq" ["Bit type not supported"]
+  else VSeqCtor n $ finiteSeqMap sym (map pure xs)
+  where
+    isBit v = case v of
+      VBit{} -> True
+      _ -> False
 
 -- Value Destructors -----------------------------------------------------------
 
@@ -582,7 +608,7 @@ mergeValue sym c v1 v2 =
     (VRational q1, VRational q2) -> VRational <$> iteRational sym c q1 q2
     (VFloat f1   , VFloat f2)    -> VFloat <$> iteFloat sym c f1 f2
     (VWord w1    , VWord w2 ) | wordValWidth w1 == wordValWidth w2 -> VWord <$> mergeWord sym c w1 w2
-    (VSeq n1 vs1 , VSeq n2 vs2 ) | n1 == n2 -> VSeq n1 <$> memoMap sym (Nat n1) (mergeSeqMapVal sym c vs1 vs2)
+    (VSeqCtor n1 vs1 , VSeqCtor n2 vs2 ) | n1 == n2 -> VSeqCtor n1 <$> memoMap sym (Nat n1) (mergeSeqMapVal sym c vs1 vs2)
     (VStream vs1 , VStream vs2 ) -> VStream <$> memoMap sym Inf (mergeSeqMapVal sym c vs1 vs2)
     (f1@VFun{}   , f2@VFun{}   ) -> lam sym $ \x -> mergeValue' sym c (fromVFun sym f1 x) (fromVFun sym f2 x)
     (f1@VPoly{}  , f2@VPoly{}  ) -> tlam sym $ \x -> mergeValue' sym c (fromVPoly sym f1 x) (fromVPoly sym f2 x)
