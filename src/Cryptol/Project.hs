@@ -1,11 +1,13 @@
 {-# LANGUAGE BlockArguments    #-}
 {-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Cryptol.Project
   ( Config(..)
   , loadConfig
   , ScanStatus(..)
   , ChangeStatus(..)
   , InvalidStatus(..)
+  , LoadProjectMode(..)
   , Parsed
   , loadProject
   , depMap
@@ -28,16 +30,28 @@ import           Cryptol.ModuleSystem.Monad       as M
 import           Cryptol.Project.Config
 import           Cryptol.Project.Cache
 import           Cryptol.Project.Monad
+import           Cryptol.Project.WildMatch
 import qualified Cryptol.Parser.AST as P
 import Cryptol.Parser.Position (Located(..))
+import Control.Exception (try)
 
 -- | Load a project.
 -- Returns information about the modules that are part of the project.
-loadProject :: Bool -> Config -> M.ModuleM (Map CacheModulePath FullFingerprint, Map ModulePath ScanStatus, Map CacheModulePath (Maybe Bool))
-loadProject refresh cfg =
-   do (fps, statuses, out) <- runLoadM refresh cfg (for_ (modules cfg) scanPath >> getOldDocstringResults)
+loadProject :: LoadProjectMode -> Config -> M.ModuleM (Map CacheModulePath FullFingerprint, Map ModulePath ScanStatus, Map CacheModulePath (Maybe Bool))
+loadProject mode cfg =
+   do (fps, statuses, out) <- runLoadM mode cfg (loadPatterns (modules cfg) >> getOldDocstringResults)
       let deps = depMap [p | Scanned _ _ ps <- Map.elems statuses, p <- ps]
-      let needLoad = [thing (P.mName m) | Scanned Changed _ ps <- Map.elems statuses, (m, _) <- ps]
+
+      let untested (InMem{}) = False
+          untested (InFile f) =
+            case out of
+              Left _ -> True
+              Right m -> Map.lookup (CacheInFile f) m /= Just (Just True)
+
+      let needLoad = case mode of
+            RefreshMode  -> [thing (P.mName m) | Scanned _ _ ps <- Map.elems statuses, (m, _) <- ps]
+            ModifiedMode -> [thing (P.mName m) | Scanned Changed _ ps <- Map.elems statuses, (m, _) <- ps]
+            UntestedMode -> [thing (P.mName m) | (k, Scanned ch _ ps) <- Map.assocs statuses, ch == Changed || untested k,  (m, _) <- ps]
       let order = loadOrder deps needLoad
 
       let modDetails = Map.fromList [(thing (P.mName m), (m, mp, fp)) | (mp, Scanned _ fp ps) <- Map.assocs statuses, (m, _) <- ps]
@@ -65,6 +79,15 @@ loadProject refresh cfg =
 
 
 --------------------------------------------------------------------------------
+
+loadPatterns :: [String] -> LoadM any ()
+loadPatterns patterns =
+ do mb <- tryLoadM (doIO (map flatten <$> listDirectoryRecursive []))
+    case mb of
+      Left{} -> pure ()
+      Right files ->
+       do let files' = filter (\x -> any (`wildmatch` x) patterns) files
+          for_ files' scanPath
 
 -- | Process all .cry files in the given path.
 scanPath :: FilePath -> LoadM any ()
@@ -203,3 +226,19 @@ loadOrder deps roots0 = snd (go Set.empty roots0) []
           | (seen1, out1) <- go (Set.insert m seen) (Set.toList (Map.findWithDefault mempty m deps))
           , (seen2, out2) <- go seen1 ms
           -> (seen2, out1 . (m:) . out2)
+
+-- Similar to listDirectory except directories are expanded
+-- when possible instead of returned in the list
+listDirectoryRecursive :: [FilePath] -> IO [[FilePath]]
+listDirectoryRecursive d =
+ do localEntries <- listDirectory (flatten d)
+    concat <$> for localEntries \x ->
+     do let x' = d ++ [x]
+        mb <- try (listDirectoryRecursive x')
+        case mb of
+          Left (_ :: IOError) -> pure [x']
+          Right xs -> pure xs
+
+flatten :: [String] -> String
+flatten [] = "."
+flatten xs = foldr1 (\x y -> x ++ "/" ++ y) xs

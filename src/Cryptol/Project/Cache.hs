@@ -37,6 +37,7 @@ instance Toml.ToValue LoadCache where
 instance Toml.ToTable LoadCache where
   toTable x = Toml.table [
     "version" Toml..= (1 :: Int), -- increase this to invalidate old files
+                                  -- also look at the `Toml.FromValue` instance
     "modules" Toml..= [
       Toml.table $ [
         case k of
@@ -104,9 +105,12 @@ data FullFingerprint = FullFingerprint
   }
   deriving (Eq, Show, Read)
 
+-- | Directory where to store the project state.
 -- XXX: This should probably be a parameter
-metaDir, loadCachePath :: FilePath
+metaDir :: FilePath
 metaDir = ".cryproject"
+
+loadCachePath :: FilePath
 loadCachePath = metaDir FP.</> "loadcache.toml"
 
 emptyLoadCache :: LoadCache

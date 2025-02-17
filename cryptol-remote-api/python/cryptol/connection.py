@@ -213,6 +213,18 @@ class CryptolConnection:
         self.most_recent_result = CryptolCheckDocstrings(self, timeout)
         return self.most_recent_result
 
+    def load_project(self, path: str, mode: str, *, timeout: Optional[float] = None) -> argo.Command:
+        """Load project. In refresh mode all of the project modules are loaded.
+        Otherwise only the modules affected by a change are loaded.
+
+        :param path: Path to project root
+        :param mode: "modified", "untested", "refresh"
+        :param timeout: Optional timeout for this request (in seconds).
+        """
+        timeout = timeout if timeout is not None else self.timeout
+        self.most_recent_result = CryptolLoadProject(self, path, mode, timeout)
+        return self.most_recent_result
+
     def load_module(self, module_name : str, *, timeout:Optional[float] = None) -> argo.Command:
         """Load a Cryptol module, like ``:module`` at the Cryptol REPL.
 
@@ -222,13 +234,13 @@ class CryptolConnection:
         self.most_recent_result = CryptolLoadModule(self, module_name, timeout)
         return self.most_recent_result
 
-    def file_deps(self, name : str, isFile : bool, *, timeout:Optional[float] = None) -> argo.Command:
+    def file_deps(self, name : str, is_file: bool, *, timeout:Optional[float] = None) -> argo.Command:
         """Get information about a module or a file.
 
         :param timeout: Optional timeout for this request (in seconds).
         """
         timeout = timeout if timeout is not None else self.timeout
-        self.most_recent_result = CryptolFileDeps(self, name, isFile, timeout)
+        self.most_recent_result = CryptolFileDeps(self, name, is_file, timeout)
         return self.most_recent_result
 
     def eval_raw(self, expression : Any, *, timeout:Optional[float] = None) -> argo.Command:
@@ -436,6 +448,15 @@ class CryptolConnection:
         :param timeout: Optional timeout for this request (in seconds)."""
         timeout = timeout if timeout is not None else self.timeout
         self.most_recent_result = CryptolFocusedModule(self, timeout)
+        return self.most_recent_result
+
+    def focus_module(self, name: str, *, timeout:Optional[float] = None) -> argo.Command:
+        """Focus on an already loaded module.
+
+        :param name: Name of the module.
+        :param timeout: Optional timeout for this request (in seconds)."""
+        timeout = timeout if timeout is not None else self.timeout
+        self.most_recent_result = CryptolFocusModule(self, name, timeout)
         return self.most_recent_result
 
     def version(self, *, timeout:Optional[float] = None) -> argo.Command:

@@ -11,6 +11,7 @@ module CryptolServer.Exceptions
   , cryptolParseErr
   , cryptolError
   , moduleNotLoaded
+  , configLoadError
   , noModule
   ) where
 
@@ -35,6 +36,7 @@ import qualified Cryptol.TypeCheck.Type as TC
 import Argo
 import CryptolServer.AesonCompat
 import CryptolServer.Data.Type
+import qualified Cryptol.Project.Config as Proj
 
 cryptolError :: ModuleError -> [ModuleWarning] -> JSONRPCException
 cryptolError modErr warns =
@@ -110,6 +112,10 @@ cryptolError modErr warns =
       FFILoadErrors x errs ->
         (20660, [ ("module", jsonPretty x)
                 , ("errors", jsonList (map jsonPretty errs))
+                ])
+      ConfigLoadError (Proj.ConfigLoadError path info) ->
+        (20670, [ ("path", jsonShow path)
+                , ("error", jsonShow info)
                 ])
       OtherFailure x ->
         (29999, [ ("error", jsonString x)
@@ -218,6 +224,12 @@ moduleNotLoaded m =
   makeJSONRPCException
     20100 "Module not loaded"
     (Just (JSON.object ["error" .= show (pretty m)]))
+
+configLoadError :: Proj.ConfigLoadError -> JSONRPCException
+configLoadError e =
+  makeJSONRPCException
+    20670 "Project config load error"
+    (Just (JSON.object ["error" .= show (pretty e)]))
 
 noModule :: JSONRPCException
 noModule =

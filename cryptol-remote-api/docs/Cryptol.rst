@@ -272,6 +272,50 @@ The result of executing a single REPL command.
   
   
 
+.. _ScanStatus:
+ScanStatus
+~~~~~~~~~~
+
+List of module names and status of each.
+
+
+``scanned``
+  This file was successfully parsed and contains a change status.
+  
+  
+
+``invalid_module``
+  This file could not be parsed an analyzed due to syntax issues.
+  
+  
+
+``invalid_dep``
+  This file depends on a module that was not able to be loaded.
+  
+  
+
+.. _LoadProjectMode:
+LoadProjectMode
+~~~~~~~~~~~~~~~
+
+
+
+
+``modified``
+  Load modified files and files that depend on modified files
+  
+  
+
+``untested``
+  Load files that do not have a current test result
+  
+  
+
+``refresh``
+  Reload all files in the project discarding the cache results
+  
+  
+
 
 Methods
 -------
@@ -548,6 +592,27 @@ Return fields
   
 
 
+focus module (command)
+~~~~~~~~~~~~~~~~~~~~~~
+
+Focus the specified module (by name).
+
+Parameter fields
+++++++++++++++++
+
+
+``module name``
+  Name of module to focus.
+  
+  
+
+Return fields
++++++++++++++
+
+No return fields
+
+
+
 evaluate expression (command)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -813,6 +878,40 @@ Return fields
 
 ``results``
   A list of :ref:`docstring results <DocstringResult>` correspoding to each definition in the current module.
+  
+  
+
+
+load project (command)
+~~~~~~~~~~~~~~~~~~~~~~
+
+Load project returning a list of all the modules and whether they have changed since the last load
+
+Parameter fields
+++++++++++++++++
+
+
+``path``
+  Path to directory containing the project
+  
+  
+
+``mode``
+  One of the modes described at :ref:`LoadProjectMode <LoadProjectMode>`.
+  
+  
+
+Return fields
++++++++++++++
+
+
+``scan_status``
+  List of module name and :ref:` scan status <ScanStatus>`.
+  
+  
+
+``test_results``
+  List of module name and cached test result.
   
   
 
