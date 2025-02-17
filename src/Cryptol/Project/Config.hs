@@ -69,5 +69,7 @@ loadConfig path =
          Success _warns config ->
            first SetRootFailed <$>
            tryIOError
-             do setCurrentDirectory (takeDirectory filePath FP.</> root config)
-                pure config
+             do dir <- canonicalizePath
+                                    (takeDirectory filePath FP.</> root config)
+                setCurrentDirectory dir
+                pure config { root = dir }
