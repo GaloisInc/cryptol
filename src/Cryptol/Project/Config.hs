@@ -15,7 +15,10 @@ import           Cryptol.Utils.PP                 as PP
 
 data Config = Config
   { root    :: FilePath
-  , modules :: [FilePath]
+    -- ^ The root of the project.
+
+  , modules :: [String]
+    -- ^ Git-style patterns describing the files for the project.
   }
 
 data LoadProjectMode
