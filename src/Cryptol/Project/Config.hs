@@ -31,10 +31,10 @@ instance FromValue Config where
   fromValue =
     parseTableFromValue
     do mbRoot <- optKey "root"
-       mbModules <- optKey "modules"
+       mods <- reqKey "modules"
        pure Config
          { root = fromMaybe "." mbRoot
-         , modules = fromMaybe ["."] mbModules
+         , modules = mods
          }
 
 data ConfigLoadError = ConfigLoadError FilePath ConfigLoadErrorInfo
