@@ -1,7 +1,6 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedStrings #-}
 module Cryptol.Project.Monad
   ( LoadM, Err, NoErr
   , ScanStatus(..), ChangeStatus(..), InvalidStatus(..), Parsed
