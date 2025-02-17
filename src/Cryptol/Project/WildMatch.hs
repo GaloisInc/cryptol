@@ -1,24 +1,26 @@
-{-
- - This module follows the convention found in <https://git-scm.com/docs/gitignore>
- -}
+{- |
+This module follows the convention found in <https://git-scm.com/docs/gitignore>
+-}
 module Cryptol.Project.WildMatch (wildmatch) where
 
 import Data.Char
 import System.FilePath
 
+-- | `wildmatch p x` checks if file `x` matches pattern `p`.
 wildmatch :: String -> FilePath -> Bool
-wildmatch p x
+wildmatch mbNegP x
   -- When a pattern contains a path separator, it matches the whole path
-  | '/' `elem` p = match1 (ensureLeadingSlash p) (ensureLeadingSlash x)
+  | '/' `elem` p = mbNeg (matchP (ensureLeadingSlash p) (ensureLeadingSlash x))
   -- When the pattern contains no path separator it only matches the filename
-  | otherwise    = match1 p (takeFileName x)
+  | otherwise    = mbNeg (matchP p (takeFileName x))
+  where
+  (mbNeg,p) =
+    case mbNegP of
+      '!':rest -> (not,rest)
+      _        -> (id,mbNegP)
 
--- Leading bang negates a match, otherwise bang is a literal match
-match1 :: String -> FilePath -> Bool
-match1 ('!':p) = not . matchP p
-match1 p       =       matchP p
 
--- Normalize a path pattern to start with a leading slash for consistency later
+-- | Normalize a path pattern to start with a leading slash for consistency later
 ensureLeadingSlash :: String -> String
 ensureLeadingSlash ('/':p) = '/':p
 ensureLeadingSlash p       = '/':p
@@ -35,11 +37,11 @@ matchP ('/':'*':'*':'/':p) ('/':xs) =
   matchP ('/':p) ('/':xs) ||
   matchP ('/':'*':'*':'/':p) (dropWhile ('/'/=) xs)
 
-matchP ('/':'*':'*':'/':p) _ = False
+matchP ('/':'*':'*':'/':_p) _ = False
 
 -- escaped characters match literally
 matchP ('\\':a:p) (x:xs) = a==x && matchP p xs
-matchP ('\\':_)   _      = False
+matchP ('\\':_)   ""     = False
 
 -- match zero or more component characters
 matchP ('*':p) (x:xs) = matchP p (x:xs) || ('/' /= x) && matchP ('*':p) xs
@@ -47,18 +49,19 @@ matchP ('*':p) ""     = matchP p ""
 
 -- match zero or one component characters
 matchP ('?':p) (x : xs) = matchP p (x : xs) || ('/' /= x) && matchP p xs
-matchP ('?':p) _        = matchP p ""
+matchP ('?':p) ""       = matchP p ""
 
 -- process a character class
 matchP ('[':p) (x:xs)
-  | Just (f, p') <- parseCharClass p = '/' /= x && f x && matchP p' xs
-matchP ('[':_) _      = False
+  | x == '/'                         = False
+  | Just (f, p') <- parseCharClass p = f x && matchP p' xs
+matchP ('[':_) _                     = False
 
 -- literal match
 matchP (a:p) (x:xs) = a==x && matchP p xs
-matchP (a:p) ""     = False
+matchP (_a:_p) ""   = False
 
-matchP "" xs = null xs
+matchP "" xs        = null xs
 
 -----------------------------
 -- Character class processing
