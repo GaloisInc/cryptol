@@ -1,19 +1,13 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module T03
-
-
-Checking T03::a
-
-let x = 1
-
-:check x == 1
-Using exhaustive testing.
-Testing... Passed 1 tests.
-Q.E.D.
-
-:check x == 1
-[error] at <interactive>:0:8--0:9
-    Value not in scope: x
-
+Checking module T03
+  Docstrings on T03
+  Docstrings on T03::a
+    let x = 1
+    :check x == 1
+      Using exhaustive testing.
+      Testing... Passed 1 tests.
+      Q.E.D.
+    :check x == 1
 Successes: 2, No fences: 1, Failures: 1
