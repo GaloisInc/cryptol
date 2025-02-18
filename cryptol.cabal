@@ -246,6 +246,7 @@ library
                        Cryptol.Project.Config
                        Cryptol.Project.Monad
                        Cryptol.Project.Cache
+                       Cryptol.Project.WildMatch
 
   Other-modules:       Cryptol.Parser.LexerUtils,
                        Cryptol.Parser.ParserUtils,

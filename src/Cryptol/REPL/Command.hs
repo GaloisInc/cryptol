@@ -10,10 +10,10 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 -- See Note [-Wincomplete-uni-patterns and irrefutable patterns] in Cryptol.TypeCheck.TypePat
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 module Cryptol.REPL.Command (
@@ -77,6 +77,7 @@ import qualified Cryptol.ModuleSystem.Name as M
 import qualified Cryptol.ModuleSystem.NamingEnv as M
 import qualified Cryptol.ModuleSystem.Renamer as M
     (RenamerWarning(SymbolShadowed, PrefixAssocChanged))
+import qualified Cryptol.Utils.Logger as Logger
 import qualified Cryptol.Utils.Ident as M
 import qualified Cryptol.ModuleSystem.Env as M
 import Cryptol.ModuleSystem.Fingerprint(fingerprintHexString)
@@ -150,7 +151,7 @@ import qualified System.Random.TF as TF
 import qualified System.Random.TF.Instances as TFI
 import Numeric (showFFloat)
 import qualified Data.Text as T
-import Data.IORef(newIORef, readIORef, writeIORef, modifyIORef)
+import Data.IORef(newIORef, readIORef, writeIORef)
 
 import GHC.Float (log1p, expm1)
 
@@ -160,6 +161,7 @@ import Prelude.Compat
 import qualified Data.SBV.Internals as SBV (showTDiff)
 import Data.Foldable (foldl')
 import qualified Cryptol.Project.Cache as Proj
+import Cryptol.Project.Monad (LoadProjectMode)
 
 
 
@@ -1347,7 +1349,7 @@ focusCmd modString
       Nothing ->
         do rPutStrLn "Invalid module name."
            pure emptyCommandResult { crSuccess = False }
-    
+
       Just pimpName -> do
         impName <- liftModuleCmd (setFocusedModuleCmd pimpName)
         mb <- getLoadedMod
@@ -2067,43 +2069,37 @@ checkBlock = isolated . go . continuedLines
     go (line:block)
       | T.all isSpace line = go block
       | otherwise =
-      case parseCommand (findNbCommand True) (T.unpack line) of
-        Nothing -> do
-          pure [SubcommandResult
-            { srInput = line
-            , srLog = "Failed to parse command"
-            , srResult = emptyCommandResult { crSuccess = False }
-            }]
-        Just Ambiguous{} -> do
-          pure [SubcommandResult
-            { srInput = line
-            , srLog = "Ambiguous command"
-            , srResult = emptyCommandResult { crSuccess = False }
-            }]
-        Just Unknown{} -> do
-          pure [SubcommandResult
-            { srInput = line
-            , srLog = "Unknown command"
-            , srResult = emptyCommandResult { crSuccess = False }
-            }]
-        Just (Command cmd) -> do
-          (logtxt, eresult) <- captureLog (Cryptol.REPL.Monad.try (cmd 0 Nothing))
-          case eresult of
-            Left e -> do
-              let result = SubcommandResult
+       do let tab n = replicate n ' '
+          rPutStrLn (tab 4 ++ T.unpack line)
+          let doErr msg =
+               do rPutStrLn (tab 6 ++ msg) 
+                  pure [SubcommandResult
                     { srInput = line
-                    , srLog = logtxt ++ show (pp e) ++ "\n"
+                    , srLog = msg
                     , srResult = emptyCommandResult { crSuccess = False }
-                    }
-              pure [result]
-            Right result -> do
-              let subresult = SubcommandResult
-                    { srInput = line
-                    , srLog = logtxt
-                    , srResult = result
-                    }
-              subresults <- checkBlock block
-              pure (subresult : subresults)
+                    }]
+          case parseCommand (findNbCommand True) (T.unpack line) of
+            Nothing -> doErr "Failed to parse command"
+            Just Ambiguous{} -> doErr "Ambiguous command"
+            Just Unknown{} -> doErr "Unknown command"
+            Just (Command cmd) -> do
+              (logtxt, eresult) <- captureLog (Cryptol.REPL.Monad.try (cmd 0 Nothing))
+              case eresult of
+                Left e -> do
+                  let result = SubcommandResult
+                        { srInput = line
+                        , srLog = logtxt ++ show (pp e) ++ "\n"
+                        , srResult = emptyCommandResult { crSuccess = False }
+                        }
+                  pure [result]
+                Right result -> do
+                  let subresult = SubcommandResult
+                        { srInput = line
+                        , srLog = logtxt
+                        , srResult = result
+                        }
+                  subresults <- checkBlock block
+                  pure (subresult : subresults)
 
 -- | Combine lines ending in a backslash with the next line.
 continuedLines :: [T.Text] -> [T.Text]
@@ -2122,11 +2118,32 @@ captureLog :: REPL a -> REPL (String, a)
 captureLog m = do
   previousLogger <- getLogger
   outputsRef <- io (newIORef [])
-  setPutStr (\str -> modifyIORef outputsRef (str:))
+  setPutStr $ \str ->
+    unless (null str) $
+    do lns <- readIORef outputsRef
+       let msg = preTab lns (postTab str)
+       Logger.logPutStr previousLogger msg
+       writeIORef outputsRef (str:lns)
   result <- m `finally` setLogger previousLogger
   outputs <- io (readIORef outputsRef)
   let output = interpretControls (concat (reverse outputs))
   pure (output, result)
+  where
+  tab = replicate 6 ' '
+
+  preTab prevLns msg =
+    case prevLns of
+      l : _
+        | last l /= '\n' -> msg
+      _ -> tab ++ msg
+
+  postTab cs =
+    case cs of
+      [] -> ""
+      ['\n'] -> "\n"
+      '\n' : more -> '\n' : tab ++ postTab more
+      c : more -> c : postTab more
+        
 
 -- | Apply control character semantics to the result of the logger
 interpretControls :: String -> String
@@ -2144,7 +2161,8 @@ data DocstringResult = DocstringResult
 -- | Check all the code blocks in a given docstring.
 checkDocItem :: T.DocItem -> REPL DocstringResult
 checkDocItem item =
- do xs <- case traverse extractCodeBlocks (T.docText item) of
+ do rPrint ("  Docstrings on" <+> pp (T.docFor item))
+    xs <- case traverse extractCodeBlocks (T.docText item) of
             [] -> pure [] -- optimization
             bs ->
               Ex.bracket
@@ -2164,8 +2182,30 @@ checkDocItem item =
 checkDocStrings :: M.LoadedModule -> REPL [DocstringResult]
 checkDocStrings m = do
   let dat = M.lmdModule (M.lmData m)
+  rPrint ("Checking module" <+> pp (T.mName dat))
   let ds = T.gatherModuleDocstrings (M.ifaceNameToModuleMap (M.lmInterface m)) dat
-  traverse checkDocItem ds
+  results <- traverse checkDocItem ds
+  updateDocstringCache m (all checkDocstringResult results)
+  pure results
+
+checkDocstringResult :: DocstringResult -> Bool
+checkDocstringResult r = all (all (crSuccess . srResult)) (drFences r)
+
+updateDocstringCache :: M.LoadedModule -> Bool -> REPL ()
+updateDocstringCache m result =
+ do cache <- io Proj.loadLoadCache
+    case M.lmFilePath m of
+      M.InMem{} -> pure ()
+      M.InFile fp ->
+        case Map.lookup (Proj.CacheInFile fp) (Proj.cacheModules cache) of
+          Nothing -> pure ()
+          Just entry ->
+            if Proj.moduleFingerprint (Proj.cacheFingerprint entry) /= M.fiFingerprint (M.lmFileInfo m)
+              then pure ()
+              else
+                do let entry' = entry { Proj.cacheDocstringResult = Just result }
+                   let cache' = cache { Proj.cacheModules = Map.insert (Proj.CacheInFile fp) entry' (Proj.cacheModules cache) }
+                   io (Proj.saveLoadCache cache')
 
 -- | Evaluate all the docstrings in the specified module.
 --
@@ -2183,13 +2223,13 @@ checkDocStringsCmd input
       Nothing -> do
         rPutStrLn "No current module"
         pure emptyCommandResult { crSuccess = False }
-      Just mn -> checkModName mn
+      Just mn -> checkModName 0 mn
   | otherwise =
     case parseModName input of
       Nothing -> do
         rPutStrLn "Invalid module name"
         pure emptyCommandResult { crSuccess = False }
-      Just mn -> checkModName mn
+      Just mn -> checkModName 0 mn
 
 countOutcomes :: [[SubcommandResult]] -> (Int, Int, Int)
 countOutcomes = foldl' countOutcomes1 (0, 0, 0)
@@ -2203,45 +2243,39 @@ countOutcomes = foldl' countOutcomes1 (0, 0, 0)
       | otherwise = (successes, nofences, failures + 1)
 
 
-checkModName :: P.ModName -> REPL CommandResult
-checkModName mn =
+checkModName :: Int -> P.ModName -> REPL CommandResult
+checkModName ind mn =
  do env <- getModuleEnv
     case M.lookupModule mn env of
       Nothing ->
         case M.lookupSignature mn env of
           Nothing ->
-           do rPutStrLn ("Module " ++ show mn ++ " is not loaded")
+           do rPutStrLn (tab ++ "Module " ++ show mn ++ " is not loaded")
               pure emptyCommandResult { crSuccess = False }
           Just{} ->
-           do rPutStrLn "Skipping docstrings on interface module"
+           do rPutStrLn (tab ++ "Skipping docstrings on interface module")
               pure emptyCommandResult
       Just fe
         | T.isParametrizedModule (M.lmdModule (M.lmData fe)) -> do
-          rPutStrLn "Skipping docstrings on parameterized module"
+          rPutStrLn (tab ++ "Skipping docstrings on parameterized module")
           pure emptyCommandResult
         | otherwise -> do
           results <- checkDocStrings fe
           let (successes, nofences, failures) = countOutcomes [concat (drFences r) | r <- results]
-          forM_ results $ \dr ->
-            unless (null (drFences dr)) $
-             do rPutStrLn ""
-                rPutStrLn ("\nChecking " ++ show (pp (drName dr)))
-                forM_ (drFences dr) $ \fence ->
-                  forM_ fence $ \line -> do
-                    rPutStrLn ""
-                    rPutStrLn (T.unpack (srInput line))
-                    rPutStr (srLog line)
-          rPutStrLn ""
-          rPutStrLn ("Successes: " ++ show successes ++ ", No fences: " ++ show nofences ++ ", Failures: " ++ show failures)
+          rPutStrLn (tab ++ "Successes: " ++ show successes ++
+                          ", No fences: " ++ show nofences ++
+                          ", Failures: " ++ show failures)
           pure emptyCommandResult { crSuccess = failures == 0 }
+  where
+  tab = replicate ind ' '
 
 -- | Load a project.
 -- Note that this does not update the Cryptol environment, it only updates
 -- the project cache.
-loadProjectREPL :: Bool -> Proj.Config -> REPL CommandResult
-loadProjectREPL refresh cfg =
+loadProjectREPL :: LoadProjectMode -> Proj.Config -> REPL CommandResult
+loadProjectREPL mode cfg =
  do minp <- getModuleInput
-    (res, warnings) <- io $ M.runModuleM minp $ Proj.loadProject refresh cfg
+    (res, warnings) <- io $ M.runModuleM minp $ Proj.loadProject mode cfg
     printModuleWarnings warnings
     case res of
       Left err ->
@@ -2253,31 +2287,45 @@ loadProjectREPL refresh cfg =
        do setModuleEnv env
           let cache0 = fmap (\fp -> Proj.CacheEntry { cacheDocstringResult = Nothing, cacheFingerprint = fp }) fps
           (cache, success) <-
-            foldM (\(fpAcc, success) (k, v) -> 
+            foldM (\(fpAcc_, success_) (k, v) ->
               case k of
-                M.InMem{} -> pure (fpAcc, success)
+                M.InMem{} -> pure (fpAcc_, success_)
                 M.InFile path ->
                   case v of
                     Proj.Invalid e ->
                      do rPrint ("Failed to process module:" <+> (text path <> ":") $$
                                  indent 2 (ppInvalidStatus e))
-                        pure (fpAcc, False) -- report failure
-                    Proj.Scanned Proj.Unchanged _ ((m,_):_) ->
-                     do let name = P.thing (P.mName m)
-                        let prevResult = join (Map.lookup (Proj.CacheInFile path) docstringResults)
-                        case prevResult of
-                          Just True  -> rPrint ("Skipping unmodified module (tests passed): " <> pp name)
-                          Just False -> rPrint ("Skipping unmodified module (tests failed): " <> pp name)
-                          Nothing    -> rPrint ("Skipping unmodified module: " <> pp name)
-                        let fpAcc' = Map.adjust (\e -> e{ Proj.cacheDocstringResult = prevResult }) (Proj.CacheInFile path) fpAcc
-                        pure (fpAcc', success && prevResult == Just True) -- preserve success
-                    Proj.Scanned Proj.Changed _ ((m,_):_) ->
-                     do let name = P.thing (P.mName m)
-                        rPrint ("Checking docstrings on changed module: " <> pp name)
-                        checkRes <- checkModName name
-                        let fpAcc' = Map.adjust (\fp -> fp { Proj.cacheDocstringResult = Just (crSuccess checkRes) }) (Proj.CacheInFile path) fpAcc
-                        pure (fpAcc', success && crSuccess checkRes)
-                    Proj.Scanned _ _ [] -> panic "Cryptol.REPL.Command" ["malformed change entry"]
+                        pure (fpAcc_, False) -- report failure
+                    Proj.Scanned Proj.Unchanged _ ms ->
+                      foldM f (fpAcc_, success_) ms
+                      where
+                        f (fpAcc, success) (m, _) =
+                         do let name = P.thing (P.mName m)
+                            case join (Map.lookup (Proj.CacheInFile path) docstringResults) of
+                              Just True  ->
+                               do rPrint ("Checking module" <+> hcat [pp name, ": PASS (cached)"])
+                                  let fpAcc' = Map.adjust (\e -> e{ Proj.cacheDocstringResult = Just True }) (Proj.CacheInFile path) fpAcc
+                                  pure (fpAcc', success) -- preserve success
+
+                              Just False ->
+                               do rPrint ("Checking module" <+> hcat [pp name, ": FAIL (cached)"])
+                                  let fpAcc' = Map.adjust (\e -> e{ Proj.cacheDocstringResult = Just False }) (Proj.CacheInFile path) fpAcc
+                                  pure (fpAcc', False) -- preserve failure
+
+                              Nothing ->
+                               do checkRes <- checkModName 2 name
+                                  let success1 = crSuccess checkRes
+                                  let fpAcc' = Map.adjust (\e -> e{ Proj.cacheDocstringResult = Just success1 }) (Proj.CacheInFile path) fpAcc
+                                  pure (fpAcc', success && success1)
+
+                    Proj.Scanned Proj.Changed _ ms ->
+                      foldM f (fpAcc_, success_) ms
+                      where
+                        f (fpAcc, success) (m, _) =
+                         do let name = P.thing (P.mName m)
+                            checkRes <- checkModName 2 name
+                            let fpAcc' = Map.adjust (\fp -> fp { Proj.cacheDocstringResult = Just (crSuccess checkRes) }) (Proj.CacheInFile path) fpAcc
+                            pure (fpAcc', success && crSuccess checkRes)
 
               ) (cache0, True) (Map.assocs mp)
 
@@ -2290,7 +2338,7 @@ loadProjectREPL refresh cfg =
                       Just False -> (a,b+1,c))
                   (0::Int,0::Int,0::Int) (Map.elems cache)
 
-          rPutStrLn ("Passing: " ++ show passing ++ " Failing: " ++ show failing ++ " Missing: " ++ show missing)
+          rPutStrLn ("Passing: " ++ show passing ++ ", Failing: " ++ show failing ++ ", Missing: " ++ show missing)
 
           io (Proj.saveLoadCache (Proj.LoadCache cache))
           pure emptyCommandResult { crSuccess = success }

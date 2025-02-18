@@ -1,31 +1,27 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module T02
-
-
-Checking T02::F7::c
-
-:check c == 1
-Using exhaustive testing.
-Testing... Passed 1 tests.
-Q.E.D.
-
-
-Checking T02::F7::p
-
-:exhaust p
-Using exhaustive testing.
-Testing... Passed 7 tests.
-Q.E.D.
-
-
-Checking T02::f
-
-let y = 20
-
-:check f 10 == 20
-Using exhaustive testing.
-Testing... Passed 1 tests.
-Q.E.D.
-
+Checking module T02
+  Docstrings on T02
+  Docstrings on T02::`where` argument of F7::n
+  Docstrings on T02::F7::`parameter` interface of F::n
+  Docstrings on T02::F7::c
+    :check c == 1
+      Using exhaustive testing.
+      Testing... Passed 1 tests.
+      Q.E.D.
+  Docstrings on T02::F7::p
+    :exhaust p
+      Using exhaustive testing.
+      Testing... Passed 7 tests.
+      Q.E.D.
+  Docstrings on T02::f
+    let y = 20
+    :check f 10 == 20
+      Using exhaustive testing.
+      Testing... Passed 1 tests.
+      Q.E.D.
+  Docstrings on submodule T02::`where` argument of F7
+  Docstrings on submodule T02::F7
+  Docstrings on submodule T02::`parameter` interface of F
 Successes: 4, No fences: 6, Failures: 0

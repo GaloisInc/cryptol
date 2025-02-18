@@ -192,10 +192,10 @@ initialModuleEnv = do
     }
 
 -- | Try to focus a loaded module in the module environment.
-focusModule :: ModName -> ModuleEnv -> Maybe ModuleEnv
+focusModule :: ImpName Name -> ModuleEnv -> Maybe ModuleEnv
 focusModule n me = do
-  guard (isLoaded (ImpTop n) (meLoadedModules me))
-  return me { meFocusedModule = Just (ImpTop n) }
+  guard (isLoaded n (meLoadedModules me))
+  return me { meFocusedModule = Just n }
 
 -- | Get a list of all the loaded modules. Each module in the
 -- resulting list depends only on other modules that precede it.

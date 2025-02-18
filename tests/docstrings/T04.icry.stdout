@@ -1,15 +1,13 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module T03
-
-
-Checking T03::a
-
-:load AFile.cry
-Unknown command
-garbage
-
-[error] at <interactive>:0:1--0:8
-    Value not in scope: garbage
-
+Checking module T03
+  Docstrings on T03
+  Docstrings on T03::a
+    :load AFile.cry
+      Unknown command
+    garbage
+      
+      [error] at <interactive>:0:1--0:8
+          Value not in scope: garbage
 Successes: 0, No fences: 1, Failures: 2

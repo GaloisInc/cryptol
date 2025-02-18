@@ -51,7 +51,7 @@ data Options = Options
   , optHelp            :: Bool
   , optBatch           :: ReplMode
   , optProject         :: Maybe FilePath
-  , optProjectRefresh  :: Bool
+  , optProjectRefresh  :: Project.LoadProjectMode
   , optCallStacks      :: Bool
   , optCommands        :: [String]
   , optColorMode       :: ColorMode
@@ -68,7 +68,7 @@ defaultOptions  = Options
   , optHelp            = False
   , optBatch           = InteractiveRepl
   , optProject         = Nothing
-  , optProjectRefresh  = False
+  , optProjectRefresh  = Project.ModifiedMode
   , optCallStacks      = True
   , optCommands        = []
   , optColorMode       = AutoColor
@@ -92,6 +92,9 @@ options  =
   
   , Option "" ["refresh-project"] (NoArg setProjectRefresh)
     "Ignore a pre-existing cache file when loading a project."
+
+  , Option "" ["untested-project"] (NoArg setProjectUntested)
+    "Load all project files that don't have a test result."
 
   , Option "e" ["stop-on-error"] (NoArg setStopOnError)
     "stop script execution as soon as an error occurs."
@@ -155,7 +158,10 @@ setProject :: String -> OptParser Options
 setProject path = modify $ \opts -> opts { optProject = Just path }
 
 setProjectRefresh :: OptParser Options
-setProjectRefresh = modify $ \opts -> opts { optProjectRefresh = True }
+setProjectRefresh = modify $ \opts -> opts { optProjectRefresh = Project.RefreshMode }
+
+setProjectUntested :: OptParser Options
+setProjectUntested = modify $ \opts -> opts { optProjectRefresh = Project.UntestedMode }
 
 -- | Set the color mode of the terminal output.
 setColorMode :: String -> OptParser Options

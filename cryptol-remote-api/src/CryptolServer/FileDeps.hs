@@ -9,7 +9,6 @@ module CryptolServer.FileDeps
 import Data.Text (Text)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import qualified Data.Map.Strict as Map
 
 import qualified Data.Aeson as JSON
 import Data.Aeson (FromJSON(..),ToJSON(..),(.=),(.:))

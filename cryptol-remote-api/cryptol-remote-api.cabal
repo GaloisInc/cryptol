@@ -76,8 +76,10 @@ library
     CryptolServer.ExtendSearchPath
     CryptolServer.FileDeps
     CryptolServer.FocusedModule
+    CryptolServer.FocusModule
     CryptolServer.Interrupt
     CryptolServer.LoadModule
+    CryptolServer.LoadProject
     CryptolServer.Modules
     CryptolServer.Names
     CryptolServer.Options

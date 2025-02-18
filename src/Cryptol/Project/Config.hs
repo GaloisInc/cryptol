@@ -15,24 +15,35 @@ import           Cryptol.Utils.PP                 as PP
 
 data Config = Config
   { root    :: FilePath
-  , modules :: [FilePath]
+    -- ^ The root of the project.
+
+  , modules :: [String]
+    -- ^ Git-style patterns describing the files for the project.
   }
+
+data LoadProjectMode
+  = RefreshMode  -- load all files
+  | ModifiedMode -- load modified files
+  | UntestedMode -- load files without a successful test result
+  deriving Show
 
 instance FromValue Config where
   fromValue =
     parseTableFromValue
     do mbRoot <- optKey "root"
-       mbModules <- optKey "modules"
+       mods <- reqKey "modules"
        pure Config
          { root = fromMaybe "." mbRoot
-         , modules = fromMaybe ["."] mbModules
+         , modules = mods
          }
 
 data ConfigLoadError = ConfigLoadError FilePath ConfigLoadErrorInfo
+  deriving Show
 
 data ConfigLoadErrorInfo
   = ConfigParseError [String]
   | SetRootFailed IOError
+  deriving Show
 
 instance PP ConfigLoadError where
   ppPrec _ (ConfigLoadError path info) =
@@ -58,5 +69,7 @@ loadConfig path =
          Success _warns config ->
            first SetRootFailed <$>
            tryIOError
-             do setCurrentDirectory (takeDirectory filePath FP.</> root config)
-                pure config
+             do dir <- canonicalizePath
+                                    (takeDirectory filePath FP.</> root config)
+                setCurrentDirectory dir
+                pure config { root = dir }
