@@ -1,0 +1,11 @@
+:set proverTimeout=1
+
+:set prover=w4-cvc5
+:prove \(x : Rational) (y : Rational) (z : Rational) -> x < y ==> y < z ==> x < z
+
+:l ../../examples/funstuff/NQueens.cry
+:set prover=w4-z3
+:sat nQueens : (Solution 50)
+
+:set prover=w4-yices
+:sat nQueens : (Solution 50)
