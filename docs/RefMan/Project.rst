@@ -39,7 +39,7 @@ After all modules are processed we also report a summay of the form:
 
 .. code:: shell
 
-  Passing: X Failing: Y Missing: Z
+  Passing: X, Failing: Y, Missing: Z
 
 where:
   * ``X`` is the number of modules that have no failing tests,
