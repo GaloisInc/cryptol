@@ -33,7 +33,7 @@ module Cryptol.Eval.Value
       , VFloat, VWord
       , VStream, VFun
       , VPoly, VNumPoly
-      , VSeq) -- pattern synonym
+      , VSeq, VFinSeq) -- pattern synonym
   , ConValue
   , forceValue
   , Backend(..)
@@ -48,9 +48,8 @@ module Cryptol.Eval.Value
   , nlam
   , ilam
   , FinSeq
-  , toFinSeq
-  , unsafeToFinSeq
-  , finSeq
+  , mkFinSeq
+  , unsafeMkFinSeq
   , mkSeq
   , wordSeq
     -- ** Value eliminators
@@ -140,7 +139,7 @@ data GenValue sym
                                                    --   Invariant: VSeqCtor is never a sequence of bits
                                                    --   This constructor is intentionally not exported
                                                    --   to preserve the invariant. Use smart constructors
-                                                   --   such as 'mkSeq' or 'finSeq' instead.
+                                                   --   such as 'mkSeq' or 'VFinSeq' instead.
   | VWord !(WordValue sym)                     -- ^ @ [n]Bit @
   | VStream !(SeqMap sym (GenValue sym))       -- ^ @ [inf]a @
   | VFun  CallStack (SEval sym (GenValue sym) -> SEval sym (GenValue sym)) -- ^ functions
@@ -149,7 +148,7 @@ data GenValue sym
  deriving Generic
 
 -- | A view-only pattern for deconstructing finite sequences. Use
---   'mkSeq' or 'finSeq' for construction.
+--   'mkSeq' or 'VFinSeq' for construction.
 pattern VSeq :: Integer -> SeqMap sym (GenValue sym) -> GenValue sym
 pattern VSeq len vals <- VSeqCtor len vals
 
@@ -397,34 +396,46 @@ ilam sym f =
                      Nat i -> f i
                      Inf   -> panic "ilam" [ "Unexpected `inf`" ])
 
--- | A finite sequence of non-VBit values. Used in 'finSeq' to
+-- | A finite sequence of non-VBit values. Used with 'VFinSeq' to
 --   safely construct a 'VSeq'.
-newtype FinSeq sym = FinSeq { fromFinSeq :: [GenValue sym] }
+newtype FinSeq sym = FinSeqCtor (GenValue sym)
   deriving Generic
 
--- | Safely wrap a 'GenValue' list as a 'FinSeq'. Returns 'Nothing'
+-- | Safely construct a 'FinSeq' from a 'GenValue' list. Returns 'Nothing'
 --   if any values are a 'VBit'.
-toFinSeq :: [GenValue sym] -> Maybe (FinSeq sym)
-toFinSeq xs = FinSeq <$> mapM go xs
+mkFinSeq :: Backend sym => sym -> Integer -> [GenValue sym] -> Maybe (FinSeq sym)
+mkFinSeq sym len xs = unsafeMkFinSeq sym len <$> mapM go xs
   where
     go x = case x of
       VBit _ -> Nothing
       _ -> Just x
 
--- | Wrap a 'GenValue' list as a 'FinSeq'. Raises a runtime
+-- | Construct a 'FinSeq' from 'GenValue' list. Raises a runtime
 --   error if any values are a 'VBit'
-unsafeToFinSeq :: [GenValue sym] -> FinSeq sym
-unsafeToFinSeq xs = FinSeq (map go xs)
+unsafeMkFinSeq :: Backend sym => sym -> Integer ->  [GenValue sym] -> FinSeq sym
+unsafeMkFinSeq sym len xs = FinSeqCtor $ VSeqCtor len (finiteSeqMap sym (map (pure . go) xs))
   where
     go x = case x of
-      VBit _ -> panic "unsafeToFinSeq" [ "Unexpected `VBit`" ]
+      VBit _ -> panic "unsafeMkFinSeq" [ "Unexpected `VBit`" ]
       _ -> x
 
--- | Construct a finite sequence from a 'FinSeq'. In contrast to
---   'mkSeq' this is a pure function. See 'toFinSeq' or 'unsafeToFinSeq'
---   for creating a 'FinSeq' from a list of values.
-finSeq :: Backend sym => sym -> Integer -> FinSeq sym -> GenValue sym
-finSeq sym len (FinSeq vs) = VSeqCtor len (finiteSeqMap sym (map pure vs))
+asFinSeq :: GenValue sym -> Maybe (FinSeq sym)
+asFinSeq v = case v of
+  VSeqCtor{} -> Just (FinSeqCtor v)
+  _ -> Nothing
+
+-- | A bi-directional pattern synonym enforcing the
+--   invariant that the elements of a VSeq are not VBit.
+pattern VFinSeq :: FinSeq sym -> GenValue sym
+pattern VFinSeq s <- (asFinSeq -> Just s)
+  where
+    VFinSeq (FinSeqCtor v) = v
+
+-- This is all GenValue constructors except for VSeqCtor, which
+-- is instead swapped for the bi-directional FinSeq pattern
+{-# COMPLETE VRecord, VTuple, VEnum, VBit, VInteger,
+             VRational, VFloat, VWord, VStream,
+             VFun, VPoly, VNumPoly, VFinSeq #-}
 
 -- | Construct either a finite sequence, or a stream.  In the finite case,
 -- record whether or not the elements were bits, to aid pretty-printing.

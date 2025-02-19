@@ -269,8 +269,8 @@ varShapeToValue sym var =
     VarRational n d -> VRational (SRational n d)
     VarWord w    -> VWord (wordVal w)
     VarFloat f   -> VFloat f
-    VarFinSeq n vs -> case toFinSeq (map (varShapeToValue sym) vs) of
-      Just vs' -> finSeq sym n vs'
+    VarFinSeq n vs -> case toFinSeq sym n (map (varShapeToValue sym) vs) of
+      Just vs' -> VFinSeq vs'
       Nothing -> panic "varShapeToValue" ["Unexpected VarBit in VarFinSeq"]
     VarTuple vs  -> VTuple (map (pure . varShapeToValue sym) vs)
     VarRecord fs -> VRecord (fmap (pure . varShapeToValue sym) fs)

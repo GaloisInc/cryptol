@@ -53,7 +53,7 @@ import Cryptol.Backend.WordValue (wordVal)
 import Cryptol.Eval(evalEnumCon)
 import Cryptol.Eval.Type      ( TValue(..), TNominalTypeValue(..), ConInfo(..)
                               , isNullaryCon )
-import Cryptol.Eval.Value     ( GenValue(..), ppValue, defaultPPOpts, fromVFun, mkSeq, unsafeToFinSeq, finSeq)
+import Cryptol.Eval.Value     ( GenValue(..), ppValue, defaultPPOpts, fromVFun, mkSeq, unsafeMkFinSeq)
 import Cryptol.TypeCheck.Solver.InfNat (widthInteger, Nat' (..))
 import Cryptol.Utils.Ident    (Ident)
 import Cryptol.Utils.Panic    (panic)
@@ -497,7 +497,7 @@ typeValues ty =
       | x <- [ 0 .. 2^n - 1 ]
       ]
     TVSeq n el ->
-      [ finSeq Concrete n (unsafeToFinSeq xs) -- safe, since the TVBit case is covered above
+      [ VFinSeq (unsafeMkFinSeq Concrete n xs) -- safe, since the TVBit case is covered above
       | xs <- sequence (genericReplicate n (typeValues el))
       ]
     TVTuple ts ->
