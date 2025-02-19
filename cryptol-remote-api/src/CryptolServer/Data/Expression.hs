@@ -8,7 +8,6 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE PatternSynonyms #-}
 module CryptolServer.Data.Expression
   ( module CryptolServer.Data.Expression
   ) where
@@ -40,7 +39,7 @@ import Cryptol.Backend.WordValue (asWordVal)
 import Cryptol.Eval (evalSel)
 import Cryptol.Eval.Concrete (Value)
 import Cryptol.Eval.Type (TValue(..), tValTy)
-import Cryptol.Eval.Value (GenValue(..), pattern VSeq )
+import Cryptol.Eval.Value (GenValue(..))
 import Cryptol.ModuleSystem (ModuleCmd, getPrimMap, evalDecls, renameType)
 import Cryptol.ModuleSystem.Env (deNames,meDynEnv)
 import Cryptol.ModuleSystem.Monad (runModuleM, interactive)

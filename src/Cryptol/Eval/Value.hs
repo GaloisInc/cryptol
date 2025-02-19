@@ -17,12 +17,12 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE PatternSynonyms #-}
 
 module Cryptol.Eval.Value
   ( -- * GenericValue
@@ -32,9 +32,9 @@ module Cryptol.Eval.Value
       , VInteger, VRational
       , VFloat, VWord
       , VStream, VFun
-      , VPoly, VNumPoly)
+      , VPoly, VNumPoly
+      , VSeq) -- pattern synonym
   , ConValue
-  , pattern VSeq
   , forceValue
   , Backend(..)
   , asciiMode
@@ -47,8 +47,11 @@ module Cryptol.Eval.Value
   , tlam
   , nlam
   , ilam
+  , FinSeq
+  , toFinSeq
+  , unsafeToFinSeq
+  , finSeq
   , mkSeq
-  , mkFinSeq
     -- ** Value eliminators
   , fromVBit
   , fromVInteger
@@ -133,7 +136,10 @@ data GenValue sym
   | VRational !(SRational sym)                 -- ^ @ Rational @
   | VFloat !(SFloat sym)
   | VSeqCtor !Integer !(SeqMap sym (GenValue sym)) -- ^ @ [n]a   @
-                                                   --   Invariant: VSeq is never a sequence of bits
+                                                   --   Invariant: VSeqCtor is never a sequence of bits
+                                                   --   This constructor is intentionally not exported
+                                                   --   to preserve the invariant. Use smart constructors
+                                                   --   such as 'mkSeq' or 'finSeq' instead.
   | VWord !(WordValue sym)                     -- ^ @ [n]Bit @
   | VStream !(SeqMap sym (GenValue sym))       -- ^ @ [inf]a @
   | VFun  CallStack (SEval sym (GenValue sym) -> SEval sym (GenValue sym)) -- ^ functions
@@ -141,9 +147,13 @@ data GenValue sym
   | VNumPoly CallStack (Nat' -> SEval sym (GenValue sym))  -- ^ polymorphic values (kind #)
  deriving Generic
 
+-- | A view-only pattern for deconstructing finite sequences. Use
+--   'mkSeq' or 'finSeq' for construction.
 pattern VSeq :: Integer -> SeqMap sym (GenValue sym) -> GenValue sym
-pattern VSeq len vals <- (VSeqCtor len vals)
+pattern VSeq len vals <- VSeqCtor len vals
 
+-- This is all GenValue constructors except for VSeqCtor, which
+-- is instead swapped for the view-only VSeq pattern
 {-# COMPLETE VRecord, VTuple, VEnum, VBit, VInteger,
              VRational, VFloat, VWord, VStream,
              VFun, VPoly, VNumPoly, VSeq #-}
@@ -386,6 +396,35 @@ ilam sym f =
                      Nat i -> f i
                      Inf   -> panic "ilam" [ "Unexpected `inf`" ])
 
+-- | A finite sequence of non-VBit values. Used in 'finSeq' to
+--   safely construct a 'VSeq'.
+newtype FinSeq sym = FinSeq { fromFinSeq :: [GenValue sym] }
+  deriving Generic
+
+-- | Safely wrap a 'GenValue' list as a 'FinSeq'. Returns 'Nothing'
+--   if any values are a 'VBit'.
+toFinSeq :: [GenValue sym] -> Maybe (FinSeq sym)
+toFinSeq xs = FinSeq <$> mapM go xs
+  where
+    go x = case x of
+      VBit _ -> Nothing
+      _ -> Just x
+
+-- | Wrap a 'GenValue' list as a 'FinSeq'. Raises a runtime
+--   error if any values are a 'VBit'
+unsafeToFinSeq :: [GenValue sym] -> FinSeq sym
+unsafeToFinSeq xs = FinSeq (map go xs)
+  where
+    go x = case x of
+      VBit _ -> panic "unsafeToFinSeq" [ "Unexpected `VBit`" ]
+      _ -> x
+
+-- | Construct a finite sequence from a 'FinSeq'. In contrast to
+--   'mkSeq' this is a pure function. See 'toFinSeq' or 'unsafeToFinSeq'
+--   for creating a 'FinSeq' from a list of values.
+finSeq :: Backend sym => sym -> Integer -> FinSeq sym -> GenValue sym
+finSeq sym len (FinSeq vs) = VSeqCtor len (finiteSeqMap sym (map pure vs))
+
 -- | Construct either a finite sequence, or a stream.  In the finite case,
 -- record whether or not the elements were bits, to aid pretty-printing.
 mkSeq :: Backend sym => sym -> Nat' -> TValue -> SeqMap sym (GenValue sym) -> SEval sym (GenValue sym)
@@ -394,16 +433,6 @@ mkSeq sym len elty vals = case len of
     | isTBit elty -> VWord <$> bitmapWordVal sym n (fromVBit <$> vals)
     | otherwise   -> pure $ VSeqCtor n vals
   Inf             -> pure $ VStream vals
-
-mkFinSeq :: Backend sym => sym -> Integer -> [GenValue sym] -> GenValue sym
-mkFinSeq sym n xs = 
-  if any isBit xs then
-    panic "mkFinSeq" ["Bit type not supported"]
-  else VSeqCtor n $ finiteSeqMap sym (map pure xs)
-  where
-    isBit v = case v of
-      VBit{} -> True
-      _ -> False
 
 -- Value Destructors -----------------------------------------------------------
 
