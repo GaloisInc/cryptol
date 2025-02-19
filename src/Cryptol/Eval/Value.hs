@@ -52,6 +52,7 @@ module Cryptol.Eval.Value
   , unsafeToFinSeq
   , finSeq
   , mkSeq
+  , wordSeq
     -- ** Value eliminators
   , fromVBit
   , fromVInteger
@@ -433,6 +434,18 @@ mkSeq sym len elty vals = case len of
     | isTBit elty -> VWord <$> bitmapWordVal sym n (fromVBit <$> vals)
     | otherwise   -> pure $ VSeqCtor n vals
   Inf             -> pure $ VStream vals
+
+-- | Construct a finite sequence of word values.
+wordSeq :: 
+  Backend sym => 
+  sym ->
+  -- | The length of the sequence.
+  Integer ->
+  -- | The word size of the element type.
+  Integer ->
+  SeqMap sym (GenValue sym) -> 
+  SEval sym (GenValue sym)
+wordSeq sym n w vals = mkSeq sym (Nat n) (TVSeq w TVBit) vals
 
 -- Value Destructors -----------------------------------------------------------
 
