@@ -19,6 +19,7 @@ test06::test =
 
 
 
+
 Loading module Cryptol
 Loading module test06
 module test06
@@ -36,6 +37,7 @@ test06::test =
       /* Not recursive */
       bar : a
       bar = foo
+
 
 
 

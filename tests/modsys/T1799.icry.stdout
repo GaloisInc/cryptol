@@ -1,7 +1,7 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module `where` argument of Y
-Loading interface module `parameter` interface of B
+Loading module Y__where
+Loading interface module B__parameter
 Loading module B
 Loading module Y
 2

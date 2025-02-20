@@ -58,7 +58,7 @@ module Cryptol.Utils.Ident
   , modParamIdent
   , identAnonArg
   , identAnonIfaceMod
-  , identAnontInstImport
+  , identAnonInstImport
   , identIsNormal
 
     -- * Namespaces
@@ -170,13 +170,14 @@ instance NFData ModName
 
 -- | Change a normal module name to a module name to be used for an
 -- anonnymous argument.
-modNameArg :: ModName -> ModName
-modNameArg (ModName m fl) =
+modNameArg :: Int -> Int -> ModName -> ModName
+modNameArg l c (ModName m fl) =
   case fl of
-    NormalName        -> ModName m AnonModArgName
-    AnonModArgName    -> panic "modNameArg" ["Name is not normal"]
-    AnonIfaceModName  -> panic "modNameArg" ["Name is not normal"]
-modNameArg (ModMain _) = panic "modNameArg" ["Name is not normal"]
+    NormalName        -> ModName m (AnonModArgName l c)
+    AnonModArgName {} -> panic "modNameArg" ["Name is not normal"]
+    AnonIfaceModName  -> panic "modNameArg" ["Name is not normal", "AnonModArgName" ]
+    AnonInstImport {} -> panic "modNameArg" ["Name is not normal", "AnonIfaceModName" ]
+modNameArg _ _ (ModMain _) = panic "modNameArg" ["Name is not normal", "AnonInstImport"]
 
 -- | Change a normal module name to a module name to be used for an
 -- anonnymous interface.
@@ -184,8 +185,9 @@ modNameIfaceMod :: ModName -> ModName
 modNameIfaceMod (ModName m fl) =
   case fl of
     NormalName        -> ModName m AnonIfaceModName
-    AnonModArgName    -> panic "modNameIfaceMod" ["Name is not normal"]
-    AnonIfaceModName  -> panic "modNameIfaceMod" ["Name is not normal"]
+    AnonModArgName {} -> panic "modNameIfaceMod" ["Name is not normal", "AnonModArgName"]
+    AnonIfaceModName  -> panic "modNameIfaceMod" ["Name is not normal", "AnonIfaceModName" ]
+    AnonInstImport {} -> panic "modNameIfaceMod" ["Name is not normal", "AnonInstImport" ]
 modNameIfaceMod (ModMain _) = panic "modNameIfaceMod" ["Name is not normal"]
 
 modNameToNormalModName :: ModName -> ModName
@@ -364,8 +366,8 @@ modParamIdent (Ident x a t) =
 
 -- | Make an anonymous identifier for the module corresponding to
 -- a `where` block in a functor instantiation.
-identAnonArg :: Ident -> Ident
-identAnonArg (Ident b _ txt) = Ident b AnonModArgName txt
+identAnonArg :: Int -> Int -> Ident
+identAnonArg l c = Ident False (AnonModArgName l c) ""
 
 -- | Make an anonymous identifier for the interface corresponding to
 -- a `parameter` declaration.
@@ -373,8 +375,8 @@ identAnonIfaceMod :: Ident -> Ident
 identAnonIfaceMod (Ident b _ txt) = Ident b AnonIfaceModName txt
 
 -- | Make an anonymous identifier for an instantiation in an import.
-identAnontInstImport :: Ident -> Ident
-identAnontInstImport (Ident b _ txt) = Ident b AnonInstImport txt
+identAnonInstImport :: Int -> Int -> Ident
+identAnonInstImport l c = Ident False (AnonInstImport l c) ""
 
 identIsNormal :: Ident -> Bool
 identIsNormal (Ident _ mb _) = isNormal mb
@@ -383,9 +385,10 @@ identIsNormal (Ident _ mb _) = isNormal mb
 
 -- | Information about anonymous names.
 data MaybeAnon = NormalName       -- ^ Not an anonymous name.
-               | AnonModArgName   -- ^ Anonymous module (from `where`)
+               | AnonModArgName Int Int-- ^ Anonymous module (line,column) (from `where`)
                | AnonIfaceModName -- ^ Anonymous interface (from `parameter`)
-               | AnonInstImport   -- ^ Anonymous instance import
+               | AnonInstImport Int Int 
+                 -- ^ Anonymous instance import (line, column)
   deriving (Eq,Ord,Show,Generic)
 
 instance NFData MaybeAnon
@@ -394,10 +397,15 @@ instance NFData MaybeAnon
 maybeAnonText :: MaybeAnon -> Text -> Text
 maybeAnonText mb txt =
   case mb of
-    NormalName       -> txt
-    AnonModArgName   -> "`where` argument of " <> txt
-    AnonIfaceModName -> "`parameter` interface of " <> txt
-    AnonInstImport   -> txt
+    NormalName -> txt
+    AnonModArgName l c
+      | T.null txt -> "where_at__" <> suff l c
+      | otherwise  -> txt <> "__where"
+    AnonIfaceModName    -> txt <> "__parameter"
+    AnonInstImport l c  -> "import_at__" <> suff l c
+  where
+  suff l c = T.pack (if c == 1 then show l else show l ++ "_" ++ show c)
+
 
 isNormal :: MaybeAnon -> Bool
 isNormal mb =

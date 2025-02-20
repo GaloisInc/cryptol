@@ -19,7 +19,6 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 module Cryptol.Parser.ParserUtils where
 
-import qualified Data.Text as Text
 import Data.Char(isAlphaNum, isSpace)
 import Data.Maybe(fromMaybe, mapMaybe)
 import Data.Bits(testBit,setBit)
@@ -47,9 +46,9 @@ import Cryptol.Parser.Token(SelectorType(..))
 import Cryptol.Parser.Position
 import Cryptol.Parser.Utils (translateExprToNumT,widthIdent)
 import Cryptol.Utils.Ident( packModName,packIdent,modNameChunks
-                          , identAnonArg, identAnonIfaceMod
+                          , identAnonArg, identAnonIfaceMod, identAnonInstImport
                           , modNameArg, modNameIfaceMod
-                          , modNameToText, mainModName, modNameIsNormal
+                          , mainModName, modNameIsNormal
                           , modNameToNormalModName
                           , unpackIdent, isUpperIdent
                           )
@@ -1394,18 +1393,18 @@ class MkAnon t where
   mkAnon    :: AnonThing -> t -> t
   toImpName :: t -> ImpName PName
 
-data AnonThing = AnonArg | AnonIfaceMod
+data AnonThing = AnonArg Int Int | AnonIfaceMod
 
 instance MkAnon ModName where
   mkAnon what   = case what of
-                    AnonArg      -> modNameArg
+                    AnonArg l c  -> modNameArg l c
                     AnonIfaceMod -> modNameIfaceMod
   toImpName     = ImpTop
 
 instance MkAnon PName where
   mkAnon what   = mkUnqual
                 . case what of
-                    AnonArg      -> identAnonArg
+                    AnonArg l c  -> const (identAnonArg l c)
                     AnonIfaceMod -> identAnonIfaceMod
                 . getIdent
   toImpName     = ImpNested
@@ -1427,7 +1426,8 @@ desugarMod mo =
                 [ "Instantiation of a parameterized module may not itself be "
                   ++ "parameterized" ]
            _ -> pure ()
-         let i      = mkAnon AnonArg (thing (mName mo))
+         let i      = mkAnon (AnonArg (line pos) (col pos)) (thing (mName mo))
+             pos    = from (srcRange nm)
              nm     = Located { srcRange = srcRange (mName mo), thing = i }
              as'    = DefaultInstArg (ModuleArg . toImpName <$> nm)
          pure ( mo { mDef = FunctorInstance f as' mempty }
@@ -1547,15 +1547,9 @@ desugarInstImport i inst =
      pure (DImport (newImp <$> i) : map modTop (ms ++ [m]))
 
   where
-  imp = thing i
   iname = mkUnqual
-        $ identAnonIfaceMod
-        $ mkIdent
-        $ "import of " <> nm <> " at " <> Text.pack (show (pp (srcRange i)))
-    where
-    nm = case iModule imp of
-           ImpTop f    -> modNameToText f
-           ImpNested n -> "submodule " <> Text.pack (show (pp n))
+        $ let pos = from (srcRange i)
+          in identAnonInstImport (line pos) (col pos)
 
   newImp d = d { iModule = ImpNested iname
                , iInst   = Nothing

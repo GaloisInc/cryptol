@@ -15,6 +15,7 @@ test03::test =
 
 
 
+
 Loading module Cryptol
 Loading module test03
 module test03
@@ -28,6 +29,7 @@ test03::test =
       /* Not recursive */
       foo : [a]
       foo = Cryptol::number a [a] <>
+
 
 
 

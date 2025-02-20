@@ -116,6 +116,8 @@ contain at most one top-level module.</p>
 <span class="nf">f</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="mi">10</span>
 </pre></div>
 </div>
+<p>Module names should avoid using two consecutive underscored, because
+those are used to generate names for various anonymous modules.</p>
 <section id="hierarchical-module-names">
 <h2>Hierarchical Module Names<a class="headerlink" href="#hierarchical-module-names" title="Link to this heading"></a></h2>
 <p>Modules may have either simple or <em>hierarchical</em> names.
@@ -663,6 +665,9 @@ an anonymous interface and using it straight away:</p>
 Note that the parameters may not use things defined in <code class="docutils literal notranslate"><span class="pre">M</span></code> as
 the interface is declared outside of <code class="docutils literal notranslate"><span class="pre">M</span></code>.  The <code class="docutils literal notranslate"><span class="pre">parameter</span></code>
 may contain the same sort of declarations that may appear in interfaces.</p>
+<p>For external tools interacting with Cryptol, the name of the anonymous
+parameter interface for module <code class="docutils literal notranslate"><span class="pre">M</span></code> is <code class="docutils literal notranslate"><span class="pre">M__parameter</span></code> (note that there
+are 2 underscores after the name).</p>
 </section>
 <section id="anonymous-instantiation-arguments">
 <h3>Anonymous Instantiation Arguments<a class="headerlink" href="#anonymous-instantiation-arguments" title="Link to this heading"></a></h3>
@@ -695,6 +700,18 @@ for instantiating a module:</p>
 <p>The declarations in the <code class="docutils literal notranslate"><span class="pre">where</span></code> block are treated as the
 definition of an anonymous module which is passed as the argument
 to parameterized module <code class="docutils literal notranslate"><span class="pre">M</span></code>.</p>
+<p>For external tools interacting with Cryptol, the name of the anonymous
+module actually passed to the functor is as follows:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">N__where</span></code>, if <code class="docutils literal notranslate"><span class="pre">N</span></code> is a top-level module</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">where__at_l_c</span></code>, if <code class="docutils literal notranslate"><span class="pre">N</span></code> is a submodule</p></li>
+</ul>
+</div></blockquote>
+<p>In the second form <code class="docutils literal notranslate"><span class="pre">l</span></code> and <code class="docutils literal notranslate"><span class="pre">c</span></code> are the line and column of <code class="docutils literal notranslate"><span class="pre">N</span></code>.
+If <code class="docutils literal notranslate"><span class="pre">c</span></code> is 1, then it is omitted, and the name will be just <code class="docutils literal notranslate"><span class="pre">where__at_l</span></code>.
+Note that in both cases the anonymous name contains two underscores next
+to each other.</p>
 </section>
 <section id="anonymous-import-instantiations">
 <h3>Anonymous Import Instantiations<a class="headerlink" href="#anonymous-import-instantiations" title="Link to this heading"></a></h3>
@@ -746,6 +763,12 @@ to the following declarations:</p>
 <span class="kr">import</span><span class="w"> </span><span class="nn">submodule</span><span class="w"> </span><span class="kt">N</span>
 </pre></div>
 </div>
+<p>For external tools interacting with Cryptol, the name of the anonymous
+module used in the import (the <code class="docutils literal notranslate"><span class="pre">N</span></code> in the above example) is of the form
+<code class="docutils literal notranslate"><span class="pre">import_at__l_c</span></code>, where <code class="docutils literal notranslate"><span class="pre">l</span></code> and <code class="docutils literal notranslate"><span class="pre">c</span></code> are the line and column of the
+<code class="docutils literal notranslate"><span class="pre">import</span></code> keyword.  If the column is 1, then it is omitted, and the name
+is of the form <code class="docutils literal notranslate"><span class="pre">import_at__l</span></code>.  Note that the name contains two underscores
+next to each other.</p>
 </section>
 <section id="passing-through-module-parameters">
 <h3>Passing Through Module Parameters<a class="headerlink" href="#passing-through-module-parameters" title="Link to this heading"></a></h3>

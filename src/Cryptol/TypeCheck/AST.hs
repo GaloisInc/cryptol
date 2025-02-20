@@ -532,10 +532,14 @@ instance PP n => PP (WithNames (ModuleG n)) where
          , vcat (map pp' mDecls)
 
          , vcat (map pp (Map.elems mFunctors))
+
+         , vcat (map ppSig (Map.toList mSignatures))
          ]
     where mps = map mtpParam (Map.elems mParamTypes)
           pp' :: PP (WithNames a) => a -> Doc
           pp' = ppWithNames (addTNames mps nm)
+          ppSig (x,y) = "interface module" <+> pp x <+> "where"
+                        $$ indent 2 (pp y)
 
 instance PP (WithNames TCTopEntity) where
   ppPrec _ (WithNames ent nm) =

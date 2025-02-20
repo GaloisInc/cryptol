@@ -14,9 +14,4 @@ Q.E.D.
 property aes192_MCT_vectors_decrypt_correct Using exhaustive testing.
 Testing... Passed 1 tests.
 Q.E.D.
-property aes256_MCT_vectors_encrypt_correct Using exhaustive testing.
-Testing... Passed 1 tests.
-Q.E.D.
-property aes256_MCT_vectors_decrypt_correct Using exhaustive testing.
-Testing... Passed 1 tests.
-Q.E.D.
+property aes256_MCT_vectors_encrypt_correct Ctrl-C

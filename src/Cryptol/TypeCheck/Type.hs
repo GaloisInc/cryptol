@@ -1353,12 +1353,12 @@ instance PP ModParamNames where
     let tps = Map.elems (mpnTypes ps)
     in
     vcat $ map pp tps ++
-          if null (mpnConstraints ps) then [] else
             [ "type constraint" <+>
                 parens (commaSep (map (pp . thing) (mpnConstraints ps)))
+            | not (null (mpnConstraints ps))
             ] ++
            [ pp t | t <- Map.elems (mpnTySyn ps) ] ++
-           map pp (Map.elems (mpnFuns ps))
+           map pp (Map.elems (mpnFuns ps)) 
 
 instance PP ModTParam where
   ppPrec _ p =
