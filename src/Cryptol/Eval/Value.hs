@@ -399,8 +399,7 @@ ilam sym f =
 
 -- | A finite sequence of non-VBit values. Used in 'finSeq' to
 --   safely construct a 'VSeq'.
-newtype FinSeq sym = FinSeq { fromFinSeq :: [GenValue sym] }
-  deriving Generic
+newtype FinSeq sym = FinSeq [GenValue sym]
 
 -- | Safely wrap a 'GenValue' list as a 'FinSeq'. Returns 'Nothing'
 --   if any values are a 'VBit'.
@@ -412,7 +411,7 @@ toFinSeq xs = FinSeq <$> mapM go xs
       _ -> Just x
 
 -- | Wrap a 'GenValue' list as a 'FinSeq'. Raises a runtime
---   error if any values are a 'VBit'
+--   error if any values are a 'VBit'.
 unsafeToFinSeq :: [GenValue sym] -> FinSeq sym
 unsafeToFinSeq xs = FinSeq (map go xs)
   where
