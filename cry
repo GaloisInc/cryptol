@@ -20,6 +20,7 @@ Available commands:
   haddock                      Generate Haddock documentation
   test                         Run some tests (may take a while)
   quick-test                   Like "test" but run fewer tests by default
+  set-test-output              Copy test results to expected results
   rpc-test                     Run RPC server tests
   rpc-docs                     Check that the RPC documentation is up-to-date
   exe-path                     Print the location of the local executable
@@ -87,6 +88,16 @@ case $COMMAND in
       -F v2-run -F -v0 -F exe:cryptol -F -- -F -b \
       "${TESTS[@]}"
     ;;
+
+  set-test-output)
+    DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+    FILE=$(mktemp)
+    pushd "$DIR/output"
+    find . -name '*.stdout*' -print0 | tar czf "$FILE" --null -T -
+    popd
+    tar xzvf "$FILE"
+    rm -rf "$FILE"
+  ;;
 
   rpc-test)
     echo Running RPC server tests

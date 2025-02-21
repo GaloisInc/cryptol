@@ -1,7 +1,7 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module `where` argument of T13::B
-Loading interface module `parameter` interface of T13::A
+Loading module T13::B__where
+Loading interface module T13::A__parameter
 Loading module T13::A
 Loading module T13::B
 Loading module T13::Main

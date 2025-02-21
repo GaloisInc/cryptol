@@ -1,6 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading interface module `parameter` interface of T3::A
+Loading interface module T3::A__parameter
 Loading module T3::A
 Loading module T3::Main
 

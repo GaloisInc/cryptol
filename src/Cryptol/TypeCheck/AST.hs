@@ -13,7 +13,6 @@
 {-# LANGUAGE FlexibleInstances, FlexibleContexts #-}
 {-# LANGUAGE DeriveAnyClass, DeriveGeneric       #-}
 {-# LANGUAGE OverloadedStrings                   #-}
-{-# LANGUAGE NamedFieldPuns                      #-}
 {-# LANGUAGE ViewPatterns                        #-}
 module Cryptol.TypeCheck.AST
   ( module Cryptol.TypeCheck.AST
@@ -31,6 +30,7 @@ module Cryptol.TypeCheck.AST
   , DocFor(..)
   ) where
 
+import Data.Maybe(catMaybes)
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.Ident (Ident,isInfixIdent,ModName,PrimIdent,prelPrim)
 import Cryptol.Parser.Position(Located, HasLoc(..), Range)
@@ -525,17 +525,25 @@ instance PP n => PP (ModuleG n) where
 
 instance PP n => PP (WithNames (ModuleG n)) where
   ppPrec _ (WithNames Module { .. } nm) =
-    vcat [ text "module" <+> pp mName
+    vcat $
+    catMaybes
+         [ Just (text "module" <+> pp mName)
+         , Just ""
          -- XXX: Print exports?
-         , vcat (map pp' (Map.elems mTySyns))
+         , vcat' (map pp' (Map.elems mTySyns))
          -- XXX: Print abstarct types/functions
-         , vcat (map pp' mDecls)
+         , vcat' (map pp' mDecls)
 
-         , vcat (map pp (Map.elems mFunctors))
+         , vcat' (map pp (Map.elems mFunctors))
+
+         , vcat' (map ppSig (Map.toList mSignatures))
          ]
     where mps = map mtpParam (Map.elems mParamTypes)
           pp' :: PP (WithNames a) => a -> Doc
           pp' = ppWithNames (addTNames mps nm)
+          ppSig (x,y) = "interface module" <+> pp x <+> "where"
+                        $$ indent 2 (pp y)
+          vcat' xs = if null xs then Nothing else Just (vcat xs)
 
 instance PP (WithNames TCTopEntity) where
   ppPrec _ (WithNames ent nm) =

@@ -11,7 +11,7 @@ class TestModules(unittest.TestCase):
         expected = [
             {'module': 'Cryptol', 'parameterized': False},
             {'module': 'Modules', 'parameterized': False, 'documentation': ['A top-level\ndocstring\n']},
-            {'module': 'Modules::`where` argument of M', 'parameterized': False},
+            {'module': 'Modules::where_at__17_11', 'parameterized': False},
             {'module': 'Modules::M', 'parameterized': False, 'documentation': ['A submodule docstring\n', 'A functor docstring\n']},
             {'module': 'Modules::M::Q', 'parameterized': False, 'documentation': ['A submodule in a functor docstring\n']},
             {'module': 'Modules::F', 'parameterized': True, 'documentation': ['A functor docstring\n']},
