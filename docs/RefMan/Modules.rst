@@ -13,7 +13,7 @@ contain at most one top-level module.
   f : [8]
   f = 10
 
-Module names should avoid using two consecutive underscored, because
+Module names should avoid using two consecutive underscores, because
 those are used to generate names for various anonymous modules.
 
 

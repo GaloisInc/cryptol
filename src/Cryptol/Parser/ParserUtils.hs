@@ -1393,7 +1393,9 @@ class MkAnon t where
   mkAnon    :: AnonThing -> t -> t
   toImpName :: t -> ImpName PName
 
-data AnonThing = AnonArg Int Int | AnonIfaceMod
+data AnonThing = AnonArg Int Int
+                -- ^ The ints are line, column used for disambiguation
+               | AnonIfaceMod
 
 instance MkAnon ModName where
   mkAnon what   = case what of

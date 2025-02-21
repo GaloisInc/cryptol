@@ -55,7 +55,6 @@ module Cryptol.Utils.Ident
   , isUpperIdent
   , nullIdent
   , identText
-  , modParamIdent
   , identAnonArg
   , identAnonIfaceMod
   , identAnonInstImport
@@ -169,7 +168,8 @@ data ModName = ModName Text MaybeAnon
 instance NFData ModName
 
 -- | Change a normal module name to a module name to be used for an
--- anonnymous argument.
+-- anonnymous argument.  The first two ints are the line and column of the
+-- name, which are used for name disambiguation.
 modNameArg :: Int -> Int -> ModName -> ModName
 modNameArg l c (ModName m fl) =
   case fl of
@@ -360,12 +360,9 @@ nullIdent = T.null . identText
 identText :: Ident -> T.Text
 identText (Ident _ mb t) = maybeAnonText mb t
 
-modParamIdent :: Ident -> Ident
-modParamIdent (Ident x a t) =
-  Ident x a (T.append (T.pack "module parameter ") t)
-
 -- | Make an anonymous identifier for the module corresponding to
--- a `where` block in a functor instantiation.
+-- a `where` block in a functor instantiation. 
+-- The two ints are the line and column of the definition site.
 identAnonArg :: Int -> Int -> Ident
 identAnonArg l c = Ident False (AnonModArgName l c) ""
 
@@ -375,6 +372,7 @@ identAnonIfaceMod :: Ident -> Ident
 identAnonIfaceMod (Ident b _ txt) = Ident b AnonIfaceModName txt
 
 -- | Make an anonymous identifier for an instantiation in an import.
+-- The two ints are the line and column of the definition site.
 identAnonInstImport :: Int -> Int -> Ident
 identAnonInstImport l c = Ident False (AnonInstImport l c) ""
 
@@ -393,7 +391,9 @@ data MaybeAnon = NormalName       -- ^ Not an anonymous name.
 
 instance NFData MaybeAnon
 
--- | Modify a name, if it is a nonymous
+-- | Modify a name, if it is a nonymous.
+-- If we change this, please update the reference manual as well, so that
+-- folks know how to refer to these in external tools.
 maybeAnonText :: MaybeAnon -> Text -> Text
 maybeAnonText mb txt =
   case mb of

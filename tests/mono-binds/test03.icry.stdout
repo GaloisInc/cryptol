@@ -14,8 +14,6 @@ test03::test =
       foo = \{b} (Literal a b) -> Cryptol::number a b <>
 
 
-
-
 Loading module Cryptol
 Loading module test03
 module test03
@@ -29,7 +27,5 @@ test03::test =
       /* Not recursive */
       foo : [a]
       foo = Cryptol::number a [a] <>
-
-
 
 

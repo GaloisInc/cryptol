@@ -16,8 +16,6 @@ test02::test =
       g = \{c} (x : a) -> f c x
 
 
-
-
 Loading module Cryptol
 Loading module test02
 module test02
@@ -33,7 +31,5 @@ test02::test =
       f = \(x : b) -> g a
       g : b -> a
       g = \(x : b) -> f x
-
-
 
 
