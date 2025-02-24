@@ -399,31 +399,31 @@ ilam sym f =
 
 -- | A finite sequence of non-VBit values. Used in 'finSeq' to
 --   safely construct a 'VSeq'.
-newtype FinSeq sym = FinSeq [GenValue sym]
+newtype FinSeq sym = FinSeq [SEval sym (GenValue sym)]
 
 -- | Safely wrap a 'GenValue' list as a 'FinSeq'. Returns 'Nothing'
 --   if any values are a 'VBit'.
-toFinSeq :: [GenValue sym] -> Maybe (FinSeq sym)
+toFinSeq :: Backend sym => [GenValue sym] -> Maybe (FinSeq sym)
 toFinSeq xs = FinSeq <$> mapM go xs
   where
     go x = case x of
       VBit _ -> Nothing
-      _ -> Just x
+      _ -> Just (pure x)
 
--- | Wrap a 'GenValue' list as a 'FinSeq'. Raises a runtime
---   error if any values are a 'VBit'.
-unsafeToFinSeq :: [GenValue sym] -> FinSeq sym
+-- | Wrap a 'GenValue' thunk list as a 'FinSeq'. Any 'VBit' elements
+--   will raise an runtime error when evaluated.
+unsafeToFinSeq :: Backend sym => [SEval sym (GenValue sym)] -> FinSeq sym
 unsafeToFinSeq xs = FinSeq (map go xs)
   where
-    go x = case x of
-      VBit _ -> panic "unsafeToFinSeq" [ "Unexpected `VBit`" ]
-      _ -> x
+    go f = f >>= \x -> case x of
+      VBit _ -> evalPanic "unsafeToFinSeq" [ "Unexpected `VBit`", show x ]
+      _ -> pure x
 
 -- | Construct a finite sequence from a 'FinSeq'. In contrast to
 --   'mkSeq' this is a pure function. See 'toFinSeq' or 'unsafeToFinSeq'
 --   for creating a 'FinSeq' from a list of values.
 finSeq :: Backend sym => sym -> Integer -> FinSeq sym -> GenValue sym
-finSeq sym len (FinSeq vs) = VSeqCtor len (finiteSeqMap sym (map pure vs))
+finSeq sym len (FinSeq vs) = VSeqCtor len (finiteSeqMap sym vs)
 
 -- | Construct either a finite sequence, or a stream.  In the finite case,
 -- record whether or not the elements were bits, to aid pretty-printing.

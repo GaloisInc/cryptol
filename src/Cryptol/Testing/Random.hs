@@ -497,7 +497,7 @@ typeValues ty =
       | x <- [ 0 .. 2^n - 1 ]
       ]
     TVSeq n el ->
-      [ finSeq Concrete n (unsafeToFinSeq xs) -- safe, since the TVBit case is covered above
+      [ finSeq Concrete n (unsafeToFinSeq (map pure xs)) -- safe, since the TVBit case is covered above
       | xs <- sequence (genericReplicate n (typeValues el))
       ]
     TVTuple ts ->
