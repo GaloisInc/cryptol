@@ -205,6 +205,17 @@ boolectorOnlineAdapter =
   AnOnlineAdapter "Boolector" W4.boolectorFeatures W4.boolectorOptions
          (Proxy :: Proxy (W4.Writer W4.Boolector))
 
+adapterName :: AnAdapter -> String
+adapterName adapter = case adapter of
+  AnAdapter adapter' -> solver_adapter_name adapter'
+  AnOnlineAdapter nm _ _ _ -> nm
+
+hasAdapter :: W4ProverConfig -> String -> Bool
+hasAdapter cfg nm = case cfg of
+  W4ProverConfig adapter -> adapterName adapter == nm
+  W4OfflineConfig -> nm == "w4-offline"
+  W4Portfolio adapterSet -> any ((== nm) . adapterName) adapterSet
+
 allSolvers :: W4ProverConfig
 allSolvers = W4Portfolio
   $ z3OnlineAdapter :|
@@ -419,7 +430,7 @@ satProve solverCfg hashConsing warnUninterp timeoutMs pc@ProverCommand {..} =
                                   globalNonceGenerator
        setupAdapterOptions solverCfg w4sym
        when hashConsing (W4.startCaching w4sym)
-       when (timeoutMs > 0) (setTimeout (fromIntegral timeoutMs) w4sym)
+       when (timeoutMs > 0) (setTimeout solverCfg (fromIntegral timeoutMs) w4sym)
        pure w4sym
 
   doLog lg () =
@@ -766,17 +777,17 @@ varShapeToConcrete evalFn v =
       VarEnum <$> W4.groundEval evalFn tag
               <*> traverse (traverse (varShapeToConcrete evalFn)) cons
 
-symCfg :: (W4.IsExprBuilder sym, W4.Opt t a) => sym -> W4.ConfigOption t -> a -> IO ()
-symCfg sym x y =
+symCfg :: (W4.IsExprBuilder sym, W4.Opt t a) => W4ProverConfig -> sym -> String -> W4.ConfigOption t -> a -> IO ()
+symCfg cfg sym nm x y = when (hasAdapter cfg nm) $
  do opt <- W4.getOptionSetting x (W4.getConfiguration sym)
     _   <- W4.trySetOpt opt y
     pure ()
 
-setTimeout :: W4.IsExprBuilder sym => Integer -> sym -> IO ()
-setTimeout s sym =
- do symCfg sym W4.z3Timeout (1000 * s)
-    symCfg sym W4.cvc4Timeout (1000 * s)
-    symCfg sym W4.cvc5Timeout (1000 * s)
-    symCfg sym W4.boolectorTimeout (1000 * s)
-    symCfg sym W4.yicesGoalTimeout s -- N.B. yices takes seconds
+setTimeout :: W4.IsExprBuilder sym => W4ProverConfig -> Integer -> sym -> IO ()
+setTimeout cfg s sym =
+ do symCfg cfg sym "Z3" W4.z3Timeout (1000 * s)
+    symCfg cfg sym "CVC4" W4.cvc4Timeout (1000 * s)
+    symCfg cfg sym "CVC5" W4.cvc5Timeout (1000 * s)
+    symCfg cfg sym "Boolector" W4.boolectorTimeout (1000 * s)
+    symCfg cfg sym "Yices" W4.yicesGoalTimeout s -- N.B. yices takes seconds
     pure ()
