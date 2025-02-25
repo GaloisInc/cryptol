@@ -356,7 +356,7 @@ isUpperIdent (Ident _ mb t) =
     _ -> False
 
 -- | Is this an ident for an anonymous module interface
--- (i.e., a `parameter` block)
+-- (i.e., a `parameter` block)?
 isAnonIfaceModIdnet :: Ident -> Bool
 isAnonIfaceModIdnet (Ident _ ty _) =
   case ty of
