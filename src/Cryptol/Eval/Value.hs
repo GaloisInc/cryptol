@@ -17,6 +17,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TupleSections #-}
@@ -25,7 +26,15 @@
 
 module Cryptol.Eval.Value
   ( -- * GenericValue
-    GenValue(..), ConValue
+    GenValue 
+      (VRecord, VTuple
+      , VEnum, VBit
+      , VInteger, VRational
+      , VFloat, VWord
+      , VStream, VFun
+      , VPoly, VNumPoly
+      , VSeq) -- pattern synonym
+  , ConValue
   , forceValue
   , Backend(..)
   , asciiMode
@@ -38,7 +47,12 @@ module Cryptol.Eval.Value
   , tlam
   , nlam
   , ilam
+  , FinSeq
+  , toFinSeq
+  , unsafeToFinSeq
+  , finSeq
   , mkSeq
+  , wordSeq
     -- ** Value eliminators
   , fromVBit
   , fromVInteger
@@ -122,14 +136,28 @@ data GenValue sym
   | VInteger !(SInteger sym)                   -- ^ @ Integer @ or @ Z n @
   | VRational !(SRational sym)                 -- ^ @ Rational @
   | VFloat !(SFloat sym)
-  | VSeq !Integer !(SeqMap sym (GenValue sym)) -- ^ @ [n]a   @
-                                               --   Invariant: VSeq is never a sequence of bits
+  | VSeqCtor !Integer !(SeqMap sym (GenValue sym)) -- ^ @ [n]a   @
+                                                   --   Invariant: VSeqCtor is never a sequence of bits
+                                                   --   This constructor is intentionally not exported
+                                                   --   to preserve the invariant. Use smart constructors
+                                                   --   such as 'mkSeq' or 'finSeq' instead.
   | VWord !(WordValue sym)                     -- ^ @ [n]Bit @
   | VStream !(SeqMap sym (GenValue sym))       -- ^ @ [inf]a @
   | VFun  CallStack (SEval sym (GenValue sym) -> SEval sym (GenValue sym)) -- ^ functions
   | VPoly CallStack (TValue -> SEval sym (GenValue sym))   -- ^ polymorphic values (kind *)
   | VNumPoly CallStack (Nat' -> SEval sym (GenValue sym))  -- ^ polymorphic values (kind #)
  deriving Generic
+
+-- | A view-only pattern for deconstructing finite sequences. Use
+--   'mkSeq' or 'finSeq' for construction.
+pattern VSeq :: Integer -> SeqMap sym (GenValue sym) -> GenValue sym
+pattern VSeq len vals <- VSeqCtor len vals
+
+-- This is all GenValue constructors except for VSeqCtor, which
+-- is instead swapped for the view-only VSeq pattern
+{-# COMPLETE VRecord, VTuple, VEnum, VBit, VInteger,
+             VRational, VFloat, VWord, VStream,
+             VFun, VPoly, VNumPoly, VSeq #-}
 
 type ConValue sym = ConInfo (SEval sym (GenValue sym))
 
@@ -369,15 +397,54 @@ ilam sym f =
                      Nat i -> f i
                      Inf   -> panic "ilam" [ "Unexpected `inf`" ])
 
+-- | A finite sequence of non-VBit values. Used in 'finSeq' to
+--   safely construct a 'VSeq'.
+newtype FinSeq sym = FinSeq [SEval sym (GenValue sym)]
+
+-- | Safely wrap a 'GenValue' list as a 'FinSeq'. Returns 'Nothing'
+--   if any values are a 'VBit'.
+toFinSeq :: Backend sym => [GenValue sym] -> Maybe (FinSeq sym)
+toFinSeq xs = FinSeq <$> mapM go xs
+  where
+    go x = case x of
+      VBit _ -> Nothing
+      _ -> Just (pure x)
+
+-- | Wrap a 'GenValue' thunk list as a 'FinSeq'. Any 'VBit' elements
+--   will raise an runtime error when evaluated.
+unsafeToFinSeq :: Backend sym => [SEval sym (GenValue sym)] -> FinSeq sym
+unsafeToFinSeq xs = FinSeq (map go xs)
+  where
+    go f = f >>= \x -> case x of
+      VBit _ -> evalPanic "unsafeToFinSeq" [ "Unexpected `VBit`", show x ]
+      _ -> pure x
+
+-- | Construct a finite sequence from a 'FinSeq'. In contrast to
+--   'mkSeq' this is a pure function. See 'toFinSeq' or 'unsafeToFinSeq'
+--   for creating a 'FinSeq' from a list of values.
+finSeq :: Backend sym => sym -> Integer -> FinSeq sym -> GenValue sym
+finSeq sym len (FinSeq vs) = VSeqCtor len (finiteSeqMap sym vs)
+
 -- | Construct either a finite sequence, or a stream.  In the finite case,
 -- record whether or not the elements were bits, to aid pretty-printing.
 mkSeq :: Backend sym => sym -> Nat' -> TValue -> SeqMap sym (GenValue sym) -> SEval sym (GenValue sym)
 mkSeq sym len elty vals = case len of
   Nat n
     | isTBit elty -> VWord <$> bitmapWordVal sym n (fromVBit <$> vals)
-    | otherwise   -> pure $ VSeq n vals
+    | otherwise   -> pure $ VSeqCtor n vals
   Inf             -> pure $ VStream vals
 
+-- | Construct a finite sequence of word values.
+wordSeq :: 
+  Backend sym => 
+  sym ->
+  -- | The length of the sequence.
+  Integer ->
+  -- | The word size of the element type.
+  Integer ->
+  SeqMap sym (GenValue sym) -> 
+  SEval sym (GenValue sym)
+wordSeq sym n w vals = mkSeq sym (Nat n) (TVSeq w TVBit) vals
 
 -- Value Destructors -----------------------------------------------------------
 
@@ -582,7 +649,7 @@ mergeValue sym c v1 v2 =
     (VRational q1, VRational q2) -> VRational <$> iteRational sym c q1 q2
     (VFloat f1   , VFloat f2)    -> VFloat <$> iteFloat sym c f1 f2
     (VWord w1    , VWord w2 ) | wordValWidth w1 == wordValWidth w2 -> VWord <$> mergeWord sym c w1 w2
-    (VSeq n1 vs1 , VSeq n2 vs2 ) | n1 == n2 -> VSeq n1 <$> memoMap sym (Nat n1) (mergeSeqMapVal sym c vs1 vs2)
+    (VSeqCtor n1 vs1 , VSeqCtor n2 vs2 ) | n1 == n2 -> VSeqCtor n1 <$> memoMap sym (Nat n1) (mergeSeqMapVal sym c vs1 vs2)
     (VStream vs1 , VStream vs2 ) -> VStream <$> memoMap sym Inf (mergeSeqMapVal sym c vs1 vs2)
     (f1@VFun{}   , f2@VFun{}   ) -> lam sym $ \x -> mergeValue' sym c (fromVFun sym f1 x) (fromVFun sym f2 x)
     (f1@VPoly{}  , f2@VPoly{}  ) -> tlam sym $ \x -> mergeValue' sym c (fromVPoly sym f1 x) (fromVPoly sym f2 x)

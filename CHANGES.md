@@ -4,6 +4,11 @@
 
 ## Bug fixes
 
+* Fix #1437, enforce the VSeq invariant that it is not a sequence of bits.
+  Replaces the VSeq constructor with a view-only pattern, and smart constructors
+  `mkSeq` and `finSeq`.
+  ([#1437](https://github.com/GaloisInc/cryptol/issues/1437))
+
 * Fix #1740, removes duplicated width from word values.
   Note that since this changes the types, it may require changes to libraries
   depending on Cryptol.

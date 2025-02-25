@@ -137,7 +137,7 @@ evalExpr sym env expr = case expr of
                            bitmapWordVal sym len $ finiteSeqMap sym xs)
     | otherwise -> {-# SCC "evalExpr->EList" #-} do
         xs <- mapM (sDelay sym) vs
-        return $ VSeq len $ finiteSeqMap sym xs
+        mkSeq sym (Nat len) tyv $ finiteSeqMap sym xs
    where
     tyv = evalValType (envTypes env) ty
     vs  = map eval es
@@ -608,7 +608,7 @@ evalSetSel :: forall sym.
   sym ->
   TValue ->
   GenValue sym -> Selector -> SEval sym (GenValue sym) -> SEval sym (GenValue sym)
-evalSetSel sym _tyv e sel v =
+evalSetSel sym tyv e sel v =
   case sel of
     TupleSel n _  -> setTuple n
     RecordSel n _ -> setRecord n
@@ -641,7 +641,8 @@ evalSetSel sym _tyv e sel v =
 
   setList n =
     case e of
-      VSeq i mp  -> pure $ VSeq i  $ updateSeqMap mp n v
+      VSeq i mp | TVSeq _ elty <- tyv -> 
+        mkSeq sym (Nat i) elty $ updateSeqMap mp n v
       VStream mp -> pure $ VStream $ updateSeqMap mp n v
       VWord m    -> VWord <$> updateWordValue sym m n asBit
       _ -> bad "Sequence update on a non-sequence."
