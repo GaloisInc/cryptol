@@ -8,5 +8,5 @@ Checking module T07
   Docstrings on T07
     42 : [N]
       0x2a
-  Docstrings on T07::T07F__parameter::N
+  Docstrings on T07::N
 Successes: 1, No fences: 1, Failures: 0

@@ -4,7 +4,7 @@ Loading module T02
 Checking module T02
   Docstrings on T02
   Docstrings on T02::where_at__27_11::n
-  Docstrings on T02::F7::F__parameter::n
+  Docstrings on T02::F7::n
   Docstrings on T02::F7::c
     :check c == 1
       Using exhaustive testing.

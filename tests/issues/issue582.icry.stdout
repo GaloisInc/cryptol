@@ -36,7 +36,7 @@ Loading module Main
   Failed to validate user-specified signature.
     in the definition of 'Main::foo', at issue582.cry:2:1--2:4,
     we need to show that
-      for any type i, j
+      for any type j
       the following constraints hold:
         • fin j
             arising from
@@ -50,7 +50,7 @@ Loading module Main
   Failed to validate user-specified signature.
     in the definition of 'Main::bar', at issue582.cry:5:1--5:4,
     we need to show that
-      for any type i, j
+      for any type j
       the following constraints hold:
         • fin j
             arising from
