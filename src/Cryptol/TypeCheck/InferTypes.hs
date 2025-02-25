@@ -453,7 +453,7 @@ nameVariant n x = if n == 0 then x else x ++ suff
 
 -- | Pick names for the type parameters that correspond to module parameters,
 -- avoiding strings that already appear in the given name map.
--- Returns and extended name map.
+-- Returns an extended name map.
 computeModParamNames :: [TParam] -> NameMap -> NameMap
 computeModParamNames tps names = IntMap.fromList newNames `IntMap.union` names
   where
