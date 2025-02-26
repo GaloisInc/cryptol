@@ -1,0 +1,7 @@
+module T1 where
+
+parameter
+  type n: #
+
+y: [n]
+y = 1

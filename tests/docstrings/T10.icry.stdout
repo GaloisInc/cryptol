@@ -20,7 +20,7 @@ Checking module T10
       Testing... Passed 1 tests.
       Q.E.D.
   Docstrings on T10::where_at__30_11::N
-  Docstrings on T10::F1::F__parameter::N
+  Docstrings on T10::F1::N
   Docstrings on T10::M::q
   Docstrings on T10::M::r
   Docstrings on T10::F1::s

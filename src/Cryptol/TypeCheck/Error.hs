@@ -819,6 +819,7 @@ explainUnsolvable names gs =
 computeFreeVarNames :: [(Range,Warning)] -> [(Range,Error)] -> NameMap
 computeFreeVarNames warns errs =
   mkMap numRoots numVaras `IntMap.union` mkMap otherRoots otherVars
+    `IntMap.union` mpNames
 
   {- XXX: Currently we pick the names based on the unique of the variable:
      smaller uniques get an earlier name (e.g., 100 might get `a` and 200 `b`)
@@ -831,20 +832,16 @@ computeFreeVarNames warns errs =
   mkName x v = (tvUnique x, v)
   mkMap roots vs = IntMap.fromList (zipWith mkName vs (variants roots))
 
-  (numVaras,otherVars) = partition ((== KNum) . kindOf)
-                       $ Set.toList
-                       $ Set.filter isFreeTV
-                       $ fvs (map snd warns, map snd errs)
+  (uvars,non_uvars) = partition isFreeTV
+                    $ Set.toList
+                    $ fvs (map snd warns, map snd errs)
+        
+  mpNames = computeModParamNames [ tp | TVBound tp <- non_uvars ] mempty
+        
+  (numVaras,otherVars) = partition ((== KNum) . kindOf) uvars
 
   otherRoots = [ "a", "b", "c", "d" ]
   numRoots   = [ "m", "n", "u", "v" ]
 
-  useUnicode = True
+  variants roots = [ nameVariant n r | n <- [ 0 .. ], r <- roots ]
 
-  suff n
-    | n < 10 && useUnicode = [toEnum (0x2080 + n)]
-    | otherwise = show n
-
-  variant n x = if n == 0 then x else x ++ suff n
-
-  variants roots = [ variant n r | n <- [ 0 .. ], r <- roots ]

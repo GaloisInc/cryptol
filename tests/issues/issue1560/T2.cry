@@ -1,0 +1,16 @@
+module T2 where
+
+parameter
+  type n: #
+  type constraint (fin n)
+
+a:[n]
+a = a
+
+submodule F where
+  parameter
+    type n: #
+
+  b: {m} [n] -> [m]
+  b _ = a
+

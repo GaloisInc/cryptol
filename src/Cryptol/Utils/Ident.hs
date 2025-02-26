@@ -53,6 +53,7 @@ module Cryptol.Utils.Ident
   , mkInfix
   , isInfixIdent
   , isUpperIdent
+  , isAnonIfaceModIdnet
   , nullIdent
   , identText
   , identAnonArg
@@ -353,6 +354,14 @@ isUpperIdent (Ident _ mb t) =
   case mb of
     NormalName | Just (c,_) <- T.uncons t -> isUpper c
     _ -> False
+
+-- | Is this an ident for an anonymous module interface
+-- (i.e., a `parameter` block)?
+isAnonIfaceModIdnet :: Ident -> Bool
+isAnonIfaceModIdnet (Ident _ ty _) =
+  case ty of
+    AnonIfaceModName -> True
+    _                -> False
 
 nullIdent :: Ident -> Bool
 nullIdent = T.null . identText

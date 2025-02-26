@@ -4,7 +4,7 @@ Loading module Main
 Checking module Main
   Docstrings on Main
   Docstrings on Main::where_at__16_11::n
-  Docstrings on Main::M::F__parameter::n
+  Docstrings on Main::M::n
   Docstrings on submodule Main::where_at__16_11
   Docstrings on submodule Main::M
     "M"
