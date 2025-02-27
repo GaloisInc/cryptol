@@ -16,7 +16,7 @@ env:
   # - cryptol-remote-api/Dockerfile
   # - README.md
   # - dev/dev_setup.sh
-  SOLVER_PKG_VERSION: "snapshot-20241119"
+  SOLVER_PKG_VERSION: "snapshot-20250227"
   # The CACHE_VERSION can be updated to force the use of a new cache if
   # the current cache contents become corrupted/invalid.  This can
   # sometimes happen when (for example) the OS version is changed but
