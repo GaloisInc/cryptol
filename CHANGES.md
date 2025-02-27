@@ -4,6 +4,16 @@
 
 ## Bug fixes
 
+* Update Yices build in CI to fix a crash when running
+  test `issue_1807.icry` on Mac OS X (ARM64).
+  ([what4-solvers #58](https://github.com/GaloisInc/what4-solvers/issues/58))
+
+* Fix a bug where using a timeout with a subset of the what4 solvers
+  would cause a runtime error. Includes a version bump for what4 to address
+  a nondeterministic crash when using timeouts with cvc4/5.
+  ([what4 PR #288](https://github.com/GaloisInc/what4/pull/288))
+  ([#1807](https://github.com/GaloisInc/cryptol/issues/1807))
+
 * Fix #1437, enforce the VSeq invariant that it is not a sequence of bits.
   Replaces the VSeq constructor with a view-only pattern, and smart constructors
   `mkSeq` and `finSeq`.
