@@ -8,7 +8,5 @@
 :set prover=sbv-cvc5
 :sat nQueens : (Solution 50)
 
-// FIXME:
-//   broken due to: https://github.com/LeventErkok/sbv/issues/735
-// :set prover=sbv-yices
-// :sat nQueens : (Solution 50)
+:set prover=sbv-yices
+:sat nQueens : (Solution 50)
