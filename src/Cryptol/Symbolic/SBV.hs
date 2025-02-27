@@ -110,11 +110,36 @@ proverConfigs =
 setTimeoutSecs ::
   Int {- ^ seconds -} ->
   SBV.SMTConfig -> SBV.SMTConfig
-setTimeoutSecs s cfg = cfg
-  { SBV.solverSetOptions =
-    SBV.OptionKeyword ":timeout" [show (toInteger s * 1000)] :
-    filter (not . isTimeout) (SBV.solverSetOptions cfg) }
+setTimeoutSecs s cfg = case SBV.name (SBV.solver cfg) of
+  SBV.Yices -> cfg'
+  -- FIXME: although this correctly sets the timeout for Yices,
+  -- SBV crashes due to an unexpected response from Yices after
+  -- a timeout is hit.
+  -- see:
+  --   https://github.com/LeventErkok/sbv/issues/735
+  --   https://github.com/SRI-CSL/yices2/issues/547
+    { SBV.extraArgs =
+      ["--timeout", show (toInteger s)] ++
+      SBV.extraArgs cfg' }
+  -- NOTE: in sbv 11.1.5 these special cases are handled
+  -- by a new 'SetTimeOut' constructor for 'SMTOption'
+  SBV.CVC4 -> cfg'
+    { SBV.extraArgs =
+      ["--tlimit-per", show (toInteger s * 1000)] ++
+      SBV.extraArgs cfg' }
+  SBV.CVC5 -> cfg'
+    { SBV.extraArgs =
+      ["--tlimit-per", show (toInteger s * 1000)] ++
+      SBV.extraArgs cfg' }
+  _ -> cfg'
+    { SBV.solverSetOptions =
+      SBV.OptionKeyword ":timeout" [show (toInteger s * 1000)] :
+      (SBV.solverSetOptions cfg') }
   where
+    cfg' = cfg
+      { SBV.solverSetOptions =
+        filter (not . isTimeout) (SBV.solverSetOptions cfg) }
+
     isTimeout (SBV.OptionKeyword k _) = k == ":timeout"
     isTimeout _ = False
 
