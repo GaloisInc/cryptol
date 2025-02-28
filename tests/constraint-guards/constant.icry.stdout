@@ -5,7 +5,7 @@ Loading module Main
     Unused name: n
 [warning] at constant.cry:14:10--14:15
     Unused name: n
-[warning] at constant.cry:28:1--28:10:
+[warning] at constant.cry:28:13--28:18:
   Could not prove that the constraint guards used in defining Main::idTypeNum were exhaustive.
 property isZero_correct Using exhaustive testing.
 Testing... Passed 1 tests.

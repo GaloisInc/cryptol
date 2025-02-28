@@ -46,6 +46,10 @@
 
 ## New features
 
+* Improved warning messages for non-exhaustive guards.
+  Warnings are now ordered by source location.
+  ([#1798](https://github.com/GaloisInc/cryptol/issues/1798))
+
 * Improved error messages mentioning module parameters
   ([#1560](https://github.com/GaloisInc/cryptol/issues/1560))
 

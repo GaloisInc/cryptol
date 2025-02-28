@@ -56,6 +56,15 @@ cleanupErrors = dropErrorsFromSameLoc
          in dropSubsumed (err : filter keep survived) (filter keep rest)
       [] -> survived
 
+cleanupWarnings :: [(Range,Warning)] -> [(Range,Warning)]
+cleanupWarnings = 
+  sortBy (compare `on` (cmpR . fst))    -- order warnings
+  where
+    cmpR r  = ( source r    -- First by file
+              , from r      -- Then starting position
+              , to r        -- Finally end position
+              )
+
 -- | Should the first error suppress the next one.
 subsumes :: (Range,Error) -> (Range,Error) -> Bool
 subsumes (_,NotForAll _ _ x _) (_,NotForAll _ _ y _) = x == y

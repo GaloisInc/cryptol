@@ -1,9 +1,9 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Main
-[warning] at nestMod.cry:8:5--8:13:
-  Assuming  n to have a numeric type
 [warning] at nestMod.cry:4:7--4:15:
+  Assuming  n to have a numeric type
+[warning] at nestMod.cry:8:5--8:13:
   Assuming  n to have a numeric type
 True
 False
