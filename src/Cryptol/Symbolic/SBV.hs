@@ -117,7 +117,7 @@ setTimeoutSecs s cfg = case SBV.name (SBV.solver cfg) of
   -- SBV crashes due to an unexpected response from Yices after
   -- a timeout is hit.
   -- As a workaround, we ignore the timeout setting for Yices
-  -- and instead rely on addDeadmanTimer to kill Yices when the
+  -- and instead rely on 'addDeadmanTimer' to kill Yices when the
   -- timeout is hit.
   -- see:
   --   https://github.com/LeventErkok/sbv/issues/735
@@ -125,8 +125,10 @@ setTimeoutSecs s cfg = case SBV.name (SBV.solver cfg) of
     {- { SBV.extraArgs =
       ["--timeout", show (toInteger s)] ++
       SBV.extraArgs cfg' } -}
-  -- NOTE: in sbv 11.1.5 these special cases are handled
-  -- by a new 'SetTimeOut' constructor for 'SMTOption'
+
+  -- NOTE: Once Cryptol requires sbv 11.1.5 as a minimum, we
+  -- can use the new 'SetTimeOut' option for all solvers and
+  -- the special cases for CVC4 and CVC5 can be dropped.
   SBV.CVC4 -> cfg'
     { SBV.extraArgs =
       ["--tlimit-per", show (toInteger s * 1000)] ++
@@ -281,10 +283,14 @@ runMultiProvers pc lPutStrLn provers callSolver processResult e = do
 
 -- | Wrap a solver call with a given timeout. If the timeout is reached, then
 --   the default result is returned and the solver call is terminated.
+--   This is required to handle timeouts when using Yices due to a known
+--   issue (see 'setTimeoutSecs').
+--   However, it can be used with any solver as an additional measure
+--   to ensure the timeout is respected.
 addDeadmanTimer ::
   Int {- ^ timeout in seconds -} ->
   (SBV.SMTConfig -> res) {- ^ result to give when a timeout is hit -} ->
-  (SBV.SMTConfig -> SBV.Symbolic SBV.SVal -> IO res) ->
+  (SBV.SMTConfig -> SBV.Symbolic SBV.SVal -> IO res) {- ^ call the SMT solver -} ->
   (SBV.SMTConfig -> SBV.Symbolic SBV.SVal -> IO res)
 addDeadmanTimer timeoutSecs _defaultRes callProver | timeoutSecs <= 0 = callProver
 addDeadmanTimer timeoutSecs defaultRes callProver =

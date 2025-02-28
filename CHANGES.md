@@ -4,6 +4,13 @@
 
 ## Bug fixes
 
+* Fix a bug where setting at timeout would cause
+  sbv-yices, sbv-cvc4 and sbc-cvc5 to crash.
+  Uses a deadman timer workaround for yices, due
+  to a [known issue](https://github.com/LeventErkok/sbv/issues/735).
+  ([#1808](https://github.com/GaloisInc/cryptol/issues/1808))
+
+
 * Update Yices build in CI to fix a crash when running
   test `issue_1807.icry` on Mac OS X (ARM64).
   ([what4-solvers #58](https://github.com/GaloisInc/what4-solvers/issues/58))
