@@ -1335,8 +1335,10 @@ checkExhaustive name as asmps guards =
   go goals i = case pluck i goals of
     Just (goalp, rest) ->
       do ok <- doGoals (theAlts rest) (map toGoal goalp)
-         if ok then pure True
-         else go goals (i+1)
+         case ok of
+           Just True -> pure True
+           Just False -> pure False
+           Nothing -> go goals (i+1)
     Nothing -> pure False
 
   cmpByLonger props1 props2 = compare (length props2) (length props1)
@@ -1356,11 +1358,13 @@ checkExhaustive name as asmps guards =
   -- Try to validate all cases
   doGoals todo gs =
     case todo of
-      []     -> pure True
+      []     -> pure $ Just True
       alt : more ->
         do ok <- canProve (asmps ++ alt) gs
-           if ok then doGoals more gs
-                 else pure False
+           case ok of
+             Just True -> doGoals more gs
+             Just False -> pure $ Just False
+             Nothing -> pure Nothing
 
   toGoal :: Prop -> Goal
   toGoal prop =
@@ -1369,10 +1373,20 @@ checkExhaustive name as asmps guards =
       , goalRange  = srcRange name
       , goal       = prop
       }
+  
+  maybeSolvable :: Error -> Bool
+  maybeSolvable err = case err of
+    UnsolvedDelayedCt{} -> True
+    UnsolvedGoals{} -> True
+    _ -> False
 
-  canProve :: [Prop] -> [Goal] -> InferM Bool
+  canProve :: [Prop] -> [Goal] -> InferM (Maybe Bool)
   canProve asmps' goals =
-    tryProveImplication (Just (thing name)) as asmps' goals
+    do res <- tryProveImplication (Just (thing name)) as asmps' goals
+       case res of
+         Left errs | all maybeSolvable errs -> return Nothing
+         Left{} -> return $ Just False
+         Right{} -> return $ Just True
 
 {- | Generate type-checked syntax for the code in a PropGuard. For example,
 consider the following (pre–type-checked) syntax for a guard:
