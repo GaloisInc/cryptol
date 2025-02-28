@@ -1324,11 +1324,23 @@ The implications were derive by the following general algorithm:
 -}
 checkExhaustive :: Located Name -> [TParam] -> [Prop] -> [[Prop]] -> InferM Bool
 checkExhaustive name as asmps guards =
-  case sortBy cmpByLonger guards of
-    [] -> pure False -- XXX: we should check the asmps are unsatisfiable
-    longest : rest -> doGoals (theAlts rest) (map toGoal longest)
-
+  go (sortBy cmpByLonger guards) 0
   where
+  pluck i xs = case splitAt i xs of
+    (_, []) -> Nothing
+    (ys,x:xs') -> Just (x, ys ++ xs')
+
+  -- if starting with the longest guard fails, re-try in descending order
+  go [] _ = pure False -- XXX: we should check the asmps are unsatisfiable
+  go goals i = case pluck i goals of
+    Just (goalp, rest) ->
+      do ok <- doGoals (theAlts rest) (map toGoal goalp)
+         case ok of
+           Just True -> pure True
+           Just False -> pure False
+           Nothing -> go goals (i+1)
+    Nothing -> pure False
+
   cmpByLonger props1 props2 = compare (length props2) (length props1)
                                           -- reversed, so that longets is first
 
@@ -1346,11 +1358,13 @@ checkExhaustive name as asmps guards =
   -- Try to validate all cases
   doGoals todo gs =
     case todo of
-      []     -> pure True
+      []     -> pure $ Just True
       alt : more ->
         do ok <- canProve (asmps ++ alt) gs
-           if ok then doGoals more gs
-                 else pure False
+           case ok of
+             Just True -> doGoals more gs
+             Just False -> pure $ Just False
+             Nothing -> pure Nothing
 
   toGoal :: Prop -> Goal
   toGoal prop =
@@ -1359,10 +1373,20 @@ checkExhaustive name as asmps guards =
       , goalRange  = srcRange name
       , goal       = prop
       }
+  
+  maybeSolvable :: Error -> Bool
+  maybeSolvable err = case err of
+    UnsolvedDelayedCt{} -> True
+    UnsolvedGoals{} -> True
+    _ -> False
 
-  canProve :: [Prop] -> [Goal] -> InferM Bool
+  canProve :: [Prop] -> [Goal] -> InferM (Maybe Bool)
   canProve asmps' goals =
-    tryProveImplication (Just (thing name)) as asmps' goals
+    do res <- tryProveImplication (Just (thing name)) as asmps' goals
+       case res of
+         Left errs | all maybeSolvable errs -> return Nothing
+         Left{} -> return $ Just False
+         Right{} -> return $ Just True
 
 {- | Generate type-checked syntax for the code in a PropGuard. For example,
 consider the following (pre–type-checked) syntax for a guard:

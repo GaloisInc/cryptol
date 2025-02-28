@@ -46,6 +46,10 @@
 
 ## New features
 
+* More aggressive exhaustivity check that is less dependent on
+  guard ordering.
+  ([#1796](https://github.com/GaloisInc/cryptol/issues/1796))
+
 * Improved error messages mentioning module parameters
   ([#1560](https://github.com/GaloisInc/cryptol/issues/1560))
 
