@@ -1324,11 +1324,21 @@ The implications were derive by the following general algorithm:
 -}
 checkExhaustive :: Located Name -> [TParam] -> [Prop] -> [[Prop]] -> InferM Bool
 checkExhaustive name as asmps guards =
-  case sortBy cmpByLonger guards of
-    [] -> pure False -- XXX: we should check the asmps are unsatisfiable
-    longest : rest -> doGoals (theAlts rest) (map toGoal longest)
-
+  go (sortBy cmpByLonger guards) 0
   where
+  pluck i xs = case splitAt i xs of
+    (_, []) -> Nothing
+    (ys,x:xs') -> Just (x, ys ++ xs')
+
+  -- if starting with the longest guard fails, re-try in descending order
+  go [] _ = pure False -- XXX: we should check the asmps are unsatisfiable
+  go goals i = case pluck i goals of
+    Just (goalp, rest) ->
+      do ok <- doGoals (theAlts rest) (map toGoal goalp)
+         if ok then pure True
+         else go goals (i+1)
+    Nothing -> pure False
+
   cmpByLonger props1 props2 = compare (length props2) (length props1)
                                           -- reversed, so that longets is first
 
