@@ -1227,7 +1227,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
                , foldr ETAbs (foldr EProofAbs e2 asmps) as
                )
 
-        P.DPropGuards cases0 -> do
+        P.DPropGuards cases0 -> inRangeMb (getLoc cases0) $ do
           asmps1 <- applySubstPreds asmps0
           t1     <- applySubst t0
           cases1 <- mapM (checkPropGuardCase asmps1) cases0
