@@ -1320,7 +1320,17 @@ The implications were derive by the following general algorithm:
   we need to consider a branch for each disjunct --- one branch gets the
   assumption @~B1@ and another branch gets the assumption @~B2@. Each
   branch's implications need to be proven independently.
-
+- If the solver fails to prove any subgoal, but with an error indicating
+  the subgoal may be provable (i.e. the attempt was terminated due to some partial
+  heuristic), then pick the next-longest guard as the RHS and re-start. e.g.:
+  @
+    A /\ ~C1 => B1 /\ B2
+    A /\ ~C2 => B1 /\ B2
+    A /\ ~C3 => B1 /\ B2
+  @
+  Note that this is sound because the first step (choosing a guard as the RHS)
+  is heuristic: we can always choose to rewrite @P \/ Q@
+  into either @~P => Q@ or @~Q => P@.
 -}
 checkExhaustive :: Located Name -> [TParam] -> [Prop] -> [[Prop]] -> InferM Bool
 checkExhaustive name as asmps guards =
