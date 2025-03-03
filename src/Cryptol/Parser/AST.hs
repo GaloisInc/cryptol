@@ -881,7 +881,12 @@ instance HasLoc (TySyn name) where
 instance HasLoc (PropSyn name) where
   getLoc (PropSyn x _ _ _) = getLoc x
 
-
+instance HasLoc (PropGuardCase name) where
+  getLoc n
+    | null locs = Nothing
+    | otherwise = Just (rCombs locs)
+    where
+    locs = catMaybes (getLoc (pgcExpr n) : map getLoc (pgcProps n))
 
 --------------------------------------------------------------------------------
 

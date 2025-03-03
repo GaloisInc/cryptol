@@ -25,6 +25,11 @@ import Cryptol.TypeCheck.FFI.Error
 import Cryptol.ModuleSystem.Name(Name)
 import Cryptol.Utils.RecordMap
 
+-- | Clean up error messages by:
+---  * only reporting one error (most severe) for any given source location
+--   * sorting errors by source location (they are accumulated in
+--     reverse order by 'recordError')
+--   * dropping any errors that are subsumed by another
 cleanupErrors :: [(Range,Error)] -> [(Range,Error)]
 cleanupErrors = dropErrorsFromSameLoc
               . sortBy (compare `on` (cmpR . fst))    -- order errors
@@ -55,6 +60,17 @@ cleanupErrors = dropErrorsFromSameLoc
          let keep e = not (subsumes err e)
          in dropSubsumed (err : filter keep survived) (filter keep rest)
       [] -> survived
+
+-- | Clean up warning messages by sorting them by source location
+--   (they are accumulated in reverse order by 'recordWarning').
+cleanupWarnings :: [(Range,Warning)] -> [(Range,Warning)]
+cleanupWarnings = 
+  sortBy (compare `on` (cmpR . fst))    -- order warnings
+  where
+    cmpR r  = ( source r    -- First by file
+              , from r      -- Then starting position
+              , to r        -- Finally end position
+              )
 
 -- | Should the first error suppress the next one.
 subsumes :: (Range,Error) -> (Range,Error) -> Bool
