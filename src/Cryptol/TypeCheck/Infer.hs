@@ -1340,19 +1340,22 @@ checkExhaustive name as asmps guards =
     (_, []) -> Nothing
     (ys,x:xs') -> Just (x, ys ++ xs')
 
-  -- if starting with the longest guard fails, re-try in descending order
+  -- if starting with the longest guard fails with a 'ProofUnknown' result,
+  -- then re-try with the next guard in descending order.
+  -- NB: in the worst case this is quadratic in the number of guard predicates, but
+  -- in practice we expect this number to be low
   go [] _ = pure False -- XXX: we should check the asmps are unsatisfiable
   go goals i = case pluck i goals of
     Just (goalp, rest) ->
       do ok <- doGoals (theAlts rest) (map toGoal goalp)
          case ok of
-           Just True -> pure True
-           Just False -> pure False
-           Nothing -> go goals (i+1)
+           ProofSuccess -> pure True
+           ProofFail -> pure False
+           ProofUnknown -> go goals (i+1)
     Nothing -> pure False
 
   cmpByLonger props1 props2 = compare (length props2) (length props1)
-                                          -- reversed, so that longets is first
+                                          -- reversed, so that longest is first
 
   theAlts :: [[Prop]] -> [[Prop]]
   theAlts = map concat . sequence . map chooseNeg
@@ -1368,13 +1371,13 @@ checkExhaustive name as asmps guards =
   -- Try to validate all cases
   doGoals todo gs =
     case todo of
-      []     -> pure $ Just True
+      []     -> pure ProofSuccess
       alt : more ->
         do ok <- canProve (asmps ++ alt) gs
            case ok of
-             Just True -> doGoals more gs
-             Just False -> pure $ Just False
-             Nothing -> pure Nothing
+             ProofSuccess -> doGoals more gs
+             ProofFail -> pure ProofFail
+             ProofUnknown -> pure ProofUnknown
 
   toGoal :: Prop -> Goal
   toGoal prop =
@@ -1390,13 +1393,22 @@ checkExhaustive name as asmps guards =
     UnsolvedGoals{} -> True
     _ -> False
 
-  canProve :: [Prop] -> [Goal] -> InferM (Maybe Bool)
+  canProve :: [Prop] -> [Goal] -> InferM ProofResult
   canProve asmps' goals =
     do res <- tryProveImplication (Just (thing name)) as asmps' goals
        case res of
-         Left errs | all maybeSolvable errs -> return Nothing
-         Left{} -> return $ Just False
-         Right{} -> return $ Just True
+         Left errs | all maybeSolvable errs -> return ProofUnknown
+         Left{} -> return ProofFail
+         Right{} -> return ProofSuccess
+
+data ProofResult = 
+    ProofSuccess
+    -- ^ Proof attempt was successful.
+  | ProofFail
+    -- ^ Proof attempt failed, and goal is most likely not provable.
+  | ProofUnknown
+    -- ^ Proof attempt failed due to incomplete heuristics, goal may
+    -- still be provable.
 
 {- | Generate type-checked syntax for the code in a PropGuard. For example,
 consider the following (pre–type-checked) syntax for a guard:
