@@ -50,6 +50,10 @@
   Warnings are now ordered by source location.
   ([#1798](https://github.com/GaloisInc/cryptol/issues/1798))
 
+* More aggressive exhaustivity check that is less dependent on
+  guard ordering.
+  ([#1796](https://github.com/GaloisInc/cryptol/issues/1796))
+
 * Improved error messages mentioning module parameters
   ([#1560](https://github.com/GaloisInc/cryptol/issues/1560))
 
