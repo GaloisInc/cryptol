@@ -68,7 +68,7 @@ simpleBind x e = Bind { bName = x, bParams = []
 
 sel :: Pattern PName -> PName -> Selector -> Bind PName
 sel p x s = let (a,ts) = splitSimpleP p
-            in simpleBind a (foldl ETyped (ESel (EVar x) s) ts)
+            in simpleBind a (at p (foldl ETyped (ESel (EVar x) s) ts))
 
 -- | Given a pattern, transform it into a simple pattern and a set of bindings.
 -- Simple patterns may only contain variables and type annotations.
