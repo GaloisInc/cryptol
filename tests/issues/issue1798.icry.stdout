@@ -1,0 +1,7 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+[warning] at issue1798.cry:3:5--4:25:
+  Could not prove that the constraint guards used in defining Main::exhaustive1 were exhaustive.
+[warning] at issue1798.cry:8:5--8:18:
+  Could not prove that the constraint guards used in defining Main::exhaustive2 were exhaustive.
