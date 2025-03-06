@@ -109,6 +109,10 @@ data Error    = KindMismatch (Maybe TypeSource) Kind Kind
               | RecursiveTypeDecls [Name]
                 -- ^ The type synonym declarations are recursive
 
+              | TooManyParams Name Type Int Int
+                -- ^ A binder implies more arguments than
+                --   its type signature
+
               | TypeMismatch TypeSource Path Type Type
                 -- ^ Expected type, inferred type
 
@@ -236,6 +240,7 @@ errorImportance err =
 
     KindMismatch {}                                  -> 10
     TyVarWithParams {}                               -> 9
+    TooManyParams{}                                  -> 9
     TypeMismatch {}                                  -> 8
     EnumTypeMismatch {}                              -> 7
     SchemaMismatch {}                                -> 7
@@ -312,6 +317,7 @@ instance TVars Error where
       RecursiveTypeDecls {}     -> err
       SchemaMismatch i t1 t2  ->
         SchemaMismatch i !$ (apSubst su t1) !$ (apSubst su t2)
+      TooManyParams b t i j     -> TooManyParams b !$ (apSubst su t) .$ i .$ j
       TypeMismatch src pa t1 t2 -> TypeMismatch src pa !$ (apSubst su t1) !$ (apSubst su t2)
       EnumTypeMismatch t        -> EnumTypeMismatch !$ apSubst su t
       InvalidConPat {}          -> err
@@ -364,6 +370,7 @@ instance FVS Error where
       TooFewTyParams {}         -> Set.empty
       RecursiveTypeDecls {}     -> Set.empty
       SchemaMismatch _ t1 t2    -> fvs (t1,t2)
+      TooManyParams _ t _ _      -> fvs t
       TypeMismatch _ _ t1 t2    -> fvs (t1,t2)
       EnumTypeMismatch t        -> fvs t
       InvalidConPat {}          -> Set.empty
@@ -486,6 +493,14 @@ instance PP (WithNames Error) where
         addTVarsDescsAfter names err $
         nested "Recursive type declarations:"
                (commaSep $ map nm ts)
+      
+      TooManyParams n t i j ->
+        addTVarsDescsAfter names err $
+        nested "Type signature mismatch." $
+          vcat $
+            [ "Expected number of parameters:" <+> int j
+            , "Actual number of parameters:" <+> int i
+            , "When defining" <+> (pp n <> ":") <+> ppWithNames names t ]
 
       TypeMismatch src pa t1 t2 ->
         addTVarsDescsAfter names err $

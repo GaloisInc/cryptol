@@ -62,7 +62,8 @@ module Cryptol.Parser.AST
   , FixityCmp(..), compareFixity
   , TySyn(..)
   , PropSyn(..)
-  , Bind(..)
+  , Bind(..), bindParams
+  , BindParams(..), dropParams
   , BindDef(..), LBindDef
   , BindImpl(..), bindImpl, exprDef
   , Pragma(..)
@@ -484,7 +485,7 @@ psFixity (PropSyn _ f _ _) = f
 -}
 data Bind name = Bind
   { bName      :: Located name            -- ^ Defined thing
-  , bParams    :: [Pattern name]          -- ^ Parameters
+  , bParams    :: BindParams name         -- ^ Parameters
   , bDef       :: Located (BindDef name)  -- ^ Definition
   , bSignature :: Maybe (Schema name)     -- ^ Optional type sig
   , bInfix     :: Bool                    -- ^ Infix operator?
@@ -494,6 +495,28 @@ data Bind name = Bind
   , bDoc       :: Maybe (Located Text)    -- ^ Optional doc string
   , bExport    :: !ExportType
   } deriving (Eq, Generic, NFData, Functor, Show)
+
+bindParams :: Bind name -> [Pattern name]
+bindParams b = case bParams b of
+  NamedParams ps -> ps
+  DroppedParams _ _ -> []
+
+dropParams :: BindParams name -> BindParams name
+dropParams bps = case bps of
+  NamedParams ps -> DroppedParams (getLoc ps) (length ps)
+  DroppedParams rng i -> DroppedParams rng i
+
+data BindParams name = 
+    NamedParams [Pattern name]
+    -- ^ parameters that are named in the binding
+    -- i.e. @let f a b c = \x -> ...@
+  | DroppedParams (Maybe Range) Int
+    -- ^ number of parameters that originally appeared in the
+    -- binding, but have been pulled into a lambda during the
+    -- noPat pass. Retains the original source range for the patterns for
+    -- error reporting.
+    -- i.e. above binding is rewritten into: @let f = \\a b c x -> ...@ which has 3 dropped params
+  deriving (Eq, Generic, NFData, Functor, Show)
 
 type LBindDef = Located (BindDef PName)
 
@@ -888,6 +911,11 @@ instance HasLoc (PropGuardCase name) where
     where
     locs = catMaybes (getLoc (pgcExpr n) : map getLoc (pgcProps n))
 
+instance HasLoc (BindParams name) where
+  getLoc bps = case bps of
+    NamedParams ps -> getLoc ps
+    DroppedParams rng _ -> rng
+
 --------------------------------------------------------------------------------
 
 
@@ -1134,9 +1162,9 @@ instance (Show name, PPName name) => PP (Bind name) where
                   Nothing -> []
                   Just s  -> [pp (DSignature [f] s)]
           eq  = if bMono b then text ":=" else text "="
-          lhs = fsep (ppL f : (map (ppPrec 3) (bParams b)))
+          lhs = fsep (ppL f : (map (ppPrec 3) (bindParams b)))
 
-          lhsOp = case bParams b of
+          lhsOp = case bindParams b of
                     [x,y] -> pp x <+> ppL f <+> pp y
                     xs -> parens (parens (ppL f) <+> fsep (map (ppPrec 0) xs))
                     -- _     -> panic "AST" [ "Malformed infix operator", show b ]
@@ -1573,6 +1601,11 @@ instance NoPos (EnumDecl name) where
 
 instance NoPos (EnumCon name) where
   noPos c = EnumCon { ecName = noPos (ecName c), ecFields = noPos (ecFields c) }
+
+instance NoPos (BindParams name) where
+  noPos bp = case bp of
+    NamedParams ps -> NamedParams (noPos ps)
+    DroppedParams _ i -> DroppedParams Nothing i
 
 instance NoPos (Bind name) where
   noPos x = Bind { bName      = noPos (bName      x)

@@ -85,7 +85,7 @@ tcExpr e0 inp = runInferM inp
               res   <- inferBinds True False
                 [ P.Bind
                     { P.bName      = P.Located { P.srcRange = loc, P.thing = fresh }
-                    , P.bParams    = []
+                    , P.bParams    = P.NamedParams []
                     , P.bDef       = P.Located (inpRange inp) (P.exprDef expr)
                     , P.bPragmas   = []
                     , P.bSignature = Nothing
