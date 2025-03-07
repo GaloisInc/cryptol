@@ -1,0 +1,13 @@
+f : {h} (fin h) => [2^^h + (2^^h - 2^^h)]
+f = g`{h}
+
+g : {h} (fin h) => [2^^h]
+g = zero
+
+// See if Cryptol knows that (2^^h + 2^^h) - 2^^h == 2^^h
+
+ff : {h} (fin h) => [(2^^h + 2^^h) - 2^^h]
+ff = gg`{h}
+
+gg : {h} (fin h) => [2^^h]
+gg = zero
