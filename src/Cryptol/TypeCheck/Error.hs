@@ -81,6 +81,8 @@ subsumes (r1,KindMismatch {}) (r2,err) =
   case err of
     KindMismatch {} -> r1 == r2
     _               -> True
+subsumes (_, TooManyParams nm1 _ _ _) (_, TypeMismatch (DefinitionOf nm2) _ _ _) =
+  nm1 == nm2
 subsumes _ _ = False
 
 data Warning  = DefaultingKind (P.TParam Name) P.Kind
@@ -370,7 +372,7 @@ instance FVS Error where
       TooFewTyParams {}         -> Set.empty
       RecursiveTypeDecls {}     -> Set.empty
       SchemaMismatch _ t1 t2    -> fvs (t1,t2)
-      TooManyParams _ t _ _      -> fvs t
+      TooManyParams _ t _ _     -> fvs t
       TypeMismatch _ _ t1 t2    -> fvs (t1,t2)
       EnumTypeMismatch t        -> fvs t
       InvalidConPat {}          -> Set.empty
@@ -500,7 +502,7 @@ instance PP (WithNames Error) where
           vcat $
             [ "Expected number of parameters:" <+> int j
             , "Actual number of parameters:" <+> int i
-            , "When defining" <+> (pp n <> ":") <+> ppWithNames names t ]
+            , "When defining" <+> quotes ((pp n <> ":") <+> ppWithNames names t) ]
 
       TypeMismatch src pa t1 t2 ->
         addTVarsDescsAfter names err $

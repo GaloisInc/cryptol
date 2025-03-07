@@ -816,8 +816,7 @@ checkBindParams b (WithSource ty0 _src _) = case P.bParams b of
       -- signature may imply any number of additional parameters given a free type
       TVar TVFree{} -> return ()
       _ -> when (bindArity > 0) $
-        let l = (getLoc (P.bName b, (P.bSignature b, P.bParams b))) 
-        in recordErrorLoc l
+        recordErrorLoc (P.bindHeaderLoc b)
           (TooManyParams (thing (P.bName b)) ty0 (bindArity + tyArity) tyArity)
 
 checkFun ::
@@ -827,13 +826,12 @@ checkFun _    [] e tGoal = checkE e tGoal
 checkFun (P.FunDesc fun offset) ps e tGoal =
   inNewScope
   do let descs = [ TypeOfArg (ArgDescr fun (Just n)) | n <- [ 1 + offset .. ] ]
-
      (tys,tRes) <- expectFun fun (length ps) tGoal
      let srcs = zipWith3 WithSource tys descs (map getLoc ps)
      largs      <- sequence (zipWith checkP ps srcs)
      let ds = Map.fromList [ (thing x, x { thing = t }) | (x,t) <- zip largs tys ]
      e1 <- withMonoTypes ds
-              (checkE e (WithSource tRes TypeOfRes (twsRange tGoal)))
+              (checkE e (WithSource tRes (twsSource tGoal) (twsRange tGoal)))
 
      let args = [ (thing x, t) | (x,t) <- zip largs tys ]
      return (foldr (\(x,t) b -> EAbs x t b) e1 args)

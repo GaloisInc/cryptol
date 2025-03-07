@@ -62,7 +62,7 @@ module Cryptol.Parser.AST
   , FixityCmp(..), compareFixity
   , TySyn(..)
   , PropSyn(..)
-  , Bind(..), bindParams
+  , Bind(..), bindParams, bindHeaderLoc
   , BindParams(..), dropParams
   , BindDef(..), LBindDef
   , BindImpl(..), bindImpl, exprDef
@@ -505,6 +505,10 @@ dropParams :: BindParams name -> BindParams name
 dropParams bps = case bps of
   NamedParams ps -> DroppedParams (getLoc ps) (length ps)
   DroppedParams rng i -> DroppedParams rng i
+
+-- | Range encompassing the LHS of a binder, and its signature
+bindHeaderLoc :: Bind name -> Maybe Range
+bindHeaderLoc b = getLoc (bName b, (bSignature b, bParams b))
 
 data BindParams name = 
     NamedParams [Pattern name]
