@@ -82,7 +82,7 @@ Loading module Main
 Loading module Cryptol
 Loading module Main
 
-[error] at tc-errors-5.cry:2:1--2:7:
+[error] at tc-errors-5.cry:2:5--2:7:
   Inferred type is not sufficiently polymorphic.
     Quantified variable: a`892
     cannot match type: [0]?a
@@ -93,7 +93,7 @@ Loading module Main
 Loading module Cryptol
 Loading module Main
 
-[error] at tc-errors-6.cry:4:3--4:8:
+[error] at tc-errors-6.cry:4:7--4:8:
   The type ?a is not sufficiently polymorphic.
     It cannot depend on quantified variables: b`896
     When checking the type of 'g'

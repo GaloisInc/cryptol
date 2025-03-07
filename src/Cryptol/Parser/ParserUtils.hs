@@ -789,7 +789,7 @@ mkPoly rng terms
 mkProperty :: LPName -> [Pattern PName] -> Expr PName -> Decl PName
 mkProperty f ps e = at (f,e) $
                     DBind Bind { bName       = f
-                               , bParams     = reverse ps
+                               , bParams     = PatternParams (reverse ps)
                                , bDef        = at e (Located emptyRange (exprDef e))
                                , bSignature  = Nothing
                                , bPragmas    = [PragmaProperty]
@@ -805,7 +805,7 @@ mkIndexedDecl ::
   LPName -> ([Pattern PName], [Pattern PName]) -> Expr PName -> Decl PName
 mkIndexedDecl f (ps, ixs) e =
   DBind Bind { bName       = f
-             , bParams     = reverse ps
+             , bParams     = PatternParams (reverse ps)
              , bDef        = at e (Located emptyRange (exprDef rhs))
              , bSignature  = Nothing
              , bPragmas    = []
@@ -832,7 +832,7 @@ mkPropGuardsDecl f (ps, ixs) guards =
      let gs  = reverse guards
      pure $
        DBind Bind { bName       = f
-                  , bParams     = reverse ps
+                  , bParams     = PatternParams (reverse ps)
                   , bDef        = Located (srcRange f) (DImpl (DPropGuards gs))
                   , bSignature  = Nothing
                   , bPragmas    = []
@@ -923,7 +923,7 @@ mkNoImplDecl :: BindDef PName
 mkNoImplDecl def mbDoc ln sig =
   [ exportDecl Nothing Public
     $ DBind Bind { bName      = ln
-                 , bParams    = []
+                 , bParams    = noParams
                  , bDef       = at sig (Located emptyRange def)
                  , bSignature = Nothing
                  , bPragmas   = []
