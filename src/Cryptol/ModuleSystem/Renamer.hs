@@ -1078,7 +1078,7 @@ instance Rename Bind where
                  -- so we don't need to trigger them again here.
                  e' <- shadowNames' CheckNone patEnv (rnLocated rename (bDef b))
                  let bParams' = case bParams b of
-                       NamedParams _ -> NamedParams pats'
+                       PatternParams _ -> PatternParams pats'
                        DroppedParams rng i -> DroppedParams rng i
                  return b { bName      = n'
                           , bParams    = bParams'

@@ -507,7 +507,7 @@ getCryptolExpr (Let binds body) =
       CP.DBind .
       (\bindBody ->
          CP.Bind { CP.bName = fakeLoc (CP.UnQual (mkIdent x))
-              , CP.bParams = CP.NamedParams []
+              , CP.bParams = CP.noParams
               , CP.bDef = bindBody
               , CP.bSignature = Nothing
               , CP.bInfix = False

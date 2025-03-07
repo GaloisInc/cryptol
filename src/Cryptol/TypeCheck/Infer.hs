@@ -804,7 +804,7 @@ checkHasType inferredType tGoal =
 --   are more named parameters in the binding than the type would imply.
 checkBindParams :: P.Bind Name -> TypeWithSource -> InferM ()
 checkBindParams b (WithSource ty0 _src _) = case P.bParams b of
-  P.NamedParams nbps -> go (length nbps) 0 ty0
+  P.PatternParams nbps -> go (length nbps) 0 ty0
   P.DroppedParams _ i -> go i 0 ty0
   where
     -- if the signature implies more parameters than we have available, we'll defer

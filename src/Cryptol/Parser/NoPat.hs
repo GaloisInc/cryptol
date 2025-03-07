@@ -58,7 +58,7 @@ instance RemovePatterns (NestedModule PName) where
     where (m1,errs) = removePatterns m
 
 simpleBind :: Located PName -> Expr PName -> Bind PName
-simpleBind x e = Bind { bName = x, bParams = NamedParams []
+simpleBind x e = Bind { bName = x, bParams = noParams
                       , bDef = at e (Located emptyRange (exprDef e))
                       , bSignature = Nothing, bPragmas = []
                       , bMono = True, bInfix = False, bFixity = Nothing
@@ -286,7 +286,7 @@ noMatchD decl =
                           e1 <- noPatE e
                           let e2 = foldl ETyped e1 ts
                           return $ DBind Bind { bName = x
-                                              , bParams = NamedParams []
+                                              , bParams = noParams
                                               , bDef = at e (Located emptyRange (exprDef e2))
                                               , bSignature = Nothing
                                               , bPragmas = []

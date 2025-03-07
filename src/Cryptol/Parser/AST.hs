@@ -63,7 +63,7 @@ module Cryptol.Parser.AST
   , TySyn(..)
   , PropSyn(..)
   , Bind(..), bindParams, bindHeaderLoc
-  , BindParams(..), dropParams
+  , BindParams(..), dropParams, noParams
   , BindDef(..), LBindDef
   , BindImpl(..), bindImpl, exprDef
   , Pragma(..)
@@ -498,28 +498,41 @@ data Bind name = Bind
 
 bindParams :: Bind name -> [Pattern name]
 bindParams b = case bParams b of
-  NamedParams ps -> ps
+  PatternParams ps -> ps
   DroppedParams _ _ -> []
 
+-- | Sets the number of parameters for a binding to zero, noting
+-- the original number and source location of the patterns.
+-- e.g. when rewriting @let f a b c = \x -> ...@, into
+-- @let f = \\a b c x -> ...@ the parameters for @f@ change from
+-- @PatternParams [a,b,c]@ to @DroppedParams (getLoc [a,b,c]) 3@
 dropParams :: BindParams name -> BindParams name
 dropParams bps = case bps of
-  NamedParams ps -> DroppedParams (getLoc ps) (length ps)
+  PatternParams ps -> DroppedParams (getLoc ps) (length ps)
   DroppedParams rng i -> DroppedParams rng i
 
--- | Range encompassing the LHS of a binder, and its signature
+-- | Range encompassing the LHS of a binder, its signature, but not
+-- its definition.
 bindHeaderLoc :: Bind name -> Maybe Range
 bindHeaderLoc b = getLoc (bName b, (bSignature b, bParams b))
 
+-- | An empty 'BindParams' (i.e. zero parameters).
+--   Note that 'dropParams' should be used instead of this
+--   when rewriting an existing 'Bind' to have no parameters.
+noParams :: BindParams name
+noParams = PatternParams []
+
 data BindParams name = 
-    NamedParams [Pattern name]
-    -- ^ parameters that are named in the binding
-    -- i.e. @let f a b c = \x -> ...@
+    PatternParams [Pattern name]
+    -- ^ Parameters that appear in the LHS of a binding equation
+    -- as patterns. 
+    -- e.g. @[a,b,c]@ in @let f a b c = \x -> ...@
   | DroppedParams (Maybe Range) Int
-    -- ^ number of parameters that originally appeared in the
-    -- binding, but have been pulled into a lambda during the
-    -- noPat pass. Retains the original source range for the patterns for
-    -- error reporting.
-    -- i.e. above binding is rewritten into: @let f = \\a b c x -> ...@ which has 3 dropped params
+    -- ^ Represents zero parameters to a binding equation that
+    -- originally had parameters, but was rewritten to have none
+    -- (see 'Cryptol.Parser.NoPat').
+    -- Retains the original source range, and number
+    -- of dropped parameters (see 'dropParams').
   deriving (Eq, Generic, NFData, Functor, Show)
 
 type LBindDef = Located (BindDef PName)
@@ -917,7 +930,7 @@ instance HasLoc (PropGuardCase name) where
 
 instance HasLoc (BindParams name) where
   getLoc bps = case bps of
-    NamedParams ps -> getLoc ps
+    PatternParams ps -> getLoc ps
     DroppedParams rng _ -> rng
 
 --------------------------------------------------------------------------------
@@ -1608,7 +1621,7 @@ instance NoPos (EnumCon name) where
 
 instance NoPos (BindParams name) where
   noPos bp = case bp of
-    NamedParams ps -> NamedParams (noPos ps)
+    PatternParams ps -> PatternParams (noPos ps)
     DroppedParams _ i -> DroppedParams Nothing i
 
 instance NoPos (Bind name) where
