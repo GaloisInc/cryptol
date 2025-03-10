@@ -11,3 +11,9 @@ ff = gg`{h}
 
 gg : {h} (fin h) => [2^^h]
 gg = zero
+
+jj : {h} (fin h) => [2 ^^ (1 + h) - 1]
+jj = kk`{h}
+
+kk : {h} (fin h, 2 ^^ (1 + h) - 1 >= 2 ^^ h - 1) => [2 ^^ h - 1 + 2 ^^ h]
+kk = zero

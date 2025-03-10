@@ -59,11 +59,13 @@ tAdd x y
   | Just (n,x1) <- isSumK x = addK n (tAdd x1 y)
   | Just (n,y1) <- isSumK y = addK n (tAdd x y1)
   | Just v <- matchMaybe (do (a,b) <- (|-|) y
-                             guard (x == b)
-                             return a) = v
+                             ((guard (x == b) >> return a)
+                              <|> (guard (x == a) >> return (tSub (tAdd x a) b)))
+                              ) = v
   | Just v <- matchMaybe (do (a,b) <- (|-|) x
-                             guard (b == y)
-                             return a) = v
+                             ((guard (b == y) >> return a)
+                              <|> (guard (a == y) >> return (tSub (tAdd y a) b)))
+                             ) = v
 
   | Just v <- matchMaybe (factor <|> same <|> swapVars) = v
 
@@ -137,7 +139,7 @@ tSub x y
     -- ~> (x^^n * x^^h) - x^^h 
     -- ~> ((x^^n - 1) * x^^h
     -- allows subtraction cancelling to occur when
-    -- (x^^h + x^^h) has been rewritten into x^^(1+h)
+    -- (2^^h + 2^^h) has been rewritten into 2^^(1+h)
   | Just v <- matchMaybe $ 
       do (x_base,x_exp) <- (|^|) x
          (y_base,y_exp) <- (|^|) y

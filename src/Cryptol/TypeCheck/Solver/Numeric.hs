@@ -154,9 +154,14 @@ tryGeqThanSub :: Ctxt -> Type -> Type -> Match Solved
 tryGeqThanSub _ x y =
 
   -- t1 >= t1 - t2
-  do (a,_) <- (|-|) y
-     guard (x == a)
-     return (SolvedIf [])
+  (do (a,_) <- (|-|) y
+      guard (x == a)
+      return (SolvedIf []))
+  <|> do
+    (x1, x2) <- (|-|) x
+    (y1, y2) <- (|-|) y
+    ((guard (x2 == y2) >> return (SolvedIf [x1 >== y1]))
+     <|> (guard (x1 == y1) >> return (SolvedIf [y2 >== x2])))
 
 tryGeqThanVar :: Ctxt -> Type -> TVar -> Match Solved
 tryGeqThanVar _ctxt ty x =
