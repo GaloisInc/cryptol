@@ -112,8 +112,10 @@ data Error    = KindMismatch (Maybe TypeSource) Kind Kind
                 -- ^ The type synonym declarations are recursive
 
               | TooManyParams Name Type Int Int
-                -- ^ A binder implies more arguments than
-                --   its type signature
+                -- ^ Name of bind, bind signature, number of patterns given,
+                --   expected number of parameters from signature.
+                --   More patterns provided for a bind than expected,
+                --   given its signature.
 
               | TypeMismatch TypeSource Path Type Type
                 -- ^ Expected type, inferred type

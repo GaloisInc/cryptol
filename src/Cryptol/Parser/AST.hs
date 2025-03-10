@@ -522,7 +522,11 @@ bindHeaderLoc b = getLoc (bName b, (bSignature b, bParams b))
 noParams :: BindParams name
 noParams = PatternParams []
 
-data BindParams name = 
+-- | A list of patterns used as parameters to a 'Bind'.
+--   This is only used to improve error messages, by retaining
+--   information about the original shape of a 'Bind' when
+--   rewriting (see 'dropParams').
+data BindParams name =
     PatternParams [Pattern name]
     -- ^ Parameters that appear in the LHS of a binding equation
     -- as patterns. 
