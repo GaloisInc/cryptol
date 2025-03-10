@@ -799,6 +799,25 @@ checkHasType inferredType tGoal =
        [] -> return ()
        _  -> newGoals CtExactType ps
 
+-- | Check that the number of named parameters in a binding is compatible with
+--   the type signature. This specifically catches the case where there
+--   are more named parameters in the binding than the type would imply.
+checkBindParams :: P.Bind Name -> TypeWithSource -> InferM ()
+checkBindParams b (WithSource ty0 _src _) = case P.bParams b of
+  P.PatternParams nbps -> go (length nbps) 0 ty0
+  P.DroppedParams _ i -> go i 0 ty0
+  where
+    -- if the signature implies more parameters than we have available, we'll defer
+    -- this check, since the function body itself may be a lambda
+    go bindArity _ _ | bindArity <= 0 = return ()
+    go bindArity tyArity ty = case ty of
+      TUser _ _ ty' -> go bindArity tyArity ty'
+      TCon (TC TCFun) [_,y] -> go (bindArity-1) (tyArity+1) y
+      -- signature may imply any number of additional parameters given a free type
+      TVar TVFree{} -> return ()
+      _ -> when (bindArity > 0) $
+        recordErrorLoc (P.bindHeaderLoc b)
+          (TooManyParams (thing (P.bName b)) ty0 (bindArity + tyArity) tyArity)
 
 checkFun ::
   P.FunDesc Name -> [P.Pattern Name] ->
@@ -807,13 +826,12 @@ checkFun _    [] e tGoal = checkE e tGoal
 checkFun (P.FunDesc fun offset) ps e tGoal =
   inNewScope
   do let descs = [ TypeOfArg (ArgDescr fun (Just n)) | n <- [ 1 + offset .. ] ]
-
      (tys,tRes) <- expectFun fun (length ps) tGoal
      let srcs = zipWith3 WithSource tys descs (map getLoc ps)
      largs      <- sequence (zipWith checkP ps srcs)
      let ds = Map.fromList [ (thing x, x { thing = t }) | (x,t) <- zip largs tys ]
      e1 <- withMonoTypes ds
-              (checkE e (WithSource tRes TypeOfRes (twsRange tGoal)))
+              (checkE e (WithSource tRes (twsSource tGoal) (twsRange tGoal)))
 
      let args = [ (thing x, t) | (x,t) <- zip largs tys ]
      return (foldr (\(x,t) b -> EAbs x t b) e1 args)
@@ -1128,7 +1146,8 @@ checkMonoB b t =
         P.DExpr e ->
           do let nm = thing (P.bName b)
              let tGoal = WithSource t (DefinitionOf nm) (getLoc b)
-             e1 <- checkFun (P.FunDesc (Just nm) 0) (P.bParams b) e tGoal
+             checkBindParams b tGoal
+             e1 <- checkFun (P.FunDesc (Just nm) 0) (P.bindParams b) e tGoal
              let f = thing (P.bName b)
              return Decl { dName = f
                          , dSignature = Forall [] [] t
@@ -1259,7 +1278,8 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
       (e1,cs0) <- collectGoals $ do
         let nm = thing (P.bName b)
             tGoal = WithSource t0 (DefinitionOf nm) (getLoc b)
-        e1 <- checkFun (P.FunDesc (Just nm) 0) (P.bParams b) e0 tGoal
+        checkBindParams b tGoal
+        e1 <- checkFun (P.FunDesc (Just nm) 0) (P.bindParams b) e0 tGoal
         addGoals validSchema
         () <- simplifyAllConstraints  -- XXX: using `asmps` also?
         return e1

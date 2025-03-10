@@ -1,0 +1,27 @@
+module Bug where
+
+import Array
+
+type Widget = [3]
+type Wombat = [4]
+type Key = [5]
+newtype Info = {
+   stuff: Array [5] [6]
+}
+
+once: Info -> Key -> Widget -> Wombat -> Info
+once info key widget = info'
+   where
+      info' = Info {
+         stuff = arrayUpdate info.stuff key 0
+      }
+
+iter: {n} n < 10 => Info -> Key -> [n] (Widget, Wombat) -> Info
+iter info key entries = infos ! 0
+   where
+      infos = [info] # [once info' key widget wombat
+                           | info' <- infos
+                           | (widget, wombat) <- entries]
+
+process: {n} n < 10 => Info -> [n] (Widget, Wombat) -> Info
+process info entries = iter info 0 entries

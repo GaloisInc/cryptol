@@ -73,7 +73,7 @@ namesD decl =
 -- | The names defined and used by a single binding.
 namesB :: Ord name => Bind name -> ([Located name], Set name)
 namesB b =
-  ([bName b], boundLNames (namesPs' (bParams b)) (namesDef (thing (bDef b))))
+  ([bName b], boundLNames (namesPs' (bindParams b)) (namesDef (thing (bDef b))))
 
 
 namesDef :: Ord name => BindDef name -> Set name
@@ -216,7 +216,7 @@ tnamesB :: Ord name => Bind name -> Set name
 tnamesB b = Set.unions [setS, setP, setE]
   where
     setS = maybe Set.empty tnamesS (bSignature b)
-    setP = Set.unions (map tnamesP (bParams b))
+    setP = Set.unions (map tnamesP (bindParams b))
     setE = tnamesDef (thing (bDef b))
 
 tnamesDef :: Ord name => BindDef name -> Set name

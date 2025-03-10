@@ -58,7 +58,7 @@ instance RemovePatterns (NestedModule PName) where
     where (m1,errs) = removePatterns m
 
 simpleBind :: Located PName -> Expr PName -> Bind PName
-simpleBind x e = Bind { bName = x, bParams = []
+simpleBind x e = Bind { bName = x, bParams = noParams
                       , bDef = at e (Located emptyRange (exprDef e))
                       , bSignature = Nothing, bPragmas = []
                       , bMono = True, bInfix = False, bFixity = Nothing
@@ -68,7 +68,7 @@ simpleBind x e = Bind { bName = x, bParams = []
 
 sel :: Pattern PName -> PName -> Selector -> Bind PName
 sel p x s = let (a,ts) = splitSimpleP p
-            in simpleBind a (foldl ETyped (ESel (EVar x) s) ts)
+            in simpleBind a (at p (foldl ETyped (ESel (EVar x) s) ts))
 
 -- | Given a pattern, transform it into a simple pattern and a set of bindings.
 -- Simple patterns may only contain variables and type annotations.
@@ -238,12 +238,12 @@ noMatchB :: Bind PName -> NoPatM (Bind PName)
 noMatchB b =
   case thing (bDef b) of
 
-    DPrim | null (bParams b) -> return b
+    DPrim | null (bindParams b) -> return b
           | otherwise        -> panic "NoPat" [ "noMatchB: primitive with params"
                                               , show b ]
 
     DForeign Nothing
-      | null (bParams b) -> return b
+      | null (bindParams b) -> return b
       | otherwise        -> panic "NoPat" [ "noMatchB: foreign with params"
                                           , show b ]
 
@@ -255,12 +255,12 @@ noMatchB b =
   noMatchI def i =
     do i' <- case i of
                DExpr e ->
-                 DExpr <$> noPatFun (Just (thing (bName b))) 0 (bParams b) e
+                 DExpr <$> noPatFun (Just (thing (bName b))) 0 (bindParams b) e
                DPropGuards guards ->
                  let nm = thing (bName b)
-                     ps = bParams b
+                     ps = bindParams b
                  in  DPropGuards <$> mapM (noPatPropGuardCase nm ps) guards
-       pure b { bParams = [], bDef = def i' <$ bDef b }
+       pure b { bParams = dropParams (bParams b), bDef = def i' <$ bDef b }
 
 noPatPropGuardCase ::
   PName ->
@@ -286,7 +286,7 @@ noMatchD decl =
                           e1 <- noPatE e
                           let e2 = foldl ETyped e1 ts
                           return $ DBind Bind { bName = x
-                                              , bParams = []
+                                              , bParams = noParams
                                               , bDef = at e (Located emptyRange (exprDef e2))
                                               , bSignature = Nothing
                                               , bPragmas = []

@@ -120,6 +120,10 @@ instance HasLoc a => HasLoc [a] where
                              Nothing -> go (Just l) xs
                              Just l1 -> go (Just (rComb l l1)) xs
 
+instance HasLoc a => HasLoc (Maybe a) where
+  getLoc Nothing = Nothing
+  getLoc (Just x) = getLoc x
+
 class HasLoc t => AddLoc t where
   addLoc  :: t -> Range -> t
   dropLoc :: t -> t

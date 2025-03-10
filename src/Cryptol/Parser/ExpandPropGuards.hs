@@ -127,7 +127,7 @@ expandBind bind =
           typeInsts <-
             (\(TParam n _ _) -> Right . PosInst $ TUser n [])
               `traverse` tParams
-          let e' = foldl EApp (EAppT (EVar $ thing bName') typeInsts) (patternToExpr <$> bParams bind)
+          let e' = foldl EApp (EAppT (EVar $ thing bName') typeInsts) (patternToExpr <$> bindParams bind)
           pure
             ( PropGuardCase props' e',
               bind
