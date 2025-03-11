@@ -423,7 +423,9 @@ recordError = recordErrorLoc Nothing
 -- | Report an error.
 recordErrorLoc :: Maybe Range -> Error -> InferM ()
 recordErrorLoc rng e =
-  do r <- case rng of
+  do r' <- curRange
+     r <- case rng of
+            Just r | rangeWithin r' r -> pure r'
             Just r  -> pure r
             Nothing -> case e of
                          AmbiguousSize d _ -> return (tvarSource d)

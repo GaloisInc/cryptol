@@ -46,6 +46,11 @@
 
 ## New features
 
+* Improved error messages during type inference for bindings.
+  Adds a specific error message for when a binding has
+  more arguments than expected, given its type signature.
+  ([#1744](https://github.com/GaloisInc/cryptol/issues/1744))
+
 * Improved warning messages for non-exhaustive guards.
   Warnings are now ordered by source location.
   ([#1798](https://github.com/GaloisInc/cryptol/issues/1798))
