@@ -88,7 +88,7 @@ matchMaybe (Match m) = m Nothing Just
 
 -- | Attempt matching the given pattern against a tuple, 
 --   making a second attempt with the values swapped if the first fails.
-matchSwap :: (a, a) -> (Pat (a, a) b) -> Match b
+matchSwap :: (a, a) -> Pat (a, a) b -> Match b
 matchSwap (x, y) n = n (x, y) <|> n (y, x)
 
 list :: [Pat a b] -> Pat [a] [b]
