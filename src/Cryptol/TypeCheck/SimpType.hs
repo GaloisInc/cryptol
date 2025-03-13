@@ -60,14 +60,14 @@ tAdd x y
   | Just (n,y1) <- isSumK y = addK n (tAdd x y1)
   | Just v <- matchMaybe (do (a,b) <- (|-|) y
                              ((guard (x == b) >> return a)
-                              <|> (guard (x == a) >> return (tSub (tAdd x a) b)))
+                              <|> (same x a >>= \x2 -> return (tSub x2 b)))
                               ) = v
   | Just v <- matchMaybe (do (a,b) <- (|-|) x
                              ((guard (b == y) >> return a)
-                              <|> (guard (a == y) >> return (tSub (tAdd y a) b)))
+                              <|> (same y a >>= \y2 -> return (tSub y2 b)))
                              ) = v
 
-  | Just v <- matchMaybe (factor <|> same <|> swapVars) = v
+  | Just v <- matchMaybe (factor <|> same x y <|> swapVars) = v
 
   | otherwise           = tf2 TCAdd x y
   where
@@ -103,8 +103,8 @@ tAdd x y
               guard (a == a')
               return (tMul a (tAdd b1 b2))
 
-  same = do guard (x == y)
-            return (tMul (tNum (2 :: Int)) x)
+  same x1 y1 = do guard (x1 == y1)
+                  return (tMul (tNum (2 :: Int)) x1)
 
   swapVars = do a <- aTVar x
                 b <- aTVar y
