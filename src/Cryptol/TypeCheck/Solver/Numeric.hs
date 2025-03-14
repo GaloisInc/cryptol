@@ -151,12 +151,21 @@ tryGeqExp _ x y =
 
 
 tryGeqThanSub :: Ctxt -> Type -> Type -> Match Solved
-tryGeqThanSub _ x y =
+tryGeqThanSub ctxt x y =
 
   -- t1 >= t1 - t2
-  do (a,_) <- (|-|) y
-     guard (x == a)
-     return (SolvedIf [])
+  (do (a,_) <- (|-|) y
+      guard (x == a)
+      return (SolvedIf []))
+  <|> do
+    (x1, x2) <- (|-|) x
+    (y1, y2) <- (|-|) y
+    let x1Fin = iIsFin (typeInterval (intervals ctxt) x1)
+    -- (x - z) >= (y - z)  only if x >= y
+    ((guard (x2 == y2) >> return (SolvedIf [x1 >== y1]))
+     <|>
+    -- (z - x) >= (z - y)  only if y >= x and fin z
+     (guard (x1 == y1 && x1Fin) >> return (SolvedIf [y2 >== x2])))
 
 tryGeqThanVar :: Ctxt -> Type -> TVar -> Match Solved
 tryGeqThanVar _ctxt ty x =
