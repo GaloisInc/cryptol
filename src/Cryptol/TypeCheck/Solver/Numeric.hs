@@ -6,13 +6,13 @@ module Cryptol.TypeCheck.Solver.Numeric
 import           Control.Applicative(Alternative(..))
 import           Control.Monad (guard,mzero)
 import qualified Control.Monad.Fail as Fail
-import           Data.List (sortBy)
+import           Data.List (sortBy, groupBy, sort)
 import           Data.MemoTrie
 
 import Math.NumberTheory.Primes.Testing (isPrime)
 
 import Cryptol.Utils.Patterns
-import Cryptol.TypeCheck.Type hiding (tMul)
+import Cryptol.TypeCheck.Type hiding (tMul,tExp,tSub)
 import Cryptol.TypeCheck.TypePat
 import Cryptol.TypeCheck.Solver.Types
 import Cryptol.TypeCheck.Solver.InfNat
@@ -42,7 +42,7 @@ cryIsEqual ctxt t1 t2 =
     <|> tryEqMin t2 t1
     <|> tryEqMins t1 t2
     <|> tryEqMins t2 t1
-    <|> tryEqMulConst t1 t2
+    <|> tryEqMulConst ctxt (=#=) t1 t2
     <|> tryEqAddInf ctxt t1 t2
     <|> tryAddConst (=#=) t1 t2
     <|> tryCancelVar ctxt (=#=) t1 t2
@@ -69,6 +69,7 @@ cryIsGeq i t1 t2 =
     <|> tryCancelVar i (>==) t1 t2
     <|> tryMinIsGeq t1 t2
     <|> tryGeqExp i t1 t2
+    <|> tryEqMulConst i (>==) t1 t2
     -- XXX: k >= width e
     -- XXX: width e >= k
 
@@ -160,12 +161,11 @@ tryGeqThanSub ctxt x y =
   <|> do
     (x1, x2) <- (|-|) x
     (y1, y2) <- (|-|) y
-    let x1Fin = iIsFin (typeInterval (intervals ctxt) x1)
     -- (x - z) >= (y - z)  only if x >= y
     ((guard (x2 == y2) >> return (SolvedIf [x1 >== y1]))
      <|>
     -- (z - x) >= (z - y)  only if y >= x and fin z
-     (guard (x1 == y1 && x1Fin) >> return (SolvedIf [y2 >== x2])))
+     (guard (x1 == y1 && tIsFin ctxt x1) >> return (SolvedIf [y2 >== x2])))
 
 tryGeqThanVar :: Ctxt -> Type -> TVar -> Match Solved
 tryGeqThanVar _ctxt ty x =
@@ -399,18 +399,47 @@ tryEqK ctxt ty lk =
 
 
 -- | K1 * t1 + K2 * t2 + ... = K3 * t3 + K4 * t4 + ...
-tryEqMulConst :: Type -> Type -> Match Solved
-tryEqMulConst l r =
+tryEqMulConst :: Ctxt -> (Type -> Type -> Prop) -> Type -> Type -> Match Solved
+tryEqMulConst ctxt comp l r =
   do (lc,ls) <- matchLinear l
      (rc,rs) <- matchLinear r
      let d = foldr1 gcd (lc : rc : map fst (ls ++ rs))
-     guard (d > 1)
-     return (SolvedIf [build d lc ls =#= build d rc rs])
+     let (ls', rs') = if tIsFin ctxt l && tIsFin ctxt r then
+           cancelCommon [] [] (sort $ groupCommon ls) (sort $ groupCommon rs)
+           else (ls,rs)
+     guard (d > 1 || length ls' < length ls || length rs' < length rs)
+     return (SolvedIf [comp (build d lc ls') (build d rc rs')])
   where
-  build d k ts   = foldr tAdd (cancel d k) (map (buildS d) ts)
+  build d k ts   = foldr (tAdd' d) (cancel d k) ts
   buildS d (k,t) = tMul (cancel d k) t
   cancel d x     = tNum (div x d)
+  tAdd' d (k, t) x = tAdd  (buildS d (k, t)) x
+  
+  -- group common terms
+  -- a * x + ... + b * x ~> (a + b) * x + ...
+  groupCommon ts = map (collapseSame 0) $ groupBy (\(_,t1) (_, t2) -> t1 == t2) ts
+  collapseSame k ts = case ts of
+    [(k1,t)] -> (k + k1, t)
+    ((k1,_):rest) -> collapseSame (k + k1) rest
+    [] -> error "empty list"
+  
+  -- cancel out common terms from both sides
+  -- assumes ls and rs are sorted
+  -- 2x + y = 4x + z
+  -- ~> y = 2x + z
+  cancelCommon accL accR [] rs = (accL, accR ++ rs)
+  cancelCommon accL accR ls [] = (accL ++ ls, accR)
+  cancelCommon accL accR ((kl, l1):ls) ((kr, r1):rs) =
+    case compare l1 r1 of
+      LT -> cancelCommon ((kl, l1):accL) accR ls ((kr, r1):rs)
+      GT -> cancelCommon accL ((kr,r1):accR) ((kl, l1):ls) rs
+      EQ -> case compare kl kr of
+        GT -> cancelCommon ((kl - kr,l1):accL) accR ls rs
+        LT -> cancelCommon accL ((kr - kl,r1):accR) ls rs
+        EQ -> cancelCommon accL accR ls rs
 
+tIsFin :: Ctxt -> Type -> Bool
+tIsFin ctxt t = iIsFin (typeInterval (intervals ctxt) t)
 
 -- | @(t1 + t2 = Inf, fin t1)  ~~> t2 = Inf@
 tryEqAddInf :: Ctxt -> Type -> Type -> Match Solved
@@ -502,6 +531,7 @@ matchLinearUnifier = go []
 matchLinear :: Pat Type (Integer, [(Integer,Type)])
 matchLinear = go (0, [])
   where
+
   go (c,ts) t =
     do n <- aNat t
        return (n + c, ts)
@@ -513,6 +543,26 @@ matchLinear = go (0, [])
     do (l,r) <- anAdd t
        (c',ts') <- go (c,ts) l
        go (c',ts') r
+    <|>
+    --     l - r 
+    -- ~~> l - (c + (i * t1 + h * t2 ...))
+    -- ~~> l + (-c) + (-i)*t1 + (-h)*t2 ...
+    do (l,r) <- (|-|) t
+       (cL,tsL) <- go (c,ts) l
+       (cR, tsR) <- go (0,[]) r
+       let tsR' = map (\(x,y) -> (x * (-1), y)) tsR
+       return $ (cL - cR, tsL ++ tsR')
+    <|>
+    -- for constants K, n: K^(n + a) ~> K^n * K^a
+    do (t_base, t_exp) <- (|^|) t
+       m <- aNat t_base
+       guard (m >= 2)
+       t_sum <- anAdd t_exp
+       matchSwap t_sum $ \(l, r) ->
+        do n <- aNat l
+           guard (n > 0)
+           return (c, (m ^ n, tExp t_base r) : ts)
+    <|> return (c, (1,t) : ts)
 
 
 

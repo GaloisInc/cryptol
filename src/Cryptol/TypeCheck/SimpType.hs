@@ -59,12 +59,10 @@ tAdd x y
   | Just (n,x1) <- isSumK x = addK n (tAdd x1 y)
   | Just (n,y1) <- isSumK y = addK n (tAdd x y1)
   | Just v <- matchMaybe (do (a,b) <- (|-|) y
-                             ((guard (x == b) >> return a)
-                              <|> (same x a >>= \x2 -> return (tSub x2 b)))
+                             (guard (x == b) >> return a)
                               ) = v
   | Just v <- matchMaybe (do (a,b) <- (|-|) x
-                             ((guard (b == y) >> return a)
-                              <|> (same y a >>= \y2 -> return (tSub y2 b)))
+                             (guard (b == y) >> return a)
                              ) = v
 
   | Just v <- matchMaybe (factor <|> same x y <|> swapVars) = v
@@ -134,23 +132,6 @@ tSub x y
                              (guard (a == y) >> return b)
                                 <|> (guard (b == y) >> return a))
                        = v
-
-    --    x^^(n+h) - x^^h 
-    -- ~> (x^^n * x^^h) - x^^h 
-    -- ~> ((x^^n - 1) * x^^h
-    -- allows subtraction cancelling to occur when
-    -- (2^^h + 2^^h) has been rewritten into 2^^(1+h)
-  | Just v <- matchMaybe $ 
-      do (x_base,x_exp) <- (|^|) x
-         (y_base,y_exp) <- (|^|) y
-         guard (x_base == y_base)
-         x_exp_sum <- anAdd x_exp
-         matchSwap x_exp_sum $ \(h,n) -> 
-           do guard (h == y_exp)
-              let x_to_n = tExp x_base n
-              let lhs = tSub x_to_n (tNum (1 :: Int))
-              return $ tMul lhs y
-       = v
 
   | Just v <- matchMaybe (do (a,b) <- (|-|) y
                              return (tSub (tAdd x b) a)) = v
@@ -282,7 +263,6 @@ tMin x y
   minPlusK a b = do (k,r) <- isAddK a
                     guard (k >= 1 && b == r)
                     return b
-
 
   minK Inf t      = t
   minK (Nat 0) _  = tNum (0 :: Int)
