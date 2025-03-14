@@ -60,6 +60,7 @@ tAdd x y
   | Just (n,y1) <- isSumK y = addK n (tAdd x y1)
   | Just v <- matchMaybe (do (a,b) <- (|-|) y
                              ((guard (x == b) >> return a)
+                              -- added to handle this case: 2 ^^ (1 + h) - 1 == 2 ^^ h - 1 + 2 ^^ h
                               <|> (same x a >>= \x2 -> return (tSub x2 b)))
                               ) = v
   | Just v <- matchMaybe (do (a,b) <- (|-|) x
