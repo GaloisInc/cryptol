@@ -14,4 +14,5 @@ Cryptol Reference Manual
   Modules
   FFI
   Project
+  REPLCommands
 
