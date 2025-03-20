@@ -83,7 +83,7 @@ install_system_deps() {
 
 check_docs() {
   ./cry build exe:check-exercises
-  find ./docs/ProgrammingCryptol -name '*.tex' -print0 | xargs -0 -n1 cabal v2-exec check-exercises
+  find ./docs/ProgrammingCryptol -name '*.tex' -print0 | xargs -0 -n1 cabal v2-exec -v0 check-exercises
 }
 
 test_rpc() {
