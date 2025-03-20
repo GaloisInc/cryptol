@@ -87,7 +87,7 @@ library
                        mtl               >= 2.2.1,
                        time              >= 1.6.0.1,
                        panic             >= 0.3,
-                       what4             >= 1.6 && < 1.7
+                       what4             >= 1.6 && < 1.8
 
   if impl(ghc >= 9.0)
     build-depends:     ghc-bignum        >= 1.0 && < 1.4
