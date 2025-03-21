@@ -29,14 +29,14 @@ project = 'Cryptol'
 # https://github.com/sphinx-doc/sphinx/blob/74ec2204795481402322e75752547571a553cc4e/sphinx/config.py#L721
 # and
 # https://github.com/sphinx-doc/sphinx/blob/74ec2204795481402322e75752547571a553cc4e/sphinx/config.py#L765-L766
-copyright = '2024: The Cryptol Team'
+copyright = '2025: The Cryptol Team'
 
 author = 'The Cryptol Team'
 
 # The short X.Y version
 version = ''
 # The full version, including alpha/beta/rc tags
-release = '3.2.0'
+release = '3.3.0'
 
 
 # -- General configuration ---------------------------------------------------
