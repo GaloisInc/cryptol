@@ -91,6 +91,9 @@ library
     CryptolServer.AesonCompat
     Paths_cryptol_remote_api
 
+  autogen-modules:
+    Paths_cryptol_remote_api
+
 executable cryptol-remote-api
   import:              deps, warnings, errors
   main-is:             Main.hs
