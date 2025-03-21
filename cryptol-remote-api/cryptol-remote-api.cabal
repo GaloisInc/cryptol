@@ -6,7 +6,7 @@ license-file:        LICENSE
 author:              Galois, Inc.
 maintainer:          cryptol-team@galois.com
 category:            Language
-extra-source-files:  CHANGELOG.md
+extra-doc-files:     CHANGELOG.md
 
 flag static
   default: False

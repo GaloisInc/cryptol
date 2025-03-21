@@ -13,8 +13,9 @@ Copyright:           2013-2022 Galois Inc.
 Category:            Language
 Build-type:          Simple
 extra-source-files:  bench/data/*.cry
-                     CHANGES.md
                      lib/*.cry lib/*.z3
+
+extra-doc-files:     CHANGES.md
 
 data-files:          **/*.cry **/*.z3
 data-dir:            lib
