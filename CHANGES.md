@@ -1,5 +1,9 @@
 # next -- TBA
 
+Nothing yet.
+
+# 3.3.0 -- 2025-03-21
+
 ## Language changes
 
 ## Bug fixes
@@ -9,7 +13,6 @@
   Uses a deadman timer workaround for yices, due
   to a [known issue](https://github.com/LeventErkok/sbv/issues/735).
   ([#1808](https://github.com/GaloisInc/cryptol/issues/1808))
-
 
 * Update Yices build in CI to fix a crash when running
   test `issue_1807.icry` on Mac OS X (ARM64).

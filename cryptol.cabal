@@ -1,20 +1,21 @@
 Cabal-version:       2.4
 Name:                cryptol
-Version:             3.2.0.99
+Version:             3.3.0.99
 Synopsis:            Cryptol: The Language of Cryptography
 Description: Cryptol is a domain-specific language for specifying cryptographic algorithms. A Cryptol implementation of an algorithm resembles its mathematical specification more closely than an implementation in a general purpose language. For more, see <http://www.cryptol.net/>.
 License:             BSD-3-Clause
 License-file:        LICENSE
 Author:              Galois, Inc.
 Maintainer:          cryptol@galois.com
-Homepage:            http://www.cryptol.net/
+Homepage:            https://tools.galois.com/cryptol
 Bug-reports:         https://github.com/GaloisInc/cryptol/issues
-Copyright:           2013-2022 Galois Inc.
+Copyright:           2013-2025 Galois Inc.
 Category:            Language
 Build-type:          Simple
 extra-source-files:  bench/data/*.cry
-                     CHANGES.md
                      lib/*.cry lib/*.z3
+
+extra-doc-files:     CHANGES.md
 
 data-files:          **/*.cry **/*.z3
 data-dir:            lib
@@ -248,6 +249,7 @@ library
                        Cryptol.Project.Cache
                        Cryptol.Project.WildMatch
 
+  Autogen-modules:     Paths_cryptol
   Other-modules:       Cryptol.Parser.LexerUtils,
                        Cryptol.Parser.ParserUtils,
                        Cryptol.Prelude,
@@ -279,7 +281,7 @@ library cryptol-repl-internal
       ld-options: -static -pthread
       ghc-options: -optl-fuse-ld=bfd
   build-depends:       ansi-terminal
-                     , base
+                     , base >= 4.9 && < 5
                      , base-compat
                      , containers
                      , cryptol
@@ -297,7 +299,7 @@ executable cryptol
   Main-is:             Main.hs
   hs-source-dirs:      cryptol
   Other-modules:       OptParser
-  build-depends:       base
+  build-depends:       base >= 4.9 && < 5
                      , base-compat
                      , cryptol
                      , cryptol-repl-internal
@@ -316,7 +318,11 @@ executable cryptol-html
     Haskell2010
   main-is: CryHtml.hs
   hs-source-dirs: utils
-  build-depends: base, text, cryptol, blaze-html
+  build-depends:
+     base >= 4.9 && < 5,
+     text,
+     cryptol,
+     blaze-html
   GHC-options: -Wall
 
   if os(linux) && flag(static)
@@ -329,7 +335,7 @@ executable check-exercises
   Main-is:             CheckExercises.hs
   hs-source-dirs:      cryptol
   build-depends:       ansi-terminal
-                     , base
+                     , base >= 4.9 && < 5
                      , containers
                      , directory
                      , extra
@@ -353,7 +359,7 @@ test-suite cryptol-api-tests
   if os(linux) && flag(static)
       ld-options: -static -pthread
       ghc-options: -optl-fuse-ld=bfd
-  build-depends:       base
+  build-depends:       base >= 4.9 && < 5
                      , cryptol
                      , cryptol-repl-internal
                      , haskeline
@@ -371,7 +377,7 @@ benchmark cryptol-bench
   if os(linux) && flag(static)
       ld-options: -static -pthread
       ghc-options: -optl-fuse-ld=bfd
-  build-depends:       base
+  build-depends:       base >= 4.9 && < 5
                      , criterion
                      , cryptol
                      , deepseq
