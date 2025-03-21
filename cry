@@ -113,7 +113,7 @@ case $COMMAND in
 
   check-docs)
     cabal v2-build exe:check-exercises
-    find ./docs/ProgrammingCryptol -name '*.tex' -print0 | xargs -0 -n1 cabal v2-exec check-exercises
+    find ./docs/ProgrammingCryptol -name '*.tex' -print0 | xargs -0 -n1 cabal v2-exec -v0 check-exercises
     ;;
 
   help) show_usage && exit 0 ;;
