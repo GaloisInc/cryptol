@@ -7,7 +7,7 @@ License:             BSD-3-Clause
 License-file:        LICENSE
 Author:              Galois, Inc.
 Maintainer:          cryptol@galois.com
-Homepage:            http://www.cryptol.net/
+Homepage:            https://tools.galois.com/cryptol
 Bug-reports:         https://github.com/GaloisInc/cryptol/issues
 Copyright:           2013-2025 Galois Inc.
 Category:            Language
