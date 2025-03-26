@@ -59,7 +59,7 @@ RUN if ${PORTABILITY}; then \
 
 FROM toolchain AS build
 
-RUN useradd -u 1000 -m cryptol
+RUN useradd -m cryptol
 COPY --chown=cryptol:cryptol . /cryptol
 USER cryptol
 WORKDIR /cryptol
