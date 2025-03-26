@@ -16,7 +16,7 @@ env:
   # - cryptol-remote-api/Dockerfile
   # - README.md
   # - dev/dev_setup.sh
-  SOLVER_PKG_VERSION: "snapshot-20250227"
+  SOLVER_PKG_VERSION: "snapshot-20250326"
   # The CACHE_VERSION can be updated to force the use of a new cache if
   # the current cache contents become corrupted/invalid.  This can
   # sometimes happen when (for example) the OS version is changed but
@@ -27,7 +27,7 @@ env:
 
 jobs:
   config:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     outputs:
       name: ${{ steps.config.outputs.name }}
       version: ${{ steps.config.outputs.version }}
@@ -66,7 +66,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04]
+        os: [ubuntu-24.04]
         ghc-version: ["9.4.8", "9.6.5", "9.8.2"]
         cabal: [ '3.10.3.0' ]
         run-tests: [true]
@@ -74,7 +74,7 @@ jobs:
           # We include one job from an older Ubuntu LTS release to increase our
           # coverage of possible Linux configurations. Since we already run the
           # tests with the newest LTS release, we won't bother testing this one.
-          - os: ubuntu-20.04
+          - os: ubuntu-22.04
             ghc-version: 9.4.8
             run-tests: false
           # Windows and macOS CI runners are more expensive than Linux runners,
@@ -281,16 +281,16 @@ jobs:
       matrix:
         suite: [test-lib]
         target: ${{ fromJson(needs.build.outputs.test-lib-json) }}
-        os: [ubuntu-22.04, macos-14, windows-2019]
+        os: [ubuntu-24.04, macos-14, windows-2019]
         continue-on-error: [false]
         include:
           - suite: api-tests
             target: ''
-            os: ubuntu-22.04
+            os: ubuntu-24.04
             continue-on-error: false
           - suite: rpc
             target: ''
-            os: ubuntu-22.04
+            os: ubuntu-24.04
             continue-on-error: false
           #- suite: rpc
           #  target: ''
@@ -419,7 +419,7 @@ jobs:
           ./bin/cryptol-api-tests
 
   build-push-image:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [config]
     # Do not run this on forks. It seems that you can't stop scheduled
     # jobs from also running in forks. See
