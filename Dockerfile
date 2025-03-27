@@ -1,4 +1,4 @@
-FROM ubuntu:22.04 AS build
+FROM ubuntu:24.04 AS build
 
 ARG GHCVER="9.4.8"
 ARG CABALVER="3.10.3.0"
@@ -18,7 +18,7 @@ RUN mkdir -p rootfs/usr/local/bin
 WORKDIR /cryptol/rootfs/usr/local/bin
 # The URL here is based on the same logic used to specify BIN_ZIP_FILE in
 # `.github/workflow/ci.yml`, but specialized to x86-64 Ubuntu.
-RUN curl -o solvers.zip -sL "https://github.com/GaloisInc/what4-solvers/releases/download/snapshot-20250227/ubuntu-22.04-X64-bin.zip"
+RUN curl -o solvers.zip -sL "https://github.com/GaloisInc/what4-solvers/releases/download/snapshot-20250326/ubuntu-24.04-X64-bin.zip"
 RUN unzip solvers.zip && rm solvers.zip && chmod +x *
 WORKDIR /cryptol
 ENV PATH=/cryptol/rootfs/usr/local/bin:/home/cryptol/.local/bin:/home/cryptol/.ghcup/bin:$PATH
@@ -54,7 +54,7 @@ RUN mkdir -p rootfs/"${CRYPTOLPATH}" \
 USER root
 RUN chown -R root:root /cryptol/rootfs
 
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 RUN apt-get update \
     && apt-get install -y libgmp10 libgomp1 libffi8 libncurses6 libtinfo6 libreadline8 \
     && apt-get clean && rm -rf /var/lib/apt/lists/*

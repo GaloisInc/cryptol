@@ -4,8 +4,8 @@
 #
 # Supported distribution(s):
 #  * macOS 14 (AArch64)
-#  * Ubuntu 20.04 (x86_64)
 #  * Ubuntu 22.04 (x86_64)
+#  * Ubuntu 24.04 (x86_64)
 #
 # This script installs everything needed to get a working development
 # environment for cryptol. Any new environment requirements should be
@@ -37,12 +37,12 @@ GHCUP_URL="https://downloads.haskell.org/~ghcup"
 GHC_VERSION="9.4.8"
 CABAL_VERSION="3.10.3.0"
 
-WHAT4_SOLVERS_SNAPSHOT="snapshot-20250227"
+WHAT4_SOLVERS_SNAPSHOT="snapshot-20250326"
 WHAT4_SOLVERS_URL="https://github.com/GaloisInc/what4-solvers/releases/download/$WHAT4_SOLVERS_SNAPSHOT"
 WHAT4_SOLVERS_MACOS_13="macos-13-X64-bin.zip"
 WHAT4_SOLVERS_MACOS_14="macos-14-ARM64-bin.zip"
-WHAT4_SOLVERS_UBUNTU_20="ubuntu-20.04-X64-bin.zip"
 WHAT4_SOLVERS_UBUNTU_22="ubuntu-22.04-X64-bin.zip"
+WHAT4_SOLVERS_UBUNTU_24="ubuntu-24.04-X64-bin.zip"
 WHAT4_CVC4_VERSION="version 1.8"
 WHAT4_CVC5_VERSION="version 1.1.1"
 WHAT4_Z3_VERSION="version 4.8.14"
@@ -50,8 +50,8 @@ WHAT4_Z3_VERSION="version 4.8.14"
 # Set of supported platforms:
 MACOS14="macos14"
 MACOS13="macos13" # actually, this isn't supported yet
-UBUNTU20="ubuntu-20.04"
 UBUNTU22="ubuntu-22.04"
+UBUNTU24="ubuntu-24.04"
 
 USED_BREW=false
 
@@ -80,10 +80,10 @@ supported_platform() {
                 fi
                 version_file=$(mktemp)
                 lsb_release -d > $version_file
-                if $(grep -q "Ubuntu 20.04" $version_file); then
-                    echo $UBUNTU20
-                elif $(grep -q "Ubuntu 22.04" $version_file); then
+                if $(grep -q "Ubuntu 22.04" $version_file); then
                     echo $UBUNTU22
+                elif $(grep -q "Ubuntu 24.04" $version_file); then
+                    echo $UBUNTU24
                 else
                     echo ""
                 fi
@@ -129,7 +129,7 @@ update_submodules() {
     if ! is_installed git; then
         notice "Installing git"
         case $CRYPTOL_PLATFORM in
-            $UBUNTU20 | $UBUNTU22) logged apt-get install -y git;;
+            $UBUNTU22 | $UBUNTU24) logged apt-get install -y git;;
             $MACOS12 | $MACOS14) logged brew install git && USED_BREW=true;;
             *) unreachable "Unsupported platform; did not install git"; return;;
         esac
@@ -146,7 +146,7 @@ install_ghcup() {
             $MACOS12 | $MACOS14)
                 notice "Installing GHCup via Homebrew"
                 logged brew install ghcup && USED_BREW=true;;
-            $UBUNTU20 | $UBUNTU22)
+            $UBUNTU22 | $UBUNTU24)
                 notice "Installing any missing GHCup dependencies via apt-get"
                 logged apt-get install -y build-essential curl libffi-dev libffi7 libgmp-dev libgmp10 libncurses-dev libncurses5 libtinfo5
 
@@ -179,7 +179,7 @@ install_gmp() {
         $MACOS12 | $MACOS14)
             notice "Installing GMP via Homebrew, if it's not already installed"
             logged brew install gmp && USED_BREW=true;;
-        $UBUNTU20 | $UBUNTU22)
+        $UBUNTU22 | $UBUNTU24)
             notice "Installing GMP via apt-get, if it's not already installed"
             logged apt-get install -y libgmp-dev libgmp10;;
         *) unreachable "Unsupported platform; did not install GMP";;
@@ -191,7 +191,7 @@ install_zlib() {
         $MACOS12 | $MACOS14)
             notice "Installing zlib via Homebrew, if it's not already installed"
             logged brew install zlib && USED_BREW=true;;
-        $UBUNTU20 | $UBUNTU22)
+        $UBUNTU22 | $UBUNTU24)
             notice "Installing zlib via apt-get, if it's not already installed"
             logged apt-get install -y zlib1g-dev;;
         *) unreachable "Unsupported platform; did not install zlib";;
@@ -210,8 +210,8 @@ install_solvers() {
         case $CRYPTOL_PLATFORM in
             $MACOS13) solvers_version=$WHAT4_SOLVERS_MACOS_13;;
             $MACOS14) solvers_version=$WHAT4_SOLVERS_MACOS_14;;
-            $UBUNTU20) solvers_version=$WHAT4_SOLVERS_UBUNTU_20;;
             $UBUNTU22) solvers_version=$WHAT4_SOLVERS_UBUNTU_22;;
+            $UBUNTU24) solvers_version=$WHAT4_SOLVERS_UBUNTU_24;;
             *) unreachable "Unsupported platform; did not install solvers"; return;;
         esac
 
@@ -224,7 +224,7 @@ install_solvers() {
                 $MACOS12 | $MACOS14)
                     notice "Installing unzip via Homebrew"
                     logged brew install unzip && USED_BREW=true;;
-                $UBUNTU20 | $UBUNTU22)
+                $UBUNTU22 | $UBUNTU24)
                     notice "Installing unzip via apt-get"
                     logged apt-get install -y unzip;;
                 *) unreachable "Unsupported platform; did not install unzip"; return;;
@@ -286,7 +286,7 @@ put_brew_packages_in_path() {
 
 set_ubuntu_language_encoding() {
     case $CRYPTOL_PLATFORM in
-        $UBUNTU20 | $UBUNTU22)
+        $UBUNTU22 | $UBUNTU24)
             if $LANG != *"UTF-8"* || $LANG != *"utf-8"*; then
                 notice "Language environment variables are not set as expected."
                 notice "    You may need to set them to UTF-8."
@@ -305,7 +305,7 @@ set_ubuntu_language_encoding() {
 notice "Checking whether platform is supported"
 CRYPTOL_PLATFORM=$(supported_platform)
 if [ -z "$CRYPTOL_PLATFORM" ]; then
-    echo "Unsupported platform; this script supports Ubuntu 20.04, Ubuntu 22.04, and macOS 14"
+    echo "Unsupported platform; this script supports Ubuntu 22.04, Ubuntu 24.04, and macOS 14"
     exit 1
 fi
 

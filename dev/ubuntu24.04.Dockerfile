@@ -2,9 +2,9 @@
 # Note: If building this container from a machine running non-X86 hardware
 # (like Apple M1 / M2 chips), you'll need to build and run the container
 # specifying the platform e.g.
-# $ docker build --platform linux/amd64 ubuntu20.04.Dockerfile
+# $ docker build --platform linux/amd64 ubuntu24.04.Dockerfile
 #
-FROM ubuntu:20.04
+FROM ubuntu:24.04
 WORKDIR /home/
 
 RUN apt-get -y upgrade \
