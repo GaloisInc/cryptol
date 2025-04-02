@@ -27,7 +27,17 @@ ENV LANG=C.UTF-8 \
     LC_ALL=C.UTF-8
 ENV GHCUP_INSTALL_BASE_PREFIX=/opt \
     PATH=/opt/.ghcup/bin:/root/.local/bin:$PATH
-RUN curl -o /usr/local/bin/ghcup "https://downloads.haskell.org/~ghcup/0.1.22.0/x86_64-linux-ghcup-0.1.22.0" && \
+ARG TARGETPLATFORM
+RUN case ${TARGETPLATFORM} in \
+      "linux/amd64") \
+        GHCUP_ARCH=x86_64 ;; \
+      "linux/arm64" | "linux/arm64/v8") \
+        GHCUP_ARCH=aarch64 ;; \
+      *) \
+        printf "Unsupported architecture: %s\n" "${TARGETPLATFORM}" >&2 \
+        exit 1 ;; \
+    esac && \
+    curl -o /usr/local/bin/ghcup "https://downloads.haskell.org/~ghcup/0.1.22.0/${GHCUP_ARCH}-linux-ghcup-0.1.22.0" && \
     chmod +x /usr/local/bin/ghcup
 RUN ghcup install cabal ${CABALVER} --set
 ENV PATH=/root/.cabal/bin:$PATH
@@ -60,6 +70,7 @@ RUN if ${PORTABILITY}; then \
 FROM toolchain AS build
 ARG GHCVER
 ARG PORTABILITY
+ARG TARGETPLATFORM
 
 RUN useradd -m cryptol
 COPY --chown=cryptol:cryptol . /cryptol
@@ -83,8 +94,17 @@ RUN mkdir -p rootfs/"${CRYPTOLPATH}" \
     && cp -r lib/* rootfs/"${CRYPTOLPATH}"
 WORKDIR /cryptol/rootfs/usr/local/bin
 # The URL here is based on the same logic used to specify BIN_ZIP_FILE in
-# `.github/workflow/ci.yml`, but specialized to x86-64 Ubuntu.
-RUN curl -sL -o solvers.zip "https://github.com/GaloisInc/what4-solvers/releases/download/snapshot-20250326/ubuntu-24.04-X64-bin.zip" && \
+# `.github/workflow/ci.yml`, but specialized to Ubuntu.
+RUN case ${TARGETPLATFORM} in \
+      "linux/amd64") \
+        WHAT4_SOLVERS_ARCH=X64 ;; \
+      "linux/arm64" | "linux/arm64/v8") \
+        WHAT4_SOLVERS_ARCH=ARM64 ;; \
+      *) \
+        printf "Unsupported architecture: %s\n" "${TARGETPLATFORM}" >&2 \
+        exit 1 ;; \
+    esac && \
+    curl -sL -o solvers.zip "https://github.com/GaloisInc/what4-solvers/releases/download/snapshot-20250326/ubuntu-24.04-${WHAT4_SOLVERS_ARCH}-bin.zip" && \
     unzip solvers.zip && rm solvers.zip && chmod +x *
 USER root
 RUN chown -R root:root /cryptol/rootfs
