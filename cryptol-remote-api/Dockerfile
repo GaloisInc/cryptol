@@ -58,6 +58,8 @@ RUN if ${PORTABILITY}; then \
     fi
 
 FROM toolchain AS build
+ARG GHCVER
+ARG PORTABILITY
 
 RUN useradd -m cryptol
 COPY --chown=cryptol:cryptol . /cryptol
