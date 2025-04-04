@@ -8,6 +8,7 @@ module Cryptol.Backend.FFI.Call where
 
 import Foreign
 import Foreign.C.Types(CSize(..))
+import Foreign.LibFFI
 import Cryptol.Eval.Type(TValue)
 import Cryptol.Backend.FFI.ValImport
 import Cryptol.Backend.FFI.ValExport
@@ -45,7 +46,7 @@ foreign import ccall "&cry_recv_u64_digits" cry_recv_u64_digits_addr :: FunPtr (
 runFFI ::
   [ExportVal] {-^ Reversed, see `exportValues` -} ->
   TValue      {-^ Type of result -} ->
-  (Ptr cryValExporter -> Ptr cryValImporter -> IO ()) {- ^ Foreign function -} ->
+  FunPtr ()   {- ^ Foreign function -} ->
   IO (Either ImportErrorMessage Value) {- ^ Result of call, or an error -}
 runFFI args ty k =
   allocaBytes #{size struct CryValImporter} $ \robj ->
@@ -64,7 +65,7 @@ runFFI args ty k =
      #{poke struct CryValImporter, send_tag}           robj cry_tag_addr
      #{poke struct CryValImporter, send_new_large_int} robj cry_large_int_addr
      #{poke struct CryValImporter, send_sign}          robj cry_sign_addr
-     k aobj robj
+     callFFI k retVoid [argPtr aobj, argPtr robj]
      cryEndExport expS
      cryFinishImport impS
 
