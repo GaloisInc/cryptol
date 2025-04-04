@@ -68,7 +68,7 @@ exportValue v =
     VInteger i  -> pure . exportInteger i
     VRational r -> pure . exportRational r
     VFloat {}   -> throw (UnsupportedValue "XXX: Float")
-    VWord _ w   -> \start ->
+    VWord w   -> \start ->
       do wv <- asWordVal Concrete w
          pure (exportWord wv start)
     

@@ -35,10 +35,10 @@ foreign import ccall "&cry_tag" cry_tag_addr :: FunPtr (Export CSize)
 runImporter ::
   TValue ->
   (Ptr cryValImporter -> IO ()) ->
-  IO (Either ImporterErrorMessage Value)
-runBuilder ty k =
+  IO (Either ImportErrorMessage Value)
+runImporter ty k =
   allocaBytes #{size struct CryValImporter } $ \obj ->
-  do self <- cryNewValueBuilder ty 
+  do self <- cryStartImport ty 
      #{poke struct CryValImporter, self}               obj self
      #{poke struct CryValImporter, send_bool}          obj cry_bool_addr
      #{poke struct CryValImporter, send_small_uint}    obj cry_small_uint_addr
@@ -47,14 +47,14 @@ runBuilder ty k =
      #{poke struct CryValImporter, send_new_large_int} obj cry_large_int_addr
      #{poke struct CryValImporter, send_sign}          obj cry_sign_addr
      k obj
-     cryFinishBuilder self
+     cryFinishImport self
 
 #else
 
-runBuilder ::
+runImporter ::
   TValue ->
   (Ptr cryValBuilder -> IO ()) ->
-  IO (Either ImporterErrorMessage Value)
-runBuilder _ty _k = pure (Left FFINotEnabled)
+  IO (Either ImportErrorMessage Value)
+runImporter _ty _k = pure (Left FFINotEnabled)
 
 #endif
