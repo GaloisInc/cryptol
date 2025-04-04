@@ -2,6 +2,7 @@
 module Cryptol.Backend.FFI.ValExport
   ( ExportVal
   , ExporterErrorMessage(..)
+  , Export
   , exportValue, exportValues
   , cryStartExport, cryEndExport
   , cry_recv_u8
@@ -151,17 +152,13 @@ cryExportNext ptr =
        [] -> pure (Left maxBound)
 
 cryEndExport :: StablePtr (IORef [ExportVal]) -> IO ()
-cryEndExport ptr =
-  do ref <- deRefStablePtr ptr
-     xs  <- readIORef ref
-     case xs of
-       [] -> pure ()
-       _  -> panic "cryEndExport" ["Leftover data items."]
-     freeStablePtr ptr
+cryEndExport = freeStablePtr
 
+
+type Export a = Ptr () -> Ptr a -> IO Word32
 
 -- | Get the next data item, which should be uint8_t
-cry_recv_u8 :: Ptr () -> Ptr Word8 -> IO Word32
+cry_recv_u8 :: Export Word8
 cry_recv_u8 self out =
   do mb <- cryExportNext (castPtrToStablePtr self)
      case mb of
@@ -174,20 +171,20 @@ cry_recv_u8 self out =
        
 
 -- | Get the next data item, which shoudl be uint64_t
-cry_recv_u64 :: Ptr () -> Ptr Word64 -> IO Word32
+cry_recv_u64 :: Export Word64
 cry_recv_u64 self out =
   do mb <- cryExportNext (castPtrToStablePtr self)
      case mb of
        Left err -> pure err
        Right d ->
          case d of
-           EV8 {}        -> pure 1
+           EV8 {}       -> pure 1
            EV64 w       -> poke out w >> pure 0
            EVInteger {} -> pure 3
   
 
 -- | Get the digits for an integer
-cry_recv_u64_digits :: Ptr () -> Ptr Word64 -> IO Word32
+cry_recv_u64_digits :: Export Word64
 cry_recv_u64_digits self out =
   do mb <- cryExportNext (castPtrToStablePtr self)
      case mb of
