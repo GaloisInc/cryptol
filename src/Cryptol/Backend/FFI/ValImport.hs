@@ -2,7 +2,20 @@
 {-# Language BlockArguments #-}
 {-# Language LambdaCase #-}
 -- | Export builders for Cryptols values
-module Cryptol.Backend.FFI.ValImport where
+module Cryptol.Backend.FFI.ValImport (
+  cryStartImport,
+  cryFinishImport,
+  cry_bool,
+  cry_small_uint,
+  cry_small_sint,
+  cry_large_int,
+  cry_sign,
+  cry_tag,
+  Value,
+  Import,
+  LargeIntFun,
+  ImportErrorMessage(..)
+  )where
 
 import Data.Text(Text)
 import qualified Data.IntMap as IntMap

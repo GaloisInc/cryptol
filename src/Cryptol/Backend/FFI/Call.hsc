@@ -1,6 +1,6 @@
 {-# Language CPP #-}
--- | Export builders for Cryptols values
-module Cryptol.Backend.FFI.Export where
+-- | Calling a foreign function
+module Cryptol.Backend.FFI.Call where
 
 #ifdef FFI_ENABLED
 

@@ -208,7 +208,7 @@ library
                        Cryptol.Backend.Concrete,
                        Cryptol.Backend.FFI,
                        Cryptol.Backend.FFI.Error,
-                       Cryptol.Backend.FFI.Export,
+                       Cryptol.Backend.FFI.Call,
                        Cryptol.Backend.FFI.ValExport,
                        Cryptol.Backend.FFI.ValImport,
                        Cryptol.Backend.FloatHelpers,

@@ -23,7 +23,6 @@ import GHC.Base(Int(..))
 import Data.Primitive.PrimArray
     ( copyPrimArrayToPtr, sizeofPrimArray, PrimArray(..) )
 
-import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.RecordMap ( canonicalFields )
 import Cryptol.Eval.Value ( Backend(SWord, SEval), GenValue(..) )
 import Cryptol.Eval.Type(conFields)
@@ -56,7 +55,7 @@ exportValue v =
     VTuple vs    -> exportValues vs
     VSeq n sm    -> exportValues (enumerateSeqMap n sm)
 
-    -- 1. tag, 2. constructo values
+    -- 1. tag, 2. constructor values
     VEnum tag mp
       | 0 <= tag && tag <= toInteger (maxBound :: Int)
       , let n = fromInteger tag
