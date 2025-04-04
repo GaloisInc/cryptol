@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "cryptol"
-version = "3.2.0.99"
+version = "3.3.0.99"
 readme = "README.md"
 keywords = ["cryptography", "verification"]
 description = "Cryptol client for the Cryptol RPC server"
@@ -15,7 +15,7 @@ include = [
 [tool.poetry.dependencies]
 python = ">=3.8.0,<4"
 BitVector = "^3.4.9"
-argo-client = "0.0.12"
+argo-client = ">=0.0.13"
 typing-extensions = "^4.1.1"
 
 requests = ">=2.31.0"

@@ -174,7 +174,11 @@ instance IsString Doc where
   fromString = text
 
 renderOneLine :: Doc -> String
-renderOneLine d = PP.renderString (PP.layoutCompact (runDocWith defaultPPCfg d))
+renderOneLine d = PP.renderString (PP.layoutPretty opts (runDocWith defaultPPCfg d))
+  where
+    opts = PP.LayoutOptions
+      { PP.layoutPageWidth = PP.Unbounded
+      }
 
 class PP a where
   ppPrec :: Int -> a -> Doc
@@ -411,8 +415,8 @@ instance PP OrigName where
         Qualified m -> ppQual (TopModule m) (pp (ogName og))
         NotInScope  -> ppQual (ogModule og)
                        case ogFromParam og of
-                         Just x  -> pp x <.> "::" <.> pp (ogName og)
-                         Nothing -> pp (ogName og)
+                         Just x | not (isAnonIfaceModIdnet x) -> pp x <.> "::" <.> pp (ogName og)
+                         _ -> pp (ogName og)
     where
     ppQual mo x =
       case mo of

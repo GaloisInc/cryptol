@@ -62,7 +62,8 @@ module Cryptol.Parser.AST
   , FixityCmp(..), compareFixity
   , TySyn(..)
   , PropSyn(..)
-  , Bind(..)
+  , Bind(..), bindParams, bindHeaderLoc
+  , BindParams(..), dropParams, noParams
   , BindDef(..), LBindDef
   , BindImpl(..), bindImpl, exprDef
   , Pragma(..)
@@ -484,7 +485,7 @@ psFixity (PropSyn _ f _ _) = f
 -}
 data Bind name = Bind
   { bName      :: Located name            -- ^ Defined thing
-  , bParams    :: [Pattern name]          -- ^ Parameters
+  , bParams    :: BindParams name         -- ^ Parameters
   , bDef       :: Located (BindDef name)  -- ^ Definition
   , bSignature :: Maybe (Schema name)     -- ^ Optional type sig
   , bInfix     :: Bool                    -- ^ Infix operator?
@@ -494,6 +495,49 @@ data Bind name = Bind
   , bDoc       :: Maybe (Located Text)    -- ^ Optional doc string
   , bExport    :: !ExportType
   } deriving (Eq, Generic, NFData, Functor, Show)
+
+bindParams :: Bind name -> [Pattern name]
+bindParams b = case bParams b of
+  PatternParams ps -> ps
+  DroppedParams _ _ -> []
+
+-- | Sets the number of parameters for a binding to zero, noting
+-- the original number and source location of the patterns.
+-- e.g. when rewriting @let f a b c = \x -> ...@, into
+-- @let f = \\a b c x -> ...@ the parameters for @f@ change from
+-- @PatternParams [a,b,c]@ to @DroppedParams (getLoc [a,b,c]) 3@
+dropParams :: BindParams name -> BindParams name
+dropParams bps = case bps of
+  PatternParams ps -> DroppedParams (getLoc ps) (length ps)
+  DroppedParams rng i -> DroppedParams rng i
+
+-- | Range encompassing the LHS of a binder, its signature, but not
+-- its definition.
+bindHeaderLoc :: Bind name -> Maybe Range
+bindHeaderLoc b = getLoc (bName b, (bSignature b, bParams b))
+
+-- | An empty 'BindParams' (i.e. zero parameters).
+--   Note that 'dropParams' should be used instead of this
+--   when rewriting an existing 'Bind' to have no parameters.
+noParams :: BindParams name
+noParams = PatternParams []
+
+-- | A list of patterns used as parameters to a 'Bind'.
+--   This is only used to improve error messages, by retaining
+--   information about the original shape of a 'Bind' when
+--   rewriting (see 'dropParams').
+data BindParams name =
+    PatternParams [Pattern name]
+    -- ^ Parameters that appear in the LHS of a binding equation
+    -- as patterns. 
+    -- e.g. @[a,b,c]@ in @let f a b c = \x -> ...@
+  | DroppedParams (Maybe Range) Int
+    -- ^ Represents zero parameters to a binding equation that
+    -- originally had parameters, but was rewritten to have none
+    -- (see 'Cryptol.Parser.NoPat').
+    -- Retains the original source range, and number
+    -- of dropped parameters (see 'dropParams').
+  deriving (Eq, Generic, NFData, Functor, Show)
 
 type LBindDef = Located (BindDef PName)
 
@@ -881,7 +925,17 @@ instance HasLoc (TySyn name) where
 instance HasLoc (PropSyn name) where
   getLoc (PropSyn x _ _ _) = getLoc x
 
+instance HasLoc (PropGuardCase name) where
+  getLoc n
+    | null locs = Nothing
+    | otherwise = Just (rCombs locs)
+    where
+    locs = catMaybes (getLoc (pgcExpr n) : map getLoc (pgcProps n))
 
+instance HasLoc (BindParams name) where
+  getLoc bps = case bps of
+    PatternParams ps -> getLoc ps
+    DroppedParams rng _ -> rng
 
 --------------------------------------------------------------------------------
 
@@ -1129,9 +1183,9 @@ instance (Show name, PPName name) => PP (Bind name) where
                   Nothing -> []
                   Just s  -> [pp (DSignature [f] s)]
           eq  = if bMono b then text ":=" else text "="
-          lhs = fsep (ppL f : (map (ppPrec 3) (bParams b)))
+          lhs = fsep (ppL f : (map (ppPrec 3) (bindParams b)))
 
-          lhsOp = case bParams b of
+          lhsOp = case bindParams b of
                     [x,y] -> pp x <+> ppL f <+> pp y
                     xs -> parens (parens (ppL f) <+> fsep (map (ppPrec 0) xs))
                     -- _     -> panic "AST" [ "Malformed infix operator", show b ]
@@ -1568,6 +1622,11 @@ instance NoPos (EnumDecl name) where
 
 instance NoPos (EnumCon name) where
   noPos c = EnumCon { ecName = noPos (ecName c), ecFields = noPos (ecFields c) }
+
+instance NoPos (BindParams name) where
+  noPos bp = case bp of
+    PatternParams ps -> PatternParams (noPos ps)
+    DroppedParams _ i -> DroppedParams Nothing i
 
 instance NoPos (Bind name) where
   noPos x = Bind { bName      = noPos (bName      x)

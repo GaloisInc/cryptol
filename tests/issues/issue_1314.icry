@@ -1,0 +1,4 @@
+:set-seed 0
+:dumptests - (sum : [100][8] -> [8])
+:dumptests - (\(x,y) -> x + y : [64])
+:dumptests - (\a b c -> a < b /\ b < (c : [100]))

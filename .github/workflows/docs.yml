@@ -26,7 +26,7 @@ jobs:
         with:
           nix_path: nixpkgs=channel:nixos-23.05
       - name: build PDF docs
-        if: github.event.pull_request.head.repo.fork == false
+        if: github.event.pull_request.head.repo.fork == false && github.repository_owner == 'GaloisInc'
         uses: docker://pandoc/latex:2.9.2
         with:
           args: >-
@@ -47,8 +47,11 @@ jobs:
             -p 'python3.withPackages (pp: [pp.sphinx pp.sphinx_rtd_theme])' \
             --run 'make html'
   build-pages-docs:
-    # Do not run this on forks:
-    if: github.event.pull_request.head.repo.fork == false
+    # Do not run this on forks. It isn't sufficient to check the pull
+    # request info because we might also be on master in a fork. It
+    # seems that you can't stop scheduled jobs from also running in
+    # forks. See https://github.com/orgs/community/discussions/16109.
+    if: github.event.pull_request.head.repo.fork == false && github.repository_owner == 'GaloisInc'
     runs-on: ubuntu-latest
     # The public interface should then allow the user to browse the cryptol
     # documentation at the master branch, but also the documentation associated
@@ -95,10 +98,12 @@ jobs:
       - name: tags and pull requests
         shell: bash
         run: |
-          curl ${{ github.api_url }}/repos/${{ github.repository }}/pulls > pulls.json
+          curl --header 'authorization: Bearer ${{ secrets.GITHUB_TOKEN }}' \
+            ${{ github.api_url }}/repos/${{ github.repository }}/pulls > pulls.json
           head -n30 pulls.json
           echo There are $(cat pulls.json | nix run nixpkgs#jq -- length) pull requests
-          curl ${{ github.api_url }}/repos/${{ github.repository }}/tags > tags.json
+          curl --header 'authorization: Bearer ${{ secrets.GITHUB_TOKEN }}' \
+            ${{ github.api_url }}/repos/${{ github.repository }}/tags > tags.json
           head -n30 tags.json
           echo There are $(cat tags.json | nix run nixpkgs#jq -- length) tags
       - name: checkout all doc versions
@@ -122,6 +127,10 @@ jobs:
             prnum=$(cat pulls.json | nix run nixpkgs#jq -- .[${X}].number)
             prref=$(cat pulls.json | nix run nixpkgs#jq -- -r .[${X}].merge_commit_sha)
             tgt=${TGTBASE}/PR_${prnum}
+            if [ "X$prref" == "Xnull" ] ; then
+              echo Skipping PR ${X}: probable unresolved merge conflict
+              continue
+            fi
             echo "Checkout Pull Request ${prnum} at ${prref} into PR_${prnum}"
             mkdir $tgt
             # n.b. the switch here is important to make sure the branch is
@@ -178,10 +187,10 @@ jobs:
           done
           cp docs/index.html docs/RefMan/_build/index.html
       - name: upload pages artifact
-        uses: actions/upload-pages-artifact@v1
+        uses: actions/upload-pages-artifact@v3
         with:
           path: 'docs/RefMan/_build'
       - name: Deploy to github pages
         id: deployment
-        uses: actions/deploy-pages@v2
+        uses: actions/deploy-pages@v4
 

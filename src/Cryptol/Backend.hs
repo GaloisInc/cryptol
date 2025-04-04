@@ -1,7 +1,9 @@
 {-# Language FlexibleContexts #-}
 {-# Language TypeFamilies #-}
+{-# Language ScopedTypeVariables #-}
 module Cryptol.Backend
   ( Backend(..)
+  , wordLen
   , sDelay
   , invalidIndex
   , cryUserError
@@ -36,6 +38,7 @@ module Cryptol.Backend
 import qualified Control.Exception as X
 import Control.Monad.IO.Class
 import Data.Kind (Type)
+import Data.Proxy(Proxy(..))
 
 import Cryptol.Backend.FloatHelpers (BF)
 import Cryptol.Backend.Monad
@@ -295,7 +298,7 @@ class MonadIO (SEval sym) => Backend sym where
   bitAsLit :: sym -> SBit sym -> Maybe Bool
 
   -- | The number of bits in a word value.
-  wordLen :: sym -> SWord sym -> Integer
+  wordLen' :: proxy sym -> SWord sym -> Integer
 
   -- | Determine if this symbolic word is a literal.
   --   If so, return the bit width and value.
@@ -813,3 +816,7 @@ type FPArith2 sym =
   SFloat sym ->
   SFloat sym ->
   SEval sym (SFloat sym)
+
+wordLen :: forall sym. Backend sym => sym -> SWord sym -> Integer
+wordLen _ x = wordLen' (Proxy :: Proxy sym) x
+{-# INLINE wordLen #-}

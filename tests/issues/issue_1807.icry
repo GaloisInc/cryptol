@@ -1,0 +1,17 @@
+:set proverTimeout=1
+
+:l ../../examples/funstuff/NQueens.cry
+
+:set prover=w4-z3
+:sat nQueens : (Solution 50)
+
+// requires what4 1.6.3
+// see: https://github.com/GaloisInc/what4/commit/31b906665faae0d242688161273b803ffdf84337
+:set prover=w4-cvc5
+:sat nQueens : (Solution 50)
+
+// on Mac OS X ARM64, requires
+// a yices build linked with gmp >= 6.3.0
+// see: https://github.com/GaloisInc/what4-solvers/issues/58
+:set prover=w4-yices
+:sat nQueens : (Solution 50)

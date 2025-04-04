@@ -1,0 +1,43 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Array
+Loading module Bug
+
+[error] at issue1744.cry:12:7--13:28:
+  Type signature mismatch.
+    Expected number of parameters: 3
+    Actual number of parameters: 4
+    When defining 'Bug::once: Bug::Info -> [3] -> [4] -> Bug::Info'
+[error] at issue1744.cry:16:41--16:44:
+  Type mismatch:
+    Expected type: 5
+    Inferred type: 3
+    Context: [ERROR] _
+    When checking type of function argument
+[error] at issue1744.cry:22:25--22:29:
+  Type mismatch:
+    Expected type: [4] -> Bug::Info
+    Inferred type: Bug::Info
+    Context: _ -> _ -> _ -> ERROR
+    When checking function call
+[error] at issue1744.cry:22:36--22:39:
+  Type mismatch:
+    Expected type: 3
+    Inferred type: 5
+    Context: [ERROR] _
+    When checking type of function argument
+[error] at issue1744.cry:24:31--24:37:
+  Type mismatch:
+    Expected type: 3
+    Inferred type: 4
+    Context: [ERROR] _
+    When checking type of 0th tuple field
+Loading module Cryptol
+Loading module Array
+Loading module Bug
+
+[error] at issue1744-2.cry:13:24--13:29:
+  Type mismatch:
+    Expected type: [4] -> Bug::Info
+    Inferred type: Bug::Info
+    When checking the type of 'Bug::once'

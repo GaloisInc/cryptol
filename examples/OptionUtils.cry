@@ -1,0 +1,57 @@
+/**
+ * (NOTE: This is taken from Common::OptionUtils in the
+ * https://github.com/GaloisInc/cryptol-specs repo. Any changes made to the
+ * upstream repo should eventually be migrated over to this copy.)
+ *
+ * Convenience functions for working with `Option`s.
+ *
+ * @copyright Galois, Inc.
+ * @author Marcella Hastings <marcella@galois.com>
+ * @author Ryan Scott <rscott@galois.com>
+ */
+module OptionUtils where
+
+isSome : {a} Option a -> Bit
+isSome opt = case opt of
+    Some _ -> True
+    None -> False
+
+isNone : {a} Option a -> Bit
+isNone opt = ~ isSome opt
+
+/**
+ * Map an `Option a` to an `Option b` by applying a function to a contained
+ * value (if `Some`) or returns `None` (if `None`).
+ */
+optApply : {a, b} (a -> b) -> Option a -> Option b
+optApply f opt = case opt of
+    Some x -> Some (f x)
+    None -> None
+
+/**
+ * The `optFold` function takes a default value, a function, and an `Option`
+ * value. If the `Option` value is `None`, then return the default value.
+ * Otherwise, apply the function to the value inside the `Some` and return the
+ * result.
+ */
+optFold : {a, b} b -> (a -> b) -> Option a -> b
+optFold def f opt =
+  case opt of
+    Some x -> f x
+    None   -> def
+
+/**
+ * Flatten a nested `Option` into a single `Option` that is `Some` only if
+ * both original `Option`s are `Some`.
+ */
+optFlatten : {a} Option (Option a) -> Option a
+optFlatten opt = case opt of
+    Some opt' -> opt'
+    None -> None
+
+/**
+ * Map an `Option a` to an `Option b` by calling `optApply` on a function that
+ * produces an `Option b`, then `optFlatten`ing the result.
+ */
+optFlatApply: {a, b} (a -> Option b) -> Option a -> Option b
+optFlatApply f opt = optFlatten (optApply f opt)

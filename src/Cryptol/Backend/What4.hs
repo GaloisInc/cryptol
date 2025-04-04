@@ -273,7 +273,8 @@ instance W4.IsSymExprBuilder sym => Backend (What4 sym) where
     | SW.bvWidth bv == 8 = toEnum . fromInteger <$> SW.bvAsUnsignedInteger bv
     | otherwise = Nothing
 
-  wordLen _ bv = SW.bvWidth bv
+  wordLen' _ bv = SW.bvWidth bv
+  {-# INLINE wordLen' #-}
 
   bitLit sym b = W4.backendPred (w4 sym) b
   bitAsLit _ v = W4.asConstantPred v

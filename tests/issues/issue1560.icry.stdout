@@ -1,0 +1,82 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading interface module T1__parameter
+Loading module T1
+
+[error] at issue1560/T1.cry:7:5--7:6:
+  Unsolved constraints:
+    • fin n
+        arising from
+        use of literal or demoted expression
+        at issue1560/T1.cry:7:5--7:6
+  where
+  n is module parameter T1::n at issue1560/T1.cry:1:8--1:10
+[error] at issue1560/T1.cry:7:5--7:6:
+  Unsolved constraints:
+    • n >= 1
+        arising from
+        use of literal or demoted expression
+        at issue1560/T1.cry:7:5--7:6
+  where
+  n is module parameter T1::n at issue1560/T1.cry:1:8--1:10
+Loading module Cryptol
+Loading interface module T2__parameter
+Loading module T2
+
+[error] at issue1560/T2.cry:15:3--15:10:
+  Failed to validate user-specified signature.
+    in the definition of 'T2::F::b', at issue1560/T2.cry:15:3--15:4,
+    we need to show that
+      for any type m
+      assuming
+        • fin n
+      the following constraints hold:
+        • m == n
+            arising from
+            matching types
+            at issue1560/T2.cry:15:9--15:10
+      where
+      n is module parameter T2::n at issue1560/T2.cry:1:8--1:10
+Loading module Cryptol
+Loading module T3
+
+[error] at issue1560/T3.cry:1:1--23:13:
+  Failed to validate user-specified signature.
+    when checking the module's parameters,
+    we need to show that
+      assuming
+        • x₁ >= 1
+        • x₁ <= 4
+        • x >= 1
+        • x <= 3
+      the following constraints hold:
+        • x₁ == x
+            arising from
+            matching types
+            at issue1560/T3.cry:23:12--23:13
+      where
+      x is module parameter T3::F::I::x at issue1560/T3.cry:14:30--14:32
+      x₁ is module parameter T3::F::G::I::x at issue1560/T3.cry:20:32--20:34
+Loading module Cryptol
+Loading module T3
+
+[error] at issue1560/T4.cry:1:1--24:13:
+  Failed to validate user-specified signature.
+    when checking the module's parameters,
+    we need to show that
+      assuming
+        • x₂ >= 1
+        • x₂ <= 4
+        • x₁ >= 1
+        • x₁ <= 4
+        • x >= 1
+        • x <= 3
+      the following constraints hold:
+        • x₁ == x
+            arising from
+            matching types
+            at issue1560/T4.cry:24:12--24:13
+      where
+      x is module parameter T3::F::I::x at issue1560/T4.cry:14:30--14:32
+      x₁ is module parameter T3::F::G::I::x at issue1560/T4.cry:20:32--20:34
+      x₂ is module parameter T3::F::G::J::x at issue1560/T4.cry:21:32--21:34

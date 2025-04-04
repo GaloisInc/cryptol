@@ -1,6 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module `where` argument of T5::Main
+Loading module T5::Main__where
 
 Parse error at .\T5\B.cry:4:3--4:4
   Instantiation of a parameterized module may not itself be parameterized

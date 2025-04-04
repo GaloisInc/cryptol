@@ -51,7 +51,7 @@ import           Cryptol.TypeCheck.Unify(doMGU, runResult, UnificationError(..)
                                         , Path, rootPath)
 import           Cryptol.TypeCheck.InferTypes
 import           Cryptol.TypeCheck.Error( Warning(..),Error(..)
-                                        , cleanupErrors, computeFreeVarNames
+                                        , cleanupErrors, computeFreeVarNames, cleanupWarnings
                                         )
 import qualified Cryptol.TypeCheck.SimpleSolver as Simple
 import qualified Cryptol.TypeCheck.Solver.SMT as SMT
@@ -184,10 +184,13 @@ runInferM info m0 =
               errs -> inferFailed warns [(r,apSubst theSu e) | (r,e) <- errs]
 
   where
-  inferOk ws a b c  = pure (InferOK (computeFreeVarNames ws []) ws a b c)
+  inferOk ws a b c  = 
+    let ws1 = cleanupWarnings ws
+    in pure (InferOK (computeFreeVarNames ws1 []) ws1 a b c)
   inferFailed ws es =
     let es1 = cleanupErrors es
-    in pure (InferFailed (computeFreeVarNames ws es1) ws es1)
+        ws1 = cleanupWarnings ws
+    in pure (InferFailed (computeFreeVarNames ws1 es1) ws1 es1)
 
 
   rw = RW { iErrors     = []
@@ -420,7 +423,9 @@ recordError = recordErrorLoc Nothing
 -- | Report an error.
 recordErrorLoc :: Maybe Range -> Error -> InferM ()
 recordErrorLoc rng e =
-  do r <- case rng of
+  do r' <- curRange
+     r <- case rng of
+            Just r | rangeWithin r' r -> pure r'
             Just r  -> pure r
             Nothing -> case e of
                          AmbiguousSize d _ -> return (tvarSource d)

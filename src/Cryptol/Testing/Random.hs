@@ -47,14 +47,14 @@ import Cryptol.Backend        (Backend(..), SRational(..))
 import Cryptol.Backend.FloatHelpers (floatFromBits)
 import Cryptol.Backend.Monad  (runEval,Eval,EvalErrorEx(..))
 import Cryptol.Backend.Concrete
-import Cryptol.Backend.SeqMap (indexSeqMap, finiteSeqMap)
+import Cryptol.Backend.SeqMap (indexSeqMap)
 import Cryptol.Backend.WordValue (wordVal)
 
 import Cryptol.Eval(evalEnumCon)
 import Cryptol.Eval.Type      ( TValue(..), TNominalTypeValue(..), ConInfo(..)
                               , isNullaryCon )
-import Cryptol.Eval.Value     ( GenValue(..), ppValue, defaultPPOpts, fromVFun)
-import Cryptol.TypeCheck.Solver.InfNat (widthInteger)
+import Cryptol.Eval.Value     ( GenValue(..), ppValue, defaultPPOpts, fromVFun, mkSeq, unsafeToFinSeq, finSeq)
+import Cryptol.TypeCheck.Solver.InfNat (widthInteger, Nat' (..))
 import Cryptol.Utils.Ident    (Ident)
 import Cryptol.Utils.Panic    (panic)
 import Cryptol.Utils.RecordMap
@@ -160,7 +160,7 @@ randomValue sym ty =
     TVSeq n TVBit -> Just (randomWord sym n)
     TVSeq n el ->
          do mk <- randomValue sym el
-            return (randomSequence n mk)
+            return (randomSequence sym n el mk)
     TVStream el  ->
          do mk <- randomValue sym el
             return (randomStream mk)
@@ -237,7 +237,7 @@ randomRational sym w g =
 randomWord :: (Backend sym, RandomGen g) => sym -> Integer -> Gen g sym
 randomWord sym w _sz g =
    let (val, g1) = randomR (0,2^w-1) g
-   in (VWord w . wordVal <$> wordLit sym w val, g1)
+   in (VWord . wordVal <$> wordLit sym w val, g1)
 
 {-# INLINE randomStream #-}
 
@@ -251,14 +251,14 @@ randomStream mkElem sz g =
 
 {- | Generate a random sequence.  This should be used for sequences
 other than bits.  For sequences of bits use "randomWord". -}
-randomSequence :: (Backend sym, RandomGen g) => Integer -> Gen g sym -> Gen g sym
-randomSequence w mkElem sz g0 = do
+randomSequence :: (Backend sym, RandomGen g) => sym -> Integer -> TValue -> Gen g sym -> Gen g sym
+randomSequence sym w elty mkElem sz g0 = do
   let (g1,g2) = split g0
   let f g = let (x,g') = mkElem sz g
              in seq x (Just (x, g'))
   let xs = Seq.fromList $ genericTake w $ unfoldr f g1
-  let v  = VSeq w $ indexSeqMap $ \i -> Seq.index xs (fromInteger i)
-  seq xs (pure v, g2)
+  let v  = mkSeq sym (Nat w) elty $ indexSeqMap $ \i -> Seq.index xs (fromInteger i)
+  seq xs (v, g2)
 
 {-# INLINE randomTuple #-}
 
@@ -493,11 +493,11 @@ typeValues ty =
     TVArray{}   -> []
     TVStream{}  -> []
     TVSeq n TVBit ->
-      [ VWord n (wordVal (BV n x))
+      [ VWord (wordVal (BV n x))
       | x <- [ 0 .. 2^n - 1 ]
       ]
     TVSeq n el ->
-      [ VSeq n (finiteSeqMap Concrete (map pure xs))
+      [ finSeq Concrete n (unsafeToFinSeq (map pure xs)) -- safe, since the TVBit case is covered above
       | xs <- sequence (genericReplicate n (typeValues el))
       ]
     TVTuple ts ->

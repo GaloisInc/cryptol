@@ -29,6 +29,7 @@ module Cryptol.Symbolic.SBV
 
 
 import Control.Applicative
+import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async
 import Control.Concurrent.MVar
 import Control.Monad.IO.Class
@@ -42,7 +43,7 @@ import qualified Data.Vector as Vector
 
 import LibBF(bfNaN)
 
-import qualified Data.SBV as SBV (sObserve, symbolicEnv)
+import qualified Data.SBV as SBV (sObserve, symbolicEnv, SMTReasonUnknown (..))
 import qualified Data.SBV.Internals as SBV (SBV(..))
 import qualified Data.SBV.Dynamic as SBV
 import qualified Data.SBV.Trans.Control as SBV (SMTOption(..))
@@ -88,6 +89,7 @@ proverConfigs =
   , ("cvc5"     , SBV.cvc5     )
   , ("yices"    , SBV.yices    )
   , ("z3"       , SBV.z3       )
+  , ("bitwuzla" , SBV.bitwuzla )
   , ("boolector", SBV.boolector)
   , ("mathsat"  , SBV.mathSAT  )
   , ("abc"      , SBV.abc      )
@@ -98,6 +100,7 @@ proverConfigs =
   , ("sbv-cvc5"     , SBV.cvc5     )
   , ("sbv-yices"    , SBV.yices    )
   , ("sbv-z3"       , SBV.z3       )
+  , ("sbv-bitwuzla" , SBV.bitwuzla )
   , ("sbv-boolector", SBV.boolector)
   , ("sbv-mathsat"  , SBV.mathSAT  )
   , ("sbv-abc"      , SBV.abc      )
@@ -108,11 +111,41 @@ proverConfigs =
 setTimeoutSecs ::
   Int {- ^ seconds -} ->
   SBV.SMTConfig -> SBV.SMTConfig
-setTimeoutSecs s cfg = cfg
-  { SBV.solverSetOptions =
-    SBV.OptionKeyword ":timeout" [show (toInteger s * 1000)] :
-    filter (not . isTimeout) (SBV.solverSetOptions cfg) }
+setTimeoutSecs s cfg = case SBV.name (SBV.solver cfg) of
+  SBV.Yices -> cfg'
+  -- TODO: although "--timeout" correctly sets the timeout for Yices,
+  -- SBV crashes due to an unexpected response from Yices after
+  -- a timeout is hit.
+  -- As a workaround, we ignore the timeout setting for Yices
+  -- and instead rely on 'addDeadmanTimer' to kill Yices when the
+  -- timeout is hit.
+  -- see:
+  --   https://github.com/LeventErkok/sbv/issues/735
+  --   https://github.com/SRI-CSL/yices2/issues/547
+    {- { SBV.extraArgs =
+      ["--timeout", show (toInteger s)] ++
+      SBV.extraArgs cfg' } -}
+
+  -- NOTE: Once Cryptol requires sbv 11.1.5 as a minimum, we
+  -- can use the new 'SetTimeOut' option for all solvers and
+  -- the special cases for CVC4 and CVC5 can be dropped.
+  SBV.CVC4 -> cfg'
+    { SBV.extraArgs =
+      ["--tlimit-per", show (toInteger s * 1000)] ++
+      SBV.extraArgs cfg' }
+  SBV.CVC5 -> cfg'
+    { SBV.extraArgs =
+      ["--tlimit-per", show (toInteger s * 1000)] ++
+      SBV.extraArgs cfg' }
+  _ -> cfg'
+    { SBV.solverSetOptions =
+      SBV.OptionKeyword ":timeout" [show (toInteger s * 1000)] :
+      (SBV.solverSetOptions cfg') }
   where
+    cfg' = cfg
+      { SBV.solverSetOptions =
+        filter (not . isTimeout) (SBV.solverSetOptions cfg) }
+
     isTimeout (SBV.OptionKeyword k _) = k == ":timeout"
     isTimeout _ = False
 
@@ -248,6 +281,29 @@ runMultiProvers pc lPutStrLn provers callSolver processResult e = do
               do forM_ others (\a -> X.throwTo (asyncThreadId a) ExitSuccess)
                  return r
 
+-- | Wrap a solver call with a given timeout. If the timeout is reached, then
+--   the default result is returned and the solver call is terminated.
+--   This is required to handle timeouts when using Yices due to a known
+--   issue (see 'setTimeoutSecs').
+--   However, it can be used with any solver as an additional measure
+--   to ensure the timeout is respected.
+addDeadmanTimer ::
+  Int {- ^ timeout in seconds -} ->
+  (SBV.SMTConfig -> res) {- ^ result to give when a timeout is hit -} ->
+  (SBV.SMTConfig -> SBV.Symbolic SBV.SVal -> IO res) {- ^ call the SMT solver -} ->
+  (SBV.SMTConfig -> SBV.Symbolic SBV.SVal -> IO res)
+addDeadmanTimer timeoutSecs _defaultRes callProver | timeoutSecs <= 0 = callProver
+addDeadmanTimer timeoutSecs defaultRes callProver =
+  let deadmanTimeoutPeriodMicroSeconds =
+        (timeoutSecs * 1000000) + -- sec to usec
+        1000 -- buffer to wait for solver-native timeout
+      deadmanTimer = threadDelay deadmanTimeoutPeriodMicroSeconds
+  in \cfg v ->
+        do res <- race deadmanTimer (callProver cfg v)
+           case res of
+             Left () -> return $ defaultRes cfg
+             Right a -> return a
+
 -- | Select the appropriate solver or solvers from the given prover command,
 --   and invoke those solvers on the given symbolic value.
 runProver ::
@@ -275,9 +331,9 @@ runProver timeoutSecs proverConfig pc@ProverCommand{..} lPutStrLn x =
                    ] in
 
           case pcQueryType of
-            ProveQuery  -> runMultiProvers pc lPutStrLn ps' SBV.proveWith thmSMTResults x
-            SafetyQuery -> runMultiProvers pc lPutStrLn ps' SBV.proveWith thmSMTResults x
-            SatQuery (SomeSat 1) -> runMultiProvers pc lPutStrLn ps' SBV.satWith satSMTResults x
+            ProveQuery  -> runMultiProvers pc lPutStrLn ps' proveWith thmSMTResults x
+            SafetyQuery -> runMultiProvers pc lPutStrLn ps' proveWith thmSMTResults x
+            SatQuery (SomeSat 1) -> runMultiProvers pc lPutStrLn ps' satWith satSMTResults x
             _ -> return (Nothing,
                    [SBV.ProofError p
                      [":sat with option prover=any requires option satNum=1"]
@@ -295,11 +351,17 @@ runProver timeoutSecs proverConfig pc@ProverCommand{..} lPutStrLn x =
                 | otherwise = p1
           in
           case pcQueryType of
-            ProveQuery  -> runSingleProver pc lPutStrLn p2 SBV.proveWith thmSMTResults x
-            SafetyQuery -> runSingleProver pc lPutStrLn p2 SBV.proveWith thmSMTResults x
-            SatQuery (SomeSat 1) -> runSingleProver pc lPutStrLn p2 SBV.satWith satSMTResults x
-            SatQuery _           -> runSingleProver pc lPutStrLn p2 SBV.allSatWith allSatSMTResults x
-
+            ProveQuery  -> runSingleProver pc lPutStrLn p2 proveWith thmSMTResults x
+            SafetyQuery -> runSingleProver pc lPutStrLn p2 proveWith thmSMTResults x
+            SatQuery (SomeSat 1) -> runSingleProver pc lPutStrLn p2 satWith satSMTResults x
+            SatQuery _           -> runSingleProver pc lPutStrLn p2 allSatWith allSatSMTResults x
+  where
+    proveWith =
+      addDeadmanTimer timeoutSecs (\cfg -> SBV.ThmResult (SBV.Unknown cfg SBV.UnknownTimeOut)) SBV.proveWith
+    satWith =
+      addDeadmanTimer timeoutSecs (\cfg -> SBV.SatResult (SBV.Unknown cfg SBV.UnknownTimeOut)) SBV.satWith
+    allSatWith =
+      addDeadmanTimer timeoutSecs (\cfg -> SBV.AllSatResult False True False [(SBV.Unknown cfg SBV.UnknownTimeOut)]) SBV.allSatWith
 
 -- | Prepare a symbolic query by symbolically simulating the expression found in
 --   the @ProverQuery@.  The result will either be an error or a list of the types

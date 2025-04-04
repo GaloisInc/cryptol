@@ -13,6 +13,9 @@ contain at most one top-level module.
   f : [8]
   f = 10
 
+Module names should avoid using two consecutive underscores, because
+those are used to generate names for various anonymous modules.
+
 
 Hierarchical Module Names
 -------------------------
@@ -607,6 +610,10 @@ Note that the parameters may not use things defined in ``M`` as
 the interface is declared outside of ``M``.  The ``parameter``
 may contain the same sort of declarations that may appear in interfaces.
 
+For external tools interacting with Cryptol, the name of the anonymous
+parameter interface for module ``M`` is ``M__parameter`` (note that there
+are 2 underscores after the name).
+
 
 Anonymous Instantiation Arguments
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -642,6 +649,18 @@ for instantiating a module:
 The declarations in the ``where`` block are treated as the
 definition of an anonymous module which is passed as the argument
 to parameterized module ``M``.
+
+For external tools interacting with Cryptol, the name of the anonymous
+module actually passed to the functor is as follows:
+
+  * ``N__where``, if ``N`` is a top-level module
+  * ``where__at_l_c``, if ``N`` is a submodule
+
+In the second form ``l`` and ``c`` are the line and column of ``N``.
+If ``c`` is 1, then it is omitted, and the name will be just ``where__at_l``.
+Note that in both cases the anonymous name contains two underscores next
+to each other.
+
 
 
 Anonymous Import Instantiations
@@ -702,6 +721,13 @@ to the following declarations:
 
 
   import submodule N
+
+For external tools interacting with Cryptol, the name of the anonymous
+module used in the import (the ``N`` in the above example) is of the form
+``import_at__l_c``, where ``l`` and ``c`` are the line and column of the
+``import`` keyword.  If the column is 1, then it is omitted, and the name
+is of the form ``import_at__l``.  Note that the name contains two underscores
+next to each other.
 
 
 Passing Through Module Parameters

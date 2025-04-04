@@ -507,7 +507,7 @@ getCryptolExpr (Let binds body) =
       CP.DBind .
       (\bindBody ->
          CP.Bind { CP.bName = fakeLoc (CP.UnQual (mkIdent x))
-              , CP.bParams = []
+              , CP.bParams = CP.noParams
               , CP.bDef = bindBody
               , CP.bSignature = Nothing
               , CP.bInfix = False
@@ -566,10 +566,10 @@ readBack ty val =
         _ -> mismatchPanic
     TVSeq len elemTy
       | elemTy == TVBit
-      , VWord width wv <- val -> do
+      , VWord wv <- val -> do
         Concrete.BV w v <- liftEval $ asWordVal Concrete.Concrete wv
         let hexStr = T.pack $ showHex v ""
-        let paddedLen = fromIntegral ((width `quot` 4) + (if width `rem` 4 == 0 then 0 else 1))
+        let paddedLen = fromIntegral ((w `quot` 4) + (if w `rem` 4 == 0 then 0 else 1))
         pure $ Just $  Num Hex (T.justifyRight paddedLen '0' hexStr) w
       | VSeq _l (enumerateSeqMap len -> mVals) <- val -> do
         vals <- liftEval $ sequence mVals

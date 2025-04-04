@@ -272,6 +272,50 @@ The result of executing a single REPL command.
   
   
 
+.. _ScanStatus:
+ScanStatus
+~~~~~~~~~~
+
+List of module names and status of each.
+
+
+``scanned``
+  This file was successfully parsed and contains a change status.
+  
+  
+
+``invalid_module``
+  This file could not be parsed an analyzed due to syntax issues.
+  
+  
+
+``invalid_dep``
+  This file depends on a module that was not able to be loaded.
+  
+  
+
+.. _LoadProjectMode:
+LoadProjectMode
+~~~~~~~~~~~~~~~
+
+
+
+
+``modified``
+  Load modified files and files that depend on modified files
+  
+  
+
+``untested``
+  Load files that do not have a current test result
+  
+  
+
+``refresh``
+  Reload all files in the project discarding the cache results
+  
+  
+
 
 Methods
 -------
@@ -548,6 +592,27 @@ Return fields
   
 
 
+focus module (command)
+~~~~~~~~~~~~~~~~~~~~~~
+
+Focus the specified module (by name).
+
+Parameter fields
+++++++++++++++++
+
+
+``module name``
+  Name of module to focus.
+  
+  
+
+Return fields
++++++++++++++
+
+No return fields
+
+
+
 evaluate expression (command)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -677,6 +742,37 @@ Return fields
   
 
 
+visible modules (command)
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+List the currently visible (i.e., in scope) module names.
+
+Parameter fields
+++++++++++++++++
+
+No parameters
+
+
+Return fields
++++++++++++++
+
+
+``module``
+  A human-readable representation of the module's name
+  
+  
+
+``documentation``
+  An optional field containing documentation strings for the module, if it is documented
+  
+  
+
+``parameterized``
+  A Boolean value indicating whether the focused module is parameterized
+  
+  
+
+
 check type (command)
 ~~~~~~~~~~~~~~~~~~~~
 
@@ -711,7 +807,7 @@ Parameter fields
 
 
 ``prover``
-  The SMT solver to use to check for satisfiability. I.e., one of the following: ``w4-cvc4``, ``w4-cvc5``, ``w4-yices``, ``w4-z3``, ``w4-boolector``, ``w4-abc``, ``w4-offline``, ``w4-any``, ``cvc4``, ``cvc5``, ``yices``, ``z3``, ``boolector``, ``mathsat``, ``abc``, ``offline``, ``any``, ``sbv-cvc4``, ``sbv-cvc5``, ``sbv-yices``, ``sbv-z3``, ``sbv-boolector``, ``sbv-mathsat``, ``sbv-abc``, ``sbv-offline``, ``sbv-any``.
+  The SMT solver to use to check for satisfiability. I.e., one of the following: ``w4-cvc4``, ``w4-cvc5``, ``w4-yices``, ``w4-z3``, ``w4-bitwuzla``, ``w4-boolector``, ``w4-abc``, ``w4-offline``, ``w4-any``, ``cvc4``, ``cvc5``, ``yices``, ``z3``, ``bitwuzla``, ``boolector``, ``mathsat``, ``abc``, ``offline``, ``any``, ``sbv-cvc4``, ``sbv-cvc5``, ``sbv-yices``, ``sbv-z3``, ``sbv-bitwuzla``, ``sbv-boolector``, ``sbv-mathsat``, ``sbv-abc``, ``sbv-offline``, ``sbv-any``.
   
   
 
@@ -782,6 +878,40 @@ Return fields
 
 ``results``
   A list of :ref:`docstring results <DocstringResult>` correspoding to each definition in the current module.
+  
+  
+
+
+load project (command)
+~~~~~~~~~~~~~~~~~~~~~~
+
+Load project returning a list of all the modules and whether they have changed since the last load
+
+Parameter fields
+++++++++++++++++
+
+
+``path``
+  Path to directory containing the project
+  
+  
+
+``mode``
+  One of the modes described at :ref:`LoadProjectMode <LoadProjectMode>`.
+  
+  
+
+Return fields
++++++++++++++
+
+
+``scan_status``
+  List of module name and :ref:` scan status <ScanStatus>`.
+  
+  
+
+``test_results``
+  List of module name and cached test result.
   
   
 

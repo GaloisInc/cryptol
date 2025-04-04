@@ -53,7 +53,7 @@ primsPlaceHolder=1;
 \end{Verbatim}
 \paragraph*{Sequences}
 \begin{Verbatim}
-    take      : {front, back, a} (fin front) => [front + back]a -> [front]a
+    take      : {front, back, a} => [front + back]a -> [front]a
     drop      : {front, back, a} (fin front) => [front + back]a -> [back]a
     #         : {front, back, a} (fin front) => [front]a -> [back]a -> [front + back]a
     join      : {parts, each, a} (fin each) => [parts][each]a -> [parts * each]a
@@ -166,7 +166,7 @@ primsPlaceHolder=1;
 %    scarry : {n} (fin n, n >= 1) => [n] -> [n] -> Bit
 %    sborrow : {n} (fin n, n >= 1) => [n] -> [n] -> Bit
 
-%%% Local Variables: 
+%%% Local Variables:
 %%% mode: latex
 %%% TeX-master: "../main/Cryptol"
-%%% End: 
+%%% End:

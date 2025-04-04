@@ -1,4 +1,15 @@
-Programming Cryptol README
+## Programming Cryptol README
+
+The Programming Cryptol book source code is in `docs/ProgrammingCryptol/`.
+It can be built using the `Makefile` in that directory.
+
+There is a pre-built PDF version of the book in this directory. Any updates
+to the source code must be accompanied by a corresponding update to the stored
+PDF. Developers should build the PDF locally (the default build location
+is `docs/ProgrammingCryptol/tmp/Cryptol.pdf`), copy it into this directory,
+and rename it to `ProgrammingCryptol.pdf`.
+
+### Other usage notes
 
 To use the check-exercises tool, invoke via `cabal v2-exec
 check-exercises --`. This requires the path to the LaTeX file to be
@@ -13,7 +24,7 @@ following commands:
   This is the markup equivalent of the `Verbatim` environment.
   However, it has the added effect of adding every line of the block
   to a list of commands to be issued to the cryptol REPL.
-  
+
 * `\replin|...|`
 
   Inline equivalent of `replinVerb` environment. Markup equivalent of
@@ -30,8 +41,8 @@ following commands:
 
   This is the markup equivalent of the `Verbatim` environment.
   However, it has the added effect of adding every line of the block
-  to the expected output of the preceding `\replin` commands. 
-  
+  to the expected output of the preceding `\replin` commands.
+
 * \replout|...|`
 
   Inline equivalent of `reploutVerb` environment. Markup equivalent of
@@ -49,13 +60,13 @@ following commands:
   Like `\replout|...|`, but is not rendered at all by LaTeX. This is
   for recording "hidden" output from the REPL that we don't want to
   include in the PDF.
-  
+
 * `\restartrepl`
 
   This has the effect of terminating the current input/output REPL pair. If
   there is input but no output, then instead of checking the output, the tool
   checks that the input does not raise an error.
-  
+
   This command is used to divide the REPL input/output pairs into distinct
   "blocks" that get submitted to the REPL independently. Therefore, this command
   should be called every time we are defining a new REPL pair; in particular, it

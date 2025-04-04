@@ -305,7 +305,7 @@ class CryptolParamModTests(unittest.TestCase):
         with self.assertRaises(ArgoException) as res:
             check('`(w)')
         e = res.exception
-        self.assertEqual(e.data['type parameters'], ['Param::`parameter` interface of Param::w'])
+        self.assertEqual(e.data['type parameters'], ['Param::w'])
         self.assertEqual(e.data['definitions'], [])
 
 

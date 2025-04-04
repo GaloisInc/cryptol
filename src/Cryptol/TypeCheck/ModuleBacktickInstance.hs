@@ -376,7 +376,7 @@ instance RewVal Expr where
       ELocated r e      -> ELocated r (rew e)
       EProofAbs p e     -> EProofAbs (rewType p) (rew e)
       EWhere e ds       -> EWhere (rew e) (rew ds)
-      EPropGuards gs t  -> EPropGuards gs' (rewType t)
+      EPropGuards gs t  -> ePropGuards gs' (rewType t)
         where gs' = [ (rewType <$> p, rew e) | (p,e) <- gs ]
 
     where

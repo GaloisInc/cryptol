@@ -1,0 +1,13 @@
+module B where
+
+parameter
+  type a: #
+  type y: #
+
+// 2 ^^ (2 ^^ a)
+type w = 2 ^^ a
+type b = 2 ^^ w
+
+// (3 ^^ y) ^^ 3
+type x = 3 ^^ y
+type z = x ^^ 3

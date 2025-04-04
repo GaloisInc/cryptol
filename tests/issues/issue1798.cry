@@ -1,0 +1,8 @@
+exhaustive1 : {w} [2 ^^ (2 ^^ w)] -> [2 ^^ (2 ^^ w)]
+exhaustive1 x
+  | (2 ^^ (2 ^^ w)) < 2 => x
+  | (2 ^^ (2 ^^ w)) == 2 => ~ x
+
+exhaustive2 : {w} [2 ^^ w] -> [2 ^^ w]
+exhaustive2 x
+  | (2 ^^ w) == 1 => ~ x

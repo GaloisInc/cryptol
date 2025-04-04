@@ -799,6 +799,25 @@ checkHasType inferredType tGoal =
        [] -> return ()
        _  -> newGoals CtExactType ps
 
+-- | Check that the number of named parameters in a binding is compatible with
+--   the type signature. This specifically catches the case where there
+--   are more named parameters in the binding than the type would imply.
+checkBindParams :: P.Bind Name -> TypeWithSource -> InferM ()
+checkBindParams b (WithSource ty0 _src _) = case P.bParams b of
+  P.PatternParams nbps -> go (length nbps) 0 ty0
+  P.DroppedParams _ i -> go i 0 ty0
+  where
+    -- if the signature implies more parameters than we have available, we'll defer
+    -- this check, since the function body itself may be a lambda
+    go bindArity _ _ | bindArity <= 0 = return ()
+    go bindArity tyArity ty = case ty of
+      TUser _ _ ty' -> go bindArity tyArity ty'
+      TCon (TC TCFun) [_,y] -> go (bindArity-1) (tyArity+1) y
+      -- signature may imply any number of additional parameters given a free type
+      TVar TVFree{} -> return ()
+      _ -> when (bindArity > 0) $
+        recordErrorLoc (P.bindHeaderLoc b)
+          (TooManyParams (thing (P.bName b)) ty0 (bindArity + tyArity) tyArity)
 
 checkFun ::
   P.FunDesc Name -> [P.Pattern Name] ->
@@ -807,13 +826,12 @@ checkFun _    [] e tGoal = checkE e tGoal
 checkFun (P.FunDesc fun offset) ps e tGoal =
   inNewScope
   do let descs = [ TypeOfArg (ArgDescr fun (Just n)) | n <- [ 1 + offset .. ] ]
-
      (tys,tRes) <- expectFun fun (length ps) tGoal
      let srcs = zipWith3 WithSource tys descs (map getLoc ps)
      largs      <- sequence (zipWith checkP ps srcs)
      let ds = Map.fromList [ (thing x, x { thing = t }) | (x,t) <- zip largs tys ]
      e1 <- withMonoTypes ds
-              (checkE e (WithSource tRes TypeOfRes (twsRange tGoal)))
+              (checkE e (WithSource tRes (twsSource tGoal) (twsRange tGoal)))
 
      let args = [ (thing x, t) | (x,t) <- zip largs tys ]
      return (foldr (\(x,t) b -> EAbs x t b) e1 args)
@@ -1128,7 +1146,8 @@ checkMonoB b t =
         P.DExpr e ->
           do let nm = thing (P.bName b)
              let tGoal = WithSource t (DefinitionOf nm) (getLoc b)
-             e1 <- checkFun (P.FunDesc (Just nm) 0) (P.bParams b) e tGoal
+             checkBindParams b tGoal
+             e1 <- checkFun (P.FunDesc (Just nm) 0) (P.bindParams b) e tGoal
              let f = thing (P.bName b)
              return Decl { dName = f
                          , dSignature = Forall [] [] t
@@ -1227,7 +1246,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
                , foldr ETAbs (foldr EProofAbs e2 asmps) as
                )
 
-        P.DPropGuards cases0 -> do
+        P.DPropGuards cases0 -> inRangeMb (getLoc cases0) $ do
           asmps1 <- applySubstPreds asmps0
           t1     <- applySubst t0
           cases1 <- mapM (checkPropGuardCase asmps1) cases0
@@ -1247,7 +1266,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
                , t1
                , foldr ETAbs
                    (foldr EProofAbs
-                     (EPropGuards cases1 t1)
+                     (ePropGuards cases1 t1)
                    asmps1)
                  as
                )
@@ -1259,7 +1278,8 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
       (e1,cs0) <- collectGoals $ do
         let nm = thing (P.bName b)
             tGoal = WithSource t0 (DefinitionOf nm) (getLoc b)
-        e1 <- checkFun (P.FunDesc (Just nm) 0) (P.bParams b) e0 tGoal
+        checkBindParams b tGoal
+        e1 <- checkFun (P.FunDesc (Just nm) 0) (P.bindParams b) e0 tGoal
         addGoals validSchema
         () <- simplifyAllConstraints  -- XXX: using `asmps` also?
         return e1
@@ -1320,17 +1340,42 @@ The implications were derive by the following general algorithm:
   we need to consider a branch for each disjunct --- one branch gets the
   assumption @~B1@ and another branch gets the assumption @~B2@. Each
   branch's implications need to be proven independently.
-
+- If the solver fails to prove any subgoal, but with an error indicating
+  the subgoal may be provable (i.e. the attempt was terminated due to some partial
+  heuristic), then pick the next-longest guard as the RHS and re-start. e.g.:
+  @
+    A /\ ~C1 => B1 /\ B2
+    A /\ ~C2 => B1 /\ B2
+    A /\ ~C3 => B1 /\ B2
+  @
+  Note that this is sound because the first step (choosing a guard as the RHS)
+  is heuristic: we can always choose to rewrite @P \/ Q@
+  into either @~P => Q@ or @~Q => P@.
 -}
 checkExhaustive :: Located Name -> [TParam] -> [Prop] -> [[Prop]] -> InferM Bool
 checkExhaustive name as asmps guards =
-  case sortBy cmpByLonger guards of
-    [] -> pure False -- XXX: we should check the asmps are unsatisfiable
-    longest : rest -> doGoals (theAlts rest) (map toGoal longest)
-
+  go (sortBy cmpByLonger guards) 0
   where
+  pluck i xs = case splitAt i xs of
+    (_, []) -> Nothing
+    (ys,x:xs') -> Just (x, ys ++ xs')
+
+  -- if starting with the longest guard fails with a 'ProofUnknown' result,
+  -- then re-try with the next guard in descending order.
+  -- NB: in the worst case this is quadratic in the number of guard predicates, but
+  -- in practice we expect this number to be low
+  go [] _ = pure False -- XXX: we should check the asmps are unsatisfiable
+  go goals i = case pluck i goals of
+    Just (goalp, rest) ->
+      do ok <- doGoals (theAlts rest) (map toGoal goalp)
+         case ok of
+           ProofSuccess -> pure True
+           ProofFail -> pure False
+           ProofUnknown -> go goals (i+1)
+    Nothing -> pure False
+
   cmpByLonger props1 props2 = compare (length props2) (length props1)
-                                          -- reversed, so that longets is first
+                                          -- reversed, so that longest is first
 
   theAlts :: [[Prop]] -> [[Prop]]
   theAlts = map concat . sequence . map chooseNeg
@@ -1346,11 +1391,13 @@ checkExhaustive name as asmps guards =
   -- Try to validate all cases
   doGoals todo gs =
     case todo of
-      []     -> pure True
+      []     -> pure ProofSuccess
       alt : more ->
         do ok <- canProve (asmps ++ alt) gs
-           if ok then doGoals more gs
-                 else pure False
+           case ok of
+             ProofSuccess -> doGoals more gs
+             ProofFail -> pure ProofFail
+             ProofUnknown -> pure ProofUnknown
 
   toGoal :: Prop -> Goal
   toGoal prop =
@@ -1359,10 +1406,29 @@ checkExhaustive name as asmps guards =
       , goalRange  = srcRange name
       , goal       = prop
       }
+  
+  maybeSolvable :: Error -> Bool
+  maybeSolvable err = case err of
+    UnsolvedDelayedCt{} -> True
+    UnsolvedGoals{} -> True
+    _ -> False
 
-  canProve :: [Prop] -> [Goal] -> InferM Bool
+  canProve :: [Prop] -> [Goal] -> InferM ProofResult
   canProve asmps' goals =
-    tryProveImplication (Just (thing name)) as asmps' goals
+    do res <- tryProveImplication (Just (thing name)) as asmps' goals
+       case res of
+         Left errs | all maybeSolvable errs -> return ProofUnknown
+         Left{} -> return ProofFail
+         Right{} -> return ProofSuccess
+
+data ProofResult = 
+    ProofSuccess
+    -- ^ Proof attempt was successful.
+  | ProofFail
+    -- ^ Proof attempt failed, and goal is most likely not provable.
+  | ProofUnknown
+    -- ^ Proof attempt failed due to incomplete heuristics, goal may
+    -- still be provable.
 
 {- | Generate type-checked syntax for the code in a PropGuard. For example,
 consider the following (pre–type-checked) syntax for a guard:

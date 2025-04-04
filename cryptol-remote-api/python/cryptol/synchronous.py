@@ -95,7 +95,7 @@ class CryptolVersionInfo:
     commit_hash: str
     commit_branch: str
     commit_dirty: bool
-    ffi_enabled: bool 
+    ffi_enabled: bool
 
 
 def connect(command : Optional[str]=None,
@@ -194,7 +194,7 @@ class CryptolSyncConnection:
     @property
     def timeout(self) -> Optional[float]:
         return self.connection.timeout
-    
+
     @timeout.setter
     def timeout(self, timeout : Optional[float]) -> None:
         self.connection.timeout = timeout
@@ -202,7 +202,7 @@ class CryptolSyncConnection:
     def get_default_timeout(self) -> Optional[float]:
         """Get the value of the optional default timeout for methods (in seconds)."""
         return self.connection.get_default_timeout()
-    
+
     def set_default_timeout(self, timeout : Optional[float]) -> None:
         """Set the value of the optional default timeout for methods (in seconds)."""
         self.connection.set_default_timeout(timeout)
@@ -214,8 +214,18 @@ class CryptolSyncConnection:
         self.connection.load_file(filename, timeout=timeout).result()
 
     def load_module(self, module_name : str, *, timeout:Optional[float] = None) -> None:
-        """Load a Cryptol module, like ``:module`` at the Cryptol REPL."""
+        """Load a Cryptol project. If refresh is False then all the changed files will be loaded.
+        Otherwise all of the files in the project will be loaded."""
         self.connection.load_module(module_name, timeout=timeout).result()
+
+    def load_project(self, path : str, mode: str, *, timeout:Optional[float] = None) -> Any:
+        """Load project. In refresh mode all of the project modules are loaded.
+        Otherwise only the modules affected by a change are loaded."""
+        return self.connection.load_project(path, mode, timeout=timeout).result()
+
+    def check_docstrings(self, *, timeout:Optional[float] = None) -> Any:
+        """Check the docstrings of the focused module."""
+        return self.connection.check_docstrings(timeout=timeout).result()
 
     def extend_search_path(self, *dir : str, timeout:Optional[float] = None) -> None:
         """Extend the search path for loading Cryptol modules."""
@@ -270,7 +280,7 @@ class CryptolSyncConnection:
         :ref:`cryptol-json-expression`, with Python datatypes standing for
         their JSON equivalents. Use the solver named `solver`, and return up to
         `count` solutions.
-        
+
         If the given solver is an `OnlineSolver`, the result is either an
         instance of `Satisfiable`, which is always truthy, or `Unsatisfiable`,
         which is always falsy - meaning the result will evaluate to `True` in
@@ -306,7 +316,7 @@ class CryptolSyncConnection:
         """Check the validity of a Cryptol expression, represented according to
         :ref:`cryptol-json-expression`, with Python datatypes standing for
         their JSON equivalents. Use the solver named `solver`.
-        
+
         If the given solver is an `OnlineSolver`, the result is either an
         instance of `Qed`, which is always truthy, or `Counterexample`, which
         is always falsy - meaning the result will evaluate to `True` in an 'if'
@@ -341,7 +351,7 @@ class CryptolSyncConnection:
     def safe(self, expr : Any, solver : Solver = Z3, *, timeout:Optional[float] = None) -> Union[Safe, Counterexample, OfflineSmtQuery]:
         """Check via an external SMT solver that the given term is safe for all inputs,
         which means it cannot encounter a run-time error.
-        
+
         If the given solver is an `OnlineSolver`, the result is either an
         instance of `Safe`, which is always truthy, or `Counterexample`, which
         is always falsy - meaning the result will evaluate to `True` in an 'if'
@@ -365,6 +375,14 @@ class CryptolSyncConnection:
                 raise ValueError("Unexpected 'safe' SMT result: " + str(res))
         else:
             raise ValueError("Unknown solver type: " + str(solver))
+
+    def modules(self, *, timeout:Optional[float] = None) -> List[cryptoltypes.CryptolVisibleModuleInfo]:
+        """Discover the list of term names currently in scope in the current context."""
+        res = self.connection.modules(timeout=timeout).result()
+        if isinstance(res, list):
+            return [ cryptoltypes.to_cryptol_visible_module_info(entry) for entry in res ]
+        else:
+            raise ValueError("Result of `modules()` is not a list: " + str(res))
 
     def names(self, *, timeout:Optional[float] = None) -> List[cryptoltypes.CryptolNameInfo]:
         """Discover the list of term names currently in scope in the current context."""
@@ -395,6 +413,10 @@ class CryptolSyncConnection:
     def focused_module(self, *, timeout:Optional[float] = None) -> cryptoltypes.CryptolModuleInfo:
         """Returns the name and other information about the currently-focused module."""
         return cryptoltypes.to_cryptol_module_info(self.connection.focused_module(timeout=timeout).result())
+
+    def focus_module(self, name: str, *, timeout:Optional[float] = None) -> None:
+        """Focus on an already loaded module."""
+        self.connection.focus_module(name, timeout=timeout).result()
 
     def version(self, *, timeout:Optional[float] = None) -> CryptolVersionInfo:
         """Returns version information about the Cryptol server."""

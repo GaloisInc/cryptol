@@ -1,2 +1,4 @@
+:m NISTCurves
+:check
 :l ECDSASigGen.cry
 :check

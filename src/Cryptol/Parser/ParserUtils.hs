@@ -14,11 +14,11 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE LambdaCase #-}
 -- See Note [-Wincomplete-uni-patterns and irrefutable patterns] in Cryptol.TypeCheck.TypePat
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 module Cryptol.Parser.ParserUtils where
 
-import qualified Data.Text as Text
 import Data.Char(isAlphaNum, isSpace)
 import Data.Maybe(fromMaybe, mapMaybe)
 import Data.Bits(testBit,setBit)
@@ -31,6 +31,7 @@ import           Data.Text(Text)
 import qualified Data.Text as T
 import qualified Data.Map as Map
 import Text.Read(readMaybe)
+import Data.Foldable (for_)
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
@@ -45,9 +46,9 @@ import Cryptol.Parser.Token(SelectorType(..))
 import Cryptol.Parser.Position
 import Cryptol.Parser.Utils (translateExprToNumT,widthIdent)
 import Cryptol.Utils.Ident( packModName,packIdent,modNameChunks
-                          , identAnonArg, identAnonIfaceMod
+                          , identAnonArg, identAnonIfaceMod, identAnonInstImport
                           , modNameArg, modNameIfaceMod
-                          , modNameToText, modNameIsNormal
+                          , mainModName, modNameIsNormal
                           , modNameToNormalModName
                           , unpackIdent, isUpperIdent
                           )
@@ -73,6 +74,8 @@ parse cfg p cs    = case unP p cfg eofPos S { sPrevTok = Nothing
 newtype ParseM a =
   P { unP :: Config -> Position -> S -> Either ParseError (a,S) }
 
+askConfig :: ParseM Config
+askConfig = P \cfg _ s -> Right (cfg, s)
 
 lexerP :: (Located Token -> ParseM a) -> ParseM a
 lexerP k = P $ \cfg p s ->
@@ -786,7 +789,7 @@ mkPoly rng terms
 mkProperty :: LPName -> [Pattern PName] -> Expr PName -> Decl PName
 mkProperty f ps e = at (f,e) $
                     DBind Bind { bName       = f
-                               , bParams     = reverse ps
+                               , bParams     = PatternParams (reverse ps)
                                , bDef        = at e (Located emptyRange (exprDef e))
                                , bSignature  = Nothing
                                , bPragmas    = [PragmaProperty]
@@ -802,7 +805,7 @@ mkIndexedDecl ::
   LPName -> ([Pattern PName], [Pattern PName]) -> Expr PName -> Decl PName
 mkIndexedDecl f (ps, ixs) e =
   DBind Bind { bName       = f
-             , bParams     = reverse ps
+             , bParams     = PatternParams (reverse ps)
              , bDef        = at e (Located emptyRange (exprDef rhs))
              , bSignature  = Nothing
              , bPragmas    = []
@@ -829,7 +832,7 @@ mkPropGuardsDecl f (ps, ixs) guards =
      let gs  = reverse guards
      pure $
        DBind Bind { bName       = f
-                  , bParams     = reverse ps
+                  , bParams     = PatternParams (reverse ps)
                   , bDef        = Located (srcRange f) (DImpl (DPropGuards gs))
                   , bSignature  = Nothing
                   , bPragmas    = []
@@ -920,7 +923,7 @@ mkNoImplDecl :: BindDef PName
 mkNoImplDecl def mbDoc ln sig =
   [ exportDecl Nothing Public
     $ DBind Bind { bName      = ln
-                 , bParams    = []
+                 , bParams    = noParams
                  , bDef       = at sig (Located emptyRange def)
                  , bSignature = Nothing
                  , bPragmas   = []
@@ -1203,10 +1206,22 @@ mkIfacePropSyn mbDoc d =
 
 -- | Make an unnamed module---gets the name @Main@.
 mkAnonymousModule :: [TopDecl PName] -> ParseM [Module PName]
-mkAnonymousModule = mkTopMods Nothing
-                  . mkModule Located { srcRange = emptyRange
-                                     , thing    = mkModName [T.pack "Main"]
-                                     }
+mkAnonymousModule ds =
+  do for_ ds \case
+       DParamDecl l _            -> mainParamError l
+       DModParam p               -> mainParamError (srcRange (mpSignature p))
+       DInterfaceConstraint _ ps -> mainParamError (srcRange ps)
+       _                         -> pure ()
+     src <- cfgSource <$> askConfig
+     mkTopMods Nothing $
+        mkModule Located
+          { srcRange = emptyRange
+          , thing    = mainModName src
+          }
+                          ds
+  where
+  mainParamError l = errorMessage l
+    ["Unnamed module cannot be parameterized"]
 
 -- | Make a module which defines a functor instance.
 mkModuleInstanceAnon :: Located ModName ->
@@ -1364,12 +1379,12 @@ mkTopMods doc m =
  do (m', ms) <- desugarMod m { mDocTop = doc }
     pure (ms ++ [m'])
 
-mkTopSig :: Located ModName -> Signature PName -> [Module PName]
-mkTopSig nm sig =
+mkTopSig :: Maybe (Located Text) -> Located ModName -> Signature PName -> [Module PName]
+mkTopSig doc nm sig =
   [ Module { mName    = nm
            , mDef     = InterfaceModule sig
            , mInScope = mempty
-           , mDocTop  = Nothing
+           , mDocTop  = doc
            }
   ]
 
@@ -1378,18 +1393,20 @@ class MkAnon t where
   mkAnon    :: AnonThing -> t -> t
   toImpName :: t -> ImpName PName
 
-data AnonThing = AnonArg | AnonIfaceMod
+data AnonThing = AnonArg Int Int
+                -- ^ The ints are line, column used for disambiguation
+               | AnonIfaceMod
 
 instance MkAnon ModName where
   mkAnon what   = case what of
-                    AnonArg      -> modNameArg
+                    AnonArg l c  -> modNameArg l c
                     AnonIfaceMod -> modNameIfaceMod
   toImpName     = ImpTop
 
 instance MkAnon PName where
   mkAnon what   = mkUnqual
                 . case what of
-                    AnonArg      -> identAnonArg
+                    AnonArg l c  -> const (identAnonArg l c)
                     AnonIfaceMod -> identAnonIfaceMod
                 . getIdent
   toImpName     = ImpNested
@@ -1411,7 +1428,8 @@ desugarMod mo =
                 [ "Instantiation of a parameterized module may not itself be "
                   ++ "parameterized" ]
            _ -> pure ()
-         let i      = mkAnon AnonArg (thing (mName mo))
+         let i      = mkAnon (AnonArg (line pos) (col pos)) (thing (mName mo))
+             pos    = from (srcRange nm)
              nm     = Located { srcRange = srcRange (mName mo), thing = i }
              as'    = DefaultInstArg (ModuleArg . toImpName <$> nm)
          pure ( mo { mDef = FunctorInstance f as' mempty }
@@ -1531,15 +1549,9 @@ desugarInstImport i inst =
      pure (DImport (newImp <$> i) : map modTop (ms ++ [m]))
 
   where
-  imp = thing i
   iname = mkUnqual
-        $ identAnonIfaceMod
-        $ mkIdent
-        $ "import of " <> nm <> " at " <> Text.pack (show (pp (srcRange i)))
-    where
-    nm = case iModule imp of
-           ImpTop f    -> modNameToText f
-           ImpNested n -> "submodule " <> Text.pack (show (pp n))
+        $ let pos = from (srcRange i)
+          in identAnonInstImport (line pos) (col pos)
 
   newImp d = d { iModule = ImpNested iname
                , iInst   = Nothing

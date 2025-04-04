@@ -13,7 +13,6 @@
 {-# LANGUAGE FlexibleInstances, FlexibleContexts #-}
 {-# LANGUAGE DeriveAnyClass, DeriveGeneric       #-}
 {-# LANGUAGE OverloadedStrings                   #-}
-{-# LANGUAGE NamedFieldPuns                      #-}
 {-# LANGUAGE ViewPatterns                        #-}
 module Cryptol.TypeCheck.AST
   ( module Cryptol.TypeCheck.AST
@@ -31,6 +30,7 @@ module Cryptol.TypeCheck.AST
   , DocFor(..)
   ) where
 
+import Data.Maybe(catMaybes)
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.Ident (Ident,isInfixIdent,ModName,PrimIdent,prelPrim)
 import Cryptol.Parser.Position(Located, HasLoc(..), Range)
@@ -57,7 +57,7 @@ import Control.DeepSeq
 import qualified Data.IntMap as IntMap
 import           Data.Map    (Map)
 import qualified Data.Map    as Map
-import           Data.Maybe  (mapMaybe, maybeToList)
+import           Data.Maybe  (mapMaybe, maybeToList, isJust)
 import           Data.Set    (Set)
 import           Data.Text   (Text)
 
@@ -227,6 +227,8 @@ data Expr   = EList [Expr] Type         -- ^ List value (with type of elements)
 
             | EWhere Expr [DeclGroup]
 
+            {- | Use 'ePropGuards' when constructing to get automatic
+                 simplification of trivial constraints -}
             | EPropGuards [([Prop], Expr)] Type
 
               deriving (Show, Generic, NFData)
@@ -288,6 +290,20 @@ eChar :: PrimMap -> Char -> Expr
 eChar prims c = ETApp (ETApp (ePrim prims (prelPrim "number")) (tNum v)) (tWord (tNum w))
   where v = fromEnum c
         w = 8 :: Int
+
+-- | Construct a prop guard expression simplifying trivial cases.
+ePropGuards :: [([Prop], Expr)] -> Type -> Expr
+ePropGuards guards ty =
+  case check True guards of
+    Left body     -> body
+    Right guards' -> EPropGuards guards' ty
+  where
+    check _ [] = Right []
+    check trivial ((p, e):xs)
+      | trivial, all (null . pSplitAnd) p = Left e
+      | otherwise = ((p,e):) <$> check trivial' xs
+      where
+        trivial' = trivial && any (isJust . tIsError) p
 
 instance PP TCTopEntity where
   ppPrec _ te =
@@ -509,17 +525,25 @@ instance PP n => PP (ModuleG n) where
 
 instance PP n => PP (WithNames (ModuleG n)) where
   ppPrec _ (WithNames Module { .. } nm) =
-    vcat [ text "module" <+> pp mName
+    vcat $
+    catMaybes
+         [ Just (text "module" <+> pp mName)
+         , Just ""
          -- XXX: Print exports?
-         , vcat (map pp' (Map.elems mTySyns))
+         , vcat' (map pp' (Map.elems mTySyns))
          -- XXX: Print abstarct types/functions
-         , vcat (map pp' mDecls)
+         , vcat' (map pp' mDecls)
 
-         , vcat (map pp (Map.elems mFunctors))
+         , vcat' (map pp (Map.elems mFunctors))
+
+         , vcat' (map ppSig (Map.toList mSignatures))
          ]
     where mps = map mtpParam (Map.elems mParamTypes)
           pp' :: PP (WithNames a) => a -> Doc
           pp' = ppWithNames (addTNames mps nm)
+          ppSig (x,y) = "interface module" <+> pp x <+> "where"
+                        $$ indent 2 (pp y)
+          vcat' xs = if null xs then Nothing else Just (vcat xs)
 
 instance PP (WithNames TCTopEntity) where
   ppPrec _ (WithNames ent nm) =

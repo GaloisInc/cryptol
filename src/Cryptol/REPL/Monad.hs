@@ -63,6 +63,7 @@ module Cryptol.REPL.Monad (
   , withRandomGen
   , setRandomGen
   , getRandomGen
+  , getModuleInput
 
     -- ** Config Options
   , EnvVal(..)
@@ -127,6 +128,7 @@ import Control.Monad.Base
 import qualified Control.Monad.Catch as Ex
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Control
+import qualified Data.ByteString as BS
 import Data.Char (isSpace, toLower)
 import Data.IORef
     (IORef,newIORef,readIORef,atomicModifyIORef)
@@ -248,7 +250,7 @@ mkPrompt rw
         | M.isLoadedParamMod m loaded -> modName ++ "(parameterized)"
         | M.isLoadedInterface m loaded -> modName ++ "(interface)"
         | otherwise -> modName
-        where 
+        where
           modName = pretty m
           loaded = M.meLoadedModules (eModuleEnv rw)
 
@@ -646,15 +648,29 @@ getTypeNames  =
      return (map (show . pp) (Map.keys (M.namespaceMap M.NSType fNames)))
 
 -- | Return a list of property names, sorted by position in the file.
-getPropertyNames :: REPL ([(M.Name,M.IfaceDecl)],NameDisp)
+-- Only properties defined in the current module are returned, including
+-- private properties in the current module. Imported properties are not
+-- returned.
+getPropertyNames :: REPL ([(M.Name, T.Decl)], NameDisp)
 getPropertyNames =
-  do fe <- getFocusedEnv
-     let xs = M.ifDecls (M.mctxDecls fe)
-         ps = sortBy (comparing (from . M.nameLoc . fst))
-              [ (x,d) | (x,d) <- Map.toList xs,
-                    T.PragmaProperty `elem` M.ifDeclPragmas d ]
+ do fe <- getFocusedEnv
+    let nd = M.mctxNameDisp fe
+    mblm <- fmap (lName =<<) getLoadedMod
+    case mblm of
+      Nothing -> pure ([], nd)
+      Just mn ->
+       do mb <- M.lookupModule mn <$> getModuleEnv
+          case mb of
+            Nothing -> pure ([], nd)
+            Just lm -> pure (ps, nd)
+              where
+                ps =
+                  sortBy (comparing (from . M.nameLoc . fst))
+                    [ (T.dName d,d)
+                    | d <- T.groupDecls =<< T.mDecls (M.lmdModule (M.lmData lm))
+                    , T.PragmaProperty `elem` T.dPragmas d
+                    ]
 
-     return (ps, M.mctxNameDisp fe)
 
 getModNames :: REPL [I.ModName]
 getModNames =
@@ -687,6 +703,20 @@ withRandomGen repl =
       (result, g') <- repl g
       setRandomGen g'
       pure result
+
+getModuleInput :: REPL (M.ModuleInput IO)
+getModuleInput = do
+  evo <- getEvalOptsAction
+  env <- getModuleEnv
+  callStacks <- getCallStacks
+  tcSolver <- getTCSolver
+  pure M.ModuleInput
+    { minpCallStacks = callStacks
+    , minpEvalOpts   = evo
+    , minpByteReader = BS.readFile
+    , minpModuleEnv  = env
+    , minpTCSolver   = tcSolver
+    }
 
 -- | Given an existing qualified name, prefix it with a
 -- relatively-unique string. We make it unique by prefixing with a
@@ -957,6 +987,17 @@ userOptions  = mkOptionMap
     \case EnvBool b -> do me <- getModuleEnv
                           setModuleEnv me { M.meMonoBinds = b }
           _         -> return ()
+
+  , OptionDescr "tcSmtFile" ["tc-smt-file"] (EnvString "-") noCheck
+    (unlines
+      [ "The file to record SMT solver interactions in the type checker (for debugging or offline proving)."
+      , "Use \"-\" for stdout." ]) $
+    \case EnvString fileName -> do let mfile = if fileName == "-" then Nothing else Just fileName
+                                   modifyRW_ (\rw -> rw { eTCConfig = (eTCConfig rw)
+                                                                       { T.solverSmtFile = mfile
+                                                                       }})
+                                   resetTCSolver
+          _                  -> return ()
 
   , OptionDescr "tcSolver" ["tc-solver"] (EnvProg "z3" [ "-smt2", "-in" ])
     noCheck  -- TODO: check for the program in the path

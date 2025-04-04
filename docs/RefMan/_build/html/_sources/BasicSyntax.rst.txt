@@ -107,9 +107,63 @@ end of the line.  Block comments may be nested arbitrarily.
   // This is a line comment
   /* This is a /* Nested */ block comment */
 
-.. todo::
-  Document ``/** */``
+Documentation Comments
+----------------------
 
+Declarations in Cryptol can have documentation attached to them using special
+*docstring* comments. These attached comments are accessible in the REPL
+using the ``:help`` command.
+
+Syntactically, docstring comments are block comments that start with exactly
+two ``*`` characters: ``/** ... */``. For lines after the first line a common
+prefix of whitespace and asterisks will be stripped in order to support
+stylistic blocks. Whitespace between the last asterisk on a line and the
+end-of-line can be dropped without affecting prefix detection.
+
+.. code-block:: cryptol
+  :caption: Examples of docstrings
+
+  /** Example documentation for x */
+  x = 1
+
+  /**
+    Example documentation for y
+   */
+  y = 1
+
+  /**
+   * Example documentation
+   * for z
+   */
+  z = 1
+
+Test cases can be included in docstring comments that will be checked
+by the ``:check-docstrings`` command in the form of code blocks that are
+unlabeled or labeled with the ``repl`` language. This cases should be
+in the form of REPL commands. Success of the test is defined to be the
+success of all the REPL commands.
+
+.. code-block:: cryptol
+  :caption: Example docstring with checked test
+
+  /** This function 
+   *
+   * ```repl
+   * :check f 10 == 20
+   * ```
+   *
+   * Also checked
+   * ```
+   * :safe f
+   * ```
+   *
+   * Not checked
+   * ```cpp
+   * int main() {}
+   * ```
+   */
+  f : [8] -> [8]
+  f x = 2 * x
 
 Identifiers
 -----------
