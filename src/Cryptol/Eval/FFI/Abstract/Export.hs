@@ -1,5 +1,5 @@
 {-# Language OverloadedStrings, BangPatterns, MagicHash #-}
-module Cryptol.Backend.FFI.ValExport
+module Cryptol.Eval.FFI.Abstract.Export
   ( ExportVal
   , ExporterErrorMessage(..)
   , Export

@@ -2,7 +2,7 @@
 {-# Language BlockArguments #-}
 {-# Language LambdaCase #-}
 -- | Export builders for Cryptols values
-module Cryptol.Backend.FFI.ValImport (
+module Cryptol.Eval.FFI.Abstract.Import (
   cryStartImport,
   cryFinishImport,
   cry_bool,

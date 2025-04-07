@@ -21,6 +21,7 @@ import qualified Text.PrettyPrint              as Pretty
 import           Cryptol.ModuleSystem.Name
 import           Cryptol.TypeCheck.FFI.FFIType
 import           Cryptol.TypeCheck.Type
+import           Cryptol.TypeCheck.AST(ForeignMode(..))
 import           Cryptol.Utils.Ident
 import           Cryptol.Utils.RecordMap
 
@@ -32,7 +33,7 @@ newtype Include = Include String deriving (Eq, Ord)
 type GenHeaderM = Writer (Set Include)
 
 -- | Generate a C header file from the given foreign declarations.
-generateForeignHeader :: [(Name, FFIFunType)] -> String
+generateForeignHeader :: [(Name, ForeignMode, FFIFunType)] -> String
 generateForeignHeader decls =
   unlines (map renderInclude $ Set.toAscList incs)
   ++ Pretty.render (C.pretty $ C.translate (C.TransUnit cdecls []))
@@ -53,8 +54,9 @@ data ConvertResult
                      -- for both Cryptol parameter and return type cases.
 
 -- | Convert a Cryptol foreign declaration into a C function declaration.
-convertFun :: (Name, FFIFunType) -> GenHeaderM C.Decln
-convertFun (fName, FFIFunType {..}) = do
+-- XXX: ForeignAbstract
+convertFun :: (Name, ForeignMode, FFIFunType) -> GenHeaderM C.Decln
+convertFun (fName, cc, FFIFunType {..}) = do
   let tpIdent = fmap nameIdent . tpName
   typeParams <- traverse convertTypeParam (pickNames (map tpIdent ffiTParams))
   -- Name the input args in0, in1, etc

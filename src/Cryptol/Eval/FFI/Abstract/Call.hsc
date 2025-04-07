@@ -1,6 +1,6 @@
 {-# Language CPP #-}
 -- | Calling a foreign function
-module Cryptol.Backend.FFI.Call where
+module Cryptol.Eval.FFI.Abstract.Call where
 
 #ifdef FFI_ENABLED
 
@@ -10,8 +10,8 @@ import Foreign
 import Foreign.C.Types(CSize(..))
 import Foreign.LibFFI
 import Cryptol.Eval.Type(TValue)
-import Cryptol.Backend.FFI.ValImport
-import Cryptol.Backend.FFI.ValExport
+import Cryptol.Eval.FFI.Abstract.Import
+import Cryptol.Eval.FFI.Abstract.Export
 
 
 foreign export ccall cry_bool :: Import Word8

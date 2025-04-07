@@ -149,11 +149,11 @@ emptyModule nm =
     }
 
 -- | Find all the foreign declarations in the module and return their names and FFIFunTypes.
-findForeignDecls :: ModuleG mname -> [(Name, FFIFunType)]
+findForeignDecls :: ModuleG mname -> [(Name, ForeignMode, FFIFunType)]
 findForeignDecls = mapMaybe getForeign . concatMap groupDecls . mDecls
   where getForeign d =
           case dDefinition d of
-            DForeign cc ffiType _ -> Just (dName d, ffiType)
+            DForeign cc ffiType _ -> Just (dName d, cc, ffiType)
             _                     -> Nothing
 
 -- | Find all the foreign declarations that are in functors, including in the
@@ -166,7 +166,7 @@ findForeignDeclsInFunctors mo
   where
   findInSubs :: ModuleG mname -> [Name]
   findInSubs = concatMap fromM . Map.elems . mFunctors
-  fromM m = map fst (findForeignDecls m) ++ findInSubs m
+  fromM m = [ x | (x,_,_) <- findForeignDecls m ] ++ findInSubs m
 
 
 

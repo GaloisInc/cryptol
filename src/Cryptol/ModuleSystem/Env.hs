@@ -20,7 +20,7 @@ module Cryptol.ModuleSystem.Env where
 import Paths_cryptol (getDataDir)
 #endif
 
-import Cryptol.Backend.FFI (ForeignSrc, unloadForeignSrc, getForeignSrcPath)
+import Cryptol.Eval.FFI.ForeignSrc(ForeignSrc, unloadForeignSrc, getForeignSrcPath)
 import Cryptol.Eval (EvalEnv)
 import qualified Cryptol.IR.FreeVars as T
 import Cryptol.ModuleSystem.Fingerprint
