@@ -138,12 +138,12 @@ import Data.List (intercalate, nub, isPrefixOf)
 import Data.Maybe (fromMaybe,mapMaybe,isNothing)
 import System.Environment (lookupEnv)
 import System.Exit (ExitCode(ExitSuccess))
-import System.Process (shell,createProcess,waitForProcess)
+import System.Process (shell,createProcess,waitForProcess,spawnProcess)
 import qualified System.Process as Process(runCommand)
 import System.FilePath((</>), (-<.>), isPathSeparator)
 import System.Directory(getHomeDirectory,setCurrentDirectory,doesDirectoryExist
                        ,getTemporaryDirectory,setPermissions,removeFile
-                       ,emptyPermissions,setOwnerReadable)
+                       ,emptyPermissions,setOwnerReadable,doesFileExist)
 import System.IO
          (Handle,hFlush,stdout,openTempFile,hClose,openFile
          ,IOMode(..),hGetContents,hSeek,SeekMode(..))
@@ -318,6 +318,9 @@ nbCommandList  =
   , CommandDescr [ ":check-docstrings" ] [] (ModNameArg checkDocStringsCmd)
       "Run the REPL code blocks in the module's docstring comments"
       ""
+  , CommandDescr [ ":saw" ] [] (FilenameArg sawCmd)
+    "Load a given SAW file"
+    ""
   ]
 
 commandList :: [CommandDescr]
@@ -2342,6 +2345,37 @@ loadProjectREPL mode cfg =
 
           io (Proj.saveLoadCache (Proj.LoadCache cache))
           pure emptyCommandResult { crSuccess = success }
+
+-- | Get the path to the SAW command.
+-- Search options, in order:
+-- environment variable CRYPTOL_SAW=/path/to/saw
+-- whatever's in $PATH
+getSAW :: REPL FilePath
+getSAW = do
+    io $ lookupEnv "CRYPTOL_SAW" >>= \case
+      Just s -> pure s
+      Nothing -> pure "saw"
+
+-- | Run SAW on a file.
+--
+-- This command succeeds when:
+-- * SAW can be found
+-- * the file can be found
+-- * SAW processes the file successfully
+sawCmd ::
+  FilePath {- ^ SAW filename -} ->
+  REPL CommandResult
+sawCmd input = do
+    present <- io $ doesFileExist input
+    if present then do
+      saw <- getSAW
+      flags <- getKnownUser "sawFlags"
+      hdl <- io $ spawnProcess saw ([flags] ++ [input])
+      exitCode <- io $ waitForProcess hdl
+      pure emptyCommandResult { crSuccess = exitCode == ExitSuccess }
+    else do
+      rPutStrLn $ "File `" ++ input ++ "' does not exist."
+      pure emptyCommandResult { crSuccess = False }
 
 ppInvalidStatus :: Proj.InvalidStatus -> Doc
 ppInvalidStatus = \case
