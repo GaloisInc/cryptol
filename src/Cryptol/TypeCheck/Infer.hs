@@ -1116,7 +1116,7 @@ generalize bs0 gs0 =
          genB d = d { dDefinition = case dDefinition d of
                                       DExpr e       -> DExpr (genE e)
                                       DPrim         -> DPrim
-                                      DForeign t me -> DForeign t (genE <$> me)
+                                      DForeign mo t me -> DForeign mo t (genE <$> me)
                     , dSignature  = Forall asPs qs
                                   $ apSubst su $ sType $ dSignature d
                     }
@@ -1210,7 +1210,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
                   , ffiRetType = FFITuple [] }
           pure Decl { dName       = thing (P.bName b)
                     , dSignature  = Forall as asmps t
-                    , dDefinition = DForeign ffiFunType me
+                    , dDefinition = DForeign cc ffiFunType me
                     , dPragmas    = P.bPragmas b
                     , dInfix      = P.bInfix b
                     , dFixity     = P.bFixity b

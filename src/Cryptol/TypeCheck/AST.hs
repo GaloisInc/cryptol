@@ -28,6 +28,7 @@ module Cryptol.TypeCheck.AST
   , PrimMap(..)
   , module Cryptol.TypeCheck.Type
   , DocFor(..)
+  , ForeignMode(..)
   ) where
 
 import Data.Maybe(catMaybes)
@@ -44,6 +45,7 @@ import Cryptol.Parser.AST ( Selector(..),Pragma(..)
                           , ImportG(..), ImportSpec(..), ExportType(..)
                           , Fixity(..)
                           , ImpName(..)
+                          , ForeignMode(..)
                           )
 import Cryptol.Utils.RecordMap
 import Cryptol.TypeCheck.FFI.FFIType
@@ -151,8 +153,8 @@ findForeignDecls :: ModuleG mname -> [(Name, FFIFunType)]
 findForeignDecls = mapMaybe getForeign . concatMap groupDecls . mDecls
   where getForeign d =
           case dDefinition d of
-            DForeign ffiType _ -> Just (dName d, ffiType)
-            _                  -> Nothing
+            DForeign cc ffiType _ -> Just (dName d, ffiType)
+            _                     -> Nothing
 
 -- | Find all the foreign declarations that are in functors, including in the
 -- top-level module itself if it is a functor.
@@ -266,7 +268,7 @@ data Decl       = Decl { dName        :: !Name
 data DeclDef    = DPrim
                 -- | Foreign functions can have an optional cryptol
                 -- implementation
-                | DForeign FFIFunType (Maybe Expr)
+                | DForeign ForeignMode FFIFunType (Maybe Expr)
                 | DExpr Expr
                   deriving (Show, Generic, NFData)
 
@@ -511,10 +513,11 @@ instance PP (WithNames Decl) where
 
 instance PP (WithNames DeclDef) where
   ppPrec _ (WithNames DPrim _) = text "<primitive>"
-  ppPrec _ (WithNames (DForeign _ me) nm) =
+  ppPrec _ (WithNames (DForeign mo _ me) nm) =
+    let lab = "foreign" <+> pp mo in
     case me of
-      Just e -> text "(foreign)" <+> ppWithNames nm e
-      Nothing -> text "<foreign>"
+      Just e -> parens lab <+> ppWithNames nm e
+      Nothing -> hsep ["<",lab,">"]
   ppPrec _ (WithNames (DExpr e) nm) = ppWithNames nm e
 
 instance PP Decl where

@@ -210,7 +210,7 @@ specializeConst e0 = do
                  rhs' <- case dDefinition decl of
                            DExpr e       -> DExpr <$> spec e
                            DPrim         -> return DPrim
-                           DForeign t me -> DForeign t <$> traverse spec me
+                           DForeign mo t me -> DForeign mo t <$> traverse spec me
                  let decl' = decl { dName = qname', dSignature = sig', dDefinition = rhs' }
                  modifySpecCache (Map.adjust (fmap (insertTM ts (qname', Just decl'))) qname)
                  return (EVar qname')

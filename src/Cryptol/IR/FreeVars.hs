@@ -104,7 +104,7 @@ instance FreeVars Decl where
 instance FreeVars DeclDef where
   freeVars d = case d of
                  DPrim -> mempty
-                 DForeign _ me -> foldMap freeVars me
+                 DForeign _ _ me -> foldMap freeVars me
                  DExpr e -> freeVars e
 
 

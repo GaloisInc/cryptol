@@ -474,7 +474,7 @@ instance TVars Decl where
 instance TVars DeclDef where
   apSubst su (DExpr e)       = DExpr !$ (apSubst su e)
   apSubst _  DPrim           = DPrim
-  apSubst su (DForeign t me) = DForeign t !$ apSubst su me
+  apSubst su (DForeign mo t me) = DForeign mo t !$ apSubst su me
 
 -- WARNING: This applies the substitution only to the declarations.
 instance TVars (ModuleG names) where
