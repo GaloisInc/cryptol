@@ -82,6 +82,7 @@ module Cryptol.Parser.AST
   , ModParam(..)
   , ParamDecl(..)
   , PropGuardCase(..)
+  , ForeignMode(..)
 
     -- * Interactive
   , ReplInput(..)
@@ -541,19 +542,25 @@ data BindParams name =
 
 type LBindDef = Located (BindDef PName)
 
+-- | How to call a foreign functions
+data ForeignMode =
+    ForeignC          -- ^ Call using C-style marshalling
+  | ForeignAbstract   -- ^ Call using import/export objects
+    deriving (Eq, Show, Generic, NFData)
+
 data BindDef name = DPrim
                   -- | Foreign functions can have an optional cryptol
                   -- implementation
-                  | DForeign (Maybe (BindImpl name))
+                  | DForeign ForeignMode (Maybe (BindImpl name))
                   | DImpl (BindImpl name)
                     deriving (Eq, Show, Generic, NFData, Functor)
 
 bindImpl :: Bind name -> Maybe (BindImpl name)
 bindImpl bind =
   case thing (bDef bind) of
-    DPrim       -> Nothing
-    DForeign mi -> mi
-    DImpl i     -> Just i
+    DPrim         -> Nothing
+    DForeign _ mi -> mi
+    DImpl i       -> Just i
 
 data BindImpl name = DExpr (Expr name)
                    | DPropGuards [PropGuardCase name]
@@ -1191,11 +1198,20 @@ instance (Show name, PPName name) => PP (Bind name) where
                     -- _     -> panic "AST" [ "Malformed infix operator", show b ]
 
 
+instance PP ForeignMode where
+  ppPrec _ fmode =
+    case fmode of
+      ForeignC -> "c"
+      ForeignAbstract -> "abstract"
+      
+
 instance (Show name, PPName name) => PP (BindDef name) where
   ppPrec _ DPrim         = text "<primitive>"
-  ppPrec p (DForeign mi) = case mi of
-                             Just i  -> "(foreign)" <+> ppPrec p i
-                             Nothing -> "<foreign>"
+  ppPrec p (DForeign mo mi) =
+    let lab = "foreign" <+> pp mo in
+    case mi of
+      Just i  -> parens lab <+> ppPrec p i
+      Nothing -> hcat [ "<",lab,">"]
   ppPrec p (DImpl i)     = ppPrec p i
 
 instance (Show name, PPName name) => PP (BindImpl name) where

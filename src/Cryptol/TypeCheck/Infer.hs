@@ -1138,7 +1138,7 @@ checkMonoB b t =
 
     P.DPrim -> panic "checkMonoB" ["Primitive with no signature?"]
 
-    P.DForeign _ -> panic "checkMonoB" ["Foreign with no signature?"]
+    P.DForeign _ _ -> panic "checkMonoB" ["Foreign with no signature?"]
 
     P.DImpl i ->
       case i of
@@ -1183,7 +1183,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
         , dDoc        = thing <$> P.bDoc b
         }
 
-    P.DForeign mi -> do
+    P.DForeign cc mi -> do
       (asmps, t, me) <-
         case mi of
           Just i -> fmap Just <$> checkImpl i
