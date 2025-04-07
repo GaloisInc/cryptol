@@ -17,12 +17,10 @@ module Cryptol.Eval.FFI.Abstract.Import (
   ImportErrorMessage(..)
   )where
 
-import Data.Text(Text)
 import qualified Data.IntMap as IntMap
 import Data.List(intersperse)
 import Data.Vector(Vector)
 import qualified Data.Vector as Vector
-import Control.Exception
 import Data.IORef
 import Foreign
 import Foreign.C.Types(CSize(..) )
@@ -42,19 +40,6 @@ import Cryptol.Backend.SeqMap
 
 import Cryptol.Backend
 
-data ImportErrorMessage =
-    ProtocolMismatch Thing Thing  -- ^ Expected, got
-  | PartialValue
-  | UnexpectedData
-  | TagOutOfBounds Int
-  | Unsupported Text
-  | BadWordValue
-  | BadRationalValue
-  | FFINotEnabled
-    deriving Show
-
-data Thing = AValue | ATag | ASign
-  deriving Show
 
 type Value = SEval Concrete (GenValue Concrete)
 
@@ -66,8 +51,6 @@ data Importer =
     -- ^ Something went wrong
     -- XXX: It'd be nice to store the [Frame] here as well,
     -- but that's a bit of a pain because of missing `Show` instances...
-
-instance Exception ImportErrorMessage
 
 data Mk =
   Mk { mkPrec :: Int, mkPP :: [Doc] -> Doc

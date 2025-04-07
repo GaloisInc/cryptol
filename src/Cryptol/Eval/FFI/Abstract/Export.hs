@@ -3,7 +3,7 @@ module Cryptol.Eval.FFI.Abstract.Export
   ( ExportVal
   , ExporterErrorMessage(..)
   , Export
-  , exportValue, exportValues
+  , exportValue, exportValues, exportSizes
   , cryStartExport, cryEndExport
   , cry_recv_u8
   , cry_recv_u64
@@ -80,6 +80,24 @@ exportValue v =
   where
   doRec rmap = exportValues (map snd (canonicalFields rmap))
 
+
+-- | Export some top-level sizes.
+-- Exported as `u64` if it is less than `2^64-1`.
+-- Otherwise exported as: `(2^64-1 : u64)` followed by an unsigned integer
+exportSizes :: [Integer] -> [ExportVal] -> [ExportVal]
+exportSizes xs =
+  case xs of
+    [] -> id
+    x : more -> exportSizes more . exportSize x
+
+-- | Export a type-level size.
+-- Exported as `u64` if it is less than `2^64-1`.
+-- Otherwise exported as: `(2^64-1 : u64)` followed by an unsigned integer
+exportSize :: Integer -> [ExportVal] -> [ExportVal]
+exportSize n start
+  | n < toInteger m = EV64 (fromInteger n) : start
+  | otherwise = EVInteger n : EV64 m : start
+  where m = maxBound :: Word64
 
 -- | Encoding of a bit: 0 or 1
 exportBit :: Bool -> [ExportVal] -> [ExportVal]
