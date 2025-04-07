@@ -138,12 +138,12 @@ import Data.List (intercalate, nub, isPrefixOf)
 import Data.Maybe (fromMaybe,mapMaybe,isNothing)
 import System.Environment (lookupEnv)
 import System.Exit (ExitCode(ExitSuccess))
-import System.Process (shell,createProcess,waitForProcess)
+import System.Process (shell,createProcess,waitForProcess,spawnProcess)
 import qualified System.Process as Process(runCommand)
 import System.FilePath((</>), (-<.>), isPathSeparator)
 import System.Directory(getHomeDirectory,setCurrentDirectory,doesDirectoryExist
                        ,getTemporaryDirectory,setPermissions,removeFile
-                       ,emptyPermissions,setOwnerReadable)
+                       ,emptyPermissions,setOwnerReadable,doesFileExist)
 import System.IO
          (Handle,hFlush,stdout,openTempFile,hClose,openFile
          ,IOMode(..),hGetContents,hSeek,SeekMode(..))
@@ -318,6 +318,13 @@ nbCommandList  =
   , CommandDescr [ ":check-docstrings" ] [] (ModNameArg checkDocStringsCmd)
       "Run the REPL code blocks in the module's docstring comments"
       ""
+  , CommandDescr [ ":saw" ] [] (FilenameArg sawCmd)
+    "Load a given SAW file."
+    (unlines
+     [ "The path to SAW is determined from the environment variable"
+     , "CRYPTOL_SAW. The user option sawFlags contains flags that will be"
+     , "added to all calls to SAW."
+     ])
   ]
 
 commandList :: [CommandDescr]
@@ -2343,7 +2350,56 @@ loadProjectREPL mode cfg =
           io (Proj.saveLoadCache (Proj.LoadCache cache))
           pure emptyCommandResult { crSuccess = success }
 
+-- | Get the path to the SAW command.
+-- Search options, in order:
+-- environment variable CRYPTOL_SAW=/path/to/saw
+-- whatever's in $PATH
+getSAW :: REPL (String, [String])
+getSAW = do
+    io (lookupEnv "CRYPTOL_SAW") >>= \case
+      Just s -> do
+        let saw = lexFlags s
+        case saw of
+          cmd : args -> pure (cmd, args)
+          [] -> pure ("", [])
+      Nothing -> pure ("saw", [])
+
+-- | Run SAW on a file.
+--
+-- This command succeeds when:
+-- * SAW can be found
+-- * the file can be found
+-- * SAW processes the file successfully
+sawCmd ::
+  FilePath {- ^ SAW filename -} ->
+  REPL CommandResult
+sawCmd input = do
+    present <- io $ doesFileExist input
+    if present then do
+      (cmd, args) <- getSAW
+      flags <- getKnownUser "sawFlags"
+      if cmd == "" then do
+          rPutStrLn $ "SAW `" ++ cmd ++ "' was empty."
+          pure emptyCommandResult { crSuccess = False }
+      else do
+        hdl <- io $ spawnProcess cmd (args ++ lexFlags flags ++ [input])
+        exitCode <- io $ waitForProcess hdl
+        pure emptyCommandResult { crSuccess = exitCode == ExitSuccess }
+    else do
+      rPutStrLn $ "File `" ++ input ++ "' does not exist."
+      pure emptyCommandResult { crSuccess = False }
+
 ppInvalidStatus :: Proj.InvalidStatus -> Doc
 ppInvalidStatus = \case
     Proj.InvalidModule modErr -> pp modErr
     Proj.InvalidDep d _ -> "Error in dependency: " <> pp d
+
+lexFlags :: String -> [String]
+lexFlags cs =
+  case dropWhile isSpace cs of
+    [] -> []
+    ds@(c : _)
+      | c == '"', [(str,rest)] <- lex ds -> read str : lexFlags rest
+      | otherwise ->
+        let (as,rest) = break isSpace ds
+        in as : lexFlags rest

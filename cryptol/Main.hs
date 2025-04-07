@@ -221,6 +221,10 @@ displayHelp errs = do
             , "addition to the default locations"
             ]
           )
+        , ( "CRYPTOL_SAW"
+          , [ "Sets the command to use when running SAW via the `:saw` command"
+            ]
+          )
         , ( "EDITOR"
           , [ "Sets the editor executable to use when opening an editor"
             , "via the `:edit` command"

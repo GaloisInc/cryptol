@@ -12,6 +12,11 @@
   section](https://galoisinc.github.io/cryptol/master/FFI.html#the-abstract-calling-convention)
   for more information.
 
+## New Features
+
+* New REPL command `:saw` to run SAW on a SAW file, usable in docstrings.
+  [#1835](https://github.com/GaloisInc/cryptol/issues/1835)
+
 # 3.3.0 -- 2025-03-21
 
 ## Language changes
