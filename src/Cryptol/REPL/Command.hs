@@ -1531,8 +1531,8 @@ helpCmd cmd
 runShellCmd :: String -> REPL CommandResult
 runShellCmd cmd
   = io $ do h <- Process.runCommand cmd
-            _ <- waitForProcess h
-            return emptyCommandResult -- This could check for exit code 0
+            e <- waitForProcess h
+            pure emptyCommandResult { crSuccess = e == ExitSuccess }
 
 cdCmd :: FilePath -> REPL CommandResult
 cdCmd f | null f = do rPutStrLn $ "[error] :cd requires a path argument"
