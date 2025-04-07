@@ -576,7 +576,7 @@ the new bindings.
 > evalDecl env d =
 >   case dDefinition d of
 >     DPrim         -> (dName d, pure (evalPrim (dName d)))
->     DForeign _ _ me -> (dName d, val)
+>     DForeign _ me -> (dName d, val)
 >       where
 >         val =
 >           case me of

@@ -103,16 +103,16 @@ instance ShowParseable Decl where
   showParseable d = parens (text "Decl" <+> showParseable (dName d)
                               $$ showParseable (dDefinition d))
 
-instance ShowParseable ForeignMode where
+instance ShowParseable FFI where
   showParseable mo =
     case mo of
-      ForeignAbstract -> text "ForeignAbstract"
-      ForeignC        -> text "ForeignC"
+      CallAbstract t -> parens (text "CallAbstract" <+> parens (text (show t)))
+      CallC t        -> parens (text "CallC" <+> parens (text (show t)))
 
 instance ShowParseable DeclDef where
   showParseable DPrim = text (show DPrim)
-  showParseable (DForeign mo t me) =
-    parens (text "DForeign" <+> showParseable mo $$ parens (text (show t)) $$ showParseable me)
+  showParseable (DForeign t me) =
+    parens (text "DForeign" $$ showParseable t $$ showParseable me)
   showParseable (DExpr e) = parens (text "DExpr" $$ showParseable e)
 
 instance ShowParseable DeclGroup where

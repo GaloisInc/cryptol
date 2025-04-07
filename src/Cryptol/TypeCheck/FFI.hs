@@ -12,22 +12,24 @@ import           Data.Bifunctor
 import           Data.Containers.ListUtils
 import           Data.Either
 
+import           Cryptol.Parser.AST(ForeignMode(..))
 import           Cryptol.TypeCheck.FFI.Error
 import           Cryptol.TypeCheck.FFI.FFIType
 import           Cryptol.TypeCheck.SimpType
 import           Cryptol.TypeCheck.Type
+import           Cryptol.TypeCheck.AST(FFI(..))
 import           Cryptol.Utils.RecordMap
 import           Cryptol.Utils.Types
 
 -- | Convert a 'Schema' to a 'FFIFunType', along with any 'Prop's that must be
 -- satisfied for the 'FFIFunType' to be valid.
-toFFIFunType :: Schema -> Either FFITypeError ([Prop], FFIFunType)
-toFFIFunType (Forall params _ t) =
+toFFIFunType :: ForeignMode -> Schema -> Either FFITypeError ([Prop], FFI)
+toFFIFunType how (Forall params _ t) =
   -- Remove all type synonyms and simplify the type before processing it
   case go $ tRebuild' False t of
     Just (Right (props, fft)) -> Right
       -- Remove duplicate constraints
-      (nubOrd $ map (fin . TVar . TVBound) params ++ props, fft)
+      (nubOrd $ map (fin . TVar . TVBound) params ++ props, CallC fft)
     Just (Left errs) -> Left $ FFITypeError t $ FFIBadComponentTypes errs
     Nothing -> Left $ FFITypeError t FFINotFunction
   where go (TCon (TC TCFun) [argType, retType]) = Just

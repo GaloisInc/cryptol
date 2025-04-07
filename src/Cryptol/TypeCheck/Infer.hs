@@ -1116,7 +1116,7 @@ generalize bs0 gs0 =
          genB d = d { dDefinition = case dDefinition d of
                                       DExpr e       -> DExpr (genE e)
                                       DPrim         -> DPrim
-                                      DForeign mo t me -> DForeign mo t (genE <$> me)
+                                      DForeign t me -> DForeign t (genE <$> me)
                     , dSignature  = Forall asPs qs
                                   $ apSubst su $ sType $ dSignature d
                     }
@@ -1197,7 +1197,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
             recordErrorLoc loc $ UnsupportedFFIKind src a $ tpKind a
         withTParams as do
           ffiFunType <-
-            case toFFIFunType (Forall as asmps t) of
+            case toFFIFunType cc (Forall as asmps t) of
               Right (props, ffiFunType) -> ffiFunType <$ do
                 ffiGoals <- traverse (newGoal (CtFFI name)) props
                 proveImplication True (Just name) as asmps $
@@ -1205,12 +1205,12 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
               Left err -> do
                 recordErrorLoc loc $ UnsupportedFFIType src err
                 -- Just a placeholder type
-                pure FFIFunType
+                pure $ CallC FFIFunType
                   { ffiTParams = as, ffiArgTypes = []
                   , ffiRetType = FFITuple [] }
           pure Decl { dName       = thing (P.bName b)
                     , dSignature  = Forall as asmps t
-                    , dDefinition = DForeign cc ffiFunType me
+                    , dDefinition = DForeign ffiFunType me
                     , dPragmas    = P.bPragmas b
                     , dInfix      = P.bInfix b
                     , dFixity     = P.bFixity b

@@ -357,7 +357,7 @@ doLoadModule eval quiet isrc path fp incDeps pm impDeps =
           foreignFs = T.findForeignDeclsInFunctors tcm
           dups      = [ d | d@(_ :| _ : _) <- NE.groupBy ((==) `on` nameIdent)
                                             $ sortBy (compare `on` nameIdent)
-                                            $ [ x | (x,_,_) <- foreigns ]]
+                                            $ map fst foreigns ]
           doEvalForeign handleErrs =
             case path of
               InFile p -> io (loadForeignSrc p) >>=

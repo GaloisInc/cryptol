@@ -14,8 +14,8 @@ import Cryptol.Eval.FFI.ForeignSrc
 import Cryptol.Eval.FFI.Error ( FFILoadError )
 import Cryptol.Eval ( EvalEnv )
 import Cryptol.TypeCheck.AST
-    ( ForeignMode(..), TVar(TVBound), findForeignDecls )
-import Cryptol.TypeCheck.FFI.FFIType ( FFIFunType(..), FFIType )
+    ( FFI(..), TVar(TVBound), findForeignDecls )
+import Cryptol.TypeCheck.FFI.FFIType ( FFIFunType(..) )
 
 #ifdef FFI_ENABLED
 
@@ -29,7 +29,8 @@ import           Cryptol.Eval.Type
 import           Cryptol.Eval.Value
 import           Cryptol.ModuleSystem.Name
 import           Cryptol.Utils.Ident
-import           Cryptol.Eval.FFI.C
+import           Cryptol.Eval.FFI.C(callForeignC)
+import           Cryptol.Eval.FFI.Abstract(callForeignAbstract)
 
 #endif
 
@@ -42,51 +43,37 @@ import           Cryptol.Eval.FFI.C
 --
 -- This is a separate pass from the main evaluation functions in "Cryptol.Eval"
 -- since it only works for the Concrete backend.
-evalForeignDecls :: ForeignSrc -> [(Name, ForeignMode, FFIFunType)] -> EvalEnv ->
+evalForeignDecls :: ForeignSrc -> [(Name, FFI)] -> EvalEnv ->
   Eval ([FFILoadError], EvalEnv)
 evalForeignDecls fsrc decls env = io do
-  (errs, prims) <- partitionEithers <$> for decls \(name, cc, ffiFunType) ->
-    fmap ((name,) . foreignPrimPoly cc name ffiFunType) <$>
+  (errs, prims) <- partitionEithers <$> for decls \(name, cc) ->
+    fmap ((name,) . foreignPrimPoly cc name) <$>
       loadForeignImpl fsrc (unpackIdent $ nameIdent name)
   pure (errs, foldr (uncurry bindVarDirect) env prims)
 
 -- | Generate a 'Prim' value representing the given foreign function, containing
 -- all the code necessary to marshal arguments and return values and do the
 -- actual FFI call.
-foreignPrimPoly :: ForeignMode -> Name -> FFIFunType -> ForeignImpl -> Prim Concrete
-foreignPrimPoly cc name fft impl = buildNumPoly (ffiTParams fft) mempty
-  where -- Add type lambdas for the type parameters and build a type environment
-        -- that we can look up later to compute e.g. array sizes.
-        --
-        -- Given [p1, p2, ..., pk] {}, returns
-        -- PNumPoly \n1 -> PNumPoly \n2 -> ... PNumPoly \nk ->
-        --   foreignPrim name fft impl {p1 = n1, p2 = n2, ..., pk = nk}
-        buildNumPoly (tp:tps) tenv = PNumPoly \n ->
-          buildNumPoly tps $ bindTypeVar (TVBound tp) (Left n) tenv
-        buildNumPoly [] tenv = foreignPrim cc name fft impl tenv
+foreignPrimPoly :: FFI -> Name -> ForeignImpl -> Prim Concrete
+foreignPrimPoly cc name impl =
+  case cc of
+    CallC t -> foreignPrim t (callForeignC name t impl)
+    CallAbstract t -> foreignPrim t (callForeignAbstract name t impl)
 
-
--- | Generate the monomorphic part of the foreign 'Prim', given a 'TypeEnv'
--- containing all the type arguments we have already received.
-foreignPrim :: ForeignMode -> Name -> FFIFunType -> ForeignImpl -> TypeEnv -> Prim Concrete
-foreignPrim cc name ft@FFIFunType {..} impl tenv = buildFun ffiArgTypes []
+-- | Generate a Prim for a foreign function.s
+foreignPrim ::
+  FFIFunType t ->
+  (TypeEnv -> [(t,GenValue s)] -> SEval s (GenValue s)) ->
+  Prim s 
+foreignPrim ft k = buildNumPoly (ffiTParams ft) mempty
   where
+  buildNumPoly (tp:tps) tenv = PNumPoly \n ->
+    buildNumPoly tps (bindTypeVar (TVBound tp) (Left n) tenv)
+  buildNumPoly [] tenv = buildArgs tenv (ffiArgTypes ft) []
 
-  -- Build up the 'Prim' function for the FFI call.
-  --
-  -- Given [t1, t2 ... tm] we return
-  -- PStrict \v1 -> PStrict \v2 -> ... PStrict \vm -> PPrim $
-  --   call foreign function
-
-  buildFun :: [FFIType] -> [(FFIType, GenValue Concrete)] -> Prim Concrete
-  buildFun (argType:argTypes) typesAndVals = PStrict \val ->
-    buildFun argTypes $ typesAndVals ++ [(argType, val)]
-  buildFun [] typesAndVals = PPrim $
-    case cc of
-      ForeignC -> callForeignC name ft impl tenv typesAndVals    
-      ForeignAbstract ->
-        error "buildFun" ["ForeignAbstract is not yet supported"]
-
+  buildArgs tenv (argType:argTypes) typesAndVals = PStrict \val ->
+    buildArgs tenv argTypes ((argType,val) : typesAndVals)
+  buildArgs tenv [] typesAndVals = PPrim (k tenv (reverse typesAndVals))
 
 
 #else

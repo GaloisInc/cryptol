@@ -64,7 +64,7 @@ data BasicRefRet a = BasicRefRet
 -- | Call a foreign function, which follows the C style calling convetion.
 callForeignC ::
   Name                           {- ^ Name of foregin function -} ->
-  FFIFunType                     {- ^ FFI type -} ->
+  FFIFunType FFIType             {- ^ FFI type -} ->
   ForeignImpl                    {- ^ Address of foreign worker -} ->
   TypeEnv                        {- ^ Values for numeric type parametres -} ->
   [(FFIType, GenValue Concrete)] {- ^ Function arguments -} ->

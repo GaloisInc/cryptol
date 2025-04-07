@@ -21,7 +21,7 @@ import qualified Text.PrettyPrint              as Pretty
 import           Cryptol.ModuleSystem.Name
 import           Cryptol.TypeCheck.FFI.FFIType
 import           Cryptol.TypeCheck.Type
-import           Cryptol.TypeCheck.AST(ForeignMode(..))
+import           Cryptol.TypeCheck.AST(FFI(..))
 import           Cryptol.Utils.Ident
 import           Cryptol.Utils.RecordMap
 
@@ -33,7 +33,7 @@ newtype Include = Include String deriving (Eq, Ord)
 type GenHeaderM = Writer (Set Include)
 
 -- | Generate a C header file from the given foreign declarations.
-generateForeignHeader :: [(Name, ForeignMode, FFIFunType)] -> String
+generateForeignHeader :: [(Name, FFI)] -> String
 generateForeignHeader decls =
   unlines (map renderInclude $ Set.toAscList incs)
   ++ Pretty.render (C.pretty $ C.translate (C.TransUnit cdecls []))
@@ -54,29 +54,31 @@ data ConvertResult
                      -- for both Cryptol parameter and return type cases.
 
 -- | Convert a Cryptol foreign declaration into a C function declaration.
--- XXX: ForeignAbstract
-convertFun :: (Name, ForeignMode, FFIFunType) -> GenHeaderM C.Decln
-convertFun (fName, cc, FFIFunType {..}) = do
-  let tpIdent = fmap nameIdent . tpName
-  typeParams <- traverse convertTypeParam (pickNames (map tpIdent ffiTParams))
-  -- Name the input args in0, in1, etc
-  let inPrefixes =
-        case ffiArgTypes of
-          [_] -> ["in"]
-          _   -> ["in" ++ show @Integer i | i <- [0..]]
-  inParams <- convertMultiType In $ zip inPrefixes ffiArgTypes
-  (retType, outParams) <- convertType Out ffiRetType
-    <&> \case
-      Direct u  -> (u, [])
-      -- Name the output arg out
-      Params ps -> (C.TypeSpec C.Void, map (prefixParam "out") ps)
-  -- Avoid possible name collisions
-  let params = snd $ mapAccumL renameParam Set.empty $
-        typeParams ++ inParams ++ outParams
-      renameParam names (C.Param u name) =
-        (Set.insert name' names, C.Param u name')
-        where name' = until (`Set.notMember` names) (++ "_") name
-  pure $ C.FunDecln Nothing retType (unpackIdent $ nameIdent fName) params
+convertFun :: (Name, FFI) -> GenHeaderM C.Decln
+convertFun (fName, cc) =
+  case cc of
+    CallAbstract {} -> undefined "XXX"
+    CallC FFIFunType {..} -> do
+      let tpIdent = fmap nameIdent . tpName
+      typeParams <- traverse convertTypeParam (pickNames (map tpIdent ffiTParams))
+      -- Name the input args in0, in1, etc
+      let inPrefixes =
+            case ffiArgTypes of
+              [_] -> ["in"]
+              _   -> ["in" ++ show @Integer i | i <- [0..]]
+      inParams <- convertMultiType In $ zip inPrefixes ffiArgTypes
+      (retType, outParams) <- convertType Out ffiRetType
+        <&> \case
+          Direct u  -> (u, [])
+          -- Name the output arg out
+          Params ps -> (C.TypeSpec C.Void, map (prefixParam "out") ps)
+      -- Avoid possible name collisions
+      let params = snd $ mapAccumL renameParam Set.empty $
+            typeParams ++ inParams ++ outParams
+          renameParam names (C.Param u name) =
+            (Set.insert name' names, C.Param u name')
+            where name' = until (`Set.notMember` names) (++ "_") name
+      pure $ C.FunDecln Nothing retType (unpackIdent $ nameIdent fName) params
 
 
 -- | Convert a Cryptol type parameter to a C value parameter.

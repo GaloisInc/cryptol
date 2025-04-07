@@ -418,8 +418,8 @@ evalDeclGroup sym env dg = do
           -- Cryptol.Eval.FFI.evalForeignDecls pass.
           shouldEval d =
             case (dDefinition d, lookupVar (dName d) env) of
-              (DForeign _ _ _, Just _) -> False
-              _                        -> True
+              (DForeign _ _, Just _) -> False
+              _                      -> True
 
       -- declare a "hole" for each declaration
       -- and extend the evaluation environment
@@ -486,7 +486,7 @@ declHole sym d =
   case dDefinition d of
     DPrim -> evalPanic "Unexpected primitive declaration in recursive group"
                        [show (ppLocName nm)]
-    DForeign _ _ me ->
+    DForeign _ me ->
       case me of
         Nothing -> evalPanic
           "Unexpected foreign declaration with no cryptol implementation in recursive group"
@@ -527,7 +527,7 @@ evalDecl sym renv env d = do
         Just (Left ex) -> bindVar sym (dName d) (evalExpr sym renv ex) env
         Nothing        -> bindVar sym (dName d) (cryNoPrimError sym (dName d)) env
 
-    DForeign _ _ me -> do
+    DForeign _ me -> do
       -- Foreign declarations should have been handled by the previous
       -- Cryptol.Eval.FFI.evalForeignDecls pass already, so they should already
       -- be in the environment. If not, then either the foreign source was

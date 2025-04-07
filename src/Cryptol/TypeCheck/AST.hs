@@ -28,7 +28,7 @@ module Cryptol.TypeCheck.AST
   , PrimMap(..)
   , module Cryptol.TypeCheck.Type
   , DocFor(..)
-  , ForeignMode(..)
+  , FFI(..)
   ) where
 
 import Data.Maybe(catMaybes)
@@ -45,7 +45,6 @@ import Cryptol.Parser.AST ( Selector(..),Pragma(..)
                           , ImportG(..), ImportSpec(..), ExportType(..)
                           , Fixity(..)
                           , ImpName(..)
-                          , ForeignMode(..)
                           )
 import Cryptol.Utils.RecordMap
 import Cryptol.TypeCheck.FFI.FFIType
@@ -149,12 +148,12 @@ emptyModule nm =
     }
 
 -- | Find all the foreign declarations in the module and return their names and FFIFunTypes.
-findForeignDecls :: ModuleG mname -> [(Name, ForeignMode, FFIFunType)]
+findForeignDecls :: ModuleG mname -> [(Name, FFI)]
 findForeignDecls = mapMaybe getForeign . concatMap groupDecls . mDecls
   where getForeign d =
           case dDefinition d of
-            DForeign cc ffiType _ -> Just (dName d, cc, ffiType)
-            _                     -> Nothing
+            DForeign ffi _ -> Just (dName d, ffi)
+            _              -> Nothing
 
 -- | Find all the foreign declarations that are in functors, including in the
 -- top-level module itself if it is a functor.
@@ -166,7 +165,7 @@ findForeignDeclsInFunctors mo
   where
   findInSubs :: ModuleG mname -> [Name]
   findInSubs = concatMap fromM . Map.elems . mFunctors
-  fromM m = [ x | (x,_,_) <- findForeignDecls m ] ++ findInSubs m
+  fromM m = map fst (findForeignDecls m) ++ findInSubs m
 
 
 
@@ -268,10 +267,13 @@ data Decl       = Decl { dName        :: !Name
 data DeclDef    = DPrim
                 -- | Foreign functions can have an optional cryptol
                 -- implementation
-                | DForeign ForeignMode FFIFunType (Maybe Expr)
+                | DForeign FFI (Maybe Expr)
                 | DExpr Expr
                   deriving (Show, Generic, NFData)
 
+data FFI = CallC (FFIFunType FFIType)
+         | CallAbstract (FFIFunType Type)
+           deriving (Show,Generic,NFData)
 
 --------------------------------------------------------------------------------
 
@@ -513,8 +515,11 @@ instance PP (WithNames Decl) where
 
 instance PP (WithNames DeclDef) where
   ppPrec _ (WithNames DPrim _) = text "<primitive>"
-  ppPrec _ (WithNames (DForeign mo _ me) nm) =
-    let lab = "foreign" <+> pp mo in
+  ppPrec _ (WithNames (DForeign mo me) nm) =
+    let lab = "foreign" <+> case mo of
+                              CallC {} -> "c"
+                              CallAbstract {} -> "abstract"
+    in
     case me of
       Just e -> parens lab <+> ppWithNames nm e
       Nothing -> hsep ["<",lab,">"]
