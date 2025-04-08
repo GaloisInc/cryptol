@@ -25,13 +25,17 @@ import           Cryptol.Utils.Types
 -- satisfied for the 'FFIFunType' to be valid.
 toFFIFunType :: ForeignMode -> Schema -> Either FFITypeError ([Prop], FFI)
 toFFIFunType how (Forall params _ t) =
-  -- Remove all type synonyms and simplify the type before processing it
-  case go $ tRebuild' False t of
-    Just (Right (props, fft)) -> Right
-      -- Remove duplicate constraints
-      (nubOrd $ map (fin . TVar . TVBound) params ++ props, CallC fft)
-    Just (Left errs) -> Left $ FFITypeError t $ FFIBadComponentTypes errs
-    Nothing -> Left $ FFITypeError t FFINotFunction
+
+  case how of
+    ForeignAbstract -> checkForeignAbstract params t
+    ForeignC ->
+       -- Remove all type synonyms and simplify the type before processing it
+       case go $ tRebuild' False t of
+         Just (Right (props, fft)) -> Right
+           -- Remove duplicate constraints
+           (nubOrd $ map (fin . TVar . TVBound) params ++ props, CallC fft)
+         Just (Left errs) -> Left $ FFITypeError t $ FFIBadComponentTypes errs
+         Nothing -> Left $ FFITypeError t FFINotFunction
   where go (TCon (TC TCFun) [argType, retType]) = Just
           case toFFIType argType of
             Right (ps, ffiArgType) ->
@@ -112,3 +116,21 @@ toFFIBasicType t =
 
 fin :: Type -> Prop
 fin t = TCon (PC PFin) [t]
+
+
+-- XXX: eliminate stuff we know will not work at runtime
+checkForeignAbstract :: [TParam] -> Type -> Either FFITypeError ([Prop], FFI)
+checkForeignAbstract params t =
+  Right
+  ( []
+  , CallAbstract
+      FFIFunType { ffiTParams = params, ffiArgTypes = args, ffiRetType = res }
+  )
+  where
+  (args,res) = go t
+  go ty =
+    case tIsFun ty of
+      Just (a,r) ->
+        let (bs,r1) = go r
+        in (a:bs,r1)
+      Nothing -> ([],ty)

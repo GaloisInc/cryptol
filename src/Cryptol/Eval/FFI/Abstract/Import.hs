@@ -277,23 +277,23 @@ modifyStateIO how ptr =
        
 
 
-type Import a = a -> Ptr () -> IO ()
+type Import a =Ptr () -> a -> IO ()
 
 -- | Receive a bool value
 cry_bool :: Import Word8
-cry_bool b = modifyState (haveValue $! v)
+cry_bool self b = modifyState (haveValue $! v) self
   where
   v = if b == 0 then pure (VBit False) else pure (VBit True)
 
 -- | Receive a small unsigned integer that fits in 64-bits
 cry_small_uint :: Import Word64
-cry_small_uint i = modifyState (haveValue $! v)
+cry_small_uint self i = modifyState (haveValue $! v) self
   where
   v = pure $! VInteger $! toInteger i
 
 -- | Receive a small signed integer that fits in 64-bits
 cry_small_sint :: Import Int64
-cry_small_sint i = modifyState (haveValue $! v)
+cry_small_sint self i = modifyState (haveValue $! v) self
   where
   v = pure $! VInteger $! toInteger i
 
@@ -310,8 +310,8 @@ cry_large_int ptr sz =
 -- | Finish building a large integer.
 -- The argument is 1 for negative, 0 for non-negative.
 cry_sign :: Import Word8
-cry_sign sign = modifyStateIO (haveSign (sign == 0))
+cry_sign self sign = modifyStateIO (haveSign (sign == 0)) self
 
 -- | Receive a tag for a sum type.
 cry_tag :: Import CSize
-cry_tag c = modifyState (haveTag $! fromIntegral c)
+cry_tag self c = modifyState (haveTag $! fromIntegral c) self
