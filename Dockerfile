@@ -1,4 +1,6 @@
-FROM ubuntu:24.04 AS build
+# Note that we intentionally do not use ubuntu:24.04 or later pending a
+# resolution to https://github.com/coder/coder/issues/17316.
+FROM ubuntu:22.04 AS build
 
 ARG GHCVER="9.4.8"
 ARG CABALVER="3.10.3.0"
@@ -28,7 +30,7 @@ RUN case ${TARGETPLATFORM} in \
         printf "Unsupported architecture: %s\n" "${TARGETPLATFORM}" >&2 \
         exit 1 ;; \
     esac && \
-    curl -o solvers.zip -sL "https://github.com/GaloisInc/what4-solvers/releases/download/snapshot-20250326/ubuntu-24.04-${WHAT4_SOLVERS_ARCH}-bin.zip"
+    curl -o solvers.zip -sL "https://github.com/GaloisInc/what4-solvers/releases/download/snapshot-20250326/ubuntu-22.04-${WHAT4_SOLVERS_ARCH}-bin.zip"
 RUN unzip solvers.zip && rm solvers.zip && chmod +x *
 WORKDIR /cryptol
 ENV PATH=/cryptol/rootfs/usr/local/bin:/home/cryptol/.local/bin:/home/cryptol/.ghcup/bin:$PATH
@@ -73,7 +75,7 @@ RUN mkdir -p rootfs/"${CRYPTOLPATH}" \
 USER root
 RUN chown -R root:root /cryptol/rootfs
 
-FROM ubuntu:24.04
+FROM ubuntu:22.04
 RUN apt-get update \
     && apt-get install -y libgmp10 libgomp1 libffi8 libncurses6 libtinfo6 libreadline8 \
     && apt-get clean && rm -rf /var/lib/apt/lists/*

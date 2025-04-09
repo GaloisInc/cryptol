@@ -11,7 +11,9 @@ ARG GHCVER_BOOTSTRAP="9.0.2"
 # may need to update ALEXVER and HAPPYVER as well.
 ARG ALEXVER="3.4.0.1"
 ARG HAPPYVER="1.20.1.1"
-FROM ubuntu:24.04 AS toolchain
+# Note that we intentionally do not use ubuntu:24.04 or later pending a
+# resolution to https://github.com/coder/coder/issues/17316.
+FROM ubuntu:22.04 AS toolchain
 ARG PORTABILITY=false
 RUN apt-get update && \
     apt-get install -y \
@@ -104,12 +106,12 @@ RUN case ${TARGETPLATFORM} in \
         printf "Unsupported architecture: %s\n" "${TARGETPLATFORM}" >&2 \
         exit 1 ;; \
     esac && \
-    curl -sL -o solvers.zip "https://github.com/GaloisInc/what4-solvers/releases/download/snapshot-20250326/ubuntu-24.04-${WHAT4_SOLVERS_ARCH}-bin.zip" && \
+    curl -sL -o solvers.zip "https://github.com/GaloisInc/what4-solvers/releases/download/snapshot-20250326/ubuntu-22.04-${WHAT4_SOLVERS_ARCH}-bin.zip" && \
     unzip solvers.zip && rm solvers.zip && chmod +x *
 USER root
 RUN chown -R root:root /cryptol/rootfs
 
-FROM ubuntu:24.04
+FROM ubuntu:22.04
 RUN apt-get update \
     && apt-get install -y libgmp10 libgomp1 libffi8 libncurses6 libtinfo6 libreadline8 libnuma-dev openssl \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
