@@ -443,7 +443,7 @@ data ImportErrorMessage =
   | FFINotEnabled
     deriving Typeable
 
-data ImportThing = AValue | ATag | ASign
+data ImportThing = AValue | AFloat | ATag | ASign
   deriving Typeable
 
 
@@ -507,6 +507,7 @@ instance PP ImportThing where
       AValue -> "a value"
       ATag -> "a tag"
       ASign -> "a sign"
+      AFloat -> "a float"
       
 
 

@@ -8,6 +8,7 @@ module Cryptol.Eval.FFI.Abstract.Export
   , cry_recv_u8
   , cry_recv_u64
   , cry_recv_u64_digits
+  , cry_recv_double
   ) where
 
 import Data.Text(Text)
@@ -15,6 +16,7 @@ import qualified Data.Vector as Vector
 import qualified Data.IntMap as IntMap
 import Control.Exception(Exception,throw)
 import Data.IORef(IORef,newIORef,readIORef,writeIORef)
+import LibBF
 import Foreign
     ( Word8, Word32, Word64, StablePtr, Ptr, Storable(poke),
       newStablePtr, freeStablePtr, castPtrToStablePtr, deRefStablePtr )
@@ -26,6 +28,7 @@ import Data.Primitive.PrimArray
 import Cryptol.Utils.RecordMap ( canonicalFields )
 import Cryptol.Eval.Value ( Backend(SWord, SEval), GenValue(..) )
 import Cryptol.Eval.Type(conFields)
+import Cryptol.Backend.FloatHelpers
 import Cryptol.Backend.Concrete ( BV(BV), Concrete(..) )
 import Cryptol.Backend.Monad(Eval)
 import Cryptol.Backend.SeqMap (enumerateSeqMap)
@@ -35,6 +38,7 @@ import Cryptol.Backend.WordValue(asWordVal)
 data ExportVal =
     EV8 !Word8              -- ^ Bit, integer sign
   | EV64 !Word64            -- ^ Buffer size, sum tag
+  | EVDouble !Double        -- ^ A double
   | EVInteger !Integer      -- ^ Integer, Z, Word, components of Rational
 
 
@@ -67,7 +71,12 @@ exportValue v =
     VBit b      -> pure . exportBit b
     VInteger i  -> pure . exportInteger i
     VRational r -> pure . exportRational r
-    VFloat {}   -> throw (UnsupportedValue "XXX: Float")
+    VFloat f
+      |  bfExpWidth f == 8 && bfExpWidth f == 24
+      || bfExpWidth f == 11 && bfExpWidth f == 53 ->
+        pure . exportDouble (bfValue f)
+      | otherwise -> throw (UnsupportedValue "non-standard float")
+
     VWord w   -> \start ->
       do wv <- asWordVal Concrete w
          pure (exportWord wv start)
@@ -96,8 +105,13 @@ exportSizes xs =
 exportSize :: Integer -> [ExportVal] -> [ExportVal]
 exportSize n start
   | n < toInteger m = EV64 (fromInteger n) : start
-  | otherwise = EVInteger n : EV64 m : start
+  | otherwise = exportInteger n (EV64 m : start)
   where m = maxBound :: Word64
+
+exportDouble :: BigFloat -> [ExportVal] -> [ExportVal]
+exportDouble bf = (EVDouble d :)
+  where
+  (!d,_) = bfToDouble NearAway bf
 
 -- | Encoding of a bit: 0 or 1
 exportBit :: Bool -> [ExportVal] -> [ExportVal]
@@ -118,7 +132,10 @@ exportRational r = exportInteger (sDenom r) . exportInteger (sNum r)
 
 -- | Encoding of a word: buffer size, digits
 exportWord :: SWord Concrete -> [ExportVal] -> [ExportVal]
-exportWord (BV _ i) = \start -> EVInteger i : EV64 size : start
+exportWord (BV sz i) = \start ->
+  if sz <= 8 then EV8 (fromInteger i) : start else
+  if sz <= 64 then EV64 (fromInteger i) : start else
+  EVInteger i : EV64 size : start
   where
   !size = integerSize i
 
@@ -185,6 +202,7 @@ cry_recv_u8 self out =
            EV8 w        -> poke out w >> pure 0
            EV64 {}      -> pure 2
            EVInteger {} -> pure 3
+           EVDouble {}  -> pure 4
        
 
 -- | Get the next data item, which shoudl be uint64_t
@@ -198,6 +216,7 @@ cry_recv_u64 self out =
            EV8 {}       -> pure 1
            EV64 w       -> poke out w >> pure 0
            EVInteger {} -> pure 3
+           EVDouble {}  -> pure 4
   
 
 -- | Get the digits for an integer
@@ -210,6 +229,7 @@ cry_recv_u64_digits self out =
          case d of
            EV8 {}      -> pure 1
            EV64 {}     -> pure 2
+           EVDouble {} -> pure 4
            EVInteger i ->
              do case i of
                   IS x -> poke out (fromIntegral (abs (I# x)))
@@ -219,4 +239,15 @@ cry_recv_u64_digits self out =
             where
             doCopy :: PrimArray Word64 -> IO ()
             doCopy x = copyPrimArrayToPtr out x 0 (sizeofPrimArray x)   
-  
+
+cry_recv_double :: Export Double
+cry_recv_double self out =
+  do mb <- cryExportNext (castPtrToStablePtr self)
+     case mb of
+       Left err -> pure err
+       Right d ->
+         case d of
+           EV8 {}       -> pure 1
+           EV64 {}      -> pure 2
+           EVInteger {} -> pure 3
+           EVDouble dbl -> poke out dbl >> pure 0

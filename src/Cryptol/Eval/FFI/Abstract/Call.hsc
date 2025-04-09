@@ -23,6 +23,9 @@ foreign import ccall "&cry_small_uint" cry_small_uint_addr :: FunPtr (Import Wor
 foreign export ccall cry_small_sint :: Import Int64
 foreign import ccall "&cry_small_sint" cry_small_sint_addr :: FunPtr (Import Int64)
 
+foreign export ccall cry_double :: Import Double
+foreign import ccall "&cry_double" cry_double_addr :: FunPtr (Import Double)
+
 foreign export ccall cry_large_int :: LargeIntFun
 foreign import ccall "&cry_large_int" cry_large_int_addr :: FunPtr LargeIntFun
 
@@ -41,6 +44,9 @@ foreign import ccall "&cry_recv_u64" cry_recv_u64_addr :: FunPtr (Export Word64)
 foreign export ccall cry_recv_u64_digits :: Export Word64
 foreign import ccall "&cry_recv_u64_digits" cry_recv_u64_digits_addr :: FunPtr (Export Word64)
 
+foreign export ccall cry_recv_double :: Export Double
+foreign import ccall "&cry_recv_double" cry_recv_double_addr :: FunPtr (Export Double)
+
 
 
 runFFI ::
@@ -56,12 +62,14 @@ runFFI args ty k =
      #{poke struct CryValExporter, self}            aobj expS
      #{poke struct CryValExporter, recv_u8}         aobj cry_recv_u8_addr
      #{poke struct CryValExporter, recv_u64}        aobj cry_recv_u64_addr
+     #{poke struct CryValExporter, recv_double}     aobj cry_recv_double_addr
      #{poke struct CryValExporter, recv_u64_digits} aobj cry_recv_u64_digits_addr
      impS <- cryStartImport ty 
      #{poke struct CryValImporter, self}               robj impS
      #{poke struct CryValImporter, send_bool}          robj cry_bool_addr
      #{poke struct CryValImporter, send_small_uint}    robj cry_small_uint_addr
      #{poke struct CryValImporter, send_small_sint}    robj cry_small_sint_addr
+     #{poke struct CryValImporter, send_double}        robj cry_double_addr
      #{poke struct CryValImporter, send_tag}           robj cry_tag_addr
      #{poke struct CryValImporter, send_new_large_int} robj cry_large_int_addr
      #{poke struct CryValImporter, send_sign}          robj cry_sign_addr

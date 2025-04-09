@@ -11,6 +11,7 @@ module Cryptol.Eval.FFI.Abstract.Import (
   cry_large_int,
   cry_sign,
   cry_tag,
+  cry_double,
   Value,
   Import,
   LargeIntFun,
@@ -22,6 +23,7 @@ import Data.List(intersperse)
 import Data.Vector(Vector)
 import qualified Data.Vector as Vector
 import Data.IORef
+import LibBF(bfFromDouble)
 import Foreign
 import Foreign.C.Types(CSize(..) )
 import Control.Monad.Primitive(PrimState)
@@ -30,6 +32,7 @@ import Data.Primitive.PrimArray(MutablePrimArray(..), PrimArray(..),
         mutablePrimArrayContents, newPinnedPrimArray, unsafeFreezePrimArray)  
 
 import Cryptol.Utils.PP
+import Cryptol.Backend.FloatHelpers
 import Cryptol.Utils.RecordMap
 import Cryptol.TypeCheck.Solver.InfNat
 import Cryptol.Eval.Type
@@ -62,6 +65,9 @@ data Frame =
     NeedVal
     -- ^ A primitive value
 
+  | NeedDouble Integer Integer
+    -- ^ We are expecting a double to make the given floating point number
+
   | NeedSign (MutablePrimArray (PrimState IO) Word64)
     -- ^ This is a step of making a BigInt.
     -- We've allocated a buffer and are waiting for it to be filled with the
@@ -86,6 +92,7 @@ haveValue v fs =
     f : more ->
       case f of
         NeedVal -> haveValue v more
+        NeedDouble {} -> Error (ProtocolMismatch AFloat AValue)
         NeedMany mk vs ts ->
           let done = v : vs in
           case ts of
@@ -104,6 +111,7 @@ haveTag n fs0 =
     f : fs ->
       case f of
         NeedVal     -> Error (ProtocolMismatch AValue ATag)
+        NeedDouble {} -> Error (ProtocolMismatch AFloat ATag)
         NeedMany {} -> Error (ProtocolMismatch AValue ATag)
         NeedSign {} -> Error (ProtocolMismatch ASign ATag)
         NeedOneOf opts ->
@@ -131,6 +139,7 @@ haveSign isPos fs0 =
     f : fs ->
       case f of
         NeedVal -> mismatch AValue
+        NeedDouble {} -> mismatch AValue
         NeedMany {} -> mismatch AValue
         NeedOneOf {} -> mismatch ATag
         NeedSign buf ->                                                     
@@ -140,14 +149,28 @@ haveSign isPos fs0 =
   where
   mismatch x = pure (Error (ProtocolMismatch x ASign))         
 
+haveFloat :: Double -> [Frame] -> Importer
+haveFloat d fs0 =
+  case fs0 of
+    [] -> Error UnexpectedData
+    f : fs ->
+      case f of
+        NeedDouble e p -> haveValue v fs
+          where v = pure (VFloat (BF e p (bfFromDouble d))) :: Value
+        NeedVal -> Error (ProtocolMismatch AValue AFloat)
+        NeedMany {} -> Error (ProtocolMismatch AValue AFloat)
+        NeedOneOf {} -> Error (ProtocolMismatch ATag AFloat)
+        NeedSign {} -> Error (ProtocolMismatch ASign AFloat)
+
+
 -- | Make a "hole" of the given type.
 needValue :: TValue -> [Frame] -> Importer
 needValue tval fs =
   case tval of
-    TVBit      -> Building (NeedVal : fs)
-    TVInteger  -> Building (NeedVal : fs)
-    TVIntMod _ -> Building (NeedVal : fs)
-    TVFloat {} -> Building (NeedVal : fs)
+    TVBit       -> Building (NeedVal : fs)
+    TVInteger   -> Building (NeedVal : fs)
+    TVIntMod _  -> Building (NeedVal : fs)
+    TVFloat e p -> Building (NeedDouble e p : fs)
 
     TVRational -> 
       Building (NeedVal : NeedMany (Mk 10 ppV mkV) [] [TVInteger] : fs)
@@ -219,6 +242,7 @@ instance PP Frame where
   ppPrec _ f =
     case f of
       NeedVal -> "_"
+      NeedDouble e p -> parens ("_" <+> ":" <+> "Float" <+> integer e <+> integer p)
       NeedMany mk vs ts ->
         let p = mkPrec mk
             args = map (ppValPrec p) vs ++ ["_"] ++ map (ppPrec p . tValTy) ts
@@ -277,13 +301,17 @@ modifyStateIO how ptr =
        
 
 
-type Import a =Ptr () -> a -> IO ()
+type Import a = Ptr () -> a -> IO ()
 
 -- | Receive a bool value
 cry_bool :: Import Word8
 cry_bool self b = modifyState (haveValue $! v) self
   where
   v = if b == 0 then pure (VBit False) else pure (VBit True)
+
+-- | Receive a double value
+cry_double :: Import Double
+cry_double self b = modifyState (haveFloat $! b) self
 
 -- | Receive a small unsigned integer that fits in 64-bits
 cry_small_uint :: Import Word64
