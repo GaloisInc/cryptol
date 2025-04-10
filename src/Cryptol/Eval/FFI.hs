@@ -60,7 +60,7 @@ foreignPrimPoly cc name impl =
     CallC t -> foreignPrim t (callForeignC name t impl)
     CallAbstract t -> foreignPrim t (callForeignAbstract name t impl)
 
--- | Generate a Prim for a foreign function.s
+-- | Generate a Prim for a foreign functions.
 foreignPrim ::
   FFIFunType t ->
   (TypeEnv -> [(t,GenValue s)] -> SEval s (GenValue s)) ->
