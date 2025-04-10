@@ -99,7 +99,7 @@ library
   if flag(ffi)
     build-depends:     hgmp,
                        libffi            >= 0.2
-    include-dirs:      ./lib
+    include-dirs:      lib
     if os(windows)
       build-depends:   Win32
     else
@@ -206,7 +206,7 @@ library
                        Cryptol.Backend,
                        Cryptol.Backend.Arch,
                        Cryptol.Backend.Concrete,
-                       
+
                        Cryptol.Backend.FloatHelpers,
                        Cryptol.Backend.Monad,
                        Cryptol.Backend.SeqMap,
