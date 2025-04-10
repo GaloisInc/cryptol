@@ -72,8 +72,8 @@ exportValue v =
     VInteger i  -> pure . exportInteger i
     VRational r -> pure . exportRational r
     VFloat f
-      |  bfExpWidth f == 8 && bfExpWidth f == 24
-      || bfExpWidth f == 11 && bfExpWidth f == 53 ->
+      |  bfExpWidth f == 8 && bfPrecWidth f == 24
+      || bfExpWidth f == 11 && bfPrecWidth f == 53 ->
         pure . exportDouble (bfValue f)
       | otherwise -> throw (UnsupportedValue "non-standard float")
 
