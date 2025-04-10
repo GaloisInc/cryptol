@@ -1,7 +1,7 @@
 {-# Language OverloadedStrings #-}
 {-# Language BlockArguments #-}
 {-# Language LambdaCase #-}
--- | Export builders for Cryptols values
+-- | Export builders for Cryptol values
 module Cryptol.Eval.FFI.Abstract.Import (
   cryStartImport,
   cryFinishImport,
@@ -46,7 +46,7 @@ import Cryptol.Backend
 
 type Value = SEval Concrete (GenValue Concrete)
 
--- | Imported of Cryptol values (aka "context")
+-- | Imported Cryptol values (aka \"context\")
 data Importer =
     Building [Frame]    -- ^ A partial value
   | Done Value          -- ^ Fully built value

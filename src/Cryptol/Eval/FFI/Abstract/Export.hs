@@ -139,7 +139,7 @@ exportWord (BV sz i) = \start ->
   where
   !size = integerSize i
 
--- | Export a sequence of values: tuples, recrods, sequnces.
+-- | Export a sequence of values: tuples, records, sequences.
 -- Note that empty sequences don't have any representation.
 exportValues :: [Value] -> [ExportVal] -> Eval [ExportVal]
 exportValues vs done =
@@ -172,7 +172,7 @@ cryStartExport vs =
 
 -- | Get the next data item to export.
 -- We assume that this is the only place to manipulate the reference
--- so there's not race condition. Note that it is also important
+-- so there's not a race condition. Note that it is also important
 -- that we access these from the same thread, otherwise we may miss
 -- some of the writes etc.  This should be OK because FFI calls should
 -- all be happening on the same thread.

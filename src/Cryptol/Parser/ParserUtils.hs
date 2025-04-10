@@ -907,7 +907,7 @@ mkForeignDecl mbDoc mbCC nm ty =
                      | tx == "abstract" -> pure ForeignAbstract
                      where tx = identText i
                   _ -> errorMessage (srcRange cc)
-                          [ "Invalid calling convetion."
+                          [ "Invalid calling convention."
                           , "We support `c` and `abstract` at present."
                           ]
      unless (all isOk txt)

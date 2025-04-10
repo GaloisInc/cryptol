@@ -14,12 +14,12 @@ import Cryptol.Eval.FFI.Abstract.Export(exportSizes,exportValues)
 import Cryptol.Eval.FFI.Abstract.Call(runFFI)
 
 
--- | Call a foreign function that follows the "abstract" calling convetion.
+-- | Call a foreign function that follows the \"abstract\" calling convention.
 callForeignAbstract ::
-  Name                           {- ^ Name of foregin function -} ->
+  Name                           {- ^ Name of foreign function -} ->
   FFIFunType Type                {- ^ FFI type -} ->
   ForeignImpl                    {- ^ Address of foreign worker -} ->
-  TypeEnv                        {- ^ Values for numeric type parametres -} ->
+  TypeEnv                        {- ^ Values for numeric type parameters -} ->
   [(Type, GenValue Concrete)]    {- ^ Function arguments -} ->
   Eval (GenValue Concrete)
 callForeignAbstract nm ty impl tenv args =

@@ -61,7 +61,7 @@ Cryptol interpreter.  Cryptol values are exported as follows:
 
   numeric type parameter:
     recv_u64(&value);
-    if (value == (maxBound :: uint64_t)) then receve an integer (as above).
+    if (value == (maxBound :: uint64_t)) then receive an integer (as above).
 
   [n]
     | n <= 8            recv_u8(&value)
@@ -76,7 +76,7 @@ Cryptol interpreter.  Cryptol values are exported as follows:
   
   Tagged sum:
     recv_u64(&tag); receive fields based on the tag;
-    The constructor number correspond to the order of declaration.
+    The constructor number corresponds to the order of the declaration.
 
   Tuple, record, newtype:
      Receive the elements one after the other.
@@ -95,7 +95,7 @@ struct CryValExporter {
   /** Get a double */
   uint32_t (*recv_double)(void*, double*);
 
-  /* Get a uint64_t.  This is used for to get the size of an integer or word,
+  /* Get a uint64_t.  This is used for getting the size of an integer or word,
      [n] (8 < n && n <= 64), and also for the tag of a sum type.
      Returns 0 on success.
   */
