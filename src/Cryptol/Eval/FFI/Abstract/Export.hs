@@ -80,8 +80,8 @@ exportValue v =
     VWord w   -> \start ->
       do wv <- asWordVal Concrete w
          pure (exportWord wv start)
-    
- 
+
+
     VStream {}  -> throw (UnsupportedValue "infinte stream")
     VFun {}     -> throw (UnsupportedValue "function")
     VPoly {}    -> throw (UnsupportedValue "polymorphic")
@@ -203,7 +203,7 @@ cry_recv_u8 self out =
            EV64 {}      -> pure 2
            EVInteger {} -> pure 3
            EVDouble {}  -> pure 4
-       
+
 
 -- | Get the next data item, which shoudl be uint64_t
 cry_recv_u64 :: Export Word64
@@ -217,7 +217,7 @@ cry_recv_u64 self out =
            EV64 w       -> poke out w >> pure 0
            EVInteger {} -> pure 3
            EVDouble {}  -> pure 4
-  
+
 
 -- | Get the digits for an integer
 cry_recv_u64_digits :: Export Word64
@@ -238,7 +238,7 @@ cry_recv_u64_digits self out =
                 pure 0
             where
             doCopy :: PrimArray Word64 -> IO ()
-            doCopy x = copyPrimArrayToPtr out x 0 (sizeofPrimArray x)   
+            doCopy x = copyPrimArrayToPtr out x 0 (sizeofPrimArray x)
 
 cry_recv_double :: Export Double
 cry_recv_double self out =
