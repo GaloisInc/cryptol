@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <inttypes.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -140,7 +141,7 @@ void test_newtype_u8(const struct CryValExporter* args, const struct CryValImpor
 }
 
 static void unexpected_tag(const char* enum_name, uint64_t tag) {
-    printf("Unexpected tag for %s: %llu\n", enum_name, tag);
+    printf("Unexpected tag for %s: %" PRIu64 "\n", enum_name, tag);
     abort();
 }
 
