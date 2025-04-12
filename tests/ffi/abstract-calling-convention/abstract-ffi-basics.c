@@ -63,7 +63,7 @@ static uint64_t* recv_integer(uint8_t* sign, uint64_t* size, const struct CryVal
 
 static void send_integer(uint8_t sign, uint64_t size, const uint64_t* recv_digits, const struct CryValImporter* res) {
     uint64_t* send_digits = CRY_FFI(res,send_new_large_int,size);
-    memcpy(send_digits, recv_digits, size);
+    memcpy(send_digits, recv_digits, size * sizeof(uint64_t));
     CRY_FFI(res,send_sign,sign);
 }
 
@@ -219,4 +219,32 @@ void test_two_u8_args(const struct CryValExporter* args, const struct CryValImpo
     assert(CRY_FFI(args,recv_u8,&v1) == 0);
 
     CRY_FFI(res,send_small_uint,(uint64_t)(v0 - v1));
+}
+
+void test_z7(const struct CryValExporter* args, const struct CryValImporter* res) {
+    uint8_t sign;
+    uint64_t size;
+    uint64_t* digits = recv_integer(&sign, &size, args);
+    send_integer(sign, size, digits, res);
+    free(digits);
+}
+
+void test_param(const struct CryValExporter* args, const struct CryValImporter* res) {
+    uint64_t param_small;
+    uint8_t param_large_sign;
+    uint64_t param_large_size;
+    uint64_t* param_large_digits;
+
+    assert(CRY_FFI(args,recv_u64,&param_small) == 0);
+    bool param_is_large = param_small == UINT64_MAX;
+    if (param_is_large) {
+        param_large_digits = recv_integer(&param_large_sign, &param_large_size, args);
+    }
+
+    if (param_is_large) {
+        send_integer(param_large_sign, param_large_size, param_large_digits, res);
+        free(param_large_digits);
+    } else {
+        send_integer(0, 1, &param_small, res);
+    }
 }

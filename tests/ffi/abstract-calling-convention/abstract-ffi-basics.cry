@@ -25,3 +25,5 @@ foreign abstract test_newtype_u8 : N -> N
 foreign abstract test_option_u8 : Option [8] -> Option [8]
 foreign abstract test_result_u16_u32 : Result [16] [32] -> Result [16] [32]
 foreign abstract test_two_u8_args : [8] -> [8] -> [8]
+foreign abstract test_z7 : Z 7 -> Z 7
+foreign abstract test_param : {n} (fin n, n >= 1) => Z n

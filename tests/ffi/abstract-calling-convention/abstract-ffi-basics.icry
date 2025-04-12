@@ -11,6 +11,8 @@ test_i32 1
 test_i64 1
 test_integer 42
 test_integer (-42)
+test_integer (2^^64)
+test_integer (-(2^^64))
 test_rational (ratio 2 5)
 test_float 1.5
 test_double 1.5
@@ -26,3 +28,7 @@ test_option_u8 (Some 1)
 test_result_u16_u32 (Ok 1)
 test_result_u16_u32 (Err 2)
 test_two_u8_args 7 4
+test_z7 1
+test_z7 2
+test_param`{4}
+test_param`{2^^64}
