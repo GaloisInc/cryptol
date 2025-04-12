@@ -27,9 +27,9 @@ import LibBF(bfFromDouble)
 import Foreign
 import Foreign.C.Types(CSize(..) )
 import Control.Monad.Primitive(PrimState)
-import GHC.Num(Integer(..))
+import GHC.Num.Compat(bigNatToInteger, bigNatToNegInteger)
 import Data.Primitive.PrimArray(MutablePrimArray(..), PrimArray(..),
-        mutablePrimArrayContents, newPinnedPrimArray, unsafeFreezePrimArray)  
+        mutablePrimArrayContents, newPinnedPrimArray, unsafeFreezePrimArray)
 
 import Cryptol.Utils.PP
 import Cryptol.Backend.FloatHelpers
@@ -103,7 +103,7 @@ haveValue v fs =
         NeedOneOf {} -> Error (ProtocolMismatch ATag AValue)
         NeedSign {} -> Error (ProtocolMismatch ASign AValue)
 
--- | Provide a constructor tag  
+-- | Provide a constructor tag
 haveTag :: Int -> [Frame] -> Importer
 haveTag n fs0 =
   case fs0 of
@@ -121,10 +121,10 @@ haveTag n fs0 =
               case Vector.toList (conFields ci) of
                 [] -> haveValue (mkV []) fs
                 t : ts ->
-                  needValue t (NeedMany (Mk 10 ppV (Right . mkV)) [] ts : fs) 
+                  needValue t (NeedMany (Mk 10 ppV (Right . mkV)) [] ts : fs)
               where
-              ppV xs = pp (conIdent ci) <+> hsep xs 
-     
+              ppV xs = pp (conIdent ci) <+> hsep xs
+
               mkV :: [Value] -> Value
               mkV vs = pure (VEnum
                               (toInteger n)
@@ -142,12 +142,12 @@ haveSign isPos fs0 =
         NeedDouble {} -> mismatch AValue
         NeedMany {} -> mismatch AValue
         NeedOneOf {} -> mismatch ATag
-        NeedSign buf ->                                                     
-          do PrimArray fbuf <- unsafeFreezePrimArray buf                          
-             let i = if isPos then IP fbuf else IN fbuf
+        NeedSign buf ->
+          do PrimArray fbuf <- unsafeFreezePrimArray buf
+             let i = if isPos then bigNatToInteger fbuf else bigNatToNegInteger fbuf
              i `seq` pure (haveValue (pure (VInteger i)) fs)
   where
-  mismatch x = pure (Error (ProtocolMismatch x ASign))         
+  mismatch x = pure (Error (ProtocolMismatch x ASign))
 
 haveFloat :: Double -> [Frame] -> Importer
 haveFloat d fs0 =
@@ -172,7 +172,7 @@ needValue tval fs =
     TVIntMod _  -> Building (NeedVal : fs)
     TVFloat e p -> Building (NeedDouble e p : fs)
 
-    TVRational -> 
+    TVRational ->
       Building (NeedVal : NeedMany (Mk 10 ppV mkV) [] [TVInteger] : fs)
         where
         ppV xs = "Rational" <+> hsep xs
@@ -194,7 +194,7 @@ needValue tval fs =
 
         _ | len < 1 -> haveValue (mkV []) fs
           | otherwise ->
-            needValue elT (NeedMany (Mk 0 ppV (Right . mkV)) [] ts : fs) 
+            needValue elT (NeedMany (Mk 0 ppV (Right . mkV)) [] ts : fs)
           where
           ppV xs = brackets (commaSep xs)
           mkV xs = mkSeq Concrete (Nat len) elT (finiteSeqMap Concrete xs)
@@ -298,7 +298,7 @@ modifyStateIO how ptr =
                Done _       -> pure (Error UnexpectedData)
                Building fs  -> how fs
      newS `seq` writeIORef ref newS
-       
+
 
 
 type Import a = Ptr () -> a -> IO ()
