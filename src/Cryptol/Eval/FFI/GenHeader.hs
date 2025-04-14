@@ -57,7 +57,18 @@ data ConvertResult
 convertFun :: (Name, FFI) -> GenHeaderM C.Decln
 convertFun (fName, cc) =
   case cc of
-    CallAbstract {} -> undefined "XXX"
+    CallAbstract {} -> do
+      tell $ Set.singleton cryFfiH
+      let mkAbstractParam :: C.Ident -> C.Ident -> C.Param
+          mkAbstractParam structName paramName =
+            C.Param (C.Const (C.Ptr (C.TypeSpec (C.Struct structName)))) paramName
+
+          params :: [C.Param]
+          params =
+            [ mkAbstractParam "CryValExporter" "args"
+            , mkAbstractParam "CryValImporter" "res"
+            ]
+      pure $ C.FunDecln Nothing (C.TypeSpec C.Void) fIdent params
     CallC FFIFunType {..} -> do
       let tpIdent = fmap nameIdent . tpName
       typeParams <- traverse convertTypeParam (pickNames (map tpIdent ffiTParams))
@@ -78,7 +89,10 @@ convertFun (fName, cc) =
           renameParam names (C.Param u name) =
             (Set.insert name' names, C.Param u name')
             where name' = until (`Set.notMember` names) (++ "_") name
-      pure $ C.FunDecln Nothing retType (unpackIdent $ nameIdent fName) params
+      pure $ C.FunDecln Nothing retType fIdent params
+  where
+    fIdent :: C.Ident
+    fIdent = unpackIdent $ nameIdent fName
 
 
 -- | Convert a Cryptol type parameter to a C value parameter.
@@ -174,6 +188,8 @@ stddefH = Include "stddef.h"
 stdintH = Include "stdint.h"
 gmpH = Include "gmp.h"
 
+cryFfiH :: Include
+cryFfiH = Include "cry_ffi.h"
 
 -- | Return a type with the given name, included from some header file.
 typedefFromInclude :: Include -> C.Ident -> GenHeaderM C.Type
