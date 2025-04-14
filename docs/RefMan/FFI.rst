@@ -2,7 +2,8 @@ Foreign Function Interface
 ==========================
 
 The foreign function interface (FFI) allows Cryptol to call functions written in
-C (or other languages that use the C calling convention).
+other programming languages. This includes the C programming language as well as
+other languages that can implement the same calling conventions (e.g., Rust).
 
 Platform support
 ----------------
@@ -26,7 +27,11 @@ In our Cryptol file, we declare it as a ``foreign`` function with no body:
 
   foreign add : [32] -> [32] -> [32]
 
-Then we write the following C function:
+Note that this uses Cryptol's C calling convention. (For more about the
+specifics of the Cryptol FFI's calling conventions, see the :ref:`calling
+conventions section <calling-conventions>`.)
+
+Next, we write the following C function:
 
 .. code-block:: c
 
@@ -94,12 +99,52 @@ simple usages, you can do this manually with the following commands:
 * macOS: ``cc -dynamiclib Foo.c -o Foo.dylib``
 * Windows: ``cc -fPIC -shared Foo.c -o Foo.dll``
 
-Converting between Cryptol and C types
---------------------------------------
+.. _calling-conventions:
 
-This section describes how a given Cryptol function signature maps to a C
-function prototype. The FFI only supports a limited set of Cryptol types which
-have a clear translation into C.
+Calling conventions
+-------------------
+
+The Cryptol FFI supports two different calling conventions:
+
+* The C calling convention, where Cryptol values are marshalled to and from C
+  values of equivalent types. You can specify the C calling convention by
+  writing:
+
+  .. code-block:: cryptol
+
+    foreign c example : [32] -> [32] -> [32]
+
+  This is the default calling convention, so you can also omit the ``c`` keyword
+  above to achieve the same effect:
+
+  .. code-block:: cryptol
+
+    foreign example : [32] -> [32] -> [32]
+
+  For more details about the C calling convention, see :ref:`this section
+  <c-calling-convention>`.
+
+* The abstract calling convention, where Cryptol values are marshalled using
+  an abstract interface. You can specify the abstract calling convention by
+  writing:
+
+  .. code-block:: cryptol
+
+    foreign abstract example : [32] -> [32] -> [32]
+
+  For more details about the abstract calling convention, see :ref:`this
+  section <abstract-calling-convention>`.
+
+.. _c-calling-convention:
+
+The C calling convention
+------------------------
+
+Foreign functions that use the C calling convention marshal Cryptol values to
+and from C values of equivalent types. This section describes how a given
+Cryptol function signature maps to a C function prototype. The C calling
+convention only supports a limited set of Cryptol types which have a clear
+translation into C.
 
 This mapping can now be done automatically with the ``:generate-foreign-header``
 command mentioned above; however, this section is still worth reading to
@@ -257,10 +302,10 @@ along with the pointer, any type arguments contained in the size are passed as C
 Tuples and records
 ~~~~~~~~~~~~~~~~~~
 
-Let ``T1, T2, ..., Tn`` be Cryptol types supported by the FFI (which may be any
-of the types mentioned above, or tuples and records themselves). Let
-``U1, U2, ..., Un`` be the C types that ``T1, T2, ..., Tn`` respectively
-correspond to. Let ``f1, f2, ..., fn`` be arbitrary field names.
+Let ``T1, T2, ..., Tn`` be Cryptol types supported by the C calling convention
+(which may be any of the types mentioned above, or tuples and records
+themselves). Let ``U1, U2, ..., Un`` be the C types that ``T1, T2, ..., Tn``
+respectively correspond to. Let ``f1, f2, ..., fn`` be arbitrary field names.
 
 =================================  ===================
 Cryptol type                       C types
@@ -321,8 +366,25 @@ Cryptol type (or kind)              C argument type(s)   C return type  C output
 where ``K`` is a constant number, ``ni`` are variable numbers, ``Ti`` is a type,
 ``Ui`` is its C argument type, and ``Vi`` is its C output argument type.
 
+Example
+-------
+
+The Cryptol signature
+
+.. code-block:: cryptol
+
+  foreign c fun : {n} (fin n) => [n][10] -> {a : Bit, b : [64]}
+                                 -> (Float64, [n + 1][20])
+
+corresponds to the C signature
+
+.. code-block:: c
+
+  void fun(size_t n, uint16_t *in0, uint8_t in1_a, uint64_t in1_b,
+           double *out_0, uint32_t *out_1);
+
 Memory
-------
+~~~~~~
 
 When pointers are involved, namely in the cases of sequences and output
 arguments, they point to memory. This memory is always allocated and deallocated
@@ -339,6 +401,104 @@ For input sequence arguments, the array will already be set to the values
 corresponding to the Cryptol values in the sequence. For output arguments, the
 memory may be uninitialized when passed to C, and the C code should not read
 from it. It must write to the memory the value it is returning.
+
+.. _abstract-calling-convention:
+
+The abstract calling convention
+-------------------------------
+
+Foreign functions that use the abstract calling convention marshal Cryptol
+values using an abstract interface. One can opt into the abstract calling
+convention by writing ``foreign abstract fun : ...``. Any abstract foreign
+function will corespond to a C function with the following type signature:
+
+.. code-block:: c
+
+  void fun(const struct CryValExporter *args, const struct CryValImporter *res);
+
+Unlike the C calling convention, where each Cryptol argument or return type
+directly corresponds to an equivalent C type, the abstract calling convention
+intentionally leaves these details opaque. Instead, all Cryptol function
+arguments are marshalled to the foreign environment using an abstract
+``CryValExporter`` object, and the C return value is marshalled to Cryptol
+using an abstract ``CryValImporter`` object. All the details of how marshalling
+works are encapsulated by the methods of these objects, which are managed on
+the Cryptol side.
+
+As a specific example, suppose we have the following abstract foreign function:
+
+.. code-block:: cryptol
+
+  foreign abstract fun : Option [8] -> ([64], [8])
+
+We can write a corresponding function like so:
+
+.. code-block:: c
+
+  #include <assert.h>
+  #include <inttypes.h>
+  #include <stdint.h>
+  #include <stdio.h>
+  #include <stdlib.h>
+  #include "cry_ffi.h"
+
+  void fun(const struct CryValExporter *args, const struct CryValImporter *res) {
+    uint64_t tag;
+    uint8_t v;
+
+    // Receive the tag indicating which Option constructor was exported.
+    assert(CRY_FFI(args,recv_u64,&tag) == 0);
+
+    // Depending on which Option constructor was exported, we may need to
+    // receive an additional piece of data corresponding to the Some
+    // constructor's field.
+    switch (tag) {
+    case 0: // None
+      printf("received None\n");
+      break;
+    case 1: // Some v
+      assert(CRY_FFI(args,recv_u8,&v) == 0);
+      printf("received (Some %u)\n",v);
+      break;
+    default: // This case should be unreachable
+      printf("unexpected tag for Option: %" PRIu64 "\n", tag);
+      abort();
+    }
+
+    // Now import a return value back into Cryptol. The return type is a pair,
+    // so we send the first element of the pair followed by the second.
+    CRY_FFI(res,send_small_uint,tag);
+    CRY_FFI(res,send_small_uint,(uint64_t)(v));
+  }
+
+(This example uses C as the implementation language, but one could write a
+similar function in other languages as well.)
+
+Note that the arguments are exported to the foreign environment using the
+``recv_u64`` and ``recv_u8`` methods of the ``args`` object, and the return
+value is imported into Cryptol using the ``send_small_uint`` method of the
+``res`` object. The author of the foreign code needs to know which methods to
+call—for instance, they would need to know that importing a pair type requires
+importing its first element followed by its second. On the other hand, the
+author of the foreign code does *not* need to know how the methods work under
+the hood (hence the name "abstract").
+
+When compared to the C calling convention, the abstract calling convention has
+the advantage that is does not have to assume a fixed data layout for compound
+types such as arrays, tuples, or enums. As such, languages that export
+functions to use with the abstract calling convention do not have to manually
+convert their in-memory representations of these compound data types into the
+representations that the C calling convention expects, which can be expensive.
+
+For more details on how the methods of the ``CryValExporter`` and
+``CryValImporter`` structs work, refer to the ``cry_ffi.h`` header file
+included in your Cryptol installation. This file includes documentats the
+conventions for how each Cryptol type is marshalled to and from foreign code.
+
+Note that the abstract calling convention still assumes *some* details of the C
+ABI. In particular, it assumes that the foreign code's arguments have the same
+memory representation as the ``CryValExporter`` and ``CryValImporter`` structs
+have in C.
 
 Evaluation
 ----------
@@ -368,20 +528,3 @@ reference interpreter, or if Cryptol was built with FFI support disabled.
 
 The ``:set evalForeign`` REPL option controls which implementation is used; see
 ``:help :set evalForeign`` for more details.
-
-Example
--------
-
-The Cryptol signature
-
-.. code-block:: cryptol
-
-  foreign f : {n} (fin n) => [n][10] -> {a : Bit, b : [64]}
-                             -> (Float64, [n + 1][20])
-
-corresponds to the C signature
-
-.. code-block:: c
-
-  void f(size_t n, uint16_t *in0, uint8_t in1_a, uint64_t in1_b,
-         double *out_0, uint32_t *out_1);
