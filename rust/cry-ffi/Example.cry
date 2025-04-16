@@ -9,10 +9,12 @@ foreign abstract test_u8 : [8] -> [8]
 foreign abstract test_u16 : [16] -> [16]
 foreign abstract test_u32 : [32] -> [32]
 foreign abstract test_u64 : [64] -> [64]
+foreign abstract test_u128 : [128] -> [128]
 foreign abstract test_i8 : [8] -> [8]
 foreign abstract test_i16 : [16] -> [16]
 foreign abstract test_i32 : [32] -> [32]
 foreign abstract test_i64 : [64] -> [64]
+foreign abstract test_i128 : [128] -> [128]
 foreign abstract test_integer : Integer -> Integer
 foreign abstract test_rational : Rational -> Rational
 foreign abstract test_float : Float32 -> Float32

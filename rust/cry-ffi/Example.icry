@@ -5,10 +5,15 @@ test_u8 1
 test_u16 1
 test_u32 1
 test_u64 1
+test_u128 1
+test_u128 (2^^65)
 test_i8 1
 test_i16 1
 test_i32 1
 test_i64 1
+test_i128 1
+test_i128 (2^^65)
+test_i128 (-(2^^65))
 test_integer 42
 test_integer (-42)
 test_integer (2^^64)

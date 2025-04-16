@@ -98,7 +98,7 @@
 use std::ffi::*;
 use std::mem::{self, MaybeUninit};
 use std::slice::from_raw_parts_mut;
-use num::{BigInt, BigRational, BigUint};
+use num::{BigInt, BigRational, BigUint, ToPrimitive};
 use num::bigint::{Sign, ToBigInt};
 
 /// A macro that is useful for simplifying calls to fields of [`CryValImporter`]
@@ -207,6 +207,12 @@ impl Importable for u64 {
     }
 }
 
+impl Importable for u128 {
+    fn send(&self, res: &CryValImporter) {
+        BigInt::from(*self).send(res);
+    }
+}
+
 impl Importable for i8 {
     fn send(&self, res: &CryValImporter) {
         cry_ffi!(res, send_small_sint, *self as i64);
@@ -228,6 +234,12 @@ impl Importable for i32 {
 impl Importable for i64 {
     fn send(&self, res: &CryValImporter) {
         cry_ffi!(res, send_small_sint, *self);
+    }
+}
+
+impl Importable for i128 {
+    fn send(&self, res: &CryValImporter) {
+        BigInt::from(*self).send(res);
     }
 }
 
@@ -444,6 +456,15 @@ impl Exportable for u64 {
     }
 }
 
+impl Exportable for u128 {
+    fn recv(args: &CryValExporter) -> Self {
+        let digits: Vec<u32> = recv_integer_size_and_digits(args);
+        BigUint::new(digits)
+          .to_u128()
+          .expect("BigUint cannot be represented as a u128 value")
+    }
+}
+
 impl Exportable for i8 {
     fn recv(args: &CryValExporter) -> Self {
         let mut v: u8 = 0;
@@ -473,6 +494,12 @@ impl Exportable for i64 {
         let mut v: u64 = 0;
         assert!(cry_ffi!(args, recv_u64, &mut v) == 0);
         v as i64
+    }
+}
+
+impl Exportable for i128 {
+    fn recv(args: &CryValExporter) -> Self {
+        u128::recv(args) as i128
     }
 }
 
@@ -576,6 +603,18 @@ impl ExactSizeIterator for U32Digits<'_> {
     }
 }
 
+fn recv_integer_size_and_digits(args: &CryValExporter) -> Vec<u32> {
+    let mut size: u64 = 0;
+    assert!(cry_ffi!(args, recv_u64, &mut size) == 0);
+
+    let mut digits_vec: Vec<u64> = vec![0; size as usize];
+    let digits_slice: &mut [u64] = digits_vec.as_mut_slice();
+    let digits_ptr: *mut u64 = digits_slice.as_mut_ptr();
+    assert!(cry_ffi!(args, recv_u64_digits, digits_ptr) == 0);
+
+    U32Digits::new(digits_slice).collect::<Vec<u32>>()
+}
+
 impl Exportable for BigInt {
     fn recv(args: &CryValExporter) -> Self {
         let mut sign_u8: u8 = 0;
@@ -587,16 +626,8 @@ impl Exportable for BigInt {
                 Sign::Plus
             };
 
-        let mut size: u64 = 0;
-        assert!(cry_ffi!(args, recv_u64, &mut size) == 0);
-
-        let mut digits_vec: Vec<u64> = vec![0; size as usize];
-        let digits_slice: &mut [u64] = digits_vec.as_mut_slice();
-        let digits_ptr: *mut u64 = digits_slice.as_mut_ptr();
-        assert!(cry_ffi!(args, recv_u64_digits, digits_ptr) == 0);
-
-        let u32_digits = U32Digits::new(digits_slice);
-        BigInt::new(sign, u32_digits.collect::<Vec<u32>>())
+        let digits: Vec<u32> = recv_integer_size_and_digits(args);
+        BigInt::new(sign, digits)
     }
 }
 
