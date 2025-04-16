@@ -467,33 +467,25 @@ impl Exportable for u128 {
 
 impl Exportable for i8 {
     fn recv(args: &CryValExporter) -> Self {
-        let mut v: u8 = 0;
-        assert!(cry_ffi!(args, recv_u8, &mut v) == 0);
-        v as i8
+        u8::recv(args) as i8
     }
 }
 
 impl Exportable for i16 {
     fn recv(args: &CryValExporter) -> Self {
-        let mut v: u64 = 0;
-        assert!(cry_ffi!(args, recv_u64, &mut v) == 0);
-        v as i16
+        u16::recv(args) as i16
     }
 }
 
 impl Exportable for i32 {
     fn recv(args: &CryValExporter) -> Self {
-        let mut v: u64 = 0;
-        assert!(cry_ffi!(args, recv_u64, &mut v) == 0);
-        v as i32
+        u32::recv(args) as i32
     }
 }
 
 impl Exportable for i64 {
     fn recv(args: &CryValExporter) -> Self {
-        let mut v: u64 = 0;
-        assert!(cry_ffi!(args, recv_u64, &mut v) == 0);
-        v as i64
+        u64::recv(args) as i64
     }
 }
 
