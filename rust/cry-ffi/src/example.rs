@@ -64,6 +64,12 @@ pub extern "C" fn test_two_u8_args(args: &CryValExporter, res: &CryValImporter) 
 }
 
 #[no_mangle]
+pub extern "C" fn test_two_u128_res(args: &CryValExporter, res: &CryValImporter) {
+    let arg = u128::recv(args);
+    (arg, arg).send(res);
+}
+
+#[no_mangle]
 pub extern "C" fn test_param(args: &CryValExporter, res: &CryValImporter) {
     let param: BigUint = recv_type_param(args);
     match param.to_u64() {
