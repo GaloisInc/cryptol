@@ -1100,7 +1100,7 @@ instance (Show name, PPName name) => PP (Decl name) where
   ppPrec n decl =
     case decl of
       DSignature xs s -> commaSep (map ppL xs) <+> text ":" <+> pp s
-      DPatBind p e    -> pp p <+> text "=" <+> pp e
+      DPatBind p e    -> nest 2 (pp p <+> text "=" </> pp e)
       DBind b         -> ppPrec n b
       DRec bs         -> nest 2 (vcat ("recursive" : map (ppPrec n) bs))
       DFixity f ns    -> ppFixity f ns
@@ -1175,7 +1175,7 @@ ppPragma xs p =
 
 instance (Show name, PPName name) => PP (Bind name) where
   ppPrec _ b = vcat (sig ++ [ ppPragma [f] p | p <- bPragmas b ] ++
-                     [hang (def <+> eq) 4 (pp (thing (bDef b)))])
+                     [nest 2 (def <+> eq </> pp (thing (bDef b)))])
     where def | bInfix b  = lhsOp
               | otherwise = lhs
           f = bName b
@@ -1335,7 +1335,7 @@ instance (Show name, PPName name) => PP (Expr name) where
 
       -- low prec
       EFun _ xs e   -> wrap n 0 ((text "\\" <.> hsep (map (ppPrec 3) xs)) <+>
-                                 text "->" <+> pp e)
+                                 text "->" </> pp e)
 
       EIf e1 e2 e3  -> wrap n 0 $ sep [ text "if"   <+> pp e1
                                       , text "then" <+> pp e2
@@ -1358,7 +1358,7 @@ instance (Show name, PPName name) => PP (Expr name) where
               $ ppInfix 2 isInfix ifix
 
       EApp _ _      -> let (e, es) = asEApps expr in
-                       wrap n 3 (ppPrec 3 e <+> fsep (map (ppPrec 4) es))
+                       nest 2 (wrap n 3 (foldl (</>) (ppPrec 3 e) (map (ppPrec 4) es)))
 
       ELocated e _  -> ppPrec n e
 
@@ -1462,7 +1462,7 @@ instance PPName name => PP (Type name) where
                       $ ppPrefixName f <+> fsep (map (ppPrec 4) ts)
 
       TFun t1 t2     -> optParens (n > 1)
-                      $ sep [ppPrec 2 t1 <+> text "->", ppPrec 1 t2]
+                      $ ppPrec 2 t1 <+> text "->" </> ppPrec 1 t2
 
       TLocated t _   -> ppPrec n t
 
