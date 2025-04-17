@@ -16,8 +16,8 @@ module Cryptol.ModuleSystem.Monad where
 
 import           Cryptol.Eval (EvalEnv,EvalOpts(..))
 
-import           Cryptol.Backend.FFI (ForeignSrc)
-import           Cryptol.Backend.FFI.Error
+import           Cryptol.Eval.FFI.ForeignSrc (ForeignSrc)
+import           Cryptol.Eval.FFI.Error
 import qualified Cryptol.Backend.Monad           as E
 
 import           Cryptol.ModuleSystem.Env

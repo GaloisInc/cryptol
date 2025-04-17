@@ -4,7 +4,7 @@
 {-# LANGUAGE Safe  #-}
 
 -- | Errors from dynamic loading of shared libraries for FFI.
-module Cryptol.Backend.FFI.Error where
+module Cryptol.Eval.FFI.Error where
 
 import           Control.DeepSeq
 import qualified Data.List.NonEmpty as NE

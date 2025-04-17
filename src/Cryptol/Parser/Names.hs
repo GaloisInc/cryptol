@@ -78,7 +78,7 @@ namesB b =
 
 namesDef :: Ord name => BindDef name -> Set name
 namesDef DPrim         = Set.empty
-namesDef (DForeign mi) = foldMap namesImpl mi
+namesDef (DForeign _ mi) = foldMap namesImpl mi
 namesDef (DImpl i)     = namesImpl i
 
 namesImpl :: Ord name => BindImpl name -> Set name
@@ -220,9 +220,9 @@ tnamesB b = Set.unions [setS, setP, setE]
     setE = tnamesDef (thing (bDef b))
 
 tnamesDef :: Ord name => BindDef name -> Set name
-tnamesDef DPrim         = Set.empty
-tnamesDef (DForeign mi) = foldMap tnamesImpl mi
-tnamesDef (DImpl i)     = tnamesImpl i
+tnamesDef DPrim           = Set.empty
+tnamesDef (DForeign _ mi) = foldMap tnamesImpl mi
+tnamesDef (DImpl i)       = tnamesImpl i
 
 tnamesImpl :: Ord name => BindImpl name -> Set name
 tnamesImpl (DExpr e)            = tnamesE e

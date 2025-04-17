@@ -34,11 +34,14 @@ module Cryptol.Backend.Monad
 , Unsupported(..)
 , EvalError(..)
 , EvalErrorEx(..)
+, ImportErrorMessage(..)
+, ImportThing(..)
 , evalPanic
 , wordTooWide
 , WordTooWide(..)
 ) where
 
+import           Data.Text(Text)
 import           Control.Concurrent
 import           Control.Concurrent.STM
 
@@ -426,7 +429,25 @@ data EvalError
   | FFINotSupported Name                 -- ^ Foreign function cannot be called
   | FFITypeNumTooBig Name TParam Integer -- ^ Number passed to foreign function
                                          --   as a type argument is too large
+  | FFIImportError ImportErrorMessage    -- ^ a problem with the result of an FFI call
   deriving Typeable
+
+data ImportErrorMessage =
+    ProtocolMismatch ImportThing ImportThing  -- ^ Expected, got
+  | PartialValue
+  | UnexpectedData
+  | TagOutOfBounds Int
+  | Unsupported Text
+  | BadWordValue
+  | BadRationalValue
+  | FFINotEnabled
+    deriving Typeable
+
+data ImportThing = AValue | AFloat | ATag | ASign
+  deriving Typeable
+
+
+
 
 instance PP EvalError where
   ppPrec _ e = case e of
@@ -462,6 +483,34 @@ instance PP EvalError where
       where con = case mbCon of
                     Just c -> "for constructor" <+> backticks (text c)
                     Nothing -> mempty
+    FFIImportError msg -> pp msg
+
+instance PP ImportErrorMessage where
+  ppPrec _ e =
+    case e of
+      ProtocolMismatch a b -> vcat
+         [ "Value mismatch:"
+         , " * Expected:" <+> pp a
+         , " * Got:" <+> pp b
+         ]
+      PartialValue -> "Partial value"
+      UnexpectedData -> "Unexpected data"
+      TagOutOfBounds n -> "Tag out of bounds:" <+> int n
+      Unsupported n -> "Unsupported" <+> pp n
+      BadWordValue -> "Bad word value"
+      BadRationalValue -> "Bad rational value"
+      FFINotEnabled -> "FFI is not enabled"
+
+instance PP ImportThing where
+  ppPrec _ e =
+    case e of
+      AValue -> "a value"
+      ATag -> "a tag"
+      ASign -> "a sign"
+      AFloat -> "a float"
+      
+
+
 
 instance Show EvalError where
   show = show . pp

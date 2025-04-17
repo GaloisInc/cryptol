@@ -1,0 +1,6 @@
+:! cp abstract-ffi-basics.cry abstract-ffi-basics2.cry
+:generate-foreign-header abstract-ffi-basics2.cry
+// Make sure to use --strip-trailing-cr so that diff ignores the differences
+// between Windows-style and Unix-style line endings.
+:! diff --strip-trailing-cr abstract-ffi-basics2.h abstract-ffi-basics.h
+:! rm abstract-ffi-basics2.*

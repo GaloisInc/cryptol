@@ -812,6 +812,6 @@ evalMatch sym (lsz, lenv) m = seq lsz $ case m of
     where
       f env =
           case dDefinition d of
-            DPrim        -> evalPanic "evalMatch" ["Unexpected local primitive"]
-            DForeign _ _ -> evalPanic "evalMatch" ["Unexpected local foreign"]
-            DExpr e      -> evalExpr sym env e
+            DPrim       -> evalPanic "evalMatch" ["Unexpected local primitive"]
+            DForeign {} -> evalPanic "evalMatch" ["Unexpected local foreign"]
+            DExpr e     -> evalExpr sym env e

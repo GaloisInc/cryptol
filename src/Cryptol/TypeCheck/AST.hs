@@ -28,6 +28,7 @@ module Cryptol.TypeCheck.AST
   , PrimMap(..)
   , module Cryptol.TypeCheck.Type
   , DocFor(..)
+  , FFI(..)
   ) where
 
 import Data.Maybe(catMaybes)
@@ -147,12 +148,12 @@ emptyModule nm =
     }
 
 -- | Find all the foreign declarations in the module and return their names and FFIFunTypes.
-findForeignDecls :: ModuleG mname -> [(Name, FFIFunType)]
+findForeignDecls :: ModuleG mname -> [(Name, FFI)]
 findForeignDecls = mapMaybe getForeign . concatMap groupDecls . mDecls
   where getForeign d =
           case dDefinition d of
-            DForeign ffiType _ -> Just (dName d, ffiType)
-            _                  -> Nothing
+            DForeign ffi _ -> Just (dName d, ffi)
+            _              -> Nothing
 
 -- | Find all the foreign declarations that are in functors, including in the
 -- top-level module itself if it is a functor.
@@ -266,10 +267,13 @@ data Decl       = Decl { dName        :: !Name
 data DeclDef    = DPrim
                 -- | Foreign functions can have an optional cryptol
                 -- implementation
-                | DForeign FFIFunType (Maybe Expr)
+                | DForeign FFI (Maybe Expr)
                 | DExpr Expr
                   deriving (Show, Generic, NFData)
 
+data FFI = CallC (FFIFunType FFIType)
+         | CallAbstract (FFIFunType Type)
+           deriving (Show,Generic,NFData)
 
 --------------------------------------------------------------------------------
 
@@ -511,10 +515,14 @@ instance PP (WithNames Decl) where
 
 instance PP (WithNames DeclDef) where
   ppPrec _ (WithNames DPrim _) = text "<primitive>"
-  ppPrec _ (WithNames (DForeign _ me) nm) =
+  ppPrec _ (WithNames (DForeign mo me) nm) =
+    let lab = "foreign" <+> case mo of
+                              CallC {} -> "c"
+                              CallAbstract {} -> "abstract"
+    in
     case me of
-      Just e -> text "(foreign)" <+> ppWithNames nm e
-      Nothing -> text "<foreign>"
+      Just e -> parens lab <+> ppWithNames nm e
+      Nothing -> hsep ["<",lab,">"]
   ppPrec _ (WithNames (DExpr e) nm) = ppWithNames nm e
 
 instance PP Decl where

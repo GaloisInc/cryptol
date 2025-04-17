@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric  #-}
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE Safe #-}
 
 -- | This module defines a nicer intermediate representation of Cryptol types
@@ -16,12 +17,12 @@ import           Cryptol.Utils.Ident
 import           Cryptol.Utils.RecordMap
 
 -- | Type of a foreign function.
-data FFIFunType = FFIFunType
+data FFIFunType t = FFIFunType
   { -- | Note: any type variables within this function type must be bound here.
     ffiTParams  :: [TParam]
-  , ffiArgTypes :: [FFIType]
-  , ffiRetType  :: FFIType }
-  deriving (Show, Generic, NFData)
+  , ffiArgTypes :: [t]
+  , ffiRetType  :: t }
+  deriving (Show, Generic, NFData, Functor)
 
 -- | Type of a value that can be passed to or returned from a foreign function.
 data FFIType

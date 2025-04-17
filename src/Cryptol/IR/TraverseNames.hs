@@ -121,6 +121,12 @@ instance TraverseNames DeclDef where
       DForeign t me -> DForeign <$> traverseNamesIP t <*> traverseNamesIP me
       DExpr e -> DExpr <$> traverseNamesIP e
 
+instance TraverseNames FFI where
+  traverseNamesIP f =
+    case f of
+      CallC t -> CallC <$> traverseNamesIP t
+      CallAbstract t -> CallAbstract <$> traverseNamesIP t
+
 instance TraverseNames Schema where
   traverseNamesIP (Forall as ps t) =
     Forall <$> traverseNamesIP as
@@ -244,7 +250,7 @@ instance TraverseNames ModVParam where
     where
     mk x t = nt { mvpName = x, mvpType = t }
 
-instance TraverseNames FFIFunType where
+instance TraverseNames t => TraverseNames (FFIFunType t) where
   traverseNamesIP fi = mk <$> traverseNamesIP (ffiArgTypes fi)
                           <*> traverseNamesIP (ffiRetType fi)
     where
