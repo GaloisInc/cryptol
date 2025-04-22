@@ -7,6 +7,24 @@
 #include <string.h>
 #include "cry_ffi.h"
 
+static uint64_t* recv_integer_size_and_digits(uint64_t* size, const struct CryValExporter* args) {
+    assert(CRY_FFI(args,recv_u64,size) == 0);
+    uint64_t* digits = calloc(*size, sizeof(uint64_t));
+    assert(CRY_FFI(args,recv_u64_digits,digits) == 0);
+    return digits;
+}
+
+static uint64_t* recv_integer(uint8_t* sign, uint64_t* size, const struct CryValExporter* args) {
+    assert(CRY_FFI(args,recv_u8,sign) == 0);
+    return recv_integer_size_and_digits(size, args);
+}
+
+static void send_integer(uint8_t sign, uint64_t size, const uint64_t* recv_digits, const struct CryValImporter* res) {
+    uint64_t* send_digits = CRY_FFI(res,send_new_large_int,size);
+    memcpy(send_digits, recv_digits, size * sizeof(uint64_t));
+    CRY_FFI(res,send_sign,sign);
+}
+
 void test_bool(const struct CryValExporter* args, const struct CryValImporter* res) {
     uint8_t v;
     assert(CRY_FFI(args,recv_u8,&v) == 0);
@@ -33,6 +51,13 @@ void test_u64(const struct CryValExporter* args, const struct CryValImporter* re
     test_u16(args, res);
 }
 
+void test_u128(const struct CryValExporter* args, const struct CryValImporter* res) {
+    uint64_t size;
+    uint64_t* digits = recv_integer_size_and_digits(&size, args);
+    send_integer(0, size, digits, res);
+    free(digits);
+}
+
 void test_i8(const struct CryValExporter* args, const struct CryValImporter* res) {
     uint8_t v;
     assert(CRY_FFI(args,recv_u8,&v) == 0);
@@ -53,18 +78,8 @@ void test_i64(const struct CryValExporter* args, const struct CryValImporter* re
     test_i16(args, res);
 }
 
-static uint64_t* recv_integer(uint8_t* sign, uint64_t* size, const struct CryValExporter* args) {
-    assert(CRY_FFI(args,recv_u8,sign) == 0);
-    assert(CRY_FFI(args,recv_u64,size) == 0);
-    uint64_t* digits = calloc(*size, sizeof(uint64_t));
-    assert(CRY_FFI(args,recv_u64_digits,digits) == 0);
-    return digits;
-}
-
-static void send_integer(uint8_t sign, uint64_t size, const uint64_t* recv_digits, const struct CryValImporter* res) {
-    uint64_t* send_digits = CRY_FFI(res,send_new_large_int,size);
-    memcpy(send_digits, recv_digits, size * sizeof(uint64_t));
-    CRY_FFI(res,send_sign,sign);
+void test_i128(const struct CryValExporter* args, const struct CryValImporter* res) {
+    test_u128(args, res);
 }
 
 void test_integer(const struct CryValExporter* args, const struct CryValImporter* res) {
@@ -219,6 +234,16 @@ void test_two_u8_args(const struct CryValExporter* args, const struct CryValImpo
     assert(CRY_FFI(args,recv_u8,&v1) == 0);
 
     CRY_FFI(res,send_small_uint,(uint64_t)(v0 - v1));
+}
+
+void test_two_u128_res(const struct CryValExporter* args, const struct CryValImporter* res) {
+    uint64_t size;
+    uint64_t* digits = recv_integer_size_and_digits(&size, args);
+
+    send_integer(0, size, digits, res);
+    send_integer(0, size, digits, res);
+
+    free(digits);
 }
 
 void test_z7(const struct CryValExporter* args, const struct CryValImporter* res) {

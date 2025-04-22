@@ -4,10 +4,12 @@ void test_u8(const struct CryValExporter * args, const struct CryValImporter * r
 void test_u16(const struct CryValExporter * args, const struct CryValImporter * res);
 void test_u32(const struct CryValExporter * args, const struct CryValImporter * res);
 void test_u64(const struct CryValExporter * args, const struct CryValImporter * res);
+void test_u128(const struct CryValExporter * args, const struct CryValImporter * res);
 void test_i8(const struct CryValExporter * args, const struct CryValImporter * res);
 void test_i16(const struct CryValExporter * args, const struct CryValImporter * res);
 void test_i32(const struct CryValExporter * args, const struct CryValImporter * res);
 void test_i64(const struct CryValExporter * args, const struct CryValImporter * res);
+void test_i128(const struct CryValExporter * args, const struct CryValImporter * res);
 void test_integer(const struct CryValExporter * args, const struct CryValImporter * res);
 void test_rational(const struct CryValExporter * args, const struct CryValImporter * res);
 void test_float(const struct CryValExporter * args, const struct CryValImporter * res);
@@ -22,5 +24,6 @@ void test_newtype_u8(const struct CryValExporter * args, const struct CryValImpo
 void test_option_u8(const struct CryValExporter * args, const struct CryValImporter * res);
 void test_result_u16_u32(const struct CryValExporter * args, const struct CryValImporter * res);
 void test_two_u8_args(const struct CryValExporter * args, const struct CryValImporter * res);
+void test_two_u128_res(const struct CryValExporter * args, const struct CryValImporter * res);
 void test_z7(const struct CryValExporter * args, const struct CryValImporter * res);
 void test_param(const struct CryValExporter * args, const struct CryValImporter * res);
