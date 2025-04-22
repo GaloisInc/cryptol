@@ -70,6 +70,11 @@ pub extern "C" fn test_two_u128_res(args: &CryValExporter, res: &CryValImporter)
 }
 
 #[no_mangle]
+pub extern "C" fn test_z7(args: &CryValExporter, res: &CryValImporter) {
+    test_integer(args, res);
+}
+
+#[no_mangle]
 pub extern "C" fn test_param(args: &CryValExporter, res: &CryValImporter) {
     let param: BigUint = recv_type_param(args);
     param.send(res);
