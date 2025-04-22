@@ -732,11 +732,11 @@ macro_rules! exportable_tuple {
 /* 16 */ exportable_tuple!(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P);
 
 /// Export a numeric type parameter in a polymorphic foreign function.
-pub fn recv_type_param(res: &CryValExporter) -> BigUint {
-    let param_u64 = u64::recv(res);
+pub fn recv_type_param(args: &CryValExporter) -> BigUint {
+    let param_u64 = u64::recv(args);
     let param_is_large: bool = param_u64 == u64::MAX;
     if param_is_large {
-        BigUint::recv(res)
+        BigUint::recv(args)
     } else {
         BigUint::from(param_u64)
     }
