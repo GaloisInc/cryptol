@@ -276,7 +276,10 @@ impl Importable for BigInt {
 
 impl Importable for BigUint {
     fn send(&self, res: &CryValImporter) {
-        self.to_bigint().send(res)
+        self
+          .to_bigint()
+          .expect("BigUint cannot be represented as a BigInt value")
+          .send(res)
     }
 }
 

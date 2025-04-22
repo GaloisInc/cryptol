@@ -35,3 +35,4 @@ test_result_u16_u32 (Err 2)
 test_two_u8_args 7 4
 test_two_u128_res (2^^65)
 test_param`{4}
+test_param`{2^^64}

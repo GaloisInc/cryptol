@@ -4,7 +4,7 @@
 //! in tandem with the `Example.cry` file's `foreign` functions.
 
 use cry_ffi::*;
-use num::{BigInt, BigRational, BigUint, ToPrimitive};
+use num::{BigInt, BigRational, BigUint};
 
 macro_rules! test_fn {
     ($name:ident, $t:ty) => {
@@ -72,8 +72,5 @@ pub extern "C" fn test_two_u128_res(args: &CryValExporter, res: &CryValImporter)
 #[no_mangle]
 pub extern "C" fn test_param(args: &CryValExporter, res: &CryValImporter) {
     let param: BigUint = recv_type_param(args);
-    match param.to_u64() {
-        Some(n) => n.send(res),
-        None => panic!("Type argument too large to fit into [64]: {:?}", param),
-    };
+    param.send(res);
 }
