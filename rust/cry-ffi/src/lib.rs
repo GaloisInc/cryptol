@@ -464,6 +464,15 @@ pub struct Len(pub usize);
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Bits(pub usize);
 
+/// A newtype around [`BigUint`] that denotes the `modulus` of a Cryptol `Z`
+/// value. Unlike [`BigUint`], [`Modulus`] intentionally does not implement
+/// [`Default`]. This is because [`BigUint`] is used as the choice of
+/// `Parameters` for some [`Exportable`] impls, and the lack of a [`Default`]
+/// impl pushes users to think carefully about what modulus to use when
+/// exporting.
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct Modulus(pub BigUint);
+
 impl Exportable for bool {
     type Parameters = ();
     fn recv_with(_params: Self::Parameters, args: &CryValExporter) -> Self {
