@@ -19,7 +19,8 @@ macro_rules! test_fn {
 struct N { un_n: u8 }
 
 impl Exportable for N {
-    fn recv(args: &CryValExporter) -> Self {
+    type Parameters = ();
+    fn recv_with(_params: Self::Parameters, args: &CryValExporter) -> Self {
         N { un_n: u8::recv(args) }
     }
 }

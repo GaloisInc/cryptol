@@ -406,21 +406,66 @@ pub struct CryValExporter<'a> {
 /// Cryptol. This should be used to get a foreign function's arguments from the
 /// Cryptol interpreter.
 ///
-/// This trait works as long as the type has a fixed size. For non-fixed-size
-/// types, you will need to use a separate function. For example:
-///
-/// * [`recv_slice`] or [`recv_vec`], which export slices and `Vec`s whose
-///   lengths are determined at runtime.
-///
-/// * [`recv_type_param`], which exports a numeric type parameter in a
-///   polymorphic foreign function.
-pub trait Exportable {
-    /// Export a foreign value from Cryptol.
-    fn recv(args: &CryValExporter) -> Self;
+/// See also the [`recv_type_param`] function, which exports a numeric type
+/// parameter in a polymorphic foreign function.
+pub trait Exportable: Sized {
+    /// This allows users to constrain the shape of values that are exported.
+    /// Many [`Exportable`] impls do not require any additional parameters, so
+    /// it is acceptable for these impls to simply define `Parameters = ()`.
+    /// (See also `recv`, which exports a value with [`default()`] parameters.)
+    /// Other types cannot feasibly be exported with additional information.
+    /// For instance, a [`Vec`] value cannot be exported without knowing its
+    /// length, so the [`Exportable`] impl for [`Vec`] defines
+    /// `Parameters = Len`.
+    ///
+    /// [`default()`]:
+    ///     https://doc.rust-lang.org/nightly/std/default/trait.Default.html
+    type Parameters: Clone;
+
+    /// Export a foreign value from Cryptol. Calling `T::recv(args)` is
+    /// equivalent to calling `T::recv_with(Default::default(), args)`.
+    ///
+    /// This method is defined in the trait for optimizing [`default()`]
+    /// parameters if you want to do that. It is a logic error to not preserve
+    /// the semantics when overriding.
+    ///
+    /// [`default()`]:
+    ///     https://doc.rust-lang.org/nightly/std/default/trait.Default.html
+    fn recv(args: &CryValExporter) -> Self
+    where
+        Self::Parameters: Default,
+    {
+        Self::recv_with(Default::default(), args)
+    }
+
+    /// Export a foreign value from Cryptol using the supplied `Parameters`. If
+    /// you wish to use the [`default()`] parameters, use `recv` instead.
+    ///
+    /// [`default()`]:
+    ///     https://doc.rust-lang.org/nightly/std/default/trait.Default.html
+    fn recv_with(params: Self::Parameters, args: &CryValExporter) -> Self;
 }
 
+/// A newtype around [`usize`] that denotes the length of a collection such as a
+/// [`Vec`] or a slice. Unlike [`usize`], [`Len`] intentionally does not
+/// implement [`Default`]. This is because [`Len`] is used as a choice of
+/// `Parameters` for some [`Exportable`] impls, and the lack of a [`Default`]
+/// impl pushes users to think carefully about what length to use when
+/// exporting.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct Len(pub usize);
+
+/// A newtype around [`usize`] that denotes the number of bits in a numeric
+/// type. Unlike [`usize`], [`Bits`] intentionally does not implement
+/// [`Default`]. This is because [`Bits`] is used as a choice of `Parameters`
+/// for some [`Exportable`] impls, and the lack of a [`Default`] impl pushes
+/// users to think carefully about what number of bits to use when exporting.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct Bits(pub usize);
+
 impl Exportable for bool {
-    fn recv(args: &CryValExporter) -> Self {
+    type Parameters = ();
+    fn recv_with(_params: Self::Parameters, args: &CryValExporter) -> Self {
         let mut v: u8 = 0;
         assert!(cry_ffi!(args, recv_u8, &mut v) == 0);
         v != 0
@@ -428,7 +473,8 @@ impl Exportable for bool {
 }
 
 impl Exportable for u8 {
-    fn recv(args: &CryValExporter) -> Self {
+    type Parameters = ();
+    fn recv_with(_params: Self::Parameters, args: &CryValExporter) -> Self {
         let mut v: u8 = 0;
         assert!(cry_ffi!(args, recv_u8, &mut v) == 0);
         v
@@ -436,7 +482,8 @@ impl Exportable for u8 {
 }
 
 impl Exportable for u16 {
-    fn recv(args: &CryValExporter) -> Self {
+    type Parameters = ();
+    fn recv_with(_params: Self::Parameters, args: &CryValExporter) -> Self {
         let mut v: u64 = 0;
         assert!(cry_ffi!(args, recv_u64, &mut v) == 0);
         v as u16
@@ -444,7 +491,8 @@ impl Exportable for u16 {
 }
 
 impl Exportable for u32 {
-    fn recv(args: &CryValExporter) -> Self {
+    type Parameters = ();
+    fn recv_with(_params: Self::Parameters, args: &CryValExporter) -> Self {
         let mut v: u64 = 0;
         assert!(cry_ffi!(args, recv_u64, &mut v) == 0);
         v as u32
@@ -452,7 +500,8 @@ impl Exportable for u32 {
 }
 
 impl Exportable for u64 {
-    fn recv(args: &CryValExporter) -> Self {
+    type Parameters = ();
+    fn recv_with(_params: Self::Parameters, args: &CryValExporter) -> Self {
         let mut v: u64 = 0;
         assert!(cry_ffi!(args, recv_u64, &mut v) == 0);
         v
@@ -460,7 +509,8 @@ impl Exportable for u64 {
 }
 
 impl Exportable for u128 {
-    fn recv(args: &CryValExporter) -> Self {
+    type Parameters = ();
+    fn recv_with(_params: Self::Parameters, args: &CryValExporter) -> Self {
         let digits: Vec<u32> = recv_integer_size_and_digits(args);
         BigUint::new(digits)
           .to_u128()
@@ -469,37 +519,43 @@ impl Exportable for u128 {
 }
 
 impl Exportable for i8 {
-    fn recv(args: &CryValExporter) -> Self {
+    type Parameters = ();
+    fn recv_with(_params: Self::Parameters, args: &CryValExporter) -> Self {
         u8::recv(args) as i8
     }
 }
 
 impl Exportable for i16 {
-    fn recv(args: &CryValExporter) -> Self {
+    type Parameters = ();
+    fn recv_with(_params: Self::Parameters, args: &CryValExporter) -> Self {
         u16::recv(args) as i16
     }
 }
 
 impl Exportable for i32 {
-    fn recv(args: &CryValExporter) -> Self {
+    type Parameters = ();
+    fn recv_with(_params: Self::Parameters, args: &CryValExporter) -> Self {
         u32::recv(args) as i32
     }
 }
 
 impl Exportable for i64 {
-    fn recv(args: &CryValExporter) -> Self {
+    type Parameters = ();
+    fn recv_with(_params: Self::Parameters, args: &CryValExporter) -> Self {
         u64::recv(args) as i64
     }
 }
 
 impl Exportable for i128 {
-    fn recv(args: &CryValExporter) -> Self {
+    type Parameters = ();
+    fn recv_with(_params: Self::Parameters, args: &CryValExporter) -> Self {
         u128::recv(args) as i128
     }
 }
 
 impl Exportable for f32 {
-    fn recv(args: &CryValExporter) -> Self {
+    type Parameters = ();
+    fn recv_with(_params: Self::Parameters, args: &CryValExporter) -> Self {
         let mut v: f64 = 0.0;
         assert!(cry_ffi!(args, recv_double, &mut v) == 0);
         v as f32
@@ -507,7 +563,8 @@ impl Exportable for f32 {
 }
 
 impl Exportable for f64 {
-    fn recv(args: &CryValExporter) -> Self {
+    type Parameters = ();
+    fn recv_with(_params: Self::Parameters, args: &CryValExporter) -> Self {
         let mut v: f64 = 0.0;
         assert!(cry_ffi!(args, recv_double, &mut v) == 0);
         v
@@ -611,7 +668,8 @@ fn recv_integer_size_and_digits(args: &CryValExporter) -> Vec<u32> {
 }
 
 impl Exportable for BigInt {
-    fn recv(args: &CryValExporter) -> Self {
+    type Parameters = ();
+    fn recv_with(_params: Self::Parameters, args: &CryValExporter) -> Self {
         let mut sign_u8: u8 = 0;
         assert!(cry_ffi!(args, recv_u8, &mut sign_u8) == 0);
         let sign: Sign =
@@ -627,13 +685,15 @@ impl Exportable for BigInt {
 }
 
 impl Exportable for BigUint {
-    fn recv(args: &CryValExporter) -> Self {
+    type Parameters = ();
+    fn recv_with(_params: Self::Parameters, args: &CryValExporter) -> Self {
         BigInt::recv(args).to_biguint().expect("negative BigInt")
     }
 }
 
 impl Exportable for BigRational {
-    fn recv(args: &CryValExporter) -> Self {
+    type Parameters = ();
+    fn recv_with(_params: Self::Parameters, args: &CryValExporter) -> Self {
         let numer = BigInt::recv(args);
         let denom = BigInt::recv(args);
         BigRational::new(numer, denom)
@@ -641,43 +701,50 @@ impl Exportable for BigRational {
 }
 
 impl <T: Exportable, const N: usize> Exportable for [T; N] {
-    fn recv(args: &CryValExporter) -> Self {
+    type Parameters = T::Parameters;
+    fn recv_with(params: Self::Parameters, args: &CryValExporter) -> Self {
         let mut arr: [MaybeUninit<T>; N] = [const { MaybeUninit::uninit() }; N];
 
         for elem in arr.iter_mut() {
-            elem.write(T::recv(args));
+            elem.write(T::recv_with(params.clone(), args));
         }
 
         unsafe { mem::transmute_copy::<_, [T; N]>(&arr) }
     }
 }
 
-/// Export a [`Vec`] with `len` elements.
-pub fn recv_vec<T: Exportable>(len: usize, args: &CryValExporter) -> Vec<T> {
-    let mut vec: Vec<T> = Vec::with_capacity(len);
-    let remaining = vec.spare_capacity_mut();
+impl <T: Exportable> Exportable for Vec<T> {
+    type Parameters = (Len, T::Parameters);
+    fn recv_with(params: Self::Parameters, args: &CryValExporter) -> Self {
+        let (Len(len), t_params) = params;
+        let mut vec: Vec<T> = Vec::with_capacity(len);
+        let remaining = vec.spare_capacity_mut();
 
-    for elem in remaining.iter_mut() {
-        elem.write(T::recv(args));
+        for elem in remaining.iter_mut() {
+            elem.write(T::recv_with(t_params.clone(), args));
+        }
+
+        vec
     }
-
-    vec
 }
 
-/// Export a slice with `len` elements.
-pub fn recv_slice<T: Exportable>(len: usize, args: &CryValExporter) -> Box<[T]> {
-    let vec: Vec<T> = recv_vec(len, args);
-    vec.into_boxed_slice()
+impl <T: Exportable> Exportable for Box<[T]> {
+    type Parameters = (Len, T::Parameters);
+    fn recv_with(params: Self::Parameters, args: &CryValExporter) -> Self {
+        let vec = Vec::<T>::recv_with(params, args);
+        vec.into_boxed_slice()
+    }
 }
 
 impl<T: Exportable> Exportable for Option<T> {
-    fn recv(args: &CryValExporter) -> Self {
+    type Parameters = T::Parameters;
+    fn recv_with(params: Self::Parameters, args: &CryValExporter) -> Self {
         let mut tag: u64 = 0;
         assert!(cry_ffi!(args, recv_u64, &mut tag) == 0);
         match tag {
             0 => None,
             1 => {
-                let v = T::recv(args);
+                let v = T::recv_with(params, args);
                 Some(v)
             },
             _ => panic!("Unexpected tag for Option: {:?}", tag),
@@ -686,16 +753,18 @@ impl<T: Exportable> Exportable for Option<T> {
 }
 
 impl<T: Exportable, E: Exportable> Exportable for Result<T, E> {
-    fn recv(args: &CryValExporter) -> Self {
+    type Parameters = (T::Parameters, E::Parameters);
+    fn recv_with(params: Self::Parameters, args: &CryValExporter) -> Self {
+        let (t_params, e_params) = params;
         let mut tag: u64 = 0;
         assert!(cry_ffi!(args, recv_u64, &mut tag) == 0);
         match tag {
             0 => {
-                let t = T::recv(args);
+                let t = T::recv_with(t_params, args);
                 Ok(t)
             },
             1 => {
-                let e = E::recv(args);
+                let e = E::recv_with(e_params, args);
                 Err(e)
             },
             _ => panic!("Unexpected tag for Result: {:?}", tag),
@@ -706,33 +775,34 @@ impl<T: Exportable, E: Exportable> Exportable for Result<T, E> {
 /// A macro to automate defining `Exportable` instances for tuples. To export a
 /// tuple, we export all of its fields from left to right.
 macro_rules! exportable_tuple {
-    ($($t:ident),*) => {
+    ($($idx:tt $t:ident),*) => {
         impl<$($t: Exportable),*> Exportable for ($($t,)*)
         {
-            fn recv(_args: &CryValExporter) -> Self {
-                ($($t::recv(_args),)*)
+            type Parameters = ($($t::Parameters,)*);
+            fn recv_with(_params: Self::Parameters, _args: &CryValExporter) -> Self {
+                ($($t::recv_with(_params.$idx, _args),)*)
             }
         }
     };
 }
 
 /*  0 */ exportable_tuple!();
-/*  1 */ exportable_tuple!(A);
-/*  2 */ exportable_tuple!(A, B);
-/*  3 */ exportable_tuple!(A, B, C);
-/*  4 */ exportable_tuple!(A, B, C, D);
-/*  5 */ exportable_tuple!(A, B, C, D, E);
-/*  6 */ exportable_tuple!(A, B, C, D, E, F);
-/*  7 */ exportable_tuple!(A, B, C, D, E, F, G);
-/*  8 */ exportable_tuple!(A, B, C, D, E, F, G, H);
-/*  9 */ exportable_tuple!(A, B, C, D, E, F, G, H, I);
-/* 10 */ exportable_tuple!(A, B, C, D, E, F, G, H, I, J);
-/* 11 */ exportable_tuple!(A, B, C, D, E, F, G, H, I, J, K);
-/* 12 */ exportable_tuple!(A, B, C, D, E, F, G, H, I, J, K, L);
-/* 13 */ exportable_tuple!(A, B, C, D, E, F, G, H, I, J, K, L, M);
-/* 14 */ exportable_tuple!(A, B, C, D, E, F, G, H, I, J, K, L, M, N);
-/* 15 */ exportable_tuple!(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O);
-/* 16 */ exportable_tuple!(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P);
+/*  1 */ exportable_tuple!(0 A);
+/*  2 */ exportable_tuple!(0 A, 1 B);
+/*  3 */ exportable_tuple!(0 A, 1 B, 2 C);
+/*  4 */ exportable_tuple!(0 A, 1 B, 2 C, 3 D);
+/*  5 */ exportable_tuple!(0 A, 1 B, 2 C, 3 D, 4 E);
+/*  6 */ exportable_tuple!(0 A, 1 B, 2 C, 3 D, 4 E, 5 F);
+/*  7 */ exportable_tuple!(0 A, 1 B, 2 C, 3 D, 4 E, 5 F, 6 G);
+/*  8 */ exportable_tuple!(0 A, 1 B, 2 C, 3 D, 4 E, 5 F, 6 G, 7 H);
+/*  9 */ exportable_tuple!(0 A, 1 B, 2 C, 3 D, 4 E, 5 F, 6 G, 7 H, 8 I);
+/* 10 */ exportable_tuple!(0 A, 1 B, 2 C, 3 D, 4 E, 5 F, 6 G, 7 H, 8 I, 9 J);
+/* 11 */ exportable_tuple!(0 A, 1 B, 2 C, 3 D, 4 E, 5 F, 6 G, 7 H, 8 I, 9 J, 10 K);
+/* 12 */ exportable_tuple!(0 A, 1 B, 2 C, 3 D, 4 E, 5 F, 6 G, 7 H, 8 I, 9 J, 10 K, 11 L);
+/* 13 */ exportable_tuple!(0 A, 1 B, 2 C, 3 D, 4 E, 5 F, 6 G, 7 H, 8 I, 9 J, 10 K, 11 L, 12 M);
+/* 14 */ exportable_tuple!(0 A, 1 B, 2 C, 3 D, 4 E, 5 F, 6 G, 7 H, 8 I, 9 J, 10 K, 11 L, 12 M, 13 N);
+/* 15 */ exportable_tuple!(0 A, 1 B, 2 C, 3 D, 4 E, 5 F, 6 G, 7 H, 8 I, 9 J, 10 K, 11 L, 12 M, 13 N, 14 O);
+/* 16 */ exportable_tuple!(0 A, 1 B, 2 C, 3 D, 4 E, 5 F, 6 G, 7 H, 8 I, 9 J, 10 K, 11 L, 12 M, 13 N, 14 O, 15 P);
 
 /// Export a numeric type parameter in a polymorphic foreign function.
 pub fn recv_type_param(args: &CryValExporter) -> BigUint {
