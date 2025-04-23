@@ -456,10 +456,11 @@ pub trait Exportable: Sized {
 pub struct Len(pub usize);
 
 /// A newtype around [`usize`] that denotes the number of bits in a numeric
-/// type. Unlike [`usize`], [`Bits`] intentionally does not implement
-/// [`Default`]. This is because [`Bits`] is used as a choice of `Parameters`
-/// for some [`Exportable`] impls, and the lack of a [`Default`] impl pushes
-/// users to think carefully about what number of bits to use when exporting.
+/// type (e.g., the `n` in Cryptol's `[n]` word type). Unlike [`usize`],
+/// [`Bits`] intentionally does not implement [`Default`]. This is because
+/// [`Bits`] is used as a choice of `Parameters` for some [`Exportable`] impls,
+/// and the lack of a [`Default`] impl pushes users to think carefully about
+/// what number of bits to use when exporting.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Bits(pub usize);
 
