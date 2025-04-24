@@ -1,3 +1,4 @@
+{-# LANGUAGE InstanceSigs #-}
 module Cryptol.IR.FreeVars
   ( FreeVars(..)
   , Deps(..)
@@ -11,6 +12,7 @@ import           Data.Map ( Map )
 import qualified Data.Map as Map
 
 import Cryptol.TypeCheck.AST
+import Cryptol.TypeCheck.FFI.FFIType
 import Cryptol.Utils.Panic ( panic )
 import Cryptol.Utils.RecordMap
 
@@ -102,11 +104,19 @@ instance FreeVars Decl where
 
 
 instance FreeVars DeclDef where
+  freeVars :: DeclDef -> Deps
   freeVars d = case d of
                  DPrim -> mempty
-                 DForeign _ me -> foldMap freeVars me
+                 DForeign t me -> freeVars t <> foldMap freeVars me
                  DExpr e -> freeVars e
 
+instance FreeVars FFI where
+  freeVars c =
+    case c of
+      CallC _ -> mempty
+      CallAbstract t ->
+        let vs = freeVars (ffiArgTypes t) <> freeVars (ffiRetType t)
+        in foldr rmTParam vs (ffiTParams t)
 
 instance FreeVars Expr where
   freeVars expr =

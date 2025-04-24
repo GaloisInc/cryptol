@@ -103,7 +103,7 @@ expandBind :: Bind PName -> ExpandPropGuardsM [Bind PName]
 expandBind bind =
   case thing (bDef bind) of
     DImpl (DPropGuards guards) -> expand (DImpl . DPropGuards) guards
-    DForeign (Just (DPropGuards guards)) -> expand (DForeign . Just . DPropGuards) guards
+    DForeign cc (Just (DPropGuards guards)) -> expand (DForeign cc . Just . DPropGuards) guards
     _ ->
       do checkNestedGuardsInBind bind
          pure [bind]
@@ -250,7 +250,7 @@ checkNestedGuardsInBind bind =
   case thing (bDef bind) of
     DPrim         -> pure ()
     DImpl bi      -> checkNestedGuardsInBindImpl bi
-    DForeign mbBi -> traverse_ checkNestedGuardsInBindImpl mbBi
+    DForeign _ mbBi -> traverse_ checkNestedGuardsInBindImpl mbBi
   where
     nestedConstraintGuards :: ExpandPropGuardsM ()
     nestedConstraintGuards = Left . NestedConstraintGuard $ bName bind

@@ -37,6 +37,7 @@ module GHC.Num.Compat
 
     -- * Conversions
   , bigNatToInteger
+  , bigNatToNegInteger
   , integerToBigNat
   ) where
 
@@ -51,6 +52,10 @@ import           GHC.Exts
 -- | Coerce a @BigNat#@ to an integer value.
 bigNatToInteger :: BigNat# -> Integer
 bigNatToInteger = Integer.integerFromBigNat#
+
+-- | Coerce a @BigNat#@ to a negative integer value.
+bigNatToNegInteger :: BigNat# -> Integer
+bigNatToNegInteger = Integer.integerFromBigNatNeg#
 
 -- | @'integerRecipMod' x m@ computes the modular inverse of @x@ mod @m@.
 --
@@ -86,7 +91,7 @@ testBitBigNat bn i = isTrue# (BN.bigNatTestBit# bn (int2Word# i))
 zeroBigNat :: (# #) -> BigNat#
 zeroBigNat _ = BN.bigNatFromWord# 0##
 #else
-import           GHC.Integer.GMP.Internals (bigNatToInteger, recipModBigNat, shiftLBigNat, shiftRBigNat, testBitBigNat)
+import           GHC.Integer.GMP.Internals (bigNatToInteger, bigNatToNegInteger, recipModBigNat, shiftLBigNat, shiftRBigNat, testBitBigNat)
 import qualified GHC.Integer.GMP.Internals as GMP
 import           GHC.Exts
 

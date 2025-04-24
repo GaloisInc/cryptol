@@ -13,11 +13,11 @@ Copyright:           2013-2025 Galois Inc.
 Category:            Language
 Build-type:          Simple
 extra-source-files:  bench/data/*.cry
-                     lib/*.cry lib/*.z3
+                     lib/*.cry lib/*.z3 lib/*.h
 
 extra-doc-files:     CHANGES.md
 
-data-files:          **/*.cry **/*.z3
+data-files:          **/*.cry **/*.z3 **/*.h
 data-dir:            lib
 
 source-repository head
@@ -75,6 +75,7 @@ library
                        pretty,
                        prettyprinter     >= 1.7.0,
                        pretty-show,
+                       primitive,
                        process           >= 1.2,
                        sbv               >= 9.1 && < 10.11,
                        simple-smt        >= 0.9.8,
@@ -98,6 +99,7 @@ library
   if flag(ffi)
     build-depends:     hgmp,
                        libffi            >= 0.2
+    include-dirs:      lib
     if os(windows)
       build-depends:   Win32
     else
@@ -204,8 +206,7 @@ library
                        Cryptol.Backend,
                        Cryptol.Backend.Arch,
                        Cryptol.Backend.Concrete,
-                       Cryptol.Backend.FFI,
-                       Cryptol.Backend.FFI.Error,
+
                        Cryptol.Backend.FloatHelpers,
                        Cryptol.Backend.Monad,
                        Cryptol.Backend.SeqMap,
@@ -217,6 +218,13 @@ library
                        Cryptol.Eval.Concrete,
                        Cryptol.Eval.Env,
                        Cryptol.Eval.FFI,
+                       Cryptol.Eval.FFI.ForeignSrc,
+                       Cryptol.Eval.FFI.Error,
+                       Cryptol.Eval.FFI.C,
+                       Cryptol.Eval.FFI.Abstract,
+                       Cryptol.Eval.FFI.Abstract.Call,
+                       Cryptol.Eval.FFI.Abstract.Export,
+                       Cryptol.Eval.FFI.Abstract.Import,
                        Cryptol.Eval.FFI.GenHeader,
                        Cryptol.Eval.Generic,
                        Cryptol.Eval.Prims,

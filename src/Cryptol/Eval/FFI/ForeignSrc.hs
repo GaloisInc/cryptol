@@ -11,7 +11,7 @@
 
 -- | The implementation of loading and calling external functions from shared
 -- libraries.
-module Cryptol.Backend.FFI
+module Cryptol.Eval.FFI.ForeignSrc
   ( ForeignSrc
   , getForeignSrcPath
   , loadForeignSrc
@@ -30,7 +30,7 @@ module Cryptol.Backend.FFI
 
 import           Control.DeepSeq
 
-import           Cryptol.Backend.FFI.Error
+import           Cryptol.Eval.FFI.Error
 
 #ifdef FFI_ENABLED
 

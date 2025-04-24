@@ -895,9 +895,21 @@ mkPrimDecl :: Maybe (Located Text) -> LPName -> Schema PName -> [TopDecl PName]
 mkPrimDecl = mkNoImplDecl DPrim
 
 mkForeignDecl ::
-  Maybe (Located Text) -> LPName -> Schema PName -> ParseM [TopDecl PName]
-mkForeignDecl mbDoc nm ty =
+  Maybe (Located Text) -> Maybe LPName -> LPName -> Schema PName -> ParseM [TopDecl PName]
+mkForeignDecl mbDoc mbCC nm ty =
   do let txt = unpackIdent (getIdent (thing nm))
+     fgn <- case mbCC of
+              Nothing -> pure ForeignC
+              Just cc ->
+                case thing cc of
+                  UnQual i
+                     | tx == "c" -> pure ForeignC
+                     | tx == "abstract" -> pure ForeignAbstract
+                     where tx = identText i
+                  _ -> errorMessage (srcRange cc)
+                          [ "Invalid calling convention."
+                          , "We support `c` and `abstract` at present."
+                          ]
      unless (all isOk txt)
        (errorMessage (srcRange nm)
             [ "`" ++ txt ++ "` is not a valid foreign name."
@@ -907,7 +919,7 @@ mkForeignDecl mbDoc nm ty =
      -- will be merged with this binding in the NoPat pass. In the parser they
      -- are just treated as a completely separate (non-foreign) binding with the
      -- same name.
-     pure (mkNoImplDecl (DForeign Nothing) mbDoc nm ty)
+     pure (mkNoImplDecl (DForeign fgn Nothing) mbDoc nm ty)
   where
   isOk c = c == '_' || isAlphaNum c
 

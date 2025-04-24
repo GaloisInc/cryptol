@@ -341,7 +341,9 @@ prim_bind               :: { [TopDecl PName] }
   | mbDoc 'primitive' 'type' schema ':' kind {% mkPrimTypeDecl $1 $4 $6 }
 
 foreign_bind            :: { [TopDecl PName] }
-  : mbDoc 'foreign' name ':' schema          {% mkForeignDecl $1 $3 $5 }
+  : mbDoc 'foreign' name ':' schema       {% mkForeignDecl $1 Nothing $3 $5 }
+  | mbDoc 'foreign' name name ':' schema  {% mkForeignDecl $1 (Just $3) $4 $6 }
+  
 
 parameter_decls         :: { TopDecl PName }
   : 'parameter' 'v{' par_decls 'v}' { mkParDecls (reverse $3) }

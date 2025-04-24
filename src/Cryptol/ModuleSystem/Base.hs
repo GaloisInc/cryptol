@@ -60,7 +60,7 @@ import Cryptol.ModuleSystem.Env ( DynamicEnv(..),FileInfo(..),fileInfo
                                 , ModContext(..), ModContextParams(..)
                                 , ModulePath(..), modulePathLabel
                                 , EvalForeignPolicy (..))
-import           Cryptol.Backend.FFI
+import           Cryptol.Eval.FFI.ForeignSrc
 import qualified Cryptol.Eval                 as E
 import qualified Cryptol.Eval.Concrete as Concrete
 import           Cryptol.Eval.Concrete (Concrete(..))
@@ -79,7 +79,7 @@ import qualified Cryptol.TypeCheck     as T
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck.PP as T
 import qualified Cryptol.TypeCheck.Sanity as TcSanity
-import qualified Cryptol.Backend.FFI.Error as FFI
+import qualified Cryptol.Eval.FFI.Error as FFI
 
 import Cryptol.Utils.Ident ( preludeName, floatName, arrayName, suiteBName, primeECName
                            , preludeReferenceName, interactiveName, modNameChunks
