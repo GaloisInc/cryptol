@@ -35,8 +35,8 @@ Loading module Main
   When checking the type of 'Main::badFloatSizes'
 [error] at ffi-type-errors.cry:5:9--6:59:
   Type unsupported for FFI:
-    [n`962] -> [n`962]([16], [16]) -> [n`962][4][8]{a : [n`962],
-     b : [2]}
+    [n`962] ->
+    [n`962]([16], [16]) -> [n`962][4][8]{a : [n`962], b : [2]}
     Due to:
       Type unsupported for FFI:
         [n`962]
