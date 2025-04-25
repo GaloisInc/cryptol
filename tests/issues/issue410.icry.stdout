@@ -2,11 +2,7 @@ Loading module Cryptol
 {n, a} (Logic a) => n == min (1 + n) n
 (s
  where
-   s x =
-       (bs
-        where
-          bs = [~b | b <- [~x] # bs
-                   | _ <- bs])) :
+   s x = (bs where bs = [~b | b <- [~x] # bs | _ <- bs])) :
   {n, a} (Logic a) => a -> [n]a
 (bs where bs = [b | b <- bs]) : {n, a} [n]a
 [b | b <- [True]] : [1]
