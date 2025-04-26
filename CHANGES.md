@@ -1,6 +1,16 @@
 # next -- TBA
 
-Nothing yet.
+## Language changes
+
+* `foreign` function declarations now support an optional calling convention
+  keyword. See the [manual
+  section](https://galoisinc.github.io/cryptol/master/FFI.html#calling-conventions)
+  for more information.
+
+* Add an `abstract` calling convention, where Cryptol values are marshalled
+  using an abstract interface. See the [manual
+  section](https://galoisinc.github.io/cryptol/master/FFI.html#the-abstract-calling-convention)
+  for more information.
 
 # 3.3.0 -- 2025-03-21
 
