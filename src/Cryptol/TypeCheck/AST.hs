@@ -604,7 +604,7 @@ gatherModuleDocstrings nameToModule m =
   [DocItem
     { docModContext = lookupModuleName (dName d)
     , docFor = DocForDef (dName d)
-    , docText = maybeToList (dDoc d)
+    , docText = maybeToList (dDoc d <> exhaustBoolProp d)
     } | g <- mDecls m, d <- groupDecls g] ++
   [DocItem
     { docModContext = ImpNested n
