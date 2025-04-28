@@ -22,27 +22,27 @@ Checking module T10
   Docstrings on T10::where_at__30_11::N
   Docstrings on T10::F1::N
   Docstrings on T10::M::q
-    :exhaust q
+    :exhaust q // implicit
       Using exhaustive testing.
       Testing... Passed 1 tests.
       Q.E.D.
   Docstrings on T10::M::r
-    :exhaust r
+    :exhaust r // implicit
       Using exhaustive testing.
       Testing... Passed 1 tests.
       Q.E.D.
   Docstrings on T10::F1::s
-    :exhaust s
+    :exhaust s // implicit
       Using exhaustive testing.
       Testing... Passed 1 tests.
       Q.E.D.
   Docstrings on T10::F1::t
-    :exhaust t
+    :exhaust t // implicit
       Using exhaustive testing.
       Testing... Passed 1 tests.
       Q.E.D.
   Docstrings on T10::p
-    :exhaust p
+    :exhaust p // implicit
       Using exhaustive testing.
       Testing... Passed 1 tests.
       Q.E.D.

@@ -624,5 +624,5 @@ gatherModuleDocstrings nameToModule m =
 
     exhaustBoolProp d =
       if (tIsBit . sType . dSignature) d && PragmaProperty `elem` dPragmas d
-      then Just $ "```\n" <> ":exhaust " <> (identText . nameIdent) (dName d) <> "\n```"
+      then Just $ "```\n" <> ":exhaust " <> (identText . nameIdent) (dName d) <> " // implicit" <> "\n```"
       else Nothing

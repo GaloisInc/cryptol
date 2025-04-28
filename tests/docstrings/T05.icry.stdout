@@ -12,7 +12,7 @@ Checking module T05
       Using exhaustive testing.
       Testing... Passed 1 tests.
       Q.E.D.
-    :exhaust p
+    :exhaust p // implicit
       Using exhaustive testing.
       Testing... Passed 1 tests.
       Q.E.D.
