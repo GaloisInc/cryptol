@@ -33,7 +33,7 @@ module Cryptol.TypeCheck.AST
 
 import Data.Maybe(catMaybes)
 import Cryptol.Utils.Panic(panic)
-import Cryptol.Utils.Ident (Ident,isInfixIdent,ModName,PrimIdent,prelPrim)
+import Cryptol.Utils.Ident (Ident,identText,isInfixIdent,ModName,PrimIdent,prelPrim)
 import Cryptol.Parser.Position(Located, HasLoc(..), Range)
 import Cryptol.ModuleSystem.Name
 import Cryptol.ModuleSystem.NamingEnv.Types
@@ -621,3 +621,8 @@ gatherModuleDocstrings nameToModule m =
       case Map.lookup n nameToModule of
         Just x -> x
         Nothing -> panic "gatherModuleDocstrings" ["No owning module for name:", show (pp n)]
+
+    exhaustBoolProp d =
+      if (tIsBit . sType . dSignature) d && PragmaProperty `elem` dPragmas d
+      then Just $ "```\n" <> ":exhaust " <> (identText . nameIdent) (dName d) <> "\n```"
+      else Nothing
