@@ -165,6 +165,13 @@ success of all the REPL commands.
   f : [8] -> [8]
   f x = 2 * x
 
+When you define a ``property p`` of type ``Bit``, there is special
+behavior for docstring checks.
+
+If no docstring is provided, *or* if the provided docstring contains
+no code blocks that would be checked with ``:check-docstrings``, then
+``:check-docstrings`` will implicitly run ``:exhaust p``.
+
 Identifiers
 -----------
 
