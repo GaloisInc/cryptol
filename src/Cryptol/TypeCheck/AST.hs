@@ -633,7 +633,7 @@ gatherModuleDocstrings nameToModule m =
 -- | Extract the code blocks from the body of a docstring.
 --
 -- A single code block starts with at least 3 backticks followed by an
--- optional language specifier of "cryptol". This allowed other kinds
+-- optional language specifier of \"cryptol\". This allowed other kinds
 -- of code blocks to be included (and ignored) in docstrings. Longer
 -- backtick sequences can be used when a code block needs to be able to
 -- contain backtick sequences.
